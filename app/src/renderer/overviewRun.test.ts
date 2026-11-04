@@ -507,8 +507,9 @@ test("queued messages stay until a list read started after the queue says none a
   expect(h.run.queue(A)).toEqual([]);
 });
 
-// queue-send-now: the row reads Sending on either screen until main answers; read, it leaves; refused, it stays.
-test("Send now marks the queued message sending until main answers, then drops it or puts it back", async () => {
+// canvas-composer-polish A2: the row leaves the queue at the press and shows in the thread on either screen until main
+// answers; read, it goes; refused, it is back in the queue.
+test("Send now moves the queued message to sending until main answers, then drops it or puts it back", async () => {
   const h = harness();
   h.run.show(ROOT);
   h.answer(ROOT, [summary(A, { phase: "running", working: true })]);
@@ -518,7 +519,8 @@ test("Send now marks the queued message sending until main answers, then drops i
   doan.sendQueuedNow = vi.fn(() => read.promise);
   const sent = h.run.store.sendQueuedNow(A, "q2");
   expect(doan.sendQueuedNow).toHaveBeenCalledWith({ conversationId: A, itemId: "q2" });
-  expect(h.run.queue(A)).toEqual([{ id: "q1", text: "first" }, { id: "q2", text: "second", sending: true }]);
+  expect(h.run.queue(A)).toEqual([{ id: "q1", text: "first" }]);
+  expect(h.run.sending(A).map(item => item.id)).toEqual(["q2"]);
   // A second press while it is in flight does not ask main again.
   expect(await h.run.store.sendQueuedNow(A, "q2")).toEqual({ error: "stale" });
   expect(doan.sendQueuedNow).toHaveBeenCalledTimes(1);
@@ -527,17 +529,17 @@ test("Send now marks the queued message sending until main answers, then drops i
   expect(h.run.queue(A)).toEqual([{ id: "q1", text: "first" }]);
 
   doan.sendQueuedNow = vi.fn(async () => ({ error: "not_running" }));
-  expect(await h.run.store.sendQueuedNow(A, "q1")).toEqual({ error: "not_running" });
+  expect(await h.run.store.sendQueuedNow(A, "q1")).toEqual({ error: "not_running", turnRuns: true });
   expect(h.run.queue(A)).toEqual([{ id: "q1", text: "first" }]);
   // A call that throws reads as a refusal: the row stays queued.
   doan.sendQueuedNow = vi.fn(async () => { throw new Error("gone"); });
-  expect(await h.run.store.sendQueuedNow(A, "q1")).toEqual({ error: "unknown" });
+  expect(await h.run.store.sendQueuedNow(A, "q1")).toEqual({ error: "unknown", turnRuns: true });
   expect(h.run.queue(A)).toEqual([{ id: "q1", text: "first" }]);
 });
 
 // Main's list count leaves out the message Send now put in flight, so a read saying none are queued keeps it; only
 // main's answer to Send now settles it.
-test("a list read with nothing queued keeps the row Send now is sending and drops the rest", async () => {
+test("a list read with nothing queued keeps the message Send now is sending and drops the rest", async () => {
   const h = harness();
   h.run.show(ROOT);
   h.answer(ROOT, [summary(A, { phase: "running", working: true })]);
@@ -546,7 +548,8 @@ test("a list read with nothing queued keeps the row Send now is sending and drop
   doan.sendQueuedNow = vi.fn(() => read.promise);
   const sent = h.run.store.sendQueuedNow(A, "q1");
   h.answer(ROOT, [summary(A, { phase: "running", working: true, queued: 0 })]);
-  expect(h.run.queue(A)).toEqual([{ id: "q1", text: "first", sending: true }]);
+  expect(h.run.queue(A)).toEqual([]);
+  expect(h.run.sending(A).map(item => item.id)).toEqual(["q1"]);
   read.resolve();
   await sent;
   expect(h.run.queue(A)).toEqual([]);
@@ -557,10 +560,11 @@ test("a list read with nothing queued keeps the row Send now is sending and drop
   doan.sendQueuedNow = vi.fn(() => refused.promise);
   const again = h.run.store.sendQueuedNow(A, "q2");
   h.answer(ROOT, [summary(A, { phase: "running", working: true, queued: 0 })]);
-  expect(h.run.queue(A)).toEqual([{ id: "q2", text: "second", sending: true }]);
+  expect(h.run.queue(A)).toEqual([]);
+  expect(h.run.sending(A).map(item => item.id)).toEqual(["q2"]);
   // Refused, it is queued again in main; the row says so until a read reports otherwise.
   refused.resolve({ error: "not_running" });
-  expect(await again).toEqual({ error: "not_running" });
+  expect(await again).toEqual({ error: "not_running", turnRuns: true });
   expect(h.run.queue(A)).toEqual([{ id: "q2", text: "second" }]);
 });
 

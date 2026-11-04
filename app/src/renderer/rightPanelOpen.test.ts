@@ -14,7 +14,7 @@ describe("panelOpenFor", () => {
     [{ kind: "notification", permission: true }, "permission"],
     [{ kind: "promotion" }, "composer"],
     [{ kind: "capsule" }, "permission"],
-    [{ kind: "addToConversation" }, "composer"],
+    [{ kind: "picker" }, "composer"],
     [{ kind: "newConversation" }, "composer"],
   ] as const)("%o opens the panel and focuses the %s", (trigger, focus) => {
     expect(panelOpenFor(trigger, null)).toEqual({ open: true, focus });

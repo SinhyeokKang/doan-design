@@ -6,7 +6,7 @@ import { PROVIDER_NAMES } from "./agentAuthView";
 import { ConversationStore, type ListView, type QueuedMessage, type Thread } from "./conversationStore";
 import type { DockedDraft } from "./dockedRules";
 import { overviewAfterListChange, pickOverviewConversation, type DraftMove } from "./overviewConversation";
-import type { ThreadItem } from "./threadItems";
+import type { SendingMessage, ThreadItem } from "./threadItems";
 
 export { draftFrom, type ListView, type QueuedMessage, type Thread } from "./conversationStore";
 
@@ -116,6 +116,7 @@ export class OverviewRun {
   thread(conversationId: string): Thread | null { return this.store.thread(conversationId); }
   providerOf(conversationId: string): Provider | null { return this.store.providerOf(conversationId); }
   queue(conversationId: string): readonly QueuedMessage[] { return this.store.queue(conversationId); }
+  sending(conversationId: string): readonly SendingMessage[] { return this.store.sending(conversationId); }
   // Each entry's scroll has its own seq, so asking again for the conversation already shown scrolls again.
   scrollRequest(conversationId: string): { to: ScrollTo; seq: number } | null {
     return this.scroll?.conversationId === conversationId ? { to: this.scroll.to, seq: this.scroll.seq } : null;

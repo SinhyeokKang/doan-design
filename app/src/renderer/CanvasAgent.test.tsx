@@ -170,7 +170,8 @@ test("the tools are larger and both overlays sit further from the board's edges"
   expect(css).toMatch(/\.doan-canvas-bottom \{[^}]*bottom: var\(--space-5\);/);
   expect(css).toMatch(/\.doan-canvas-top \{[^}]*top: calc\(var\(--space-5\) \+ var\(--space-2\)\);/);
   const tools = readFileSync(new URL("./CanvasTools.tsx", import.meta.url), "utf8");
-  expect(tools.match(/className="doan-icon-button doan-canvas-tool" data-ui-size="md"/g)).toHaveLength(2);
+  // Select and Hand (one mapped button), the Picker and Export.
+  expect(tools.match(/className="doan-icon-button doan-canvas-tool" data-ui-size="md"/g)).toHaveLength(3);
   const agent = readFileSync(new URL("./CanvasAgent.tsx", import.meta.url), "utf8");
   // Stop, the request's Open and the other worktree's Open.
   expect(agent.match(/doan-agent-action" data-ui-size="sm"/g)).toHaveLength(3);

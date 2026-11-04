@@ -2,7 +2,7 @@ import { expect, test } from "vitest";
 import type { FolderEntry } from "../main/view";
 import type { AttachmentDraft, PresetSummary } from "./homeComposer";
 import {
-  newCanvasCandidates, permissionToastKey, rememberRequest, removalConfirm, removalQuestionLabel, restoreRequest, runningInRoot,
+  anotherConversation, newCanvasCandidates, permissionToastKey, rememberRequest, removalConfirm, removalQuestionLabel, restoreRequest, runningInRoot,
   type HomeConversation, type LastRequest,
 } from "./homeConversations";
 
@@ -13,6 +13,11 @@ test("one running Home conversation per root: starting, working and asking count
   expect(runningInRoot(list, "/r/malmoi")).toBe("other");
   for (const phase of ["starting", "working", "permission"] as const) expect(runningInRoot([conv({ phase })], "/r/doan")).toBe("c1");
   for (const phase of ["done", "failed", "interrupted"] as const) expect(runningInRoot([conv({ phase })], "/r/doan")).toBeNull();
+});
+
+// canvas-composer-polish spec 4: only a running conversation blocks, so the reason line has one sentence.
+test("Home's reason line names only a running conversation", () => {
+  expect(anotherConversation("doan-design")).toBe("Another conversation is still running in doan-design.");
 });
 
 test("removing a project with a running conversation asks first and names the conversations to stop", () => {

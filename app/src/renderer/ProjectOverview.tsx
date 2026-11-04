@@ -37,7 +37,7 @@ import { scrollTarget, type ListView, type OverviewRun } from "./overviewRun";
 import { displayPath } from "./projectDisplay";
 import { projectHue, projectInitial } from "./shellNavigation";
 import type { SettingsTarget } from "./settingsSections";
-import { threadItems } from "./threadItems";
+import { threadItems, withSending } from "./threadItems";
 import type { ComposerChoice } from "./rememberChoice";
 import { defaultPermission, permissionChoices, permissionPickerView } from "./permissionPicker";
 
@@ -62,7 +62,7 @@ export interface ProjectOverviewProps {
   // HomeRun's pending seen marks, so a status never flashes back between a mark and the next read.
   seen: ReadonlySet<string>;
   // The project conversation that holds this root (HomeRun's running map).
-  holder: { conversationId: string; waiting: boolean } | null;
+  holder: { conversationId: string } | null;
   prefs: HomeMemory | null;
   defaults: NewConversationDefault | null | undefined;
   // A model or effort pick is remembered as Last used before any send (dogfooding #6).
@@ -173,7 +173,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
 
   // The thread
   const handle = useRef<ConversationThreadHandle | null>(null);
-  const items = thread?.read === "ready" ? threadItems(thread.events, root, live) : thread?.read === "error" ? "error" as const : null;
+  const items = thread?.read === "ready" ? withSending(threadItems(thread.events, root, live), conversationId ? run.sending(conversationId) : []) : thread?.read === "error" ? "error" as const : null;
   // An entry's scroll, also for the conversation already shown; it waits for the request's item when the list told
   // of it before its event arrived.
   const scroll = conversationId ? run.scrollRequest(conversationId) : null;
@@ -265,12 +265,13 @@ export function ProjectOverview(props: ProjectOverviewProps) {
     if (mode.kind === "new") return { error: "not_running" };
     const reply = await window.doan.queueConversation({ conversationId: mode.conversationId, text: request.text, anchors: [...request.anchors], ...(request.attachments.length ? { attachments: request.attachments } : {}) }).catch(() => ({ error: "unknown" as const }));
     if ("error" in reply) return { error: reply.error, ...("missing" in reply && Array.isArray(reply.missing) ? { missing: reply.missing as string[] } : {}) };
-    run.queued(root, mode.conversationId, { id: reply.itemId, text: request.text });
+    // The row keeps the request's text; the request itself is kept for the thread, where Send now moves it.
+    run.queued(root, mode.conversationId, { id: reply.itemId, text: request.text, message: { text: request.text, anchors: request.anchors, attachments: request.files ?? [] } });
     return { ok: true };
   };
   const busy: DockedBusy | null = props.holder && props.holder.conversationId !== conversationId
-    ? { kind: "project", waiting: props.holder.waiting, open: props.holder.conversationId || null } : null;
-  const openOther = (id: string) => { run.request(root, id, props.holder?.waiting ? "permission" : null); };
+    ? { kind: "project", open: props.holder.conversationId || null } : null;
+  const openOther = (id: string) => { run.request(root, id, null); };
 
   // The header
   const menuItems = listed ? projectConversationMenu(listed, props.now, props.seen) : [];

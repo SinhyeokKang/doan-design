@@ -137,7 +137,12 @@ export type PickedMessage = { type: "picked"; href: string; document: string; pi
 // The canvas took the pick-start `pick` for its document `document`; until then the app keeps clicks off the canvas.
 export interface PickStartedMessage { type: "pick-started"; href: string; document: string; pick: number }
 
-export type CanvasMessage = LayoutMessage | WheelMessage | SelectionMessage | AnchorsMessage | PickedMessage | PickStartedMessage;
+// A trusted press anywhere in the canvas, sent on pointerdown (or on focus moving into a nested frame) before any
+// selection or pick. It carries nothing: the app closes its open lists on it and, when a list took the focused element
+// with it, moves focus to the canvas area, so a forged one can do no more than that.
+export interface PressMessage { type: "press" }
+
+export type CanvasMessage = LayoutMessage | WheelMessage | SelectionMessage | AnchorsMessage | PickedMessage | PickStartedMessage | PressMessage;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -193,6 +198,7 @@ export function parseCanvasMessage(data: unknown): CanvasMessage | null {
   if (data.type === "pick-started") return parsePickStarted(data);
   if (data.type === "layout") return parseLayout(data);
   if (data.type === "wheel") return parseWheel(data);
+  if (data.type === "press") return { type: "press" };
   if (data.type === "hover" || data.type === "select" || data.type === "clear" || data.type === "key") return parseSelectionMessage(data);
   return null;
 }

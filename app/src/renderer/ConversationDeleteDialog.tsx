@@ -6,9 +6,12 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip
 import { DELETE_TOOLTIP, deleteItemLabel, type DeleteAvailability } from "./conversationDelete";
 import type { DockedDraft } from "./dockedRules";
 
-// What a title menu row's Delete hands the host: the conversation, and the screen whose menu it came from (the shown
-// conversation's deletion moves focus to that screen's composer).
-export interface DeleteTarget { conversationId: string; root: string; title: string; provider: Provider; from: "overview" | "canvas" }
+// What a Delete hands the host: the conversation, and where it came from. From a title menu, the shown conversation's
+// deletion moves focus to that screen's composer. From the Overview's Canvas conversations list (`canvasList`), focus
+// goes to `after`, which the list computed before the alert took focus from it (canvas-composer-polish spec 6).
+export type ListFocus = { kind: "row"; key: string } | { kind: "title" };
+export type DeleteTarget = { conversationId: string; root: string; title: string; provider: Provider }
+  & ({ from: "overview" | "canvas" } | { from: "canvasList"; after: ListFocus });
 
 // A title menu row's Delete (conversation-delete design §3.3, draft frames row-button, row-unavailable): a menu item
 // beside the row's radio item, not inside it, so pressing it never picks the row and the arrow keys reach it after its
@@ -49,7 +52,11 @@ export function ConversationDeleteDialog({ view, reason, pending, cancel, confir
   const confirmable = reason === null && !pending;
   const dismiss = () => { if (!pending) cancel(); };
   return <dialog className="doan-dialog" data-ui-size="compact" role="alertdialog" aria-labelledby="conversation-delete-title" aria-describedby="conversation-delete-body"
-    ref={node => { if (node && !node.open) node.showModal(); }} onCancel={event => { event.preventDefault(); dismiss(); }}>
+    ref={node => { if (node && !node.open) node.showModal(); }} onCancel={event => { event.preventDefault(); dismiss(); }}
+    // A Canvas conversations Delete pressed from the keyboard opens the alert while its tooltip still exits; that
+    // tooltip's dismissable layer takes the next Escape and prevents its default, so no cancel event would follow. The
+    // keydown itself cancels, and preventing its default keeps the native cancel from cancelling a second time.
+    onKeyDown={event => { if (event.key !== "Escape" || event.nativeEvent.isComposing) return; event.preventDefault(); dismiss(); }}>
     <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title" id="conversation-delete-title">{view.title}</h3><p className="doan-dialog-description" id="conversation-delete-body">{view.body}</p></div></div>
     {reason && <p className="doan-notice" id="conversation-delete-reason"><AlertIcon /><span>{reason}</span></p>}
     <div className="doan-dialog-actions">

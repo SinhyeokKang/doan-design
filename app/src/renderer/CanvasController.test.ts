@@ -2958,6 +2958,24 @@ describe("hand tool", () => {
     } finally { h.controller.dispose(); }
   });
 
+  // canvas-composer-polish spec 3: the toolbar's Select and Hand cancel a pick and then switch; V and H stay ignored.
+  it("the toolbar's Select or Hand while picking cancels the pick, then switches to that tool", () => {
+    const h = harness();
+    try {
+      const ended: unknown[] = [];
+      h.controller.onPicked(result => ended.push(result));
+      h.controller.pick();
+      h.controller.setTool("hand");
+      expect(h.state()).toMatchObject({ tool: "hand", picking: false });
+      expect(ended).toEqual([{ kind: "cancelled" }]);
+      expect(shown(h)).toBe(true);
+      h.controller.pick();
+      h.controller.setTool("hand");
+      expect(h.state()).toMatchObject({ tool: "hand", picking: false });
+      expect(ended).toEqual([{ kind: "cancelled" }, { kind: "cancelled" }]);
+    } finally { h.controller.dispose(); }
+  });
+
   it("takes V, H and Esc forwarded by a focused canvas", () => {
     const h = harness();
     try {
@@ -3443,4 +3461,72 @@ it("styles the jump highlight as an accent gradient line with a ring and a glow,
   expect(css).toMatch(/@media \(forced-colors: active\) \{ \.mark\.jump-highlight \{ border-color: Highlight; box-shadow: none; \} \.mark\.jump-highlight::before \{ display: none; \} \}/);
   expect(css).toMatch(/\.mark\.jump-highlight\.jump-point \{ border-radius: 50%; \}/);
   expect(css).not.toMatch(/\.mark\.jump-highlight \{[^}]*--affordance-backdrop-pressed/);
+});
+
+// The app's document never sees a press inside the out-of-process canvas, yet the composer's preset lists close on a
+// press anywhere outside them; the canvas posts a press on every pointerdown and the controller hands it on.
+describe("canvas press", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const harness = () => { const h = selectionHarness(); h.layout({ document: "doc" }); return h; };
+
+  it("notifies every subscriber of each press, through a subscription that works detached, until it unsubscribes", () => {
+    const h = harness();
+    try {
+      const { canvasPress } = h.controller;
+      const first = vi.fn(), second = vi.fn();
+      const stopFirst = canvasPress(first);
+      canvasPress(second);
+      h.receive({ type: "press" });
+      expect([first.mock.calls.length, second.mock.calls.length]).toEqual([1, 1]);
+      stopFirst();
+      h.receive({ type: "press" });
+      expect([first.mock.calls.length, second.mock.calls.length]).toEqual([1, 2]);
+      // From any other window it is not the canvas's press.
+      h.host.dispatchEvent(Object.assign(new Event("message"), { data: { type: "press" }, origin: "null", source: {} }));
+      expect(second).toHaveBeenCalledTimes(2);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("selection messages and command replies are not presses", () => {
+    const h = harness();
+    try {
+      const listener = vi.fn();
+      h.controller.canvasPress(listener);
+      h.select(1);
+      h.receive({ type: "clear", seq: 2 });
+      h.controller.selectFrame(3, "hero");
+      h.select(3, { target: { ...h.target, element: null, path: [], tag: "section" } });
+      h.controller.selectPath({ label: "cta", selector: '[data-doan-id="cta"]', doanId: "cta" });
+      h.select(4, { answer: "select-anchor" });
+      expect(listener).not.toHaveBeenCalled();
+    } finally { h.controller.dispose(); }
+  });
+
+  // Review 🟡1: a list closed by the press takes its focused search box with it. Focus then lands on the canvas area
+  // the person pressed, never on the page body, whatever the later click's cursor reading says.
+  it("a press that removes the focused element moves focus to the canvas area; otherwise focus stays", () => {
+    const h = harness();
+    try {
+      const body = { tagName: "BODY" };
+      Object.assign(h.doc, { body });
+      const search = { tagName: "INPUT", isConnected: true };
+      h.doc.activeElement = search;
+      const stop = h.controller.canvasPress(() => { search.isConnected = false; h.doc.activeElement = body; });
+      h.receive({ type: "press" });
+      expect(h.viewport.focus).toHaveBeenCalledExactlyOnceWith({ preventScroll: true, focusVisible: false });
+      stop();
+      h.viewport.focus.mockClear();
+      // Nothing closed: the field keeps focus (a right press moves nothing by itself).
+      const field = { tagName: "DIV", isConnected: true };
+      h.doc.activeElement = field;
+      h.controller.canvasPress(() => {});
+      h.receive({ type: "press" });
+      // An ⌥-press already put focus in the canvas frame.
+      const input = { tagName: "INPUT", isConnected: true };
+      h.doc.activeElement = input;
+      h.controller.canvasPress(() => { input.isConnected = false; h.doc.activeElement = h.current(); });
+      h.receive({ type: "press" });
+      expect(h.viewport.focus).not.toHaveBeenCalled();
+    } finally { h.controller.dispose(); }
+  });
 });

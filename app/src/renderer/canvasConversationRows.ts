@@ -2,6 +2,7 @@ import type { ConversationSummary } from "../main/conversation/summary";
 import type { Canvas } from "../main/conversation/types";
 import type { CanvasRow } from "../main/view";
 import { canvasLabel, rowProblem } from "./canvasTree";
+import { deleteAvailability, type DeleteAvailability } from "./conversationDelete";
 import { conversationLine, type ConversationLine } from "./overviewConversation";
 
 // The Overview's right panel: canvases with a current conversation (buzz-project design §2.3).
@@ -13,6 +14,8 @@ export interface CanvasConversationRow extends ConversationLine {
   // The listed row to open and capture; null when the canvas is gone or its id is shared.
   row: CanvasRow | null;
   problem: CanvasRowProblem | null; openable: boolean;
+  // The row's Delete (canvas-composer-polish spec 6): the conversation's title names it, as in the title menu.
+  title: string; deletable: DeleteAvailability;
 }
 
 // main's rule (`main/conversation/sessions.ts`), restated because the renderer must not import main's modules
@@ -34,7 +37,7 @@ export function canvasConversationRows(list: readonly ConversationSummary[], can
     // moved and something unreadable sits at its old path) still wins.
     const byId = canvasRows.filter(row => sameCanvas(c.canvas!, row));
     const matches = byId.length > 0 ? byId : canvasRows.filter(row => row.error !== undefined && row.id === undefined && row.path === c.canvas!.path);
-    const base = { ...line, key: c.conversationId, canvas: c.canvas };
+    const base = { ...line, key: c.conversationId, canvas: c.canvas, title: c.title, deletable: deleteAvailability(c) };
     if (matches.length === 1) {
       const row = matches[0]!;
       // Only the canvas file's error: a comment file error does not stop the canvas from reading.

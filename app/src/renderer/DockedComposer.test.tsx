@@ -90,7 +90,7 @@ test("waiting for a permission answer shows the reason line, and the line descri
 });
 
 test("another project conversation running blocks Send with Open named for the running conversation", () => {
-  const html = render({ busy: { kind: "project", waiting: false, open: "c9" } }, { text: "Draw a first settings screen" });
+  const html = render({ busy: { kind: "project", open: "c9" } }, { text: "Draw a first settings screen" });
   expect(html).toMatch(/aria-label="Send" disabled=""/);
   expect(html).toMatch(/<span>Another conversation is still running in doan-design\.<\/span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel" aria-label="Open the running conversation">Open<\/button>/);
 });
@@ -192,12 +192,11 @@ test("a terminal session shows a fixed Permission trigger after its fixed Effort
   expect(html.indexOf("composer-effort")).toBeLessThan(html.indexOf("composer-permission"));
 });
 
-// queue-send-now design §8, draft frame `queue-row`.
-test("a row that offers Send now draws it between the text and Remove; one in flight reads Sending and stays enabled", () => {
-  const rows = render({ turn: "running", sendNow: true, onSendQueuedNow: async () => {}, queued: [{ id: "q1", text: "Also make the caption shorter" }, { id: "q2", text: "Second", sending: true }] });
-  expect(rows).toMatch(/<span class="queue-text" id="([^"]+)">Also make the caption shorter<\/span><button type="button" class="doan-button queue-send" data-ui-size="xs" aria-label="Send queued message now" aria-describedby="\1"[^>]*>Send now<\/button><button type="button" class="chip-remove doan-icon-button" data-ui-size="xs" aria-label="Remove queued message" aria-describedby="\1">/);
-  expect(rows).toMatch(/aria-label="Send queued message now" aria-describedby="[^"]+" aria-disabled="true"[^>]*>Sending<\/button>/);
-  expect(rows).not.toMatch(/queue-send[^>]* disabled=""/);
+// queue-send-now design §8; canvas-composer-polish draft frame `sending` (the shared xs subtle capsule).
+test("a row that offers Send now draws it between the text and Remove as the subtle capsule", () => {
+  const rows = render({ turn: "running", sendNow: true, onSendQueuedNow: async () => {}, queued: [{ id: "q1", text: "Also make the caption shorter" }] });
+  expect(rows).toMatch(/<span class="queue-text" id="([^"]+)">Also make the caption shorter<\/span><button type="button" class="doan-button queue-send" data-ui-size="xs" data-ui-variant="subtle" aria-label="Send queued message now" aria-describedby="\1"[^>]*>Send now<\/button><button type="button" class="chip-remove doan-icon-button" data-ui-size="xs" aria-label="Remove queued message" aria-describedby="\1">/);
+  expect(rows).not.toContain("Sending");
   // Not offered (an unsupported provider, a turn that does not run): Remove only.
   expect(render({ turn: "running", sendNow: false, onSendQueuedNow: async () => {}, queued: [{ id: "q1", text: "x" }] })).not.toContain("Send now");
 });

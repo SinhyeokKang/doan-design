@@ -10,7 +10,7 @@ import { distinctTargets, plainText, sameSegments, typedText } from "./anchorFie
 import { LIMITS } from "../main/conversation/messageText";
 import {
   AgentPicker, AttachButton, ComposerCard, ComposerChips, ComposerField, ComposerTools, EffortPicker, PermissionPicker, PresetsButton,
-  SendButton, SlashPresets, useComposerDrop, type ComposerFieldHandle,
+  SendButton, SlashPresets, useComposerDrop, usePresetListOutside, type CanvasPress, type ComposerFieldHandle,
 } from "./ComposerParts";
 import { composerAction, composerShape, focusAfter, type FocusAction } from "./composerRules";
 import {
@@ -19,6 +19,7 @@ import {
 } from "./dockedRules";
 import { slashKey, pasteAction } from "./HomeComposerView";
 import type { ChipInsert } from "./chipField";
+import type { SentFile } from "./threadItems";
 import { ANCHOR_LIMIT_TEXT } from "./canvasPicker";
 import { LOCATE_MISSING_TEXT, useLocateNote, type LocateOutcome } from "./ConversationThread";
 import {
@@ -35,12 +36,14 @@ import type { SettingsTarget } from "./settingsSections";
 // the model and preset lists and every call to main, and passes them in. This component decides shape, the Send slot,
 // the reason line and focus.
 
-export interface DockedRequest { text: string; anchors: readonly Anchor[]; attachments: { id: string }[] }
+// files: the attachments' names, sizes and kinds, for the thread to draw a queued message Send now moves there; main
+// takes only the ids.
+export interface DockedRequest { text: string; anchors: readonly Anchor[]; attachments: { id: string }[]; files?: SentFile[] }
 
-// The canvas page's way into the shown composer's field (design §2 'Picker and Add to conversation'). `insert` puts a
-// chip at the field's caret, or at its end, and shows the 32-place line itself when the chip would pass the limit.
+// The canvas page's way into the shown composer's field (design §2 'Picker'). `insert` puts a chip at the field's
+// caret and shows the 32-place line itself when the chip would pass the limit.
 export interface DockedFieldLink {
-  insert(anchor: Anchor, at: "caret" | "end"): ChipInsert;
+  insert(anchor: Anchor): ChipInsert;
   focus(): void;
   composing(): boolean;
   element(): HTMLElement | null;
@@ -92,13 +95,14 @@ export interface DockedComposerProps {
   refuse?(code: string, provider: Provider): DockedRefusal;
   // A refused terminal session's "Start a new conversation".
   onStartNew?(): void;
-  // sending: its Send now is in flight (the store's mark, so it holds on either screen).
-  queued: readonly { id: string; text: string; sending?: boolean }[];
+  // A message Send now has in flight is not among them: it shows in the thread.
+  queued: readonly { id: string; text: string }[];
   // The rows offer Send now: the conversation's stored provider takes a message into a running turn and the turn runs
   // or waits for a permission answer (steerSupport sendNowShown, decided as if no row were sending).
   sendNow?: boolean;
-  // Main's answer once the agent read the message (the host drops the row), or an error while it stays queued.
-  onSendQueuedNow?(id: string): Promise<void | { error: string }>;
+  // Main's answer once the agent read the message, or an error when it stays queued. The host takes the row out of the
+  // queue at the call and puts it back on an error; turnRuns: the turn still ran or waited when the error came.
+  onSendQueuedNow?(id: string): Promise<void | { error: string; turnRuns?: boolean }>;
   // Send in an existing conversation, a restore in an archived one, a start in new-conversation mode.
   onSend(request: DockedRequest): Promise<DockedOutcome>;
   onQueue(request: DockedRequest): Promise<DockedOutcome>;
@@ -109,6 +113,8 @@ export interface DockedComposerProps {
   // The canvas panel's: Pick from canvas, the field link, and chip locate for a chip clicked in the field.
   pick?: DockedPicker;
   link?: MutableRefObject<DockedFieldLink | null>;
+  // The canvas page's press signal: a press in the canvas closes the preset lists, as one outside them in the app does.
+  canvasPress?: CanvasPress | undefined;
   onLocate?(anchor: Anchor): Promise<LocateOutcome>;
 }
 
@@ -152,6 +158,7 @@ export function DockedComposer(props: DockedComposerProps) {
   const hostSawBusy = useRef(new Set<string>());
   // The composer's own box, which places the chip note.
   const root = useRef<HTMLDivElement | null>(null);
+  const slashList = useRef<HTMLDivElement | null>(null);
   const listId = useId(), reasonId = `${listId}-reason`, noteId = `${listId}-missing`;
 
   const isSending = sending.has(key);
@@ -185,6 +192,8 @@ export function DockedComposer(props: DockedComposerProps) {
   const slashView = slash !== null ? presetListView(props.presets, { project: props.project, suggested: props.suggested, query: slash, tab: null, slash: true }) : null;
   const slashRows = slashView?.kind === "list" ? slashView.sections.flatMap(section => section.rows) : [];
   const slashOpen = slash !== null && !isSending;
+  // A press outside closes the list as Escape does, for the draft on screen, until its field is empty again.
+  usePresetListOutside(slashOpen, slashList, () => field.current?.element() ?? null, () => setDismissedKey(key), props.canvasPress);
   const chips = [...draft.attachments.map(a => ({ label: attachmentChipView(a, props.homeDirectory).label })), ...(draft.preset ? [{ label: draft.preset.title, preset: true }] : [])];
 
   // Every edit takes the shape rule with the overflow known without measuring (a typed line break); the wrap at the
@@ -256,8 +265,7 @@ export function DockedComposer(props: DockedComposerProps) {
     const link = props.link;
     if (!link) return;
     const mine: DockedFieldLink = {
-      insert: (anchor, at) => {
-        if (at === "end") field.current?.focus("end");
+      insert: anchor => {
         const result = field.current?.insertChip(anchor) ?? "refused";
         if (result === "limit") setLimitAt(shownKey.current);
         return result;
@@ -289,7 +297,8 @@ export function DockedComposer(props: DockedComposerProps) {
   const send = async () => {
     if (action === "stop" || !availability.enabled) return;
     const at = key, sent = draft, mine = ++generation.current;
-    const request: DockedRequest = { text: message.text, anchors: message.anchors, attachments: draft.attachments.flatMap(a => a.id ? [{ id: a.id }] : []) };
+    const files = draft.attachments.flatMap((a): SentFile[] => a.id ? [{ name: a.name, size: a.size ?? 0, kind: a.kind }] : []);
+    const request: DockedRequest = { text: message.text, anchors: message.anchors, attachments: draft.attachments.flatMap(a => a.id ? [{ id: a.id }] : []), ...(files.length ? { files } : {}) };
     setSending(current => new Map(current).set(at, mine));
     let outcome = await (action === "queue" ? props.onQueue(request) : props.onSend(request)).catch((): DockedOutcome => ({ error: "unknown" }));
     // The turn ended before the queue took the message: nothing works to queue behind, so it goes out as a send.
@@ -335,7 +344,9 @@ export function DockedComposer(props: DockedComposerProps) {
   const describedBy = reason && !reason.noAgent ? reasonId : undefined;
   return <div className="docked" data-shape={shape} ref={root} {...drop.handlers}>
     <QueueRows key={key} items={props.queued} sendNow={!!props.sendNow && !!props.onSendQueuedNow} onSendNow={id => props.onSendQueuedNow?.(id) ?? Promise.resolve({ error: "not_running" })}
-      onRemove={props.onRemoveQueued} focusInput={() => field.current?.focus()} />
+      onRemove={props.onRemoveQueued} focusInput={() => field.current?.focus()}
+      // The same refusal again changes the region's text by a no-break space, so it is read again.
+      announce={text => setAnnouncement(current => current === text ? `${text}\u00a0` : text)} />
     <ComposerCard readonly={isSending}>
       <ComposerChips attachments={draft.attachments} preset={draft.preset} thumbnails={props.thumbnails} homeDirectory={props.homeDirectory} disabled={isSending || locked} removeButtons={removeButtons} onRemove={index => removeChip(index, "button")} />
       {/* One field element in both shapes, at the same place and key: remounting it would drop focus and IME composition. */}
@@ -345,8 +356,8 @@ export function DockedComposer(props: DockedComposerProps) {
         onKey={keyDown} onSubmit={() => void send()} onPaste={paste} />
       <ComposerTools>
         <PresetsButton reply={props.presets} project={props.project} suggested={props.suggested} listId={listId} disabled={isSending || locked}
-          onOpen={props.onPresetsOpen} onChoose={id => choosePreset(id, false)} onRetry={props.onPresetsRetry} onPicked={() => focus({ kind: "restored" })} />
-        {slashOpen && slashView && <SlashPresets view={slashView} query={slash} listId={listId} highlight={highlight} onHighlight={setHighlight} onChoose={id => choosePreset(id, true)} onRetry={props.onPresetsRetry} />}
+          onOpen={props.onPresetsOpen} onChoose={id => choosePreset(id, false)} onRetry={props.onPresetsRetry} onPicked={() => focus({ kind: "restored" })} canvasPress={props.canvasPress} />
+        {slashOpen && slashView && <SlashPresets view={slashView} query={slash} listId={listId} highlight={highlight} listRef={slashList} onHighlight={setHighlight} onChoose={id => choosePreset(id, true)} onRetry={props.onPresetsRetry} />}
         <span className="grow" />
         <SendButton action={action} enabled={action === "stop" ? !isSending : availability.enabled} sending={isSending} onSend={() => { if (action === "stop") stop(); else void send(); }} hint={reason?.noAgent ? reason.text : undefined} />
       </ComposerTools>
@@ -391,11 +402,14 @@ const SEND_NOW_REFUSED_MS = 4000;
 type QueueButton = "sendNow" | "remove";
 
 export interface QueueRowsProps {
-  items: readonly { id: string; text: string; sending?: boolean }[];
+  items: readonly { id: string; text: string }[];
   sendNow: boolean;
-  onSendNow(id: string): Promise<void | { error: string }>;
+  onSendNow(id: string): Promise<void | { error: string; turnRuns?: boolean }>;
   onRemove(id: string): Promise<boolean>;
   focusInput(): void;
+  // The composer's lasting live region: a row drawn again with its refusal may not be read (canvas-composer-polish
+  // design §2).
+  announce(text: string): void;
 }
 
 // The queued messages above the card (queue-send-now design §8): Send now between the text and Remove, both described
@@ -410,6 +424,8 @@ export function QueueRows(props: QueueRowsProps) {
   // A focused queue button that is no longer drawn (a phase change took Send now away, main sent the queue).
   const lost = useRef(false);
   const idBase = useId();
+  // Rows whose Send now waits for main's answer.
+  const flying = useRef(new Set<string>());
   useEffect(() => {
     if (refused.size === 0) return;
     const timer = setTimeout(() => setRefused(new Set()), SEND_NOW_REFUSED_MS);
@@ -435,17 +451,26 @@ export function QueueRows(props: QueueRowsProps) {
     if (active && active !== document.body && ![`sendNow:${id}`, `remove:${id}`].some(name => buttons.current.get(name) === active)) return;
     const now = latest.current;
     const list = now.items.some(item => item.id === id) ? now.items : asked;
-    const rows = list.map(item => ({ itemId: item.id, sendNow: now.sendNow || !!item.sending }));
+    const rows = list.map(item => ({ itemId: item.id, sendNow: now.sendNow }));
     pending.current = { leaving: id, target: queueFocusAfter(rows, list.findIndex(item => item.id === id)) };
   };
+  // The row leaves at the press (the message moves into the thread), so focus is placed for it now.
   const sendNow = async (id: string) => {
-    const asked = props.items;
-    if (asked.find(item => item.id === id)?.sending) return;
+    // A second press before the row was drawn out of the queue.
+    if (flying.current.has(id)) return;
+    flying.current.add(id);
     setRefused(current => { if (!current.has(id)) return current; const next = new Set(current); next.delete(id); return next; });
-    const reply = await props.onSendNow(id).catch(() => ({ error: "unknown" }));
-    if (!reply || !("error" in reply)) { focusAfter(id, asked); return; }
+    focusAfter(id, props.items);
+    const reply = await props.onSendNow(id).catch((): { error: string; turnRuns?: boolean } => ({ error: "unknown" }));
+    flying.current.delete(id);
+    if (!reply || !("error" in reply)) return;
+    // Back in the queue: focus stays where it went, and a row that never left takes none later.
+    if (pending.current?.leaving === id) pending.current = null;
     // Only a turn that still runs says so; one that ended sends or returns the queue by its own rule (condition 10).
-    if (latest.current.sendNow && latest.current.items.some(item => item.id === id)) setRefused(current => new Set(current).add(id));
+    // The answer's reading of the turn decides: the last draw may not show an end that already came.
+    if (!reply.turnRuns) return;
+    setRefused(current => new Set(current).add(id));
+    props.announce(SEND_NOW_REFUSED_TEXT);
   };
   const remove = async (id: string) => {
     const asked = props.items;
@@ -458,17 +483,14 @@ export function QueueRows(props: QueueRowsProps) {
   if (props.items.length === 0) return null;
   return <div className="queue" role="list" aria-label="Queued messages">{props.items.map((item, index) => {
     const textId = `${idBase}-${index}`;
-    const offered = props.sendNow || !!item.sending;
     // The status line sits in the row's listitem (a list owns only listitems) and is drawn from the start, empty, so the
     // live region is registered before a refusal puts text in it.
     return <div key={item.id} className="queue-entry" role="listitem">
       <div className="queue-item"><Clock aria-hidden="true" /><span className="queue-text" id={textId}>{item.text}</span>
-        {offered && <QueueButtonLife onLost={() => { lost.current = true; }}>{life =>
+        {props.sendNow && <QueueButtonLife onLost={() => { lost.current = true; }}>{life =>
           <Tooltip><TooltipTrigger asChild>
-            {/* aria-disabled, not disabled, while in flight: a disabled button drops focus to the body in Chromium. */}
-            <button type="button" ref={node => { life(node); keep("sendNow", item.id)(node); }} className="doan-button queue-send" data-ui-size="xs"
-              aria-label="Send queued message now" aria-describedby={textId} aria-disabled={item.sending || undefined}
-              onClick={() => { if (!item.sending) void sendNow(item.id); }}>{item.sending ? "Sending" : "Send now"}</button>
+            <button type="button" ref={node => { life(node); keep("sendNow", item.id)(node); }} className="doan-button queue-send" data-ui-size="xs" data-ui-variant="subtle"
+              aria-label="Send queued message now" aria-describedby={textId} onClick={() => void sendNow(item.id)}>Send now</button>
           </TooltipTrigger><TooltipContent>{SEND_NOW_TIP}</TooltipContent></Tooltip>}</QueueButtonLife>}
         <QueueButtonLife onLost={() => { lost.current = true; }}>{life =>
           <button type="button" ref={node => { life(node); keep("remove", item.id)(node); }} className="chip-remove doan-icon-button" data-ui-size="xs"
@@ -489,13 +511,14 @@ function QueueButtonLife({ onLost, children }: { onLost(): void; children(life: 
 }
 
 // Pick from canvas, after Attach at the left end of the model row (design §2 'Picker'). aria-disabled, not disabled, so its reason
-// shows as a tooltip on hover and focus.
+// shows as a tooltip on hover and focus. It starts the same pick as the toolbar Picker and ⌘L, so it names the key too.
 function PickButton({ pick }: { pick: DockedPicker }) {
   const unavailable = !pick.enabled && !pick.pressed;
   return <Tooltip><TooltipTrigger asChild>
     <button type="button" className="doan-icon-button composer-pick" data-ui-size="xs" aria-label="Pick from canvas" aria-pressed={pick.pressed}
       aria-disabled={unavailable || undefined} onClick={() => { if (!unavailable) pick.onToggle(); }}><Crosshair aria-hidden="true" /></button>
-  </TooltipTrigger><TooltipContent>{unavailable && pick.reason ? pick.reason : "Pick from canvas"}</TooltipContent></Tooltip>;
+  </TooltipTrigger>{unavailable && pick.reason ? <TooltipContent>{pick.reason}</TooltipContent>
+    : <TooltipContent className="has-key">Pick from canvas<span className="doan-kbd" data-ui-variant="on-prominent" data-ui-size="sm">⌘L</span></TooltipContent>}</Tooltip>;
 }
 
 // A control that keeps its place but cannot be used: aria-disabled, so its tooltip still shows on hover and focus.

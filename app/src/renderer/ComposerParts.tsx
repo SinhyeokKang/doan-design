@@ -1,4 +1,5 @@
-import { forwardRef, Fragment, useId, useImperativeHandle, useLayoutEffect, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type MutableRefObject, type PointerEvent, type ReactNode } from "react";
+import { forwardRef, Fragment, useEffect, useId, useImperativeHandle, useLayoutEffect, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type MutableRefObject, type PointerEvent, type ReactNode, type RefObject } from "react";
+import { flushSync } from "react-dom";
 import { DropdownMenu, Popover } from "radix-ui";
 import { ArrowUp, Check, ChevronDown, Compass, Eye, FilePenLine, FileText, Gauge, Paintbrush, PencilSparkles, Plus, ScanEye, Search, Settings, Shapes, Shield, ShieldAlert, Square, TextAlignStart, TriangleAlert, X } from "lucide-react";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
@@ -11,6 +12,7 @@ import type { FieldSegment } from "./anchorField";
 import { ChipField, type ChipInsert } from "./chipField";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import type { ComposerAction } from "./composerRules";
+import { outsidePresetList } from "./presetOutside";
 import type { SettingsTarget } from "./settingsSections";
 import {
   attachmentChipView, dropTarget, groupIcon, isSubmitKey, modelPickerView, presetListView, providerLogo,
@@ -224,22 +226,39 @@ function SearchField({ value, slash, listId, onChange }: { value: string; slash:
     onKeyDown={slash ? undefined : event => { if (event.key === "ArrowDown") { event.preventDefault(); document.getElementById(`${listId}-p-0`)?.focus(); } }} /></label>;
 }
 
+// A press in the canvas iframe never reaches the app's document (an out-of-process frame); the canvas posts a press
+// message instead, and the canvas page hands it to the preset lists: subscribe with a listener, get the unsubscribe.
+export type CanvasPress = (listener: () => void) => () => void;
+
 // The Presets button and its popover (buzz-home design §4.4). Picking a preset closes the popover and hands focus to
-// the field through `onPicked`; a list that failed is read again when the popover opens.
+// the field through `onPicked`; a list that failed is read again when the popover opens. A press outside it in the
+// app's document closes it by Radix's own rule; a press in the canvas closes it through `canvasPress`.
 export function PresetsButton(props: {
   reply: PresetListReply | undefined; project: string; suggested: readonly PresetSummary[]; listId: string; disabled: boolean;
-  onOpen(): void; onChoose(id: string): void; onRetry(): void; onPicked(): void;
+  onOpen(): void; onChoose(id: string): void; onRetry(): void; onPicked(): void; canvasPress?: CanvasPress | undefined;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<string | null>(null);
   const picked = useRef(false);
+  // Radix returns focus to the trigger after a close it did not see as an outside press; a canvas press put focus in
+  // the canvas, so it stays there.
+  const pressed = useRef(false);
+  const { canvasPress } = props;
+  useEffect(() => {
+    if (!open || !canvasPress) return;
+    // Closed at once, so the canvas page sees where focus fell when the search box went with the popover.
+    return canvasPress(() => { pressed.current = true; flushSync(() => setOpen(false)); });
+  }, [open, canvasPress]);
   const view = presetListView(props.reply, { project: props.project, suggested: props.suggested, query, tab });
   const choose = (id: string) => { picked.current = true; setOpen(false); props.onChoose(id); };
-  return <Popover.Root open={open} onOpenChange={next => { setOpen(next); if (next) { setQuery(""); props.onOpen(); } }}>
+  return <Popover.Root open={open} onOpenChange={next => { setOpen(next); if (next) { pressed.current = false; setQuery(""); props.onOpen(); } }}>
     <IconTip label="Design presets"><Popover.Trigger asChild><button type="button" className="doan-icon-button composer-presets" aria-label="Design presets" disabled={props.disabled}><PencilSparkles aria-hidden="true" /></button></Popover.Trigger></IconTip>
     <Popover.Portal><Popover.Content className="doan-floating preset-popover" aria-label="Design presets" side="top" align="start" sideOffset={8} collisionPadding={8}
-      onCloseAutoFocus={event => { if (picked.current) { picked.current = false; event.preventDefault(); props.onPicked(); } }}>
+      onCloseAutoFocus={event => {
+        if (picked.current) { picked.current = false; event.preventDefault(); props.onPicked(); }
+        else if (pressed.current) { pressed.current = false; event.preventDefault(); }
+      }}>
       <SearchField value={query} slash={false} listId={props.listId} onChange={setQuery} />
       {presetBody(view, false, { listId: props.listId, highlight: 0, onChoose: choose, onRetry: props.onRetry, onTab: setTab })}
     </Popover.Content></Popover.Portal>
@@ -248,11 +267,25 @@ export function PresetsButton(props: {
 
 // The `/` list keeps focus in the field, so it is drawn in place rather than as a focus-taking popover.
 // The pointer moves the one highlight the arrow keys move, as in a Radix menu.
-export function SlashPresets(props: { view: PresetView; query: string; listId: string; highlight: number; onHighlight(index: number): void; onChoose(id: string): void; onRetry(): void }) {
-  return <div className="doan-floating preset-popover slash-popover" role="presentation">
+export function SlashPresets(props: { view: PresetView; query: string; listId: string; highlight: number; listRef?: RefObject<HTMLDivElement | null>; onHighlight(index: number): void; onChoose(id: string): void; onRetry(): void }) {
+  return <div className="doan-floating preset-popover slash-popover" role="presentation" ref={props.listRef}>
     <SearchField value={props.query} slash listId={props.listId} />
     {presetBody(props.view, true, { listId: props.listId, highlight: props.highlight, onHighlight: props.onHighlight, onChoose: props.onChoose, onRetry: props.onRetry })}
   </div>;
+}
+
+// While the `/` list is open, a press outside it and its field, in the app's document or in the canvas, calls
+// `onOutside`, as Escape would close it. The press keeps its own effect and focus, so nothing is prevented.
+export function usePresetListOutside(open: boolean, list: RefObject<HTMLElement | null>, field: () => HTMLElement | null, onOutside: () => void, canvasPress?: CanvasPress): void {
+  const latest = useRef({ field, onOutside });
+  latest.current = { field, onOutside };
+  useEffect(() => {
+    if (!open) return;
+    const down = (event: { target: EventTarget | null }) => { if (outsidePresetList(event.target, list.current, latest.current.field())) latest.current.onOutside(); };
+    document.addEventListener("pointerdown", down, true);
+    const unsubscribe = canvasPress?.(() => latest.current.onOutside());
+    return () => { document.removeEventListener("pointerdown", down, true); unsubscribe?.(); };
+  }, [open, canvasPress]);
 }
 
 type Picker = ReturnType<typeof modelPickerView>;

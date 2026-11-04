@@ -4,9 +4,11 @@ import type { AttachmentResult } from "../main/attachments";
 import type { Anchor, AttachmentRecord, ConversationEvent } from "../main/conversation/types";
 import { fromMessage, normalize, plainText, type FieldSegment } from "./anchorField";
 import { ATTACHMENT_LIMIT_TEXT } from "./canvasConversation";
-import { mergeConversationEvents } from "./conversationStrip";
+import type { SteerPhase } from "../main/conversation/steerSupport";
+import { mergeConversationEvents, stripState } from "./conversationStrip";
 import { EMPTY_DRAFT, type DockedDraft } from "./dockedRules";
 import { splitRequest, type AttachmentDraft } from "./homeComposer";
+import type { SendingMessage, SentFile } from "./threadItems";
 
 // What the Overview's main conversation and the canvas panel share (buzz-canvas-conversation design §1): the threads
 // read and merged with live events, the composer drafts by draftKey, queued messages, returned drafts and the
@@ -16,8 +18,12 @@ import { splitRequest, type AttachmentDraft } from "./homeComposer";
 export type ListView = readonly ConversationSummary[] | "loading" | "error";
 // liveAfter: the history's last seq; a permission request after it arrived while the thread was open.
 export interface Thread { events: ConversationEvent[]; read: "loading" | "error" | "ready"; liveAfter: number }
-// sending: Send now put this message into the running turn and its answer has not come back (queue-send-now).
-export interface QueuedMessage { id: string; text: string; sending?: boolean }
+// text: the row's line. message: the request itself, which the thread draws once Send now moves it there; without it
+// the thread shows the line alone.
+export interface QueuedMessage { id: string; text: string; message?: { text: string; anchors: readonly Anchor[]; attachments: readonly SentFile[] } }
+// pressed: Send now put this message into the running turn and main has not answered; the press's order. The item
+// keeps its place in the queue, so a refusal puts its row back where it was.
+type Held = QueuedMessage & { pressed?: number };
 
 export interface ConversationStoreHost {
   list(root: string): ListView;
@@ -42,7 +48,8 @@ export class ConversationStore {
   drafts: ReadonlyMap<string, DockedDraft> = new Map();
   private threads = new Map<string, Thread>();
   private unclaimed: ConversationEvent[] = [];
-  private queues = new Map<string, { root: string; items: QueuedMessage[]; after: number }>();
+  private queues = new Map<string, { root: string; items: Held[]; after: number }>();
+  private presses = 0;
   private taking = new Set<string>();
   // A returned draft taken, by the reads started then: the list still says so until a later read.
   private taken = new Map<string, number>();
@@ -66,7 +73,15 @@ export class ConversationStore {
   thread(conversationId: string): Thread | null { return this.threads.get(conversationId) ?? null; }
   providerOf(conversationId: string): Provider | null { return this.providers.get(conversationId) ?? null; }
   started(conversationId: string, provider: Provider): void { this.providers.set(conversationId, provider); }
-  queue(conversationId: string): readonly QueuedMessage[] { return this.queues.get(conversationId)?.items ?? []; }
+  // The rows: what Send now has in flight shows in the thread instead (canvas-composer-polish design §2).
+  queue(conversationId: string): readonly QueuedMessage[] {
+    return (this.queues.get(conversationId)?.items ?? []).flatMap(({ pressed, ...item }) => pressed === undefined ? [item] : []);
+  }
+  // Messages Send now has in flight, in press order, for the end of the thread.
+  sending(conversationId: string): readonly SendingMessage[] {
+    return (this.queues.get(conversationId)?.items ?? []).filter(item => item.pressed !== undefined).sort((a, b) => a.pressed! - b.pressed!)
+      .map(item => ({ id: item.id, ...item.message ?? { text: item.text, anchors: [], attachments: [] } }));
+  }
   queued(root: string, conversationId: string, item: QueuedMessage): void {
     const queue = this.queues.get(conversationId);
     this.queues.set(conversationId, { root, items: [...queue?.items ?? [], item], after: this.host.readsStarted(root) });
@@ -78,31 +93,47 @@ export class ConversationStore {
     this.queues.set(conversationId, { ...queue, items: queue.items.filter(item => item.id !== itemId) });
     this.host.changed();
   }
-  // Send now: one queued message into the running turn. Main answers once the agent read it (the row leaves) or the
-  // message stayed queued (refused, or the turn ended first); until then the row shows Sending on either screen.
-  async sendQueuedNow(conversationId: string, itemId: string): Promise<void | { error: string }> {
+  // Send now: one queued message into the running turn. Its row leaves the queue at the press and the message shows at
+  // the thread's end on either screen until main answers: once the agent read it (it goes; the history's own message
+  // stays), or when it stayed queued (refused, or the turn ended first and main refused it then), which brings its
+  // row back to its place.
+  // A refusal also says whether the turn still runs as the store reads it then: an end event merged before the screen
+  // drew it decides, not the last draw (only a running turn's refusal is said under the row).
+  async sendQueuedNow(conversationId: string, itemId: string): Promise<void | { error: string; turnRuns?: boolean }> {
     if (!this.markQueued(conversationId, itemId, true)) return { error: "stale" };
     const reply = await window.doan.sendQueuedNow({ conversationId, itemId }).catch(() => ({ error: "unknown" }));
-    if (reply && "error" in reply) this.markQueued(conversationId, itemId, false);
-    else this.unqueued(conversationId, itemId);
-    return reply;
+    if (!reply || !("error" in reply)) { this.unqueued(conversationId, itemId); return reply; }
+    this.markQueued(conversationId, itemId, false);
+    return { error: reply.error, turnRuns: this.turnRuns(conversationId) };
+  }
+  private turnRuns(conversationId: string): boolean {
+    const root = this.queues.get(conversationId)?.root;
+    if (root === undefined) return false;
+    const list = this.host.list(root);
+    const summary = Array.isArray(list) ? list.find(item => item.conversationId === conversationId) : undefined;
+    const phase = steerPhaseOf(this.threads.get(conversationId)?.events ?? null, summary, this.live(root, conversationId));
+    return phase === "running" || phase === "waiting";
   }
   private markQueued(conversationId: string, itemId: string, sending: boolean): boolean {
     const queue = this.queues.get(conversationId);
     const item = queue?.items.find(entry => entry.id === itemId);
-    if (!queue || !item || !!item.sending === sending) return false;
-    this.queues.set(conversationId, { ...queue, items: queue.items.map(entry => entry === item ? { id: item.id, text: item.text, ...(sending ? { sending } : {}) } : entry) });
+    if (!queue || !item || (item.pressed !== undefined) === sending) return false;
+    const { pressed: _, ...rest } = item;
+    // Back in the queue: a read taken while it was in flight did not count it (main leaves out the message Send now
+    // has in flight), so only a read started from now can say main sent it.
+    const after = sending ? queue.after : this.host.readsStarted(queue.root);
+    this.queues.set(conversationId, { ...queue, after, items: queue.items.map(entry => entry === item ? sending ? { ...rest, pressed: ++this.presses } : rest : entry) });
     this.host.changed();
     return true;
   }
   // A queue main already sent shows no more once a read started after the queue says so. Main's count leaves out the
-  // message Send now has in flight, so that row stays until Send now's answer settles it.
+  // message Send now has in flight, so that message stays until Send now's answer settles it.
   syncQueues(): void {
     for (const [id, queue] of this.queues) {
       const list = this.host.list(queue.root);
       const c = Array.isArray(list) ? list.find(item => item.conversationId === id) : undefined;
       if (!c || c.queued !== 0 || this.host.readsApplied(queue.root) <= queue.after) continue;
-      const items = queue.items.filter(item => item.sending);
+      const items = queue.items.filter(item => item.pressed !== undefined);
       if (items.length < queue.items.length) this.queues.set(id, { ...queue, items });
     }
   }
@@ -265,6 +296,18 @@ export class ConversationStore {
   }
 }
 
+// The phase Send now reads (queue-send-now design §2.1), with turnOf's order: a turn that runs or waits for a
+// permission answer has something to take the message; a judged turn with work left (a queue about to go out) and an
+// ended one do not. The merged events' end wins over a list that has not caught up.
+export function steerPhaseOf(events: readonly ConversationEvent[] | null, summary: ConversationSummary | undefined, live: boolean): SteerPhase {
+  const kind = events && events.length ? stripState(events).kind : null;
+  if (kind === "permission") return "waiting";
+  if ((kind === "starting" || kind === "working") && live) return "running";
+  const ended = kind === "done" || kind === "failed" || kind === "interrupted";
+  if (!ended && summary?.phase === "waiting") return "waiting";
+  if (!ended && summary?.phase === "running") return "running";
+  return summary?.working ? "holding" : "ended";
+}
 const emptyDraft = (draft: DockedDraft) => draft.segments.length === 0 && !draft.preset && draft.attachments.length === 0;
 
 // A request read back into a draft: the preset line becomes the chip, and recorded files are issued again from their

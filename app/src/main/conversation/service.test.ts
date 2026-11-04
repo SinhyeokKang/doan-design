@@ -680,35 +680,164 @@ describe("project conversation limit", () => {
     await h.service.start({ ...homeRequest, root: "/other" });
     open(); await first;
   });
-  it("refuses another project send while a project turn runs, waits for an answer, or just ended", async () => {
+  const ask = (requestId: string) => ({ type: "permission.request" as const, requestId, tool: "Write", summary: "Write a.html", options: [{ id: "allow", label: "Allow", kind: "allow" as const }] });
+  const answered = (requestId: string) => ({ type: "permission.resolved" as const, requestId, optionId: "allow" });
+  // canvas-composer-polish spec 4: a turn waiting for the person's answer does not keep the root.
+  it("refuses another project send while a project turn runs or just ended, and takes one while it waits for an answer", async () => {
     const h = homeFixture();
     const a = (await h.service.start(homeRequest)).conversationId;
     h.service.receive(a, { type: "turn.done" }); h.open.mock.calls[0]![2](); h.passBindingWindow();
     const b = (await h.service.start(homeRequest)).conversationId;
     await expect(h.service.send(a, "again", [])).rejects.toThrow("project_busy");
-    h.service.receive(b, { type: "permission.request", requestId: "r", tool: "Write", summary: "Write a.html", options: [{ id: "allow", label: "Allow", kind: "allow" }] });
-    await expect(h.service.send(a, "again", [])).rejects.toThrow("project_busy");
-    h.service.receive(b, { type: "turn.done" });
-    await expect(h.service.send(a, "again", [])).rejects.toThrow("project_busy");
-    expect(h.store.read(a).filter(e => e.type === "user.message")).toHaveLength(1);
-    h.passBindingWindow();
+    h.service.receive(b, ask("r"));
     await h.service.send(a, "again", []);
+    expect(h.store.read(a).filter(e => e.type === "user.message")).toHaveLength(2);
+    // Both turns run once b has its answer; a's next send waits until b is done and judged.
+    h.service.receive(b, answered("r"));
+    h.service.receive(a, { type: "turn.done" }); h.open.mock.calls[2]![2](); h.service.refreshed("/repo", []);
+    await expect(h.service.send(a, "and again", [])).rejects.toThrow("project_busy");
+    h.service.receive(b, { type: "turn.done" });
+    await expect(h.service.send(a, "and again", [])).rejects.toThrow("project_busy");
+    h.passBindingWindow();
+    await h.service.send(a, "and again", []);
     // The conversation's own next send is not limited by its own window.
     h.service.receive(a, { type: "turn.done" }); h.open.mock.calls.at(-1)![2]();
-    await h.service.send(a, "and again", []);
+    await h.service.send(a, "once more", []);
   });
-  it("keeps counting a project turn that made a canvas until the turn is judged", async () => {
+  it("keeps counting a project turn that made a canvas until the turn is judged, except while it waits for an answer", async () => {
     const h = homeFixture();
     const a = (await h.service.start(homeRequest)).conversationId;
     h.listed.push({ path: ".doan/canvases/made.html", id: "made" });
     h.service.refreshed("/repo", [".doan/canvases/made.html"]);
     expect(h.store.list()[0]!.canvas).toBeUndefined();
     await expect(h.service.start(homeRequest)).rejects.toThrow("project_busy");
+    h.service.receive(a, ask("r"));
+    const b = (await h.service.start(homeRequest)).conversationId;
+    h.service.receive(a, answered("r"));
+    h.service.receive(b, { type: "turn.done" }); h.service.refreshed("/repo", []);
     h.service.receive(a, { type: "turn.done" });
     await expect(h.service.start(homeRequest)).rejects.toThrow("project_busy");
     h.service.refreshed("/repo", []);
-    expect(h.store.list()[0]!.canvas).toEqual({ path: ".doan/canvases/made.html", id: "made" });
+    expect(h.store.list().find(m => m.conversationId === a)!.canvas).toEqual({ path: ".doan/canvases/made.html", id: "made" });
+    expect(h.store.list().find(m => m.conversationId === b)!.canvas).toBeUndefined();
     await h.service.start(homeRequest);
+  });
+  it("lets another project conversation start and send while one waits for any of its requests, and not after the last answer", async () => {
+    const h = homeFixture();
+    const a = (await h.service.start(homeRequest)).conversationId;
+    h.service.receive(a, ask("r1")); h.service.receive(a, ask("r2"));
+    const b = (await h.service.start(homeRequest)).conversationId;
+    h.service.receive(a, answered("r1"));
+    h.service.receive(b, { type: "turn.done" }); h.open.mock.calls[1]![2](); h.service.refreshed("/repo", []);
+    await h.service.send(b, "again", []);
+    h.service.receive(a, answered("r2"));
+    h.service.receive(b, { type: "turn.done" }); h.open.mock.calls[2]![2](); h.service.refreshed("/repo", []);
+    await expect(h.service.send(b, "and again", [])).rejects.toThrow("project_busy");
+  });
+  it("forgets a turn's open requests when it ends, so the conversation's next turn holds the root", async () => {
+    const h = homeFixture();
+    // Codex keeps its server, and with it the live entry, between turns.
+    const prepared = h.prepare.getMockImplementation()!;
+    h.prepare.mockImplementation(async (...args) => ({ ...await prepared(...args), runtime: "codex" as const, owner: { ...h.owner, provider: "codex" as const } }));
+    const a = (await h.service.start(homeRequest)).conversationId;
+    h.service.receive(a, ask("r1"));
+    const b = (await h.service.start(homeRequest)).conversationId;
+    h.service.receive(b, { type: "turn.done" }); h.service.refreshed("/repo", []);
+    h.service.receive(a, { type: "turn.done" }); h.service.refreshed("/repo", []); h.passBindingWindow();
+    await h.service.send(a, "again", []);
+    expect(h.open).toHaveBeenCalledTimes(2);
+    await expect(h.service.start(homeRequest)).rejects.toThrow("project_busy");
+    expect(h.store.list().find(m => m.conversationId === b)).toBeDefined();
+  });
+  // canvas-composer-polish design §4 'promotion': turns of one root overlap once a waiting turn has its answer.
+  describe("promotion of overlapping turns", () => {
+    const x = { path: ".doan/canvases/x.html", id: "x" }, existing = { path: ".doan/canvases/a.html", id: "a" };
+    const canvasOf = (h: ReturnType<typeof homeFixture>, id: string) => h.store.list().find(m => m.conversationId === id)!;
+    // spec 4: which turn drew a contested canvas is unknown, so neither conversation binds it, whichever is judged first.
+    it("binds neither conversation to a new canvas the turn judged first had to leave to an unjudged one (forward)", async () => {
+      // B started while A waited, made X and is judged first; A is then denied and ends without a canvas.
+      const h = homeFixture([existing]);
+      const a = (await h.service.start(homeRequest)).conversationId;
+      h.service.receive(a, ask("r"));
+      const b = (await h.service.start(homeRequest)).conversationId;
+      h.listed.push(x); h.service.refreshed("/repo", [x.path]);
+      h.service.receive(b, { type: "turn.done" }); h.service.refreshed("/repo", []);
+      expect(canvasOf(h, b).canvas).toBeUndefined();
+      h.service.receive(a, { type: "permission.resolved", requestId: "r", optionId: "deny" }); h.service.receive(a, { type: "turn.done" }); h.service.refreshed("/repo", []);
+      expect(canvasOf(h, a)).toMatchObject({ state: "current" });
+      expect(canvasOf(h, a).canvas).toBeUndefined();
+      expect(canvasOf(h, b)).toMatchObject({ state: "current" });
+      expect(canvasOf(h, b).canvas).toBeUndefined();
+    });
+    it("binds neither conversation to a new canvas the turn judged first had to leave to an unjudged one (reverse)", async () => {
+      // A is stopped while B draws X, so A is judged first; B ends after.
+      const h = homeFixture([existing]);
+      const a = (await h.service.start(homeRequest)).conversationId;
+      h.service.receive(a, ask("r"));
+      const b = (await h.service.start(homeRequest)).conversationId;
+      h.listed.push(x); h.service.refreshed("/repo", [x.path]);
+      await h.service.interrupt(a); h.service.refreshed("/repo", []);
+      expect(canvasOf(h, a).canvas).toBeUndefined();
+      h.service.receive(b, { type: "turn.done" }); h.service.refreshed("/repo", []);
+      expect(canvasOf(h, b).canvas).toBeUndefined();
+      expect(canvasOf(h, a).canvas).toBeUndefined();
+    });
+    it("still binds a turn whose new canvas was left only for multiplicity elsewhere, once no unjudged turn contests it", async () => {
+      // B makes two new canvases: B cannot choose, and that refusal leaves nothing behind for A, who made one of them later.
+      const h = homeFixture([existing]);
+      const a = (await h.service.start(homeRequest)).conversationId;
+      const y = { path: ".doan/canvases/y.html", id: "y" };
+      h.service.receive(a, ask("r"));
+      const b = (await h.service.start(homeRequest)).conversationId;
+      h.listed.push(x, y); h.service.refreshed("/repo", [x.path, y.path]);
+      h.service.receive(b, { type: "turn.done" }); h.service.refreshed("/repo", []);
+      expect(canvasOf(h, b).canvas).toBeUndefined();
+      h.listed.splice(h.listed.indexOf(y), 1);
+      h.service.receive(a, answered("r")); h.service.receive(a, { type: "turn.done" }); h.service.refreshed("/repo", []);
+      expect(canvasOf(h, a).canvas).toEqual(x);
+    });
+    it("never moves a later judged turn onto an existing canvas another conversation was promoted to after its snapshot", async () => {
+      const h = homeFixture([existing]);
+      const a = (await h.service.start(homeRequest)).conversationId;
+      h.service.receive(a, ask("r"));
+      const b = (await h.service.start(homeRequest)).conversationId;
+      h.service.receive(b, { type: "activity", kind: "edit", summary: "Edit a.html", path: existing.path });
+      h.service.refreshed("/repo", [existing.path]);
+      h.service.receive(b, { type: "turn.done" }); h.service.refreshed("/repo", []);
+      expect(canvasOf(h, b).canvas).toEqual(existing);
+      h.service.receive(a, answered("r"));
+      h.service.receive(a, { type: "activity", kind: "edit", summary: "Edit a.html", path: existing.path });
+      h.service.refreshed("/repo", [existing.path]);
+      h.service.receive(a, { type: "turn.done" }); h.service.refreshed("/repo", []);
+      expect(canvasOf(h, a).canvas).toBeUndefined();
+      expect(canvasOf(h, b)).toMatchObject({ canvas: existing, state: "current" });
+    });
+    it("never moves a later judged turn onto a canvas new to it that another conversation was promoted to after its snapshot", async () => {
+      const h = homeFixture([existing]);
+      const a = (await h.service.start(homeRequest)).conversationId;
+      h.service.receive(a, ask("r"));
+      // X is made before B starts (by A or anyone): new to A, already in B's snapshot.
+      h.listed.push(x); h.service.refreshed("/repo", [x.path]);
+      const b = (await h.service.start(homeRequest)).conversationId;
+      h.service.receive(b, { type: "activity", kind: "edit", summary: "Edit x.html", path: x.path });
+      h.service.refreshed("/repo", [x.path]);
+      h.service.receive(b, { type: "turn.done" }); h.service.refreshed("/repo", []);
+      expect(canvasOf(h, b).canvas).toEqual(x);
+      h.service.receive(a, answered("r")); h.service.receive(a, { type: "turn.done" }); h.service.refreshed("/repo", []);
+      expect(canvasOf(h, a).canvas).toBeUndefined();
+      expect(canvasOf(h, b)).toMatchObject({ canvas: x, state: "current" });
+    });
+  });
+  it("hands an ended turn's queue back as a draft when another turn of the root runs (project_busy)", async () => {
+    const h = homeFixture();
+    const a = (await h.service.start(homeRequest)).conversationId;
+    h.service.receive(a, ask("r"));
+    await h.service.start(homeRequest);
+    h.service.queue(a, { text: "next", anchors: [] });
+    h.service.receive(a, answered("r")); h.service.receive(a, { type: "turn.done" }); h.open.mock.calls[0]![2]();
+    h.service.refreshed("/repo", []);
+    await vi.waitFor(() => expect(h.service.takeDraft(a)).toMatchObject({ text: "next", reason: "project_busy" }));
+    expect(h.store.read(a).filter(e => e.type === "user.message")).toHaveLength(1);
   });
   it("does not let a conversation whose history write failed hold the root", async () => {
     const h = homeFixture();

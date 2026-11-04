@@ -41,7 +41,7 @@ export function draftKey(mode: DockedMode): string {
 
 // Another project conversation holds the root (project_busy), or the canvas's current conversation still runs while
 // this archived one waits to be restored (restore busy). `open` is that conversation when the host knows it.
-export type DockedBusy = { kind: "project"; waiting: boolean; open: string | null } | { kind: "restore"; open: string | null };
+export type DockedBusy = { kind: "project"; open: string | null } | { kind: "restore"; open: string | null };
 // alert: a moved or deleted file, shown as an error notice as on Home; the other reasons are a quiet line.
 export interface DockedReason { text: string; open?: string; action?: SettingsAction; alert?: true; noAgent?: true }
 
@@ -83,7 +83,7 @@ export function dockedAvailability(input: DockedInput): { enabled: boolean; reas
 function busyReason(busy: DockedBusy, project: string): DockedReason {
   const open = busy.open ? { open: busy.open } : {};
   if (busy.kind === "restore") return { text: "The current conversation on this canvas is still running.", ...open };
-  return { text: anotherConversation(project, busy.waiting), ...open };
+  return { text: anotherConversation(project), ...open };
 }
 
 // The conversation's provider is fixed, so a provider that cannot run offers its own fix in Settings rather than
@@ -114,7 +114,7 @@ export function dockedMessage(draft: DockedDraft): { text: string; anchors: Anch
 export type DockedRefusal = { kind: "busy"; busy: DockedBusy } | { kind: "gone" } | { kind: "notice"; text: string; retry?: boolean; startNew?: boolean }
   | { kind: "blocked"; text: string; action?: SettingsAction };
 export function dockedRefusal(code: string, mode: DockedMode, provider: Provider, project: string): DockedRefusal {
-  if (code === "project_busy") return { kind: "busy", busy: { kind: "project", waiting: false, open: null } };
+  if (code === "project_busy") return { kind: "busy", busy: { kind: "project", open: null } };
   if (mode.kind === "archived" && code === "busy") return { kind: "busy", busy: { kind: "restore", open: null } };
   if (code === "canvas_not_found") return { kind: "gone" };
   if (mode.kind === "new") return { kind: "notice", text: startErrorView(code, provider, project).text };

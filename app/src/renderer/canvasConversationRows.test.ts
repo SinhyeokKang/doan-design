@@ -29,12 +29,28 @@ describe("canvasConversationRows", () => {
   });
 
   test("a row carries the canvas row, provider, status, short time and preview", () => {
-    const [only] = canvasConversationRows([summary({ conversationId: "b", provider: "codex", phase: "running", canvas: { path: billing.path, id: "billing" }, lastActivityAt: ago(3 * MIN), preview: "Editing the header" })], [billing], NOW);
+    const [only] = canvasConversationRows([summary({ conversationId: "b", title: "Edit the header", provider: "codex", phase: "running", canvas: { path: billing.path, id: "billing" }, lastActivityAt: ago(3 * MIN), preview: "Editing the header" })], [billing], NOW);
     expect(only).toEqual({
       key: "b", conversationId: "b", name: "Billing", canvas: { path: billing.path, id: "billing" }, row: billing,
       provider: "codex", status: { kind: "working", label: "Working" }, time: { text: "3m", label: "3 minutes ago" },
       preview: "Editing the header", problem: null, openable: true,
+      // canvas-composer-polish spec 6: the row's Delete names the conversation and follows the title menu's rule.
+      title: "Edit the header", deletable: { available: false, reason: "The agent is working on this conversation." },
     });
+  });
+
+  test("every row, special ones included, says whether its conversation can be deleted, as the title menu does", () => {
+    const rows = canvasConversationRows([
+      summary({ conversationId: "w", phase: "waiting", canvas: { path: billing.path, id: "billing" } }),
+      summary({ conversationId: "g", phase: "running", working: true, canvas: { path: ".doan/canvases/gone.html" } }),
+      summary({ conversationId: "e", canvas: { path: plain.path } }),
+    ], [billing, plain], NOW);
+    expect(Object.fromEntries(rows.map(r => [r.key, r.deletable]))).toEqual({
+      w: { available: false, reason: "The agent is waiting for your answer." },
+      g: { available: false, reason: "The agent is working on this conversation." },
+      e: { available: true },
+    });
+    expect(rows.find(r => r.key === "g")!.problem).toEqual({ kind: "gone" });
   });
 
   test("equal activity times order by canvas path", () => {

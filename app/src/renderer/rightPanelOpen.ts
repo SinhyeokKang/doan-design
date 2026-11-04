@@ -9,7 +9,7 @@ import type { Slot } from "./homeConversations";
 // agent: the agent's own turn start, permission request or turn end, which never open the panel.
 export type PanelTrigger =
   | { kind: "overviewRow" } | { kind: "notification"; permission: boolean } | { kind: "promotion" } | { kind: "capsule" }
-  | { kind: "sidebarRow" } | { kind: "addToConversation" } | { kind: "newConversation" } | { kind: "agent" };
+  | { kind: "sidebarRow" } | { kind: "picker" } | { kind: "newConversation" } | { kind: "agent" };
 
 // keep: the panel stays as it was. Opening focuses the first choice of the waiting request, else the composer.
 export type PanelOpen = { open: "keep" } | { open: true; focus: "permission" | "composer" };

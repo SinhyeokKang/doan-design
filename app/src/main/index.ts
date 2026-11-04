@@ -81,13 +81,12 @@ export type TokenCssChoice = { kind: "selected"; choiceId: string; path: string 
 
 export type ViewCommand = "zoomIn" | "zoomOut" | "actualSize" | "fit" | "reload";
 // Menu items whose work belongs to the renderer's screen state.
-export type MenuCommand = "home" | "quickOpen" | "newConversation" | "addSelectionToConversation" | "toggleSidebar";
+export type MenuCommand = "home" | "quickOpen" | "newConversation" | "pickFromCanvas" | "toggleSidebar";
 // What the renderer reports so main can enable menu items (design 'Menus').
 // `choose`, `locked`: the Add Projects page shows its choose phase, or a phase nothing may leave (menuState).
 // `overview`: a project Overview shows (File > New Conversation).
-// `selection`: the canvas has a selection to add; `pickerAvailable`: the composer takes input and the canvas is loaded
-// (design §2), so the menu follows the same availability as the canvas toolbar.
-export interface MenuInputs { screen: Screen; modal: boolean; choose?: boolean; locked?: boolean; overview?: boolean; selection?: boolean; pickerAvailable?: boolean; sidebarHidden?: boolean }
+// `pickerAvailable`: the composer takes input and the canvas is loaded, so the menu follows the canvas toolbar's Picker.
+export interface MenuInputs { screen: Screen; modal: boolean; choose?: boolean; locked?: boolean; overview?: boolean; pickerAvailable?: boolean; sidebarHidden?: boolean }
 export type RemoveResult = { kind: "removed" } | { kind: "unavailable" };
 export type LocateResult = { kind: "located"; root: string } | { kind: "refused"; message: string } | { kind: "cancelled" } | { kind: "unavailable" };
 // The onboarding Project step's folder picker: a path only. Inspection, registration and setup go through the
@@ -315,7 +314,7 @@ function editHistory(kind: "undo" | "redo"): NonNullable<MenuItemConstructorOpti
 function setMenu(): void {
   const view = (command: ViewCommand) => () => send("view-command", command);
   const command = (name: MenuCommand) => () => send("menu-command", name);
-  const enabled = menuState(menuInputs.screen, menuInputs.modal, { wizardOpen: onboardingOpen, choose: menuInputs.choose === true, locked: menuInputs.locked === true, overview: menuInputs.overview === true, selection: menuInputs.selection === true, pickerAvailable: menuInputs.pickerAvailable === true });
+  const enabled = menuState(menuInputs.screen, menuInputs.modal, { wizardOpen: onboardingOpen, choose: menuInputs.choose === true, locked: menuInputs.locked === true, overview: menuInputs.overview === true, pickerAvailable: menuInputs.pickerAvailable === true });
   Menu.setApplicationMenu(
     Menu.buildFromTemplate([
       // Role labels would read "About doan" from app.name, which stays "doan" for userData.
@@ -344,7 +343,7 @@ function setMenu(): void {
           { label: "Undo", accelerator: "CmdOrCtrl+Z", click: editHistory("undo") }, { label: "Redo", accelerator: "Shift+CmdOrCtrl+Z", click: editHistory("redo") }, { type: "separator" },
           { role: "cut" }, { role: "copy" }, { role: "paste" }, { role: "pasteAndMatchStyle" }, { role: "delete" }, { role: "selectAll" },
           { type: "separator" },
-          { label: "Add Selection to Conversation", accelerator: "CmdOrCtrl+L", enabled: enabled.addSelectionToConversation, click: command("addSelectionToConversation") },
+          { label: "Pick from Canvas", accelerator: "CmdOrCtrl+L", enabled: enabled.pickFromCanvas, click: command("pickFromCanvas") },
           { type: "separator" },
           { label: "Speech", submenu: [{ role: "startSpeaking" }, { role: "stopSpeaking" }] },
         ],
@@ -383,12 +382,12 @@ const homeDirectory = (): string => process.env.HOME ?? app.getPath("home");
 function setMenuInputs(next: MenuInputs): void {
   if (next.screen === menuInputs.screen && next.modal === menuInputs.modal &&
     next.choose === menuInputs.choose && next.locked === menuInputs.locked && next.overview === menuInputs.overview &&
-    next.selection === menuInputs.selection && next.pickerAvailable === menuInputs.pickerAvailable && next.sidebarHidden === menuInputs.sidebarHidden) return;
+    next.pickerAvailable === menuInputs.pickerAvailable && next.sidebarHidden === menuInputs.sidebarHidden) return;
   menuInputs = next;
   setMenu();
 }
 
-const MENU_FLAGS = ["choose", "locked", "overview", "selection", "pickerAvailable", "sidebarHidden"] as const;
+const MENU_FLAGS = ["choose", "locked", "overview", "pickerAvailable", "sidebarHidden"] as const;
 function parseMenuInputs(value: unknown): MenuInputs | null {
   if (typeof value !== "object" || value === null || !("screen" in value) || !("modal" in value)) return null;
   const flags = MENU_FLAGS.filter(flag => flag in value);

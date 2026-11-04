@@ -56,6 +56,7 @@ vi.mock("./CanvasController", async original => ({
       self.destination = vi.fn((root: string) => ({ root }));
       self.currentView = vi.fn(() => ({ scale: 1, x: 0, y: 0 }));
       self.memory = vi.fn(() => ({}));
+      self.canvasPress = vi.fn(() => () => {});
       harness.controller = self;
     }
   },
@@ -398,12 +399,16 @@ test("⌘N on the canvas page unfolds a folded panel in the new conversation sta
   expect(conversation()?.arrival).toMatchObject({ focus: "composer" });
 });
 
-test("Add Selection's menu flags follow the canvas page: a selection, and a loaded canvas whose composer takes input", async () => {
+// canvas-composer-polish spec 3: Pick from Canvas (⌘L) follows the picker alone; a selection is not a menu input.
+test("Pick from Canvas's menu flag follows the canvas page and the picker, not the selection", async () => {
   await openCanvas(undefined, { selection: { frame: { id: "f" } } });
-  expect(menuState()).toMatchObject({ screen: "canvas", selection: true, pickerAvailable: true });
+  expect(menuState()).toMatchObject({ screen: "canvas", pickerAvailable: true });
+  expect(menuState()).not.toHaveProperty("selection");
+  harness.setState!({ ...initialCanvasState(), open: { folder: "/w/a", canvas: rowA.path, row: rowA }, shown: rowA.path, status: null, message: "", layout: { frames: [], width: 800 }, selection: null });
+  render();
+  expect(menuState()).toMatchObject({ screen: "canvas", pickerAvailable: true });
   harness.setState!({ ...initialCanvasState(), open: { folder: "/w/a", canvas: rowA.path, row: rowA }, shown: rowA.path, status: "failed", message: "", selection: null });
   render();
-  expect(menuState()).not.toHaveProperty("selection");
   expect(menuState()).not.toHaveProperty("pickerAvailable");
 });
 
@@ -485,12 +490,11 @@ test("a second entry after the first was consumed is a new arrival the panel app
   expect(second.seq).toBeGreaterThan(first.seq);
 });
 
-// buzz-canvas-conversation R4 (design §2 'Focus return', POSTMORTEM 2026-10-23 R-L): the picker's and Add's waiting
+// buzz-canvas-conversation R4 (design §2 'Focus return', POSTMORTEM 2026-10-23 R-L): the picker's waiting
 // focus moves carry the intent they started with; focus that went elsewhere meanwhile is never pulled back, and a
 // composing field gets its chip later but no focus or caret call.
 type Link = { insert: ReturnType<typeof vi.fn>; focus: ReturnType<typeof vi.fn>; composing: ReturnType<typeof vi.fn>; element: ReturnType<typeof vi.fn> };
 type ConversationProps = { pick: { pressed: boolean; enabled: boolean; onToggle(): void }; composerLink: { current: unknown } };
-type Tools = { add: { enabled: boolean; onAdd(): void } };
 const ANCHOR = { frame: { id: "cart" } };
 async function canvasWithComposer(options: { panel?: boolean; composing?: boolean } = {}) {
   vi.stubGlobal("Node", class {});
@@ -509,7 +513,6 @@ async function canvasWithComposer(options: { panel?: boolean; composing?: boolea
   harness.controller!.pick!.mockReturnValue(true);
   return { link, field, conversation };
 }
-const tools = () => (pane() as unknown as Tools | undefined)?.add;
 const focusMoved = (target: unknown) => windowListeners.focusin?.({ target } as never);
 
 test("a pick ends with focus back in the composer while focus stayed with the picker or the canvas", async () => {
@@ -520,20 +523,23 @@ test("a pick ends with focus back in the composer while focus stayed with the pi
   const ended = harness.controller!.onPicked!.mock.calls[0]![0] as (result: unknown) => void;
   ended({ kind: "picked", anchor: ANCHOR, frames: [] });
   expect(link.focus).toHaveBeenCalledOnce();
-  expect(link.insert).toHaveBeenCalledWith(ANCHOR, "caret");
+  expect(link.insert).toHaveBeenCalledWith(ANCHOR);
   expect(link.focus.mock.invocationCallOrder[0]).toBeLessThan(link.insert.mock.invocationCallOrder[0]!);
 });
 
-test("a pick whose focus went elsewhere meanwhile adds its chip but does not take focus back, also after focus returns", async () => {
+// A chip a pick inserts always lands focus in the field (spec 3), even after focus went elsewhere meanwhile, such as
+// into the Presets popover the canvas click then closed; only the cancels keep focus the person moved.
+test("a pick that inserts a chip takes focus to the field even after focus went elsewhere; a cancel then leaves focus alone", async () => {
   const { link, conversation } = await canvasWithComposer();
   conversation.pick.onToggle();
   const ended = harness.controller!.onPicked!.mock.calls[0]![0] as (result: unknown) => void;
-  focusMoved({ name: "a search field elsewhere" });
-  // Focus coming back to the picker before the canvas click does not restore the intent.
+  focusMoved({ name: "the Presets popover's search box" });
   focusMoved(null);
   ended({ kind: "picked", anchor: ANCHOR, frames: [] });
-  expect(link.insert).toHaveBeenCalledWith(ANCHOR, "caret");
-  expect(link.focus).not.toHaveBeenCalled();
+  expect(link.insert).toHaveBeenCalledWith(ANCHOR);
+  expect(link.focus).toHaveBeenCalledOnce();
+  expect(link.focus.mock.invocationCallOrder[0]).toBeLessThan(link.insert.mock.invocationCallOrder[0]!);
+  link.focus.mockClear();
   conversation.pick.onToggle();
   focusMoved({ name: "a menu" });
   (harness.controller!.onPicked!.mock.calls[0]![0] as (result: unknown) => void)({ kind: "cancelled" });
@@ -545,30 +551,135 @@ test("a pick that ends while the field composes keeps the chip waiting and makes
   link.insert.mockReturnValue("pending");
   conversation.pick.onToggle();
   (harness.controller!.onPicked!.mock.calls[0]![0] as (result: unknown) => void)({ kind: "picked", anchor: ANCHOR, frames: [] });
-  expect(link.insert).toHaveBeenCalledWith(ANCHOR, "caret");
+  expect(link.insert).toHaveBeenCalledWith(ANCHOR);
   expect(link.focus).not.toHaveBeenCalled();
 });
 
-test("Add while the field composes puts the chip at the caret, waiting, with no focus or caret call", async () => {
-  const { link } = await canvasWithComposer({ composing: true });
-  link.insert.mockReturnValue("pending");
-  expect(tools()?.enabled).toBe(true);
-  tools()!.onAdd();
-  expect(link.insert).toHaveBeenCalledWith({ frame: { id: "cart" } }, "caret");
-  expect(link.focus).not.toHaveBeenCalled();
-});
-
-test("Add on a folded panel focuses the composer once it shows, unless focus went elsewhere meanwhile", async () => {
-  const first = await canvasWithComposer({ panel: false });
-  tools()!.onAdd(); render();
-  expect(first.link.insert).toHaveBeenCalledWith({ frame: { id: "cart" } }, "end");
-  expect(panel()?.open).toBe(true);
-  expect(first.link.focus).toHaveBeenCalledOnce();
-  reset();
-  const second = await canvasWithComposer({ panel: false });
-  tools()!.onAdd();
-  focusMoved({ name: "the sidebar" });
+// canvas-composer-polish spec 3: the toolbar's Picker and ⌘L run the composer's own pick.
+type ToolsProps = { picking: boolean; picker: { enabled: boolean; reason: string | null; onToggle(): void }; onTool(tool: string): void };
+const toolbar = () => pane() as unknown as ToolsProps;
+const ended = () => harness.controller!.onPicked!.mock.calls[0]![0] as (result: unknown) => void;
+const element = (name: string) => Object.assign(new (globalThis.HTMLElement as unknown as new () => object)(), { name, isConnected: true, focus: vi.fn() });
+function picking(on: boolean) {
+  harness.setState!({ ...initialCanvasState(), open: { folder: "/w/a", canvas: rowA.path, row: rowA }, shown: rowA.path, status: null,
+    layout: { type: "layout", href: "u-a", height: 100, viewport: 100, frames: [{ id: "cart", x: 0, y: 0, width: 10, height: 10 }], truncated: false }, picking: on });
   render();
-  expect(second.link.insert).toHaveBeenCalled();
-  expect(second.link.focus).not.toHaveBeenCalled();
+}
+
+test("the toolbar's Picker and the composer's Pick share one pick: either starts it, and either cancels it", async () => {
+  const { conversation } = await canvasWithComposer();
+  expect(toolbar().picker).toMatchObject({ enabled: true, reason: null });
+  toolbar().picker.onToggle();
+  expect(harness.controller!.pick).toHaveBeenCalledOnce();
+  picking(true);
+  expect(toolbar().picking).toBe(true);
+  expect(find<ConversationProps>(CanvasConversation)[0]!.props.pick.pressed).toBe(true);
+  conversation.pick.onToggle();
+  expect(harness.controller!.cancelPick).toHaveBeenCalled();
+  harness.controller!.cancelPick!.mockClear();
+  find<ConversationProps>(CanvasConversation)[0]!.props.pick.onToggle();
+  expect(harness.controller!.cancelPick).toHaveBeenCalledOnce();
+});
+
+test("⌘L starts a pick, and cancels it while picking", async () => {
+  await canvasWithComposer();
+  listeners.menu!("pickFromCanvas" as never); render();
+  expect(harness.controller!.pick).toHaveBeenCalledOnce();
+  picking(true);
+  harness.controller!.cancelPick!.mockClear();
+  listeners.menu!("pickFromCanvas" as never); render();
+  expect(harness.controller!.cancelPick).toHaveBeenCalledOnce();
+  expect(harness.controller!.pick).toHaveBeenCalledOnce();
+});
+
+test("an unavailable Picker gives the composer's reason and starts nothing", async () => {
+  await openCanvas(undefined, { unlisted: true });
+  expect(toolbar().picker.enabled).toBe(false);
+  expect(toolbar().picker.reason).toBe(find<ConversationProps & { pick: { reason: string | null } }>(CanvasConversation)[0]!.props.pick.reason);
+  toolbar().picker.onToggle();
+  listeners.menu!("pickFromCanvas" as never); render();
+  expect(harness.controller!.pick).not.toHaveBeenCalled();
+});
+
+test("the Picker and ⌘L unfold a folded panel and start the pick, which the unfolding does not cancel", async () => {
+  for (const start of [() => toolbar().picker.onToggle(), () => listeners.menu!("pickFromCanvas" as never)]) {
+    reset();
+    await canvasWithComposer({ panel: false });
+    expect(panel()?.open).toBe(false);
+    clearController();
+    harness.controller!.pick!.mockReturnValue(true);
+    start(); render();
+    expect(panel()?.open).toBe(true);
+    expect(harness.controller!.pick).toHaveBeenCalledOnce();
+    picking(true); render();
+    expect(harness.controller!.cancelPick).not.toHaveBeenCalled();
+  }
+});
+
+test("a pick cancelled by pressing the Picker again leaves focus on the Picker", async () => {
+  const { link } = await canvasWithComposer();
+  const picker = element("Picker");
+  (document as { activeElement: unknown }).activeElement = picker;
+  toolbar().picker.onToggle();
+  picking(true);
+  toolbar().picker.onToggle();
+  ended()({ kind: "cancelled" });
+  expect(link.focus).not.toHaveBeenCalled();
+  expect(picker.focus).not.toHaveBeenCalled();
+});
+
+test("a pick cancelled by Esc returns focus to where it was before the pick, never the page", async () => {
+  const { link } = await canvasWithComposer();
+  const before = element("the frame drawer");
+  (document as { activeElement: unknown }).activeElement = before;
+  listeners.menu!("pickFromCanvas" as never); render();
+  picking(true);
+  ended()({ kind: "cancelled" });
+  expect(before.focus).toHaveBeenCalledOnce();
+  expect(link.focus).not.toHaveBeenCalled();
+  // From the page itself there is nowhere to go back to, so the composer takes focus.
+  reset();
+  const second = await canvasWithComposer();
+  (document as { activeElement: unknown }).activeElement = document.body;
+  listeners.menu!("pickFromCanvas" as never); render();
+  picking(true);
+  ended()({ kind: "cancelled" });
+  expect(second.link.focus).toHaveBeenCalledOnce();
+});
+
+// Review TOOL 🟡1: going back to where focus was is for focus the pick left behind (the page, the canvas, the element
+// before it), never for focus the person moved meanwhile, such as into the field they type in.
+test("Esc pressed in the field after a pick started from the toolbar's Picker keeps focus in the field", async () => {
+  const { link, field } = await canvasWithComposer();
+  const picker = element("Picker");
+  (document as { activeElement: unknown }).activeElement = picker;
+  toolbar().picker.onToggle();
+  picking(true);
+  focusMoved(field);
+  (document as { activeElement: unknown }).activeElement = field;
+  ended()({ kind: "cancelled" });
+  expect(picker.focus).not.toHaveBeenCalled();
+  expect(link.focus).not.toHaveBeenCalled();
+});
+
+test("the toolbar's Select or Hand while picking switches the tool through the controller and leaves focus on the tool", async () => {
+  const { link } = await canvasWithComposer();
+  const picker = element("Picker");
+  (document as { activeElement: unknown }).activeElement = picker;
+  toolbar().picker.onToggle();
+  picking(true);
+  toolbar().onTool("hand");
+  expect(harness.controller!.setTool).toHaveBeenCalledWith("hand");
+  ended()({ kind: "cancelled" });
+  expect(link.focus).not.toHaveBeenCalled();
+  expect(picker.focus).not.toHaveBeenCalled();
+});
+// The canvas's press reaches the panel's composer, whose preset lists close on it: the panel gets the controller's
+// subscription, the same function on every render so the lists do not subscribe again each time.
+test("the canvas page hands the controller's press subscription to the panel's composer", async () => {
+  await openCanvas();
+  const press = (conversation() as unknown as { canvasPress?: unknown }).canvasPress;
+  expect(press).toBe(harness.controller!.canvasPress);
+  render();
+  expect((conversation() as unknown as { canvasPress?: unknown }).canvasPress).toBe(press);
 });

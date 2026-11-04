@@ -127,6 +127,26 @@ test("while the request is out Cancel and Escape (a link's dismissal too) are re
   expect(pending.cancelButton.props["aria-disabled"]).toBe(true);
 });
 
+// C2a runtime probe: a Canvas conversations Delete pressed from the keyboard opens the alert while its tooltip is still
+// exiting, and that tooltip's dismissable layer takes the next Escape and prevents its default, so the dialog never
+// gets its cancel event. The alert closes on the Escape keydown itself, whoever prevented its default.
+test("Escape pressed in the alert cancels it even when an exiting layer already prevented the key's default", () => {
+  const key = (props: Record<string, unknown>) => ({ key: "Escape", defaultPrevented: true, preventDefault: vi.fn(), nativeEvent: { isComposing: false }, ...props });
+  const open = dialog();
+  const escape = key({});
+  (open.tree.props["onKeyDown"] as (event: unknown) => void)(escape);
+  expect(open.cancel).toHaveBeenCalledOnce();
+  // Once handled here the native cancel event does not follow, so the alert is cancelled once.
+  expect(escape.preventDefault).toHaveBeenCalledOnce();
+  (open.tree.props["onKeyDown"] as (event: unknown) => void)(key({ key: "Enter" }));
+  (open.tree.props["onKeyDown"] as (event: unknown) => void)(key({ nativeEvent: { isComposing: true } }));
+  expect(open.cancel).toHaveBeenCalledOnce();
+  // While the request is out Escape is still refused.
+  const pending = dialog({ pending: true });
+  (pending.tree.props["onKeyDown"] as (event: unknown) => void)(key({}));
+  expect(pending.cancel).not.toHaveBeenCalled();
+});
+
 test("an unsent draft is text or chips, a preset or an attachment", () => {
   expect(unsentDraft(undefined)).toBe(false);
   expect(unsentDraft(EMPTY_DRAFT)).toBe(false);

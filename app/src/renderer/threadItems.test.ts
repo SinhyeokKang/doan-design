@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { ConversationEvent } from "../main/conversation/types";
-import { anchorParts, rootRelative, scrollFollow, threadItems } from "./threadItems";
+import { anchorParts, rootRelative, scrollFollow, threadItems, withSending, type ThreadItem } from "./threadItems";
 import { splitRequest } from "./homeComposer";
 import { notReadyLine, waitingLine } from "../main/conversation/mcpStartup";
 import { parseConnectorUrl } from "../main/mcpConnectors/names";
@@ -289,5 +289,39 @@ describe("threadItems with a Codex MCP server that was not ready", () => {
     // Another server's not-ready line still leaves this Waiting line alone.
     seq = 0;
     expect(steps([waitingLine(["doan-x"], labels), notReadyLine(["doan-notion"], labels)])).toHaveLength(2);
+  });
+});
+
+// canvas-composer-polish A2: messages Send now has in flight, as the person's messages at the thread's end.
+describe("withSending", () => {
+  const CTA = { element: { doanId: "hero-cta", selector: "[data-doan-id=\"hero-cta\"]" } };
+  const sending = [
+    { id: "q1", text: "Use the Doan design preset `shape` (Shape a feature).\n\nUse the spacing from {{1}}", anchors: [CTA], attachments: [{ name: "notes.pdf", size: 86016, kind: "file" as const }] },
+    { id: "q2", text: "Also this", anchors: [], attachments: [] },
+  ];
+
+  test("follow the history in press order, with their preset, chips and files, marked sending", () => {
+    seq = 0;
+    const items = withSending(threadItems(turn("t1"), ROOT, true), sending);
+    expect(items.map(item => item.key)).toEqual(["u1", "qq1", "qq2"]);
+    expect(items[1]).toEqual({ kind: "user", key: "qq1", seq: null, sending: true, parts: [{ text: "Use the spacing from " }, { anchor: 1 }], anchors: [CTA],
+      preset: splitRequest(sending[0]!.text, 1).preset, attachments: [{ name: "notes.pdf", size: 86016, kind: "file" }] });
+    expect(items[2]).toMatchObject({ kind: "user", sending: true, parts: [{ text: "Also this" }], preset: null, attachments: [] });
+  });
+
+  test("sit right above an open permission request, which stays last; an answered one does not hold them", () => {
+    seq = 0;
+    const options = [{ id: "a", label: "Allow once", kind: "allow" }];
+    const events = [...turn("t1"), ev("t1", { type: "activity", kind: "read", summary: "Read", path: "a.html" }),
+      ev("t1", { type: "permission.request", requestId: "r1", tool: "Bash", summary: "Run doan check", options })];
+    expect(withSending(threadItems(events, ROOT, true), sending).map(item => item.key)).toEqual(["u1", "a3", "qq1", "qq2", "pr1"]);
+    events.push(ev("t1", { type: "permission.resolved", requestId: "r1", optionId: "a" }));
+    expect(withSending(threadItems(events, ROOT, true), sending).map(item => item.key)).toEqual(["u1", "a3", "pr1", "qq1", "qq2"]);
+  });
+
+  test("nothing sending leaves the items as they are", () => {
+    seq = 0;
+    const items: ThreadItem[] = threadItems(turn("t1"), ROOT, true);
+    expect(withSending(items, [])).toBe(items);
   });
 });

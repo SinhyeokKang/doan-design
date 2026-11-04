@@ -869,35 +869,37 @@ describe("menus", () => {
     expect(submenu("View")[0]?.label).toBe("Hide Sidebar");
   });
 
-  test("canvas conversation menu commands follow validated selection and picker state", async () => {
+  test("Pick from Canvas follows the validated picker state, without a selection", async () => {
     const contents = window().webContents;
-    const ready = { ...state("canvas"), selection: true, pickerAvailable: true };
+    const ready = { ...state("canvas"), pickerAvailable: true };
     await invoke("menu:state", contents, null, state("canvas"));
     expect(menuEnabled("New Conversation")).toBe(true);
-    expect(menuEnabled("Add Selection to Conversation")).toBe(false);
-    for (const bad of [{ ...ready, selection: "true" }, { ...ready, pickerAvailable: 1 }, { ...ready, unknown: true }]) {
+    expect(menuEnabled("Pick from Canvas")).toBe(false);
+    expect(submenu("Edit").some(item => item.label === "Add Selection to Conversation")).toBe(false);
+    // `selection` is no longer a menu input, so a state carrying it is refused.
+    for (const bad of [{ ...ready, pickerAvailable: 1 }, { ...ready, selection: true }, { ...ready, unknown: true }]) {
       await invoke("menu:state", contents, null, bad);
-      expect(menuEnabled("Add Selection to Conversation")).toBe(false);
+      expect(menuEnabled("Pick from Canvas")).toBe(false);
     }
     await invoke("menu:state", contents, null, ready);
-    expect(menuEnabled("Add Selection to Conversation")).toBe(true);
-    click("Add Selection to Conversation");
-    expect(contents.send).toHaveBeenCalledWith("menu-command", "addSelectionToConversation");
-    await invoke("menu:state", contents, null, { ...ready, selection: false });
-    expect(menuEnabled("Add Selection to Conversation")).toBe(false);
-    await invoke("menu:state", contents, null, ready);
+    expect(menuEnabled("Pick from Canvas")).toBe(true);
+    expect(submenu("Edit").find(item => item.label === "Pick from Canvas")?.accelerator).toBe("CmdOrCtrl+L");
+    click("Pick from Canvas");
+    expect(contents.send).toHaveBeenCalledWith("menu-command", "pickFromCanvas");
     await invoke("menu:state", contents, null, { ...ready, pickerAvailable: false });
-    expect(menuEnabled("Add Selection to Conversation")).toBe(false);
+    expect(menuEnabled("Pick from Canvas")).toBe(false);
+    await invoke("menu:state", contents, null, { ...state("workspace"), overview: true, pickerAvailable: true });
+    expect(menuEnabled("Pick from Canvas")).toBe(false);
   });
 
   test("invalid menu state preserves an enabled canvas conversation action", async () => {
     const contents = window().webContents;
-    const ready = { ...state("canvas"), selection: true, pickerAvailable: true };
+    const ready = { ...state("canvas"), pickerAvailable: true };
     await invoke("menu:state", contents, null, ready);
-    expect(menuEnabled("Add Selection to Conversation")).toBe(true);
+    expect(menuEnabled("Pick from Canvas")).toBe(true);
     const builds = mocks.menu.mock.calls.length;
-    await invoke("menu:state", contents, null, { ...ready, selection: "true" });
-    expect(menuEnabled("Add Selection to Conversation")).toBe(true);
+    await invoke("menu:state", contents, null, { ...ready, pickerAvailable: "true" });
+    expect(menuEnabled("Pick from Canvas")).toBe(true);
     expect(mocks.menu.mock.calls.length).toBe(builds);
   });
 

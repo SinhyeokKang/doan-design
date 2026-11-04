@@ -80,20 +80,18 @@ describe("dockedAvailability", () => {
     expect(dockedAvailability(input({ draft: draft({ segments: [chip] }) }))).toEqual({ enabled: true, reason: null });
     expect(dockedAvailability(input({ draft: draft({ text: "   " }) }))).toEqual({ enabled: false, reason: null });
   });
-  test("another project conversation running or waiting blocks with Home's sentence and Open", () => {
-    expect(dockedAvailability(input({ mode: { kind: "new", root: "/r" }, busy: { kind: "project", waiting: false, open: "c9" } })))
+  test("another project conversation running blocks with Home's sentence and Open", () => {
+    expect(dockedAvailability(input({ mode: { kind: "new", root: "/r" }, busy: { kind: "project", open: "c9" } })))
       .toEqual({ enabled: false, reason: { text: "Another conversation is still running in doan-design.", open: "c9" } });
-    expect(dockedAvailability(input({ busy: { kind: "project", waiting: true, open: "c9" } })).reason)
-      .toEqual({ text: "Another conversation in doan-design needs your answer.", open: "c9" });
     // A late refusal names no conversation until the list arrives: the line has no Open.
-    expect(dockedAvailability(input({ busy: { kind: "project", waiting: false, open: null } })).reason).toEqual({ text: "Another conversation is still running in doan-design." });
+    expect(dockedAvailability(input({ busy: { kind: "project", open: null } })).reason).toEqual({ text: "Another conversation is still running in doan-design." });
   });
   test("restoring while the canvas's current conversation runs is refused with Open", () => {
     expect(dockedAvailability(input({ mode: { kind: "archived", conversationId: "c1", provider: "claude" }, busy: { kind: "restore", open: "c2" } })).reason)
       .toEqual({ text: "The current conversation on this canvas is still running.", open: "c2" });
   });
   test("an empty field shows the busy line only once something is typed, as on Home", () => {
-    expect(dockedAvailability(input({ draft: EMPTY_DRAFT, busy: { kind: "project", waiting: false, open: "c9" } })).reason).toBeNull();
+    expect(dockedAvailability(input({ draft: EMPTY_DRAFT, busy: { kind: "project", open: "c9" } })).reason).toBeNull();
   });
   test("while this conversation runs, text queues and the permission wait explains the line without blocking", () => {
     expect(dockedAvailability(input({ turn: "running" }))).toEqual({ enabled: true, reason: null });
@@ -128,7 +126,7 @@ describe("dockedMessage", () => {
 
 describe("dockedRefusal", () => {
   test("project_busy and a restore's busy become the busy line until the list names the conversation", () => {
-    expect(dockedRefusal("project_busy", EXISTING, "claude", "doan-design")).toEqual({ kind: "busy", busy: { kind: "project", waiting: false, open: null } });
+    expect(dockedRefusal("project_busy", EXISTING, "claude", "doan-design")).toEqual({ kind: "busy", busy: { kind: "project", open: null } });
     expect(dockedRefusal("busy", { kind: "archived", conversationId: "c1", provider: "claude" }, "claude", "doan-design")).toEqual({ kind: "busy", busy: { kind: "restore", open: null } });
   });
   test("canvas_not_found replaces the composer with the canvas-gone line", () => {

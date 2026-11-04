@@ -3,7 +3,7 @@ import type { ConversationSummary } from "../main/conversation/summary";
 import type { ConversationEvent, EventPayload } from "../main/conversation/types";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import { BIND_GRACE_MS as MAIN_BIND_GRACE_MS } from "../main/conversation/project";
-import { BIND_GRACE_MS, HomeRun, type HomeRunHost } from "./homeRun";
+import { BIND_GRACE_MS, blocksStart, HomeRun, type HomeRunHost } from "./homeRun";
 import type { StartInput } from "./HomeComposerView";
 import type { LastRequest } from "./homeConversations";
 
@@ -309,15 +309,53 @@ test("a move the person makes while the project is still being read cancels the 
   expect(h.run.takeFocus()).toBeNull();
 });
 
-test("Home's running map says whether the conversation waits for an answer (spec decision 18's two sentences)", async () => {
+// canvas-composer-polish spec 4: a conversation waiting for an answer does not keep Home from starting another.
+test("Home's running map names the running conversation and leaves out one waiting for an answer", async () => {
   const h = harness();
   const sending = h.run.start(REQUEST, LAST);
   start.resolve({ conversationId: "c1" });
   await sending;
-  expect(h.run.running()).toEqual(new Map([[ROOT, { conversationId: "c1", waiting: false }]]));
+  expect(h.run.running()).toEqual(new Map([[ROOT, { conversationId: "c1" }]]));
   h.run.event(event("c1", { type: "turn.started" }));
   h.run.event(event("c1", { type: "permission.request", requestId: "r1", tool: "Edit", summary: "Edit x", options: [{ id: "a", label: "Allow", kind: "allow" }] }));
-  expect(h.run.running()).toEqual(new Map([[ROOT, { conversationId: "c1", waiting: true }]]));
+  expect(h.run.running()).toEqual(new Map());
+  h.run.event(event("c1", { type: "permission.resolved", requestId: "r1", optionId: "a" }));
+  expect(h.run.running()).toEqual(new Map([[ROOT, { conversationId: "c1" }]]));
+});
+
+// The same state table as main's projectBusy (main/conversation/project.test.ts).
+test("only a project conversation waiting for an answer of those that hold the root lets Home start another", () => {
+  const table: [string, Partial<ConversationSummary>, boolean][] = [
+    ["preparing or running", { phase: "running", working: true }, true],
+    ["waiting for an answer", { phase: "waiting", working: true }, false],
+    ["ended, not judged yet", { phase: "ended", working: true }, true],
+    ["queue about to go out", { phase: "ended", working: true, queued: 1 }, true],
+    ["ended and judged", { phase: "ended", working: false }, false],
+    ["a canvas conversation", { phase: "running", working: true, canvas: { path: ".doan/canvases/a.html", id: "a" } }, false],
+    ["archived", { phase: "running", working: true, state: "archived" }, false],
+  ];
+  for (const [state, patch, blocks] of table) expect([state, blocksStart(summary(patch))]).toEqual([state, blocks]);
+});
+
+// canvas-composer-polish design §4 'Home의 새 캔버스': with two live turns in one root, a new canvas may be either's.
+test("a new canvas in a root with two live project turns neither opens nor toasts nor counts as drawn", async () => {
+  lists({ [ROOT]: [summary({ conversationId: "o", phase: "waiting", fromHome: false })] });
+  const h = harness();
+  h.run.entriesChanged();
+  await flush();
+  const sending = h.run.start(REQUEST, LAST); start.resolve({ conversationId: "c1" }); await sending;
+  h.arrive();
+  h.view.entries = [list(ROOT, ["a", "pricing"])];
+  h.run.entriesChanged();
+  expect(h.host.openCanvas).not.toHaveBeenCalled();
+  expect(h.host.toast).not.toHaveBeenCalledWith("New canvas in doan", "Open", expect.any(Function));
+  expect(h.run.drawing(ROOT, { path: ".doan/canvases/pricing.html", id: "pricing" })).toBeNull();
+  // The candidate was looked at: it is not taken later, once the other turn is gone.
+  lists({ [ROOT]: [summary({ conversationId: "o", phase: "ended", fromHome: false })] });
+  h.run.listChanged(ROOT);
+  await flush();
+  h.run.entriesChanged();
+  expect(h.host.openCanvas).not.toHaveBeenCalled();
 });
 
 // buzz-conversation R4: what survives a reload comes from main's list.
@@ -585,7 +623,8 @@ test("the removal guard and Home's reason line read the list after a reload", as
   const h = harness();
   h.run.entriesChanged();
   await flush();
-  expect(h.run.running()).toEqual(new Map([[ROOT, { conversationId: "p", waiting: true }]]));
+  // Waiting for an answer: Home may start another, but the removal still stops it first and says why.
+  expect(h.run.running()).toEqual(new Map());
   await h.run.remove([ROOT], "doan");
   expect(h.run.removing).toMatchObject({ conversations: ["p"], body: "A conversation in doan needs your answer. Doan stops it, then removes the project from the list. Files and Git worktrees stay on disk." });
 });
@@ -595,7 +634,7 @@ test("a project conversation main still counts as working after its turn ended h
   const h = harness();
   h.run.entriesChanged();
   await flush();
-  expect(h.run.running()).toEqual(new Map([[ROOT, { conversationId: "p", waiting: false }]]));
+  expect(h.run.running()).toEqual(new Map([[ROOT, { conversationId: "p" }]]));
   await h.run.remove([ROOT], "doan");
   expect(h.run.removing).toMatchObject({ conversations: ["p"], body: expect.stringContaining("A conversation is still running in doan.") });
 });
@@ -611,17 +650,17 @@ test("a late project_busy shows Home's reason line without Open until a list rea
   start.resolve({ error: "project_busy" });
   expect(await sending).toEqual({ error: "project_busy" });
   // The list has not caught up yet: the line names no conversation.
-  expect(h.run.running().get(ROOT)).toEqual({ conversationId: "", waiting: false });
+  expect(h.run.running().get(ROOT)).toEqual({ conversationId: "" });
   // A canvas conversation running in the root is not the holder, and the list read after the refusal names none
   // working: whatever held the root let it go meanwhile.
   read.resolve([summary({ conversationId: "canvas", phase: "running", fromHome: false, canvas: { path: ".doan/canvases/a.html", id: "a" } })]);
   await flush();
   expect(h.run.running().get(ROOT)).toBeUndefined();
   // A listed project conversation that holds the root is named, with Open.
-  lists({ [ROOT]: [summary({ conversationId: "p", phase: "waiting", fromHome: false })] });
+  lists({ [ROOT]: [summary({ conversationId: "p", phase: "running", fromHome: false })] });
   h.run.listChanged(ROOT);
   await flush();
-  expect(h.run.running().get(ROOT)).toEqual({ conversationId: "p", waiting: true });
+  expect(h.run.running().get(ROOT)).toEqual({ conversationId: "p" });
   now.mockRestore();
 });
 

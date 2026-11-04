@@ -3,7 +3,7 @@ import { DropdownMenu } from "radix-ui";
 import { ArrowUpRight, ChevronDown, Info, Plus, SquarePen } from "lucide-react";
 import type { Provider } from "../main/agentAuth/types";
 import { readPermissionMode } from "../main/conversation/permissionMode";
-import { sendNowShown, type SteerPhase } from "../main/conversation/steerSupport";
+import { sendNowShown } from "../main/conversation/steerSupport";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { AttachmentResult } from "../main/attachments";
 import type { Anchor, ConversationEvent } from "../main/conversation/types";
@@ -19,11 +19,11 @@ import { canvasConversationError, canvasConversationMenu, resumeHeld } from "./c
 import { sameCanvas } from "./canvasConversationRows";
 import type { CanvasRun, CanvasTarget, ResumeReply } from "./canvasRun";
 import { focusFieldEnd } from "./chipField";
-import { GroupIcon } from "./ComposerParts";
+import { GroupIcon, type CanvasPress } from "./ComposerParts";
 import { ConversationDeleteItem, type DeleteTarget } from "./ConversationDeleteDialog";
 import { ConversationHead } from "./ConversationLine";
 import { ConversationThread, LOADING_DELAY_MS, type ConversationThreadHandle, type LocateOutcome } from "./ConversationThread";
-import type { ListView } from "./conversationStore";
+import { steerPhaseOf, type ListView, type QueuedMessage } from "./conversationStore";
 import { stripState } from "./conversationStrip";
 import { copyText } from "./copyText";
 import { DockedComposer, type DockedFieldLink, type DockedOutcome, type DockedPicker, type DockedRequest } from "./DockedComposer";
@@ -36,7 +36,7 @@ import {
 import { PROVIDER_NAMES } from "./agentAuthView";
 import { scrollTarget } from "./overviewRun";
 import type { SettingsTarget } from "./settingsSections";
-import { threadItems } from "./threadItems";
+import { threadItems, withSending } from "./threadItems";
 import type { ComposerChoice } from "./rememberChoice";
 import { defaultPermission, permissionChoices, permissionPickerView } from "./permissionPicker";
 
@@ -77,7 +77,7 @@ export interface CanvasConversationProps {
   onReplyChip?(link: ReplyAnchor): Promise<LocateOutcome | null>;
   // The person chose what the panel shows (a conversation, New, a notice's Open).
   onChoose?(): void;
-  // The composer's Pick from canvas, and the page's way into its field (picker results, Add to conversation).
+  // The composer's Pick from canvas, and the page's way into its field (pick results).
   pick: DockedPicker;
   composerLink: MutableRefObject<DockedFieldLink | null>;
   onSettings(target: SettingsTarget): void;
@@ -86,6 +86,8 @@ export interface CanvasConversationProps {
   onOpenProjectConversation(conversationId: string): void;
   // The canvases terminal sessions work on: the terminal session choice waits while its session is among them.
   work: readonly WorkItem[];
+  // The page's canvas press signal, for the composer's preset lists (the app's document never sees a canvas press).
+  canvasPress?: CanvasPress | undefined;
 }
 
 const NEW_PLACEHOLDER = "Ask, / for presets";
@@ -102,18 +104,8 @@ function turnOf(events: readonly ConversationEvent[] | null, summary: Conversati
   if (summary?.phase === "waiting") return "waiting";
   return summary?.working ? "running" : "idle";
 }
-// The phase Send now reads (queue-send-now design §2.1), with turnOf's order: a turn that runs or waits for a
-// permission answer has something to take the message; a judged turn with work left (a queue about to go out) and an
-// ended one do not. The merged events' end wins over a list that has not caught up.
-export function steerPhaseOf(events: readonly ConversationEvent[] | null, summary: ConversationSummary | undefined, live: boolean): SteerPhase {
-  const kind = events && events.length ? stripState(events).kind : null;
-  if (kind === "permission") return "waiting";
-  if ((kind === "starting" || kind === "working") && live) return "running";
-  const ended = kind === "done" || kind === "failed" || kind === "interrupted";
-  if (!ended && summary?.phase === "waiting") return "waiting";
-  if (!ended && summary?.phase === "running") return "running";
-  return summary?.working ? "holding" : "ended";
-}
+// steerPhaseOf lives with the store, which also reads it when main answers Send now; exported here for its importers.
+export { steerPhaseOf };
 // "Linked by doan check at 14:02": the time of day, with the date when it was not today.
 export function linkedAt(at: string | undefined, now: number): string | null {
   const time = at ? Date.parse(at) : NaN;
@@ -262,7 +254,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
 
   // The thread, and an entry's scroll to its pending permission request.
   const handle = useRef<ConversationThreadHandle | null>(null);
-  const items = thread?.read === "ready" ? threadItems(thread.events, root, live) : thread?.read === "error" ? "error" as const : null;
+  const items = thread?.read === "ready" ? withSending(threadItems(thread.events, root, live), conversationId ? store.sending(conversationId) : []) : thread?.read === "error" ? "error" as const : null;
   const scroll = conversationId ? run.scrollRequest(conversationId) : null;
   const asking = summary?.phase === "waiting";
   useEffect(() => {
@@ -375,7 +367,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
     if (mode.kind !== "existing" && mode.kind !== "archived") return { error: "not_running" };
     const reply = await window.doan.queueConversation({ conversationId: mode.conversationId, text: request.text, anchors: [...request.anchors], ...(request.attachments.length ? { attachments: request.attachments } : {}) }).catch(() => ({ error: "unknown" as const }));
     if ("error" in reply) return { error: reply.error, ...("missing" in reply && Array.isArray(reply.missing) ? { missing: reply.missing as string[] } : {}) };
-    store.queued(root, mode.conversationId, { id: reply.itemId, text: queuedText(request) });
+    store.queued(root, mode.conversationId, queuedMessage(reply.itemId, request));
     return { ok: true };
   };
   // The canvas panel's reading of a refusal (canvasConversationError): attachment_missing is the composer's own.
@@ -437,7 +429,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
     </div>
     <div className="cp-foot">
       <DockedComposer mode={mode} project={project} homeDirectory={null} placeholder={placeholder} chipScope={canvasScope(target)}
-        pick={props.pick} link={props.composerLink} onLocate={props.onLocate}
+        pick={props.pick} link={props.composerLink} onLocate={props.onLocate} canvasPress={props.canvasPress}
         drafts={store.drafts} onDrafts={update => store.setDrafts(update)}
         auth={auth} picker={picker} provider={chosen} effort={effort}
         onPickerOpen={() => { if (healthy && !fixed) for (const group of picker.groups) if (group.read) support.readModels(root, group.provider); }}
@@ -472,6 +464,10 @@ export function CanvasConversation(props: CanvasConversationProps) {
 // A queued message's line: chips by name, as other one-line places show them; the request keeps its markers.
 export function queuedText(request: DockedRequest): string {
   return messageLine(request.text, request.anchors);
+}
+// The row shows the line; the request itself is kept for the thread, where Send now moves the message.
+export function queuedMessage(itemId: string, request: DockedRequest): QueuedMessage {
+  return { id: itemId, text: queuedText(request), message: { text: request.text, anchors: request.anchors, attachments: request.files ?? [] } };
 }
 
 // The chips the canvas panel's field takes and pastes as chips: the open canvas's (design §2 'Chip field').

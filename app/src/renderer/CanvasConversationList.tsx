@@ -1,6 +1,10 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { Trash2 } from "lucide-react";
 import { canvasRowProblemText, type CanvasConversationRow } from "./canvasConversationRows";
 import { ConversationHead } from "./ConversationLine";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
+import { DELETE_TOOLTIP, deleteItemLabel } from "./conversationDelete";
+import type { ListFocus } from "./ConversationDeleteDialog";
 import { focusAfterLeave, listKeyTarget } from "./listKeyboard";
 import { applyVisibility, thumbnailView, type ThumbnailState, type ThumbnailView } from "./thumbnails";
 
@@ -38,11 +42,13 @@ export function observedRows(rows: readonly CanvasConversationRow[]): string {
 export interface CanvasConversationListProps {
   list: CanvasList; project: string; thumbnails: ReadonlyMap<string, ThumbnailState>;
   open(item: CanvasConversationRow): void; retry(): void; onVisible(paths: readonly string[]): void;
+  // A row's Delete: its button, where Cancel returns focus, and where focus goes after the delete.
+  onDelete(item: CanvasConversationRow, button: HTMLElement, after: ListFocus): void;
   // The panel's scroller observes thumbnail visibility; its title takes focus when the list empties under it.
   scroller: RefObject<HTMLElement | null>; title: RefObject<HTMLElement | null>;
 }
 
-export function CanvasConversationList({ list, project, thumbnails, open, retry, onVisible, scroller, title }: CanvasConversationListProps) {
+export function CanvasConversationList({ list, project, thumbnails, open, retry, onVisible, onDelete, scroller, title }: CanvasConversationListProps) {
   const loading = list === "loading";
   const [slow, setSlow] = useState(false);
   useEffect(() => {
@@ -104,7 +110,9 @@ export function CanvasConversationList({ list, project, thumbnails, open, retry,
   }}>
     {rows.map(item => <Row key={item.key} item={item} project={project} thumbnail={item.row ? thumbnailView(item.row, thumbnails.get(item.row.path)) : null} tabbable={item.key === tabKey} open={open}
       focus={() => { memory.focus(item.key); setActive(item.key); }}
-      blur={to => memory.blur(item.key, to)} />)}
+      blur={to => memory.blur(item.key, to)}>
+      <RowDelete item={item} keys={keys} tabbable={item.key === tabKey} onDelete={onDelete} onFocus={() => setActive(item.key)} />
+    </Row>)}
   </ul>;
 }
 
@@ -119,7 +127,7 @@ function Thumb({ view }: { view: ThumbnailView | null }) {
   return <span className="cv-thumb empty"><span className="sr-only">{view?.kind === "pending" ? "Preview loading" : "Preview unavailable"}</span></span>;
 }
 
-function Row({ item, project, thumbnail, tabbable, open, focus, blur }: { item: CanvasConversationRow; project: string; thumbnail: ThumbnailView | null; tabbable: boolean; open(item: CanvasConversationRow): void; focus(): void; blur(to: EventTarget | null): void }) {
+function Row({ item, project, thumbnail, tabbable, open, focus, blur, children }: { item: CanvasConversationRow; project: string; thumbnail: ThumbnailView | null; tabbable: boolean; open(item: CanvasConversationRow): void; focus(): void; blur(to: EventTarget | null): void; children: ReactNode }) {
   const id = useId();
   const problem = item.problem ? canvasRowProblemText(item.problem, project) : null;
   // A problem row is named by its canvas and described by its reason, so the reason is read once.
@@ -133,5 +141,26 @@ function Row({ item, project, thumbnail, tabbable, open, focus, blur }: { item: 
           : <><b id={`${id}-name`}>{item.name}</b><small id={`${id}-why`} className={item.openable ? "note" : "err"}>{problem}</small></>}
       </span>
     </button>
+    {children}
   </li>;
+}
+
+// A row's Delete (canvas-composer-polish spec 6, draft frames cv-delete, cv-special): the title menu's row Delete as a
+// sibling of the row button, which cannot hold a button. It shares the row's Tab stop, so Tab moves between the two
+// while ↑/↓, Home and End move between rows. An unavailable one stays focusable with `aria-disabled` and reads its
+// reason. The focus target after the delete is computed now: the alert takes focus, so the list forgets the row.
+export function RowDelete({ item, keys, tabbable, onDelete, onFocus }: { item: CanvasConversationRow; keys: readonly string[]; tabbable: boolean; onDelete: CanvasConversationListProps["onDelete"]; onFocus(): void }) {
+  const reason = item.deletable.available ? null : item.deletable.reason;
+  // Conversation ids are opaque ids (letters, digits, hyphens), safe in an id.
+  const reasonId = `cv-delete-reason-${item.key}`;
+  return <>
+    <Tooltip><TooltipTrigger asChild>
+      <button type="button" className="doan-icon-button cv-delete" aria-label={deleteItemLabel(item.title)} tabIndex={tabbable ? 0 : -1}
+        {...(reason ? { "aria-disabled": true, "aria-describedby": reasonId } : {})} onFocus={onFocus}
+        onClick={event => { if (!reason) onDelete(item, event.currentTarget, focusAfterLeave(keys, keys.filter(key => key !== item.key), item.key)); }}>
+        <Trash2 aria-hidden="true" />
+      </button>
+    </TooltipTrigger><TooltipContent>{reason ?? DELETE_TOOLTIP}</TooltipContent></Tooltip>
+    {reason && <span className="sr-only" id={reasonId}>{reason}</span>}
+  </>;
 }
