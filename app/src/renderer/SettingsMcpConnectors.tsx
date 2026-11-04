@@ -215,7 +215,10 @@ function McpRow({ row, run, askRemove, focused, runningNotice }: { row: McpRowVi
       {row.menu && <DropdownMenu.Root>
         <DropdownMenu.Trigger asChild disabled={row.menu.disabled}><button type="button" className="doan-icon-button mcp-more" aria-label={row.menu.label} data-mcp-more={key} disabled={row.menu.disabled}>
           <Ellipsis aria-hidden="true" /></button></DropdownMenu.Trigger>
-        <DropdownMenu.Portal><DropdownMenu.Content className="doan-floating doan-menu" aria-label={row.label} side="bottom" align="end" sideOffset={4} collisionPadding={8}>
+        {/* Radix closes the menu before App's window Escape handler runs, which then sees no menu and leaves Settings;
+            the Escape that closes this menu stops here and focus returns to the … button. */}
+        <DropdownMenu.Portal><DropdownMenu.Content className="doan-floating doan-menu" aria-label={row.label} side="bottom" align="end" sideOffset={4} collisionPadding={8}
+          onEscapeKeyDown={event => event.stopPropagation()}>
           <DropdownMenu.Item className="doan-menu-item" data-mcp-remove={key} disabled={row.menu.removeDisabled} onSelect={askRemove}>Remove</DropdownMenu.Item>
         </DropdownMenu.Content></DropdownMenu.Portal>
       </DropdownMenu.Root>}
