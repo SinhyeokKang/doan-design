@@ -411,3 +411,17 @@ test("Escape on a server's menu closes only the menu", async () => {
   expect(event.stopPropagation).toHaveBeenCalledTimes(1);
   expect(event.preventDefault).not.toHaveBeenCalled();
 });
+
+// D3 /design-sync (custom-url, remove-alert): the dialogs' actions are default-size buttons (40px), as drawn.
+test("the URL dialog and the Remove alert use default-size actions", async () => {
+  await settle();
+  click(all(tree).find(element => element.props["data-mcp-add"] === ""));
+  render();
+  const actions = () => all(tree).filter(element => element.type === "button" && all(tree).some(d => d.type === "dialog" && all(d.props.children as ReactNode).includes(element)));
+  expect(actions().map(button => [words(button.props.children), button.props["data-ui-size"]])).toEqual([["Cancel", undefined], ["Add", undefined]]);
+  click(actions()[0]);
+  render();
+  (all(tree).find(element => element.props["data-mcp-remove"] === "claude:doan-mcp-two-com")!.props.onSelect as () => void)();
+  render();
+  expect(actions().map(button => [words(button.props.children), button.props["data-ui-size"]])).toEqual([["Cancel", undefined], ["Remove", undefined]]);
+});
