@@ -10,6 +10,9 @@ import {
   WHEEL_ZOOM_MAX, WHEEL_ZOOM_SENSITIVITY, wheelAction as appWheelAction, ZOOM_LIMITS, ZOOM_STEP, zoomAt as appZoomAt,
 } from "../renderer/viewport";
 import { canScrollAxis, clipText, documentHeight, frameBottom, nextHeight } from "./canvasScript";
+import { toolShortcut as appToolShortcut, type ShortcutEvent } from "../renderer/canvasTool";
+import { editableTarget as appEditableTarget } from "../renderer/selection";
+import { panBy as appPanBy } from "../renderer/viewport";
 
 // The viewer files `doan export` embeds (cli/internal/export/viewer/). They are plain browser
 // scripts, not app code, so this file is where they are held to the app's behaviour.
@@ -28,6 +31,7 @@ const NAMES = [
   "nextHeight", "documentHeight", "frameBottom", "canScrollAxis", "clipText", "parseLayout", "parseWheel", "parseMessage", "acceptMessage",
   "fitScale", "fitWidth", "fitFrame", "zoomAt", "wheelAction", "geometry", "scrollFor", "viewFrom", "currentFrame", "layoutHeight",
   "initialViewer", "viewerLayout", "viewerTimeout", "frameName", "drawerView", "ZOOM_ITEMS", "zoomView", "shortcutCommand", "popupOpen", "popupKey", "popupBlur",
+  "toolShortcut", "editableTarget", "panScroll", "layerShown", "escapeSelects", "toolbarMove",
 ];
 type Lib = Record<string, any>;
 const load = (source: string): Lib => runInNewContext(`${source}\n({ ${NAMES.join(", ")} })`, {}) as Lib;
@@ -461,6 +465,148 @@ describe("popup lists", () => {
     expect(v.popupKey(open, "Tab", 3)).toMatchObject({ open: true, active: 1, prevent: true, focus: "none" });
     expect(v.popupKey(open, "a", 3)).toMatchObject({ open: true, active: 1, prevent: false, focus: "none" });
     expect(v.popupKey(open, "ArrowDown", 0)).toMatchObject({ prevent: false });
+  });
+});
+
+// ── Tools: Select and Hand (export-viewer-chrome) ─────────────────────────────
+
+describe("tool keys are the app's", () => {
+  const press = (over: Partial<ShortcutEvent> = {}): ShortcutEvent => ({ type: "keydown", code: "KeyV", key: "v", repeat: false, isComposing: false, keyCode: 0, defaultPrevented: false, metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, target: null, ...over });
+  const element = (tagName: string, attributes: Record<string, string> = {}, editable = false) => ({ tagName, isContentEditable: editable, getAttribute: (name: string) => attributes[name] ?? null, hasAttribute: (name: string) => name in attributes });
+  const targets: [string, unknown][] = [
+    ["no target", null], ["a string", "BUTTON"], ["an object without tagName", {}], ["a div", element("DIV")], ["the board", element("MAIN", { tabindex: "0" })],
+    ["an input", element("INPUT")], ["a textarea", element("TEXTAREA")], ["a select", element("SELECT")], ["a contenteditable div", element("DIV", {}, true)],
+    ["a button", element("BUTTON")], ["a link", element("A", { href: "#x" })], ["an anchor without href", element("A")],
+    ...["button", "menuitem", "treeitem", "option", "tab", "switch", "checkbox", "radio", "combobox", "listbox", "dialog"].map((role): [string, unknown] => [`role=${role}`, element("DIV", { role })]),
+  ];
+  const keys: [string, string][] = [["KeyV", "v"], ["KeyH", "h"], ["KeyV", "ㅍ"], ["KeyH", "ㅗ"], ["KeyV", "V"], ["Space", " "], ["KeyB", "v"], ["KeyA", "a"], ["Escape", "Escape"], ["Digit1", "!"]];
+  const flags: [string, Partial<ShortcutEvent>][] = [
+    ["plain", {}], ["a repeat", { repeat: true }], ["an IME composition", { isComposing: true }], ["keyCode 229", { keyCode: 229 }],
+    ["⌘", { metaKey: true }], ["⌃", { ctrlKey: true }], ["⌥", { altKey: true }], ["⇧", { shiftKey: true }], ["a handled key", { defaultPrevented: true }],
+  ];
+  const events: [string, ShortcutEvent][] = [];
+  for (const type of ["keydown", "keyup", "keypress"]) {
+    for (const [code, key] of keys) {
+      for (const [flag, over] of flags) {
+        for (const [where, target] of targets) events.push([`${type} ${code} (${key}) ${flag} on ${where}`, press({ type, code, key, ...over, target })]);
+      }
+    }
+  }
+
+  test("toolShortcut gives the app's answer for every row of the event table", () => {
+    expect(events.length).toBeGreaterThan(3000);
+    for (const context of [{ canvasPage: true }, { canvasPage: false }]) {
+      for (const [label, event] of events) expect(v.toolShortcut(event, context), label).toEqual(appToolShortcut(event, context));
+    }
+    // The table reaches every answer, a held Space's release on any target included.
+    const answers = new Set(events.map(([, event]) => JSON.stringify(v.toolShortcut(event, { canvasPage: true }))));
+    expect([...answers].sort()).toEqual([JSON.stringify({ kind: "space", down: false }), JSON.stringify({ kind: "space", down: true }), JSON.stringify({ kind: "tool", tool: "hand" }), JSON.stringify({ kind: "tool", tool: "select" }), "null"].sort());
+    for (const [where, target] of targets) expect(v.toolShortcut(press({ type: "keyup", code: "Space", key: " ", metaKey: true, isComposing: true, repeat: true, target }), { canvasPage: true }), where).toEqual({ kind: "space", down: false });
+  });
+
+  test("editableTarget gives the app's answer for every target", () => {
+    for (const [label, target] of targets) expect(v.editableTarget(target), label).toBe(appEditableTarget(target));
+    expect(targets.filter(([, target]) => v.editableTarget(target)).map(([label]) => label)).toEqual(["an input", "a textarea", "a select", "a contenteditable div"]);
+  });
+
+  test("the comparison fails when a copy drifts", () => {
+    const drifted = load(lib.replace('"combobox"', '"listbox"'));
+    const row = press({ code: "Space", key: " ", target: element("DIV", { role: "combobox" }) });
+    expect(drifted.toolShortcut(row, { canvasPage: true })).not.toEqual(appToolShortcut(row, { canvasPage: true }));
+  });
+});
+
+describe("dragging the view", () => {
+  const viewport = { width: 960, height: 544 };
+
+  test("inside the scroll range a drag moves the view as the app's panBy does", () => {
+    for (const scale of [1, 1.5, 2]) {
+      const geom = v.geometry(scale, 1440, 2000, viewport);
+      const max = { left: geom.minWidth - viewport.width, top: geom.height - viewport.height };
+      expect(max.left).toBeGreaterThan(200);
+      for (const scroll of [{ left: 100, top: 100 }, { left: max.left / 2, top: 140.5 }]) {
+        for (const [dx, dy] of [[10, -20], [-60, 35], [0, 0], [0.4, -0.6], [-100, -100]] as const) {
+          const mine = v.viewFrom(v.panScroll(scroll, max, dx, dy), scale, geom);
+          const app = appPanBy(v.viewFrom(scroll, scale, geom), dx, dy);
+          // Through scroll offsets the sums round differently in the last bits.
+          expect(mine.scale).toBe(app.scale);
+          expect(mine.x).toBeCloseTo(app.x, 9);
+          expect(mine.y).toBeCloseTo(app.y, 9);
+        }
+      }
+    }
+  });
+
+  test("past the range it stops at 0 and at the most the board scrolls", () => {
+    const max = { left: 400, top: 900 };
+    expect(v.panScroll({ left: 10, top: 10 }, max, 50, -5000)).toEqual({ left: 0, top: 900 });
+    expect(v.panScroll({ left: 390, top: 890 }, max, -50, 50)).toEqual({ left: 400, top: 840 });
+    expect(v.panScroll({ left: 0, top: 0 }, max, 1, 1)).toEqual({ left: 0, top: 0 });
+  });
+
+  test("a canvas narrower than the board does not move that way", () => {
+    // Fit: the board is centred, so there is nothing to scroll sideways.
+    const fit = v.fitWidth(1440, viewport);
+    const geom = v.geometry(fit.scale, 1440, 2000, viewport);
+    const max = { left: Math.max(0, geom.minWidth - viewport.width), top: geom.height - viewport.height };
+    expect(max.left).toBe(0);
+    for (const dx of [-300, -1, 1, 300]) expect(v.panScroll({ left: 0, top: 50 }, max, dx, 0)).toEqual({ left: 0, top: 50 });
+  });
+});
+
+describe("the drag surface, Esc and the toolbar", () => {
+  test("the surface shows in Hand, while Space is held and through a drag, and never before the canvas is drawn", () => {
+    for (const tool of ["select", "hand"]) {
+      for (const space of [false, true]) {
+        for (const dragging of [false, true]) {
+          expect(v.layerShown(tool, space, dragging, false)).toBe(false);
+          expect(v.layerShown(tool, space, dragging, true)).toBe(tool === "hand" || space || dragging);
+        }
+      }
+    }
+  });
+
+  test("Esc turns Hand back to Select only when nothing handled it and it is not typing", () => {
+    expect(v.escapeSelects({ hand: true, editable: false, defaultPrevented: false })).toBe(true);
+    expect(v.escapeSelects({ hand: false, editable: false, defaultPrevented: false })).toBe(false);
+    expect(v.escapeSelects({ hand: true, editable: true, defaultPrevented: false })).toBe(false);
+    expect(v.escapeSelects({ hand: true, editable: false, defaultPrevented: true })).toBe(false);
+  });
+
+  test("←/→ move between the two tools and stop at the ends; other keys do nothing", () => {
+    expect(v.toolbarMove(0, 2, "ArrowRight")).toBe(1);
+    expect(v.toolbarMove(1, 2, "ArrowLeft")).toBe(0);
+    expect(v.toolbarMove(1, 2, "ArrowRight")).toBeNull();
+    expect(v.toolbarMove(0, 2, "ArrowLeft")).toBeNull();
+    for (const key of ["Home", "End", "ArrowUp", "ArrowDown", "Tab", " "]) expect(v.toolbarMove(0, 2, key), key).toBeNull();
+    // Focus outside the tools (index -1) is not walked into.
+    expect(v.toolbarMove(-1, 2, "ArrowRight")).toBeNull();
+  });
+
+  test("an open menu keeps V and H, by physical key, so the tool does not change under it", () => {
+    const open = v.popupOpen(4, 1);
+    for (const [key, code] of [["v", "KeyV"], ["h", "KeyH"], ["ㅍ", "KeyV"], ["ㅗ", "KeyH"]]) {
+      expect(v.popupKey(open, key, 4, code), key).toEqual({ ...open, focus: "none", prevent: true });
+    }
+    // Other letters stay the page's, as before.
+    expect(v.popupKey(open, "b", 4, "KeyB")).toMatchObject({ open: true, prevent: false });
+    expect(v.popupKey(open, "Escape", 4, "Escape")).toMatchObject({ open: false, focus: "trigger", prevent: true });
+  });
+});
+
+describe("key messages from the canvas", () => {
+  test("keeps Space down and up, V, H and Escape as fresh objects", () => {
+    expect(v.parseMessage({ type: "key", key: "Space", down: true, extra: 1 })).toEqual({ type: "key", key: "Space", down: true });
+    expect(v.parseMessage({ type: "key", key: "Space", down: false })).toEqual({ type: "key", key: "Space", down: false });
+    for (const key of ["V", "H", "Escape"]) expect(v.parseMessage({ type: "key", key, down: true })).toEqual({ type: "key", key });
+  });
+
+  test.each([
+    ["Alt", { type: "key", key: "Alt", alt: true }], ["a letter", { type: "key", key: "a" }], ["a lower-case v", { type: "key", key: "v" }],
+    ["Space without down", { type: "key", key: "Space" }], ["Space with a string down", { type: "key", key: "Space", down: "true" }],
+    ["no key", { type: "key" }], ["a numeric key", { type: "key", key: 32 }], ["a code instead of a key", { type: "key", code: "KeyV" }],
+  ])("drops %s", (_label, data) => {
+    expect(v.parseMessage(data)).toBeNull();
   });
 });
 
