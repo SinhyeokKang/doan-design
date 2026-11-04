@@ -47,9 +47,11 @@ On 2026-10-28 (agent-cli-versions) doan moved from exact CLI versions to verifie
 minimums with a run-time handshake check (then Claude Code 2.1.312, Codex 0.164.0; both lowered since,
 see `minimumVersions.ts`).
 The fixtures above stay as recorded: Codex from 0.163.0 (schemas compared with
-0.164.0, the minimum at that time) and Claude from CLI 2.1.310 / SDK 0.3.310. No
-version newer than the minimums is represented or verified here; such versions
-are judged only by the new-session handshake shape at run time.
+0.164.0, the minimum at that time) and Claude from CLI 2.1.310 / SDK 0.3.310.
+They are newer than today's minimums (Codex 0.158.0, Claude Code 2.1.284), so the
+minimums themselves rest on the real-app check that lowered them
+(cli-minimum-versions, 2026-11-05), and any version the fixtures do not record is
+judged only by the new-session handshake shape at run time.
 
 `index-v2-home.json` (2026-10-29, buzz-home) is a synthetic v2 index whose
 `newDesign` entry carries the optional `model`, `effort` and `canvasesAtStart`
