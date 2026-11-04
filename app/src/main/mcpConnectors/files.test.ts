@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { parseConnectorUrl } from "./names";
 import { EMPTY_CONNECTORS, EMPTY_PENDING, parseConnectorsFile, parsePendingLogouts, patchConnectors, patchPendingLogouts, type ConnectorsFile } from "./files";
 
 // `<userData>/mcp-connectors.json` and `<userData>/mcp-connectors-pending.json` (mcp-connectors design '포맷 변경'): only
@@ -64,7 +65,7 @@ describe("mcp-connectors.json", () => {
     for (const server of [
       { name: "doan-example-com", url: "https://example.com/b" }, { name: "doan-example-com-2", url: example.url },
       { name: "doan-notion", url: "https://example.com/b" }, { name: "doan-mcp-notion-com", url: "https://mcp.notion.com/mcp" },
-      { name: "example", url: "https://example.com/b" }, { name: "doan-x", url: "https://example.com/b/" },
+      { name: "example", url: "https://example.com/b" }, { name: "doan-x", url: "https://Example.com/b" }, { name: "doan-x", url: " https://example.com/b" },
     ]) expect(patchConnectors(added!, { add: server }), JSON.stringify(server)).toBeNull();
   });
 
@@ -87,6 +88,18 @@ describe("mcp-connectors.json", () => {
     current = patchConnectors(current!, { everConnected: { name: "doan-example-com", provider: "codex", value: false } });
     expect(current!.everConnected).toEqual({ "doan-notion": ["codex"] });
     expect(patchConnectors(current!, { everConnected: { name: "doan-other", provider: "codex", value: true } })).toBeNull();
+  });
+
+  // Normalization drops one trailing slash, so a URL typed with two is stored with one; storing must not normalize it
+  // again (BA review 🟡1).
+  test("every URL parseConnectorUrl returns can be added and read back, including one that keeps a trailing slash", () => {
+    for (const text of ["https://example.com/mcp//", "https://example.com", "HTTPS://Example.COM:443/a/?b=1", "https://example.com/a%20b"]) {
+      const read = parseConnectorUrl(text);
+      if (!read.ok) throw new Error(text);
+      const added = patchConnectors(EMPTY_CONNECTORS, { add: { name: "doan-example-com", url: read.url } });
+      expect(added, text).toEqual({ v: 1, servers: [{ name: "doan-example-com", url: read.url }], everConnected: {} });
+      expect(parseConnectorsFile(JSON.stringify(added)), text).toEqual({ ok: true, file: added });
+    }
   });
 
   test("a patched file reads back as the same file", () => {

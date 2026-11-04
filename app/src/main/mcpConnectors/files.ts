@@ -1,4 +1,4 @@
-import { CONNECTOR_NAME, parseConnectorUrl } from "./names";
+import { CONNECTOR_NAME, parseConnectorUrl, storedConnectorUrl } from "./names";
 import { MCP_PROVIDERS, PRESETS, type ConnectorServer, type McpProvider } from "./presets";
 
 // `<userData>/mcp-connectors.json` and `<userData>/mcp-connectors-pending.json` (mcp-connectors design '포맷 변경').
@@ -45,8 +45,7 @@ function version(text: string | null): { v: 1; value: Record<string, unknown> } 
 // Stored URLs are already normalized, so a duplicate is an equal string.
 function validServer(value: unknown): value is ConnectorServer {
   if (!record(value) || !exactKeys(value, ["name", "url"]) || !name(value.name) || PRESET_NAMES.has(value.name) || typeof value.url !== "string") return false;
-  const url = parseConnectorUrl(value.url);
-  return url.ok && url.url === value.url && !PRESET_URLS.has(value.url);
+  return storedConnectorUrl(value.url) && !PRESET_URLS.has(value.url);
 }
 
 function validConnectors(value: Record<string, unknown>): value is Record<string, unknown> & ConnectorsFile {

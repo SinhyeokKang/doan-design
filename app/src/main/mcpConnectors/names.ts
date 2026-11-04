@@ -25,6 +25,12 @@ export function parseConnectorUrl(text: string): ConnectorUrlRead {
   return { ok: true, url: url.href };
 }
 
+// Whether a URL is in the stored form: one parseConnectorUrl can return. Normalizing is input-only and not
+// idempotent (it drops one trailing slash per call), so stored URLs are checked, not normalized again.
+export function storedConnectorUrl(url: string): boolean {
+  return parseConnectorUrl(url).ok && new URL(url).href === url;
+}
+
 // The preset or URL server already registered at this normalized URL, if any.
 export function connectorWithUrl(url: string, servers: readonly ConnectorServer[]): string | null {
   return [...PRESETS, ...servers].find(server => server.url === url)?.name ?? null;
