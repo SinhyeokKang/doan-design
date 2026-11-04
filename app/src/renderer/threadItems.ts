@@ -1,5 +1,6 @@
 import type { Anchor, Canvas, ConversationEvent, FailureCode, PermissionOption } from "../main/conversation/types";
 import { splitRequest, type PresetRef } from "./homeComposer";
+import { PRESETS } from "../main/mcpConnectors/presets";
 
 // A conversation's merged events (conversationStrip's mergeConversationEvents) as the thread draws them
 // (buzz-conversation design §3.3). Every item has a key that stays the same while later events arrive.
@@ -59,14 +60,31 @@ type ActivityEvent = Extract<ConversationEvent, { type: "activity" }>;
 function step(event: ActivityEvent, root: string): ActivityStep {
   const path = event.path && (event.kind === "read" || event.kind === "edit") ? rootRelative(event.path, root) : null;
   const verb = event.kind === "command" ? "Ran a command" : event.kind === "other" || !path ? event.summary : DONE_VERB[event.kind];
-  const sentence = event.kind === "other" && (WAITING.test(event.summary) || NOT_READY.test(event.summary));
+  const sentence = event.kind === "other" && startupServers(event.summary) !== null;
   return { key: `s${event.seq}`, kind: event.kind, verb, path, ...(sentence ? { sentence: true as const } : {}) };
 }
 // Codex's MCP startup lines (main/conversation/mcpStartup.ts waitingLine and notReadyLine). History is append-only, so
 // main writes the not-ready line after its Waiting line; the thread shows them as one step that changed its text
 // (mcp-connectors spec 6).
-const WAITING = /^Waiting for \S/;
-const NOT_READY = / (?:wasn’t ready, so this turn started without it|weren’t ready, so this turn started without them)\.$/;
+const WAITING = /^Waiting for (.+)$/;
+const NOT_READY = /^(.+) (?:wasn’t ready, so this turn started without it|weren’t ready, so this turn started without them)\.$/;
+// What mcpStartup.ts names: a preset's label or a URL server's host, joined "A, B and C". Anything else (an agent's own
+// "Waiting for review") is not a startup line.
+const PRESET_LABELS = new Set(PRESETS.map(preset => preset.label));
+const SERVER = /^[a-z0-9-]+(?:\.[a-z0-9-]+)+(?::\d+)?$/i;
+function startupServers(summary: string): { kind: "waiting" | "notReady"; names: string[] } | null {
+  const waiting = WAITING.exec(summary), notReady = waiting ? null : NOT_READY.exec(summary);
+  const list = waiting?.[1] ?? notReady?.[1];
+  if (!list) return null;
+  const names = list.split(/, | and /);
+  return names.every(name => PRESET_LABELS.has(name) || SERVER.test(name)) ? { kind: waiting ? "waiting" : "notReady", names } : null;
+}
+// The not-ready line replaces the Waiting line it ends: the servers it names were all waited for (some of them may have
+// become ready meanwhile).
+function endsWaiting(previous: ActivityStep, next: ActivityStep): boolean {
+  const before = previous.sentence ? startupServers(previous.verb) : null, after = next.sentence ? startupServers(next.verb) : null;
+  return before?.kind === "waiting" && after?.kind === "notReady" && after.names.every(name => before.names.includes(name));
+}
 function runningHead(last: ActivityStep): string {
   if (last.kind === "command") return "Running a command";
   return (last.kind === "read" || last.kind === "edit") && last.path ? `${RUNNING_VERB[last.kind]} ${last.path}` : last.verb;
@@ -138,7 +156,7 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
       case "activity": {
         const next = step(event, root);
         const previous = group?.turnId === event.turnId ? group.item.steps.at(-1) : undefined;
-        if (previous?.sentence && NOT_READY.test(next.verb) && WAITING.test(previous.verb)) group!.item.steps[group!.item.steps.length - 1] = next;
+        if (previous && endsWaiting(previous, next)) group!.item.steps[group!.item.steps.length - 1] = next;
         else if (group && group.turnId === event.turnId) group.item.steps.push(next);
         else {
           const item = { kind: "activity" as const, key: `a${event.seq}`, running: false, head: "", steps: [next] };

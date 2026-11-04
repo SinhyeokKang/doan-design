@@ -31,6 +31,8 @@ const STATUS: Record<ConnectorStatus, string> = {
   disconnecting: "Disconnecting", removing: "Removing", reconnect_needed: "Reconnect needed", check_failed: "Couldn’t check",
 };
 export const BLOCKED_LINE = "Doan is still disconnecting the previous account. Try again later.";
+// URL servers are one list for every agent, so what happens to one is said for both (spec 2 '읽어 주기').
+const BOTH = "Claude Code and Codex";
 export const MCP_HIDDEN_ANNOUNCEMENT = "MCP Connectors is available while Claude Code or Codex is signed in.";
 
 // null: agent-auth not read yet. An unreadable account store (null) has nobody signed in.
@@ -107,13 +109,15 @@ function rowView(provider: McpProvider, server: McpServerDto, row: McpRowDto, bu
   }
   if (view.status === "reconnect_needed" && !view.blocked) helper = `${agent} was connected to ${label} before, and that access has ended. Reconnect to use it again.`;
   if (view.blocked) helper = BLOCKED_LINE;
+  // A failed Remove shows its own alert over an earlier Connect failure; while a Remove runs, an earlier failure's alert
+  // stays (it lasts until the row's next Connect, Retry or Cancel, spec 3) with its Retry disabled (BU review Y3).
+  if (server.removeFailed && view.status !== "removing") notice = alert(`Couldn’t remove ${label} from Doan’s agents. Try again.`, [button("remove", "Retry", "prominent", `Retry removing ${label} from ${BOTH}`)]);
   // A failed attempt keeps the row it returned to and puts the reason and Retry in place of the row's button.
-  if (row.failure) {
+  else if (row.failure) {
     rowButton = null;
     const retry = row.failure === "disconnect_failed" ? "disconnect" : "connect";
-    notice = alert(mcpFailureText(row.failure, provider, label), [button(retry, "Retry", "prominent", `Retry ${of}`, off)]);
+    notice = alert(mcpFailureText(row.failure, provider, label), [button(retry, "Retry", "prominent", `Retry ${of}`, off || view.status === "removing")]);
   }
-  if (server.removeFailed && !notice) notice = alert(`Couldn’t remove ${label} from Doan’s agents. Try again.`, [button("remove", "Retry", "prominent", `Retry removing ${label}`)]);
   if (rowButton && view.disabled === "busy") rowButton = { ...rowButton, tooltip: busy };
   return {
     provider, name: server.name, label, url: server.preset ? null : server.url, logo: LOGOS[server.name] ?? null, group: of,
@@ -190,7 +194,11 @@ export function mcpChanges(prev: McpSnapshot | null, next: McpSnapshot): McpChan
       if (row.failure && row.failure !== old.failure) change(row.failure === "disconnect_failed" ? "disconnectFailed" : "failed");
       else if (succeeded === row.name && was === "connecting") change("connected");
       else if (succeeded === row.name && was === "disconnecting") change("disconnected");
+      // An attempt that ended without a success was cancelled or failed (told by its failure); a first Checking result
+      // is not read (spec 2 '읽어 주기').
       else if (was === "checking" || was === now || ["connecting", "disconnecting", "removing"].includes(was)) continue;
+      else if (now === "connected") change("connected");
+      else if (now === "not_connected" && was === "connected") change("disconnected");
       else if (now === "reconnect_needed") change("reconnectNeeded");
       else if (now === "check_failed") change("checkFailed");
     }
@@ -214,9 +222,9 @@ export function mcpChangeText(change: McpChange): string | null {
     case "disconnectFailed": return `Couldn’t disconnect ${change.label} from ${agent}`;
     case "reconnectNeeded": return `${change.label} needs reconnecting for ${agent}`;
     case "checkFailed": return `Couldn’t check ${change.label} for ${agent}`;
-    case "added": return `${change.label} added`;
-    case "removed": return `${change.label} removed from Doan’s agents`;
-    case "removeFailed": return `Couldn’t remove ${change.label} from Doan’s agents`;
+    case "added": return `${change.label} added for ${BOTH}`;
+    case "removed": return `${change.label} removed from ${BOTH}`;
+    case "removeFailed": return `Couldn’t remove ${change.label} from ${BOTH}`;
     case "succeeded": return null;
   }
 }

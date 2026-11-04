@@ -231,7 +231,7 @@ test("after Add, focus goes to the new item's row group in the first section, sc
   const group = nodes.get('[data-mcp-row="claude:doan-new-example-com"]')!;
   expect(group.focus).toHaveBeenCalled();
   expect(group.scrollIntoView).toHaveBeenCalled();
-  expect(words(all(tree).find(element => element.props.className === "ob-live")?.props.children)).toBe("new.example.com added");
+  expect(words(all(tree).find(element => element.props.className === "ob-live")?.props.children).replace(/\u200b/g, "")).toBe("new.example.com added for Claude Code and Codex");
 });
 
 test("Remove asks first and locks the page; Cancel returns to the … button, Remove sends and later focuses the next item", async () => {

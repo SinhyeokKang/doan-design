@@ -10,7 +10,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip
 import { providerLogo } from "./homeComposer";
 import { addError, mcpPageView, removeFocus, type McpButton, type McpCommand, type McpRowView } from "./mcpConnectorsView";
 import type { McpConnectorsWatch } from "./mcpConnectorsWatch";
-import { dialogKeys, focusLost, NoticeView, openModal } from "./Onboarding";
+import { dialogKeys, NoticeView, openModal } from "./Onboarding";
 
 export interface SettingsMcpConnectorsProps {
   // App's reader of main's snapshots: attempts and their notices outlive this page.
@@ -26,6 +26,8 @@ type Dialog = { kind: "add"; value: string; error: string | null; busy: boolean 
 
 const rowKey = (provider: McpProvider, name: string) => `${provider}:${name}`;
 const rowGroup = (provider: McpProvider, name: string) => document.querySelector<HTMLElement>(`[data-mcp-row="${rowKey(provider, name)}"]`);
+// A control that can't act: gone, natively disabled, or aria-disabled (a busy section's Connect keeps focus that way).
+const unusable = (node: HTMLElement) => !node.isConnected || node.matches(":disabled") || node.getAttribute?.("aria-disabled") === "true";
 const snapshotReply = (value: unknown): value is McpSnapshot => typeof value === "object" && value !== null && "revision" in value;
 
 // Settings > MCP Connectors (mcp-connectors spec 2–4, 8, 10; draft frames 1–9): one section per signed-in agent,
@@ -61,8 +63,10 @@ export function SettingsMcpConnectors({ watch, signIn, onLock, openAgents, actio
 
   const view = mcpPageView(watch.snapshot, signIn.state.auth, (provider, name) => watch.remembered(provider, name));
 
-  // The row whose control the person used: when that control goes away or is disabled, its row group takes focus.
-  const focusWatch = useRef<{ provider: McpProvider; name: string; node: HTMLElement } | null>(null);
+  // The row control focus is on, entered by keyboard or used: when it goes away or becomes disabled (natively or by
+  // aria-disabled), its row group takes focus. wasUnusable: it was already off when focused, so only a removal moves it.
+  const focusWatch = useRef<{ provider: McpProvider; name: string; node: HTMLElement; wasUnusable: boolean } | null>(null);
+  const watchFocus = (row: McpRowView, node: HTMLElement) => { focusWatch.current = { provider: row.provider, name: row.name, node, wasUnusable: unusable(node) }; };
   // Focus that waits for a snapshot: the new item after Add, the next item after Remove.
   const pending = useRef<{ kind: "added"; name: string } | { kind: "removed"; provider: McpProvider; name: string; names: string[] } | null>(null);
   useEffect(() => {
@@ -86,19 +90,24 @@ export function SettingsMcpConnectors({ watch, signIn, onLock, openAgents, actio
     requestAnimationFrame(() => {
       if (focusWatch.current !== watched) return;
       const active = document.activeElement === document.body ? null : document.activeElement as HTMLElement | null;
-      const decision = focusLost(active, watched.node);
-      if (decision === "release") { focusWatch.current = null; return; }
-      if (decision === "keep") return;
+      // Focus the person moved elsewhere is theirs.
+      if (active !== null && active !== watched.node) { focusWatch.current = null; return; }
+      const node = watched.node, lost = !node.isConnected || (unusable(node) && !watched.wasUnusable);
+      if (!lost) {
+        if (active === null) focusWatch.current = null;
+        else watched.wasUnusable = unusable(node);
+        return;
+      }
       const group = rowGroup(watched.provider, watched.name);
       if (!group) return;
       group.focus();
-      watched.node = group;
+      focusWatch.current = { ...watched, node: group, wasUnusable: false };
     });
   });
 
   const run = (row: McpRowView) => (command: McpCommand) => {
     const active = document.activeElement;
-    focusWatch.current = active && active !== document.body ? { provider: row.provider, name: row.name, node: active as HTMLElement } : null;
+    if (active && active !== document.body) watchFocus(row, active as HTMLElement);
     const api = window.doan;
     switch (command) {
       case "connect": void api.connectMcpServer(row.provider, row.name); break;
@@ -143,16 +152,19 @@ export function SettingsMcpConnectors({ watch, signIn, onLock, openAgents, actio
     requestAnimationFrame(() => {
       const group = rowGroup(open.provider, open.name);
       group?.focus();
-      if (group) focusWatch.current = { provider: open.provider, name: open.name, node: group };
+      if (group) focusWatch.current = { provider: open.provider, name: open.name, node: group, wasUnusable: false };
     });
     startRemove(row);
   };
 
-  const announced = watch.announcement && watch.announcement.seq > since.current ? watch.announcement.text : "";
+  // The page live region is the only announcement channel (spec 2): notices keep their look without live roles. Every
+  // other announcement ends in a zero-width space, so a message repeated word for word still changes the region.
+  const announcement = watch.announcement && watch.announcement.seq > since.current ? watch.announcement : null;
+  const announced = announcement ? `${announcement.text}${announcement.seq % 2 === 0 ? "\u200b" : ""}` : "";
   return <>
     {actions && createPortal(<button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" data-mcp-add="" disabled={view.addDisabled} onClick={openAdd}>
       <Plus aria-hidden="true" />Add server by URL</button>, actions)}
-    {view.notice && <div className="settings-notice"><NoticeView notice={view.notice} run={() => {}} /></div>}
+    {view.notice && <div className="settings-notice"><NoticeView notice={view.notice} run={() => {}} live={false} /></div>}
     {view.sections.map(section => {
       const titleId = `mcp-agent-${section.provider}`;
       const noticeAt = watch.notices[section.provider];
@@ -167,10 +179,11 @@ export function SettingsMcpConnectors({ watch, signIn, onLock, openAgents, actio
             aria-label={section.header.action.ariaLabel} onClick={() => openAgents(section.provider)}>{section.header.action.label}</button></div>}
         </div>
         <div className="doan-panel ob-provider-list">
-          {section.rows.map(row => <McpRow key={row.name} row={row} run={run(row)} askRemove={() => askRemove(row)} runningNotice={noticeAt === row.name ? watch.noticeText(section.provider) : null} />)}
+          {section.rows.map(row => <McpRow key={row.name} row={row} run={run(row)} askRemove={() => askRemove(row)} focused={node => watchFocus(row, node)}
+            runningNotice={noticeAt === row.name ? watch.noticeText(section.provider) : null} />)}
         </div>
         {/* A removed server's notice stays in its section, under the list it left. */}
-        {orphan && <div className="mcp-section-notice"><NoticeView notice={{ role: "status", spinner: false, body: watch.noticeText(section.provider), actions: [] }} run={() => {}} /></div>}
+        {orphan && <div className="mcp-section-notice"><NoticeView notice={{ role: "status", spinner: false, body: watch.noticeText(section.provider), actions: [] }} run={() => {}} live={false} /></div>}
       </section>;
     })}
     <p className="ob-live" role="status">{announced}</p>
@@ -192,9 +205,9 @@ function RowButton({ button, run, describedBy }: { button: McpButton; run: (comm
   </>;
 }
 
-function McpRow({ row, run, askRemove, runningNotice }: { row: McpRowView; run: (command: McpCommand) => void; askRemove(): void; runningNotice: string | null }) {
+function McpRow({ row, run, askRemove, focused, runningNotice }: { row: McpRowView; run: (command: McpCommand) => void; askRemove(): void; focused(node: HTMLElement): void; runningNotice: string | null }) {
   const key = rowKey(row.provider, row.name);
-  return <div className="ob-provider" role="group" tabIndex={-1} aria-label={row.group} data-mcp-row={key}>
+  return <div className="ob-provider" role="group" tabIndex={-1} aria-label={row.group} data-mcp-row={key} onFocus={event => focused(event.target)}>
     <div className="ob-provider-row">
       <span className="ob-provider-mark" aria-hidden="true">{row.logo ? <img src={row.logo} alt="" /> : <Server className="mcp-generic-mark" />}</span>
       <div className="ob-provider-label"><strong>{row.label}</strong><span>{row.status}</span>{row.url && <span className="mcp-url">{row.url}</span>}</div>
@@ -208,8 +221,8 @@ function McpRow({ row, run, askRemove, runningNotice }: { row: McpRowView; run: 
       </DropdownMenu.Root>}
     </div>
     {row.helper && <p className="ob-provider-help">{row.helper}</p>}
-    {row.notice && <NoticeView notice={row.notice} run={run} />}
-    {runningNotice && <NoticeView notice={{ role: "status", spinner: false, body: runningNotice, actions: [] }} run={() => {}} />}
+    {row.notice && <NoticeView notice={row.notice} run={run} live={false} />}
+    {runningNotice && <NoticeView notice={{ role: "status", spinner: false, body: runningNotice, actions: [] }} run={() => {}} live={false} />}
   </div>;
 }
 

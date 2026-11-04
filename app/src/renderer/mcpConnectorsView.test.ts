@@ -264,14 +264,12 @@ test("announcements carry a sequence so a page opened later reads only newer one
 });
 
 // BU review Y3 (.scratch/review-bu/view.test.ts): the Remove in progress and its own failure win over an earlier Connect failure.
-test("Removing disables the Retry an earlier Connect failure left, in every section", () => {
-  const view = mcpPageView(snapshot({ codex: { [URL_SERVER.name]: ["removing", { failure: "failed" }] }, claude: { [URL_SERVER.name]: "removing" } }), AUTH);
-  for (const provider of ["claude", "codex"] as const) {
-    const row = find(view, provider, URL_SERVER.name);
-    expect(row.status).toBe("Removing");
-    expect(row.notice).toBeNull();
-    expect(row.button?.disabled).toBe(true);
-  }
+test("Removing disables the Retry an earlier Connect failure left, which stays until the next Connect, Retry or Cancel", () => {
+  const view = mcpPageView(snapshot({ codex: { [URL_SERVER.name]: ["removing", { failure: "failed" }] }, claude: { [URL_SERVER.name]: "removing" } }), AUTH, () => "connect");
+  const codex = find(view, "codex", URL_SERVER.name), claude = find(view, "claude", URL_SERVER.name);
+  expect(codex).toMatchObject({ status: "Removing", button: null, notice: { body: "Codex couldn’t connect to mcp.example.com. Check your connection and try again." } });
+  expect(codex.notice!.actions.every(action => action.disabled)).toBe(true);
+  expect(claude).toMatchObject({ status: "Removing", notice: null, button: { disabled: true } });
 });
 
 test("a Remove failure shows its own alert and Retry Remove in every section, over an earlier Connect failure", () => {
