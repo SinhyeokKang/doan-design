@@ -683,7 +683,8 @@ async function start(): Promise<void> {
     isOpen, selection: () => selection,
     work(request) { updateWork(applyWork(workState, request, Date.now())); },
     roots: () => ready.entries().map(entry => entry.path),
-    // No early kill: a start past the answer deadline still registers (runtime.ts AUTO_REGISTER_WAIT_MS).
+    // Only runLs's default 10 s timeout applies, not the answer deadline: a start past it still registers
+    // (runtime.ts AUTO_REGISTER_WAIT_MS).
     readRoot: async root => folderState(await runLs(cli, { repo: root })),
     // The shell publishes the list synchronously, so the work state holds the root before the start's work applies.
     adopt(root, view) { ready.adopt(root, view); },

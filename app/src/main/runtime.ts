@@ -102,7 +102,8 @@ function workError(code: "bad_request" | "bad_token" | "project_not_open", messa
   return { v: 3, ok: false, error: { code, message } };
 }
 
-// Registrations in progress per state and root: concurrent starts share one read, and a done waits for it.
+// Registrations in progress per state and root: concurrent starts share one read, and a done waits for it. Keyed by
+// state so each runtime (and each test) has its own, without adding a member every RuntimeState must provide.
 const registrations = new WeakMap<RuntimeState, Map<string, Promise<boolean>>>();
 
 function register(state: RuntimeState, root: string): Promise<boolean> {
