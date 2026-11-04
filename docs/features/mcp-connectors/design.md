@@ -137,6 +137,14 @@ Doan은 커넥터 목록(이름, URL, 프리셋)만 자기 파일에 두고, 실
   10. `elsewhere` — 다른 화면에 있을 때 실패 toast("Open MCP Connectors" 동작), Agents sign-out 확인 본문에 더하는 한 줄 "Its MCP connectors need connecting again."
   11. `conversation` — Codex 대화: 서버 준비 상한 초과 activity 줄("<Notion> wasn’t ready, so this turn started without it.")과 MCP 도구 권한 요청(summary "Run <tool> on <Notion>", Allow / Deny / Allow for this session). 대화 화면은 shipped 화면을 복사하고 이 두 요소만 새로 표시한다.
 - 10·11은 shipped 화면 위에 더하는 요소라 `/design-sync` 비교 대상이 아니고, 구현은 기존 측정값을 따른다.
+- **사용자 확정 (2026-11-04, `3653a0b2`)**: 위 11개 프레임을 확정했다. 초안에서 함께 정한 것:
+  - 항목 로고는 온보딩 provider 행의 32px 슬롯·24px 이미지(`.ob-provider-mark`)를 그대로 쓰고, URL 서버는 같은 슬롯에 lucide Server 아이콘이다. 섹션 제목에는 이름 옆에 16px provider 로고(`.logo`)를 둔다.
+  - 페이지 설명은 "servers"로 통일한다. "MCP Connectors"는 카테고리 이름에만 쓴다.
+  - 실행할 수 없는 에이전트(만료 등)의 섹션은 항목의 마지막 상태를 남기고 버튼만 비활성으로 한다. 이유 문구 예: "Claude Code’s sign-in expired. Sign in again to connect or disconnect its servers."
+  - 서버 준비 상한 초과 activity 줄은 기존 activity 규칙대로 다음 항목이 오면 "N steps"에 접힌다.
+  - Remove와 Retry는 prominent 버튼이다(destructive 변형은 없다).
+  - 더 새로운 `v`의 파일이면 URL 서버를 보이지 않는다(Settings storage 규칙).
+  - 초안이 제안한 shipped 화면 변경(긴 호스트의 줄바꿈, activity 문장 줄바꿈)은 D2 구현에서 MCP 화면과 이 activity 줄에만 적용한다.
 
 ## 범위 밖에서 함께 발견한 것 (이 feature가 고치지 않음)
 
