@@ -2007,7 +2007,7 @@ describe("MCP connector steps", () => {
     await finish("status", 0);
     expect(await out.done).toMatchObject({ phase: "disconnected" });
     expect(listed).toEqual({ code: 0, stdout: "[]", stderr: "" });
-    expect(calls).toEqual([{ provider: "codex", request: { kind: "signOut", previousAccountId: null, nextAccountId: null, staging: null } }]);
+    expect(calls).toEqual([{ provider: "codex", request: { kind: "signOut", previousAccountId: null, nextAccountId: null, staging: null, profileDir: storage.profileDir("codex") } }]);
   });
   it("finishes a sign-out whose MCP logout throws", async () => {
     const m = manager({ mcpLogout: async () => { throw new Error("list failed"); } }); await m.load();
@@ -2058,6 +2058,55 @@ describe("MCP connector steps", () => {
     expect(retired.args).toEqual(["-c", "store=keyring", "logout"]);
     expect(retired.cwd).toBe(storage.profileDir("codex"));
     expect((await run.done).connection!.profile).toBe(login.cwd.split("/").at(-1));
+  });
+  // BB review R1: the new connection must not run (a conversation or another MCP command) while the previous
+  // account's MCP tokens are being logged out or the staging profile is being registered.
+  it("keeps the provider closed until a committed replacement's MCP step finished, then publishes again", async () => {
+    let entered!: () => void, release!: () => void;
+    const inStep = new Promise<void>(resolve => { entered = resolve; }), gate = new Promise<void>(resolve => { release = resolve; });
+    const changes: Provider[] = [];
+    const m = manager({ onChange: state => changes.push(state.provider), mcpLogout: async () => { entered(); await gate; return { failed: [] }; } }); await m.load();
+    await signedInClaude(m, "a1");
+    keychain = account("a2");
+    const second = started(await m.signIn("claude", 7)); await finish("login", 0); await finish("status", 0);
+    await inStep;
+    expect(m.state("claude").connection?.account.id).toBe("a2");
+    expect(m.settling("claude")).toBe(true);
+    await expect(m.acquire("claude", "run")).rejects.toThrow("busy");
+    await expect(m.acquire("claude", "mcp")).rejects.toThrow("busy");
+    const before = changes.length;
+    release();
+    await second.done;
+    expect(m.settling("claude")).toBe(false);
+    expect(changes.length).toBeGreaterThan(before);
+    await (await m.acquire("claude", "run")).release();
+  });
+  it("keeps Codex closed while its staging profile is being registered", async () => {
+    let entered!: () => void, release!: () => void;
+    const inStep = new Promise<void>(resolve => { entered = resolve; }), gate = new Promise<void>(resolve => { release = resolve; });
+    const m = manager({ adapters: { ...withAcp(), codex: { ...keychainProvider(() => keychain), loginClears: true } }, mcpLogout: async () => { entered(); await gate; return { failed: [] }; } }); await m.load();
+    keychain = account(null);
+    const first = started(await m.signIn("codex", 7)); await finish("login", 0); await finish("status", 0); await first.done;
+    const run = started(await m.signIn("codex", 7));
+    await finish("login", 0); await finish("status", 0);
+    await inStep;
+    await expect(m.acquire("codex", "run")).rejects.toThrow("busy");
+    release();
+    await finish("logout", 0);
+    await run.done;
+    await (await m.acquire("codex", "run")).release();
+  });
+  it("gives a command and child environment for a Doan-owned directory without a connection or lease", async () => {
+    const m = manager(); await m.load();
+    const dir = mkdtempSync(join(tmpdir(), "doan-mcp-home-"));
+    try {
+      const launched = await m.environment("codex", dir);
+      expect(launched.command).toBe("/bin/fake-cli");
+      expect(launched.env).toMatchObject({ CODEX_HOME: dir, PATH: "/verified/bin", DOAN_RUNTIME: "/data/runtime.json" });
+      for (const name of ["GH_TOKEN", "ANTHROPIC_API_KEY"]) expect(launched.env).not.toHaveProperty(name);
+      await m.quit();
+      await expect(m.environment("codex", dir)).rejects.toThrow("busy");
+    } finally { rmSync(dir, { recursive: true, force: true }); }
   });
   it("exports the link-file hook the MCP sign-in reuses", () => {
     const hooked = hookLinks(() => {});
