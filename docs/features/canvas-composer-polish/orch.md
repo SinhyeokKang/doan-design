@@ -51,3 +51,5 @@
 - 통합 HEAD `40786f24`(SEND+PRE)에서 typecheck 통과, `npm test` 275 files·7111 tests 통과.
 - ADM 수정 라운드 완료(`b8d5290f` test, `57c678b8` 순수 `contestedCanvas`와 다툰 캔버스를 다른 evidence의 `taken`에 넣음, `c079264a` tasks B3·design 4번; typecheck·`npm test` 7099 통과). ADM을 통합했다: `7d31cac8`..`5e8ec4db`. 🟡2와 ⚪1(provider가 턴을 끝내지 않고 요청을 취소하면 `asking`이 남음)은 Z1에서 ARCHITECTURE §7의 한계로 적는다. SEND에 `ProjectOverview.tsx` 배선 `ctx_8a014b4adb68`을 보냈다.
 - TOOL 수정 라운드 완료(`65533ed6` test, `bb351254` fix; typecheck·`npm test` 7111·build 통과). TOOL을 통합했다: TOOL 8커밋, HEAD `ebfe3248`. 🟡2는 PRE 배선 1부에 들어가 있다.
+- 통합 HEAD `ebfe3248`(SEND+PRE+ADM+TOOL)에서 typecheck 통과, `npm test` 276 files·7159 tests 통과.
+- PRE 배선 1부 완료(`34921939` test, `165d286d` feat; 7115 통과). 통합: HEAD `cb402168`. `"end"` 모드는 App.tsx 호출이 남아 2부로 넘겼다. PRE 배선 2부 `ctx_c3c9dbb972d6`: press 신호 배선, 캔버스로 가는 포커스, command reply 제외, `"end"` 정리, docked probe.
