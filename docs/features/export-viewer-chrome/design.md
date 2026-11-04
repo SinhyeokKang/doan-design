@@ -26,10 +26,10 @@
 - 끌기 표면: 캔버스는 sandbox iframe이라 iframe 위의 pointer 이벤트를 부모가 받지 못한다. 앱은 따로 `.drag-layer`를 띄운다. viewer는 Hand이거나 Space를 누르고 있거나 끌기가 진행 중일 때(`layerShown`) iframe에 `pointer-events: none`을 주고, `#board`에서 pointer를 받는다. 그러면 iframe 위의 휠도 `#board`에 닿아 네이티브 스크롤(관성 포함)과 지금의 ⌘/Ctrl-휠 listener(`shell.js`)를 그대로 쓴다. 따로 layer를 두면, `#board` 안에서는 함께 스크롤되어 사라지고 밖에서는 휠 처리를 다시 복사해야 한다. ARCHITECTURE §3의 "iframe의 `pointer-events`는 pick만 바꾼다"는 앱의 규칙이고, viewer에는 pick이 없다.
 - 끌기 순서: `#board`에서 pointerdown(주 버튼만, 스크롤바 위는 무시, `setPointerCapture`) → pointermove마다 증분만큼 이동 → pointerup·pointercancel·lostpointercapture에서 끝난다. Hand 끌기의 pointerdown은 `#board`에 포커스를 준다(`preventScroll`). 그래야 뒤이은 Esc·V·H가 부모에 온다(앱 `layerDown`과 같다). 끄는 중에 누른 V·H·Esc나 뗀 Space는 pointerup 뒤에 적용한다(ARCHITECTURE §3 'Input').
 - 캔버스가 그려지기 전(`viewer.phase`가 `ready`가 아닐 때)에는 `layerShown`이 거짓이다. 그때 누르고 있던 Space는 그려진 뒤로 이어지지 않는다(앱 `CanvasController`와 같다).
-- 이동 모델: viewer는 보기를 `.board`의 네이티브 스크롤로 다룬다(`lib.js`의 `geometry`·`scrollFor`·`viewFrom`). 끌기는 `scrollLeft/Top`을 증분만큼 바꾼다. 앱의 `panBy`와 같은 결과(보기 이동)를 스크롤 좌표로 계산하는 순수 함수를 `lib.js`에 둔다. 확대 범위(`MIN_SCALE`, `MAX_SCALE`)는 스크롤 모델에서 이미 지켜진다. Safari는 `scrollLeft/Top`을 정수로 맞추므로, pointermove 증분의 소수 나머지는 다음 이동으로 넘겨 커서와 어긋나지 않게 한다.
+- 이동 모델: viewer는 보기를 `.board`의 네이티브 스크롤로 다룬다(`lib.js`의 `geometry`·`scrollFor`·`viewFrom`). 끌기는 `scrollLeft/Top`을 증분만큼 바꾸고, 스크롤 범위(0부터 최대 스크롤까지) 밖으로는 가지 않는다. 앱의 `panBy`는 범위가 없지만 viewer는 이 범위 안에서만 움직인다(사람의 결정). 범위 안에서는 앱의 `panBy`와 같은 결과(보기 이동)를 내는 순수 함수를 `lib.js`에 두고, 범위 끝에서는 그 값에 멈춘다. 확대 범위(`MIN_SCALE`, `MAX_SCALE`)는 스크롤 모델에서 이미 지켜진다. Safari는 `scrollLeft/Top`을 정수로 맞추므로, pointermove 증분의 소수 나머지는 다음 이동으로 넘겨 커서와 어긋나지 않게 한다.
 - Hand의 일반 휠: 앱 `wheelAction(input)`(`viewport.ts`)은 도구를 받지 않는다. 앱에서 Hand의 일반 휠이 항상 이동하는 것은 layer가 iframe을 덮어 휠이 캔버스 영역으로 가기 때문이다(ARCHITECTURE §3 'Input'). viewer도 같은 방식이다. Hand에서는 iframe이 `pointer-events: none`이므로 휠이 `#board`에 닿는다. 일반 휠은 네이티브 스크롤로 이동하고, ⌘/Ctrl-휠은 포인터 위치에서 확대한다. `wheelAction`은 바꾸지 않는다.
 - 키 판정: `toolShortcut`(`app/src/renderer/canvasTool.ts`)과 그것이 쓰는 `editableTarget`(`selection.ts`), `TOOL_KEYS`, `CONTROL_ROLES`, `interactiveTarget`을 `lib.js`에 복사한다. `TOOL_KEYS`·`CONTROL_ROLES`·`interactiveTarget`은 앱에서 export되지 않아 텍스트 골든으로 고정할 수 없다. 그래서 같은 이벤트 표(code, repeat, IME, 수정 키, keyup, 가짜 target)를 앱과 viewer의 `toolShortcut`에 넣어 값으로 비교하고, `editableTarget`도 같은 방식으로 비교한다.
-- 부모 문서: document의 keydown/keyup(bubble)에서 `toolShortcut(event, { canvasPage: true })`로 판정한다. 메뉴의 keydown handler가 먼저 처리해 `preventDefault`한 키는 `toolShortcut`이 거른다. Space를 누르고 있는 동안에는 반복 keydown까지 모두 `preventDefault`한다. `#board`는 `tabindex=0`인 스크롤 상자라, 막지 않으면 Space가 한 화면 아래로 스크롤한다.
+- 부모 문서: document의 keydown/keyup(bubble)에서 `toolShortcut(event, { canvasPage: true })`로 판정한다. 메뉴의 keydown handler가 먼저 처리해 `preventDefault`한 키는 `toolShortcut`이 거른다. Frames나 확대 메뉴가 열려 있는 동안 메뉴 handler는 V·H(`code`)도 처리한 키로 막는다. 그래서 키는 메뉴에 남고 도구는 바뀌지 않는다(사람의 결정). 메뉴 안 Space는 지금처럼 메뉴 항목을 고른다. 툴바 버튼을 마우스로 누른 뒤 포커스는 그 버튼에 남고, 그 위의 Space는 `toolShortcut`의 컨트롤 규칙대로 버튼을 누른다(앱과 같다, 사람의 결정). ⇧1·⇧0은 지금처럼 부모 문서의 keydown에서만 처리하고 iframe에서 넘기지 않는다(사람의 결정). Space를 누르고 있는 동안에는 반복 keydown까지 모두 `preventDefault`한다. `#board`는 `tabindex=0`인 스크롤 상자라, 막지 않으면 Space가 한 화면 아래로 스크롤한다.
 - iframe 안: `measure.js`(앞에 `lib.js`가 붙는다)가 bubble 단계에서 같은 `toolShortcut`으로 판정한다. `defaultPrevented`인 키는 보내지 않으므로 캔버스 자신의 키 처리가 이긴다. 보내는 키는 Space down/up, V/H, 편집 가능한 대상이 아닐 때의 Escape다. 앱 `canvasScript.ts`의 판정은 버튼을 빼지 않는다. viewer는 Select에서 캔버스 내용을 지금처럼 조작하므로 `toolShortcut`의 규칙(포커스된 컨트롤 위의 Space는 그 컨트롤을 누른다, PRODUCT §5 item 2 'Toolbar')을 따른다. 보낸 Space keydown은 iframe 안에서도 `preventDefault`한다. `lib.js`의 `parseMessage`가 `key`를 받아들인다. 이것이 ARCHITECTURE §3의 "Left out: … key forwarding"을 바꾸는 부분이다.
 - Space가 남지 않게 하는 규칙(앱 ARCHITECTURE §3 'Tool keys'와 같다):
   - Space-up은 모든 keyup에서 보내고, 수정 키·편집 대상·IME·반복 조건과 상관없이 항상 처리한다.
@@ -40,12 +40,20 @@
 - 커서: 끌기 표면이 켜지면 `#board`는 `grab`, 끄는 중 `grabbing`(앱 styles.css의 `.drag-layer` 규칙과 같은 값). `cursor: url(...)`은 쓰지 않는다.
 - 코드 주석: 도구와 키가 없다고 적은 주석(`lib.js`의 복사본 목록과 `parseMessage` 위, `shell.js`·`measure.js` 머리말)을 새 규칙에 맞게 고친다.
 
+### 초안 요청 (`/design-draft`)
+
+viewer는 이미 main에 있는 화면이고 이 feature는 parent의 redesign child가 아니다. 그래도 사람이 이 feature에 한해 새 초안을 그리는 것을 승인했다(tasks U0). 새 초안은 C2의 측정 기준이다.
+
+- 캔버스: `.doan/canvases/export-viewer-chrome.html`, id `export-viewer-chrome`. 기존 `canvas-row-menu.html`의 `viewer-shell` 프레임은 고치지 않는다.
+- 프레임(960px 창, content panel과 헤더·보드·툴바): `viewer-select`(Select 눌림), `viewer-hand`(Hand 눌림), `viewer-dragging`(끄는 중, `grabbing` 커서).
+- 제약: 값은 spec 완료 조건 1·2와 위 구조를 따른다. 프레임 목록에 없는 상태는 그리지 않는다.
+
 ## 순수 함수로 뺄 부분 (`/tdd` 대상)
 
 모두 `lib.js`(DOM 없는 함수만, `exportViewer.test.ts` 규칙)에 둔다. 앱 원본이 있는 것은 앱 원본과 비교하고, 없는 것은 viewer 동작만 테스트한다.
 
 - `toolShortcut(event, …)`와 `editableTarget`: 앱 함수와 같은 이벤트 표로 값 비교.
-- `panScroll(scroll, dx, dy)` 또는 같은 역할: 끌기 증분 → 새 스크롤 좌표. 앱 `panBy`와 같은 보기 이동이 되는지 값으로 비교한다.
+- `panScroll(scroll, max, dx, dy)` 또는 같은 역할: 끌기 증분 → 새 스크롤 좌표. 스크롤 범위 안에서는 앱 `panBy`와 같은 보기 이동이 되는지 값으로 비교하고, 범위를 넘는 증분은 0과 최대 스크롤에서 멈추는지 확인한다(캔버스가 보드보다 좁은 방향은 최대 스크롤이 0이라 움직이지 않는다).
 - `layerShown(tool, spaceHeld, dragging, boardDrawn)`: 앱 `syncLayer`의 조건을 옮긴 판정. `syncLayer`는 부수 효과가 있는 private 메서드라 viewer 동작으로만 테스트한다.
 - viewer의 Esc 판정(`hand`, `editable`, `defaultPrevented` → Select로 바꿀지): viewer 동작으로 테스트.
 - `parseMessage`의 `key` 메시지(형식 검증, Space down/up·V·H·Escape 외의 키 거부).
