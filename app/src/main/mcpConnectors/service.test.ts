@@ -853,6 +853,51 @@ describe("settled publish (BU)", () => {
     expect(s.snapshot().providers.map(p => p.generation)).toEqual([0, 0]);
   });
 
+  // BU review Y2 (.scratch/review-bu/race.test.ts): a status read that started before a success must not overwrite it.
+  it("a read that started before a Connect succeeded is discarded, with no Reconnect needed published meanwhile", async () => {
+    const s = service();
+    s.connect("codex", "doan-notion");
+    const p = await login("codex");
+    cli.hanging.add("codex list");
+    const readStart = cli.processes.length;
+    s.refresh("codex");
+    const oldRead = await until(() => cli.processes.slice(readStart).find(each => each.provider === "codex" && each.sub[1] === "list"), "old read");
+    await flush();
+    cli.hanging.delete("codex list");
+    cli.approve(p);
+    await until(() => status(s, "codex", "doan-notion") === "connected", "connected");
+    const settledAt = published.length;
+    oldRead.print(JSON.stringify([{ name: "doan-notion", enabled: true, transport: { type: "streamable_http", url: "https://mcp.notion.com/mcp" }, auth_status: "not_logged_in" }]));
+    oldRead.finish(0);
+    await s.idle();
+    expect(published.slice(settledAt).map(snapshot => snapshot.providers[1]!.rows[0]!.view.status)).not.toContain("reconnect_needed");
+    expect(status(s, "codex", "doan-notion")).toBe("connected");
+  });
+
+  it("a read that started before a Disconnect succeeded is discarded as well", async () => {
+    cli.registered.codex.set("doan-notion", { url: "https://mcp.notion.com/mcp", auth: true });
+    store.patch({ everConnected: { name: "doan-notion", provider: "codex", value: true } });
+    const s = service();
+    cli.hanging.add("codex logout doan-notion");
+    s.disconnect("codex", "doan-notion");
+    const logout = await until(() => cli.processes.find(each => each.provider === "codex" && each.sub[1] === "logout"), "logout");
+    cli.hanging.add("codex list");
+    const readStart = cli.processes.length;
+    s.refresh("codex");
+    const oldRead = await until(() => cli.processes.slice(readStart).find(each => each.provider === "codex" && each.sub[1] === "list"), "old read");
+    await flush();
+    cli.hanging.delete("codex list");
+    cli.registered.codex.get("doan-notion")!.auth = false;
+    logout.finish(0);
+    await until(() => status(s, "codex", "doan-notion") === "not_connected", "not connected");
+    const settledAt = published.length;
+    oldRead.print(JSON.stringify([{ name: "doan-notion", enabled: true, transport: { type: "streamable_http", url: "https://mcp.notion.com/mcp" }, auth_status: "o_auth" }]));
+    oldRead.finish(0);
+    await s.idle();
+    expect(published.slice(settledAt).map(snapshot => snapshot.providers[1]!.rows[0]!.view.status)).not.toContain("connected");
+    expect(status(s, "codex", "doan-notion")).toBe("not_connected");
+  });
+
   it("a successful Remove bumps the generation of every provider it removed the server from", async () => {
     const s = service();
     s.add("https://mcp.example.com/mcp");
