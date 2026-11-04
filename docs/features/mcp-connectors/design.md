@@ -69,7 +69,7 @@ Doan은 커넥터 목록(이름, URL, 프리셋)만 자기 파일에 두고, 실
 3. 상태 명령을 읽는 중이고 마지막으로 읽은 값이 없음: `Checking`(동작 비활성).
 4. provider 상태 명령의 결과: 등록 안 됨 → `Not connected`, 등록됨+인증 필요 → `Reconnect needed`(저장된 `everConnected`가 참일 때) 또는 `Not connected`, 연결됨 → `Connected`, 명령 실패·파싱 실패·시간 초과 → `Couldn’t check`(Retry).
 
-`Reconnect needed`는 따로 저장하는 상태가 아니라 `everConnected`와 "로그인되지 않음"에서 나온다. 교체 뒤 모든 서버가 이 상태로 보이는 것도 같은 판정의 결과다. 미뤄 둔 로그아웃 기록이나 메모리 차단이 있는 서버는 그 에이전트에서 Connect 대신 "Doan is still disconnecting the previous account. Try again later." 줄을 보인다.
+`Reconnect needed`는 따로 저장하는 상태가 아니라 `everConnected`와 "로그인되지 않음"에서 나온다. 교체 뒤 모든 서버가 이 상태로 보이는 것도 같은 판정의 결과다. 미뤄 둔 로그아웃 기록이나 메모리 차단이 있는 서버는 그 에이전트 항목에 Connect를 남기고 그 아래 "Doan is still disconnecting the previous account. Try again later." 줄을 보인다. Connect는 재시도를 먼저 돌린다(spec 완료 조건 8).
 
 상태 명령은 네트워크를 쓴다(Claude `mcp get`은 서버 health check를 한다). 그래서 상태는 MCP Connectors 화면에 들어올 때, 시도가 끝났을 때, Retry 때, 그리고 그 provider의 auth 상태가 바뀌었을 때(sign-out, 만료, 교체 commit)만 읽고 polling하지 않는다. 에이전트 sign-in 화면처럼 마지막으로 읽은 값을 보인다.
 
