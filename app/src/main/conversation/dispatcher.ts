@@ -22,8 +22,6 @@ export class CodexDispatcher {
     if (this.context.turnId) this.apply(endTransport(this.state));
   }
   request(method: string, params: unknown, owner?: CodexReplyOwner): Promise<unknown> { return this.call(method, params, owner, true); }
-  // The begun turn has ended, or the transport is gone.
-  ended(): boolean { return this.closed || this.state.terminal; }
   // A turn that can still take a steered message: begun, not stopped and not ended.
   running(): boolean { return !this.closed && !this.state.terminal && !this.state.stop && !!this.context.turnId; }
   // turn/steer for messageId. The server may hold its reply while the turn waits on a permission answer, so an unanswered

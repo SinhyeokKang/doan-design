@@ -876,8 +876,10 @@ it("accepts a Claude send issued on turn.done, before the first CLI has exited",
 // marks when it sent a status, so the order of a status and turn/start is read from one file.
 // holdReload: the reload reply waits until the test writes <root>/release. reloadError: the first reload is refused.
 // interruptElicit: turn/interrupt is answered after an MCP tool approval request for the stopped turn. holdTurnStart: the
-// turn/start reply waits for <root>/release too, and turn/interrupt of the native turn then succeeds.
-function mcpCodex(plan: { readyMs?: number | null; elicit?: boolean; holdReload?: boolean; reloadError?: boolean; interruptElicit?: boolean; holdTurnStart?: boolean }) {
+// turn/start reply waits for <root>/release too, and turn/interrupt of the native turn then succeeds. uniqueTurns: each
+// held turn/start answers with its own native id (native-1, native-2, ...). completeWithReply: the held reply comes in
+// one chunk with that turn's completion.
+function mcpCodex(plan: { readyMs?: number | null; elicit?: boolean; holdReload?: boolean; reloadError?: boolean; interruptElicit?: boolean; holdTurnStart?: boolean; uniqueTurns?: boolean; completeWithReply?: boolean }) {
   const root = mkdtempSync(join(tmpdir(), "doan-mcp-codex-")), command = join(root, "codex"), seen = join(root, "seen"), release = join(root, "release");
   writeFileSync(join(root, "config.toml"), 'model = "gpt-6"\n[mcp_servers.doan-notion]\nurl = "https://mcp.notion.com/mcp"\n');
   writeFileSync(command, `#!/usr/bin/env node
@@ -887,7 +889,7 @@ const mark = text => fs.appendFileSync(seen, text + '\\n');
 const line = value => JSON.stringify(value) + '\\n';
 const status = (threadId, name, value) => line({ method: 'mcpServer/startupStatus/updated', params: { threadId, name, status: value, error: null, failureReason: null } });
 const approval = id => line({ id, method: 'mcpServer/elicitation/request', params: { threadId: 'session', turnId: 'native-turn', serverName: 'doan-example-com', mode: 'form', _meta: { codex_approval_kind: 'mcp_tool_call', persist: ['session', 'always'] }, message: 'Allow the doan-example-com MCP server to run tool "search"?', requestedSchema: { type: 'object', properties: {} } } });
-let reloads = 0;
+let reloads = 0, turns = 0;
 // The reply goes alone; the restarted servers' statuses follow in later chunks, as in P2 (22-80 ms after the reply).
 const reload = r => {
   reloads += 1; const round = reloads;
@@ -913,11 +915,12 @@ readline.createInterface({ input: process.stdin }).on('line', text => {
   }
   if (r.method === 'turn/interrupt') {
     if (plan.interruptElicit) process.stdout.write(approval(8) + line({ id: r.id, result: {} }) + line({ method: 'turn/completed', params: { threadId: 'session', turn: { id: 'native-turn', status: 'interrupted' } } }));
-    else if (plan.holdTurnStart && r.params.turnId === 'native-turn') process.stdout.write(line({ id: r.id, result: {} }) + line({ method: 'turn/completed', params: { threadId: 'session', turn: { id: 'native-turn', status: 'interrupted' } } }));
+    else if (plan.holdTurnStart && /^native-/.test(r.params.turnId)) process.stdout.write(line({ id: r.id, result: {} }) + line({ method: 'turn/completed', params: { threadId: 'session', turn: { id: r.params.turnId, status: 'interrupted' } } }));
     else process.stdout.write(line({ id: r.id, error: { code: -32602, message: 'No running turn' } }));
   }
   if (r.method === 'turn/start' && plan.holdTurnStart) {
-    const held = setInterval(() => { if (fs.existsSync(release)) { clearInterval(held); mark('turn-released'); process.stdout.write(line({ id: r.id, result: { turn: { id: 'native-turn' } } })); } }, 20);
+    const nativeId = plan.uniqueTurns ? 'native-' + (++turns) : 'native-turn';
+    const held = setInterval(() => { if (fs.existsSync(release)) { clearInterval(held); mark('turn-released:' + nativeId); process.stdout.write(line({ id: r.id, result: { turn: { id: nativeId } } }) + (plan.completeWithReply ? line({ method: 'turn/completed', params: { threadId: 'session', turn: { id: nativeId, status: 'completed' } } }) : '')); } }, 20);
   } else if (r.method === 'turn/start') {
     process.stdout.write(line({ id: r.id, result: { turn: { id: 'native-turn' } } }));
     if (plan.elicit) process.stdout.write(approval(7));
@@ -1056,6 +1059,58 @@ it("a Stop while turn/start is unanswered interrupts the native turn once it exi
     await vi.waitFor(() => expect(events).toContainEqual({ type: "interrupted", reason: "user" }));
     const interrupts = h.lines().filter(h.method("turn/interrupt")).map(t => (JSON.parse(t) as { params: unknown }).params);
     expect(interrupts).toEqual([{ threadId: "session", turnId: "native-turn" }]);
+    expect(exited).not.toHaveBeenCalled();
+  } finally { await runner.close(); h.cleanup(); }
+}, 15000);
+// Review BC R2-1: a Stop while turn/start is unanswered belongs to that send. A send that follows waits until the stopped
+// start settled (its native turn interrupted once), so it neither erases that Stop nor lets the late reply become its
+// own turn's id.
+it("a send after a Stop of an unanswered turn/start waits for it to settle and never adopts its native id", async () => {
+  const h = mcpCodex({ readyMs: 0, holdTurnStart: true, uniqueTurns: true }); const events: EventPayload[] = []; const exited = vi.fn();
+  const runner = await openRunner({ command: h.command, runtime: "codex", cwd: h.root, configDir: h.root, env: process.env, owner: h.owner, mcp: MCP_RUN }, e => events.push(e), exited, () => {});
+  const interrupts = () => h.lines().filter(h.method("turn/interrupt")).map(t => (JSON.parse(t) as { params: { turnId: string } }).params.turnId);
+  try {
+    const first = runner.send("first", "t1");
+    await vi.waitFor(() => expect(h.lines().filter(h.method("turn/start"))).toHaveLength(1));
+    await runner.stop();
+    const second = runner.send("second", "t2");
+    h.release(); await Promise.all([first, second]);
+    expect(interrupts()).toEqual(["native-1"]);
+    expect(h.last(h.method("turn/start"))).toBeGreaterThan(h.at(h.method("turn/interrupt")));
+    // The second turn is native-2: its Stop interrupts that one.
+    await runner.stop();
+    expect(interrupts()).toEqual(["native-1", "native-2"]);
+    expect(exited).not.toHaveBeenCalled();
+  } finally { await runner.close(); h.cleanup(); }
+}, 15000);
+it("the service's next send after a Stop of an unanswered turn/start keeps its own turn", async () => {
+  const h = mcpCodex({ readyMs: 0, holdTurnStart: true, uniqueTurns: true });
+  const service = new ConversationService(new ConversationStore(h.root), async () => ({ command: h.command, runtime: "codex", cwd: h.root, configDir: h.root, env: process.env, owner: h.owner, mcp: MCP_RUN }), openRunner, () => {});
+  const interrupts = () => h.lines().filter(h.method("turn/interrupt")).map(t => (JSON.parse(t) as { params: { turnId: string } }).params.turnId);
+  try {
+    const { conversationId: id } = await service.start({ root: h.root, mode: "new", runtime: "codex", text: "first", anchors: [] });
+    await vi.waitFor(() => expect(h.lines().filter(h.method("turn/start"))).toHaveLength(1));
+    await service.interrupt(id);
+    await service.send(id, "second", []);
+    h.release();
+    await vi.waitFor(() => expect(h.at(t => t === "turn-released:native-2")).toBeGreaterThan(-1));
+    await vi.waitFor(() => expect(interrupts()).toEqual(["native-1"]));
+    // native-1's interruption does not end the second turn, which is still running.
+    const events = service.read(id).events, second = events.findIndex(e => e.type === "user.message" && e.text === "second");
+    expect(events.slice(second).map(e => e.type)).toEqual(["user.message", "turn.started"]);
+    await service.interrupt(id);
+    await vi.waitFor(() => expect(interrupts()).toEqual(["native-1", "native-2"]));
+  } finally { service.quit(); h.cleanup(); }
+}, 15000);
+it("a Stop of an unanswered turn/start interrupts nothing when the turn completed with the reply", async () => {
+  const h = mcpCodex({ readyMs: 0, holdTurnStart: true, completeWithReply: true }); const events: EventPayload[] = []; const exited = vi.fn();
+  const runner = await openRunner({ command: h.command, runtime: "codex", cwd: h.root, configDir: h.root, env: process.env, owner: h.owner, mcp: MCP_RUN }, e => events.push(e), exited, () => {});
+  try {
+    const sent = runner.send("first", "t1");
+    await vi.waitFor(() => expect(h.at(h.method("turn/start"))).toBeGreaterThan(-1));
+    await runner.stop(); h.release(); await sent;
+    expect(h.at(h.method("turn/interrupt"))).toBe(-1);
+    expect(events).toEqual([{ type: "interrupted", reason: "user" }]);
     expect(exited).not.toHaveBeenCalled();
   } finally { await runner.close(); h.cleanup(); }
 }, 15000);
