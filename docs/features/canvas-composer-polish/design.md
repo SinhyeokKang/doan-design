@@ -94,6 +94,12 @@ app(Electron + TS)만 바뀐다. CLI(Go)·skills·공유 포맷(comment events, 
 - 그리지 않는 것: Presets 목록 바깥 닫기, admission 변경, 삭제 확인 창(기존 `conversation-delete.html`과 같음), Export 저장 패널·toast(기존과 같음).
 - 제약: 값은 spec 완료 조건 2·3·4·5·6과 이 design을 따른다. 프레임 목록에 없는 상태는 그리지 않는다.
 
+- **사용자 확정 (2026-11-04, `0642783c`)**: 아홉 프레임을 확정했다. 초안에서 함께 정한 것:
+  - 큐 줄은 흰 배경(`--surface-panel`)에 회색 테두리(`--border-standard`, 1px inset shadow라 줄 높이 40px와 여백은 그대로)이고, Send now는 xs `subtle` 회색 캡슐이다. Remove는 그대로다.
+  - 쓰레드의 보내는 중 메시지는 말풍선 아래 14px spinner와 회색 caption "Sending"(`--text-metadata`)을 보인다.
+  - 툴바에서 쓸 수 없는 Picker·Export 아이콘은 `--text-disabled`다(대화창의 쓸 수 없는 Attach·Pick과 같은 색).
+  - 시간이 없는 특수 행의 Delete는 이름 줄 가운데에 맞춘다. Delete의 접근 이름은 제목 메뉴처럼 `Delete “<title>”`이므로 구현 때 행 데이터(`CanvasConversationRow`)에 대화 제목을 넘긴다.
+
 ## 문구 (clarify preset을 적용해 `/design-draft`·`/implement`에서 확정)
 
 - 툴바 Picker tooltip·접근 이름: 대화창 Pick 버튼의 이름 "Pick from canvas"를 그대로 쓴다. 단축키 표시 ⌘L은 툴바 Picker와 대화창 Pick 버튼 tooltip 모두에 보인다.

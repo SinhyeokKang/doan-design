@@ -9,7 +9,7 @@
 
 ## U. UI 초안
 
-- [ ] U0. `/design-draft`로 새 초안 `.doan/canvases/canvas-composer-polish.html`을 design '초안 요청'의 아홉 프레임대로 그린다(툴바, 보내는 중 메시지, Canvas conversations 행의 Delete, Home 이유 줄). 바뀌는 화면이 모두 main에 있고 이 feature는 redesign child가 아니므로 `/design-draft`의 범위 밖이지만, 사람이 이 feature에 한해 예외를 승인했다. 기존 초안은 고치지 않는다. 사람이 앱에서 확인한다.
+- [x] U0. `/design-draft`로 새 초안 `.doan/canvases/canvas-composer-polish.html`을 design '초안 요청'의 아홉 프레임대로 그린다(툴바, 보내는 중 메시지, Canvas conversations 행의 Delete, Home 이유 줄). 바뀌는 화면이 모두 main에 있고 이 feature는 redesign child가 아니므로 `/design-draft`의 범위 밖이지만, 사람이 이 feature에 한해 예외를 승인했다. 기존 초안은 고치지 않는다. 사람이 앱에서 확인한다.
   - 검증: 설치된 `doan check --repo .`가 main과 같은 finding만 낸다, 사람의 확인.
 
 ── commit: `docs(design): draft canvas-composer-polish` ──
