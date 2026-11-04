@@ -1484,7 +1484,8 @@ export function App() {
     if (!link || !intent || link.element() !== intent.field) return;
     const active = document.activeElement;
     // A composing field gets its chip once the composition ends, and no focus or caret call meanwhile.
-    const returns = holds && !link.composing();
+    const composing = link.composing();
+    const returns = holds && !composing;
     if (result.kind !== "picked") {
       // A cancel by a press leaves focus on what was pressed. Esc and the other cancels go back to where focus was
       // before the pick, or the field when that was the page itself (spec 3: never the page body), but only from where
@@ -1496,12 +1497,12 @@ export function App() {
       else link.focus();
       return;
     }
-    // Focus first, then the chip: the field puts its kept caret back on focus, and Chromium moves a caret set in an
-    // unfocused field to the field's start when it takes focus afterwards (BR4b runtime probe).
-    if (returns) link.focus();
+    // A chip always lands focus in the field (spec 3), even when focus moved meanwhile, such as into the Presets
+    // popover the canvas click closed. Focus first, then the chip: the field puts its kept caret back on focus, and
+    // Chromium moves a caret set in an unfocused field to the field's start when it takes focus afterwards (BR4b
+    // runtime probe).
+    if (!composing) link.focus();
     link.insert(result.anchor);
-    // Placing the caret for the chip can pull focus into the field; focus that may not move goes back where it was.
-    if (!returns && active instanceof HTMLElement && active !== document.activeElement) active.focus({ preventScroll: true });
   }
   // The picker stops when its composer changes (another conversation from the menu, New) or stops taking chips
   // (design §2 'Esc and cancel'); a reload or a same-ID move keeps both, so the pick goes on.
