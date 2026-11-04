@@ -2958,6 +2958,24 @@ describe("hand tool", () => {
     } finally { h.controller.dispose(); }
   });
 
+  // canvas-composer-polish spec 3: the toolbar's Select and Hand cancel a pick and then switch; V and H stay ignored.
+  it("the toolbar's Select or Hand while picking cancels the pick, then switches to that tool", () => {
+    const h = harness();
+    try {
+      const ended: unknown[] = [];
+      h.controller.onPicked(result => ended.push(result));
+      h.controller.pick();
+      h.controller.setTool("hand");
+      expect(h.state()).toMatchObject({ tool: "hand", picking: false });
+      expect(ended).toEqual([{ kind: "cancelled" }]);
+      expect(shown(h)).toBe(true);
+      h.controller.pick();
+      h.controller.setTool("hand");
+      expect(h.state()).toMatchObject({ tool: "hand", picking: false });
+      expect(ended).toEqual([{ kind: "cancelled" }, { kind: "cancelled" }]);
+    } finally { h.controller.dispose(); }
+  });
+
   it("takes V, H and Esc forwarded by a focused canvas", () => {
     const h = harness();
     try {
