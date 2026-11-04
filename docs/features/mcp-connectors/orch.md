@@ -15,6 +15,8 @@
 - 사용자 결정 — Disconnect는 그 provider의 `everConnected`를 지운다. 해제한 항목은 `Reconnect needed`가 아니라 `Not connected`(Connect)로 보이고, 확정 초안처럼 이름 아래 'Not connected' 줄을 유지한다. `Reconnect needed`는 사람이 해제하지 않았는데 끊긴 경우(교체, 만료)에만 보인다. Z1에서 PRODUCT에 반영한다.
 - 사용자 결정 — `poc/p2/probe-approval.log`에 남은 Atlassian account_id·계정 날짜와 `poc/links/`의 DCR client_id는 비밀값이 아니므로 main 이력을 다시 쓰지 않는다(force push 안 함). `poc/`는 Z1에서 디렉터리째 지운다.
 - 조율자 판단 — npm의 node-pty prebuild `spawn-helper`가 0644라 dev·vitest에서 `posix_spawnp failed`가 난다. BB의 pty loader가 패키지되지 않은 앱에서만 실행 권한을 준다. 패키지 앱에서는 서명된 번들을 고치지 않고 Connect를 이유와 함께 실패시킨다. Z1에서 ARCHITECTURE에 적는다.
+- 조율자 판단 — Codex 대화 history는 append-only라 main은 'Waiting for <Notion>'과 '<Notion> wasn’t ready…' 두 activity를 보낸다. spec 완료 조건 6과 초안 프레임 11은 한 줄이 바뀌는 것으로 정했으므로, 렌더러(`threadItems.ts`)가 Waiting 줄 뒤에 같은 서버의 not-ready 줄이 오면 하나로 접는다. BU가 맡는다.
+- 조율자 판단 — Codex `config/mcpServer/reload`가 오류로 답하면 runner는 새 세대를 적용한 것으로 기록하지 않아 다음 턴에 reload를 다시 보낸다(BC 리뷰 ⚪4, 계획에 실패 정책이 없었다).
 - 조율자 판단 — E1은 사용자의 Notion 계정과 브라우저 승인이 필요하므로 사용자가 돌아온 뒤 시작한다.
 
 ## 배치
@@ -44,4 +46,5 @@
 - BS: Sonnet 리뷰 🔴0 🟡1(`docs/BACKLOG.md`의 `Stopping…`) → 수정 `1a4166cd`. 테스트 6717개·typecheck green, S1 `rg` 빈 결과, `doan check`는 base와 같다. 실제 앱 확인은 하지 않았다(문구만 바뀜). 증거 `.scratch/mcp-evidence/bs/`.
 - BD: 첫 전체 테스트에서 `onboarding/clone.test.ts` 프로세스 그룹 테스트 1개 실패(다른 워커 둘이 동시에 전체 테스트를 돌림). 단독 3회·전체 1회 재실행 green이라 부하 flake로 기록했다. Sonnet 리뷰 🔴0 🟡0. codesign 출력은 node-pty 전후가 같고, unpacked `pty.node`·`spawn-helper`가 0755다. main 프로세스에서 app.asar로 로드하는 것은 BB·E1에서 확인한다. 증거 `.scratch/mcp-evidence/bd/`.
 - BA: Codex Astra 리뷰 🔴0 🟡2(정규화한 URL을 저장 파서가 거절, blocked가 Connected·확인 실패와 겹칠 때 사라짐) ⚪3. 수정 `8a036a80`·`db3ac93a`·`1166e47b`·`b7f67299` 뒤 Round 2는 🔴0 🟡0. 미뤄 둔 로그아웃이 있는 서버는 Connected로 읽혀도 `Reconnect needed`+Reconnect로 보인다(이전 계정 토큰일 수 있다). Z1에서 이 예외를 '상태 판정'과 함께 적는다. ⚪3(`mcp`→`agents` 임시 처리)은 BU가 최종 규칙으로 바꾼다. 리뷰 `.scratch/review-BA.md`, 증거 `.scratch/mcp-evidence/ba/`.
+- BC: Codex Astra 리뷰 🔴0 🟡3 ⚪4. Stop 뒤 도착한 MCP 승인이 답할 수 없는 대기로 남음, reload 응답 대기 중 Stop이 없는 턴을 interrupt해 서버를 죽임, Waiting 줄이 교체되지 않음(BU 렌더러로 배정). 🟡1·🟡2와 ⚪1·⚪2·⚪4를 수정 중이다. ⚪3(만료 승인의 `-32601`)은 E1에서 확인한다. 리뷰 `.scratch/review-BC.md`.
 - 통합 `f71fabfb`(BS·BD·BA)에서 `verify.mjs` PASS: verify-tests, runtime-support, go-test, go-vet, typecheck, app-test, build.
