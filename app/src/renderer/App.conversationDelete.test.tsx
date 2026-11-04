@@ -445,3 +445,19 @@ test.each([["a refusal", true], ["Cancel", false]])("Canvas conversations, %s: t
     if (confirm) expect(harness.toast.show).toHaveBeenCalledWith("Couldn’t delete “Title c2”. The agent started working on it.");
   } finally { delete FIELDS['.ov-right .cv-row[data-key="c3"]']; delete FIELDS[".ov-right .rp-head"]; }
 });
+
+// Review TOOL ⚪4: the row the list chose left too before focus moved (another deletion, a re-read): focus goes to the
+// panel title, not to the deleted row's Delete, which leaves with its row and would drop focus to the page.
+test("a Canvas conversations deletion whose next row also left sends focus to the panel title", async () => {
+  const { row, head } = listTargets();
+  delete FIELDS['.ov-right .cv-row[data-key="c3"]'];
+  try {
+    await openOverview([summary("c1"), onCanvas("c2")]);
+    doan.deleteConversation = vi.fn(async () => undefined);
+    const button = fromList("c2", { kind: "row", key: "c3" });
+    dialog()!.confirm(); await flushAll();
+    expect(row.focus).not.toHaveBeenCalled();
+    expect(button.focus).not.toHaveBeenCalled();
+    expect(head.focus).toHaveBeenCalledOnce();
+  } finally { delete FIELDS[".ov-right .rp-head"]; }
+});

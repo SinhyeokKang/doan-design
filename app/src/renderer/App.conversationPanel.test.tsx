@@ -643,6 +643,21 @@ test("a pick cancelled by Esc returns focus to where it was before the pick, nev
   expect(second.link.focus).toHaveBeenCalledOnce();
 });
 
+// Review TOOL 🟡1: going back to where focus was is for focus the pick left behind (the page, the canvas, the element
+// before it), never for focus the person moved meanwhile, such as into the field they type in.
+test("Esc pressed in the field after a pick started from the toolbar's Picker keeps focus in the field", async () => {
+  const { link, field } = await canvasWithComposer();
+  const picker = element("Picker");
+  (document as { activeElement: unknown }).activeElement = picker;
+  toolbar().picker.onToggle();
+  picking(true);
+  focusMoved(field);
+  (document as { activeElement: unknown }).activeElement = field;
+  ended()({ kind: "cancelled" });
+  expect(picker.focus).not.toHaveBeenCalled();
+  expect(link.focus).not.toHaveBeenCalled();
+});
+
 test("the toolbar's Select or Hand while picking switches the tool through the controller and leaves focus on the tool", async () => {
   const { link } = await canvasWithComposer();
   const picker = element("Picker");
