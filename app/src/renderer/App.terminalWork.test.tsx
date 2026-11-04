@@ -419,3 +419,17 @@ test("a project's chevron folds and unfolds it without moving, the loaded projec
   expect(harness.controller!.showOverview!.mock.calls.length).toBe(overviews);
   expect(harness.controller!.openCanvas!.mock.calls.length).toBe(canvases);
 });
+
+// A hand fold lasts only while its project stays loaded: once another project is loaded the mark goes, so entering the
+// folded project again by any path (worktree switch, link, Back) shows it unfolded.
+test("leaving a project folded by its chevron drops the fold, so it unfolds when entered again", async () => {
+  await start();
+  folders([{ path: "/w/b", kind: "list", servedRev: 0, canvases: [{ path: B, url: "u-b2", mtimeMs: 3 }] }]);
+  show(rows()[0]!);
+  const key = (root: string) => sidebar().cards.find(card => card.rows.some(row => row.path === root))!.key;
+  sidebar().disclose(key("/w/a")); render();
+  expect(sidebar().projects[key("/w/a")]?.collapsed).toBe(true);
+  sidebar().toggle(key("/w/b")); await flush(); render();
+  expect(sidebar().projects[key("/w/a")]?.collapsed).not.toBe(true);
+  expect(projectExpanded({ ...sidebar().projects[key("/w/a")]!, roots: ["/w/a"] }, "/w/a")).toBe(true);
+});
