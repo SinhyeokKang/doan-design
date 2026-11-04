@@ -80,7 +80,9 @@ import { withTerminalSlots } from "./conversationList";
 import { seenMark, sidebarSlots } from "./canvasNotice";
 import { HomeRun } from "./homeRun";
 import { SettingsPage, type SettingsArrival } from "./SettingsPage";
-import { parseSettingsTarget, settingsArrival, SettingsTargetQueue, type SettingsSection, type SettingsTarget } from "./settingsSections";
+import { parseSettingsTarget, settingsArrival, SettingsTargetQueue, shownSettingsSection, type SettingsSection, type SettingsTarget } from "./settingsSections";
+import { MCP_HIDDEN_ANNOUNCEMENT, mcpAvailable } from "./mcpConnectorsView";
+import { McpConnectorsWatch } from "./mcpConnectorsWatch";
 import { agentSignIn } from "./agentSignIn";
 import { notificationTarget, type NotificationTarget } from "../main/notifications";
 import type { Provider } from "../main/agentAuth/types";
@@ -195,6 +197,11 @@ export function App() {
   const setProjectSettings = (next: typeof projectSettings) => { projectSettingsRef.current = next; setProjectSettingsState(next); };
   // A category the person or a target chose wins over the one ui-state read later.
   const sectionChosen = useRef(false);
+  // MCP Connectors exists while Claude Code or Codex is signed in; null until agent-auth is read (mcp-connectors spec 1).
+  const [mcpShown, setMcpShown] = useState<boolean | null>(null);
+  const mcpShownRef = useRef(mcpShown); mcpShownRef.current = mcpShown;
+  // Read once on the page when MCP Connectors turned into Agents while shown; cleared by the next move.
+  const [settingsAnnouncement, setSettingsAnnouncement] = useState<string | undefined>(undefined);
   const beforeModal = useRef<HTMLElement | null>(null);
   const focusAfterModal = useRef(false);
   const toast = useToast(previous => {
@@ -903,14 +910,18 @@ export function App() {
   }
   // Only an unlocked page takes a target: a fresh one, one not holding anything, or one whose lock just ended.
   const arrive = (target: SettingsTarget) => {
-    const { section, focus } = settingsArrival(target, settingsRef.current.section);
+    const arrival = settingsArrival(target, settingsRef.current.section), focus = arrival.focus;
+    // A hidden MCP Connectors opens Agents (the failure toast's Open MCP Connectors, a saved last category).
+    const section = shownSettingsSection(arrival.section, mcpShownRef.current);
     sectionChosen.current = true;
+    setSettingsAnnouncement(undefined);
     setSettings({ section, locked: false, arrival: { focus, seq: ++arrivals.current } });
   };
   // A category picked in the sidebar keeps focus on its row, so it brings no arrival (design '포커스').
   const selectSection = (section: SettingsSection) => {
     if (currentScreen.current !== "settings" || locked()) return;
     sectionChosen.current = true;
+    setSettingsAnnouncement(undefined);
     setSettings({ ...settingsRef.current, section, arrival: null });
   };
   // Project Settings from a project menu (the sidebar's or the Overview's recovery menu). On the page, picking another
@@ -1037,6 +1048,32 @@ export function App() {
   // The renderer's one sign-in controller tells a sign-in that ended away from Agents in the shared toast, and hears
   // when the window comes back to the front (design 'App 수준 로그인 컨트롤러').
   useEffect(() => agentSignIn().onToast(({ text, action }) => live.current.toast.show(text, action?.label, action ? () => live.current.openSettings(action.target) : undefined)), []);
+  // Settings > MCP Connectors: one reader of main's snapshots for the whole window, since a connection attempt
+  // outlives the page. It tells a failure elsewhere in the shared toast (spec 4) and follows running turns (spec 10).
+  const mcpWatch = useRef<McpConnectorsWatch | null>(null);
+  if (!mcpWatch.current) mcpWatch.current = new McpConnectorsWatch({
+    api: window.doan,
+    running: provider => homeRun.current.runningProviders().has(provider),
+    pageShown: () => currentScreen.current === "settings" && settingsRef.current.section === "mcp",
+    toast: (text, label, run) => live.current.toast.show(text, label, run),
+    openPage: () => live.current.openSettings({ section: "mcp" }),
+  });
+  useEffect(() => mcpWatch.current!.start(), []);
+  useEffect(() => {
+    const signIn = agentSignIn(), update = () => setMcpShown(mcpAvailable(signIn.state.auth));
+    update();
+    return signIn.subscribe(update);
+  }, []);
+  // A notice goes once its agent's running turn has ended; the conversation lists redraw App when that changes.
+  useEffect(() => { mcpWatch.current!.runningChanged(); });
+  // While neither Claude Code nor Codex is signed in, a shown or restored MCP Connectors becomes Agents; on the page
+  // focus goes to the Agents title and the page says why once (spec 1).
+  useEffect(() => {
+    if (mcpShown !== false || settingsRef.current.section !== "mcp") return;
+    const onPage = currentScreen.current === "settings";
+    setSettings({ ...settingsRef.current, section: "agents", arrival: onPage ? { focus: { kind: "heading" }, seq: ++arrivals.current } : null });
+    if (onPage) setSettingsAnnouncement(MCP_HIDDEN_ANNOUNCEMENT);
+  }, [mcpShown, settings.section]);
   useEffect(() => {
     const focused = () => { agentSignIn().windowFocused(); overviewRun.current!.focusChanged(); canvasRun.current!.focusChanged(); };
     window.addEventListener("focus", focused);
@@ -1648,7 +1685,7 @@ export function App() {
   const sidebar = (home: boolean) => sidebarHidden ? null : <ShellSidebar id={sidebarId(home)} cards={cards} projects={shellProjects} loaded={loadedRoot} canvas={state.shown ?? undefined} unlisted={state.unlisted} homeDirectory={homeDirectory} search={search} toggle={(key, notice) => void toggleProject(key, notice)} disclose={discloseProject} toggleGroup={toggleShellGroup} worktree={enter} open={openSidebarCanvas} overview={showShellOverview} action={action} remove={remove}
     projectSettings={root => openProjectSettings(root)}
     canvasMenu={{ blocked: trashWorking, exporting: (root, path) => exporting.has(`${root}\n${path}`), exportCanvas, trash: openTrash }}
-    home={home} homeCurrent={screen === "home"} goHome={() => live.current.home()} slots={shellSlots} highlight={highlight} locked={pageLocked} {...(onSettings ? { settings: { section: settings.section, select: selectSection } } : {})}
+    home={home} homeCurrent={screen === "home"} goHome={() => live.current.home()} slots={shellSlots} highlight={highlight} locked={pageLocked} {...(onSettings ? { settings: { section: settings.section, select: selectSection, mcp: mcpShown !== false } } : {})}
     resize={{ width: shownSidebar, bounds: SIDEBAR_BOUNDS, preview: previewSidebar, onResize: width => { sidebarTouched.current = true; setSidebarSaved(width); } }} />;
   // The Project Settings page sits under the Projects tab (page null) but leaves like the other pages.
   const anyPage = onPage || onSettings || onProjectSettings;
@@ -1673,7 +1710,8 @@ export function App() {
     memory={composerMemory} running={run.running()} restore={run.restore} start={(request, last) => run.start(request, last)} openConversation={id => run.openConversation(id)} addProjects={openAddProjects}
     defaults={preferences ? preferences.preferences.newConversation : undefined} openSettings={openSettings} onRemember={rememberPick} />}
   {onSettings && <SettingsPage header={topBar(true)} sidebar={sidebar(true)} section={settings.section} arrival={settings.arrival} onState={settingsReport}
-    agents={{ signIn: agentSignIn(), preferences, save: savePreferences, project: settingsProject }} />}
+    agents={{ signIn: agentSignIn(), preferences, save: savePreferences, project: settingsProject }}
+    mcp={{ watch: mcpWatch.current, openAgents: provider => openSettings({ section: "agents", provider }) }} announcement={settingsAnnouncement} />}
   {onProjectSettings && <ProjectSettingsPage key={projectSettings.key} header={topBar(true)} sidebar={sidebar(true)} root={projectSettings.root} entries={entries} reroot={reroot}
     origin={page.origin} homeDirectory={homeDirectory} arrival={projectSettings.arrival} onState={projectSettingsReport} onGone={() => leavePage({ kind: "gone" })}
     onRerooted={projectSettingsRerooted} onAction={(name, root, notice) => action(name, root, notice)}

@@ -804,6 +804,22 @@ body:has(.shell-top) { background: transparent; }
 .settings-msg-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-3); }
 .settings-save-error { margin-top: var(--space-3); padding-inline: calc(var(--space-4) + 1px); }
 .settings-loading { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--text-subtle); }
+/* Settings > MCP Connectors (.doan/canvases/mcp-connectors.html, confirmed 2026-11-04): only what the first-run provider
+   rows and the Settings primitives don't already give. The section title carries the agent's 16px mark, 6px apart. */
+.mcp-agent .settings-section-header { align-items: center; }
+.mcp-agent-title { display: flex; align-items: center; gap: var(--space-1h); }
+/* A URL server's mark is lucide Server in the 24px glyph box, in the subtle ink of the Settings row icons. */
+.ob-provider-mark .mcp-generic-mark { width: 24px; height: 24px; color: var(--text-subtle); }
+/* A URL server's name is its host, one long word: it wraps anywhere on this page instead of overflowing the row. */
+.mcp-agent .ob-provider-label strong { overflow-wrap: anywhere; }
+.mcp-more { color: var(--text-subtle); }
+/* A busy section's Connect looks disabled but keeps hover and focus for its tooltip. */
+.mcp-agent .doan-button[data-disabled]:hover { background: var(--affordance-disabled); }
+/* The URL dialog's inline error sits 8px under the field, as the Paste dialog's field error does. */
+.mcp-field-error { margin-top: calc(-1 * var(--space-2)); }
+/* A removed server's running-turn notice stays under its section's list. */
+.mcp-section-notice { margin-top: var(--space-3); }
+
 /* Home's agent picker: the link to Settings at the bottom of the menu. */
 .settings-menu-link { display: flex; gap: var(--space-2); align-items: center; }
 .settings-menu-link svg { width: var(--size-icon); height: var(--size-icon); color: var(--text-subtle); }
@@ -912,6 +928,10 @@ body:has(.shell-top) { background: transparent; }
 .conversation-thread .activity-steps li { display: flex; align-items: center; gap: var(--space-2); min-width: 0; list-style: none; }
 .conversation-thread .activity-steps li svg { width: var(--size-icon-sm); height: var(--size-icon-sm); flex: none; color: var(--text-subtle); }
 .conversation-thread .activity-steps .verb { flex: none; color: var(--text-subtle); }
+/* A sentence step (Codex's MCP startup line, mcp-connectors draft frame 11) wraps in the panel instead of one line. */
+.conversation-thread .activity-steps li:has(> .mcp-step) { align-items: flex-start; }
+.conversation-thread .activity-steps li:has(> .mcp-step) svg { margin-block: calc((var(--type-body-sm-line-height) - var(--size-icon-sm)) / 2); }
+.conversation-thread .activity-steps .verb.mcp-step { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
 .conversation-thread .activity-steps .path { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--type-family-mono); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
 .conversation-thread .ask-answered { color: var(--text-subtle); }
 /* Thread notices put their actions on a row under the text, starting at the text's left edge (draft round 2). */

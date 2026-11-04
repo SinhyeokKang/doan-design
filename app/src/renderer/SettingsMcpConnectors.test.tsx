@@ -79,7 +79,8 @@ beforeEach(() => {
   revision = 0;
   api = {
     onMcpConnectors: vi.fn((listener: typeof feed) => { feed = listener; return () => {}; }),
-    readMcpConnectors: vi.fn(async () => snap()),
+    // main answers a refresh with its current snapshot; the reads it starts publish later.
+    readMcpConnectors: vi.fn(async () => watch.snapshot),
     addMcpServer: vi.fn(async () => ({ ok: true, name: "doan-new-example-com" })),
     connectMcpServer: vi.fn(async () => ({ ok: true })), disconnectMcpServer: vi.fn(async () => ({ ok: true })),
     cancelMcpConnect: vi.fn(async () => ({ ok: true })), openMcpLink: vi.fn(async () => ({ ok: true })), removeMcpServer: vi.fn(async () => ({ ok: true })),
@@ -103,7 +104,7 @@ beforeEach(() => {
   watch.start();
   feed(snap());
   signIn = { state: { auth: { revision: 1, providers: [dto("claude", true), dto("codex", true), dto("cursor", true)] } }, subscribe: vi.fn(() => () => {}) };
-  props = { watch, signIn: signIn as never, onLock: vi.fn(), openAgents: vi.fn(), actions: null };
+  props = { watch, signIn: signIn as never, onLock: vi.fn(), openAgents: vi.fn(), actions: {} as never };
 });
 // The page shares the main window's preload, so nothing here may start or send a conversation.
 afterEach(() => {
@@ -127,7 +128,7 @@ async function settle(next: Partial<typeof props> = {}) {
 function all(node: ReactNode): ReactElement<Record<string, unknown>>[] {
   if (Array.isArray(node)) return node.flatMap(all);
   if (!isValidElement<Record<string, unknown>>(node)) return [];
-  const inner = typeof node.type === "function" && (node.type === NoticeView || (node.type as { name?: string }).name === "McpRow" || (node.type as { name?: string }).name === "AddServerDialog" || (node.type as { name?: string }).name === "RemoveAlert")
+  const inner = typeof node.type === "function" && (node.type === NoticeView || ["McpRow", "RowButton", "ActionButton"].includes((node.type as { name?: string }).name ?? "") || (node.type as { name?: string }).name === "AddServerDialog" || (node.type as { name?: string }).name === "RemoveAlert")
     ? all((node.type as (props: unknown) => ReactNode)(node.props)) : [];
   return [node, ...inner, ...Object.values(node.props).flatMap(value => Array.isArray(value) || isValidElement(value) ? all(value as ReactNode) : [])];
 }

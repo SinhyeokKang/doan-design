@@ -6,7 +6,8 @@ import { splitRequest, type PresetRef } from "./homeComposer";
 
 // The person's text in order, with each anchor token `{{n}}` kept where it was typed (spec decision 17).
 export type MessagePart = { text: string } | { anchor: number };
-export interface ActivityStep { key: string; kind: "edit" | "read" | "command" | "other"; verb: string; path: string | null }
+// sentence: a step whose text is a sentence and wraps instead of staying on one line (Codex's MCP startup lines).
+export interface ActivityStep { key: string; kind: "edit" | "read" | "command" | "other"; verb: string; path: string | null; sentence?: true }
 export type TurnEnd = { kind: "failed"; code: FailureCode } | { kind: "interrupted"; reason: "user" | "appQuit" | "crashed" };
 export type ThreadItem =
   // anchors: the message's own, which its `{{n}}` parts point at (1-based), drawn as chips.
@@ -58,8 +59,14 @@ type ActivityEvent = Extract<ConversationEvent, { type: "activity" }>;
 function step(event: ActivityEvent, root: string): ActivityStep {
   const path = event.path && (event.kind === "read" || event.kind === "edit") ? rootRelative(event.path, root) : null;
   const verb = event.kind === "command" ? "Ran a command" : event.kind === "other" || !path ? event.summary : DONE_VERB[event.kind];
-  return { key: `s${event.seq}`, kind: event.kind, verb, path };
+  const sentence = event.kind === "other" && (WAITING.test(event.summary) || NOT_READY.test(event.summary));
+  return { key: `s${event.seq}`, kind: event.kind, verb, path, ...(sentence ? { sentence: true as const } : {}) };
 }
+// Codex's MCP startup lines (main/conversation/mcpStartup.ts waitingLine and notReadyLine). History is append-only, so
+// main writes the not-ready line after its Waiting line; the thread shows them as one step that changed its text
+// (mcp-connectors spec 6).
+const WAITING = /^Waiting for \S/;
+const NOT_READY = / (?:wasn’t ready, so this turn started without it|weren’t ready, so this turn started without them)\.$/;
 function runningHead(last: ActivityStep): string {
   if (last.kind === "command") return "Running a command";
   return (last.kind === "read" || last.kind === "edit") && last.path ? `${RUNNING_VERB[last.kind]} ${last.path}` : last.verb;
@@ -130,7 +137,9 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
       }
       case "activity": {
         const next = step(event, root);
-        if (group && group.turnId === event.turnId) group.item.steps.push(next);
+        const previous = group?.turnId === event.turnId ? group.item.steps.at(-1) : undefined;
+        if (previous?.sentence && NOT_READY.test(next.verb) && WAITING.test(previous.verb)) group!.item.steps[group!.item.steps.length - 1] = next;
+        else if (group && group.turnId === event.turnId) group.item.steps.push(next);
         else {
           const item = { kind: "activity" as const, key: `a${event.seq}`, running: false, head: "", steps: [next] };
           items.push(item);

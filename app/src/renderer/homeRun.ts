@@ -388,6 +388,13 @@ export class HomeRun {
   slots(): Map<string, Slot> {
     return slotsFromList(this.merged(), new Set(this.seen.keys()), root => this.rows(root));
   }
+  // Agents with a Doan conversation turn running or waiting for an answer, in any project: Settings > MCP Connectors
+  // says a change applies from such an agent's next turn (mcp-connectors spec 10).
+  runningProviders(): Set<Provider> {
+    const providers = new Set<Provider>();
+    for (const list of this.merged().values()) for (const c of list) if (c.owner === "doan" && c.phase !== "ended") providers.add(c.provider);
+    return providers;
+  }
   // Home's reason line by root (spec decision 18): the conversation that holds the root, and whether it waits for an
   // answer. After a late project_busy with no such conversation listed yet, the line names none.
   running(): Map<string, { conversationId: string; waiting: boolean }> {

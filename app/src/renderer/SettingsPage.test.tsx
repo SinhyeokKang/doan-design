@@ -36,6 +36,7 @@ const { SettingsPage } = await import("./SettingsPage");
 const { SettingsAgents } = await import("./SettingsAgents");
 const { SettingsNotifications } = await import("./SettingsNotifications");
 const { SettingsAbout } = await import("./SettingsAbout");
+const { SettingsMcpConnectors } = await import("./SettingsMcpConnectors");
 const { ShellSidebar } = await import("./ShellSidebar");
 
 beforeEach(() => {
@@ -56,7 +57,7 @@ const agents = { signIn: {} as never, preferences: null, save: vi.fn(), project:
 let tree: ReactNode;
 function render(props: Partial<PageProps> = {}) {
   hooks.cursor = 0; hooks.refCursor = 0; hooks.effectCursor = 0; hooks.pending = [];
-  tree = SettingsPage({ header: null, sidebar: null, section: "agents", arrival: null, onState: vi.fn(), agents, ...props });
+  tree = SettingsPage({ header: null, sidebar: null, section: "agents", arrival: null, onState: vi.fn(), agents, mcp: { watch: {} as never, openAgents: vi.fn() }, ...props });
   return tree;
 }
 function effects() { const pending = hooks.pending; hooks.pending = []; for (const run of pending) run(); }
@@ -65,6 +66,7 @@ const heading = () => all(tree).find(element => element.type === "h1")!;
 test("the body is the scrolling white panel with a 48rem column, the category title and its lead", () => {
   const leads = {
     agents: "Doan signs in to each agent with its own connection, separate from your terminal. One account per agent. Agents you run in a terminal use Doan without any setup.",
+    mcp: "MCP servers that Claude Code and Codex can use in Doan conversations, connected separately from your terminal. Claude Code also uses the servers connected to your claude.ai account. Cursor, Antigravity and GitHub Copilot can’t use these servers yet.",
     notifications: "macOS notifications for when an agent needs you while you work in another app.",
     about: "Versions on this Mac, for checking an update or reporting a problem.",
   };
@@ -74,11 +76,11 @@ test("the body is the scrolling white panel with a 48rem column, the category ti
     expect(panel.props.className).toBe("home-panel settings-panel doan-scroll");
     expect(panel.props["aria-labelledby"]).toBe("settings-title");
     expect(heading().props).toMatchObject({ id: "settings-title", className: "settings-title", tabIndex: -1 });
-    expect(words(heading().props.children)).toBe({ agents: "Agents", notifications: "Notifications", about: "About" }[section]);
+    expect(words(heading().props.children)).toBe({ agents: "Agents", mcp: "MCP Connectors", notifications: "Notifications", about: "About" }[section]);
     expect(all(tree).some(element => element.props.className === "settings-page")).toBe(true);
     expect(words(all(tree).find(element => element.props.className === "settings-lead")!.props.children)).toBe(lead);
     // Each category mounts its own body, and only that one.
-    const bodies = { agents: SettingsAgents, notifications: SettingsNotifications, about: SettingsAbout };
+    const bodies = { agents: SettingsAgents, mcp: SettingsMcpConnectors, notifications: SettingsNotifications, about: SettingsAbout };
     for (const [id, body] of Object.entries(bodies)) expect(all(tree).some(element => element.type === body), `${section} ${id}`).toBe(id === section);
     // Copy details goes to the header's action slot.
     expect(all(tree).some(element => element.props.className === "settings-header-actions")).toBe(true);
@@ -111,7 +113,7 @@ test("Agents' lock reaches App", () => {
   expect(onState).toHaveBeenLastCalledWith({ locked: false });
 });
 
-function sidebar(settings: { section: PageProps["section"]; select(section: string): void }, locked = false) {
+function sidebar(settings: { section: PageProps["section"]; select(section: string): void; mcp?: boolean }, locked = false) {
   hooks.cursor = 0; hooks.refCursor = 0; hooks.effectCursor = 0; hooks.pending = [];
   return ShellSidebar({ cards: [], projects: {}, loaded: null, canvas: undefined, homeDirectory: null, search: vi.fn(), toggle: vi.fn(), disclose: vi.fn(), toggleGroup: vi.fn(), worktree: vi.fn(), open: vi.fn(), overview: vi.fn(), action: vi.fn(), remove: vi.fn(), projectSettings: vi.fn(), canvasMenu: NO_CANVAS_MENU, home: true, locked, settings });
 }
@@ -131,6 +133,20 @@ test("on the Settings page the sidebar keeps Search and lists the three categori
   expect(rows.every(button => button.props.type === "button" && button.props.tabIndex === undefined)).toBe(true);
   (rows[2]!.props.onClick as () => void)();
   expect(select).toHaveBeenCalledWith("about");
+});
+
+// mcp-connectors spec 1: MCP Connectors sits between Agents and Notifications while Claude Code or Codex is signed in.
+test("MCP Connectors is listed between Agents and Notifications only while the category exists", () => {
+  const nav = (mcp: boolean) => all(all(sidebar({ section: "agents", select: vi.fn(), mcp })).find(element => element.type === "nav")!.props.children as ReactNode).filter(element => element.type === "button");
+  expect(nav(true).map(button => words(button.props.children))).toEqual(["Agents", "MCP Connectors", "Notifications", "About"]);
+  expect(nav(false).map(button => words(button.props.children))).toEqual(["Agents", "Notifications", "About"]);
+});
+
+test("the page reads a given announcement in its own live region", () => {
+  render({ announcement: "MCP Connectors is available while Claude Code or Codex is signed in." });
+  expect(words(all(tree).find(element => element.props.className === "ob-live" && element.props.role === "status")?.props.children)).toBe("MCP Connectors is available while Claude Code or Codex is signed in.");
+  render();
+  expect(all(tree).some(element => element.props.className === "ob-live")).toBe(false);
 });
 
 test("while the page is locked the other categories and Search show as unavailable", () => {

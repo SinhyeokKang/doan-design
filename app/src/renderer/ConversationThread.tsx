@@ -274,7 +274,7 @@ const STEP_ICONS = { read: Eye, edit: Pencil, command: Terminal, other: Terminal
 function Steps({ id, steps }: { id: string; steps: readonly ActivityStep[] }) {
   return <ul className="activity-steps" id={id}>{steps.map(step => {
     const Icon = STEP_ICONS[step.kind];
-    return <li key={step.key}><Icon aria-hidden="true" /><span className="verb">{step.verb}</span>{step.path && <span className="path">{step.path}</span>}</li>;
+    return <li key={step.key}><Icon aria-hidden="true" /><span className={step.sentence ? "verb mcp-step" : "verb"}>{step.verb}</span>{step.path && <span className="path">{step.path}</span>}</li>;
   })}</ul>;
 }
 

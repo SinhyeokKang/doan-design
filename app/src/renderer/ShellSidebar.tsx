@@ -1,6 +1,6 @@
 import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactElement } from "react";
 import { DropdownMenu } from "radix-ui";
-import { Bell, Bot, Check, ChevronDown, CircleMinus, Download, Ellipsis, FolderOpen, GitBranch, Hand, House, Info, LayoutGrid, PanelsTopLeft, Search, Settings, SwatchBook, Trash2 } from "lucide-react";
+import { Bell, Bot, Check, ChevronDown, CircleMinus, Download, Ellipsis, FolderOpen, GitBranch, Hand, House, Info, LayoutGrid, PanelsTopLeft, Plug, Search, Settings, SwatchBook, Trash2 } from "lucide-react";
 import type { CanvasRow } from "../main/view";
 import type { ShellProject } from "../restore/uiState";
 import { cardRow, ROW_ACTION_LABELS as labels, type HomeCard, type RowAction } from "./homeCards";
@@ -14,7 +14,7 @@ import { displayPath } from "./projectDisplay";
 import { slotKey } from "./homeConversations";
 import { canvasStem } from "./canvasRowMessages";
 import type { SidebarSlot as Slot } from "./canvasNotice";
-import { SETTINGS_SECTIONS, type SettingsSection } from "./settingsSections";
+import { settingsSectionsShown, type SettingsSection } from "./settingsSections";
 import { countDescription, headArrow, sidebarGroups, visibleItems, type GroupId, type SidebarGroup, type SidebarItem } from "./sidebarGroups";
 
 interface Props {
@@ -59,7 +59,8 @@ interface Props {
   locked?: boolean;
   // The Settings page: the project tree gives way to its categories, a plain list of buttons (buzz-settings design
   // 'LNB'). Choosing one leaves focus on its row.
-  settings?: { section: SettingsSection; select(section: SettingsSection): void };
+  // mcp: MCP Connectors is listed only while Claude Code or Codex is signed in (mcp-connectors spec 1).
+  settings?: { section: SettingsSection; select(section: SettingsSection): void; mcp?: boolean };
   canvasMenu: CanvasMenu;
 }
 // A canvas row's menu (canvas-row-menu design '행 버튼과 메뉴'). `blocked`: an agent works on the canvas (trashBlock),
@@ -96,7 +97,7 @@ export function recoveryKey(previous: readonly TreeRow[], current: readonly Tree
   }
   return current[Math.min(Math.max(0, index), current.length - 1)]?.key;
 }
-const SECTION_ICONS: Record<SettingsSection, typeof Bot> = { agents: Bot, notifications: Bell, about: Info };
+const SECTION_ICONS: Record<SettingsSection, typeof Bot> = { agents: Bot, mcp: Plug, notifications: Bell, about: Info };
 const RANK: Record<Slot["kind"], number> = { permission: 3, working: 2, unseen: 1, canvas: 0 };
 // A project row shows its roots' own slots, and a bound canvas's slot while that canvas row is not on screen, so a
 // permission request in a collapsed project is never hidden. Among equals the first in `slots` wins.
@@ -265,12 +266,12 @@ export function ShellSidebar(props: Props) {
   const locked = props.locked || undefined;
   const withHandle = (aside: ReactElement) => props.resize ? <>{aside}<ResizeHandle edge="end" className="doan-sidebar-handle" label="Resize sidebar" {...props.resize} /></> : aside;
   if (props.settings) {
-    const { section, select } = props.settings;
+    const { section, select, mcp = false } = props.settings;
     return withHandle(<aside className="side shell-side" id={props.id} ref={host} aria-label="Settings">
       <button ref={search} className="shell-search" aria-disabled={locked} onClick={props.search}><Search aria-hidden="true" />Search</button>
       <div className="shell-projects doan-scroll">
         <h2 className="shell-projects-heading">Settings</h2>
-        <nav className="shell-settings-nav" aria-label="Settings">{SETTINGS_SECTIONS.map(item => {
+        <nav className="shell-settings-nav" aria-label="Settings">{settingsSectionsShown(mcp).map(item => {
           const Icon = SECTION_ICONS[item.id], current = item.id === section;
           return <button key={item.id} type="button" className="shell-settings-row row" aria-current={current ? "page" : undefined} aria-disabled={locked && !current ? true : undefined} onClick={() => select(item.id)}><Icon aria-hidden="true" /><span>{item.title}</span></button>;
         })}</nav>

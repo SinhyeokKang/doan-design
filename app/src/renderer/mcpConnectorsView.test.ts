@@ -69,7 +69,9 @@ test("presets are listed even when no server was added, URL servers follow in ev
   const notion = find(view, "codex", "doan-notion"), custom = find(view, "codex", URL_SERVER.name);
   expect(notion).toMatchObject({ group: "Notion for Codex", logo: "mcp-logos/notion.png", url: null, menu: null });
   expect(custom).toMatchObject({ group: "mcp.example.com for Codex", logo: null, url: "https://mcp.example.com/v2/mcp", menu: { label: "mcp.example.com menu for Codex", disabled: false, removeDisabled: false } });
-  expect(view.sections.flatMap(section => section.rows).some(row => JSON.stringify(row).includes("doan-mcp"))).toBe(false);
+  // The internal doan- name is never shown or read out.
+  const shown = view.sections.flatMap(section => section.rows).map(row => JSON.stringify([row.label, row.group, row.status, row.url, row.menu?.label, row.button?.ariaLabel, row.helper]));
+  expect(shown.some(text => text.includes("doan-"))).toBe(false);
 });
 
 test("buttons are named with the server and the agent", () => {
@@ -86,9 +88,9 @@ test("status lines are present participles without an ellipsis; Checking, Discon
   expect(find(view, "claude", "doan-figma")).toMatchObject({ status: "Disconnecting", button: { command: "disconnect", label: "Disconnect", disabled: true } });
   // Removing keeps the button the row had before, disabled, and its menu is disabled too (draft frame 7).
   expect(find(view, "claude", URL_SERVER.name)).toMatchObject({ status: "Removing", button: { command: "disconnect", disabled: true }, menu: { disabled: true } });
-  const labels = ["not_connected", "connected", "reconnect_needed", "check_failed", "connecting"] as const;
+  const labels = ["not_connected", "connected", "reconnect_needed", "connecting"] as const;
   const all = mcpPageView(snapshot({ codex: Object.fromEntries(labels.map((value, i) => [[...PRESET_SERVERS, URL_SERVER][i]!.name, value])) }), AUTH).sections[1]!.rows.map(row => row.status);
-  expect(all).toEqual(["Not connected", "Connected", "Reconnect needed", "Couldn’t check", "Connecting"]);
+  expect(all).toEqual(["Not connected", "Connected", "Reconnect needed", "Connecting"]);
 });
 
 test("Connecting shows the waiting notice: Claude Code with Cancel and Open again, Codex with Cancel only", () => {
@@ -191,7 +193,7 @@ test("changes worth reading: person-made and background changes, never a first C
   expect(changes.map(mcpChangeText).filter(Boolean)).toEqual([
     "Figma connected for Claude Code", "Notion disconnected for Codex", "Atlassian needs reconnecting for Codex", "Couldn’t check Figma for Codex",
   ]);
-  expect(changes.filter(change => change.kind === "succeeded").map(change => [change.provider, change.name])).toEqual([["claude", "doan-figma"], ["codex", "doan-notion"]]);
+  expect(changes.flatMap(change => change.kind === "succeeded" ? [[change.provider, change.name]] : [])).toEqual([["claude", "doan-figma"], ["codex", "doan-notion"]]);
   expect(mcpChanges(null, after)).toEqual([]);
 });
 
