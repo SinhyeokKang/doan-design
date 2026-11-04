@@ -9,8 +9,8 @@ import { createContext } from "./context.ts";
 
 test("agent commands match the documented invocations", () => {
   assert.deepEqual(agentCommand("claude", "P"), { cmd: "claude", args: ["-p", "--output-format", "stream-json", "--verbose", "--strict-mcp-config", "--allowedTools", "Bash Read Write Edit Glob Grep", "--", "P"] });
-  assert.deepEqual(agentCommand("codex", "P"), { cmd: "codex", args: ["exec", "--sandbox", "workspace-write", "-c", "features.shell_snapshot=false", "-c", 'approval_policy="never"', "P"] });
-  assert.deepEqual(agentCommand("codex", "P", ["figma", "doan"]), { cmd: "codex", args: ["exec", "--sandbox", "workspace-write", "-c", "features.shell_snapshot=false", "-c", 'approval_policy="never"', "-c", "mcp_servers.doan.enabled=false", "P"] });
+  assert.deepEqual(agentCommand("codex", "P"), { cmd: "codex", args: ["exec", "--sandbox", "workspace-write", "-c", "features.shell_snapshot=false", "-c", 'approval_policy="never"', "-c", "allow_login_shell=false", "P"] });
+  assert.deepEqual(agentCommand("codex", "P", ["figma", "doan"]), { cmd: "codex", args: ["exec", "--sandbox", "workspace-write", "-c", "features.shell_snapshot=false", "-c", 'approval_policy="never"', "-c", "allow_login_shell=false", "-c", "mcp_servers.doan.enabled=false", "P"] });
 });
 
 // Claude has --strict-mcp-config; Codex has no equivalent and merges `-c mcp_servers={}` into the
@@ -43,6 +43,12 @@ test("registered Codex MCP servers are read from `codex mcp list --json` in the 
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+// A login shell re-reads the user's profile, which puts the installed ~/.local/bin ahead of the
+// run's bin directory (the snapshot pin alone no longer keeps the run's PATH with Codex 0.166).
+test("Codex runs commands in a non-login shell so the run's PATH survives", () => {
+  assert.ok(agentCommand("codex", "P").args.includes("allow_login_shell=false"));
 });
 
 test("Codex never asks for approval, whatever the machine's own config says", () => {
