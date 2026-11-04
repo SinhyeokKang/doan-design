@@ -22,6 +22,7 @@
 - 조율자 판단 — BB 리뷰 Y3: sign-out·교체 중 provider 목록을 읽지 못하면 프로필 자신의 설정(Codex `config.toml`, Claude 프로필 `.claude.json`)에서 `doan-*` 이름과 URL을 읽는다(토큰은 읽지 않는다). 이 경우 로그아웃 대상은 프로필 설정에서 읽은 서버와 이미 아는 서버(프리셋, 커넥터 파일)의 합집합이라, 설정 파서가 놓쳐도 아는 서버는 빠지지 않는다(BB 리뷰 Round 3). 미뤄 둔 로그아웃 파일이 깨졌으면 `.broken-*`로 옮기고, 깨졌거나 더 새로운 `v`이면 이번 실행에서 각 `doan-*` 서버의 로그아웃이 한 번 성공할 때까지 두 provider 모두 Connect를 막는다.
 - 조율자 판단 — BB 리뷰 Y4: Codex에 쓰는 `[mcp_servers.doan-*]`의 URL은 받은 문자열을 그대로 쓴다(https 검증과 TOML escape는 유지). design의 `URL.href` 문구는 Z1에서 고친다.
 - 조율자 판단 — Claude sign-out은 `claude auth logout`이 MCP 토큰을 비우므로(P4) 그 provider의 Claude 미뤄 둔 로그아웃 기록도 지운다. Codex 기록은 연결이 없어도 앱 시작 때 임시 `CODEX_HOME`으로 다시 시도한다.
+- 조율자 판단 — BU가 `mcpConnectors/service.ts`도 맡는다(BB는 끝남): 성공한 Connect·Disconnect·Remove의 결과 상태를 다시 읽기 전에 먼저 내보내고, 스냅샷에 provider별 `generation`을 넣어 화면이 성공과 취소를 구분한다.
 - 조율자 판단 — E1은 사용자의 Notion 계정과 브라우저 승인이 필요하므로 사용자가 돌아온 뒤 시작한다.
 
 ## 배치
@@ -32,7 +33,7 @@
 | BD | B0 | `app/package.json`, `app/package-lock.json`, electron-vite 설정, electron-builder 설정 | 없음 | Codex Sol medium — 정해진 설정 세 가지, 패키징으로 확인 | B0 검증(build, package, codesign 전후 비교, `pty.node`·`spawn-helper`) | 통합 `2519a9cb`(리뷰 1회) |
 | BA | A0–A3. 처음에는 픽스처 없이 시작했고, PoC 사본이 main에 들어온 뒤 A0와 픽스처 함수를 이어서 한다 | `app/src/main/mcpConnectors/`(순수 모듈), `conversation/transport.ts`의 `claudePermissionSummary`, `renderer/settingsSections.ts`와 각 테스트 | 없음 | Opus high — 이후 배치가 모두 기대는 스키마와 상태 판정 | `npm --prefix app test`, typecheck | 통합 `f71fabfb`(리뷰 2회) |
 | BB | B1–B4 | `mcpConnectors/`의 store·pending·providers·service·ipc, `agentAuth/`, `main/index.ts`, preload, `senderAllowed.ts` | BA, BD | Opus high — 프로세스 그룹, lease, 직렬화, sign-out 경계 | B1–B4 검증 | 통합 `01b387c5`(리뷰 4회) |
-| BC | C1–C3 | `conversation/`(runners, service, dispatcher, transport) | BA | Opus high — Codex ingress와 POSTMORTEM 2026-10-27 함정 | C1–C3 검증 | 통합 `03d44db1`(리뷰 3회), `main/index.ts` 배선은 BB 통합 뒤 |
+| BC | C1–C3 | `conversation/`(runners, service, dispatcher, transport) | BA | Opus high — Codex ingress와 POSTMORTEM 2026-10-27 함정 | C1–C3 검증 | 통합 `03d44db1`(리뷰 3회), `main/index.ts` 배선 통합(리뷰 1회) |
 | BU | D2, D3 | `SettingsMcpConnectors.tsx`, `settingsSections.ts`, `App.tsx`, `agentAuthView.ts`, `public/mcp-logos/`, `docs/DESIGN.md`(D3) | BB, BS | Opus high — 포커스·읽어 주기 규칙이 많은 화면 | D2 검증, `/design-sync` | D2 구현 중 |
 | BE | E1 | `.scratch/`, 필요하면 `app/runtime/` | BB, BC, BU, 사용자 | Opus high — 실제 계정과 키체인 상태 보호 | `/runtime-test` 보고, real-state 비교 | 대기 |
 | 조율자 | E2, Z1 | `docs/` 승격 문서 | 전부 | — | verify exit 0, Z1 grep | 대기 |
