@@ -19,7 +19,7 @@
 - 조율자 판단 — Codex `config/mcpServer/reload`가 오류로 답하면 runner는 새 세대를 적용한 것으로 기록하지 않아 다음 턴에 reload를 다시 보낸다(BC 리뷰 ⚪4, 계획에 실패 정책이 없었다).
 - 조율자 판단 — 계정 교체 commit은 커넥터 세대를 올리지 않는다. Codex 교체는 새 staging 프로필이라 runner가 새로 열리고, Claude는 턴마다 SDK를 새로 띄운다(BB 질문).
 - 조율자 판단 — BB 리뷰 Y1: Claude 링크 상한은 두 개다. 링크 파일 도착은 로그인 시작부터 30초(브라우저 설정으로 링크가 오지 않는 경우), 허용 대기는 링크를 받은 뒤 5분(spec 완료 조건 4). tasks B2가 두 상한을 따로 적었으므로 그대로 둔다.
-- 조율자 판단 — BB 리뷰 Y3: sign-out·교체 중 provider 목록을 읽지 못하면 프로필 자신의 설정(Codex `config.toml`, Claude 프로필 `.claude.json`)에서 `doan-*` 이름과 URL을 읽는다(토큰은 읽지 않는다). 미뤄 둔 로그아웃 파일이 깨졌으면 `.broken-*`로 옮기고, 깨졌거나 더 새로운 `v`이면 이번 실행에서 각 `doan-*` 서버의 로그아웃이 한 번 성공할 때까지 두 provider 모두 Connect를 막는다.
+- 조율자 판단 — BB 리뷰 Y3: sign-out·교체 중 provider 목록을 읽지 못하면 프로필 자신의 설정(Codex `config.toml`, Claude 프로필 `.claude.json`)에서 `doan-*` 이름과 URL을 읽는다(토큰은 읽지 않는다). 이 경우 로그아웃 대상은 프로필 설정에서 읽은 서버와 이미 아는 서버(프리셋, 커넥터 파일)의 합집합이라, 설정 파서가 놓쳐도 아는 서버는 빠지지 않는다(BB 리뷰 Round 3). 미뤄 둔 로그아웃 파일이 깨졌으면 `.broken-*`로 옮기고, 깨졌거나 더 새로운 `v`이면 이번 실행에서 각 `doan-*` 서버의 로그아웃이 한 번 성공할 때까지 두 provider 모두 Connect를 막는다.
 - 조율자 판단 — BB 리뷰 Y4: Codex에 쓰는 `[mcp_servers.doan-*]`의 URL은 받은 문자열을 그대로 쓴다(https 검증과 TOML escape는 유지). design의 `URL.href` 문구는 Z1에서 고친다.
 - 조율자 판단 — Claude sign-out은 `claude auth logout`이 MCP 토큰을 비우므로(P4) 그 provider의 Claude 미뤄 둔 로그아웃 기록도 지운다. Codex 기록은 연결이 없어도 앱 시작 때 임시 `CODEX_HOME`으로 다시 시도한다.
 - 조율자 판단 — E1은 사용자의 Notion 계정과 브라우저 승인이 필요하므로 사용자가 돌아온 뒤 시작한다.
