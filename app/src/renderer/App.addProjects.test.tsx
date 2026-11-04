@@ -319,15 +319,18 @@ test("the window takes no file drop: dragover and drop only prevent the default,
   }
 });
 
-// Conductor decision on design '잠금' ('펼치기' is allowed): while locked a project row still expands and collapses;
-// only the move to its workspace is ignored, whether by click or by keyboard activation (both call toggle).
-test("while locked a project row's disclosure still expands and collapses, without leaving the page", () => {
+// Conductor decision on design '잠금' ('펼치기' is allowed): while locked a project row still unfolds, and its chevron
+// still folds it; only the move to its workspace is ignored, whether by click or by keyboard activation (both call
+// toggle). The row never folds, locked or not (project-row-disclosure).
+test("while locked a project row still unfolds and its chevron folds it, without leaving the page", () => {
   openFromWorkspace();
   lock();
   const expanded = () => (page()!.props.sidebar.props as unknown as { projects: Record<string, { expanded: boolean }> }).projects["/w/b"]?.expanded;
   page()!.props.sidebar.props.toggle!("/w/b" as never); render();
   expect(expanded()).toBe(true);
   page()!.props.sidebar.props.toggle!("/w/b" as never); render();
+  expect(expanded()).toBe(true);
+  page()!.props.sidebar.props.disclose!("/w/b" as never); render();
   expect(expanded()).toBe(false);
   // The loaded project's row is its workspace; activating it while locked does nothing.
   page()!.props.sidebar.props.toggle!("/w/a" as never); render();

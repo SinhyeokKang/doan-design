@@ -684,11 +684,11 @@ export function App() {
   };
   const toggleProject = async (key: string, notice?: { root: string; path: string }) => {
     const group = cards.find(card => card.key === key); if (!group) return;
-    // A locked page keeps the disclosure; only the move to a workspace is ignored (design '잠금'). The loaded project's
-    // row folds only by its chevron, so activating it while locked does nothing.
+    // A locked page ignores only the move to a workspace (design '잠금'): the row still unfolds another project, and
+    // never folds one, as unlocked; the chevron folds. The loaded project is already unfolded or folded by hand.
     if (locked()) {
       if (!loadedRoot || !group.rows.some(row => row.path === loadedRoot))
-        setShellProjects(previous => { const memory = { ...(previous[key] ?? { expanded: false }), roots: group.rows.map(row => row.path) }; return { ...previous, [key]: { ...memory, expanded: !memory.expanded } }; });
+        setShellProjects(previous => ({ ...previous, [key]: { ...(previous[key] ?? { expanded: false }), roots: group.rows.map(row => row.path), expanded: true } }));
       return;
     }
     const loaded = loadedRoot !== null && group.rows.some(row => row.path === loadedRoot);

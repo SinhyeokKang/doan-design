@@ -16,7 +16,8 @@ export interface ShellProject {
   selectedRoot?: string;
   selectedAt?: number;
   expanded: boolean;
-  // The loaded project folded by its chevron (project-row-disclosure); memory only, so a relaunch shows it unfolded.
+  // The loaded project folded by its chevron (project-row-disclosure). Saved with the rest but not read back, so a
+  // relaunch shows it unfolded.
   collapsed?: boolean;
   // The sidebar groups the person closed, by fixed id; a missing one is open (design-system-canvases design 'sidebar').
   groups?: { ds?: false; canvases?: false };
