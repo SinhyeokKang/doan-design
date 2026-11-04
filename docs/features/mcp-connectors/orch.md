@@ -52,6 +52,8 @@
 
 ## 리뷰와 검증 기록
 
+- E1 중간(2026-11-04): Claude 첫 턴 Notion 도구 통과. **Codex 첫 턴 결함**: 서버 준비가 1초를 넘으면 Codex 0.166의 startup_prewarm이 Doan의 대기보다 먼저 도구 목록을 잡아(`omitting pending optional MCP server`) 첫 턴에 Notion 도구가 없다(spec 완료 조건 6 위반). 같은 대화의 다음 턴과 1초 안에 준비된 대화는 통과. E1 뒤 수정 배치로 보낸다. 사용자 승인으로 Codex 쓰기 확인에 개인 최상위 Notion 페이지 하나를 만들고 사용자가 지운다.
+
 - BS: Sonnet 리뷰 🔴0 🟡1(`docs/BACKLOG.md`의 `Stopping…`) → 수정 `1a4166cd`. 테스트 6717개·typecheck green, S1 `rg` 빈 결과, `doan check`는 base와 같다. 실제 앱 확인은 하지 않았다(문구만 바뀜). 증거 `.scratch/mcp-evidence/bs/`.
 - BD: 첫 전체 테스트에서 `onboarding/clone.test.ts` 프로세스 그룹 테스트 1개 실패(다른 워커 둘이 동시에 전체 테스트를 돌림). 단독 3회·전체 1회 재실행 green이라 부하 flake로 기록했다. Sonnet 리뷰 🔴0 🟡0. codesign 출력은 node-pty 전후가 같고, unpacked `pty.node`·`spawn-helper`가 0755다. main 프로세스에서 app.asar로 로드하는 것은 BB·E1에서 확인한다. 증거 `.scratch/mcp-evidence/bd/`.
 - BA: Codex Astra 리뷰 🔴0 🟡2(정규화한 URL을 저장 파서가 거절, blocked가 Connected·확인 실패와 겹칠 때 사라짐) ⚪3. 수정 `8a036a80`·`db3ac93a`·`1166e47b`·`b7f67299` 뒤 Round 2는 🔴0 🟡0. 미뤄 둔 로그아웃이 있는 서버는 Connected로 읽혀도 `Reconnect needed`+Reconnect로 보인다(이전 계정 토큰일 수 있다). Z1에서 이 예외를 '상태 판정'과 함께 적는다. ⚪3(`mcp`→`agents` 임시 처리)은 BU가 최종 규칙으로 바꾼다. 리뷰 `.scratch/review-BA.md`, 증거 `.scratch/mcp-evidence/ba/`.
