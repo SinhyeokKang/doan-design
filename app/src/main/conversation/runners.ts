@@ -70,8 +70,11 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
   // Doan-account args select the dedicated credential store; they must precede the subcommand.
   const child = spawn(input.command, [...input.args ?? [], "app-server"], { cwd: input.cwd, env: input.env, detached: true, stdio: ["pipe", "pipe", "pipe"] });
   let startingTurn = false; const queued: unknown[] = [];
-  // waiting: cancels the turn's wait for its MCP servers; closing: close() ran, so a cancelled wait ends the send.
-  const startup = new CodexStartupWatch(); let waiting: (() => void) | undefined, closing = false;
+  // prestart: the current send's phase before turn/start (reload and server wait), which a Stop cancels; nothing of the
+  // turn exists on the server yet. stopAfterStart: a Stop while turn/start was unanswered, applied once the native turn
+  // exists. reloadOwed: a reload the server refused, sent again before the next turn. closing: close() ran.
+  const startup = new CodexStartupWatch();
+  let prestart: { stopped: boolean; wake(): void } | undefined, stopAfterStart = false, reloadOwed = false, closing = false;
   let group: OwnedGroup | undefined, sessionId = input.sessionId ?? "", activeTurn = "", localTurn = "", buffer = "", dead = false;
   let defaults: CodexDefaults | undefined, workspace: CodexWorkspace = {};
   const write = (value: unknown) => { if (dead || !child.stdin.writable) throw new Error("process_exited"); child.stdin.write(JSON.stringify(value) + "\n"); };
@@ -95,7 +98,7 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
   const transportDied = () => {
     if (dead) return; dead = true;
     // Transport loss ends the turn now; only group disappearance releases ownership.
-    dispatcher.end(); waiting?.(); void group?.stop();
+    dispatcher.end(); prestart?.wake(); void group?.stop();
   };
   child.stderr.resume(); child.stdin.on("error", transportDied); child.stdout.once("end", transportDied);
   child.once("exit", () => { transportDied(); group?.childExited(); });
@@ -134,33 +137,43 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
   } catch (error) { dispatcher.close(); void group?.stop(); throw new Error(dead ? "process_exited" : transportError(error instanceof Error ? error.message : "")); }
   // A turn that starts before its servers are ready runs without their tools ("omitting pending optional MCP server",
   // P2), so a doan run waits for the profile's doan- servers first. A reload restarts them: their earlier statuses are
-  // forgotten before it is sent, since the new ones can follow its reply at once. False: a Stop ended the wait.
-  const serversReady = async (reload: boolean, labels: Readonly<Record<string, string>>): Promise<boolean> => {
+  // forgotten before it is sent, since the new ones can follow its reply at once. The reload is awaited to its answer
+  // even after a Stop, so its outcome is known. False: a Stop ended the phase.
+  const serversReady = async (phase: { stopped: boolean; wake(): void }, reload: boolean, labels: Readonly<Record<string, string>>): Promise<boolean> => {
     if (!input.owner) return true;
     const names = profileServers(input.configDir);
     if (reload) {
       startup.forget(sessionId, names);
-      // A server that refuses the reload keeps its servers and their settled statuses, so the turn need not wait.
-      try { await dispatcher.request("config/mcpServer/reload", {}); } catch (error) { if (error instanceof RpcError) return true; throw error; }
+      let applied = true;
+      try { await dispatcher.request("config/mcpServer/reload", {}); } catch (error) { if (!(error instanceof RpcError)) throw error; applied = false; }
+      reloadOwed = !applied;
+      if (dead || closing) throw new Error("process_exited");
+      if (phase.stopped) return false;
+      // A server that refused the reload keeps its servers and their settled statuses, so the turn need not wait.
+      if (!applied) return true;
     }
-    if (dead || closing) throw new Error("process_exited");
     const wait = startup.wait(sessionId, names, labels, emit);
-    waiting = wait.cancel;
-    const started = await wait.started; waiting = undefined;
+    phase.wake = wait.cancel;
+    const started = await wait.started;
     if (dead || closing) throw new Error("process_exited");
-    if (!started) emit({ type: "interrupted", reason: "user" });
-    return started;
+    return started && !phase.stopped;
   };
+  // A server that cannot interrupt its own turn is stopped instead.
+  const interrupt = (turnId: string) => dispatcher.request("turn/interrupt", { threadId: sessionId, turnId }).then(() => {}, () => { void group?.stop(); });
   return {
     sessionId,
     async send(prompt, turnId, _attachments, choice) {
       if (dead) { emit({ type: "turn.failed", code: "process_exited" }); return; }
       // The server was opened with the conversation's choice then; a send may have changed it since.
       const turn = choice ?? input, permission = defaults ? codexPermission(turn.permissionMode ?? "default", defaults, workspace) : {};
-      activeTurn = turnId; localTurn = turnId;
+      activeTurn = turnId; localTurn = turnId; stopAfterStart = false;
       const labels = input.mcp?.labels() ?? connectorLabels([]);
       dispatcher.begin({ root: input.cwd, sessionId, turnId, labels });
-      if (!await serversReady(choice?.reloadMcp === true, labels)) return;
+      const phase = { stopped: false, wake: () => {} }; prestart = phase;
+      let ready: boolean;
+      try { ready = await serversReady(phase, choice?.reloadMcp === true || reloadOwed, labels); } finally { if (prestart === phase) prestart = undefined; }
+      // A later send may have begun while a stopped one still awaited its reload; the stop is then that send's past.
+      if (!ready) { if (localTurn === turnId) emit({ type: "interrupted", reason: "user" }); return; }
       startingTurn = true;
       let result: unknown;
       // Passed on every turn, as Claude and ACP must be, though Codex keeps a turn's model for the next (P1).
@@ -169,6 +182,7 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
       if (!object(result) || !object(result.turn) || typeof result.turn.id !== "string") { failProtocol(); throw new Error("session_unavailable"); }
       activeTurn = result.turn.id; dispatcher.started(activeTurn);
       startingTurn = false; for (const raw of queued.splice(0)) dispatcher.receive(raw);
+      if (stopAfterStart && !dispatcher.ended()) interrupt(activeTurn);
     },
     // Before turn/start answers there is no native id to expect (startingTurn); a steer then is refused, not held.
     // No model, effort or permission: a steered message runs in the running turn's.
@@ -177,9 +191,15 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
       await dispatcher.steer({ threadId: sessionId, expectedTurnId: activeTurn, input: [{ type: "text", text: prompt }], clientUserMessageId: messageId }, messageId);
     },
     answer: (id, option) => dispatcher.answer(id, option),
-    // A turn still waiting for its servers has nothing to interrupt on the server.
-    async stop() { dispatcher.stop("user"); if (waiting) { waiting(); return; } if (activeTurn) await dispatcher.request("turn/interrupt", { threadId: sessionId, turnId: activeTurn }).catch(() => { void group?.stop(); }); },
-    async close() { closing = true; waiting?.(); dispatcher.stop("appQuit"); dispatcher.close(); await group?.stop(); },
+    // Only a native turn can be interrupted: interrupting the local id fails, and that failure stops the server group.
+    // Before turn/start nothing was sent; while it is unanswered the interrupt waits for the native id.
+    async stop() {
+      dispatcher.stop("user");
+      if (prestart) { prestart.stopped = true; prestart.wake(); return; }
+      if (startingTurn) { stopAfterStart = true; return; }
+      if (activeTurn && activeTurn !== localTurn) await interrupt(activeTurn);
+    },
+    async close() { closing = true; if (prestart) { prestart.stopped = true; prestart.wake(); } dispatcher.stop("appQuit"); dispatcher.close(); await group?.stop(); },
   };
 }
 // After a success result leaves a steered message unread, the CLI echoes its uuid when it starts the follow-up turn,
