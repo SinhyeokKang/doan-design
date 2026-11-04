@@ -4,8 +4,8 @@ import { outsidePresetList } from "./presetOutside";
 // A stand-in for DOM nodes: each knows the nodes inside it.
 const node = (...inside: object[]) => { const self = { contains: (other: unknown) => other === self || inside.includes(other as object) }; return self; };
 
-// canvas-composer-polish spec 완료 조건 1: the field is the `/` list's trigger, so a press there keeps the list; chips,
-// the tray and the rest of the card are outside.
+// The field is the `/` list's trigger, so a press there keeps the list; chips, the tray and the rest of the card are
+// outside.
 test("a press in the / list or its field is inside; chips, tray, card and the rest of the page are outside", () => {
   const row = {}, text = {}, inlineChip = {};
   const list = node(row), field = node(text, inlineChip);

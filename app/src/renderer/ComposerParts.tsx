@@ -225,8 +225,8 @@ function SearchField({ value, slash, listId, onChange }: { value: string; slash:
     onKeyDown={slash ? undefined : event => { if (event.key === "ArrowDown") { event.preventDefault(); document.getElementById(`${listId}-p-0`)?.focus(); } }} /></label>;
 }
 
-// A press in the canvas iframe never reaches the app's document (an out-of-process frame), so the canvas page hands
-// its own signal to the preset lists: subscribe with a listener, get back the unsubscribe.
+// A press in the canvas iframe never reaches the app's document (an out-of-process frame); the canvas posts a press
+// message instead, and the canvas page hands it to the preset lists: subscribe with a listener, get the unsubscribe.
 export type CanvasPress = (listener: () => void) => () => void;
 
 // The Presets button and its popover (buzz-home design §4.4). Picking a preset closes the popover and hands focus to
@@ -273,7 +273,7 @@ export function SlashPresets(props: { view: PresetView; query: string; listId: s
 }
 
 // While the `/` list is open, a press outside it and its field, in the app's document or in the canvas, calls
-// `onOutside` (canvas-composer-polish spec 1). The press keeps its own effect and focus; nothing is prevented.
+// `onOutside`, as Escape would close it. The press keeps its own effect and focus, so nothing is prevented.
 export function usePresetListOutside(open: boolean, list: RefObject<HTMLElement | null>, field: () => HTMLElement | null, onOutside: () => void, canvasPress?: CanvasPress): void {
   const latest = useRef({ field, onOutside });
   latest.current = { field, onOutside };

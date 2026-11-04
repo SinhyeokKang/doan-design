@@ -98,7 +98,7 @@ function propsOf(node: ReactNode, found: { type: unknown; props: Record<string, 
   return found;
 }
 
-// canvas-composer-polish design 1: a press in the canvas iframe never reaches the app's document, so the canvas's signal
+// A press in the canvas iframe never reaches the app's document, so the canvas's own press signal
 // closes the Presets popover. Radix returns focus to the trigger after a close it did not see as an outside press; the
 // press went to the canvas, so focus must stay there.
 test("the canvas's press signal closes an open Presets popover without returning focus to the Presets button", () => {

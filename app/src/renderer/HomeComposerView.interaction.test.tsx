@@ -614,8 +614,8 @@ test("the permission pick is remembered at once and sent with the start", async 
   expect(box.current.permissions).toEqual({});
 });
 
-// canvas-composer-polish spec 완료 조건 1: a press outside the `/` list and its field closes it as Escape does; the
-// field keeps its text and the list stays closed until the field is empty again. A press in the field keeps it open.
+// A press outside the `/` list and its field closes it as Escape does; the field keeps its text and the list stays
+// closed until the field is empty again. A press in the field keeps it open.
 test("a press outside the / list closes it until the field is empty; a press in the list or the field keeps it", () => {
   const listeners: ((event: { target: unknown }) => void)[] = [];
   vi.stubGlobal("document", {
@@ -639,9 +639,13 @@ test("a press outside the / list closes it until the field is empty; a press in 
   expect(box.current.text).toBe("/cri");
   box.current = { ...box.current, text: "/crit" };
   expect(field(render()).role).toBe("textbox");
+  expect(listeners).toHaveLength(1);
   for (const cleanup of cleanups) if (typeof cleanup === "function") cleanup();
-  // The listener belongs to the open list only.
-  render(); for (const cleanup of hooks.effects.map(effect => effect())) if (typeof cleanup === "function") cleanup();
+  expect(listeners).toHaveLength(0);
+  // The listener belongs to the open list only: a closed list adds none.
+  render(); const closed = hooks.effects.map(effect => effect());
+  expect(listeners).toHaveLength(0);
+  for (const cleanup of closed) if (typeof cleanup === "function") cleanup();
   box.current = { ...box.current, text: "" };
   render(); for (const effect of hooks.effects) effect();
   box.current = { ...box.current, text: "/" };
