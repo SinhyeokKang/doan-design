@@ -23,6 +23,8 @@
 - 조율자 판단 — BB 리뷰 Y4: Codex에 쓰는 `[mcp_servers.doan-*]`의 URL은 받은 문자열을 그대로 쓴다(https 검증과 TOML escape는 유지). design의 `URL.href` 문구는 Z1에서 고친다.
 - 조율자 판단 — Claude sign-out은 `claude auth logout`이 MCP 토큰을 비우므로(P4) 그 provider의 Claude 미뤄 둔 로그아웃 기록도 지운다. Codex 기록은 연결이 없어도 앱 시작 때 임시 `CODEX_HOME`으로 다시 시도한다.
 - 조율자 판단 — BU가 `mcpConnectors/service.ts`도 맡는다(BB는 끝남): 성공한 Connect·Disconnect·Remove의 결과 상태를 다시 읽기 전에 먼저 내보내고, 스냅샷에 provider별 `generation`을 넣어 화면이 성공과 취소를 구분한다.
+- 조율자 판단 — MCP Connectors 행의 notice는 초안의 모양을 따르되 live role(`role=status`·`role=alert`)을 두지 않는다. 바뀐 상태는 페이지 live region 하나만 읽어 준다(spec 완료 조건 2가 초안보다 우선, BU handoff 결정 2).
+- 조율자 판단 — BU 리뷰 Round 4의 🟡(서버 하나의 host가 거의 512자라 Waiting·not-ready 두 줄이 모두 잘리면 접히지 않음)는 고치지 않고 한계로 둔다. 두 줄이 그대로 보일 뿐 정보가 사라지지 않고, 이런 host는 실제 서비스에서 나오기 어렵다. Z1에서 BACKLOG에 적는다.
 - 조율자 판단 — E1은 사용자의 Notion 계정과 브라우저 승인이 필요하므로 사용자가 돌아온 뒤 시작한다.
 
 ## 배치
