@@ -943,9 +943,9 @@ Reference: `.doan/canvases/mcp-connectors.html`, frames `agents`, `one-agent`, `
 
 ### Documented deviations from the draft
 
-- **No live roles on item and file notices** (spec 2; conductor decision for D2 review Y1). The draft gives the waiting notice `role=status` and the failure and Couldn’t check notices `role=alert`; the implementation keeps their look and drops the roles, so the page live region is the only announcement channel. The URL dialog's field error and the Remove `alertdialog` keep theirs.
+- **No live roles on item and file notices**: the page's single live region announces changes (PRODUCT §5 item 0 'MCP Connectors'). The draft gives the waiting notice `role=status` and the failure and Couldn’t check notices `role=alert`; the implementation keeps their look and drops the roles, so the page live region is the only announcement channel. The URL dialog's field error and the Remove `alertdialog` keep theirs.
 - **Progress labels without an ellipsis** ('Adopted rules' 'Label ellipsis'): Checking, Connecting, Disconnecting, Removing.
-- **Disconnect returns to Not connected** with Connect and the "Not connected" line (user decision, orch.md); Reconnect needed is only for a connection that ended without the person's Disconnect.
+- **Disconnect returns to Not connected** with Connect and the "Not connected" line; Reconnect needed is only for a connection that ended without the person's Disconnect.
 - **Panel tracking.** Notice text inherits the Settings panel's body-sm tracking (−0.035px), as on Settings › Agents; the draft's canvas body has none, so a notice's text is up to 3px narrower than drawn. Row labels and descriptions carry their own tracking and match.
 - **Busy reason.** A busy Connect carries its reason as a visually hidden description (`sr-only`) besides the tooltip, so the row's text content is longer than drawn; its box is unchanged.
 - **Image reset.** The app's base gives images `max-width: 100%`; the draft's base does not. No box differs.
@@ -954,7 +954,7 @@ Reference: `.doan/canvases/mcp-connectors.html`, frames `agents`, `one-agent`, `
 
 ### Not verified
 
-- A real provider: Connect, Disconnect and Remove through the provider CLIs, the Claude link and browser approval, and the snapshot timing of `McpService` in the app (E1).
+- A real provider: Connect, Disconnect and Remove through the provider CLIs, the Claude link and browser approval, and the snapshot timing of `McpService` in the app were checked in one signed-in real-app run with Notion; the states below were not.
 - Hover, pressed and keyboard focus of every control, the tooltip's own box, and the 960 × 600 width (the group's 24rem narrow rule would put a row's buttons under its text; not reached at 1238).
 - Frames `file-error`, `elsewhere` and `conversation` (not compared); the failure toast and the stop-dialog line were only checked in the runtime probe; the Codex not-ready activity line only in unit tests.
 - Screen-reader speech: only DOM and accessibility-tree values were read, not what a screen reader says.
