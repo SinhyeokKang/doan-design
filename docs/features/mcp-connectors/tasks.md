@@ -60,7 +60,7 @@ PoC 코드는 `.scratch/mcp-poc/`에 둔다. 격리 HOME·userData·`Library/Key
 
 ## A. 픽스처, 파일 스키마와 순수 함수
 
-- [ ] A0. PoC 출력을 커밋할 테스트 픽스처로 옮긴다(A2·A3·C2의 전제). `claude mcp get`·`codex mcp list --json` 출력(P1), Claude MCP 인가 링크 세 개, P2 `mcpServer/startupStatus/updated` 이벤트와 `mcpServer/elicitation/request` 요청을 `app/src/main/mcpConnectors/fixtures/`와 대화 픽스처(`app/src/main/conversation/fixtures/`)에 둔다. `state`, `code`, 계정 id, 토큰처럼 보이는 값은 지우거나 가짜 값으로 바꾼다.
+- [ ] A0. PoC 출력을 커밋할 테스트 픽스처로 옮긴다(A2·A3·C2의 전제). 원본은 `docs/features/mcp-connectors/poc/`에 있다(`.scratch/mcp-poc/`는 다른 머신에 없다. 이미 계정 식별자를 지운 사본). `claude mcp get`·`codex mcp list --json` 출력(P1), Claude MCP 인가 링크 세 개, P2 `mcpServer/startupStatus/updated` 이벤트와 `mcpServer/elicitation/request` 요청을 `app/src/main/mcpConnectors/fixtures/`와 대화 픽스처(`app/src/main/conversation/fixtures/`)에 둔다. `state`, `code`, 계정 id, 토큰처럼 보이는 값은 지우거나 가짜 값으로 바꾼다.
   - 검증: `npm --prefix app test` green. `grep -rn '\.scratch' app/src`에 테스트가 걸리지 않는다. 픽스처에 `state=`·`code=`의 실제 값과 PoC 계정 id가 없다(grep).
 - [ ] A1. `mcp-connectors.json` 파서·patch(`parseConnectorsFile`, `patchConnectors`, provider별 `everConnected` 포함), `mcp-connectors-pending.json` 파서·patch(`parsePendingLogouts`, `patchPendingLogouts`), `parseConnectorUrl`(정규화 포함), `connectorName`, `PRESETS`(순수·타입 전용 모듈).
   - 검증: `npm --prefix app test` — 새 테스트가 먼저 red, 구현 뒤 green. 케이스: `parseConnectorUrl`이 `http://`·사용자 정보·fragment·길이 초과·빈 입력을 거부, 앞뒤 공백 제거, scheme·호스트 소문자, 기본 포트 443 제거, 경로 끝 슬래시 하나 제거, 정규화한 URL로 중복 판정(프리셋 URL 포함), `connectorName`의 `-2`·`-3` 접미어, 두 파일 각각 `v` 누락·빈 파일·더 새로운 `v`.
