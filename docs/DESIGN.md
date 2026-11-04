@@ -954,7 +954,7 @@ Reference: `.doan/canvases/mcp-connectors.html`, frames `agents`, `one-agent`, `
 
 ### Not verified
 
-- A real provider: Connect, Disconnect and Remove through the provider CLIs, the Claude link and browser approval, and the snapshot timing of `McpService` in the app were checked in one signed-in real-app run with Notion; the states below were not.
+- Real providers beyond one signed-in run with Notion: the Atlassian and Figma presets through Doan, and Claude-side Remove.
 - Hover, pressed and keyboard focus of every control, the tooltip's own box, and the 960 × 600 width (the group's 24rem narrow rule would put a row's buttons under its text; not reached at 1238).
 - Frames `file-error`, `elsewhere` and `conversation` (not compared); the failure toast and the stop-dialog line were only checked in the runtime probe; the Codex not-ready activity line only in unit tests.
 - Screen-reader speech: only DOM and accessibility-tree values were read, not what a screen reader says.
