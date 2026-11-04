@@ -33,7 +33,7 @@ Doan 연결(PRODUCT §3 In scope 7)로 실행하는 대화에서 에이전트가
 ## 완료 조건
 
 1. 설정 사이드바에 MCP Connectors 카테고리가 Agents와 Notifications 사이에 있다. Claude Code와 Codex가 둘 다 Doan에 sign-in되어 있지 않으면 카테고리를 보이지 않는다. 이때 이 카테고리를 여는 동작(실패 toast의 "Open MCP Connectors" 등)은 설정 > Agents를 열고, 저장된 설정 섹션이 `mcp`여도 Agents로 복원한다. Claude Code와 Codex가 모두 sign-in되지 않은 상태가 되면(sign-out 등) 보던 MCP Connectors 페이지가 Agents로 바뀐다. 이때 포커스는 Agents 페이지 제목으로 가고, 페이지 live region이 "MCP Connectors is available while Claude Code or Codex is signed in."을 한 번 읽어 준다.
-2. 페이지는 Doan에 sign-in된 에이전트마다 섹션 하나다(Claude Code, Codex 순서. sign-in되지 않은 에이전트의 섹션은 없다). 섹션 안에는 프리셋 세 개와 URL 서버 전체가 목록으로 보이고, 항목마다 그 에이전트의 연결 상태와 동작 버튼이 있다. 항목의 형식은 온보딩 Agent 단계의 provider 행(로고, 이름, 상태 한 줄, 오른쪽 버튼)을 재사용한다. 각 섹션은 에이전트 이름을 label로 가진 group이다.
+2. 페이지는 Doan에 sign-in된 에이전트마다 섹션 하나다(Claude Code, Codex 순서. sign-in되지 않은 에이전트의 섹션은 없다). 섹션 안에는 프리셋 세 개와 URL 서버 전체가 목록으로 보이고, 항목마다 그 에이전트의 연결 상태와 동작 버튼이 있다. 항목의 형식은 Settings > Agents와 같은 Settings 공용 행(`doan-settings-group` 안의 `doan-preference-row`: 로고, 이름, 상태 한 줄, 오른쪽 버튼)이다(사용자 결정, 2026-11-04). 각 섹션은 에이전트 이름을 label로 가진 group이다.
    - 목록: 프리셋(Notion, Atlassian, Figma)은 추가하지 않아도 항상 있다. 사람이 URL로 추가한 서버가 그 뒤에 온다. URL 서버 목록은 모든 에이전트 섹션이 같이 쓴다(한 번 추가하면 모든 섹션에 보이고, 연결은 에이전트마다 따로 한다).
    - 로고: 프리셋은 각 서비스의 브랜드 로고(provider 로고와 같은 방식의 로컬 에셋), URL 서버는 공통 아이콘을 쓴다.
    - URL 추가: 페이지 머리 오른쪽의 "Add server by URL" 버튼 → compact dialog(URL 필드, Cancel/Add, Enter 제출, Escape 닫기). 잘못된 URL은 필드 아래 인라인 오류로 보인다. 같은 URL(프리셋 URL 포함)은 거절하고 "Already added as <name>."을 보인다. 같은지는 정규화한 URL로 비교한다(앞뒤 공백 제거, scheme·호스트 소문자, 기본 포트 443 제거, 경로 끝의 슬래시 하나 제거). 형식이 맞으면 접속할 수 없는 URL도 추가되고, 실패는 Connect 때 호스트 이름이 들어간 CLI 실패 문구로 보인다.
