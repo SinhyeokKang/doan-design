@@ -6,7 +6,7 @@ const rows = [{ itemId: "a", sendNow: true }, { itemId: "b", sendNow: true }, { 
 describe("queueFocusAfter", () => {
   it("goes to the next row's Send now", () => { expect(queueFocusAfter(rows, 0)).toEqual({ kind: "sendNow", itemId: "b" }); });
   it("goes to the next row's Remove when that row has no Send now", () => { expect(queueFocusAfter(rows, 1)).toEqual({ kind: "remove", itemId: "c" }); });
-  it("goes to a sending row's Send now (rendered as Sending…), not its Remove", () => {
+  it("goes to a sending row's Send now (rendered as Sending), not its Remove", () => {
     const withSending = [{ itemId: "a", sendNow: true }, { itemId: "s", sendNow: true /* sendNowShown({ ..., sending: false }) */ }];
     expect(queueFocusAfter(withSending, 0)).toEqual({ kind: "sendNow", itemId: "s" });
   });

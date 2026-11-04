@@ -74,7 +74,7 @@ describe("cardRow", () => {
     expect(row({ path: "/p", kind: "notFound" })).toMatchObject({ chip: "Missing", actions: ["locate", "remove"] });
     expect(row({ path: "/p", kind: "error", message: "bad config" })).toMatchObject({ chip: "Config error", actions: ["showInFinder", "retry", "details"], detail: "bad config" });
     expect(row({ path: "/p", kind: "cliError", reason: "x" })).toMatchObject({ chip: "CLI error", actions: ["retry", "remove"] });
-    expect(row({ path: "/p", kind: "loading" })).toMatchObject({ chip: "Reading…", actions: [] });
+    expect(row({ path: "/p", kind: "loading" })).toMatchObject({ chip: "Reading", actions: [] });
   });
 
   test("a list row has no chip and summarizes branch and change; the counts are homeSummary's", () => {

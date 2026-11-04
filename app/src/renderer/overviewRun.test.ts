@@ -507,7 +507,7 @@ test("queued messages stay until a list read started after the queue says none a
   expect(h.run.queue(A)).toEqual([]);
 });
 
-// queue-send-now: the row reads Sending… on either screen until main answers; read, it leaves; refused, it stays.
+// queue-send-now: the row reads Sending on either screen until main answers; read, it leaves; refused, it stays.
 test("Send now marks the queued message sending until main answers, then drops it or puts it back", async () => {
   const h = harness();
   h.run.show(ROOT);

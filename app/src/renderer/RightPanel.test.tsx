@@ -159,9 +159,9 @@ describe("Canvas info", () => {
 
 test("Inspector loading announces reading styles without computed rows", () => {
   const out = renderToStaticMarkup(<Inspector selection={element} inspector={{ status: "loading" }} selectPath={() => {}} />);
-  expect(out).toContain('role="status">Reading styles…');
+  expect(out).toContain('role="status">Reading styles');
   expect(out).not.toContain('class="prop" title="Width"');
-  expect(render(element, ROWS_FIXTURE)).not.toContain("Reading styles…");
+  expect(render(element, ROWS_FIXTURE)).not.toContain("Reading styles");
 });
 
 

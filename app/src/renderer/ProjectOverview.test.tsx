@@ -107,7 +107,7 @@ test("while the list is read the title is unavailable and the composer is a new 
   const titleTag = (html: string) => html.match(/<button[^>]*class="ov-title doan-button"[^>]*>/)?.[0] ?? "";
   expect(titleTag(loading)).toContain('disabled=""');
   expect(loading).toContain('placeholder="Ask or describe what to design, / for presets"');
-  expect(loading).not.toContain("Loading conversation…");
+  expect(loading).not.toContain("Loading conversation");
   const failed = render("error");
   expect(titleTag(failed)).not.toContain("disabled");
 });

@@ -212,8 +212,8 @@ describe("agentNoticeView", () => {
   test("working: the moving dot, the label and Stop", () => {
     expect(agentNoticeView(working, null, false)).toEqual({ text: "Agent is working", steady: false, action: { kind: "stop", label: "Stop", disabled: false } });
   });
-  test("after Stop: 'Stopping…', unavailable but still focusable", () => {
-    expect(agentNoticeView(working, "c1", false)?.action).toEqual({ kind: "stop", label: "Stopping…", disabled: true });
+  test("after Stop: 'Stopping', unavailable but still focusable", () => {
+    expect(agentNoticeView(working, "c1", false)?.action).toEqual({ kind: "stop", label: "Stopping", disabled: true });
   });
   test("a Stop pressed for another conversation does not hold this one", () => {
     expect(agentNoticeView(working, "c0", false)?.action).toEqual({ kind: "stop", label: "Stop", disabled: false });
@@ -225,7 +225,7 @@ describe("agentNoticeView", () => {
 });
 
 describe("settleStopping", () => {
-  test("'Stopping…' holds while the same conversation still works or waits", () => {
+  test("'Stopping' holds while the same conversation still works or waits", () => {
     expect(settleStopping("c1", working)).toBe("c1");
     expect(settleStopping("c1", waiting)).toBe("c1");
   });

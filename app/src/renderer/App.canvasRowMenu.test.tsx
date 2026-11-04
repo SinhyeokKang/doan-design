@@ -283,7 +283,7 @@ test("Export: the item is unavailable from main's running event to the reply, th
     vi.advanceTimersByTime(999);
     expect(harness.toast.show).not.toHaveBeenCalled();
     vi.advanceTimersByTime(1);
-    expect(harness.toast.show).toHaveBeenLastCalledWith("Exporting “a”…");
+    expect(harness.toast.show).toHaveBeenLastCalledWith("Exporting “a”");
     // A second request main refuses while this one runs leaves it as it is.
     const second = deferred<unknown>();
     doan.exportCanvas = vi.fn(() => second.promise);

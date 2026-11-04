@@ -468,7 +468,7 @@ it("lists Export… then Move to Trash, each acting on the row as the list holds
 it.each([
   ["Move to Trash while an agent works on the canvas", { blocked: vi.fn(() => true) }, {}, 1, "An agent is working on this canvas."],
   ["Export on a row ls could not read", {}, { error: { code: "bad", message: "Unreadable" } }, 0, "Can’t read this canvas."],
-  ["Export while that canvas's export runs", { exporting: vi.fn(() => true) }, {}, 0, "Exporting…"],
+  ["Export while that canvas's export runs", { exporting: vi.fn(() => true) }, {}, 0, "Exporting"],
 ] as const)("an unavailable item stays reachable by arrows and reads its reason: %s", (_name, menu, row, index, reason) => {
   const tree = canvasMenuFixture(menu, {}, { path: CANVAS, url: "u", ...row });
   tree.open();

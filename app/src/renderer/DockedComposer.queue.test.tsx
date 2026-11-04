@@ -59,7 +59,7 @@ test("Send now and Remove hand the row's id to the host; a row in flight ignores
   const { props, draw, rows } = setup({ items: [{ id: "q1", text: "First" }, { id: "q2", text: "Second", sending: true }] });
   const tree = draw();
   const sendNow = rows(tree, "Send queued message now");
-  expect(sendNow.map(item => item.children)).toEqual(["Send now", "Sending…"]);
+  expect(sendNow.map(item => item.children)).toEqual(["Send now", "Sending"]);
   expect(sendNow.map(item => item["aria-disabled"])).toEqual([undefined, true]);
   expect(sendNow.every(item => item.disabled === undefined)).toBe(true);
   expect(tree.some(item => item.type === "span" && item.children === "Add to the current turn without stopping it")).toBe(true);
