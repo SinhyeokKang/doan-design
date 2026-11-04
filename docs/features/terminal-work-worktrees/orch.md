@@ -49,3 +49,4 @@
 - M 수정 1라운드(Opus medium): `4474ab0e..f7d35b90` 4 commits(🟡1·🟡2·⚪1·⚪2). 🔴 0인 상태의 국소 수정이라 재리뷰 없이 받았다. flaky 원인: `shell.store([a, b])`가 첫 `doan ls`를 기다리지 않아 부하 시 `replace` 뒤에 focus 없는 목록 알림이 한 번 더 나가고 `toHaveBeenLastCalledWith`가 그것을 본다(파일 실행 11회 중 2회 실패). 이 feature 밖의 테스트 타이밍 문제라 T4에서 BACKLOG에 적는다.
 - M을 cherry-pick했다(`e18fa3d8..b0c9e7d1`). 통합 HEAD `b0c9e7d1`에서 `node .agents/skills/verify/scripts/verify.mjs` PASS(지휘자 실행).
 - R2 시작: 새 child worktree `ttw-R2`(기준 `b0c9e7d1`), Opus high.
+- R2: 작업자 완료(`acdec449`, `415b1604`). 작업자 보고: `verify.mjs` PASS(app test 6707 pass, flaky 없음). handoff와 commit이 일치하는 것을 지휘자가 확인했다. 열린 항목: origin이 W인 page(Project Settings 등)를 떠나면 Home으로 간다. 리뷰 1라운드: Opus medium.
