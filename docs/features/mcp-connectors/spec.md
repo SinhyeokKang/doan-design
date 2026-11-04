@@ -31,15 +31,18 @@ Doan 연결(PRODUCT §3 In scope 7)로 실행하는 대화에서 에이전트가
 
 ## 완료 조건
 
-1. 설정 사이드바에 MCP Connectors 카테고리가 Agents와 Notifications 사이에 있다.
-2. MCP Connectors에서 프리셋(P3에서 Claude·Codex 모두 통과한 것. 후보는 Notion, Atlassian, Figma) 또는 `https://` URL로 서버를 추가할 수 있다.
-   - 진입: "Add connector" 버튼 → 메뉴(프리셋, 구분선, "Custom URL…"). Custom URL은 compact dialog(URL 필드, Cancel/Add, Enter 제출, Escape 닫기)이고, 잘못된 URL은 필드 아래 인라인 오류로 보인다.
-   - 중복: 이미 추가한 프리셋은 메뉴에서 비활성이고 "Added"를 표시한다. 같은 URL은 거절하고 "Already added as <name>."을 보인다.
-   - 표시 이름: 프리셋은 서비스 이름, URL 커넥터는 호스트이고 설명은 전체 URL이다. 내부 이름 `doan-<slug>`는 보이지 않는다. 이름 편집은 이번 범위가 아니다.
-   - 빈 목록이면 카테고리 설명 아래에 "No connectors yet."과 Add connector를 둔다. `mcp-connectors.json`을 읽을 수 없거나 더 새로운 `v`이면 Settings storage 규칙과 같은 notice를 보이고 추가·삭제를 막는다.
-   - 포커스: 추가 뒤에는 새 행의 첫 Connect로, Remove 뒤에는 다음 행(없으면 Add connector)으로 간다.
-   - 추가된 서버는 행 하나로 보이고, 그 아래에 Claude Code·Codex마다 상태가 하나씩 붙는다(Doan 연결이 없어도 보인다). Cursor·Copilot·Antigravity는 행에 넣지 않고, 카테고리 설명에 "Cursor, Antigravity and GitHub Copilot can’t use these connectors yet." 한 줄만 둔다.
-3. 에이전트별 상태는 `Checking…`(상태를 읽는 중, 동작 비활성, role=status), `Not connected`(연결 필요), `Connecting…`(연결 중), `Connected`(연결됨), `Reconnect needed`(다시 연결 필요), `Couldn’t check`(확인 실패, Retry) 중 하나다. 앱 UI 문구는 영어다(PRODUCT §5). 문구 형식은 Settings > Agents를 따른다. Doan 연결이 없거나 실행할 수 없는 provider는 상태 대신 그 이유와 설정 > Agents로 가는 동작을 보인다. 이유 문구는 커넥터의 `Connected`와 섞이지 않게 sign-in 어휘를 쓴다(예: "Claude Code isn’t signed in").4. Connect를 누르면 그 provider의 공식 MCP 로그인이 실행된다. 흐름은 Settings > Agents sign-in 규칙(PRODUCT §5 항목 0)을 따른다.
+1. 설정 사이드바에 MCP Connectors 카테고리가 Agents와 Notifications 사이에 있다. Claude Code와 Codex가 둘 다 Doan에 sign-in되어 있지 않으면 카테고리를 보이지 않는다. 이때 이 카테고리를 여는 동작(실패 toast의 "Open MCP Connectors" 등)은 설정 > Agents를 연다. 페이지를 보는 중에 마지막 sign-in이 끝나면(sign-out 등) 설정 > Agents로 옮긴다.
+2. 페이지는 Doan에 sign-in된 에이전트마다 섹션 하나다(Claude Code, Codex 순서. sign-in되지 않은 에이전트의 섹션은 없다). 섹션 안에는 그 에이전트가 쓸 수 있는 MCP 서버가 목록으로 보이고, 항목마다 그 에이전트의 연결 상태와 동작 버튼이 있다. 항목의 형식은 온보딩 Agent 단계의 provider 행(로고, 이름, 상태 한 줄, 오른쪽 버튼)을 재사용한다.
+   - 목록: 프리셋(Notion, Atlassian, Figma)은 추가하지 않아도 항상 있다. 사람이 URL로 추가한 서버가 그 뒤에 온다. URL 서버 목록은 모든 에이전트 섹션이 같이 쓴다(한 번 추가하면 모든 섹션에 보이고, 연결은 에이전트마다 따로 한다).
+   - 로고: 프리셋은 각 서비스의 브랜드 로고(provider 로고와 같은 방식의 로컬 에셋), URL 서버는 공통 아이콘을 쓴다.
+   - URL 추가: 페이지 머리 오른쪽의 "Add server by URL" 버튼 → compact dialog(URL 필드, Cancel/Add, Enter 제출, Escape 닫기). 잘못된 URL은 필드 아래 인라인 오류로 보인다. 같은 URL(프리셋 URL 포함)은 거절하고 "Already added as <name>."을 보인다.
+   - 표시 이름: 프리셋은 서비스 이름, URL 서버는 호스트이고 상태 줄 아래에 전체 URL이 보인다. 내부 이름 `doan-<slug>`는 보이지 않는다. 이름 편집은 이번 범위가 아니다.
+   - URL 서버 항목에만 … 메뉴가 있고 그 안에 Remove가 있다. 프리셋은 지울 수 없고 연결·해제만 한다.
+   - 빈 상태는 없다(프리셋이 항상 있다). `mcp-connectors.json`을 읽을 수 없거나 더 새로운 `v`이면 Settings storage 규칙과 같은 notice를 보이고 URL 추가·삭제를 막는다. 프리셋의 연결·해제는 막지 않는다.
+   - 포커스: URL 추가 뒤에는 첫 섹션의 새 항목 버튼으로, Remove 뒤에는 같은 섹션의 다음 항목(없으면 앞 항목)으로 간다.
+   - Cursor·Copilot·Antigravity는 섹션을 만들지 않고, 카테고리 설명에 "Cursor, Antigravity and GitHub Copilot can’t use these connectors yet." 한 줄만 둔다.
+3. 항목의 상태는 `Checking…`(상태를 읽는 중, 동작 비활성, role=status), `Not connected`(Connect), `Connecting…`(연결 중), `Connected`(Disconnect), `Reconnect needed`(Reconnect), `Couldn’t check`(확인 실패, Retry) 중 하나다. 앱 UI 문구는 영어다(PRODUCT §5). 문구 형식은 Settings > Agents를 따른다. sign-in은 되어 있지만 실행할 수 없는 에이전트(만료, 업데이트 필요)는 섹션 머리에 그 이유와 설정 > Agents로 가는 동작을 보이고, 목록의 버튼을 비활성으로 둔다.
+4. Connect를 누르면 그 provider의 공식 MCP 로그인이 실행된다. 흐름은 Settings > Agents sign-in 규칙(PRODUCT §5 항목 0)을 따른다.
    - Claude: 인증 링크가 Connect를 누른 창에 오고 자동으로 열린다. 행에는 Open again과 Cancel이 있다.
    - Codex: CLI가 기본 브라우저를 직접 연다(Doan은 링크를 따로 열지 않는다). 행에는 "Codex opened your default browser. Allow access to <Notion> there, then return here."와 Cancel만 있다.
    - 허용하면 상태가 `Connected`가 된다. 취소하면 이전 상태로 조용히 돌아간다. 실패하면 이전 상태로 돌아가고 이유와 Retry를 보인다(실패 이유별 문구는 `/design-draft`에서 Agents alert 형식으로 정한다).
@@ -47,7 +50,7 @@ Doan 연결(PRODUCT §3 In scope 7)로 실행하는 대화에서 에이전트가
 5. Doan은 MCP 토큰을 읽거나 저장하지 않는다. 토큰은 각 provider CLI가 OS 키체인에 둔다(Claude는 프로필 키체인 항목 안, Codex는 `Codex MCP Credentials`의 `<서버 이름>|<URL 해시>` 항목). 평문 토큰 파일이 생기면 연결을 실패로 처리하고 그 파일을 지운다.
 6. `Connected`인 서버의 도구는 그 provider의 Doan 연결로 시작하는 새 대화·이어지는 대화의 **첫 턴부터** 보인다. 단, Codex에서 서버 준비가 10초 안에 끝나지 않으면 그 서버 없이 턴을 시작하고, 대화에 그 사실을 한 줄로 보인다. 도구 호출은 기존 권한 요청 흐름을 그대로 탄다. Codex가 MCP 도구 승인을 요청하면(읽기 전용이 아닌 도구) 대화에 권한 요청 "Run <tool> on <Notion>"이 Allow / Deny / Allow for this session으로 보인다. 지금은 이 요청이 거부되어 Codex의 쓰기 도구가 실패한다(2026-11-04 PoC).
 7. Doan이 등록한 서버 이름은 사람의 터미널 Claude Code·Codex 설정과 키체인 항목과 겹치지 않는다. 연결·해제·삭제·Doan sign-out이 터미널 쪽 MCP 설정과 토큰을 바꾸지 않는다.
-8. 에이전트별 "연결 해제"는 그 provider의 MCP 토큰만 지우고 등록은 남긴다. 서버 "삭제"(Remove)는 모든 provider에서 토큰과 등록을 지운다. Disconnect는 확인 없이 바로 실행한다. Remove는 되돌릴 수 없으므로 compact alert "Remove <Notion> from Doan’s agents?"(본문 "Claude Code and Codex disconnect from it. Your terminal setup is not changed.", 버튼 Cancel / Remove(destructive), Escape는 취소)를 거치고, alert가 열린 동안 Settings 페이지를 잠근다. 연결 시도 중인 커넥터는 Remove가 비활성이다. Doan sign-out은 그 provider의 Doan MCP 토큰도 지우고 등록은 남긴다. MCP 로그아웃이 실패해도 sign-out은 진행하고, 다음 시작 때 다시 시도한다. 그동안 그 커넥터의 연결은 막힌다. Settings > Agents의 sign-out 확인 본문에 "Its MCP connectors need connecting again."을 한 줄 더한다.
+8. 항목의 "연결 해제"(Disconnect)는 그 provider의 MCP 토큰만 지우고 등록은 남긴다. URL 서버의 "삭제"(Remove)는 모든 provider에서 토큰과 등록을 지우고 목록에서 뺀다. Disconnect는 확인 없이 바로 실행한다. Remove는 되돌릴 수 없으므로 compact alert "Remove <Notion> from Doan’s agents?"(본문 "Claude Code and Codex disconnect from it. Your terminal setup is not changed.", 버튼 Cancel / Remove(destructive), Escape는 취소)를 거치고, alert가 열린 동안 Settings 페이지를 잠근다. 연결 시도 중인 커넥터는 Remove가 비활성이다. Doan sign-out은 그 provider의 Doan MCP 토큰도 지우고 등록은 남긴다. MCP 로그아웃이 실패해도 sign-out은 진행하고, 다음 시작 때 다시 시도한다. 그동안 그 커넥터의 연결은 막힌다. Settings > Agents의 sign-out 확인 본문에 "Its MCP connectors need connecting again."을 한 줄 더한다.
 9. 에이전트 계정을 교체 sign-in하면, 교체가 끝난 뒤 Doan이 새 프로필에 커넥터 등록을 다시 넣고 그 provider의 상태는 모두 `다시 연결 필요`가 된다. 이전 계정으로 받은 MCP 토큰은 로그아웃해서 새 계정이 쓰지 않게 한다. 교체가 끝나지 않으면 기존 프로필의 등록과 토큰은 그대로다.
 10. 실행 중인 대화가 있는 provider에서 Connect·Disconnect·Remove가 성공하면, 그 provider 줄 아래에 info notice "Applies from <Claude Code>’s next turn. The running turn keeps its current tools."를 보인다. 상태 변화는 role=status로 한 번 읽어 주고, 실행 중인 턴이 끝나면 notice를 없앤다. toast는 쓰지 않는다. 실행 중인 턴은 바꾸지 않는다.
 
