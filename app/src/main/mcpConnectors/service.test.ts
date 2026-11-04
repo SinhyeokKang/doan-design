@@ -811,6 +811,59 @@ describe("review fixes", () => {
   });
 });
 
+describe("settled publish (BU)", () => {
+  // The snapshot that ends an attempt: the first one after a snapshot showing it.
+  const settled = (provider: McpProvider, name: string, during: string) => {
+    const rows = published.map(snapshot => ({ snapshot, row: snapshot.providers.find(p => p.provider === provider)!.rows.find(r => r.name === name) }));
+    const start = rows.findIndex(r => r.row?.view.status === during);
+    return rows.slice(start).find(r => r.row?.view.status !== during);
+  };
+
+  it("a successful Connect publishes Connected and the new generation when it ends, before the follow-up read", async () => {
+    const s = service();
+    s.connect("codex", "doan-notion");
+    cli.approve(await login("codex"));
+    await s.idle();
+    const end = settled("codex", "doan-notion", "connecting");
+    expect(end?.row?.view.status).toBe("connected");
+    expect(end?.snapshot.providers.map(p => [p.provider, p.generation])).toEqual([["claude", 0], ["codex", 1]]);
+  });
+
+  it("a successful Disconnect publishes Not connected when it ends, before the follow-up read", async () => {
+    cli.registered.claude.set("doan-notion", { url: "https://mcp.notion.com/mcp", auth: true });
+    store.patch({ everConnected: { name: "doan-notion", provider: "claude", value: true } });
+    const s = service();
+    s.disconnect("claude", "doan-notion");
+    await s.idle();
+    const end = settled("claude", "doan-notion", "disconnecting");
+    expect(end?.row?.view.status).toBe("not_connected");
+    expect(end?.snapshot.providers.find(p => p.provider === "claude")!.generation).toBe(1);
+  });
+
+  it("a cancelled Connect and a failed one leave the generation as it was", async () => {
+    const s = service();
+    s.connect("codex", "doan-notion");
+    await login("codex");
+    s.cancel("codex", "doan-notion");
+    await s.idle();
+    cli.failing.add("codex add doan-figma");
+    s.connect("codex", "doan-figma");
+    await s.idle();
+    expect(row(s, "codex", "doan-figma")?.failure).toBe("failed");
+    expect(s.snapshot().providers.map(p => p.generation)).toEqual([0, 0]);
+  });
+
+  it("a successful Remove bumps the generation of every provider it removed the server from", async () => {
+    const s = service();
+    s.add("https://mcp.example.com/mcp");
+    cli.registered.claude.set("doan-mcp-example-com", { url: "https://mcp.example.com/mcp", auth: true });
+    cli.registered.codex.set("doan-mcp-example-com", { url: "https://mcp.example.com/mcp", auth: true });
+    s.remove("doan-mcp-example-com");
+    await s.idle();
+    expect(s.snapshot().providers.map(p => p.generation)).toEqual([1, 1]);
+  });
+});
+
 describe("conversation facts", () => {
   it("labels every preset and URL server by its display name", () => {
     const s = service();
