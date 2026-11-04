@@ -8,10 +8,10 @@ app(Electron + TS)만 바뀐다. CLI(Go)·skills·공유 포맷(comment events, 
 
 - 위치: `app/src/renderer/ComposerParts.tsx`의 `PresetsButton`(Radix `Popover`)과 `SlashPresets`(직접 그린 목록), 이를 쓰는 `HomeComposerView.tsx`·`DockedComposer.tsx`.
 - T1 결과(격리 앱 probe, `.scratch/runtime-test/ccp-t1/`): Presets 버튼 목록은 부모 문서의 바깥 pointerdown(사이드바, Home 무대, 쓰레드, 트레이)에 닫히고 포커스는 body로 가며 Presets 버튼으로 돌아오지 않는다. 캔버스의 선택 클릭과 빈 보드 클릭도 `focusOnClick()`이 캔버스 영역에 포커스를 옮겨 Radix focus-outside로 닫힌다. 닫히지 않는 경우는 둘이다: ⌥-클릭(캔버스 스크립트가 앱에 아무 메시지도 보내지 않고 포커스가 iframe으로 들어간다)과 픽 중 클릭(`focusOnClick()`이 건너뛰므로 목록이 열린 채 칩만 들어간다). `/` 목록은 어느 바깥 클릭에도 닫히지 않는다.
-- 캔버스 신호가 필요하다. 새 canvas script 메시지는 더하지 않는다. `CanvasController`가 "캔버스를 눌렀다"는 렌더러 신호를 다음 셋에서 낸다:
-  - 기존 `select`·`clear`·`picked` 처리(선택 클릭, 빈 보드 클릭, 픽 중 클릭).
-  - ⌥-클릭: 포커스가 OOPIF로 들어가면 부모 문서는 포커스된 요소의 `focusout`(relatedTarget 없음)과 `window`의 `blur`를 받고, 그 뒤 `document.activeElement`가 캔버스 iframe이다. 앱 전환의 `blur`는 `activeElement`가 iframe이 아니므로 구별된다. 캔버스가 스스로 포커스를 가져가도 할 수 있는 일은 목록을 닫는 것뿐이다.
-- `PresetsButton`은 이 신호로 닫힐 때 Radix가 트리거로 포커스를 돌리지 않게 `onCloseAutoFocus`에서 `preventDefault`한다(Radix는 바깥 상호작용을 본 경우만 이를 건너뛰는데, 신호로 닫는 것은 바깥 상호작용으로 잡히지 않는다). 부모 문서의 바깥 pointerdown은 Radix 판정 그대로 둔다.
+- 캔버스 신호가 필요하고, 새 canvas script 메시지 `press`로 낸다. 기존 `select`·`clear`·`picked`는 오른쪽·Ctrl 누름, click이 되지 않는 누름, `describe`가 null인 대상을 놓치고, Frames 드로어 같은 command reply와 섞이며, click 시점(pointerup)에야 오기 때문이다. ⌥-클릭을 포커스 진입(`window` `blur` + `activeElement`)으로 판별하는 길도 쓰지 않는다.
+  - `canvasScript.ts`는 신뢰된(`isTrusted`) pointerdown마다 ⌥·오른쪽·Ctrl 누름을 포함해 `{ type: "press" }`를 보낸다. 선택·픽 처리보다 먼저 보낸다.
+  - `canvasMessage.ts`의 `parseCanvasMessage`가 `press`를 받아들이고 다른 필드는 버린다(ARCHITECTURE §3 'Untrusted messages'). 위조된 메시지가 할 수 있는 일은 열린 목록을 닫는 것뿐이다.
+  - `CanvasController`는 `press`를 선택 경로로 보내지 않는다. 신호 배선(렌더러 이벤트, `App.tsx`·`DockedComposer.tsx` 전달)은 TOOL·SEND 통합 뒤 따로 한다. 그때 신호로 닫아도 포커스는 캔버스 영역에 남아야 하고 body로 떨어지면 안 된다: 목록의 포커스된 검색 입력이 `focusOnClick()`의 `document.activeElement` 비교보다 먼저 unmount되어도 마찬가지다. `canvasPress`는 렌더마다 바뀌지 않는 함수로 넘긴다.
 - `SlashPresets`: 바깥 pointerdown 처리를 새로 둔다. 트리거는 필드다. 기존 패턴은 `CanvasConversationList.tsx`(capture 단계 document pointerdown + `contains`)와 `ConversationThread.tsx`의 `useLocateNote`다. 닫으면 Escape와 같은 dismissed 상태로 둔다. 캔버스 신호도 같은 닫기로 처리한다. dismissed는 컴포넌트 상태다(Home의 `setDismissed(true)`, Docked의 `setDismissedKey(key)`). `slashQuery`(`homeComposer.ts`)는 상태가 없으므로 바꾸지 않는다.
 - 바깥 판정 순수 함수는 `/` 목록에만 쓴다(아래). Presets 버튼 목록은 Radix 판정과 캔버스 신호로 충분하다.
 
