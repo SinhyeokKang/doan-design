@@ -18,6 +18,7 @@ async function until<T>(read: () => T | undefined | null | false, what = "condit
 }
 
 let dir: string, cli: FakeCli, store: ConnectorStore, states: Record<McpProvider, AuthState>, refusals: Partial<Record<McpProvider, string>>;
+let launched: { provider: McpProvider; profileDir: string }[], settling: Record<McpProvider, boolean>;
 let held: Record<McpProvider, number>, acquired: { provider: McpProvider; use: string; added: Record<string, string> }[];
 let opened: string[], hook: ((raw: string) => void) | null, hooks: number, published: McpSnapshot[], readiness: Record<McpProvider, Readiness>;
 const profile = (provider: McpProvider) => join(dir, "profiles", provider);
@@ -39,6 +40,11 @@ function service(over: Partial<McpServiceOptions> = {}): McpService {
         return { command: `/verified/bin/${provider}`, profileDir: profile(provider), env: { PATH: "/verified/bin", [provider === "claude" ? "CLAUDE_CONFIG_DIR" : "CODEX_HOME"]: profile(provider), ...added },
           release: async () => { if (!released) { released = true; held[provider] -= 1; } } };
       },
+      environment: async (provider, profileDir) => {
+        launched.push({ provider, profileDir });
+        return { command: `/verified/bin/${provider}`, env: { PATH: "/verified/bin", [provider === "claude" ? "CLAUDE_CONFIG_DIR" : "CODEX_HOME"]: profileDir } };
+      },
+      settling: provider => settling[provider],
     },
     readiness: provider => readiness[provider],
     openExternal: async url => { opened.push(url); },
@@ -58,7 +64,7 @@ beforeEach(() => {
   mkdirSync(join(dir, "tmp"));
   cli = new FakeCli(); store = new ConnectorStore(dir);
   states = { claude: connected("claude"), codex: connected("codex") }; refusals = {};
-  held = { claude: 0, codex: 0 }; acquired = []; opened = []; hook = null; hooks = 0; published = [];
+  held = { claude: 0, codex: 0 }; acquired = []; launched = []; settling = { claude: false, codex: false }; opened = []; hook = null; hooks = 0; published = [];
   readiness = { claude: { ready: true }, codex: { ready: true } };
 });
 afterEach(() => { vi.useRealTimers(); rmSync(dir, { recursive: true, force: true }); });
@@ -206,6 +212,9 @@ describe("connect", () => {
     await login("claude");
     hook!(LINK.replace("redirect_uri=http%3A%2F%2Flocalhost", "redirect_uri=http%3A%2F%2Fevil.example"));
     hook!("https://example.com/no-pkce");
+    // Before any wait: a link that slipped through would already be open.
+    expect(opened).toEqual([]);
+    expect(row(s, "claude", "doan-notion")?.link).toBe(false);
     await vi.advanceTimersByTimeAsync(31_000);
     await s.idle();
     expect(opened).toEqual([]);
@@ -513,16 +522,18 @@ describe("provider ready: pending logouts and reconcile", () => {
   });
 });
 
+// The process runner agentAuth hands the MCP step: the provider CLI in the profile being left.
+const runner = (provider: McpProvider) => async (args: string[]) => {
+  const p = cli.spawn(`/verified/bin/${provider}`, [...BASE_ARGS[provider], ...args], { cwd: profile(provider), env: {} });
+  let stdout = "", stderr = "";
+  p.onOutput((text, stream) => { if (stream === "stderr") stderr += text; else stdout += text; });
+  return { code: await p.exit, stdout, stderr };
+};
+
 // B3: the MCP step agentAuth runs in a sign-out or a committed replacement, with its own process runner.
 describe("sign-out and replacement logout", () => {
-  const runner = (provider: McpProvider) => async (args: string[]) => {
-    const p = cli.spawn(`/verified/bin/${provider}`, [...BASE_ARGS[provider], ...args], { cwd: profile(provider), env: {} });
-    let stdout = "", stderr = "";
-    p.onOutput((text, stream) => { if (stream === "stderr") stderr += text; else stdout += text; });
-    return { code: await p.exit, stdout, stderr };
-  };
   const request = (provider: McpProvider, over: Partial<McpLogoutRequest> = {}): McpLogoutRequest =>
-    ({ kind: "signOut", previousAccountId: null, nextAccountId: null, staging: null, run: runner(provider), ...over });
+    ({ kind: "signOut", previousAccountId: null, nextAccountId: null, staging: null, profileDir: profile(provider), run: runner(provider), ...over });
   const logouts = (provider: McpProvider) => cli.commands(provider).filter(c => c[1] !== "list" && c[1] !== "get");
   beforeEach(() => {
     cli.registered.codex.set("doan-notion", { url: "https://mcp.notion.com/mcp", auth: true });
@@ -590,6 +601,166 @@ describe("sign-out and replacement logout", () => {
     expect(await s.logoutForAuth("codex", request("codex"))).toEqual({ failed: ["doan-notion", "doan-atlassian", "doan-figma"] });
     expect(store.pending().map(entry => entry.name)).toEqual(["doan-notion", "doan-atlassian", "doan-figma"]);
     await s.idle();
+  });
+});
+
+// BB review fix round 1.
+describe("review fixes", () => {
+  it("R1: waits for a committed replacement's MCP step before reconciling or reading", async () => {
+    cli.registered.claude.set("doan-gone-example", { url: "https://gone.example.com/mcp", auth: true });
+    settling.claude = true;
+    const s = service();
+    s.authChanged("claude");
+    await s.idle();
+    expect(cli.processes).toEqual([]);
+    settling.claude = false;
+    s.authChanged("claude");
+    await s.idle();
+    expect(cli.registered.claude.has("doan-gone-example")).toBe(false);
+  });
+
+  it("R2: quit stops a startup reconcile command and returns with no live child", async () => {
+    vi.useFakeTimers();
+    cli.hanging.add("codex list");
+    const s = service();
+    s.authChanged("codex");
+    const p = await until(() => cli.processes.find(each => each.sub[1] === "list"), "list");
+    const quitting = s.quit();
+    expect(p.stopped).toBe(true);
+    await vi.advanceTimersByTimeAsync(5_001);
+    await quitting;
+    expect(held.codex).toBe(0);
+  });
+
+  it("R2: stopProvider stops a startup pending logout and returns with its lease released", async () => {
+    store.record([{ provider: "claude", name: "doan-notion", url: "https://mcp.notion.com/mcp" }]);
+    cli.registered.claude.set("doan-notion", { url: "https://mcp.notion.com/mcp", auth: true });
+    cli.hanging.add("claude logout doan-notion");
+    const s = service();
+    s.authChanged("claude");
+    const p = await until(() => cli.processes.find(each => each.sub[1] === "logout"), "logout");
+    refusals.claude = "busy";
+    await s.stopProvider("claude");
+    expect({ stopped: p.stopped, leases: held.claude }).toEqual({ stopped: true, leases: 0 });
+    await s.idle();
+    expect(store.blocked("claude", "doan-notion")).toBe(true);
+  });
+
+  it("R2: a pending logout that succeeds after quit does not edit the pending file", async () => {
+    vi.useFakeTimers();
+    store.record([{ provider: "codex", name: "doan-notion", url: "https://mcp.notion.com/mcp" }]);
+    const before = readFileSync(join(dir, "mcp-connectors-pending.json"), "utf8");
+    cli.hanging.add("codex logout doan-notion");
+    const s = service();
+    s.authChanged("codex");
+    const p = await until(() => cli.processes.find(each => each.sub[1] === "logout"), "logout");
+    const quitting = s.quit();
+    await vi.advanceTimersByTimeAsync(5_001);
+    await quitting;
+    p.finish(0);
+    await s.idle();
+    expect(readFileSync(join(dir, "mcp-connectors-pending.json"), "utf8")).toBe(before);
+  });
+
+  it("R3: a failed Claude login's plaintext file is deleted, and the failure keeps its own reason", async () => {
+    const s = service();
+    s.connect("claude", "doan-notion");
+    const p = await login("claude");
+    writeFileSync(join(profile("claude"), ".credentials.json"), "{}");
+    cli.refuse(p, 1);
+    await s.idle();
+    expect(existsSync(join(profile("claude"), ".credentials.json"))).toBe(false);
+    expect(row(s, "claude", "doan-notion")?.failure).toBe("failed");
+  });
+
+  it("R3: a cancelled Claude login's plaintext file is deleted, and the cancel stays silent", async () => {
+    const s = service();
+    s.connect("claude", "doan-notion");
+    await login("claude");
+    writeFileSync(join(profile("claude"), ".credentials.json"), "{}");
+    s.cancel("claude", "doan-notion");
+    await s.idle();
+    expect(existsSync(join(profile("claude"), ".credentials.json"))).toBe(false);
+    expect(row(s, "claude", "doan-notion")?.failure).toBeNull();
+  });
+
+  it("Y2: app start retries a Codex pending logout without a Doan Codex connection, in a temporary CODEX_HOME", async () => {
+    store.record([{ provider: "codex", name: "doan-notion", url: "https://mcp.notion.com/mcp" }]);
+    states.codex = { ...connected("codex"), connection: null, phase: "disconnected", verified: false };
+    readiness.codex = { ready: false, cause: "not_connected", action: "signIn" };
+    refusals.codex = "not_connected";
+    cli.registered.codex.set("doan-notion", { url: "https://mcp.notion.com/mcp", auth: true });
+    const s = service();
+    s.authChanged("codex");
+    await s.idle();
+    const logout = cli.processes.find(p => p.sub[1] === "logout")!;
+    expect(logout.env.CODEX_HOME).toBe(launched[0]!.profileDir);
+    expect(logout.env.CODEX_HOME).not.toBe(profile("codex"));
+    expect(existsSync(logout.env.CODEX_HOME!)).toBe(false);
+    expect(store.blocked("codex", "doan-notion")).toBe(false);
+  });
+
+  it("Y2: a Claude without a Doan connection clears its pending entries (its sign-out cleared the MCP tokens)", async () => {
+    store.record([{ provider: "claude", name: "doan-notion", url: "https://mcp.notion.com/mcp" }, { provider: "codex", name: "doan-figma", url: "https://mcp.figma.com/mcp" }]);
+    states.claude = { ...connected("claude"), connection: null, phase: "disconnected", verified: false };
+    cli.hanging.add("codex logout doan-figma");
+    const s = service();
+    s.authChanged("claude");
+    expect(store.blocked("claude", "doan-notion")).toBe(false);
+    expect(store.blocked("codex", "doan-figma")).toBe(true);
+    await s.quit();
+  });
+
+  it("Y3: an unreadable Codex list takes the servers from the profile's config.toml, never the connectors file", async () => {
+    writeFileSync(join(dir, "mcp-connectors.json"), "{broken");
+    writeFileSync(join(profile("codex"), "config.toml"), 'model = "x"\n\n[mcp_servers.doan-custom]\nurl = "https://custom.example/mcp"\n\n[mcp_servers."doan-quoted"]\nurl = \'https://quoted.example/mcp\'\n\n[mcp_servers.notion]\nurl = "https://mcp.notion.com/mcp"\n');
+    cli.registered.codex.set("doan-custom", { url: "https://custom.example/mcp", auth: true });
+    cli.failing.add("codex list");
+    cli.failing.add("codex logout doan-custom");
+    const s = service();
+    await s.logoutForAuth("codex", { kind: "signOut", previousAccountId: null, nextAccountId: null, staging: null, profileDir: profile("codex"), run: runner("codex") });
+    expect(cli.commands("codex").filter(c => c[1] === "logout").map(c => c[2])).toEqual(["doan-custom", "doan-quoted"]);
+    expect(store.pending("codex")).toEqual([{ provider: "codex", name: "doan-custom", url: "https://custom.example/mcp" }, { provider: "codex", name: "doan-quoted", url: "https://quoted.example/mcp" }]);
+    await s.idle();
+  });
+
+  it("Y3: an unreadable Claude list takes the servers from the profile's .claude.json", async () => {
+    writeFileSync(join(profile("claude"), ".claude.json"), JSON.stringify({ mcpServers: { "doan-custom": { type: "http", url: "https://custom.example/mcp" }, notion: { type: "http", url: "https://mcp.notion.com/mcp" } } }));
+    cli.failing.add("claude list");
+    const s = service();
+    await s.logoutForAuth("claude", { kind: "replace", previousAccountId: "a1", nextAccountId: "a2", staging: null, profileDir: profile("claude"), run: runner("claude") });
+    expect(cli.commands("claude").filter(c => c[1] === "logout").map(c => c[2])).toEqual(["doan-custom"]);
+    await s.idle();
+  });
+
+  it("Y3: an unknown pending state blocks every doan- server for both providers until one logout of it succeeds", async () => {
+    writeFileSync(join(dir, "mcp-connectors-pending.json"), "{broken");
+    cli.registered.codex.set("doan-notion", { url: "https://mcp.notion.com/mcp", auth: true });
+    const s = service();
+    expect(store.blocked("claude", "doan-notion")).toBe(true);
+    expect(store.blocked("codex", "doan-figma")).toBe(true);
+    s.connect("codex", "doan-notion");
+    const p = await login("codex");
+    const logout = cli.processes.find(each => each.sub[1] === "logout")!;
+    expect(logout.sub).toEqual(["mcp", "logout", "doan-notion"]);
+    expect(logout.env.CODEX_HOME).not.toBe(profile("codex"));
+    expect(store.blocked("codex", "doan-notion")).toBe(false);
+    expect(store.blocked("claude", "doan-notion")).toBe(true);
+    cli.approve(p);
+    await s.idle();
+  });
+
+  it("Y4: a pending retry registers the provider's URL string as it was recorded", async () => {
+    store.record([{ provider: "codex", name: "doan-example-com", url: "https://example.com" }]);
+    let config = "";
+    const spawn = cli.spawn;
+    const s = service({ spawn: (command, args, options) => {
+      if (args.includes("logout")) config = readFileSync(join(options.env.CODEX_HOME!, "config.toml"), "utf8");
+      return spawn(command, args, options);
+    } });
+    s.authChanged("codex");
+    await s.idle();
+    expect(config).toBe('[mcp_servers.doan-example-com]\nurl = "https://example.com"\n');
   });
 });
 

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { appendFileSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { hookLinks as fileHookLinks, type AuthProcess, type Lease, type McpLogoutRequest, type Spawn } from "../agentAuth/manager";
@@ -9,6 +9,7 @@ import { mcpAuthLink } from "./authLink";
 import { CONNECTOR_NAME, connectorName, connectorWithUrl, parseConnectorUrl, type UrlRejection } from "./names";
 import { codexServerToml, mcpLogoutOutcome, mcpLogoutPlan, plaintextLeftovers, reconcilePlan, type McpLogoutInput } from "./plans";
 import { connectorLabel, connectorLabels, MCP_PROVIDERS, PRESETS, type ConnectorServer, type McpProvider } from "./presets";
+import { claudeConfigServers, codexConfigServers } from "./profileConfig";
 import { connectorState, type CheckOutcome, type ConnectorView } from "./state";
 import { codexMcpServers, parseClaudeMcpGet, parseClaudeMcpList, parseCodexMcpList, type ListedServer } from "./status";
 import type { ConnectorStore } from "./store";
@@ -39,6 +40,10 @@ export interface McpConversationFacts { generation(provider: McpProvider): numbe
 export interface McpAuth {
   acquire(provider: McpProvider, use: "mcp", added?: Record<string, string>): Promise<Lease>;
   state(provider: McpProvider): AuthState;
+  // A command in a Doan-owned directory outside the profiles (a pending Codex logout's temporary CODEX_HOME).
+  environment(provider: McpProvider, profileDir: string): Promise<{ command: string; env: Record<string, string> }>;
+  // A committed replacement still running its MCP step: the new connection is not ready yet (BB review R1).
+  settling(provider: McpProvider): boolean;
 }
 export interface McpServiceOptions {
   store: ConnectorStore; auth: McpAuth;
@@ -102,6 +107,9 @@ export class McpService implements McpConversationFacts {
   private lastChanged = new Map<McpProvider, string>();
   private readyKeys = new Map<McpProvider, string | null>();
   private again = new Set<McpProvider>();
+  // Pending retries and reconciles, owned like attempts and reads so a sign-out (stopProvider) and quit stop them.
+  private chores = new Map<McpProvider, Set<Owner>>();
+  private started = new Set<McpProvider>();
   private queues = new Map<McpProvider, Promise<void>>();
   private pending = new Set<Promise<unknown>>();
   // Each attempt's and read's own work, for a stop that waits for exactly those.
@@ -230,11 +238,19 @@ export class McpService implements McpConversationFacts {
   authChanged(provider: Provider): void {
     if (!mcpProvider(provider)) return;
     const state = this.options.auth.state(provider);
-    const ready = state.connection && state.verified && !state.expired ? state.connection.connectionId : null;
+    // A Claude without a Doan connection signed out with `claude auth logout`, which clears its MCP tokens (P4).
+    if (provider === "claude" && !state.connection) this.options.store.clearProvider("claude");
+    // Codex keys MCP tokens by server name and URL only, so its pending logouts are retried at start whether or not
+    // Codex is signed in (design 'agentAuth').
+    if (!this.started.has(provider)) {
+      this.started.add(provider);
+      if (provider === "codex" && !this.closed) this.chore(provider, owner => this.retryPending(provider, null, owner).then(() => {}));
+    }
+    const ready = state.connection && state.verified && !state.expired && !this.options.auth.settling(provider) ? state.connection.connectionId : null;
     if (ready !== (this.readyKeys.get(provider) ?? null)) {
       this.readyKeys.set(provider, ready);
       if (!state.connection) this.checks.delete(provider);
-      if (ready && !this.closed) void this.track(this.exclusive(provider, () => this.prepare(provider)).then(() => this.refresh(provider)));
+      if (ready && !this.closed) this.chore(provider, owner => this.prepare(provider, owner), () => this.refresh(provider));
     }
     this.changed();
   }
@@ -243,7 +259,7 @@ export class McpService implements McpConversationFacts {
   // their leases go once their process groups are gone (the drain waits for them).
   async stopProvider(provider: Provider): Promise<void> {
     if (!mcpProvider(provider)) return;
-    const owners = [this.attempts.get(provider), this.reads.get(provider)].filter(owner => owner !== undefined);
+    const owners = [this.attempts.get(provider), this.reads.get(provider), ...this.chores.get(provider) ?? []].filter(owner => owner !== undefined);
     for (const owner of owners) this.stop(owner);
     await Promise.allSettled(owners.map(owner => this.works.get(owner)));
   }
@@ -253,6 +269,7 @@ export class McpService implements McpConversationFacts {
     this.closed = true;
     for (const attempt of new Set(this.attempts.values())) this.stop(attempt);
     for (const read of this.reads.values()) this.stop(read);
+    for (const chores of this.chores.values()) for (const chore of chores) this.stop(chore);
     let timer: ReturnType<typeof setTimeout> | undefined;
     await Promise.race([this.idle(), new Promise(resolve => { timer = setTimeout(resolve, QUIT_WAIT_MS); timer.unref?.(); })]);
     clearTimeout(timer);
@@ -310,15 +327,24 @@ export class McpService implements McpConversationFacts {
     const run = await request.run([...COMMANDS[provider].list]).catch(() => null);
     const servers = run && (provider === "claude" ? parseClaudeMcpList(run.stdout, run.code ?? -1) : run.code === 0 ? codexMcpServers(run.stdout) : null);
     if (servers) return { servers, readable: true };
-    // Without the list, every server Doan knows is treated as a failed logout: recorded and blocked, never skipped.
+    // Without the list, the profile's own config names its registrations (BB review Y3), never the connectors file,
+    // which may be broken or behind. Read before the provider logout, which may change the profile.
+    const config = this.profileServers(provider, request.profileDir);
+    if (config) { console.error(`doan: ${provider} MCP servers could not be listed for the logout; the profile's config names them`); return { servers: config, readable: true }; }
+    // Without either, every server Doan knows is treated as a failed logout: recorded and blocked, never skipped.
     console.error(`doan: ${provider} MCP servers could not be listed for the logout; every known server is kept as a pending logout`);
     return { servers: this.servers().map(server => ({ name: server.name, url: server.url, authenticated: null })), readable: false };
+  }
+  private profileServers(provider: McpProvider, profileDir: string): ListedServer[] | null {
+    let text: string;
+    try { text = readFileSync(join(profileDir, provider === "codex" ? "config.toml" : ".claude.json"), "utf8"); } catch { return null; }
+    return provider === "codex" ? codexConfigServers(text) : claudeConfigServers(text);
   }
 
   private async connectFlow(provider: McpProvider, server: ConnectorServer, attempt: Attempt): Promise<void> {
     try {
       // Connect retries the previous account's logout first and connects only after it succeeded (spec 완료 조건 8).
-      if (this.options.store.blocked(provider, server.name) && !await this.retryPending(provider, server.name, attempt)) throw new Failure("pending_logout");
+      if (this.options.store.blocked(provider, server.name) && !await this.retryPending(provider, server.name, attempt, server.url)) throw new Failure("pending_logout");
       if (attempt.stopped) return;
       const hooked = provider === "claude" ? this.hookLinks(raw => this.linked(attempt, raw)) : null;
       try {
@@ -346,21 +372,20 @@ export class McpService implements McpConversationFacts {
       clearTimeout(link);
       approval ??= setTimeout(() => { late = true; this.stop(attempt, false); }, this.limits.approvalMs);
     };
-    let login: Run;
+    let login: Run, plaintext: boolean | null = false;
     try { login = await this.run(attempt, lease, "claude", COMMANDS.claude.login(server.name), { timeoutMs: null, pty: true }); }
-    finally { clearTimeout(link); clearTimeout(approval); attempt.onLink = null; }
+    finally {
+      clearTimeout(link); clearTimeout(approval); attempt.onLink = null;
+      // After the login's group is gone, on every way out (success, failure, limit, cancel): Claude falls back to a
+      // plaintext file when the keychain fails, and none may stay behind (spec 완료 조건 5, BB review R3).
+      plaintext = this.scrubPlaintext(lease.profileDir);
+    }
     if (attempt.stopped) return;
     if (missing) throw new Failure("no_link", "the browser hook received no acceptable link");
     if (late) throw new Failure("approval_timeout", "the browser approval did not come in time");
     if (login.code !== 0) throw new Failure("failed", `login exited ${login.code}: ${tail(login.output)}`);
-    // Claude falls back to a plaintext file when the keychain fails; only its path is checked (design '토큰 저장 확인').
-    let files: string[] = [];
-    try { files = readdirSync(lease.profileDir); } catch (error) { throw new Failure("failed", message(error)); }
-    const leftovers = plaintextLeftovers("claude", files);
-    if (leftovers.length) {
-      for (const file of leftovers) rmSync(join(lease.profileDir, file), { force: true });
-      throw new Failure("storage_failed", "the CLI wrote a plaintext credential file");
-    }
+    if (plaintext === null) throw new Failure("failed", "the profile could not be checked for a plaintext credential file");
+    if (plaintext) throw new Failure("storage_failed", "the CLI wrote a plaintext credential file");
     const after = await this.claudeGet(attempt, lease, server.name);
     if (attempt.stopped) return;
     if (!after.ok || !after.facts.registered || !after.facts.authenticated) throw new Failure("failed", "status after sign-in is not connected");
@@ -456,17 +481,18 @@ export class McpService implements McpConversationFacts {
 
   // Pending logouts first (app start retries them, design 'agentAuth'), then the doan- registrations neither a preset
   // nor in the file (design '등록 정합' reconcile). Both quietly wait for the next ready moment on any failure.
-  private async prepare(provider: McpProvider): Promise<void> {
-    const owner: Owner = { stopped: false, processes: new Set() };
+  private async prepare(provider: McpProvider, owner: Owner): Promise<void> {
     try { await this.retryPending(provider, null, owner); } catch (error) { console.error(`doan: ${provider} pending MCP logouts were not retried: ${message(error)}`); }
-    if (this.closed) return;
+    if (owner.stopped || this.closed) return;
     try {
       const lease = await this.lease(provider);
       try {
+        if (owner.stopped || this.closed) return;
         const listed = provider === "claude" ? await this.claudeList(owner, lease) : await this.codexList(owner, lease);
+        if (owner.stopped || this.closed) return;
         if (!listed) throw new Error("the server list could not be read");
         for (const name of reconcilePlan(listed.map(server => server.name), this.options.store.connectors())) {
-          if (this.closed) return;
+          if (owner.stopped || this.closed) return;
           await this.unregister(owner, lease, provider, name, false);
         }
       } finally { await lease.release(); }
@@ -476,28 +502,47 @@ export class McpService implements McpConversationFacts {
   // Whether every pending logout asked for (one server, or all of the provider's) is gone. Claude's token sits in the
   // live profile's keychain item; Codex's keychain key is the name and URL hash only, so its logout runs in a
   // temporary CODEX_HOME holding just that server: the profile it was registered in may be gone (design 'agentAuth').
-  private async retryPending(provider: McpProvider, only: string | null, owner: Owner): Promise<boolean> {
-    const entries = this.options.store.pending(provider).filter(entry => only === null || entry.name === only);
+  // url: the server's URL, for a block the store holds without a record (an unreadable pending file).
+  private async retryPending(provider: McpProvider, only: string | null, owner: Owner, url?: string): Promise<boolean> {
+    let entries = this.options.store.pending(provider).filter(entry => only === null || entry.name === only);
+    if (!entries.length && only !== null && url && this.options.store.blocked(provider, only)) entries = [{ provider, name: only, url }];
     if (!entries.length) return true;
-    const lease = await this.lease(provider);
     try {
       for (const entry of entries) {
         if (owner.stopped || this.closed) return false;
-        let home: string | null = null;
-        try {
-          let options: { timeoutMs: number; env?: Record<string, string>; cwd?: string } = { timeoutMs: this.limits.commandMs };
-          if (provider === "codex") {
-            home = mkdtempSync(join(this.options.tmpdir ?? tmpdir(), "doan-mcp-logout-"));
-            writeFileSync(join(home, "config.toml"), codexServerToml(entry.name, entry.url), { mode: 0o600 });
-            options = { ...options, env: { ...lease.env, CODEX_HOME: home }, cwd: home };
-          }
-          const run = await this.run(owner, lease, provider, COMMANDS[provider].logout(entry.name), options);
-          if (run.code === 0) this.options.store.clear(provider, entry.name);
-          else console.error(`doan: ${provider} pending MCP logout of ${entry.name} failed again: ${tail(run.output)}`);
-        } finally { if (home) rmSync(home, { recursive: true, force: true }); }
+        const done = provider === "codex" ? await this.codexPendingLogout(owner, entry.name, entry.url) : await this.claudePendingLogout(owner, entry.name);
+        // A command whose attempt was stopped meanwhile never edits the pending file, even when it succeeded.
+        if (owner.stopped || this.closed) return false;
+        if (done) this.options.store.clear(provider, entry.name);
+        else console.error(`doan: ${provider} pending MCP logout of ${entry.name} failed again`);
       }
-    } finally { await lease.release(); this.changed(); }
+    } finally { this.changed(); }
     return entries.every(entry => !this.options.store.blocked(provider, entry.name));
+  }
+  // Done when the logout exited 0, or when the server reads as holding no token afterwards: a logout can fail just
+  // because there is nothing to clear, and that must not block Connect for good.
+  private async claudePendingLogout(owner: Owner, name: string): Promise<boolean> {
+    const lease = await this.lease("claude");
+    try {
+      const run = await this.run(owner, lease, "claude", COMMANDS.claude.logout(name), { timeoutMs: this.limits.commandMs });
+      if (owner.stopped || run.code === 0) return run.code === 0;
+      const after = await this.claudeGet(owner, lease, name);
+      return after.ok && (!after.facts.registered || !after.facts.authenticated);
+    } finally { await lease.release(); }
+  }
+  private async codexPendingLogout(owner: Owner, name: string, url: string): Promise<boolean> {
+    const home = mkdtempSync(join(this.options.tmpdir ?? tmpdir(), "doan-mcp-logout-"));
+    try {
+      writeFileSync(join(home, "config.toml"), codexServerToml(name, url), { mode: 0o600 });
+      const launched = await this.options.auth.environment("codex", home);
+      if (owner.stopped || this.closed) return false;
+      const lease: Lease = { ...launched, profileDir: home, release: async () => {} };
+      const run = await this.run(owner, lease, "codex", COMMANDS.codex.logout(name), { timeoutMs: this.limits.commandMs });
+      if (owner.stopped || run.code === 0) return run.code === 0;
+      // The keychain entry is keyed by name and URL, so this home's list says whether a token is left.
+      const after = (await this.codexRead(owner, lease))(name);
+      return after.ok && (!after.facts.registered || !after.facts.authenticated);
+    } finally { rmSync(home, { recursive: true, force: true }); }
   }
 
   private async read(provider: McpProvider, owner: Owner): Promise<void> {
@@ -604,6 +649,24 @@ export class McpService implements McpConversationFacts {
     attempt.onLink?.(url);
     if (first) void this.options.openExternal(url).catch(error => console.error("doan: the MCP sign-in link could not be opened", message(error)));
     this.changed();
+  }
+
+  // Background work on one provider's profile, in its queue and owned so stopProvider and quit stop and reap it.
+  private chore(provider: McpProvider, step: (owner: Owner) => Promise<void>, then?: () => void): void {
+    const owner: Owner = { stopped: false, processes: new Set() };
+    const chores = this.chores.get(provider) ?? new Set<Owner>();
+    chores.add(owner); this.chores.set(provider, chores);
+    this.work(owner, this.exclusive(provider, async () => { if (!owner.stopped && !this.closed) await step(owner); })
+      .catch(error => console.error(`doan: ${provider} MCP background work failed: ${message(error)}`))
+      .finally(() => { chores.delete(owner); if (!owner.stopped && !this.closed) then?.(); }));
+  }
+  // Removes a plaintext credential file by path only, never reading it. true: one was there; null: unknown.
+  private scrubPlaintext(profileDir: string): boolean | null {
+    let files: string[];
+    try { files = readdirSync(profileDir); } catch { return null; }
+    const leftovers = plaintextLeftovers("claude", files);
+    for (const file of leftovers) rmSync(join(profileDir, file), { force: true });
+    return leftovers.length > 0;
   }
 
   private begin(providers: McpProvider[], name: string, kind: Attempt["kind"]): Attempt {
