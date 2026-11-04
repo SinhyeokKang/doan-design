@@ -51,12 +51,14 @@ export async function writeFoldersFile(file: string, list: readonly string[]): P
   }
 }
 
-// A damaged mark file reads as no marks: that deletes nothing, it only makes the roots hand-added.
+// A damaged or unreadable mark file reads as no marks, and the next write replaces it, so its roots become
+// hand-added for good. Logged because nothing else shows why.
 async function readMarks(file: string): Promise<string[]> {
   try {
     const value: unknown = JSON.parse(await readFile(file, "utf8"));
     return Array.isArray(value) && value.every(entry => typeof entry === "string") ? [...new Set(value)] : [];
-  } catch {
+  } catch (error) {
+    if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) console.error("doan: cannot read auto-folders.json", error);
     return [];
   }
 }
