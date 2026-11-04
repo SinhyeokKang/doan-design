@@ -304,3 +304,13 @@ test("the watch reads two identical messages as two announcements", () => {
   h.send({ ...snapshot({ codex: { "doan-notion": ["not_connected", { failure: "failed" }] } }), revision: 4 });
   expect(h.watch.announcement).toEqual({ seq: 2, text: "Codex couldn’t connect to Notion" });
 });
+
+// BU review R2-Y1 (.scratch/review-bu/round2-view.test.ts): an earlier Remove failure must not hide a running Connect's actions.
+test("a Connect started after a failed Remove keeps Cancel, and Claude Code's Open again", () => {
+  const view = mcpPageView(snapshot({ codex: { [URL_SERVER.name]: "connecting" }, claude: { [URL_SERVER.name]: ["connecting", { link: true }] } }, { servers: [...PRESET_SERVERS, { ...URL_SERVER, removeFailed: true }] }), AUTH);
+  expect(find(view, "codex", URL_SERVER.name).notice?.actions.map(action => action.command)).toEqual(["cancel"]);
+  expect(find(view, "claude", URL_SERVER.name).notice?.actions.map(action => [action.command, action.disabled])).toEqual([["cancel", false], ["openLink", false]]);
+  // Once the attempt ends, the Remove failure shows again.
+  const after = mcpPageView(snapshot({}, { servers: [...PRESET_SERVERS, { ...URL_SERVER, removeFailed: true }] }), AUTH);
+  expect(find(after, "codex", URL_SERVER.name).notice?.actions.map(action => action.command)).toEqual(["remove"]);
+});
