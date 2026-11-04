@@ -141,8 +141,9 @@ Send now와 MCP Connectors는 Copilot에 없다(위와 같은 근거).
 
 ## 실험 환경
 
-- **후보 고르기**: 테스터들이 보낸 Copy details의 provider별 가장 오래된 버전이 범위의 하한이다. 그 하한부터 지금 최소 버전 바로 아래까지의 릴리스를 정적 검사로 거르고, 실제 앱 확인은 provider마다 두 개 이하로 한다. 하나는 정적 검사를 통과한 가장 오래된 버전, 다른 하나는 그것이 실패할 때 쓸 더 새로운 버전이다. 후보가 없는 provider와 전제와 다른 보고는 spec.md '범위'를 따른다.
-- **후보 CLI 설치**: 사람의 설치본 옆 `.scratch/cli-minimum-versions/clis/<provider>-<version>/`에 둔다. 사람은 후보마다 내려받기 전에 승인한다. `-g`, `claude install`, `claude update`, Homebrew, Cursor 설치 스크립트처럼 사람의 설치 경로를 바꾸는 방법은 쓰지 않는다. npm 패키지가 있는 CLI(Codex `@openai/codex`, Claude Code `@anthropic-ai/claude-code`, Copilot `@github/copilot`)는 npm `--prefix`를 쓴다. 그렇게 설치할 수 없는 후보(예: 옛 버전을 받을 경로가 없는 Cursor)는 E1에서 그 사실을 적고 후보에서 뺀다.
+- **후보 고르기**: 테스터들이 보낸 Copy details의 provider별 가장 오래된 버전이 범위의 하한이다. 그 하한부터 지금 최소 버전 바로 아래까지의 릴리스를 모두 받아 정적 검사로 거른다. 실제 앱 확인은 provider마다 두 개 이하로 한다. 첫 후보는 정적 검사를 통과한 가장 오래된 버전이다. 첫 후보가 실패하면, 두 번째 후보는 첫 후보가 실패한 원인보다 새로운 릴리스 가운데 정적 검사를 통과한 가장 오래된 버전이다. 같은 원인으로 두 번 실패하지 않게 하기 위해서다.
+- **Claude Code의 사이 릴리스**: 버전 검사는 통과하지만 SDK와 맞지 않는 Claude Code는 Update가 아니라 턴 실패로만 보인다(위 '최소 버전을 읽는 곳과 사람이 보는 것'). 그래서 새 최소 버전과 지금 최소 버전 사이에 정적 검사 C2에서 실패한 릴리스가 있으면, 새 최소 버전을 그 릴리스보다 위로 잡는다. 후보가 없는 provider와 전제와 다른 보고는 spec.md '범위'를 따른다.
+- **후보 CLI 설치**: 사람의 설치본 옆 `.scratch/cli-minimum-versions/clis/<provider>-<version>/`에 둔다. 사람은 E0에서 내려받을 릴리스 목록을 한 번에 승인한다. 목록 밖의 버전은 받지 않는다. `-g`, `claude install`, `claude update`, Homebrew, Cursor 설치 스크립트처럼 사람의 설치 경로를 바꾸는 방법은 쓰지 않는다. npm 패키지가 있는 CLI(Codex `@openai/codex`, Claude Code `@anthropic-ai/claude-code`, Copilot `@github/copilot`)는 npm `--prefix`를 쓴다. 그렇게 설치할 수 없는 후보(예: 옛 버전을 받을 경로가 없는 Cursor)는 E1에서 그 사실을 적고 후보에서 뺀다.
 - **자체 업데이트**: Cursor와 Copilot은 스스로 업데이트한다(ARCHITECTURE.md:576). Claude Code가 스스로 업데이트하는지와 그것을 끄는 switch는 E1에서 출처와 함께 확인한다. 도구 사실 probe는 실제 HOME에서 CLI를 돌리고 `~/.codex`와 `~/.local/share/cursor-agent`에 쓴다(ARCHITECTURE.md:577).
   - 막기: 앱은 터미널 환경 변수를 넘기지 않는다(`launchEnv`, ARCHITECTURE.md:439). 그래서 PATH의 후보 항목을 wrapper script로 둔다. wrapper는 그 CLI의 문서화된 자동 업데이트 끄기 switch를 설정하고 후보를 `exec`한다(Doan은 실행 가능한 일반 파일이면 받는다, `prepare.ts:41`). switch가 없는 CLI는 그 사실을 'E 결과'에 적는다.
   - 알아차리기: probe마다 전후로 후보의 `--version`을 적고, 사람의 설치본을 '사람의 상태 보호'대로 비교한다. 사람의 설치본이 바뀌면 실험을 멈추고 사람에게 알린다. 후보의 버전이 실행 중 바뀌면 그 실행의 결과는 버린다.
@@ -186,6 +187,8 @@ ARCHITECTURE §1 'Conventions'와 `doan check` 규칙은 바뀌지 않는다.
 ## 결정 영향
 
 - ARCHITECTURE §7 'Versions'(ARCHITECTURE.md:530)는 "A minimum rises only by decision, backed by a real-app check"만 적었다. Z1에서 최소 버전을 낮출 때 그 버전이 '통과 기준'을 모두 통과해야 한다는 규칙을 더한다. 올릴 때의 규칙(sign-in 유지, 새 대화, resume, 권한 요청 하나)은 바꾸지 않는다. PRODUCT §3의 "verified minimums"는 그대로 지켜진다.
+- Z1에서 같은 'Versions'에 다음 규칙도 더한다: 나중 feature가 Doan이 기대는 provider 표면을 더하면, 그 표면을 지금 최소 버전에서 확인하거나 최소 버전을 올리는 결정을 한다. 버전별 기능 게이팅이 없으므로, 확인하지 않은 표면은 낮춘 최소 버전에서 조용히 실패할 수 있다.
+- Cursor·Copilot의 최소 버전은 PRODUCT에 적지 않는다. 그 값의 원천은 `minimumVersions.ts`이고, PRODUCT.md:58은 Claude Code·Codex의 숫자만 적는다.
 - floor는 낮아진 최소 버전을 따라 내려간다. 올리는 것은 지금처럼 별도 결정이다(ARCHITECTURE.md:434).
 - "Doan installs no provider CLI"(ARCHITECTURE.md:530)는 지켜진다. 후보 CLI 설치는 실험 환경의 `.scratch`에서만 하고 제품은 아무것도 설치하지 않는다.
 - ARCHITECTURE.md:576의 accepted risk("Claude incompatibility is never recorded")는 그대로다. 오래된 Claude Code가 SDK와 맞지 않으면 사람은 Update가 아니라 턴 실패를 본다. 그래서 C2를 정적 검사와 실제 앱 확인에서 모두 본다.

@@ -24,14 +24,14 @@ Doan이 받아들이는 provider CLI 최소 버전(지금 Claude Code 2.1.312, C
 
 1. **사용자 버전.** 테스터들이 Settings > About의 Copy details로 보낸 provider별 설치 버전이 tasks.md 'E 결과'에 있다. 사람이 모으기를 마쳤다고 알린 시점까지 받은 것을 쓴다. 테스터는 A, B…로만 적고, 이름과 경로(Copy details에 들어 있는 HOME·CLI 경로)는 적지 않는다. 이 repo는 공개된다.
 2. **실험 기록.** provider마다 후보 버전별로 design.md '확인 목록'의 항목마다 통과·실패·미확인을 'E 결과'에 적는다. 정적 검사(로그인 없음)와 실제 앱 확인을 따로 적고, 날짜·CLI 버전·경로(Doan 연결 / legacy external)를 함께 적는다. 실제 앱 확인은 provider마다 후보 두 개 이하다. Antigravity는 최소 버전이 필요 없다는 근거를 코드로 적는다(`facts.ts:24`, `aboutView.ts:34`, `manager.ts:604-610`, design.md 'Antigravity').
-3. **결정.** 사람이 실험 결과를 보고 provider마다 새 최소 버전을 정하거나, 지금 값을 유지하기로 정한다(tasks.md D1). 새 최소 버전은 design.md '통과 기준'을 모두 통과한 버전 중에서만 고른다.
+3. **결정.** 사람이 실험 결과를 보고 provider마다 새 최소 버전을 정하거나, 지금 값을 유지하기로 정한다(tasks.md D1). 새 최소 버전은 design.md '통과 기준'을 모두 통과한 버전 중에서만 고른다. Claude Code는 새 최소 버전과 지금 최소 버전 사이에 정적 검사 C2에서 실패한 릴리스가 있으면, 새 최소 버전을 그 릴리스보다 위로 잡는다.
 4. **낮춘 경우의 동작.**
    - 새 최소 버전과 정확히 같은 CLI는 Settings > Agents에서 Update가 아니라 Sign in이나 Connected로 보인다. 새 최소 버전보다 patch 하나 낮은 버전(`--version`만 출력하는 stub 실행 파일로 확인)은 지금처럼 Update로 보인다. 최소 버전 아래는 계속 거절한다.
    - Settings > About은 "Doan needs <새 버전> or later."를 보인다.
    - stored-session floor(`CLAUDE_REGISTRY_FLOOR`, `CODEX_ROLLOUT_FLOOR`)가 새 최소 버전보다 높으면 새 최소 버전까지 같이 내린다. 그래서 새 최소 버전의 CLI로 만든 대화는 resume된다.
 5. **실제 앱 확인.** 낮춘 provider마다 새 최소 버전에서 design.md '통과 기준'이 모두 통과한다.
 6. **사람의 설치본 보호.** 실험의 각 단계 전후에 design.md '사람의 상태 보호'의 비교 대상이 같다. 그 단계가 만들기로 적어 둔 항목만 다를 수 있고, 설명할 수 없는 차이가 나오면 실험을 멈춘다. Z0이 끝난 뒤에는 실험이 만든 항목도 남지 않는다.
-7. **문서.** tasks.md Z1이 적은 문장이 현재 규칙으로 바뀌고, 이 디렉터리가 지워진다. 그 문장에는 PRODUCT.md:58의 숫자와 "fixed floors that do not follow the minimums", ARCHITECTURE.md:530의 낮출 때의 규칙, :434의 floor 서술이 들어간다. 올릴 때의 규칙(ARCHITECTURE.md:530)은 그대로 둔다. 어느 provider도 낮추지 않기로 정한 경우에는 ARCHITECTURE에 낮출 때의 규칙과 Antigravity에 최소 버전이 없는 이유만 더하고, 실험 관찰은 커밋 메시지에 남긴 뒤 디렉터리를 지운다.
+7. **문서.** tasks.md Z1이 적은 문장이 현재 규칙으로 바뀌고, 이 디렉터리가 지워진다. 그 문장에는 PRODUCT.md:58의 숫자와 "fixed floors that do not follow the minimums", ARCHITECTURE.md:530의 낮출 때의 규칙과 provider 표면을 더하는 feature의 규칙, :434의 floor 서술이 들어간다. 올릴 때의 규칙(ARCHITECTURE.md:530)은 그대로 둔다. Cursor·Copilot의 최소 버전은 PRODUCT에 적지 않는다. 그 값의 원천은 `minimumVersions.ts`다. 어느 provider도 낮추지 않기로 정한 경우에는 ARCHITECTURE에 그 두 규칙과 Antigravity에 최소 버전이 없는 이유만 더하고, 실험 관찰은 커밋 메시지에 남긴 뒤 디렉터리를 지운다.
 
 ## 범위
 
