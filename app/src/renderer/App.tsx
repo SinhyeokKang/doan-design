@@ -1524,8 +1524,6 @@ export function App() {
     if (!rightPanelRef.current.open) foldPanel(true, "content");
     setArrival({ focus, seq: ++panelArrivals.current });
   }
-  // The work capsule's Open while the agent waits for an answer (design §2): the panel shows that conversation, scrolled
-  // to its request with focus on the first choice.
   // The other worktree notice's Open (terminal-work-worktrees design §3.1): the terminal slot's path to W's same canvas,
   // which makes W the selected worktree and leaves one canvas visit. A pick on this canvas ends first.
   const onOpenSibling = (root: string) => {
@@ -1533,6 +1531,8 @@ export function App() {
     controller.current?.cancelPick();
     openNotice({ root, path: state.open.canvas });
   };
+  // The work capsule's Open while the agent waits for an answer (design §2): the panel shows that conversation, scrolled
+  // to its request with focus on the first choice.
   const openRequest = () => {
     const target = panelTargetRef.current;
     const list = target ? homeRun.current.listState(target.root) : null;
