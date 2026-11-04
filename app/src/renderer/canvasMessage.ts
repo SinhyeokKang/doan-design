@@ -137,8 +137,9 @@ export type PickedMessage = { type: "picked"; href: string; document: string; pi
 // The canvas took the pick-start `pick` for its document `document`; until then the app keeps clicks off the canvas.
 export interface PickStartedMessage { type: "pick-started"; href: string; document: string; pick: number }
 
-// A trusted press anywhere in the canvas, sent on pointerdown before any selection or pick. It carries nothing: the
-// app only closes its open lists on it, so a forged one can do no more than that.
+// A trusted press anywhere in the canvas, sent on pointerdown (or on focus moving into a nested frame) before any
+// selection or pick. It carries nothing: the app closes its open lists on it and, when a list took the focused element
+// with it, moves focus to the canvas area, so a forged one can do no more than that.
 export interface PressMessage { type: "press" }
 
 export type CanvasMessage = LayoutMessage | WheelMessage | SelectionMessage | AnchorsMessage | PickedMessage | PickStartedMessage | PressMessage;

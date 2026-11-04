@@ -708,6 +708,10 @@ export function canvasScript(lib: CanvasLib): void {
     setTimeout(() => {
       const active = document.activeElement;
       if (active === null || !["iframe", "frame", "object", "embed"].includes(active.localName)) return;
+      // The press itself happened in the nested document, out of this script's sight; focus moving in is all of it
+      // that shows here, so it is the press the app hears. A second press in the same nested frame moves no focus
+      // and goes unheard.
+      post({ type: "press" });
       if (picking !== null) {
         if (active.isConnected) pickAt(active, null);
         return;

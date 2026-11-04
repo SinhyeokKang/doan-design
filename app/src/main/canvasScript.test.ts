@@ -1210,7 +1210,7 @@ describe("canvasScript selection input", () => {
 
   // A nested iframe has no script of ours, so a press in it shows only as focus moving into it: that is the press the
   // app's preset lists close on, sent before the selection or pick it leads to, with or without ⌥.
-  test("focus moving into a nested iframe posts a press before its selection or pick, ⌥ included", () => {
+  test("focus moving into a nested iframe posts a press before its selection, ⌥ included", () => {
     const types = (canvas: { posted: unknown[] }) => messages(canvas).map(message => message.type).filter(type => type === "press" || type === "select" || type === "picked");
     const nested = node("iframe");
     const canvas = fakeCanvas({ readyState: "interactive", body: node("body", {}, [nested]) });
@@ -1218,20 +1218,13 @@ describe("canvasScript selection input", () => {
     canvas.fireWindow("blur", {});
     canvas.advance(0);
     expect(types(canvas)).toEqual(["press", "select"]);
-    const alt = fakeCanvas({ readyState: "interactive", body: node("body", {}, [node("iframe")]) });
-    const inner = (alt.document as unknown as { body: { children: unknown[] } }).body.children[0];
+    const inner = node("iframe");
+    const alt = fakeCanvas({ readyState: "interactive", body: node("body", {}, [inner]) });
     alt.fireWindow("pointermove", input({ target: inner, altKey: true }));
     alt.document.activeElement = inner;
     alt.fireWindow("blur", {});
     alt.advance(0);
     expect(types(alt)).toEqual(["press"]);
-    const frame = node("section", { "data-doan-frame": "embed" }, [node("iframe")]);
-    const picking = fakeCanvas({ readyState: "interactive", body: node("body", {}, [frame]) });
-    startPick(picking, 1);
-    picking.document.activeElement = (frame as unknown as { children: unknown[] }).children[0];
-    picking.fireWindow("blur", {});
-    picking.advance(0);
-    expect(types(picking)).toEqual(["press", "picked"]);
     // Focus leaving for anything else is not a press.
     const away = fakeCanvas({ readyState: "interactive", body: node("body", {}, [node("p")]) });
     away.fireWindow("blur", {});
@@ -1829,6 +1822,8 @@ describe("canvasScript picking", () => {
     canvas.advance(0);
     expect(ofType(canvas, "select")).toHaveLength(0);
     expect(picked(canvas)).toEqual([expect.objectContaining({ pick: 1, target: expect.objectContaining({ tag: "iframe" }) })]);
+    // The press the app's lists close on comes first.
+    expect(messages(canvas).map(message => message.type).filter(type => type === "press" || type === "picked")).toEqual(["press", "picked"]);
   });
   test("acknowledges a pick-start for its own document only, so the app can open the canvas to clicks", () => {
     const { canvas, span } = heroCanvas();
@@ -1861,7 +1856,8 @@ describe("canvasScript picking", () => {
     canvas.document.activeElement = loose;
     canvas.fireWindow("blur", {});
     canvas.advance(0);
-    expect(messages(canvas)).toEqual([]);
+    // Focus moving into the loose iframe is still a press in the canvas, though it picks nothing.
+    expect(messages(canvas)).toEqual([{ type: "press" }]);
     click(canvas, inside);
     click(canvas, inside, { ...at(5, 5), shiftKey: true } as Partial<FakeEvent>);
     expect(picked(canvas)).toEqual([

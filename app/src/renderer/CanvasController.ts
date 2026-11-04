@@ -1071,7 +1071,8 @@ export class CanvasController {
 
   // A press closes the open preset lists at once. One that held focus takes its focused search box with it, and focus
   // would fall to the page body; it goes to the canvas area the person pressed instead. Focus already in the canvas
-  // frame (an ⌥-press) or anywhere still on the page stays where it is.
+  // frame (an ⌥-press) or anywhere still on the page stays where it is. The isConnected check holds only while the
+  // Presets popover has no close animation: one would keep the search box attached past the listeners.
   private pressed(): void {
     const focused = document.activeElement;
     for (const listener of [...this.pressListeners]) listener();
