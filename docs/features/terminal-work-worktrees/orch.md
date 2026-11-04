@@ -13,6 +13,7 @@
 3. T2a와 T2b는 한 배치에서 순서대로 한다 — 지휘자 판단. 둘 다 `app/src/main/index.ts`를 고치고, T2b가 T2a의 `adopt`를 쓴다.
 4. 자동 등록분 플래그(entries에 싣는 값)의 이름과 모양은 배치 M이 `/tdd`에서 정한다(design §3.3). 배치 R의 플래그 의존 항목은 M 통합 뒤 새 Task로 보낸다.
 5. `/runtime-test`와 `/design-sync`는 main과 renderer가 모두 통합된 뒤 배치 R 작업자가 한다 — 지휘자 판단. 보드 안내는 main의 자동 등록이 있어야 실제 앱에서 보인다.
+7. 보던 자동 등록 worktree가 사라질 때의 도착지는 직전 선택이나 main checkout이 문제 상태여도 그 root로 간다(사용자 결정, R1 리뷰). design §3.4 문구 그대로다.
 6. T4의 PRODUCT·ARCHITECTURE·BACKLOG 승격과 feature 디렉터리 삭제는 지휘자가 한다(/orchestrate §4·§5). DESIGN.md 측정값은 `/design-sync`를 하는 배치 R이 적는다.
 
 ## 배치
@@ -37,4 +38,5 @@
 ## 진행
 
 - R1: 작업자 완료(`SinhyeokKang/ttw-R1`, `efe364c9..4f1ccedf` 5 commits). 작업자 보고: `verify.mjs` PASS(app test 6625 pass). handoff와 commit이 일치하고 worktree가 깨끗한 것을 지휘자가 확인했다. 작업자 terminal은 리뷰 수정과 R2를 위해 남겨 뒀다. 리뷰 1라운드: Opus medium.
-- 실제 앱 확인으로 넘긴 것(R3): notice가 사라질 때 Open의 focus가 캔버스 영역으로 가는지, 긴 label의 줄임표와 tooltip.
+- R1 리뷰 1라운드(Opus medium): 🔴 0, 🟡 1(picking 중 `.doan-canvas-bottom`이 Canvas tools 옆 보드 클릭을 막음), 사용자 결정 1(결정 7). R1 작업자 terminal 재사용이 `agent_unconfigured`로 거절돼, R1을 해제하고 같은 worktree에 Sonnet medium 수정 작업자를 새로 띄웠다(CSS 한 규칙이라 기계적 수정).
+- 실제 앱 확인으로 넘긴 것(R3): picking 중 tools 옆 띠 클릭, : notice가 사라질 때 Open의 focus가 캔버스 영역으로 가는지, 긴 label의 줄임표와 tooltip.
