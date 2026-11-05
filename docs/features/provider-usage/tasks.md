@@ -38,7 +38,7 @@
 
 ### 초안 확인(남은 것)
 
-그리며 정한 것으로 사람의 확인이 필요하다: 링 색(Neutral / Bands 70·90), 좁은 앱 창의 링 접기 규칙을 둘지(헤더에서 960×600에도 다섯 개가 들어감), 문구 "Reset · updating"·"Updated just now", popover 제목 "Agent usage", 이유 줄 모양(read_failed 오류, blocked 경고, 나머지 subtle), 한도 보고 없는 100%는 "100% used"만, 링 track 색의 component constant를 새 token으로 올릴지.
+초안에 popover 오른쪽 위 새로고침 버튼("Refresh usage", 쉼·읽는 중)을 더 그린다(결정할 점 11). 그리며 정한 것으로 사람의 확인이 필요하다: 링 색(Neutral / Bands 70·90), 좁은 앱 창의 링 접기 규칙을 둘지(헤더에서 960×600에도 다섯 개가 들어감), 문구 "Reset · updating"·"Updated just now", popover 제목 "Agent usage", 이유 줄 모양(read_failed 오류, blocked 경고, 나머지 subtle), 한도 보고 없는 100%는 "100% used"만, 링 track 색의 component constant를 새 token으로 올릴지.
 
 ── commit: `docs(design): draft provider usage` ──
 
@@ -50,7 +50,7 @@
   - 검증: `npm --prefix app test` —
     - `ringValue`: 지난 한도 창 제외, 빈 `windows`·`unlimited`·unavailable·`blocked` → null.
     - `usageText`: 분·시간·일, 한도에 닿음, 지난 시각, `resetsAt` 없음.
-    - `shouldRead`: 앱 시작·sign-in·턴 끝·popover 열기, 5분 간격, popover 열기의 예외(지난 한도 창, 마지막 실패), 진행 중 조회, 앱 창이 보이지 않을 때, 쓸 수 없는 연결, legacy external 턴은 계기가 아님, 앱 재시작 뒤 빈 캐시.
+    - `shouldRead`: 앱 시작·sign-in·턴 끝·popover 열기·새로고침, 5분 간격, 새로고침의 간격 무시, popover 열기의 예외(지난 한도 창, 마지막 실패), 진행 중 조회, 앱 창이 보이지 않을 때, 쓸 수 없는 연결, legacy external 턴은 계기가 아님, 앱 재시작 뒤 빈 캐시.
     - `UsageStore`: `connectionId`가 바뀌면 지움, 조회 시작 뒤 `connectionId`가 바뀐 결과는 버림.
     - 설명 글: 다섯 provider가 고정 순서로, unavailable·한도에 닿음 포함.
 
@@ -68,7 +68,7 @@
 ## C. UI
 
 - [ ] C1. 링 버튼과 popover(헤더 오른쪽 끝, 모든 화면, no-drag), preload 호출.
-  - 검증: `npm --prefix app test` — 링 값과 빈 링, 고정 순서, 버튼 이름 고정과 설명 글, `aria-haspopup`·`aria-expanded`, 클릭·Space·Return으로 열기, Esc·바깥 클릭으로 닫고 버튼으로 포커스 복귀, 이유별 문구, "Updating…" 중 이전 값 유지, 상대 시간 1분 갱신, 열린 동안 provider가 빠지고 생김, 마지막 provider가 빠지면 닫고 `.shell-modes`의 현재 탭으로 포커스, 연결이 없을 때 버튼 없음. `npm --prefix app run typecheck`, `npm --prefix app run build`.
+  - 검증: `npm --prefix app test` — 링 값과 빈 링, 고정 순서, 버튼 이름 고정과 설명 글, `aria-haspopup`·`aria-expanded`, 클릭·Space·Return으로 열기, Esc·바깥 클릭으로 닫고 버튼으로 포커스 복귀, 이유별 문구, 새로고침 버튼(이름, 누르면 간격 무시하고 읽기, 읽는 중 `aria-busy`와 spinner, 연타가 provider마다 조회 하나), "Updating…" 중 이전 값 유지, 상대 시간 1분 갱신, 열린 동안 provider가 빠지고 생김, 마지막 provider가 빠지면 닫고 `.shell-modes`의 현재 탭으로 포커스, 연결이 없을 때 버튼 없음. `npm --prefix app run typecheck`, `npm --prefix app run build`.
 
 ── commit: `feat: show agent usage rings` ──
 
