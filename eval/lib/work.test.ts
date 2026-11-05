@@ -93,3 +93,33 @@ test("an unreadable snapshot records null and leaves the fake app serving work r
     assert.equal(log[1].hashes[path], hash("readable again"));
   } finally { await app.close(); rmSync(dir, { recursive: true, force: true }); }
 });
+
+test("work checks count an update as the first start, as the guide says it does", () => {
+  const update: WorkExchange = { ...exchange("start", { [path]: hash("seed") }), request: { v: 3, action: "update", root: "/repo", path, frame: "a" } };
+  assert.deepEqual(failed([update, exchange("done", { [path]: hash("final") })]), []);
+});
+
+test("fake app keeps the canvas text an accepted update arrived at, and only for update", async () => {
+  const dir = mkdtempSync("/tmp/doan-work-test-");
+  const root = join(dir, "repo");
+  mkdirSync(join(root, ".doan/canvases"), { recursive: true });
+  writeFileSync(join(root, path), "seed");
+  const app = await startFakeApp({ dir, root, selection: null });
+  try {
+    const runtime = JSON.parse(readFileSync(app.runtimePath, "utf8"));
+    const request = async (args: Record<string, unknown>) => new Promise<unknown>((resolve, reject) => {
+      const socket = connect(runtime.socket);
+      let reply = "";
+      socket.on("error", reject).on("data", bytes => { reply += bytes; }).on("end", () => resolve(JSON.parse(reply)));
+      socket.end(JSON.stringify({ v: 3, token: runtime.token, root, ...args }) + "\n");
+    });
+    assert.deepEqual(await request({ action: "start", path }), { v: 3, ok: true });
+    assert.deepEqual(await request({ action: "update", path, frame: "a", note: "Drawing a" }), { v: 3, ok: true });
+    writeFileSync(join(root, path), "edited");
+    assert.deepEqual(await request({ action: "update", path, frame: "b" }), { v: 3, ok: true });
+    assert.equal((await request({ action: "update", path, frame: "" }) as { error: { code: string } }).error.code, "bad_request");
+    const log: WorkExchange[] = readFileSync(app.workLog, "utf8").trim().split("\n").map(line => JSON.parse(line));
+    assert.deepEqual(log.map(entry => entry.canvas), [undefined, "seed", "edited", undefined]);
+    assert.equal(log[1].request.note, "Drawing a");
+  } finally { await app.close(); rmSync(dir, { recursive: true, force: true }); }
+});

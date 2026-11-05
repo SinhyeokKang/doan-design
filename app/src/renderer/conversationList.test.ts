@@ -76,7 +76,7 @@ describe("withTerminalSlots", () => {
   const A = ".doan/canvases/a.html", B = ".doan/canvases/b.html", C = ".doan/ds/c.html";
   const row = (path: string, mtimeMs?: number): CanvasRow => ({ path, url: path, ...(mtimeMs === undefined ? {} : { mtimeMs }) });
   const list = (path: string, canvases: CanvasRow[]): FolderEntry => ({ path, kind: "list", canvases, servedRev: 0 });
-  const work = (root: string, path: string, provider: WorkItem["provider"] = "codex", session: string | null = provider ? `${provider}-1` : null): WorkItem => ({ root, path, provider, session });
+  const work = (root: string, path: string, provider: WorkItem["provider"] = "codex", session: string | null = provider ? `${provider}-1` : null): WorkItem => ({ root, path, provider, session, touched: 0, turn: "none:t" });
   const entries = [list("/r", [row(A, 1), row(B, 9), row(C, 5)]), list("/s", [row(A, 3)])];
 
   test("a working terminal session puts the spinner on its canvas row, named for its provider or anonymous", () => {

@@ -61,10 +61,10 @@ export function codexRuleText(): string {
 }
 
 // Claude Code Bash rules (Claude Code docs 'Configure permissions', 'Wildcard patterns'): a trailing ` *` matches any
-// arguments and the bare command, and `&&`, `;`, `|` split a command so each part needs its own rule. Only the two
+// arguments and the bare command, and `&&`, `;`, `|` split a command so each part needs its own rule. Only the three
 // work commands and `doan open`: an agent needs no prompt to report what it edits or to open a canvas the person asked
-// for, but every other doan command still asks.
-export const CLAUDE_ALLOW_RULES: readonly string[] = ["Bash(doan work start *)", "Bash(doan work done *)", "Bash(doan open *)"];
+// for, but every other doan command still asks. `update` goes last so a file that has the earlier three gets only it.
+export const CLAUDE_ALLOW_RULES: readonly string[] = ["Bash(doan work start *)", "Bash(doan work done *)", "Bash(doan open *)", "Bash(doan work update *)"];
 export type ClaudeAllowMerge = { kind: "keep" } | { kind: "write"; text: string } | { kind: "refuse"; problem: "json" | "object" | "permissions" | "allow" };
 
 function isObject(value: unknown): value is Record<string, unknown> {

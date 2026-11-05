@@ -18,6 +18,8 @@ import { pointAnchor, resolveChipTarget, targetAnchor } from "./canvasPicker";
 import { escapeStep, toolShortcut, type CanvasTool, type ToolShortcut } from "./canvasTool";
 import { captureRect } from "./canvasCapture";
 import type { Rect } from "./canvasPicker";
+import { workFrameRect } from "./agentIndicator";
+import { EMPTY_FOLLOW, followDecision, followedFrames, followStopped, markFollowed, type FollowMemory } from "./workFollow";
 
 export const MEASURE_ANSWER_MS = 1000;
 const REMEASURE_MS = 50;
@@ -73,6 +75,18 @@ export type PickResult = { kind: "picked"; anchor: Anchor; frames: readonly Canv
 // the target, so the caller ends the locate without claiming the target is gone.
 export type LocateResult = "shown" | "missing" | "timeout";
 
+// The work the open canvas shows (work-update design §1 rules 6–9), from the agent notice's pick (`pickWork`): `source`
+// is the terminal session or conversation, `key` its work turn. `keys` are every work turn on the canvas.
+export interface CanvasWork { source: string; key: string; frame?: string; waiting: boolean }
+export interface CanvasWorkTarget { root: string; path: string; work: CanvasWork | null; keys: readonly string[] }
+// The working-frame marker's slide to another frame (--time-settle).
+const WORK_SLIDE_MS = 220;
+// Who changed the view (work-update design §1 rule 9). The default is the person, so a new route that moves the view
+// stops following without anyone remembering to say so; the app's own are a follow move, the open fit, settleFit, a
+// restored view and a viewport resize, which only re-places the view it has.
+type ViewOrigin = "person" | "app";
+const canvasKey = (root: string, path: string) => `${root}\0${path}`;
+
 // A point's ring on the board, in screen px (design §2 'Chip locate').
 const POINT_RING = 12;
 const LOCATE_ID = "locate";
@@ -125,6 +139,18 @@ export class CanvasController {
   private jumpMark: HTMLElement | null = null;
   private viewResize: ResizeObserver | null = null;
   private jumpTimer: ReturnType<typeof setTimeout> | undefined;
+  private work: CanvasWorkTarget | null = null;
+  private workMark: HTMLElement | null = null;
+  // The frame the marker is on, null while it is hidden: a slide needs a frame to come from.
+  private workMarkFrame: string | null = null;
+  private workSlideTimer: ReturnType<typeof setTimeout> | undefined;
+  // The canvas the last setWork described: a change is entering it.
+  private workCanvas: string | null = null;
+  // Per canvas (root + path), renderer memory only; leaving and coming back in the same work turn keeps it.
+  private followMemory = new Map<string, FollowMemory>();
+  private lastPersonMove = Date.now();
+  // Judges a working frame again when the rest it waits for ends (spec 9); any new judgement replaces it.
+  private followTimer: ReturnType<typeof setTimeout> | undefined;
   // Selection (design flows 3–7). `seq` orders the renderer's commands against
   // the script's own clicks; each new document starts again at 0.
   private seq = 0;
@@ -185,6 +211,10 @@ export class CanvasController {
   private snapshots = 0;
   private snapshotFrames = new Set<number>();
   private canvasPage = true;
+  // The page's menus and dialogs (frame drawer, zoom menu, Quick Open, any dialog), which hold following off. Their
+  // React owners live outside the controller, so it reads the document. Radix menus and popovers exist only while
+  // open; a native <dialog> may stay mounted closed, so only an open one counts.
+  overlayOpen: () => boolean = () => document.querySelector('.doan-frame-list, .doan-zoom-menu, [role="menu"], dialog[open], [role="dialog"]:not(dialog), [role="alertdialog"]:not(dialog)') !== null;
   // The newest canvas click waiting for main's cursor reading; an older reading does not move focus.
   private clickTag = 0;
   // The composer's preset lists, which close on a press in the canvas (the app's document never sees one).
@@ -300,7 +330,7 @@ export class CanvasController {
     private pointer: () => Promise<{ x: number; y: number } | null>,
   ) {
     if (typeof ResizeObserver !== "undefined" && "nodeType" in viewport) {
-      this.viewResize = new ResizeObserver(() => this.applyView());
+      this.viewResize = new ResizeObserver(() => this.applyView("app"));
       this.viewResize.observe(viewport as unknown as Element);
     }
     window.addEventListener("message", this.receive);
@@ -309,6 +339,7 @@ export class CanvasController {
     window.addEventListener("keyup", this.keyup);
     window.addEventListener("pointermove", this.pointerOnApp, { capture: true });
     window.addEventListener("blur", this.appBlur);
+    window.addEventListener("input", this.typed, { capture: true });
     viewport.addEventListener("click", this.clickOnMargin);
     viewport.addEventListener("wheel", this.wheelOnMargin, { passive: false });
     layer.hidden = true;
@@ -326,6 +357,8 @@ export class CanvasController {
   };
 
   dispose(): void {
+    clearTimeout(this.workSlideTimer);
+    clearTimeout(this.followTimer);
     this.pickListener = null;
     this.pressListeners.clear();
     this.endLocate();
@@ -336,6 +369,7 @@ export class CanvasController {
     window.removeEventListener("keyup", this.keyup);
     window.removeEventListener("pointermove", this.pointerOnApp, { capture: true });
     window.removeEventListener("blur", this.appBlur);
+    window.removeEventListener("input", this.typed, { capture: true });
     this.viewport.removeEventListener("click", this.clickOnMargin);
     this.viewport.removeEventListener("wheel", this.wheelOnMargin);
     this.layer.removeEventListener("pointerdown", this.layerDown);
@@ -365,6 +399,7 @@ export class CanvasController {
     this.state.hasFrame = this.frame !== null;
     this.state.reanchoring = this.reanchor !== null;
     this.state.reloading = this.loading && this.state.status === null;
+    this.drawWork();
     this.syncMain();
     this.changed({ ...this.state });
     const ended = this.pickEnded;
@@ -496,7 +531,9 @@ export class CanvasController {
   }
   private workspaceActive = true;
   setWorkspaceActive(active: boolean): void {
+    const shown = this.onCanvasPage();
     this.workspaceActive = active;
+    if (!shown && this.onCanvasPage()) this.enteredPage();
     if (!active) this.cancelWorkspaceOpen();
     if (!active) this.releaseInput();
     // Leaving the canvas page for another screen cancels the pick and capture mode.
@@ -507,7 +544,9 @@ export class CanvasController {
   // The canvas page is on screen: not Home, the Overview or a modal. V, H and Space act only there; capture mode ends
   // when it goes (canvas-capture spec 7).
   setCanvasPage(shown: boolean): void {
+    const before = this.onCanvasPage();
     this.canvasPage = shown;
+    if (!before && this.onCanvasPage()) this.enteredPage();
     if (!shown) { this.releaseInput(); this.cancelCapture(); }
   }
 
@@ -583,7 +622,7 @@ export class CanvasController {
     const row = overview ? undefined : switchTarget(sameCanvas ? open?.row.id : undefined, entry.canvases, remembered?.path);
     if (row) {
       this.openCanvasNow(folder, row);
-      if (remembered?.path === row.path) { this.view = { ...remembered.view }; this.applyView(); }
+      if (remembered?.path === row.path) { this.view = { ...remembered.view }; this.applyView("app"); }
     } else {
       this.dropFrame();
       this.state = { ...initialCanvasState(), activity: this.state.activity };
@@ -663,6 +702,8 @@ export class CanvasController {
     this.state.open = { folder, canvas: row.path, row };
     this.state.shown = row.path;
     this.state.error = "";
+    // Opening a canvas is the person's moment: following waits a full rest after it.
+    this.lastPersonMove = Date.now();
     this.load(row, true);
   }
 
@@ -708,7 +749,7 @@ export class CanvasController {
       this.state.status = "loading";
       this.view = fitWidth(row.width, this.viewportSize(), FIT_INSET);
       this.firstFit = this.view;
-      this.applyView();
+      this.applyView("app");
     } else {
       this.frame.replaceWith(next);
       this.frame = next;
@@ -745,6 +786,7 @@ export class CanvasController {
   }
 
   private dropFrame(): void {
+    clearTimeout(this.followTimer);
     this.stopDrag();
     this.spaceHeld = false;
     this.endPick({ kind: "cancelled" });
@@ -798,6 +840,7 @@ export class CanvasController {
     if (message.type === "picked") { this.receivePicked(message); return; }
     if (message.type === "pick-started") { this.receivePickStarted(message); return; }
     if (message.type === "press") { this.pressed(); return; }
+    if (message.type === "activity") { this.personActive(false); return; }
     this.onSelectionMessage(message);
   };
 
@@ -826,8 +869,9 @@ export class CanvasController {
       }
       return;
     }
-    if (message.type === "hover") { this.hoverSeq = message.seq; this.hoverRect = message.rect; this.drawMarks(); return; }
-    if (!this.commandReply(message)) this.focusOnClick();
+    if (message.type === "hover") { this.hoverSeq = message.seq; this.hoverRect = message.rect; this.drawMarks(); this.personActive(false); return; }
+    // A click's selection, not a command's answer: the person's, which stops following in a work turn.
+    if (!this.commandReply(message)) { this.focusOnClick(); this.personActive(true); }
     this.seq = message.seq;
     if (message.type === "clear") { this.clearSelection(false); this.publish(); return; }
     if (message.target === null) { this.applySelectionEffect({ kind: "anchorLost" }); this.publish(); return; }
@@ -919,8 +963,10 @@ export class CanvasController {
     this.transition(() => this.escapeNow());
   }
 
+  // Escape and a click on the board's margin: the person's deselect, which stops following in a work turn.
   private escapeNow(): void {
     if (this.state.selection === null && this.reanchor === null) return;
+    this.personActive(true);
     this.sendCommand({ type: "clear" });
     this.clearSelection(false);
     this.publish();
@@ -1239,6 +1285,8 @@ export class CanvasController {
 
   private pointerOnApp = (event: PointerEvent): void => {
     this.altHeld = event.altKey;
+    // Over the board's margins or the drag layer; over the canvas itself the move arrives as its hover message.
+    if (Object.is(event.target, this.viewport) || Object.is(event.target, this.layer)) this.personActive(false);
     // OOPIFs do not reliably receive pointerout when the pointer enters the app.
     if (event.target !== this.frame && this.hoverRect !== null) {
       this.hoverRect = null;
@@ -1446,6 +1494,8 @@ export class CanvasController {
       this.jumpTo = null;
     }
     if (first && this.pendingLocate !== null) this.locatePending();
+    // A reload may bring the working frame an update named before it existed.
+    if (!this.followWork()) this.drawWork();
     if (selected !== undefined && !newDocument && this.state.selection !== null && this.reanchor === null) {
       if (selected === null) this.applySelectionEffect({ kind: "anchorLost" });
       else { this.selectedRect = selected; this.drawMarks(); }
@@ -1544,7 +1594,7 @@ export class CanvasController {
     this.firstFit = null;
     if (pending === null || pending !== this.view || this.frame === null) return;
     this.view = fitWidth(this.frameWidth, this.viewportSize(), FIT_INSET);
-    this.applyView();
+    this.applyView("app");
   }
 
   // The zoom menu's fixed percentages: the view center stays put, like the steps and 100%.
@@ -1574,10 +1624,12 @@ export class CanvasController {
     this.applyView();
   }
 
-  private applyView(): void {
+  private applyView(origin: ViewOrigin = "person"): void {
+    if (origin === "person") this.personActive(true);
     this.board.style.transform = `translate(${this.view.x}px, ${this.view.y}px) scale(${this.view.scale})`;
     this.drawMarks();
     this.drawJump();
+    this.drawWork();
     const current = this.state.unlisted ? null : currentFrame(this.state.layout?.frames ?? [], this.view, this.viewportSize());
     const changedCurrent = current !== this.state.currentFrame;
     this.state.currentFrame = current;
@@ -1589,6 +1641,112 @@ export class CanvasController {
     if (zoom !== this.state.zoom || changedCurrent || changedLimit) { this.state.zoom = zoom; this.publish(); }
     this.viewChanged?.();
   }
+  // The open canvas's work from the agent notice's pick. App calls it whenever that pick or the open canvas changes,
+  // also with no work, so a change of canvas is seen as entering it: the frame worked on then counts as followed, and
+  // following waits for the next one (design §1 rule 9 '캔버스에 들어옴').
+  setWork(target: CanvasWorkTarget | null): void {
+    const key = target && canvasKey(target.root, target.path);
+    const entered = key !== this.workCanvas;
+    const previous = entered ? null : this.work?.work ?? null;
+    const before = this.workMarkFrame;
+    this.work = target;
+    this.workCanvas = key;
+    const next = target?.work ?? null;
+    // Another source winning names a frame the board must not swing to, whether that frame exists yet or the document
+    // is reloading: counted as followed here, not when the frame is next evaluated.
+    const sourceChanged = previous !== null && next !== null && previous.source !== next.source;
+    if (target && key) {
+      let memory = followStopped(this.followMemory.get(key) ?? EMPTY_FOLLOW, target.keys, false);
+      if ((entered || sourceChanged) && next?.frame !== undefined) memory = markFollowed(memory, next.key, next.frame);
+      this.followMemory.set(key, memory);
+    }
+    if (this.followWork()) return;
+    const frame = this.openWork()?.frame;
+    this.drawWork(before !== null && frame !== undefined && frame !== before);
+  }
+
+  // Moves the view to the working frame when followDecision says so; true when it moved (the move placed the marker).
+  // Not while the document reloads or failed: the frame is read from the next layout.
+  private followWork(): boolean {
+    clearTimeout(this.followTimer);
+    const work = this.openWork(), target = this.work;
+    if (!work || !target || work.frame === undefined || this.frame === null || this.loading || this.state.status !== null) return false;
+    const key = canvasKey(target.root, target.path), memory = this.followMemory.get(key) ?? EMPTY_FOLLOW;
+    const decision = followDecision({
+      frame: work.frame, followed: followedFrames(memory, work.key), rect: workFrameRect(this.state.layout, work.frame),
+      viewport: this.viewportSize(), view: this.view, lastPersonMove: this.lastPersonMove, now: Date.now(), stopped: memory.stopped.has(work.key), busy: this.followBusy(),
+    });
+    if (decision.kind === "stay") {
+      if (decision.followed) this.followMemory.set(key, markFollowed(memory, work.key, work.frame));
+      if (decision.retryAt !== undefined) this.followTimer = setTimeout(() => this.followWork(), Math.max(0, decision.retryAt - Date.now()));
+      return false;
+    }
+    this.followMemory.set(key, markFollowed(memory, work.key, work.frame));
+    this.view = decision.view;
+    this.applyView("app");
+    return true;
+  }
+
+  private followBusy(): boolean {
+    return this.state.picking || this.state.capturing || this.drag !== null || this.captureDrag !== null || this.spaceHeld || !this.onCanvasPage() || this.overlayOpen();
+  }
+
+  // The person acted on the canvas page: the rest starts again. A view change or a selection change also stops every
+  // work turn on the open canvas (`stop`); a pointer move or typing does not.
+  private personActive(stop: boolean): void {
+    this.lastPersonMove = Date.now();
+    // A stop ends the wait; a plain move only pushes the rest's end, which the timer finds when it fires and re-arms.
+    if (stop) clearTimeout(this.followTimer);
+    const target = this.work, open = this.state.open;
+    if (!stop || !target || !open || target.root !== open.folder || target.path !== open.canvas || target.keys.length === 0) return;
+    const key = canvasKey(target.root, target.path);
+    this.followMemory.set(key, followStopped(this.followMemory.get(key) ?? EMPTY_FOLLOW, target.keys, true));
+  }
+
+  private typed = (): void => { this.personActive(false); };
+
+  // Back on the canvas page (from Home, Settings or another workspace's screen): like opening the canvas, the frame
+  // worked on now counts as followed and the rest starts again.
+  private enteredPage(): void {
+    this.lastPersonMove = Date.now();
+    const work = this.openWork(), target = this.work;
+    if (!work || !target || work.frame === undefined) return;
+    const key = canvasKey(target.root, target.path);
+    this.followMemory.set(key, markFollowed(this.followMemory.get(key) ?? EMPTY_FOLLOW, work.key, work.frame));
+  }
+
+  private openWork(): CanvasWork | null {
+    const open = this.state.open, target = this.work;
+    return open && target && !this.state.unlisted && target.root === open.folder && target.path === open.canvas ? target.work : null;
+  }
+
+  // The working-frame marker (design §1 rule 8): the jump highlight kept for the work turn, on the first frame with the
+  // id, gone while the document reloads or failed and back on the same id once the new one lays out. It is placed in
+  // screen px on every view change, so it slides only when the working frame changes (`slide`); any other redraw puts
+  // it on its frame at once, ending a slide.
+  private drawWork(slide = false): void {
+    clearTimeout(this.workSlideTimer);
+    const work = this.loading || this.state.status !== null ? null : this.openWork();
+    const rect = work ? workFrameRect(this.state.layout, work.frame) : null;
+    if (work === null || rect === null) {
+      if (this.workMark) this.workMark.hidden = true;
+      this.workMarkFrame = null;
+      return;
+    }
+    if (this.workMark === null) {
+      this.workMark = document.createElement("div");
+      this.overlay.append(this.workMark);
+    }
+    const mark = this.workMark;
+    const look = work.waiting ? "mark jump-highlight working still" : "mark jump-highlight working";
+    mark.className = slide ? `${look} moving` : look;
+    if (slide) this.workSlideTimer = setTimeout(() => { mark.className = look; }, WORK_SLIDE_MS);
+    const screen = boardRectToScreen(this.view, rect);
+    mark.hidden = false;
+    Object.assign(mark.style, { left: `${screen.x}px`, top: `${screen.y}px`, width: `${screen.width}px`, height: `${screen.height}px` });
+    this.workMarkFrame = rect.id;
+  }
+
   // Marks live outside the iframe so the canvas DOM, its MutationObserver and
   // the anchors stay untouched; drawn in screen px so lines stay 1px at any
   // scale, while the size label (a child of the selection mark, centered

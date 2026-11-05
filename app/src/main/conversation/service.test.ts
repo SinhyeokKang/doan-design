@@ -20,8 +20,9 @@ function fixture() {
     runners.push(runner); return runner;
   });
   const prepare = vi.fn<Prepare>(async () => ({ runtime: "codex" as const, configDir: "/profile", cwd: "/repo", sessionId: "same-session", command: "/fake", env: {} }));
-  const service = new ConversationService(store, prepare, open, () => {});
-  return { service, store, runners, exits, prepare, open, hold: () => { hold = () => {}; }, release: () => hold?.() };
+  const ended: string[] = [];
+  const service = new ConversationService(store, prepare, open, () => {}, undefined, undefined, undefined, undefined, undefined, undefined, id => { ended.push(id); });
+  return { service, store, runners, exits, prepare, open, ended, hold: () => { hold = () => {}; }, release: () => hold?.() };
 }
 const request = { root: "/repo", mode: "resume" as const, canvas: { path: ".doan/canvases/a.html" }, text: "hello", anchors: [] };
 it("reserves pending sessions across canvases before opening and leaves rejected starts untouched", async () => {
@@ -2425,5 +2426,94 @@ describe("prompt suggestions", () => {
     h.service.receive(id, { type: "turn.done" }); h.suggest(0, "Run the tests");
     h.service.connectionChanged("claude", undefined);
     expect(h.shown(id)).toBe("Run the tests");
+  });
+});
+
+// work-update B3 (design §1 rules 5 and 10, §8): runs carry their conversation's id, main reads which turn may take an
+// update, and every end of a turn clears that conversation's work.
+describe("conversation work", () => {
+  const prepared = (env: NodeJS.ProcessEnv = {}) => ({ runtime: "codex" as const, configDir: "/profile", cwd: "/repo", sessionId: "same-session", command: "/fake", env });
+  it("every runner opened for a conversation carries its id, for a new conversation and a resumed one", async () => {
+    const h = fixture(); h.prepare.mockResolvedValue(prepared({ KEEP: "1" }));
+    const id = (await h.service.start(request)).conversationId;
+    expect(h.open.mock.calls[0]?.[0].env).toEqual({ KEEP: "1", DOAN_CONVERSATION_ID: id });
+    h.service.receive(id, { type: "turn.done" }); h.exits[0]?.();
+    await h.service.send(id, "after exit", []);
+    expect(h.open).toHaveBeenCalledTimes(2);
+    expect(h.open.mock.calls[1]?.[0].env).toEqual({ KEEP: "1", DOAN_CONVERSATION_ID: id });
+  });
+  it("a turn is running from its acceptance to its end, and the next one only once it is accepted", async () => {
+    const h = fixture(); const id = (await h.service.start(request)).conversationId;
+    const first = h.service.liveTurns().get(id);
+    expect(first).toEqual({ root: "/repo", turnId: expect.any(String), running: true });
+    h.service.receive(id, { type: "permission.request", requestId: "r1", tool: "Bash", summary: "ls", options: [{ id: "allow", label: "Allow", kind: "allow" }] });
+    expect(h.service.liveTurns().get(id)?.running).toBe(true);
+    h.service.receive(id, { type: "turn.done" });
+    expect(h.service.liveTurns().get(id)).toEqual({ ...first, running: false });
+    let release: () => void = () => {};
+    h.prepare.mockImplementationOnce(() => new Promise(resolve => { release = () => resolve(prepared()); }));
+    const sending = h.service.send(id, "again", []);
+    await vi.waitFor(() => expect(h.prepare).toHaveBeenCalledTimes(2));
+    expect(h.service.liveTurns().get(id)?.running).toBe(false);
+    release(); await sending;
+    const second = h.service.liveTurns().get(id);
+    expect(second).toMatchObject({ root: "/repo", running: true });
+    expect(second?.turnId).not.toBe(first?.turnId);
+  });
+  it.each<[string, (h: ReturnType<typeof fixture>, id: string) => Promise<unknown> | unknown]>([
+    ["turn.done", (h, id) => h.service.receive(id, { type: "turn.done" })],
+    ["turn.failed", (h, id) => h.service.receive(id, { type: "turn.failed", code: "unknown" })],
+    ["a Stop", (h, id) => h.service.interrupt(id)],
+    ["the process exiting", h => h.exits[0]?.()],
+    ["an archive by a replacing start", async h => {
+      h.prepare.mockResolvedValueOnce({ ...prepared(), sessionId: "replacement" });
+      await h.service.start(request);
+    }],
+    ["the app quitting", h => h.service.quit()],
+    ["a history that stopped taking writes", (h, id) => {
+      vi.spyOn(h.store, "append").mockImplementationOnce(() => { throw new Error("File exceeds limit"); });
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      h.service.receive(id, { type: "activity", kind: "read", title: "Read" } as never);
+    }],
+  ])("%s clears the conversation's work and ends its turn", async (_label, act) => {
+    const h = fixture();
+    const id = (await h.service.start(request)).conversationId; h.ended.length = 0;
+    await act(h, id);
+    expect(h.ended).toContain(id);
+    expect(h.service.liveTurns().get(id)?.running ?? false).toBe(false);
+  });
+  it("a sign-out stopping the provider's runs clears the conversation's work", async () => {
+    const h = fixture(); h.prepare.mockResolvedValue({ ...prepared(), owner: { kind: "doan", provider: "codex", connectionId: "c", accountId: "acct", workspaceId: "org", profile: "codex" } });
+    const id = (await h.service.start(request)).conversationId; h.ended.length = 0;
+    await h.service.stopRuns("codex");
+    expect(h.ended).toContain(id);
+    expect(h.service.liveTurns().get(id)?.running).toBe(false);
+  });
+  // V2 review: a quit whose appQuit write fails still clears every conversation's work, and still reports the failure.
+  it("a quit whose first interrupted write fails still clears the work of every conversation", async () => {
+    const h = fixture();
+    const first = (await h.service.start(request)).conversationId;
+    h.prepare.mockResolvedValueOnce({ ...prepared(), sessionId: "second-session" });
+    const second = (await h.service.start({ ...request, canvas: { path: ".doan/canvases/b.html" } })).conversationId;
+    h.ended.length = 0;
+    const append = h.store.append.bind(h.store);
+    vi.spyOn(h.store, "append").mockImplementation((cid, turn, body) => {
+      if (body.type === "interrupted") throw new Error("File exceeds limit");
+      return append(cid, turn, body);
+    });
+    expect(() => h.service.quit()).toThrow("File exceeds limit");
+    expect(h.ended).toEqual(expect.arrayContaining([first, second]));
+  });
+  it("a deletion clears the conversation's work", async () => {
+    const h = fixture(); const id = (await h.service.start(request)).conversationId;
+    h.service.receive(id, { type: "turn.done" }); h.exits[0]?.(); h.ended.length = 0;
+    h.service.delete(id);
+    expect(h.ended).toEqual([id]);
+    expect(h.service.liveTurns().has(id)).toBe(false);
+  });
+  it("a refused start and a refused send never report an end of a turn that was not accepted", async () => {
+    const h = fixture(); h.prepare.mockRejectedValueOnce(new Error("session_unavailable"));
+    await expect(h.service.start(request)).rejects.toThrow("session_unavailable");
+    expect(h.ended).toEqual([]);
   });
 });

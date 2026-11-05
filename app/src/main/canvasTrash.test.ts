@@ -59,7 +59,7 @@ describe("trashBusy", () => {
     conversationId: "c1", title: "t", state: "current", owner: "doan", provider: "claude", fromHome: false, phase: "ended", unseen: false,
     queued: 0, working: false, lastActivityAt: "", preview: "", canvas: { path: target.path, id: "a" }, ...patch,
   });
-  const work = (root: string, path = target.path): WorkItem => ({ root, path, session: null, provider: null });
+  const work = (root: string, path = target.path): WorkItem => ({ root, path, session: null, provider: null, touched: 0, turn: "none:t" });
 
   test("a canvas conversation running, waiting or still working blocks; an ended or archived one does not", () => {
     expect(trashBusy(target, [summary({ phase: "running" })], [], [])).toBe(true);

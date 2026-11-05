@@ -1,0 +1,9 @@
+{
+  "id": "W5",
+  "title": "Edit several frames with a work update before each frame edit",
+  "focus": "write",
+  "init": {
+    "tokenCss": ".doan/assets/tokens.css"
+  },
+  "selection": "selection.json"
+}

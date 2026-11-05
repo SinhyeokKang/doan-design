@@ -11,7 +11,7 @@ const INHERITED = new Set(["HOME", "USER", "LOGNAME", "SHELL", "TMPDIR", "LANG",
   "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "no_proxy", "all_proxy"]);
 // PoC 10 isolated Cursor, Antigravity and Copilot only through a dedicated HOME; Codex needed the real HOME for its keyring.
 const PROFILE_VARIABLE: Record<Provider, string> = { claude: "CLAUDE_CONFIG_DIR", codex: "CODEX_HOME", cursor: "HOME", antigravity: "HOME", copilot: "HOME" };
-const RESERVED = new Set(["PATH", "DOAN_RUNTIME", "DOAN_APP_CONVERSATION", "HOME", "CLAUDE_CONFIG_DIR", "CODEX_HOME", "GEMINI_HOME", "SSH_AUTH_SOCK", "GIT_CONFIG_GLOBAL"]);
+const RESERVED = new Set(["PATH", "DOAN_RUNTIME", "DOAN_APP_CONVERSATION", "DOAN_CONVERSATION_ID", "HOME", "CLAUDE_CONFIG_DIR", "CODEX_HOME", "GEMINI_HOME", "SSH_AUTH_SOCK", "GIT_CONFIG_GLOBAL"]);
 function absolute(value: unknown): value is string { return typeof value === "string" && value.startsWith("/") && !value.includes("\0"); }
 function value(text: unknown): text is string { return typeof text === "string" && !text.includes("\0"); }
 export function providerEnv(input: ProviderEnvInput): ProviderEnv {

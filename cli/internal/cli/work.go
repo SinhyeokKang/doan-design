@@ -3,12 +3,21 @@ package cli
 import "encoding/json"
 
 func Work(ctx Context, f Flags, args []string) (Outcome, *Error) {
-	if len(args) == 0 || (args[0] != "start" && args[0] != "done") {
-		return Outcome{}, usageError("Expected work start <canvas path> or work done [<canvas path>...]")
+	if len(args) == 0 || (args[0] != "start" && args[0] != "update" && args[0] != "done") {
+		return Outcome{}, usageError("Expected work start <canvas path>, work update <canvas path> or work done [<canvas path>...]")
 	}
 	action := args[0]
 	if action == "start" && len(args) != 2 {
 		return Outcome{}, usageError("work start takes one canvas path")
+	}
+	var frame, note string
+	if action == "update" {
+		var path string
+		var failure *Error
+		if path, frame, note, failure = workUpdateArgs(args[1:], f.Frames, f.Note); failure != nil {
+			return Outcome{}, failure
+		}
+		args = []string{action, path}
 	}
 	r, failure := repository(ctx, f)
 	if failure != nil {
@@ -19,7 +28,7 @@ func Work(ctx Context, f Flags, args []string) (Outcome, *Error) {
 	for _, arg := range args[1:] {
 		path, err := workTarget(r.Root, arg)
 		if err != nil {
-			if action == "start" {
+			if action != "done" {
 				return Outcome{}, usageError(err.Error())
 			}
 			skipped = append(skipped, arg)
@@ -36,15 +45,12 @@ func Work(ctx Context, f Flags, args []string) (Outcome, *Error) {
 		result["links"] = links
 		result["skipped"] = skipped
 	}
-	if !ctx.AppConversation {
-		request := map[string]any{"v": 3, "action": action, "root": r.Root}
-		if action == "start" {
-			request["path"] = paths[0]
-		}
-		if ctx.WorkSession != "" {
-			request["session"] = ctx.WorkSession
-			request["provider"] = ctx.WorkProvider
-		}
+	path := ""
+	if action != "done" {
+		path = paths[0]
+	}
+	id := workIdentity{provider: ctx.WorkProvider, session: ctx.WorkSession, conversation: ctx.WorkConversation, app: ctx.AppConversation}
+	if request, send := workRequest(action, r.Root, path, frame, note, id); send {
 		result["delivered"] = sendWork(ctx, request)
 	}
 	return Outcome{Result: result}, nil

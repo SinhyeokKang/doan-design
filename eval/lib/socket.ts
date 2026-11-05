@@ -72,21 +72,20 @@ const ajvFromApp = createRequire(join(import.meta.dirname, "../../app/package.js
 // Default options as in validate.ts; only ajv's strict-mode warnings are muted,
 // which do not change what validates.
 const ajv = new ajvFromApp.default({ logger: false });
-ajv.addSchema(JSON.parse(readFileSync(join(import.meta.dirname, "../../schema/app-socket.v2.schema.json"), "utf8")));
+// Add every file before the first getSchema: v3's frame $refs v4's frameId by its absolute $id.
+for (const version of ["v2", "v3", "v4"]) ajv.addSchema(JSON.parse(readFileSync(join(import.meta.dirname, `../../schema/app-socket.${version}.schema.json`), "utf8")));
 const V2 = "https://doan.design/schema/app-socket.v2.schema.json";
 const requestSchema = ajv.getSchema(`${V2}#/$defs/request`);
 const responseSchema = ajv.getSchema(`${V2}#/$defs/response`);
 export const validOnboardingRequest = (v: unknown): boolean => requestSchema(v);
 export const validOnboardingResponse = (v: unknown): boolean => responseSchema(v);
 
-ajv.addSchema(JSON.parse(readFileSync(join(import.meta.dirname, "../../schema/app-socket.v3.schema.json"), "utf8")));
 const V3 = "https://doan.design/schema/app-socket.v3.schema.json";
 const workRequestSchema = ajv.getSchema(`${V3}#/$defs/request`);
 const workResponseSchema = ajv.getSchema(`${V3}#/$defs/response`);
 export const validWorkRequest = (v: unknown): boolean => workRequestSchema(v);
 export const validWorkResponse = (v: unknown): boolean => workResponseSchema(v);
 
-ajv.addSchema(JSON.parse(readFileSync(join(import.meta.dirname, "../../schema/app-socket.v4.schema.json"), "utf8")));
 const V4 = "https://doan.design/schema/app-socket.v4.schema.json";
 const openRequestSchema = ajv.getSchema(`${V4}#/$defs/request`);
 const openResponseSchema = ajv.getSchema(`${V4}#/$defs/response`);
@@ -373,17 +372,18 @@ export async function serveFakeApp(o: FakeAppOptions): Promise<FakeApp> {
   const workLog = join(o.dir, "work.jsonl");
   const openLog = join(o.dir, "open.jsonl");
   const paths = new Set<string>();
-  const snapshot = (path: string): string | null => {
+  const contents = (path: string): Buffer | null => {
     const target = join(o.root, path);
     try {
       const rel = relative(realpathSync(o.root), realpathSync(target));
       if (rel === ".." || rel.startsWith("../") || isAbsolute(rel)) return null;
-      return contentHash(readFileSync(target));
+      return readFileSync(target);
     } catch {
       // Missing or unreadable content has no snapshot; it must not stop logging.
       return null;
     }
   };
+  const snapshot = (path: string): string | null => contentHash(contents(path));
   const onboarding = o.onboarding ? onboardingApp(o.onboarding, o.root, changes => initializeRepo(o.root, changes, join(o.dir, APP_WRITES))) : null;
   // Without a script the fake is an older app: a v2 line gets the v1 bad_request.
   const reply = (line: string): Obj => {
@@ -399,8 +399,9 @@ export async function serveFakeApp(o: FakeAppOptions): Promise<FakeApp> {
         if (typeof parsed.path === "string") paths.add(parsed.path);
         for (const path of paths) hashes[path] = snapshot(path);
       }
+      const canvas = response.ok && parsed.action === "update" ? { canvas: contents(parsed.path as string)?.toString("utf8") ?? null } : {};
       const { token: _token, ...request } = parsed;
-      appendFileSync(workLog, JSON.stringify({ request, response, at: new Date().toISOString(), hashes }) + "\n", { mode: 0o600 });
+      appendFileSync(workLog, JSON.stringify({ request, response, at: new Date().toISOString(), hashes, ...canvas }) + "\n", { mode: 0o600 });
       return response;
     }
     if (isObj(parsed) && parsed.v === 4) {

@@ -81,7 +81,7 @@ test("a chosen terminal session becomes a new conversation while it works, and s
   const mode = () => { const view = run.view(); return view?.kind === "new" ? view.start.mode : null; };
   render(panel([]));
   expect(mode()).toBe("resume");
-  render(panel([{ session: "s1", provider: "codex", root: "/w/other", path: ".doan/canvases/x.html" }]));
+  render(panel([{ touched: 0, turn: "none:t", session: "s1", provider: "codex", root: "/w/other", path: ".doan/canvases/x.html" }]));
   expect(mode()).toBe("new");
   render(panel([]));
   expect(mode()).toBe("new");
@@ -118,7 +118,7 @@ test("a Claude session a terminal process holds waits on first entry and returns
     onLocate: vi.fn(async () => "shown" as const), pick: { pressed: false, enabled: true, reason: null, onToggle: () => {} }, composerLink: { current: null },
     onSettings: vi.fn(), onNotice: vi.fn(), onOpenProjectConversation: vi.fn(), work,
   });
-  const working: readonly WorkItem[] = [{ session: "s1", provider: "claude", root: ROOT, path: CANVAS.path }], none: readonly WorkItem[] = [];
+  const working: readonly WorkItem[] = [{ touched: 0, turn: "none:t", session: "s1", provider: "claude", root: ROOT, path: CANVAS.path }], none: readonly WorkItem[] = [];
   expect(resumeChoice(render(panel(working)))).toEqual({ offer: "claude", held: true });
   await flush();
   // The turn ends but the terminal's claude still runs: the session is still held, and not offered.
@@ -157,7 +157,7 @@ test("a held Claude session returns when its work ends and the process is free",
     onLocate: vi.fn(async () => "shown" as const), pick: { pressed: false, enabled: true, reason: null, onToggle: () => {} }, composerLink: { current: null },
     onSettings: vi.fn(), onNotice: vi.fn(), onOpenProjectConversation: vi.fn(), work,
   });
-  expect(resumeChoice(render(panel([{ session: "s1", provider: "claude", root: "/w/other", path: ".doan/canvases/x.html" }])))).toEqual({ offer: "claude", held: true });
+  expect(resumeChoice(render(panel([{ touched: 0, turn: "none:t", session: "s1", provider: "claude", root: "/w/other", path: ".doan/canvases/x.html" }])))).toEqual({ offer: "claude", held: true });
   target.mockResolvedValue({ available: true, runtime: "claude", lastCheckAt: "2026-11-01T14:02:00", session: "s1" });
   render(panel([]));
   await flush();

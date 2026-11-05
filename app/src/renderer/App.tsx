@@ -7,6 +7,8 @@ import { canvasLabel, moveExpanded } from "./canvasTree";
 import type { Selection } from "../formats/types";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { WorkItem } from "../main/workState";
+import type { ConversationWork } from "../main/conversationWork";
+import type { CanvasFrameRect } from "./canvasMessage";
 import type { TrashPlanReply, TrashReply } from "../main/canvasTrash";
 import type { ExportReply } from "../main/canvasExport";
 import type { AttachmentResult } from "../main/attachments";
@@ -19,7 +21,7 @@ import { focusFieldEnd } from "./chipField";
 import { draftKey, EMPTY_DRAFT } from "./dockedRules";
 import type { OpenAsk, OpenLinkResult, OpenResult } from "../main/deepLinks";
 import type { MenuCommand, ViewCommand } from "../main/index";
-import { CanvasController, initialCanvasState, type CanvasState, type PickResult } from "./CanvasController";
+import { CanvasController, initialCanvasState, type CanvasState, type CanvasWorkTarget, type PickResult } from "./CanvasController";
 import { CanvasHeader } from "./CanvasHeader";
 import { CanvasTools, type CaptureTool, type ExportTool, type PickerTool } from "./CanvasTools";
 import { AlertIcon } from "./AlertIcon";
@@ -1056,6 +1058,14 @@ export function App() {
     void window.doan.getWork().then(items => { if (current && !changed) setWork(items); }).catch(console.error);
     return () => { current = false; stop(); };
   }, []);
+  // App conversations' `doan work update` content (work-update design decision 9), read the same way.
+  const [conversationWork, setConversationWork] = useState<readonly ConversationWork[]>([]);
+  useEffect(() => {
+    let current = true, changed = false;
+    const stop = window.doan.onConversationWorkChanged(items => { changed = true; setConversationWork(items); });
+    void window.doan.getConversationWork().then(items => { if (current && !changed) setConversationWork(items); }).catch(console.error);
+    return () => { current = false; stop(); };
+  }, []);
   // The renderer's one sign-in controller tells a sign-in that ended away from Agents in the shared toast, and hears
   // when the window comes back to the front (design 'App 수준 로그인 컨트롤러').
   useEffect(() => agentSignIn().onToast(({ text, action }) => live.current.toast.show(text, action?.label, action ? () => live.current.openSettings(action.target) : undefined)), []);
@@ -1808,6 +1818,7 @@ export function App() {
     <CanvasPane viewport={viewport} board={board} overlay={overlay} dragLayer={dragLayer} state={state} entry={entry} projectName={names.get(loadedRoot ?? "") ?? loadedRoot ?? ""} command={command} covered={overview !== null}
       zoomTo={scale => controller.current?.zoomTo(scale)} selectFrame={(index, id) => controller.current?.selectFrame(index, id)} conversation={{ open: rightPanel.open, show: () => foldPanel(true), badge: panelBadge }}
       agent={{ list: state.open ? run.listState(state.open.folder) : undefined, canvas: workingCanvas(state.open, state.unlisted, entry), running: screen === "workspace" && overview === null, work, entries,
+        conversationWork, frames: state.layout?.frames ?? null, onWork: target => controller.current?.setWork(target),
         onOpen: openRequest, onOpenSibling, onStopFailed: text => toast.show(text) }}
       picking={picking} capturing={state.capturing} tool={state.tool} onTool={chooseTool} picker={{ enabled: pickerReady, reason: pickerView.reason, onToggle: pickFromCanvas }} capture={capture} exporter={exporter} />
     {overview && <ProjectOverview key={overview.path} run={overviewRun.current!} support={support.current!} root={overview.path} project={projectLabel(overview.path)} entry={overview}
@@ -1892,7 +1903,8 @@ function TopBar({ sidebar, back, forward, previous, next, page, locked, addProje
   </header>;
 }
 
-type AgentProps = { list: readonly ConversationSummary[] | "loading" | "error" | undefined; canvas: WorkingCanvas | null; running: boolean; work: readonly WorkItem[]; entries: readonly FolderEntry[]; onOpen(): void; onOpenSibling(root: string): void; onStopFailed(text: string): void };
+type AgentProps = { list: readonly ConversationSummary[] | "loading" | "error" | undefined; canvas: WorkingCanvas | null; running: boolean; work: readonly WorkItem[]; entries: readonly FolderEntry[];
+  conversationWork: readonly ConversationWork[]; frames: readonly CanvasFrameRect[] | null; onWork(target: CanvasWorkTarget | null): void; onOpen(): void; onOpenSibling(root: string): void; onStopFailed(text: string): void };
 
 function CanvasPane({ viewport, board, overlay, dragLayer, state, entry, projectName, command, covered, zoomTo, selectFrame, conversation, agent, picking, capturing, tool, onTool, picker, capture, exporter }: {
   viewport: RefObject<HTMLDivElement | null>; board: RefObject<HTMLDivElement | null>; overlay: RefObject<HTMLDivElement | null>; dragLayer: RefObject<HTMLDivElement | null>;

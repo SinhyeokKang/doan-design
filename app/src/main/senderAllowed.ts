@@ -2,6 +2,8 @@ export type WindowKind = "main";
 
 const mainOnly = new Set([
   "app:home", "work:get", "deep-link:ready", "doan-open:answer",
+  // work-update: an app conversation's work content; conversation-work:changed is an event main sends, not a request.
+  "conversation-work:get",
   "project:choose-token-css", "project:init",
   "folders:remove", "folders:locate", "folders:reveal", "folders:open", "folders:reopen",
   "selection:set", "inspect:get", "thumbnails:get", "thumbnails:visible", "menu:state", "shell:activity", "ui-state:get", "ui-state:save",

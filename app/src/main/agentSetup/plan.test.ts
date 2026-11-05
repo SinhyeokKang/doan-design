@@ -175,14 +175,14 @@ describe("plan", () => {
 });
 
 describe("mergeClaudeAllow", () => {
-  const RULES = ["Bash(doan work start *)", "Bash(doan work done *)", "Bash(doan open *)"];
+  const RULES = ["Bash(doan work start *)", "Bash(doan work done *)", "Bash(doan open *)", "Bash(doan work update *)"];
   const written = (text: string | null) => {
     const result = mergeClaudeAllow(text);
     if (result.kind !== "write") throw new Error(`expected a write, got ${JSON.stringify(result)}`);
     return result.text;
   };
 
-  it("allows exactly doan work start, doan work done and doan open, with arguments", () => {
+  it("allows exactly doan work start, doan work done, doan open and doan work update, with arguments", () => {
     expect(CLAUDE_ALLOW_RULES).toEqual(RULES);
   });
 
@@ -195,7 +195,7 @@ describe("mergeClaudeAllow", () => {
   it("keeps every other key and allow entry, adding only the missing rules after them", () => {
     const before = { model: "opus", env: { A: "1" }, permissions: { allow: ["Bash(npm run *)", RULES[1]], deny: ["Bash(rm *)"], defaultMode: "default" }, hooks: { Stop: [] } };
     const after = JSON.parse(written(JSON.stringify(before)));
-    expect(after).toEqual({ ...before, permissions: { ...before.permissions, allow: ["Bash(npm run *)", RULES[1], RULES[0], RULES[2]] } });
+    expect(after).toEqual({ ...before, permissions: { ...before.permissions, allow: ["Bash(npm run *)", RULES[1], RULES[0], RULES[2], RULES[3]] } });
     expect(Object.keys(after)).toEqual(Object.keys(before));
   });
 
@@ -204,10 +204,14 @@ describe("mergeClaudeAllow", () => {
     expect(JSON.parse(written('{"theme":"dark"}'))).toEqual({ theme: "dark", permissions: { allow: RULES } });
   });
 
-  it("adds only the open rule to a file that has the two work rules", () => {
-    const before = `{"permissions":{"allow":${JSON.stringify(RULES.slice(0, 2))}}}`;
-    expect(written(before)).toBe('{"permissions":{"allow":["Bash(doan work start *)","Bash(doan work done *)","Bash(doan open *)"]}}');
-    expect(JSON.parse(written('{"permissions":{"allow":["Bash(npm run *)","Bash(doan work start *)","Bash(doan work done *)"]}}')).permissions.allow).toEqual(["Bash(npm run *)", ...RULES]);
+  it("adds only the update rule to a file that has the other three rules", () => {
+    const before = `{"permissions":{"allow":${JSON.stringify(RULES.slice(0, 3))}}}`;
+    expect(written(before)).toBe('{"permissions":{"allow":["Bash(doan work start *)","Bash(doan work done *)","Bash(doan open *)","Bash(doan work update *)"]}}');
+    expect(JSON.parse(written('{"permissions":{"allow":["Bash(npm run *)","Bash(doan work start *)","Bash(doan work done *)","Bash(doan open *)"]}}')).permissions.allow).toEqual(["Bash(npm run *)", ...RULES]);
+  });
+
+  it("adds the open and update rules to a file that has only the two work rules", () => {
+    expect(written(`{"permissions":{"allow":${JSON.stringify(RULES.slice(0, 2))}}}`)).toBe('{"permissions":{"allow":["Bash(doan work start *)","Bash(doan work done *)","Bash(doan open *)","Bash(doan work update *)"]}}');
   });
 
   it("writes nothing when every rule is there, so a second run is the same", () => {
@@ -217,16 +221,16 @@ describe("mergeClaudeAllow", () => {
 
   it("leaves every other byte as it was, so numbers JSON.parse cannot hold keep their text", () => {
     expect(written('{"customId":9007199254740993,"customLimit":1e400,"permissions":{"allow":[]}}'))
-      .toBe('{"customId":9007199254740993,"customLimit":1e400,"permissions":{"allow":["Bash(doan work start *)", "Bash(doan work done *)", "Bash(doan open *)"]}}');
+      .toBe('{"customId":9007199254740993,"customLimit":1e400,"permissions":{"allow":["Bash(doan work start *)", "Bash(doan work done *)", "Bash(doan open *)", "Bash(doan work update *)"]}}');
     const pretty = '{\n  "model": "opus",\n  "permissions": {\n    "allow": [\n      "Bash(npm run *)"\n    ]\n  }\n}\n';
-    expect(written(pretty)).toBe('{\n  "model": "opus",\n  "permissions": {\n    "allow": [\n      "Bash(npm run *)",\n      "Bash(doan work start *)",\n      "Bash(doan work done *)",\n      "Bash(doan open *)"\n    ]\n  }\n}\n');
-    expect(written('{ "theme": "dark" }\n')).toBe('{ "theme": "dark", "permissions": {"allow": ["Bash(doan work start *)", "Bash(doan work done *)", "Bash(doan open *)"]} }\n');
-    expect(written('{"permissions":{}}')).toBe('{"permissions":{"allow": ["Bash(doan work start *)", "Bash(doan work done *)", "Bash(doan open *)"]}}');
+    expect(written(pretty)).toBe('{\n  "model": "opus",\n  "permissions": {\n    "allow": [\n      "Bash(npm run *)",\n      "Bash(doan work start *)",\n      "Bash(doan work done *)",\n      "Bash(doan open *)",\n      "Bash(doan work update *)"\n    ]\n  }\n}\n');
+    expect(written('{ "theme": "dark" }\n')).toBe('{ "theme": "dark", "permissions": {"allow": ["Bash(doan work start *)", "Bash(doan work done *)", "Bash(doan open *)", "Bash(doan work update *)"]} }\n');
+    expect(written('{"permissions":{}}')).toBe('{"permissions":{"allow": ["Bash(doan work start *)", "Bash(doan work done *)", "Bash(doan open *)", "Bash(doan work update *)"]}}');
   });
 
   it("keeps duplicate keys, adding the rules to the allow list Claude Code reads (the last one)", () => {
     expect(written('{"permissions":{"allow":["a"]},"x":1,"x":2,"permissions":{"allow":[],"allow":["b"]}}'))
-      .toBe('{"permissions":{"allow":["a"]},"x":1,"x":2,"permissions":{"allow":[],"allow":["b","Bash(doan work start *)","Bash(doan work done *)","Bash(doan open *)"]}}');
+      .toBe('{"permissions":{"allow":["a"]},"x":1,"x":2,"permissions":{"allow":[],"allow":["b","Bash(doan work start *)","Bash(doan work done *)","Bash(doan open *)","Bash(doan work update *)"]}}');
     expect(mergeClaudeAllow(`{"permissions":{"allow":${JSON.stringify(RULES)}},"permissions":{}}`)).toMatchObject({ kind: "write" });
     expect(mergeClaudeAllow(`{"permissions":{},"permissions":{"allow":${JSON.stringify(RULES)}}}`)).toEqual({ kind: "keep" });
   });
@@ -234,7 +238,7 @@ describe("mergeClaudeAllow", () => {
   // RC2-3: JSON.parse accepts this, so the scan that finds where to insert must not run out of stack on it.
   it("adds the rules to deep but valid JSON", () => {
     const deep = `{"unrelated":${"[".repeat(10000)}0${"]".repeat(10000)},"permissions":{"allow":[]}}`;
-    expect(written(deep)).toBe(`${deep.slice(0, -3)}"Bash(doan work start *)", "Bash(doan work done *)", "Bash(doan open *)"]}}`);
+    expect(written(deep)).toBe(`${deep.slice(0, -3)}"Bash(doan work start *)", "Bash(doan work done *)", "Bash(doan open *)", "Bash(doan work update *)"]}}`);
   });
 
   it("does not count a broader rule as one of Doan's", () => {

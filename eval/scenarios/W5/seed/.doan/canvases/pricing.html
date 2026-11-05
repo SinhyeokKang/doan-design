@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="doan:canvas" content="pricing">
+  <meta name="doan:width" content="1400">
+  <title>Pricing plans</title>
+  <link rel="stylesheet" href="../assets/tokens.css">
+  <style>
+    body { font-family: system-ui, sans-serif; color: var(--color-text); background: var(--color-surface); display: flex; gap: var(--space-4); }
+    [data-doan-frame] { width: 400px; padding: var(--space-4); border-radius: var(--radius); }
+    button { background: var(--color-primary); color: var(--color-surface); padding: var(--space-4); }
+  </style>
+</head>
+<body>
+<p>Design proposal — this screen is not implemented in code.</p>
+<section data-doan-frame="plan-free" data-doan-title="Free plan">
+<h2 data-doan-id="free-name">Free</h2>
+<p data-doan-id="free-price">$0 per month</p>
+<button data-doan-id="free-action" type="button">Get started</button>
+</section>
+<section data-doan-frame="plan-pro" data-doan-title="Pro plan">
+<h2 data-doan-id="pro-name">Pro</h2>
+<p data-doan-id="pro-price">$12 per month</p>
+<button data-doan-id="pro-action" type="button">Upgrade</button>
+</section>
+<section data-doan-frame="plan-team" data-doan-title="Team plan">
+<h2 data-doan-id="team-name">Team</h2>
+<p data-doan-id="team-price">$30 per month</p>
+<button data-doan-id="team-action" type="button">Contact sales</button>
+</section>
+</body>
+</html>

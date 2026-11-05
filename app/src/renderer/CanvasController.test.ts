@@ -159,6 +159,8 @@ function selectionHarness() {
   const doc = {
     activeElement: null as unknown,
     hasFocus: () => true,
+    // No menu or dialog over the canvas page (the follow check reads it).
+    querySelector: () => null,
     documentElement: { setAttribute: (name: string, value: string) => { rootAttributes.set(name, value); }, removeAttribute: (name: string) => { rootAttributes.delete(name); }, hasAttribute: (name: string) => rootAttributes.has(name) },
     createElement: (tag: string) => {
       if (tag !== "iframe") {
@@ -4049,5 +4051,526 @@ describe("capture", () => {
       expect(h.queued).toHaveLength(0);
       expect(snapshot(h)).toBe(false);
     } finally { h.controller.dispose(); }
+  });
+});
+
+// work-update U1 (design §1 rule 8, decisions 16–17): the working-frame marker, a jump highlight that stays for the work
+// turn, slides 220 ms only when the working frame changes, and comes back by id after a reload.
+describe("working-frame marker", () => {
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
+  type H = ReturnType<typeof selectionHarness>;
+  const work = (frame: string | undefined, over: Record<string, unknown> = {}) => ({ source: "terminal:claude:s1", key: "terminal:t1", ...(frame === undefined ? {} : { frame }), waiting: false, ...over });
+  const setWork = (h: H, frame: string | undefined, over: Record<string, unknown> = {}, root = "/repo") =>
+    h.controller.setWork({ root, path: h.row.path, work: work(frame, over), keys: ["terminal:t1"] });
+  const marker = (h: H) => h.marks.find(mark => mark.className.split(" ").includes("working"));
+  const classes = (h: H) => marker(h)?.className.split(" ") ?? [];
+
+  it("sits on the working frame in screen px, under the selection marks, and stays", () => {
+    vi.useFakeTimers();
+    const h = selectionHarness();
+    try {
+      setWork(h, "hero");
+      expect(classes(h)).toEqual(["mark", "jump-highlight", "working"]);
+      expect(marker(h)).toMatchObject({ hidden: false, style: { left: "100px", top: "100px", width: "10px", height: "10px" } });
+      vi.advanceTimersByTime(5000);
+      expect(marker(h)?.hidden).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("follows a pan and a zoom at once, without the slide", () => {
+    const h = selectionHarness();
+    try {
+      setWork(h, "hero");
+      h.controller.wheel({ dx: 10, dy: 20, ctrl: false, meta: false, deltaMode: 0 }, { x: 200, y: 100 });
+      expect(marker(h)?.style).toMatchObject({ left: "90px", top: "80px" });
+      expect(classes(h)).not.toContain("moving");
+      h.controller.command("zoomIn");
+      expect(classes(h)).not.toContain("moving");
+    } finally { h.controller.dispose(); }
+  });
+
+  it("slides to another frame for 220 ms only when the working frame id changes", () => {
+    vi.useFakeTimers();
+    const h = selectionHarness();
+    try {
+      setWork(h, "hero");
+      setWork(h, "intro");
+      expect(classes(h)).toContain("moving");
+      expect(marker(h)?.style).toMatchObject({ left: "100px", top: "80px" });
+      vi.advanceTimersByTime(220);
+      expect(classes(h)).not.toContain("moving");
+      // The same frame again (its next update) does not slide.
+      setWork(h, "intro", { source: "terminal:claude:s1" });
+      expect(classes(h)).not.toContain("moving");
+    } finally { h.controller.dispose(); }
+  });
+
+  it("a layout that moves the same frame places the marker at once", () => {
+    const h = selectionHarness();
+    try {
+      setWork(h, "hero");
+      h.layout({ frames: [{ id: "intro", x: 0, y: 0, width: 10, height: 10 }, { id: "hero", x: 0, y: 40, width: 20, height: 10 }] });
+      expect(marker(h)?.style).toMatchObject({ top: "120px", width: "20px" });
+      expect(classes(h)).not.toContain("moving");
+    } finally { h.controller.dispose(); }
+  });
+
+  it("goes while the canvas reloads and comes back on the same id without the slide", () => {
+    const h = selectionHarness();
+    try {
+      setWork(h, "hero");
+      h.controller.command("reload");
+      expect(marker(h)?.hidden).toBe(true);
+      h.layout();
+      expect(marker(h)).toMatchObject({ hidden: false, style: { left: "100px", top: "100px" } });
+      expect(classes(h)).not.toContain("moving");
+    } finally { h.controller.dispose(); }
+  });
+
+  it("stays off when the reload fails", () => {
+    vi.useFakeTimers();
+    const h = selectionHarness();
+    try {
+      setWork(h, "hero");
+      h.controller.command("reload");
+      vi.advanceTimersByTime(FIRST_LAYOUT_TIMEOUT_MS);
+      expect(h.state().status).toBe("failed");
+      expect(marker(h)?.hidden).toBe(true);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("shows nothing for an id the document does not have, no frame, another root's work, or no work", () => {
+    const h = selectionHarness();
+    try {
+      setWork(h, "missing");
+      expect(marker(h)?.hidden ?? true).toBe(true);
+      setWork(h, undefined);
+      expect(marker(h)?.hidden ?? true).toBe(true);
+      setWork(h, "hero", {}, "/other");
+      expect(marker(h)?.hidden ?? true).toBe(true);
+      setWork(h, "hero");
+      expect(marker(h)?.hidden).toBe(false);
+      h.controller.setWork(null);
+      expect(marker(h)?.hidden).toBe(true);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("stops moving while the conversation waits for an answer", () => {
+    const h = selectionHarness();
+    try {
+      setWork(h, "hero", { waiting: true });
+      expect(classes(h)).toEqual(["mark", "jump-highlight", "working", "still"]);
+      setWork(h, "hero");
+      expect(classes(h)).not.toContain("still");
+    } finally { h.controller.dispose(); }
+  });
+
+  it("the marker's CSS: no fade, a travelling gradient and a breathing glow, the slide only with .moving, still under reduced motion", async () => {
+    const { readFileSync } = await import("node:fs");
+    const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+    expect(css).toMatch(/\.mark\.jump-highlight\.working \{[^}]*z-index: -1; animation: doan-work-glow 2\.4s var\(--ease-state\) infinite;/);
+    expect(css).toMatch(/\.mark\.jump-highlight\.working::before \{[^}]*animation: doan-work-travel 4\.8s linear infinite;/);
+    expect(css).toMatch(/\.mark\.jump-highlight\.working\.moving \{ transition: left var\(--time-settle\) var\(--ease-settle\), top var\(--time-settle\) var\(--ease-settle\), width var\(--time-settle\) var\(--ease-settle\), height var\(--time-settle\) var\(--ease-settle\); \}/);
+    expect(css).not.toMatch(/\.mark\.jump-highlight\.working \{[^}]*transition/);
+    expect(css).toContain(".mark.jump-highlight.working.still, .mark.jump-highlight.working.still::before { animation: none; }");
+    expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{ \.mark\.jump-highlight\.working, \.mark\.jump-highlight\.working::before \{ animation: none; \} \}/);
+    expect(css).toMatch(/@media \(prefers-reduced-transparency: reduce\) \{ \.mark\.jump-highlight\.working \{ animation: none; box-shadow: 0 0 0 1px var\(--surface-panel\); \} \}/);
+  });
+});
+
+// work-update U2 (design §1 rule 9): the board follows the working frame while the person rests; every view change the
+// person makes stops it for the work turn, the app's own (follow, open fit, restore, settleFit, reload) do not.
+describe("following the working frame", () => {
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
+  type H = ReturnType<typeof selectionHarness>;
+  const FRAMES = [{ id: "intro", x: 0, y: 0, width: 10, height: 10 }, { id: "hero", x: 0, y: 20, width: 10, height: 10 }, { id: "far", x: 0, y: 2000, width: 100, height: 100 }, { id: "farther", x: 0, y: 4000, width: 100, height: 100 }];
+  const rested = () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const h = selectionHarness();
+    h.layout({ frames: FRAMES });
+    vi.advanceTimersByTime(5000);
+    return h;
+  };
+  const setWork = (h: H, frame: string | undefined, over: Record<string, unknown> = {}, keys = ["terminal:t1"]) =>
+    h.controller.setWork({ root: "/repo", path: h.row.path, work: { source: "terminal:claude:s1", key: "terminal:t1", ...(frame === undefined ? {} : { frame }), waiting: false, ...over }, keys });
+  // The board's top in screen px: where the view put board y 0.
+  const top = (h: H) => h.controller.currentView().y;
+  const followsNext = (h: H, frame: string) => { const before = top(h); vi.advanceTimersByTime(5000); setWork(h, frame); return top(h) !== before; };
+  const fitView = { x: 100, y: 80, scale: 1 };
+
+  it("an update naming a frame off screen moves the view to it once the person rested 5 s, keeping the zoom, and selects nothing", () => {
+    const h = rested();
+    try {
+      // Entering the canvas counted as a person's moment; the work arrives with nothing on it yet.
+      h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+      setWork(h, "far");
+      expect(h.controller.currentView()).toEqual(elementView(FRAMES[2]!, { width: 800, height: 600 }, FIT_INSET, fitView));
+      expect(h.state().selection).toBeNull();
+      // The same frame's next update or a reload does not move again.
+      const after = top(h);
+      setWork(h, "far", { source: "terminal:claude:s1" });
+      h.layout({ frames: FRAMES });
+      expect(top(h)).toBe(after);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("does not follow before the rest is over, and a reload adding the frame later follows it", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const h = selectionHarness();
+    try {
+      h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+      vi.advanceTimersByTime(5000);
+      setWork(h, "new");
+      expect(h.controller.currentView()).toEqual(fitView);
+      h.layout({ frames: [...FRAMES, { id: "new", x: 0, y: 3000, width: 100, height: 100 }] });
+      expect(top(h)).not.toBe(fitView.y);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("opening a canvas mid-turn counts its working frame as followed; the next frame follows", () => {
+    const h = rested();
+    try {
+      setWork(h, "far");
+      expect(h.controller.currentView()).toEqual(fitView);
+      expect(followsNext(h, "farther")).toBe(true);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("an update from another work source changes the marker only", () => {
+    const h = rested();
+    try {
+      h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+      setWork(h, "intro");
+      vi.advanceTimersByTime(5000);
+      setWork(h, "far", { source: "conversation:p1", key: "conversation:p1:u1" }, ["terminal:t1", "conversation:p1:u1"]);
+      expect(h.controller.currentView()).toEqual(fitView);
+    } finally { h.controller.dispose(); }
+  });
+
+  const personMoves: [string, (h: H) => void][] = [
+    ["a wheel pan", h => h.controller.wheel({ dx: 0, dy: 10, ctrl: false, meta: false, deltaMode: 0 }, { x: 0, y: 0 })],
+    ["a pinch or ⌘-wheel zoom", h => h.controller.wheel({ dx: 0, dy: -10, ctrl: true, meta: false, deltaMode: 0 }, { x: 0, y: 0 })],
+    ["a zoom button or shortcut", h => h.controller.command("zoomIn")],
+    ["Fit", h => h.controller.command("fit")],
+    ["the zoom menu", h => h.controller.zoomTo(0.5)],
+    ["a Hand drag", h => {
+      h.controller.setTool("hand");
+      const pointer = (type: string, over: Record<string, unknown> = {}) => h.layer.dispatchEvent(Object.assign(new Event(type, { cancelable: true }), { button: 0, pointerId: 1, clientX: 0, clientY: 0, ...over }));
+      pointer("pointerdown", { clientX: 10, clientY: 10 }); pointer("pointermove", { clientX: 30, clientY: 40 }); pointer("pointerup");
+      h.controller.setTool("select");
+    }],
+    ["the frame drawer", h => { h.controller.selectFrame(1, "hero"); h.layout({ frames: FRAMES }); }],
+    ["Quick Open, `doan open --frame` or a doan:// link to a frame", h => { h.controller.openCanvas("/repo", h.row, { frame: "hero" }); h.layout({ frames: FRAMES }); }],
+  ];
+  for (const [name, move] of personMoves) {
+    it(`${name} stops following for the work turn`, () => {
+      const h = rested();
+      try {
+        h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+        setWork(h, "intro");
+        move(h);
+        expect(followsNext(h, "far")).toBe(false);
+        // A new work turn (an update after done) follows again.
+        vi.advanceTimersByTime(5000);
+        const before = top(h);
+        setWork(h, "farther", { key: "terminal:t2" }, ["terminal:t2"]);
+        expect(top(h)).not.toBe(before);
+      } finally { h.controller.dispose(); }
+    });
+  }
+
+  it("a chip's Locate stops following for the work turn", () => {
+    const h = rested();
+    try {
+      h.layout({ frames: FRAMES, document: "doc" });
+      h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+      setWork(h, "intro");
+      h.controller.locate({ frame: { id: "hero" } }, vi.fn());
+      const q = h.current().contentWindow.postMessage.mock.calls.map(c => c[0]).filter(c => c.type === "anchors-query").at(-1);
+      h.receive({ type: "anchors", document: "doc", generation: q.generation, request: q.request, revision: 1, width: 600, selectionSeq: 0, selected: null,
+        results: [{ id: q.targets[0]!.id, candidates: { frame: ["n1"] } }], rects: [{ node: "n1", x: 0, y: 20, width: 10, height: 10 }] });
+      expect(followsNext(h, "far")).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("the app's own view changes do not stop it: a follow move, a reload, the open fit and settleFit", () => {
+    const h = rested();
+    try {
+      h.controller.settleFit();
+      h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+      setWork(h, "far");
+      expect(top(h)).not.toBe(fitView.y);
+      h.controller.command("reload");
+      h.layout({ frames: FRAMES });
+      expect(followsNext(h, "farther")).toBe(true);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("restoring a remembered view on coming back to the workspace does not stop it", () => {
+    const h = rested();
+    try {
+      h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [h.row, h.other] }, { path: "/b", kind: "list", servedRev: 0, canvases: [{ ...h.other, url: "http://localhost/t/k/g/.doan/canvases/b.html" }] }]);
+      h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+      setWork(h, "intro");
+      // Back before App has told the controller about the other workspace: the restore lands while this canvas's work
+      // is still the one it knows.
+      h.controller.openWorkspace("/b", vi.fn());
+      h.controller.openWorkspace("/repo", vi.fn());
+      h.layout({ frames: FRAMES });
+      setWork(h, "intro");
+      expect(followsNext(h, "far")).toBe(true);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("a pointer move on the board, a selection change and composer typing restart the rest; a selection change mid-turn also stops", () => {
+    const h = rested();
+    try {
+      h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+      // Hover from the canvas, then 4.9 s: not rested.
+      vi.advanceTimersByTime(5000);
+      h.receive({ type: "hover", seq: 1, rect: h.target.rect });
+      vi.advanceTimersByTime(4900);
+      setWork(h, "far");
+      expect(h.controller.currentView()).toEqual(fitView);
+      // Composer typing restarts it too and stops nothing: once rested, the frame waiting for the rest follows.
+      h.host.dispatchEvent(new Event("input"));
+      vi.advanceTimersByTime(4900);
+      setWork(h, "farther");
+      expect(h.controller.currentView()).toEqual(fitView);
+      vi.advanceTimersByTime(100);
+      expect(h.controller.currentView()).toEqual(elementView(FRAMES[3]!, { width: 800, height: 600 }, FIT_INSET, fitView));
+    } finally { h.controller.dispose(); }
+  });
+
+  it("a selection change during the work turn stops following", () => {
+    const h = rested();
+    try {
+      h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+      setWork(h, "intro");
+      h.select(1);
+      expect(followsNext(h, "far")).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  const busy: [string, (h: H) => void][] = [
+    ["a pick", h => { h.controller.pick(); }],
+    ["capture mode", h => { h.controller.startCapture(); }],
+    ["a held Space", h => { h.host.dispatchEvent(Object.assign(new Event("keydown", { cancelable: true }), { code: "Space", key: " " })); }],
+    ["another page", h => { h.controller.setCanvasPage(false); }],
+    ["a menu or dialog", h => { h.controller.overlayOpen = () => true; }],
+  ];
+  for (const [name, start] of busy) {
+    it(`does not follow during ${name}`, () => {
+      const h = rested();
+      try {
+        h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+        start(h);
+        vi.advanceTimersByTime(5000);
+        setWork(h, "far");
+        expect(h.controller.currentView()).toEqual(fitView);
+      } finally { h.controller.dispose(); }
+    });
+  }
+
+  it("a stop covers every work turn on the canvas, whichever wins later", () => {
+    const h = rested();
+    try {
+      const keys = ["terminal:t1", "conversation:p1:u1"];
+      h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys });
+      setWork(h, "intro", {}, keys);
+      h.controller.wheel({ dx: 0, dy: 10, ctrl: false, meta: false, deltaMode: 0 }, { x: 0, y: 0 });
+      vi.advanceTimersByTime(5000);
+      setWork(h, "far", { source: "conversation:p1", key: "conversation:p1:u1" }, keys);
+      vi.advanceTimersByTime(5000);
+      const before = top(h);
+      setWork(h, "farther", { source: "conversation:p1", key: "conversation:p1:u1" }, keys);
+      expect(top(h)).toBe(before);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("leaving the canvas and coming back in the same turn keeps the stop", () => {
+    const h = rested();
+    try {
+      h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+      setWork(h, "intro");
+      h.controller.wheel({ dx: 0, dy: 10, ctrl: false, meta: false, deltaMode: 0 }, { x: 0, y: 0 });
+      h.controller.openCanvas("/repo", h.other);
+      h.controller.setWork({ root: "/repo", path: h.other.path, work: null, keys: [] });
+      h.controller.openCanvas("/repo", h.row);
+      h.layout({ frames: FRAMES });
+      setWork(h, "intro");
+      expect(followsNext(h, "far")).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("coming back to the canvas page counts the working frame as followed", () => {
+    const h = rested();
+    try {
+      h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+      h.controller.setCanvasPage(false);
+      setWork(h, "far");
+      h.controller.setCanvasPage(true);
+      vi.advanceTimersByTime(5000);
+      h.layout({ frames: FRAMES });
+      expect(h.controller.currentView()).toEqual(fitView);
+      expect(followsNext(h, "farther")).toBe(true);
+    } finally { h.controller.dispose(); }
+  });
+  // V3 review 🟡1: a change of work source counts its frame as followed even before the frame exists or mid-reload.
+  it("an update from another source naming a frame the document does not have yet never moves when a reload adds it", () => {
+    const h = rested();
+    try {
+      h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+      setWork(h, "intro");
+      vi.advanceTimersByTime(5000);
+      setWork(h, "new", { source: "conversation:p1", key: "conversation:p1:u1" }, ["terminal:t1", "conversation:p1:u1"]);
+      h.layout({ frames: [...FRAMES, { id: "new", x: 0, y: 3000, width: 100, height: 100 }] });
+      expect(h.controller.currentView()).toEqual(fitView);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("an update from another source arriving mid-reload never moves once the document lays out", () => {
+    const h = rested();
+    try {
+      h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+      setWork(h, "intro");
+      vi.advanceTimersByTime(5000);
+      h.controller.command("reload");
+      setWork(h, "far", { source: "conversation:p1", key: "conversation:p1:u1" }, ["terminal:t1", "conversation:p1:u1"]);
+      h.layout({ frames: FRAMES });
+      expect(h.controller.currentView()).toEqual(fitView);
+    } finally { h.controller.dispose(); }
+  });
+
+  // V3 review 🟡2: the canvas reports pointer activity even when the hovered element stays the same.
+  it("the canvas's pointer activity restarts the rest", () => {
+    const h = rested();
+    try {
+      h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+      vi.advanceTimersByTime(5000);
+      h.receive({ type: "activity" });
+      vi.advanceTimersByTime(4900);
+      setWork(h, "far");
+      expect(h.controller.currentView()).toEqual(fitView);
+    } finally { h.controller.dispose(); }
+  });
+
+  // V3 review 🟡3: any open menu on the page (conversation and composer menus are role=menu) holds following off.
+  for (const part of [".doan-frame-list", ".doan-zoom-menu", '[role="menu"]', "dialog[open]", '[role="dialog"]:not(dialog)']) {
+    it(`an open ${part} holds following off`, () => {
+      const h = rested();
+      try {
+        (h.doc as unknown as { querySelector(selector: string): unknown }).querySelector = (selector: string) => selector.split(",").map(item => item.trim()).includes(part) ? {} : null;
+        h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+        setWork(h, "far");
+        expect(h.controller.currentView()).toEqual(fitView);
+      } finally { h.controller.dispose(); }
+    });
+  }
+
+  // V3 review 🟡7: the person's deselect (Escape, a click on the board's margin) stops the turn; the app's does not.
+  it("Escape clearing a selection made before the turn stops following", () => {
+    const h = rested();
+    try {
+      h.select(1);
+      vi.advanceTimersByTime(5000);
+      h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+      setWork(h, "intro");
+      h.host.dispatchEvent(Object.assign(new Event("keydown", { cancelable: true }), { code: "Escape", key: "Escape" }));
+      expect(h.state().selection).toBeNull();
+      expect(followsNext(h, "far")).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("the app clearing a lost selection does not stop following", () => {
+    const h = rested();
+    try {
+      h.select(1);
+      vi.advanceTimersByTime(5000);
+      h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+      setWork(h, "intro");
+      h.layout({ seq: 1, selected: null, frames: FRAMES });
+      expect(h.state().selection).toBeNull();
+      expect(followsNext(h, "far")).toBe(true);
+    } finally { h.controller.dispose(); }
+  });
+
+  // V3 review 🟡4: reduced motion turns the slide off too, at the slide's own specificity.
+  it("the slide is defined only for people who allow motion", async () => {
+    const { readFileSync } = await import("node:fs");
+    const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+    expect(css).toMatch(/@media \(prefers-reduced-motion: no-preference\) \{ \.mark\.jump-highlight\.working\.moving \{ transition: left var\(--time-settle\)/);
+    expect(css).not.toMatch(/^\.mark\.jump-highlight\.working\.moving \{/m);
+  });
+  // R1 runtime FAIL: a reload's first layout reported every frame as 0 × 0 at (0, 0); follow judged on it, counted the
+  // new frame as followed (or centred board 0, 0), and never followed it once the real layout came.
+  it("a reload whose first layout has zero-size frames waits for the real layout, then moves once to the frame", () => {
+    const h = rested();
+    try {
+      h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+      setWork(h, "late");
+      h.controller.command("reload");
+      const zero = [...FRAMES, { id: "late", x: 0, y: 3000, width: 100, height: 100 }].map(frame => ({ ...frame, x: 0, y: 0, width: 0, height: 0 }));
+      h.layout({ frames: zero });
+      expect(h.controller.currentView()).toEqual(fitView);
+      expect(h.marks.find(mark => mark.className.includes("working"))?.hidden ?? true).toBe(true);
+      const real = [...FRAMES, { id: "late", x: 0, y: 3000, width: 100, height: 100 }];
+      h.layout({ frames: real });
+      const moved = h.controller.currentView();
+      expect(moved).toEqual(elementView(real.at(-1)!, { width: 800, height: 600 }, FIT_INSET, fitView));
+      h.layout({ frames: real });
+      expect(h.controller.currentView()).toEqual(moved);
+    } finally { h.controller.dispose(); }
+  });
+
+  // Conductor's reading of spec 9: a frame waiting only for the rest is judged again when the rest ends.
+  it("a frame named before the rest is over follows when the rest ends, not before", () => {
+    const h = rested();
+    try {
+      h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+      h.receive({ type: "activity" });
+      vi.advanceTimersByTime(2000);
+      setWork(h, "far");
+      vi.advanceTimersByTime(2900);
+      expect(h.controller.currentView()).toEqual(fitView);
+      vi.advanceTimersByTime(100);
+      expect(h.controller.currentView()).toEqual(elementView(FRAMES[2]!, { width: 800, height: 600 }, FIT_INSET, fitView));
+    } finally { h.controller.dispose(); }
+  });
+
+  it("moving again restarts the rest: no move at the first end, a move at the new one", () => {
+    const h = rested();
+    try {
+      h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+      h.receive({ type: "activity" });
+      setWork(h, "far");
+      vi.advanceTimersByTime(3000);
+      h.receive({ type: "activity" });
+      vi.advanceTimersByTime(2500);
+      expect(h.controller.currentView()).toEqual(fitView);
+      vi.advanceTimersByTime(2500);
+      expect(h.controller.currentView()).not.toEqual(fitView);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("no move at the end of the rest once the turn is stopped, the turn ends, or the canvas changes", () => {
+    for (const end of [
+      (h: H) => h.controller.wheel({ dx: 0, dy: 10, ctrl: false, meta: false, deltaMode: 0 }, { x: 0, y: 0 }),
+      (h: H) => h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] }),
+      (h: H) => { h.controller.openCanvas("/repo", h.other); h.controller.setWork({ root: "/repo", path: h.other.path, work: null, keys: [] }); },
+    ]) {
+      const h = rested();
+      try {
+        h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+        h.receive({ type: "activity" });
+        setWork(h, "far");
+        end(h);
+        const after = h.controller.currentView();
+        vi.advanceTimersByTime(10_000);
+        expect(h.controller.currentView()).toEqual(after);
+      } finally { h.controller.dispose(); vi.useRealTimers(); vi.unstubAllGlobals(); }
+    }
   });
 });

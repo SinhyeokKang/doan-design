@@ -3,7 +3,8 @@ import type { ConversationSummary } from "../main/conversation/summary";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { WorkItem } from "../main/workState";
 import type { AgentPresence } from "./agentPresence";
-import { agentNoticeView, canvasAgent, DOT_FIELD, DotFieldLoop, drawDotField, listForPresence, settleStopping, siblingWork, stopFailedText, stopTurn, workingCanvas } from "./agentIndicator";
+import { agentNoticeView, canvasAgent, DOT_FIELD, DotFieldLoop, drawDotField, listForPresence, canvasWorkTarget, pickWork, workFrameTitle, settleStopping, siblingWork, stopFailedText, stopTurn, workFrameRect, workingCanvas } from "./agentIndicator";
+import type { ConversationWork } from "../main/conversationWork";
 
 // buzz-canvas R5 (design §2 '에이전트 작업 표시', §5 copy): which canvas the indicator reads, the notice's button, Stop's
 // lifecycle and the dot field's loop.
@@ -112,11 +113,11 @@ describe("canvasAgent", () => {
 describe("canvasAgent with terminal sessions", () => {
   const target = { root: "/w/a", canvas: { path: row.path, id: "billing" } };
   const b = { root: "/w/b", canvas: target.canvas };
-  const work = (root: string, provider: WorkItem["provider"] = "claude"): WorkItem => ({ root, path: row.path, provider, session: provider ? "s1" : null });
+  const work = (root: string, provider: WorkItem["provider"] = "claude"): WorkItem => ({ root, path: row.path, provider, session: provider ? "s1" : null, touched: 0, turn: "none:t" });
   const terminal = (root: string) => ({ root, presence: null, terminal: true });
   test("a terminal session on the canvas shows the indicator: the app notice's text, no button", () => {
     expect(canvasAgent([], target, null, [work("/w/a")])).toEqual(terminal("/w/a"));
-    expect(agentNoticeView(null, null, true)).toEqual({ text: "Agent is working", steady: false, action: null });
+    expect(agentNoticeView(null, null, true)).toEqual({ text: "Agent is working", status: "Agent is working", steady: false, action: null });
   });
   test("an anonymous session shows it too, and a failed or loading list does not hide it", () => {
     expect(canvasAgent([], target, null, [work("/w/a", null)])).toEqual(terminal("/w/a"));
@@ -172,7 +173,7 @@ describe("siblingWork", () => {
   const b: FolderEntry = { path: "/w/b", kind: "list", servedRev: 0, canvases: [row], git: git("/w/a", "feat/checkout-copy") };
   const c: FolderEntry = { path: "/w/c", kind: "list", servedRev: 0, canvases: [row], git: { ...git("/w/a"), detached: "0123456789abcdef" } };
   const target = { root: "/w/a", canvas: { path: row.path, id: "billing" } };
-  const work = (root: string, path = row.path): WorkItem => ({ root, path, provider: "claude", session: "s1" });
+  const work = (root: string, path = row.path): WorkItem => ({ touched: 0, turn: "none:t", root, path, provider: "claude", session: "s1" });
   test("another worktree of the same project working on the same path is named by its branch", () => {
     expect(siblingWork([work("/w/b")], target, [a, b])).toEqual({ root: "/w/b", label: "feat/checkout-copy" });
   });
@@ -210,7 +211,7 @@ describe("agentNoticeView", () => {
     expect(agentNoticeView(null, null, false)).toBeNull();
   });
   test("working: the moving dot, the label and Stop", () => {
-    expect(agentNoticeView(working, null, false)).toEqual({ text: "Agent is working", steady: false, action: { kind: "stop", label: "Stop", disabled: false } });
+    expect(agentNoticeView(working, null, false)).toEqual({ text: "Agent is working", status: "Agent is working", steady: false, action: { kind: "stop", label: "Stop", disabled: false } });
   });
   test("after Stop: 'Stopping', unavailable but still focusable", () => {
     expect(agentNoticeView(working, "c1", false)?.action).toEqual({ kind: "stop", label: "Stopping", disabled: true });
@@ -219,7 +220,7 @@ describe("agentNoticeView", () => {
     expect(agentNoticeView(working, "c0", false)?.action).toEqual({ kind: "stop", label: "Stop", disabled: false });
   });
   test("waiting: a still dot and Open, named for the request; no Stop", () => {
-    expect(agentNoticeView(waiting, null, false)).toEqual({ text: "Agent needs your answer", steady: true, action: { kind: "open", label: "Open", name: "Open the request" } });
+    expect(agentNoticeView(waiting, null, false)).toEqual({ text: "Agent needs your answer", status: "Agent needs your answer", steady: true, action: { kind: "open", label: "Open", name: "Open the request" } });
     expect(agentNoticeView(waiting, "c1", false)?.action?.kind).toBe("open");
   });
 });
@@ -335,5 +336,153 @@ describe("DotFieldLoop", () => {
     field.set({ running: true });
     field.dispose();
     expect(cancel).toHaveBeenCalledWith(frames.length);
+  });
+});
+
+// work-update A5 (design §1 rules 6–8, decisions 13, 15, 18): which work content the open canvas shows, the notice's
+// words for it, and the frame its marker goes on. Identity is root + path (POSTMORTEM 2026-11-01).
+describe("work content on the open canvas", () => {
+  const target = { root: "/w/a", canvas: { path: row.path, id: "billing" } };
+  const b = { root: "/w/b", canvas: target.canvas };
+  const term = (patch: Partial<WorkItem> = {}): WorkItem => ({ session: "s1", provider: "claude", root: "/w/a", path: row.path, touched: 10, turn: "t1", ...patch });
+  const conv = (patch: Partial<ConversationWork> = {}): ConversationWork => ({ conversationId: "p1", root: "/w/a", path: row.path, touched: 20, turnId: "u1", ...patch });
+
+  describe("pickWork", () => {
+    test("the canvas's own working conversation wins over a later terminal update", () => {
+      const own = conv({ conversationId: "c1", frame: "plans", note: "Drawing Plans", touched: 5 });
+      expect(pickWork(target, working, [own], [term({ touched: 50, frame: "other" })])).toEqual({
+        source: "conversation:c1", key: "conversation:c1:u1", touched: 5, frame: "plans", note: "Drawing Plans", waiting: false });
+    });
+    test("the canvas's own conversation without content on this canvas shows no content, not the terminal's", () => {
+      expect(pickWork(target, working, [conv({ conversationId: "c1", path: ".doan/canvases/other.html" })], [term({ frame: "a" })])).toBeNull();
+    });
+    test("waiting keeps the content, marked waiting: the marker stays and stops moving", () => {
+      expect(pickWork(target, waiting, [conv({ conversationId: "c1", frame: "plans" })], [])).toMatchObject({ frame: "plans", waiting: true });
+    });
+    test("without an app presence, the last update wins among project conversations and terminal sessions", () => {
+      expect(pickWork(target, null, [conv({ touched: 20, frame: "p" })], [term({ touched: 10, frame: "t" })])).toMatchObject({ source: "conversation:p1", frame: "p" });
+      expect(pickWork(target, null, [conv({ touched: 20, frame: "p" })], [term({ touched: 30, frame: "t" })])).toEqual({
+        source: "terminal:claude:s1", key: "terminal:t1", touched: 30, frame: "t", waiting: false });
+    });
+    test("a canvas conversation bound to another canvas that names this one counts like a project conversation (decision 13)", () => {
+      expect(pickWork(target, null, [conv({ conversationId: "c9", frame: "f" })], [])).toMatchObject({ source: "conversation:c9", frame: "f" });
+    });
+    test("another root's work on the same path never shows here, across switches between the two roots", () => {
+      const items = [term({ root: "/w/b", frame: "tb" })], convs = [conv({ root: "/w/b", frame: "cb" })];
+      expect(pickWork(target, null, convs, items)).toBeNull();
+      expect(pickWork(b, null, convs, items)).toMatchObject({ source: "conversation:p1", frame: "cb" });
+      expect(pickWork(target, null, convs, items)).toBeNull();
+      expect(pickWork(b, null, [], items)).toMatchObject({ frame: "tb" });
+    });
+    test("another canvas's work and no canvas show nothing", () => {
+      expect(pickWork(target, null, [conv({ path: ".doan/canvases/other.html" })], [term({ path: ".doan/canvases/other.html" })])).toBeNull();
+      expect(pickWork(null, null, [conv()], [term()])).toBeNull();
+    });
+  });
+
+  describe("canvasAgent with conversation work", () => {
+    test("a project conversation naming this canvas shows the indicator without Stop (decision 15)", () => {
+      expect(canvasAgent([], target, null, [], [conv()])).toEqual({ root: "/w/a", presence: null, terminal: true });
+      expect(agentNoticeView(null, null, true)?.action).toBeNull();
+    });
+    test("a canvas conversation bound to another canvas naming this one shows the same variant", () => {
+      const elsewhere = summary({ canvas: { path: ".doan/canvases/other.html", id: "other" } });
+      expect(canvasAgent([elsewhere], target, null, [], [conv({ conversationId: "c1" })])).toEqual({ root: "/w/a", presence: null, terminal: true });
+    });
+    test("another root's conversation work on the same path shows nothing here", () => {
+      expect(canvasAgent([], target, null, [], [conv({ root: "/w/b" })])).toBeNull();
+      expect(canvasAgent([], b, null, [], [conv({ root: "/w/b" })])).toEqual({ root: "/w/b", presence: null, terminal: true });
+    });
+  });
+
+  describe("agentNoticeView with content", () => {
+    test("the note is the text; with a frame too the status adds the frame's title", () => {
+      expect(agentNoticeView(null, null, true, { note: "Drawing the empty state", frame: "plans-empty", title: "Plans · empty" })).toEqual({
+        text: "Drawing the empty state", status: "Drawing the empty state — Plans · empty", steady: false, action: null });
+      expect(agentNoticeView(null, null, true, { note: "Drawing the empty state" })).toMatchObject({ text: "Drawing the empty state", status: "Drawing the empty state" });
+    });
+    test("a frame without a note: 'Working on <title>', else its id before a layout names it", () => {
+      expect(agentNoticeView(null, null, true, { frame: "plans", title: "Plans" })).toMatchObject({ text: "Working on Plans", status: "Working on Plans" });
+      expect(agentNoticeView(null, null, true, { frame: "plans" })).toMatchObject({ text: "Working on plans", status: "Working on plans" });
+    });
+    test("no frame and no note keeps 'Agent is working'", () => {
+      expect(agentNoticeView(null, null, true, {})).toMatchObject({ text: "Agent is working", status: "Agent is working" });
+    });
+    test("the canvas's own conversation keeps Stop with the content's words", () => {
+      expect(agentNoticeView(working, null, false, { note: "Drawing" })).toEqual({ text: "Drawing", status: "Drawing", steady: false, action: { kind: "stop", label: "Stop", disabled: false } });
+    });
+    test("waiting: 'Agent needs your answer' over any content, with a still dot", () => {
+      expect(agentNoticeView(waiting, null, false, { note: "Drawing", frame: "plans", title: "Plans" })).toEqual({
+        text: "Agent needs your answer", status: "Agent needs your answer", steady: true, action: { kind: "open", label: "Open", name: "Open the request" } });
+    });
+  });
+
+  describe("workFrameRect", () => {
+    const frames = [{ id: "a", title: "A", x: 0, y: 0, width: 10, height: 10 }, { id: "b", x: 0, y: 20, width: 10, height: 10 }, { id: "a", x: 0, y: 40, width: 10, height: 10 }];
+    test("the frame with the id; with duplicate ids the first, as frame jumps take it", () => {
+      expect(workFrameRect({ frames }, "b")).toEqual(frames[1]);
+      expect(workFrameRect({ frames }, "a")).toEqual(frames[0]);
+    });
+    test("an id the document does not have, an empty layout, no layout (a canvas without doan:width) or no frame: none", () => {
+      expect(workFrameRect({ frames }, "missing")).toBeNull();
+      expect(workFrameRect({ frames: [] }, "a")).toBeNull();
+      expect(workFrameRect(null, "a")).toBeNull();
+      expect(workFrameRect({ frames }, undefined)).toBeNull();
+    });
+    // R1: a reload's first layout can carry every frame as 0 × 0 before the document is measured; no marker goes there.
+    test("a frame with no size is not placed", () => {
+      expect(workFrameRect({ frames: [{ id: "a", x: 0, y: 0, width: 0, height: 0 }] }, "a")).toBeNull();
+      expect(workFrameRect({ frames: [{ id: "a", x: 0, y: 0, width: 10, height: 0 }] }, "a")).toBeNull();
+    });
+  });
+});
+
+// work-update R2: what App hands the controller for the marker and following, from the notice's own pick.
+describe("canvasWorkTarget", () => {
+  const target = { root: "/w/a", canvas: { path: row.path, id: "billing" } };
+  const term = (patch: Partial<WorkItem> = {}): WorkItem => ({ session: "s1", provider: "claude", root: "/w/a", path: row.path, touched: 10, turn: "claude:t1", ...patch });
+  const conv = (patch: Partial<ConversationWork> = {}): ConversationWork => ({ conversationId: "p1", root: "/w/a", path: row.path, touched: 20, turnId: "u1", ...patch });
+  test("the open canvas, the picked work and every work turn on this root and path", () => {
+    const conversations = [conv({ frame: "plans" }), conv({ conversationId: "p2", root: "/w/b" })], terminal = [term(), term({ path: ".doan/canvases/other.html", turn: "claude:t9" })];
+    expect(canvasWorkTarget(target, pickWork(target, null, conversations, terminal), conversations, terminal)).toEqual({
+      root: "/w/a", path: row.path, work: { source: "conversation:p1", key: "conversation:p1:u1", frame: "plans", waiting: false },
+      keys: ["conversation:p1:u1", "terminal:claude:t1"] });
+  });
+  test("a canvas without work still names it, so the controller sees the canvas change; no canvas is null", () => {
+    expect(canvasWorkTarget(target, null, [], [])).toEqual({ root: "/w/a", path: row.path, work: null, keys: [] });
+    expect(canvasWorkTarget(null, null, [conv()], [term()])).toBeNull();
+  });
+  test("waiting carries to the controller", () => {
+    const own = [conv({ conversationId: "c1", frame: "plans" })];
+    expect(canvasWorkTarget(target, pickWork(target, waiting, own, []), own, [])?.work).toMatchObject({ frame: "plans", waiting: true });
+  });
+});
+
+// V3 review 🟡6: the frame title kept across a reload belongs to its root, canvas path and work turn.
+describe("workFrameTitle", () => {
+  const a = { root: "/w/a", canvas: { path: ".doan/canvases/a.html" } };
+  const picked = { source: "terminal:claude:s1", key: "terminal:claude:t1", touched: 1, frame: "plans", waiting: false };
+  const frames = [{ id: "plans", title: "Plans A", x: 0, y: 0, width: 1, height: 1 }];
+  test("a found title is used and kept while the same turn's frame has no layout", () => {
+    const first = workFrameTitle(null, a, picked, frames);
+    expect(first.title).toBe("Plans A");
+    expect(workFrameTitle(first.cache, a, picked, null).title).toBe("Plans A");
+    expect(workFrameTitle(first.cache, a, picked, []).title).toBe("Plans A");
+  });
+  test("another canvas path, another root or a new turn does not reuse it", () => {
+    const { cache } = workFrameTitle(null, a, picked, frames);
+    expect(workFrameTitle(cache, { root: "/w/a", canvas: { path: ".doan/canvases/b.html" } }, picked, null).title).toBeUndefined();
+    expect(workFrameTitle(cache, { root: "/w/b", canvas: a.canvas }, picked, null).title).toBeUndefined();
+    expect(workFrameTitle(cache, a, { ...picked, key: "terminal:claude:t2" }, null).title).toBeUndefined();
+  });
+  test("an update without a frame, or no work, clears it", () => {
+    const { cache } = workFrameTitle(null, a, picked, frames);
+    const { frame: _f, ...plain } = picked;
+    const cleared = workFrameTitle(cache, a, plain, frames);
+    expect(cleared).toEqual({ title: undefined, cache: null });
+    expect(workFrameTitle(cache, a, null, frames).cache).toBeNull();
+  });
+  test("a frame without data-doan-title is named by its id", () => {
+    expect(workFrameTitle(null, a, picked, [{ id: "plans", x: 0, y: 0, width: 1, height: 1 }]).title).toBe("plans");
   });
 });

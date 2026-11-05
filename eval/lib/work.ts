@@ -6,7 +6,8 @@ export const contentHash = (bytes: string | Buffer | null): string | null => byt
 export function workChecks(ctx: CheckContext): Check[] {
   const changed = ctx.changedFiles().filter(path => /^\.doan\/(canvases|ds)\/[^/]+\.html$/.test(path));
   const log = ctx.work().filter(entry => entry.response.ok);
-  const starts = changed.map(path => ({ path, first: log.find(entry => entry.request.action === "start" && entry.request.path === path) }));
+  // update also counts as start (guide rule I).
+  const starts = changed.map(path => ({ path, first: log.find(entry => (entry.request.action === "start" || entry.request.action === "update") && entry.request.path === path) }));
   const done = log.findLast(entry => entry.request.action === "done");
   return [
     { id: "start_before_edit", pass: changed.length > 0 && starts.every(({ path, first }) => first !== undefined && path in first.hashes && first.hashes[path] === contentHash(ctx.seed(path))), detail: JSON.stringify(starts) },

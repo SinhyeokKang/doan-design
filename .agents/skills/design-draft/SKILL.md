@@ -46,7 +46,7 @@ If spec and design leave a visible choice open (a state, a label, a placement), 
 
 Write the canvas at the path the request names (one HTML file, ARCHITECTURE §1 convention 1).
 
-- **Work signal** (guide rules I and J, as any agent editing a canvas): run `doan work start <canvas path> --json` before the first edit, and again when several minutes pass between edits. When you stop drawing (handing over, or stopping to ask), run `doan work done <canvas path> --json`. `delivered: false` is expected when the checkout is not a project registered in the app (for example an unregistered worktree); do not retry it, and note it in the report.
+- **Work signal** (guide rules I and J, as any agent editing a canvas): run `doan work start <canvas path> --json` before the first edit, and `doan work update <canvas path> --frame <id> --note "<what you are drawing, one short line in the person's language>" --json` each time you start editing a frame. When you stop drawing (handing over, or stopping to ask), run `doan work done <canvas path> --json`. `delivered: false` is expected when the checkout is not a project registered in the app (for example an unregistered worktree); do not retry it, and note it in the report.
 
 - **Conventions** (ARCHITECTURE §1): `<meta name="doan:canvas">` with the requested id and `<meta name="doan:width">` in `<head>`; every requested frame as `data-doan-frame` with a `data-doan-title`; `data-doan-id` on elements the implementation will be paired with or a message will point at.
 - **`data-doan-implements` points only to files that exist now.** A path to a file the feature will create is an `implements_not_found` error.

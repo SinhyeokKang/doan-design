@@ -4,7 +4,7 @@ import type { OnboardingResponse, OpenResponse } from "../formats/types";
 import type { FolderState } from "./folderState";
 const token = "secret", root = "/repo", path = ".doan/canvases/a.html";
 const request = { v: 3, token, root, action: "start", path };
-const state = () => ({ isOpen: vi.fn((value: string) => value === root), selection: () => null, work: vi.fn(), onboarding: async (): Promise<OnboardingResponse> => ({ v: 2, ok: false, error: { code: "bad_request", message: "unused" } }),
+const state = () => ({ isOpen: vi.fn((value: string) => value === root), selection: () => null, work: vi.fn(), conversationWork: vi.fn(), onboarding: async (): Promise<OnboardingResponse> => ({ v: 2, ok: false, error: { code: "bad_request", message: "unused" } }),
   open: async (): Promise<OpenResponse> => ({ v: 4, ok: false, error: { code: "busy", message: "unused" } }),
   roots: () => [root], readRoot: vi.fn(async (): Promise<FolderState> => ({ kind: "uninitialized" })), adopt: vi.fn() });
 test("v3 validates schema, then token, then registered root, before applying work", async () => {
@@ -18,6 +18,46 @@ test("v3 validates schema, then token, then registered root, before applying wor
   expect(await response(request)).toEqual({ v: 3, ok: true });
   expect(service.work).toHaveBeenCalledWith(request);
   expect(await response({ v: 3, token, root, action: "done" })).toEqual({ v: 3, ok: true });
+});
+// work-update design §1 rule 1-5: an update counts as a start; one naming a conversation goes to the conversation state.
+describe("update", () => {
+  const update = { v: 3, token, root, action: "update", path, frame: "hero", note: "Drawing the hero", session: "s1", provider: "claude" };
+  const conversation = { v: 3, token, root, action: "update", path, frame: "hero", conversation: "c1" };
+  test("a terminal update is checked like a start and applied as work", async () => {
+    const service = state();
+    const response = (value: unknown) => answerLine(JSON.stringify(value), token, service);
+    expect(await response({ ...update, path: "outside.html" })).toMatchObject({ v: 3, ok: false, error: { code: "bad_request" } });
+    expect(await response({ ...update, root: "/closed" })).toMatchObject({ v: 3, ok: false, error: { code: "project_not_open" } });
+    expect(service.work).not.toHaveBeenCalled();
+    expect(await response(update)).toEqual({ v: 3, ok: true });
+    expect(service.work).toHaveBeenCalledExactlyOnceWith(update);
+    expect(service.conversationWork).not.toHaveBeenCalled();
+  });
+  test("a conversation update goes only to the conversation state, whatever its root", async () => {
+    const service = state();
+    const response = (value: unknown) => answerLine(JSON.stringify(value), token, service);
+    expect(await response(conversation)).toEqual({ v: 3, ok: true });
+    expect(await response({ ...conversation, root: "/closed" })).toEqual({ v: 3, ok: true });
+    expect(service.conversationWork.mock.calls).toEqual([[conversation], [{ ...conversation, root: "/closed" }]]);
+    expect(service.work).not.toHaveBeenCalled();
+    expect(service.isOpen).not.toHaveBeenCalled();
+    expect(service.readRoot).not.toHaveBeenCalled();
+  });
+  test("a conversation update keeps the schema, token and path order", async () => {
+    const service = state();
+    const response = (value: unknown) => answerLine(JSON.stringify(value), token, service);
+    expect(await response({ ...conversation, session: "s1", token: "wrong" })).toMatchObject({ v: 3, ok: false, error: { code: "bad_request" } });
+    expect(await response({ ...conversation, token: "wrong" })).toMatchObject({ v: 3, ok: false, error: { code: "bad_token" } });
+    expect(await response({ ...conversation, path: "outside.html" })).toMatchObject({ v: 3, ok: false, error: { code: "bad_request" } });
+    expect(service.conversationWork).not.toHaveBeenCalled();
+  });
+  test("a throwing conversation state answers a bad request without its error", async () => {
+    const service = state();
+    service.conversationWork.mockImplementation(() => { throw new Error("/private/path"); });
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await answerLine(JSON.stringify(conversation), token, service)).toEqual({ v: 3, ok: false, error: { code: "bad_request", message: "Doan could not handle this request." } });
+    error.mockRestore();
+  });
 });
 test("non-numeric or unknown versions keep the v1 refusal", async () => {
   for (const v of ["3", 5, null]) expect(await answerLine(JSON.stringify({ ...request, v }), token, state())).toMatchObject({ v: 1, ok: false, error: { code: "bad_request" } });
@@ -65,6 +105,19 @@ describe("auto-registration", () => {
     const { service, send } = registry();
     expect(await send({ ...start, token: "wrong" })).toMatchObject({ v: 3, ok: false, error: { code: "bad_token" } });
     expect(service.readRoot).not.toHaveBeenCalled();
+  });
+
+  test("a terminal update registers like a start, and a conversation update never does", async () => {
+    const { service, events, send, settle } = registry();
+    const update = { ...start, action: "update", frame: "hero" };
+    expect(await send({ v: 3, token, root: W, action: "update", path, conversation: "c1" })).toEqual({ v: 3, ok: true });
+    expect(service.readRoot).not.toHaveBeenCalled();
+    const answer = send(update);
+    await vi.waitFor(() => expect(service.readRoot).toHaveBeenCalledExactlyOnceWith(W));
+    settle();
+    expect(await answer).toEqual({ v: 3, ok: true });
+    expect(events).toEqual([`adopt ${W}`, `update ${W}`]);
+    expect(service.work).toHaveBeenCalledExactlyOnceWith(update);
   });
 
   test("done never registers", async () => {
