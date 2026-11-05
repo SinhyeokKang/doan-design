@@ -692,6 +692,10 @@ body:has(.shell-top) { background: transparent; }
 /* The chip row takes a grid row only when there are chips: an empty row would still add its gap above the field. */
 .docked[data-shape="box"] .composer-card:has(.composer-chips) { grid-template-areas: "chips chips chips" "field field field" "presets . send"; }
 .docked[data-shape="box"] .composer-presets { margin-left: calc(-1 * var(--space-1)); }
+/* The docked field is one line tall, so an empty box (attachments only) keeps its placeholder, a long suggestion
+   included, on one line as the capsule does; a wrapped one would overflow the field and scroll it. The full text stays
+   the field's aria-placeholder, and Right Arrow puts a suggestion in. */
+.docked[data-shape="box"] .composer-input[data-empty]::before { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .docked .composer-tray { justify-content: flex-end; gap: var(--space-1); min-height: var(--size-control-sm); padding: var(--space-1) var(--space-3) 0; }
 .docked .composer-tray .doan-button { margin-left: 0; }
 .docked .composer-tray .logo { width: var(--size-icon-sm); height: var(--size-icon-sm); }

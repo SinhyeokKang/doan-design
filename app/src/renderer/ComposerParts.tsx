@@ -99,6 +99,7 @@ export interface ComposerFieldHandle {
   // The caret stands at the very start with nothing selected (chipRemoval's Backspace).
   caretAtStart(): boolean;
   insertChip(anchor: Anchor): ChipInsert;
+  insertText(text: string): void;
   composing(): boolean;
   element(): HTMLElement | null;
 }
@@ -143,6 +144,7 @@ export const ComposerField = forwardRef<ComposerFieldHandle, {
     focus: caret => field.current?.focus(caret === "end"),
     caretAtStart: () => field.current?.caretAtStart() ?? true,
     insertChip: anchor => field.current?.insertChip(anchor) ?? "refused",
+    insertText: text => field.current?.insertText(text),
     composing: () => field.current?.composing() ?? false,
     element: () => node.current,
   }), []);

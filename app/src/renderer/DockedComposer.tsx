@@ -14,7 +14,7 @@ import {
 } from "./ComposerParts";
 import { composerAction, composerShape, focusAfter, steerAllPlan, type FocusAction } from "./composerRules";
 import {
-  canvasGoneText, dockedAvailability, dockedMessage, dockedPicker, dockedRefusal, draftKey, EMPTY_DRAFT,
+  canvasGoneText, composerPlaceholder, dockedAvailability, dockedMessage, dockedPicker, dockedRefusal, draftKey, EMPTY_DRAFT,
   type DockedBusy, type DockedDraft, type DockedMode, type DockedRefusal,
 } from "./dockedRules";
 import { slashKey, pasteAction } from "./HomeComposerView";
@@ -23,7 +23,7 @@ import type { SentFile } from "./threadItems";
 import { ANCHOR_LIMIT_TEXT } from "./canvasPicker";
 import { LOCATE_MISSING_TEXT, useLocateNote, type LocateOutcome } from "./ConversationThread";
 import {
-  attachmentChipView, chipRemoval, presetListView, providerLogo, slashQuery, type AttachmentDraft, type ModelPickerView,
+  attachmentChipView, chipRemoval, presetListView, providerLogo, slashQuery, takesSuggestion, type AttachmentDraft, type ModelPickerView,
   type PresetListReply, type PresetSummary,
 } from "./homeComposer";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
@@ -55,8 +55,13 @@ export type DockedOutcome = { ok: true; itemId?: string } | { error: string; mis
 export interface DockedComposerProps {
   mode: DockedMode;
   project: string; homeDirectory: string | null;
-  // The host's placeholder: a reply, a new conversation in the project, or restoring an archived conversation.
+  // The host's placeholder: a reply, a new conversation in the project, or restoring an archived conversation. A
+  // preset's line and the suggestion stand in for it by composerPlaceholder.
   placeholder: string;
+  // The conversation's next-input suggestion from the host's latest list read (prompt-suggestion design 'renderer' 1);
+  // null: the list has none; undefined: the host has not read the list yet, so a suggestion that then appears is not
+  // announced as new.
+  suggestion?: string | null | undefined;
   // The canvas whose chips the field takes (the canvas panel's); none in Overview, where a pasted chip reads as text.
   chipScope?: string | null;
   // Drafts by draftKey(mode), kept by the host so a switch between conversations, or leaving the screen, keeps each.
@@ -160,7 +165,7 @@ export function DockedComposer(props: DockedComposerProps) {
   const root = useRef<HTMLDivElement | null>(null);
   const slashList = useRef<HTMLDivElement | null>(null);
   const queueRows = useRef<QueueRowsHandle | null>(null);
-  const listId = useId(), reasonId = `${listId}-reason`, noteId = `${listId}-missing`;
+  const listId = useId(), reasonId = `${listId}-reason`, noteId = `${listId}-missing`, hintId = `${listId}-suggestion`;
 
   const isSending = sending.has(key);
   const held = refusals.get(key);
@@ -183,6 +188,7 @@ export function DockedComposer(props: DockedComposerProps) {
   const availability = blocked && !isSending && !props.unavailable ? { enabled: false, reason: { text: blocked.text, ...(blocked.action ? { action: blocked.action } : {}) } }
     : props.held && checked.enabled ? { enabled: false, reason: checked.reason } : checked;
   const message = dockedMessage(draft);
+  const placeholder = composerPlaceholder({ readOnly: isSending || locked, preset: draft.preset, empty: draft.segments.length === 0, mode: mode.kind, text: props.placeholder, suggestion: props.suggestion });
   const action = composerAction(props.turn !== "idle", message.text);
   const canSendNow = !!props.sendNow && !!props.onSendQueuedNow;
   const picker = dockedPicker(props.picker, mode);
@@ -347,15 +353,32 @@ export function DockedComposer(props: DockedComposerProps) {
       // Escape closes the list only; there is no shortcut that stops the turn (spec decision 9).
       if (step?.kind === "close") { if (event.key === "Escape") event.preventDefault(); setDismissedKey(step.dismiss ? key : null); return true; }
     }
+    // → puts the shown suggestion in the field as one undo step; it never sends (decision 8).
+    // The field's composing state is read last (a getter), so other keys never reach into the field.
+    const shown = placeholder.suggestion;
+    if (shown !== null && takesSuggestion({ key: event.key, shiftKey: event.shiftKey, altKey: event.altKey, metaKey: event.metaKey, ctrlKey: event.ctrlKey, isComposing: event.nativeEvent.isComposing, keyCode: event.keyCode },
+      { suggestion: shown, empty: draft.segments.length === 0, get composing() { return field.current?.composing() ?? false; } })) {
+      event.preventDefault(); field.current?.insertText(shown); return true;
+    }
     if (event.key === "Backspace" && removeChip(-1, "backspace")) { event.preventDefault(); return true; }
     return false;
   };
+  // A new suggestion for the conversation on screen is read once while its empty field has focus (decision 7); a
+  // first list read, a switch or the same text shown again after emptying is left to the placeholder and the hint.
+  const lastSuggestion = useRef({ key, suggestion: props.suggestion });
+  useEffect(() => {
+    const last = lastSuggestion.current;
+    lastSuggestion.current = { key, suggestion: props.suggestion };
+    if (last.key !== key || last.suggestion === undefined || placeholder.suggestion === null || placeholder.suggestion === last.suggestion) return;
+    const node = field.current?.element();
+    if (node && node.ownerDocument.activeElement === node) setAnnouncement(`Suggestion: ${placeholder.suggestion}`);
+  }, [key, props.suggestion]);
 
   if (props.canvasGone || refusal?.kind === "gone") return <div className="canvas-gone" role="status"><AlertIcon /><span>{canvasGoneText(props.project)}</span></div>;
   const reason = availability.reason;
   const notice = refusal?.kind === "notice" ? refusal : null;
   // Only an id drawn below; the live reason shows with an older notice rather than behind it.
-  const describedBy = reason && !reason.noAgent ? reasonId : undefined;
+  const describedBy = [reason && !reason.noAgent ? reasonId : null, placeholder.suggestion !== null ? hintId : null].filter(Boolean).join(" ") || undefined;
   return <div className="docked" data-shape={shape} ref={root} {...drop.handlers}>
     <QueueRows key={key} handle={queueRows} items={props.queued} sendNow={canSendNow} onSendNow={id => props.onSendQueuedNow?.(id) ?? Promise.resolve({ error: "not_running" })}
       onRemove={props.onRemoveQueued} focusInput={() => field.current?.focus()}
@@ -366,7 +389,7 @@ export function DockedComposer(props: DockedComposerProps) {
       <ComposerChips attachments={draft.attachments} preset={draft.preset} thumbnails={props.thumbnails} homeDirectory={props.homeDirectory} disabled={isSending || locked} removeButtons={removeButtons} onRemove={index => removeChip(index, "button")} />
       {/* One field element in both shapes, at the same place and key: remounting it would drop focus and IME composition. */}
       <ComposerField key="field" ref={field} draftKey={key} value={draft.segments} onChange={segments => edit({ segments })} readOnly={isSending || locked}
-        placeholder={props.placeholder} describedBy={describedBy} chipScope={props.chipScope ?? null} onAnnounce={setAnnouncement} onChipClick={props.onLocate ? locate : undefined}
+        placeholder={placeholder.text} describedBy={describedBy} chipScope={props.chipScope ?? null} onAnnounce={setAnnouncement} onChipClick={props.onLocate ? locate : undefined}
         combobox={slashOpen ? { listId: `${listId}-slash`, activeId: slashRows[highlight] ? `${listId}-s-${highlight}` : undefined } : null}
         onKey={keyDown} onSteerKey={() => void steerAll()} sendNow={canSendNow} onSubmit={() => void send()} onPaste={paste} />
       <ComposerTools>
@@ -407,9 +430,12 @@ export function DockedComposer(props: DockedComposerProps) {
         {reason.action && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => props.onSettings(reason.action!.target)}>{reason.action.label}</button>}</div>)}
     {(limitAt === key || full) && <div className="composer-reason docked-reason" role="status"><span>{ANCHOR_LIMIT_TEXT}</span></div>}
     {noteShown && <span className="chip-missing chip-note" id={noteId} role="status" style={{ left: missingAt.left, top: missingAt.top }}>{LOCATE_MISSING_TEXT}</span>}
+    {placeholder.suggestion !== null && <span className="sr-only" id={hintId}>{SUGGESTION_HINT}</span>}
     <div className="sr-only" role="status">{announcement}</div>
   </div>;
 }
+
+const SUGGESTION_HINT = "Press Right Arrow to use the suggestion.";
 
 export const SEND_NOW_TIP = "Add to the current turn without stopping it";
 export const SEND_NOW_REFUSED_TEXT = "Couldn’t send now. It stays queued.";

@@ -168,6 +168,13 @@ export class ChipField {
     return "inserted";
   }
 
+  // Text put in at the selection as one undo step of its own, the caret after it (a docked suggestion taken with →).
+  insertText(text: string): void {
+    if (this.composingNow || this.readOnly()) return;
+    const [start, end] = ordered(this.readSelection());
+    this.replace(start, end, normalize([{ kind: "text", text }]), "insert");
+  }
+
   caretAtStart(): boolean {
     const { anchor, focus } = this.readSelection();
     return anchor === 0 && focus === 0;
