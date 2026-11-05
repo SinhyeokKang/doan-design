@@ -1,0 +1,136 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://doan.design/schema/app-socket.v5.schema.json",
+  "$comment": "Canvas-handoff requests on the app's local socket, beside app-socket.v1 (active), v2 (onboarding), v3 (work) and v4 (open), which are unchanged. The reader dispatches on numeric v before validating. Use the $defs; the root constrains nothing. The reply says what the app decided, not what the CLI prints: the CLI builds its own messages and next steps from the code.",
+  "$defs": {
+    "token": {
+      "type": "string",
+      "$comment": "Not pattern-checked so a wrong token reaches the app's bad_token answer instead of bad_request."
+    },
+    "absolutePath": {
+      "type": "string",
+      "pattern": "^/",
+      "$comment": "Absolute POSIX path; the app is macOS-only. Registration is checked by the app."
+    },
+    "handoffKey": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "$comment": "The DOAN_HANDOFF value the app put in the conversation's child environment. It names which conversation is asking; it is not a security boundary (the socket token is). An unknown key is the app's not_app_conversation answer, not bad_request."
+    },
+    "request": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 5
+        },
+        "token": {
+          "$ref": "#/$defs/token"
+        },
+        "root": {
+          "$ref": "#/$defs/absolutePath"
+        },
+        "handoff": {
+          "$ref": "#/$defs/handoffKey"
+        },
+        "path": {
+          "type": "string",
+          "pattern": "^\\.doan/canvases/[^/]+\\.html$",
+          "$comment": "Repo-relative, '/'-separated canvas path. Narrower than v4: a handoff starts a conversation on a canvas, so .doan/ds/ pages are not valid targets."
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 10000,
+          "pattern": "^[^\\x00-\\x08\\x0b-\\x1f\\x7f]*$",
+          "allOf": [
+            {
+              "pattern": "\\S"
+            }
+          ],
+          "$comment": "HANDOFF_TEXT_LIMIT is this maxLength, counted in code points by both validators. One code point serializes to at most 6 bytes (U+2028 as \\u2028, '<' as \\u003c), so 10000 keeps the worst case at 60 KB under the 64 KiB socket line limit, leaving headroom for token, root and path. The pattern allows only \\n and \\t among control characters and the allOf needs a non-whitespace character; the exact trim rule stays in the CLI and app code, and \\S differs between engines only for non-ASCII whitespace."
+        }
+      },
+      "required": [
+        "v",
+        "token",
+        "root",
+        "handoff",
+        "path",
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "errorCode": {
+      "enum": [
+        "bad_request",
+        "bad_token",
+        "project_not_open",
+        "not_app_conversation",
+        "root_mismatch",
+        "not_running",
+        "not_canvas_conversation",
+        "plan_mode",
+        "handoff_turn",
+        "already_requested",
+        "same_canvas"
+      ],
+      "$comment": "In the app's check order after the schema and token: project_not_open, not_app_conversation, root_mismatch, not_running, not_canvas_conversation, plan_mode, handoff_turn, already_requested, same_canvas."
+    },
+    "response": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "v": {
+              "const": 5
+            },
+            "ok": {
+              "const": true
+            },
+            "requested": {
+              "const": true
+            }
+          },
+          "required": [
+            "v",
+            "ok",
+            "requested"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "v": {
+              "const": 5
+            },
+            "ok": {
+              "const": false
+            },
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "$ref": "#/$defs/errorCode"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "message"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "v",
+            "ok",
+            "error"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    }
+  }
+}
