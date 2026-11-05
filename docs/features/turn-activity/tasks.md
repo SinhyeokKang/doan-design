@@ -65,7 +65,7 @@ P를 마치면 한 번 커밋한다(`docs(feature): turn-activity PoC results`).
 
 - [ ] Z1. PRODUCT.md를 지금 규칙으로 고친다(영문, 근거는 커밋 메시지): §5 item 3 'Project Overview'와 item 2 'Conversation panel'에 thread의 턴 표시(보이는 때, 위치, 단계, 경과 시간, activity 행과 함께 보임), §3 'Agent conversation foundation contract'에 단계를 아는 provider의 범위.
   - 검증: `grep -n "turn indicator" docs/PRODUCT.md`(또는 D1에서 정한 이름)가 §5 items 2·3과 §3 contract에서 각각 나온다.
-- [ ] Z2. ARCHITECTURE.md §7 'Agent conversation runtime and IPC': IPC 계약에 `conversation:stage`와 `conversation:read`의 단계 필드(`rev` 포함), 'Events'에 단계는 event가 아니라는 문장, 'Summaries'에 "activity와 단계 요약에는 셸 명령 글을 쓰지 않는다"는 문장, provider별 단계 출처. DESIGN.md는 U2가 적는다. BACKLOG.md에 R1이 확인하지 못한 provider·표면과, 'Known defects'에 activity 행의 진행형 머리가 실제 일과 다른 것(spec 문제 4).
+- [ ] Z2. ARCHITECTURE.md §7 'Agent conversation runtime and IPC': IPC 계약에 `conversation:stage`와 `conversation:read`의 단계 필드(`rev` 포함), 'Events'에 단계는 event가 아니라는 문장, 'Summaries'에 "activity와 단계 요약에는 셸 명령 글을 쓰지 않는다"는 문장, provider별 단계 출처. DESIGN.md는 U2가 적고, 턴 표시의 accent 빛을 'Accent places'에 더하며 `ds/checks.test.ts`의 `accentPlaces`도 함께 고친다(결정 1). BACKLOG.md에 R1이 확인하지 못한 provider·표면과, 'Known defects'에 activity 행의 진행형 머리가 실제 일과 다른 것(spec 문제 4).
   - 검증: `grep -n "conversation:stage" docs/ARCHITECTURE.md app/src/main/index.ts app/src/preload/index.ts`가 셋 다 나온다. ARCHITECTURE 'Summaries'에 명령 글 문장이 있다. BACKLOG에 R1의 미확인 항목과 문제 4가 있다.
 - [ ] Z3. `docs/features/turn-activity/`를 지운다.
   - 검증: `test ! -e docs/features/turn-activity`, `grep -rn 'features/turn-activity' docs AGENTS.md README.md`가 결과 없음, 문서별로 커밋을 나눴다. — 커밋
