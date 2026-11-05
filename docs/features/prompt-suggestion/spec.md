@@ -38,7 +38,7 @@ Claude Code에서만 가능하다. 근거는 design '조사 결과'에 있다.
 
 1. **보이는 곳과 때.** 캔버스 대화 패널과 프로젝트 Overview의 docked composer에서, 보이는 대화가 Claude Code 대화이고 마지막 턴이 done으로 끝났으며 Claude Code가 그 턴의 제안을 보냈을 때, 입력란이 비어 있으면 placeholder 자리에 제안이 보인다. 제안은 턴이 끝나고 몇 초 뒤에 올 수 있고, 그때까지는 지금 placeholder가 보인다(지연은 tasks E1(a)에서 기록한다). 다른 provider와 새 대화 상태에서는 지금 placeholder가 그대로다(design 결정 1).
 2. **우선순위.** preset을 골랐고 글이 없으면 preset 문구가 이긴다(지금 규칙). 입력란이 읽기 전용(보내는 중, 목록에 없는 페이지, 같은 id를 가진 canvas)이면 제안을 보이지 않는다. 큐에 메시지가 있거나 돌려받은 draft가 있으면 보이지 않는다(design 결정 9). 글 없이 첨부만 있는 draft에서는 제안이 보이고, 오른쪽 방향키로 넣어도 첨부는 그대로 남는다.
-3. **모양.** 제안은 지금 placeholder와 같은 글자색과 크기로 보인다. capsule 모양에서는 한 줄로 보이고 넘치면 말줄임으로 끝난다(DESIGN 'Narrow placeholder'). box 모양(첨부가 있을 때)에서는 두 줄까지 보이고 넘치면 말줄임으로 끝나며, 빈 입력란에 스크롤이 생기지 않는다(design 동작 renderer 2). "→" 키 표시나 안내 줄은 따로 두지 않는다(design 결정 6).
+3. **모양.** 제안은 지금 placeholder와 같은 글자색과 크기로 보인다. capsule 모양에서는 한 줄로 보이고 넘치면 말줄임으로 끝난다(DESIGN 'Narrow placeholder'). box 모양(첨부가 있을 때)에서도 한 줄로 보이고 넘치면 말줄임으로 끝나며, 빈 입력란에 스크롤이 생기지 않고 높이도 바뀌지 않는다(design 동작 renderer 2). "→" 키 표시나 안내 줄은 따로 두지 않는다(design 결정 6).
 4. **오른쪽 방향키.** 제안이 placeholder로 보이는 동안 입력란에서 수정키 없는 오른쪽 방향키를 누르면, 제안 전체가 입력란에 글로 들어가고 caret이 끝에 놓이며 포커스는 입력란에 남는다. 보내지 않는다. ⌘Z 한 번이면 빈 입력란으로 돌아간다.
 5. **다른 키는 그대로.** 입력란에 글이나 chip이 있으면 오른쪽 방향키는 지금처럼 caret을 옮긴다. IME 조합 중(`isComposing`, `keyCode 229`)의 오른쪽 방향키, Shift·Option·Command·Control이 섞인 오른쪽 방향키는 제안을 넣지 않는다. Enter, Shift+Enter, `/` preset 목록, Backspace의 chip 지우기는 바뀌지 않는다. Enter·Tab도 바뀌지 않는다: 빈 입력란의 Enter는 제안을 보내지 않고, Tab은 포커스를 옮긴다(design 결정 8).
 6. **지워지는 때.** 같은 대화의 다음 턴이 수락되면 제안은 사라진다. 대화를 archive하거나 지우면 사라진다. 그 대화의 Claude 연결이 sign out되거나 다른 연결로 바뀌어도 사라진다. 창 reload와 대화 전환에는 남고 앱을 다시 시작하면 사라진다. 입력란을 비우면 다시 보인다(design 결정 3·4).
