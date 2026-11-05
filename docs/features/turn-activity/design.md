@@ -138,6 +138,8 @@ activity 기록은 바뀌지 않는다. `codexActivities`는 지금처럼 모든
 
 ## 초안 요청
 
+상태: 첫 초안(`c9224a35`)에서 사람이 B 형태와 thread 안 위치, 단계 글과 경과 시간 형식을 골랐다(결정 1, 10). 수정본은 B만 남기고 나머지 변형과 고정 줄 frame을 지운다. 사람의 최종 확인 전이다. 아래는 첫 초안의 요청이다.
+
 `/design-draft turn-activity`로 새 파일 `.doan/canvases/turn-activity.html`에 **턴 표시의 변형 여러 개**를 그린다. 한 형태로 좁히지 말고 서로 다른 표현을 펼친다(사람의 요청: "디자인 드래프트에서 제한을 두지 말고 다양하게 표현해보라고 해"). 사람은 앱에서 그중 하나를 고르고, 그 선택이 결정 1의 형태가 된다. 기본 후보 (a)를 반드시 변형 하나로 그린다.
 
 - 변형마다 같은 상태 묶음을 그린다. 변형 하나가 frame 하나이거나, 상태 하나가 frame 하나이고 그 안에 변형을 나란히 둔다(그리는 쪽이 고른다).
@@ -217,7 +219,7 @@ activity 기록은 바뀌지 않는다. `codexActivities`는 지금처럼 모든
 
 사람이 2026-11-06에 정했다. spec 완료 조건은 이 결정을 따른다.
 
-1. **턴 표시의 형태.** `/design-draft` 변형 캔버스에서 사람이 고른다. 기본 후보는 (a) Claude Code CLI 작업 줄 같은 한 줄: 움직이는 글리프 + 단계 동사 + 경과 시간, 토큰 수와 둘째 줄 없음. 초안은 이것으로 좁히지 않고 여러 형태를 그린다. 이유: 사람이 초안에서 여러 표현을 보고 고르겠다고 했다.
+1. **턴 표시의 형태는 B, 답 자리 표시다**(사람, 2026-11-06, `.doan/canvases/turn-activity.html`의 변형 A–F 가운데). agent 답이 나올 자리에 단계 글과 경과 시간을 두고 글자 위로 빛이 흐른다. 단계 글: 일반 "<Provider> is working", 생각 "<Provider> is thinking", 답 쓰기 "<Provider> is replying", 도구는 activity 행과 같은 말("Reading <path>", "Running a command", Codex `listFiles`·`search`는 "Reading files"). provider 이름은 도구가 아닌 단계에만 붙는다. 경과 시간 형식: `0s` · `59s` · `1m 0s` · `59m 59s` · `1h 0m 0s`(1시간이 넘어도 초를 보인다, spec 완료 조건 3). 추천은 A(상태 줄)였고 사람이 B를 골랐다.
 2. **단계를 아는 경로.** (B) main이 provider frame에서 단계를 읽어 기록하지 않는 live 신호(`conversation:stage`)로 보낸다(§2). Claude·Codex는 생각과 일반(Codex는 읽기 명령의 도구 단계도)만 내고, 그 밖의 도구 상태는 activity event로 정한다. 이유: "생각 중"과 "도구 끝"은 provider frame에만 있고, 턴이 끝나면 뜻이 없는 단계를 기록에 쓰면 옛 build가 그 기록을 손상으로 읽는다.
 3. **턴 표시가 보이는 범위.** live 턴 내내 보이고, permission·question 카드가 답을 기다리는 동안만 없다. 이유: 볼 곳이 thread 끝 한 곳으로 고정되고, 대기 중에는 카드가 이미 "needs your answer"를 말한다.
 4. **activity 행과의 관계.** 둘 다 진행을 보인다. activity 행은 지금처럼 spinner와 진행형 머리를 유지하고, 턴 표시도 함께 보인다(§1 'activity 행'). 이유: 사람이 권장안(행을 기록만으로 바꾸기) 대신 고른 것이다. 결과로 두 진행 표시가 함께 보일 수 있고, Claude·Codex 도구가 끝난 뒤에도 activity 행의 spinner가 다음 출력까지 돈다.
@@ -226,5 +228,5 @@ activity 기록은 바뀌지 않는다. `codexActivities`는 지금처럼 모든
 7. **경과 시간.** `turn.started`부터 턴 끝까지 이어서 센다. 이유: "보낸 지 얼마나 됐나"에 답하고, 기록된 `at`으로 다시 읽기 뒤에도 같은 값이 나온다.
 8. **다른 화면.** thread만 바꾼다. conversation strip, 사이드바 slot, 보드 작업 notice는 그대로다. 이유: 사람이 말한 곳은 thread다.
 9. **보내는 중(acceptance 전).** 그대로다. 메시지는 composer에 남고 Send가 spinner를 보인다. 이유: 시작이 거절되면 draft가 composer에 남는 규칙이 이 상태에 기댄다.
-10. **턴 표시의 위치.** thread 끝의 내용 안과 composer 위 고정 줄을 둘 다 초안에 그리고, 사람이 고른다. 고른 쪽을 이 항목에 적는다. 이유: 나중에 바꾸기 비싼 선택이라 두 모양을 보고 고른다.
+10. **턴 표시의 위치는 thread 안, 답 자리(마지막 항목)다**(사람, 2026-11-06). B는 답이 나올 자리를 미리 보이는 형태라 thread의 마지막 항목일 때 뜻이 산다. 위로 스크롤하면 보이지 않는다. 고정 줄이 아니므로 "Jump to latest"와의 쌓임 규칙은 필요 없다.
 11. **리뷰 반영(2026-11-06, 사람이 일괄 승인).** 단계 순서는 `rev`로 정한다. 새 단계는 300ms 이어진 뒤 보인다. 알림은 단계의 종류만 한다. 턴 표시는 live region이 아니고 한 줄 고정 높이다. 오래 조용할 때 따로 상태를 두지 않는다. MCP 대기 줄 동안은 일반 단계다. Allow로 답한 뒤에는 앞 도구의 단계가 이어진다. 일반 단계의 동사는 "working"이다.
