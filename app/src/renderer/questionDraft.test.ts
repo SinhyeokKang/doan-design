@@ -9,6 +9,16 @@ const noOther: Question = { ...single, id: "2", other: false };
 const run = (_questions: readonly Question[], ...actions: Parameters<typeof questionDraft>[1][]) => actions.reduce<QuestionDraft>(questionDraft, EMPTY_QUESTION_DRAFT);
 
 describe("questionDraft", () => {
+  test("the send failure line goes as soon as the answer changes, and the choices stay", () => {
+    const failed: QuestionDraft = { ...run([single], { type: "choose", question: single, option: 0 }), failed: true };
+    for (const action of [{ type: "choose", question: single, option: 1 }, { type: "other", question: single }, { type: "text", questionId: "0", text: "x" }] as const) {
+      const next = questionDraft(failed, action);
+      expect(next.failed).toBe(false);
+      expect(next.sending).toBeNull();
+    }
+    expect(questionDraft(failed, { type: "choose", question: single, option: 1 }).choices["0"]).toEqual({ selected: [1], other: false, text: "" });
+  });
+
   test("a radio question holds one choice: an option, or Other in its place", () => {
     let draft = run([single], { type: "choose", question: single, option: 0 }, { type: "choose", question: single, option: 1 });
     expect(draft.choices["0"]).toEqual({ selected: [1], other: false, text: "" });

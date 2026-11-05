@@ -34,7 +34,8 @@ export function questionDraft(draft: QuestionDraft, action: QuestionDraftAction)
   else if (action.type === "other") next = action.question.multiSelect ? { ...choice, other: !choice.other } : { ...choice, selected: [], other: true };
   else if (!action.question.multiSelect) next = { ...choice, selected: [action.option], other: false };
   else next = { ...choice, selected: choice.selected.includes(action.option) ? choice.selected.filter(n => n !== action.option) : [...choice.selected, action.option].sort((a, b) => a - b) };
-  return { ...draft, choices: { ...draft.choices, [id]: next } };
+  // The failure line names the send that was refused, so a changed answer retires it.
+  return { ...draft, choices: { ...draft.choices, [id]: next }, failed: false };
 }
 
 // Other's text goes only while Other is chosen, or always for a question answered by text alone; empty text goes too,
