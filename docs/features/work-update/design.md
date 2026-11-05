@@ -28,9 +28,11 @@
     - 글자 단위는 grapheme(`Intl.Segmenter`)이다. 한글 음절과 이모지가 반쪽으로 보이지 않게 하기 위해서다.
     - 속도(사람): 지우기 20 ms/글자, 치기 35 ms/글자. 둘을 더한 시간이 1,000 ms를 넘으면 두 간격을 같은 비율로 줄여 1,000 ms 안에 끝낸다. 보통의 변경이 800–1,000 ms쯤 걸리고, 짧은 변경은 더 빨리 끝난다. 상한은 긴 note가 다음 `update`보다 늦게 끝나지 않게 하기 위해서다.
     - 애니메이션 중에 새 `update`가 오면 남은 단계를 버리고, 지금 보이는 글에서 가장 새 글로 같은 규칙(공통 앞부분 유지, 지우고 치기)을 다시 시작한다.
-    - 접근성: 보이는 글자 줄은 `aria-hidden`이고, 같은 카드 안의 `role="status"` 요소(`sr-only`)에는 최종 글이 바로 들어간다. 스크린 리더는 중간 글을 읽지 않는다. tooltip도 최종 글이다.
+    - 접근성: 보이는 글자 줄은 `aria-hidden`이고, 같은 카드 안의 `role="status"` 요소(`sr-only`)에는 최종 글이 바로 들어간다. note와 프레임이 함께 있으면 status 글은 "<note> — <frame title>"이다(보이는 글은 note만). 스크린 리더는 중간 글을 읽지 않는다. tooltip은 보이는 최종 글이다.
     - `prefers-reduced-motion`에서는 글이 바로 바뀐다.
-    - 처음 나타날 때(작업이 시작돼 카드가 생길 때)와 앱 대화가 이겨 글이 바뀔 때도 같은 규칙이다.
+    - forced colours에서 커서는 `CanvasText`로 칠한다(`forced-color-adjust: none`). `currentColor` 배경은 forced colours에서 사라지기 때문이다.
+    - 지우고 치기는 이 캔버스가 보이는 동안 새 `update`(또는 작업이 시작돼 카드가 생기거나 앱 대화가 이겨 고른 작업 내용이 바뀜)로 글이 바뀔 때만 한다. 작업 턴 도중에 캔버스를 열거나 돌아오면 글을 바로 놓는다. 프레임 제목은 그 `update`의 frame에 대해 마지막으로 찾은 값을 다음 `update`까지 기억한다. 그래서 layout이 늦게 와 id가 제목으로 바뀌거나 reload 뒤 프레임이 사라져도 글을 다시 치지 않는다. 처음 layout 전에는 id를 보이고, layout이 오면 바로 제목으로 바꾼다.
+    - 답 기다림: 캔버스 대화가 답을 기다리면 "Agent needs your answer"로 바로 바꾸고(행동을 요구하는 글이라 늦추지 않는다) 커서를 숨긴다.
 20. **지우고 치는 동안 카드가 줄어들지 않는다(사람).** 글 칸의 너비 = max(보이는 글의 너비, min(이전 글의 너비, 새 글의 너비))이고, 카드의 최대 너비(420px 열)는 그대로다. 새 글이 짧으면 지우는 동안 카드는 새 글 너비까지만 줄고, 새 글이 길면 지우는 동안 이전 너비를 지키다가 새 글이 그보다 길어질 때 넓어진다. 구현은 `update` 하나에 한 번, 숨긴 측정 노드로 이전 글과 새 글의 너비를 재고, 애니메이션 동안 글과 커서를 담은 줄에 `min-width: min(이전, 새)`(커서와 간격 포함, 카드 열 너비를 넘지 않음)를 준다. 보이는 글이 그보다 넓으면 그 너비가 이긴다. 글 노드 자체를 넓히지 않으므로 커서는 글 바로 뒤에 남는다. 단계마다 다시 재지 않는다. 끝나면 `min-width`를 지운다. reduced motion에서는 너비가 한 번에 바뀐다.
 
 ## 1. 영향 받는 구성 요소
@@ -38,7 +40,7 @@
 | 구성 요소 | 바뀌는 것 |
 |---|---|
 | 형식 | `schema/app-socket.v3.schema.json`: `action`에 `update`, `update`에만 `frame`·`note`·`conversation`. `conversation`은 `session`·`provider`와 함께 올 수 없다. `path`는 `start`·`update`에서 필수. fixture는 `schema/fixtures/app-socket-v3/request/{valid,invalid}/`(§3). |
-| CLI(Go) | `cli/internal/cli/work.go`: `work update`. `run.go`의 `case "work"`에서 `DOAN_CONVERSATION_ID`를 읽어 `ctx`에 둔다(`AppConversation`처럼). 인자 검사·요청 조립은 `work_rules.go`의 순수 함수. guide `cli/internal/cli/skill.md` 규칙 I와 명령 목록. |
+| CLI(Go) | `cli/internal/cli/work.go`: `work update`. `run.go`: `Flags`에 `Note`, `--note` 등록, `case "work"`의 `update`에 `frame`·`note` 허용, `DOAN_CONVERSATION_ID`를 읽어 `ctx`에 둔다(`AppConversation`처럼). 인자 검사·요청 조립은 `work_rules.go`의 순수 함수. guide `cli/internal/cli/skill.md` 규칙 I와 명령 목록. |
 | 앱 main: 환경 | `app/src/main/conversation/service.ts` `openRunner`가 runner 환경에 `DOAN_CONVERSATION_ID: <id>`를 더한다(두 경로 모두: Doan 연결과 legacy external). `app/src/main/agentAuth/environment.ts`의 `RESERVED`에 `DOAN_CONVERSATION_ID`를 더해 provider extra가 덮지 못하게 한다. |
 | 앱 main: 상태 | `app/src/main/workState.ts`: 터미널 `update`(경로 추가, 작업 내용, `touched`). 새 순수 모듈(예: `conversationWork.ts`): 앱 대화의 작업 내용. `runtime.ts` `answerLine` v3: `update`는 `conversation`이 있으면 대화 쪽으로, 없으면 `start`처럼(경로 패턴, 자동 등록). `index.ts`: `work:changed` 발행 조건에 작업 내용, 새 채널 `conversation-work:get`/`conversation-work:changed`(이름은 구현에서 정함), `senderAllowed.ts` 허용 목록, preload. `ConversationService`가 턴 끝·archive·삭제·종료를 알려 대화 작업 내용을 지운다. |
 | 앱 renderer | `agentIndicator.ts`: 고르기(`spec` 완료 조건 6), 작업 notice의 글, project 대화 변형. `CanvasAgent.tsx`: 지금의 작업 notice(`.doan-agent`)의 글과 tooltip, project 대화의 glow와 Stop 없는 작업 notice. 새 notice 컴포넌트는 없다. `CanvasController.ts`: 작업 프레임 표시 층, 따라가기 이동(사람의 이동과 구별), 사람의 마지막 이동 시각. |
@@ -52,23 +54,30 @@
 2. **인자 경계.** `--frame`은 v4 `frame`과 같은 경계(비어 있지 않음, 제어 문자 없음, 200자 이하; ARCHITECTURE §11). `--note`는 한 줄, 제어 문자 없음, 120자(코드 포인트) 이하. 앞뒤 공백은 지우고, 지운 뒤 빈 note는 note 없음이다. 넘으면 `usage_error`다(자르지 않는다: 에이전트가 고쳐 다시 보낼 수 있고, 잘린 글이 뜻을 바꾸지 않게).
 3. **요청 고르기(CLI).** `DOAN_APP_CONVERSATION=1`이면: `start`·`done`은 보내지 않는다. `update`는 `DOAN_CONVERSATION_ID`가 유효한 불투명 id(빈 값 아님, `-`로 시작하지 않음, NUL 없음: `session`과 같은 계약)일 때만 `{action: "update", root, path, frame?, note?, conversation}`을 보내고, 아니면 보내지 않는다. 그 밖에는 지금처럼 `session`/`provider`를 싣는다.
 4. **터미널 상태.** `update`는 세션에 (root, path)가 없으면 더하고, 그 항목의 작업 내용을 `{frame, note}`로 바꾸며(빠진 쪽은 비움), 세션의 `started`와 항목의 `touched`를 지금으로 한다. `start`는 작업 내용을 건드리지 않고 `touched`만 새로 한다. 상한(`MAX_WORK_PATHS`)에 걸린 `update`는 세션만 새로 센다.
-5. **대화 상태.** main은 `conversation` id가 같은 root에서 지금 턴을 돌리는(받아들여졌고 끝나지 않은) 대화일 때만 받는다. 받으면 그 대화의 작업 내용 하나를 바꾸고 `turnId`를 적는다. 맞지 않는 id, 끝난 턴, 다른 root는 `ok: true`로 답하고 버린다(에이전트가 할 수 있는 일이 없으므로 새 오류 코드를 만들지 않는다). 대화 쪽 `update`는 자동 등록하지 않는다(앱 대화의 root는 이미 등록돼 있다).
-6. **고르기(renderer).** 열린 캔버스(root + path)에 대해: 이 캔버스의 현재 대화가 일하거나 기다리면 그 대화의 작업 내용 중 path가 이 캔버스인 것. 아니면 이 root에서 path가 이 캔버스인 project 대화 작업 내용과 터미널 항목 중 `touched`가 가장 늦은 것.
-7. **작업 notice의 글.** 지금의 작업 notice(`.doan-agent-text`) 글을 바꾼다. note → "Working on <frame title>"(결정 18) → "Agent is working". 글이 바뀔 때는 결정 19의 지우고 치기를 따른다. 캔버스 대화의 Stop, "Agent needs your answer"와 Open은 그대로다. 문구는 텍스트 노드로만 넣는다.
-8. **작업 프레임 표시(결정 16·17).** 고른 작업 내용의 frame이 지금 layout에 있으면 그 사각형에 jump highlight 모양의 표시를 둔다(`.mark.jump-highlight`에 작업용 수식어를 더한 class, 1.2초 타이머와 fade 없음). 문서를 다시 불러오는 동안(`CanvasState.reloading`)은 지우고, 새 layout에서 같은 id로 다시 찾는다. `pointer-events: none`, 선택·hover 표시보다 아래, Hand 드래그 층보다 아래. 다른 프레임으로 갈 때는 위치와 크기가 옮겨 간다(`--time-settle` 220ms, `--ease-settle`, 결정 17). 작업 중에는 gradient가 선을 따라 돌고(4.8초 한 바퀴, linear) glow 투명도가 숨 쉰다(2.4초, `--ease-state`; 작업 notice의 점 `doan-agent-breathe`와 같은 주기). reduced motion에서는 셋 다 없다. reduced transparency에서는 jump highlight처럼 glow를 뺀다. forced colours에서는 jump highlight처럼 3 px `Highlight` 테두리다. 사람이 그 사이 frame drawer 등으로 다른 프레임에 jump하면 그 프레임에는 지금처럼 1.2초 jump highlight가 따로 나온다.
+5. **대화 상태.** main은 `conversation` id가 같은 root에서 지금 턴을 돌리는(받아들여졌고 끝나지 않은) 대화일 때만 받는다. 받으면 그 대화의 작업 내용 하나를 바꾸고 받은 때의 `turnId`를 적는다. 맞지 않는 id, 끝난 턴, 다른 root는 `ok: true`로 답하고 버린다(에이전트가 할 수 있는 일이 없으므로 새 오류 코드를 만들지 않는다). 대화 쪽 `update`는 자동 등록하지 않는다(앱 대화의 root는 이미 등록돼 있다).
+   - **한계(사람이 받아들임):** 요청에는 대화 id만 있고 턴 id는 없다. Codex runner는 환경을 한 번만 정하므로 턴마다 다른 값을 넘길 수 없다. 그래서 턴이 끝난 뒤부터 다음 턴이 받아들여지기 전까지 온 `update`는 버리지만, 다음 턴이 받아들여진 뒤 도착한 이전 턴의 `update`는 구별하지 못하고 새 턴의 것으로 받는다. 이 일은 사람이 Stop한 직후 새 턴을 보내고, 그 사이 CLI 요청(ms 단위)이 아직 날아가는 중일 때만 생긴다. 결과는 표시 하나가 다음 `update`나 턴 끝까지 남는 것이다.
+6. **고르기(renderer).** 열린 캔버스(root + path)에 대해: 이 캔버스의 현재 대화가 일하거나 기다리면 그 대화의 작업 내용 중 path가 이 캔버스인 것. 아니면 이 root에서 path가 이 캔버스인 대화 작업 내용(project 대화와, 다른 캔버스에 묶인 캔버스 대화: 결정 13)과 터미널 항목 중 `touched`가 가장 늦은 것.
+7. **작업 notice의 글.** 지금의 작업 notice(`.doan-agent-text`) 글을 바꾼다. note → "Working on <frame title>"(결정 18) → "Agent is working". 글이 바뀔 때는 결정 19의 지우고 치기를 따른다. 캔버스 대화의 Stop, "Agent needs your answer"와 Open은 그대로다. 문구는 텍스트 노드로만 넣는다. 답 기다림에서는 커서를 숨기고, 작업 프레임 표시는 남기되 움직임(gradient, glow)을 멈춘다(reduced motion 모양). 지금 작업 notice의 점도 기다릴 때 멈춘다(`agentIndicator.ts` `steady`).
+8. **작업 프레임 표시(결정 16·17).** 고른 작업 내용의 frame이 지금 layout에 있으면 그 사각형에 jump highlight 모양의 표시를 둔다(`.mark.jump-highlight`에 작업용 수식어를 더한 class, 1.2초 타이머와 fade 없음). 문서를 다시 불러오는 동안(`CanvasState.reloading`)은 지우고, 새 layout에서 같은 id로 다시 찾는다. reload가 실패하면(`status === "failed"`) 표시를 붙이지 않는다. `pointer-events: none`, 선택·hover 표시보다 아래, Hand 드래그 층보다 아래. 다른 프레임으로 갈 때는 위치와 크기가 옮겨 간다(`--time-settle` 220ms, `--ease-settle`, 결정 17). 이 220 ms transition은 작업 frame id가 바뀐 그 한 번에만 건다(예: id가 바뀔 때만 이동용 class를 220 ms 붙임). 표시는 화면 px로 놓이고 view가 바뀔 때마다 다시 정해지므로(`applyView` → 표시 위치 갱신), transition을 늘 걸면 팬·확대·따라가기 이동·창 크기 변경 때 표시가 프레임보다 늦게 미끄러진다. view 변경, reload 뒤 다시 붙이기, 같은 frame의 크기 변화, 작업 턴 도중 캔버스를 열 때는 바로 놓는다. 초안의 `.mark.jump-highlight.working` transition은 이 뜻으로 옮긴다. 작업 중에는 gradient가 선을 따라 돌고(4.8초 한 바퀴, linear) glow 투명도가 숨 쉰다(2.4초, `--ease-state`; 작업 notice의 점 `doan-agent-breathe`와 같은 주기). reduced motion에서는 셋 다 없다. reduced transparency에서는 jump highlight처럼 glow를 뺀다. forced colours에서는 jump highlight처럼 3 px `Highlight` 테두리다. 사람이 그 사이 frame drawer 등으로 다른 프레임에 jump하면 그 프레임에는 지금처럼 1.2초 jump highlight가 따로 나온다.
 9. **따라가기.**
-   - 시작 조건: 고른 작업 내용의 frame이 직전 값과 다르고(같은 frame의 다음 `update`나 reload는 시작 조건이 아니다), 그 frame이 layout에 있고, `now - lastPersonMove >= FOLLOW_IDLE_MS`, 이 작업 턴의 멈춤 표시가 없고, pick·드래그·Space 누름 중이 아닐 때.
-   - 이동: 프레임이 화면 안에 다 보이면 옮기지 않는다. 아니면 `CanvasController.jump`의 이동 계산을 쓰되 선택하지 않고 1.2초 jump highlight도 더하지 않는다(작업 프레임 표시가 같은 모양으로 이미 있다). 이동은 지금의 jump처럼 바로 일어난다(view 애니메이션 없음).
-   - 사람의 이동: 휠·트랙패드 팬, 핀치·⌘휠 확대, Hand·Space 드래그, 확대 버튼과 단축키, frame drawer, Quick Open 프레임 이동, 칩 Locate, `doan open --frame`·링크의 프레임 이동. 이 경로들이 `lastPersonMove`를 지금으로 하고, 작업 턴 중이면 멈춤 표시를 남긴다. 따라가기의 이동, reload가 보존한 화면, 캔버스를 열 때 복원한 화면은 사람의 이동이 아니다. 지금의 `viewChanged` 콜백은 이 둘을 구별하지 않으므로 그대로 쓰면 안 된다.
-   - 작업 턴의 키: 터미널은 (root, session 또는 anonymous, 그 세션이 처음 보인 시각), 앱 대화는 (conversationId, turnId). 키가 바뀌면 멈춤 표시는 없어진다. 멈춤 표시는 renderer 메모리에만 있다.
-   - 캔버스를 떠났다가 같은 작업 턴에 돌아오면 멈춤 표시는 남는다.
+   - 시작 조건: 고른 작업 내용의 frame이 이 작업 턴에 아직 따라가지 않은 frame이고(`followed`: 이 캔버스·작업 턴에서 따라갔거나 따라간 것으로 본 frame id), 그 frame이 layout에 있고(`update` 뒤 reload로 새로 생긴 경우 포함), `now - lastPersonMove >= FOLLOW_IDLE_MS`, 이 작업 턴의 멈춤 표시가 없고, busy가 아니고, 고른 작업 출처가 직전과 같을 때. 같은 frame의 다음 `update`나 reload는 시작 조건이 아니다. 시작 조건이 맞아 옮겼거나 이미 보여 옮기지 않았으면 그 frame을 `followed`로 둔다.
+   - busy: pick, capture(`state.capturing`), 드래그, Space 누름, 캔버스 페이지가 보이지 않음(`onCanvasPage()` false: Overview, Home, Settings 등), 그 페이지의 메뉴(frame drawer, zoom 메뉴)나 Quick Open·dialog가 열림.
+   - 캔버스에 들어옴: 작업 턴 도중에 캔버스를 열거나 돌아오면(sidebar, Back, Overview 등) `lastPersonMove`를 지금으로 하고, 그때의 작업 frame을 `followed`로 둔다. 멈춤 표시는 남기지 않는다. 사람이 방금 고른 화면을 바로 빼앗지 않고, 다음 frame부터 따라간다.
+   - 작업 출처가 바뀜: 고른 작업 출처(터미널 세션 또는 대화)가 바뀐 `update`는 표시와 글만 바꾸고 화면을 옮기지 않으며, 그 frame을 `followed`로 둔다. 두 출처가 번갈아 `update`해도 화면이 왔다 갔다 하지 않는다.
+   - "이미 보임": `safeArea(viewport, FIT_INSET)`(`viewport.ts`) 안에 프레임이 다 들어 있으면 보인다. 안전 영역보다 큰 프레임은 윗변이 안전 영역 안에 있으면 보인다.
+   - 이동: 보이지 않으면 옮긴다. 지금 확대율로 안전 영역에 들어가면 확대율을 그대로 두고 가운데로 옮긴다(`elementView`의 들어맞는 경우와 같은 계산). 들어가지 않으면 frame drawer의 jump와 같은 `fitFrame`을 쓴다(spec 완료 조건 9). 선택하지 않고 1.2초 jump highlight도 더하지 않는다(작업 프레임 표시가 같은 모양으로 이미 있다). 이동은 지금의 jump처럼 바로 일어난다(view 애니메이션 없음). `followDecision`이 이 view를 돌려준다.
+   - 사람의 이동은 출처로 구별한다: view를 바꾸는 모든 곳(`applyView`와 그 호출자)이 출처를 받고, 기본값은 "사람"이다. 사람이 아닌 출처는 넷뿐이다: 따라가기 이동, reload가 보존한 화면, 캔버스를 열 때 복원한 화면, 열 때의 맞추기(`settleFit`). 사람 출처의 view 변경은 `lastPersonMove`를 지금으로 하고, 작업 턴 중이면 멈춤 표시를 남긴다. 그래서 새 이동 경로가 생겨도 따라가기가 사람과 싸우지 않는다. 지금의 경로 예: 휠·트랙패드 팬, 핀치·⌘휠 확대, Hand·Space 드래그, 확대 버튼·zoom 메뉴(`zoomTo`)·단축키, frame drawer, Quick Open 프레임 이동, 칩 Locate, `doan open --frame`·`doan://` 링크의 프레임 이동. 지금의 `viewChanged` 콜백은 출처를 구별하지 않으므로 그대로 쓰면 안 된다.
+   - 쉬는 신호: 보드 위의 pointer 이동, 선택 변경, 패널 composer 입력도 `lastPersonMove`를 지금으로 한다(멈춤 표시는 남기지 않음). 작업 턴 중에 사람이 선택을 바꾸면 멈춤 표시도 남긴다.
+   - 멈춤의 범위: 사람의 이동은 그 순간 이 캔버스에 작업 내용이 있는 모든 작업 턴 키에 멈춤 표시를 남긴다. 다른 출처가 이겨도 다시 따라가지 않는다.
+   - 작업 턴의 키: 터미널은 main이 그 세션의 작업이 처음 시작될 때(`start` 또는 `update`로 세션이 생길 때) 한 번 만드는 식별자(`WorkItem`에 실음, provider 포함; 만료나 `done` 뒤 새 세션이면 새 값), 앱 대화는 (conversationId, turnId). renderer가 처음 본 시각을 쓰지 않는다. 화면 전환이나 구독 시점에 따라 키가 달라지기 때문이다. 키가 바뀌면(예: `done` 뒤 새 `update`) 멈춤 표시와 `followed`는 없어진다. 둘 다 캔버스·작업 턴 키별로 renderer 메모리에만 있다.
+   - 캔버스를 떠났다가 같은 작업 턴에 돌아오면 멈춤 표시와 `followed`는 남는다.
 10. **앱 종료·reload.** 터미널·대화 작업 내용은 모두 메모리에만 있다. renderer reload 뒤에는 main에서 다시 읽는다. 앱을 다시 실행하면 없다.
 
 ### UI 흐름
 
 1. 터미널 에이전트(또는 캔버스 대화)가 프레임 `pricing-empty`를 고치기 시작하며 `update --frame pricing-empty --note "요금제 빈 상태를 그리는 중"`을 보낸다.
 2. 그 캔버스를 보고 있던 사람의 보드에서 작업 notice의 글이 그 문장으로 바뀌고 `pricing-empty`에 표시가 생긴다. 사람이 5초 넘게 화면을 움직이지 않았고 그 프레임이 화면 밖이면 화면이 그 프레임으로 옮겨 간다.
-3. 에이전트가 파일을 쓰면 캔버스가 다시 불러와지고 표시는 같은 프레임에 다시 붙는다. 화면은 다시 옮기지 않는다.
+3. 에이전트가 파일을 쓰면 캔버스가 다시 불러와지고 표시는 같은 프레임에 다시 붙는다. 이미 따라간 프레임이면 화면은 다시 옮기지 않는다. `update`할 때 아직 없던 새 프레임이 이 reload로 생겼으면 조건이 맞을 때 한 번 따라간다.
 4. 다음 프레임의 `update`에서 표시가 옮겨 가고, 조건이 맞으면 화면도 따라간다.
 5. 사람이 중간에 휠로 다른 곳을 보면, 그 턴의 나머지 `update`는 표시와 문구만 바꾸고 화면은 옮기지 않는다.
 6. `done`(터미널) 또는 턴 끝(앱 대화)에서 glow, 작업 notice, 표시가 사라진다. 사람이 다른 캔버스를 보고 있으면 지금처럼 사이드바만 바뀐다.
@@ -103,16 +112,17 @@ project 대화는 Home이나 Overview에서 시작되고, 그 대화가 이름�
 
 Go(`cli/internal/cli/work_rules.go`):
 
-1. `workUpdateArgs(args []string) (path, frame, note string, err error)` — 위치 인자와 `--frame`·`--note`, §1 규칙 2의 경계.
+1. `workUpdateArgs(positional []string, frames []string, note string, noteSet bool) (path, frame, note string, err error)` — §1 규칙 2의 경계. 플래그는 따로 파싱하지 않는다. `run.go`의 `SplitArgs`가 기존 `Flags`로 먼저 읽고(`Frames`는 이미 있고, `Note`를 더함), `case "work"`의 허용 플래그 목록에 `update`일 때만 `frame`·`note`를 연다(지금 `frame`은 `open`에서만 허용). 이 함수는 위치 인자와 파싱된 값을 받는다. `--frame`이 두 번이면 `open`처럼 오류다.
 2. `workRequest(action, root, path, frame, note string, id workIdentity) (map[string]any, bool)` — §1 규칙 3. 앱 대화에서 `start`·`done`이거나 대화 id가 없으면 `false`(보내지 않음). `workIdentity`는 세션/provider 또는 대화 id.
 3. `conversationID(value string) string` — `session`과 같은 불투명 id 계약.
 
 TS main:
 
 4. `applyWork`의 `update` 분기, `workItems`의 `frame`·`note`·`touched`(`workState.ts`). 같은 경로를 가진 두 root를 꼭 넣는다.
-5. `workItemsChanged(previous, next)` — 지금 `index.ts` 144행의 비교를 꺼내 작업 내용까지 본다. 빠뜨리면 `update`가 앱에 닿아도 renderer는 바뀌지 않는다.
+4b. `WorkItem`에 터미널 작업 턴 식별자(세션의 작업이 처음 시작될 때 main이 한 번 만듦, §1 규칙 9 '작업 턴의 키').
+5. `workItemsChanged(previous, next)` — 지금 `index.ts`의 `work:changed` 발행 비교를 꺼내 작업 내용까지 본다. 빠뜨리면 `update`가 앱에 닿아도 renderer는 바뀌지 않는다.
 6. `applyConversationWork(state, request, live)`, `endConversationWork(state, conversationId)` — §1 규칙 5. `live`는 (conversationId → {root, turnId, running})의 읽기 전용 사본이다.
-7. `childEnv`에 `DOAN_CONVERSATION_ID`를 더하는 부분(`environment.ts` `agentEnv`, `providerEnv`의 `RESERVED`): 기존 `environment.test.ts`가 고정하는 범위를 넓힌다.
+7. 환경: 주입은 대화 id를 아는 `ConversationService.openRunner`에서 `input.env`에 더한다(§8, 두 경로 모두). `agentAuth/environment.ts` `providerEnv`는 `RESERVED`에 `DOAN_CONVERSATION_ID`를 더해 provider extra가 덮으면 `reserved_extra`로 거절하는 일만 한다. A4는 `RESERVED` 검증(`agentAuth/environment.test.ts`, `conversation/environment.test.ts`), B3는 runner 환경에 id가 들어가는지(`service.test.ts`)를 맡는다.
 
 TS renderer:
 
@@ -120,8 +130,8 @@ TS renderer:
 9. `agentNoticeView` 확장 — 문구(프레임 제목, 없으면 id), project 대화 변형(Stop 없음).
 9b. `typingSteps(from, to, {eraseMs, typeMs, capMs, fromWidth, toWidth})` → `{text, at, minWidth}[]` — 결정 19·20: grapheme 공통 앞부분, 끝부분만 지우고 치는 순서와 시각, 1,000 ms 상한의 비율 축소, 단계마다의 너비 하한(애니메이션 동안 `min(fromWidth, toWidth)`, 마지막 단계는 없음). 중간 교체는 호출자가 지금 보이는 글을 `from`으로 다시 부른다.
 10. `workFrameRect(layout, id)`.
-11. `followDecision({frame, previousFrame, rect, viewport, lastPersonMove, now, stopped, busy})` → `"move" | "stay"`와 이동할 view — §1 규칙 9의 시작 조건과 "이미 보임".
-12. `followTurnKey(item)`, 멈춤 표시 갱신 `followStopped(state, key, personMoved)`.
+11. `followDecision({frame, followed, sourceChanged, rect, viewport, view, lastPersonMove, now, stopped, busy})` → `"move" | "stay"`와 이동할 view — §1 규칙 9의 시작 조건, "이미 보임"(`safeArea(viewport, FIT_INSET)`), 확대율 유지·`fitFrame` 이동.
+12. `followTurnKey(item)`(터미널은 main이 준 식별자, 대화는 conversationId+turnId), 멈춤 표시 갱신 `followStopped(state, keys, personMoved)`(그 캔버스의 모든 작업 턴 키), 캔버스에 들어올 때와 출처가 바뀔 때의 `followed` 갱신.
 
 ## 3. 형식 변경
 
@@ -167,13 +177,13 @@ TS renderer:
 - **2026-10-26 'A reload that never laid out left a new comment unblocked'**: "reads `CanvasState.reloading` or `status === \"failed\"`, not a `layout.document` change or `status === \"loading\"` alone." → 표시 재부착과 따라가기 시작 조건은 `reloading`을 본다.
 - **2026-11-02 'Evaluation unit checks inherited the real session-recording runtime'**: eval 테스트가 CLI를 실행할 때는 절대 경로의 임시 `DOAN_RUNTIME`을 준다. → W5 fixture도 같다.
 - **2026-10-31 'A linked default directory served its unconfigured target'**: 경로 규칙은 새로 만들지 않고 `workTarget`을 쓴다.
-- **2026-10-27 'Awaited conversation work outlived its current turn'**: 대화 작업 내용은 `turnId`를 함께 기억하고, 끝난 턴의 늦은 `update`는 버린다(§1 규칙 5).
+- **2026-10-27 'Awaited conversation work outlived its current turn'**: 대화 작업 내용은 `turnId`를 함께 기억하고, 끝난 턴의 늦은 `update`는 다음 턴이 받아들여지기 전까지 버린다. 그 뒤에 도착한 이전 턴의 요청은 구별하지 못한다(§1 규칙 5 '한계').
 - ARCHITECTURE §4 'Auto-registration'이 인용하는 POSTMORTEM 2026-11-03: `adopt`는 목록만 보내고 `FolderFocus`는 보내지 않는다. 터미널 `update`의 자동 등록도 같은 경로를 탄다.
 
 ## 8. 앱 대화 묶기를 코드로 확인한 것
 
-- 환경을 만드는 곳은 두 군데다: legacy external은 `conversation/environment.ts` `agentEnv`, Doan 연결은 `agentAuth/manager.ts` `childEnv` → `agentAuth/environment.ts` `providerEnv`. 둘 다 `DOAN_APP_CONVERSATION: "1"`을 넣고, `conversation/prepare.ts`가 그 결과를 `Prepared.env`로 넘긴다(Doan 연결은 `PATH`만 더함, 195행).
-- 대화 id는 `ConversationService.start`에서 `randomUUID()`로 runner를 열기 전에 정해지고(163행), `openRunner(id, live, input)`(394행)가 runner를 연다. 그래서 `openRunner`에서 `input.env`에 id를 더하면 두 경로 모두에 들어간다. `prepare`에는 id가 없으므로 그쪽에서 넣지 않는다.
+- 환경을 만드는 곳은 두 군데다: legacy external은 `conversation/environment.ts` `agentEnv`, Doan 연결은 `agentAuth/manager.ts` `childEnv` → `agentAuth/environment.ts` `providerEnv`. 둘 다 `DOAN_APP_CONVERSATION: "1"`을 넣고, `conversation/prepare.ts`가 그 결과를 `Prepared.env`로 넘긴다(Doan 연결은 `PATH`와 Claude의 `promptSuggestionEnv`를 더함).
+- 대화 id는 `ConversationService.start`에서 `randomUUID()`로 runner를 열기 전에 정해지고, `openRunner(id, live, input)`가 runner를 연다. 그래서 `openRunner`에서 `input.env`에 id를 더하면 두 경로 모두에 들어간다. `prepare`에는 id가 없으므로 그쪽에서 넣지 않는다.
 - Codex runner는 대화마다 `app-server`를 띄우고 그 대화의 여러 턴에 걸쳐 산다. 환경은 runner를 열 때 한 번 정해지므로 같은 대화의 턴마다 id가 같다. 턴은 main이 `turnId`로 구별한다.
 - `ConversationService.receive`가 턴 끝 이벤트를 처리하는 곳(같은 파일)이 대화 작업 내용을 지울 자리다. archive(`archive()`), 삭제, 종료도 같은 정리를 부른다.
 - project 대화의 캔버스는 `ProjectTurn` 증거와 판정(`project.ts`)으로 턴 뒤에 정해진다. `update`가 주는 path는 이 판정에 넣지 않는다(결정 11). 표시는 `update`의 path로만 정한다.
