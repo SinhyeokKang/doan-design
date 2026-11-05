@@ -237,3 +237,33 @@ test("the sidebar project menu is opaque while every other dropdown keeps the gl
   for (const file of ["../HomeComposerView.tsx", "../ProjectOverview.tsx"]) expect(read(file)).not.toContain("shell-side-menu");
   expect(read("./surfaces.css")).toContain(".doan-floating { background: var(--surface-elevated-glass); backdrop-filter: blur(var(--blur-sm)); }");
 });
+
+// canvas-capture design §2–§3 and POSTMORTEM 2026-11-02 'Every Overview menu opened under the Overview itself': the
+// capture layer takes the drag layer's place, under the canvas chrome and every portalled surface, so Stop, Open, the
+// tools and an open zoom menu stay over it. `[hidden]` must keep winning, so neither the layer nor the marquee sets
+// display; the area keeps clipping (POSTMORTEM 2026-11-02 'Tab walked into the draft').
+test("the capture layer sits in the drag layer's place, under the canvas chrome and portalled surfaces", () => {
+  const styles = read("../styles.css");
+  const z = (text: string | null) => Number(/z-index:\s*(\d+)/.exec(text ?? "")?.[1] ?? NaN);
+  const layer = rule(styles, ".capture-layer");
+  expect(layer).toBe("position: absolute; inset: 0; z-index: 0; cursor: crosshair;");
+  expect(z(layer)).toBe(z(rule(styles, ".drag-layer")));
+  for (const chrome of [".doan-canvas-bottom", ".doan-canvas-top", ".doan-agent-glow"]) expect(z(layer)).toBeLessThan(z(rule(styles, chrome)));
+  expect(z(layer)).toBeLessThan(z(rule(read("./surfaces.css"), "[data-radix-popper-content-wrapper] > .doan-floating")));
+  expect(rule(styles, ".capture-marquee")).toBe("position: absolute; border: 1px solid var(--border-focus); box-shadow: 0 0 0 1px var(--surface-panel); background: var(--affordance-backdrop-hover); pointer-events: none;");
+  expect(styles).not.toMatch(/\.capture-(layer|marquee)[^{]*\{[^}]*display/);
+  expect(rule(styles, ".doan-canvas-panel > .area")).toContain("overflow: clip;");
+});
+
+// canvas-capture design §2 '스냅숏' and POSTMORTEM 2026-11-03 'A canvas row menu closed by Esc dropped focus to the
+// page body': the snapshot hides app marks with opacity only, so layout holds and the focused tool keeps focus.
+// !important beats the agent glow's opacity animation. PoC C1 found the renderer CSP blocks inline <style>.
+test("the capture snapshot hides app marks with opacity alone", () => {
+  const styles = read("../styles.css");
+  const hide = /\[data-capture-snapshot\] :is\(([^)]*(?:\([^)]*\)[^)]*)*)\) \{([^}]*)\}/.exec(styles);
+  expect(hide).not.toBeNull();
+  const targets = hide![1]!.split(",").map(target => target.trim());
+  expect(targets.sort()).toEqual([".capture-marquee", ".doan-agent-dot", ".doan-agent-glow", ".doan-canvas-bottom", ".doan-canvas-top", ".overlay", ".toast", "[data-radix-popper-content-wrapper]"].sort());
+  expect(hide![2]!.trim()).toBe("opacity: 0 !important;");
+  expect(styles).not.toMatch(/\[data-capture-snapshot\][^{]*\{[^}]*(visibility|display)/);
+});
