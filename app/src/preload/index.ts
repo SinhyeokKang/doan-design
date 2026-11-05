@@ -168,6 +168,10 @@ const api = {
     return paths.map((path, i): AttachmentResult => path === "" ? { ok: false, name: files[i]!.name, error: "not_found" } : checked[next++]!);
   },
   addPastedImage: (bytes: ArrayBuffer | Uint8Array): Promise<AttachmentResult | null> => ipcRenderer.invoke("attachments:add-pasted", { bytes: bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes) }),
+  // A canvas capture: main reads the pixels of rect (main window content CSS px, whole window only) and saves them as a
+  // paste. Resolves to the AttachmentResult (capture_failed for an empty image or a failed save), or null when main
+  // refused the request.
+  captureCanvas: (rect: { x: number; y: number; width: number; height: number }): Promise<AttachmentResult | null> => ipcRenderer.invoke("attachments:capture", { rect }),
   // A pasted image removed before it was sent is deleted; a local file is only forgotten.
   removeAttachment: (id: string): Promise<boolean> => ipcRenderer.invoke("attachments:remove", { id }),
   // Edit on Home: the acceptance checks again for these ids, in order; null when main refused the request.

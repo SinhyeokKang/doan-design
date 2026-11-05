@@ -4,7 +4,7 @@ import { ConversationStore } from "./conversation/store";
 import { connectorFacts, createAccountPrepare, createPrepare, routePrepare } from "./conversation/prepare";
 import { listModels, openRunner } from "./conversation/runners";
 import { ModelCatalog } from "./conversation/models";
-import { AttachmentStore, type AttachmentResult } from "./attachments";
+import { AttachmentStore, captureRequest, type AttachmentResult } from "./attachments";
 import { conversationHandler, conversationMethods, queueFiles } from "./conversation/ipc";
 import { DraftStore } from "./conversation/drafts";
 import { folderRefreshes } from "./conversation/refreshes";
@@ -923,6 +923,18 @@ async function start(): Promise<void> {
   handle("attachments:recheck", null, (event, value: unknown) => fromWindow(event) ? attachments.recheck(value) : null);
   handle("attachments:release", false, (event, value: unknown) => fromWindow(event) && attachments.release(value));
   handle("attachments:fromPaths", null, (event, value: unknown) => fromWindow(event) ? attachments.fromPaths(value) : null);
+  // The pixels the person sees in a rect of the window, read by main; the renderer names only the rect. A fresh window
+  // is not needed: capturePage reads the compositor, which includes the board's cross-site iframe.
+  handle("attachments:capture", null, async (event, value: unknown): Promise<AttachmentResult | null> => {
+    if (!fromWindow(event) || !win || win.isDestroyed()) return null;
+    const rect = captureRequest(value, win.getContentSize() as [number, number]);
+    if (!rect) return null;
+    const failed: AttachmentResult = { ok: false, name: "Canvas capture", error: "capture_failed" };
+    try {
+      const image = await win.webContents.capturePage(rect);
+      return image.isEmpty() ? failed : attachments.addCaptured(new Uint8Array(image.toPNG()));
+    } catch { return failed; }
+  });
 
   const unavailable = { kind: "unavailable" as const, message: "The project setup request is no longer valid." };
   const canSetUp = (root: string) => ready.entries().some(entry => entry.path === root && entry.kind === "uninitialized");
