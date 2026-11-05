@@ -803,6 +803,38 @@ Reference: `.doan/canvases/canvas-composer-polish.html` (9 frames: `toolbar-defa
 
 `CanvasTools.test.tsx` (order, pressed state, unavailable Picker and Export with their reasons), `ConversationThread.test.tsx` and `threadItems.test.ts` (the sending message), `DockedComposer.queue.test.tsx`, `CanvasConversationList.test.tsx`, `homeComposer.test.ts` (the reason line). Sizes, colours and geometry above are `.scratch/` probes only.
 
+## Canvas capture
+
+Reference: `.doan/canvases/canvas-capture.html` (8 frames: `toolbar-default`, `toolbar-capturing`, `toolbar-unavailable`, `board-ready`, `board-drag`, `panel-folded`, `composer-chips`, `capture-failed`). Measured by `/design-sync` (`.scratch/design-sync/canvas-capture/measure.mjs`) in the built app at a 1238 × 780 window: the draft is copied into a fixture repo as the canvas and read in the app's canvas iframe; 65 element pairs over 16 states, 2,860 property comparisons with `getComputedStyle` in one Electron. No provider signs in (main's auth, model and conversation handlers are replaced); `attachments:capture` keeps main's real handler, wrapped to delay its answer (the Checking chip) or to answer `capture_failed` / `too_large`. Files for the 10-file limit come through Attach with main's open dialog answered by temporary PNGs. Every row matched or is listed below as context; nothing in the implementation changed.
+
+### Measured contracts
+
+| Element | Measured contract | Reason |
+|---|---|---|
+| Tools row | Select, Hand, Picker, Capture area, the separator, Export. Capture area is the shared 40 px `md` icon button (radius 18, `--text-standard` rgb(15,15,15), 16 px lucide `Scan`) | Capture is a mode like the Picker; the divider keeps Export as the action on the whole canvas. |
+| Capture mode | Only Capture area is pressed: `--affordance-backdrop-pressed` rgba(0,0,0,.1), `aria-pressed="true"`, the row's Tab stop; Select, Hand and Picker unpressed. Started from Hand, the drag layer stays down and Hand is pressed again after Esc | One mode at a time. |
+| Capture hint | First child of `.doan-canvas-bottom`, 8 above the tools row (the column's gap): the picking hint's capsule (40 high, padding 4 / 8 / 4 / 16, gap 8, pill radius, rgba(0,0,0,.6) with 16 px blur, white ink), the 14 px `Scan`, "Drag to capture an area" in body-sm 14/20, the `on-prominent` Esc key (28 high, rgba(255,255,255,.16)), `sr-only` "Press Escape to cancel"; `role="status"` | Same look and reading as the picking hint. |
+| Unavailable | `aria-disabled` (never `disabled`), `--text-disabled` rgb(149,149,149), not-allowed cursor, no fill; reason in the shared tooltip (24 high per line, padding 4 / 8, radius 12, black, 12/16 white, 4 above the button, centred) and in the `sr-only` `#canvas-capture-reason` named by `aria-describedby`. Reached: canvas can't be shown (an unlisted page in the iframe), composer blocked (another canvas with the same ID), terminal session (resume mode) and legacy external ("Files can’t be attached to a terminal session"), 10 files ("Only 10 files can be attached. Remove one to add another.") | The reason stays with the control. |
+| Capture layer | `.capture-layer`: absolute, inset 0, z-index 0 (the drag layer's place), crosshair cursor, transparent, the top element over the board while capture mode is on; the hover mark is gone, the selection mark stays | Clicks select nothing; the canvas chrome above it stays usable. |
+| Marquee | `.capture-marquee`: 1 px `--border-focus` (black) with a 1 px white outer ring (`0 0 0 1px` `--surface-panel`), `--affordance-backdrop-hover` fill rgba(0,0,0,.06), no children and no size readout, `pointer-events: none` | The selection mark's line holds on any canvas colour. |
+| Folded panel | Capture mode and the drag keep the area's width (994 at this window); the panel unfolds, with focus in the composer field, only after main answers (the area is 647 and the panel 347 then) | Unfolding before main reads the pixels would narrow the area under the drag. |
+| Capture chip | The shipped attachment chip (40 high, padding 4, gap 8, radius 12, `--surface-inset` rgb(245,245,246)), 32 px lead (radius 8, white): the 16 px spinner while Checking, the thumbnail when ready. "Canvas capture" in caption 12/16 medium, meta "Checking" / "PNG · <size>" in `--text-metadata` rgb(95,95,95); remove "Remove canvas capture" | Tells a capture from a pasted image. |
+| Failure toast | The shared toast (rgba(255,255,255,.9) with 8 px blur, radius 24, padding 12, body 14/20): "Couldn’t capture the canvas. Try again.", the shipped 50 MB line, or "Only 10 files can be attached. 1 was left out." when the draft filled after the render (no capture call is made). The chip is removed; nothing shows on the board | A failure happened, so it is a toast. |
+
+### Documented deviations from the draft
+
+- The folded panel unfolds after main's answer, not when the chip goes in as the `panel-folded` frame reads: unfolding first would narrow the area before main reads its pixels. This is timing, not a style difference.
+- Context, not deviations: the tooltip portalled by Radix 4 above the button where the draft hangs it 4 above the tools row (position, z-index); the draft page's 14 px body against the app's 13 px in text-less elements; lucide's `stroke-width` on the `<svg>` against the draft's on its `<symbol>` (both draw 2); the shipped global `.thumb` rule's grid on the chip lead (its image fills it); the hover fill and focus ring where the measurement pointed or focused the button; Radix's tooltip id added to `aria-describedby` while open (the repeated description is the pattern 'Canvas tools, Send now…' lists); stage sizes, drag positions and fixture texts; a 2 px wider long tooltip text run.
+
+### Not verified
+
+- A real paste next to a capture: the "Pasted image" neighbour was an attached path file (its label is pinned in `homeComposer.test.ts`).
+- Dark mode, reduced transparency and forced colours.
+
+### Regression pointers
+
+`CanvasTools.test.tsx` (order, pressed rule, reasons), `ds/controls.test.ts` (layer, marquee and snapshot CSS), `App.conversationPanel.test.tsx` (chip, unfold after the answer, toasts, limit race), `homeComposer.test.ts` (chip name), `conversationStore.test.ts` (`capture_failed`). Sizes, colours and geometry above are `.scratch/` probes only.
+
 ## Terminal agent activity
 
 Reference: `.doan/canvases/terminal-agent-activity.html` (`terminal-notice`, `sidebar-slot`, `resume-disabled`, `deeplink-refusal`). Measured by `/design-sync` (`.scratch/design-sync/terminal-agent-activity/measure.mjs`) in the built app at 1238 × 780 against the draft read in the app's canvas iframe: 59 part pairs over 15 states, 4 of them the suggestion re-measure on Home, the Overview and the canvas panel. Terminal work was real: the built CLI's `doan work start|done` against the isolated app's `DOAN_RUNTIME`, as Claude Code (`CLAUDE_CODE_SESSION_ID`), Codex (`CODEX_THREAD_ID`) and an anonymous session. The terminal session choice came from a real `doan check` association under the fake Claude session, answered by the app's own resume probe (a version-only fake `claude` on the fake login shell's `PATH` and a transcript file). Only the app-conversation notice (the draft's comparison tile) used replaced conversation handlers, and the suggestions an injected ready agent.
