@@ -85,6 +85,7 @@ What Doan has not settled or not shown yet: product questions without a decision
 
 ## Known defects
 
+- A Cursor conversation's second turn is refused as `session_unavailable` (seen twice on 2026-11-05 with the shared provider profile and cursor-agent 2026.10.22-27dcf5f during the context-window-ring PoC, `.scratch/context-window-ring/drive.mjs`); the first turn completes. Cause not investigated.
 - Escape on Settings > Agents' Agent picker leaves Settings for Home (focus lands in the Home composer) instead of only closing the menu: the picker's `DropdownMenu.Content` (`SettingsAgents.tsx`) does not stop Escape, and App's window keydown handler decides to leave the page by whether a menu is in the DOM after Radix has already removed it. Seen in the mcp-connectors BU runtime probe and review (2026-11-04); the same handler existed before that feature.
 - A Codex MCP tool approval that expires when the person presses Stop (Doan answers it, and Codex treats that as Decline) still shows as "Answered · Run <tool> on <connector>" in the thread, which reads as if the person allowed it. Seen in the mcp-connectors real-app run.
 - `open -g` to an app that is running but not yet answering its socket brings it forward: reopen fires `activate`, whose handler shows the window, so `onboarding start` during startup can still cover the app in use. Fixing it means changing the Dock-click `activate` behaviour.
