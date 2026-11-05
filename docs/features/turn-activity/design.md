@@ -138,7 +138,7 @@ activity 기록은 바뀌지 않는다. `codexActivities`는 지금처럼 모든
 
 ## 초안 요청
 
-상태: 첫 초안(`c9224a35`)에서 사람이 B 형태와 thread 안 위치, 단계 글과 경과 시간 형식을 골랐다(결정 1, 10). 수정본은 B만 남기고 나머지 변형과 고정 줄 frame을 지운다. 사람의 최종 확인 전이다. 아래는 첫 초안의 요청이다.
+상태: 첫 초안(`c9224a35`)에서 사람이 B 형태와 thread 안 위치, 단계 글과 경과 시간 형식을 골랐다(결정 1, 10). 수정본(`a0d0f1aa`)은 B만 남겼다: canvas id `turn-activity`, width 1664, frame `states`(상태 (1)–(12)), `widths`(Overview 720과 panel 280), `reduced-motion`, `copy-format`. `/design-sync`는 이 네 frame을 비교한다. 사람의 최종 확인 전이다. 아래는 첫 초안의 요청이다.
 
 `/design-draft turn-activity`로 새 파일 `.doan/canvases/turn-activity.html`에 **턴 표시의 변형 여러 개**를 그린다. 한 형태로 좁히지 말고 서로 다른 표현을 펼친다(사람의 요청: "디자인 드래프트에서 제한을 두지 말고 다양하게 표현해보라고 해"). 사람은 앱에서 그중 하나를 고르고, 그 선택이 결정 1의 형태가 된다. 기본 후보 (a)를 반드시 변형 하나로 그린다.
 
