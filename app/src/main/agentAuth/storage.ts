@@ -11,6 +11,7 @@ export class StorageError extends Error {
   constructor(readonly code: StorageCode, detail?: string) { super(detail ? `${code}: ${detail}` : code); }
 }
 export type VaultFiles = Record<string, Buffer>;
+export type SettingMerge = (current: string | null) => string | null;
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
 function absent(error: unknown): boolean { return typeof error === "object" && error !== null && (error as NodeJS.ErrnoException).code === "ENOENT"; }
 
@@ -111,10 +112,27 @@ export class AuthStorage {
     try { chmodSync(path, 0o700); accessSync(path, constants.X_OK); } catch (error) { throw new StorageError("write_failed", message(error)); }
     return path;
   }
-  writeSetting(provider: Provider, rel: string, text: string, profile: string = provider): void {
+  // A string is the whole file, which Doan owns. A SettingMerge is for a file the provider writes too (Claude Code's
+  // settings.json): it gets the current text and returns the text to write, or null to leave the file alone, so the
+  // provider's own keys are never replaced.
+  writeSetting(provider: Provider, rel: string, text: string | SettingMerge, profile: string = provider): void {
     const path = this.working(provider, rel, profile);
+    if (typeof text !== "string") return this.mergeSetting(path, text);
     try { if (readFileSync(path, "utf8") === text) return; } catch (error) { if (!absent(error)) throw new StorageError("unreadable", message(error)); }
     this.replace(path, Buffer.from(text));
+  }
+  private mergeSetting(path: string, merge: SettingMerge): void {
+    let current: string | null = null;
+    try { current = new TextDecoder("utf-8", { fatal: true }).decode(readFileSync(path)); }
+    catch (error) {
+      if (!absent(error)) {
+        // Bytes that are not UTF-8 would be changed by a text round trip, so the file stays as it is.
+        if (error instanceof TypeError) return;
+        throw new StorageError("unreadable", message(error));
+      }
+    }
+    const next = merge(current);
+    if (next !== null && next !== current) this.replace(path, Buffer.from(next));
   }
   hasWorkingCopy(provider: Provider, rels: readonly string[]): boolean {
     return rels.some(rel => {

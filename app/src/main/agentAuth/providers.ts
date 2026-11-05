@@ -1,7 +1,9 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { codexRuleText, mergeClaudeAllow } from "../agentSetup/plan";
 import stub from "../onboarding/SKILL.md?raw";
 import { ANTIGRAVITY_COMMAND, ANTIGRAVITY_SERVER } from "./antigravity";
+import type { SettingMerge } from "./storage";
 import type { AccountIdentity, CheckResult, Provider } from "./types";
 
 export interface StatusRun { code: number | null; stdout: string; stderr: string; profileDir: string }
@@ -35,8 +37,9 @@ export interface ProviderAuth {
   identity: "codex-app-server" | "google-userinfo" | null;
   // For keychain providers: files whose presence means the CLI fell back to plaintext.
   plaintext: string[];
-  // Non-secret profile files written before every provider process, such as Copilot's storage setting.
-  settings: Record<string, string>;
+  // Non-secret profile files written before every provider process, such as Copilot's storage setting. A function is
+  // a merge into a file the provider writes too (storage.ts SettingMerge).
+  settings: Record<string, string | SettingMerge>;
   parseStatus(run: StatusRun): CheckResult;
 }
 const failed: CheckResult = { status: "failed", code: "check_failed" };
@@ -112,6 +115,14 @@ function codexStatus(run: StatusRun): CheckResult {
 // The dedicated profile gets its own discovery stub instead of a copy of or link to the user's global skill;
 // Claude reads <CLAUDE_CONFIG_DIR>/skills and Codex <CODEX_HOME>/skills (skills/list, scope "user", 0.163.0 and 0.164.0).
 const SKILL_STUB = { "skills/doan/SKILL.md": stub };
+// The Doan-connected profiles get the terminal Agent setup's permission scope so an app conversation's `doan work
+// update` does not ask on every frame in Default mode. Claude Code writes this profile's settings.json too, so only the
+// missing rules go in; a file that cannot be merged into (invalid JSON, wrong shapes) stays as it is, since nothing
+// shows the person an About item for a profile file.
+const CLAUDE_PROFILE_ALLOW: SettingMerge = current => {
+  const merged = mergeClaudeAllow(current);
+  return merged.kind === "write" ? merged.text : null;
+};
 // Personal skill directories under the dedicated HOME: Cursor ~/.cursor/skills, Copilot ~/.copilot/skills,
 // Antigravity <GEMINI_HOME>/skills (B3 live check 2026-10-28).
 const HOME_STUB = (dir: string) => ({ [`${dir}/skills/doan/SKILL.md`]: stub });
@@ -119,11 +130,11 @@ const CLI_RUN = { acpAuth: null, acp: null, verifyByRun: false, hookLink: null, 
 export const PROVIDER_AUTH: Record<Provider, ProviderAuth> = {
   // PoC 10: a non-default CLAUDE_CONFIG_DIR gets its own Keychain item; .credentials.json would be the plaintext fallback.
   claude: { command: "claude", args: [], env: {}, login: ["auth", "login"], status: ["auth", "status", "--json"], logout: ["auth", "logout"],
-    vault: null, plaintext: [".credentials.json"], settings: SKILL_STUB, ...CLI_RUN, hookLink: claudeLink, parseStatus: claudeStatus },
+    vault: null, plaintext: [".credentials.json"], settings: { ...SKILL_STUB, "settings.json": CLAUDE_PROFILE_ALLOW }, ...CLI_RUN, hookLink: claudeLink, parseStatus: claudeStatus },
   // The keyring entry is keyed by the canonical CODEX_HOME; "auto" could silently write auth.json instead. MCP OAuth
   // tokens are forced into the keyring the same way, on every Codex process: a conversation's token refresh stores too.
   codex: { command: "codex", args: ["-c", 'cli_auth_credentials_store="keyring"', "-c", 'mcp_oauth_credentials_store="keyring"'], env: {}, login: ["login"], status: ["login", "status"], logout: ["logout"],
-    vault: null, plaintext: ["auth.json"], settings: SKILL_STUB, ...CLI_RUN, loginClears: true, identity: "codex-app-server", parseStatus: codexStatus },
+    vault: null, plaintext: ["auth.json"], settings: { ...SKILL_STUB, "rules/doan.rules": codexRuleText() }, ...CLI_RUN, loginClears: true, identity: "codex-app-server", parseStatus: codexStatus },
   // AGENT_CLI_CREDENTIAL_STORE=file is Cursor's official switch; the default macOS Keychain item is shared by every profile.
   // On macOS the file store is ~/.cursor/auth.json (getAuthFilePath in the 2026.10.22 bundle).
   // Conversations: official `agent acp` (https://cursor.com/docs/cli/acp); it needs authenticate("cursor_login").

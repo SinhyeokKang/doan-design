@@ -150,3 +150,48 @@ describe("provider file bridge", () => {
     expect(statSync(storage.profileDir("copilot")).mode & 0o777).toBe(0o700);
   });
 });
+
+describe("merged profile settings", () => {
+  const read = (storage: AuthStorage, rel: string) => readFileSync(join(storage.profileDir("claude"), rel), "utf8");
+  it("hands a missing file to the merge as null and writes what it returns", () => {
+    const storage = new AuthStorage(root, fakeCipher());
+    const seen: (string | null)[] = [];
+    storage.writeSetting("claude", "settings.json", current => { seen.push(current); return '{"a":1}'; });
+    expect(seen).toEqual([null]);
+    expect(read(storage, "settings.json")).toBe('{"a":1}');
+    expect(statSync(join(storage.profileDir("claude"), "settings.json")).mode & 0o777).toBe(0o600);
+  });
+  it("hands the current text to the merge and replaces the file only with its result", () => {
+    const storage = new AuthStorage(root, fakeCipher());
+    storage.writeSetting("claude", "settings.json", '{"a":1}');
+    storage.writeSetting("claude", "settings.json", current => `${current}\n`);
+    expect(read(storage, "settings.json")).toBe('{"a":1}\n');
+    expect(readdirSync(storage.profileDir("claude")).filter(name => name.endsWith(".tmp"))).toEqual([]);
+  });
+  it("leaves the file alone when the merge returns null or the same text", () => {
+    const storage = new AuthStorage(root, fakeCipher());
+    storage.writeSetting("claude", "settings.json", "kept");
+    const path = join(storage.profileDir("claude"), "settings.json"), before = statSync(path).mtimeMs;
+    storage.writeSetting("claude", "settings.json", () => null);
+    storage.writeSetting("claude", "settings.json", current => current);
+    expect(read(storage, "settings.json")).toBe("kept");
+    expect(statSync(path).mtimeMs).toBe(before);
+  });
+  it("does not call the merge for bytes that are not UTF-8, since writing them back would change them", () => {
+    const storage = new AuthStorage(root, fakeCipher());
+    const path = join(storage.profileDir("claude"), "settings.json"), bytes = Buffer.from([0x7b, 0xff, 0x7d]);
+    writeFileSync(path, bytes);
+    let called = false;
+    storage.writeSetting("claude", "settings.json", () => { called = true; return "x"; });
+    expect(called).toBe(false);
+    expect(readFileSync(path).equals(bytes)).toBe(true);
+  });
+  it("refuses a path through a link out of the profile as it does for text settings", () => {
+    const storage = new AuthStorage(root, fakeCipher());
+    const outside = join(root, "outside"); mkdirSync(outside);
+    symlinkSync(outside, join(storage.profileDir("claude"), "linked"));
+    expect(() => storage.writeSetting("claude", "linked/settings.json", () => "x")).toThrow(StorageError);
+    expect(readdirSync(outside)).toEqual([]);
+  });
+});
+

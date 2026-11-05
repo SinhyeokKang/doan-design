@@ -1,8 +1,11 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { CLAUDE_ALLOW_RULES, codexRuleText } from "../agentSetup/plan";
+import { fakeCipher } from "./fixtures/cipher";
 import { PROVIDER_AUTH } from "./providers";
+import { AuthStorage } from "./storage";
 import { PROVIDERS } from "./types";
 
 const run = (code: number | null, stdout = "", stderr = "") => ({ code, stdout, stderr, profileDir: "/data/profiles/x" });
@@ -101,9 +104,11 @@ describe("provider auth adapters", () => {
     expect(PROVIDER_AUTH.codex.parseStatus(run(0, "", "Logged in using ChatGPT\n"))).toEqual({ status: "connected", account: { id: null, workspace: null } });
     expect(PROVIDER_AUTH.codex.parseStatus(run(1, "", "Error loading configuration"))).toEqual({ status: "failed", code: "check_failed" });
   });
-  it("gives Claude and Codex dedicated profiles the doan discovery stub and no other provider files", () => {
+  it("gives Claude and Codex dedicated profiles the doan discovery stub, plus the doan allowance and no other provider files", () => {
     const stub = readFileSync(join(__dirname, "../onboarding/SKILL.md"), "utf8");
-    for (const provider of ["claude", "codex"] as const) expect(PROVIDER_AUTH[provider].settings).toEqual({ "skills/doan/SKILL.md": stub });
+    expect(Object.keys(PROVIDER_AUTH.claude.settings).sort()).toEqual(["settings.json", "skills/doan/SKILL.md"]);
+    expect(Object.keys(PROVIDER_AUTH.codex.settings).sort()).toEqual(["rules/doan.rules", "skills/doan/SKILL.md"]);
+    for (const provider of ["claude", "codex"] as const) expect(PROVIDER_AUTH[provider].settings["skills/doan/SKILL.md"]).toBe(stub);
   });
   it("gives every dedicated profile the same stub bytes as the shared machine install", () => {
     const stub = readFileSync(join(__dirname, "../onboarding/SKILL.md"), "utf8");
@@ -116,3 +121,57 @@ describe("provider auth adapters", () => {
     expect(stub).toContain('A truncation notice (such as\n"tokens truncated") means the same even with that line: save `doan skill`\noutput to a file and read it in parts.\n');
   });
 });
+
+// The profile's settings are applied the way the manager applies them before every provider process.
+describe("Doan-connected profile allowances", () => {
+  const apply = (storage: AuthStorage, provider: "claude" | "codex") => {
+    for (const [rel, text] of Object.entries(PROVIDER_AUTH[provider].settings)) storage.writeSetting(provider, rel, text);
+  };
+  const withProfile = (body: (storage: AuthStorage, dir: string) => void) => {
+    const root = mkdtempSync(join(tmpdir(), "doan-auth-allow-"));
+    try { const storage = new AuthStorage(root, fakeCipher()); body(storage, storage.profileDir("claude")); } finally { rmSync(root, { recursive: true, force: true }); }
+  };
+  const allowOf = (dir: string) => JSON.parse(readFileSync(join(dir, "settings.json"), "utf8")).permissions.allow;
+
+  it("creates the Claude profile settings with the four terminal rules", () => withProfile((storage, dir) => {
+    apply(storage, "claude");
+    expect(allowOf(dir)).toEqual([...CLAUDE_ALLOW_RULES]);
+    expect(CLAUDE_ALLOW_RULES).toContain("Bash(doan work update *)");
+  }));
+
+  it("adds only the missing rules to a Claude profile settings file and keeps what Claude Code wrote", () => withProfile((storage, dir) => {
+    const before = '{\n  "model": "opus",\n  "env": {"A": "1"},\n  "permissions": {\n    "allow": ["Bash(npm run *)", "Bash(doan work start *)", "Bash(doan work done *)", "Bash(doan open *)"],\n    "deny": ["Bash(rm *)"]\n  }\n}\n';
+    writeFileSync(join(dir, "settings.json"), before);
+    apply(storage, "claude");
+    const after = JSON.parse(readFileSync(join(dir, "settings.json"), "utf8"));
+    expect(after).toEqual({ model: "opus", env: { A: "1" }, permissions: { allow: ["Bash(npm run *)", ...CLAUDE_ALLOW_RULES], deny: ["Bash(rm *)"] } });
+    expect(readFileSync(join(dir, "settings.json"), "utf8")).toBe(before.replace('"Bash(doan open *)"]', '"Bash(doan open *)", "Bash(doan work update *)"]'));
+  }));
+
+  it("writes nothing on a later run once every rule is there", () => withProfile((storage, dir) => {
+    apply(storage, "claude");
+    const first = statSync(join(dir, "settings.json")).mtimeMs, text = readFileSync(join(dir, "settings.json"), "utf8");
+    apply(storage, "claude");
+    expect(readFileSync(join(dir, "settings.json"), "utf8")).toBe(text);
+    expect(statSync(join(dir, "settings.json")).mtimeMs).toBe(first);
+  }));
+
+  it("leaves a Claude profile settings file it cannot merge into alone", () => withProfile((storage, dir) => {
+    for (const bad of ["{not json", "[]", '{"permissions":{"allow":"x"}}', '{"permissions":null}']) {
+      writeFileSync(join(dir, "settings.json"), bad);
+      apply(storage, "claude");
+      expect(readFileSync(join(dir, "settings.json"), "utf8")).toBe(bad);
+    }
+    expect(readFileSync(join(dir, "skills/doan/SKILL.md"), "utf8")).toContain("doan");
+  }));
+
+  it("gives the Codex profile the same rule file Agent setup writes, under its CODEX_HOME", () => {
+    const root = mkdtempSync(join(tmpdir(), "doan-auth-allow-"));
+    try {
+      const storage = new AuthStorage(root, fakeCipher());
+      apply(storage, "codex");
+      expect(readFileSync(join(storage.profileDir("codex"), "rules/doan.rules"), "utf8")).toBe(codexRuleText());
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+});
+
