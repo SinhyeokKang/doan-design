@@ -6,8 +6,10 @@ import type { WorkItem } from "../main/workState";
 import { PROVIDER_NAMES } from "./agentAuthView";
 import { agentPresence, type AgentPresence } from "./agentPresence";
 import type { CanvasState } from "./CanvasController";
+import type { CanvasFrameRect, LayoutMessage } from "./canvasMessage";
 import { partitionDots, dotScale, type Dot } from "./dotField";
 import { groupProjects } from "./homeCards";
+import { followTurnKey } from "./workFollow";
 
 // The agent indicator on the board (buzz-canvas design §2 '에이전트 작업 표시').
 
@@ -26,15 +28,57 @@ export function listForPresence(state: readonly ConversationSummary[] | "loading
   return Array.isArray(state) ? state : null;
 }
 
-// presence null: only a terminal session works on the canvas (terminal-agent-activity), so there is nothing to Stop.
+// Work content from `doan work update` (work-update design §1 rules 4–6), in the shapes batch M gives main
+// (orch.md '결정 기록'): a terminal session's items carry the content and main's turn id; an app conversation's content
+// (`ConversationWork`, main's conversationWork.ts) lives apart from them so it is never counted as terminal work.
+export type TerminalWork = WorkItem & { frame?: string; note?: string; touched: number; turn: string };
+export interface ConversationWork { conversationId: string; root: string; path: string; frame?: string; note?: string; touched: number; turnId: string }
+
+// The content the open canvas shows. `source` is the terminal session or the conversation (a change of it does not
+// follow); `key` the work turn (follow and its stop last one turn); `waiting`: the canvas's own conversation waits for
+// an answer, so the marker stays still.
+export interface PickedWork { source: string; key: string; touched: number; frame?: string; note?: string; waiting: boolean }
+
+// The canvas's own working or waiting conversation decides alone, with its content on this canvas or none. Otherwise
+// the last update on this root and path wins among project conversations, conversations bound to another canvas
+// (decision 13) and terminal sessions. A twin path in another worktree never counts (POSTMORTEM 2026-11-01).
+export function pickWork(target: WorkingCanvas | null, presence: AgentPresence | null, conversations: readonly ConversationWork[], terminal: readonly TerminalWork[]): PickedWork | null {
+  if (!target) return null;
+  const on = (item: { root: string; path: string }) => item.root === target.root && item.path === target.canvas.path;
+  const content = (item: { frame?: string; note?: string }) => ({ ...(item.frame === undefined ? {} : { frame: item.frame }), ...(item.note === undefined ? {} : { note: item.note }) });
+  const fromConversation = (item: ConversationWork): PickedWork =>
+    ({ source: `conversation:${item.conversationId}`, key: followTurnKey(item), touched: item.touched, ...content(item), waiting: presence?.kind === "waiting" && presence.conversationId === item.conversationId });
+  if (presence) {
+    const own = conversations.find(item => item.conversationId === presence.conversationId && on(item));
+    return own ? fromConversation(own) : null;
+  }
+  let best: PickedWork | null = null;
+  for (const item of conversations) if (on(item) && (best === null || item.touched >= best.touched)) best = fromConversation(item);
+  for (const item of terminal) {
+    if (!on(item) || (best !== null && item.touched < best.touched)) continue;
+    best = { source: `terminal:${item.provider ?? ""}:${item.session ?? ""}`, key: followTurnKey(item), touched: item.touched, ...content(item), waiting: false };
+  }
+  return best;
+}
+
+// The working frame's rect in the current layout: the first frame with the id, as frame jumps take it. None without a
+// layout (loading, a canvas without doan:width) or when the document has no such frame.
+export function workFrameRect(layout: Pick<LayoutMessage, "frames"> | null, id: string | undefined): CanvasFrameRect | null {
+  if (!layout || id === undefined) return null;
+  return layout.frames.find(frame => frame.id === id) ?? null;
+}
+
+// presence null: no app conversation of this canvas works on it; a terminal session, a project conversation or a
+// conversation bound to another canvas does (`doan work`), so there is nothing to Stop (decision 15).
 export type CanvasAgentState = { root: string; presence: AgentPresence; provider: string } | { root: string; presence: null; terminal: true };
 
 // agentPresence with the provider's display name, which the Stop failure toast names. A failed read keeps the previous
 // presence, and with it the provider, only within the same project: a twin canvas in another worktree (same id or
 // path) must never show, or Stop, the first project's conversation (RBR5). Without an app conversation working or
 // waiting on it, a terminal session's `doan work` on the canvas (`work`, root + path) shows the terminal variant, so
-// the indicator stays when the app turn ends and the terminal session goes on.
-export function canvasAgent(list: readonly ConversationSummary[] | null, target: WorkingCanvas | null, previous: CanvasAgentState | null, work: readonly WorkItem[]): CanvasAgentState | null {
+// the indicator stays when the app turn ends and the terminal session goes on. Another conversation's `update` naming
+// this canvas (`conversations`) shows the same variant.
+export function canvasAgent(list: readonly ConversationSummary[] | null, target: WorkingCanvas | null, previous: CanvasAgentState | null, work: readonly WorkItem[], conversations: readonly ConversationWork[] = []): CanvasAgentState | null {
   if (!target) return null;
   const kept = previous?.root === target.root ? previous : null;
   const presence = agentPresence(list, target.canvas, kept?.presence ?? null);
@@ -42,7 +86,8 @@ export function canvasAgent(list: readonly ConversationSummary[] | null, target:
     const listed = list?.find(c => c.conversationId === presence.conversationId);
     return { root: target.root, presence, provider: listed ? PROVIDER_NAMES[listed.provider] : kept?.presence ? kept.provider : "" };
   }
-  return work.some(item => item.root === target.root && item.path === target.canvas.path) ? { root: target.root, presence: null, terminal: true } : null;
+  const on = (item: { root: string; path: string }) => item.root === target.root && item.path === target.canvas.path;
+  return work.some(on) || conversations.some(on) ? { root: target.root, presence: null, terminal: true } : null;
 }
 
 // A terminal session on the open canvas's path in another worktree of the same project (DESIGN 'Terminal work in another worktree').
@@ -65,7 +110,10 @@ export function siblingWork(work: readonly WorkItem[], target: WorkingCanvas | n
 }
 
 export interface AgentNoticeView {
+  // The visible words; the tooltip shows them whole.
   text: string;
+  // The screen reader's words: with a note and a frame both, the frame's title too (decision 19).
+  status: string;
   // The dot stops while the agent waits for an answer.
   steady: boolean;
   // null: a terminal session, which the app cannot stop.
@@ -74,12 +122,19 @@ export interface AgentNoticeView {
 
 // `stopping` is the conversation whose Stop was pressed and whose turn has not ended yet. `terminal`: a terminal session
 // works on the canvas; it shows only without an app presence, with the same words and no button (user decision D1).
-export function agentNoticeView(presence: AgentPresence | null, stopping: string | null, terminal: boolean): AgentNoticeView | null {
-  if (!presence) return terminal ? { text: "Agent is working", steady: false, action: null } : null;
+// `content` is the picked work's frame and note, with the frame's title as last found (its id before a layout names it):
+// the note as written, else "Working on <title>" (decision 18), else the fixed words. Waiting overrides it: the person
+// has to act.
+export function agentNoticeView(presence: AgentPresence | null, stopping: string | null, terminal: boolean, content: { frame?: string; title?: string; note?: string } | null = null): AgentNoticeView | null {
+  if (!presence && !terminal) return null;
   // A fixed name, not the provider's (dogfooding): the panel beside the board already says which agent this is.
-  if (presence.kind === "waiting") return { text: "Agent needs your answer", steady: true, action: { kind: "open", label: "Open", name: "Open the request" } };
+  if (presence?.kind === "waiting") return { text: "Agent needs your answer", status: "Agent needs your answer", steady: true, action: { kind: "open", label: "Open", name: "Open the request" } };
+  const name = content?.frame === undefined ? undefined : content.title ?? content.frame;
+  const text = content?.note ?? (name === undefined ? "Agent is working" : `Working on ${name}`);
+  const status = content?.note !== undefined && name !== undefined ? `${content.note} — ${name}` : text;
+  if (!presence) return { text, status, steady: false, action: null };
   const held = stopping === presence.conversationId;
-  return { text: "Agent is working", steady: false, action: { kind: "stop", label: held ? "Stopping" : "Stop", disabled: held } };
+  return { text, status, steady: false, action: { kind: "stop", label: held ? "Stopping" : "Stop", disabled: held } };
 }
 
 // "Stopping" lasts until the list shows the turn ended (no presence) or another conversation takes the canvas.
