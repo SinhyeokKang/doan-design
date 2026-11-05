@@ -73,6 +73,16 @@ code, kbd { font-family: var(--type-family); }
    wheel still pans the board. */
 .drag-layer { position: absolute; inset: 0; z-index: 0; cursor: grab; }
 .drag-layer[data-grabbing] { cursor: grabbing; }
+/* Capture mode (canvas-capture design §2): the drag layer's place, so Stop, Open, Reload and the tools stay over it and
+   clickable. The controller shows it and its marquee with `hidden`, so neither sets display. The marquee is the
+   selection mark's line over the backdrop-hover fill, in the area's screen px, with no size readout. */
+.capture-layer { position: absolute; inset: 0; z-index: 0; cursor: crosshair; }
+.capture-marquee { position: absolute; border: 1px solid var(--border-focus); box-shadow: 0 0 0 1px var(--surface-panel); background: var(--affordance-backdrop-hover); pointer-events: none; }
+/* The capture snapshot (design §2 '스냅숏'): while main reads the window's pixels, app marks, the canvas chrome, toasts
+   and portalled surfaces turn transparent. Opacity only, so nothing moves and the focused tool keeps focus (POSTMORTEM
+   2026-11-03, never visibility or display); !important beats the agent glow's opacity animation. Here, not inline:
+   the renderer CSP blocks inline styles (PoC C1). */
+[data-capture-snapshot] :is(.overlay, .capture-marquee, .doan-canvas-top, .doan-canvas-bottom, .doan-agent-glow, .doan-agent-dot, .toast, [data-radix-popper-content-wrapper]) { opacity: 0 !important; }
 /* Overlay marks (select-inspect draft): screen px, so lines stay 1px at any scale. */
 /* Agents draw canvases in any colour, so the dark line carries a white outer line to stay visible. */
 .mark { position: absolute; border: 1px solid var(--border-focus); box-shadow: 0 0 0 1px var(--surface-panel); }

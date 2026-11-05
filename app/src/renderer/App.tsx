@@ -9,13 +9,14 @@ import type { CanvasRow, FolderEntry } from "../main/view";
 import type { WorkItem } from "../main/workState";
 import type { TrashPlanReply, TrashReply } from "../main/canvasTrash";
 import type { ExportReply } from "../main/canvasExport";
+import type { AttachmentResult } from "../main/attachments";
 import { canvasExportReason, trashBlock } from "./canvasRowMenu";
 import { canvasStem, exportProgress, exportToast, trashToast } from "./canvasRowMessages";
 import { CanvasTrashDialog, trashDialogView } from "./CanvasTrashDialog";
 import { ConversationDeleteDialog, unsentDraft, type DeleteTarget } from "./ConversationDeleteDialog";
 import { deleteAvailability, deleteDialogView, deleteRefusalText } from "./conversationDelete";
 import { focusFieldEnd } from "./chipField";
-import { draftKey } from "./dockedRules";
+import { draftKey, EMPTY_DRAFT } from "./dockedRules";
 import type { OpenAsk, OpenLinkResult, OpenResult } from "../main/deepLinks";
 import type { MenuCommand, ViewCommand } from "../main/index";
 import { CanvasController, initialCanvasState, type CanvasState, type PickResult } from "./CanvasController";
@@ -39,11 +40,11 @@ import type { RowAction } from "./homeCards";
 import { groupProjects } from "./homeCards";
 import { CanvasConversations } from "./RightPanel";
 import { CanvasRun, type CanvasTarget } from "./canvasRun";
-import { CanvasConversation, CanvasConversationTitle, canvasConversationTitle, composerFixed } from "./CanvasConversationPanel";
+import { CanvasConversation, CanvasConversationTitle, canvasConversationTitle, composerFixed, settleChips } from "./CanvasConversationPanel";
 import { captureAvailability } from "./canvasCapture";
 import { canvasUnlistedText, DUPLICATE_CANVAS_TEXT } from "./canvasConversation";
 import { openButtonBadge, panelOpenFor, type OpenBadge, type PanelTrigger } from "./rightPanelOpen";
-import { PICKER_UNAVAILABLE, pickerAvailability, type CanvasLoad } from "./canvasPicker";
+import { PICKER_UNAVAILABLE, pickerAvailability, type CanvasLoad, type Rect } from "./canvasPicker";
 import type { DockedFieldLink } from "./DockedComposer";
 import type { LocateOutcome } from "./ConversationThread";
 import { replyChipTarget } from "./replyChipTarget";
@@ -69,7 +70,7 @@ import { decideOpen, type OpenPage } from "./openDecision";
 import { restorePlan, RESTORE_LOADING_WAIT_MS } from "../restore/restorePlan";
 import { withoutRoots, type HomeMemory, type UiState, type ShellProject } from "../restore/uiState";
 import { emptyComposer } from "./HomeComposerView";
-import { defaultProject, startErrorView } from "./homeComposer";
+import { attachmentLimit, defaultProject, startErrorView, type AttachmentDraft } from "./homeComposer";
 import { OverviewRun } from "./overviewRun";
 import { DockedSupport } from "./dockedSupport";
 import { sameCanvas } from "./ProjectOverview";
@@ -452,6 +453,7 @@ export function App() {
     };
     instance.viewChanged = () => live.current.save();
     instance.onPicked(result => live.current.pickEnded(result));
+    instance.onCapture(rect => live.current.captured(rect));
     instance.linkedCanvas = root => live.current.completeNavigation(root);
     const stopCommands = window.doan.onViewCommand(name => { if (currentScreen.current === "workspace") instance.command(name); });
     return () => { navigationIntent.current++; stopFolders(); stopCommands(); instance.dispose(); controller.current = null; };
@@ -831,8 +833,8 @@ export function App() {
   // renderer-only lifetime checks').
   const toastHeld = modal || (screen === "projectSettings" && projectSettings.locked);
   useLayoutEffect(() => { toast.setModal(toastHeld); }, [toastHeld]);
-  const live = useRef({ home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: (root: string) => root, askConversation, openConversationCanvas, openCanvasConversation, newConversation: () => {}, pickFromCanvas: () => {}, toggleSidebar: () => {}, pickEnded: (_result: PickResult) => {}, followMode: (_provider: Provider, _mode: PermissionModeId) => {}, openLink: (_result: OpenLinkResult) => {}, openCanvasRequest: (_request: OpenAsk) => {} });
-  live.current = { home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: root => projectLabelRef.current(root), askConversation, openConversationCanvas, openCanvasConversation, newConversation, pickFromCanvas, toggleSidebar, pickEnded, followMode, openLink, openCanvasRequest };
+  const live = useRef({ home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: (root: string) => root, askConversation, openConversationCanvas, openCanvasConversation, newConversation: () => {}, pickFromCanvas: () => {}, toggleSidebar: () => {}, pickEnded: (_result: PickResult) => {}, captured: (_rect: Rect): (() => Promise<unknown>) | null => null, followMode: (_provider: Provider, _mode: PermissionModeId) => {}, openLink: (_result: OpenLinkResult) => {}, openCanvasRequest: (_request: OpenAsk) => {} });
+  live.current = { home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: root => projectLabelRef.current(root), askConversation, openConversationCanvas, openCanvasConversation, newConversation, pickFromCanvas, toggleSidebar, pickEnded, captured, followMode, openLink, openCanvasRequest };
   const rememberFocus = () => { beforeModal.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; };
   const modalClosed = () => { focusAfterModal.current = true; };
   useEffect(() => {
@@ -1527,6 +1529,28 @@ export function App() {
     if (!composing) link.focus();
     link.insert(result.anchor);
   }
+  // A captured area (canvas-capture design §3 'composer에 넣기'). Availability was decided at render; the draft may have
+  // filled since, and main refuses an eleventh file, so the limit is checked again before any snapshot. The checking
+  // chip goes in at once. A folded panel unfolds, with focus for the composer, only once main answers: unfolding
+  // narrows the canvas area, so before main has read the pixels the area would show something else. A composer no
+  // longer shown gets no focus; the answer still lands on the chip wherever its draft is.
+  function captured(rect: Rect): (() => Promise<unknown>) | null {
+    const at = canvasRun.current!.composerKey();
+    if (at === null) return null;
+    const store = overviewRun.current!.store;
+    const limit = attachmentLimit((store.drafts.get(at) ?? EMPTY_DRAFT).attachments.length, [{ pasted: false, size: 0 }]);
+    if (!limit.accept.length) { toast.show(limit.notices.join(" ")); return null; }
+    // Named like main's capture file, so the chip reads "Canvas capture" while main checks it (homeComposer.ts).
+    const chip: AttachmentDraft = { key: crypto.randomUUID(), name: "canvas-capture-checking.png", kind: "image", pasted: true, status: "checking" };
+    store.setDrafts(drafts => {
+      const current = drafts.get(at) ?? EMPTY_DRAFT;
+      return new Map(drafts).set(at, { ...current, attachments: [...current.attachments, chip] });
+    });
+    return () => window.doan.captureCanvas(rect).catch(() => null).then(answer => {
+      settleChips(store, support.current!, [chip.key], [answer ?? CAPTURE_FAILED], text => live.current.toast.show(text));
+      if (canvasRun.current!.composerKey() === at) revealPanel("composer");
+    });
+  }
   // The picker stops when its composer changes (another conversation from the menu, New) or stops taking chips
   // (design §2 'Esc and cancel'); a reload or a same-ID move keeps both, so the pick goes on.
   useEffect(() => { controller.current?.cancelPick(); }, [composerKey]);
@@ -1836,6 +1860,9 @@ export function App() {
     }} />}
   </TooltipProvider>;
 }
+
+// main refused the request or the call failed: the same notice as an empty capture (canvas-capture design 결정 11).
+const CAPTURE_FAILED: AttachmentResult = { ok: false, name: "Canvas capture", error: "capture_failed" };
 
 // The dialog on top, the one Escape would answer.
 function topDialog(): HTMLDialogElement | null {

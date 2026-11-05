@@ -23,7 +23,7 @@ import { GroupIcon, type CanvasPress } from "./ComposerParts";
 import { ConversationDeleteItem, type DeleteTarget } from "./ConversationDeleteDialog";
 import { ConversationHead } from "./ConversationLine";
 import { ConversationThread, LOADING_DELAY_MS, type ConversationThreadHandle, type LocateOutcome } from "./ConversationThread";
-import { steerPhaseOf, type ListView, type QueuedMessage } from "./conversationStore";
+import { steerPhaseOf, type ConversationStore, type ListView, type QueuedMessage } from "./conversationStore";
 import { asksPerson, stripState } from "./conversationStrip";
 import { copyText } from "./copyText";
 import { DockedComposer, type DockedFieldLink, type DockedOutcome, type DockedPicker, type DockedRequest } from "./DockedComposer";
@@ -112,6 +112,13 @@ export { steerPhaseOf };
 export function composerFixed(view: CanvasView, list: ListView, work: readonly WorkItem[]): boolean {
   if (view.kind === "new") return view.mode.kind === "resume" && !resumeHeld(view.resume, work);
   return view.kind === "conversation" && Array.isArray(list) && list.find(c => c.conversationId === view.conversationId)?.owner === "legacy-external";
+}
+// Main's answers onto their chips, wherever the draft is now; image thumbnails go to the composers' cache. Refusals go
+// to `notice` as one line. The toolbar's Capture area settles its chip here too (App).
+export function settleChips(store: ConversationStore, support: DockedSupport, keys: string[], results: readonly (AttachmentResult | null)[], notice: (text: string) => void): void {
+  const { notices, images } = store.settleAttachments(keys, results);
+  if (typeof URL.createObjectURL === "function") for (const image of images) support.setThumbnail(image.key, URL.createObjectURL(new Blob([new Uint8Array(image.thumbnail)], { type: "image/png" })));
+  if (notices.length) notice(notices.join(" "));
 }
 // "Linked by doan check at 14:02": the time of day, with the date when it was not today.
 export function linkedAt(at: string | undefined, now: number): string | null {
@@ -292,11 +299,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
   }, [props.arrival?.seq, view.kind, conversationId, Array.isArray(items) ? items.length : -1, asking]);
 
   // Attachments go through main, which checks each file; each answer lands on its chip wherever the draft is now.
-  const settle = (keys: string[], results: readonly (AttachmentResult | null)[]) => {
-    const { notices, images } = store.settleAttachments(keys, results);
-    if (typeof URL.createObjectURL === "function") for (const image of images) support.setThumbnail(image.key, URL.createObjectURL(new Blob([new Uint8Array(image.thumbnail)], { type: "image/png" })));
-    if (notices.length) props.onNotice(notices.join(" "));
-  };
+  const settle = (keys: string[], results: readonly (AttachmentResult | null)[]) => settleChips(store, support, keys, results, props.onNotice);
   const addChips = (at: string, chips: AttachmentDraft[]) => store.setDrafts(drafts => {
     const current = drafts.get(at) ?? EMPTY_DRAFT;
     return new Map(drafts).set(at, { ...current, attachments: [...current.attachments, ...chips] });
