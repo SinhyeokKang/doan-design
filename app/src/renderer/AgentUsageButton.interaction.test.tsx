@@ -74,7 +74,10 @@ function render(): ViewProps | null {
 // The trigger the view would mount, inside a header whose tabs end `modesRight` and whose own right edge is 952.
 function mountButton(view: ViewProps, modesRight = 660) {
   const tab = { focus: vi.fn() };
+  const declared = new Map<string, string>();
+  const style = { setProperty: (name: string, value: string) => { declared.set(name, value); }, removeProperty: (name: string) => { declared.delete(name); }, getPropertyValue: (name: string) => declared.get(name) ?? "" };
   const header = {
+    style,
     getBoundingClientRect: () => ({ right: 952 }),
     querySelector: (selector: string) => selector === ".shell-modes" ? { getBoundingClientRect: () => ({ right: modesRight }) } : selector === '.shell-modes [aria-current="page"]' ? tab : null,
   };
@@ -274,4 +277,21 @@ test("folds when the header's free end is too narrow for every ring", () => {
   expect(observed).not.toBeNull();
   (view.buttonRef as (node: unknown) => void)(null);
   expect(observed).toBeNull();
+});
+
+// U fix round 1 (real app, 2026-11-06): a .top:has() rule left the header a drag region for native presses, so the
+// open popover did not close on a press in its empty part; an inline app-region on the header did. The open popover
+// sets it on the header element and takes it off when it closes, so a closed header still drags the window.
+test("the header is no-drag inline while the popover is open, and drags again once it closes", () => {
+  render(); deliver([ok("claude")]);
+  let view = render()!;
+  const { header } = mountButton(view);
+  const region = () => header.style.getPropertyValue("-webkit-app-region");
+  expect(region()).toBe("");
+  view.onOpenChange(true);
+  view = render()!;
+  expect(region()).toBe("no-drag");
+  view.onOpenChange(false);
+  render();
+  expect(region()).toBe("");
 });
