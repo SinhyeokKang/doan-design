@@ -27,10 +27,12 @@ describe("questionAnswer", () => {
     expect(questionAnswer([closed], { outcome: "answered", answers: { closed: { selected: [], other: "Green" } } })).toBeNull();
     expect(questionAnswer([textOnly], { outcome: "answered", answers: { free: { selected: [], other: "Doan" } } })).toEqual({ outcome: "answered", answers: { free: { selected: [], other: "Doan" } } });
   });
-  it("counts Other text of only spaces as unanswered and drops it beside a choice", () => {
+  // design §7: Other chosen with no text is no answer, whatever else a multi-select question has checked.
+  it("counts Other text that is empty or only spaces as unanswered, even beside a choice", () => {
     expect(questionAnswer([single], { outcome: "answered", answers: { "0": { selected: [], other: " \n\t" } } })).toBeNull();
     expect(questionAnswer([textOnly], { outcome: "answered", answers: { free: { selected: [] , other: "   " } } })).toBeNull();
-    expect(questionAnswer([multi], { outcome: "answered", answers: { "1": { selected: [1], other: "  " } } })).toEqual({ outcome: "answered", answers: { "1": { selected: [1] } } });
+    expect(questionAnswer([multi], { outcome: "answered", answers: { "1": { selected: [1], other: "  " } } })).toBeNull();
+    expect(questionAnswer([multi], { outcome: "answered", answers: { "1": { selected: [1], other: "" } } })).toBeNull();
   });
   it("needs an answer for every question and no answer for another", () => {
     expect(questionAnswer([single, multi], { outcome: "answered", answers: { "0": { selected: [0] } } })).toBeNull();

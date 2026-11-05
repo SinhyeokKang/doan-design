@@ -37,13 +37,14 @@ export function questionDraft(draft: QuestionDraft, action: QuestionDraftAction)
   return { ...draft, choices: { ...draft.choices, [id]: next } };
 }
 
-// Other's text goes only while Other is chosen, or always for a question answered by text alone.
+// Other's text goes only while Other is chosen, or always for a question answered by text alone; empty text goes too,
+// so questionAnswer reads an Other left blank as no answer.
 export function questionInput(questions: readonly Question[], draft: QuestionDraft): QuestionAnswerInput {
   const answers: Record<string, { selected: number[]; other?: string }> = {};
   for (const question of questions) {
     const choice = draft.choices[question.id] ?? EMPTY_CHOICE;
     const typed = question.options.length === 0 || choice.other;
-    answers[question.id] = { selected: choice.selected, ...(typed && choice.text ? { other: choice.text } : {}) };
+    answers[question.id] = { selected: choice.selected, ...(typed ? { other: choice.text } : {}) };
   }
   return { outcome: "answered", answers };
 }

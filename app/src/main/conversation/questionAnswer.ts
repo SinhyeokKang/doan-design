@@ -23,8 +23,10 @@ function one(question: Question, value: unknown): { selected: number[]; other?: 
   const selected: unknown[] = value.selected;
   if (!selected.every(n => Number.isInteger(n) && (n as number) >= 0 && (n as number) < question.options.length) || new Set(selected).size !== selected.length) return null;
   if (value.other !== undefined && (typeof value.other !== "string" || value.other.length > QUESTION_LIMITS.text)) return null;
-  // Other picked with no text left is no answer, and text of only spaces says nothing beside a choice.
+  // Other carried with no text left is no answer, even beside a choice: the person checked Other and said nothing
+  // (design §7), so the question is unanswered rather than answered without it.
   const other = typeof value.other === "string" ? value.other.trim() : "";
+  if (typeof value.other === "string" && !other) return null;
   if (other && !question.other) return null;
   // A single-choice question takes one choice or Other: the card shows Other as one more radio.
   if (!question.multiSelect && selected.length + (other ? 1 : 0) > 1) return null;

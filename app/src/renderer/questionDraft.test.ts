@@ -35,6 +35,12 @@ describe("questionDraft", () => {
     const one = run([single, several], { type: "choose", question: single, option: 0 });
     expect(canSend([single, several], one)).toBe(false);
     expect(canSend([single, several], questionDraft(one, { type: "choose", question: several, option: 1 }))).toBe(true);
+    // Other checked with no text leaves a several-choice question unanswered, whatever else is checked.
+    const checked = run([several], { type: "choose", question: several, option: 0 }, { type: "other", question: several });
+    expect(canSend([several], checked)).toBe(false);
+    expect(canSend([several], questionDraft(checked, { type: "text", questionId: "1", text: "  " }))).toBe(false);
+    expect(canSend([several], questionDraft(checked, { type: "text", questionId: "1", text: "D" }))).toBe(true);
+    expect(canSend([several], questionDraft(checked, { type: "other", question: several }))).toBe(true);
     // A question without options is answered by its text alone.
     expect(canSend([textOnly], run([textOnly], { type: "text", questionId: "name", text: "Settings header" }))).toBe(true);
     // A question without Other ignores leftover text.
