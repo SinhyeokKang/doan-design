@@ -5,7 +5,7 @@ import { hasContent, toMessage, typedText, type FieldSegment } from "./anchorFie
 import { pickerAction, PROVIDER_NAMES, type SettingsAction } from "./agentAuthView";
 import type { ComposerShape } from "./composerRules";
 import {
-  agentProblem, composeRequest, draftProblem, startErrorView, type AttachmentDraft, type ModelPickerView, type PresetSummary,
+  agentProblem, composeRequest, draftProblem, presetPlaceholder, startErrorView, type AttachmentDraft, type ModelPickerView, type PresetSummary,
 } from "./homeComposer";
 import { anotherConversation } from "./homeConversations";
 
@@ -149,6 +149,20 @@ const RESUME_REASONS: Record<string, (p: string) => string> = {
   rate_limited: p => `${p} is rate limited`,
   busy: p => `${p} is finishing a previous run`,
 };
+
+// The field's placeholder, and the next-input suggestion it shows (prompt-suggestion design 'renderer' 1). One rule for
+// both hosts, so the → key (takesSuggestion) reads the same answer the field draws. `text` is the host's own line;
+// `empty`: the field holds no text and no chip (attachments may be there). A suggestion stands in only for an existing
+// conversation's empty, editable field without a preset, whose line already asks for the target.
+export interface PlaceholderInput {
+  readOnly: boolean; preset: PresetSummary | null; empty: boolean; mode: DockedMode["kind"]; text: string;
+  suggestion: string | null | undefined;
+}
+export function composerPlaceholder(input: PlaceholderInput): { text: string; suggestion: string | null } {
+  if (input.preset && input.empty) return { text: presetPlaceholder(input.preset), suggestion: null };
+  if (input.readOnly || !input.empty || input.mode !== "existing" || !input.suggestion) return { text: input.text, suggestion: null };
+  return { text: input.suggestion, suggestion: input.suggestion };
+}
 
 // Shown instead of the composer when an archived conversation's canvas left the project (design §3.1).
 export function canvasGoneText(project: string): string {

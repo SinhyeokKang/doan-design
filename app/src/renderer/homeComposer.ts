@@ -457,6 +457,16 @@ export function steerKey(event: { key: string; ctrlKey: boolean; metaKey: boolea
   return isSubmitKey(event) && event.ctrlKey && !event.metaKey && !event.altKey;
 }
 
+// A plain → on an empty field takes the suggestion its placeholder shows (prompt-suggestion design 'Pure functions' 4).
+// Any modifier keeps the key's own selection or word and line move; keyCode 229 is the IME's own key.
+export function takesSuggestion(
+  event: { key: string; shiftKey: boolean; altKey: boolean; metaKey: boolean; ctrlKey: boolean; isComposing: boolean; keyCode: number },
+  state: { suggestion: string | null; empty: boolean; composing: boolean },
+): boolean {
+  return event.key === "ArrowRight" && !event.shiftKey && !event.altKey && !event.metaKey && !event.ctrlKey && !event.isComposing && event.keyCode !== 229
+    && state.suggestion !== null && state.empty && !state.composing;
+}
+
 // `dismissed`: Escape closed the list, which stays closed until the field is empty again.
 export function slashQuery(text: string, dismissed: boolean): string | null {
   return !dismissed && text.startsWith("/") && !text.includes("\n") ? text.slice(1) : null;
