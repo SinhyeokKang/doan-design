@@ -3,10 +3,9 @@ import type { UsageEntry, UsageWindow } from "../main/agentAuth/usageTypes";
 import { PROVIDER_NAMES } from "./agentAuthView";
 import { blockedNote, ringLimited, ringValue, usageText } from "./agentUsage";
 import { providerLogo } from "./homeComposer";
+import { DANGER } from "./ProgressRing";
 
 const MIN = 60_000, HOUR = 60 * MIN, DAY = 24 * HOUR;
-// The person's colour rule: neutral below 70%, danger from 70% or at a reported limit; there is no warning step.
-const DANGER = 70;
 
 // Antigravity has no usage read and is never shown; the rest keep the fixed provider order.
 export function shownUsage(entries: readonly UsageEntry[]): UsageEntry[] {

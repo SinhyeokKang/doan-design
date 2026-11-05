@@ -7,6 +7,7 @@ import { AlertIcon } from "./AlertIcon";
 import { usageDescription } from "./agentUsage";
 import { foldedRing, ringViews, rowView, shownUsage, usageBusy, usageFolds, type RingView, type RowView } from "./agentUsageView";
 import type { CanvasPress } from "./ComposerParts";
+import { ProgressRing } from "./ProgressRing";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 
 export interface UsageViewProps {
@@ -17,12 +18,9 @@ export interface UsageViewProps {
 }
 
 function Ring({ ring }: { ring: RingView }) {
-  return <span className="usage-ring" data-provider={ring.provider} data-band={ring.full ? "full" : undefined}>
-    {/* The arc starts at 12 o'clock and runs clockwise; pathLength 100 lets the dash be the percentage. */}
-    <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" aria-hidden="true"><circle className="track" cx="12" cy="12" r="11" />
-      {ring.value !== null && <circle className="value" cx="12" cy="12" r="11" pathLength="100" strokeDasharray={`${ring.value} 100`} />}</svg>
+  return <ProgressRing className="usage-ring" data-provider={ring.provider} value={ring.value} danger={ring.full} r={11} stroke={2}>
     <img className="usage-logo" src={ring.logo} alt="" />
-  </span>;
+  </ProgressRing>;
 }
 
 // Below the button: the shared tooltip's default side (above) put the popover's tooltips over the header button.

@@ -22,6 +22,7 @@ import { ConversationThread, LOADING_DELAY_MS, type ConversationThreadHandle, ty
 import type { ReplyAnchor } from "../main/conversation/replyAnchor";
 import { asksPerson, stripState } from "./conversationStrip";
 import { copyText } from "./copyText";
+import { contextRing } from "./contextWindow";
 import { DockedComposer, type DockedOutcome, type DockedRequest } from "./DockedComposer";
 import { draftKey, EMPTY_DRAFT, type DockedBusy, type DockedMode } from "./dockedRules";
 import { modelsKey, type DockedSupport } from "./dockedSupport";
@@ -416,7 +417,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         onPresetsOpen={() => { if (support.presets && !support.presets.ok) support.readPresets(); }} onPresetsRetry={() => support.readPresets()}
         thumbnails={support.thumbnails} onAttach={chooseFiles} onFiles={addFiles}
         onAttachmentRemoved={attachment => { if (attachment.id) void window.doan.removeAttachment(attachment.id).catch(console.error); }}
-        turn={conversationId ? turnOf(thread?.events ?? null, summary, live) : "idle"} busy={busy} canvasGone={false} unavailable={props.unavailable}
+        turn={conversationId ? turnOf(thread?.events ?? null, summary, live) : "idle"} busy={busy} canvasGone={false} unavailable={props.unavailable} context={thread ? contextRing(thread.events) : null}
         queued={conversationId ? run.queue(conversationId) : []}
         sendNow={!!conversationId && !!provider && sendNowShown({ provider, phase: steerPhaseOf(thread?.events ?? null, summary, live), sending: false })}
         onSendQueuedNow={itemId => conversationId ? run.store.sendQueuedNow(conversationId, itemId) : Promise.resolve({ error: "not_running" })}

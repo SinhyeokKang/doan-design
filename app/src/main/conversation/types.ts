@@ -44,6 +44,7 @@ export type EventPayload =
   | { type: "permission.resolved"; requestId: string; optionId: string }
   | QuestionRequest
   | QuestionResolved
+  | { type: "context.usage"; used: number; size: number }
   | { type: "turn.done" }
   | { type: "turn.failed"; code: FailureCode; detail?: string }
   | { type: "interrupted"; reason: "user" | "appQuit" | "crashed" }

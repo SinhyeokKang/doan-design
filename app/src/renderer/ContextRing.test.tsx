@@ -1,4 +1,5 @@
-import { Children, isValidElement, type ReactNode } from "react";
+import { Children, isValidElement, type ReactElement, type ReactNode } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test } from "vitest";
 import { TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import { ContextRing } from "./ContextRing";
@@ -22,9 +23,9 @@ test("the tooltip opens on the ring, a span outside Tab order, with the name the
   const ring = ContextRing({ usage: { value: 42, percent: 42, used: 84_000, size: 200_000 } });
   const trigger = find(ring, TooltipTrigger)!;
   expect(trigger.asChild).toBe(true);
-  const span = Children.only(trigger.children);
-  expect(isValidElement(span) && span.type).toBe("span");
-  expect(isValidElement<Props>(span) && span.props.tabIndex).toBeUndefined();
+  const markup = renderToStaticMarkup(Children.only(trigger.children) as ReactElement);
+  expect(markup).toMatch(/^<span class="context-ring" role="img"/);
+  expect(markup).not.toContain("tabindex");
   const content = find(ring, TooltipContent)!;
   // The shared tooltip's default: 4 above the ring (decision 14).
   expect(content.side ?? "top").toBe("top");

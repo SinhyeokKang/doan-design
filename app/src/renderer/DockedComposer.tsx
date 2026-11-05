@@ -6,6 +6,8 @@ import type { PermissionModeId } from "../main/conversation/permissionMode";
 import type { Anchor } from "../main/conversation/types";
 import { PROVIDER_NAMES } from "./agentAuthView";
 import { AlertIcon } from "./AlertIcon";
+import { ContextRing } from "./ContextRing";
+import type { ContextUsage } from "./contextWindow";
 import { distinctTargets, plainText, sameSegments, typedText } from "./anchorField";
 import { LIMITS } from "../main/conversation/messageText";
 import {
@@ -121,6 +123,9 @@ export interface DockedComposerProps {
   // The canvas page's press signal: a press in the canvas closes the preset lists, as one outside them in the app does.
   canvasPress?: CanvasPress | undefined;
   onLocate?(anchor: Anchor): Promise<LocateOutcome>;
+  // The shown conversation's last recorded context value (contextRing); null or absent: no ring, and the tray is as
+  // without it (context-window-ring decision 2).
+  context?: ContextUsage | null;
 }
 
 const sameDraft = (a: DockedDraft, b: DockedDraft) => sameSegments(a.segments, b.segments) && (a.preset?.id ?? null) === (b.preset?.id ?? null)
@@ -419,6 +424,7 @@ export function DockedComposer(props: DockedComposerProps) {
         {picker.effort && <EffortPicker size="xs" view={picker.effort} effort={props.effort} disabled={isSending} onPick={props.onPickEffort} />}
         {props.permission && <PermissionPicker size="xs" view={props.permission} disabled={isSending} onPick={mode => props.onPickPermission?.(mode)} />}
       </>}
+      {props.context && <ContextRing usage={props.context} />}
     </div>
     {notice && (notice.startNew
       ? <div className="composer-reason docked-reason reason-stack" role="status"><span>{notice.text}</span>
