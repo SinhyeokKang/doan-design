@@ -21,7 +21,7 @@ function Ring({ ring }: { ring: RingView }) {
     {/* The arc starts at 12 o'clock and runs clockwise; pathLength 100 lets the dash be the percentage. */}
     <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" aria-hidden="true"><circle className="track" cx="12" cy="12" r="11" />
       {ring.value !== null && <circle className="value" cx="12" cy="12" r="11" pathLength="100" strokeDasharray={`${ring.value} 100`} />}</svg>
-    {ring.logo && <img className="usage-logo" src={ring.logo} alt="" />}
+    <img className="usage-logo" src={ring.logo} alt="" />
   </span>;
 }
 

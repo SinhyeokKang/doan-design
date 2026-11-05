@@ -13,13 +13,12 @@ export function shownUsage(entries: readonly UsageEntry[]): UsageEntry[] {
   return entries.filter(entry => entry.provider !== "antigravity").sort((a, b) => PROVIDERS.indexOf(a.provider) - PROVIDERS.indexOf(b.provider));
 }
 
-export interface RingView { provider: Provider; value: number | null; limited: boolean; full: boolean; logo: string | null }
-// A lone ring has no logo; with two or more each ring carries its provider's.
+export interface RingView { provider: Provider; value: number | null; limited: boolean; full: boolean; logo: string }
 export function ringViews(entries: readonly UsageEntry[], now: number): RingView[] {
   const shown = shownUsage(entries);
   return shown.map(entry => {
     const value = ringValue(entry, now), limited = ringLimited(entry, now);
-    return { provider: entry.provider, value, limited, full: limited || (value !== null && value >= DANGER), logo: shown.length > 1 ? providerLogo(entry.provider) : null };
+    return { provider: entry.provider, value, limited, full: limited || (value !== null && value >= DANGER), logo: providerLogo(entry.provider) };
   });
 }
 
