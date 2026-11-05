@@ -35,6 +35,10 @@ describe("conversationSummary", () => {
   it("reports running and waiting from the live fold", () => {
     expect(conversationSummary(doan, { ok: true, events: history(...started, { type: "activity", kind: "read", summary: "Read a.html" }) }, live).phase).toBe("running");
     expect(conversationSummary(doan, { ok: true, events: history(...started, permission) }, live).phase).toBe("waiting");
+    const asked: EventPayload = { type: "question.request", requestId: "q", questions: [{ id: "0", header: "Color", question: "Which color?", options: [], multiSelect: false, other: true }] };
+    expect(conversationSummary(doan, { ok: true, events: history(...started, asked) }, live).phase).toBe("waiting");
+    expect(conversationSummary(doan, { ok: true, events: history(...started, asked, { type: "question.resolved", requestId: "q", outcome: "answered" }) }, live).phase).toBe("running");
+    expect(conversationSummary(doan, { ok: true, events: history(...started, asked) }, restarted).phase).toBe("ended");
   });
   it("folds an unfinished turn after a restart into an unseen end", () => {
     const s = conversationSummary(doan, { ok: true, events: history(...started, permission) }, restarted);
@@ -66,6 +70,14 @@ describe("conversationSummary", () => {
     const preview = (events: ConversationEvent[], state = live) => conversationSummary(doan, { ok: true, events }, state).preview;
     it("asks for the pending permission while waiting", () => {
       expect(preview(history(...started, permission))).toBe("Needs your answer: Run npm test");
+    });
+    it("asks with the first question of the newest unanswered request, whatever its kind", () => {
+      const asked: EventPayload = { type: "question.request", requestId: "q", questions: [{ id: "0", header: "Color", question: "Which\ncolor?", options: [], multiSelect: false, other: true }, { id: "1", header: "Size", question: "Which size?", options: [], multiSelect: false, other: true }] };
+      expect(preview(history(...started, asked))).toBe("Needs your answer: Which color?");
+      expect(preview(history(...started, permission, asked))).toBe("Needs your answer: Which color?");
+      expect(preview(history(...started, asked, permission))).toBe("Needs your answer: Run npm test");
+      expect(preview(history(...started, permission, asked, { type: "question.resolved", requestId: "q", outcome: "skipped" }))).toBe("Needs your answer: Run npm test");
+      expect(preview(history(...started, asked, permission, { type: "permission.resolved", requestId: "r", optionId: "allow" }))).toBe("Needs your answer: Which color?");
     });
     it("shows the last activity of the running turn and never a command", () => {
       expect(preview(history(...started, { type: "activity", kind: "read", summary: "Read a.html" }, { type: "activity", kind: "edit", path: "a.html", summary: "Edited a.html" }))).toBe("Edited a.html");

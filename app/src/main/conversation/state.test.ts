@@ -4,6 +4,7 @@ import { reserveSession, promoteReservation, releaseReservation } from "./owners
 import type { ConversationEvent, EventPayload, ConversationBinding, Reservation, SessionKey } from "./types";
 const event = (seq: number, payload: EventPayload, turnId = "turn-1", conversationId = "a"): ConversationEvent => ({ v: 1, seq, conversationId, turnId, at: "2026-10-27T00:00:00.000Z", ...payload });
 const permission: EventPayload = { type: "permission.request", requestId: "r", tool: "Write", summary: "Write file", options: [{ id: "allow", label: "Allow", kind: "allow" }, { id: "deny", label: "Deny", kind: "deny" }] };
+const question: EventPayload = { type: "question.request", requestId: "q", questions: [{ id: "0", header: "Color", question: "Which color?", options: [{ label: "Red" }, { label: "Blue" }], multiSelect: false, other: true }] };
 describe("conversation recovery and event merge", () => {
   it("folds unfinished turns as crashed and pending permissions as expired on restart", () => {
     const events = [event(1, { type: "turn.started" }), event(2, permission), event(3, { type: "message.delta", messageId: "m", text: "partial" })];
@@ -24,6 +25,40 @@ describe("conversation recovery and event merge", () => {
     const state = foldConversation([event(1, { type: "turn.started" }), event(2, permission), event(3, { type: "permission.resolved", requestId: "r", optionId: "deny" }), event(4, { type: "turn.done" }), event(5, { type: "conversation.archived" })], "a", true);
     expect(state.archived).toBe(true);
     expect(state.permissions.r).toBe("deny");
+  });
+  it("waits on a question like a permission and resumes when it is answered", () => {
+    const events = [event(1, { type: "turn.started" }), event(2, question), event(3, { type: "message.delta", messageId: "m", text: "still" })];
+    expect(foldConversation(events, "a", false)).toMatchObject({ turn: "waitingPermission", questions: { q: "pending" }, permissions: {} });
+    const answered = foldConversation([...events, event(4, { type: "question.resolved", requestId: "q", outcome: "answered", answers: { "0": { selected: ["Red"] } } })], "a", false);
+    expect(answered).toMatchObject({ turn: "streaming", questions: { q: "answered" } });
+    const skipped = foldConversation([...events, event(4, { type: "question.resolved", requestId: "q", outcome: "skipped" })], "a", false);
+    expect(skipped.questions.q).toBe("skipped");
+  });
+  it("expires pending questions at a turn end, an archive and a restart", () => {
+    const start = [event(1, { type: "turn.started" }), event(2, question)];
+    expect(foldConversation(start, "a", true)).toMatchObject({ turn: "interrupted", interruption: "crashed", questions: { q: "expired" } });
+    expect(foldConversation([...start, event(3, { type: "turn.done" })], "a", false).questions.q).toBe("expired");
+    expect(foldConversation([...start, event(3, { type: "conversation.archived" })], "a", false).questions.q).toBe("expired");
+    expect(foldConversation([...start, event(3, { type: "interrupted", reason: "user" })], "a", false).questions.q).toBe("expired");
+    expect(foldConversation([...start, event(3, { type: "turn.started" }, "turn-2")], "a", false).questions.q).toBe("expired");
+  });
+  it("keeps waiting while a permission or a question of the same turn is still open", () => {
+    const events = [event(1, { type: "turn.started" }), event(2, permission), event(3, question)];
+    const permissionFirst = foldConversation([...events, event(4, { type: "permission.resolved", requestId: "r", optionId: "allow" })], "a", false);
+    expect(permissionFirst).toMatchObject({ turn: "waitingPermission", permissions: { r: "allow" }, questions: { q: "pending" } });
+    const both = foldConversation([...events, event(4, { type: "question.resolved", requestId: "q", outcome: "answered" }), event(5, { type: "permission.resolved", requestId: "r", optionId: "deny" })], "a", false);
+    expect(both).toMatchObject({ turn: "streaming", permissions: { r: "deny" }, questions: { q: "answered" } });
+    const restarted = foldConversation(events, "a", true);
+    expect(restarted).toMatchObject({ permissions: { r: "expired" }, questions: { q: "expired" } });
+  });
+  it("resolves a request id only with its own kind", () => {
+    const sameId = { ...question, requestId: "r" } as const;
+    const events = [event(1, { type: "turn.started" }), event(2, sameId), event(3, { type: "permission.resolved", requestId: "r", optionId: "allow" })];
+    expect(foldConversation(events, "a", false)).toMatchObject({ turn: "waitingPermission", questions: { r: "pending" }, permissions: {} });
+    const asked = [event(1, { type: "turn.started" }), event(2, permission), event(3, { type: "question.resolved", requestId: "r", outcome: "answered" })];
+    expect(foldConversation(asked, "a", false)).toMatchObject({ turn: "waitingPermission", permissions: { r: "pending" }, questions: {} });
+    const both = [event(1, { type: "turn.started" }), event(2, permission), event(3, sameId), event(4, { type: "question.resolved", requestId: "r", outcome: "skipped" })];
+    expect(foldConversation(both, "a", false)).toMatchObject({ turn: "waitingPermission", permissions: { r: "pending" }, questions: { r: "skipped" } });
   });
   it("merges the final buffered event without requiring another event, partitions identities and deduplicates", () => {
     const start = event(1, { type: "turn.started" });
