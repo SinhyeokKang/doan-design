@@ -12,6 +12,9 @@
 - 링크 3 PoC를 사용자와 하는 동안 작업자를 먼저 띄운다(사용자 제안). 링크 3 PoC는 `.scratch/context-window-ring/`의 script와 공용 프로필만 쓰고 이 branch의 코드를 바꾸지 않는다.
 - renderer 배치 R은 main 배치 M의 `ConversationSummary.suggestion`을 기다리지 않는다(지휘자 판단 — orchestrate §0.4). 두 host가 summary의 제안을 넘기는 연결과 `homeRun.test.ts` 사례는 R의 '미룬 항목'이고, M의 summary 커밋을 통합한 뒤 새 Task로 보낸다.
 - box 모양의 빈 placeholder(제안 포함)는 capsule과 같은 한 줄 말줄임이다(사람, R의 질문 — docked의 빈 입력란 최소 높이가 한 줄이라 두 줄 clamp는 스크롤을 만든다). spec 3·design renderer 2·tasks E1(a)·Z1을 고쳤다.
+- R 리뷰(Claude Opus medium, `ctx_fd5653fc3ad6`): 🔴 0, 🟡 0, ⚪ 4. 인계의 계획과 다른 점(`composerPlaceholder`를 `DockedComposer` 안에서 부름, preset 문구가 읽기 전용보다 앞서는 지금 순서 유지, `suggestion` prop의 undefined는 목록을 아직 읽지 않음)은 리뷰어가 수용했다. ⚪ 중 `/`로 시작하는 제안을 넣으면 preset 목록이 열리는지는 R2에서 확인하게 했다. R을 통합했다(`5b2066dd`..`4b2f91d0` → feat `faaa1a77`까지).
+- M을 리뷰 전에 통합했다(`78be71f5`..`081da039` → feat `4812fd10`까지, 지휘자 판단 — R2가 `ConversationSummary.suggestion`을 기다리지 않게 하려고. 리뷰 수정은 추가 커밋으로 통합한다). M의 계획과 다른 점: Doan 연결 실행의 환경은 `agentAuth` lease로 전달(`onboarding/states.ts`, `agentAuth/manager.ts`도 고침), 사용량 조회 중에 온 send도 조회 뒤 group stop, 읽기 오류 행에는 제안 없음.
+- M 리뷰(Codex Astra medium, `ctx_5be7eb1a1c03`): 🔴 0, 🟡 1(연결 sign-out·교체 뒤 처음 도착한 늦은 `suggested`가 이전 연결의 제안을 되살림, 리뷰어가 테스트로 재현). 인계의 계획과 다른 점 5개는 모두 수용했다. M 작업자에게 고칠 것을 보냈다(`ctx_cf849f72fec9`).
 - E1(실제 앱 확인)은 공용 프로필과 사람의 키보드가 필요해서 지휘자가 `/runtime-test`로 한다.
 
 ## Codex 사용
