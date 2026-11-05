@@ -65,7 +65,7 @@ describe("usageText", () => {
   });
 });
 
-// orch decision 16: a connection that can't be used reads as its Settings > Agents connection row does. The popover row
+// ARCHITECTURE §7 'Agent usage': a connection that can't be used reads as its Settings > Agents connection row does. The popover row
 // sits under the provider's name and keeps the sentence; the button's description leads a nameless one with the name.
 describe("blocked wording", () => {
   const block = (cause: UsageBlock["readiness"]["cause"], more: Partial<UsageBlock> = {}): UsageBlock => ({ readiness: { ready: false, cause, action: "retry" }, phase: "connected", ...more });

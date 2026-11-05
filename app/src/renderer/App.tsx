@@ -1841,7 +1841,7 @@ function TopBar({ sidebar, back, forward, previous, next, page, locked, addProje
         <TooltipContent className="has-key">{sidebar.view.icon === "hide" ? "Hide sidebar" : "Show sidebar"}<span className="doan-kbd" data-ui-variant="on-prominent" data-ui-size="sm">⌘B</span></TooltipContent></Tooltip>
       <button className="doan-icon-button" data-ui-placement="chrome" aria-label="Back" disabled={!back} aria-disabled={unavailable} onClick={previous}><ArrowLeft /></button><button className="doan-icon-button" data-ui-placement="chrome" aria-label="Forward" disabled={!forward} onClick={next}><ArrowRight /></button></div>
     <div className="shell-modes"><button {...tab("addProjects")} aria-disabled={unavailable} onClick={addProjects}><Plus />Add Projects</button><button {...tab(null)} aria-disabled={unavailable} onClick={projects}><LayoutGrid />Projects</button><button {...tab("settings")} aria-disabled={unavailable} onClick={settings}><Settings />Settings</button></div>
-    {/* The header's right end, beside the tabs (provider-usage design 결정할 점 10). */}
+    {/* The header's right end, beside the tabs (docs/DESIGN.md 'Agent usage'). */}
     <AgentUsageButton openSettings={usage.openSettings} canvasPress={usage.canvasPress} />
   </header>;
 }

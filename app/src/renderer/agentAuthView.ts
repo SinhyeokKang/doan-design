@@ -145,7 +145,7 @@ export function providerView(status: AuthStatusDto, ctx: ProviderContext = {}): 
 
 // The sentence a Settings > Agents row leads with (its notice's title, else its body, else its detail) for a connected
 // provider known only by what that wording depends on. Agent usage shows it for a connection that can't be used
-// (provider-usage orch decision 16), so the two never word one state differently.
+// (ARCHITECTURE §7 'Agent usage'), so the two never word one state differently.
 export function connectionLine(provider: Provider, facts: Pick<AuthStatusDto, "phase" | "readiness"> & { error?: AuthErrorCode; attempt?: AuthAttempt["kind"] }): string {
   // The row's wording never reads the revision, actions, attempt ID or retryable flag; an empty account is connected without an email.
   const status: AuthStatusDto = {

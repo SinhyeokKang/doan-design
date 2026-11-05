@@ -14,7 +14,7 @@ export type UsageProvider = Exclude<Provider, "antigravity">;
 // start has its own bound and the read's limit starts at that answer. Reads answered in 0.2-1 s in the PoC.
 export const USAGE_OPEN_MS = 60_000;
 export const USAGE_READ_MS = 15_000;
-// The one address the Cursor read may reach (design decision 3): fixed host, no redirect.
+// The one address the Cursor read may reach (ARCHITECTURE §7 'Agent usage'): fixed host, no redirect.
 export const CURSOR_USAGE_URL = "https://cursor.com/api/usage-summary";
 const CURSOR_ORIGIN = "https://cursor.com";
 // The PoC answer was 590 bytes; the credential file is a few hundred.

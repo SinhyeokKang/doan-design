@@ -745,7 +745,7 @@ async function start(): Promise<void> {
       prompt: (owner, event) => { if (win && !win.isDestroyed() && win.webContents.id === owner) send(AUTH_CHANNELS.prompt, event); },
     });
   }
-  // Agent usage (provider-usage): read on fixed triggers into main memory only, shown only while the window is.
+  // Agent usage (ARCHITECTURE §7): read on fixed triggers into main memory only, shown only while the window is.
   if (agentAuth && authIpc) {
     const auth = agentAuth, ipc = authIpc, probeDir = join(userData, "usage-probe");
     usage = new UsageService({

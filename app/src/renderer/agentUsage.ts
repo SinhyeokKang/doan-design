@@ -35,7 +35,7 @@ export function usageText(window: UsageWindow, now: number): string {
   return window.resetsAt === undefined ? head : `${head} · resets in ${duration(window.resetsAt - now)}`;
 }
 
-// A connection that can't be used reads as its Settings › Agents row (orch decision 16), as a sentence: the popover
+// A connection that can't be used reads as its Settings › Agents row (ARCHITECTURE §7 'Agent usage'), as a sentence: the popover
 // row under the provider's name.
 export function blockedNote(provider: Provider, block: UsageBlock): string {
   const line = connectionLine(provider, block);

@@ -8,7 +8,7 @@ import { UsagePanel, UsageView, type UsageViewProps } from "./AgentUsageButton";
 import { ringViews, rowView } from "./agentUsageView";
 import { TooltipContent, TooltipProvider } from "./components/ui/tooltip";
 
-// provider-usage tasks C1 and the confirmed draft .doan/canvases/provider-usage.html (frames place-header,
+// The confirmed draft .doan/canvases/provider-usage.html (frames place-header,
 // ring-states, popover, popover-live): the button and the popover body as drawn, without state.
 const NOW = Date.UTC(2026, 10, 5, 12, 0, 0);
 const MIN = 60_000;

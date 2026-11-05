@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { UsageEntry, UsageWindow } from "../main/agentAuth/usageTypes";
 import { foldedRing, readText, ringViews, rowView, shownUsage, usageBusy, usageFolds, USAGE_FOLD } from "./agentUsageView";
 
-// provider-usage design §4 'UI(renderer)' and the confirmed draft .doan/canvases/provider-usage.html (frames 02–04).
+// The confirmed draft .doan/canvases/provider-usage.html (frames 02–04).
 const NOW = Date.UTC(2026, 10, 5, 12, 0, 0);
 const MIN = 60_000, HOUR = 60 * MIN;
 // resetsAt: undefined drops the reset time.

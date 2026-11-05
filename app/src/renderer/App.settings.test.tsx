@@ -336,7 +336,7 @@ test("while the page is locked a click on the Settings tab is ignored, not queue
   expect(settings()!.props.arrival).toBe(before);
 });
 
-// provider-usage tasks C1: the Agent usage button sits at the header's right end, after the tabs, on every screen.
+// The Agent usage button sits at the header's right end, after the tabs, on every screen.
 type UsageProps = { openSettings(): boolean; canvasPress?: unknown };
 function usageOf(header: ReactElement) {
   const bar = (header.type as (props: unknown) => ReactElement<{ children: ReactNode[] }>)(header.props);
@@ -363,7 +363,7 @@ test("every screen's header ends with Agent usage; its Agent settings opens Sett
   expect(settings()!.props).toMatchObject({ section: "agents", arrival: { focus: { kind: "heading" } } });
 });
 
-// provider-usage review-C 🔴1: the open usage popover is a Radix Popover, which closes on Escape at the document's
+// The open usage popover is a Radix Popover, which closes on Escape at the document's
 // capture phase and prevents the default (react-use-escape-keydown). Its content is a role="dialog" div the page's
 // overlay check does not see, so the page must honour defaultPrevented and stay; the next Escape leaves.
 test("Escape that the open usage popover took keeps Settings, Add Projects and Project Settings; the next Escape leaves", () => {

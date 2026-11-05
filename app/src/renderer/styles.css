@@ -1330,7 +1330,7 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
   .doan-agent { background: var(--affordance-prominent); -webkit-backdrop-filter: none; backdrop-filter: none; }
 }
 
-/* Agent usage (provider-usage): the header button and its popover, from the confirmed draft
+/* Agent usage (docs/DESIGN.md 'Agent usage'): the header button and its popover, from the confirmed draft
    .doan/canvases/provider-usage.html (frames place-header, ring-states, popover). One pill holding a 24px ring per
    provider, 4px inset and gap, so 32px high like the chrome icon buttons; it takes the header's free right end while
    the tabs stay centred, and is a no-drag hole in the header's drag region. */

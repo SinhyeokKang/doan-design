@@ -2,7 +2,7 @@ import type { ReactElement } from "react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { UsageEntry, UsageWindow } from "../main/agentAuth/usageTypes";
 
-// provider-usage tasks C1: the button's state — subscription, open and refresh reads, the minute tick, rows coming
+// The button's state — subscription, open and refresh reads, the minute tick, rows coming
 // and going while open, the last provider leaving, a canvas press and folding — with hooks as plain state
 // (AddProjectsPage.interaction.test.tsx style).
 const hooks = vi.hoisted(() => ({

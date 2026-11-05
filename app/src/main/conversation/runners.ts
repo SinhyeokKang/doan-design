@@ -87,7 +87,7 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
   let defaults: CodexDefaults | undefined, workspace: CodexWorkspace = {};
   const write = (value: unknown) => { if (dead || !child.stdin.writable) throw new Error("process_exited"); child.stdin.write(JSON.stringify(value) + "\n"); };
   let protocolFailed = false;
-  // A done turn reads the account's usage on this server, which lives between turns (provider-usage).
+  // A done turn reads the account's usage on this server, which lives between turns (ARCHITECTURE §7 'Agent usage').
   const dispatcher: CodexDispatcher = new CodexDispatcher(write, event => {
     emit(event);
     if (event.type === "turn.done") void input.usageAtTurnEnd?.(() => dispatcher.query("account/rateLimits/read", undefined)).catch(() => {});
@@ -355,7 +355,7 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
             for (const event of result.events) emit(event);
             if (!state.terminal) continue;
             endReadWait();
-            // The CLI exits once its input closes, so a done turn's usage is read on this Query first (provider-usage).
+            // The CLI exits once its input closes, so a done turn's usage is read on this Query first (ARCHITECTURE §7 'Agent usage').
             if (input.usageAtTurnEnd && !state.steered?.length && result.events.some(event => event.type === "turn.done")) {
               await input.usageAtTurnEnd(() => timeout(q.usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET({ skipBehaviors: true }), TURN_USAGE_MS)).catch(() => {});
             }

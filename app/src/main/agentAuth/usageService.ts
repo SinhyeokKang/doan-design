@@ -46,7 +46,7 @@ export class UsageService {
   private readonly signedIn = new Set<UsageProvider>();
   private shown: boolean;
   // Set by the first start trigger, which main sends once the tool facts are read: until then readiness reads every
-  // version as unknown, and the window shows a first read rather than that cause (orch decision 17).
+  // version as unknown, and the window shows a first read rather than that cause (ARCHITECTURE §7 'Agent usage').
   private factsRead = false;
   private published = "";
   private closed = false;
@@ -137,7 +137,7 @@ export class UsageService {
   }
 
   // What a connection that cannot be read shows: the readiness, phase, error code and attempt kind its Settings >
-  // Agents row is worded from (orch decision 16). An unchecked connection is read anyway: the read checks it first, as
+  // Agents row is worded from (ARCHITECTURE §7 'Agent usage'). An unchecked connection is read anyway: the read checks it first, as
   // a run does, and Copilot's check costs a request.
   private blocked(provider: UsageProvider): UsageBlock | undefined {
     const readiness = this.options.readiness(provider);
