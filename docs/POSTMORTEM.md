@@ -6,6 +6,14 @@
 > Historical `app/e2e/` paths refer to the suite retired on 2026-10-27. Current runtime safety helpers live in `app/runtime/`; use focused probes under `.scratch/`, as specified in AGENTS.md.
 > Some entries name app code removed later: the app's comment UI (`useComments.tsx`, `CommentsSession.ts`, `CommentsPanel.tsx`, `CommentPins.ts` and most of `app/src/comments/` and `app/src/main/comments/`, with their tests) on 2026-11-01; the separate Settings window (`settingsWindow.tsx`) and the `Sidebar.tsx` component on 2026-10-30; Settings > Connections (`ConnectionRows.tsx`, `connectionRowView.ts`, `setupBroker.ts`) on 2026-10-31. Their search commands and test pointers apply only to code that still exists; the comment files, the CLI comment commands and `app/src/comments/projection.ts` remain.
 
+### 2026-11-06 — The Agent usage popover stayed open on a press in the app header
+
+- **Area**: `app/src/renderer/AgentUsageButton.tsx`, the header `.top` window drag region (`styles.css`); fixed in the prompt-suggestion run (batch U, user-reported).
+- **Symptom**: with the Agent usage popover open, a press on an empty part of the app header did not close it; presses anywhere else did.
+- **Root cause**: `.top` is `-webkit-app-region: drag`, so macOS handles presses there as window drags and they never reach the page; Radix's outside-press dismissal never fires. The first fix lifted the drag region with a `.top:has(.usage[aria-expanded="true"])` rule: the computed style became `no-drag`, but Electron 45 kept the old draggable region, so native presses still dragged. Setting the same value inline on the header while the popover is open works.
+- **Net**: caught by the person in the real app. The first fix passed unit tests (jsdom has no drag regions) and a CDP click in the real app (CDP input goes straight to Blink, past the OS hit test); only a native click (`orca computer click`) showed it did not work.
+- **Prevention**: change `-webkit-app-region` from script on the element itself (inline style), not through `:has()` or other selector invalidation, and verify any drag-region change with a native click and a native drag, never with DOM or CDP events. Other popovers and menus over the header share the pitfall and are not fixed. Search: `rg -n "app-region" app/src/renderer`.
+
 ### 2026-11-05 — Canvas labels showed the page `<title>` although PRODUCT said file stems
 
 - **Area**: `app/src/renderer/canvasTree.ts` (`canvasLabel`) and every caller (header, sidebar tree, Quick Open, conversation chips, panel title); fixed in 99ce56a3 (agent-questions batch X).
