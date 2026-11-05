@@ -4,18 +4,42 @@
 
 ## P. PoC
 
-모두 로그인한 Doan 연결이 필요하다. 격리한 HOME에는 로그인한 provider가 없으므로, provider-usage PoC·E2와 같은 공용 로그인 프로필 방식을 쓴다: 실제 HOME, Doan 전용 userData를 `/Users/sinhyeokkang/code/doan-design/.scratch/` 아래에 두고, 앱은 main checkout(`/Users/sinhyeokkang/code/doan-design`)의 Electron으로 띄운다. `doan Safe Storage` Keychain 항목의 ACL은 PoC를 돌린 checkout(여기서는 main checkout)의 Electron 경로만 신뢰해서, worktree의 Electron은 vault를 열지 못한다. provider-usage E2에서 관찰한 사실이고, 출처는 `git show eca2b7c7^:docs/features/provider-usage/orch.md`의 진행 기록 E2이다(그 문서는 eca2b7c7에서 지워졌다). 이는 AGENTS.md의 HOME 격리 규칙의 예외라서, 실행할 때마다 그 시점에 지휘자를 거쳐 사람의 승인을 받는다. sign-out과 userData·Keychain 항목 정리도 사람에게 묻는다. 일회성 스크립트와 기록은 `.scratch/canvas-handoff/`에 두고, 결과(provider 버전, mode, 관찰, 날짜)는 이 파일 아래 'P 결과'에 적는다. 앱 코드는 바꾸지 않는다.
+모두 로그인한 Doan 연결이 필요하다. 격리한 HOME에는 로그인한 provider가 없으므로, provider-usage PoC·E2와 같은 공용 로그인 프로필 방식을 쓴다: 실제 HOME, Doan 전용 userData는 이 머신의 공용 프로필 `/Users/sinhyeok/code/doan-design/.scratch/provider-profile/userData`(다섯 provider 연결)를 쓰고, 앱은 main checkout(`/Users/sinhyeok/code/doan-design`)의 Electron으로 띄운다. `doan Safe Storage` Keychain 항목의 ACL은 PoC를 돌린 checkout(여기서는 main checkout)의 Electron 경로만 신뢰해서, worktree의 Electron은 vault를 열지 못한다. provider-usage E2에서 관찰한 사실이고, 출처는 `git show eca2b7c7^:docs/features/provider-usage/orch.md`의 진행 기록 E2이다(그 문서는 eca2b7c7에서 지워졌다). 이는 AGENTS.md의 HOME 격리 규칙의 예외라서, 실행할 때마다 그 시점에 지휘자를 거쳐 사람의 승인을 받는다. sign-out과 userData·Keychain 항목 정리도 사람에게 묻는다. 일회성 스크립트와 기록은 `.scratch/canvas-handoff/`에 두고, 결과(provider 버전, mode, 관찰, 날짜)는 이 파일 아래 'P 결과'에 적는다. 앱 코드는 바꾸지 않는다.
 
-- [ ] P1. 환경 전달(design 'PoC 의존' P1). 다섯 provider의 Doan 연결 캔버스 대화에서 agent에게 `printenv DOAN_APP_CONVERSATION DOAN_RUNTIME`을 실행하게 하고, Codex는 sandbox 밖(escalation)에서도 한 번 더 실행하게 한다.
+- [x] P1. 환경 전달(design 'PoC 의존' P1). 다섯 provider의 Doan 연결 캔버스 대화에서 agent에게 `printenv DOAN_APP_CONVERSATION DOAN_RUNTIME`을 실행하게 하고, Codex는 sandbox 밖(escalation)에서도 한 번 더 실행하게 한다.
   - 검증: 'P 결과'에 provider마다 두 값이 보였는지가 있다. 실행은 위 공용 로그인 프로필 방식(main checkout Electron, `DOAN_CLI=<abs doan> npm --prefix app run dev -- -- --user-data-dir=<.scratch 아래 userData>`)이고, 실행 때 사람의 승인이 필요하다.
-- [ ] P2. permission 경로(P2·P3). Claude Code·Codex는 네 mode, Cursor·Antigravity·Copilot은 각자 대응하는 mode에서 agent에게 `doan active --json`을 실행하게 한다. 승인 요청이 보였는지와 그 요약, 승인 뒤 socket에 닿았는지(앱이 v1 요청을 받았는지), 묻지 않고 닿았는지, 막혔는지를 기록한다.
+- [x] P2. permission 경로(P2·P3). Claude Code·Codex는 네 mode, Cursor·Antigravity·Copilot은 각자 대응하는 mode에서 agent에게 `doan active --json`을 실행하게 한다. 승인 요청이 보였는지와 그 요약, 승인 뒤 socket에 닿았는지(앱이 v1 요청을 받았는지), 묻지 않고 닿았는지, 막혔는지를 기록한다.
   - 검증: 'P 결과'에 provider × mode 표가 있고, design §4 표와 다른 칸이 표시돼 있다. 실행은 P1과 같은 공용 로그인 프로필 방식이고, 실행 때 사람의 승인이 필요하다.
-- [ ] P3. P1·P2 결과가 design §4 표나 결정 1과 다르거나 환경 변수를 보지 못한 provider가 있으면, 지휘자를 거쳐 사람에게 묻고 spec·design에 반영한다. 다르지 않으면 'P 결과'에 그렇다고 적는다.
+- [x] P3. P1·P2 결과가 design §4 표나 결정 1과 다르거나 환경 변수를 보지 못한 provider가 있으면, 지휘자를 거쳐 사람에게 묻고 spec·design에 반영한다. 다르지 않으면 'P 결과'에 그렇다고 적는다.
   - 검증: 'P 결과'에 판정이 있고, 지원하지 않는 provider가 있으면 spec 비목표와 design 'PoC 의존'에 적혀 있다. — 커밋(`docs(feature): canvas-handoff PoC results`)
 
 ### P 결과
 
-(PoC 뒤 적는다.)
+2026-11-06, 링크 3(context-window-ring) 지휘자가 사람의 승인을 받아 돌렸다. main checkout(`1c489ad5`)의 build를 main checkout의 Electron과 공용 프로필 `/Users/sinhyeok/code/doan-design/.scratch/provider-profile/userData`로 띄웠다. probe repo `.scratch/canvas-handoff/repo`(캔버스 하나)는 공용 프로필의 `folders.json`에 잠시 더했다. 일회성 script(`drive.mjs`)가 preload API로 provider × mode마다 새 캔버스 대화를 하나씩 시작했고, permission request는 기록한 뒤 allow-once로 답했다. 프로세스 입출력은 spawn hook으로 남겼다. script·결과(`out/results.json`)·frame은 `/Users/sinhyeok/code/doan-design/.scratch/canvas-handoff/`에 있다. 버전: Claude Code 2.1.318, Codex 0.166.0, Copilot 1.0.105, Antigravity ACP 1.3.0, Cursor 2026.10.22-27dcf5f. agent는 PATH의 `doan`(Doan이 runner PATH 앞에 둔 `DOAN_CLI`의 디렉터리)을 썼다.
+
+- **명령 주의**: macOS의 `printenv`는 이름을 하나만 받는다. `printenv DOAN_APP_CONVERSATION DOAN_RUNTIME`은 첫 값(`1`)만 출력하므로 두 변수를 따로 물었다(`A=1 B=2 printenv A B` → `1`).
+- **P1 환경 전달**: Claude Code, Codex, Antigravity, Copilot의 셸에서 `DOAN_APP_CONVERSATION=1`과 `DOAN_RUNTIME=<공용 프로필 runtime.json>`이 보였다. Codex는 sandbox 안과 escalation으로 sandbox 밖에서 실행한 `printenv DOAN_RUNTIME` 모두 보였다. Copilot Full access의 agent는 `printenv`를 거부했지만 같은 대화의 `doan active`가 앱에 닿았다. Copilot에는 세션 연결 경로가 없으므로 `DOAN_RUNTIME`이 있었던 것이다. **Cursor는 확인하지 못했다**: 두 mode 모두 첫 턴이 "Upgrade your plan to continue"로 끝났다(계정 한도).
+- **P2 permission 경로**(`doan active --json` 기준. "닿음"은 앱 socket이 응답해 `repo`를 돌려줬다는 뜻):
+
+| provider | mode | 승인 요청 | socket |
+|---|---|---|---|
+| Claude Code | Default | 명령마다 Bash 요청(`allow`·`deny`·`always`), 요약은 agent의 설명(예: "Show active Doan canvas") | 승인 뒤 닿음 |
+| Claude Code | Accept edits | Default와 같음 | 승인 뒤 닿음 |
+| Claude Code | Plan | 읽기 명령(`printenv`, `doan active`)은 묻지 않고 실행. `doan work start`를 실행하기 전에 Claude가 `ExitPlanMode`를 요청했고(승인함), 그 뒤 명령마다 Bash 요청 | 묻지 않고 닿음 |
+| Claude Code | Full access | 없음 | 묻지 않고 닿음 |
+| Codex | Default | sandbox 안의 `doan active`는 `app_not_running`("connect: operation not permitted"). agent가 escalation을 요청했고 `commandExecution` permission request(`accept`·`decline`·`acceptForSession`·`execpolicy`, 요약은 agent의 문장)로 보였다 | 승인 뒤 sandbox 밖에서 닿음 |
+| Codex | Accept edits | Default와 같음. 단 첫 시도에서는 agent가 escalation을 요청하지 않고 끝냈고, 같은 prompt의 둘째 시도에서 요청했다 | 승인 뒤 닿음 |
+| Codex | Plan | sandbox가 막고 요청은 없다(agent: approval policy never) | 막힘 |
+| Codex | Full access | 없음 | 묻지 않고 닿음 |
+| Antigravity | Default | 명령마다 `execute` 요청, 요약은 명령 글 그대로 | 승인 뒤 닿음 |
+| Antigravity | Accept edits | Default와 같음(셸은 계속 묻는다) | 승인 뒤 닿음 |
+| Antigravity | Full access | 없음 | 묻지 않고 닿음 |
+| Copilot | Default | 명령마다 `execute` 요청, 요약은 agent의 설명 | 승인 뒤 닿음 |
+| Copilot | Plan | 셸 명령(guide 읽기)이 `execute` 요청으로 보였다. agent는 probe 명령을 실행하지 않고 계획만 남겼다 | 확인 못 함 |
+| Copilot | Full access | 없음 | 묻지 않고 닿음 |
+| Cursor | Default·Plan | 계정 한도로 턴이 시작되지 않음 | 확인 못 함 |
+
+- **P3 판정**(지휘자): design §4 표와 다른 칸은 Claude Plan 하나다. 읽기 명령은 묻지 않고 socket에 닿고, 쓰기로 보는 명령 앞에서는 Claude가 Plan 승인(`ExitPlanMode`)을 먼저 요청한다. Plan 판단은 요청 때 대화의 현재 mode로 하므로(결정 1, Plan 승인 뒤 바뀐 mode 포함) 결정 1은 그대로다. 환경 변수를 보지 못한 provider는 없다. Cursor는 확인하지 못했다. 사람의 판단(2026-11-06): 미검증으로 두고 진행하고, R(실제 앱 확인)에서 계정 한도가 풀렸으면 Cursor의 환경과 Default·Plan 경로를 다시 본다.
 
 ## D. UI 초안
 
