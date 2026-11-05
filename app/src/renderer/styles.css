@@ -699,6 +699,7 @@ body:has(.shell-top) { background: transparent; }
 .composer-stop svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
 .composer-reason.docked-reason { justify-content: flex-start; margin-top: var(--space-2); padding-inline: var(--space-4); }
 .queue { display: flex; flex-direction: column; gap: var(--space-1); margin-bottom: var(--space-2); }
+.queue-key { margin: calc(-1 * var(--space-1)) 0 var(--space-2); padding: 0 var(--space-4) 0 calc(var(--space-4) + var(--size-icon) + var(--space-2)); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-metadata); }
 /* Larger than a chip since dogfooding found queued messages hard to read: label type, a 16px icon, 40px tall. White with
    the standard border (canvas-composer-polish draft `sending`) so Send now reads as the row's action; the border is an
    inset shadow, so the row keeps its height and padding. */

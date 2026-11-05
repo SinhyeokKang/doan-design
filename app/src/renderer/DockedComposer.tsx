@@ -184,6 +184,7 @@ export function DockedComposer(props: DockedComposerProps) {
     : props.held && checked.enabled ? { enabled: false, reason: checked.reason } : checked;
   const message = dockedMessage(draft);
   const action = composerAction(props.turn !== "idle", message.text);
+  const canSendNow = !!props.sendNow && !!props.onSendQueuedNow;
   const picker = dockedPicker(props.picker, mode);
   // The terminal's provider, drawn on the fixed trigger.
   const fixedProvider = mode.kind === "new" ? props.provider : mode.provider;
@@ -327,7 +328,7 @@ export function DockedComposer(props: DockedComposerProps) {
     return outcome;
   };
   const steerAll = async () => {
-    const plan = steerAllPlan({ sendNow: !!props.sendNow, rows: props.queued.length, draft: message.text.trim() !== "" });
+    const plan = steerAllPlan({ sendNow: canSendNow, rows: props.queued.length, draft: message.text.trim() !== "" });
     if (plan === "enter") { await send(); return; }
     if (plan === "none") return;
     if (plan.rows) queueRows.current?.sendAll();
@@ -356,23 +357,18 @@ export function DockedComposer(props: DockedComposerProps) {
   // Only an id drawn below; the live reason shows with an older notice rather than behind it.
   const describedBy = reason && !reason.noAgent ? reasonId : undefined;
   return <div className="docked" data-shape={shape} ref={root} {...drop.handlers}>
-    <QueueRows key={key} handle={queueRows} items={props.queued} sendNow={!!props.sendNow && !!props.onSendQueuedNow} onSendNow={id => props.onSendQueuedNow?.(id) ?? Promise.resolve({ error: "not_running" })}
+    <QueueRows key={key} handle={queueRows} items={props.queued} sendNow={canSendNow} onSendNow={id => props.onSendQueuedNow?.(id) ?? Promise.resolve({ error: "not_running" })}
       onRemove={props.onRemoveQueued} focusInput={() => field.current?.focus()}
       // The same refusal again changes the region's text by a no-break space, so it is read again.
       announce={text => setAnnouncement(current => current === text ? `${text}\u00a0` : text)} />
-    {props.sendNow && props.onSendQueuedNow && props.queued.length > 0 && <div style={{
-      display: "flex", alignItems: "center", margin: "calc(-1 * var(--space-1)) 0 var(--space-2)",
-      padding: "0 var(--space-4) 0 calc(var(--space-4) + var(--size-icon) + var(--space-2))",
-      fontSize: "var(--type-caption-size)", lineHeight: "var(--type-caption-line-height)",
-      letterSpacing: "var(--type-caption-letter-spacing)", color: "var(--text-metadata)",
-    }}>Press Ctrl + Enter to send all now.</div>}
+    {canSendNow && props.queued.length > 0 && <div className="queue-key">Press Ctrl + Enter to send all now.</div>}
     <ComposerCard readonly={isSending}>
       <ComposerChips attachments={draft.attachments} preset={draft.preset} thumbnails={props.thumbnails} homeDirectory={props.homeDirectory} disabled={isSending || locked} removeButtons={removeButtons} onRemove={index => removeChip(index, "button")} />
       {/* One field element in both shapes, at the same place and key: remounting it would drop focus and IME composition. */}
       <ComposerField key="field" ref={field} draftKey={key} value={draft.segments} onChange={segments => edit({ segments })} readOnly={isSending || locked}
         placeholder={props.placeholder} describedBy={describedBy} chipScope={props.chipScope ?? null} onAnnounce={setAnnouncement} onChipClick={props.onLocate ? locate : undefined}
         combobox={slashOpen ? { listId: `${listId}-slash`, activeId: slashRows[highlight] ? `${listId}-s-${highlight}` : undefined } : null}
-        onKey={keyDown} onSteerKey={() => void steerAll()} sendNow={!!props.sendNow} onSubmit={() => void send()} onPaste={paste} />
+        onKey={keyDown} onSteerKey={() => void steerAll()} sendNow={canSendNow} onSubmit={() => void send()} onPaste={paste} />
       <ComposerTools>
         <PresetsButton reply={props.presets} project={props.project} suggested={props.suggested} listId={listId} disabled={isSending || locked}
           onOpen={props.onPresetsOpen} onChoose={id => choosePreset(id, false)} onRetry={props.onPresetsRetry} onPicked={() => focus({ kind: "restored" })} canvasPress={props.canvasPress} />
