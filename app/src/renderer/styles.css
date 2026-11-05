@@ -40,6 +40,9 @@ code, kbd { font-family: var(--type-family); }
 .app-shell { display: grid; grid-template-columns: 240px minmax(0, 1fr) 280px; grid-template-rows: 40px minmax(0, 1fr); height: 100%; background: var(--bg-app); }
 .top { grid-column: 1 / -1; display: flex; align-items: center; gap: 14px; padding: 0 12px; background: var(--surface-panel); border-bottom: 1px solid var(--border-standard); -webkit-app-region: drag; }
 .top button { -webkit-app-region: no-drag; }
+/* A drag region's presses never reach the page, so a press on the header's empty part could not close the non-modal
+   usage popover (Radix dismisses on an outside press). While it is open the header takes presses; closed, it drags. */
+.top:has(.usage[aria-expanded="true"]) { -webkit-app-region: no-drag; }
 .traffic-space { width: 52px; flex: none; }
 .spacer { flex: 1; }
 .meta { font: 11.5px var(--type-family); color: var(--text-metadata); white-space: nowrap; }
