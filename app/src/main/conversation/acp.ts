@@ -144,7 +144,8 @@ export function normalizeAcp(state: AcpTransport, update: Record<string, unknown
     if (!text) return { state, events: [] };
     return { state: { ...state, text: state.text + text }, events: [{ type: "message.delta", messageId: state.messageId, text }] };
   }
-  // used is what the provider reports; ACP does not define it (Antigravity: the last model call's size, P4).
+  // used is what the provider reports; ACP does not define it. Antigravity's ACP server 1.3.0 sends the last model
+  // call's size (its first value after session/load was that turn's context, not a session total).
   if (kind === "usage_update") {
     const value = contextValue(update.used, update.size);
     return { state: value ? { ...state, context: value } : state, events: [] };

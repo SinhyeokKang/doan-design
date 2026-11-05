@@ -39,7 +39,8 @@ function claudeCall(message: Record<string, unknown>): { used: number; model: st
   const used = parts.reduce((sum, part) => sum + part, 0);
   return Number.isSafeInteger(used) ? { used, model: message.model } : undefined;
 }
-// modelUsage also holds auxiliary models' keys (P1 (a)), so the window is the call's own model's.
+// modelUsage also holds auxiliary models' keys (Claude Code 2.1.318 and 2.1.284 listed a Haiku entry beside the turn's
+// model, whose key equals the top-level message.model), so the window is the call's own model's.
 function claudeWindow(modelUsage: unknown, model: string): unknown {
   return object(modelUsage) && Object.hasOwn(modelUsage, model) && object(modelUsage[model]) ? modelUsage[model].contextWindow : undefined;
 }
@@ -302,8 +303,9 @@ export function normalizeCodex(state: TransportState, raw: unknown, context: Cod
   if (params.threadId !== context.sessionId) return unchanged(state);
   const turnId = object(params.turn) ? params.turn.id : params.turnId;
   if (turnId !== context.turnId) return unchanged(state);
-  // last is the turn's latest model call; its inputTokens already include the cached ones (P2 (b)), while totalTokens
-  // adds output. A resumed thread replays the previous turn's notification first (P2 (d)); the turn check drops it.
+  // last is the turn's latest model call; its inputTokens already include the cached ones (Codex 0.166.0 and 0.158.0:
+  // cachedInputTokens never exceeded inputTokens), while totalTokens adds output. After thread/resume, 0.158.0 replayed
+  // the previous turn's notification once before the new turn/start reply; the turn check drops it.
   if (raw.method === "thread/tokenUsage/updated") {
     const usage = object(params.tokenUsage) ? params.tokenUsage : {};
     const value = contextValue(object(usage.last) ? usage.last.inputTokens : undefined, usage.modelContextWindow);
