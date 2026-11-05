@@ -159,6 +159,17 @@ describe("UsagePanel", () => {
     expect(view.onRefresh).toHaveBeenCalledOnce();
   });
 
+  // User report: the header is a window drag region, whose presses never reach the page, so a press on its empty part
+  // could not close the non-modal popover by Radix's outside press. While the popover is open (the button's
+  // aria-expanded) the header takes presses; otherwise it still drags the window. The real app shows the region.
+  it("lets the header take presses while the popover is open, and drags the window otherwise", () => {
+    const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+    expect(css).toContain('.top { grid-column: 1 / -1;');
+    expect(css).toMatch(/\.top \{[^}]*-webkit-app-region: drag;[^}]*\}/);
+    expect(css).toContain('.top:has(.usage[aria-expanded="true"]) { -webkit-app-region: no-drag; }');
+    expect(button(html(<UsageView {...props(four)} open />))).toContain('aria-expanded="true"');
+  });
+
   // E1 measurement: the app body's tabular figures widened every "1" in the relative times ("Updated 1m ago" by 2.6px,
   // "12d 4h") against the confirmed draft; the popover is portalled to <body>, so it sets its own.
   it("draws plain numerals in the popover", () => {
