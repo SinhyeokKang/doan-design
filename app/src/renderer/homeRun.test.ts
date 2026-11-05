@@ -1020,11 +1020,16 @@ test("a stale list read does not bring back a cleared suggestion", async () => {
   expect(shown()).toBeUndefined();
   // The notice main sent with the accepted turn asks for one more read after the stale one.
   h.run.listChanged(ROOT);
-  doan.listConversations!.mockImplementationOnce(async () => [summary({ phase: "running" })]);
+  const fresh = deferred<ConversationSummary[]>();
+  doan.listConversations!.mockImplementationOnce(() => fresh.promise);
   stale.resolve([summary({ suggestion: "Make the header lighter" })]);
   await flush();
-  await flush();
+  // The stale read is applied (its other rows count) without the suggestion.
+  expect(h.run.readsApplied(ROOT)).toBe(2);
+  expect(shown()).toBeUndefined();
   expect(doan.listConversations).toHaveBeenCalledTimes(3);
+  fresh.resolve([summary({ phase: "running" })]);
+  await flush();
   expect(shown()).toBeUndefined();
 
   // A read started after the turn is trusted again: its next suggestion shows.

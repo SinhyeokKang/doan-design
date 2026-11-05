@@ -948,9 +948,12 @@ test("a suggestion that starts with / goes in as text and leaves the preset list
   const { render, handle } = suggestionSetup({ suggestion: "/compact the thread" });
   press(render(), arrowRight());
   expect(handle.insertText).toHaveBeenCalledWith("/compact the thread");
+  // Effects of the render that drew the inserted text (React runs an earlier render's effects before the key).
+  render();
   for (const effect of hooks.effects) effect();
   expect(field(render()).role).toBe("textbox");
   type(render(), "");
+  render();
   for (const effect of hooks.effects) effect();
   type(render(), "/");
   expect(field(render()).role).toBe("combobox");
