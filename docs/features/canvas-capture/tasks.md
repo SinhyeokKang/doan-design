@@ -9,7 +9,7 @@
 
 ## D. UI 초안
 
-- [ ] D1. `/design-draft canvas-capture`: design §4의 상태를 `.doan/canvases/canvas-capture.html`에 그린다(도구모음 상태, 캡처 모드 대기·드래그, 접힌 패널, composer 칩·실패·상한). 아이콘, marquee 모양, 안내 줄의 모양과 문구(줄 자체는 있어야 한다, spec 완료 조건 2), 크기 표시 여부, 쓸 수 없을 때의 문구를 여기서 정한다. 캡처에 앱 메뉴 막대 항목(Edit > Pick from Canvas 같은 것)을 둘지도 여기서 사람에게 묻고 정한다(design 결정 5). 사람이 앱에서 초안을 확인한다.
+- [x] D1. (초안 확정 2026-11-05, 커밋 대기) `/design-draft canvas-capture`: design §4의 상태를 `.doan/canvases/canvas-capture.html`에 그린다(도구모음 상태, 캡처 모드 대기·드래그, 접힌 패널, composer 칩·실패·상한). 아이콘, marquee 모양, 안내 줄의 모양과 문구(줄 자체는 있어야 한다, spec 완료 조건 2), 크기 표시 여부, 쓸 수 없을 때의 문구를 여기서 정한다. 캡처에 앱 메뉴 막대 항목(Edit > Pick from Canvas 같은 것)을 둘지도 여기서 사람에게 묻고 정한다(design 결정 5). 사람이 앱에서 초안을 확인한다.
   - 검증: `doan check`와 `doan ls`가 초안을 오류 없이 보이고, 사람이 확인했다. 메뉴 막대 항목을 둘지에 대한 사람의 답이 design 결정 5에 적혀 있다.
 
 커밋 경계: D1(초안 캔버스).
@@ -44,7 +44,7 @@
 - [ ] E1. `CanvasTools.tsx`의 캡처 버튼(자리, pressed, `aria-disabled`, 이유 `sr-only`), App의 `captureAvailability` 연결과 터미널 세션 상태 꺼내기, page lock 처리. design §3.
   - 검증: `npm --prefix app test`에서 `CanvasTools.test.tsx`(순서, 이름, pressed 규칙, 이유)와 App 테스트가 통과한다.
 - [ ] E2. 스냅숏 시작 때 `attachmentLimit`으로 첨부 상한 다시 확인(쓸 수 있는지는 render 때 정해지고 main `resolve`는 10개를 넘으면 `bad_request`), 캡처 결과를 `composerKey`의 draft에 넣기(checking 칩 → `settleAttachments`), 패널 펼침과 composer 포커스, `ATTACH_ERRORS.capture_failed`(`conversationStore.ts`)와 실패 toast, `styles.css`의 레이어·marquee·`[data-capture-snapshot]` 규칙. 새 z-index가 있으면 `ds/controls.test.ts`에 넣는다(POSTMORTEM 2026-11-02 'Every Overview menu opened under the Overview itself').
-  - 검증: `npm --prefix app test`에서 `App.conversationPanel.test.tsx`의 캡처 칩 경우(성공, `capture_failed`가 "Couldn’t capture the canvas. Try again." toast를 보임, 상한, render 뒤 첨부가 10개가 된 경쟁에서 스냅숏을 찍지 않음, 터미널 세션과 레거시 외부 대화의 `fixed`)와 `ds/controls.test.ts`가 통과한다. `npm --prefix app run typecheck`와 `npm --prefix app run build`가 통과한다.
+  - 검증: `npm --prefix app test`에서 `App.conversationPanel.test.tsx`의 캡처 칩 경우(성공, `capture_failed`가 "Couldn’t capture the canvas. Try again." toast를 보임, main의 PNG 저장 실패도 같은 toast를 보임(`unreadable` 문구가 아님), 상한, render 뒤 첨부가 10개가 된 경쟁에서 스냅숏을 찍지 않고 "Only 10 files can be attached. 1 was left out." toast를 보임, 터미널 세션과 레거시 외부 대화의 `fixed`)와 `ds/controls.test.ts`가 통과한다. `npm --prefix app run typecheck`와 `npm --prefix app run build`가 통과한다.
 
 커밋 경계: E1, E2.
 
