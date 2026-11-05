@@ -109,3 +109,36 @@
 - **억제**: `work start`·`work done`은 실행된 모든 대화에서 `{"delivered":false}`였다. 같은 대화의 `doan active`가 앱에 닿은 경우(Claude 네 mode, Codex Full access, Antigravity 세 mode, Copilot Default·Full access)에도 false이므로 억제(`DOAN_APP_CONVERSATION`)가 동작한다. Codex Default·Accept edits·Plan의 `work`는 sandbox 안에서 실행되어 억제와 socket 차단을 가를 수 없다.
 - **socket 도달**(Default / Full access): Claude 승인 뒤 닿음 / 묻지 않고 닿음. Codex sandbox가 막아 `app_not_running`, agent가 escalation을 요청하면 Doan permission request(`commandExecution`)로 보이고 승인 뒤 닿음 / 묻지 않고 닿음. Antigravity 승인 뒤 닿음 / 묻지 않고 닿음. Copilot 승인 뒤 닿음 / 묻지 않고 닿음. Cursor 확인 못 함(사람의 판단: 미검증으로 두고 진행, R에서 다시 본다).
 - **Codex 프로필의 rule**: 공용 프로필의 Doan Codex 프로필에는 rule 파일이 없고(`*.rules` 없음), Default에서 `doan`은 sandbox 안에서 돌아 막혔다. rule이 app-server에서 읽히는지는 B4가 rule을 넣은 뒤에 다시 본다. 지금은 Claude만이 아니라 Codex도 escalation 승인으로 Default에서 닿으므로 "둘 다 Default에서 닿지 못함"의 멈춤 조건에는 걸리지 않는다.
+
+## E2 결과
+
+2026-11-06. 세 값 모두 바꾸지 않는다. 바꿀 근거가 될 관찰이 없었다. 사람이 시작값으로 확정한 값이고(design §9), 바꾸려면 근거가 있어야 한다.
+
+| 값 | 결정 | 근거 |
+|---|---|---|
+| `FOLLOW_IDLE_MS` 5초 | 유지 | R1 실제 대화 네 턴에서 사람이 쉬고 있을 때 따라가기는 `update` 뒤 0.14–0.26초에 시작했다. 다음 `update`보다 한참 먼저다. 사람이 휠로 팬한 턴에서는 그 턴의 나머지 프레임(checkout, contact)으로 화면이 옮겨지지 않았다(R1 (b) project 대화). 사람의 보기를 끊은 사례가 없다. 5초는 사람이 쉬었는지를 가르는 값이고, 에이전트의 간격과는 상관이 없다. |
+| 지우고 치기 20·35 ms/글자, 1,000 ms 상한 | 유지 | R1 실제 대화에서 note 전체가 보인 시각은 `update` 뒤 1.0–1.25초였다(250 ms 간격 샘플). 같은 대화에서 `update` 사이 간격은 11.2–21.4초였다. 글은 다음 `update` 훨씬 전에 다 쳐진다. 스크린 리더용 status에는 처음부터 최종 글이 들어간다(U3 측정, R1). |
+| 커서 깜빡임 1초 | 유지 | 깜빡임이 문제라는 관찰이 없다. 지우고 치는 동안에는 깜빡이지 않고(U3 측정), 답을 기다릴 때는 숨는다(R1 2차에서 관찰). |
+
+**편집 간격**(`update` 사이 초):
+
+- eval W5, fake app, 한 줄 편집(C2 handoff, `docs/USABILITY-EVAL.md` 'Scenario W5: first round')
+  - 전체 16개의 중앙값은 0.254초다.
+  - Claude 첫 round: 7.58, 3.43, 3.19, 3.14(중앙값 3.31).
+  - Claude 재측정: 중앙값 0.017.
+  - Codex: 중앙값 0.254.
+  - 0.25초 이하인 간격은 에이전트가 `update`와 편집을 한 tool call 안에서 이어서 실행할 때 생긴다. Codex는 한 `exec_command` script로, Claude는 `update && sed` 한 명령으로 실행했다.
+- R1 실제 대화(프레임 셋, 요청에 "프레임 사이 `sleep 8`"이 있었다)
+  - Claude 캔버스: 11.68, 12.15초.
+  - Claude project: 11.84, 12.04초.
+  - Codex 캔버스: 21.38, 17.13초.
+  - Claude 캔버스(2차): 11.24, 11.88초.
+  - `sleep 8`을 빼면 3–13초다. 이 부분은 LLM이 다음 tool call을 만드는 시간이다.
+
+**빠른 `update`가 연달아 올 때**(0.25초 이하):
+
+- 지우고 치기: 중간 교체가 지금 보이는 글에서 가장 새 글로 다시 시작한다. 그래서 마지막 `update`부터 1초 안에 최종 글이 놓인다. 상한을 줄이면 최종 글이 더 일찍 놓이지만, 사람이 확정한 속도를 관찰 없이 바꾸게 된다.
+- 따라가기: 사람이 쉬고 있으면 아직 따라가지 않은 프레임마다 화면을 옮긴다. 그래서 0.25초 간격으로 프레임 셋을 지나갈 수 있다. 이것은 `FOLLOW_IDLE_MS`로 바뀌지 않는다(사람의 쉬는 시간이지 에이전트의 간격이 아니다). 실제 앱에서 이런 연속 `update`는 관찰하지 못했다. fake app eval의 한 줄 편집에서만 나왔다.
+- 권하는 다음 단계: 이 경우가 실제 사용에서 보이면, 따라가기 사이 최소 간격을 따로 정할지 사람이 판단한다. 지금은 BACKLOG 후보로만 둔다.
+
+**영향**: 값을 바꾸지 않았으므로 코드, 테스트(`followDecision` 경계 테스트 포함), `docs/DESIGN.md`는 그대로다. U1·U2 테스트와 R1 단계도 다시 돌릴 것이 없다.
