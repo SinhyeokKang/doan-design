@@ -51,4 +51,4 @@ tasks의 남은 항목(A1, A2, B1, B2, C1, E1, E2, E3, Z1)은 모두 한 배치�
 
 ## 진행
 
-- A: worker Opus medium(`ctx_1a09f55737df`) → RA Sonnet high(`ctx_55e6b6a6640a`, `.scratch/review-A.md`) → A-r1 Sonnet medium(`ctx_4479c451c70a`). 통합 hash는 배치 표에 있다. A-r1의 전체 테스트에서 1건이 실패했고 이름을 남기지 않았다. 통합 tree에서 다시 돌려 확인한다.
+- A: worker Opus medium(`ctx_1a09f55737df`) → RA Sonnet high(`ctx_55e6b6a6640a`, `.scratch/review-A.md`) → A-r1 Sonnet medium(`ctx_4479c451c70a`). 통합 hash는 배치 표에 있다. A-r1의 전체 테스트에서 1건이 실패했고 이름을 남기지 않았다. 통합 tree(`514a534e`와 같은 tree)에서 다시 돌리니 285 files / 7492 tests 모두 통과했다. 부하 flake로 본다.
