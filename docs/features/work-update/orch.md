@@ -43,3 +43,6 @@
 - C2 순서 변경(지휘자 승인): Codex 한도 때문에 G0 Claude round → E1 구현 → E1 round(claude,codex ×3) → G0 Codex round를 마지막에 남은 한도로. 돌리지 못한 Codex 실행은 '돌리지 않음'으로 적는다.
 - M 완료(4커밋, red 먼저) → 통합 `f6e26a0c`·`ba544b6f`·`a948a60c`·`83e11076`. 계약 이름은 그대로다. 계획과 다른 점: 작업 턴 식별자 `"<provider|none>:<uuid>"`, `applyConversationWork`에 `now` 인자, `ConversationService`에 `workEnded`와 `liveTurns()`. 미룬 것: Doan에서 뺀 root의 대화 작업 내용은 턴 끝까지 남는다(V2가 판단한다). typecheck는 계약의 필수 필드(`touched`, `turn`) 때문에 다른 batch의 테스트 fixture에서만 실패한다. `canvasTrash.test.ts`는 M에게 follow-up으로 맡겼고, renderer fixture는 R의 배선 follow-up에서 고친다. 그때까지 통합 HEAD의 typecheck는 빨갛다.
 - V2(M 리뷰, Codex, `wu-v2`) 시작.
+- M follow-up: `canvasTrash.test.ts` fixture(`62f91230` → 통합 `e8f021f7`).
+- R 완료(A5·A5b·A6 `4b54c484`, U1 `12e442a5`, U2 `c120d944`, red 먼저와 mutation 확인) → 통합 `3bbec010`·`06a15879`·`e213bdff`. 소유 밖 수정 하나: `ds/checks.test.ts`의 accent 허용 목록. DOM에서만 보이는 동작(커서 위치, 너비 하한, tooltip, overlayOpen selector)은 jsdom으로 확인하지 못했다. U3와 R1에서 본다. 전체 test를 네 번 돌렸을 때 두 번은 건드리지 않은 main 테스트(`shell.test.ts` 등)에서 1–2개가 간헐적으로 실패했다. 단독으로 돌리면 통과한다.
+- R2(App.tsx live 배선과 renderer fixture 27개)를 R 작업자에게 follow-up으로 보냄. V3(R 리뷰, Codex, `wu-v3`) 시작.
