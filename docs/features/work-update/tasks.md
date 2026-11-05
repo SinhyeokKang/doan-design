@@ -4,8 +4,8 @@
 
 ## P. PoC
 
-- [ ] P1. 환경 전달과 소켓 도달(design §6 P1·P2). `canvas-handoff`의 P1 결과가 있으면 다시 쓰고, 없으면 격리된 실제 앱에서 다섯 provider의 Doan 연결 캔버스 대화로 `printenv DOAN_APP_CONVERSATION DOAN_RUNTIME`을 실행하게 한다. 이어서 같은 대화에서 `doan work start <canvas> --json`이 `delivered:false`인지(억제), 그리고 소켓에 닿는지를 보기 위해 `doan active --json`의 결과를 provider별·권한 모드(Default, Full access)별로 기록한다. 결과는 이 파일 아래 'P 결과'에 적는다.
-  - 검증: `/runtime-test` 방식의 격리 probe(임시 userData·HOME·SHELL·`CLAUDE_CONFIG_DIR`·`CODEX_HOME`·`DOAN_RUNTIME`). 'P 결과'에 provider × 모드 표가 있다. Doan 연결 프로필에 허용(B4)을 넣은 뒤에도 Claude와 Codex 둘 다 Default에서 소켓에 닿지 못하면 멈추고 사람에게 보고한다. Codex 프로필의 rule이 app-server에서 읽히는지도 함께 본다.
+- [ ] P1. 환경 전달과 소켓 도달(design §6 P1·P2). `canvas-handoff`의 P1 결과가 있으면 다시 쓰고, 없으면 canvas-handoff P와 같은 공용 로그인 프로필 방식(실제 HOME, 공용 프로필 `/Users/sinhyeok/code/doan-design/.scratch/provider-profile/userData`, main checkout의 Electron)으로 다섯 provider의 Doan 연결 캔버스 대화로 `printenv DOAN_APP_CONVERSATION DOAN_RUNTIME`을 실행하게 한다. 이어서 같은 대화에서 `doan work start <canvas> --json`이 `delivered:false`인지(억제), 그리고 소켓에 닿는지를 보기 위해 `doan active --json`의 결과를 provider별·권한 모드(Default, Full access)별로 기록한다. 결과는 이 파일 아래 'P 결과'에 적는다.
+  - 검증: 임시 HOME에는 로그인한 provider가 없어 격리 probe로는 할 수 없다. 공용 로그인 프로필 방식으로 하고, 실행 때 사람의 승인을 받는다(`DOAN_RUNTIME`과 repo는 probe마다 임시). 'P 결과'에 provider × 모드 표가 있다. Doan 연결 프로필에 허용(B4)을 넣은 뒤에도 Claude와 Codex 둘 다 Default에서 소켓에 닿지 못하면 멈추고 사람에게 보고한다. Codex 프로필의 rule이 app-server에서 읽히는지도 함께 본다.
 
 ## G. guide 예산
 
