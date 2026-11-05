@@ -10,7 +10,7 @@
   - 검증: 'P 결과'에 provider마다 두 값이 보였는지가 있다. 실행은 위 공용 로그인 프로필 방식(main checkout Electron, `DOAN_CLI=<abs doan> npm --prefix app run dev -- -- --user-data-dir=<.scratch 아래 userData>`)이고, 실행 때 사람의 승인이 필요하다.
 - [x] P2. permission 경로(P2·P3). Claude Code·Codex는 네 mode, Cursor·Antigravity·Copilot은 각자 대응하는 mode에서 agent에게 `doan active --json`을 실행하게 한다. 승인 요청이 보였는지와 그 요약, 승인 뒤 socket에 닿았는지(앱이 v1 요청을 받았는지), 묻지 않고 닿았는지, 막혔는지를 기록한다.
   - 검증: 'P 결과'에 provider × mode 표가 있고, design §4 표와 다른 칸이 표시돼 있다. 실행은 P1과 같은 공용 로그인 프로필 방식이고, 실행 때 사람의 승인이 필요하다.
-- [ ] P3. P1·P2 결과가 design §4 표나 결정 1과 다르거나 환경 변수를 보지 못한 provider가 있으면, 지휘자를 거쳐 사람에게 묻고 spec·design에 반영한다. 다르지 않으면 'P 결과'에 그렇다고 적는다.
+- [x] P3. P1·P2 결과가 design §4 표나 결정 1과 다르거나 환경 변수를 보지 못한 provider가 있으면, 지휘자를 거쳐 사람에게 묻고 spec·design에 반영한다. 다르지 않으면 'P 결과'에 그렇다고 적는다.
   - 검증: 'P 결과'에 판정이 있고, 지원하지 않는 provider가 있으면 spec 비목표와 design 'PoC 의존'에 적혀 있다. — 커밋(`docs(feature): canvas-handoff PoC results`)
 
 ### P 결과
@@ -39,7 +39,7 @@
 | Copilot | Full access | 없음 | 묻지 않고 닿음 |
 | Cursor | Default·Plan | 계정 한도로 턴이 시작되지 않음 | 확인 못 함 |
 
-- **P3 판정**(지휘자): design §4 표와 다른 칸은 Claude Plan 하나다. 읽기 명령은 묻지 않고 socket에 닿고, 쓰기로 보는 명령 앞에서는 Claude가 Plan 승인(`ExitPlanMode`)을 먼저 요청한다. Plan 판단은 요청 때 대화의 현재 mode로 하므로(결정 1, Plan 승인 뒤 바뀐 mode 포함) 결정 1은 그대로다. 환경 변수를 보지 못한 provider는 없다. Cursor는 확인하지 못했다(사람에게 물음).
+- **P3 판정**(지휘자): design §4 표와 다른 칸은 Claude Plan 하나다. 읽기 명령은 묻지 않고 socket에 닿고, 쓰기로 보는 명령 앞에서는 Claude가 Plan 승인(`ExitPlanMode`)을 먼저 요청한다. Plan 판단은 요청 때 대화의 현재 mode로 하므로(결정 1, Plan 승인 뒤 바뀐 mode 포함) 결정 1은 그대로다. 환경 변수를 보지 못한 provider는 없다. Cursor는 확인하지 못했다. 사람의 판단(2026-11-06): 미검증으로 두고 진행하고, R(실제 앱 확인)에서 계정 한도가 풀렸으면 Cursor의 환경과 Default·Plan 경로를 다시 본다.
 
 ## D. UI 초안
 
