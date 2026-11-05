@@ -52,6 +52,23 @@ describe("notificationFor", () => {
   });
 });
 
+describe("agent questions", () => {
+  const QUESTION = event({ type: "question.request", requestId: "q1", questions: [{ id: "0", header: "Layout", question: "Which layout should the secret-project header use?", options: [{ label: "Compact" }], multiSelect: false, other: true }] });
+  test("a question notifies as an approval request: its switch, the answer title, project and branch only", () => {
+    const planned = notificationFor(QUESTION, ON, BEHIND, NAMES);
+    expect(planned).toEqual({ kind: "approval", title: "Codex needs your answer", body: "acme-web · main", target: { conversationId: "c1", root: "/repo" }, requestId: "q1" });
+    expect(JSON.stringify(planned)).not.toContain("secret-project");
+    expect(notificationFor(QUESTION, { ...ON, approval: false }, BEHIND, NAMES)).toBeNull();
+    expect(notificationFor(QUESTION, { ...ON, enabled: false }, BEHIND, NAMES)).toBeNull();
+  });
+  test("the question's own resolution closes its notification, whatever the outcome", () => {
+    const shown = { kind: "approval" as const, requestId: "q1" };
+    for (const outcome of ["answered", "skipped", "expired"] as const) expect(closesNotification(event({ type: "question.resolved", requestId: "q1", outcome }), shown)).toBe(true);
+    expect(closesNotification(event({ type: "question.resolved", requestId: "q2", outcome: "skipped" }), shown)).toBe(false);
+    expect(closesNotification(event({ type: "question.resolved", requestId: "q1", outcome: "skipped" }), { kind: "finished" })).toBe(false);
+  });
+});
+
 describe("closesNotification", () => {
   test("the approval request's own resolution closes its notification", () => {
     const shown = { kind: "approval" as const, requestId: "r1" };

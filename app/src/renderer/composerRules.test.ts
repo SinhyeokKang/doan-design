@@ -43,6 +43,11 @@ describe("focusAfter", () => {
     expect(focusAfter({ kind: "answered", requestId: "r1" }, { pending: ["r1"] })).toEqual({ kind: "field", caretAtEnd: false });
     expect(focusAfter({ kind: "answered", requestId: "r1" }, { pending: [] })).toEqual({ kind: "field", caretAtEnd: false });
   });
+  test("after a question's answer: the next waiting question or permission request in arrival order, else the field", () => {
+    expect(focusAfter({ kind: "answered", requestId: "q1" }, { pending: ["q1", "p1", "q2"] })).toEqual({ kind: "option", requestId: "p1" });
+    expect(focusAfter({ kind: "answered", requestId: "p1" }, { pending: ["p1", "q2"] })).toEqual({ kind: "option", requestId: "q2" });
+    expect(focusAfter({ kind: "answered", requestId: "q2" }, { pending: ["q2"] })).toEqual({ kind: "field", caretAtEnd: false });
+  });
   test("after Stop and an accepted send: the field", () => {
     expect(focusAfter({ kind: "stopped" }, { pending: ["r1"] })).toEqual({ kind: "field", caretAtEnd: false });
     expect(focusAfter({ kind: "sent" }, { pending: [] })).toEqual({ kind: "field", caretAtEnd: false });

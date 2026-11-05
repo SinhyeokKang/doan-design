@@ -80,6 +80,20 @@ test("an approval request's notification closes when that request is resolved", 
   expect(last().close).toHaveBeenCalledOnce();
 });
 
+test("a question's notification says it needs an answer, and closes when it is answered or skipped", () => {
+  const ask = (requestId: string) => event("c1", { type: "question.request", requestId, questions: [{ id: "0", header: "Layout", question: "Which layout?", options: [], multiSelect: false, other: true }] });
+  service.event(ask("q1"));
+  expect(last().content).toEqual({ title: "Codex needs your answer", body: "acme-web · main" });
+  expect(last().show).toHaveBeenCalledOnce();
+  service.event(event("c1", { type: "question.resolved", requestId: "q2", outcome: "skipped" }));
+  expect(last().close).not.toHaveBeenCalled();
+  service.event(event("c1", { type: "question.resolved", requestId: "q1", outcome: "answered", answers: { "0": { selected: [], other: "Two rows" } } }));
+  expect(last().close).toHaveBeenCalledOnce();
+  preferences = { ...preferences, approval: false };
+  service.event(ask("q3"));
+  expect(created).toHaveLength(1);
+});
+
 test("a newer notification of the same conversation replaces the older one", () => {
   service.event(approval("c1", "r1"));
   service.event(done("c1"));

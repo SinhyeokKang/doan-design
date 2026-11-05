@@ -271,6 +271,10 @@ test("steerPhaseOf reads the merged events first and the list after, as the comp
   const list = (patch: Partial<ConversationSummary>) => ({ phase: "ended", working: false, ...patch }) as ConversationSummary;
   expect(steerPhaseOf([started, working], undefined, true)).toBe("running");
   expect(steerPhaseOf([started, asking], undefined, true)).toBe("waiting");
+  // A question waits for the person like a permission request: Send now stays (agent-questions decision 4).
+  const question = at("question.request", { requestId: "q", questions: [{ id: "0", header: "H", question: "Which?", options: [], multiSelect: false, other: true }] });
+  expect(steerPhaseOf([started, question], undefined, true)).toBe("waiting");
+  expect(steerPhaseOf([started, question, at("question.resolved", { requestId: "q", outcome: "skipped" })], undefined, true)).toBe("running");
   // Not held by this run: the list decides.
   expect(steerPhaseOf([started, working], list({ phase: "ended", working: false }), false)).toBe("ended");
   expect(steerPhaseOf(null, list({ phase: "running", working: true }), false)).toBe("running");

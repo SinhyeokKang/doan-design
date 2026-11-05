@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import type { ConversationEvent, EventPayload, FailureCode } from "../main/conversation/types";
-import { focusAfterStop, mergeConversationEvents, stripState, stripView, type StripContext, type StripState } from "./conversationStrip";
+import { asksPerson, focusAfterStop, mergeConversationEvents, stripState, stripView, type StripContext, type StripState } from "./conversationStrip";
 
 function events(...payloads: (EventPayload & { turnId?: string })[]): ConversationEvent[] {
   return payloads.map(({ turnId, ...payload }, i) => ({ ...payload, v: 1, conversationId: "c1", seq: i + 1, turnId: turnId ?? "t1", at: "2026-10-29T00:00:00Z" }) as ConversationEvent);
@@ -110,4 +110,32 @@ test("focus stays on Stop while it is drawn; once a finished turn takes it away,
   expect(focusAfterStop(view({ kind: "failed", code: "process_exited" }))).toBe("dismiss");
   expect(focusAfterStop(view({ kind: "interrupted", reason: "crashed" }))).toBe("dismiss");
   expect(focusAfterStop(stripView({ kind: "done" }, { ...CTX, canvas: "design-system" }).actions)).toBe("dismiss");
+});
+
+const QUESTION: EventPayload = { type: "question.request", requestId: "q1", questions: [
+  { id: "0", header: "Layout", question: "Which layout should the settings header use?", options: [{ label: "Compact" }], multiSelect: false, other: true },
+  { id: "1", header: "Sections", question: "Which sections?", options: [], multiSelect: false, other: true },
+] };
+
+test("a question shows its first sentence with Skip and Stop only, announced once; no control answers it here", () => {
+  const state = stripState(events(...started, QUESTION));
+  expect(state).toEqual({ kind: "question", requestId: "q1", question: "Which layout should the settings header use?" });
+  expect(stripView(state, CTX)).toEqual({
+    title: "Claude Code needs your answer", body: "Which layout should the settings header use?", live: "alert", alertKey: "q1",
+    actions: [{ command: "skip", label: "Skip" }, { command: "stop", label: "Stop" }],
+  });
+});
+
+test("questions and permission requests wait in one line: the oldest shows; each kind's resolution settles only its own", () => {
+  expect(stripState(events(...started, ASK, QUESTION))).toMatchObject({ kind: "permission", requestId: "r1" });
+  expect(stripState(events(...started, QUESTION, ASK))).toMatchObject({ kind: "question", requestId: "q1" });
+  expect(stripState(events(...started, QUESTION, ASK, { type: "question.resolved", requestId: "q1", outcome: "skipped" }))).toMatchObject({ kind: "permission", requestId: "r1" });
+  // A permission.resolved with the question's id leaves the question waiting.
+  expect(stripState(events(...started, QUESTION, { type: "permission.resolved", requestId: "q1", optionId: "a" }))).toMatchObject({ kind: "question", requestId: "q1" });
+  expect(stripState(events(...started, { type: "activity", kind: "edit", summary: "Editing a" }, QUESTION, { type: "question.resolved", requestId: "q1", outcome: "answered" }))).toEqual({ kind: "working", activity: "Editing a" });
+  expect(stripState(events(...started, QUESTION, { type: "turn.done" }))).toEqual({ kind: "done" });
+});
+
+test("asksPerson: a permission request and a question both wait for the person", () => {
+  expect(["permission", "question", "starting", "working", "done", "failed", "interrupted"].map(kind => asksPerson(kind as StripState["kind"]))).toEqual([true, true, false, false, false, false, false]);
 });

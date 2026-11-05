@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { ConversationEvent } from "../main/conversation/types";
-import { anchorParts, rootRelative, scrollFollow, threadItems, withSending, type ThreadItem } from "./threadItems";
+import { anchorParts, pendingAsks, questionLines, rootRelative, scrollFollow, threadItems, withSending, type ThreadItem } from "./threadItems";
 import { splitRequest } from "./homeComposer";
 import { notReadyLine, waitingLine } from "../main/conversation/mcpStartup";
 import { parseConnectorUrl } from "../main/mcpConnectors/names";
@@ -323,5 +323,78 @@ describe("withSending", () => {
     seq = 0;
     const items: ThreadItem[] = threadItems(turn("t1"), ROOT, true);
     expect(withSending(items, [])).toBe(items);
+  });
+});
+
+describe("questions", () => {
+  const layout = { id: "0", header: "Layout", question: "Which layout should the settings header use?", options: [{ label: "Compact", description: "One line" }, { label: "Two rows" }], multiSelect: false, other: true };
+  const sections = { id: "1", header: "Sections", question: "Which sections should the Settings page keep?", options: [{ label: "Agents" }, { label: "Notifications" }], multiSelect: true, other: true };
+  const token = { id: "t", header: "Staging token", question: "Paste the token", options: [], multiSelect: false, other: true, secret: true };
+  // Antigravity's questions have no header (agent-questions design §4).
+  const bare = { id: "0", header: "", question: "Which colour?", options: [{ label: "Red" }, { label: "Blue" }], multiSelect: false, other: false };
+  const sending = [{ id: "q1", text: "Also this", anchors: [], attachments: [] }, { id: "q2", text: "And this", anchors: [], attachments: [] }];
+
+  test("pending, then answered or skipped with what came back; a turn's end expires the rest", () => {
+    seq = 0;
+    const events = [...turn("t1"), ev("t1", { type: "question.request", requestId: "q1", questions: [layout, sections] }),
+      ev("t1", { type: "question.request", requestId: "q2", questions: [layout] }), ev("t1", { type: "question.request", requestId: "q3", questions: [token] })];
+    expect(threadItems(events, ROOT, true).slice(1)).toEqual([
+      { kind: "question", key: "Qq1", seq: 3, requestId: "q1", questions: [layout, sections], status: "pending", answers: null },
+      { kind: "question", key: "Qq2", seq: 4, requestId: "q2", questions: [layout], status: "pending", answers: null },
+      { kind: "question", key: "Qq3", seq: 5, requestId: "q3", questions: [token], status: "pending", answers: null },
+    ]);
+    const answers = { "0": { selected: ["Two rows"] }, "1": { selected: ["Agents", "Notifications"], other: "Keyboard shortcuts" } };
+    events.push(ev("t1", { type: "question.resolved", requestId: "q1", outcome: "answered", answers }), ev("t1", { type: "question.resolved", requestId: "q2", outcome: "skipped" }));
+    // A permission.resolved never settles a question that shares its id (main's fold keys them apart).
+    events.push(ev("t1", { type: "permission.resolved", requestId: "q3", optionId: "a" }));
+    const items = threadItems(events, ROOT, true);
+    expect(items.slice(1).map(item => item.kind === "question" && [item.status, item.answers])).toEqual([["answered", answers], ["skipped", null], ["pending", null]]);
+    events.push(ev("t1", { type: "interrupted", reason: "user" }));
+    expect(threadItems(events, ROOT, true)[3]).toMatchObject({ key: "Qq3", status: "expired", answers: null });
+  });
+
+  test("a reload while main holds the turn keeps the card; a crash-folded turn expires it", () => {
+    seq = 0;
+    const events = [...turn("t1"), ev("t1", { type: "question.request", requestId: "q1", questions: [layout] })];
+    expect(threadItems(events, ROOT, true)[1]).toMatchObject({ status: "pending" });
+    const crashed = threadItems(events, ROOT, false);
+    expect(crashed[1]).toMatchObject({ status: "expired" });
+    expect(crashed[2]).toEqual({ kind: "end", key: "xt1", seq: null, end: { kind: "interrupted", reason: "crashed" } });
+    // A folded turn followed by a new one: the old question expires too.
+    expect(threadItems([...events, ...turn("t2")], ROOT, true)[1]).toMatchObject({ status: "expired" });
+  });
+
+  test("folded lines: one per answered question, one per skipped or expired request; a secret answer shows its header alone", () => {
+    const item = (status: "answered" | "skipped" | "expired", questions: object[], answers: Record<string, { selected: string[]; other?: string }> | null = null) =>
+      ({ kind: "question", key: "Qq", seq: 1, requestId: "q", questions, status, answers }) as Extract<ThreadItem, { kind: "question" }>;
+    expect(questionLines(item("answered", [layout, sections, token], { "0": { selected: ["Two rows"] }, "1": { selected: ["Agents", "Notifications"], other: "Keyboard shortcuts" } }))).toEqual([
+      "Answered · Layout: Two rows", "Answered · Sections: Agents, Notifications, Keyboard shortcuts", "Answered · Staging token",
+    ]);
+    expect(questionLines(item("skipped", [layout, sections]))).toEqual(["Skipped · Layout, Sections"]);
+    expect(questionLines(item("expired", [layout]))).toEqual(["Expired without an answer · Layout"]);
+  });
+
+  test("a question without a header names itself by its sentence on the folded line", () => {
+    const item = (status: "answered" | "skipped" | "expired", answers: Record<string, { selected: string[] }> | null = null) =>
+      ({ kind: "question", key: "Qq", seq: 1, requestId: "q", questions: [bare], status, answers }) as Extract<ThreadItem, { kind: "question" }>;
+    expect(questionLines(item("answered", { "0": { selected: ["Red"] } }))).toEqual(["Answered · Which colour?: Red"]);
+    expect(questionLines(item("skipped"))).toEqual(["Skipped · Which colour?"]);
+    expect(questionLines(item("expired"))).toEqual(["Expired without an answer · Which colour?"]);
+  });
+
+  test("messages Send now has in flight sit above the first open request, a question as a permission", () => {
+    seq = 0;
+    const events = [...turn("t1"), ev("t1", { type: "question.request", requestId: "q1", questions: [layout] })];
+    expect(withSending(threadItems(events, ROOT, true), sending).map(item => item.key)).toEqual(["u1", "qq1", "qq2", "Qq1"]);
+  });
+
+  test("pendingAsks lists the open permission requests and questions in arrival order", () => {
+    seq = 0;
+    const options = [{ id: "a", label: "Allow once", kind: "allow" }];
+    const events = [...turn("t1"), ev("t1", { type: "permission.request", requestId: "p1", tool: "Bash", summary: "Run", options }),
+      ev("t1", { type: "question.request", requestId: "q1", questions: [layout] }), ev("t1", { type: "permission.request", requestId: "p2", tool: "Bash", summary: "Run", options })];
+    expect(pendingAsks(threadItems(events, ROOT, true))).toEqual([{ requestId: "p1", key: "pp1" }, { requestId: "q1", key: "Qq1" }, { requestId: "p2", key: "pp2" }]);
+    events.push(ev("t1", { type: "permission.resolved", requestId: "p1", optionId: "a" }));
+    expect(pendingAsks(threadItems(events, ROOT, true)).map(ask => ask.requestId)).toEqual(["q1", "p2"]);
   });
 });

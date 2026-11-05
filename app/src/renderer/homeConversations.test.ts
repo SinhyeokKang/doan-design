@@ -107,3 +107,13 @@ test("a permission request toasts once, and only when its project is not on scre
   expect(permissionToastKey(ask, { kind: "working", activity: null }, true)).toBeNull();
   expect(permissionToastKey({ kind: "working", activity: null }, ask, false)).toBeNull();
 });
+test("a waiting question toasts like a permission request, once per request and only away from its project", () => {
+  const question = { kind: "question" as const, requestId: "q1", question: "Which layout?" };
+  expect(permissionToastKey(question, { kind: "working", activity: null }, false)).toBe("q1");
+  expect(permissionToastKey(question, question, false)).toBeNull();
+  expect(permissionToastKey(question, { kind: "working", activity: null }, true)).toBeNull();
+  expect(permissionToastKey({ ...question, requestId: "q2" }, question, false)).toBe("q2");
+});
+test("a Home conversation waiting for a question's answer still holds its root's strip", () => {
+  expect(runningInRoot([conv({ phase: "question" })], "/r/doan")).toBe("c1");
+});
