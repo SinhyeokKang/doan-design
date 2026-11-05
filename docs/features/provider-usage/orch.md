@@ -27,6 +27,8 @@
 13. **창이 다시 보일 때 읽기**: 숨겨진 앱 창이 다시 보이면 앱 시작과 같은 규칙(5분 간격)으로 읽는다. design 결정할 점 2에 더했다(사람).
 14. **확인되지 않은 연결**: 앱 시작에는 저장된 연결이 모두 `unverified`라, design대로면 시작 때 링이 거의 빈다. 대화 준비와 같이 먼저 확인하고 읽는다. Copilot은 확인 없이 읽고, 확인이 실패해야 `blocked`가 된다. design 결정할 점 5를 고쳤다(B의 질문, 사람).
 15. **바깥 클릭으로 닫힐 때 포커스**: Radix non-modal popover는 바깥 클릭 뒤 포커스를 버튼으로 돌리지 않는다. 클릭이 포커스를 아무 데도 두지 않았으면(`<body>`) 버튼으로 돌리고, 다른 컨트롤에 포커스를 두었으면 그대로 둔다. canvas press는 canvas 포커스를 유지한다. 지휘자 판단 — spec 완료 조건 1의 뜻을 지키되 사람이 누른 컨트롤의 포커스를 뺏지 않는다(E1의 질문).
+16. **막힌 연결의 popover 문구**: popover 행은 Settings > Agents의 그 연결 행과 같은 문구를 쓴다(확인 실패면 "Couldn’t check …" 계열). 결정 12의 `unavailable()` 기준을 대신한다(E2 항목 7, 사람).
+17. **시작 직후 tool facts 전**: 첫 tool facts 확인이 끝나기 전에는 `blocked`를 보이지 않고 처음 읽는 중으로 둔다. lease 단계에서 실패한 조회는 main 로그에 Doan 쪽 분류 한 줄을 남긴다. 지휘자 판단 — E2 관찰(0.7초 `version_unknown`, `usageService.ts:188`).
 
 ## 배치
 
@@ -39,7 +41,7 @@
 | RB | B 리뷰 | 보고만 | B | Opus high: 동시성·자격 증명 경계 | `/code-review` 보고 | 🔴0 🟡2(턴 끝 Claude 조회가 다음 send를 busy로, 확인 대기 중 quit 5초) 🟢3. B-r1(Opus high: 대화 종료 대기와 겹치는 시간 규칙)이 모두 고쳤다 |
 | RC | C 리뷰 | 보고만 | C | Opus medium: UI 규칙 대조 | `/code-review` 보고 | 🔴1(페이지 Esc) 🟡1. C-r1(Opus medium: App의 Esc 경로라 판단이 필요)이 고쳤다. 🟡1의 실제 키·포커스 확인은 E1·E2로 넘긴다 |
 | E1 | E1 | C의 renderer 파일, `tokens.css`, `styles.css`, `docs/DESIGN.md` | B·C 통합 | Opus high: 실제 앱에서 계산된 style 측정과 수정 | `/design-sync` 보고 | 통합 `aea31116`·`dfefe248`(자체 리뷰 2 round, 🔴0 🟡0) |
-| E2 | E2 | 보고만(`.scratch/`) | E1 통합 | Opus medium: 실제 프로필로 정해진 항목 확인, 보고만 | `/runtime-test` 보고 | 대기 |
+| E2 | E2 | 보고만(`.scratch/`) | E1 통합 | Opus high: 실제 프로필로 원인 진단까지 해야 해서 medium에서 올렸다 | `/runtime-test` 보고 | 완료: 7 통과, 항목 7 문구 차이 → 결정 16. `.scratch/runtime-test-E2.md` |
 | E3 | E3 | — | E2 | 지휘자 | `node .agents/skills/verify/scripts/verify.mjs` exit 0 | 대기 |
 | Z1 | Z1 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/BACKLOG.md`, `docs/features/provider-usage/` 삭제 | E3 | 지휘자 | tasks Z1의 grep 검증 | 대기 |
 
@@ -58,3 +60,5 @@ tasks의 남은 항목(A1, A2, B1, B2, C1, E1, E2, E3, Z1)은 모두 한 배치�
 - B: worker Opus high(`ctx_a46613f385c4`, `.scratch/handoff-B.md`) → RB Opus high(`ctx_1a0d78bfa199`, `.scratch/review-B.md`) → B-r1 Opus high(`ctx_abfdd3ba08d0`, `.scratch/handoff-B-r1.md`). 턴 끝 Claude 조회 상한 3초(3초 + D1 종료 5.0초 < `EXIT_WAIT_MS` 10초), 새 Claude 조회도 org pin, 최소화된 앱 창은 보이는 것으로 센다. E2에서 확인할 것: 턴 끝 Claude 조회 뒤 다음 send가 `busy`가 되지 않는지와 지연 시간, 열린 Query의 `get_usage`, 시작 때 확인에서 Keychain 대화상자가 뜨지 않는지.
 - 통합 HEAD `48f4c28f`에서 `/verify` PASS(verify-tests, runtime-support, go-test, go-vet, typecheck, app-test, build). 로그 `.scratch/orch/verify-1.log`, `.scratch/verify/`.
 - E1: worker Opus high(`ctx_2fa6508bc1eb`, `.scratch/handoff-E1.md`, 측정표 `.scratch/design-sync/agent-usage/table.md`). 실제 계정으로 시작했을 때 Claude Code 99%, Codex 38%였고, **Cursor는 blocked("isn’t available right now"), Copilot은 `read_failed`**였다. PoC에서는 둘 다 읽혔으므로 E2에서 원인을 먼저 본다. limit reached·unlimited·not_supported·no_plan_limits·blocked 원인 문구는 주입으로만 확인했다.
+- G: 사람이 이번 run에 더한 요청(에이전트 작업 glow 300%). Sonnet medium(`ctx_095eee475321`), 통합 `a9771658`(blur 36 px / 108 px).
+- E2: Opus high(`ctx_9c912dd367c9`). E1의 Cursor blocked·Copilot `read_failed`는 probe 환경 탓이었다(`doan Safe Storage` ACL이 PoC checkout의 Electron 경로만 신뢰해서 worktree Electron은 vault를 열지 못함). PoC Electron으로 네 provider 값이 PoC와 맞았다. Codex는 승인된 sign-out으로 `Codex Auth` 항목까지 없어졌다. 남은 정리: Claude·Cursor·Antigravity·Copilot sign-out, userData, `Claude Code-credentials-45991d82`(사람에게 묻는다).
