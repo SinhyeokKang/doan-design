@@ -13,7 +13,8 @@
 5. 지휘자 판단 — R이 M2를 기다리지 않도록 M1이 preload `answerConversationQuestion`과 `Runner.answerQuestion?` 타입 한 줄을 미리 더한다. IPC 처리기와 검증은 M2다.
 6. 지휘자 판단 — B2는 P2 결과로 줄었다: 모든 `item/tool/requestUserInput`에 빈 답 `{answers: {}}`, 질문 표·`answerQuestion`·`isSecret`은 하지 않는다.
 7. 질문 카드의 버튼 순서는 초안대로 Send(왼쪽) → Skip → Stop이다. 쓰레드 권한 카드(Allow → Deny → Stop, `ConversationThread.tsx:404-407`)와 strip이 주 동작을 먼저 두므로 맞춘다. "완료 동작은 끝"은 dialog 규칙이다(DESIGN.md 'Dialogs')(사용자).
-8. 지휘자 판단 — D3·Z1은 지휘자가 한다(orchestrate §4·§5의 통합 gate와 승격).
+8. 이 run의 PR은 통합 gate와 Z1 뒤 main에 병합한다(사용자). orchestrate의 '병합하지 않음'의 예외다. provider-usage 문서·초안 커밋도 이 브랜치에 있어 함께 들어가고, 그 초안의 확정은 병합 뒤 PoC를 마치고 한다(사용자).
+9. 지휘자 판단 — D3·Z1은 지휘자가 한다(orchestrate §4·§5의 통합 gate와 승격).
 
 ## 배치
 

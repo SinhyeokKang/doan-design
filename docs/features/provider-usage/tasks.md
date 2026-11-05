@@ -27,14 +27,14 @@
 
 ## D. UI 초안
 
-- [x] D0. `/design-draft`로 `.doan/canvases/provider-usage.html`을 그린다. 프레임:
+- [ ] D0. `/design-draft`로 `.doan/canvases/provider-usage.html`을 그린다. 프레임:
   - 링 버튼의 세 자리(사람이 헤더 오른쪽 끝을 골랐다)(셸 오른쪽 아래 세로, 헤더 오른쪽 끝 가로, 셸 오른쪽 아래 가로) 비교. 각 자리의 충돌(toast, docked composer Send, drag region, 좁은 앱 창, provider 0 → 1)을 함께 그린다.
   - 화면마다(workspace, Home, Settings, Add Projects) 버튼의 위치.
   - 링 상태: 값 있음, 한도에 닿음, 처음 읽는 중, unavailable, 쓸 수 없는 연결, 무제한. provider 1개와 5개, 좁은 앱 창에서 접힌 링.
   - popover: 한도 창별 막대와 글, "Updated …"·"Updating…", 이유별 한 줄 문구(design §4), 열린 동안 provider가 빠지거나 생기는 경우.
   - 사람이 자리와 링 색 규칙을 고르고 앱에서 확인한다.
   - 검증: 설치된 `doan check --repo .`가 main HEAD에서 낸 finding 목록과 같은 목록을 내고, 설치된 `doan ls --repo . --json`에 새 캔버스가 있다. 사람의 확인.
-  - 결과: frame `place-stack`, `place-header`, `place-row`, `ring-states`, `popover`, `popover-live`. `doan check` 13건(main과 같음), 폭 2640. 로고 경로를 `.doan/assets/provider-logos/`로 고쳤다. 사람이 자리를 헤더 오른쪽 끝으로 골랐다(design 결정할 점 10). 링 색과 그리며 정한 나머지는 아래 '초안 확인'에 남는다.
+  - 결과: frame `place-stack`, `place-header`, `place-row`, `ring-states`, `popover`, `popover-live`. `doan check` 13건(main과 같음), 폭 2640. 로고 경로를 `.doan/assets/provider-logos/`로 고쳤다. 사람이 자리를 헤더 오른쪽 끝으로 골랐다(design 결정할 점 10). 초안 확정은 PoC(U1–U6) 뒤에 한다(사람). 그래서 D0는 열린 채로 두고, PoC가 끝나면 아래 '초안 확인'과 함께 확정한다. 링 색과 그리며 정한 나머지는 아래 '초안 확인'에 남는다.
 
 ### 초안 확인(남은 것)
 
