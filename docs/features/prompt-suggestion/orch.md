@@ -17,7 +17,8 @@
 ## Codex 사용
 
 - 링크 시작 때 Orca Codex 계정의 주간 사용량: 79% 사용(2026-11-05 14시대, 사용자가 확인). 같은 계정의 가장 최근 rollout `rate_limits`(`window_minutes: 10080`)는 69%였는데, 13:03Z 기록이라 늦은 값이었다. 모델 목록에 `gpt-6-astra`, `gpt-6.1-sol`이 있다.
-- 범위: 구현 배치 리뷰(M·R)만 Codex Astra medium이 한다(다른 계열의 독립 리뷰). 남은 21%를 링크 3과 나눠 써야 해서 구현은 Claude가 한다.
+- 범위: 구현 배치 리뷰(M·R)만 Codex Astra medium이 맡기로 했다(다른 계열의 독립 리뷰). 남은 21%를 링크 3과 나눠 써야 해서 구현은 Claude가 한다.
+- R 리뷰의 Codex Astra 작업자(`ctx_97ca8de5f372`)가 "Selected model is at capacity"로 멈췄다(그때 주간 18% 남음). 지휘자 판단으로 멈추고 같은 Task를 Claude Opus medium 리뷰어로 다시 띄웠다(`ctx_fd5653fc3ad6`). 남은 리뷰도 Claude로 한다 — 주간 한도가 링크 3에 남도록 둔다.
 
 ## 배치
 
