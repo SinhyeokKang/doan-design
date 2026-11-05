@@ -1,7 +1,7 @@
 import { posix } from "node:path";
 
 export type ShellProbe =
-  | { ok: true; path: string; claudeConfigDir?: string; codexHome?: string }
+  | { ok: true; path: string; claudeConfigDir?: string; codexHome?: string; promptSuggestion?: string }
   | { ok: false; reason: string };
 
 export function parseShellProbe(stdout: string, nonce: string): ShellProbe {
@@ -11,14 +11,16 @@ export function parseShellProbe(stdout: string, nonce: string): ShellProbe {
   const start = lines.indexOf(begin);
   if (!nonce || start < 0) return { ok: false, reason: "Shell probe start marker is missing." };
   const finish = lines.indexOf(end, start + 1);
-  if (finish !== start + 4 || lines.lastIndexOf(begin) !== start || lines.lastIndexOf(end) !== finish) {
+  if (finish !== start + 5 || lines.lastIndexOf(begin) !== start || lines.lastIndexOf(end) !== finish) {
     return { ok: false, reason: "Shell probe output is incomplete or ambiguous." };
   }
   const path = lines[start + 1];
   const claudeConfigDir = lines[start + 2];
   const codexHome = lines[start + 3];
-  if (!path || path.includes("\0") || claudeConfigDir?.includes("\0") || codexHome?.includes("\0")) return { ok: false, reason: "Shell probe PATH is empty or invalid." };
-  return { ok: true, path, ...(claudeConfigDir ? { claudeConfigDir } : {}), ...(codexHome ? { codexHome } : {}) };
+  // CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION: the person's own setting, which wins over Doan's default (conversation/environment.ts).
+  const promptSuggestion = lines[start + 4];
+  if (!path || path.includes("\0") || claudeConfigDir?.includes("\0") || codexHome?.includes("\0") || promptSuggestion?.includes("\0")) return { ok: false, reason: "Shell probe PATH is empty or invalid." };
+  return { ok: true, path, ...(claudeConfigDir ? { claudeConfigDir } : {}), ...(codexHome ? { codexHome } : {}), ...(promptSuggestion ? { promptSuggestion } : {}) };
 }
 
 function pathEntries(path: string): string[] {

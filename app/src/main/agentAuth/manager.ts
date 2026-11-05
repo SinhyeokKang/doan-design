@@ -21,7 +21,9 @@ export interface AuthProcess { onOutput(listener: (text: string, stream?: "stder
 export type Spawn = (command: string, args: string[], options: { cwd: string; env: Record<string, string>; input?: boolean }) => AuthProcess;
 export interface AuthPrompt { provider: Provider; attemptId: string; owner: number; url: string }
 // A provider process using the dedicated profile; sign-in and sign-out wait until every lease is released.
-export interface Lease { command: string; env: Record<string, string>; profileDir: string; release(): Promise<void> }
+// promptSuggestion: the login shell's CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION, which a Claude run's preparation applies
+// (conversation/prepare.ts); it is not in env, so no other process of the provider gets it.
+export interface Lease { command: string; env: Record<string, string>; profileDir: string; promptSuggestion?: string; release(): Promise<void> }
 export type Started = { ok: true; attemptId: string; done: Promise<AuthState> } | { ok: false; reason: AuthRejection; state: AuthState };
 // A check's own result once its write-back is done; "replaced": a sign-in or sign-out took its place before the result.
 export type CheckOutcome = "ok" | "replaced" | "network" | "check_failed" | "cli_install_failed" | "account_mismatch" | "storage_failed";
@@ -38,7 +40,7 @@ export interface McpLogoutRequest {
 export interface AuthManagerOptions {
   storage: AuthStorage; spawn: Spawn; inherited: Record<string, string | undefined>; appRuntime: string;
   // signal aborts when the attempt is stopped; Antigravity's locate may be a long server download.
-  locate(provider: Provider, signal?: AbortSignal): Promise<{ command: string; path: string } | null>;
+  locate(provider: Provider, signal?: AbortSignal): Promise<{ command: string; path: string; promptSuggestion?: string } | null>;
   adapters?: Record<Provider, ProviderAuth>; newId?: () => string; statusTimeoutMs?: number; hookLinkTimeoutMs?: number;
   onChange?(state: AuthState, revision: number): void; onPrompt?(prompt: AuthPrompt): void;
   // Closes the provider's doan-account conversation runs for a sign-out or replacement the user chose to stop them for.
@@ -337,7 +339,7 @@ export class AuthManager {
   // such as the MCP sign-in's link file.
   async acquire(provider: Provider, use: "run" | "listing" | "mcp" | "usage" = "run", added: Record<string, string> = {}): Promise<Lease> {
     this.admit(provider);
-    const { command, env, profileDir } = await this.launch(provider, undefined, added);
+    const { command, env, profileDir, promptSuggestion } = await this.launch(provider, undefined, added);
     // A sign-in or sign-out may have started while the CLI was being located.
     this.admit(provider);
     const counts = (delta: number) => {
@@ -347,7 +349,7 @@ export class AuthManager {
     counts(1);
     try { await this.hold(provider); } catch (error) { counts(-1); throw error; }
     let released = false;
-    return { command, env, profileDir, release: async () => {
+    return { command, env, profileDir, ...(promptSuggestion === undefined ? {} : { promptSuggestion }), release: async () => {
       if (released) return;
       released = true;
       // The run counts until its write-back lands, so a sign-out cannot delete a vault the write-back recreates.
@@ -762,7 +764,7 @@ export class AuthManager {
     return googleEmail(await replyJson(info));
   }
 
-  private async launch(provider: Provider, attemptId?: string, added: Record<string, string> = {}, profile = this.profileOf(provider)): Promise<{ command: string; env: Record<string, string>; profileDir: string }> {
+  private async launch(provider: Provider, attemptId?: string, added: Record<string, string> = {}, profile = this.profileOf(provider)): Promise<{ command: string; env: Record<string, string>; profileDir: string; promptSuggestion?: string }> {
     const locating = new AbortController();
     if (attemptId) { this.locating.set(attemptId, locating); if (this.stopRequests.has(attemptId)) locating.abort(); }
     let located: Awaited<ReturnType<AuthManagerOptions["locate"]>>;
@@ -774,7 +776,7 @@ export class AuthManager {
     if (!located) throw new Error("cli_missing");
     const profileDir = this.options.storage.profileDir(provider, profile);
     for (const [rel, text] of Object.entries(this.adapters[provider].settings)) this.options.storage.writeSetting(provider, rel, text, profile);
-    return { command: located.command, env: this.childEnv(provider, located.path, profileDir, added), profileDir };
+    return { command: located.command, env: this.childEnv(provider, located.path, profileDir, added), profileDir, ...(located.promptSuggestion === undefined ? {} : { promptSuggestion: located.promptSuggestion }) };
   }
   private childEnv(provider: Provider, path: string, profileDir: string, added: Record<string, string>): Record<string, string> {
     let extra = { ...this.adapters[provider].env, ...added };
@@ -995,8 +997,9 @@ export function shellLocator(inherited: NodeJS.ProcessEnv, adapters: Record<Prov
     const probe = await probeShell(inherited);
     if (!probe.ok) return null;
     const install = managed[provider];
-    if (install) return { command: await install(signal), path: probe.path };
+    const shell = probe.promptSuggestion ? { promptSuggestion: probe.promptSuggestion } : {};
+    if (install) return { command: await install(signal), path: probe.path, ...shell };
     const command = findOnPath(probe.path, adapters[provider].command, path => { try { accessSync(path, constants.X_OK); return statSync(path).isFile(); } catch { return false; } });
-    return command ? { command, path: probe.path } : null;
+    return command ? { command, path: probe.path, ...shell } : null;
   };
 }

@@ -740,8 +740,8 @@ async function start(): Promise<void> {
       backend: agentAuth, openExternal: url => electronShell.openExternal(url),
       probe: provider => toolFacts(provider, { shell: shellForFacts, run: runProcess, executable, inherited: process.env, cli }),
       // MCP Connectors follows every auth change: readiness, a new verified connection (pending logouts, reconcile and
-      // status reads) or a lost one.
-      publish: snapshot => { send(AUTH_CHANNELS.changed, snapshot); onboarding?.authChanged(snapshot); for (const provider of MCP_PROVIDERS) mcp?.authChanged(provider); usage?.authChanged(); },
+      // status reads) or a lost one. Claude's prompt suggestions go with a signed-out or replaced Claude connection.
+      publish: snapshot => { send(AUTH_CHANNELS.changed, snapshot); onboarding?.authChanged(snapshot); for (const provider of MCP_PROVIDERS) mcp?.authChanged(provider); usage?.authChanged(); conversations?.connectionChanged("claude", agentAuth?.state("claude").connection?.connectionId); },
       prompt: (owner, event) => { if (win && !win.isDestroyed() && win.webContents.id === owner) send(AUTH_CHANNELS.prompt, event); },
     });
   }

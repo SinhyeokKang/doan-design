@@ -43,7 +43,7 @@ export async function probeShell(inherited: NodeJS.ProcessEnv, fallback?: () => 
   const shell = shellName(env, fallback);
   if (!isAbsolute(shell)) return { ok: false, reason: "No executable login shell is available." };
   const nonce = randomUUID().replaceAll("-", "");
-  const script = `printf '\\nDOAN_PROBE_${nonce}_BEGIN\\n%s\\n%s\\n%s\\nDOAN_PROBE_${nonce}_END\\n' "$PATH" "$CLAUDE_CONFIG_DIR" "$CODEX_HOME"`;
+  const script = `printf '\\nDOAN_PROBE_${nonce}_BEGIN\\n%s\\n%s\\n%s\\n%s\\nDOAN_PROBE_${nonce}_END\\n' "$PATH" "$CLAUDE_CONFIG_DIR" "$CODEX_HOME" "$CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION"`;
   const result = await runProcess(shell, [ ["zsh", "bash"].includes(basename(shell)) ? "-lic" : "-lc", script ], env, SHELL_TIMEOUT_MS, nonce);
   if (result.timedOut || result.spawnError || result.exitCode !== 0) return { ok: false, reason: result.spawnError ?? (result.timedOut ? `Your login shell (${shell}) didn’t answer in time.` : "Login shell failed.") };
   return parseShellProbe(result.stdout, nonce);
