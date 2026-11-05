@@ -755,9 +755,13 @@ async function start(): Promise<void> {
       visible: () => windowShown && !appHidden,
       publish: entries => send(USAGE_CHANNELS.changed, entries),
     });
-    // App start: once the tool facts are read, which readiness needs.
+    // App start: once the tool facts are read, which readiness needs. A failed probe also ends the pre-facts hold, or
+    // blocked providers would read "Reading usage…" forever.
     const started = usage;
-    void ipc.read().then(() => started.trigger({ kind: "start" }), (error: unknown) => console.error("doan: agent usage could not start", error));
+    void ipc.read().then(() => started.trigger({ kind: "start" }), (error: unknown) => {
+      console.error("doan: agent usage could not start", error);
+      started.trigger({ kind: "start" });
+    });
   }
   handle(USAGE_CHANNELS.read, [], (_event, value) => usage ? usageRequest(usage, value) : []);
   // MCP Connectors (mcp-connectors): provider CLIs register, sign in and keep the tokens in the Doan profiles; Doan
