@@ -85,7 +85,7 @@ app(Electron + TS)만 바뀐다. CLI(Go)·skills·guide·`doan check`·공유 JS
   - `read_failed`: "Couldn't read usage. Doan tries again when you open this." (결정할 점 8)
   - `blocked`: Settings > Agents와 같은 원인 문구(`SettingsAgents.tsx` `unavailable()`, 예: "Claude Code's sign-in expired").
 - popover가 열린 동안: sign-out한 provider의 행을 지운다. 마지막 provider가 빠지면 popover를 닫고, 버튼이 사라지므로 포커스는 `.shell-modes`의 현재 탭으로 옮긴다. 새로 연결한 provider는 행을 붙이고 "Reading usage…"로 시작한다.
-- 자리: 헤더 오른쪽 끝, `.shell-modes` 옆에 가로로 둔다(`App.tsx:1824` `TopBar`, `:1834` `.shell-modes`, 결정할 점 10). 버튼은 drag region 예외(no-drag)다. provider가 0 → 1이 되면 헤더의 다른 요소가 밀리지 않도록 자리를 정한다(값은 `/design-sync`). 초안 `place-header` frame이 기준이고, `place-stack`·`place-row`(셸 오른쪽 아래)는 비교용으로 남긴다.
+- 자리: 헤더 오른쪽 끝, `.shell-modes` 옆에 가로로 둔다(`App.tsx:1824` `TopBar`, `:1834` `.shell-modes`, 결정할 점 10). 버튼은 drag region 예외(no-drag)다. provider가 0 → 1이 되면 헤더의 다른 요소가 밀리지 않도록 자리를 정한다(값은 `/design-sync`). 초안 `place-header` frame이 기준이다(나머지 두 후보 frame은 초안에서 지웠다).
 - 링 색: 사용 비율 구간에 따른 색 변화를 둘지는 `/design-draft`에서 그려 보고 사람이 정한다. 색만으로 알리지 않고 popover 글("Limit reached")이 함께 있다. 색 왼쪽 선은 쓰지 않는다.
 
 ## 순수 함수로 뺄 부분(`/tdd` 대상)
