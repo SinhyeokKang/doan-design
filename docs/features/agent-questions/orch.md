@@ -23,7 +23,7 @@
 | X | C2, C3 | `CanvasTools.tsx`, `canvasTree.ts`, `main/view.ts`와 `<title>` 표시를 기대하던 테스트 | — | Sonnet medium — 이름 바꾸기와 필드 제거, 판단이 적다 | test, typecheck, build | 통합 `caf182cc`(리뷰 Sonnet high 🔴0 🟡0 ⚪7, r1: postmortem과 ⚪1–4) |
 | M2 | A2, A3, B1, B2(축소), B3, 결정 3 | `transport.ts`, `fixtures/`, `runners.ts`, `dispatcher.ts`, `service.ts`, `project.ts`, `ipc.ts`, `main/index.ts`, 그 테스트 | M1 | Opus high — SDK `canUseTool` 동시성, 응답 한 번 보장, Stop·close 경계, secret 비저장 | test, typecheck | 진행 중 |
 | R | A5, C1, B4의 접힌 줄 | `main/notifications.ts`·`notifyService.ts`, `renderer/` 전부(`ConversationThread.tsx`, `CanvasConversationPanel.tsx`, `ProjectOverview.tsx`, `homeRun.ts`, `homeConversations.ts`, `overviewRun.ts`, `threadItems.ts`, `conversationStrip.ts`, `ConversationStripView.tsx`, `composerRules.ts`, `conversationStore.ts`, 새 `questionDraft.ts`), CSS, 그 테스트 | M1 | Opus high — 키보드·IME·포커스·접근성 규칙이 많고 진입 경로가 여럿이다 | test, typecheck, build | 진행 중 |
-| G | B4(접힌 줄 제외) | `acp.ts`, `acpRunner.ts`, 그 테스트 | M1 | Opus medium — 질문으로 읽는 조건이 좁고, 틀리면 권한 요청이 질문으로 바뀐다 | test, typecheck | 진행 중 |
+| G | B4(접힌 줄 제외) | `acp.ts`, `acpRunner.ts`, 그 테스트 | M1 | Opus medium — 질문으로 읽는 조건이 좁고, 틀리면 권한 요청이 질문으로 바뀐다 | test, typecheck | 통합 `0e4143e1`(리뷰 Sonnet high 🔴0 🟡2, 둘 다 뒤 배치로 넘김) |
 | D1 | `/design-sync` | R의 renderer 파일(수정), `docs/DESIGN.md` | M2, R, G 통합 | Opus high — 계산 스타일 측정과 수정 | `/design-sync` 보고 | 대기 |
 | D2 | `/runtime-test` | 없음(보고만) | D1 | Opus medium — 항목이 많고 사람 상태 보존이 중요 | `/runtime-test` 보고 | 대기 |
 | D3·Z1 | gate, 승격 | `docs/` | D2 | 지휘자 | `verify.mjs` exit 0, Z1 grep | 대기 |
@@ -40,4 +40,5 @@
 
 - X: 리뷰 🔴·🟡 없음. 캔버스 이름 결함(PRODUCT의 file stem 규칙과 `canvasLabel`의 title 우선)은 r1에서 POSTMORTEM에 적었다. ⚪6(DESIGN·PRODUCT의 툴바 Export 문구)은 Z1에서 지휘자가 고친다. 끝난 작업자 터미널 재사용은 Orca가 `agent_unconfigured`로 거절해, r1은 같은 worktree의 새 작업자가 했다.
 - M1: 리뷰 🔴·🟡 없음. ⚪(`__proto__` question id, 바꿀 수 있는 `QUESTION_LIMITS`, 답 타입 중복)는 고치지 않았다. `rendererImports.test.ts` EXTRA_ROOTS에 두 모듈을 더한 것은 기존 방식이라 리뷰가 받아들였다.
-- worktree `aq-x`·`aq-m1`은 통합 뒤 지웠다(브랜치는 남김). 근거 사본: `.scratch/agent-questions-orch/evidence/`.
+- G: 리뷰 🔴 없음. 🟡1 — 질문으로 읽는 모양은 P5의 질문 하나로만 확인했고, Antigravity의 실제 도구 권한 요청이 거절 선택지 없이 `allow_once` 여럿으로 오면 질문 카드가 된다. D2에서 실제 파일 쓰기·명령 권한을 일으켜 `options`의 kind를 기록하고, 그런 모양이 오면 구별 조건(`toolCall.kind` 없음, `rawInput` 비어 있음)과 테스트를 더한다. 🟡2 — `respond`가 실패하면 `answerQuestion`이 `stale`을 돌려주고 요청은 `expire()`까지 남는다. 카드는 `question.resolved`로만 접혀야 하므로 R에 전달했다. 분기를 `onRequestOf`가 아니라 runner 처리기에 둔 것(연결이 provider를 모름)은 받아들였고 Z1에서 design §4 문구를 고친다.
+- worktree `aq-x`·`aq-m1`·`aq-g`는 통합 뒤 지웠다(브랜치는 남김). 근거 사본: `.scratch/agent-questions-orch/evidence/`.
