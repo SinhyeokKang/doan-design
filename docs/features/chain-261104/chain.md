@@ -1,5 +1,7 @@
 # orchestrate chain — 2026-11-04
 
+> ⚠️ **링크 3(export-viewer-chrome)은 끝났다.** 다른 기기에서 재시작한 실행이 PR #96(`feat/export-viewer-chrome-local`)을 `69e54b0a`로 main에 병합했다. 링크 3의 다른 지휘자(브랜치 `feat/export-viewer-chrome`)는 여기서 멈춘다. 충돌을 풀거나, rebase·force-push·병합하지 말고 사용자에게 보고한다. 이 체인 디렉터리는 사용자가 나중에 지운다.
+
 규칙: [`/chain`](../../../.agents/skills/chain/SKILL.md) §3, AGENTS.md 'Workflow'의 Chains 항목. 이 파일은 이 체인의 순서·상시 권한·상태·인계 기록의 정본이다. 마지막 링크가 병합한 뒤 이 디렉터리를 지운다.
 
 이 파일과 세 feature 문서는 `feat/mcp-connectors` 브랜치에서 썼고, mcp-connectors PR이 main에 병합될 때 main에 들어간다. 체인은 그 병합 뒤, main의 깨끗한 checkout에서 시작한다(2026-11-04 사용자).
@@ -60,7 +62,7 @@
 |---|---|---|---|---|
 | 1 cli-minimum-versions | Claude Code · Orca `cli-minimum-versions-orch` | 2026-11-05 | #94 · `cfa91a7b` | 완료 |
 | 2 canvas-composer-polish | Claude Code · Orca `canvas-composer-polish-orch` | 2026-11-05 | #95 · `d0f5f7c2` | 완료 |
-| 3 export-viewer-chrome | Claude Code · Orca `export-viewer-chrome-orch` | 2026-11-05 | | 진행 중 |
+| 3 export-viewer-chrome | Claude Code · Orca `export-viewer-chrome-orch`(재시작, 두 번째 기기) | 2026-11-05 | #96 · `69e54b0a` | 완료 |
 
 ## 인계 기록
 
@@ -84,3 +86,12 @@
   - 확인하지 못한 것: 네이티브 ⌘L과 네이티브 저장 패널 포커스(데스크톱 잠김, BACKLOG), 턴 실행 중 provider 거절과 겹친 턴의 캔버스 promotion의 실제 앱 동작(unit만), 중첩 iframe press(unit만).
   - 다음 링크가 알 것: (1) export-viewer-chrome: 앱 툴바가 이제 Select, Hand, Picker, 구분선, Export다. 그 design대로 `exportViewer.test.ts`는 Select·Hand 두 항목과 toolbar 이름만 고정하면 된다. (2) 공용 프로필에는 C2b의 임시 repo용 Claude transcript가 남아 있다. 마지막 링크가 프로필을 지울 때 함께 사라진다. 이 링크는 로그아웃하지 않았다. (3) agent-questions(체인 밖)가 나중에 들어오면: main의 답 대기 판정(`project.ts` `ProjectTurn.asking`, `service.ts` `Live.asking`)은 `permission.request`·`permission.resolved`만 센다. 질문 대기도 root를 막지 않게 하려면 질문 요청을 같은 집합에 더해야 한다. (4) Codex 작업자는 쓰지 않았다(모델 목록에 Astra·Sol id가 없음). Claude 작업자와 Claude 리뷰만 썼다.
   - 구현 브랜치(남김, 로컬): `feat/canvas-composer-polish`(원격에도 있음), `SinhyeokKang/ccp-adm`, `SinhyeokKang/ccp-send`, `SinhyeokKang/ccp-tool`, `SinhyeokKang/ccp-pre`, `SinhyeokKang/ccp-sync`, `SinhyeokKang/ccp-docs`. batch worktree는 모두 지웠다.
+- 2026-11-05 링크 3 지휘자(export-viewer-chrome, 두 번째 기기에서 재시작): PR #96을 `69e54b0a`로 병합했다.
+  - 재시작한 이유: 첫 기기에서 링크 3을 시작한 지휘자와 연락이 끊겼다. 그 지휘자가 push한 것은 `origin/feat/export-viewer-chrome`의 orch.md 커밋 `89acf81f`뿐이었고 PR은 없었다. 사용자가 이 기기에서 링크 3을 따로 돌리기로 했고, 이 실행이 먼저 병합하게 했다. 통합 브랜치는 `feat/export-viewer-chrome-local`이고 `feat/export-viewer-chrome`은 건드리지 않았다. 병합 때까지 그 브랜치에 새 push·PR은 없었다.
+  - 결과: 내보낸 파일의 viewer에 둥근 content panel과 Select·Hand 툴바를 넣었다. Space 끌기, V/H/Esc가 캔버스 안 포커스에서도 동작하고(Space, V, H, Escape만 넘김), 끌기는 보드의 스크롤 범위 안에서만 움직인다. 파일당 +26,237 B. PRODUCT §5 item 3, ARCHITECTURE §3 'Exported canvas and viewer', DESIGN, BACKLOG를 고쳤고 feature 디렉터리를 지웠다.
+  - 진행 중 지휘자가 정한 것: Claude 작업자만 썼다(이 기기의 Codex 모델 목록에도 Astra·Sol id가 없다). C1 명령은 Playwright 1.64.1로 이 브랜치 CLI의 export를 Chromium·WebKit에서 여는 `.scratch` probe로 했다. 사용자 승인으로 `npx playwright install chromium webkit`(chromium-1248, webkit-2370)을 내려받았다. 캔버스에서 넘어온 Esc는 tooltip을 건너뛰고 바로 Hand → Select로 한다(리뷰 🟡, 앱 `CanvasController` `escape(false)`와 같다). 끝난 작업자 터미널 재사용을 Orca가 `agent_unconfigured`로 거절해, 수정 라운드는 같은 worktree의 새 작업자가 했다.
+  - 검증: 통합 HEAD `04d7b748`에서 `verify --eval` PASS(self-test 41 시나리오). 뒤 커밋은 문서뿐이다. probe 58/58(Chromium·WebKit 각 29), 초안 측정 브라우저마다 4,832행(z-index 2건 수정, 나머지는 DESIGN.md에 이유와 함께). 앱 동작은 바뀌지 않아 `/runtime-test`는 돌리지 않았다.
+  - 확인하지 못한 것: 실제 Safari, 실물 트랙패드, 실제 창 전환에서의 Space 해제(시뮬레이션만). DESIGN 'Not verified'와 BACKLOG에 있다.
+  - **남은 일(첫 기기)**: 마지막 링크의 로그인 정리를 하지 않았다. 공용 프로필 `/Users/sinhyeok/code/doan-design/.scratch/provider-profile/userData`와 그 Keychain 항목(Claude는 `Claude Code-credentials-5def49d2`)이 첫 기기에 있어서다. 그 기기에서 앱으로 다섯 연결을 로그아웃하고, Keychain 항목이 사라졌는지 확인한 뒤 userData를 지워야 한다.
+  - 체인 디렉터리는 사용자 요청으로 지우지 않았다. 맨 위 안내로 링크 3의 다른 지휘자를 멈추게 한다.
+  - 구현 브랜치(남김): `feat/export-viewer-chrome-local`(원격에도 있음), `SinhyeokKang/evc-view`, `SinhyeokKang/evc-sync`(로컬). batch worktree는 모두 지웠다.
