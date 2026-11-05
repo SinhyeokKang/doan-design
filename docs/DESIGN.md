@@ -261,6 +261,7 @@ Reference: `.doan/canvases/provider-usage.html` (frames `place-header`, `ring-st
 - **Text-less containers.** The button, the rings and the popover's containers inherit the app body's 13 px / normal where the draft's stage gives 14 / 20; every text part sets its own type and matches.
 - **Edge-values tile.** The draft draws Cursor above Claude Code there, against its own fixed order; in the app Claude Code comes first, so the 1 px rule moves to the other row (row heights 97/128 against 96/129).
 - **Placement.** The button's `margin-left` is `auto` in the draft's flex row and 0 in the app; the box lands at the same x. The popover's `z-index` is the shared popper layer's 50.
+- **Can't-be-used wording.** The draft's reason line and button description for a connection that can't be used are its own sentences ("Claude Code’s sign-in expired.", frame `ring-states` and `popover`); the app uses the same line as that connection's Settings > Agents row (`connectionLine` in `agentAuthView.ts`), with the provider's name leading the description when the line lacks it. The blocked tiles above were measured with the earlier wording; re-measure them at the next `/design-sync` of this screen.
 
 ### Not verified
 
