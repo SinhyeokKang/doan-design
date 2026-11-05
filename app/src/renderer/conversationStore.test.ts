@@ -234,6 +234,23 @@ test("a question's chosen answer is kept by conversation and request until that 
   expect(h.store.questionDraft(A, "q1").choices).toEqual({});
 });
 
+// A refusal or an edit that lands after the question was settled must not bring its draft back (batch R review ⚪4).
+test("a resolved or deleted question's draft is not made again by a late edit", () => {
+  const h = harness();
+  const question = { id: "0", header: "Layout", question: "Which layout?", options: [{ label: "Compact" }], multiSelect: false, other: true };
+  h.store.track(A);
+  h.store.editQuestion(A, "q1", { type: "sending", how: "answer" });
+  h.store.event(event({ type: "question.resolved", requestId: "q1", outcome: "skipped" }));
+  h.host.changed.mockClear();
+  h.store.editQuestion(A, "q1", { type: "failed" });
+  h.store.editQuestion(A, "q1", { type: "choose", question, option: 0 });
+  expect(h.store.questionDraft(A, "q1")).toEqual({ choices: {}, sending: null, failed: false });
+  expect(h.host.changed).not.toHaveBeenCalled();
+  h.store.deleted(A);
+  h.store.editQuestion(A, "q2", { type: "failed" });
+  expect(h.store.questionDraft(A, "q2")).toEqual({ choices: {}, sending: null, failed: false });
+});
+
 test("a deleted conversation's chosen answers go with it", () => {
   const h = harness();
   const question = { id: "0", header: "Layout", question: "Which layout?", options: [{ label: "Compact" }], multiSelect: false, other: true };

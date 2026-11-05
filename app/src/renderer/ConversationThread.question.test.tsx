@@ -55,19 +55,39 @@ describe("question card", () => {
   test("options are Settings rows: a radio or checkbox in the icon slot, the label and its description; Other closes a Claude list", () => {
     const out = card({ item: item([layout, sections]) });
     expect(out).toContain('<div class="q-opts doan-settings-group q-group">');
-    expect(out).toMatch(/<label class="doan-preference-row q-pref" data-has-icon=""><input type="radio" aria-describedby="b-q1-0-d0" name="b-q1-0"\/><span class="doan-preference-row-icon"><span class="ob-radio" aria-hidden="true"><\/span><\/span><span class="doan-preference-row-content"><span class="doan-preference-row-label">Compact<\/span><span class="doan-preference-row-description" id="b-q1-0-d0">Title and actions on one line<\/span><\/span><\/label>/);
+    expect(out).toMatch(/<label class="doan-preference-row q-pref" data-has-icon=""><input type="radio" aria-labelledby="b-q1-0-l0" aria-describedby="b-q1-0-d0" name="b-q1-0"\/><span class="doan-preference-row-icon"><span class="ob-radio" aria-hidden="true"><\/span><\/span><span class="doan-preference-row-content"><span class="doan-preference-row-label" id="b-q1-0-l0">Compact<\/span><span class="doan-preference-row-description" id="b-q1-0-d0">Title and actions on one line<\/span><\/span><\/label>/);
     // Without a description the row is its label alone.
-    expect(out).toMatch(/<span class="doan-preference-row-label">Two rows<\/span><\/span><\/label>/);
-    expect(out).toMatch(/<input type="checkbox" name="b-q1-1"[^>]*\/><span class="doan-preference-row-icon"><span class="doan-checkbox q-check" aria-hidden="true"><\/span>/);
-    expect(out.match(/doan-preference-row-label">Other</g)).toHaveLength(2);
+    expect(out).toMatch(/<span class="doan-preference-row-label" id="b-q1-0-l1">Two rows<\/span><\/span><\/label>/);
+    expect(out).toMatch(/<input type="checkbox" aria-labelledby="b-q1-1-l0" name="b-q1-1"[^>]*\/><span class="doan-preference-row-icon"><span class="doan-checkbox q-check" aria-hidden="true"><\/span>/);
+    expect(out.match(/doan-preference-row-label" id="b-q1-\d-lother">Other</g)).toHaveLength(2);
     // A Codex question with isOther false has no Other.
     expect(card({ item: item([fixed]) })).not.toContain(">Other<");
+  });
+
+  // VoiceOver reads a control's name, then its description: the name is the label line alone so the description is
+  // read once (batch R review ⚪2).
+  test("each option is named by its label line and described by its description", () => {
+    const out = card({ item: item([layout, sections]) });
+    expect(out).toMatch(/<input type="radio" aria-labelledby="b-q1-0-l0" aria-describedby="b-q1-0-d0" name="b-q1-0"\/>/);
+    expect(out).toContain('<span class="doan-preference-row-label" id="b-q1-0-l0">Compact</span>');
+    expect(out).toMatch(/<input type="radio" aria-labelledby="b-q1-0-l1" name="b-q1-0"\/>/);
+    expect(out).toContain('<span class="doan-preference-row-label" id="b-q1-0-l1">Two rows</span>');
+    expect(out).toMatch(/<input type="checkbox" aria-labelledby="b-q1-1-lother" name="b-q1-1"\/>/);
+    expect(out).toContain('<span class="doan-preference-row-label" id="b-q1-1-lother">Other</span>');
+  });
+
+  // Entry focus takes the card's first focusable control (ENTRY_FOCUS); a markup that put Send first would land there.
+  test("the first focusable control in the card is the first option, or the answer input when there are no options", () => {
+    const first = (out: string) => out.match(/<(input|button|textarea|select)\b[^>]*>/)?.[0];
+    expect(first(card({ item: item([layout, sections]) }))).toMatch(/^<input type="radio"[^>]*aria-labelledby="b-q1-0-l0"/);
+    expect(first(card({ item: item([sections]) }))).toMatch(/^<input type="checkbox"[^>]*aria-labelledby="b-q1-1-l0"/);
+    expect(first(card({ item: item([name, layout]) }))).toMatch(/^<input class="doan-input q-input q-text-answer"[^>]*id="b-q1-n-other"/);
   });
 
   test("chosen options show by their control; Other chosen opens its input, masked for a secret question", () => {
     const draft = draftOf([layout, sections], { type: "other", question: layout }, { type: "text", questionId: "0", text: "Both" }, { type: "choose", question: sections, option: 0 });
     const out = card({ item: item([layout, sections]), draft });
-    expect(out).toMatch(/<input type="checkbox" name="b-q1-1"[^>]*checked=""[^>]*\/><span class="doan-preference-row-icon"><span class="doan-checkbox q-check" data-state="checked" aria-hidden="true">/);
+    expect(out).toMatch(/<input type="checkbox" aria-labelledby="b-q1-1-l0" name="b-q1-1"[^>]*checked=""[^>]*\/><span class="doan-preference-row-icon"><span class="doan-checkbox q-check" data-state="checked" aria-hidden="true">/);
     expect(out).toContain('<span class="doan-preference-row-extra"><input class="doan-input q-input" type="text" placeholder="Type your answer" aria-label="Other answer" maxLength="4096" id="b-q1-0-other" value="Both"/></span>');
     const masked = card({ item: item([{ ...layout, secret: true }]), draft });
     expect(masked).toContain('type="password" placeholder="Type your answer" aria-label="Other answer"');
@@ -178,7 +198,7 @@ describe("question card", () => {
     const out = card({ draft });
     expect(out).toContain('<span class="ask-error" role="alert">Couldn’t send your answer. Try again.</span>');
     expect(out).toContain('<div class="doan-notice thread-notice q-card">');
-    expect(out).toMatch(/<input type="radio" name="b-q1-0" checked=""[^>]*\/><span class="doan-preference-row-icon"><span class="ob-radio" aria-hidden="true"><\/span><\/span><span class="doan-preference-row-content"><span class="doan-preference-row-label">Two rows/);
+    expect(out).toMatch(/<input type="radio" aria-labelledby="b-q1-0-l1" name="b-q1-0" checked=""[^>]*\/><span class="doan-preference-row-icon"><span class="ob-radio" aria-hidden="true"><\/span><\/span><span class="doan-preference-row-content"><span class="doan-preference-row-label" id="b-q1-0-l1">Two rows/);
   });
 
   test("only a card that arrived while the thread was open announces itself, by its title alone; focus never moves to it", () => {
@@ -205,7 +225,7 @@ describe("the thread's question items", () => {
     const out = html([item([layout], { seq: 3 })], { liveAfter: 2, questionDraft: id => id === "q1" ? draft : EMPTY_QUESTION_DRAFT });
     expect(out).toContain('<div class="thread-item" data-item="Qq1"><div class="doan-notice thread-notice q-card">');
     expect(out).toContain('role="alert"><b>Which layout');
-    expect(out).toMatch(/<input type="radio" name="[^"]*-q1-0" checked=""[^>]*\/><span class="doan-preference-row-icon"><span class="ob-radio" aria-hidden="true"><\/span><\/span><span class="doan-preference-row-content"><span class="doan-preference-row-label">Two rows/);
+    expect(out).toMatch(/<input type="radio" aria-labelledby="[^"]*-q1-0-l1" name="[^"]*-q1-0" checked=""[^>]*\/><span class="doan-preference-row-icon"><span class="ob-radio" aria-hidden="true"><\/span><\/span><span class="doan-preference-row-content"><span class="doan-preference-row-label" id="[^"]*-q1-0-l1">Two rows/);
     expect(out).toContain('<div class="sr-only" role="status">Claude Code needs your answer</div>');
   });
 

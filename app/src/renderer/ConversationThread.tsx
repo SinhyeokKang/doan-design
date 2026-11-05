@@ -312,16 +312,18 @@ export function QuestionCard({ item, provider, live, base, draft, onDraft, onSen
     const choice = draft.choices[question.id];
     const other = option === "other", checked = other ? !!choice?.other : !!choice?.selected.includes(option);
     const description = other ? undefined : question.options[option]!.description;
-    const describedBy = description ? id(question, `-d${option}`) : undefined;
+    // The name is the label line alone: the wrapping <label> would also put the description into it, and VoiceOver
+    // would read the description twice.
+    const describedBy = description ? id(question, `-d${option}`) : undefined, labelledBy = id(question, `-l${option}`);
     return <label key={option} className="doan-preference-row q-pref" data-has-icon="">
-      <input type={question.multiSelect ? "checkbox" : "radio"} name={id(question, "")} checked={checked} aria-describedby={describedBy} aria-disabled={locked || undefined} {...arrowKeys}
+      <input type={question.multiSelect ? "checkbox" : "radio"} name={id(question, "")} checked={checked} aria-labelledby={labelledBy} aria-describedby={describedBy} aria-disabled={locked || undefined} {...arrowKeys}
         onChange={() => {
           if (!other) { onDraft({ type: "choose", question, option }); return; }
           onDraft({ type: "other", question });
           if (!arrowing && !locked && !checked) focusInput(question);
         }} />
       <span className="doan-preference-row-icon">{question.multiSelect ? <span className="doan-checkbox q-check" data-state={checked ? "checked" : undefined} aria-hidden="true" /> : <span className="ob-radio" aria-hidden="true" />}</span>
-      <span className="doan-preference-row-content"><span className="doan-preference-row-label">{other ? "Other" : question.options[option]!.label}</span>
+      <span className="doan-preference-row-content"><span className="doan-preference-row-label" id={labelledBy}>{other ? "Other" : question.options[option]!.label}</span>
         {description && <span className="doan-preference-row-description" id={describedBy}>{description}</span>}</span>
       {other && checked && <span className="doan-preference-row-extra">{field(question, false)}</span>}
     </label>;

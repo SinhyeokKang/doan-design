@@ -145,10 +145,16 @@ export class ConversationStore {
     return this.questions.get(conversationId)?.get(requestId) ?? EMPTY_QUESTION_DRAFT;
   }
   editQuestion(conversationId: string, requestId: string, action: QuestionDraftAction): void {
+    // A refusal that arrives after question.resolved (or the delete) cleared the draft would bring it back for good.
+    if (this.deletedIds.has(conversationId) || this.resolvedQuestion(conversationId, requestId)) return;
     const before = this.questionDraft(conversationId, requestId), next = questionDraft(before, action);
     if (next === before) return;
     this.questions.set(conversationId, new Map(this.questions.get(conversationId)).set(requestId, next));
     this.host.changed();
+  }
+  private resolvedQuestion(conversationId: string, requestId: string): boolean {
+    const events = this.threads.get(conversationId)?.events ?? this.unclaimed;
+    return events.some(event => event.conversationId === conversationId && event.type === "question.resolved" && event.requestId === requestId);
   }
   setDrafts(update: (drafts: ReadonlyMap<string, DockedDraft>) => ReadonlyMap<string, DockedDraft>): void {
     this.drafts = update(this.drafts);
