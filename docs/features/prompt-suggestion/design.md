@@ -5,17 +5,17 @@ Claude Code가 턴 끝에 보내는 `prompt_suggestion`을 main이 받아 대화
 ## 결정
 
 1. **provider 범위**: Claude Code만 다음 입력 제안을 보인다. Codex·Cursor·Antigravity·GitHub Copilot 대화는 지금 placeholder 그대로다. Codex 실험 API(`experimentalPredictionMode`, `thread/prediction/updated`)와 Doan이 직접 모델에 요청하는 방식은 쓰지 않는다. 둘 다 Doan이 모델 작업을 시작하고(PRODUCT §3 Out of scope 4), Codex 쪽은 세션 fork까지 필요하기 때문이다(사람).
-2. **켜는 범위**: 모든 Claude 대화(Doan 연결과 터미널 세션 resume)에서 늘 켠다. Doan에는 설정을 두지 않고, 끄는 것은 provider 쪽에 맡긴다. Doan 연결은 Doan 프로필의 user settings를 읽는데, Doan 프로필은 사람이 고치는 곳이 아니고 사람의 `~/.claude/settings.json`은 Doan 연결에 닿지 않는다('설정의 출처'). 그래서 Doan 연결에서 실제로 끄는 방법은 login shell의 `CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION=false`와 저장소의 `.claude/settings*.json`(`promptSuggestionEnabled: false`)이다. 터미널 세션 resume은 사람의 프로필 설정도 따른다. CLI가 사람의 계정으로 짧은 요청을 하나 더 하는 것을 받아들였다. SDK는 이 요청이 prompt cache에 얹혀 거의 들지 않는다고 한다(사람).
+2. **켜는 범위와 끄는 방법**: 모든 Claude 대화(Doan 연결과 터미널 세션 resume)에서 늘 켠다. Doan에는 설정을 두지 않는다. CLI는 계정의 한도 상태가 `allowed`가 아니면 제안을 만들지 않는다. P1에서 계정이 `allowed_warning`(seven_day 53%)이라 기본 설정으로는 16턴 중 한 번도 오지 않았다. 그래서 Doan이 Claude 실행 환경에 `CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION=true`를 준다. 사람의 login shell이 이 변수를 정했으면 그 값을 넘기고 Doan은 덮어쓰지 않는다. 끄는 방법은 login shell의 `CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION=false` 하나다. 지금 login shell probe(`onboarding/machine.ts`)는 `PATH`·`CLAUDE_CONFIG_DIR`·`CODEX_HOME`만 읽으므로 이 변수도 읽게 한다. 환경 변수가 true이면 저장소 `.claude/settings*.json`의 `promptSuggestionEnabled: false`는 제안을 막지 못한다(P1-f). Doan은 저장소 설정을 따로 읽지 않고, 이 점을 PRODUCT에 적는다. 한도 근처에서도 CLI가 사람의 계정으로 짧은 요청을 하나 더 하는 것을 받아들였다. SDK는 이 요청이 prompt cache에 얹혀 거의 들지 않는다고 한다(사람).
 3. **보관 위치**: main 메모리에만 둔다. 창 reload와 대화 전환에는 남고, 앱을 다시 시작하면 사라진다. 대화 event로 저장하지 않는다. event 검증이 모르는 type을 거부하므로, 저장하면 이전 build가 그 대화 전체를 읽지 못한다(사람).
 4. **다시 보이는 때**: 다음 턴이 수락될 때까지 남는다. 입력란을 비우면(오른쪽 방향키로 넣었다가 지운 경우도) 다시 보인다(사람).
-5. **제안을 기다리는 중의 다음 send**: 그 제안은 버리고, 이전 프로세스의 생성을 끝낸다. 끝내는 방법은 P1-c가 고른다. send는 지금보다 늦어지지 않는다(POSTMORTEM 2026-10-28)(사람).
+5. **제안을 기다리는 중의 다음 send**: 그 제안은 버리고, 이전 프로세스의 생성을 끝낸다. 끝내는 방법은 group stop(SIGTERM, 0.5초 뒤 SIGKILL, `process.ts`)이다(P1-c). send는 지금보다 늦어지지 않는다(POSTMORTEM 2026-10-28)(사람).
 6. **모양**: 제안 글만 지금 placeholder 자리에 같은 색과 크기로 보인다. "→" 키 표시나 안내 줄은 두지 않고, 키 안내는 접근성 설명이 맡는다. 제안이 보이는 동안 기본 문구 "Reply, / for presets"의 `/` 안내는 보이지 않는다. Presets 버튼은 그대로 있으므로 이를 받아들인다(사람).
 7. **스크린 리더**: 같은 대화에 새 제안 글이 도착했을 때만, 그 composer의 입력란에 포커스가 있고 비어 있으면 한 번 알린다("Suggestion: …"). 창 reload, 대화 전환, 넣었다 지워서 다시 보이는 제안은 알리지 않고, 입력란 설명과 `aria-placeholder`가 전한다. 입력란 설명에는 제안이 보이는 동안 "Press Right Arrow to use the suggestion."이 있다(사람).
 8. **Enter와 Tab**: 바뀌지 않는다. 빈 입력란의 Enter는 지금처럼 아무것도 보내지 않고, Tab은 포커스를 옮긴다. 제안은 스스로 보내지지 않는다(PRODUCT §5 item 1 "never sends by itself"와 같다)(사람).
 9. **큐와 돌려받은 draft**: 큐에 메시지가 있거나 돌려받은 draft가 있으면 제안을 보이지 않는다(사람).
 10. **UI 초안**: `/design-draft`는 생략한다. 결정 6으로 새 화면 요소가 없다(사람).
 11. **제안 글 정리**: 줄바꿈과 연속 공백을 한 줄로 접고, 1,000 code unit을 넘으면 버린다. 자르지 않는다. 잘린 글을 넣으면 원래 제안과 다른 말이 된다(사람).
-12. **PoC 환경**: P1-a·c·d·e는 앱 없이 `.scratch/prompt-suggestion/`의 node SDK script로 돌린다. 임시 `CLAUDE_CONFIG_DIR`에 새로 sign-in하고, `query` 옵션은 Doan의 `openClaude`와 같게 둔 뒤 `promptSuggestions: true`만 더한다. P1-b(busy 구간)만 앱에서 돌린다. 앱은 새로 sign-in한 공용 프로필로 띄운다: 실제 HOME, `/Users/sinhyeok/code/doan-design/.scratch/` 아래 userData, main checkout(`/Users/sinhyeok/code/doan-design`)의 Electron. provider-usage E2에서 `doan Safe Storage` Keychain 항목의 ACL이 PoC checkout의 Electron 경로만 믿어 worktree의 Electron은 vault를 열지 못했기 때문이다(`git show eca2b7c7^:docs/features/provider-usage/orch.md`의 E2 진행 기록, POSTMORTEM 2026-10-30 'Packaged-app probes failed for reasons of their own: keychain, signature identity and focus'). provider-usage의 이전 공용 프로필 userData(`.scratch/provider-profile/userData`)는 이미 없다(2026-11-05 확인). sign-in, 실행 승인, 끝난 뒤의 sign-out과 Keychain 항목 정리는 그때 사람에게 묻는다(사람).
+12. **PoC 환경**: P1-a·c·d·e는 앱 없이 `.scratch/prompt-suggestion/`의 node SDK script로 돌린다. 임시 `CLAUDE_CONFIG_DIR`에 새로 sign-in하고, `query` 옵션은 Doan의 `openClaude`와 같게 둔 뒤 `promptSuggestions: true`만 더한다. P1-b(busy 구간)는 지금 앱에 `promptSuggestions`가 없어 켠 상태를 잴 수 없으므로 E1(c)로 옮겼고, 시간은 P1 script로 쟀다(사람, P1 뒤). 앱은 새로 sign-in한 공용 프로필로 띄운다: 실제 HOME, `/Users/sinhyeok/code/doan-design/.scratch/` 아래 userData, main checkout(`/Users/sinhyeok/code/doan-design`)의 Electron. provider-usage E2에서 `doan Safe Storage` Keychain 항목의 ACL이 PoC checkout의 Electron 경로만 믿어 worktree의 Electron은 vault를 열지 못했기 때문이다(`git show eca2b7c7^:docs/features/provider-usage/orch.md`의 E2 진행 기록, POSTMORTEM 2026-10-30 'Packaged-app probes failed for reasons of their own: keychain, signature identity and focus'). 이 경로의 공용 프로필에는 chain-261105의 다섯 provider가 연결되어 있다. sign-in, 실행 승인, 끝난 뒤의 sign-out과 Keychain 항목 정리는 그때 사람에게 묻는다(사람).
 
 ## 조사 결과(2026-11-05, 코드와 설치된 바이너리를 읽기만 했다)
 
@@ -30,9 +30,9 @@ Claude Code가 턴 끝에 보내는 `prompt_suggestion`을 main이 받아 대화
   - 입력이 닫히면(`onInputClosed`) 종료 처리가 진행 중인 제안을 기다린다(`gr.settle()` → `settleInflight`, 상한 `dq=30000`, 30초). 그 뒤 다른 종료 처리를 하고 끝난다. 그러므로 Doan이 `result` 직후 입력을 닫아도 생성이 이미 시작되었다면 제안은 프로세스가 끝나기 전에 stream으로 올 가능성이 크다. 대신 프로세스 종료가 생성 시간만큼 늦어진다.
   - interrupt 처리(`Cp`)와 `end_session`은 `gr.discard()`로 진행 중인 제안을 버린다.
   - 생성은 도구 없이 짧은 side query로 한다("No tools needed for suggestion"). 제안을 다음 입력과 비교하는 일(`onCommand`)은 같은 프로세스 안에서만 일어난다.
-- **Doan의 runner.** `runners.ts` `openClaude`는 턴마다 SDK/CLI를 새로 연다(resume). 턴이 terminal이 되면 done 턴에 한해 `usageAtTurnEnd`를 부르고(359–361행), 곧바로 입력을 닫는다(`closeInput()`, 362행). 사용량 조회는 일정이 허락할 때만 한다. `usageService.ts` `turnEnd`(91–93행)는 provider가 보이지 않거나 연결이 다르거나 `shouldRead`가 거짓이면(일정상 아직 읽을 때가 아니거나 창이 보이지 않으면) 읽지 않고 바로 돌아가고, 읽을 때만 `TURN_USAGE_MS`(3초 상한, 57행)까지 입력이 열려 있다. 터미널 세션을 resume한 legacy external 실행에는 `usageAtTurnEnd`가 없다(`usageService.ts` `withTurnUsage`, 216–219행). 이런 턴에서는 입력이 `result` 직후 닫히므로, CLI가 이미 종료 중(`shuttingDown()`)이라 제안 생성을 시작하지 않을 수 있다(위 추정). 조회가 없는 턴에서 제안이 오지 않으면 이 feature 전체가 성립하지 않으므로 P1-a가 가장 먼저 본다. 그 뒤에도 `for await (const raw of q)`는 stream이 끝날 때까지 돈다. 다만 `normalizeClaude`(`transport.ts` 122행)는 terminal 뒤의 frame을 버린다.
+- **Doan의 runner.** `runners.ts` `openClaude`는 턴마다 SDK/CLI를 새로 연다(resume). 턴이 terminal이 되면 done 턴에 한해 `usageAtTurnEnd`를 부르고, 곧바로 입력을 닫는다(`closeInput()`). 사용량 조회는 일정이 허락할 때만 하고(`usageService.ts` `turnEnd`), 읽을 때만 `TURN_USAGE_MS`(3초 상한)까지 입력이 열려 있다. 터미널 세션을 resume한 legacy external 실행에는 `usageAtTurnEnd`가 없다. P1-a에서 세 경우(조회 뒤 닫기, `result` 직후 닫기, legacy) 모두 입력을 닫은 뒤 프로세스가 끝나기 전에 제안이 왔다. 입력을 15초 열어 두면 제안은 입력을 닫은 순간에야 왔으므로, 입력을 바로 닫는 지금 구조가 제안을 늦추지 않는다. 그 뒤에도 `for await (const raw of q)`는 stream이 끝날 때까지 돈다. 다만 `normalizeClaude`(`transport.ts`)는 terminal 뒤의 frame을 버린다.
 - **Doan의 service.** `receive`(`service.ts` 401–404행)는 `live.terminal`이 된 뒤의 event를 버린다. 다음 send는 이전 프로세스의 reservation이 풀릴 때까지 `EXIT_WAIT_MS`(10초, 88행)만큼 기다리고, 넘으면 `busy`로 거절한다(`previousExit`, `exitOf`). 지금 예산은 사용량 조회 3초 + 가장 느린 관측 종료 5.0초 < 10초다(`runners.ts` 54–57행 주석, `git show eca2b7c7^:docs/features/provider-usage/orch.md`의 B 진행 기록). 제안을 켜면 CLI의 종료가 생성 시간(상한 30초)만큼 더 늦어질 수 있어 이 예산을 넘을 수 있다.
-- **설정의 출처.** Doan 연결의 Claude 실행은 Doan 프로필(`CLAUDE_CONFIG_DIR`)의 user settings와 project·local settings를 읽는다(`settingSources: ["user", "project", "local"]`). 사람이 터미널에서 쓰는 `~/.claude/settings.json`의 `promptSuggestionEnabled`는 Doan 연결에 닿지 않고, Doan 프로필은 사람이 고치는 곳이 아니다. 닿는 것은 저장소의 `.claude/settings*.json`과 login shell의 환경 변수(`CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION=false`)다(PRODUCT §3 'Launch environment').
+- **설정의 출처.** Doan 연결의 Claude 실행은 Doan 프로필(`CLAUDE_CONFIG_DIR`)의 user settings와 project·local settings를 읽는다(`settingSources: ["user", "project", "local"]`). 사람이 터미널에서 쓰는 `~/.claude/settings.json`의 `promptSuggestionEnabled`는 Doan 연결에 닿지 않고, Doan 프로필은 사람이 고치는 곳이 아니다. 실행 환경은 `launchEnv`의 allowlist와 login shell probe가 읽는 `PATH`·`CLAUDE_CONFIG_DIR`·`CODEX_HOME`으로만 만든다(`environment.ts` `agentEnv`, `onboarding/machine.ts`). 그래서 지금은 login shell의 다른 변수가 agent에 닿지 않는다. 결정 2에 따라 probe가 `CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION`도 읽는다.
 
 ### Codex
 
@@ -66,12 +66,12 @@ Claude Code가 턴 끝에 보내는 `prompt_suggestion`을 main이 받아 대화
 
 ### main
 
-1. **옵션.** `openClaude`의 `query` 옵션에 `promptSuggestions: true`를 둔다. 모든 Claude 실행에서 켜고, 끄는 것은 provider의 설정과 환경 변수에 맡긴다(결정 2).
+1. **옵션과 환경.** `openClaude`의 `query` 옵션에 `promptSuggestions: true`를 둔다. login shell probe가 `CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION`을 읽고, Claude 실행 환경에는 그 값이 있으면 그 값을, 없으면 `true`를 둔다. Codex·ACP 실행 환경에는 두지 않는다(결정 2).
 2. **읽기.** runner의 stream loop가 terminal 뒤에도 frame을 본다(지금도 돈다). 이 turn의 terminal event가 `turn.done`이고 읽지 않은 steer가 없을 때, `prompt_suggestion` frame을 순수 함수 `promptSuggestionText`(아래)로 걸러 글이 남으면 runner 입력의 새 hook `suggested(text)`를 한 번 부른다. failed·interrupted 턴, terminal 전의 frame, 두 번째 제안은 무시한다.
 3. **보관.** service는 send마다 `suggested`를 `planApproved`처럼 그 send의 `live`와 `turnId`에 묶어 만든다. 부를 때 다시 확인한다: 같은 `live`이고 같은 `turnId`이며, 그 turn이 done으로 끝났고, 새 send가 시작되지 않았고, 대화가 archive·delete되지 않았고, 앱이 끝나는 중(`quit()`의 `quitting`)이 아니다. 맞으면 대화 id별 메모리 map에 두고 목록 변경을 알린다. 늦게 온 callback이 다음 턴을 건드리지 않게 하는 울타리다(POSTMORTEM 2026-10-27 'Awaited conversation work outlived its current turn').
 4. **지우기.** 같은 대화의 다음 턴이 수락될 때, archive·restore·delete 때 map에서 지운다. Doan 연결 대화는 제안을 그 실행의 연결(`owner.connectionId`)과 함께 두고, Claude 연결이 sign out되거나 다른 연결로 바뀌면 지운다. service는 `index.ts`의 auth `publish`(744행)에서 이 변화를 듣는다. 이름과 모양은 `/tdd`에서 정한다. legacy external 대화는 Doan 연결이 없으므로 이 규칙이 없다. 앱을 다시 시작하면 메모리와 함께 사라진다(결정 3·4).
 5. **summary.** `conversationSummary`의 `live` 입력에 `returned`와 `suggestion`을 더하고, 지금 `service.ts` 449행에서 밖에 붙이는 `returnedDraft`를 함수 안으로 옮긴다. 그래야 A1의 `summary.test.ts`가 `returnedDraft`와 `suggestion`의 관계를 함수 하나로 확인한다. `conversationSummary`가 `suggestion?: string`을 준다. 대화가 current이고, phase가 `ended`이며, working이 아니고, `queued`가 0이고, `returnedDraft`가 없을 때만 준다(결정 9). preparing 중인 send는 working이므로, 입력란이 막 비어도 이전 제안이 다시 보이지 않는다. 그 send가 거절되면 working이 풀려 제안이 다시 보인다(이때 입력란에는 거절된 draft가 돌아와 있다).
-6. **다음 send와의 관계.** runner는 "제안을 기다리는 중"과 "제안 없이 정상 종료하는 중"을 구분할 수 없다. SDK에는 생성 시작을 알리는 frame이 없고, CLI가 생성 전에 거르는 경우(`early_conversation`, `rate_limit` 등)도 똑같이 `result`를 받았고, 입력이 닫혔고, 프로세스가 살아 있고, 그 뒤 frame이 없는 모양이다. 그래서 관측할 수 있는 규칙을 쓴다: **done으로 끝난 turn의 입력이 닫혔고, 프로세스가 아직 살아 있고, `prompt_suggestion`이 아직 오지 않았으면, 그 프로세스는 다음 send에서 끝낸다.** 같은 대화의 send(사람의 send, 큐 전송, restore 포함)가 `previousExit`에서 기다리기 시작할 때 이 조건이면, 늦게 올 제안은 버리고 이전 프로세스를 끝낸다(결정 5). 제안 없이 정상 종료하던 프로세스도 이 규칙에 걸린다. 이는 POSTMORTEM 2026-10-28이 고른 "이전 프로세스가 스스로 끝나기를 기다린다"를 이 조건에서만 바꾸는 것이다. reservation은 지금처럼 `process_exited`에서만 풀리므로 두 프로세스가 한 세션을 함께 쓰지 않는다는 이유는 그대로 지켜진다. 이 조건이 아닌 프로세스(failed·interrupted 턴, 제안을 이미 받은 프로세스)는 지금처럼 스스로 끝나기를 기다린다. 끝내는 방법은 P1-c가 고른다: 열린 Query의 interrupt가 `gr.discard()`로 생성만 버리고 정상 종료로 이어지면 그것을 쓰고, 아니면 이미 있는 group stop(SIGTERM, 0.5초 뒤 SIGKILL, `process.ts`)을 쓴다. 그러면 send가 기다리는 시간은 지금 예산(`EXIT_WAIT_MS` 10초) 안에 머문다.
+6. **다음 send와의 관계.** runner는 "제안을 기다리는 중"과 "제안 없이 정상 종료하는 중"을 구분할 수 없다. SDK에는 생성 시작을 알리는 frame이 없고, CLI가 생성 전에 거르는 경우(`early_conversation`, `rate_limit` 등)도 똑같이 `result`를 받았고, 입력이 닫혔고, 프로세스가 살아 있고, 그 뒤 frame이 없는 모양이다. 그래서 관측할 수 있는 규칙을 쓴다: **done으로 끝난 turn의 입력이 닫혔고, 프로세스가 아직 살아 있고, `prompt_suggestion`이 아직 오지 않았으면, 그 프로세스는 다음 send에서 끝낸다.** 같은 대화의 send(사람의 send, 큐 전송, restore 포함)가 `previousExit`에서 기다리기 시작할 때 이 조건이면, 늦게 올 제안은 버리고 이전 프로세스를 끝낸다(결정 5). 제안 없이 정상 종료하던 프로세스도 이 규칙에 걸린다. 이는 POSTMORTEM 2026-10-28이 고른 "이전 프로세스가 스스로 끝나기를 기다린다"를 이 조건에서만 바꾸는 것이다. reservation은 지금처럼 `process_exited`에서만 풀리므로 두 프로세스가 한 세션을 함께 쓰지 않는다는 이유는 그대로 지켜진다. 이 조건이 아닌 프로세스(failed·interrupted 턴, 제안을 이미 받은 프로세스)는 지금처럼 스스로 끝나기를 기다린다. 끝내는 방법은 이미 있는 group stop(SIGTERM, 0.5초 뒤 SIGKILL, `process.ts`)이다. 입력을 닫은 뒤에는 interrupt를 보낼 수 없다(P1-c). 그러면 send가 기다리는 시간은 지금 예산(`EXIT_WAIT_MS` 10초) 안에 머문다.
 7. **사용량 조회와의 순서.** provider-usage의 턴 끝 조회(`usageAtTurnEnd`)는 지금처럼 입력을 닫기 전에 한다. 조회하는 턴에서는 CLI가 같은 시각에 제안을 만들기 시작하므로 두 일이 겹친다. 조회하지 않는 턴과 legacy external 턴에서 제안이 오는지는 P1-a가 본다('Doan의 runner'). 이 feature는 조회 상한(`TURN_USAGE_MS`)을 바꾸지 않는다.
 
 ### renderer
@@ -106,21 +106,21 @@ ARCHITECTURE §1 'Conventions'와 `doan check` 규칙은 바뀌지 않는다.
 - **append-only event, 턴마다 terminal event 하나**: 지켜진다. 제안은 event로 쓰지 않고, terminal 뒤 event를 버리는 `receive` 규칙도 그대로다.
 - **Doan은 세션을 fork하거나 새로 시작하지 않는다**: Claude 쪽 생성은 CLI 안의 side query이고, Doan은 옵션만 켠다. 이 생성이 transcript나 session registry를 바꾸지 않는지는 P1에서 본다. Codex 예측은 fork가 필요하므로 쓰지 않는다.
 - **Out of scope 4(Doan이 agent 작업을 시작하지 않는다)**: Doan은 새 요청을 보내지 않는다. 제안은 사람의 턴 끝에 provider CLI가 스스로 만든다. 사람의 계정으로 턴마다 모델 요청이 하나 더 생기는 점은 사람이 받아들였다(결정 2). Z1은 이 해석을 PRODUCT §3 Out of scope 4(또는 'Agent conversation foundation contract')에 쓴다: 사람의 턴 끝에 provider CLI가 스스로 하는 제안 생성은 Doan이 시작하는 작업이 아니며, 사람의 계정으로 턴마다 요청 하나를 더한다.
-- **Launch environment**: `CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION`은 다른 환경 변수처럼 login shell 설정에서만 온다. Doan이 따로 정하지 않는다.
+- **Launch environment**: login shell probe가 `CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION`을 하나 더 읽고, Doan이 Claude 실행에 기본값 `true`를 준다(결정 2). 사람의 shell 값이 이긴다. Z1에서 PRODUCT §3 'Launch environment'와 ARCHITECTURE의 launch environment 문단에 적는다.
 - **종료 예산(`EXIT_WAIT_MS`)과 사용량 조회 상한(`TURN_USAGE_MS`)**: 값은 바뀌지 않는다. 다만 ARCHITECTURE §7 'Agent usage' 'Turn-end reads'의 불변식 "the cap plus the CLI's exit after closing must stay inside `EXIT_WAIT_MS`"는 이 feature로 바뀐다. 입력을 닫은 뒤 CLI의 종료가 제안 생성(상한 30초)만큼 늦어질 수 있으므로, 예산 안에 머무는 것은 CLI가 스스로 끝나서가 아니라 다음 send가 그 프로세스를 끝내서다(동작 main 6). Z1에서 그 문장을 고친다.
 - **이전 프로세스가 스스로 끝나기를 기다림(POSTMORTEM 2026-10-28)**: 동작 main 6의 조건에서만 바뀐다. reservation이 `process_exited`에서만 풀리는 규칙은 그대로다.
 
-## PoC 의존
+## PoC 결과(P1, 2026-11-05, Claude Code 2.1.318, SDK 0.3.312)
 
-아래는 확인하지 않은 가정이다. tasks P1이 구현보다 먼저, 결정 12의 환경에서 확인한다(P1-a·c·d·e는 node SDK script, P1-b는 앱). 하나라도 어긋나면 멈추고 design으로 돌아간다. P1의 결과로 위 'Doan의 runner'를 다시 쓴다.
+결정 12의 환경에서 `.scratch/prompt-suggestion/p1.mjs`(모드 a·c·d·e·f)로 확인했다. 관측 기록은 같은 디렉터리의 `out/*.jsonl`에 있다(gitignored). 턴은 T1 첫 턴(codeword 기억), T2 짧은 답, T3 도구(Read), T4 codeword 회상이다.
 
-- **CLI 버전.** 조사한 것은 설치된 CLI 2.1.318이다. `promptSuggestions`나 입력이 닫힐 때의 settle 대기가 없는 버전(최소 버전 2.1.284 `minimumVersions.ts`까지)에서는 제안이 오지 않을 뿐이고, 영향은 종료 시간에만 있다고 본다(확인하지 않았다).
-
-- **P1-a 도착(가장 먼저 본다).** Doan의 턴마다 여는 구조(resume, done 뒤 입력 닫기)에서 `prompt_suggestion`이 `result` 뒤에 stream으로 오는가. 입력을 닫는 때를 셋으로 나눠 본다: (1) 사용량을 읽는 턴(조회 ≤3초 뒤 닫기), (2) 조회를 건너뛴 턴(`result` 직후 닫기), (3) legacy external 턴(`usageAtTurnEnd` 없음, `result` 직후 닫기). (2)·(3)에서 오지 않으면 대부분의 턴에서 제안이 없으므로 feature 전체를 멈추고 design으로 돌아간다. 새 세션의 첫 턴과 resume한 두 번째 턴 각각에서, 도구를 쓴 턴과 짧은 답만 한 턴 각각에서도 본다(`early_conversation`이 resume history를 세는지).
-- **P1-b 시간.** `result` → 제안, `result` → 프로세스 그룹 소멸까지의 시간을 제안을 켰을 때와 껐을 때 비교한다. `turn.done`에서 바로 다음 send를 보내고 50 ms마다 다시 보내 `busy`가 나는지 본다(POSTMORTEM 2026-10-28의 방법).
-- **P1-c 끝내기.** 제안을 기다리는 프로세스에 interrupt를 보낼 때와 group stop을 할 때, 프로세스가 끝나는 시간, 다음 턴의 resume이 같은 transcript를 잇는지, 사람의 SessionEnd hook이 도는지 본다. 제안 없이 정상 종료하는 중인 프로세스(예: 첫 턴의 `early_conversation`)에 interrupt나 group stop을 할 때도 transcript와 SessionEnd hook이 남는지 본다. 동작 main 6의 방법을 여기서 고른다.
-- **P1-d transcript.** 제안 생성이 세션 JSONL에 턴을 더하거나 session registry를 바꾸지 않는지 본다.
-- **P1-e 거르는 조건.** plan mode에서 오지 않는지, 그리고 그때 계정의 한도 상태(`rate_limit_event`의 status)를 기록한다. provider-usage E1에서 Claude 사용량이 99%였으므로, 한도 근처라 오지 않는 경우와 구조 때문에 오지 않는 경우를 나눠 적는다.
+- **P1-a 도착.** 기본 설정에서는 세 경우(조회 뒤 닫기, `result` 직후 닫기, legacy)와 15초 열어 두기 모두 16턴 중 0턴에서 왔다. 매 턴의 `rate_limit_event`가 `allowed_warning`(seven_day, utilization 0.53)이었고, CLI의 `rate_limit` 거르기로 본다. `CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION=true`를 주면 세 경우 모두 T2에서 왔고, T3에서는 조회 뒤 닫기와 `result` 직후 닫기에서 왔다(legacy T3은 오지 않음). T1(`early_conversation`)과 T4에는 어느 경우에도 오지 않았다. resume한 T2에서 오므로 `early_conversation`은 resume history를 센다. 결정 2를 이 결과로 고쳤다.
+- **P1-b 시간(script).** `result`→제안 1.0–2.7초. `result`→프로세스 그룹 소멸은 제안이 없을 때 0.6–0.9초, 제안이 왔을 때 1.6–3.3초였다. 제안이 오지 않았는데 2.8–3.4초 걸린 턴도 있었다(CLI가 생성한 뒤 버린 것으로 본다). 관측 최댓값 3.4초에 조회 상한 3초를 더해도 `EXIT_WAIT_MS` 10초 안이지만, CLI 쪽 상한은 30초라 동작 main 6이 필요하다. 앱에서 `turn.done`에 바로 보낸 send의 `busy` 여부는 E1(c)에서 본다.
+- **P1-c 끝내기.** 제안을 기다리는 중(T3, `result` 뒤 0.3초에 끝냄): 입력을 닫은 뒤의 `interrupt()`는 "Query closed before response received"로 실패했고 제안은 그대로 왔다. 입력을 열어 둔 채 `interrupt()`하면 제안이 버려지고 exit 0으로 0.9초에 끝났지만, 열어 둔 동안에는 제안이 오지 않으므로 Doan 구조에 맞지 않는다. group stop은 SIGTERM으로 0.5초 안에 끝나지 않아 SIGKILL로 끝났다(`result` 뒤 0.85초). 세 방법 모두 다음 resume이 같은 transcript를 이었고(codeword 회상), SessionEnd hook이 턴마다 한 번 돌았다. 제안 없이 끝나는 T1에서도 같았다. **방법은 group stop이다**(결정 5).
+- **P1-d transcript.** 제안 글은 세션 JSONL에 없다. `result` 뒤에 붙은 줄은 `cost-state`·`last-prompt`·`mode`·`ai-title`·`session-owner`·`atis-latch` 같은 메타 줄뿐이고 user·assistant 줄과 sidechain은 없다. 새 세션 파일도 생기지 않았다.
+- **P1-e 거르는 조건.** plan mode 턴에는 오지 않았다. 한도 상태는 내내 `allowed_warning`이었다(위 P1-a).
+- **P1-f 저장소 설정.** 환경 변수가 true이면 저장소 `.claude/settings.json`의 `promptSuggestionEnabled: false`가 있어도 T3에서 제안이 왔다.
+- **CLI 버전.** 2.1.318만 확인했다. 최소 버전 2.1.284의 동작은 확인하지 않았다.
 
 실제 키 입력(오른쪽 방향키, 한국어 IME 조합 중의 오른쪽 방향키)과 스크린 리더 읽기는 E1(`/runtime-test`)에서 본다. 합성 event는 실제 입력을 증명하지 못한다(POSTMORTEM 2026-10-27 'typeahead': "Preserve separate native-focus/input verification").
 
@@ -128,12 +128,12 @@ ARCHITECTURE §1 'Conventions'와 `doan check` 규칙은 바뀌지 않는다.
 
 이 feature는 아래 두 진행 중 feature와 같은 코드를 고치므로 그 둘과 나란히 돌리지 않는다. 하나가 main에 병합된 뒤 다음을 시작한다. provider-usage(PR #98)는 병합되었고, 이 feature는 그것이 가져온 runner 자리와 종료 예산을 쓴다.
 
-- **context-window-ring**(`docs/features/context-window-ring/`, 진행 중): 턴 끝 값을 같은 runner에서 읽는다. 둘 다 `result`와 프로세스 종료 사이에 일을 더하므로, 나중에 들어가는 쪽이 P1-b의 시간 측정을 다시 한다.
+- **context-window-ring**(`docs/features/context-window-ring/`, 진행 중): 턴 끝 값을 같은 runner에서 읽는다. 둘 다 `result`와 프로세스 종료 사이에 일을 더하므로, 나중에 들어가는 쪽이 'PoC 결과' P1-b의 시간 측정을 다시 한다.
 - **queue-steer-shortcut**(`docs/features/queue-steer-shortcut/`, 진행 중): `ComposerField`의 키 연결과 `DockedComposer`를 같이 고친다. 키는 겹치지 않는다(그쪽은 Control+Enter). 나중에 들어가는 쪽이 키 판정 순서를 맞춘다.
 
 ## POSTMORTEM에서 가져온 함정
 
-- 2026-10-28 "A send right after turn.done was refused as busy until the previous process group was gone": "test sends issued before the previous process's exit callback, not after it … Real-app checks of consecutive turns must send on `turn.done` itself." 제안이 프로세스 종료를 늦추므로 이 위험이 커진다. 동작 main 6, P1-b, `service.test.ts` 사례로 막는다.
+- 2026-10-28 "A send right after turn.done was refused as busy until the previous process group was gone": "test sends issued before the previous process's exit callback, not after it … Real-app checks of consecutive turns must send on `turn.done` itself." 제안이 프로세스 종료를 늦추므로 이 위험이 커진다. 동작 main 6, E1(c), `service.test.ts` 사례로 막는다.
 - 2026-10-27 "Awaited conversation work outlived its current turn": "fence transport rejection by live identity and turn ID." 늦게 온 제안을 `live`와 `turnId`로 거른다(동작 main 3).
 - 2026-10-27 "Rewritten shell typeahead skipped repeated letters and the current prefix match": "reuse the established keyboard matcher and test its actual event-handler wiring rather than relying only on helper tests." `takesSuggestion`은 `isSubmitKey` 옆에 두고, 테스트는 실제 `ComposerField` keydown에서 한다.
 - 2026-11-05 "A Send now row refused back into the queue could vanish while main still held it": 오래된 목록 읽기를 적용해 상태가 어긋났다. 제안도 목록 summary로 오므로 최신 읽기만 쓴다(동작 renderer 5).
