@@ -241,7 +241,9 @@ func TestSkillGuideNamesDesignSystemDirectory(t *testing.T) {
 func TestSkillGuideWorkLifecycle(t *testing.T) {
 	for _, required := range []string{
 		"I. Before the first edit to a canvas, run `doan work start <canvas path> --json`.",
-		"Run it again when several minutes pass between edits.",
+		"Each time you start editing a frame, run `doan work update <canvas path> --frame <id> --note \"<what you are doing, one short line in the person's language>\" --json`; it also counts as `start`.",
+		"- `doan work update <canvas path> [--frame <id>] [--note <text>] --json`",
+		"For all work commands, `delivered:false` is not an error",
 		"J. Before ending your reply — also when you stop to ask the human — run `doan work done <edited canvas paths> --json`",
 		"`delivered:false` is not an error: do not report it or retry.",
 		"return `{delivered, links, skipped}`",
@@ -249,6 +251,10 @@ func TestSkillGuideWorkLifecycle(t *testing.T) {
 		if !strings.Contains(skillBody, required) {
 			t.Errorf("missing work guidance: %s", required)
 		}
+	}
+	// update renews the work, so the guide no longer asks to repeat start between edits.
+	if strings.Contains(skillBody, "several minutes") {
+		t.Error("guide still asks to repeat start after several minutes")
 	}
 }
 
