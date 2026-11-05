@@ -2,6 +2,7 @@ import type { WorkItem } from "../main/workState";
 import type { OpenAnswer, OpenAsk, OpenLinkResult } from "../main/deepLinks";
 import type { AuthCheckReply, AuthPromptEvent, AuthReply, AuthSnapshot, AuthStartReply } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
+import type { UsageEntry } from "../main/agentAuth/usageTypes";
 import type { McpAddReply, McpReply, McpSnapshot } from "../main/mcpConnectors/ipc";
 import type { McpProvider } from "../main/mcpConnectors/presets";
 import type { ShellActivity } from "../main/shellActivity";
@@ -198,6 +199,18 @@ const api = {
     // A refused read leaves the listener on change events; it never becomes an unhandled rejection in the page.
     ipcRenderer.invoke("agent-auth:read").then(deliver, () => {});
     return () => { active = false; ipcRenderer.removeListener("agent-auth:changed", receive); };
+  },
+  // Agent account usage: one entry per connected provider that has usage, in provider order. Without a trigger main
+  // only answers what it holds; "open" (the popover opened) and "refresh" (Refresh usage, ignoring the interval) may
+  // start reads. Entries carry no revision, so the first read is delivered only if no change event came before it.
+  readAgentUsage: (trigger?: "open" | "refresh"): Promise<UsageEntry[]> => ipcRenderer.invoke("agent-usage:read", trigger ? { trigger } : {}),
+  onAgentUsage(listener: (entries: UsageEntry[]) => void): () => void {
+    let active = true, changed = false;
+    const receive = (_event: Electron.IpcRendererEvent, entries: UsageEntry[]) => { if (!active) return; changed = true; listener(entries); };
+    ipcRenderer.on("agent-usage:changed", receive);
+    // A refused read leaves the listener on change events; it never becomes an unhandled rejection in the page.
+    ipcRenderer.invoke("agent-usage:read", {}).then((entries: UsageEntry[]) => { if (active && !changed) listener(entries); }, () => {});
+    return () => { active = false; ipcRenderer.removeListener("agent-usage:changed", receive); };
   },
   checkAgentAuth: (provider: Provider): Promise<AuthCheckReply> => ipcRenderer.invoke("agent-auth:check", { provider }),
   // Without stop, a provider with running conversations answers stop_required; with it (the user chose to stop them)
