@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://doan.design/schema/app-socket.v3.schema.json",
-  "$comment": "Terminal-agent work signals on the app's local socket, beside app-socket.v1 (active) and v2 (onboarding), which are unchanged. The reader dispatches on numeric v before validating. Use the $defs; the root constrains nothing. The reply says only whether the signal was accepted; the CLI's delivered flag is a CLI-side result and is not part of this format.",
+  "$comment": "Agent work signals on the app's local socket, beside app-socket.v1 (active) and v2 (onboarding), which are unchanged. update was added without a new v: an older app rejects it as bad_request and the CLI reports delivered false, so no CLI/app pairing blocks an agent. The reader dispatches on numeric v before validating. Use the $defs; the root constrains nothing. The reply says only whether the signal was accepted; the CLI's delivered flag is a CLI-side result and is not part of this format.",
   "$defs": {
     "token": {
       "type": "string",
@@ -11,6 +11,23 @@
       "type": "string",
       "pattern": "^/",
       "$comment": "Absolute POSIX path; the app is macOS-only. Registration is checked by the app."
+    },
+    "opaqueId": {
+      "type": "string",
+      "minLength": 1,
+      "allOf": [
+        {
+          "not": {
+            "pattern": "^-"
+          }
+        },
+        {
+          "not": {
+            "pattern": "\u0000"
+          }
+        }
+      ],
+      "$comment": "An id the CLI forwards from its environment unchanged; it must not read as a flag or carry NUL."
     },
     "request": {
       "type": "object",
@@ -24,6 +41,7 @@
         "action": {
           "enum": [
             "start",
+            "update",
             "done"
           ]
         },
@@ -31,20 +49,7 @@
           "$ref": "#/$defs/absolutePath"
         },
         "session": {
-          "type": "string",
-          "minLength": 1,
-          "allOf": [
-            {
-              "not": {
-                "pattern": "^-"
-              }
-            },
-            {
-              "not": {
-                "pattern": "\u0000"
-              }
-            }
-          ],
+          "$ref": "#/$defs/opaqueId",
           "$comment": "Session and provider are both present or both absent; absent means the anonymous session of the root."
         },
         "provider": {
@@ -56,7 +61,22 @@
         "path": {
           "type": "string",
           "pattern": "^\\.doan/(canvases|ds)/[^/]+\\.html$",
-          "$comment": "Repo-relative, '/'-separated canvas path. Only start carries it; the app checks the pattern again."
+          "$comment": "Repo-relative, '/'-separated canvas path. start and update carry it, done does not; the app checks the pattern again."
+        },
+        "frame": {
+          "$ref": "https://doan.design/schema/app-socket.v4.schema.json#/$defs/frameId",
+          "$comment": "update only. Absent clears the working frame."
+        },
+        "note": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\u2028\u2029]+$",
+          "$comment": "update only. One line the agent wrote about what it is doing; lengths are code points. Excludes every Unicode control character (C0, DEL, C1) and the line and paragraph separators so it renders as one line. Absent clears the note."
+        },
+        "conversation": {
+          "$ref": "#/$defs/opaqueId",
+          "$comment": "update only, from an app conversation: the Doan conversation id the app put in the runner's environment. Replaces session and provider."
         }
       },
       "required": [
@@ -73,12 +93,23 @@
           "session"
         ]
       },
+      "dependentSchemas": {
+        "conversation": {
+          "properties": {
+            "session": false,
+            "provider": false
+          }
+        }
+      },
       "allOf": [
         {
           "if": {
             "properties": {
               "action": {
-                "const": "start"
+                "enum": [
+                  "start",
+                  "update"
+                ]
               }
             }
           },
@@ -92,6 +123,22 @@
               "required": [
                 "path"
               ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "action": {
+                "const": "update"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "frame": false,
+              "note": false,
+              "conversation": false
             }
           }
         }
