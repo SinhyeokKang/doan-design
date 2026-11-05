@@ -923,8 +923,8 @@ async function start(): Promise<void> {
   handle("attachments:recheck", null, (event, value: unknown) => fromWindow(event) ? attachments.recheck(value) : null);
   handle("attachments:release", false, (event, value: unknown) => fromWindow(event) && attachments.release(value));
   handle("attachments:fromPaths", null, (event, value: unknown) => fromWindow(event) ? attachments.fromPaths(value) : null);
-  // The pixels the person sees in a rect of the window, read by main; the renderer names only the rect. A fresh window
-  // is not needed: capturePage reads the compositor, which includes the board's cross-site iframe.
+  // The pixels the person sees in a rect of the window, read by main; the renderer names only the rect and never sends
+  // image bytes.
   handle("attachments:capture", null, async (event, value: unknown): Promise<AttachmentResult | null> => {
     if (!fromWindow(event) || !win || win.isDestroyed()) return null;
     const rect = captureRequest(value, win.getContentSize() as [number, number]);
