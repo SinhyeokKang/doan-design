@@ -43,7 +43,7 @@
 
 ## D. UI 초안
 
-- [ ] D1. `/design-draft`로 원래 대화의 핸드오프 줄 네 가지(진행·넘김·거절·취소), 이어받는 대화의 인계 카드, toast를 `.doan/canvases/`에 그린다. 기존 thread와 promotion 줄의 시각 체계를 따른다.
+- [x] D1. `/design-draft`로 원래 대화의 핸드오프 줄 네 가지(진행·넘김·거절·취소), 이어받는 대화의 인계 카드, toast를 `.doan/canvases/`에 그린다. 기존 thread와 promotion 줄의 시각 체계를 따른다.
   - 검증: `doan check`가 그 캔버스에 오류 0이고, 초안에 거절 이유 네 가지(`not_listed`, `not_new`, `has_conversation`, `same_canvas`)와 취소의 문구가 있고, 사람이 앱에서 초안을 확인했다. — 커밋
 
 ## A. schema와 fixture
