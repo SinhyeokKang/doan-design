@@ -1,6 +1,6 @@
 # work-update — tasks
 
-순서: PoC → guide 예산 → schema·fixture → 순수 함수 → CLI·main 배선 → guide·eval → UI 초안 → renderer UI → 실제 앱 확인 → 문서 승격. eval(E1)을 UI보다 앞에 둔다. 에이전트가 프레임마다 `update`를 보내지 않으면 UI에 보일 것이 없기 때문이다(design §6). D1 초안의 잠정값(design §9 Q1–Q5)은 사람이 앱에서 초안을 확인할 때 정한다.
+순서: PoC → guide 예산 → schema·fixture → 순수 함수 → CLI·main 배선 → guide·eval → UI 초안 → renderer UI → 실제 앱 확인 → 문서 승격. eval(E1)을 UI보다 앞에 둔다. 에이전트가 프레임마다 `update`를 보내지 않으면 UI에 보일 것이 없기 때문이다(design §6). D1 초안은 사람이 확인했다(design §9).
 
 ## P. PoC
 
@@ -33,6 +33,8 @@
   - 검증: `npm --prefix app test`에서 `conversation/environment.test.ts`, `agentAuth/environment.test.ts`가 통과한다(provider extra가 이 이름을 덮으면 `reserved_extra`).
 - [ ] A5. TS `pickWork`, `agentNoticeView` 확장, `workFrameRect`(design §2 8–10).
   - 검증: `npm --prefix app test`에서 `agentIndicator.test.ts`가 통과한다. 캔버스 대화가 이기는 기존 테스트, 두 root 전환, project 대화의 Stop 없는 변형을 포함한다.
+- [ ] A5b. TS `typingSteps`(design §2 9b).
+  - 검증: `npm --prefix app test`에서 새 테스트가 통과한다. 한글·이모지 grapheme, 공통 앞부분 유지("Working on Plans" → "Working on Checkout"), 빈 글에서 시작, 1,000 ms 상한에서 비율 축소, 짧은 글은 20·35 ms 그대로, 너비 하한(새 글이 짧을 때·길 때, 마지막 단계에는 없음), 중간 교체를 포함한다.
 - [ ] A6. TS `followDecision`, `followTurnKey`, `followStopped`(design §2 11–12).
   - 검증: `npm --prefix app test`에서 새 테스트가 통과한다. 쉬는 시간 경계(4.9초·5초), 이미 보이는 프레임, 같은 frame의 다음 update, reload, pick·드래그 중, 멈춘 뒤 같은 턴·새 턴을 포함한다.
 
@@ -55,22 +57,22 @@
 
 - [ ] E1. guide 규칙 I와 명령 목록에 `update`(design §4 문장). 새 시나리오 `eval/scenarios/W5/`: 프레임 두 개 이상을 고치는 요청, fake app의 v3 기록으로 "각 편집 전에 그 프레임 id의 update"를 자동 검사, pass·fail fixture.
   - 검증: `go test ./...`(guide 예산), `node --test 'eval/**/*.test.ts'`, `node eval/run.ts --self-test --scenarios W5`가 `self-test PASS`·exit 0, 그 뒤 `npm --prefix app run package`와 `node eval/run.ts --scenarios W5,W3b --agents claude,codex --round <name>`. 결과와 편집 간격을 `docs/USABILITY-EVAL.md`에 적는다. 두 에이전트 모두 `update`를 거의 보내지 않거나 틀린 id를 보내면 멈추고 사람에게 보고한다(UI 작업 전).
-- [ ] E2. `FOLLOW_IDLE_MS`(5초) 조정. R1의 실제 앱 probe와 E1의 편집 간격(`update` 사이 시간)을 보고, 따라가기가 사람의 보기를 끊지 않으면서 다음 프레임 전에 시작되는지 판단한다. 바꾸면 그 이유를 커밋 메시지에 적는다.
+- [ ] E2. `FOLLOW_IDLE_MS`(5초), 지우고 치는 속도(20·35 ms/글자, 1,000 ms 상한), 커서 깜빡임(1초) 조정. R1의 실제 앱 probe와 E1의 편집 간격(`update` 사이 시간)을 보고, 따라가기가 사람의 보기를 끊지 않으면서 다음 프레임 전에 시작되는지 판단한다. 바꾸면 그 이유를 커밋 메시지에 적는다.
   - 검증: 값과 근거(편집 간격 중앙값, probe 관찰)를 'P 결과' 아래 'E2 결과'에 적고, `npm --prefix app test`의 `followDecision` 경계 테스트가 새 값으로 통과한다.
 
 커밋 경계: E1(guide), E1(eval 시나리오), E1(eval 기록), E2.
 
 ## D. UI 초안
 
-- [ ] D1. `/design-draft work-update`: design §1 'UI 흐름'의 상태 (a)–(h)를 새 파일 `.doan/canvases/work-update.html`(frame `notice-states`, `marker-states`, `marker-moves`, `follow`, `reduced-motion`)에 그린다. 기존 `terminal-agent-activity.html`과 `buzz-canvas.html`은 고치지 않는다. 표시는 jump highlight 모양이다(design 결정 16). 움직임 값과 글(design §9 Q1–Q4)은 "Provisional — needs confirmation"으로 그린다. 사람이 앱에서 초안을 확인한다.
+- [ ] D1. `/design-draft work-update`: design §1 'UI 흐름'의 상태 (a)–(h)를 새 파일 `.doan/canvases/work-update.html`(frame `notice-states`, `notice-typing`, `marker-states`, `marker-moves`, `follow`, `reduced-motion`)에 그린다. 기존 `terminal-agent-activity.html`과 `buzz-canvas.html`은 고치지 않는다. 표시는 jump highlight 모양이다(design 결정 16). 지우고 치는 속도와 커서 깜빡임은 조정 가능한 시작값으로 그린다. 사람이 앱에서 초안을 확인한다.
   - 검증: `doan check`와 `doan ls`가 초안을 오류 없이 보이고, 사람이 확인했다.
 
 커밋 경계: D1.
 
 ## U. renderer UI
 
-- [ ] U1. `CanvasAgent.tsx`의 문구·tooltip·project 대화 변형, `CanvasController.ts`의 작업 프레임 표시(jump highlight 모양의 지속 변형, 프레임 사이 이동, 도는 gradient와 숨 쉬는 glow, `reloading`으로 지우고 같은 id로 다시 붙임, `pointer-events: none`, reduced motion·reduced transparency·forced colours).
-  - 검증: `npm --prefix app test`에서 `CanvasAgent.test.tsx`, `CanvasController.test.ts`가 통과하고, `npm --prefix app run typecheck`가 통과한다.
+- [ ] U1. `CanvasAgent.tsx`의 문구·tooltip·project 대화 변형, 지우고 치기(공통 앞부분 유지, 마지막 보이는 글자 바로 뒤의 장식 커서(카드 오른쪽 끝이 아님, 말줄임표 뒤): 바뀌는 동안 켜짐·멈추면 1초 깜빡임·reduced motion에서 깜빡이지 않음·`aria-hidden`, 보이는 줄 `aria-hidden`, `role="status"`에는 최종 글, 중간 교체, reduced motion에서 바로 바꿈), 글 칸 너비 하한(update마다 숨긴 측정 노드로 한 번 재고 `min-width`, 끝나면 지움), `CanvasController.ts`의 작업 프레임 표시(jump highlight 모양의 지속 변형, 프레임 사이 이동, 도는 gradient와 숨 쉬는 glow, `reloading`으로 지우고 같은 id로 다시 붙임, `pointer-events: none`, reduced motion·reduced transparency·forced colours).
+  - 검증: `npm --prefix app test`에서 `CanvasAgent.test.tsx`(가짜 시계로 지우고 치는 단계, 애니메이션 중 status가 처음부터 최종 글, 중간 교체, reduced motion, update당 측정 한 번과 `min-width` 설정·해제, 커서가 status 글과 너비 하한에 들지 않음), `CanvasController.test.ts`가 통과하고, `npm --prefix app run typecheck`가 통과한다.
 - [ ] U2. 따라가기: 사람의 이동 경로마다 `lastPersonMove`와 멈춤 표시를 남기고(design §1 규칙 9의 목록), 따라가기 이동은 그것을 남기지 않는다. `viewChanged`를 그대로 쓰지 않는다.
   - 검증: `npm --prefix app test`에서 `CanvasController.test.ts`가 각 사람 이동 경로(휠, 핀치, Hand 드래그, 확대 버튼, frame drawer, Quick Open, Locate, `doan open --frame`)가 멈춤을 남기고, 따라가기 이동·reload·열 때 복원은 남기지 않음을 고정한다.
 - [ ] U3. `/design-sync work-update`: 초안과 실제 앱의 computed style을 맞추고 `docs/DESIGN.md`에 측정값을 적는다.

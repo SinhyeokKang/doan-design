@@ -2,11 +2,11 @@
 
 ## 결정
 
-사람이 정한 것(1–7, 12–17, 모두 2026-11-05)과 그 답에서 따라 나온 설계 결정(8–11)이다. 남은 질문은 §9에 있고, 모두 `/design-draft` 초안에서 "Provisional — needs confirmation"으로 그린 값이다.
+사람이 정한 것(1–7, 12–20, 모두 2026-11-05)과 그 답에서 따라 나온 설계 결정(8–11)이다. 초안에 대한 사람의 확정은 §9에 있다.
 
 1. **화면에서 바뀌는 것(사람).** 한 줄(note) + 작업 프레임 표시 + 따라가기, 셋 다 한다.
 2. **note를 그대로 보인다(사람).** 에이전트가 쓴 글을 120자까지 텍스트로만 보인다. toast·알림에는 쓰지 않는다.
-3. **따라가기는 사람이 멈춰 있을 때만(사람).** 사람이 한동안 팬·확대하지 않았을 때만 작업 프레임으로 따라간다. 사람이 화면을 움직이면 그 작업 턴이 끝날 때까지 따라가지 않는다. 기다리는 시간은 `FOLLOW_IDLE_MS` = 5초로 시작하고 E2에서 조정한다.
+3. **따라가기는 사람이 멈춰 있을 때만(사람).** 사람이 한동안 팬·확대하지 않았을 때만 작업 프레임으로 따라간다. 사람이 화면을 움직이면 그 작업 턴이 끝날 때까지 따라가지 않는다. 기다리는 시간은 `FOLLOW_IDLE_MS` = 5초다(사람이 초안에서 확인). E2에서 조정할 수 있다.
 4. **앱 대화에도 적용(사람).** 캔버스 대화와 project 대화에서도 `update`가 보이고 따라간다.
 5. **보내는 때(사람).** 프레임 하나를 고치기 시작할 때마다 `update`를 보낸다.
 6. **`update`는 `start`를 겸한다(사람).** 경로를 더하고, 미등록 worktree를 자동 등록하고, 만료를 새로 센다(터미널).
@@ -15,12 +15,23 @@
 9. **억제 규칙은 좁힌다.** 앱 대화 안에서 `start`·`done`은 지금처럼 아무것도 보내지 않는다(앱은 그 대화의 진행을 이미 안다). `update`만 대화 id를 실어 보낸다. 앱 대화의 `update`는 터미널 작업(`WorkItem`)이 되지 않는다. 사이드바의 "working in a terminal" spinner, 터미널 세션 이어 가기 막기, sibling notice, Move to Trash 막기가 앱 대화를 터미널로 잘못 세지 않게 하기 위해서다.
 10. **앱 대화의 작업 내용은 턴에 묶인다.** 대화 id → {root, path, frame, note, touched, turnId}를 main 메모리에 둔다. 그 턴의 끝 이벤트(`turn.done`, `turn.failed`, `interrupted`), archive, 삭제, 앱 종료에서 지운다. 대화 이벤트(`conversations/`)에는 쓰지 않는다. 그래서 대화 이벤트 형식은 바뀌지 않고, reload 뒤에도 같은 턴이면 main에서 다시 읽는다.
 11. **project 대화의 표시는 promotion과 무관하다.** project 대화가 `update`로 이름을 댄 캔버스에는 턴 동안 터미널과 같은 표시(glow, 점 무늬, Stop 없는 작업 notice, 작업 프레임 표시, 따라가기)가 나온다. promotion 판정(편집 activity + 파일 변경, 턴 뒤), Move to Trash 막기, 새 캔버스 열기 규칙은 그대로다.
-12. **Doan 연결 프로필에도 허용을 넣는다(사람, N1).** 앱 대화가 `update`를 보낼 때 프레임마다 권한을 묻지 않게, Doan 연결 Claude 프로필의 `settings.json` `permissions.allow`에 `CLAUDE_ALLOW_RULES`(터미널 Agent setup과 같은 네 규칙)를, Doan 연결 Codex 프로필에 `codexRuleText()`와 같은 rule을 넣는다. Claude Code도 그 프로필의 `settings.json`을 쓰므로, 지금의 `writeSetting`(`agentAuth/storage.ts`: 내용이 다르면 파일 전체를 바꿈)으로 쓰면 안 되고 Agent setup의 `mergeClaudeAllow`처럼 빠진 규칙만 넣는다. Codex rule 파일은 Doan만 쓰므로 `writeSetting`으로 된다.
+12. **Doan 연결 프로필에도 터미널과 같은 범위의 허용을 넣는다(사람, N1·Q5).** 앱 대화가 `update`를 보낼 때 프레임마다 권한을 묻지 않게, Doan 연결 Claude 프로필의 `settings.json` `permissions.allow`에 `CLAUDE_ALLOW_RULES`(터미널 Agent setup과 같은 네 규칙)를, Doan 연결 Codex 프로필에 `codexRuleText()`와 같은 rule을 넣는다. Claude Code도 그 프로필의 `settings.json`을 쓰므로, 지금의 `writeSetting`(`agentAuth/storage.ts`: 내용이 다르면 파일 전체를 바꿈)으로 쓰면 안 되고 Agent setup의 `mergeClaudeAllow`처럼 빠진 규칙만 넣는다. Codex rule 파일은 Doan만 쓰므로 `writeSetting`으로 된다.
 13. **캔버스 대화가 다른 캔버스를 댄 `update`도 그 캔버스에 보인다(사람, N2).** project 대화와 같은 규칙이다(§1 규칙 6).
 14. **따라가기가 멈춘 것은 보이지 않는다(사람, N3).** 멈춤 표시, 다시 따라가기 버튼, 설정이 없다.
 15. **project 대화와 다른 캔버스를 댄 캔버스 대화의 작업 notice에는 Stop이 없다(사람, N4).** 터미널 변형과 같다. 보드의 Stop은 그 캔버스의 현재 대화만 멈춘다는 지금 규칙을 지킨다.
 16. **작업 프레임 표시는 jump highlight다(사람).** 새 모양을 만들지 않는다. 프레임 이동 때 쓰는 `.mark.jump-highlight`(3 px `--affordance-accent` → `--indigo-600` 135° gradient 선, 1 px `--surface-panel` 바깥 고리, accent 45 % glow; DESIGN.md 'Canvas area and right panel' 'Overlay marks')를 작업 턴 동안 작업 프레임에 남긴다. 1.2초 뒤 사라지는 동작만 빠진다. 따라가기 이동도 같은 모양이고, 따로 1.2초 jump highlight를 더하지 않는다.
-17. **표시는 살아 있게 움직인다(사람).** (a) `update`가 다른 프레임으로 가면 표시가 새 프레임으로 옮겨 간다(사라졌다 다시 나타나지 않는다). (b) 작업 중에는 gradient 선이 천천히 돌고 glow가 조용히 숨 쉰다. (c) `prefers-reduced-motion`에서는 둘 다 멈추고 표시는 바로 새 프레임에 놓인다. 정확한 값은 초안의 잠정값이다(§9 Q1–Q3).
+17. **표시는 살아 있게 움직인다(사람).** gradient 한 바퀴 4.8초 linear, glow는 accent 45 % ↔ 25 %를 2.4초(`--ease-state`)로 확정했다(Q1·Q2). (a) `update`가 다른 프레임으로 가면 표시가 새 프레임으로 옮겨 간다(사라졌다 다시 나타나지 않는다). (b) 작업 중에는 gradient 선이 천천히 돌고 glow가 조용히 숨 쉰다. (c) `prefers-reduced-motion`에서는 둘 다 멈추고 표시는 바로 새 프레임에 놓인다. 다른 프레임으로는 220 ms(`--time-settle`, `--ease-settle`) 미끄러져 옮겨 간다(사람, Q3).
+18. **프레임 이름은 프레임 제목이다(사람, Q4).** note 없이 프레임만 있으면 작업 notice의 글은 "Working on <frame title>"이다. 제목은 그 프레임의 `data-doan-title`, 없으면 프레임 id다(지금 layout의 `frames[].title`).
+19. **글이 바뀔 때 지우고 다시 친다(사람).** 작업 notice의 글이 바뀌면(새 note 또는 새 프레임) 지금 글의 다른 끝부분이 한 글자씩 지워지고 새 글의 다른 끝부분이 한 글자씩 쳐진다. 속도는 조정할 수 있는 값이다(tasks U1·E2).
+    - 공통 앞부분은 남긴다(사람, Q7). "Working on Plans" → "Working on Checkout"이면 "Plans"만 지우고 "Checkout"만 친다. 공통 앞부분도 grapheme 단위로 잰다.
+    - 커서(사람, Q8을 바꿈): 작업 notice가 보이는 동안 텍스트 커서가 늘 있다. 커서는 카드의 오른쪽 끝에 붙지 않고, 보이는 마지막 글자 바로 오른쪽에 글과 한 줄로 놓인다: 지울 때는 왼쪽으로, 칠 때는 오른쪽으로 움직인다. 너비 규칙(결정 20)으로 카드가 글보다 넓으면 커서는 글 바로 뒤에 있고 그 뒤가 빈다. 최대 너비에서 글이 말줄임표로 잘리면 커서는 말줄임표 바로 뒤에 있다. 지우고 치는 동안에는 깜빡이지 않고, 글이 멈춰 있으면 깜빡인다(1초 주기, 서서히가 아니라 켜짐·꺼짐 두 단계; 주기는 조정 가능). 장식이므로 `aria-hidden`이고 status 글에 들지 않는다. 너비 규칙(결정 20)에는 들지 않고 자기 고정 너비만 차지한다. 색은 작업 notice 글자색(`--text-on-prominent`), 높이는 `--type-body-sm-size`, 너비는 `--space-1`의 절반, 글과의 간격은 `--space-1`이다. `prefers-reduced-motion`에서는 깜빡이지 않고 보이기만 한다.
+    - 글자 단위는 grapheme(`Intl.Segmenter`)이다. 한글 음절과 이모지가 반쪽으로 보이지 않게 하기 위해서다.
+    - 속도(사람): 지우기 20 ms/글자, 치기 35 ms/글자. 둘을 더한 시간이 1,000 ms를 넘으면 두 간격을 같은 비율로 줄여 1,000 ms 안에 끝낸다. 보통의 변경이 800–1,000 ms쯤 걸리고, 짧은 변경은 더 빨리 끝난다. 상한은 긴 note가 다음 `update`보다 늦게 끝나지 않게 하기 위해서다.
+    - 애니메이션 중에 새 `update`가 오면 남은 단계를 버리고, 지금 보이는 글에서 가장 새 글로 같은 규칙(공통 앞부분 유지, 지우고 치기)을 다시 시작한다.
+    - 접근성: 보이는 글자 줄은 `aria-hidden`이고, 같은 카드 안의 `role="status"` 요소(`sr-only`)에는 최종 글이 바로 들어간다. 스크린 리더는 중간 글을 읽지 않는다. tooltip도 최종 글이다.
+    - `prefers-reduced-motion`에서는 글이 바로 바뀐다.
+    - 처음 나타날 때(작업이 시작돼 카드가 생길 때)와 앱 대화가 이겨 글이 바뀔 때도 같은 규칙이다.
+20. **지우고 치는 동안 카드가 줄어들지 않는다(사람).** 글 칸의 너비 = max(보이는 글의 너비, min(이전 글의 너비, 새 글의 너비))이고, 카드의 최대 너비(420px 열)는 그대로다. 새 글이 짧으면 지우는 동안 카드는 새 글 너비까지만 줄고, 새 글이 길면 지우는 동안 이전 너비를 지키다가 새 글이 그보다 길어질 때 넓어진다. 구현은 `update` 하나에 한 번, 숨긴 측정 노드로 이전 글과 새 글의 너비를 재고, 애니메이션 동안 글과 커서를 담은 줄에 `min-width: min(이전, 새)`(커서와 간격 포함, 카드 열 너비를 넘지 않음)를 준다. 보이는 글이 그보다 넓으면 그 너비가 이긴다. 글 노드 자체를 넓히지 않으므로 커서는 글 바로 뒤에 남는다. 단계마다 다시 재지 않는다. 끝나면 `min-width`를 지운다. reduced motion에서는 너비가 한 번에 바뀐다.
 
 ## 1. 영향 받는 구성 요소
 
@@ -43,8 +54,8 @@
 4. **터미널 상태.** `update`는 세션에 (root, path)가 없으면 더하고, 그 항목의 작업 내용을 `{frame, note}`로 바꾸며(빠진 쪽은 비움), 세션의 `started`와 항목의 `touched`를 지금으로 한다. `start`는 작업 내용을 건드리지 않고 `touched`만 새로 한다. 상한(`MAX_WORK_PATHS`)에 걸린 `update`는 세션만 새로 센다.
 5. **대화 상태.** main은 `conversation` id가 같은 root에서 지금 턴을 돌리는(받아들여졌고 끝나지 않은) 대화일 때만 받는다. 받으면 그 대화의 작업 내용 하나를 바꾸고 `turnId`를 적는다. 맞지 않는 id, 끝난 턴, 다른 root는 `ok: true`로 답하고 버린다(에이전트가 할 수 있는 일이 없으므로 새 오류 코드를 만들지 않는다). 대화 쪽 `update`는 자동 등록하지 않는다(앱 대화의 root는 이미 등록돼 있다).
 6. **고르기(renderer).** 열린 캔버스(root + path)에 대해: 이 캔버스의 현재 대화가 일하거나 기다리면 그 대화의 작업 내용 중 path가 이 캔버스인 것. 아니면 이 root에서 path가 이 캔버스인 project 대화 작업 내용과 터미널 항목 중 `touched`가 가장 늦은 것.
-7. **작업 notice의 글.** 지금의 작업 notice(`.doan-agent-text`) 글을 바꾼다. note → "Working on <frame title>"(초안 값, §9 Q4) → "Agent is working". 캔버스 대화의 Stop, "Agent needs your answer"와 Open은 그대로다. 문구는 텍스트 노드로만 넣는다.
-8. **작업 프레임 표시(결정 16·17).** 고른 작업 내용의 frame이 지금 layout에 있으면 그 사각형에 jump highlight 모양의 표시를 둔다(`.mark.jump-highlight`에 작업용 수식어를 더한 class, 1.2초 타이머와 fade 없음). 문서를 다시 불러오는 동안(`CanvasState.reloading`)은 지우고, 새 layout에서 같은 id로 다시 찾는다. `pointer-events: none`, 선택·hover 표시보다 아래, Hand 드래그 층보다 아래. 다른 프레임으로 갈 때는 위치와 크기가 옮겨 간다(잠정 `--time-settle` 220ms, `--ease-settle`). 작업 중에는 gradient가 선을 따라 돌고(잠정 4.8초 한 바퀴, linear) glow 투명도가 숨 쉰다(잠정 2.4초, `--ease-state`; 작업 notice의 점 `doan-agent-breathe`와 같은 주기). reduced motion에서는 셋 다 없다. reduced transparency에서는 jump highlight처럼 glow를 뺀다. forced colours에서는 jump highlight처럼 3 px `Highlight` 테두리다. 사람이 그 사이 frame drawer 등으로 다른 프레임에 jump하면 그 프레임에는 지금처럼 1.2초 jump highlight가 따로 나온다.
+7. **작업 notice의 글.** 지금의 작업 notice(`.doan-agent-text`) 글을 바꾼다. note → "Working on <frame title>"(결정 18) → "Agent is working". 글이 바뀔 때는 결정 19의 지우고 치기를 따른다. 캔버스 대화의 Stop, "Agent needs your answer"와 Open은 그대로다. 문구는 텍스트 노드로만 넣는다.
+8. **작업 프레임 표시(결정 16·17).** 고른 작업 내용의 frame이 지금 layout에 있으면 그 사각형에 jump highlight 모양의 표시를 둔다(`.mark.jump-highlight`에 작업용 수식어를 더한 class, 1.2초 타이머와 fade 없음). 문서를 다시 불러오는 동안(`CanvasState.reloading`)은 지우고, 새 layout에서 같은 id로 다시 찾는다. `pointer-events: none`, 선택·hover 표시보다 아래, Hand 드래그 층보다 아래. 다른 프레임으로 갈 때는 위치와 크기가 옮겨 간다(`--time-settle` 220ms, `--ease-settle`, 결정 17). 작업 중에는 gradient가 선을 따라 돌고(4.8초 한 바퀴, linear) glow 투명도가 숨 쉰다(2.4초, `--ease-state`; 작업 notice의 점 `doan-agent-breathe`와 같은 주기). reduced motion에서는 셋 다 없다. reduced transparency에서는 jump highlight처럼 glow를 뺀다. forced colours에서는 jump highlight처럼 3 px `Highlight` 테두리다. 사람이 그 사이 frame drawer 등으로 다른 프레임에 jump하면 그 프레임에는 지금처럼 1.2초 jump highlight가 따로 나온다.
 9. **따라가기.**
    - 시작 조건: 고른 작업 내용의 frame이 직전 값과 다르고(같은 frame의 다음 `update`나 reload는 시작 조건이 아니다), 그 frame이 layout에 있고, `now - lastPersonMove >= FOLLOW_IDLE_MS`, 이 작업 턴의 멈춤 표시가 없고, pick·드래그·Space 누름 중이 아닐 때.
    - 이동: 프레임이 화면 안에 다 보이면 옮기지 않는다. 아니면 `CanvasController.jump`의 이동 계산을 쓰되 선택하지 않고 1.2초 jump highlight도 더하지 않는다(작업 프레임 표시가 같은 모양으로 이미 있다). 이동은 지금의 jump처럼 바로 일어난다(view 애니메이션 없음).
@@ -68,6 +79,7 @@ project 대화는 Home이나 Overview에서 시작되고, 그 대화가 이름�
 
 - (a) note가 글이 된 작업 notice: 터미널, 캔버스 대화(Stop 있음), project 대화(Stop 없음)
 - (b) note 없이 프레임 제목이 들어간 작업 notice
+- (b2) 글이 바뀔 때 지우고 치기: 단계 순서와 시간, 중간에 새 update가 온 경우, reduced motion
 - (c) 긴 note의 말줄임표와 tooltip
 - (d) 작업 프레임 표시(jump highlight 모양, 살아 있는 gradient와 glow): 보통, 같은 프레임이 선택됨, hover 중
 - (e) 표시할 프레임 id가 문서에 없음(문구만)
@@ -76,7 +88,7 @@ project 대화는 Home이나 Overview에서 시작되고, 그 대화가 이름�
 - (g) 따라가기 멈춤: 사람이 팬한 뒤 다음 `update`(표시만 옮겨 가고 화면은 그대로, 멈춤 표시 없음)
 - (h) reduced motion(멈춘 표시). 앱은 light only라서 다크 모드는 그리지 않는다(DESIGN.md 'Doan adjustments' 'Light only').
 
-초안 요청: 캔버스 `.doan/canvases/work-update.html`, canvas id `work-update`, frame id `notice-states`(a·b·c), `marker-states`(d·e), `marker-moves`(f), `follow`(f2·g), `reduced-motion`(h). `/design-sync`는 이 다섯 frame을 비교한다.
+초안 요청: 캔버스 `.doan/canvases/work-update.html`, canvas id `work-update`, frame id `notice-states`(a·b·c), `notice-typing`(b2), `marker-states`(d·e), `marker-moves`(f), `follow`(f2·g), `reduced-motion`(h). `/design-sync`는 이 여섯 frame을 비교한다.
 
 새 파일에 그리고, 참고 원본 `.doan/canvases/terminal-agent-activity.html`(`terminal-notice`)과 `buzz-canvas.html`(`agent-working`)은 고치지 않는다.
 
@@ -105,7 +117,8 @@ TS main:
 TS renderer:
 
 8. `pickWork(open, presence, conversationWork, terminalWork)` — §1 규칙 6.
-9. `agentNoticeView` 확장 — 문구, project 대화 변형(Stop 없음).
+9. `agentNoticeView` 확장 — 문구(프레임 제목, 없으면 id), project 대화 변형(Stop 없음).
+9b. `typingSteps(from, to, {eraseMs, typeMs, capMs, fromWidth, toWidth})` → `{text, at, minWidth}[]` — 결정 19·20: grapheme 공통 앞부분, 끝부분만 지우고 치는 순서와 시각, 1,000 ms 상한의 비율 축소, 단계마다의 너비 하한(애니메이션 동안 `min(fromWidth, toWidth)`, 마지막 단계는 없음). 중간 교체는 호출자가 지금 보이는 글을 `from`으로 다시 부른다.
 10. `workFrameRect(layout, id)`.
 11. `followDecision({frame, previousFrame, rect, viewport, lastPersonMove, now, stopped, busy})` → `"move" | "stay"`와 이동할 view — §1 규칙 9의 시작 조건과 "이미 보임".
 12. `followTurnKey(item)`, 멈춤 표시 갱신 `followStopped(state, key, personMoved)`.
@@ -165,12 +178,6 @@ TS renderer:
 - `ConversationService.receive`가 턴 끝 이벤트를 처리하는 곳(같은 파일)이 대화 작업 내용을 지울 자리다. archive(`archive()`), 삭제, 종료도 같은 정리를 부른다.
 - project 대화의 캔버스는 `ProjectTurn` 증거와 판정(`project.ts`)으로 턴 뒤에 정해진다. `update`가 주는 path는 이 판정에 넣지 않는다(결정 11). 표시는 `update`의 path로만 정한다.
 
-## 9. 남은 질문(초안의 잠정값)
+## 9. 사용자 확정
 
-`/design-draft` 초안이 "Provisional — needs confirmation"으로 그린 값이다. 사람이 앱에서 초안을 보고 정한다. 초안은 `.doan/canvases/work-update.html`에 그렸고 아직 사람이 확인하지 않았다. 따라가기 전 쉬는 시간 5초도 초안에 잠정값으로 적었고, tasks E2에서 조정한다.
-
-- **Q1. gradient가 도는 속도**: 한 바퀴 4.8초(작업 notice 점의 2.4초 주기의 두 배), linear. 바뀌는 곳: §1 규칙 8, 초안 `marker-states`.
-- **Q2. glow가 숨 쉬는 폭과 주기**: accent 45 % glow의 투명도 0.55 ↔ 1, 2.4초, `--ease-state`. 바뀌는 곳: §1 규칙 8, 초안 `marker-states`.
-- **Q3. 다른 프레임으로 옮겨 가는 방식**: 위치와 크기가 `--time-settle`(220ms) `--ease-settle`로 미끄러진다. 바뀌는 곳: §1 규칙 8, 초안 `marker-moves`.
-- **Q4. 프레임 제목만 있을 때의 글**: "Working on <frame title>". 바뀌는 곳: §1 규칙 7, spec 완료 조건 5, 초안 `notice-states`.
-- **Q5. Doan 연결 프로필에 넣을 허용의 범위**: 터미널과 같은 네 규칙(Claude), 모든 `doan` 명령(Codex rule)으로 그렸다. 사람의 답은 "`doan work update`의 허용"이었으므로 `update`만으로 좁힐지 확인한다. 바뀌는 곳: 결정 12, tasks B4.
+사용자 확정(2026-11-05): 초안 확인, 질문 Q1–Q8 답. 수정본의 최종 모양도 사용자가 앱에서 확인했다. 구현 주의: 카드는 내용 폭으로 정해지므로 줄의 폭 하한을 퍼센트(`min(100%, …)`)로 주면 0으로 계산되어 하한이 걸리지 않는다(초안 미리보기에서 확인함). px 값으로 주고, 카드가 쓸 수 있는 폭으로 상한을 둔다. 초안은 `.doan/canvases/work-update.html`이다. 마지막 수정본(너비 규칙, 공통 앞부분, 커서)의 모양은 사람이 아직 앱에서 다시 보지 않았다. 지우고 치는 속도(20·35 ms/글자, 1,000 ms 상한), 커서 깜빡임 주기(1초)와 따라가기 전 쉬는 시간(5초)은 확정한 시작값이고, tasks U1·E2에서 조정할 수 있다.
