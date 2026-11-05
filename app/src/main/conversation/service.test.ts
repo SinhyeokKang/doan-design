@@ -2394,6 +2394,30 @@ describe("prompt suggestions", () => {
     h.service.connectionChanged("claude", "conn-2");
     expect(h.shown(id)).toBeUndefined();
   });
+  // Batch M review: a connection change must also refuse a suggestion the earlier run sends after it.
+  it.each([["signs out", undefined], ["changes", "conn-2"]] as const)("ignores a suggestion that first arrives after the Claude connection %s", async (_name, next) => {
+    const h = suggesting(); const id = await h.start();
+    h.service.receive(id, { type: "turn.done" });
+    h.service.connectionChanged("claude", next);
+    const before = h.changes.length;
+    h.suggest(0, "Stale connection suggestion");
+    expect(h.shown(id)).toBeUndefined(); expect(h.changes.length).toBe(before);
+  });
+  it("does not take a cleared suggestion back when the earlier run sends it again", async () => {
+    const h = suggesting(); const id = await h.start();
+    h.service.receive(id, { type: "turn.done" }); h.suggest(0, "Run the tests");
+    h.service.connectionChanged("claude", "conn-2");
+    h.suggest(0, "Run the tests");
+    expect(h.shown(id)).toBeUndefined();
+  });
+  it("takes the suggestion of a run on the connection signed in now", async () => {
+    const h = suggesting(); const id = await h.start();
+    h.service.receive(id, { type: "turn.done" });
+    h.service.connectionChanged("claude", "conn-2"); h.reconnect("conn-2");
+    h.runs[0]!.exited(); await h.service.send(id, "next", []); h.service.receive(id, { type: "turn.done" });
+    h.suggest(1, "On the new connection");
+    expect(h.shown(id)).toBe("On the new connection");
+  });
   it("keeps a legacy external conversation's suggestion across connection changes", async () => {
     const h = suggesting();
     h.prepare.mockImplementation(async (_request, stored) => ({ runtime: "claude" as const, configDir: "/profile", cwd: "/repo", command: "/fake", env: {}, ...(stored ? { sessionId: stored.session.sessionId } : {}) }));
