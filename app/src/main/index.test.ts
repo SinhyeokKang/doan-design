@@ -134,6 +134,16 @@ vi.mock("./runtime", () => ({ startRuntime: mocks.startRuntime }));
 vi.mock("./addProjects", async (importOriginal) => ({ ...await importOriginal<typeof import("./addProjects")>(), createAddFlow: mocks.createAddFlow }));
 vi.mock("./inspector", async (importOriginal) => ({ ...await importOriginal<typeof import("./inspector")>(), createInspector: mocks.createInspector }));
 vi.mock("./uiState", () => ({ createUiStateStore: mocks.createUiStateStore }));
+// provider-usage R3: the first tool-facts probe and the usage service's triggers, observed where index.ts wires them.
+const usageProbe = vi.hoisted(() => ({ read: undefined as undefined | (() => Promise<unknown>), triggers: [] as unknown[] }));
+vi.mock("./agentAuth/ipc", async (importOriginal) => {
+  const original = await importOriginal<typeof import("./agentAuth/ipc")>();
+  return { ...original, AuthIpc: class extends original.AuthIpc { override read() { return usageProbe.read ? usageProbe.read() as ReturnType<InstanceType<typeof original.AuthIpc>["read"]> : super.read(); } } };
+});
+vi.mock("./agentAuth/usageService", async (importOriginal) => {
+  const original = await importOriginal<typeof import("./agentAuth/usageService")>();
+  return { ...original, UsageService: class extends original.UsageService { override trigger(event: Parameters<InstanceType<typeof original.UsageService>["trigger"]>[0]) { usageProbe.triggers.push(event); return super.trigger(event); } } };
+});
 vi.mock("./canvasSeen", async (importOriginal) => {
   const original = await importOriginal<typeof import("./canvasSeen")>();
   return { createCanvasSeenStore: (file: string) => {
@@ -157,6 +167,8 @@ let settleSetup: (value: unknown) => void = () => {};
 beforeEach(async () => {
   vi.resetModules();
   vi.clearAllMocks();
+  usageProbe.read = undefined;
+  usageProbe.triggers.length = 0;
   mocks.app.removeAllListeners();
   mocks.Window.instances.length = 0;
   mocks.ipc.clear();
@@ -2452,5 +2464,35 @@ describe("background onboarding launch and start", () => {
     mocks.app.isActive.mockReturnValue(true);
     expect(() => mocks.app.emit("did-become-active")).not.toThrow();
     expect(window().show).not.toHaveBeenCalled();
+  });
+});
+
+// provider-usage B2: the usage read answers the window's entries; a frame that is not the window gets an empty list.
+test("answers agent-usage:read with entries for the window and an empty list for anyone else", async () => {
+  const contents = window().webContents;
+  const entries = await invoke("agent-usage:read", contents, null, undefined);
+  expect(Array.isArray(entries)).toBe(true);
+  expect(await invoke("agent-usage:read", contents, {}, { trigger: "refresh" })).toEqual([]);
+  expect(await invoke("agent-usage:read", {}, null, undefined)).toEqual([]);
+  expect(await invoke("agent-usage:read", contents, null, { trigger: "start" })).toEqual([]);
+});
+
+// Decision 17: blocked providers stay hidden only until the first tool-facts probe ends, whichever way it ends.
+describe("the usage start trigger", () => {
+  const started = () => usageProbe.triggers.filter(trigger => (trigger as { kind: string }).kind === "start");
+  test.each([
+    ["resolves", () => Promise.resolve({})],
+    ["rejects", () => Promise.reject(new Error("probe failed"))],
+  ])("comes once the tool probe %s", async (_name, read) => {
+    // The file-wide beforeEach already launched once with a real probe; relaunch with this one.
+    usageProbe.read = read;
+    usageProbe.triggers.length = 0;
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    await vi.resetModules();
+    mocks.Window.instances.length = 0;
+    mocks.ipc.clear();
+    await import("./index");
+    await vi.waitFor(() => expect(started()).toHaveLength(1));
+    error.mockRestore();
   });
 });

@@ -116,6 +116,8 @@
   --border-field-focus: var(--neutral-5);
   --border-danger: var(--red-9);
   --border-warning: var(--amber-11);
+  /* A ring's track on the translucent chrome, where --border-standard (1.1:1 on --bg-app) disappears. */
+  --border-track: color-mix(in srgb, var(--affordance-prominent) 15%, transparent);
   --scrollbar-thumb-quiet: color-mix(in srgb, var(--border-standard) 90%, transparent);
 
   --affordance-prominent: var(--neutral-12);

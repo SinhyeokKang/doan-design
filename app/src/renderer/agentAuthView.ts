@@ -1,5 +1,5 @@
 import type { AuthReason, AuthSnapshot } from "../main/agentAuth/ipc";
-import type { AuthStatusDto, Provider } from "../main/agentAuth/types";
+import type { AuthAttempt, AuthErrorCode, AuthStatusDto, Provider } from "../main/agentAuth/types";
 import type { SettingsTarget } from "./settingsSections";
 
 // Shared by onboarding, Settings, Home and conversations (2026-10-28 user). Copy follows the approved
@@ -141,6 +141,20 @@ export function providerView(status: AuthStatusDto, ctx: ProviderContext = {}): 
   }
   const settled = withSignOut(status, ctx, readinessView(status, ctx, view));
   return attempt?.kind === "check" ? disable(settled) : settled;
+}
+
+// The sentence a Settings > Agents row leads with (its notice's title, else its body, else its detail) for a connected
+// provider known only by what that wording depends on. Agent usage shows it for a connection that can't be used
+// (ARCHITECTURE §7 'Agent usage'), so the two never word one state differently.
+export function connectionLine(provider: Provider, facts: Pick<AuthStatusDto, "phase" | "readiness"> & { error?: AuthErrorCode; attempt?: AuthAttempt["kind"] }): string {
+  // The row's wording never reads the revision, actions, attempt ID or retryable flag; an empty account is connected without an email.
+  const status: AuthStatusDto = {
+    provider, revision: 0, phase: facts.phase, account: {}, readiness: facts.readiness, actions: [],
+    attempt: facts.attempt ? { id: "", kind: facts.attempt, cancelling: false } : null, error: facts.error ? { code: facts.error, retryable: false } : null,
+  };
+  const view = providerView(status, { settings: true });
+  // Only a busy row without an attempt, which agent-auth never produces, has no sentence of its own.
+  return view.notice?.title ?? view.notice?.body ?? view.detail ?? "Not available right now";
 }
 
 // Settings keeps Sign out on every connected row (first run shows it only to recover), once per row.

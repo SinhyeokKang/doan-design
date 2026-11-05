@@ -97,3 +97,11 @@ test("restricts every MCP Connectors request channel to main and refuses its eve
   }
   for (const kind of ["main", "settings"]) for (const channel of [MCP_CHANNELS.changed, "mcp-connectors:delete", "mcp-connectors:"]) expect(senderAllowed(channel, kind)).toBe(false);
 });
+// provider-usage B2: the usage read is a main-window request; :changed is an event main sends, never a request.
+test("restricts the agent usage read to main and refuses its event", async () => {
+  const { USAGE_CHANNELS } = await import("./agentAuth/usageIpc");
+  expect(USAGE_CHANNELS).toEqual({ read: "agent-usage:read", changed: "agent-usage:changed" });
+  expect(senderAllowed(USAGE_CHANNELS.read, "main")).toBe(true);
+  for (const kind of ["settings", "capture", undefined]) expect(senderAllowed(USAGE_CHANNELS.read, kind)).toBe(false);
+  for (const kind of ["main", "settings"]) for (const channel of [USAGE_CHANNELS.changed, "agent-usage:", "agent-usage:refresh"]) expect(senderAllowed(channel, kind)).toBe(false);
+});

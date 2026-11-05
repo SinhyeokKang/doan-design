@@ -54,6 +54,8 @@ import { canvasPanelDefault, OVERVIEW_PANEL_DEFAULT, panelBounds, panelWidth } f
 import { SIDEBAR_BOUNDS, sidebarToggleView, sidebarWidth, type SidebarToggleView } from "./sidebarSize";
 import { duplicateIdText } from "./canvasView";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./components/ui/tooltip";
+import { AgentUsageButton } from "./AgentUsageButton";
+import type { CanvasPress } from "./ComposerParts";
 import { Wizard } from "./Onboarding";
 import { isMainCheckout } from "./projectStep";
 import { ProjectOverview } from "./ProjectOverview";
@@ -1105,10 +1107,12 @@ export function App() {
     const next = preferenceAfterPick(preferences?.preferences.newConversation ?? null, { provider, model: null, effort: null, permissionMode: mode });
     if (next) void savePreferences({ newConversation: next });
   }
-  // Escape leaves a page unless a field or an IME composition holds it, or an overlay closes itself first.
+  // Escape leaves a page unless a field or an IME composition holds it, or an overlay closes itself first. A Radix
+  // popover (the usage popover) closes on Escape and prevents the default; its role="dialog" content is not one the
+  // overlay query finds, so a handled Escape is skipped as CanvasController skips it.
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || (currentScreen.current !== "addProjects" && currentScreen.current !== "settings" && currentScreen.current !== "projectSettings")) return;
+      if (event.key !== "Escape" || event.defaultPrevented || (currentScreen.current !== "addProjects" && currentScreen.current !== "settings" && currentScreen.current !== "projectSettings")) return;
       live.current.leavePage(pageEscape(event, live.current.modal || !!document.querySelector('dialog[open], [role="menu"], [role="tooltip"]')));
     };
     window.addEventListener("keydown", keydown);
@@ -1723,7 +1727,8 @@ export function App() {
   const sidebarToggle = sidebarToggleView(sidebarHidden, shellSlots);
   const topBar = (overPage: boolean) => <TopBar sidebar={{ view: sidebarToggle, controls: sidebarHidden ? undefined : sidebarId(overPage), toggle: toggleSidebar }} back={anyPage || back !== null} forward={!anyPage && forward !== null} page={onPage ? "addProjects" : onSettings ? "settings" : null} locked={pageLocked}
     previous={() => anyPage ? leavePage({ kind: "back" }) : travel(back)} next={() => travel(forward)}
-    addProjects={openAddProjects} projects={() => { const move = projectsTab(currentScreen.current); if (move === "leavePage") leavePage({ kind: "projectsTab" }); else if (move === "home") home(); }} settings={() => { if (!locked()) openSettings({}); }} />;
+    addProjects={openAddProjects} projects={() => { const move = projectsTab(currentScreen.current); if (move === "leavePage") leavePage({ kind: "projectsTab" }); else if (move === "home") home(); }} settings={() => { if (!locked()) openSettings({}); }}
+    usage={{ openSettings: () => { if (locked()) return false; openSettings({ section: "agents" }); return true; }, canvasPress: controller.current?.canvasPress }} />;
   // The selection-lost notice is an event: a toast once, not a line left on the board.
   const shownNotice = useRef("");
   useEffect(() => {
@@ -1825,7 +1830,7 @@ function topDialog(): HTMLDialogElement | null {
 
 // Add Projects, Projects and Settings are page tabs; on a page Back returns to where it was opened from. `locked` marks
 // the tabs and Back unavailable while App ignores them (buzz-add-projects and buzz-settings design '잠금').
-function TopBar({ sidebar, back, forward, previous, next, page, locked, addProjects, projects, settings }: { sidebar: { view: SidebarToggleView; controls: string | undefined; toggle(): void }; back: boolean; forward: boolean; previous(): void; next(): void; page: "addProjects" | "settings" | null; locked: boolean; addProjects(): void; projects(): void; settings(): void }) {
+function TopBar({ sidebar, back, forward, previous, next, page, locked, addProjects, projects, settings, usage }: { sidebar: { view: SidebarToggleView; controls: string | undefined; toggle(): void }; back: boolean; forward: boolean; previous(): void; next(): void; page: "addProjects" | "settings" | null; locked: boolean; addProjects(): void; projects(): void; settings(): void; usage: { openSettings(): boolean; canvasPress?: CanvasPress | undefined } }) {
   const unavailable = locked || undefined;
   const tab = (name: typeof page) => name === page ? { className: "current", "aria-current": "page" as const } : {};
   return <header className="top shell-top"><span className="traffic-space" aria-hidden="true" />
@@ -1836,6 +1841,8 @@ function TopBar({ sidebar, back, forward, previous, next, page, locked, addProje
         <TooltipContent className="has-key">{sidebar.view.icon === "hide" ? "Hide sidebar" : "Show sidebar"}<span className="doan-kbd" data-ui-variant="on-prominent" data-ui-size="sm">⌘B</span></TooltipContent></Tooltip>
       <button className="doan-icon-button" data-ui-placement="chrome" aria-label="Back" disabled={!back} aria-disabled={unavailable} onClick={previous}><ArrowLeft /></button><button className="doan-icon-button" data-ui-placement="chrome" aria-label="Forward" disabled={!forward} onClick={next}><ArrowRight /></button></div>
     <div className="shell-modes"><button {...tab("addProjects")} aria-disabled={unavailable} onClick={addProjects}><Plus />Add Projects</button><button {...tab(null)} aria-disabled={unavailable} onClick={projects}><LayoutGrid />Projects</button><button {...tab("settings")} aria-disabled={unavailable} onClick={settings}><Settings />Settings</button></div>
+    {/* The header's right end, beside the tabs (docs/DESIGN.md 'Agent usage'). */}
+    <AgentUsageButton openSettings={usage.openSettings} canvasPress={usage.canvasPress} />
   </header>;
 }
 

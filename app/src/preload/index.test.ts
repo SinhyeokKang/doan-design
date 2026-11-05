@@ -284,6 +284,58 @@ test("keeps delivering agent account changes when the initial read is refused", 
   stop();
 });
 
+test("reads agent usage with only an optional open or refresh trigger", async () => {
+  const entries = [{ provider: "claude", inFlight: false }];
+  mocks.invoke.mockResolvedValue(entries);
+  expect(await api.readAgentUsage()).toBe(entries);
+  expect(mocks.invoke).toHaveBeenLastCalledWith("agent-usage:read", {});
+  await api.readAgentUsage("open");
+  expect(mocks.invoke).toHaveBeenLastCalledWith("agent-usage:read", { trigger: "open" });
+  await api.readAgentUsage("refresh");
+  expect(mocks.invoke).toHaveBeenLastCalledWith("agent-usage:read", { trigger: "refresh" });
+});
+
+test("delivers agent usage from one read without a trigger, then change events, and unsubscribes", async () => {
+  let resolve: (value: unknown) => void = () => {};
+  mocks.invoke.mockImplementation(() => new Promise(done => { resolve = done; }));
+  const seen: unknown[] = [];
+  const stop = api.onAgentUsage(entries => seen.push(entries));
+  expect(mocks.invoke).toHaveBeenCalledTimes(1);
+  expect(mocks.invoke).toHaveBeenCalledWith("agent-usage:read", {});
+  resolve([{ provider: "codex", inFlight: true }]); await Promise.resolve(); await Promise.resolve();
+  emitter.emit("agent-usage:changed", {}, [{ provider: "codex", inFlight: false }]);
+  expect(seen).toEqual([[{ provider: "codex", inFlight: true }], [{ provider: "codex", inFlight: false }]]);
+  stop();
+  emitter.emit("agent-usage:changed", {}, []);
+  expect(seen).toHaveLength(2);
+  expect(emitter.listenerCount("agent-usage:changed")).toBe(0);
+});
+
+test("never lets the first agent usage read replace a change that arrived before it", async () => {
+  let resolve: (value: unknown) => void = () => {};
+  mocks.invoke.mockImplementation(() => new Promise(done => { resolve = done; }));
+  const seen: unknown[] = [];
+  const stop = api.onAgentUsage(entries => seen.push(entries));
+  emitter.emit("agent-usage:changed", {}, [{ provider: "claude", inFlight: false }]);
+  resolve([]); await Promise.resolve(); await Promise.resolve();
+  expect(seen).toEqual([[{ provider: "claude", inFlight: false }]]);
+  stop();
+  const later: unknown[] = [];
+  const stopLater = api.onAgentUsage(entries => later.push(entries));
+  stopLater(); resolve([]); await Promise.resolve(); await Promise.resolve();
+  expect(later).toEqual([]);
+});
+
+test("keeps delivering agent usage changes when the first read is refused", async () => {
+  mocks.invoke.mockRejectedValueOnce(new Error("No handler registered for 'agent-usage:read'"));
+  const seen: unknown[] = [];
+  const stop = api.onAgentUsage(entries => seen.push(entries));
+  await new Promise(resolve => setTimeout(resolve, 0));
+  emitter.emit("agent-usage:changed", {}, []);
+  expect(seen).toEqual([[]]);
+  stop();
+});
+
 test("delivers this window's sign-in links until unsubscribed", () => {
   const prompts: unknown[] = [];
   const stop = api.onAgentSignInPrompt(prompt => prompts.push(prompt));

@@ -29,6 +29,8 @@ const mainOnly = new Set([
   "config:session-start", "config:session-end",
   "setup:open-external",
   "agent-auth:read", "agent-auth:check", "agent-auth:sign-in", "agent-auth:cancel", "agent-auth:submit-code", "agent-auth:open-link", "agent-auth:sign-out",
+  // provider-usage: the header's usage rings; agent-usage:changed is an event main sends, not a request.
+  "agent-usage:read",
   // mcp-connectors: Settings > MCP Connectors; mcp-connectors:changed is an event main sends, not a request.
   "mcp-connectors:list", "mcp-connectors:add", "mcp-connectors:connect", "mcp-connectors:disconnect", "mcp-connectors:remove", "mcp-connectors:cancel", "mcp-connectors:open-link",
   "config:read", "config:write", "config:choose",

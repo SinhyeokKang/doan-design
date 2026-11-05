@@ -2120,3 +2120,30 @@ describe("MCP connector steps", () => {
     hooked.close();
   });
 });
+
+// provider-usage B1 (POSTMORTEM 2026-10-30): a usage read is not a conversation the person would be asked to stop.
+describe("usage leases", () => {
+  it("lets a sign-out stop a usage read without stop_required, waiting for its lease", async () => {
+    const leases: Awaited<ReturnType<AuthManager["acquire"]>>[] = [];
+    const stopRuns = vi.fn(async (_provider: Provider) => { for (const lease of leases.splice(0)) setTimeout(() => void lease.release(), 5); });
+    const m = manager({ stopRuns }); await m.load();
+    await signedInCursor(m, "u1");
+    leases.push(await m.acquire("cursor", "usage"));
+    const out = started(await m.signOut("cursor"));
+    expect(stopRuns).toHaveBeenCalledWith("cursor");
+    const status = await next("status");
+    expect(leases).toEqual([]);
+    settledSet.add(status); status.finish(0);
+    expect(await out.done).toMatchObject({ phase: "disconnected", connection: null });
+  });
+  it("does not keep a conversation from taking its own lease while a usage read holds one", async () => {
+    const m = manager(); await m.load();
+    await signedInCursor(m, "u1");
+    const usage = await m.acquire("cursor", "usage");
+    const run = await m.acquire("cursor", "run");
+    expect(run.profileDir).toBe(usage.profileDir);
+    expect(await m.signOut("cursor")).toEqual(expect.objectContaining({ ok: false, reason: "stop_required" }));
+    await run.release();
+    await usage.release();
+  });
+});

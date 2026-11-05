@@ -27,6 +27,8 @@ const EXTRA_ROOTS = [
   join(SRC, "main/mcpConnectors/presets.ts"),
   // agent-questions: the question types and limits and the shared answer check the question card imports by value.
   join(SRC, "main/conversation/question.ts"), join(SRC, "main/conversation/questionAnswer.ts"),
+  // Agent usage: the ring value, usage text and description the usage button imports by value.
+  join(SRC, "renderer/agentUsage.ts"),
 ];
 
 function entries(): string[] {

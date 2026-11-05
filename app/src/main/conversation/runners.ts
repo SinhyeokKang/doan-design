@@ -51,9 +51,13 @@ function verdicts(input: Prepared): (verdict: HandshakeVerdict) => void {
     if (verdict === "incompatible") { recorded = true; input.incompatible?.(); } else input.compatible?.();
   };
 }
-function timeout<T>(promise: Promise<T>): Promise<T> {
+// A Claude turn's usage read keeps the CLI's input open, and the next send waits for that process (service.ts
+// EXIT_WAIT_MS, 10 s): this cap plus the slowest observed exit after closing (5.0 s, D1) stays inside that wait, so
+// a CLI that never answers delays the next send by at most this, never refuses it as busy. An answer took 0.2-1 s (PoC).
+const TURN_USAGE_MS = 3000;
+function timeout<T>(promise: Promise<T>, ms = 10000): Promise<T> {
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error("process_exited")), 10000);
+    const timer = setTimeout(() => reject(new Error("process_exited")), ms);
     promise.then(value => { clearTimeout(timer); resolve(value); }, error => { clearTimeout(timer); reject(error); });
   });
 }
@@ -83,7 +87,11 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
   let defaults: CodexDefaults | undefined, workspace: CodexWorkspace = {};
   const write = (value: unknown) => { if (dead || !child.stdin.writable) throw new Error("process_exited"); child.stdin.write(JSON.stringify(value) + "\n"); };
   let protocolFailed = false;
-  const dispatcher = new CodexDispatcher(write, emit, () => failProtocol(), id => input.steerConsumed?.(id));
+  // A done turn reads the account's usage on this server, which lives between turns (ARCHITECTURE §7 'Agent usage').
+  const dispatcher: CodexDispatcher = new CodexDispatcher(write, event => {
+    emit(event);
+    if (event.type === "turn.done") void input.usageAtTurnEnd?.(() => dispatcher.query("account/rateLimits/read", undefined)).catch(() => {});
+  }, () => failProtocol(), id => input.steerConsumed?.(id));
   const failProtocol = () => {
     if (protocolFailed) return; protocolFailed = true;
     emit({ type: "turn.failed", code: "session_unavailable" }); dispatcher.close(); void group?.stop();
@@ -346,7 +354,12 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
             if (result.awaitingRead && !readWait) readWait = setTimeout(expireRead, STEER_READ_WAIT_MS);
             for (const event of result.events) emit(event);
             if (!state.terminal) continue;
-            endReadWait(); closeInput();
+            endReadWait();
+            // The CLI exits once its input closes, so a done turn's usage is read on this Query first (ARCHITECTURE §7 'Agent usage').
+            if (input.usageAtTurnEnd && !state.steered?.length && result.events.some(event => event.type === "turn.done")) {
+              await input.usageAtTurnEnd(() => timeout(q.usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET({ skipBehaviors: true }), TURN_USAGE_MS)).catch(() => {});
+            }
+            closeInput();
             // A failed or aborted result can end the turn with a steered message already written and unread; the item
             // goes back to the draft, so the CLI must not run it in a turn nobody sees. The terminal event is out already.
             if (state.steered?.length) { void group?.stop(); break; }

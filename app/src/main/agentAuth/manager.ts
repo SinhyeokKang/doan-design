@@ -331,10 +331,11 @@ export class AuthManager {
     return { ok: true, attemptId, done };
   }
 
-  // listing: a model list read; mcp: an MCP connector command (mcp-connectors). Either holds the profile like a run,
-  // but neither is a conversation the person would be asked to stop: a sign-out or replacement stops it (stopRuns)
-  // and waits for it without stop_required. added: extra environment, such as the MCP sign-in's link file.
-  async acquire(provider: Provider, use: "run" | "listing" | "mcp" = "run", added: Record<string, string> = {}): Promise<Lease> {
+  // listing: a model list read; mcp: an MCP connector command (mcp-connectors); usage: an account usage read
+  // (provider-usage). Each holds the profile like a run, but none is a conversation the person would be asked to stop:
+  // a sign-out or replacement stops it (stopRuns) and waits for it without stop_required. added: extra environment,
+  // such as the MCP sign-in's link file.
+  async acquire(provider: Provider, use: "run" | "listing" | "mcp" | "usage" = "run", added: Record<string, string> = {}): Promise<Lease> {
     this.admit(provider);
     const { command, env, profileDir } = await this.launch(provider, undefined, added);
     // A sign-in or sign-out may have started while the CLI was being located.

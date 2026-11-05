@@ -1291,7 +1291,7 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
    compiled into a native view, and the one web token read is the task bar's #0009 (design §2). doan uses its accent for
    the edge instead of ego's blue, the parent's common decision 2 exception. Above the overlay, under the board's floating
    controls; nothing here takes pointer input. */
-.doan-agent-glow { position: absolute; inset: 0; z-index: 1; pointer-events: none; border-radius: 0 0 0 var(--radius-container); box-shadow: inset 0 0 var(--space-3) color-mix(in srgb, var(--affordance-accent) 85%, transparent), inset 0 0 calc(var(--space-6) * 1.5) color-mix(in srgb, var(--affordance-accent) 50%, transparent); animation: doan-agent-glow 8s var(--ease-state) infinite; }
+.doan-agent-glow { position: absolute; inset: 0; z-index: 1; pointer-events: none; border-radius: 0 0 0 var(--radius-container); box-shadow: inset 0 0 calc(var(--space-3) * 3) color-mix(in srgb, var(--affordance-accent) 85%, transparent), inset 0 0 calc(var(--space-6) * 4.5) color-mix(in srgb, var(--affordance-accent) 50%, transparent); animation: doan-agent-glow 8s var(--ease-state) infinite; }
 .workspace[data-panel="collapsed"] .doan-agent-glow { border-radius: 0 0 var(--radius-container) var(--radius-container); }
 @keyframes doan-agent-glow { 0%, 100% { opacity: .7; } 50% { opacity: 1; } }
 /* The dot field's colour: translucent white dots, read from this computed colour by the canvas. */
@@ -1329,3 +1329,53 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 @media (prefers-reduced-transparency: reduce) {
   .doan-agent { background: var(--affordance-prominent); -webkit-backdrop-filter: none; backdrop-filter: none; }
 }
+
+/* Agent usage (docs/DESIGN.md 'Agent usage'): the header button and its popover, from the confirmed draft
+   .doan/canvases/provider-usage.html (frames place-header, ring-states, popover). One pill holding a 24px ring per
+   provider, 4px inset and gap, so 32px high like the chrome icon buttons; it takes the header's free right end while
+   the tabs stay centred, and is a no-drag hole in the header's drag region. */
+.shell-top .usage { margin-left: auto; }
+.usage { display: inline-flex; align-items: center; flex: none; gap: var(--space-1); padding: var(--space-1); border: 0; border-radius: var(--radius-pill); background: transparent; color: var(--text-standard); -webkit-app-region: no-drag; }
+.usage:hover { background: var(--affordance-backdrop-hover); }
+.usage[aria-expanded="true"] { background: var(--affordance-backdrop-pressed); }
+.usage:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+.usage-ring { position: relative; display: grid; place-items: center; flex: none; width: var(--size-control-xs); height: var(--size-control-xs); }
+/* The arc starts at 12 o'clock; `.shell-top svg` sizes header icons to 16px, so the ring restates its own size. */
+.usage .usage-ring > svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+.usage-ring .track { stroke: var(--border-track); }
+.usage-ring .value { stroke: var(--affordance-prominent); }
+/* The person's colour rule: danger at 70% or more or at a reported limit; there is no warning step. */
+.usage-ring[data-band="full"] .value { stroke: var(--border-danger); }
+.usage-logo { width: var(--size-icon-sm); height: var(--size-icon-sm); object-fit: contain; }
+.usage-more { min-width: var(--size-control-xs); padding-inline: var(--space-1); color: var(--text-subtle); text-align: center; font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); font-weight: var(--type-weight-medium); }
+/* The popover: the shared 320px floating popover below the button, aligned to its end. Agent settings and Refresh
+   usage follow the list in the DOM for Tab order; the grid puts them back in the title row, and their −6px block
+   margins keep that row at the title's 20px line. Taller than the window allows, it scrolls inside. Plain numerals:
+   the body's tabular figures widen every "1" in the relative times ("Updated 1m ago", "12d 4h"). */
+.usage-pop { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; column-gap: var(--space-1); row-gap: var(--space-3); max-height: var(--radix-popover-content-available-height); overflow-y: auto; text-align: left; font-variant-numeric: normal; -webkit-app-region: no-drag; }
+.usage-pop-title { grid-column: 1; grid-row: 1; font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); font-weight: var(--type-weight-medium); }
+.usage-list { grid-column: 1 / -1; grid-row: 2; display: flex; flex-direction: column; outline: none; }
+.usage-settings { grid-column: 2; grid-row: 1; margin-block: calc(-1 * var(--space-1h)); }
+.usage-refresh { grid-column: 3; grid-row: 1; margin-block: calc(-1 * var(--space-1h)); margin-inline-end: calc(-1 * var(--space-1h)); }
+.usage-row { display: flex; flex-direction: column; gap: var(--space-2); padding-block: var(--space-3); }
+.usage-row:first-child { padding-top: 0; }
+.usage-row:last-child { padding-bottom: 0; }
+.usage-row + .usage-row { border-top: 1px solid var(--border-standard); }
+.usage-row-head { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+.usage-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); font-weight: var(--type-weight-medium); }
+.usage-read { flex: none; color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+/* Windows and reason lines line up with the name, past the 16px logo and its 8px gap. */
+.usage-row-body { display: flex; flex-direction: column; gap: var(--space-2); padding-left: calc(var(--size-icon) + var(--space-2)); }
+.usage-window { display: flex; flex-direction: column; gap: var(--space-1); }
+.usage-window-line { display: flex; justify-content: space-between; gap: var(--space-2); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+.usage-window-label { flex: none; color: var(--text-subtle); }
+.usage-window-text { min-width: 0; text-align: right; }
+.usage-window[data-limited] .usage-window-text { font-weight: var(--type-weight-medium); }
+.usage-bar { display: block; height: var(--space-1); border-radius: var(--radius-pill); background: var(--border-standard); overflow: hidden; }
+/* The fill's width is the window's share, set inline (the draft's --v). */
+.usage-bar > i { display: block; height: 100%; border-radius: inherit; background: var(--affordance-prominent); }
+.usage-bar[data-band="full"] > i { background: var(--border-danger); }
+.usage-note { display: flex; align-items: flex-start; gap: var(--space-1h); color: var(--text-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); overflow-wrap: anywhere; }
+.usage-note svg { width: var(--size-icon); height: var(--size-icon); }
+.usage-note[data-kind="error"] { color: var(--text-danger); }
+.usage-note[data-kind="warn"] { color: var(--text-warning); }
