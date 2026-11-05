@@ -71,6 +71,7 @@ const { QuickOpen } = await import("./QuickOpenDialog");
 const { Home } = await import("./Home");
 const { HomeRun } = await import("./homeRun");
 const { ProjectSettingsPage } = await import("./ProjectSettingsPage");
+const { AgentUsageButton } = await import("./AgentUsageButton");
 const { ProjectSetupDialog } = await import("./ProjectSetupDialog");
 const { RightPanel } = await import("./RightPanel");
 const { ConversationPanel } = await import("./ConversationPanel");
@@ -333,6 +334,33 @@ test("while the page is locked a click on the Settings tab is ignored, not queue
   click(topBar(settings()!.props.header).settings);
   lock(false);
   expect(settings()!.props.arrival).toBe(before);
+});
+
+// provider-usage tasks C1: the Agent usage button sits at the header's right end, after the tabs, on every screen.
+type UsageProps = { openSettings(): void; canvasPress?: unknown };
+function usageOf(header: ReactElement) {
+  const bar = (header.type as (props: unknown) => ReactElement<{ children: ReactNode[] }>)(header.props);
+  const children = [bar.props.children].flat(3).filter(isValidElement) as ReactElement<Record<string, unknown>>[];
+  const at = children.findIndex(child => child.type === AgentUsageButton);
+  return { usage: children[at] as unknown as ReactElement<UsageProps> | undefined, afterTabs: at > 0 && children[at - 1]!.props.className === "shell-modes" && at === children.length - 1 };
+}
+test("every screen's header ends with Agent usage; its Agent settings opens Settings > Agents, and not while a page is locked", () => {
+  render();
+  folders([listed("/w/a")]);
+  expect(usageOf(homeEl()!.props.header)).toMatchObject({ afterTabs: true });
+  click(topBar(homeEl()!.props.header).add);
+  expect(usageOf(addPage()!.props.header)).toMatchObject({ afterTabs: true });
+  find<{ onState(report: { locked: boolean; choose: boolean }): void }>(AddProjectsPage)[0]!.props.onState({ locked: true, choose: false }); render();
+  usageOf(addPage()!.props.header).usage!.props.openSettings(); render();
+  expect(onSettings()).toBe(false);
+  reset();
+  openFromWorkspace();
+  expect(usageOf(workspaceHeader())).toMatchObject({ afterTabs: true });
+  settings()!.props.sidebar.props.settings!.select("about"); render();
+  const { usage, afterTabs } = usageOf(settings()!.props.header);
+  expect(afterTabs).toBe(true);
+  usage!.props.openSettings(); render();
+  expect(settings()!.props).toMatchObject({ section: "agents", arrival: { focus: { kind: "heading" } } });
 });
 
 test("a notification click: a known conversation goes where the permission toast's Open goes, an unknown one to its registered project's Overview, else nowhere", () => {
