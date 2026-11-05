@@ -84,10 +84,7 @@ app(Electron + TS)만 바뀐다. CLI(Go)·skills·guide·`doan check`·공유 JS
   - `read_failed`: "Couldn't read usage. Doan tries again when you open this." (결정할 점 8)
   - `blocked`: Settings > Agents와 같은 원인 문구(`SettingsAgents.tsx` `unavailable()`, 예: "Claude Code's sign-in expired").
 - popover가 열린 동안: sign-out한 provider의 행을 지운다. 마지막 provider가 빠지면 popover를 닫고, 버튼이 사라지므로 포커스는 `.shell-modes`의 현재 탭으로 옮긴다. 새로 연결한 provider는 행을 붙이고 "Reading usage…"로 시작한다.
-- 자리: BACKLOG의 세 후보를 `/design-draft`가 모두 그리고 사람이 하나를 고른다. 비교할 상호작용 결과:
-  - 앱 셸 오른쪽 아래(세로·가로): toast 자리(PRODUCT §5 "toasts sit at the window's bottom right")와 겹침, 대화 패널 docked composer의 Send와 가까움, 패널을 접고 펼 때 자리.
-  - 헤더 오른쪽 끝(`App.tsx:1824` `TopBar`, `:1834` `.shell-modes`): drag region 예외(no-drag), 좁은 앱 창에서 `.shell-modes`와 부딪힘, provider 0 → 1에서 헤더가 밀림.
-  - 세 후보 모두: 좁은 앱 창에서 링을 접는 규칙(예: 가장 높은 값 하나와 "+n").
+- 자리: 헤더 오른쪽 끝, `.shell-modes` 옆에 가로로 둔다(`App.tsx:1824` `TopBar`, `:1834` `.shell-modes`, 결정할 점 10). 버튼은 drag region 예외(no-drag)다. provider가 0 → 1이 되면 헤더의 다른 요소가 밀리지 않도록 자리를 정한다(값은 `/design-sync`). 초안 `place-header` frame이 기준이고, `place-stack`·`place-row`(셸 오른쪽 아래)는 비교용으로 남긴다.
 - 링 색: 사용 비율 구간에 따른 색 변화를 둘지는 `/design-draft`에서 그려 보고 사람이 정한다. 색만으로 알리지 않고 popover 글("Limit reached")이 함께 있다. 색 왼쪽 선은 쓰지 않는다.
 
 ## 순수 함수로 뺄 부분(`/tdd` 대상)
@@ -151,3 +148,4 @@ app(Electron + TS)만 바뀐다. CLI(Go)·skills·guide·`doan check`·공유 JS
 7. **설치된 `agy`가 없을 때**도 다른 `not_supported`와 같은 문구 "Usage isn't available for Antigravity."를 쓴다.
 8. **실패한 조회**: 다음 계기는 5분 간격을 따르되, popover를 열 때는 마지막 조회가 실패였으면 바로 다시 읽는다.
 9. **PRODUCT 위치**: Z1에서 §3 In scope 7 'Agent authentication'의 하위 항목으로 올린다. §1에 새 문제를 더하지 않는다.
+10. **자리는 헤더 오른쪽 끝**(초안 `place-header`). 모든 화면에 헤더가 있어 결정할 점 6과 맞고, 셸 오른쪽 아래 두 후보는 toast 자리와 겹치며 대화 패널의 Send와 붙는다. 960×600에서도 링 다섯 개가 들어간다(초안 검토).
