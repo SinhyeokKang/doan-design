@@ -732,15 +732,15 @@ test("Capture area is unavailable, with the canvas's reason, while the canvas ca
   }
 });
 
-test("Capture area gives Attach's reason while the composer continues a terminal session", async () => {
+test("Capture area gives Attach's reason while the composer continues a terminal session, and not once it starts a new one", async () => {
   doan.conversationResumeTarget!.mockResolvedValue({ available: true, runtime: "codex", lastCheckAt: "2026-11-01T14:02:00", session: "s1" });
   await canvasWithComposer();
   await flushAll();
-  expect(captureTool().enabled).toBe(true);
-  panelRun().choose("resume"); render();
   expect(captureTool()).toMatchObject({ enabled: false, reason: CAPTURE_TERMINAL });
   captureTool().onToggle();
   expect(harness.controller!.startCapture).not.toHaveBeenCalled();
+  panelRun().choose("new"); render();
+  expect(captureTool()).toMatchObject({ enabled: true, reason: null });
 });
 
 test("Capture area gives Attach's reason while the panel shows a legacy external conversation", async () => {
@@ -759,15 +759,14 @@ test("Capture area is unavailable once the composer's draft holds 10 files", asy
   expect(captureTool()).toMatchObject({ enabled: false, reason: CAPTURE_LIMIT });
 });
 
-// Export's rule (canvas-composer-polish spec 5): on a locked page the button looks usable and does nothing.
-test("on a locked page Capture area stays usable-looking and does nothing", async () => {
+// Export's rule (canvas-composer-polish spec 5): a press that lands while a page is locked does nothing. The pane is
+// not shown on a page, so the press is the handler taken before the page opened, as the reply chip test does.
+test("a Capture area press that lands while a page is locked does nothing", async () => {
   await canvasWithComposer();
   const press = captureTool().onToggle;
   listeners.openSettingsPage!({} as never); render();
   find<{ onState(report: { locked: boolean }): void }>(SettingsPage)[0]!.props.onState({ locked: true }); render();
-  expect(captureTool().enabled).toBe(true);
   press();
-  captureTool().onToggle();
   expect(harness.controller!.startCapture).not.toHaveBeenCalled();
 });
 
@@ -844,7 +843,7 @@ test("capture mode shows its hint line above the tools, with Esc and a spoken ca
     return all((element.type as (props: unknown) => ReactNode)(element.props));
   };
   const hint = (nodes = paneTree()) => nodes.find(node => node.props.role === "status" && String(node.props.className).includes("doan-picking"));
-  const words = (node: ReactNode): string => Array.isArray(node) ? node.map(words).join("|") : typeof node === "string" ? node : isValidElement<{ children?: ReactNode }>(node) ? words(node.props.children) : "";
+  const words = (node: ReactNode): string => Array.isArray(node) ? node.map(words).filter(Boolean).join("|") : typeof node === "string" ? node : isValidElement<{ children?: ReactNode }>(node) ? words(node.props.children) : "";
   expect(hint()).toBeUndefined();
   capturing(true);
   const nodes = paneTree(), line = hint(nodes)!;
