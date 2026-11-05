@@ -144,7 +144,7 @@
 
 - [ ] Z1. 결론을 현재 규칙으로 옮긴다(영문). 근거는 커밋 메시지에 둔다.
   - PRODUCT: §3 In scope 7 'Agent authentication'의 하위 항목으로 사용량 표시를 더한다(결정할 점 9). §5에 링 버튼의 자리와 동작, 모든 화면, popover, 읽는 때, 이유별 문구, provider별 지원 범위.
-  - ARCHITECTURE §7 'Agent authentication': 사용량 조회 경로(provider별, 턴 끝 재사용), lease 용도와 `stopRuns`, `connectionId` 키의 메모리 캐시, 응답으로 정하는 `not_supported`, Cursor usage 토큰 예외(Antigravity identity 예외와 같은 형식), 설치된 `agy`만 씀.
+  - ARCHITECTURE §7 'Agent authentication': 사용량 조회 경로(provider별, 턴 끝 재사용), lease 용도와 `stopRuns`, `connectionId` 키의 메모리 캐시, 응답으로 정하는 `not_supported`, Cursor usage 토큰 예외(Antigravity identity 예외와 같은 형식), Antigravity는 읽지 않음.
   - BACKLOG.md: 사용량 항목을 지우고, 구현하지 않은 provider와 막힌 PoC를 적는다.
   - 그리고 `docs/features/provider-usage/`를 지운다.
   - 검증: `grep -n 'account/rateLimits/read' docs/ARCHITECTURE.md`에 줄이 있다, `grep -n 'Agent usage' docs/PRODUCT.md`에 줄이 있다, `grep -n 'remaining usage or rate limits' docs/BACKLOG.md`에 줄이 없다, `docs/features/provider-usage/`가 없다.
