@@ -28,7 +28,7 @@
 3. **자세한 내용.** provider마다 한도 창 이름, 사용 비율, 다시 채워지는 시각(상대 시간), 마지막으로 읽은 시각을 보인다. provider가 한도에 닿았다고 말하면 "Limit reached · resets in …"을 글로 보인다(비율에서 추론하지 않는다). 다시 읽는 중에는 이전 값을 그대로 둔다. 처음 읽는 중, 무제한, 사용량을 내주지 않음, 사용량 한도가 없는 plan, 읽기 실패, 쓸 수 없는 연결은 각각 한 줄 문구로 보인다(design §4, 문구는 `/design-draft`에서 고정). 열려 있는 동안 상대 시간이 1분마다 고쳐지고, provider가 연결되거나 빠지면 그 행이 생기거나 사라진다. 자세한 내용의 오른쪽 위에는 설정 버튼(누르면 Settings > Agents)과 새로고침 버튼이 있다. 새로고침 버튼은 5분 간격과 관계없이 쓸 수 있는 연결을 모두 바로 다시 읽는다(design 결정할 점 11).
 4. **읽는 때.** 사용량은 앱 시작과 sign-in 뒤, 그 provider의 Doan 연결 대화 턴이 끝난 뒤, 자세한 내용을 열 때 읽고, 같은 provider는 5분 안에 다시 읽지 않는다. 예외로, 자세한 내용을 열 때 다시 채워지는 시각이 지난 한도 창이 있거나 마지막 조회가 실패였으면 바로 읽는다. 앱 창이 보이지 않으면 읽지 않는다(design '결정할 점' 2·8). 쓸 수 없는 연결은 읽지 않는다. 조회는 모델 요청을 쓰지 않고 프로필에 세션·transcript를 남기지 않는다. 조회는 대화나 sign-out을 막지 않고, sign-out은 진행 중 조회를 멈춘다.
 5. **연결 상태와 함께 움직임.** 연결하지 않았거나 sign-out한 provider의 링은 없다. sign-in·sign-out·계정 교체 뒤에는 그 provider의 이전 값을 버리고, 교체 전에 시작한 조회의 결과도 버린다.
-6. **토큰 규칙.** Doan은 터미널·Orca의 자격 증명을 읽지 않는다(ARCHITECTURE §7 'Agent authentication': "never reads, copies or changes those external credentials"). Claude·Codex·Copilot·Antigravity는 provider CLI·SDK의 조회만 쓴다. Cursor만 Doan vault의 Cursor credential로 정해진 엔드포인트 하나에 읽기 전용 GET을 보내고, 토큰을 저장·로그·IPC·오류 글에 넣지 않으며 갱신하지 않는다(design '결정할 점' 3).
+6. **토큰 규칙.** Doan은 터미널·Orca의 자격 증명을 읽지 않는다(ARCHITECTURE §7 'Agent authentication': "never reads, copies or changes those external credentials"). Claude·Codex·Copilot은 provider CLI·SDK의 조회만 쓰고, Antigravity는 사용량을 읽지 않는다("Usage isn't available"). Cursor만 Doan vault의 Cursor credential로 정해진 엔드포인트 하나에 읽기 전용 GET을 보내고, 토큰을 저장·로그·IPC·오류 글에 넣지 않으며 갱신하지 않는다(design '결정할 점' 3).
 7. **기록하지 않음.** 사용량 값은 main 메모리에만 두고, 디스크(ui-state, 대화 history, 로그)에 쓰지 않는다.
 
 ## 비목표
@@ -37,5 +37,5 @@
 - 한도에 닿기 전 알림, 자동으로 다른 provider로 바꾸기.
 - 터미널·Orca 계정, legacy external 대화가 쓰는 사람 자신의 CLI 프로필의 사용량.
 - Cursor 밖의 provider에서 자격 증명을 직접 읽거나 provider 웹 API를 부르는 것(완료 조건 6).
-- Doan이 `agy`를 내려받거나 설치하는 것.
+- Antigravity의 사용량(PoC U4: `agy`가 별도 로그인을 요구). Doan이 `agy`를 쓰거나 내려받는 것.
 - 추가 사용(extra usage, credits) 구매나 설정 화면으로 가는 링크.

@@ -47,7 +47,7 @@ app(Electron + TS)만 바뀐다. CLI(Go)·skills·guide·`doan check`·공유 JS
   - 앱 시작·sign-in·popover: `codexEmail`(`agentAuth/manager.ts:694-735`)처럼 app-server를 띄워 `initialize` → `initialized` → `account/rateLimits/read` → 종료.
   - `primary`·`secondary`를 한도 창으로 읽고 `windowDurationMins`로 이름을 붙인다(300 → "5-hour", 10080 → "Weekly", 그 밖 → "<n>-hour"/"<n>-day"). `rateLimitsByLimitId`와 `ordinaryUsageAllowed`는 이번에 읽지 않는다. PoC U2.
 - **Copilot**: `copilot --headless --stdio`를 Doan의 Copilot 프로필(`HOME`)로 띄워 `account.getQuota`를 부르고 닫는다. `quotaSnapshots`의 각 종류를 한도 창으로 읽는다(`usedPercent = 100 - remainingPercentage`, `isUnlimitedEntitlement`면 빼고, 모두 빠지면 `unlimited`). PoC U3.
-- **Antigravity**: 결정할 점 4. 출력 `groups[].buckets[]`의 `window`("5h"·"weekly")와 `1 - remaining_fraction`을 한도 창으로 읽는다. PoC U4.
+- **Antigravity**: 조회하지 않고 늘 `not_supported`다(결정할 점 4, PoC U4).
 - **Cursor**: 결정할 점 3. PoC U5.
 - 쓸 수 없는 연결(sign-in 만료, 확인 안 됨, CLI 버전 미달 등 `readiness()`가 쓸 수 없다고 하는 상태)은 조회하지 않고 `blocked`에 그 원인을 담는다(결정할 점 5).
 
@@ -57,7 +57,7 @@ app(Electron + TS)만 바뀐다. CLI(Go)·skills·guide·`doan check`·공유 JS
 - 키는 provider와 `connectionId`다(모델 목록 캐시와 같은 방식, ARCHITECTURE §7). 연결이 바뀌면(sign-in·sign-out·교체로 `connectionId`가 바뀜) 그 provider 항목을 지운다. 전체 snapshot revision(`agentAuth/ipc.ts:51,69`)은 check·facts에도 오르므로 기준으로 쓰지 않는다.
 - 조회 시작 때의 `connectionId`와 끝날 때의 것이 다르면 그 결과는 버린다(교체 중 옛 계정의 값이 새 계정에 붙지 않게).
 - 조회는 연결의 lease를 잡는다. 용도는 `"listing"`과 같이 sign-out이 묻지 않고 멈추게 하는 쪽이다(POSTMORTEM 2026-10-30 'A model list read made sign-out ask to stop conversations'). 새 용도 `"usage"`를 둘지 `"listing"`을 같이 쓸지는 `/tdd`에서 정한다. sign-out이 조회 프로세스를 멈추도록 `index.ts`의 `stopRuns`(지금은 대화 서비스만 묶임)에 사용량 조회도 묶는다.
-- vault provider(Copilot·Antigravity·Cursor)의 조회는 lease의 작업 사본에서 하고, hold/drop의 write-back이 vault 이미지를 바꾸지 않는지 PoC에서 전후 비교한다.
+- vault provider(Copilot·Cursor)의 조회는 lease의 작업 사본에서 하고, hold/drop의 write-back이 vault 이미지를 바꾸지 않는지 PoC에서 전후 비교한다.
 - 같은 provider 조회가 진행 중이면 새로 띄우지 않고 그 결과를 기다린다. 시간 제한은 provider 프로세스가 `initialize`에 답한 시점부터 세고(POSTMORTEM 2026-11-01 Antigravity sign-in), `initialize`가 오지 않을 때를 막는 상한을 따로 둔다(값은 `/tdd`).
 - 턴 중 신호: Claude `rate_limit_event`와 Codex `account/rateLimits/updated`로 캐시를 고치는 일은 이번에 넣지 않는다. 턴이 끝난 뒤의 조회가 같은 때를 덮는다.
 
@@ -81,7 +81,7 @@ app(Electron + TS)만 바뀐다. CLI(Go)·skills·guide·`doan check`·공유 JS
   - 마지막으로 읽은 시각: "Updated 3m ago". 다시 읽는 중에는 이전 값을 두고 이 줄만 "Updating…".
   - 처음 읽는 중: "Reading usage…".
   - `unlimited`: "Unlimited".
-  - `not_supported`(설치된 `agy`가 없을 때 포함, 결정할 점 7): "Usage isn't available for <Provider>."
+  - `not_supported`(Antigravity, 조회가 없는 버전): "Usage isn't available for <Provider>."
   - `no_plan_limits`: "<Provider> isn't on a plan with usage limits."
   - `read_failed`: "Couldn't read usage. Doan tries again when you open this." (결정할 점 8)
   - `blocked`: Settings > Agents와 같은 원인 문구(`SettingsAgents.tsx` `unavailable()`, 예: "Claude Code's sign-in expired").
@@ -93,7 +93,7 @@ app(Electron + TS)만 바뀐다. CLI(Go)·skills·guide·`doan check`·공유 JS
 
 1. `claudeUsage(response)` → `UsageReading`: 한도 창 고르기와 이름, `utilization` null 처리, `rate_limits_available: false`, 모르는 모양 거부.
 2. `codexUsage(response)` → `UsageReading`: `primary`·`secondary`, `windowDurationMins` 이름, `resetsAt` 초 → ms, `rateLimitReachedType` → `limited`.
-3. U6에서 넣은 provider의 파서(`copilotUsage`, `agyUsage`, `cursorUsage`). `unlimited`, `limited`.
+3. `copilotUsage`(`hasQuota: false` 종류 제외, 지난 `resetDate`), `cursorUsage`. `unlimited`, `limited`.
 4. `ringValue(reading, now)` → `number | null`: 지난 한도 창을 뺀 가장 큰 `usedPercent`, 빈 `windows`·`unlimited`·unavailable이면 null.
 5. `usageText(window, now)`: 상대 시간(분·시간·일), 한도에 닿음, 지난 시각, `resetsAt` 없음.
 6. `shouldRead(entry, now, trigger)` → boolean: 결정할 점 2·8·11의 규칙(5분 간격, popover 열기의 예외 — 지난 한도 창이 있거나 마지막 조회가 실패했으면 바로, 새로고침은 간격 무시, 진행 중 조회는 합침, 앱 창이 보이는지, 쓸 수 없는 연결, 계기 종류).
@@ -141,13 +141,13 @@ app(Electron + TS)만 바뀐다. CLI(Go)·skills·guide·`doan check`·공유 JS
 
 ## 결정할 점
 
-1. **provider 범위: 다섯 모두 시도한다.** Claude(SDK usage)와 Codex(`account/rateLimits/read`)는 구현한다. Copilot(`--headless --stdio`의 `account.getQuota`), Antigravity(`agy`), Cursor(웹 API, 결정 3)는 PoC U3–U5가 공통 기준을 지키면 구현하고, 그렇지 않으면 "Usage isn't available"로 둔다.
+1. **provider 범위**: Claude(SDK usage), Codex(`account/rateLimits/read`), Copilot(`--headless --stdio`의 `account.getQuota`), Cursor(웹 API, 결정 3)를 구현한다. Antigravity는 `not_supported`다(U6, 사람의 결정: PoC U4에서 `agy`가 Doan 연결의 credential을 쓰지 않고 별도 Google 로그인을 요구했다).
 2. **읽는 때**: 앱 시작과 그 provider의 sign-in 뒤 한 번, 그 provider의 Doan 연결 대화 턴이 끝난 뒤(legacy external 턴은 아님), 자세한 내용(popover)을 열 때. 같은 provider는 마지막 조회에서 5분이 지나야 다시 읽는다. 예외: popover를 열 때 지난 한도 창이 있으면 간격과 관계없이 읽는다. 앱 창이 보일 때만 읽는다. 주기 polling은 하지 않는다.
 3. **Cursor는 웹 API 하나로 읽는다.** ARCHITECTURE §7 'Agent authentication'의 토큰 예외(지금은 Antigravity identity)를 'Cursor usage 읽기'로만 넓힌다. U5가 고른 GET 엔드포인트 하나, host `cursor.com` 고정, 리다이렉트 거부, 응답 크기·시간 상한. 토큰은 lease로 잡은 작업 사본에서 main 메모리로만 읽고, 갱신하지 않는다(만료는 `read_failed`). 토큰을 저장·로그·IPC·오류 글에 넣지 않는다. 비공개 API라 모양이 다르거나 실패하면 `read_failed`. Claude는 SDK 조회가 있으므로 Orca의 토큰 직접 호출을 쓰지 않는다.
-4. **Antigravity는 설치된 `agy`가 있을 때만** 읽는다. 로그인 셸 PATH에서 찾은 `agy`를 Doan의 Antigravity 프로필(`HOME`·`GEMINI_HOME`, `agentAuth/environment.ts:36`)로 `agy -p /usage --output-format json`으로 띄우고(Orca와 같이 `AGY_CLI_DISABLE_AUTO_UPDATE=true`), 없으면 `not_supported`. Doan은 `agy`를 내려받지 않는다.
+4. **Antigravity는 읽지 않는다.** 고정 ACP 서버에 사용량 조회가 없고, 사람이 설치한 `agy`는 Doan 연결의 credential을 읽지 않고 별도 로그인을 요구하며 프로필에 파일을 남긴다(PoC U4). Doan은 `agy`를 쓰지 않는다.
 5. **쓸 수 없는 연결**(sign-in 만료, 확인 안 됨, CLI 버전 미달)은 링을 남기고(빈 링), 조회하지 않으며, popover 행에 Settings > Agents와 같은 원인 문구를 보인다.
 6. **링 버튼은 모든 화면**(workspace, Home, Settings, Add Projects)에 보인다.
-7. **설치된 `agy`가 없을 때**도 다른 `not_supported`와 같은 문구 "Usage isn't available for Antigravity."를 쓴다.
+7. (결정 4로 대체: Antigravity는 늘 "Usage isn't available for Antigravity.")
 8. **실패한 조회**: 다음 계기는 5분 간격을 따르되, popover를 열 때는 마지막 조회가 실패였으면 바로 다시 읽는다.
 9. **PRODUCT 위치**: Z1에서 §3 In scope 7 'Agent authentication'의 하위 항목으로 올린다. §1에 새 문제를 더하지 않는다.
 10. **자리는 헤더 오른쪽 끝**(초안 `place-header`). 모든 화면에 헤더가 있어 결정할 점 6과 맞고, 셸 오른쪽 아래 두 후보는 toast 자리와 겹치며 대화 패널의 Send와 붙는다. 960×600에서도 링 다섯 개가 들어간다(초안 검토).

@@ -20,8 +20,9 @@
 - [x] U5. Cursor credential과 usage 엔드포인트 하나(U5).
   - 검증: 'P 결과'에 U5 (a)–(e), 고른 엔드포인트와 헤더, 공통 기준의 판정, 또는 막힘과 이유가 있다.
   - (iv)는 계정의 "Upgrade your plan to continue" 막힘 때문에 진행 중인 대화로 확인하지 못했다('P 결과' U5).
-- [ ] U6. (사람의 결정) U3–U5 결과로 Copilot·Antigravity·Cursor를 구현에 넣을지 정한다(design 결정할 점 1). 빼는 provider는 `not_supported`로 두고 spec·design·이 파일의 A1·B1·C1에서 그 부분을 지운다.
+- [x] U6. (사람의 결정) U3–U5 결과로 Copilot·Antigravity·Cursor를 구현에 넣을지 정한다(design 결정할 점 1). 빼는 provider는 `not_supported`로 두고 spec·design·이 파일의 A1·B1·C1에서 그 부분을 지운다.
   - 검증: 결정을 design '결정할 점'에 적고 바뀐 spec·design·tasks를 커밋한다.
+  - 결정(사람): Copilot과 Cursor를 넣고 Antigravity는 뺀다(`not_supported`). design 결정할 점 1·4에 적었다.
   - 권고(PoC): Copilot은 넣는다(headless 조회가 공통 기준을 지킴, `hasQuota: false` 종류는 뺀다). Antigravity는 뺀다(`agy`가 별도 로그인을 요구). Cursor는 넣는다(GET 하나가 공통 기준을 지킴, 비공개 API라 모양이 다르면 `read_failed`).
 
 ### P 결과
