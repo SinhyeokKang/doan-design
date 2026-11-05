@@ -71,11 +71,25 @@ Doan은 핸드오프에 승인 카드를 만들지 않는다. provider가 셸 �
 
 ## 6. renderer(UI)
 
-- **원래 대화 thread**: `handoff.requested` 자리에 진행 줄("Hands off to <canvas> when this turn ends"), `resolved`에 따라 "Handed off to <canvas>" + Open, 거절 이유 줄, 취소 줄. `resolved`가 오면 진행 줄이 그 결과로 바뀌어 `requested` 자리에 한 줄만 남고, 턴 끝에 줄을 더하지 않는다. promotion 줄과 같은 계열의 한 줄이고, 색 왼쪽 선을 쓰지 않는다(사람의 규칙). 문구는 `/design-draft`에서 고정한다.
+- **원래 대화 thread**: `handoff.requested` 자리에 진행 줄("Hands off to <canvas> when this turn ends"), `resolved`에 따라 "Handed off to <canvas>" + Open, 거절 이유 줄, 취소 줄. `resolved`가 오면 진행 줄이 그 결과로 바뀌어 `requested` 자리에 한 줄만 남고, 턴 끝에 줄을 더하지 않는다. promotion 줄과 같은 계열의 한 줄이고, 색 왼쪽 선을 쓰지 않는다(사람의 규칙). 문구는 아래 '확정 문구'를 따른다.
+- **확정 문구**(사용자 확정, 2026-11-05). 캔버스는 shipped "Moved to <file>" 줄처럼 파일 이름(예: `checkout-flow.html`)으로 부른다.
+  - 진행 줄: "Hands off to <file> when this turn ends". 동작 버튼은 없다. 아이콘은 lucide `forward`이다.
+  - 넘김 줄: "Handed off to <file>" + Open. 아이콘은 `forward`이다.
+  - 거절 줄은 "Didn’t hand off to <file>." 뒤에 이유를 붙인다. `not_listed`는 "It isn’t a single canvas in <project>.", `not_new`는 "It existed before this turn started.", `has_conversation`은 "It already has a conversation."이고, `same_canvas`만 "Didn’t hand off. <file> is this conversation’s own canvas."이다. 거절 줄에는 Open이 없다. 아이콘은 lucide `ban`이다.
+  - 취소 줄: "Didn’t hand off to <file>. The turn didn’t finish."(아이콘 `ban`). shipped 종료 notice가 턴 끝에 그대로 뒤따른다.
+  - 인계 카드 머리: "Handed off from <source file>" + Open. 카드는 전체 폭이고 inset 채움(`--surface-inset`, `--radius-row`)을 쓴다. 머리는 caption 한 줄이고, 본문은 agent Markdown으로 접지 않고 전부 보인다.
+  - toast: "<source file> handed off to <target file>" + Open. 대상이 사라진 뒤 Open을 누르면 "Couldn’t open <file>. The canvas isn’t in <project>."(동작 없음)를 보인다.
+  - **사라진 캔버스**: 넘김 줄의 대상이나 카드 머리의 원래 캔버스가 나중에 사라지면(지움·이름 바꿈) Open을 숨기고(disabled로 두지 않는다) 글 끝에 " · No longer in <project>"를 붙인다. 넘김 줄과 카드 머리에 똑같이 적용한다. shipped promotion 줄이 Open을 disabled로 두는 것과 다르다.
 - **이어받는 대화 thread**: 첫 메시지를 인계 카드로 그린다. 머리 "Handed off from <source canvas>"와 Open(원래 캔버스를 패널이 원래 대화에 펼쳐진 채로 연다), 본문은 agent 답처럼 Markdown(reply chip 링크 포함, agent 출력 규칙 그대로)이다. 사람의 메시지 bubble과 구별된다. 대화 제목은 인계 메시지의 첫 줄이다(`messageLine`).
 - **이동 `handoffMove`**(순수): 지금 화면이 원래 대화의 캔버스 페이지이고, page lock·dialog·first run이 없고, 원래 대화의 composer에 focus가 있으면서 draft가 비어 있지 않은(IME 조합 중 포함) 상태가 아니면 `move`, 아니면 `toast`. 사람이 쓰던 글을 화면 이동으로 끊지 않기 위해서다. move는 Quick Open과 같은 `openCanvas` 길로 대상 캔버스를 열고 패널을 이어받는 대화에 펼친다. canvas visit 하나라 Back이 원래 캔버스로 돌아간다. dialog를 닫지 않는다(deep link와 다름). 이동 뒤 키보드 focus는 composer가 아니라 받는 패널의 thread 머리(인계 카드)에 둔다. renderer 목록에 대상이 아직 없으면 그 read를 기다린다. 기다림의 상한은 main의 `BIND_GRACE_MS`와 같은 10 s이고, 상한이 지나면 move 대신 toast를 보인다. 기다리는 사이 사람이 다른 곳으로 가면 toast로 바뀐다(POSTMORTEM 2026-10-25 'A toast's Open was dropped while its project was still loading'). 기다리는 사이나 toast가 떠 있는 사이 대상 캔버스가 사라지면(지움·이름 바꿈) 이동하지 않고, toast의 Open은 열지 못한다는 toast로 답한다. toast는 "<source> handed off to <target>"과 Open이다.
 - 패널이 접혀 있어도 move는 펼친다(사람이 보던 캔버스에서 작업이 옮겨 가므로). toast의 Open도 PRODUCT §5 item 2 'Opening'처럼 펼친다.
 - 사이드바·Overview Canvas conversations·알림은 기존 규칙대로 이어받는 대화를 보인다. 새 알림 종류는 없다.
+
+## 초안 요청
+
+- canvas: `.doan/canvases/canvas-handoff.html`, id `canvas-handoff`, width 1440.
+- frame: `source-requested`, `source-handed-off`, `source-refused`, `source-cancelled`, `handoff-card`, `toasts`. `/design-sync`는 여섯 frame을 모두 비교한다.
+- 사용자 확정(2026-11-05): 초안 확인, 질문 1–5의 답. 캔버스는 파일 이름으로 부르고, 거절·취소 문구와 `ban` 아이콘, 인계 카드 모양을 그린 대로 확정했다. 사라진 캔버스는 Open을 숨기고 "· No longer in <project>"를 붙이며, 거절 줄에는 Open이 없다(§6 '확정 문구').
 
 ## 순수 함수로 뺄 부분(`/tdd` 대상)
 
