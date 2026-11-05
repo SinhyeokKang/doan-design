@@ -1,0 +1,52 @@
+# provider-usage — orch
+
+원본: [spec.md](./spec.md), [design.md](./design.md), [tasks.md](./tasks.md). 이 문서는 배치 나누기와 진행만 적는다.
+
+- 시작 hash: `4a2233c3`(origin/main)
+- 통합 branch: `feat/provider-usage`(conductor worktree `provider-usage-orch`)
+- worker: Claude 모델만(사람). PR은 push만 하고 merge하지 않는다(사람).
+
+## 결정 기록
+
+1. **worker 모델 범위**: Claude만. Codex로 넘어가지 않는다(사람).
+2. **merge**: PR을 열고 merge하지 않는다(사람).
+3. **공용 프로필**: E1·E2는 `/Users/sinhyeokkang/code/doan-design/.scratch/provider-profile/userData`(실제 HOME, 다섯 provider 연결)를 쓴다. E2가 끝나면 sign out하고 userData와 Keychain 항목 `Claude Code-credentials-45991d82`·`Codex Auth`를 지운다. 지우기 전에 사람에게 묻는다. `doan Safe Storage`는 지우지 않는다(`/Applications/Doan.app`과 이름이 같다)(사람).
+4. **Cursor 한도 창**: `individualUsage.plan`의 `autoPercentUsed` → "Auto", `apiPercentUsed` → "API", 둘 다 `resetsAt = billingCycleEnd`. `isUnlimited: true`면 `unlimited`. 지휘자 판단 — 사람이 확정한 초안(`.doan/canvases/provider-usage.html` popover 행 "Auto 100% used · API 0% used")과 Orca 1.4.240의 같은 두 값(`research/orca-line2515.js` "Cursor Models"/"Other Models").
+5. **Copilot의 지난 `resetDate`**: PoC U3에서 `resetDate`가 조회 때 이미 지났다. 초안대로 그 한도 창은 "Reset · updating"이고 링 값에서 빠진다(spec 완료 조건 2). 그래서 이 계정의 Copilot 링은 비고, popover를 열 때마다 Copilot을 다시 읽는다(결정할 점 2의 예외). 지휘자 판단 — 사람이 확정한 초안(design 결정할 점 18). E2에서 실제로 이렇게 보이는지 확인하고 보고에 적는다.
+6. **Claude 한도 창**: `rate_limits`의 null 아닌 `five_hour` → "5-hour", `seven_day` → "Weekly", `seven_day_opus` → "Weekly · Opus", `seven_day_sonnet` → "Weekly · Sonnet", `model_scoped[]`의 각 항목 → "Weekly · <display_name>". 그 밖의 키(`seven_day_cowork`, `seven_day_oauth_apps`, 이름 없는 키 등)와 null 항목은 무시한다. 필요한 키가 없거나 타입이 다르면 `read_failed`(tasks 'P 결과' U1). `limited`는 그 한도 창의 `locked_reason`이 null이 아닐 때만 둔다. 지휘자 판단 — 초안의 "Weekly · Fable (model_scoped)"와 design §1 "provider가 직접 말할 때만".
+7. **Copilot `limited`**: `remainingPercentage 0`이면서 `usageAllowedWithExhaustedQuota: false`. `hasQuota: false`나 `entitlementRequests 0`인 종류는 뺀다(design 순수 함수 3, 'P 결과' U3). 지휘자 판단.
+8. **IPC 계약(B와 C를 나란히 돌리기 위해 미리 고정)**. 지휘자 판단 — design §3.
+   - `agent-usage:read`(invoke, `mainOnly`): 인자 `{ trigger?: "open" | "refresh" }`. 반환 `UsageEntry[]`: 지원 provider(claude, codex, cursor, copilot) 가운데 연결한 것만, `PROVIDERS` 순서. Antigravity는 없다. `trigger`가 없으면 조회를 시작하지 않고 지금 값만 준다. `"open"`은 popover 열기, `"refresh"`는 새로고침 버튼(간격 무시)이다.
+   - `agent-usage:changed`(main → 앱 창): 인자 `UsageEntry[]`(위와 같은 규칙). 항목이 바뀔 때(조회 시작·끝, 연결 변화) 보낸다.
+   - preload: `readAgentUsage(trigger?: "open" | "refresh"): Promise<UsageEntry[]>`, `onAgentUsage(listener: (entries: UsageEntry[]) => void): () => void`(구독하면 `agent-usage:read`를 trigger 없이 한 번 불러 첫 값을 준다. `onAgentAuth`와 같은 방식, `preload/index.ts:189-200`).
+   - 타입은 A가 만드는 type-only 모듈의 `UsageEntry`·`UsageReading`·`UsageWindow`를 쓴다.
+9. **preload 소유**: C(tasks C1 "preload 호출"). B는 main handler만 만든다.
+10. **lease 용도(`"usage"` 또는 `"listing"`)와 시간 제한 값**: B 담당 worker가 `/tdd`에서 정한다(design §2 "`/tdd`에서 정한다"). 지휘자 판단.
+11. **E1·E2는 worker, E3·Z1은 지휘자**: E1(`/design-sync`)은 구현을 고치므로 worker가 한다. E2는 보고만 하는 `/runtime-test`라 worker가 하고, sign-out·정리 승인은 지휘자를 거쳐 사람에게 묻는다. E3(`/verify`)와 Z1(문서 승격)은 지휘자 몫이다(orchestrate §4·§5).
+
+## 배치
+
+| 배치 | tasks 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 gate | 상태 |
+|---|---|---|---|---|---|---|
+| A | A1, A2 | 새 `app/src/main/agentAuth/usage*.ts`(type-only 타입 모듈, provider 파서, `shouldRead`, `UsageStore`)와 테스트, 새 `app/src/renderer/agentUsage*.ts`(`ringValue`, `usageText`, 설명 글)와 테스트, `app/src/main/agentAuth/fixtures/*-usage.json`, `fixtures/README.md`, `app/src/renderer/rendererImports.test.ts`(필요할 때만) | — | Opus medium: 순수 함수지만 PoC 응답의 모양과 결정 4–7을 바르게 옮겨야 한다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 대기 |
+| RA | A 리뷰 | 보고만 | A | Sonnet high: 순수 함수 diff, 규칙 대조가 대부분 | `/code-review` 보고 | 대기 |
+| B | B1, B2 | 새 `app/src/main/agentAuth/usageRead*.ts`·IPC 모듈과 테스트, `agentAuth/manager.ts`(+test), `main/index.ts`, `main/senderAllowed.ts`(+test), `main/conversation/*`(턴 끝 계기, 열린 runner 재사용) | A 통합 | Opus high: lease·sign-out·동시 조회 합치기·늦은 결과 버리기·Cursor 토큰 처리 — 틀리면 sign-in이 풀리거나 토큰이 샌다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 대기 |
+| C | C1 | `app/src/preload/index.ts`(+test), `app/src/renderer/` 새 링·popover 컴포넌트와 테스트, `App.tsx`(+App 테스트), `SettingsAgents.tsx`(원인 문구 공유가 필요할 때만), `tokens.css`, `styles.css`, `docs/DESIGN.md`, `.doan/canvases/design-system-canvases.html` | A 통합 | Opus high: 포커스·Esc 순서·접힘·실시간 행 변화 등 상호작용 규칙이 많고 모든 화면에 보인다 | `npm --prefix app test`, typecheck, `npm --prefix app run build` | 대기 |
+| RB | B 리뷰 | 보고만 | B | Opus high: 동시성·자격 증명 경계 | `/code-review` 보고 | 대기 |
+| RC | C 리뷰 | 보고만 | C | Opus medium: UI 규칙 대조 | `/code-review` 보고 | 대기 |
+| E1 | E1 | C의 renderer 파일, `tokens.css`, `styles.css`, `docs/DESIGN.md` | B·C 통합 | Opus high: 실제 앱에서 계산된 style 측정과 수정 | `/design-sync` 보고 | 대기 |
+| E2 | E2 | 보고만(`.scratch/`) | E1 통합 | Opus medium: 실제 프로필로 정해진 항목 확인, 보고만 | `/runtime-test` 보고 | 대기 |
+| E3 | E3 | — | E2 | 지휘자 | `node .agents/skills/verify/scripts/verify.mjs` exit 0 | 대기 |
+| Z1 | Z1 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/BACKLOG.md`, `docs/features/provider-usage/` 삭제 | E3 | 지휘자 | tasks Z1의 grep 검증 | 대기 |
+
+tasks의 남은 항목(A1, A2, B1, B2, C1, E1, E2, E3, Z1)은 모두 한 배치에 속한다. U4는 막힘으로 닫혔다(U6 결정).
+
+## 겹침과 순서
+
+- A가 먼저다. B와 C는 A의 타입과 순수 함수를 쓴다.
+- A 통합 뒤 B와 C를 나란히 돌린다. 둘이 같이 고치는 파일은 없다: main(B)과 preload·renderer(C)로 나뉘고, 계약은 결정 8이다. B가 A의 파일을 고쳐야 하면 고치지 않고 '미룬 항목'으로 넘긴다(C도 같다).
+- E1은 B·C 통합 뒤, E2는 E1 통합 뒤, 그다음 E3·Z1.
+
+## 진행
+
+(통합 hash, 리뷰 round, 검증 결과를 여기에 적는다.)
