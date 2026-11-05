@@ -12,7 +12,7 @@ renderer만 바뀐다. main의 Send now 경로, IPC, 포맷은 그대로 쓴다.
 
 ## 영향받는 구성 요소
 
-- **app(renderer)**: `homeComposer.ts`(키 판정), `composerRules.ts`(계획), `ComposerParts.tsx`(`ComposerField`의 키 연결), `DockedComposer.tsx`(`steerAll`, `QueueRows`의 handle과 Send now 툴팁, `DockedOutcome`), `CanvasConversationPanel.tsx`·`ProjectOverview.tsx`(queue 답에 `itemId`).
+- **app(renderer)**: `homeComposer.ts`(키 판정), `composerRules.ts`(계획), `ComposerParts.tsx`(`ComposerField`의 키 연결), `DockedComposer.tsx`(`steerAll`, `QueueRows`의 handle과 큐 아래 단축키 caption, `send()`의 반환, `DockedOutcome`), `CanvasConversationPanel.tsx`·`ProjectOverview.tsx`(queue 답에 `itemId`).
 - **app(main)·CLI·skills·포맷**: 바뀌지 않는다.
 
 ### 동작
@@ -21,7 +21,7 @@ renderer만 바뀐다. main의 Send now 경로, IPC, 포맷은 그대로 쓴다.
 2. `DockedComposer`의 `steerAll()`이 `steerAllPlan`의 답을 따른다.
    - `enter`: `send()`를 부른다(Enter와 같음).
    - `rows`가 참: `QueueRows`의 handle `sendAll()`을 부른다. `sendAll()`은 지금 그려진 `items`를 위에서부터 돌며 행마다 기존 `sendNow(id)`를 기다리지 않고 부른다. `flying`에 있는 행은 `sendNow`가 스스로 건너뛴다. 행 버튼을 빠르게 차례로 누른 것과 같은 경로이므로, 누른 순서 표시, 거절 줄, 알림, 큐 read mark(POSTMORTEM 2026-11-05)가 그대로 적용된다.
-   - `draft`가 참: `send()`를 queue로 부르고, 답이 `{ ok: true, itemId }`면 handle의 `sendNow(itemId)`를 부른다. 이 행은 가장 새 행이므로 기존 행 뒤에 눌려 순서가 지켜진다. queue가 `not_running`(턴이 먼저 끝남)으로 거절되어 `send()`가 보내기로 넘어가면 steer하지 않는다. queue가 다른 이유로 실패하면 입력란은 지금처럼 남고 오류를 보이며, 이미 시도한 행은 그대로 간다.
+   - `draft`가 참: `send()`를 queue로 부른다. `send()`는 지금 `Promise<void>`라 outcome을 삼키므로, 최종 `DockedOutcome`을 돌려주도록 바꾼다. 답이 `{ ok: true, itemId }`이고 그때 `key`가 `shown.current`와 같을 때만 handle의 `sendNow(itemId)`를 부른다. 답을 기다리는 사이 사람이 다른 대화로 바꾸면 `QueueRows`가 다시 마운트되어 handle이 새 대화의 것이 되므로, 부르지 않고 그 행은 원래 대화의 큐에 남긴다(`send()` 자신의 `at === shown.current` 확인과 같은 이유). 이 행은 가장 새 행이므로 기존 행 뒤에 눌려 순서가 지켜진다. queue가 `not_running`(턴이 먼저 끝남)으로 거절되어 `send()`가 보내기로 넘어가면, 그 답은 `onSend`의 것이라 `itemId`가 없으므로 steer하지 않는다. 입력란의 글을 큐에 넣을 수 없으면(`availability` 거짓: 보내는 중, busy, 첨부 문제, 잠김) `send()`는 지금처럼 이유 줄을 남기고, 행은 `sendAll()`대로 간다. queue가 다른 이유로 실패하면 입력란은 지금처럼 남고 오류를 보이며, 이미 시도한 행은 그대로 간다.
    - `none`: 아무것도 하지 않는다(입력란이 비고 큐도 빔. Enter처럼 Stop을 부르지 않는다).
 3. `DockedOutcome`의 성공을 `{ ok: true; itemId?: string }`로 넓히고, 두 host의 `queue`가 `reply.itemId`를 넣는다. renderer 안의 타입이고 IPC 답은 이미 `itemId`를 준다.
 4. 포커스: 키는 입력란에서 눌리므로 `focusAfter`가 포커스를 옮기지 않는다. draft를 queue로 보낸 경우 입력란이 비고 포커스는 `send()`의 `focus({ kind: "sent" })`대로 입력란에 남는다.
@@ -44,7 +44,12 @@ renderer만 바뀐다. main의 Send now 경로, IPC, 포맷은 그대로 쓴다.
 ## 결정 영향
 
 - ARCHITECTURE의 구조 결정(append-only 이벤트, 토큰 미취급, git 미실행 등)을 건드리지 않는다. Send now의 main 쪽 규칙(ARCHITECTURE §7, `sendNow`가 항목 하나씩 `sending`으로 표시하고 읽힌 뒤 답함)을 그대로 쓴다.
-- PRODUCT §5 'Project conversations'의 Send now 항목에 단축키 한 줄을 더하고, DESIGN.md의 Queued row 항목에 툴팁 키를 적는다(tasks Z1).
+- Claude runner는 steer가 있었던 턴의 끝에서 usage를 읽지 않는다(`runners.ts` `!state.steered?.length`, ARCHITECTURE §7 'Agent usage'). 이 단축키로 steer가 늘면 header의 Claude 사용량 링이 덜 갱신되지만, 이 기능은 그 규칙을 바꾸지 않는다.
+- PRODUCT §5 'Project conversations'의 Send now 항목에 단축키 한 줄을 더하고, DESIGN.md의 Queued row 항목에 caption을 적는다(tasks Z1).
+
+## 함께 고치는 feature
+
+prompt-suggestion(`ComposerField`의 키 연결, `homeComposer.ts`의 키 판정, `takesSuggestion` ArrowRight)과 context-window-ring(`DockedComposer`의 새 prop)이 같은 renderer 파일을 고친다. 키는 겹치지 않는다. 나중에 들어가는 쪽이 `onKey` → `onSteerKey` → `isSubmitKey` 순서를 맞춘다.
 
 ## PoC 의존
 
@@ -59,11 +64,11 @@ renderer만 바뀐다. main의 Send now 경로, IPC, 포맷은 그대로 쓴다.
 
 ## 읽은 design preset
 
-읽지 않았다. 결정 3의 표시는 이미 있는 `has-key` 툴팁(`DockedComposer.tsx`의 Pick 버튼 ⌘L, DESIGN.md 'Viewer tool tooltip')을 그대로 쓰고 새 화면이 없어 `/design-draft`도 필요 없다.
+읽지 않았다. 결정 3의 caption은 기존 `doan-kbd`와 큐 행의 글자 크기·색을 쓰는 한 줄이고 새 화면이 없어 `/design-draft`도 필요 없다.
 
 ## 결정
 
 1. **입력란에 글이 있을 때(Send now를 쓸 수 있는 턴)**: 그 글을 큐 끝에 넣고(입력란이 빔), 기존 행 다음에 그것까지 steer한다. 키 한 번으로 화면에 보이는 것을 모두 지금 턴에 넣고, 입력한 글이 가장 새것이라 순서도 지켜진다(사람).
 2. **Send now를 쓸 수 없을 때**(턴 없음, ACP provider, 준비 중·판정 대기·큐 전송 직전): Enter와 같다. 턴이 없으면 보내고, 턴이 돌면 큐에 넣는다. 지금의 Control+Enter 동작을 바꾸지 않고, 키가 아무 일도 하지 않는 경우를 만들지 않는다(사람).
-3. **표시**: 각 행의 Send now 툴팁을 "Add to the current turn without stopping it" 뒤에 `doan-kbd` "⌃↩"를 붙인 `has-key` 모양으로 바꾼다(Pick 버튼의 ⌘L과 같은 variant·size). 행이 여럿이면 이 키는 그 행만이 아니라 모든 행을 보낸다. 앱의 다른 단축키(⌘L, ⌘B, V/H)도 툴팁에 키를 보인다(사람).
+3. **표시**: 큐 목록 아래에 caption 한 줄을 둔다. `doan-kbd` "⌃↩"와 모든 행을 지금 보낸다는 문구(예: "⌃↩ Send all now", 문구는 구현 때 정한다)로, 대화가 Send now를 보이고 큐에 행이 있을 때만 보인다. 키는 행 하나가 아니라 큐 전체를 보내고 입력란에서만 듣으므로, 행 버튼 툴팁이 아니라 큐 아래에 알린다. 행의 Send now 툴팁은 바꾸지 않는다(사람).
 4. **키가 듣는 곳**: docked composer의 입력란에 포커스가 있을 때만. Enter·Shift+Enter·IME 규칙이 입력란에 있고, 결정 1의 draft 처리도 입력란 기준이다(사람).

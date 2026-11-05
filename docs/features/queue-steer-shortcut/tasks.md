@@ -11,16 +11,16 @@
 
 ## B. 키 연결
 
-- [ ] B1. `ComposerField`에 `onSteerKey`를 더하고, `DockedComposer`에 `steerAll()`과 `QueueRows`의 handle(`sendAll`, `sendNow`)을 더한다. `DockedOutcome` 성공에 `itemId`를 넣고 두 host의 `queue`가 채운다(design '동작' 1–4).
-  - 검증: `npm --prefix app test`에서 `DockedComposer.queue.test.tsx`·`DockedComposer.interaction.test.tsx`의 새 사례가 green. 실제 입력란 keydown으로: (a) 행 셋이 위에서부터 `onSendQueuedNow`에 차례로 불림, (b) 이미 보내는 중인 행은 다시 불리지 않음, (c) 가운데 행의 거절은 그 행 아래에만 "Couldn’t send now. It stays queued.", (d) 입력란의 글이 queue된 뒤 그 `itemId`가 마지막으로 불림, (e) queue가 `not_running`이면 보내고 steer하지 않음, (f) `sendNow` 거짓이면 Enter와 같음, (g) 빈 입력란·빈 큐에서는 아무 호출도 없고 Stop도 불리지 않음, (h) 포커스가 입력란에 남음, (i) IME 조합 중(`isComposing`)이면 아무것도 하지 않음, (j) Home composer의 Control+Enter는 지금처럼 보냄.
+- [ ] B1. `ComposerField`에 `onSteerKey`를 더하고, `DockedComposer`에 `steerAll()`과 `QueueRows`의 handle(`sendAll`, `sendNow`)을 더한다. `send()`가 최종 `DockedOutcome`을 돌려주게 하고, 성공에 `itemId`를 넣어 두 host의 `queue`가 채운다(design '동작' 1–4).
+  - 검증: `npm --prefix app test`에서 `DockedComposer.queue.test.tsx`·`DockedComposer.interaction.test.tsx`의 새 사례가 green. 실제 입력란 keydown으로: (a) 행 셋이 위에서부터 `onSendQueuedNow`에 차례로 불림, (b) 이미 보내는 중인 행은 다시 불리지 않음, (c) 가운데 행의 거절은 그 행 아래에만 "Couldn’t send now. It stays queued.", (d) 입력란의 글이 queue된 뒤 그 `itemId`가 마지막으로 불림, (e) queue가 `not_running`이면 보내고 steer하지 않음, (f) `sendNow` 거짓이면 Enter와 같음, (g) 빈 입력란·빈 큐에서는 아무 호출도 없고 Stop도 불리지 않음, (h) 포커스가 입력란에 남음, (i) IME 조합 중(`isComposing`)이면 아무것도 하지 않음, (j) Home composer의 Control+Enter는 지금처럼 보냄, (k) queue 답이 오기 전에 대화를 바꾸면 그 `itemId`로 `onSendQueuedNow`가 불리지 않고 행은 원래 대화의 큐에 남음, (l) `availability`가 거짓이면 입력란의 글과 이유 줄은 남고 기존 행만 `onSendQueuedNow`로 불림.
   - 검증: `npm --prefix app run typecheck` 통과.
 
 **커밋 경계 2**
 
 ## C. 표시
 
-- [ ] C1. `QueueRows`의 Send now 툴팁을 `has-key` 모양으로 바꾸고 `doan-kbd` "⌃↩"를 붙인다(Pick 버튼과 같은 variant·size, design 결정 3).
-  - 검증: `npm --prefix app test`에서 툴팁 내용과 키를 확인하는 사례가 green. 실제 모양은 E1에서 스크린샷으로 본다.
+- [ ] C1. 큐 목록 아래에 `doan-kbd` "⌃↩"가 든 단축키 caption을 더한다(design 결정 3). Send now 툴팁은 바꾸지 않는다.
+  - 검증: `npm --prefix app test`에서 caption이 Send now를 보이고 행이 있을 때만 보이고, Send now를 쓸 수 없거나 큐가 비면 없는 사례가 green. 실제 모양은 E1에서 스크린샷으로 본다.
 
 **커밋 경계 3**
 
@@ -34,8 +34,8 @@
 
 ## Z. 승격과 정리
 
-- [ ] Z1. PRODUCT §5 'Project conversations'의 Send now 항목에 단축키 규칙을 영어로 더한다(Control+Enter, 대상, 입력란의 글, Send now를 쓸 수 없을 때, 키가 듣는 곳, 툴팁의 키). DESIGN.md의 Queued row 항목에 툴팁 키를 적는다. ARCHITECTURE는 바뀌지 않는다. `docs/features/queue-steer-shortcut/`을 지운다.
-  - 검증: `rg -n "Control\+Enter|⌃↩" docs/PRODUCT.md`가 새 규칙을 찾고, `docs/features/queue-steer-shortcut/`이 없다. 문서마다 커밋을 나눈다.
+- [ ] Z1. PRODUCT §5 'Project conversations'의 Send now 항목에 단축키 규칙을 영어로 더한다(Control+Enter, 대상, 입력란의 글, Send now를 쓸 수 없을 때, 키가 듣는 곳, 툴팁의 키). DESIGN.md의 Queued row 항목에 caption을 적고, 'Not drawn' 문단(DESIGN.md:200)의 "`.doan-kbd` outside a button (the canvas page only …)" 문장을 docked composer의 caption까지 담도록 고친다. ARCHITECTURE는 바뀌지 않는다. `docs/features/queue-steer-shortcut/`을 지운다.
+  - 검증: `rg -n "Control\+Enter|⌃↩" docs/PRODUCT.md`와 `rg -n "⌃↩" docs/DESIGN.md`가 새 규칙을 찾고, `docs/features/queue-steer-shortcut/`이 없다. 문서마다 커밋을 나눈다.
 - [ ] Z2. `node .agents/skills/verify/scripts/verify.mjs`로 공유 gate를 돌린다.
   - 검증: 종료 코드 0.
 
