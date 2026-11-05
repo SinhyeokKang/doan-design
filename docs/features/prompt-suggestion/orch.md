@@ -11,6 +11,7 @@
 - P1은 사용자와 함께 마쳤다(2026-11-05, Claude Code 2.1.318). 결과와 고친 결정(결정 2: Doan이 `CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION=true` 기본값, shell 값이 이김, probe가 이 변수를 읽음 / 결정 5: group stop / P1-b의 앱 확인은 E1(c))은 design 'PoC 결과'와 `6ad651d3`에 있다. 사용자가 이대로 계속하기로 했다.
 - 링크 3 PoC를 사용자와 하는 동안 작업자를 먼저 띄운다(사용자 제안). 링크 3 PoC는 `.scratch/context-window-ring/`의 script와 공용 프로필만 쓰고 이 branch의 코드를 바꾸지 않는다.
 - renderer 배치 R은 main 배치 M의 `ConversationSummary.suggestion`을 기다리지 않는다(지휘자 판단 — orchestrate §0.4). 두 host가 summary의 제안을 넘기는 연결과 `homeRun.test.ts` 사례는 R의 '미룬 항목'이고, M의 summary 커밋을 통합한 뒤 새 Task로 보낸다.
+- box 모양의 빈 placeholder(제안 포함)는 capsule과 같은 한 줄 말줄임이다(사람, R의 질문 — docked의 빈 입력란 최소 높이가 한 줄이라 두 줄 clamp는 스크롤을 만든다). spec 3·design renderer 2·tasks E1(a)·Z1을 고쳤다.
 - E1(실제 앱 확인)은 공용 프로필과 사람의 키보드가 필요해서 지휘자가 `/runtime-test`로 한다.
 
 ## Codex 사용
@@ -41,4 +42,6 @@ P1→지휘자(완료), A1→M, A2→R, B1→M, B2→M, C1→R·R2, E1→지휘�
 
 ## 실행
 
-(작업자를 띄운 뒤 적는다.)
+- Orca run `run_59a44f7535ec`. 1차 작업자는 `722fac80`에서 갈라졌다.
+- M: dispatch `ctx_99df85acb907`, worktree `prompt-suggestion-m`, Claude Opus high(launch 확인).
+- R: dispatch `ctx_debd4ad423fe`, worktree `prompt-suggestion-r`, Claude Opus high(launch 확인).
