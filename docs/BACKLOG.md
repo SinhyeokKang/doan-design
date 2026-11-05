@@ -43,6 +43,7 @@ What Doan has not settled or not shown yet: product questions without a decision
 
 ## Not verified in the real app
 
+- Next-message suggestion: VoiceOver reading of the suggestion, its hint and the one-time “Suggestion: …” announcement; ACP conversations' unchanged placeholder in the real app (unit tests only); Claude Code versions older than 2.1.318 (only 2.1.318 was observed sending `prompt_suggestion`).
 - Agent usage readings not seen on a real account (ARCHITECTURE §7 'Agent authentication'): a reported limit (`limited`) for Claude Code and GitHub Copilot; paid Cursor plans, whose answer may lack `autoPercentUsed`/`apiPercentUsed` and would then read as `read_failed`; unlimited, unsupported and no-plan-limits rows (shown by injection only). A free Copilot account answered a `resetDate` already passed, so its ring stays empty and every popover open reads Copilot again. A row leaving the open popover after a sign-out was verified by injection only; the real sign-out ended after the popover closed.
 
 - Terminal work in another worktree, not reached in the real app (DESIGN.md 'Terminal work in another worktree'): Open's focus ring and pressed fill (not drawn in the draft), the draft side of Open's hover, picking while an app conversation works (the isolated app's agents were not signed in), the picking hint's ellipsis on a narrow board, dark mode and forced colours. The runtime probe was not rerun after the notice tooltip moved below the notice; the move was re-measured in the app.
@@ -85,6 +86,7 @@ What Doan has not settled or not shown yet: product questions without a decision
 
 ## Known defects
 
+- A send fired at a Claude turn's `turn.done` waits about 10.8 s before its turn starts, without being refused (seen 2026-11-06 with the shared provider profile on both main `a28da4fe` and the prompt-suggestion branch): the Claude CLI exits 2.5-3.7 s after `result`, but the owned group is observed gone about 7 s later, close to `EXIT_WAIT_MS`. Which process outlives the CLI was not investigated.
 - Escape on Settings > Agents' Agent picker leaves Settings for Home (focus lands in the Home composer) instead of only closing the menu: the picker's `DropdownMenu.Content` (`SettingsAgents.tsx`) does not stop Escape, and App's window keydown handler decides to leave the page by whether a menu is in the DOM after Radix has already removed it. Seen in the mcp-connectors BU runtime probe and review (2026-11-04); the same handler existed before that feature.
 - A Codex MCP tool approval that expires when the person presses Stop (Doan answers it, and Codex treats that as Decline) still shows as "Answered · Run <tool> on <connector>" in the thread, which reads as if the person allowed it. Seen in the mcp-connectors real-app run.
 - `open -g` to an app that is running but not yet answering its socket brings it forward: reopen fires `activate`, whose handler shows the window, so `onboarding start` during startup can still cover the app in use. Fixing it means changing the Dock-click `activate` behaviour.
