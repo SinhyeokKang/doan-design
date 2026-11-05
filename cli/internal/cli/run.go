@@ -23,6 +23,7 @@ type Context struct {
 	WorkSession, WorkProvider string
 	AppConversation           bool
 	WorkConversation          string // DOAN_CONVERSATION_ID, already checked; it identifies update only inside an app conversation.
+	Handoff                   string // DOAN_HANDOFF, already checked; empty outside an app conversation that may hand off.
 	Session                   *sessionRecording
 	Start                     string
 	Home                      string
@@ -30,6 +31,7 @@ type Context struct {
 	Prompt                    func(string) (string, error)
 	Now                       func() time.Time
 	Random                    io.Reader
+	Input                     io.Reader
 	// RuntimePath and Dial reach the app; Run fills them so bodies never read the environment or open sockets.
 	RuntimePath string
 	Dial        func(socket string, deadline time.Time) (net.Conn, error)
@@ -54,6 +56,8 @@ type Flags struct {
 	// Frames keeps every --frame so a repeated one is an error rather than the last one winning.
 	Frames []string
 	Note   string
+	// Message is handoff's --message; Given tells an empty one from an absent one.
+	Message string
 
 	Session, Operation, Provider, Request, Path, URL, Destination, Inspection string
 	SpendCopilotRequest, Initialize                                           bool
@@ -79,6 +83,8 @@ const usage = `Usage: doan <command> [--repo <path>] [--json]
   work update <canvas path> [--frame <id>] [--note <text>]
   work done [<canvas path>...]
   open <canvas path> [--frame <id>]
+  handoff <canvas path> --message <text|->
+      (Doan app conversations only)
   export <canvas path> -o <file> [--force]
   onboarding start
   onboarding status --session <id> [--operation <id>]
@@ -111,7 +117,7 @@ func repository(ctx Context, f Flags) (repo.Repository, *Error) {
 	return r, nil
 }
 
-// runtimePath is resolved only for active, work, open and onboarding, so a bad DOAN_RUNTIME cannot break file-only commands.
+// runtimePath is resolved only for active, work, open, handoff and onboarding, so a bad DOAN_RUNTIME cannot break file-only commands.
 // An e2e or dev app started with --user-data-dir writes runtime.json there, and this variable points the CLI at it.
 func runtimePath() (string, *Error) {
 	if p := os.Getenv("DOAN_RUNTIME"); p != "" {
@@ -147,6 +153,7 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	fs.StringVar(&f.Agent, "agent", "", "")
 	fs.Func("frame", "", func(s string) error { f.Frames = append(f.Frames, s); return nil })
 	fs.StringVar(&f.Note, "note", "", "")
+	fs.StringVar(&f.Message, "message", "", "")
 	for name, target := range map[string]*string{"session": &f.Session, "operation": &f.Operation, "provider": &f.Provider, "request": &f.Request, "path": &f.Path, "url": &f.URL, "destination": &f.Destination, "inspection": &f.Inspection} {
 		fs.StringVar(target, name, "", "")
 	}
@@ -183,6 +190,8 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			allowed["agent"] = true
 		case "open":
 			allowed["frame"] = true
+		case "handoff":
+			allowed["message"] = true
 		case "work":
 			if len(pos) > 1 && pos[1] == "update" {
 				allowed["frame"] = true
@@ -272,6 +281,12 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 					case "open":
 						if ctx.RuntimePath, ctx.RuntimeExplicit, failure = onboardingRuntime(); failure == nil {
 							o, failure = Open(ctx, f, pos[1:])
+						}
+					case "handoff":
+						ctx.Handoff = handoffKey(os.Getenv("DOAN_HANDOFF"))
+						ctx.Input = reader
+						if ctx.RuntimePath, failure = runtimePath(); failure == nil {
+							o, failure = Handoff(ctx, f, pos[1:])
 						}
 					case "export":
 						o, failure = Export(ctx, f, pos[1:])
