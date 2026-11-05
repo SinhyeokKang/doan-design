@@ -1,9 +1,10 @@
 import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, test, vi } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { FolderEntry } from "../main/view";
 import { CanvasAgent } from "./CanvasAgent";
+import { NoticeTyping, typesOn, type TypedText } from "./noticeTyping";
 import { TooltipProvider } from "./components/ui/tooltip";
 
 // buzz-canvas R5: the board's agent indicator (.doan/canvases/buzz-canvas.html 'agent-working', 'agent-waiting'), drawn
@@ -16,6 +17,9 @@ const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
 });
 const markup = (list: readonly ConversationSummary[] | "loading" | "error" | undefined, over: Partial<Parameters<typeof CanvasAgent>[0]> = {}) =>
   renderToStaticMarkup(<TooltipProvider><CanvasAgent list={list} canvas={{ root: "/w/a", canvas }} running={true} work={[]} entries={[]} onOpen={vi.fn()} onOpenSibling={vi.fn()} onStopFailed={vi.fn()} {...over} /></TooltipProvider>);
+// The working notice's visible line (aria-hidden, the text and its caret) and its measuring node (work-update U1).
+const LINE = (text: string, caret = '<span class="doan-agent-caret"></span>') => `<span class="doan-agent-line" aria-hidden="true" data-state="closed" data-slot="tooltip-trigger"><span class="doan-agent-row"><span class="doan-agent-text">${text}</span>${caret}</span></span>`;
+const MEASURE = '<span class="doan-agent-measure" aria-hidden="true"></span>';
 // Without an indicator the column stays, empty, for the canvas notices.
 const COLUMN = '<div class="doan-canvas-top"></div>';
 const tag = (html: string, pattern: string) => html.match(new RegExp(`<[a-z0-9]+[^>]*${pattern}[^>]*>`))?.[0] ?? "";
@@ -30,7 +34,7 @@ describe("CanvasAgent", () => {
     expect(tag(html, 'class="doan-agent"')).toBeTruthy();
     expect(html).toMatch(/<span class="doan-agent-dot" aria-hidden="true"><\/span>/);
     // Only the wording is the live region: the button's name is not announced with it.
-    expect(html).toMatch(/<span class="doan-agent-text" role="status">Agent is working<\/span>/);
+    expect(html).toContain('<span class="sr-only" role="status">Agent is working</span>');
     expect(html.match(/role="status"/g)).toHaveLength(1);
     const stop = tag(html, 'class="doan-button doan-agent-action"');
     expect(stop).toMatch(/^<button/);
@@ -75,7 +79,7 @@ describe("CanvasAgent", () => {
     const work = [{ session: "s1", provider: "codex" as const, root: "/w/a", path: canvas.path }];
     const html = markup([], { work });
     expect(html).toMatch(/<div class="doan-agent-glow"[^>]*><canvas class="doan-agent-dots"><\/canvas><\/div>/);
-    expect(html).toContain('<div class="doan-agent doan-agent-terminal"><span class="doan-agent-dot" aria-hidden="true"></span><span class="doan-agent-text" role="status">Agent is working</span></div>');
+    expect(html).toContain('<div class="doan-agent doan-agent-terminal"><span class="doan-agent-dot" aria-hidden="true"></span>' + LINE("Agent is working") + MEASURE + '<span class="sr-only" role="status">Agent is working</span></div>');
     expect(html).not.toContain("<button");
     // Another worktree's session on the same path shows nothing here.
     expect(markup([], { work: [{ ...work[0]!, root: "/w/b" }] })).toBe(COLUMN);
@@ -147,7 +151,7 @@ describe("CanvasAgent", () => {
 
   test("the canvas notices come after the agent notice in the column, and alone when no indicator shows", () => {
     const notice = <div className="doan-notice doan-panel" role="status">The selection is no longer in the canvas.</div>;
-    const html = renderToStaticMarkup(<CanvasAgent list={[summary({})]} canvas={{ root: "/w/a", canvas }} running={true} work={[]} entries={[]} onOpen={vi.fn()} onOpenSibling={vi.fn()} onStopFailed={vi.fn()}>{notice}</CanvasAgent>);
+    const html = renderToStaticMarkup(<TooltipProvider><CanvasAgent list={[summary({})]} canvas={{ root: "/w/a", canvas }} running={true} work={[]} entries={[]} onOpen={vi.fn()} onOpenSibling={vi.fn()} onStopFailed={vi.fn()}>{notice}</CanvasAgent></TooltipProvider>);
     expect(html.indexOf('class="doan-agent"')).toBeGreaterThan(-1);
     expect(html.indexOf('class="doan-agent"')).toBeLessThan(html.indexOf('class="doan-notice doan-panel"'));
     expect(html.match(/class="doan-canvas-top"/g)).toHaveLength(1);
@@ -207,4 +211,147 @@ test("the picking hint sits in the bottom column before the Canvas tools, led by
   expect(css).toMatch(/\.doan-canvas-bottom \{[^}]*pointer-events: none;/);
   expect(css).toContain(".doan-canvas-bottom > * { pointer-events: auto; }");
   expect(css).toMatch(/\.doan-picking-icon \{ flex: none; width: var\(--size-icon-sm\); height: var\(--size-icon-sm\); \}/);
+});
+
+// work-update U1 (design decisions 15, 18–20, draft frames notice-states and notice-typing): the working notice's words
+// from `doan work update`, its caret, its live region and its erase-and-type change.
+describe("the working notice's words", () => {
+  const term = (patch: Record<string, unknown> = {}) => [{ session: "s1", provider: "claude" as const, root: "/w/a", path: canvas.path, touched: 10, turn: "t1", ...patch }];
+  test("a terminal note is the visible text and the status; the caret follows it, out of the status", () => {
+    const html = markup([], { work: term({ note: "요금제 빈 상태를 그리는 중" }) });
+    expect(html).toContain(LINE("요금제 빈 상태를 그리는 중"));
+    expect(html).toContain('<span class="sr-only" role="status">요금제 빈 상태를 그리는 중</span>');
+    expect(html.match(/role="status"/g)).toHaveLength(1);
+    expect(html).not.toContain("<button");
+  });
+  test("a note with a frame: the status adds the frame's title; the visible text is the note", () => {
+    const frames = [{ id: "plans-empty", title: "Plans · empty", x: 0, y: 0, width: 10, height: 10 }];
+    const html = markup([], { work: term({ note: "Drawing", frame: "plans-empty" }), frames });
+    expect(html).toContain(LINE("Drawing"));
+    expect(html).toContain('<span class="sr-only" role="status">Drawing — Plans · empty</span>');
+  });
+  test("a frame without a note: 'Working on <title>', its id before a layout", () => {
+    expect(markup([], { work: term({ frame: "plans" }), frames: [{ id: "plans", title: "Plans", x: 0, y: 0, width: 1, height: 1 }] })).toContain(LINE("Working on Plans"));
+    expect(markup([], { work: term({ frame: "plans" }) })).toContain(LINE("Working on plans"));
+  });
+  test("a project conversation naming this canvas: the glow and the notice without Stop", () => {
+    const html = markup([], { conversationWork: [{ conversationId: "p1", root: "/w/a", path: canvas.path, note: "Drawing", touched: 3, turnId: "u1" }] });
+    expect(html).toContain("doan-agent-glow");
+    expect(html).toContain('<div class="doan-agent doan-agent-terminal">');
+    expect(html).toContain(LINE("Drawing"));
+    expect(html).not.toContain("<button");
+    // Another worktree's conversation on the same path shows nothing here.
+    expect(markup([], { conversationWork: [{ conversationId: "p1", root: "/w/b", path: canvas.path, touched: 3, turnId: "u1" }] })).toBe(COLUMN);
+  });
+  test("the canvas's own conversation keeps Stop with its note", () => {
+    const html = markup([summary({})], { conversationWork: [{ conversationId: "c1", root: "/w/a", path: canvas.path, note: "Drawing", touched: 3, turnId: "u1" }] });
+    expect(html).toContain(LINE("Drawing"));
+    expect(html).toMatch(/>Stop<\/button>/);
+  });
+  test("waiting: 'Agent needs your answer' and no caret", () => {
+    const html = markup([summary({ phase: "waiting" })], { conversationWork: [{ conversationId: "c1", root: "/w/a", path: canvas.path, note: "Drawing", touched: 3, turnId: "u1" }] });
+    expect(html).toContain(LINE("Agent needs your answer", ""));
+    expect(html).not.toContain("doan-agent-caret");
+  });
+});
+
+describe("typesOn", () => {
+  const at = (patch: Partial<Parameters<typeof typesOn>[1]> = {}) => ({ canvas: "/w/a\0x", visible: true, content: "terminal:s1@1", waiting: false, ...patch });
+  test("a new update while the canvas is in view types", () => {
+    expect(typesOn(at(), at({ content: "terminal:s1@2" }))).toBe(true);
+  });
+  test("the card coming with work that started in view types; opening the canvas mid-turn does not", () => {
+    expect(typesOn(at({ content: null }), at())).toBe(true);
+    expect(typesOn(null, at())).toBe(false);
+    expect(typesOn(at({ canvas: "/w/a\0other" }), at({ content: "terminal:s1@2" }))).toBe(false);
+  });
+  test("coming back to the canvas (hidden, then shown) does not type", () => {
+    expect(typesOn(at({ visible: false }), at({ content: "terminal:s1@2" }))).toBe(false);
+  });
+  test("the same update (a layout turning the id into a title) does not type", () => {
+    expect(typesOn(at(), at())).toBe(false);
+  });
+  test("waiting changes at once", () => {
+    expect(typesOn(at(), at({ content: "presence:c1", waiting: true }))).toBe(false);
+  });
+});
+
+describe("NoticeTyping", () => {
+  afterEach(() => vi.useRealTimers());
+  const host = (reduced = false) => {
+    const shown: TypedText[] = [];
+    const measure = vi.fn((_from: string, _to: string) => ({ from: 140, to: 180 }));
+    const typing = new NoticeTyping({ show: state => shown.push(state), measure, reducedMotion: () => reduced });
+    return { typing, shown, measure };
+  };
+  test("erases the old end and types the new one on a fake clock, with the floor set then cleared", () => {
+    vi.useFakeTimers();
+    const { typing, shown, measure } = host();
+    typing.set("Working on Plans", false);
+    expect(shown.at(-1)).toEqual({ text: "Working on Plans", minWidth: null, typing: false });
+    typing.set("Working on Cart", true);
+    expect(measure).toHaveBeenCalledOnce();
+    expect(measure).toHaveBeenCalledWith("Working on Plans", "Working on Cart");
+    expect(shown.at(-1)).toEqual({ text: "Working on Plans", minWidth: 140, typing: true });
+    vi.advanceTimersByTime(20);
+    expect(shown.at(-1)).toEqual({ text: "Working on Plan", minWidth: 140, typing: true });
+    vi.advanceTimersByTime(80);
+    expect(shown.at(-1)?.text).toBe("Working on ");
+    vi.advanceTimersByTime(35);
+    expect(shown.at(-1)?.text).toBe("Working on C");
+    vi.advanceTimersByTime(105);
+    expect(shown.at(-1)).toEqual({ text: "Working on Cart", minWidth: null, typing: false });
+    expect(measure).toHaveBeenCalledOnce();
+    typing.dispose();
+  });
+  test("a replacement midway restarts from the text on screen toward the newest text, measured once more", () => {
+    vi.useFakeTimers();
+    const { typing, shown, measure } = host();
+    typing.set("Working on Plans", false);
+    typing.set("Working on Checkout", true);
+    vi.advanceTimersByTime(100 + 35 * 2);
+    expect(shown.at(-1)?.text).toBe("Working on Ch");
+    typing.set("Working on Cart", true);
+    expect(measure).toHaveBeenCalledTimes(2);
+    expect(measure).toHaveBeenLastCalledWith("Working on Ch", "Working on Cart");
+    vi.advanceTimersByTime(1000);
+    expect(shown.at(-1)).toEqual({ text: "Working on Cart", minWidth: null, typing: false });
+    // The steps toward the replaced text never ran after the replacement.
+    expect(shown.map(state => state.text)).not.toContain("Working on Che");
+    typing.dispose();
+  });
+  test("reduced motion and a change not from an update place the text at once, without measuring", () => {
+    vi.useFakeTimers();
+    const reduced = host(true);
+    reduced.typing.set("Agent is working", false);
+    reduced.typing.set("Drawing", true);
+    expect(reduced.shown.at(-1)).toEqual({ text: "Drawing", minWidth: null, typing: false });
+    expect(reduced.measure).not.toHaveBeenCalled();
+    const plain = host();
+    plain.typing.set("Working on plans", false);
+    plain.typing.set("Working on Plans", false);
+    expect(plain.shown.at(-1)).toEqual({ text: "Working on Plans", minWidth: null, typing: false });
+    expect(plain.measure).not.toHaveBeenCalled();
+  });
+  test("an immediate change stops a running one", () => {
+    vi.useFakeTimers();
+    const { typing, shown } = host();
+    typing.set("Working on Plans", false);
+    typing.set("Working on Checkout", true);
+    vi.advanceTimersByTime(40);
+    typing.set("Agent needs your answer", false);
+    vi.advanceTimersByTime(1000);
+    expect(shown.at(-1)).toEqual({ text: "Agent needs your answer", minWidth: null, typing: false });
+  });
+});
+
+// work-update U1: the caret's look (design decision 19) and the marker's (decisions 16–17); the draft's always-on slide
+// is only on a frame change (design §1 rule 8).
+test("the caret blinks in two steps once a second, not while typing or under reduced motion, and is CanvasText in forced colours", () => {
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toMatch(/\.doan-agent-caret \{[^}]*width: calc\(var\(--space-1\) \/ 2\); height: var\(--type-body-sm-size\); background: currentColor; animation: doan-agent-blink 1s step-end infinite;/);
+  expect(css).toMatch(/\.doan-agent-row \{[^}]*gap: calc\(var\(--space-1\) \/ 2\);/);
+  expect(css).toContain(".doan-agent-caret[data-typing] { animation: none; }");
+  expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{[^}]*\.doan-agent-caret \{ animation: none; \}/);
+  expect(css).toMatch(/@media \(forced-colors: active\) \{ \.doan-agent-caret \{ forced-color-adjust: none; background: CanvasText; \} \}/);
 });

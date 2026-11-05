@@ -4051,3 +4051,127 @@ describe("capture", () => {
     } finally { h.controller.dispose(); }
   });
 });
+
+// work-update U1 (design §1 rule 8, decisions 16–17): the working-frame marker, a jump highlight that stays for the work
+// turn, slides 220 ms only when the working frame changes, and comes back by id after a reload.
+describe("working-frame marker", () => {
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
+  type H = ReturnType<typeof selectionHarness>;
+  const work = (frame: string | undefined, over: Record<string, unknown> = {}) => ({ source: "terminal:claude:s1", key: "terminal:t1", ...(frame === undefined ? {} : { frame }), waiting: false, ...over });
+  const setWork = (h: H, frame: string | undefined, over: Record<string, unknown> = {}, root = "/repo") =>
+    h.controller.setWork({ root, path: h.row.path, work: work(frame, over), keys: ["terminal:t1"] });
+  const marker = (h: H) => h.marks.find(mark => mark.className.split(" ").includes("working"));
+  const classes = (h: H) => marker(h)?.className.split(" ") ?? [];
+
+  it("sits on the working frame in screen px, under the selection marks, and stays", () => {
+    vi.useFakeTimers();
+    const h = selectionHarness();
+    try {
+      setWork(h, "hero");
+      expect(classes(h)).toEqual(["mark", "jump-highlight", "working"]);
+      expect(marker(h)).toMatchObject({ hidden: false, style: { left: "100px", top: "100px", width: "10px", height: "10px" } });
+      vi.advanceTimersByTime(5000);
+      expect(marker(h)?.hidden).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("follows a pan and a zoom at once, without the slide", () => {
+    const h = selectionHarness();
+    try {
+      setWork(h, "hero");
+      h.controller.wheel({ dx: 10, dy: 20, ctrl: false, meta: false, deltaMode: 0 }, { x: 200, y: 100 });
+      expect(marker(h)?.style).toMatchObject({ left: "90px", top: "80px" });
+      expect(classes(h)).not.toContain("moving");
+      h.controller.command("zoomIn");
+      expect(classes(h)).not.toContain("moving");
+    } finally { h.controller.dispose(); }
+  });
+
+  it("slides to another frame for 220 ms only when the working frame id changes", () => {
+    vi.useFakeTimers();
+    const h = selectionHarness();
+    try {
+      setWork(h, "hero");
+      setWork(h, "intro");
+      expect(classes(h)).toContain("moving");
+      expect(marker(h)?.style).toMatchObject({ left: "100px", top: "80px" });
+      vi.advanceTimersByTime(220);
+      expect(classes(h)).not.toContain("moving");
+      // The same frame again (its next update) does not slide.
+      setWork(h, "intro", { source: "terminal:claude:s1" });
+      expect(classes(h)).not.toContain("moving");
+    } finally { h.controller.dispose(); }
+  });
+
+  it("a layout that moves the same frame places the marker at once", () => {
+    const h = selectionHarness();
+    try {
+      setWork(h, "hero");
+      h.layout({ frames: [{ id: "intro", x: 0, y: 0, width: 10, height: 10 }, { id: "hero", x: 0, y: 40, width: 20, height: 10 }] });
+      expect(marker(h)?.style).toMatchObject({ top: "120px", width: "20px" });
+      expect(classes(h)).not.toContain("moving");
+    } finally { h.controller.dispose(); }
+  });
+
+  it("goes while the canvas reloads and comes back on the same id without the slide", () => {
+    const h = selectionHarness();
+    try {
+      setWork(h, "hero");
+      h.controller.command("reload");
+      expect(marker(h)?.hidden).toBe(true);
+      h.layout();
+      expect(marker(h)).toMatchObject({ hidden: false, style: { left: "100px", top: "100px" } });
+      expect(classes(h)).not.toContain("moving");
+    } finally { h.controller.dispose(); }
+  });
+
+  it("stays off when the reload fails", () => {
+    vi.useFakeTimers();
+    const h = selectionHarness();
+    try {
+      setWork(h, "hero");
+      h.controller.command("reload");
+      vi.advanceTimersByTime(FIRST_LAYOUT_TIMEOUT_MS);
+      expect(h.state().status).toBe("failed");
+      expect(marker(h)?.hidden).toBe(true);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("shows nothing for an id the document does not have, no frame, another root's work, or no work", () => {
+    const h = selectionHarness();
+    try {
+      setWork(h, "missing");
+      expect(marker(h)?.hidden ?? true).toBe(true);
+      setWork(h, undefined);
+      expect(marker(h)?.hidden ?? true).toBe(true);
+      setWork(h, "hero", {}, "/other");
+      expect(marker(h)?.hidden ?? true).toBe(true);
+      setWork(h, "hero");
+      expect(marker(h)?.hidden).toBe(false);
+      h.controller.setWork(null);
+      expect(marker(h)?.hidden).toBe(true);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("stops moving while the conversation waits for an answer", () => {
+    const h = selectionHarness();
+    try {
+      setWork(h, "hero", { waiting: true });
+      expect(classes(h)).toEqual(["mark", "jump-highlight", "working", "still"]);
+      setWork(h, "hero");
+      expect(classes(h)).not.toContain("still");
+    } finally { h.controller.dispose(); }
+  });
+
+  it("the marker's CSS: no fade, a travelling gradient and a breathing glow, the slide only with .moving, still under reduced motion", async () => {
+    const { readFileSync } = await import("node:fs");
+    const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+    expect(css).toMatch(/\.mark\.jump-highlight\.working \{[^}]*z-index: -1; animation: doan-work-glow 2\.4s var\(--ease-state\) infinite;/);
+    expect(css).toMatch(/\.mark\.jump-highlight\.working::before \{[^}]*animation: doan-work-travel 4\.8s linear infinite;/);
+    expect(css).toMatch(/\.mark\.jump-highlight\.working\.moving \{ transition: left var\(--time-settle\) var\(--ease-settle\), top var\(--time-settle\) var\(--ease-settle\), width var\(--time-settle\) var\(--ease-settle\), height var\(--time-settle\) var\(--ease-settle\); \}/);
+    expect(css).not.toMatch(/\.mark\.jump-highlight\.working \{[^}]*transition/);
+    expect(css).toContain(".mark.jump-highlight.working.still, .mark.jump-highlight.working.still::before { animation: none; }");
+    expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{ \.mark\.jump-highlight\.working, \.mark\.jump-highlight\.working::before \{ animation: none; transition: none; \} \}/);
+    expect(css).toMatch(/@media \(prefers-reduced-transparency: reduce\) \{ \.mark\.jump-highlight\.working \{ animation: none; box-shadow: 0 0 0 1px var\(--surface-panel\); \} \}/);
+  });
+});

@@ -1216,6 +1216,19 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 /* A reply chip's note under its reply block, 6 apart, as the note under a sent bubble. */
 .conversation-thread .thread-item > .msg-agent + .chip-missing { margin-top: var(--space-1h); }
 .mark.jump-highlight.jump-point { border-radius: 50%; }
+/* The working-frame marker (work-update decisions 16–17, draft frames marker-states, marker-moves): the jump highlight
+   kept for the work turn, under the selection marks, with a travelling gradient and a breathing glow. It slides between
+   frames only with .moving, which the controller sets for the 220 ms after the working frame changes: it is placed in
+   screen px on every pan and zoom, which must not lag. 4.8 s is two periods of the notice dot's 2.4 s. .still: the
+   conversation waits for an answer. */
+.mark.jump-highlight.working { z-index: -1; animation: doan-work-glow 2.4s var(--ease-state) infinite; }
+.mark.jump-highlight.working::before { background: linear-gradient(135deg, var(--affordance-accent) 0%, var(--indigo-600) 25%, var(--affordance-accent) 50%, var(--indigo-600) 75%, var(--affordance-accent) 100%); background-size: 200% 200%; animation: doan-work-travel 4.8s linear infinite; }
+.mark.jump-highlight.working.moving { transition: left var(--time-settle) var(--ease-settle), top var(--time-settle) var(--ease-settle), width var(--time-settle) var(--ease-settle), height var(--time-settle) var(--ease-settle); }
+.mark.jump-highlight.working.still, .mark.jump-highlight.working.still::before { animation: none; }
+@keyframes doan-work-travel { from { background-position: 0% 0%; } to { background-position: 100% 100%; } }
+@keyframes doan-work-glow { 0%, 100% { box-shadow: 0 0 0 1px var(--surface-panel), 0 0 16px 2px color-mix(in srgb, var(--affordance-accent) 45%, transparent); } 50% { box-shadow: 0 0 0 1px var(--surface-panel), 0 0 16px 2px color-mix(in srgb, var(--affordance-accent) 25%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .mark.jump-highlight.working, .mark.jump-highlight.working::before { animation: none; transition: none; } }
+@media (prefers-reduced-transparency: reduce) { .mark.jump-highlight.working { animation: none; box-shadow: 0 0 0 1px var(--surface-panel); } }
 /* The composer's note sits under its chip, over the card, without entering the field's DOM. */
 .chip-note { position: absolute; z-index: 2; margin-top: var(--space-1); padding: var(--space-half) var(--space-1h); border-radius: var(--radius-chip); background: var(--surface-panel); box-shadow: var(--shadow-sm); white-space: nowrap; pointer-events: none; }
 /* Attach, then Pick from canvas (design §2 'Picker'), at the left end of the model row; the pickers sit at the right
@@ -1350,7 +1363,19 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .doan-agent-dot[data-steady], .doan-agent-dot[data-steady]::after { animation: none; }
 @keyframes doan-agent-breathe { 0%, 100% { transform: scale(.75); } 50% { transform: scale(1.25); } }
 @keyframes doan-agent-ring { to { box-shadow: 0 0 0 var(--space-2) transparent; } }
+/* The working notice's line holds the text and its caret (work-update decisions 19–20, draft frame notice-typing): the
+   caret follows the last visible character, after the ellipsis when cut, and a width floor's extra room stays empty
+   after it. The measuring node takes the text's type and no room. */
+.doan-agent-line { display: grid; grid-template-columns: minmax(0, max-content); min-width: 0; }
+.doan-agent-row { grid-area: 1 / 1; display: flex; align-items: center; gap: calc(var(--space-1) / 2); min-width: 0; }
+.doan-agent-caret { flex: none; width: calc(var(--space-1) / 2); height: var(--type-body-sm-size); background: currentColor; animation: doan-agent-blink 1s step-end infinite; }
+.doan-agent-caret[data-typing] { animation: none; }
+@keyframes doan-agent-blink { 50% { opacity: 0; } }
+.doan-agent-measure { position: absolute; top: 0; left: 0; visibility: hidden; pointer-events: none; white-space: nowrap; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
+/* A currentColor background drops out under forced colours. */
+@media (forced-colors: active) { .doan-agent-caret { forced-color-adjust: none; background: CanvasText; } }
 @media (prefers-reduced-motion: reduce) {
+  .doan-agent-caret { animation: none; }
   .doan-agent-glow, .doan-agent-dot, .doan-agent-dot::after { animation: none; }
 }
 @media (prefers-reduced-transparency: reduce) {

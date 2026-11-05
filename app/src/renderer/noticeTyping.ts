@@ -37,3 +37,51 @@ export function typingSteps(from: string, to: string, options: { eraseMs?: numbe
   steps[steps.length - 1]!.minWidth = null;
   return steps;
 }
+
+// One moment of the notice: which canvas, whether it is in view, which update its words come from.
+export interface NoticeMoment { canvas: string | null; visible: boolean; content: string | null; waiting: boolean }
+
+// Only a new update (or work starting) while the canvas stays in view erases and types. Opening the canvas or coming
+// back to it mid-turn, a layout turning a frame id into its title, and waiting (the person has to act) change at once.
+export function typesOn(previous: NoticeMoment | null, next: NoticeMoment): boolean {
+  return previous !== null && previous.visible && next.visible && next.canvas !== null && previous.canvas === next.canvas
+    && !next.waiting && previous.content !== next.content;
+}
+
+export interface TypedText { text: string; minWidth: number | null; typing: boolean }
+
+// Runs the steps on timers. `measure` reads the two texts' widths once per change (never per step); a change while one
+// runs restarts from the text on screen toward the newest text.
+export class NoticeTyping {
+  private shown = "";
+  private target: string | null = null;
+  private timers: ReturnType<typeof setTimeout>[] = [];
+  constructor(private readonly host: { show(state: TypedText): void; measure(from: string, to: string): { from: number; to: number }; reducedMotion(): boolean }) {}
+
+  set(text: string, animate: boolean): void {
+    if (text === this.target) return;
+    this.target = text;
+    this.stop();
+    if (!animate || this.host.reducedMotion() || this.shown === text) {
+      this.shown = text;
+      this.host.show({ text, minWidth: null, typing: false });
+      return;
+    }
+    const widths = this.host.measure(this.shown, text);
+    const steps = typingSteps(this.shown, text, { fromWidth: widths.from, toWidth: widths.to });
+    this.host.show({ text: this.shown, minWidth: Math.min(widths.from, widths.to), typing: true });
+    for (const step of steps) {
+      this.timers.push(setTimeout(() => {
+        this.shown = step.text;
+        this.host.show({ text: step.text, minWidth: step.minWidth, typing: step.minWidth !== null });
+      }, step.at));
+    }
+  }
+
+  dispose(): void { this.stop(); }
+
+  private stop(): void {
+    for (const timer of this.timers) clearTimeout(timer);
+    this.timers = [];
+  }
+}

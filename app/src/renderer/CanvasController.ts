@@ -18,6 +18,7 @@ import { pointAnchor, resolveChipTarget, targetAnchor } from "./canvasPicker";
 import { escapeStep, toolShortcut, type CanvasTool, type ToolShortcut } from "./canvasTool";
 import { captureRect } from "./canvasCapture";
 import type { Rect } from "./canvasPicker";
+import { workFrameRect } from "./agentIndicator";
 
 export const MEASURE_ANSWER_MS = 1000;
 const REMEASURE_MS = 50;
@@ -73,6 +74,13 @@ export type PickResult = { kind: "picked"; anchor: Anchor; frames: readonly Canv
 // the target, so the caller ends the locate without claiming the target is gone.
 export type LocateResult = "shown" | "missing" | "timeout";
 
+// The work the open canvas shows (work-update design §1 rules 6–9), from the agent notice's pick (`pickWork`): `source`
+// is the terminal session or conversation, `key` its work turn. `keys` are every work turn on the canvas.
+export interface CanvasWork { source: string; key: string; frame?: string; waiting: boolean }
+export interface CanvasWorkTarget { root: string; path: string; work: CanvasWork | null; keys: readonly string[] }
+// The working-frame marker's slide to another frame (--time-settle).
+const WORK_SLIDE_MS = 220;
+
 // A point's ring on the board, in screen px (design §2 'Chip locate').
 const POINT_RING = 12;
 const LOCATE_ID = "locate";
@@ -125,6 +133,11 @@ export class CanvasController {
   private jumpMark: HTMLElement | null = null;
   private viewResize: ResizeObserver | null = null;
   private jumpTimer: ReturnType<typeof setTimeout> | undefined;
+  private work: CanvasWorkTarget | null = null;
+  private workMark: HTMLElement | null = null;
+  // The frame the marker is on, null while it is hidden: a slide needs a frame to come from.
+  private workMarkFrame: string | null = null;
+  private workSlideTimer: ReturnType<typeof setTimeout> | undefined;
   // Selection (design flows 3–7). `seq` orders the renderer's commands against
   // the script's own clicks; each new document starts again at 0.
   private seq = 0;
@@ -326,6 +339,7 @@ export class CanvasController {
   };
 
   dispose(): void {
+    clearTimeout(this.workSlideTimer);
     this.pickListener = null;
     this.pressListeners.clear();
     this.endLocate();
@@ -365,6 +379,7 @@ export class CanvasController {
     this.state.hasFrame = this.frame !== null;
     this.state.reanchoring = this.reanchor !== null;
     this.state.reloading = this.loading && this.state.status === null;
+    this.drawWork();
     this.syncMain();
     this.changed({ ...this.state });
     const ended = this.pickEnded;
@@ -1446,6 +1461,7 @@ export class CanvasController {
       this.jumpTo = null;
     }
     if (first && this.pendingLocate !== null) this.locatePending();
+    this.drawWork();
     if (selected !== undefined && !newDocument && this.state.selection !== null && this.reanchor === null) {
       if (selected === null) this.applySelectionEffect({ kind: "anchorLost" });
       else { this.selectedRect = selected; this.drawMarks(); }
@@ -1578,6 +1594,7 @@ export class CanvasController {
     this.board.style.transform = `translate(${this.view.x}px, ${this.view.y}px) scale(${this.view.scale})`;
     this.drawMarks();
     this.drawJump();
+    this.drawWork();
     const current = this.state.unlisted ? null : currentFrame(this.state.layout?.frames ?? [], this.view, this.viewportSize());
     const changedCurrent = current !== this.state.currentFrame;
     this.state.currentFrame = current;
@@ -1589,6 +1606,46 @@ export class CanvasController {
     if (zoom !== this.state.zoom || changedCurrent || changedLimit) { this.state.zoom = zoom; this.publish(); }
     this.viewChanged?.();
   }
+  // The open canvas's work from the agent notice's pick; App calls it whenever that pick or the open canvas changes.
+  setWork(target: CanvasWorkTarget | null): void {
+    const before = this.workMarkFrame;
+    this.work = target;
+    const frame = this.openWork()?.frame;
+    this.drawWork(before !== null && frame !== undefined && frame !== before);
+  }
+
+  private openWork(): CanvasWork | null {
+    const open = this.state.open, target = this.work;
+    return open && target && !this.state.unlisted && target.root === open.folder && target.path === open.canvas ? target.work : null;
+  }
+
+  // The working-frame marker (design §1 rule 8): the jump highlight kept for the work turn, on the first frame with the
+  // id, gone while the document reloads or failed and back on the same id once the new one lays out. It is placed in
+  // screen px on every view change, so it slides only when the working frame changes (`slide`); any other redraw puts
+  // it on its frame at once, ending a slide.
+  private drawWork(slide = false): void {
+    clearTimeout(this.workSlideTimer);
+    const work = this.loading || this.state.status !== null ? null : this.openWork();
+    const rect = work ? workFrameRect(this.state.layout, work.frame) : null;
+    if (work === null || rect === null) {
+      if (this.workMark) this.workMark.hidden = true;
+      this.workMarkFrame = null;
+      return;
+    }
+    if (this.workMark === null) {
+      this.workMark = document.createElement("div");
+      this.overlay.append(this.workMark);
+    }
+    const mark = this.workMark;
+    const look = work.waiting ? "mark jump-highlight working still" : "mark jump-highlight working";
+    mark.className = slide ? `${look} moving` : look;
+    if (slide) this.workSlideTimer = setTimeout(() => { mark.className = look; }, WORK_SLIDE_MS);
+    const screen = boardRectToScreen(this.view, rect);
+    mark.hidden = false;
+    Object.assign(mark.style, { left: `${screen.x}px`, top: `${screen.y}px`, width: `${screen.width}px`, height: `${screen.height}px` });
+    this.workMarkFrame = rect.id;
+  }
+
   // Marks live outside the iframe so the canvas DOM, its MutationObserver and
   // the anchors stay untouched; drawn in screen px so lines stay 1px at any
   // scale, while the size label (a child of the selection mark, centered
