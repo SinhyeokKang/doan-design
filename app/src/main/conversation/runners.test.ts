@@ -1298,3 +1298,83 @@ readline.createInterface({input:process.stdin}).on('line', line => {
     expect(events.filter(e => e.type === "turn.failed" || e.type.startsWith("question.") || e.type.startsWith("permission."))).toEqual([]);
   } finally { await runner.close(); rmSync(root, { recursive: true, force: true }); }
 });
+// provider-usage B1: a Doan-account turn's end reads usage on the run's own connection, never a new process.
+describe("usage at a turn's end", () => {
+  const usageReply = { rate_limits_available: true, rate_limits: { five_hour: { utilization: 12, resets_at: null } } };
+  function fakeClaude(root: string): string {
+    const command = join(root, "claude");
+    writeFileSync(command, `#!/usr/bin/env node
+const fs = require('node:fs'); const log = ${JSON.stringify(join(root, "seen"))};
+fs.appendFileSync(log, JSON.stringify({ start: process.pid }) + '\\n');
+const send = value => process.stdout.write(JSON.stringify(value)+'\\n');
+require('node:readline').createInterface({input:process.stdin}).on('line', line => {
+ const r = JSON.parse(line); fs.appendFileSync(log, line + '\\n');
+ if(r.type==='control_request') send({type:'control_response',response:{subtype:'success',request_id:r.request_id,response:r.request.subtype==='get_usage'?${JSON.stringify(usageReply)}:{commands:[],models:[],account:{}}}});
+ if(r.type==='user') {
+  send({type:'assistant',parent_tool_use_id:null,message:{id:'m',role:'assistant',content:[{type:'text',text:process.env.FAKE_FAIL?'':'hello'}]}});
+  send(process.env.FAKE_FAIL ? {type:'result',subtype:'error_during_execution',is_error:true,session_id:r.session_id} : {type:'result',subtype:'success',is_error:false,result:'hello',session_id:r.session_id});
+ }
+}).on('close', () => process.exit(0));
+`, { mode: 0o700 });
+    return command;
+  }
+  const seen = (root: string) => readFileSync(join(root, "seen"), "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line) as Record<string, unknown>);
+  it("asks the open Claude Query for usage once the turn is done, before its input closes", async () => {
+    const root = mkdtempSync(join(tmpdir(), "doan-usage-claude-")), command = fakeClaude(root);
+    const replies: unknown[] = [];
+    const usageAtTurnEnd = vi.fn(async (read: () => Promise<unknown>) => { replies.push(await read()); });
+    const events: EventPayload[] = []; const exited = vi.fn();
+    const runner = await openRunner({ command, runtime: "claude", cwd: root, configDir: root, env: { PATH: process.env.PATH, HOME: root, CLAUDE_CONFIG_DIR: root }, usageAtTurnEnd }, e => events.push(e), exited, () => {});
+    try {
+      await runner.send("hello", "local-turn");
+      expect(events).toContainEqual({ type: "turn.done" });
+      expect(usageAtTurnEnd).toHaveBeenCalledOnce();
+      expect(replies).toEqual([usageReply]);
+      const lines = seen(root);
+      expect(lines.filter(line => "start" in line)).toHaveLength(1);
+      expect(lines.filter(line => line.type === "control_request").map(line => (line.request as { subtype: string }).subtype)).toEqual(["initialize", "get_usage"]);
+      expect((lines.find(line => (line.request as { subtype?: string } | undefined)?.subtype === "get_usage")!.request as Record<string, unknown>).skip_behaviors).toBe(true);
+    } finally { await runner.close(); await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce()); rmSync(root, { recursive: true, force: true }); }
+  }, 15000);
+  it("sends no usage request when the hook declines to read, and none after a failed turn", async () => {
+    for (const fail of [false, true]) {
+      const root = mkdtempSync(join(tmpdir(), "doan-usage-claude-")), command = fakeClaude(root);
+      const usageAtTurnEnd = vi.fn(async () => {});
+      const exited = vi.fn();
+      const runner = await openRunner({ command, runtime: "claude", cwd: root, configDir: root, env: { PATH: process.env.PATH, HOME: root, CLAUDE_CONFIG_DIR: root, ...(fail ? { FAKE_FAIL: "1" } : {}) }, usageAtTurnEnd }, () => {}, exited, () => {});
+      try {
+        await runner.send("hello", "local-turn");
+        expect(usageAtTurnEnd).toHaveBeenCalledTimes(fail ? 0 : 1);
+        expect(seen(root).filter(line => (line.request as { subtype?: string } | undefined)?.subtype === "get_usage")).toEqual([]);
+      } finally { await runner.close(); await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce()); rmSync(root, { recursive: true, force: true }); }
+    }
+  }, 30000);
+  it("reads account/rateLimits/read on the conversation's live Codex server after each done turn", async () => {
+    const root = mkdtempSync(join(tmpdir(), "doan-usage-codex-")), command = join(root, "codex");
+    writeFileSync(command, `#!/usr/bin/env node
+const fs = require('node:fs'); const log = ${JSON.stringify(join(root, "seen"))};
+fs.appendFileSync(log, JSON.stringify({ start: process.pid }) + '\\n');
+const send = value => process.stdout.write(JSON.stringify(value)+'\\n');
+let turns = 0;
+require('node:readline').createInterface({input:process.stdin}).on('line', line => {
+ const r = JSON.parse(line); fs.appendFileSync(log, line + '\\n');
+ if(r.method==='initialize') send({id:r.id,result:{}});
+ if(r.method==='thread/start') send({id:r.id,result:{thread:{id:'session'},approvalPolicy:'on-request',sandbox:{type:'readOnly'}}});
+ if(r.method==='account/rateLimits/read') send({id:r.id,result:{rateLimits:{primary:{usedPercent:21,windowDurationMins:300}}}});
+ if(r.method==='turn/start') { const id = 'native-' + (++turns); send({id:r.id,result:{turn:{id}}}); send({method:'turn/completed',params:{threadId:'session',turn:{id,status:'completed'}}}); }
+});
+`, { mode: 0o700 });
+    const replies: unknown[] = [];
+    const usageAtTurnEnd = vi.fn(async (read: () => Promise<unknown>) => { replies.push(await read()); });
+    const events: EventPayload[] = []; const exited = vi.fn();
+    const runner = await openRunner({ command, runtime: "codex", cwd: root, configDir: root, env: process.env, usageAtTurnEnd }, e => events.push(e), exited, () => {});
+    try {
+      await runner.send("one", "turn-1"); await vi.waitFor(() => expect(replies).toHaveLength(1));
+      await runner.send("two", "turn-2"); await vi.waitFor(() => expect(replies).toHaveLength(2));
+      expect(replies).toEqual([{ rateLimits: { primary: { usedPercent: 21, windowDurationMins: 300 } } }, { rateLimits: { primary: { usedPercent: 21, windowDurationMins: 300 } } }]);
+      expect(seen(root).filter(line => "start" in line)).toHaveLength(1);
+      expect(events.filter(e => e.type === "turn.done")).toHaveLength(2);
+      expect(events.some(e => e.type === "turn.failed")).toBe(false);
+    } finally { await runner.close(); await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce()); rmSync(root, { recursive: true, force: true }); }
+  }, 15000);
+});

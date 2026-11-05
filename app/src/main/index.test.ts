@@ -2454,3 +2454,13 @@ describe("background onboarding launch and start", () => {
     expect(window().show).not.toHaveBeenCalled();
   });
 });
+
+// provider-usage B2: the usage read answers the window's entries; a frame that is not the window gets an empty list.
+test("answers agent-usage:read with entries for the window and an empty list for anyone else", async () => {
+  const contents = window().webContents;
+  const entries = await invoke("agent-usage:read", contents, null, undefined);
+  expect(Array.isArray(entries)).toBe(true);
+  expect(await invoke("agent-usage:read", contents, {}, { trigger: "refresh" })).toEqual([]);
+  expect(await invoke("agent-usage:read", {}, null, undefined)).toEqual([]);
+  expect(await invoke("agent-usage:read", contents, null, { trigger: "start" })).toEqual([]);
+});

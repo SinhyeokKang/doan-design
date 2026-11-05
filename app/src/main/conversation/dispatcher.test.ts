@@ -264,3 +264,23 @@ describe("Codex requestUserInput wiring", () => {
     expect(h.writes).toEqual([{ id: 7, error: { code: -32601, message: "Unsupported request or unavailable owner." } }]);
   });
 });
+// provider-usage B1: a usage read on a conversation's live server must never fail the conversation's protocol.
+it("lets a side request time out or fail without failing the protocol of the running conversation", async () => {
+  vi.useFakeTimers();
+  try {
+    const h = harness();
+    const late = h.rpc.query("account/rateLimits/read", undefined).catch((error: unknown) => error);
+    expect(h.writes.at(-1)).toEqual({ id: expect.any(String), method: "account/rateLimits/read" });
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(((await late) as Error).message).toBe("RPC timeout");
+    expect(h.cleanup).not.toHaveBeenCalled();
+    const refused = h.rpc.query("account/rateLimits/read", undefined).catch((error: unknown) => error);
+    const { id } = h.writes.at(-1) as { id: string };
+    h.rpc.receive({ id, error: { code: -32601, message: "Method not found" } });
+    expect(await refused).toBeInstanceOf(RpcError);
+    const answered = h.rpc.query("account/rateLimits/read", undefined);
+    h.rpc.receive({ id: (h.writes.at(-1) as { id: string }).id, result: { rateLimits: {} } });
+    expect(await answered).toEqual({ rateLimits: {} });
+    expect(h.cleanup).not.toHaveBeenCalled();
+  } finally { vi.useRealTimers(); }
+});
