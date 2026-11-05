@@ -26,6 +26,7 @@
 12. **쓸 수 없는 연결의 reauth 문구**: `UsageEntry.blocked`는 원인 코드만 담는다. B는 `readiness()`가 `reauth_required`이면서 auth phase가 `reauthRequired`가 아닌 연결(`state.ts:119` `unpinned`)을, A의 `blockedText`가 Settings > Agents와 같은 일반 문구("isn’t available right now")를 내는 원인 코드로 바꿔 담는다. 계약(결정 8)은 바뀌지 않는다. 지휘자 판단 — spec 완료 조건 3 "Settings > Agents와 같은 원인 문구"(RA 🟡2).
 13. **창이 다시 보일 때 읽기**: 숨겨진 앱 창이 다시 보이면 앱 시작과 같은 규칙(5분 간격)으로 읽는다. design 결정할 점 2에 더했다(사람).
 14. **확인되지 않은 연결**: 앱 시작에는 저장된 연결이 모두 `unverified`라, design대로면 시작 때 링이 거의 빈다. 대화 준비와 같이 먼저 확인하고 읽는다. Copilot은 확인 없이 읽고, 확인이 실패해야 `blocked`가 된다. design 결정할 점 5를 고쳤다(B의 질문, 사람).
+15. **바깥 클릭으로 닫힐 때 포커스**: Radix non-modal popover는 바깥 클릭 뒤 포커스를 버튼으로 돌리지 않는다. 클릭이 포커스를 아무 데도 두지 않았으면(`<body>`) 버튼으로 돌리고, 다른 컨트롤에 포커스를 두었으면 그대로 둔다. canvas press는 canvas 포커스를 유지한다. 지휘자 판단 — spec 완료 조건 1의 뜻을 지키되 사람이 누른 컨트롤의 포커스를 뺏지 않는다(E1의 질문).
 
 ## 배치
 
