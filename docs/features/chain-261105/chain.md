@@ -61,7 +61,7 @@
 
 | 링크 | 세션·worktree | 시작 | PR·병합 | 상태 |
 |---|---|---|---|---|
-| 1 canvas-capture | — | — | — | 대기 |
+| 1 canvas-capture | Claude Code · `/Users/sinhyeok/orca/workspaces/doan-design/canvas-capture-orch` | 2026-11-05 | — | 진행 중 |
 | 2 prompt-suggestion | — | — | — | 대기 |
 | 3 context-window-ring | — | — | — | 대기 |
 
@@ -70,3 +70,4 @@
 - 2026-11-05 체인 작성 세션(feature-review 세션): 네 feature의 `/feature-review` 반영을 main에 넣은 뒤, 순서(링크 1 prompt-suggestion은 사용자가 정함, 나머지는 파일 겹침)와 상시 권한(지난 체인과 같게: 각 링크가 병합, 멈추지 않고 진행, Claude Code 지휘자. 그리고 모든 링크에 Codex 작업자 허가)을 사용자와 정해 이 파일을 썼다. 사용자가 밤에 체인을 시작하고 링크 1 PoC까지 함께한다. 세 초안(링크 2·3·4)은 이 세션의 서브 에이전트가 그리는 중이다.
 - 2026-11-05 체인 작성 세션: 사용자가 세 초안(canvas-capture, context-window-ring, queue-steer-shortcut)을 확정했다. 사용자가 `queue-steer-shortcut`을 체인에서 빼고 지금 체인 밖에서 PoC부터 시작하기로 했다. 링크를 셋으로 다시 매겼다. 그 PoC가 공용 프로필(Claude Code·Codex 로그인)을 만들면 첫 지휘자는 그것을 그대로 쓴다.
 - 2026-11-05 체인 작성 세션(다른 머신에서 이어받음): 공용 프로필 경로를 이 머신(`/Users/sinhyeok/...`)으로 고쳤다. 사용자가 링크 1과 2를 바꿨다: canvas-capture가 링크 1, prompt-suggestion이 링크 2다. 사용자는 링크 2 때 PoC를 함께하므로, 사람이 필요한 PoC와 결정(링크 2 P1, 링크 3 P1–P6)을 시작 점검에서 '링크 2 시작 때 사용자와 함께 할 일'로 옮겼다. 시작 점검에는 문서 확인, P1 명령, 실제 HOME·공용 프로필 승인만 남는다.
+- 2026-11-05 링크 1 지휘자(canvas-capture-orch): 시작 점검을 사용자와 마치고 한 번에 승인받았다. (1) 세 feature 문서와 두 초안이 `origin/main`(`ccf5e1ff`)에 있다. (2) 링크 2 P1 실행 명령(사용자 승인): P1-a·c·d·e는 실제 HOME에서 `CLAUDE_CONFIG_DIR=<임시> node .scratch/prompt-suggestion/p1.mjs <a|c|d|e>`로 돌린다(script는 링크 2 지휘자가 만든다). P1-b는 main checkout에서 `DOAN_CLI=/Users/sinhyeok/code/doan-design/.scratch/provider-profile/doan npm --prefix app run dev -- -- --user-data-dir=/Users/sinhyeok/code/doan-design/.scratch/provider-profile/userData`로 앱을 열고 사람이 턴을 보낸다. (3) 세 링크 모두 실제 HOME과 공용 프로필을 써도 된다(연결 상태만 확인, main checkout의 Electron으로만 연다). (4) P1-a·c·d·e의 임시 `CLAUDE_CONFIG_DIR` 로그인과 Keychain 항목은 P1 뒤에 지우지 않고 남긴다. 마지막 링크의 로그인 정리 때 공용 프로필과 함께 지운다. (5) 사람이 없으면 실제 키보드·한국어 IME 확인(링크 2 E1 (b))은 미검증으로 남기고 진행한다. Codex 작업자: Orca Codex 계정의 `models_cache.json`에 `gpt-6-astra`, `gpt-6.1-sol`이 있다(`~/.codex`가 아니라 Orca 계정이 출처).
