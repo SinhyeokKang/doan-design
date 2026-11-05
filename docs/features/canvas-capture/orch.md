@@ -12,6 +12,10 @@
 - C1 PoC와 구현 배치를 함께 시작한다(지휘자 판단 — C1이 (a)·(b)에서 실패해도 바뀌는 곳은 main의 캡처 길(`capturePage`)과 그 뒤의 연결뿐이고, 순수 함수·컨트롤러·저장 규칙은 그대로다. 실패하면 design 결정 1을 사람에게 다시 묻고, M·U 배치를 멈춘다).
 - C1은 사람 없이 도는 격리 probe다. 체인 파일의 "PoC 없음"은 사람이 필요한 PoC가 없다는 뜻으로 읽는다(지휘자 판단 — tasks C1의 검증이 격리된 실제 앱 probe다).
 - D1(초안)은 이미 main에 있다(`.doan/canvases/canvas-capture.html`, 체인 시작 점검에서 확인). 할 일이 없다.
+- P 결과: C1 (a)·(b) 통과, design 결정 1 유지(`b3e9a81f`). 사람 눈의 깜빡임과 다른 배율 모니터는 미검증이고 F1에서 다시 본다.
+- M 리뷰(Codex Astra medium, `ctx_e00a723415db`): 🔴 0, 🟡 1(M-1: 저장 실패 뒤 정리 테스트 없음). M의 계획과 다른 점 4개(공유 save로 `addPasted`가 throw 대신 `unreadable`, `capturePage` reject를 `capture_failed`로, 양 끝 반올림 등)는 리뷰어가 수용했다. M-1은 M 작업자에게 고칠 것으로 보냈다.
+- K의 계획과 다른 점(지휘자 판단): 드래그 중 Esc는 캡처 모드를 바로 끝내되 레이어는 그 포인터를 놓을 때 내린다 — ARCHITECTURE §3 'Input'(레이어를 먼저 내리면 `pointerup`이 iframe의 선택 클릭이 된다)을 따르므로 받는다. 다른 캔버스로 가는 링크와 `setCanvasPage(false)`도 캡처 모드를 끝낸다 — spec 7(Overview, modal)과 design '캔버스 전환'에 해당하므로 받는다.
+- 접힌 패널을 펼치는 때(지휘자 판단): `captureCanvas`의 답이 온 뒤에 펼친다. 칩을 넣는 순간 펼치면 `capturePage`가 픽셀을 읽기 전에 `.area`가 좁아져 다른 화면을 찍는다(K 인계). 답은 C1 측정으로 약 60 ms 뒤에 오므로 design 결정 10("이미지가 composer에 들어갈 때 펼친다", 고르는 동안 보드 폭이 바뀌지 않게 함)의 뜻 안에 있다. Z1에서 PRODUCT에 이 순서로 적는다.
 
 ## Codex 사용
 
@@ -22,9 +26,9 @@
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 gate | 상태 |
 |---|---|---|---|---|---|---|
-| P | C1 | `.scratch/canvas-capture/`, tasks.md 'P 결과'는 지휘자가 옮김 | 없음 | Claude Opus medium — 격리 앱 probe와 판정. 코드는 안 바꾸지만 (a)·(b) 판정이 design 결정 1을 좌우한다 | 'P 결과'에 (a)–(e) 판정과 스크린샷 경로 | 진행 |
-| K | A1, C2 | `app/src/renderer/canvasCapture.ts`(새)·`canvasCapture.test.ts`, `canvasTool.ts`·`canvasTool.test.ts`, `CanvasController.ts`·`CanvasController.test.ts` | 없음 | Claude Opus high — 포인터·레이어 순서·reload·blur의 생명 주기. 틀리면 선택 클릭이 새거나 레이어가 겹친다 | `npm --prefix app test`(해당 테스트 red→green 기록), typecheck | 진행 |
-| M | A2, A3, B1 | `homeComposer.ts`·`homeComposer.test.ts`, `app/src/main/attachments.ts`·`attachments.test.ts`, `app/src/main/index.ts`, `senderAllowed.ts`(+test), `app/src/preload/index.ts` | 없음 | Claude Sonnet high — design에 함수·채널이 정해져 있어 판단은 적지만, IPC 신뢰 경계와 저장 정리가 있다 | `npm --prefix app test`, typecheck | 진행 |
+| P | C1 | `.scratch/canvas-capture/`, tasks.md 'P 결과'는 지휘자가 옮김 | 없음 | Claude Opus medium — 격리 앱 probe와 판정. 코드는 안 바꾸지만 (a)·(b) 판정이 design 결정 1을 좌우한다 | 'P 결과'에 (a)–(e) 판정과 스크린샷 경로 | 완료(`b3e9a81f`, worktree 지움) |
+| K | A1, C2 | `app/src/renderer/canvasCapture.ts`(새)·`canvasCapture.test.ts`, `canvasTool.ts`·`canvasTool.test.ts`, `CanvasController.ts`·`CanvasController.test.ts` | 없음 | Claude Opus high — 포인터·레이어 순서·reload·blur의 생명 주기. 틀리면 선택 클릭이 새거나 레이어가 겹친다 | `npm --prefix app test`(해당 테스트 red→green 기록), typecheck | 리뷰 중(`7b0ea083`, `f0f5bc44`) |
+| M | A2, A3, B1 | `homeComposer.ts`·`homeComposer.test.ts`, `app/src/main/attachments.ts`·`attachments.test.ts`, `app/src/main/index.ts`, `senderAllowed.ts`(+test), `app/src/preload/index.ts` | 없음 | Claude Sonnet high — design에 함수·채널이 정해져 있어 판단은 적지만, IPC 신뢰 경계와 저장 정리가 있다 | `npm --prefix app test`, typecheck | 고침 1회차(`aa928c4a`..`dfeb07a0`) |
 | U | E1, E2 | `CanvasTools.tsx`(+test), `App.tsx`·App 테스트, `CanvasConversationPanel.tsx`, `conversationStore.ts`(+test), `styles.css`, `ds/controls.test.ts` | K, M 통합 | Claude Opus high — App 연결, 상한 경쟁, 칩 확정, 패널 펼침과 포커스 | `npm --prefix app test`, typecheck, build | 대기 |
 | S | F2, F1 | design-sync가 고치는 앱 파일, `docs/DESIGN.md`, `.scratch/` 증거 | U 통합 | Claude Opus medium — computed style 비교와 실제 앱 probe. F2로 맞춘 뒤 F1을 한다 | `/design-sync` 보고서, `/runtime-test` 보고서 | 대기 |
 | 지휘자 | F3, Z1 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/BACKLOG.md`, feature 디렉터리 삭제 | S 통합 | — | 통합 HEAD `/verify`, `/doc-check`(대상 문서) | 대기 |
