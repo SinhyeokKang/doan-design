@@ -1,0 +1,131 @@
+{
+  "tool": [
+    {
+      "type": "assistant",
+      "parent_tool_use_id": null,
+      "session_id": "session-1",
+      "message": {
+        "id": "msg-1",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-sonnet-5-5",
+        "content": [
+          {
+            "type": "tool_use",
+            "id": "tool-1",
+            "name": "Read",
+            "input": {
+              "file_path": "/repo/notes.txt"
+            }
+          }
+        ],
+        "usage": {
+          "input_tokens": 4,
+          "cache_creation_input_tokens": 7446,
+          "cache_read_input_tokens": 23407,
+          "output_tokens": 16
+        }
+      }
+    },
+    {
+      "type": "user",
+      "parent_tool_use_id": null,
+      "session_id": "session-1",
+      "message": {
+        "role": "user",
+        "content": [
+          {
+            "type": "tool_result",
+            "tool_use_id": "tool-1",
+            "content": "Sample line"
+          }
+        ]
+      }
+    },
+    {
+      "type": "assistant",
+      "parent_tool_use_id": null,
+      "session_id": "session-1",
+      "message": {
+        "id": "msg-2",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-sonnet-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "Sample line"
+          }
+        ],
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 4916,
+          "cache_read_input_tokens": 30853,
+          "output_tokens": 28
+        }
+      }
+    },
+    {
+      "type": "result",
+      "subtype": "success",
+      "is_error": false,
+      "result": "Sample line",
+      "session_id": "session-1",
+      "modelUsage": {
+        "claude-haiku-5-5": {
+          "inputTokens": 1172,
+          "outputTokens": 18,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000
+        },
+        "claude-sonnet-5-5": {
+          "inputTokens": 8,
+          "outputTokens": 161,
+          "cacheReadInputTokens": 54260,
+          "cacheCreationInputTokens": 43188,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000
+        }
+      }
+    }
+  ],
+  "compact": [
+    {
+      "type": "system",
+      "subtype": "compact_boundary",
+      "session_id": "session-1",
+      "compact_metadata": {
+        "trigger": "manual",
+        "pre_tokens": 35799,
+        "post_tokens": 6336
+      }
+    },
+    {
+      "type": "result",
+      "subtype": "success",
+      "is_error": false,
+      "result": "",
+      "session_id": "session-1",
+      "modelUsage": {
+        "claude-haiku-5-5": {
+          "inputTokens": 1172,
+          "outputTokens": 18,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000
+        },
+        "claude-sonnet-5-5": {
+          "inputTokens": 6788,
+          "outputTokens": 1406,
+          "cacheReadInputTokens": 85113,
+          "cacheCreationInputTokens": 43321,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000
+        }
+      }
+    }
+  ]
+}

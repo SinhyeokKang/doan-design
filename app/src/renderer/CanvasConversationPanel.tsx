@@ -26,6 +26,7 @@ import { ConversationThread, LOADING_DELAY_MS, type ConversationThreadHandle, ty
 import { steerPhaseOf, type ConversationStore, type ListView, type QueuedMessage } from "./conversationStore";
 import { asksPerson, stripState } from "./conversationStrip";
 import { copyText } from "./copyText";
+import { contextRing } from "./contextWindow";
 import { DockedComposer, type DockedFieldLink, type DockedOutcome, type DockedPicker, type DockedRequest } from "./DockedComposer";
 import { draftKey, EMPTY_DRAFT, type DockedMode, type DockedRefusal } from "./dockedRules";
 import { modelsKey, type DockedSupport } from "./dockedSupport";
@@ -454,7 +455,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
         onPresetsOpen={() => { if (support.presets && !support.presets.ok) support.readPresets(); }} onPresetsRetry={() => support.readPresets()}
         thumbnails={support.thumbnails} onAttach={chooseFiles} onFiles={addFiles}
         onAttachmentRemoved={attachment => { if (attachment.id) void window.doan.removeAttachment(attachment.id).catch(console.error); }}
-        turn={conversationId ? turnOf(thread?.events ?? null, summary, live) : "idle"} busy={busy} canvasGone={false}
+        turn={conversationId ? turnOf(thread?.events ?? null, summary, live) : "idle"} busy={busy} canvasGone={false} context={thread ? contextRing(thread.events) : null}
         unavailable={props.blocked} locked={props.blocked !== null} held={view.kind === "wait" || (newView?.start.pending ?? false)} fixed={fixed}
         refuse={refuse} onStartNew={() => run.choose("new")}
         queued={conversationId ? store.queue(conversationId) : []}

@@ -1,0 +1,167 @@
+{
+  "copilot": [
+    {
+      "jsonrpc": "2.0",
+      "method": "session/update",
+      "params": {
+        "sessionId": "session-1",
+        "update": {
+          "sessionUpdate": "usage_update",
+          "used": 14425,
+          "size": 272000
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "result": {
+        "stopReason": "end_turn",
+        "usage": {
+          "inputTokens": 13125,
+          "outputTokens": 72,
+          "totalTokens": 13197,
+          "thoughtTokens": 65,
+          "cachedReadTokens": 7829,
+          "cachedWriteTokens": 5293
+        }
+      }
+    }
+  ],
+  "copilotTool": [
+    {
+      "jsonrpc": "2.0",
+      "method": "session/update",
+      "params": {
+        "sessionId": "session-1",
+        "update": {
+          "sessionUpdate": "usage_update",
+          "used": 14922,
+          "size": 272000
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "method": "session/update",
+      "params": {
+        "sessionId": "session-1",
+        "update": {
+          "sessionUpdate": "usage_update",
+          "used": 15089,
+          "size": 272000
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "method": "session/update",
+      "params": {
+        "sessionId": "session-1",
+        "update": {
+          "sessionUpdate": "usage_update",
+          "used": 15162,
+          "size": 272000
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "result": {
+        "stopReason": "end_turn",
+        "usage": {
+          "inputTokens": 41242,
+          "outputTokens": 186,
+          "totalTokens": 41428,
+          "thoughtTokens": 83,
+          "cachedReadTokens": 40519,
+          "cachedWriteTokens": 714
+        }
+      }
+    }
+  ],
+  "copilotLoaded": [
+    {
+      "jsonrpc": "2.0",
+      "method": "session/update",
+      "params": {
+        "sessionId": "session-1",
+        "update": {
+          "sessionUpdate": "usage_update",
+          "used": 13235,
+          "size": 272000
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "result": {
+        "stopReason": "end_turn",
+        "usage": {
+          "inputTokens": 12260,
+          "outputTokens": 5,
+          "totalTokens": 12265,
+          "thoughtTokens": 0,
+          "cachedReadTokens": 0,
+          "cachedWriteTokens": 12257
+        }
+      }
+    }
+  ],
+  "antigravity": [
+    {
+      "jsonrpc": "2.0",
+      "method": "session/update",
+      "params": {
+        "sessionId": "session-1",
+        "update": {
+          "used": 13040,
+          "size": 1048576,
+          "sessionUpdate": "usage_update"
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "method": "session/update",
+      "params": {
+        "sessionId": "session-1",
+        "update": {
+          "used": 13265,
+          "size": 1048576,
+          "sessionUpdate": "usage_update"
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "result": {
+        "stopReason": "end_turn"
+      }
+    }
+  ],
+  "antigravityLoaded": [
+    {
+      "jsonrpc": "2.0",
+      "method": "session/update",
+      "params": {
+        "sessionId": "session-1",
+        "update": {
+          "used": 13660,
+          "size": 1048576,
+          "sessionUpdate": "usage_update"
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "result": {
+        "stopReason": "end_turn"
+      }
+    }
+  ]
+}

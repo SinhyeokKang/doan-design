@@ -13,7 +13,36 @@ export function initialTransport(): TransportState {
 function unchanged(state: TransportState): TransportResult { return { state, events: [] }; }
 function finish(state: TransportState, event: EventPayload): TransportResult {
   if (state.terminal) return unchanged(state);
-  return { state: { ...state, terminal: true, fileSummaries: {} }, events: [state.stop ? { type: "interrupted", reason: state.stop } : event] };
+  const terminal: EventPayload = state.stop ? { type: "interrupted", reason: state.stop } : event;
+  return { state: { ...state, terminal: true, fileSummaries: {} }, events: [...contextBefore(state, terminal), terminal] };
+}
+// The turn's context value goes out in the terminal's own batch, right before it, so it adds no wait at turn end and
+// frames after the terminal (Claude's prompt suggestion call) cannot change it. Only a done or failed turn the
+// transport ended carries one: a stopped turn's interrupted does not.
+export function contextBefore(state: TransportState, terminal: EventPayload): EventPayload[] {
+  return state.context && (terminal.type === "turn.done" || terminal.type === "turn.failed") ? [{ type: "context.usage", ...state.context }] : [];
+}
+function count(value: unknown): value is number { return Number.isSafeInteger(value) && (value as number) >= 0; }
+// A provider's value, or undefined for one that is not a token count and a window of at least one token; such a value
+// is dropped and the turn's earlier one stays.
+export function contextValue(used: unknown, size: unknown): { used: number; size: number } | undefined {
+  return count(used) && count(size) && size >= 1 ? { used, size } : undefined;
+}
+// A top-level call's context: its input tokens with both cache kinds (BetaUsage; the cache fields may be null), and
+// the model whose modelUsage entry gives the window. A message Claude Code makes up itself (an API error, "No response
+// requested.") names the SDK's "<synthetic>" model and made no call, so the turn's last real call stays.
+const CLAUDE_SYNTHETIC_MODEL = "<synthetic>";
+function claudeCall(message: Record<string, unknown>): { used: number; model: string } | undefined {
+  if (!object(message.usage) || typeof message.model !== "string" || !message.model || message.model === CLAUDE_SYNTHETIC_MODEL) return undefined;
+  const parts = [message.usage.input_tokens, message.usage.cache_creation_input_tokens ?? 0, message.usage.cache_read_input_tokens ?? 0];
+  if (!parts.every(count)) return undefined;
+  const used = parts.reduce((sum, part) => sum + part, 0);
+  return Number.isSafeInteger(used) ? { used, model: message.model } : undefined;
+}
+// modelUsage also holds auxiliary models' keys (Claude Code 2.1.318 and 2.1.284 listed a Haiku entry beside the turn's
+// model, whose key equals the top-level message.model), so the window is the call's own model's.
+function claudeWindow(modelUsage: unknown, model: string): unknown {
+  return object(modelUsage) && Object.hasOwn(modelUsage, model) && object(modelUsage[model]) ? modelUsage[model].contextWindow : undefined;
 }
 function aborted(state: TransportState): TransportResult { return finish(state, { type: "turn.failed", code: "process_exited" }); }
 export function endTransport(state: TransportState): TransportResult { return aborted(state); }
@@ -142,6 +171,7 @@ function claudeFrame(state: TransportState, raw: Record<string, unknown>, root: 
     const messageId = baseId === state.messageId && state.textBlock !== null ? `${baseId}:${state.textBlock}` : baseId;
     const completedMessages = [...state.completedMessages];
     const activities = [...state.activities];
+    const call = claudeCall(raw.message);
     const body = raw.message.content.filter(object).filter(c => c.type === "text").map(c => text(c.text)).join("");
     if (body && !completedMessages.includes(messageId)) {
       events.push({ type: "message.done", messageId, text: body }); completedMessages.push(messageId);
@@ -153,9 +183,12 @@ function claudeFrame(state: TransportState, raw: Record<string, unknown>, root: 
         events.push(claudeActivity(text(content.name), object(content.input) ? content.input : {}, root, labels)); activities.push(content.id);
       }
     }
-    return { state: { ...state, completedMessages, activities }, events };
+    return { state: { ...state, completedMessages, activities, ...(call ? { claudeCall: call } : {}) }, events };
   }
   if (raw.type === "result") {
+    // Read on every result, so a steer wait that ends without the follow-up's result (endSteerWait) still has it.
+    const value = state.claudeCall && contextValue(state.claudeCall.used, claudeWindow(raw.modelUsage, state.claudeCall.model));
+    if (value) state = { ...state, context: value };
     if (raw.terminal_reason === "aborted_tools" || raw.terminal_reason === "interrupted") return aborted(state);
     // queued_turn_count stays 0 while a steered message is unread (same PoC), so only the uuids tell that the CLI goes on
     // to another turn for it; that turn's result ends this one. A stop still ends here.
@@ -270,6 +303,14 @@ export function normalizeCodex(state: TransportState, raw: unknown, context: Cod
   if (params.threadId !== context.sessionId) return unchanged(state);
   const turnId = object(params.turn) ? params.turn.id : params.turnId;
   if (turnId !== context.turnId) return unchanged(state);
+  // last is the turn's latest model call; its inputTokens already include the cached ones (Codex 0.166.0 and 0.158.0:
+  // cachedInputTokens never exceeded inputTokens), while totalTokens adds output. After thread/resume, 0.158.0 replayed
+  // the previous turn's notification once before the new turn/start reply; the turn check drops it.
+  if (raw.method === "thread/tokenUsage/updated") {
+    const usage = object(params.tokenUsage) ? params.tokenUsage : {};
+    const value = contextValue(object(usage.last) ? usage.last.inputTokens : undefined, usage.modelContextWindow);
+    return value ? { state: { ...state, context: value }, events: [] } : unchanged(state);
+  }
   if (raw.method === "item/agentMessage/delta" && typeof params.delta === "string" && typeof params.itemId === "string") {
     return { state, events: [{ type: "message.delta", messageId: params.itemId, text: params.delta }] };
   }

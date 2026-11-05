@@ -731,6 +731,39 @@ Reference: `.doan/canvases/buzz-canvas-conversation.html` (15 frames; `panel-sta
 
 `DockedComposer.test.tsx` (an anchor chip makes the box), `DockedComposer.interaction.test.tsx` (a locked composer takes no preset, file or chip removal), `canvasPicker.test.ts`, `CanvasController.test.ts`, `ConversationThread.locate.test.tsx`, `CanvasConversationPanel.test.tsx`, `Onboarding.test.tsx` (choice card markup). Sizes, colours and geometry above are `.scratch/` probes only.
 
+## Context window ring
+
+Reference: `.doan/canvases/context-window-ring.html` (frames `place-capsule`, `place-box`, `ring-states`, `ring-geometry`, `ring-tooltip`). Measured by `/design-sync` in the built app against the draft read in the app's own canvas iframe (`.scratch/design-sync/context-window-ring/`): the canvas conversation panel at 960 × 600 (panel 320, and 280 after End) and the Overview at 1238 × 780, conversations seeded as real history in an isolated userData (provider readiness, model lists and usage injected; no sign-in). 194 part pairs, 9698 property comparisons, no difference in the ring, its tooltip or the tray placement.
+
+### Measured contracts
+
+| Element | Measured contract | Reason |
+|---|---|---|
+| Ring | `span.context-ring`, 16 × 16 (`--size-icon`), `display: block`, `flex: none`, default cursor, no padding or fill. SVG viewBox 24 turned −90°, circles r 10.5 with stroke-width 3 (a 2 px stroke on a radius-7 centreline, outer edge on the box edge); track `--border-track` (`color(srgb 0 0 0 / .15)`), value `--affordance-prominent` with `stroke-dasharray` "<n> 100" on `pathLength` 100, `--border-danger` (rgb(229,72,77)) with `data-band="full"` from 70 % of the unrounded ratio (69.9 % stays default, 70 % is danger); past 100 % the arc is full. No text, no logo, no transition | The 24 px usage-ring geometry scaled to 16 px would draw a 1.33 px stroke. |
+| Place | The tray's last child, 12 from its end (the tray's end padding) and 10 from its top in the 32-high tray, 8 after the previous picker (tray gap 4 + `margin-inline-start` 4). Measured the same at panel 320 and 280 and in the Overview (tray 666) with every picker, with no effort or permission picker (Copilot), in the terminal session's fixed tray (panel), with the box composer, while a turn runs (Stop, and Queue once typed) and for an archived conversation chosen from the panel menu | The tray's `justify-content: flex-end` and the model trigger's auto start margin keep its end at the right edge whichever pickers show. |
+| Narrow tray | One line at every measured width. At 320 the model label ellipsizes (35 of 51 px); at 280 it is 0 wide while the logo stays, and Effort and Permission show icons only (shipped container rules); the ring never shrinks | |
+| No value | No ring element; the tray's children, their widths and right offsets, gap 4, end padding 12 and `flex-end` equal the draft's "Today / no value" tiles in both shapes, in the panel and the Overview | Decision 2: the tray is as without the feature. |
+| Tooltip | The shared tooltip above the ring (`data-side="top"`), 4 from its top. Two `.tip-line` blocks, both white caption 12/16/400: "Context window 42% used · last turn" and "84K of 200K tokens"; 4/8 padding, black, radius 12, 40 high. Overview: centred on the ring. Panel: pushed start-ward to the window edge (its right edge 20 past the composer) | |
+| Behaviour | Escape closes the tooltip; leaving and re-hovering reopens it, as after a press on the ring. A press opens no dialog, menu or popover. Tab from the last picker skips the ring | POSTMORTEM 2026-10-23 'Re-hovering a dismissed tooltip did not reopen it'. |
+| Accessible node | Chromium (CDP): role image, name "Context window 42% used · last turn", description "84K of 200K tokens", not focusable | |
+| Usage ring | After the shared `ProgressRing` extraction the header rings are unchanged: markup (class, `data-provider`, `data-band`, svg attributes, logo) as before, 24 × 24, r 11, stroke 2, logo 14 × 14, the button still `-webkit-app-region: no-drag` (see 'Agent usage') | |
+
+### Documented differences from the draft
+
+- **Panel composer width.** The composer is 295 wide at panel 320 (255 at 280) where the draft draws 296 (256): the panel's 1 px start border. Everything right-anchored (the ring, Permission) lands at the same offsets; the model label is 1 px narrower.
+- **Computed values without effect.** The ring's svg computes `flex-shrink: 1` (the draft board's `:where(svg)` rule gives 0; the svg's parent is a block), and the value circle computes `display: flex; gap: 6px` from the Inspector's global `.value` rule (CSS display other than `none` does not change an SVG shape; the usage ring's circle has the same values).
+- **Context, not deviations:** the Overview's board width (720 drawn, tray 666 measured); text-less containers (the card, Send) inheriting the app body's 13 px / normal; the fixed tray's disabled Attach and `.is-fixed` cursors, shipped rules the draft does not copy; the tooltip's `white-space` (the draft's static stand-in sets `nowrap`; the measured widths match).
+
+### Not verified
+
+- The draft tile "With ring · 720 · terminal session (fixed tray, Overview)": the Overview has no fixed tray (`composerFixed` serves the canvas panel only), so a legacy-external project conversation there shows ordinary pickers; the ring was measured last, 12 from the end, on one line in it.
+- Real provider turns: values were seeded history, and the running tiles were reached by having main answer a streaming turn.
+- Dark mode, reduced transparency, forced colours and native AppKit input.
+
+### Regression pointers
+
+`DockedComposer.test.tsx` (ring markup and place, no ring without a value, pickers, fixed tray, running, danger band, the ring CSS), `ContextRing.test.tsx` (tooltip lines, span outside Tab order), `contextWindow.test.ts` (value, floored percent, token text), `CanvasConversationPanel.test.tsx` and `ProjectOverview.context.test.tsx` (the hosts' values), `AgentUsageButton.test.tsx` (usage ring markup). Pixel geometry and the tooltip's position are `.scratch/` probes only.
+
 ## Conversation delete
 
 Reference: `.doan/canvases/conversation-delete.html` (frames `row-button`, `row-unavailable`, `delete-dialog`, `delete-toast`, `after-delete`). Measured by `/design-sync` in the built app at 1238 × 780 (`.scratch/design-sync/conversation-delete/measure.mjs`): 42 rows, read with `getComputedStyle` in one Electron, the draft in the app's canvas iframe. The Overview's Conversation menu and the canvas panel's Title menu were reached in an isolated app from stored conversation records. Working and waiting rows came from main's own `conversation:list` answer, wrapped in the main process because no agent runs in an isolated app. The refusal toast came from a conversations directory made read-only (`unknown`).

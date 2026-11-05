@@ -44,6 +44,7 @@ export type EventPayload =
   | { type: "permission.resolved"; requestId: string; optionId: string }
   | QuestionRequest
   | QuestionResolved
+  | { type: "context.usage"; used: number; size: number }
   | { type: "turn.done" }
   | { type: "turn.failed"; code: FailureCode; detail?: string }
   | { type: "interrupted"; reason: "user" | "appQuit" | "crashed" }
@@ -71,6 +72,10 @@ export interface TransportState {
   fileSummaries: Record<string, string>;
   // Message ids steered into this turn and not yet read by the agent; absent where nothing steers.
   steered?: string[];
+  // The turn's last context value, emitted right before its done or failed terminal (finish, finishAcp).
+  context?: { used: number; size: number };
+  // Claude only: the last top-level call's input tokens and model; its window comes with the result.
+  claudeCall?: { used: number; model: string };
 }
 export interface TransportResult { state: TransportState; events: EventPayload[] }
 export interface PermissionChoice { option: PermissionOption; response: unknown }

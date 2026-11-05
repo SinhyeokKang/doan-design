@@ -1230,6 +1230,18 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 :is(.docked .composer-tray .composer-attach, .doan-canvas-tools > .doan-canvas-tool)[aria-disabled="true"] { cursor: not-allowed; }
 @media (hover: hover) and (pointer: fine) { :is(.docked .composer-tray .composer-attach, .doan-canvas-tools > .doan-canvas-tool)[aria-disabled="true"]:hover { background: transparent; } }
 :is(.docked .composer-tray .composer-attach, .doan-canvas-tools > .doan-canvas-tool)[aria-disabled="true"]:active { background: transparent; }
+/* The context ring (context-window-ring design §3, draft frame ring-geometry): the tray's last child, which the tray's
+   flex-end and the model trigger's auto margin keep at its right end. 8 from the last picker (the tray's 4 gap plus 4)
+   and the tray's 12 end padding after; it never shrinks, so a narrow panel shortens the model label first. Its own
+   class sizes it: the header's 24px usage ring rules are bound to .usage. */
+.docked .composer-tray .context-ring { margin-inline-start: var(--space-1); }
+.context-ring { display: block; flex: none; width: var(--size-icon); height: var(--size-icon); cursor: default; }
+.context-ring > svg { display: block; width: 100%; height: 100%; transform: rotate(-90deg); }
+.context-ring .track { stroke: var(--border-track); }
+.context-ring .value { stroke: var(--affordance-prominent); }
+.context-ring[data-band="full"] .value { stroke: var(--border-danger); }
+/* Its tooltip's two lines, both in the tooltip's caption ink (decision 16). */
+.doan-tooltip .tip-line { display: block; }
 /* .doan-agent (later, same weight) sets a 4px end inset for its action button; the hint ends in the Esc key instead. */
 .doan-agent.doan-picking { padding-right: var(--space-2); }
 .doan-picking-icon { flex: none; width: var(--size-icon-sm); height: var(--size-icon-sm); }

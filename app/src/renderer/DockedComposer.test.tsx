@@ -210,3 +210,61 @@ test("the empty box's placeholder stays on one line and ends in an ellipsis", as
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toContain('.docked[data-shape="box"] .composer-input[data-empty]::before { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }');
 });
+
+// context-window-ring spec 1, 4, 6 and design §3 (draft frames place-capsule, place-box, ring-states): a 16px ring at
+// the tray's right end with no text in it; its name and description carry the percent and the token counts.
+const CONTEXT = { value: 42, percent: 42, used: 84_000, size: 200_000 };
+const RING = /<span class="context-ring" role="img" aria-label="Context window 42% used · last turn" aria-description="84K of 200K tokens"[^>]*><svg viewBox="0 0 24 24" fill="none" stroke-width="3" aria-hidden="true"><circle class="track" cx="12" cy="12" r="10.5"><\/circle><circle class="value" cx="12" cy="12" r="10.5" pathLength="100" stroke-dasharray="42 100"><\/circle><\/svg><\/span><\/div>/;
+const tray = (html: string) => html.slice(html.indexOf('<div class="composer-tray">'));
+
+test("a recorded value draws the ring as the tray's last child, with no visible text and outside Tab order", () => {
+  const html = render({ context: CONTEXT });
+  expect(tray(html)).toMatch(new RegExp(`^<div class="composer-tray">[^]*?${RING.source}`));
+  const ring = /<span class="context-ring"[^]*?<\/span>/.exec(html)![0];
+  expect(ring.replace(/<[^>]*>/g, "")).toBe("");
+  expect(ring).not.toContain("tabindex");
+  expect(ring).not.toContain("<button");
+  expect(ring).not.toContain("data-band");
+});
+
+test("without a value the tray and the card are as before the ring", () => {
+  expect(render({ context: null })).toBe(render());
+  expect(render()).not.toContain("context-ring");
+  const card = (html: string) => html.slice(html.indexOf("composer-card"), html.indexOf("composer-tray"));
+  expect(card(render({ context: CONTEXT }))).toBe(card(render()));
+  const running = { turn: "running" as const, queued: [{ id: "q1", text: "x" }] };
+  expect(card(render({ ...running, context: CONTEXT }))).toBe(card(render(running)));
+});
+
+test("the ring stays last whichever pickers show, in a terminal session's fixed tray, and while the turn runs", () => {
+  const last = (html: string) => expect(tray(html)).toMatch(new RegExp(`^<div class="composer-tray">[^]*?${RING.source}`));
+  last(render({ context: CONTEXT, pick: { pressed: false, enabled: true, reason: null, onToggle: () => {} }, permission: permissionPickerView("claude", undefined, "plan") }));
+  last(render({ context: CONTEXT, picker: { ...PICKER, effort: null } }));
+  last(render({ context: CONTEXT, fixed: true }));
+  last(render({ context: CONTEXT, turn: "running" }));
+  last(render({ context: CONTEXT, turn: "running", queued: [{ id: "q1", text: "x" }] }, { text: "more" }));
+});
+
+test("the ring takes the danger band from 70% of the unrounded ratio and fills at 100 past the window", () => {
+  expect(render({ context: { value: 69.9, percent: 69.9, used: 699_000, size: 1_000_000 } })).toMatch(/aria-label="Context window 69% used · last turn" aria-description="699K of 1M tokens"(?![^>]*data-band)/);
+  expect(render({ context: { value: 70, percent: 70, used: 140_000, size: 200_000 } })).toMatch(/<span class="context-ring" role="img" aria-label="Context window 70% used · last turn"[^>]*data-band="full"/);
+  const over = render({ context: { value: 100, percent: 104, used: 208_000, size: 200_000 } });
+  expect(over).toContain('aria-label="Context window 104% used · last turn" aria-description="208K of 200K tokens"');
+  expect(over).toContain('stroke-dasharray="100 100"');
+});
+
+test("an archived conversation whose canvas is gone has no ring", () => {
+  expect(render({ mode: { kind: "archived", conversationId: "c1", provider: "claude" }, canvasGone: true, context: CONTEXT })).not.toContain("context-ring");
+  expect(render({ mode: { kind: "archived", conversationId: "c1", provider: "claude" }, context: CONTEXT })).toContain("context-ring");
+});
+
+// Decision 13: 8px from the last picker (tray gap 4 + the ring's start margin 4), the tray's 12px end padding after.
+test("context ring CSS: 16px, no shrink, 4px start margin in the docked tray, track and danger inks", () => {
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toContain(".docked .composer-tray { justify-content: flex-end; gap: var(--space-1); min-height: var(--size-control-sm); padding: var(--space-1) var(--space-3) 0; }");
+  expect(css).toContain(".docked .composer-tray .context-ring { margin-inline-start: var(--space-1); }");
+  expect(css).toMatch(/\.context-ring \{[^}]*flex: none;[^}]*width: var\(--size-icon\); height: var\(--size-icon\);/);
+  expect(css).toContain(".context-ring .track { stroke: var(--border-track); }");
+  expect(css).toContain(".context-ring .value { stroke: var(--affordance-prominent); }");
+  expect(css).toContain('.context-ring[data-band="full"] .value { stroke: var(--border-danger); }');
+});

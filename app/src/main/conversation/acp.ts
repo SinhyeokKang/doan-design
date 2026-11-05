@@ -2,7 +2,7 @@ import { posix } from "node:path";
 import { canvasDir } from "../../formats/canvasPath";
 import { object } from "./sessions";
 import { QUESTION_LIMITS } from "./question";
-import { displayPath, GENERIC_SUMMARY, transportError } from "./transport";
+import { contextBefore, contextValue, displayPath, GENERIC_SUMMARY, transportError } from "./transport";
 import type { EventPayload, PermissionOption, TransportResult, TransportState } from "./types";
 
 // Agent Client Protocol (https://agentclientprotocol.com) over newline-delimited JSON-RPC 2.0 on stdio, as Cursor
@@ -144,6 +144,12 @@ export function normalizeAcp(state: AcpTransport, update: Record<string, unknown
     if (!text) return { state, events: [] };
     return { state: { ...state, text: state.text + text }, events: [{ type: "message.delta", messageId: state.messageId, text }] };
   }
+  // used is what the provider reports; ACP does not define it. Antigravity's ACP server 1.3.0 sends the last model
+  // call's size (its first value after session/load was that turn's context, not a session total).
+  if (kind === "usage_update") {
+    const value = contextValue(update.used, update.size);
+    return { state: value ? { ...state, context: value } : state, events: [] };
+  }
   if (kind !== "tool_call" && kind !== "tool_call_update") return { state, events: [] };
   const id = str(update.toolCallId);
   if (!id || state.activities.includes(id)) return { state, events: [] };
@@ -164,7 +170,8 @@ export function normalizeAcp(state: AcpTransport, update: Record<string, unknown
 function finishAcp(state: AcpTransport, event: EventPayload): TransportResult & { state: AcpTransport } {
   if (state.terminal) return { state, events: [] };
   const flushed = flush(state);
-  return { state: { ...flushed.state, terminal: true }, events: [...flushed.events, state.stop ? { type: "interrupted", reason: state.stop } : event] };
+  const terminal: EventPayload = state.stop ? { type: "interrupted", reason: state.stop } : event;
+  return { state: { ...flushed.state, terminal: true }, events: [...flushed.events, ...contextBefore(state, terminal), terminal] };
 }
 // stopReason is end_turn | max_tokens | max_turn_requests | refusal | cancelled (ACP prompt-turn).
 export function acpPromptDone(state: AcpTransport, result: unknown): TransportResult & { state: AcpTransport } {
