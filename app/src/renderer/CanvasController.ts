@@ -149,6 +149,8 @@ export class CanvasController {
   // Per canvas (root + path), renderer memory only; leaving and coming back in the same work turn keeps it.
   private followMemory = new Map<string, FollowMemory>();
   private lastPersonMove = Date.now();
+  // Judges a working frame again when the rest it waits for ends (spec 9); any new judgement replaces it.
+  private followTimer: ReturnType<typeof setTimeout> | undefined;
   // Selection (design flows 3–7). `seq` orders the renderer's commands against
   // the script's own clicks; each new document starts again at 0.
   private seq = 0;
@@ -356,6 +358,7 @@ export class CanvasController {
 
   dispose(): void {
     clearTimeout(this.workSlideTimer);
+    clearTimeout(this.followTimer);
     this.pickListener = null;
     this.pressListeners.clear();
     this.endLocate();
@@ -783,6 +786,7 @@ export class CanvasController {
   }
 
   private dropFrame(): void {
+    clearTimeout(this.followTimer);
     this.stopDrag();
     this.spaceHeld = false;
     this.endPick({ kind: "cancelled" });
@@ -1664,6 +1668,7 @@ export class CanvasController {
   // Moves the view to the working frame when followDecision says so; true when it moved (the move placed the marker).
   // Not while the document reloads or failed: the frame is read from the next layout.
   private followWork(): boolean {
+    clearTimeout(this.followTimer);
     const work = this.openWork(), target = this.work;
     if (!work || !target || work.frame === undefined || this.frame === null || this.loading || this.state.status !== null) return false;
     const key = canvasKey(target.root, target.path), memory = this.followMemory.get(key) ?? EMPTY_FOLLOW;
@@ -1673,6 +1678,7 @@ export class CanvasController {
     });
     if (decision.kind === "stay") {
       if (decision.followed) this.followMemory.set(key, markFollowed(memory, work.key, work.frame));
+      if (decision.retryAt !== undefined) this.followTimer = setTimeout(() => this.followWork(), Math.max(0, decision.retryAt - Date.now()));
       return false;
     }
     this.followMemory.set(key, markFollowed(memory, work.key, work.frame));
@@ -1689,6 +1695,8 @@ export class CanvasController {
   // work turn on the open canvas (`stop`); a pointer move or typing does not.
   private personActive(stop: boolean): void {
     this.lastPersonMove = Date.now();
+    // A stop ends the wait; a plain move only pushes the rest's end, which the timer finds when it fires and re-arms.
+    if (stop) clearTimeout(this.followTimer);
     const target = this.work, open = this.state.open;
     if (!stop || !target || !open || target.root !== open.folder || target.path !== open.canvas || target.keys.length === 0) return;
     const key = canvasKey(target.root, target.path);

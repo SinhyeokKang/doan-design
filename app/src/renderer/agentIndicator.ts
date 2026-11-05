@@ -81,10 +81,13 @@ export function workFrameTitle(cache: TitleCache | null, target: WorkingCanvas |
 }
 
 // The working frame's rect in the current layout: the first frame with the id, as frame jumps take it. None without a
-// layout (loading, a canvas without doan:width) or when the document has no such frame.
+// layout (loading, a canvas without doan:width), when the document has no such frame, or when the frame has no size:
+// a reload's first layout can report every frame as 0 × 0 at (0, 0) before the document is measured (R1), and following
+// or marking that would place the board's origin, not the frame.
 export function workFrameRect(layout: Pick<LayoutMessage, "frames"> | null, id: string | undefined): CanvasFrameRect | null {
   if (!layout || id === undefined) return null;
-  return layout.frames.find(frame => frame.id === id) ?? null;
+  const frame = layout.frames.find(item => item.id === id);
+  return frame && frame.width > 0 && frame.height > 0 ? frame : null;
 }
 
 // presence null: no app conversation of this canvas works on it; a terminal session, a project conversation or a

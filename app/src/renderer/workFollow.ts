@@ -22,13 +22,16 @@ export interface FollowInput {
 }
 
 // `followed`: count the frame as followed for this turn. Not for a frame that is missing, busy or before the rest is
-// over, so a later layout can still follow it.
-export type FollowDecision = { kind: "move"; view: View } | { kind: "stay"; followed: boolean };
+// over, so a later layout can still follow it. `retryAt`: the frame waits only for the rest, which ends then; the
+// caller judges again at that time rather than waiting for the next update or layout.
+export type FollowDecision = { kind: "move"; view: View } | { kind: "stay"; followed: boolean; retryAt?: number };
 
 export function followDecision(input: FollowInput): FollowDecision {
   const { frame, rect, viewport, view } = input;
-  if (frame === undefined || rect === null || input.followed.has(frame) || input.stopped) return { kind: "stay", followed: false };
-  if (input.busy || input.now - input.lastPersonMove < FOLLOW_IDLE_MS) return { kind: "stay", followed: false };
+  // A zero-size rect is a layout taken before the document was measured, not a place to judge from.
+  if (frame === undefined || rect === null || rect.width <= 0 || rect.height <= 0 || input.followed.has(frame) || input.stopped) return { kind: "stay", followed: false };
+  if (input.busy) return { kind: "stay", followed: false };
+  if (input.now - input.lastPersonMove < FOLLOW_IDLE_MS) return { kind: "stay", followed: false, retryAt: input.lastPersonMove + FOLLOW_IDLE_MS };
   if (frameShown(rect, viewport, view)) return { kind: "stay", followed: true };
   const safe = safeArea(viewport, FIT_INSET);
   const fits = rect.width * view.scale <= safe.width && rect.height * view.scale <= safe.height;

@@ -429,6 +429,11 @@ describe("work content on the open canvas", () => {
       expect(workFrameRect(null, "a")).toBeNull();
       expect(workFrameRect({ frames }, undefined)).toBeNull();
     });
+    // R1: a reload's first layout can carry every frame as 0 × 0 before the document is measured; no marker goes there.
+    test("a frame with no size is not placed", () => {
+      expect(workFrameRect({ frames: [{ id: "a", x: 0, y: 0, width: 0, height: 0 }] }, "a")).toBeNull();
+      expect(workFrameRect({ frames: [{ id: "a", x: 0, y: 0, width: 10, height: 0 }] }, "a")).toBeNull();
+    });
   });
 });
 

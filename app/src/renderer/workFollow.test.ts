@@ -12,7 +12,8 @@ const offscreen = { x: 0, y: 2000, width: 300, height: 200 };
 describe("followDecision", () => {
   test("follows a new frame off screen once the person has rested 5 s, not at 4.9 s", () => {
     expect(FOLLOW_IDLE_MS).toBe(5000);
-    expect(followDecision({ ...base, rect: offscreen, lastPersonMove: 10_000 - 4900 })).toEqual({ kind: "stay", followed: false });
+    // Waiting only for the rest: the decision names when to judge again.
+    expect(followDecision({ ...base, rect: offscreen, lastPersonMove: 10_000 - 4900 })).toEqual({ kind: "stay", followed: false, retryAt: 10_100 });
     expect(followDecision({ ...base, rect: offscreen, lastPersonMove: 10_000 - 5000 }).kind).toBe("move");
   });
 
@@ -55,6 +56,20 @@ describe("followDecision", () => {
 
   test("a stopped turn never moves", () => {
     expect(followDecision({ ...base, rect: offscreen, stopped: true })).toEqual({ kind: "stay", followed: false });
+  });
+
+  // R1: the first layout after a reload can report every frame as 0 × 0 at (0, 0) before the document is measured.
+  test("a zero-size rect is not a measurement: stay, uncounted, no retry", () => {
+    expect(followDecision({ ...base, rect: { x: 0, y: 0, width: 0, height: 0 } })).toEqual({ kind: "stay", followed: false });
+    expect(followDecision({ ...base, rect: { x: 0, y: 0, width: 0, height: 0 }, lastPersonMove: 10_000 - 1000 })).toEqual({ kind: "stay", followed: false });
+  });
+
+  test("no retry when something other than the rest holds it: stopped, busy, already followed, no frame", () => {
+    const early = { ...base, rect: offscreen, lastPersonMove: 10_000 - 1000 };
+    expect(followDecision({ ...early, stopped: true })).toEqual({ kind: "stay", followed: false });
+    expect(followDecision({ ...early, busy: true })).toEqual({ kind: "stay", followed: false });
+    expect(followDecision({ ...early, followed: new Set(["b"]) })).toEqual({ kind: "stay", followed: false });
+    expect(followDecision({ ...early, rect: null })).toEqual({ kind: "stay", followed: false });
   });
 
   test("busy (a pick, a capture, a drag, Space, another page, a menu or dialog) stays without counting the frame", () => {

@@ -4334,15 +4334,13 @@ describe("following the working frame", () => {
       vi.advanceTimersByTime(4900);
       setWork(h, "far");
       expect(h.controller.currentView()).toEqual(fitView);
-      // Composer typing restarts it too and stops nothing: once rested, the next frame follows.
+      // Composer typing restarts it too and stops nothing: once rested, the frame waiting for the rest follows.
       h.host.dispatchEvent(new Event("input"));
       vi.advanceTimersByTime(4900);
       setWork(h, "farther");
       expect(h.controller.currentView()).toEqual(fitView);
-      vi.advanceTimersByTime(5000);
-      setWork(h, "hero");
-      h.layout({ frames: FRAMES });
-      expect(followsNext(h, "farther")).toBe(true);
+      vi.advanceTimersByTime(100);
+      expect(h.controller.currentView()).toEqual(elementView(FRAMES[3]!, { width: 800, height: 600 }, FIT_INSET, fitView));
     } finally { h.controller.dispose(); }
   });
 
@@ -4505,5 +4503,74 @@ describe("following the working frame", () => {
     const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
     expect(css).toMatch(/@media \(prefers-reduced-motion: no-preference\) \{ \.mark\.jump-highlight\.working\.moving \{ transition: left var\(--time-settle\)/);
     expect(css).not.toMatch(/^\.mark\.jump-highlight\.working\.moving \{/m);
+  });
+  // R1 runtime FAIL: a reload's first layout reported every frame as 0 × 0 at (0, 0); follow judged on it, counted the
+  // new frame as followed (or centred board 0, 0), and never followed it once the real layout came.
+  it("a reload whose first layout has zero-size frames waits for the real layout, then moves once to the frame", () => {
+    const h = rested();
+    try {
+      h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+      setWork(h, "late");
+      h.controller.command("reload");
+      const zero = [...FRAMES, { id: "late", x: 0, y: 3000, width: 100, height: 100 }].map(frame => ({ ...frame, x: 0, y: 0, width: 0, height: 0 }));
+      h.layout({ frames: zero });
+      expect(h.controller.currentView()).toEqual(fitView);
+      expect(h.marks.find(mark => mark.className.includes("working"))?.hidden ?? true).toBe(true);
+      const real = [...FRAMES, { id: "late", x: 0, y: 3000, width: 100, height: 100 }];
+      h.layout({ frames: real });
+      const moved = h.controller.currentView();
+      expect(moved).toEqual(elementView(real.at(-1)!, { width: 800, height: 600 }, FIT_INSET, fitView));
+      h.layout({ frames: real });
+      expect(h.controller.currentView()).toEqual(moved);
+    } finally { h.controller.dispose(); }
+  });
+
+  // Conductor's reading of spec 9: a frame waiting only for the rest is judged again when the rest ends.
+  it("a frame named before the rest is over follows when the rest ends, not before", () => {
+    const h = rested();
+    try {
+      h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+      h.receive({ type: "activity" });
+      vi.advanceTimersByTime(2000);
+      setWork(h, "far");
+      vi.advanceTimersByTime(2900);
+      expect(h.controller.currentView()).toEqual(fitView);
+      vi.advanceTimersByTime(100);
+      expect(h.controller.currentView()).toEqual(elementView(FRAMES[2]!, { width: 800, height: 600 }, FIT_INSET, fitView));
+    } finally { h.controller.dispose(); }
+  });
+
+  it("moving again restarts the rest: no move at the first end, a move at the new one", () => {
+    const h = rested();
+    try {
+      h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+      h.receive({ type: "activity" });
+      setWork(h, "far");
+      vi.advanceTimersByTime(3000);
+      h.receive({ type: "activity" });
+      vi.advanceTimersByTime(2500);
+      expect(h.controller.currentView()).toEqual(fitView);
+      vi.advanceTimersByTime(2500);
+      expect(h.controller.currentView()).not.toEqual(fitView);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("no move at the end of the rest once the turn is stopped, the turn ends, or the canvas changes", () => {
+    for (const end of [
+      (h: H) => h.controller.wheel({ dx: 0, dy: 10, ctrl: false, meta: false, deltaMode: 0 }, { x: 0, y: 0 }),
+      (h: H) => h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] }),
+      (h: H) => { h.controller.openCanvas("/repo", h.other); h.controller.setWork({ root: "/repo", path: h.other.path, work: null, keys: [] }); },
+    ]) {
+      const h = rested();
+      try {
+        h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+        h.receive({ type: "activity" });
+        setWork(h, "far");
+        end(h);
+        const after = h.controller.currentView();
+        vi.advanceTimersByTime(10_000);
+        expect(h.controller.currentView()).toEqual(after);
+      } finally { h.controller.dispose(); vi.useRealTimers(); vi.unstubAllGlobals(); }
+    }
   });
 });
