@@ -54,3 +54,6 @@
 - P·M·V1·V2·V3 작업자 release. V4(C2 리뷰, Codex, `wu-v4`) 시작. R 작업자에게 U3(`/design-sync`, 격리 실제 앱)를 보냄.
 - U3 완료: `/design-sync` 94쌍, 17상태, 속성 4,700줄에서 분류되지 않은 차이 0, 동작 확인 36/36. Claude 리뷰 2 round. 구현은 바뀌지 않았고 DESIGN.md만 고쳤다(`e7850017` → 통합 `694ebe00`). 실제 DOM에서 커서 위치, 너비 하한, tooltip, busy selector, transition(reduced motion에서 0 s, frame id가 바뀔 때만 220 ms)을 확인했다. 미검증: composer·대화 메뉴, 그 밖의 dialog, 타이핑 중간 snapshot의 style 쌍, easing, 어두운 캔버스의 대비, 실제 provider 턴.
 - R1 batch T(Claude Opus high, `wu-t`) 시작: (a) 격리 터미널 경로, (b) 공용 프로필의 앱 대화와 Default 권한 경로.
+- R1 결과(batch T): (a) 격리 터미널 경로 26/26 통과(reload 재부착, 팬 뒤 멈춤, 턴 도중 들어오기, 다른 worktree). (b) 공용 프로필에서 Claude 캔버스 대화, Claude project 대화, Codex 캔버스 대화를 Default로 한 턴씩 돌렸다. `doan work update`의 권한 질문은 0회였다. update가 앱에 닿았고 Codex 프로필 rule을 읽었으며, 터미널 spinner는 없었고, `turn.done`에서 notice가 사라졌다. **FAIL 1**: reload 뒤 첫 layout에서 frame 사각형이 모두 0인 경우가 있고, 따라가기가 그 값으로 판정해 새로 쓴 frame을 따라가지 못한다(경합). 미검증: Cursor(계정 한도), Codex project 대화, 실제 답 기다림 상태. 공용 프로필의 folders·ui-state·canvas-seen은 byte 단위로 같게 되돌렸다. B4 허용 파일과 probe 대화 기록 4개는 남았다(체인 '전부 남김').
+- spec 9 해석(지휘자 판단): 따르지 않은 작업 frame이 사람이 움직인 지 5초가 안 돼 기다리는 중이면, 쉬는 시간이 끝날 때 timer로 다시 판정한다. 근거는 결정 3("사람이 멈춰 있을 때만 따라간다")이다. 다음 update를 기다리면 사람이 잠깐 움직인 턴의 따라가기가 빠진다.
+- R 작업자에게 수정 round 2(0 사각형 layout, 쉬는 시간 timer)를 보냄. 고친 뒤 T가 새 frame 단계를 다시 본다.
