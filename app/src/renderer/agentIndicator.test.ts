@@ -112,7 +112,7 @@ describe("canvasAgent", () => {
 describe("canvasAgent with terminal sessions", () => {
   const target = { root: "/w/a", canvas: { path: row.path, id: "billing" } };
   const b = { root: "/w/b", canvas: target.canvas };
-  const work = (root: string, provider: WorkItem["provider"] = "claude"): WorkItem => ({ root, path: row.path, provider, session: provider ? "s1" : null });
+  const work = (root: string, provider: WorkItem["provider"] = "claude"): WorkItem => ({ root, path: row.path, provider, session: provider ? "s1" : null, touched: 0, turn: "none:t" });
   const terminal = (root: string) => ({ root, presence: null, terminal: true });
   test("a terminal session on the canvas shows the indicator: the app notice's text, no button", () => {
     expect(canvasAgent([], target, null, [work("/w/a")])).toEqual(terminal("/w/a"));
@@ -172,7 +172,7 @@ describe("siblingWork", () => {
   const b: FolderEntry = { path: "/w/b", kind: "list", servedRev: 0, canvases: [row], git: git("/w/a", "feat/checkout-copy") };
   const c: FolderEntry = { path: "/w/c", kind: "list", servedRev: 0, canvases: [row], git: { ...git("/w/a"), detached: "0123456789abcdef" } };
   const target = { root: "/w/a", canvas: { path: row.path, id: "billing" } };
-  const work = (root: string, path = row.path): WorkItem => ({ root, path, provider: "claude", session: "s1" });
+  const work = (root: string, path = row.path): WorkItem => ({ touched: 0, turn: "none:t", root, path, provider: "claude", session: "s1" });
   test("another worktree of the same project working on the same path is named by its branch", () => {
     expect(siblingWork([work("/w/b")], target, [a, b])).toEqual({ root: "/w/b", label: "feat/checkout-copy" });
   });

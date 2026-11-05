@@ -132,7 +132,7 @@ describe("CanvasAgent Stop", () => {
 
   // terminal-agent-activity design '표시': the app turn ends while a terminal session still works on the canvas.
   test("after a Stop, the notice stays for a terminal session left on the canvas, without its button", async () => {
-    const work = [{ session: "s1", provider: "claude" as const, root: "/w/a", path: canvas.path }];
+    const work = [{ touched: 0, turn: "none:t", session: "s1", provider: "claude" as const, root: "/w/a", path: canvas.path }];
     const withWork = (list: readonly ConversationSummary[]) => () => CanvasAgent({ list, canvas: { root: "/w/a", canvas }, running: true, work, entries: [], onOpen: vi.fn(), onOpenSibling: vi.fn(), onStopFailed });
     let tree = render(withWork([summary({})]));
     (button(tree)!.props.onClick as () => void)();
@@ -161,7 +161,7 @@ describe("CanvasAgent another worktree", () => {
     { path: "/w/a", kind: "list", servedRev: 0, canvases: [row], git: { ...git, branch: "main" } },
     { path: "/w/b", kind: "list", servedRev: 0, canvases: [row], git: { ...git, branch: LONG } },
   ];
-  const work = [{ session: "s1", provider: "claude" as const, root: "/w/b", path: canvas.path }];
+  const work = [{ touched: 0, turn: "none:t", session: "s1", provider: "claude" as const, root: "/w/b", path: canvas.path }];
   beforeEach(reset);
   test("Open opens that worktree, and the tooltip carries the full sentence", () => {
     const onOpenSibling = vi.fn(), onOpen = vi.fn();

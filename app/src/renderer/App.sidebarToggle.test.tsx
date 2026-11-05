@@ -168,7 +168,7 @@ test("the hidden state is saved beside the width only after the startup read; a 
 
 test("hidden, the button names the sidebar's most urgent signal: a terminal agent's work", async () => {
   await start();
-  const work: WorkItem = { session: "s1", provider: "codex", root: "/w/a", path: screen.path };
+  const work: WorkItem = { touched: 0, turn: "none:t", session: "s1", provider: "codex", root: "/w/a", path: screen.path };
   listeners.work!([work] as never); render();
   expect(bars()[0]!.sidebar.view.badge).toBeNull();
   toggle();

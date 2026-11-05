@@ -128,7 +128,7 @@ const rows = (): CanvasRow[] => [{ path: A, url: "u-a", mtimeMs: 10 }, { path: B
 const folders = (extra: FolderEntry[] = []) => { listeners.folders!([{ path: "/w/a", kind: "list", servedRev: 0, canvases: rows() }, ...extra] as never); render(); };
 const show = (row: CanvasRow) => { harness.setState!({ ...initialCanvasState(), open: { folder: "/w/a", canvas: row.path, row }, shown: row.path }); render(); };
 const flush = async () => { for (let i = 0; i < 5; i++) await Promise.resolve(); };
-const item = (path: string, root = "/w/a"): WorkItem => ({ session: "s1", provider: "codex", root, path });
+const item = (path: string, root = "/w/a"): WorkItem => ({ touched: 0, turn: "none:t", session: "s1", provider: "codex", root, path });
 const workspace = { screen: "workspace", root: "/w/a", canvas: A, expanded: {}, lastByRoot: {} };
 
 async function start(restored: unknown = workspace) {

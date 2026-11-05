@@ -78,7 +78,7 @@ test("a canvas with a terminal session offers it first, with the time doan check
 // with the reason as its described line, and a new conversation is the mode, even over a resume chosen before.
 test("a terminal session still working holds its choice with the reason; the composer starts a new conversation", async () => {
   resume = { available: true, runtime: "codex", lastCheckAt: "2026-11-01T14:02:00", session: "s1" };
-  const work = [{ session: "s1", provider: "codex" as const, root: "/w/other", path: ".doan/canvases/x.html" }];
+  const work = [{ touched: 0, turn: "none:t", session: "s1", provider: "codex" as const, root: "/w/other", path: ".doan/canvases/x.html" }];
   const out = await panel([], run => run.choose("resume"), { work });
   const card = out.match(/<label class="doan-panel ob-choice"[^>]*data-disabled=""[^>]*>.*?<\/label>/)?.[0] ?? "";
   expect(card).toContain("<strong>Continue the Codex session from your terminal</strong>");
@@ -99,7 +99,7 @@ test("a terminal session still working holds its choice with the reason; the com
 // so while it works its choice shows waiting with the reason. Not working, it is not offered.
 test("a Claude session a terminal process holds shows its choice waiting while it works", async () => {
   resume = { available: false, reason: "session_in_use", runtime: "claude", session: "s1" };
-  const work = [{ session: "s1", provider: "claude" as const, root: ROOT, path: CANVAS.path }];
+  const work = [{ touched: 0, turn: "none:t", session: "s1", provider: "claude" as const, root: ROOT, path: CANVAS.path }];
   const out = await panel([], () => {}, { work });
   const card = out.match(/<label class="doan-panel ob-choice"[^>]*data-disabled=""[^>]*>.*?<\/label>/)?.[0] ?? "";
   expect(card).toContain("<strong>Continue the Claude Code session from your terminal</strong>");
@@ -113,7 +113,7 @@ test("a Claude session a terminal process holds shows its choice waiting while i
 
 test("another session, or an anonymous one, working in a terminal leaves the choice as it is", async () => {
   resume = { available: true, runtime: "codex", lastCheckAt: "2026-11-01T14:02:00", session: "s1" };
-  const work = [{ session: "s2", provider: "codex" as const, root: ROOT, path: CANVAS.path }, { session: null, provider: null, root: ROOT, path: CANVAS.path }];
+  const work = [{ touched: 0, turn: "none:t", session: "s2", provider: "codex" as const, root: ROOT, path: CANVAS.path }, { touched: 0, turn: "none:t", session: null, provider: null, root: ROOT, path: CANVAS.path }];
   const out = await panel([], () => {}, { work });
   expect(out).not.toContain("data-disabled");
   expect(out).toContain("<small>Linked by doan check at 14:02</small>");

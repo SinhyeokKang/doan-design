@@ -10,7 +10,7 @@ const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
 });
 const target = { root: "/repo", path: ".doan/canvases/billing.html", id: "billing" };
 const none = () => null;
-const work = (root: string, path = target.path): WorkItem => ({ root, path, session: "s1", provider: "claude" });
+const work = (root: string, path = target.path): WorkItem => ({ touched: 0, turn: "none:t", root, path, session: "s1", provider: "claude" });
 
 describe("trashBlock", () => {
   test("nothing working on the canvas leaves Move to Trash enabled", () => {

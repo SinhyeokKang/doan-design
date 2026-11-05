@@ -76,7 +76,7 @@ describe("CanvasAgent", () => {
   // terminal-agent-activity (draft terminal-notice, user decision D1): a terminal session shows the glow, the dot field
   // and the app notice's text with no button; the text is the status itself.
   test("a terminal session: the glow and the notice with its moving dot and text, and no button", () => {
-    const work = [{ session: "s1", provider: "codex" as const, root: "/w/a", path: canvas.path }];
+    const work = [{ touched: 0, turn: "none:t", session: "s1", provider: "codex" as const, root: "/w/a", path: canvas.path }];
     const html = markup([], { work });
     expect(html).toMatch(/<div class="doan-agent-glow"[^>]*><canvas class="doan-agent-dots"><\/canvas><\/div>/);
     expect(html).toContain('<div class="doan-agent doan-agent-terminal"><span class="doan-agent-dot" aria-hidden="true"></span>' + LINE("Agent is working") + MEASURE + '<span class="sr-only" role="status">Agent is working</span></div>');
@@ -86,7 +86,7 @@ describe("CanvasAgent", () => {
   });
 
   test("an app conversation on the canvas keeps its Stop over a terminal session", () => {
-    const html = markup([summary({})], { work: [{ session: null, provider: null, root: "/w/a", path: canvas.path }] });
+    const html = markup([summary({})], { work: [{ touched: 0, turn: "none:t", session: null, provider: null, root: "/w/a", path: canvas.path }] });
     expect(html).toContain('<div class="doan-agent">');
     expect(html).toMatch(/>Stop<\/button>/);
   });
@@ -101,7 +101,7 @@ describe("CanvasAgent", () => {
       { path: "/w/a", kind: "list", servedRev: 0, canvases: [row], git: git("main") },
       { path: "/w/b", kind: "list", servedRev: 0, canvases: [row], git: git(branch) },
     ];
-    const there = [{ session: "s1", provider: "claude" as const, root: "/w/b", path: canvas.path }];
+    const there = [{ touched: 0, turn: "none:t", session: "s1", provider: "claude" as const, root: "/w/b", path: canvas.path }];
     test("the notice says where the agent works, with Open named for that worktree, and takes no focus", () => {
       const html = markup([], { work: there, entries: entries("feat/checkout-copy") });
       expect(html).not.toContain("doan-agent-glow");
