@@ -159,6 +159,14 @@ describe("UsagePanel", () => {
     expect(view.onRefresh).toHaveBeenCalledOnce();
   });
 
+  // The header drags the window; the open popover lifts that inline (AgentUsageButton), since Electron ignored an
+  // app-region change made through a :has() rule (real app, 2026-11-06).
+  it("keeps the header a drag region in CSS, with no :has() rule for the open popover", () => {
+    const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+    expect(css).toMatch(/\.top \{[^}]*-webkit-app-region: drag;[^}]*\}/);
+    expect(css).not.toContain(".top:has(");
+  });
+
   // E1 measurement: the app body's tabular figures widened every "1" in the relative times ("Updated 1m ago" by 2.6px,
   // "12d 4h") against the confirmed draft; the popover is portalled to <body>, so it sets its own.
   it("draws plain numerals in the popover", () => {

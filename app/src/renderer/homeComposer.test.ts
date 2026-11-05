@@ -5,7 +5,7 @@ import type { AccountIdentity, AuthState, AuthStatusDto, Provider, ToolFacts } f
 import type { CanvasRow, FolderEntry } from "../main/view";
 import {
   attachmentChipView, attachmentLimit, chipRemoval, composeRequest, defaultEffort, defaultModel, defaultProject, defaultProvider, dropTarget, fixedPreference,
-  GREETINGS, greetingText, groupIcon, groupLabel, isSubmitKey, steerKey, lengthCounter, MAX_ATTACHMENTS, MAX_PASTED_BYTES, modelPickerView, pickGreeting, presetListView,
+  GREETINGS, greetingText, groupIcon, groupLabel, isSubmitKey, steerKey, takesSuggestion, lengthCounter, MAX_ATTACHMENTS, MAX_PASTED_BYTES, modelPickerView, pickGreeting, presetListView,
   draftProblem, presetPlaceholder, rootForProject, searchPresets, selectableProvider, sendAvailability, slashQuery, startErrorView, suggestedPresets,
   suggestedPrompts, TEXT_LIMIT,
   type AttachmentDraft, type ModelsState, type PresetListReply, type PresetSummary, type SendInput,
@@ -675,5 +675,19 @@ test("steerKey accepts only Control+Enter outside IME composition", () => {
   expect(steerKey(event)).toBe(true);
   for (const change of [{ key: "a" }, { ctrlKey: false }, { metaKey: true }, { altKey: true }, { shiftKey: true }, { isComposing: true }, { keyCode: 229 }]) {
     expect(steerKey({ ...event, ...change })).toBe(false);
+  }
+});
+
+// prompt-suggestion design 'Pure functions' 4: only a plain → on an empty field outside IME composition takes the
+// suggestion shown; every modifier keeps its own meaning (selection, word and line moves).
+test("takesSuggestion accepts only a plain Right Arrow on an empty field while a suggestion shows", () => {
+  const event = { key: "ArrowRight", shiftKey: false, altKey: false, metaKey: false, ctrlKey: false, isComposing: false, keyCode: 39 };
+  const state = { suggestion: "Make the header lighter", empty: true, composing: false };
+  expect(takesSuggestion(event, state)).toBe(true);
+  for (const change of [{ key: "ArrowLeft", keyCode: 37 }, { key: "Tab", keyCode: 9 }, { key: "Enter", keyCode: 13 }, { shiftKey: true }, { altKey: true }, { metaKey: true }, { ctrlKey: true }, { isComposing: true }, { keyCode: 229 }]) {
+    expect(takesSuggestion({ ...event, ...change }, state)).toBe(false);
+  }
+  for (const change of [{ suggestion: null }, { empty: false }, { composing: true }]) {
+    expect(takesSuggestion(event, { ...state, ...change })).toBe(false);
   }
 });

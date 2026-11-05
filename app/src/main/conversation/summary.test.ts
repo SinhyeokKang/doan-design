@@ -105,6 +105,32 @@ describe("conversationSummary", () => {
     });
   });
 });
+describe("suggestion and returned draft", () => {
+  const ended = { ok: true as const, events: history(...started, { type: "message.done", messageId: "m", text: "Done." }, { type: "turn.done" }) };
+  const shown = { ...live, returned: false, suggestion: "Run the tests" };
+  it("carries the suggestion only for a current, ended conversation that is not working, has nothing queued and no returned draft", () => {
+    expect(conversationSummary(doan, ended, shown)).toMatchObject({ suggestion: "Run the tests" });
+    expect(conversationSummary(doan, ended, shown)).not.toHaveProperty("returnedDraft");
+    const hidden: [string, ReturnType<typeof conversationSummary>][] = [
+      ["archived", conversationSummary({ ...doan, state: "archived" }, ended, shown)],
+      ["running", conversationSummary(doan, { ok: true, events: history(...started, { type: "activity", kind: "read", summary: "Read a.html" }) }, shown)],
+      ["waiting", conversationSummary(doan, { ok: true, events: history(...started, permission) }, shown)],
+      ["working", conversationSummary(doan, ended, { ...shown, working: true })],
+      ["queued", conversationSummary(doan, ended, { ...shown, queued: 1 })],
+      ["returned draft", conversationSummary(doan, ended, { ...shown, returned: true })],
+      ["read error", conversationSummary(doan, { ok: false }, shown)],
+    ];
+    for (const [name, summary] of hidden) expect(summary, name).not.toHaveProperty("suggestion");
+  });
+  it("carries no suggestion when there is none", () => {
+    expect(conversationSummary(doan, ended, { ...live, returned: false })).not.toHaveProperty("suggestion");
+  });
+  it("marks a returned draft, also on an unreadable history", () => {
+    expect(conversationSummary(doan, ended, { ...live, returned: true })).toMatchObject({ returnedDraft: true });
+    expect(conversationSummary(doan, { ok: false }, { ...live, returned: true })).toMatchObject({ returnedDraft: true, readError: true });
+    expect(conversationSummary(doan, ended, { ...live, returned: false })).not.toHaveProperty("returnedDraft");
+  });
+});
 describe("clampSeen", () => {
   it("cuts a seq past the last one and never goes back", () => {
     expect(clampSeen(10, 4, undefined)).toBe(4);

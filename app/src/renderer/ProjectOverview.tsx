@@ -27,7 +27,7 @@ import { draftKey, EMPTY_DRAFT, type DockedBusy, type DockedMode } from "./docke
 import { modelsKey, type DockedSupport } from "./dockedSupport";
 import { cardRow, ROW_ACTION_LABELS, type RowAction } from "./homeCards";
 import {
-  attachmentLimit, defaultEffort, defaultModel, defaultProvider, fixedPreference, groupIcon, modelOption, modelPickerView, presetPlaceholder,
+  attachmentLimit, defaultEffort, defaultModel, defaultProvider, fixedPreference, groupIcon, modelOption, modelPickerView,
   selectableProvider, suggestedPresets, suggestedPrompts, type AttachmentDraft, type ModelsState, type NewConversationDefault,
 } from "./homeComposer";
 import type { LastRequest } from "./homeConversations";
@@ -305,7 +305,8 @@ export function ProjectOverview(props: ProjectOverviewProps) {
   const showsNew = conversationId === null && !waiting;
   const moved = view.kind === "new" ? view.moved : null;
   const movedCanvas = moved && canvasLabel({ path: moved.canvas.path, url: "" });
-  const placeholder = draft.preset && draft.segments.length === 0 ? presetPlaceholder(draft.preset) : mode.kind === "new" ? NEW_PLACEHOLDER : REPLY_PLACEHOLDER;
+  // A preset's line and the suggestion stand in for it inside the composer (dockedRules composerPlaceholder).
+  const placeholder = mode.kind === "new" ? NEW_PLACEHOLDER : REPLY_PLACEHOLDER;
 
   return <section className="ov ov-main" role="region" aria-label="Overview">
     <header className="ov-head">
@@ -403,7 +404,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         </div>}
     </div>
     <div className="ov-foot"><div className="ov-col">
-      <DockedComposer mode={mode} project={project} homeDirectory={props.homeDirectory} placeholder={placeholder}
+      <DockedComposer mode={mode} project={project} homeDirectory={props.homeDirectory} placeholder={placeholder} suggestion={summary ? summary.suggestion ?? null : undefined}
         drafts={run.drafts} onDrafts={update => run.setDrafts(update)}
         auth={auth} picker={picker} provider={chosen} effort={effort}
         onPickerOpen={() => { if (healthy) for (const group of picker.groups) if (group.read) support.readModels(root, group.provider); }}

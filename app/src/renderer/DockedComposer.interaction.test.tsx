@@ -764,3 +764,197 @@ test.each(["idle", "running"] as const)("Control+Enter without a Send now handle
   expect(turn === "idle" ? send : queue).toHaveBeenCalledOnce();
   expect(turn === "idle" ? queue : send).not.toHaveBeenCalled();
 });
+
+// prompt-suggestion design 'renderer' 1–4, decisions 4, 6–9. Keys go through ComposerField's own keydown (POSTMORTEM
+// 2026-10-27 'typeahead'): the field element's onKeyDown calls the composer's onKey before Enter's send. The handle
+// stands in for ChipField, whose insertText hands the new value back through onChange as one undo step; that step,
+// the caret and real keys and IME are checked in the real app (tasks E1).
+const SUGGESTION = "Make the header lighter";
+const HINT = "Press Right Arrow to use the suggestion.";
+const arrowRight = (patch: Record<string, unknown> = {}) => ({ key: "ArrowRight", shiftKey: false, altKey: false, metaKey: false, ctrlKey: false, keyCode: 39, nativeEvent: { isComposing: false }, preventDefault: vi.fn(), ...patch });
+const press = (tree: Record<string, unknown>[], event: ReturnType<typeof arrowRight>) => { (field(tree).onKeyDown as (event: unknown) => void)(event); return event; };
+const attachment = { key: "k1", id: "f1", name: "notes.md", kind: "file" as const, pasted: false, status: "ready" as const };
+function suggestionSetup(patch: Partial<DockedComposerProps> = {}, start: DockedDraft = EMPTY_DRAFT, opts: { focused?: boolean; composing?: boolean } = {}) {
+  const result = setup({ suggestion: SUGGESTION, ...patch }, [["conversation:a", start]]);
+  const element: { ownerDocument: { activeElement: unknown } } = { ownerDocument: { activeElement: null } };
+  element.ownerDocument.activeElement = opts.focused === false ? null : element;
+  const handle = {
+    focus: vi.fn(), caretAtStart: () => true, composing: () => opts.composing ?? false, element: () => element,
+    insertText: vi.fn((text: string) => type(result.render(), text)),
+  };
+  const attach = () => { hooks.refs[2]!.current = handle; };
+  result.render();
+  attach();
+  const said = () => find(result.render(), props => props.className === "sr-only" && props.role === "status").children;
+  const settle = () => { result.render(); for (const effect of hooks.effects) effect(); };
+  return { ...result, handle, element, said, settle };
+}
+
+test("a suggestion shows in the placeholder's place and the field is described by the Right Arrow hint", () => {
+  const { render } = suggestionSetup();
+  const tree = render();
+  expect(field(tree)["aria-placeholder"]).toBe(SUGGESTION);
+  const ids = String(field(tree)["aria-describedby"]).split(" ");
+  expect(ids.map(id => tree.find(item => item.id === id)?.children)).toContain(HINT);
+  // No → glyph or extra line: the hint is the field's description only (decision 6).
+  expect(tree.some(item => typeof item.children === "string" && item.children.includes("→"))).toBe(false);
+});
+
+test("without a suggestion the field keeps the host's text and has no hint", () => {
+  const { render } = suggestionSetup({ suggestion: null });
+  const tree = render();
+  expect(field(tree)["aria-placeholder"]).toBe("Reply, / for presets");
+  expect(field(tree)["aria-describedby"]).toBeUndefined();
+  expect(tree.some(item => item.children === HINT)).toBe(false);
+});
+
+test("Right Arrow on the empty field puts the suggestion in it, keeps focus there and never sends", async () => {
+  const { render, handle, send, queue, store } = suggestionSetup();
+  const event = press(render(), arrowRight());
+  await flush();
+  expect(event.preventDefault).toHaveBeenCalled();
+  expect(handle.insertText).toHaveBeenCalledWith(SUGGESTION);
+  expect(draftText(store.current.get("conversation:a"))).toBe(SUGGESTION);
+  expect(handle.focus).not.toHaveBeenCalled();
+  expect(send).not.toHaveBeenCalled();
+  expect(queue).not.toHaveBeenCalled();
+  // The suggestion stays the host's: emptying the field shows it again (decision 4).
+  type(render(), "");
+  expect(field(render())["aria-placeholder"]).toBe(SUGGESTION);
+});
+
+test("Right Arrow does not take the suggestion over typed text, a preset, a read-only field or an IME composition", () => {
+  const typed = suggestionSetup({}, draft("Hi"));
+  const event = press(typed.render(), arrowRight());
+  expect(event.preventDefault).not.toHaveBeenCalled();
+  expect(typed.handle.insertText).not.toHaveBeenCalled();
+  expect(field(typed.render())["aria-placeholder"]).toBe("Reply, / for presets");
+
+  const preset = { id: "critique", title: "Critique the design", description: "", scope: "" };
+  const withPreset = suggestionSetup({}, { ...EMPTY_DRAFT, preset, shape: "box" });
+  press(withPreset.render(), arrowRight());
+  expect(withPreset.handle.insertText).not.toHaveBeenCalled();
+  expect(field(withPreset.render())["aria-placeholder"]).toBe("Which canvas or screen? Add details…");
+
+  const locked = suggestionSetup({ unavailable: "The project moved.", locked: true });
+  press(locked.render(), arrowRight());
+  expect(locked.handle.insertText).not.toHaveBeenCalled();
+  expect(field(locked.render())["aria-placeholder"]).toBe("Reply, / for presets");
+
+  for (const composing of [arrowRight({ nativeEvent: { isComposing: true } }), arrowRight({ keyCode: 229 })]) {
+    const ime = suggestionSetup();
+    press(ime.render(), composing);
+    expect(ime.handle.insertText).not.toHaveBeenCalled();
+  }
+  const fieldComposing = suggestionSetup({}, EMPTY_DRAFT, { composing: true });
+  press(fieldComposing.render(), arrowRight());
+  expect(fieldComposing.handle.insertText).not.toHaveBeenCalled();
+
+  for (const modifier of [{ shiftKey: true }, { altKey: true }, { metaKey: true }, { ctrlKey: true }]) {
+    const moved = suggestionSetup();
+    const keyEvent = press(moved.render(), arrowRight(modifier));
+    expect(moved.handle.insertText).not.toHaveBeenCalled();
+    expect(keyEvent.preventDefault).not.toHaveBeenCalled();
+  }
+});
+
+test("Enter, Shift+Enter, Tab, the / list and Backspace's chip removal keep their meaning while a suggestion shows", async () => {
+  const { render, handle, send, props, store } = suggestionSetup({}, { ...EMPTY_DRAFT, attachments: [attachment], shape: "box" });
+  (field(render()).onKeyDown as (event: unknown) => void)(enter());
+  (field(render()).onKeyDown as (event: unknown) => void)({ ...enter(), shiftKey: true });
+  const tab = { key: "Tab", shiftKey: false, keyCode: 9, nativeEvent: { isComposing: false }, preventDefault: vi.fn() };
+  (field(render()).onKeyDown as (event: unknown) => void)(tab);
+  await flush();
+  // An attachment-only draft sends with Enter as before; the suggestion never goes with it.
+  expect(send).toHaveBeenCalledTimes(1);
+  expect(send.mock.calls[0]![0]).toMatchObject({ attachments: [{ id: "f1" }] });
+  expect(JSON.stringify(send.mock.calls[0]![0])).not.toContain(SUGGESTION);
+  expect(tab.preventDefault).not.toHaveBeenCalled();
+  expect(handle.insertText).not.toHaveBeenCalled();
+
+  store.current = new Map([["conversation:a", { ...EMPTY_DRAFT, attachments: [attachment], shape: "box" }]]); props.drafts = store.current;
+  const back = { key: "Backspace", shiftKey: false, keyCode: 8, nativeEvent: { isComposing: false }, preventDefault: vi.fn() };
+  (field(render()).onKeyDown as (event: unknown) => void)(back);
+  expect(back.preventDefault).toHaveBeenCalled();
+  expect(props.onAttachmentRemoved).toHaveBeenCalledWith(attachment);
+
+  type(render(), "/");
+  expect(field(render()).role).toBe("combobox");
+  press(render(), arrowRight());
+  expect(handle.insertText).not.toHaveBeenCalled();
+});
+
+test("Right Arrow on an attachment-only draft puts the suggestion in and keeps the attachments", () => {
+  const { render, handle, store } = suggestionSetup({}, { ...EMPTY_DRAFT, attachments: [attachment], shape: "box" });
+  expect(field(render())["aria-placeholder"]).toBe(SUGGESTION);
+  press(render(), arrowRight());
+  expect(handle.insertText).toHaveBeenCalledWith(SUGGESTION);
+  const stored = store.current.get("conversation:a");
+  expect(draftText(stored)).toBe(SUGGESTION);
+  expect(stored?.attachments).toEqual([attachment]);
+});
+
+test("a new suggestion for the same conversation is announced once while its empty field has focus", () => {
+  const { props, said, settle } = suggestionSetup({ suggestion: null });
+  settle();
+  props.suggestion = SUGGESTION;
+  settle();
+  expect(said()).toBe(`Suggestion: ${SUGGESTION}`);
+  props.suggestion = "Try a darker footer";
+  settle();
+  expect(said()).toBe("Suggestion: Try a darker footer");
+});
+
+test("a suggestion is not announced on the first list read, a switch, a refill after emptying, or without focus", () => {
+  // The first read after a reload: the host knew no list before (undefined).
+  const reload = suggestionSetup({ suggestion: undefined });
+  reload.settle();
+  reload.props.suggestion = SUGGESTION;
+  reload.settle();
+  expect(reload.said()).toBe("");
+
+  // A switch shows the other conversation's suggestion.
+  const switched = suggestionSetup({ suggestion: null });
+  switched.settle();
+  switched.props.mode = B; switched.props.suggestion = SUGGESTION;
+  switched.settle();
+  expect(switched.said()).toBe("");
+
+  // Taken and then deleted: the same text shows again.
+  const refill = suggestionSetup({ suggestion: SUGGESTION });
+  refill.settle();
+  press(refill.render(), arrowRight());
+  refill.settle();
+  type(refill.render(), "");
+  refill.settle();
+  expect(refill.said()).toBe("");
+
+  // The field is not focused, or it holds text.
+  const unfocused = suggestionSetup({ suggestion: null }, EMPTY_DRAFT, { focused: false });
+  unfocused.settle();
+  unfocused.props.suggestion = SUGGESTION;
+  unfocused.settle();
+  expect(unfocused.said()).toBe("");
+  const typed = suggestionSetup({ suggestion: null }, draft("Hi"));
+  typed.settle();
+  typed.props.suggestion = SUGGESTION;
+  typed.settle();
+  expect(typed.said()).toBe("");
+});
+
+// R review ⚪4: a suggestion is plain text (decision 8), so one that starts with / does not open the preset list when
+// Right Arrow puts it in; the list opens again once the field is emptied and / is typed.
+test("a suggestion that starts with / goes in as text and leaves the preset list closed", () => {
+  const { render, handle } = suggestionSetup({ suggestion: "/compact the thread" });
+  press(render(), arrowRight());
+  expect(handle.insertText).toHaveBeenCalledWith("/compact the thread");
+  // Effects of the render that drew the inserted text (React runs an earlier render's effects before the key).
+  render();
+  for (const effect of hooks.effects) effect();
+  expect(field(render()).role).toBe("textbox");
+  type(render(), "");
+  render();
+  for (const effect of hooks.effects) effect();
+  type(render(), "/");
+  expect(field(render()).role).toBe("combobox");
+});

@@ -2,7 +2,7 @@ import { accessSync, constants, readdirSync, statSync } from "node:fs";
 import { basename, dirname, isAbsolute, join } from "node:path";
 import { probeShell, runProcess } from "../onboarding/machine";
 import { findOnPath } from "../onboarding/states";
-import { agentEnv } from "./environment";
+import { agentEnv, promptSuggestionEnv } from "./environment";
 import { launchEnv } from "../launchEnv";
 import { canonicalDirectory, claudeOccupancy, codexOccupancy, codexSessionExists, readRegular, readSessionTail } from "./io";
 import { PROVIDER_AUTH } from "../agentAuth/providers";
@@ -63,7 +63,7 @@ export function createPrepare(userData: string, appRuntime: string, inherited: N
       if (occupancy !== "free") throw new Error("session_unavailable");
       if (!codexSessionExists(configDir, session.sessionId, cwd)) throw new Error("session_unavailable");
     }
-    const env = agentEnv({ env: inherited, path: probe.path, configDir }, runtime, appRuntime, { root, cwd, configDir });
+    const env = agentEnv({ env: inherited, path: probe.path, configDir, ...(probe.promptSuggestion ? { promptSuggestion: probe.promptSuggestion } : {}) }, runtime, appRuntime, { root, cwd, configDir });
     if (!env) throw new Error("session_unavailable");
     return { runtime, command, configDir, cwd, env: env.env, ...(session ? { sessionId: session.sessionId } : {}), ...(picked?.available ? { lastCheckAt: picked.record.at } : {}) };
   };
@@ -192,7 +192,7 @@ export function createAccountPrepare(auth: AccountRuntime, cli: string, toolsFai
       const runArgs = provider === "claude" || provider === "codex" ? RUN_ARGS[provider] : adapter.acp!.args;
       return {
         runtime: provider, command: lease.command, args: [...adapter.args, ...runArgs], configDir, cwd,
-        env: { ...lease.env, PATH: `${dirname(cli)}:${lease.env.PATH}` }, ...(stored ? { sessionId: stored.session.sessionId } : {}),
+        env: { ...lease.env, PATH: `${dirname(cli)}:${lease.env.PATH}`, ...(provider === "claude" ? promptSuggestionEnv(lease.promptSuggestion) : {}) }, ...(stored ? { sessionId: stored.session.sessionId } : {}),
         owner: { kind: "doan", provider, connectionId: connection.connectionId, accountId: connection.account.id, workspaceId: connection.account.workspace, profile: connection.profile },
         release: lease.release, recheck: () => { recheck(); },
         ...(adapter.acp?.authenticate ? { authenticate: adapter.acp.authenticate } : {}),

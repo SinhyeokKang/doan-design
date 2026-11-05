@@ -30,7 +30,7 @@ import { DockedComposer, type DockedFieldLink, type DockedOutcome, type DockedPi
 import { draftKey, EMPTY_DRAFT, type DockedMode, type DockedRefusal } from "./dockedRules";
 import { modelsKey, type DockedSupport } from "./dockedSupport";
 import {
-  attachmentLimit, defaultEffort, defaultModel, defaultProvider, fixedPreference, groupIcon, modelOption, modelPickerView, presetPlaceholder,
+  attachmentLimit, defaultEffort, defaultModel, defaultProvider, fixedPreference, groupIcon, modelOption, modelPickerView,
   selectableProvider, suggestedPresets, suggestedPrompts, type AttachmentDraft, type NewConversationDefault, type ModelsState,
 } from "./homeComposer";
 import { PROVIDER_NAMES } from "./agentAuthView";
@@ -398,7 +398,8 @@ export function CanvasConversation(props: CanvasConversationProps) {
   const busy = newView?.start.busy ?? restoreBusy;
   const openConversation = (id: string) => { props.onChoose?.(); run.select(id); };
 
-  const placeholder = draft.preset && draft.segments.length === 0 ? presetPlaceholder(draft.preset) : view.kind === "new" && mode.kind === "new" ? NEW_PLACEHOLDER : REPLY_PLACEHOLDER;
+  // A preset's line and the suggestion stand in for it inside the composer (dockedRules composerPlaceholder).
+  const placeholder = view.kind === "new" && mode.kind === "new" ? NEW_PLACEHOLDER : REPLY_PLACEHOLDER;
   const notice = view.kind === "wait" ? null : view.notice;
   // A held session a terminal process holds is not offered to run, but its choice shows, waiting.
   const offer = newView?.start.offer ?? (held && newView?.resume && "runtime" in newView.resume ? newView.resume.runtime ?? null : null);
@@ -440,7 +441,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
           onClick={() => notice.kind === "drawing" ? props.onOpenProjectConversation(notice.open) : openConversation(notice.open)}>Open</button></span></div>}
     </div>
     <div className="cp-foot">
-      <DockedComposer mode={mode} project={project} homeDirectory={null} placeholder={placeholder} chipScope={canvasScope(target)}
+      <DockedComposer mode={mode} project={project} homeDirectory={null} placeholder={placeholder} suggestion={summary ? summary.suggestion ?? null : undefined} chipScope={canvasScope(target)}
         pick={props.pick} link={props.composerLink} onLocate={props.onLocate} canvasPress={props.canvasPress}
         drafts={store.drafts} onDrafts={update => store.setDrafts(update)}
         auth={auth} picker={picker} provider={chosen} effort={effort}

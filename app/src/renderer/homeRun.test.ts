@@ -999,3 +999,42 @@ test("running providers are the agents with a Doan conversation running or waiti
   await flush();
   expect([...h.run.runningProviders()].sort()).toEqual(["codex", "copilot"]);
 });
+
+// prompt-suggestion design 'renderer' 5 (POSTMORTEM 2026-11-05 'Send now'): main drops a conversation's suggestion when
+// its next turn is accepted. A list read that started before that may still carry it and lands after the composer
+// emptied, so only reads started after the accepted message say whether a suggestion stands.
+test("a stale list read does not bring back a cleared suggestion", async () => {
+  const h = harness();
+  const shown = () => { const listed = h.run.listState(ROOT); return Array.isArray(listed) ? listed.find(c => c.conversationId === "c1")?.suggestion : "unread"; };
+  lists({ [ROOT]: [summary({ suggestion: "Make the header lighter" })] });
+  h.run.listChanged(ROOT);
+  await flush();
+  expect(shown()).toBe("Make the header lighter");
+
+  // A read in flight from before the send, answering with the old suggestion.
+  const stale = deferred<ConversationSummary[]>();
+  doan.listConversations!.mockImplementationOnce(() => stale.promise);
+  h.run.listChanged(ROOT);
+  h.run.event(event("c1", { type: "user.message", text: "Make the header lighter", anchors: [] }, "t2"));
+  // main accepted the turn: the suggestion is gone at once, before any read.
+  expect(shown()).toBeUndefined();
+  // The notice main sent with the accepted turn asks for one more read after the stale one.
+  h.run.listChanged(ROOT);
+  const fresh = deferred<ConversationSummary[]>();
+  doan.listConversations!.mockImplementationOnce(() => fresh.promise);
+  stale.resolve([summary({ suggestion: "Make the header lighter" })]);
+  await flush();
+  // The stale read is applied (its other rows count) without the suggestion.
+  expect(h.run.readsApplied(ROOT)).toBe(2);
+  expect(shown()).toBeUndefined();
+  expect(doan.listConversations).toHaveBeenCalledTimes(3);
+  fresh.resolve([summary({ phase: "running" })]);
+  await flush();
+  expect(shown()).toBeUndefined();
+
+  // A read started after the turn is trusted again: its next suggestion shows.
+  lists({ [ROOT]: [summary({ suggestion: "Now tighten the footer" })] });
+  h.run.listChanged(ROOT);
+  await flush();
+  expect(shown()).toBe("Now tighten the footer");
+});

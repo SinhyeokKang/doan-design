@@ -1144,6 +1144,19 @@ describe("check", () => {
   });
 });
 
+// prompt-suggestion decision 2: the login shell's CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION reaches the run through its
+// lease; a Claude run's preparation applies it (conversation/prepare.ts).
+describe("the login shell's prompt suggestion setting", () => {
+  it.each([["set", "false"], ["unset", undefined]] as const)("rides on the lease when the shell %s it", async (_name, value) => {
+    const m = manager({ locate: async () => ({ command: "/bin/fake-cli", path: "/verified/bin", ...(value === undefined ? {} : { promptSuggestion: value }) }) }); await m.load();
+    await signedInCursor(m, "u1");
+    const lease = await m.acquire("cursor");
+    if (value === undefined) expect(lease).not.toHaveProperty("promptSuggestion"); else expect(lease.promptSuggestion).toBe(value);
+    expect(lease.env).not.toHaveProperty("CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION");
+    await lease.release();
+  });
+});
+
 describe("sign-out", () => {
   it("requires running work to stop first", async () => {
     const m = manager(); await m.load();

@@ -44,6 +44,8 @@ export interface Prepared {
   // run's own connection (no new process). The hook decides whether to read; a Claude run keeps its input open until
   // it resolves, since the CLI exits once its input closes (agentAuth/usageService.ts withTurnUsage).
   usageAtTurnEnd?: (read: () => Promise<unknown>) => Promise<void>;
+  // Claude runs only: the cleaned text of the first prompt suggestion after a done turn (runners.ts openClaude).
+  suggested?: (text: string) => void;
 }
 // generation: the provider's connector generation now. labels: connector names by doan- name, for permission
 // summaries and activity lines.
@@ -65,7 +67,8 @@ export interface SendExtras extends TurnChoice { attachments?: AttachmentRecord[
 function askingKey(event: { type: string; requestId: string }): string { return `${event.type.startsWith("question.") ? "question" : "permission"}:${event.requestId}`; }
 // steer: Claude and Codex only (steerSupport.ts); adds a message to the running turn turnId and resolves once the
 // provider accepted it, which is not yet the agent reading it (Prepared.steerConsumed).
-export interface Runner { sessionId: string; send(prompt: string, turnId: string, attachments?: readonly AttachmentRecord[], choice?: TurnChoice): Promise<void>; answer(requestId: string, optionId: string): boolean; answerQuestion?(requestId: string, answer: QuestionAnswerInput): "ok" | "stale" | "bad_request"; stop(): Promise<void>; close(): Promise<void>; models?(): Promise<ModelList>; steer?(prompt: string, turnId: string, messageId: string): Promise<void> }
+// endSuggestion: Claude only; ends a done turn's process that only waits for its prompt suggestion, true when it did.
+export interface Runner { sessionId: string; send(prompt: string, turnId: string, attachments?: readonly AttachmentRecord[], choice?: TurnChoice): Promise<void>; answer(requestId: string, optionId: string): boolean; answerQuestion?(requestId: string, answer: QuestionAnswerInput): "ok" | "stale" | "bad_request"; stop(): Promise<void>; close(): Promise<void>; models?(): Promise<ModelList>; steer?(prompt: string, turnId: string, messageId: string): Promise<void>; endSuggestion?(): boolean }
 // What a queued send needs from main's attachment store: the queued ids checked again as the send's attachments
 // (reclaim throws attachment_missing), consumed once that send was accepted, discarded with a removed message (a paste
 // goes with it) and released when they come back in a draft, which carries their paths instead.
@@ -97,7 +100,8 @@ const EXIT_WAIT_MS = 10_000;
 // asking: the accepted turn's permission requests and questions not answered yet, keyed by kind and id so one kind's
 // resolution never settles the other; while any is open the turn waits for the person and does not keep its root
 // (projectBusy). A turn's end expires them.
-interface Live { turnId: string; busy: boolean; accepted: boolean; runner?: Runner; cleanup?: () => Promise<void>; terminal: boolean; events: EventPayload[]; failedPersistence: boolean; exited: boolean; provider?: Provider; since: number; endedAt?: number; project?: string; closed?: boolean; holding?: object; mcpGeneration?: number | undefined; asking?: Set<string> }
+// done: the turn's terminal event was turn.done.
+interface Live { turnId: string; busy: boolean; accepted: boolean; runner?: Runner; cleanup?: () => Promise<void>; terminal: boolean; events: EventPayload[]; failedPersistence: boolean; exited: boolean; provider?: Provider; since: number; endedAt?: number; project?: string; closed?: boolean; holding?: object; mcpGeneration?: number | undefined; asking?: Set<string>; done?: boolean }
 // A project turn's grounds for promotion (design §2.4): the canvas list when the turn was accepted, the paths of its own
 // edit activities and the canvas files the folder watcher saw change. endedAt: the turn is over and waits for its first
 // folder refresh, or for the timer at the end of the binding window. turnId: the judged turn, for its bound marker.
@@ -132,6 +136,13 @@ export class ConversationService {
   private drafts: DraftStore;
   // By messageId, until the agent reads it or its turn ends; a refused one stays, since its read may still come.
   private steers = new Map<string, Steer>();
+  // Claude's suggestion for each conversation's next message, in memory only (prompt-suggestion decision 3): kept
+  // until the next turn is accepted, the conversation is archived or deleted, or its Claude connection signs out or
+  // changes. connectionId: the doan connection the turn ran on; none for a legacy external run.
+  private suggestions = new Map<string, { text: string; root: string; provider?: Provider; connectionId?: string }>();
+  // Each provider's connection as auth last reported it (connectionChanged; undefined: signed out). A run on another
+  // connection may still send its suggestion after the change, and must not bring it back.
+  private connections = new Map<Provider, string | undefined>();
   // listChanged: a root whose conversation list (conversation:list) changed, sent after the write it reports.
   // deleted: a conversation deleted (delete), once its index entry is gone.
   constructor(private store: ConversationStore, private prepare: Prepare, private open: OpenRunner, private publish: (event: ConversationEvent) => void, private admit: (root: string, canvas?: Canvas) => Canvas | void = () => {}, private exitWaitMs = EXIT_WAIT_MS, private canvases: (root: string) => readonly Canvas[] = () => [], private listChanged: (root: string) => void = () => {}, private queueOptions: QueueOptions = {}, private deleted: (id: string) => void = () => {}) {
@@ -165,7 +176,7 @@ export class ConversationService {
     let opening = false, input: Prepared | undefined;
     const turnId = live.turnId;
     try {
-      input = { ...await this.prepare(request), ...choice(request), ...mode(request.permissionMode), planApproved: reported => this.planApproved(id, live, turnId, reported), steerConsumed: messageId => this.steerConsumed(id, messageId) };
+      input = { ...await this.prepare(request), ...choice(request), ...mode(request.permissionMode), planApproved: reported => this.planApproved(id, live, turnId, reported), steerConsumed: messageId => this.steerConsumed(id, messageId), suggested: text => this.suggested(id, live, turnId, text) };
       if (input.owner) live.provider = input.owner.provider;
       if (this.quitting) throw new Error("busy");
       if (input.sessionId) this.promote(id, input, input.sessionId);
@@ -259,7 +270,7 @@ export class ConversationService {
       this.reserve(id, { ...metadata.session, runtime, command: "", env: {} }, reusing); reserved = true;
       const turnId = live.turnId;
       // steerConsumed names no turn: a reused Codex server keeps the callback it opened with.
-      input = { ...await this.prepare({ root: metadata.root, ...(metadata.canvas ? { canvas: metadata.canvas } : {}), mode: "resume", text, anchors }, metadata, undefined, reusing), ...chosen, planApproved: reported => this.planApproved(id, live, turnId, reported), steerConsumed: messageId => this.steerConsumed(id, messageId) };
+      input = { ...await this.prepare({ root: metadata.root, ...(metadata.canvas ? { canvas: metadata.canvas } : {}), mode: "resume", text, anchors }, metadata, undefined, reusing), ...chosen, planApproved: reported => this.planApproved(id, live, turnId, reported), steerConsumed: messageId => this.steerConsumed(id, messageId), suggested: text => this.suggested(id, live, turnId, text) };
       if (input.owner) live.provider = input.owner.provider;
       this.checkSend(id, live, expected);
       if (live.exited) throw new Error("process_exited");
@@ -299,14 +310,14 @@ export class ConversationService {
         const writes: JournalWrite[] = swap.replaced.map(old => ({ id: old, turn: this.live.get(old)?.turnId || randomUUID(), body: { type: "conversation.archived" } }));
         writes.push({ id, turn: live.turnId, body: { type: "conversation.restored" } }, { id, turn: live.turnId, body: message }, { id, turn: live.turnId, body: { type: "turn.started" } });
         const saved = this.store.acceptChange({ kind: "restore", id, replaced: swap.replaced }, swap.entries.map(m => m.conversationId === id ? { ...updated, state: "current" } : m), writes);
-        live.accepted = true;
+        live.accepted = true; this.suggestions.delete(id);
         for (const old of swap.replaced) this.archive(old);
         for (const event of saved) this.deliver(event);
         this.changed(metadata.root);
       } else {
         if (rebound || chosen.model !== metadata.model || chosen.effort !== metadata.effort || stored.permissionMode !== metadata.permissionMode || seenSeq !== metadata.seenSeq || JSON.stringify(canvasesAtStart) !== JSON.stringify(metadata.canvasesAtStart))
           this.store.save(this.store.list().map(m => m.conversationId === id ? updated : m));
-        this.append(id, live.turnId, message); this.append(id, live.turnId, { type: "turn.started" }); live.accepted = true;
+        this.append(id, live.turnId, message); this.append(id, live.turnId, { type: "turn.started" }); live.accepted = true; this.suggestions.delete(id);
       }
       if (projectTurn) this.evidence.set(id, { root: metadata.root, turnId: live.turnId, snapshot: canvasesAtStart ?? [], edits: new Set(), changed: new Set(), taken: [], waiters: [] });
       for (const event of live.events.splice(0)) this.receive(id, event);
@@ -350,6 +361,11 @@ export class ConversationService {
     // A Codex server is reused while its conversation stays current; an archived one's server is closing.
     if (metadata.session.runtime === "codex" && live?.runner && !live.closed) return;
     if (this.waits.has(id)) throw new Error("busy");
+    // A done turn's Claude process may go on generating its suggestion (up to 30 s) after its input closed, past this
+    // wait (EXIT_WAIT_MS). Its suggestion is dropped and the process ended, so the send is no later than before
+    // (prompt-suggestion decision 5). Any other process (a failed or stopped turn, a suggestion already here) ends by
+    // itself as before; the reservation is still released only once the group is gone (POSTMORTEM 2026-10-28).
+    if (live?.done && !this.suggestions.has(id)) live.runner?.endSuggestion?.();
     return this.exitOf(id, live);
   }
   private async exitOf(id: string, live: Live | undefined): Promise<void> {
@@ -408,7 +424,7 @@ export class ConversationService {
       if (event.type === "activity" && event.kind === "edit" && event.path && evidence && evidence.endedAt === undefined) evidence.edits.add(event.path);
       if (event.type === "permission.request" || event.type === "question.request") (live.asking ??= new Set()).add(askingKey(event));
       else if (event.type === "permission.resolved" || event.type === "question.resolved") live.asking?.delete(askingKey(event));
-      if (event.type === "turn.done" || event.type === "turn.failed" || event.type === "interrupted") { live.terminal = true; live.busy = false; live.endedAt = Date.now(); delete live.asking; this.dropSteers(id); this.ended(id, live, event.type); }
+      if (event.type === "turn.done" || event.type === "turn.failed" || event.type === "interrupted") { live.terminal = true; live.busy = false; live.done = event.type === "turn.done"; live.endedAt = Date.now(); delete live.asking; this.dropSteers(id); this.ended(id, live, event.type); }
     } catch (error) {
       live.failedPersistence = true; console.error("doan: conversation event persistence failed", error); void live.runner?.close();
       this.dropSteers(id);
@@ -445,8 +461,8 @@ export class ConversationService {
     return this.store.list().filter(m => m.root === root).map(m => {
       let read: { ok: true; events: ConversationEvent[] } | { ok: false };
       try { read = { ok: true, events: this.store.readRequired(m.conversationId) }; } catch { read = { ok: false }; }
-      const summary = conversationSummary(m, read, { live: this.ran(m.conversationId), queued: this.drafts.queued(m.conversationId).length, working: this.working(m.conversationId) });
-      return this.drafts.returned(m.conversationId) ? { ...summary, returnedDraft: true as const } : summary;
+      const suggestion = this.suggestions.get(m.conversationId)?.text;
+      return conversationSummary(m, read, { live: this.ran(m.conversationId), queued: this.drafts.queued(m.conversationId).length, working: this.working(m.conversationId), returned: !!this.drafts.returned(m.conversationId), ...(suggestion ? { suggestion } : {}) });
     });
   }
   // An entry without seenSeq has had its whole history seen, so a lower seq never makes it unseen.
@@ -687,6 +703,7 @@ export class ConversationService {
   // A conversation that stopped being current: its run is closed as a replaced start's is, a send waiting for its
   // previous process is refused, and its queue comes back as a draft.
   private archive(id: string): void {
+    this.suggestions.delete(id);
     const running = this.live.get(id);
     if (running) {
       running.terminal = true; running.busy = false; running.closed = true; delete running.holding; delete running.project;
@@ -799,6 +816,28 @@ export class ConversationService {
     if (this.live.get(id) !== live || live.turnId !== turnId || !live.accepted) return;
     if (this.store.list().find(e => e.conversationId === id)?.permissionMode !== "plan") return;
     try { this.storeMode(id, reported); } catch (error) { console.error("doan: the permission mode after a plan approval could not be saved", error); }
+  }
+  // A turn's suggestion counts only while nothing has moved past that turn: the same run and turn, ended done, no
+  // later send started or waiting (a queue about to go out included), not archived, deleted or quitting
+  // (POSTMORTEM 2026-10-27 'Awaited conversation work outlived its current turn').
+  private suggested(id: string, live: Live, turnId: string, text: string): void {
+    if (this.quitting || this.live.get(id) !== live || live.turnId !== turnId || !live.accepted || !live.terminal || !live.done || live.busy ||
+        live.closed || live.failedPersistence || live.holding || this.waits.has(id) || this.judging.has(id)) return;
+    const m = this.store.list().find(e => e.conversationId === id); if (!m || m.state !== "current") return;
+    // The turn's own connection: a later send that rebinds the owner has a new turnId, refused above. A legacy external
+    // run has no doan connection to compare.
+    if (m.owner.kind === "doan" && this.connections.has(m.owner.provider) && this.connections.get(m.owner.provider) !== m.owner.connectionId) return;
+    this.suggestions.set(id, { text, root: m.root, ...(m.owner.kind === "doan" ? { provider: m.owner.provider, connectionId: m.owner.connectionId } : {}) });
+    this.changed(m.root);
+  }
+  // A provider's connection now (undefined: signed out). A suggestion made on another connection of it no longer
+  // belongs to what the person is signed into.
+  connectionChanged(provider: Provider, connectionId: string | undefined): void {
+    this.connections.set(provider, connectionId);
+    for (const [id, kept] of [...this.suggestions]) {
+      if (kept.provider !== provider || kept.connectionId === connectionId) continue;
+      this.suggestions.delete(id); this.changed(kept.root);
+    }
   }
   // Saved and announced only when it changes; Default as no key.
   private storeMode(id: string, value: PermissionModeId): void {

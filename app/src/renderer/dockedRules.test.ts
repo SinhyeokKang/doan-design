@@ -5,9 +5,10 @@ import type { AuthState, Provider, ToolFacts } from "../main/agentAuth/types";
 import type { Anchor } from "../main/conversation/types";
 import { textSegments } from "./anchorField";
 import {
-  canvasGoneText, dockedAvailability, dockedMessage, dockedPicker, dockedRefusal, draftKey, EMPTY_DRAFT, type DockedDraft, type DockedInput,
+  canvasGoneText, composerPlaceholder, dockedAvailability, dockedMessage, dockedPicker, dockedRefusal, draftKey, EMPTY_DRAFT, type DockedDraft, type DockedInput,
+  type PlaceholderInput,
 } from "./dockedRules";
-import type { AttachmentDraft, ModelPickerView } from "./homeComposer";
+import { presetPlaceholder, type AttachmentDraft, type ModelPickerView, type PresetSummary } from "./homeComposer";
 
 const FACTS: ToolFacts = { cli: "found", version: "supported", tools: "ready" };
 function status(provider: Provider, patch: Partial<AuthState> = {}, facts: ToolFacts = FACTS) {
@@ -163,5 +164,35 @@ describe("dockedPicker", () => {
   });
   test("new-conversation mode keeps Home's picker", () => {
     expect(dockedPicker(view, { kind: "new", root: "/r" })).toBe(view);
+  });
+});
+
+// prompt-suggestion design 'renderer' 1, decisions 6 and 9: one rule for both hosts decides the drawn text and whether
+// the suggestion is shown, so the →-key check can never disagree with what the field shows.
+describe("composerPlaceholder", () => {
+  const preset: PresetSummary = { id: "polish", title: "Polish", description: "Final pass", scope: "canvas" };
+  const SUGGESTION = "Make the header lighter";
+  const placeholder = (patch: Partial<PlaceholderInput>) => composerPlaceholder({ readOnly: false, preset: null, empty: true, mode: "existing", text: "Reply, / for presets", suggestion: SUGGESTION, ...patch });
+  test("an empty field of an existing conversation shows the suggestion in the placeholder's place", () => {
+    expect(placeholder({})).toEqual({ text: SUGGESTION, suggestion: SUGGESTION });
+  });
+  test("read-only, then a preset, win over the suggestion, which wins over the host's own text", () => {
+    expect(placeholder({ readOnly: true })).toEqual({ text: "Reply, / for presets", suggestion: null });
+    expect(placeholder({ readOnly: true, preset })).toEqual({ text: presetPlaceholder(preset), suggestion: null });
+    expect(placeholder({ preset })).toEqual({ text: presetPlaceholder(preset), suggestion: null });
+    expect(placeholder({ suggestion: null })).toEqual({ text: "Reply, / for presets", suggestion: null });
+    expect(placeholder({ suggestion: undefined })).toEqual({ text: "Reply, / for presets", suggestion: null });
+  });
+  test("a field holding text or a chip shows no suggestion; attachments alone keep it (the field is still empty)", () => {
+    expect(placeholder({ empty: false })).toEqual({ text: "Reply, / for presets", suggestion: null });
+    // A preset only stands in for the text while the field is empty, as the hosts decided before.
+    expect(placeholder({ empty: false, preset })).toEqual({ text: "Reply, / for presets", suggestion: null });
+  });
+  test("only an existing conversation shows one; the hosts' own texts pass through unchanged", () => {
+    expect(placeholder({ mode: "new", text: "Ask or describe what to design, / for presets" })).toEqual({ text: "Ask or describe what to design, / for presets", suggestion: null });
+    expect(placeholder({ mode: "new", text: "Ask, / for presets" })).toEqual({ text: "Ask, / for presets", suggestion: null });
+    expect(placeholder({ mode: "resume", text: "Reply, / for presets" })).toEqual({ text: "Reply, / for presets", suggestion: null });
+    expect(placeholder({ mode: "archived", text: "Reply, / for presets" })).toEqual({ text: "Reply, / for presets", suggestion: null });
+    expect(placeholder({ suggestion: "" })).toEqual({ text: "Reply, / for presets", suggestion: null });
   });
 });

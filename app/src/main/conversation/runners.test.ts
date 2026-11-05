@@ -712,6 +712,7 @@ input.on('line', line => {
  if(mode==='continued') { result([first]); sys('init',[r.uuid]); sys('status',[r.uuid]); say('a2','BANANA'); result([r.uuid]); }
  if(mode==='late') {
   result([first]); fs.writeFileSync(${JSON.stringify(join(root, "resulted"))}, '');
+  if(process.env.FAKE_SUGGEST) setInterval(() => send({type:'prompt_suggestion',suggestion:'Steered away',uuid:'00000000-0000-4000-8000-0000000000a2',session_id:'s'}), 50);
   const poll = setInterval(() => {
    if(!fs.existsSync(${JSON.stringify(join(root, "go"))})) return;
    clearInterval(poll); echoed = true; sys('init',[r.uuid]); sys('status',[r.uuid]); say('a2','BANANA'); result([r.uuid]);
@@ -814,6 +815,21 @@ it("ends a Claude turn as done when its steered message stays unread 30 s after 
       await expect(runner.steer!("late", "turn-1", "late")).rejects.toThrow("not_running");
     } finally { vi.useRealTimers(); }
   });
+}, 15000);
+// prompt-suggestion: a done turn that leaves a steered message unread goes back to the queue; no suggestion of it counts.
+it("passes on no suggestion of a Claude turn that ended done with a steered message unread", async () => {
+  const root = mkdtempSync(join(tmpdir(), "doan-claude-steer-")), command = steerClaude(root), seq: unknown[] = [], exited = vi.fn(), suggested = vi.fn();
+  const runner = await openRunner({ command, runtime: "claude", cwd: root, configDir: root, env: { PATH: process.env.PATH, HOME: root, CLAUDE_CONFIG_DIR: root, FAKE_STEER: "late", FAKE_SUGGEST: "1" }, suggested } as Parameters<typeof openRunner>[0], e => seq.push(e), exited, () => {});
+  try {
+    const { sending } = await lateSteer(runner, seq, root);
+    await vi.advanceTimersByTimeAsync(30_500);
+    await vi.waitFor(() => expect(seq).toContainEqual({ type: "turn.done" }));
+    expect(await sending).toBe("resolved");
+    await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce(), { timeout: 3000 });
+    // The group stop's own wait runs on the faked timers.
+    await vi.advanceTimersByTimeAsync(31_000);
+    expect(suggested).not.toHaveBeenCalled();
+  } finally { vi.useRealTimers(); await runner.close(); rmSync(root, { recursive: true, force: true }); }
 }, 15000);
 it("goes on to the follow-up Claude turn when the steered message is read 29 s after the success result, and ends at its result", async () => {
   await claudeSteerRun("late", async ({ runner, seq, root, exited }) => {
@@ -1413,4 +1429,132 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line 
       expect(events.some(e => e.type === "turn.failed")).toBe(false);
     } finally { await runner.close(); await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce()); rmSync(root, { recursive: true, force: true }); }
   }, 15000);
+});
+// prompt-suggestion (design 'main' 1, 2, 6): every Claude run asks for suggestions; the first prompt_suggestion after a
+// done turn's terminal reaches the run's suggested hook once. The fake sends it after its input closes, as Claude Code
+// 2.1.318 does (P1-a): FAKE_MODE "done" (one), "twice", "none", "early" (one before the result, none after), "failed"
+// and "hold" (no result); FAKE_SUGGEST_MS delays it.
+describe("prompt suggestions", () => {
+  const usageReply = { rate_limits_available: true, rate_limits: {} };
+  function suggestClaude(root: string): string {
+    const command = join(root, "claude");
+    writeFileSync(command, `#!/usr/bin/env node
+const fs = require('node:fs'); const log = ${JSON.stringify(join(root, "seen"))};
+const send = value => process.stdout.write(JSON.stringify(value)+'\\n');
+const suggest = text => send({type:'prompt_suggestion',suggestion:text,uuid:'00000000-0000-4000-8000-0000000000a1',session_id:'s'});
+const mode = process.env.FAKE_MODE || 'done';
+process.on('SIGTERM', () => { fs.appendFileSync(log, JSON.stringify({ signal: 'SIGTERM' }) + '\\n'); process.exit(143); });
+require('node:readline').createInterface({input:process.stdin}).on('line', line => {
+ const r = JSON.parse(line); fs.appendFileSync(log, line + '\\n');
+ if(r.type==='control_request') send({type:'control_response',response:{subtype:'success',request_id:r.request_id,response:r.request.subtype==='get_usage'?${JSON.stringify(usageReply)}:{commands:[],models:[],account:{}}}});
+ if(r.type!=='user' || mode==='hold') return;
+ if(mode==='early') suggest('Too early');
+ send({type:'assistant',parent_tool_use_id:null,message:{id:'m',role:'assistant',content:[{type:'text',text:'hello'}]}});
+ send(mode==='failed' ? {type:'result',subtype:'error_during_execution',is_error:true,errors:['failed'],session_id:r.session_id} : {type:'result',subtype:'success',is_error:false,result:'hello',session_id:r.session_id});
+}).on('close', () => {
+ fs.appendFileSync(log, JSON.stringify({ closed: true }) + '\\n');
+ setTimeout(() => {
+  if(mode!=='none' && mode!=='early') { suggest('  Run the\\ntests  '); if(mode==='twice') suggest('Second'); }
+  setTimeout(() => process.exit(0), 20);
+ }, Number(process.env.FAKE_SUGGEST_MS || 0));
+});
+`, { mode: 0o700 });
+    return command;
+  }
+  const seen = (root: string) => readFileSync(join(root, "seen"), "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line) as Record<string, unknown>);
+  async function run(env: Record<string, string>, body: (h: { runner: Awaited<ReturnType<typeof openRunner>>; events: EventPayload[]; suggested: ReturnType<typeof vi.fn>; exited: ReturnType<typeof vi.fn>; root: string }) => Promise<void>, extra: Partial<Parameters<typeof openRunner>[0]> = {}) {
+    const root = mkdtempSync(join(tmpdir(), "doan-suggest-claude-")), command = suggestClaude(root);
+    const events: EventPayload[] = [], suggested = vi.fn(), exited = vi.fn();
+    const runner = await openRunner({ command, runtime: "claude", cwd: root, configDir: root, env: { PATH: process.env.PATH, HOME: root, CLAUDE_CONFIG_DIR: root, ...env }, suggested, ...extra } as Parameters<typeof openRunner>[0], e => events.push(e), exited, () => {});
+    try { await body({ runner, events, suggested, exited, root }); }
+    finally { await runner.close(); await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce(), { timeout: 5000 }); rmSync(root, { recursive: true, force: true }); }
+  }
+  it("asks Claude Code for suggestions and passes the first one after a done turn on once, cleaned", async () => {
+    await run({ FAKE_MODE: "twice" }, async ({ runner, events, suggested, exited, root }) => {
+      await runner.send("hello", "turn-1");
+      await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce());
+      expect(events).toContainEqual({ type: "turn.done" });
+      expect(suggested.mock.calls).toEqual([["Run the tests"]]);
+      const init = seen(root).find(line => (line.request as { subtype?: string } | undefined)?.subtype === "initialize");
+      expect((init!.request as Record<string, unknown>).promptSuggestions).toBe(true);
+    });
+  }, 15000);
+  it.each([["a failed turn", "failed"], ["a frame before the turn's result", "early"], ["a turn with no suggestion", "none"]])("passes nothing on after %s", async (_name, mode) => {
+    await run({ FAKE_MODE: mode }, async ({ runner, suggested, exited }) => {
+      await runner.send("hello", "turn-1");
+      await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce());
+      expect(suggested).not.toHaveBeenCalled();
+    });
+  }, 15000);
+  it("passes nothing on after a stopped turn", async () => {
+    await run({ FAKE_MODE: "hold" }, async ({ runner, events, suggested, exited, root }) => {
+      const sending = runner.send("hello", "turn-1").catch(() => {});
+      await vi.waitFor(() => expect(seen(root).some(line => line.type === "user")).toBe(true));
+      await runner.stop(); await sending;
+      await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce());
+      expect(events.some(e => e.type === "turn.done")).toBe(false);
+      expect(suggested).not.toHaveBeenCalled();
+    });
+  }, 15000);
+  it("reads usage before the input closes and passes the suggestion on after it, within the usage cap", async () => {
+    const order: string[] = [];
+    const usageAtTurnEnd = vi.fn(async (read: () => Promise<unknown>) => { await read(); order.push("usage"); });
+    await run({ FAKE_MODE: "done" }, async ({ runner, exited }) => {
+      await runner.send("hello", "turn-1");
+      await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce());
+      expect(order).toEqual(["usage", "suggested"]);
+    }, { usageAtTurnEnd, suggested: () => { order.push("suggested"); } });
+  }, 15000);
+  // design 'main' 6: a done turn's process that only waits for its suggestion is ended by the conversation's next send.
+  describe("ending a process that waits for its suggestion", () => {
+    it("stops the group of a done turn whose input closed and whose suggestion has not come, and drops it", async () => {
+      await run({ FAKE_MODE: "done", FAKE_SUGGEST_MS: "4000" }, async ({ runner, events, suggested, exited, root }) => {
+        void runner.send("hello", "turn-1");
+        await vi.waitFor(() => expect(events).toContainEqual({ type: "turn.done" }));
+        const began = Date.now();
+        expect(runner.endSuggestion!()).toBe(true);
+        await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce(), { timeout: 3000 });
+        expect(Date.now() - began).toBeLessThan(2000);
+        expect(seen(root)).toContainEqual({ signal: "SIGTERM" });
+        expect(suggested).not.toHaveBeenCalled();
+        expect(runner.endSuggestion!()).toBe(false);
+      });
+    }, 15000);
+    it("leaves a process alone once its suggestion came", async () => {
+      await run({ FAKE_MODE: "done" }, async ({ runner, events, suggested }) => {
+        void runner.send("hello", "turn-1");
+        await vi.waitFor(() => expect(events).toContainEqual({ type: "turn.done" }));
+        await vi.waitFor(() => expect(suggested).toHaveBeenCalledOnce());
+        expect(runner.endSuggestion!()).toBe(false);
+      });
+    }, 15000);
+    it.each([["failed", "failed"], ["running", "hold"]])("leaves a %s turn's process alone", async (_name, mode) => {
+      await run({ FAKE_MODE: mode, FAKE_SUGGEST_MS: "4000" }, async ({ runner, events, root }) => {
+        void runner.send("hello", "turn-1").catch(() => {});
+        if (mode === "failed") await vi.waitFor(() => expect(events.some(e => e.type === "turn.failed")).toBe(true));
+        else await new Promise(resolve => setTimeout(resolve, 300));
+        expect(runner.endSuggestion!()).toBe(false);
+        await new Promise(resolve => setTimeout(resolve, 300));
+        expect(seen(root)).not.toContainEqual({ signal: "SIGTERM" });
+      });
+    }, 15000);
+    it("asked during the usage read, stops the group as soon as the read ends and the input closes", async () => {
+      let finish = () => {};
+      const usageAtTurnEnd = vi.fn(async () => { await new Promise<void>(resolve => { finish = resolve; }); });
+      await run({ FAKE_MODE: "done", FAKE_SUGGEST_MS: "4000" }, async ({ runner, events, suggested, exited, root }) => {
+        void runner.send("hello", "turn-1");
+        await vi.waitFor(() => expect(usageAtTurnEnd).toHaveBeenCalledOnce());
+        expect(events).toContainEqual({ type: "turn.done" });
+        expect(runner.endSuggestion!()).toBe(true);
+        await new Promise(resolve => setTimeout(resolve, 200));
+        // The read keeps the input open, and the group runs until it ends.
+        expect(seen(root)).not.toContainEqual({ closed: true });
+        expect(exited).not.toHaveBeenCalled();
+        const began = Date.now(); finish();
+        await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce(), { timeout: 3000 });
+        expect(Date.now() - began).toBeLessThan(2000);
+        expect(suggested).not.toHaveBeenCalled();
+      }, { usageAtTurnEnd });
+    }, 15000);
+  });
 });

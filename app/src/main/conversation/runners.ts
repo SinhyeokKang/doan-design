@@ -14,6 +14,7 @@ import { CodexStartupWatch, codexProfileServers } from "./mcpStartup";
 import { connectorLabels } from "../mcpConnectors/presets";
 import { CLAUDE_QUESTION_TOOL, claudePermissionSummary, claudeQuestion, claudeQuestionResult, claudeReportedMode, claudeUnansweredSupport, endSteerWait, endTransport, initialTransport, normalizeClaude, steerTransport, storedAnswers, transportError, type ClaudeQuestion } from "./transport";
 import { questionAnswer } from "./questionAnswer";
+import { promptSuggestionText } from "./promptSuggestion";
 import { claudePermission, codexDefaults, codexPermission, codexWorkspace, type CodexDefaults, type CodexWorkspace } from "./permissionMode";
 import type { OpenRunner, Prepared, ReadModels, Runner } from "./service";
 import type { EventPayload, FailureCode } from "./types";
@@ -52,8 +53,11 @@ function verdicts(input: Prepared): (verdict: HandshakeVerdict) => void {
   };
 }
 // A Claude turn's usage read keeps the CLI's input open, and the next send waits for that process (service.ts
-// EXIT_WAIT_MS, 10 s): this cap plus the slowest observed exit after closing (5.0 s, D1) stays inside that wait, so
-// a CLI that never answers delays the next send by at most this, never refuses it as busy. An answer took 0.2-1 s (PoC).
+// EXIT_WAIT_MS, 10 s). After closing, the CLI may still generate its prompt suggestion (up to 30 s in Claude Code
+// 2.1.318), so it is not its own exit that keeps the wait inside the budget: the next send ends a process that only
+// waits for its suggestion once this read is over (endSuggestion). This cap plus that group stop (SIGKILL after
+// 0.5 s) stays inside the wait, so a CLI that never answers delays the next send by at most this, never refuses it as
+// busy. An answer took 0.2-1 s (PoC).
 const TURN_USAGE_MS = 3000;
 function timeout<T>(promise: Promise<T>, ms = 10000): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -257,6 +261,10 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
   let pulled = false, inputClosed = false, turn = "", wake: (() => void) | undefined;
   // Armed by a success result that leaves a steered uuid unread, disarmed by any read and on every terminal path.
   let readWait: ReturnType<typeof setTimeout> | undefined, readExpired = false;
+  // After a done turn's terminal (no steered message unread) the CLI may send one prompt_suggestion before it exits
+  // (P1-a). suggestionSeen: one came, whatever it said. suggestionEnded: the next send asked to end the process
+  // (endSuggestion), so a later suggestion belongs to no one.
+  let doneTurn = false, suggestionSeen = false, suggestionEnded = false;
   const endReadWait = () => { clearTimeout(readWait); readWait = undefined; };
   async function* messages(): AsyncGenerator<SDKUserMessage> {
     pulled = true;
@@ -275,6 +283,9 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
   };
   const q = query({ prompt: messages(), options: {
     cwd: input.cwd, env: input.env, pathToClaudeCodeExecutable: input.command, settingSources: ["user", "project", "local"], includePartialMessages: true,
+    // Every Claude run asks for the next-message suggestion; whether one comes is the CLI's and the environment's call
+    // (environment.ts promptSuggestionEnv). It arrives after the turn's result, so the loop below keeps reading.
+    promptSuggestions: true,
     // A repo's .claude/settings*.json env API key or apiKeyHelper would otherwise replace the doan login. Pinning the
     // login's organization as a per-run parent policy (SDK managedSettings, honoured for forceLoginOrgUUID per
     // code.claude.com/docs/en/managed-settings) makes Claude Code refuse such a run instead (B3 live check, 2.1.312).
@@ -343,6 +354,14 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
         try {
           for await (const raw of q) {
             if (readExpired) break;
+            // Only after the turn's own done terminal: a frame before it, or after a failed or stopped turn, is not this
+            // turn's suggestion. The first one decides; normalizeClaude drops it like any frame after the terminal.
+            const after = state.terminal;
+            if (after && doneTurn && !suggestionSeen && object(raw) && raw.type === "prompt_suggestion") {
+              suggestionSeen = true;
+              const text = promptSuggestionText(raw);
+              if (text && !suggestionEnded) input.suggested?.(text);
+            }
             unanswered = claudeUnansweredSupport(raw) ?? unanswered;
             // Only a turn sent with Plan follows a reported switch (the plan's approval); a suggestion's setMode on another
             // turn stays that process's.
@@ -355,11 +374,16 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
             for (const event of result.events) emit(event);
             if (!state.terminal) continue;
             endReadWait();
+            // Set by the frame that ended the turn, before anything awaits: the service may ask to end this process as soon
+            // as it has the terminal event.
+            if (!after) doneTurn = !state.steered?.length && result.events.some(event => event.type === "turn.done");
             // The CLI exits once its input closes, so a done turn's usage is read on this Query first (ARCHITECTURE §7 'Agent usage').
             if (input.usageAtTurnEnd && !state.steered?.length && result.events.some(event => event.type === "turn.done")) {
               await input.usageAtTurnEnd(() => timeout(q.usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET({ skipBehaviors: true }), TURN_USAGE_MS)).catch(() => {});
             }
             closeInput();
+            // The next send asked during the usage read: the input is closed now, so the process ends without its suggestion.
+            if (suggestionEnded) void group?.stop();
             // A failed or aborted result can end the turn with a steered message already written and unread; the item
             // goes back to the draft, so the CLI must not run it in a turn nobody sees. The terminal event is out already.
             if (state.steered?.length) { void group?.stop(); break; }
@@ -398,6 +422,16 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
       questions.delete(id); request.resolve(claudeQuestionResult(request.input, request.read, answer, unanswered));
       emit({ type: "question.resolved", requestId: id, outcome: answer.outcome, ...(answer.outcome === "answered" ? { answers: storedAnswers(request.read.questions, answer) } : {}) });
       return "ok";
+    },
+    // The next send of the conversation waits for this process (service.ts previousExit). A done turn's process that has
+    // nothing left but its suggestion is ended with the group stop: interrupt is refused once the input closed (P1-c),
+    // and the CLI may take up to 30 s to settle a suggestion. Asked during the usage read, it ends once the input closes.
+    // True when it ends this process; false for any other process, which the send waits for as before.
+    endSuggestion() {
+      if (!doneTurn || suggestionSeen || suggestionEnded || finished) return false;
+      suggestionEnded = true;
+      if (inputClosed) void group?.stop();
+      return true;
     },
     async stop() { state = { ...state, stop: "user" }; endReadWait(); expire(); controller.abort(); closeInput(); await group?.stop(); },
     async close() { state = { ...state, stop: "appQuit" }; endReadWait(); expire(); controller.abort(); closeInput(); await group?.stop(); },
