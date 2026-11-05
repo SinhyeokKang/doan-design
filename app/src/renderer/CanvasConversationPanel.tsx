@@ -441,7 +441,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
           onClick={() => notice.kind === "drawing" ? props.onOpenProjectConversation(notice.open) : openConversation(notice.open)}>Open</button></span></div>}
     </div>
     <div className="cp-foot">
-      <DockedComposer mode={mode} project={project} homeDirectory={null} placeholder={placeholder} chipScope={canvasScope(target)}
+      <DockedComposer mode={mode} project={project} homeDirectory={null} placeholder={placeholder} suggestion={summary ? summary.suggestion ?? null : undefined} chipScope={canvasScope(target)}
         pick={props.pick} link={props.composerLink} onLocate={props.onLocate} canvasPress={props.canvasPress}
         drafts={store.drafts} onDrafts={update => store.setDrafts(update)}
         auth={auth} picker={picker} provider={chosen} effort={effort}

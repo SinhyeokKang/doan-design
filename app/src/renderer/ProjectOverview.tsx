@@ -404,7 +404,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         </div>}
     </div>
     <div className="ov-foot"><div className="ov-col">
-      <DockedComposer mode={mode} project={project} homeDirectory={props.homeDirectory} placeholder={placeholder}
+      <DockedComposer mode={mode} project={project} homeDirectory={props.homeDirectory} placeholder={placeholder} suggestion={summary ? summary.suggestion ?? null : undefined}
         drafts={run.drafts} onDrafts={update => run.setDrafts(update)}
         auth={auth} picker={picker} provider={chosen} effort={effort}
         onPickerOpen={() => { if (healthy) for (const group of picker.groups) if (group.read) support.readModels(root, group.provider); }}

@@ -114,12 +114,17 @@ export class HomeRun {
   private focus: "composer" | null = null;
   // Deleted in this run: a late event or a list read from before the delete must not register it again.
   private deletedIds = new Set<string>();
+  // Conversations whose next turn main accepted (its user.message arrived), with the list read last asked for then.
+  // main dropped the suggestion on accepting, so a read asked for before may still carry it; only a later read says
+  // whether one stands (prompt-suggestion design 'renderer' 5, POSTMORTEM 2026-11-05 'Send now').
+  private suggestionsDropped = new Map<string, { root: string; after: number }>();
 
   constructor(private host: HomeRunHost) {}
 
   // Subscribed at App mount so no event is lost before a start's reply or the first read (ARCHITECTURE §7).
   event(event: ConversationEvent): void {
     if (this.deletedIds.has(event.conversationId)) return;
+    if (event.type === "user.message") this.dropSuggestion(event.conversationId);
     const tracked = this.events.get(event.conversationId);
     if (!tracked) { this.unclaimed = [...this.unclaimed, event].slice(-500); return; }
     if (isText(event) && tracked.some(item => isText(item) && item.turnId === event.turnId)) return;
@@ -479,7 +484,7 @@ export class HomeRun {
       const was = before?.find(item => item.conversationId === c.conversationId);
       if (was?.permissionMode === "plan" && c.permissionMode !== "plan") this.host.followedMode?.(c.provider, c.permissionMode ?? "default");
     }
-    this.lists = new Map(this.lists).set(root, list);
+    this.lists = new Map(this.lists).set(root, this.withoutDropped(root, n, list));
     this.listErrors.delete(root);
     this.applied.set(root, n);
     this.revision++;
@@ -573,6 +578,30 @@ export class HomeRun {
     if (canvas) return rows.find(row => canvas.id ? row.id === canvas.id : row.path === canvas.path);
     const path = this.conversations.find(item => item.conversationId === conversationId)?.canvas;
     return path ? rows.find(row => row.path === path) : undefined;
+  }
+  // The accepted turn's conversation shows no suggestion from now until a read asked for after it answers.
+  private dropSuggestion(conversationId: string): void {
+    const root = this.rootOf(conversationId);
+    if (!root) return;
+    this.suggestionsDropped.set(conversationId, { root, after: this.readCount.get(root) ?? 0 });
+    const list = this.lists.get(root);
+    if (!list?.some(c => c.conversationId === conversationId && c.suggestion !== undefined)) return;
+    this.lists = new Map(this.lists).set(root, this.withoutDropped(root, this.applied.get(root) ?? 0, list));
+    this.revision++;
+    this.host.changed();
+  }
+  private withoutDropped(root: string, n: number, list: readonly ConversationSummary[]): readonly ConversationSummary[] {
+    const stale = new Set<string>();
+    for (const [id, mark] of this.suggestionsDropped) {
+      if (mark.root !== root) continue;
+      if (n > mark.after) this.suggestionsDropped.delete(id); else stale.add(id);
+    }
+    if (!list.some(c => stale.has(c.conversationId) && c.suggestion !== undefined)) return list;
+    return list.map(c => {
+      if (!stale.has(c.conversationId) || c.suggestion === undefined) return c;
+      const { suggestion: _dropped, ...rest } = c;
+      return rest;
+    });
   }
   private rootOf(conversationId: string): string | undefined {
     return this.conversations.find(item => item.conversationId === conversationId)?.root ?? this.summary(conversationId)?.root;

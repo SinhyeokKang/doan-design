@@ -358,7 +358,9 @@ export function DockedComposer(props: DockedComposerProps) {
     const shown = placeholder.suggestion;
     if (shown !== null && takesSuggestion({ key: event.key, shiftKey: event.shiftKey, altKey: event.altKey, metaKey: event.metaKey, ctrlKey: event.ctrlKey, isComposing: event.nativeEvent.isComposing, keyCode: event.keyCode },
       { suggestion: shown, empty: draft.segments.length === 0, get composing() { return field.current?.composing() ?? false; } })) {
-      event.preventDefault(); field.current?.insertText(shown); return true;
+      // The suggestion is text to send, not a / search: the preset list stays closed as after Escape, until the field
+      // is emptied again.
+      event.preventDefault(); setDismissedKey(key); field.current?.insertText(shown); return true;
     }
     if (event.key === "Backspace" && removeChip(-1, "backspace")) { event.preventDefault(); return true; }
     return false;
