@@ -4,7 +4,7 @@
 
 ## P. PoC
 
-모두 사람의 승인, 로그인한 Doan 연결, 일회성 스크립트 `.scratch/context-window-ring/`가 필요하다. 공용 프로필 `/Users/sinhyeokkang/code/doan-design/.scratch/provider-profile/userData`와 실제 HOME을 쓰는 것은 provider-usage PoC와 같은 예외이므로, 다시 쓰기 전에 사람에게 묻는다. 대화 턴은 사람의 메시지로 시작한다. 결과(버전, frame 모양과 순서, 값, 날짜)는 이 파일 아래 'P 결과'에 적고, 개인 정보를 지운 frame을 A1의 fixture 재료로 `.scratch/context-window-ring/out/`에 남긴다.
+모두 사람의 승인, 로그인한 Doan 연결, 일회성 스크립트 `.scratch/context-window-ring/`가 필요하다. 공용 프로필 `/Users/sinhyeok/code/doan-design/.scratch/provider-profile/userData`와 실제 HOME을 쓰는 것은 provider-usage PoC와 같은 예외이므로, 다시 쓰기 전에 사람에게 묻는다. 대화 턴은 사람의 메시지로 시작한다. 결과(버전, frame 모양과 순서, 값, 날짜)는 이 파일 아래 'P 결과'에 적고, 개인 정보를 지운 frame을 A1의 fixture 재료로 `.scratch/context-window-ring/out/`에 남긴다.
 
 - [ ] P1. Claude(design 'PoC 의존' P1 (a)–(d)).
   - 검증: 'P 결과'에 P1 (a)–(d)의 판정, (a)의 input + cache 필드가 결정 9의 뜻에 맞는지, (a)의 원시 비율과 `getContextUsage` 비율의 차이가 있다.

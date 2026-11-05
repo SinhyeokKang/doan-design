@@ -88,7 +88,7 @@ ARCHITECTURE §1 'Conventions'와 `doan check` 규칙은 바뀌지 않는다. gu
 
 ## PoC 의존
 
-아래는 확인하지 않은 가정이고, 구현 전에 P가 먼저 확인한다. 모두 사람의 승인과 로그인한 Doan 연결(이 기기의 공용 프로필 `/Users/sinhyeokkang/code/doan-design/.scratch/provider-profile/userData`)이 필요하다. 짧은 대화 턴은 모델 요청이므로 사람의 메시지로 시작한다(dev 앱에서 사람이 보내거나, 사람이 승인한 일회성 스크립트).
+아래는 확인하지 않은 가정이고, 구현 전에 P가 먼저 확인한다. 모두 사람의 승인과 로그인한 Doan 연결(이 기기의 공용 프로필 `/Users/sinhyeok/code/doan-design/.scratch/provider-profile/userData`)이 필요하다. 짧은 대화 턴은 모델 요청이므로 사람의 메시지로 시작한다(dev 앱에서 사람이 보내거나, 사람이 승인한 일회성 스크립트).
 
 - **P1 Claude**: (a) 최상위 `assistant` frame의 `message.usage`와 `message.model`, `result.modelUsage`의 키와 `contextWindow`. `message.model`이 키와 같은가. (b) (a)로 계산한 비율과 같은 시점의 `getContextUsage({detail: "summary"})`의 `percentage`·`rawMaxTokens` 비교, 200K 모델과 1M 모델(계정이 허락하면). (c) 최소 CLI 2.1.284에서 (a)의 필드와 (b)의 control request가 있는가. (d) 압축(`compact_boundary`) 뒤의 값.
 - **P2 Codex**: (a) `thread/tokenUsage/updated`가 `turn/completed`보다 먼저 오는가. (b) `last`의 각 값과 `modelContextWindow`, 결정 9의 뜻(마지막 호출의 input 토큰, cache 포함)에 맞는 필드: `inputTokens`가 `cachedInputTokens`·`cacheWriteInputTokens`를 이미 포함하는가(같은 thread를 Codex TUI로 열어 보이는 "context left"와도 비교). (c) 0.158.0과 0.166.0에서 오는가. (d) 다시 연 thread(`thread/resume`)의 첫 턴에서 오는가.
