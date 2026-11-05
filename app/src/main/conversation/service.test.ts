@@ -2245,3 +2245,161 @@ describe("agent questions", () => {
     expect(h.store.read(id).find(e => e.type === "question.resolved")).toMatchObject({ outcome: "answered", answers: {} });
   });
 });
+
+// prompt-suggestion design 'main' 3-6: a done turn's suggestion is kept in memory per conversation, fenced by the run and
+// turn it belongs to, cleared when it no longer applies, and the next send ends a process that only waits for one.
+describe("prompt suggestions", () => {
+  type SuggestingRunner = Runner & { endSuggestion: ReturnType<typeof vi.fn<() => boolean>> };
+  function suggesting() {
+    const dir = mkdtempSync(join(tmpdir(), "doan-service-")); paths.push(dir);
+    const store = new ConversationStore(dir);
+    const runs: { input: Parameters<OpenRunner>[0]; exited: () => void; runner: SuggestingRunner }[] = [];
+    let connection = "conn-1";
+    const open = vi.fn<OpenRunner>(async (input, _emit, exited) => {
+      const runner: SuggestingRunner = { sessionId: input.sessionId ?? `s${runs.length + 1}`, send: vi.fn(async () => {}), answer: () => false, stop: vi.fn(async () => {}), close: vi.fn(async () => {}), endSuggestion: vi.fn(() => true) };
+      runs.push({ input, exited, runner }); return runner;
+    });
+    const prepare = vi.fn<Prepare>(async (_request, stored) => ({ runtime: "claude" as const, configDir: "/profile", cwd: "/repo", command: "/fake", env: {},
+      owner: { kind: "doan" as const, provider: "claude" as const, connectionId: connection, accountId: "acct", workspaceId: "org", profile: "claude" }, ...(stored ? { sessionId: stored.session.sessionId } : {}) }));
+    const changes: string[] = [];
+    const drafts = new DraftStore(join(dir, "conversations"));
+    const service = new ConversationService(store, prepare, open, () => {}, undefined, 10_000, () => [], root => changes.push(root), { drafts });
+    const start = async (canvas = ".doan/canvases/a.html") => (await service.start({ root: "/repo", mode: "new", runtime: "claude", canvas: { path: canvas }, text: "hello", anchors: [] })).conversationId;
+    const shown = (id: string) => service.list("/repo").find(s => s.conversationId === id)?.suggestion;
+    const suggest = (run: number, text: string) => runs[run]!.input.suggested!(text);
+    const tick = () => new Promise(resolve => setTimeout(resolve, 0));
+    return { service, store, runs, open, prepare, changes, drafts, start, shown, suggest, tick, reconnect: (id: string) => { connection = id; } };
+  }
+  it("keeps a done turn's suggestion for its conversation, shows it in the list and announces the change", async () => {
+    const h = suggesting(); const id = await h.start();
+    h.service.receive(id, { type: "turn.done" });
+    const before = h.changes.length;
+    h.suggest(0, "Run the tests");
+    expect(h.changes.length).toBe(before + 1);
+    expect(h.shown(id)).toBe("Run the tests");
+  });
+  it.each([
+    ["a failed turn", { type: "turn.failed", code: "unknown" } as const],
+    ["an interrupted turn", { type: "interrupted", reason: "user" } as const],
+  ])("ignores a suggestion of %s", async (_name, terminal) => {
+    const h = suggesting(); const id = await h.start();
+    h.service.receive(id, terminal);
+    h.suggest(0, "Run the tests");
+    expect(h.shown(id)).toBeUndefined();
+  });
+  it("ignores a suggestion that comes before its turn ended", async () => {
+    const h = suggesting(); const id = await h.start();
+    h.suggest(0, "Too early");
+    h.service.receive(id, { type: "turn.done" });
+    expect(h.shown(id)).toBeUndefined();
+  });
+  // POSTMORTEM 2026-10-28: the next send is issued before the previous process's exit callback.
+  it("ends a done turn's process that has no suggestion when the next send waits for it, and that send goes out", async () => {
+    const h = suggesting(); const id = await h.start();
+    h.service.receive(id, { type: "turn.done" });
+    let sent = false; const pending = h.service.send(id, "next", []).then(() => { sent = true; });
+    await h.tick();
+    expect(h.runs[0]!.runner.endSuggestion).toHaveBeenCalledOnce();
+    expect(sent).toBe(false); expect(h.open).toHaveBeenCalledOnce();
+    // A suggestion that still comes while the send waits belongs to a turn being replaced.
+    h.suggest(0, "Too late");
+    expect(h.shown(id)).toBeUndefined();
+    h.runs[0]!.exited(); await pending;
+    expect(h.open).toHaveBeenCalledTimes(2);
+    expect(h.store.read(id).map(e => e.type)).toEqual(["user.message", "turn.started", "turn.done", "user.message", "turn.started"]);
+  });
+  it("ends it for a queue that goes out at turn.done too", async () => {
+    const h = suggesting(); const id = await h.start();
+    h.service.queue(id, { text: "queued", anchors: [] });
+    h.service.receive(id, { type: "turn.done" });
+    await vi.waitFor(() => expect(h.runs[0]!.runner.endSuggestion).toHaveBeenCalledOnce());
+    h.runs[0]!.exited();
+    await vi.waitFor(() => expect(h.open).toHaveBeenCalledTimes(2));
+    expect(h.store.read(id).filter(e => e.type === "user.message").at(-1)).toMatchObject({ text: "queued" });
+  });
+  it.each([
+    ["a failed turn", (h: ReturnType<typeof suggesting>, id: string) => { h.service.receive(id, { type: "turn.failed", code: "unknown" }); }],
+    ["an interrupted turn", (h: ReturnType<typeof suggesting>, id: string) => { h.service.receive(id, { type: "interrupted", reason: "user" }); }],
+    ["a turn whose suggestion came", (h: ReturnType<typeof suggesting>, id: string) => { h.service.receive(id, { type: "turn.done" }); h.suggest(0, "Run the tests"); }],
+  ])("waits for the process of %s to end by itself, as before", async (_name, end) => {
+    const h = suggesting(); const id = await h.start();
+    end(h, id);
+    let sent = false; const pending = h.service.send(id, "next", []).then(() => { sent = true; });
+    await new Promise(resolve => setTimeout(resolve, 20));
+    expect(h.runs[0]!.runner.endSuggestion).not.toHaveBeenCalled();
+    expect(sent).toBe(false);
+    h.runs[0]!.exited(); await pending;
+    expect(h.open).toHaveBeenCalledTimes(2);
+  });
+  it("clears the suggestion when the next turn is accepted, and a suggestion of the earlier run never comes back", async () => {
+    const h = suggesting(); const id = await h.start();
+    h.service.receive(id, { type: "turn.done" }); h.suggest(0, "Run the tests"); h.runs[0]!.exited();
+    await h.service.send(id, "next", []);
+    expect(h.shown(id)).toBeUndefined();
+    h.service.receive(id, { type: "turn.done" });
+    h.suggest(0, "From the first run");
+    expect(h.shown(id)).toBeUndefined();
+    h.suggest(1, "From the second run");
+    expect(h.shown(id)).toBe("From the second run");
+  });
+  it("shows the suggestion again after a send is refused before acceptance", async () => {
+    const h = suggesting(); const id = await h.start();
+    h.service.receive(id, { type: "turn.done" }); h.suggest(0, "Run the tests"); h.runs[0]!.exited();
+    h.prepare.mockRejectedValueOnce(new Error("not_logged_in"));
+    await expect(h.service.send(id, "next", [])).rejects.toThrow("not_logged_in");
+    expect(h.shown(id)).toBe("Run the tests");
+  });
+  it("clears it on archive, and a late suggestion of the same run does not come back", async () => {
+    const h = suggesting(); const id = await h.start();
+    h.service.receive(id, { type: "turn.done" }); h.suggest(0, "Run the tests");
+    // A new conversation on the same canvas archives this one.
+    h.runs[0]!.exited(); await h.start();
+    expect(h.store.list().find(m => m.conversationId === id)?.state).toBe("archived");
+    const before = h.changes.length;
+    h.suggest(0, "Late");
+    expect(h.changes.length).toBe(before);
+    // Restoring it shows no suggestion of the earlier turn either.
+    h.service.receive(h.store.list().find(m => m.state === "current")!.conversationId, { type: "turn.done" }); h.runs[1]!.exited();
+    await h.service.send(id, "back", []); h.service.receive(id, { type: "turn.done" });
+    expect(h.shown(id)).toBeUndefined();
+  });
+  it("clears it on delete, and a late suggestion of the deleted conversation is ignored", async () => {
+    const h = suggesting(); const id = await h.start();
+    h.service.receive(id, { type: "turn.done" }); h.suggest(0, "Run the tests");
+    h.service.delete(id);
+    const before = h.changes.length;
+    h.suggest(0, "Late");
+    expect(h.changes.length).toBe(before);
+    expect(h.service.list("/repo")).toEqual([]);
+  });
+  it("ignores a suggestion that comes while the app quits", async () => {
+    const h = suggesting(); const id = await h.start();
+    h.service.receive(id, { type: "turn.done" });
+    await h.service.quit();
+    const before = h.changes.length;
+    h.suggest(0, "Run the tests");
+    expect(h.changes.length).toBe(before);
+    expect(h.shown(id)).toBeUndefined();
+  });
+  it("clears it when the conversation's Claude connection signs out or changes, and only then", async () => {
+    const h = suggesting(); const id = await h.start();
+    h.service.receive(id, { type: "turn.done" }); h.suggest(0, "Run the tests");
+    h.service.connectionChanged("claude", "conn-1");
+    h.service.connectionChanged("codex", undefined);
+    expect(h.shown(id)).toBe("Run the tests");
+    const before = h.changes.length;
+    h.service.connectionChanged("claude", undefined);
+    expect(h.shown(id)).toBeUndefined(); expect(h.changes.length).toBe(before + 1);
+    h.runs[0]!.exited(); await h.service.send(id, "next", []); h.service.receive(id, { type: "turn.done" }); h.suggest(1, "Again");
+    h.service.connectionChanged("claude", "conn-2");
+    expect(h.shown(id)).toBeUndefined();
+  });
+  it("keeps a legacy external conversation's suggestion across connection changes", async () => {
+    const h = suggesting();
+    h.prepare.mockImplementation(async (_request, stored) => ({ runtime: "claude" as const, configDir: "/profile", cwd: "/repo", command: "/fake", env: {}, ...(stored ? { sessionId: stored.session.sessionId } : {}) }));
+    const id = await h.start();
+    h.service.receive(id, { type: "turn.done" }); h.suggest(0, "Run the tests");
+    h.service.connectionChanged("claude", undefined);
+    expect(h.shown(id)).toBe("Run the tests");
+  });
+});

@@ -41,3 +41,10 @@ test("the login shell sees only the launchd environment, and the rc file still s
   file(env.SHELL!, `#!/bin/sh\nCLAUDE_CONFIG_DIR=${home}/rc-claude; export CLAUDE_CONFIG_DIR\neval "$2"\n`, 0o755);
   expect(await probeShell(inherited)).toMatchObject({ ok: true, claudeConfigDir: `${home}/rc-claude` });
 });
+// prompt-suggestion decision 2: the only way to turn Claude's suggestions off is the login shell's own value.
+test("reads CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION from the login shell only", async () => {
+  const inherited = { ...env, CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION: "terminal" };
+  expect(await probeShell(inherited)).not.toHaveProperty("promptSuggestion");
+  file(env.SHELL!, '#!/bin/sh\nCLAUDE_CODE_ENABLE_PROMPT_SUGGESTION=false; export CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION\neval "$2"\n', 0o755);
+  expect(await probeShell(inherited)).toEqual({ ok: true, path: "/usr/bin:/bin:/usr/sbin:/sbin", promptSuggestion: "false" });
+});

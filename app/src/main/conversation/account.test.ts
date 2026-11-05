@@ -250,6 +250,22 @@ function acpSession(profile: string, provider: Provider) {
   mkdirSync(join(profile, dir, ACP_SESSION), { recursive: true });
 }
 
+// prompt-suggestion decision 2: a doan-account Claude run turns suggestions on unless the login shell set its own
+// value, which the lease carries (agentAuth/manager.ts shellLocator). Codex and ACP runs never get the variable.
+it.each([[undefined, "true"], ["false", "false"], ["true", "true"]] as const)("gives a Claude run the login shell's prompt suggestion setting (%s) or true", async (shell, expected) => {
+  const h = harness("claude");
+  const original = vi.mocked(h.auth.runtime.acquire).getMockImplementation()!;
+  vi.mocked(h.auth.runtime.acquire).mockImplementation(async (...args) => ({ ...await original(...args), ...(shell === undefined ? {} : { promptSuggestion: shell }) }));
+  await start(h, "claude");
+  expect(h.open.mock.calls[0]![0].env.CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION).toBe(expected);
+});
+it.each(["codex", "cursor", "copilot", "antigravity"] as const)("gives a %s run no prompt suggestion setting", async provider => {
+  const h = harness(provider);
+  const original = vi.mocked(h.auth.runtime.acquire).getMockImplementation()!;
+  vi.mocked(h.auth.runtime.acquire).mockImplementation(async (...args) => ({ ...await original(...args), promptSuggestion: "true" }));
+  await start(h, provider);
+  expect(h.open.mock.calls[0]![0].env).not.toHaveProperty("CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION");
+});
 it.each([
   ["cursor", ["acp"], "cursor_login"],
   ["copilot", ["--acp", "--stdio"], undefined],
