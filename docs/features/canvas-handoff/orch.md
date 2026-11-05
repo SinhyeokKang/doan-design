@@ -19,7 +19,7 @@
 | batch | 항목 | 파일 소유 | 선행 | 모델·effort(이유) | gate | 상태 |
 |---|---|---|---|---|---|---|
 | S | A1 | `schema/app-socket.v5.schema.json`, `schema/fixtures/app-socket-v5/`, `app/src/formats/validate.ts`, `cli/internal/formats/validate.go`(+테스트) | — | Sonnet high(v4 패턴을 따르지만 바이트 상한·코드 목록을 맞춰야 한다) | `go test ./...`, `npm --prefix app test` | 통합(`3e7a38a8`·`7821d922`). 리뷰는 G·M 리뷰가 schema를 함께 본다(지휘자 판단: schema·fixture만이고 v4 패턴) |
-| G | B1, C3 | `cli/`(formats 제외) | S | Opus medium(직렬화 줄 상한과 exit 매핑의 경계 사례가 많다) | `go test ./...`, `go vet ./...` | 대기 |
+| G | B1, C3 | `cli/`(formats 제외) | S | Opus medium(직렬화 줄 상한과 exit 매핑의 경계 사례가 많다) | `go test ./...`, `go vet ./...` | 통합(`d353bb8a`·`5ea6bd15`·`f58cff7d`). 리뷰 RG(Opus medium): 🔴0 🟡0 🟢4, 고치지 않음 |
 | M | B2, B3, B4, C1, C2, C4 | `app/src/main/`(runtime·conversation·agentAuth), `app/src/shared/`·preload의 이벤트·IPC 타입 | S | Opus high(턴 끝 판정, `contested`, 큐 옮기기, 수락 직전 재확인 등 동시성) | `npm --prefix app test`, typecheck | 대기 |
 | U | B5, U1, U2, `/design-sync` | `app/src/renderer/`, DESIGN.md | M | Opus high(이동·toast·read 대기 규칙과 초안 일치) | `npm --prefix app test`, typecheck, build, `/design-sync` | 대기 |
 | E | E1, E2, E3 | `eval/`, USABILITY-EVAL.md | G, M | Sonnet high(fake app·시나리오는 기존 패턴, E3는 실제 실행) | `node eval/run.ts --self-test`, `node --test 'eval/**/*.test.ts'`, E3 라운드 | 대기 |
@@ -30,3 +30,4 @@
 순서: S → (G ∥ M) → (U ∥ E) → R1 → R2 → Z → rebase → 통합 gate → PR·병합. G와 M, U와 E는 파일이 겹치지 않는다.
 
 ## 진행 기록
+- G 리뷰 RG의 🟢 4개(U+FEFF만 있는 메시지가 Go에서는 통과하고 ajv `\S`에서는 막혀 `internal_error`가 됨, C1 허용 fixture 없음, root가 길 때 넘침 메시지가 `--message`를 탓함, `v` 해석 중복)는 고치지 않는다(지휘자 판단: 사람이 쓰지 않는 경계이거나 동작에 영향이 없다). 근거: `.scratch/evidence/review-G.md`.
