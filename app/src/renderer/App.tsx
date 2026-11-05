@@ -1529,8 +1529,10 @@ export function App() {
     if (!composing) link.focus();
     link.insert(result.anchor);
   }
-  // A captured area (canvas-capture design §3 'composer에 넣기'). Availability was decided at render; the draft may have
-  // filled since, and main refuses an eleventh file, so the limit is checked again before any snapshot. The checking
+  // A captured area (canvas-capture design §3 'composer에 넣기'). Availability was decided when capture mode started;
+  // the composer may since have turned to a terminal session or another conversation, or its draft may have filled
+  // (main refuses an eleventh file), and none of that ends capture mode. So the composer is checked again before any
+  // chip or snapshot, with captureAvailability's order and copy; the limit keeps its left-out line. The checking
   // chip goes in at once. A folded panel unfolds, with focus for the composer, only once main answers: unfolding
   // narrows the canvas area, so before main has read the pixels the area would show something else. A composer no
   // longer shown gets no focus; the answer still lands on the chip wherever its draft is.
@@ -1538,6 +1540,8 @@ export function App() {
     const at = canvasRun.current!.composerKey();
     if (at === null) return null;
     const store = overviewRun.current!.store;
+    const now = captureAvailability({ canvas: canvasLoad, composer: panelBlocked, fixed: composerFixed(canvasRun.current!.view() ?? { kind: "wait" }, panelList, work), attachments: 0 });
+    if (!now.enabled) { if (now.reason) toast.show(now.reason); return null; }
     const limit = attachmentLimit((store.drafts.get(at) ?? EMPTY_DRAFT).attachments.length, [{ pasted: false, size: 0 }]);
     if (!limit.accept.length) { toast.show(limit.notices.join(" ")); return null; }
     // Named like main's capture file, so the chip reads "Canvas capture" while main checks it (homeComposer.ts).
