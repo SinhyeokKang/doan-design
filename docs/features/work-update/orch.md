@@ -18,11 +18,11 @@
 
 | batch | 항목 | 파일 소유 | 선행 | model·effort와 이유 | gate | 상태 |
 |---|---|---|---|---|---|---|
-| C1 | S1 | `schema/app-socket.v3.schema.json`, `schema/fixtures/app-socket-v3/`, `app/src/formats/{types.ts,validate*.ts}`, `cli/internal/formats/` | — | Claude Opus high: TS·Go가 함께 읽는 공용 형식이라 틀리면 두 쪽이 다 깨진다 | `go test ./...`, `npm --prefix app test` | 대기 |
-| C2 | A1, B1, G0, E1 | `cli/internal/cli/{work.go,work_rules.go,run.go,work_test.go,skill.md,skill_test.go}`, `eval/scenarios/W5/`, `eval/lib/socket.ts`, `docs/USABILITY-EVAL.md`, `docs/BACKLOG.md`(guide 예산 줄) | C1(같은 작업자, follow-up Task) | Claude Opus high: guide를 줄일 때 뜻을 지켜야 하고(POSTMORTEM 2026-10-29), eval 시나리오 판단이 필요하다 | `go test ./...`, `go vet ./...`, `node --test 'eval/**/*.test.ts'`, `node eval/run.ts --self-test --scenarios W5`, `/agent-eval` round 둘 | 대기 |
-| M | A2, A3, A4, B2, B3 | `app/src/main/{workState.ts,conversationWork.ts,runtime.ts,index.ts,senderAllowed.ts}`, `app/src/preload/index.ts`, `app/src/main/conversation/{service.ts,environment.ts}`, `app/src/main/agentAuth/environment.ts`, 각 테스트 | C1 통합(`WorkRequest`·schema) | Claude Opus high: 대화 턴 수명과 늦은 이벤트(POSTMORTEM 2026-10-27), IPC 경계 | `npm --prefix app test`, `npm --prefix app run typecheck` | 대기 |
-| P | B4 | `app/src/main/agentSetup/{plan.ts,notice.ts}`, `app/src/main/agentAuth/{providers.ts,storage.ts}`, 각 테스트 | — | Claude Sonnet high: 범위가 좁고 테스트가 정해졌다. 다만 사람의 설정 파일을 덮으면 안 되므로 high | `npm --prefix app test`, typecheck | 대기 |
-| R | A5, A5b, A6, U1, U2 / 이후 U3, E2 | `app/src/renderer/`(`agentIndicator.ts`, `CanvasAgent.tsx`, `CanvasController.ts`, `viewport.ts`, `App.tsx`, `styles.css`, 새 모듈), 각 테스트; U3에서 `docs/DESIGN.md` | live 배선(App.tsx 구독, 새 `WorkItem` 필드)은 M 통합 뒤(미룬 항목) | Claude Opus high: 따라가기와 사람의 이동을 가르는 규칙이 가장 많은 판단을 요구한다 | `npm --prefix app test`, typecheck, U3는 `/design-sync` | 대기 |
+| C1 | S1 | `schema/app-socket.v3.schema.json`, `schema/fixtures/app-socket-v3/`, `app/src/formats/{types.ts,validate*.ts}`, `cli/internal/formats/` | — | Claude Opus high: TS·Go가 함께 읽는 공용 형식이라 틀리면 두 쪽이 다 깨진다 | `go test ./...`, `npm --prefix app test` | 통합 `5d695c82` |
+| C2 | A1, B1, G0, E1 | `cli/internal/cli/{work.go,work_rules.go,run.go,work_test.go,skill.md,skill_test.go}`, `eval/scenarios/W5/`, `eval/lib/socket.ts`, `docs/USABILITY-EVAL.md`, `docs/BACKLOG.md`(guide 예산 줄) | C1(같은 작업자, follow-up Task) | Claude Opus high: guide를 줄일 때 뜻을 지켜야 하고(POSTMORTEM 2026-10-29), eval 시나리오 판단이 필요하다 | `go test ./...`, `go vet ./...`, `node --test 'eval/**/*.test.ts'`, `node eval/run.ts --self-test --scenarios W5`, `/agent-eval` round 둘 | 진행 중 |
+| M | A2, A3, A4, B2, B3 | `app/src/main/{workState.ts,conversationWork.ts,runtime.ts,index.ts,senderAllowed.ts}`, `app/src/preload/index.ts`, `app/src/main/conversation/{service.ts,environment.ts}`, `app/src/main/agentAuth/environment.ts`, 각 테스트 | C1 통합(`WorkRequest`·schema) | Claude Opus high: 대화 턴 수명과 늦은 이벤트(POSTMORTEM 2026-10-27), IPC 경계 | `npm --prefix app test`, `npm --prefix app run typecheck` | 진행 중 |
+| P | B4 | `app/src/main/agentSetup/{plan.ts,notice.ts}`, `app/src/main/agentAuth/{providers.ts,storage.ts}`, 각 테스트 | — | Claude Sonnet high: 범위가 좁고 테스트가 정해졌다. 다만 사람의 설정 파일을 덮으면 안 되므로 high | `npm --prefix app test`, typecheck | 통합 `9de89d96`·`e8452b3a`, 리뷰 V1 중 |
+| R | A5, A5b, A6, U1, U2 / 이후 U3, E2 | `app/src/renderer/`(`agentIndicator.ts`, `CanvasAgent.tsx`, `CanvasController.ts`, `viewport.ts`, `App.tsx`, `styles.css`, 새 모듈), 각 테스트; U3에서 `docs/DESIGN.md` | live 배선(App.tsx 구독, 새 `WorkItem` 필드)은 M 통합 뒤(미룬 항목) | Claude Opus high: 따라가기와 사람의 이동을 가르는 규칙이 가장 많은 판단을 요구한다 | `npm --prefix app test`, typecheck, U3는 `/design-sync` | 진행 중 |
 | V-* | batch마다 `/code-review` | 읽기만 | 해당 batch 완료 | Codex `gpt-6-astra` medium: 사람의 요청(리뷰는 Codex), 다른 모델 계열의 시선 | 보고만 | 대기 |
 | 지휘자 | R1, R2, Z1 | `orch.md`, 통합 커밋, 문서 승격 | 모든 batch 통합 | — | `/runtime-test`, `verify.mjs --eval`, `/doc-check` 범위 확인 | 대기 |
 
@@ -34,3 +34,9 @@
 - 겹침: `docs/BACKLOG.md`는 C2(guide 예산)와 Z1(지휘자)이 고친다. 시점이 다르다. `docs/DESIGN.md`는 U3만 고친다.
 
 ## 진행 기록
+
+- 2026-11-06 C1·P·R 시작(worktree `wu-c`, `wu-p`, `wu-r`). Run `run_f3db49a38834`.
+- C1 완료(`67ce8387` → 통합 `5d695c82`). 새 valid fixture 5개가 schema를 바꾸기 전 Go·TS에서 red였다. 작업자의 메모 두 가지: note 패턴이 C1 제어 문자와 U+2028/2029도 거절하므로 A1의 `--note` 검사도 같은 집합을 써야 한다. M이 들어오기 전까지 main `applyWork`는 `update`를 `start`로 다룬다.
+- P 완료(`4267f23d`·`bad575ff` → 통합 `9de89d96`·`e8452b3a`). red 먼저(agentSetup 13, agentAuth 9). Codex rule은 `<userData>/agent-auth/profiles/codex/rules/doan.rules`에 놓인다(R1 (b)에서 app-server가 읽는지 본다).
+- 통합 HEAD `e8452b3a`: `go test ./...` 통과, `npm --prefix app run typecheck` 통과, `npm --prefix app test` 7963 통과.
+- M 시작(`wu-m`), C2를 C 작업자에게 follow-up으로 보냄, V1(C1+P 리뷰, Codex `gpt-6-astra` medium, `wu-v1`) 시작.
