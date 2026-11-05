@@ -4,7 +4,7 @@
 
 ## P. PoC
 
-- [ ] C1. 보이는 main window의 `capturePage(rect)`(design 'PoC 의존' C1 (a)–(e)). 격리된 실제 앱(임시 userData·HOME·SHELL·CLI·`DOAN_RUNTIME`, `app/runtime/` 지원)에서 일회성 스크립트 `.scratch/canvas-capture/`로 확인한다. 앱 코드는 바꾸지 않고, 숨김은 스크립트가 renderer에 속성과 CSS(`opacity: 0`)를 넣어 흉내 낸다. (d)의 깜빡임은 `capturePage`만이 아니라 PNG 저장과 `codec.thumbnail`까지 흉내 낸 왕복 전체로 잰다. 결과(Electron 버전, 이미지 크기, 배율, 걸린 시간, 깜빡임 ms, 앱 표시가 빠진 스크린샷, 날짜)는 이 파일 아래 'P 결과'에 적는다.
+- [x] C1. 보이는 main window의 `capturePage(rect)`(design 'PoC 의존' C1 (a)–(e)). 격리된 실제 앱(임시 userData·HOME·SHELL·CLI·`DOAN_RUNTIME`, `app/runtime/` 지원)에서 일회성 스크립트 `.scratch/canvas-capture/`로 확인한다. 앱 코드는 바꾸지 않고, 숨김은 스크립트가 renderer에 속성과 CSS(`opacity: 0`)를 넣어 흉내 낸다. (d)의 깜빡임은 `capturePage`만이 아니라 PNG 저장과 `codec.thumbnail`까지 흉내 낸 왕복 전체로 잰다. 결과(Electron 버전, 이미지 크기, 배율, 걸린 시간, 깜빡임 ms, 앱 표시가 빠진 스크린샷, 날짜)는 이 파일 아래 'P 결과'에 적는다.
   - 검증: `/runtime-test` 방식의 격리 probe. 'P 결과'에 (a)–(e)의 판정과 스크린샷 경로가 있다. (a)나 (b)가 실패하면 여기서 멈추고 design 결정 1(화면 픽셀)을 사람에게 다시 묻는다. 결정이 바뀌면 design과 이 파일을 다시 쓴 뒤 D1로 간다.
 
 ## D. UI 초안
@@ -71,4 +71,11 @@
 
 ## P 결과
 
-(C1 뒤에 적는다.)
+C1(2026-11-05, 작업자 P, 지휘자 확인). Electron 45.0.0(Chromium 156.0.8078.48), macOS, 디스플레이 1개(배율 1). 스크립트와 증거는 지휘자 checkout의 `.scratch/canvas-capture/`(`probe.mjs`, `RESULT.md`, `result-locked*.json`, `shots-locked*/`). **(a)·(b)가 통과해 design 결정 1을 그대로 둔다.**
+
+- (a) 통과: 보드 iframe은 다른 프로세스(OOPIF)였고, 캡처에 frame 배경과 `<canvas>` 픽셀이 들어 있다(`shots-locked/a-plain.png`).
+- (b) 통과: 선택·크기 라벨·hover·점프 하이라이트·glow와 점·notice·도구모음·toast·marquee(가짜 요소)·zoom 메뉴를 켠 두 장면에서, 속성과 rAF 두 번 뒤의 캡처가 같은 요소를 `visibility: hidden`으로 숨긴 기준 캡처와 픽셀 차이 0이었다(배율 1·2). 숨김이 끝난 뒤에도 zoom 메뉴는 열려 있었다. 렌더러 CSP가 inline `<style>`을 막아 PoC는 `insertCSS`를 썼다. 구현은 `styles.css`에 둔다.
+- (c) 통과: 764×780 사각형이 배율 1에서 764×780, `--force-device-scale-factor=2`에서 1528×1560이다.
+- (d) 측정: `capturePage` median 5.3 ms(배율 2에서 9.3 ms). 숨김 시작부터 복원 뒤 첫 프레임까지 median 60.8 ms(배율 1), 78.2 ms(배율 2), 약 4–5 프레임이다. 비용 대부분은 rAF 두 번(약 28 ms)과 PNG 쓰기다. 첫 `capturePage` 한 번은 309 ms였다.
+- (e) 창 일부가 화면 밖일 때 통과(왼쪽·오른쪽·아래, 기준과 차이 0). 배율이 다른 실제 모니터는 미검증이다(디스플레이 1개).
+- 미검증: 실행 내내 Mac 화면이 잠겨 있어 사람 눈으로 본 깜빡임은 판정하지 못했다(잠긴 상태에서도 60fps로 그렸다). F1에서 잠기지 않은 화면으로 다시 본다.
