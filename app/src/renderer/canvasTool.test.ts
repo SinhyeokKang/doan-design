@@ -68,14 +68,21 @@ describe("toolShortcut", () => {
 
 describe("escapeStep", () => {
   test("cancels a pick first, then turns Hand back to Select, then clears the selection", () => {
-    expect(escapeStep({ picking: true, hand: true, editable: false })).toBe("cancelPick");
-    expect(escapeStep({ picking: false, hand: true, editable: false })).toBe("selectTool");
-    expect(escapeStep({ picking: false, hand: false, editable: false })).toBe("clearSelection");
+    expect(escapeStep({ picking: true, capturing: false, hand: true, editable: false })).toBe("cancelPick");
+    expect(escapeStep({ picking: false, capturing: false, hand: true, editable: false })).toBe("selectTool");
+    expect(escapeStep({ picking: false, capturing: false, hand: false, editable: false })).toBe("clearSelection");
   });
 
   test("in an editable target only cancels a pick", () => {
-    expect(escapeStep({ picking: true, hand: true, editable: true })).toBe("cancelPick");
-    expect(escapeStep({ picking: false, hand: true, editable: true })).toBeNull();
-    expect(escapeStep({ picking: false, hand: false, editable: true })).toBeNull();
+    expect(escapeStep({ picking: true, capturing: false, hand: true, editable: true })).toBe("cancelPick");
+    expect(escapeStep({ picking: false, capturing: false, hand: true, editable: true })).toBeNull();
+    expect(escapeStep({ picking: false, capturing: false, hand: false, editable: true })).toBeNull();
+  });
+
+  // canvas-capture design '순수 함수' 3: capture mode ends at the pick's step, ahead of Hand and the selection.
+  test("ends capture mode before Hand and the selection, wherever focus is", () => {
+    for (const hand of [true, false]) {
+      for (const editable of [true, false]) expect(escapeStep({ picking: false, capturing: true, hand, editable })).toBe("cancelCapture");
+    }
   });
 });
