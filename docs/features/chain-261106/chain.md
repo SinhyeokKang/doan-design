@@ -4,12 +4,13 @@
 
 ## 순서
 
-링크는 직렬이다. 앞 링크가 main에 병합된 뒤 다음 링크가 최신 `origin/main`에서 시작한다. 이 체인은 앞 체인 [chain-261105](../chain-261105/chain.md)의 마지막 링크(context-window-ring)가 병합되고 그 체인이 정리된 뒤 시작한다(사용자, 2026-11-06). 두 feature의 PoC(P)는 2026-11-06에 마쳤다(각 tasks 'P 결과').
+링크는 직렬이다. 앞 링크가 main에 병합된 뒤 다음 링크가 최신 `origin/main`에서 시작한다. 이 체인은 앞 체인 [chain-261105](../chain-261105/chain.md)의 마지막 링크(context-window-ring)가 병합되고 그 체인이 정리된 뒤 시작한다(사용자, 2026-11-06). 링크 1·2의 PoC(P)는 2026-11-06에 마쳤다(각 tasks 'P 결과'). 링크 3에는 PoC가 없다.
 
 1. `work-update` — [spec](../work-update/spec.md)·[design](../work-update/design.md)·[tasks](../work-update/tasks.md). 초안 `.doan/canvases/work-update.html` 사용자 확정(design §9). guide를 줄이고(G0) `update` 문장을 넣으며(E1) 전체 `/agent-eval` 라운드로 새 기준을 만든다. canvas-handoff는 guide를 바꾸지 않으므로(그 design 결정 11) guide 예산은 이 링크만 쓴다. 그래서 먼저 둔다(사용자, 2026-11-06).
 2. `canvas-handoff` — [spec](../canvas-handoff/spec.md)·[design](../canvas-handoff/design.md)·[tasks](../canvas-handoff/tasks.md). `/feature-review` 반영(`d12f2686`), 초안 `.doan/canvases/canvas-handoff.html` 사용자 확정(design '초안 요청'). 링크 1이 병합한 모양 위에서 시작한다.
+3. `small-ui-tweaks` — [spec](../small-ui-tweaks/spec.md)·[design](../small-ui-tweaks/design.md)·[tasks](../small-ui-tweaks/tasks.md). 초안 `.doan/canvases/small-ui-tweaks.html` 사용자 확정(tasks D1b·D2b·D3). 사용자가 이 체인의 세 번째 링크로 더했다(2026-11-06). 링크 1과 `CanvasAgent.tsx`·`agentIndicator.ts`·DESIGN.md를 함께 고친다. 링크 1은 작업 notice의 글과 고르기를, 이 링크는 `DotField`의 점 무늬 자리(항목 2)를 바꾼다. 링크 2와 겹치는 파일은 DESIGN.md뿐이다. 가장 작고 앞 링크들이 바꾼 모양 위에서 시작해야 하므로 마지막에 둔다.
 
-두 링크가 함께 고치는 곳: `cli/internal/cli/run.go`(앱 대화 환경 변수 읽기: `DOAN_CONVERSATION_ID` / 핸드오프 키), 앱 대화 환경(`app/src/main/conversation/environment.ts`, `agentAuth/environment.ts`의 `RESERVED`), `app/src/main/runtime.ts` `answerLine`(v3 `update` / v5 handoff), `doan help`와 `nextSteps`, `eval/lib/socket.ts`의 fake app. 링크 2 지휘자는 링크 1이 병합한 모양을 다시 읽고 시작한다.
+링크 1·2가 함께 고치는 곳: `cli/internal/cli/run.go`(앱 대화 환경 변수 읽기: `DOAN_CONVERSATION_ID` / 핸드오프 키), 앱 대화 환경(`app/src/main/conversation/environment.ts`, `agentAuth/environment.ts`의 `RESERVED`), `app/src/main/runtime.ts` `answerLine`(v3 `update` / v5 handoff), `doan help`와 `nextSteps`, `eval/lib/socket.ts`의 fake app. 링크 2 지휘자는 링크 1이 병합한 모양을 다시 읽고 시작한다.
 
 ## 시작 점검 (첫 지휘자)
 
@@ -19,6 +20,8 @@
 - work-update 초안: design §9에 "마지막 수정본(너비 규칙, 공통 앞부분, 커서)의 모양은 사람이 아직 앱에서 다시 보지 않았다"고 적혀 있다. 그 뒤 `3be3961e`(커서 간격 2px 확정)가 있다. 수정본을 확인했는지 묻는다.
 - work-update Z1 검증의 "남은 `work-update` 링크를 찾는 명령"이 "command undecided — needs user confirmation"이다. 명령을 정한다.
 - 실제 HOME과 공용 프로필 사용을 두 링크 몫으로 한 번에 받는다(work-update R1 (b)의 앱 대화, canvas-handoff R의 provider 확인). 프로필에는 다섯 provider가 연결되어 있으므로 연결 상태만 확인한다. Cursor는 2026-11-06 PoC 때 계정 한도("Upgrade your plan to continue")로 턴이 시작되지 않았다. 사람의 판단으로 미검증으로 두고, R에서 한도가 풀렸으면 다시 본다.
+- small-ui-tweaks `/feature-review`: git 이력에 리뷰 반영 커밋이 없다(`fa2cb803` 작성, `fba4c0d0` 세 줄 규칙과 확정 초안 범위). 리뷰를 돌릴지, 생략할지 묻는다.
+- small-ui-tweaks 병합 조건: R1 (b)는 "사람이 병합 전에 실제 앱에서 움직임을 본다"(design §5)이다. 링크 3은 사람이 점 무늬의 움직임을 본 뒤에 병합한다. 상시 병합 권한보다 이 조건이 앞선다.
 
 ## 상시 권한
 
@@ -43,7 +46,7 @@
 ## 운영 메모
 
 - 작업자 대기는 orchestrate의 대기 loop를 따른다. 멈춘 작업자 감지 포함(orchestrate §2).
-- `/agent-eval`: 두 링크 모두 해당한다. work-update는 guide·CLI 출력·eval 시나리오(W5)를, canvas-handoff는 `doan help`·`nextSteps`·eval 시나리오(핸드오프, R8c·R9 대체)를 바꾼다.
+- `/agent-eval`: 링크 1·2가 해당한다. 링크 3은 guide·CLI 출력·`doan check` 규칙·skill stub을 바꾸지 않으므로 해당하지 않는다. 로그인한 provider도 쓰지 않는다(R1은 격리 `DOAN_RUNTIME`의 작업 신호로 본다). work-update는 guide·CLI 출력·eval 시나리오(W5)를, canvas-handoff는 `doan help`·`nextSteps`·eval 시나리오(핸드오프, R8c·R9 대체)를 바꾼다.
 - macOS `printenv`는 이름을 하나만 받는다. 환경 확인은 변수마다 따로 묻는다.
 
 ## 링크 상태
@@ -52,7 +55,9 @@
 |---|---|---|---|---|
 | 1 work-update | — | — | — | 대기 |
 | 2 canvas-handoff | — | — | — | 대기 |
+| 3 small-ui-tweaks | — | — | — | 대기 |
 
 ## 인계 기록
 
 - 2026-11-06 체인 작성 세션(chain-261105 링크 3 지휘자, context-window-ring-orch): 사용자가 두 feature를 한 체인으로 묶고 순서(work-update → canvas-handoff)를 정했다. 앞 체인이 main에 들어가고 정리되면 바로 이어서 시작한다. 병합과 인계는 체인 기본이다(`/chain` §1 step 3, `103f2dee`). 이 세션은 앞 체인의 링크 3을 맡고 있으므로, 이 체인의 첫 지휘자는 새 세션이다. 앞 체인 정리 때 공용 프로필은 지우지 않고, 링크 2가 남긴 임시 `CLAUDE_CONFIG_DIR`과 그 Keychain 항목만 지운다.
+- 2026-11-06 링크 추가 세션: 사용자가 `small-ui-tweaks`를 세 번째 링크로 더했다("small ui tweaks는 체인에 넣어줘. 3링크로 가자"). 순서는 work-update → canvas-handoff → small-ui-tweaks다. 시작 점검에 small-ui-tweaks의 리뷰 여부와 병합 조건(사람이 움직임을 본 뒤 병합)을 더했다.
