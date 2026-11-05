@@ -7,6 +7,11 @@ const passed = (w: UsageWindow, now: number) => w.resetsAt !== undefined && w.re
 const active = (entry: Pick<UsageEntry, "reading">, now: number) => entry.reading?.status === "ok" ? entry.reading.windows.filter(w => !passed(w, now)) : [];
 
 // The ring shows the fullest window that has not reset yet; a passed window's value is stale until the next read.
+// True when a window that has not reset yet is limited. The 70% danger threshold belongs to the ring's caller.
+export function ringLimited(entry: Pick<UsageEntry, "reading" | "blocked">, now: number): boolean {
+  return entry.blocked === undefined && active(entry, now).some(w => w.limited);
+}
+
 export function ringValue(entry: Pick<UsageEntry, "reading" | "blocked">, now: number): number | null {
   if (entry.blocked !== undefined) return null;
   const windows = active(entry, now);
@@ -45,11 +50,9 @@ function state(entry: UsageEntry, now: number): string {
   if (!reading) return `${name} reading usage`;
   if (reading.status === "unavailable") return `${name} usage unavailable`;
   if (reading.unlimited) return `${name} unlimited`;
-  const windows = active(entry, now);
-  if (windows.some(w => w.limited)) return `${name} limit reached`;
+  if (ringLimited(entry, now)) return `${name} limit reached`;
   const value = ringValue(entry, now);
-  if (value !== null) return `${name} ${Math.round(value)}% used`;
-  return reading.windows.length > 0 ? `${name} usage resetting` : `${name} usage unavailable`;
+  return value !== null ? `${name} ${Math.round(value)}% used` : `${name} usage resetting`;
 }
 
 // The usage button's description (aria-describedby); its name stays "Agent usage". Antigravity is never shown.

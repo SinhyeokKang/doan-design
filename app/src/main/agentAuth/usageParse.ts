@@ -27,7 +27,10 @@ function reading(readAt: number, parse: () => UsageReading): UsageReading {
   }
 }
 
-function ok(readAt: number, windows: UsageWindow[]): UsageReading { return { status: "ok", windows, readAt }; }
+// A reading with no windows that is not unlimited has nothing to show; it reads as no plan limits, not as an empty ok.
+function ok(readAt: number, windows: UsageWindow[]): UsageReading {
+  return windows.length === 0 ? { status: "unavailable", reason: "no_plan_limits", readAt } : { status: "ok", windows, readAt };
+}
 function unlimited(readAt: number): UsageReading { return { status: "ok", windows: [], unlimited: true, readAt }; }
 
 const CLAUDE_WINDOWS: [key: string, label: string][] = [
@@ -56,7 +59,9 @@ export function claudeUsage(response: unknown, readAt: number): UsageReading {
         const entry = obj(item);
         if (typeof entry.display_name !== "string" || entry.display_name === "") throw new Shape();
         const used = optional(entry.utilization, num), resetsAt = optional(entry.resets_at, isoTime);
-        if (used !== undefined) windows.push(window(`model_scoped:${entry.display_name}`, `Weekly · ${entry.display_name}`, used, resetsAt));
+        const label = `Weekly · ${entry.display_name}`;
+        // seven_day_opus/sonnet may also arrive as a model_scoped entry; the first one wins.
+        if (used !== undefined && !windows.some(w => w.label === label)) windows.push(window(`model_scoped:${entry.display_name}`, label, used, resetsAt));
       }
     }
     return ok(readAt, windows);

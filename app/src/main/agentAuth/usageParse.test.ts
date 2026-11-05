@@ -27,6 +27,17 @@ describe("claudeUsage", () => {
   it("reads no plan limits when the account has none", () => {
     expect(claudeUsage({ rate_limits_available: false, rate_limits: null }, AT)).toEqual({ status: "unavailable", reason: "no_plan_limits", readAt: AT });
   });
+  it("reads no plan limits when every window is null", () => {
+    const response = { rate_limits_available: true, rate_limits: { five_hour: null, seven_day: { utilization: null, resets_at: null } } };
+    expect(claudeUsage(response, AT)).toEqual({ status: "unavailable", reason: "no_plan_limits", readAt: AT });
+  });
+  it("keeps only the first window when Opus or Sonnet is also model-scoped", () => {
+    const response = { rate_limits_available: true, rate_limits: {
+      seven_day_opus: { utilization: 5, resets_at: null }, model_scoped: [{ display_name: "Opus", utilization: 7 }, { display_name: "Fable", utilization: 1 }],
+    } };
+    const reading = claudeUsage(response, AT);
+    expect(reading.status === "ok" && reading.windows.map(w => [w.id, w.label, w.usedPercent])).toEqual([["seven_day_opus", "Weekly · Opus", 5], ["model_scoped:Fable", "Weekly · Fable", 1]]);
+  });
   it("clamps utilization to 0–100", () => {
     const reading = claudeUsage({ rate_limits_available: true, rate_limits: { five_hour: { utilization: 130, resets_at: null }, seven_day: { utilization: -5, resets_at: null } } }, AT);
     expect(reading.status === "ok" && reading.windows.map(w => w.usedPercent)).toEqual([100, 0]);
@@ -78,6 +89,12 @@ describe("codexUsage", () => {
     ["a reset time that is not a number", { rateLimits: { primary: { usedPercent: 3, resetsAt: "1795411967" } } }],
   ])("reads a response with %s as read_failed", (_, response) => {
     expect(codexUsage(response, AT)).toEqual(failed);
+  });
+});
+
+describe("codexUsage without windows", () => {
+  it("reads no plan limits when primary and secondary are both null", () => {
+    expect(codexUsage({ rateLimits: { primary: null, secondary: null } }, AT)).toEqual({ status: "unavailable", reason: "no_plan_limits", readAt: AT });
   });
 });
 

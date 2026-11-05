@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { UsageEntry, UsageReading, UsageWindow } from "../main/agentAuth/usageTypes";
-import { blockedText, ringValue, usageDescription, usageText } from "./agentUsage";
+import { blockedText, ringLimited, ringValue, usageDescription, usageText } from "./agentUsage";
 
 const NOW = Date.parse("2026-11-05T05:00:00Z");
 const MIN = 60_000, HOUR = 60 * MIN, DAY = 24 * HOUR;
@@ -21,6 +21,23 @@ describe("ringValue", () => {
     ["a connection that can't be used", { reading: ok(w(42)), blocked: "reauth_required" }],
   ] as [string, Pick<UsageEntry, "reading" | "blocked">][])("is null with %s", (_, entry) => {
     expect(ringValue(entry, NOW)).toBeNull();
+  });
+});
+
+describe("ringLimited", () => {
+  it("is true when a window that has not reset yet is limited", () => {
+    expect(ringLimited({ reading: ok(w(10), w(40, { limited: true, resetsAt: NOW + HOUR })) }, NOW)).toBe(true);
+  });
+  it.each([
+    ["a limited window past its reset", { reading: ok(w(100, { limited: true, resetsAt: NOW - 1 })) }],
+    ["no limited window", { reading: ok(w(100)) }],
+    ["no windows", { reading: ok() }],
+    ["unlimited", { reading: { status: "ok", windows: [], unlimited: true, readAt: NOW } as UsageReading }],
+    ["unavailable", { reading: unavailable("read_failed") }],
+    ["no reading yet", {}],
+    ["a connection that can't be used", { reading: ok(w(100, { limited: true })), blocked: "reauth_required" }],
+  ] as [string, Pick<UsageEntry, "reading" | "blocked">][])("is false with %s", (_, entry) => {
+    expect(ringLimited(entry, NOW)).toBe(false);
   });
 });
 
@@ -70,7 +87,7 @@ describe("usageDescription", () => {
       { provider: "copilot", reading: { status: "ok", windows: [], unlimited: true, readAt: NOW }, inFlight: false },
       { provider: "claude", reading: ok(w(42)), inFlight: false, blocked: "reauth_required" },
       { provider: "codex", reading: ok(w(60, { resetsAt: NOW - MIN })), inFlight: true },
-      { provider: "cursor", reading: ok(), inFlight: false },
+      { provider: "cursor", reading: unavailable("no_plan_limits"), inFlight: false },
     ];
     expect(usageDescription(entries, NOW)).toBe("Claude Code’s sign-in expired. Codex usage resetting. Cursor usage unavailable. GitHub Copilot unlimited.");
   });
