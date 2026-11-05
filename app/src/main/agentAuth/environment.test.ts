@@ -37,11 +37,18 @@ describe("provider child environment", () => {
     expect(inherited).not.toHaveProperty("AGENT_CLI_CREDENTIAL_STORE");
   });
   it("refuses extras that would replace the routed path, runtime or profile", () => {
-    for (const name of ["PATH", "DOAN_RUNTIME", "DOAN_APP_CONVERSATION", "HOME", "CLAUDE_CONFIG_DIR", "CODEX_HOME", "GEMINI_HOME", "SSH_AUTH_SOCK", "GIT_CONFIG_GLOBAL"]) {
+    for (const name of ["PATH", "DOAN_RUNTIME", "DOAN_APP_CONVERSATION", "DOAN_CONVERSATION_ID", "HOME", "CLAUDE_CONFIG_DIR", "CODEX_HOME", "GEMINI_HOME", "SSH_AUTH_SOCK", "GIT_CONFIG_GLOBAL"]) {
       expect(providerEnv(input("copilot", { extra: { [name]: "/elsewhere" } }))).toEqual({ ok: false, code: "reserved_extra" });
     }
     for (const extra of [{ "bad-name": "x" }, { lower: "x" }, { VALUE: "a\0b" }, { VALUE: 1 }]) {
       expect(providerEnv(input("copilot", { extra }))).toEqual({ ok: false, code: "invalid_extra" });
+    }
+  });
+  // work-update design §2 function 7: the conversation id is added only by ConversationService.openRunner.
+  it("never carries an inherited DOAN_CONVERSATION_ID", () => {
+    for (const provider of ["claude", "codex", "cursor", "antigravity", "copilot"] as const) {
+      const result = providerEnv(input(provider, { inherited: { ...inherited, DOAN_CONVERSATION_ID: "other" } }));
+      expect(result.ok && result.env).not.toHaveProperty("DOAN_CONVERSATION_ID");
     }
   });
   it("gives a terminal-launched app's sign-in what a Dock launch would", () => {

@@ -25,3 +25,11 @@ test("a Claude run gets the login shell's CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION, 
   expect(promptSuggestionEnv("")).toEqual({ CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION: "true" });
   expect(promptSuggestionEnv("false")).toEqual({ CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION: "false" });
 });
+// work-update design §2 function 7: ConversationService.openRunner adds the conversation's own id; an inherited one
+// (an app launched from another app conversation) never reaches a run.
+test("an inherited DOAN_CONVERSATION_ID never reaches an agent", () => {
+  for (const runtime of ["claude", "codex"] as const) {
+    const result = agentEnv({ env: { ...TERMINAL, DOAN_CONVERSATION_ID: "other" }, path: "/bin", configDir: "/profile" }, runtime, "/data/runtime.json", { root: "/repo", cwd: "/repo", configDir: "/profile" });
+    expect(result?.env).not.toHaveProperty("DOAN_CONVERSATION_ID");
+  }
+});
