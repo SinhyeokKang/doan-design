@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { composerAction, composerShape, focusAfter } from "./composerRules";
+import { composerAction, composerShape, steerAllPlan, focusAfter } from "./composerRules";
 
 describe("composerShape", () => {
   test("chips or a wrapped line make a box", () => {
@@ -55,5 +55,18 @@ describe("focusAfter", () => {
   test("after Edit and resend and the Replace your draft? dialog: the field, caret at the end", () => {
     expect(focusAfter({ kind: "restored" }, { pending: [] })).toEqual({ kind: "field", caretAtEnd: true });
     expect(focusAfter({ kind: "draftDialog" }, { pending: [] })).toEqual({ kind: "field", caretAtEnd: true });
+  });
+});
+
+
+describe("steerAllPlan", () => {
+  test.each([0, 3])("falls back to Enter without Send now, with %i rows", rows => {
+    for (const draft of [false, true]) expect(steerAllPlan({ sendNow: false, rows, draft })).toBe("enter");
+  });
+  test("plans rows and draft independently, and does nothing when both are empty", () => {
+    expect(steerAllPlan({ sendNow: true, rows: 0, draft: false })).toBe("none");
+    expect(steerAllPlan({ sendNow: true, rows: 3, draft: false })).toEqual({ rows: true, draft: false });
+    expect(steerAllPlan({ sendNow: true, rows: 0, draft: true })).toEqual({ rows: false, draft: true });
+    expect(steerAllPlan({ sendNow: true, rows: 3, draft: true })).toEqual({ rows: true, draft: true });
   });
 });

@@ -5,7 +5,7 @@ import type { AccountIdentity, AuthState, AuthStatusDto, Provider, ToolFacts } f
 import type { CanvasRow, FolderEntry } from "../main/view";
 import {
   attachmentChipView, attachmentLimit, chipRemoval, composeRequest, defaultEffort, defaultModel, defaultProject, defaultProvider, dropTarget, fixedPreference,
-  GREETINGS, greetingText, groupIcon, groupLabel, isSubmitKey, lengthCounter, MAX_ATTACHMENTS, MAX_PASTED_BYTES, modelPickerView, pickGreeting, presetListView,
+  GREETINGS, greetingText, groupIcon, groupLabel, isSubmitKey, steerKey, lengthCounter, MAX_ATTACHMENTS, MAX_PASTED_BYTES, modelPickerView, pickGreeting, presetListView,
   draftProblem, presetPlaceholder, rootForProject, searchPresets, selectableProvider, sendAvailability, slashQuery, startErrorView, suggestedPresets,
   suggestedPrompts, TEXT_LIMIT,
   type AttachmentDraft, type ModelsState, type PresetListReply, type PresetSummary, type SendInput,
@@ -649,4 +649,13 @@ test("new conversation default: the fixed effort when the model offers it, else 
   expect(defaultEffort(SONNET, "low", { provider: "claude", model: "opus", effort: "max" })).toBeNull();
   expect(defaultEffort(OPUS, "low", { provider: "claude", model: "opus" })).toBeNull();
   expect(defaultEffort(OPUS, "low", null)).toBe("low");
+});
+
+
+test("steerKey accepts only Control+Enter outside IME composition", () => {
+  const event = { key: "Enter", ctrlKey: true, metaKey: false, altKey: false, shiftKey: false, isComposing: false, keyCode: 13 };
+  expect(steerKey(event)).toBe(true);
+  for (const change of [{ key: "a" }, { ctrlKey: false }, { metaKey: true }, { altKey: true }, { shiftKey: true }, { isComposing: true }, { keyCode: 229 }]) {
+    expect(steerKey({ ...event, ...change })).toBe(false);
+  }
 });
