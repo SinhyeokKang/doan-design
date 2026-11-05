@@ -47,7 +47,7 @@ app(Electron + TS)만 바뀐다. CLI(Go)·skills·guide·`doan check`·공유 JS
   - 앱 시작·sign-in·popover: `codexEmail`(`agentAuth/manager.ts:694-735`)처럼 app-server를 띄워 `initialize` → `initialized` → `account/rateLimits/read` → 종료.
   - `primary`·`secondary`를 한도 창으로 읽고 `windowDurationMins`로 이름을 붙인다(300 → "5-hour", 10080 → "Weekly", 그 밖 → "<n>-hour"/"<n>-day"). `rateLimitsByLimitId`와 `ordinaryUsageAllowed`는 이번에 읽지 않는다. PoC U2.
 - **Copilot**: `copilot --headless --stdio`를 Doan의 Copilot 프로필(`HOME`)로 띄워 `account.getQuota`를 부르고 닫는다. `quotaSnapshots`의 각 종류를 한도 창으로 읽는다(`usedPercent = 100 - remainingPercentage`, `isUnlimitedEntitlement`면 빼고, 모두 빠지면 `unlimited`). PoC U3.
-- **Antigravity**: 조회하지 않고 늘 `not_supported`다(결정할 점 4, PoC U4).
+- **Antigravity**: 조회하지 않고 `UsageEntry`도 만들지 않는다. 링·popover·설명 글 어디에도 나오지 않는다(결정할 점 4·15, PoC U4·U7).
 - **Cursor**: 결정할 점 3. PoC U5.
 - 쓸 수 없는 연결(sign-in 만료, 확인 안 됨, CLI 버전 미달 등 `readiness()`가 쓸 수 없다고 하는 상태)은 조회하지 않고 `blocked`에 그 원인을 담는다(결정할 점 5).
 
@@ -69,8 +69,8 @@ app(Electron + TS)만 바뀐다. CLI(Go)·skills·guide·`doan check`·공유 JS
 
 ### 4. UI(renderer)
 
-- 링 버튼은 모든 화면(workspace, Home, Settings, Add Projects)에 보인다(결정할 점 6). 연결이 하나도 없으면 버튼이 없다.
-- 링 순서는 `PROVIDERS`의 고정 순서(`homeComposer.ts:190-191`)다. 연결이 둘 이상이면 링 가운데에 `providerLogo(provider)`(`homeComposer.ts:187`)를 두고, 연결이 하나면 로고 없이 링만 보인다(결정할 점 12). 링 하나의 provider 이름은 설명 글과 popover가 알린다.
+- 링 버튼은 모든 화면(workspace, Home, Settings, Add Projects)에 보인다(결정할 점 6). 지원 provider(Claude Code, Codex, Copilot, Cursor)의 연결이 하나도 없으면 버튼이 없다(Antigravity만 연결한 경우 포함).
+- 링 순서는 `PROVIDERS`의 고정 순서(`homeComposer.ts:190-191`)다. 링이 둘 이상이면 링 가운데에 `providerLogo(provider)`(`homeComposer.ts:187`)를 두고, 링이 하나면 로고 없이 링만 보인다(결정할 점 12). 링 수는 Antigravity를 뺀 연결 수다. 링 하나의 provider 이름은 설명 글과 popover가 알린다.
 - 링 값: `ok`인 한도 창 가운데 다시 채워지는 시각이 지나지 않은 것의 가장 큰 `usedPercent`. 지난 한도 창은 링 값에서 뺀다. `unavailable`·`blocked`·`unlimited`·처음 읽는 중이면 빈 링(로고만).
 - 접근성: 버튼 이름은 "Agent usage"로 고정하고(값이 바뀌어도 이름은 그대로), provider별 값은 `aria-describedby`로 붙인다(예: "Claude Code 42% used. Codex limit reached. Cursor usage unavailable."). `aria-haspopup="dialog"`와 `aria-expanded`.
 - 상호작용(macOS 도구 막대 상태 버튼 관례): 클릭·Space·Return으로 연다. popover는 non-modal dialog이고, 열면 popover 본문에 포커스를 둔다. Esc나 바깥 클릭으로 닫히고 포커스는 버튼으로 돌아간다(PRODUCT §5 Esc 순서 "menu or popover first"). hover tooltip은 "Agent usage"만. 열려 있는 동안 상대 시간을 1분마다 고친다.
@@ -81,7 +81,7 @@ app(Electron + TS)만 바뀐다. CLI(Go)·skills·guide·`doan check`·공유 JS
   - 마지막으로 읽은 시각: "Updated 3m ago". 다시 읽는 중에는 이전 값을 두고 이 줄만 "Updating…".
   - 처음 읽는 중: "Reading usage…".
   - `unlimited`: "Unlimited".
-  - `not_supported`(Antigravity, 조회가 없는 버전): "Usage isn't available for <Provider>."
+  - `not_supported`(조회가 없는 버전): "Usage isn't available for <Provider>."
   - `no_plan_limits`: "<Provider> isn't on a plan with usage limits."
   - `read_failed`: "Couldn't read usage. Doan tries again when you open this." (결정할 점 8)
   - `blocked`: Settings > Agents와 같은 원인 문구(`SettingsAgents.tsx` `unavailable()`, 예: "Claude Code's sign-in expired").
@@ -154,3 +154,4 @@ app(Electron + TS)만 바뀐다. CLI(Go)·skills·guide·`doan check`·공유 JS
 11. **popover 오른쪽 위에 새로고침 버튼을 둔다**("Refresh usage"). 5분 간격 안에서는 popover를 열어도 값이 그대로라, 사람이 바로 다시 읽을 길이 필요하다. 진행 중 조회는 합치므로 여러 번 눌러도 provider마다 프로세스는 하나다.
 12. **연결이 하나면 링에 로고를 두지 않는다**(사람). 둘 이상이면 로고로 링을 구별한다.
 13. **popover 새로고침 왼쪽에 설정 버튼**("Agent settings")을 두고, 누르면 Settings > Agents를 연다(사람). 쓸 수 없는 연결의 원인을 고치러 가는 길이다.
+14. **Antigravity는 보이지 않는다**(사람). 사용량을 읽을 길이 없어(PoC U4: `agy`가 별도 로그인 요구, U7: Code Assist quota `403 SUBSCRIPTION_REQUIRED`) 늘 빈 링이 되므로, 링·popover 행을 아예 두지 않는다.

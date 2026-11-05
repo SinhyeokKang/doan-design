@@ -150,7 +150,7 @@
 ## C. UI
 
 - [ ] C1. 링 버튼과 popover(헤더 오른쪽 끝, 모든 화면, no-drag), preload 호출.
-  - 검증: `npm --prefix app test` — 링 값과 빈 링, 고정 순서, 버튼 이름 고정과 설명 글, `aria-haspopup`·`aria-expanded`, 클릭·Space·Return으로 열기, Esc·바깥 클릭으로 닫고 버튼으로 포커스 복귀, 이유별 문구, 설정 버튼(누르면 popover를 닫고 Settings > Agents), 연결이 하나면 링에 로고 없음, 새로고침 버튼(이름, 누르면 간격 무시하고 읽기, 읽는 중 `aria-busy`와 spinner, 연타가 provider마다 조회 하나), "Updating…" 중 이전 값 유지, 상대 시간 1분 갱신, 열린 동안 provider가 빠지고 생김, 마지막 provider가 빠지면 닫고 `.shell-modes`의 현재 탭으로 포커스, 연결이 없을 때 버튼 없음. `npm --prefix app run typecheck`, `npm --prefix app run build`.
+  - 검증: `npm --prefix app test` — 링 값과 빈 링, 고정 순서, 버튼 이름 고정과 설명 글, `aria-haspopup`·`aria-expanded`, 클릭·Space·Return으로 열기, Esc·바깥 클릭으로 닫고 버튼으로 포커스 복귀, 이유별 문구, 설정 버튼(누르면 popover를 닫고 Settings > Agents), 연결이 하나면 링에 로고 없음, 새로고침 버튼(이름, 누르면 간격 무시하고 읽기, 읽는 중 `aria-busy`와 spinner, 연타가 provider마다 조회 하나), "Updating…" 중 이전 값 유지, 상대 시간 1분 갱신, 열린 동안 provider가 빠지고 생김, 마지막 provider가 빠지면 닫고 `.shell-modes`의 현재 탭으로 포커스, 연결이 없을 때와 Antigravity만 연결했을 때 버튼 없음, Antigravity는 링·popover 행·설명 글에 없음, Antigravity와 다른 provider 하나면 로고 없는 링 하나. `npm --prefix app run typecheck`, `npm --prefix app run build`.
 
 ── commit: `feat: show agent usage rings` ──
 
@@ -158,7 +158,7 @@
 
 - [ ] E1. `/design-sync`로 링과 popover를 초안과 맞추고 DESIGN.md에 측정값을 적는다.
   - 검증: `/design-sync` 보고의 측정 일치.
-- [ ] E2. `/runtime-test`: 공용 프로필로 연결한 provider마다 링 값이 PoC 값과 같은지, 턴 뒤 갱신(새 프로세스 없음), 5분 간격과 popover 열기의 예외, sign-out 뒤 링 사라짐, unavailable provider, 쓸 수 없는 연결의 문구. 사람의 승인을 받는다.
+- [ ] E2. `/runtime-test`: 공용 프로필로 연결한 provider마다 링 값이 PoC 값과 같은지, 턴 뒤 갱신(새 프로세스 없음), 5분 간격과 popover 열기의 예외, sign-out 뒤 링 사라짐, unavailable provider, 쓸 수 없는 연결의 문구, Antigravity가 연결돼 있어도 보이지 않음. 사람의 승인을 받는다.
   - 검증: `/runtime-test` 보고(스크린샷). 사람 상태(프로필, vault, Keychain 항목)가 확인 전과 같은지 보고에 적는다.
 - [ ] E3. 공통 gate.
   - 검증: `node .agents/skills/verify/scripts/verify.mjs` exit 0.
