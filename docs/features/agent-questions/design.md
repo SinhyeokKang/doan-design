@@ -74,17 +74,17 @@ app(Electron + TS)만 바뀐다. CLI(Go)·skills·guide·`doan check`·공유 JS
 - `threadItems.ts`(`:19`, `:142-150`): `question` 항목(`status: pending | answered | skipped | expired`)을 더한다. 턴 종료 때 같은 턴의 pending은 만료(`:84`와 같음).
 - `ConversationThread.tsx`(`:291`, `:394-405`): `QuestionCard`를 더한다. `phaseText`는 질문 대기에도 `<provider> needs your answer`.
   - 쓰레드는 props로만 받으므로(ARCHITECTURE §7 'Renderer primitives') `onAnswerQuestion(requestId, answer)` prop을 더한다. 권한의 `onAnswer`(`:34`)와 같은 모양이다. host 두 곳(`CanvasConversationPanel.tsx:410`, `ProjectOverview.tsx:378`)이 preload `answerConversationQuestion`을 부른다.
-  - 카드는 권한 notice와 같은 `doan-notice thread-notice`다. 새로 온 카드만(`entry.seq > liveAfter`) 제목과 첫 질문 문장에 `role="alert"`를 둔다. 카드 전체에 두면 VoiceOver가 질문과 선택지를 모두 읽는다. 질문이 와도 포커스는 옮기지 않는다(composer의 입력과 IME 조합을 그대로 둔다).
-  - 질문마다 header(작은 칩)와 문장, 선택지는 단일 선택이면 radio group, `multiSelect`면 checkbox group이다. 질문마다 `fieldset`(radio group)을 두고 이름은 `<header>: <question>`, 선택지의 description은 `aria-describedby`로 잇는다. 각 선택지는 label과 description 두 줄.
-  - Other는 선택지 목록 끝의 선택지 하나이고, 고르면 한 줄 입력이 열린다. 입력칸에는 보이지 않는 label `Other answer`를 둔다(placeholder는 label이 아니다). 선택지가 없는 Codex 질문은 입력만 있다. `secret`이면 `type="password"`. 입력의 `maxLength`는 4,096이다.
+  - 카드는 권한 notice와 같은 `doan-notice thread-notice`이지만 "<Provider> needs your answer" 제목이 없다. 첫 질문 문장이 로고 옆 제목 자리에 500 굵기로 오고, 나머지 질문 문장도 같은 굵기로 각 목록 위에 둔다. "needs your answer"는 쓰레드 status, 사이드바·indicator·toast·알림, 문제 workspace strip에만 남는다. 새로 온 카드만(`entry.seq > liveAfter`) 제목(첫 질문 문장)에 `role="alert"`를 둔다. 카드 전체에 두면 VoiceOver가 질문과 선택지를 모두 읽는다. 질문이 와도 포커스는 옮기지 않는다(composer의 입력과 IME 조합을 그대로 둔다).
+  - 질문마다 문장을 보인다. header 칩은 두지 않는다(header는 접힌 줄과 group의 접근 가능한 이름에만 쓴다). 선택지는 단일 선택이면 radio group, `multiSelect`면 checkbox group이다. 질문마다 `fieldset`(radio group)을 두고 이름은 `<header>: <question>`, 선택지의 description은 `aria-describedby`로 잇는다. 각 선택지는 label과 description 두 줄이고, description이 비면 label 한 줄이다. 선택지 목록은 Settings의 `.doan-settings-group`과 `.doan-preference-row[data-has-icon]`를 그대로 쓴다. radio·checkbox는 행의 아이콘 칸, Other 입력은 행의 extra 줄에 둔다. 카드 안에서만 세 값을 덮어쓴다: `--surface-panel` 채움, 첫 줄 정렬, `--radius-row` 모서리. 고른 상태는 radio로만 보이고 행에 채움을 두지 않는다. 선택지의 label과 description은 자르지 않는다.
+  - Other는 선택지 목록 끝의 선택지 하나이고, 고르면 한 줄 입력이 열린다. 입력칸에는 보이지 않는 label `Other answer`를 둔다(placeholder는 label이 아니다). 선택지가 없는 Codex 질문은 입력만 있다. `secret`이면 `type="password"`. 입력의 `maxLength`는 4,096이다. 입력은 기본 크기 `doan-input`(높이 40px, body 글자)이다(초안 그리는 중 사람의 결정).
   - 답한 질문: 단일 선택은 하나를 고름, `multiSelect`는 하나 이상 고름, Other나 글 답은 앞뒤 공백을 뺀 글이 있음. Other를 골랐는데 글이 비었으면 답하지 않은 것이다. renderer의 Send 판정과 main의 `questionAnswer`는 import 없는 순수 모듈 하나를 함께 쓴다(`steerSupport.ts` 방식).
   - 키보드(macOS 관례): radio는 질문마다 같은 name이고, 화살표가 이동과 선택을 함께 하며, Tab은 고른 항목이나 첫 항목으로 들어간다. checkbox는 Space로 토글한다. Other를 클릭이나 Space로 고르면 입력칸으로 포커스가 가고, 화살표로 지나가며 고르면 입력칸만 열린다. Other 입력칸의 Return은 Send가 켜졌을 때만 보내고, IME 조합 중(`isComposing`)에는 보내지 않는다. radio·checkbox 위의 Return과 카드 안의 Esc는 아무것도 하지 않는다. Tab 순서는 선택지 → Other 입력 → Send → Skip → Stop.
-  - 버튼: Send answer(질문이 둘 이상이면 Send answers, prominent), Skip, Stop. Send는 모든 질문에 답이 있을 때만 켜진다. 꺼진 Send는 New conversation 버튼처럼(PRODUCT §5 item 3) `aria-disabled`로 두어 포커스와 tooltip이 남는다.
-  - 보내는 중: Send는 `aria-busy`와 spinner를 보이고, 선택지·Other·Skip은 읽기 전용이 되며 Stop만 살아 있다. 성공하면 접힐 때까지 잠근 채 둔다.
+  - 버튼: Send(prominent), Skip, Stop. Send는 모든 질문에 답이 있을 때만 켜진다. 꺼진 Send는 New conversation 버튼처럼(PRODUCT §5 item 3) `aria-disabled`로 두어 포커스와 tooltip이 남는다.
+  - 보내는 중: Send는 `aria-busy`와 spinner를 보이고(검은 Send 위에서 spinner 링은 `--text-on-prominent` 30%, 도는 1/4은 100%), 선택지·Other·Skip은 읽기 전용이 되며 Stop만 살아 있다. 성공하면 접힐 때까지 잠근 채 둔다.
   - 고르던 상태는 순수 reducer(`questionDraft`)로 계산하고, 카드 안 React state가 아니라 renderer의 `ConversationStore`(`conversationStore.ts:40`, `OverviewRun.store`로 canvas 패널과 공유)에 `requestId`별로 둔다. `ThreadBody`는 conversationId를 key로 다시 그려지므로(`ConversationThread.tsx:286-288`) 카드 state로는 다른 대화나 canvas로 갔다 오면 사라지기 때문이다. `question.resolved`가 오면 그 항목을 지우고, reload에서는 사라진다.
   - 보내기 실패: `answerReached`(`:231-237`)가 거절 사유를 돌려주게 바꾼다. 사유가 `stale`이면 main이 이미 그 질문을 풀었고 `question.resolved`가 오므로, 오류 줄 없이 접힘을 기다린다. 그 밖의 실패는 잠금을 풀고 고른 상태를 유지한 채 "Couldn’t send your answer. Try again."을 보인다.
   - 보낸 뒤 포커스: 카드가 접히면 권한 답 뒤와 같은 `composerRules.focusAfter`(`:44-50`) 규칙을 따른다. `pending`에 질문 요청도 넣어, 다음 미답 요청(권한이면 첫 선택 버튼, 질문이면 첫 선택지나 입력칸)이나 composer 입력칸으로 간다.
-  - 긴 글: 질문 문장과 선택지는 자르지 않고 줄바꿈한다. header 칩만 말줄임하고 전체 글은 접근 가능한 이름에 둔다.
+  - 긴 글: 질문 문장과 선택지는 자르지 않고 줄바꿈한다.
 - 접힌 줄: 권한의 `ask-answered`와 같은 모양이다. 답함은 질문마다 한 줄 `Answered · <header>: <answer>`이고, 답은 한 줄로 말줄임하며 전체 글은 tooltip(`title`)에 둔다. 건너뜀과 만료는 요청마다 한 줄 `Skipped · <header>, <header>`, `Expired without an answer · <header>, <header>`. `secret`의 답은 `Answered · <header>`만.
 - 좁은 패널(280 px)에서 선택지는 세로로 쌓이고 버튼 줄은 줄바꿈한다.
 
@@ -92,9 +92,10 @@ app(Electron + TS)만 바뀐다. CLI(Go)·skills·guide·`doan check`·공유 JS
 
 | 자리 | 문구 | 이유 |
 |---|---|---|
-| 카드 제목, 쓰레드 status, 사이드바·행·indicator | `<Provider> needs your answer` / `Agent needs your answer` | 권한 대기와 같은 상태이므로 같은 말을 쓴다. 새 상태어를 만들지 않는다. |
+| 카드 제목 | 첫 질문 문장 | 사람이 먼저 읽을 것은 질문이다. 누가 묻는지는 로고가 보인다. |
+| 쓰레드 status, 사이드바·행·indicator | `<Provider> needs your answer` / `Agent needs your answer` | 권한 대기와 같은 상태이므로 같은 말을 쓴다. 새 상태어를 만들지 않는다. |
 | Other 선택지 / 입력 placeholder | `Other` / `Type your answer` | Claude·Codex가 자동으로 붙이는 선택지 이름과 같다. |
-| 버튼 | `Send answer` · `Send answers` · `Skip` · `Stop` | 동작과 대상을 말한다. Skip은 답 없이 이어진다는 뜻만. |
+| 버튼 | `Send` · `Skip` · `Stop` | 동작과 대상을 말한다. Skip은 답 없이 이어진다는 뜻만. |
 | Send 비활성 tooltip | 질문 하나: `Choose or type an answer first.` / 둘 이상: `Answer each question first.` | 무엇이 빠졌는지 말한다. 질문이 하나일 때 "each"는 어색하다. |
 | Other 입력칸 label(보이지 않음) | `Other answer` | placeholder는 label을 대신하지 않는다(`clarify` 'Forms'). |
 | 보내기 실패 | `Couldn’t send your answer. Try again.` | 고른 답이 남아 있으므로 권한의 "Choose again."과 다르게 쓴다. |
@@ -197,7 +198,15 @@ PRODUCT·ARCHITECTURE가 정하지 않았던 점을 사람이 다음과 같이 �
 9. 질문 알림은 Approval requests 스위치를 따르고, 제목은 `<Provider> needs your answer`다.
 10. 문제 workspace에서 기다리는 질문은 strip의 Skip이나 Stop으로만 끝낼 수 있다. 답할 곳이 없다는 새 문구는 더하지 않는다.
 11. 읽을 수 없는 Codex 질문(형식, 상한, 중복)은 카드 없이 빈 답으로 답한다.
-12. 질문이 여럿이면 모든 질문에 답해야 Send answers가 켜진다.
+12. 질문이 여럿이면 모든 질문에 답해야 Send가 켜진다.
 13. Codex `isOther: false` 선택지 질문은 Other를 보이지 않는다. Claude 질문은 늘 Other가 있다.
 14. 고르던 답은 앱 안에서 다른 대화나 canvas로 이동해도 `requestId`별로 남고, 질문이 끝나면 지운다. reload·재시작 너머로는 남지 않는다.
 15. `isSecret` 답이 provider 자체의 기록(Codex rollout 등)에 남을 수 있는 한계를 받아들인다. Z1에서 한계로 적는다.
+16. 선택지 목록은 Settings group과 행(`.doan-settings-group`, `.doan-preference-row[data-has-icon]`)을 쓴다. 따로 나뉜 choice card나 inset 위 radio 행은 쓰지 않는다(초안 그리는 중 사람의 결정).
+17. 보내기 버튼 이름은 질문 수와 관계없이 `Send`다(초안 그리는 중 사람의 결정).
+18. 캔버스 툴바 Export 버튼의 이름과 tooltip은 `Export canvas`다(말줄임표 없음). docs/DESIGN.md 'Label ellipsis'의 macOS 말줄임표 규칙에서 이 툴바 아이콘 버튼만 예외다. 행 메뉴의 `Export…`는 그대로다(초안 그리는 중 사람의 결정).
+19. 질문 카드에는 header 칩을 두지 않는다. provider의 짧은 header는 접힌 줄(`Answered · <header>: <answer>`)과 질문 group의 접근 가능한 이름에만 쓴다(초안 그리는 중 사람의 결정).
+20. 질문 카드의 provider 로고는 제목 줄에만 두고, 질문·선택지·버튼·오류 줄은 로고 아래 카드 전체 폭을 쓴다(초안 그리는 중 사람의 결정).
+21. 질문 카드에는 "<Provider> needs your answer" 제목을 두지 않는다. 첫 질문 문장이 그 자리(로고 옆, 500)에 오고 나머지 질문 문장도 같은 굵기다(초안 그리는 중 사람의 결정).
+
+초안 `.doan/canvases/agent-questions.html`은 사람이 2026-11-05 앱에서 확인했다. `/design-sync`는 `in-context`를 뺀 frame을 비교한다.

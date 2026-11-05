@@ -27,8 +27,9 @@ P1–P5는 로그인한 provider 프로필과 실제 모델 호출이 필요하�
 
 ## U. UI 초안
 
-- [ ] U0. `/design-draft`로 새 초안 `.doan/canvases/agent-questions.html`을 그린다. 프레임: 쓰레드의 질문 카드(단일 선택, 여러 선택 + Other 입력, 질문 둘, 선택지 없는 글 답, secret 입력), Send 비활성 tooltip, 보내는 중, 보내기 실패 줄, 접힌 줄(답함·건너뜀·만료·secret), 280 px 패널, Overview의 같은 카드, 문제 workspace strip(질문 문장, Skip·Stop). 기존 초안은 고치지 않는다. 사람이 앱에서 확인한다.
+- [x] U0. `/design-draft`로 새 초안 `.doan/canvases/agent-questions.html`을 그린다. 프레임: 쓰레드의 질문 카드(단일 선택, 여러 선택 + Other 입력, 질문 둘, 선택지 없는 글 답, secret 입력), Send 비활성 tooltip, 보내는 중, 보내기 실패 줄, 접힌 줄(답함·건너뜀·만료·secret), 280 px 패널, Overview의 같은 카드, 문제 workspace strip(질문 문장, Skip·Stop). 기존 초안은 고치지 않는다. 사람이 앱에서 확인한다.
   - 검증: 설치된 `doan check --repo .`가 base와 같은 finding만 낸다, 사람의 확인.
+  - 결과: 초안의 frame은 `in-context`(맥락 보기, 비교 안 함), `question-card`, `keyboard`, `send-states`, `folded`, `with-permission`, `panel-280`, `overview`, `problem-strip`이다. 그리는 중 정한 것은 design '결정한 규칙' 16–21과 §7(입력 기본 크기, Send spinner)에 적었다. `doan check`는 base와 같은 13건(error 1건은 `select-inspect`의 기존 `implements_not_found`)이다. 사람이 앱에서 확인했다(2026-11-05).
 
 ── commit: `docs(design): draft agent questions` ──
 
@@ -70,9 +71,12 @@ P1–P5는 로그인한 provider 프로필과 실제 모델 호출이 필요하�
 ## C. UI
 
 - [ ] C1. `QuestionCard`와 접힌 줄(`ConversationThread.tsx`, `onAnswerQuestion` prop, `answerReached`의 거절 사유), host 두 곳의 preload 호출, 진입 스크롤·포커스(`CanvasConversationPanel.tsx`·`ProjectOverview.tsx`), `homeRun.ts`의 질문 갈래(design §6), strip(`ConversationStripView.tsx`의 Skip), 알림 배선(Approval requests 스위치). canvas-composer-polish가 먼저 들어가 있으면 질문 대기가 같은 root의 시작을 막지 않는지도 확인한다.
-  - 검증: `npm --prefix app test`(쓰레드 interaction 테스트: radio·checkbox 키보드, Other 입력과 IME 조합 중 Return, Send `aria-disabled`와 이유, 보내는 중 잠금, `stale`이면 오류 줄 없음, 그 밖의 실패 뒤 선택 유지, 보낸 뒤 포커스, `role="alert"`는 새 카드의 제목과 첫 문장만, 도착 때 포커스를 옮기지 않음; `ConversationStripView.test.tsx`: 질문 strip에 답 컨트롤 없이 Skip과 Stop만 있음, Skip 뒤 Stop 포커스; 다른 대화로 갔다 돌아온 뒤 고르던 답 유지; 진입 때 첫 선택지나 입력칸 포커스; canvas-composer-polish가 들어가 있으면 `homeRun` 테스트의 시작 판정), `npm --prefix app run typecheck`, `npm --prefix app run build`.
+  - 검증: `npm --prefix app test`(쓰레드 interaction 테스트: radio·checkbox 키보드, Other 입력과 IME 조합 중 Return, Send `aria-disabled`와 이유, 보내는 중 잠금, `stale`이면 오류 줄 없음, 그 밖의 실패 뒤 선택 유지, 보낸 뒤 포커스, `role="alert"`는 새 카드의 제목(첫 질문 문장)만, 도착 때 포커스를 옮기지 않음; `ConversationStripView.test.tsx`: 질문 strip에 답 컨트롤 없이 Skip과 Stop만 있음, Skip 뒤 Stop 포커스; 다른 대화로 갔다 돌아온 뒤 고르던 답 유지; 진입 때 첫 선택지나 입력칸 포커스; canvas-composer-polish가 들어가 있으면 `homeRun` 테스트의 시작 판정), `npm --prefix app run typecheck`, `npm --prefix app run build`.
 
-── commit: `feat: show agent questions in the conversation thread` ──
+- [ ] C2. 캔버스 툴바 Export 버튼의 `aria-label`과 tooltip을 `Export canvas`로 바꾼다(`CanvasTools.tsx`, spec 완료 조건 11). 이유 tooltip과 행 메뉴의 `Export…`는 그대로 둔다.
+  - 검증: `npm --prefix app test` — `CanvasTools.test.tsx`의 기대값(`aria-label`, tooltip 목록)을 먼저 `Export canvas`로 바꿔 red를 본 뒤 green, `ShellSidebar.interaction.test.tsx`의 행 메뉴 `Export…` 기대값은 그대로 통과.
+
+── commit: `feat: show agent questions in the conversation thread` / `fix: name the canvas toolbar Export button` ──
 
 ## D. 실제 앱 확인
 
@@ -90,6 +94,7 @@ P1–P5는 로그인한 provider 프로필과 실제 모델 호출이 필요하�
 - [ ] Z1. 결론을 현재 규칙으로 옮긴다(영문). 근거는 커밋 메시지에 둔다.
   - PRODUCT: §3 'Agent conversation foundation contract'('Resume and permissions'에 질문 전달, 'Events and ownership'에 재시작 뒤 질문 만료), §5 item 1('Project conversations'의 답 대기, Send now 조건), item 0 'Notifications'(질문 알림), item 2 'Conversation panel'·'Agent indicator'와 item 3 'Project Overview'(질문 카드, 첫 선택지 포커스), strip 규칙, P1·P2가 남긴 한계(질문을 볼 수 없는 모드, Codex 버전 조건), `isSecret` 답이 provider 자체 기록에 남을 수 있다는 한계. design '결정한 규칙' 열다섯 항목을 모두 반영한다.
   - ARCHITECTURE §7 'Agent conversation runtime and IPC': 'Events'에 `question.request`·`question.resolved`와 이전 빌드에서 손상으로 읽힘, 'Permissions and terminals'에 Claude `AskUserQuestion`과 Codex `item/tool/requestUserInput` 경로·빈 답 규칙, IPC `answerQuestion`, secret 답을 저장하지 않음.
+  - DESIGN.md: 'Label ellipsis'에 툴바 Export 버튼(`Export canvas`)의 예외, 'Canvas area' Tooltips 표의 Export "Export…"를 "Export canvas"로. PRODUCT §5 'Toolbar'의 "Export… exports the open canvas"를 툴바 버튼 이름에 맞게 고친다.
   - BACKLOG.md: P2에서 본 `serverRequest/resolved`가 있으면 그 항목, P6에서 구현하지 않기로 한 ACP provider의 질문과 막힌 PoC.
   - 그리고 `docs/features/agent-questions/`를 지운다.
   - 검증: `grep -n 'question.request' docs/ARCHITECTURE.md`에 줄이 있다, `grep -n -i 'question' docs/PRODUCT.md`에 질문 카드 규칙이 있다, BACKLOG에 적을 항목이 있었으면 `grep -n -i 'question' docs/BACKLOG.md`에 그 줄이 있다, `docs/features/agent-questions/`가 없다.
