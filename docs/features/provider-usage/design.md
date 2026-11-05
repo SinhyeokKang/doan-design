@@ -144,7 +144,7 @@ app(Electron + TS)만 바뀐다. CLI(Go)·skills·guide·`doan check`·공유 JS
 ## 결정할 점
 
 1. **provider 범위**: Claude(SDK usage), Codex(`account/rateLimits/read`), Copilot(`--headless --stdio`의 `account.getQuota`), Cursor(웹 API, 결정 3)를 구현한다. Antigravity는 `not_supported`다(U6, 사람의 결정: PoC U4에서 `agy`가 Doan 연결의 credential을 쓰지 않고 별도 Google 로그인을 요구했다).
-2. **읽는 때**: 앱 시작과 그 provider의 sign-in 뒤 한 번, 그 provider의 Doan 연결 대화 턴이 끝난 뒤(legacy external 턴은 아님), 자세한 내용(popover)을 열 때. 같은 provider는 마지막 조회에서 5분이 지나야 다시 읽는다. 예외: popover를 열 때 지난 한도 창이 있으면 간격과 관계없이 읽는다. 앱 창이 보일 때만 읽는다. 주기 polling은 하지 않는다.
+2. **읽는 때**: 앱 시작과 그 provider의 sign-in 뒤 한 번, 그 provider의 Doan 연결 대화 턴이 끝난 뒤(legacy external 턴은 아님), 자세한 내용(popover)을 열 때. 같은 provider는 마지막 조회에서 5분이 지나야 다시 읽는다. 예외: popover를 열 때 지난 한도 창이 있으면 간격과 관계없이 읽는다. 앱 창이 보일 때만 읽는다. 숨겨진 앱 창이 다시 보이면 앱 시작과 같은 규칙(5분 간격)으로 읽는다(사람). 주기 polling은 하지 않는다.
 3. **Cursor는 웹 API 하나로 읽는다.** ARCHITECTURE §7 'Agent authentication'의 토큰 예외(지금은 Antigravity identity)를 'Cursor usage 읽기'로만 넓힌다. U5가 고른 GET 엔드포인트 하나, host `cursor.com` 고정, 리다이렉트 거부, 응답 크기·시간 상한. 토큰은 lease로 잡은 작업 사본에서 main 메모리로만 읽고, 갱신하지 않는다(만료는 `read_failed`). 토큰을 저장·로그·IPC·오류 글에 넣지 않는다. 비공개 API라 모양이 다르거나 실패하면 `read_failed`. Claude는 SDK 조회가 있으므로 Orca의 토큰 직접 호출을 쓰지 않는다.
 4. **Antigravity는 읽지 않는다.** 고정 ACP 서버에 사용량 조회가 없고, 사람이 설치한 `agy`는 Doan 연결의 credential을 읽지 않고 별도 로그인을 요구하며 프로필에 파일을 남긴다(PoC U4). Doan은 `agy`를 쓰지 않는다.
 5. **쓸 수 없는 연결**(sign-in 만료, 확인 안 됨, CLI 버전 미달)은 링을 남기고(빈 링), 조회하지 않으며, popover 행에 Settings > Agents와 같은 원인 문구를 보인다.

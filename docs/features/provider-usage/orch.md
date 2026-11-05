@@ -23,13 +23,15 @@
 9. **preload 소유**: C(tasks C1 "preload 호출"). B는 main handler만 만든다.
 10. **lease 용도(`"usage"` 또는 `"listing"`)와 시간 제한 값**: B 담당 worker가 `/tdd`에서 정한다(design §2 "`/tdd`에서 정한다"). 지휘자 판단.
 11. **E1·E2는 worker, E3·Z1은 지휘자**: E1(`/design-sync`)은 구현을 고치므로 worker가 한다. E2는 보고만 하는 `/runtime-test`라 worker가 하고, sign-out·정리 승인은 지휘자를 거쳐 사람에게 묻는다. E3(`/verify`)와 Z1(문서 승격)은 지휘자 몫이다(orchestrate §4·§5).
+12. **쓸 수 없는 연결의 reauth 문구**: `UsageEntry.blocked`는 원인 코드만 담는다. B는 `readiness()`가 `reauth_required`이면서 auth phase가 `reauthRequired`가 아닌 연결(`state.ts:119` `unpinned`)을, A의 `blockedText`가 Settings > Agents와 같은 일반 문구("isn’t available right now")를 내는 원인 코드로 바꿔 담는다. 계약(결정 8)은 바뀌지 않는다. 지휘자 판단 — spec 완료 조건 3 "Settings > Agents와 같은 원인 문구"(RA 🟡2).
+13. **창이 다시 보일 때 읽기**: 숨겨진 앱 창이 다시 보이면 앱 시작과 같은 규칙(5분 간격)으로 읽는다. design 결정할 점 2에 더했다(사람).
 
 ## 배치
 
 | 배치 | tasks 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 gate | 상태 |
 |---|---|---|---|---|---|---|
-| A | A1, A2 | 새 `app/src/main/agentAuth/usage*.ts`(type-only 타입 모듈, provider 파서, `shouldRead`, `UsageStore`)와 테스트, 새 `app/src/renderer/agentUsage*.ts`(`ringValue`, `usageText`, 설명 글)와 테스트, `app/src/main/agentAuth/fixtures/*-usage.json`, `fixtures/README.md`, `app/src/renderer/rendererImports.test.ts`(필요할 때만) | — | Opus medium: 순수 함수지만 PoC 응답의 모양과 결정 4–7을 바르게 옮겨야 한다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 대기 |
-| RA | A 리뷰 | 보고만 | A | Sonnet high: 순수 함수 diff, 규칙 대조가 대부분 | `/code-review` 보고 | 대기 |
+| A | A1, A2 | 새 `app/src/main/agentAuth/usage*.ts`(type-only 타입 모듈, provider 파서, `shouldRead`, `UsageStore`)와 테스트, 새 `app/src/renderer/agentUsage*.ts`(`ringValue`, `usageText`, 설명 글)와 테스트, `app/src/main/agentAuth/fixtures/*-usage.json`, `fixtures/README.md`, `app/src/renderer/rendererImports.test.ts`(필요할 때만) | — | Opus medium: 순수 함수지만 PoC 응답의 모양과 결정 4–7을 바르게 옮겨야 한다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 통합 `3950f2de`·`4e507db3`·`514a534e`(round 1) |
+| RA | A 리뷰 | 보고만 | A | Sonnet high: 순수 함수 diff, 규칙 대조가 대부분 | `/code-review` 보고 | 🔴0 🟡3. 🟡1·3과 🟢1은 A-r1(Sonnet medium: 범위가 좁은 수정)이 고쳤고, 🟡2는 결정 12 |
 | B | B1, B2 | 새 `app/src/main/agentAuth/usageRead*.ts`·IPC 모듈과 테스트, `agentAuth/manager.ts`(+test), `main/index.ts`, `main/senderAllowed.ts`(+test), `main/conversation/*`(턴 끝 계기, 열린 runner 재사용) | A 통합 | Opus high: lease·sign-out·동시 조회 합치기·늦은 결과 버리기·Cursor 토큰 처리 — 틀리면 sign-in이 풀리거나 토큰이 샌다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 대기 |
 | C | C1 | `app/src/preload/index.ts`(+test), `app/src/renderer/` 새 링·popover 컴포넌트와 테스트, `App.tsx`(+App 테스트), `SettingsAgents.tsx`(원인 문구 공유가 필요할 때만), `tokens.css`, `styles.css`, `docs/DESIGN.md`, `.doan/canvases/design-system-canvases.html` | A 통합 | Opus high: 포커스·Esc 순서·접힘·실시간 행 변화 등 상호작용 규칙이 많고 모든 화면에 보인다 | `npm --prefix app test`, typecheck, `npm --prefix app run build` | 대기 |
 | RB | B 리뷰 | 보고만 | B | Opus high: 동시성·자격 증명 경계 | `/code-review` 보고 | 대기 |
@@ -49,4 +51,4 @@ tasks의 남은 항목(A1, A2, B1, B2, C1, E1, E2, E3, Z1)은 모두 한 배치�
 
 ## 진행
 
-(통합 hash, 리뷰 round, 검증 결과를 여기에 적는다.)
+- A: worker Opus medium(`ctx_1a09f55737df`) → RA Sonnet high(`ctx_55e6b6a6640a`, `.scratch/review-A.md`) → A-r1 Sonnet medium(`ctx_4479c451c70a`). 통합 hash는 배치 표에 있다. A-r1의 전체 테스트에서 1건이 실패했고 이름을 남기지 않았다. 통합 tree에서 다시 돌려 확인한다.
