@@ -1,0 +1,407 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="doan:canvas" content="canvas-capture"><meta name="doan:width" content="1600"><title>canvas-capture — Capture an area of the board into the composer</title><link rel="stylesheet" href="../../app/src/renderer/tokens.css"><link rel="stylesheet" href="../../app/src/renderer/ds/index.css"><link rel="stylesheet" href="../assets/ds-canvas.css"><link rel="stylesheet" href="../assets/mock.css"><style>
+/* ── Board layout for this canvas only ── */
+body{padding:var(--space-8);background:var(--surface-inset)}
+:where(svg){width:var(--size-icon);height:var(--size-icon);flex:none}
+.sr-only{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+code{font-size:var(--type-caption-size)}
+.intro{max-width:1120px;padding:var(--space-4) 0 var(--space-10)}
+.intro h1{font-size:var(--type-title-size);line-height:var(--type-title-line-height);letter-spacing:var(--type-title-letter-spacing);font-weight:var(--type-weight-medium)}
+.intro p{margin-top:var(--space-4);color:var(--text-subtle)}
+.intro ul{margin-top:var(--space-2);color:var(--text-subtle);list-style:disc;padding-left:var(--space-5)}
+.provisional{display:inline;padding:0 var(--space-1);border-radius:var(--radius-toolbar-icon);background:var(--affordance-warning);color:var(--text-warning)}
+.specimen+.specimen{margin-top:var(--space-12)}
+.caption{display:grid;grid-template-columns:var(--space-10) 1fr;gap:var(--space-1) var(--space-2);margin-bottom:var(--space-4);max-width:1120px}
+.caption>span{color:var(--text-metadata);padding-top:var(--space-1)}
+.caption h2{font-size:var(--type-body-size);line-height:var(--type-body-line-height);letter-spacing:var(--type-body-letter-spacing);font-weight:var(--type-weight-medium);display:flex;align-items:center;gap:var(--space-2)}
+.caption p{grid-column:2;color:var(--text-subtle)}
+.caption p+p{margin-top:var(--space-2)}
+.tiles{display:flex;flex-wrap:wrap;gap:var(--space-8);align-items:flex-start}
+.tile{display:grid;gap:var(--space-2);justify-items:start}
+.tile-label{color:var(--text-metadata);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing);max-width:520px}
+/* A plain slice of the canvas area, so the tools row, its hint and its tooltip read at 1:1. */
+.stage{position:relative;width:520px;height:200px;border-radius:var(--radius-container);background:var(--surface-inset);box-shadow:var(--shadow-panel);overflow:clip}
+/* A slice of the canvas conversation panel, for the docked composer alone. */
+.panel-slice{width:360px;padding:var(--space-10) var(--space-3) var(--space-3);border-radius:var(--radius-container);background:var(--surface-panel);box-shadow:var(--shadow-panel)}
+.toast-stage{position:relative;width:520px;height:120px;border-radius:var(--radius-container);background:var(--surface-panel);box-shadow:var(--shadow-panel)}
+.toast{position:absolute;right:var(--space-4);bottom:var(--space-4);z-index:6}
+/* The canvas page body at a 1238 × 780 window minus the shell (sidebar 220, gutters 8): 1002 wide; panel 347. */
+.page-stage{display:flex;width:1002px;height:620px;border-radius:var(--radius-container);overflow:clip;box-shadow:var(--shadow-panel);background:var(--surface-panel)}
+.page-canvas{flex:1;min-width:0;display:flex;flex-direction:column}
+.page-canvas>.area{flex:1;min-height:0;width:auto;height:auto;border-radius:0;box-shadow:none}
+/* Tooltips are portalled in the app (Radix, 4 above the trigger). Here they hang on the tools column, centred on their
+   button: 5 = the floating surface's 4 inset and 1 border; each tool is 40 wide, 2 apart. */
+.doan-canvas-bottom>.doan-tooltip{position:absolute;bottom:calc(100% + var(--space-1));width:max-content;transform:translateX(-50%)}
+.at-capture{left:calc(var(--space-1) + 1px + 3 * (var(--size-control) + var(--space-half)) + var(--size-control) / 2)}
+
+/* ── Restated from app/src/renderer/styles.css as shipped (d7137e85), which canvases cannot link ── */
+.area{position:relative;overflow:clip;background:var(--surface-inset);width:760px;height:460px;border-radius:var(--radius-container);box-shadow:var(--shadow-panel)}
+.overlay{position:absolute;inset:0;z-index:0;pointer-events:none}
+.mark{position:absolute;border:1px solid var(--border-focus);box-shadow:0 0 0 1px var(--surface-panel)}
+.dims{position:absolute;top:calc(100% + 5px);left:50%;transform:translateX(-50%);background:var(--affordance-prominent);color:var(--text-on-prominent);box-shadow:var(--shadow-sm);font:var(--type-weight-regular) var(--type-caption-size)/var(--type-caption-line-height) var(--type-family);letter-spacing:var(--type-caption-letter-spacing);padding:var(--space-1) var(--space-2);border-radius:calc((var(--type-caption-line-height) + 2 * var(--space-1)) / 2);white-space:nowrap}
+.ov-head{display:flex;align-items:center;gap:var(--space-2);min-width:0;min-height:var(--size-chrome);padding:var(--space-2) var(--space-4)}
+.ov-sep{flex:none;color:var(--text-metadata);font-size:var(--type-label-sm-size);line-height:var(--type-label-sm-line-height)}
+.doan-canvas-head{flex:none;background:var(--surface-panel)}
+.doan-canvas-name{display:inline-flex;align-items:center;gap:var(--space-1h);flex:none;max-width:40%;min-width:0;padding-left:var(--space-2);color:var(--text-subtle);font-size:var(--type-label-sm-size);line-height:var(--type-label-sm-line-height)}
+.doan-canvas-name span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ov-title-wrap{display:flex;min-width:0}
+.ov-title.doan-button{min-width:0;flex-shrink:1;gap:var(--space-1h);font-size:var(--type-label-sm-size);line-height:var(--type-label-sm-line-height);font-weight:var(--type-weight-medium)}
+.ov-title span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chev{width:var(--space-4);height:var(--space-4);color:var(--text-metadata)}
+.doan-canvas-head-tools{display:flex;align-items:center;gap:var(--space-1);flex:none;margin-left:auto}
+.doan-canvas-zoom{display:flex;align-items:center;gap:var(--space-half)}
+.doan-zoom-value{min-width:72px;gap:var(--space-1);font-variant-numeric:tabular-nums}
+.doan-canvas-head .doan-icon-button{color:var(--text-standard)}
+.doan-canvas-head-sep{flex:none;width:1px;height:var(--space-5);margin-inline:var(--space-1);background:var(--border-standard)}
+/* Canvas tools and the picking hint */
+.doan-canvas-bottom{position:absolute;z-index:3;bottom:var(--space-5);left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:var(--space-2);width:max-content;max-width:calc(100% - 2 * var(--space-3));pointer-events:none}
+.doan-canvas-bottom>*{pointer-events:auto}
+.doan-canvas-tools{display:flex;align-items:center;gap:var(--space-half)}
+.doan-canvas-tools .doan-icon-button{color:var(--text-standard)}
+.doan-canvas-tools>.doan-icon-button.doan-canvas-tool[aria-pressed="true"]:not(:disabled){background:var(--affordance-backdrop-pressed)}
+.doan-canvas-tools>.doan-icon-button.doan-canvas-tool[aria-disabled="true"]{color:var(--text-disabled)}
+.doan-canvas-tools-sep{flex:none;width:1px;height:var(--space-5);margin-inline:var(--space-1);background:var(--border-standard)}
+:is(.docked .composer-tray .composer-attach,.doan-canvas-tools>.doan-canvas-tool)[aria-disabled="true"]{cursor:not-allowed}
+.doan-agent{display:flex;align-items:center;gap:var(--space-2);max-width:100%;min-width:0;min-height:var(--size-control);padding:var(--space-1) var(--space-1) var(--space-1) var(--space-4);border-radius:var(--radius-pill);background:color-mix(in srgb,var(--affordance-prominent) 60%,transparent);-webkit-backdrop-filter:blur(var(--blur-md));backdrop-filter:blur(var(--blur-md));box-shadow:var(--shadow-sm);color:var(--text-on-prominent);pointer-events:auto}
+.doan-agent-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);letter-spacing:var(--type-body-sm-letter-spacing)}
+.doan-agent.doan-picking{padding-right:var(--space-2)}
+.doan-picking-icon{flex:none;width:var(--size-icon-sm);height:var(--size-icon-sm)}
+/* Composer card, chips, field and tray (docked) */
+.composer-card{display:flex;flex-direction:column;gap:var(--space-2);padding:var(--space-4) var(--space-3) var(--space-3) var(--space-4);border-radius:var(--radius-container);background:var(--surface-panel);box-shadow:var(--shadow-xs),0 0 0 1px var(--border-standard)}
+.composer-input{display:block;width:100%;min-height:calc(2 * var(--type-label-line-height));padding:0 var(--space-1) 0 0;position:relative;white-space:pre-wrap;overflow-wrap:anywhere;font-size:var(--type-label-size);line-height:var(--type-label-line-height);letter-spacing:var(--type-label-letter-spacing);color:var(--text-standard)}
+.composer-input[data-empty]::before{content:attr(aria-placeholder);position:absolute;inset-inline:0 var(--space-1);color:var(--text-metadata);pointer-events:none}
+.composer-tools{position:relative;display:flex;align-items:center;gap:var(--space-1);margin-left:calc(-1 * var(--space-1))}
+.composer-tools .grow{flex:1}
+.composer-tools>.doan-icon-button:not(.composer-send){color:var(--text-standard)}
+.composer-chips{display:flex;flex-wrap:wrap;gap:var(--space-1h)}
+.attach-chip{display:inline-flex;align-items:center;gap:var(--space-2);max-width:256px;min-width:0;border-radius:var(--radius-chip);background:var(--surface-inset);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);color:var(--text-standard);padding:var(--space-1)}
+.attach-chip .thumb{position:relative;width:var(--size-control-sm);height:var(--size-control-sm);flex:none;overflow:hidden;border-radius:calc(var(--radius-chip) - var(--space-1));background:var(--surface-panel)}
+.file-icon{display:grid;place-items:center;width:var(--size-control-sm);height:var(--size-control-sm);flex:none;border-radius:calc(var(--radius-chip) - var(--space-1));background:var(--surface-panel);color:var(--text-subtle)}
+.file-icon svg,.file-icon .doan-spinner{width:var(--size-icon);height:var(--size-icon)}
+.attach-text{display:flex;flex-direction:column;min-width:0}
+.attach-text b{font-weight:var(--type-weight-medium);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.attach-text small{font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing);color:var(--text-metadata)}
+.chip-remove.doan-icon-button{color:var(--text-metadata)}
+.composer-tray{position:relative;display:flex;align-items:center;gap:var(--space-3);min-height:var(--size-control);padding:var(--space-1) var(--space-4);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);color:var(--text-subtle)}
+.composer-tray :is(.doan-button) svg{width:var(--size-icon-sm);height:var(--size-icon-sm)}
+.composer-tray .doan-button .label{white-space:nowrap}
+.composer-agent,.composer-effort,.composer-permission{gap:var(--space-1h);font-weight:var(--type-weight-regular)}
+.composer-tray .doan-button{font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);font-weight:var(--type-weight-regular);color:var(--text-subtle)}
+.logo{width:var(--size-icon);height:var(--size-icon);object-fit:contain;flex:none}
+.docked{position:relative}
+.docked .composer-card{position:relative;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;column-gap:var(--space-1)}
+.docked .composer-tools{display:contents}
+.docked .composer-tools .grow{display:none}
+.docked .composer-presets{grid-area:presets}
+.docked .composer-send{grid-area:send}
+.docked .composer-chips{grid-area:chips}
+.docked .composer-input{grid-area:field;min-height:var(--type-label-line-height)}
+.docked[data-shape="box"] .composer-card{grid-template-areas:"field field field" "presets . send";row-gap:var(--space-2);padding:var(--space-4) var(--space-3) var(--space-3) var(--space-4)}
+.docked[data-shape="box"] .composer-card:has(.composer-chips){grid-template-areas:"chips chips chips" "field field field" "presets . send"}
+.docked[data-shape="box"] .composer-presets{margin-left:calc(-1 * var(--space-1))}
+.docked .composer-tray{justify-content:flex-end;gap:var(--space-1);min-height:var(--size-control-sm);padding:var(--space-1) var(--space-3) 0;container-type:inline-size}
+.docked .composer-tray .doan-button{margin-left:0}
+.docked .composer-tray .logo{width:var(--size-icon-sm);height:var(--size-icon-sm)}
+.docked .composer-tray .composer-agent{margin-left:auto;flex-shrink:1;min-width:0}
+.docked .composer-agent .label{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.docked .composer-tray :is(.composer-attach,.composer-pick){color:var(--text-subtle)}
+.docked .composer-tray .composer-attach[aria-disabled="true"]{color:var(--text-disabled)}
+@container (max-width:383px){.docked .composer-permission .label{display:none}}
+@container (max-width:287px){.docked .composer-effort .label{display:none}}
+/* Canvas conversation panel and thread */
+.ctx-panel{flex:none;width:347px;display:flex;flex-direction:column;border-left:1px solid var(--border-standard);background:var(--surface-panel)}
+.doan-conv-head{display:flex;align-items:center;min-height:var(--size-chrome);padding-right:var(--space-2)}
+.doan-conv-head .doan-icon-button{color:var(--text-standard)}
+.doan-conv-title{flex:1;min-width:0;display:flex;padding:var(--space-2) 0 var(--space-2) var(--space-2)}
+.ctx-scroll{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:flex-end;padding:var(--space-2) var(--space-4) var(--space-6)}
+.ctx-foot{flex:none;padding:var(--space-3)}
+.thread{display:flex;flex-direction:column;gap:var(--space-5)}
+.msg-user{align-self:flex-end;display:flex;flex-direction:column;align-items:flex-end;gap:var(--space-1h);max-width:92%;min-width:0}
+.bubble{padding:var(--space-2) var(--space-4);border-radius:var(--radius-row);background:var(--surface-accent-subtle);color:var(--text-standard);font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);letter-spacing:var(--type-body-sm-letter-spacing);white-space:pre-wrap;overflow-wrap:anywhere;min-width:0}
+.msg-files{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:var(--space-1h)}
+.msg-files .attach-chip{gap:var(--space-3);padding:var(--space-1h) var(--space-4) var(--space-1h) var(--space-1h)}
+.msg-agent p{font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);letter-spacing:var(--type-body-sm-letter-spacing)}
+
+/* ── New, not in code ── */
+/* The capture layer: transparent, in the drag layer's place (over the board, the iframe and the marks; under the agent
+   glow, the notices, the status and the tools), so Stop, Open, Reload and the tools stay clickable. It sets the
+   crosshair cursor; the app draws nothing else on it. */
+.capture-layer{position:absolute;inset:0;z-index:0;cursor:crosshair}
+/* The capture marquee, in screen px inside the area: the selection mark's line (1px --border-focus with a 1px white
+   outer line, so it holds on any canvas colour) over the backdrop-hover fill. No size readout. Hidden during the
+   snapshot like every app mark. */
+.capture-marquee{position:absolute;border:1px solid var(--border-focus);box-shadow:0 0 0 1px var(--surface-panel);background:var(--affordance-backdrop-hover);pointer-events:none}
+
+/* ── Illustration only: the OS cursor, which a static draft cannot show ── */
+.cursor-ill{position:absolute;z-index:5;width:var(--space-6);height:var(--space-6);color:var(--text-standard);pointer-events:none}
+.cursor-ill path{stroke:var(--surface-panel);stroke-width:4;stroke-linecap:round;fill:none}
+.cursor-ill path+path{stroke:currentColor;stroke-width:1.5}
+.cursor-tag,.layer-tag{position:absolute;z-index:5}
+.layer-tag{left:var(--space-4);bottom:var(--space-4)}
+
+/* ── The board's example canvas and capture thumbnails (mock colours) ── */
+.board{position:absolute;left:56px;top:64px;display:flex;gap:var(--space-8)}
+.mock-frame{width:300px;background:var(--mock-bg);color:var(--mock-ink);border-radius:var(--radius-row);box-shadow:var(--shadow-panel);padding:var(--space-6);display:grid;gap:var(--space-4)}
+.mock-frame h3{font-size:var(--type-heading-size);line-height:var(--type-heading-line-height);font-weight:var(--type-weight-medium)}
+.mock-frame p{color:var(--mock-ink-2)}
+.mock-cards{display:grid;grid-template-columns:repeat(2,1fr);gap:var(--space-3)}
+.mock-card{height:72px;border-radius:var(--radius-row);background:var(--mock-fill);border:1px solid var(--mock-line)}
+.mock-cta{justify-self:start;padding:var(--space-2) var(--space-4);border-radius:var(--radius-row);background:var(--mock-brand);color:var(--mock-brand-ink)}
+.thumb-mock{position:absolute;inset:0;background:var(--mock-bg)}
+.thumb-mock::before{content:"";position:absolute;left:4px;top:5px;width:16px;height:3px;border-radius:2px;background:var(--mock-ink)}
+.thumb-mock::after{content:"";position:absolute;left:4px;bottom:5px;width:12px;height:6px;border-radius:2px;background:var(--mock-brand)}
+</style></head><body><svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<symbol id="i-select" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"/></symbol>
+<symbol id="i-hand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/><path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></symbol>
+<symbol id="i-pick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="22" x2="18" y1="12" y2="12"/><line x1="6" x2="2" y1="12" y2="12"/><line x1="12" x2="12" y1="6" y2="2"/><line x1="12" x2="12" y1="22" y2="18"/></symbol>
+<symbol id="i-scan" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/></symbol>
+<symbol id="i-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+<symbol id="i-minus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></symbol>
+<symbol id="i-presets" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3H8"/><path d="m15.007 5.008 3.987 3.986"/><path d="M20 15v4"/><path d="M21.174 6.813a2.82 2.82 0 0 0-3.986-3.987L3.842 16.175a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="M22 17h-4"/><path d="M4 5v4"/><path d="M6 7H2"/><path d="M9 2v2"/></symbol>
+<symbol id="i-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></symbol>
+<symbol id="i-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></symbol>
+<symbol id="i-gauge" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></symbol>
+<symbol id="i-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+<symbol id="i-file" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></symbol>
+<symbol id="i-panels" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></symbol>
+<symbol id="i-reload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></symbol>
+<symbol id="i-panel-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M15 3v18"/><path d="m10 15-3-3 3-3"/></symbol>
+<symbol id="i-panel-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M15 3v18"/><path d="m8 9 3 3-3 3"/></symbol>
+</svg>
+
+<header class="intro"><span class="doan-chip">canvas-capture · draft for review · 8 frames</span><h1>Capture an area of the board into the canvas conversation composer.</h1>
+<p>Scope: <code>docs/features/canvas-capture/</code> (spec completion conditions 1–8, design §2–§4, tasks D1). The canvas page, its tools row and the docked composer are on main; this draft is a new file and no existing draft is edited. Every frame below is new and <code>/design-sync</code> (task F2) compares all eight: <code>toolbar-default</code>, <code>toolbar-capturing</code>, <code>toolbar-unavailable</code>, <code>board-ready</code>, <code>board-drag</code>, <code>panel-folded</code>, <code>composer-chips</code>, <code>capture-failed</code>.</p>
+<ul>
+<li>New, not in code: the Capture area button (fourth in the tools row, before the divider; lucide <code>Scan</code>), its pressed and unavailable states, the capture hint above the row, the capture layer (crosshair), the marquee, the “Canvas capture” composer chip, the capture failure toast. Each frame's chip says what in it is new.</li>
+<li><span class="provisional">Provisional — needs confirmation</span>: the icon (lucide <code>Scan</code>), the hint copy “Drag to capture an area”, the marquee look (selection-mark line over the backdrop-hover fill), no size readout while dragging, and the unavailable reason “Capture area isn’t available while the canvas can’t be shown.”. Whether capture also gets an app menu-bar item (as Edit &gt; Pick from Canvas) is not decided and not drawn.</li>
+<li>Copied as shipped (d7137e85, restated because canvases cannot link <code>styles.css</code>): the tools row, pressed and unavailable looks, divider and Export (<code>CanvasTools.tsx</code>); the picking hint, whose look the capture hint reuses (<code>App.tsx</code>); the selection mark (<code>styles.css</code> <code>.mark</code>); the canvas header (<code>CanvasHeader.tsx</code>); the docked composer, its chips and tray (<code>DockedComposer.tsx</code>, <code>ComposerParts.tsx</code>); the thread's sent file chip (<code>ConversationThread.tsx</code>); the toast (<code>ds/surfaces.css</code>). Tokens and primitives are linked from <code>app/src/renderer/</code>; the example canvas and thumbnails use <code>.doan/assets/mock.css</code>.</li>
+<li>Not drawn: the snapshot itself (app marks, the tools row, notices and toasts go to <code>opacity: 0</code> for the round trip; PoC C1 measures whether it flickers), the zoom menu over capture mode (as today), Home and Overview (no capture there).</li>
+<li>Copy: “Capture area”, “Canvas capture”, “Remove canvas capture”, “Couldn’t capture the canvas. Try again.” and “Only 10 files can be attached. Remove one to add another.” are from the feature documents; “Files can’t be attached to a terminal session”, the duplicate-ID reason, the 50 MB and left-out lines are the app's today. Messages, names and sizes are examples.</li>
+<li>References: the corner-bracket icon and crosshair drag follow the macOS screenshot area tool (⌘⇧4, recalled from memory, not checked in this session). Everything else follows this repo's shipped Picker (checked in code).</li>
+</ul></header>
+
+<!-- ═══════════ 01 toolbar-default ═══════════ -->
+<section class="specimen" data-doan-frame="toolbar-default" data-doan-title="Tools row · Capture area" data-doan-implements="app/src/renderer/CanvasTools.tsx"><div class="caption"><span>01</span><h2>Tools row · Select, Hand, Picker, Capture area | Export <span class="doan-chip" data-ui-variant="translucent">Capture area new, not in code</span></h2><p>Capture area sits after Picker and before the divider (design decision 9): a 40 px <code>md</code> icon button like the others, lucide <code>Scan</code>. It is a mode like Picker, not a tool that stays: <code>aria-pressed</code> is true only during capture mode. Its tooltip is the name alone, with no key (design decision 5: no shortcut). ←/→ walk all five buttons; the pressed tool keeps the row's one Tab stop.</p></div>
+<div class="tiles">
+<div class="tile"><div class="stage">
+<div class="doan-canvas-bottom">
+<div class="doan-tooltip at-capture" role="tooltip" data-doan-id="tip-capture">Capture area</div>
+<div class="doan-floating doan-canvas-tools" role="toolbar" aria-label="Canvas tools" data-doan-id="tools">
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="true" aria-label="Select" aria-keyshortcuts="V" tabindex="0" data-doan-id="tool-select"><svg aria-hidden="true"><use href="#i-select"/></svg></button>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="false" aria-label="Hand" aria-keyshortcuts="H" tabindex="-1" data-doan-id="tool-hand"><svg aria-hidden="true"><use href="#i-hand"/></svg></button>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="false" aria-label="Pick from canvas" aria-keyshortcuts="Meta+L" tabindex="-1" data-doan-id="tool-picker"><svg aria-hidden="true"><use href="#i-pick"/></svg></button>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="false" aria-label="Capture area" tabindex="-1" data-doan-id="tool-capture"><svg aria-hidden="true"><use href="#i-scan"/></svg></button>
+<span class="doan-canvas-tools-sep" role="separator" aria-orientation="vertical"></span>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-label="Export canvas" tabindex="-1" data-doan-id="tool-export"><svg aria-hidden="true"><use href="#i-download"/></svg></button>
+</div></div></div><span class="tile-label">Select pressed · tooltip on Capture area</span></div>
+</div></section>
+
+<!-- ═══════════ 02 toolbar-capturing ═══════════ -->
+<section class="specimen" data-doan-frame="toolbar-capturing" data-doan-title="Tools row · capture mode" data-doan-implements="app/src/renderer/CanvasTools.tsx"><div class="caption"><span>02</span><h2>Tools row · capture mode <span class="doan-chip" data-ui-variant="translucent">New, not in code</span></h2><p>Only Capture area shows pressed and holds the Tab stop; Select and Hand are <code>aria-pressed="false"</code> whichever was pressed before. The hint sits 8 above the row in the picking hint's look: <code>role="status"</code>, the button's icon at 14, one line of text, the Esc key and an <code>sr-only</code> “Press Escape to cancel”. <span class="provisional">Provisional</span> copy: “Drag to capture an area”.</p><p>Capture area again or Esc ends capture mode with nothing added; Select or Hand ends it and switches to that tool; starting a pick ends it. A capture that lands, or a cancel, presses the tool from before again (Hand in the second tile). V, H and Space do nothing in capture mode.</p></div>
+<div class="tiles">
+<div class="tile"><div class="stage">
+<div class="doan-canvas-bottom">
+<div class="doan-agent doan-picking" role="status" data-doan-id="capture-hint"><svg class="doan-picking-icon" aria-hidden="true"><use href="#i-scan"/></svg><span class="doan-agent-text">Drag to capture an area</span><span class="doan-kbd" data-ui-variant="on-prominent" aria-hidden="true">Esc</span><span class="sr-only">Press Escape to cancel</span></div>
+<div class="doan-floating doan-canvas-tools" role="toolbar" aria-label="Canvas tools">
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="false" aria-label="Select" aria-keyshortcuts="V" tabindex="-1" data-doan-id="capturing-select"><svg aria-hidden="true"><use href="#i-select"/></svg></button>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="false" aria-label="Hand" aria-keyshortcuts="H" tabindex="-1" data-doan-id="capturing-hand"><svg aria-hidden="true"><use href="#i-hand"/></svg></button>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="false" aria-label="Pick from canvas" aria-keyshortcuts="Meta+L" tabindex="-1" data-doan-id="capturing-picker"><svg aria-hidden="true"><use href="#i-pick"/></svg></button>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="true" aria-label="Capture area" tabindex="0" data-doan-id="capturing-capture"><svg aria-hidden="true"><use href="#i-scan"/></svg></button>
+<span class="doan-canvas-tools-sep" role="separator" aria-orientation="vertical"></span>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-label="Export canvas" tabindex="-1"><svg aria-hidden="true"><use href="#i-download"/></svg></button>
+</div></div></div><span class="tile-label">Capture mode · only Capture area pressed · hint above the row</span></div>
+<div class="tile"><div class="stage">
+<div class="doan-canvas-bottom">
+<div class="doan-floating doan-canvas-tools" role="toolbar" aria-label="Canvas tools">
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="false" aria-label="Select" aria-keyshortcuts="V" tabindex="-1"><svg aria-hidden="true"><use href="#i-select"/></svg></button>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="true" aria-label="Hand" aria-keyshortcuts="H" tabindex="0" data-doan-id="after-hand"><svg aria-hidden="true"><use href="#i-hand"/></svg></button>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="false" aria-label="Pick from canvas" aria-keyshortcuts="Meta+L" tabindex="-1"><svg aria-hidden="true"><use href="#i-pick"/></svg></button>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="false" aria-label="Capture area" tabindex="-1" data-doan-id="after-capture"><svg aria-hidden="true"><use href="#i-scan"/></svg></button>
+<span class="doan-canvas-tools-sep" role="separator" aria-orientation="vertical"></span>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-label="Export canvas" tabindex="-1"><svg aria-hidden="true"><use href="#i-download"/></svg></button>
+</div></div></div><span class="tile-label">Started from Hand · after the capture lands or Esc · Hand pressed again, no hint</span></div>
+</div></section>
+
+<!-- ═══════════ 03 toolbar-unavailable ═══════════ -->
+<section class="specimen" data-doan-frame="toolbar-unavailable" data-doan-title="Tools row · Capture area unavailable" data-doan-implements="app/src/renderer/CanvasTools.tsx"><div class="caption"><span>03</span><h2>Tools row · Capture area unavailable <span class="doan-chip" data-ui-variant="translucent">New, not in code</span></h2><p>Unavailable as Export is: <code>aria-disabled</code> (never <code>disabled</code>), the disabled ink, the not-allowed cursor, no hover or pressed fill, still reached by ←/→, the reason in the tooltip and in an <code>sr-only</code> sibling it names with <code>aria-describedby</code>. One reason shows, first match wins: the canvas can't be shown (loading, failed, no width, not a listed canvas, project problem, or the app does not know the panel's composer) → the composer takes no input (its own reason line) → the conversation continues a terminal session or is a legacy external one (Attach's reason, design decision 4) → 10 files attached. While the page is locked the button looks usable and does nothing.</p><p><span class="provisional">Provisional</span> copy for the first reason: “Capture area isn’t available while the canvas can’t be shown.”, the Picker's sentence with this tool's name.</p></div>
+<div class="tiles">
+<div class="tile"><div class="stage">
+<div class="doan-canvas-bottom">
+<div class="doan-tooltip at-capture" role="tooltip" data-doan-id="tip-capture-canvas">Capture area isn’t available while the canvas can’t be shown.</div>
+<div class="doan-floating doan-canvas-tools" role="toolbar" aria-label="Canvas tools">
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="true" aria-label="Select" aria-keyshortcuts="V" tabindex="0"><svg aria-hidden="true"><use href="#i-select"/></svg></button>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="false" aria-label="Hand" aria-keyshortcuts="H" tabindex="-1"><svg aria-hidden="true"><use href="#i-hand"/></svg></button>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="false" aria-label="Pick from canvas" aria-keyshortcuts="Meta+L" aria-disabled="true" tabindex="-1"><svg aria-hidden="true"><use href="#i-pick"/></svg></button>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="false" aria-label="Capture area" aria-disabled="true" aria-describedby="why-capture-1" tabindex="-1" data-doan-id="capture-unavailable-canvas"><svg aria-hidden="true"><use href="#i-scan"/></svg></button><span class="sr-only" id="why-capture-1">Capture area isn’t available while the canvas can’t be shown.</span>
+<span class="doan-canvas-tools-sep" role="separator" aria-orientation="vertical"></span>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-label="Export canvas" tabindex="-1"><svg aria-hidden="true"><use href="#i-download"/></svg></button>
+</div></div></div><span class="tile-label">Canvas failed to load · Picker and Capture area unavailable</span></div>
+<div class="tile"><div class="stage">
+<div class="doan-canvas-bottom">
+<div class="doan-tooltip at-capture" role="tooltip" data-doan-id="tip-capture-blocked">Another canvas has the same ID, so this conversation can’t continue. Run doan check in a terminal to find it.</div>
+<div class="doan-floating doan-canvas-tools" role="toolbar" aria-label="Canvas tools">
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="true" aria-label="Select" aria-keyshortcuts="V" tabindex="0"><svg aria-hidden="true"><use href="#i-select"/></svg></button>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="false" aria-label="Hand" aria-keyshortcuts="H" tabindex="-1"><svg aria-hidden="true"><use href="#i-hand"/></svg></button>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="false" aria-label="Pick from canvas" aria-keyshortcuts="Meta+L" aria-disabled="true" tabindex="-1"><svg aria-hidden="true"><use href="#i-pick"/></svg></button>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="false" aria-label="Capture area" aria-disabled="true" aria-describedby="why-capture-2" tabindex="-1" data-doan-id="capture-unavailable-blocked"><svg aria-hidden="true"><use href="#i-scan"/></svg></button><span class="sr-only" id="why-capture-2">Another canvas has the same ID, so this conversation can’t continue. Run doan check in a terminal to find it.</span>
+<span class="doan-canvas-tools-sep" role="separator" aria-orientation="vertical"></span>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-label="Export canvas" tabindex="-1"><svg aria-hidden="true"><use href="#i-download"/></svg></button>
+</div></div></div><span class="tile-label">Composer takes no input · its reason line, as the Picker shows</span></div>
+<div class="tile"><div class="stage">
+<div class="doan-canvas-bottom">
+<div class="doan-tooltip at-capture" role="tooltip" data-doan-id="tip-capture-terminal">Files can’t be attached to a terminal session</div>
+<div class="doan-floating doan-canvas-tools" role="toolbar" aria-label="Canvas tools">
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="true" aria-label="Select" aria-keyshortcuts="V" tabindex="0"><svg aria-hidden="true"><use href="#i-select"/></svg></button>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="false" aria-label="Hand" aria-keyshortcuts="H" tabindex="-1"><svg aria-hidden="true"><use href="#i-hand"/></svg></button>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="false" aria-label="Pick from canvas" aria-keyshortcuts="Meta+L" tabindex="-1"><svg aria-hidden="true"><use href="#i-pick"/></svg></button>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="false" aria-label="Capture area" aria-disabled="true" aria-describedby="why-capture-3" tabindex="-1" data-doan-id="capture-unavailable-terminal"><svg aria-hidden="true"><use href="#i-scan"/></svg></button><span class="sr-only" id="why-capture-3">Files can’t be attached to a terminal session</span>
+<span class="doan-canvas-tools-sep" role="separator" aria-orientation="vertical"></span>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-label="Export canvas" tabindex="-1"><svg aria-hidden="true"><use href="#i-download"/></svg></button>
+</div></div></div><span class="tile-label">Terminal session or legacy external conversation · Attach's reason</span></div>
+<div class="tile"><div class="stage">
+<div class="doan-canvas-bottom">
+<div class="doan-tooltip at-capture" role="tooltip" data-doan-id="tip-capture-limit">Only 10 files can be attached. Remove one to add another.</div>
+<div class="doan-floating doan-canvas-tools" role="toolbar" aria-label="Canvas tools">
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="true" aria-label="Select" aria-keyshortcuts="V" tabindex="0"><svg aria-hidden="true"><use href="#i-select"/></svg></button>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="false" aria-label="Hand" aria-keyshortcuts="H" tabindex="-1"><svg aria-hidden="true"><use href="#i-hand"/></svg></button>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="false" aria-label="Pick from canvas" aria-keyshortcuts="Meta+L" tabindex="-1"><svg aria-hidden="true"><use href="#i-pick"/></svg></button>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="false" aria-label="Capture area" aria-disabled="true" aria-describedby="why-capture-4" tabindex="-1" data-doan-id="capture-unavailable-limit"><svg aria-hidden="true"><use href="#i-scan"/></svg></button><span class="sr-only" id="why-capture-4">Only 10 files can be attached. Remove one to add another.</span>
+<span class="doan-canvas-tools-sep" role="separator" aria-orientation="vertical"></span>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-label="Export canvas" tabindex="-1"><svg aria-hidden="true"><use href="#i-download"/></svg></button>
+</div></div></div><span class="tile-label">10 files already attached (the draft is in frame composer-chips)</span></div>
+</div></section>
+
+<!-- ═══════════ 04 board-ready ═══════════ -->
+<section class="specimen" data-doan-frame="board-ready" data-doan-title="Board · capture mode, before the drag" data-doan-implements="app/src/renderer/App.tsx"><div class="caption"><span>04</span><h2>Board · capture mode, before the drag <span class="doan-chip" data-ui-variant="translucent">New, not in code</span></h2><p>The capture layer covers the board in the drag layer's place, so the pointer is a crosshair over frames and margins alike, and a click selects nothing. The hover mark goes away when the layer comes up (<code>hover-leave</code>); the selection mark stays, unchanged. The agent notice, the canvas notices, the status and the tools row sit above the layer and stay clickable. Wheel pans and ⌘/Ctrl-wheel zooms. A click or a drag under 8 CSS px adds nothing and capture mode goes on.</p></div>
+<div class="tiles">
+<div class="tile"><section class="area" aria-label="Canvas">
+<div class="board"><div class="mock-frame"><h3>Weekly report</h3><p>Three numbers that moved this week.</p><div class="mock-cards"><div class="mock-card"></div><div class="mock-card"></div></div><span class="mock-cta">Open report</span></div><div class="mock-frame"><h3>Next steps</h3><p>One owner per step, due Friday.</p><div class="mock-cards"><div class="mock-card"></div><div class="mock-card"></div></div><span class="mock-cta">Assign</span></div></div>
+<div class="overlay"><div class="mark" style="left:80px;top:184px;width:120px;height:72px"><span class="dims">120 × 72</span></div></div>
+<div class="capture-layer" aria-hidden="true" data-doan-id="capture-layer"></div>
+<div class="doan-canvas-bottom">
+<div class="doan-agent doan-picking" role="status"><svg class="doan-picking-icon" aria-hidden="true"><use href="#i-scan"/></svg><span class="doan-agent-text">Drag to capture an area</span><span class="doan-kbd" data-ui-variant="on-prominent" aria-hidden="true">Esc</span><span class="sr-only">Press Escape to cancel</span></div>
+<div class="doan-floating doan-canvas-tools" role="toolbar" aria-label="Canvas tools">
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="false" aria-label="Select" tabindex="-1"><svg aria-hidden="true"><use href="#i-select"/></svg></button>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="false" aria-label="Hand" tabindex="-1"><svg aria-hidden="true"><use href="#i-hand"/></svg></button>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="false" aria-label="Pick from canvas" tabindex="-1"><svg aria-hidden="true"><use href="#i-pick"/></svg></button>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="true" aria-label="Capture area" tabindex="0"><svg aria-hidden="true"><use href="#i-scan"/></svg></button>
+<span class="doan-canvas-tools-sep" role="separator" aria-orientation="vertical"></span>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-label="Export canvas" tabindex="-1"><svg aria-hidden="true"><use href="#i-download"/></svg></button>
+</div></div>
+<svg class="cursor-ill" style="left:388px;top:120px" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v20M2 12h20"/><path d="M12 2v20M2 12h20"/></svg>
+<span class="doan-chip cursor-tag" data-ui-variant="translucent" style="left:416px;top:142px">cursor: crosshair (illustration)</span>
+<span class="doan-chip layer-tag" data-ui-variant="translucent">capture layer (transparent; the label is the draft's only)</span>
+</section><span class="tile-label">Capture mode · crosshair over a frame · selection kept · no hover mark</span></div>
+</div></section>
+
+<!-- ═══════════ 05 board-drag ═══════════ -->
+<section class="specimen" data-doan-frame="board-drag" data-doan-title="Board · dragging the capture area" data-doan-implements="app/src/renderer/App.tsx"><div class="caption"><span>05</span><h2>Board · dragging the capture area <span class="doan-chip" data-ui-variant="translucent">New, not in code</span></h2><p>A primary-button drag draws the marquee from the press point to the pointer, in either direction, clipped to the area. <span class="provisional">Provisional</span>: the marquee is the selection mark's line (1px <code>--border-focus</code> with a 1px white outer line, so it holds on any canvas colour) over the <code>--affordance-backdrop-hover</code> fill; there is no size readout. It may span frames and the board margin. Releasing takes the pixels under it as shown (zoom × screen scale), without any app mark, the marquee, the tools row, notices or toasts; capture mode ends at once and the previous tool is pressed again. Wheel panning during the drag moves the canvas under a fixed marquee. <code>pointercancel</code>, a lost pointer capture or the app losing focus drop the drag only; capture mode stays.</p></div>
+<div class="tiles">
+<div class="tile"><section class="area" aria-label="Canvas">
+<div class="board"><div class="mock-frame"><h3>Weekly report</h3><p>Three numbers that moved this week.</p><div class="mock-cards"><div class="mock-card"></div><div class="mock-card"></div></div><span class="mock-cta">Open report</span></div><div class="mock-frame"><h3>Next steps</h3><p>One owner per step, due Friday.</p><div class="mock-cards"><div class="mock-card"></div><div class="mock-card"></div></div><span class="mock-cta">Assign</span></div></div>
+<div class="overlay"><div class="mark" style="left:80px;top:184px;width:120px;height:72px"></div></div>
+<div class="capture-layer" aria-hidden="true"><div class="capture-marquee" style="left:220px;top:96px;width:300px;height:196px" data-doan-id="capture-marquee"></div></div>
+<div class="doan-canvas-bottom">
+<div class="doan-agent doan-picking" role="status"><svg class="doan-picking-icon" aria-hidden="true"><use href="#i-scan"/></svg><span class="doan-agent-text">Drag to capture an area</span><span class="doan-kbd" data-ui-variant="on-prominent" aria-hidden="true">Esc</span><span class="sr-only">Press Escape to cancel</span></div>
+<div class="doan-floating doan-canvas-tools" role="toolbar" aria-label="Canvas tools">
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="false" aria-label="Select" tabindex="-1"><svg aria-hidden="true"><use href="#i-select"/></svg></button>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="false" aria-label="Hand" tabindex="-1"><svg aria-hidden="true"><use href="#i-hand"/></svg></button>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="false" aria-label="Pick from canvas" tabindex="-1"><svg aria-hidden="true"><use href="#i-pick"/></svg></button>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="true" aria-label="Capture area" tabindex="0"><svg aria-hidden="true"><use href="#i-scan"/></svg></button>
+<span class="doan-canvas-tools-sep" role="separator" aria-orientation="vertical"></span>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-label="Export canvas" tabindex="-1"><svg aria-hidden="true"><use href="#i-download"/></svg></button>
+</div></div>
+<svg class="cursor-ill" style="left:508px;top:280px" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v20M2 12h20"/><path d="M12 2v20M2 12h20"/></svg>
+<span class="doan-chip cursor-tag" data-ui-variant="translucent" style="left:540px;top:304px">dragging from top left (illustration)</span>
+</section><span class="tile-label">Dragging across two frames and the margin · selection mark stays, hidden only in the image</span></div>
+</div></section>
+
+<!-- ═══════════ 06 panel-folded ═══════════ -->
+<section class="specimen" data-doan-frame="panel-folded" data-doan-title="Canvas page · capture with the panel folded" data-doan-implements="app/src/renderer/App.tsx"><div class="caption"><span>06</span><h2>Canvas page · capture with the panel folded <span class="doan-chip" data-ui-variant="translucent">New, not in code</span></h2><p>Starting capture mode does not unfold the panel, so the board keeps its width while the area is chosen (design decision 10, unlike the Picker). On release the panel unfolds, the “Canvas capture” chip lands in the composer's draft as Checking, and focus moves to the composer. Progress shows only on the chip; the board shows nothing.</p></div>
+<div class="tiles">
+<div class="tile"><div class="page-stage"><div class="page-canvas">
+<header class="ov-head doan-canvas-head"><span class="doan-canvas-name"><svg aria-hidden="true"><use href="#i-panels"/></svg><span>Weekly report</span></span><span class="ov-sep" aria-hidden="true">/</span><span class="ov-title-wrap"><button type="button" class="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger"><span>Overview</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button></span>
+<div class="doan-canvas-head-tools"><span class="doan-canvas-zoom"><button type="button" class="doan-icon-button" aria-label="Zoom out"><svg aria-hidden="true"><use href="#i-minus"/></svg></button><button type="button" class="doan-button doan-zoom-value" data-ui-variant="trigger" data-ui-size="sm">100%<svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button><button type="button" class="doan-icon-button" aria-label="Zoom in"><svg aria-hidden="true"><use href="#i-plus"/></svg></button></span><button type="button" class="doan-icon-button" aria-label="Reload canvas"><svg aria-hidden="true"><use href="#i-reload"/></svg></button><span class="doan-canvas-head-sep" aria-hidden="true"></span><button type="button" class="doan-icon-button doan-panel-show" aria-label="Show conversation" aria-expanded="false"><svg aria-hidden="true"><use href="#i-panel-open"/></svg></button></div></header>
+<section class="area" aria-label="Canvas">
+<div class="board" style="left:120px;top:96px"><div class="mock-frame"><h3>Weekly report</h3><p>Three numbers that moved this week.</p><div class="mock-cards"><div class="mock-card"></div><div class="mock-card"></div></div><span class="mock-cta">Open report</span></div><div class="mock-frame"><h3>Next steps</h3><p>One owner per step, due Friday.</p><div class="mock-cards"><div class="mock-card"></div><div class="mock-card"></div></div><span class="mock-cta">Assign</span></div></div>
+<div class="overlay"></div>
+<div class="capture-layer" aria-hidden="true"><div class="capture-marquee" style="left:100px;top:76px;width:372px;height:240px"></div></div>
+<div class="doan-canvas-bottom">
+<div class="doan-agent doan-picking" role="status"><svg class="doan-picking-icon" aria-hidden="true"><use href="#i-scan"/></svg><span class="doan-agent-text">Drag to capture an area</span><span class="doan-kbd" data-ui-variant="on-prominent" aria-hidden="true">Esc</span><span class="sr-only">Press Escape to cancel</span></div>
+<div class="doan-floating doan-canvas-tools" role="toolbar" aria-label="Canvas tools">
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="false" aria-label="Select" tabindex="-1"><svg aria-hidden="true"><use href="#i-select"/></svg></button>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="false" aria-label="Hand" tabindex="-1"><svg aria-hidden="true"><use href="#i-hand"/></svg></button>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="false" aria-label="Pick from canvas" tabindex="-1"><svg aria-hidden="true"><use href="#i-pick"/></svg></button>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="true" aria-label="Capture area" tabindex="0"><svg aria-hidden="true"><use href="#i-scan"/></svg></button>
+<span class="doan-canvas-tools-sep" role="separator" aria-orientation="vertical"></span>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-label="Export canvas" tabindex="-1"><svg aria-hidden="true"><use href="#i-download"/></svg></button>
+</div></div>
+</section></div></div><span class="tile-label">1 · panel folded · dragging · the board keeps its full width</span></div>
+
+<div class="tile"><div class="page-stage"><div class="page-canvas">
+<header class="ov-head doan-canvas-head"><span class="doan-canvas-name"><svg aria-hidden="true"><use href="#i-panels"/></svg><span>Weekly report</span></span><span class="ov-sep" aria-hidden="true">/</span><span class="ov-title-wrap"><button type="button" class="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger"><span>Overview</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button></span>
+<div class="doan-canvas-head-tools"><span class="doan-canvas-zoom"><button type="button" class="doan-icon-button" aria-label="Zoom out"><svg aria-hidden="true"><use href="#i-minus"/></svg></button><button type="button" class="doan-button doan-zoom-value" data-ui-variant="trigger" data-ui-size="sm">100%<svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button><button type="button" class="doan-icon-button" aria-label="Zoom in"><svg aria-hidden="true"><use href="#i-plus"/></svg></button></span><button type="button" class="doan-icon-button" aria-label="Reload canvas"><svg aria-hidden="true"><use href="#i-reload"/></svg></button></div></header>
+<section class="area" aria-label="Canvas">
+<div class="board" style="left:120px;top:96px"><div class="mock-frame"><h3>Weekly report</h3><p>Three numbers that moved this week.</p><div class="mock-cards"><div class="mock-card"></div><div class="mock-card"></div></div><span class="mock-cta">Open report</span></div><div class="mock-frame"><h3>Next steps</h3><p>One owner per step, due Friday.</p><div class="mock-cards"><div class="mock-card"></div><div class="mock-card"></div></div><span class="mock-cta">Assign</span></div></div>
+<div class="overlay"></div>
+<div class="doan-canvas-bottom">
+<div class="doan-floating doan-canvas-tools" role="toolbar" aria-label="Canvas tools">
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="true" aria-label="Select" tabindex="0"><svg aria-hidden="true"><use href="#i-select"/></svg></button>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="false" aria-label="Hand" tabindex="-1"><svg aria-hidden="true"><use href="#i-hand"/></svg></button>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="false" aria-label="Pick from canvas" tabindex="-1"><svg aria-hidden="true"><use href="#i-pick"/></svg></button>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="false" aria-label="Capture area" tabindex="-1"><svg aria-hidden="true"><use href="#i-scan"/></svg></button>
+<span class="doan-canvas-tools-sep" role="separator" aria-orientation="vertical"></span>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-label="Export canvas" tabindex="-1"><svg aria-hidden="true"><use href="#i-download"/></svg></button>
+</div></div>
+</section></div>
+<aside class="ctx-panel" aria-label="Conversation">
+<div class="doan-conv-head"><div class="doan-conv-title"><button type="button" class="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger"><span>Tighten the report cards</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button></div><button type="button" class="doan-icon-button" aria-label="Hide conversation"><svg aria-hidden="true"><use href="#i-panel-close"/></svg></button></div>
+<div class="ctx-scroll"><div class="thread"><div class="msg-user"><div class="bubble">Make the two cards the same height.</div></div><div class="msg-agent"><p>Done. Both cards are 72 px high now.</p></div></div></div>
+<div class="ctx-foot"><div class="docked" data-shape="box">
+<div class="composer-card"><div class="composer-chips"><span class="attach-chip" data-doan-id="chip-capture-panel"><span class="file-icon" aria-hidden="true"><span class="doan-spinner"></span></span><span class="attach-text"><b>Canvas capture</b><small>Checking</small></span><button type="button" class="chip-remove doan-icon-button" data-ui-size="xs" aria-label="Remove canvas capture"><svg aria-hidden="true"><use href="#i-x"/></svg></button></span></div><div class="composer-input" role="textbox" aria-label="Message" aria-placeholder="Reply, / for presets" data-empty="" data-doan-id="panel-field"></div><div class="composer-tools"><button type="button" class="doan-icon-button composer-presets" aria-label="Design presets"><svg aria-hidden="true"><use href="#i-presets"/></svg></button><span class="grow"></span><button type="button" class="composer-send doan-icon-button" data-ui-variant="accent" aria-label="Send" disabled><svg aria-hidden="true"><use href="#i-up"/></svg></button></div></div>
+<div class="composer-tray"><button type="button" class="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files"><svg aria-hidden="true"><use href="#i-plus"/></svg></button><button type="button" class="doan-icon-button composer-pick" data-ui-size="xs" aria-label="Pick from canvas" aria-pressed="false" aria-keyshortcuts="Meta+L"><svg aria-hidden="true"><use href="#i-pick"/></svg></button><button type="button" class="composer-agent doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Model: Opus 5.5 (Claude Code)"><img class="logo" src="../assets/provider-logos/claude.png" alt=""><span class="label">Opus 5.5</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button><button type="button" class="composer-effort doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Effort: High"><svg aria-hidden="true"><use href="#i-gauge"/></svg><span class="label">High</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button><button type="button" class="composer-permission doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Permission: Default"><svg aria-hidden="true"><use href="#i-shield"/></svg><span class="label">Default</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button></div>
+</div></div>
+</aside></div><span class="tile-label">2 · released · panel unfolded · “Canvas capture” Checking · focus in the composer field · Select pressed again</span></div>
+</div></section>
+
+<!-- ═══════════ 07 composer-chips ═══════════ -->
+<section class="specimen" data-doan-frame="composer-chips" data-doan-title="Composer · Canvas capture chips" data-doan-implements="app/src/renderer/ComposerParts.tsx"><div class="caption"><span>07</span><h2>Composer · Canvas capture chips <span class="doan-chip" data-ui-variant="translucent">Chip name new, not in code</span></h2><p>The shipped attachment chip with a new name: a pasted image whose name starts with <code>canvas-capture-</code> reads “Canvas capture” (design decision 8), its × is “Remove canvas capture”, and its meta is “PNG · size” like a pasted image. Checking shows the shipped spinner; ready shows the thumbnail. Next to a pasted image the two names tell them apart. A sent message keeps the file name, as every sent file chip does. With 10 files attached Capture area is unavailable (frame <code>toolbar-unavailable</code>).</p></div>
+<div class="tiles">
+<div class="tile"><div class="panel-slice"><div class="docked" data-shape="box">
+<div class="composer-card"><div class="composer-chips"><span class="attach-chip" data-doan-id="chip-capture-checking"><span class="file-icon" aria-hidden="true"><span class="doan-spinner"></span></span><span class="attach-text"><b>Canvas capture</b><small>Checking</small></span><button type="button" class="chip-remove doan-icon-button" data-ui-size="xs" aria-label="Remove canvas capture"><svg aria-hidden="true"><use href="#i-x"/></svg></button></span></div><div class="composer-input" role="textbox" aria-label="Message">The gap between these two frames looks uneven.</div><div class="composer-tools"><button type="button" class="doan-icon-button composer-presets" aria-label="Design presets"><svg aria-hidden="true"><use href="#i-presets"/></svg></button><span class="grow"></span><button type="button" class="composer-send doan-icon-button" data-ui-variant="accent" aria-label="Send" disabled><svg aria-hidden="true"><use href="#i-up"/></svg></button></div></div>
+<div class="composer-tray"><button type="button" class="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files"><svg aria-hidden="true"><use href="#i-plus"/></svg></button><button type="button" class="doan-icon-button composer-pick" data-ui-size="xs" aria-label="Pick from canvas" aria-pressed="false"><svg aria-hidden="true"><use href="#i-pick"/></svg></button><button type="button" class="composer-agent doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Model: Opus 5.5 (Claude Code)"><img class="logo" src="../assets/provider-logos/claude.png" alt=""><span class="label">Opus 5.5</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button><button type="button" class="composer-effort doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Effort: High"><svg aria-hidden="true"><use href="#i-gauge"/></svg><span class="label">High</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button><button type="button" class="composer-permission doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Permission: Default"><svg aria-hidden="true"><use href="#i-shield"/></svg><span class="label">Default</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button></div>
+</div></div><span class="tile-label">Checking · Send waits for the chip (shipped “Checking attachments” rule)</span></div>
+
+<div class="tile"><div class="panel-slice"><div class="docked" data-shape="box">
+<div class="composer-card"><div class="composer-chips"><span class="attach-chip image" data-doan-id="chip-capture-ready"><span class="thumb" aria-hidden="true"><span class="thumb-mock"></span></span><span class="attach-text"><b>Canvas capture</b><small>PNG · 412 KB</small></span><button type="button" class="chip-remove doan-icon-button" data-ui-size="xs" aria-label="Remove canvas capture"><svg aria-hidden="true"><use href="#i-x"/></svg></button></span><span class="attach-chip image" data-doan-id="chip-pasted"><span class="thumb" aria-hidden="true"><span class="thumb-mock"></span></span><span class="attach-text"><b>Pasted image</b><small>PNG · 1.2 MB</small></span><button type="button" class="chip-remove doan-icon-button" data-ui-size="xs" aria-label="Remove pasted image"><svg aria-hidden="true"><use href="#i-x"/></svg></button></span></div><div class="composer-input" role="textbox" aria-label="Message">The gap between these two frames looks uneven.</div><div class="composer-tools"><button type="button" class="doan-icon-button composer-presets" aria-label="Design presets"><svg aria-hidden="true"><use href="#i-presets"/></svg></button><span class="grow"></span><button type="button" class="composer-send doan-icon-button" data-ui-variant="accent" aria-label="Send"><svg aria-hidden="true"><use href="#i-up"/></svg></button></div></div>
+<div class="composer-tray"><button type="button" class="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files"><svg aria-hidden="true"><use href="#i-plus"/></svg></button><button type="button" class="doan-icon-button composer-pick" data-ui-size="xs" aria-label="Pick from canvas" aria-pressed="false"><svg aria-hidden="true"><use href="#i-pick"/></svg></button><button type="button" class="composer-agent doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Model: Opus 5.5 (Claude Code)"><img class="logo" src="../assets/provider-logos/claude.png" alt=""><span class="label">Opus 5.5</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button><button type="button" class="composer-effort doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Effort: High"><svg aria-hidden="true"><use href="#i-gauge"/></svg><span class="label">High</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button><button type="button" class="composer-permission doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Permission: Default"><svg aria-hidden="true"><use href="#i-shield"/></svg><span class="label">Default</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button></div>
+</div></div><span class="tile-label">Ready, with a thumbnail · next to a pasted image</span></div>
+
+<div class="tile"><div class="panel-slice"><div class="docked" data-shape="box">
+<div class="composer-card"><div class="composer-chips" data-doan-id="chips-limit">
+<span class="attach-chip image"><span class="thumb" aria-hidden="true"><span class="thumb-mock"></span></span><span class="attach-text"><b>Canvas capture</b><small>PNG · 412 KB</small></span><button type="button" class="chip-remove doan-icon-button" data-ui-size="xs" aria-label="Remove canvas capture"><svg aria-hidden="true"><use href="#i-x"/></svg></button></span>
+<span class="attach-chip image"><span class="thumb" aria-hidden="true"><span class="thumb-mock"></span></span><span class="attach-text"><b>Canvas capture</b><small>PNG · 388 KB</small></span><button type="button" class="chip-remove doan-icon-button" data-ui-size="xs" aria-label="Remove canvas capture"><svg aria-hidden="true"><use href="#i-x"/></svg></button></span>
+<span class="attach-chip image"><span class="thumb" aria-hidden="true"><span class="thumb-mock"></span></span><span class="attach-text"><b>Pasted image</b><small>PNG · 1.2 MB</small></span><button type="button" class="chip-remove doan-icon-button" data-ui-size="xs" aria-label="Remove pasted image"><svg aria-hidden="true"><use href="#i-x"/></svg></button></span>
+<span class="attach-chip"><span class="file-icon" aria-hidden="true"><svg><use href="#i-file"/></svg></span><span class="attach-text"><b>brief.md</b><small>MD · 4 KB</small></span><button type="button" class="chip-remove doan-icon-button" data-ui-size="xs" aria-label="Remove brief.md"><svg aria-hidden="true"><use href="#i-x"/></svg></button></span>
+<span class="attach-chip"><span class="file-icon" aria-hidden="true"><svg><use href="#i-file"/></svg></span><span class="attach-text"><b>copy.txt</b><small>TXT · 2 KB</small></span><button type="button" class="chip-remove doan-icon-button" data-ui-size="xs" aria-label="Remove copy.txt"><svg aria-hidden="true"><use href="#i-x"/></svg></button></span>
+<span class="attach-chip"><span class="file-icon" aria-hidden="true"><svg><use href="#i-file"/></svg></span><span class="attach-text"><b>notes.md</b><small>MD · 6 KB</small></span><button type="button" class="chip-remove doan-icon-button" data-ui-size="xs" aria-label="Remove notes.md"><svg aria-hidden="true"><use href="#i-x"/></svg></button></span>
+<span class="attach-chip"><span class="file-icon" aria-hidden="true"><svg><use href="#i-file"/></svg></span><span class="attach-text"><b>data.csv</b><small>CSV · 9 KB</small></span><button type="button" class="chip-remove doan-icon-button" data-ui-size="xs" aria-label="Remove data.csv"><svg aria-hidden="true"><use href="#i-x"/></svg></button></span>
+<span class="attach-chip"><span class="file-icon" aria-hidden="true"><svg><use href="#i-file"/></svg></span><span class="attach-text"><b>spec.md</b><small>MD · 12 KB</small></span><button type="button" class="chip-remove doan-icon-button" data-ui-size="xs" aria-label="Remove spec.md"><svg aria-hidden="true"><use href="#i-x"/></svg></button></span>
+<span class="attach-chip"><span class="file-icon" aria-hidden="true"><svg><use href="#i-file"/></svg></span><span class="attach-text"><b>todo.txt</b><small>TXT · 1 KB</small></span><button type="button" class="chip-remove doan-icon-button" data-ui-size="xs" aria-label="Remove todo.txt"><svg aria-hidden="true"><use href="#i-x"/></svg></button></span>
+<span class="attach-chip"><span class="file-icon" aria-hidden="true"><svg><use href="#i-file"/></svg></span><span class="attach-text"><b>logo.svg</b><small>SVG · 3 KB</small></span><button type="button" class="chip-remove doan-icon-button" data-ui-size="xs" aria-label="Remove logo.svg"><svg aria-hidden="true"><use href="#i-x"/></svg></button></span>
+</div><div class="composer-input" role="textbox" aria-label="Message" aria-placeholder="Reply, / for presets" data-empty=""></div><div class="composer-tools"><button type="button" class="doan-icon-button composer-presets" aria-label="Design presets"><svg aria-hidden="true"><use href="#i-presets"/></svg></button><span class="grow"></span><button type="button" class="composer-send doan-icon-button" data-ui-variant="accent" aria-label="Send"><svg aria-hidden="true"><use href="#i-up"/></svg></button></div></div>
+<div class="composer-tray"><button type="button" class="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files"><svg aria-hidden="true"><use href="#i-plus"/></svg></button><button type="button" class="doan-icon-button composer-pick" data-ui-size="xs" aria-label="Pick from canvas" aria-pressed="false"><svg aria-hidden="true"><use href="#i-pick"/></svg></button><button type="button" class="composer-agent doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Model: Opus 5.5 (Claude Code)"><img class="logo" src="../assets/provider-logos/claude.png" alt=""><span class="label">Opus 5.5</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button><button type="button" class="composer-effort doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Effort: High"><svg aria-hidden="true"><use href="#i-gauge"/></svg><span class="label">High</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button><button type="button" class="composer-permission doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Permission: Default"><svg aria-hidden="true"><use href="#i-shield"/></svg><span class="label">Default</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button></div>
+</div></div><span class="tile-label">10 files attached · Capture area unavailable with “Only 10 files can be attached. Remove one to add another.”</span></div>
+
+<div class="tile"><div class="panel-slice"><div class="thread"><div class="msg-user"><div class="bubble">The gap between these two frames looks uneven.</div><div class="msg-files"><span class="attach-chip" data-doan-id="sent-capture"><span class="file-icon" aria-hidden="true"><svg><use href="#i-file"/></svg></span><span class="attach-text"><b>canvas-capture-2026-11-05T09-41-12-345Z.png</b><small>412 KB</small></span></span></div></div></div></div><span class="tile-label">Sent · the thread's file chip keeps the file name (shipped)</span></div>
+</div></section>
+
+<!-- ═══════════ 08 capture-failed ═══════════ -->
+<section class="specimen" data-doan-frame="capture-failed" data-doan-title="Toast · capture failed" data-doan-implements="app/src/renderer/App.tsx"><div class="caption"><span>08</span><h2>Toast · capture failed <span class="doan-chip" data-ui-variant="translucent">First line new, not in code</span></h2><p>A failure is something that happened, so it is a toast, never a board notice (POSTMORTEM 2026-11-02). The Checking chip is removed and one line shows in the shipped toast; capture mode has already ended on release. An empty image or a failed save: “Couldn’t capture the canvas. Try again.”. Over 50 MB: the shipped pasted-image line. If the draft reached 10 files between the render and the release, nothing is captured and the shipped limit line shows.</p></div>
+<div class="tiles">
+<div class="tile"><div class="toast-stage"><div class="toast doan-floating doan-toast" role="status" data-doan-id="toast-capture-failed"><span class="msg">Couldn’t capture the canvas. Try again.</span></div></div><span class="tile-label">capture_failed (new)</span></div>
+<div class="tile"><div class="toast-stage"><div class="toast doan-floating doan-toast" role="status" data-doan-id="toast-too-large"><span class="msg">This image is over 50 MB, so it wasn’t attached.</span></div></div><span class="tile-label">too_large (shipped copy)</span></div>
+<div class="tile"><div class="toast-stage"><div class="toast doan-floating doan-toast" role="status" data-doan-id="toast-limit"><span class="msg">Only 10 files can be attached. 1 was left out.</span></div></div><span class="tile-label">Limit reached after render (shipped attachmentLimit copy)</span></div>
+</div></section>
+</body></html>
