@@ -287,7 +287,7 @@ window.addEventListener("message", (event) => {
     // the drag surface over a person's clicks; a release always counts.
     if (message.key === "Space") {
       if (!message.down || document.activeElement === canvas) spaceKey(message.down);
-    } else if (message.key === "Escape") escapeKey(false, false);
+    } else if (message.key === "Escape") escapeTool(false, false);
     else chooseTool(message.key === "V" ? "select" : "hand");
     return;
   }
@@ -385,13 +385,19 @@ function spaceKey(down) {
   return true;
 }
 
-// Esc closes the tooltip first, as the app's; an open menu takes its own Esc before this (it
-// prevents it); then Hand goes back to Select. Returns whether Esc was used.
+// Esc on the page closes the tooltip first, as the app's; an open menu takes its own Esc before
+// this (it prevents it); then Hand goes back to Select. Returns whether Esc was used.
 function escapeKey(editable, handled) {
   if (!handled && !tip.hidden) {
     hideTip();
     return true;
   }
+  return escapeTool(editable, handled);
+}
+
+// Hand back to Select. An Esc forwarded from the canvas comes straight here: the app's tooltip
+// hears Esc only on the app document, so it never spends one pressed inside the canvas.
+function escapeTool(editable, handled) {
   if (!escapeSelects({ hand: (pendingTool ?? tool) === "hand", editable, defaultPrevented: handled })) return false;
   chooseTool("select");
   return true;

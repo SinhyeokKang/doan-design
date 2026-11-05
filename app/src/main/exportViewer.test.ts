@@ -909,6 +909,16 @@ describe("tool wiring", () => {
     expect(shellJs).toMatch(/if \(!message\.down \|\| document\.activeElement === canvas\) spaceKey\(message\.down\);/);
   });
 
+  test("an Esc from the canvas skips the tooltip and goes straight to Hand → Select, as the app's escape(false)", () => {
+    // The app's tooltip hears Esc only on the app document (Radix, capture phase); a forwarded Esc never reaches it.
+    expect(code(shellJs)).toMatch(/else if \(message\.key === "Escape"\) escapeTool\(false, false\);/);
+    const escapeTool = /function escapeTool\(editable, handled\) \{[\s\S]*?\n\}/.exec(code(shellJs))?.[0] ?? "";
+    expect(escapeTool).toContain('chooseTool("select");');
+    expect(escapeTool).not.toMatch(/tip|hideTip/);
+    // The page's Esc still closes an open tooltip first.
+    expect(code(shellJs)).toMatch(/function escapeKey\(editable, handled\) \{\s*if \(!handled && !tip\.hidden\) \{\s*hideTip\(\);\s*return true;\s*\}\s*return escapeTool\(editable, handled\);\s*\}/);
+  });
+
   test("the canvas lets Space go on blur and pagehide, and sends every Space release", () => {
     expect(measure).toContain('addEventListener("blur", releaseSpace);');
     expect(measure).toContain('addEventListener("pagehide", releaseSpace);');
