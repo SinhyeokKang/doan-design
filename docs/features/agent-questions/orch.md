@@ -19,11 +19,11 @@
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | gate | 상태 |
 |---|---|---|---|---|---|---|
-| M1 | A1, A4, 결정 5 | `main/conversation/` 새 질문 타입·상한 모듈과 `questionAnswer` 모듈, `types.ts`, `store.ts`, `state.ts`, `summary.ts`, `service.ts`(Runner 타입 한 줄만), `preload/index.ts`(한 줄), 그 테스트 | — | Opus medium — append-only 포맷과 접기 규칙이 뒤 배치 전부의 바탕이라 틀리면 다 깨진다. 분량은 작다 | `npm --prefix app test`, typecheck | 대기 |
-| X | C2, C3 | `CanvasTools.tsx`, `canvasTree.ts`, `main/view.ts`와 `<title>` 표시를 기대하던 테스트 | — | Sonnet medium — 이름 바꾸기와 필드 제거, 판단이 적다 | test, typecheck, build | 대기 |
-| M2 | A2, A3, B1, B2(축소), B3, 결정 3 | `transport.ts`, `fixtures/`, `runners.ts`, `dispatcher.ts`, `service.ts`, `project.ts`, `ipc.ts`, `main/index.ts`, 그 테스트 | M1 | Opus high — SDK `canUseTool` 동시성, 응답 한 번 보장, Stop·close 경계, secret 비저장 | test, typecheck | 대기 |
-| R | A5, C1, B4의 접힌 줄 | `main/notifications.ts`·`notifyService.ts`, `renderer/` 전부(`ConversationThread.tsx`, `CanvasConversationPanel.tsx`, `ProjectOverview.tsx`, `homeRun.ts`, `homeConversations.ts`, `overviewRun.ts`, `threadItems.ts`, `conversationStrip.ts`, `ConversationStripView.tsx`, `composerRules.ts`, `conversationStore.ts`, 새 `questionDraft.ts`), CSS, 그 테스트 | M1 | Opus high — 키보드·IME·포커스·접근성 규칙이 많고 진입 경로가 여럿이다 | test, typecheck, build | 대기 |
-| G | B4(접힌 줄 제외) | `acp.ts`, `acpRunner.ts`, 그 테스트 | M1 | Opus medium — 질문으로 읽는 조건이 좁고, 틀리면 권한 요청이 질문으로 바뀐다 | test, typecheck | 대기 |
+| M1 | A1, A4, 결정 5 | `main/conversation/` 새 질문 타입·상한 모듈과 `questionAnswer` 모듈, `types.ts`, `store.ts`, `state.ts`, `summary.ts`, `service.ts`(Runner 타입 한 줄만), `preload/index.ts`(한 줄), 그 테스트 | — | Opus medium — append-only 포맷과 접기 규칙이 뒤 배치 전부의 바탕이라 틀리면 다 깨진다. 분량은 작다 | `npm --prefix app test`, typecheck | 통합 `d6cdd06f`(리뷰 Opus medium 🔴0 🟡0 ⚪3) |
+| X | C2, C3 | `CanvasTools.tsx`, `canvasTree.ts`, `main/view.ts`와 `<title>` 표시를 기대하던 테스트 | — | Sonnet medium — 이름 바꾸기와 필드 제거, 판단이 적다 | test, typecheck, build | 통합 `caf182cc`(리뷰 Sonnet high 🔴0 🟡0 ⚪7, r1: postmortem과 ⚪1–4) |
+| M2 | A2, A3, B1, B2(축소), B3, 결정 3 | `transport.ts`, `fixtures/`, `runners.ts`, `dispatcher.ts`, `service.ts`, `project.ts`, `ipc.ts`, `main/index.ts`, 그 테스트 | M1 | Opus high — SDK `canUseTool` 동시성, 응답 한 번 보장, Stop·close 경계, secret 비저장 | test, typecheck | 진행 중 |
+| R | A5, C1, B4의 접힌 줄 | `main/notifications.ts`·`notifyService.ts`, `renderer/` 전부(`ConversationThread.tsx`, `CanvasConversationPanel.tsx`, `ProjectOverview.tsx`, `homeRun.ts`, `homeConversations.ts`, `overviewRun.ts`, `threadItems.ts`, `conversationStrip.ts`, `ConversationStripView.tsx`, `composerRules.ts`, `conversationStore.ts`, 새 `questionDraft.ts`), CSS, 그 테스트 | M1 | Opus high — 키보드·IME·포커스·접근성 규칙이 많고 진입 경로가 여럿이다 | test, typecheck, build | 진행 중 |
+| G | B4(접힌 줄 제외) | `acp.ts`, `acpRunner.ts`, 그 테스트 | M1 | Opus medium — 질문으로 읽는 조건이 좁고, 틀리면 권한 요청이 질문으로 바뀐다 | test, typecheck | 진행 중 |
 | D1 | `/design-sync` | R의 renderer 파일(수정), `docs/DESIGN.md` | M2, R, G 통합 | Opus high — 계산 스타일 측정과 수정 | `/design-sync` 보고 | 대기 |
 | D2 | `/runtime-test` | 없음(보고만) | D1 | Opus medium — 항목이 많고 사람 상태 보존이 중요 | `/runtime-test` 보고 | 대기 |
 | D3·Z1 | gate, 승격 | `docs/` | D2 | 지휘자 | `verify.mjs` exit 0, Z1 grep | 대기 |
@@ -38,4 +38,6 @@
 
 ## 검토 기록
 
-(배치마다 리뷰 결과와 라운드를 적는다.)
+- X: 리뷰 🔴·🟡 없음. 캔버스 이름 결함(PRODUCT의 file stem 규칙과 `canvasLabel`의 title 우선)은 r1에서 POSTMORTEM에 적었다. ⚪6(DESIGN·PRODUCT의 툴바 Export 문구)은 Z1에서 지휘자가 고친다. 끝난 작업자 터미널 재사용은 Orca가 `agent_unconfigured`로 거절해, r1은 같은 worktree의 새 작업자가 했다.
+- M1: 리뷰 🔴·🟡 없음. ⚪(`__proto__` question id, 바꿀 수 있는 `QUESTION_LIMITS`, 답 타입 중복)는 고치지 않았다. `rendererImports.test.ts` EXTRA_ROOTS에 두 모듈을 더한 것은 기존 방식이라 리뷰가 받아들였다.
+- worktree `aq-x`·`aq-m1`은 통합 뒤 지웠다(브랜치는 남김). 근거 사본: `.scratch/agent-questions-orch/evidence/`.
