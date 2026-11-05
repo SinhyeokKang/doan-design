@@ -25,6 +25,7 @@
 11. **E1·E2는 worker, E3·Z1은 지휘자**: E1(`/design-sync`)은 구현을 고치므로 worker가 한다. E2는 보고만 하는 `/runtime-test`라 worker가 하고, sign-out·정리 승인은 지휘자를 거쳐 사람에게 묻는다. E3(`/verify`)와 Z1(문서 승격)은 지휘자 몫이다(orchestrate §4·§5).
 12. **쓸 수 없는 연결의 reauth 문구**: `UsageEntry.blocked`는 원인 코드만 담는다. B는 `readiness()`가 `reauth_required`이면서 auth phase가 `reauthRequired`가 아닌 연결(`state.ts:119` `unpinned`)을, A의 `blockedText`가 Settings > Agents와 같은 일반 문구("isn’t available right now")를 내는 원인 코드로 바꿔 담는다. 계약(결정 8)은 바뀌지 않는다. 지휘자 판단 — spec 완료 조건 3 "Settings > Agents와 같은 원인 문구"(RA 🟡2).
 13. **창이 다시 보일 때 읽기**: 숨겨진 앱 창이 다시 보이면 앱 시작과 같은 규칙(5분 간격)으로 읽는다. design 결정할 점 2에 더했다(사람).
+14. **확인되지 않은 연결**: 앱 시작에는 저장된 연결이 모두 `unverified`라, design대로면 시작 때 링이 거의 빈다. 대화 준비와 같이 먼저 확인하고 읽는다. Copilot은 확인 없이 읽고, 확인이 실패해야 `blocked`가 된다. design 결정할 점 5를 고쳤다(B의 질문, 사람).
 
 ## 배치
 
