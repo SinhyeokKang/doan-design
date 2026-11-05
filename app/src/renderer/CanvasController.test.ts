@@ -159,6 +159,8 @@ function selectionHarness() {
   const doc = {
     activeElement: null as unknown,
     hasFocus: () => true,
+    // No menu or dialog over the canvas page (the follow check reads it).
+    querySelector: () => null,
     documentElement: { setAttribute: (name: string, value: string) => { rootAttributes.set(name, value); }, removeAttribute: (name: string) => { rootAttributes.delete(name); }, hasAttribute: (name: string) => rootAttributes.has(name) },
     createElement: (tag: string) => {
       if (tag !== "iframe") {
@@ -4173,5 +4175,249 @@ describe("working-frame marker", () => {
     expect(css).toContain(".mark.jump-highlight.working.still, .mark.jump-highlight.working.still::before { animation: none; }");
     expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{ \.mark\.jump-highlight\.working, \.mark\.jump-highlight\.working::before \{ animation: none; transition: none; \} \}/);
     expect(css).toMatch(/@media \(prefers-reduced-transparency: reduce\) \{ \.mark\.jump-highlight\.working \{ animation: none; box-shadow: 0 0 0 1px var\(--surface-panel\); \} \}/);
+  });
+});
+
+// work-update U2 (design §1 rule 9): the board follows the working frame while the person rests; every view change the
+// person makes stops it for the work turn, the app's own (follow, open fit, restore, settleFit, reload) do not.
+describe("following the working frame", () => {
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
+  type H = ReturnType<typeof selectionHarness>;
+  const FRAMES = [{ id: "intro", x: 0, y: 0, width: 10, height: 10 }, { id: "hero", x: 0, y: 20, width: 10, height: 10 }, { id: "far", x: 0, y: 2000, width: 100, height: 100 }, { id: "farther", x: 0, y: 4000, width: 100, height: 100 }];
+  const rested = () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const h = selectionHarness();
+    h.layout({ frames: FRAMES });
+    vi.advanceTimersByTime(5000);
+    return h;
+  };
+  const setWork = (h: H, frame: string | undefined, over: Record<string, unknown> = {}, keys = ["terminal:t1"]) =>
+    h.controller.setWork({ root: "/repo", path: h.row.path, work: { source: "terminal:claude:s1", key: "terminal:t1", ...(frame === undefined ? {} : { frame }), waiting: false, ...over }, keys });
+  // The board's top in screen px: where the view put board y 0.
+  const top = (h: H) => h.controller.currentView().y;
+  const followsNext = (h: H, frame: string) => { const before = top(h); vi.advanceTimersByTime(5000); setWork(h, frame); return top(h) !== before; };
+  const fitView = { x: 100, y: 80, scale: 1 };
+
+  it("an update naming a frame off screen moves the view to it once the person rested 5 s, keeping the zoom, and selects nothing", () => {
+    const h = rested();
+    try {
+      // Entering the canvas counted as a person's moment; the work arrives with nothing on it yet.
+      h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+      setWork(h, "far");
+      expect(h.controller.currentView()).toEqual(elementView(FRAMES[2]!, { width: 800, height: 600 }, FIT_INSET, fitView));
+      expect(h.state().selection).toBeNull();
+      // The same frame's next update or a reload does not move again.
+      const after = top(h);
+      setWork(h, "far", { source: "terminal:claude:s1" });
+      h.layout({ frames: FRAMES });
+      expect(top(h)).toBe(after);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("does not follow before the rest is over, and a reload adding the frame later follows it", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const h = selectionHarness();
+    try {
+      h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+      vi.advanceTimersByTime(5000);
+      setWork(h, "new");
+      expect(h.controller.currentView()).toEqual(fitView);
+      h.layout({ frames: [...FRAMES, { id: "new", x: 0, y: 3000, width: 100, height: 100 }] });
+      expect(top(h)).not.toBe(fitView.y);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("opening a canvas mid-turn counts its working frame as followed; the next frame follows", () => {
+    const h = rested();
+    try {
+      setWork(h, "far");
+      expect(h.controller.currentView()).toEqual(fitView);
+      expect(followsNext(h, "farther")).toBe(true);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("an update from another work source changes the marker only", () => {
+    const h = rested();
+    try {
+      h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+      setWork(h, "intro");
+      vi.advanceTimersByTime(5000);
+      setWork(h, "far", { source: "conversation:p1", key: "conversation:p1:u1" }, ["terminal:t1", "conversation:p1:u1"]);
+      expect(h.controller.currentView()).toEqual(fitView);
+    } finally { h.controller.dispose(); }
+  });
+
+  const personMoves: [string, (h: H) => void][] = [
+    ["a wheel pan", h => h.controller.wheel({ dx: 0, dy: 10, ctrl: false, meta: false, deltaMode: 0 }, { x: 0, y: 0 })],
+    ["a pinch or ⌘-wheel zoom", h => h.controller.wheel({ dx: 0, dy: -10, ctrl: true, meta: false, deltaMode: 0 }, { x: 0, y: 0 })],
+    ["a zoom button or shortcut", h => h.controller.command("zoomIn")],
+    ["Fit", h => h.controller.command("fit")],
+    ["the zoom menu", h => h.controller.zoomTo(0.5)],
+    ["a Hand drag", h => {
+      h.controller.setTool("hand");
+      const pointer = (type: string, over: Record<string, unknown> = {}) => h.layer.dispatchEvent(Object.assign(new Event(type, { cancelable: true }), { button: 0, pointerId: 1, clientX: 0, clientY: 0, ...over }));
+      pointer("pointerdown", { clientX: 10, clientY: 10 }); pointer("pointermove", { clientX: 30, clientY: 40 }); pointer("pointerup");
+      h.controller.setTool("select");
+    }],
+    ["the frame drawer", h => { h.controller.selectFrame(1, "hero"); h.layout({ frames: FRAMES }); }],
+    ["Quick Open, `doan open --frame` or a doan:// link to a frame", h => { h.controller.openCanvas("/repo", h.row, { frame: "hero" }); h.layout({ frames: FRAMES }); }],
+  ];
+  for (const [name, move] of personMoves) {
+    it(`${name} stops following for the work turn`, () => {
+      const h = rested();
+      try {
+        h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+        setWork(h, "intro");
+        move(h);
+        expect(followsNext(h, "far")).toBe(false);
+        // A new work turn (an update after done) follows again.
+        vi.advanceTimersByTime(5000);
+        const before = top(h);
+        setWork(h, "farther", { key: "terminal:t2" }, ["terminal:t2"]);
+        expect(top(h)).not.toBe(before);
+      } finally { h.controller.dispose(); }
+    });
+  }
+
+  it("a chip's Locate stops following for the work turn", () => {
+    const h = rested();
+    try {
+      h.layout({ frames: FRAMES, document: "doc" });
+      h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+      setWork(h, "intro");
+      h.controller.locate({ frame: { id: "hero" } }, vi.fn());
+      const q = h.current().contentWindow.postMessage.mock.calls.map(c => c[0]).filter(c => c.type === "anchors-query").at(-1);
+      h.receive({ type: "anchors", document: "doc", generation: q.generation, request: q.request, revision: 1, width: 600, selectionSeq: 0, selected: null,
+        results: [{ id: q.targets[0]!.id, candidates: { frame: ["n1"] } }], rects: [{ node: "n1", x: 0, y: 20, width: 10, height: 10 }] });
+      expect(followsNext(h, "far")).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("the app's own view changes do not stop it: a follow move, a reload, the open fit and settleFit", () => {
+    const h = rested();
+    try {
+      h.controller.settleFit();
+      h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+      setWork(h, "far");
+      expect(top(h)).not.toBe(fitView.y);
+      h.controller.command("reload");
+      h.layout({ frames: FRAMES });
+      expect(followsNext(h, "farther")).toBe(true);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("restoring a remembered view on coming back to the workspace does not stop it", () => {
+    const h = rested();
+    try {
+      h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [h.row, h.other] }, { path: "/b", kind: "list", servedRev: 0, canvases: [{ ...h.other, url: "http://localhost/t/k/g/.doan/canvases/b.html" }] }]);
+      h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+      setWork(h, "intro");
+      // Back before App has told the controller about the other workspace: the restore lands while this canvas's work
+      // is still the one it knows.
+      h.controller.openWorkspace("/b", vi.fn());
+      h.controller.openWorkspace("/repo", vi.fn());
+      h.layout({ frames: FRAMES });
+      setWork(h, "intro");
+      expect(followsNext(h, "far")).toBe(true);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("a pointer move on the board, a selection change and composer typing restart the rest; a selection change mid-turn also stops", () => {
+    const h = rested();
+    try {
+      h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+      // Hover from the canvas, then 4.9 s: not rested.
+      vi.advanceTimersByTime(5000);
+      h.receive({ type: "hover", seq: 1, rect: h.target.rect });
+      vi.advanceTimersByTime(4900);
+      setWork(h, "far");
+      expect(h.controller.currentView()).toEqual(fitView);
+      // Composer typing restarts it too and stops nothing: once rested, the next frame follows.
+      h.host.dispatchEvent(new Event("input"));
+      vi.advanceTimersByTime(4900);
+      setWork(h, "farther");
+      expect(h.controller.currentView()).toEqual(fitView);
+      vi.advanceTimersByTime(5000);
+      setWork(h, "hero");
+      h.layout({ frames: FRAMES });
+      expect(followsNext(h, "farther")).toBe(true);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("a selection change during the work turn stops following", () => {
+    const h = rested();
+    try {
+      h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+      setWork(h, "intro");
+      h.select(1);
+      expect(followsNext(h, "far")).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  const busy: [string, (h: H) => void][] = [
+    ["a pick", h => { h.controller.pick(); }],
+    ["capture mode", h => { h.controller.startCapture(); }],
+    ["a held Space", h => { h.host.dispatchEvent(Object.assign(new Event("keydown", { cancelable: true }), { code: "Space", key: " " })); }],
+    ["another page", h => { h.controller.setCanvasPage(false); }],
+    ["a menu or dialog", h => { h.controller.overlayOpen = () => true; }],
+  ];
+  for (const [name, start] of busy) {
+    it(`does not follow during ${name}`, () => {
+      const h = rested();
+      try {
+        h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+        start(h);
+        vi.advanceTimersByTime(5000);
+        setWork(h, "far");
+        expect(h.controller.currentView()).toEqual(fitView);
+      } finally { h.controller.dispose(); }
+    });
+  }
+
+  it("a stop covers every work turn on the canvas, whichever wins later", () => {
+    const h = rested();
+    try {
+      const keys = ["terminal:t1", "conversation:p1:u1"];
+      h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys });
+      setWork(h, "intro", {}, keys);
+      h.controller.wheel({ dx: 0, dy: 10, ctrl: false, meta: false, deltaMode: 0 }, { x: 0, y: 0 });
+      vi.advanceTimersByTime(5000);
+      setWork(h, "far", { source: "conversation:p1", key: "conversation:p1:u1" }, keys);
+      vi.advanceTimersByTime(5000);
+      const before = top(h);
+      setWork(h, "farther", { source: "conversation:p1", key: "conversation:p1:u1" }, keys);
+      expect(top(h)).toBe(before);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("leaving the canvas and coming back in the same turn keeps the stop", () => {
+    const h = rested();
+    try {
+      h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+      setWork(h, "intro");
+      h.controller.wheel({ dx: 0, dy: 10, ctrl: false, meta: false, deltaMode: 0 }, { x: 0, y: 0 });
+      h.controller.openCanvas("/repo", h.other);
+      h.controller.setWork({ root: "/repo", path: h.other.path, work: null, keys: [] });
+      h.controller.openCanvas("/repo", h.row);
+      h.layout({ frames: FRAMES });
+      setWork(h, "intro");
+      expect(followsNext(h, "far")).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("coming back to the canvas page counts the working frame as followed", () => {
+    const h = rested();
+    try {
+      h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+      h.controller.setCanvasPage(false);
+      setWork(h, "far");
+      h.controller.setCanvasPage(true);
+      vi.advanceTimersByTime(5000);
+      h.layout({ frames: FRAMES });
+      expect(h.controller.currentView()).toEqual(fitView);
+      expect(followsNext(h, "farther")).toBe(true);
+    } finally { h.controller.dispose(); }
   });
 });
