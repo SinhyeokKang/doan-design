@@ -60,21 +60,21 @@
     - 늘어난 viewer 바이트를 적는다.
   - 실제 Safari는 열 수 있으면 확인하고, 아니면 미확인으로 적는다. 실물 트랙패드도 같다.
   - 검증: 명령 미정 — `.scratch` probe(Playwright로 `doan export` 결과 열기). 항목별 통과·실패와 스크린샷 경로를 이 파일에 적는다. Z1이 이 파일을 지우므로, 미확인 항목은 Z1에서 DESIGN.md와 BACKLOG로 옮긴다.
-  - **결과 (VIEW 배치, `007f560a`)**: `node .scratch/export-viewer-chrome/probe.mjs`가 이 브랜치 CLI로 내보낸 캔버스 넷(`big` 2400px·프레임 6개, `input`, `button`, `noframes`)을 1280×800 창의 Playwright 1.64.1 Chromium(chromium-1248)·WebKit(webkit-2370)에서 열었다. 52개 확인(브라우저마다 26개)이 모두 통과했다(`.scratch/export-viewer-chrome/results-chromium-webkit.json`, `probe-run1.log`). 스크린샷은 `.scratch/export-viewer-chrome/shots/<browser>-{select-fit,tooltip-hover,tooltip-keyboard,dragging,tab-far,no-js}.png`이다.
+  - **결과 (VIEW 배치, `007f560a`)**: `node .scratch/export-viewer-chrome/probe.mjs`가 이 브랜치 CLI로 내보낸 캔버스 넷(`big` 2400px·프레임 6개, `input`, `button`, `noframes`)을 1280×800 창의 Playwright 1.64.1 Chromium(chromium-1248)·WebKit(webkit-2370)에서 열었다. 52개 확인(브라우저마다 26개)이 모두 통과했다(`probe-run1.log`). 수정 1차(캔버스에서 온 Esc) 뒤 CLI를 다시 빌드해 다시 내보내고 다시 돌렸다. 확인 58개(브라우저마다 29개)가 모두 통과했다(`.scratch/export-viewer-chrome/results-chromium-webkit.json`, `probe-fix1.log`). 수정 전 빌드(`c6970260`)에서는 새 Esc 확인과 그 뒤 메뉴 확인이 브라우저마다 실패했다(`probe-old-build.log`). 스크린샷은 `.scratch/export-viewer-chrome/shots/<browser>-{select-fit,tooltip-hover,tooltip-keyboard,dragging,tab-far,no-js}.png`이다.
     - panel: 통과. 두 브라우저 모두 panel이 (8, 8, 1264×784), 네 모서리 24px, 흰 바탕, 창 바탕 `rgb(241, 241, 242)`, 헤더 56px, 보드 `rgb(245, 245, 246)`이다.
     - 툴바: 통과. 92×50, panel 아래에서 20px, 가운데. 기본 Select, 버튼·V·H로 바뀐다. Tab은 눌린 도구 하나에만 선다. ←/→는 끝에서 멈추고, 키보드 포커스와 hover에 tooltip(`SelectV`/`HandH`)이 버튼 4px 위 가운데에 뜬다. 누른 뒤에는 포인터가 나갔다 들어와야 다시 뜬다(Radix와 같다).
     - Hand 끌기, Space 끌기(부모 포커스·캔버스 안 포커스): 통과. Hand의 일반 휠은 이동하고, Ctrl-휠은 확대한다(100% → 125%).
     - 가장자리: 통과. 스크롤 0에서 더 끌어도 0이고, Fit에서는 최대 가로 스크롤이 0이라 가로로 움직이지 않는다.
     - 입력 칸·버튼: 통과. input·textarea·contenteditable에 V·H·Space가 글자로 들어간다. 캔버스 안 버튼에 포커스가 있으면 Space가 그 버튼을 누르고 이동하지 않는다. WebKit은 클릭으로 버튼에 포커스를 주지 않아서 probe가 포커스를 직접 줬다.
-    - Esc: 통과. 부모 포커스와 캔버스 안 포커스 모두 Hand를 Select로 바꾼다. 메뉴가 열려 있으면 첫 Esc는 메뉴만 닫고, 두 번째 Esc가 Select로 바꾼다.
+    - Esc: 통과. 부모 포커스와 캔버스 안 포커스 모두 Hand를 Select로 바꾼다. 메뉴가 열려 있으면 첫 Esc는 메뉴만 닫고, 두 번째 Esc가 Select로 바꾼다. 포커스가 캔버스 안에 있고 툴바 tooltip이 열려 있어도 Esc 한 번에 Select로 바뀌고 tooltip은 남는다(앱의 `escape(false)`와 같다).
     - 메뉴가 열려 있을 때 V·H: 통과. 확대 메뉴와 Frames 목록 모두 도구가 바뀌지 않는다.
     - 툴바 버튼을 누른 직후 Space: 통과. 두 브라우저(Playwright)에서 포커스가 버튼에 남아 Space가 버튼을 누르고 이동하지 않는다.
     - 캔버스 안 포커스에서 ⇧1: 통과. 확대가 100%로 남는다.
-    - Space 해제: 캔버스 안에서 Space를 누른 채 포커스가 부모로 가면 풀린다(통과). 창을 떠나는 경우는 Playwright가 페이지마다 focus를 에뮬레이션해 재현할 수 없었다. 그래서 `document.hasFocus()`가 거짓인 blur를 보내 handler만 확인했다(통과, 모의). 끄는 중 V는 pointerup 뒤에 Select로 바뀐다(통과).
+    - Space 해제: 캔버스 안에서 Space를 누른 채 포커스가 부모로 가면 풀린다(통과). 창을 떠나는 경우는 Playwright가 페이지마다 focus를 에뮬레이션해 재현할 수 없었다. 그래서 `document.hasFocus()`가 거짓인 blur를 보내 handler만 확인했다(통과, 모의). 끄는 중 V와 Esc는 pointerup 뒤에 Select로 바뀐다(통과). 끄는 중 Space를 떼도 끌기는 pointerup까지 이어지고, 그 뒤 이동 표면이 내려간다(통과).
     - 그려지기 전: 통과. 첫 layout을 잡아 둔 동안 도구는 바뀌고, 끌기는 스크롤을 옮기지 않고, 눌러 둔 Space는 그려진 뒤로 이어지지 않는다. 프레임 없는 캔버스(`No frames`)에서도 툴바와 끌기가 동작한다.
     - Tab과 JavaScript 없는 화면: 통과. 캔버스 아래쪽 컨트롤로 Tab하면 `#board`만 스크롤되고(약 2,690px) 툴바와 panel은 그대로다. WebKit은 Safari처럼 Tab이 버튼을 건너뛰어 아래쪽 입력 칸으로 확인했다. JavaScript를 끄면 panel은 보이고 툴바·tooltip은 `display: none`이다.
     - Fit과 스크롤바: 통과. Fit 뒤 캔버스 맨 위는 보드 위에서 80px, 툴바 위쪽은 보드 아래에서 70px이다. 프레임으로 이동한 뒤 프레임 아래(679)가 툴바 위(722)보다 위에 있다. headless 기본 스크롤바는 overlay(0px)다. `--hide-scrollbars`를 뺀 Chromium(`scrollbar.mjs`, `shots/chromium-classic-scrollbar.png`)에서는 클래식 가로 스크롤바가 15px이고, 툴바 아래(772)와 스크롤바 위(777) 사이에 5px가 남아 겹치지 않는다. 클래식 스크롤바의 양 끝은 panel의 둥근 모서리에 잘린다.
-    - viewer 바이트: 내보낸 파일마다 25,955 B가 늘었다(`9a748b00` CLI 대비, 예: `big` 72,756 → 98,711 B). `lib.js`가 페이지 스크립트와 캔버스 srcdoc에 한 번씩 들어가기 때문이다.
+    - viewer 바이트: 내보낸 파일마다 26,237 B가 늘었다(`9a748b00` CLI 대비, 예: `big` 72,756 → 98,993 B. 수정 1차 전에는 25,955 B). `lib.js`가 페이지 스크립트와 캔버스 srcdoc에 한 번씩 들어가기 때문이다.
     - 확인하지 못한 것: 실제 Safari, 실물 트랙패드(관성 스크롤, pinch), 실제 창 전환에서의 Space 해제, 실제 Safari에서 툴바 버튼을 클릭한 뒤의 Space(Safari는 클릭으로 버튼에 포커스를 주지 않으므로 이동할 것으로 보이지만 확인하지 않았다).
 - [ ] C2. `/design-sync`에 준하는 측정(U0의 승인된 예외로 U0 초안이 기준이다): viewer는 앱 화면이 아니므로 초안과 내보낸 파일을 같은 Playwright 브라우저에서 computed style로 비교하고 DESIGN.md 'Canvas row menu and export viewer'에 적는다.
   - 검증: 측정값이 초안과 일치(차이는 DESIGN.md에 이유와 함께).
