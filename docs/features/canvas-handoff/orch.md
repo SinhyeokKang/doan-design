@@ -18,7 +18,7 @@
 
 | batch | 항목 | 파일 소유 | 선행 | 모델·effort(이유) | gate | 상태 |
 |---|---|---|---|---|---|---|
-| S | A1 | `schema/app-socket.v5.schema.json`, `schema/fixtures/app-socket-v5/`, `app/src/formats/validate.ts`, `cli/internal/formats/validate.go`(+테스트) | — | Sonnet high(v4 패턴을 따르지만 바이트 상한·코드 목록을 맞춰야 한다) | `go test ./...`, `npm --prefix app test` | 대기 |
+| S | A1 | `schema/app-socket.v5.schema.json`, `schema/fixtures/app-socket-v5/`, `app/src/formats/validate.ts`, `cli/internal/formats/validate.go`(+테스트) | — | Sonnet high(v4 패턴을 따르지만 바이트 상한·코드 목록을 맞춰야 한다) | `go test ./...`, `npm --prefix app test` | 통합(`3e7a38a8`·`7821d922`). 리뷰는 G·M 리뷰가 schema를 함께 본다(지휘자 판단: schema·fixture만이고 v4 패턴) |
 | G | B1, C3 | `cli/`(formats 제외) | S | Opus medium(직렬화 줄 상한과 exit 매핑의 경계 사례가 많다) | `go test ./...`, `go vet ./...` | 대기 |
 | M | B2, B3, B4, C1, C2, C4 | `app/src/main/`(runtime·conversation·agentAuth), `app/src/shared/`·preload의 이벤트·IPC 타입 | S | Opus high(턴 끝 판정, `contested`, 큐 옮기기, 수락 직전 재확인 등 동시성) | `npm --prefix app test`, typecheck | 대기 |
 | U | B5, U1, U2, `/design-sync` | `app/src/renderer/`, DESIGN.md | M | Opus high(이동·toast·read 대기 규칙과 초안 일치) | `npm --prefix app test`, typecheck, build, `/design-sync` | 대기 |
