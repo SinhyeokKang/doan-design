@@ -33,6 +33,7 @@
 - 공용 프로필: main checkout의 절대 경로 `/Users/sinhyeok/code/doan-design/.scratch/provider-profile/userData`. 앞 체인에서 만든 것을 지우지 않고 이 체인까지 쓴다(사용자, 2026-11-06). 그 자리의 프로필을 main checkout의 Electron으로 연다(복사본은 vault를 읽지 못한다). 프로필을 망가뜨릴 수 있는 probe만 복사본으로 돌린다. 로그인을 다시 요청하기 전에 연결 상태를 먼저 확인한다. probe repo를 그 프로필의 `folders.json`에 더했다면 끝나고 되돌린다.
 - 실행 방법 선례: `/Users/sinhyeok/code/doan-design/.scratch/canvas-handoff/`의 `launch.sh`(main checkout build·Electron, spawn hook, CDP)와 `drive.mjs`(preload API로 대화 시작, permission 기록). worktree 빌드는 main checkout의 Electron으로 열 수 있다(chain-261105 링크 2 인계 5).
 - 링크마다 로그아웃하지 않는다. 마지막 링크가 병합하기 전에 앱에서 연결을 모두 로그아웃하고, 그 프로필이 만든 Keychain 항목이 사라졌는지 확인한 뒤 userData를 지운다. 실제 Keychain에서 지우기 전에 사용자에게 묻는다.
+- 앞 체인이 남긴 임시 Claude 로그인도 이 체인이 맡는다(사용자, 2026-11-06에 남겨 두기로 함): `CLAUDE_CONFIG_DIR` `/Users/sinhyeok/code/doan-design/.scratch/prompt-suggestion/claude-config`(SDK script PoC용 `p1.mjs`가 씀)와 Keychain 항목 `Claude Code-credentials-dc1943d2`. SDK script로 돌리는 PoC가 있으면 다시 쓰고, 마지막 링크의 정리 때 사용자에게 물은 뒤 함께 지운다.
 - 셸에서 `doan check`를 돌릴 때는 임시 `DOAN_RUNTIME`을 준다(ARCHITECTURE §4 'Shell check session associations').
 
 ## 인계와 물러나기
