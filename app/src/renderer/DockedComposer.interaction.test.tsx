@@ -941,3 +941,17 @@ test("a suggestion is not announced on the first list read, a switch, a refill a
   typed.settle();
   expect(typed.said()).toBe("");
 });
+
+// R review ⚪4: a suggestion is plain text (decision 8), so one that starts with / does not open the preset list when
+// Right Arrow puts it in; the list opens again once the field is emptied and / is typed.
+test("a suggestion that starts with / goes in as text and leaves the preset list closed", () => {
+  const { render, handle } = suggestionSetup({ suggestion: "/compact the thread" });
+  press(render(), arrowRight());
+  expect(handle.insertText).toHaveBeenCalledWith("/compact the thread");
+  for (const effect of hooks.effects) effect();
+  expect(field(render()).role).toBe("textbox");
+  type(render(), "");
+  for (const effect of hooks.effects) effect();
+  type(render(), "/");
+  expect(field(render()).role).toBe("combobox");
+});
