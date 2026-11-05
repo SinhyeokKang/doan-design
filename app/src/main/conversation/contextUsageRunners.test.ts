@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -20,14 +20,16 @@ const ends = (events: readonly { type: string }[]) => events.filter(e => e.type 
 
 // A Claude CLI in streaming-input mode that exits once its stdin ends. FAKE_CTX: "done" answers with a top-level call
 // whose usage and model the result's modelUsage names, a subagent call, then a prompt suggestion after the terminal
-// (the real CLI sends no assistant frame for the suggestion's call; transport tests cover frames after the terminal);
-// "hold" makes the call and never ends the turn; "eof" makes the call and exits without a result.
+// (the real CLI sends no assistant frame for the suggestion's call; transport tests cover frames after the terminal).
+// "hold" and "eof" make the call, and on a steered message answer with a success result that leaves it unread, so the
+// transport holds a value with no terminal (the steer wait); then "hold" waits and "eof" exits.
 function claudeCli(root: string): string {
   const command = join(root, "claude");
   writeFileSync(command, `#!/usr/bin/env node
 const fs = require('node:fs'); const readline = require('node:readline');
 const send = value => process.stdout.write(JSON.stringify(value)+'\\n');
-const mode = process.env.FAKE_CTX;
+const mode = process.env.FAKE_CTX; let users = 0;
+const modelUsage = {'claude-haiku-5-5':{contextWindow:200000},'claude-sonnet-5-5':{contextWindow:1000000}};
 const call = (id, usage, parent = null) => send({type:'assistant',parent_tool_use_id:parent,message:{id,role:'assistant',model:'claude-sonnet-5-5',content:[{type:'text',text:'OK'}],usage}});
 const input = readline.createInterface({input:process.stdin});
 input.on('line', line => {
@@ -35,11 +37,16 @@ input.on('line', line => {
  const r = JSON.parse(line);
  if(r.type==='control_request') send({type:'control_response',response:{subtype:'success',request_id:r.request_id,response:{commands:[],models:[],account:{}}}});
  if(r.type!=='user') return;
+ if(++users > 1) {
+  send({type:'result',subtype:'success',is_error:false,result:'OK',user_message_uuids:[],queued_turn_count:0,session_id:r.session_id,modelUsage});
+  fs.writeFileSync(${JSON.stringify(join(root, "resulted"))}, '');
+  if(mode==='eof') setTimeout(() => process.exit(0), 50);
+  return;
+ }
  call('m1', {input_tokens:2,cache_creation_input_tokens:4916,cache_read_input_tokens:30853,output_tokens:28});
- if(mode==='eof') { setTimeout(() => process.exit(0), 20); return; }
- if(mode==='hold') return;
+ if(mode!=='done') return;
  call('sub', {input_tokens:900000}, 'tool-1');
- send({type:'result',subtype:'success',is_error:false,result:'OK',session_id:r.session_id,modelUsage:{'claude-haiku-5-5':{contextWindow:200000},'claude-sonnet-5-5':{contextWindow:1000000}}});
+ send({type:'result',subtype:'success',is_error:false,result:'OK',session_id:r.session_id,modelUsage});
  send({type:'prompt_suggestion',suggestion:'Next',uuid:'00000000-0000-4000-8000-0000000000a2',session_id:r.session_id});
 });
 input.on('close', () => { fs.writeFileSync(${JSON.stringify(join(root, "closed"))}, ''); setTimeout(() => process.exit(0), 20); });
@@ -48,14 +55,27 @@ input.on('close', () => { fs.writeFileSync(${JSON.stringify(join(root, "closed")
 }
 const seenLines = (root: string) => readFileSync(join(root, "seen"), "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line) as Record<string, any>);
 const CLAUDE_OWNER = { kind: "doan" as const, provider: "claude" as const, connectionId: "c1", accountId: "a1", workspaceId: "org-1", profile: "claude" };
-async function claudeService(mode: string, body: (h: { service: ConversationService; store: ConversationStore; id: string; root: string; exited: ReturnType<typeof vi.fn> }) => Promise<void>, owner = false) {
+const STEER_ID = "6190301c-24ce-42a9-8a51-ad4fdf91835e";
+type Steering = Awaited<ReturnType<typeof openRunner>> & { steer?: (prompt: string, turnId: string, messageId: string) => Promise<void> };
+// Steers into the running turn and waits for the fake's result that leaves it unread: the transport then holds the
+// turn's value without a terminal.
+async function holdValue(runner: Steering, turnId: string, root: string) {
+  await runner.steer!("extra", turnId, STEER_ID);
+  await vi.waitFor(() => expect(existsSync(join(root, "resulted"))).toBe(true));
+  await new Promise(resolve => setTimeout(resolve, 100));
+}
+async function claudeService(mode: string, body: (h: { service: ConversationService; store: ConversationStore; id: string; root: string; exited: ReturnType<typeof vi.fn>; running: () => { runner: Steering; turnId: string } }) => Promise<void>, owner = false) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), "doan-context-claude-"))), command = claudeCli(root), store = new ConversationStore(root), exited = vi.fn();
+  let running: { runner: Steering; turnId: string } | undefined;
   const service = new ConversationService(store,
     async () => ({ command, runtime: "claude", cwd: root, configDir: root, env: { PATH: process.env.PATH, HOME: root, CLAUDE_CONFIG_DIR: root, FAKE_CTX: mode }, ...(owner ? { owner: CLAUDE_OWNER } : {}) }),
-    (input, emit, onExit, registerStop) => openRunner(input, emit, () => { exited(); onExit(); }, registerStop), () => {});
+    async (input, emit, onExit, registerStop) => {
+      const runner: Steering = await openRunner(input, emit, () => { exited(); onExit(); }, registerStop);
+      return { ...runner, send: (prompt, turnId, ...rest) => { running = { runner, turnId }; return runner.send(prompt, turnId, ...rest); } };
+    }, () => {});
   try {
     const { conversationId } = await service.start({ root, mode: "new", runtime: "claude", text: "hello", anchors: [] });
-    await body({ service, store, id: conversationId, root, exited });
+    await body({ service, store, id: conversationId, root, exited, running: () => running! });
   } finally { await service.quit(); rmSync(root, { recursive: true, force: true }); }
 }
 
@@ -77,43 +97,52 @@ describe("Claude", () => {
     ["Stop", (service: ConversationService, id: string) => service.interrupt(id), { type: "interrupted", reason: "user" }],
     ["quit", (service: ConversationService) => service.quit(), { type: "interrupted", reason: "appQuit" }],
     ["a sign-out's stopRuns", (service: ConversationService) => service.stopRuns("claude"), { type: "interrupted", reason: "user" }],
-  ])("records no value for a turn ended by %s", async (_name, end, terminal) => {
-    await claudeService("hold", async ({ service, store, id, root }) => {
+  ])("records no value for a turn ended by %s, though the transport holds one", async (_name, end, terminal) => {
+    await claudeService("hold", async ({ service, store, id, root, running }) => {
       await vi.waitFor(() => expect(store.read(id)).toContainEqual(expect.objectContaining({ type: "message.done", messageId: "m1" })));
-      expect(seenLines(root).some(r => r.type === "user")).toBe(true);
+      await holdValue(running().runner, running().turnId, root);
       await end(service, id);
       await vi.waitFor(() => expect(ends(store.read(id))).toEqual([terminal.type]));
       expect(store.read(id).at(-1)).toMatchObject(terminal);
     }, true);
   }, 15000);
-  it("records no value when the stream ends without a terminal", async () => {
+  it("records no value when the stream ends without a terminal, though the transport holds one", async () => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), "doan-context-claude-"))), command = claudeCli(root), events: EventPayload[] = [];
-    const runner = await openRunner({ command, runtime: "claude", cwd: root, configDir: root, env: { PATH: process.env.PATH, HOME: root, CLAUDE_CONFIG_DIR: root, FAKE_CTX: "eof" } }, e => events.push(e), () => {}, () => {});
-    try { await runner.send("hello", "turn-1"); expect(ends(events)).toEqual(["turn.failed"]); expect(events.at(-1)).toEqual({ type: "turn.failed", code: "process_exited" }); }
-    finally { await runner.close(); rmSync(root, { recursive: true, force: true }); }
+    const runner: Steering = await openRunner({ command, runtime: "claude", cwd: root, configDir: root, env: { PATH: process.env.PATH, HOME: root, CLAUDE_CONFIG_DIR: root, FAKE_CTX: "eof" } }, e => events.push(e), () => {}, () => {});
+    try {
+      const sending = runner.send("hello", "turn-1");
+      await vi.waitFor(() => expect(events).toContainEqual(expect.objectContaining({ type: "message.done", messageId: "m1" })));
+      await holdValue(runner, "turn-1", root);
+      await sending;
+      expect(ends(events)).toEqual(["turn.failed"]); expect(events.at(-1)).toEqual({ type: "turn.failed", code: "process_exited" });
+    } finally { await runner.close(); rmSync(root, { recursive: true, force: true }); }
   }, 15000);
 });
 
 // A Codex app-server. On resume it replays the previous turn's thread/tokenUsage/updated before the new turn/start
 // reply (P2 (d)), then sends two notifications for the new turn. FAKE_CTX: "done" completes the turn; "garbage" breaks
-// the protocol after the notifications; "hold" waits and completes as interrupted on turn/interrupt.
+// the protocol after the notifications; "hold" waits and completes as interrupted on turn/interrupt; "twice" completes
+// the first turn like "done" and a second one with no notification.
 function codexServer(root: string): string {
   const command = join(root, "codex");
   writeFileSync(command, `#!/usr/bin/env node
 const readline = require('node:readline');
 const send = value => process.stdout.write(JSON.stringify(value)+'\\n');
-const mode = process.env.FAKE_CTX;
+const mode = process.env.FAKE_CTX; let turns = 0;
 const usage = (turnId, inputTokens) => ({method:'thread/tokenUsage/updated',params:{threadId:'s',turnId,tokenUsage:{total:{inputTokens:99999,totalTokens:99999},last:{inputTokens,cachedInputTokens:100,cacheWriteInputTokens:0,outputTokens:5,totalTokens:inputTokens+5},modelContextWindow:258400}}});
 readline.createInterface({input:process.stdin}).on('line', line => {
  const r = JSON.parse(line);
  if(r.method==='initialize') send({id:r.id,result:{}});
  if(r.method==='thread/start' || r.method==='thread/resume') send({id:r.id,result:{thread:{id:'s'},approvalPolicy:'on-request',sandbox:{type:'readOnly'}}});
  if(r.method==='config/read') send({id:r.id,result:{config:{}}});
- if(r.method==='turn/start') {
+ if(r.method==='turn/start' && ++turns === 2) {
+  send({id:r.id,result:{turn:{id:'second'}}});
+  send({method:'turn/completed',params:{threadId:'s',turn:{id:'second',status:'completed'}}});
+ } else if(r.method==='turn/start') {
   send(usage('previous', 17109));
   send({id:r.id,result:{turn:{id:'native'}}});
   send(usage('native', 17020)); send(usage('native', 31087));
-  if(mode==='done') send({method:'turn/completed',params:{threadId:'s',turn:{id:'native',status:'completed'}}});
+  if(mode==='done' || mode==='twice') send({method:'turn/completed',params:{threadId:'s',turn:{id:'native',status:'completed'}}});
   if(mode==='garbage') process.stdout.write('not json\\n');
  }
  if(r.method==='turn/interrupt') { send({id:r.id,result:{}}); send({method:'turn/completed',params:{threadId:'s',turn:{id:'native',status:'interrupted'}}}); }
@@ -132,6 +161,14 @@ describe("Codex", () => {
       expect(store.read(conversationId).at(-2)).toMatchObject({ type: "context.usage", used: 31087, size: 258400 });
     } finally { await service.quit(); rmSync(root, { recursive: true, force: true }); }
   }, 15000);
+  it("starts each turn of the same server without a value", async () => {
+    const root = realpathSync(mkdtempSync(join(tmpdir(), "doan-context-codex-"))), command = codexServer(root), events: EventPayload[] = [];
+    const runner = await openRunner({ command, runtime: "codex", cwd: root, configDir: root, env: { PATH: process.env.PATH, HOME: root, FAKE_CTX: "twice" } }, e => events.push(e), () => {}, () => {});
+    try {
+      await runner.send("hello", "turn-1"); await vi.waitFor(() => expect(ends(events)).toEqual(["context.usage", "turn.done"]));
+      await runner.send("again", "turn-2"); await vi.waitFor(() => expect(ends(events)).toEqual(["context.usage", "turn.done", "turn.done"]));
+    } finally { await runner.close(); rmSync(root, { recursive: true, force: true }); }
+  }, 15000);
   it.each([
     ["a protocol failure", "garbage", { type: "turn.failed", code: "session_unavailable" }, false],
     ["Stop", "hold", { type: "interrupted", reason: "user" }, true],
@@ -148,11 +185,13 @@ describe("Codex", () => {
 });
 
 describe("ACP", () => {
+  const dirs: string[] = [];
+  afterEach(() => { for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true }); });
   const SERVER = join(__dirname, "fixtures", "fake-acp-server.cjs");
   const session = copilot.turn[0]!.params!.sessionId;
   // The recorded Copilot handshake with the P3 tool turn's frames as its turn.
   function fixture(frames: unknown[]): string {
-    const dir = realpathSync(mkdtempSync(join(tmpdir(), "doan-context-acp-"))), path = join(dir, "acp-copilot.json");
+    const dir = realpathSync(mkdtempSync(join(tmpdir(), "doan-context-acp-"))), path = join(dir, "acp-copilot.json"); dirs.push(dir);
     const turn = JSON.parse(JSON.stringify(frames).replaceAll('"session-1"', JSON.stringify(session)));
     writeFileSync(path, JSON.stringify({ ...copilot, turn }));
     return path;

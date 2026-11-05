@@ -29,9 +29,11 @@ export function contextValue(used: unknown, size: unknown): { used: number; size
   return count(used) && count(size) && size >= 1 ? { used, size } : undefined;
 }
 // A top-level call's context: its input tokens with both cache kinds (BetaUsage; the cache fields may be null), and
-// the model whose modelUsage entry gives the window.
+// the model whose modelUsage entry gives the window. A message Claude Code makes up itself (an API error, "No response
+// requested.") names the SDK's "<synthetic>" model and made no call, so the turn's last real call stays.
+const CLAUDE_SYNTHETIC_MODEL = "<synthetic>";
 function claudeCall(message: Record<string, unknown>): { used: number; model: string } | undefined {
-  if (!object(message.usage) || typeof message.model !== "string" || !message.model) return undefined;
+  if (!object(message.usage) || typeof message.model !== "string" || !message.model || message.model === CLAUDE_SYNTHETIC_MODEL) return undefined;
   const parts = [message.usage.input_tokens, message.usage.cache_creation_input_tokens ?? 0, message.usage.cache_read_input_tokens ?? 0];
   if (!parts.every(count)) return undefined;
   const used = parts.reduce((sum, part) => sum + part, 0);

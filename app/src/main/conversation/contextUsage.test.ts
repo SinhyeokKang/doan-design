@@ -74,6 +74,12 @@ describe("Claude context usage", () => {
     frames[2]!.message.usage = { ...frames[2]!.message.usage, ...usage };
     expect(usageOf(run(frames).events)).toEqual([{ type: "context.usage", used: 4 + 7446 + 23407, size: 1_000_000 }]);
   });
+  it("keeps the last model call over a later synthetic message (an API error's), whose model no window names", () => {
+    const frames = tool();
+    const synthetic = { ...frames[2], message: { ...frames[2]!.message, id: "msg-err", model: "<synthetic>", usage: { input_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } } };
+    frames.splice(3, 0, synthetic);
+    expect(usageOf(run(frames).events)).toEqual([{ type: "context.usage", used: 35771, size: 1_000_000 }]);
+  });
   it("counts absent or null cache fields as none", () => {
     const frames = tool();
     frames[2]!.message.usage = { input_tokens: 120, cache_creation_input_tokens: null };
