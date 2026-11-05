@@ -66,3 +66,18 @@ test("W5 accepts reformatted labels and rejects missing or unrelated edits", () 
   assert.equal(labels(final.replace('data-doan-frame="plan-pro"', 'data-doan-frame="pro"')), false);
   assert.equal(labels(final.replace("$12 per month", "$10 per month")), false);
 });
+
+// Free is edited, then Pro, then Free again before Team (review V4). The snapshot each update arrived at shows
+// what changed since the previous signal.
+const freeDraft = seed.replace(">Get started</button>", ">Try it free</button>");
+const proDone = freeDraft.replace(">Upgrade</button>", ">Start Pro trial</button>");
+const freeAgain = proDone.replace(">Try it free</button>", ">Start for free</button>");
+test("W5 rejects re-entering a frame without a new update", () => {
+  assert.deepEqual(failing([start(), update("plan-free", seed), update("plan-pro", freeDraft), update("plan-team", freeAgain), done()]), ["update_before_each_frame_edit"]);
+});
+test("W5 accepts re-entering a frame with a new update", () => {
+  assert.deepEqual(failing([start(), update("plan-free", seed), update("plan-pro", freeDraft), update("plan-free", proDone), update("plan-team", freeAgain), done()]), []);
+});
+test("W5 rejects an edit before the first update", () => {
+  assert.deepEqual(failing([start(), update("plan-free", freeDraft), update("plan-pro", freeDraft), update("plan-team", freeDraft), done()]), ["update_before_each_frame_edit"]);
+});

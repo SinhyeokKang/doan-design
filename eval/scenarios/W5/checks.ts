@@ -55,19 +55,34 @@ export function labelsUpdated(ctx: Parameters<Checks>[0]): Check {
   return { id: "labels_updated", pass: expected !== undefined && isDeepStrictEqual(expected.nodes, actual?.nodes), detail: expected === undefined || actual === undefined ? "parse failed" : "" };
 }
 
-// For each requested frame, an accepted update naming it that arrived while the frame still had its seed content.
+// For each requested frame, an accepted update naming it that arrived while the frame still had its seed content,
+// and no frame edited without an update naming it since the last observed edit. Edits are observed only as the
+// difference between consecutive snapshots (the seed, each accepted update's canvas, the final canvas), so several
+// updates may precede one write that edits their frames, but a frame re-entered without a new update fails.
 export function updateBeforeEachFrameEdit(ctx: Parameters<Checks>[0]): Check {
   const updates = ctx.work().filter(entry => entry.response.ok && entry.request.action === "update" && entry.request.path === path);
-  const seed = ctx.seed(path);
-  const parsed = seed === null ? null : parse(ctx, [seed, ...updates.map(entry => entry.canvas ?? "")]);
+  const seed = ctx.seed(path), final = ctx.read(path);
+  const parsed = seed === null || final === null ? null : parse(ctx, [seed, ...updates.map(entry => entry.canvas ?? ""), final]);
   const frames = Object.fromEntries(Object.keys(labels).map(frame => [frame, parsed !== null && updates.some((entry, i) =>
     entry.request.frame === frame && typeof entry.canvas === "string" && frame in parsed[0].frames && isDeepStrictEqual(parsed[i + 1].frames[frame], parsed[0].frames[frame]))]));
+  // unannounced[k]: frames that changed between snapshot k and k+1 although no update since the previous observed edit named them.
+  const unannounced: { after: string | null; frames: string[] }[] = [];
+  if (parsed !== null) {
+    let announced = new Set<string>();
+    for (let k = 0; k + 1 < parsed.length; k++) {
+      if (k > 0) announced.add(updates[k - 1].request.frame ?? "");
+      const changed = Object.keys(parsed[0].frames).filter(frame => !isDeepStrictEqual(parsed[k].frames[frame], parsed[k + 1].frames[frame]));
+      const missing = changed.filter(frame => !announced.has(frame));
+      if (missing.length) unannounced.push({ after: k === 0 ? null : updates[k - 1].at, frames: missing });
+      if (changed.length) announced = new Set();
+    }
+  }
   const times = updates.map(entry => Date.parse(entry.at));
   const intervalsSec = times.slice(1).map((time, i) => (time - times[i]) / 1000);
   return {
     id: "update_before_each_frame_edit",
-    pass: Object.values(frames).every(Boolean),
-    detail: JSON.stringify({ frames, intervalsSec, updates: updates.map(entry => ({ frame: entry.request.frame ?? null, note: entry.request.note ?? null, at: entry.at })) }),
+    pass: parsed !== null && Object.values(frames).every(Boolean) && unannounced.length === 0,
+    detail: JSON.stringify({ frames, unannounced, intervalsSec, updates: updates.map(entry => ({ frame: entry.request.frame ?? null, note: entry.request.note ?? null, at: entry.at })) }),
   };
 }
 
