@@ -294,7 +294,7 @@ it("saves a capture as given, as a main-written paste under userData, without de
   const captured = ok(f.store.addCaptured(new Uint8Array(PNG)));
   expect(captured).toMatchObject({ kind: "image", pasted: true, size: PNG.length, thumbnail: new Uint8Array([1, 2, 3]) });
   expect(captured.name).toMatch(/^canvas-capture-.*\.png$/);
-  expect(Object.keys(captured).sort()).toEqual(["id", "kind", "name", "path", "pasted", "size", "thumbnail"]);
+  expect(Object.keys(captured).sort()).toEqual(["id", "kind", "name", "pasted", "path", "size", "thumbnail"]);
   expect(captured.path.startsWith(realpathSync(f.dir))).toBe(true);
   expect(readFileSync(captured.path)).toEqual(PNG);
   expect(statSync(captured.path).mode & 0o777).toBe(0o600);
