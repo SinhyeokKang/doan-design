@@ -445,8 +445,7 @@ export class ConversationService {
     return this.store.list().filter(m => m.root === root).map(m => {
       let read: { ok: true; events: ConversationEvent[] } | { ok: false };
       try { read = { ok: true, events: this.store.readRequired(m.conversationId) }; } catch { read = { ok: false }; }
-      const summary = conversationSummary(m, read, { live: this.ran(m.conversationId), queued: this.drafts.queued(m.conversationId).length, working: this.working(m.conversationId) });
-      return this.drafts.returned(m.conversationId) ? { ...summary, returnedDraft: true as const } : summary;
+      return conversationSummary(m, read, { live: this.ran(m.conversationId), queued: this.drafts.queued(m.conversationId).length, working: this.working(m.conversationId), returned: !!this.drafts.returned(m.conversationId) });
     });
   }
   // An entry without seenSeq has had its whole history seen, so a lower seq never makes it unseen.

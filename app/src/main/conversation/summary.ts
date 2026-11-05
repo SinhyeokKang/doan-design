@@ -19,16 +19,21 @@ export interface ConversationSummary {
   // Queued messages came back as a draft (conversation:takeDraft) after a failed or stopped turn, a refused queued
   // send or a restart.
   returnedDraft?: true;
+  // Claude Code's suggestion for the next message, kept in main memory only. Present only while the composer would show
+  // it: a current conversation whose turn ended, not working, with nothing queued and no returned draft.
+  suggestion?: string;
 }
 // Long enough for one line of a canvas row or conversation menu; the renderer still truncates to its width.
 export const PREVIEW_CHARS = 140;
 const COMMAND = "Running a command";
 // live: this run holds the conversation, so an unfinished turn is still running rather than folded as crashed.
-export function conversationSummary(m: ConversationMetadata, read: { ok: true; events: readonly ConversationEvent[] } | { ok: false }, live: { live: boolean; queued: number; working: boolean }): ConversationSummary {
+// returned: a returned draft waits (drafts.ts). suggestion: the suggestion main holds for this conversation.
+export function conversationSummary(m: ConversationMetadata, read: { ok: true; events: readonly ConversationEvent[] } | { ok: false }, live: { live: boolean; queued: number; working: boolean; returned?: boolean; suggestion?: string }): ConversationSummary {
   const base = {
     conversationId: m.conversationId, ...(m.canvas ? { canvas: m.canvas } : {}), title: m.title, state: m.state,
     owner: m.owner.kind, provider: m.session.runtime, ...(m.model ? { model: m.model } : {}), ...(m.effort ? { effort: m.effort } : {}),
     ...(m.permissionMode ? { permissionMode: m.permissionMode } : {}), fromHome: m.fromHome === true, queued: live.queued, working: live.working,
+    ...(live.returned ? { returnedDraft: true as const } : {}),
   };
   if (!read.ok) return { ...base, phase: "ended", unseen: false, lastActivityAt: "", preview: "", readError: true };
   const events = read.events, folded = foldConversation(events, m.conversationId, !live.live);
@@ -36,7 +41,9 @@ export function conversationSummary(m: ConversationMetadata, read: { ok: true; e
   // Markers of binding, archiving and restoring are not something to see: they would mark a seen end unseen again.
   const lastTurnSeq = [...events].reverse().find(e => !e.type.startsWith("conversation."))?.seq ?? 0;
   const unseen = phase === "ended" && m.state === "current" && m.seenSeq !== undefined && lastTurnSeq > m.seenSeq;
-  return { ...base, phase, unseen, lastActivityAt: events.at(-1)?.at ?? "", preview: preview(events, phase, folded, folded.turnId, folded.messages) };
+  // A queue or a returned draft is what the composer offers next, so a suggestion never competes with them.
+  const suggested = live.suggestion && m.state === "current" && phase === "ended" && !live.working && live.queued === 0 && !live.returned ? { suggestion: live.suggestion } : {};
+  return { ...base, phase, unseen, lastActivityAt: events.at(-1)?.at ?? "", preview: preview(events, phase, folded, folded.turnId, folded.messages), ...suggested };
 }
 function preview(events: readonly ConversationEvent[], phase: ConversationSummary["phase"], open: Pick<FoldedConversation, "permissions" | "questions">, turnId: string | null, messages: { text: string }[]): string {
   if (phase === "waiting") {
