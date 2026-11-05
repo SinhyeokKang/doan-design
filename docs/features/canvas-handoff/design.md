@@ -48,10 +48,12 @@
 
 Doan은 핸드오프에 승인 카드를 만들지 않는다. provider가 셸 명령에 묻는 승인이 일반 permission request로 보인다(PRODUCT §3 'Resume and permissions': "Doan forwards the runtime's real approval requests"). 아래 표는 코드에서 읽은 예상이고, PoC P2가 실제를 기록한다. 대응은 결정 1이다. P2 결과가 이 표와 다르면 P3에서 사람에게 다시 묻는다.
 
+Doan 연결 Codex 프로필에는 `rules/doan.rules`(`prefix_rule(pattern=["doan"], decision="allow")`, ARCHITECTURE §7 'Agent authentication' 'Profiles')가 있어 `doan` 명령은 묻지 않고 sandbox 밖에서 실행된다. 그대로 두면 Codex Default·Accept edits의 핸드오프는 승인 없이 진행된다. 그래서 Codex 프로필에만 `rules/doan-handoff.rules`(`prefix_rule(pattern=["doan", "handoff"], decision="prompt")`)를 더한다(결정 1의 보충, 사람, 2026-11-06). Codex는 여러 규칙이 맞으면 가장 엄한 결정을 쓴다(`forbidden` > `prompt` > `allow`. 출처는 Codex 문서 'Rules', learn.chatgpt.com/docs/agent-configuration/rules, 2026-11-06 확인). 승인한 `prompt` 명령이 sandbox 밖에서 실행되는지는 문서에 없으므로 R1에서 확인한다. 터미널의 `~/.codex/rules/doan.rules`(`codexRuleText()`)는 바꾸지 않는다. 터미널 agent는 어차피 `not_app_conversation`을 받는다. Claude 프로필의 `CLAUDE_ALLOW_RULES`에는 `doan handoff`가 없으므로 그대로 묻는다.
+
 | mode | Claude Code | Codex | ACP |
 |---|---|---|---|
-| Default | 사람·저장소 설정이 허용하지 않으면 Bash 승인 요청 | Doan 프로필(`CODEX_HOME`)이 이 폴더에 주는 기본값을 따른다. `on-request` + sandbox면 socket이 막히고 escalation 승인 요청, `never`(드문 경우)면 실패하고 agent가 사람에게 말한다 | provider 기본 mode의 셸 승인 |
-| Accept edits | 편집만 자동이고 Bash는 승인 요청 | `on-request` + `workspaceWrite`: escalation 승인 요청 | Antigravity `auto_edit`의 셸 동작(PoC). Cursor·Copilot은 이 mode가 없다 |
+| Default | 사람·저장소 설정이 허용하지 않으면 Bash 승인 요청 | `doan-handoff.rules`의 `prompt`로 승인 요청(`commandExecution`). 승인 뒤 socket에 닿는지는 R1에서 본다 | provider 기본 mode의 셸 승인 |
+| Accept edits | 편집만 자동이고 Bash는 승인 요청 | Default와 같음 | Antigravity `auto_edit`의 셸 동작(PoC). Cursor·Copilot은 이 mode가 없다 |
 | Plan | 실행을 막거나 묻는다(PoC). Doan은 `plan_mode`로 거절(결정 1) | `never` + `readOnly`: socket이 막히고 승인 요청도 없다. Doan도 거절 | Cursor·Copilot `plan`. Doan이 거절 |
 | Full access | 묻지 않고 실행 | `dangerFullAccess`: 묻지 않고 socket에 닿는다 | Antigravity `yolo`, Copilot `allow_all`: 묻지 않음 |
 

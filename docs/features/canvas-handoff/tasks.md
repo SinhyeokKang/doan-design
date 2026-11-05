@@ -70,6 +70,8 @@
   - 검증: `npm --prefix app test`의 runtime 테스트에서 v5 확인 순서, 기존 v1–v4 응답 불변, 모르는 `v`가 지금처럼 v1 경로로 가는 사례가 green이다.
 - [ ] C2. 대화 서비스: Doan 연결 대화(캔버스·프로젝트)의 runner마다 `DOAN_HANDOFF` 키(환경과 `RESERVED`), 턴 snapshot, 요청 수락과 `handoff.requested`, 턴 끝 판정 대기, 이어받는 대화 시작(`origin`, `requireNoCurrent`, `handoffText`, 다른 evidence의 `taken`), 대기 중 핸드오프를 root의 `contested`에 넣기, 큐 옮기기, `handoff.resolved`, `conversation:handoff` 알림.
   - 검증: `npm --prefix app test`의 `service.test.ts`에서 fake runner로 done → 시작, stopped → 취소, 판정 대기 중 archive, 수락 직전 대상에 현재 대화가 생긴 경우, 시작 거절(`not_logged_in` 등), 이어받는 첫 턴의 재요청 거절, 같은 root의 판정 대기 프로젝트 턴과 겹칠 때 프로젝트 턴이 대상 캔버스를 가져가지 못함(`contested`), done 때 큐가 있으면 핸드오프가 진행되고 큐가 이어받는 대화의 다음 턴으로 나감, 핸드오프로 시작한 턴에 steer가 들어가도 그 턴의 요청이 `handoff_turn`으로 거절됨, promotion된 Codex 대화가 같은 runner를 다시 쓸 때 키가 있음, Plan 승인 뒤 같은 턴의 요청이 `plan_mode`로 거절되지 않음이 green이다.
+- [ ] C4. Codex 프로필 규칙 `rules/doan-handoff.rules`(`prefix_rule(pattern=["doan", "handoff"], decision="prompt")`)를 `providers.ts`의 Codex `settings`에 더한다(design §4). 터미널 `codexRuleText()`는 바꾸지 않는다.
+  - 검증: `npm --prefix app test`에서 Codex 프로필 settings에 두 규칙 파일이 있고 Claude·다른 provider는 그대로인 사례가 green이다.
 - [ ] C3. CLI `doan handoff`(`handoff.go`, `run.go` 등록, `doan help`, `ExitCode` 매핑).
   - 검증: `go test ./...`에서 fake socket(절대 경로 임시 `DOAN_RUNTIME`)으로 성공, 각 거절 코드, 키 없음, 없는 파일, `--message -` 상한, 앱 꺼짐(`app_not_running`), 틀린 token(`app_not_running`), 이전 앱의 v1 `bad_request`(`app_protocol_mismatch`), 상대 `DOAN_RUNTIME`(`usage_error`), root 불일치(`root_mismatch`), 직렬화한 줄 64 KiB 경계(`<`·U+2028로 채운 글 포함) 테스트가 green이다. — 커밋
 
