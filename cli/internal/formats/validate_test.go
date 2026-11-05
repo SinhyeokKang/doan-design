@@ -56,6 +56,8 @@ func TestValidationFixtures(t *testing.T) {
 		{"app-socket-v3/response", ValidateWorkResponse},
 		{"app-socket-v4/request", ValidateOpenRequest},
 		{"app-socket-v4/response", ValidateOpenResponse},
+		{"app-socket-v5/request", ValidateHandoffRequest},
+		{"app-socket-v5/response", ValidateHandoffResponse},
 	}
 	for _, group := range groups {
 		for _, validity := range []string{"valid", "invalid"} {
@@ -147,6 +149,73 @@ func TestOpenSocketStaysApart(t *testing.T) {
 			if other.validate(readJSON(t, file)) == nil {
 				t.Errorf("v4 %s %s validates as %s", other.kind, filepath.Base(file), other.label)
 			}
+		}
+	}
+}
+
+func TestHandoffSocketStaysApart(t *testing.T) {
+	others := []struct {
+		kind, label, dir string
+		validate         func(any) error
+	}{
+		{"request", "v1", "app-socket/request", ValidateSocketRequest},
+		{"request", "v2", "app-socket-v2/request", ValidateOnboardingRequest},
+		{"request", "v3", "app-socket-v3/request", ValidateWorkRequest},
+		{"request", "v4", "app-socket-v4/request", ValidateOpenRequest},
+		{"response", "v1", "app-socket/response", ValidateSocketResponse},
+		{"response", "v2", "app-socket-v2/response", ValidateOnboardingResponse},
+		{"response", "v3", "app-socket-v3/response", ValidateWorkResponse},
+		{"response", "v4", "app-socket-v4/response", ValidateOpenResponse},
+	}
+	for _, other := range others {
+		v5 := ValidateHandoffRequest
+		if other.kind == "response" {
+			v5 = ValidateHandoffResponse
+		}
+		for _, file := range fixtureFiles(t, other.dir, "valid") {
+			if v5(readJSON(t, file)) == nil {
+				t.Errorf("%s %s %s validates as v5", other.label, other.kind, filepath.Base(file))
+			}
+		}
+		for _, file := range fixtureFiles(t, "app-socket-v5/"+other.kind, "valid") {
+			if other.validate(readJSON(t, file)) == nil {
+				t.Errorf("v5 %s %s validates as %s", other.kind, filepath.Base(file), other.label)
+			}
+		}
+	}
+}
+
+// HANDOFF_TEXT_LIMIT lives in the schema's maxLength. A code point serializes to at most 6 bytes in JSON (U+2028 as \u2028, '<' escaped by json.Marshal), so the limit must leave headroom under the 64 KiB socket line limit.
+func TestHandoffTextLimit(t *testing.T) {
+	var schemaDoc struct {
+		Defs struct {
+			Request struct {
+				Properties struct {
+					Text struct {
+						MaxLength int `json:"maxLength"`
+					} `json:"text"`
+				} `json:"properties"`
+			} `json:"request"`
+		} `json:"$defs"`
+	}
+	data, err := os.ReadFile(filepath.Join("..", "..", "..", "schema", "app-socket.v5.schema.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(data, &schemaDoc); err != nil {
+		t.Fatal(err)
+	}
+	limit := schemaDoc.Defs.Request.Properties.Text.MaxLength
+	if limit != 10000 {
+		t.Fatalf("text maxLength = %d; want 10000", limit)
+	}
+	if limit*6 > 64*1024-4096 {
+		t.Fatalf("worst-case text of %d bytes leaves less than 4 KiB under the line limit", limit*6)
+	}
+	for _, name := range []string{"text-10000.json", "text-10000-lt.json", "text-10000-astral.json"} {
+		file := filepath.Join("..", "..", "..", "schema", "fixtures", "app-socket-v5", "request", "valid", name)
+		if err := ValidateHandoffRequest(readJSON(t, file)); err != nil {
+			t.Errorf("%s: %v", name, err)
 		}
 	}
 }
