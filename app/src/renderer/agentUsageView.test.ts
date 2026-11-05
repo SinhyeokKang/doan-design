@@ -41,10 +41,10 @@ describe("ringViews", () => {
     expect([low!.full, edge!.full, limited!.full]).toEqual([false, true, true]);
   });
 
-  it("puts the logo in the ring only with two or more providers", () => {
-    expect(ringViews([ok("claude", [win()])], NOW)[0]!.logo).toBeNull();
+  it("puts the provider's logo in every ring, a lone ring included", () => {
+    expect(ringViews([ok("claude", [win()])], NOW)[0]!.logo).toBe("provider-logos/claude.png");
     expect(ringViews([ok("claude", [win()]), { provider: "antigravity", inFlight: false }], NOW)).toHaveLength(1);
-    expect(ringViews([ok("claude", [win()]), { provider: "antigravity", inFlight: false }], NOW)[0]!.logo).toBeNull();
+    expect(ringViews([ok("claude", [win()]), { provider: "antigravity", inFlight: false }], NOW)[0]!.logo).toBe("provider-logos/claude.png");
     expect(ringViews([ok("claude", [win()]), ok("codex", [win()])], NOW).map(ring => ring.logo)).toEqual(["provider-logos/claude.png", "provider-logos/codex.png"]);
   });
 });
