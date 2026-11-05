@@ -7,6 +7,7 @@ import { join } from "node:path";
 import type { OpenRequest, OpenResponse, WorkRequest, WorkResponse, OnboardingRequest, OnboardingResponse, RuntimeFile, Selection, SocketErrorCode, SocketRequest, SocketResponse } from "../formats/types";
 import { validateOpenRequest, validateWorkRequest, validateOnboardingRequest, validateSocketRequest } from "../formats/validate";
 import { autoRegisterRoot } from "./autoFolders";
+import type { ConversationUpdate } from "./conversationWork";
 import type { FolderState } from "./folderState";
 
 // Electron-free on purpose, like shell.ts: index.ts supplies the open projects
@@ -23,7 +24,11 @@ export interface ActiveState {
   selection(): Selection | null;
 }
 export interface RuntimeState extends ActiveState {
+  // A terminal start, update or done (never one naming a conversation).
   work(request: WorkRequest): void;
+  // An app conversation's update: answered ok whatever the conversation state does with it (design §1 rule 5), and
+  // never registers a root, since a conversation's root is registered already.
+  conversationWork(request: ConversationUpdate): void;
   // Called only with a schema-valid v2 request whose token matched. It must answer quickly: long work answers with
   // an operation id, since the connection is cut at the 2 s deadline.
   onboarding(request: OnboardingRequest): Promise<OnboardingResponse>;
@@ -130,13 +135,13 @@ function register(state: RuntimeState, root: string): Promise<boolean> {
   return task;
 }
 
-// A start from an unregistered root may register it; a done only waits for a registration already running, so it
+// A start or terminal update from an unregistered root may register it; a done only waits for a registration already running, so it
 // lands after that start's work. Either way the work applies once registered, even after the answer said
 // project_not_open (spec decision 5).
 async function workAfterRegistration(state: RuntimeState, request: WorkRequest): Promise<WorkResponse> {
   const notOpen = workError("project_not_open", "The project is not open in Doan.");
   const pending = registrations.get(state)?.get(request.root) ??
-    (request.action === "start" && state.roots().length > 0 ? register(state, request.root) : undefined);
+    (request.action !== "done" && state.roots().length > 0 ? register(state, request.root) : undefined);
   if (!pending) return notOpen;
   const applied = pending.then((registered): WorkResponse => {
     if (!registered) return notOpen;
@@ -164,7 +169,11 @@ export async function answerLine(line: string, token: string, state: RuntimeStat
   if (typeof value === "object" && value !== null && !Array.isArray(value) && Reflect.get(value, "v") === 3) {
     if (!validateWorkRequest(value)) return workError("bad_request", "The request is not an app-socket v3 request.");
     if (!tokenMatches(value.token, token)) return workError("bad_token", "The token does not match this app.");
-    if (value.action === "start" && !/^\.doan\/(canvases|ds)\/[^/]+\.html$/.test(value.path)) return workError("bad_request", "The path is not a canvas path.");
+    if (value.action !== "done" && !/^\.doan\/(canvases|ds)\/[^/]+\.html$/.test(value.path)) return workError("bad_request", "The path is not a canvas path.");
+    if (value.action === "update" && value.conversation !== undefined) {
+      try { state.conversationWork(value); return { v: 3, ok: true }; }
+      catch (error) { console.error("doan: conversation work request failed", error); return workError("bad_request", "Doan could not handle this request."); }
+    }
     if (!state.isOpen(value.root)) return workAfterRegistration(state, value);
     try { state.work(value); return { v: 3, ok: true }; }
     catch (error) { console.error("doan: work request failed", error); return workError("bad_request", "Doan could not handle this request."); }

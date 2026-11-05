@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, onTestFinished, test, vi } from "vitest";
 import type { BrowserWindowConstructorOptions, MenuItemConstructorOptions } from "electron";
 
 const OUTCOME = { added: ["/repo"], duplicate: null, messages: [], confirm: null };
@@ -56,6 +56,8 @@ const mocks = await vi.hoisted(async () => {
     publishConversation: undefined as ((event: unknown) => void) | undefined,
     // The callback main gave the service for a deleted conversation.
     deletedConversation: undefined as ((id: string) => void) | undefined,
+    // The callback main gave the service for a turn that can no longer take a work update.
+    workEnded: undefined as ((id: string) => void) | undefined,
     // The conversation service main created, so a test can pin what main asks it.
     conversationService: undefined as { list(root: string): unknown[]; projectEvidence(root: string): unknown[] } | undefined,
     preferences: { read: vi.fn(), current: vi.fn(), update: vi.fn() },
@@ -116,7 +118,7 @@ vi.mock("./conversation/drafts", async (importOriginal) => { const original = aw
 vi.mock("./conversation/service", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./conversation/service")>();
   return { ...actual, ConversationService: class extends actual.ConversationService {
-    constructor(...args: ConstructorParameters<typeof actual.ConversationService>) { super(...args); mocks.publishConversation = args[3] as never; mocks.deletedConversation = args[9] as never; mocks.conversationService = this; }
+    constructor(...args: ConstructorParameters<typeof actual.ConversationService>) { super(...args); mocks.publishConversation = args[3] as never; mocks.deletedConversation = args[9] as never; mocks.workEnded = args[10] as never; mocks.conversationService = this; }
   } };
 });
 vi.mock("./preferences", async (importOriginal) => ({ ...await importOriginal<typeof import("./preferences")>(), createPreferencesStore: mocks.createPreferencesStore }));
@@ -2090,6 +2092,8 @@ test("deep links wait for restoration readiness and only navigate or refuse in t
 });
 
 test("unchanged work does not publish during startup or folder refreshes", () => {
+  vi.useFakeTimers();
+  onTestFinished(() => { vi.useRealTimers(); });
   const publications = () => window().webContents.send.mock.calls.filter(([channel]) => channel === "work:changed");
   expect(publications()).toHaveLength(0);
   const changed = mocks.startShell.mock.calls[0]?.[2];
@@ -2110,6 +2114,59 @@ test("unchanged work does not publish during startup or folder refreshes", () =>
   expect(publications()).toHaveLength(2);
 });
 
+// work-update design §2 function 5: an update's content and a renewed start reach the renderer.
+test("work content and a later start publish work:changed", () => {
+  vi.useFakeTimers();
+  onTestFinished(() => { vi.useRealTimers(); });
+  const publications = () => window().webContents.send.mock.calls.filter(([channel]) => channel === "work:changed").map(([, items]) => items);
+  const changed = mocks.startShell.mock.calls[0]?.[2];
+  if (typeof changed !== "function") throw new Error("no folder listener");
+  const state = mocks.startRuntime.mock.calls[0]?.[1] as { work(request: unknown): void } | undefined;
+  if (!state) throw new Error("no runtime state");
+  changed([{ path: "/repo", kind: "list", canvases: [] }]);
+  const path = ".doan/canvases/a.html";
+  state.work({ v: 3, token: "t", root: "/repo", action: "update", path, frame: "hero", note: "Drawing the hero" });
+  state.work({ v: 3, token: "t", root: "/repo", action: "update", path, frame: "pricing" });
+  vi.advanceTimersByTime(10);
+  state.work({ v: 3, token: "t", root: "/repo", action: "start", path });
+  const published = publications() as { frame?: string; note?: string; touched: number; turn: string }[][];
+  expect(published).toHaveLength(3);
+  expect(published[0]).toMatchObject([{ root: "/repo", path, frame: "hero", note: "Drawing the hero" }]);
+  expect(published[1]?.[0]).toMatchObject({ frame: "pricing" });
+  expect(published[1]?.[0]).not.toHaveProperty("note");
+  expect(published[2]?.[0]?.touched).toBe((published[1]?.[0]?.touched ?? 0) + 10);
+  expect(new Set(published.map(items => items[0]?.turn)).size).toBe(1);
+});
+
+// work-update design decision 9 and §1 rule 5: an app conversation's update is its own state and channel, never
+// terminal work, and its turn's end clears it.
+test("conversation work has its own channel, only for a running turn, and a turn's end clears it", () => {
+  const state = mocks.startRuntime.mock.calls[0]?.[1] as { conversationWork(request: unknown): void } | undefined;
+  if (!state) throw new Error("no runtime state");
+  const service = mocks.conversationService as unknown as { liveTurns(): ReadonlyMap<string, unknown> };
+  const turns = vi.spyOn(service, "liveTurns").mockReturnValue(new Map([["c1", { root: "/repo", turnId: "t1", running: true }], ["c2", { root: "/repo", turnId: "u1", running: false }]]));
+  const publications = () => window().webContents.send.mock.calls.filter(([channel]) => channel === "conversation-work:changed").map(([, items]) => items);
+  const path = ".doan/canvases/a.html";
+  expect(invoke("conversation-work:get", window().webContents, null)).toEqual([]);
+  state.conversationWork({ v: 3, token: "t", root: "/repo", action: "update", path, conversation: "c2", frame: "late" });
+  state.conversationWork({ v: 3, token: "t", root: "/other", action: "update", path, conversation: "c1" });
+  expect(publications()).toEqual([]);
+  state.conversationWork({ v: 3, token: "t", root: "/repo", action: "update", path, conversation: "c1", frame: "hero", note: "n" });
+  const expected = [{ conversationId: "c1", root: "/repo", path, frame: "hero", note: "n", touched: expect.any(Number), turnId: "t1" }];
+  expect(publications()).toEqual([expected]);
+  expect(invoke("conversation-work:get", window().webContents, null)).toEqual(expected);
+  expect(invoke("conversation-work:get", {}, null)).toEqual([]);
+  expect(invoke("conversation-work:get", window().webContents, {})).toEqual([]);
+  expect(invoke("work:get", window().webContents, null)).toEqual([]);
+  expect(window().webContents.send.mock.calls.some(([channel]) => channel === "work:changed")).toBe(false);
+  mocks.workEnded?.("c2");
+  expect(publications()).toHaveLength(1);
+  mocks.workEnded?.("c1");
+  expect(publications()).toEqual([expected, []]);
+  expect(invoke("conversation-work:get", window().webContents, null)).toEqual([]);
+  turns.mockRestore();
+});
+
 test("main exposes work only to its main frame and clears it on root removal", () => {
   const state = mocks.startRuntime.mock.calls[0]?.[1];
   if (typeof state !== "object" || state === null || !("work" in state) || typeof state.work !== "function") throw new Error("no work receiver");
@@ -2118,7 +2175,7 @@ test("main exposes work only to its main frame and clears it on root removal", (
   mocks.shell.entries.mockReturnValue([{ path: "/repo", kind: "list" }]);
   changed([{ path: "/repo", kind: "list", canvases: [] }]);
   state.work({ v: 3, token: "t", root: "/repo", action: "start", path: ".doan/canvases/new.html" });
-  const expected = [{ root: "/repo", path: ".doan/canvases/new.html", session: null, provider: null }];
+  const expected = [{ root: "/repo", path: ".doan/canvases/new.html", session: null, provider: null, touched: expect.any(Number), turn: expect.stringMatching(/^none:/) }];
   expect(invoke("work:get", window().webContents, null)).toEqual(expected);
   expect(window().webContents.send).toHaveBeenCalledWith("work:changed", expected);
   expect(invoke("work:get", {}, null)).toEqual([]);
@@ -2149,7 +2206,7 @@ test("an adopted worktree takes the start's work at once", () => {
   state.adopt(W, view);
   expect(mocks.shell.adopt).toHaveBeenCalledExactlyOnceWith(W, view);
   state.work({ v: 3, token: "t", root: W, action: "start", path: ".doan/canvases/a.html" });
-  expect(invoke("work:get", window().webContents, null)).toEqual([{ root: W, path: ".doan/canvases/a.html", session: null, provider: null }]);
+  expect(invoke("work:get", window().webContents, null)).toMatchObject([{ root: W, path: ".doan/canvases/a.html", session: null, provider: null }]);
 });
 
 test("a launch link remains pending until the first loading folder has been listed", async () => {
@@ -2214,7 +2271,7 @@ test("work deadlines use one timeout and file changes stay within their root", (
     expect(timeout).toHaveBeenLastCalledWith(expect.any(Function), 100_000);
     expect(vi.getTimerCount()).toBe(baseline + 1);
     vi.advanceTimersByTime(100_000);
-    expect(invoke("work:get", window().webContents, null)).toEqual([{ root: "/repo", path, session: null, provider: null }]);
+    expect(invoke("work:get", window().webContents, null)).toMatchObject([{ root: "/repo", path, session: null, provider: null }]);
     expect(timeout).toHaveBeenLastCalledWith(expect.any(Function), 200_000);
     vi.advanceTimersByTime(200_000);
     expect(invoke("work:get", window().webContents, null)).toEqual([]);

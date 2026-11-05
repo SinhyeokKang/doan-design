@@ -1,4 +1,5 @@
 import type { WorkItem } from "../main/workState";
+import type { ConversationWork } from "../main/conversationWork";
 import type { OpenAnswer, OpenAsk, OpenLinkResult } from "../main/deepLinks";
 import type { AuthCheckReply, AuthPromptEvent, AuthReply, AuthSnapshot, AuthStartReply } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
@@ -76,6 +77,14 @@ const api = {
     const receive = (_event: Electron.IpcRendererEvent, items: WorkItem[]) => listener(items);
     ipcRenderer.on("work:changed", receive);
     return () => ipcRenderer.removeListener("work:changed", receive);
+  },
+  // An app conversation's last work update, while its turn runs (work-update design decision 10). Subscribe first, as
+  // for getWork.
+  getConversationWork: (): Promise<ConversationWork[]> => ipcRenderer.invoke("conversation-work:get"),
+  onConversationWorkChanged(listener: (items: ConversationWork[]) => void): () => void {
+    const receive = (_event: Electron.IpcRendererEvent, items: ConversationWork[]) => listener(items);
+    ipcRenderer.on("conversation-work:changed", receive);
+    return () => ipcRenderer.removeListener("conversation-work:changed", receive);
   },
   onOpenLink(listener: (result: OpenLinkResult) => void): () => void {
     const receive = (_event: Electron.IpcRendererEvent, result: OpenLinkResult) => listener(result);

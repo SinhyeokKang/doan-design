@@ -72,7 +72,8 @@ import { launchedInBackground, revealFor } from "./backgroundReveal";
 import { createUiStateStore, type UiStateStore } from "./uiState";
 import { linkTarget } from "./openLink";
 import { openLinkQueue, openRequests, resolveOpenLink } from "./deepLinks";
-import { applyWork, expireWork, nextWorkExpiry, retainWorkRoots, workItems, type WorkState } from "./workState";
+import { applyWork, expireWork, nextWorkExpiry, retainWorkRoots, workItems, workItemsChanged, type WorkState } from "./workState";
+import { applyConversationWork, endConversationWork, type ConversationWork } from "./conversationWork";
 
 // Must run before `ready`: userData is derived from the name, which makes it
 // ~/Library/Application Support/doan/ (beside runtime.json, ARCHITECTURE §4).
@@ -141,7 +142,14 @@ function updateWork(next: WorkState): void {
     if (paths.size === 0) workChanges.delete(root);
   }
   armWorkTimer();
-  if (items.length !== previous.length || items.some((item, i) => item.root !== previous[i]?.root || item.path !== previous[i]?.path || item.session !== previous[i]?.session || item.provider !== previous[i]?.provider)) send("work:changed", items);
+  if (workItemsChanged(previous, items)) send("work:changed", items);
+}
+// App conversations' work updates, kept apart from terminal work so they never count as a terminal (design decision 9).
+let conversationWork: readonly ConversationWork[] = [];
+function updateConversationWork(next: readonly ConversationWork[]): void {
+  if (next === conversationWork) return;
+  conversationWork = next;
+  send("conversation-work:changed", next);
 }
 let linksRendererReady = false;
 const openLinks = openLinkQueue(url => {
@@ -636,6 +644,7 @@ async function start(): Promise<void> {
   shell = ready;
   updateWork(retainWorkRoots(workState, ready.entries().map(entry => entry.path)));
   handle("work:get", [], (_event, value: unknown) => value === undefined ? workItems(workState) : []);
+  handle("conversation-work:get", [], (_event, value: unknown) => value === undefined ? conversationWork : []);
   handle("deep-link:ready", undefined, (_event, value: unknown) => {
     if (value !== undefined) return;
     linksRendererReady = true;
@@ -692,6 +701,8 @@ async function start(): Promise<void> {
   runtime = await startRuntime(userData, {
     isOpen, selection: () => selection,
     work(request) { updateWork(applyWork(workState, request, Date.now())); },
+    // Before the conversation service exists no turn runs, so every update is dropped.
+    conversationWork(request) { updateConversationWork(applyConversationWork(conversationWork, request, conversations?.liveTurns() ?? new Map(), Date.now())); },
     roots: () => ready.entries().map(entry => entry.path),
     // Only runLs's default 10 s timeout applies, not the answer deadline: a start past it still registers
     // (runtime.ts AUTO_REGISTER_WAIT_MS).
@@ -902,7 +913,8 @@ async function start(): Promise<void> {
   }, undefined, root => {
     const project = ready.entries().find(entry => entry.path === root);
     return project?.kind === "list" ? project.canvases : [];
-  }, root => send("conversation:listChanged", { root }), { drafts: conversationDrafts, files: queueFiles(attachments), defaultEffort: (root, provider, model) => modelCatalog?.defaultEffort(root, provider, model) }, id => notify.close(id));
+  }, root => send("conversation:listChanged", { root }), { drafts: conversationDrafts, files: queueFiles(attachments), defaultEffort: (root, provider, model) => modelCatalog?.defaultEffort(root, provider, model) }, id => notify.close(id),
+  id => updateConversationWork(endConversationWork(conversationWork, id)));
   conversations = conversationService;
   attachments.cleanup();
   modelCatalog = new ModelCatalog((root, runtime) => conversationService.prepareListing(root, runtime), input => conversationService.listModels(input, listModels));
