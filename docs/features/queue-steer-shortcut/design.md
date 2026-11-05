@@ -24,7 +24,8 @@ renderer만 바뀐다. main의 Send now 경로, IPC, 포맷은 그대로 쓴다.
    - `draft`가 참: `send()`를 queue로 부른다. `send()`는 지금 `Promise<void>`라 outcome을 삼키므로, 최종 `DockedOutcome`을 돌려주도록 바꾼다. 답이 `{ ok: true, itemId }`이고 그때 `key`가 `shown.current`와 같을 때만 handle의 `sendNow(itemId)`를 부른다. 답을 기다리는 사이 사람이 다른 대화로 바꾸면 `QueueRows`가 다시 마운트되어 handle이 새 대화의 것이 되므로, 부르지 않고 그 행은 원래 대화의 큐에 남긴다(`send()` 자신의 `at === shown.current` 확인과 같은 이유). 이 행은 가장 새 행이므로 기존 행 뒤에 눌려 순서가 지켜진다. queue가 `not_running`(턴이 먼저 끝남)으로 거절되어 `send()`가 보내기로 넘어가면, 그 답은 `onSend`의 것이라 `itemId`가 없으므로 steer하지 않는다. 입력란의 글을 큐에 넣을 수 없으면(`availability` 거짓: 보내는 중, busy, 첨부 문제, 잠김) `send()`는 지금처럼 이유 줄을 남기고, 행은 `sendAll()`대로 간다. queue가 다른 이유로 실패하면 입력란은 지금처럼 남고 오류를 보이며, 이미 시도한 행은 그대로 간다.
    - `none`: 아무것도 하지 않는다(입력란이 비고 큐도 빔. Enter처럼 Stop을 부르지 않는다).
 3. `DockedOutcome`의 성공을 `{ ok: true; itemId?: string }`로 넓히고, 두 host의 `queue`가 `reply.itemId`를 넣는다. renderer 안의 타입이고 IPC 답은 이미 `itemId`를 준다.
-4. 포커스: 키는 입력란에서 눌리므로 `focusAfter`가 포커스를 옮기지 않는다. draft를 queue로 보낸 경우 입력란이 비고 포커스는 `send()`의 `focus({ kind: "sent" })`대로 입력란에 남는다.
+4. 접근성: `ComposerField`가 Send now를 쓸 수 있는 동안(`sendNow`가 참) 입력란에 `aria-keyshortcuts="Control+Enter"`를 두고, 쓸 수 없으면 두지 않는다. 화면에는 보이지 않는다.
+5. 포커스: 키는 입력란에서 눌리므로 `focusAfter`가 포커스를 옮기지 않는다. draft를 queue로 보낸 경우 입력란이 비고 포커스는 `send()`의 `focus({ kind: "sent" })`대로 입력란에 남는다.
 
 ## 순수 함수로 뺄 부분(`/tdd` 대상)
 
@@ -64,15 +65,16 @@ prompt-suggestion(`ComposerField`의 키 연결, `homeComposer.ts`의 키 판정
 
 ## 읽은 design preset
 
-읽지 않았다. 결정 3의 caption은 기존 `doan-kbd`와 큐 행의 글자 크기·색을 쓰는 한 줄이다. 사람이 화면을 보고 싶어 해서 초안을 그렸다(아래).
+읽지 않았다. 결정 3의 caption은 caption 글자와 `--text-metadata`를 쓰는 텍스트 한 줄이다. 사람이 화면을 보고 싶어 해서 초안을 그렸다(아래).
 
 ## 초안 요청
 
-canvas `.doan/canvases/queue-steer-shortcut.html`, id `queue-steer-shortcut`. 캔버스 대화 패널(기본 360)의 docked composer를 shipped 코드와 docs/DESIGN.md대로 옮겨 그리고, 큐 목록 아래의 단축키 caption(결정 3, spec 완료 조건 7)만 새로 그린다. `.doan/canvases/queue-send-now.html`은 참고만 하고 고치지 않는다. Frames: `running`(턴이 도는 중, 행 2–3개, caption 보임), `no-send-now`(ACP provider이거나 턴이 없어 Send now를 쓸 수 없음, 행은 보이고 caption은 없음), `single-row`(행 하나), `refused`(단축키 뒤 한 행이 거절되어 그 행 아래 "Couldn’t send now. It stays queued.", caption은 유지), `draft-kept`(입력란의 글을 큐에 넣지 못해 이유 줄이 남고, 행들은 보내짐). Caption은 `doan-kbd` "⌃↩"와 짧은 문구다. 행의 Send now 툴팁은 바뀌지 않는다. `/design-sync`는 다섯 frame을 모두 비교한다.
+canvas `.doan/canvases/queue-steer-shortcut.html`, id `queue-steer-shortcut`. 캔버스 대화 패널(기본 360)의 docked composer를 shipped 코드와 docs/DESIGN.md대로 옮겨 그리고, 큐 목록 아래의 단축키 caption(결정 3, spec 완료 조건 7)만 새로 그린다. `.doan/canvases/queue-send-now.html`은 참고만 하고 고치지 않는다. Frames: `running`(턴이 도는 중, 행 2–3개, caption 보임), `no-send-now`(ACP provider이거나 턴이 없어 Send now를 쓸 수 없음, 행은 보이고 caption은 없음), `single-row`(행 하나), `refused`(단축키 뒤 한 행이 거절되어 그 행 아래 "Couldn’t send now. It stays queued.", caption은 유지), `draft-kept`(입력란의 글을 큐에 넣지 못해 이유 줄이 남고, 행들은 보내짐). Caption은 `doan-kbd` 키 "Ctrl"·"Enter"와 "Send all now"다. 행의 Send now 툴팁은 바뀌지 않는다. `/design-sync`는 다섯 frame을 모두 비교한다.
 
 ## 결정
 
 1. **입력란에 글이 있을 때(Send now를 쓸 수 있는 턴)**: 그 글을 큐 끝에 넣고(입력란이 빔), 기존 행 다음에 그것까지 steer한다. 키 한 번으로 화면에 보이는 것을 모두 지금 턴에 넣고, 입력한 글이 가장 새것이라 순서도 지켜진다(사람).
 2. **Send now를 쓸 수 없을 때**(턴 없음, ACP provider, 준비 중·판정 대기·큐 전송 직전): Enter와 같다. 턴이 없으면 보내고, 턴이 돌면 큐에 넣는다. 지금의 Control+Enter 동작을 바꾸지 않고, 키가 아무 일도 하지 않는 경우를 만들지 않는다(사람).
-3. **표시**: 큐 목록 아래에 caption 한 줄을 둔다. `doan-kbd` "⌃↩"와 모든 행을 지금 보낸다는 문구(예: "⌃↩ Send all now", 문구는 구현 때 정한다)로, 대화가 Send now를 보이고 큐에 행이 있을 때만 보인다. 키는 행 하나가 아니라 큐 전체를 보내고 입력란에서만 듣으므로, 행 버튼 툴팁이 아니라 큐 아래에 알린다. 행의 Send now 툴팁은 바꾸지 않는다(사람).
+3. **표시**: 큐 목록 아래에 caption 한 줄을 두고, 글자 시작을 큐 행의 글자와 거절 줄의 글자 시작에 맞춰 왼쪽 정렬한다. 일반 텍스트 "Press Ctrl + Enter to send all now."로(`doan-kbd`·기호 없음, 행이 하나여도 같음), 대화가 Send now를 보이고 큐에 행이 있을 때만 보인다. 키는 행 하나가 아니라 큐 전체를 보내고 입력란에서만 듣으므로, 행 버튼 툴팁이 아니라 큐 아래에 알린다. 행의 Send now 툴팁은 바꾸지 않는다(사람).
 4. **키가 듣는 곳**: docked composer의 입력란에 포커스가 있을 때만. Enter·Shift+Enter·IME 규칙이 입력란에 있고, 결정 1의 draft 처리도 입력란 기준이다(사람).
+5. **초안 확인 답(2026-11-05, 사람).** 초안 `queue-steer-shortcut.html`을 보고 답했다. caption은 일반 텍스트 한 문장 "Press Ctrl + Enter to send all now."이고 행이 하나여도 같다. 위치는 왼쪽 정렬이고 글자 시작을 큐 행의 글자·거절 줄의 글자와 같은 x에 맞춘다(16 안쪽 + 16 아이콘 + 8 간격). 처음엔 16 안쪽 왼쪽 정렬, 이어 가운데 정렬이었다가, caption을 일반 텍스트로 바꾼 뒤 이 정렬로 돌아왔다. 목록 아래 4, card 위 8에 둔다. 색은 `--text-metadata`다. 기호 "⌃↩"와 `doan-kbd` 키 표시는 쓰지 않는다(두 차례 초안을 본 뒤 정함). 입력란은 Send now를 쓸 수 있는 동안만 `aria-keyshortcuts="Control+Enter"`를 갖는다. 사용자 확정(2026-11-05): 초안 확인.

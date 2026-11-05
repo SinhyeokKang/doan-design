@@ -24,8 +24,8 @@
 3. **입력란의 글.** 입력란에 보낼 것이 있으면 그 글을 큐 끝에 넣고(입력란이 빔), 기존 행 다음에 그것까지 Send now를 시도한다. 큐에 넣기 전에 턴이 끝나면 지금의 Enter처럼 보내고 steer하지 않는다. 입력란의 글을 큐에 넣을 수 없으면(보내는 중, busy, 첨부 문제, 잠김) 그 글은 Enter와 같은 규칙으로 입력란에 남고(이유 줄), 기존 행은 그대로 Send now를 시도한다. 입력란과 큐가 모두 비면 아무 일도 없다(Stop을 부르지 않는다)(design 결정 1).
 4. **Send now를 쓸 수 없을 때.** 턴이 없거나, ACP provider 대화이거나, 턴이 준비 중·판정 대기·큐 전송 직전이면 Control+Enter는 Enter와 같다(design 결정 2).
 5. **IME와 다른 키.** IME 조합 중의 Control+Enter는 Enter와 같은 규칙으로 조합을 먼저 끝내고, 글자를 잃거나 두 번 넣지 않는다. Enter, Shift+Enter, Command+Enter, Option+Enter의 동작과 Home composer의 키 규칙은 바뀌지 않는다. `/` preset 목록이 열려 있으면 목록의 키 처리가 먼저다(지금 Enter와 같다).
-6. **듣는 곳과 포커스.** 단축키는 docked composer의 입력란에 포커스가 있을 때만 듣는다(큐 행의 버튼에서는 듣지 않는다). 누른 뒤 포커스는 입력란에 남는다(design 결정 4). 보내기에 성공하면 보조기술 알림을 따로 두지 않는다. thread 끝의 "Sending" 메시지가 피드백이고, Enter로 큐에 넣을 때도 알림이 없다. 거절 때의 알림은 지금 그대로다.
-7. **표시.** 대화가 Send now를 보이고 큐에 행이 있으면, 큐 목록 아래에 단축키 caption("⌃↩"와 모든 행을 지금 보낸다는 한 줄)이 보인다. 행의 Send now 툴팁은 바뀌지 않는다(design 결정 3).
+6. **듣는 곳과 포커스.** 단축키는 docked composer의 입력란에 포커스가 있을 때만 듣는다(큐 행의 버튼에서는 듣지 않는다). 누른 뒤 포커스는 입력란에 남는다(design 결정 4). 보내기에 성공하면 보조기술 알림을 따로 두지 않는다. thread 끝의 "Sending" 메시지가 피드백이고, Enter로 큐에 넣을 때도 알림이 없다. 거절 때의 알림은 지금 그대로다. Send now를 쓸 수 있는 동안 입력란은 `aria-keyshortcuts="Control+Enter"`를 갖고, 쓸 수 없으면 갖지 않는다(보이는 변화는 없다).
+7. **표시.** 대화가 Send now를 보이고 큐에 행이 있으면, 큐 목록 아래에 단축키 caption 한 줄 "Press Ctrl + Enter to send all now."가 일반 텍스트로 보인다(키 표시 `doan-kbd`나 기호는 쓰지 않는다). 행이 하나여도 같은 문구다. 행의 Send now 툴팁은 바뀌지 않는다(design 결정 3).
 
 ## 비목표
 
