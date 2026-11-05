@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
-import type { UsageEntry, UsageReading, UsageWindow } from "../main/agentAuth/usageTypes";
-import { blockedText, ringLimited, ringValue, usageDescription, usageText } from "./agentUsage";
+import type { AuthStatusDto, Provider } from "../main/agentAuth/types";
+import type { UsageBlock, UsageEntry, UsageReading, UsageWindow } from "../main/agentAuth/usageTypes";
+import { providerView } from "./agentAuthView";
+import { ringLimited, ringValue, usageDescription, usageText } from "./agentUsage";
+import { rowView } from "./agentUsageView";
 
 const NOW = Date.parse("2026-11-05T05:00:00Z");
 const MIN = 60_000, HOUR = 60 * MIN, DAY = 24 * HOUR;
 const w = (usedPercent: number, more: Partial<UsageWindow> = {}): UsageWindow => ({ id: "w", label: "5-hour", usedPercent, ...more });
 const ok = (...windows: UsageWindow[]): UsageReading => ({ status: "ok", windows, readAt: NOW - MIN });
+const EXPIRED: UsageBlock = { readiness: { ready: false, cause: "reauth_required", action: "reauth" }, phase: "reauthRequired" };
 const unavailable = (reason: "not_supported" | "no_plan_limits" | "read_failed"): UsageReading => ({ status: "unavailable", reason, readAt: NOW - MIN });
 
 describe("ringValue", () => {
@@ -18,7 +22,7 @@ describe("ringValue", () => {
     ["every window past its reset", { reading: ok(w(80, { resetsAt: NOW - 1 })) }],
     ["unlimited", { reading: { status: "ok", windows: [], unlimited: true, readAt: NOW } as UsageReading }],
     ["unavailable", { reading: unavailable("read_failed") }],
-    ["a connection that can't be used", { reading: ok(w(42)), blocked: "reauth_required" }],
+    ["a connection that can't be used", { reading: ok(w(42)), blocked: EXPIRED }],
   ] as [string, Pick<UsageEntry, "reading" | "blocked">][])("is null with %s", (_, entry) => {
     expect(ringValue(entry, NOW)).toBeNull();
   });
@@ -35,7 +39,7 @@ describe("ringLimited", () => {
     ["unlimited", { reading: { status: "ok", windows: [], unlimited: true, readAt: NOW } as UsageReading }],
     ["unavailable", { reading: unavailable("read_failed") }],
     ["no reading yet", {}],
-    ["a connection that can't be used", { reading: ok(w(100, { limited: true })), blocked: "reauth_required" }],
+    ["a connection that can't be used", { reading: ok(w(100, { limited: true })), blocked: EXPIRED }],
   ] as [string, Pick<UsageEntry, "reading" | "blocked">][])("is false with %s", (_, entry) => {
     expect(ringLimited(entry, NOW)).toBe(false);
   });
@@ -61,14 +65,36 @@ describe("usageText", () => {
   });
 });
 
-describe("blockedText", () => {
+// orch decision 16: a connection that can't be used reads as its Settings > Agents connection row does. The popover row
+// sits under the provider's name and keeps the sentence; the button's description leads a nameless one with the name.
+describe("blocked wording", () => {
+  const block = (cause: UsageBlock["readiness"]["cause"], more: Partial<UsageBlock> = {}): UsageBlock => ({ readiness: { ready: false, cause, action: "retry" }, phase: "connected", ...more });
   it.each([
-    ["reauth_required", "Claude Code’s sign-in expired"],
-    ["version_unsupported", "Claude Code needs an update"],
-    ["version_incompatible", "Claude Code needs an update"],
-    ["unverified", "Claude Code isn’t available right now"],
-  ] as const)("%s", (cause, text) => {
-    expect(blockedText("claude", cause)).toBe(text);
+    ["claude", block("reauth_required", { phase: "reauthRequired" }), "Your Claude Code connection expired. Sign in again.", "Your Claude Code connection expired. Sign in again."],
+    ["claude", block("reauth_required"), "Sign in to Claude Code again so Doan can confirm your organization.", "Sign in to Claude Code again so Doan can confirm your organization."],
+    ["cursor", block("unverified", { error: "check_failed" }), "Couldn’t check your connections.", "Cursor: Couldn’t check your connections."],
+    ["copilot", block("unverified", { error: "network" }), "Couldn’t reach GitHub Copilot. Check your connection and try again.", "Couldn’t reach GitHub Copilot. Check your connection and try again."],
+    ["cursor", block("unverified", { error: "sign_in_failed" }), "Sign-in didn’t finish. Try again.", "Cursor: Sign-in didn’t finish. Try again."],
+    ["cursor", block("version_unknown"), "Couldn’t read the Cursor version.", "Couldn’t read the Cursor version."],
+    ["codex", block("version_incompatible"), "Doan can’t run this Codex version.", "Doan can’t run this Codex version."],
+    ["codex", block("version_unsupported"), "This version is older than Doan supports.", "Codex: This version is older than Doan supports."],
+    ["copilot", block("cli_missing"), "Not installed.", "GitHub Copilot: Not installed."],
+    ["codex", block("busy", { phase: "signingOut", attempt: "signOut" }), "Signing out of Codex.", "Signing out of Codex."],
+    ["codex", block("busy", { phase: "signingIn", attempt: "signIn" }), "Preparing Codex sign-in.", "Preparing Codex sign-in."],
+    ["codex", block("sign_out_failed", { phase: "error", error: "sign_out_failed" }), "Doan couldn’t sign out of Codex. Sign out again before you use it.", "Doan couldn’t sign out of Codex. Sign out again before you use it."],
+    ["codex", block("account_mismatch", { error: "account_mismatch" }), "You signed in with a different Codex account. Sign in again with the same account, or sign out first.", "You signed in with a different Codex account. Sign in again with the same account, or sign out first."],
+    ["claude", block("tools_missing"), "Doan couldn’t find its command-line tool. Reinstall Doan, then check again.", "Claude Code: Doan couldn’t find its command-line tool. Reinstall Doan, then check again."],
+  ] as [Provider, UsageBlock, string, string][])("%s %o", (provider, blocked, row, description) => {
+    const entry: UsageEntry = { provider, inFlight: false, blocked };
+    expect(rowView(entry, NOW).note).toEqual({ text: row, kind: "warn" });
+    expect(usageDescription([entry], NOW)).toBe(description);
+    // The same sentence the Settings > Agents row leads with for that connection, its account included.
+    const status: AuthStatusDto = {
+      provider, revision: 3, phase: blocked.phase, account: { email: "ada@example.com" }, readiness: blocked.readiness, actions: [],
+      attempt: blocked.attempt ? { id: "a1", kind: blocked.attempt, cancelling: false } : null, error: blocked.error ? { code: blocked.error, retryable: true } : null,
+    };
+    const settings = providerView(status, { settings: true });
+    expect(row.replace(/\.$/, "")).toBe((settings.notice?.title ?? settings.notice?.body ?? settings.detail)?.replace(/\.$/, ""));
   });
 });
 
@@ -85,11 +111,11 @@ describe("usageDescription", () => {
   it("says unlimited, the Settings › Agents cause and a reset in progress", () => {
     const entries: UsageEntry[] = [
       { provider: "copilot", reading: { status: "ok", windows: [], unlimited: true, readAt: NOW }, inFlight: false },
-      { provider: "claude", reading: ok(w(42)), inFlight: false, blocked: "reauth_required" },
+      { provider: "claude", reading: ok(w(42)), inFlight: false, blocked: EXPIRED },
       { provider: "codex", reading: ok(w(60, { resetsAt: NOW - MIN })), inFlight: true },
       { provider: "cursor", reading: unavailable("no_plan_limits"), inFlight: false },
     ];
-    expect(usageDescription(entries, NOW)).toBe("Claude Code’s sign-in expired. Codex usage resetting. Cursor usage unavailable. GitHub Copilot unlimited.");
+    expect(usageDescription(entries, NOW)).toBe("Your Claude Code connection expired. Sign in again. Codex usage resetting. Cursor usage unavailable. GitHub Copilot unlimited.");
   });
   it("does not report a limit whose reset time has passed", () => {
     const entries: UsageEntry[] = [{ provider: "codex", reading: ok(w(100, { limited: true, resetsAt: NOW - 1 }), w(20, { resetsAt: NOW + HOUR })), inFlight: false }];

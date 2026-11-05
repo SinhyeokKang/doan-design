@@ -54,7 +54,7 @@ describe("shouldRead", () => {
   });
 
   it.each([T.start, T.open, T.refresh, T.turnEnd])("does not read a connection that can't be used: %o", trigger => {
-    expect(shouldRead(entry(undefined, { blocked: "reauth_required" }), NOW, trigger, true)).toBe(false);
+    expect(shouldRead(entry(undefined, { blocked: { readiness: { ready: false, cause: "reauth_required", action: "reauth" }, phase: "reauthRequired" } }), NOW, trigger, true)).toBe(false);
   });
 
   it("does not count a legacy external turn", () => {

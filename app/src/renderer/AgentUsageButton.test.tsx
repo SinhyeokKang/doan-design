@@ -109,10 +109,10 @@ describe("UsagePanel", () => {
   });
 
   it("draws a reset window's empty bar and a can't-be-used warning", () => {
-    const markup = html(<UsagePanel {...props([ok("copilot", [win({ label: "Chat", resetsAt: NOW - MIN })], { inFlight: true }), { provider: "codex", inFlight: false, blocked: "version_unsupported" }])} />);
+    const markup = html(<UsagePanel {...props([ok("copilot", [win({ label: "Chat", resetsAt: NOW - MIN })], { inFlight: true }), { provider: "codex", inFlight: false, blocked: { readiness: { ready: false, cause: "version_unsupported", action: "update" }, phase: "connected" } }])} />);
     expect(markup).toContain('<span class="usage-read">Updating…</span>');
     expect(markup).toContain('<span class="usage-window-text">Reset · updating</span></div><span class="usage-bar" aria-hidden="true"></span>');
-    expect(markup).toMatch(/<p class="usage-note" data-kind="warn"><svg[^>]*class="[^"]*\bdoan-alert-icon\b[^"]*"[^>]*>.*?<\/svg><span>Codex needs an update\.<\/span><\/p>/);
+    expect(markup).toMatch(/<p class="usage-note" data-kind="warn"><svg[^>]*class="[^"]*\bdoan-alert-icon\b[^"]*"[^>]*>.*?<\/svg><span>This version is older than Doan supports\.<\/span><\/p>/);
   });
 
   it("shows a spinner and aria-busy on Refresh usage while reading, and stays enabled", () => {

@@ -1,7 +1,7 @@
 import { PROVIDERS, type Provider } from "../main/agentAuth/types";
 import type { UsageEntry, UsageWindow } from "../main/agentAuth/usageTypes";
 import { PROVIDER_NAMES } from "./agentAuthView";
-import { blockedText, ringLimited, ringValue, usageText } from "./agentUsage";
+import { blockedNote, ringLimited, ringValue, usageText } from "./agentUsage";
 import { providerLogo } from "./homeComposer";
 
 const MIN = 60_000, HOUR = 60 * MIN, DAY = 24 * HOUR;
@@ -60,7 +60,7 @@ function windowView(window: UsageWindow, now: number): WindowView {
 export function rowView(entry: UsageEntry, now: number): RowView {
   const name = PROVIDER_NAMES[entry.provider], base = { provider: entry.provider, name, logo: providerLogo(entry.provider) };
   const reason = (note: NoteView): RowView => ({ ...base, read: null, windows: [], note });
-  if (entry.blocked !== undefined) return reason({ text: `${blockedText(entry.provider, entry.blocked)}.`, kind: "warn" });
+  if (entry.blocked !== undefined) return reason({ text: blockedNote(entry.provider, entry.blocked), kind: "warn" });
   const { reading } = entry;
   if (!reading) return reason({ text: "Reading usage…" });
   if (reading.status === "unavailable") {

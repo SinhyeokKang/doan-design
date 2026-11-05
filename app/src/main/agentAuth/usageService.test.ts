@@ -141,6 +141,18 @@ describe("UsageService reads", () => {
     usage.trigger({ kind: "refresh" }); await usage.settled();
     expect(usage.entries().every(entry => !entry.inFlight && entry.reading?.status === "unavailable")).toBe(true);
   });
+  it("logs one Doan line naming the provider when its connection can't be held, never the refusal's text", async () => {
+    const h = setup();
+    h.auth.states.set("codex", connected("codex", "x1"));
+    h.auth.refuse = "provider said secret-detail";
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const usage = h.make();
+      usage.trigger({ kind: "start" }); await usage.settled();
+      expect(log.mock.calls).toEqual([["doan: codex usage read failed: the connection could not be held"]]);
+      expect(usage.entries()).toEqual([{ provider: "codex", inFlight: false, reading: failed(h.now()) }]);
+    } finally { log.mockRestore(); }
+  });
   it("checks an unverified connection first, as a run does, and reads Copilot unchecked (its check costs a request)", async () => {
     const h = setup();
     h.auth.states.set("claude", connected("claude", "c1", { verified: false }));
@@ -205,26 +217,43 @@ describe("UsageService quit and stop during a check", () => {
 });
 
 describe("UsageService unusable connections", () => {
-  it("does not read a connection readiness refuses and carries its cause instead", async () => {
-    const h = setup({ readiness: provider => provider === "codex" ? { ready: false, cause: "version_unsupported", action: "update" } : { ready: true } });
+  it("does not read a connection readiness refuses and carries what its Settings row is worded from", async () => {
+    const h = setup();
     h.auth.states.set("claude", connected("claude", "c1", { expired: true, verified: false, phase: "reauthRequired" }));
-    h.auth.states.set("codex", connected("codex", "x1"));
-    h.auth.states.set("cursor", connected("cursor", "u1", { verified: false, error: { code: "check_failed" } }));
+    h.auth.states.set("codex", connected("codex", "x1", { attempt: { id: "attempt-secret-1", kind: "signOut", owner: 7, cancelled: false }, phase: "signingOut" }));
+    h.auth.states.set("cursor", connected("cursor", "u1", { verified: false, error: { code: "check_failed", detail: "provider said secret-detail" } }));
+    h.auth.states.set("copilot", connected("copilot", "p1"));
     const readiness = (provider: Provider): Readiness => provider === "claude" ? { ready: false, cause: "reauth_required", action: "reauth" }
-      : provider === "codex" ? { ready: false, cause: "version_unsupported", action: "update" } : { ready: false, cause: "unverified", action: "retry" };
+      : provider === "codex" ? { ready: false, cause: "busy", action: "wait" }
+      : provider === "cursor" ? { ready: false, cause: "unverified", action: "retry" } : { ready: false, cause: "version_unknown", action: "retry" };
     const usage = new UsageService({ auth: h.auth, readiness, read: h.read, visible: () => true, publish: () => {}, now: h.now });
-    usage.trigger({ kind: "refresh" }); await usage.settled();
+    usage.trigger({ kind: "start" }); usage.trigger({ kind: "refresh" }); await usage.settled();
     expect(h.read).not.toHaveBeenCalled();
     expect(usage.entries()).toEqual([
-      { provider: "claude", inFlight: false, blocked: "reauth_required" },
-      { provider: "codex", inFlight: false, blocked: "version_unsupported" },
-      { provider: "cursor", inFlight: false, blocked: "unverified" },
+      { provider: "claude", inFlight: false, blocked: { readiness: { ready: false, cause: "reauth_required", action: "reauth" }, phase: "reauthRequired" } },
+      { provider: "codex", inFlight: false, blocked: { readiness: { ready: false, cause: "busy", action: "wait" }, phase: "signingOut", attempt: "signOut" } },
+      { provider: "cursor", inFlight: false, blocked: { readiness: { ready: false, cause: "unverified", action: "retry" }, phase: "connected", error: "check_failed" } },
+      { provider: "copilot", inFlight: false, blocked: { readiness: { ready: false, cause: "version_unknown", action: "retry" }, phase: "connected" } },
     ]);
+    expect(JSON.stringify(usage.entries())).not.toMatch(/secret/);
   });
-  it("reads a reauth cause that is not an expired sign-in (an unpinned Claude login) as one Settings calls unavailable", () => {
+  it("keeps a reauth cause that is not an expired sign-in (an unpinned Claude login) with its phase, as Settings words it", () => {
     const h = setup({ readiness: () => ({ ready: false, cause: "reauth_required", action: "reauth" }) });
     h.auth.states.set("claude", connected("claude", "c1"));
-    expect(h.make().entries()).toEqual([{ provider: "claude", inFlight: false, blocked: "unverified" }]);
+    const usage = h.make();
+    usage.trigger({ kind: "start" });
+    expect(usage.entries()).toEqual([{ provider: "claude", inFlight: false, blocked: { readiness: { ready: false, cause: "reauth_required", action: "reauth" }, phase: "connected" } }]);
+  });
+  it("shows no connection as blocked before the first tool facts are read (the start trigger), only as a first read", () => {
+    const h = setup({ readiness: () => ({ ready: false, cause: "version_unknown", action: "retry" }) });
+    h.auth.states.set("cursor", connected("cursor", "u1"));
+    const usage = h.make();
+    usage.trigger({ kind: "open" });
+    expect(usage.entries()).toEqual([{ provider: "cursor", inFlight: false }]);
+    expect(h.published.flat().some(entry => entry.blocked)).toBe(false);
+    expect(h.read).not.toHaveBeenCalled();
+    usage.trigger({ kind: "start" });
+    expect(usage.entries()).toEqual([{ provider: "cursor", inFlight: false, blocked: { readiness: { ready: false, cause: "version_unknown", action: "retry" }, phase: "connected" } }]);
   });
 });
 

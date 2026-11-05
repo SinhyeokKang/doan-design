@@ -33,7 +33,7 @@ describe("ringViews", () => {
   });
 
   it("leaves a connection that can't be used empty", () => {
-    expect(ringViews([ok("claude", [win({ usedPercent: 80 })], { blocked: "reauth_required" })], NOW)[0]).toMatchObject({ value: null, full: false });
+    expect(ringViews([ok("claude", [win({ usedPercent: 80 })], { blocked: { readiness: { ready: false, cause: "reauth_required", action: "reauth" }, phase: "reauthRequired" } })], NOW)[0]).toMatchObject({ value: null, full: false });
   });
 
   it("turns danger at 70% or at a reported limit, with no warning step", () => {
@@ -114,9 +114,9 @@ describe("rowView", () => {
     expect(note({ provider: "codex", reading: reading("not_supported"), inFlight: false })).toEqual([{ text: "Usage isn’t available for Codex." }, null, 0]);
     expect(note({ provider: "claude", reading: reading("no_plan_limits"), inFlight: false })).toEqual([{ text: "Claude Code isn’t on a plan with usage limits." }, null, 0]);
     expect(note({ provider: "cursor", reading: reading("read_failed"), inFlight: false })).toEqual([{ text: "Couldn’t read usage. Doan tries again when you open this.", kind: "error" }, null, 0]);
-    expect(note({ provider: "claude", reading: reading("read_failed"), inFlight: false, blocked: "reauth_required" })).toEqual([{ text: "Claude Code’s sign-in expired.", kind: "warn" }, null, 0]);
-    expect(note({ provider: "codex", inFlight: false, blocked: "version_unsupported" })).toEqual([{ text: "Codex needs an update.", kind: "warn" }, null, 0]);
-    expect(note({ provider: "cursor", inFlight: false, blocked: "unverified" })).toEqual([{ text: "Cursor isn’t available right now.", kind: "warn" }, null, 0]);
+    expect(note({ provider: "claude", reading: reading("read_failed"), inFlight: false, blocked: { readiness: { ready: false, cause: "reauth_required", action: "reauth" }, phase: "reauthRequired" } })).toEqual([{ text: "Your Claude Code connection expired. Sign in again.", kind: "warn" }, null, 0]);
+    expect(note({ provider: "codex", inFlight: false, blocked: { readiness: { ready: false, cause: "version_unsupported", action: "update" }, phase: "connected" } })).toEqual([{ text: "This version is older than Doan supports.", kind: "warn" }, null, 0]);
+    expect(note({ provider: "cursor", inFlight: false, blocked: { readiness: { ready: false, cause: "unverified", action: "retry" }, phase: "connected", error: "check_failed" } })).toEqual([{ text: "Couldn’t check your connections.", kind: "warn" }, null, 0]);
   });
 });
 

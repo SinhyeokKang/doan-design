@@ -1,12 +1,12 @@
 import type { Prepared } from "../conversation/service";
 import type { CheckStarted, Lease } from "./manager";
 import { PROVIDER_AUTH } from "./providers";
-import { PROVIDERS, type AuthState, type Provider, type Readiness, type ReadinessCause } from "./types";
+import { PROVIDERS, type AuthState, type Provider, type Readiness } from "./types";
 import { usageNotSupported } from "./usageParse";
 import { parseUsage, type UsageProvider } from "./usageRead";
 import { shouldRead } from "./usageSchedule";
 import { UsageStore } from "./usageStore";
-import type { UsageEntry, UsageReading, UsageTrigger } from "./usageTypes";
+import type { UsageBlock, UsageEntry, UsageReading, UsageTrigger } from "./usageTypes";
 
 // Antigravity has no usage read Doan can use (PoC U4, U7) and is never shown.
 export const USAGE_PROVIDERS = PROVIDERS.filter((provider): provider is UsageProvider => provider !== "antigravity");
@@ -45,6 +45,9 @@ export class UsageService {
   // A sign-in whose read could not start yet (its connection still settling, or the window hidden).
   private readonly signedIn = new Set<UsageProvider>();
   private shown: boolean;
+  // Set by the first start trigger, which main sends once the tool facts are read: until then readiness reads every
+  // version as unknown, and the window shows a first read rather than that cause (orch decision 17).
+  private factsRead = false;
   private published = "";
   private closed = false;
   private readonly now: () => number;
@@ -60,7 +63,7 @@ export class UsageService {
     const entries: UsageEntry[] = [];
     for (const provider of USAGE_PROVIDERS) {
       if (!this.connections.has(provider)) continue;
-      const slot = this.store.get(provider), blocked = this.blocked(provider);
+      const slot = this.store.get(provider), blocked = this.factsRead ? this.blocked(provider) : undefined;
       entries.push({ provider, inFlight: slot?.inFlight ?? false, ...(slot?.reading ? { reading: slot.reading } : {}), ...(blocked ? { blocked } : {}) });
     }
     return entries;
@@ -69,7 +72,9 @@ export class UsageService {
   trigger(trigger: { kind: "start" | "open" | "refresh" }): void {
     // A trigger skipped while hidden is made up when the window shows again (visibilityChanged).
     this.shown = this.options.visible();
+    if (trigger.kind === "start") this.factsRead = true;
     for (const provider of USAGE_PROVIDERS) this.start(provider, trigger);
+    this.publish();
   }
 
   // Every auth change. A new connectionId (sign-in or replacement) drops the previous account's value and reads the new one.
@@ -131,16 +136,15 @@ export class UsageService {
     return { inFlight: slot?.inFlight ?? false, ...(slot?.reading ? { reading: slot.reading } : {}), ...(blocked ? { blocked } : {}) };
   }
 
-  // The cause a connection that cannot be read shows, as Settings > Agents words it (orch decision 12). An unchecked
-  // connection is read anyway: the read checks it first, as a run does, and Copilot's check costs a request.
-  private blocked(provider: UsageProvider): ReadinessCause | undefined {
-    const ready = this.options.readiness(provider);
-    if (ready.ready) return undefined;
+  // What a connection that cannot be read shows: the readiness, phase, error code and attempt kind its Settings >
+  // Agents row is worded from (orch decision 16). An unchecked connection is read anyway: the read checks it first, as
+  // a run does, and Copilot's check costs a request.
+  private blocked(provider: UsageProvider): UsageBlock | undefined {
+    const readiness = this.options.readiness(provider);
+    if (readiness.ready) return undefined;
     const state = this.options.auth.state(provider);
-    // Settings calls a reauth cause without an expired sign-in (an unpinned Claude login) unavailable, not expired.
-    if (ready.cause === "reauth_required") return state.phase === "reauthRequired" ? "reauth_required" : "unverified";
-    if (ready.cause === "unverified" && !state.error && !state.expired) return undefined;
-    return ready.cause;
+    if (readiness.cause === "unverified" && !state.error && !state.expired) return undefined;
+    return { readiness, phase: state.phase, ...(state.error ? { error: state.error.code } : {}), ...(state.attempt ? { attempt: state.attempt.kind } : {}) };
   }
 
   private start(provider: UsageProvider, trigger: UsageTrigger): void {
@@ -182,7 +186,13 @@ export class UsageService {
       // A check stopped by a sign-out or quit leaves nothing to read.
       if (signal.aborted || auth.state(provider).connection?.connectionId !== connectionId) return failed();
       const organization = provider === "claude" ? auth.state(provider).connection?.account.workspace : null;
-      const lease = await auth.acquire(provider, "usage");
+      let lease: Lease;
+      try { lease = await auth.acquire(provider, "usage"); }
+      catch {
+        // The refusal may quote provider output, so only Doan's own words are logged.
+        console.error(`doan: ${provider} usage read failed: the connection could not be held`);
+        return failed();
+      }
       try { return signal.aborted ? failed() : await this.options.read(provider, organization ? { ...lease, organization } : lease, signal); }
       finally { await lease.release(); }
     } catch { return failed(); }

@@ -1,6 +1,6 @@
-import { PROVIDERS, type Provider, type ReadinessCause } from "../main/agentAuth/types";
-import type { UsageEntry, UsageWindow } from "../main/agentAuth/usageTypes";
-import { PROVIDER_NAMES } from "./agentAuthView";
+import { PROVIDERS, type Provider } from "../main/agentAuth/types";
+import type { UsageBlock, UsageEntry, UsageWindow } from "../main/agentAuth/usageTypes";
+import { connectionLine, PROVIDER_NAMES } from "./agentAuthView";
 
 const MIN = 60_000;
 const passed = (w: UsageWindow, now: number) => w.resetsAt !== undefined && w.resetsAt <= now;
@@ -35,13 +35,17 @@ export function usageText(window: UsageWindow, now: number): string {
   return window.resetsAt === undefined ? head : `${head} · resets in ${duration(window.resetsAt - now)}`;
 }
 
-// The Settings › Agents cause for a connection that can't be used. The entry carries only the cause, so an expired
-// sign-in is told apart by reauth_required alone.
-export function blockedText(provider: Provider, cause: ReadinessCause): string {
-  const name = PROVIDER_NAMES[provider];
-  if (cause === "reauth_required") return `${name}’s sign-in expired`;
-  if (cause === "version_unsupported" || cause === "version_incompatible") return `${name} needs an update`;
-  return `${name} isn’t available right now`;
+// A connection that can't be used reads as its Settings › Agents row (orch decision 16), as a sentence: the popover
+// row under the provider's name.
+export function blockedNote(provider: Provider, block: UsageBlock): string {
+  const line = connectionLine(provider, block);
+  return line.endsWith(".") ? line : `${line}.`;
+}
+// The button's description lists every provider, so a row sentence that doesn't name its provider is led by the name.
+// Without its last full stop: the description adds one per provider.
+export function blockedText(provider: Provider, block: UsageBlock): string {
+  const line = connectionLine(provider, block).replace(/\.$/, ""), name = PROVIDER_NAMES[provider];
+  return line.includes(name) ? line : `${name}: ${line}`;
 }
 
 function state(entry: UsageEntry, now: number): string {
