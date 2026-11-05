@@ -94,12 +94,12 @@ code{font-size:var(--type-caption-size)}
 .ti-time{flex:none;color:var(--text-metadata);font-variant-numeric:tabular-nums}
 /* The reply placeholder: in the reply's place and type (16/24 in the Overview, body-sm in the panel), dark neutral words with
    a strong white sheen sweeping across them (round 4). At rest the words are --text-metadata (6.4:1 on the panel), the
-   first draft's resting colour. The sheen's white is --surface-panel, the ground the words sit on, mixed in at 80 % in a narrow
-   streak: the band is 30 % of the words' width, its brightest core 10 % (1.4:1 there): a transient dip below 4.5:1 the person accepted; the letters return to 6.4:1 as the
+   first draft's resting colour. The sheen's white is --surface-panel, the ground the words sit on, mixed in at 70 % in a narrow
+   streak: the band is 30 % of the words' width, its brightest core 10 % (1.6:1 there): a transient dip below 4.5:1 the person accepted; the letters return to 6.4:1 as the
    band passes. */
 .ti-reply{display:flex;align-items:center;gap:var(--space-2);color:var(--text-subtle);font-size:var(--type-label-size);line-height:var(--type-label-line-height);letter-spacing:var(--type-label-letter-spacing)}
 .doan-conv-panel .ti-reply{font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);letter-spacing:var(--type-body-sm-letter-spacing)}
-.ti-shimmer{background:linear-gradient(90deg,var(--text-metadata) 0 42.5%,color-mix(in oklch,var(--text-metadata),var(--surface-panel) 80%) 47.5% 52.5%,var(--text-metadata) 57.5% 100%);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:ti-shimmer 2s linear infinite}
+.ti-shimmer{background:linear-gradient(90deg,var(--text-metadata) 0 42.5%,color-mix(in oklch,var(--text-metadata),var(--surface-panel) 70%) 47.5% 52.5%,var(--text-metadata) 57.5% 100%);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:ti-shimmer 2s linear infinite}
 @keyframes ti-shimmer{from{background-position:100% 0}to{background-position:-100% 0}}
 @media (prefers-reduced-motion: reduce){.ti-shimmer{animation:none;background:none;color:var(--text-metadata)}}
 /* Board only: the reduced-motion frame shows the still state whatever the viewer's setting. */
@@ -115,7 +115,7 @@ code{font-size:var(--type-caption-size)}
 <h1>While the agent’s turn runs, the thread says what it is doing.</h1>
 <p>Scope: <code>docs/features/turn-activity/</code> (spec ‘완료 조건’ 1–7, design §1, §4, ‘초안 요청’ and ‘결정’ 1 and 10, tasks D1). Every frame is new, not in code: the turn indicator does not exist yet. <code>/design-sync</code> compares <code>states</code>, <code>widths</code> and <code>reduced-motion</code>; <code>copy-format</code> is the wording reference.</p>
 <p>The person chose on 2026-11-06 (design decisions 1 and 10): the form is the reply placeholder, the position is inside the thread as its last item (the reply’s place), and the stage copy and elapsed format are the ones in <code>copy-format</code>. The forms and the pinned position compared in the first draft are removed. This revision awaits the person’s final confirmation.</p>
-<p>Sheen (round 4, 2026-11-06, at the person’s request; rounds 2 and 3 tried accent colours, now dropped): the stage words are dark neutral, <code>--text-metadata</code> (6.4:1 on the panel) as in the first draft, and a strong, narrow white streak sweeps across them: <code>--text-metadata</code> mixed 80 % in oklch with <code>--surface-panel</code>, the band 30 % of the words’ width and its brightest core 10 %. At its brightest the letters dip to 1.4:1; the person accepted this as transient, since the band passes in a moment and the rest of the words stay at 6.4:1. Under reduced motion the words stay <code>--text-metadata</code> with no sheen.</p>
+<p>Sheen (round 4, 2026-11-06, at the person’s request; rounds 2 and 3 tried accent colours, now dropped): the stage words are dark neutral, <code>--text-metadata</code> (6.4:1 on the panel) as in the first draft, and a strong, narrow white streak sweeps across them: <code>--text-metadata</code> mixed 70 % in oklch with <code>--surface-panel</code>, the band 30 % of the words’ width and its brightest core 10 %. At its brightest the letters dip to 1.6:1; the person accepted this as transient, since the band passes in a moment and the rest of the words stay at 6.4:1. Under reduced motion the words stay <code>--text-metadata</code> with no sheen.</p>
 <h2>Fixed by the feature documents</h2>
 <ul>
 <li>One line, fixed height; a long path ends in an ellipsis and the time keeps its place. No token count, no second line, no progress or remaining time, no “Still working…”.</li>
