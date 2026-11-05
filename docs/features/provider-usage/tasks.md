@@ -24,6 +24,10 @@
   - 검증: 결정을 design '결정할 점'에 적고 바뀐 spec·design·tasks를 커밋한다.
   - 결정(사람): Copilot과 Cursor를 넣고 Antigravity는 뺀다(`not_supported`). design 결정할 점 1·4에 적었다.
   - 권고(PoC): Copilot은 넣는다(headless 조회가 공통 기준을 지킴, `hasQuota: false` 종류는 뺀다). Antigravity는 뺀다(`agy`가 별도 로그인을 요구). Cursor는 넣는다(GET 하나가 공통 기준을 지킴, 비공개 API라 모양이 다르면 `read_failed`).
+- [x] U7. Antigravity 연결의 토큰으로 Code Assist `:loadCodeAssist`·`:retrieveUserQuota`를 부른다(Orca 1.4.240의 Gemini 사용량 경로).
+  - 검증: 'P 결과' U7에 (a) 요청, (b) 응답 모양, (c) OAuth client·scope의 수락 여부, (d) 공통 기준 (i)–(iv), (e) 토큰 갱신과 쓰기 여부가 있다.
+  - 결과: 토큰은 받아들여졌으나 사용량 조회는 403 `SUBSCRIPTION_REQUIRED`로 거절됐다('P 결과' U7).
+  - 권고: Antigravity는 `not_supported`로 둔다(결정할 점 4 유지). 이 경로는 이 계정에서 사용량을 주지 않고, 쓰려면 identity 예외를 넓혀야 한다.
 
 ### P 결과
 
@@ -79,6 +83,27 @@
 - (d) 서명을 바꾼 토큰: `401 {"error":"not_authenticated", …}`(`out/cursor-usage-summary-401.json`). 쿠키가 없을 때도 같다. 실제로 만료된 토큰은 확인하지 않았다.
 - (e) free 계정은 `autoPercentUsed 100`인데 한도에 닿았다는 불리언이 없다. dev 앱의 Cursor 대화는 `Auto`와 `gpt-5.4-nano` 모두 "Upgrade your plan to continue"로 막혔다(`apiPercentUsed 0`이어도). 유료 plan의 응답은 보지 못했다.
 - (i) 통과: 계정 조회 GET 하나이고 모델 요청이 아니다. (ii) 통과: 조회 전후 프로필 파일과 vault 이미지(`d1236a58…`)가 같다. (iii) 통과: 파일 저장소라 Keychain을 쓰지 않는다. (iv) 제한: 대화가 plan 때문에 0.6초 만에 막혀, 조회(04:52:57.9–59.3Z)가 짧은 턴(04:52:58.1–58.7Z)과 겹친 것만 확인했다. 대화 뒤에도 연결은 그대로였고 vault 이미지도 같았다. 토큰 갱신과 겹치는 경우는 확인하지 못했다.
+
+#### U7 Antigravity — Code Assist quota: 거절(`SUBSCRIPTION_REQUIRED`)
+
+- 실행: 2026-11-05 14:05–14:11 KST, 같은 공용 프로필과 같은 `app/out` 빌드. `.scratch/provider-usage/launch-u7.sh`(임시 `DOAN_RUNTIME`·CLI는 이 세션의 scratchpad), 조회는 `u7-quota.mjs`. 조회마다 `acquire("antigravity", "listing")` lease를 잡고, 바깥 Node 프로세스가 작업 사본 `<프로필>/.gemini/antigravity-acp/acp_token.json`을 메모리로만 읽은 뒤 release했다(U5와 같은 방식). 연결은 Settings > Agents를 열어 확인된 뒤에 조회했다(확인 전에는 lease가 `unverified`로 거절된다).
+- (a) 요청. 모두 `redirect: "error"`, 10초 제한, 헤더는 `Content-Type: application/json`과 `Authorization: Bearer <access token>`뿐이다(User-Agent는 Node 기본값).
+  - 토큰: `POST https://oauth2.googleapis.com/token`, `grant_type=refresh_token`과 파일의 `client_id`·`client_secret`·`refresh_token`. identity 예외의 요청과 같고, 같은 조건(`token_uri`, `userinfo.email` scope)을 확인한 뒤에만 보냈다.
+  - `POST https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist`: Orca의 본문 `{metadata:{ideType:"GEMINI_CLI", pluginType:"GEMINI"}}`(`research/orca-line2515.js`의 `y1`). 이어서 고정 ACP 서버 1.3.0의 proto(`localharness_external`의 `ClientMetadata`, `IdeType`에 `ANTIGRAVITY`가 있다)를 보고 `ideType:"ANTIGRAVITY"`(+`pluginType:"GEMINI"` 또는 `platform:"DARWIN_ARM64"`)와 `duetProject`·`cloudaicompanionProject`=토큰 파일의 `project_id`도 보냈다.
+  - `POST …/v1internal:retrieveUserQuota {project}`(Orca의 `C1`). 같은 proto에서 찾은 `…:retrieveUserQuotaSummary {project}`와 `…:fetchAvailableModels {project}`도 보냈다. `loadCodeAssist`가 project를 주지 않아, project는 토큰 파일의 `project_id`(16자)를 썼다.
+- (b) 응답(`out/agy-u7-codeassist.json`, 토큰·project·이메일을 지움). 사용량은 얻지 못했다.
+  - `loadCodeAssist`: 모든 본문에 200. `allowedTiers[{id "standard-tier", name "Gemini Code Assist", userDefinedCloudaicompanionProject true, isDefault true}]`, `ineligibleTiers[{tierId "free-tier", reasonCode "UNSUPPORTED_CLIENT", reasonMessage "This client is no longer supported for Gemini Code Assist for individuals. To continue using Gemini, please migrate to the Antigravity suite of products"}]`. `currentTier`와 `cloudaicompanionProject`가 없다. `ideType`을 바꿔도 같다. project를 넣으면 `projectValidationError`(IAM_PERMISSION_DENIED, 그 project에 `cloudaicompanion.*` 권한 없음)가 더해진다.
+  - `retrieveUserQuota`·`retrieveUserQuotaSummary`: 403 `PERMISSION_DENIED`, reason `SUBSCRIPTION_REQUIRED`("You do not have a valid license of this product… (#3501)").
+  - `fetchAvailableModels`: 403 "The caller does not have permission".
+  - 응답 모양은 proto로만 알 수 있다(실제 응답은 보지 못함). `RetrieveUserQuotaSummaryResponse{buckets[], groups[{displayName, description, buckets[{bucketId, displayName, description, window, remainingFraction, remainingAmount, disabled, resetTime}]}]}`가 `agy /usage`의 `groups[].buckets[]`(`window`, `remaining_fraction`, `reset_time`)와 같은 모양이다. `RetrieveUserQuotaResponse.buckets[]`는 `{modelId, tokenType, remainingFraction, remainingAmount, resetTime}`이고, 모델 설정의 `quotaInfo`는 `{remainingFraction, resetTime}`이다.
+- (c) OAuth client와 scope는 받아들여졌다. 토큰 파일의 scope는 `cloud-platform`, `userinfo.email`, `aicode`이고, 갱신 응답의 scope는 여기에 `openid`가 더해진다. `cloudcode-pa`는 이 bearer에 401이 아니라 200(`loadCodeAssist`)과 403(라이선스)으로 답했다. 거절 이유는 인증이 아니라 계정의 tier·라이선스다. 고정 ACP 서버가 같은 계정으로 대화할 때 무엇을 다르게 보내는지(User-Agent, metadata, 다른 경로)는 찾지 못했다.
+- (d) 공통 기준.
+  - (i) 통과: 부른 것은 토큰 갱신, 설정 조회, 사용량 조회, 모델 목록이고 생성 요청은 없다. 사용량을 읽지 못해 값의 전후 비교는 하지 못했다.
+  - (ii) 통과: 대화 없이 한 조회 세 번은 모두 프로필 파일 66개와 vault 이미지(`f036beb5…`)가 전후로 같았다(`evidence/u7-before.json`, `u7-after-{1,2,3}.json`). (iv) 실행의 변화는 모두 그 대화의 것이다(대화 `1cc62875…`의 `conversations/*.db`·`brain/…/transcript*.jsonl`, 서버가 둔 `.gemini/antigravity/bin/webm_encoder`). 세 번째 조회와 (iv) 실행 사이에 생긴 세션 `12f563b7…`은 모델 메뉴를 열고 새 대화를 준비하던 때 생겼다. 무엇이 만들었는지는 확인하지 않았으나, 조회 실행의 전후 비교 밖이다.
+  - (iii) 통과: 모든 실행에서 `SecurityAgent`가 뜨지 않았다(200ms 감시). Antigravity는 파일 저장소라 Keychain을 쓰지 않는다.
+  - (iv) 통과: dev 앱에서 Antigravity `Gemini 3.8 Flash (High)`로 "one to one hundred fifty" 대화를 보내고, 조회(05:10:41.0–44.98Z)가 턴(05:10:32.9–52.8Z) 안에 있었다. 턴은 `turn.done`으로 끝났고, 뒤에 Settings > Agents에서 연결은 그대로였다.
+- (e) 토큰 파일에는 access token이 없다(`client_id`, `client_secret`, `refresh_token`, `token_uri`, `scopes`, `project_id`뿐). 그래서 조회마다 갱신이 필요했다(네 번, 모두 200, `expires_in 3599`). 갱신 응답에 refresh token은 없었다. access token은 조회 프로세스의 메모리에만 있었고 어디에도 쓰지 않았다: 토큰 파일과 vault 이미지 해시가 마지막(앱 종료 뒤 `evidence/u7-final.json`)까지 같다.
+- dev 앱은 SIGTERM으로 닫았고(`app.quit`을 inspector에서 부를 수 없었다), 남은 dev 앱·Antigravity 서버 프로세스가 없음을 확인했다. Antigravity를 포함한 다섯 연결은 sign out하지 않았다.
 
 ── commit: `docs(feature): record provider-usage PoC results` ──
 
