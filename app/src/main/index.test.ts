@@ -2138,6 +2138,26 @@ test("work content and a later start publish work:changed", () => {
   expect(new Set(published.map(items => items[0]?.turn)).size).toBe(1);
 });
 
+// V2 review: the same conversation update in the same ms publishes once; a later one renews touched and publishes.
+test("an identical conversation update publishes again only when its time changed", () => {
+  vi.useFakeTimers();
+  onTestFinished(() => { vi.useRealTimers(); });
+  const state = mocks.startRuntime.mock.calls[0]?.[1] as { conversationWork(request: unknown): void } | undefined;
+  if (!state) throw new Error("no runtime state");
+  const service = mocks.conversationService as unknown as { liveTurns(): ReadonlyMap<string, unknown> };
+  const turns = vi.spyOn(service, "liveTurns").mockReturnValue(new Map([["c1", { root: "/repo", turnId: "t1", running: true }]]));
+  onTestFinished(() => { turns.mockRestore(); });
+  const publications = () => window().webContents.send.mock.calls.filter(([channel]) => channel === "conversation-work:changed").map(([, items]) => items as { touched: number }[]);
+  const request = { v: 3, token: "t", root: "/repo", action: "update", path: ".doan/canvases/a.html", conversation: "c1", frame: "hero", note: "n" };
+  state.conversationWork(request);
+  state.conversationWork(request);
+  expect(publications()).toHaveLength(1);
+  vi.advanceTimersByTime(5);
+  state.conversationWork(request);
+  expect(publications()).toHaveLength(2);
+  expect(publications()[1]?.[0]?.touched).toBe((publications()[0]?.[0]?.touched ?? 0) + 5);
+});
+
 // work-update design decision 9 and §1 rule 5: an app conversation's update is its own state and channel, never
 // terminal work, and its turn's end clears it.
 test("conversation work has its own channel, only for a running turn, and a turn's end clears it", () => {

@@ -7,6 +7,7 @@ export type ConversationUpdate = Extract<WorkRequest, { conversation: string }>;
 // A conversation's current turn as ConversationService sees it now. running: accepted and not ended.
 export interface LiveTurn { root: string; turnId: string; running: boolean }
 
+const FIELDS = ["conversationId", "root", "path", "frame", "note", "touched", "turnId"] as const;
 // The request names the conversation but no turn: a previous turn's update that arrives after the next turn was
 // accepted counts for the new turn (design §1 rule 5 '한계').
 export function applyConversationWork(state: readonly ConversationWork[], request: ConversationUpdate, live: ReadonlyMap<string, LiveTurn>, now: number): readonly ConversationWork[] {
@@ -15,6 +16,9 @@ export function applyConversationWork(state: readonly ConversationWork[], reques
   const work: ConversationWork = { conversationId: request.conversation, root: request.root, path: request.path,
     ...(request.frame !== undefined ? { frame: request.frame } : {}), ...(request.note !== undefined ? { note: request.note } : {}), touched: now, turnId: turn.turnId };
   const index = state.findIndex(item => item.conversationId === request.conversation);
+  // An identical update in the same ms keeps the state, so main does not publish it again.
+  const current = state[index];
+  if (current && FIELDS.every(field => current[field] === work[field])) return state;
   return index === -1 ? [...state, work] : state.map((item, i) => i === index ? work : item);
 }
 export function endConversationWork(state: readonly ConversationWork[], conversationId: string): readonly ConversationWork[] {
