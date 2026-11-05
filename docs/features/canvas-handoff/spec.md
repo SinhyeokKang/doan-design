@@ -27,8 +27,8 @@
 ## 완료 조건
 
 1. **명령.** `doan handoff <canvas path> --message <text> [--json]`가 있다. `--message -`는 표준 입력에서 읽는다. 이 명령은 Doan 연결의 캔버스 대화에서 실행할 때만 앱에 닿고, 그 밖(터미널 agent, legacy external 대화, 프로젝트 대화, 앱이 꺼진 경우)에서는 정해진 오류 코드와 `nextSteps`로 실패한다(design §2·§3).
-2. **permission.** 핸드오프 명령은 그 대화의 permission mode가 셸 명령에 적용하는 경로를 그대로 지난다. Doan은 별도 승인 카드를 띄우지 않는다. Plan에서는 Doan이 `plan_mode`로 거절한다(design 결정 1). PoC P2가 mode별 실제 동작을 기록한다.
-3. **언제 시작하나.** 앱이 요청을 받으면 원래 대화 thread에 "이 턴이 끝나면 <canvas>로 넘긴다"는 줄이 보인다. 원래 턴이 done으로 끝나면 이어받는 대화를 시작하고, failed·stopped·interrupted로 끝나면 핸드오프를 취소하고 그 줄이 취소를 말한다(design 결정 4).
+2. **permission.** 핸드오프 명령은 그 대화의 permission mode가 셸 명령에 적용하는 경로를 그대로 지난다. Doan은 별도 승인 카드를 띄우지 않는다. Plan에서는 Doan이 `plan_mode`로 거절하고, Plan인지는 요청 때 대화의 현재 mode로 판단한다(Plan 승인 뒤 바뀐 mode 포함, design 결정 1). P1에서 환경 변수를 보지 못한 provider가 있으면 그 provider는 지원하지 않는다고 PRODUCT에 적혀 있다.
+3. **언제 시작하나.** 앱이 요청을 받으면 원래 대화 thread에 "이 턴이 끝나면 <canvas>로 넘긴다"는 줄이 보인다. 원래 턴이 done으로 끝나면 이어받는 대화를 시작하고, failed·stopped·interrupted로 끝나면 핸드오프를 취소하고 그 줄이 취소를 말한다(design 결정 4). 원래 턴이 done으로 끝날 때 사람이 큐에 넣은 메시지가 있어도 핸드오프는 진행하고, 그 메시지는 원래 대화가 아니라 이어받는 대화에서 핸드오프 첫 턴 다음 턴으로 나간다. 턴이 끝난 뒤 판정을 기다리는 동안 핸드오프를 취소하는 수단은 없다.
 4. **대상.** 대상 캔버스는 원래 대화와 같은 root에서 정확히 하나로 나열되고, 원래 대화의 캔버스가 아니며, 원래 턴이 받아들여진 뒤 새로 생겼고, 현재 대화가 없어야 한다(design 결정 3). 조건이 시작 시점에 맞지 않으면 시작하지 않고 원래 대화에 이유가 남는다.
 5. **이어받는 대화.** 원래 대화와 같은 provider, model, effort, permission mode로 대상 캔버스에 묶인 새 대화가 시작되고(design 결정 6), 그 캔버스의 현재 대화가 된다. 첫 메시지는 인계 메시지이고, thread 맨 위에 사람의 메시지와 구별되는 인계 카드로 보이며 원래 캔버스를 여는 Open이 있다(design 결정 10).
 6. **원래 대화.** 원래 대화는 원래 캔버스의 현재 대화로 남고, thread에 "Handed off to <canvas>" 줄과 Open이 남는다(design 결정 7). 거절·취소도 같은 자리에 이유와 함께 남는다. 재시작 뒤에도 이 줄들은 남는다.
