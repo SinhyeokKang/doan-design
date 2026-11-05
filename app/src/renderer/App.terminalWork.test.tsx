@@ -3,6 +3,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { PreferencesSnapshot } from "../main/preferences";
 import type { WorkItem } from "../main/workState";
+import type { ConversationWork } from "../main/conversationWork";
 import { initialCanvasState } from "./CanvasController";
 import { projectExpanded } from "./shellNavigation";
 import type { ShellProject } from "../restore/uiState";
@@ -55,7 +56,7 @@ vi.mock("./CanvasController", async original => ({
     constructor(_viewport: unknown, _board: unknown, _overlay: unknown, setState: (state: unknown) => void) {
       harness.setState = setState;
       const self = this as unknown as Record<string, ReturnType<typeof vi.fn>>;
-      for (const name of ["dispose", "command", "updateEntries", "setWorkspaceActive", "setCanvasPage", "setTool", "restoreTool", "openCanvas", "cancelWorkspaceOpen", "remember", "selectPath", "onPicked", "onCapture", "pick", "cancelPick", "locate", "dropPendingLocate"]) self[name] = vi.fn();
+      for (const name of ["dispose", "command", "updateEntries", "setWorkspaceActive", "setCanvasPage", "setTool", "restoreTool", "openCanvas", "cancelWorkspaceOpen", "remember", "selectPath", "onPicked", "onCapture", "pick", "cancelPick", "locate", "dropPendingLocate", "setWork"]) self[name] = vi.fn();
       self.openWorkspace = vi.fn((root: string, done: (root: string) => void) => done(root));
       self.showOverview = vi.fn((done: () => void) => done());
       self.destination = vi.fn((root: string) => ({ root }));
@@ -76,6 +77,7 @@ const PREFS: PreferencesSnapshot = { preferences: { v: 1, notifications: { enabl
 let listeners: Record<string, (...args: never[]) => void>;
 let readUiState: (state: unknown) => void;
 let getWork: (items: WorkItem[]) => void;
+let getConversationWork: (items: ConversationWork[]) => void;
 let calls: string[];
 let doan: Record<string, ReturnType<typeof vi.fn>>;
 let tree: ReactNode;
@@ -93,7 +95,7 @@ function reset() {
     readPreferences: vi.fn(async () => PREFS), savePreferences: vi.fn(async () => null),
     readShellActivity: vi.fn(async () => []), setSelection: vi.fn(async () => {}), inspect: vi.fn(), openSettings: vi.fn(async () => true),
     markCanvasSeen: vi.fn(async () => {}),
-    onWorkChanged: on("work"), onMcpConnectors: on("mcp"), onExportRunning: on("exportRunning"), onFullScreen: on("fullScreen"), getWork: vi.fn(() => { calls.push("getWork"); return new Promise(resolve => { getWork = resolve; }); }),
+    onWorkChanged: on("work"), onMcpConnectors: on("mcp"), onExportRunning: on("exportRunning"), onFullScreen: on("fullScreen"), getWork: vi.fn(() => { calls.push("getWork"); return new Promise(resolve => { getWork = resolve; }); }), onConversationWorkChanged: on("conversationWork"), getConversationWork: vi.fn(() => { calls.push("getConversationWork"); return new Promise(resolve => { getConversationWork = resolve; }); }),
     onOpenLink: on("openLink"), onQuitting: vi.fn(() => () => {}), openLinksReady: vi.fn(async () => { calls.push("openLinksReady"); }), onOpenRequest: on("openRequest"), answerOpenRequest: vi.fn(async () => {}),
   };
   vi.stubGlobal("window", { doan, addEventListener: vi.fn(), removeEventListener: vi.fn() });
@@ -122,7 +124,7 @@ function all(node: ReactNode): ReactElement<Record<string, unknown>>[] {
 }
 type Sidebar = { slots?: ReadonlyMap<string, { kind: string; label: string; source?: string }>; cards: { key: string; rows: { path: string }[] }[]; toggle(key: string, notice?: { root: string; path: string }): void; disclose(key: string): void; goHome(): void; projects: Record<string, ShellProject> };
 const sidebar = () => (all(tree).find(element => element.type === ShellSidebar)!.props as unknown as Sidebar);
-const agent = () => (all(tree).find(element => "agent" in (element.props as object))!.props as unknown as { agent: { work: readonly WorkItem[] } }).agent;
+const agent = () => (all(tree).find(element => "agent" in (element.props as object))!.props as unknown as { agent: { work: readonly WorkItem[]; conversationWork: readonly ConversationWork[]; frames: unknown; onWork(target: unknown): void } }).agent;
 const rows = (): CanvasRow[] => [{ path: A, url: "u-a", mtimeMs: 10 }, { path: B, url: "u-b", mtimeMs: 5 }];
 const folders = (extra: FolderEntry[] = []) => { listeners.folders!([{ path: "/w/a", kind: "list", servedRev: 0, canvases: rows() }, ...extra] as never); render(); };
 const show = (row: CanvasRow) => { harness.setState!({ ...initialCanvasState(), open: { folder: "/w/a", canvas: row.path, row }, shown: row.path }); render(); };
@@ -488,4 +490,42 @@ test("leaving a project folded by its chevron drops the fold, so it unfolds when
   sidebar().toggle(key("/w/b")); await flush(); render();
   expect(sidebar().projects[key("/w/a")]?.collapsed).not.toBe(true);
   expect(projectExpanded({ ...sidebar().projects[key("/w/a")]!, roots: ["/w/a"] }, "/w/a")).toBe(true);
+});
+
+// work-update R2: app conversations' `doan work update` content, read like terminal work (subscribed first), and the
+// open document's frames go to the canvas page; the indicator's work for the canvas goes to the controller.
+const conv = (path: string, root = "/w/a"): ConversationWork => ({ conversationId: "p1", root, path, frame: "hero", touched: 3, turnId: "u1" });
+
+test("App subscribes to conversation work before it reads it, and a change wins over an older read", async () => {
+  render();
+  expect(calls.indexOf("on:conversationWork")).toBeGreaterThan(-1);
+  expect(calls.indexOf("on:conversationWork")).toBeLessThan(calls.indexOf("getConversationWork"));
+  await start();
+  show(rows()[0]!);
+  listeners.conversationWork!([conv(A)] as never); render();
+  getConversationWork([]); await flush(); render();
+  expect(agent().conversationWork).toEqual([conv(A)]);
+});
+
+test("the read conversation work and the layout's frames reach the canvas page; a change replaces them", async () => {
+  await start();
+  getConversationWork([conv(B)]); await flush(); render();
+  show(rows()[0]!);
+  expect(agent().conversationWork).toEqual([conv(B)]);
+  expect(agent().frames).toBeNull();
+  const frames = [{ id: "hero", title: "Hero", x: 0, y: 0, width: 10, height: 10 }];
+  harness.setState!({ ...initialCanvasState(), open: { folder: "/w/a", canvas: A, row: rows()[0]! }, shown: A, layout: { type: "layout", href: "u-a", height: 10, viewport: 10, frames, truncated: false } }); render();
+  expect(agent().frames).toEqual(frames);
+  listeners.conversationWork!([] as never); render();
+  expect(agent().conversationWork).toEqual([]);
+});
+
+test("the indicator's work for the open canvas goes to the controller", async () => {
+  await start();
+  show(rows()[0]!);
+  const target = { root: "/w/a", path: A, work: { source: "conversation:p1", key: "conversation:p1:u1", frame: "hero", waiting: false }, keys: ["conversation:p1:u1"] };
+  agent().onWork(target);
+  expect(harness.controller!.setWork).toHaveBeenLastCalledWith(target);
+  agent().onWork(null);
+  expect(harness.controller!.setWork).toHaveBeenLastCalledWith(null);
 });

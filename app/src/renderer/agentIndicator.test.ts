@@ -3,7 +3,8 @@ import type { ConversationSummary } from "../main/conversation/summary";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { WorkItem } from "../main/workState";
 import type { AgentPresence } from "./agentPresence";
-import { agentNoticeView, canvasAgent, DOT_FIELD, DotFieldLoop, drawDotField, listForPresence, pickWork, settleStopping, siblingWork, stopFailedText, stopTurn, workFrameRect, workingCanvas, type ConversationWork, type TerminalWork } from "./agentIndicator";
+import { agentNoticeView, canvasAgent, DOT_FIELD, DotFieldLoop, drawDotField, listForPresence, canvasWorkTarget, pickWork, settleStopping, siblingWork, stopFailedText, stopTurn, workFrameRect, workingCanvas } from "./agentIndicator";
+import type { ConversationWork } from "../main/conversationWork";
 
 // buzz-canvas R5 (design §2 '에이전트 작업 표시', §5 copy): which canvas the indicator reads, the notice's button, Stop's
 // lifecycle and the dot field's loop.
@@ -343,7 +344,7 @@ describe("DotFieldLoop", () => {
 describe("work content on the open canvas", () => {
   const target = { root: "/w/a", canvas: { path: row.path, id: "billing" } };
   const b = { root: "/w/b", canvas: target.canvas };
-  const term = (patch: Partial<TerminalWork> = {}): TerminalWork => ({ session: "s1", provider: "claude", root: "/w/a", path: row.path, touched: 10, turn: "t1", ...patch });
+  const term = (patch: Partial<WorkItem> = {}): WorkItem => ({ session: "s1", provider: "claude", root: "/w/a", path: row.path, touched: 10, turn: "t1", ...patch });
   const conv = (patch: Partial<ConversationWork> = {}): ConversationWork => ({ conversationId: "p1", root: "/w/a", path: row.path, touched: 20, turnId: "u1", ...patch });
 
   describe("pickWork", () => {
@@ -428,5 +429,26 @@ describe("work content on the open canvas", () => {
       expect(workFrameRect(null, "a")).toBeNull();
       expect(workFrameRect({ frames }, undefined)).toBeNull();
     });
+  });
+});
+
+// work-update R2: what App hands the controller for the marker and following, from the notice's own pick.
+describe("canvasWorkTarget", () => {
+  const target = { root: "/w/a", canvas: { path: row.path, id: "billing" } };
+  const term = (patch: Partial<WorkItem> = {}): WorkItem => ({ session: "s1", provider: "claude", root: "/w/a", path: row.path, touched: 10, turn: "claude:t1", ...patch });
+  const conv = (patch: Partial<ConversationWork> = {}): ConversationWork => ({ conversationId: "p1", root: "/w/a", path: row.path, touched: 20, turnId: "u1", ...patch });
+  test("the open canvas, the picked work and every work turn on this root and path", () => {
+    const conversations = [conv({ frame: "plans" }), conv({ conversationId: "p2", root: "/w/b" })], terminal = [term(), term({ path: ".doan/canvases/other.html", turn: "claude:t9" })];
+    expect(canvasWorkTarget(target, pickWork(target, null, conversations, terminal), conversations, terminal)).toEqual({
+      root: "/w/a", path: row.path, work: { source: "conversation:p1", key: "conversation:p1:u1", frame: "plans", waiting: false },
+      keys: ["conversation:p1:u1", "terminal:claude:t1"] });
+  });
+  test("a canvas without work still names it, so the controller sees the canvas change; no canvas is null", () => {
+    expect(canvasWorkTarget(target, null, [], [])).toEqual({ root: "/w/a", path: row.path, work: null, keys: [] });
+    expect(canvasWorkTarget(null, null, [conv()], [term()])).toBeNull();
+  });
+  test("waiting carries to the controller", () => {
+    const own = [conv({ conversationId: "c1", frame: "plans" })];
+    expect(canvasWorkTarget(target, pickWork(target, waiting, own, []), own, [])?.work).toMatchObject({ frame: "plans", waiting: true });
   });
 });

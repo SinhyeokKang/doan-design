@@ -259,3 +259,29 @@ describe("DotField lifecycle", () => {
     expect(stopWindow).toHaveBeenCalled();
   });
 });
+
+// work-update R2: the indicator tells App the open canvas's work for the controller once per change, not per render.
+describe("CanvasAgent work for the controller", () => {
+  const term = { touched: 5, turn: "claude:t1", session: "s1", provider: "claude" as const, root: "/w/a", path: canvas.path, frame: "plans" };
+  test("tells the picked work and its turn keys when they change, and the canvas with no work", () => {
+    reset();
+    const onWork = vi.fn();
+    const props = { list: [] as ConversationSummary[], canvas: { root: "/w/a", canvas }, running: true, entries: [], onOpen: vi.fn(), onOpenSibling: vi.fn(), onStopFailed: vi.fn(), onWork };
+    render(() => CanvasAgent({ ...props, work: [] }));
+    expect(onWork).toHaveBeenLastCalledWith({ root: "/w/a", path: canvas.path, work: null, keys: [] });
+    render(() => CanvasAgent({ ...props, work: [term] }));
+    expect(onWork).toHaveBeenLastCalledWith({ root: "/w/a", path: canvas.path, work: { source: "terminal:claude:s1", key: "terminal:claude:t1", frame: "plans", waiting: false }, keys: ["terminal:claude:t1"] });
+    const calls = onWork.mock.calls.length;
+    render(() => CanvasAgent({ ...props, work: [{ ...term }] }));
+    expect(onWork).toHaveBeenCalledTimes(calls);
+    render(() => CanvasAgent({ ...props, canvas: null, work: [term] }));
+    expect(onWork).toHaveBeenLastCalledWith(null);
+  });
+  test("a project conversation's work reaches the controller too", () => {
+    reset();
+    const onWork = vi.fn();
+    render(() => CanvasAgent({ list: [], canvas: { root: "/w/a", canvas }, running: true, work: [], entries: [], onOpen: vi.fn(), onOpenSibling: vi.fn(), onStopFailed: vi.fn(), onWork,
+      conversationWork: [{ conversationId: "p1", root: "/w/a", path: canvas.path, frame: "hero", touched: 3, turnId: "u1" }] }));
+    expect(onWork).toHaveBeenLastCalledWith({ root: "/w/a", path: canvas.path, work: { source: "conversation:p1", key: "conversation:p1:u1", frame: "hero", waiting: false }, keys: ["conversation:p1:u1"] });
+  });
+});

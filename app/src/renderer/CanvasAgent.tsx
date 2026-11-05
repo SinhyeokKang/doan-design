@@ -3,7 +3,9 @@ import { Square } from "lucide-react";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { FolderEntry } from "../main/view";
 import type { WorkItem } from "../main/workState";
-import { agentNoticeView, canvasAgent, DOT_FIELD, DotFieldLoop, drawDotField, listForPresence, pickWork, settleStopping, siblingWork, stopTurn, type AgentNoticeView, type CanvasAgentState, type ConversationWork, type TerminalWork, type WorkingCanvas } from "./agentIndicator";
+import { agentNoticeView, canvasAgent, canvasWorkTarget, DOT_FIELD, DotFieldLoop, drawDotField, listForPresence, pickWork, settleStopping, siblingWork, stopTurn, type AgentNoticeView, type CanvasAgentState, type WorkingCanvas } from "./agentIndicator";
+import type { ConversationWork } from "../main/conversationWork";
+import type { CanvasWorkTarget } from "./CanvasController";
 import type { CanvasFrameRect } from "./canvasMessage";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import { autoCursor, dotGrid, type Dot } from "./dotField";
@@ -24,10 +26,12 @@ import { NoticeTyping, typesOn, type NoticeMoment, type TypedText } from "./noti
 // work-update (draft .doan/canvases/work-update.html 'notice-states', 'notice-typing'): `doan work update` content words
 // the notice. `conversationWork` is app conversations' content (a project conversation, or a canvas conversation naming
 // another canvas, shows the indicator without Stop); `frames` is the open document's layout, for the frame's title.
-export function CanvasAgent({ list, canvas, running, work, conversationWork = [], frames = null, entries, onOpen, onOpenSibling, onStopFailed, children }: {
+// `onWork` gets the open canvas's work for the controller's marker and following, once per change.
+export function CanvasAgent({ list, canvas, running, work, conversationWork = [], frames = null, entries, onOpen, onOpenSibling, onStopFailed, onWork, children }: {
   list: readonly ConversationSummary[] | "loading" | "error" | undefined; canvas: WorkingCanvas | null; running: boolean; work: readonly WorkItem[];
   conversationWork?: readonly ConversationWork[]; frames?: readonly CanvasFrameRect[] | null;
-  entries: readonly FolderEntry[]; onOpen(): void; onOpenSibling(root: string): void; onStopFailed(text: string): void; children?: ReactNode;
+  entries: readonly FolderEntry[]; onOpen(): void; onOpenSibling(root: string): void; onStopFailed(text: string): void;
+  onWork?(target: CanvasWorkTarget | null): void; children?: ReactNode;
 }) {
   // The last answer, kept across a failed list read (agentPresence).
   const previous = useRef<CanvasAgentState | null>(null);
@@ -37,8 +41,11 @@ export function CanvasAgent({ list, canvas, running, work, conversationWork = []
   const [stopping, setStopping] = useState<string | null>(null);
   const held = settleStopping(stopping, presence);
   useEffect(() => { if (stopping !== null && held === null) setStopping(null); }, [stopping, held]);
-  // DEFERRED (work-update batch M): main's WorkItem gains the content fields and turn id; until then App's items lack them.
-  const picked = agent ? pickWork(canvas, presence, conversationWork, work as readonly TerminalWork[]) : null;
+  const picked = agent ? pickWork(canvas, presence, conversationWork, work) : null;
+  const target = canvasWorkTarget(canvas, picked, conversationWork, work);
+  const targetKey = JSON.stringify(target);
+  const told = useRef(onWork); told.current = onWork;
+  useEffect(() => { told.current?.(target); }, [targetKey]);
   // The frame's title as last found, so a reload that has not laid out yet keeps it instead of falling back to the id.
   const title = useRef<{ key: string; title: string } | null>(null);
   let name: string | undefined;

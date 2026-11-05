@@ -3,9 +3,10 @@ import type { ConversationError } from "../main/conversation/ipc";
 import type { Canvas } from "../main/conversation/types";
 import type { FolderEntry } from "../main/view";
 import type { WorkItem } from "../main/workState";
+import type { ConversationWork } from "../main/conversationWork";
 import { PROVIDER_NAMES } from "./agentAuthView";
 import { agentPresence, type AgentPresence } from "./agentPresence";
-import type { CanvasState } from "./CanvasController";
+import type { CanvasState, CanvasWorkTarget } from "./CanvasController";
 import type { CanvasFrameRect, LayoutMessage } from "./canvasMessage";
 import { partitionDots, dotScale, type Dot } from "./dotField";
 import { groupProjects } from "./homeCards";
@@ -28,12 +29,6 @@ export function listForPresence(state: readonly ConversationSummary[] | "loading
   return Array.isArray(state) ? state : null;
 }
 
-// Work content from `doan work update` (work-update design §1 rules 4–6), in the shapes batch M gives main
-// (orch.md '결정 기록'): a terminal session's items carry the content and main's turn id; an app conversation's content
-// (`ConversationWork`, main's conversationWork.ts) lives apart from them so it is never counted as terminal work.
-export type TerminalWork = WorkItem & { frame?: string; note?: string; touched: number; turn: string };
-export interface ConversationWork { conversationId: string; root: string; path: string; frame?: string; note?: string; touched: number; turnId: string }
-
 // The content the open canvas shows. `source` is the terminal session or the conversation (a change of it does not
 // follow); `key` the work turn (follow and its stop last one turn); `waiting`: the canvas's own conversation waits for
 // an answer, so the marker stays still.
@@ -42,7 +37,9 @@ export interface PickedWork { source: string; key: string; touched: number; fram
 // The canvas's own working or waiting conversation decides alone, with its content on this canvas or none. Otherwise
 // the last update on this root and path wins among project conversations, conversations bound to another canvas
 // (decision 13) and terminal sessions. A twin path in another worktree never counts (POSTMORTEM 2026-11-01).
-export function pickWork(target: WorkingCanvas | null, presence: AgentPresence | null, conversations: readonly ConversationWork[], terminal: readonly TerminalWork[]): PickedWork | null {
+// Work content comes from `doan work update` (work-update design §1 rules 4–6): a terminal session's items carry it with
+// main's turn id; an app conversation's (`ConversationWork`) lives apart from them so it is never counted as terminal work.
+export function pickWork(target: WorkingCanvas | null, presence: AgentPresence | null, conversations: readonly ConversationWork[], terminal: readonly WorkItem[]): PickedWork | null {
   if (!target) return null;
   const on = (item: { root: string; path: string }) => item.root === target.root && item.path === target.canvas.path;
   const content = (item: { frame?: string; note?: string }) => ({ ...(item.frame === undefined ? {} : { frame: item.frame }), ...(item.note === undefined ? {} : { note: item.note }) });
@@ -59,6 +56,16 @@ export function pickWork(target: WorkingCanvas | null, presence: AgentPresence |
     best = { source: `terminal:${item.provider ?? ""}:${item.session ?? ""}`, key: followTurnKey(item), touched: item.touched, ...content(item), waiting: false };
   }
   return best;
+}
+
+// What the controller gets for the marker and following: the open canvas (also with no work, so it sees a change of
+// canvas as entering it), the picked work, and every work turn on this root and path, which a person's move stops.
+export function canvasWorkTarget(target: WorkingCanvas | null, picked: PickedWork | null, conversations: readonly ConversationWork[], terminal: readonly WorkItem[]): CanvasWorkTarget | null {
+  if (!target) return null;
+  const on = (item: { root: string; path: string }) => item.root === target.root && item.path === target.canvas.path;
+  const keys = [...conversations.filter(on).map(followTurnKey), ...terminal.filter(on).map(followTurnKey)];
+  const work = picked && { source: picked.source, key: picked.key, ...(picked.frame === undefined ? {} : { frame: picked.frame }), waiting: picked.waiting };
+  return { root: target.root, path: target.canvas.path, work, keys: [...new Set(keys)] };
 }
 
 // The working frame's rect in the current layout: the first frame with the id, as frame jumps take it. None without a
