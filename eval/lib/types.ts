@@ -7,10 +7,13 @@ import type { ToolCalls } from "./transcript.ts";
 export type Check = { id: string; pass: boolean; detail: string };
 
 export interface WorkExchange {
-  request: { v: 3; action: "start" | "done"; root: string; path?: string; session?: string; provider?: "claude" | "codex" };
+  request: { v: 3; action: "start" | "update" | "done"; root: string; path?: string; frame?: string; note?: string; session?: string; provider?: "claude" | "codex"; conversation?: string };
   response: { v: 3; ok: boolean; error?: { code: string; message: string } };
   at: string;
   hashes: Record<string, string | null>;
+  // The requested canvas's text when an accepted update arrived (null when unreadable), so a check can tell
+  // which frames were already edited; absent on every other exchange.
+  canvas?: string | null;
 }
 
 export interface OpenExchange {

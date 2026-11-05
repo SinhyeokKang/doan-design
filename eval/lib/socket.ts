@@ -372,17 +372,18 @@ export async function serveFakeApp(o: FakeAppOptions): Promise<FakeApp> {
   const workLog = join(o.dir, "work.jsonl");
   const openLog = join(o.dir, "open.jsonl");
   const paths = new Set<string>();
-  const snapshot = (path: string): string | null => {
+  const contents = (path: string): Buffer | null => {
     const target = join(o.root, path);
     try {
       const rel = relative(realpathSync(o.root), realpathSync(target));
       if (rel === ".." || rel.startsWith("../") || isAbsolute(rel)) return null;
-      return contentHash(readFileSync(target));
+      return readFileSync(target);
     } catch {
       // Missing or unreadable content has no snapshot; it must not stop logging.
       return null;
     }
   };
+  const snapshot = (path: string): string | null => contentHash(contents(path));
   const onboarding = o.onboarding ? onboardingApp(o.onboarding, o.root, changes => initializeRepo(o.root, changes, join(o.dir, APP_WRITES))) : null;
   // Without a script the fake is an older app: a v2 line gets the v1 bad_request.
   const reply = (line: string): Obj => {
@@ -398,8 +399,9 @@ export async function serveFakeApp(o: FakeAppOptions): Promise<FakeApp> {
         if (typeof parsed.path === "string") paths.add(parsed.path);
         for (const path of paths) hashes[path] = snapshot(path);
       }
+      const canvas = response.ok && parsed.action === "update" ? { canvas: contents(parsed.path as string)?.toString("utf8") ?? null } : {};
       const { token: _token, ...request } = parsed;
-      appendFileSync(workLog, JSON.stringify({ request, response, at: new Date().toISOString(), hashes }) + "\n", { mode: 0o600 });
+      appendFileSync(workLog, JSON.stringify({ request, response, at: new Date().toISOString(), hashes, ...canvas }) + "\n", { mode: 0o600 });
       return response;
     }
     if (isObj(parsed) && parsed.v === 4) {
