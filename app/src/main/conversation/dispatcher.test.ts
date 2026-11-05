@@ -278,6 +278,10 @@ it("lets a side request time out or fail without failing the protocol of the run
     const { id } = h.writes.at(-1) as { id: string };
     h.rpc.receive({ id, error: { code: -32601, message: "Method not found" } });
     expect(await refused).toBeInstanceOf(RpcError);
+    // review-B 🟢3: the code reaches usageNotSupported whatever the server's wording.
+    const reworded = h.rpc.query("account/rateLimits/read", undefined).catch((error: unknown) => error);
+    h.rpc.receive({ id: (h.writes.at(-1) as { id: string }).id, error: { code: -32601, message: "unknown variant `account/rateLimits/read`" } });
+    expect(await reworded).toMatchObject({ code: -32601 });
     const answered = h.rpc.query("account/rateLimits/read", undefined);
     h.rpc.receive({ id: (h.writes.at(-1) as { id: string }).id, result: { rateLimits: {} } });
     expect(await answered).toEqual({ rateLimits: {} });

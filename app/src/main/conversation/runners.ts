@@ -51,9 +51,13 @@ function verdicts(input: Prepared): (verdict: HandshakeVerdict) => void {
     if (verdict === "incompatible") { recorded = true; input.incompatible?.(); } else input.compatible?.();
   };
 }
-function timeout<T>(promise: Promise<T>): Promise<T> {
+// A Claude turn's usage read keeps the CLI's input open, and the next send waits for that process (service.ts
+// EXIT_WAIT_MS, 10 s): this cap plus the slowest observed exit after closing (5.0 s, D1) stays inside that wait, so
+// a CLI that never answers delays the next send by at most this, never refuses it as busy. An answer took 0.2-1 s (PoC).
+const TURN_USAGE_MS = 3000;
+function timeout<T>(promise: Promise<T>, ms = 10000): Promise<T> {
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error("process_exited")), 10000);
+    const timer = setTimeout(() => reject(new Error("process_exited")), ms);
     promise.then(value => { clearTimeout(timer); resolve(value); }, error => { clearTimeout(timer); reject(error); });
   });
 }
@@ -351,10 +355,9 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
             for (const event of result.events) emit(event);
             if (!state.terminal) continue;
             endReadWait();
-            // The CLI exits once its input closes, so a done turn's usage is read on this Query first (provider-usage);
-            // the timeout bounds how long the next send waits for this process.
+            // The CLI exits once its input closes, so a done turn's usage is read on this Query first (provider-usage).
             if (input.usageAtTurnEnd && !state.steered?.length && result.events.some(event => event.type === "turn.done")) {
-              await input.usageAtTurnEnd(() => timeout(q.usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET({ skipBehaviors: true }))).catch(() => {});
+              await input.usageAtTurnEnd(() => timeout(q.usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET({ skipBehaviors: true }), TURN_USAGE_MS)).catch(() => {});
             }
             closeInput();
             // A failed or aborted result can end the turn with a steered message already written and unread; the item

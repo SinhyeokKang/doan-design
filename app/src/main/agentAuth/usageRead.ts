@@ -40,7 +40,7 @@ export function parseUsage(provider: UsageProvider, response: unknown, readAt: n
 
 // One usage read in a process opened only for it (start, sign-in, popover, refresh). Never throws, and resolves only
 // after the process group is gone, so the lease it runs under can be released right after.
-export async function readUsage(provider: UsageProvider, lease: Pick<Lease, "command" | "env" | "profileDir">, options: UsageReadOptions, signal?: AbortSignal): Promise<UsageReading> {
+export async function readUsage(provider: UsageProvider, lease: Pick<Lease, "command" | "env" | "profileDir"> & { organization?: string }, options: UsageReadOptions, signal?: AbortSignal): Promise<UsageReading> {
   const now = options.now ?? Date.now;
   try {
     if (signal?.aborted) throw new Stopped();
@@ -166,12 +166,15 @@ async function rpcRead(lease: Pick<Lease, "command" | "env">, options: UsageRead
 
 // The SDK's Query on a session that sends no prompt: initialize, then the usage control request, then close. The cwd
 // is Doan's empty folder, not a repo, whose settings (an apiKeyHelper) could replace the login.
-async function claudeRead(lease: Pick<Lease, "command" | "env">, options: UsageReadOptions, signal: AbortSignal | undefined): Promise<unknown> {
+async function claudeRead(lease: Pick<Lease, "command" | "env"> & { organization?: string }, options: UsageReadOptions, signal: AbortSignal | undefined): Promise<unknown> {
   const controller = new AbortController(), stop = stopped(signal);
   let group: OwnedGroup | undefined, gone: Promise<void> = Promise.resolve();
   async function* idle() { await new Promise(resolve => { if (controller.signal.aborted) resolve(null); else controller.signal.addEventListener("abort", resolve, { once: true }); }); }
   const q = query({ prompt: idle(), options: {
     cwd: options.probeDir, env: lease.env, pathToClaudeCodeExecutable: lease.command, settingSources: ["user", "project", "local"], abortController: controller,
+    // The login's organization pinned as a Doan Claude run pins it (runners.ts): a device's managed apiKeyHelper then
+    // makes Claude Code refuse (read_failed) instead of reading an API key's usage as "no usage limits".
+    ...(lease.organization ? { managedSettings: { forceLoginOrgUUID: lease.organization } } : {}),
     spawnClaudeCodeProcess(spawned) {
       const child = spawnChild(spawned.command, spawned.args, { cwd: spawned.cwd, env: spawned.env, detached: true, stdio: ["pipe", "pipe", "pipe"] });
       let release!: () => void;

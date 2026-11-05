@@ -137,6 +137,15 @@ describe("Claude usage read", () => {
     expect(entries.some(m => m.type === "user")).toBe(false);
     await vi.waitFor(() => expect(gone(Number(start.pid))).toBe(true));
   }, 20_000);
+  // review-B 🟢2: pinned as a Doan Claude run is (runners.ts), so a device's managed apiKeyHelper cannot answer for the login.
+  it("pins the read to the login's organization when the connection has one", async () => {
+    for (const organization of ["org-uuid-1", undefined]) {
+      await readUsage("claude", { ...lease(claude()), ...(organization ? { organization } : {}) }, options({ readMs: 5000 }));
+    }
+    const [pinned, unpinned] = logged().filter(m => Array.isArray(m.argv)).map(m => m.argv as string[]);
+    expect(pinned!.slice(pinned!.indexOf("--managed-settings"), pinned!.indexOf("--managed-settings") + 2)).toEqual(["--managed-settings", '{"forceLoginOrgUUID":"org-uuid-1"}']);
+    expect(unpinned).not.toContain("--managed-settings");
+  }, 30_000);
   it("reads an unsupported control request as not_supported and a missing initialize answer as read_failed", async () => {
     expect(await readUsage("claude", lease(claude(), "unsupported"), options({ readMs: 5000 }))).toMatchObject({ status: "unavailable", reason: "not_supported" });
     expect(await readUsage("claude", lease(claude(), "silent-init"), options({ openMs: 3000 }))).toMatchObject({ status: "unavailable", reason: "read_failed" });

@@ -120,6 +120,15 @@ describe("UsageService reads", () => {
     usage.trigger({ kind: "open" }); await usage.settled();
     expect(h.read).toHaveBeenCalledTimes(2);
   });
+  it("gives a Claude read its login's organization to pin, and no other provider's", async () => {
+    const h = setup();
+    h.auth.states.set("claude", connected("claude", "c1")); h.auth.states.set("codex", connected("codex", "x1"));
+    const usage = h.make();
+    usage.trigger({ kind: "start" }); await usage.settled();
+    const leases = new Map(h.read.mock.calls.map(([provider, lease]) => [provider, lease as Lease & { organization?: string }]));
+    expect(leases.get("claude")?.organization).toBe("org-secret-1");
+    expect(leases.get("codex")).not.toHaveProperty("organization");
+  });
   it("turns a thrown read and a refused lease into read_failed, never leaving the provider in flight", async () => {
     const h = setup({ read: async () => { throw new Error("boom"); } });
     h.auth.states.set("claude", connected("claude", "c1")); h.auth.states.set("codex", connected("codex", "x1"));
@@ -158,6 +167,40 @@ describe("UsageService checks", () => {
     expect(checked).toHaveBeenCalledWith("codex");
     gate.resolve(ok(h.now())); await usage.settled();
     expect(h.read).toHaveBeenCalledTimes(2);
+  });
+});
+
+// review-B 🟡2: a check runs up to 20 s (statusRun); quit and a sign-out stop a read waiting on it at once, and
+// AuthManager stops the check itself.
+describe("UsageService quit and stop during a check", () => {
+  const hung = (h: ReturnType<typeof setup>) => {
+    vi.spyOn(h.auth, "check").mockImplementation(async () => ({ ok: true, attemptId: "check-1", done: new Promise<AuthState>(() => {}), outcome: new Promise(() => {}) }));
+    vi.spyOn(h.auth, "checked").mockImplementation(() => new Promise<void>(() => {}));
+  };
+  it.each([
+    ["a check it started", { verified: false }],
+    ["a check someone else started", { verified: false, phase: "checking", attempt: { id: "other-check", kind: "check", owner: null, cancelled: false } }],
+  ] as const)("quits without waiting out %s", async (_name, over) => {
+    const h = setup(); hung(h);
+    h.auth.states.set("claude", connected("claude", "c1", over as Partial<AuthState>));
+    const usage = h.make();
+    usage.trigger({ kind: "start" }); await flush(); await flush();
+    const started = Date.now();
+    await usage.quit();
+    expect(Date.now() - started).toBeLessThan(1000);
+    expect(h.read).not.toHaveBeenCalled();
+    await usage.settled();
+    expect(usage.entries()).toEqual([{ provider: "claude", inFlight: false, reading: failed(h.now()) }]);
+  });
+  it("stops a provider's read waiting on its check for a sign-out", async () => {
+    const h = setup(); hung(h);
+    h.auth.states.set("codex", connected("codex", "x1", { verified: false }));
+    const usage = h.make();
+    usage.trigger({ kind: "start" }); await flush(); await flush();
+    const stopping = usage.stop("codex").then(() => "stopped");
+    expect(await Promise.race([stopping, new Promise(resolve => setTimeout(() => resolve("waiting"), 500))])).toBe("stopped");
+    expect(h.read).not.toHaveBeenCalled();
+    expect(h.auth.held).toBe(0);
   });
 });
 
@@ -219,6 +262,19 @@ describe("UsageService connection changes", () => {
     expect(h.read).toHaveBeenCalledTimes(2);
     gate.resolve(ok(h.now(), 88)); await usage.settled();
     expect(usage.entries()).toEqual([{ provider: "claude", inFlight: false, reading: ok(h.now(), 42) }]);
+  });
+  // review-B 🟢1: the earlier account's read is stopped when the new account's read takes its place.
+  it("stops the earlier account's read when a replacement's read starts", async () => {
+    const signals: AbortSignal[] = [];
+    const h = setup({ read: (_provider, _lease, signal) => { signals.push(signal); return new Promise(resolve => signal.addEventListener("abort", () => resolve(failed(0)))); } });
+    h.auth.states.set("claude", connected("claude", "c1"));
+    const usage = h.make();
+    usage.trigger({ kind: "refresh" }); await flush(); await flush();
+    h.auth.states.set("claude", connected("claude", "c2"));
+    usage.authChanged(); await flush(); await flush();
+    expect(signals.map(signal => signal.aborted)).toEqual([true, false]);
+    await usage.quit();
+    expect(h.auth.held).toBe(0);
   });
   it("reads a sign-in once its connection becomes usable, if it was busy when it appeared", async () => {
     let ready = false;

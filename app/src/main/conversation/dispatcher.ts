@@ -2,7 +2,8 @@ import { object } from "./sessions";
 import { codexPermission, endTransport, initialTransport, normalizeCodex, normalizeCodexReply, permissionAnswer, steerTransport, type CodexContext, type CodexReplyOwner, type SteerResult } from "./transport";
 import type { EventPayload, PendingPermission } from "./types";
 // The server's own error answer to a pending request; timeouts, write failures and exit reject with a plain Error.
-export class RpcError extends Error {}
+// code: the JSON-RPC error code, which tells an unknown method (-32601) apart whatever the server's wording.
+export class RpcError extends Error { constructor(message: string, readonly code?: number) { super(message); } }
 // steered: the message a turn/steer carries, dropped when the server refuses it.
 interface Pending { owner?: CodexReplyOwner; steered?: string; resolve(value: unknown): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }
 export class CodexDispatcher {
@@ -73,7 +74,8 @@ export class CodexDispatcher {
       if (pending.owner) this.apply(normalizeCodexReply(this.state, raw, this.context, pending.owner));
       // Dropped here, not in a rejection handler: an echo later in the same chunk is received before those run.
       if (pending.steered && this.state.steered) this.state = { ...this.state, steered: this.state.steered.filter(id => id !== pending.steered) };
-      pending.reject(new RpcError(object(raw.error) && typeof raw.error.message === "string" ? raw.error.message : "RPC error"));
+      const error = object(raw.error) ? raw.error : {};
+      pending.reject(new RpcError(typeof error.message === "string" ? error.message : "RPC error", typeof error.code === "number" ? error.code : undefined));
     } else pending.resolve(raw.result);
   }
   answer(requestId: string, option: string): boolean {

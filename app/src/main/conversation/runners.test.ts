@@ -1309,12 +1309,12 @@ fs.appendFileSync(log, JSON.stringify({ start: process.pid }) + '\\n');
 const send = value => process.stdout.write(JSON.stringify(value)+'\\n');
 require('node:readline').createInterface({input:process.stdin}).on('line', line => {
  const r = JSON.parse(line); fs.appendFileSync(log, line + '\\n');
- if(r.type==='control_request') send({type:'control_response',response:{subtype:'success',request_id:r.request_id,response:r.request.subtype==='get_usage'?${JSON.stringify(usageReply)}:{commands:[],models:[],account:{}}}});
- if(r.type==='user') {
+ if(r.type==='control_request' && !(r.request.subtype==='get_usage' && process.env.FAKE_NO_USAGE)) send({type:'control_response',response:{subtype:'success',request_id:r.request_id,response:r.request.subtype==='get_usage'?${JSON.stringify(usageReply)}:{commands:[],models:[],account:{}}}});
+ if(r.type==='user') setTimeout(() => {
   send({type:'assistant',parent_tool_use_id:null,message:{id:'m',role:'assistant',content:[{type:'text',text:process.env.FAKE_FAIL?'':'hello'}]}});
   send(process.env.FAKE_FAIL ? {type:'result',subtype:'error_during_execution',is_error:true,errors:['failed'],session_id:r.session_id} : {type:'result',subtype:'success',is_error:false,result:'hello',session_id:r.session_id});
- }
-}).on('close', () => process.exit(0));
+ }, Number(process.env.FAKE_RESULT_MS || 0));
+}).on('close', () => setTimeout(() => process.exit(0), Number(process.env.FAKE_EXIT_MS || 0)));
 `, { mode: 0o700 });
     return command;
   }
@@ -1349,6 +1349,42 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line 
       } finally { await runner.close(); await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce()); rmSync(root, { recursive: true, force: true }); }
     }
   }, 30000);
+  // review-B 🟡1: the next send waits for this process (service.ts EXIT_WAIT_MS 10 s) while the read keeps its input
+  // open. A CLI that never answers, then takes the observed 2.1 s to exit (D1), must still leave a send right after
+  // turn.done and a queue flushed at turn.done going out, not refused as busy.
+  describe("with a CLI that never answers the usage request", () => {
+    function serviceOn(root: string) {
+      const command = fakeClaude(root), store = new ConversationStore(root);
+      const env = { PATH: process.env.PATH, HOME: root, CLAUDE_CONFIG_DIR: root, FAKE_NO_USAGE: "1", FAKE_EXIT_MS: "2100", FAKE_RESULT_MS: "500" };
+      const service = new ConversationService(store, async (_request, stored) => ({
+        command, runtime: "claude", cwd: root, configDir: root, env, ...(stored ? { sessionId: stored.session.sessionId } : {}),
+        usageAtTurnEnd: read => read().then(() => {}, () => {}),
+      }), openRunner, () => {});
+      return { store, service, start: () => service.start({ root, mode: "new", runtime: "claude", canvas: { path: ".doan/canvases/a.html" }, text: "hello", anchors: [] }) };
+    }
+    const types = (h: ReturnType<typeof serviceOn>, id: string, type: string) => h.store.read(id).filter(e => e.type === type);
+    const asked = (root: string) => seen(root).filter(line => (line.request as { subtype?: string } | undefined)?.subtype === "get_usage");
+    it("takes a send right after turn.done", async () => {
+      const root = mkdtempSync(join(tmpdir(), "doan-usage-silent-")), h = serviceOn(root);
+      try {
+        const id = (await h.start()).conversationId;
+        await vi.waitFor(() => expect(types(h, id, "turn.done")).toHaveLength(1), { timeout: 5000, interval: 10 });
+        await h.service.send(id, "next", []);
+        await vi.waitFor(() => expect(types(h, id, "turn.done")).toHaveLength(2), { timeout: 5000, interval: 20 });
+        expect(asked(root).length).toBeGreaterThan(0);
+      } finally { await h.service.quit(); rmSync(root, { recursive: true, force: true }); }
+    }, 30000);
+    it("sends a queue flushed at turn.done", async () => {
+      const root = mkdtempSync(join(tmpdir(), "doan-usage-silent-")), h = serviceOn(root);
+      try {
+        const id = (await h.start()).conversationId;
+        h.service.queue(id, { text: "queued", anchors: [] });
+        await vi.waitFor(() => expect(types(h, id, "user.message")).toHaveLength(2), { timeout: 20000, interval: 20 });
+        expect(types(h, id, "user.message").at(-1)).toMatchObject({ text: "queued" });
+        expect(asked(root).length).toBeGreaterThan(0);
+      } finally { await h.service.quit(); rmSync(root, { recursive: true, force: true }); }
+    }, 30000);
+  });
   it("reads account/rateLimits/read on the conversation's live Codex server after each done turn", async () => {
     const root = mkdtempSync(join(tmpdir(), "doan-usage-codex-")), command = join(root, "codex");
     writeFileSync(command, `#!/usr/bin/env node

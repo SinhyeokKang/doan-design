@@ -23,8 +23,9 @@ export interface UsageServiceOptions {
   auth: UsageAuth;
   // The provider's readiness as Settings > Agents shows it (tool facts included).
   readiness(provider: Provider): Readiness;
-  // A read in a process opened only for it (usageRead.ts readUsage), resolving after that process is gone.
-  read(provider: UsageProvider, lease: Lease, signal: AbortSignal): Promise<UsageReading>;
+  // A read in a process opened only for it (usageRead.ts readUsage), resolving after that process is gone. A Claude
+  // lease carries its login's organization, which the read pins as a Doan Claude run does.
+  read(provider: UsageProvider, lease: Lease & { organization?: string }, signal: AbortSignal): Promise<UsageReading>;
   // Whether the app window is shown; main decides, the renderer never says.
   visible(): boolean;
   publish(entries: UsageEntry[]): void;
@@ -147,6 +148,8 @@ export class UsageService {
     if (this.closed || !connectionId) return;
     if (!shouldRead(this.scheduled(provider), this.now(), trigger, this.options.visible())) return;
     this.signedIn.delete(provider);
+    // A replacement's read takes the earlier account's place: that one is stopped, so quit and stop see every read.
+    this.reads.get(provider)?.controller.abort();
     const controller = new AbortController(), read: Read = { connectionId, controller };
     this.reads.set(provider, read);
     this.store.begin(provider, connectionId);
@@ -164,18 +167,23 @@ export class UsageService {
   private async fresh(provider: UsageProvider, connectionId: string, signal: AbortSignal): Promise<UsageReading> {
     const failed = (): UsageReading => ({ status: "unavailable", reason: "read_failed", readAt: this.now() });
     const auth = this.options.auth;
+    // A check runs up to 20 s (statusRun): quit and a sign-out stop waiting for it at once, and AuthManager stops the
+    // check itself (quit, replaceCheck).
+    const aborted = new Promise<void>(resolve => { if (signal.aborted) resolve(); else signal.addEventListener("abort", () => resolve(), { once: true }); });
+    const until = (work: Promise<unknown>) => Promise.race([work, aborted]);
     try {
       // Stored connections load unverified; like a run's preparation, the read checks one first (conversation/prepare.ts).
-      if (auth.state(provider).attempt?.kind === "check") await auth.checked(provider);
+      if (auth.state(provider).attempt?.kind === "check") await until(auth.checked(provider));
       const state = auth.state(provider);
-      if (!PROVIDER_AUTH[provider].verifyByRun && state.connection && !state.verified && !state.expired && !state.attempt) {
+      if (!signal.aborted && !PROVIDER_AUTH[provider].verifyByRun && state.connection && !state.verified && !state.expired && !state.attempt) {
         const started = await auth.check(provider);
-        if (started.ok) await started.done; else await auth.checked(provider);
+        await until(started.ok ? started.done : auth.checked(provider));
       }
       // A check stopped by a sign-out or quit leaves nothing to read.
       if (signal.aborted || auth.state(provider).connection?.connectionId !== connectionId) return failed();
+      const organization = provider === "claude" ? auth.state(provider).connection?.account.workspace : null;
       const lease = await auth.acquire(provider, "usage");
-      try { return signal.aborted ? failed() : await this.options.read(provider, lease, signal); }
+      try { return signal.aborted ? failed() : await this.options.read(provider, organization ? { ...lease, organization } : lease, signal); }
       finally { await lease.release(); }
     } catch { return failed(); }
   }
