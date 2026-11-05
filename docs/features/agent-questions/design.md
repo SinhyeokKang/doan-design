@@ -31,12 +31,14 @@ app(Electron + TS)만 바뀐다. CLI(Go)·skills·guide·`doan check`·공유 JS
   - Stop 뒤나 runner가 닫힌 뒤(`close()`)에 온 `AskUserQuestion`은 읽지 않고 바로 `deny`로 답한다. 지금의 `canUseTool`(`:286-292`)은 이 상태를 보지 않으므로 질문 경로에 그 확인을 더한다.
   - 읽지 못하면 `{behavior: "deny", message}`로 바로 답한다. 메시지는 에이전트에게 질문을 답장 글로 하라고 말한다(문구는 P1 뒤 `/tdd`에서 고정). 권한 요청으로 보내지 않는다(Allow가 답 없는 결과를 만들기 때문).
 - 답: `answerQuestion(requestId, answer)`가 `claudeQuestionResult`로 `{behavior: "allow", updatedInput: {...input, answers: {<문장>: "<label>, <label>"}}}`를 만든다. 여러 선택은 쉼표로 잇는다(`AskUserQuestionOutput.answers` 주석, `sdk-tools.d.ts:3959`). Other 글은 그 질문의 답 문자열이다. 이 모양은 SDK 타입 주석에서 읽은 것이고, 에이전트가 실제로 받는지는 P1이 확인한다.
-- Skip: P1 결과에 따라 둘 중 하나다. (a) 세션의 `system/init` `capabilities`에 `ask_user_question_unanswered_v1`이 있으면 `annotations[<문장>].unanswered: "skipped"`로 허용(`sdk.d.ts:6290`, `sdk-tools.d.ts:3982-3984`). 이 필드는 모델이 보지 않으므로(`sdk-tools.d.ts:3982`) 모델이 읽을 글은 `answers`에 넣는다. 그 글은 P1이 도구 결과를 보고 정한다. (b) 없으면 `{behavior: "deny", message: "The person skipped the question."}`. 어느 쪽이든 턴은 이어진다.
+- Skip: `{behavior: "allow", updatedInput: {...input, answers: {}, annotations: {<문장>: {unanswered: "skipped"}}}}`. 세션의 `system/init` `capabilities`에 `ask_user_question_unanswered_v1`이 없으면 `{behavior: "deny", message: "The person skipped the question."}`. 모델은 (a)에서 "The user did not answer the questions."를 받고 턴을 이어 간다. `answers`에 글을 넣으면 답으로 읽히므로 넣지 않는다(P1).
 - 만료(`expire`, `:294-296`): 권한과 같이 `deny` "Request expired."와 `question.resolved` `expired`.
 - 활동: `AskUserQuestion`의 `tool_use`는 activity를 내지 않는다(`transport.ts:148-152`, `claudeActivity` `:99-102`). 질문 카드가 그 자리를 대신하고, 지금의 "Using a tool" 줄을 없앤다.
-- Full access(`bypassPermissions`)와 사람의 `permissions.allow` 규칙에서 `canUseTool`이 불리지 않으면 Doan은 질문을 볼 수 없다. P1이 모드별로 기록하고, 불리지 않는 모드가 있으면 그 모드의 동작을 Z1에서 PRODUCT에 한계로 적는다.
+- P1에서 다섯 모드(Default, Accept edits, Plan, Full access, permissionMode 없음) 모두 `canUseTool`이 `AskUserQuestion`으로 불렸다. 사람의 `permissions.allow`에 `AskUserQuestion`이 있는 경우는 확인하지 않았다.
 
 ### 3. Codex dispatcher
+
+> P2 결과로 이 절은 `decline` 경로만 구현한다. 모든 `item/tool/requestUserInput`(같은 턴 포함)에 카드 없이 빈 답 `{answers: {}}`으로 답하고 턴은 이어진다. 아래의 `question` disposition, 질문 표, `answerQuestion`, `isSecret`은 Codex가 Doan 모드에서 이 요청을 보내게 될 때의 설계로 남긴다.
 
 - `transport.ts` `normalizeCodex`(`:180-199`): `item/tool/requestUserInput`을 따로 읽는다.
   - 같은 thread·turn이고 턴이 끝나지 않았고 Stop하지 않았고 `isBlocking: true`이며 `codexQuestion(raw)`이 읽으면 → disposition `question`과 `question.request` 이벤트.
@@ -49,8 +51,11 @@ app(Electron + TS)만 바뀐다. CLI(Go)·skills·guide·`doan check`·공유 JS
 
 ### 4. ACP
 
-- P6의 결정 전까지 바꾸지 않는다. `Runner`(`service.ts:62`)의 `answerQuestion`은 `steer`처럼 선택적이므로 ACP runner(`acpRunner.ts`)와 테스트의 fake runner는 고치지 않는다. 없는 runner에 온 답은 `stale`이다.
-- P3–P5가 질문 요청을 찾으면, 그 요청을 받을 자리는 `acp.ts` `onRequestOf`(`:66-72`)다. 권한 요청과 같은 갈래로 받아 `question.request`로 바꾸고, 질문 카드·이벤트·IPC는 Claude·Codex와 같은 것을 쓴다. 구현 여부와 범위는 P6가 정한다.
+- P6 결정으로 Antigravity만 바꾼다. Cursor·Copilot은 지금 그대로다(`cursor/ask_question`은 `skipped`).
+- `acp.ts` `onRequestOf`의 `session/request_permission`에서, `acpQuestion(params)`이 읽으면 질문으로, 아니면 지금의 `acpPermission`으로 간다. 질문으로 읽는 조건: provider가 Antigravity, `options`가 둘 이상, 모두 `kind: "allow_once"`, `reject_*`가 없음, `toolCall.title`이 비지 않음(P5에서 본 모양). 질문 하나(`id: "0"`, `header`는 빈 글, `question`은 title, `options`는 각 `name`, `multiSelect: false`, `other: false`). 상한은 §1과 같다. 상한을 넘거나 같은 `name`이 겹치면 지금처럼 권한 카드로 둔다(답할 길을 없애지 않기 위해).
+- 답: 고른 선택지의 `optionId`로 `{outcome: {outcome: "selected", optionId}}`. Skip과 만료·Stop은 `{outcome: {outcome: "cancelled"}}`. Antigravity가 `cancelled`에 무엇을 하는지는 확인하지 않았다(D2에서 본다).
+- `acpRunner.ts`에 `answerQuestion`을 더한다. 권한과 같은 pending 표를 쓰되 종류를 붙인다(§1의 원칙).
+- 접힌 줄: header가 비면 `Answered · <question>: <answer>`처럼 질문 문장을 쓴다(한 줄 말줄임, 전체는 tooltip).
 
 ### 5. IPC
 
@@ -192,7 +197,7 @@ PRODUCT·ARCHITECTURE가 정하지 않았던 점을 사람이 다음과 같이 �
 3. Skip(답 없이 이어 가기)을 둔다.
 4. 질문 대기 중 composer의 메시지는 큐로 가고 Send now는 그대로 둔다. 큐의 메시지는 질문의 답으로 쓰지 않는다.
 5. Codex `isBlocking: false` 질문은 카드 없이 빈 답으로 바로 답한다.
-6. PoC는 다섯 provider 모두에 한다. ACP provider(Cursor, GitHub Copilot, Antigravity)의 구현 범위는 P3–P5 결과를 보고 사람이 정한다(P6). 그 전까지 완료 조건은 Claude Code와 Codex를 다룬다.
+6. PoC는 다섯 provider 모두에 했다. ACP는 Antigravity만 질문 카드로 바꾸고(권한 요청 모양의 질문, §4), Cursor(플랜 제한으로 막힘)와 Copilot(질문 도구 없음)은 지금 그대로 둔다(P6, 사람의 결정).
 7. Claude 선택지의 `preview`와 `annotations.notes`는 이번 범위 밖이다.
 8. 문제 workspace의 conversation strip은 질문 문장(줄임)과 Skip·Stop만 보인다. 답은 대화 화면에서 한다.
 9. 질문 알림은 Approval requests 스위치를 따르고, 제목은 `<Provider> needs your answer`다.

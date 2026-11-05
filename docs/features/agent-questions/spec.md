@@ -24,8 +24,8 @@
 
 1. **Claude 질문 카드.** Doan 대화(Doan 연결과 이어받은 터미널 세션 모두)에서 Claude Code가 `AskUserQuestion`을 부르면, 쓰레드에 질문 카드가 나타난다. 카드는 첫 질문 문장을 제목으로 보이고, 질문마다 문장과 선택지(label과 description)를 보인다. provider가 보낸 header는 카드에 보이지 않고 접힌 줄에만 쓴다. `multiSelect`인 질문은 여러 개를 고를 수 있다. 질문마다 직접 쓰는 답(Other)이 있다. 질문이 여럿이면 모든 질문에 답해야 Send가 켜진다. 턴은 답을 기다리는 상태가 되고 권한 요청과 같은 "needs your answer" 신호가 모두 켜진다. P1이 `canUseTool`이 `AskUserQuestion`으로 불리지 않는 권한 모드를 찾으면, 그 모드를 이 조건에서 어떻게 다룰지 사람이 정한다(tasks P1).
 2. **답이 에이전트에 간다.** Send를 누르면 고른 선택지와 쓴 글이 `AskUserQuestion`의 답으로 Claude에 가고, 에이전트는 같은 턴에서 그 답으로 이어 간다. Doan이 보낸 답(`updatedInput.answers`)에 사람이 고른 label(여럿이면 모두)과 Other 글이 들어 있음은 runner 테스트로, 에이전트가 받은 도구 결과에 그것이 들어 있음은 P1 기록으로 보인다.
-3. **건너뛰기.** Skip을 누르면 답 없이 질문이 끝나고 에이전트는 같은 턴을 이어 간다. Skip의 wire 형태는 P1이 정한다.
-4. **Codex 질문.** Codex가 같은 턴에서 `item/tool/requestUserInput`(`isBlocking: true`)을 보내면 1–3과 같은 카드와 답이 동작하고, 답은 스키마의 `{answers: {<question id>: {answers: string[]}}}`로 간다. Doan의 어떤 권한 모드에서도 이 요청이 오지 않는다고 P2가 확인하면, 이 조건은 "이 요청이 와도 턴이 실패하지 않는다"(5)로 줄인다. Codex가 `isOther: false`로 보낸 선택지 질문에는 Other가 없다. `options: null`인 질문은 글로만 답한다. 읽을 수 없는 Codex 질문(완료 조건 5)도 빈 답으로 답하고 턴은 이어진다. `isBlocking: false` 요청은 카드 없이 빈 답으로 바로 답하고 턴은 이어진다.
+3. **건너뛰기.** Skip을 누르면 답 없이 질문이 끝나고 에이전트는 같은 턴을 이어 간다. Claude에는 `answers: {}`와 `annotations.unanswered: "skipped"`로 허용해 답한다(P1). 그 capability가 없는 세션은 `deny`로 답한다.
+4. **Codex 질문.** Doan의 어떤 권한 모드에서도 Codex는 `item/tool/requestUserInput`을 보내지 않는다(P2, 0.166.0). 이 요청이 오면(협업 모드 등) 카드 없이 빈 답 `{answers: {}}`으로 답하고 턴은 실패하지 않는다(5). Codex의 async 질문(`agentMessage.questions`)은 지금처럼 에이전트 글로 보인다.
 5. **실패하지 않음.** 읽을 수 없는 질문(형식이 틀림, 상한 초과, 같은 문장이나 id의 중복)과 이미 끝났거나 Stop한 턴의 질문은 턴을 실패시키지 않고 카드를 만들지 않는다. Claude는 거절 메시지로, Codex는 빈 답으로 답한다. 다른 thread·turn의 Codex 질문은 권한 요청과 같이 지금처럼 그 턴으로 route한다.
 6. **끝난 질문.** 답한 질문은 한 줄로 접혀 header와 답을 보인다. 건너뛴 질문, Stop이나 턴 종료·앱 재시작으로 답을 받지 못한 질문도 각각 한 줄로 남는다. 재시작 뒤 답하지 않은 질문은 권한 요청과 같이 만료로 접힌다(§3 'Events and ownership').
 7. **답 대기의 나머지 규칙은 권한 요청과 같다.** 대화의 phase는 `waiting`이고, 사이드바 슬롯·Canvas conversations 행·agent indicator("Agent needs your answer")·Show sidebar·Show conversation 점·다른 대화의 toast·Delete 불가·docked composer 이유 줄이 권한 요청과 같은 규칙을 따른다. 프로젝트를 막는 규칙도 권한 대기 규칙을 따른다: canvas-composer-polish 완료 조건 4가 들어오면 질문을 기다리는 project conversation은 같은 root의 Home·Overview 시작을 막지 않고, Remove from Doan은 지금처럼 그 대화를 실행 중으로 센다. 권한 요청 진입(toast·알림의 Open, 사이드바 슬롯, agent indicator의 Open)은 가장 새 미답 요청으로 스크롤하고, 그것이 질문이면 첫 질문의 첫 선택지(선택지가 없으면 답 입력칸)에 포커스를 준다. 알림은 Approval requests 스위치를 따르고 제목은 `<Provider> needs your answer`, 본문은 권한 알림과 같이 project · branch뿐이며 질문 문장을 담지 않는다. 답하거나 건너뛰면 그 알림은 닫힌다. 문제 workspace의 conversation strip은 `<Provider> needs your answer`와 첫 질문 문장(줄임), Skip·Stop만 보이고 답하는 컨트롤은 없다. 문제 workspace에서 기다리는 질문은 Skip이나 Stop으로만 끝낼 수 있고, 이를 알리는 새 문구는 더하지 않는다.
@@ -33,10 +33,11 @@
 9. **기록.** 질문과 답은 대화 history에 남아 reload와 재시작 뒤에도 같은 쓰레드로 보인다. reload 뒤에도 기다리는 질문에는 답할 수 있고, 고르던 답만 사라진다(비목표). 앱 안에서 다른 대화나 canvas로 갔다 돌아와도 고르던 답은 질문마다 남고, 질문이 끝나면 지운다. Codex의 `isSecret` 질문은 입력을 가리고, Doan이 쓰는 기록(대화 history, 알림, 쓰레드 항목, 로그)에 답 글을 남기지 않는다. provider 자체의 기록(Codex의 rollout 등, Doan 연결이면 Doan userData 아래 profile에 쓰일 수 있음)과 에이전트가 답을 되풀이한 글은 이 조건 밖이다. 사람이 이 한계를 받아들였고, Z1에서 한계로 적는다.
 10. **기존 동작 보존.** 권한 요청, MCP 도구 승인(mcp-connectors), MCP form elicitation 거절은 바뀌지 않는다. ACP provider의 동작은 P6의 결정 전까지 바뀌지 않는다. `runners.test.ts`·`transport.test.ts`·`codexIngress.test.ts`·`dispatcher.test.ts`·`state.test.ts`의 기존 기대값은 질문과 관계없는 경우에 그대로 통과한다.
 11. **툴바 Export 이름.** 캔버스 툴바 Export 버튼의 이름(aria-label)과 tooltip은 `Export…` 대신 `Export canvas`다. 말줄임표는 붙이지 않는다. 사이드바 캔버스 행 메뉴의 `Export…`, Export를 쓸 수 없을 때의 이유 tooltip, 버튼 동작은 바뀌지 않는다. 질문과 관계없는 작은 조정이고 사람이 이 feature에 넣었다.
+12. **Antigravity 질문.** Antigravity가 선택지 둘 이상이 모두 `allow_once`이고 거절 선택지가 없는 `session/request_permission`을 보내면, Doan은 이것을 권한 카드가 아니라 질문 카드로 보인다. 질문 하나, 단일 선택, 제목은 `toolCall.title`, 선택지는 각 option의 `name`(description 없음), Other 없음. Send는 고른 `optionId`로 답하고, Skip은 `{outcome: {outcome: "cancelled"}}`로 답한다. 접힌 줄은 header가 없으므로 질문 문장을 쓴다. Cursor와 Copilot의 동작은 바뀌지 않는다(P6).
 
 ## 비목표
 
-- ACP provider(Cursor, GitHub Copilot, Antigravity)의 질문 구현은 지금의 완료 조건에 없다. 세 provider의 PoC(P3–P5)는 이번 feature에서 하고, 구현 범위는 그 결과를 보고 사람이 정한다(P6). 정하기 전까지 Cursor의 `cursor/ask_question`은 지금처럼 `skipped`로 답한다. P6가 구현을 넣기로 하면 그 범위를 완료 조건에 더한다.
+- Cursor와 Copilot의 질문 구현. Cursor는 PoC가 플랜 제한에 막혔고(`cursor/ask_question`은 지금처럼 `skipped`), Copilot은 ACP에 질문 도구가 없다(P3, P4, P6).
 - MCP 서버의 form elicitation에 답하는 화면. mcp-connectors가 정한 대로 거절한다.
 - Claude 선택지의 `preview`(목업·코드 미리보기)와 답의 `annotations.notes` 입력. 카드는 label과 description만 보인다.
 - Codex의 협업 모드(`collaborationMode`)를 바꿔 `request_user_input`을 켜는 것. Doan의 Plan은 지금처럼 승인 정책과 sandbox로만 매핑한다(`permissionMode.ts:100`).
