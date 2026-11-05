@@ -64,7 +64,11 @@ prompt-suggestion(`ComposerField`의 키 연결, `homeComposer.ts`의 키 판정
 
 ## 읽은 design preset
 
-읽지 않았다. 결정 3의 caption은 기존 `doan-kbd`와 큐 행의 글자 크기·색을 쓰는 한 줄이고 새 화면이 없어 `/design-draft`도 필요 없다.
+읽지 않았다. 결정 3의 caption은 기존 `doan-kbd`와 큐 행의 글자 크기·색을 쓰는 한 줄이다. 사람이 화면을 보고 싶어 해서 초안을 그렸다(아래).
+
+## 초안 요청
+
+canvas `.doan/canvases/queue-steer-shortcut.html`, id `queue-steer-shortcut`. 캔버스 대화 패널(기본 360)의 docked composer를 shipped 코드와 docs/DESIGN.md대로 옮겨 그리고, 큐 목록 아래의 단축키 caption(결정 3, spec 완료 조건 7)만 새로 그린다. `.doan/canvases/queue-send-now.html`은 참고만 하고 고치지 않는다. Frames: `running`(턴이 도는 중, 행 2–3개, caption 보임), `no-send-now`(ACP provider이거나 턴이 없어 Send now를 쓸 수 없음, 행은 보이고 caption은 없음), `single-row`(행 하나), `refused`(단축키 뒤 한 행이 거절되어 그 행 아래 "Couldn’t send now. It stays queued.", caption은 유지), `draft-kept`(입력란의 글을 큐에 넣지 못해 이유 줄이 남고, 행들은 보내짐). Caption은 `doan-kbd` "⌃↩"와 짧은 문구다. 행의 Send now 툴팁은 바뀌지 않는다. `/design-sync`는 다섯 frame을 모두 비교한다.
 
 ## 결정
 
