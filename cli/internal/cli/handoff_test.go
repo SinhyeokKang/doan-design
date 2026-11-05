@@ -150,8 +150,9 @@ func TestHandoffReadsTheMessageFromStdin(t *testing.T) {
 	}
 
 	// A limit-length message of characters json.Marshal writes as six bytes still fits the 64 KiB line.
-	for _, ch := range []string{"<", " "} {
-		if _, exit := runHandoff(t, root, strings.Repeat(ch, handoffTextLimit), ".doan/canvases/new.html", "--message", "-"); exit != 0 {
+	// Go and JavaScript trim U+2028 as whitespace, so the run is wrapped in letters to stay in the text.
+	for _, ch := range []string{"<", "\u2028"} {
+		if _, exit := runHandoff(t, root, "x"+strings.Repeat(ch, handoffTextLimit-2)+"x", ".doan/canvases/new.html", "--message", "-"); exit != 0 {
 			t.Fatal(ch, exit)
 		}
 		line, req := app.request(t)

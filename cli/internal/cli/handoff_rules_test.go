@@ -59,7 +59,7 @@ func TestHandoffText(t *testing.T) {
 		{"escape", "a\x1b[31mb", "", false},
 		{"DEL", "a\x7fb", "", false},
 		{"invalid UTF-8", "a\xffb", "", false},
-		{"line separators are text", "a b c", "a b c", true},
+		{"line separators are text", "a\u2028b\u2029c", "a\u2028b\u2029c", true},
 	} {
 		got, failure := handoffText(tt.raw)
 		if tt.ok {
@@ -121,11 +121,11 @@ func TestHandoffRequest(t *testing.T) {
 	}
 }
 
-// json.Marshal writes '<' as < and U+2028 as  : six bytes each. A message at the code-point limit made
+// json.Marshal writes '<' as \u003c and U+2028 as \u2028: six bytes each. A message at the code-point limit made
 // only of them must still fit the app's 64 KiB line, token included.
 func TestHandoffRequestWorstCaseFitsTheLine(t *testing.T) {
 	root := "/Users/me/projects/some-longer-folder-name/repo"
-	for _, ch := range []string{"<", ">", "&", " ", " "} {
+	for _, ch := range []string{"<", ">", "&", "\u2028", "\u2029"} {
 		text := strings.Repeat(ch, handoffTextLimit)
 		request, failure := handoffRequest(root, ".doan/canvases/checkout.html", testHandoffKey, text)
 		if failure != nil {
@@ -135,7 +135,7 @@ func TestHandoffRequestWorstCaseFitsTheLine(t *testing.T) {
 		if len(line)-1 > socketLineLimit {
 			t.Fatalf("%q: %d bytes", ch, len(line)-1)
 		}
-		if !bytes.Contains(line, bytes.Repeat([]byte(`\u`), 10)) {
+		if bytes.Count(line, []byte(`\u`)) < handoffTextLimit {
 			t.Fatalf("%q was not escaped to six bytes", ch)
 		}
 		var probe any
@@ -218,12 +218,8 @@ func TestHandoffReply(t *testing.T) {
 			t.Errorf("%s: %v %v", tt.file, got, failure)
 			continue
 		}
-		var reply struct {
-			Error struct{ Message string } `json:"error"`
-		}
-		json.Unmarshal(line, &reply)
-		// The CLI writes its own message and steps per code; the app's text is never passed on.
-		if failure.Message == "" || (reply.Error.Message != "" && strings.Contains(failure.Message, reply.Error.Message)) {
+		// The CLI writes its own message per code (TestHandoffAppRefusals checks the app's text is not passed on).
+		if failure.Message == "" {
 			t.Errorf("%s: message %q", tt.file, failure.Message)
 		}
 		if tt.code != "internal_error" && len(failure.NextSteps) == 0 {
