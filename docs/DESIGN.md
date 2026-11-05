@@ -709,7 +709,7 @@ Reference: `.doan/canvases/work-update.html` (6 frames: `notice-states`, `notice
 - **Slide timing.** The draft keeps the slide transition on the marker at all times; the app applies it only for the 220 ms after the working frame changes, because the marker is re-placed in screen px on every view change and a standing transition would make it trail the board.
 - **Marker layer.** The draft orders the marks by DOM order; the app puts the marker at `z-index: -1` inside the overlay, because it appends marks in any order. The visible result is the same: selection and hover draw on top.
 - **Width floor.** The draft's static tiles draw the floor as a hidden copy of the shorter text; the app's floor adds the caret and its gap, so the card does not grow by 4 px when the change ends.
-- **Status with a frame.** Draft tiles with a marker show the note alone in their status; the app's status adds " — <frame title>" when the update names a frame, so a screen reader hears where the agent works.
+- **Status with a frame.** Draft tiles with a marker show the note alone in their status; the app's status adds " — <frame title>" when the update has both a note and a frame, so a screen reader hears where the agent works.
 
 ### Not verified
 
