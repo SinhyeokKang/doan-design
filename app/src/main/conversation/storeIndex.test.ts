@@ -292,3 +292,40 @@ describe("restoreEntries", () => {
     expect(restoreEntries([legacy("now")], "missing")).toBeNull();
   });
 });
+// canvas-handoff B4 (design §5 'events'): the successor's first user.message carries its origin and the agent's text
+// as written, markers included; the earlier conversation keeps its request and resolution.
+describe("handoff events in event v1", () => {
+  const origin = { kind: "handoff", conversationId: "a", canvas: { path: ".doan/canvases/a.html", id: "a" } } as const;
+  const line = (body: Record<string, unknown>) => JSON.stringify({ v: 1, conversationId: "c", turnId: "t", seq: 1, at: "2026-11-06T00:00:00.000Z", ...body }) + "\n";
+  it("round-trips a handoff's first message with marker-like text, and the request and its resolutions", () => {
+    const f = seed(); const store = new ConversationStore(f.root);
+    const saved = [
+      store.append("c", "t", { type: "user.message", text: "Keep {{1}} as typed.", anchors: [], origin }),
+      store.append("c", "t", { type: "handoff.requested", canvas: { path: ".doan/canvases/new.html" }, text: "Continue {{2}}." }),
+      store.append("c", "t", { type: "handoff.resolved", outcome: "started", conversationId: "b", canvas: { path: ".doan/canvases/new.html", id: "new" } }),
+      store.append("c", "t", { type: "handoff.resolved", outcome: "refused", reason: "not_logged_in" }),
+      store.append("c", "t", { type: "handoff.resolved", outcome: "cancelled" }),
+    ];
+    expect(new ConversationStore(f.root).read("c")).toEqual(saved);
+  });
+  it("still refuses a person's message whose markers name no anchor", () => {
+    const f = seed({ "c.jsonl": line({ type: "user.message", text: "{{1}}", anchors: [] }) });
+    expect(() => new ConversationStore(f.root).read("c")).toThrow("Invalid conversation event");
+  });
+  it("rejects malformed handoff events", () => {
+    const bad = [
+      { type: "user.message", text: "x", anchors: [], origin: { kind: "other", conversationId: "a", canvas: origin.canvas } },
+      { type: "user.message", text: "x", anchors: [], origin: { kind: "handoff", canvas: origin.canvas } },
+      { type: "user.message", text: "x", anchors: [{ frame: { id: "f" } }], origin },
+      { type: "handoff.requested", canvas: { path: "" }, text: "x" },
+      { type: "handoff.requested", canvas: { path: ".doan/canvases/a.html" } },
+      { type: "handoff.resolved", outcome: "started", canvas: { path: ".doan/canvases/a.html" } },
+      { type: "handoff.resolved", outcome: "refused" },
+      { type: "handoff.resolved", outcome: "maybe" },
+    ];
+    for (const body of bad) {
+      const f = seed({ "c.jsonl": line(body) });
+      expect(() => new ConversationStore(f.root).read("c"), JSON.stringify(body)).toThrow("Invalid conversation event");
+    }
+  });
+});

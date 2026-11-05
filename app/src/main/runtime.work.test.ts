@@ -5,7 +5,7 @@ import type { FolderState } from "./folderState";
 const token = "secret", root = "/repo", path = ".doan/canvases/a.html";
 const request = { v: 3, token, root, action: "start", path };
 const state = () => ({ isOpen: vi.fn((value: string) => value === root), selection: () => null, work: vi.fn(), conversationWork: vi.fn(), onboarding: async (): Promise<OnboardingResponse> => ({ v: 2, ok: false, error: { code: "bad_request", message: "unused" } }),
-  open: async (): Promise<OpenResponse> => ({ v: 4, ok: false, error: { code: "busy", message: "unused" } }),
+  open: async (): Promise<OpenResponse> => ({ v: 4, ok: false, error: { code: "busy", message: "unused" } }), handoff: () => null,
   roots: () => [root], readRoot: vi.fn(async (): Promise<FolderState> => ({ kind: "uninitialized" })), adopt: vi.fn() });
 test("v3 validates schema, then token, then registered root, before applying work", async () => {
   const service = state();

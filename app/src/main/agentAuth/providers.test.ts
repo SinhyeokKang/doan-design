@@ -107,8 +107,18 @@ describe("provider auth adapters", () => {
   it("gives Claude and Codex dedicated profiles the doan discovery stub, plus the doan allowance and no other provider files", () => {
     const stub = readFileSync(join(__dirname, "../onboarding/SKILL.md"), "utf8");
     expect(Object.keys(PROVIDER_AUTH.claude.settings).sort()).toEqual(["settings.json", "skills/doan/SKILL.md"]);
-    expect(Object.keys(PROVIDER_AUTH.codex.settings).sort()).toEqual(["rules/doan.rules", "skills/doan/SKILL.md"]);
+    expect(Object.keys(PROVIDER_AUTH.codex.settings).sort()).toEqual(["rules/doan-handoff.rules", "rules/doan.rules", "skills/doan/SKILL.md"]);
     for (const provider of ["claude", "codex"] as const) expect(PROVIDER_AUTH[provider].settings["skills/doan/SKILL.md"]).toBe(stub);
+  });
+  // canvas-handoff C4 (design §4): Codex applies the strictest matching rule, so `doan handoff` asks in the asking modes
+  // although the profile allows every other `doan` command; the terminal rule and the other providers stay as they were.
+  it("gives only the Codex profile a prompt rule for doan handoff beside its doan allowance", () => {
+    expect(PROVIDER_AUTH.codex.settings["rules/doan-handoff.rules"]).toMatch(/^prefix_rule\(pattern=\["doan", "handoff"\], decision="prompt"\)$/m);
+    expect(PROVIDER_AUTH.codex.settings["rules/doan.rules"]).toBe(codexRuleText());
+    expect(codexRuleText()).not.toContain("handoff");
+    for (const provider of ["claude", "cursor", "antigravity", "copilot"] as const) {
+      expect(Object.keys(PROVIDER_AUTH[provider].settings).some(name => name.includes("handoff")), provider).toBe(false);
+    }
   });
   it("gives every dedicated profile the same stub bytes as the shared machine install", () => {
     const stub = readFileSync(join(__dirname, "../onboarding/SKILL.md"), "utf8");
