@@ -10,18 +10,18 @@
 
 Claude Code에서만 가능하다. 근거는 design '조사 결과'에 있다.
 
-- **Claude Code**: 가능하다. 대화 runner가 쓰는 Claude Agent SDK(0.3.312)에 `promptSuggestions` 옵션이 있고, 켜면 CLI가 턴의 `result` 뒤에 `prompt_suggestion` 메시지를 최대 하나 보낸다. 다만 Doan은 턴마다 CLI를 새로 열고 `result` 직후 입력을 닫는데, 이 구조에서 제안이 실제로 오는지와 프로세스 종료가 얼마나 늦어지는지는 아직 확인하지 않았다(design 'PoC 의존', tasks P1).
+- **Claude Code**: 가능하다. 대화 runner가 쓰는 Claude Agent SDK(0.3.312)에 `promptSuggestions` 옵션이 있고, 켜면 CLI가 턴의 `result` 뒤에 `prompt_suggestion` 메시지를 최대 하나 보낸다. Doan은 사람이 설치한 CLI를 `pathToClaudeCodeExecutable`로 실행하므로 실제로 도는 것은 그 CLI다. 동작은 설치된 CLI 2.1.318에서 읽었고, 최소 버전 2.1.284의 동작은 확인하지 않았다. 또 Doan은 턴마다 CLI를 새로 열고 `result` 직후 입력을 닫는데, 이 구조에서 제안이 실제로 오는지와 프로세스 종료가 얼마나 늦어지는지도 아직 확인하지 않았다(design 'PoC 의존', tasks P1).
 - **Codex**: 다음 입력을 알려 주는 일반 알림은 없다. 실험 API인 `thread/prediction/updated`가 있지만, client가 ephemeral fork를 열어 예측을 직접 요청해야 하는 것으로 보인다. 이는 Doan이 모델 작업을 시작하고 세션을 fork하는 일이라 쓰지 않는다(PRODUCT §3 Out of scope 4, 'Resume and permissions'의 "never forks").
 - **Cursor·Antigravity·GitHub Copilot(ACP)**: Doan의 ACP 처리와 저장소 안 자료에서 제안 메시지를 찾지 못했다.
 - **Doan이 직접 생성**: 쓰지 않는다. Doan이 스스로 모델 요청을 시작하는 일이다(PRODUCT §3 Out of scope 4).
 
 ## 범위 확인(scope gate)
 
-- PRODUCT §3 Out of scope 1–7 어디에도 걸리지 않는다고 본다. 제안은 사람이 보낸 턴 안에서 provider CLI가 스스로 만드는 출력이고, Doan은 SDK 옵션 하나로 받기만 한다. 제안은 새 턴을 시작하지 않고, 도구를 쓰거나 파일을 바꾸지 않으며(CLI 쪽 문자열 "No tools needed for suggestion"), 입력란에 넣어도 사람이 보내야 간다. CLI가 사람의 계정으로 짧은 모델 요청을 하나 더 하는 점은 사람이 받아들였다(design 결정 2).
+- PRODUCT §3 Out of scope 1–7 어디에도 걸리지 않는다고 본다. 제안은 사람이 보낸 턴 안에서 provider CLI가 스스로 만드는 출력이고, Doan은 SDK 옵션 하나로 받기만 한다. 제안은 새 턴을 시작하지 않고, 도구를 쓰거나 파일을 바꾸지 않으며(CLI 쪽 문자열 "No tools needed for suggestion"), 입력란에 넣어도 사람이 보내야 간다. CLI가 사람의 계정으로 턴마다 짧은 모델 요청을 하나 더 하는 점은 사람이 받아들였다(design 결정 2). 이 해석은 구현 뒤 PRODUCT §3 Out of scope 4에 적는다(tasks Z1).
 - PRODUCT §5 items 2·3(캔버스 대화 패널, 프로젝트 Overview)의 docked composer 위에서 일어난다. Home composer는 새 대화만 시작하므로 대상이 아니다.
 - PRODUCT·ARCHITECTURE에는 다음 입력 제안에 대한 규칙이 없다. 두 문서가 정하지 않은 점은 사람이 정했고, design '결정'에 있다.
 
-**선행 조건**: provider-usage PR(브랜치 `feat/provider-usage`)이 main에 병합된 뒤 시작한다. 이 기능은 그 PR이 만든 턴 끝 처리(`runners.ts`의 `TURN_USAGE_MS`, `usageAtTurnEnd`)와 같은 자리, 같은 종료 시간 예산(`service.ts` `EXIT_WAIT_MS`)을 쓴다.
+**기반**: provider-usage(PR #98, 병합됨)가 가져온 턴 끝 처리(`runners.ts`의 `TURN_USAGE_MS`, `usageAtTurnEnd`)와 같은 자리, 같은 종료 시간 예산(`service.ts` `EXIT_WAIT_MS`)을 쓴다.
 
 ## 사용자
 
@@ -36,14 +36,14 @@ Claude Code에서만 가능하다. 근거는 design '조사 결과'에 있다.
 
 ## 완료 조건
 
-1. **보이는 곳과 때.** 캔버스 대화 패널과 프로젝트 Overview의 docked composer에서, 보이는 대화가 Claude Code 대화이고 마지막 턴이 done으로 끝났으며 Claude Code가 그 턴의 제안을 보냈을 때, 입력란이 비어 있으면 placeholder 자리에 제안이 보인다. 다른 provider와 새 대화 상태에서는 지금 placeholder가 그대로다(design 결정 1).
-2. **우선순위.** preset을 골랐고 글이 없으면 preset 문구가 이긴다(지금 규칙). 입력란이 읽기 전용(보내는 중, 목록에 없는 페이지, 같은 id를 가진 canvas)이면 제안을 보이지 않는다. 큐에 메시지가 있거나 돌려받은 draft가 있으면 보이지 않는다(design 결정 9).
-3. **모양.** 제안은 지금 placeholder와 같은 글자색과 크기로 보인다. capsule 모양에서는 한 줄로 보이고 넘치면 말줄임으로 끝난다(DESIGN 'Narrow placeholder'). "→" 키 표시나 안내 줄은 따로 두지 않는다(design 결정 6).
+1. **보이는 곳과 때.** 캔버스 대화 패널과 프로젝트 Overview의 docked composer에서, 보이는 대화가 Claude Code 대화이고 마지막 턴이 done으로 끝났으며 Claude Code가 그 턴의 제안을 보냈을 때, 입력란이 비어 있으면 placeholder 자리에 제안이 보인다. 제안은 턴이 끝나고 몇 초 뒤에 올 수 있고, 그때까지는 지금 placeholder가 보인다(지연은 tasks E1(a)에서 기록한다). 다른 provider와 새 대화 상태에서는 지금 placeholder가 그대로다(design 결정 1).
+2. **우선순위.** preset을 골랐고 글이 없으면 preset 문구가 이긴다(지금 규칙). 입력란이 읽기 전용(보내는 중, 목록에 없는 페이지, 같은 id를 가진 canvas)이면 제안을 보이지 않는다. 큐에 메시지가 있거나 돌려받은 draft가 있으면 보이지 않는다(design 결정 9). 글 없이 첨부만 있는 draft에서는 제안이 보이고, 오른쪽 방향키로 넣어도 첨부는 그대로 남는다.
+3. **모양.** 제안은 지금 placeholder와 같은 글자색과 크기로 보인다. capsule 모양에서는 한 줄로 보이고 넘치면 말줄임으로 끝난다(DESIGN 'Narrow placeholder'). box 모양(첨부가 있을 때)에서는 두 줄까지 보이고 넘치면 말줄임으로 끝나며, 빈 입력란에 스크롤이 생기지 않는다(design 동작 renderer 2). "→" 키 표시나 안내 줄은 따로 두지 않는다(design 결정 6).
 4. **오른쪽 방향키.** 제안이 placeholder로 보이는 동안 입력란에서 수정키 없는 오른쪽 방향키를 누르면, 제안 전체가 입력란에 글로 들어가고 caret이 끝에 놓이며 포커스는 입력란에 남는다. 보내지 않는다. ⌘Z 한 번이면 빈 입력란으로 돌아간다.
 5. **다른 키는 그대로.** 입력란에 글이나 chip이 있으면 오른쪽 방향키는 지금처럼 caret을 옮긴다. IME 조합 중(`isComposing`, `keyCode 229`)의 오른쪽 방향키, Shift·Option·Command·Control이 섞인 오른쪽 방향키는 제안을 넣지 않는다. Enter, Shift+Enter, `/` preset 목록, Backspace의 chip 지우기는 바뀌지 않는다. Enter·Tab도 바뀌지 않는다: 빈 입력란의 Enter는 제안을 보내지 않고, Tab은 포커스를 옮긴다(design 결정 8).
-6. **지워지는 때.** 같은 대화의 다음 턴이 수락되면 제안은 사라진다. 대화를 archive하거나 지우면 사라진다. 창 reload와 대화 전환에는 남고 앱을 다시 시작하면 사라진다. 입력란을 비우면 다시 보인다(design 결정 3·4).
+6. **지워지는 때.** 같은 대화의 다음 턴이 수락되면 제안은 사라진다. 대화를 archive하거나 지우면 사라진다. 그 대화의 Claude 연결이 sign out되거나 다른 연결로 바뀌어도 사라진다. 창 reload와 대화 전환에는 남고 앱을 다시 시작하면 사라진다. 입력란을 비우면 다시 보인다(design 결정 3·4).
 7. **다음 send를 늦추지 않음.** 제안을 켠 뒤에도 `turn.done` 직후의 send와 큐 전송이 `busy`로 거절되지 않는다(POSTMORTEM 2026-10-28). 제안이 아직 오지 않은 채 다음 send가 오면 그 제안은 버린다(design 결정 5).
-8. **접근성.** 제안이 보이는 동안 입력란의 `aria-placeholder`는 제안 전체 글이고, 접근성 설명은 오른쪽 방향키로 넣을 수 있다고 알린다. 그 composer의 입력란에 포커스가 있고 비어 있으면 도착을 한 번 알린다(design 결정 7).
+8. **접근성.** 제안이 보이는 동안 입력란의 `aria-placeholder`는 제안 전체 글이고, 접근성 설명은 오른쪽 방향키로 넣을 수 있다고 알린다. 같은 대화에 새 제안 글이 도착했을 때, 그 composer의 입력란에 포커스가 있고 비어 있으면 한 번 알린다. 창 reload, 대화 전환, 넣었다 지워서 다시 보이는 제안은 알리지 않는다. 이때는 입력란 설명과 `aria-placeholder`가 제안을 전한다(design 결정 7).
 9. **기록과 세션.** 제안은 대화 event history에 남지 않는다(design 결정 3). 제안을 켜도 Claude 세션은 fork되지 않고, 다음 턴은 같은 세션과 transcript를 이어 간다(design 'PoC 의존' P1).
 
 ## 비목표
