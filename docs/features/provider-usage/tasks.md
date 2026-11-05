@@ -68,7 +68,7 @@
 ## C. UI
 
 - [ ] C1. 링 버튼과 popover(헤더 오른쪽 끝, 모든 화면, no-drag), preload 호출.
-  - 검증: `npm --prefix app test` — 링 값과 빈 링, 고정 순서, 버튼 이름 고정과 설명 글, `aria-haspopup`·`aria-expanded`, 클릭·Space·Return으로 열기, Esc·바깥 클릭으로 닫고 버튼으로 포커스 복귀, 이유별 문구, 새로고침 버튼(이름, 누르면 간격 무시하고 읽기, 읽는 중 `aria-busy`와 spinner, 연타가 provider마다 조회 하나), "Updating…" 중 이전 값 유지, 상대 시간 1분 갱신, 열린 동안 provider가 빠지고 생김, 마지막 provider가 빠지면 닫고 `.shell-modes`의 현재 탭으로 포커스, 연결이 없을 때 버튼 없음. `npm --prefix app run typecheck`, `npm --prefix app run build`.
+  - 검증: `npm --prefix app test` — 링 값과 빈 링, 고정 순서, 버튼 이름 고정과 설명 글, `aria-haspopup`·`aria-expanded`, 클릭·Space·Return으로 열기, Esc·바깥 클릭으로 닫고 버튼으로 포커스 복귀, 이유별 문구, 설정 버튼(누르면 popover를 닫고 Settings > Agents), 연결이 하나면 링에 로고 없음, 새로고침 버튼(이름, 누르면 간격 무시하고 읽기, 읽는 중 `aria-busy`와 spinner, 연타가 provider마다 조회 하나), "Updating…" 중 이전 값 유지, 상대 시간 1분 갱신, 열린 동안 provider가 빠지고 생김, 마지막 provider가 빠지면 닫고 `.shell-modes`의 현재 탭으로 포커스, 연결이 없을 때 버튼 없음. `npm --prefix app run typecheck`, `npm --prefix app run build`.
 
 ── commit: `feat: show agent usage rings` ──
 

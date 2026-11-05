@@ -70,11 +70,12 @@ app(Electron + TS)만 바뀐다. CLI(Go)·skills·guide·`doan check`·공유 JS
 ### 4. UI(renderer)
 
 - 링 버튼은 모든 화면(workspace, Home, Settings, Add Projects)에 보인다(결정할 점 6). 연결이 하나도 없으면 버튼이 없다.
-- 링 순서는 `PROVIDERS`의 고정 순서(`homeComposer.ts:190-191`)다. 링 가운데에 `providerLogo(provider)`(`homeComposer.ts:187`).
+- 링 순서는 `PROVIDERS`의 고정 순서(`homeComposer.ts:190-191`)다. 연결이 둘 이상이면 링 가운데에 `providerLogo(provider)`(`homeComposer.ts:187`)를 두고, 연결이 하나면 로고 없이 링만 보인다(결정할 점 12). 링 하나의 provider 이름은 설명 글과 popover가 알린다.
 - 링 값: `ok`인 한도 창 가운데 다시 채워지는 시각이 지나지 않은 것의 가장 큰 `usedPercent`. 지난 한도 창은 링 값에서 뺀다. `unavailable`·`blocked`·`unlimited`·처음 읽는 중이면 빈 링(로고만).
 - 접근성: 버튼 이름은 "Agent usage"로 고정하고(값이 바뀌어도 이름은 그대로), provider별 값은 `aria-describedby`로 붙인다(예: "Claude Code 42% used. Codex limit reached. Cursor usage unavailable."). `aria-haspopup="dialog"`와 `aria-expanded`.
 - 상호작용(macOS 도구 막대 상태 버튼 관례): 클릭·Space·Return으로 연다. popover는 non-modal dialog이고, 열면 popover 본문에 포커스를 둔다. Esc나 바깥 클릭으로 닫히고 포커스는 버튼으로 돌아간다(PRODUCT §5 Esc 순서 "menu or popover first"). hover tooltip은 "Agent usage"만. 열려 있는 동안 상대 시간을 1분마다 고친다.
-- 새로고침(결정할 점 11): popover 제목 줄 오른쪽 위의 아이콘 버튼(tooltip·이름 "Refresh usage"). 누르면 5분 간격과 관계없이 쓸 수 있는 연결을 모두 바로 읽고, 이미 읽는 중인 provider는 그 조회에 합친다. 읽는 동안 버튼은 spinner와 `aria-busy`를 보이고, 행은 이전 값을 둔 채 "Updating…"만 바뀐다. Tab 순서는 popover 본문 → Refresh usage.
+- 새로고침(결정할 점 11): popover 제목 줄 오른쪽 위의 아이콘 버튼(tooltip·이름 "Refresh usage"). 누르면 5분 간격과 관계없이 쓸 수 있는 연결을 모두 바로 읽고, 이미 읽는 중인 provider는 그 조회에 합친다. 읽는 동안 버튼은 spinner와 `aria-busy`를 보이고, 행은 이전 값을 둔 채 "Updating…"만 바뀐다. Tab 순서는 popover 본문 → Agent settings → Refresh usage.
+- 설정(결정할 점 13): 새로고침 바로 왼쪽의 아이콘 버튼(tooltip·이름 "Agent settings"). 누르면 popover를 닫고 Settings > Agents를 연다.
 - popover 행(provider마다): 로고, 이름, 한도 창별 막대와 글.
   - 값 있음: "42% used · resets in 2h 10m". 한도에 닿음(`limited`): "Limit reached · resets in 1h". 다시 채워지는 시각이 지남: "Resets passed · updating"(문구는 `/design-draft`에서 고정).
   - 마지막으로 읽은 시각: "Updated 3m ago". 다시 읽는 중에는 이전 값을 두고 이 줄만 "Updating…".
@@ -151,3 +152,5 @@ app(Electron + TS)만 바뀐다. CLI(Go)·skills·guide·`doan check`·공유 JS
 9. **PRODUCT 위치**: Z1에서 §3 In scope 7 'Agent authentication'의 하위 항목으로 올린다. §1에 새 문제를 더하지 않는다.
 10. **자리는 헤더 오른쪽 끝**(초안 `place-header`). 모든 화면에 헤더가 있어 결정할 점 6과 맞고, 셸 오른쪽 아래 두 후보는 toast 자리와 겹치며 대화 패널의 Send와 붙는다. 960×600에서도 링 다섯 개가 들어간다(초안 검토).
 11. **popover 오른쪽 위에 새로고침 버튼을 둔다**("Refresh usage"). 5분 간격 안에서는 popover를 열어도 값이 그대로라, 사람이 바로 다시 읽을 길이 필요하다. 진행 중 조회는 합치므로 여러 번 눌러도 provider마다 프로세스는 하나다.
+12. **연결이 하나면 링에 로고를 두지 않는다**(사람). 둘 이상이면 로고로 링을 구별한다.
+13. **popover 새로고침 왼쪽에 설정 버튼**("Agent settings")을 두고, 누르면 Settings > Agents를 연다(사람). 쓸 수 없는 연결의 원인을 고치러 가는 길이다.
