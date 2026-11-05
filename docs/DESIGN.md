@@ -552,7 +552,7 @@ Reference: `.doan/canvases/buzz-project.html` (nine frames: `overview-thread`, `
 - **Cursor.** Plain buttons (activity head, rows) take the app-wide `button { cursor: pointer }`; the draft's plain buttons keep the default cursor.
 - **Provider text.** Model and effort labels, activity summaries ("Using a tool") and permission option labels ("Allow", "Allow with suggested permissions") come from the provider; the draft's samples are "Opus 5.5", "High", "Editing …", "Allow once".
 - **Thumbnails.** The app shows the captured canvas (`object-fit: cover`, top); the draft draws a mock fill.
-- **Narrow placeholder.** The capsule's placeholder stays on one line, so the empty capsule is as tall as one with a typed character; at narrow widths it ends in an ellipsis. The full text stays the field's `aria-placeholder`.
+- **Narrow placeholder.** The capsule's placeholder stays on one line, so the empty capsule is as tall as one with a typed character; at narrow widths it ends in an ellipsis. The full text stays the field's `aria-placeholder`. A next-message suggestion follows the same rule, and the box's empty placeholder (an attachments-only draft) is one ellipsized line too, so the field stays one line tall (24 px) with no scroll when a suggestion comes or goes (measured 2026-11-06 in the real app).
 
 ### Not verified
 
