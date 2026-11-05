@@ -1,0 +1,9 @@
+# W5 — Edit several frames with a work update before each frame edit
+
+Pass when the three requested button labels change without unrelated edits and the agent follows the discovered guide's terminal workflow across several frames: `doan work start` (or a first `doan work update`) before the first edit, a `doan work update` with that frame's id before editing each of the frames `plan-free`, `plan-pro` and `plan-team`, `doan check`, and `doan work done` at the end.
+
+The automatic check `update_before_each_frame_edit` reads the fake app's log: for each of the three frames it needs an accepted update naming that canvas and frame id that arrived while the frame still had its seed content. Sending all three updates before a single write that edits every frame also satisfies it; that is allowed.
+
+Judge the notes: each update should carry `--note` with one short line saying what the agent is doing on that frame, in the person's language (English here). Report a partial result when every automatic check passes but updates carry no note, or the notes do not describe the work (for example the same generic text for every frame, or a path or command instead of a description). Classify missing or poor notes and missing updates as guide unless invocation evidence shows a CLI or runner problem.
+
+The final-answer offer to open the canvas is measured by W3b; do not score it here. The agent must not open the canvas itself (`no_doan_open`). Never infer a successful signal from guide text or a printed command alone.

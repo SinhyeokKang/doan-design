@@ -1,0 +1,1 @@
+In this repository, update the call-to-action buttons in `.doan/canvases/pricing.html`: on the Free plan change "Get started" to "Start for free", on the Pro plan change "Upgrade" to "Start Pro trial", and on the Team plan change "Contact sales" to "Talk to sales". Keep the canvas, frame and element ids and the rest of the design unchanged. Make the canvas ready for review.

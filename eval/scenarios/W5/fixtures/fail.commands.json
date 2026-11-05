@@ -1,0 +1,5 @@
+[
+  ["work", "update", ".doan/canvases/pricing.html", "--frame", "plan-pro", "--note", "Renaming the Pro plan button", "--repo", "{{repo}}", "--json"],
+  ["work", "update", ".doan/canvases/pricing.html", "--frame", "plan-team", "--note", "Renaming the Team plan button", "--repo", "{{repo}}", "--json"],
+  ["work", "done", ".doan/canvases/pricing.html", "--repo", "{{repo}}", "--json"]
+]
