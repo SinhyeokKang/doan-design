@@ -4,7 +4,7 @@
 
 ## P. PoC
 
-모두 사람의 승인, 로그인한 Doan 연결, 일회성 스크립트 `.scratch/provider-usage/`가 필요하다. 실제 HOME의 Keychain과 공용 프로필 `/Users/sinhyeokkang/code/doan-design/.scratch/provider-profile/userData`를 쓴다. 이는 AGENTS.md의 HOME 격리 규칙의 예외이고, 사람이 승인했다(agent-questions orch.md 결정 1). 정리는 E2 뒤 공용 프로필 정리와 함께 한다. 결과(버전, 응답 모양, 공통 기준 (i)–(iv)의 판정, 프로필·vault 전후 비교, 날짜)는 이 파일 아래 'P 결과'에 적고, 개인 정보를 지운 응답을 A1의 fixture 재료로 남긴다.
+모두 사람의 승인, 로그인한 Doan 연결, 일회성 스크립트 `.scratch/provider-usage/`가 필요하다. 실제 HOME의 Keychain과 공용 프로필 `/Users/sinhyeokkang/code/doan-design/.scratch/provider-profile/userData`를 쓴다. 이는 AGENTS.md의 HOME 격리 규칙의 예외이고, 사람이 승인했다(agent-questions orch.md 결정 1). 공용 프로필은 PoC 뒤 지우지 않고 구현(`/orchestrate`)의 E1·E2에서 그대로 쓴다(사람). sign out과 userData·Keychain 항목(`Claude Code-credentials-45991d82`, `Codex Auth`) 정리는 E2 뒤에 한다. 결과(버전, 응답 모양, 공통 기준 (i)–(iv)의 판정, 프로필·vault 전후 비교, 날짜)는 이 파일 아래 'P 결과'에 적고, 개인 정보를 지운 응답을 A1의 fixture 재료로 남긴다.
 
 실행 방법(사람의 결정): 새 공용 프로필(실제 HOME, userData `/Users/sinhyeokkang/code/doan-design/.scratch/provider-profile/userData`)에서 dev 앱으로 다섯 provider에 sign-in하고, 브라우저 승인은 지휘자를 거쳐 사람에게 묻는다. `.scratch/provider-usage/`의 일회성 스크립트가 provider마다 조회를 부른다. 조회 전후에 프로필·vault 이미지 해시와 provider의 사용량 값을 비교하고, (iv)는 같은 연결로 dev 앱에서 짧은 대화를 돌리는 동안 조회한다. `agy`에서 Keychain 대화상자가 뜨면 U4를 바로 멈춘다.
 
