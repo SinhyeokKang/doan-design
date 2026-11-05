@@ -107,5 +107,5 @@
 
 - **환경**: Claude Code, Codex, Antigravity, Copilot 모두 `DOAN_APP_CONVERSATION=1`과 `DOAN_RUNTIME`이 보였다. Cursor는 계정 한도("Upgrade your plan to continue")로 턴이 시작되지 않아 확인하지 못했다. macOS `printenv`는 이름을 하나만 받으므로 두 변수를 따로 물었다.
 - **억제**: `work start`·`work done`은 실행된 모든 대화에서 `{"delivered":false}`였다. 같은 대화의 `doan active`가 앱에 닿은 경우(Claude 네 mode, Codex Full access, Antigravity 세 mode, Copilot Default·Full access)에도 false이므로 억제(`DOAN_APP_CONVERSATION`)가 동작한다. Codex Default·Accept edits·Plan의 `work`는 sandbox 안에서 실행되어 억제와 socket 차단을 가를 수 없다.
-- **socket 도달**(Default / Full access): Claude 승인 뒤 닿음 / 묻지 않고 닿음. Codex sandbox가 막아 `app_not_running`, agent가 escalation을 요청하면 Doan permission request(`commandExecution`)로 보이고 승인 뒤 닿음 / 묻지 않고 닿음. Antigravity 승인 뒤 닿음 / 묻지 않고 닿음. Copilot 승인 뒤 닿음 / 묻지 않고 닿음. Cursor 확인 못 함.
+- **socket 도달**(Default / Full access): Claude 승인 뒤 닿음 / 묻지 않고 닿음. Codex sandbox가 막아 `app_not_running`, agent가 escalation을 요청하면 Doan permission request(`commandExecution`)로 보이고 승인 뒤 닿음 / 묻지 않고 닿음. Antigravity 승인 뒤 닿음 / 묻지 않고 닿음. Copilot 승인 뒤 닿음 / 묻지 않고 닿음. Cursor 확인 못 함(사람의 판단: 미검증으로 두고 진행, R에서 다시 본다).
 - **Codex 프로필의 rule**: 공용 프로필의 Doan Codex 프로필에는 rule 파일이 없고(`*.rules` 없음), Default에서 `doan`은 sandbox 안에서 돌아 막혔다. rule이 app-server에서 읽히는지는 B4가 rule을 넣은 뒤에 다시 본다. 지금은 Claude만이 아니라 Codex도 escalation 승인으로 Default에서 닿으므로 "둘 다 Default에서 닿지 못함"의 멈춤 조건에는 걸리지 않는다.
