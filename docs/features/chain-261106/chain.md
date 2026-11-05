@@ -64,7 +64,7 @@
 | 링크 | 세션·worktree | 시작 | PR·병합 | 상태 |
 |---|---|---|---|---|
 | 1 work-update | work-update-orch | 2026-11-06 | [#104](https://github.com/SinhyeokKang/doan-design/pull/104) · `3e98f455` | 병합됨 |
-| 2 canvas-handoff | canvas-handoff-orch | 2026-11-06 | — | 인계됨 |
+| 2 canvas-handoff | canvas-handoff-orch | 2026-11-06 | — | 진행 중 |
 | 3 small-ui-tweaks | — | — | — | 대기 |
 
 ## 인계 기록
@@ -95,3 +95,4 @@
     4. **Codex 주간 한도**: G0 Codex 전체 round와 리뷰 4개로 많이 썼다. 시작 때 다시 확인한다. canvas-handoff E3의 Codex 실행이 한도에 걸리면 '돌리지 않음'으로 적는다.
     5. 공용 프로필에 work-update probe 대화 기록 다섯 개가 남았다(체인 '전부 남김'). folders·ui-state·canvas-seen은 byte 단위로 같게 되돌렸다.
     6. canvas-handoff D1 체크박스(위 참고)를 체크한다.
+- 2026-11-06 **링크 2 시작**(canvas-handoff-orch). 브리프를 받고 `feat/canvas-handoff`에서 `/orchestrate`를 시작했다. 인계 1(Codex 프로필의 `doan` 전부 허용): 사람이 "handoff만 묻게"를 골랐다. Codex 프로필에만 `doan handoff` `prompt` 규칙을 더한다(canvas-handoff design §4, tasks C4). D1을 체크했다. Codex 주간 한도가 92% 사용이라 이 링크는 Claude 작업자만 쓰고 남은 양은 E3에 남긴다.
