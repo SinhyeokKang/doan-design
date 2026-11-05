@@ -46,3 +46,6 @@
 - M follow-up: `canvasTrash.test.ts` fixture(`62f91230` → 통합 `e8f021f7`).
 - R 완료(A5·A5b·A6 `4b54c484`, U1 `12e442a5`, U2 `c120d944`, red 먼저와 mutation 확인) → 통합 `3bbec010`·`06a15879`·`e213bdff`. 소유 밖 수정 하나: `ds/checks.test.ts`의 accent 허용 목록. DOM에서만 보이는 동작(커서 위치, 너비 하한, tooltip, overlayOpen selector)은 jsdom으로 확인하지 못했다. U3와 R1에서 본다. 전체 test를 네 번 돌렸을 때 두 번은 건드리지 않은 main 테스트(`shell.test.ts` 등)에서 1–2개가 간헐적으로 실패했다. 단독으로 돌리면 통과한다.
 - R2(App.tsx live 배선과 renderer fixture 27개)를 R 작업자에게 follow-up으로 보냄. V3(R 리뷰, Codex, `wu-v3`) 시작.
+- V1(C1+P): 🔴1(Claude 프로필 settings 병합이 읽기와 쓰기 사이에 Claude가 저장한 내용을 덮음) 🟡1(마지막 경로가 symlink인 settings.json을 일반 파일로 바꿈). S1은 지적 없음. 보고서 `wu-v1/.scratch/review-V1.md`. P 작업자에게 수정 round 1을 보냄.
+- V2(M): 🔴0 🟡2(quit에서 append 실패 때 대화 작업 내용이 남음, 같은 ms의 동일 update가 변경 이벤트를 다시 보냄) ⚪1. M 작업자에게 수정 round 1을 보냄.
+- V3(R): 🔴0 🟡7(출처 전환 기록이 frame 존재에 묶임, pointer 활동 전달, 메뉴 overlay selector, reduced motion에서 `.working.moving` transition, 캔버스 경계에서 타이핑 취소, 제목 캐시 소유권, 사람의 선택 해제가 멈춤을 남기지 않음) ⚪2. R2가 끝나면 R 작업자에게 보낸다.
