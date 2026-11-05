@@ -3970,9 +3970,11 @@ describe("capture", () => {
       drag(h, { x: 10, y: 10 }, { x: 200, y: 200 });
       h.nextFrame(); h.nextFrame();
       expect(snapshot(h)).toBe(true);
+      const logged = vi.spyOn(console, "error").mockImplementation(() => {});
       shots[1]!.reject(new Error("ipc"));
       await flush();
       expect(snapshot(h)).toBe(false);
+      expect(logged).toHaveBeenCalledWith("canvas capture failed", expect.any(Error));
     } finally { h.controller.dispose(); }
   });
 
