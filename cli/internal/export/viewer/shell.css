@@ -105,8 +105,9 @@ svg { display: block; flex: none; }
    scrolls with it; clip (not hidden) keeps a focused descendant from scrolling the panel itself
    (POSTMORTEM 2026-11-02, Tab and the floating tools). */
 .doan-canvas-panel { position: relative; display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; margin: var(--space-2); background: var(--surface-panel); border-radius: var(--radius-container); overflow: clip; isolation: isolate; }
-/* The header's menus open down over the board and must stay over the tools row. */
-.doan-canvas-panel > .doan-canvas-head { position: relative; z-index: 4; }
+/* The header's menus open down over the board and must stay over the tools row (3) and its
+   tooltip (4): in a short window an open Frames list reaches the tools. */
+.doan-canvas-panel > .doan-canvas-head { position: relative; z-index: 5; }
 
 /* ── Header (styles.css .ov-head, .doan-canvas-head and friends) ─────────────── */
 .ov-head { display: flex; align-items: center; gap: var(--space-2); min-width: 0; min-height: var(--size-chrome); padding: var(--space-2) var(--space-4); }
@@ -311,7 +312,9 @@ svg { display: block; flex: none; }
   line-height: var(--type-caption-line-height);
   letter-spacing: var(--type-caption-letter-spacing);
 }
-.vw-tool-tip { position: absolute; z-index: 3; transform: translate(-50%, -100%); pointer-events: none; }
+/* Over the tools row (z-index 3): it covers the row's top ring by 1px, and an equal z-index would
+   leave that to source order. */
+.vw-tool-tip { position: absolute; z-index: 4; transform: translate(-50%, -100%); pointer-events: none; }
 .vw-tool-tip[hidden] { display: none; }
 
 /* ── Tools row (styles.css) ──────────────────────────────────────────────────── */

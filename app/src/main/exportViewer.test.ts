@@ -798,9 +798,9 @@ describe("the content panel", () => {
     expect(panel.indexOf('class="doan-canvas-bottom"')).toBeGreaterThan(panel.indexOf("</main>"));
   });
 
-  test("the header keeps the chrome height and stays over the toolbar, so its menus open over it", () => {
+  test("the header keeps the chrome height and stays over the toolbar and its tooltip, so its menus open over both", () => {
     expect(declarations(shellCss, ".ov-head")).toContain("min-height: var(--size-chrome)");
-    expect(declarations(shellCss, ".doan-canvas-panel > .doan-canvas-head")).toEqual(["position: relative", "z-index: 4"]);
+    expect(declarations(shellCss, ".doan-canvas-panel > .doan-canvas-head")).toEqual(["position: relative", "z-index: 5"]);
     expect(declarations(shellCss, ".doan-canvas-bottom")).toContain("z-index: 3");
   });
 });
@@ -867,6 +867,14 @@ describe("the toolbar", () => {
   test("the tooltip is one hidden element in the panel, filled by shell.js", () => {
     expect(shellHtml).toContain('<div class="doan-tooltip has-key vw-tool-tip" id="tool-tip" role="tooltip" hidden></div>');
     expect(declarations(shellCss, ".vw-tool-tip[hidden]")).toEqual(["display: none"]);
+  });
+
+  test("the tooltip stacks over the toolbar it overlaps by 1px, by z-index rather than source order", () => {
+    const z = (selector: string) => Number(/^z-index: (\d+)$/.exec(declarations(shellCss, selector).find(d => d.startsWith("z-index")) ?? "")?.[1]);
+    expect(z(".vw-tool-tip")).toBe(4);
+    expect(z(".vw-tool-tip")).toBeGreaterThan(z(".doan-canvas-bottom"));
+    // An open Frames list or zoom menu reaches down to the tools in a short window.
+    expect(z(".doan-canvas-panel > .doan-canvas-head")).toBeGreaterThan(z(".vw-tool-tip"));
   });
 });
 
