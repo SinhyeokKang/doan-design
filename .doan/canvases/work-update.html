@@ -54,7 +54,7 @@ body{padding:var(--space-8);width:2000px;background:var(--surface-inset);color:v
 /* The working notice's text cursor (design.md decision 19; blink period 1 s is a tunable component constant). */
 /* The line holds the text and the cursor; the cursor follows the last visible character (after an ellipsis when cut), and any extra width from the floor stays empty after it. */
 .wk-line{display:grid;grid-template-columns:minmax(0,max-content);min-width:0}
-.wk-row{grid-area:1/1;display:flex;align-items:center;gap:var(--space-1);min-width:0}
+.wk-row{grid-area:1/1;display:flex;align-items:center;gap:calc(var(--space-1) / 2);min-width:0}
 .wk-caret{flex:none;width:calc(var(--space-1) / 2);height:var(--type-body-sm-size);background:currentColor;animation:wk-blink 1s step-end infinite}
 .wk-caret[data-typing]{animation:none}
 @keyframes wk-blink{50%{opacity:0}}
@@ -129,7 +129,7 @@ code{font-family:var(--type-family-mono);font-size:.92em}
     if (reduce.matches) { el.textContent = next; line.style.minWidth = ""; return; }
     // A percentage min-width resolves to 0 inside the shrink-to-fit card, so the floor is a px value capped by the room the card has.
     const room = line.closest(".doan-agent").parentElement.getBoundingClientRect().width - (line.closest(".doan-agent").getBoundingClientRect().width - line.getBoundingClientRect().width);
-    line.style.minWidth = `${Math.min(room, Math.min(width(shown), width(next)) + caret.getBoundingClientRect().width + 4)}px`;
+    line.style.minWidth = `${Math.min(room, Math.min(width(shown), width(next)) + caret.getBoundingClientRect().width + 2)}px`;
     caret.toggleAttribute("data-typing", true);
     let erase = 20, type = 35; const total = (from.length - k) * erase + (to.length - k) * type;
     if (total > 1000) { erase *= 1000 / total; type *= 1000 / total; }
