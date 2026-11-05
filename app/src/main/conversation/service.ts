@@ -13,6 +13,7 @@ import { DraftStore, joined, type ReturnedDraft } from "./drafts";
 import type { ConversationOwner, Provider } from "../agentAuth/types";
 import type { ModelList } from "./models";
 import type { PermissionModeId } from "./permissionMode";
+import type { QuestionAnswerInput } from "./question";
 import type { Anchor, AttachmentRecord, Canvas, ConversationEvent, EventPayload, Reservation } from "./types";
 // External (legacy) runs are claude or codex only; doan-account runs may use any app provider.
 // model and effort: a choice from the list this run delivered (ipc checks it). attachments: files main rechecked just now.
@@ -59,7 +60,7 @@ export interface TurnChoice { model?: string; effort?: string; permissionMode?: 
 export interface SendExtras extends TurnChoice { attachments?: AttachmentRecord[]; defaultEffort?: string }
 // steer: Claude and Codex only (steerSupport.ts); adds a message to the running turn turnId and resolves once the
 // provider accepted it, which is not yet the agent reading it (Prepared.steerConsumed).
-export interface Runner { sessionId: string; send(prompt: string, turnId: string, attachments?: readonly AttachmentRecord[], choice?: TurnChoice): Promise<void>; answer(requestId: string, optionId: string): boolean; stop(): Promise<void>; close(): Promise<void>; models?(): Promise<ModelList>; steer?(prompt: string, turnId: string, messageId: string): Promise<void> }
+export interface Runner { sessionId: string; send(prompt: string, turnId: string, attachments?: readonly AttachmentRecord[], choice?: TurnChoice): Promise<void>; answer(requestId: string, optionId: string): boolean; answerQuestion?(requestId: string, answer: QuestionAnswerInput): "ok" | "stale" | "bad_request"; stop(): Promise<void>; close(): Promise<void>; models?(): Promise<ModelList>; steer?(prompt: string, turnId: string, messageId: string): Promise<void> }
 // What a queued send needs from main's attachment store: the queued ids checked again as the send's attachments
 // (reclaim throws attachment_missing), consumed once that send was accepted, discarded with a removed message (a paste
 // goes with it) and released when they come back in a draft, which carries their paths instead.

@@ -9,6 +9,7 @@ import type { ConversationService, StartRequest } from "../main/conversation/ser
 import type { ConversationError } from "../main/conversation/ipc";
 import type { ModelsReply } from "../main/conversation/models";
 import type { PermissionModeId } from "../main/conversation/permissionMode";
+import type { QuestionAnswerInput } from "../main/conversation/question";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { ReturnedDraft } from "../main/conversation/drafts";
 import type { AttachmentResult, RecheckResult } from "../main/attachments";
@@ -147,6 +148,7 @@ const api = {
   pointer: (): Promise<{ x: number; y: number } | null> => ipcRenderer.invoke("pointer:get"),
   interruptConversation: (request: { conversationId: string }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:interrupt", request),
   answerConversationPermission: (request: { conversationId: string; requestId: string; optionId: string }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:answerPermission", request),
+  answerConversationQuestion: (request: { conversationId: string; requestId: string } & QuestionAnswerInput): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:answerQuestion", request),
   readConversation: (request: { conversationId: string }): Promise<ReturnType<ConversationService["read"]> | ConversationError> => ipcRenderer.invoke("conversation:read", request),
   // The models a provider offers in this folder, read without a model request and kept by main until the connection
   // or installed version changes. An error carries a conversation start code. modes: an ACP server's mode list from the
