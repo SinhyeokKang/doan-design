@@ -39,7 +39,7 @@
 
 - 로그인한 provider가 필요한 확인: 링크 1 P1-b와 E1(Claude Code), 링크 3 P1–P5와 E(Doan 연결 provider). 링크 2는 필요 없다.
 - probe는 실제 HOME(Keychain)의 로그인을 쓴다. 임시 HOME에서는 로그인이 실패한다.
-- 공용 프로필: 첫 지휘자가 시작 점검에서 사용자 브라우저 승인으로 필요한 provider의 로그인을 만든다. 로그인한 userData는 main checkout의 절대 경로 `/Users/sinhyeokkang/code/doan-design/.scratch/provider-profile/userData`에 둔다. 링크마다 worktree가 달라서다. `DOAN_RUNTIME`과 repo는 probe마다 임시로 둔다.
+- 공용 프로필: 첫 지휘자가 시작 점검에서 사용자 브라우저 승인으로 필요한 provider의 로그인을 만든다. 로그인한 userData는 main checkout의 절대 경로 `/Users/sinhyeok/code/doan-design/.scratch/provider-profile/userData`에 둔다. 링크마다 worktree가 달라서다. `DOAN_RUNTIME`과 repo는 probe마다 임시로 둔다.
 - 지난 체인에서 공용 프로필의 **복사본**을 다른 worktree의 dev 앱으로 열면 vault를 읽지 못했다. 복사본이 아니라 그 자리의 프로필을 쓰고, 프로필을 망가뜨릴 수 있는 probe만 복사본으로 돌린다. 로그인을 다시 요청하기 전에 프로필이 연결되어 있는지 먼저 확인한다.
 - 링크마다 병합할 때 로그아웃하지 않는다. 마지막 링크가 병합하기 전에 앱에서 연결을 모두 로그아웃하고, 그 프로필이 만든 Keychain 항목이 사라졌는지 확인한 뒤 userData를 지운다.
 - 셸에서 `doan check`를 돌릴 때는 임시 `DOAN_RUNTIME`을 준다(ARCHITECTURE §4 'Shell check session associations').
