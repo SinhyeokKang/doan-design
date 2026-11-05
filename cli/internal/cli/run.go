@@ -22,6 +22,7 @@ import (
 type Context struct {
 	WorkSession, WorkProvider string
 	AppConversation           bool
+	WorkConversation          string // DOAN_CONVERSATION_ID, already checked; it identifies update only inside an app conversation.
 	Session                   *sessionRecording
 	Start                     string
 	Home                      string
@@ -52,6 +53,7 @@ type Flags struct {
 	AddServe, RemoveServe         []string
 	// Frames keeps every --frame so a repeated one is an error rather than the last one winning.
 	Frames []string
+	Note   string
 
 	Session, Operation, Provider, Request, Path, URL, Destination, Inspection string
 	SpendCopilotRequest, Initialize                                           bool
@@ -74,6 +76,7 @@ const usage = `Usage: doan <command> [--repo <path>] [--json]
   check
   active
   work start <canvas path>
+  work update <canvas path> [--frame <id>] [--note <text>]
   work done [<canvas path>...]
   open <canvas path> [--frame <id>]
   export <canvas path> -o <file> [--force]
@@ -143,6 +146,7 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	fs.StringVar(&f.Canvas, "canvas", "", "")
 	fs.StringVar(&f.Agent, "agent", "", "")
 	fs.Func("frame", "", func(s string) error { f.Frames = append(f.Frames, s); return nil })
+	fs.StringVar(&f.Note, "note", "", "")
 	for name, target := range map[string]*string{"session": &f.Session, "operation": &f.Operation, "provider": &f.Provider, "request": &f.Request, "path": &f.Path, "url": &f.URL, "destination": &f.Destination, "inspection": &f.Inspection} {
 		fs.StringVar(target, name, "", "")
 	}
@@ -179,6 +183,11 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			allowed["agent"] = true
 		case "open":
 			allowed["frame"] = true
+		case "work":
+			if len(pos) > 1 && pos[1] == "update" {
+				allowed["frame"] = true
+				allowed["note"] = true
+			}
 		case "export":
 			allowed["o"] = true
 			allowed["force"] = true
@@ -248,6 +257,7 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 					case "work":
 						ctx.WorkProvider, ctx.WorkSession = workSession(os.Getenv("CLAUDE_CODE_SESSION_ID"), os.Getenv("CODEX_THREAD_ID"), os.Getenv("CODEX_SESSION_ID"))
 						ctx.AppConversation = os.Getenv("DOAN_APP_CONVERSATION") == "1"
+						ctx.WorkConversation = conversationID(os.Getenv("DOAN_CONVERSATION_ID"))
 						if ctx.RuntimePath, failure = runtimePath(); failure == nil || failure.Code == "internal_error" {
 							o, failure = Work(ctx, f, pos[1:])
 						}

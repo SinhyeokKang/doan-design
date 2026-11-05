@@ -450,3 +450,109 @@ func TestWorkRequest(t *testing.T) {
 		})
 	}
 }
+
+func TestWorkUpdateSocket(t *testing.T) {
+	root := realPath(t, initialized(t))
+	for _, tt := range []struct {
+		name, line string
+		app        bool
+		want       bool
+	}{
+		{"terminal delivered", `{"v":3,"ok":true}`, false, true},
+		{"older app rejects update", `{"v":3,"ok":false,"error":{"code":"bad_request","message":"The request does not match app-socket v3."}}`, false, false},
+		{"app conversation", `{"v":3,"ok":true}`, true, true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			app := &fakeApp{requests: make(chan map[string]any, 1), respond: reply(tt.line)}
+			ctx := activeContext(t, root, app.dial(t))
+			ctx.WorkProvider, ctx.WorkSession = "claude", "s"
+			ctx.AppConversation, ctx.WorkConversation = tt.app, "conv-1"
+			out, e := Work(ctx, Flags{Repo: root, Frames: []string{"pricing"}, Note: " Drawing "}, []string{"update", ".doan/canvases/new.html"})
+			assertWork(t, out, e, tt.want)
+			if !reflect.DeepEqual(out.Result, map[string]any{"delivered": tt.want}) {
+				t.Fatal(out.Result)
+			}
+			want := map[string]any{"v": float64(3), "token": testToken, "root": root, "action": "update", "path": ".doan/canvases/new.html", "frame": "pricing", "note": "Drawing", "session": "s", "provider": "claude"}
+			if tt.app {
+				delete(want, "session")
+				delete(want, "provider")
+				want["conversation"] = "conv-1"
+			}
+			if req := <-app.requests; !reflect.DeepEqual(req, want) {
+				t.Fatal(req)
+			}
+		})
+	}
+	for _, tt := range []struct {
+		name   string
+		action string
+		id     string
+	}{{"app start", "start", "conv-1"}, {"app update without id", "update", ""}} {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := activeContext(t, root, func(string, time.Time) (net.Conn, error) { t.Error("dialed"); return nil, errors.New("unexpected") })
+			ctx.AppConversation, ctx.WorkConversation = true, tt.id
+			out, e := Work(ctx, Flags{Repo: root}, []string{tt.action, ".doan/canvases/new.html"})
+			assertWork(t, out, e, false)
+		})
+	}
+}
+
+func TestWorkUpdateRun(t *testing.T) {
+	root := realPath(t, initialized(t))
+	t.Setenv("DOAN_RUNTIME", filepath.Join(t.TempDir(), "missing"))
+	got := result(t, root, 0, "work", "update", ".doan/canvases/a.html", "--frame", "pricing", "--note", "Drawing")
+	if !reflect.DeepEqual(got, map[string]any{"delivered": false}) {
+		t.Fatal(got)
+	}
+	result(t, root, 0, "work", "update", ".doan/canvases/a.html")
+	for _, args := range [][]string{
+		{"work", "update"},
+		{"work", "update", "bad.html"},
+		{"work", "update", ".doan/canvases/a.html", "--frame", "a", "--frame", "b"},
+		{"work", "update", ".doan/canvases/a.html", "--frame", ""},
+		{"work", "update", ".doan/canvases/a.html", "--note", strings.Repeat("x", 121)},
+		{"work", "update", ".doan/canvases/a.html", "--note", "a\nb"},
+		{"work", "start", ".doan/canvases/a.html", "--frame", "pricing"},
+		{"work", "start", ".doan/canvases/a.html", "--note", "Drawing"},
+		{"work", "done", "--note", "Drawing"},
+		{"work", "--frame", "pricing"},
+		{"open", ".doan/canvases/a.html", "--note", "Drawing"},
+	} {
+		failure(t, root, "usage_error", args...)
+	}
+}
+
+func TestWorkRunReadsConversationID(t *testing.T) {
+	root := realPath(t, initialized(t))
+	dir := t.TempDir()
+	listener, err := net.Listen("unix", filepath.Join(dir, "s.sock"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	putFile(t, dir, "runtime.json", runtimeJSON(filepath.Join(dir, "s.sock")))
+	t.Setenv("DOAN_RUNTIME", filepath.Join(dir, "runtime.json"))
+	t.Setenv("DOAN_APP_CONVERSATION", "1")
+	t.Setenv("DOAN_CONVERSATION_ID", "conv-1")
+	t.Setenv("CLAUDE_CODE_SESSION_ID", "s")
+	requests := make(chan map[string]any, 1)
+	go func() {
+		conn, err := listener.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		var req map[string]any
+		json.NewDecoder(conn).Decode(&req)
+		requests <- req
+		conn.Write([]byte(`{"v":3,"ok":true}` + "\n"))
+	}()
+	got := result(t, root, 0, "work", "update", ".doan/canvases/a.html", "--note", "Drawing")
+	if got["delivered"] != true {
+		t.Fatal(got)
+	}
+	req := <-requests
+	if req["conversation"] != "conv-1" || req["session"] != nil || req["note"] != "Drawing" {
+		t.Fatal(req)
+	}
+}
