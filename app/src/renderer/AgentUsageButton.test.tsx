@@ -58,10 +58,10 @@ describe("UsageView button", () => {
     expect(markup).toMatch(/data-provider="cursor"><svg[^>]*><circle class="track"[^>]*><\/circle><\/svg><img/);
   });
 
-  it("draws a plain ring without a logo for a single provider, Antigravity not counted", () => {
+  it("draws a single provider's ring with its logo, Antigravity not counted", () => {
     const markup = html(<UsageView {...props([ok("claude", [win()]), { provider: "antigravity", inFlight: false }])} />);
     expect(markup.match(/class="usage-ring"/g)).toHaveLength(1);
-    expect(markup).not.toContain("usage-logo");
+    expect(markup).toContain('<img class="usage-logo" src="provider-logos/claude.png" alt=""/>');
     expect(markup).not.toContain("antigravity");
   });
 
