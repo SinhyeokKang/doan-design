@@ -1,9 +1,23 @@
 import { afterEach, expect, it, vi } from "vitest";
-// Records every path attachments.ts opens, so a test can show a file was never opened.
-const { opened } = vi.hoisted(() => ({ opened: [] as string[] }));
+// Records every path attachments.ts opens, so a test can show a file was never opened. `fault` makes the save of a
+// capture or paste fail at one step, only while a test sets it.
+const { opened, fault } = vi.hoisted(() => ({ opened: [] as string[], fault: { step: null as null | "write" | "realpath" | "lstat" } }));
 vi.mock("node:fs", async importOriginal => {
   const fs = await importOriginal<typeof import("node:fs")>();
-  return { ...fs, openSync: (...args: Parameters<typeof fs.openSync>) => { opened.push(String(args[0])); return fs.openSync(...args); } };
+  const broken = () => Object.assign(new Error("injected"), { code: "EIO" });
+  return {
+    ...fs,
+    openSync: (...args: Parameters<typeof fs.openSync>) => { opened.push(String(args[0])); return fs.openSync(...args); },
+    // A partial write: the file exists with its first byte, then the write fails.
+    writeFileSync: (...args: Parameters<typeof fs.writeFileSync>) => {
+      if (fault.step !== "write") return fs.writeFileSync(...args);
+      fs.writeFileSync(args[0], new Uint8Array(args[1] as Uint8Array).subarray(0, 1), args[2]); throw broken();
+    },
+    realpathSync: Object.assign((...args: Parameters<typeof fs.realpathSync>) => fs.realpathSync(...args), {
+      native: (...args: Parameters<typeof fs.realpathSync.native>) => { if (fault.step === "realpath") throw broken(); return fs.realpathSync.native(...args); },
+    }),
+    lstatSync: (...args: Parameters<typeof fs.lstatSync>) => { if (fault.step === "lstat") throw broken(); return fs.lstatSync(...args); },
+  };
 });
 import { existsSync, mkdirSync, readdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, truncateSync, writeFileSync, unlinkSync, renameSync } from "node:fs";
 import { execFileSync } from "node:child_process";
@@ -14,7 +28,7 @@ import { senderAllowed } from "./senderAllowed";
 
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13]);
 const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0x10]);
-const paths: string[] = []; afterEach(() => paths.splice(0).forEach(p => rmSync(p, { recursive: true, force: true })));
+const paths: string[] = []; afterEach(() => { fault.step = null; paths.splice(0).forEach(p => rmSync(p, { recursive: true, force: true })); });
 function fixture(codec: Partial<ImageCodec> = {}) {
   const base = realpathSync(mkdtempSync(join(tmpdir(), "doan-attach-"))); paths.push(base);
   const files = join(base, "my files"), dir = join(base, "userData", "attachments"); mkdirSync(files);
@@ -317,6 +331,22 @@ it("answers capture_failed, not unreadable, when the capture cannot be written (
   expect(f.store.addCaptured(new Uint8Array(PNG))).toEqual({ ok: false, name: "Canvas capture", error: "capture_failed" });
   expect(f.store.addPasted({ bytes: new Uint8Array(PNG) })).toEqual({ ok: false, name: "Pasted image", error: "unreadable" });
 });
+// Each step after the directory exists: the whole image directory goes, nothing is registered, and the two kinds of
+// image differ only in the code they answer.
+it.each([["a partial write", "write"], ["realpath", "realpath"], ["lstat after the file was written", "lstat"]] as const)(
+  "removes the image directory and registers nothing when saving fails at %s", (_label, step) => {
+    const f = fixture();
+    const entries = () => (f.store as unknown as { entries: Map<string, unknown> }).entries.size;
+    fault.step = step;
+    expect(f.store.addCaptured(new Uint8Array(PNG))).toEqual({ ok: false, name: "Canvas capture", error: "capture_failed" });
+    expect(readdirSync(f.dir)).toEqual([]); expect(entries()).toBe(0);
+    expect(f.store.addPasted({ bytes: new Uint8Array(PNG) })).toEqual({ ok: false, name: "Pasted image", error: "unreadable" });
+    expect(readdirSync(f.dir)).toEqual([]); expect(entries()).toBe(0);
+    // The store still works once the fault is gone.
+    fault.step = null;
+    expect(ok(f.store.addCaptured(new Uint8Array(PNG)))).toMatchObject({ pasted: true });
+    expect(readdirSync(f.dir)).toHaveLength(1); expect(entries()).toBe(1);
+  });
 it("deletes a capture removed before sending, and keeps a sent one through the next launch's cleanup", () => {
   const f = fixture();
   const removed = ok(f.store.addCaptured(new Uint8Array(PNG))), sent = ok(f.store.addCaptured(new Uint8Array(PNG))), unsent = ok(f.store.addCaptured(new Uint8Array(PNG)));
