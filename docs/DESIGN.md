@@ -231,6 +231,46 @@ Reference: `.doan/canvases/buzz-shell.html`, measured beside the implementation 
 
 **Regression pointers.** `app/src/main/index.test.ts` (main-window options). Newest-modified canvas ordering (`canvasOrder.test.ts`, focus kept by key) and iframe-link Back/Forward completion have regression tests. Unpinned: rendered shell/menu values, the empty-project paragraph padding, and hover states.
 
+## Agent usage
+
+Reference: `.doan/canvases/provider-usage.html` (frames `place-header`, `ring-states`, `popover`, `popover-live`). Measured by `/design-sync` in the built app at 1238 × 780 and 960 × 600 against the draft in a second window of the same Electron build (`.scratch/design-sync/agent-usage/`): the button on Home, the workspace (canvas page), Settings and Add Projects with the signed-in shared provider profile, then every drawn state with entries sent to the window as `agent-usage:changed` by the probe (limit reached, couldn't read, first read, reading again, a passed reset, unlimited, not supported, no plan limits, the three can't-be-used causes, one to four providers, the edge values), 10 ring tiles, the folded button and 17 popover tiles row by row.
+
+### Measured contracts
+
+| Element | Measured contract | Reason |
+|---|---|---|
+| Button | `.usage` at the header's right end, 8 from its edge: x1106, y12, 116 × 32 with four rings at 1238 (x828 at 960), the same on all four screens. Pill (`--radius-pill`), 4 padding, 4 gap, `-webkit-app-region: no-drag`. Hover the chrome 6 % fill (rgba(0,0,0,.06)), open the 10 % pressed fill, keyboard focus the 2 px `--border-focus` ring at offset 2 | The tabs stay absolutely centred, so adding the button or a ring moves nothing else. |
+| Rings | 24 × 24 (`--size-control-xs`), SVG turned −90°, circles r 11 with a 2 px stroke; track `--border-track`, value `--affordance-prominent` with `stroke-dasharray` "<n> 100" on `pathLength` 100, `--border-danger` (rgb(229,72,77)) at 70 % or a reported limit. Logo 14 × 14 (`--size-icon-sm`) only with two or more rings. An empty state draws the track alone | |
+| Folding | One ring (a reported limit first, then the highest value) and "+n" (caption 12/16, medium, subtle ink, min-width 24), 60 wide with three folded. It folds when fewer than 8 px would stay between the button and the tabs; at 960 × 600 there are 278 px, so four rings never fold at the minimum window | The draft draws the folded button but not where it folds. |
+| Popover | The shared floating popover (`doan-floating doan-popover doan-scroll`), 320 wide, 12 padding, 24 corners, rgba(255,255,255,.9). Radix popper below the button, aligned to its end, 4 away, 8 from the window: x902, y48 at 1238 (16 from the right edge). Height from Radix's available height (544 at 960 × 600, the draft's `100% − 56`); taller content scrolls inside | |
+| Title row | Title 13,13, 228 × 20 (label-sm, medium). Agent settings (`Settings`) at 245,7 and Refresh usage (`RotateCw`, or the spinner while any row reads) at 281,7: 32 px ghost icon buttons, 16 px icons, −6 block margins (and −6 end on Refresh). Both follow the list in the DOM, so Tab goes list → Agent settings → Refresh usage | |
+| Rows | One per provider in the fixed order, 12 block padding (none at the ends), 1 px `--border-standard` between rows. Head: 16 px logo, name (label-sm medium, ellipsis), read time (caption, metadata ink). Body indented 24; each window a caption line (label subtle, text right, medium when limited) over a 4 px pill bar on `--border-standard`, filled `--affordance-prominent` or `--border-danger` | |
+| Reason lines | Caption, subtle ink; couldn't read in `--text-danger` and a can't-be-used cause in `--text-warning`, both led by the shared alert mark (`AlertIcon`: 16 px, `flex: none`, 2 px block margins, so the line is 20 high) | A bare icon shrank to 12.3 px beside a wrapping line and warn lines were 16 high. |
+| Numerals | `.usage-pop` sets `font-variant-numeric: normal` | The app body's tabular figures widened "Updated 1m ago" by 2.6 px and every relative time. |
+| Tooltips | The shared tooltip, opening below its button (`side="bottom"`), 4 away: "Agent usage" centred under the button; "Agent settings" centred; "Refresh usage" moved 10 px start-ward by the window edge. None on the button while the popover is open | Above, the title row's tooltips covered the header button the popover hangs from. |
+| Accessible node | Chromium (CDP): button "Agent usage", described by the values ("Claude Code 42% used. Codex limit reached. Cursor usage unavailable. GitHub Copilot reading usage."), `hasPopup=dialog`, `expanded` | |
+
+### Behaviour beyond the measured draft
+
+- Click, Space and Return open the popover and focus the list. Escape closes it and focus returns to the button; on Settings the page stays. One Escape also closes it while a title-row button's tooltip shows (the tooltip passes its Escape on, as conversation-delete's Delete tooltip does).
+- An outside press closes it. Focus returns to the button when the press left focus on `<body>` (a blank part of the window), without opening the button's tooltip; a press that focused a control keeps it there, and a press in the canvas keeps focus in the canvas. Radix's non-modal popover alone returned focus only when nothing was pressed outside, and focus handed back after a press opened the tooltip under the button. Escape's return still shows the tooltip, as the shared tooltip does on keyboard focus.
+- When the last provider leaves while it is open, it closes and focus goes to the header's current tab.
+
+### Documented differences from the draft
+
+- **Text-less containers.** The button, the rings and the popover's containers inherit the app body's 13 px / normal where the draft's stage gives 14 / 20; every text part sets its own type and matches.
+- **Edge-values tile.** The draft draws Cursor above Claude Code there, against its own fixed order; in the app Claude Code comes first, so the 1 px rule moves to the other row (row heights 97/128 against 96/129).
+- **Placement.** The button's `margin-left` is `auto` in the draft's flex row and 0 in the app; the box lands at the same x. The popover's `z-index` is the shared popper layer's 50.
+
+### Not verified
+
+- Real limit reached, unlimited, not supported, no plan limits and the Claude Code / Codex can't-be-used causes: no signed-in account produced them; they were sent to the window by the probe. A real sign-out or sign-in under the open popover (frame `popover-live`) was reached the same way.
+- Dark mode, reduced transparency, forced colours and native AppKit key events (keys were renderer input).
+
+### Regression pointers
+
+`AgentUsageButton.test.tsx` (button and rings markup, rows, reason lines with the shared alert mark, the spinner, tooltips below their buttons, a tooltip's Escape closing the popover, the popover's plain numerals in `styles.css`), `AgentUsageButton.interaction.test.tsx` (focus on open; focus after Escape, an outside press on a blank area or a control, a canvas press, Agent settings and the last provider leaving; folding; live rows). Leaving the popover by Tab has no test, `agentUsageView.test.ts` (ring values, fold choice, row text). Unpinned: the rendered geometry and colours above.
+
 ## Onboarding
 
 Reference: `.doan/canvases/buzz-onboarding.html`, 73 full-window frames at 1238 × 780 with the shipped chrome and stepper: Welcome, 40 Agent states and 32 Project states. Each frame's markup is the real components (`Welcome`, `SetupSteps`, `AgentStep`, `ProjectScreen`) rendered with controlled props, and the onboarding rules of `styles.css` are copied into the canvas verbatim next to the linked `tokens.css` and `ds/index.css`. Because the frames copy the code, they check the copy, not the design; the measured contracts below come from a `/design-sync` run against the approved tile draft. Welcome's Doany and vertical layout follow `.doan/canvases/doan-mascot.html` frame `mascot-welcome` instead; buzz-onboarding's Welcome frame has no Doany.
