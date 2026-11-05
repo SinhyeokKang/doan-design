@@ -4,7 +4,7 @@
 
 ## P. PoC
 
-- [ ] P1. 환경 전달과 소켓 도달(design §6 P1·P2). `canvas-handoff`의 P1 결과가 있으면 다시 쓰고, 없으면 canvas-handoff P와 같은 공용 로그인 프로필 방식(실제 HOME, 공용 프로필 `/Users/sinhyeok/code/doan-design/.scratch/provider-profile/userData`, main checkout의 Electron)으로 다섯 provider의 Doan 연결 캔버스 대화로 `printenv DOAN_APP_CONVERSATION DOAN_RUNTIME`을 실행하게 한다. 이어서 같은 대화에서 `doan work start <canvas> --json`이 `delivered:false`인지(억제), 그리고 소켓에 닿는지를 보기 위해 `doan active --json`의 결과를 provider별·권한 모드(Default, Full access)별로 기록한다. 결과는 이 파일 아래 'P 결과'에 적는다.
+- [x] P1. 환경 전달과 소켓 도달(design §6 P1·P2). `canvas-handoff`의 P1 결과가 있으면 다시 쓰고, 없으면 canvas-handoff P와 같은 공용 로그인 프로필 방식(실제 HOME, 공용 프로필 `/Users/sinhyeok/code/doan-design/.scratch/provider-profile/userData`, main checkout의 Electron)으로 다섯 provider의 Doan 연결 캔버스 대화로 `printenv DOAN_APP_CONVERSATION DOAN_RUNTIME`을 실행하게 한다. 이어서 같은 대화에서 `doan work start <canvas> --json`이 `delivered:false`인지(억제), 그리고 소켓에 닿는지를 보기 위해 `doan active --json`의 결과를 provider별·권한 모드(Default, Full access)별로 기록한다. 결과는 이 파일 아래 'P 결과'에 적는다.
   - 검증: 임시 HOME에는 로그인한 provider가 없어 격리 probe로는 할 수 없다. 공용 로그인 프로필 방식으로 하고, 실행 때 사람의 승인을 받는다(`DOAN_RUNTIME`과 repo는 probe마다 임시). 'P 결과'에 provider × 모드 표가 있다. Doan 연결 프로필에 허용(B4)을 넣은 뒤에도 Claude와 Codex 둘 다 Default에서 소켓에 닿지 못하면 멈추고 사람에게 보고한다. Codex 프로필의 rule이 app-server에서 읽히는지도 함께 본다.
 
 ## G. guide 예산
@@ -103,4 +103,9 @@
 
 ## P 결과
 
-(P1 뒤에 적는다.)
+2026-11-06, canvas-handoff P1·P2와 같은 실행이다(방법·버전·provider × mode 표는 `docs/features/canvas-handoff/tasks.md` 'P 결과'). 같은 대화에서 `doan work start .doan/canvases/probe.html --json`과 `doan work done … --json`도 실행하게 했다.
+
+- **환경**: Claude Code, Codex, Antigravity, Copilot 모두 `DOAN_APP_CONVERSATION=1`과 `DOAN_RUNTIME`이 보였다. Cursor는 계정 한도("Upgrade your plan to continue")로 턴이 시작되지 않아 확인하지 못했다. macOS `printenv`는 이름을 하나만 받으므로 두 변수를 따로 물었다.
+- **억제**: `work start`·`work done`은 실행된 모든 대화에서 `{"delivered":false}`였다. 같은 대화의 `doan active`가 앱에 닿은 경우(Claude 네 mode, Codex Full access, Antigravity 세 mode, Copilot Default·Full access)에도 false이므로 억제(`DOAN_APP_CONVERSATION`)가 동작한다. Codex Default·Accept edits·Plan의 `work`는 sandbox 안에서 실행되어 억제와 socket 차단을 가를 수 없다.
+- **socket 도달**(Default / Full access): Claude 승인 뒤 닿음 / 묻지 않고 닿음. Codex sandbox가 막아 `app_not_running`, agent가 escalation을 요청하면 Doan permission request(`commandExecution`)로 보이고 승인 뒤 닿음 / 묻지 않고 닿음. Antigravity 승인 뒤 닿음 / 묻지 않고 닿음. Copilot 승인 뒤 닿음 / 묻지 않고 닿음. Cursor 확인 못 함.
+- **Codex 프로필의 rule**: 공용 프로필의 Doan Codex 프로필에는 rule 파일이 없고(`*.rules` 없음), Default에서 `doan`은 sandbox 안에서 돌아 막혔다. rule이 app-server에서 읽히는지는 B4가 rule을 넣은 뒤에 다시 본다. 지금은 Claude만이 아니라 Codex도 escalation 승인으로 Default에서 닿으므로 "둘 다 Default에서 닿지 못함"의 멈춤 조건에는 걸리지 않는다.
