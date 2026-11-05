@@ -348,6 +348,8 @@ function questionFixture(): string {
   const fixture = { ...copilot, turn: [
     { jsonrpc: "2.0", method: "session/update", params: { sessionId, update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "Let me ask." } } } },
     { jsonrpc: "2.0", id: 0, method: "session/request_permission", params: { sessionId, toolCall: { toolCallId: "interaction_1", title: QUESTION, rawInput: {} }, options: [{ optionId: "1", name: "Red", kind: "allow_once" }, { optionId: "2", name: "Blue", kind: "allow_once" }] } },
+    // Antigravity then reports the question's own tool call done; it is the question, not a step of the turn.
+    { jsonrpc: "2.0", method: "session/update", params: { sessionId, update: { sessionUpdate: "tool_call_update", toolCallId: "interaction_1", status: "completed", title: "Response received" } } },
     { jsonrpc: "2.0", method: "session/update", params: { sessionId, update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "Thanks." } } } },
     { jsonrpc: "2.0", id: 3, result: { stopReason: "end_turn" } }] };
   const path = join(realpathSync(mkdtempSync(join(tmpdir(), "doan-acp-question-"))), "acp-antigravity.json");
@@ -378,6 +380,7 @@ it("shows Antigravity's question as a question card and answers with the chosen 
   expect(events.filter(e => e.type === "question.resolved")).toHaveLength(1);
   expect(events.at(-1)).toEqual({ type: "turn.done" });
   expect(replies()).toEqual([{ outcome: { outcome: "selected", optionId: "2" } }]);
+  expect(events.filter(e => e.type === "activity")).toEqual([]);
 });
 
 it("answers a skipped Antigravity question as cancelled", async () => {

@@ -50,6 +50,10 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
     // turn that is no longer running) rather than left blocking the agent.
     if (question) {
       if (object(params.toolCall)) apply(normalizeAcp(state, { ...params.toolCall, sessionUpdate: "tool_call_update", status: "pending" }, input.cwd));
+      // The question's own tool call is later reported completed ("Response received"); the answer line already shows
+      // it, so it is marked done here and never becomes an activity step.
+      const toolCallId = object(params.toolCall) && typeof params.toolCall.toolCallId === "string" ? params.toolCall.toolCallId : "";
+      if (toolCallId) state = { ...state, activities: [...state.activities, toolCallId] };
       permissions.set(requestId, { rpc, kind: "question", question: question.event.questions[0]!, optionIds: question.optionIds }); emit(question.event); return;
     }
     if (!request) { try { acp.respond(rpc, { outcome: { outcome: "cancelled" } }); } catch { /* gone */ } return; }
