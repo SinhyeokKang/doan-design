@@ -14,6 +14,12 @@
 
 ## 시작 점검 (첫 지휘자)
 
+**사용자는 링크 1 초반까지만 지원할 수 있다**(사용자, 2026-11-06). 그래서 첫 지휘자는 세 링크의 tasks를 모두 훑는다. 사람의 확인, 승인, 로그인, 결정이 필요한 일을 찾아, 사용자가 있는 동안 끝내거나 미리 승인을 받아 '인계 기록'에 적는다. 그 뒤의 지휘자는 여기 적힌 승인만으로 진행한다. 승인되지 않은 일이 나오면 그 링크는 "병합 준비됨"에서 멈추고 보고한다. 아래 항목 외에 미리 볼 것:
+
+- 링크 1·2의 초안 확인(work-update D1, canvas-handoff D)이 이미 끝났는지 확인한다. 공용 프로필로 돌리는 probe의 실행 승인(work-update P·R1 (b), canvas-handoff P·R)은 세 링크 몫으로 한 번에 받는다.
+- 마지막 링크의 로그인 정리('로그인' 절): 앱의 연결 로그아웃, 실제 Keychain 항목 삭제(`Claude Code-credentials-dc1943d2` 포함), userData와 `.scratch/prompt-suggestion/claude-config` 삭제를 미리 승인받는다. 승인받지 못하면 정리를 남기고 보고한다. 이 체인 밖의 project-skill-drawer·turn-activity PoC(P)도 같은 공용 프로필을 쓴다(각 tasks P). 그래서 체인이 끝날 때 프로필을 지울지 남길지도 함께 묻는다.
+- small-ui-tweaks R1 (b) "사람이 병합 전에 실제 앱에서 움직임을 본다"는 링크 3 구현 뒤에만 할 수 있다. 그때 사용자는 지원할 수 없다. 이 조건을 어떻게 할지 사용자에게 받는다. 예를 들면 녹화와 프레임 측정으로 대신하고 병합할지, 링크 3 PR을 병합하지 않고 사용자를 기다릴지다.
+
 첫 지휘자(링크 1)는 시작 전에 다음을 사용자에게 한 번에 묻고, 승인을 '인계 기록'에 적는다. 승인 뒤에는 링크마다 멈추지 않는다. 승인 뒤 각 지휘자는 일상적인 판단을 스스로 하고, 새 제품·범위 결정이나 실제 사용자 상태를 건드리는 결정만 묻는다.
 
 - work-update `/feature-review`: git 이력에 리뷰 반영 커밋이 없다(`b91bf162` 작성, `b4d6e90a`·`3be3961e` 초안 확정). 리뷰를 돌릴지, 생략할지 묻는다.
@@ -27,7 +33,7 @@
 
 - **main 병합과 인계**(체인 기본): 각 링크가 통합 gate(통합 HEAD `/verify`, 영향받은 앱 동작 `/runtime-test`, 해당하면 `/agent-eval`)와 문서 승격·feature 디렉터리 삭제를 마친 뒤 자기 PR을 main에 병합하고 다음 링크에 인계한다.
 - **멈추지 않고 진행**: 새 의존성, 범위 밖 변경, 실제 사용자 상태를 되돌릴 수 없게 바꾸는 일만 묻는다.
-- **지휘자 런타임**: Claude Code. 작업자도 Claude다. 모델 계열을 넘는 작업자(Codex)는 사용자가 이 체인에 허용하지 않았다. 허용하면 그 범위를 여기 적는다. `/agent-eval`이 Claude Code와 Codex를 모두 돌리는 것은 AGENTS.md의 상시 예외다.
+- **지휘자 런타임**: Claude Code. 주 작업자도 Claude다. **Codex 작업자 허용**(사용자, 2026-11-06, "Codex 지금 89퍼. 써도 되긴 하는데, 링크 지휘자가 판단하도록 맡기고"): 범위는 세 링크 모두이고, 쓸지와 얼마나 쓸지는 각 링크 지휘자가 정한다. 사용자가 말한 89%가 쓴 양인지 남은 양인지는 적혀 있지 않다. 지휘자는 링크를 시작할 때와 batch를 나눌 때 Codex 주간 한도를 직접 확인한다. 가장 최근 Codex rollout의 `rate_limits` 가운데 `"window_minutes":10080` 항목을 읽는다. claude-dashboard의 Codex %는 30일 창이라 쓰지 않는다. 남은 양이 적으면 쓰지 않는다. 쓴 범위는 각 링크의 `orch.md`에 적는다. `/agent-eval`이 Claude Code와 Codex를 모두 돌리는 것은 AGENTS.md의 상시 예외다.
 
 ## 로그인
 
@@ -45,6 +51,8 @@
 
 ## 운영 메모
 
+- **main이 체인 밖에서도 움직인다**(사용자, 2026-11-06): 체인이 도는 동안 사용자와 main checkout 세션이 project-skill-drawer·turn-activity의 `/feature-review` 반영 커밋(`docs/features/<slug>/`)과 `/design-draft` 초안(`.doan/canvases/`의 새 파일)을 main에 직접 쌓는다. 각 링크는 PR을 병합하기 전에 `feat/<slug>`를 최신 `origin/main` 위로 rebase하고, 통합 gate를 그 HEAD에서 돌린다. 겹치는 파일은 없을 것으로 보지만, 충돌이 나면 main 쪽 문서와 초안을 그대로 두고 링크 쪽만 맞춘다.
+
 - 작업자 대기는 orchestrate의 대기 loop를 따른다. 멈춘 작업자 감지 포함(orchestrate §2).
 - `/agent-eval`: 링크 1·2가 해당한다. 링크 3은 guide·CLI 출력·`doan check` 규칙·skill stub을 바꾸지 않으므로 해당하지 않는다. 로그인한 provider도 쓰지 않는다(R1은 격리 `DOAN_RUNTIME`의 작업 신호로 본다). work-update는 guide·CLI 출력·eval 시나리오(W5)를, canvas-handoff는 `doan help`·`nextSteps`·eval 시나리오(핸드오프, R8c·R9 대체)를 바꾼다.
 - macOS `printenv`는 이름을 하나만 받는다. 환경 확인은 변수마다 따로 묻는다.
@@ -61,3 +69,7 @@
 
 - 2026-11-06 체인 작성 세션(chain-261105 링크 3 지휘자, context-window-ring-orch): 사용자가 두 feature를 한 체인으로 묶고 순서(work-update → canvas-handoff)를 정했다. 앞 체인이 main에 들어가고 정리되면 바로 이어서 시작한다. 병합과 인계는 체인 기본이다(`/chain` §1 step 3, `103f2dee`). 이 세션은 앞 체인의 링크 3을 맡고 있으므로, 이 체인의 첫 지휘자는 새 세션이다. 앞 체인 정리 때 공용 프로필은 지우지 않고, 링크 2가 남긴 임시 `CLAUDE_CONFIG_DIR`과 그 Keychain 항목만 지운다.
 - 2026-11-06 링크 추가 세션: 사용자가 `small-ui-tweaks`를 세 번째 링크로 더했다("small ui tweaks는 체인에 넣어줘. 3링크로 가자"). 순서는 work-update → canvas-handoff → small-ui-tweaks다. 시작 점검에 small-ui-tweaks의 리뷰 여부와 병합 조건(사람이 움직임을 본 뒤 병합)을 더했다.
+- 2026-11-06 체인 시작 세션: 사용자가 체인 시작을 지시했다. 사용자가 더한 조건 세 가지다. (1) Codex 작업자 허용, 쓸지는 링크 지휘자가 판단(상시
+권한). (2) 사용자는 링크 1 초반까지만 지원하므로, 첫 지휘자가 세 링크에서 사람이 필요한 일을 먼저 끝내거나 승인을 받아 둔다(시작
+점검). (3) main checkout에서 project-skill-drawer·turn-activity의 리뷰 반영과 초안이 main에 쌓이므로 링크마다 병합 전에 rebase한다(운영
+메모).
