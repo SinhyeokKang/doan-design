@@ -43,6 +43,7 @@ What Doan has not settled or not shown yet: product questions without a decision
 
 ## Not verified in the real app
 
+- Context window ring: a 200K-window Claude model (every model on the probe account had a 1M window), the ratio against Codex TUI's own “context left”, dark mode, reduced transparency and forced colours, and VoiceOver reading of its name and description.
 - Next-message suggestion: VoiceOver reading of the suggestion, its hint and the one-time “Suggestion: …” announcement; ACP conversations' unchanged placeholder in the real app (unit tests only); Claude Code versions older than 2.1.318 (only 2.1.318 was observed sending `prompt_suggestion`).
 - Agent usage readings not seen on a real account (ARCHITECTURE §7 'Agent authentication'): a reported limit (`limited`) for Claude Code and GitHub Copilot; paid Cursor plans, whose answer may lack `autoPercentUsed`/`apiPercentUsed` and would then read as `read_failed`; unlimited, unsupported and no-plan-limits rows (shown by injection only). A free Copilot account answered a `resetDate` already passed, so its ring stays empty and every popover open reads Copilot again. A row leaving the open popover after a sign-out was verified by injection only; the real sign-out ended after the popover closed.
 
