@@ -368,7 +368,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
     const reply = await window.doan.queueConversation({ conversationId: mode.conversationId, text: request.text, anchors: [...request.anchors], ...(request.attachments.length ? { attachments: request.attachments } : {}) }).catch(() => ({ error: "unknown" as const }));
     if ("error" in reply) return { error: reply.error, ...("missing" in reply && Array.isArray(reply.missing) ? { missing: reply.missing as string[] } : {}) };
     store.queued(root, mode.conversationId, queuedMessage(reply.itemId, request));
-    return { ok: true };
+    return { ok: true, itemId: reply.itemId };
   };
   // The canvas panel's reading of a refusal (canvasConversationError): attachment_missing is the composer's own.
   const refuse = (code: string, provider: Provider): DockedRefusal => {

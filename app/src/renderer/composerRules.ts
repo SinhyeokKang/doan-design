@@ -29,6 +29,12 @@ export function composerAction(running: boolean, request: string): ComposerActio
   return request.trim() === "" ? "stop" : "queue";
 }
 
+export function steerAllPlan(input: { sendNow: boolean; rows: number; draft: boolean }): "enter" | "none" | { rows: boolean; draft: boolean } {
+  if (!input.sendNow) return "enter";
+  if (input.rows === 0 && !input.draft) return "none";
+  return { rows: input.rows > 0, draft: input.draft };
+}
+
 export type FocusAction =
   // A permission answer was sent for this request.
   | { kind: "answered"; requestId: string }

@@ -271,7 +271,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
     if ("error" in reply) return { error: reply.error, ...("missing" in reply && Array.isArray(reply.missing) ? { missing: reply.missing as string[] } : {}) };
     // The row keeps the request's text; the request itself is kept for the thread, where Send now moves it.
     run.queued(root, mode.conversationId, { id: reply.itemId, text: request.text, message: { text: request.text, anchors: request.anchors, attachments: request.files ?? [] } });
-    return { ok: true };
+    return { ok: true, itemId: reply.itemId };
   };
   const busy: DockedBusy | null = props.holder && props.holder.conversationId !== conversationId
     ? { kind: "project", open: props.holder.conversationId || null } : null;

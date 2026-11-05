@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent, type MutableRefObject, type ReactElement } from "react";
+import { useEffect, useId, useImperativeHandle, useLayoutEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent, type MutableRefObject, type ReactElement } from "react";
 import { Clock, Crosshair, Gauge, Plus, Shield, X } from "lucide-react";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
@@ -12,7 +12,7 @@ import {
   AgentPicker, AttachButton, ComposerCard, ComposerChips, ComposerField, ComposerTools, EffortPicker, PermissionPicker, PresetsButton,
   SendButton, SlashPresets, useComposerDrop, usePresetListOutside, type CanvasPress, type ComposerFieldHandle,
 } from "./ComposerParts";
-import { composerAction, composerShape, focusAfter, type FocusAction } from "./composerRules";
+import { composerAction, composerShape, focusAfter, steerAllPlan, type FocusAction } from "./composerRules";
 import {
   canvasGoneText, dockedAvailability, dockedMessage, dockedPicker, dockedRefusal, draftKey, EMPTY_DRAFT,
   type DockedBusy, type DockedDraft, type DockedMode, type DockedRefusal,
@@ -50,7 +50,7 @@ export interface DockedFieldLink {
 }
 // The composer's Pick from canvas button: pressed while the canvas picks; `reason` is the tooltip while unavailable.
 export interface DockedPicker { pressed: boolean; enabled: boolean; reason: string | null; onToggle(): void }
-export type DockedOutcome = { ok: true } | { error: string; missing?: string[] };
+export type DockedOutcome = { ok: true; itemId?: string } | { error: string; missing?: string[] };
 
 export interface DockedComposerProps {
   mode: DockedMode;
@@ -159,6 +159,7 @@ export function DockedComposer(props: DockedComposerProps) {
   // The composer's own box, which places the chip note.
   const root = useRef<HTMLDivElement | null>(null);
   const slashList = useRef<HTMLDivElement | null>(null);
+  const queueRows = useRef<QueueRowsHandle | null>(null);
   const listId = useId(), reasonId = `${listId}-reason`, noteId = `${listId}-missing`;
 
   const isSending = sending.has(key);
@@ -183,6 +184,7 @@ export function DockedComposer(props: DockedComposerProps) {
     : props.held && checked.enabled ? { enabled: false, reason: checked.reason } : checked;
   const message = dockedMessage(draft);
   const action = composerAction(props.turn !== "idle", message.text);
+  const canSendNow = !!props.sendNow && !!props.onSendQueuedNow;
   const picker = dockedPicker(props.picker, mode);
   // The terminal's provider, drawn on the fixed trigger.
   const fixedProvider = mode.kind === "new" ? props.provider : mode.provider;
@@ -294,7 +296,7 @@ export function DockedComposer(props: DockedComposerProps) {
     chip.setAttribute("aria-describedby", noteId);
     return () => { if (chip.getAttribute("aria-describedby") === noteId) chip.removeAttribute("aria-describedby"); };
   }, [noteShown, missingAt]);
-  const send = async () => {
+  const send = async (): Promise<DockedOutcome | undefined> => {
     if (action === "stop" || !availability.enabled) return;
     const at = key, sent = draft, mine = ++generation.current;
     const files = draft.attachments.flatMap((a): SentFile[] => a.id ? [{ name: a.name, size: a.size ?? 0, kind: a.kind }] : []);
@@ -309,7 +311,7 @@ export function DockedComposer(props: DockedComposerProps) {
       // The field empties and returns to a capsule only when the person did not change the draft while it was sent.
       props.onDrafts(drafts => sameDraft(drafts.get(at) ?? EMPTY_DRAFT, sent) ? new Map(drafts).set(at, EMPTY_DRAFT) : drafts);
       if (at === shown.current) focus({ kind: "sent" });
-      return;
+      return outcome;
     }
     if (outcome.error === "attachment_missing") {
       const missing = new Set(outcome.missing ?? []);
@@ -323,6 +325,18 @@ export function DockedComposer(props: DockedComposerProps) {
       if (refused) setRefusals(previous => new Map(previous).set(at, { refusal: refused, draft: sent }));
     }
     if (at === shown.current) focus({ kind: "sent" });
+    return outcome;
+  };
+  const steerAll = async () => {
+    const plan = steerAllPlan({ sendNow: canSendNow, rows: props.queued.length, draft: message.text.trim() !== "" });
+    if (plan === "enter") { await send(); return; }
+    if (plan === "none") return;
+    if (plan.rows) queueRows.current?.sendAll();
+    if (plan.draft) {
+      const outcome = await send();
+      // A queue reply belongs to the conversation it left from, not a newly mounted rows handle.
+      if (outcome && "ok" in outcome && outcome.itemId && key === shown.current) void queueRows.current?.sendNow(outcome.itemId);
+    }
   };
   const keyDown = (event: KeyboardEvent<HTMLDivElement>): boolean => {
     const composing = event.nativeEvent.isComposing || event.keyCode === 229;
@@ -343,17 +357,18 @@ export function DockedComposer(props: DockedComposerProps) {
   // Only an id drawn below; the live reason shows with an older notice rather than behind it.
   const describedBy = reason && !reason.noAgent ? reasonId : undefined;
   return <div className="docked" data-shape={shape} ref={root} {...drop.handlers}>
-    <QueueRows key={key} items={props.queued} sendNow={!!props.sendNow && !!props.onSendQueuedNow} onSendNow={id => props.onSendQueuedNow?.(id) ?? Promise.resolve({ error: "not_running" })}
+    <QueueRows key={key} handle={queueRows} items={props.queued} sendNow={canSendNow} onSendNow={id => props.onSendQueuedNow?.(id) ?? Promise.resolve({ error: "not_running" })}
       onRemove={props.onRemoveQueued} focusInput={() => field.current?.focus()}
       // The same refusal again changes the region's text by a no-break space, so it is read again.
       announce={text => setAnnouncement(current => current === text ? `${text}\u00a0` : text)} />
+    {canSendNow && props.queued.length > 0 && <div className="queue-key">Press Ctrl + Enter to send all now.</div>}
     <ComposerCard readonly={isSending}>
       <ComposerChips attachments={draft.attachments} preset={draft.preset} thumbnails={props.thumbnails} homeDirectory={props.homeDirectory} disabled={isSending || locked} removeButtons={removeButtons} onRemove={index => removeChip(index, "button")} />
       {/* One field element in both shapes, at the same place and key: remounting it would drop focus and IME composition. */}
       <ComposerField key="field" ref={field} draftKey={key} value={draft.segments} onChange={segments => edit({ segments })} readOnly={isSending || locked}
         placeholder={props.placeholder} describedBy={describedBy} chipScope={props.chipScope ?? null} onAnnounce={setAnnouncement} onChipClick={props.onLocate ? locate : undefined}
         combobox={slashOpen ? { listId: `${listId}-slash`, activeId: slashRows[highlight] ? `${listId}-s-${highlight}` : undefined } : null}
-        onKey={keyDown} onSubmit={() => void send()} onPaste={paste} />
+        onKey={keyDown} onSteerKey={() => void steerAll()} sendNow={canSendNow} onSubmit={() => void send()} onPaste={paste} />
       <ComposerTools>
         <PresetsButton reply={props.presets} project={props.project} suggested={props.suggested} listId={listId} disabled={isSending || locked}
           onOpen={props.onPresetsOpen} onChoose={id => choosePreset(id, false)} onRetry={props.onPresetsRetry} onPicked={() => focus({ kind: "restored" })} canvasPress={props.canvasPress} />
@@ -401,7 +416,13 @@ export const SEND_NOW_REFUSED_TEXT = "Couldn’t send now. It stays queued.";
 const SEND_NOW_REFUSED_MS = 4000;
 type QueueButton = "sendNow" | "remove";
 
+export interface QueueRowsHandle {
+  sendAll(): void;
+  sendNow(id: string): Promise<void>;
+}
+
 export interface QueueRowsProps {
+  handle?: MutableRefObject<QueueRowsHandle | null>;
   items: readonly { id: string; text: string }[];
   sendNow: boolean;
   onSendNow(id: string): Promise<void | { error: string; turnRuns?: boolean }>;
@@ -472,6 +493,10 @@ export function QueueRows(props: QueueRowsProps) {
     setRefused(current => new Set(current).add(id));
     props.announce(SEND_NOW_REFUSED_TEXT);
   };
+  useImperativeHandle(props.handle, () => ({
+    sendAll: () => { for (const item of props.items) void sendNow(item.id); },
+    sendNow,
+  }));
   const remove = async (id: string) => {
     const asked = props.items;
     if (await props.onRemove(id).catch(() => false)) focusAfter(id, asked);

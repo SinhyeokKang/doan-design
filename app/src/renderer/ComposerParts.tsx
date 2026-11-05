@@ -15,7 +15,7 @@ import type { ComposerAction } from "./composerRules";
 import { outsidePresetList } from "./presetOutside";
 import type { SettingsTarget } from "./settingsSections";
 import {
-  attachmentChipView, dropTarget, groupIcon, isSubmitKey, modelPickerView, presetListView, providerLogo,
+  attachmentChipView, dropTarget, groupIcon, isSubmitKey, steerKey, modelPickerView, presetListView, providerLogo,
   type AttachmentDraft, type PresetListReply, type PresetRow, type PresetSummary,
 } from "./homeComposer";
 import type { PermissionIcon, PermissionPickerView } from "./permissionPicker";
@@ -111,7 +111,8 @@ export const ComposerField = forwardRef<ComposerFieldHandle, {
   chipScope?: string | null;
   // The `/` preset list while it is open: the field is its combobox.
   combobox: ComboboxProps | null;
-  onKey(event: KeyboardEvent<HTMLDivElement>): boolean; onSubmit(): void;
+  onKey(event: KeyboardEvent<HTMLDivElement>): boolean; onSubmit(): void; onSteerKey?(): void;
+  sendNow?: boolean;
   // Files are the host's; text the host leaves alone is pasted by the field.
   onPaste(event: ClipboardEvent<HTMLDivElement>): void; onInput?(): void; onAnnounce?(text: string): void;
   // A click on a chip in the field (the caret is already right after it).
@@ -146,11 +147,14 @@ export const ComposerField = forwardRef<ComposerFieldHandle, {
     element: () => node.current,
   }), []);
   return <div ref={node} className="composer-input" aria-label="Message" tabIndex={0} contentEditable={!props.readOnly} suppressContentEditableWarning
-    aria-readonly={props.readOnly || undefined} aria-placeholder={props.placeholder} aria-describedby={props.describedBy}
+    aria-keyshortcuts={props.sendNow ? "Control+Enter" : undefined} aria-readonly={props.readOnly || undefined} aria-placeholder={props.placeholder} aria-describedby={props.describedBy}
     role={combobox ? "combobox" : "textbox"} aria-multiline={combobox ? undefined : true} aria-expanded={combobox ? true : undefined} aria-controls={combobox ? combobox.listId : undefined}
     aria-autocomplete={combobox ? "list" : undefined} aria-activedescendant={combobox?.activeId}
     onKeyDown={event => {
       if (props.onKey(event)) return;
+      if (props.onSteerKey && steerKey({ key: event.key, ctrlKey: event.ctrlKey, metaKey: event.metaKey, altKey: event.altKey, shiftKey: event.shiftKey, isComposing: event.nativeEvent.isComposing, keyCode: event.keyCode })) {
+        event.preventDefault(); props.onSteerKey(); return;
+      }
       if (isSubmitKey({ key: event.key, shiftKey: event.shiftKey, isComposing: event.nativeEvent.isComposing, keyCode: event.keyCode })) { event.preventDefault(); props.onSubmit(); }
     }}
     onPaste={event => { props.onPaste(event); if (!event.defaultPrevented) field.current?.paste(event.nativeEvent); }} />;
