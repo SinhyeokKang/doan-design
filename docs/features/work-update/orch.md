@@ -40,3 +40,4 @@
 - P 완료(`4267f23d`·`bad575ff` → 통합 `9de89d96`·`e8452b3a`). red 먼저(agentSetup 13, agentAuth 9). Codex rule은 `<userData>/agent-auth/profiles/codex/rules/doan.rules`에 놓인다(R1 (b)에서 app-server가 읽는지 본다).
 - 통합 HEAD `e8452b3a`: `go test ./...` 통과, `npm --prefix app run typecheck` 통과, `npm --prefix app test` 7963 통과.
 - M 시작(`wu-m`), C2를 C 작업자에게 follow-up으로 보냄, V1(C1+P 리뷰, Codex `gpt-6-astra` medium, `wu-v1`) 시작.
+- C2 순서 변경(지휘자 승인): Codex 한도 때문에 G0 Claude round → E1 구현 → E1 round(claude,codex ×3) → G0 Codex round를 마지막에 남은 한도로. 돌리지 못한 Codex 실행은 '돌리지 않음'으로 적는다.
