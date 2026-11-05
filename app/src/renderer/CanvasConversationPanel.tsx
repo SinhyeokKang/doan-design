@@ -17,7 +17,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip
 import { textSegments } from "./anchorField";
 import { canvasConversationError, canvasConversationMenu, resumeHeld } from "./canvasConversation";
 import { sameCanvas } from "./canvasConversationRows";
-import type { CanvasRun, CanvasTarget, ResumeReply } from "./canvasRun";
+import type { CanvasRun, CanvasTarget, CanvasView, ResumeReply } from "./canvasRun";
 import { focusFieldEnd } from "./chipField";
 import { GroupIcon, type CanvasPress } from "./ComposerParts";
 import { ConversationDeleteItem, type DeleteTarget } from "./ConversationDeleteDialog";
@@ -106,6 +106,13 @@ function turnOf(events: readonly ConversationEvent[] | null, summary: Conversati
 }
 // steerPhaseOf lives with the store, which also reads it when main answers Send now; exported here for its importers.
 export { steerPhaseOf };
+// Whether the shown composer refuses attachments (Attach, paste, drop, and the toolbar's Capture area): it continues a
+// terminal session, which keeps its own model and effort, or shows a conversation an external agent started. A resume
+// held while its terminal still works is a new conversation. App reads it too (canvas-capture design §3).
+export function composerFixed(view: CanvasView, list: ListView, work: readonly WorkItem[]): boolean {
+  if (view.kind === "new") return view.mode.kind === "resume" && !resumeHeld(view.resume, work);
+  return view.kind === "conversation" && Array.isArray(list) && list.find(c => c.conversationId === view.conversationId)?.owner === "legacy-external";
+}
 // "Linked by doan check at 14:02": the time of day, with the date when it was not today.
 export function linkedAt(at: string | undefined, now: number): string | null {
   const time = at ? Date.parse(at) : NaN;
@@ -209,8 +216,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
   const draft = store.drafts.get(key) ?? EMPTY_DRAFT;
   const healthy = props.entry.kind === "list";
   const live = conversationId ? store.live(root, conversationId) : false;
-  // A terminal session, or a conversation an external agent started, keeps its own model and effort.
-  const fixed = mode.kind === "resume" || summary?.owner === "legacy-external";
+  const fixed = composerFixed(view, list, props.work);
 
   useEffect(() => { if (!support.presets?.ok) support.readPresets(); }, []);
   useEffect(() => window.doan.onAgentAuth(snapshot => support.setAuth(snapshot)), []);

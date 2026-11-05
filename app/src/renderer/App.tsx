@@ -20,14 +20,14 @@ import type { OpenAsk, OpenLinkResult, OpenResult } from "../main/deepLinks";
 import type { MenuCommand, ViewCommand } from "../main/index";
 import { CanvasController, initialCanvasState, type CanvasState, type PickResult } from "./CanvasController";
 import { CanvasHeader } from "./CanvasHeader";
-import { CanvasTools, type ExportTool, type PickerTool } from "./CanvasTools";
+import { CanvasTools, type CaptureTool, type ExportTool, type PickerTool } from "./CanvasTools";
 import { AlertIcon } from "./AlertIcon";
 import { noticeToast } from "./selection";
 import { CanvasAgent } from "./CanvasAgent";
 import { workingCanvas, type WorkingCanvas } from "./agentIndicator";
 import { controlFocusLost } from "./canvasFocus";
 import { projectNames } from "./projectRow";
-import { ArrowLeft, ArrowRight, Crosshair, Plus, Settings, LayoutGrid, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { ArrowLeft, ArrowRight, Crosshair, Plus, Scan, Settings, LayoutGrid, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { Home, ProblemActions } from "./Home";
 import { ProjectSetupDialog } from "./ProjectSetupDialog";
 import { ProjectSettingsPage } from "./ProjectSettingsPage";
@@ -39,7 +39,8 @@ import type { RowAction } from "./homeCards";
 import { groupProjects } from "./homeCards";
 import { CanvasConversations } from "./RightPanel";
 import { CanvasRun, type CanvasTarget } from "./canvasRun";
-import { CanvasConversation, CanvasConversationTitle, canvasConversationTitle } from "./CanvasConversationPanel";
+import { CanvasConversation, CanvasConversationTitle, canvasConversationTitle, composerFixed } from "./CanvasConversationPanel";
+import { captureAvailability } from "./canvasCapture";
 import { canvasUnlistedText, DUPLICATE_CANVAS_TEXT } from "./canvasConversation";
 import { openButtonBadge, panelOpenFor, type OpenBadge, type PanelTrigger } from "./rightPanelOpen";
 import { PICKER_UNAVAILABLE, pickerAvailability, type CanvasLoad } from "./canvasPicker";
@@ -1446,6 +1447,20 @@ export function App() {
     exportCanvas(exportTarget.folder, exportTarget.row);
   } };
   const picking = state.picking;
+  // Capture area (canvas-capture design §3): the canvas, the composer's input, its Attach rule and its attachment count,
+  // first match wins. Without the panel's composer the canvas counts as not shown, as for the Picker.
+  const captureView = captureAvailability({ canvas: panelTarget !== null && composerKey !== null ? canvasLoad : "loading", composer: panelBlocked,
+    fixed: composerFixed(canvasRun.current!.view() ?? { kind: "wait" }, panelList, work), attachments: composerKey ? overviewRun.current!.store.drafts.get(composerKey)?.attachments.length ?? 0 : 0 });
+  // The second press ends capture mode. A pick in progress ends by this press, so focus stays on the button. A locked
+  // page leaves the button looking usable and doing nothing, as Export does.
+  const capture: CaptureTool = { enabled: captureView.enabled, reason: captureView.reason, onToggle: () => {
+    const instance = controller.current;
+    if (!instance || locked()) return;
+    if (state.capturing) { instance.cancelCapture(); return; }
+    if (!captureView.enabled) return;
+    if (picking) pressedCancel();
+    instance.startCapture();
+  } };
   // V, H and Space switch tools only on the canvas page itself (canvas-hand-tool design '키').
   const toolPage = screen === "workspace" && shownOverview === null && !modal;
   useEffect(() => { controller.current?.setCanvasPage(toolPage); }, [toolPage]);
@@ -1766,7 +1781,7 @@ export function App() {
       zoomTo={scale => controller.current?.zoomTo(scale)} selectFrame={(index, id) => controller.current?.selectFrame(index, id)} conversation={{ open: rightPanel.open, show: () => foldPanel(true), badge: panelBadge }}
       agent={{ list: state.open ? run.listState(state.open.folder) : undefined, canvas: workingCanvas(state.open, state.unlisted, entry), running: screen === "workspace" && overview === null, work, entries,
         onOpen: openRequest, onOpenSibling, onStopFailed: text => toast.show(text) }}
-      picking={picking} tool={state.tool} onTool={chooseTool} picker={{ enabled: pickerReady, reason: pickerView.reason, onToggle: pickFromCanvas }} exporter={exporter} />
+      picking={picking} capturing={state.capturing} tool={state.tool} onTool={chooseTool} picker={{ enabled: pickerReady, reason: pickerView.reason, onToggle: pickFromCanvas }} capture={capture} exporter={exporter} />
     {overview && <ProjectOverview key={overview.path} run={overviewRun.current!} support={support.current!} root={overview.path} project={projectLabel(overview.path)} entry={overview}
       worktrees={card?.rows ?? [overview]} homeDirectory={homeDirectory} notice={overviewNotice?.root === overview.path ? overviewNotice.text : null}
       unavailable={overview.kind === "list" ? null : startErrorView("project_not_open", "claude", projectLabel(overview.path)).text}
@@ -1848,11 +1863,11 @@ function TopBar({ sidebar, back, forward, previous, next, page, locked, addProje
 
 type AgentProps = { list: readonly ConversationSummary[] | "loading" | "error" | undefined; canvas: WorkingCanvas | null; running: boolean; work: readonly WorkItem[]; entries: readonly FolderEntry[]; onOpen(): void; onOpenSibling(root: string): void; onStopFailed(text: string): void };
 
-function CanvasPane({ viewport, board, overlay, dragLayer, state, entry, projectName, command, covered, zoomTo, selectFrame, conversation, agent, picking, tool, onTool, picker, exporter }: {
+function CanvasPane({ viewport, board, overlay, dragLayer, state, entry, projectName, command, covered, zoomTo, selectFrame, conversation, agent, picking, capturing, tool, onTool, picker, capture, exporter }: {
   viewport: RefObject<HTMLDivElement | null>; board: RefObject<HTMLDivElement | null>; overlay: RefObject<HTMLDivElement | null>; dragLayer: RefObject<HTMLDivElement | null>;
   state: CanvasState; entry: FolderEntry | undefined; projectName: string; command: (name: ViewCommand) => void; covered: boolean;
   zoomTo(scale: number): void; selectFrame(index: number, id: string): void; conversation: { open: boolean; show(): void; badge: OpenBadge | null }; agent: AgentProps;
-  picking: boolean; tool: CanvasState["tool"]; onTool(tool: CanvasState["tool"]): void; picker: PickerTool; exporter: ExportTool;
+  picking: boolean; capturing: boolean; tool: CanvasState["tool"]; onTool(tool: CanvasState["tool"]): void; picker: PickerTool; capture: CaptureTool; exporter: ExportTool;
 }) {
   const problem = !state.open && entry && entry.kind !== "list" ? entry : null;
   const problemMessage = problem?.kind === "loading" ? "Reading project"
@@ -1908,7 +1923,10 @@ function CanvasPane({ viewport, board, overlay, dragLayer, state, entry, project
     <div className="doan-canvas-bottom">
       {picking && <div className="doan-agent doan-picking" role="status"><Crosshair className="doan-picking-icon" aria-hidden="true" /><span className="doan-agent-text">Click a frame or an element, or Shift-click a spot</span>
         <span className="doan-kbd" data-ui-variant="on-prominent" aria-hidden="true">Esc</span><span className="sr-only">Press Escape to cancel</span></div>}
-      <CanvasTools tool={tool} picking={picking} onTool={onTool} picker={picker} exporter={exporter} />
+      {/* Capture mode's hint, in the picking hint's look with Capture area's glyph (canvas-capture design §2 '안내 줄'). */}
+      {capturing && <div className="doan-agent doan-picking" role="status"><Scan className="doan-picking-icon" aria-hidden="true" /><span className="doan-agent-text">Drag to capture an area</span>
+        <span className="doan-kbd" data-ui-variant="on-prominent" aria-hidden="true">Esc</span><span className="sr-only">Press Escape to cancel</span></div>}
+      <CanvasTools tool={tool} picking={picking} capturing={capturing} onTool={onTool} picker={picker} capture={capture} exporter={exporter} />
     </div>
     </section>
   </div>;
