@@ -12,7 +12,8 @@ import { object } from "./sessions";
 import { parseClaudeModels, parseCodexModels } from "./models";
 import { CodexStartupWatch, codexProfileServers } from "./mcpStartup";
 import { connectorLabels } from "../mcpConnectors/presets";
-import { claudePermissionSummary, claudeReportedMode, endSteerWait, endTransport, initialTransport, normalizeClaude, steerTransport, transportError } from "./transport";
+import { CLAUDE_QUESTION_TOOL, claudePermissionSummary, claudeQuestion, claudeQuestionResult, claudeReportedMode, claudeUnansweredSupport, endSteerWait, endTransport, initialTransport, normalizeClaude, steerTransport, storedAnswers, transportError, type ClaudeQuestion } from "./transport";
+import { questionAnswer } from "./questionAnswer";
 import { claudePermission, codexDefaults, codexPermission, codexWorkspace, type CodexDefaults, type CodexWorkspace } from "./permissionMode";
 import type { OpenRunner, Prepared, ReadModels, Runner } from "./service";
 import type { EventPayload, FailureCode } from "./types";
@@ -237,6 +238,10 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
   const labels = input.mcp?.labels();
   let group: OwnedGroup | undefined, state = initialTransport();
   const pending = new Map<string, { input: Record<string, unknown>; suggestions: PermissionUpdate[]; resolve(value: PermissionResult): void }>();
+  // Apart from permissions, so answer() never allows a question with no answer and answerQuestion() never answers a
+  // permission. unanswered: the turn's system/init advertised the skip mark; read long before anyone can answer.
+  const questions = new Map<string, { input: Record<string, unknown>; read: ClaudeQuestion; resolve(value: PermissionResult): void }>();
+  let unanswered = false;
   let finished = false, childExited = false, stderr = "", stderrDone: Promise<unknown> = Promise.resolve();
   // The turn's input stays open after its first message so steer can add more, and closes the moment the turn ends:
   // the CLI exits only once its stdin ends, and until then send and the next turn wait (POSTMORTEM 2026-10-28).
@@ -284,6 +289,7 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
       return child;
     },
     canUseTool(tool, toolInput, options) {
+      if (tool === CLAUDE_QUESTION_TOOL) return ask(toolInput);
       const requestId = randomUUID(); const suggestions = options.suggestions ?? [];
       return new Promise<PermissionResult>(resolve => {
         pending.set(requestId, { input: toolInput, suggestions, resolve });
@@ -291,8 +297,21 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
       });
     },
   } });
+  // A stopped or ended turn asks nothing more: nobody would see the card, and the service drops its events. A question
+  // no card can show whole is denied with the way to ask instead, never sent as a permission whose Allow has no answer.
+  function ask(toolInput: Record<string, unknown>): Promise<PermissionResult> {
+    if (finished || state.stop || state.terminal) return Promise.resolve({ behavior: "deny", message: "Request expired." });
+    const read = claudeQuestion(toolInput);
+    if (!read) return Promise.resolve({ behavior: "deny", message: "Doan could not show this question to the person. Ask it in your reply text instead, then end your turn so they can answer." });
+    const requestId = randomUUID();
+    return new Promise<PermissionResult>(resolve => {
+      questions.set(requestId, { input: toolInput, read, resolve });
+      emit({ type: "question.request", requestId, questions: read.questions });
+    });
+  }
   const expire = () => {
     for (const [requestId, request] of pending) { pending.delete(requestId); request.resolve({ behavior: "deny", message: "Request expired." }); emit({ type: "permission.resolved", requestId, optionId: "expired" }); }
+    for (const [requestId, request] of questions) { questions.delete(requestId); request.resolve({ behavior: "deny", message: "Request expired." }); emit({ type: "question.resolved", requestId, outcome: "expired" }); }
   };
   try { await timeout(q.initializationResult()); } catch (error) {
     controller.abort(); closeInput(); void group?.stop();
@@ -316,6 +335,7 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
         try {
           for await (const raw of q) {
             if (readExpired) break;
+            unanswered = claudeUnansweredSupport(raw) ?? unanswered;
             // Only a turn sent with Plan follows a reported switch (the plan's approval); a suggestion's setMode on another
             // turn stays that process's.
             const reported = input.permissionMode === "plan" ? claudeReportedMode(raw) : undefined;
@@ -357,6 +377,14 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
       const request = pending.get(id); if (!request || !["allow", "deny", ...(request.suggestions.length ? ["always"] : [])].includes(option)) return false;
       pending.delete(id); request.resolve(option === "deny" ? { behavior: "deny", message: "Denied by the user." } : { behavior: "allow", updatedInput: request.input, ...(option === "always" ? { updatedPermissions: request.suggestions } : {}) });
       emit({ type: "permission.resolved", requestId: id, optionId: option }); return true;
+    },
+    // stale: no such question waits (answered, expired or never asked); bad_request: the answer does not fit it.
+    answerQuestion(id, given) {
+      const request = questions.get(id); if (!request) return "stale";
+      const answer = questionAnswer(request.read.questions, given); if (!answer) return "bad_request";
+      questions.delete(id); request.resolve(claudeQuestionResult(request.input, request.read, answer, unanswered));
+      emit({ type: "question.resolved", requestId: id, outcome: answer.outcome, ...(answer.outcome === "answered" ? { answers: storedAnswers(request.read.questions, answer) } : {}) });
+      return "ok";
     },
     async stop() { state = { ...state, stop: "user" }; endReadWait(); expire(); controller.abort(); closeInput(); await group?.stop(); },
     async close() { state = { ...state, stop: "appQuit" }; endReadWait(); expire(); controller.abort(); closeInput(); await group?.stop(); },

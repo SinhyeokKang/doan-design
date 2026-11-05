@@ -6,8 +6,9 @@ import { permissionModeId, type PermissionModeId } from "./permissionMode";
 import type { ConversationService, Prepare, QueueFiles, StartAttachments, StartRequest } from "./service";
 import type { ModelCatalog } from "./models";
 import type { AttachmentStore } from "../attachments";
+import { QUESTION_LIMITS, type QuestionAnswerInput } from "./question";
 import type { Anchor, AttachmentRecord, Canvas } from "./types";
-export const conversationMethods = ["resumeTarget", "forCanvas", "start", "send", "interrupt", "answerPermission", "read", "models", "list", "markSeen", "queue", "removeQueued", "sendQueuedNow", "takeDraft", "setPermissionMode", "delete"] as const;
+export const conversationMethods = ["resumeTarget", "forCanvas", "start", "send", "interrupt", "answerPermission", "answerQuestion", "read", "models", "list", "markSeen", "queue", "removeQueued", "sendQueuedNow", "takeDraft", "setPermissionMode", "delete"] as const;
 export type ConversationMethod = typeof conversationMethods[number];
 // attachment_missing names the attachments that were moved, deleted or forgotten since they were added.
 export interface ConversationError { error: string; missing?: string[] }
@@ -17,6 +18,22 @@ function message(raw: Record<string, unknown>): { text: string; anchors: Anchor[
   const anchors: unknown[] = raw.anchors === undefined ? [] : Array.isArray(raw.anchors) ? [...raw.anchors] : [undefined];
   if (!anchors.every(validAnchor) || anchorTokens(raw.text, anchors) === null) return null;
   return { text: raw.text, anchors };
+}
+// The shape and limits of an answer only (design §5); whether it fits its question is the runner's check (questionAnswer).
+// Only the answer's own fields go on.
+function questionInput(raw: Record<string, unknown>): QuestionAnswerInput | null {
+  const L = QUESTION_LIMITS;
+  if (raw.outcome === "skipped") return raw.answers === undefined ? { outcome: "skipped" } : null;
+  if (raw.outcome !== "answered" || !object(raw.answers) || Object.keys(raw.answers).length > L.questions) return null;
+  const answers: NonNullable<QuestionAnswerInput["answers"]> = {};
+  for (const [id, value] of Object.entries(raw.answers)) {
+    if (!id || id.length > L.label || !object(value) || !Array.isArray(value.selected) || value.selected.length > L.options) return null;
+    const selected: unknown[] = [...value.selected];
+    if (!selected.every(n => Number.isInteger(n) && (n as number) >= 0 && (n as number) < L.options)) return null;
+    if (value.other !== undefined && (typeof value.other !== "string" || value.other.length > L.text)) return null;
+    answers[id] = { selected: selected as number[], ...(value.other !== undefined ? { other: value.other } : {}) };
+  }
+  return { outcome: "answered", answers };
 }
 function choice(value: unknown): value is string { return typeof value === "string" && value.length > 0 && value.length <= 512 && !value.includes("\0"); }
 // ids: the attachment ids as sent, for the recheck, the sent marker and consume; attachments: their records now.
@@ -179,6 +196,11 @@ export function conversationHandler(service: ConversationService, prepare: Prepa
           if (typeof raw.seq !== "number" || !Number.isSafeInteger(raw.seq) || raw.seq < 0) throw new Error("bad_request");
           service.markSeen(raw.conversationId, raw.seq); return undefined;
         case "answerPermission": if (typeof raw.requestId !== "string" || raw.requestId.length > 512 || typeof raw.optionId !== "string" || raw.optionId.length > 512) throw new Error("bad_request"); service.answer(raw.conversationId, raw.requestId, raw.optionId); return undefined;
+        case "answerQuestion": {
+          if (typeof raw.requestId !== "string" || !raw.requestId || raw.requestId.length > 512) throw new Error("bad_request");
+          const answer = questionInput(raw); if (!answer) throw new Error("bad_request");
+          service.answerQuestion(raw.conversationId, raw.requestId, answer); return undefined;
+        }
       }
       throw new Error("bad_request");
     } catch (error) {
