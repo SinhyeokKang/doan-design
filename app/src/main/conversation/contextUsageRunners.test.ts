@@ -13,7 +13,7 @@ import acpContext from "./fixtures/acp-context.json";
 import copilot from "./fixtures/acp-copilot.json";
 import type { ConversationEvent, EventPayload } from "./types";
 
-// context-window-ring B1: the runners pass the transport's context.usage through unchanged and the service records it
+// The runners pass the transport's context.usage through unchanged and the service records it
 // like any other event, right before the terminal; terminals the transport does not produce carry none.
 const TERMINALS = ["turn.done", "turn.failed", "interrupted"];
 const ends = (events: readonly { type: string }[]) => events.filter(e => e.type === "context.usage" || TERMINALS.includes(e.type)).map(e => e.type);
@@ -120,7 +120,7 @@ describe("Claude", () => {
 });
 
 // A Codex app-server. On resume it replays the previous turn's thread/tokenUsage/updated before the new turn/start
-// reply (P2 (d)), then sends two notifications for the new turn. FAKE_CTX: "done" completes the turn; "garbage" breaks
+// reply (as Codex 0.158.0 did after thread/resume), then sends two notifications for the new turn. FAKE_CTX: "done" completes the turn; "garbage" breaks
 // the protocol after the notifications; "hold" waits and completes as interrupted on turn/interrupt; "twice" completes
 // the first turn like "done" and a second one with no notification.
 function codexServer(root: string): string {
@@ -189,7 +189,7 @@ describe("ACP", () => {
   afterEach(() => { for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true }); });
   const SERVER = join(__dirname, "fixtures", "fake-acp-server.cjs");
   const session = copilot.turn[0]!.params!.sessionId;
-  // The recorded Copilot handshake with the P3 tool turn's frames as its turn.
+  // The recorded Copilot handshake with the recorded Copilot 1.0.105 tool turn's frames as its turn.
   function fixture(frames: unknown[]): string {
     const dir = realpathSync(mkdtempSync(join(tmpdir(), "doan-context-acp-"))), path = join(dir, "acp-copilot.json"); dirs.push(dir);
     const turn = JSON.parse(JSON.stringify(frames).replaceAll('"session-1"', JSON.stringify(session)));

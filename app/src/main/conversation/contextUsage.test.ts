@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { mkdtempSync, realpathSync, writeFileSync } from "node:fs";
+import { afterEach, describe, expect, it } from "vitest";
+import { mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import claude from "./fixtures/claude.json";
@@ -12,8 +12,8 @@ import { acpEnded, acpPromptDone, acpPromptFailed, initialAcp, normalizeAcp, typ
 import { ConversationStore } from "./store";
 import type { EventPayload, TransportState } from "./types";
 
-// context-window-ring A1/A2 (design §1 'Value reading', §2 'Recording'). The fixtures are the P1–P4 frames
-// (fixtures/README.md); variants below change one field of them.
+// How each transport reads a turn's context value and how the store keeps it. The fixtures are recorded provider
+// frames (fixtures/README.md); variants below change one field of them.
 const TERMINALS = ["turn.done", "turn.failed", "interrupted"];
 // One terminal per turn, and at most one context.usage, right before it.
 function expectShape(events: EventPayload[]) {
@@ -234,8 +234,10 @@ describe("ACP context usage", () => {
 });
 
 describe("context.usage history lines", () => {
+  const roots: string[] = [];
+  afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
   function setup() {
-    const root = realpathSync(mkdtempSync(join(tmpdir(), "doan-context-store-")));
+    const root = realpathSync(mkdtempSync(join(tmpdir(), "doan-context-store-"))); roots.push(root);
     return { store: new ConversationStore(root), log: join(root, "conversations", "c.jsonl") };
   }
   const line = (seq: number, body: Record<string, unknown>) => JSON.stringify({ v: 1, conversationId: "c", seq, turnId: "t", at: "2026-11-06T00:00:00.000Z", ...body }) + "\n";
