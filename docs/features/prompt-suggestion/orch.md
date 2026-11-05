@@ -15,6 +15,10 @@
 - R 리뷰(Claude Opus medium, `ctx_fd5653fc3ad6`): 🔴 0, 🟡 0, ⚪ 4. 인계의 계획과 다른 점(`composerPlaceholder`를 `DockedComposer` 안에서 부름, preset 문구가 읽기 전용보다 앞서는 지금 순서 유지, `suggestion` prop의 undefined는 목록을 아직 읽지 않음)은 리뷰어가 수용했다. ⚪ 중 `/`로 시작하는 제안을 넣으면 preset 목록이 열리는지는 R2에서 확인하게 했다. R을 통합했다(`5b2066dd`..`4b2f91d0` → feat `faaa1a77`까지).
 - M을 리뷰 전에 통합했다(`78be71f5`..`081da039` → feat `4812fd10`까지, 지휘자 판단 — R2가 `ConversationSummary.suggestion`을 기다리지 않게 하려고. 리뷰 수정은 추가 커밋으로 통합한다). M의 계획과 다른 점: Doan 연결 실행의 환경은 `agentAuth` lease로 전달(`onboarding/states.ts`, `agentAuth/manager.ts`도 고침), 사용량 조회 중에 온 send도 조회 뒤 group stop, 읽기 오류 행에는 제안 없음.
 - M 리뷰(Codex Astra medium, `ctx_5be7eb1a1c03`): 🔴 0, 🟡 1(연결 sign-out·교체 뒤 처음 도착한 늦은 `suggested`가 이전 연결의 제안을 되살림, 리뷰어가 테스트로 재현). 인계의 계획과 다른 점 5개는 모두 수용했다. M 작업자에게 고칠 것을 보냈다(`ctx_cf849f72fec9`).
+- M 수정 1차(`ac39e55a`, `317bf310`): 연결이 바뀌면 그 provider의 지금 연결을 기억하고 다른 연결의 늦은 제안을 받지 않는다. 지휘자가 diff를 확인하고 통합했다(feat `30af27bc`까지).
+- R2 리뷰(Codex Astra medium, `ctx_195b13258b14`): 🔴 0, 🟡 0, ⚪ 0. R2(`2d0d3dde`..`5d14b212`)는 리뷰 전에 통합했다(feat `18fb6b66`까지). `/`로 시작하는 제안을 넣으면 preset 목록이 열리던 것을 R2에서 고쳤다.
+- U(사용자가 링크 도중 알린 버그, 범위 밖이지만 이 run에서 고치기로 함): Agent usage popover가 header 빈 곳 클릭에 닫히지 않음. 첫 수정(`.top:has()` 규칙)은 computed style만 바뀌고 native 클릭은 여전히 창을 끌었다(지휘자가 `orca computer`로 확인). 수정 1차(`ccf8478b`, `0861165d`)는 popover가 열린 동안 header에 inline `no-drag`를 둔다. native 클릭으로 닫힘과 닫힌 뒤 창 끌기를 확인했다(feat `fb1851d6`). POSTMORTEM `7d7a6b5e`.
+- E1(지휘자, `/runtime-test`, 2026-11-06, 공용 프로필, main checkout의 Electron으로 worktree 빌드 실행, `.scratch/runtime-test/prompt-suggestion/`): (a) 통과 — Overview와 캔버스 패널에서 제안이 placeholder로 보임, 캔버스 패널에서 `turn.done` 뒤 1.7초, capsule·첨부만 있는 box 모두 한 줄 말줄임, box 높이 24px 그대로, 재시작 뒤 사라짐. CLI가 제안을 보내지 않는 턴도 있었다(P1과 같음). (b) CDP 키로 통과(→ 넣기, caret 끝, 포커스 유지, ⌘Z 한 번, Shift+→·빈 Enter 무시, 첨부 유지). 실제 키보드·한국어 IME는 사람의 확인을 기다린다. (c) 통과 — `turn.done` 직후 send와 큐 전송에 `busy` 없음. 다음 턴 시작까지 약 10.8초였지만 main 빌드도 같아서 기존 지연이다(BACKLOG). (d) VoiceOver 미검증. (e) Codex 통과, ACP는 단위 테스트만.
 - E1(실제 앱 확인)은 공용 프로필과 사람의 키보드가 필요해서 지휘자가 `/runtime-test`로 한다.
 
 ## Codex 사용
@@ -29,6 +33,7 @@
 |---|---|---|---|---|---|---|
 | M | A1, B1, B2 | `app/src/main/conversation/` 의 새 `promptSuggestion.ts`(+test), `summary.ts`·`service.ts`·`runners.ts`·`environment.ts`·`prepare.ts`(+각 test), `app/src/main/onboarding/machine.ts`(+test), `app/src/main/index.ts` | 없음 | Claude Opus high — live·turnId 울타리, 다음 send의 group stop, 종료 예산. 틀리면 send가 `busy`가 되거나 늦은 제안이 다음 턴을 건드린다 | `npm --prefix app test`(새 사례 red→green 기록), typecheck | 대기 |
 | R | A2, C1(host의 summary 연결 제외) | `app/src/renderer/` 의 `dockedRules.ts`·`homeComposer.ts`·`chipField.ts`·`ComposerParts.tsx`·`DockedComposer.tsx`(+각 test), `styles.css`, `ProjectOverview.tsx`·`CanvasConversationPanel.tsx`(placeholder 식 교체만) | 없음 | Claude Opus high — 키 판정, IME, undo history, 접근성 알림. 틀리면 글자를 잃거나 제안이 보내진다 | `npm --prefix app test`, typecheck, build | 대기 |
+| U | 사용자 버그: usage popover와 header 드래그 영역 | `AgentUsageButton.tsx`(+test), `styles.css` | 없음 | R과 같은 작업자 | 위와 같음, native 클릭 확인은 지휘자 | 통합 |
 | R2 | C1의 host 연결, `homeRun.test.ts` 사례 | `ProjectOverview.tsx`·`CanvasConversationPanel.tsx`(+test), `homeRun.ts`(+test) | M의 summary, R 통합 | R과 같은 작업자 | 위와 같음 | 대기 |
 | 지휘자 | E1, Z1, Z2 | `docs/PRODUCT.md`·`docs/ARCHITECTURE.md`·`docs/DESIGN.md`, feature 디렉터리 삭제, `.scratch/runtime-test/prompt-suggestion/` | M, R, R2 통합 | — | `/runtime-test` 보고, 통합 HEAD `/verify` | 대기 |
 
