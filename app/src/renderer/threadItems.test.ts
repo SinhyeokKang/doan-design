@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { ConversationEvent } from "../main/conversation/types";
-import { anchorParts, pendingAsks, questionLines, rootRelative, scrollFollow, threadItems, withSending, type ThreadItem } from "./threadItems";
+import { anchorParts, pendingAsks, questionLines, rootRelative, scrollFollow, threadItems, threadScroll, withSending, type ThreadItem } from "./threadItems";
 import { splitRequest } from "./homeComposer";
 import { notReadyLine, waitingLine } from "../main/conversation/mcpStartup";
 import { parseConnectorUrl } from "../main/mcpConnectors/names";
@@ -176,6 +176,18 @@ describe("scrollFollow", () => {
     expect(scrollFollow(false, 0)).toBe(true);
     expect(scrollFollow(false, 24)).toBe(true);
     expect(scrollFollow(false, 25)).toBe(false);
+  });
+});
+
+// agent-questions design §6: an entry scrolled a tall question card to its top, and the thread's re-renders (about every
+// 100 ms in the real app) pulled it back to the bottom before the scroll could report a distance.
+describe("threadScroll", () => {
+  test("a re-render that drew nothing new leaves the scroll where it is", () => {
+    expect(threadScroll(true, false, 0)).toBe("bottom");
+    expect(threadScroll(false, true, 10)).toBe("bottom");
+    expect(threadScroll(false, true, 25)).toBe("behind");
+    expect(threadScroll(false, false, 0)).toBe("stay");
+    expect(threadScroll(false, false, 500)).toBe("stay");
   });
 });
 

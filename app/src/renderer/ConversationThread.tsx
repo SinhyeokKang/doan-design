@@ -16,7 +16,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip
 import { formatSize, providerLogo } from "./homeComposer";
 import { replyUrlTransform } from "./replyUrlTransform";
 import { canSend, EMPTY_QUESTION_DRAFT, questionInput, sendBlockedText, type QuestionDraft, type QuestionDraftAction } from "./questionDraft";
-import { pendingAsks, questionLines, scrollFollow, waitsForPerson, type ActivityStep, type ThreadItem, type TurnEnd } from "./threadItems";
+import { pendingAsks, questionLines, scrollFollow, threadScroll, waitsForPerson, type ActivityStep, type ThreadItem, type TurnEnd } from "./threadItems";
 
 // The conversation thread (buzz-conversation design §3.3, draft frames thread-*). The host reads the history, merges
 // live events and passes threadItems' result; links, copying and every action go back through callbacks, so the
@@ -421,7 +421,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   const { items, provider } = props;
   const base = useId();
   const scroller = useRef<HTMLDivElement | null>(null);
-  const distance = useRef(0), opened = useRef(false);
+  const distance = useRef(0), opened = useRef(false), shownHeight = useRef(0);
   const [behind, setBehind] = useState(false);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const [slow, setSlow] = useState(false);
@@ -465,8 +465,11 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     if (!node || !Array.isArray(items)) return;
     const opening = !opened.current;
     opened.current = true;
-    if (scrollFollow(opening, distance.current)) { node.scrollTop = node.scrollHeight; distance.current = 0; setBehind(false); }
-    else setBehind(true);
+    const drew = node.scrollHeight !== shownHeight.current;
+    shownHeight.current = node.scrollHeight;
+    const next = threadScroll(opening, drew, distance.current);
+    if (next === "bottom") { node.scrollTop = node.scrollHeight; distance.current = 0; setBehind(false); }
+    else if (next === "behind") setBehind(true);
   }, [items]);
   // A folded question took the focus that was on it to the page: the next waiting request takes it, else the composer.
   // A person who moved focus elsewhere meanwhile keeps it.

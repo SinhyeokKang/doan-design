@@ -288,3 +288,10 @@ export const FOLLOW_DISTANCE = 24;
 export function scrollFollow(opening: boolean, distanceFromBottom: number): boolean {
   return opening || distanceFromBottom <= FOLLOW_DISTANCE;
 }
+// After an update: drew says whether the thread's height changed. The thread re-renders without new output (every
+// list read, every tick), and following then would undo an entry's scroll to a question card before the scroll event
+// that measures it arrives.
+export function threadScroll(opening: boolean, drew: boolean, distanceFromBottom: number): "bottom" | "behind" | "stay" {
+  if (!opening && !drew) return "stay";
+  return scrollFollow(opening, distanceFromBottom) ? "bottom" : "behind";
+}
