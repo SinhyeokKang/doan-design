@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { accessSync, chmodSync, closeSync, constants, fsyncSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, writeSync } from "node:fs";
+import { accessSync, chmodSync, closeSync, constants, fchmodSync, fsyncSync, linkSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, readlinkSync, renameSync, rmSync, symlinkSync, unlinkSync, writeSync, type Stats } from "node:fs";
 import { basename, dirname, join } from "node:path";
+import { swapFile } from "../agentSetup/swap";
 import { parseAuthMetadata, serializeAuthMetadata, validAuthId } from "./metadata";
 import { validProvider, type AuthMetadata, type Provider } from "./types";
 
@@ -121,18 +122,44 @@ export class AuthStorage {
     try { if (readFileSync(path, "utf8") === text) return; } catch (error) { if (!absent(error)) throw new StorageError("unreadable", message(error)); }
     this.replace(path, Buffer.from(text));
   }
+  // Claude Code saves this file too, so Doan never renames its merge over a file it has not just re-verified
+  // (agentSetup/swap.ts swapFile): a file that is not the one Doan read, by identity and bytes, stays and the next run
+  // merges into it. A missing file is created exclusively with link(2). A link is the person's: it is never replaced or
+  // written through, whether or not its target has the rules.
   private mergeSetting(path: string, merge: SettingMerge): void {
-    let current: string | null = null;
-    try { current = new TextDecoder("utf-8", { fatal: true }).decode(readFileSync(path)); }
-    catch (error) {
-      if (!absent(error)) {
-        // Bytes that are not UTF-8 would be changed by a text round trip, so the file stays as it is.
-        if (error instanceof TypeError) return;
-        throw new StorageError("unreadable", message(error));
-      }
+    let seen: Stats | null = null;
+    try { seen = lstatSync(path); } catch (error) { if (!absent(error)) throw new StorageError("unreadable", message(error)); }
+    if (seen !== null && !seen.isFile()) return;
+    let bytes: Buffer | null = null, current: string | null = null;
+    if (seen !== null) {
+      try { bytes = readFileSync(path); current = new TextDecoder("utf-8", { fatal: true }).decode(bytes); }
+      // Bytes that are not UTF-8 would be changed by a text round trip, so the file stays as it is.
+      catch (error) { if (error instanceof TypeError || absent(error)) return; throw new StorageError("unreadable", message(error)); }
     }
     const next = merge(current);
-    if (next !== null && next !== current) this.replace(path, Buffer.from(next));
+    if (next === null || next === current) return;
+    const staged = `${path}.${randomUUID()}.tmp`;
+    try {
+      this.stage(staged, Buffer.from(next), seen === null ? 0o600 : seen.mode & 0o777);
+      if (seen === null || bytes === null) { linkSync(staged, path); return; }
+      const dir = lstatSync(dirname(path));
+      const result = swapFile(
+        { lstatSync, readlinkSync, renameSync, symlinkSync, linkSync, unlinkSync, readFileSync },
+        { path, staged, id: `${seen.dev}:${seen.ino}`, bytes, aside: join(dirname(path), `.doan-${randomUUID()}.aside`), parent: dir.isDirectory() ? `${dir.dev}:${dir.ino}` : null },
+      );
+      if (result.kind === "failed") throw new StorageError("write_failed", result.code);
+      if (result.kind === "displaced") throw new StorageError("write_failed", `${path} was moved to ${result.at}`);
+    } catch (error) {
+      // EEXIST: a file arrived where none was; it stays.
+      if (error instanceof StorageError) throw error;
+      if (typeof error === "object" && error !== null && (error as NodeJS.ErrnoException).code === "EEXIST") return;
+      throw new StorageError("write_failed", message(error));
+    } finally { try { rmSync(staged, { force: true }); } catch { /* A stray temp file is scrubbed with leftovers. */ } }
+  }
+  private stage(path: string, bytes: Buffer, mode: number): void {
+    mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
+    const fd = openSync(path, "wx", mode);
+    try { writeSync(fd, bytes); fchmodSync(fd, mode); fsyncSync(fd); } finally { closeSync(fd); }
   }
   hasWorkingCopy(provider: Provider, rels: readonly string[]): boolean {
     return rels.some(rel => {

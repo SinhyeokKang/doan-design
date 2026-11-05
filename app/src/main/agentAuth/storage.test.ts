@@ -1,4 +1,4 @@
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -185,6 +185,60 @@ describe("merged profile settings", () => {
     storage.writeSetting("claude", "settings.json", () => { called = true; return "x"; });
     expect(called).toBe(false);
     expect(readFileSync(path).equals(bytes)).toBe(true);
+  });
+  // The merge callback runs after Doan read the file and before it publishes, which is where another process's save lands.
+  const strays = (storage: AuthStorage) => readdirSync(storage.profileDir("claude")).filter(name => name.startsWith(".") || name.endsWith(".tmp") || name.endsWith(".aside"));
+  it("keeps a save made in place after the read, and leaves the merge for the next run", () => {
+    const storage = new AuthStorage(root, fakeCipher());
+    const path = join(storage.profileDir("claude"), "settings.json");
+    writeFileSync(path, '{"model":"old"}');
+    storage.writeSetting("claude", "settings.json", () => { writeFileSync(path, '{"model":"new","newKey":true}'); return '{"model":"old","rules":1}'; });
+    expect(read(storage, "settings.json")).toBe('{"model":"new","newKey":true}');
+    expect(strays(storage)).toEqual([]);
+    storage.writeSetting("claude", "settings.json", current => `${current}\n`);
+    expect(read(storage, "settings.json")).toBe('{"model":"new","newKey":true}\n');
+  });
+  it("keeps a save that replaced the file with a new one after the read", () => {
+    const storage = new AuthStorage(root, fakeCipher());
+    const path = join(storage.profileDir("claude"), "settings.json");
+    writeFileSync(path, '{"model":"old"}');
+    storage.writeSetting("claude", "settings.json", () => {
+      writeFileSync(`${path}.claude`, '{"model":"new","newKey":true}'); renameSync(`${path}.claude`, path); return '{"model":"old","rules":1}';
+    });
+    expect(read(storage, "settings.json")).toBe('{"model":"new","newKey":true}');
+    expect(strays(storage)).toEqual([]);
+  });
+  it("keeps a file created after the read found none", () => {
+    const storage = new AuthStorage(root, fakeCipher());
+    const path = join(storage.profileDir("claude"), "settings.json");
+    storage.writeSetting("claude", "settings.json", () => { writeFileSync(path, '{"model":"claude"}'); return '{"rules":1}'; });
+    expect(read(storage, "settings.json")).toBe('{"model":"claude"}');
+    expect(strays(storage)).toEqual([]);
+  });
+  it("keeps the old mode when it publishes a merge into an existing file", () => {
+    const storage = new AuthStorage(root, fakeCipher());
+    const path = join(storage.profileDir("claude"), "settings.json");
+    writeFileSync(path, "{}"); chmodSync(path, 0o640);
+    storage.writeSetting("claude", "settings.json", () => '{"a":1}');
+    expect(read(storage, "settings.json")).toBe('{"a":1}');
+    expect(statSync(path).mode & 0o777).toBe(0o640);
+    expect(strays(storage)).toEqual([]);
+  });
+  it.each([
+    ["a live link whose target lacks the rules", (dir: string) => { writeFileSync(join(dir, "shared.json"), '{"model":"shared"}'); symlinkSync("shared.json", join(dir, "settings.json")); }],
+    ["a live link whose target has every rule", (dir: string) => { writeFileSync(join(dir, "shared.json"), '{"rules":1}'); symlinkSync("shared.json", join(dir, "settings.json")); }],
+    ["a dangling link", (dir: string) => { symlinkSync("missing.json", join(dir, "settings.json")); }],
+  ])("leaves %s as a link and writes nothing through it", (_name, plant) => {
+    const storage = new AuthStorage(root, fakeCipher());
+    const dir = storage.profileDir("claude"), path = join(dir, "settings.json");
+    plant(dir);
+    const target = readlinkSync(path), shared = existsSync(join(dir, "shared.json")) ? readFileSync(join(dir, "shared.json"), "utf8") : null;
+    storage.writeSetting("claude", "settings.json", () => '{"rules":1}');
+    expect(lstatSync(path).isSymbolicLink()).toBe(true);
+    expect(readlinkSync(path)).toBe(target);
+    expect(existsSync(join(dir, "shared.json")) ? readFileSync(join(dir, "shared.json"), "utf8") : null).toBe(shared);
+    expect(existsSync(join(dir, "missing.json"))).toBe(false);
+    expect(strays(storage)).toEqual([]);
   });
   it("refuses a path through a link out of the profile as it does for text settings", () => {
     const storage = new AuthStorage(root, fakeCipher());
