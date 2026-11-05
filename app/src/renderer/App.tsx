@@ -1107,10 +1107,12 @@ export function App() {
     const next = preferenceAfterPick(preferences?.preferences.newConversation ?? null, { provider, model: null, effort: null, permissionMode: mode });
     if (next) void savePreferences({ newConversation: next });
   }
-  // Escape leaves a page unless a field or an IME composition holds it, or an overlay closes itself first.
+  // Escape leaves a page unless a field or an IME composition holds it, or an overlay closes itself first. A Radix
+  // popover (the usage popover) closes on Escape and prevents the default; its role="dialog" content is not one the
+  // overlay query finds, so a handled Escape is skipped as CanvasController skips it.
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || (currentScreen.current !== "addProjects" && currentScreen.current !== "settings" && currentScreen.current !== "projectSettings")) return;
+      if (event.key !== "Escape" || event.defaultPrevented || (currentScreen.current !== "addProjects" && currentScreen.current !== "settings" && currentScreen.current !== "projectSettings")) return;
       live.current.leavePage(pageEscape(event, live.current.modal || !!document.querySelector('dialog[open], [role="menu"], [role="tooltip"]')));
     };
     window.addEventListener("keydown", keydown);

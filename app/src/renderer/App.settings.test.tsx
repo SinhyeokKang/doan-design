@@ -363,6 +363,27 @@ test("every screen's header ends with Agent usage; its Agent settings opens Sett
   expect(settings()!.props).toMatchObject({ section: "agents", arrival: { focus: { kind: "heading" } } });
 });
 
+// provider-usage review-C 🔴1: the open usage popover is a Radix Popover, which closes on Escape at the document's
+// capture phase and prevents the default (react-use-escape-keydown). Its content is a role="dialog" div the page's
+// overlay check does not see, so the page must honour defaultPrevented and stay; the next Escape leaves.
+test("Escape that the open usage popover took keeps Settings, Add Projects and Project Settings; the next Escape leaves", () => {
+  const popoverEscape = () => { windowListeners.keydown!({ key: "Escape", target: { tagName: "UL" }, isComposing: false, keyCode: 27, defaultPrevented: true, preventDefault: vi.fn() } as never); render(); };
+  const pages: [string, () => void, () => boolean][] = [
+    ["Settings", openFromWorkspace, onSettings],
+    ["Add Projects", () => { openFromWorkspace(); click(topBar(settings()!.props.header).add); }, () => addPage() !== undefined],
+    ["Project Settings", projectSettingsFromWorkspace, () => projectPage() !== undefined],
+  ];
+  for (const [name, open, onPage] of pages) {
+    reset();
+    open();
+    expect(onPage(), name).toBe(true);
+    popoverEscape();
+    expect(onPage(), name).toBe(true);
+    escape();
+    expect(onPage(), name).toBe(false);
+  }
+});
+
 test("a notification click: a known conversation goes where the permission toast's Open goes, an unknown one to its registered project's Overview, else nowhere", () => {
   const click = (target: { conversationId: string; root: string }) => { listeners.notificationClick!(target as never); render(); };
   // Known: the run's own conversation in /w/b opens its project, like the toast's Open.
