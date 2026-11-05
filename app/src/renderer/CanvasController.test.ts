@@ -3799,6 +3799,31 @@ describe("capture", () => {
     } finally { h.controller.dispose(); }
   });
 
+  // Review K ⚪1: leaving mid-drag must release the drag too, or a dropped drag would hold the layer up off the page.
+  it.each([
+    ["Home or Settings", (h: H) => h.controller.setWorkspaceActive(false)],
+    ["the Overview or a modal", (h: H) => h.controller.setCanvasPage(false)],
+  ])("a drag in progress ends with capture mode when the canvas page goes for %s; its late release takes nothing", (_, leave) => {
+    const h = harness();
+    try {
+      const { areas } = listen(h);
+      h.controller.startCapture();
+      pointer(h, "pointerdown", { clientX: 10, clientY: 10 });
+      pointer(h, "pointermove", { clientX: 200, clientY: 200 });
+      expect(marquee(h).hidden).toBe(false);
+      leave(h);
+      expect(h.state().capturing).toBe(false);
+      expect(captureShown(h)).toBe(false);
+      expect(marquee(h).hidden).toBe(true);
+      expect(captureLayer(h).captured?.size).toBe(0);
+      pointer(h, "pointerup", { clientX: 200, clientY: 200 });
+      expect(areas).toEqual([]);
+      expect(h.queued).toHaveLength(0);
+      expect(snapshot(h)).toBe(false);
+      expect(captureShown(h)).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
   it("a reload keeps capture mode and the drag in progress; a release before the new document lays out takes nothing", () => {
     const h = harness();
     try {
