@@ -1,8 +1,8 @@
 /* The viewer page's styles. Token values and component rules are copied from the app so the page
    needs no other file (a canvas export is one file and makes no requests): tokens from
    app/src/renderer/tokens.css, buttons from ds/controls.css, menus and notices from
-   ds/surfaces.css, the header from styles.css (.ov-head, .doan-canvas-*). The class names are the
-   app's. Only the roles this page reads are copied, one light theme. Geist is not bundled, so the
+   ds/surfaces.css, the header, the panel and the tools row from styles.css (.ov-head,
+   .doan-canvas-*). The class names are the app's. Only the roles this page reads are copied, one light theme. Geist is not bundled, so the
    type family falls back to the system stack the token already names. */
 
 :root {
@@ -24,6 +24,7 @@
   --font-system-sans: ui-sans-serif, -apple-system, "Apple SD Gothic Neo", sans-serif;
   --type-family: "Geist", var(--font-system-sans);
 
+  --bg-app: var(--neutral-quiet-hover);
   --surface-panel: var(--neutral-1);
   --surface-popover: var(--neutral-1);
   --surface-elevated-glass: var(--neutral-glass);
@@ -32,6 +33,7 @@
   --text-subtle: var(--neutral-10);
   --text-metadata: var(--neutral-9);
   --text-disabled: var(--neutral-7);
+  --text-on-prominent: var(--neutral-1);
   --border-standard: var(--neutral-3);
   --border-focus: var(--neutral-12);
   --scrollbar-thumb-quiet: color-mix(in srgb, var(--border-standard) 90%, transparent);
@@ -40,6 +42,7 @@
   --affordance-backdrop-hover: var(--neutral-backdrop-hover);
   --affordance-backdrop-pressed: var(--neutral-backdrop-pressed);
   --affordance-floating-hover: var(--neutral-2);
+  --affordance-prominent: var(--neutral-12);
 
   --space-half: 2px;
   --space-1: 4px;
@@ -47,8 +50,10 @@
   --space-2: 8px;
   --space-3: 12px;
   --space-4: 16px;
+  --space-5: 20px;
   --space-6: 24px;
   --size-control-sm: 32px;
+  --size-control: 40px;
   --size-chrome: 56px;
   --size-icon: 16px;
   --radius-row: 16px;
@@ -57,13 +62,16 @@
   --radius-capsule: 34px;
   --radius-pill: 9999px;
   --shadow-panel: 0 0 0 1px rgba(0, 0, 0, 0.06), 0 1px 2px -1px rgba(0, 0, 0, 0.06), 0 2px 4px rgba(0, 0, 0, 0.04);
+  --shadow-sm: 0 0 2px rgba(0, 0, 0, 0.1), 0 4px 8px -2px rgba(0, 0, 0, 0.06);
   --blur-sm: 8px;
   --time-state: 150ms;
   --ease-state: ease;
 
+  --type-weight-regular: 400;
   --type-weight-medium: 500;
   --type-caption-size: 12px;
   --type-caption-line-height: 16px;
+  --type-caption-letter-spacing: 0.0133em;
   --type-body-sm-size: 14px;
   --type-body-sm-line-height: 20px;
   --type-body-sm-letter-spacing: -0.0025em;
@@ -78,7 +86,7 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: var(--surface-inset);
+  background: var(--bg-app);
   color: var(--text-standard);
   font-family: var(--type-family);
   font-size: var(--type-body-sm-size);
@@ -89,6 +97,17 @@ body {
 }
 button { font: inherit; border-style: none; }
 svg { display: block; flex: none; }
+
+/* ── Content panel ───────────────────────────────────────────────────────────── */
+/* The app's canvas panel with the conversation panel folded: white, 24 on all four corners, on the
+   window's grey. The app has its window header above it; the viewer has none, so the panel sits 8
+   from every edge. The tools row floats in the panel, outside the scrolling board, so it never
+   scrolls with it; clip (not hidden) keeps a focused descendant from scrolling the panel itself
+   (POSTMORTEM 2026-11-02, Tab and the floating tools). */
+.doan-canvas-panel { position: relative; display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; margin: var(--space-2); background: var(--surface-panel); border-radius: var(--radius-container); overflow: clip; isolation: isolate; }
+/* The header's menus open down over the board and must stay over the tools row (3) and its
+   tooltip (4): in a short window an open Frames list reaches the tools. */
+.doan-canvas-panel > .doan-canvas-head { position: relative; z-index: 5; }
 
 /* ── Header (styles.css .ov-head, .doan-canvas-head and friends) ─────────────── */
 .ov-head { display: flex; align-items: center; gap: var(--space-2); min-width: 0; min-height: var(--size-chrome); padding: var(--space-2) var(--space-4); }
@@ -160,6 +179,8 @@ svg { display: block; flex: none; }
 @media (prefers-reduced-motion: reduce) {
   :is(.doan-button, .doan-icon-button) { transition: none; }
 }
+
+.doan-icon-button[data-ui-size="md"] { width: var(--size-control); height: var(--size-control); }
 
 /* ── Menus (ds/surfaces.css) ─────────────────────────────────────────────────── */
 .doan-floating {
@@ -243,12 +264,80 @@ svg { display: block; flex: none; }
 }
 .doan-alert-icon { flex: none; margin-block: calc((var(--type-body-sm-line-height) - var(--size-icon)) / 2); }
 
+/* ── Tooltip and key (ds/surfaces.css .doan-tooltip, ds/controls.css .doan-kbd) ─ */
+/* The page has no Radix: shell.js places the one tooltip over its tool, 4 above it as the app's
+   sideOffset, with a plain absolute box in the panel. */
+.doan-tooltip {
+  width: fit-content;
+  max-width: min(384px, calc(100vw - 2 * var(--space-4)));
+  padding: var(--space-1) var(--space-2);
+  border-radius: calc((var(--type-caption-line-height) + 2 * var(--space-1)) / 2);
+  background: var(--affordance-prominent);
+  box-shadow: var(--shadow-sm);
+  color: var(--text-on-prominent);
+  font-size: var(--type-caption-size);
+  font-weight: var(--type-weight-regular);
+  line-height: var(--type-caption-line-height);
+  letter-spacing: var(--type-caption-letter-spacing);
+  overflow-wrap: anywhere;
+}
+.doan-tooltip.has-key {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  white-space: nowrap;
+}
+.doan-kbd {
+  display: inline-flex;
+  align-items: center;
+  max-inline-size: 100%;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--surface-inset);
+  color: var(--text-subtle);
+  font-family: inherit;
+  font-size: var(--type-body-sm-size);
+  line-height: var(--type-body-sm-line-height);
+  letter-spacing: var(--type-body-sm-letter-spacing);
+  overflow-wrap: anywhere;
+}
+.doan-kbd[data-ui-variant="on-prominent"] {
+  background: color-mix(in srgb, currentColor 16%, transparent);
+  color: inherit;
+  box-shadow: none;
+}
+.doan-kbd[data-ui-size="sm"] {
+  padding: 0 var(--space-1h);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line-height);
+  letter-spacing: var(--type-caption-letter-spacing);
+}
+/* Over the tools row (z-index 3): it covers the row's top ring by 1px, and an equal z-index would
+   leave that to source order. */
+.vw-tool-tip { position: absolute; z-index: 4; transform: translate(-50%, -100%); pointer-events: none; }
+.vw-tool-tip[hidden] { display: none; }
+
+/* ── Tools row (styles.css) ──────────────────────────────────────────────────── */
+.doan-canvas-bottom { position: absolute; z-index: 3; bottom: var(--space-5); left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: var(--space-2); width: max-content; max-width: calc(100% - 2 * var(--space-3)); pointer-events: none; }
+.doan-canvas-bottom > * { pointer-events: auto; }
+.doan-canvas-tools { display: flex; align-items: center; gap: var(--space-half); }
+.doan-canvas-tools .doan-icon-button { color: var(--text-standard); }
+.doan-canvas-tools > .doan-icon-button.doan-canvas-tool[aria-pressed="true"]:not(:disabled) { background: var(--affordance-backdrop-pressed); }
+/* Without JavaScript the tools cannot work, so the row is not there (like the header's tools). */
+html:not(.js) .doan-canvas-bottom { display: none; }
+
 /* ── Board ───────────────────────────────────────────────────────────────────── */
 /* The board is the app's inset grey, a native scroll container: panning is the browser's scroll,
    zoom is a transform on the stage inside a spacer of the scaled size (shell.js). */
 .board { position: relative; flex: 1; min-height: 0; overflow: auto; background: var(--surface-inset); }
 .board:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
 .board iframe { display: block; border: 0; }
+/* The drag surface (shell.js, lib.js layerShown): in Hand, while Space is held and through a drag,
+   the board takes the pointer and the wheel, and the canvas iframe none. The app's .drag-layer
+   cursors. */
+.board[data-pan] { cursor: grab; }
+.board[data-pan][data-grabbing] { cursor: grabbing; }
+.board[data-pan] .canvas { pointer-events: none; }
 /* The canvas as the CSS alone shows it: its doan:width wide, one screen high. */
 .canvas { height: 100vh; }
 .vw-noscript { position: absolute; z-index: 1; top: var(--space-4); left: var(--space-4); right: var(--space-4); }

@@ -6,7 +6,10 @@
 // Copied from the app, with a test that fails when a copy drifts:
 //   - nextHeight, documentHeight, frameBottom, canScrollAxis, clipText: app/src/main/canvasScript.ts
 //     (compared as function text);
-//   - the constants, fitScale, wheelAction: app/src/renderer/viewport.ts (compared as values).
+//   - the constants, fitScale, wheelAction: app/src/renderer/viewport.ts (compared as values);
+//   - toolShortcut with TOOL_KEYS, CONTROL_ROLES and interactiveTarget: app/src/renderer/canvasTool.ts,
+//     and editableTarget: app/src/renderer/selection.ts (compared as values over one event table,
+//     since the app does not export the helpers).
 
 const MIN_SCALE = 0.05;
 const MAX_SCALE = 4;
@@ -70,8 +73,9 @@ function clipText(text, max) {
 
 // ── Messages from the canvas document ─────────────────────────────────────────
 // The canvas's own scripts share its window and can post anything, so a message is checked field
-// by field and copied (canvasMessage.ts). Only `layout` and `wheel` exist here; there is no
-// selection channel.
+// by field and copied (canvasMessage.ts). Only `layout`, `wheel` and `key` exist here; there is no
+// selection channel. `key` carries the tool keys pressed while focus is in the canvas: Space down
+// and up, V, H and Escape, nothing else.
 
 function isRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -117,10 +121,18 @@ function parseWheel(data) {
   return { type: "wheel", dx, dy, ctrl, meta, deltaMode, x, y };
 }
 
+function parseKey(data) {
+  const { key, down } = data;
+  if (key === "Space") return typeof down === "boolean" ? { type: "key", key, down } : null;
+  if (key === "V" || key === "H" || key === "Escape") return { type: "key", key };
+  return null;
+}
+
 function parseMessage(data) {
   if (!isRecord(data)) return null;
   if (data.type === "layout") return parseLayout(data);
   if (data.type === "wheel") return parseWheel(data);
+  if (data.type === "key") return parseKey(data);
   return null;
 }
 
@@ -238,6 +250,68 @@ function currentFrame(frames, view, viewport) {
   return nearest;
 }
 
+// A drag's own travel moves the board's native scroll, so the view stops at 0 and at the most the
+// board scrolls (the app pans without bounds; the viewer keeps the scroll range). Inside the range
+// it is the app's panBy: the view moves by (dx, dy), the scroll by the opposite.
+function panScroll(scroll, max, dx, dy) {
+  return { left: clamp(scroll.left - dx, 0, Math.max(0, max.left)), top: clamp(scroll.top - dy, 0, Math.max(0, max.top)) };
+}
+
+// ── Tools (canvasTool.ts) ─────────────────────────────────────────────────────
+// Select leaves the canvas to the person; Hand, a held Space and a drag in progress turn the board
+// into the drag surface (the canvas iframe takes no pointer). Before the canvas is drawn nothing
+// pans, so a Space held then does not carry over.
+
+const TOOL_KEYS = { KeyV: "select", KeyH: "hand" };
+const CONTROL_ROLES = new Set(["button", "menuitem", "treeitem", "option", "tab", "switch", "checkbox", "radio", "combobox"]);
+
+function editableTarget(target) {
+  if (typeof target !== "object" || target === null || !("tagName" in target)) return false;
+  const { tagName } = target;
+  return tagName === "INPUT" || tagName === "TEXTAREA" || tagName === "SELECT" || ("isContentEditable" in target && target.isContentEditable === true);
+}
+
+// Space on a focused control presses it; elsewhere it pans.
+function interactiveTarget(target) {
+  if (typeof target !== "object" || target === null || !("tagName" in target)) return false;
+  const element = target;
+  if (element.tagName === "BUTTON") return true;
+  if (element.tagName === "A" && element.hasAttribute?.("href") === true) return true;
+  const role = element.getAttribute?.("role");
+  return typeof role === "string" && CONTROL_ROLES.has(role);
+}
+
+// By key position (`code`), so a Korean layout's ㅍ and ㅗ still switch tools. A Space release
+// always counts, so a held Space never outlives the key.
+function toolShortcut(event, context) {
+  if (event.type === "keyup") return event.code === "Space" ? { kind: "space", down: false } : null;
+  if (event.type !== "keydown") return null;
+  const tool = TOOL_KEYS[event.code];
+  if (tool === undefined && event.code !== "Space") return null;
+  if (!context.canvasPage || event.repeat || event.isComposing || event.keyCode === 229 || event.defaultPrevented) return null;
+  if (event.metaKey || event.ctrlKey || event.altKey || editableTarget(event.target)) return null;
+  if (tool !== undefined) return { kind: "tool", tool };
+  return interactiveTarget(event.target) ? null : { kind: "space", down: true };
+}
+
+function layerShown(tool, spaceHeld, dragging, boardDrawn) {
+  return boardDrawn && (tool === "hand" || spaceHeld || dragging);
+}
+
+// The viewer has no pick and no selection, so of the app's escapeStep only Hand → Select is left.
+// A text field keeps its own Esc, and an Esc a menu or the tooltip took (prevented) is spent.
+function escapeSelects(state) {
+  return state.hand && !state.editable && !state.defaultPrevented;
+}
+
+// The toolbar's ←/→ move focus between the tools and stop at the ends; no Home or End
+// (CanvasTools.tsx moveBetweenTools). null: focus stays.
+function toolbarMove(index, count, key) {
+  if (index < 0 || index >= count) return null;
+  const next = key === "ArrowRight" ? index + 1 : key === "ArrowLeft" ? index - 1 : -1;
+  return next >= 0 && next < count ? next : null;
+}
+
 // ── Viewer state ──────────────────────────────────────────────────────────────
 
 // The iframe's height after a layout: only one measured at the height we set counts (a layout
@@ -329,9 +403,12 @@ function popupOpen(count, current) {
   return { open: count > 0, active: count > 0 ? clamp(current, 0, count - 1) : -1, focus: "list", pick: -1, prevent: true };
 }
 
-function popupKey(popup, key, count) {
+// `code` is the physical key: an open list keeps V and H (any layout) as handled, so the tool does
+// not change under it.
+function popupKey(popup, key, count, code) {
   const close = { open: false, active: -1, focus: "trigger", pick: -1, prevent: true };
   if (key === "Escape") return close;
+  if (code === "KeyV" || code === "KeyH") return { ...popup, focus: "none", prevent: true };
   if (key === "Enter" || key === " ") return popup.active >= 0 && popup.active < count ? { ...close, pick: popup.active } : close;
   // Like a menu, Tab does not walk out of the open list into the page.
   if (key === "Tab") return { ...popup, focus: "none", prevent: true };

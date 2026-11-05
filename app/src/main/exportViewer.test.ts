@@ -1,5 +1,8 @@
 import { readFileSync } from "node:fs";
 import { runInNewContext, Script } from "node:vm";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { Hand, MousePointer2 } from "lucide-react";
 import { describe, expect, test } from "vitest";
 import { MAX_FRAMES, MAX_HREF, MAX_STRING, parseCanvasMessage } from "../renderer/canvasMessage";
 import { INITIAL_HEIGHT, layoutHeight as appLayoutHeight, MAX_HEIGHT } from "../renderer/canvasView";
@@ -10,6 +13,9 @@ import {
   WHEEL_ZOOM_MAX, WHEEL_ZOOM_SENSITIVITY, wheelAction as appWheelAction, ZOOM_LIMITS, ZOOM_STEP, zoomAt as appZoomAt,
 } from "../renderer/viewport";
 import { canScrollAxis, clipText, documentHeight, frameBottom, nextHeight } from "./canvasScript";
+import { toolShortcut as appToolShortcut, type ShortcutEvent } from "../renderer/canvasTool";
+import { editableTarget as appEditableTarget } from "../renderer/selection";
+import { panBy as appPanBy } from "../renderer/viewport";
 
 // The viewer files `doan export` embeds (cli/internal/export/viewer/). They are plain browser
 // scripts, not app code, so this file is where they are held to the app's behaviour.
@@ -28,6 +34,7 @@ const NAMES = [
   "nextHeight", "documentHeight", "frameBottom", "canScrollAxis", "clipText", "parseLayout", "parseWheel", "parseMessage", "acceptMessage",
   "fitScale", "fitWidth", "fitFrame", "zoomAt", "wheelAction", "geometry", "scrollFor", "viewFrom", "currentFrame", "layoutHeight",
   "initialViewer", "viewerLayout", "viewerTimeout", "frameName", "drawerView", "ZOOM_ITEMS", "zoomView", "shortcutCommand", "popupOpen", "popupKey", "popupBlur",
+  "toolShortcut", "editableTarget", "panScroll", "layerShown", "escapeSelects", "toolbarMove",
 ];
 type Lib = Record<string, any>;
 const load = (source: string): Lib => runInNewContext(`${source}\n({ ${NAMES.join(", ")} })`, {}) as Lib;
@@ -464,6 +471,148 @@ describe("popup lists", () => {
   });
 });
 
+// ── Tools: Select and Hand (export-viewer-chrome) ─────────────────────────────
+
+describe("tool keys are the app's", () => {
+  const press = (over: Partial<ShortcutEvent> = {}): ShortcutEvent => ({ type: "keydown", code: "KeyV", key: "v", repeat: false, isComposing: false, keyCode: 0, defaultPrevented: false, metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, target: null, ...over });
+  const element = (tagName: string, attributes: Record<string, string> = {}, editable = false) => ({ tagName, isContentEditable: editable, getAttribute: (name: string) => attributes[name] ?? null, hasAttribute: (name: string) => name in attributes });
+  const targets: [string, unknown][] = [
+    ["no target", null], ["a string", "BUTTON"], ["an object without tagName", {}], ["a div", element("DIV")], ["the board", element("MAIN", { tabindex: "0" })],
+    ["an input", element("INPUT")], ["a textarea", element("TEXTAREA")], ["a select", element("SELECT")], ["a contenteditable div", element("DIV", {}, true)],
+    ["a button", element("BUTTON")], ["a link", element("A", { href: "#x" })], ["an anchor without href", element("A")],
+    ...["button", "menuitem", "treeitem", "option", "tab", "switch", "checkbox", "radio", "combobox", "listbox", "dialog"].map((role): [string, unknown] => [`role=${role}`, element("DIV", { role })]),
+  ];
+  const keys: [string, string][] = [["KeyV", "v"], ["KeyH", "h"], ["KeyV", "ㅍ"], ["KeyH", "ㅗ"], ["KeyV", "V"], ["Space", " "], ["KeyB", "v"], ["KeyA", "a"], ["Escape", "Escape"], ["Digit1", "!"]];
+  const flags: [string, Partial<ShortcutEvent>][] = [
+    ["plain", {}], ["a repeat", { repeat: true }], ["an IME composition", { isComposing: true }], ["keyCode 229", { keyCode: 229 }],
+    ["⌘", { metaKey: true }], ["⌃", { ctrlKey: true }], ["⌥", { altKey: true }], ["⇧", { shiftKey: true }], ["a handled key", { defaultPrevented: true }],
+  ];
+  const events: [string, ShortcutEvent][] = [];
+  for (const type of ["keydown", "keyup", "keypress"]) {
+    for (const [code, key] of keys) {
+      for (const [flag, over] of flags) {
+        for (const [where, target] of targets) events.push([`${type} ${code} (${key}) ${flag} on ${where}`, press({ type, code, key, ...over, target })]);
+      }
+    }
+  }
+
+  test("toolShortcut gives the app's answer for every row of the event table", () => {
+    expect(events.length).toBeGreaterThan(3000);
+    for (const context of [{ canvasPage: true }, { canvasPage: false }]) {
+      for (const [label, event] of events) expect(v.toolShortcut(event, context), label).toEqual(appToolShortcut(event, context));
+    }
+    // The table reaches every answer, a held Space's release on any target included.
+    const answers = new Set(events.map(([, event]) => JSON.stringify(v.toolShortcut(event, { canvasPage: true }))));
+    expect([...answers].sort()).toEqual([JSON.stringify({ kind: "space", down: false }), JSON.stringify({ kind: "space", down: true }), JSON.stringify({ kind: "tool", tool: "hand" }), JSON.stringify({ kind: "tool", tool: "select" }), "null"].sort());
+    for (const [where, target] of targets) expect(v.toolShortcut(press({ type: "keyup", code: "Space", key: " ", metaKey: true, isComposing: true, repeat: true, target }), { canvasPage: true }), where).toEqual({ kind: "space", down: false });
+  });
+
+  test("editableTarget gives the app's answer for every target", () => {
+    for (const [label, target] of targets) expect(v.editableTarget(target), label).toBe(appEditableTarget(target));
+    expect(targets.filter(([, target]) => v.editableTarget(target)).map(([label]) => label)).toEqual(["an input", "a textarea", "a select", "a contenteditable div"]);
+  });
+
+  test("the comparison fails when a copy drifts", () => {
+    const drifted = load(lib.replace('"combobox"', '"listbox"'));
+    const row = press({ code: "Space", key: " ", target: element("DIV", { role: "combobox" }) });
+    expect(drifted.toolShortcut(row, { canvasPage: true })).not.toEqual(appToolShortcut(row, { canvasPage: true }));
+  });
+});
+
+describe("dragging the view", () => {
+  const viewport = { width: 960, height: 544 };
+
+  test("inside the scroll range a drag moves the view as the app's panBy does", () => {
+    for (const scale of [1, 1.5, 2]) {
+      const geom = v.geometry(scale, 1440, 2000, viewport);
+      const max = { left: geom.minWidth - viewport.width, top: geom.height - viewport.height };
+      expect(max.left).toBeGreaterThan(200);
+      for (const scroll of [{ left: 100, top: 100 }, { left: max.left / 2, top: 140.5 }]) {
+        for (const [dx, dy] of [[10, -20], [-60, 35], [0, 0], [0.4, -0.6], [-100, -100]] as const) {
+          const mine = v.viewFrom(v.panScroll(scroll, max, dx, dy), scale, geom);
+          const app = appPanBy(v.viewFrom(scroll, scale, geom), dx, dy);
+          // Through scroll offsets the sums round differently in the last bits.
+          expect(mine.scale).toBe(app.scale);
+          expect(mine.x).toBeCloseTo(app.x, 9);
+          expect(mine.y).toBeCloseTo(app.y, 9);
+        }
+      }
+    }
+  });
+
+  test("past the range it stops at 0 and at the most the board scrolls", () => {
+    const max = { left: 400, top: 900 };
+    expect(v.panScroll({ left: 10, top: 10 }, max, 50, -5000)).toEqual({ left: 0, top: 900 });
+    expect(v.panScroll({ left: 390, top: 890 }, max, -50, 50)).toEqual({ left: 400, top: 840 });
+    expect(v.panScroll({ left: 0, top: 0 }, max, 1, 1)).toEqual({ left: 0, top: 0 });
+  });
+
+  test("a canvas narrower than the board does not move that way", () => {
+    // Fit: the board is centred, so there is nothing to scroll sideways.
+    const fit = v.fitWidth(1440, viewport);
+    const geom = v.geometry(fit.scale, 1440, 2000, viewport);
+    const max = { left: Math.max(0, geom.minWidth - viewport.width), top: geom.height - viewport.height };
+    expect(max.left).toBe(0);
+    for (const dx of [-300, -1, 1, 300]) expect(v.panScroll({ left: 0, top: 50 }, max, dx, 0)).toEqual({ left: 0, top: 50 });
+  });
+});
+
+describe("the drag surface, Esc and the toolbar", () => {
+  test("the surface shows in Hand, while Space is held and through a drag, and never before the canvas is drawn", () => {
+    for (const tool of ["select", "hand"]) {
+      for (const space of [false, true]) {
+        for (const dragging of [false, true]) {
+          expect(v.layerShown(tool, space, dragging, false)).toBe(false);
+          expect(v.layerShown(tool, space, dragging, true)).toBe(tool === "hand" || space || dragging);
+        }
+      }
+    }
+  });
+
+  test("Esc turns Hand back to Select only when nothing handled it and it is not typing", () => {
+    expect(v.escapeSelects({ hand: true, editable: false, defaultPrevented: false })).toBe(true);
+    expect(v.escapeSelects({ hand: false, editable: false, defaultPrevented: false })).toBe(false);
+    expect(v.escapeSelects({ hand: true, editable: true, defaultPrevented: false })).toBe(false);
+    expect(v.escapeSelects({ hand: true, editable: false, defaultPrevented: true })).toBe(false);
+  });
+
+  test("←/→ move between the two tools and stop at the ends; other keys do nothing", () => {
+    expect(v.toolbarMove(0, 2, "ArrowRight")).toBe(1);
+    expect(v.toolbarMove(1, 2, "ArrowLeft")).toBe(0);
+    expect(v.toolbarMove(1, 2, "ArrowRight")).toBeNull();
+    expect(v.toolbarMove(0, 2, "ArrowLeft")).toBeNull();
+    for (const key of ["Home", "End", "ArrowUp", "ArrowDown", "Tab", " "]) expect(v.toolbarMove(0, 2, key), key).toBeNull();
+    // Focus outside the tools (index -1) is not walked into.
+    expect(v.toolbarMove(-1, 2, "ArrowRight")).toBeNull();
+  });
+
+  test("an open menu keeps V and H, by physical key, so the tool does not change under it", () => {
+    const open = v.popupOpen(4, 1);
+    for (const [key, code] of [["v", "KeyV"], ["h", "KeyH"], ["ㅍ", "KeyV"], ["ㅗ", "KeyH"]]) {
+      expect(v.popupKey(open, key, 4, code), key).toEqual({ ...open, focus: "none", prevent: true });
+    }
+    // Other letters stay the page's, as before.
+    expect(v.popupKey(open, "b", 4, "KeyB")).toMatchObject({ open: true, prevent: false });
+    expect(v.popupKey(open, "Escape", 4, "Escape")).toMatchObject({ open: false, focus: "trigger", prevent: true });
+  });
+});
+
+describe("key messages from the canvas", () => {
+  test("keeps Space down and up, V, H and Escape as fresh objects", () => {
+    expect(v.parseMessage({ type: "key", key: "Space", down: true, extra: 1 })).toEqual({ type: "key", key: "Space", down: true });
+    expect(v.parseMessage({ type: "key", key: "Space", down: false })).toEqual({ type: "key", key: "Space", down: false });
+    for (const key of ["V", "H", "Escape"]) expect(v.parseMessage({ type: "key", key, down: true })).toEqual({ type: "key", key });
+  });
+
+  test.each([
+    ["Alt", { type: "key", key: "Alt", alt: true }], ["a letter", { type: "key", key: "a" }], ["a lower-case v", { type: "key", key: "v" }],
+    ["Space without down", { type: "key", key: "Space" }], ["Space with a string down", { type: "key", key: "Space", down: "true" }],
+    ["no key", { type: "key" }], ["a numeric key", { type: "key", key: 32 }], ["a code instead of a key", { type: "key", code: "KeyV" }],
+  ])("drops %s", (_label, data) => {
+    expect(v.parseMessage(data)).toBeNull();
+  });
+});
+
 // ── The files themselves ──────────────────────────────────────────────────────
 
 describe("viewer files", () => {
@@ -576,6 +725,220 @@ describe("without JavaScript", () => {
     expect(shellCss).toMatch(/^\.canvas \{ height: 100vh; \}$/m);
     expect(shellCss).toMatch(/^\.js \.stage \{[^}]*visibility: hidden;/m);
     expect(shellCss).toMatch(/^\.js\.ready \.stage \{ visibility: visible; \}$/m);
+  });
+});
+
+// ── The content panel and the toolbar (export-viewer-chrome B1) ───────────────
+
+const appCss = (path: string): string => readFileSync(new URL(`../renderer/${path}`, import.meta.url), "utf8");
+const tokensCss = appCss("tokens.css");
+const stylesCss = appCss("styles.css");
+const controlsCss = appCss("ds/controls.css");
+const surfacesCss = appCss("ds/surfaces.css");
+
+// A rule's declarations as written, one rule per selector (the first one in the file).
+const declarations = (css: string, selector: string): string[] => {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const body = new RegExp(`(?:^|\\n)\\s*${escaped}\\s*\\{([^}]*)\\}`).exec(css)?.[1];
+  if (body === undefined) throw new Error(`no rule ${selector}`);
+  return body.split(";").map(part => part.replace(/\s+/g, " ").trim()).filter(Boolean);
+};
+
+describe("tokens are the app's", () => {
+  const roots = (css: string): Map<string, string> => {
+    const map = new Map<string, string>();
+    for (const block of css.matchAll(/:root\s*\{([^}]*)\}/g)) for (const d of block[1]!.matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) map.set(d[1]!, d[2]!.trim());
+    return map;
+  };
+  const resolve = (map: Map<string, string>, value: string): string => value.replace(/var\((--[\w-]+)\)/g, (_, name: string) => {
+    const next = map.get(name);
+    if (next === undefined) throw new Error(`${name} is not defined`);
+    return resolve(map, next);
+  }).replace(/\s+/g, " ");
+  const app = roots(tokensCss);
+  const viewer = roots(shellCss);
+
+  test("every token the viewer copies resolves to the app's value", () => {
+    expect(viewer.size).toBeGreaterThan(50);
+    for (const [name, value] of viewer) {
+      expect(app.has(name), name).toBe(true);
+      expect(resolve(viewer, value), name).toBe(resolve(app, app.get(name)!));
+    }
+  });
+
+  test("the panel and the toolbar take the window grey, the panel's corner and the toolbar's sizes", () => {
+    expect(resolve(viewer, "var(--bg-app)")).toBe("#f1f1f2");
+    expect(resolve(viewer, "var(--radius-container)")).toBe("24px");
+    expect(resolve(viewer, "var(--space-2)")).toBe("8px");
+    expect(resolve(viewer, "var(--space-5)")).toBe("20px");
+    expect(resolve(viewer, "var(--size-control)")).toBe("40px");
+  });
+});
+
+describe("the content panel", () => {
+  test("the window is the app's grey and the panel sits 8 from every edge, white, 24 on all four corners, clipped", () => {
+    expect(declarations(shellCss, "body")).toContain("background: var(--bg-app)");
+    const panel = declarations(shellCss, ".doan-canvas-panel");
+    for (const declaration of ["position: relative", "margin: var(--space-2)", "background: var(--surface-panel)", "border-radius: var(--radius-container)", "overflow: clip", "isolation: isolate"]) {
+      expect(panel, declaration).toContain(declaration);
+    }
+    // The app's panel and its board box: the same white, the same clip and isolation (styles.css).
+    expect(stylesCss).toMatch(/\.workspace > \.doan-canvas-panel \{[^}]*isolation: isolate/);
+    expect(declarations(stylesCss, ".doan-canvas-panel > .area")).toContain("overflow: clip");
+    expect(stylesCss).toMatch(/\.workspace > \.doan-canvas-panel \{[^}]*background: var\(--surface-panel\)/);
+    expect(stylesCss).toMatch(/\.workspace\[data-panel="collapsed"\] > \.doan-canvas-panel \{[^}]*var\(--radius-container\)/);
+  });
+
+  test("the header, the board and the toolbar are the panel's children; the toolbar is not inside the scrolling board", () => {
+    const panel = /<div class="doan-canvas-panel">([\s\S]*)<\/div>\s*<script type="application\/json"/.exec(shellHtml)?.[1] ?? "";
+    expect(panel).toMatch(/^\s*<header class="ov-head doan-canvas-head">/);
+    const board = /<main class="board" id="board"[\s\S]*?<\/main>/.exec(panel)?.[0] ?? "";
+    expect(board).not.toBe("");
+    expect(board).not.toContain("doan-canvas-bottom");
+    expect(panel.indexOf('class="doan-canvas-bottom"')).toBeGreaterThan(panel.indexOf("</main>"));
+  });
+
+  test("the header keeps the chrome height and stays over the toolbar and its tooltip, so its menus open over both", () => {
+    expect(declarations(shellCss, ".ov-head")).toContain("min-height: var(--size-chrome)");
+    expect(declarations(shellCss, ".doan-canvas-panel > .doan-canvas-head")).toEqual(["position: relative", "z-index: 5"]);
+    expect(declarations(shellCss, ".doan-canvas-bottom")).toContain("z-index: 3");
+  });
+});
+
+describe("the toolbar", () => {
+  test("its rules are the app's", () => {
+    for (const selector of [".doan-canvas-bottom", ".doan-canvas-bottom > *", ".doan-canvas-tools", ".doan-canvas-tools .doan-icon-button", '.doan-canvas-tools > .doan-icon-button.doan-canvas-tool[aria-pressed="true"]:not(:disabled)']) {
+      expect(declarations(shellCss, selector), selector).toEqual(declarations(stylesCss, selector));
+    }
+    expect(declarations(shellCss, '.doan-icon-button[data-ui-size="md"]')).toEqual(declarations(controlsCss, '.doan-icon-button[data-ui-size="md"]'));
+  });
+
+  test("the tooltip and its key are the app's, less Radix's transform origin", () => {
+    expect(declarations(shellCss, ".doan-tooltip")).toEqual(declarations(surfacesCss, ".doan-tooltip").filter(d => !d.startsWith("transform-origin")));
+    for (const selector of [".doan-tooltip.has-key", ".doan-kbd", '.doan-kbd[data-ui-variant="on-prominent"]', '.doan-kbd[data-ui-size="sm"]']) {
+      expect(declarations(shellCss, selector), selector).toEqual(declarations(controlsCss, selector));
+    }
+  });
+
+  test("it hides without JavaScript, as the header's tools do", () => {
+    expect(shellCss).toMatch(/^html:not\(\.js\) \.doan-canvas-bottom \{ display: none; \}$/m);
+  });
+
+  test("the drag surface takes the app's grab cursors and the canvas takes no pointer", () => {
+    expect(declarations(stylesCss, ".drag-layer")).toContain("cursor: grab");
+    expect(declarations(stylesCss, ".drag-layer[data-grabbing]")).toEqual(["cursor: grabbing"]);
+    expect(declarations(shellCss, ".board[data-pan]")).toEqual(["cursor: grab"]);
+    expect(declarations(shellCss, ".board[data-pan][data-grabbing]")).toEqual(["cursor: grabbing"]);
+    expect(declarations(shellCss, ".board[data-pan] .canvas")).toEqual(["pointer-events: none"]);
+    expect(shellCss).not.toMatch(/cursor:\s*url/);
+  });
+
+  // CanvasTools.tsx: only Select and Hand and the toolbar's name are held; the app's row has more tools.
+  const appTools = [...readFileSync(new URL("../renderer/CanvasTools.tsx", import.meta.url), "utf8").matchAll(/\{ tool: "(\w+)", label: "(\w+)", key: "(\w)", Icon: (\w+) \}/g)].map(m => ({ tool: m[1], label: m[2], key: m[3], icon: m[4] }));
+  const toolbar = /<div class="doan-floating doan-canvas-tools"[^>]*>([\s\S]*?)<\/div>/.exec(shellHtml);
+  const buttons = [...(toolbar?.[1] ?? "").matchAll(/<button ([^>]*)>([\s\S]*?)<\/button>/g)].map(m => ({ attrs: m[1]!, svg: m[2]! }));
+  const attr = (attrs: string, name: string) => new RegExp(`\\b${name}="([^"]*)"`).exec(attrs)?.[1] ?? null;
+
+  test("it is the Canvas tools toolbar with the app's Select (V) and Hand (H), in that order", () => {
+    expect(appTools).toEqual([{ tool: "select", label: "Select", key: "V", icon: "MousePointer2" }, { tool: "hand", label: "Hand", key: "H", icon: "Hand" }]);
+    expect(toolbar?.[0]).toMatch(/role="toolbar"/);
+    expect(toolbar?.[0]).toMatch(/aria-label="Canvas tools"/);
+    expect(readFileSync(new URL("../renderer/CanvasTools.tsx", import.meta.url), "utf8")).toContain('role="toolbar" aria-label="Canvas tools"');
+    expect(buttons.map(b => [attr(b.attrs, "aria-label"), attr(b.attrs, "aria-keyshortcuts"), attr(b.attrs, "data-tool")])).toEqual(appTools.map(t => [t.label, t.key, t.tool]));
+    for (const { attrs } of buttons) {
+      expect(attrs).toMatch(/^type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md"/);
+      // A title would draw the browser's tooltip next to ours.
+      expect(attr(attrs, "title")).toBeNull();
+    }
+    // Select is the first tool: pressed, and the toolbar's one Tab stop.
+    expect(buttons.map(b => [attr(b.attrs, "aria-pressed"), attr(b.attrs, "tabindex")])).toEqual([["true", "0"], ["false", "-1"]]);
+  });
+
+  test("the icons are lucide's MousePointer2 and Hand, inline and without a namespace URL", () => {
+    const paths = (svg: string) => [...svg.matchAll(/<path d="([^"]+)"/g)].map(m => m[1]);
+    expect(paths(buttons[0]!.svg)).toEqual(paths(renderToStaticMarkup(createElement(MousePointer2))));
+    expect(paths(buttons[1]!.svg)).toEqual(paths(renderToStaticMarkup(createElement(Hand))));
+    for (const { svg } of buttons) {
+      expect(svg).toMatch(/^<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">/);
+      expect(svg).not.toContain("xmlns");
+    }
+  });
+
+  test("the tooltip is one hidden element in the panel, filled by shell.js", () => {
+    expect(shellHtml).toContain('<div class="doan-tooltip has-key vw-tool-tip" id="tool-tip" role="tooltip" hidden></div>');
+    expect(declarations(shellCss, ".vw-tool-tip[hidden]")).toEqual(["display: none"]);
+  });
+
+  test("the tooltip stacks over the toolbar it overlaps by 1px, by z-index rather than source order", () => {
+    const z = (selector: string) => Number(/^z-index: (\d+)$/.exec(declarations(shellCss, selector).find(d => d.startsWith("z-index")) ?? "")?.[1]);
+    expect(z(".vw-tool-tip")).toBe(4);
+    expect(z(".vw-tool-tip")).toBeGreaterThan(z(".doan-canvas-bottom"));
+    // An open Frames list or zoom menu reaches down to the tools in a short window.
+    expect(z(".doan-canvas-panel > .doan-canvas-head")).toBeGreaterThan(z(".vw-tool-tip"));
+  });
+});
+
+// ── Tool wiring in the page and in the canvas (export-viewer-chrome B2) ───────
+
+describe("tool wiring", () => {
+  const code = (source: string) => source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+
+  test("the page and the canvas decide tool keys with toolShortcut on the canvas page", () => {
+    for (const [name, source] of [["shell.js", shellJs], ["measure.js", measure]] as const) {
+      expect(source, name).toMatch(/addEventListener\("keydown", \(event\) => \{\s*const shortcut = toolShortcut\(event, \{ canvasPage: true \}\);/);
+      expect(source, name).toMatch(/addEventListener\("keyup", \(event\) => \{\s*(const shortcut = |if \()?toolShortcut\(event, \{ canvasPage: true \}\)/);
+    }
+    // The canvas reports only what lib.js lets through; it reads no key on its own.
+    expect(code(measure)).not.toMatch(/event\.code === "Key[VH]"/);
+  });
+
+  test("the canvas iframe's pointer-events follow layerShown alone", () => {
+    expect(code(shellJs)).not.toMatch(/pointerEvents|pointer-events/);
+    const writes = code(shellJs).match(/toggleAttribute\("data-pan"[^;]*;/g) ?? [];
+    expect(writes).toEqual(['toggleAttribute("data-pan", layerShown(tool, spaceHeld, drag !== null, boardDrawn()));']);
+    expect(code(shellJs).match(/data-pan/g)).toHaveLength(1);
+  });
+
+  test("a drag ends on pointerup, pointercancel and lost capture, and needs the primary button", () => {
+    for (const type of ["pointerup", "pointercancel", "lostpointercapture"]) expect(shellJs, type).toContain(`board.addEventListener("${type}", endDrag);`);
+    expect(shellJs).toMatch(/board\.addEventListener\("pointerdown", \(event\) => \{\s*if \(!layerShown\(tool, spaceHeld, false, boardDrawn\(\)\) \|\| event\.button !== 0 \|\| drag !== null\) return;/);
+    expect(shellJs).toContain("board.setPointerCapture(event.pointerId);");
+    expect(shellJs).toMatch(/panScroll\(/);
+  });
+
+  test("Space is let go when the window loses focus to another window, and when the canvas loads another document", () => {
+    expect(shellJs).toMatch(/window\.addEventListener\("blur", \(\) => \{\s*if \(!document\.hasFocus\(\)\) releaseInput\(\);\s*\}\);/);
+    expect(shellJs).toContain('canvas.addEventListener("load", releaseInput);');
+    // The popups' own blur handler stays as it was.
+    expect(shellJs.match(/window\.addEventListener\("blur"/g)).toHaveLength(2);
+  });
+
+  test("a Space down from the canvas counts only while the canvas has focus; its release always counts", () => {
+    expect(shellJs).toMatch(/if \(!message\.down \|\| document\.activeElement === canvas\) spaceKey\(message\.down\);/);
+  });
+
+  test("an Esc from the canvas skips the tooltip and goes straight to Hand → Select, as the app's escape(false)", () => {
+    // The app's tooltip hears Esc only on the app document (Radix, capture phase); a forwarded Esc never reaches it.
+    expect(code(shellJs)).toMatch(/else if \(message\.key === "Escape"\) escapeTool\(false, false\);/);
+    const escapeTool = /function escapeTool\(editable, handled\) \{[\s\S]*?\n\}/.exec(code(shellJs))?.[0] ?? "";
+    expect(escapeTool).toContain('chooseTool("select");');
+    expect(escapeTool).not.toMatch(/tip|hideTip/);
+    // The page's Esc still closes an open tooltip first.
+    expect(code(shellJs)).toMatch(/function escapeKey\(editable, handled\) \{\s*if \(!handled && !tip\.hidden\) \{\s*hideTip\(\);\s*return true;\s*\}\s*return escapeTool\(editable, handled\);\s*\}/);
+  });
+
+  test("the canvas lets Space go on blur and pagehide, and sends every Space release", () => {
+    expect(measure).toContain('addEventListener("blur", releaseSpace);');
+    expect(measure).toContain('addEventListener("pagehide", releaseSpace);');
+    expect(measure).toMatch(/addEventListener\("keyup", \(event\) => \{\s*if \(toolShortcut\(event, \{ canvasPage: true \}\) === null\) return;[\s\S]*?post\(\{ type: "key", key: "Space", down: false \}\);\s*\}\);/);
+    // Bubble phase: a key the canvas's own scripts handled stays theirs.
+    expect(measure).not.toMatch(/addEventListener\("key(down|up)",[\s\S]*?\{ capture: true \}\s*\);/);
+  });
+
+  test("no comment still says the viewer has no tools or key forwarding", () => {
+    for (const [name, source] of [["lib.js", lib], ["shell.js", shellJs], ["measure.js", measure]] as const) {
+      expect(source, name).not.toMatch(/leaves out: tools|key forwarding|key channels do not exist/);
+    }
   });
 });
 

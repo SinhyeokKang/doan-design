@@ -4,7 +4,8 @@
 //
 // The size-reporting half of app/src/main/canvasScript.ts: it tells the viewer page how tall the
 // document is and where its frames are, and hands wheel input the canvas itself cannot scroll to
-// the page. The app's selection, hover, picking, anchor and key channels do not exist here.
+// the page. Of the app's key channel only the tool keys are here (Space, V, H, Escape); its
+// selection, hover, picking and anchor channels do not exist.
 // POSTMORTEM 2026-11-01 (absolutely positioned frames resizing the iframe between 0 and 405 px
 // forever) is why the height comes from lib.js `documentHeight`/`frameBottom`/`nextHeight`
 // unchanged.
@@ -122,3 +123,45 @@ addEventListener(
 
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start, { once: true });
 else start();
+
+// The tool keys pressed while focus is in the canvas go to the page, decided by the same rules as
+// there (lib.js toolShortcut): not in a text field, with ⌘/⌃/⌥, while composing, and a focused
+// control's Space presses it. Bubble phase, so a key the canvas's own scripts handled stays theirs.
+let spaceHeld = false;
+const releaseSpace = () => {
+  if (!spaceHeld) return;
+  spaceHeld = false;
+  post({ type: "key", key: "Space", down: false });
+};
+
+addEventListener("keydown", (event) => {
+  const shortcut = toolShortcut(event, { canvasPage: true });
+  if (shortcut !== null) {
+    if (shortcut.kind === "tool") {
+      post({ type: "key", key: shortcut.tool === "select" ? "V" : "H" });
+      return;
+    }
+    // The page pans: the canvas must not scroll or take a space.
+    event.preventDefault();
+    spaceHeld = true;
+    post({ type: "key", key: "Space", down: true });
+    return;
+  }
+  if (event.code === "Space" && event.repeat && spaceHeld) {
+    event.preventDefault();
+    return;
+  }
+  if (event.key === "Escape" && !event.isComposing && event.keyCode !== 229 && !event.defaultPrevented && !editableTarget(event.target)) post({ type: "key", key: "Escape" });
+});
+
+// Every Space release goes to the page, which ignores one it did not hold: focus and modifiers can
+// change between the press and the release.
+addEventListener("keyup", (event) => {
+  if (toolShortcut(event, { canvasPage: true }) === null) return;
+  if (spaceHeld) event.preventDefault();
+  spaceHeld = false;
+  post({ type: "key", key: "Space", down: false });
+});
+
+addEventListener("blur", releaseSpace);
+addEventListener("pagehide", releaseSpace);

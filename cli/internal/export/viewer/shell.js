@@ -4,8 +4,10 @@
 //
 // What it takes from the app's canvas view (design 'viewer shell'): the iframe is `doan:width`
 // wide and as tall as the canvas reports (lib.js height rules); the window only changes the
-// zoom; zoom and the frame jump use the app's constants and Fit rules. What it leaves out: tools,
-// selection, comments, conversation, Reload, and any key forwarding from the canvas.
+// zoom; zoom and the frame jump use the app's constants and Fit rules; the Select and Hand tools,
+// Space and V/H/Esc use the app's key rules (lib.js toolShortcut). The canvas reports only Space,
+// V, H and Escape pressed while it has focus. What it leaves out: selection, comments,
+// conversation and Reload.
 
 document.documentElement.classList.add("js");
 
@@ -25,6 +27,9 @@ const zoomIn = $("zoom-in");
 const zoomButton = $("zoom-button");
 const zoomValue = $("zoom-value");
 const zoomMenu = $("zoom-menu");
+const tools = $("tools");
+const toolButtons = Array.from(tools.querySelectorAll("[data-tool]"));
+const tip = $("tool-tip");
 
 $("name").title = meta.name;
 canvas.title = meta.name;
@@ -34,6 +39,11 @@ let viewer = initialViewer();
 let scale = 1;
 let remeasureTimer = 0;
 let current = null;
+// The tool and the drag (lib.js layerShown). A tool chosen during a drag waits for its end.
+let tool = "select";
+let pendingTool = null;
+let spaceHeld = false;
+let drag = null;
 
 canvas.style.width = meta.width + "px";
 canvas.style.height = viewer.height + "px";
@@ -107,7 +117,7 @@ const createPopup = ({ button, panel, items, onOpen, onPick }) => {
   button.addEventListener("click", () => (popup.open ? hide("trigger") : open()));
   panel.addEventListener("keydown", (event) => {
     if (!popup.open) return;
-    const next = popupKey(popup, event.key, items().length);
+    const next = popupKey(popup, event.key, items().length, event.metaKey || event.ctrlKey || event.altKey ? "" : event.code);
     if (next.prevent) event.preventDefault();
     if (!next.open) {
       hide(next.focus);
@@ -254,6 +264,7 @@ const step = (result) => {
   if (result.ready) {
     document.documentElement.classList.add("ready");
     commands.fit();
+    syncSurface();
   } else {
     refresh();
   }
@@ -269,6 +280,15 @@ window.addEventListener("message", (event) => {
   if (message === null) return;
   if (message.type === "layout") {
     step(viewerLayout(viewer, message));
+    return;
+  }
+  if (message.type === "key") {
+    // A Space down counts only while the canvas has focus, so the canvas's own scripts cannot raise
+    // the drag surface over a person's clicks; a release always counts.
+    if (message.key === "Space") {
+      if (!message.down || document.activeElement === canvas) spaceKey(message.down);
+    } else if (message.key === "Escape") escapeTool(false, false);
+    else chooseTool(message.key === "V" ? "select" : "hand");
     return;
   }
   // Wheel input the canvas cannot use itself. Ctrl/Cmd (a pinch included) zooms around the point
@@ -312,12 +332,209 @@ new ResizeObserver(() => {
   refresh();
 }).observe(board);
 
-// ⇧1 Fit and ⇧0 100% while this page has focus; the canvas keeps its own keys.
+// ⇧1 Fit and ⇧0 100% while this page has focus; the canvas does not pass them on.
 document.addEventListener("keydown", (event) => {
   const command = shortcutCommand(event);
   if (command === null || viewer.phase !== "ready") return;
   event.preventDefault();
   commands[command]();
 });
+
+// ── Tools: Select and Hand ────────────────────────────────────────────────────
+// Select leaves the canvas to the person. In Hand, while Space is held and through a drag, the
+// board is the drag surface: the canvas iframe takes no pointer (shell.css), so a press, a drag
+// and the wheel over the canvas reach the board, whose native scroll and ⌘/Ctrl-wheel listener
+// above do the rest.
+
+const boardDrawn = () => viewer.phase === "ready";
+
+function syncSurface() {
+  // A Space held before the canvas was drawn does not pan the canvas that comes later.
+  if (!boardDrawn()) spaceHeld = false;
+  board.toggleAttribute("data-pan", layerShown(tool, spaceHeld, drag !== null, boardDrawn()));
+  board.toggleAttribute("data-grabbing", drag !== null);
+}
+
+// The pressed tool holds the toolbar's one Tab stop.
+function chooseTool(next) {
+  if (drag !== null) {
+    pendingTool = next;
+    return;
+  }
+  pendingTool = null;
+  tool = next;
+  for (const button of toolButtons) {
+    const own = button.dataset.tool === tool;
+    button.setAttribute("aria-pressed", String(own));
+    button.tabIndex = own ? 0 : -1;
+  }
+  syncSurface();
+}
+
+// Returns whether the key was the tools'. Without a drawn canvas Space does nothing.
+function spaceKey(down) {
+  if (!down) {
+    const held = spaceHeld;
+    spaceHeld = false;
+    syncSurface();
+    return held;
+  }
+  if (!boardDrawn()) return false;
+  spaceHeld = true;
+  syncSurface();
+  return true;
+}
+
+// Esc on the page closes the tooltip first, as the app's; an open menu takes its own Esc before
+// this (it prevents it); then Hand goes back to Select. Returns whether Esc was used.
+function escapeKey(editable, handled) {
+  if (!handled && !tip.hidden) {
+    hideTip();
+    return true;
+  }
+  return escapeTool(editable, handled);
+}
+
+// Hand back to Select. An Esc forwarded from the canvas comes straight here: the app's tooltip
+// hears Esc only on the app document, so it never spends one pressed inside the canvas.
+function escapeTool(editable, handled) {
+  if (!escapeSelects({ hand: (pendingTool ?? tool) === "hand", editable, defaultPrevented: handled })) return false;
+  chooseTool("select");
+  return true;
+}
+
+document.addEventListener("keydown", (event) => {
+  const shortcut = toolShortcut(event, { canvasPage: true });
+  if (shortcut !== null) {
+    if (shortcut.kind === "tool" ? (chooseTool(shortcut.tool), true) : spaceKey(true)) event.preventDefault();
+    return;
+  }
+  // A held Space's repeats keep the board from scrolling a screen down, and a button from pressing.
+  if (event.code === "Space" && event.repeat && spaceHeld) {
+    event.preventDefault();
+    return;
+  }
+  if (event.key !== "Escape" || event.isComposing || event.keyCode === 229) return;
+  if (escapeKey(editableTarget(event.target), event.defaultPrevented)) event.preventDefault();
+});
+
+document.addEventListener("keyup", (event) => {
+  const shortcut = toolShortcut(event, { canvasPage: true });
+  if (shortcut !== null && spaceKey(false)) event.preventDefault();
+});
+
+// The board's scroll range, so a drag stops at its edges (lib.js panScroll).
+const maxScroll = () => ({ left: board.scrollWidth - board.clientWidth, top: board.scrollHeight - board.clientHeight });
+
+// Only the primary button drags, with any modifier. A drag in Hand focuses the board, so the keys
+// after it (Esc, V, H) reach this page; a held Space already has focus where it came from.
+board.addEventListener("pointerdown", (event) => {
+  if (!layerShown(tool, spaceHeld, false, boardDrawn()) || event.button !== 0 || drag !== null) return;
+  // A press on the board's own scrollbar scrolls it.
+  const box = board.getBoundingClientRect();
+  if (event.clientX - box.left - board.clientLeft >= board.clientWidth || event.clientY - box.top - board.clientTop >= board.clientHeight) return;
+  event.preventDefault();
+  if (!spaceHeld) board.focus({ preventScroll: true });
+  // Keeps the drag when the pointer leaves the window.
+  board.setPointerCapture(event.pointerId);
+  drag = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, restX: 0, restY: 0 };
+  syncSurface();
+});
+
+// Each move's own travel, so a zoom during the drag stays. Safari keeps scroll offsets in whole
+// pixels: what a move could not apply goes into the next one, so the canvas stays under the cursor.
+board.addEventListener("pointermove", (event) => {
+  if (drag === null || event.pointerId !== drag.pointerId) return;
+  const dx = event.clientX - drag.x;
+  const dy = event.clientY - drag.y;
+  drag.x = event.clientX;
+  drag.y = event.clientY;
+  if (dx === 0 && dy === 0) return;
+  const next = panScroll({ left: board.scrollLeft + drag.restX, top: board.scrollTop + drag.restY }, maxScroll(), dx, dy);
+  board.scrollLeft = next.left;
+  board.scrollTop = next.top;
+  drag.restX = next.left - board.scrollLeft;
+  drag.restY = next.top - board.scrollTop;
+});
+
+// A tool chosen during the drag comes in at its end.
+function finishDrag() {
+  const ending = drag;
+  drag = null;
+  if (ending !== null && board.hasPointerCapture(ending.pointerId)) board.releasePointerCapture(ending.pointerId);
+  if (pendingTool !== null) chooseTool(pendingTool);
+  else syncSurface();
+}
+
+const endDrag = (event) => {
+  if (drag !== null && event.pointerId === drag.pointerId) finishDrag();
+};
+board.addEventListener("pointerup", endDrag);
+board.addEventListener("pointercancel", endDrag);
+board.addEventListener("lostpointercapture", endDrag);
+
+const releaseInput = () => {
+  spaceHeld = false;
+  finishDrag();
+};
+// The window's blur also fires when focus moves into the canvas iframe; only the page losing focus
+// lets Space go. A canvas that loads another document ends a held Space and a drag too.
+window.addEventListener("blur", () => {
+  if (!document.hasFocus()) releaseInput();
+});
+canvas.addEventListener("load", releaseInput);
+
+// ── Toolbar: buttons, ←/→ and the tooltip ─────────────────────────────────────
+
+for (const button of toolButtons) button.addEventListener("click", () => chooseTool(button.dataset.tool));
+
+tools.addEventListener("keydown", (event) => {
+  const next = toolbarMove(toolButtons.indexOf(document.activeElement), toolButtons.length, event.key);
+  if (next === null) return;
+  event.preventDefault();
+  toolButtons[next].focus();
+});
+
+// One tooltip, the tool's name and key, 4 above the tool (the app's sideOffset), centred on it.
+// Text goes in with textContent only.
+const TOOLTIP_OFFSET = 4;
+let tipFor = null;
+
+function showTip(button) {
+  const key = document.createElement("span");
+  key.className = "doan-kbd";
+  key.setAttribute("data-ui-variant", "on-prominent");
+  key.setAttribute("data-ui-size", "sm");
+  key.textContent = button.getAttribute("aria-keyshortcuts");
+  tip.textContent = button.getAttribute("aria-label");
+  tip.append(key);
+  const panel = tip.parentElement.getBoundingClientRect();
+  const box = button.getBoundingClientRect();
+  tip.style.left = box.left + box.width / 2 - panel.left + "px";
+  tip.style.top = box.top - TOOLTIP_OFFSET - panel.top + "px";
+  if (tipFor !== null && tipFor !== button) tipFor.removeAttribute("aria-describedby");
+  button.setAttribute("aria-describedby", "tool-tip");
+  tipFor = button;
+  tip.hidden = false;
+}
+
+function hideTip() {
+  if (tipFor !== null) tipFor.removeAttribute("aria-describedby");
+  tipFor = null;
+  tip.hidden = true;
+}
+
+for (const button of toolButtons) {
+  button.addEventListener("pointerenter", (event) => {
+    if (event.pointerType !== "touch") showTip(button);
+  });
+  button.addEventListener("pointerleave", hideTip);
+  button.addEventListener("pointerdown", hideTip);
+  // Keyboard focus only: a press focuses the button too (in Chromium), and its tooltip is closed.
+  button.addEventListener("focus", () => {
+    if (button.matches(":focus-visible")) showTip(button);
+  });
+  button.addEventListener("blur", hideTip);
+}
 
 refresh();
