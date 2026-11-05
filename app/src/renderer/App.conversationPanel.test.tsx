@@ -70,6 +70,7 @@ const { ConversationPanel, ResizeHandle } = await import("./ConversationPanel");
 const { ProjectOverview } = await import("./ProjectOverview");
 const { SettingsPage } = await import("./SettingsPage");
 const { CAPTURE_LIMIT, CAPTURE_TERMINAL, CAPTURE_UNAVAILABLE } = await import("./canvasCapture");
+const { DUPLICATE_CANVAS_TEXT } = await import("./canvasConversation");
 const { HomeRun } = await import("./homeRun");
 const { CanvasConversation } = await import("./CanvasConversationPanel");
 const { CanvasConversations } = await import("./RightPanel");
@@ -852,4 +853,72 @@ test("capture mode shows its hint line above the tools, with Esc and a spoken ca
   const bottom = nodes.find(node => node.props.className === "doan-canvas-bottom")!;
   const order = (bottom.props.children as ReactNode[]).filter(isValidElement);
   expect(order[0]).toBe(line);
+});
+
+// Review U-1: capture mode does not end when the composer turns to one that refuses files, so the release checks the
+// composer again, with captureAvailability's order and copy, before any chip or snapshot.
+test("a release after the composer turned to a terminal session takes no snapshot and gives Attach's reason", async () => {
+  doan.conversationResumeTarget!.mockResolvedValue({ available: true, runtime: "codex", lastCheckAt: "2026-11-01T14:02:00", session: "s1" });
+  await canvasWithComposer();
+  await flushAll();
+  panelRun().choose("new"); render();
+  captureTool().onToggle();
+  expect(harness.controller!.startCapture).toHaveBeenCalledOnce();
+  capturing(true);
+  panelRun().choose("resume"); render();
+  doan.captureCanvas = vi.fn();
+  expect(captureListener()(RECT)).toBeNull();
+  expect(doan.captureCanvas).not.toHaveBeenCalled();
+  expect([...panelRun().store.drafts.values()].flatMap(draft => draft.attachments)).toEqual([]);
+  expect(harness.toast.show).toHaveBeenCalledExactlyOnceWith(CAPTURE_TERMINAL);
+});
+
+test("a release after the panel switched to a legacy external conversation takes no snapshot and gives Attach's reason", async () => {
+  doan.listConversations!.mockResolvedValue([rowSummary(), rowSummary({ conversationId: "c2", owner: "legacy-external", state: "archived" })]);
+  await canvasWithComposer();
+  await flushAll();
+  expect(panelRun().composerKey()).toBe("conversation:c1");
+  expect(captureTool().enabled).toBe(true);
+  captureTool().onToggle();
+  capturing(true);
+  (panelRun() as unknown as { select(id: string): void }).select("c2"); render();
+  expect(panelRun().composerKey()).toBe("conversation:c2");
+  doan.captureCanvas = vi.fn();
+  expect(captureListener()(RECT)).toBeNull();
+  expect(doan.captureCanvas).not.toHaveBeenCalled();
+  expect([...panelRun().store.drafts.values()].flatMap(draft => draft.attachments)).toEqual([]);
+  expect(harness.toast.show).toHaveBeenCalledExactlyOnceWith(CAPTURE_TERMINAL);
+});
+
+test("a release after another canvas took the same ID takes no snapshot and gives the composer's reason", async () => {
+  await canvasWithComposer();
+  captureTool().onToggle();
+  capturing(true);
+  folders([{ path: "/w/a", kind: "list", servedRev: 1, canvases: [rowA, { path: ".doan/canvases/b.html", id: "a", url: "u-b" }] }]);
+  expect(conversation()?.blocked).toBe(DUPLICATE_CANVAS_TEXT);
+  doan.captureCanvas = vi.fn();
+  expect(captureListener()(RECT)).toBeNull();
+  expect(doan.captureCanvas).not.toHaveBeenCalled();
+  expect(harness.toast.show).toHaveBeenCalledExactlyOnceWith(DUPLICATE_CANVAS_TEXT);
+});
+
+// Review U-1 note: an answer that lands after the composer changed settles on its chip but moves no panel or focus.
+test("a late answer after the panel switched conversation or the canvas page left settles its chip without unfolding", async () => {
+  for (const leave of ["conversation", "home"] as const) {
+    reset();
+    doan.listConversations!.mockResolvedValue([rowSummary(), rowSummary({ conversationId: "c2", state: "archived" })]);
+    await canvasWithComposer({ panel: false });
+    await flushAll();
+    const store = panelRun().store, at = panelRun().composerKey()!;
+    let answer!: (value: unknown) => void;
+    doan.captureCanvas = vi.fn(() => new Promise(resolve => { answer = resolve; }));
+    const done = captureListener()(RECT)!();
+    if (leave === "conversation") (panelRun() as unknown as { select(id: string): void }).select("c2");
+    else find<{ goHome(): void }>(ShellSidebar)[0]!.props.goHome();
+    render();
+    answer(captured()); await done; render();
+    expect(store.drafts.get(at)?.attachments).toEqual([expect.objectContaining({ id: "cap1", status: "ready" })]);
+    expect(saved()?.rightPanel).toMatchObject({ open: false });
+    if (leave === "conversation") { expect(panel()?.open).toBe(false); expect(conversation()?.arrival).toBeNull(); }
+  }
 });
