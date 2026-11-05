@@ -24,8 +24,8 @@
 | M2 | A2, A3, B1, B2(축소), B3, 결정 3 | `transport.ts`, `fixtures/`, `runners.ts`, `dispatcher.ts`, `service.ts`, `project.ts`, `ipc.ts`, `main/index.ts`, 그 테스트 | M1 | Opus high — SDK `canUseTool` 동시성, 응답 한 번 보장, Stop·close 경계, secret 비저장 | test, typecheck | 통합 `6fa01204`(리뷰 Opus high 🔴0 🟡0 ⚪4) |
 | R | A5, C1, B4의 접힌 줄 | `main/notifications.ts`·`notifyService.ts`, `renderer/` 전부(`ConversationThread.tsx`, `CanvasConversationPanel.tsx`, `ProjectOverview.tsx`, `homeRun.ts`, `homeConversations.ts`, `overviewRun.ts`, `threadItems.ts`, `conversationStrip.ts`, `ConversationStripView.tsx`, `composerRules.ts`, `conversationStore.ts`, 새 `questionDraft.ts`), CSS, 그 테스트 | M1 | Opus high — 키보드·IME·포커스·접근성 규칙이 많고 진입 경로가 여럿이다 | test, typecheck, build | 통합 `56ab6070`(리뷰 Opus high 🔴0 🟡1, r1 Opus medium으로 고침, 지휘자가 diff 확인) |
 | G | B4(접힌 줄 제외) | `acp.ts`, `acpRunner.ts`, 그 테스트 | M1 | Opus medium — 질문으로 읽는 조건이 좁고, 틀리면 권한 요청이 질문으로 바뀐다 | test, typecheck | 통합 `0e4143e1`(리뷰 Sonnet high 🔴0 🟡2, 둘 다 뒤 배치로 넘김) |
-| D1 | `/design-sync` | R의 renderer 파일(수정), `docs/DESIGN.md` | M2, R, G 통합 | Opus high — 계산 스타일 측정과 수정 | `/design-sync` 보고 | 대기 |
-| D2 | `/runtime-test` | 없음(보고만) | D1 | Opus medium — 항목이 많고 사람 상태 보존이 중요 | `/runtime-test` 보고 | 대기 |
+| D1 | `/design-sync` | R의 renderer 파일(수정), `docs/DESIGN.md` | M2, R, G 통합 | Opus high — 계산 스타일 측정과 수정 | `/design-sync` 보고 | 통합 `5c6ec0fe`(32쌍 일치·편차 기록, 코드 변경 없음) |
+| D2 | `/runtime-test` | 없음(보고만) | D1 | Opus medium — 항목이 많고 사람 상태 보존이 중요 | `/runtime-test` 보고 | 진행 중(`aq-d1` worktree) |
 | D3·Z1 | gate, 승격 | `docs/` | D2 | 지휘자 | `verify.mjs` exit 0, Z1 grep | 대기 |
 
 리뷰는 배치마다 독립 리뷰 작업자(`/code-review`, 보고만)다. M2·R은 Opus high, 나머지는 Sonnet high.
@@ -44,4 +44,5 @@
 - R: 리뷰(Opus high) 🔴 없음, 🟡1 — 여러 선택 질문에서 Other를 체크하고 글을 비우면 Other가 말없이 빠졌다. 지휘자 판단: design §7 "Other를 골랐는데 글이 비었으면 답하지 않은 것이다"는 여러 선택에도 적용한다(그 질문은 미답, Send 꺼짐). r1이 `questionDraft.ts`와 `questionAnswer.ts`(M1 모듈, M2 소유 아님)를 고친다. ⚪1·2·4도 r1. ⚪3(카드 Stop 뒤 포커스가 body로 떨어짐, 권한 카드와 같은 기존 동작)과 ⚪5(strip Skip 실패 신호 없음, 결정 10)는 Z1에서 BACKLOG에 적는다. ⚪6(`closesNotification`이 요청 종류를 보지 않음)은 M2 통합 때 권한·질문 id가 겹치지 않는지 확인한다. 그룹 이름 `aria-label="<header>: <question>"`은 결정 19대로이므로 D1에서 초안의 `aria-labelledby`에 맞추지 않는다.
 - M2: 리뷰 🔴·🟡 없음. ⚪1 질문에서 `canUseTool`의 `options.signal`을 보지 않아 CLI가 취소한 질문이 답할 수 있게 남는다(권한과 같은 기존 한계, Z1 BACKLOG). ⚪2 서버 id 겹침 확인은 decline 경로만 지킨다. ⚪3 afterend·stop/close 테스트의 deny 확인 반복이 빈 채로 통과한다. ⚪4 Z1 문서(ARCHITECTURE projectBusy, id 재사용 때 elicitation도 protocol fail). R 리뷰 ⚪6(권한·질문 id 겹침)은 M2 리뷰가 겹치지 않음을 확인했다.
 - Orca `worktree rm`이 batch 브랜치를 지워, 지휘자가 끝 커밋(`aq-x` 3faa4ab2, `aq-m1` d213f0e0, `aq-g` ae520bac, `aq-r` 736c1551, `aq-m2` 1d450f47)으로 다시 만들었다.
+- D1: 공용 프로필을 만들었다(Claude Code·Antigravity 로그인, Claude Keychain 항목 `Claude Code-credentials-45991d82`). 남긴 점: (1) 쓰레드 권한 카드의 Allow 뒤 포커스가 body로 떨어진다(기존 동작, Z1 BACKLOG). (2) 보내기 실패 줄이 다시 고른 뒤에도 남는다 — 지휘자 판단: 답을 바꾸거나 다시 보내면 지운다, R r2(Sonnet medium)가 고친다. (3) 실제 `~/.gemini/antigravity-cli/log/`에 language server 1.4.9 로그가 생겼다. 같은 로그가 공용 프로필을 만들기 전(11:06)에도 있고 버전이 사람이 설치한 `agy`와 같다(Doan ACP 서버는 1.3.0). 실행 중인 Orca 1.4.240이 `agy`로 사용량을 읽은 것으로 보이나 확인하지 않았다. D2가 Antigravity 실행 전후로 본다. (4) Codex·Antigravity 카드 변형, 권한과 질문이 함께 기다리는 경우는 실제로 만들 수 없었다(Claude 2.1.318이 차례로 보냄).
 - worktree `aq-x`·`aq-m1`·`aq-g`·`aq-r`·`aq-m2`는 통합 뒤 지웠다(브랜치는 남김). 근거 사본: `.scratch/agent-questions-orch/evidence/`.
