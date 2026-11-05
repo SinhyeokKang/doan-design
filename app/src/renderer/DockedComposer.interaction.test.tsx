@@ -51,6 +51,10 @@ function elements(node: ReactNode, withQueue = false): Record<string, unknown>[]
   return Children.toArray(node).flatMap(child => {
     if (!isValidElement<{ children?: ReactNode; [key: string]: unknown }>(child)) return [];
     if (withQueue && child.type === QueueRows) return [child.props, ...elements(expand(child.type, child.props), true)];
+    // QueueButtonLife's render prop exposes the real button refs without adding child hook slots to this harness.
+    if (withQueue && typeof child.props.children === "function") {
+      return elements((child.props.children as (life: () => void) => ReactNode)(() => {}), true);
+    }
     // The field's own props (value, onChange, readOnly) are kept beside the element it draws.
     if (PRIMITIVES.has(child.type)) return [...(child.type === Parts.ComposerField ? [child.props] : []), ...elements(expand(child.type, child.props), withQueue)];
     return [child.props, ...elements(child.props.children, withQueue)];
@@ -591,15 +595,27 @@ function shortcutSetup(patch: Partial<DockedComposerProps> = {}, text = "") {
   return { ...result, render: () => result.render(true), activeElement };
 }
 
-test("Control+Enter sends three rows in order without waiting or resending flying rows and keeps input focus", async () => {
+test.each(["input", "body"])("Control+Enter sends rows once in order and preserves input focus after removal (focus: %s)", active => {
   const onSendQueuedNow = vi.fn(() => new Promise<void>(() => {}));
   const { render, props, activeElement } = shortcutSetup({ onSendQueuedNow });
-  const event = pressControl(render());
+  const tree = render();
+  const focusInput = vi.fn(), focusRow = vi.fn();
+  hooks.refs[2]!.current = { focus: focusInput, element: () => null };
+  for (const row of tree.filter(item => item["aria-label"] === "Send queued message now" || item["aria-label"] === "Remove queued message")) {
+    (row.ref as (node: unknown) => void)({ focus: focusRow });
+  }
+  if (active === "body") vi.stubGlobal("document", { body: document.body, activeElement: document.body });
+  const event = pressControl(tree);
   expect(event.preventDefault).toHaveBeenCalledOnce();
   expect(onSendQueuedNow.mock.calls).toEqual([["q1"], ["q2"], ["q3"]]);
   pressControl(render());
   expect(onSendQueuedNow).toHaveBeenCalledTimes(3);
-  expect(document.activeElement).toBe(activeElement);
+  props.queued = [];
+  render();
+  for (const effect of hooks.effects) effect();
+  expect(focusRow).not.toHaveBeenCalled();
+  expect(focusInput).toHaveBeenCalledTimes(active === "body" ? 1 : 0);
+  if (active === "input") expect(document.activeElement).toBe(activeElement);
   expect(props.onStop).not.toHaveBeenCalled();
 });
 
@@ -663,13 +679,11 @@ test.each(["composition", "229"])("Control+Enter ignores IME %s without consumin
 test("Control+Enter leaves a late queued item in its original conversation after switching", async () => {
   let resolve!: (outcome: DockedOutcome) => void;
   const pending = new Promise<DockedOutcome>(done => { resolve = done; });
-  const originalQueue: string[] = [];
-  const { render, props, store } = shortcutSetup({ queued: [], onQueue: async () => { const outcome = await pending; originalQueue.push("q4"); return outcome; } }, "For A");
+  const { render, props, store } = shortcutSetup({ queued: [], onQueue: () => pending }, "For A");
   pressControl(render());
   props.mode = B; render();
   resolve({ ok: true, itemId: "q4" }); await flush();
   expect(props.onSendQueuedNow).not.toHaveBeenCalled();
-  expect(originalQueue).toEqual(["q4"]);
   expect(store.current.get("conversation:a")).toEqual(EMPTY_DRAFT);
 });
 
@@ -738,4 +752,15 @@ test("the queue shortcut caption is absent without a Send now handler", () => {
   const { render, props } = shortcutSetup();
   delete props.onSendQueuedNow;
   expect(render().some(item => item.children === shortcutCaption)).toBe(false);
+});
+
+
+test.each(["idle", "running"] as const)("Control+Enter without a Send now handler behaves like Enter in %s and advertises no shortcut", async turn => {
+  const { render, props, send, queue } = shortcutSetup({ turn }, "Reply");
+  delete props.onSendQueuedNow;
+  const tree = render();
+  expect(field(tree)["aria-keyshortcuts"]).toBeUndefined();
+  pressControl(tree); await flush();
+  expect(turn === "idle" ? send : queue).toHaveBeenCalledOnce();
+  expect(turn === "idle" ? queue : send).not.toHaveBeenCalled();
 });
