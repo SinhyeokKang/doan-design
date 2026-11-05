@@ -58,7 +58,7 @@ export function searchIndex(entries: readonly SearchFolder[], rendered?: Rendere
       const label = canvasLabel(row);
       const target = { root: entry.path, path: row.path, canvasLabel: label };
       index.push({ ...target, kind: "canvas", label,
-        // The shared scope prefix must not outrank actual title or frame matches.
+        // The shared scope prefix must not outrank actual name or frame matches.
         fields: [label, row.path.split("/").at(-1) ?? row.path, row.path.replace(/^\.doan\/canvases\//, ""), row.id ?? ""].map(searchText) });
       const frames = rendered?.root === entry.path && rendered.path === row.path ? rendered.frames : row.frames ?? [];
       for (const [frameIndex, frame] of frames.slice(0, 1000).entries()) {

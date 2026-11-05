@@ -27,8 +27,8 @@ describe("quick open index", () => {
     }
   });
 
-  it("falls back from absent or blank titles to filenames without html", () => {
-    const index = searchIndex([folder("/repo", [canvas(".doan/canvases/foo.html"), canvas(".doan/canvases/foo-bar.html", {})])]);
+  it("labels canvases by file name without html", () => {
+    const index = searchIndex([folder("/repo", [canvas(".doan/canvases/foo.html"), canvas(".doan/canvases/foo-bar.html")])]);
     expect(index.map((entry) => entry.label)).toEqual(["foo", "foo-bar"]);
   });
 
@@ -251,8 +251,8 @@ describe("quick open match positions", () => {
   it("marks only the tokens found in the name when others matched the path", () => {
     const index = searchIndex([folder("/repo", [canvas(".doan/canvases/settings/card-plans.html", {})])]);
     expect(searchMatch(index, "settings card", null, commonOf)).toHaveLength(1);
-    expect(matchPositions("Card plans", "settings card")).toEqual([0, 1, 2, 3]);
-    expect(matchPositions("Card plans", "settings")).toEqual([]);
+    expect(matchPositions(index[0]?.label ?? "", "settings card")).toEqual([0, 1, 2, 3]);
+    expect(matchPositions(index[0]?.label ?? "", "settings")).toEqual([]);
   });
 
   it("marks an untitled frame's id name", () => {

@@ -69,7 +69,7 @@ test("an empty query lists the current project's canvases in a workspace and eve
 
 test("result rows: an icon, the name with its matched letters underlined, and a second line with the canvas path or canvas and number", () => {
   const frame: SearchResult = { kind: "frame", root: "/code/acme-web", path: ".doan/canvases/settings/billing.html", canvasLabel: "billing", label: "Card declined", frameId: "card-declined", frameIndex: 3 };
-  const canvas: SearchResult = { kind: "canvas", root: "/code/acme-web", path: ".doan/canvases/reports/team-scorecard.html", canvasLabel: "Team scorecard", label: "Team scorecard" };
+  const canvas: SearchResult = { kind: "canvas", root: "/code/acme-web", path: ".doan/canvases/reports/team-scorecard.html", canvasLabel: "team-scorecard", label: "team-scorecard" };
   const groups = groupResults([frame, canvas], projectWhere(entries));
   const html = renderToStaticMarkup(<QuickOpenList id="r" query="card" groups={groups} active={0} pick={() => {}} activate={() => {}} />);
   const [first, second] = [...html.matchAll(/<div class="qo-item"[^>]*>.*?<\/span><\/span><\/span><\/div>/g)].map(match => match[0]);
@@ -77,9 +77,9 @@ test("result rows: an icon, the name with its matched letters underlined, and a 
   expect(first).toMatch(/<span class="qo-icon" aria-hidden="true"><svg[^>]*lucide-hash/);
   expect(first).toContain('<span class="qo-name" title="Card declined"><mark class="qo-match">Card</mark> declined</span>');
   expect(first).toContain('<span class="qo-detail"><span class="qo-context" title="billing › 4">billing › 4</span></span>');
-  expect(second).toContain('aria-label="Team scorecard — reports/team-scorecard.html · acme-web · main"');
+  expect(second).toContain('aria-label="team-scorecard — reports/team-scorecard.html · acme-web · main"');
   expect(second).toMatch(/<span class="qo-icon" aria-hidden="true"><svg[^>]*lucide-panels-top-left/);
-  expect(second).toContain('<span class="qo-name" title="Team scorecard">Team score<mark class="qo-match">card</mark></span>');
+  expect(second).toContain('<span class="qo-name" title="team-scorecard">team-score<mark class="qo-match">card</mark></span>');
   expect(second).toContain('title="reports/team-scorecard.html">reports/team-scorecard.html</span>');
 });
 
