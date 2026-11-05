@@ -105,7 +105,10 @@ P1–P5는 로그인한 provider 프로필과 실제 모델 호출이 필요하�
 - [ ] C2. 캔버스 툴바 Export 버튼의 `aria-label`과 tooltip을 `Export canvas`로 바꾼다(`CanvasTools.tsx`, spec 완료 조건 11). 이유 tooltip과 행 메뉴의 `Export…`는 그대로 둔다.
   - 검증: `npm --prefix app test` — `CanvasTools.test.tsx`의 기대값(`aria-label`, tooltip 목록)을 먼저 `Export canvas`로 바꿔 red를 본 뒤 green, `ShellSidebar.interaction.test.tsx`의 행 메뉴 `Export…` 기대값은 그대로 통과.
 
-── commit: `feat: show agent questions in the conversation thread` / `fix: name the canvas toolbar Export button` ──
+- [ ] C3. 캔버스 이름을 파일 stem으로 통일한다(spec 완료 조건 13). `canvasLabel`이 `<title>`을 보지 않게 하고, 쓰지 않게 된 `CanvasRow.title`을 `main/view.ts`의 타입과 파싱에서 지운다. `CanvasRow.title`을 읽는 곳이 더 없는지 `grep -rn "\.title" app/src`로 확인한다(대화·preset·frame의 title은 다른 것이다).
+  - 검증: `npm --prefix app test` — `<title>`이 있는 row에도 `canvasLabel`이 stem을 돌려주는 테스트를 먼저 red로 본 뒤 green, title 표시를 기대하던 기존 테스트는 stem 기대로 고친다. `/runtime-test`(D2)에서 헤더(`agent-questions / 1. …`), 사이드바, Quick Open을 실제 앱에서 보고, 같은 캔버스를 `doan export`한 HTML 헤더와 이름이 같은지 비교한다.
+
+── commit: `feat: show agent questions in the conversation thread` / `fix: name the canvas toolbar Export button` / `fix: show canvas file stems everywhere in the app` ──
 
 ## D. 실제 앱 확인
 
@@ -124,6 +127,7 @@ P1–P5는 로그인한 provider 프로필과 실제 모델 호출이 필요하�
   - PRODUCT: §3 'Agent conversation foundation contract'('Resume and permissions'에 질문 전달, 'Events and ownership'에 재시작 뒤 질문 만료), §5 item 1('Project conversations'의 답 대기, Send now 조건), item 0 'Notifications'(질문 알림), item 2 'Conversation panel'·'Agent indicator'와 item 3 'Project Overview'(질문 카드, 첫 선택지 포커스), strip 규칙, P1·P2가 남긴 한계(질문을 볼 수 없는 모드, Codex 버전 조건), `isSecret` 답이 provider 자체 기록에 남을 수 있다는 한계. design '결정한 규칙' 열다섯 항목을 모두 반영한다.
   - ARCHITECTURE §7 'Agent conversation runtime and IPC': 'Events'에 `question.request`·`question.resolved`와 이전 빌드에서 손상으로 읽힘, 'Permissions and terminals'에 Claude `AskUserQuestion`과 Codex `item/tool/requestUserInput` 경로·빈 답 규칙, IPC `answerQuestion`, secret 답을 저장하지 않음.
   - DESIGN.md: 'Label ellipsis'에 툴바 Export 버튼(`Export canvas`)의 예외, 'Canvas area' Tooltips 표의 Export "Export…"를 "Export canvas"로. PRODUCT §5 'Toolbar'의 "Export… exports the open canvas"를 툴바 버튼 이름에 맞게 고친다.
+  - PRODUCT §5: 앱의 캔버스 이름은 어디서나 파일 stem이라는 규칙을 현재 규칙으로 적고, 'Canvas header'와 답장 칩 항목의 "canvas name"이 stem을 뜻하도록 맞춘다.
   - BACKLOG.md: P2에서 본 `serverRequest/resolved`가 있으면 그 항목, P6에서 구현하지 않기로 한 ACP provider의 질문과 막힌 PoC.
   - 그리고 `docs/features/agent-questions/`를 지운다.
   - 검증: `grep -n 'question.request' docs/ARCHITECTURE.md`에 줄이 있다, `grep -n -i 'question' docs/PRODUCT.md`에 질문 카드 규칙이 있다, BACKLOG에 적을 항목이 있었으면 `grep -n -i 'question' docs/BACKLOG.md`에 그 줄이 있다, `docs/features/agent-questions/`가 없다.

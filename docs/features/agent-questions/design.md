@@ -213,5 +213,6 @@ PRODUCT·ARCHITECTURE가 정하지 않았던 점을 사람이 다음과 같이 �
 19. 질문 카드에는 header 칩을 두지 않는다. provider의 짧은 header는 접힌 줄(`Answered · <header>: <answer>`)과 질문 group의 접근 가능한 이름에만 쓴다(초안 그리는 중 사람의 결정).
 20. 질문 카드의 provider 로고는 제목 줄에만 두고, 질문·선택지·버튼·오류 줄은 로고 아래 카드 전체 폭을 쓴다(초안 그리는 중 사람의 결정).
 21. 질문 카드에는 "<Provider> needs your answer" 제목을 두지 않는다. 첫 질문 문장이 그 자리(로고 옆, 500)에 오고 나머지 질문 문장도 같은 굵기다(초안 그리는 중 사람의 결정).
+22. 앱의 캔버스 이름은 어디서나 파일 stem이다. `<title>`은 앱에 보이지 않는다(spec 완료 조건 13, 사람의 결정).
 
 초안 `.doan/canvases/agent-questions.html`은 사람이 2026-11-05 앱에서 확인했다. `/design-sync`는 `in-context`를 뺀 frame을 비교한다.
