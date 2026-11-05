@@ -6,7 +6,7 @@
 
 - [ ] P1. design 'PoC 의존' P1-a–e를 design 결정 12의 환경에서 확인한다. 실제 계정으로 모델을 부른다. sign-in, 실행 승인, 끝난 뒤의 sign-out과 Keychain 항목 정리는 그때 사람에게 묻는다.
   - P1-a·c·d·e: `.scratch/prompt-suggestion/`의 일회용 node SDK script. 임시 `CLAUDE_CONFIG_DIR`에 새로 sign-in하고, `query` 옵션은 `openClaude`와 같게(턴마다 새 Query, resume, `includePartialMessages`, `settingSources`) 둔 뒤 `promptSuggestions: true`만 더한다. P1-a를 가장 먼저 한다. 사용량 조회 없이 `result` 직후 입력을 닫는 턴에서 제안이 오지 않으면 나머지를 하지 않고 멈춘다.
-  - P1-b: 앱에서 한다. 새로 sign-in한 공용 프로필(실제 HOME, `/Users/sinhyeokkang/code/doan-design/.scratch/` 아래 userData, main checkout의 Electron).
+  - P1-b: 앱에서 한다. 새로 sign-in한 공용 프로필(실제 HOME, `/Users/sinhyeok/code/doan-design/.scratch/` 아래 userData, main checkout의 Electron).
   - 검증: command undecided — needs user confirmation(`.scratch/prompt-suggestion/` script와 앱 probe의 실행 명령은 AGENTS.md 'Commands'에 없다). 결과로 다음을 적는다: (a) 사용량을 읽는 턴·조회를 건너뛴 턴·legacy external 턴 각각에서, 그리고 턴 1·턴 2(resume)·도구 턴·짧은 턴에서 제안이 왔는지, (b) `result`→제안, `result`→group 소멸 시간(켜기·끄기), `turn.done`에서 바로 보낸 send의 `busy` 여부, (c) 제안을 기다리는 중과 제안 없이 정상 종료하는 중 각각에서 interrupt와 group stop의 종료 시간·다음 resume·transcript·SessionEnd hook, (d) 세션 JSONL과 registry 변화, (e) plan mode와 한도 상태, 그리고 CLI 버전. 관측값(통과·실패, 시간, 날짜, CLI 버전)은 이 feature 문서와 커밋 메시지에 남긴다. 하나라도 design과 다르면 멈추고 design을 고친다.
 
 **커밋 경계 0** (P1의 관측을 이 문서에 반영하는 docs 커밋. P1 결과로 design '조사 결과'의 'Doan의 runner'를 다시 쓰고, 동작 main 6의 끝내는 방법을 정한다)
