@@ -252,6 +252,10 @@ func TestSkillGuideWorkLifecycle(t *testing.T) {
 			t.Errorf("missing work guidance: %s", required)
 		}
 	}
+	// Only start and done are suppressed in an app conversation; update carries the conversation id (work-update design §1 rule 3).
+	if !strings.Contains(skillBody, "In an app conversation only `update` is sent, with the conversation's id.") || strings.Contains(skillBody, "or this is an app conversation") {
+		t.Error("guide does not separate app-conversation suppression of start and done from update")
+	}
 	// update renews the work, so the guide no longer asks to repeat start between edits.
 	if strings.Contains(skillBody, "several minutes") {
 		t.Error("guide still asks to repeat start after several minutes")
