@@ -20,7 +20,7 @@
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 gate | 상태 |
 |---|---|---|---|---|---|---|
 | VIEW | A1, B1, B2, C1 | `cli/internal/export/viewer/*`, `app/src/main/exportViewer.test.ts`, `cli/internal/export/assemble_test.go`(필요할 때), tasks.md A1·B1·B2·C1 줄, `.scratch/export-viewer-chrome/` | 없음 | Opus high — iframe 키 넘기기·Space 해제·포커스 규칙이 얽혀 있고 틀리면 Space가 눌린 채 남거나 캔버스 입력을 가로챈다 | `npm --prefix app test`, typecheck, `go test ./...`, `go vet ./...`, C1 probe | 완료(`4a98a70f`·`007f560a`·`c6970260`, worktree `evc-view`, dispatch `ctx_70ad3928cc85`) |
-| 리뷰 | VIEW | 보고만 | VIEW 완료 | Opus medium — 앱 원본과의 복사 일치와 키 규칙을 대조해야 한다 | `/code-review` 보고 | r1 완료(🔴0·🟡1·⚪4, `ctx_b2ead5d1e6b0`), 수정 r1 진행 |
+| 리뷰 | VIEW | 보고만 | VIEW 완료 | Opus medium — 앱 원본과의 복사 일치와 키 규칙을 대조해야 한다 | `/code-review` 보고 | 완료(r1 🔴0·🟡1·⚪4, 수정 r1 `ctx_6f2c9b7165f7`로 🟡1·⚪1·⚪2 해결) |
 | SYNC | C2 | 초안 대비 viewer 수정(`shell.css`·`shell.html`), `docs/DESIGN.md` 측정값, tasks.md C2 줄, `.scratch/export-viewer-chrome/sync/` | VIEW 통합 | Opus medium — 측정·수정 반복이고 기준은 초안이 정한다 | 측정 보고, `npm --prefix app test`, `go test ./...` | 대기 |
 | 지휘자 | C3, Z1 | 통합 HEAD, PRODUCT·ARCHITECTURE·DESIGN·BACKLOG, chain.md | SYNC 통합 | — | `verify.mjs --eval`, Z1 grep | 대기 |
 
@@ -36,3 +36,5 @@
 - 2026-11-05 VIEW 완료: C1 probe 52/52(Chromium·WebKit 각 26), `verify.mjs` PASS(`c6970260`), 파일당 +25,955 B. 클래식 스크롤바는 툴바 아래 5px 떨어져 겹치지 않는다. 실제 Safari·트랙패드·실제 창 전환의 Space 해제는 확인하지 못했다. 작업자는 수정 라운드를 위해 남겼다(retain).
 - 2026-11-05 리뷰 r1(Opus medium): 🔴 0, 🟡 1 — 캔버스에서 넘어온 Esc가 tooltip만 닫고 Hand를 그대로 둔다(앱 `CanvasController.ts:778`은 바로 Select). ⚪1(probe의 `hasFocus` 복원)·⚪2(끄는 중 Esc·Space-up probe)를 함께 보냈다. VIEW 작업자 터미널 재사용은 Orca가 `agent_unconfigured`로 거절해, 작업자를 놓고 같은 worktree에 새 작업자(Opus medium, `ctx_6f2c9b7165f7`)를 띄웠다. 수정이 작아서 medium으로 했다.
 - 2026-11-05 지휘자: Z1의 PRODUCT·ARCHITECTURE·BACKLOG 문안을 먼저 커밋했다(`cb6d0ea0`·`6d2097f0`·`5dabaee0`). DESIGN.md는 SYNC가 쓴 뒤 고친다.
+- 2026-11-05 수정 r1 완료: 캔버스에서 넘어온 Esc는 `escapeTool`로 바로 Hand → Select(앱 `escape(false)`와 같다). 회귀 테스트 red→green, probe 58/58(Chromium·WebKit 각 29), 이전 빌드는 새 Esc 확인에서 실패, `verify.mjs` PASS. 파일당 +26,237 B. 🔴가 0이고 수정이 작아 리뷰를 다시 돌리지 않았다(지휘자 판단).
+- 2026-11-05 VIEW 통합: `c436e1e2`·`2ee23db6`·`40ed33d2`·`9d45b895`·`dddb8853`을 `feat/export-viewer-chrome-local`에 cherry-pick했다. 통합 HEAD의 `/verify --eval`은 SYNC 통합 뒤 한 번 돌린다(작업자 gate와 겹치지 않게).
