@@ -50,7 +50,7 @@ vi.mock("./CanvasController", async original => ({
     constructor(_viewport: unknown, _board: unknown, _overlay: unknown, setState: (state: unknown) => void) {
       harness.setState = setState;
       const self = this as unknown as Record<string, ReturnType<typeof vi.fn>>;
-      for (const name of ["dispose", "command", "updateEntries", "setWorkspaceActive", "setCanvasPage", "setTool", "restoreTool", "openCanvas", "cancelWorkspaceOpen", "remember", "selectPath", "onPicked", "pick", "cancelPick", "locate", "dropPendingLocate", "settleFit"]) self[name] = vi.fn();
+      for (const name of ["dispose", "command", "updateEntries", "setWorkspaceActive", "setCanvasPage", "setTool", "restoreTool", "openCanvas", "cancelWorkspaceOpen", "remember", "selectPath", "onPicked", "pick", "cancelPick", "onCapture", "startCapture", "cancelCapture", "locate", "dropPendingLocate", "settleFit"]) self[name] = vi.fn();
       self.openWorkspace = vi.fn((root: string, done: (root: string) => void) => done(root));
       self.showOverview = vi.fn((done: () => void) => done());
       self.destination = vi.fn((root: string) => ({ root }));
@@ -68,6 +68,9 @@ const { ShellSidebar } = await import("./ShellSidebar");
 const { RightPanel } = await import("./RightPanel");
 const { ConversationPanel, ResizeHandle } = await import("./ConversationPanel");
 const { ProjectOverview } = await import("./ProjectOverview");
+const { SettingsPage } = await import("./SettingsPage");
+const { CAPTURE_LIMIT, CAPTURE_TERMINAL, CAPTURE_UNAVAILABLE } = await import("./canvasCapture");
+const { DUPLICATE_CANVAS_TEXT } = await import("./canvasConversation");
 const { HomeRun } = await import("./homeRun");
 const { CanvasConversation } = await import("./CanvasConversationPanel");
 const { CanvasConversations } = await import("./RightPanel");
@@ -682,4 +685,240 @@ test("the canvas page hands the controller's press subscription to the panel's c
   expect(press).toBe(harness.controller!.canvasPress);
   render();
   expect((conversation() as unknown as { canvasPress?: unknown }).canvasPress).toBe(press);
+});
+
+// canvas-capture spec 1, 5, 7, 8 and design §3: Capture area's availability, its chip in the panel's composer, and when
+// the panel unfolds. The controller hands each captured area to App's listener; the listener's snapshot calls main.
+type CaptureProps = { capturing: boolean; capture: { enabled: boolean; reason: string | null; onToggle(): void } };
+type Store = { drafts: ReadonlyMap<string, { attachments: readonly { key: string; name: string; pasted: boolean; status: string; id?: string }[] }>; setDrafts(change: (drafts: Map<string, unknown>) => Map<string, unknown>): void };
+type Run = { store: Store; composerKey(): string | null; choose(choice: string): void };
+const captureTool = () => (pane() as unknown as CaptureProps).capture;
+const panelRun = () => (find<{ run: Run }>(CanvasConversation)[0]!.props.run);
+const composerChips = () => panelRun().store.drafts.get(panelRun().composerKey()!)?.attachments ?? [];
+const fileChip = (i: number) => ({ key: `f${i}`, name: `f${i}.txt`, kind: "file", pasted: false, status: "ready" });
+function attachFiles(count: number) {
+  const key = panelRun().composerKey()!;
+  panelRun().store.setDrafts(drafts => new Map(drafts).set(key, { segments: [], preset: null, shape: "capsule", attachments: Array.from({ length: count }, (_, i) => fileChip(i)) }));
+  render();
+}
+const RECT = { x: 260, y: 140, width: 300, height: 196 };
+type Listener = (rect: typeof RECT) => (() => Promise<unknown>) | null;
+const captureListener = () => harness.controller!.onCapture!.mock.calls[0]![0] as Listener;
+const captured = (patch: Record<string, unknown> = {}) => ({ ok: true, attachment: { id: "cap1", name: "canvas-capture-2026-11-05T12-00-00-000Z.png", kind: "image", pasted: true, size: 2048, path: "/u/attachments/cap1/canvas-capture.png", thumbnail: new Uint8Array([1, 2]), ...patch } });
+function capturing(on: boolean) {
+  harness.setState!({ ...initialCanvasState(), open: { folder: "/w/a", canvas: rowA.path, row: rowA }, shown: rowA.path, status: null,
+    layout: { type: "layout", href: "u-a", height: 100, viewport: 100, frames: [{ id: "cart", x: 0, y: 0, width: 10, height: 10 }], truncated: false }, capturing: on });
+  render();
+}
+
+test("Capture area starts capture mode on a loaded canvas whose composer takes files, and its second press ends it", async () => {
+  await canvasWithComposer();
+  expect(captureTool()).toMatchObject({ enabled: true, reason: null });
+  captureTool().onToggle();
+  expect(harness.controller!.startCapture).toHaveBeenCalledOnce();
+  capturing(true);
+  expect((pane() as unknown as CaptureProps).capturing).toBe(true);
+  captureTool().onToggle();
+  expect(harness.controller!.cancelCapture).toHaveBeenCalledOnce();
+  expect(harness.controller!.startCapture).toHaveBeenCalledOnce();
+});
+
+test("Capture area is unavailable, with the canvas's reason, while the canvas can't be shown, and starts nothing", async () => {
+  for (const patch of [{ unlisted: true }, { status: "failed", layout: null }, { status: "loading", layout: null }]) {
+    reset();
+    await openCanvas(undefined, patch);
+    expect(captureTool()).toEqual(expect.objectContaining({ enabled: false, reason: CAPTURE_UNAVAILABLE }));
+    captureTool().onToggle();
+    expect(harness.controller!.startCapture).not.toHaveBeenCalled();
+  }
+});
+
+test("Capture area gives Attach's reason while the composer continues a terminal session, and not once it starts a new one", async () => {
+  doan.conversationResumeTarget!.mockResolvedValue({ available: true, runtime: "codex", lastCheckAt: "2026-11-01T14:02:00", session: "s1" });
+  await canvasWithComposer();
+  await flushAll();
+  expect(captureTool()).toMatchObject({ enabled: false, reason: CAPTURE_TERMINAL });
+  captureTool().onToggle();
+  expect(harness.controller!.startCapture).not.toHaveBeenCalled();
+  panelRun().choose("new"); render();
+  expect(captureTool()).toMatchObject({ enabled: true, reason: null });
+});
+
+test("Capture area gives Attach's reason while the panel shows a legacy external conversation", async () => {
+  doan.listConversations!.mockResolvedValue([rowSummary({ owner: "legacy-external" })]);
+  await canvasWithComposer();
+  await flushAll();
+  expect(panelRun().composerKey()).toBe("conversation:c1");
+  expect(captureTool()).toMatchObject({ enabled: false, reason: CAPTURE_TERMINAL });
+});
+
+test("Capture area is unavailable once the composer's draft holds 10 files", async () => {
+  await canvasWithComposer();
+  attachFiles(9);
+  expect(captureTool().enabled).toBe(true);
+  attachFiles(10);
+  expect(captureTool()).toMatchObject({ enabled: false, reason: CAPTURE_LIMIT });
+});
+
+// Export's rule (canvas-composer-polish spec 5): a press that lands while a page is locked does nothing. The pane is
+// not shown on a page, so the press is the handler taken before the page opened, as the reply chip test does.
+test("a Capture area press that lands while a page is locked does nothing", async () => {
+  await canvasWithComposer();
+  const press = captureTool().onToggle;
+  listeners.openSettingsPage!({} as never); render();
+  find<{ onState(report: { locked: boolean }): void }>(SettingsPage)[0]!.props.onState({ locked: true }); render();
+  press();
+  expect(harness.controller!.startCapture).not.toHaveBeenCalled();
+});
+
+test("a captured area lands as a checking Canvas capture chip at once, and main's answer settles it with its thumbnail", async () => {
+  await canvasWithComposer();
+  let answer!: (value: unknown) => void;
+  doan.captureCanvas = vi.fn(() => new Promise(resolve => { answer = resolve; }));
+  const snapshot = captureListener()(RECT);
+  expect(snapshot).toBeTypeOf("function");
+  expect(composerChips()).toEqual([expect.objectContaining({ pasted: true, status: "checking", kind: "image" })]);
+  expect(composerChips()[0]!.name.startsWith("canvas-capture-")).toBe(true);
+  expect(doan.captureCanvas).not.toHaveBeenCalled();
+  const done = snapshot!();
+  expect(doan.captureCanvas).toHaveBeenCalledWith(RECT);
+  answer(captured()); await done; render();
+  const key = composerChips()[0]!.key;
+  expect(composerChips()).toEqual([expect.objectContaining({ id: "cap1", status: "ready", pasted: true, name: "canvas-capture-2026-11-05T12-00-00-000Z.png" })]);
+  expect((find<{ support: { thumbnails: Record<string, string> } }>(CanvasConversation)[0]!.props.support.thumbnails)[key]).toBeTruthy();
+  expect(harness.toast.show).not.toHaveBeenCalled();
+});
+
+// Conductor decision (orch.md '접힌 패널을 펼치는 때'): unfolding narrows the canvas area, so it waits for main's answer,
+// which comes after main has read the pixels; the checking chip goes in at once.
+test("a folded panel unfolds, with focus for the composer, only once main answers the capture", async () => {
+  for (const reply of [captured(), { ok: false, name: "Canvas capture", error: "capture_failed" }]) {
+    reset();
+    await canvasWithComposer({ panel: false });
+    let answer!: (value: unknown) => void;
+    doan.captureCanvas = vi.fn(() => new Promise(resolve => { answer = resolve; }));
+    const snapshot = captureListener()(RECT); render();
+    expect(composerChips()).toHaveLength(1);
+    expect(panel()?.open).toBe(false);
+    const done = snapshot!(); render();
+    expect(panel()?.open).toBe(false);
+    expect(conversation()?.arrival).toBeNull();
+    answer(reply); await done; render();
+    expect(panel()?.open).toBe(true);
+    expect(conversation()?.arrival).toMatchObject({ focus: "composer" });
+  }
+});
+
+test.each([
+  ["main could not capture or save the PNG", async () => ({ ok: false, name: "Canvas capture", error: "capture_failed" }), "Couldn’t capture the canvas. Try again."],
+  ["main refused the request", async () => null, "Couldn’t capture the canvas. Try again."],
+  ["the call threw", async () => { throw new Error("window closed"); }, "Couldn’t capture the canvas. Try again."],
+  ["the image is over 50 MB", async () => ({ ok: false, name: "Canvas capture", error: "too_large" }), "This image is over 50 MB, so it wasn’t attached."],
+])("a capture that fails because %s removes its chip and shows one toast", async (_case, reply, text) => {
+  await canvasWithComposer();
+  doan.captureCanvas = vi.fn(reply);
+  await captureListener()(RECT)!(); render();
+  expect(composerChips()).toEqual([]);
+  expect(harness.toast.show).toHaveBeenCalledExactlyOnceWith(text);
+});
+
+// Availability was decided at render; a paste since then may have filled the draft, and main refuses an eleventh file.
+test("a draft that reached 10 files after the render takes no snapshot and says one was left out", async () => {
+  await canvasWithComposer();
+  attachFiles(9);
+  expect(captureTool().enabled).toBe(true);
+  const key = panelRun().composerKey()!;
+  panelRun().store.setDrafts(drafts => new Map(drafts).set(key, { segments: [], preset: null, shape: "capsule", attachments: Array.from({ length: 10 }, (_, i) => fileChip(i)) }));
+  doan.captureCanvas = vi.fn();
+  expect(captureListener()(RECT)).toBeNull();
+  expect(doan.captureCanvas).not.toHaveBeenCalled();
+  expect(composerChips()).toHaveLength(10);
+  expect(harness.toast.show).toHaveBeenCalledExactlyOnceWith("Only 10 files can be attached. 1 was left out.");
+});
+
+// canvas-capture spec 2 and design §2 '안내 줄': a role=status line above the tools, in the picking hint's look.
+test("capture mode shows its hint line above the tools, with Esc and a spoken cancel", async () => {
+  await canvasWithComposer();
+  const paneTree = () => {
+    const element = all(tree).find(node => typeof node.type === "function" && node.type.name === "CanvasPane")!;
+    return all((element.type as (props: unknown) => ReactNode)(element.props));
+  };
+  const hint = (nodes = paneTree()) => nodes.find(node => node.props.role === "status" && String(node.props.className).includes("doan-picking"));
+  const words = (node: ReactNode): string => Array.isArray(node) ? node.map(words).filter(Boolean).join("|") : typeof node === "string" ? node : isValidElement<{ children?: ReactNode }>(node) ? words(node.props.children) : "";
+  expect(hint()).toBeUndefined();
+  capturing(true);
+  const nodes = paneTree(), line = hint(nodes)!;
+  expect(line.props.className).toBe("doan-agent doan-picking");
+  expect(words(line.props.children as ReactNode)).toBe("Drag to capture an area|Esc|Press Escape to cancel");
+  const bottom = nodes.find(node => node.props.className === "doan-canvas-bottom")!;
+  const order = (bottom.props.children as ReactNode[]).filter(isValidElement);
+  expect(order[0]).toBe(line);
+});
+
+// Review U-1: capture mode does not end when the composer turns to one that refuses files, so the release checks the
+// composer again, with captureAvailability's order and copy, before any chip or snapshot.
+test("a release after the composer turned to a terminal session takes no snapshot and gives Attach's reason", async () => {
+  doan.conversationResumeTarget!.mockResolvedValue({ available: true, runtime: "codex", lastCheckAt: "2026-11-01T14:02:00", session: "s1" });
+  await canvasWithComposer();
+  await flushAll();
+  panelRun().choose("new"); render();
+  captureTool().onToggle();
+  expect(harness.controller!.startCapture).toHaveBeenCalledOnce();
+  capturing(true);
+  panelRun().choose("resume"); render();
+  doan.captureCanvas = vi.fn();
+  expect(captureListener()(RECT)).toBeNull();
+  expect(doan.captureCanvas).not.toHaveBeenCalled();
+  expect([...panelRun().store.drafts.values()].flatMap(draft => draft.attachments)).toEqual([]);
+  expect(harness.toast.show).toHaveBeenCalledExactlyOnceWith(CAPTURE_TERMINAL);
+});
+
+test("a release after the panel switched to a legacy external conversation takes no snapshot and gives Attach's reason", async () => {
+  doan.listConversations!.mockResolvedValue([rowSummary(), rowSummary({ conversationId: "c2", owner: "legacy-external", state: "archived" })]);
+  await canvasWithComposer();
+  await flushAll();
+  expect(panelRun().composerKey()).toBe("conversation:c1");
+  expect(captureTool().enabled).toBe(true);
+  captureTool().onToggle();
+  capturing(true);
+  (panelRun() as unknown as { select(id: string): void }).select("c2"); render();
+  expect(panelRun().composerKey()).toBe("conversation:c2");
+  doan.captureCanvas = vi.fn();
+  expect(captureListener()(RECT)).toBeNull();
+  expect(doan.captureCanvas).not.toHaveBeenCalled();
+  expect([...panelRun().store.drafts.values()].flatMap(draft => draft.attachments)).toEqual([]);
+  expect(harness.toast.show).toHaveBeenCalledExactlyOnceWith(CAPTURE_TERMINAL);
+});
+
+test("a release after another canvas took the same ID takes no snapshot and gives the composer's reason", async () => {
+  await canvasWithComposer();
+  captureTool().onToggle();
+  capturing(true);
+  folders([{ path: "/w/a", kind: "list", servedRev: 1, canvases: [rowA, { path: ".doan/canvases/b.html", id: "a", url: "u-b" }] }]);
+  expect(conversation()?.blocked).toBe(DUPLICATE_CANVAS_TEXT);
+  doan.captureCanvas = vi.fn();
+  expect(captureListener()(RECT)).toBeNull();
+  expect(doan.captureCanvas).not.toHaveBeenCalled();
+  expect(harness.toast.show).toHaveBeenCalledExactlyOnceWith(DUPLICATE_CANVAS_TEXT);
+});
+
+// Review U-1 note: an answer that lands after the composer changed settles on its chip but moves no panel or focus.
+test("a late answer after the panel switched conversation or the canvas page left settles its chip without unfolding", async () => {
+  for (const leave of ["conversation", "home"] as const) {
+    reset();
+    doan.listConversations!.mockResolvedValue([rowSummary(), rowSummary({ conversationId: "c2", state: "archived" })]);
+    await canvasWithComposer({ panel: false });
+    await flushAll();
+    const store = panelRun().store, at = panelRun().composerKey()!;
+    let answer!: (value: unknown) => void;
+    doan.captureCanvas = vi.fn(() => new Promise(resolve => { answer = resolve; }));
+    const done = captureListener()(RECT)!();
+    if (leave === "conversation") (panelRun() as unknown as { select(id: string): void }).select("c2");
+    else find<{ goHome(): void }>(ShellSidebar)[0]!.props.goHome();
+    render();
+    answer(captured()); await done; render();
+    expect(store.drafts.get(at)?.attachments).toEqual([expect.objectContaining({ id: "cap1", status: "ready" })]);
+    expect(saved()?.rightPanel).toMatchObject({ open: false });
+    if (leave === "conversation") { expect(panel()?.open).toBe(false); expect(conversation()?.arrival).toBeNull(); }
+  }
 });

@@ -16,6 +16,8 @@ import { scaleFactor } from "./zoomControl";
 import { currentFrame } from "./currentFrame";
 import { pointAnchor, resolveChipTarget, targetAnchor } from "./canvasPicker";
 import { escapeStep, toolShortcut, type CanvasTool, type ToolShortcut } from "./canvasTool";
+import { captureRect } from "./canvasCapture";
+import type { Rect } from "./canvasPicker";
 
 export const MEASURE_ANSWER_MS = 1000;
 const REMEASURE_MS = 50;
@@ -55,7 +57,15 @@ export interface CanvasState {
   tool: CanvasTool;
   // While the canvas waits for one click to name a chip's target (buzz-canvas-conversation design §2 'Picker').
   picking: boolean;
+  // Capture mode: the board waits for a drag to name an area (canvas-capture design §2). Never with `picking`; like a
+  // pick it runs ahead of `tool` and leaves it as it was.
+  capturing: boolean;
 }
+
+// App's half of a capture, told of the area (window content CSS px) once capture mode has ended on it. It returns the
+// snapshot call, or null to take none (its attachment limit). The controller hides the app's marks, calls it two
+// frames later and shows them again once its promise settles, so App settles the composer chip inside it.
+export type CaptureListener = (rect: Rect) => (() => Promise<unknown>) | null;
 
 // How a pick ended. `frames` is the layout's frame list the anchor was taken from, for the chip's name.
 export type PickResult = { kind: "picked"; anchor: Anchor; frames: readonly CanvasFrameRect[] } | { kind: "cancelled" };
@@ -70,7 +80,7 @@ const LOCATE_ID = "locate";
 export type InspectorView = { status: "loading" } | { status: "ready"; rows: InspectRow[] } | { status: "failed"; reason: string };
 
 export function initialCanvasState(): CanvasState {
-  return { hasFrame: false, open: null, shown: null, layout: null, selection: null, currentFrame: null, notice: "", inspector: null, status: "empty", reanchoring: false, reloading: false, message: "Pick a canvas from the list", error: "", unlisted: false, zoom: 100, scale: 1, activity: [], tool: "select", picking: false };
+  return { hasFrame: false, open: null, shown: null, layout: null, selection: null, currentFrame: null, notice: "", inspector: null, status: "empty", reanchoring: false, reloading: false, message: "Pick a canvas from the list", error: "", unlisted: false, zoom: 100, scale: 1, activity: [], tool: "select", picking: false, capturing: false };
 }
 
 // ARCH §13: a row has no `rev` until main sees its file change after the folder
@@ -162,6 +172,18 @@ export class CanvasController {
   private spaceHeld = false;
   private drag: { pointerId: number; x: number; y: number } | null = null;
   private layerShown = false;
+  // Capture mode (canvas-capture design §2). The layer and its marquee are made on the first start, right after the
+  // drag layer, and only the controller shows them. A drag that capture mode leaves early (Esc, a cancel) stays as
+  // `dropped`: the layer stays up until that pointer's release, which would otherwise land on the iframe as a
+  // selecting click (ARCHITECTURE §3 'Input'). A drag ends at once only with its board.
+  private captureLayer: HTMLElement | null = null;
+  private marquee: HTMLElement | null = null;
+  private captureShown = false;
+  private captureDrag: { pointerId: number; start: Point; end: Point; dropped: boolean } | null = null;
+  private captureListener: CaptureListener | null = null;
+  // Snapshots between hiding the marks and their answer; the root attribute stays until the last one settles.
+  private snapshots = 0;
+  private snapshotFrames = new Set<number>();
   private canvasPage = true;
   // The newest canvas click waiting for main's cursor reading; an older reading does not move focus.
   private clickTag = 0;
@@ -273,7 +295,7 @@ export class CanvasController {
     private sendSelection: (selection: Selection | null) => void,
     private inspect: (selector: string) => Promise<InspectResult>,
     // The drag layer App renders right after the overlay: over the board and the iframe, under the canvas chrome.
-    private layer: Pick<HTMLElement, "hidden" | "dataset" | "addEventListener" | "removeEventListener" | "setPointerCapture" | "releasePointerCapture" | "hasPointerCapture">,
+    private layer: Pick<HTMLElement, "hidden" | "dataset" | "addEventListener" | "removeEventListener" | "setPointerCapture" | "releasePointerCapture" | "hasPointerCapture" | "after">,
     // Main's reading of the OS cursor in the window's content coordinates, null when it cannot tell.
     private pointer: () => Promise<{ x: number; y: number } | null>,
   ) {
@@ -321,6 +343,18 @@ export class CanvasController {
     this.layer.removeEventListener("pointerup", this.layerUp);
     this.layer.removeEventListener("pointercancel", this.layerUp);
     this.layer.removeEventListener("lostpointercapture", this.layerUp);
+    this.captureListener = null;
+    if (this.captureLayer) {
+      this.captureLayer.removeEventListener("pointerdown", this.captureDown);
+      this.captureLayer.removeEventListener("pointermove", this.captureMove);
+      this.captureLayer.removeEventListener("pointerup", this.captureUp);
+      this.captureLayer.removeEventListener("pointercancel", this.captureDropped);
+      this.captureLayer.removeEventListener("lostpointercapture", this.captureDropped);
+    }
+    for (const frame of this.snapshotFrames) cancelAnimationFrame(frame);
+    this.snapshotFrames.clear();
+    if (this.snapshots > 0) document.documentElement.removeAttribute("data-capture-snapshot");
+    this.snapshots = 0;
     this.dropFrame();
   }
 
@@ -384,8 +418,8 @@ export class CanvasController {
     this.applySelectionEffect(update);
     switch (update.kind) {
       case "reload":
-        // Another canvas id at this path is another canvas: like opening one, it ends the pick.
-        if (update.idChanged) this.endPick({ kind: "cancelled" });
+        // Another canvas id at this path is another canvas: like opening one, it ends the pick and capture mode.
+        if (update.idChanged) { this.endPick({ kind: "cancelled" }); this.endCaptureWithBoard(); }
         this.state.error = "";
         this.state.open = { ...open, row: update.canvas };
         this.load(update.canvas, false, reloadKind(open.row, update.canvas));
@@ -465,14 +499,16 @@ export class CanvasController {
     this.workspaceActive = active;
     if (!active) this.cancelWorkspaceOpen();
     if (!active) this.releaseInput();
-    // Leaving the canvas page for another screen cancels the pick.
+    // Leaving the canvas page for another screen cancels the pick and capture mode.
     if (!active && this.state.picking) { this.endPick({ kind: "cancelled" }); this.publish(); }
+    if (!active) this.cancelCapture();
   }
 
-  // The canvas page is on screen: not Home, the Overview or a modal. V, H and Space act only there.
+  // The canvas page is on screen: not Home, the Overview or a modal. V, H and Space act only there; capture mode ends
+  // when it goes (canvas-capture spec 7).
   setCanvasPage(shown: boolean): void {
     this.canvasPage = shown;
-    if (!shown) this.releaseInput();
+    if (!shown) { this.releaseInput(); this.cancelCapture(); }
   }
 
   private onCanvasPage(): boolean { return this.workspaceActive && this.canvasPage; }
@@ -481,6 +517,7 @@ export class CanvasController {
   // still change nothing then (shortcut).
   setTool(tool: CanvasTool): void {
     this.cancelPick();
+    this.cancelCapture();
     this.toolChosen = true;
     this.applyTool(tool);
   }
@@ -711,6 +748,7 @@ export class CanvasController {
     this.stopDrag();
     this.spaceHeld = false;
     this.endPick({ kind: "cancelled" });
+    this.endCaptureWithBoard();
     this.pickDocument = null;
     this.clearJump();
     this.pendingFrame = null;
@@ -901,6 +939,7 @@ export class CanvasController {
     if (this.state.picking) return true;
     // A pick that starts drops the selection, ahead of pick-start so the script lets go of it before picking.
     this.dropSelection();
+    this.endCapture();
     this.state.picking = true;
     this.armPick();
     this.syncFrameInput();
@@ -912,6 +951,152 @@ export class CanvasController {
     if (!this.state.picking) return;
     this.endPick({ kind: "cancelled" });
     this.publish();
+  }
+
+  // The toolbar's Capture area. false: no board is drawn. A reload in progress keeps capture mode, and the drag too. A
+  // pick in progress ends; the selection stays (design §2 '선택').
+  startCapture(): boolean {
+    if (this.state.open === null || !this.boardShown()) return false;
+    if (this.state.capturing) return true;
+    this.endPick({ kind: "cancelled" });
+    this.makeCaptureLayer();
+    this.state.capturing = true;
+    this.publish();
+    return true;
+  }
+
+  cancelCapture(): void {
+    if (!this.state.capturing) return;
+    this.endCapture();
+    this.publish();
+  }
+
+  // The one listener for captured areas; returns its removal.
+  onCapture(listener: CaptureListener): () => void {
+    this.captureListener = listener;
+    return () => { if (this.captureListener === listener) this.captureListener = null; };
+  }
+
+  // Does not publish: callers do.
+  private endCapture(): void {
+    if (!this.state.capturing) return;
+    this.state.capturing = false;
+    if (this.captureDrag !== null) { this.captureDrag.dropped = true; this.drawMarquee(); }
+  }
+
+  // The board goes away: a drag on it ends at once, as Hand's does.
+  private endCaptureWithBoard(): void {
+    this.stopCaptureDrag();
+    this.endCapture();
+  }
+
+  // Transparent and aria-hidden: it only takes the pointer, under the canvas chrome, so Stop, Open, Reload and the
+  // tools row stay clickable, and the wheel still reaches wheelOnMargin through `.area`.
+  private makeCaptureLayer(): void {
+    if (this.captureLayer !== null) return;
+    const layer = document.createElement("div");
+    layer.className = "capture-layer";
+    layer.setAttribute("aria-hidden", "true");
+    layer.hidden = true;
+    const marquee = document.createElement("div");
+    marquee.className = "capture-marquee";
+    marquee.hidden = true;
+    layer.append(marquee);
+    layer.addEventListener("pointerdown", this.captureDown);
+    layer.addEventListener("pointermove", this.captureMove);
+    layer.addEventListener("pointerup", this.captureUp);
+    layer.addEventListener("pointercancel", this.captureDropped);
+    layer.addEventListener("lostpointercapture", this.captureDropped);
+    this.layer.after(layer);
+    this.captureLayer = layer;
+    this.marquee = marquee;
+  }
+
+  // Only the primary button drags. The layer never takes focus, so focus stays where the person left it.
+  private captureDown = (event: PointerEvent): void => {
+    event.preventDefault();
+    if (event.button !== 0 || this.captureDrag !== null || !this.state.capturing || this.captureLayer === null) return;
+    this.captureLayer.setPointerCapture(event.pointerId);
+    const at = this.areaPoint(event);
+    this.captureDrag = { pointerId: event.pointerId, start: at, end: at, dropped: false };
+    this.drawMarquee();
+  };
+
+  // In the area's screen px: a wheel pan during the drag moves the canvas under a fixed marquee.
+  private captureMove = (event: PointerEvent): void => {
+    const drag = this.captureDrag;
+    if (drag === null || event.pointerId !== drag.pointerId || drag.dropped) return;
+    drag.end = this.areaPoint(event);
+    this.drawMarquee();
+  };
+
+  // The layer comes down only here, after the release it took. A click, a small area, a dropped drag or a reload whose
+  // document has not laid out yet takes nothing and capture mode goes on (design 결정 6); an area ends capture mode at
+  // once (결정 2) and then goes to App.
+  private captureUp = (event: PointerEvent): void => {
+    const drag = this.captureDrag;
+    if (drag === null || event.pointerId !== drag.pointerId) return;
+    const area = drag.dropped || this.loading ? null : captureRect(drag.start, this.areaPoint(event), this.viewportSize());
+    this.stopCaptureDrag();
+    if (area === null) { this.syncLayer(); return; }
+    const origin = this.viewport.getBoundingClientRect();
+    const rect = { ...area, x: Math.round(area.x + origin.left), y: Math.round(area.y + origin.top) };
+    this.endCapture();
+    this.publish();
+    this.snapshot(rect);
+  };
+
+  // pointercancel and a lost pointer capture drop the drag only; capture mode goes on.
+  private captureDropped = (event: PointerEvent): void => {
+    if (this.captureDrag === null || event.pointerId !== this.captureDrag.pointerId) return;
+    this.stopCaptureDrag();
+    this.syncLayer();
+  };
+
+  // Does not redraw the layers: callers do.
+  private stopCaptureDrag(): void {
+    const drag = this.captureDrag;
+    if (drag === null) return;
+    this.captureDrag = null;
+    if (this.captureLayer?.hasPointerCapture(drag.pointerId)) this.captureLayer.releasePointerCapture(drag.pointerId);
+    this.drawMarquee();
+  }
+
+  private drawMarquee(): void {
+    if (this.marquee === null) return;
+    const drag = this.captureDrag;
+    const rect = drag === null || drag.dropped ? null : captureRect(drag.start, drag.end, this.viewportSize());
+    this.marquee.hidden = rect === null;
+    if (rect !== null) Object.assign(this.marquee.style, { left: `${rect.x}px`, top: `${rect.y}px`, width: `${rect.width}px`, height: `${rect.height}px` });
+  }
+
+  private areaPoint(event: PointerEvent): Point {
+    const origin = this.viewport.getBoundingClientRect();
+    return { x: event.clientX - origin.left, y: event.clientY - origin.top };
+  }
+
+  // The root attribute hides the app's marks by opacity (styles.css), so nothing moves and focus stays. The first frame
+  // paints them hidden; the second lets that paint reach the window before main reads its pixels (design §2 '스냅숏').
+  private snapshot(rect: Rect): void {
+    const take = this.captureListener?.(rect) ?? null;
+    if (take === null) return;
+    if (this.snapshots++ === 0) document.documentElement.setAttribute("data-capture-snapshot", "");
+    const first = requestAnimationFrame(() => {
+      this.snapshotFrames.delete(first);
+      const second = requestAnimationFrame(() => {
+        this.snapshotFrames.delete(second);
+        let shot: Promise<unknown>;
+        try { shot = take(); } catch (error) { shot = Promise.reject(error); }
+        void shot.then(() => {}, (error: unknown) => { console.error("canvas capture failed", error); }).then(() => this.snapshotSettled());
+      });
+      this.snapshotFrames.add(second);
+    });
+    this.snapshotFrames.add(first);
+  }
+
+  private snapshotSettled(): void {
+    if (this.snapshots === 0) return;
+    if (--this.snapshots === 0) document.documentElement.removeAttribute("data-capture-snapshot");
   }
 
   // Sent once the current document has laid out with its token; the token keeps a command from reaching the
@@ -1001,20 +1186,21 @@ export class CanvasController {
     // Esc while picking cancels only the pick, wherever focus is: the composer, the canvas or the panel. Menus and
     // the `/` list handle their Esc first and prevent it (design §2 'Esc and cancel').
     const step = this.escape(editableTarget(event.target));
-    if (step === "cancelPick" || step === "selectTool") event.preventDefault();
+    if (step === "cancelPick" || step === "cancelCapture" || step === "selectTool") event.preventDefault();
   };
 
   // Esc's next step (canvas-hand-tool design '키' 'Esc'); `editable`: it came from a text field. Returns the step.
   private escape(editable: boolean): ReturnType<typeof escapeStep> {
-    const step = escapeStep({ picking: this.state.picking, hand: this.canvasPage && (this.pendingTool ?? this.tool) === "hand", editable });
+    const step = escapeStep({ picking: this.state.picking, capturing: this.state.capturing, hand: this.canvasPage && (this.pendingTool ?? this.tool) === "hand", editable });
     if (step === "cancelPick") this.cancelPick();
+    else if (step === "cancelCapture") this.cancelCapture();
     else if (step === "selectTool") { this.toolChosen = true; this.applyTool("select"); }
     else if (step === "clearSelection") this.clearOnEscape();
     return step;
   }
 
-  // V, H and Space from the app or a focused canvas; `ignored`: the source does not count. A pick runs ahead of the
-  // tool, so it takes neither. Returns whether the key was the canvas's.
+  // V, H and Space from the app or a focused canvas; `ignored`: the source does not count. A pick and capture mode run
+  // ahead of the tool, so they take neither. Returns whether the key was the canvas's.
   private shortcut(shortcut: ToolShortcut, ignored: boolean): boolean {
     if (shortcut.kind === "space" && !shortcut.down) {
       const held = this.spaceHeld;
@@ -1022,7 +1208,7 @@ export class CanvasController {
       this.syncLayer();
       return held;
     }
-    if (ignored || this.state.picking) return false;
+    if (ignored || this.state.picking || this.state.capturing) return false;
     if (shortcut.kind === "tool") { this.toolChosen = true; this.applyTool(shortcut.tool); return true; }
     // Without a drawn board Space does nothing, and a Space held from then does not pan the board that comes later.
     if (!this.boardDrawn()) return false;
@@ -1047,6 +1233,7 @@ export class CanvasController {
 
   private releaseInput(): void {
     this.spaceHeld = false;
+    this.stopCaptureDrag();
     this.finishDrag();
   }
 
@@ -1097,23 +1284,36 @@ export class CanvasController {
     }, (error: unknown) => { console.error("pointer:get failed", error); });
   }
 
-  // The layer shows while Hand or a held Space can pan a drawn board, and through a drag in progress.
+  // The layer shows while Hand or a held Space can pan a drawn board, and through a drag in progress. Not under the
+  // capture layer: in Hand both would be up at once.
   private boardDrawn(): boolean {
-    return !this.state.picking && this.frame !== null && this.state.status === null && !this.state.unlisted;
+    return !this.state.picking && !this.captureHeld() && this.boardShown();
   }
 
+  private boardShown(): boolean {
+    return this.frame !== null && this.state.status === null && !this.state.unlisted;
+  }
+
+  // Capture mode, or a drag it left that still holds the layer.
+  private captureHeld(): boolean { return this.state.capturing || this.captureDrag !== null; }
+
   private syncLayer(): void {
+    // Capture mode ends with the board it was on (canvas-capture spec 7).
+    if (!this.boardShown()) this.endCaptureWithBoard();
+    const capture = this.captureHeld();
     const board = this.boardDrawn();
     // A drag and a held Space end with the board they were on; the tool stays.
     if (!board) { this.stopDrag(); this.spaceHeld = false; }
     const show = board && (this.tool === "hand" || this.spaceHeld || this.drag !== null);
-    if (show && !this.layerShown) {
+    if ((show && !this.layerShown) || (capture && !this.captureShown)) {
       // The iframe gets no pointermove under the layer, and an OOPIF's pointerout cannot be trusted (POSTMORTEM 2026-10-23).
       this.hoverRect = null;
       this.sendHoverCommand({ type: "hover-leave" });
     }
     this.layerShown = show;
     this.layer.hidden = !show;
+    this.captureShown = capture;
+    if (this.captureLayer !== null) this.captureLayer.hidden = !capture;
     if (this.drag !== null) this.layer.dataset.grabbing = "";
     else delete this.layer.dataset.grabbing;
     this.drawMarks();
@@ -1183,6 +1383,7 @@ export class CanvasController {
     const beforeSelection = this.state.selection;
     const previousActivity = this.state.activity;
     const previousPicking = this.state.picking;
+    const previousCapturing = this.state.capturing;
     const newDocument = this.lastHref !== null && !sameDocument(this.lastHref, message.href);
     // Against the height before this layout resizes the iframe, as layoutHeight does.
     const selected = selectedFromLayout({ ...this.expectation(), href: message.href }, message);
@@ -1206,9 +1407,10 @@ export class CanvasController {
       this.hoverSeq = 0;
       this.hoverRect = null;
       this.applySelectionEffect({ kind: "otherCanvas" });
-      // A link or the canvas's own script left for another page: another canvas, so the pick ends.
+      // A link or the canvas's own script left for another page: another canvas, so the pick and capture mode end.
       this.resetPickChannel();
       this.endPick({ kind: "cancelled" });
+      this.endCaptureWithBoard();
     }
     const first = this.loading;
     if (first) {
@@ -1221,7 +1423,7 @@ export class CanvasController {
     this.state.layout = message;
     const linked = this.markShown(message.href);
     if (linked && this.state.open) this.linkedCanvas?.(this.state.open.folder);
-    if (this.state.unlisted) this.endPick({ kind: "cancelled" });
+    if (this.state.unlisted) { this.endPick({ kind: "cancelled" }); this.endCaptureWithBoard(); }
     else if (this.state.picking && this.activePick === null) this.armPick();
     if ((first || linked) && this.state.open && !this.state.unlisted && (linked || this.loadKind !== "moved")) {
       const at = new Date();
@@ -1249,7 +1451,7 @@ export class CanvasController {
       else { this.selectedRect = selected; this.drawMarks(); }
     }
     this.state.currentFrame = this.state.unlisted ? null : currentFrame(message.frames, this.view, this.viewportSize());
-    if (first || previousCurrent !== this.state.currentFrame || documentChanged || before !== this.layoutDisplayKey() || previousActivity !== this.state.activity || beforeSelection !== this.state.selection || previousPicking !== this.state.picking) this.publish();
+    if (first || previousCurrent !== this.state.currentFrame || documentChanged || before !== this.layoutDisplayKey() || previousActivity !== this.state.activity || beforeSelection !== this.state.selection || previousPicking !== this.state.picking || previousCapturing !== this.state.capturing) this.publish();
   }
 
   private markShown(href: string): boolean {
@@ -1392,7 +1594,7 @@ export class CanvasController {
   // scale, while the size label (a child of the selection mark, centered
   // under it by CSS) reads canvas px.
   private drawMarks(): void {
-    const hover = this.markHidden || this.altHeld || this.layerShown ? null : this.hoverRect;
+    const hover = this.markHidden || this.altHeld || this.layerShown || this.captureShown ? null : this.hoverRect;
     const selected = this.markHidden ? null : this.selectedRect;
     if (this.marks === null) {
       if (hover === null && selected === null) return;

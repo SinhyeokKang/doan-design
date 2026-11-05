@@ -127,6 +127,8 @@ function fakeLayer() {
   const captured = new Set<number>();
   return Object.assign(new EventTarget(), {
     hidden: false, dataset: {} as Record<string, string>, captured,
+    // Where the controller puts the capture layer: right after this one (canvas-capture design §2 '캡처 레이어').
+    after: vi.fn(),
     setPointerCapture: (id: number) => { captured.add(id); },
     releasePointerCapture: (id: number) => { captured.delete(id); },
     hasPointerCapture: (id: number) => captured.has(id),
@@ -140,6 +142,8 @@ interface FakeMark {
   style: Record<string, string>;
   children: FakeMark[];
   append(...children: FakeMark[]): void;
+  // The pointers a fake element holds (the capture layer's drag).
+  captured?: Set<number>;
 }
 
 // Each load gets its own iframe (and window) so messages can be sent from the
@@ -150,12 +154,17 @@ function selectionHarness() {
   const frames: (EventTarget & { contentWindow: { postMessage: ReturnType<typeof vi.fn> }; style: Record<string, string> })[] = [];
   const marks: FakeMark[] = [];
   // What the hand tool reads: which element has focus, and whether the app window has it.
+  // The document root carries the capture snapshot's attribute (canvas-capture design §2 '스냅숏').
+  const rootAttributes = new Map<string, string>();
   const doc = {
     activeElement: null as unknown,
     hasFocus: () => true,
+    documentElement: { setAttribute: (name: string, value: string) => { rootAttributes.set(name, value); }, removeAttribute: (name: string) => { rootAttributes.delete(name); }, hasAttribute: (name: string) => rootAttributes.has(name) },
     createElement: (tag: string) => {
       if (tag !== "iframe") {
-        const mark: FakeMark = Object.assign(new EventTarget(), { className: "", hidden: false, textContent: "", style: {}, children: [] as FakeMark[], append: (...children: FakeMark[]) => mark.children.push(...children), setAttribute: vi.fn(), remove: vi.fn() });
+        const captured = new Set<number>();
+        const mark: FakeMark = Object.assign(new EventTarget(), { className: "", hidden: false, textContent: "", style: {}, children: [] as FakeMark[], append: (...children: FakeMark[]) => mark.children.push(...children), setAttribute: vi.fn(), remove: vi.fn(),
+          captured, setPointerCapture: (id: number) => { captured.add(id); }, releasePointerCapture: (id: number) => { captured.delete(id); }, hasPointerCapture: (id: number) => captured.has(id) });
         marks.push(mark);
         return mark;
       }
@@ -191,7 +200,7 @@ function selectionHarness() {
   const markOf = (kind: string) => marks.find((mark) => mark.className.split(" ").includes(kind));
   const state = () => changed.mock.lastCall?.[0];
   layout();
-  return { controller, changed, send, frames, current, receive, layout, select, key, markOf, state, row, other, target, overlay, host, viewport, inspect, inspections, board, layer, doc, cursor, pointer };
+  return { controller, changed, send, frames, current, receive, layout, select, key, markOf, state, row, other, target, overlay, host, viewport, inspect, inspections, board, layer, doc, cursor, pointer, marks };
 }
 
 describe("selection", () => {
@@ -3527,6 +3536,518 @@ describe("canvas press", () => {
       h.controller.canvasPress(() => { input.isConnected = false; h.doc.activeElement = h.current(); });
       h.receive({ type: "press" });
       expect(h.viewport.focus).not.toHaveBeenCalled();
+    } finally { h.controller.dispose(); }
+  });
+});
+
+// canvas-capture design §2: capture mode, its layer and drag, the snapshot, and when it ends.
+describe("capture", () => {
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
+  type H = ReturnType<typeof selectionHarness>;
+  type Area = { x: number; y: number; width: number; height: number };
+  const harness = () => {
+    const h = selectionHarness();
+    h.layout({ document: "doc" });
+    const queued: FrameRequestCallback[] = [];
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => queued.push(callback));
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    const nextFrame = () => { for (const callback of queued.splice(0)) callback(0); };
+    return Object.assign(h, { queued, nextFrame });
+  };
+  const captureLayer = (h: H) => h.layer.after.mock.calls[0]?.[0] as FakeMark & EventTarget & { setAttribute: ReturnType<typeof vi.fn> };
+  const marquee = (h: H) => captureLayer(h).children[0]!;
+  const captureShown = (h: H) => captureLayer(h) !== undefined && !captureLayer(h).hidden;
+  const dragShown = (h: H) => !h.layer.hidden;
+  const posted = (h: H) => h.current().contentWindow.postMessage.mock.calls.map(call => call[0] as Record<string, unknown>);
+  const pointer = (h: H, type: string, over: Record<string, unknown> = {}) => {
+    const event = Object.assign(new Event(type, { cancelable: true }), { button: 0, pointerId: 1, clientX: 0, clientY: 0, ...over });
+    captureLayer(h).dispatchEvent(event);
+    return event;
+  };
+  const drag = (h: H, from: { x: number; y: number }, to: { x: number; y: number }) => {
+    pointer(h, "pointerdown", { clientX: from.x, clientY: from.y });
+    pointer(h, "pointermove", { clientX: to.x, clientY: to.y });
+    pointer(h, "pointerup", { clientX: to.x, clientY: to.y });
+  };
+  const keyEvent = (type: "keydown" | "keyup", code: string, over: Record<string, unknown> = {}) => {
+    const { target, ...rest } = over;
+    const key = code === "Space" ? " " : code === "Escape" ? "Escape" : code.slice(3).toLowerCase();
+    const event = Object.assign(new Event(type, { cancelable: true }), { code, key, ...rest });
+    if (target !== undefined) Object.defineProperty(event, "target", { get: () => target });
+    return event;
+  };
+  const press = (h: H, code: string, over?: Record<string, unknown>) => { const event = keyEvent("keydown", code, over); h.host.dispatchEvent(event); return event; };
+  const release = (h: H, code: string) => { const event = keyEvent("keyup", code); h.host.dispatchEvent(event); return event; };
+  const canvasKey = (h: H, key: string, over: Record<string, unknown> = {}) => h.receive({ type: "key", key, seq: 0, ...over });
+  // App's half: each area it is told about, and the snapshot call it hands back, settled by the test.
+  const listen = (h: H) => {
+    const areas: Area[] = [];
+    const shots: { resolve: () => void; reject: (error: unknown) => void }[] = [];
+    const seen: { capturing: boolean; layer: boolean }[] = [];
+    const take = vi.fn(() => new Promise<void>((resolve, reject) => { shots.push({ resolve, reject }); }));
+    h.controller.onCapture(area => { areas.push(area); seen.push({ capturing: h.state().capturing, layer: captureShown(h) }); return take; });
+    return { areas, shots, take, seen };
+  };
+  const flush = async () => { for (let i = 0; i < 4; i++) await Promise.resolve(); };
+  const snapshot = (h: H) => h.doc.documentElement.hasAttribute("data-capture-snapshot");
+
+  it("starts capture mode with its own layer right after the drag layer, and clears the hover but not the selection", () => {
+    const h = harness();
+    try {
+      expect(initialCanvasState().capturing).toBe(false);
+      h.select(1);
+      h.receive({ type: "hover", seq: 0, rect: { x: 0, y: 0, width: 4, height: 4 } });
+      expect(h.markOf("hover")?.hidden).toBe(false);
+      expect(h.controller.startCapture()).toBe(true);
+      expect(h.state()).toMatchObject({ capturing: true, picking: false, tool: "select" });
+      const layer = captureLayer(h);
+      expect(h.layer.after).toHaveBeenCalledExactlyOnceWith(layer);
+      expect(layer.className).toBe("capture-layer");
+      expect(layer.setAttribute).toHaveBeenCalledWith("aria-hidden", "true");
+      expect(marquee(h).className).toBe("capture-marquee");
+      expect(marquee(h).hidden).toBe(true);
+      expect(captureShown(h)).toBe(true);
+      expect(dragShown(h)).toBe(false);
+      // POSTMORTEM 2026-10-23: the iframe gets no pointermove under the layer and its pointerout cannot be trusted.
+      expect(posted(h).at(-1)).toMatchObject({ type: "hover-leave" });
+      expect(h.markOf("hover")?.hidden).toBe(true);
+      h.receive({ type: "hover", seq: 5, rect: { x: 0, y: 0, width: 4, height: 4 } });
+      expect(h.markOf("hover")?.hidden).toBe(true);
+      expect(h.markOf("selected")?.hidden).toBe(false);
+      expect(h.state().selection).toMatchObject({ element: h.target.element });
+      expect(posted(h).some(message => message.type === "clear")).toBe(false);
+      // Starting again changes nothing, and the layer is made once.
+      expect(h.controller.startCapture()).toBe(true);
+      expect(h.layer.after).toHaveBeenCalledTimes(1);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("does not start without a drawn board: loading, unlisted, no canvas", () => {
+    const h = harness();
+    try {
+      h.controller.openCanvas("/repo", h.other);
+      expect(h.state().status).toBe("loading");
+      expect(h.controller.startCapture()).toBe(false);
+      expect(h.state().capturing).toBe(false);
+      h.layout({ href: "http://localhost/t/k/f/.doan/canvases/unlisted.html", document: "doc2" });
+      expect(h.state().unlisted).toBe(true);
+      expect(h.controller.startCapture()).toBe(false);
+      h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 1, canvases: [] }]);
+      expect(h.state().open).toBeNull();
+      expect(h.controller.startCapture()).toBe(false);
+      expect(h.state().capturing).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("the button again ends capture mode with nothing taken, and the tool stays", () => {
+    const h = harness();
+    try {
+      const { areas } = listen(h);
+      h.controller.startCapture();
+      h.controller.cancelCapture();
+      expect(h.state()).toMatchObject({ capturing: false, tool: "select" });
+      expect(captureShown(h)).toBe(false);
+      expect(areas).toEqual([]);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("Esc ends capture mode wherever focus is, before Hand and the selection", () => {
+    const h = harness();
+    try {
+      h.select(1);
+      h.controller.startCapture();
+      expect(press(h, "Escape").defaultPrevented).toBe(true);
+      expect(h.state()).toMatchObject({ capturing: false, tool: "select" });
+      expect(h.state().selection).not.toBeNull();
+      h.controller.startCapture();
+      press(h, "Escape", { target: { tagName: "TEXTAREA", isContentEditable: false } });
+      expect(h.state().capturing).toBe(false);
+      // From a focused canvas, the injected script forwards it.
+      h.controller.startCapture();
+      canvasKey(h, "Escape");
+      expect(h.state().capturing).toBe(false);
+      expect(h.state().selection).not.toBeNull();
+      // Started from Hand, Esc goes back to Hand, not to Select.
+      press(h, "KeyH");
+      h.controller.startCapture();
+      press(h, "Escape");
+      expect(h.state()).toMatchObject({ capturing: false, tool: "hand" });
+      expect(dragShown(h)).toBe(true);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("the toolbar's Select or Hand ends capture mode and switches to that tool", () => {
+    const h = harness();
+    try {
+      h.controller.startCapture();
+      h.controller.setTool("hand");
+      expect(h.state()).toMatchObject({ capturing: false, tool: "hand" });
+      expect(captureShown(h)).toBe(false);
+      expect(dragShown(h)).toBe(true);
+      h.controller.startCapture();
+      h.controller.setTool("hand");
+      expect(h.state()).toMatchObject({ capturing: false, tool: "hand" });
+      h.controller.startCapture();
+      h.controller.setTool("select");
+      expect(h.state()).toMatchObject({ capturing: false, tool: "select" });
+      expect(dragShown(h)).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("ignores V, H and Space in capture mode, from the app and from the canvas", () => {
+    const h = harness();
+    try {
+      h.controller.startCapture();
+      expect(press(h, "KeyH").defaultPrevented).toBe(false);
+      canvasKey(h, "H");
+      expect(h.state()).toMatchObject({ capturing: true, tool: "select" });
+      expect(press(h, "Space").defaultPrevented).toBe(false);
+      h.doc.activeElement = h.current();
+      canvasKey(h, "Space", { down: true });
+      expect(dragShown(h)).toBe(false);
+      release(h, "Space");
+      h.doc.activeElement = null;
+      h.controller.cancelCapture();
+      press(h, "KeyH");
+      h.controller.startCapture();
+      expect(press(h, "KeyV").defaultPrevented).toBe(false);
+      canvasKey(h, "V");
+      expect(h.state()).toMatchObject({ capturing: true, tool: "hand" });
+      expect(dragShown(h)).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("Hand's drag layer goes down for capture mode and comes back when it ends, a landed capture too", () => {
+    const h = harness();
+    try {
+      listen(h);
+      press(h, "KeyH");
+      expect(dragShown(h)).toBe(true);
+      h.controller.startCapture();
+      expect(dragShown(h)).toBe(false);
+      expect(captureShown(h)).toBe(true);
+      h.controller.cancelCapture();
+      expect(dragShown(h)).toBe(true);
+      h.controller.startCapture();
+      drag(h, { x: 10, y: 10 }, { x: 200, y: 200 });
+      expect(h.state()).toMatchObject({ capturing: false, tool: "hand" });
+      expect(dragShown(h)).toBe(true);
+      expect(captureShown(h)).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("a pick and capture mode never run together: starting one cancels the other", () => {
+    const h = harness();
+    try {
+      const picked = vi.fn();
+      h.controller.onPicked(picked);
+      h.controller.pick();
+      expect(h.controller.startCapture()).toBe(true);
+      expect(h.state()).toMatchObject({ capturing: true, picking: false });
+      expect(picked).toHaveBeenCalledExactlyOnceWith({ kind: "cancelled" });
+      expect(posted(h).at(-2)).toMatchObject({ type: "pick-cancel" });
+      expect(h.controller.pick()).toBe(true);
+      expect(h.state()).toMatchObject({ capturing: false, picking: true });
+      expect(captureShown(h)).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  it.each([
+    ["a canvas switch", (h: H) => h.controller.openCanvas("/repo", h.other)],
+    ["a close", (h: H) => h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 1, canvases: [h.other] }])],
+    ["the Overview", (h: H) => h.controller.showOverview()],
+    ["an unlisted page", (h: H) => h.layout({ href: "http://localhost/t/k/f/.doan/canvases/unlisted.html", document: "doc2" })],
+    ["a link to another canvas", (h: H) => h.layout({ href: h.other.url, document: "doc2" })],
+    ["another canvas ID at the path", (h: H) => h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 1, canvases: [{ ...h.row, id: "a2", rev: 1 }, h.other] }])],
+  ])("ends with the board it was on: %s", (_, end) => {
+    const h = harness();
+    try {
+      h.controller.startCapture();
+      pointer(h, "pointerdown", { clientX: 10, clientY: 10 });
+      end(h);
+      expect(h.state().capturing).toBe(false);
+      expect(captureShown(h)).toBe(false);
+      expect(captureLayer(h).captured?.size).toBe(0);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("ends when a reload fails to lay out", () => {
+    vi.useFakeTimers();
+    const h = harness();
+    try {
+      h.controller.startCapture();
+      h.controller.command("reload");
+      expect(h.state().capturing).toBe(true);
+      vi.advanceTimersByTime(FIRST_LAYOUT_TIMEOUT_MS);
+      expect(h.state()).toMatchObject({ status: "failed", capturing: false });
+      expect(captureShown(h)).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  it.each([
+    ["Home or Settings", (h: H) => h.controller.setWorkspaceActive(false)],
+    ["the Overview or a modal", (h: H) => h.controller.setCanvasPage(false)],
+  ])("ends when the canvas page goes for %s", (_, leave) => {
+    const h = harness();
+    try {
+      const { areas } = listen(h);
+      h.controller.startCapture();
+      leave(h);
+      expect(h.state().capturing).toBe(false);
+      expect(captureShown(h)).toBe(false);
+      expect(areas).toEqual([]);
+    } finally { h.controller.dispose(); }
+  });
+
+  // Review K ⚪1: leaving mid-drag must release the drag too, or a dropped drag would hold the layer up off the page.
+  it.each([
+    ["Home or Settings", (h: H) => h.controller.setWorkspaceActive(false)],
+    ["the Overview or a modal", (h: H) => h.controller.setCanvasPage(false)],
+  ])("a drag in progress ends with capture mode when the canvas page goes for %s; its late release takes nothing", (_, leave) => {
+    const h = harness();
+    try {
+      const { areas } = listen(h);
+      h.controller.startCapture();
+      pointer(h, "pointerdown", { clientX: 10, clientY: 10 });
+      pointer(h, "pointermove", { clientX: 200, clientY: 200 });
+      expect(marquee(h).hidden).toBe(false);
+      leave(h);
+      expect(h.state().capturing).toBe(false);
+      expect(captureShown(h)).toBe(false);
+      expect(marquee(h).hidden).toBe(true);
+      expect(captureLayer(h).captured?.size).toBe(0);
+      pointer(h, "pointerup", { clientX: 200, clientY: 200 });
+      expect(areas).toEqual([]);
+      expect(h.queued).toHaveLength(0);
+      expect(snapshot(h)).toBe(false);
+      expect(captureShown(h)).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("a reload keeps capture mode and the drag in progress; a release before the new document lays out takes nothing", () => {
+    const h = harness();
+    try {
+      const { areas } = listen(h);
+      h.controller.startCapture();
+      pointer(h, "pointerdown", { clientX: 100, clientY: 100 });
+      h.controller.command("reload");
+      expect(h.state()).toMatchObject({ capturing: true, reloading: true });
+      expect(captureShown(h)).toBe(true);
+      expect(captureLayer(h).captured?.has(1)).toBe(true);
+      pointer(h, "pointermove", { clientX: 300, clientY: 250 });
+      expect(marquee(h).hidden).toBe(false);
+      pointer(h, "pointerup", { clientX: 300, clientY: 250 });
+      expect(areas).toEqual([]);
+      expect(h.state().capturing).toBe(true);
+      expect(captureShown(h)).toBe(true);
+      expect(marquee(h).hidden).toBe(true);
+      expect(captureLayer(h).captured?.size).toBe(0);
+      h.layout({ document: "doc2" });
+      drag(h, { x: 100, y: 100 }, { x: 300, y: 250 });
+      expect(areas).toEqual([{ x: 100, y: 100, width: 200, height: 150 }]);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("a same-ID move keeps capture mode", () => {
+    const h = harness();
+    try {
+      h.controller.startCapture();
+      const moved = { ...h.row, path: ".doan/canvases/flows/a.html", url: "http://localhost/t/k/f/.doan/canvases/flows/a.html" };
+      h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 1, canvases: [moved, h.other] }]);
+      expect(h.state()).toMatchObject({ capturing: true, shown: moved.path });
+      expect(captureShown(h)).toBe(true);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("a drag draws the marquee in the area's px, clipped; a release ends capture mode, then hands App the area in window px", () => {
+    const h = harness();
+    try {
+      h.viewport.getBoundingClientRect = () => ({ left: 240, top: 48, right: 1040, bottom: 648, x: 240, y: 48, width: 800, height: 600 }) as DOMRect;
+      const { areas, seen } = listen(h);
+      h.controller.startCapture();
+      const down = pointer(h, "pointerdown", { clientX: 340, clientY: 98 });
+      expect(down.defaultPrevented).toBe(true);
+      expect(captureLayer(h).captured?.has(1)).toBe(true);
+      expect(h.viewport.focus).not.toHaveBeenCalled();
+      pointer(h, "pointermove", { clientX: 640, clientY: 298 });
+      expect(marquee(h).hidden).toBe(false);
+      expect(marquee(h).style).toMatchObject({ left: "100px", top: "50px", width: "300px", height: "200px" });
+      pointer(h, "pointermove", { clientX: 2000, clientY: -100 });
+      expect(marquee(h).style).toMatchObject({ left: "100px", top: "0px", width: "700px", height: "50px" });
+      pointer(h, "pointermove", { clientX: 640, clientY: 298 });
+      // A wheel pan during the drag moves the canvas under a fixed marquee.
+      h.controller.wheel({ dx: 30, dy: 40, ctrl: false, meta: false, deltaMode: 0 }, { x: 0, y: 0 });
+      expect(marquee(h).style).toMatchObject({ left: "100px", top: "50px", width: "300px", height: "200px" });
+      // The layer is still up when the release comes, so the release never reaches the iframe.
+      expect(captureShown(h)).toBe(true);
+      pointer(h, "pointerup", { clientX: 640, clientY: 298 });
+      expect(areas).toEqual([{ x: 340, y: 98, width: 300, height: 200 }]);
+      // App hears of the area after capture mode has ended and the layer is down (design 결정 2).
+      expect(seen).toEqual([{ capturing: false, layer: false }]);
+      expect(h.state()).toMatchObject({ capturing: false, tool: "select" });
+      expect(captureLayer(h).captured?.size).toBe(0);
+      expect(marquee(h).hidden).toBe(true);
+      expect(posted(h).some(message => message.type === "select-anchor" || message.type === "clear")).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("Esc during a drag ends capture mode, but the layer stays up until that pointer's release, which takes nothing", () => {
+    const h = harness();
+    try {
+      const { areas } = listen(h);
+      h.controller.startCapture();
+      pointer(h, "pointerdown", { clientX: 10, clientY: 10 });
+      pointer(h, "pointermove", { clientX: 200, clientY: 200 });
+      press(h, "Escape");
+      expect(h.state().capturing).toBe(false);
+      expect(marquee(h).hidden).toBe(true);
+      expect(captureShown(h)).toBe(true);
+      pointer(h, "pointermove", { clientX: 300, clientY: 300 });
+      expect(marquee(h).hidden).toBe(true);
+      pointer(h, "pointerup", { clientX: 300, clientY: 300 });
+      expect(captureShown(h)).toBe(false);
+      expect(areas).toEqual([]);
+      expect(h.state().capturing).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("a click or a drag under 8 px takes nothing and capture mode goes on", () => {
+    const h = harness();
+    try {
+      const { areas } = listen(h);
+      h.controller.startCapture();
+      drag(h, { x: 50, y: 50 }, { x: 50, y: 50 });
+      drag(h, { x: 50, y: 50 }, { x: 57, y: 300 });
+      expect(areas).toEqual([]);
+      expect(h.state().capturing).toBe(true);
+      expect(captureShown(h)).toBe(true);
+      drag(h, { x: 50, y: 50 }, { x: 58, y: 58 });
+      expect(areas).toEqual([{ x: 50, y: 50, width: 8, height: 8 }]);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("only the primary button drags", () => {
+    const h = harness();
+    try {
+      const { areas } = listen(h);
+      h.controller.startCapture();
+      pointer(h, "pointerdown", { button: 2, clientX: 10, clientY: 10 });
+      pointer(h, "pointermove", { clientX: 200, clientY: 200 });
+      expect(marquee(h).hidden).toBe(true);
+      pointer(h, "pointerup", { clientX: 200, clientY: 200 });
+      expect(areas).toEqual([]);
+      expect(h.state().capturing).toBe(true);
+    } finally { h.controller.dispose(); }
+  });
+
+  it.each([
+    ["pointercancel", (h: H) => { pointer(h, "pointercancel"); }],
+    ["lostpointercapture", (h: H) => { pointer(h, "lostpointercapture"); }],
+    ["the app losing focus", (h: H) => { h.doc.hasFocus = () => false; h.host.dispatchEvent(new Event("blur")); }],
+  ])("%s drops only the drag; capture mode goes on", (_, interrupt) => {
+    const h = harness();
+    try {
+      const { areas } = listen(h);
+      h.controller.startCapture();
+      pointer(h, "pointerdown", { clientX: 10, clientY: 10 });
+      pointer(h, "pointermove", { clientX: 200, clientY: 200 });
+      interrupt(h);
+      expect(h.state().capturing).toBe(true);
+      expect(captureShown(h)).toBe(true);
+      expect(marquee(h).hidden).toBe(true);
+      expect(captureLayer(h).captured?.size).toBe(0);
+      pointer(h, "pointerup", { clientX: 200, clientY: 200 });
+      expect(areas).toEqual([]);
+      h.doc.hasFocus = () => true;
+      drag(h, { x: 10, y: 10 }, { x: 200, y: 200 });
+      expect(areas).toHaveLength(1);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("the app's blur that only moves focus into the canvas keeps the drag", () => {
+    const h = harness();
+    try {
+      h.controller.startCapture();
+      pointer(h, "pointerdown", { clientX: 10, clientY: 10 });
+      h.host.dispatchEvent(new Event("blur"));
+      expect(captureLayer(h).captured?.has(1)).toBe(true);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("the snapshot hides the app marks on the document root for two frames, takes the shot, and shows them again once it settles", async () => {
+    const h = harness();
+    try {
+      const { take, shots } = listen(h);
+      h.controller.startCapture();
+      drag(h, { x: 10, y: 10 }, { x: 200, y: 200 });
+      expect(snapshot(h)).toBe(true);
+      expect(take).not.toHaveBeenCalled();
+      h.nextFrame();
+      expect(take).not.toHaveBeenCalled();
+      h.nextFrame();
+      expect(take).toHaveBeenCalledOnce();
+      expect(snapshot(h)).toBe(true);
+      shots[0]!.resolve();
+      await flush();
+      expect(snapshot(h)).toBe(false);
+      // A failed answer shows the marks again too.
+      h.controller.startCapture();
+      drag(h, { x: 10, y: 10 }, { x: 200, y: 200 });
+      h.nextFrame(); h.nextFrame();
+      expect(snapshot(h)).toBe(true);
+      const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+      shots[1]!.reject(new Error("ipc"));
+      await flush();
+      expect(snapshot(h)).toBe(false);
+      expect(logged).toHaveBeenCalledWith("canvas capture failed", expect.any(Error));
+    } finally { h.controller.dispose(); }
+  });
+
+  it("keeps the marks hidden until every snapshot in flight has settled", async () => {
+    const h = harness();
+    try {
+      const { shots } = listen(h);
+      for (let i = 0; i < 2; i++) { h.controller.startCapture(); drag(h, { x: 10, y: 10 }, { x: 200, y: 200 }); }
+      h.nextFrame(); h.nextFrame();
+      expect(shots).toHaveLength(2);
+      shots[0]!.resolve();
+      await flush();
+      expect(snapshot(h)).toBe(true);
+      shots[1]!.resolve();
+      await flush();
+      expect(snapshot(h)).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("a shot that throws shows the marks again", async () => {
+    const h = harness();
+    try {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      h.controller.onCapture(() => () => { throw new Error("sync"); });
+      h.controller.startCapture();
+      drag(h, { x: 10, y: 10 }, { x: 200, y: 200 });
+      h.nextFrame(); h.nextFrame();
+      await flush();
+      expect(snapshot(h)).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("takes no snapshot when App declines the area (its attachment limit) or nobody listens; capture mode still ends", () => {
+    const h = harness();
+    try {
+      h.controller.startCapture();
+      drag(h, { x: 10, y: 10 }, { x: 200, y: 200 });
+      expect(h.state().capturing).toBe(false);
+      expect(h.queued).toHaveLength(0);
+      expect(snapshot(h)).toBe(false);
+      const told = vi.fn(() => null);
+      h.controller.onCapture(told);
+      h.controller.startCapture();
+      drag(h, { x: 10, y: 10 }, { x: 200, y: 200 });
+      expect(told).toHaveBeenCalledOnce();
+      expect(h.state().capturing).toBe(false);
+      expect(h.queued).toHaveLength(0);
+      expect(snapshot(h)).toBe(false);
     } finally { h.controller.dispose(); }
   });
 });

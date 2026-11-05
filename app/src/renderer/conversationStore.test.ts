@@ -258,3 +258,14 @@ test("a deleted conversation's chosen answers go with it", () => {
   h.store.deleted(A);
   expect(h.store.questionDraft(A, "q1").choices).toEqual({});
 });
+
+// canvas-capture design §3 '실패' and 결정 11: main answers capture_failed for an empty image or a PNG it could not
+// save; the chip goes and the notice names the capture, not the file name that `unreadable` would show.
+test("a capture main could not take leaves the draft with the capture notice", () => {
+  const { store } = harness();
+  const chip = { key: "k1", name: "canvas-capture-checking.png", kind: "image" as const, pasted: true, status: "checking" as const };
+  store.setDrafts(() => new Map([["canvas:/code/doan:a", { segments: [], preset: null, attachments: [chip], shape: "capsule" as const }]]));
+  const { notices } = store.settleAttachments(["k1"], [{ ok: false, name: "Canvas capture", error: "capture_failed" }]);
+  expect(notices).toEqual(["Couldn’t capture the canvas. Try again."]);
+  expect(store.drafts.get("canvas:/code/doan:a")?.attachments).toEqual([]);
+});

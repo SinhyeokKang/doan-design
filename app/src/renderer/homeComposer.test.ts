@@ -583,6 +583,24 @@ test("chips show type and size, a checking state, a pasted image and a moved fil
     .toMatchObject({ meta: "Moved or deleted", problem: true, notice: "brand-guidelines.pdf was moved or deleted. Remove it, or attach it again." });
 });
 
+test("a canvas capture chip is named Canvas capture, also while checking and when moved; only a pasted capture-named file is one", () => {
+  const home = "/Users/ada";
+  const name = "canvas-capture-2026-11-05T01-02-03-456Z.png";
+  expect(attachmentChipView(attachment(name, { kind: "image", pasted: true, size: 2.4 * 1024 * 1024, path: `/Users/ada/Library/doan/attachments/a1/${name}` }), home))
+    .toMatchObject({ label: "Canvas capture", meta: "PNG · 2.4 MB", removeLabel: "Remove canvas capture", thumbnail: true, notice: null, problem: false });
+  expect(attachmentChipView((({ size: _size, ...rest }) => rest)(attachment(name, { kind: "image", pasted: true, status: "checking" })), home))
+    .toMatchObject({ label: "Canvas capture", meta: "Checking", removeLabel: "Remove canvas capture" });
+  expect(attachmentChipView(attachment(name, { kind: "image", pasted: true, status: "missing" }), home))
+    .toMatchObject({ label: "Canvas capture", notice: "Canvas capture was moved or deleted. Remove it, or attach it again.", problem: true });
+  // A path attachment that happens to share the name keeps its file name, and another paste stays a pasted image.
+  expect(attachmentChipView(attachment(name, { kind: "image", pasted: false, size: 1024 }), home))
+    .toMatchObject({ label: name, meta: "PNG · 1 KB", removeLabel: `Remove ${name}` });
+  expect(attachmentChipView(attachment(name, { kind: "image", pasted: false, status: "missing" }), home).notice)
+    .toBe(`${name} was moved or deleted. Remove it, or attach it again.`);
+  expect(attachmentChipView(attachment("pasted-2026-11-05T01-02-03-456Z.png", { kind: "image", pasted: true, size: 1024 }), home))
+    .toMatchObject({ label: "Pasted image", removeLabel: "Remove pasted image" });
+});
+
 test("a drop on the composer attaches files and refuses folders, pointing to Add Projects", () => {
   expect(dropTarget([{ isDirectory: false }, { isDirectory: false }])).toEqual({ files: [0, 1], notice: null });
   expect(dropTarget([{ isDirectory: true }])).toEqual({ files: [], notice: "Folders can’t be attached. Add a project from Add Projects." });

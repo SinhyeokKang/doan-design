@@ -42,6 +42,8 @@ const ATTACH_ERRORS: Record<string, (name: string) => string> = {
   not_image: name => `${name} isn’t a readable image, so it wasn’t attached.`,
   unreadable: name => `${name} couldn’t be read, so it wasn’t attached.`,
   too_large: () => "This image is over 50 MB, so it wasn’t attached.",
+  // An empty canvas capture or one main could not save (canvas-capture design 결정 11): the file name means nothing.
+  capture_failed: () => "Couldn’t capture the canvas. Try again.",
 };
 
 export class ConversationStore {

@@ -480,7 +480,12 @@ export function attachmentLimit(existing: number, items: readonly { pasted: bool
   return { accept, notices };
 }
 
-function movedNotice(a: AttachmentDraft): string { return `${a.pasted ? "Pasted image" : a.name} was moved or deleted. Remove it, or attach it again.`; }
+// main writes a canvas capture as a paste named canvas-capture-<time>.png (attachments.ts capturedName); AttachmentInfo has no
+// field for it, so a draft chip is known by this name. A path attachment with the same name has pasted false.
+function isCanvasCapture(a: AttachmentDraft): boolean { return a.pasted && a.name.startsWith("canvas-capture-"); }
+function pastedLabel(a: AttachmentDraft): string { return isCanvasCapture(a) ? "Canvas capture" : "Pasted image"; }
+
+function movedNotice(a: AttachmentDraft): string { return `${a.pasted ? pastedLabel(a) : a.name} was moved or deleted. Remove it, or attach it again.`; }
 
 export function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -491,14 +496,14 @@ export function formatSize(bytes: number): string {
 export interface AttachmentChipView { label: string; meta: string; tooltip: string | null; removeLabel: string; thumbnail: boolean; notice: string | null; problem: boolean }
 
 export function attachmentChipView(a: AttachmentDraft, home: string | null): AttachmentChipView {
-  const label = a.pasted ? "Pasted image" : a.name;
+  const label = a.pasted ? pastedLabel(a) : a.name;
   const dot = a.name.lastIndexOf(".");
   // Pasted images are always re-encoded to PNG by main.
   const type = a.pasted ? "PNG" : dot > 0 ? a.name.slice(dot + 1).toUpperCase() : null;
   const meta = a.status === "checking" ? "Checking" : a.status === "missing" ? "Moved or deleted" : [type, a.size === undefined ? null : formatSize(a.size)].filter(Boolean).join(" · ");
   return {
     label, meta, tooltip: a.path === undefined ? null : displayPath(a.path, home),
-    removeLabel: a.pasted ? "Remove pasted image" : `Remove ${a.name}`,
+    removeLabel: a.pasted ? `Remove ${pastedLabel(a).toLowerCase()}` : `Remove ${a.name}`,
     thumbnail: a.kind === "image" && a.status === "ready",
     notice: a.status === "missing" ? movedNotice(a) : null, problem: a.status === "missing",
   };

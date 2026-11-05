@@ -5,7 +5,7 @@ import type { AttachmentRecord } from "./conversation/types";
 
 // Attachments are local paths the agent reads with its own tools (design §4.8; Orca 1.4.243
 // `out/shared/agent-session-attachments.js`: "agents receive only host paths"). Only a pasted image, which has no path,
-// is written by doan, under <userData>/attachments/<id>/.
+// is written by doan, under <userData>/attachments/<id>/. A canvas capture is the other image main writes.
 export const MAX_ATTACHMENTS = 10;
 // The paste cap is Orca's; local files are not capped, but no image above it is decoded for a thumbnail.
 export const MAX_IMAGE_BYTES = 50 * 1024 * 1024;
@@ -13,7 +13,7 @@ const MAX_PATH = 4096;
 const SENT = "sent";
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp"]);
-export type AttachmentError = "not_found" | "not_file" | "not_image" | "too_large" | "limit" | "unreadable";
+export type AttachmentError = "not_found" | "not_file" | "not_image" | "too_large" | "limit" | "unreadable" | "capture_failed";
 export interface AttachmentInfo extends AttachmentRecord { id: string; pasted: boolean; thumbnail?: Uint8Array }
 export type AttachmentResult = { ok: true; attachment: AttachmentInfo } | { ok: false; name: string; error: AttachmentError };
 export type ResolvedAttachments = { ok: true; records: AttachmentRecord[] } | { ok: false; error: "bad_request" } | { ok: false; error: "attachment_missing"; missing: string[] };
@@ -57,6 +57,26 @@ export function cleanupTargets(entries: readonly { name: string; directory: bool
   return entries.filter(e => e.directory && ID.test(e.name) && !e.sent).map(e => e.name);
 }
 export function pastedName(at: Date): string { return `pasted-${at.toISOString().replace(/[:.]/g, "-")}.png`; }
+// The renderer knows a capture chip by this prefix (homeComposer.ts isCanvasCapture).
+export function capturedName(at: Date): string { return `canvas-capture-${at.toISOString().replace(/[:.]/g, "-")}.png`; }
+// Smallest side of a capture, in CSS px; the renderer clips its rectangle to the same minimum (canvasCapture.ts).
+const MIN_CAPTURE_SIDE = 8;
+// The rect a capture request names, in main window content CSS px, as integers; null for anything but exactly
+// { rect: { x, y, width, height } } of finite numbers, at least the minimum size, inside the window.
+export function captureRequest(value: unknown, contentSize: readonly [number, number]): { x: number; y: number; width: number; height: number } | null {
+  if (typeof value !== "object" || value === null || Object.keys(value).length !== 1 || !("rect" in value)) return null;
+  const rect = value.rect;
+  if (typeof rect !== "object" || rect === null || Array.isArray(rect)) return null;
+  const keys = Object.keys(rect);
+  if (keys.length !== 4 || !["x", "y", "width", "height"].every(key => keys.includes(key))) return null;
+  const { x, y, width, height } = rect as Record<string, unknown>;
+  if (typeof x !== "number" || typeof y !== "number" || typeof width !== "number" || typeof height !== "number") return null;
+  if (![x, y, width, height].every(Number.isFinite)) return null;
+  if (width < MIN_CAPTURE_SIDE || height < MIN_CAPTURE_SIDE || x < 0 || y < 0 || x + width > contentSize[0] || y + height > contentSize[1]) return null;
+  // Rounding the edges, not the sizes, keeps a rect that fits the window fitting.
+  const left = Math.round(x), top = Math.round(y);
+  return { x: left, y: top, width: Math.round(x + width) - left, height: Math.round(y + height) - top };
+}
 
 export class AttachmentStore {
   private entries = new Map<string, Entry>();
@@ -105,13 +125,27 @@ export class AttachmentStore {
     if (!imageType(bytes.subarray(0, 16))) return { ok: false, name, error: "not_image" };
     const png = this.codec.reencode(bytes); if (!png || png.length === 0) return { ok: false, name, error: "not_image" };
     if (png.length > MAX_IMAGE_BYTES) return { ok: false, name, error: "too_large" };
-    const id = randomUUID(), dir = join(this.dir, id), file = pastedName(new Date());
+    return this.save(png, pastedName(new Date()), name, "unreadable");
+  }
+  // A PNG main took from the window itself (capturePage): trusted bytes, so no signature check or re-encode, only the
+  // cap. Every failure to save is capture_failed, since unreadable would put the file name in the person's message.
+  addCaptured(png: Uint8Array): AttachmentResult {
+    const name = "Canvas capture";
+    if (png.length === 0) return { ok: false, name, error: "capture_failed" };
+    if (png.length > MAX_IMAGE_BYTES) return { ok: false, name, error: "too_large" };
+    return this.save(png, capturedName(new Date()), name, "capture_failed");
+  }
+  // The paste directory both kinds of image share: a private directory per image, written once, removed whole if
+  // anything fails.
+  private save(png: Uint8Array, file: string, name: string, failed: AttachmentError): AttachmentResult {
+    const id = randomUUID(), dir = join(this.dir, id);
+    let entry: Entry;
     try {
       mkdirSync(this.dir, { recursive: true, mode: 0o700 }); mkdirSync(dir, { mode: 0o700 });
       writeFileSync(join(dir, file), png, { mode: 0o600, flag: "wx" });
-    } catch { rmSync(dir, { recursive: true, force: true }); return { ok: false, name, error: "unreadable" }; }
-    const path = realpathSync.native(join(dir, file)), stat = lstatSync(path);
-    const entry: Entry = { id, pasted: true, dir, name: file, size: png.length, kind: "image", path, dev: stat.dev, ino: stat.ino };
+      const path = realpathSync.native(join(dir, file)), stat = lstatSync(path);
+      entry = { id, pasted: true, dir, name: file, size: png.length, kind: "image", path, dev: stat.dev, ino: stat.ino };
+    } catch { rmSync(dir, { recursive: true, force: true }); return { ok: false, name, error: failed }; }
     this.entries.set(id, entry);
     return { ok: true, attachment: this.info(entry, png) };
   }

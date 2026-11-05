@@ -9,25 +9,26 @@ import type { CanvasRow, FolderEntry } from "../main/view";
 import type { WorkItem } from "../main/workState";
 import type { TrashPlanReply, TrashReply } from "../main/canvasTrash";
 import type { ExportReply } from "../main/canvasExport";
+import type { AttachmentResult } from "../main/attachments";
 import { canvasExportReason, trashBlock } from "./canvasRowMenu";
 import { canvasStem, exportProgress, exportToast, trashToast } from "./canvasRowMessages";
 import { CanvasTrashDialog, trashDialogView } from "./CanvasTrashDialog";
 import { ConversationDeleteDialog, unsentDraft, type DeleteTarget } from "./ConversationDeleteDialog";
 import { deleteAvailability, deleteDialogView, deleteRefusalText } from "./conversationDelete";
 import { focusFieldEnd } from "./chipField";
-import { draftKey } from "./dockedRules";
+import { draftKey, EMPTY_DRAFT } from "./dockedRules";
 import type { OpenAsk, OpenLinkResult, OpenResult } from "../main/deepLinks";
 import type { MenuCommand, ViewCommand } from "../main/index";
 import { CanvasController, initialCanvasState, type CanvasState, type PickResult } from "./CanvasController";
 import { CanvasHeader } from "./CanvasHeader";
-import { CanvasTools, type ExportTool, type PickerTool } from "./CanvasTools";
+import { CanvasTools, type CaptureTool, type ExportTool, type PickerTool } from "./CanvasTools";
 import { AlertIcon } from "./AlertIcon";
 import { noticeToast } from "./selection";
 import { CanvasAgent } from "./CanvasAgent";
 import { workingCanvas, type WorkingCanvas } from "./agentIndicator";
 import { controlFocusLost } from "./canvasFocus";
 import { projectNames } from "./projectRow";
-import { ArrowLeft, ArrowRight, Crosshair, Plus, Settings, LayoutGrid, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { ArrowLeft, ArrowRight, Crosshair, Plus, Scan, Settings, LayoutGrid, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { Home, ProblemActions } from "./Home";
 import { ProjectSetupDialog } from "./ProjectSetupDialog";
 import { ProjectSettingsPage } from "./ProjectSettingsPage";
@@ -39,10 +40,11 @@ import type { RowAction } from "./homeCards";
 import { groupProjects } from "./homeCards";
 import { CanvasConversations } from "./RightPanel";
 import { CanvasRun, type CanvasTarget } from "./canvasRun";
-import { CanvasConversation, CanvasConversationTitle, canvasConversationTitle } from "./CanvasConversationPanel";
+import { CanvasConversation, CanvasConversationTitle, canvasConversationTitle, composerFixed, settleChips } from "./CanvasConversationPanel";
+import { captureAvailability } from "./canvasCapture";
 import { canvasUnlistedText, DUPLICATE_CANVAS_TEXT } from "./canvasConversation";
 import { openButtonBadge, panelOpenFor, type OpenBadge, type PanelTrigger } from "./rightPanelOpen";
-import { PICKER_UNAVAILABLE, pickerAvailability, type CanvasLoad } from "./canvasPicker";
+import { PICKER_UNAVAILABLE, pickerAvailability, type CanvasLoad, type Rect } from "./canvasPicker";
 import type { DockedFieldLink } from "./DockedComposer";
 import type { LocateOutcome } from "./ConversationThread";
 import { replyChipTarget } from "./replyChipTarget";
@@ -68,7 +70,7 @@ import { decideOpen, type OpenPage } from "./openDecision";
 import { restorePlan, RESTORE_LOADING_WAIT_MS } from "../restore/restorePlan";
 import { withoutRoots, type HomeMemory, type UiState, type ShellProject } from "../restore/uiState";
 import { emptyComposer } from "./HomeComposerView";
-import { defaultProject, startErrorView } from "./homeComposer";
+import { attachmentLimit, defaultProject, startErrorView, type AttachmentDraft } from "./homeComposer";
 import { OverviewRun } from "./overviewRun";
 import { DockedSupport } from "./dockedSupport";
 import { sameCanvas } from "./ProjectOverview";
@@ -451,6 +453,7 @@ export function App() {
     };
     instance.viewChanged = () => live.current.save();
     instance.onPicked(result => live.current.pickEnded(result));
+    instance.onCapture(rect => live.current.captured(rect));
     instance.linkedCanvas = root => live.current.completeNavigation(root);
     const stopCommands = window.doan.onViewCommand(name => { if (currentScreen.current === "workspace") instance.command(name); });
     return () => { navigationIntent.current++; stopFolders(); stopCommands(); instance.dispose(); controller.current = null; };
@@ -830,8 +833,8 @@ export function App() {
   // renderer-only lifetime checks').
   const toastHeld = modal || (screen === "projectSettings" && projectSettings.locked);
   useLayoutEffect(() => { toast.setModal(toastHeld); }, [toastHeld]);
-  const live = useRef({ home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: (root: string) => root, askConversation, openConversationCanvas, openCanvasConversation, newConversation: () => {}, pickFromCanvas: () => {}, toggleSidebar: () => {}, pickEnded: (_result: PickResult) => {}, followMode: (_provider: Provider, _mode: PermissionModeId) => {}, openLink: (_result: OpenLinkResult) => {}, openCanvasRequest: (_request: OpenAsk) => {} });
-  live.current = { home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: root => projectLabelRef.current(root), askConversation, openConversationCanvas, openCanvasConversation, newConversation, pickFromCanvas, toggleSidebar, pickEnded, followMode, openLink, openCanvasRequest };
+  const live = useRef({ home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: (root: string) => root, askConversation, openConversationCanvas, openCanvasConversation, newConversation: () => {}, pickFromCanvas: () => {}, toggleSidebar: () => {}, pickEnded: (_result: PickResult) => {}, captured: (_rect: Rect): (() => Promise<unknown>) | null => null, followMode: (_provider: Provider, _mode: PermissionModeId) => {}, openLink: (_result: OpenLinkResult) => {}, openCanvasRequest: (_request: OpenAsk) => {} });
+  live.current = { home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: root => projectLabelRef.current(root), askConversation, openConversationCanvas, openCanvasConversation, newConversation, pickFromCanvas, toggleSidebar, pickEnded, captured, followMode, openLink, openCanvasRequest };
   const rememberFocus = () => { beforeModal.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; };
   const modalClosed = () => { focusAfterModal.current = true; };
   useEffect(() => {
@@ -1446,6 +1449,20 @@ export function App() {
     exportCanvas(exportTarget.folder, exportTarget.row);
   } };
   const picking = state.picking;
+  // Capture area (canvas-capture design §3): the canvas, the composer's input, its Attach rule and its attachment count,
+  // first match wins. Without the panel's composer the canvas counts as not shown, as for the Picker.
+  const captureView = captureAvailability({ canvas: panelTarget !== null && composerKey !== null ? canvasLoad : "loading", composer: panelBlocked,
+    fixed: composerFixed(canvasRun.current!.view() ?? { kind: "wait" }, panelList, work), attachments: composerKey ? overviewRun.current!.store.drafts.get(composerKey)?.attachments.length ?? 0 : 0 });
+  // The second press ends capture mode. A pick in progress ends by this press, so focus stays on the button. A locked
+  // page leaves the button looking usable and doing nothing, as Export does.
+  const capture: CaptureTool = { enabled: captureView.enabled, reason: captureView.reason, onToggle: () => {
+    const instance = controller.current;
+    if (!instance || locked()) return;
+    if (state.capturing) { instance.cancelCapture(); return; }
+    if (!captureView.enabled) return;
+    if (picking) pressedCancel();
+    instance.startCapture();
+  } };
   // V, H and Space switch tools only on the canvas page itself (canvas-hand-tool design '키').
   const toolPage = screen === "workspace" && shownOverview === null && !modal;
   useEffect(() => { controller.current?.setCanvasPage(toolPage); }, [toolPage]);
@@ -1511,6 +1528,32 @@ export function App() {
     // runtime probe).
     if (!composing) link.focus();
     link.insert(result.anchor);
+  }
+  // A captured area (canvas-capture design §3 'composer에 넣기'). Availability was decided when capture mode started;
+  // the composer may since have turned to a terminal session or another conversation, or its draft may have filled
+  // (main refuses an eleventh file), and none of that ends capture mode. So the composer is checked again before any
+  // chip or snapshot, with captureAvailability's order and copy; the limit keeps its left-out line. The checking
+  // chip goes in at once. A folded panel unfolds, with focus for the composer, only once main answers: unfolding
+  // narrows the canvas area, so before main has read the pixels the area would show something else. A composer no
+  // longer shown gets no focus; the answer still lands on the chip wherever its draft is.
+  function captured(rect: Rect): (() => Promise<unknown>) | null {
+    const at = canvasRun.current!.composerKey();
+    if (at === null) return null;
+    const store = overviewRun.current!.store;
+    const now = captureAvailability({ canvas: canvasLoad, composer: panelBlocked, fixed: composerFixed(canvasRun.current!.view() ?? { kind: "wait" }, panelList, work), attachments: 0 });
+    if (!now.enabled) { if (now.reason) toast.show(now.reason); return null; }
+    const limit = attachmentLimit((store.drafts.get(at) ?? EMPTY_DRAFT).attachments.length, [{ pasted: false, size: 0 }]);
+    if (!limit.accept.length) { toast.show(limit.notices.join(" ")); return null; }
+    // Named like main's capture file, so the chip reads "Canvas capture" while main checks it (homeComposer.ts).
+    const chip: AttachmentDraft = { key: crypto.randomUUID(), name: "canvas-capture-checking.png", kind: "image", pasted: true, status: "checking" };
+    store.setDrafts(drafts => {
+      const current = drafts.get(at) ?? EMPTY_DRAFT;
+      return new Map(drafts).set(at, { ...current, attachments: [...current.attachments, chip] });
+    });
+    return () => window.doan.captureCanvas(rect).catch(() => null).then(answer => {
+      settleChips(store, support.current!, [chip.key], [answer ?? CAPTURE_FAILED], text => live.current.toast.show(text));
+      if (canvasRun.current!.composerKey() === at) revealPanel("composer");
+    });
   }
   // The picker stops when its composer changes (another conversation from the menu, New) or stops taking chips
   // (design §2 'Esc and cancel'); a reload or a same-ID move keeps both, so the pick goes on.
@@ -1766,7 +1809,7 @@ export function App() {
       zoomTo={scale => controller.current?.zoomTo(scale)} selectFrame={(index, id) => controller.current?.selectFrame(index, id)} conversation={{ open: rightPanel.open, show: () => foldPanel(true), badge: panelBadge }}
       agent={{ list: state.open ? run.listState(state.open.folder) : undefined, canvas: workingCanvas(state.open, state.unlisted, entry), running: screen === "workspace" && overview === null, work, entries,
         onOpen: openRequest, onOpenSibling, onStopFailed: text => toast.show(text) }}
-      picking={picking} tool={state.tool} onTool={chooseTool} picker={{ enabled: pickerReady, reason: pickerView.reason, onToggle: pickFromCanvas }} exporter={exporter} />
+      picking={picking} capturing={state.capturing} tool={state.tool} onTool={chooseTool} picker={{ enabled: pickerReady, reason: pickerView.reason, onToggle: pickFromCanvas }} capture={capture} exporter={exporter} />
     {overview && <ProjectOverview key={overview.path} run={overviewRun.current!} support={support.current!} root={overview.path} project={projectLabel(overview.path)} entry={overview}
       worktrees={card?.rows ?? [overview]} homeDirectory={homeDirectory} notice={overviewNotice?.root === overview.path ? overviewNotice.text : null}
       unavailable={overview.kind === "list" ? null : startErrorView("project_not_open", "claude", projectLabel(overview.path)).text}
@@ -1822,6 +1865,9 @@ export function App() {
   </TooltipProvider>;
 }
 
+// main refused the request or the call failed: the same notice as an empty capture (canvas-capture design 결정 11).
+const CAPTURE_FAILED: AttachmentResult = { ok: false, name: "Canvas capture", error: "capture_failed" };
+
 // The dialog on top, the one Escape would answer.
 function topDialog(): HTMLDialogElement | null {
   const open = document.querySelectorAll<HTMLDialogElement>("dialog[open]");
@@ -1848,11 +1894,11 @@ function TopBar({ sidebar, back, forward, previous, next, page, locked, addProje
 
 type AgentProps = { list: readonly ConversationSummary[] | "loading" | "error" | undefined; canvas: WorkingCanvas | null; running: boolean; work: readonly WorkItem[]; entries: readonly FolderEntry[]; onOpen(): void; onOpenSibling(root: string): void; onStopFailed(text: string): void };
 
-function CanvasPane({ viewport, board, overlay, dragLayer, state, entry, projectName, command, covered, zoomTo, selectFrame, conversation, agent, picking, tool, onTool, picker, exporter }: {
+function CanvasPane({ viewport, board, overlay, dragLayer, state, entry, projectName, command, covered, zoomTo, selectFrame, conversation, agent, picking, capturing, tool, onTool, picker, capture, exporter }: {
   viewport: RefObject<HTMLDivElement | null>; board: RefObject<HTMLDivElement | null>; overlay: RefObject<HTMLDivElement | null>; dragLayer: RefObject<HTMLDivElement | null>;
   state: CanvasState; entry: FolderEntry | undefined; projectName: string; command: (name: ViewCommand) => void; covered: boolean;
   zoomTo(scale: number): void; selectFrame(index: number, id: string): void; conversation: { open: boolean; show(): void; badge: OpenBadge | null }; agent: AgentProps;
-  picking: boolean; tool: CanvasState["tool"]; onTool(tool: CanvasState["tool"]): void; picker: PickerTool; exporter: ExportTool;
+  picking: boolean; capturing: boolean; tool: CanvasState["tool"]; onTool(tool: CanvasState["tool"]): void; picker: PickerTool; capture: CaptureTool; exporter: ExportTool;
 }) {
   const problem = !state.open && entry && entry.kind !== "list" ? entry : null;
   const problemMessage = problem?.kind === "loading" ? "Reading project"
@@ -1908,7 +1954,10 @@ function CanvasPane({ viewport, board, overlay, dragLayer, state, entry, project
     <div className="doan-canvas-bottom">
       {picking && <div className="doan-agent doan-picking" role="status"><Crosshair className="doan-picking-icon" aria-hidden="true" /><span className="doan-agent-text">Click a frame or an element, or Shift-click a spot</span>
         <span className="doan-kbd" data-ui-variant="on-prominent" aria-hidden="true">Esc</span><span className="sr-only">Press Escape to cancel</span></div>}
-      <CanvasTools tool={tool} picking={picking} onTool={onTool} picker={picker} exporter={exporter} />
+      {/* Capture mode's hint, in the picking hint's look with Capture area's glyph (canvas-capture design §2 '안내 줄'). */}
+      {capturing && <div className="doan-agent doan-picking" role="status"><Scan className="doan-picking-icon" aria-hidden="true" /><span className="doan-agent-text">Drag to capture an area</span>
+        <span className="doan-kbd" data-ui-variant="on-prominent" aria-hidden="true">Esc</span><span className="sr-only">Press Escape to cancel</span></div>}
+      <CanvasTools tool={tool} picking={picking} capturing={capturing} onTool={onTool} picker={picker} capture={capture} exporter={exporter} />
     </div>
     </section>
   </div>;

@@ -19,6 +19,8 @@ const mainOnly = new Set([
   "attachments:choose", "attachments:add-paths", "attachments:add-pasted", "attachments:remove", "attachments:recheck", "attachments:release",
   // buzz-conversation: Edit on Home re-issues recorded attachment paths, and agent replies open https links.
   "attachments:fromPaths", "shell:openLink",
+  // canvas-capture: the canvas page captures an area of the board; Settings has no canvas.
+  "attachments:capture",
   // canvas-hand-tool: where the OS cursor is, for a canvas click's focus; Settings has no canvas.
   "pointer:get",
   // buzz-add-projects: the Add Projects page's project session; Settings has no such page.

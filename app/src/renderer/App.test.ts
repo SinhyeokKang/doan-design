@@ -19,6 +19,7 @@ vi.mock("./CanvasController", async importOriginal => ({
     command = harness.command;
     updateEntries = harness.updateEntries;
     onPicked = vi.fn();
+    onCapture = vi.fn();
   },
 }));
 
