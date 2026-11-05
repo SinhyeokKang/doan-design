@@ -20,8 +20,8 @@ export function tokenText(count: number): string {
   return `${Math.floor(count / 100_000) / 10}M`;
 }
 
-// label is the ring's name and the tooltip's first line; tokens its description and second line. The percent is
-// floored from used and size, not from percent, whose float product can land just under an integer (0.29 * 100).
+// label is the ring's name and the tooltip's first line; tokens its description and second line. Both percents divide
+// the integer used * 100 by size: (used / size) * 100 can land just under an integer (0.29 * 100) and floor one low.
 export function contextText({ used, size }: ContextUsage): { label: string; tokens: string } {
   return { label: `Context window ${Math.floor(used * 100 / size)}% used · last turn`, tokens: `${tokenText(used)} of ${tokenText(size)} tokens` };
 }

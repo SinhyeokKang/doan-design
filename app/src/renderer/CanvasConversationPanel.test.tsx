@@ -313,6 +313,8 @@ test("the shown conversation's last recorded context value reaches the composer'
   expect(ring(await shown([summary("now")], "now"))).toBe("Context window 42% used · last turn");
   expect(ring(await shown([summary("now"), summary("old", { state: "archived" })], "old", run => run.select("old")))).toBe("Context window 75% used · last turn");
   expect(ring(await shown([summary("bare")], "bare"))).toBeNull();
+  // A live event moves the ring. (The panel reads the thread itself, so its missing-thread case is the Overview test's.)
+  expect(ring(await shown([summary("now")], "now", run => run.store.event(at("now", 9, { type: "context.usage", used: 160_000, size: 200_000 }))))).toBe("Context window 80% used · last turn");
   // A new conversation state has no ring.
   expect(await panel([])).not.toContain("context-ring");
 });
