@@ -109,7 +109,7 @@
 
 ## D. UI 초안
 
-- [ ] D0. `/design-draft`로 `.doan/canvases/provider-usage.html`을 그린다. 프레임:
+- [x] D0. `/design-draft`로 `.doan/canvases/provider-usage.html`을 그린다. 프레임:
   - 링 버튼의 세 자리(사람이 헤더 오른쪽 끝을 골랐다)(셸 오른쪽 아래 세로, 헤더 오른쪽 끝 가로, 셸 오른쪽 아래 가로) 비교. 각 자리의 충돌(toast, docked composer Send, drag region, 좁은 앱 창, provider 0 → 1)을 함께 그린다.
   - 화면마다(workspace, Home, Settings, Add Projects) 버튼의 위치.
   - 링 상태: 값 있음, 한도에 닿음, 처음 읽는 중, unavailable, 쓸 수 없는 연결, 무제한. provider 1개와 5개, 좁은 앱 창에서 접힌 링.
@@ -118,9 +118,9 @@
   - 검증: 설치된 `doan check --repo .`가 main HEAD에서 낸 finding 목록과 같은 목록을 내고, 설치된 `doan ls --repo . --json`에 새 캔버스가 있다. 사람의 확인.
   - 결과: frame `place-stack`, `place-header`, `place-row`, `ring-states`, `popover`, `popover-live`. `doan check` 13건(main과 같음), 폭 2640. 로고 경로를 `.doan/assets/provider-logos/`로 고쳤다. 사람이 자리를 헤더 오른쪽 끝으로 골랐다(design 결정할 점 10). 초안 확정은 PoC(U1–U6) 뒤에 한다(사람). 그래서 D0는 열린 채로 두고, PoC가 끝나면 아래 '초안 확인'과 함께 확정한다. 링 색과 그리며 정한 나머지는 아래 '초안 확인'에 남는다.
 
-### 초안 확인(남은 것)
+### 초안 확인
 
-초안에 popover 오른쪽 위 새로고침 버튼("Refresh usage", 쉼·읽는 중)을 더 그린다(결정할 점 11). 그리며 정한 것으로 사람의 확인이 필요하다: 좁은 앱 창의 링 접기 규칙을 둘지(헤더에서 960×600에도 다섯 개가 들어감), 문구 "Reset · updating"·"Updated just now", popover 제목 "Agent usage", 이유 줄 모양(read_failed 오류, blocked 경고, 나머지 subtle), 한도 보고 없는 100%는 "100% used"만, 링 track 색의 component constant를 새 token으로 올릴지.
+사람이 초안을 확정했다(design 결정할 점 10–18). 남은 것 없음.
 
 ── commit: `docs(design): draft provider usage` ──
 
@@ -149,8 +149,8 @@
 
 ## C. UI
 
-- [ ] C1. 링 버튼과 popover(헤더 오른쪽 끝, 모든 화면, no-drag), preload 호출.
-  - 검증: `npm --prefix app test` — 링 값과 빈 링, 고정 순서, 버튼 이름 고정과 설명 글, `aria-haspopup`·`aria-expanded`, 클릭·Space·Return으로 열기, Esc·바깥 클릭으로 닫고 버튼으로 포커스 복귀, 이유별 문구, 설정 버튼(누르면 popover를 닫고 Settings > Agents), 연결이 하나면 링에 로고 없음, 새로고침 버튼(이름, 누르면 간격 무시하고 읽기, 읽는 중 `aria-busy`와 spinner, 연타가 provider마다 조회 하나), "Updating…" 중 이전 값 유지, 상대 시간 1분 갱신, 열린 동안 provider가 빠지고 생김, 마지막 provider가 빠지면 닫고 `.shell-modes`의 현재 탭으로 포커스, 연결이 없을 때와 Antigravity만 연결했을 때 버튼 없음, Antigravity는 링·popover 행·설명 글에 없음, Antigravity와 다른 provider 하나면 로고 없는 링 하나. `npm --prefix app run typecheck`, `npm --prefix app run build`.
+- [ ] C1. 링 버튼과 popover(헤더 오른쪽 끝, 모든 화면, no-drag), preload 호출, 좁은 앱 창의 접힘(+n), 링 track 새 token(`tokens.css`, DESIGN.md, design-system 캔버스).
+  - 검증: `npm --prefix app test` — 링 값과 빈 링, 고정 순서, 버튼 이름 고정과 설명 글, `aria-haspopup`·`aria-expanded`, 클릭·Space·Return으로 열기, Esc·바깥 클릭으로 닫고 버튼으로 포커스 복귀, 이유별 문구, 설정 버튼(누르면 popover를 닫고 Settings > Agents), 연결이 하나면 링에 로고 없음, 새로고침 버튼(이름, 누르면 간격 무시하고 읽기, 읽는 중 `aria-busy`와 spinner, 연타가 provider마다 조회 하나), "Updating…" 중 이전 값 유지, 상대 시간 1분 갱신, 열린 동안 provider가 빠지고 생김, 마지막 provider가 빠지면 닫고 `.shell-modes`의 현재 탭으로 포커스, 연결이 없을 때와 Antigravity만 연결했을 때 버튼 없음, 좁은 폭에서 가장 높은 값 하나와 "+n"으로 접힘(이름·설명 글 그대로), "Updated just now"·"Reset · updating"·한도 보고 없는 100%는 "100% used", Antigravity는 링·popover 행·설명 글에 없음, Antigravity와 다른 provider 하나면 로고 없는 링 하나. `npm --prefix app run typecheck`, `npm --prefix app run build`.
 
 ── commit: `feat: show agent usage rings` ──
 

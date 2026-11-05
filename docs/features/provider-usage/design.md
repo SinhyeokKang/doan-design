@@ -77,8 +77,8 @@ app(Electron + TS)만 바뀐다. CLI(Go)·skills·guide·`doan check`·공유 JS
 - 새로고침(결정할 점 11): popover 제목 줄 오른쪽 위의 아이콘 버튼(tooltip·이름 "Refresh usage"). 누르면 5분 간격과 관계없이 쓸 수 있는 연결을 모두 바로 읽고, 이미 읽는 중인 provider는 그 조회에 합친다. 읽는 동안 버튼은 spinner와 `aria-busy`를 보이고, 행은 이전 값을 둔 채 "Updating…"만 바뀐다. Tab 순서는 popover 본문 → Agent settings → Refresh usage.
 - 설정(결정할 점 13): 새로고침 바로 왼쪽의 아이콘 버튼(tooltip·이름 "Agent settings"). 누르면 popover를 닫고 Settings > Agents를 연다.
 - popover 행(provider마다): 로고, 이름, 한도 창별 막대와 글.
-  - 값 있음: "42% used · resets in 2h 10m". 한도에 닿음(`limited`): "Limit reached · resets in 1h". 다시 채워지는 시각이 지남: "Resets passed · updating"(문구는 `/design-draft`에서 고정).
-  - 마지막으로 읽은 시각: "Updated 3m ago". 다시 읽는 중에는 이전 값을 두고 이 줄만 "Updating…".
+  - 값 있음: "42% used · resets in 2h 10m". 한도에 닿음(`limited`): "Limit reached · resets in 1h". 다시 채워지는 시각이 지남: "Reset · updating". provider가 한도를 보고하지 않은 100%는 "100% used"만 쓴다("Limit reached"는 보고가 있을 때만).
+  - 마지막으로 읽은 시각: "Updated 3m ago", 1분 안이면 "Updated just now". 다시 읽는 중에는 이전 값을 두고 이 줄만 "Updating…".
   - 처음 읽는 중: "Reading usage…".
   - `unlimited`: "Unlimited".
   - `not_supported`(조회가 없는 버전): "Usage isn't available for <Provider>."
@@ -87,6 +87,8 @@ app(Electron + TS)만 바뀐다. CLI(Go)·skills·guide·`doan check`·공유 JS
   - `blocked`: Settings > Agents와 같은 원인 문구(`SettingsAgents.tsx` `unavailable()`, 예: "Claude Code's sign-in expired").
 - popover가 열린 동안: sign-out한 provider의 행을 지운다. 마지막 provider가 빠지면 popover를 닫고, 버튼이 사라지므로 포커스는 `.shell-modes`의 현재 탭으로 옮긴다. 새로 연결한 provider는 행을 붙이고 "Reading usage…"로 시작한다.
 - 자리: 헤더 오른쪽 끝, `.shell-modes` 옆에 가로로 둔다(`App.tsx:1824` `TopBar`, `:1834` `.shell-modes`, 결정할 점 10). 버튼은 drag region 예외(no-drag)다. provider가 0 → 1이 되면 헤더의 다른 요소가 밀리지 않도록 자리를 정한다(값은 `/design-sync`). 초안 `place-header` frame이 기준이다(나머지 두 후보 frame은 초안에서 지웠다).
+- 좁은 앱 창(결정할 점 16): 헤더에 링을 다 놓을 자리가 없으면 가장 높은 값의 링 하나와 "+n"으로 접는다. 접힌 버튼도 이름·설명 글은 그대로이고 popover는 모든 provider를 보인다. 960×600에서는 네 링이 다 들어가므로 접히는 폭은 `/design-sync`에서 정한다.
+- 링 track 색(결정할 점 17): 새 token(이름은 `/tdd`에서, 예: `--track-subtle`)을 `tokens.css`에 더한다. 값은 초안의 `color-mix(in srgb, var(--affordance-prominent) 15%, transparent)`. 기존 `--border-standard`는 셸 바탕 위에서 1.1:1이라 보이지 않는다.
 - 링 색(결정할 점 15): 링과 popover 막대는 70% 미만이면 기본 색, 70% 이상이거나 provider가 한도에 닿았다고 보고하면 danger 색이다. 경고(주황) 단계는 없다. 색만으로 알리지 않고 popover 글("Limit reached")이 함께 있다. 색 왼쪽 선은 쓰지 않는다.
 
 ## 순수 함수로 뺄 부분(`/tdd` 대상)
@@ -156,3 +158,6 @@ app(Electron + TS)만 바뀐다. CLI(Go)·skills·guide·`doan check`·공유 JS
 13. **popover 새로고침 왼쪽에 설정 버튼**("Agent settings")을 두고, 누르면 Settings > Agents를 연다(사람). 쓸 수 없는 연결의 원인을 고치러 가는 길이다.
 14. **Antigravity는 보이지 않는다**(사람). 사용량을 읽을 길이 없어(PoC U4: `agy`가 별도 로그인 요구, U7: Code Assist quota `403 SUBSCRIPTION_REQUIRED`) 늘 빈 링이 되므로, 링·popover 행을 아예 두지 않는다.
 15. **링 색은 두 단계**(사람): 70% 미만 기본, 70% 이상이거나 한도 보고면 danger. 초안의 주황(70%)·빨강(90%) 두 구간에서 주황을 없애고 70%부터 빨강으로 보인다.
+16. **좁은 앱 창에서는 링을 접는다**(가장 높은 값 하나 + "+n", 사람).
+17. **링 track 색은 새 token**으로 둔다(사람). DESIGN.md와 design-system 캔버스에도 적는다.
+18. **초안 확인**(사람): 문구 "Reset · updating"·"Updated just now", popover 제목 "Agent usage", 이유 줄 모양(read_failed 오류, 쓸 수 없는 연결은 Settings › Agents와 같은 경고, 나머지 subtle), 한도 보고 없는 100%는 "100% used"만.
