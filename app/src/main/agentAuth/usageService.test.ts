@@ -37,7 +37,7 @@ class FakeAuth implements UsageAuth {
     this.states.set(provider, { ...state, verified: true });
     return { ok: true, attemptId: "check-1", done: Promise.resolve(this.state(provider)), outcome: Promise.resolve("ok") };
   }
-  async checked(): Promise<void> {}
+  async checked(_provider: Provider): Promise<void> {}
   async acquire(provider: Provider, use: "usage"): Promise<Lease> {
     if (this.refuse) throw new Error(this.refuse);
     this.uses.push(`${provider}:${use}`); this.held += 1;
@@ -150,7 +150,7 @@ describe("UsageService checks", () => {
     const h = setup({ read: () => gate.promise });
     h.auth.states.set("claude", connected("claude", "c1", { verified: false }));
     h.auth.states.set("codex", connected("codex", "x1", { verified: false, phase: "checking", attempt: { id: "other-check", kind: "check", owner: null, cancelled: false } }));
-    const checked = vi.spyOn(h.auth, "checked").mockImplementation(async provider => { h.auth.states.set(provider, connected(provider, "x1")); });
+    const checked = vi.spyOn(h.auth, "checked").mockImplementation(async (provider: Provider) => { h.auth.states.set(provider, connected(provider, "x1")); });
     const usage = h.make();
     usage.trigger({ kind: "start" }); usage.trigger({ kind: "refresh" }); usage.trigger({ kind: "open" });
     await flush(); await flush();

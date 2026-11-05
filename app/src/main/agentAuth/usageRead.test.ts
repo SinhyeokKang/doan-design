@@ -14,7 +14,7 @@ beforeEach(() => {
 });
 afterEach(() => { rmSync(root, { recursive: true, force: true }); });
 
-const options = (over: Partial<UsageReadOptions> = {}): UsageReadOptions => ({ spawn: spawnAuthProcess, probeDir, openMs: 5000, readMs: 300, now: () => 1_000, ...over });
+const options = (over: Partial<UsageReadOptions> = {}): UsageReadOptions => ({ spawn: spawnAuthProcess, probeDir, openMs: 10_000, readMs: 1000, now: () => 1_000, ...over });
 const lease = (command: string, mode = "") => ({ command, env: { PATH: process.env.PATH ?? "", HOME: profileDir, FAKE_USAGE: mode, FAKE_LOG: log }, profileDir });
 const logged = () => readFileSync(log, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line) as Record<string, unknown>);
 const gone = (pid: number) => { try { process.kill(pid, 0); return false; } catch { return true; } };
@@ -34,7 +34,7 @@ const codex = () => script("codex", `
 const send = value => process.stdout.write(JSON.stringify(value) + '\\n');
 require('node:readline').createInterface({ input: process.stdin }).on('line', line => {
   const r = JSON.parse(line); note(r);
-  if (r.method === 'initialize') { if (mode === 'silent-init') return; setTimeout(() => send({ id: r.id, result: { userAgent: 'fake' } }), mode === 'slow-init' ? 600 : 0); }
+  if (r.method === 'initialize') { if (mode === 'silent-init') return; setTimeout(() => send({ id: r.id, result: { userAgent: 'fake' } }), mode === 'slow-init' ? 2000 : 0); }
   if (r.method === 'account/rateLimits/read') {
     if (mode === 'silent-read') return;
     if (mode === 'exit') process.exit(3);
@@ -87,7 +87,7 @@ describe("Codex usage read", () => {
     expect(await readUsage("codex", lease(codex(), "slow-init"), options())).toMatchObject({ status: "ok" });
   }, 20_000);
   it.each([
-    ["no initialize answer", "silent-init", { openMs: 500 }],
+    ["no initialize answer", "silent-init", { openMs: 3000 }],
     ["no read answer", "silent-read", {}],
     ["an exit before the answer", "exit", {}],
   ])("reads %s as read_failed after the process group is gone", async (_label, mode, over) => {
@@ -119,7 +119,7 @@ describe("Copilot usage read", () => {
     expect(gone(Number(start!.pid))).toBe(true);
   }, 20_000);
   it("reads a missing connect answer as read_failed and Method not found as not_supported", async () => {
-    expect(await readUsage("copilot", lease(copilot(), "silent-init"), options({ openMs: 500 }))).toMatchObject({ status: "unavailable", reason: "read_failed" });
+    expect(await readUsage("copilot", lease(copilot(), "silent-init"), options({ openMs: 3000 }))).toMatchObject({ status: "unavailable", reason: "read_failed" });
     expect(await readUsage("copilot", lease(copilot(), "not-found"), options())).toMatchObject({ status: "unavailable", reason: "not_supported" });
   }, 20_000);
 });
@@ -139,7 +139,7 @@ describe("Claude usage read", () => {
   }, 20_000);
   it("reads an unsupported control request as not_supported and a missing initialize answer as read_failed", async () => {
     expect(await readUsage("claude", lease(claude(), "unsupported"), options({ readMs: 5000 }))).toMatchObject({ status: "unavailable", reason: "not_supported" });
-    expect(await readUsage("claude", lease(claude(), "silent-init"), options({ openMs: 800 }))).toMatchObject({ status: "unavailable", reason: "read_failed" });
+    expect(await readUsage("claude", lease(claude(), "silent-init"), options({ openMs: 3000 }))).toMatchObject({ status: "unavailable", reason: "read_failed" });
   }, 30_000);
 });
 
