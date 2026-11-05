@@ -29,6 +29,7 @@
 15. **바깥 클릭으로 닫힐 때 포커스**: Radix non-modal popover는 바깥 클릭 뒤 포커스를 버튼으로 돌리지 않는다. 클릭이 포커스를 아무 데도 두지 않았으면(`<body>`) 버튼으로 돌리고, 다른 컨트롤에 포커스를 두었으면 그대로 둔다. canvas press는 canvas 포커스를 유지한다. 지휘자 판단 — spec 완료 조건 1의 뜻을 지키되 사람이 누른 컨트롤의 포커스를 뺏지 않는다(E1의 질문).
 16. **막힌 연결의 popover 문구**: popover 행은 Settings > Agents의 그 연결 행과 같은 문구를 쓴다(확인 실패면 "Couldn’t check …" 계열). 결정 12의 `unavailable()` 기준을 대신한다(E2 항목 7, 사람).
 17. **시작 직후 tool facts 전**: 첫 tool facts 확인이 끝나기 전에는 `blocked`를 보이지 않고 처음 읽는 중으로 둔다. lease 단계에서 실패한 조회는 main 로그에 Doan 쪽 분류 한 줄을 남긴다. 지휘자 판단 — E2 관찰(0.7초 `version_unknown`, `usageService.ts:188`).
+18. **R2 리뷰의 열린 점 두 가지**: 교체 sign-in 중 popover 행은 "Preparing <X> sign-in."으로 둔다(attempt ID를 창에 보내지 않는 §7 규칙). 설명 글은 문장에 provider 이름이 없으면 `<이름>: ` 접두를 붙인다(문장 사본을 두지 않는다). 지휘자 판단 — 결정 16의 목적, RR2 권고.
 
 ## 배치
 
