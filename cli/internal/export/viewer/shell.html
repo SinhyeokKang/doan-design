@@ -34,6 +34,7 @@
 </style>
 </head>
 <body>
+<div class="doan-canvas-panel">
 <header class="ov-head doan-canvas-head">
   <span class="doan-canvas-name" id="name"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg><span>{{NAME}}</span></span>
   <span class="ov-sep" aria-hidden="true">/</span>
@@ -57,6 +58,14 @@
   <noscript><p class="doan-notice doan-panel vw-noscript"><svg class="doan-alert-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg><span>This preview shows the top of the canvas. Open the file in a web browser to see all of it and its frames.</span></p></noscript>
   <div class="spacer" id="spacer"><div class="stage" id="stage"><iframe class="canvas" id="canvas" sandbox="allow-scripts" style="width:{{WIDTH}}px" srcdoc="{{SRCDOC}}"></iframe></div></div>
 </main>
+<div class="doan-canvas-bottom">
+  <div class="doan-floating doan-canvas-tools" role="toolbar" aria-label="Canvas tools" id="tools">
+    <button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="true" aria-label="Select" aria-keyshortcuts="V" data-tool="select" tabindex="0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"/></svg></button>
+    <button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="false" aria-label="Hand" aria-keyshortcuts="H" data-tool="hand" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/><path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg></button>
+  </div>
+</div>
+<div class="doan-tooltip has-key vw-tool-tip" id="tool-tip" role="tooltip" hidden></div>
+</div>
 <script type="application/json" id="doan-meta">{{META}}</script>
 <script>
 {{SCRIPT}}
