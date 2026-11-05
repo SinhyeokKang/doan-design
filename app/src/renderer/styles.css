@@ -1350,8 +1350,9 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .usage-more { min-width: var(--size-control-xs); padding-inline: var(--space-1); color: var(--text-subtle); text-align: center; font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); font-weight: var(--type-weight-medium); }
 /* The popover: the shared 320px floating popover below the button, aligned to its end. Agent settings and Refresh
    usage follow the list in the DOM for Tab order; the grid puts them back in the title row, and their −6px block
-   margins keep that row at the title's 20px line. Taller than the window allows, it scrolls inside. */
-.usage-pop { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; column-gap: var(--space-1); row-gap: var(--space-3); max-height: var(--radix-popover-content-available-height); overflow-y: auto; text-align: left; -webkit-app-region: no-drag; }
+   margins keep that row at the title's 20px line. Taller than the window allows, it scrolls inside. Plain numerals:
+   the body's tabular figures widen every "1" in the relative times ("Updated 1m ago", "12d 4h"). */
+.usage-pop { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; column-gap: var(--space-1); row-gap: var(--space-3); max-height: var(--radix-popover-content-available-height); overflow-y: auto; text-align: left; font-variant-numeric: normal; -webkit-app-region: no-drag; }
 .usage-pop-title { grid-column: 1; grid-row: 1; font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); font-weight: var(--type-weight-medium); }
 .usage-list { grid-column: 1 / -1; grid-row: 2; display: flex; flex-direction: column; outline: none; }
 .usage-settings { grid-column: 2; grid-row: 1; margin-block: calc(-1 * var(--space-1h)); }

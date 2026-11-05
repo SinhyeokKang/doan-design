@@ -78,8 +78,9 @@ function mountButton(view: ViewProps, modesRight = 660) {
     getBoundingClientRect: () => ({ right: 952 }),
     querySelector: (selector: string) => selector === ".shell-modes" ? { getBoundingClientRect: () => ({ right: modesRight }) } : selector === '.shell-modes [aria-current="page"]' ? tab : null,
   };
-  (view.buttonRef as (node: unknown) => void)({ closest: (selector: string) => selector === "header" ? header : null, isConnected: true });
-  return { header, tab };
+  const button = { closest: (selector: string) => selector === "header" ? header : null, isConnected: true, focus: vi.fn() };
+  (view.buttonRef as (node: unknown) => void)(button);
+  return { header, tab, button };
 }
 const closeEvent = () => ({ preventDefault: vi.fn() });
 
@@ -129,15 +130,17 @@ test("Agent settings closes the popover, keeps Radix from taking focus back and 
   expect(event.preventDefault).toHaveBeenCalled();
 });
 
-test("Agent settings on a locked page opens nothing and lets Radix return focus to the button", () => {
+test("Agent settings on a locked page opens nothing and returns focus to the button", () => {
   render(); deliver([ok("claude")]);
-  let view = render()!; mountButton(view); view.onOpenChange(true); view = render()!;
+  let view = render()!; const { button } = mountButton(view); view.onOpenChange(true); view = render()!;
+  const body = {};
+  vi.stubGlobal("document", { body, activeElement: body });
   openSettings.mockReturnValueOnce(false);
   view.onSettings();
   view = render()!;
   expect(view.open).toBe(false);
   const event = closeEvent(); view.onCloseAutoFocus(event as unknown as Event);
-  expect(event.preventDefault).not.toHaveBeenCalled();
+  expect(button.focus).toHaveBeenCalledOnce();
 });
 
 test("redraws when a window's reset time passes while closed, with the delay kept under the timer limit", () => {
@@ -152,12 +155,54 @@ test("redraws when a window's reset time passes while closed, with the delay kep
   expect(vi.getTimerCount()).toBe(1);
 });
 
-test("Escape or an outside press leaves focus to Radix, which returns it to the button", () => {
+// Radix's non-modal popover hands focus back only when nothing was pressed outside; a press on a blank area of the
+// window left focus on <body> in the real app (E1). Its close focus runs a tick after the press, so the press's own
+// focus is already in place when it is decided.
+test("Escape or an outside press on a blank area returns focus to the button", () => {
+  const body = {};
+  vi.stubGlobal("document", { body, activeElement: body });
   render(); deliver([ok("claude")]);
-  let view = render()!; mountButton(view); view.onOpenChange(true); view = render()!;
+  let view = render()!; const { button } = mountButton(view); view.onOpenChange(true); view = render()!;
   view.onOpenChange(false); view = render()!;
   const event = closeEvent(); view.onCloseAutoFocus(event as unknown as Event);
-  expect(event.preventDefault).not.toHaveBeenCalled();
+  expect(event.preventDefault).toHaveBeenCalled();
+  expect(button.focus).toHaveBeenCalledOnce();
+});
+
+// Focus handed back after a pointer press opened the button's "Agent usage" tooltip under it, and it stayed (E1 review).
+// Escape keeps it: a tooltip on a keyboard return is the shared tooltip's own behaviour.
+test("focus handed back after an outside press does not open the button's tooltip; after Escape it may", () => {
+  const body = {};
+  vi.stubGlobal("document", { body, activeElement: body });
+  render(); deliver([ok("claude")]);
+  let view = render()!; const { button } = mountButton(view); view.onOpenChange(true); view = render()!;
+  // As in the DOM, focus() fires the button's focus handler before it returns.
+  let focusEvent = closeEvent();
+  button.focus.mockImplementation(() => view.onButtonFocus(focusEvent as never));
+  view.onPointerDownOutside();
+  view.onOpenChange(false); view = render()!;
+  view.onCloseAutoFocus(closeEvent() as unknown as Event);
+  expect(button.focus).toHaveBeenCalledOnce();
+  expect(focusEvent.preventDefault).toHaveBeenCalled();
+  const later = closeEvent(); view.onButtonFocus(later as never);
+  expect(later.preventDefault).not.toHaveBeenCalled();
+  view.onOpenChange(true); view = render()!;
+  focusEvent = closeEvent();
+  view.onOpenChange(false); view = render()!;
+  view.onCloseAutoFocus(closeEvent() as unknown as Event);
+  expect(button.focus).toHaveBeenCalledTimes(2);
+  expect(focusEvent.preventDefault).not.toHaveBeenCalled();
+});
+
+test("an outside press that focused another control keeps focus there", () => {
+  const field = {};
+  vi.stubGlobal("document", { body: {}, activeElement: field });
+  render(); deliver([ok("claude")]);
+  let view = render()!; const { button } = mountButton(view); view.onOpenChange(true); view = render()!;
+  view.onOpenChange(false); view = render()!;
+  const event = closeEvent(); view.onCloseAutoFocus(event as unknown as Event);
+  expect(event.preventDefault).toHaveBeenCalled();
+  expect(button.focus).not.toHaveBeenCalled();
 });
 
 test("opening puts focus on the popover body", () => {

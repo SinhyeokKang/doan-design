@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Popover } from "radix-ui";
@@ -5,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { UsageEntry, UsageWindow } from "../main/agentAuth/usageTypes";
 import { UsagePanel, UsageView, type UsageViewProps } from "./AgentUsageButton";
 import { ringViews, rowView } from "./agentUsageView";
-import { TooltipProvider } from "./components/ui/tooltip";
+import { TooltipContent, TooltipProvider } from "./components/ui/tooltip";
 
 // provider-usage tasks C1 and the confirmed draft .doan/canvases/provider-usage.html (frames place-header,
 // ring-states, popover, popover-live): the button and the popover body as drawn, without state.
@@ -25,7 +26,7 @@ function props(entries: readonly UsageEntry[], over: Partial<UsageViewProps> = {
   return {
     rings: ringViews(entries, NOW), folded: false, description: "Claude Code 42% used.", descriptionId: "ud", titleId: "ut", open: false,
     rows: entries.map(entry => rowView(entry, NOW)), busy: false, buttonRef: vi.fn(), listRef: vi.fn(),
-    onOpenChange: vi.fn(), onRefresh: vi.fn(), onSettings: vi.fn(), onOpenAutoFocus: vi.fn(), onCloseAutoFocus: vi.fn(), ...over,
+    onOpenChange: vi.fn(), onRefresh: vi.fn(), onSettings: vi.fn(), onOpenAutoFocus: vi.fn(), onCloseAutoFocus: vi.fn(), onPointerDownOutside: vi.fn(), onButtonFocus: vi.fn(), ...over,
   };
 }
 const html = (node: ReactElement) => renderToStaticMarkup(<TooltipProvider>{node}</TooltipProvider>);
@@ -82,6 +83,8 @@ describe("UsageView button", () => {
     const content = tree.find(element => element.type === Popover.Content)!;
     expect(content.props).toMatchObject({ align: "end", side: "bottom", sideOffset: 4, collisionPadding: 8, "aria-labelledby": "ut", onOpenAutoFocus: view.onOpenAutoFocus, onCloseAutoFocus: view.onCloseAutoFocus });
     expect(content.props.className).toBe("doan-floating doan-popover doan-scroll usage-pop");
+    expect(content.props.onPointerDownOutside).toBe(view.onPointerDownOutside);
+    expect(tree.find(element => element.type === "button" && element.props.className === "usage")!.props.onFocus).toBe(view.onButtonFocus);
   });
 });
 
@@ -101,7 +104,7 @@ describe("UsagePanel", () => {
     expect(markup).toContain('<li class="usage-row" data-provider="claude"><div class="usage-row-head"><img class="logo" src="provider-logos/claude.png" alt=""/><span class="usage-name">Claude Code</span><span class="usage-read">Updated 3m ago</span></div>');
     expect(markup).toContain('<div class="usage-window"><div class="usage-window-line"><span class="usage-window-label">5-hour</span><span class="usage-window-text">42% used · resets in 2h 10m</span></div><span class="usage-bar" aria-hidden="true"><i style="width:42%"></i></span></div>');
     expect(markup).toContain('<div class="usage-window" data-limited=""><div class="usage-window-line"><span class="usage-window-label">30-day</span><span class="usage-window-text">Limit reached · resets in 2h 10m</span></div><span class="usage-bar" data-band="full" aria-hidden="true"><i style="width:100%"></i></span></div>');
-    expect(markup).toMatch(/<p class="usage-note" data-kind="error"><svg[^>]*>.*?<\/svg><span>Couldn’t read usage\. Doan tries again when you open this\.<\/span><\/p>/);
+    expect(markup).toMatch(/<p class="usage-note" data-kind="error"><svg[^>]*class="[^"]*\bdoan-alert-icon\b[^"]*"[^>]*>.*?<\/svg><span>Couldn’t read usage\. Doan tries again when you open this\.<\/span><\/p>/);
     expect(markup).toContain('<div class="usage-row-head"><img class="logo" src="provider-logos/copilot.svg" alt=""/><span class="usage-name">GitHub Copilot</span></div><div class="usage-row-body"><p class="usage-note"><span>Reading usage…</span></p>');
   });
 
@@ -109,7 +112,7 @@ describe("UsagePanel", () => {
     const markup = html(<UsagePanel {...props([ok("copilot", [win({ label: "Chat", resetsAt: NOW - MIN })], { inFlight: true }), { provider: "codex", inFlight: false, blocked: "version_unsupported" }])} />);
     expect(markup).toContain('<span class="usage-read">Updating…</span>');
     expect(markup).toContain('<span class="usage-window-text">Reset · updating</span></div><span class="usage-bar" aria-hidden="true"></span>');
-    expect(markup).toMatch(/<p class="usage-note" data-kind="warn"><svg[^>]*>.*?<\/svg><span>Codex needs an update\.<\/span><\/p>/);
+    expect(markup).toMatch(/<p class="usage-note" data-kind="warn"><svg[^>]*class="[^"]*\bdoan-alert-icon\b[^"]*"[^>]*>.*?<\/svg><span>Codex needs an update\.<\/span><\/p>/);
   });
 
   it("shows a spinner and aria-busy on Refresh usage while reading, and stays enabled", () => {
@@ -123,6 +126,30 @@ describe("UsagePanel", () => {
     expect(rest[1]).toMatch(/^<svg/);
   });
 
+  // E1 measurement: the shared tooltip opens above by default, which put Agent settings' and Refresh usage's over the
+  // header button the popover hangs from; the confirmed draft draws every Agent usage tooltip below its button.
+  it("opens every tooltip below its button", () => {
+    const tips = [...all(UsageView(props(four))), ...all(UsagePanel(props(four)))].filter(element => typeof element.type === "function" && element.type.name === "IconTip");
+    expect(tips.map(tip => tip.props.label)).toEqual(["Agent usage", "Agent settings", "Refresh usage"]);
+    for (const tip of tips) {
+      const content = all((tip.type as (props: unknown) => ReactNode)(tip.props)).find(element => element.type === TooltipContent)!;
+      expect(content.props.side).toBe("bottom");
+    }
+  });
+
+  // E1 real app: Tab to Agent settings or Refresh usage shows its tooltip, the top dismissable layer, so the first
+  // Escape closed only the tooltip and a second one the popover (as conversation-delete's Delete tooltip did).
+  it("closes the popover with the Escape a title-row tooltip takes", () => {
+    const view = props(four, { open: true });
+    const tips = all(UsagePanel(view)).filter(element => typeof element.type === "function" && element.type.name === "IconTip");
+    for (const tip of tips) {
+      const content = all((tip.type as (props: unknown) => ReactNode)(tip.props)).find(element => element.type === TooltipContent)!;
+      (content.props.onEscapeKeyDown as () => void)();
+    }
+    expect(view.onOpenChange).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(view.onOpenChange).mock.calls).toEqual([[false], [false]]);
+  });
+
   it("calls its owner for Agent settings and Refresh usage", () => {
     const view = props(four);
     const buttons = all(UsagePanel(view)).filter(element => element.type === "button");
@@ -130,5 +157,12 @@ describe("UsagePanel", () => {
     (buttons.find(element => element.props["aria-label"] === "Refresh usage")!.props.onClick as () => void)();
     expect(view.onSettings).toHaveBeenCalledOnce();
     expect(view.onRefresh).toHaveBeenCalledOnce();
+  });
+
+  // E1 measurement: the app body's tabular figures widened every "1" in the relative times ("Updated 1m ago" by 2.6px,
+  // "12d 4h") against the confirmed draft; the popover is portalled to <body>, so it sets its own.
+  it("draws plain numerals in the popover", () => {
+    const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+    expect(css).toMatch(/\.usage-pop \{[^}]*font-variant-numeric: normal;[^}]*\}/);
   });
 });

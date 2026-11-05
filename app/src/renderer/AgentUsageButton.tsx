@@ -1,8 +1,9 @@
-import { useEffect, useId, useRef, useState, type ReactElement } from "react";
+import { useEffect, useId, useRef, useState, type FocusEvent, type ReactElement } from "react";
 import { flushSync } from "react-dom";
 import { Popover } from "radix-ui";
-import { CircleAlert, RotateCw, Settings } from "lucide-react";
+import { RotateCw, Settings } from "lucide-react";
 import type { UsageEntry } from "../main/agentAuth/usageTypes";
+import { AlertIcon } from "./AlertIcon";
 import { usageDescription } from "./agentUsage";
 import { foldedRing, ringViews, rowView, shownUsage, usageBusy, usageFolds, type RingView, type RowView } from "./agentUsageView";
 import type { CanvasPress } from "./ComposerParts";
@@ -12,6 +13,7 @@ export interface UsageViewProps {
   rings: RingView[]; folded: boolean; description: string; descriptionId: string; titleId: string; open: boolean; rows: RowView[]; busy: boolean;
   buttonRef(node: HTMLButtonElement | null): void; listRef(node: HTMLUListElement | null): void;
   onOpenChange(open: boolean): void; onRefresh(): void; onSettings(): void; onOpenAutoFocus(event: Event): void; onCloseAutoFocus(event: Event): void;
+  onPointerDownOutside(): void; onButtonFocus(event: FocusEvent<HTMLButtonElement>): void;
 }
 
 function Ring({ ring }: { ring: RingView }) {
@@ -23,8 +25,11 @@ function Ring({ ring }: { ring: RingView }) {
   </span>;
 }
 
-function IconTip({ label, children }: { label: string; children: ReactElement }) {
-  return <Tooltip><TooltipTrigger asChild>{children}</TooltipTrigger><TooltipContent>{label}</TooltipContent></Tooltip>;
+// Below the button: the shared tooltip's default side (above) put the popover's tooltips over the header button.
+// onEscape: a focused title-row button's tooltip is the top dismissable layer, so without it the first Escape closed
+// only the tooltip and the popover needed a second one.
+function IconTip({ label, onEscape, children }: { label: string; onEscape?(): void; children: ReactElement }) {
+  return <Tooltip><TooltipTrigger asChild>{children}</TooltipTrigger><TooltipContent side="bottom" onEscapeKeyDown={onEscape}>{label}</TooltipContent></Tooltip>;
 }
 
 function Row({ row }: { row: RowView }) {
@@ -35,20 +40,21 @@ function Row({ row }: { row: RowView }) {
         <div className="usage-window-line"><span className="usage-window-label">{window.label}</span><span className="usage-window-text">{window.text}</span></div>
         <span className="usage-bar" data-band={window.full ? "full" : undefined} aria-hidden="true">{window.bar !== null && <i style={{ width: `${window.bar}%` }} />}</span>
       </div>)}
-      {row.note && <p className="usage-note" data-kind={row.note.kind}>{row.note.kind && <CircleAlert aria-hidden="true" />}<span>{row.note.text}</span></p>}
+      {row.note && <p className="usage-note" data-kind={row.note.kind}>{row.note.kind && <AlertIcon />}<span>{row.note.text}</span></p>}
     </div>
   </li>;
 }
 
 // The popover body (draft frame 03). Agent settings and Refresh usage come after the list so Tab goes body →
 // Agent settings → Refresh usage; the grid draws them back in the title row.
-export function UsagePanel({ titleId, rows, busy, listRef, onRefresh, onSettings }: Pick<UsageViewProps, "titleId" | "rows" | "busy" | "listRef" | "onRefresh" | "onSettings">) {
+export function UsagePanel({ titleId, rows, busy, listRef, onRefresh, onSettings, onOpenChange }: Pick<UsageViewProps, "titleId" | "rows" | "busy" | "listRef" | "onRefresh" | "onSettings" | "onOpenChange">) {
+  const close = () => onOpenChange(false);
   return <>
     <h2 className="usage-pop-title" id={titleId}>Agent usage</h2>
     <ul className="usage-list" tabIndex={-1} ref={listRef}>{rows.map(row => <Row key={row.provider} row={row} />)}</ul>
-    <IconTip label="Agent settings"><button type="button" className="doan-icon-button usage-settings" aria-label="Agent settings" onClick={onSettings}><Settings aria-hidden="true" /></button></IconTip>
+    <IconTip label="Agent settings" onEscape={close}><button type="button" className="doan-icon-button usage-settings" aria-label="Agent settings" onClick={onSettings}><Settings aria-hidden="true" /></button></IconTip>
     {/* It stays enabled while reading: a provider already reading joins that read in main. */}
-    <IconTip label="Refresh usage"><button type="button" className="doan-icon-button usage-refresh" aria-label="Refresh usage" aria-busy={busy || undefined} onClick={onRefresh}>
+    <IconTip label="Refresh usage" onEscape={close}><button type="button" className="doan-icon-button usage-refresh" aria-label="Refresh usage" aria-busy={busy || undefined} onClick={onRefresh}>
       {busy ? <span className="doan-spinner" aria-hidden="true" /> : <RotateCw aria-hidden="true" />}</button></IconTip>
   </>;
 }
@@ -58,12 +64,12 @@ export function UsageView(props: UsageViewProps) {
   const { rings, folded, description, descriptionId, open } = props;
   const fold = folded ? foldedRing(rings) : null;
   return <Popover.Root open={open} onOpenChange={props.onOpenChange}>
-    <IconTip label="Agent usage"><Popover.Trigger asChild><button ref={props.buttonRef} type="button" className="usage" aria-label="Agent usage" aria-haspopup="dialog" aria-expanded={open} aria-describedby={descriptionId}>
+    <IconTip label="Agent usage"><Popover.Trigger asChild><button ref={props.buttonRef} type="button" className="usage" aria-label="Agent usage" aria-haspopup="dialog" aria-expanded={open} aria-describedby={descriptionId} onFocus={props.onButtonFocus}>
       {fold ? <><Ring ring={fold.ring} /><span className="usage-more" aria-hidden="true">+{fold.more}</span></> : rings.map(ring => <Ring key={ring.provider} ring={ring} />)}
     </button></Popover.Trigger></IconTip>
     <span className="sr-only" id={descriptionId}>{description}</span>
     <Popover.Portal><Popover.Content className="doan-floating doan-popover doan-scroll usage-pop" aria-labelledby={props.titleId} side="bottom" align="end" sideOffset={4} collisionPadding={8}
-      onOpenAutoFocus={props.onOpenAutoFocus} onCloseAutoFocus={props.onCloseAutoFocus}>
+      onOpenAutoFocus={props.onOpenAutoFocus} onCloseAutoFocus={props.onCloseAutoFocus} onPointerDownOutside={props.onPointerDownOutside}>
       <UsagePanel {...props} />
     </Popover.Content></Popover.Portal>
   </Popover.Root>;
@@ -86,11 +92,16 @@ export function AgentUsageButton({ openSettings, canvasPress }: { openSettings()
   const [free, setFree] = useState(Infinity);
   const header = useRef<HTMLElement | null>(null);
   const list = useRef<HTMLUListElement | null>(null);
+  const button = useRef<HTMLButtonElement | null>(null);
   const observer = useRef<ResizeObserver | null>(null);
   // Set when the popover closed for a reason that put focus elsewhere: Radix must not move it back to the button.
   const keepFocus = useRef(false);
+  // pressedOutside marks a close by a pointer press; quietFocus then keeps the focus handed back from opening the
+  // button's tooltip, which a pointer user did not ask for (it stayed under the button). Escape's return keeps it.
+  const pressedOutside = useRef(false), quietFocus = useRef(false);
   const buttonRef = useRef((node: HTMLButtonElement | null) => {
     observer.current?.disconnect(); observer.current = null;
+    button.current = node;
     if (!node) return;
     const bar = node.closest("header");
     if (!bar) return;
@@ -137,9 +148,23 @@ export function AgentUsageButton({ openSettings, canvasPress }: { openSettings()
   const read = (trigger: "open" | "refresh") => { void window.doan.readAgentUsage(trigger).catch(() => {}); };
   return <UsageView rings={ringViews(shown, now)} folded={usageFolds(free, shown.length)} description={usageDescription(shown, now)} descriptionId={descriptionId} titleId={titleId}
     open={open} rows={shown.map(entry => rowView(entry, now))} busy={usageBusy(shown)} buttonRef={buttonRef} listRef={listRef}
-    onOpenChange={next => { setOpen(next); if (next) { keepFocus.current = false; read("open"); } }}
+    onOpenChange={next => { setOpen(next); if (next) { keepFocus.current = false; pressedOutside.current = false; read("open"); } }}
     onRefresh={() => read("refresh")}
     onSettings={() => { keepFocus.current = openSettings(); setOpen(false); }}
     onOpenAutoFocus={event => { event.preventDefault(); list.current?.focus(); }}
-    onCloseAutoFocus={event => { if (keepFocus.current) { keepFocus.current = false; event.preventDefault(); } }} />;
+    onCloseAutoFocus={event => {
+      event.preventDefault();
+      const pressed = pressedOutside.current; pressedOutside.current = false;
+      if (keepFocus.current) { keepFocus.current = false; return; }
+      // Radix hands focus back only when nothing was pressed outside, so a press on a blank part of the window left
+      // it on <body>. This runs a tick after the press: a control the press focused keeps it.
+      const active = document.activeElement;
+      if (active !== null && active !== document.body) return;
+      quietFocus.current = pressed;
+      button.current?.focus();
+      quietFocus.current = false;
+    }}
+    onPointerDownOutside={() => { pressedOutside.current = true; }}
+    // The tooltip trigger's focus handler runs after this one and skips a prevented event.
+    onButtonFocus={event => { if (quietFocus.current) { quietFocus.current = false; event.preventDefault(); } }} />;
 }
