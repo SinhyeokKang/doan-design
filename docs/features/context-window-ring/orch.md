@@ -25,8 +25,8 @@
 |---|---|---|---|---|---|---|
 | M | A1, A2, B1 | `app/src/main/conversation/` (`transport.ts`, `acp.ts`, `types.ts`, `store.ts`, `runners.ts`, `service.ts`, `acpRunner.ts`와 그 테스트, `fixtures/`) | 없음 | Claude Opus high — 세 provider의 턴 끝 불변식(terminal 하나, Stop·crash 경로, Codex turnId 검사)이 틀리면 대화 기록이 깨진다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 대기 |
 | M 리뷰 | M의 diff | 보고만 | M | Codex Astra medium — 다른 계열의 독립 시각, 판단 위주 | `/code-review` | 대기 |
-| R | A3, C1, C2 | `app/src/renderer/` (`ProgressRing.tsx`, `ContextRing.tsx`, `contextWindow.ts`, `AgentUsageButton.tsx`, `agentUsageView.ts`, `DockedComposer.tsx`, `CanvasConversationPanel.tsx`, `ProjectOverview.tsx`, `styles.css`와 그 테스트), `types.ts`는 `EventPayload` 한 줄만 | 없음 | Claude Opus medium — design이 마크업·기하·글을 거의 정했고, 사용량 링 추출에서 no-drag effect를 지키는 판단이 남는다 | `npm --prefix app test`, `typecheck`, `build` | 대기 |
-| R 리뷰 | R의 diff | 보고만 | R | Claude Opus medium — UI·접근성 diff, Codex 남은 양 아낌 | `/code-review` | 대기 |
+| R | A3, C1, C2 | `app/src/renderer/` (`ProgressRing.tsx`, `ContextRing.tsx`, `contextWindow.ts`, `AgentUsageButton.tsx`, `agentUsageView.ts`, `DockedComposer.tsx`, `CanvasConversationPanel.tsx`, `ProjectOverview.tsx`, `styles.css`와 그 테스트), `types.ts`는 `EventPayload` 한 줄만 | 없음 | Claude Opus medium — design이 마크업·기하·글을 거의 정했고, 사용량 링 추출에서 no-drag effect를 지키는 판단이 남는다 | `npm --prefix app test`, `typecheck`, `build` | 통합(`59d4ac9c`·`a2c9b34d`·`d5d301b2`), 1회 |
+| R 리뷰 | R의 diff | 보고만 | R | Claude Opus medium — UI·접근성 diff, Codex 남은 양 아낌 | `/code-review` | 🔴0 🟡0 ⚪3 |
 | S | E1 | R이 만든 renderer 파일·`styles.css`의 수정, `docs/DESIGN.md` | M·R 통합 | Claude Opus medium — 계산값 측정과 작은 수정 | `/design-sync` 보고, `npm --prefix app test` | 대기 |
 | 지휘자 | E2, E3, Z1 | `orch.md`, PRODUCT·ARCHITECTURE·BACKLOG·README·DESIGN 승격 | S 통합 | — | `/runtime-test`, `verify.mjs` | 대기 |
 
@@ -40,4 +40,5 @@ tasks의 체크 항목: P1–P6(완료), D0(초안 확정, 완료), A1·A2·B1 �
 
 ## 진행 기록
 
-(아직 없음)
+- R: 작업자 보고 — 앱 테스트·typecheck·build·`verify.mjs` exit 0. design과 다른 점: `ProgressRing`이 `r`·`stroke`와 span props를 더 받음, `ringDanger` export, `contextRing`이 `value`(링, 100에서 자름)도 돌려줌, 토큰 수 버림(초안 예시와 같음). 독립 리뷰가 모두 받아들일 만하다고 판정했다.
+- R 리뷰 ⚪(지휘자 판단: 고치지 않음): (1) renderer는 `size` 0을 거르지 않고 M의 store 검사에 기댐 → M 리뷰에서 store 읽기와 live 경로 둘 다 확인한다. (2) tooltip이 열린 동안 Radix `aria-describedby`가 `aria-description`보다 앞섬 — 정보 손실 없음. (3) 쓰지 않는 `ProgressRingProps` export — 동작 영향 없음.
