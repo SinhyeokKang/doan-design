@@ -56,7 +56,7 @@ describe("aboutNotice", () => {
   });
 
   it.each([
-    ["link", "Claude Code — `~/.claude/settings.json` is a link, so Doan left it alone. To let Claude Code run `doan work` and `doan open` without asking, add `Bash(doan work start *)`, `Bash(doan work done *)` and `Bash(doan open *)` to `permissions.allow` in the file it links to."],
+    ["link", "Claude Code — `~/.claude/settings.json` is a link, so Doan left it alone. To let Claude Code run `doan work` and `doan open` without asking, add `Bash(doan work start *)`, `Bash(doan work done *)`, `Bash(doan open *)` and `Bash(doan work update *)` to `permissions.allow` in the file it links to."],
     ["json", "Claude Code — `~/.claude/settings.json` isn’t valid JSON, so Doan couldn’t add the rules that let Claude Code run `doan work` and `doan open` without asking. Fix the file, then reopen Doan."],
     ["object", "Claude Code — `~/.claude/settings.json` isn’t a JSON object, so Doan couldn’t add the rules that let Claude Code run `doan work` and `doan open` without asking. Fix the file, then reopen Doan."],
     ["permissions", "Claude Code — `permissions` in `~/.claude/settings.json` isn’t an object, so Doan couldn’t add the rules that let Claude Code run `doan work` and `doan open` without asking. Fix the file, then reopen Doan."],
