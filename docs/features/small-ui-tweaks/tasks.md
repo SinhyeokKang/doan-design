@@ -1,6 +1,6 @@
 # small-ui-tweaks — tasks
 
-시작 전: design '결정'(1–8, 사람, 2026-11-06)을 따른다. 구현 시작 시점은 `work-update`가 main에 병합된 뒤다(design §6).
+시작 전: design '결정'(1–9, 사람, 2026-11-06)을 따른다. 구현 시작 시점은 `work-update`가 main에 병합된 뒤다(design §6).
 
 순서: UI 초안(항목 1) → 순수 함수 → 화면(CSS·배선) → 실제 앱 확인 → 문서 승격. 형식(schema·fixture) 변경은 없다. 세 항목은 독립이므로 항목별로 커밋한다.
 
@@ -8,15 +8,17 @@
 
 - [x] D1a. `/design-draft small-ui-tweaks`: design §5 '초안 요청'대로 `.doan/canvases/small-ui-tweaks.html`(frame `panel-280`, `panel-320`, `overview`, `home`, `separation`)을 그렸다(2026-11-06, 커밋 전).
   - 검증: `doan check --json --repo .`(임시 `DOAN_RUNTIME`)에 이 캔버스의 finding이 없고 그리기 전과 같은 finding만 남았으며, `doan ls --json --repo .`가 canvas id `small-ui-tweaks`, 너비 1440, frame 다섯 개를 요청과 같게 보였다.
-- [x] D1b. 사람이 초안을 보고 확정했다(2026-11-06): 행 사이 1px 구분선 C(결정 5), 하이픈 줄바꿈 유지(결정 6). 초안은 C를 고른 안으로 표시하고 A·B를 비교로 남겼다(`--revise`).
+- [x] D1b. 사람이 초안을 보고 확정했다(2026-11-06): 행 사이 1px 구분선 C(결정 5), 하이픈 줄바꿈 유지(결정 6). (비교한 안은 D3에서 초안에서 지웠다.)
   - 검증: design에 '결정할 점'이 없고, '초안 요청'의 상태가 "사람 확인(2026-11-06)"이다. 초안은 `docs(design): small-ui-tweaks draft`로 커밋한다.
 
 - [x] D2a. `/design-draft small-ui-tweaks --revise`: 항목 4(이름 하이라이트)를 C 행에 그리고, `separation`에 clone·slice·진짜 `.anchor-chip`·긴 이름 비교 줄을 더했다(2026-11-06, 커밋 전).
   - 검증: `doan check --json --repo .`(임시 `DOAN_RUNTIME`)에 이 캔버스의 finding이 없고, `doan ls --json --repo .`의 frame 다섯 개가 그대로다.
 - [x] D2b. 사람이 앱에서 항목 4를 보고 확정했다(2026-11-06, "이거지 가독성이 확올라가노"): anchor chip의 값으로 만든 inline 하이라이트, clone(design 결정 7·8). 초안 머리와 note에 확정을 적었다.
   - 검증: design에 '결정할 점'이 없고, '초안 요청'의 상태에 항목 4 확인 날짜가 있다.
+- [x] D3. `/design-draft small-ui-tweaks --revise`: 사람의 요청("결정된 프레임만 남기는게 낫지 않음?", 2026-11-06)으로 각 frame을 Today와 Proposed만 남기고, 비교한 안(gap 8, 구분선 없음, slice, 진짜 `.anchor-chip`)과 그 설명을 지웠다. frame id 다섯 개는 그대로다(커밋 전).
+  - 검증: `doan check --json --repo .`(임시 `DOAN_RUNTIME`)에 이 캔버스의 finding이 없고, `doan ls --json --repo .`의 frame 다섯 개가 그대로다. 초안에 "gap 8", "slice", "chosen"이라는 글이 없다. 같은 수정에서 Proposed를 세 줄(결정 9)로 바꾸고, 세 줄에서도 잘리는 긴 문장을 더했다.
 
-커밋 경계: D1·D2(초안, `.doan/canvases/small-ui-tweaks.html`만).
+커밋 경계: D1·D2·D3(초안, `.doan/canvases/small-ui-tweaks.html`만).
 
 ## A. 순수 함수(항목 2, `/tdd` → `/implement`)
 
@@ -30,8 +32,8 @@
 
 ## U. 화면
 
-- [ ] U1. 항목 1: `styles.css`의 `.suggestion-label`을 두 줄 규칙으로(`-webkit-line-clamp: 2`, `overflow-wrap: anywhere`, `nowrap`·`text-overflow` 제거), 행 사이 1px 구분선(`.suggestion`의 `position: relative`, `.suggestion + .suggestion::before`; design §2.1, 결정 5). 행의 `align-items: center`와 gap 4px는 그대로다(결정 3).
-  - 검증: `npm --prefix app test`에서 `Home.test.tsx` 'suggestion CSS'에 더한 기대(두 줄 규칙, `.suggestion + .suggestion::before`의 `height: 1px`·`background: var(--border-standard)`·`inset-inline: var(--space-3)`, `.home-suggestions`·`.ov-suggestions`의 gap `var(--space-1)` 그대로)가 통과하고(바꾸기 전 red), `npm --prefix app run typecheck`가 통과한다.
+- [ ] U1. 항목 1: `styles.css`의 `.suggestion-label`을 세 줄 규칙으로(`-webkit-line-clamp: 3`, 결정 9, `overflow-wrap: anywhere`, `nowrap`·`text-overflow` 제거), 행 사이 1px 구분선(`.suggestion`의 `position: relative`, `.suggestion + .suggestion::before`; design §2.1, 결정 5). 행의 `align-items: center`와 gap 4px는 그대로다(결정 3).
+  - 검증: `npm --prefix app test`에서 `Home.test.tsx` 'suggestion CSS'에 더한 기대(세 줄 규칙 `-webkit-line-clamp: 3`, `.suggestion + .suggestion::before`의 `height: 1px`·`background: var(--border-standard)`·`inset-inline: var(--space-3)`, `.home-suggestions`·`.ov-suggestions`의 gap `var(--space-1)` 그대로)가 통과하고(바꾸기 전 red), `npm --prefix app run typecheck`가 통과한다.
 - [ ] U2. 항목 2: `CanvasAgent.tsx`의 `DotField` draw callback이 `autoCursor`의 자리와 `opposingCursor`의 자리를 `drawDotField`에 넘기고, reduced motion(`elapsed === null`)에서는 빈 목록을 넘긴다(design §2.2, §7).
   - 검증: `npm --prefix app test`에서 `CanvasAgent.test.tsx`·`CanvasAgent.hooks.test.tsx`가 통과하고, `npm --prefix app run typecheck`가 통과한다.
 - [ ] U3. 항목 3: `styles.css:501`의 `.shell-group .shell-empty` padding을 `var(--space-3)`으로(위아래 8 → 12px, 좌우 12px 그대로, margin 그대로; design §2.3, 결정 4).
@@ -45,8 +47,8 @@
 ## R. 실제 앱 확인
 
 - [ ] R1. `/runtime-test`로 바뀐 동작만 짧게 본다(격리 userData·HOME·SHELL·`DOAN_RUNTIME`, probe는 `.scratch/runtime-test/small-ui-tweaks/`).
-  - (a) 항목 1: 초안(D1)에서 정한 모양대로인지 본다. 구분선이 첫 행 위와 마지막 행 아래에는 없고, 행 사이에서 1px `--border-standard`, 양 끝 12px 들임, 위 행과 2px·아래 행과 1px인지 잰다. 긴 이름의 캔버스가 있는 임시 repo에서 캔버스 panel을 280px로 줄이고 새 대화 상태의 제안 행이 두 줄과 말줄임표로 끝나는지, 공백 없는 이름이 행 밖으로 넘치지 않는지, 한 줄 행의 padding·gap이 그대로인지 computed style로 잰다. Overview 960×600과 Home 1238×780도 한 번씩 본다. Home에서 글을 쳐도 composer card의 위치가 그대로인지 잰다.
-  - (d) 항목 4: panel 280에서 이름이 두 줄에 걸친 행(예: "Review the context-window-ring canvas")의 두 조각이 각각 padding 6px와 6px 모서리를 가지는지, 색·굵기가 anchor chip과 같은지 computed style로 잰다. hover·pressed·focus에서 하이라이트가 그대로인지, 접근 이름이 문장 그대로인지(CDP accessibility) 본다.
+  - (a) 항목 1: 초안(D1)에서 정한 모양대로인지 본다. 구분선이 첫 행 위와 마지막 행 아래에는 없고, 행 사이에서 1px `--border-standard`, 양 끝 12px 들임, 위 행과 2px·아래 행과 1px인지 잰다. 긴 이름의 캔버스가 있는 임시 repo에서 캔버스 panel을 280px로 줄이고 새 대화 상태의 제안 행이 세 줄까지 보이고(행 높이 40/56/76px) 그보다 긴 문장은 셋째 줄 끝 말줄임표로 끝나는지, "Polish the onboarding-welcome-variants canvas"가 말줄임표 없이 세 줄인지, 공백 없는 이름이 행 밖으로 넘치지 않는지, 한 줄 행의 padding·gap이 그대로인지 computed style로 잰다. Overview 960×600과 Home 1238×780도 한 번씩 본다. Home에서 글을 쳐도 composer card의 위치가 그대로인지 잰다.
+  - (d) 항목 4: panel 280에서 이름이 여러 줄에 걸친 행(예: "Review the context-window-ring canvas")의 두 조각이 각각 padding 6px와 6px 모서리를 가지는지, 색·굵기가 anchor chip과 같은지 computed style로 잰다. hover·pressed·focus에서 하이라이트가 그대로인지, 접근 이름이 문장 그대로인지(CDP accessibility) 본다.
   - (b) 항목 2: 터미널 작업 신호(`doan work start`, 격리 `DOAN_RUNTIME`)로 점 무늬를 띄우고, 두 자리가 보이는 화면과 한가운데에서 만나는 순간 앞뒤의 화면을 남긴다. rAF 간격을 10초 이상 기록해 16ms를 넘는 프레임 비율을 적는다. reduced motion을 켠 창에서 자리 없는 멈춘 무늬인지 본다. 사람이 병합 전에 실제 앱에서 움직임을 본다(design §5).
   - (c) 항목 3: 캔버스가 없는 폴더를 project로 더해 펼치고, 두 group의 상자 크기(160×42px), padding 12/12, 바깥 여백 2/10/8/34와 글이 상자 가운데에 있는지 잰다. Not set up project의 상태 줄이 그대로인지 본다.
   - 검증: 위 측정값과 화면이 `.scratch/runtime-test/small-ui-tweaks/`에 남고, 자동으로 확인하지 못한 것(실제 시스템 reduced motion 설정 등)은 미검증으로 보고한다. (b)에서 16ms를 넘는 프레임이 눈에 띄게 늘면 멈추고 보고한다(design §2.2 성능 위험).
