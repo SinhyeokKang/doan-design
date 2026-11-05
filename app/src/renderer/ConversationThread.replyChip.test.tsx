@@ -28,8 +28,8 @@ vi.mock("react", async original => {
 const { ConversationThread, ReplyChip } = await import("./ConversationThread");
 
 const rows: CanvasRow[] = [
-  { path: ".doan/canvases/drafts.html", url: "http://localhost/drafts.html", id: "drafts", title: "Drafts", frames: [{ id: "editor", title: "Editor" }] },
-  { path: ".doan/canvases/checkout.html", url: "http://localhost/checkout.html", id: "checkout", title: "Checkout", frames: [{ id: "payment", title: "Payment" }] },
+  { path: ".doan/canvases/drafts.html", url: "http://localhost/drafts.html", id: "drafts", frames: [{ id: "editor", title: "Editor" }] },
+  { path: ".doan/canvases/checkout.html", url: "http://localhost/checkout.html", id: "checkout", frames: [{ id: "payment", title: "Payment" }] },
 ];
 beforeEach(() => { stub.context = null; stub.note = null; });
 

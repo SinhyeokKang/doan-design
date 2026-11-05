@@ -15,11 +15,9 @@ const folder = (node: TreeNode): FolderNode => {
   return node;
 };
 
-test("canvasLabel prefers the trimmed title, else the file name without .html", () => {
-  expect(canvasLabel(row(".doan/canvases/login.html", { title: "  Login  " }))).toBe("Login");
+test("canvasLabel is the file name without .html, whatever the page's <title> says", () => {
   expect(canvasLabel(row(".doan/canvases/login.html"))).toBe("login");
-  expect(canvasLabel(row(".doan/canvases/login.html", { title: "" }))).toBe("login");
-  expect(canvasLabel(row(".doan/canvases/login.html", { title: "   \n\t " }))).toBe("login");
+  expect(canvasLabel({ ...row(".doan/canvases/login.html"), title: "  Login  " } as CanvasRow)).toBe("login");
   expect(canvasLabel(row(".doan/canvases/a/b/step-2.html"))).toBe("step-2");
   expect(canvasLabel(row(".doan/canvases/a.b.html"))).toBe("a.b");
   expect(canvasLabel(row(".doan/canvases/.html"))).toBe(".html");
@@ -47,19 +45,17 @@ test("buildCanvasTree nests folders by path with .doan/canvases/ as the root nod
 test("buildCanvasTree puts folders before canvases and sorts each by display name", () => {
   const tree = buildCanvasTree([
     row(".doan/canvases/zeta/a.html"),
-    row(".doan/canvases/Alpha.html", { title: "Zulu" }),
-    row(".doan/canvases/beta.html", { title: "apple" }),
+    row(".doan/canvases/Zulu.html"),
+    row(".doan/canvases/apple.html"),
     row(".doan/canvases/Aardvark/a.html"),
   ]);
   expect(names(folder(at(tree, 0)).children)).toEqual(["Aardvark", "zeta", "apple", "Zulu"]);
 });
 
-test("buildCanvasTree sorts by display name, not by path or title-less file name", () => {
+test("buildCanvasTree sorts by display name, not by path", () => {
   // `foo-bar.html` < `foo.html` in byte order ('-' < '.'), but `foo` < `foo-bar`.
   const byFile = buildCanvasTree([row(".doan/canvases/foo-bar.html"), row(".doan/canvases/foo.html")]);
   expect(names(folder(at(byFile, 0)).children)).toEqual(["foo", "foo-bar"]);
-  const byTitle = buildCanvasTree([row(".doan/canvases/a.html", { title: "Zed" }), row(".doan/canvases/z.html", { title: "Alpha" })]);
-  expect(names(folder(at(byTitle, 0)).children)).toEqual(["Alpha", "Zed"]);
 });
 
 test("buildCanvasTree orders numbers naturally", () => {
@@ -70,18 +66,17 @@ test("buildCanvasTree orders numbers naturally", () => {
 });
 
 test("buildCanvasTree breaks collator ties by path so the order is stable", () => {
-  const forward = buildCanvasTree([row(".doan/canvases/a.html", { title: "Same" }), row(".doan/canvases/b.html", { title: "same" })]);
-  const reverse = buildCanvasTree([row(".doan/canvases/b.html", { title: "same" }), row(".doan/canvases/a.html", { title: "Same" })]);
+  const forward = buildCanvasTree([row(".doan/canvases/Same.html"), row(".doan/canvases/same.html")]);
+  const reverse = buildCanvasTree([row(".doan/canvases/same.html"), row(".doan/canvases/Same.html")]);
   const keys = (tree: TreeNode[]) => folder(at(tree, 0)).children.map((node) => node.key);
-  expect(keys(forward)).toEqual([".doan/canvases/a.html", ".doan/canvases/b.html"]);
+  expect(keys(forward)).toEqual([".doan/canvases/Same.html", ".doan/canvases/same.html"]);
   expect(keys(reverse)).toEqual(keys(forward));
 });
 
 test("buildCanvasTree labels canvas nodes with the display name and keeps the file name", () => {
-  const tree = buildCanvasTree([row(".doan/canvases/login.html", { title: " Sign in " }), row(".doan/canvases/plain.html")]);
-  // "plain" sorts before "Sign in".
-  const [plain, login] = folder(at(tree, 0)).children as [CanvasNode, CanvasNode];
-  expect([login.name, login.fileName]).toEqual(["Sign in", "login.html"]);
+  const tree = buildCanvasTree([row(".doan/canvases/login.html"), row(".doan/canvases/plain.html")]);
+  const [login, plain] = folder(at(tree, 0)).children as [CanvasNode, CanvasNode];
+  expect([login.name, login.fileName]).toEqual(["login", "login.html"]);
   expect([plain.name, plain.fileName]).toEqual(["plain", "plain.html"]);
 });
 
@@ -168,10 +163,9 @@ test("typeaheadNext matches a prefix, not a substring", () => {
   expect(typeaheadNext(["alpha", "beta"], 0, "lp")).toBeNull();
 });
 
-test("canvas labels strip HTML extensions case-insensitively and keep title priority", () => {
+test("canvas labels strip HTML extensions case-insensitively ", () => {
   for (const path of [".doan/canvases/A.HTML", ".doan/canvases/A.HtMl"]) {
     expect(canvasLabel(row(path))).toBe("A");
-    expect(canvasLabel(row(path, { title: " Named " }))).toBe("Named");
   }
   expect(canvasLabel(row(".doan/canvases/.HTML"))).toBe(".HTML");
 });

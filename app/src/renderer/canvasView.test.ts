@@ -409,6 +409,6 @@ test("frameLabel preserves duplicate ids as separate labels", () => {
 });
 
 test("names the moved canvas, the count and the id when several canvases share it", () => {
-  expect(duplicateIdText(row(".doan/canvases/checkout.html", { id: "checkout", title: "Checkout" }), 2)).toBe("Checkout moved, but 2 canvases now use the ID checkout. Run doan check in a terminal.");
+  expect(duplicateIdText(row(".doan/canvases/checkout.html", { id: "checkout" }), 2)).toBe("checkout moved, but 2 canvases now use the ID checkout. Run doan check in a terminal.");
   expect(duplicateIdText(row(".doan/canvases/flows/cart.html", { id: "cart" }), 3)).toBe("cart moved, but 3 canvases now use the ID cart. Run doan check in a terminal.");
 });

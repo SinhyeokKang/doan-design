@@ -42,8 +42,8 @@ describe("CanvasHeader", () => {
     expect(markup.indexOf('aria-label="Frame 3: Payment"')).toBeLessThan(order[0]!);
   });
 
-  it("shows the canvas title when it has one", () => {
-    expect(html(opened({ open: { folder: "/repo", canvas: row.path, row: { ...row, title: "Checkout flow" } } }))).toContain("<span>Checkout flow</span>");
+  it("shows the file stem, not the page title", () => {
+    expect(html(opened({ open: { folder: "/repo", canvas: row.path, row: { ...row } } }))).toContain("<span>checkout</span>");
   });
 
   it("disables only the drawer on a laid-out canvas with no frames", () => {

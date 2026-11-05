@@ -6,12 +6,12 @@ import { canvasRows, folderEntry, openDecision, servingUrl } from "./view";
 const base = "http://127.0.0.1:4000/t/tok/key/";
 
 describe("canvasRows", () => {
-  test("keeps path and title, and drops the listing's comment counts", () => {
+  test("keeps path and id, drops the page title and the listing's comment counts", () => {
     const rows = canvasRows(
       [{ path: ".doan/canvases/a.html", id: "a", title: "Login", width: 1280, frames: [], comments: { open: 2, resolved: 1 } }],
       base,
     );
-    expect(rows).toEqual([{ path: ".doan/canvases/a.html", id: "a", title: "Login", width: 1280, frames: [], url: `${base}.doan/canvases/a.html` }]);
+    expect(rows).toEqual([{ path: ".doan/canvases/a.html", id: "a", width: 1280, frames: [], url: `${base}.doan/canvases/a.html` }]);
   });
 
   test("omits absent and non-string ids", () => {
@@ -37,8 +37,8 @@ describe("canvasRows", () => {
     expect(rows.map((row) => row.width)).toEqual([1, Number.MAX_SAFE_INTEGER]);
   });
 
-  test("omits a missing title", () => {
-    const rows = canvasRows([{ path: ".doan/canvases/b.html", frames: [], comments: { open: 0, resolved: 0 } }], base);
+  test("never carries a title", () => {
+    const rows = canvasRows([{ path: ".doan/canvases/b.html", title: "Page title", frames: [], comments: { open: 0, resolved: 0 } }], base);
     expect(rows).toEqual([{ path: ".doan/canvases/b.html", frames: [], url: `${base}.doan/canvases/b.html` }]);
     expect(rows[0]).not.toHaveProperty("title");
   });

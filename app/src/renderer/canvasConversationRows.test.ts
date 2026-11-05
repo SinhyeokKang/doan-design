@@ -13,7 +13,7 @@ const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
 });
 const row = (patch: Partial<CanvasRow> & { path: string }): CanvasRow => ({ url: `doan://${patch.path}`, ...patch });
 
-const billing = row({ path: ".doan/canvases/billing.html", id: "billing", title: "Billing" });
+const billing = row({ path: ".doan/canvases/billing.html", id: "billing" });
 const plain = row({ path: ".doan/canvases/plain.html" });
 const quiet = row({ path: ".doan/canvases/quiet.html", id: "quiet" });
 
@@ -25,13 +25,13 @@ describe("canvasConversationRows", () => {
       summary({ conversationId: "old", canvas: { path: billing.path, id: "billing" }, state: "archived", lastActivityAt: ago(0) }),
       summary({ conversationId: "n", canvas: { path: plain.path }, lastActivityAt: ago(MIN) }),
     ], [billing, plain, quiet], NOW);
-    expect(rows.map(r => [r.conversationId, r.name])).toEqual([["n", "plain"], ["b", "Billing"]]);
+    expect(rows.map(r => [r.conversationId, r.name])).toEqual([["n", "plain"], ["b", "billing"]]);
   });
 
   test("a row carries the canvas row, provider, status, short time and preview", () => {
     const [only] = canvasConversationRows([summary({ conversationId: "b", title: "Edit the header", provider: "codex", phase: "running", canvas: { path: billing.path, id: "billing" }, lastActivityAt: ago(3 * MIN), preview: "Editing the header" })], [billing], NOW);
     expect(only).toEqual({
-      key: "b", conversationId: "b", name: "Billing", canvas: { path: billing.path, id: "billing" }, row: billing,
+      key: "b", conversationId: "b", name: "billing", canvas: { path: billing.path, id: "billing" }, row: billing,
       provider: "codex", status: { kind: "working", label: "Working" }, time: { text: "3m", label: "3 minutes ago" },
       preview: "Editing the header", problem: null, openable: true,
       // canvas-composer-polish spec 6: the row's Delete names the conversation and follows the title menu's rule.
@@ -63,9 +63,9 @@ describe("canvasConversationRows", () => {
   });
 
   test("a canvas renamed or moved under the same id keeps its row at the new path", () => {
-    const moved = row({ path: ".doan/canvases/pay/billing-v2.html", id: "billing", title: "Billing v2" });
+    const moved = row({ path: ".doan/canvases/pay/billing-v2.html", id: "billing" });
     const [only] = canvasConversationRows([summary({ canvas: { path: billing.path, id: "billing" } })], [moved], NOW);
-    expect(only).toMatchObject({ name: "Billing v2", row: moved, openable: true, problem: null });
+    expect(only).toMatchObject({ name: "billing-v2", row: moved, openable: true, problem: null });
   });
 
   test("an id on either side matches by id only; without ids the path matches", () => {
@@ -91,9 +91,9 @@ describe("canvasConversationRows", () => {
   });
 
   test("a duplicated id cannot be opened and says how many canvases share it", () => {
-    const twin = row({ path: ".doan/canvases/copy.html", id: "billing", title: "Billing copy" });
+    const twin = row({ path: ".doan/canvases/copy.html", id: "billing" });
     const [only] = canvasConversationRows([summary({ canvas: { path: billing.path, id: "billing" } })], [billing, twin], NOW);
-    expect(only).toMatchObject({ name: "Billing", row: null, openable: false, problem: { kind: "duplicate", count: 2 } });
+    expect(only).toMatchObject({ name: "billing", row: null, openable: false, problem: { kind: "duplicate", count: 2 } });
   });
 
   test("an unreadable canvas can still be opened, so its page shows its own error", () => {

@@ -9,9 +9,9 @@ import { projectHue } from "./shellNavigation";
 const row = (path: string, extra: Partial<CanvasRow> = {}): CanvasRow => ({ path, id: path, url: "u", ...extra });
 const git = (branch: string) => ({ common: "/code/acme-web/.git", main: "/code/acme-web", branch, worktrees: [] });
 const entries: FolderEntry[] = [
-  { kind: "list", path: "/code/acme-web", servedRev: 0, git: git("main"), canvases: [row(".doan/canvases/settings/billing.html", { title: "Billing & plans", frames: [{ id: "plans" }, { id: "card-declined", title: "Card declined" }] }), row(".doan/canvases/tokens.html", { title: "Design tokens" })] },
-  { kind: "list", path: "/code/worktrees/feat-billing/acme-web", servedRev: 0, git: git("feat-billing"), canvases: [row(".doan/canvases/settings/billing.html", { title: "Billing & plans" })] },
-  { kind: "list", path: "/Users/alex/Documents/brand-kit", servedRev: 0, canvases: [row(".doan/canvases/research/card-decline-patterns.html", { title: "Card decline patterns" })] },
+  { kind: "list", path: "/code/acme-web", servedRev: 0, git: git("main"), canvases: [row(".doan/canvases/settings/billing.html", { frames: [{ id: "plans" }, { id: "card-declined", title: "Card declined" }] }), row(".doan/canvases/tokens.html")] },
+  { kind: "list", path: "/code/worktrees/feat-billing/acme-web", servedRev: 0, git: git("feat-billing"), canvases: [row(".doan/canvases/settings/billing.html", {})] },
+  { kind: "list", path: "/Users/alex/Documents/brand-kit", servedRev: 0, canvases: [row(".doan/canvases/research/card-decline-patterns.html", {})] },
   { kind: "loading", path: "/code/reading" },
 ];
 const render = (currentRoot: string | null) => renderToStaticMarkup(<QuickOpen entries={entries} currentRoot={currentRoot} pick={() => {}} close={() => {}} />);
@@ -53,14 +53,14 @@ test("filter tabs: All, Canvases and Frames, All chosen and the one Tab stop, ea
 
 test("an empty query lists the current project's canvases in a workspace and every project's on Home", () => {
   expect(options(render("/code/acme-web"))).toEqual([
-    "Billing &amp; plans — settings/billing.html · acme-web · main",
-    "Design tokens — tokens.html · acme-web · main",
+    "billing — settings/billing.html · acme-web · main",
+    "tokens — tokens.html · acme-web · main",
   ]);
   expect(options(render(null))).toEqual([
-    "Billing &amp; plans — settings/billing.html · acme-web · main",
-    "Design tokens — tokens.html · acme-web · main",
-    "Billing &amp; plans — settings/billing.html · acme-web · feat-billing",
-    "Card decline patterns — research/card-decline-patterns.html · brand-kit",
+    "billing — settings/billing.html · acme-web · main",
+    "tokens — tokens.html · acme-web · main",
+    "billing — settings/billing.html · acme-web · feat-billing",
+    "card-decline-patterns — research/card-decline-patterns.html · brand-kit",
   ]);
   // The first row is active.
   expect(render(null)).toMatch(/role="option" id="[^"]+" aria-selected="true"/);
@@ -68,15 +68,15 @@ test("an empty query lists the current project's canvases in a workspace and eve
 });
 
 test("result rows: an icon, the name with its matched letters underlined, and a second line with the canvas path or canvas and number", () => {
-  const frame: SearchResult = { kind: "frame", root: "/code/acme-web", path: ".doan/canvases/settings/billing.html", canvasLabel: "Billing & plans", label: "Card declined", frameId: "card-declined", frameIndex: 3 };
+  const frame: SearchResult = { kind: "frame", root: "/code/acme-web", path: ".doan/canvases/settings/billing.html", canvasLabel: "billing", label: "Card declined", frameId: "card-declined", frameIndex: 3 };
   const canvas: SearchResult = { kind: "canvas", root: "/code/acme-web", path: ".doan/canvases/reports/team-scorecard.html", canvasLabel: "Team scorecard", label: "Team scorecard" };
   const groups = groupResults([frame, canvas], projectWhere(entries));
   const html = renderToStaticMarkup(<QuickOpenList id="r" query="card" groups={groups} active={0} pick={() => {}} activate={() => {}} />);
   const [first, second] = [...html.matchAll(/<div class="qo-item"[^>]*>.*?<\/span><\/span><\/span><\/div>/g)].map(match => match[0]);
-  expect(first).toContain('aria-label="Card declined — Billing &amp; plans › 4 · acme-web · main"');
+  expect(first).toContain('aria-label="Card declined — billing › 4 · acme-web · main"');
   expect(first).toMatch(/<span class="qo-icon" aria-hidden="true"><svg[^>]*lucide-hash/);
   expect(first).toContain('<span class="qo-name" title="Card declined"><mark class="qo-match">Card</mark> declined</span>');
-  expect(first).toContain('<span class="qo-detail"><span class="qo-context" title="Billing &amp; plans › 4">Billing &amp; plans › 4</span></span>');
+  expect(first).toContain('<span class="qo-detail"><span class="qo-context" title="billing › 4">billing › 4</span></span>');
   expect(second).toContain('aria-label="Team scorecard — reports/team-scorecard.html · acme-web · main"');
   expect(second).toMatch(/<span class="qo-icon" aria-hidden="true"><svg[^>]*lucide-panels-top-left/);
   expect(second).toContain('<span class="qo-name" title="Team scorecard">Team score<mark class="qo-match">card</mark></span>');
@@ -153,7 +153,7 @@ test("the active row stays on the same result when the entries change, and falls
   const before = rows(entries, "", null);
   const key = resultKey(before[2]!);
   const added: FolderEntry[] = entries.map(entry => entry.kind === "list" && entry.path === "/code/acme-web"
-    ? { ...entry, canvases: [row(".doan/canvases/added.html", { title: "Added" }), ...entry.canvases] } : entry);
+    ? { ...entry, canvases: [row(".doan/canvases/added.html", {}), ...entry.canvases] } : entry);
   const after = rows(added, "", null);
   expect(activeIndex(after, key)).toBe(3);
   expect(resultKey(after[activeIndex(after, key)]!)).toBe(key);
