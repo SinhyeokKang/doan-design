@@ -120,7 +120,7 @@
 
 ### 초안 확인(남은 것)
 
-초안에 popover 오른쪽 위 새로고침 버튼("Refresh usage", 쉼·읽는 중)을 더 그린다(결정할 점 11). 그리며 정한 것으로 사람의 확인이 필요하다: 링 색(Neutral / Bands 70·90), 좁은 앱 창의 링 접기 규칙을 둘지(헤더에서 960×600에도 다섯 개가 들어감), 문구 "Reset · updating"·"Updated just now", popover 제목 "Agent usage", 이유 줄 모양(read_failed 오류, blocked 경고, 나머지 subtle), 한도 보고 없는 100%는 "100% used"만, 링 track 색의 component constant를 새 token으로 올릴지.
+초안에 popover 오른쪽 위 새로고침 버튼("Refresh usage", 쉼·읽는 중)을 더 그린다(결정할 점 11). 그리며 정한 것으로 사람의 확인이 필요하다: 좁은 앱 창의 링 접기 규칙을 둘지(헤더에서 960×600에도 다섯 개가 들어감), 문구 "Reset · updating"·"Updated just now", popover 제목 "Agent usage", 이유 줄 모양(read_failed 오류, blocked 경고, 나머지 subtle), 한도 보고 없는 100%는 "100% used"만, 링 track 색의 component constant를 새 token으로 올릴지.
 
 ── commit: `docs(design): draft provider usage` ──
 
