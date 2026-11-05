@@ -1,3 +1,4 @@
+import type { Question, QuestionOutcome, StoredAnswer } from "../main/conversation/question";
 import type { Anchor, Canvas, ConversationEvent, FailureCode, PermissionOption } from "../main/conversation/types";
 import { splitRequest, type PresetRef } from "./homeComposer";
 import { PRESETS } from "../main/mcpConnectors/presets";
@@ -20,6 +21,8 @@ export type ThreadItem =
   // A run of activities folds into one line: the latest activity while it runs, "N steps" once the turn moved on.
   | { kind: "activity"; key: string; running: boolean; head: string; steps: ActivityStep[] }
   | { kind: "permission"; key: string; seq: number; requestId: string; summary: string; options: PermissionOption[]; status: "pending" | "answered" | "expired"; answer: PermissionOption | null }
+  // An agent's question (agent-questions design §7). answers: what main kept of an answered one, by question id.
+  | { kind: "question"; key: string; seq: number; requestId: string; questions: Question[]; status: "pending" | QuestionOutcome; answers: Record<string, StoredAnswer> | null }
   // seq is null for the end a crash-folded turn never wrote; its key is the turn's, so it stays when later turns arrive.
   | { kind: "end"; key: string; seq: number | null; end: TurnEnd }
   | { kind: "marker"; key: string; seq: number; marker: "bound" | "archived" | "restored"; canvas: Canvas | null };
@@ -127,6 +130,8 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
   const items: ThreadItem[] = [];
   const agents = new Map<string, Extract<ThreadItem, { kind: "agent" }>>();
   const permissions = new Map<string, Extract<ThreadItem, { kind: "permission" }>>();
+  // Apart from permissions, as main's fold keeps them: a resolution settles only a request of its own kind.
+  const questions = new Map<string, Extract<ThreadItem, { kind: "question" }>>();
   const ended = new Set<string>(), replied = new Set<string>();
   let turn: string | null = null, group: { item: Extract<ThreadItem, { kind: "activity" }>; turnId: string } | null = null;
   const groups: { item: Extract<ThreadItem, { kind: "activity" }>; turnId: string }[] = [];
@@ -134,7 +139,7 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
   const endTurn = (turnId: string) => {
     ended.add(turnId);
     for (const [key, message] of agents) if (message.streaming && turnOf.get(key) === turnId) message.streaming = false;
-    for (const ask of permissions.values()) if (ask.status === "pending" && askTurn.get(ask.requestId) === turnId) ask.status = "expired";
+    for (const ask of [...permissions.values(), ...questions.values()]) if (ask.status === "pending" && askTurn.get(`${ask.kind}:${ask.requestId}`) === turnId) ask.status = "expired";
   };
   const push = (item: ThreadItem) => { group = null; items.push(item); };
   const foldCrashed = (turnId: string) => {
@@ -196,13 +201,24 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
       }
       case "permission.request": {
         const item = { kind: "permission" as const, key: `p${event.requestId}`, seq: event.seq, requestId: event.requestId, summary: event.summary, options: event.options, status: "pending" as const, answer: null as PermissionOption | null };
-        permissions.set(event.requestId, item); askTurn.set(event.requestId, event.turnId);
+        permissions.set(event.requestId, item); askTurn.set(`permission:${event.requestId}`, event.turnId);
         push(item);
         break;
       }
       case "permission.resolved": {
         const ask = permissions.get(event.requestId);
         if (ask) { ask.status = "answered"; ask.answer = ask.options.find(o => o.id === event.optionId) ?? null; }
+        break;
+      }
+      case "question.request": {
+        const item = { kind: "question" as const, key: `Q${event.requestId}`, seq: event.seq, requestId: event.requestId, questions: event.questions, status: "pending" as Extract<ThreadItem, { kind: "question" }>["status"], answers: null as Record<string, StoredAnswer> | null };
+        questions.set(event.requestId, item); askTurn.set(`question:${event.requestId}`, event.turnId);
+        push(item);
+        break;
+      }
+      case "question.resolved": {
+        const ask = questions.get(event.requestId);
+        if (ask?.status === "pending") { ask.status = event.outcome; ask.answers = event.answers ?? null; }
         break;
       }
       case "turn.done":
@@ -231,7 +247,7 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
 }
 
 // Messages Send now has in flight, as the person's messages after the history in press order (canvas-composer-polish
-// design §2). An open permission request stays last, so they sit right above the first one still waiting. The history
+// design §2). An open permission request or question stays last, so they sit right above the first one still waiting. The history
 // has no event for them until the agent reads one; main writes that event before it answers Send now, so for a
 // moment both may show.
 export function withSending(items: ThreadItem[], sending: readonly SendingMessage[]): ThreadItem[] {
@@ -240,9 +256,30 @@ export function withSending(items: ThreadItem[], sending: readonly SendingMessag
     const { preset, body } = splitRequest(message.text, message.attachments.length);
     return { kind: "user", key: `q${message.id}`, seq: null, sending: true, parts: anchorParts(body), anchors: message.anchors, preset, attachments: message.attachments.map(({ name, size, kind }) => ({ name, size, kind })) };
   });
-  const ask = items.findIndex(item => item.kind === "permission" && item.status === "pending");
+  const ask = items.findIndex(waitsForPerson);
   const at = ask === -1 ? items.length : ask;
   return [...items.slice(0, at), ...messages, ...items.slice(at)];
+}
+
+// A permission request or a question still waiting for the person.
+export function waitsForPerson(item: ThreadItem): item is Extract<ThreadItem, { kind: "permission" | "question" }> {
+  return (item.kind === "permission" || item.kind === "question") && item.status === "pending";
+}
+// The open requests in arrival order, for where focus goes after one is answered (composerRules.focusAfter).
+export function pendingAsks(items: readonly ThreadItem[]): { requestId: string; key: string }[] {
+  return items.filter(waitsForPerson).map(item => ({ requestId: item.requestId, key: item.key }));
+}
+
+// A finished question's folded lines (design §7): one per answered question, one per skipped or expired request. A
+// question without a header (Antigravity's) names itself by its sentence; a secret answer is never shown.
+export function questionLines(item: Extract<ThreadItem, { kind: "question" }>): string[] {
+  const name = (question: Question) => question.header || question.question;
+  if (item.status === "skipped" || item.status === "expired") return [`${item.status === "skipped" ? "Skipped" : "Expired without an answer"} · ${item.questions.map(name).join(", ")}`];
+  return item.questions.map(question => {
+    const answer = item.answers?.[question.id];
+    const text = answer && !question.secret ? [...answer.selected, ...(answer.other ? [answer.other] : [])].join(", ") : "";
+    return text ? `Answered · ${name(question)}: ${text}` : `Answered · ${name(question)}`;
+  });
 }
 
 export const FOLLOW_DISTANCE = 24;

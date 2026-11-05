@@ -5,7 +5,7 @@ import type { ConversationEvent } from "../main/conversation/types";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import { PROVIDER_NAMES } from "./agentAuthView";
 import { conversationWork, slotKeyOf, slotsFromList } from "./conversationList";
-import { mergeConversationEvents, stripState, type StripState } from "./conversationStrip";
+import { asksPerson, mergeConversationEvents, stripState, type StripState } from "./conversationStrip";
 import { newCanvasText } from "./newCanvasText";
 import { splitRequest, type AttachmentDraft } from "./homeComposer";
 import {
@@ -49,8 +49,8 @@ interface Extras { atStart: string[]; checked: string[]; canvasOpens: number; to
 interface Pending { conversationId: string; root: string; moves: number; sawModal: boolean }
 export interface Removing { paths: string[]; conversations: string[]; title: string; body: string; cancel: string; confirm: string }
 
-const RUNNING: readonly StripState["kind"][] = ["starting", "working", "permission"];
-const RANK: Record<StripState["kind"], number> = { permission: 3, starting: 2, working: 2, done: 1, failed: 1, interrupted: 1 };
+const RUNNING: readonly StripState["kind"][] = ["starting", "working", "permission", "question"];
+const RANK: Record<StripState["kind"], number> = { permission: 3, question: 3, starting: 2, working: 2, done: 1, failed: 1, interrupted: 1 };
 const RANK_SLOT: Record<Slot["kind"], number> = { permission: 3, working: 2, unseen: 1 };
 
 // Text deltas only tell the strip the agent started answering; one per turn is kept.
@@ -262,7 +262,7 @@ export class HomeRun {
     const root = this.conversations.find(item => item.conversationId === conversationId)?.root ?? found?.root;
     if (!root) return;
     const row = this.canvasRow(root, conversationId);
-    if (row) this.host.openCanvas(root, row, { conversationId, waiting: found?.phase === "waiting" || this.strips[conversationId]?.kind === "permission" });
+    if (row) this.host.openCanvas(root, row, { conversationId, waiting: found?.phase === "waiting" || asksPerson(this.strips[conversationId]?.kind ?? "starting") });
     else this.host.openOverview(root, () => true, () => {}, conversationId);
   }
 
@@ -547,7 +547,7 @@ export class HomeRun {
     const merged = new Map<string, ConversationSummary[]>([...this.lists].map(([root, list]) => [root, [...list]]));
     for (const c of this.conversations) {
       const list = merged.get(c.root) ?? [];
-      const phase = c.phase === "permission" ? "waiting" : RUNNING.includes(c.phase) ? "running" : "ended";
+      const phase = asksPerson(c.phase) ? "waiting" : RUNNING.includes(c.phase) ? "running" : "ended";
       const at = list.findIndex(s => s.conversationId === c.conversationId);
       // A turn the events say runs is worked on whatever the lagging list says; after it, main says when work ends.
       if (at !== -1) list[at] = { ...list[at]!, phase, working: list[at]!.working || phase !== "ended" };

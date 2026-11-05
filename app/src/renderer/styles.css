@@ -1221,6 +1221,38 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .area[data-picking] { cursor: crosshair; }
 /* A permission answer that did not reach the agent, under its request's choices. */
 .conversation-thread .thread-notice > .ask-error { grid-column: 2; color: var(--text-danger); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
+/* An agent's question (agent-questions draft frames question-card, keyboard, send-states): the permission notice whose
+   questions, actions and error line take the card's full width under the mark's title line. Nothing in a question is cut. */
+.conversation-thread .q-card > :is(.q-list, .strip-actions, .ask-error) { grid-column: 1 / -1; }
+.conversation-thread .q-card .q-title b { overflow-wrap: anywhere; }
+.conversation-thread .q-list { display: flex; flex-direction: column; gap: var(--space-5); min-width: 0; }
+.conversation-thread .q { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
+.conversation-thread .q-head { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-1h); min-width: 0; }
+.conversation-thread .q-text { font-weight: var(--type-weight-medium); overflow-wrap: anywhere; }
+/* The Settings group and rows (decided rule 16) with three local values: the panel fill on the inset notice, rows
+   aligned to their first line, the notice's row corner. The chosen option shows by its control only. */
+.conversation-thread .q-group { background: var(--surface-panel); border-radius: var(--radius-row); }
+.conversation-thread .q-pref { position: relative; align-items: start; cursor: pointer; }
+.conversation-thread .q-pref .ob-radio { margin-top: 0; }
+.conversation-thread .q-pref:has(> input:checked) .ob-radio { border-color: var(--affordance-prominent); background: var(--affordance-prominent); }
+.conversation-thread .q-pref:has(> input:checked) .ob-radio::before { content: ""; width: var(--space-1h); height: var(--space-1h); border-radius: 50%; background: var(--text-on-prominent); }
+/* The native radio or checkbox covers its row so the whole row takes the click; the icon slot draws it. */
+.conversation-thread .q-pref > input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.conversation-thread .q-pref:has(> input:focus-visible) { outline: 2px solid var(--border-focus); outline-offset: -2px; border-radius: var(--radius-row); }
+/* Other's input sits above the row's invisible control so it takes clicks and focus; on the white group it takes the
+   inset fill so it reads as a field. */
+.conversation-thread .q-input { position: relative; z-index: 1; width: 100%; background: var(--surface-panel); }
+.conversation-thread .q-pref .q-input { background: var(--surface-inset); }
+/* Send while it cannot send: aria-disabled keeps its focus and tooltip, with the shared disabled fill. */
+.conversation-thread .q-card .q-send[aria-disabled="true"]:not(:disabled) { background: var(--affordance-disabled); color: var(--text-disabled); cursor: default; }
+.conversation-thread .q-card .q-send[aria-busy="true"] { cursor: progress; }
+/* On the black Send the ring is the on-prominent ink at 30% (no translucent token exists), its turning quarter at full. */
+.conversation-thread .q-send .doan-spinner { width: var(--size-icon-sm); height: var(--size-icon-sm); border-color: color-mix(in srgb, var(--text-on-prominent) 30%, transparent); border-top-color: var(--text-on-prominent); }
+.conversation-thread .q-card.is-locked :is(.q-pref, .q-pref > input) { cursor: default; }
+.conversation-thread .q-card [aria-disabled="true"]:not(.q-send, input) { color: var(--text-disabled); cursor: default; }
+/* A folded question's lines are spaced as the thread's own items. */
+.conversation-thread .q-folded { display: flex; flex-direction: column; gap: var(--space-6); }
+.doan-conv-panel .conversation-thread .q-folded { gap: var(--space-5); }
 /* The resize handle: an invisible 8px strip centred on the panel's 1px left border. The only visible part is a 4px bar
    fading at both ends, shown on hover, while dragging and on keyboard focus (malmoi components/ui/resizable.tsx and its
    DESIGN.md resizer table, malmoi 6dcdd575). The accent is the parent's common decision 2 exception. */

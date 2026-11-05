@@ -4,15 +4,19 @@ import remarkGfm from "remark-gfm";
 import { Archive, ArrowDown, ArrowUpRight, ChevronDown, CircleStop, Copy, Eye, FileText, Frame, MapPin, Pencil, PencilSparkles, RotateCcw, SquareMousePointer, Terminal } from "lucide-react";
 import type { Provider } from "../main/agentAuth/types";
 import type { Anchor, Canvas } from "../main/conversation/types";
+import { QUESTION_LIMITS, type Question, type QuestionAnswerInput } from "../main/conversation/question";
 import { chipLabel, type FrameName } from "../main/conversation/messageText";
 import { parseReplyAnchor, type ReplyAnchor } from "../main/conversation/replyAnchor";
 import type { CanvasRow } from "../main/view";
 import { PROVIDER_NAMES } from "./agentAuthView";
 import { AlertIcon } from "./AlertIcon";
 import { canvasLabel } from "./canvasTree";
+import { focusAfter } from "./composerRules";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import { formatSize, providerLogo } from "./homeComposer";
 import { replyUrlTransform } from "./replyUrlTransform";
-import { scrollFollow, type ActivityStep, type ThreadItem, type TurnEnd } from "./threadItems";
+import { canSend, EMPTY_QUESTION_DRAFT, questionInput, sendBlockedText, type QuestionDraft, type QuestionDraftAction } from "./questionDraft";
+import { pendingAsks, questionLines, scrollFollow, waitsForPerson, type ActivityStep, type ThreadItem, type TurnEnd } from "./threadItems";
 
 // The conversation thread (buzz-conversation design §3.3, draft frames thread-*). The host reads the history, merges
 // live events and passes threadItems' result; links, copying and every action go back through callbacks, so the
@@ -32,6 +36,14 @@ export interface ConversationThreadProps {
   canvasListed(canvas: Canvas): boolean;
   // Resolves to main's refusal, or rejects, when the answer did not reach the agent; the request then says so.
   onAnswer(requestId: string, optionId: string): Promise<void | { error: string }> | void;
+  // A question card's answer or skip (agent-questions design §7), with the same refusal rule as onAnswer.
+  onAnswerQuestion?(requestId: string, answer: QuestionAnswerInput): Promise<void | { error: string }> | void;
+  // The answers being chosen live in the host's store by request, so they outlive this thread's redraw for another
+  // conversation (design §7); without them a card shows nothing chosen.
+  questionDraft?(requestId: string): QuestionDraft;
+  onQuestionDraft?(requestId: string, action: QuestionDraftAction): void;
+  // Where focus goes when an answered question leaves no request waiting (composerRules.focusAfter's field).
+  onFocusComposer?(): void;
   onStop(): void;
   onEditAndResend(): void;
   onSignIn(): void;
@@ -58,7 +70,10 @@ export interface ConversationThreadProps {
   // The canvas rows of the conversation's root, which name another canvas's chips and that canvas.
   canvasRows?: readonly CanvasRow[];
 }
-export interface ConversationThreadHandle { scrollToItem(key: string): void }
+// focusItem: an entry's focus on a waiting request (design §6): a question's first option or answer input, a
+// permission request's first choice. False when the item has no such control drawn.
+export interface ConversationThreadHandle { scrollToItem(key: string): void; focusItem(key: string): boolean }
+const ENTRY_FOCUS = ":is(.q-card input, .strip-actions button)";
 
 export const LOADING_DELAY_MS = 300;
 
@@ -227,14 +242,112 @@ function AgentMessage({ text, streaming }: { text: string; streaming: boolean })
   </ReplyNote.Provider>;
 }
 
-// Whether a permission answer reached main: a refusal and a rejected call both mean it did not.
-export async function answerReached(send: () => Promise<void | { error: string }> | void): Promise<boolean> {
+// Why an answer did not reach main: main's refusal, or "unknown" for a rejected call; null when it reached main.
+export async function answerRefusal(send: () => Promise<void | { error: string }> | void): Promise<string | null> {
   try {
     const reply = await send();
-    return !(reply && "error" in reply);
+    return reply && "error" in reply ? reply.error : null;
   } catch {
-    return false;
+    return "unknown";
   }
+}
+// Whether a permission answer reached main: a refusal and a rejected call both mean it did not.
+export async function answerReached(send: () => Promise<void | { error: string }> | void): Promise<boolean> {
+  return await answerRefusal(send) === null;
+}
+// A question's answer or skip: the card stays locked until question.resolved folds it. A stale refusal means main
+// settled the request already, or will by its own expiry, so it waits without an error line (batch G review); any
+// other refusal unlocks the card with its choices kept.
+export async function settleQuestionSend(send: () => Promise<void | { error: string }> | void, edit: (action: QuestionDraftAction) => void): Promise<void> {
+  const refusal = await answerRefusal(send);
+  if (refusal !== null && refusal !== "stale") edit({ type: "failed" });
+}
+
+// Arrow keys choose radios as they move, so an Other reached that way only opens its input, while a click or Space on
+// it also moves focus there (design §7). The keydown comes before the change it causes and the keyup after, so a flag
+// between them tells the two apart; one keyboard is in use at a time, so one flag serves every card.
+let arrowing = false;
+const ARROWS = new Set(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);
+const arrowKeys = {
+  onKeyDown: (event: { key: string }) => { if (ARROWS.has(event.key)) arrowing = true; },
+  onKeyUp: (event: { key: string }) => { if (ARROWS.has(event.key)) arrowing = false; },
+};
+
+export interface QuestionCardProps {
+  item: Extract<ThreadItem, { kind: "question" }>;
+  provider: Provider;
+  // Arrived while the thread was open: its title is the live alert.
+  live: boolean;
+  // Prefix of the card's ids and radio names, unique in the thread.
+  base: string;
+  draft: QuestionDraft;
+  onDraft(action: QuestionDraftAction): void;
+  onSend(): void;
+  onSkip(): void;
+  onStop(): void;
+}
+// A waiting question (design §7, draft frames question-card, keyboard, send-states). The permission notice without its
+// "needs your answer" title: the first question is the title beside the mark, and each further question's sentence
+// sits above its options. The options are Settings rows (decided rule 16); nothing in them is cut. No hooks: the
+// draft is the host's, and focus goes by id.
+export function QuestionCard({ item, provider, live, base, draft, onDraft, onSend, onSkip, onStop }: QuestionCardProps) {
+  const locked = draft.sending !== null, ready = canSend(item.questions, draft);
+  const id = (question: Question, part: string) => `${base}-${item.requestId}-${question.id}${part}`;
+  const focusInput = (question: Question) => queueMicrotask(() => document.getElementById(id(question, "-other"))?.focus());
+  const name = (question: Question) => question.header ? `${question.header}: ${question.question}` : question.question;
+  const field = (question: Question, alone: boolean) => {
+    const choice = draft.choices[question.id];
+    return <input className={alone ? "doan-input q-input q-text-answer" : "doan-input q-input"} type={question.secret ? "password" : "text"} placeholder="Type your answer"
+      aria-label={alone ? `${question.header || question.question}: answer` : "Other answer"} maxLength={QUESTION_LIMITS.text} id={id(question, "-other")} value={choice?.text ?? ""}
+      readOnly={locked || undefined} aria-disabled={locked || undefined}
+      onChange={event => onDraft({ type: "text", questionId: question.id, text: event.currentTarget.value })}
+      onKeyDown={event => {
+        // Return sends only when Send can, and never while an IME composes (keyCode 229 is Chromium's composing key).
+        if (event.key !== "Enter" || event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229 || !ready) return;
+        event.preventDefault();
+        onSend();
+      }} />;
+  };
+  const row = (question: Question, option: number | "other") => {
+    const choice = draft.choices[question.id];
+    const other = option === "other", checked = other ? !!choice?.other : !!choice?.selected.includes(option);
+    const description = other ? undefined : question.options[option]!.description;
+    const describedBy = description ? id(question, `-d${option}`) : undefined;
+    return <label key={option} className="doan-preference-row q-pref" data-has-icon="">
+      <input type={question.multiSelect ? "checkbox" : "radio"} name={id(question, "")} checked={checked} aria-describedby={describedBy} aria-disabled={locked || undefined} {...arrowKeys}
+        onChange={() => {
+          if (!other) { onDraft({ type: "choose", question, option }); return; }
+          onDraft({ type: "other", question });
+          if (!arrowing && !locked && !checked) focusInput(question);
+        }} />
+      <span className="doan-preference-row-icon">{question.multiSelect ? <span className="doan-checkbox q-check" data-state={checked ? "checked" : undefined} aria-hidden="true" /> : <span className="ob-radio" aria-hidden="true" />}</span>
+      <span className="doan-preference-row-content"><span className="doan-preference-row-label">{other ? "Other" : question.options[option]!.label}</span>
+        {description && <span className="doan-preference-row-description" id={describedBy}>{description}</span>}</span>
+      {other && checked && <span className="doan-preference-row-extra">{field(question, false)}</span>}
+    </label>;
+  };
+  const busy = draft.sending === "answer";
+  // aria-disabled, as New conversation: Send keeps focus and its tooltip says what is missing.
+  const send = <button type="button" className="doan-button q-send" data-ui-size="sm" data-ui-variant="prominent" aria-disabled={(!ready && !busy) || undefined} aria-busy={busy || undefined}
+    onClick={() => { if (ready) onSend(); }}>{busy && <span className="doan-spinner" aria-hidden="true" />}Send</button>;
+  return <div className={`doan-notice thread-notice q-card${locked ? " is-locked" : ""}`}
+    onPointerDown={() => { arrowing = false; }}
+    // Esc inside the card does nothing: it does not reach the panel or the page.
+    onKeyDown={event => { if (event.key === "Escape") event.stopPropagation(); }}>
+    <span className="strip-agent doan-alert-icon"><img className="logo" src={providerLogo(provider)} alt="" /></span>
+    {/* Only the title is the alert: on the whole card VoiceOver would read every option. */}
+    <span className="strip-text q-title" role={live ? "alert" : undefined}><b>{item.questions[0]?.question}</b></span>
+    <div className="q-list">{item.questions.map((question, i) => <div key={question.id} className="q" role={question.options.length && !question.multiSelect ? "radiogroup" : "group"} aria-label={name(question)}>
+      {i > 0 && <div className="q-head"><span className="q-text">{question.question}</span></div>}
+      {question.options.length ? <div className="q-opts doan-settings-group q-group">{question.options.map((_, n) => row(question, n))}{question.other && row(question, "other")}</div> : field(question, true)}
+    </div>)}</div>
+    <span className="strip-actions">
+      {ready || locked ? send : <Tooltip><TooltipTrigger asChild>{send}</TooltipTrigger><TooltipContent>{sendBlockedText(item.questions)}</TooltipContent></Tooltip>}
+      <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" aria-disabled={locked || undefined} onClick={() => { if (!locked) onSkip(); }}>Skip</button>
+      <button type="button" className="doan-button" data-ui-size="sm" onClick={onStop}><CircleStop aria-hidden="true" />Stop</button>
+    </span>
+    {draft.failed && <span className="ask-error" role="alert">Couldn’t send your answer. Try again.</span>}
+  </div>;
 }
 
 // A chip in a sent message. A marker without its anchor (a malformed history) keeps its {{n}} text.
@@ -291,7 +404,7 @@ function lastEnd(items: readonly ThreadItem[]): string | null {
 }
 function phaseText(items: readonly ThreadItem[], provider: Provider): string {
   const p = PROVIDER_NAMES[provider];
-  if (items.some(item => item.kind === "permission" && item.status === "pending")) return `${p} needs your answer`;
+  if (items.some(waitsForPerson)) return `${p} needs your answer`;
   const last = items.at(-1);
   if (last && ((last.kind === "activity" && last.running) || (last.kind === "agent" && last.streaming))) return `${p} is working`;
   if (last?.kind === "end") return endView(last.end, provider).title;
@@ -317,6 +430,23 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     setUnanswered(current => { if (!current.has(requestId)) return current; const next = new Set(current); next.delete(requestId); return next; });
     void answerReached(() => props.onAnswer(requestId, optionId)).then(reached => { if (!reached) setUnanswered(current => new Set(current).add(requestId)); });
   };
+  const draftOf = (requestId: string) => props.questionDraft?.(requestId) ?? EMPTY_QUESTION_DRAFT;
+  const editQuestion = (requestId: string, action: QuestionDraftAction) => props.onQuestionDraft?.(requestId, action);
+  // The question last answered or skipped here: once it folds, focus moves on as after a permission answer (design §7).
+  const sentFrom = useRef<string | null>(null);
+  const sendQuestion = (entry: Extract<ThreadItem, { kind: "question" }>, how: "answer" | "skip") => {
+    const draft = draftOf(entry.requestId);
+    if (draft.sending) return;
+    const answer: QuestionAnswerInput = how === "skip" ? { outcome: "skipped" } : questionInput(entry.questions, draft);
+    editQuestion(entry.requestId, { type: "sending", how });
+    sentFrom.current = entry.requestId;
+    void settleQuestionSend(() => props.onAnswerQuestion ? props.onAnswerQuestion(entry.requestId, answer) : Promise.resolve({ error: "unknown" }), action => editQuestion(entry.requestId, action));
+  };
+  const focusIn = (key: string): boolean => {
+    const control = scroller.current?.querySelector<HTMLElement>(`[data-item="${CSS.escape(key)}"] ${ENTRY_FOCUS}`);
+    control?.focus({ preventScroll: true });
+    return !!control;
+  };
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reduced = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -336,6 +466,19 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     if (scrollFollow(opening, distance.current)) { node.scrollTop = node.scrollHeight; distance.current = 0; setBehind(false); }
     else setBehind(true);
   }, [items]);
+  // A folded question took the focus that was on it to the page: the next waiting request takes it, else the composer.
+  // A person who moved focus elsewhere meanwhile keeps it.
+  useLayoutEffect(() => {
+    const from = sentFrom.current;
+    if (from === null || !Array.isArray(items)) return;
+    const asks = pendingAsks(items);
+    if (items.some(item => item.kind === "question" && item.requestId === from && item.status === "pending")) return;
+    sentFrom.current = null;
+    if (document.activeElement && document.activeElement !== document.body) return;
+    const target = focusAfter({ kind: "answered", requestId: from }, { pending: asks.map(ask => ask.requestId) });
+    if (target.kind === "option") focusIn(asks.find(ask => ask.requestId === target.requestId)!.key);
+    else props.onFocusComposer?.();
+  }, [items]);
   const onScroll = () => {
     const node = scroller.current;
     if (!node) return;
@@ -351,8 +494,10 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   useImperativeHandle(ref, () => ({
     scrollToItem(key: string) {
       const node = scroller.current?.querySelector(`[data-item="${CSS.escape(key)}"]`);
-      node?.scrollIntoView({ block: "center", behavior: reduced() ? "auto" : "smooth" });
+      // A question card scrolls to its top: in a 280px panel a tall card's centre would leave its title out of view.
+      node?.scrollIntoView({ block: node.querySelector(".q-card") ? "start" : "center", behavior: reduced() ? "auto" : "smooth" });
     },
+    focusItem: focusIn,
   }), []);
 
   // The Markdown is memoized, so its links and Copy buttons read the latest callbacks through one stable context value.
@@ -408,6 +553,12 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
           </span>
           {unanswered.has(entry.requestId) && <span className="ask-error" role="alert">Couldn’t send your answer. Choose again.</span>}
         </div>;
+      }
+      case "question": {
+        if (entry.status !== "pending") return <div className="q-folded">{questionLines(entry).map((line, i) =>
+          <div key={i} className="activity"><div className="activity-head ask-answered"><span title={line}>{line}</span></div></div>)}</div>;
+        return <QuestionCard item={entry} provider={provider} live={entry.seq > props.liveAfter} base={base} draft={draftOf(entry.requestId)}
+          onDraft={action => editQuestion(entry.requestId, action)} onSend={() => sendQuestion(entry, "answer")} onSkip={() => sendQuestion(entry, "skip")} onStop={props.onStop} />;
       }
       case "end": {
         const view = endView(entry.end, provider);

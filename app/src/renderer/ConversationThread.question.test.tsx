@@ -2,7 +2,7 @@ import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import type { Question } from "../main/conversation/question";
-import { answerRefusal, ConversationThread, QuestionCard, type ConversationThreadProps, type QuestionCardProps } from "./ConversationThread";
+import { answerRefusal, ConversationThread, QuestionCard, settleQuestionSend, type ConversationThreadProps, type QuestionCardProps } from "./ConversationThread";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { EMPTY_QUESTION_DRAFT, questionDraft, type QuestionDraft, type QuestionDraftAction } from "./questionDraft";
 import type { ThreadItem } from "./threadItems";
@@ -55,7 +55,7 @@ describe("question card", () => {
   test("options are Settings rows: a radio or checkbox in the icon slot, the label and its description; Other closes a Claude list", () => {
     const out = card({ item: item([layout, sections]) });
     expect(out).toContain('<div class="q-opts doan-settings-group q-group">');
-    expect(out).toMatch(/<label class="doan-preference-row q-pref" data-has-icon=""><input type="radio" name="b-q1-0"[^>]*aria-describedby="b-q1-0-d0"[^>]*\/><span class="doan-preference-row-icon"><span class="ob-radio" aria-hidden="true"><\/span><\/span><span class="doan-preference-row-content"><span class="doan-preference-row-label">Compact<\/span><span class="doan-preference-row-description" id="b-q1-0-d0">Title and actions on one line<\/span><\/span><\/label>/);
+    expect(out).toMatch(/<label class="doan-preference-row q-pref" data-has-icon=""><input type="radio" aria-describedby="b-q1-0-d0" name="b-q1-0"\/><span class="doan-preference-row-icon"><span class="ob-radio" aria-hidden="true"><\/span><\/span><span class="doan-preference-row-content"><span class="doan-preference-row-label">Compact<\/span><span class="doan-preference-row-description" id="b-q1-0-d0">Title and actions on one line<\/span><\/span><\/label>/);
     // Without a description the row is its label alone.
     expect(out).toMatch(/<span class="doan-preference-row-label">Two rows<\/span><\/span><\/label>/);
     expect(out).toMatch(/<input type="checkbox" name="b-q1-1"[^>]*\/><span class="doan-preference-row-icon"><span class="doan-checkbox q-check" aria-hidden="true"><\/span>/);
@@ -101,6 +101,7 @@ describe("question card", () => {
   });
 
   test("choosing an option or Other edits the draft by the question", () => {
+    vi.stubGlobal("document", { getElementById: () => null });
     const onDraft = vi.fn();
     const els = tree({ onDraft, item: item([layout, sections]) });
     const [compact, , other, agents] = inputs(els);
@@ -221,6 +222,20 @@ describe("the thread's question items", () => {
   test("a header-less question (Antigravity) folds with its sentence", () => {
     const bare: Question = { id: "0", header: "", question: "Which colour?", options: [{ label: "Red" }, { label: "Blue" }], multiSelect: false, other: false };
     expect(html([item([bare], { status: "answered", answers: { "0": { selected: ["Red"] } } })])).toContain('<span title="Answered · Which colour?: Red">Answered · Which colour?: Red</span>');
+  });
+});
+
+describe("settleQuestionSend", () => {
+  // Batch G review: main may keep a request pending after a stale reply until its own expiry resolves it, so the card
+  // folds only on question.resolved and a stale reply leaves it locked without an error line.
+  test("a stale reply keeps the card locked without an error; any other refusal unlocks it with the error", async () => {
+    const edit = vi.fn();
+    await settleQuestionSend(async () => ({ error: "stale" }), edit);
+    await settleQuestionSend(async () => {}, edit);
+    expect(edit).not.toHaveBeenCalled();
+    await settleQuestionSend(async () => ({ error: "bad_request" }), edit);
+    await settleQuestionSend(async () => { throw new Error("gone"); }, edit);
+    expect(edit.mock.calls).toEqual([[{ type: "failed" }], [{ type: "failed" }]]);
   });
 });
 

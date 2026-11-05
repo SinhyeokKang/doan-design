@@ -20,7 +20,7 @@ import { ConversationDeleteItem, type DeleteTarget } from "./ConversationDeleteD
 import { ConversationHead } from "./ConversationLine";
 import { ConversationThread, LOADING_DELAY_MS, type ConversationThreadHandle, type LocateOutcome } from "./ConversationThread";
 import type { ReplyAnchor } from "../main/conversation/replyAnchor";
-import { stripState } from "./conversationStrip";
+import { asksPerson, stripState } from "./conversationStrip";
 import { copyText } from "./copyText";
 import { DockedComposer, type DockedOutcome, type DockedRequest } from "./DockedComposer";
 import { draftKey, EMPTY_DRAFT, type DockedBusy, type DockedMode } from "./dockedRules";
@@ -109,7 +109,7 @@ const focusField = () => queueMicrotask(() => focusFieldEnd(document.querySelect
 // Main's turn as the composer reads it: the merged events first (the list lags them), then the list's work flag.
 function turnOf(events: readonly ConversationEvent[] | null, summary: ConversationSummary | undefined, live: boolean): "idle" | "running" | "waiting" {
   const kind = events && events.length ? stripState(events).kind : null;
-  if (kind === "permission") return "waiting";
+  if (kind !== null && asksPerson(kind)) return "waiting";
   if ((kind === "starting" || kind === "working") && live) return "running";
   if (summary?.phase === "waiting") return "waiting";
   return summary?.working ? "running" : "idle";
@@ -183,7 +183,11 @@ export function ProjectOverview(props: ProjectOverviewProps) {
     const target = scrollTarget(items, asking);
     if (target.kind === "wait") return;
     run.takeScroll(conversationId);
-    if (target.kind === "item") handle.current?.scrollToItem(target.key);
+    if (target.kind !== "item") return;
+    handle.current?.scrollToItem(target.key);
+    // A question's entry also focuses its first option or answer input (agent-questions design §6); a permission
+    // request's entry only scrolls here.
+    if (items.some(item => item.key === target.key && item.kind === "question")) handle.current?.focusItem(target.key);
   }, [conversationId, scroll?.seq, Array.isArray(items) ? items.length : -1, asking]);
   const canvasListed = (canvas: Canvas) => props.entry.kind === "list" && props.entry.canvases.some(row => sameCanvas(canvas, row));
   const editAndResend = (id: string) => { void run.editAndResend(root, id).then(focus => { if (focus) focusField(); }); };
@@ -377,6 +381,9 @@ export function ProjectOverview(props: ProjectOverviewProps) {
       {conversationId && provider ? <ConversationThread ref={handle} conversationId={conversationId} items={items} provider={provider} project={project}
         liveAfter={thread?.liveAfter ?? Number.MAX_SAFE_INTEGER} canvasListed={canvasListed}
         onAnswer={(requestId, optionId) => window.doan.answerConversationPermission({ conversationId, requestId, optionId })}
+        onAnswerQuestion={(requestId, answer) => window.doan.answerConversationQuestion({ conversationId, requestId, ...answer })}
+        questionDraft={requestId => run.store.questionDraft(conversationId, requestId)} onQuestionDraft={(requestId, action) => run.store.editQuestion(conversationId, requestId, action)}
+        onFocusComposer={focusField}
         onStop={() => void window.doan.interruptConversation({ conversationId }).catch(console.error)}
         onEditAndResend={() => editAndResend(conversationId)}
         onSignIn={() => props.onSettings({ section: "agents", provider })}

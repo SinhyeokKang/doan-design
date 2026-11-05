@@ -5,8 +5,9 @@ import type { Anchor, AttachmentRecord, ConversationEvent } from "../main/conver
 import { fromMessage, normalize, plainText, type FieldSegment } from "./anchorField";
 import { ATTACHMENT_LIMIT_TEXT } from "./canvasConversation";
 import type { SteerPhase } from "../main/conversation/steerSupport";
-import { mergeConversationEvents, stripState } from "./conversationStrip";
+import { asksPerson, mergeConversationEvents, stripState } from "./conversationStrip";
 import { EMPTY_DRAFT, type DockedDraft } from "./dockedRules";
+import { EMPTY_QUESTION_DRAFT, questionDraft, type QuestionDraft, type QuestionDraftAction } from "./questionDraft";
 import { splitRequest, type AttachmentDraft } from "./homeComposer";
 import type { SendingMessage, SentFile } from "./threadItems";
 
@@ -63,6 +64,9 @@ export class ConversationStore {
   private deletingIds = new Set<string>();
   // Deleted in this run: an event that arrives late is dropped rather than kept for a read that would bring it back.
   private deletedIds = new Set<string>();
+  // The answers being chosen on question cards, by conversation and request (agent-questions design §7): kept across
+  // the thread's redraw for another conversation or canvas, gone once the question is resolved; not across a reload.
+  private questions = new Map<string, Map<string, QuestionDraft>>();
 
   constructor(private host: ConversationStoreHost) {}
 
@@ -137,6 +141,15 @@ export class ConversationStore {
       if (items.length < queue.items.length) this.queues.set(id, { ...queue, items });
     }
   }
+  questionDraft(conversationId: string, requestId: string): QuestionDraft {
+    return this.questions.get(conversationId)?.get(requestId) ?? EMPTY_QUESTION_DRAFT;
+  }
+  editQuestion(conversationId: string, requestId: string, action: QuestionDraftAction): void {
+    const before = this.questionDraft(conversationId, requestId), next = questionDraft(before, action);
+    if (next === before) return;
+    this.questions.set(conversationId, new Map(this.questions.get(conversationId)).set(requestId, next));
+    this.host.changed();
+  }
   setDrafts(update: (drafts: ReadonlyMap<string, DockedDraft>) => ReadonlyMap<string, DockedDraft>): void {
     this.drafts = update(this.drafts);
     this.host.changed();
@@ -154,6 +167,7 @@ export class ConversationStore {
     this.deletedIds.add(conversationId);
     this.dropDrafts(key => key === `conversation:${conversationId}`);
     this.threads.delete(conversationId);
+    this.questions.delete(conversationId);
     this.queues.delete(conversationId);
     this.taking.delete(conversationId);
     this.taken.delete(conversationId);
@@ -234,6 +248,7 @@ export class ConversationStore {
   // conversation:event, subscribed at App mount so nothing is lost before a read.
   event(event: ConversationEvent): void {
     if (this.deletedIds.has(event.conversationId)) return;
+    if (event.type === "question.resolved") this.questions.get(event.conversationId)?.delete(event.requestId);
     const thread = this.threads.get(event.conversationId);
     if (!thread) { this.unclaimed = [...this.unclaimed, event].slice(-500); return; }
     this.threads.set(event.conversationId, { ...thread, events: mergeConversationEvents(thread.events, [event], event.conversationId) });
@@ -301,7 +316,7 @@ export class ConversationStore {
 // ended one do not. The merged events' end wins over a list that has not caught up.
 export function steerPhaseOf(events: readonly ConversationEvent[] | null, summary: ConversationSummary | undefined, live: boolean): SteerPhase {
   const kind = events && events.length ? stripState(events).kind : null;
-  if (kind === "permission") return "waiting";
+  if (kind !== null && asksPerson(kind)) return "waiting";
   if ((kind === "starting" || kind === "working") && live) return "running";
   const ended = kind === "done" || kind === "failed" || kind === "interrupted";
   if (!ended && summary?.phase === "waiting") return "waiting";
