@@ -15,6 +15,7 @@ import type { ModelList } from "./models";
 import type { PermissionModeId } from "./permissionMode";
 import type { QuestionAnswerInput } from "./question";
 import type { Anchor, AttachmentRecord, Canvas, ConversationEvent, EventPayload, Reservation } from "./types";
+import type { LiveTurn } from "../conversationWork";
 // External (legacy) runs are claude or codex only; doan-account runs may use any app provider.
 // model and effort: a choice from the list this run delivered (ipc checks it). attachments: files main rechecked just now.
 // permissionMode: one of the common ids (ipc checks it); Default is never stored.
@@ -145,7 +146,9 @@ export class ConversationService {
   private connections = new Map<Provider, string | undefined>();
   // listChanged: a root whose conversation list (conversation:list) changed, sent after the write it reports.
   // deleted: a conversation deleted (delete), once its index entry is gone.
-  constructor(private store: ConversationStore, private prepare: Prepare, private open: OpenRunner, private publish: (event: ConversationEvent) => void, private admit: (root: string, canvas?: Canvas) => Canvas | void = () => {}, private exitWaitMs = EXIT_WAIT_MS, private canvases: (root: string) => readonly Canvas[] = () => [], private listChanged: (root: string) => void = () => {}, private queueOptions: QueueOptions = {}, private deleted: (id: string) => void = () => {}) {
+  // workEnded: the conversation's turn can no longer take a `doan work update` (its end, an archive or deletion, a
+  // history that stopped taking writes, the app quitting), so main drops its work (conversationWork.ts).
+  constructor(private store: ConversationStore, private prepare: Prepare, private open: OpenRunner, private publish: (event: ConversationEvent) => void, private admit: (root: string, canvas?: Canvas) => Canvas | void = () => {}, private exitWaitMs = EXIT_WAIT_MS, private canvases: (root: string) => readonly Canvas[] = () => [], private listChanged: (root: string) => void = () => {}, private queueOptions: QueueOptions = {}, private deleted: (id: string) => void = () => {}, private workEnded: (id: string) => void = () => {}) {
     this.drafts = queueOptions.drafts ?? new DraftStore(null);
     // The deletions an earlier run recorded finish here, their drafts included (store.ts finishDeletions).
     store.finishDeletions(id => this.drafts.discard(id));
@@ -407,11 +410,13 @@ export class ConversationService {
   }
   // The lease belongs to this runner's process group: it is released when that group is gone, or at once when
   // opening failed before anything was spawned.
+  // DOAN_CONVERSATION_ID: the CLI's `work update` names this conversation (work-update design decision 8). Set here,
+  // for both the doan-account and the legacy external path; a reused Codex server keeps it across turns.
   private async openRunner(id: string, live: Live, input: Prepared): Promise<Runner> {
     let spawned = false;
     const release = () => freeLease(input);
     try {
-      return await this.open(input, event => { if (this.live.get(id) === live) this.receive(id, event); }, () => { release(); if (this.live.get(id) === live) this.exited(id); }, stop => { spawned = true; live.cleanup = stop; if (this.quitting || this.stopped(live)) void stop(); });
+      return await this.open({ ...input, env: { ...input.env, DOAN_CONVERSATION_ID: id } }, event => { if (this.live.get(id) === live) this.receive(id, event); }, () => { release(); if (this.live.get(id) === live) this.exited(id); }, stop => { spawned = true; live.cleanup = stop; if (this.quitting || this.stopped(live)) void stop(); });
     } catch (error) { if (!spawned) release(); throw error; }
   }
   receive(id: string, event: EventPayload): void {
@@ -424,15 +429,31 @@ export class ConversationService {
       if (event.type === "activity" && event.kind === "edit" && event.path && evidence && evidence.endedAt === undefined) evidence.edits.add(event.path);
       if (event.type === "permission.request" || event.type === "question.request") (live.asking ??= new Set()).add(askingKey(event));
       else if (event.type === "permission.resolved" || event.type === "question.resolved") live.asking?.delete(askingKey(event));
-      if (event.type === "turn.done" || event.type === "turn.failed" || event.type === "interrupted") { live.terminal = true; live.busy = false; live.done = event.type === "turn.done"; live.endedAt = Date.now(); delete live.asking; this.dropSteers(id); this.ended(id, live, event.type); }
+      if (event.type === "turn.done" || event.type === "turn.failed" || event.type === "interrupted") { live.terminal = true; live.busy = false; live.done = event.type === "turn.done"; live.endedAt = Date.now(); delete live.asking; this.endWork(id); this.dropSteers(id); this.ended(id, live, event.type); }
     } catch (error) {
       live.failedPersistence = true; console.error("doan: conversation event persistence failed", error); void live.runner?.close();
+      this.endWork(id);
       this.dropSteers(id);
       // Its turn never ends, so it is never judged and must not hold its root.
       this.dropEvidence(id);
       // No event says so, but the list's projectBusy and, once the process is gone, the phase change.
       this.changedOf(id);
     }
+  }
+  // Each conversation's current turn for `doan work update` (conversationWork.ts): running from its acceptance until
+  // its terminal event, archive, a history that stopped taking writes, or the quit. A send being prepared is not
+  // running yet, so a previous turn's late update is dropped until the next turn is accepted.
+  liveTurns(): ReadonlyMap<string, LiveTurn> {
+    const roots = new Map(this.store.list().map(m => [m.conversationId, m.root]));
+    const turns = new Map<string, LiveTurn>();
+    for (const [id, live] of this.live) {
+      const root = roots.get(id); if (root === undefined) continue;
+      turns.set(id, { root, turnId: live.turnId, running: !this.quitting && live.accepted && live.busy && !live.terminal && !live.closed && !live.failedPersistence });
+    }
+    return turns;
+  }
+  private endWork(id: string): void {
+    try { this.workEnded(id); } catch (error) { console.error("doan: conversation work cleanup failed", error); }
   }
   read(id: string) {
     this.metadata(id); const events = this.store.read(id); const state = foldConversation(events, id, !this.ran(id));
@@ -552,6 +573,7 @@ export class ConversationService {
       if (live.runner) closing.push(live.runner.close()); else if (live.cleanup) closing.push(live.cleanup());
       if (live.accepted && live.busy && !live.terminal) this.append(id, live.turnId, { type: "interrupted", reason: "appQuit" });
       live.terminal = true; live.busy = false;
+      this.endWork(id);
       this.dropSteers(id);
     }
     return Promise.all(closing).then(() => undefined);
@@ -704,6 +726,7 @@ export class ConversationService {
   // previous process is refused, and its queue comes back as a draft.
   private archive(id: string): void {
     this.suggestions.delete(id);
+    this.endWork(id);
     const running = this.live.get(id);
     if (running) {
       running.terminal = true; running.busy = false; running.closed = true; delete running.holding; delete running.project;
