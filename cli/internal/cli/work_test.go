@@ -365,3 +365,88 @@ func TestWorkRejectsDirectoryCaseVariants(t *testing.T) {
 	t.Setenv("DOAN_RUNTIME", filepath.Join(t.TempDir(), "missing"))
 	failure(t, root, "usage_error", "work", "start", ".DOAN/Canvases/x.html")
 }
+
+func TestWorkUpdateArgs(t *testing.T) {
+	long := func(n int) string { return strings.Repeat("가", n) }
+	for _, tt := range []struct {
+		name               string
+		positional, frames []string
+		note               string
+		path, frame, want  string
+		fails              bool
+	}{
+		{name: "path only", positional: []string{"a.html"}, path: "a.html"},
+		{name: "frame and note", positional: []string{"a.html"}, frames: []string{"pricing"}, note: "Drawing", path: "a.html", frame: "pricing", want: "Drawing"},
+		{name: "frame at limit", positional: []string{"a.html"}, frames: []string{long(200)}, path: "a.html", frame: long(200)},
+		{name: "frame over limit", positional: []string{"a.html"}, frames: []string{long(201)}, fails: true},
+		{name: "empty frame", positional: []string{"a.html"}, frames: []string{""}, fails: true},
+		{name: "frame control", positional: []string{"a.html"}, frames: []string{"a\tb"}, fails: true},
+		{name: "repeated frame", positional: []string{"a.html"}, frames: []string{"a", "b"}, fails: true},
+		{name: "note at limit", positional: []string{"a.html"}, note: long(119) + "🎨", path: "a.html", want: long(119) + "🎨"},
+		{name: "note over limit", positional: []string{"a.html"}, note: long(121), fails: true},
+		{name: "note trimmed", positional: []string{"a.html"}, note: "  Drawing  ", path: "a.html", want: "Drawing"},
+		{name: "note over limit before trim", positional: []string{"a.html"}, note: " " + long(120) + " ", path: "a.html", want: long(120)},
+		{name: "blank note", positional: []string{"a.html"}, note: "   ", path: "a.html"},
+		{name: "note newline", positional: []string{"a.html"}, note: "a\nb", fails: true},
+		{name: "note trailing newline", positional: []string{"a.html"}, note: "a\n", fails: true},
+		{name: "note tab", positional: []string{"a.html"}, note: "a\tb", fails: true},
+		{name: "note DEL", positional: []string{"a.html"}, note: "a\x7fb", fails: true},
+		{name: "note C1", positional: []string{"a.html"}, note: "a\u0085b", fails: true},
+		{name: "note line separator", positional: []string{"a.html"}, note: "a b", fails: true},
+		{name: "note paragraph separator", positional: []string{"a.html"}, note: "a b", fails: true},
+		{name: "no path", fails: true},
+		{name: "two paths", positional: []string{"a.html", "b.html"}, fails: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			path, frame, note, failure := workUpdateArgs(tt.positional, tt.frames, tt.note)
+			if tt.fails {
+				if failure == nil || failure.Code != "usage_error" {
+					t.Fatalf("want usage_error, got %v %q %q %q", failure, path, frame, note)
+				}
+				return
+			}
+			if failure != nil || path != tt.path || frame != tt.frame || note != tt.want {
+				t.Fatalf("%v %q %q %q", failure, path, frame, note)
+			}
+		})
+	}
+}
+
+func TestConversationID(t *testing.T) {
+	for value, want := range map[string]string{"conv-1": "conv-1", "a b/c": "a b/c", "": "", "-x": "", "a\x00b": ""} {
+		if got := conversationID(value); got != want {
+			t.Fatalf("%q: %q", value, got)
+		}
+	}
+}
+
+func TestWorkRequest(t *testing.T) {
+	terminal := workIdentity{provider: "claude", session: "s"}
+	anonymous := workIdentity{}
+	app := workIdentity{app: true, conversation: "conv-1"}
+	appWithout := workIdentity{app: true}
+	for _, tt := range []struct {
+		name                      string
+		action, path, frame, note string
+		id                        workIdentity
+		want                      map[string]any
+	}{
+		{"terminal start", "start", ".doan/canvases/a.html", "", "", terminal, map[string]any{"v": 3, "action": "start", "root": "/r", "path": ".doan/canvases/a.html", "session": "s", "provider": "claude"}},
+		{"terminal done", "done", "", "", "", terminal, map[string]any{"v": 3, "action": "done", "root": "/r", "session": "s", "provider": "claude"}},
+		{"terminal update", "update", ".doan/canvases/a.html", "f", "n", terminal, map[string]any{"v": 3, "action": "update", "root": "/r", "path": ".doan/canvases/a.html", "frame": "f", "note": "n", "session": "s", "provider": "claude"}},
+		{"anonymous update without content", "update", ".doan/canvases/a.html", "", "", anonymous, map[string]any{"v": 3, "action": "update", "root": "/r", "path": ".doan/canvases/a.html"}},
+		{"terminal ignores conversation", "update", ".doan/canvases/a.html", "f", "", workIdentity{conversation: "conv-1"}, map[string]any{"v": 3, "action": "update", "root": "/r", "path": ".doan/canvases/a.html", "frame": "f"}},
+		{"app update", "update", ".doan/canvases/a.html", "", "n", app, map[string]any{"v": 3, "action": "update", "root": "/r", "path": ".doan/canvases/a.html", "note": "n", "conversation": "conv-1"}},
+		{"app update drops session", "update", ".doan/canvases/a.html", "f", "", workIdentity{app: true, conversation: "conv-1", provider: "claude", session: "s"}, map[string]any{"v": 3, "action": "update", "root": "/r", "path": ".doan/canvases/a.html", "frame": "f", "conversation": "conv-1"}},
+		{"app start", "start", ".doan/canvases/a.html", "", "", app, nil},
+		{"app done", "done", "", "", "", app, nil},
+		{"app update without id", "update", ".doan/canvases/a.html", "f", "n", appWithout, nil},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got, send := workRequest(tt.action, "/r", tt.path, tt.frame, tt.note, tt.id)
+			if send != (tt.want != nil) || (tt.want != nil && !reflect.DeepEqual(got, tt.want)) {
+				t.Fatalf("%v %v", send, got)
+			}
+		})
+	}
+}
