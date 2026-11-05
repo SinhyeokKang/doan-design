@@ -1,8 +1,8 @@
 # context-window-ring — design
 
-용어: **context 값**은 한 대화에서 provider가 보고한 "context window에 든 토큰 수(used)"와 "context window 크기(size)"의 쌍이다. **링**은 docked composer의 context 링이고, 헤더의 사용량 링(provider-usage)은 **사용량 링**이라고 쓴다.
+용어: **context 값**은 한 대화에서 provider가 보고한 "마지막 모델 호출의 input 토큰 수, cache 포함(used)"과 "context window 크기(size)"의 쌍이다(결정 9). **링**은 docked composer의 context 링이고, 헤더의 사용량 링(provider-usage)은 **사용량 링**이라고 쓴다.
 
-선행 조건: provider-usage PR이 main에 병합된 뒤 시작한다(spec 머리말). 아래의 `AgentUsageButton.tsx`·`agentUsageView.ts`·`--border-track`은 그 PR의 것이다.
+아래의 `AgentUsageButton.tsx`·`agentUsageView.ts`·`--border-track`은 main에 병합된 provider-usage(PR #98)의 것이다.
 
 ## 조사 결과(2026-11-05, 실행하지 않고 타입·스키마·번들로 확인)
 
@@ -25,27 +25,35 @@ app(Electron + TS)만 바뀐다. CLI(Go)·skills·guide·`doan check`·공유 JS
 ### 1. 값 읽기(main, transport)
 
 - 상태: `TransportState`(Claude·Codex)와 `AcpTransport`에 그 턴에서 받은 마지막 context 값 `context?: { used: number; size: number }`을 둔다. 다음 턴은 비어서 시작한다.
-- 내보내기: transport 함수가 턴의 terminal event(`turn.done`, `turn.failed`)를 낼 때, 상태에 값이 있으면 **terminal 바로 앞에** `{ type: "context.usage", used, size }` 하나를 낸다. 턴마다 많아야 하나다. service가 직접 쓰는 terminal(Stop의 `interrupted`, 앱 종료, crash 접기, `service.ts:522`·`:537`)에는 붙이지 않는다. service는 terminal 뒤의 event를 버리므로(`service.ts:402`), 값은 terminal 뒤에 올 수 없다.
+- 내보내기: 한 곳에서만 붙인다. `finish()`(`transport.ts:14`, Claude·Codex)와 `finishAcp()`(`acp.ts:164`)가 **실제로 내는** event가 `turn.done`이나 `turn.failed`이고 `state.context`가 있으면, 그 terminal **바로 앞에** `{ type: "context.usage", used, size }` 하나를 낸다. 두 함수는 `state.stop`이 있으면 받은 event 대신 `interrupted`를 내므로, 받은 event가 아니라 낼 event로 판단한다. `finishAcp()`에서는 `flush` event 뒤, terminal 앞이다. terminal이 이미 났으면(`state.terminal`) 둘 다 아무것도 내지 않으므로 턴마다 많아야 하나다. 아래 provider 항목은 상태에 값을 두는 곳만 적는다.
+- 값이 없는 terminal: transport를 거치지 않는 terminal에는 붙지 않는다.
+  - service가 직접 쓰는 것: Stop의 `interrupted`(`service.ts:481`), 로그아웃의 run 정리(`stopRuns`, `service.ts:522`), 앱 종료의 `appQuit`(`service.ts:537`), 그리고 읽을 때의 crash 접기(`state.ts:85`).
+  - runner가 직접 내는 것: Claude 스트림이 terminal 없이 끝난 `turn.failed`(`runners.ts:367`), Codex protocol 실패의 `turn.failed` `session_unavailable`(`runners.ts:97`), 죽은 Codex 서버로의 send(`runners.ts:178`), Codex Stop의 `interrupted`(`runners.ts:183`).
+  - service는 terminal 뒤의 event를 버리므로(`service.ts:402`), 값은 terminal 뒤에 올 수 없다.
 - 값 검사: `used`·`size`는 음이 아닌 safe integer, `size ≥ 1`. 아니면 그 값은 버린다(턴은 그대로).
-- **Claude**(`normalizeClaude`, `transport.ts:121`): 최상위 `assistant` frame마다 `used = input_tokens + cache_creation_input_tokens + cache_read_input_tokens`와 `message.model`을 상태에 둔다. 하위 agent frame은 이미 버린다(`transport.ts:122`). terminal `result`(`:158`)에서 `modelUsage[model].contextWindow`를 `size`로 붙인다. 키가 맞지 않거나 window가 없으면 값이 없다. 스트리밍 frame의 usage가 중간값일 수 있으나 input 쪽은 요청 시작 때 정해진다고 보고, P1에서 확인한다. 이 길은 새 control request가 없어 턴 끝에 CLI 입력을 더 열어 두지 않는다(POSTMORTEM 2026-10-28, `runners.ts:54-57` `TURN_USAGE_MS`). P1에서 1M 모델의 압축 창 때문에 `getContextUsage`와 크게 다르면 결정 4를 다시 묻고, 답에 따라 이 항목을 바꾼다.
-- **Codex**(`normalizeCodex`, `transport.ts:244`): `thread/tokenUsage/updated` 가운데 `threadId`·`turnId`가 지금 턴(`CodexContext`)과 같은 것만 읽는다(POSTMORTEM 2026-10-27 'Codex ingress'). `modelContextWindow`가 null이면 값이 없다. `used`는 기본으로 `last.totalTokens`이고 P2가 고정한다. `turn/completed`(`:296`)에서 terminal 앞에 낸다. 알림이 `turn/completed` 뒤에 오면(P2) 이 설계로는 값을 남기지 못하므로, 그때는 결정 3을 다시 묻는다.
-- **ACP**(`normalizeAcp`, `acp.ts:138`): `usage_update`의 `used`·`size`를 상태에 둔다. `acpPromptDone`(`:170`)과 실패 경로(`acpPromptFailed`, `acpEnded`)가 terminal 앞에 낸다. `acpRunner.ts`는 `prompting` 중인 그 세션의 update만 넘기므로(`acpRunner.ts:64`) 다른 세션의 값은 들어오지 않는다. provider로 나누지 않는다: Cursor는 보내지 않아 값이 없고, Antigravity는 window를 모르면 보내지 않는다.
-- legacy external 대화(터미널 세션)도 같은 runner와 transport를 쓰므로 값이 남는다. provider나 owner로 나누는 분기를 두지 않는다.
+- **Claude**(`normalizeClaude`, `transport.ts:121`): 최상위 `assistant` frame마다 `used = input_tokens + cache_creation_input_tokens + cache_read_input_tokens`와 `message.model`을 상태에 둔다. 하위 agent frame은 이미 버린다(`transport.ts:122`). terminal `result`(`:158`)에서 `modelUsage[model].contextWindow`를 `size`로 상태에 더한다. steer 대기가 끝난 `endSteerWait`(`:28`)와 `terminal_reason: aborted_tools`의 `turn.failed`(`:159`)도 `finish()`를 거치므로 같은 규칙을 따른다. 키가 맞지 않거나 window가 없으면 값이 없다. 스트리밍 frame의 usage가 중간값일 수 있으나 input 쪽은 요청 시작 때 정해진다고 보고, P1에서 확인한다. 이 길은 새 control request가 없어 턴 끝에 CLI 입력을 더 열어 두지 않는다(POSTMORTEM 2026-10-28, `runners.ts:54-57` `TURN_USAGE_MS`). P1에서 1M 모델의 압축 창 때문에 `getContextUsage`와 크게 다르면 결정 4를 다시 묻고, 답에 따라 이 항목을 바꾼다.
+- **Codex**(`normalizeCodex`, `transport.ts:244`): `thread/tokenUsage/updated` 가운데 `threadId`·`turnId`가 지금 턴(`CodexContext`)과 같은 것만 읽는다(POSTMORTEM 2026-10-27 'Codex ingress'). `modelContextWindow`가 null이면 값이 없다. `used`는 `last`의 input 쪽 필드다(결정 9). `totalTokens`는 output을 포함하므로 쓰지 않는다. `inputTokens`에 `cachedInputTokens`·`cacheWriteInputTokens`가 이미 들었는지는 P2가 확인하고, 결정 9의 뜻에 맞는 필드를 고정한다. 한 턴에 알림이 여러 번 오면 마지막 값만 남는다. `turn/completed`(`:296`)와 `error` 알림(`willRetry`가 true가 아님, `:301`)은 `finish()`를 거친다. 알림이 `turn/completed` 뒤에 오면(P2) 이 설계로는 값을 남기지 못하므로, 그때는 결정 3을 다시 묻는다.
+- **ACP**(`normalizeAcp`, `acp.ts:138`): `usage_update`의 `used`·`size`를 상태에 두고, 여러 번 오면 마지막 값만 남는다. `used`는 provider가 보고한 값을 그대로 쓴다. ACP는 `used`의 뜻을 정하지 않으므로 결정 9와 다를 수 있다(Antigravity는 마지막 모델 호출의 크기, Copilot은 P3이 확인). `acpPromptDone`(`:170`)·`acpPromptFailed`(`:176`)·`acpEnded`(`:179`)는 `finishAcp()`를 거친다. `stopReason: "cancelled"`는 `interrupted`를 내므로 값이 없다. `acpRunner.ts`는 `prompting` 중인 그 세션의 update만 넘기므로(`acpRunner.ts:64`) 다른 세션의 값은 들어오지 않는다. provider로 나누지 않는다: Cursor는 보내지 않아 값이 없고, Antigravity는 window를 모르면 보내지 않는다.
+- legacy external 대화(터미널 세션을 이어 가는 대화)도 같은 runner와 transport를 쓰므로 값이 남고, 같은 규칙으로 링이 보인다(spec 완료 조건 4). provider나 owner로 나누는 분기를 두지 않는다.
 
 ### 2. 기록(main, store)
 
 - `EventPayload`에 `{ type: "context.usage"; used: number; size: number }`를 더한다(`types.ts:37`). service는 다른 비terminal event처럼 기록하고 보낸다(`conversation:event`). 새 IPC 채널은 없다.
 - `store.ts`의 `payload()`(`:79`)에 새 type의 검사를 더한다. 검사가 없으면 읽기에서 손상으로 본다.
 - 턴마다 한 줄이 늘고, 기록 상한(`CONVERSATION_HISTORY_BYTES`)과 append 경로는 그대로 쓴다(POSTMORTEM 2026-10-27 'Successful appends crossed the history reader's byte limit').
-- 이 event는 thread에 그리지 않는다(`threadItems.ts:152`처럼 건너뜀). `foldConversation`(`state.ts:32`)의 턴 상태, unseen(마지막 seq는 그 뒤의 terminal), preview, summary는 바뀌지 않는다.
+- 이 event는 thread에 그리지 않는다. `app/src/renderer/threadItems.ts`와 `conversationStrip.ts`의 `switch`에는 이 type의 `case`가 없고 `default`도 없으므로 건너뛴다. `foldConversation`(`state.ts:32`)의 턴 상태, unseen(마지막 seq는 그 뒤의 terminal), preview, summary는 바뀌지 않는다.
 
 ### 3. UI(renderer)
 
-- 값: 호스트(`CanvasConversationPanel.tsx:434`, `ProjectOverview.tsx:406`)가 보이는 대화의 thread event(`ConversationStore.thread(id).events`)에서 마지막 `context.usage`를 읽어 `DockedComposer`에 새 prop `context`로 넘긴다. 새 대화 상태면 null이다. 보관된(archived) 대화도 마지막 값을 보인다.
-- 링 primitive: `AgentUsageButton.tsx`의 `Ring`(SVG, `pathLength` 100, `--border-track` track, `--affordance-prominent` 값, 70% 이상이면 `--border-danger`)을 공유 컴포넌트로 빼고, 크기만 바꿔 쓴다. 사용량 링의 마크업과 측정값(DESIGN.md 'Agent usage' Measured contracts)은 그대로여야 한다. 색 기준 `DANGER`(`agentUsageView.ts`)도 같은 값을 쓴다(결정 6).
-- 크기: 16px(`--size-icon`, 결정 7). 24px 링(viewBox 24, r 11, stroke 2)을 그대로 줄이면 stroke도 같이 가늘어지므로, 작은 링의 반지름·stroke는 `/design-draft`에서 정하고 `/design-sync`에서 잰다.
-- 자리: 카드 안, Send 바로 왼쪽(결정 1). `.docked .composer-card`의 grid 영역(`styles.css:676`·`:681`)에 `ring`을 Send 왼쪽에 더한다. capsule에서도 box에서도 Send는 오른쪽 끝에 남는다. 링이 없으면 영역은 0폭이다.
-- 이름과 글: 링은 `role="img"`, 이름 "Context window: 42% used". tooltip은 공유 tooltip으로 "42% of context used" 한 줄과 "84K of 200K tokens" 한 줄. 100%를 넘으면 실제 비율(예: "104% of context used")을 쓴다. 토큰 수는 1,000 미만이면 그대로, 1M 미만이면 "84K", 그 이상이면 "1.2M".
+- 값: 호스트(`CanvasConversationPanel.tsx:434`, `ProjectOverview.tsx:406`)가 보이는 대화의 thread event(`ConversationStore.thread(id).events`)에서 마지막 `context.usage`를 읽어 `DockedComposer`에 새 prop `context`로 넘긴다. 새 대화 상태이거나 아직 thread가 없으면(`thread(id)`가 null, `conversationStore.ts:77`) null이다. 보관된(archived) 대화도 마지막 값을 보인다. 캔버스가 사라져 composer가 상태 줄로 바뀌면(`DockedComposer.tsx:339` `canvasGone`) 링도 없다.
+- 공유 링 컴포넌트: main의 `Ring`(`AgentUsageButton.tsx:19-26`)은 `RingView`(provider, logo, full)를 받아 provider 로고 `<img className="usage-logo">`까지 그리고, 크기는 `.usage`에 묶인 CSS(`styles.css`의 `.usage-ring` 24px, `.usage .usage-ring > svg`)가 정한다. 그래서 크기만 바꿔 쓸 수 없다. 대신 SVG(track과 값)만 그리는 공유 컴포넌트를 뺀다. 예: `ProgressRing({ value: number | null; danger: boolean; className: string; children?: ReactNode })`와 wrapper `<span>`에 넘기는 `data-*`. `danger`가 true면 `data-band="full"`을 단다. `pathLength` 100과 `strokeDasharray`, 12시 시작은 지금과 같다.
+  - 사용량 링은 `ProgressRing`에 `className="usage-ring"`, `data-provider`, `danger={ring.full}`을 주고 로고 `<img>`를 children으로 넘긴다. 마크업(class, `data-provider`, `data-band`, 로고)과 측정값(DESIGN.md 'Agent usage' Measured contracts, "Logo 14 × 14 in every ring")은 그대로다.
+  - context 링은 children 없이 쓴다(로고 없음).
+  - 색 기준 `DANGER`(`agentUsageView.ts:9`, 지금은 export하지 않음)를 공유 링 모듈로 옮겨 export하고, `agentUsageView.ts`는 그것을 import한다(결정 6).
+- 크기: 16px(`--size-icon`, 결정 7). 사용량 링의 CSS는 `.usage`와 `.usage-ring`에 묶여 있으므로 context 링은 자기 class(예: `.context-ring`)로 크기와 stroke 색(`--border-track`, `--affordance-prominent`, `data-band="full"`이면 `--border-danger`)을 정한다. 24px 링(viewBox 24, r 11, stroke 2)을 그대로 줄이면 stroke도 같이 가늘어지므로, 작은 링의 반지름·stroke는 `/design-draft`에서 정하고 `/design-sync`에서 잰다.
+- 자리: 카드 안, Send 바로 왼쪽(결정 1). grid 열을 더하지 않는다. `.docked .composer-card` grid(`styles.css:669`)에는 `column-gap`이 있어 빈 열도 4px을 더하고, DESIGN.md에 잰 폭이 바뀐다. 대신 값이 있을 때만 `send` 영역(`styles.css:673`)에 링과 Send를 담은 flex 묶음을 둔다. 값이 없으면 Send가 지금처럼 그 영역에 혼자 있어 DOM과 폭이 이 기능 전과 같다. capsule에서도 box에서도 Send는 오른쪽 끝에 남는다. Send 자리의 Stop·Queue(`SendButton`)도 같은 묶음 안에 있으므로 running 상태에서 링은 그 왼쪽이다.
+- 이름과 글: 링에는 보이는 글자나 숫자가 없다(결정 10). 링은 `role="img"`이고 접근 이름과 tooltip 첫 줄은 같은 글이다: "Context window 42% used · last turn"("last turn"은 값이 기록된 턴, 결정 11). tooltip 둘째 줄은 "84K of 200K tokens"이고 같은 글을 `aria-description`으로 준다. 선례: `role="img"`와 `aria-label`의 span(`ConversationLine.tsx:11`, `ShellSidebar.tsx:123`). tooltip은 공유 tooltip이고 trigger는 focus를 받지 않는 span이다(선례 `CanvasAgent.tsx:69`). 100%를 넘으면 실제 비율(예: "104% used")을 쓴다. 토큰 수는 1,000 미만이면 그대로, 1M 미만이면 "84K", 그 이상이면 "1.2M".
+- 누름: 링을 눌러도 아무것도 열리지 않는다(dialog·popover 없음, 결정 8). 모든 정보는 tooltip에 있다.
 - 링은 갱신 때 움직임(transition)을 넣지 않는다(provider-usage의 링과 같음).
 
 ## 순수 함수로 뺄 부분(`/tdd` 대상)
@@ -54,11 +62,11 @@ app(Electron + TS)만 바뀐다. CLI(Go)·skills·guide·`doan check`·공유 JS
 2. Codex: `thread/tokenUsage/updated`의 `threadId`·`turnId` 검사, `modelContextWindow` null, `used` 계산, `turn/completed` 앞에 내기, 다른 턴의 알림 무시.
 3. ACP: `usage_update` 읽기, `acpPromptDone`·`acpPromptFailed`·`acpEnded`가 terminal 앞에 내기, 값 없는 턴은 내지 않음.
 4. `store.ts` `payload()`의 `context.usage` 검사(음수, 소수, `size` 0, 빠진 필드 거부).
-5. renderer `contextRing(events)` → `{ percent, used, size } | null`: 마지막 `context.usage`, 없으면 null, 100% 초과 자르기(링)와 실제 비율(글).
-6. 이름·tooltip 글과 토큰 수 표기(`tokenText`).
-7. 공유 링의 색 단계(사용량 링과 같은 `DANGER`).
+5. renderer `contextRing(events)` → `{ percent, used, size } | null`: 마지막 `context.usage`, 없으면 null, 100% 초과 자르기(링)와 실제 비율(tooltip과 이름).
+6. 이름·tooltip 글(첫 줄과 접근 이름이 같은 글, "· last turn")과 토큰 수 표기(`tokenText`).
+7. 공유 링의 색 단계: 반올림하지 않은 비율 `>= DANGER`, 사용량 링과 같은 export된 `DANGER`.
 
-파일 이름: 컴포넌트와 순수 함수 모듈은 대소문자만 다른 이름을 쓰지 않는다(POSTMORTEM 2026-10-25 'A TS helper hid its TSX component'). 예: 컴포넌트 `ContextRing.tsx`, 순수 함수 `contextWindow.ts`.
+파일 이름: 컴포넌트와 순수 함수 모듈은 대소문자만 다른 이름을 쓰지 않는다(POSTMORTEM 2026-10-25 'A TS helper hid its TSX component'). 예: 공유 링 `ProgressRing.tsx`, 컴포넌트 `ContextRing.tsx`, 순수 함수 `contextWindow.ts`.
 
 ## 포맷 변경
 
@@ -83,7 +91,7 @@ ARCHITECTURE §1 'Conventions'와 `doan check` 규칙은 바뀌지 않는다. gu
 아래는 확인하지 않은 가정이고, 구현 전에 P가 먼저 확인한다. 모두 사람의 승인과 로그인한 Doan 연결(이 기기의 공용 프로필 `/Users/sinhyeokkang/code/doan-design/.scratch/provider-profile/userData`)이 필요하다. 짧은 대화 턴은 모델 요청이므로 사람의 메시지로 시작한다(dev 앱에서 사람이 보내거나, 사람이 승인한 일회성 스크립트).
 
 - **P1 Claude**: (a) 최상위 `assistant` frame의 `message.usage`와 `message.model`, `result.modelUsage`의 키와 `contextWindow`. `message.model`이 키와 같은가. (b) (a)로 계산한 비율과 같은 시점의 `getContextUsage({detail: "summary"})`의 `percentage`·`rawMaxTokens` 비교, 200K 모델과 1M 모델(계정이 허락하면). (c) 최소 CLI 2.1.284에서 (a)의 필드와 (b)의 control request가 있는가. (d) 압축(`compact_boundary`) 뒤의 값.
-- **P2 Codex**: (a) `thread/tokenUsage/updated`가 `turn/completed`보다 먼저 오는가. (b) `last`의 각 값과 `modelContextWindow`, `used`로 쓸 값(같은 thread를 Codex TUI로 열어 보이는 "context left"와 비교). (c) 0.158.0과 0.166.0에서 오는가. (d) 다시 연 thread(`thread/resume`)의 첫 턴에서 오는가.
+- **P2 Codex**: (a) `thread/tokenUsage/updated`가 `turn/completed`보다 먼저 오는가. (b) `last`의 각 값과 `modelContextWindow`, 결정 9의 뜻(마지막 호출의 input 토큰, cache 포함)에 맞는 필드: `inputTokens`가 `cachedInputTokens`·`cacheWriteInputTokens`를 이미 포함하는가(같은 thread를 Codex TUI로 열어 보이는 "context left"와도 비교). (c) 0.158.0과 0.166.0에서 오는가. (d) 다시 연 thread(`thread/resume`)의 첫 턴에서 오는가.
 - **P3 Copilot**: Doan의 `--acp --stdio` 모드에서 (a) `usage_update`가 오는가(1.0.89와 설치본), (b) prompt 응답보다 먼저 오는가, (c) `used`·`size`의 값.
 - **P4 Antigravity**: (a) Doan의 모델에서 `usage_update`가 오는가, (b) `session/load`로 다시 연 세션의 첫 값이 그 턴의 context인가 세션 누적인가(누적이면 Antigravity는 값을 버린다).
 - **P5 Cursor**: 실제 턴에서 `usage_update`도 prompt 응답의 `usage`도 오지 않음을 확인한다.
@@ -105,13 +113,16 @@ ARCHITECTURE §1 'Conventions'와 `doan check` 규칙은 바뀌지 않는다. gu
 
 ## 결정
 
-사람이 아래 여덟 가지를 정했다. P의 결과에 따라 다시 묻는 항목은 그 결정에 적었다.
+사람이 아래 열한 가지를 정했다. P의 결과에 따라 다시 묻는 항목은 그 결정에 적었다.
 
 1. **자리는 카드 안, Send 바로 왼쪽**(사람). box 모양에서는 아래 줄 오른쪽, capsule에서는 입력 칸과 Send 사이. tray는 320px panel에서 이미 label을 줄이는 폭 단계(384·288)가 있다.
 2. **값이 없으면 링을 숨긴다**(사람). 새 대화, 첫 턴 전, 이 기능 전의 대화, Cursor, window를 모르는 Antigravity 모델이 해당한다. provider나 대화 종류로 나누지 않고 "기록된 값이 있으면 보임" 하나로 정한다. 늘 빈 링이 되는 provider를 숨긴 provider-usage 결정할 점 14와 같다.
 3. **턴이 끝날 때 한 번 갱신한다**(사람). 값은 terminal 바로 앞에 기록하고, 턴이 도는 동안 링은 바뀌지 않는다. 어떤 provider의 값이 terminal 뒤에만 오면(P) 이 결정을 다시 묻는다.
-4. **링 값은 provider가 보고한 used ÷ size의 원시 비율**(사람). Claude는 스트림의 usage와 `modelUsage.contextWindow`, Codex는 `last`와 `modelContextWindow`, ACP는 `usage_update`. 새 control request가 없어 턴 끝 대기가 늘지 않는다. P1에서 1M 모델의 압축 창 때문에 Claude 값이 `getContextUsage`와 크게 다르면 이 결정을 다시 묻는다.
+4. **링 값은 provider가 보고한 used ÷ size의 원시 비율**(사람). Claude는 스트림의 usage와 `modelUsage.contextWindow`, Codex는 `last`의 input 쪽 필드와 `modelContextWindow`, ACP는 `usage_update`. 새 control request가 없어 턴 끝 대기가 늘지 않는다. P1에서 1M 모델의 압축 창 때문에 Claude 값이 `getContextUsage`와 크게 다르면 이 결정을 다시 묻는다.
 5. **값은 대화 event `context.usage`로 기록한다**(사람). 앱을 다시 시작해도 마지막 값이 보인다. Claude와 ACP는 턴 사이에 프로세스가 없어 대화를 다시 열 때 값을 읽을 길이 없고, renderer는 이미 event를 받으므로 새 채널이 필요 없다.
-6. **링 색은 사용량 링과 같은 두 단계**(사람): 70% 미만 기본 색, 70% 이상 danger(provider-usage 결정할 점 15).
+6. **링 색은 사용량 링과 같은 두 단계**(사람): 70% 미만 기본 색, 70% 이상 danger(provider-usage 결정할 점 15). 반올림하지 않은 비율을 같은 `>= DANGER`로 비교한다.
 7. **링 크기는 16px**(`--size-icon`, 사람). 반지름과 stroke는 `/design-draft`에서 정한다.
-8. **누르지 않는 표시**(사람). hover tooltip과 이름만 있고 Tab 순서에 들지 않는다. popover는 두지 않는다.
+8. **누르지 않는 표시**(사람). 눌러도 아무것도 열리지 않는다(dialog·popover 없음). 모든 정보는 hover tooltip에 있고, 접근 이름과 `aria-description`이 같은 글을 준다. Tab 순서에 들지 않는다.
+9. **used는 마지막 모델 호출의 input 토큰(cache 포함)**(사람). 모든 provider에 같은 뜻이다. Claude는 `input_tokens + cache_creation_input_tokens + cache_read_input_tokens`, Codex는 `last`의 input 쪽 필드(output이 든 `totalTokens`는 쓰지 않음), ACP는 provider가 보고한 `used`를 그대로 쓰고 그 뜻이 다를 수 있음을 적어 둔다.
+10. **링에는 글자나 숫자가 없다**(사람). 비율은 tooltip과 접근 이름에만 있다.
+11. **tooltip 첫 줄은 값이 언제의 것인지 보인다**(사람). 예: "42% used · last turn".
