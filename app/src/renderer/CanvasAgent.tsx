@@ -3,13 +3,13 @@ import { Square } from "lucide-react";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { FolderEntry } from "../main/view";
 import type { WorkItem } from "../main/workState";
-import { agentNoticeView, canvasAgent, canvasWorkTarget, DOT_FIELD, DotFieldLoop, drawDotField, listForPresence, pickWork, settleStopping, siblingWork, stopTurn, type AgentNoticeView, type CanvasAgentState, type WorkingCanvas } from "./agentIndicator";
+import { agentNoticeView, canvasAgent, canvasWorkTarget, workFrameTitle, type TitleCache, DOT_FIELD, DotFieldLoop, drawDotField, listForPresence, pickWork, settleStopping, siblingWork, stopTurn, type AgentNoticeView, type CanvasAgentState, type WorkingCanvas } from "./agentIndicator";
 import type { ConversationWork } from "../main/conversationWork";
 import type { CanvasWorkTarget } from "./CanvasController";
 import type { CanvasFrameRect } from "./canvasMessage";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import { autoCursor, dotGrid, type Dot } from "./dotField";
-import { NoticeTyping, typesOn, type NoticeMoment, type TypedText } from "./noticeTyping";
+import { crossesBoundary, NoticeTyping, typesOn, type NoticeMoment, type TypedText } from "./noticeTyping";
 
 // The agent indicator on the board while this canvas's current conversation works or waits (buzz-canvas design §2
 // '에이전트 작업 표시', .doan/canvases/buzz-canvas.html 'agent-working', 'agent-waiting'). The glow and the dot field take
@@ -47,13 +47,10 @@ export function CanvasAgent({ list, canvas, running, work, conversationWork = []
   const told = useRef(onWork); told.current = onWork;
   useEffect(() => { told.current?.(target); }, [targetKey]);
   // The frame's title as last found, so a reload that has not laid out yet keeps it instead of falling back to the id.
-  const title = useRef<{ key: string; title: string } | null>(null);
-  let name: string | undefined;
-  if (picked?.frame !== undefined) {
-    const key = `${picked.source}\0${picked.frame}`, found = frames?.find(frame => frame.id === picked.frame);
-    name = found ? found.title ?? found.id : title.current?.key === key ? title.current.title : undefined;
-    title.current = name === undefined ? null : { key, title: name };
-  }
+  const title = useRef<TitleCache | null>(null);
+  const named = workFrameTitle(title.current, canvas, picked, frames);
+  title.current = named.cache;
+  const name = named.title;
   const view = agentNoticeView(presence, held, agent !== null && agent.presence === null, picked && { ...picked, ...(name === undefined ? {} : { title: name }) });
   const moment: NoticeMoment = {
     canvas: canvas && `${canvas.root}\0${canvas.canvas.path}`, visible: running,
@@ -132,9 +129,10 @@ function WorkWords({ view, moment }: { view: AgentNoticeView; moment: NoticeMome
     return () => { typing.current?.dispose(); typing.current = null; };
   }, []);
   useLayoutEffect(() => {
-    const animate = typesOn(last.current, moment);
+    const crossed = crossesBoundary(last.current, moment), animate = typesOn(last.current, moment);
     last.current = moment;
-    typing.current?.set(view.text, animate);
+    if (crossed) typing.current?.settle(view.text);
+    else typing.current?.set(view.text, animate);
   });
   // The caret's own width and gap (--space-1 together) are added to the text floor, never measured with the text.
   const floor = typed.minWidth === null ? undefined : cap.current === null ? `calc(${typed.minWidth}px + var(--space-1))` : `min(calc(${typed.minWidth}px + var(--space-1)), ${cap.current}px)`;

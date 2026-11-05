@@ -212,7 +212,7 @@ export class CanvasController {
   // The page's menus and dialogs (frame drawer, zoom menu, Quick Open, any dialog), which hold following off. Their
   // React owners live outside the controller, so it reads the document. Radix menus and popovers exist only while
   // open; a native <dialog> may stay mounted closed, so only an open one counts.
-  overlayOpen: () => boolean = () => document.querySelector('.doan-frame-list, .doan-zoom-menu, dialog[open], :is([role="dialog"], [role="alertdialog"]):not(dialog)') !== null;
+  overlayOpen: () => boolean = () => document.querySelector('.doan-frame-list, .doan-zoom-menu, [role="menu"], dialog[open], [role="dialog"]:not(dialog), [role="alertdialog"]:not(dialog)') !== null;
   // The newest canvas click waiting for main's cursor reading; an older reading does not move focus.
   private clickTag = 0;
   // The composer's preset lists, which close on a press in the canvas (the app's document never sees one).
@@ -836,6 +836,7 @@ export class CanvasController {
     if (message.type === "picked") { this.receivePicked(message); return; }
     if (message.type === "pick-started") { this.receivePickStarted(message); return; }
     if (message.type === "press") { this.pressed(); return; }
+    if (message.type === "activity") { this.personActive(false); return; }
     this.onSelectionMessage(message);
   };
 
@@ -958,8 +959,10 @@ export class CanvasController {
     this.transition(() => this.escapeNow());
   }
 
+  // Escape and a click on the board's margin: the person's deselect, which stops following in a work turn.
   private escapeNow(): void {
     if (this.state.selection === null && this.reanchor === null) return;
+    this.personActive(true);
     this.sendCommand({ type: "clear" });
     this.clearSelection(false);
     this.publish();
@@ -1644,25 +1647,28 @@ export class CanvasController {
     const before = this.workMarkFrame;
     this.work = target;
     this.workCanvas = key;
+    const next = target?.work ?? null;
+    // Another source winning names a frame the board must not swing to, whether that frame exists yet or the document
+    // is reloading: counted as followed here, not when the frame is next evaluated.
+    const sourceChanged = previous !== null && next !== null && previous.source !== next.source;
     if (target && key) {
       let memory = followStopped(this.followMemory.get(key) ?? EMPTY_FOLLOW, target.keys, false);
-      if (entered && target.work?.frame !== undefined) memory = markFollowed(memory, target.work.key, target.work.frame);
+      if ((entered || sourceChanged) && next?.frame !== undefined) memory = markFollowed(memory, next.key, next.frame);
       this.followMemory.set(key, memory);
     }
-    const next = target?.work ?? null;
-    if (this.followWork(previous !== null && next !== null && previous.source !== next.source)) return;
+    if (this.followWork()) return;
     const frame = this.openWork()?.frame;
     this.drawWork(before !== null && frame !== undefined && frame !== before);
   }
 
   // Moves the view to the working frame when followDecision says so; true when it moved (the move placed the marker).
   // Not while the document reloads or failed: the frame is read from the next layout.
-  private followWork(sourceChanged = false): boolean {
+  private followWork(): boolean {
     const work = this.openWork(), target = this.work;
     if (!work || !target || work.frame === undefined || this.frame === null || this.loading || this.state.status !== null) return false;
     const key = canvasKey(target.root, target.path), memory = this.followMemory.get(key) ?? EMPTY_FOLLOW;
     const decision = followDecision({
-      frame: work.frame, followed: followedFrames(memory, work.key), sourceChanged, rect: workFrameRect(this.state.layout, work.frame),
+      frame: work.frame, followed: followedFrames(memory, work.key), rect: workFrameRect(this.state.layout, work.frame),
       viewport: this.viewportSize(), view: this.view, lastPersonMove: this.lastPersonMove, now: Date.now(), stopped: memory.stopped.has(work.key), busy: this.followBusy(),
     });
     if (decision.kind === "stay") {

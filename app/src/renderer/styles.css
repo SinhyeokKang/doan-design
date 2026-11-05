@@ -1223,11 +1223,12 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
    conversation waits for an answer. */
 .mark.jump-highlight.working { z-index: -1; animation: doan-work-glow 2.4s var(--ease-state) infinite; }
 .mark.jump-highlight.working::before { background: linear-gradient(135deg, var(--affordance-accent) 0%, var(--indigo-600) 25%, var(--affordance-accent) 50%, var(--indigo-600) 75%, var(--affordance-accent) 100%); background-size: 200% 200%; animation: doan-work-travel 4.8s linear infinite; }
-.mark.jump-highlight.working.moving { transition: left var(--time-settle) var(--ease-settle), top var(--time-settle) var(--ease-settle), width var(--time-settle) var(--ease-settle), height var(--time-settle) var(--ease-settle); }
+/* Only where motion is allowed: a reduced-motion rule would need the slide's own specificity to win. */
+@media (prefers-reduced-motion: no-preference) { .mark.jump-highlight.working.moving { transition: left var(--time-settle) var(--ease-settle), top var(--time-settle) var(--ease-settle), width var(--time-settle) var(--ease-settle), height var(--time-settle) var(--ease-settle); } }
 .mark.jump-highlight.working.still, .mark.jump-highlight.working.still::before { animation: none; }
 @keyframes doan-work-travel { from { background-position: 0% 0%; } to { background-position: 100% 100%; } }
 @keyframes doan-work-glow { 0%, 100% { box-shadow: 0 0 0 1px var(--surface-panel), 0 0 16px 2px color-mix(in srgb, var(--affordance-accent) 45%, transparent); } 50% { box-shadow: 0 0 0 1px var(--surface-panel), 0 0 16px 2px color-mix(in srgb, var(--affordance-accent) 25%, transparent); } }
-@media (prefers-reduced-motion: reduce) { .mark.jump-highlight.working, .mark.jump-highlight.working::before { animation: none; transition: none; } }
+@media (prefers-reduced-motion: reduce) { .mark.jump-highlight.working, .mark.jump-highlight.working::before { animation: none; } }
 @media (prefers-reduced-transparency: reduce) { .mark.jump-highlight.working { animation: none; box-shadow: 0 0 0 1px var(--surface-panel); } }
 /* The composer's note sits under its chip, over the card, without entering the field's DOM. */
 .chip-note { position: absolute; z-index: 2; margin-top: var(--space-1); padding: var(--space-half) var(--space-1h); border-radius: var(--radius-chip); background: var(--surface-panel); box-shadow: var(--shadow-sm); white-space: nowrap; pointer-events: none; }

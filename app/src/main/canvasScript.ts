@@ -261,6 +261,8 @@ export function canvasScript(lib: CanvasLib): void {
   let hoverEl: EventTarget | null = null;
   let alt = false;
   let hoverQueued = false;
+  // When the last pointer activity was posted (performance.now()).
+  let activityAt = -Infinity;
   let lastHover = JSON.stringify([0, null]);
   // Picking (buzz-canvas-conversation design §4): the app's pick-start and pick-cancel commands carry their own seq,
   // which neither clicks nor selection or hover commands move, and name this document's token, so a command meant for
@@ -725,6 +727,11 @@ export function canvasScript(lib: CanvasLib): void {
     "pointermove",
     (event: PointerEvent) => {
       if (!event.isTrusted) return;
+      // The app never sees pointer moves in this frame and hover is posted only when its rect changes, so the app's
+      // follow rest (work-update) hears the person move here: at most once a second, and without an animation frame,
+      // which an off-screen frame never gets.
+      const now = performance.now();
+      if (now - activityAt >= 1000) { activityAt = now; post({ type: "activity" }); }
       if (alt !== event.altKey) postSelection("key", { key: "Alt", alt: event.altKey, seq: hoverSeq });
       alt = event.altKey;
       hoverEl = event.target;

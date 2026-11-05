@@ -8,11 +8,9 @@ export const FOLLOW_IDLE_MS = 5000;
 
 export interface FollowInput {
   frame: string | undefined;
-  // Frames this work turn has followed, or counted as followed (already on screen, on entering the canvas, a new source).
+  // Frames this work turn has followed, or counted as followed (already on screen, on entering the canvas, or named by
+  // an update from another work source, which must not swing the board back and forth).
   followed: ReadonlySet<string>;
-  // Another work source (terminal session or conversation) won this canvas with this update: alternating sources must
-  // not swing the board back and forth.
-  sourceChanged: boolean;
   // The frame's board rect in the current document, null while it has none (it may appear with the next reload).
   rect: Rect | null;
   viewport: Size;
@@ -30,7 +28,6 @@ export type FollowDecision = { kind: "move"; view: View } | { kind: "stay"; foll
 export function followDecision(input: FollowInput): FollowDecision {
   const { frame, rect, viewport, view } = input;
   if (frame === undefined || rect === null || input.followed.has(frame) || input.stopped) return { kind: "stay", followed: false };
-  if (input.sourceChanged) return { kind: "stay", followed: true };
   if (input.busy || input.now - input.lastPersonMove < FOLLOW_IDLE_MS) return { kind: "stay", followed: false };
   if (frameShown(rect, viewport, view)) return { kind: "stay", followed: true };
   const safe = safeArea(viewport, FIT_INSET);

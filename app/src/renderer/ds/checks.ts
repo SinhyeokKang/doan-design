@@ -4,7 +4,8 @@
 export interface SourceFile { path: string; text: string }
 
 interface Declaration { prop: string; value: string; valueStart: number }
-interface Block { prelude: string; declarations: Declaration[] }
+// `parent`: the enclosing block, which names a keyframe step's animation.
+interface Block { prelude: string; declarations: Declaration[]; parent?: Block }
 
 // Blank comments in place so offsets, and therefore line numbers, stay true.
 function stripComments(text: string) {
@@ -36,7 +37,8 @@ function blocks(css: string): Block[] {
     else if (ch === ")") parens = Math.max(0, parens - 1);
     if (parens > 0) continue;
     if (ch === "{") {
-      const block = { prelude: text.slice(start, i).trim().replace(/\s+/g, " "), declarations: [] };
+      const parent = stack[stack.length - 1];
+      const block: Block = { prelude: text.slice(start, i).trim().replace(/\s+/g, " "), declarations: [], ...(parent ? { parent } : {}) };
       stack.push(block); out.push(block); start = i + 1;
     } else if (ch === ";") { declare(i); start = i + 1; }
     else if (ch === "}") { declare(i); stack.pop(); start = i + 1; }
@@ -160,6 +162,8 @@ export function accentPlaces(files: SourceFile[], tokensCss: string): string[] {
     for (const block of blocks(file.text)) {
       if (!block.declarations.some(d => readsViolet(d.value))) continue;
       if (isTheme(block.prelude)) add("@theme");
+      // A step ("0%", "to") says nothing on its own: the place is the animation.
+      else if (block.parent?.prelude.startsWith("@keyframes")) add(block.parent.prelude);
       else for (const selector of splitTopLevel(block.prelude)) add(selector);
     }
   }

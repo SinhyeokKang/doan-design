@@ -72,12 +72,9 @@ const violetAllowed = [
   // by the masked ::before and an accent glow, readable over any canvas (canvas-selection-tools spec decision 2).
   ".mark.jump-highlight",
   ".mark.jump-highlight::before",
-  // Its working-frame variant (work-update decisions 16–17): the travelling gradient, and the breathing glow's
-  // keyframe steps (doan-work-glow), which the block reader names by their percentages.
+  // Its working-frame variant (work-update decisions 16–17): the travelling gradient and the breathing glow.
   ".mark.jump-highlight.working::before",
-  "0%",
-  "100%",
-  "50%",
+  "@keyframes doan-work-glow",
 ];
 
 function compareAllowed(found: string[], allowed: string[]) {

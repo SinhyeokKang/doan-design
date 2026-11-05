@@ -202,6 +202,9 @@ describe("parseCanvasMessage: press", () => {
   // The app's lists close on any press in the canvas; the message carries nothing a forged one could misuse.
   test("accepts a press and keeps none of its other fields", () => {
     expect(parseCanvasMessage({ type: "press" })).toEqual({ type: "press" });
+    // work-update: pointer activity inside the canvas frame, which the app's document never sees.
+    expect(parseCanvasMessage({ type: "activity" })).toEqual({ type: "activity" });
+    expect(parseCanvasMessage({ type: "activity", href: "x" })).toEqual({ type: "activity" });
     expect(parseCanvasMessage({ type: "press", href: "x", target: { id: "a" } })).toEqual({ type: "press" });
   });
 });

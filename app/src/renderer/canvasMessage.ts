@@ -141,8 +141,10 @@ export interface PickStartedMessage { type: "pick-started"; href: string; docume
 // selection or pick. It carries nothing: the app closes its open lists on it and, when a list took the focused element
 // with it, moves focus to the canvas area, so a forged one can do no more than that.
 export interface PressMessage { type: "press" }
+// The person moved the pointer in the canvas frame (at most once a second).
+export interface ActivityMessage { type: "activity" }
 
-export type CanvasMessage = LayoutMessage | WheelMessage | SelectionMessage | AnchorsMessage | PickedMessage | PickStartedMessage | PressMessage;
+export type CanvasMessage = LayoutMessage | WheelMessage | SelectionMessage | AnchorsMessage | PickedMessage | PickStartedMessage | PressMessage | ActivityMessage;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -199,6 +201,7 @@ export function parseCanvasMessage(data: unknown): CanvasMessage | null {
   if (data.type === "layout") return parseLayout(data);
   if (data.type === "wheel") return parseWheel(data);
   if (data.type === "press") return { type: "press" };
+  if (data.type === "activity") return { type: "activity" };
   if (data.type === "hover" || data.type === "select" || data.type === "clear" || data.type === "key") return parseSelectionMessage(data);
   return null;
 }

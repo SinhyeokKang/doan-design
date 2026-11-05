@@ -48,6 +48,11 @@ export function typesOn(previous: NoticeMoment | null, next: NoticeMoment): bool
     && !next.waiting && previous.content !== next.content;
 }
 
+// Another canvas, or the canvas going out of or into view: a change still running belongs to what was there before.
+export function crossesBoundary(previous: NoticeMoment | null, next: NoticeMoment): boolean {
+  return previous !== null && (previous.canvas !== next.canvas || previous.visible !== next.visible);
+}
+
 export interface TypedText { text: string; minWidth: number | null; typing: boolean }
 
 // Runs the steps on timers. `measure` reads the two texts' widths once per change (never per step); a change while one
@@ -76,6 +81,14 @@ export class NoticeTyping {
         this.host.show({ text: step.text, minWidth: step.minWidth, typing: step.minWidth !== null });
       }, step.at));
     }
+  }
+
+  // Ends any running change on `text` at once, even when it is the change's own target (set would keep it running).
+  settle(text: string): void {
+    this.target = text;
+    this.stop();
+    this.shown = text;
+    this.host.show({ text, minWidth: null, typing: false });
   }
 
   dispose(): void { this.stop(); }

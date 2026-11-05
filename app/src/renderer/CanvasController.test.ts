@@ -4173,7 +4173,7 @@ describe("working-frame marker", () => {
     expect(css).toMatch(/\.mark\.jump-highlight\.working\.moving \{ transition: left var\(--time-settle\) var\(--ease-settle\), top var\(--time-settle\) var\(--ease-settle\), width var\(--time-settle\) var\(--ease-settle\), height var\(--time-settle\) var\(--ease-settle\); \}/);
     expect(css).not.toMatch(/\.mark\.jump-highlight\.working \{[^}]*transition/);
     expect(css).toContain(".mark.jump-highlight.working.still, .mark.jump-highlight.working.still::before { animation: none; }");
-    expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{ \.mark\.jump-highlight\.working, \.mark\.jump-highlight\.working::before \{ animation: none; transition: none; \} \}/);
+    expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{ \.mark\.jump-highlight\.working, \.mark\.jump-highlight\.working::before \{ animation: none; \} \}/);
     expect(css).toMatch(/@media \(prefers-reduced-transparency: reduce\) \{ \.mark\.jump-highlight\.working \{ animation: none; box-shadow: 0 0 0 1px var\(--surface-panel\); \} \}/);
   });
 });
@@ -4419,5 +4419,91 @@ describe("following the working frame", () => {
       expect(h.controller.currentView()).toEqual(fitView);
       expect(followsNext(h, "farther")).toBe(true);
     } finally { h.controller.dispose(); }
+  });
+  // V3 review 🟡1: a change of work source counts its frame as followed even before the frame exists or mid-reload.
+  it("an update from another source naming a frame the document does not have yet never moves when a reload adds it", () => {
+    const h = rested();
+    try {
+      h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+      setWork(h, "intro");
+      vi.advanceTimersByTime(5000);
+      setWork(h, "new", { source: "conversation:p1", key: "conversation:p1:u1" }, ["terminal:t1", "conversation:p1:u1"]);
+      h.layout({ frames: [...FRAMES, { id: "new", x: 0, y: 3000, width: 100, height: 100 }] });
+      expect(h.controller.currentView()).toEqual(fitView);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("an update from another source arriving mid-reload never moves once the document lays out", () => {
+    const h = rested();
+    try {
+      h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+      setWork(h, "intro");
+      vi.advanceTimersByTime(5000);
+      h.controller.command("reload");
+      setWork(h, "far", { source: "conversation:p1", key: "conversation:p1:u1" }, ["terminal:t1", "conversation:p1:u1"]);
+      h.layout({ frames: FRAMES });
+      expect(h.controller.currentView()).toEqual(fitView);
+    } finally { h.controller.dispose(); }
+  });
+
+  // V3 review 🟡2: the canvas reports pointer activity even when the hovered element stays the same.
+  it("the canvas's pointer activity restarts the rest", () => {
+    const h = rested();
+    try {
+      h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+      vi.advanceTimersByTime(5000);
+      h.receive({ type: "activity" });
+      vi.advanceTimersByTime(4900);
+      setWork(h, "far");
+      expect(h.controller.currentView()).toEqual(fitView);
+    } finally { h.controller.dispose(); }
+  });
+
+  // V3 review 🟡3: any open menu on the page (conversation and composer menus are role=menu) holds following off.
+  for (const part of [".doan-frame-list", ".doan-zoom-menu", '[role="menu"]', "dialog[open]", '[role="dialog"]:not(dialog)']) {
+    it(`an open ${part} holds following off`, () => {
+      const h = rested();
+      try {
+        (h.doc as unknown as { querySelector(selector: string): unknown }).querySelector = (selector: string) => selector.split(",").map(item => item.trim()).includes(part) ? {} : null;
+        h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+        setWork(h, "far");
+        expect(h.controller.currentView()).toEqual(fitView);
+      } finally { h.controller.dispose(); }
+    });
+  }
+
+  // V3 review 🟡7: the person's deselect (Escape, a click on the board's margin) stops the turn; the app's does not.
+  it("Escape clearing a selection made before the turn stops following", () => {
+    const h = rested();
+    try {
+      h.select(1);
+      vi.advanceTimersByTime(5000);
+      h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+      setWork(h, "intro");
+      h.host.dispatchEvent(Object.assign(new Event("keydown", { cancelable: true }), { code: "Escape", key: "Escape" }));
+      expect(h.state().selection).toBeNull();
+      expect(followsNext(h, "far")).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("the app clearing a lost selection does not stop following", () => {
+    const h = rested();
+    try {
+      h.select(1);
+      vi.advanceTimersByTime(5000);
+      h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+      setWork(h, "intro");
+      h.layout({ seq: 1, selected: null, frames: FRAMES });
+      expect(h.state().selection).toBeNull();
+      expect(followsNext(h, "far")).toBe(true);
+    } finally { h.controller.dispose(); }
+  });
+
+  // V3 review 🟡4: reduced motion turns the slide off too, at the slide's own specificity.
+  it("the slide is defined only for people who allow motion", async () => {
+    const { readFileSync } = await import("node:fs");
+    const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+    expect(css).toMatch(/@media \(prefers-reduced-motion: no-preference\) \{ \.mark\.jump-highlight\.working\.moving \{ transition: left var\(--time-settle\)/);
+    expect(css).not.toMatch(/^\.mark\.jump-highlight\.working\.moving \{/m);
   });
 });

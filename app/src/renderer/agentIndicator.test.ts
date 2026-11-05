@@ -3,7 +3,7 @@ import type { ConversationSummary } from "../main/conversation/summary";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { WorkItem } from "../main/workState";
 import type { AgentPresence } from "./agentPresence";
-import { agentNoticeView, canvasAgent, DOT_FIELD, DotFieldLoop, drawDotField, listForPresence, canvasWorkTarget, pickWork, settleStopping, siblingWork, stopFailedText, stopTurn, workFrameRect, workingCanvas } from "./agentIndicator";
+import { agentNoticeView, canvasAgent, DOT_FIELD, DotFieldLoop, drawDotField, listForPresence, canvasWorkTarget, pickWork, workFrameTitle, settleStopping, siblingWork, stopFailedText, stopTurn, workFrameRect, workingCanvas } from "./agentIndicator";
 import type { ConversationWork } from "../main/conversationWork";
 
 // buzz-canvas R5 (design §2 '에이전트 작업 표시', §5 copy): which canvas the indicator reads, the notice's button, Stop's
@@ -450,5 +450,34 @@ describe("canvasWorkTarget", () => {
   test("waiting carries to the controller", () => {
     const own = [conv({ conversationId: "c1", frame: "plans" })];
     expect(canvasWorkTarget(target, pickWork(target, waiting, own, []), own, [])?.work).toMatchObject({ frame: "plans", waiting: true });
+  });
+});
+
+// V3 review 🟡6: the frame title kept across a reload belongs to its root, canvas path and work turn.
+describe("workFrameTitle", () => {
+  const a = { root: "/w/a", canvas: { path: ".doan/canvases/a.html" } };
+  const picked = { source: "terminal:claude:s1", key: "terminal:claude:t1", touched: 1, frame: "plans", waiting: false };
+  const frames = [{ id: "plans", title: "Plans A", x: 0, y: 0, width: 1, height: 1 }];
+  test("a found title is used and kept while the same turn's frame has no layout", () => {
+    const first = workFrameTitle(null, a, picked, frames);
+    expect(first.title).toBe("Plans A");
+    expect(workFrameTitle(first.cache, a, picked, null).title).toBe("Plans A");
+    expect(workFrameTitle(first.cache, a, picked, []).title).toBe("Plans A");
+  });
+  test("another canvas path, another root or a new turn does not reuse it", () => {
+    const { cache } = workFrameTitle(null, a, picked, frames);
+    expect(workFrameTitle(cache, { root: "/w/a", canvas: { path: ".doan/canvases/b.html" } }, picked, null).title).toBeUndefined();
+    expect(workFrameTitle(cache, { root: "/w/b", canvas: a.canvas }, picked, null).title).toBeUndefined();
+    expect(workFrameTitle(cache, a, { ...picked, key: "terminal:claude:t2" }, null).title).toBeUndefined();
+  });
+  test("an update without a frame, or no work, clears it", () => {
+    const { cache } = workFrameTitle(null, a, picked, frames);
+    const { frame: _f, ...plain } = picked;
+    const cleared = workFrameTitle(cache, a, plain, frames);
+    expect(cleared).toEqual({ title: undefined, cache: null });
+    expect(workFrameTitle(cache, a, null, frames).cache).toBeNull();
+  });
+  test("a frame without data-doan-title is named by its id", () => {
+    expect(workFrameTitle(null, a, picked, [{ id: "plans", x: 0, y: 0, width: 1, height: 1 }]).title).toBe("plans");
   });
 });

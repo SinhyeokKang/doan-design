@@ -68,6 +68,18 @@ export function canvasWorkTarget(target: WorkingCanvas | null, picked: PickedWor
   return { root: target.root, path: target.canvas.path, work, keys: [...new Set(keys)] };
 }
 
+// The frame's title as last found, so a reload that has not laid out yet keeps it instead of falling back to the id. It
+// belongs to one root, canvas path, work turn and frame (POSTMORTEM 2026-11-01: the indicator outlives a switch of
+// root or canvas), and an update without a frame, or no work, drops it.
+export interface TitleCache { key: string; title: string }
+export function workFrameTitle(cache: TitleCache | null, target: WorkingCanvas | null, picked: PickedWork | null, frames: readonly CanvasFrameRect[] | null): { title: string | undefined; cache: TitleCache | null } {
+  if (!target || picked?.frame === undefined) return { title: undefined, cache: null };
+  const frame = picked.frame;
+  const key = JSON.stringify([target.root, target.canvas.path, picked.key, picked.source, frame]), found = frames?.find(item => item.id === frame);
+  const title = found ? found.title ?? found.id : cache?.key === key ? cache.title : undefined;
+  return { title, cache: title === undefined ? null : { key, title } };
+}
+
 // The working frame's rect in the current layout: the first frame with the id, as frame jumps take it. None without a
 // layout (loading, a canvas without doan:width) or when the document has no such frame.
 export function workFrameRect(layout: Pick<LayoutMessage, "frames"> | null, id: string | undefined): CanvasFrameRect | null {

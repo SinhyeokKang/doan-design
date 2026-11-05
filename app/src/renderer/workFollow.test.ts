@@ -6,7 +6,7 @@ import { elementView, FIT_INSET, fitFrame, type View } from "./viewport";
 const viewport = { width: 800, height: 600 };
 // The safe area is x 32–768, y 80–520 (FIT_INSET).
 const view: View = { x: 0, y: 0, scale: 1 };
-const base = { frame: "b", followed: new Set<string>(), sourceChanged: false, viewport, view, lastPersonMove: 0, now: 10_000, stopped: false, busy: false };
+const base = { frame: "b", followed: new Set<string>(), viewport, view, lastPersonMove: 0, now: 10_000, stopped: false, busy: false };
 const offscreen = { x: 0, y: 2000, width: 300, height: 200 };
 
 describe("followDecision", () => {
@@ -51,10 +51,6 @@ describe("followDecision", () => {
 
   test("no frame stays", () => {
     expect(followDecision({ ...base, frame: undefined, rect: null })).toEqual({ kind: "stay", followed: false });
-  });
-
-  test("an update from another work source changes only the marker: stay, counted as followed", () => {
-    expect(followDecision({ ...base, rect: offscreen, sourceChanged: true })).toEqual({ kind: "stay", followed: true });
   });
 
   test("a stopped turn never moves", () => {

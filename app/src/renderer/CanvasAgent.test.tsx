@@ -4,7 +4,7 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { FolderEntry } from "../main/view";
 import { CanvasAgent } from "./CanvasAgent";
-import { NoticeTyping, typesOn, type TypedText } from "./noticeTyping";
+import { crossesBoundary, NoticeTyping, typesOn, type TypedText } from "./noticeTyping";
 import { TooltipProvider } from "./components/ui/tooltip";
 
 // buzz-canvas R5: the board's agent indicator (.doan/canvases/buzz-canvas.html 'agent-working', 'agent-waiting'), drawn
@@ -354,4 +354,38 @@ test("the caret blinks in two steps once a second, not while typing or under red
   expect(css).toContain(".doan-agent-caret[data-typing] { animation: none; }");
   expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{[^}]*\.doan-agent-caret \{ animation: none; \}/);
   expect(css).toMatch(/@media \(forced-colors: active\) \{ \.doan-agent-caret \{ forced-color-adjust: none; background: CanvasText; \} \}/);
+});
+
+// V3 review 🟡5: moving to another canvas or out of view ends a running change at once, even toward the same words;
+// ordinary re-renders while it runs do not.
+describe("typing across a canvas or visibility boundary", () => {
+  afterEach(() => vi.useRealTimers());
+  const at = (patch: Partial<Parameters<typeof crossesBoundary>[1]> = {}) => ({ canvas: "/w/a\0x", visible: true, content: "terminal:s1@1", waiting: false, ...patch });
+  test("another canvas or a change of visibility crosses it; a re-render or a new update does not", () => {
+    expect(crossesBoundary(at(), at({ canvas: "/w/b\0x" }))).toBe(true);
+    expect(crossesBoundary(at(), at({ visible: false }))).toBe(true);
+    expect(crossesBoundary(at({ visible: false }), at())).toBe(true);
+    expect(crossesBoundary(at(), at())).toBe(false);
+    expect(crossesBoundary(at(), at({ content: "terminal:s1@2" }))).toBe(false);
+    expect(crossesBoundary(null, at())).toBe(false);
+  });
+  test("settle ends a running change on its final words, also when they are the same target", () => {
+    vi.useFakeTimers();
+    const shown: TypedText[] = [];
+    const typing = new NoticeTyping({ show: state => shown.push(state), measure: () => ({ from: 100, to: 120 }), reducedMotion: () => false });
+    typing.set("Old text", false);
+    typing.set("New text", true);
+    vi.advanceTimersByTime(20);
+    typing.settle("New text");
+    expect(shown.at(-1)).toEqual({ text: "New text", minWidth: null, typing: false });
+    const count = shown.length;
+    vi.advanceTimersByTime(1000);
+    expect(shown).toHaveLength(count);
+    // An ordinary re-render with the same words while a change runs leaves it running.
+    typing.set("Other", true);
+    typing.set("Other", false);
+    vi.advanceTimersByTime(1000);
+    expect(shown.at(-1)).toEqual({ text: "Other", minWidth: null, typing: false });
+    expect(shown.filter(state => state.typing).length).toBeGreaterThan(1);
+  });
 });
