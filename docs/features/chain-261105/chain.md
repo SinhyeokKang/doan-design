@@ -62,7 +62,7 @@
 | 링크 | 세션·worktree | 시작 | PR·병합 | 상태 |
 |---|---|---|---|---|
 | 1 canvas-capture | Claude Code · `/Users/sinhyeok/orca/workspaces/doan-design/canvas-capture-orch` | 2026-11-05 | PR #101 · `59425720` | 병합 |
-| 2 prompt-suggestion | — | — | — | 대기 |
+| 2 prompt-suggestion | Claude Code · `/Users/sinhyeok/orca/workspaces/doan-design/prompt-suggestion-orch` | 2026-11-05 | — | 진행 중 |
 | 3 context-window-ring | — | — | — | 대기 |
 
 ## 인계 기록
