@@ -6,22 +6,29 @@
 
 모두 사람의 승인, 로그인한 Doan 연결, 일회성 스크립트 `.scratch/context-window-ring/`가 필요하다. 공용 프로필 `/Users/sinhyeok/code/doan-design/.scratch/provider-profile/userData`와 실제 HOME을 쓰는 것은 provider-usage PoC와 같은 예외이므로, 다시 쓰기 전에 사람에게 묻는다. 대화 턴은 사람의 메시지로 시작한다. 결과(버전, frame 모양과 순서, 값, 날짜)는 이 파일 아래 'P 결과'에 적고, 개인 정보를 지운 frame을 A1의 fixture 재료로 `.scratch/context-window-ring/out/`에 남긴다.
 
-- [ ] P1. Claude(design 'PoC 의존' P1 (a)–(d)).
+- [x] P1. Claude(design 'PoC 의존' P1 (a)–(d)).
   - 검증: 'P 결과'에 P1 (a)–(d)의 판정, (a)의 input + cache 필드가 결정 9의 뜻에 맞는지, (a)의 원시 비율과 `getContextUsage` 비율의 차이가 있다.
-- [ ] P2. Codex(P2 (a)–(d)).
+- [x] P2. Codex(P2 (a)–(d)).
   - 검증: 'P 결과'에 P2 (a)–(d)의 판정, 결정 9의 뜻(마지막 호출의 input 토큰, cache 포함)에 맞는 `last`의 필드, 0.158.0·설치본 각각의 결과가 있다.
-- [ ] P3. Copilot(P3 (a)–(c)).
+- [x] P3. Copilot(P3 (a)–(c)).
   - 검증: 'P 결과'에 P3 (a)–(c)의 판정이 1.0.89와 설치본 각각에 있다.
-- [ ] P4. Antigravity(P4 (a)–(b)).
+- [x] P4. Antigravity(P4 (a)–(b)).
   - 검증: 'P 결과'에 P4 (a)–(b)의 판정이 있다.
-- [ ] P5. Cursor(P5).
+- [x] P5. Cursor(P5).
   - 검증: 'P 결과'에 실제 턴의 `session/update` 종류 목록과 prompt 응답이 있다.
-- [ ] P6. (사람의 결정) P1–P5 결과로 결정 3·4를 다시 물을지 정한다. 값이 terminal 뒤에만 오는 provider가 있으면 결정 3을, P1에서 1M 모델의 압축 창 때문에 Claude 원시 비율이 `getContextUsage`와 크게 다르면 결정 4를 다시 묻는다.
+- [x] P6. (사람의 결정) P1–P5 결과로 결정 3·4를 다시 물을지 정한다. 값이 terminal 뒤에만 오는 provider가 있으면 결정 3을, P1에서 1M 모델의 압축 창 때문에 Claude 원시 비율이 `getContextUsage`와 크게 다르면 결정 4를 다시 묻는다.
   - 검증: 답을 design '결정'에 적고 바뀐 spec·design·tasks를 커밋한다. 다시 묻지 않으면 'P 결과'에 그 판단을 적는다.
 
 ### P 결과
 
-(PoC 뒤에 적는다.)
+2026-11-05, 링크 2 지휘자가 사용자와 함께 돌렸다. Claude는 임시 `CLAUDE_CONFIG_DIR` 로그인(링크 2 P1과 같은 것)으로 SDK script(`p1.mjs`)를 돌렸다. Codex·Copilot·Antigravity·Cursor는 main checkout의 dev 앱을 공용 프로필로 띄워 preload API(`window.doan`)로 턴을 보냈고, main process의 `child_process.spawn`에 건 hook(`hook.cjs`, `NODE_OPTIONS=--require`)으로 provider 프로세스의 stdin·stdout을 남겼다. 옛 버전은 가짜 login shell(`fakeshell/zsh`)이 PATH 앞에 둔 `bin/`으로 골랐다. script, 원시 frame(`out/frames/`), prompt와 계정 정보를 뺀 fixture 재료(`out/fixtures/`)는 모두 `/Users/sinhyeok/code/doan-design/.scratch/context-window-ring/`에 있다. 턴은 `Reply with just OK.`와 `Use your read tool to read notes.txt and tell me its first line.`이다.
+
+- **P1 Claude**(2.1.318, 2.1.284): (a) 최상위 `assistant`의 `message.model`은 `result.modelUsage`의 키 하나와 같다. `modelUsage`에는 보조 호출 키(예: `claude-haiku-5-5`, 2.1.284는 `claude-haiku-4-5-20251001`)도 있으므로 `message.model`로 고른다. `contextWindow`는 1,000,000. input + cache_creation + cache_read는 결정 9의 뜻에 맞는다. (b) 이 합은 `getContextUsage({detail: "summary"})`의 `totalTokens`와 같거나 17 토큰 안에서 다르고(haiku 33,589 대 33,606), `percentage`는 원시 비율의 반올림(3.58% 대 4)이다. `maxTokens`·`rawMaxTokens`는 둘 다 1,000,000으로 압축 창 차이가 없다. 이 계정의 haiku·sonnet·opus(`sonnet[1m]` 포함)가 모두 1M 창이라 200K 모델은 확인하지 못했다. (c) 2.1.284에도 (a)의 필드와 `getContextUsage`가 있다. (d) `/compact` 턴에는 최상위 assistant frame이 없어 값이 없다. `compact_boundary`는 pre 35,799 → post 6,336이고, 다음 턴의 used는 32,360(3.24%)이다.
+- **P2 Codex**(설치본 0.166.0, 0.158.0): (a) 두 버전 모두 `thread/tokenUsage/updated`가 `turn/completed`보다 먼저 온다. 한 턴에 여러 번 올 수 있다(도구 턴 2번). (b) `last` 예: `inputTokens` 14,832, `cachedInputTokens` 10,880, `cacheWriteInputTokens` 0, `outputTokens` 5, `totalTokens` 14,837, `modelContextWindow` 258,400. 모든 관측에서 cached ≤ input이므로 `inputTokens`가 cache를 이미 포함한다. 결정 9의 used는 `inputTokens`다. Codex TUI의 "context left"와는 비교하지 않았다. (c) 0.158.0과 0.166.0 모두 온다. (d) 앱을 다시 띄운 뒤 `thread/resume`한 thread(0.158.0)의 첫 턴에서도 온다. 단 resume 직후, 새 `turn/start` 응답보다 먼저 **이전 턴 id의 `thread/tokenUsage/updated`가 한 번 다시 온다**. A1의 "다른 `turnId`의 알림 무시"가 이것을 막는다.
+- **P3 Copilot**(설치본 1.0.105, 1.0.89 — `COPILOT_AUTO_UPDATE=false`로 고정): (a)(b) 두 버전 모두 `usage_update`가 `session/prompt` 응답보다 먼저 온다. 도구 턴에서는 3번 온다. (c) `used` 14,425·`size` 272,000(1.0.105 첫 턴), `session/load` 뒤 1.0.89 첫 턴 13,235·272,000. prompt 응답에도 `usage`(inputTokens·cachedReadTokens 등)가 있지만 이 턴의 누계라 쓰지 않는다.
+- **P4 Antigravity**(Doan 런타임 1.3.0): (a) `usage_update`가 응답보다 먼저 온다(`size` 1,048,576). (b) `session/load`로 다시 연 세션의 첫 값은 13,660으로, 직전 턴의 마지막 값 13,265에서 조금 는 그 턴의 context다. 세션 누적이 아니므로 값을 쓴다.
+- **P5 Cursor**(2026.10.22-27dcf5f): 실제 턴의 `session/update`는 `available_commands_update`·`agent_message_chunk`뿐이고, prompt 응답은 `{"stopReason":"end_turn"}`이다. 값이 없으므로 링이 없다. 별개로 Cursor 대화의 두 번째 턴이 두 번 모두 `session_unavailable`로 거절되었다(BACKLOG 'Known defects'에 적음).
+- **P6**(사람, 2026-11-05): 다시 묻지 않는다. 값이 terminal 뒤에만 오는 provider가 없고(결정 3), Claude 원시 비율이 `getContextUsage`와 같다(결정 4). 남은 것: 200K Claude 모델, Codex TUI 비교.
 
 ── commit: `docs(feature): record context-window-ring PoC results` ──
 
