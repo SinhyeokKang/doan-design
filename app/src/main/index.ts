@@ -15,6 +15,9 @@ import { antigravityServer } from "./agentAuth/antigravity";
 import { PROVIDER_AUTH } from "./agentAuth/providers";
 import { AUTH_CHANNELS, AuthIpc } from "./agentAuth/ipc";
 import { sharedShell, toolFacts } from "./agentAuth/facts";
+import { readUsage } from "./agentAuth/usageRead";
+import { UsageService, withTurnUsage } from "./agentAuth/usageService";
+import { USAGE_CHANNELS, usageRequest } from "./agentAuth/usageIpc";
 import { probeShell, runProcess } from "./onboarding/machine";
 import { osascriptAdmin, runAgentSetup } from "./agentSetup/runner";
 import type { SetupItem } from "./agentSetup/notice";
@@ -178,6 +181,7 @@ app.on("did-become-active", () => {
 let conversations: ConversationService | undefined;
 let agentAuth: AuthManager | undefined;
 let authIpc: AuthIpc | undefined;
+let usage: UsageService | undefined;
 let mcp: McpService | undefined;
 let onboarding: OnboardingService | undefined;
 let addPage: AddPageSession | undefined;
@@ -226,6 +230,7 @@ function syncThumbnailPause(): void {
 // the window is hidden; document.hidden stayed false after hide() in a real run.
 function visibilityChanged(): void {
   syncThumbnailPause();
+  usage?.visibilityChanged();
   send("window:visible", { visible: windowShown && !appHidden });
 }
 
@@ -710,7 +715,8 @@ async function start(): Promise<void> {
   const auth = new AuthManager({ storage: new AuthStorage(join(userData, "agent-auth"), electronCipher), spawn: spawnAuthProcess, inherited: process.env, appRuntime: join(userData, "runtime.json"), locate: shellLocator(process.env, PROVIDER_AUTH, { antigravity: signal => antigravityServer(join(userData, "agent-runtimes", "antigravity-acp"), signal ? { signal } : {}) }),
     // The onboarding tap comes after AuthIpc stored the link, so the link it opens is this prompt's.
     onChange: () => authIpc?.changed(), onPrompt: prompt => { authIpc?.prompted(prompt); onboarding?.prompted(prompt); },
-    stopRuns: provider => conversations?.stopRuns(provider) ?? Promise.resolve(),
+    // A sign-out or replacement also stops the provider's usage read, whose lease it waits for like a run's.
+    stopRuns: provider => Promise.all([conversations?.stopRuns(provider), usage?.stop(provider)]).then(() => {}),
     // Every sign-in or sign-out write first stops the provider's MCP connector work, lease or not.
     stopMcp: provider => mcp?.stopProvider(provider) ?? Promise.resolve(),
     mcpLogout: (provider, request) => mcp ? mcp.logoutForAuth(provider, request) : Promise.resolve({ failed: [] }) });
@@ -735,10 +741,25 @@ async function start(): Promise<void> {
       probe: provider => toolFacts(provider, { shell: shellForFacts, run: runProcess, executable, inherited: process.env, cli }),
       // MCP Connectors follows every auth change: readiness, a new verified connection (pending logouts, reconcile and
       // status reads) or a lost one.
-      publish: snapshot => { send(AUTH_CHANNELS.changed, snapshot); onboarding?.authChanged(snapshot); for (const provider of MCP_PROVIDERS) mcp?.authChanged(provider); },
+      publish: snapshot => { send(AUTH_CHANNELS.changed, snapshot); onboarding?.authChanged(snapshot); for (const provider of MCP_PROVIDERS) mcp?.authChanged(provider); usage?.authChanged(); },
       prompt: (owner, event) => { if (win && !win.isDestroyed() && win.webContents.id === owner) send(AUTH_CHANNELS.prompt, event); },
     });
   }
+  // Agent usage (provider-usage): read on fixed triggers into main memory only, shown only while the window is.
+  if (agentAuth && authIpc) {
+    const auth = agentAuth, ipc = authIpc, probeDir = join(userData, "usage-probe");
+    usage = new UsageService({
+      auth,
+      readiness: provider => ipc.latest().providers.find(status => status.provider === provider)?.readiness ?? { ready: false, cause: "not_connected", action: "signIn" },
+      read: (provider, lease, signal) => readUsage(provider, lease, { spawn: spawnAuthProcess, probeDir }, signal),
+      visible: () => windowShown && !appHidden,
+      publish: entries => send(USAGE_CHANNELS.changed, entries),
+    });
+    // App start: once the tool facts are read, which readiness needs.
+    const started = usage;
+    void ipc.read().then(() => started.trigger({ kind: "start" }), (error: unknown) => console.error("doan: agent usage could not start", error));
+  }
+  handle(USAGE_CHANNELS.read, [], (_event, value) => usage ? usageRequest(usage, value) : []);
   // MCP Connectors (mcp-connectors): provider CLIs register, sign in and keep the tokens in the Doan profiles; Doan
   // keeps the server list. It needs agent sign-in storage: without it every MCP call is refused like a forged one.
   if (agentAuth) {
@@ -837,7 +858,7 @@ async function start(): Promise<void> {
   const accountPrepare = createAccountPrepare(auth, cli, provider => void authIpc?.refreshTools(provider), authIpc, connectorFacts(() => mcp));
   // Without readable account storage a doan-account run is refused; it never falls back to the external profile.
   const prepareConversation = routePrepare(createPrepare(userData, join(userData, "runtime.json"), process.env),
-    (request, stored, use) => agentAuth ? accountPrepare(request, stored, use) : Promise.reject(new Error("not_logged_in")));
+    (request, stored, use) => agentAuth ? accountPrepare(request, stored, use).then(prepared => use === "listing" || !usage ? prepared : withTurnUsage(prepared, usage)) : Promise.reject(new Error("not_logged_in")));
   const conversationStore = new ConversationStore(userData);
   // After the store, which made and checked the conversations directory.
   const conversationDrafts = new DraftStore(join(userData, "conversations"));
@@ -1143,6 +1164,8 @@ app.on("before-quit", (event) => {
     }
     // MCP connector attempts are cancelled and write no result; their leases go before agent sign-in quits.
     await mcp?.quit();
+    // Usage reads are stopped and their leases released before agent sign-in quits.
+    await usage?.quit();
     // After conversations: their runs hold auth leases whose working credentials are written back here.
     await agentAuth?.quit();
     // Each adder owns only its clones; stopping them removes their temporary directories.

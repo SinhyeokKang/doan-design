@@ -1312,7 +1312,7 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line 
  if(r.type==='control_request') send({type:'control_response',response:{subtype:'success',request_id:r.request_id,response:r.request.subtype==='get_usage'?${JSON.stringify(usageReply)}:{commands:[],models:[],account:{}}}});
  if(r.type==='user') {
   send({type:'assistant',parent_tool_use_id:null,message:{id:'m',role:'assistant',content:[{type:'text',text:process.env.FAKE_FAIL?'':'hello'}]}});
-  send(process.env.FAKE_FAIL ? {type:'result',subtype:'error_during_execution',is_error:true,session_id:r.session_id} : {type:'result',subtype:'success',is_error:false,result:'hello',session_id:r.session_id});
+  send(process.env.FAKE_FAIL ? {type:'result',subtype:'error_during_execution',is_error:true,errors:['failed'],session_id:r.session_id} : {type:'result',subtype:'success',is_error:false,result:'hello',session_id:r.session_id});
  }
 }).on('close', () => process.exit(0));
 `, { mode: 0o700 });

@@ -83,7 +83,11 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
   let defaults: CodexDefaults | undefined, workspace: CodexWorkspace = {};
   const write = (value: unknown) => { if (dead || !child.stdin.writable) throw new Error("process_exited"); child.stdin.write(JSON.stringify(value) + "\n"); };
   let protocolFailed = false;
-  const dispatcher = new CodexDispatcher(write, emit, () => failProtocol(), id => input.steerConsumed?.(id));
+  // A done turn reads the account's usage on this server, which lives between turns (provider-usage).
+  const dispatcher: CodexDispatcher = new CodexDispatcher(write, event => {
+    emit(event);
+    if (event.type === "turn.done") void input.usageAtTurnEnd?.(() => dispatcher.query("account/rateLimits/read", undefined)).catch(() => {});
+  }, () => failProtocol(), id => input.steerConsumed?.(id));
   const failProtocol = () => {
     if (protocolFailed) return; protocolFailed = true;
     emit({ type: "turn.failed", code: "session_unavailable" }); dispatcher.close(); void group?.stop();
@@ -346,7 +350,13 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
             if (result.awaitingRead && !readWait) readWait = setTimeout(expireRead, STEER_READ_WAIT_MS);
             for (const event of result.events) emit(event);
             if (!state.terminal) continue;
-            endReadWait(); closeInput();
+            endReadWait();
+            // The CLI exits once its input closes, so a done turn's usage is read on this Query first (provider-usage);
+            // the timeout bounds how long the next send waits for this process.
+            if (input.usageAtTurnEnd && !state.steered?.length && result.events.some(event => event.type === "turn.done")) {
+              await input.usageAtTurnEnd(() => timeout(q.usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET({ skipBehaviors: true }))).catch(() => {});
+            }
+            closeInput();
             // A failed or aborted result can end the turn with a steered message already written and unread; the item
             // goes back to the draft, so the CLI must not run it in a turn nobody sees. The terminal event is out already.
             if (state.steered?.length) { void group?.stop(); break; }

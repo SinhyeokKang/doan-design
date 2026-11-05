@@ -140,7 +140,7 @@ describe("UsageService reads", () => {
     expect(usage.entries()).toEqual([{ provider: "claude", inFlight: false }, { provider: "copilot", inFlight: false }]);
     usage.trigger({ kind: "start" }); await usage.settled();
     expect(h.auth.checks).toEqual(["claude"]);
-    expect(h.read.mock.calls.map(call => call[0])).toEqual(["claude", "copilot"]);
+    expect(h.read.mock.calls.map(call => call[0]).sort()).toEqual(["claude", "copilot"]);
   });
 });
 

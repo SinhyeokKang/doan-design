@@ -40,6 +40,10 @@ export interface Prepared {
   steerConsumed?: (messageId: string) => void;
   // Doan-account Claude and Codex runs only: the provider's MCP connector facts (prepare.ts McpConnectorFacts).
   mcp?: McpRun;
+  // Doan-account Claude and Codex runs only: called after a turn ends done, with a read of the account's usage on this
+  // run's own connection (no new process). The hook decides whether to read; a Claude run keeps its input open until
+  // it resolves, since the CLI exits once its input closes (agentAuth/usageService.ts withTurnUsage).
+  usageAtTurnEnd?: (read: () => Promise<unknown>) => Promise<void>;
 }
 // generation: the provider's connector generation now. labels: connector names by doan- name, for permission
 // summaries and activity lines.

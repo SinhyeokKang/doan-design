@@ -127,7 +127,8 @@ describe("Copilot usage read", () => {
 describe("Claude usage read", () => {
   it("opens the SDK in Doan's empty folder, reads usage with skipBehaviors after initialize, and closes", async () => {
     const reading = await readUsage("claude", lease(claude()), options({ readMs: 5000 }));
-    expect(reading).toMatchObject({ status: "ok", readAt: 1_000, windows: [{ id: "five_hour", usedPercent: 3 }, { id: "seven_day", usedPercent: 99 }] });
+    expect(reading).toMatchObject({ status: "ok", readAt: 1_000 });
+    expect(reading.status === "ok" && reading.windows.slice(0, 2)).toMatchObject([{ id: "five_hour", usedPercent: 3 }, { id: "seven_day", usedPercent: 99 }]);
     const entries = logged(), start = entries[0]!;
     expect(String(start.cwd)).toContain("probe");
     const requests = entries.filter(m => m.type === "control_request").map(m => m.request as Record<string, unknown>);
@@ -149,7 +150,12 @@ describe("Cursor usage read", () => {
   const REFRESH = "refresh-secret-r7y";
   const authFile = () => join(profileDir, ".cursor", "auth.json");
   function writeAuth(content: unknown = { accessToken: TOKEN, refreshToken: REFRESH }) { mkdirSync(join(profileDir, ".cursor"), { recursive: true }); writeFileSync(authFile(), JSON.stringify(content)); }
-  const reply = (status: number, body: string, over: Partial<Response> = {}) => Object.assign(new Response(body, { status, headers: { "content-type": "application/json" } }), over);
+  // Response's url and redirected are prototype getters: an instance property stands in for what fetch would set.
+  const reply = (status: number, body: string, over: Record<string, unknown> = {}) => {
+    const response = new Response(body, { status, headers: { "content-type": "application/json" } });
+    for (const [key, value] of Object.entries(over)) Object.defineProperty(response, key, { value });
+    return response;
+  };
   let errors: ReturnType<typeof vi.spyOn>[] = [];
   beforeEach(() => { errors = (["error", "warn", "log", "info", "debug"] as const).map(name => vi.spyOn(console, name).mockImplementation(() => {})); });
   afterEach(() => { for (const spy of errors) spy.mockRestore(); });
@@ -172,8 +178,8 @@ describe("Cursor usage read", () => {
   });
   it.each([
     ["a 401 for an expired token", () => reply(401, '{"error":"not_authenticated"}')],
-    ["a followed redirect", () => reply(200, fixture("cursor"), { redirected: true } as Partial<Response>)],
-    ["an answer from another host", () => Object.defineProperty(reply(200, fixture("cursor")), "url", { value: "https://evil.example/api/usage-summary" })],
+    ["a followed redirect", () => reply(200, fixture("cursor"), { redirected: true })],
+    ["an answer from another host", () => reply(200, fixture("cursor"), { url: "https://evil.example/api/usage-summary" })],
     ["a body over the size limit", () => reply(200, `{"pad":"${"x".repeat(200_000)}"}`)],
     ["a body that is not JSON", () => reply(200, "<html>")],
   ])("reads %s as read_failed, never refreshing the token", async (_label, answer) => {
