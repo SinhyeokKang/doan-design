@@ -201,3 +201,12 @@ test("a row that offers Send now draws it between the text and Remove as the sub
   expect(render({ turn: "running", sendNow: false, onSendQueuedNow: async () => {}, queued: [{ id: "q1", text: "x" }] })).not.toContain("Send now");
 });
 
+
+// prompt-suggestion design 'renderer' 2 (user, via the conductor): the docked field is one line tall, so an empty box
+// (attachments only) draws its placeholder, a long suggestion included, on one line with an ellipsis as the capsule
+// does; a wrapped one would overflow the field and scroll it. The full text stays aria-placeholder and → reaches it.
+test("the empty box's placeholder stays on one line and ends in an ellipsis", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toContain('.docked[data-shape="box"] .composer-input[data-empty]::before { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }');
+});
