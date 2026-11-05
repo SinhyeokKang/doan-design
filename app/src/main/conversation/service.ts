@@ -140,6 +140,9 @@ export class ConversationService {
   // until the next turn is accepted, the conversation is archived or deleted, or its Claude connection signs out or
   // changes. connectionId: the doan connection the turn ran on; none for a legacy external run.
   private suggestions = new Map<string, { text: string; root: string; provider?: Provider; connectionId?: string }>();
+  // Each provider's connection as auth last reported it (connectionChanged; undefined: signed out). A run on another
+  // connection may still send its suggestion after the change, and must not bring it back.
+  private connections = new Map<Provider, string | undefined>();
   // listChanged: a root whose conversation list (conversation:list) changed, sent after the write it reports.
   // deleted: a conversation deleted (delete), once its index entry is gone.
   constructor(private store: ConversationStore, private prepare: Prepare, private open: OpenRunner, private publish: (event: ConversationEvent) => void, private admit: (root: string, canvas?: Canvas) => Canvas | void = () => {}, private exitWaitMs = EXIT_WAIT_MS, private canvases: (root: string) => readonly Canvas[] = () => [], private listChanged: (root: string) => void = () => {}, private queueOptions: QueueOptions = {}, private deleted: (id: string) => void = () => {}) {
@@ -821,12 +824,16 @@ export class ConversationService {
     if (this.quitting || this.live.get(id) !== live || live.turnId !== turnId || !live.accepted || !live.terminal || !live.done || live.busy ||
         live.closed || live.failedPersistence || live.holding || this.waits.has(id) || this.judging.has(id)) return;
     const m = this.store.list().find(e => e.conversationId === id); if (!m || m.state !== "current") return;
+    // The turn's own connection: a later send that rebinds the owner has a new turnId, refused above. A legacy external
+    // run has no doan connection to compare.
+    if (m.owner.kind === "doan" && this.connections.has(m.owner.provider) && this.connections.get(m.owner.provider) !== m.owner.connectionId) return;
     this.suggestions.set(id, { text, root: m.root, ...(m.owner.kind === "doan" ? { provider: m.owner.provider, connectionId: m.owner.connectionId } : {}) });
     this.changed(m.root);
   }
   // A provider's connection now (undefined: signed out). A suggestion made on another connection of it no longer
   // belongs to what the person is signed into.
   connectionChanged(provider: Provider, connectionId: string | undefined): void {
+    this.connections.set(provider, connectionId);
     for (const [id, kept] of [...this.suggestions]) {
       if (kept.provider !== provider || kept.connectionId === connectionId) continue;
       this.suggestions.delete(id); this.changed(kept.root);
