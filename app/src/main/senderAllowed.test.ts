@@ -22,6 +22,8 @@ const mainOnly = [
   "attachments:choose", "attachments:add-paths", "attachments:add-pasted", "attachments:remove", "attachments:recheck", "attachments:release",
   // buzz-conversation: re-issued attachments from recorded paths, and https links from agent replies.
   "attachments:fromPaths", "shell:openLink",
+  // canvas-capture: the canvas page captures an area of the board.
+  "attachments:capture",
   // canvas-hand-tool: where the OS cursor is, for a canvas click's focus.
   "pointer:get",
   // canvas-row-menu: Move to Trash and Export from the sidebar's canvas row menu.

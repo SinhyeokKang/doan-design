@@ -5,11 +5,11 @@ vi.mock("node:fs", async importOriginal => {
   const fs = await importOriginal<typeof import("node:fs")>();
   return { ...fs, openSync: (...args: Parameters<typeof fs.openSync>) => { opened.push(String(args[0])); return fs.openSync(...args); } };
 });
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, truncateSync, writeFileSync, unlinkSync, renameSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, truncateSync, writeFileSync, unlinkSync, renameSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { AttachmentStore, cleanupTargets, imageType, MAX_ATTACHMENTS, MAX_IMAGE_BYTES, type AttachmentResult, type ImageCodec } from "./attachments";
+import { AttachmentStore, capturedName, captureRequest, cleanupTargets, imageType, MAX_ATTACHMENTS, MAX_IMAGE_BYTES, type AttachmentResult, type ImageCodec } from "./attachments";
 import { senderAllowed } from "./senderAllowed";
 
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13]);
@@ -265,4 +265,68 @@ it("discards a queued paste that main held and only forgets a queued local file"
   f.store.discard([file.id, pasted.id]);
   expect(existsSync(local)).toBe(true); expect(existsSync(pasted.path)).toBe(false);
   expect(f.store.recheck({ ids: [file.id, pasted.id] })).toEqual([{ id: file.id, ok: false, error: "not_found" }, { id: pasted.id, ok: false, error: "not_found" }]);
+});
+
+it("names a capture like a paste, with its own prefix", () => {
+  expect(capturedName(new Date("2026-11-05T01:02:03.456Z"))).toBe("canvas-capture-2026-11-05T01-02-03-456Z.png");
+});
+it("accepts only the exact rect shape, finite numbers, the minimum size and a rect inside the window, rounded to integers", () => {
+  const size = [1200, 800] as const;
+  expect(captureRequest({ rect: { x: 10, y: 20, width: 300, height: 200 } }, size)).toEqual({ x: 10, y: 20, width: 300, height: 200 });
+  expect(captureRequest({ rect: { x: 0, y: 0, width: 1200, height: 800 } }, size)).toEqual({ x: 0, y: 0, width: 1200, height: 800 });
+  expect(captureRequest({ rect: { x: 0, y: 0, width: 8, height: 8 } }, size)).toEqual({ x: 0, y: 0, width: 8, height: 8 });
+  // Edges are rounded, so an edge inside the window stays inside and a rect of the minimum size keeps it.
+  expect(captureRequest({ rect: { x: 0.5, y: 0.4, width: 1199.5, height: 799.6 } }, size)).toEqual({ x: 1, y: 0, width: 1199, height: 800 });
+  expect(captureRequest({ rect: { x: 0.5, y: 0.5, width: 8, height: 8 } }, size)).toEqual({ x: 1, y: 1, width: 8, height: 8 });
+  for (const value of [
+    null, undefined, "x", [], {}, { rect: null }, { rect: [] }, { rect: {} }, { rect: "x" },
+    { rect: { x: 0, y: 0, width: 10, height: 10 }, extra: 1 },
+    { rect: { x: 0, y: 0, width: 10 } }, { rect: { x: 0, y: 0, width: 10, height: 10, extra: 1 } }, { rect: { x: 0, y: 0, w: 10, h: 10 } },
+    { rect: { x: "0", y: 0, width: 10, height: 10 } }, { rect: { x: NaN, y: 0, width: 10, height: 10 } }, { rect: { x: 0, y: 0, width: Infinity, height: 10 } },
+    { rect: { x: 0, y: -Infinity, width: 10, height: 10 } },
+    { rect: { x: 0, y: 0, width: 7.9, height: 10 } }, { rect: { x: 0, y: 0, width: 10, height: 7 } }, { rect: { x: 0, y: 0, width: 0, height: 0 } }, { rect: { x: 0, y: 0, width: -10, height: 10 } },
+    { rect: { x: -1, y: 0, width: 10, height: 10 } }, { rect: { x: 0, y: -0.5, width: 10, height: 10 } },
+    { rect: { x: 1191, y: 0, width: 10, height: 10 } }, { rect: { x: 0, y: 791, width: 10, height: 10 } }, { rect: { x: 0, y: 0, width: 1201, height: 10 } },
+  ]) expect(captureRequest(value, size)).toBeNull();
+});
+it("saves a capture as given, as a main-written paste under userData, without decoding or re-encoding it", () => {
+  const f = fixture();
+  const captured = ok(f.store.addCaptured(new Uint8Array(PNG)));
+  expect(captured).toMatchObject({ kind: "image", pasted: true, size: PNG.length, thumbnail: new Uint8Array([1, 2, 3]) });
+  expect(captured.name).toMatch(/^canvas-capture-.*\.png$/);
+  expect(Object.keys(captured).sort()).toEqual(["id", "kind", "name", "path", "pasted", "size", "thumbnail"]);
+  expect(captured.path.startsWith(realpathSync(f.dir))).toBe(true);
+  expect(readFileSync(captured.path)).toEqual(PNG);
+  expect(statSync(captured.path).mode & 0o777).toBe(0o600);
+  expect(statSync(join(captured.path, "..")).mode & 0o777).toBe(0o700);
+  expect(f.reencode).not.toHaveBeenCalled();
+  expect(f.thumbnail).toHaveBeenCalledOnce();
+  expect(f.store.resolve([{ id: captured.id }])).toEqual({ ok: true, records: [{ name: captured.name, size: PNG.length, kind: "image", path: captured.path }] });
+});
+it("refuses an empty or oversized capture; the cap is the paste cap and the signature is not checked", () => {
+  const f = fixture();
+  expect(f.store.addCaptured(new Uint8Array(0))).toEqual({ ok: false, name: "Canvas capture", error: "capture_failed" });
+  expect(f.store.addCaptured(new Uint8Array(MAX_IMAGE_BYTES + 1))).toEqual({ ok: false, name: "Canvas capture", error: "too_large" });
+  expect(ok(f.store.addCaptured(new Uint8Array([1, 2, 3, 4])))).toMatchObject({ size: 4 });
+  expect(readdirSync(f.dir)).toHaveLength(1);
+});
+it("answers capture_failed, not unreadable, when the capture cannot be written (the directory cannot be made)", () => {
+  const f = fixture();
+  // A file where the attachments directory belongs makes both directory creations fail.
+  mkdirSync(join(f.base, "userData")); writeFileSync(f.dir, "not a directory");
+  expect(f.store.addCaptured(new Uint8Array(PNG))).toEqual({ ok: false, name: "Canvas capture", error: "capture_failed" });
+  expect(f.store.addPasted({ bytes: new Uint8Array(PNG) })).toEqual({ ok: false, name: "Pasted image", error: "unreadable" });
+});
+it("deletes a capture removed before sending, and keeps a sent one through the next launch's cleanup", () => {
+  const f = fixture();
+  const removed = ok(f.store.addCaptured(new Uint8Array(PNG))), sent = ok(f.store.addCaptured(new Uint8Array(PNG))), unsent = ok(f.store.addCaptured(new Uint8Array(PNG)));
+  expect(f.store.remove({ id: removed.id })).toBe(true); expect(existsSync(removed.path)).toBe(false);
+  f.store.markSent([{ id: sent.id }]); f.store.consume([{ id: sent.id }]);
+  new AttachmentStore(f.dir, { thumbnail: () => null, reencode: () => null }).cleanup();
+  expect(existsSync(sent.path)).toBe(true);
+  expect(existsSync(unsent.path)).toBe(false);
+});
+it("keeps the capture channel to the main window", () => {
+  expect(senderAllowed("attachments:capture", "main")).toBe(true);
+  expect(senderAllowed("attachments:capture", "settings")).toBe(false);
 });
