@@ -2,7 +2,7 @@
 
 사람의 요청: "docked 입력창 우하단에 Context Window Ring. 지금 진행 중인 과업의 프리미티브를 재사용, 물론 사이즈는 작게 가야겠제."
 
-docked composer(캔버스 conversation panel과 project Overview)의 Send 왼쪽에 작은 진행 링을 두고, 지금 보이는 대화의 context window가 얼마나 찼는지 보인다. 링은 main에 있는 provider-usage의 사용량 링(`AgentUsageButton.tsx`의 `Ring`, `--border-track`, 70% 색 규칙)을 공유 컴포넌트로 빼서 작게 쓴다(design §3).
+docked composer(캔버스 conversation panel과 project Overview)의 tray(카드 아래 줄) 오른쪽 끝에 작은 진행 링을 두고, 지금 보이는 대화의 context window가 얼마나 찼는지 보인다. 링은 main에 있는 provider-usage의 사용량 링(`AgentUsageButton.tsx`의 `Ring`, `--border-track`, 70% 색 규칙)을 공유 컴포넌트로 빼서 작게 쓴다(design §3).
 
 ## 범위 확인(scope gate)
 
@@ -23,8 +23,8 @@ docked composer(캔버스 conversation panel과 project Overview)의 Send 왼쪽
 
 ## 완료 조건
 
-1. **자리.** 캔버스 conversation panel과 project Overview의 docked composer에 context 링이 하나 있다. 자리는 카드 안, Send 바로 왼쪽이다(design 결정 1). 턴이 도는 동안에도 링은 같은 자리, 곧 그 자리의 Stop·Queue 왼쪽에 있다(`DockedComposer.tsx`의 `SendButton`은 send·stop·queue를 한 자리에 그린다). 링은 16px로 Send보다 작고(결정 7), 링이 생기고 사라져도 Send와 tray의 picker 자리가 바뀌지 않는다. 링이 없으면 composer의 DOM과 폭은 이 기능 전과 같다.
-2. **값.** "쓴 토큰(used)"은 그 대화의 마지막 모델 호출의 input 토큰(cache 포함)이다. 모든 provider에 같은 뜻을 쓴다(결정 9). 링은 지금 보이는 대화의 마지막 기록 값, 곧 used ÷ context window 크기의 원시 비율을 0–100%로 채운다(결정 4). 링에는 글자나 숫자가 없다. 비율은 tooltip과 접근 이름에만 있고(결정 10), 100%를 넘으면 링은 가득 찬 채이며 tooltip과 이름은 실제 비율을 쓴다.
+1. **자리.** 캔버스 conversation panel과 project Overview의 docked composer에 context 링이 하나 있다. 자리는 카드 아래 tray(Attach · Pick · model · effort · permission)의 오른쪽 끝, 곧 composer의 오른쪽 아래 모서리다(design 결정 1). provider가 보이는 picker 수(effort·permission이 없거나 terminal session의 고정 tray)와 상관없이 링은 tray 오른쪽 끝에 있다. tray는 줄바꿈하지 않으므로 링은 그 한 줄의 끝에 있다. 카드와 그 안의 Send·Stop·Queue 자리는 바뀌지 않고, 턴이 도는 동안에도 링은 tray에 그대로 있다. 링은 16px다(결정 7). 링이 없으면 tray의 DOM과 배치는 이 기능 전과 같다.
+2. **값.** "쓴 토큰(used)"은 그 대화의 마지막 모델 호출의 input 토큰(cache 포함)이다. 모든 provider에 같은 뜻을 쓴다(결정 9). 링은 지금 보이는 대화의 마지막 기록 값, 곧 used ÷ context window 크기의 원시 비율을 0–100%로 채운다(결정 4). 링에는 글자나 숫자가 없다. 비율은 tooltip과 접근 이름에만 있고(결정 10), 글의 퍼센트는 버림한다(69.9%는 "69%", 결정 15). 100%를 넘으면 링은 가득 찬 채이며 tooltip과 이름은 실제 비율을 쓴다.
 3. **값이 생기는 때.** transport가 낸 턴의 끝(`turn.done`, `turn.failed` 모두)에서 provider가 그 턴에서 보낸 마지막 값을 대화 event로 기록한다(결정 3·5). Stop의 `interrupted`, 앱 종료, crash 접기, runner가 직접 내는 `turn.failed`에는 값이 없다(design §1). 턴이 도는 동안에는 바뀌지 않는다. 같은 대화를 다시 열거나 앱을 다시 시작해도 마지막 값이 보인다.
 4. **값이 없을 때.** 새 대화 상태, 아직 값이 기록되지 않은 대화(첫 턴 전, 이 기능 전에 끝난 턴뿐인 대화), 값을 보내지 않는 provider(Cursor, design '조사 결과')에서는 링이 없다. provider나 대화 종류로 나누지 않고, 기록된 값이 있으면 보인다(결정 2). legacy external 대화(터미널 세션을 이어 가는 대화)도 같은 규칙을 따른다.
 5. **색.** 사용량 링과 같이 비율이 70% 미만이면 기본 색, 70% 이상이면 danger 색이다(결정 6). 반올림하지 않은 비율을 사용량 링과 같은 `>= DANGER`로 비교한다. 색만으로 알리지 않고, 비율은 이름과 tooltip 글에도 있다.

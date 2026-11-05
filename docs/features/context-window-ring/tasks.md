@@ -28,7 +28,7 @@
 ## D. UI 초안
 
 - [ ] D0. `/design-draft`로 `.doan/canvases/context-window-ring.html`을 그린다. 프레임:
-  - 카드 안 Send 왼쪽의 링(결정 1)을 capsule·box 모양, 캔버스 panel 최소 폭(320)과 Overview 폭에서.
+  - tray 오른쪽 끝의 링(결정 1)을 capsule·box 모양, 캔버스 panel 기본 폭(320)·최소 폭(280)과 Overview 폭에서, effort·permission이 없는 provider와 terminal session의 고정 tray에서.
   - 링 상태: 값 없음(링 없음, 결정 2), 낮은 값, 70% 이상(danger, 결정 6), 100% 초과, 그리고 Stop·Queue가 보이는 running 상태와 보관된 대화.
   - 16px 링(결정 7)의 반지름·stroke. 링 안팎에 글자나 숫자가 없다(결정 10).
   - tooltip 두 줄: "Context window 42% used · last turn"(결정 11)과 토큰 수.
@@ -37,7 +37,7 @@
 
 ### 초안 확인
 
-(초안을 확인한 뒤 적는다.)
+사용자 확정(2026-11-05): `.doan/canvases/context-window-ring.html`을 확인했다. 초안 검토의 답은 design 결정 1·12–16에 있다.
 
 ── commit: `docs(design): draft the context window ring` ──
 
@@ -52,7 +52,7 @@
 - [ ] A2. `store.ts` `payload()`의 `context.usage` 검사.
   - 검증: `npm --prefix app test` — 맞는 줄은 읽고, 음수·소수·`size` 0·빠진 필드는 손상으로 읽음. `storeIndex.test.ts` 등 기존 store 테스트 green.
 - [ ] A3. renderer `contextRing(events)`, 이름·tooltip 글, `tokenText`, 공유 색 단계(design 순수 함수 5–7).
-  - 검증: `npm --prefix app test` — 마지막 `context.usage`를 고름, 없으면 null, 100% 초과는 링 100·tooltip과 이름은 실제 비율, 이름과 tooltip 첫 줄이 같은 글("· last turn" 포함), "84K"·"1.2M"·1,000 미만, 반올림하지 않은 70% 경계(69.9는 기본 색, 70은 danger), `rendererImports.test.ts` green.
+  - 검증: `npm --prefix app test` — 마지막 `context.usage`를 고름, 없으면 null, 100% 초과는 링 100·tooltip과 이름은 실제 비율, 이름과 tooltip 첫 줄이 같은 글("· last turn" 포함), "84K"·"1.2M"·1,000 미만, 반올림하지 않은 70% 경계(69.9는 기본 색, 70은 danger), 글의 퍼센트는 버림(69.9는 "69%", 결정 15), `rendererImports.test.ts` green.
 
 ── commit: `feat: read context window usage from provider streams` ──
 
@@ -68,13 +68,13 @@
 - [ ] C1. 공유 링 컴포넌트 `ProgressRing({ value, danger, className, children? })`를 `AgentUsageButton.tsx`의 `Ring`에서 뺀다(design §3). 사용량 링은 로고를 children으로 넘기고 class·`data-provider`·`data-band`를 그대로 둔다. `DANGER`를 공유 링 모듈로 옮겨 export하고 `agentUsageView.ts`가 import한다.
   - 검증: `npm --prefix app test` — `AgentUsageButton.test.tsx`·`AgentUsageButton.interaction.test.tsx`·`agentUsageView` 테스트가 바꾸지 않은 채 green.
 - [ ] C2. context 링 컴포넌트, `DockedComposer`의 `context` prop과 자리, 호스트 두 곳(`CanvasConversationPanel.tsx`, `ProjectOverview.tsx`)의 값 전달, `styles.css`의 작은 링 규칙.
-  - 검증: `npm --prefix app test` — 값이 있으면 링과 이름 "Context window 42% used · last turn", 토큰 수의 `aria-description`, 링 안에 보이는 글자 없음, 값이 없으면 링 없음, 새 대화 상태에서 링 없음, thread가 아직 없으면(`conversationStore.thread(id)` null) 링 없음, `canvasGone`으로 composer가 상태 줄이 되면 링 없음, 보관된 대화는 링 있음, 대화를 바꾸면 그 대화의 값, live event가 오면 갱신, 링이 없으면 `send` 영역의 DOM이 이 기능 전과 같음(Send만), 링이 있으면 링과 Send가 같은 `send` 영역 안에 있고 grid 열이 늘지 않음, running 상태에서 링이 Stop·Queue 왼쪽, tray의 picker가 같은 자리, 링이 Tab 순서에 없음, 눌러도 아무것도 열리지 않음, hover tooltip 두 줄. `npm --prefix app run typecheck`, `npm --prefix app run build`.
+  - 검증: `npm --prefix app test` — 값이 있으면 링과 이름 "Context window 42% used · last turn", 토큰 수의 `aria-description`, 링 안에 보이는 글자 없음, 값이 없으면 링 없음, 새 대화 상태에서 링 없음, thread가 아직 없으면(`conversationStore.thread(id)` null) 링 없음, `canvasGone`으로 composer가 상태 줄이 되면 링 없음, 보관된 대화는 링 있음, 대화를 바꾸면 그 대화의 값, live event가 오면 갱신, 링이 있으면 tray의 마지막 자식이고 마지막 picker와 최소 8px 떨어짐(결정 13), 카드의 `send` 영역 DOM은 이 기능 전과 같음, 링이 없으면 tray의 DOM이 이 기능 전과 같음, effort·permission picker가 있을 때·없을 때(provider마다)·terminal session의 고정 tray(`fixed`)에서 링이 tray의 마지막, running 상태(Stop·Queue)에서도 링이 tray에 있음, 링이 Tab 순서에 없음, 눌러도 아무것도 열리지 않음, hover tooltip 두 줄. `npm --prefix app run typecheck`, `npm --prefix app run build`.
 
 ── commit: `feat: show the context window ring in docked composers` ──
 
 ## E. 실제 앱 확인
 
-- [ ] E1. `/design-sync`로 링을 초안과 맞추고 DESIGN.md에 측정값을 적는다. 사용량 링의 측정값('Agent usage')과, 링이 없는 docked composer의 폭이 바뀌지 않았는지도 잰다. tooltip을 Escape로 닫은 뒤 다시 hover하면 다시 열리는지 확인한다(POSTMORTEM 2026-10-23 'Re-hovering a dismissed tooltip did not reopen it').
+- [ ] E1. `/design-sync`로 링을 초안과 맞추고 DESIGN.md에 측정값을 적는다. 사용량 링의 측정값('Agent usage')과, 링이 없는 docked composer와 tray의 폭·배치가 바뀌지 않았는지도 잰다. 링이 tray 오른쪽 끝에 있는지를 picker가 모두 있는 tray, effort·permission이 없는 tray, terminal session의 고정 tray, panel 320·280과 Overview 폭에서 재고, 좁은 폭에서 tray가 줄바꿈하지 않고 model label만 줄어드는지 확인한다. tooltip을 Escape로 닫은 뒤 다시 hover하면 다시 열리는지 확인한다(POSTMORTEM 2026-10-23 'Re-hovering a dismissed tooltip did not reopen it').
   - 검증: `/design-sync` 보고의 측정 일치와 re-hover 결과.
 - [ ] E2. `/runtime-test`: 공용 프로필로 provider마다 턴 하나를 보내고, 턴이 끝나면 링이 P의 값과 같은 비율을 보이는지, 앱을 다시 시작해도 남는지, Cursor·새 대화에서 링이 없는지, 턴 끝 직후의 send가 거절되지 않는지, tooltip을 Escape로 닫은 뒤 다시 hover하면 다시 열리는지. 사람의 승인을 받는다.
   - 검증: `/runtime-test` 보고(스크린샷). 사람 상태(프로필, vault, Keychain 항목)가 확인 전과 같은지 보고에 적는다.

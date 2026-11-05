@@ -50,9 +50,9 @@ app(Electron + TS)만 바뀐다. CLI(Go)·skills·guide·`doan check`·공유 JS
   - 사용량 링은 `ProgressRing`에 `className="usage-ring"`, `data-provider`, `danger={ring.full}`을 주고 로고 `<img>`를 children으로 넘긴다. 마크업(class, `data-provider`, `data-band`, 로고)과 측정값(DESIGN.md 'Agent usage' Measured contracts, "Logo 14 × 14 in every ring")은 그대로다.
   - context 링은 children 없이 쓴다(로고 없음).
   - 색 기준 `DANGER`(`agentUsageView.ts:9`, 지금은 export하지 않음)를 공유 링 모듈로 옮겨 export하고, `agentUsageView.ts`는 그것을 import한다(결정 6).
-- 크기: 16px(`--size-icon`, 결정 7). 사용량 링의 CSS는 `.usage`와 `.usage-ring`에 묶여 있으므로 context 링은 자기 class(예: `.context-ring`)로 크기와 stroke 색(`--border-track`, `--affordance-prominent`, `data-band="full"`이면 `--border-danger`)을 정한다. 24px 링(viewBox 24, r 11, stroke 2)을 그대로 줄이면 stroke도 같이 가늘어지므로, 작은 링의 반지름·stroke는 `/design-draft`에서 정하고 `/design-sync`에서 잰다.
-- 자리: 카드 안, Send 바로 왼쪽(결정 1). grid 열을 더하지 않는다. `.docked .composer-card` grid(`styles.css:669`)에는 `column-gap`이 있어 빈 열도 4px을 더하고, DESIGN.md에 잰 폭이 바뀐다. 대신 값이 있을 때만 `send` 영역(`styles.css:673`)에 링과 Send를 담은 flex 묶음을 둔다. 값이 없으면 Send가 지금처럼 그 영역에 혼자 있어 DOM과 폭이 이 기능 전과 같다. capsule에서도 box에서도 Send는 오른쪽 끝에 남는다. Send 자리의 Stop·Queue(`SendButton`)도 같은 묶음 안에 있으므로 running 상태에서 링은 그 왼쪽이다.
-- 이름과 글: 링에는 보이는 글자나 숫자가 없다(결정 10). 링은 `role="img"`이고 접근 이름과 tooltip 첫 줄은 같은 글이다: "Context window 42% used · last turn"("last turn"은 값이 기록된 턴, 결정 11). tooltip 둘째 줄은 "84K of 200K tokens"이고 같은 글을 `aria-description`으로 준다. 선례: `role="img"`와 `aria-label`의 span(`ConversationLine.tsx:11`, `ShellSidebar.tsx:123`). tooltip은 공유 tooltip이고 trigger는 focus를 받지 않는 span이다(선례 `CanvasAgent.tsx:69`). 100%를 넘으면 실제 비율(예: "104% used")을 쓴다. 토큰 수는 1,000 미만이면 그대로, 1M 미만이면 "84K", 그 이상이면 "1.2M".
+- 크기: 16px(`--size-icon`, 결정 7). 사용량 링의 CSS는 `.usage`와 `.usage-ring`에 묶여 있으므로 context 링은 자기 class(예: `.context-ring`)로 크기와 stroke 색(`--border-track`, `--affordance-prominent`, `data-band="full"`이면 `--border-danger`)을 정한다. 24px 링(viewBox 24, r 11, stroke 2)을 그대로 줄이면 stroke가 1.33px로 가늘어지므로, 작은 링은 stroke 2px, 중심 반지름 7로 바깥 끝을 16px 상자 끝에 맞춘다(결정 12). 공유 primitive의 viewBox 24로는 r 10.5, stroke-width 3이다.
+- 자리: 카드 아래 tray(`DockedComposer.tsx`의 `.composer-tray`)의 마지막 자식, 곧 tray 오른쪽 끝(결정 1). 카드와 `send` grid 영역은 바뀌지 않는다. `.docked .composer-tray`는 `justify-content: flex-end`이고 model trigger가 `margin-left: auto`이므로, effort·permission이 없는 provider나 terminal session의 고정 tray(`props.fixed`)에서도 마지막 자식은 tray 오른쪽 끝에 붙는다. tray는 줄바꿈하지 않는다(container 규칙: 384 미만에서 Permission, 288 미만에서 Effort가 아이콘만 남고 model label이 마지막에 줄어든다). 링은 줄어들지 않으므로(`flex: none`) 링이 있으면 좁은 panel에서 model label이 더 일찍 줄어든다(초안 296에서 "Opu…"). 값이 없으면 링 요소가 없어 tray의 DOM과 배치가 이 기능 전과 같다. 마지막 picker와 링 사이는 최소 8px(tray gap 4 + 링의 시작 여백 `--space-1` 4)이고, 링 뒤에는 tray의 12px end padding이 있다(결정 13).
+- 이름과 글: 링에는 보이는 글자나 숫자가 없다(결정 10). 링은 `role="img"`이고 접근 이름과 tooltip 첫 줄은 같은 글이다: "Context window 42% used · last turn"("last turn"은 값이 기록된 턴, 결정 11). tooltip 둘째 줄은 "84K of 200K tokens"이고 같은 글을 `aria-description`으로 준다. 선례: `role="img"`와 `aria-label`의 span(`ConversationLine.tsx:11`, `ShellSidebar.tsx:123`). tooltip은 공유 tooltip이고 trigger는 focus를 받지 않는 span이다(선례 `CanvasAgent.tsx:69`). tooltip은 tray 링 위에 열리고, 캔버스 panel에서는 window 오른쪽 끝에 밀려 시작 쪽으로 옮겨진다(Radix collision). tooltip은 링 위 4px(공유 기본 `sideOffset`)에 열린다(결정 14). 두 줄 모두 tooltip의 같은 흰 caption 글씨다(결정 16). 글의 퍼센트는 버림한다(69.9%는 "69%", 결정 15). 색은 반올림하지 않은 비율로 정하므로 글이 "70%"인데 기본 색인 경우가 없다. 100%를 넘으면 실제 비율(예: "104% used")을 쓴다. 토큰 수는 1,000 미만이면 그대로, 1M 미만이면 "84K", 그 이상이면 "1.2M".
 - 누름: 링을 눌러도 아무것도 열리지 않는다(dialog·popover 없음, 결정 8). 모든 정보는 tooltip에 있다.
 - 링은 갱신 때 움직임(transition)을 넣지 않는다(provider-usage의 링과 같음).
 
@@ -113,9 +113,9 @@ ARCHITECTURE §1 'Conventions'와 `doan check` 규칙은 바뀌지 않는다. gu
 
 ## 결정
 
-사람이 아래 열한 가지를 정했다. P의 결과에 따라 다시 묻는 항목은 그 결정에 적었다.
+사람이 아래 열여섯 가지를 정했다(12–16은 초안 검토에서). P의 결과에 따라 다시 묻는 항목은 그 결정에 적었다.
 
-1. **자리는 카드 안, Send 바로 왼쪽**(사람). box 모양에서는 아래 줄 오른쪽, capsule에서는 입력 칸과 Send 사이. tray는 320px panel에서 이미 label을 줄이는 폭 단계(384·288)가 있다.
+1. **자리는 tray 오른쪽 끝**(사람, 2026-11-05 초안 검토). 카드 아래 tray(Attach · Pick · model · effort · permission)의 마지막에, provider가 보이는 picker 수와 상관없이 오른쪽 끝(composer의 오른쪽 아래 모서리)에 둔다. tray가 여러 줄이 되면 마지막 줄의 끝이다(지금 tray는 줄바꿈하지 않는다). 카드의 Send 영역은 바뀌지 않는다.
 2. **값이 없으면 링을 숨긴다**(사람). 새 대화, 첫 턴 전, 이 기능 전의 대화, Cursor, window를 모르는 Antigravity 모델이 해당한다. provider나 대화 종류로 나누지 않고 "기록된 값이 있으면 보임" 하나로 정한다. 늘 빈 링이 되는 provider를 숨긴 provider-usage 결정할 점 14와 같다.
 3. **턴이 끝날 때 한 번 갱신한다**(사람). 값은 terminal 바로 앞에 기록하고, 턴이 도는 동안 링은 바뀌지 않는다. 어떤 provider의 값이 terminal 뒤에만 오면(P) 이 결정을 다시 묻는다.
 4. **링 값은 provider가 보고한 used ÷ size의 원시 비율**(사람). Claude는 스트림의 usage와 `modelUsage.contextWindow`, Codex는 `last`의 input 쪽 필드와 `modelContextWindow`, ACP는 `usage_update`. 새 control request가 없어 턴 끝 대기가 늘지 않는다. P1에서 1M 모델의 압축 창 때문에 Claude 값이 `getContextUsage`와 크게 다르면 이 결정을 다시 묻는다.
@@ -126,3 +126,10 @@ ARCHITECTURE §1 'Conventions'와 `doan check` 규칙은 바뀌지 않는다. gu
 9. **used는 마지막 모델 호출의 input 토큰(cache 포함)**(사람). 모든 provider에 같은 뜻이다. Claude는 `input_tokens + cache_creation_input_tokens + cache_read_input_tokens`, Codex는 `last`의 input 쪽 필드(output이 든 `totalTokens`는 쓰지 않음), ACP는 provider가 보고한 `used`를 그대로 쓰고 그 뜻이 다를 수 있음을 적어 둔다.
 10. **링에는 글자나 숫자가 없다**(사람). 비율은 tooltip과 접근 이름에만 있다.
 11. **tooltip 첫 줄은 값이 언제의 것인지 보인다**(사람). 예: "42% used · last turn".
+12. **링 stroke는 2px, 중심 반지름 7**(사람, 초안 검토). viewBox 24로 r 10.5, stroke-width 3. 24px 기하를 그대로 줄인 1.33px는 쓰지 않는다.
+13. **마지막 picker와 링 사이는 최소 8px**(사람, 초안 검토). tray gap 4 + 링 시작 여백 4, 링 뒤는 tray의 12px end padding.
+14. **tooltip은 링 위 4px**(사람, 초안 검토). 공유 tooltip의 기본 offset.
+15. **퍼센트 글은 버림**(사람, 초안 검토). 이름과 tooltip 모두. 색은 반올림하지 않은 비율 `>= 70`으로 정한다(결정 6).
+16. **tooltip 두 줄은 같은 흰 caption 글씨**(사람, 초안 검토). 새 token을 더하지 않는다.
+
+사용자 확정(2026-11-05): 초안 확인. `.doan/canvases/context-window-ring.html`(frame `place-capsule`, `place-box`, `ring-states`, `ring-geometry`, `ring-tooltip`)을 사람이 확인했다.
