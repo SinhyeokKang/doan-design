@@ -73,7 +73,7 @@ test("Send now shows the queued message with its chips and files above the open 
   render();
   await flush();
   const anchors = [{ frame: { id: "cart", title: "Cart" } }];
-  expect(await composer.props!.onQueue({ text: "Tighten {{1}}", anchors, attachments: [{ id: "f1" }], files: [{ name: "notes.pdf", size: 86016, kind: "file" }] })).toEqual({ ok: true });
+  expect(await composer.props!.onQueue({ text: "Tighten {{1}}", anchors, attachments: [{ id: "f1" }], files: [{ name: "notes.pdf", size: 86016, kind: "file" }] })).toEqual({ ok: true, itemId: "q1" });
   // The Overview's row keeps the request's own text.
   render();
   expect(composer.props!.queued.map(({ id, text }) => ({ id, text }))).toEqual([{ id: "q1", text: "Tighten {{1}}" }]);
