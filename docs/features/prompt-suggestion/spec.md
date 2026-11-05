@@ -10,7 +10,7 @@
 
 Claude Code에서만 가능하다. 근거는 design '조사 결과'에 있다.
 
-- **Claude Code**: 가능하다. 대화 runner가 쓰는 Claude Agent SDK(0.3.312)에 `promptSuggestions` 옵션이 있고, 켜면 CLI가 턴의 `result` 뒤에 `prompt_suggestion` 메시지를 최대 하나 보낸다. Doan은 사람이 설치한 CLI를 `pathToClaudeCodeExecutable`로 실행하므로 실제로 도는 것은 그 CLI다. 동작은 설치된 CLI 2.1.318에서 읽었고, 최소 버전 2.1.284의 동작은 확인하지 않았다. 또 Doan은 턴마다 CLI를 새로 열고 `result` 직후 입력을 닫는데, 이 구조에서 제안이 실제로 오는지와 프로세스 종료가 얼마나 늦어지는지도 아직 확인하지 않았다(design 'PoC 의존', tasks P1).
+- **Claude Code**: 가능하다. 대화 runner가 쓰는 Claude Agent SDK(0.3.312)에 `promptSuggestions` 옵션이 있고, 켜면 CLI가 턴의 `result` 뒤에 `prompt_suggestion` 메시지를 최대 하나 보낸다. Doan은 사람이 설치한 CLI를 `pathToClaudeCodeExecutable`로 실행하므로 실제로 도는 것은 그 CLI다. 동작은 설치된 CLI 2.1.318에서 읽었고, 최소 버전 2.1.284의 동작은 확인하지 않았다. Doan처럼 턴마다 CLI를 새로 열고 `result` 직후 입력을 닫아도 제안은 `result` 뒤 1.0–2.7초에 왔다. 다만 계정의 한도 상태가 `allowed`가 아니면 CLI가 만들지 않아서, Doan이 `CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION=true`를 준다(design 결정 2, 'PoC 결과').
 - **Codex**: 다음 입력을 알려 주는 일반 알림은 없다. 실험 API인 `thread/prediction/updated`가 있지만, client가 ephemeral fork를 열어 예측을 직접 요청해야 하는 것으로 보인다. 이는 Doan이 모델 작업을 시작하고 세션을 fork하는 일이라 쓰지 않는다(PRODUCT §3 Out of scope 4, 'Resume and permissions'의 "never forks").
 - **Cursor·Antigravity·GitHub Copilot(ACP)**: Doan의 ACP 처리와 저장소 안 자료에서 제안 메시지를 찾지 못했다.
 - **Doan이 직접 생성**: 쓰지 않는다. Doan이 스스로 모델 요청을 시작하는 일이다(PRODUCT §3 Out of scope 4).
@@ -44,7 +44,7 @@ Claude Code에서만 가능하다. 근거는 design '조사 결과'에 있다.
 6. **지워지는 때.** 같은 대화의 다음 턴이 수락되면 제안은 사라진다. 대화를 archive하거나 지우면 사라진다. 그 대화의 Claude 연결이 sign out되거나 다른 연결로 바뀌어도 사라진다. 창 reload와 대화 전환에는 남고 앱을 다시 시작하면 사라진다. 입력란을 비우면 다시 보인다(design 결정 3·4).
 7. **다음 send를 늦추지 않음.** 제안을 켠 뒤에도 `turn.done` 직후의 send와 큐 전송이 `busy`로 거절되지 않는다(POSTMORTEM 2026-10-28). 제안이 아직 오지 않은 채 다음 send가 오면 그 제안은 버린다(design 결정 5).
 8. **접근성.** 제안이 보이는 동안 입력란의 `aria-placeholder`는 제안 전체 글이고, 접근성 설명은 오른쪽 방향키로 넣을 수 있다고 알린다. 같은 대화에 새 제안 글이 도착했을 때, 그 composer의 입력란에 포커스가 있고 비어 있으면 한 번 알린다. 창 reload, 대화 전환, 넣었다 지워서 다시 보이는 제안은 알리지 않는다. 이때는 입력란 설명과 `aria-placeholder`가 제안을 전한다(design 결정 7).
-9. **기록과 세션.** 제안은 대화 event history에 남지 않는다(design 결정 3). 제안을 켜도 Claude 세션은 fork되지 않고, 다음 턴은 같은 세션과 transcript를 이어 간다(design 'PoC 의존' P1).
+9. **기록과 세션.** 제안은 대화 event history에 남지 않는다(design 결정 3). 제안을 켜도 Claude 세션은 fork되지 않고, 다음 턴은 같은 세션과 transcript를 이어 간다(design 'PoC 결과' P1-c·d).
 
 ## 비목표
 
