@@ -61,7 +61,7 @@
 
 | 링크 | 세션·worktree | 시작 | PR·병합 | 상태 |
 |---|---|---|---|---|
-| 1 canvas-capture | Claude Code · `/Users/sinhyeok/orca/workspaces/doan-design/canvas-capture-orch` | 2026-11-05 | — | 진행 중 |
+| 1 canvas-capture | Claude Code · `/Users/sinhyeok/orca/workspaces/doan-design/canvas-capture-orch` | 2026-11-05 | PR #101 · `59425720` | 병합 |
 | 2 prompt-suggestion | — | — | — | 대기 |
 | 3 context-window-ring | — | — | — | 대기 |
 
@@ -71,3 +71,4 @@
 - 2026-11-05 체인 작성 세션: 사용자가 세 초안(canvas-capture, context-window-ring, queue-steer-shortcut)을 확정했다. 사용자가 `queue-steer-shortcut`을 체인에서 빼고 지금 체인 밖에서 PoC부터 시작하기로 했다. 링크를 셋으로 다시 매겼다. 그 PoC가 공용 프로필(Claude Code·Codex 로그인)을 만들면 첫 지휘자는 그것을 그대로 쓴다.
 - 2026-11-05 체인 작성 세션(다른 머신에서 이어받음): 공용 프로필 경로를 이 머신(`/Users/sinhyeok/...`)으로 고쳤다. 사용자가 링크 1과 2를 바꿨다: canvas-capture가 링크 1, prompt-suggestion이 링크 2다. 사용자는 링크 2 때 PoC를 함께하므로, 사람이 필요한 PoC와 결정(링크 2 P1, 링크 3 P1–P6)을 시작 점검에서 '링크 2 시작 때 사용자와 함께 할 일'로 옮겼다. 시작 점검에는 문서 확인, P1 명령, 실제 HOME·공용 프로필 승인만 남는다.
 - 2026-11-05 링크 1 지휘자(canvas-capture-orch): 시작 점검을 사용자와 마치고 한 번에 승인받았다. (1) 세 feature 문서와 두 초안이 `origin/main`(`ccf5e1ff`)에 있다. (2) 링크 2 P1 실행 명령(사용자 승인): P1-a·c·d·e는 실제 HOME에서 `CLAUDE_CONFIG_DIR=<임시> node .scratch/prompt-suggestion/p1.mjs <a|c|d|e>`로 돌린다(script는 링크 2 지휘자가 만든다). P1-b는 main checkout에서 `DOAN_CLI=/Users/sinhyeok/code/doan-design/.scratch/provider-profile/doan npm --prefix app run dev -- -- --user-data-dir=/Users/sinhyeok/code/doan-design/.scratch/provider-profile/userData`로 앱을 열고 사람이 턴을 보낸다. (3) 세 링크 모두 실제 HOME과 공용 프로필을 써도 된다(연결 상태만 확인, main checkout의 Electron으로만 연다). (4) P1-a·c·d·e의 임시 `CLAUDE_CONFIG_DIR` 로그인과 Keychain 항목은 P1 뒤에 지우지 않고 남긴다. 마지막 링크의 로그인 정리 때 공용 프로필과 함께 지운다. (5) 사람이 없으면 실제 키보드·한국어 IME 확인(링크 2 E1 (b))은 미검증으로 남기고 진행한다. Codex 작업자: Orca Codex 계정의 `models_cache.json`에 `gpt-6-astra`, `gpt-6.1-sol`이 있다(`~/.codex`가 아니라 Orca 계정이 출처).
+- 2026-11-05 링크 1 지휘자(canvas-capture-orch): canvas-capture를 PR #101로 main에 병합했다(merge `59425720`). 통합 HEAD `/verify` 통과, `/design-sync`(frame 8개, 고친 곳 없음)와 `/runtime-test`(2배·1배, tasks F1 모든 경우 통과)를 마쳤고, 결론을 PRODUCT·ARCHITECTURE·DESIGN·BACKLOG·README로 옮긴 뒤 feature 디렉터리를 지웠다. 배치는 P(PoC C1)·K·M·U·S 다섯이고, K·M·U는 Codex Astra medium이 독립 리뷰했다(🔴 0, 🟡 3건 모두 고침). Codex 주간 사용량은 시작 때 26%였다. 미검증(BACKLOG에 적음): 사람 눈의 깜빡임, 배율이 다른 모니터, Claude Code·Cursor가 보낸 캡처를 읽는지. 다음 링크가 알 것: (1) 링크 2가 고칠 `App.tsx`·`CanvasConversationPanel.tsx`가 바뀌었다. `composerFixed(view, list, work)`와 `settleChips`가 `CanvasConversationPanel.tsx`에서 export되고, App이 `onCapture`를 등록하므로 App 테스트의 controller mock에는 `onCapture`가 있어야 한다. (2) Esc 순서에 캡처 모드가 pick과 같은 단계로 들어갔다(`escapeStep`). (3) 체인 도중 Orca가 자동 업데이트(1.4.250)로 재시작되어 대기 loop가 끊긴 적이 있다. `orca open`으로 다시 띄우면 작업자는 그대로 이어 간다. (4) 작업 중 Mac 화면이 잠겨 있던 때가 있다(`IOConsoleLocked`). 잠겨 있으면 실제 키보드·IME 확인은 미검증으로 남긴다.
