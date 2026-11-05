@@ -4,7 +4,7 @@ import { open } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { StringDecoder } from "node:string_decoder";
 import { signInLink } from "../agentAuth/antigravity";
-import { ACP_PROTOCOL_VERSION, AcpConnection, acpEnded, acpPermission, acpPromptDone, acpPromptFailed, initialAcp, normalizeAcp, type AcpChoice, type AcpTransport } from "./acp";
+import { ACP_PROTOCOL_VERSION, AcpConnection, acpEnded, acpPermission, acpPromptDone, acpQuestion, acpPromptFailed, initialAcp, normalizeAcp, type AcpChoice, type AcpTransport } from "./acp";
 import { acpInitialize, acpSessionNew, type HandshakeVerdict } from "./handshake";
 import { OwnedGroup } from "./process";
 import { object } from "./sessions";
@@ -12,6 +12,8 @@ import { acpOption, parseAcpModels, parseAcpModes, type ModelOption } from "./mo
 import { acpModeFor, type AcpModes } from "./permissionMode";
 import { imageType, MAX_IMAGE_BYTES } from "../attachments";
 import type { Prepared, Runner } from "./service";
+import { questionAnswer } from "./questionAnswer";
+import type { Question } from "./question";
 import type { AttachmentRecord, EventPayload } from "./types";
 const OPEN_TIMEOUT_MS = 60_000;
 // ACP stop reasons that mean the agent ran the prompt (protocol schema StopReason, minus "cancelled").
@@ -23,7 +25,9 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
   const child = spawn(input.command, input.args ?? [], { cwd: input.cwd, env: input.env, detached: true, stdio: ["pipe", "pipe", "pipe"] });
   let group: OwnedGroup | undefined, dead = false, failure = "", prompting = false, finished = false;
   let state: AcpTransport = initialAcp(randomUUID());
-  const permissions = new Map<string, { rpc: string | number; choices: AcpChoice[] }>();
+  // One table for both kinds, so expiry answers every pending request once; each answer path takes only its own kind.
+  type Pending = { rpc: string | number; kind: "permission"; choices: AcpChoice[] } | { rpc: string | number; kind: "question"; question: Question; optionIds: string[] };
+  const permissions = new Map<string, Pending>();
   let settle: (() => void) | undefined;
   const apply = (result: { state: AcpTransport; events: EventPayload[] }) => {
     state = result.state; for (const event of result.events) emit(event);
@@ -33,18 +37,25 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
     for (const [requestId, pending] of permissions) {
       permissions.delete(requestId);
       try { acp.respond(pending.rpc, { outcome: { outcome: "cancelled" } }); } catch { /* the server is gone */ }
-      emit({ type: "permission.resolved", requestId, optionId: "expired" });
+      emit(pending.kind === "question" ? { type: "question.resolved", requestId, outcome: "expired" } : { type: "permission.resolved", requestId, optionId: "expired" });
     }
   };
   const acp = new AcpConnection(line => { if (dead || !child.stdin.writable) throw new Error("process_exited"); child.stdin.write(line); }, (params, rpc) => {
     const requestId = randomUUID();
-    const request = prompting && !state.terminal && params.sessionId === sessionId ? acpPermission(params, requestId) : null;
+    const live = prompting && !state.terminal && params.sessionId === sessionId;
+    // Only Antigravity asks this way (P5, P6); for Cursor and Copilot the same shape stays a permission request.
+    const question = live && input.runtime === "antigravity" ? acpQuestion(params, requestId) : null;
+    const request = live && !question ? acpPermission(params, requestId) : null;
     // Outside a running turn, or with no option doan can offer, the request is answered as cancelled (ACP's reply for a
     // turn that is no longer running) rather than left blocking the agent.
+    if (question) {
+      if (object(params.toolCall)) apply(normalizeAcp(state, { ...params.toolCall, sessionUpdate: "tool_call_update", status: "pending" }, input.cwd));
+      permissions.set(requestId, { rpc, kind: "question", question: question.event.questions[0]!, optionIds: question.optionIds }); emit(question.event); return;
+    }
     if (!request) { try { acp.respond(rpc, { outcome: { outcome: "cancelled" } }); } catch { /* gone */ } return; }
     // The request's toolCall can name what the updates do not (Copilot's apply_patch path is only in rawInput.fileName).
     if (object(params.toolCall)) apply(normalizeAcp(state, { ...params.toolCall, sessionUpdate: "tool_call_update", status: "pending" }, input.cwd));
-    permissions.set(requestId, { rpc, choices: request.choices }); emit(request.event);
+    permissions.set(requestId, { rpc, kind: "permission", choices: request.choices }); emit(request.event);
   }, (method, params) => {
     if (method !== "session/update" || !prompting || params.sessionId !== sessionId || !object(params.update)) return;
     apply(normalizeAcp(state, params.update, input.cwd));
@@ -142,10 +153,22 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
       } finally { finished = true; expire(); void group?.stop(); }
     },
     answer(id, option) {
-      const pending = permissions.get(id); const choice = pending?.choices.find(c => c.option.id === option);
+      const pending = permissions.get(id); const choice = pending?.kind === "permission" ? pending.choices.find(c => c.option.id === option) : undefined;
       if (!pending || !choice || state.terminal) return false;
       try { acp.respond(pending.rpc, { outcome: { outcome: "selected", optionId: choice.optionId } }); } catch { return false; }
       permissions.delete(id); emit({ type: "permission.resolved", requestId: id, optionId: option }); return true;
+    },
+    // Antigravity's question is single choice with no Other: Send replies with the chosen option, Skip as cancelled.
+    answerQuestion(id, input) {
+      const pending = permissions.get(id);
+      if (!pending || pending.kind !== "question" || state.terminal) return "stale";
+      const answer = questionAnswer([pending.question], input);
+      if (!answer) return "bad_request";
+      const index = answer.outcome === "answered" ? answer.answers["0"]!.selected[0]! : -1;
+      try { acp.respond(pending.rpc, { outcome: index >= 0 ? { outcome: "selected", optionId: pending.optionIds[index] } : { outcome: "cancelled" } }); } catch { return "stale"; }
+      permissions.delete(id);
+      emit(index >= 0 ? { type: "question.resolved", requestId: id, outcome: "answered", answers: { "0": { selected: [pending.question.options[index]!.label] } } } : { type: "question.resolved", requestId: id, outcome: "skipped" });
+      return "ok";
     },
     stop: () => stopTurn("user"),
     close: () => stopTurn("appQuit"),

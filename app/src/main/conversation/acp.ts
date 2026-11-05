@@ -1,6 +1,7 @@
 import { posix } from "node:path";
 import { canvasDir } from "../../formats/canvasPath";
 import { object } from "./sessions";
+import { QUESTION_LIMITS } from "./question";
 import { displayPath, GENERIC_SUMMARY, transportError } from "./transport";
 import type { EventPayload, PermissionOption, TransportResult, TransportState } from "./types";
 
@@ -94,6 +95,26 @@ export function acpPermission(params: Record<string, unknown>, requestId: string
   const tool = object(params.toolCall) ? params.toolCall : {};
   const title = typeof tool.title === "string" && tool.title ? tool.title.slice(0, 512) : GENERIC_SUMMARY[ACTIVITY[str(tool.kind)] ?? "other"];
   return { event: { type: "permission.request", requestId, tool: typeof tool.kind === "string" ? tool.kind : "other", summary: title, options: choices.map(c => c.option) }, choices };
+}
+
+// Antigravity asks the person through a standard permission request whose options are the answers (agent-questions
+// P5): two or more, all allow_once, no reject, the question as toolCall.title. Anything else, or past the question
+// limits, stays a permission request, which can still be answered; a cut question or a merged answer could not.
+export function acpQuestion(params: Record<string, unknown>, requestId: string): { event: Extract<EventPayload, { type: "question.request" }>; optionIds: string[] } | null {
+  const L = QUESTION_LIMITS;
+  const tool = object(params.toolCall) ? params.toolCall : {};
+  const question = tool.title;
+  if (typeof question !== "string" || !question || question.length > L.text) return null;
+  if (!Array.isArray(params.options) || params.options.length < 2 || params.options.length > L.options) return null;
+  const options = params.options.filter(object);
+  if (options.length !== params.options.length) return null;
+  if (!options.every(o => o.kind === "allow_once" && typeof o.optionId === "string" && o.optionId.length <= 512 && typeof o.name === "string" && o.name && o.name.length <= L.label)) return null;
+  const labels = options.map(o => o.name as string);
+  if (new Set(labels).size !== labels.length) return null;
+  return {
+    event: { type: "question.request", requestId, questions: [{ id: "0", header: "", question, options: labels.map(label => ({ label })), multiSelect: false, other: false }] },
+    optionIds: options.map(o => o.optionId as string),
+  };
 }
 
 export interface AcpTransport extends TransportState { turn: string; segment: number; text: string; tools: Record<string, { kind: string; path: string; title: string }> }
