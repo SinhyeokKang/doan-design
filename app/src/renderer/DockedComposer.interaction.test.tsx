@@ -716,3 +716,19 @@ test("Home Control+Enter still sends through its actual ComposerField", async ()
   expect(start).toHaveBeenCalledWith(expect.objectContaining({ text: "Draw a page" }), expect.anything());
   expect(field(tree)["aria-keyshortcuts"]).toBeUndefined();
 });
+
+const shortcutCaption = "Press Ctrl + Enter to send all now.";
+test.each([1, 3])("the queue shortcut caption is plain text for %i rows with Send now", count => {
+  const { render } = shortcutSetup({ queued: queued.slice(0, count) });
+  const captions = render().filter(item => item.children === shortcutCaption);
+  expect(captions).toHaveLength(1);
+  expect(String(captions[0]!.className ?? "")).not.toContain("doan-kbd");
+  expect(elements(captions[0]!.children as ReactNode)).toEqual([]);
+});
+
+test.each([
+  { sendNow: false }, { queued: [] }, { onSendQueuedNow: undefined },
+])("the queue shortcut caption is absent when rows or Send now are absent: %j", patch => {
+  const { render } = shortcutSetup(patch);
+  expect(render().some(item => item.children === shortcutCaption)).toBe(false);
+});
