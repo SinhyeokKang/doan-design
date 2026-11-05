@@ -52,3 +52,5 @@
 - 수정 round 통합: P V1 수정(`6a620c36` 경쟁 쓰기·symlink 보호), V1 재검토의 새 🟡(hard link 실패 때 원래 경로가 빔) 수정 `9d783673`. 남은 한계: hard link를 못 쓰는 파일 시스템에서는 Claude 프로필 실행이 `write_failed`로 멈춘다(userData는 APFS라 받아들임, 지휘자 판단). M V2 수정 `862b22c8`·`47c079ae`(🔴 없던 리뷰라 재검토 생략, 지휘자 판단). R2 배선 `eafbef48`·`36e390ac`, R3 V3 수정 `a5c0e365`(소유 밖 `canvasScript.ts`·`ds/checks.ts`를 고침, 다른 batch와 겹치지 않음). 통합 HEAD typecheck 0, `src/main` test 3981 통과.
 - C2의 끝난 커밋 10개(CLI, guide 줄이기와 `update` 규칙, BACKLOG, eval fake app, W5)를 먼저 통합했다(`ddd9c1b9`..`36dfc2bd`). eval round는 C 작업자에서 계속 돈다. `go test`, `go vet`, eval unit 278 통과.
 - P·M·V1·V2·V3 작업자 release. V4(C2 리뷰, Codex, `wu-v4`) 시작. R 작업자에게 U3(`/design-sync`, 격리 실제 앱)를 보냄.
+- U3 완료: `/design-sync` 94쌍, 17상태, 속성 4,700줄에서 분류되지 않은 차이 0, 동작 확인 36/36. Claude 리뷰 2 round. 구현은 바뀌지 않았고 DESIGN.md만 고쳤다(`e7850017` → 통합 `694ebe00`). 실제 DOM에서 커서 위치, 너비 하한, tooltip, busy selector, transition(reduced motion에서 0 s, frame id가 바뀔 때만 220 ms)을 확인했다. 미검증: composer·대화 메뉴, 그 밖의 dialog, 타이핑 중간 snapshot의 style 쌍, easing, 어두운 캔버스의 대비, 실제 provider 턴.
+- R1 batch T(Claude Opus high, `wu-t`) 시작: (a) 격리 터미널 경로, (b) 공용 프로필의 앱 대화와 Default 권한 경로.
