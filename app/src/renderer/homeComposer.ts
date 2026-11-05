@@ -453,6 +453,10 @@ export function isSubmitKey(event: { key: string; shiftKey: boolean; isComposing
   return event.key === "Enter" && !event.shiftKey && !event.isComposing && event.keyCode !== 229;
 }
 
+export function steerKey(event: { key: string; ctrlKey: boolean; metaKey: boolean; altKey: boolean; shiftKey: boolean; isComposing: boolean; keyCode: number }): boolean {
+  return isSubmitKey(event) && event.ctrlKey && !event.metaKey && !event.altKey;
+}
+
 // `dismissed`: Escape closed the list, which stays closed until the field is empty again.
 export function slashQuery(text: string, dismissed: boolean): string | null {
   return !dismissed && text.startsWith("/") && !text.includes("\n") ? text.slice(1) : null;
