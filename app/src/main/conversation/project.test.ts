@@ -22,6 +22,8 @@ describe("projectBusy", () => {
       ["preparing", { project: "/repo", busy: true, terminal: false }, "a"],
       ["running", { project: "/repo", busy: true, terminal: false, asking: new Set() }, "a"],
       ["waiting for an answer", { project: "/repo", busy: true, terminal: false, asking: new Set(["r1"]) }, null],
+      // agent-questions orch decision 3: a question waits as a permission does (service.ts keys both by kind).
+      ["waiting for a question's answer", { project: "/repo", busy: true, terminal: false, asking: new Set(["question:q1"]) }, null],
       ["ended within the window", { project: "/repo", busy: false, terminal: true, endedAt: now - 1 }, "a"],
       ["queue about to go out", { project: "/repo", busy: false, terminal: true, endedAt: now - BIND_GRACE_MS - 1, holding: {} }, "a"],
       ["ended and judged", { project: "/repo", busy: false, terminal: true, endedAt: now - BIND_GRACE_MS - 1 }, null],

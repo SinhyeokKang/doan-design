@@ -4,7 +4,8 @@ import claudeInterrupted from "./fixtures/claude-interrupted.json";
 import codex from "./fixtures/codex.json";
 import codexInterrupted from "./fixtures/codex-interrupted.json";
 import codexHome from "./fixtures/codex-home.json";
-import { normalizeClaude, normalizeCodex, initialTransport, endTransport, claudePermission, claudePermissionSummary, codexPermission, permissionAnswer, transportError, claudeReportedMode, steerTransport, endSteerWait } from "./transport";
+import askFixture from "./fixtures/claude-ask-user-question.json";
+import { normalizeClaude, normalizeCodex, initialTransport, endTransport, claudePermission, claudePermissionSummary, codexPermission, permissionAnswer, transportError, claudeReportedMode, steerTransport, endSteerWait, claudeQuestion, claudeQuestionResult, claudeUnansweredSupport, storedAnswers } from "./transport";
 import type { EventPayload, TransportState } from "./types";
 function collect(runtime: "claude" | "codex", messages: unknown[], stop: "user" | null = null) {
   let state: TransportState = { ...initialTransport(), stop };
@@ -351,5 +352,88 @@ describe("steered message consumption", () => {
   });
   it("ends a Codex turn on completion even while a steered message is unread", () => {
     expect(run("codex", [{ steer: STEERED }, { method: "turn/completed", params: { threadId: "session-1", turn: { id: "turn-1", status: "completed" } } }]).seen).toEqual([{ type: "turn.done" }]);
+  });
+});
+// agent-questions A2: Claude's AskUserQuestion, as P1 recorded it (fixtures/claude-ask-user-question.json).
+describe("Claude AskUserQuestion", () => {
+  const single = askFixture.canUseTool.single.input, multi = askFixture.canUseTool.multi.input;
+  const color = "Which color do you prefer?";
+  it("reads the recorded input as one question with an ordinal id, Other always offered", () => {
+    expect(claudeQuestion(single)).toEqual({
+      questions: [{ id: "0", header: "Color", question: color, multiSelect: false, other: true, options: [{ label: "Red", description: "A warm, energetic color." }, { label: "Blue", description: "A calm, cool color." }] }],
+      textById: { "0": color },
+    });
+    expect(claudeQuestion(multi)?.questions[0]).toMatchObject({ id: "0", multiSelect: true, other: true });
+  });
+  it("numbers several questions in order and maps each id back to its own text", () => {
+    const input = { questions: [0, 1, 2, 3].map(n => ({ question: `Q${n}?`, header: `H${n}`, multiSelect: false, options: [{ label: "A", description: "" }] })) };
+    const read = claudeQuestion(input)!;
+    expect(read.questions.map(q => q.id)).toEqual(["0", "1", "2", "3"]);
+    expect(read.textById).toEqual({ "0": "Q0?", "1": "Q1?", "2": "Q2?", "3": "Q3?" });
+    // An empty description reads as none.
+    expect(read.questions[0]!.options).toEqual([{ label: "A" }]);
+  });
+  const question = (patch: Record<string, unknown>) => ({ question: color, header: "Color", multiSelect: false, options: [{ label: "Red", description: "Warm" }], ...patch });
+  it.each([
+    ["no questions", { questions: [] }],
+    ["five questions", { questions: [0, 1, 2, 3, 4].map(n => question({ question: `Q${n}?` })) }],
+    ["a questions field that is not a list", { questions: "Which?" }],
+    ["a question without its text", { questions: [question({ question: "" })] }],
+    ["a question text past 4,096", { questions: [question({ question: "x".repeat(4_097) })] }],
+    ["a header past 512", { questions: [question({ header: "h".repeat(513) })] }],
+    ["a header that is not text", { questions: [question({ header: 3 })] }],
+    ["nine options", { questions: [question({ options: Array.from({ length: 9 }, (_, n) => ({ label: `L${n}`, description: "" })) })] }],
+    ["an option without a label", { questions: [question({ options: [{ label: "", description: "d" }] })] }],
+    ["a label past 512", { questions: [question({ options: [{ label: "l".repeat(513), description: "d" }] })] }],
+    ["a description past 512", { questions: [question({ options: [{ label: "Red", description: "d".repeat(513) }] })] }],
+    ["a multiSelect that is not a boolean", { questions: [question({ multiSelect: "yes" })] }],
+    ["the same question text twice", { questions: [question({}), question({ header: "Again" })] }],
+    ["no input", undefined],
+  ])("refuses %s", (_label, input) => {
+    expect(claudeQuestion(input)).toBeNull();
+  });
+  it("accepts every limit exactly", () => {
+    const input = { questions: [0, 1, 2, 3].map(n => question({ question: `${n}`.padEnd(4_096, "q"), header: "h".repeat(512), options: Array.from({ length: 8 }, (_, i) => ({ label: `${i}`.padEnd(512, "l"), description: "d".repeat(512) })) })) };
+    expect(claudeQuestion(input)?.questions).toHaveLength(4);
+  });
+  const read = claudeQuestion(single)!, readMulti = claudeQuestion(multi)!;
+  it("answers a choice with its label, keyed by the question's own text", () => {
+    expect(claudeQuestionResult(single, read, { outcome: "answered", answers: { "0": { selected: [1] } } }, true))
+      .toEqual({ behavior: "allow", updatedInput: { ...single, answers: askFixture.results.answered.updatedAnswers } });
+  });
+  it("answers Other with the typed text", () => {
+    expect(claudeQuestionResult(single, read, { outcome: "answered", answers: { "0": { selected: [], other: "Green, but only for the header" } } }, true))
+      .toEqual({ behavior: "allow", updatedInput: { ...single, answers: askFixture.results.other.updatedAnswers } });
+  });
+  it("joins several choices and the typed text with commas", () => {
+    expect(claudeQuestionResult(multi, readMulti, { outcome: "answered", answers: { "0": { selected: [0, 1], other: "Keyboard shortcuts" } } }, true))
+      .toEqual({ behavior: "allow", updatedInput: { ...multi, answers: askFixture.results.multi.updatedAnswers } });
+  });
+  it("skips with no answer text and the unanswered mark when the session advertises it (P1 Skip a)", () => {
+    expect(claudeQuestionResult(single, read, { outcome: "skipped" }, true))
+      .toEqual({ behavior: "allow", updatedInput: { ...single, answers: {}, annotations: askFixture.results.skipped.annotations } });
+  });
+  it("skips by denying when the session does not advertise the unanswered mark (P1 Skip b)", () => {
+    expect(claudeQuestionResult(single, read, { outcome: "skipped" }, false)).toEqual({ behavior: "deny", message: askFixture.results.denied.message });
+  });
+  it("tells whether a system/init frame advertises the unanswered mark", () => {
+    expect(claudeUnansweredSupport(askFixture.init)).toBe(true);
+    expect(claudeUnansweredSupport({ ...askFixture.init, capabilities: ["interrupt_receipt_v1"] })).toBe(false);
+    expect(claudeUnansweredSupport({ ...askFixture.init, capabilities: undefined })).toBe(false);
+    expect(claudeUnansweredSupport(askFixture.toolUse)).toBeUndefined();
+  });
+  it("shows no activity for the AskUserQuestion call, which the question card stands for", () => {
+    expect(collect("claude", [askFixture.init, askFixture.toolUse]).events).toEqual([]);
+    // Other tools in the same message still show.
+    const both = { ...askFixture.toolUse, message: { ...askFixture.toolUse.message, content: [...askFixture.toolUse.message.content, { type: "tool_use", id: "id-3", name: "Read", input: { file_path: "/repo/a.html" } }] } };
+    expect(collect("claude", [both]).events).toEqual([{ type: "activity", kind: "read", path: "/repo/a.html", insideDesign: false, summary: "a.html" }]);
+  });
+  it("keeps the chosen labels and the typed text apart for the history, and never a secret question's answer", () => {
+    expect(storedAnswers(readMulti.questions, { outcome: "answered", answers: { "0": { selected: [0, 2], other: "Keyboard shortcuts" } } }))
+      .toEqual({ "0": { selected: ["Agents", "Appearance"], other: "Keyboard shortcuts" } });
+    const secret = [{ id: "pin", header: "PIN", question: "Your PIN?", options: [], multiSelect: false, other: true, secret: true as const }, { id: "name", header: "Name", question: "Your name?", options: [], multiSelect: false, other: true }];
+    const stored = storedAnswers(secret, { outcome: "answered", answers: { pin: { selected: [], other: "SYNTH_SECRET_PIN" }, name: { selected: [], other: "Ada" } } });
+    expect(stored).toEqual({ name: { selected: [], other: "Ada" } });
+    expect(JSON.stringify(stored)).not.toContain("SYNTH_SECRET_PIN");
   });
 });

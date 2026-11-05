@@ -86,3 +86,11 @@ documents: one thread's `mcpServer/startupStatus/updated` window from `probe.log
 startup names (`doan-notion`, `doan-atlassian`, `doan-figma`, `codex_apps`) are put back from the probe notes and
 the `not logged in` error text, so which ready event belongs to which remote server is a reconstruction. The probe
 log does not record JSON-RPC ids; the elicitation's id is synthetic.
+
+`claude-ask-user-question.json` (agent-questions A2) is reduced from the 2026-11-05 P1 probe records
+`.scratch/agent-questions/out/p1-*.json` (Agent SDK 0.3.312, Claude Code 2.1.312, the probe's own `p1-claude.mjs`
+notes, not raw SDK frames): `init` is the `system/init` capabilities list of `p1-answer-default.json` in a
+`system/init` frame's field names; `toolUse` is that run's `AskUserQuestion` call in an assistant frame (the message and
+tool-use ids are synthetic); `canUseTool` holds the inputs `canUseTool` received in `p1-answer-default.json` and
+`p1-multi-default.json`; `results` pairs the answers the probe sent (`answer`, `other`, `multi`, `unanswered2`, `deny`)
+with the tool result text the model received. The question texts and labels are the probe model's own.

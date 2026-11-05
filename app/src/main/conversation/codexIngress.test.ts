@@ -115,3 +115,37 @@ describe("Codex MCP elicitation", () => {
     expect(normalizeCodex(initialTransport(), item("codex_apps"), mcp).events).toEqual([{ type: "activity", kind: "other", summary: "ping (codex_apps)" }]);
   });
 });
+
+// agent-questions A3 (reduced by P2, orch decision 6): Codex 0.166.0 sends item/tool/requestUserInput in no Doan mode, so
+// every one of this thread is answered at once with no answers and the turn goes on; another owner's is routed as today.
+// Params from the generated 0.166.0 ToolRequestUserInputParams schema (synthetic values).
+describe("Codex requestUserInput", () => {
+  const ask = { threadId: "s", turnId: "t", itemId: "i", isBlocking: true, questions: [{ id: "color", header: "Color", question: "Which color?", isOther: true, isSecret: false, options: [{ label: "Red", description: "Warm" }] }] };
+  const raw = (patch: Record<string, unknown> = {}, id: string | number = 9) => ({ id, method: "item/tool/requestUserInput", params: { ...ask, ...patch } });
+  const declined = (id: string | number = 9) => ({ request: { id, method: "item/tool/requestUserInput", disposition: "decline", response: { id, result: { answers: {} } } }, state: { terminal: false }, events: [] });
+  it.each([
+    ["a readable blocking question of this turn", initialTransport(), raw()],
+    ["a question after Stop", { ...initialTransport(), stop: "user" as const }, raw()],
+    ["a question without a turnId", initialTransport(), raw({ turnId: undefined })],
+    ["a question whose turnId is null", initialTransport(), raw({ turnId: null })],
+    ["a non-blocking question", initialTransport(), raw({ isBlocking: false })],
+    ["an unreadable question", initialTransport(), raw({ questions: "Which?" })],
+    ["a question with a repeated id", initialTransport(), raw({ questions: [ask.questions[0], ask.questions[0]] })],
+    ["a secret question", initialTransport(), raw({ questions: [{ ...ask.questions[0], isSecret: true }] })],
+  ])("answers %s with no answers, without asking and without failing the turn", (_label, state, request) => {
+    expect(normalizeCodex(state, request, context)).toMatchObject(declined());
+  });
+  it("answers a question after the turn ended with no answers, keeping its typed id", () => {
+    expect(normalizeCodex({ ...initialTransport(), terminal: true }, raw({}, "q-1"), context)).toMatchObject({ ...declined("q-1"), state: { terminal: true } });
+    expect(normalizeCodex(initialTransport(), raw({}, 0), context)).toMatchObject(declined(0));
+  });
+  it.each([{ threadId: "other" }, { turnId: "other" }])("routes another owner's question without answering it here: %j", identity => {
+    const result = normalizeCodex(initialTransport(), raw(identity), context);
+    expect(result).toMatchObject({ request: { disposition: "route" }, state: { terminal: false }, events: [] });
+    expect(result.request).not.toHaveProperty("response");
+  });
+  it("keeps the unsupported answer and turn failure for other requests of this turn", () => {
+    expect(normalizeCodex(initialTransport(), { id: 3, method: "item/tool/somethingElse", params: { threadId: "s", turnId: "t" } }, context))
+      .toMatchObject({ request: { disposition: "unsupported" }, events: [{ type: "turn.failed", code: "session_unavailable" }] });
+  });
+});
