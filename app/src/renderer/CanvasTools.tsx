@@ -44,10 +44,10 @@ export function CanvasTools({ tool, picking, onTool, picker, exporter }: { tool:
       : <TooltipContent>{picker.reason ?? "Pick from canvas"}</TooltipContent>}</Tooltip>
     <span className="doan-canvas-tools-sep" role="separator" aria-orientation="vertical" />
     <Tooltip><TooltipTrigger asChild>
-      <button type="button" className="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-label="Export…" tabIndex={-1}
+      <button type="button" className="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-label="Export canvas" tabIndex={-1}
         {...(exporter.reason !== null ? { "aria-disabled": true, "aria-describedby": EXPORT_REASON_ID } : {})}
         onClick={event => { if (exporter.reason === null) exporter.onExport(event.currentTarget); }}><Download aria-hidden="true" /></button>
-    </TooltipTrigger><TooltipContent>{exporter.reason ?? "Export…"}</TooltipContent></Tooltip>
+    </TooltipTrigger><TooltipContent>{exporter.reason ?? "Export canvas"}</TooltipContent></Tooltip>
     {exporter.reason !== null && <span className="sr-only" id={EXPORT_REASON_ID}>{exporter.reason}</span>}
   </div>;
 }

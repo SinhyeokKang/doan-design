@@ -12,7 +12,7 @@ export interface CanvasNode {
   kind: "canvas";
   // The canvas path, unique per row.
   key: string;
-  // Display name: the title, else the file name without `.html`.
+  // Display name: the file name without `.html`.
   name: string;
   fileName: string;
   row: CanvasRow;
@@ -28,8 +28,6 @@ function fileNameOf(path: string): string {
 }
 
 export function canvasLabel(row: CanvasRow): string {
-  const title = row.title?.trim();
-  if (title) return title;
   const fileName = fileNameOf(row.path);
   const stem = fileName.toLowerCase().endsWith(".html") ? fileName.slice(0, -".html".length) : fileName;
   return stem === "" ? fileName : stem;

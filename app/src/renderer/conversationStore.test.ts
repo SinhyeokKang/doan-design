@@ -210,3 +210,51 @@ test("a refusal says whether the turn still runs as the store reads it at the an
   expect(await sent).toEqual({ error: "not_running", turnRuns: false });
   expect(h.ids()).toEqual(["q1", "q2", "q3"]);
 });
+
+// agent-questions design §7: the answer being chosen is kept by request in the store the canvas panel and the Overview
+// share, so it outlives the thread's redraw for another conversation; it goes once the question is settled.
+test("a question's chosen answer is kept by conversation and request until that question is resolved", async () => {
+  const h = harness();
+  const B = "bbbbbbbb-0000-4000-8000-000000000002";
+  const question = { id: "0", header: "Layout", question: "Which layout?", options: [{ label: "Compact" }, { label: "Two rows" }], multiSelect: false, other: true };
+  history.push(event({ type: "question.request", requestId: "q1", questions: [question] }));
+  h.store.track(A);
+  await flush();
+  expect(h.store.questionDraft(A, "q1")).toEqual({ choices: {}, sending: null, failed: false });
+  h.host.changed.mockClear();
+  h.store.editQuestion(A, "q1", { type: "choose", question, option: 1 });
+  expect(h.host.changed).toHaveBeenCalled();
+  // Another conversation's request with the same id is apart.
+  expect(h.store.questionDraft(B, "q1").choices).toEqual({});
+  expect(h.store.questionDraft(A, "q1").choices).toEqual({ "0": { selected: [1], other: false, text: "" } });
+  // Another request's resolution leaves it.
+  h.store.event(event({ type: "question.resolved", requestId: "q9", outcome: "skipped" }));
+  expect(h.store.questionDraft(A, "q1").choices).toEqual({ "0": { selected: [1], other: false, text: "" } });
+  h.store.event(event({ type: "question.resolved", requestId: "q1", outcome: "answered", answers: { "0": { selected: ["Two rows"] } } }));
+  expect(h.store.questionDraft(A, "q1").choices).toEqual({});
+});
+
+// A refusal or an edit that lands after the question was settled must not bring its draft back (batch R review ⚪4).
+test("a resolved or deleted question's draft is not made again by a late edit", () => {
+  const h = harness();
+  const question = { id: "0", header: "Layout", question: "Which layout?", options: [{ label: "Compact" }], multiSelect: false, other: true };
+  h.store.track(A);
+  h.store.editQuestion(A, "q1", { type: "sending", how: "answer" });
+  h.store.event(event({ type: "question.resolved", requestId: "q1", outcome: "skipped" }));
+  h.host.changed.mockClear();
+  h.store.editQuestion(A, "q1", { type: "failed" });
+  h.store.editQuestion(A, "q1", { type: "choose", question, option: 0 });
+  expect(h.store.questionDraft(A, "q1")).toEqual({ choices: {}, sending: null, failed: false });
+  expect(h.host.changed).not.toHaveBeenCalled();
+  h.store.deleted(A);
+  h.store.editQuestion(A, "q2", { type: "failed" });
+  expect(h.store.questionDraft(A, "q2")).toEqual({ choices: {}, sending: null, failed: false });
+});
+
+test("a deleted conversation's chosen answers go with it", () => {
+  const h = harness();
+  const question = { id: "0", header: "Layout", question: "Which layout?", options: [{ label: "Compact" }], multiSelect: false, other: true };
+  h.store.editQuestion(A, "q1", { type: "choose", question, option: 0 });
+  h.store.deleted(A);
+  expect(h.store.questionDraft(A, "q1").choices).toEqual({});
+});

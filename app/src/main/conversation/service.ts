@@ -13,6 +13,7 @@ import { DraftStore, joined, type ReturnedDraft } from "./drafts";
 import type { ConversationOwner, Provider } from "../agentAuth/types";
 import type { ModelList } from "./models";
 import type { PermissionModeId } from "./permissionMode";
+import type { QuestionAnswerInput } from "./question";
 import type { Anchor, AttachmentRecord, Canvas, ConversationEvent, EventPayload, Reservation } from "./types";
 // External (legacy) runs are claude or codex only; doan-account runs may use any app provider.
 // model and effort: a choice from the list this run delivered (ipc checks it). attachments: files main rechecked just now.
@@ -57,9 +58,10 @@ export interface TurnChoice { model?: string; effort?: string; permissionMode?: 
 // apart from the model, Default included) and rechecked attachments.
 // defaultEffort: the level the turn names when its choice has none (models.ts ModelOption); it is never stored.
 export interface SendExtras extends TurnChoice { attachments?: AttachmentRecord[]; defaultEffort?: string }
+function askingKey(event: { type: string; requestId: string }): string { return `${event.type.startsWith("question.") ? "question" : "permission"}:${event.requestId}`; }
 // steer: Claude and Codex only (steerSupport.ts); adds a message to the running turn turnId and resolves once the
 // provider accepted it, which is not yet the agent reading it (Prepared.steerConsumed).
-export interface Runner { sessionId: string; send(prompt: string, turnId: string, attachments?: readonly AttachmentRecord[], choice?: TurnChoice): Promise<void>; answer(requestId: string, optionId: string): boolean; stop(): Promise<void>; close(): Promise<void>; models?(): Promise<ModelList>; steer?(prompt: string, turnId: string, messageId: string): Promise<void> }
+export interface Runner { sessionId: string; send(prompt: string, turnId: string, attachments?: readonly AttachmentRecord[], choice?: TurnChoice): Promise<void>; answer(requestId: string, optionId: string): boolean; answerQuestion?(requestId: string, answer: QuestionAnswerInput): "ok" | "stale" | "bad_request"; stop(): Promise<void>; close(): Promise<void>; models?(): Promise<ModelList>; steer?(prompt: string, turnId: string, messageId: string): Promise<void> }
 // What a queued send needs from main's attachment store: the queued ids checked again as the send's attachments
 // (reclaim throws attachment_missing), consumed once that send was accepted, discarded with a removed message (a paste
 // goes with it) and released when they come back in a draft, which carries their paths instead.
@@ -88,8 +90,9 @@ const EXIT_WAIT_MS = 10_000;
 // holding: queued messages wait to go out after this turn; each hold is its own object, so a flush that ends late
 // never lets go of the hold a later turn set.
 // mcpGeneration: the provider's connector generation the runner's MCP servers were read at (its opening or last reload).
-// asking: the accepted turn's permission requests not answered yet; while any is open the turn waits for the person and
-// does not keep its root (projectBusy). A turn's end expires them.
+// asking: the accepted turn's permission requests and questions not answered yet, keyed by kind and id so one kind's
+// resolution never settles the other; while any is open the turn waits for the person and does not keep its root
+// (projectBusy). A turn's end expires them.
 interface Live { turnId: string; busy: boolean; accepted: boolean; runner?: Runner; cleanup?: () => Promise<void>; terminal: boolean; events: EventPayload[]; failedPersistence: boolean; exited: boolean; provider?: Provider; since: number; endedAt?: number; project?: string; closed?: boolean; holding?: object; mcpGeneration?: number | undefined; asking?: Set<string> }
 // A project turn's grounds for promotion (design §2.4): the canvas list when the turn was accepted, the paths of its own
 // edit activities and the canvas files the folder watcher saw change. endedAt: the turn is over and waits for its first
@@ -399,8 +402,8 @@ export class ConversationService {
       this.append(id, live.turnId, event);
       const evidence = this.evidence.get(id);
       if (event.type === "activity" && event.kind === "edit" && event.path && evidence && evidence.endedAt === undefined) evidence.edits.add(event.path);
-      if (event.type === "permission.request") (live.asking ??= new Set()).add(event.requestId);
-      else if (event.type === "permission.resolved") live.asking?.delete(event.requestId);
+      if (event.type === "permission.request" || event.type === "question.request") (live.asking ??= new Set()).add(askingKey(event));
+      else if (event.type === "permission.resolved" || event.type === "question.resolved") live.asking?.delete(askingKey(event));
       if (event.type === "turn.done" || event.type === "turn.failed" || event.type === "interrupted") { live.terminal = true; live.busy = false; live.endedAt = Date.now(); delete live.asking; this.dropSteers(id); this.ended(id, live, event.type); }
     } catch (error) {
       live.failedPersistence = true; console.error("doan: conversation event persistence failed", error); void live.runner?.close();
@@ -459,6 +462,11 @@ export class ConversationService {
     const m = this.metadata(id); return { root: m.root, provider: m.session.runtime, owner: m.owner.kind, ...choice(m) };
   }
   answer(id: string, requestId: string, option: string): void { this.metadata(id); if (!this.live.get(id)?.runner?.answer(requestId, option)) throw new Error("stale"); }
+  // The runner holding the question checks the answer against it; a runner without questions holds none.
+  answerQuestion(id: string, requestId: string, answer: QuestionAnswerInput): void {
+    this.metadata(id); const result = this.live.get(id)?.runner?.answerQuestion?.(requestId, answer) ?? "stale";
+    if (result !== "ok") throw new Error(result);
+  }
   async interrupt(id: string): Promise<void> {
     this.metadata(id); this.cancelWait(id); const live = this.live.get(id);
     // Stop while the queue waits to go out (for the judgement or the previous process) hands it back instead.

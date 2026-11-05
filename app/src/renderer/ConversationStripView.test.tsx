@@ -72,6 +72,24 @@ test("a choice button calls answerConversationPermission with the provider's opt
   expect(focus).toHaveBeenCalledTimes(1);
 });
 
+const QUESTION: StripState = { kind: "question", requestId: "q1", question: "Which layout should the settings header use?" };
+test("a question strip shows the sentence and only Skip (panel) and Stop: nothing here answers it (draft problem-strip)", () => {
+  const html = render(QUESTION);
+  expect(html).toContain('<span class="strip-text" role="alert"><b>Claude Code needs your answer</b><span>Which layout should the settings header use?</span></span>');
+  expect(html).toMatch(/<span class="strip-actions"><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel">Skip<\/button><button data-strip-stop="" type="button" class="doan-button" data-ui-size="sm"><svg[^>]*>.*<\/svg>Stop<\/button><\/span>/);
+  expect(html).not.toMatch(/<input|radio|checkbox|Send/);
+});
+
+test("Skip calls answerConversationQuestion with skipped, then Stop takes focus", () => {
+  const skip = vi.fn(async () => {}), focus = vi.fn();
+  vi.stubGlobal("window", { doan: { answerConversationQuestion: skip, answerConversationPermission: vi.fn(), interruptConversation: vi.fn() } });
+  const all = buttons(QUESTION);
+  hooks.refs[0]!.current = { focus };
+  (all.find(props => text(props) === "Skip")!.onClick as () => void)();
+  expect(skip).toHaveBeenCalledWith({ conversationId: "c1", requestId: "q1", outcome: "skipped" });
+  expect(focus).toHaveBeenCalledTimes(1);
+});
+
 test("Stop calls interruptConversation; Edit on Home, Dismiss and Open call their handlers", () => {
   const interrupt = vi.fn(async () => {});
   vi.stubGlobal("window", { doan: { answerConversationPermission: vi.fn(), interruptConversation: interrupt } });

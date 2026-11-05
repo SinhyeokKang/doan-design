@@ -35,6 +35,10 @@ export function ConversationStrip({ conversationId, provider, state, view, onEdi
       void window.doan.answerConversationPermission({ conversationId, requestId: state.kind === "permission" ? state.requestId : "", optionId: action.optionId }).catch(console.error);
       // The answered choices go away; Stop is the one control left while the turn runs (design §7).
       stop.current?.focus();
+    } else if (action.command === "skip") {
+      if (state.kind === "question") void window.doan.answerConversationQuestion({ conversationId, requestId: state.requestId, outcome: "skipped" }).catch(console.error);
+      // As after a permission answer: Stop is the one control left while the turn runs.
+      stop.current?.focus();
     } else if (action.command === "stop") void window.doan.interruptConversation({ conversationId }).catch(console.error);
     else if (action.command === "editOnHome") onEditOnHome();
     else if (action.command === "open") onOpen();
@@ -44,16 +48,16 @@ export function ConversationStrip({ conversationId, provider, state, view, onEdi
     : state.kind === "failed" ? <CircleAlert className="strip-alert" aria-hidden="true" />
     : state.kind === "done" ? <CircleCheck className="strip-ok" aria-hidden="true" />
     : <img className="logo" src={providerLogo(provider)} alt="" />;
-  // A permission request is announced once: its alert is a new element per request.
+  // A permission request or a question is announced once: its alert is a new element per request.
   // The state's tone colours the strip's text and its mark, as on every notice.
   const tone = state.kind === "failed" ? " error" : state.kind === "done" ? " ok" : "";
   return <div className={`convo-strip doan-notice${tone}`} role="region" aria-label="Conversation">
     <span className="strip-agent doan-alert-icon">{mark}</span>
     <span key={view.alertKey ?? "status"} className="strip-text" role={view.live}><b>{view.title}</b>{view.body && <span>{view.body}</span>}</span>
     <span className="strip-actions">{view.actions.map(action => {
-      // The draft (workspace-strip, states-strip) fills Allow; the other answers, Edit on Home and Open rest on the panel
+      // The draft (workspace-strip, states-strip) fills Allow; the other answers, Skip, Edit on Home and Open rest on the panel
       // white, since the strip's inset fill is subtle's own grey.
-      const variant = action.command === "answer" ? (action.kind === "allow" ? "prominent" : "panel") : action.command === "editOnHome" || action.command === "open" ? "panel" : undefined;
+      const variant = action.command === "answer" ? (action.kind === "allow" ? "prominent" : "panel") : action.command === "editOnHome" || action.command === "open" || action.command === "skip" ? "panel" : undefined;
       const key = action.command === "answer" ? `answer-${action.optionId}` : action.command;
       // data-strip-stop: App focuses Stop after a Home send's move, never a permission answer (design §4.9, §7).
       return <button key={key} ref={action.command === "stop" ? stopRef : action.command === "dismiss" ? dismiss : undefined} data-strip-stop={action.command === "stop" ? "" : undefined} type="button" className="doan-button" data-ui-size="sm" data-ui-variant={variant} onClick={() => run(action)}>

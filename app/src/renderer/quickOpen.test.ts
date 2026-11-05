@@ -16,10 +16,10 @@ const commonOf = (root: string) => root === "/other" ? "/other/.git" : "/repo/.g
 describe("quick open index", () => {
   it("indexes canvas names, filenames, paths and ids and frame titles and ids", () => {
     const index = searchIndex([folder("/repo", [canvas(".doan/canvases/settings/billing.html", {
-      title: "  Billing & plans  ", id: "payments", frames: [{ id: "card-declined", title: "Payment failed" }],
+      id: "payments", frames: [{ id: "card-declined", title: "Payment failed" }],
     })])]);
-    expect(index.map((entry) => entry.label)).toEqual(["Billing & plans", "Payment failed"]);
-    for (const query of ["Billing & plans", "billing.html", "settings/billing", "payments"]) {
+    expect(index.map((entry) => entry.label)).toEqual(["billing", "Payment failed"]);
+    for (const query of ["billing", "billing.html", "settings/billing", "payments"]) {
       expect(searchMatch(index, query, null, commonOf)[0]?.kind).toBe("canvas");
     }
     for (const query of ["card-declined", "Payment failed"]) {
@@ -27,8 +27,8 @@ describe("quick open index", () => {
     }
   });
 
-  it("falls back from absent or blank titles to filenames without html", () => {
-    const index = searchIndex([folder("/repo", [canvas(".doan/canvases/foo.html"), canvas(".doan/canvases/foo-bar.html", { title: " \t " })])]);
+  it("labels canvases by file name without html", () => {
+    const index = searchIndex([folder("/repo", [canvas(".doan/canvases/foo.html"), canvas(".doan/canvases/foo-bar.html")])]);
     expect(index.map((entry) => entry.label)).toEqual(["foo", "foo-bar"]);
   });
 
@@ -62,26 +62,26 @@ describe("quick open index", () => {
 });
 
 describe("quick open matching", () => {
-  it("keeps title and frame prefix matches within the cap without matching the design scope", () => {
+  it("keeps file-stem and frame prefix matches within the cap without matching the design scope", () => {
     const index = searchIndex([folder("/repo", [
-      ...Array.from({ length: 60 }, (_, i) => canvas(`.doan/canvases/screen-${i}.html`, { title: `Screen ${i}` })),
-      canvas(".doan/canvases/settings/billing.html", { title: "Declined", frames: [{ id: "declined" }] }),
+      ...Array.from({ length: 60 }, (_, i) => canvas(`.doan/canvases/screen-${i}.html`, {})),
+      canvas(".doan/canvases/settings/declined.html", { frames: [{ id: "declined" }] }),
     ])]);
     const matches = searchMatch(index, "de", "/repo", commonOf);
     expect(matches.map((result) => result.kind)).toEqual(["canvas", "frame"]);
-    expect(matches.map((result) => result.label)).toEqual(["Declined", "declined"]);
+    expect(matches.map((result) => result.label)).toEqual(["declined", "declined"]);
     expect(searchMatch(index, "doan", "/repo", commonOf)).toEqual([]);
-    expect(searchMatch(index, "settings/billing", "/repo", commonOf)[0]?.path).toBe(".doan/canvases/settings/billing.html");
+    expect(searchMatch(index, "settings/declined", "/repo", commonOf)[0]?.path).toBe(".doan/canvases/settings/declined.html");
   });
 
   it("matches NFC and NFD queries against normalized canvas and frame fields without changing targets", () => {
     const path = `.doan/canvases/${"설정/결제".normalize("NFD")}.html`;
     const frameId = "실패".normalize("NFD");
     const index = searchIndex([folder("/repo", [canvas(path, {
-      title: "청구".normalize("NFD"), id: "구독".normalize("NFD"),
+      id: "구독".normalize("NFD"),
       frames: [{ id: frameId, title: "거절".normalize("NFD") }],
     })])]);
-    for (const query of ["설정/결제", "결제.html", "청구", "구독", "실패", "거절"]) {
+    for (const query of ["설정/결제", "결제.html", "구독", "실패", "거절"]) {
       for (const form of ["NFC", "NFD"]) {
         const results = searchMatch(index, query.normalize(form), null, commonOf);
         expect(results).toHaveLength(1);
@@ -104,27 +104,27 @@ describe("quick open matching", () => {
   });
 
   it("matches case-insensitive whitespace tokens with AND across fields", () => {
-    const index = searchIndex([folder("/repo", [canvas(".doan/canvases/settings/card.html", { title: "Billing plans", id: "billing-v2" })])]);
+    const index = searchIndex([folder("/repo", [canvas(".doan/canvases/settings/card.html", { id: "billing-v2" })])]);
     expect(searchMatch(index, "  BILLING\tsettings\nV2 ", null, commonOf)).toHaveLength(1);
     expect(searchMatch(index, "billing missing", null, commonOf)).toEqual([]);
   });
 
   it("ranks prefix above word-start above substring before root proximity", () => {
     const index = searchIndex([
-      folder("/repo", [canvas(".doan/canvases/a.html", { title: "Discard" })]),
-      folder("/sibling", [canvas(".doan/canvases/b.html", { title: "Payment card" })]),
-      folder("/other", [canvas(".doan/canvases/c.html", { title: "Card payment" })]),
+      folder("/repo", [canvas(".doan/canvases/discard.html", {})]),
+      folder("/sibling", [canvas(".doan/canvases/payment-card.html", {})]),
+      folder("/other", [canvas(".doan/canvases/card-payment.html", {})]),
     ]);
     expect(searchMatch(index, "card", "/repo", commonOf).map((entry) => entry.root)).toEqual(["/other", "/sibling", "/repo"]);
   });
 
   it("recognizes punctuation and Unicode word boundaries and later stronger matches", () => {
     const index = searchIndex([folder("/repo", [
-      canvas(".doan/canvases/a.html", { title: "Discard/card" }), canvas(".doan/canvases/b.html", { title: "Discard" }),
-      canvas(".doan/canvases/c.html", { title: "결제실패" }), canvas(".doan/canvases/d.html", { title: "결제 실패" }),
+      canvas(".doan/canvases/discard-card.html", {}), canvas(".doan/canvases/discard.html"),
+      canvas(".doan/canvases/결제실패.html", {}), canvas(".doan/canvases/결제 실패.html"),
     ])]);
-    expect(searchMatch(index, "card", null, commonOf).map((entry) => entry.path)).toEqual([".doan/canvases/a.html", ".doan/canvases/b.html"]);
-    expect(searchMatch(index, "실패", null, commonOf).map((entry) => entry.path)).toEqual([".doan/canvases/d.html", ".doan/canvases/c.html"]);
+    expect(searchMatch(index, "card", null, commonOf).map((entry) => entry.path)).toEqual([".doan/canvases/discard-card.html", ".doan/canvases/discard.html"]);
+    expect(searchMatch(index, "실패", null, commonOf).map((entry) => entry.path)).toEqual([".doan/canvases/결제 실패.html", ".doan/canvases/결제실패.html"]);
   });
 
   it("breaks ties by current root, common repo, then other roots with stable saved order", () => {
@@ -182,16 +182,16 @@ describe("quick open matching", () => {
 
   it("retains late higher scores and root priorities at the result cap with stable ties", () => {
     const index = searchIndex([
-      folder("/other", Array.from({ length: 60 }, (_, i) => canvas(`.doan/canvases/screen-${i}.html`, { title: "Discard" }))),
-      folder("/sibling", Array.from({ length: 60 }, (_, i) => canvas(`.doan/canvases/screen-${i}.html`, { title: "Discard" }))),
-      folder("/repo", [canvas(".doan/canvases/current.html", { title: "Discard" })]),
-      folder("/last", [canvas(".doan/canvases/best.html", { title: "Card" })]),
+      folder("/other", Array.from({ length: 60 }, (_, i) => canvas(`.doan/canvases/discard-${i}.html`, {}))),
+      folder("/sibling", Array.from({ length: 60 }, (_, i) => canvas(`.doan/canvases/discard-${i}.html`, {}))),
+      folder("/repo", [canvas(".doan/canvases/discard.html", {})]),
+      folder("/last", [canvas(".doan/canvases/card.html", {})]),
     ]);
     const results = searchMatch(index, "card", "/repo", commonOf);
     expect(results).toHaveLength(50);
-    expect(results.slice(0, 2).map((result) => result.path)).toEqual([".doan/canvases/best.html", ".doan/canvases/current.html"]);
+    expect(results.slice(0, 2).map((result) => result.path)).toEqual([".doan/canvases/card.html", ".doan/canvases/discard.html"]);
     expect(results.slice(2).map((result) => [result.root, result.path])).toEqual(
-      Array.from({ length: 48 }, (_, i) => ["/sibling", `.doan/canvases/screen-${i}.html`]),
+      Array.from({ length: 48 }, (_, i) => ["/sibling", `.doan/canvases/discard-${i}.html`]),
     );
   });
 });
@@ -226,7 +226,7 @@ it("names the directory the missing or removed canvas was in", () => {
   expect(missingCanvasMessage(".doan/ds/forms/input.html")).toBe("input is no longer in .doan/ds/");
   expect(missingCanvasMessage(".doan/canvases/sub/home.html")).toBe("home is no longer in .doan/canvases/");
   expect(removedCanvasMessage(canvas(".doan/ds/button.html"))).toBe("button was removed from .doan/ds/");
-  expect(removedCanvasMessage({ ...canvas(".doan/canvases/home.html"), title: "Home" })).toBe("Home was removed from .doan/canvases/");
+  expect(removedCanvasMessage({ ...canvas(".doan/canvases/home.html") })).toBe("home was removed from .doan/canvases/");
 });
 
 it("does not call a still-listed canvas deleted when its captured identity became stale", () => {
@@ -249,10 +249,10 @@ describe("quick open match positions", () => {
   });
 
   it("marks only the tokens found in the name when others matched the path", () => {
-    const index = searchIndex([folder("/repo", [canvas(".doan/canvases/settings/billing.html", { title: "Card plans" })])]);
+    const index = searchIndex([folder("/repo", [canvas(".doan/canvases/settings/card-plans.html", {})])]);
     expect(searchMatch(index, "settings card", null, commonOf)).toHaveLength(1);
-    expect(matchPositions("Card plans", "settings card")).toEqual([0, 1, 2, 3]);
-    expect(matchPositions("Card plans", "settings")).toEqual([]);
+    expect(matchPositions(index[0]?.label ?? "", "settings card")).toEqual([0, 1, 2, 3]);
+    expect(matchPositions(index[0]?.label ?? "", "settings")).toEqual([]);
   });
 
   it("marks an untitled frame's id name", () => {
@@ -407,27 +407,27 @@ describe("quick open groups", () => {
 
   it("orders groups by their best match, even another root's exact match before the current root", () => {
     const index = searchIndex([
-      folder("/repo", [canvas(".doan/canvases/a.html", { title: "Discard" }), canvas(".doan/canvases/b.html", { title: "Card" })]),
-      folder("/other", [canvas(".doan/canvases/c.html", { title: "Card payment" })]),
+      folder("/repo", [canvas(".doan/canvases/discard.html", {}), canvas(".doan/canvases/card.html")]),
+      folder("/other", [canvas(".doan/canvases/card-payment.html", {})]),
     ]);
     const results = searchMatch(index, "card", "/repo", commonOf);
     expect(grouped(results)).toEqual([
-      ["/repo", [".doan/canvases/b.html", ".doan/canvases/a.html"]],
-      ["/other", [".doan/canvases/c.html"]],
+      ["/repo", [".doan/canvases/card.html", ".doan/canvases/discard.html"]],
+      ["/other", [".doan/canvases/card-payment.html"]],
     ]);
     const exact = searchIndex([
-      folder("/repo", [canvas(".doan/canvases/a.html", { title: "Discard" })]),
-      folder("/other", [canvas(".doan/canvases/c.html", { title: "Card" })]),
+      folder("/repo", [canvas(".doan/canvases/discard.html", {})]),
+      folder("/other", [canvas(".doan/canvases/card.html", {})]),
     ]);
-    expect(grouped(searchMatch(exact, "card", "/repo", commonOf))).toEqual([["/other", [".doan/canvases/c.html"]], ["/repo", [".doan/canvases/a.html"]]]);
+    expect(grouped(searchMatch(exact, "card", "/repo", commonOf))).toEqual([["/other", [".doan/canvases/card.html"]], ["/repo", [".doan/canvases/discard.html"]]]);
   });
 
   it("orders equal scores by proximity, then by first appearance for two other repositories", () => {
     const index = searchIndex([
-      folder("/x", [canvas(".doan/canvases/x.html", { title: "Card" })]),
-      folder("/other", [canvas(".doan/canvases/o.html", { title: "Card" })]),
-      folder("/sibling", [canvas(".doan/canvases/s.html", { title: "Card" })]),
-      folder("/repo", [canvas(".doan/canvases/r.html", { title: "Card" })]),
+      folder("/x", [canvas(".doan/canvases/card.html", {})]),
+      folder("/other", [canvas(".doan/canvases/card.html", {})]),
+      folder("/sibling", [canvas(".doan/canvases/card.html", {})]),
+      folder("/repo", [canvas(".doan/canvases/card.html", {})]),
     ]);
     const commons = (root: string) => ({ "/repo": "/repo/.git", "/sibling": "/repo/.git", "/other": "/other/.git", "/x": "/x/.git" })[root];
     expect(grouped(searchMatch(index, "card", "/repo", commons)).map(([root]) => root)).toEqual(["/repo", "/sibling", "/x", "/other"]);

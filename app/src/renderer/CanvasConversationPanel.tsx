@@ -24,7 +24,7 @@ import { ConversationDeleteItem, type DeleteTarget } from "./ConversationDeleteD
 import { ConversationHead } from "./ConversationLine";
 import { ConversationThread, LOADING_DELAY_MS, type ConversationThreadHandle, type LocateOutcome } from "./ConversationThread";
 import { steerPhaseOf, type ListView, type QueuedMessage } from "./conversationStore";
-import { stripState } from "./conversationStrip";
+import { asksPerson, stripState } from "./conversationStrip";
 import { copyText } from "./copyText";
 import { DockedComposer, type DockedFieldLink, type DockedOutcome, type DockedPicker, type DockedRequest } from "./DockedComposer";
 import { draftKey, EMPTY_DRAFT, type DockedMode, type DockedRefusal } from "./dockedRules";
@@ -99,7 +99,7 @@ const focusField = () => queueMicrotask(() => focusFieldEnd(document.querySelect
 // Main's turn as the composer reads it, as the Overview's: the merged events first (the list lags them), then the list.
 function turnOf(events: readonly ConversationEvent[] | null, summary: ConversationSummary | undefined, live: boolean): "idle" | "running" | "waiting" {
   const kind = events && events.length ? stripState(events).kind : null;
-  if (kind === "permission") return "waiting";
+  if (kind !== null && asksPerson(kind)) return "waiting";
   if ((kind === "starting" || kind === "working") && live) return "running";
   if (summary?.phase === "waiting") return "waiting";
   return summary?.working ? "running" : "idle";
@@ -264,8 +264,9 @@ export function CanvasConversation(props: CanvasConversationProps) {
     run.takeScroll(conversationId);
     if (target.kind === "item") handle.current?.scrollToItem(target.key);
   }, [conversationId, scroll?.seq, Array.isArray(items) ? items.length : -1, asking]);
-  // An entry's focus (design §2 'Opening the panel'): a permission entry's first choice once its request draws, else
-  // the composer. Each arrival is applied once; one whose request has nothing pending falls back to the composer.
+  // An entry's focus (design §2 'Opening the panel'): a permission entry's first choice once its request draws, or a
+  // question's first option or answer input (agent-questions design §6), else the composer. Each arrival is applied
+  // once; one whose request has nothing pending falls back to the composer.
   const arrived = useRef(0);
   useEffect(() => {
     const arrival = props.arrival;
@@ -278,8 +279,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
       props.onArrived(arrival.seq);
       if (ask.kind === "item") {
         handle.current?.scrollToItem(ask.key);
-        const choice = document.querySelector<HTMLElement>(`.doan-conv-panel [data-item="${CSS.escape(ask.key)}"] .strip-actions button`);
-        if (choice) { choice.focus({ preventScroll: true }); return; }
+        if (handle.current?.focusItem(ask.key)) return;
       }
     } else { arrived.current = arrival.seq; props.onArrived(arrival.seq); }
     focusField();
@@ -400,6 +400,9 @@ export function CanvasConversation(props: CanvasConversationProps) {
       {conversationId && provider ? <ConversationThread ref={handle} conversationId={conversationId} items={items} provider={provider} project={project}
         liveAfter={thread?.liveAfter ?? Number.MAX_SAFE_INTEGER} canvasListed={() => true}
         onAnswer={(requestId, optionId) => window.doan.answerConversationPermission({ conversationId, requestId, optionId })}
+        onAnswerQuestion={(requestId, answer) => window.doan.answerConversationQuestion({ conversationId, requestId, ...answer })}
+        questionDraft={requestId => store.questionDraft(conversationId, requestId)} onQuestionDraft={(requestId, action) => store.editQuestion(conversationId, requestId, action)}
+        onFocusComposer={focusField}
         onStop={() => void window.doan.interruptConversation({ conversationId }).catch(console.error)}
         onEditAndResend={() => {
           // Focus follows only while the same canvas still shows the same conversation as when it was asked for.

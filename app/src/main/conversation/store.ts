@@ -7,6 +7,7 @@ import { absolutePath, object, sameCanvas } from "./sessions";
 import { anchorTokens, validAnchor } from "./prompt";
 import { validAuthId, validOwner } from "../agentAuth/metadata";
 import { permissionModeId, type PermissionModeId } from "./permissionMode";
+import { QUESTION_LIMITS } from "./question";
 import type { ConversationOwner, Provider } from "../agentAuth/types";
 import type { Canvas, ConversationEvent, EventPayload, Runtime } from "./types";
 interface SessionBinding<R> { runtime: R; origin: "resumed" | "new" | "newDesign"; sessionId: string; configDir: string; cwd: string }
@@ -85,10 +86,28 @@ function payload(value: Record<string, unknown>): value is Record<string, unknow
     case "activity": return ["edit", "read", "command", "other"].includes(String(value.kind)) && str(value.summary) && (value.path === undefined || str(value.path)) && (value.insideDesign === undefined || typeof value.insideDesign === "boolean");
     case "permission.request": return str(value.requestId) && str(value.tool) && str(value.summary) && Array.isArray(value.options) && value.options.length > 0 && [...value.options].every(o => object(o) && str(o.id) && str(o.label) && ["allow", "allowAlways", "deny"].includes(String(o.kind)));
     case "permission.resolved": return str(value.requestId) && str(value.optionId);
+    case "question.request": return str(value.requestId) && Array.isArray(value.questions) && questions([...value.questions]);
+    case "question.resolved": return str(value.requestId) && ["answered", "skipped", "expired"].includes(String(value.outcome)) &&
+      (value.answers === undefined || (value.outcome === "answered" && storedAnswers(value.answers)));
     case "interrupted": return ["user", "appQuit", "crashed"].includes(String(value.reason));
     case "turn.failed": return ["runtime_unsupported", "cli_missing", "not_logged_in", "session_unavailable", "session_in_use", "process_exited", "rate_limited", "unknown"].includes(String(value.code)) && (value.detail === undefined || str(value.detail));
     default: return false;
   }
+}
+// The limits the runners read with: a line past them came from no build that reads it.
+function bounded(value: unknown, max: number, empty = false): value is string { return str(value) && value.length <= max && (empty || value.length > 0); }
+function questions(list: unknown[]): boolean {
+  const L = QUESTION_LIMITS;
+  return list.length > 0 && list.length <= L.questions && list.every(q => object(q) && bounded(q.id, L.label) && bounded(q.header, L.label, true) && bounded(q.question, L.text) &&
+    typeof q.multiSelect === "boolean" && typeof q.other === "boolean" && (q.secret === undefined || q.secret === true) &&
+    Array.isArray(q.options) && q.options.length <= L.options && (q.options.length > 0 || q.other) &&
+    [...q.options].every(o => object(o) && bounded(o.label, L.label) && (o.description === undefined || bounded(o.description, L.label, true)))) &&
+    new Set(list.map(q => (q as { id: string }).id)).size === list.length;
+}
+function storedAnswers(value: unknown): boolean {
+  const L = QUESTION_LIMITS;
+  return object(value) && Object.keys(value).length <= L.questions && Object.values(value).every(a => object(a) &&
+    Array.isArray(a.selected) && a.selected.length <= L.options && [...a.selected].every(s => bounded(s, L.label)) && (a.other === undefined || bounded(a.other, L.text)));
 }
 function attachment(value: unknown): boolean {
   return object(value) && label(value.name) && typeof value.size === "number" && Number.isSafeInteger(value.size) && value.size >= 0 &&

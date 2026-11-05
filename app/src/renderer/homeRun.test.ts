@@ -323,6 +323,21 @@ test("Home's running map names the running conversation and leaves out one waiti
   expect(h.run.running()).toEqual(new Map([[ROOT, { conversationId: "c1" }]]));
 });
 
+// agent-questions spec 7 (tasks C1): a question waits like a permission request, so it leaves the root free too, and
+// the slot, rank and toast read it as waiting.
+test("a project conversation waiting for a question's answer does not keep Home from starting another", async () => {
+  const h = harness();
+  const sending = h.run.start(REQUEST, LAST);
+  start.resolve({ conversationId: "c1" });
+  await sending;
+  h.run.event(event("c1", { type: "turn.started" }));
+  h.run.event(event("c1", { type: "question.request", requestId: "q1", questions: [{ id: "0", header: "Layout", question: "Which layout?", options: [], multiSelect: false, other: true }] }));
+  expect(h.run.running()).toEqual(new Map());
+  expect(h.run.strips.c1).toEqual({ kind: "question", requestId: "q1", question: "Which layout?" });
+  h.run.event(event("c1", { type: "question.resolved", requestId: "q1", outcome: "skipped" }));
+  expect(h.run.running()).toEqual(new Map([[ROOT, { conversationId: "c1" }]]));
+});
+
 // The same state table as main's projectBusy (main/conversation/project.test.ts).
 test("only a project conversation waiting for an answer of those that hold the root lets Home start another", () => {
   const table: [string, Partial<ConversationSummary>, boolean][] = [

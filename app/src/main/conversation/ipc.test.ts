@@ -475,3 +475,77 @@ describe("send queued now channel", () => {
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 });
+// agent-questions B3 (design §5): ipc checks the shape and limits only; the runner holding the question checks the rest.
+describe("answerQuestion", () => {
+  function questions(result: "ok" | "stale" | "bad_request" = "ok") {
+    const dir = mkdtempSync(join(tmpdir(), "doan-ipc-")); const answerQuestion = vi.fn(() => result);
+    const open = vi.fn(async () => ({ sessionId: "s1", send: vi.fn(async () => {}), answer: () => false, answerQuestion, stop: vi.fn(async () => {}), close: vi.fn(async () => {}) }));
+    const prepare = vi.fn<Prepare>(async () => ({ runtime: "claude" as const, configDir: "/profile", cwd: "/repo", command: "/fake", env: {} }));
+    const service = new ConversationService(new ConversationStore(dir), prepare, open, () => {});
+    const handle = conversationHandler(service, prepare, () => [{ path: "/repo", kind: "list", canvases: [{ path: ".doan/canvases/a.html" }] }]);
+    return { dir, service, handle, answerQuestion };
+  }
+  const start = { root: "/repo", mode: "new", runtime: "claude", canvas: { path: ".doan/canvases/a.html" }, text: "hello" };
+  it("is a conversation method main registers", () => {
+    expect(conversationMethods).toContain("answerQuestion");
+  });
+  it("passes a well-formed answer or skip to the runner and maps its refusals", async () => {
+    for (const result of ["ok", "stale", "bad_request"] as const) {
+      const h = questions(result);
+      try {
+        const { conversationId } = await h.handle(true, "start", start) as { conversationId: string };
+        const answered = { outcome: "answered", answers: { "0": { selected: [1] }, "1": { selected: [], other: "Green" } } };
+        expect(await h.handle(true, "answerQuestion", { conversationId, requestId: "q1", ...answered })).toEqual(result === "ok" ? undefined : { error: result });
+        expect(h.answerQuestion).toHaveBeenLastCalledWith("q1", answered);
+        await h.handle(true, "answerQuestion", { conversationId, requestId: "q1", outcome: "skipped" });
+        expect(h.answerQuestion).toHaveBeenLastCalledWith("q1", { outcome: "skipped" });
+      } finally { rmSync(h.dir, { recursive: true, force: true }); }
+    }
+  });
+  it.each([
+    ["no request id", { outcome: "skipped", requestId: undefined }],
+    ["a request id past 512", { outcome: "skipped", requestId: "r".repeat(513) }],
+    ["an unknown outcome", { outcome: "expired" }],
+    ["a skip with answers", { outcome: "skipped", answers: {} }],
+    ["an answer without answers", { outcome: "answered" }],
+    ["answers that are a list", { outcome: "answered", answers: [] }],
+    ["five answers", { outcome: "answered", answers: Object.fromEntries([0, 1, 2, 3, 4].map(n => [String(n), { selected: [0] }])) }],
+    ["a question id past 512", { outcome: "answered", answers: { ["q".repeat(513)]: { selected: [0] } } }],
+    ["choices that are not a list", { outcome: "answered", answers: { "0": { selected: 0 } } }],
+    ["nine choices", { outcome: "answered", answers: { "0": { selected: [0, 1, 2, 3, 4, 5, 6, 7, 8] } } }],
+    ["a choice that is not an index", { outcome: "answered", answers: { "0": { selected: ["Red"] } } }],
+    ["a negative choice", { outcome: "answered", answers: { "0": { selected: [-1] } } }],
+    ["a choice past the options limit", { outcome: "answered", answers: { "0": { selected: [8] } } }],
+    ["a fractional choice", { outcome: "answered", answers: { "0": { selected: [0.5] } } }],
+    ["Other text that is not text", { outcome: "answered", answers: { "0": { selected: [], other: 3 } } }],
+    ["Other text past 4,096", { outcome: "answered", answers: { "0": { selected: [], other: "x".repeat(4_097) } } }],
+  ])("refuses %s before the runner sees it", async (_label, body) => {
+    const h = questions();
+    try {
+      const { conversationId } = await h.handle(true, "start", start) as { conversationId: string };
+      expect(await h.handle(true, "answerQuestion", { conversationId, requestId: "q1", ...body })).toEqual({ error: "bad_request" });
+      expect(h.answerQuestion).not.toHaveBeenCalled();
+    } finally { rmSync(h.dir, { recursive: true, force: true }); }
+  });
+  it("passes on only the answer's own fields", async () => {
+    const h = questions();
+    try {
+      const { conversationId } = await h.handle(true, "start", start) as { conversationId: string };
+      await h.handle(true, "answerQuestion", { conversationId, requestId: "q1", outcome: "answered", answers: { "0": { selected: [0], note: "n" } }, optionId: "allow" });
+      expect(h.answerQuestion).toHaveBeenLastCalledWith("q1", { outcome: "answered", answers: { "0": { selected: [0] } } });
+    } finally { rmSync(h.dir, { recursive: true, force: true }); }
+  });
+  it("accepts every limit exactly", async () => {
+    const h = questions();
+    try {
+      const { conversationId } = await h.handle(true, "start", start) as { conversationId: string };
+      const answers = Object.fromEntries([0, 1, 2, 3].map(n => [`${n}`.padEnd(512, "q"), { selected: [0, 1, 2, 3, 4, 5, 6, 7], other: "x".repeat(4_096) }]));
+      expect(await h.handle(true, "answerQuestion", { conversationId, requestId: "r".repeat(512), outcome: "answered", answers })).toBeUndefined();
+    } finally { rmSync(h.dir, { recursive: true, force: true }); }
+  });
+  it("refuses another window's request", async () => {
+    const h = questions();
+    try { expect(await h.handle(false, "answerQuestion", { conversationId: "00000000-0000-4000-8000-000000000000", requestId: "q1", outcome: "skipped" })).toEqual({ error: "bad_request" }); }
+    finally { rmSync(h.dir, { recursive: true, force: true }); }
+  });
+});

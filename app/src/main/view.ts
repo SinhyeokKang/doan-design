@@ -8,7 +8,6 @@ import { latestChange } from "./latestChange";
 export interface CanvasRow {
   path: string;
   id?: string;
-  title?: string;
   // From `doan ls` as is; the app never re-reads the canvas meta.
   width?: number;
   // File mtime from main's stat; absent when the file vanished after `doan ls`.
@@ -76,12 +75,10 @@ export function canvasRows(canvases: readonly unknown[], baseUrl: string): Canva
     if (typeof canvas !== "object" || canvas === null) continue;
     const path: unknown = Reflect.get(canvas, "path");
     const id: unknown = Reflect.get(canvas, "id");
-    const title: unknown = Reflect.get(canvas, "title");
     const width: unknown = Reflect.get(canvas, "width");
     if (typeof path !== "string" || path === "") continue;
     const row: CanvasRow = { path, url: servingUrl(baseUrl, path) };
     if (typeof id === "string") row.id = id;
-    if (typeof title === "string") row.title = title;
     if (typeof width === "number" && Number.isSafeInteger(width) && width > 0) row.width = width;
     const error: unknown = Reflect.get(canvas, "error");
     if (isRowError(error)) row.error = { code: error.code, message: error.message };

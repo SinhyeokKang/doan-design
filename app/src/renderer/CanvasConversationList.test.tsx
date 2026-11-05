@@ -20,7 +20,7 @@ const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
 });
 const row = (patch: Partial<CanvasRow> & { path: string }): CanvasRow => ({ url: `doan://${patch.path}`, width: 1280, ...patch });
 
-const billing = row({ path: ".doan/canvases/billing.html", id: "billing", title: "Billing" });
+const billing = row({ path: ".doan/canvases/billing.html", id: "billing" });
 const receipt = row({ path: ".doan/canvases/receipt.html" });
 const refunds = row({ path: ".doan/canvases/refunds.html" });
 const legacy = row({ path: ".doan/canvases/legacy.html", error: { code: "unreadable", message: "bad" } });
@@ -61,7 +61,7 @@ describe("canvas conversation list", () => {
   test("a row draws the provider logo, canvas name, status mark, short time and preview", () => {
     const b = item(html, "b");
     expect(b).toContain('alt="Codex"');
-    expect(b).toContain("<b>Billing</b>");
+    expect(b).toContain("<b>billing</b>");
     expect(b).toContain('aria-label="Needs your answer"');
     expect(b).toContain('<span aria-hidden="true">now</span><span class="sr-only">Just now</span>');
     expect(b).toContain('<span class="cv-preview">Needs your answer: Run doan check</span>');

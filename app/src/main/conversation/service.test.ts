@@ -7,6 +7,8 @@ import { HOME_GUIDANCE, PRESET_GUIDANCE } from "./prompt";
 import { ConversationService, resolveListedCanvas, type Runner, type OpenRunner, type Prepare, type QueueFiles } from "./service";
 import { DraftStore } from "./drafts";
 import type { Canvas, ConversationEvent } from "./types";
+import { storedAnswers } from "./transport";
+import { foldConversation } from "./state";
 const paths: string[] = []; afterEach(() => { vi.restoreAllMocks(); paths.splice(0).forEach(p => rmSync(p, { recursive: true, force: true })); });
 function fixture() {
   const dir = mkdtempSync(join(tmpdir(), "doan-service-")); paths.push(dir);
@@ -2144,5 +2146,102 @@ describe("delete", () => {
     (h.service as unknown as { live: Map<string, { holding?: object }> }).live.get(id)!.holding = {};
     expect(() => h.service.delete(id)).toThrow("busy");
     expect(h.store.list().map(m => m.conversationId)).toEqual([id]);
+  });
+});
+// agent-questions B3 and orch decision 3: a question waits in the turn as a permission request does.
+describe("agent questions", () => {
+  const question = (requestId: string) => ({ type: "question.request" as const, requestId, questions: [{ id: "0", header: "Color", question: "Which color?", options: [{ label: "Red" }], multiSelect: false, other: true }] });
+  const resolved = (requestId: string) => ({ type: "question.resolved" as const, requestId, outcome: "skipped" as const });
+  function asking(answer?: Runner["answerQuestion"]) {
+    const h = homeFixture();
+    h.open.mockImplementation(async input => {
+      const runner: Runner = { sessionId: input.sessionId ?? `s${h.runners.length + 1}`, send: vi.fn(async () => {}), answer: () => false, stop: vi.fn(async () => {}), close: vi.fn(async () => {}), ...(answer ? { answerQuestion: vi.fn(answer) } : {}) };
+      h.runners.push(runner); return runner;
+    });
+    return h;
+  }
+  it("shows a conversation waiting on a question as waiting, with the question as its preview", async () => {
+    const h = asking(); const id = (await h.service.start(homeRequest)).conversationId;
+    h.service.receive(id, question("q1"));
+    expect(h.service.list("/repo")[0]).toMatchObject({ phase: "waiting", preview: "Needs your answer: Which color?" });
+    expect(h.service.read(id).turn).toBe("waitingPermission");
+    h.service.receive(id, resolved("q1"));
+    expect(h.service.list("/repo")[0]!.phase).toBe("running");
+  });
+  it.each(["ok", "stale", "bad_request"] as const)("passes the answer to the runner and maps its %s", async result => {
+    const h = asking(() => result); const id = (await h.service.start(homeRequest)).conversationId;
+    h.service.receive(id, question("q1"));
+    const answer = { outcome: "answered" as const, answers: { "0": { selected: [0] } } };
+    if (result === "ok") h.service.answerQuestion(id, "q1", answer);
+    else expect(() => h.service.answerQuestion(id, "q1", answer)).toThrow(result);
+    expect(h.runners[0]!.answerQuestion).toHaveBeenCalledWith("q1", answer);
+  });
+  it("answers stale for a runner without questions, a conversation with no running turn and an unknown one", async () => {
+    const h = asking(); const id = (await h.service.start(homeRequest)).conversationId;
+    expect(() => h.service.answerQuestion(id, "q1", { outcome: "skipped" })).toThrow("stale");
+    h.service.receive(id, { type: "turn.done" }); h.open.mock.calls[0]![2]();
+    expect(() => h.service.answerQuestion(id, "q1", { outcome: "skipped" })).toThrow("stale");
+    expect(() => h.service.answerQuestion("00000000-0000-4000-8000-000000000000", "q1", { outcome: "skipped" })).toThrow();
+  });
+  it("lets another project conversation start while one waits on a question, and not once it has its answer", async () => {
+    const h = asking(); const a = (await h.service.start(homeRequest)).conversationId;
+    await expect(h.service.start(homeRequest)).rejects.toThrow("project_busy");
+    h.service.receive(a, question("r"));
+    const b = (await h.service.start(homeRequest)).conversationId;
+    h.service.receive(b, { type: "turn.done" }); h.service.refreshed("/repo", []); h.passBindingWindow();
+    // A permission resolution with the same id answers no question.
+    h.service.receive(a, { type: "permission.resolved", requestId: "r", optionId: "allow" });
+    await h.service.start(homeRequest).then(started => h.service.receive(started.conversationId, { type: "turn.done" }));
+    h.service.refreshed("/repo", []); h.passBindingWindow();
+    h.service.receive(a, resolved("r"));
+    await expect(h.service.start(homeRequest)).rejects.toThrow("project_busy");
+    expect(b).not.toBe(a);
+  });
+  it("keeps waiting while a question and a permission are open together, until both are answered", async () => {
+    const h = asking(); const a = (await h.service.start(homeRequest)).conversationId;
+    h.service.receive(a, question("r1")); h.service.receive(a, { type: "permission.request", requestId: "r2", tool: "Write", summary: "Write a.html", options: [{ id: "allow", label: "Allow", kind: "allow" }] });
+    h.service.receive(a, { type: "permission.resolved", requestId: "r2", optionId: "allow" });
+    const b = (await h.service.start(homeRequest)).conversationId;
+    h.service.receive(b, { type: "turn.done" }); h.service.refreshed("/repo", []); h.passBindingWindow();
+    h.service.receive(a, resolved("r1"));
+    await expect(h.service.start(homeRequest)).rejects.toThrow("project_busy");
+  });
+  // POSTMORTEM 2026-10-28: a send the moment the answered turn ends is taken, not refused as busy.
+  it("takes a send right at turn.done after a question was answered", async () => {
+    const h = asking(() => "ok"); const id = (await h.service.start({ ...homeRequest, mode: "new", canvas: { path: ".doan/canvases/a.html" } })).conversationId;
+    h.service.receive(id, question("q1"));
+    h.service.answerQuestion(id, "q1", { outcome: "skipped" }); h.service.receive(id, resolved("q1"));
+    h.service.receive(id, { type: "turn.done" });
+    const sending = h.service.send(id, "next", []); h.open.mock.calls[0]![2]();
+    await sending;
+    expect(h.store.read(id).filter(e => e.type === "user.message")).toHaveLength(2);
+  });
+  // The runner's own expiry (runners.test.ts 'expires a waiting question once on close') comes after the archive and
+  // is dropped; the history's archive marker expires the question, once.
+  it("closes the runner of a conversation replaced while it waits on a question, and folds the question expired once", async () => {
+    const h = asking(); const canvas = { path: ".doan/canvases/a.html", id: "a" }; h.listed.push(canvas);
+    const first = (await h.service.start({ ...homeRequest, mode: "new", canvas })).conversationId;
+    const emit = h.open.mock.calls[0]![1];
+    vi.mocked(h.runners[0]!.close).mockImplementation(async () => { emit({ type: "question.resolved", requestId: "q1", outcome: "expired" }); });
+    h.service.receive(first, question("q1"));
+    await h.service.start({ ...homeRequest, mode: "new", canvas });
+    expect(h.runners[0]!.close).toHaveBeenCalledOnce();
+    const history = h.store.read(first);
+    expect(history.filter(e => e.type === "question.resolved")).toEqual([]);
+    expect(history.map(e => e.type).slice(-2)).toEqual(["interrupted", "conversation.archived"]);
+    expect(foldConversation(history, first).questions).toEqual({ q1: "expired" });
+  });
+  // Synthetic secret sentinel: Claude questions are never secret, so the history write path is fed a secret question
+  // through storedAnswers, the one place a runner turns an answer into what the history keeps.
+  it("writes no secret answer text to the history file or later events", async () => {
+    const h = asking(); const id = (await h.service.start(homeRequest)).conversationId;
+    const secret = { type: "question.request" as const, requestId: "q1", questions: [{ id: "pin", header: "PIN", question: "Your PIN?", options: [], multiSelect: false, other: true, secret: true as const }] };
+    h.service.receive(id, secret);
+    const answers = storedAnswers(secret.questions, { outcome: "answered", answers: { pin: { selected: [], other: "SYNTH_SECRET_PIN" } } });
+    h.service.receive(id, { type: "question.resolved", requestId: "q1", outcome: "answered", answers });
+    h.service.receive(id, { type: "turn.done" });
+    expect(readFileSync(join(h.dir, "conversations", `${id}.jsonl`), "utf8")).not.toContain("SYNTH_SECRET_PIN");
+    expect(JSON.stringify(h.published)).not.toContain("SYNTH_SECRET_PIN");
+    expect(h.store.read(id).find(e => e.type === "question.resolved")).toMatchObject({ outcome: "answered", answers: {} });
   });
 });

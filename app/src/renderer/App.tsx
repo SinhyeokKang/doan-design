@@ -495,6 +495,10 @@ export function App() {
       if (homeRun.current.takeFocus() === "composer") { const field = document.querySelector<HTMLElement>(".workspace .ov-main .composer-input"); if (field) { field.focus(); return; } }
       // A worktree picked from the Overview's branch chip lands on the new Overview's chip (design §2.5).
       if (chipFocus.current) { chipFocus.current = false; const chip = document.querySelector<HTMLElement>(".workspace .ov-main .wt-chip"); if (chip) { chip.focus(); return; } }
+      // An entry to a waiting request focused its card in the same commit; child effects run first, so this default
+      // would otherwise take the focus to the sidebar row right after (agent-questions spec 7).
+      const active = document.activeElement;
+      if (active instanceof HTMLElement && active.isConnected && active.closest(".workspace .conversation-thread")) return;
       const previous = workspaceFocus.current;
       (previous?.isConnected && previous.closest(".workspace") ? previous : document.querySelector<HTMLElement>('.side [role="treeitem"][tabindex="0"]'))?.focus();
     }

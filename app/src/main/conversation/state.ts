@@ -1,4 +1,5 @@
 import { sameCanvas } from "./sessions";
+import type { QuestionOutcome } from "./question";
 import type { Canvas, ConversationBinding, ConversationEvent, TurnState } from "./types";
 export type TurnAction = "send" | "output" | "permission" | "resolved" | "done" | "exit" | "interrupt";
 export function turnState(state: TurnState, action: TurnAction): { state: TurnState; error?: "busy" } {
@@ -25,13 +26,20 @@ export interface FoldedConversation {
   turn: TurnState; turnId: string | null; archived: boolean; lastSeq: number;
   interruption: "user" | "appQuit" | "crashed" | null;
   permissions: Record<string, string>;
+  questions: Record<string, "pending" | QuestionOutcome>;
   messages: { id: string; text: string; done: boolean }[];
 }
 export function foldConversation(input: readonly ConversationEvent[], conversationId: string, restarting = true): FoldedConversation {
-  const state: FoldedConversation = { turn: "idle", turnId: null, archived: false, lastSeq: 0, interruption: null, permissions: {}, messages: [] };
-  const pending = new Set<string>();
+  const state: FoldedConversation = { turn: "idle", turnId: null, archived: false, lastSeq: 0, interruption: null, permissions: {}, questions: {}, messages: [] };
+  // Keyed by kind and id: a resolution settles only a request of its own kind, so a permission.resolved never answers a
+  // question that shares its id.
+  const pending = new Map<string, { kind: "permission" | "question"; id: string }>();
+  const key = (kind: "permission" | "question", id: string) => `${kind}:${id}`;
   let terminal = false;
-  const expire = () => { for (const id of pending) state.permissions[id] = "expired"; pending.clear(); };
+  const expire = () => {
+    for (const { kind, id } of pending.values()) (kind === "permission" ? state.permissions : state.questions)[id] = "expired";
+    pending.clear();
+  };
   for (const event of mergeEvents(input, [], conversationId)) {
     state.lastSeq = event.seq;
     if (event.type === "conversation.archived") { state.archived = true; expire(); continue; }
@@ -52,9 +60,18 @@ export function foldConversation(input: readonly ConversationEvent[], conversati
         break;
       }
       case "activity": state.turn = turnState(state.turn, "output").state; break;
-      case "permission.request": pending.add(event.requestId); state.permissions[event.requestId] = "pending"; state.turn = "waitingPermission"; break;
+      case "permission.request":
+        pending.set(key("permission", event.requestId), { kind: "permission", id: event.requestId }); state.permissions[event.requestId] = "pending"; state.turn = "waitingPermission";
+        break;
+      case "question.request":
+        pending.set(key("question", event.requestId), { kind: "question", id: event.requestId }); state.questions[event.requestId] = "pending"; state.turn = "waitingPermission";
+        break;
       case "permission.resolved":
-        if (pending.delete(event.requestId)) state.permissions[event.requestId] = event.optionId;
+        if (pending.delete(key("permission", event.requestId))) state.permissions[event.requestId] = event.optionId;
+        if (!pending.size) state.turn = turnState(state.turn, "resolved").state;
+        break;
+      case "question.resolved":
+        if (pending.delete(key("question", event.requestId))) state.questions[event.requestId] = event.outcome;
         if (!pending.size) state.turn = turnState(state.turn, "resolved").state;
         break;
       case "turn.done": state.turn = "idle"; terminal = true; expire(); break;

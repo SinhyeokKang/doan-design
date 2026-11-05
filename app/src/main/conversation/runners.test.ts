@@ -1,4 +1,4 @@
-import { expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { existsSync, mkdtempSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -1114,3 +1114,187 @@ it("a Stop of an unanswered turn/start interrupts nothing when the turn complete
     expect(exited).not.toHaveBeenCalled();
   } finally { await runner.close(); h.cleanup(); }
 }, 15000);
+// agent-questions B1: Claude's AskUserQuestion reaches canUseTool (P1, every mode); the runner holds it apart from
+// permissions and answers it exactly once. The fake CLI sends can_use_tool control requests the real SDK answers.
+function askClaude(root: string): string {
+  const command = join(root, "claude");
+  writeFileSync(command, `#!/usr/bin/env node
+const fs = require('node:fs'); const readline = require('node:readline');
+const seen = ${JSON.stringify(join(root, "seen"))}; const log = v => fs.appendFileSync(seen, JSON.stringify(v) + '\\n');
+const send = v => process.stdout.write(JSON.stringify(v) + '\\n');
+const mode = process.env.FAKE_ASK; const open = new Set(), steered = []; let n = 0, session = 's', finished = false;
+const color = { questions: [{ question: 'Which color do you prefer?', header: 'Color', multiSelect: false, options: [{ label: 'Red', description: 'Warm' }, { label: 'Blue', description: 'Cool' }] }] };
+const size = { questions: [{ question: 'Which size?', header: 'Size', multiSelect: true, options: [{ label: 'S', description: '' }, { label: 'M', description: '' }] }] };
+const ask = (tool, input) => { const id = 'req-' + (++n); open.add(id); send({ type: 'control_request', request_id: id, request: { subtype: 'can_use_tool', tool_name: tool, input, tool_use_id: 'tu-' + n } }); };
+// A message steered while the question waited is read after the answer (P1), echoed as the CLI does after a tool result.
+const finish = () => { if (finished) return; finished = true; if (steered.length) send({ type: 'system', subtype: 'status', session_id: session, user_message_uuids: steered }); send({ type: 'assistant', parent_tool_use_id: null, session_id: session, message: { id: 'm', role: 'assistant', content: [{ type: 'text', text: 'went on' }] } }); send({ type: 'result', subtype: 'success', is_error: false, result: 'went on', session_id: session }); if (mode === 'afterend') ask('AskUserQuestion', size); };
+const input = readline.createInterface({ input: process.stdin });
+input.on('line', line => {
+  const r = JSON.parse(line);
+  if (r.type === 'control_request') { send({ type: 'control_response', response: { subtype: 'success', request_id: r.request_id, response: { commands: [], models: [], account: {} } } }); return; }
+  if (r.type === 'control_response') { log({ answered: r.response.request_id, response: r.response.response }); open.delete(r.response.request_id); if (!open.size && mode !== 'hold') finish(); return; }
+  if (r.type !== 'user') return;
+  log({ user: r.message.content });
+  if (n) { if (r.uuid) steered.push(r.uuid); return; }
+  session = r.session_id;
+  send({ type: 'system', subtype: 'init', session_id: session, capabilities: mode === 'nocap' ? ['interrupt_receipt_v1'] : ['ask_user_question_unanswered_v1'], tools: ['AskUserQuestion'] });
+  if (mode === 'bad') ask('AskUserQuestion', { questions: [] });
+  else if (mode === 'both') { ask('AskUserQuestion', color); ask('AskUserQuestion', size); ask('Write', { file_path: '/repo/a.html' }); }
+  else ask('AskUserQuestion', color);
+});
+// A question sent while the runner stops: whatever answer comes back is recorded.
+process.on('SIGTERM', () => { ask('AskUserQuestion', size); setTimeout(() => process.exit(0), 300); });
+input.on('close', () => setTimeout(() => process.exit(0), mode === 'afterend' ? 500 : 20));
+`, { mode: 0o700 });
+  return command;
+}
+type AskRunner = Awaited<ReturnType<typeof openRunner>>;
+async function claudeAskRun(mode: string, body: (h: { runner: AskRunner; events: EventPayload[]; answers: () => { answered: string; response: Record<string, unknown> }[]; users: () => unknown[] }) => Promise<void>, owner = false) {
+  const root = mkdtempSync(join(tmpdir(), "doan-claude-ask-")), command = askClaude(root), events: EventPayload[] = [];
+  const doan = owner ? { owner: { kind: "doan" as const, provider: "claude" as const, connectionId: "c1", accountId: "a1", workspaceId: "org-1", profile: "claude" } } : {};
+  const runner = await openRunner({ command, runtime: "claude", cwd: root, configDir: root, env: { PATH: process.env.PATH, HOME: root, CLAUDE_CONFIG_DIR: root, FAKE_ASK: mode }, ...doan }, e => events.push(e), () => {}, () => {});
+  const lines = () => existsSync(join(root, "seen")) ? readFileSync(join(root, "seen"), "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line) as Record<string, unknown>) : [];
+  try { await body({ runner, events, answers: () => lines().filter(l => "answered" in l) as never, users: () => lines().filter(l => "user" in l).map(l => l.user) }); }
+  finally { await runner.close(); rmSync(root, { recursive: true, force: true }); }
+}
+const asked = (events: EventPayload[]) => events.filter((e): e is Extract<EventPayload, { type: "question.request" }> => e.type === "question.request");
+describe("Claude runner questions", () => {
+  it.each([false, true])("shows the question, sends the chosen label keyed by its text and goes on in the same turn (doan owner: %s)", async owner => {
+    await claudeAskRun("one", async ({ runner, events, answers }) => {
+      const sending = runner.send("hello", "turn-1");
+      await vi.waitFor(() => expect(asked(events)).toHaveLength(1));
+      const [request] = asked(events);
+      expect(request!.questions).toEqual([{ id: "0", header: "Color", question: "Which color do you prefer?", multiSelect: false, other: true, options: [{ label: "Red", description: "Warm" }, { label: "Blue", description: "Cool" }] }]);
+      expect(events.some(e => e.type === "permission.request" || e.type === "activity")).toBe(false);
+      expect(runner.answerQuestion!(request!.requestId, { outcome: "answered", answers: { "0": { selected: [1] } } })).toBe("ok");
+      await sending;
+      expect(answers()).toEqual([{ answered: "req-1", response: expect.objectContaining({ behavior: "allow", updatedInput: expect.objectContaining({ answers: { "Which color do you prefer?": "Blue" } }) }) }]);
+      expect(events.slice(1)).toEqual([{ type: "question.resolved", requestId: request!.requestId, outcome: "answered", answers: { "0": { selected: ["Blue"] } } }, { type: "message.done", messageId: "m", text: "went on" }, { type: "turn.done" }]);
+      expect(runner.answerQuestion!(request!.requestId, { outcome: "answered", answers: { "0": { selected: [0] } } })).toBe("stale");
+      expect(answers()).toHaveLength(1);
+    }, owner);
+  }, 15000);
+  it.each([
+    ["one", { answers: {}, annotations: { "Which color do you prefer?": { unanswered: "skipped" } } }],
+    ["nocap", undefined],
+  ])("skips in the shape the session takes (%s)", async (mode, allowed) => {
+    await claudeAskRun(mode, async ({ runner, events, answers }) => {
+      const sending = runner.send("hello", "turn-1");
+      await vi.waitFor(() => expect(asked(events)).toHaveLength(1));
+      expect(runner.answerQuestion!(asked(events)[0]!.requestId, { outcome: "skipped" })).toBe("ok");
+      await sending;
+      const response = answers()[0]!.response;
+      if (allowed) expect(response).toMatchObject({ behavior: "allow", updatedInput: allowed });
+      else expect(response).toMatchObject({ behavior: "deny", message: "The person skipped the question." });
+      expect(events).toContainEqual({ type: "question.resolved", requestId: asked(events)[0]!.requestId, outcome: "skipped" });
+      expect(events.at(-1)).toEqual({ type: "turn.done" });
+    });
+  }, 15000);
+  it("refuses an answer that does not fit the question and keeps it waiting, and never answers it as a permission", async () => {
+    await claudeAskRun("one", async ({ runner, events, answers }) => {
+      const sending = runner.send("hello", "turn-1");
+      await vi.waitFor(() => expect(asked(events)).toHaveLength(1));
+      const id = asked(events)[0]!.requestId;
+      expect(runner.answerQuestion!(id, { outcome: "answered", answers: { "0": { selected: [2] } } })).toBe("bad_request");
+      expect(runner.answerQuestion!(id, { outcome: "answered", answers: { "0": { selected: [0, 1] } } })).toBe("bad_request");
+      expect(runner.answer(id, "allow")).toBe(false);
+      expect(runner.answerQuestion!("unknown", { outcome: "skipped" })).toBe("stale");
+      await new Promise(resolve => setTimeout(resolve, 100));
+      expect(answers()).toEqual([]);
+      expect(runner.answerQuestion!(id, { outcome: "answered", answers: { "0": { selected: [], other: "Green" } } })).toBe("ok");
+      await sending;
+      expect(answers()[0]!.response).toMatchObject({ updatedInput: { answers: { "Which color do you prefer?": "Green" } } });
+    });
+  }, 15000);
+  it("answers two questions and a permission waiting together, each on its own", async () => {
+    await claudeAskRun("both", async ({ runner, events, answers }) => {
+      const sending = runner.send("hello", "turn-1");
+      await vi.waitFor(() => expect(asked(events)).toHaveLength(2));
+      await vi.waitFor(() => expect(events.some(e => e.type === "permission.request")).toBe(true));
+      const [color, size] = asked(events), permission = events.find(e => e.type === "permission.request") as Extract<EventPayload, { type: "permission.request" }>;
+      // Neither kind answers the other's request.
+      expect(runner.answerQuestion!(permission.requestId, { outcome: "skipped" })).toBe("stale");
+      expect(runner.answerQuestion!(size!.requestId, { outcome: "answered", answers: { "0": { selected: [0, 1] } } })).toBe("ok");
+      expect(runner.answer(permission.requestId, "allow")).toBe(true);
+      expect(runner.answerQuestion!(color!.requestId, { outcome: "skipped" })).toBe("ok");
+      await sending;
+      expect(answers().map(a => a.answered)).toEqual(["req-2", "req-3", "req-1"]);
+      expect(answers()[0]!.response).toMatchObject({ updatedInput: { answers: { "Which size?": "S, M" } } });
+      expect(answers()[1]!.response).toMatchObject({ behavior: "allow", updatedInput: { file_path: "/repo/a.html" } });
+    });
+  }, 15000);
+  it("denies an unreadable question at once, asking the agent to put it in its reply, with no card", async () => {
+    await claudeAskRun("bad", async ({ runner, events, answers }) => {
+      await runner.send("hello", "turn-1");
+      expect(answers()).toEqual([{ answered: "req-1", response: expect.objectContaining({ behavior: "deny", message: expect.stringMatching(/reply/) }) }]);
+      expect(events).toEqual([{ type: "message.done", messageId: "m", text: "went on" }, { type: "turn.done" }]);
+    });
+  }, 15000);
+  it("keeps a message steered while a question waits apart from its answer", async () => {
+    await claudeAskRun("one", async ({ runner, events, answers, users }) => {
+      const sending = runner.send("hello", "turn-1");
+      await vi.waitFor(() => expect(asked(events)).toHaveLength(1));
+      await runner.steer!("Also make it round", "turn-1", "6190301c-24ce-42a9-8a51-ad4fdf91835e");
+      await vi.waitFor(() => expect(users()).toEqual(["hello", "Also make it round"]));
+      await new Promise(resolve => setTimeout(resolve, 100));
+      expect(answers()).toEqual([]);
+      expect(asked(events)).toHaveLength(1);
+      expect(runner.answerQuestion!(asked(events)[0]!.requestId, { outcome: "answered", answers: { "0": { selected: [0] } } })).toBe("ok");
+      await sending;
+      expect(answers()[0]!.response).toMatchObject({ updatedInput: { answers: { "Which color do you prefer?": "Red" } } });
+    });
+  }, 15000);
+  it("denies a question the CLI sends after the turn ended, with no card", async () => {
+    await claudeAskRun("afterend", async ({ runner, events, answers }) => {
+      const sending = runner.send("hello", "turn-1");
+      await vi.waitFor(() => expect(asked(events)).toHaveLength(1));
+      expect(runner.answerQuestion!(asked(events)[0]!.requestId, { outcome: "skipped" })).toBe("ok");
+      await sending;
+      // The runner refuses it before any card; the group may stop before the denial reaches the CLI.
+      await new Promise(resolve => setTimeout(resolve, 200));
+      expect(asked(events)).toHaveLength(1);
+      for (const reply of answers().slice(1)) expect(reply).toEqual({ answered: "req-2", response: expect.objectContaining({ behavior: "deny", message: "Request expired." }) });
+      expect(events.at(-1)).toEqual({ type: "turn.done" });
+    });
+  }, 15000);
+  // The SDK writes nothing once aborted and the CLI is stopped with it, so the expiry need not reach the CLI.
+  it.each(["stop", "close"] as const)("expires a waiting question once on %s and never shows one asked after it", async how => {
+    await claudeAskRun("hold", async ({ runner, events, answers }) => {
+      const sending = runner.send("hello", "turn-1").catch(() => {});
+      await vi.waitFor(() => expect(asked(events)).toHaveLength(1));
+      const id = asked(events)[0]!.requestId;
+      await runner[how]();
+      await sending;
+      expect(events.filter(e => e.type === "question.resolved")).toEqual([{ type: "question.resolved", requestId: id, outcome: "expired" }]);
+      expect(asked(events)).toHaveLength(1);
+      expect(runner.answerQuestion!(id, { outcome: "skipped" })).toBe("stale");
+      // The CLI asks again as it is stopped (SIGTERM); any answer that reaches it is a denial.
+      for (const reply of answers()) expect(reply.response).toMatchObject({ behavior: "deny" });
+    });
+  }, 15000);
+});
+// agent-questions B2: a requestUserInput in the same chunk as the turn/start reply waits in the queue like any server
+// request (POSTMORTEM 2026-10-27 'Protocol readiness'), then gets its one empty answer, and the turn goes on.
+it("answers a Codex question arriving with the turn/start reply once with no answers, and the turn completes", async () => {
+  const root = mkdtempSync(join(tmpdir(), "doan-codex-ask-")), command = join(root, "codex"), seen = join(root, "seen");
+  writeFileSync(command, `#!/usr/bin/env node
+const fs = require('node:fs'); const readline = require('node:readline');
+const send = value => process.stdout.write(JSON.stringify(value)+'\\n');
+readline.createInterface({input:process.stdin}).on('line', line => {
+ const r = JSON.parse(line);
+ if(!r.method) { fs.appendFileSync(${JSON.stringify(seen)}, line + '\\n'); if(r.id==='ask-1') send({method:'turn/completed',params:{threadId:'session',turn:{id:'native-turn',status:'completed'}}}); return; }
+ if(r.method==='initialize') send({id:r.id,result:{}});
+ if(r.method==='thread/start') send({id:r.id,result:{thread:{id:'session'},approvalPolicy:'on-request',sandbox:{type:'readOnly'}}});
+ if(r.method==='config/read') send({id:r.id,result:{config:{}}});
+ if(r.method==='turn/start') process.stdout.write(JSON.stringify({id:r.id,result:{turn:{id:'native-turn'}}})+'\\n'+JSON.stringify({id:'ask-1',method:'item/tool/requestUserInput',params:{threadId:'session',turnId:'native-turn',itemId:'i',isBlocking:true,questions:[{id:'q',header:'H',question:'Which?',isOther:true,isSecret:false,options:null}]}})+'\\n');
+});
+`, { mode: 0o700 });
+  const events: EventPayload[] = [];
+  const runner = await openRunner({ command, runtime: "codex", cwd: root, configDir: root, env: process.env }, e => events.push(e), () => {}, () => {});
+  try {
+    await runner.send("hello", "local-turn");
+    await vi.waitFor(() => expect(events).toContainEqual({ type: "turn.done" }));
+    expect(readFileSync(seen, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line))).toEqual([{ id: "ask-1", result: { answers: {} } }]);
+    expect(events.filter(e => e.type === "turn.failed" || e.type.startsWith("question.") || e.type.startsWith("permission."))).toEqual([]);
+  } finally { await runner.close(); rmSync(root, { recursive: true, force: true }); }
+});

@@ -1,4 +1,4 @@
-import { foldConversation } from "./state";
+import { foldConversation, type FoldedConversation } from "./state";
 import type { ConversationMetadata } from "./store";
 import type { Provider } from "../agentAuth/types";
 import type { PermissionModeId } from "./permissionMode";
@@ -8,7 +8,7 @@ export interface ConversationSummary {
   conversationId: string; canvas?: Canvas; title: string; state: "current" | "archived";
   // permissionMode: the conversation's chosen mode, absent for Default; it also changes after a Claude plan approval.
   owner: "doan" | "legacy-external"; provider: Provider; model?: string; effort?: string; permissionMode?: PermissionModeId; fromHome: boolean;
-  // waiting: an unanswered permission request. ended also covers a turn a restart folded as crashed.
+  // waiting: an unanswered permission request or question. ended also covers a turn a restart folded as crashed.
   phase: "running" | "waiting" | "ended"; unseen: boolean; queued: number; lastActivityAt: string; preview: string;
   // main is still working on it, whatever the history says: preparing, running or waiting for an answer, a project turn
   // waiting for its judgement, a queue about to go out, or a send waiting for the previous process. A project
@@ -36,12 +36,15 @@ export function conversationSummary(m: ConversationMetadata, read: { ok: true; e
   // Markers of binding, archiving and restoring are not something to see: they would mark a seen end unseen again.
   const lastTurnSeq = [...events].reverse().find(e => !e.type.startsWith("conversation."))?.seq ?? 0;
   const unseen = phase === "ended" && m.state === "current" && m.seenSeq !== undefined && lastTurnSeq > m.seenSeq;
-  return { ...base, phase, unseen, lastActivityAt: events.at(-1)?.at ?? "", preview: preview(events, phase, folded.permissions, folded.turnId, folded.messages) };
+  return { ...base, phase, unseen, lastActivityAt: events.at(-1)?.at ?? "", preview: preview(events, phase, folded, folded.turnId, folded.messages) };
 }
-function preview(events: readonly ConversationEvent[], phase: ConversationSummary["phase"], permissions: Record<string, string>, turnId: string | null, messages: { text: string }[]): string {
+function preview(events: readonly ConversationEvent[], phase: ConversationSummary["phase"], open: Pick<FoldedConversation, "permissions" | "questions">, turnId: string | null, messages: { text: string }[]): string {
   if (phase === "waiting") {
-    const pending = [...events].reverse().find(e => e.type === "permission.request" && permissions[e.requestId] === "pending");
+    // The newest unanswered request, whatever its kind; a question reads as its first question.
+    const pending = [...events].reverse().find(e => (e.type === "permission.request" && open.permissions[e.requestId] === "pending") ||
+      (e.type === "question.request" && open.questions[e.requestId] === "pending"));
     if (pending?.type === "permission.request") return cap(`Needs your answer: ${pending.summary}`);
+    if (pending?.type === "question.request") return cap(`Needs your answer: ${pending.questions[0]!.question}`);
   }
   if (phase === "running") {
     const activity = [...events].reverse().find(e => e.turnId === turnId && e.type === "activity");

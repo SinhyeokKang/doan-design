@@ -62,6 +62,59 @@ describe("conversation disk boundaries", () => {
       expect(() => store.read("c")).toThrow("Invalid conversation event");
     }
   });
+  describe("question lines", () => {
+    const q = { id: "0", header: "Color", question: "Which color?", options: [{ label: "Red" }, { label: "Blue", description: "Calm" }], multiSelect: false, other: true };
+    const request = (questions: unknown[], extra: Record<string, unknown> = {}) => ({ type: "question.request", requestId: "q", questions, ...extra });
+    const lines = (body: Record<string, unknown>) => {
+      const root = temp(); const store = new ConversationStore(root);
+      const line = (seq: number, b: Record<string, unknown>) => JSON.stringify({ v: 1, conversationId: "c", seq, turnId: "t", at: "2026-11-05T00:00:00.000Z", ...b }) + "\n";
+      writeFileSync(join(root, "conversations", "c.jsonl"), line(1, { type: "turn.started" }) + line(2, body));
+      return () => store.read("c");
+    };
+    const reads = (body: Record<string, unknown>) => expect(lines(body)().map(e => e.type)).toEqual(["turn.started", body.type]);
+    const refuses = (body: Record<string, unknown>) => expect(lines(body)).toThrow("Invalid conversation event");
+    it("reads a request at its limits and appends one", () => {
+      const label = "l".repeat(512), text = "t".repeat(4_096);
+      const full = { id: "x".repeat(512), header: label, question: text, options: Array.from({ length: 8 }, (_, i) => ({ label: `${i}${label.slice(1)}`, description: label })), multiSelect: true, other: false, secret: true };
+      reads(request([full, { ...q, id: "1" }, { ...q, id: "2" }, { ...q, id: "3" }]));
+      reads(request([{ ...q, header: "", options: [] }]));
+      const root = temp(); const store = new ConversationStore(root);
+      store.save([{ conversationId: "c", root: "/repo", title: "T", state: "current", owner: { kind: "legacy-external" }, session: { runtime: "claude", origin: "new", sessionId: "s", cwd: "/repo", configDir: "/profile" } }]);
+      store.append("c", "t", { type: "turn.started" });
+      expect(store.append("c", "t", { type: "question.request", requestId: "q", questions: [q] }).seq).toBe(2);
+      expect(store.append("c", "t", { type: "question.resolved", requestId: "q", outcome: "answered", answers: { "0": { selected: ["Red"], other: "and blue" } } }).seq).toBe(3);
+      expect(store.read("c").map(e => e.type)).toEqual(["turn.started", "question.request", "question.resolved"]);
+    });
+    it("ignores fields it does not know, as on the other event types", () => {
+      reads(request([{ ...q, preview: "later" }], { later: 1 }));
+      reads({ type: "question.resolved", requestId: "q", outcome: "skipped", note: "later" });
+    });
+    it("refuses requests past a limit or with a shape it cannot answer", () => {
+      const over = (field: string, n: number) => request([{ ...q, [field]: "x".repeat(n) }]);
+      for (const bad of [
+        request([]), request([q, { ...q, id: "1" }, { ...q, id: "2" }, { ...q, id: "3" }, { ...q, id: "4" }]),
+        over("header", 513), over("question", 4_097), over("id", 513), request([{ ...q, question: "" }]), request([{ ...q, id: "" }]),
+        request([{ ...q, options: Array.from({ length: 9 }, (_, i) => ({ label: String(i) })) }]),
+        request([{ ...q, options: [{ label: "x".repeat(513) }] }]), request([{ ...q, options: [{ label: "Red", description: "x".repeat(513) }] }]), request([{ ...q, options: [{ label: "" }] }]),
+        request([{ ...q, options: [], other: false }]), request([q, q]), request([{ ...q, multiSelect: "no" }]), request([{ ...q, other: undefined }]), request([{ ...q, secret: false }]),
+        request("q" as never), { type: "question.request", questions: [q] },
+      ]) refuses(bad);
+    });
+    it("reads each outcome and refuses answers outside an answered one or of the wrong shape", () => {
+      reads({ type: "question.resolved", requestId: "q", outcome: "answered", answers: { "0": { selected: ["Red", "Blue"] }, "1": { selected: [], other: "x".repeat(4_096) } } });
+      reads({ type: "question.resolved", requestId: "q", outcome: "answered", answers: {} });
+      reads({ type: "question.resolved", requestId: "q", outcome: "expired" });
+      for (const bad of [
+        { type: "question.resolved", requestId: "q", outcome: "declined" }, { type: "question.resolved", outcome: "skipped" },
+        { type: "question.resolved", requestId: "q", outcome: "skipped", answers: {} },
+        { type: "question.resolved", requestId: "q", outcome: "answered", answers: { "0": { selected: "Red" } } },
+        { type: "question.resolved", requestId: "q", outcome: "answered", answers: { "0": { selected: ["x".repeat(513)] } } },
+        { type: "question.resolved", requestId: "q", outcome: "answered", answers: { "0": { selected: [], other: "x".repeat(4_097) } } },
+        { type: "question.resolved", requestId: "q", outcome: "answered", answers: { "0": { selected: Array(9).fill("a") } } },
+        { type: "question.resolved", requestId: "q", outcome: "answered", answers: [] },
+      ]) refuses(bad);
+    });
+  });
   it("refuses missing and malformed Claude registries and compares UTC process identity", async () => {
     const config = temp(); const start = "Tue Oct 27 12:00:00 2026";
     const inspect = async (pid: number) => pid === 12 ? start : null;

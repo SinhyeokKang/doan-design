@@ -1,3 +1,4 @@
+import type { Question, QuestionOutcome, StoredAnswer } from "./question";
 export type Runtime = "claude" | "codex";
 export interface Canvas { path: string; id?: string }
 export interface SessionRecord {
@@ -27,6 +28,10 @@ export interface PermissionOption { id: string; label: string; kind: "allow" | "
 export interface PermissionRequest {
   type: "permission.request"; requestId: string; tool: string; summary: string; options: PermissionOption[];
 }
+// An agent's question to the person; it waits in the turn like a permission request.
+export interface QuestionRequest { type: "question.request"; requestId: string; questions: Question[] }
+// answers: only when answered, per question id; a secret question's answer is never kept.
+export interface QuestionResolved { type: "question.resolved"; requestId: string; outcome: QuestionOutcome; answers?: Record<string, StoredAnswer> }
 // A file the person attached by local path; doan sends the path, not the bytes.
 export interface AttachmentRecord { name: string; size: number; kind: "image" | "file"; path: string }
 export type EventPayload =
@@ -37,6 +42,8 @@ export type EventPayload =
   | { type: "activity"; kind: "edit" | "read" | "command" | "other"; path?: string; insideDesign?: boolean; summary: string }
   | PermissionRequest
   | { type: "permission.resolved"; requestId: string; optionId: string }
+  | QuestionRequest
+  | QuestionResolved
   | { type: "turn.done" }
   | { type: "turn.failed"; code: FailureCode; detail?: string }
   | { type: "interrupted"; reason: "user" | "appQuit" | "crashed" }
@@ -45,6 +52,7 @@ export type EventPayload =
   | { type: "conversation.bound"; canvas: Canvas }
   | { type: "conversation.restored" };
 export type ConversationEvent = EventPayload & { v: 1; conversationId: string; seq: number; turnId: string; at: string };
+// waitingPermission: waiting for the person's answer, to a permission request or a question.
 export type TurnState = "idle" | "starting" | "streaming" | "waitingPermission" | "failed" | "interrupted";
 export interface ConversationBinding {
   conversationId: string; root: string; canvas?: Canvas;

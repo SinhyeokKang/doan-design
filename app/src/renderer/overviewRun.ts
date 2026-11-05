@@ -6,7 +6,7 @@ import { PROVIDER_NAMES } from "./agentAuthView";
 import { ConversationStore, type ListView, type QueuedMessage, type Thread } from "./conversationStore";
 import type { DockedDraft } from "./dockedRules";
 import { overviewAfterListChange, pickOverviewConversation, type DraftMove } from "./overviewConversation";
-import type { SendingMessage, ThreadItem } from "./threadItems";
+import { waitsForPerson, type SendingMessage, type ThreadItem } from "./threadItems";
 
 export { draftFrom, type ListView, type QueuedMessage, type Thread } from "./conversationStore";
 
@@ -70,10 +70,10 @@ export function endSeq(events: readonly ConversationEvent[], live: boolean): num
   return TERMINAL.has(last.type) || !live ? last.seq : null;
 }
 
-// Where a requested scroll goes once the thread draws: the pending permission request; wait while the list says the
+// Where a requested scroll goes once the thread draws: the newest pending permission request or question; wait while the list says the
 // conversation waits but its event has not arrived; otherwise the request has nothing left to show.
 export function scrollTarget(items: readonly ThreadItem[], waiting: boolean): { kind: "item"; key: string } | { kind: "wait" } | { kind: "drop" } {
-  const ask = [...items].reverse().find(item => item.kind === "permission" && item.status === "pending");
+  const ask = [...items].reverse().find(waitsForPerson);
   if (ask) return { kind: "item", key: ask.key };
   return waiting ? { kind: "wait" } : { kind: "drop" };
 }

@@ -22,21 +22,24 @@ const TITLES: Record<NotificationKind, string> = { approval: "needs your approva
 const SWITCH: Record<NotificationKind, keyof NotificationPreferences> = { approval: "approval", finished: "finished", failed: "failed" };
 
 // A turn the person stopped is `interrupted`, never `turn.failed`, so it never notifies. The permission summary is
-// left out until PRODUCT §6 settles its format.
+// left out until PRODUCT §6 settles its format, and so is a question's sentence. A question follows the Approval
+// requests switch but says it needs an answer, as the thread and the sidebar do (agent-questions design §6).
 export function notificationFor(event: ConversationEvent, preferences: NotificationPreferences, visibility: WindowVisibility, names: ConversationNames | null): PlannedNotification | null {
-  const kind: NotificationKind | null = event.type === "permission.request" ? "approval" : event.type === "turn.done" ? "finished" : event.type === "turn.failed" ? "failed" : null;
+  const asks = event.type === "permission.request" || event.type === "question.request";
+  const kind: NotificationKind | null = asks ? "approval" : event.type === "turn.done" ? "finished" : event.type === "turn.failed" ? "failed" : null;
   if (kind === null || names === null || !preferences.enabled || !preferences[SWITCH[kind]]) return null;
   if (visibility.focused && visibility.shown && !visibility.minimized && !visibility.appHidden) return null;
   return {
-    kind, title: `${names.provider} ${TITLES[kind]}`, body: names.branch === null ? names.project : `${names.project} · ${names.branch}`,
+    kind, title: `${names.provider} ${event.type === "question.request" ? "needs your answer" : TITLES[kind]}`, body: names.branch === null ? names.project : `${names.project} · ${names.branch}`,
     target: { conversationId: event.conversationId, root: names.root },
-    ...(event.type === "permission.request" ? { requestId: event.requestId } : {}),
+    ...(asks ? { requestId: event.requestId } : {}),
   };
 }
 
-// An approval notification goes when its request is answered, here or by the agent.
+// An approval notification goes when its request is answered, here or by the agent; a question's when it is answered,
+// skipped or expired.
 export function closesNotification(event: ConversationEvent, shown: { kind: NotificationKind; requestId?: string }): boolean {
-  return shown.kind === "approval" && event.type === "permission.resolved" && event.requestId === shown.requestId;
+  return shown.kind === "approval" && (event.type === "permission.resolved" || event.type === "question.resolved") && event.requestId === shown.requestId;
 }
 
 // `known`: the renderer has the conversation. `registered`: its root is still a saved project. `locked`: a page lock

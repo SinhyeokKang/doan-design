@@ -1,5 +1,5 @@
 import type { Provider } from "../main/agentAuth/types";
-import type { ConversationEvent, PermissionOption, PermissionRequest } from "../main/conversation/types";
+import type { ConversationEvent, PermissionOption, PermissionRequest, QuestionRequest } from "../main/conversation/types";
 import { PROVIDER_NAMES } from "./agentAuthView";
 
 // The temporary workspace strip for a Home conversation (buzz-home design §7), until buzz-conversation's panel
@@ -9,24 +9,34 @@ export type StripState =
   | { kind: "starting" }
   | { kind: "working"; activity: string | null }
   | { kind: "permission"; requestId: string; summary: string; options: PermissionOption[] }
+  // An agent's question: its first sentence only; it is answered in the conversation, and here only skipped or stopped
+  // (agent-questions design §6).
+  | { kind: "question"; requestId: string; question: string }
   | { kind: "failed"; code: string }
   | { kind: "interrupted"; reason: "user" | "appQuit" | "crashed" }
   | { kind: "done" };
+
+// A permission request and a question both wait for the person's answer: the same signals, toasts and turn rules.
+export function asksPerson(kind: StripState["kind"]): kind is "permission" | "question" {
+  return kind === "permission" || kind === "question";
+}
 
 // Reads events already merged by seq (state.ts mergeEvents), with foldConversation's turn rules: only the latest
 // turn counts and nothing after its terminal event. main's state.ts is not imported because it pulls node:path.
 export function stripState(events: readonly ConversationEvent[]): StripState {
   let state: StripState = { kind: "starting" }, turnId: string | null = null, terminal = false, activity: string | null = null;
-  const pending: PermissionRequest[] = [];
+  const pending: (PermissionRequest | QuestionRequest)[] = [];
   for (const event of events) {
     if (event.type === "turn.started") { turnId = event.turnId; terminal = false; activity = null; pending.length = 0; state = { kind: "starting" }; continue; }
     if (event.turnId !== turnId || terminal) continue;
     switch (event.type) {
       case "activity": activity = event.summary; state = { kind: "working", activity }; break;
       case "message.delta": case "message.done": if (state.kind === "starting") state = { kind: "working", activity }; break;
-      case "permission.request": pending.push(event); break;
-      case "permission.resolved": {
-        const at = pending.findIndex(p => p.requestId === event.requestId);
+      case "permission.request": case "question.request": pending.push(event); break;
+      case "permission.resolved": case "question.resolved": {
+        // Only a request of the resolution's own kind, as main's fold keys them.
+        const kind = event.type === "permission.resolved" ? "permission.request" : "question.request";
+        const at = pending.findIndex(p => p.type === kind && p.requestId === event.requestId);
         if (at !== -1) pending.splice(at, 1);
         state = { kind: "working", activity };
         break;
@@ -37,7 +47,8 @@ export function stripState(events: readonly ConversationEvent[]): StripState {
     }
   }
   const ask = pending[0];
-  if (!terminal && ask) return { kind: "permission", requestId: ask.requestId, summary: ask.summary, options: ask.options.map(o => ({ id: o.id, label: o.label, kind: o.kind })) };
+  if (!terminal && ask) return ask.type === "question.request" ? { kind: "question", requestId: ask.requestId, question: ask.questions[0]?.question ?? "" }
+    : { kind: "permission", requestId: ask.requestId, summary: ask.summary, options: ask.options.map(o => ({ id: o.id, label: o.label, kind: o.kind })) };
   return state;
 }
 
@@ -51,7 +62,7 @@ export function mergeConversationEvents(snapshot: readonly ConversationEvent[], 
 }
 
 export type StripAction =
-  | { command: "stop" | "editOnHome" | "dismiss" | "open"; label: string }
+  | { command: "stop" | "skip" | "editOnHome" | "dismiss" | "open"; label: string }
   | { command: "answer"; label: string; optionId: string; kind: PermissionOption["kind"] };
 export interface StripContext { provider: Provider; project: string; branch: string | null; canvas: string | null }
 // live: the strip's own region; a permission request is an alert announced once per alertKey.
@@ -83,6 +94,8 @@ export function stripView(state: StripState, ctx: StripContext): StripView {
     case "working": return view(`${p} is working`, state.activity, [stop]);
     // No option is the default: Allow gets no autofocus or prominence (design §7).
     case "permission": return { title: `${p} needs your answer`, body: state.summary, live: "alert", alertKey: state.requestId, actions: [...state.options.map(o => ({ command: "answer" as const, label: o.label, optionId: o.id, kind: o.kind })), stop] };
+    // No answer control: the strip only skips or stops (agent-questions decisions 8 and 10).
+    case "question": return { title: `${p} needs your answer`, body: state.question, live: "alert", alertKey: state.requestId, actions: [{ command: "skip", label: "Skip" }, stop] };
     case "failed": {
       const copy = (Object.hasOwn(FAILURES, state.code) ? FAILURES[state.code]! : STOPPED)(p);
       return view(copy.title, copy.body, recover);

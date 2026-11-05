@@ -28,7 +28,7 @@ describe("CanvasTools", () => {
     expect(html).toMatch(/<div[^>]*role="toolbar"[^>]*aria-label="Canvas tools"/);
     expect(html.match(/<button/g)).toHaveLength(4);
     expect(html.indexOf('aria-label="Pick from canvas"')).toBeLessThan(html.indexOf('role="separator"'));
-    expect(html.indexOf('role="separator"')).toBeLessThan(html.indexOf('aria-label="Export…"'));
+    expect(html.indexOf('role="separator"')).toBeLessThan(html.indexOf('aria-label="Export canvas"'));
     expect(html.indexOf('aria-label="Select"')).toBeLessThan(html.indexOf('aria-label="Hand"'));
     expect(html.indexOf('aria-label="Hand"')).toBeLessThan(html.indexOf('aria-label="Pick from canvas"'));
     expect(html).not.toContain("Add to conversation");
@@ -74,7 +74,7 @@ describe("CanvasTools", () => {
     expect(hand?.props["aria-keyshortcuts"]).toBe("H");
     expect(picker?.props["aria-keyshortcuts"]).toBe("Meta+L");
     const tips = all(tree).filter(element => element.type === TooltipContent);
-    expect(tips.map(tip => text(tip.props.children as ReactNode))).toEqual(["SelectV", "HandH", "Pick from canvas⌘L", "Export…"]);
+    expect(tips.map(tip => text(tip.props.children as ReactNode))).toEqual(["SelectV", "HandH", "Pick from canvas⌘L", "Export canvas"]);
     for (const [index, key] of [[0, "V"], [1, "H"], [2, "⌘L"]] as const) {
       const kbd = all(tips[index]!.props.children as ReactNode).find(element => element.props.className === "doan-kbd");
       expect(kbd?.props).toMatchObject({ "data-ui-variant": "on-prominent", "data-ui-size": "sm", children: key });
@@ -103,7 +103,7 @@ describe("CanvasTools", () => {
   it("Export is a named action without a pressed state that hands its button to the export", () => {
     const pressed: unknown[] = [];
     const exporter = buttons(CanvasTools(props({ exporter: { reason: null, onExport: button => pressed.push(button) } })))[3]!;
-    expect(exporter.props["aria-label"]).toBe("Export…");
+    expect(exporter.props["aria-label"]).toBe("Export canvas");
     expect(exporter.props).not.toHaveProperty("aria-pressed");
     const button = { name: "Export" };
     (exporter.props.onClick as (event: { currentTarget: unknown }) => void)({ currentTarget: button });
@@ -126,7 +126,7 @@ describe("CanvasTools", () => {
   // left the button without its reason (design-sync measurement, canvas-composer-polish draft frame toolbar-disabled).
   it("an unavailable Export names its reason with aria-describedby even while the tooltip is closed", () => {
     const html = markup({ exporter: { reason: "This page is not a listed canvas.", onExport: () => {} } });
-    const tag = html.match(/<button[^>]*aria-label="Export…"[^>]*>/)?.[0] ?? "";
+    const tag = html.match(/<button[^>]*aria-label="Export canvas"[^>]*>/)?.[0] ?? "";
     const id = tag.match(/aria-describedby="([^"]+)"/)?.[1];
     expect(id).toBeTruthy();
     expect(html).toMatch(new RegExp(`<span class="sr-only" id="${id}">This page is not a listed canvas.</span>`));

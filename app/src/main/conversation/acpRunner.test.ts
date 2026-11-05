@@ -340,3 +340,72 @@ it("lists an ACP provider's modes with its models from the same session/new", as
   expect(list.modes).toEqual({ available: ["agent", "plan", "autopilot"].map(id => `${COPILOT_MODE}${id}`), allowAll: true });
   expect(logged(log).map(r => r.method)).toEqual(["initialize", "session/new"]);
 });
+
+// agent-questions: Antigravity asks with a standard permission request whose options are the answers (P5).
+const QUESTION = "Which color should the header be?";
+function questionFixture(): string {
+  const sessionId = copilot.turn[0]!.params!.sessionId;
+  const fixture = { ...copilot, turn: [
+    { jsonrpc: "2.0", method: "session/update", params: { sessionId, update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "Let me ask." } } } },
+    { jsonrpc: "2.0", id: 0, method: "session/request_permission", params: { sessionId, toolCall: { toolCallId: "interaction_1", title: QUESTION, rawInput: {} }, options: [{ optionId: "1", name: "Red", kind: "allow_once" }, { optionId: "2", name: "Blue", kind: "allow_once" }] } },
+    // Antigravity then reports the question's own tool call done; it is the question, not a step of the turn.
+    { jsonrpc: "2.0", method: "session/update", params: { sessionId, update: { sessionUpdate: "tool_call_update", toolCallId: "interaction_1", status: "completed", title: "Response received" } } },
+    { jsonrpc: "2.0", method: "session/update", params: { sessionId, update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "Thanks." } } } },
+    { jsonrpc: "2.0", id: 3, result: { stopReason: "end_turn" } }] };
+  const path = join(realpathSync(mkdtempSync(join(tmpdir(), "doan-acp-question-"))), "acp-antigravity.json");
+  writeFileSync(path, JSON.stringify(fixture)); return path;
+}
+async function asking(runtime: "antigravity" | "copilot", mode = "") {
+  const log = logFile(), events: EventPayload[] = [];
+  const runner = await openAcp({ ...input("copilot", { args: [SERVER, questionFixture()], env: { PATH: process.env.PATH ?? "", FAKE_ACP: mode, FAKE_ACP_LOG: log } }), runtime }, e => events.push(e), () => {}, () => {});
+  const sent = runner.send("hi", "turn-1");
+  await vi.waitFor(() => expect(events.some(e => e.type === "question.request" || e.type === "permission.request")).toBe(true));
+  const request = events.find(e => e.type === "question.request" || e.type === "permission.request") as Extract<EventPayload, { type: "question.request" | "permission.request" }>;
+  // Replies to the question's JSON-RPC id 0: there must be exactly one.
+  const replies = () => logged(log).filter(r => !r.method && (r as { id?: unknown }).id === 0).map(r => (r as { result?: unknown }).result);
+  return { runner, events, sent, request, replies };
+}
+
+it("shows Antigravity's question as a question card and answers with the chosen option's optionId", async () => {
+  const { runner, events, sent, request, replies } = await asking("antigravity");
+  expect(request).toEqual({ type: "question.request", requestId: request.requestId, questions: [{ id: "0", header: "", question: QUESTION, options: [{ label: "Red" }, { label: "Blue" }], multiSelect: false, other: false }] });
+  // An answer that does not fit the question leaves it pending; a permission answer cannot settle it.
+  expect(runner.answerQuestion!(request.requestId, { outcome: "answered", answers: { "0": { selected: [2] } } })).toBe("bad_request");
+  expect(runner.answerQuestion!(request.requestId, { outcome: "answered", answers: { "0": { selected: [0], other: "Green" } } })).toBe("bad_request");
+  expect(runner.answer(request.requestId, "allow")).toBe(false);
+  expect(runner.answerQuestion!(request.requestId, { outcome: "answered", answers: { "0": { selected: [1] } } })).toBe("ok");
+  expect(runner.answerQuestion!(request.requestId, { outcome: "skipped" })).toBe("stale");
+  await sent;
+  expect(events).toContainEqual({ type: "question.resolved", requestId: request.requestId, outcome: "answered", answers: { "0": { selected: ["Blue"] } } });
+  expect(events.filter(e => e.type === "question.resolved")).toHaveLength(1);
+  expect(events.at(-1)).toEqual({ type: "turn.done" });
+  expect(replies()).toEqual([{ outcome: { outcome: "selected", optionId: "2" } }]);
+  expect(events.filter(e => e.type === "activity")).toEqual([]);
+});
+
+it("answers a skipped Antigravity question as cancelled", async () => {
+  const { runner, events, sent, request, replies } = await asking("antigravity");
+  expect(runner.answerQuestion!(request.requestId, { outcome: "skipped" })).toBe("ok");
+  await sent;
+  expect(events).toContainEqual({ type: "question.resolved", requestId: request.requestId, outcome: "skipped" });
+  expect(replies()).toEqual([{ outcome: { outcome: "cancelled" } }]);
+});
+
+it("expires a pending Antigravity question on Stop with one cancelled reply, and refuses a late answer", async () => {
+  const { runner, events, sent, request, replies } = await asking("antigravity");
+  await runner.stop(); await sent;
+  expect(events).toContainEqual({ type: "question.resolved", requestId: request.requestId, outcome: "expired" });
+  expect(events.filter(e => e.type === "question.resolved")).toHaveLength(1);
+  expect(events.at(-1)).toEqual({ type: "interrupted", reason: "user" });
+  expect(runner.answerQuestion!(request.requestId, { outcome: "answered", answers: { "0": { selected: [0] } } })).toBe("stale");
+  expect(replies()).toEqual([{ outcome: { outcome: "cancelled" } }]);
+});
+
+it("keeps the same request a permission card for another ACP provider", async () => {
+  const { runner, sent, request, replies } = await asking("copilot");
+  expect(request).toMatchObject({ type: "permission.request", summary: QUESTION, options: [{ id: "allow" }] });
+  expect(runner.answerQuestion!(request.requestId, { outcome: "skipped" })).toBe("stale");
+  expect(runner.answer(request.requestId, "allow")).toBe(true);
+  await sent;
+  expect(replies()).toEqual([{ outcome: { outcome: "selected", optionId: "1" } }]);
+});

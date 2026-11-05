@@ -25,6 +25,8 @@ const EXTRA_ROOTS = [
   join(SRC, "main/conversation/steerSupport.ts"),
   // mcp-connectors: the presets and connector types MCP Connectors settings will import by value.
   join(SRC, "main/mcpConnectors/presets.ts"),
+  // agent-questions: the question types and limits and the shared answer check the question card imports by value.
+  join(SRC, "main/conversation/question.ts"), join(SRC, "main/conversation/questionAnswer.ts"),
 ];
 
 function entries(): string[] {

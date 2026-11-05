@@ -40,9 +40,9 @@ vi.mock("react", async original => {
 });
 const { ConversationThread, ReplyChip } = await import("./ConversationThread");
 
-const rows = (checkoutTitle: string): CanvasRow[] => [
-  { path: ".doan/canvases/drafts.html", id: "drafts", url: "u-d", title: "Drafts", frames: [{ id: "editor", title: "Editor" }] },
-  { path: ".doan/canvases/checkout.html", id: "checkout", url: "u-c", title: checkoutTitle, frames: [{ id: "payment", title: "Payment" }] },
+const rows = (checkoutStem: string): CanvasRow[] => [
+  { path: ".doan/canvases/drafts.html", id: "drafts", url: "u-d", frames: [{ id: "editor", title: "Editor" }] },
+  { path: `.doan/canvases/${checkoutStem}.html`, id: "checkout", url: "u-c", frames: [{ id: "payment", title: "Payment" }] },
 ];
 const items: ThreadItem[] = [{ kind: "agent", key: "m1", messageId: "m1", text: "[a](doan:drafts/frame/editor) [b](doan:checkout/frame/payment)", streaming: false }];
 const base: ConversationThreadProps = {
@@ -72,24 +72,24 @@ const chip = (canvas: string, id: string) => ReplyChip({ link: { canvas, kind: "
 
 beforeEach(() => { hooks.slots = []; hooks.contexts.clear(); });
 
-test("a change of locateDisabled, the open canvas's frame titles or a row's title reaches the chips; the Actions value stays", () => {
-  const firstRows = rows("Checkout");
+test("a change of locateDisabled, the open canvas's frame titles or a row's file stem reaches the chips; the Actions value stays", () => {
+  const firstRows = rows("checkout");
   const [actions, chips] = run({ ...base, locateDisabled: false, frames: [{ id: "editor", title: "Editor (live)" }], canvasRows: firstRows });
   expect(chips).toBeDefined();
   expect(chip("drafts", "editor").props["aria-disabled"]).toBeUndefined();
   expect(chip("drafts", "editor").props["aria-label"]).toBe("Show Editor (live) on canvas");
-  expect(chip("checkout", "payment").props["aria-label"]).toBe("Open Checkout and show Payment");
+  expect(chip("checkout", "payment").props["aria-label"]).toBe("Open checkout and show Payment");
 
   // The same inputs keep the same value, so memoized replies are not drawn again for nothing.
   const [, same] = run({ ...base, locateDisabled: false, frames: (chips as { frames: unknown }).frames as never, canvasRows: firstRows });
   expect(same).toBe(chips);
 
-  const [actionsAfter, chipsAfter] = run({ ...base, locateDisabled: true, frames: [{ id: "editor", title: "Editor renamed" }], canvasRows: rows("Checkout v2") });
+  const [actionsAfter, chipsAfter] = run({ ...base, locateDisabled: true, frames: [{ id: "editor", title: "Editor renamed" }], canvasRows: rows("checkout-v2") });
   expect(actionsAfter).toBe(actions);
   expect(chipsAfter).not.toBe(chips);
   expect(chip("drafts", "editor").props["aria-disabled"]).toBe(true);
   expect(chip("drafts", "editor").props["aria-label"]).toBe("Show Editor renamed on canvas");
   const other = chip("checkout", "payment");
-  expect(other.props["aria-label"]).toBe("Open Checkout v2 and show Payment");
+  expect(other.props["aria-label"]).toBe("Open checkout-v2 and show Payment");
   expect(other.props["aria-disabled"]).toBeUndefined();
 });

@@ -225,9 +225,9 @@ describe("sent message chips", () => {
 // agent-reply-chips T3 (design 'Rendering'): `doan:` links in a reply are chips, named from the app's own lists.
 describe("reply chips", () => {
   const rows: CanvasRow[] = [
-    { path: ".doan/canvases/drafts.html", url: "http://localhost/drafts.html", id: "drafts", title: "Drafts", frames: [{ id: "editor", title: "Editor" }] },
-    { path: ".doan/canvases/checkout.html", url: "http://localhost/checkout.html", id: "checkout", title: "Checkout", frames: [{ id: "payment", title: "Payment" }, { id: "editor", title: "Checkout editor" }] },
-    { path: ".doan/canvases/no-id.html", url: "http://localhost/no-id.html", title: "No id", frames: [{ id: "payment", title: "Not this one" }] },
+    { path: ".doan/canvases/drafts.html", url: "http://localhost/drafts.html", id: "drafts", frames: [{ id: "editor", title: "Editor" }] },
+    { path: ".doan/canvases/checkout.html", url: "http://localhost/checkout.html", id: "checkout", frames: [{ id: "payment", title: "Payment" }, { id: "editor", title: "Checkout editor" }] },
+    { path: ".doan/canvases/no-id.html", url: "http://localhost/no-id.html", frames: [{ id: "payment", title: "Not this one" }] },
   ];
   const onReplyChip = async () => null;
   // The canvas panel on Drafts, whose live layout titles its editor frame differently from the list row.
@@ -283,9 +283,9 @@ describe("reply chips", () => {
   test("a chip into the open canvas takes its live frame titles; another canvas's chip takes its own row's, never the open canvas's", () => {
     const out = html([agent("[a](doan:drafts/frame/editor) [b](doan:checkout/frame/editor) [c](doan:checkout/frame/payment) [d](doan:checkout/frame/gone)")], panel);
     expect(out).toContain('aria-label="Show Editor (live) on canvas"');
-    expect(out).toContain('aria-label="Open Checkout and show Checkout editor"');
-    expect(out).toContain('aria-label="Open Checkout and show Payment"');
-    expect(out).toContain('aria-label="Open Checkout and show gone"');
+    expect(out).toContain('aria-label="Open checkout and show Checkout editor"');
+    expect(out).toContain('aria-label="Open checkout and show Payment"');
+    expect(out).toContain('aria-label="Open checkout and show gone"');
   });
 
   // Runtime test C against the draft (conductor's call, fix round 2): an other-canvas chip is at most 180px like every
@@ -294,7 +294,7 @@ describe("reply chips", () => {
   test("the label and the canvas name are drawn apart, so the label ellipsizes first inside the 180px chip", () => {
     const out = html([agent("[c](doan:checkout/frame/payment)")], panel);
     // Icon, label and suffix are the chip's three direct children: the grid's three columns, in that order.
-    expect(out).toMatch(/<button [^>]*class="anchor-chip"[^>]*><svg[^>]*>.*?<\/svg><span>Payment<\/span><span class="chip-canvas"> · Checkout<\/span><\/button>/);
+    expect(out).toMatch(/<button [^>]*class="anchor-chip"[^>]*><svg[^>]*>.*?<\/svg><span>Payment<\/span><span class="chip-canvas"> · checkout<\/span><\/button>/);
     const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
     const container = ".conversation-thread .msg-agent { container-type: inline-size; }";
     const chip = ".anchor-chip:has(> span.chip-canvas) { display: inline-grid; grid-template-columns: auto minmax(1em, max-content) max-content; min-width: min-content; overflow: hidden; }";
@@ -319,9 +319,9 @@ describe("reply chips", () => {
   test("in the Overview every chip names its canvas; a canvas id no row has is named by the id", () => {
     const out = html([agent("[a](doan:drafts/frame/editor) [b](doan:drafts/element/save) [c](doan:billing/frame/editor) [d](doan:no-id/frame/payment)")],
       { onReplyChip, openCanvasId: null, canvasRows: rows });
-    expect(out).toContain('aria-label="Open Drafts and show Editor"');
-    expect(out).toContain('<span>Editor</span><span class="chip-canvas"> · Drafts</span>');
-    expect(out).toContain('aria-label="Open Drafts and show element save"');
+    expect(out).toContain('aria-label="Open drafts and show Editor"');
+    expect(out).toContain('<span>Editor</span><span class="chip-canvas"> · drafts</span>');
+    expect(out).toContain('aria-label="Open drafts and show element save"');
     expect(out).toContain('aria-label="Open billing and show editor"');
     // A row without an id is never the link's canvas.
     expect(out).toContain('aria-label="Open no-id and show payment"');
@@ -330,7 +330,7 @@ describe("reply chips", () => {
   test("only a chip into the open canvas follows locateDisabled", () => {
     const out = html([agent("[a](doan:drafts/frame/editor) [b](doan:checkout/frame/payment)")], { ...panel, locateDisabled: true });
     expect(out).toContain('aria-label="Show Editor (live) on canvas" aria-disabled="true"');
-    expect(out).toMatch(/aria-label="Open Checkout and show Payment">/);
+    expect(out).toMatch(/aria-label="Open checkout and show Payment">/);
   });
 
   test("the link's text never names the chip", () => {

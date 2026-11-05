@@ -57,6 +57,8 @@ export class CodexDispatcher {
           if (!request || this.permissions.has(request.event.requestId)) { this.fail(); return; }
           this.permissions.set(request.event.requestId, { id, request });
         } else if (result.request.disposition === "decline") {
+          // A server id a held permission still owns would get a second response when that permission is answered.
+          if ([...this.permissions.values()].some(held => held.id === id)) { this.fail(); return; }
           try { this.write(result.request.response); } catch { this.fail(); return; }
         } else if (!this.reject(id)) return;
       }

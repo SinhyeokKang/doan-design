@@ -399,9 +399,9 @@ test("suggested prompts name the target canvas by recency and fill a sentence wi
   ]);
 });
 
-test("one canvas is both critiqued and polished; a design-system canvas drops the document prompt and is never a target; titles name canvases", () => {
-  const one = list("/r/p", [canvas(".doan/canvases/home.html", { title: "Home screen" })]);
-  expect(suggestedPrompts(one, "p", PRESETS).map(p => p.label)).toEqual(["Document the design system of p", "Review the Home screen canvas", "Polish the Home screen canvas"]);
+test("one canvas is both critiqued and polished; a design-system canvas drops the document prompt and is never a target; file stems name canvases", () => {
+  const one = list("/r/p", [canvas(".doan/canvases/home.html", {})]);
+  expect(suggestedPrompts(one, "p", PRESETS).map(p => p.label)).toEqual(["Document the design system of p", "Review the home canvas", "Polish the home canvas"]);
   const ds = list("/r/p", [canvas(".doan/ds/button.html", { mtimeMs: 3 }), canvas(".doan/canvases/home.html", { mtimeMs: 2 }), canvas(".doan/canvases/list.html", { mtimeMs: 1 })]);
   expect(suggestedPrompts(ds, "p", PRESETS).map(p => p.label)).toEqual(["Review the home canvas", "Polish the list canvas"]);
 });

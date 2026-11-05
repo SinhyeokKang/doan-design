@@ -230,3 +230,37 @@ describe("Codex MCP elicitation wiring", () => {
     expect(h.cleanup).toHaveBeenCalledOnce(); expect(h.writes).toEqual([{ id: 7, error: { code: -32601, message: "Unsupported request or unavailable owner." } }]);
   });
 });
+// agent-questions B2 (reduced by P2): every requestUserInput of this thread gets one empty answer at once and the turn
+// goes on; nothing is held, so Stop, the turn's end and close write nothing more for it.
+describe("Codex requestUserInput wiring", () => {
+  const ask = (id: number | string, patch: Record<string, unknown> = {}) => ({ id, method: "item/tool/requestUserInput", params: { threadId: "s", turnId: "t", itemId: "i", isBlocking: true, questions: [{ id: "q", header: "H", question: "Which?", isOther: true, isSecret: false, options: null }], ...patch } });
+  const done = { method: "turn/completed", params: { threadId: "s", turn: { id: "t", status: "completed" } } };
+  it("answers once with no answers, asks nothing and lets the turn finish", () => {
+    const h = harness(); h.rpc.receive(ask(5));
+    expect(h.writes).toEqual([{ id: 5, result: { answers: {} } }]);
+    expect(h.events).toEqual([]); expect(h.rpc.running()).toBe(true);
+    h.rpc.receive({ method: "item/agentMessage/delta", params: { threadId: "s", turnId: "t", itemId: "m", delta: "No answer received." } });
+    h.rpc.receive(done); h.rpc.stop("user"); h.rpc.close();
+    expect(h.writes).toHaveLength(1);
+    expect(h.events).toEqual([{ type: "message.delta", messageId: "m", text: "No answer received." }, { type: "turn.done" }]);
+    expect(h.cleanup).not.toHaveBeenCalled();
+  });
+  it("answers a question after Stop or after the turn ended once with no answers", () => {
+    const h = harness(); h.rpc.stop("user"); h.rpc.receive(ask("after-stop"));
+    h.rpc.receive({ method: "turn/completed", params: { threadId: "s", turn: { id: "t", status: "interrupted" } } }); h.rpc.receive(ask("after-end"));
+    expect(h.writes).toEqual([{ id: "after-stop", result: { answers: {} } }, { id: "after-end", result: { answers: {} } }]);
+    expect(h.events).toEqual([{ type: "interrupted", reason: "user" }]);
+  });
+  it("routes another thread's or turn's question with the usual error, once", () => {
+    const h = harness(); h.rpc.receive(ask(6, { threadId: "other" })); h.rpc.receive(ask(7, { turnId: "other" }));
+    expect(h.writes).toEqual([6, 7].map(id => ({ id, error: { code: -32601, message: "Unsupported request or unavailable owner." } })));
+    expect(h.events).toEqual([]); expect(h.rpc.running()).toBe(true);
+  });
+  it("fails the protocol when a question reuses the server id of a permission still asked, instead of answering it twice", () => {
+    const h = harness(); h.rpc.receive({ id: 7, method: "item/fileChange/requestApproval", params: { threadId: "s", turnId: "t" } });
+    h.rpc.receive(ask(7));
+    // Closing answers the permission, once; the question gets nothing of its own.
+    expect(h.cleanup).toHaveBeenCalledOnce();
+    expect(h.writes).toEqual([{ id: 7, error: { code: -32601, message: "Unsupported request or unavailable owner." } }]);
+  });
+});

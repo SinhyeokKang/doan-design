@@ -4,6 +4,7 @@ import { object } from "./sessions";
 import { claudeModeAfterPlan, type PermissionModeId } from "./permissionMode";
 import { connectorLabels, serverLabel } from "../mcpConnectors/presets";
 import { codexMcpApproval } from "../mcpConnectors/codexApproval";
+import { QUESTION_LIMITS, type Question, type QuestionAnswer, type StoredAnswer } from "./question";
 import type { EventPayload, FailureCode, PendingPermission, PermissionChoice, TransportResult, TransportState } from "./types";
 
 export function initialTransport(): TransportState {
@@ -146,6 +147,8 @@ function claudeFrame(state: TransportState, raw: Record<string, unknown>, root: 
       events.push({ type: "message.done", messageId, text: body }); completedMessages.push(messageId);
     }
     for (const content of raw.message.content) {
+      // The question card stands for an AskUserQuestion call, so it shows no "Using a tool" line.
+      if (object(content) && content.type === "tool_use" && content.name === CLAUDE_QUESTION_TOOL) continue;
       if (object(content) && content.type === "tool_use" && typeof content.id === "string" && !activities.includes(content.id)) {
         events.push(claudeActivity(text(content.name), object(content.input) ? content.input : {}, root, labels)); activities.push(content.id);
       }
@@ -162,14 +165,75 @@ function claudeFrame(state: TransportState, raw: Record<string, unknown>, root: 
   }
   return unchanged(state);
 }
+export const CLAUDE_QUESTION_TOOL = "AskUserQuestion";
+// A Claude question as the card shows it, and each ordinal id's question text: Claude keys its answers by that text.
+export interface ClaudeQuestion { questions: Question[]; textById: Record<string, string> }
+function bounded(value: unknown, max: number): value is string { return typeof value === "string" && value.length <= max; }
+// AskUserQuestion's input (sdk-tools.d.ts AskUserQuestionInput, P1); null for anything a card cannot show whole. A
+// question past a limit is refused, never cut, and so is a repeated question text, which would key two answers alike.
+export function claudeQuestion(input: unknown): ClaudeQuestion | null {
+  const L = QUESTION_LIMITS;
+  if (!object(input) || !Array.isArray(input.questions) || input.questions.length < 1 || input.questions.length > L.questions) return null;
+  const questions: Question[] = [], textById: Record<string, string> = {};
+  for (const [index, raw] of input.questions.entries()) {
+    if (!object(raw) || !bounded(raw.question, L.text) || !raw.question || !bounded(raw.header, L.label) || (raw.multiSelect !== undefined && typeof raw.multiSelect !== "boolean")) return null;
+    if (!Array.isArray(raw.options) || raw.options.length > L.options) return null;
+    const options: Question["options"] = [];
+    for (const option of raw.options) {
+      if (!object(option) || !bounded(option.label, L.label) || !option.label || (option.description !== undefined && !bounded(option.description, L.label))) return null;
+      options.push({ label: option.label, ...(option.description ? { description: option.description } : {}) });
+    }
+    if (Object.values(textById).includes(raw.question)) return null;
+    const id = String(index);
+    questions.push({ id, header: raw.header, question: raw.question, options, multiSelect: raw.multiSelect === true, other: true });
+    textById[id] = raw.question;
+  }
+  return { questions, textById };
+}
+// The PermissionResult for a checked answer. Several choices and Other text go as one comma-joined string, as the CLI's
+// own card answers (P1). A skip sends no answer text, which the model would read as an answer, and marks each question
+// unanswered only for a session that advertises it (system/init capabilities); an older CLI refuses the mark, so a
+// skip there is a denial (P1 Skip b).
+export type ClaudeQuestionResult = { behavior: "allow"; updatedInput: Record<string, unknown> } | { behavior: "deny"; message: string };
+export function claudeQuestionResult(input: Record<string, unknown>, read: ClaudeQuestion, answer: QuestionAnswer, unanswered: boolean): ClaudeQuestionResult {
+  if (answer.outcome === "skipped") {
+    if (!unanswered) return { behavior: "deny", message: "The person skipped the question." };
+    return { behavior: "allow", updatedInput: { ...input, answers: {}, annotations: Object.fromEntries(Object.values(read.textById).map(text => [text, { unanswered: "skipped" }])) } };
+  }
+  const answers: Record<string, string> = {};
+  for (const question of read.questions) {
+    const given = answer.answers[question.id]!;
+    answers[read.textById[question.id]!] = [...given.selected.map(n => question.options[n]!.label), ...(given.other ? [given.other] : [])].join(", ");
+  }
+  return { behavior: "allow", updatedInput: { ...input, answers } };
+}
+const CLAUDE_UNANSWERED = "ask_user_question_unanswered_v1";
+// Whether a system/init frame advertises the unanswered mark; undefined for any other frame.
+export function claudeUnansweredSupport(raw: unknown): boolean | undefined {
+  if (!object(raw) || raw.type !== "system" || raw.subtype !== "init") return undefined;
+  return Array.isArray(raw.capabilities) && raw.capabilities.includes(CLAUDE_UNANSWERED);
+}
+// A checked answer as the history keeps it: chosen labels apart from the typed text. A secret question's answer is passed
+// on to the provider only, never kept.
+export function storedAnswers(questions: readonly Question[], answer: Extract<QuestionAnswer, { outcome: "answered" }>): Record<string, StoredAnswer> {
+  const stored: Record<string, StoredAnswer> = {};
+  for (const question of questions) {
+    const given = answer.answers[question.id];
+    if (!given || question.secret) continue;
+    stored[question.id] = { selected: given.selected.map(n => question.options[n]!.label), ...(given.other ? { other: given.other } : {}) };
+  }
+  return stored;
+}
 // labels: the connector names of the run (connectorLabels); the presets when absent.
 export interface CodexContext { root: string; sessionId: string; turnId: string; labels?: Readonly<Record<string, string>> }
-// decline: an MCP elicitation answered with response at once (a form, or a tool approval with no turn to ask in); the
-// turn goes on. unsupported and route are answered with an error.
+// decline: answered with response at once, and the turn goes on: an MCP elicitation doan does not ask about (a form, or a
+// tool approval with no turn to ask in), and every requestUserInput of this thread (P2: Codex 0.166.0 sends none in a
+// Doan mode, so no card exists for it). unsupported and route are answered with an error.
 export interface CodexTransportResult extends SteerResult {
   request?: { id: string | number; method: string; disposition: "permission" | "unsupported" | "route" } | { id: string | number; method: string; disposition: "decline"; response: unknown };
 }
 const MCP_ELICITATION = "mcpServer/elicitation/request";
+const USER_INPUT = "item/tool/requestUserInput";
 export interface CodexReplyOwner { requestId: string | number; sessionId: string; turnId: string }
 // The dispatcher supplies ownership from its pending RPC table, never from the active turn.
 export function normalizeCodexReply(state: TransportState, raw: unknown, context: CodexContext, owner: CodexReplyOwner): TransportResult {
@@ -191,6 +255,8 @@ export function normalizeCodex(state: TransportState, raw: unknown, context: Cod
     const permission = asking ? codexPermission(raw, state.fileSummaries, context.labels) : null;
     // An elicitation this turn cannot ask about (a form, or one with no running turn to ask in) is declined, never failed: the
     // tool call fails and the turn goes on (mcp-connectors spec 완료 조건 6).
+    // No answers is a normal reply Codex reads as "no answer received" and goes on from (P2), whatever the question.
+    if (!otherOwner && raw.method === USER_INPUT) return { ...unchanged(state), request: { id: raw.id, method: raw.method, disposition: "decline", response: { id: raw.id, result: { answers: {} } } } };
     if (!otherOwner && !permission && raw.method === MCP_ELICITATION) return { ...unchanged(state), request: { id: raw.id, method: raw.method, disposition: "decline", response: { id: raw.id, result: { action: "decline" } } } };
     const disposition = otherOwner ? "route" : permission ? "permission" : "unsupported";
     const answered = permission ? { ...state, fileSummaries: withoutFileSummary(state.fileSummaries, text(params.itemId)) } : state;

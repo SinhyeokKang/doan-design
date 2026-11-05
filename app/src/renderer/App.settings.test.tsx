@@ -1028,3 +1028,17 @@ test("while the category is hidden, a target or a saved section of MCP Connector
     expect(settings()!.props.section).toBe(section);
   }
 });
+
+// agent-questions spec 7: a toast's Open from Settings lands the conversation's entry focus on its waiting question or
+// permission; the runtime test saw the workspace's default focus take it to the sidebar row a moment later.
+test("an entry from Settings keeps the focus the conversation's waiting request took", () => {
+  render(); folders([listed("/w/a")]);
+  cmdComma(); expect(onSettings()).toBe(true);
+  const focused: string[] = [];
+  const option = Object.assign(new HTMLElement(), { isConnected: true, closest: (selector: string) => selector.includes(".conversation-thread") ? {} : null, focus: vi.fn() });
+  vi.stubGlobal("document", { activeElement: option, body: {}, querySelectorAll: () => [], querySelector: (selector: string) => ({ focus: () => focused.push(selector) }) });
+  const host = (hooks.refs.find(ref => ref.current instanceof HomeRun)!.current as { host: { openOverview(root: string, arrived: () => boolean, unavailable: () => void, conversationId?: string): void } }).host;
+  host.openOverview("/w/a", () => true, vi.fn(), "c1"); render();
+  expect(find<{ root: string }>(ProjectOverview)[0]!.props.root).toBe("/w/a");
+  expect(focused).toEqual([]);
+});

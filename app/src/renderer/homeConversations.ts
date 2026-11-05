@@ -13,7 +13,7 @@ export interface HomeConversation {
   canvas?: string;
 }
 
-const RUNNING: readonly StripState["kind"][] = ["starting", "working", "permission"];
+const RUNNING: readonly StripState["kind"][] = ["starting", "working", "permission", "question"];
 
 // One sidebar row: a canvas row when the conversation is bound, else its project row.
 export function slotKey(root: string, canvas?: string): string { return canvas === undefined ? root : `${root}\n${canvas}`; }
@@ -100,6 +100,6 @@ export function newCanvasCandidates<T extends { path: string }>(rows: readonly T
 
 // The toast is secondary to the slot (design §7): once per request, and only when that project is not on screen.
 export function permissionToastKey(next: StripState, previous: StripState | undefined, viewing: boolean): string | null {
-  if (next.kind !== "permission" || viewing) return null;
-  return previous?.kind === "permission" && previous.requestId === next.requestId ? null : next.requestId;
+  if ((next.kind !== "permission" && next.kind !== "question") || viewing) return null;
+  return (previous?.kind === "permission" || previous?.kind === "question") && previous.requestId === next.requestId ? null : next.requestId;
 }

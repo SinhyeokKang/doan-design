@@ -5,11 +5,11 @@ import { applyVisibility, ThumbnailRequests, thumbnailView, type ThumbnailState 
 
 const row = (path: string, extra: Partial<CanvasRow> = {}): CanvasRow => ({ path, id: path, width: 1440, frames: [], url: `http://127.0.0.1/${path}`, ...extra });
 const rows = [
-  row(".doan/canvases/tokens.html", { title: "Design tokens" }),
-  row(".doan/canvases/2026-10-checkout-revamp.html", { title: "Checkout revamp (Oct 2026)" }),
-  row(".doan/canvases/checkout/cart.html", { title: "Cart" }),
-  row(".doan/canvases/settings/team/members.html", { title: "Team members" }),
-  row(".doan/canvases/settings/billing.html", { title: "Billing & plans" }),
+  row(".doan/canvases/tokens.html", {}),
+  row(".doan/canvases/2026-10-checkout-revamp.html", {}),
+  row(".doan/canvases/checkout/cart.html", {}),
+  row(".doan/canvases/settings/team/members.html", {}),
+  row(".doan/canvases/settings/billing.html", {}),
 ];
 
 test("thumbnail view: missing width beats capture state; missing id does not", () => {
