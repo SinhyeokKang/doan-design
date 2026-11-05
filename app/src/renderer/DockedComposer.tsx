@@ -360,6 +360,12 @@ export function DockedComposer(props: DockedComposerProps) {
       onRemove={props.onRemoveQueued} focusInput={() => field.current?.focus()}
       // The same refusal again changes the region's text by a no-break space, so it is read again.
       announce={text => setAnnouncement(current => current === text ? `${text}\u00a0` : text)} />
+    {props.sendNow && props.onSendQueuedNow && props.queued.length > 0 && <div style={{
+      display: "flex", alignItems: "center", margin: "calc(-1 * var(--space-1)) 0 var(--space-2)",
+      padding: "0 var(--space-4) 0 calc(var(--space-4) + var(--size-icon) + var(--space-2))",
+      fontSize: "var(--type-caption-size)", lineHeight: "var(--type-caption-line-height)",
+      letterSpacing: "var(--type-caption-letter-spacing)", color: "var(--text-metadata)",
+    }}>Press Ctrl + Enter to send all now.</div>}
     <ComposerCard readonly={isSending}>
       <ComposerChips attachments={draft.attachments} preset={draft.preset} thumbnails={props.thumbnails} homeDirectory={props.homeDirectory} disabled={isSending || locked} removeButtons={removeButtons} onRemove={index => removeChip(index, "button")} />
       {/* One field element in both shapes, at the same place and key: remounting it would drop focus and IME composition. */}
