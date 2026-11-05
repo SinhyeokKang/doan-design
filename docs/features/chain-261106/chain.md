@@ -63,8 +63,8 @@
 
 | 링크 | 세션·worktree | 시작 | PR·병합 | 상태 |
 |---|---|---|---|---|
-| 1 work-update | work-update-orch | 2026-11-06 | — | 시작 점검 끝, `/feature-review` |
-| 2 canvas-handoff | — | — | — | 대기 |
+| 1 work-update | work-update-orch | 2026-11-06 | [#104](https://github.com/SinhyeokKang/doan-design/pull/104) · `3e98f455` | 병합됨 |
+| 2 canvas-handoff | canvas-handoff-orch | 2026-11-06 | — | 인계됨 |
 | 3 small-ui-tweaks | — | — | — | 대기 |
 
 ## 인계 기록
@@ -86,3 +86,12 @@
   8. 체인 끝 로그인 정리: 전부 남긴다(공용 프로필 userData와 그 Keychain 항목, `.scratch/prompt-suggestion/claude-config`, Keychain `Claude Code-credentials-dc1943d2`). 마지막 링크는 남은 것을 보고만 한다.
   9. Codex 89%는 쓴 양이다. 링크 1에서는 Codex 작업자를 주로 리뷰에 쓴다(상시 권한).
   - 참고: canvas-handoff D1은 design '초안 요청'에 사용자 확정(2026-11-05)이 있지만 tasks 체크박스가 비어 있다. 링크 2 지휘자가 체크한다.
+- 2026-11-06 **링크 1 끝**(work-update-orch). PR [#104](https://github.com/SinhyeokKang/doan-design/pull/104)을 main에 병합했다(`3e98f455`). 통합 gate: rebase한 HEAD에서 `verify.mjs --eval` PASS. `/agent-eval`: W5는 Claude 3/3, Codex 3/3이다. G0 전체 round는 Codex 41/41, Claude 33 통과·4 부분·3 실패다(나빠진 4개는 guide 줄이기 탓이 아니라고 판단, 시작 점검 4). `/design-sync` 94쌍에서 차이 0. `/runtime-test`는 격리 26/26이고, 공용 프로필 Default에서 Claude·Codex 대화의 `update` 권한 질문은 0회였다. R1에서 찾은 따라가기 버그를 고치고 다시 확인했다(POSTMORTEM에 기록). batch는 C1·C2·M·P·R·T·Z 일곱 개이고 리뷰는 Codex V1–V4(`gpt-6-astra` medium)가 했다. feature 디렉터리와 orch.md는 지웠다. 작업자 worktree는 지웠고 작업 branch(`SinhyeokKang/wu-*`)는 local에 남겼다. 근거 자료는 `work-update-orch/.scratch/evidence/`에 있다.
+  - 미검증: Cursor(계정 한도), Codex project 대화, 실제 앱의 Codex 새 frame 따라가기. W5 seed를 고친 뒤 Codex W5 ×3을 다시 돌리지 않았다. V4 뒤 고친 guide 문장은 어느 round도 재지 않았다. 목록은 BACKLOG에 있다.
+  - **링크 2가 알아야 할 것**:
+    1. **공용 프로필의 권한이 바뀌었다.** B4로 Doan 연결 프로필에 허용이 들어갔다. Claude 프로필 `settings.json`에는 네 규칙(`doan work start/update/done`, `doan open`)이 있고, Codex 프로필 `rules/doan.rules`는 모든 `doan` 명령을 sandbox 밖에서 묻지 않고 돌린다. 공용 프로필에도 이미 쓰였다. 그래서 canvas-handoff design §4 표와 P2의 Codex Default·Accept edits("escalation 승인 뒤 닿음")는 이제 맞지 않는다. Codex에서는 `doan handoff`도 묻지 않을 수 있다. Claude는 `doan handoff` 규칙이 없으므로 여전히 묻는다. 결정 1(Default는 provider의 승인을 그대로 쓴다)과 어긋나는지 링크 2 지휘자가 시작 때 확인하고, 제품 결정이 필요하면 멈춘다.
+    2. **함께 고치는 곳의 지금 모양**: `run.go`는 `DOAN_CONVERSATION_ID`를 읽고 `Flags`에 `Note`가 있다. `RESERVED`에 `DOAN_CONVERSATION_ID`가 있다. `runtime.ts` `answerLine` v3는 `update`를 터미널 또는 대화 상태로 보낸다. `ConversationService`에 `workEnded`와 `liveTurns()`가 있다. `eval/lib/socket.ts` fake app은 v3 update를 기록하고 모든 socket schema를 등록한다. ARCHITECTURE §4 이름은 'Work signals over app-socket v3'처럼 바뀌었다(현재 문서를 읽을 것).
+    3. **guide 예산은 21,600/21,600 B이고 남은 자리가 없다.** canvas-handoff는 guide를 바꾸지 않는다(결정 11). `doan help`나 `nextSteps`가 guide 쪽으로 번지면 자리가 없다.
+    4. **Codex 주간 한도**: G0 Codex 전체 round와 리뷰 4개로 많이 썼다. 시작 때 다시 확인한다. canvas-handoff E3의 Codex 실행이 한도에 걸리면 '돌리지 않음'으로 적는다.
+    5. 공용 프로필에 work-update probe 대화 기록 다섯 개가 남았다(체인 '전부 남김'). folders·ui-state·canvas-seen은 byte 단위로 같게 되돌렸다.
+    6. canvas-handoff D1 체크박스(위 참고)를 체크한다.
