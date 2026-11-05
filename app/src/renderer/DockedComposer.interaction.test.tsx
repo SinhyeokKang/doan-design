@@ -727,8 +727,15 @@ test.each([1, 3])("the queue shortcut caption is plain text for %i rows with Sen
 });
 
 test.each([
-  { sendNow: false }, { queued: [] }, { onSendQueuedNow: undefined },
+  { sendNow: false }, { queued: [] },
 ])("the queue shortcut caption is absent when rows or Send now are absent: %j", patch => {
   const { render } = shortcutSetup(patch);
+  expect(render().some(item => item.children === shortcutCaption)).toBe(false);
+});
+
+
+test("the queue shortcut caption is absent without a Send now handler", () => {
+  const { render, props } = shortcutSetup();
+  delete props.onSendQueuedNow;
   expect(render().some(item => item.children === shortcutCaption)).toBe(false);
 });
