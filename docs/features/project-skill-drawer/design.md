@@ -134,7 +134,7 @@
 
 ## 초안 요청
 
-초안: `.doan/canvases/project-skill-drawer.html`(canvas id `project-skill-drawer`, width 1680), frame `home-words`, `docked-capsule`, `docked-box`, `ime`, `bubble`, `popover-tabs`, `popover-search`, `slash-list`, `preset-failed`(`f2ef11b3`). 상태: 첫 수정본에서 결정 22–26을 반영한다. 사람 확인 전이다. 구현 전에 사람이 앱에서 확정한다(tasks D0). 하이라이트 상태는 Home composer와 docked composer(capsule, box) 모두에 그린다.
+초안: `.doan/canvases/project-skill-drawer.html`(canvas id `project-skill-drawer`, width 1680), frame `home-words`, `docked-capsule`, `docked-box`, `ime`, `bubble`, `popover-tabs`, `popover-search`, `slash-list`, `preset-failed`(`f2ef11b3`). 상태: 수정본 세 번(`38c7a862`, `e05e459b`, `ed101a9a`)으로 결정 22–26을 반영했고, 사람이 앱에서 확인해 확정했다(2026-11-06). 구현 전에 사람이 앱에서 확정한다(tasks D0). 하이라이트 상태는 Home composer와 docked composer(capsule, box) 모두에 그린다.
 
 - Doan preset 행의 왼쪽 보라 아이콘 타일과 skill 행의 회색 타일, "Project" 탭과 넓힌 popover(결정 22, 23).
 - 이름 충돌: `/audit`에서 preset 행이 맨 위이고 같은 이름의 skill 행이 바로 아래인 결과(결정 16).

@@ -25,7 +25,7 @@ design '결정' 0–26(사람, 2026-11-06)을 따른 순서다.
 
 ## D0. UI 초안(구현 전)
 
-- [ ] D0. `/design-draft project-skill-drawer`로 design '초안 요청'의 상태 전부(하이라이트 상태, 말풍선, popover 탭, `/` 목록, preset 행 아이콘 타일과 "Project" 탭, `/audit` 충돌, preset 실패와 skill, placeholder 두 가지와 결과 없음 문구, IME 조합 중 모양)를 그리고 사람이 앱에서 확정한다. 글은 `doan design-skill clarify --json`을 읽고 쓴다(결정 7). 확정된 문구는 B3·D2의 기대값이 된다.
+- [x] D0. (2026-11-06 사람 확정, `ed101a9a`) `/design-draft project-skill-drawer`로 design '초안 요청'의 상태 전부(하이라이트 상태, 말풍선, popover 탭, `/` 목록, preset 행 아이콘 타일과 "Project" 탭, `/audit` 충돌, preset 실패와 skill, placeholder 두 가지와 결과 없음 문구, IME 조합 중 모양)를 그리고 사람이 앱에서 확정한다. 글은 `doan design-skill clarify --json`을 읽고 쓴다(결정 7). 확정된 문구는 B3·D2의 기대값이 된다.
   - 검증: `doan check --repo . --json`(임시 `DOAN_RUNTIME`)이 초안에 오류 없음, `doan ls --repo . --json`에 초안이 있음, design '초안 요청'에 사람이 확인한 날짜가 있다. — 커밋(`docs(design): project-skill-drawer draft`)
 
 ## F. Antigravity stub 수정(P5가 "찾지 못함"일 때만)
