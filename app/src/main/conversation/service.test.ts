@@ -2489,6 +2489,21 @@ describe("conversation work", () => {
     expect(h.ended).toContain(id);
     expect(h.service.liveTurns().get(id)?.running).toBe(false);
   });
+  // V2 review: a quit whose appQuit write fails still clears every conversation's work, and still reports the failure.
+  it("a quit whose first interrupted write fails still clears the work of every conversation", async () => {
+    const h = fixture();
+    const first = (await h.service.start(request)).conversationId;
+    h.prepare.mockResolvedValueOnce({ ...prepared(), sessionId: "second-session" });
+    const second = (await h.service.start({ ...request, canvas: { path: ".doan/canvases/b.html" } })).conversationId;
+    h.ended.length = 0;
+    const append = h.store.append.bind(h.store);
+    vi.spyOn(h.store, "append").mockImplementation((cid, turn, body) => {
+      if (body.type === "interrupted") throw new Error("File exceeds limit");
+      return append(cid, turn, body);
+    });
+    expect(() => h.service.quit()).toThrow("File exceeds limit");
+    expect(h.ended).toEqual(expect.arrayContaining([first, second]));
+  });
   it("a deletion clears the conversation's work", async () => {
     const h = fixture(); const id = (await h.service.start(request)).conversationId;
     h.service.receive(id, { type: "turn.done" }); h.exits[0]?.(); h.ended.length = 0;

@@ -569,11 +569,13 @@ export class ConversationService {
     for (const id of [...this.evidence.keys()]) this.dropEvidence(id);
     for (const id of [...this.waits.keys(), ...this.judging.keys()]) this.cancelWait(id);
     for (const listing of this.listings) if (listing.cleanup) closing.push(listing.cleanup());
+    // Before the appQuit writes: one that throws ends this loop, and the quit's failure is reported, but no
+    // conversation's work content may outlive it.
+    for (const id of this.live.keys()) this.endWork(id);
     for (const [id, live] of this.live) {
       if (live.runner) closing.push(live.runner.close()); else if (live.cleanup) closing.push(live.cleanup());
       if (live.accepted && live.busy && !live.terminal) this.append(id, live.turnId, { type: "interrupted", reason: "appQuit" });
       live.terminal = true; live.busy = false;
-      this.endWork(id);
       this.dropSteers(id);
     }
     return Promise.all(closing).then(() => undefined);
