@@ -19,8 +19,9 @@ const TERMINALS = ["turn.done", "turn.failed", "interrupted"];
 const ends = (events: readonly { type: string }[]) => events.filter(e => e.type === "context.usage" || TERMINALS.includes(e.type)).map(e => e.type);
 
 // A Claude CLI in streaming-input mode that exits once its stdin ends. FAKE_CTX: "done" answers with a top-level call
-// whose usage and model the result's modelUsage names, a subagent call, then (after the terminal) another call and a
-// prompt suggestion; "hold" makes the call and never ends the turn; "eof" makes the call and exits without a result.
+// whose usage and model the result's modelUsage names, a subagent call, then a prompt suggestion after the terminal
+// (the real CLI sends no assistant frame for the suggestion's call; transport tests cover frames after the terminal);
+// "hold" makes the call and never ends the turn; "eof" makes the call and exits without a result.
 function claudeCli(root: string): string {
   const command = join(root, "claude");
   writeFileSync(command, `#!/usr/bin/env node
@@ -39,7 +40,6 @@ input.on('line', line => {
  if(mode==='hold') return;
  call('sub', {input_tokens:900000}, 'tool-1');
  send({type:'result',subtype:'success',is_error:false,result:'OK',session_id:r.session_id,modelUsage:{'claude-haiku-5-5':{contextWindow:200000},'claude-sonnet-5-5':{contextWindow:1000000}}});
- call('suggest', {input_tokens:500000});
  send({type:'prompt_suggestion',suggestion:'Next',uuid:'00000000-0000-4000-8000-0000000000a2',session_id:r.session_id});
 });
 input.on('close', () => { fs.writeFileSync(${JSON.stringify(join(root, "closed"))}, ''); setTimeout(() => process.exit(0), 20); });
