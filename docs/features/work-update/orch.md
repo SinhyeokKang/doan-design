@@ -41,3 +41,5 @@
 - 통합 HEAD `e8452b3a`: `go test ./...` 통과, `npm --prefix app run typecheck` 통과, `npm --prefix app test` 7963 통과.
 - M 시작(`wu-m`), C2를 C 작업자에게 follow-up으로 보냄, V1(C1+P 리뷰, Codex `gpt-6-astra` medium, `wu-v1`) 시작.
 - C2 순서 변경(지휘자 승인): Codex 한도 때문에 G0 Claude round → E1 구현 → E1 round(claude,codex ×3) → G0 Codex round를 마지막에 남은 한도로. 돌리지 못한 Codex 실행은 '돌리지 않음'으로 적는다.
+- M 완료(4커밋, red 먼저) → 통합 `f6e26a0c`·`ba544b6f`·`a948a60c`·`83e11076`. 계약 이름은 그대로다. 계획과 다른 점: 작업 턴 식별자 `"<provider|none>:<uuid>"`, `applyConversationWork`에 `now` 인자, `ConversationService`에 `workEnded`와 `liveTurns()`. 미룬 것: Doan에서 뺀 root의 대화 작업 내용은 턴 끝까지 남는다(V2가 판단한다). typecheck는 계약의 필수 필드(`touched`, `turn`) 때문에 다른 batch의 테스트 fixture에서만 실패한다. `canvasTrash.test.ts`는 M에게 follow-up으로 맡겼고, renderer fixture는 R의 배선 follow-up에서 고친다. 그때까지 통합 HEAD의 typecheck는 빨갛다.
+- V2(M 리뷰, Codex, `wu-v2`) 시작.
