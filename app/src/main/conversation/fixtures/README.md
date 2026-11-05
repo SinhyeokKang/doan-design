@@ -94,3 +94,17 @@ notes, not raw SDK frames): `init` is the `system/init` capabilities list of `p1
 tool-use ids are synthetic); `canUseTool` holds the inputs `canUseTool` received in `p1-answer-default.json` and
 `p1-multi-default.json`; `results` pairs the answers the probe sent (`answer`, `other`, `multi`, `unanswered2`, `deny`)
 with the tool result text the model received. The question texts and labels are the probe model's own.
+
+`claude-context.json`, `codex-context.json` and `acp-context.json` (context-window-ring A1) come from the
+2026-11-05 P1–P4 probes in `.scratch/context-window-ring/out/` (feature tasks 'P 결과'). `codex-context.json` and
+`acp-context.json` are the probe's already prompt- and account-free fixture material (`out/fixtures/`) with the thread,
+session and turn ids replaced by synthetic ones and `emittedAtMs` dropped: `turns` is one Codex 0.166.0 thread's
+plain turn and tool turn (two `thread/tokenUsage/updated`), `resume` the first turn after `thread/resume`, which
+replays the previous turn's notification before the new `turn/start` reply; the ACP members are Copilot 1.0.105
+(`copilot`, `copilotTool`), Copilot 1.0.89 after `session/load` (`copilotLoaded`) and Antigravity 1.3.0 before and
+after `session/load`. Frame order and every token value are as recorded. `claude-context.json` is rebuilt in the SDK
+frame shape from the P1 record `p1-sonnet-2.1.318-*.jsonl` (Claude Code 2.1.318), which kept each top-level
+assistant call's `model` and `usage` and the result's `modelUsage`, not the raw frames: `tool` is its tool turn (T2),
+`compact` its `/compact` turn (T3, no top-level call). Token values, model keys and `contextWindow` are as recorded;
+message ids, content, the tool input and the omitted `modelUsage` fields are synthetic. Tests change single fields
+of these fixtures for the boundary cases; those variants are synthetic.

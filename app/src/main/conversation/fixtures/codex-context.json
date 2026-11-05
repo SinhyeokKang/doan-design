@@ -1,0 +1,220 @@
+{
+  "turns": [
+    {
+      "id": "doan-5",
+      "result": {
+        "turn": {
+          "id": "turn-a",
+          "status": "inProgress"
+        }
+      }
+    },
+    {
+      "method": "turn/started",
+      "params": {
+        "threadId": "session-1",
+        "turn": {
+          "id": "turn-a"
+        }
+      }
+    },
+    {
+      "method": "thread/tokenUsage/updated",
+      "params": {
+        "threadId": "session-1",
+        "turnId": "turn-a",
+        "tokenUsage": {
+          "total": {
+            "totalTokens": 14837,
+            "inputTokens": 14832,
+            "cachedInputTokens": 10880,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 5,
+            "reasoningOutputTokens": 0
+          },
+          "last": {
+            "totalTokens": 14837,
+            "inputTokens": 14832,
+            "cachedInputTokens": 10880,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 5,
+            "reasoningOutputTokens": 0
+          },
+          "modelContextWindow": 258400
+        }
+      }
+    },
+    {
+      "method": "turn/completed",
+      "params": {
+        "threadId": "session-1",
+        "turn": {
+          "id": "turn-a",
+          "status": "completed"
+        }
+      }
+    },
+    {
+      "id": "doan-6",
+      "result": {
+        "turn": {
+          "id": "turn-b",
+          "status": "inProgress"
+        }
+      }
+    },
+    {
+      "method": "turn/started",
+      "params": {
+        "threadId": "session-1",
+        "turn": {
+          "id": "turn-b"
+        }
+      }
+    },
+    {
+      "method": "thread/tokenUsage/updated",
+      "params": {
+        "threadId": "session-1",
+        "turnId": "turn-b",
+        "tokenUsage": {
+          "total": {
+            "totalTokens": 31915,
+            "inputTokens": 31852,
+            "cachedInputTokens": 25472,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 63,
+            "reasoningOutputTokens": 0
+          },
+          "last": {
+            "totalTokens": 17078,
+            "inputTokens": 17020,
+            "cachedInputTokens": 14592,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 58,
+            "reasoningOutputTokens": 0
+          },
+          "modelContextWindow": 258400
+        }
+      }
+    },
+    {
+      "method": "thread/tokenUsage/updated",
+      "params": {
+        "threadId": "session-1",
+        "turnId": "turn-b",
+        "tokenUsage": {
+          "total": {
+            "totalTokens": 49047,
+            "inputTokens": 48961,
+            "cachedInputTokens": 42368,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 86,
+            "reasoningOutputTokens": 0
+          },
+          "last": {
+            "totalTokens": 17132,
+            "inputTokens": 17109,
+            "cachedInputTokens": 16896,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 23,
+            "reasoningOutputTokens": 0
+          },
+          "modelContextWindow": 258400
+        }
+      }
+    },
+    {
+      "method": "turn/completed",
+      "params": {
+        "threadId": "session-1",
+        "turn": {
+          "id": "turn-b",
+          "status": "completed"
+        }
+      }
+    }
+  ],
+  "resume": [
+    {
+      "method": "thread/tokenUsage/updated",
+      "params": {
+        "threadId": "session-1",
+        "turnId": "turn-b",
+        "tokenUsage": {
+          "total": {
+            "totalTokens": 49047,
+            "inputTokens": 48961,
+            "cachedInputTokens": 42368,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 86,
+            "reasoningOutputTokens": 0
+          },
+          "last": {
+            "totalTokens": 17132,
+            "inputTokens": 17109,
+            "cachedInputTokens": 16896,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 23,
+            "reasoningOutputTokens": 0
+          },
+          "modelContextWindow": 258400
+        }
+      }
+    },
+    {
+      "id": "doan-5",
+      "result": {
+        "turn": {
+          "id": "turn-c",
+          "status": "inProgress"
+        }
+      }
+    },
+    {
+      "method": "turn/started",
+      "params": {
+        "threadId": "session-1",
+        "turn": {
+          "id": "turn-c"
+        }
+      }
+    },
+    {
+      "method": "thread/tokenUsage/updated",
+      "params": {
+        "threadId": "session-1",
+        "turnId": "turn-c",
+        "tokenUsage": {
+          "total": {
+            "totalTokens": 80139,
+            "inputTokens": 80048,
+            "cachedInputTokens": 42368,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 91,
+            "reasoningOutputTokens": 0
+          },
+          "last": {
+            "totalTokens": 31092,
+            "inputTokens": 31087,
+            "cachedInputTokens": 0,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 5,
+            "reasoningOutputTokens": 0
+          },
+          "modelContextWindow": 258400
+        }
+      }
+    },
+    {
+      "method": "turn/completed",
+      "params": {
+        "threadId": "session-1",
+        "turn": {
+          "id": "turn-c",
+          "status": "completed"
+        }
+      }
+    }
+  ]
+}
