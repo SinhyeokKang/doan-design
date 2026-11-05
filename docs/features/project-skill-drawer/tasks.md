@@ -1,6 +1,6 @@
 # project-skill-drawer — tasks
 
-design '결정' 0–21(사람, 2026-11-06)을 따른 순서다.
+design '결정' 0–26(사람, 2026-11-06)을 따른 순서다.
 
 순서: PoC → UI 초안(구현 전, AGENTS.md 'Workflow') → (필요하면) Antigravity stub 수정 → 순수 함수 → main(I/O) → renderer(UI) → 실제 앱 확인 → 문서 승격.
 
@@ -25,7 +25,7 @@ design '결정' 0–21(사람, 2026-11-06)을 따른 순서다.
 
 ## D0. UI 초안(구현 전)
 
-- [ ] D0. `/design-draft project-skill-drawer`로 design '초안 요청'의 상태 전부(하이라이트 상태, 말풍선, popover 탭, `/` 목록, skill 행 caption, `/audit` 충돌, preset 실패와 skill, placeholder 두 가지와 결과 없음 문구, IME 조합 중 모양)를 그리고 사람이 앱에서 확정한다. 글은 `doan design-skill clarify --json`을 읽고 쓴다(결정 7). 확정된 문구는 B3·D2의 기대값이 된다.
+- [ ] D0. `/design-draft project-skill-drawer`로 design '초안 요청'의 상태 전부(하이라이트 상태, 말풍선, popover 탭, `/` 목록, preset 행 아이콘 타일과 "Project" 탭, `/audit` 충돌, preset 실패와 skill, placeholder 두 가지와 결과 없음 문구, IME 조합 중 모양)를 그리고 사람이 앱에서 확정한다. 글은 `doan design-skill clarify --json`을 읽고 쓴다(결정 7). 확정된 문구는 B3·D2의 기대값이 된다.
   - 검증: `doan check --repo . --json`(임시 `DOAN_RUNTIME`)이 초안에 오류 없음, `doan ls --repo . --json`에 초안이 있음, design '초안 요청'에 사람이 확인한 날짜가 있다. — 커밋(`docs(design): project-skill-drawer draft`)
 
 ## F. Antigravity stub 수정(P5가 "찾지 못함"일 때만)
@@ -48,8 +48,8 @@ design '결정' 0–21(사람, 2026-11-06)을 따른 순서다.
   - 검증: `npm --prefix app test` — §4.1의 예 전부(`/deploy` ○, `/deploy.` ○이고 범위에 `.` 없음, `(/deploy)` ×, `/deploy-x` ×, `/deplo` ×, `/Deploy` ×, `/deploy/x` ×, `/Users/me/deploy` ×, `/deploy로 배포해` ○이고 범위는 `/deploy`, `/deploy에서도` ○, `/deploy로.` ○, `/deploy.로` ×, `/db-migrate를` ○, `/deploy-x로` ×, 한글 이름 `/배포` ○·`/배포로` ×, `/deploy배포로`에서 `deploy`만 목록에 있으면 `/deploy`, 가장 긴 후보 우선, 한글 세 범위의 첫·끝 글자와 범위 밖 글자(예: U+A960 확장 자모는 경계 아님), 문장 중간 ○, 한 줄에 둘 ○, 줄바꿈 뒤 ○, tab·NBSP 뒤 ○, 다른 글 뒤 field 끝 ○, `/`만 있는 단어 ×, `//deploy` ×, `/deploy/` ×, 끝 문장부호 묶음의 전각 `。`·`」` 하나 이상 ○, anchor chip 바로 뒤 ×), 빈 목록이면 없음.
 - [ ] B2. `composeRequest`·`splitRequest`(preset 줄 → skill 줄들 → 빈 줄 → 글; 줄에는 조사를 뗀 목록의 이름)와 한 줄 글용 고정 줄 떼기(결정 18, main과 함께 쓰는 자리는 `rendererImports.test.ts`가 허용하는 곳), `draftProblem`의 한도, `insertSkillText`(caret은 넣은 공백 뒤), `slashQuery`의 맨 앞 skill 단어 뒤 공백에서 `null`(결정 14), `slashKey`의 정확히 같은 skill 이름에서 보내기(결정 17), `skillAnnouncements`.
   - 검증: `npm --prefix app test` — 왕복, 같은 이름 한 번·처음 나온 순서, preset만·skill만·둘 다·둘 다 없음, 한도가 고정 줄 포함, 고정 줄을 뗀 한 줄 글, popover 고르기의 공백 규칙과 caret, `/` 목록 고르기의 치환, `/design system` 검색은 열린 채, `/deploy `에서 닫히고 공백을 지우면 다시 열림, Esc로 닫은 뒤 field가 비면 다시 열림, 다시 읽은 목록에서 그 skill이 사라지면 여러 단어 검색으로 돌아감, `/deploy`에서 Enter는 보내기·`/audit`(preset과 같은 이름)에서 Enter는 preset 고르기.
-- [ ] B3. `searchDrawer`와 `presetListView`의 "Project skills" 탭, `/` 목록·검색 결과의 skill 행·caption·summary·결과 없음 문구, placeholder와 접근 이름, 열린 목록의 행 변화 규칙. 문구는 D0에서 확정한 값이다.
-  - 검증: `npm --prefix app test` — 점수 규칙과 preset 우선, 정확히 같은 preset id가 맨 위이고 같은 이름 skill이 바로 아래(`audit`), 그 밖에 정확히 같은 skill 이름이 맨 위, 행의 `kind`로 나뉜 key와 고르기, 탭 순서, preset 쪽 상태(loading, error, olderCli)가 skill 읽기에 영향받지 않음, 반대로 preset이 loading·error·olderCli일 때 skill section이 보임, 그룹 없는 옛 CLI 경로의 "Project skills" section, skill이 없거나 받은 적 없이 실패하면 탭·행 없음과 placeholder·`aria-label` "Search presets", skill이 있으면 "Search presets and skills", 열린 채 행이 바뀌면 강조가 같은 행을 따라감·없으면 0, 사라진 탭이면 첫 탭.
+- [ ] B3. `searchDrawer`와 `presetListView`의 "Project" 탭, `/` 목록·검색 결과의 preset 행 아이콘·skill 행·summary·결과 없음 문구, placeholder와 접근 이름, 열린 목록의 행 변화 규칙. 문구는 D0에서 확정한 값이다.
+  - 검증: `npm --prefix app test` — 점수 규칙과 preset 우선, 정확히 같은 preset id가 맨 위이고 같은 이름 skill이 바로 아래(`audit`), 그 밖에 정확히 같은 skill 이름이 맨 위, 행의 `kind`로 나뉜 key와 고르기, 탭 순서, preset 쪽 상태(loading, error, olderCli)가 skill 읽기에 영향받지 않음, 반대로 preset이 loading·error·olderCli일 때 skill section이 보임, 그룹 없는 옛 CLI 경로의 "Project" section, skill이 없거나 받은 적 없이 실패하면 탭·행 없음과 placeholder·`aria-label` "Search presets", skill이 있으면 "Search presets and skills", 열린 채 행이 바뀌면 강조가 같은 행을 따라감·없으면 0, 사라진 탭이면 첫 탭.
 
 ── commit: `feat: match project skill words and compose skill lines` ──
 

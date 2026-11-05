@@ -51,9 +51,9 @@
 
 ## 2. 목록 보이기(renderer)
 
-- `presetListView`에 skill을 더한다(결정 5). 행 모델에 `kind: "preset" | "skill"`을 더해, 고르는 동작과 React key를 `kind`와 이름으로 나눈다(지금은 `row.id` 하나로 구별한다, `HomeComposerView.tsx:478`, `ComposerParts.tsx:225`). popover: preset group 탭 뒤에 "Project skills" 탭(skill이 하나 이상일 때만). 그룹이 없는 옛 CLI 경로("All presets")에서는 그 뒤에 "Project skills" section을 둔다. `/` 목록과 검색 결과: preset 뒤에 skill 행.
+- `presetListView`에 skill을 더한다(결정 5). 행 모델에 `kind: "preset" | "skill"`을 더해, 고르는 동작과 React key를 `kind`와 이름으로 나눈다(지금은 `row.id` 하나로 구별한다, `HomeComposerView.tsx:478`, `ComposerParts.tsx:225`). popover: preset group 탭 뒤에 "Project" 탭(skill이 하나 이상일 때만). 그룹이 없는 옛 CLI 경로("All presets")에서는 그 뒤에 "Project" section을 둔다. `/` 목록과 검색 결과: preset 뒤에 skill 행.
 - 순서: 검색은 `searchPresets`의 점수 규칙을 skill의 `name`·`description`에 쓰고, 같은 점수면 preset이 먼저다. 검색어가 preset id와 정확히 같으면 그 preset 행이 맨 위이고, 같은 이름의 skill 행이 바로 아래다(결정 16; 이 저장소의 `audit`). 그렇지 않고 검색어가 skill 이름과 정확히 같으면 그 skill 행이 맨 위다.
-- 행 모양은 preset 행(이름 위, 설명 아래 한 줄)과 같고, 이름은 `/<이름>`으로 보인다. skill 행에만 끝 caption "Project skill"을 새로 그린다(지금 행은 `group`을 그리지 않는다, `ComposerParts.tsx:190-203`). caption의 자리와 아이콘은 초안에서 정한다.
+- 행 모양은 preset 행(이름 위, 설명 아래 한 줄)과 같고, 이름은 `/<이름>`으로 보인다. Doan preset 행에는 왼쪽에 보라 아이콘 타일을 둔다. 제안 프롬프트 행과 같은 primitive(`.suggestion-icon`, `HomeComposerView.tsx`의 `GroupIcon name={groupIcon(group)}`)이고 아이콘은 그 preset의 group 아이콘이다. skill 행에는 아이콘도 caption도 없다(결정 23). 지금 행은 이름과 설명만 그린다(`ComposerParts.tsx`의 `PresetOption`). "Project" 탭의 아이콘은 lucide `SquareSlash`다(결정 22).
 - 검색 칸 placeholder와 접근 이름(`aria-label`, 지금 "Search presets", `ComposerParts.tsx:229`)은 skill이 하나 이상일 때만 "Search presets and skills"이고, 아니면 지금 그대로다. Presets 버튼의 이름 "Design presets"는 그대로다(결정 7). 결과 없음과 결과 수 문구도 skill이 있을 때는 skill을 함께 말한다(예: "No presets or skills match “q”."). 최종 문구는 초안 때 clarify preset으로 정한다. composer placeholder "Describe what to design, / for presets"는 그대로다.
 - skill이 없거나 목록을 받은 적 없이 읽기에 실패하면 skill 탭과 행이 없을 뿐이다(결정 5). 반대로 preset 읽기가 loading·error·olderCli여도 skill 목록이 있으면 preset 쪽 notice나 loading 줄을 위에 두고 그 아래에 skill section을 보인다(결정 19; 지금 `presetListView`는 이 상태에서 일찍 반환한다, `homeComposer.ts:404-412`).
 - 목록이 열린 채 행이 바뀌면(다시 읽은 결과 도착): 강조는 같은 행(`kind` + 이름)을 따라가고, 그 행이 없으면 맨 위로 간다. 지금은 검색어가 바뀔 때만 강조가 0으로 돌아가서(`HomeComposerView.tsx:286`, `DockedComposer.tsx:238`), 행이 줄면 Enter가 아무 일도 하지 않을 수 있다. popover에서 고른 탭이 사라지면 첫 탭으로 가고 focus도 그 탭으로 간다(POSTMORTEM 2026-11-01 'A frame drawer list closed by a disabled trigger reopened by itself': 사라진 상태를 남겨 두지 않는다).
@@ -134,9 +134,9 @@
 
 ## 초안 요청
 
-`/design-draft`가 그릴 것(이 feature 문서를 쓴 세션은 그리지 않았다). 구현 전에 그리고 사람이 앱에서 확정한다(tasks D0). 하이라이트 상태는 Home composer와 docked composer(capsule, box) 모두에 그린다.
+초안: `.doan/canvases/project-skill-drawer.html`(canvas id `project-skill-drawer`, width 1680), frame `home-words`, `docked-capsule`, `docked-box`, `ime`, `bubble`, `popover-tabs`, `popover-search`, `slash-list`, `preset-failed`(`f2ef11b3`). 상태: 첫 수정본에서 결정 22–26을 반영한다. 사람 확인 전이다. 구현 전에 사람이 앱에서 확정한다(tasks D0). 하이라이트 상태는 Home composer와 docked composer(capsule, box) 모두에 그린다.
 
-- skill 행의 끝 caption "Project skill"의 자리와 skill 아이콘.
+- Doan preset 행의 왼쪽 보라 아이콘 타일과 아이콘 없는 skill 행, "Project" 탭과 넓힌 popover(결정 22, 23).
 - 이름 충돌: `/audit`에서 preset 행이 맨 위이고 같은 이름의 skill 행이 바로 아래인 결과(결정 16).
 - preset 읽기가 loading·error·옛 CLI이고 skill 목록은 있는 popover와 `/` 목록(결정 19).
 - 검색 칸 placeholder 두 가지(skill이 있을 때·없을 때)와 결과 없음 문구(skill이 있을 때). 글은 `doan design-skill clarify --json`을 읽고 쓴다.
@@ -144,7 +144,7 @@
 
 - 하이라이트: 친 중인 `/deplo`(없음), `/deploy`(있음), `/deploy-x`(없음), 문장 중간의 `/deploy`, 한 줄에 둘, `/deploy.`(문장부호 밖), `/Users/me/deploy`(없음), `/deploy로 배포해`(`/deploy`만, 조사는 밖), 두 줄에 걸친 긴 이름(64자, 조각마다 모서리), anchor chip과 같은 줄, preset chip과 함께.
 - 보낸 말풍선의 하이라이트(고정 줄은 보이지 않음), preset 표시와 함께.
-- Presets popover: preset group 탭 뒤의 "Project skills" 탭과 skill 행, 검색 칸 "Search presets and skills".
+- Presets popover: preset group 탭 뒤의 "Project" 탭과 skill 행, 검색 칸 "Search presets and skills".
 - `/` 목록: 검색어가 preset과 skill에 함께 맞는 결과, 정확히 같은 이름이 맨 위인 결과, 맞는 것이 없는 상태.
 - 설명이 없는 skill 행, 이름이 긴 skill 행.
 - skill 단어만 있고 다른 글이 없는 draft의 placeholder는 해당하지 않는다(글이 있으므로). 결정 7의 "Add details for <skill>…"은 쓰지 않는다(결정 15).
@@ -156,7 +156,7 @@
 3. `skillWords(text: string, names: ReadonlySet<string>): {start, end, name}[]` — §4.1 전부(시작, 끝 문장부호, 대소문자, `/` 포함 경로, 한글 경계와 세 범위의 경계 값, 한글이 든 이름, 가장 긴 후보, 여러 단어).
 4. `fieldSkillRuns(segments, names)` — chip이 섞인 segment에서 글 단위 범위(chip 뒤 `/`는 시작이 아님).
 5. `searchDrawer(presets, skills, query)` — `searchPresets` 점수 규칙, preset 우선, 정확히 같은 preset id가 맨 위이고 같은 이름 skill이 바로 아래(결정 16), 그 밖에 정확히 같은 skill 이름은 맨 위, 행의 `kind`.
-6. `presetListView`의 "Project skills" 탭·행·caption·summary·결과 없음 문구, placeholder와 접근 이름, preset 읽기가 loading·error·olderCli일 때의 skill section(결정 19), 그룹 없는 옛 CLI 경로.
+6. `presetListView`의 "Project" 탭·행(preset 행의 group 아이콘)·summary·결과 없음 문구, placeholder와 접근 이름, preset 읽기가 loading·error·olderCli일 때의 skill section(결정 19), 그룹 없는 옛 CLI 경로.
 7. `composeRequest` / `splitRequest` — preset 줄과 skill 줄의 순서, 같은 이름 한 번, 왕복, 고정 줄 없는 글, 한도 계산. 한 줄 글을 위한 고정 줄 떼기(결정 18, main과 함께 씀).
 8. `insertSkillText(segments, caret, name)` — popover 고르기의 공백 규칙과 caret(넣은 공백 뒤). `/` 목록 고르기의 치환.
 9. `slashQuery` 확장 — 맨 앞 skill 단어 뒤 공백이면 `null`(결정 14, 상태 없음). `slashKey` — 검색어가 skill 이름과 같고 강조 행이 그 skill이면 보내기(결정 17).
@@ -240,6 +240,11 @@
 19. **preset 읽기가 실패해도 받은 skill은 보인다.** preset 쪽 notice나 loading 줄 아래에 skill section을 둔다. 이유: 결정 5(skill이 없어도 preset은 그대로)의 대칭이다.
 20. **IME 조합 중에는 조합 글이 하이라이트 안에 보일 수 있다. 받아들이고 R1에서 본다.** 조합이 끝난 뒤 다시 정해진다. 거슬리면 caret을 span 밖에 두는 규칙을 더한다. 이유: 지금의 chip field 길(조합 중 그리지 않음)을 그대로 쓸 수 있다.
 21. **턴이 끝날 때도 다시 읽는다(같은 30초 상한).** 이유: agent가 방금 만든 skill을 다음 메시지에서 바로 쓸 수 있다.
+22. **탭 이름은 "Project", 아이콘은 lucide `SquareSlash`. popover는 skill이 있는 동안만, 탭 줄에 필요한 만큼만 넓힌다.** skill이 없으면 600px 그대로이고 `/` 목록도 그대로다. 넓힌 폭은 초안 수정본에서 잰 값이다. 이유: 탭이 넘치지 않으면서 기존 탭의 크기·아이콘·이름을 바꾸지 않는다(사람: "Tab Label을 그냥 Project 또는 Projects로. 이에 맞춰 1번으로"; "Project"는 다른 탭처럼 group 이름으로 읽힌다).
+23. **보라 아이콘 타일은 Doan preset 행에만 둔다.** `/` 목록, 검색 결과, popover 탭의 preset 행 왼쪽에 제안 프롬프트 행과 같은 primitive(`.suggestion-icon`과 group 아이콘)를 둔다. skill 행에는 아이콘도 caption도 없다. 이유: Doan preset이 특별해 보여야 한다(사람: "도안 프리셋 한정으로 아이콘", "프롬프트 버튼과 같은 프리미티브로"). 이에 따라 지금 preset 행의 모양이 바뀌고 DESIGN 'Home'의 preset 행 측정값이 바뀐다.
+24. **말풍선 안의 하이라이트는 `--surface-panel` fill이다.** 말풍선 fill이 하이라이트 fill과 같아 묻히므로, 말풍선 안 anchor chip(`.bubble .anchor-chip`)과 같은 규칙을 쓴다.
+25. **"Project" 탭 안 skill 행은 이름순이다.** 이유: provider가 바뀌어도 같은 저장소는 같은 순서로 보인다.
+26. **검색 문구**: 결과 없음 "No presets or skills match “<q>”.", 목록 접근 이름 "<n> preset(s) and <m> skill(s) match <q>"(예: "1 preset and 1 skill match rev", "2 skills match dep"), placeholder "Search presets and skills"(skill이 없으면 "Search presets"). clarify preset으로 다듬은 초안의 문구를 사람이 확인했다.
 
 ## 결정할 점
 
