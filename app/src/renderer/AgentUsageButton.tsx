@@ -78,7 +78,8 @@ function freeEnd(header: HTMLElement): number {
 
 // Agent usage at the header's right end on every screen. Each header holds its own button; main is the source of
 // the entries, and opening or Refresh usage only asks it to read.
-export function AgentUsageButton({ openSettings, canvasPress }: { openSettings(): void; canvasPress?: CanvasPress | undefined }) {
+// openSettings answers whether it went to Settings: a locked page stays, and focus then returns to the button.
+export function AgentUsageButton({ openSettings, canvasPress }: { openSettings(): boolean; canvasPress?: CanvasPress | undefined }) {
   const [entries, setEntries] = useState<UsageEntry[]>([]);
   const [open, setOpen] = useState(false);
   const [, setTick] = useState(0);
@@ -110,6 +111,14 @@ export function AgentUsageButton({ openSettings, canvasPress }: { openSettings()
     const timer = setInterval(() => setTick(tick => tick + 1), 60_000);
     return () => clearInterval(timer);
   }, [open]);
+  // A window whose reset time passes leaves the ring even while closed. setTimeout overflows past 2^31 − 1 ms (a
+  // 30-day window) and would fire at once, so a far reset only redraws early and waits again.
+  const nextReset = Math.min(...shown.flatMap(entry => entry.reading?.status === "ok" ? entry.reading.windows.flatMap(w => w.resetsAt !== undefined && w.resetsAt > Date.now() ? [w.resetsAt] : []) : []));
+  useEffect(() => {
+    if (!Number.isFinite(nextReset)) return;
+    const timer = setTimeout(() => setTick(tick => tick + 1), Math.min(nextReset - Date.now(), 2 ** 31 - 1));
+    return () => clearTimeout(timer);
+  }, [nextReset]);
   // The last provider signed out under the open popover: the button goes, so focus goes to the current tab.
   useEffect(() => {
     if (!gone || !open) return;
@@ -124,12 +133,13 @@ export function AgentUsageButton({ openSettings, canvasPress }: { openSettings()
   }, [open, canvasPress]);
   if (gone) return null;
   const now = Date.now();
+  // The entries arrive through onAgentUsage; a refused request has nothing to show beyond them.
   const read = (trigger: "open" | "refresh") => { void window.doan.readAgentUsage(trigger).catch(() => {}); };
   return <UsageView rings={ringViews(shown, now)} folded={usageFolds(free, shown.length)} description={usageDescription(shown, now)} descriptionId={descriptionId} titleId={titleId}
     open={open} rows={shown.map(entry => rowView(entry, now))} busy={usageBusy(shown)} buttonRef={buttonRef} listRef={listRef}
     onOpenChange={next => { setOpen(next); if (next) { keepFocus.current = false; read("open"); } }}
     onRefresh={() => read("refresh")}
-    onSettings={() => { keepFocus.current = true; setOpen(false); openSettings(); }}
+    onSettings={() => { keepFocus.current = openSettings(); setOpen(false); }}
     onOpenAutoFocus={event => { event.preventDefault(); list.current?.focus(); }}
     onCloseAutoFocus={event => { if (keepFocus.current) { keepFocus.current = false; event.preventDefault(); } }} />;
 }

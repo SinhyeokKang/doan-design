@@ -337,7 +337,7 @@ test("while the page is locked a click on the Settings tab is ignored, not queue
 });
 
 // provider-usage tasks C1: the Agent usage button sits at the header's right end, after the tabs, on every screen.
-type UsageProps = { openSettings(): void; canvasPress?: unknown };
+type UsageProps = { openSettings(): boolean; canvasPress?: unknown };
 function usageOf(header: ReactElement) {
   const bar = (header.type as (props: unknown) => ReactElement<{ children: ReactNode[] }>)(header.props);
   const children = [bar.props.children].flat(3).filter(isValidElement) as ReactElement<Record<string, unknown>>[];
@@ -351,7 +351,7 @@ test("every screen's header ends with Agent usage; its Agent settings opens Sett
   click(topBar(homeEl()!.props.header).add);
   expect(usageOf(addPage()!.props.header)).toMatchObject({ afterTabs: true });
   find<{ onState(report: { locked: boolean; choose: boolean }): void }>(AddProjectsPage)[0]!.props.onState({ locked: true, choose: false }); render();
-  usageOf(addPage()!.props.header).usage!.props.openSettings(); render();
+  expect(usageOf(addPage()!.props.header).usage!.props.openSettings()).toBe(false); render();
   expect(onSettings()).toBe(false);
   reset();
   openFromWorkspace();
@@ -359,7 +359,7 @@ test("every screen's header ends with Agent usage; its Agent settings opens Sett
   settings()!.props.sidebar.props.settings!.select("about"); render();
   const { usage, afterTabs } = usageOf(settings()!.props.header);
   expect(afterTabs).toBe(true);
-  usage!.props.openSettings(); render();
+  expect(usage!.props.openSettings()).toBe(true); render();
   expect(settings()!.props).toMatchObject({ section: "agents", arrival: { focus: { kind: "heading" } } });
 });
 

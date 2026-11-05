@@ -57,7 +57,7 @@ beforeEach(() => {
 });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
-const openSettings = vi.fn();
+const openSettings = vi.fn(() => true);
 let pressListener: (() => void) | null = null;
 const canvasPress = vi.fn((listener: () => void) => { pressListener = listener; return () => { pressListener = null; }; });
 // Renders, runs the effects that render scheduled, and renders again until nothing is pending.
@@ -129,6 +129,29 @@ test("Agent settings closes the popover, keeps Radix from taking focus back and 
   expect(event.preventDefault).toHaveBeenCalled();
 });
 
+test("Agent settings on a locked page opens nothing and lets Radix return focus to the button", () => {
+  render(); deliver([ok("claude")]);
+  let view = render()!; mountButton(view); view.onOpenChange(true); view = render()!;
+  openSettings.mockReturnValueOnce(false);
+  view.onSettings();
+  view = render()!;
+  expect(view.open).toBe(false);
+  const event = closeEvent(); view.onCloseAutoFocus(event as unknown as Event);
+  expect(event.preventDefault).not.toHaveBeenCalled();
+});
+
+test("redraws when a window's reset time passes while closed, with the delay kept under the timer limit", () => {
+  const timeout = vi.spyOn(globalThis, "setTimeout");
+  render(); deliver([ok("claude", { reading: { status: "ok", windows: [win({ usedPercent: 95, resetsAt: NOW + 5 * MIN })], readAt: NOW } }), ok("codex", { reading: { status: "ok", windows: [win({ resetsAt: NOW + 30 * 24 * 60 * MIN })], readAt: NOW } })]);
+  expect(render()!.rings[0]).toMatchObject({ value: 95, full: true });
+  expect(timeout.mock.calls.some(([, delay]) => delay === 5 * MIN)).toBe(true);
+  vi.advanceTimersByTime(5 * MIN);
+  expect(render()!.rings[0]).toMatchObject({ value: null, full: false });
+  // The 30-day window is past setTimeout's 2^31 − 1 ms; an overflowing delay would fire at once and spin.
+  expect(timeout.mock.calls.every(([, delay]) => typeof delay !== "number" || delay <= 2 ** 31 - 1)).toBe(true);
+  expect(vi.getTimerCount()).toBe(1);
+});
+
 test("Escape or an outside press leaves focus to Radix, which returns it to the button", () => {
   render(); deliver([ok("claude")]);
   let view = render()!; mountButton(view); view.onOpenChange(true); view = render()!;
@@ -152,13 +175,14 @@ test("updates relative times every minute only while open", () => {
   let view = render()!;
   vi.advanceTimersByTime(2 * MIN);
   expect(render()!.rows[0]!.read).toBe("Updated 2m ago");
-  expect(vi.getTimerCount()).toBe(0);
-  view = render()!; view.onOpenChange(true); render();
+  // One timer waits for the window's reset; the minute tick comes and goes with the popover.
   expect(vi.getTimerCount()).toBe(1);
+  view = render()!; view.onOpenChange(true); render();
+  expect(vi.getTimerCount()).toBe(2);
   vi.advanceTimersByTime(MIN);
   expect(render()!.rows[0]!.read).toBe("Updated 3m ago");
   view = render()!; view.onOpenChange(false); render();
-  expect(vi.getTimerCount()).toBe(0);
+  expect(vi.getTimerCount()).toBe(1);
 });
 
 test("a provider signing out loses its row and one signing in starts at Reading usage…", () => {
