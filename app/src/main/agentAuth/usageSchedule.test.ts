@@ -5,7 +5,7 @@ import type { UsageEntry, UsageReading, UsageTrigger } from "./usageTypes";
 const NOW = Date.parse("2026-11-05T05:00:00Z");
 const ok = (ago: number, resetsAt?: number): UsageReading => ({ status: "ok", readAt: NOW - ago, windows: [{ id: "five_hour", label: "5-hour", usedPercent: 10, ...(resetsAt === undefined ? {} : { resetsAt }) }] });
 const failed = (ago: number): UsageReading => ({ status: "unavailable", reason: "read_failed", readAt: NOW - ago });
-const entry = (reading?: UsageReading, more: Partial<UsageEntry> = {}): Pick<UsageEntry, "reading" | "inFlight" | "blocked"> => ({ reading, inFlight: false, ...more });
+const entry = (reading?: UsageReading, more: Partial<UsageEntry> = {}): Pick<UsageEntry, "reading" | "inFlight" | "blocked"> => ({ ...(reading ? { reading } : {}), inFlight: false, ...more });
 const T = {
   start: { kind: "start" }, signIn: { kind: "signIn" }, open: { kind: "open" }, refresh: { kind: "refresh" },
   turnEnd: { kind: "turnEnd", owner: "doan" }, legacyTurnEnd: { kind: "turnEnd", owner: "legacy-external" },
