@@ -49,3 +49,6 @@
 - V1(C1+P): 🔴1(Claude 프로필 settings 병합이 읽기와 쓰기 사이에 Claude가 저장한 내용을 덮음) 🟡1(마지막 경로가 symlink인 settings.json을 일반 파일로 바꿈). S1은 지적 없음. 보고서 `wu-v1/.scratch/review-V1.md`. P 작업자에게 수정 round 1을 보냄.
 - V2(M): 🔴0 🟡2(quit에서 append 실패 때 대화 작업 내용이 남음, 같은 ms의 동일 update가 변경 이벤트를 다시 보냄) ⚪1. M 작업자에게 수정 round 1을 보냄.
 - V3(R): 🔴0 🟡7(출처 전환 기록이 frame 존재에 묶임, pointer 활동 전달, 메뉴 overlay selector, reduced motion에서 `.working.moving` transition, 캔버스 경계에서 타이핑 취소, 제목 캐시 소유권, 사람의 선택 해제가 멈춤을 남기지 않음) ⚪2. R2가 끝나면 R 작업자에게 보낸다.
+- 수정 round 통합: P V1 수정(`6a620c36` 경쟁 쓰기·symlink 보호), V1 재검토의 새 🟡(hard link 실패 때 원래 경로가 빔) 수정 `9d783673`. 남은 한계: hard link를 못 쓰는 파일 시스템에서는 Claude 프로필 실행이 `write_failed`로 멈춘다(userData는 APFS라 받아들임, 지휘자 판단). M V2 수정 `862b22c8`·`47c079ae`(🔴 없던 리뷰라 재검토 생략, 지휘자 판단). R2 배선 `eafbef48`·`36e390ac`, R3 V3 수정 `a5c0e365`(소유 밖 `canvasScript.ts`·`ds/checks.ts`를 고침, 다른 batch와 겹치지 않음). 통합 HEAD typecheck 0, `src/main` test 3981 통과.
+- C2의 끝난 커밋 10개(CLI, guide 줄이기와 `update` 규칙, BACKLOG, eval fake app, W5)를 먼저 통합했다(`ddd9c1b9`..`36dfc2bd`). eval round는 C 작업자에서 계속 돈다. `go test`, `go vet`, eval unit 278 통과.
+- P·M·V1·V2·V3 작업자 release. V4(C2 리뷰, Codex, `wu-v4`) 시작. R 작업자에게 U3(`/design-sync`, 격리 실제 앱)를 보냄.
