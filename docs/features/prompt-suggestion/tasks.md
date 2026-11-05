@@ -40,7 +40,7 @@
 ## E. 실제 앱 확인
 
 - [ ] E1. `/runtime-test`로 격리한 실제 앱에서 바뀐 동작만 짧게 본다. 로그인한 Claude Code 연결이 필요하므로 프로필과 실제 HOME 사용 여부는 사람에게 먼저 묻는다(AGENTS.md 'Commands'의 격리 규칙).
-  - 검증 (a) Claude Code 대화의 두 번째 턴 뒤 캔버스 대화 패널과 Overview에서 제안이 placeholder로 보이고, capsule에서 한 줄 말줄임으로 끝남. 첨부만 있는 draft의 box에서 긴 제안이 두 줄 말줄임으로 끝나고 빈 입력란에 스크롤이 생기지 않음. `turn.done`부터 제안이 보일 때까지의 지연을 기록함(스크린샷).
+  - 검증 (a) Claude Code 대화의 두 번째 턴 뒤 캔버스 대화 패널과 Overview에서 제안이 placeholder로 보이고, capsule에서 한 줄 말줄임으로 끝남. 첨부만 있는 draft의 box에서 긴 제안이 한 줄 말줄임으로 끝나고 빈 입력란에 스크롤이 생기지 않으며 높이가 바뀌지 않음. `turn.done`부터 제안이 보일 때까지의 지연을 기록함(스크린샷).
   - 검증 (b) 실제 키보드로 ArrowRight가 제안을 넣는다. 한국어 IME 조합 중 ArrowRight는 조합만 끝내거나 caret만 옮기고 제안을 넣지 않으며, 글자를 잃거나 두 번 넣지 않는다. 자동 입력으로 실제 키를 낼 수 없으면 사람에게 확인을 부탁하고, 하지 못한 것은 보고에 남긴다.
   - 검증 (c) (P1-b를 옮겨 옴) `turn.done`에서 바로 보낸 send와 50 ms마다 다시 보낸 send, 큐 전송이 `busy`가 되지 않고, 지연 시간을 기록한다. 제안을 기다리는 프로세스가 group stop으로 끝나고 다음 턴이 같은 세션을 잇는지 본다.
   - 검증 (d) VoiceOver로 빈 입력란에 들어가면 제안과 안내가 읽힌다. 못 했으면 보고에 남긴다.
@@ -49,7 +49,7 @@
 
 ## Z. 승격과 정리
 
-- [ ] Z1. PRODUCT §5 item 3 'Project Overview'(캔버스 패널은 그 규칙을 따른다)에 다음 입력 제안 규칙을 영어로 쓴다: Claude Code만, 보이는 조건과 우선순위(첨부만 있는 draft 포함), ArrowRight, 보내지 않음, 사라지는 때(연결 sign-out·교체 포함), 기록하지 않음, 접근성, 끄는 방법(login shell의 `CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION=false` 하나. Doan이 기본값 true를 주므로 저장소 `.claude/settings*.json`의 `promptSuggestionEnabled: false`는 막지 못함, design 결정 2). PRODUCT §3 'Launch environment'와 ARCHITECTURE의 launch environment 문단에 probe가 이 변수를 읽고 Doan이 기본값을 준다는 점을 쓴다. PRODUCT §3 Out of scope 4(또는 'Agent conversation foundation contract')에 "사람의 턴 끝에 provider CLI가 스스로 하는 제안 생성은 Doan이 시작하는 작업이 아니며, 사람의 계정으로 턴마다 요청 하나를 더한다"를 쓴다. ARCHITECTURE §7 'Agent conversation runtime and IPC'에 runner가 terminal 뒤 `prompt_suggestion`을 읽는 규칙, 메모리 보관과 summary 필드, 다음 send가 design 동작 main 6의 조건인 프로세스를 끝내는 이유(`EXIT_WAIT_MS` 예산, POSTMORTEM 2026-10-28)와 Codex 예측을 쓰지 않는 이유를 쓴다. ARCHITECTURE §7 'Agent usage' 'Turn-end reads'의 "the cap plus the CLI's exit after closing must stay inside `EXIT_WAIT_MS`" 문장을 새 규칙에 맞게 고친다. DESIGN.md 'Narrow placeholder'에 제안도 같은 규칙이고 box에서는 두 줄 line clamp 말줄임임을 더한다. `docs/features/prompt-suggestion/`을 지운다.
+- [ ] Z1. PRODUCT §5 item 3 'Project Overview'(캔버스 패널은 그 규칙을 따른다)에 다음 입력 제안 규칙을 영어로 쓴다: Claude Code만, 보이는 조건과 우선순위(첨부만 있는 draft 포함), ArrowRight, 보내지 않음, 사라지는 때(연결 sign-out·교체 포함), 기록하지 않음, 접근성, 끄는 방법(login shell의 `CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION=false` 하나. Doan이 기본값 true를 주므로 저장소 `.claude/settings*.json`의 `promptSuggestionEnabled: false`는 막지 못함, design 결정 2). PRODUCT §3 'Launch environment'와 ARCHITECTURE의 launch environment 문단에 probe가 이 변수를 읽고 Doan이 기본값을 준다는 점을 쓴다. PRODUCT §3 Out of scope 4(또는 'Agent conversation foundation contract')에 "사람의 턴 끝에 provider CLI가 스스로 하는 제안 생성은 Doan이 시작하는 작업이 아니며, 사람의 계정으로 턴마다 요청 하나를 더한다"를 쓴다. ARCHITECTURE §7 'Agent conversation runtime and IPC'에 runner가 terminal 뒤 `prompt_suggestion`을 읽는 규칙, 메모리 보관과 summary 필드, 다음 send가 design 동작 main 6의 조건인 프로세스를 끝내는 이유(`EXIT_WAIT_MS` 예산, POSTMORTEM 2026-10-28)와 Codex 예측을 쓰지 않는 이유를 쓴다. ARCHITECTURE §7 'Agent usage' 'Turn-end reads'의 "the cap plus the CLI's exit after closing must stay inside `EXIT_WAIT_MS`" 문장을 새 규칙에 맞게 고친다. DESIGN.md 'Narrow placeholder'에 제안도 같은 규칙이고 box에서도 한 줄 말줄임임을 더한다. `docs/features/prompt-suggestion/`을 지운다.
   - 검증: `rg -n "prompt_suggestion|Right Arrow|PROMPT_SUGGESTION" docs/PRODUCT.md docs/ARCHITECTURE.md`와 `rg -n "suggestion" docs/DESIGN.md`가 새 규칙을 찾고, `docs/features/prompt-suggestion/`이 없다. 문서마다 커밋을 나눈다.
 - [ ] Z2. `node .agents/skills/verify/scripts/verify.mjs`로 공유 gate를 돌린다.
   - 검증: 종료 코드 0.
