@@ -22,9 +22,9 @@
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 gate | 상태 |
 |---|---|---|---|---|---|---|
-| P | C1 | `.scratch/canvas-capture/`, tasks.md 'P 결과'는 지휘자가 옮김 | 없음 | Claude Opus medium — 격리 앱 probe와 판정. 코드는 안 바꾸지만 (a)·(b) 판정이 design 결정 1을 좌우한다 | 'P 결과'에 (a)–(e) 판정과 스크린샷 경로 | 대기 |
-| K | A1, C2 | `app/src/renderer/canvasCapture.ts`(새)·`canvasCapture.test.ts`, `canvasTool.ts`·`canvasTool.test.ts`, `CanvasController.ts`·`CanvasController.test.ts` | 없음 | Claude Opus high — 포인터·레이어 순서·reload·blur의 생명 주기. 틀리면 선택 클릭이 새거나 레이어가 겹친다 | `npm --prefix app test`(해당 테스트 red→green 기록), typecheck | 대기 |
-| M | A2, A3, B1 | `homeComposer.ts`·`homeComposer.test.ts`, `app/src/main/attachments.ts`·`attachments.test.ts`, `app/src/main/index.ts`, `senderAllowed.ts`(+test), `app/src/preload/index.ts` | 없음 | Claude Sonnet high — design에 함수·채널이 정해져 있어 판단은 적지만, IPC 신뢰 경계와 저장 정리가 있다 | `npm --prefix app test`, typecheck | 대기 |
+| P | C1 | `.scratch/canvas-capture/`, tasks.md 'P 결과'는 지휘자가 옮김 | 없음 | Claude Opus medium — 격리 앱 probe와 판정. 코드는 안 바꾸지만 (a)·(b) 판정이 design 결정 1을 좌우한다 | 'P 결과'에 (a)–(e) 판정과 스크린샷 경로 | 진행 |
+| K | A1, C2 | `app/src/renderer/canvasCapture.ts`(새)·`canvasCapture.test.ts`, `canvasTool.ts`·`canvasTool.test.ts`, `CanvasController.ts`·`CanvasController.test.ts` | 없음 | Claude Opus high — 포인터·레이어 순서·reload·blur의 생명 주기. 틀리면 선택 클릭이 새거나 레이어가 겹친다 | `npm --prefix app test`(해당 테스트 red→green 기록), typecheck | 진행 |
+| M | A2, A3, B1 | `homeComposer.ts`·`homeComposer.test.ts`, `app/src/main/attachments.ts`·`attachments.test.ts`, `app/src/main/index.ts`, `senderAllowed.ts`(+test), `app/src/preload/index.ts` | 없음 | Claude Sonnet high — design에 함수·채널이 정해져 있어 판단은 적지만, IPC 신뢰 경계와 저장 정리가 있다 | `npm --prefix app test`, typecheck | 진행 |
 | U | E1, E2 | `CanvasTools.tsx`(+test), `App.tsx`·App 테스트, `CanvasConversationPanel.tsx`, `conversationStore.ts`(+test), `styles.css`, `ds/controls.test.ts` | K, M 통합 | Claude Opus high — App 연결, 상한 경쟁, 칩 확정, 패널 펼침과 포커스 | `npm --prefix app test`, typecheck, build | 대기 |
 | S | F2, F1 | design-sync가 고치는 앱 파일, `docs/DESIGN.md`, `.scratch/` 증거 | U 통합 | Claude Opus medium — computed style 비교와 실제 앱 probe. F2로 맞춘 뒤 F1을 한다 | `/design-sync` 보고서, `/runtime-test` 보고서 | 대기 |
 | 지휘자 | F3, Z1 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/BACKLOG.md`, feature 디렉터리 삭제 | S 통합 | — | 통합 HEAD `/verify`, `/doc-check`(대상 문서) | 대기 |
@@ -41,3 +41,10 @@
 ## 항목 대응
 
 C1→P, D1→(main에 있음), A1→K, A2→M, A3→M, B1→M, C2→K, E1→U, E2→U, F1→S, F2→S, F3→지휘자, Z1→지휘자. 주인 없는 항목 0.
+
+## 실행
+
+- Orca run `run_d7d434cf107f`. 1차 작업자는 `792c490e`에서 갈라졌다.
+- P: dispatch `ctx_02b403611d92`, worktree `canvas-capture-p`, Claude Opus medium(launch 확인).
+- K: dispatch `ctx_999108be8166`, worktree `canvas-capture-k`, Claude Opus high(launch 확인).
+- M: dispatch `ctx_513fceb41174`, worktree `canvas-capture-m`, Claude Sonnet high(launch 확인).
