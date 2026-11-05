@@ -6,6 +6,14 @@
 > Historical `app/e2e/` paths refer to the suite retired on 2026-10-27. Current runtime safety helpers live in `app/runtime/`; use focused probes under `.scratch/`, as specified in AGENTS.md.
 > Some entries name app code removed later: the app's comment UI (`useComments.tsx`, `CommentsSession.ts`, `CommentsPanel.tsx`, `CommentPins.ts` and most of `app/src/comments/` and `app/src/main/comments/`, with their tests) on 2026-11-01; the separate Settings window (`settingsWindow.tsx`) and the `Sidebar.tsx` component on 2026-10-30; Settings > Connections (`ConnectionRows.tsx`, `connectionRowView.ts`, `setupBroker.ts`) on 2026-10-31. Their search commands and test pointers apply only to code that still exists; the comment files, the CLI comment commands and `app/src/comments/projection.ts` remain.
 
+### 2026-11-05 — Canvas labels showed the page `<title>` although PRODUCT said file stems
+
+- **Area**: `app/src/renderer/canvasTree.ts` (`canvasLabel`) and every caller (header, sidebar tree, Quick Open, conversation chips, panel title); fixed in 99ce56a3 (agent-questions batch X).
+- **Symptom**: the canvas header, Quick Open and reply chips showed the canvas's `<title>` ("Team scorecard") while the export name, `doan export` and PRODUCT §5 'Canvas labels are file stems' used the file stem (`team-scorecard`).
+- **Root cause**: `canvasLabel` preferred `<title>` from its first commit (ad10c821), and the row type carried `title`, so every new surface that needed a name took the label function as the single source and inherited the title. PRODUCT stated the rule, but nothing in code or tests tied the label to it: tests were written with title fixtures and asserted the title, so they pinned the drift instead of the decision.
+- **Net**: caught by a person looking at the real app, then confirmed by reading PRODUCT against `canvasLabel`. Missed by the unit tests (fixtures built titled rows and expected titles) and by earlier reviews, which compared diffs to tests, not to the decision text.
+- **Prevention**: a field that a decision says must not be shown should not exist on the row type (`CanvasRow.title` is removed, so a reader no longer compiles); when a PRODUCT rule names what a label is built from, write the first test from that sentence, not from a fixture's shape. Search: `rg -n 'canvasLabel\(' app/src --glob '!*.test.*'` and `rg -n '\.title\b' app/src/renderer app/src/main --glob '!*.test.*'`, then check that each hit is a frame, conversation or dialog title. Run on 2026-11-05: every canvas-name caller goes through `canvasLabel`; no remaining reader of a canvas `<title>`.
+
 ### 2026-11-05 — A Send now row refused back into the queue could vanish while main still held it
 
 - **Area**: `app/src/renderer/conversationStore.ts` (`markQueued`, `syncQueues`), main's queued count (`DraftStore.queued`, which leaves out `sending` items)
