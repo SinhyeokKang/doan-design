@@ -144,6 +144,23 @@ describe("UsageService reads", () => {
   });
 });
 
+describe("UsageService checks", () => {
+  it("shares one check per provider across triggers and waits for a check someone else started", async () => {
+    const gate = deferred<UsageReading>();
+    const h = setup({ read: () => gate.promise });
+    h.auth.states.set("claude", connected("claude", "c1", { verified: false }));
+    h.auth.states.set("codex", connected("codex", "x1", { verified: false, phase: "checking", attempt: { id: "other-check", kind: "check", owner: null, cancelled: false } }));
+    const checked = vi.spyOn(h.auth, "checked").mockImplementation(async provider => { h.auth.states.set(provider, connected(provider, "x1")); });
+    const usage = h.make();
+    usage.trigger({ kind: "start" }); usage.trigger({ kind: "refresh" }); usage.trigger({ kind: "open" });
+    await flush(); await flush();
+    expect(h.auth.checks).toEqual(["claude"]);
+    expect(checked).toHaveBeenCalledWith("codex");
+    gate.resolve(ok(h.now())); await usage.settled();
+    expect(h.read).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe("UsageService unusable connections", () => {
   it("does not read a connection readiness refuses and carries its cause instead", async () => {
     const h = setup({ readiness: provider => provider === "codex" ? { ready: false, cause: "version_unsupported", action: "update" } : { ready: true } });
