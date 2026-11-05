@@ -296,3 +296,23 @@ test("the shown conversation's suggestion stands in for the reply placeholder, w
   expect(plain).toContain('aria-placeholder="Reply, / for presets"');
   expect(plain).not.toContain("Press Right Arrow");
 });
+
+// context-window-ring spec 1–4, design §3: the panel reads the shown conversation's last context.usage from its thread.
+test("the shown conversation's last recorded context value reaches the composer's ring; archived ones keep theirs", async () => {
+  const doan = (window as unknown as { doan: Record<string, ReturnType<typeof vi.fn>> }).doan;
+  const at = (conversationId: string, seq: number, payload: Record<string, unknown>) => ({ v: 1, conversationId, seq, turnId: "t", at: "2026-11-01T00:00:00Z", ...payload }) as ConversationEvent;
+  const history = (conversationId: string, used: number) => [at(conversationId, 1, { type: "user.message", text: "hi", anchors: [] }), at(conversationId, 2, { type: "turn.started" }),
+    at(conversationId, 3, { type: "context.usage", used, size: 200_000 }), at(conversationId, 4, { type: "turn.done" })];
+  doan.readConversation!.mockImplementation(async ({ conversationId }: { conversationId: string }) => {
+    const events = conversationId === "now" ? history("now", 84_000) : conversationId === "old" ? history("old", 150_000) : [at(conversationId, 1, { type: "user.message", text: "hi", anchors: [] })];
+    return { events, lastSeq: events.at(-1)!.seq, turn: "idle" };
+  });
+  const ring = (out: string) => /<span class="context-ring" role="img" aria-label="([^"]+)"/.exec(out)?.[1] ?? null;
+  // panel() flushes after setup, so the read has settled before the draw.
+  const shown = (list: ListView, id: string, setup: (run: CanvasRun) => void = () => {}) => panel(list, run => { setup(run); run.store.track(id); });
+  expect(ring(await shown([summary("now")], "now"))).toBe("Context window 42% used · last turn");
+  expect(ring(await shown([summary("now"), summary("old", { state: "archived" })], "old", run => run.select("old")))).toBe("Context window 75% used · last turn");
+  expect(ring(await shown([summary("bare")], "bare"))).toBeNull();
+  // A new conversation state has no ring.
+  expect(await panel([])).not.toContain("context-ring");
+});
