@@ -617,7 +617,7 @@ test("Control+Enter queues the draft then steers its item last and empties the f
   const calls: string[] = [];
   const { render, store } = shortcutSetup({
     onSendQueuedNow: vi.fn(async id => { calls.push(id); }),
-    onQueue: vi.fn(async () => { calls.push("queue"); return { ok: true, itemId: "q4" }; }),
+    onQueue: vi.fn(async (): Promise<DockedOutcome> => { calls.push("queue"); return { ok: true, itemId: "q4" }; }),
   }, "Fourth");
   render();
   const focus = vi.fn(); hooks.refs[2]!.current = { focus };
@@ -674,12 +674,12 @@ test("Control+Enter leaves a late queued item in its original conversation after
 });
 
 test("Control+Enter keeps an unavailable draft and its reason while sending existing rows", async () => {
-  const { render, props, queue, store } = shortcutSetup({ busy: { kind: "project", open: "other" } }, "Fourth");
+  const { render, props, queue, store } = shortcutSetup({ locked: true, unavailable: "This page is not a listed canvas." }, "Fourth");
   pressControl(render()); await flush();
   expect(props.onSendQueuedNow).toHaveBeenCalledTimes(3);
   expect(queue).not.toHaveBeenCalled();
   expect(draftText(store.current.get("conversation:a"))).toBe("Fourth");
-  expect(render().some(item => item.children === "Another conversation is still running in doan-design.")).toBe(true);
+  expect(render().some(item => item.children === "This page is not a listed canvas.")).toBe(true);
 });
 
 test("Control+Enter keeps a draft refused by queue while existing rows go ahead", async () => {

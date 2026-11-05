@@ -8,6 +8,7 @@ const hooks = vi.hoisted(() => ({ states: [] as unknown[], refs: [] as { current
 vi.mock("react", async original => ({
   ...await original<typeof import("react")>(),
   useId: () => "id",
+  useImperativeHandle: () => {},
   useEffect: () => {},
   useLayoutEffect: (effect: () => unknown) => { hooks.layout.push(effect); },
   useRef: (value: unknown) => { const index = hooks.refCursor++; if (!(index in hooks.refs)) hooks.refs[index] = { current: value }; return hooks.refs[index]; },
