@@ -25,7 +25,7 @@ P를 마치면 한 번 커밋한다(`docs(feature): turn-activity PoC results`).
 
 ## D. UI 초안
 
-- [ ] D1. `/design-draft turn-activity`: design '초안 요청'대로 새 파일 `.doan/canvases/turn-activity.html`에 턴 표시의 변형 여러 개(위치 변형 두 가지 포함)를 같은 상태 묶음 (1)–(12), 두 폭, reduced motion으로 그린다. 글은 `doan design-skill clarify --json`을 읽고 쓴다. 기존 초안 파일은 고치지 않는다.
+- [x] D1. (2026-11-06 사람 확정, `69fbdf9d`) `/design-draft turn-activity`: design '초안 요청'대로 새 파일 `.doan/canvases/turn-activity.html`에 턴 표시의 변형 여러 개(위치 변형 두 가지 포함)를 같은 상태 묶음 (1)–(12), 두 폭, reduced motion으로 그린다. 글은 `doan design-skill clarify --json`을 읽고 쓴다. 기존 초안 파일은 고치지 않는다.
   - 검증: `doan check --repo . --json`(임시 `DOAN_RUNTIME`)이 그 캔버스에 오류 0이고 `doan ls --repo . --json`에 그 캔버스가 있다. 사람이 앱에서 초안을 보고 변형 하나와 위치를 골랐고, 그 선택을 design '결정' 1·10에 적었다. 고른 단계 글(일반 "working" 포함)과 경과 시간 형식(0초, 59초, 60초, 1시간 이상)을 design '결정' 1에 적었다. — 커밋
 
 ## A. fixture
