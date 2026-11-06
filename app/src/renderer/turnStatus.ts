@@ -71,7 +71,8 @@ export function newerStage(held: StageSignal | null, incoming: StageSignal, curr
 
 // Settle (design §1): a new stage shows once it has held for 300 ms, so short tools between model requests do not
 // flicker; one replaced sooner never shows. Replying, waiting and none show at once, and so does the first stage after
-// nothing showed (the indicator is there from the render the message enters).
+// none or waiting (spec condition 1: the indicator is there from the render the message enters, and again right after
+// a card is answered). Every other change waits, replying back to general included.
 export const SETTLE_MS = 300;
 export interface Settled { shown: TurnStatus; pending: TurnStatus | null; since: number }
 const hidden = (status: TurnStatus) => status.kind === "none" || status.kind === "waiting";

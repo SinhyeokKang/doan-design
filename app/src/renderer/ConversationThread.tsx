@@ -516,9 +516,8 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // The indicator's stage after settle (design §1), kept as state derived while rendering: an immediate change shows in
   // the same render, so the indicator is there from the render the person's message enters.
-  // undefined, not null, at first: ConversationThread.replyChip.test.tsx stubs every useState(null) as the note's chip.
-  const [held, setHeld] = useState<Settled | undefined>(undefined);
-  const settled = settle(held ?? null, props.turn?.status ?? NO_TURN, Date.now());
+  const [held, setHeld] = useState<Settled | null>(null);
+  const settled = settle(held, props.turn?.status ?? NO_TURN, Date.now());
   if (settled !== held) setHeld(settled);
   const [, wake] = useState(0);
   useEffect(() => {

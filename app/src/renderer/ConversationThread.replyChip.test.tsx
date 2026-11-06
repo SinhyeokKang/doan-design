@@ -11,6 +11,8 @@ import type { ThreadItem } from "./threadItems";
 const stub = vi.hoisted(() => ({
   context: null as null | Record<string, unknown>,
   note: null as null | { count: number; chip: string },
+  // The note's chip state is the useState(null) right after useLocateNote's useState(0); no other null state is stubbed.
+  counted: false,
 }));
 vi.mock("react", async original => {
   const actual = await original<typeof import("react")>();
@@ -19,8 +21,10 @@ vi.mock("react", async original => {
     useContext: (context: Parameters<typeof actual.useContext>[0]) => stub.context ?? actual.useContext(context),
     useId: () => "k",
     useState: (initial: unknown) => {
-      if (stub.note && initial === 0) return [stub.note.count, () => {}];
-      if (stub.note && initial === null) return [stub.note.chip, () => {}];
+      const counted = stub.counted;
+      stub.counted = false;
+      if (stub.note && initial === 0) { stub.counted = true; return [stub.note.count, () => {}]; }
+      if (stub.note && initial === null && counted) return [stub.note.chip, () => {}];
       return actual.useState(initial);
     },
   };
@@ -31,7 +35,7 @@ const rows: CanvasRow[] = [
   { path: ".doan/canvases/drafts.html", url: "http://localhost/drafts.html", id: "drafts", frames: [{ id: "editor", title: "Editor" }] },
   { path: ".doan/canvases/checkout.html", url: "http://localhost/checkout.html", id: "checkout", frames: [{ id: "payment", title: "Payment" }] },
 ];
-beforeEach(() => { stub.context = null; stub.note = null; });
+beforeEach(() => { stub.context = null; stub.note = null; stub.counted = false; });
 
 function chip(link: ReplyAnchor, patch: Record<string, unknown>) {
   const asked: ReplyAnchor[] = [], shown: string[] = [];
