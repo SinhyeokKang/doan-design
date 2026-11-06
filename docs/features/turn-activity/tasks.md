@@ -8,11 +8,11 @@
 
 모두 로그인한 Doan 연결이 필요하다. 공용 로그인 프로필 방식(실제 HOME, main checkout Electron, `/Users/sinhyeok/code/doan-design/.scratch/provider-profile/userData`, spawn hook `.scratch/context-window-ring/hook.cjs`와 driver `.scratch/canvas-handoff/drive.mjs`)을 쓰므로, 실행할 때마다 지휘자를 거쳐 사람의 승인을 받는다. 그 프로필은 chain-261106이 끝날 때 지울 수 있다(그 체인 '시작 점검'). 없으면 사람에게 로그인을 다시 요청한다. 옛 버전(P1의 2.1.284, P2의 0.158.0)은 임시 prefix에 설치하고 사람의 전역 설치와 프로필의 설치본은 건드리지 않는다. 일회성 script와 frame은 `.scratch/turn-activity/`에 두고, 결과(버전, 모델, mode, 관찰, 날짜)는 이 파일 아래 'P 결과'에 적는다. 앱 코드는 바꾸지 않는다. 결과가 기대와 달라도 그 provider의 단계가 "일반"이 될 뿐이므로, 다르면 design §2 표와 spec 완료 조건 2의 provider 목록만 고친다.
 
-- [ ] P1. Claude(design 'PoC 의존' P1): Sonnet·Haiku와 effort를 바꾼 턴, 최소 버전 2.1.284의 턴에서 `content_block_start` `thinking`과 `system/status` `requesting`이 오는지. subagent(Task) 턴 하나에서 상위 frame으로 `requesting`이 오는지.
+- [x] P1. Claude(design 'PoC 의존' P1): Sonnet·Haiku와 effort를 바꾼 턴, 최소 버전 2.1.284의 턴에서 `content_block_start` `thinking`과 `system/status` `requesting`이 오는지. subagent(Task) 턴 하나에서 상위 frame으로 `requesting`이 오는지.
   - 검증: 'P 결과'에 모델·effort·버전마다 두 신호의 유무와 Task 턴의 관찰, 설치 방법(임시 prefix)이 있다.
-- [ ] P2. Codex(P2): 0.158.0과 설치본에서 `reasoning` item이 순간 item인지, 생각 동안 알림이 없는지, 파일을 찾게 하는 턴에서 `commandActions`의 `search`·`listFiles` 모양.
+- [x] P2. Codex(P2): 0.158.0과 설치본에서 `reasoning` item이 순간 item인지, 생각 동안 알림이 없는지, 파일을 찾게 하는 턴에서 `commandActions`의 `search`·`listFiles` 모양.
   - 검증: 'P 결과'에 버전마다 판정과 `commandActions` 예(명령 글은 지움)가 있다.
-- [ ] P3. ACP(P3): Copilot thought chunk가 다른 턴에서도 오는지, 수 초 걸리는 명령(예: `sleep 5`)에서 `tool_call` pending → in_progress → completed 간격이 그만큼 벌어지는지(Copilot, Antigravity).
+- [x] P3. ACP(P3): Copilot thought chunk가 다른 턴에서도 오는지, 수 초 걸리는 명령(예: `sleep 5`)에서 `tool_call` pending → in_progress → completed 간격이 그만큼 벌어지는지(Copilot, Antigravity).
   - 검증: 'P 결과'에 provider마다 간격과 판정이 있다.
 - [ ] P4. (선택) 실제 디자인 작업 턴 하나의 빈 구간을 `.scratch/turn-activity/gaps.py`로 잰다.
   - 검증: 'P 결과'에 provider, 턴 길이, 가장 긴 빈 구간이 있다.
@@ -21,7 +21,18 @@ P를 마치면 한 번 커밋한다(`docs(feature): turn-activity PoC results`).
 
 ### P 결과
 
-(비어 있음)
+2026-11-06. 지금 버전은 공용 로그인 프로필(`.scratch/provider-profile/userData`)로 main을 build한 앱을 띄우고(`.scratch/turn-activity/launch.sh`, CDP 9336, frame hook), `drive.mjs`로 캔버스 대화를 시작해 frame을 받았다. 임시 repo `.scratch/turn-activity/repo`를 프로필의 `folders.json`에 잠시 더했다가 끝난 뒤 되돌렸다. 옛 버전은 context-window-ring 때 임시 prefix에 설치한 `.scratch/context-window-ring/old/`의 Claude Code 2.1.284와 Codex 0.158.0을 같은 프로필의 config 디렉터리(`CLAUDE_CONFIG_DIR`, `CODEX_HOME`)로 직접 띄웠다(`old-claude.mjs`, `old-codex.mjs`). 사람의 전역 설치와 프로필의 설치본은 건드리지 않았다. 분석은 `analyze.py`, frame은 `.scratch/turn-activity/out/`에 있다. prompt는 파일을 찾아 읽게 하는 짧은 질문이다.
+
+- **P1 Claude.** 모든 턴에 `system/status` `requesting`이 prompt 뒤 0.7–1.1초와 도구 결과 뒤마다 왔다.
+  - 2.1.318: Sonnet(`claude-sonnet-5-5`) low와 medium에는 `thinking` block이 없었다(그 턴의 단계는 일반이다). Haiku(`claude-haiku-5-5`) high에는 도구 앞마다 `thinking` block이 왔다.
+  - 2.1.284: Haiku(이 버전에서 `haiku`는 `claude-haiku-4-5-20251001`) high, Sonnet low, Opus high 모두 `thinking` block이 왔다.
+  - Task 턴(2.1.318, Sonnet medium): `tool_use`(Task) 뒤 subagent가 도는 5.0초 동안 상위 frame(`parent_tool_use_id` 없음)의 `requesting`은 오지 않았다. subagent의 `user`·`assistant` frame만 `parent_tool_use_id`를 달고 왔고, subagent의 `stream_event`는 오지 않았다. 따라서 그동안 단계는 Task `tool_use` block이 끝난 뒤의 일반이다. normalizer는 `parent_tool_use_id`가 있는 `user` frame을 "도구 결과"로 보지 않도록 한다(일반으로 다시 바꿀 뿐이라 해는 없지만 rev만 늘린다).
+- **P2 Codex.** 0.166.0(설치본, 앱)과 0.158.0(직접) 모두 `reasoning` item은 `item/started`와 `item/completed`가 1ms 차이인 순간 item이었다. `userMessage` 뒤 `reasoning`까지 1.8–2.4초, 첫 답 뒤 다음 명령까지 1.8–2.7초 동안 frame이 없었다(0.166.0은 그 사이에 `turn/moderationMetadata` 하나). `commandActions` 모양(명령 글은 아래에서 뺐다): `{type: "search", command, query: "lantern", path: "."}`, `{type: "listFiles", command, path: "src"}`. 두 action이 한 `commandExecution`에 함께 왔고, 명령이 바로 끝나 `item/started` → `item/completed`가 0.166.0 1ms, 0.158.0 98ms였다. 이런 도구 단계는 settle(300ms)에 걸려 보이지 않는다.
+- **P3 ACP.**
+  - Copilot 1.0.105(bypass, `sleep 5 && echo done`): `tool_call` pending 뒤 5.06초 동안 다른 update가 없고, 끝에 status 없는 `tool_call_update`와 completed가 같은 ms에 왔다. in_progress는 오지 않았다. pending이 도구 시간만큼 이어지므로 도구 단계 규칙(pending·in_progress)은 그대로 맞다. thought chunk는 두 턴 모두 왔다(83개, 0.9초 / 167개, 12.2초에 걸쳐).
+  - Antigravity(bypass, `gemini-3.8-flash-medium`): `tool_call`이 pending 없이 in_progress로 시작했고 5.03초 뒤 completed였다. `view_file`도 in_progress에서 completed까지 6.07초였다. thought chunk는 없었다.
+- design §2 표와 spec 완료 조건 2의 provider 목록은 바꾸지 않는다. 위 관찰은 모두 표의 규칙 안에 있다.
+- P4(선택)는 돌리지 않았다.
 
 ## D. UI 초안
 
