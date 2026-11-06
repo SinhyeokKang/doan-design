@@ -253,7 +253,7 @@ describe("Fast unused history", () => {
     writeFileSync(f.path("c"), JSON.stringify(event) + "\n");
     expect(new ConversationStore(f.root).read("c")).toEqual([event]);
   });
-  it.each([{ reason: "unknown" }, { reason: null }, { reason: 1 }, { turnedOff: false }, { turnedOff: "true" }, { turnedOff: null }])("rejects corrupt Fast unused fields: %j", fields => {
+  it.each([{ turnedOff: true }, { reason: "cooldown", turnedOff: true }, { reason: "unknown" }, { reason: null }, { reason: 1 }, { turnedOff: false }, { turnedOff: "true" }, { turnedOff: null }])("rejects corrupt Fast unused fields: %j", fields => {
     const f = setup();
     writeFileSync(f.path("c"), JSON.stringify({ type: "fast.unused", ...fields, v: 1, conversationId: "c", turnId: "t", seq: 1, at: "2026-11-06T00:00:00Z" }) + "\n");
     expect(() => new ConversationStore(f.root).read("c")).toThrow();
