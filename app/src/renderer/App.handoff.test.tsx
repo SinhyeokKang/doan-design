@@ -230,3 +230,79 @@ test("a locked page shows the toast instead of moving", async () => {
   expect(harness.controller!.openCanvas).not.toHaveBeenCalled();
   expect(harness.toast.show).toHaveBeenCalledWith("drafts.html handed off to checkout-flow.html", "Open", expect.any(Function));
 });
+
+// Review: a person's choice while the read is awaited is never replaced by the move (POSTMORTEM 2026-10-26).
+test("a panel choice of the person's while the read is awaited turns the move into the toast", async () => {
+  await onDrafts(listA([drafts]));
+  clearController();
+  handoff();
+  find<{ run: { select(id: string | null): void } }>(CanvasConversation)[0]!.props.run.select(null); render();
+  expect(harness.toast.show).toHaveBeenCalledExactlyOnceWith("drafts.html handed off to checkout-flow.html", "Open", expect.any(Function));
+  folders([listA()]);
+  expect(harness.controller!.openCanvas).not.toHaveBeenCalled();
+});
+
+test("the toast's Open before the list names the target waits for that read, then opens", async () => {
+  await overview(listA([drafts]));
+  handoff();
+  const open = harness.toast.show.mock.lastCall![2] as () => void;
+  clearController(); harness.toast.show.mockClear();
+  open(); render();
+  expect(harness.controller!.openCanvas).not.toHaveBeenCalled();
+  expect(harness.toast.show).not.toHaveBeenCalled();
+  folders([listA()]);
+  expect(lastOpen().slice(0, 2)).toEqual(["/w/a", expect.objectContaining({ path: C })]);
+});
+
+test("a waiting toast Open is dropped by a later move of the person's", async () => {
+  await overview(listA([drafts]));
+  handoff();
+  const open = harness.toast.show.mock.lastCall![2] as () => void;
+  open(); render();
+  find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render(); await flushAll();
+  clearController(); harness.toast.show.mockClear();
+  folders([listA()]);
+  expect(harness.controller!.openCanvas).not.toHaveBeenCalled();
+  expect(harness.toast.show).not.toHaveBeenCalled();
+});
+
+test("typing in the source composer, a draft or an IME composition, keeps the screen and shows the toast", async () => {
+  const summary = { conversationId: "c1", title: "Split", state: "current", owner: "doan", provider: "claude", fromHome: false, canvas: { path: D, id: "drafts" },
+    phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: "2026-11-01T00:00:00.000Z", preview: "" };
+  for (const how of ["composing", "draft"] as const) {
+    reset();
+    doan.listConversations = vi.fn(async () => [summary]);
+    doan.readConversation = vi.fn(async () => ({ events: [], lastSeq: 0, turn: "idle" }));
+    await onDrafts();
+    const props = find<{ composerLink: { current: unknown }; run: { store: { setDrafts(update: (drafts: Map<string, unknown>) => Map<string, unknown>): void } } }>(CanvasConversation)[0]!.props;
+    const inside = {};
+    props.composerLink.current = { element: () => ({ contains: (node: unknown) => node === inside }), composing: () => how === "composing", focus: () => {}, insert: () => "inserted" };
+    (document as unknown as { activeElement: unknown }).activeElement = inside;
+    if (how === "draft") props.run.store.setDrafts(drafts => new Map(drafts).set("conversation:c1", { segments: [{ text: "Make it" }], preset: null, attachments: [], shape: "capsule" }));
+    render(); await flushAll();
+    clearController();
+    handoff();
+    expect(harness.controller!.openCanvas, how).not.toHaveBeenCalled();
+    expect(harness.toast.show, how).toHaveBeenCalledWith("drafts.html handed off to checkout-flow.html", "Open", expect.any(Function));
+  }
+});
+
+test("an open dialog keeps the screen and shows the toast", async () => {
+  await onDrafts();
+  (document as unknown as { querySelectorAll(selector: string): unknown[] }).querySelectorAll = selector => selector === "dialog[open]" ? [{}] : [];
+  clearController();
+  handoff();
+  expect(harness.controller!.openCanvas).not.toHaveBeenCalled();
+  expect(harness.toast.show).toHaveBeenCalledWith("drafts.html handed off to checkout-flow.html", "Open", expect.any(Function));
+});
+
+test("the move's card focus is dropped once the person leaves the receiving canvas", async () => {
+  await onDrafts();
+  handoff();
+  const options = lastOpen()[3];
+  showCanvas(checkout);
+  options.opened(); render();
+  expect(panel()!.arrival).toMatchObject({ focus: "handoff" });
+  showCanvas(drafts); await flushAll();
+  expect(panel()!.arrival).toBeNull();
+});

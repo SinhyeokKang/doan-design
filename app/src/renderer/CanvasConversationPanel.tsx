@@ -306,7 +306,8 @@ export function CanvasConversation(props: CanvasConversationProps) {
       // still shows the canvas left behind (the run shows the new one after it), whose thread has no card.
       const to = arrival.handoff, shown = viewTarget;
       if (!shown || shown.root !== to.root || !sameCanvas(shown.canvas, to.canvas)) return;
-      if (conversationId === to.conversationId && !Array.isArray(items)) return;
+      // Waits while the history reads; an unreadable one gives focus to the composer.
+      if (conversationId === to.conversationId && items === null) return;
       arrived.current = arrival.seq;
       props.onArrived(arrival.seq);
       const card = conversationId === to.conversationId && Array.isArray(items) ? items.find(item => item.kind === "handoffCard") : undefined;

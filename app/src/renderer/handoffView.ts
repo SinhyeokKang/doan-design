@@ -14,15 +14,16 @@ export const HANDOFF_WAIT_MS = 10_000;
 const fileName = (path: string) => path.split("/").at(-1) ?? path;
 
 // The screen when a handoff started. canvas: the canvas page on screen, null for Home, the Overview and pages.
-// typing: the source conversation's composer has focus with a draft or an IME composition in it.
-export interface HandoffScreen { canvas: { root: string; canvas: Canvas } | null; locked: boolean; dialog: boolean; firstRun: boolean; typing: boolean }
+// typing: the source conversation's composer has focus with a draft or an IME composition in it. chose: the person moved
+// or chose something in the panel since the handoff was announced.
+export interface HandoffScreen { canvas: { root: string; canvas: Canvas } | null; locked: boolean; dialog: boolean; firstRun: boolean; typing: boolean; chose: boolean }
 
 // Decision 5: the screen moves only from the source conversation's canvas page with nothing in the way; a person
 // typing there keeps their place too.
 export function handoffMove(screen: HandoffScreen, notice: HandoffNotice): "move" | "toast" {
   const on = screen.canvas;
   if (!on || on.root !== notice.root || !sameCanvas(on.canvas, notice.source.canvas)) return "toast";
-  return screen.locked || screen.dialog || screen.firstRun || screen.typing ? "toast" : "move";
+  return screen.locked || screen.dialog || screen.firstRun || screen.typing || screen.chose ? "toast" : "move";
 }
 // listed: the renderer's list names the target. expired: HANDOFF_WAIT_MS passed since the notice.
 export function handoffArrival(screen: HandoffScreen, notice: HandoffNotice, listed: boolean, expired: boolean): "move" | "toast" | "wait" {

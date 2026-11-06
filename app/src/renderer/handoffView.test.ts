@@ -5,7 +5,7 @@ import { startErrorView } from "./homeComposer";
 
 const DRAFTS = { path: ".doan/canvases/drafts.html", id: "drafts" }, CHECKOUT = { path: ".doan/canvases/checkout-flow.html", id: "checkout" };
 const notice: HandoffNotice = { root: "/w/a", source: { conversationId: "c1", canvas: DRAFTS }, target: { conversationId: "c2", canvas: CHECKOUT } };
-const onSource: HandoffScreen = { canvas: { root: "/w/a", canvas: DRAFTS }, locked: false, dialog: false, firstRun: false, typing: false };
+const onSource: HandoffScreen = { canvas: { root: "/w/a", canvas: DRAFTS }, locked: false, dialog: false, firstRun: false, typing: false, chose: false };
 
 describe("handoffMove (design §6 'Move', decision 5)", () => {
   test("moves only from the source conversation's canvas page with nothing in the way", () => {
@@ -21,6 +21,7 @@ describe("handoffMove (design §6 'Move', decision 5)", () => {
     ["a dialog", { dialog: true }],
     ["first run", { firstRun: true }],
     ["typing in the source composer (a draft or an IME composition)", { typing: true }],
+    ["a move or panel choice of the person's since the notice", { chose: true }],
   ])("%s → toast", (_name, patch) => {
     expect(handoffMove({ ...onSource, ...patch }, notice)).toBe("toast");
   });

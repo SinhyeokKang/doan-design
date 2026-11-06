@@ -1405,29 +1405,46 @@ export function App() {
   }
   // A started handoff (canvas-handoff design §6, decision 5) moves from its source canvas through Quick Open's path, with
   // the panel on the receiving conversation and focus on its card, or shows the toast. A target the renderer's list does
-  // not name yet waits for that read up to HANDOFF_WAIT_MS, and leaving the source canvas meanwhile turns the move into
-  // the toast (POSTMORTEM 2026-10-25: an action offered before a read finishes waits for it). Unlike a link, it never
-  // closes a dialog: the person did not ask for this move.
-  const handoffWait = useRef<{ notice: HandoffNotice; expired: boolean; timer: ReturnType<typeof setTimeout> } | null>(null);
+  // not name yet waits for that read up to HANDOFF_WAIT_MS; leaving the source canvas, or any move or panel choice of the
+  // person's meanwhile, turns the move into the toast (POSTMORTEM 2026-10-25: an action offered before a read finishes
+  // waits for it; 2026-10-26: a later choice of the person's is never replaced). Unlike a link, it never closes a dialog:
+  // the person did not ask for this move.
+  interface HandoffWait { notice: HandoffNotice; expired: boolean; timer: ReturnType<typeof setTimeout>; intent: number; revision: number; entry: FolderEntry | undefined }
+  const handoffWait = useRef<HandoffWait | null>(null);
+  // A toast's Open whose target the list did not name yet: it waits the same way, and a later move of the person's drops it.
+  const handoffOpen = useRef<HandoffWait | null>(null);
+  const handoffWaitFor = (notice: HandoffNotice, entry: FolderEntry | undefined): HandoffWait => {
+    const wait: HandoffWait = { notice, expired: false, intent: navigationIntent.current, revision: canvasRun.current!.revision(), entry,
+      timer: setTimeout(() => { wait.expired = true; live.current.handoffCheck(); }, HANDOFF_WAIT_MS) };
+    return wait;
+  };
   function conversationHandoff(notice: HandoffNotice) {
     const earlier = handoffWait.current;
-    if (earlier) { clearTimeout(earlier.timer); handoffWait.current = null; handoffToast(earlier.notice); }
-    const wait = { notice, expired: false, timer: setTimeout(() => { wait.expired = true; live.current.handoffCheck(); }, HANDOFF_WAIT_MS) };
-    handoffWait.current = wait;
+    if (earlier) { clearTimeout(earlier.timer); handoffWait.current = null; handoffToast(earlier.notice, earlier.entry); }
+    handoffWait.current = handoffWaitFor(notice, listedRow(notice.root, notice.target.canvas).entry);
     handoffCheck();
   }
   function handoffCheck() {
+    // A move's card focus belongs to the receiving canvas: once the person is elsewhere it is dropped, so it never fires
+    // on a later visit.
+    if (arrival?.handoff && !canvasShown(arrival.handoff.root, arrival.handoff.canvas)) setArrival(null);
+    handoffOpenCheck();
     const wait = handoffWait.current;
     if (!wait) return;
     const notice = wait.notice, row = listedRow(notice.root, notice.target.canvas).row;
-    const step = handoffArrival(handoffScreen(notice), notice, row !== undefined, wait.expired);
+    const chose = wait.intent !== navigationIntent.current || wait.revision !== canvasRun.current!.revision();
+    const step = handoffArrival(handoffScreen(notice, chose), notice, row !== undefined, wait.expired);
     if (step === "wait") return;
     clearTimeout(wait.timer);
     handoffWait.current = null;
     if (step === "move") openCanvasConversation(notice.root, row!, notice.target.conversationId, { kind: "handoff" });
-    else handoffToast(notice);
+    else handoffToast(notice, wait.entry);
   }
-  function handoffScreen(notice: HandoffNotice): HandoffScreen {
+  function canvasShown(root: string, canvas: Canvas): boolean {
+    const open = openRef.current;
+    return currentScreen.current === "workspace" && !!open && open.folder === root && shownOverviewRef.current === null && sameCanvas(canvas, open.row.id ? { path: open.canvas, id: open.row.id } : { path: open.canvas });
+  }
+  function handoffScreen(notice: HandoffNotice, chose: boolean): HandoffScreen {
     const open = openRef.current;
     const canvas = currentScreen.current === "workspace" && open && shownOverviewRef.current === null ? { root: open.folder, canvas: open.row.id ? { path: open.canvas, id: open.row.id } : { path: open.canvas } } : null;
     // The source conversation's composer holding focus with something in it: a draft, or an IME composition.
@@ -1435,14 +1452,28 @@ export function App() {
     const draft = canvasRun.current!.composerKey() === key ? overviewRun.current!.store.drafts.get(key) : undefined;
     const filled = !!draft && (draft.segments.length > 0 || draft.preset !== null || draft.attachments.length > 0);
     const typing = !!field && !!active && field.contains(active) && (filled || link!.composing());
-    return { canvas, locked: locked(), dialog: topDialog() !== null, firstRun: wizard !== null, typing };
+    return { canvas, locked: locked(), dialog: topDialog() !== null, firstRun: wizard !== null, typing, chose };
   }
-  function handoffToast(notice: HandoffNotice) {
+  // entry: the target's project as the renderer listed it when the handoff was announced. A list read since then that
+  // still lacks the target answers at once; before any, Open waits for it.
+  function handoffToast(notice: HandoffNotice, entry: FolderEntry | undefined) {
     live.current.toast.show(handoffToastText(notice), "Open", () => {
-      const { entry, row } = listedRow(notice.root, notice.target.canvas);
-      if (!row) { live.current.toast.show(entry?.kind === "list" ? handoffGoneText(notice.target.canvas.path, live.current.projectLabel(notice.root)) : unavailableCanvasMessage(entry, notice.target.canvas.path)); return; }
-      live.current.openCanvasConversation(notice.root, row, notice.target.conversationId, { kind: "notification", permission: false });
+      const earlier = handoffOpen.current;
+      if (earlier) clearTimeout(earlier.timer);
+      handoffOpen.current = handoffWaitFor(notice, entry);
+      live.current.handoffCheck();
     });
+  }
+  function handoffOpenCheck() {
+    const wait = handoffOpen.current;
+    if (!wait) return;
+    const notice = wait.notice, { entry, row } = listedRow(notice.root, notice.target.canvas);
+    const done = () => { clearTimeout(wait.timer); handoffOpen.current = null; };
+    if (wait.intent !== navigationIntent.current) { done(); return; }
+    if (!row && !wait.expired && (entry === wait.entry || entry?.kind !== "list")) return;
+    done();
+    if (!row) { live.current.toast.show(entry?.kind === "list" ? handoffGoneText(notice.target.canvas.path, live.current.projectLabel(notice.root)) : unavailableCanvasMessage(entry, notice.target.canvas.path)); return; }
+    openCanvasConversation(notice.root, row, notice.target.conversationId, { kind: "notification", permission: false });
   }
   function listedRow(root: string, canvas: Canvas): { entry: FolderEntry | undefined; row: CanvasRow | undefined } {
     const entry = entriesRef.current.find(entry => entry.path === root);
