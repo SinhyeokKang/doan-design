@@ -177,7 +177,8 @@ test("the Fast row is a checkbox item under a separator; switching it keeps the 
   const kinds = tree.map(item => item.type);
   expect(kinds.indexOf(DropdownMenu.Separator)).toBeGreaterThan(kinds.indexOf(DropdownMenu.RadioGroup));
   const row = tree.find(item => item.type === DropdownMenu.CheckboxItem)!.props;
-  expect(row).toMatchObject({ className: "doan-menu-item fast-item", checked: false, disabled: false, "aria-describedby": "fast-id" });
+  // Its name is the Fast span alone; the description stays a description (review R 🟢2).
+  expect(row).toMatchObject({ className: "doan-menu-item fast-item", checked: false, disabled: false, "aria-labelledby": "fast-id-name", "aria-describedby": "fast-id-description" });
   // Radix closes a menu and moves focus on an item's select unless it is prevented; the switch's own change still runs.
   const select = { preventDefault: vi.fn() };
   (row.onSelect as (event: unknown) => void)(select);
@@ -188,7 +189,7 @@ test("the Fast row is a checkbox item under a separator; switching it keeps the 
   for (const item of tree.filter(entry => entry.type === DropdownMenu.RadioItem)) expect(item.props.onSelect).toBeUndefined();
   // The Fast icon leads, then the name over its description, then the drawn switch; no check mark.
   const html = renderToStaticMarkup(<>{row.children as ReactNode}</>);
-  expect(html).toMatch(/^<span class="fast-slot" aria-hidden="true"><svg[^>]*lucide-zap[^>]*>.*?<\/svg><\/span><span class="fast-copy"><span class="model-name">Fast<\/span><span class="sub" id="fast-id">2x speed, increased usage<\/span><\/span><span class="fast-switch" aria-hidden="true"><\/span>$/);
+  expect(html).toMatch(/^<span class="fast-slot" aria-hidden="true"><svg[^>]*lucide-zap[^>]*>.*?<\/svg><\/span><span class="fast-copy"><span class="model-name" id="fast-id-name">Fast<\/span><span class="sub" id="fast-id-description">2x speed, increased usage<\/span><\/span><span class="fast-switch" aria-hidden="true"><\/span>$/);
   expect(html).not.toContain("check");
 });
 

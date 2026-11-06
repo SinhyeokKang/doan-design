@@ -348,7 +348,8 @@ export function AgentPicker(props: {
 // Fast icon is its only mark, and the name says whether Fast is on.
 export function EffortPicker({ view, effort, disabled, onPick, onPickFast, size = "sm" }: { view: NonNullable<Picker["effort"]>; effort: string | null; disabled: boolean; onPick(value: string): void; onPickFast?(on: boolean): void; size?: "sm" | "xs" }) {
   const { fast } = view;
-  const describedBy = useId();
+  // The row's name is its Fast span alone, so the description is read once, as a description.
+  const rowId = useId(), nameId = `${rowId}-name`, describedBy = `${rowId}-description`;
   const trigger = <DropdownMenu.Trigger asChild><button type="button" className="composer-effort doan-button" data-ui-size={size} data-ui-variant="trigger" aria-label={view.ariaLabel} disabled={disabled}><Gauge aria-hidden="true" /><span className="label">{view.label}</span>{fast?.on && <Zap className="fast-icon" aria-hidden="true" />}<ChevronDown className="chev" aria-hidden="true" /></button></DropdownMenu.Trigger>;
   return <DropdownMenu.Root>
     {size === "xs" || fast ? <IconTip label={view.ariaLabel}>{trigger}</IconTip> : trigger}
@@ -361,10 +362,10 @@ export function EffortPicker({ view, effort, disabled, onPick, onPickFast, size 
           look is drawn, with no check mark, so it never reads as a level. Toggling keeps the menu open (onSelect). */}
       {fast && <>
         <DropdownMenu.Separator className="doan-menu-sep" />
-        <DropdownMenu.CheckboxItem className="doan-menu-item fast-item" checked={fast.on} disabled={fast.unavailable !== undefined} aria-describedby={fast.description ? describedBy : undefined}
+        <DropdownMenu.CheckboxItem className="doan-menu-item fast-item" checked={fast.on} disabled={fast.unavailable !== undefined} aria-labelledby={nameId} aria-describedby={fast.description ? describedBy : undefined}
           onCheckedChange={on => onPickFast?.(on)} onSelect={event => event.preventDefault()}>
           <span className="fast-slot" aria-hidden="true"><Zap /></span>
-          <span className="fast-copy"><span className="model-name">Fast</span>{fast.description && <span className="sub" id={describedBy}>{fast.description}</span>}</span>
+          <span className="fast-copy"><span className="model-name" id={nameId}>Fast</span>{fast.description && <span className="sub" id={describedBy}>{fast.description}</span>}</span>
           <span className="fast-switch" aria-hidden="true" />
         </DropdownMenu.CheckboxItem>
       </>}
