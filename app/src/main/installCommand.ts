@@ -44,6 +44,8 @@ export function terminalScript(choice: TerminalChoice, name: string): string {
     say(""),
     say("Press Return to run it, or close this window to cancel."),
     "read -r _ || exit 0",
+    // curl | bash exits with bash's status, 0 on an empty download. A shell without pipefail keeps that status.
+    "set -o pipefail 2>/dev/null",
     choice.command,
     "if [ $? -eq 0 ]; then",
     `  ${say("Finished. Go back to Doan to continue.")}`,
