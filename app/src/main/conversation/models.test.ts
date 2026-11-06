@@ -1,5 +1,5 @@
 import { expect, it, vi } from "vitest";
-import { ModelCatalog, parseAcpModels, parseAcpModes, parseClaudeModels, parseCodexModels, type ModelList, type ModelOption } from "./models";
+import { applyClaudeFastUnavailable, ModelCatalog, parseAcpModels, parseAcpModes, parseClaudeModels, parseCodexModels, type ModelList, type ModelOption } from "./models";
 import type { Prepared } from "./service";
 import type { Provider } from "../agentAuth/types";
 
@@ -124,4 +124,53 @@ it("answers an ACP list's modes with its models, and none for a provider that li
   expect(await c.models.models("/repo", "cursor")).toEqual({ models: LIST, modes });
   expect(await c.models.models("/repo", "cursor")).toEqual({ models: LIST, modes });
   expect(await c.models.models("/repo", "claude")).toEqual({ models: LIST });
+});
+
+
+it("reads Claude Fast only from a true capability without provider description copy", () => {
+  const rows = [true, false, undefined, "true", 1].map((supportsFastMode, i) => ({ value: String(i), supportsFastMode, description: "provider copy" }));
+  expect(parseClaudeModels(rows)).toEqual(rows.map((_, i) => ({ id: String(i), label: String(i), default: false, ...(i === 0 ? { fast: {} } : {}) })));
+});
+it("reads Codex Fast from priority id and its valid description, ignoring names and old tiers", () => {
+  const tierRows = [
+    { serviceTiers: [{ id: "priority", name: "Fast", description: "2x speed, increased usage" }] },
+    { serviceTiers: [{ id: "priority", name: "Other" }] },
+    { serviceTiers: [{ id: "default", name: "Fast" }] },
+    { additionalSpeedTiers: [{ id: "priority", name: "Fast" }] },
+    {}, { serviceTiers: null }, { serviceTiers: {} }, { serviceTiers: [null, "priority", {}, { id: 1 }] },
+    ...["", "bad\0text", "x".repeat(513), 1, null].map(description => ({ serviceTiers: [{ id: "priority", description }] })),
+  ];
+  const parsed = parseCodexModels({ data: tierRows.map((row, i) => ({ id: String(i), ...row })) });
+  expect(parsed.map(row => row.fast)).toEqual([{ description: "2x speed, increased usage" }, {}, undefined, undefined, undefined, undefined, undefined, undefined, {}, {}, {}, {}, {}]);
+});
+it("marks every Claude Fast row unavailable for account reasons without mutating the input", () => {
+  const rows: ModelOption[] = [{ id: "a", label: "A", default: true, fast: {} }, { id: "b", label: "B", default: false, fast: { description: "kept" } }, { id: "c", label: "C", default: false }];
+  for (const [raw, reason] of [["free", "plan"], ["extra_usage_disabled", "extra_usage"], ["preference", "policy"]]) {
+    expect(applyClaudeFastUnavailable(raw, rows)).toEqual([
+      { ...rows[0], fast: { unavailable: reason } }, { ...rows[1], fast: { description: "kept", unavailable: reason } }, rows[2],
+    ]);
+  }
+  for (const reason of [undefined, null, "model", "cooldown", "sdk_opt_in_required", "unknown", {}, 1]) expect(applyClaudeFastUnavailable(reason, rows)).toBe(rows);
+  expect(rows[0]?.fast).toEqual({}); expect(rows[1]?.fast).toEqual({ description: "kept" });
+});
+it("accepts Fast only from an available model in this run's received root and provider list", async () => {
+  const c = catalog();
+  c.list.mockResolvedValue({ models: [
+    { id: "fast", label: "Fast", default: true, efforts: ["high"], fast: {} },
+    { id: "blocked", label: "Blocked", default: false, fast: { unavailable: "plan" } },
+    { id: "plain", label: "Plain", default: false },
+  ] });
+  expect(c.models.accepts("/repo", "claude", "fast", undefined, true)).toBe(false);
+  await c.models.models("/repo", "claude");
+  expect(c.models.accepts("/repo", "claude", "fast", "high", true)).toBe(true);
+  expect(c.models.accepts("/repo", "claude", "fast", "low", true)).toBe(false);
+  for (const model of ["plain", "blocked", "missing"]) expect(c.models.accepts("/repo", "claude", model, undefined, true)).toBe(false);
+  for (const model of ["plain", "blocked"]) {
+    expect(c.models.accepts("/repo", "claude", model, undefined, false)).toBe(true);
+    expect(c.models.accepts("/repo", "claude", model, undefined)).toBe(true);
+  }
+  expect(c.models.accepts("/other", "claude", "fast", undefined, true)).toBe(false);
+  expect(c.models.accepts("/repo", "codex", "fast", undefined, true)).toBe(false);
+  const restarted = catalog();
+  expect(restarted.models.accepts("/repo", "claude", "fast", undefined, true)).toBe(false);
 });

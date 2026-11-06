@@ -110,12 +110,12 @@ const api = {
   startConversation: (request: Omit<StartRequest, "anchors" | "attachments"> & { anchors?: Anchor[]; attachments?: { id: string }[] }): Promise<{ conversationId: string } | ConversationError> => ipcRenderer.invoke("conversation:start", request),
   // model (with an optional effort of it) only when the person changed it, from listConversationModels of this run for
   // the conversation's provider; permissionMode, one of the common ids, whenever the picker names one, judged apart from
-  // the model ("default" clears the stored mode); attachments by ids as for a start. A legacy external conversation
-  // takes none of them,
+  // the model ("default" clears the stored mode); fast only when this run's list says that model has Fast; attachments
+  // by ids as for a start. A legacy external conversation takes none of them,
   // and no request names a provider. project_busy: another conversation of this project without a canvas is working.
   // A send to an archived conversation restores it: busy while the canvas's current conversation works,
   // canvas_not_found when its canvas is gone or its ID is listed twice.
-  sendConversation: (request: { conversationId: string; text: string; anchors?: Anchor[]; model?: string; effort?: string; permissionMode?: PermissionModeId; attachments?: { id: string }[] }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:send", request),
+  sendConversation: (request: { conversationId: string; text: string; anchors?: Anchor[]; model?: string; effort?: string; fast?: boolean; permissionMode?: PermissionModeId; attachments?: { id: string }[] }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:send", request),
   // While the conversation works (not_running otherwise), a message waits in main and goes out with the others as one
   // message after turn.done; text, anchors and attachments only (model, effort and permissionMode are bad_request; the
   // queue goes out in the mode stored when it is flushed, setConversationPermissionMode). queue_limit: the
