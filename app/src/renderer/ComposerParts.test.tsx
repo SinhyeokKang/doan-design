@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test, vi } from "vitest";
@@ -200,4 +202,18 @@ test("an unavailable Fast row is disabled and says why; without Fast the menu st
   const none = effortTree(effortView(null));
   expect(none.find(item => item.type === DropdownMenu.Content)?.props.className).toBe("doan-floating doan-menu effort-popover");
   expect(none.some(item => item.type === DropdownMenu.CheckboxItem || item.type === DropdownMenu.Separator)).toBe(false);
+});
+
+// review R 🟡4: the app's Vitest has no DOM (ARCHITECTURE §7 'Home tests without a DOM' adds no jsdom), so a mounted
+// Radix menu cannot be driven here; the real-app probe (/design-sync, /runtime-test) checks open state and focus.
+// What the row relies on is pinned against the installed Radix menu instead: a click, Enter or Space all reach the
+// item's select, which closes the menu only when the select event is not prevented, and a checkbox item still toggles
+// when it is. Nothing in that path moves focus, so focus stays on the row while the menu stays open.
+test("the installed Radix menu keeps a prevented select open and still toggles a checkbox item", () => {
+  const source = readFileSync(createRequire(import.meta.url).resolve("@radix-ui/react-menu"), "utf8");
+  expect(source).toMatch(/SELECTION_KEYS = \["Enter", " "\]/);
+  expect(source).toMatch(/if \(SELECTION_KEYS\.includes\(event\.key\)\) \{\s*event\.currentTarget\.click\(\);/);
+  expect(source).toMatch(/onClick: \(0, import_primitive\.composeEventHandlers\)\(props\.onClick, handleSelect\)|onClick: composeEventHandlers\(props\.onClick, handleSelect\)/);
+  expect(source).toMatch(/if \(itemSelectEvent\.defaultPrevented\) \{\s*isPointerDownRef\.current = false;\s*\} else \{\s*rootContext\.onClose\(\);/);
+  expect(source).toMatch(/role: "menuitemcheckbox"[\s\S]*?onSelect: \(0, import_primitive\.composeEventHandlers\)\(\s*checkboxItemProps\.onSelect,\s*\(\) => onCheckedChange\?\.\(isIndeterminate\(checked\) \? true : !checked\),\s*\{ checkForDefaultPrevented: false \}|role: "menuitemcheckbox"[\s\S]*?onSelect: composeEventHandlers\(\s*checkboxItemProps\.onSelect,\s*\(\) => onCheckedChange\?\.\(isIndeterminate\(checked\) \? true : !checked\),\s*\{ checkForDefaultPrevented: false \}/);
 });
