@@ -5,16 +5,30 @@ import { claudeModeAfterPlan, type PermissionModeId } from "./permissionMode";
 import { connectorLabels, serverLabel } from "../mcpConnectors/presets";
 import { codexMcpApproval } from "../mcpConnectors/codexApproval";
 import { QUESTION_LIMITS, type Question, type QuestionAnswer, type StoredAnswer } from "./question";
-import type { EventPayload, FailureCode, PendingPermission, PermissionChoice, TransportResult, TransportState } from "./types";
+import type { EventPayload, FailureCode, FastUnused, FastUnusedReason, PendingPermission, PermissionChoice, TransportResult, TransportState } from "./types";
 
 export function initialTransport(): TransportState {
   return { terminal: false, stop: null, messageId: "assistant", textBlock: null, completedMessages: [], activities: [], fileSummaries: {} };
 }
 function unchanged(state: TransportState): TransportResult { return { state, events: [] }; }
-function finish(state: TransportState, event: EventPayload): TransportResult {
+// judged: the turn's own end, whose Fast verdict goes out first; a crash or an aborted result is not judged.
+function finish(state: TransportState, event: EventPayload, judged = true): TransportResult {
   if (state.terminal) return unchanged(state);
   const terminal: EventPayload = state.stop ? { type: "interrupted", reason: state.stop } : event;
-  return { state: { ...state, terminal: true, fileSummaries: {} }, events: [...contextBefore(state, terminal), terminal] };
+  const fast = judged && state.fastUnused && (terminal.type === "turn.done" || terminal.type === "turn.failed") ? [state.fastUnused] : [];
+  return { state: { ...state, terminal: true, fileSummaries: {} }, events: [...fast, ...contextBefore(state, terminal), terminal] };
+}
+// Claude Code's reasons Fast cannot serve that hold on (fast-mode design §6): the turn turns Fast off. Any other reason
+// is recorded without one and leaves Fast on.
+const CONTINUING: Readonly<Record<string, FastUnusedReason>> = { free: "plan", extra_usage_disabled: "extra_usage", model_not_allowed: "model", preference: "policy" };
+// A Claude result of a turn that asked for Fast and ran without it; null when it did not ask, ran with Fast, or the
+// result carries no state (an older CLI).
+export function claudeFastOutcome(result: unknown, requested: boolean): FastUnused | null {
+  if (!requested || !object(result)) return null;
+  if (result.fast_mode_state === "cooldown") return { type: "fast.unused", reason: "cooldown" };
+  if (result.fast_mode_state !== "off") return null;
+  const reason = typeof result.fast_mode_disabled_reason === "string" && Object.hasOwn(CONTINUING, result.fast_mode_disabled_reason) ? CONTINUING[result.fast_mode_disabled_reason] : undefined;
+  return reason ? { type: "fast.unused", reason, turnedOff: true } : { type: "fast.unused" };
 }
 // The turn's context value goes out in the terminal's own batch, right before it, so it adds no wait at turn end and
 // frames after the terminal (Claude's prompt suggestion call) cannot change it. Only a done or failed turn the
@@ -44,7 +58,7 @@ function claudeCall(message: Record<string, unknown>): { used: number; model: st
 function claudeWindow(modelUsage: unknown, model: string): unknown {
   return object(modelUsage) && Object.hasOwn(modelUsage, model) && object(modelUsage[model]) ? modelUsage[model].contextWindow : undefined;
 }
-function aborted(state: TransportState): TransportResult { return finish(state, { type: "turn.failed", code: "process_exited" }); }
+function aborted(state: TransportState): TransportResult { return finish(state, { type: "turn.failed", code: "process_exited" }, false); }
 export function endTransport(state: TransportState): TransportResult { return aborted(state); }
 // consumed: steered message ids the agent read with this frame, reported before the frame's events. awaitingRead: a
 // success result that is not terminal because a steered message is still unread; the runner bounds that wait.
@@ -189,6 +203,9 @@ function claudeFrame(state: TransportState, raw: Record<string, unknown>, root: 
     // Read on every result, so a steer wait that ends without the follow-up's result (endSteerWait) still has it.
     const value = state.claudeCall && contextValue(state.claudeCall.used, claudeWindow(raw.modelUsage, state.claudeCall.model));
     if (value) state = { ...state, context: value };
+    // Every result judges anew, so a steered turn's last result decides.
+    const { fastUnused: _previous, ...rest } = state, verdict = claudeFastOutcome(raw, state.fastRequested === true);
+    state = verdict ? { ...rest, fastUnused: verdict } : rest;
     if (raw.terminal_reason === "aborted_tools" || raw.terminal_reason === "interrupted") return aborted(state);
     // queued_turn_count stays 0 while a steered message is unread (same PoC), so only the uuids tell that the CLI goes on
     // to another turn for it; that turn's result ends this one. A stop still ends here.

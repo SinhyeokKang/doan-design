@@ -88,7 +88,12 @@ export interface TransportState {
   context?: { used: number; size: number };
   // Claude only: the last top-level call's input tokens and model; its window comes with the result.
   claudeCall?: { used: number; model: string };
+  // Claude only: the run asked for Fast (Prepared.fast), and the last result's verdict when it did not get it
+  // (claudeFastOutcome), emitted right before a done or failed terminal's context value.
+  fastRequested?: true;
+  fastUnused?: FastUnused;
 }
+export type FastUnused = Extract<EventPayload, { type: "fast.unused" }>;
 export interface TransportResult { state: TransportState; events: EventPayload[] }
 export interface PermissionChoice { option: PermissionOption; response: unknown }
 export interface PendingPermission { event: PermissionRequest; choices: PermissionChoice[] }

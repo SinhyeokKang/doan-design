@@ -2608,3 +2608,50 @@ describe("fast", () => {
     expect(h.service.sendTarget(id)).toMatchObject({ model: "sonnet", fast: true });
   });
 });
+
+// fast-mode A4: a reason that goes on turns the conversation's Fast off in the flow that records the event.
+describe("fast turned off", () => {
+  const canvas = { path: ".doan/canvases/a.html", id: "a" };
+  it("clears the stored Fast when the turn records a fast.unused that turned it off, and keeps it otherwise", async () => {
+    const h = homeFixture([], { fast: () => true });
+    const id = (await h.service.start({ ...homeRequest, mode: "new", canvas, model: "opus", fast: true })).conversationId;
+    h.service.receive(id, { type: "fast.unused", reason: "cooldown" });
+    expect(h.store.list()[0]).toMatchObject({ fast: true });
+    h.service.receive(id, { type: "fast.unused" });
+    expect(h.store.list()[0]).toMatchObject({ fast: true });
+    // The list announced after the index changed, so the composer reads Fast off.
+    const listed: unknown[] = []; h.changes.length = 0;
+    const changes = h.changes; vi.spyOn(changes, "push").mockImplementation((...roots) => { listed.push(h.service.list("/repo")[0]!.fast); return Array.prototype.push.apply(changes, roots); });
+    h.service.receive(id, { type: "fast.unused", reason: "extra_usage", turnedOff: true });
+    expect(listed.at(-1)).toBeUndefined();
+    expect(h.store.list()[0]).not.toHaveProperty("fast");
+    expect(h.store.list()[0]).toMatchObject({ model: "opus" });
+    expect(h.store.read(id).filter(e => e.type === "fast.unused")).toHaveLength(3);
+    expect(h.service.list("/repo")[0]).not.toHaveProperty("fast");
+    h.service.receive(id, { type: "turn.done" }); h.open.mock.calls.at(-1)![2]();
+    // The next send that names no Fast runs without it.
+    await h.service.send(id, "again", []);
+    expect(h.open.mock.calls.at(-1)![0]).not.toHaveProperty("fast");
+  });
+  it("turns Fast off before a queue held for the turn goes out", async () => {
+    const h = homeFixture([], { fast: () => true });
+    const id = (await h.service.start({ ...homeRequest, mode: "new", canvas, model: "opus", fast: true })).conversationId;
+    h.service.queue(id, { text: "next", anchors: [] });
+    h.service.receive(id, { type: "fast.unused", reason: "plan", turnedOff: true });
+    h.service.receive(id, { type: "turn.done" }); h.open.mock.calls[0]![2]();
+    await vi.waitFor(() => expect(h.open).toHaveBeenCalledTimes(2));
+    expect(h.open.mock.calls[1]![0]).not.toHaveProperty("fast");
+  });
+  it("leaves a conversation whose Fast is already off alone, and reading the history again turns nothing off", async () => {
+    const h = homeFixture([], { fast: () => true });
+    const id = (await h.service.start({ ...homeRequest, mode: "new", canvas, model: "opus", fast: true })).conversationId;
+    h.service.receive(id, { type: "fast.unused", reason: "plan", turnedOff: true });
+    h.service.receive(id, { type: "turn.done" });
+    const save = vi.spyOn(h.store, "save");
+    h.store.save(h.store.list().map(m => ({ ...m, fast: true as const })));
+    save.mockClear();
+    h.service.read(id); h.service.list("/repo");
+    expect(save).not.toHaveBeenCalled();
+    expect(h.store.list()[0]).toMatchObject({ fast: true });
+  });
+});

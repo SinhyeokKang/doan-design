@@ -5,7 +5,7 @@ import codex from "./fixtures/codex.json";
 import codexInterrupted from "./fixtures/codex-interrupted.json";
 import codexHome from "./fixtures/codex-home.json";
 import askFixture from "./fixtures/claude-ask-user-question.json";
-import { normalizeClaude, normalizeCodex, initialTransport, endTransport, claudePermission, claudePermissionSummary, codexPermission, permissionAnswer, transportError, claudeReportedMode, steerTransport, endSteerWait, claudeQuestion, claudeQuestionResult, claudeUnansweredSupport, storedAnswers } from "./transport";
+import { normalizeClaude, normalizeCodex, initialTransport, endTransport, claudePermission, claudePermissionSummary, codexPermission, permissionAnswer, transportError, claudeReportedMode, steerTransport, endSteerWait, claudeQuestion, claudeQuestionResult, claudeUnansweredSupport, storedAnswers, claudeFastOutcome } from "./transport";
 import type { EventPayload, TransportState } from "./types";
 function collect(runtime: "claude" | "codex", messages: unknown[], stop: "user" | null = null) {
   let state: TransportState = { ...initialTransport(), stop };
@@ -435,5 +435,69 @@ describe("Claude AskUserQuestion", () => {
     const stored = storedAnswers(secret, { outcome: "answered", answers: { pin: { selected: [], other: "SYNTH_SECRET_PIN" }, name: { selected: [], other: "Ada" } } });
     expect(stored).toEqual({ name: { selected: [], other: "Ada" } });
     expect(JSON.stringify(stored)).not.toContain("SYNTH_SECRET_PIN");
+  });
+});
+
+// fast-mode A4: a Claude turn that asked for Fast and did not get it, judged from its result (Agent SDK 0.3.312
+// fast_mode_state, fast_mode_disabled_reason). Reasons that go on (plan, extra usage, model, policy) turn Fast off.
+describe("Fast outcome", () => {
+  const result = (fast: Record<string, unknown> = {}, subtype = "success") => ({ type: "result", subtype, is_error: subtype !== "success", result: "", ...fast });
+  it("is nothing for a turn that did not ask, that got Fast, or whose result carries no state", () => {
+    expect(claudeFastOutcome(result({ fast_mode_state: "off", fast_mode_disabled_reason: "free" }), false)).toBeNull();
+    expect(claudeFastOutcome(result({ fast_mode_state: "on" }), true)).toBeNull();
+    expect(claudeFastOutcome(result(), true)).toBeNull();
+    expect(claudeFastOutcome(result({ fast_mode_disabled_reason: "free" }), true)).toBeNull();
+    expect(claudeFastOutcome(result({ fast_mode_state: "warp" }), true)).toBeNull();
+  });
+  it("turns Fast off for the four reasons that go on, and keeps it for a cooldown", () => {
+    expect(claudeFastOutcome(result({ fast_mode_state: "off", fast_mode_disabled_reason: "free" }), true)).toEqual({ type: "fast.unused", reason: "plan", turnedOff: true });
+    expect(claudeFastOutcome(result({ fast_mode_state: "off", fast_mode_disabled_reason: "extra_usage_disabled" }), true)).toEqual({ type: "fast.unused", reason: "extra_usage", turnedOff: true });
+    expect(claudeFastOutcome(result({ fast_mode_state: "off", fast_mode_disabled_reason: "model_not_allowed" }), true)).toEqual({ type: "fast.unused", reason: "model", turnedOff: true });
+    expect(claudeFastOutcome(result({ fast_mode_state: "off", fast_mode_disabled_reason: "preference" }), true)).toEqual({ type: "fast.unused", reason: "policy", turnedOff: true });
+    expect(claudeFastOutcome(result({ fast_mode_state: "cooldown" }), true)).toEqual({ type: "fast.unused", reason: "cooldown" });
+    expect(claudeFastOutcome(result({ fast_mode_state: "cooldown", fast_mode_disabled_reason: "free" }), true)).toEqual({ type: "fast.unused", reason: "cooldown" });
+  });
+  it("records any other reason, or none, without a reason and keeps Fast on", () => {
+    for (const reason of ["network_error", "unknown", "not_first_party", "disabled_by_env", "sdk_opt_in_required", "pending", "brand_new", undefined])
+      expect(claudeFastOutcome(result({ fast_mode_state: "off", ...(reason ? { fast_mode_disabled_reason: reason } : {}) }), true)).toEqual({ type: "fast.unused" });
+  });
+  it("judges a failed turn too", () => {
+    expect(claudeFastOutcome(result({ fast_mode_state: "off", fast_mode_disabled_reason: "free" }, "error_during_execution"), true)).toEqual({ type: "fast.unused", reason: "plan", turnedOff: true });
+  });
+  const asked = (state: TransportState = initialTransport()): TransportState => ({ ...state, fastRequested: true });
+  const run = (state: TransportState, frames: unknown[]) => {
+    const events: EventPayload[] = [];
+    for (const frame of frames) {
+      if (frame && typeof frame === "object" && "steer" in frame) { state = steerTransport(state, String(frame.steer)); continue; }
+      const next = normalizeClaude(state, frame, "/repo"); state = next.state; events.push(...next.events);
+    }
+    return { state, events };
+  };
+  const call = { type: "assistant", parent_tool_use_id: null, message: { id: "m1", model: "claude-opus-5", content: [{ type: "text", text: "OK" }], usage: { input_tokens: 10, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } } };
+  const window = { modelUsage: { "claude-opus-5": { contextWindow: 200_000 } } };
+  it("goes out before the context value and the terminal of a done or failed turn", () => {
+    const done = run(asked(), [call, { ...result({ fast_mode_state: "off", fast_mode_disabled_reason: "extra_usage_disabled" }), ...window }]).events;
+    expect(done.slice(-3)).toEqual([{ type: "fast.unused", reason: "extra_usage", turnedOff: true }, { type: "context.usage", used: 10, size: 200_000 }, { type: "turn.done" }]);
+    const failed = run(asked(), [call, { ...result({ fast_mode_state: "cooldown" }, "error_during_execution"), errors: ["boom"], ...window }]).events;
+    expect(failed.map(e => e.type).slice(-3)).toEqual(["fast.unused", "context.usage", "turn.failed"]);
+  });
+  it("is nothing on a turn that did not ask, and nothing on a stop, a quit or a crash", () => {
+    expect(run(initialTransport(), [result({ fast_mode_state: "off", fast_mode_disabled_reason: "free" })]).events).toEqual([{ type: "turn.done" }]);
+    const off = result({ fast_mode_state: "off", fast_mode_disabled_reason: "free" });
+    for (const stop of ["user", "appQuit"] as const) expect(run({ ...asked(), stop }, [off]).events).toEqual([{ type: "interrupted", reason: stop }]);
+    expect(run(asked(), [{ ...off, terminal_reason: "interrupted" }]).events.some(e => e.type === "fast.unused")).toBe(false);
+    // A crash after a result that waited for a steered message: the process ended, so the turn is not judged.
+    const waiting = run(asked(), [{ steer: "u1" }, off]);
+    expect(waiting.events).toEqual([]);
+    expect(endTransport(waiting.state).events).toEqual([{ type: "turn.failed", code: "process_exited" }]);
+  });
+  it("judges a steered turn by its last result", () => {
+    const off = result({ fast_mode_state: "off", fast_mode_disabled_reason: "free" });
+    const init = { type: "system", subtype: "init", user_message_uuids: ["u1"] };
+    expect(run(asked(), [{ steer: "u1" }, off, init, result({ fast_mode_state: "on" })]).events.filter(e => e.type === "fast.unused")).toEqual([]);
+    expect(run(asked(), [{ steer: "u1" }, result({ fast_mode_state: "on" }), init, result({ fast_mode_state: "cooldown" })]).events.filter(e => e.type === "fast.unused")).toEqual([{ type: "fast.unused", reason: "cooldown" }]);
+    // The read wait ran out: the turn ends done with the last result it saw.
+    const waited = run(asked(), [{ steer: "u1" }, off]);
+    expect(endSteerWait(waited.state).events).toEqual([{ type: "fast.unused", reason: "plan", turnedOff: true }, { type: "turn.done" }]);
   });
 });

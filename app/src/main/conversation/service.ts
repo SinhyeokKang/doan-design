@@ -498,6 +498,7 @@ export class ConversationService {
     if (live.terminal) return;
     try {
       this.append(id, live.turnId, event);
+      if (event.type === "fast.unused" && event.turnedOff) this.turnFastOff(id);
       const evidence = this.evidence.get(id);
       if (event.type === "activity" && event.kind === "edit" && event.path && evidence && evidence.endedAt === undefined) evidence.edits.add(event.path);
       if (event.type === "permission.request" || event.type === "question.request") (live.asking ??= new Set()).add(askingKey(event));
@@ -513,6 +514,15 @@ export class ConversationService {
       // No event says so, but the list's projectBusy and, once the process is gone, the phase change.
       this.changedOf(id);
     }
+  }
+  // A reason that holds on turned the turn's Fast off: the conversation's choice goes too, so later turns, a queue
+  // flushed after this one included, run without it. A failed index write leaves the choice on; the next turn judges again.
+  private turnFastOff(id: string): void {
+    try {
+      const entries = this.store.list(), m = entries.find(e => e.conversationId === id); if (!m?.fast) return;
+      const { fast: _fast, ...rest } = m;
+      this.store.save(entries.map(e => e === m ? rest : e)); this.changed(m.root);
+    } catch (error) { console.error("doan: Fast could not be turned off", error); }
   }
   // Each conversation's current turn for `doan work update` (conversationWork.ts): running from its acceptance until
   // its terminal event, archive, a history that stopped taking writes, or the quit. A send being prepared is not
