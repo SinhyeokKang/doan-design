@@ -155,7 +155,7 @@ test("on the source canvas the handoff moves through Quick Open's path: one visi
   showCanvas(checkout);
   options.opened(); render();
   expect(back()).toBe(true);
-  expect(panel()!.arrival).toMatchObject({ focus: "handoff" });
+  expect(panel()!.arrival).toMatchObject({ focus: "handoff", handoff: { root: "/w/a", canvas: { path: C, id: "checkout" }, conversationId: "c2" } });
 });
 
 test("away from the source canvas the handoff is a toast whose Open opens the target conversation", async () => {

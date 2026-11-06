@@ -191,3 +191,44 @@ test("the panel hands the page's canvas press signal to its composer", async () 
   };
   expect(composer(tree)?.canvasPress).toBe(canvasPress);
 });
+
+// canvas-handoff design §6 (runtime finding in /design-sync): the move's arrival comes with the render that still
+// shows the canvas left behind, whose thread has no card. It waits for the receiving conversation and focuses its
+// card there instead of sending focus to the old composer.
+test("a handoff arrival waits for the receiving canvas and conversation, then is applied once", async () => {
+  const DRAFTS: Canvas = { path: ".doan/canvases/drafts.html", id: "drafts" };
+  const entry: FolderEntry = { path: ROOT, kind: "list", servedRev: 0, canvases: [{ path: DRAFTS.path, id: "drafts", url: "d" }, { path: CANVAS.path, id: "checkout", url: "u" }] };
+  const row = (conversationId: string, canvas: Canvas) => ({ conversationId, title: "t", state: "current", owner: "doan", provider: "claude", fromHome: false, canvas,
+    phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: "2026-11-01T00:00:00.000Z", preview: "" });
+  const list = [row("c-src", DRAFTS), row("c-recv", CANVAS)] as never[];
+  const card = { v: 1, conversationId: "c-recv", seq: 1, turnId: "r1", at: "2026-11-01T00:00:00Z", type: "user.message", text: "Continue.", anchors: [], origin: { kind: "handoff", conversationId: "c-src", canvas: DRAFTS } };
+  (window as unknown as { doan: Record<string, unknown> }).doan.readConversation = vi.fn(async ({ conversationId }: { conversationId: string }) => conversationId === "c-recv" ? { events: [card], lastSeq: 1, turn: "idle" } : { events: [], lastSeq: 0, turn: "idle" });
+  vi.stubGlobal("document", { querySelector: () => null });
+  const store = new ConversationStore({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() });
+  const run = new CanvasRun({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store);
+  run.show({ root: ROOT, canvas: DRAFTS });
+  run.sync();
+  await flush();
+  const support = Object.assign(new DockedSupport(() => {}), { readPresets: vi.fn(), readModels: vi.fn() });
+  const onArrived = vi.fn();
+  const arrival = { focus: "handoff" as const, seq: 7, handoff: { root: ROOT, canvas: CANVAS, conversationId: "c-recv" } };
+  const panel = (canvas: Canvas) => () => CanvasConversation({
+    run, support, target: { root: ROOT, canvas }, canvasName: "x", project: "acme-web", entry, list, seen: new Set(),
+    prefs: null, defaults: null, now: Date.parse("2026-11-01T15:00:00"), blocked: null, frames: [], locateDisabled: false, arrival, onArrived,
+    onLocate: vi.fn(async () => "shown" as const), pick: { pressed: false, enabled: true, reason: null, onToggle: () => {} }, composerLink: { current: null },
+    onSettings: vi.fn(), onNotice: vi.fn(), onOpenProjectConversation: vi.fn(), work: [],
+  });
+  // The render that brings the arrival still draws the old canvas's conversation; the page's layout effect then shows
+  // the new canvas before the panel's effect runs.
+  hooks.cursor = 0; hooks.refCursor = 0; hooks.effectCursor = 0; hooks.pending = []; hooks.dirty = false;
+  panel(CANVAS)();
+  run.request({ root: ROOT, canvas: CANVAS }, "c-recv", null);
+  run.show({ root: ROOT, canvas: CANVAS });
+  for (const effect of hooks.pending) effect();
+  await flush();
+  expect(onArrived).not.toHaveBeenCalled();
+  render(panel(CANVAS));
+  await flush();
+  render(panel(CANVAS));
+  expect(onArrived).toHaveBeenCalledExactlyOnceWith(7);
+});

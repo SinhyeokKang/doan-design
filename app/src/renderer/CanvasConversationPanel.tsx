@@ -25,7 +25,7 @@ import { ConversationHead } from "./ConversationLine";
 import { ConversationThread, LOADING_DELAY_MS, type ConversationThreadHandle, type LocateOutcome } from "./ConversationThread";
 import { steerPhaseOf, type ConversationStore, type ListView, type QueuedMessage } from "./conversationStore";
 import { asksPerson, stripState } from "./conversationStrip";
-import type { PanelFocus } from "./rightPanelOpen";
+import type { PanelArrival } from "./rightPanelOpen";
 import { copyText } from "./copyText";
 import { contextRing } from "./contextWindow";
 import { DockedComposer, type DockedFieldLink, type DockedOutcome, type DockedPicker, type DockedRequest } from "./DockedComposer";
@@ -70,7 +70,7 @@ export interface CanvasConversationProps {
   frames: readonly FrameName[] | undefined;
   locateDisabled: boolean;
   // Where focus goes once the panel shows what an entry asked for; each entry has its own seq.
-  arrival: { focus: PanelFocus; seq: number } | null;
+  arrival: PanelArrival | null;
   // An arrival was applied: the host drops it, so a panel drawn again later does not take focus for it once more.
   onArrived(seq: number): void;
   // Chip locate from the thread and from the composer's field (design §2 'Chip locate').
@@ -285,6 +285,9 @@ export function CanvasConversation(props: CanvasConversationProps) {
   // question's first option or answer input (agent-questions design §6), else the composer. Each arrival is applied
   // once; one whose request has nothing pending falls back to the composer.
   const arrived = useRef(0);
+  // The canvas this render's view belongs to. Read here, not in the effect: the page's layout effect shows a newly
+  // opened canvas before this effect runs, while the view and items below are still the canvas left behind.
+  const viewTarget = run.target();
   useEffect(() => {
     const arrival = props.arrival;
     if (!arrival || arrival.seq === arrived.current || view.kind === "wait") return;
@@ -298,12 +301,15 @@ export function CanvasConversation(props: CanvasConversationProps) {
         handle.current?.scrollToItem(ask.key);
         if (handle.current?.focusItem(ask.key)) return;
       }
-    } else if (arrival.focus === "handoff" && conversationId) {
-      // After a handoff's move: the receiving thread's card, once its history draws.
-      if (!Array.isArray(items)) return;
+    } else if (arrival.focus === "handoff" && arrival.handoff) {
+      // After a handoff's move: the receiving thread's card, once its history draws. The render that brings the arrival
+      // still shows the canvas left behind (the run shows the new one after it), whose thread has no card.
+      const to = arrival.handoff, shown = viewTarget;
+      if (!shown || shown.root !== to.root || !sameCanvas(shown.canvas, to.canvas)) return;
+      if (conversationId === to.conversationId && !Array.isArray(items)) return;
       arrived.current = arrival.seq;
       props.onArrived(arrival.seq);
-      const card = items.find(item => item.kind === "handoffCard");
+      const card = conversationId === to.conversationId && Array.isArray(items) ? items.find(item => item.kind === "handoffCard") : undefined;
       if (card) {
         handle.current?.scrollToItem(card.key);
         if (handle.current?.focusItem(card.key)) return;

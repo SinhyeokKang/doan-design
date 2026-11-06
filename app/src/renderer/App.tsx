@@ -46,7 +46,7 @@ import { CanvasRun, type CanvasTarget } from "./canvasRun";
 import { CanvasConversation, CanvasConversationTitle, canvasConversationTitle, composerFixed, settleChips } from "./CanvasConversationPanel";
 import { captureAvailability } from "./canvasCapture";
 import { canvasUnlistedText, DUPLICATE_CANVAS_TEXT } from "./canvasConversation";
-import { openButtonBadge, panelOpenFor, type OpenBadge, type PanelFocus, type PanelTrigger } from "./rightPanelOpen";
+import { openButtonBadge, panelOpenFor, type OpenBadge, type PanelArrival, type PanelFocus, type PanelTrigger } from "./rightPanelOpen";
 import { HANDOFF_WAIT_MS, handoffArrival, handoffGoneText, handoffToastText, type HandoffScreen } from "./handoffView";
 import { PICKER_UNAVAILABLE, pickerAvailability, type CanvasLoad, type Rect } from "./canvasPicker";
 import type { DockedFieldLink } from "./DockedComposer";
@@ -392,7 +392,7 @@ export function App() {
   }, overviewRun.current.store);
   // Where focus goes once the panel shows what an entry asked for (design §2 'Opening the panel'); a new seq per entry.
   // The seq only grows: the panel applies an arrival once by its seq, so a later entry must never reuse one.
-  const [arrival, setArrival] = useState<{ focus: PanelFocus; seq: number } | null>(null);
+  const [arrival, setArrival] = useState<PanelArrival | null>(null);
   const panelArrivals = useRef(0);
   const support = useRef<DockedSupport | null>(null);
   if (!support.current) support.current = new DockedSupport(() => setRunTick(tick => tick + 1));
@@ -667,7 +667,7 @@ export function App() {
     const open = panelOpenFor(trigger, slot);
     const scroll: ScrollTo | null = open.open === true && open.focus === "permission" ? "permission" : null;
     canvasRun.current!.request(target, conversationId, scroll);
-    const reveal = () => { if (open.open === true) revealPanel(open.focus); };
+    const reveal = () => { if (open.open === true) revealPanel(open.focus, open.focus === "handoff" ? { root, canvas: target.canvas, conversationId } : undefined); };
     const shown = openRef.current;
     if (currentScreen.current === "workspace" && shown?.folder === root && shown.canvas === row.path && shownOverviewRef.current === null) reveal();
     else live.current.openShellCanvas(root, row, undefined, reveal);
@@ -1741,9 +1741,9 @@ export function App() {
   const focusPanel = () => document.querySelector<HTMLElement>(".doan-conv-panel :is(.rp-head, .doan-conv-title .ov-title)")?.focus();
   // An entry unfolds a folded panel (never the agent's own events) and hands focus to what it asked for, once the panel
   // shows it (design §2 'Opening the panel').
-  function revealPanel(focus: PanelFocus) {
+  function revealPanel(focus: PanelFocus, handoff?: PanelArrival["handoff"]) {
     if (!rightPanelRef.current.open) foldPanel(true, "content");
-    setArrival({ focus, seq: ++panelArrivals.current });
+    setArrival({ focus, seq: ++panelArrivals.current, ...(handoff ? { handoff } : {}) });
   }
   // The other worktree notice's Open (DESIGN 'Terminal work in another worktree'): the terminal slot's path to W's same canvas,
   // which makes W the selected worktree and leaves one canvas visit. A pick on this canvas ends first.

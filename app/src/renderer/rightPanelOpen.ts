@@ -1,4 +1,5 @@
 import type { ConversationSummary } from "../main/conversation/summary";
+import type { Canvas } from "../main/conversation/types";
 import { conversationWork } from "./conversationList";
 import type { Slot } from "./homeConversations";
 
@@ -16,6 +17,9 @@ export type PanelTrigger =
 // keep: the panel stays as it was. Opening focuses the first choice of the waiting request, else the composer.
 export type PanelOpen = { open: "keep" } | { open: true; focus: PanelFocus };
 export type PanelFocus = "permission" | "composer" | "handoff";
+// Where focus goes once the panel shows what an entry asked for; each entry has its own seq. A handoff's names the
+// receiving conversation, which the panel shows only after the render that brings the arrival.
+export interface PanelArrival { focus: PanelFocus; seq: number; handoff?: { root: string; canvas: Canvas; conversationId: string } }
 
 // `slot` is the canvas's sidebar slot, which the sidebar row reads.
 export function panelOpenFor(trigger: PanelTrigger, slot: Slot["kind"] | null): PanelOpen {
