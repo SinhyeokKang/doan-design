@@ -303,13 +303,14 @@ test("the picker lists connected providers only, in order, with model rows and t
   expect(view.groups.map(g => g.provider)).toEqual(["claude", "codex", "copilot"]);
   expect(view.groups[0]).toMatchObject({ name: "Claude Code", selectable: true, cause: null, note: null, read: false });
   expect(view.groups[0]!.rows).toEqual([
-    { kind: "model", id: "opus", label: "Opus 5.5", effort: true, selected: true },
-    { kind: "model", id: "sonnet", label: "Sonnet 5.5", effort: true, selected: false },
-    { kind: "model", id: "haiku", label: "Haiku 5.5", effort: false, selected: false },
+    { kind: "model", id: "opus", label: "Opus 5.5", effort: true, selected: true, isDefault: true },
+    { kind: "model", id: "sonnet", label: "Sonnet 5.5", effort: true, selected: false, isDefault: false },
+    { kind: "model", id: "haiku", label: "Haiku 5.5", effort: false, selected: false, isDefault: false },
   ]);
-  expect(view.trigger).toEqual({ provider: "claude", label: "Opus 5.5", ariaLabel: "Agent: Claude Code, model Opus 5.5" });
+  expect(view.trigger).toEqual({ provider: "claude", label: "Opus 5.5", ariaLabel: "Agent: Claude Code, model Opus 5.5, default", placeholder: false, isDefault: true });
   expect(view.effort).toEqual({
-    label: "High", ariaLabel: "Effort: High", menuLabel: "Effort for Opus 5.5", title: "Effort · Opus 5.5",
+    label: "High", ariaLabel: "Effort: High", placeholder: false, menuLabel: "Effort for Opus 5.5", title: "Effort · Opus 5.5",
+    unset: { label: "Default", description: "Set by Claude Code", selected: false },
     options: [{ id: "low", label: "Low", selected: false }, { id: "medium", label: "Medium", selected: false }, { id: "high", label: "High", selected: true }, { id: "max", label: "Max", selected: false }],
     fast: null,
   });
@@ -326,7 +327,7 @@ test("an unverified provider stays selectable and carries its cause", () => {
   expect(view.groups[0]).toMatchObject({ selectable: true, cause: "unverified" });
 });
 
-test("a provider without a list yet shows Default and asks to be read when its group opens; loading and failure stay on Default", () => {
+test("a provider without a list yet has a Default row and asks to be read when its group opens; loading and failure keep it", () => {
   const auth = snapshot(dto("claude"), dto("codex"));
   const choice = { provider: "codex" as const, model: null, effort: null };
   const unread = modelPickerView(auth, {}, choice).groups[1]!;
@@ -337,7 +338,10 @@ test("a provider without a list yet shows Default and asks to be read when its g
   for (const state of [{ error: "unavailable" }, { models: [] }] as ModelsState[]) {
     expect(modelPickerView(auth, { codex: state }, choice).groups[1]).toMatchObject({ read: false, note: "Models unavailable", rows: [{ kind: "default", label: "Default", selected: true }] });
   }
-  expect(modelPickerView(auth, {}, choice).trigger).toEqual({ provider: "codex", label: "Default", ariaLabel: "Agent: Codex, model Default" });
+  // picker-default-labels spec 'Model': with no model chosen the trigger names its drawer; the group head names the provider.
+  for (const state of [undefined, "loading", { error: "unavailable" }] as ModelsState[]) {
+    expect(modelPickerView(auth, { codex: state }, choice).trigger).toEqual({ provider: "codex", label: "Model", ariaLabel: "Agent: Codex, model not chosen", placeholder: true, isDefault: false });
+  }
   expect(modelPickerView(auth, {}, choice).effort).toBeNull();
 });
 
@@ -348,18 +352,98 @@ test("Copilot's list is read automatically like every other provider's, with no 
   expect(JSON.stringify(group)).not.toContain("Load models");
 });
 
-test("the effort capsule shows only for a model with levels; an unchosen level reads Default", () => {
+test("the effort capsule shows only for a model with levels; an unchosen level names the drawer when the default is unknown", () => {
   const auth = snapshot(dto("claude"));
   expect(modelPickerView(auth, { claude: CLAUDE_MODELS }, { provider: "claude", model: "haiku", effort: null }).effort).toBeNull();
-  expect(modelPickerView(auth, { claude: CLAUDE_MODELS }, { provider: "claude", model: "sonnet", effort: null }).effort).toMatchObject({ label: "Default", ariaLabel: "Effort: Default" });
+  expect(modelPickerView(auth, { claude: CLAUDE_MODELS }, { provider: "claude", model: "sonnet", effort: null }).effort).toMatchObject({ label: "Effort", ariaLabel: "Effort: default", placeholder: true });
   expect(modelPickerView(auth, { claude: { models: [{ ...OPUS, efforts: ["xhigh"] }] } }, { provider: "claude", model: "opus", effort: "xhigh" }).effort?.label).toBe("Extra high");
-  // A chosen model that is no longer listed reads as Default.
-  expect(modelPickerView(auth, { claude: CLAUDE_MODELS }, { provider: "claude", model: "retired", effort: "high" })).toMatchObject({ trigger: { label: "Default" }, effort: null });
+  // A chosen model that is no longer listed reads as no model.
+  expect(modelPickerView(auth, { claude: CLAUDE_MODELS }, { provider: "claude", model: "retired", effort: "high" })).toMatchObject({ trigger: { label: "Model", placeholder: true }, effort: null });
+});
+
+// picker-default-labels A2 (spec 'Model', 'Effort'; design §2 2, 3).
+const LUNA = { id: "gpt-6-luna", label: "GPT-6-Luna", default: true, efforts: ["low", "medium", "high", "xhigh"], defaultEffort: "medium" };
+const TERRA = { id: "gpt-5.6-terra", label: "GPT-5.6-Terra", default: false, efforts: ["low", "medium", "high"] };
+const CODEX_MODELS: ModelsState = { models: [LUNA, TERRA] };
+// The 2026-11-06 shape after main's pairing (A1): Claude Code's default row carries its model's name, the opus row is gone.
+const CLAUDE_DEFAULT = { id: "default", label: "Opus 5.5", default: true, efforts: ["low", "medium", "high", "max"] };
+const PAIRED: ModelsState = { models: [CLAUDE_DEFAULT, SONNET, HAIKU] };
+
+test("the model menu marks every provider's default row, whichever provider is chosen", () => {
+  const auth = snapshot(dto("claude"), dto("codex"));
+  const view = modelPickerView(auth, { claude: PAIRED, codex: CODEX_MODELS }, { provider: "codex", model: "gpt-5.6-terra", effort: null });
+  expect(view.groups[0]!.rows.map(row => row.kind === "model" && [row.id, row.isDefault, row.selected])).toEqual([["default", true, false], ["sonnet", false, false], ["haiku", false, false]]);
+  expect(view.groups[1]!.rows.map(row => row.kind === "model" && [row.id, row.isDefault, row.selected])).toEqual([["gpt-6-luna", true, false], ["gpt-5.6-terra", false, true]]);
+  expect(view.trigger).toEqual({ provider: "codex", label: "GPT-5.6-Terra", ariaLabel: "Agent: Codex, model GPT-5.6-Terra", placeholder: false, isDefault: false });
+});
+
+test("after switching provider, the trigger names its drawer until the new provider's list is read", () => {
+  const auth = snapshot(dto("claude"), dto("codex"));
+  // The composer resolves the model from the new provider's list, which is not read yet, so no model is chosen.
+  const view = modelPickerView(auth, { claude: PAIRED, codex: "loading" }, { provider: "codex", model: defaultModel("loading", undefined), effort: null });
+  expect(view.trigger).toMatchObject({ provider: "codex", label: "Model", placeholder: true });
+  // The other group keeps its default mark, unselected.
+  expect(view.groups[0]!.rows[0]).toMatchObject({ id: "default", isDefault: true, selected: false });
+});
+
+test("the trigger follows defaultModel: a fixed Settings default beats Last used (POSTMORTEM 2026-11-02)", () => {
+  const auth = snapshot(dto("claude"));
+  const trigger = (model: string | null) => modelPickerView(auth, { claude: PAIRED }, { provider: "claude", model, effort: null }).trigger;
+  expect(trigger(defaultModel(PAIRED, { model: "sonnet" }, { provider: "claude", model: "haiku" }))).toMatchObject({ label: "Haiku 5.5", isDefault: false });
+  // A fixed agent without a model is the provider's default, not the model remembered.
+  expect(trigger(defaultModel(PAIRED, { model: "sonnet" }, { provider: "claude" }))).toMatchObject({ label: "Opus 5.5", isDefault: true, ariaLabel: "Agent: Claude Code, model Opus 5.5, default" });
+  expect(trigger(defaultModel(PAIRED, { model: "sonnet" }, null))).toMatchObject({ label: "Sonnet 5.5", isDefault: false });
+});
+
+test("an existing conversation's stored model: listed, no longer listed (an older \"opus\"), or never stored", () => {
+  const auth = snapshot(dto("claude"));
+  const trigger = (stored: string | undefined) => modelPickerView(auth, { claude: PAIRED }, { provider: "claude", model: defaultModel(PAIRED, stored ? { model: stored } : undefined), effort: null }).trigger;
+  expect(trigger("sonnet")).toMatchObject({ label: "Sonnet 5.5", isDefault: false, ariaLabel: "Agent: Claude Code, model Sonnet 5.5" });
+  expect(trigger("opus")).toMatchObject({ label: "Opus 5.5", isDefault: true, ariaLabel: "Agent: Claude Code, model Opus 5.5, default" });
+  expect(trigger(undefined)).toMatchObject({ label: "Opus 5.5", isDefault: true });
+});
+
+test("effort with nothing chosen shows Codex's default level, else the drawer's name; the Default row stays out of the options", () => {
+  const auth = snapshot(dto("claude"), dto("codex"));
+  const effort = (provider: Provider, models: ModelsState, model: string, level: string | null, fast?: boolean) =>
+    modelPickerView(auth, { [provider]: models }, { provider, model, effort: level, ...(fast === undefined ? {} : { fast }) }).effort!;
+  const luna = effort("codex", CODEX_MODELS, "gpt-6-luna", null);
+  expect(luna).toMatchObject({ label: "Medium", ariaLabel: "Effort: Medium, default", placeholder: false, unset: { label: "Default", description: "Medium for this model", selected: true } });
+  expect(luna.options.map(item => item.id)).toEqual(["low", "medium", "high", "xhigh"]);
+  expect(luna.options.some(item => item.selected)).toBe(false);
+  // A Codex model without a default level, and Claude Code, which never gives one.
+  expect(effort("codex", CODEX_MODELS, "gpt-5.6-terra", null)).toMatchObject({ label: "Effort", ariaLabel: "Effort: default", placeholder: true, unset: { description: "Set by Codex", selected: true } });
+  expect(effort("claude", PAIRED, "default", null)).toMatchObject({ label: "Effort", ariaLabel: "Effort: default", placeholder: true, unset: { description: "Set by Claude Code", selected: true } });
+  // A chosen level, even the default's own, is a choice: no default tail, the Default row unchecked.
+  expect(effort("codex", CODEX_MODELS, "gpt-6-luna", "medium")).toMatchObject({ label: "Medium", ariaLabel: "Effort: Medium", placeholder: false, unset: { selected: false } });
+  expect(effort("codex", CODEX_MODELS, "gpt-6-luna", "xhigh")).toMatchObject({ label: "Extra high", ariaLabel: "Effort: Extra high" });
+  // Fast keeps its tail after the default one.
+  expect(effort("claude", { models: [{ ...CLAUDE_DEFAULT, fast: {} }] }, "default", null, true).ariaLabel).toBe("Effort: default, Fast on");
+  expect(effort("codex", { models: [{ ...LUNA, fast: {} }] }, "gpt-6-luna", null, false).ariaLabel).toBe("Effort: Medium, default, Fast off");
+});
+
+test("ACP: the default mark sits on the current model's row only, and nowhere when it is not listed", () => {
+  const auth = snapshot(dto("copilot"), dto("antigravity"));
+  const marks = (provider: Provider, models: ModelsState) => {
+    const view = modelPickerView(auth, { [provider]: models }, { provider, model: defaultModel(models, undefined), effort: null });
+    return { trigger: view.trigger, rows: view.groups.find(group => group.provider === provider)!.rows };
+  };
+  // Copilot's second `auto` is dropped in main (parseAcpModels), so one row is left to carry the mark.
+  const copilot = marks("copilot", { models: [{ id: "auto", label: "Auto", default: true }, { id: "gpt-5.6", label: "GPT-5.6", default: false }] });
+  expect(copilot.rows.filter(row => row.kind === "model" && row.isDefault).map(row => row.kind === "model" && row.id)).toEqual(["auto"]);
+  expect(copilot.trigger).toMatchObject({ label: "Auto", isDefault: true, ariaLabel: "Agent: GitHub Copilot, model Auto, default" });
+  // Antigravity puts the effort in the model id: only the current one of the three is the default.
+  const ids = ["gemini-3-pro-low", "gemini-3-pro-medium", "gemini-3-pro-high"];
+  const antigravity = marks("antigravity", { models: ids.map(id => ({ id, label: id, default: id === "gemini-3-pro-medium" })) });
+  expect(antigravity.rows.map(row => row.kind === "model" && row.isDefault)).toEqual([false, true, false]);
+  const none = marks("antigravity", { models: ids.map(id => ({ id, label: id, default: false })) });
+  expect(none.rows.some(row => row.kind === "model" && row.isDefault)).toBe(false);
+  expect(none.trigger).toMatchObject({ label: "Model", placeholder: true });
 });
 
 test("with no agent that can run the trigger says so", () => {
   const view = modelPickerView(snapshot(dto("claude", { expired: true })), {}, { provider: null, model: null, effort: null });
-  expect(view.trigger).toEqual({ provider: null, label: "No agent ready", ariaLabel: "Agent: none ready" });
+  expect(view.trigger).toEqual({ provider: null, label: "No agent ready", ariaLabel: "Agent: none ready", placeholder: false, isDefault: false });
   expect(modelPickerView(undefined, {}, { provider: null, model: null, effort: null }).groups).toEqual([]);
 });
 

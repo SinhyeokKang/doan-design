@@ -150,7 +150,7 @@ describe("dockedRefusal", () => {
 
 describe("dockedPicker", () => {
   const view: ModelPickerView = {
-    trigger: { provider: "claude", label: "Opus 5.5", ariaLabel: "Agent: Claude Code, model Opus 5.5" },
+    trigger: { provider: "claude", label: "Opus 5.5", ariaLabel: "Agent: Claude Code, model Opus 5.5", placeholder: false, isDefault: false },
     groups: [
       { provider: "claude", name: "Claude Code", selectable: true, cause: null, note: null, read: false, rows: [] },
       { provider: "codex", name: "Codex", selectable: true, cause: null, note: null, read: false, rows: [] },
@@ -159,8 +159,18 @@ describe("dockedPicker", () => {
   };
   test("an existing conversation lists only its provider and names the model with the provider", () => {
     const picked = dockedPicker(view, EXISTING);
-    expect(picked.trigger).toEqual({ provider: "claude", label: "Opus 5.5", ariaLabel: "Model: Opus 5.5 (Claude Code)" });
+    expect(picked.trigger).toEqual({ provider: "claude", label: "Opus 5.5", ariaLabel: "Model: Opus 5.5 (Claude Code)", placeholder: false, isDefault: false });
     expect(picked.groups.map(group => group.provider)).toEqual(["claude"]);
+  });
+  // picker-default-labels spec 'Model': the default row says so; no model names the drawer.
+  test("the default row's name ends with default; with no model the trigger names its drawer", () => {
+    const shown = dockedPicker({ ...view, trigger: { ...view.trigger, ariaLabel: "Agent: Claude Code, model Opus 5.5, default", isDefault: true } }, EXISTING);
+    expect(shown.trigger).toEqual({ provider: "claude", label: "Opus 5.5", ariaLabel: "Model: Opus 5.5, default (Claude Code)", placeholder: false, isDefault: true });
+    const none = dockedPicker({ ...view, trigger: { provider: "claude", label: "Model", ariaLabel: "Agent: Claude Code, model not chosen", placeholder: true, isDefault: false } }, EXISTING);
+    expect(none.trigger).toEqual({ provider: "claude", label: "Model", ariaLabel: "Model: not chosen (Claude Code)", placeholder: true, isDefault: false });
+    // Another provider's trigger never shows on a conversation that keeps its own.
+    const other = dockedPicker({ ...view, trigger: { provider: "codex", label: "GPT-6-Luna", ariaLabel: "Agent: Codex, model GPT-6-Luna, default", placeholder: false, isDefault: true } }, EXISTING);
+    expect(other.trigger).toEqual({ provider: "claude", label: "Model", ariaLabel: "Model: not chosen (Claude Code)", placeholder: true, isDefault: false });
   });
   test("new-conversation mode keeps Home's picker", () => {
     expect(dockedPicker(view, { kind: "new", root: "/r" })).toBe(view);
