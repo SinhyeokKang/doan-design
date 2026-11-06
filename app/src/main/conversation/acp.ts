@@ -2,8 +2,8 @@ import { posix } from "node:path";
 import { canvasDir } from "../../formats/canvasPath";
 import { object } from "./sessions";
 import { QUESTION_LIMITS } from "./question";
-import { contextBefore, contextValue, displayPath, GENERIC_SUMMARY, transportError } from "./transport";
-import type { EventPayload, PermissionOption, TransportResult, TransportState } from "./types";
+import { contextBefore, contextValue, displayPath, GENERAL_STAGE, GENERIC_SUMMARY, transportError } from "./transport";
+import type { EventPayload, PermissionOption, TransportResult, TransportState, TurnStage } from "./types";
 
 // Agent Client Protocol (https://agentclientprotocol.com) over newline-delimited JSON-RPC 2.0 on stdio, as Cursor
 // (`agent acp`), Copilot (`copilot --acp --stdio`) and Antigravity (agy_acp_server) speak it.
@@ -117,7 +117,9 @@ export function acpQuestion(params: Record<string, unknown>, requestId: string):
   };
 }
 
-export interface AcpTransport extends TransportState { turn: string; segment: number; text: string; tools: Record<string, { kind: string; path: string; title: string }> }
+// thinking: thought chunks came and nothing that ends thinking since (normalizeAcp).
+export interface AcpTransport extends TransportState { turn: string; segment: number; text: string; tools: Record<string, AcpTool>; thinking?: true }
+interface AcpTool { kind: string; path: string; title: string }
 export function initialAcp(turn: string): AcpTransport {
   return { terminal: false, stop: null, messageId: `${turn}:0`, textBlock: null, completedMessages: [], activities: [], fileSummaries: {}, turn, segment: 0, text: "", tools: {} };
 }
@@ -127,6 +129,7 @@ function flush(state: AcpTransport): TransportResult & { state: AcpTransport } {
   const segment = state.segment + 1;
   return { state: { ...state, text: "", segment, messageId: `${state.turn}:${segment}` }, events: [done] };
 }
+type AcpActivityKind = keyof typeof GENERIC_SUMMARY;
 const ACTIVITY: Record<string, "edit" | "read" | "command"> = { edit: "edit", delete: "edit", move: "edit", read: "read", search: "read", execute: "command", terminal: "command" };
 function str(value: unknown): string { return typeof value === "string" ? value : ""; }
 function toolPath(update: Record<string, unknown>): string {
@@ -134,15 +137,33 @@ function toolPath(update: Record<string, unknown>): string {
   const input = object(update.rawInput) ? update.rawInput : {};
   return str(input.path) || str(input.fileName) || str(input.file_path);
 }
+// One rule for a tool call's words, whether it still runs (its stage) or completed (its activity). A shell command's
+// title is the command itself; activity is stored and published, so it gets the generic phrase.
+function acpToolSummary(kind: AcpActivityKind, tool: AcpTool, root: string): string {
+  return kind === "command" ? GENERIC_SUMMARY.command : (tool.title || (tool.path && displayPath(tool.path, root)) || GENERIC_SUMMARY[kind]).slice(0, 512);
+}
+function acpToolStage(kind: AcpActivityKind, tool: AcpTool, root: string): TurnStage {
+  return { kind: "tool", activity: kind, ...(tool.path ? { path: tool.path.slice(0, 512) } : {}), summary: acpToolSummary(kind, tool, root) };
+}
+// The thinking stage ends here; a stage the caller reports in its place goes out instead of the general one.
+function awake(state: AcpTransport): { state: AcpTransport; stage?: TurnStage } {
+  if (!state.thinking) return { state };
+  const { thinking: _, ...rest } = state;
+  return { state: rest, stage: GENERAL_STAGE };
+}
 // Updates arriving while no prompt is running (session/load replays the stored history) are not events of this turn.
+// Thinking (Copilot's thought chunks) ends on a message chunk, a tool call or a tool update with a status; usage, plan,
+// command-list and status-less tool updates come in the middle of it (Copilot sends usage about 2.5 s into a turn).
 export function normalizeAcp(state: AcpTransport, update: Record<string, unknown>, root: string): TransportResult & { state: AcpTransport } {
   if (state.terminal) return { state, events: [] };
   const kind = update.sessionUpdate;
+  if (kind === "agent_thought_chunk") return { state: state.thinking ? state : { ...state, thinking: true }, events: [], stage: { kind: "thinking" } };
   if (kind === "agent_message_chunk") {
+    const woke = awake(state);
     const content = object(update.content) ? update.content : {};
     const text = content.type === "text" ? str(content.text) : "";
-    if (!text) return { state, events: [] };
-    return { state: { ...state, text: state.text + text }, events: [{ type: "message.delta", messageId: state.messageId, text }] };
+    if (!text) return { state: woke.state, events: [], ...(woke.stage ? { stage: woke.stage } : {}) };
+    return { state: { ...woke.state, text: woke.state.text + text }, events: [{ type: "message.delta", messageId: woke.state.messageId, text }], ...(woke.stage ? { stage: woke.stage } : {}) };
   }
   // used is what the provider reports; ACP does not define it. Antigravity's ACP server 1.3.0 sends the last model
   // call's size (its first value after session/load was that turn's context, not a session total).
@@ -151,21 +172,25 @@ export function normalizeAcp(state: AcpTransport, update: Record<string, unknown
     return { state: value ? { ...state, context: value } : state, events: [] };
   }
   if (kind !== "tool_call" && kind !== "tool_call_update") return { state, events: [] };
+  // ACP's tool_call status defaults to pending; a tool_call_update without one only adds content or details.
+  const status = kind === "tool_call" ? str(update.status) || "pending" : str(update.status);
+  const woke = status ? awake(state) : { state };
   const id = str(update.toolCallId);
-  if (!id || state.activities.includes(id)) return { state, events: [] };
-  const known = state.tools[id] ?? { kind: "", path: "", title: "" };
+  if (!id || woke.state.activities.includes(id)) return { state: woke.state, events: [], ...(woke.stage ? { stage: woke.stage } : {}) };
+  const known = woke.state.tools[id] ?? { kind: "", path: "", title: "" };
   const tool = { kind: str(update.kind) || known.kind, path: toolPath(update) || known.path, title: str(update.title) || known.title };
-  const flushed = flush(state);
-  const next = { ...flushed.state, tools: { ...state.tools, [id]: tool } };
-  // One activity per tool call, once it completed: a rejected or failed call changed nothing.
-  if (update.status !== "completed") return { state: next, events: flushed.events };
+  const flushed = flush(woke.state);
+  const next = { ...flushed.state, tools: { ...woke.state.tools, [id]: tool } };
   const activityKind = ACTIVITY[tool.kind] ?? "other";
-  // A shell command's title is the command itself; activity is stored and published, so it gets the generic phrase.
-  const summary = activityKind === "command" ? GENERIC_SUMMARY.command : (tool.title || (tool.path && displayPath(tool.path, root)) || GENERIC_SUMMARY[activityKind]).slice(0, 512);
+  // A running tool is the stage; any other status (completed, failed) ends it.
+  const stage = !status ? undefined : status === "pending" || status === "in_progress" ? acpToolStage(activityKind, tool, root) : GENERAL_STAGE;
+  // One activity per tool call, once it completed: a rejected or failed call changed nothing.
+  if (status !== "completed") return { state: next, events: flushed.events, ...(stage ? { stage } : {}) };
+  const summary = acpToolSummary(activityKind, tool, root);
   const event: EventPayload = tool.path
     ? { type: "activity", kind: activityKind, path: tool.path, insideDesign: canvasDir(posix.relative(root, posix.resolve(root, tool.path))) !== null, summary }
     : { type: "activity", kind: activityKind, summary };
-  return { state: { ...next, activities: [...state.activities, id] }, events: [...flushed.events, event] };
+  return { state: { ...next, activities: [...woke.state.activities, id] }, events: [...flushed.events, event], stage: GENERAL_STAGE };
 }
 function finishAcp(state: AcpTransport, event: EventPayload): TransportResult & { state: AcpTransport } {
   if (state.terminal) return { state, events: [] };

@@ -92,8 +92,21 @@ export interface TransportState {
   // (claudeFastOutcome), emitted right before a done or failed terminal's context value.
   fastRequested?: true;
   fastUnused?: FastUnused;
+  // Claude only: the index of the thinking block now streaming, whose stop ends the thinking stage.
+  thinkingBlock?: number;
 }
 export type FastUnused = Extract<EventPayload, { type: "fast.unused" }>;
-export interface TransportResult { state: TransportState; events: EventPayload[] }
+// What a live turn is doing now, read from provider frames beside the events (turn-activity design §2). It is never
+// stored: it only means something while the turn runs. A tool stage follows the activity rules: a path, a summary of at
+// most 512 characters, no shell command text and no Doan connector tool input.
+export type TurnStage =
+  | { kind: "thinking" }
+  | { kind: "tool"; activity: "read" | "edit" | "command" | "other"; path?: string; summary: string }
+  | { kind: "general" };
+// A stage as main sends it to the renderer. seq: the conversation's last written event seq when it was sent, which
+// orders it against events; rev: a per-live-turn counter, which orders stages that share a seq.
+export interface StageSignal { conversationId: string; turnId: string; seq: number; rev: number; stage: TurnStage }
+// stage: the turn's stage after this frame, sent after its events; absent when the frame tells nothing new.
+export interface TransportResult { state: TransportState; events: EventPayload[]; stage?: TurnStage }
 export interface PermissionChoice { option: PermissionOption; response: unknown }
 export interface PendingPermission { event: PermissionRequest; choices: PermissionChoice[] }
