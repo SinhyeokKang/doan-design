@@ -25,7 +25,8 @@
 ### Fast 스위치
 
 - Claude 또는 Codex를 고른 composer에서 Effort 메뉴가 보이고 그 모델이 Fast를 지원하면, 레벨 목록 아래에 구분선과 Fast 스위치 행이 있다. 그 밖에는 행이 없다.
-  - Claude: 모델 행의 `supportsFastMode === true`. Codex: 모델의 `serviceTiers`에 Fast 티어가 있다(판별 규칙은 tasks P1에서 확정한다).
+  - Claude: 모델 행의 `supportsFastMode === true`. Codex: 모델의 `serviceTiers`에 id `priority`인 티어가 있다.
+  - Claude 모델 목록을 읽을 때 계정이 Fast를 쓸 수 없는 이유(플랜에 없음, 추가 사용량 꺼짐, 조직이 막음)가 오면, 행은 비활성으로 남고 설명 자리에 그 이유(design §6 문구)를 보인다. 이때 트리거에는 아이콘이 없고 Fast를 보내지 않는다.
   - 스위치 아래에 설명 한 줄을 보인다. Codex는 그 티어의 `description`, Claude는 Claude Code 문구를 옮긴 `Same model, faster output. Requires usage credits.`(design §6). Fast 행이 있으면 메뉴 폭은 280px이고, 관찰한 설명은 두 줄 안에서 끝난다. 설명은 말줄임하지 않는다. 행은 스위치 상태와 관계없이 accent 색의 Fast 아이콘으로 시작한다.
 - 스위치는 체크 상태를 갖는 메뉴 항목이다. Enter·Space·클릭으로 바꾸고, 바꿔도 메뉴는 열린 채이며 focus는 그 행에 남는다. 레벨을 고르면 지금처럼 닫힌다.
 - 스위치를 켜면 Effort 트리거의 레벨 라벨 뒤에 accent 색의 Fast 아이콘이 붙는다. 아이콘은 폭이 좁아져도 줄어들지 않는다. 트리거의 접근성 이름과 tooltip은 design §6의 문구(`Effort: High, Fast on` / `Fast off`)다. Home(sm)과 도킹된 composer(xs) 모두 tooltip을 보인다. 도킹된 composer가 287px 이하라 라벨을 숨겨도 아이콘과 tooltip이 상태를 알려 준다.
@@ -49,7 +50,7 @@
 - 이유가 계속되는 경우(플랜에 없음, 추가 사용량 꺼짐, 모델 미지원, 조직이 막음)에는 Fast가 자동으로 꺼진다. 그 대화의 Fast와 그 provider의 Last used Fast가 꺼지고, 알림은 `Fast was turned off.` 뒤에 이유를 말한다.
 - 그 밖의 경우(rate limit 뒤 잠시 멈춤, 이유 없음)는 스위치를 켜 둔 채 `Fast wasn't used for this turn.`를, 이유가 있으면 이유와 함께 보인다.
 - 알림은 다시 열어도, 앱을 재시작해도 그대로 보인다. 재시작 뒤 기록을 다시 읽는다고 Fast가 또 꺼지지는 않는다.
-- Codex는 실제로 쓰인 티어를 알려 주지 않으므로 알림을 남기지 않는다.
+- Codex는 실제로 쓰인 티어를 알려 주지 않으므로 알림을 남기지 않는다(P1 c).
 
 ## 비목표
 

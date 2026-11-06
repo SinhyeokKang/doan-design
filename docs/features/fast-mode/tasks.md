@@ -6,9 +6,9 @@
 
 ## P. PoC(구현 전)
 
-- [ ] P1. Codex 0.166.0 app-server로 design §8 P1의 (a)·(b)·(c)를 확인한다. 실제 계정으로 모델 요청을 보내므로 시작 전에 사람에게 묻는다. 프로브는 `.scratch/fast-mode/`에 둔다.
+- [x] P1. Codex 0.166.0 app-server로 design §8 P1의 (a)·(b)·(c)를 확인했다(2026-11-06, 결과는 design §8). 실제 계정으로 모델 요청을 보내므로 시작 전에 사람에게 묻는다. 프로브는 `.scratch/fast-mode/`에 둔다.
   - 검증: 명령 미정 — 사람 확인 필요. 관찰(버전, 요청과 응답 필드, 날짜)을 이 문서에 적는다. design §1 Codex 티어 판별·runner 절과 spec '전송과 기억'의 Codex 문장을 확정 규칙으로 고친다. 결과가 다르면 구현 전에 두 문서를 먼저 고친다.
-- [ ] P2. Claude Code 2.1.318 / Agent SDK 0.3.312로 design §8 P2의 (a)–(d)를 확인한다. 실제 계정으로 모델 요청을 보내므로 시작 전에 사람에게 묻는다. 프로브는 `.scratch/fast-mode/`에 둔다.
+- [x] P2. Claude Code 2.1.318 / Agent SDK 0.3.312로 design §8 P2의 (a)–(d)를 확인했다(2026-11-06, 결과는 design §8). `on`과 `cooldown`은 이 계정에서 볼 수 없어 R1로 넘긴다. 실제 계정으로 모델 요청을 보내므로 시작 전에 사람에게 묻는다. 프로브는 `.scratch/fast-mode/`에 둔다.
   - 검증: 명령 미정 — 사람 확인 필요. 관찰을 P1과 같이 적고, spec 'Fast로 돌지 않은 턴'과 design §1 Claude runner 절을 확정 규칙으로 고친다.
 
 커밋 경계: P1·P2 관찰과 문서 수정(`docs/features/fast-mode/`만).
@@ -84,7 +84,7 @@
 ## R. 실제 앱 확인
 
 - [ ] R1. `/runtime-test`: 로그인한 Claude·Codex로 확인한다. 실제 계정과 사용량이 필요하므로 시작 전에 사람에게 묻는다.
-  - 경우: Fast를 켜고 보낸 턴, 끄고 보낸 다음 턴, 재시작 뒤 턴, queue로 나간 턴, Fast 없는 모델로 바꾼 턴과 다시 돌아온 턴, 핸드오프, Cursor 또는 Copilot으로 바꾼 composer(스위치 없음, start 성공), (재현 가능하면) Fast로 돌지 않은 Claude 턴의 알림과 자동 끔.
+  - 경우: Claude 추가 사용량이 켜진 계정에서 `fast_mode_state: "on"`과 (가능하면) `cooldown`(P2에서 보지 못함), 목록 읽기의 미리 비활성과 계정 설정을 바꾼 뒤 다시 읽기, Fast를 켜고 보낸 턴, 끄고 보낸 다음 턴, 재시작 뒤 턴, queue로 나간 턴, Fast 없는 모델로 바꾼 턴과 다시 돌아온 턴, 핸드오프, Cursor 또는 Copilot으로 바꾼 composer(스위치 없음, start 성공), (재현 가능하면) Fast로 돌지 않은 Claude 턴의 알림과 자동 끔.
   - 판정 기준: Claude는 결과 메시지의 `fast_mode_state`를, Codex는 프로브가 기록한 `turn/start`의 `serviceTierForTurn`을 본다. 화면은 스위치·아이콘·알림을 본다.
   - 검증: `/runtime-test` 보고와 스크린샷. 확인하지 못한 경우는 BACKLOG.md에 남긴다.
 - [ ] R2. `node .agents/skills/verify/scripts/verify.mjs`

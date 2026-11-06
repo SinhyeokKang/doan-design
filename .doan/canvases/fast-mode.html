@@ -121,6 +121,12 @@ code{font-size:var(--type-caption-size)}
 .fast-switch::before{content:"";width:14px;height:14px;border-radius:var(--radius-pill);background:var(--text-on-prominent);box-shadow:var(--shadow-xs)}
 .fast-item[aria-checked="true"] .fast-switch{border-color:var(--affordance-prominent);background:var(--affordance-prominent)}
 .fast-item[aria-checked="true"] .fast-switch::before{transform:translateX(16px)}
+/* New: unavailable for the account (Claude's list read reports why). The shared disabled row ink and the switch's own
+   disabled look; the reason keeps the description's ink so it stays readable. */
+.fast-item[data-disabled] .fast-slot{color:var(--text-disabled)}
+.fast-item[data-disabled] .fast-copy .sub{color:var(--text-metadata)}
+.fast-item[data-disabled] .fast-switch{border-color:transparent;background:var(--affordance-disabled)}
+.fast-item[data-disabled] .fast-switch::before{background:var(--surface-panel);box-shadow:none}
 /* The trigger: the level's label, then the Fast icon, then the chevron. The icon never shrinks or hides, so an
    icon-only trigger (docked, below 288) still shows Fast; the tooltip and aria-label name it. */
 /* The icon takes the accent (Send's violet): an Accent place this feature adds (DESIGN.md 'Accent places'). Its
@@ -146,7 +152,7 @@ code{font-size:var(--type-caption-size)}
 <symbol id="i-zap" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15.914 4a1.5 1.5 0 00-2.474-1.561l-9 9A1.5 1.5 0 005.5 14h4.002a.5.5 0 01.471.666L8.086 20a1.5 1.5 0 002.475 1.56l9-9A1.5 1.5 0 0018.5 10h-3.997a.5.5 0 01-.472-.667z"/></symbol>
 </svg>
 
-<header class="intro"><span class="doan-chip">fast-mode · draft confirmed 2026-11-06 · 3 frames</span><h1>Run a Claude or Codex turn at Fast speed.</h1>
+<header class="intro"><span class="doan-chip">fast-mode · draft round 4 · 3 frames</span><h1>Run a Claude or Codex turn at Fast speed.</h1>
 <p>Scope: the Fast switch inside the Effort menu of every composer, the Effort trigger when Fast is on (Home’s tool row and the docked tray at its width steps), and the line a Claude turn leaves when Fast was not used or was turned off. All three frames are new; <code>/design-sync</code> compares all three. Copied from shipped screens (app/src/renderer/styles.css, ds/, ComposerParts.tsx, HomeComposerView.tsx, DockedComposer.tsx, ConversationThread.tsx; read in this checkout): the Home composer and tray, the docked composer and tray with its context ring, the Effort trigger and menu, the terminal session’s fixed triggers, the thread’s messages, folded activity line and end notice.</p>
 <p>Decisions come from docs/features/fast-mode/spec.md and design.md (decisions 1–7, §6 copy, §7 request): only Claude and Codex get the switch; it lives in the Effort menu; it is remembered in the conversation and per provider in Last used; Settings › New conversations shows no Fast row; a reason that lasts turns Fast off. References, checked on 2026-11-06: the Codex 0.166.0 <code>model/list</code> of the probe account (every listed model has one tier, id <code>priority</code>, name “Fast”; descriptions “2x speed, increased usage”, “1.5x speed”, “1.5x speed, increased usage”); Claude Code 2.1.318’s own strings “same model, faster output” and “Fast mode requires usage credits”; the zap icon from lucide-react 1.61.0. Model names in the tiles are samples. Presets read: clarify (for the copy, during /feature).</p></header>
 
@@ -194,6 +200,18 @@ code{font-size:var(--type-caption-size)}
 <div class="doan-menu-item" role="menuitemradio" aria-checked="false"><span class="model-name">Max</span><span class="check-slot"></span></div>
 </div></div></div><div class="composer-tray"><span class="tray-branch"><svg><use href="#i-branch"/></svg><span>main</span></span><span class="tray-path">~/code/doan-design</span></div></div></div>
 <p class="note">Fast stays on for this conversation while Sonnet is chosen; the turn just goes out without it. Going back to Opus shows the switch on again.</p></div>
+
+<div class="tile"><h3>Claude Code · Opus · this account can’t use Fast · the row is disabled with the reason</h3><div class="stage home menu"><div class="composer"><div class="composer-card"><div class="composer-input placeholder" role="textbox" aria-label="Message">Describe what to design, / for presets</div><div class="composer-tools"><button class="doan-icon-button" aria-label="Attach files"><svg><use href="#i-plus"/></svg></button><button class="doan-icon-button composer-presets" aria-label="Design presets"><svg><use href="#i-presets"/></svg></button><span class="grow"></span><button class="composer-agent doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-label="Agent: Claude Code, model Opus"><img class="logo" src="../assets/provider-logos/claude.png" alt=""><span>Opus</span><svg class="chev"><use href="#i-chev"/></svg></button><button class="composer-effort doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-label="Effort: High" aria-expanded="true" aria-haspopup="menu"><svg><use href="#i-gauge"/></svg><span class="label">High</span><svg class="chev"><use href="#i-chev"/></svg></button><button class="composer-permission doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-label="Permission: Default"><svg><use href="#i-shield"/></svg><span class="label">Default</span><svg class="chev"><use href="#i-chev"/></svg></button><button class="composer-send doan-icon-button" data-ui-variant="accent" aria-label="Send" disabled><svg><use href="#i-up"/></svg></button>
+<div class="doan-floating doan-menu effort-popover at-home has-fast" data-ui-size="compact" role="menu" aria-label="Effort for Opus"><div class="doan-menu-head">Effort · Opus</div>
+<div class="doan-menu-item" role="menuitemradio" aria-checked="false"><span class="model-name">Low</span><span class="check-slot"></span></div>
+<div class="doan-menu-item" role="menuitemradio" aria-checked="false"><span class="model-name">Medium</span><span class="check-slot"></span></div>
+<div class="doan-menu-item" role="menuitemradio" aria-checked="true"><span class="model-name">High</span><span class="check-slot"><svg class="check"><use href="#i-check"/></svg></span></div>
+<div class="doan-menu-item" role="menuitemradio" aria-checked="false"><span class="model-name">Extra high</span><span class="check-slot"></span></div>
+<div class="doan-menu-item" role="menuitemradio" aria-checked="false"><span class="model-name">Max</span><span class="check-slot"></span></div>
+<div class="doan-menu-sep" role="separator"></div>
+<div class="doan-menu-item fast-item" role="menuitemcheckbox" aria-checked="false" aria-disabled="true" data-disabled aria-describedby="fast-sub-4" data-doan-id="fast-item-unavailable"><span class="fast-slot" aria-hidden="true"><svg><use href="#i-zap"/></svg></span><span class="fast-copy"><span class="model-name">Fast</span><span class="sub" id="fast-sub-4">Extra usage is turned off for this account.</span></span><span class="fast-switch" aria-hidden="true"></span></div>
+</div></div></div><div class="composer-tray"><span class="tray-branch"><svg><use href="#i-branch"/></svg><span>main</span></span><span class="tray-path">~/code/doan-design</span></div></div></div>
+<p class="note">Claude Code’s model list read (no prompt) already reports an account-level reason (plan, extra usage, organization). The row stays in the menu, disabled, with that reason where the description goes; the trigger shows no Fast icon and nothing is sent. A reason that only shows during a turn still turns Fast off there (frame 03).</p></div>
 </div></section>
 
 <!-- ── 02 Trigger ── -->
