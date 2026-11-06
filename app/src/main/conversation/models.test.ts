@@ -302,3 +302,10 @@ it("marks Codex and ACP rows older only after duplicates are removed, and keeps 
     { id: "m-2", label: "m-2", default: false },
   ]);
 });
+// Review RA 🟡: a duplicate Claude row that unique drops must not lend its resolvedModel to the row kept.
+it("classifies a kept Claude row by its own resolvedModel, never a dropped duplicate's", () => {
+  expect(parseClaudeModels([{ value: "alias", displayName: "First alias" }, { value: "alias", resolvedModel: "m-1" }, { value: "m-2" }])).toEqual([
+    { id: "alias", label: "First alias", default: false },
+    { id: "m-2", label: "m-2", default: false },
+  ]);
+});

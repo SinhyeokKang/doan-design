@@ -895,7 +895,9 @@ test("a group the person toggled stays as they left it when a list arrives", () 
   expect(olderToggled(olderToggled(NO_OLDER, "codex", true), "claude", true)).toEqual({ open: ["codex", "claude"], touched: ["codex", "claude"] });
 });
 
-test("a list read again after an account change is classified from its own rows", () => {
+// main classifies each list it reads (models.ts olderIds); the view keeps no fold state of its own, so a replacement
+// list read after an account change is shown with its own older marks.
+test("a replacement list read after an account change carries its own older marks into the view", () => {
   const auth = snapshot(dto("codex"));
   const choice = { provider: "codex" as const, model: "gpt-6-sol", effort: null };
   expect(foldRows(modelPickerView(auth, { codex: FOLDING.codex }, choice).groups[0]!.rows).older.length).toBe(2);
