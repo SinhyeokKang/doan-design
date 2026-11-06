@@ -16,6 +16,8 @@
 - main이 앞서 나가면: 통합 `/verify` 전마다 `git fetch origin`으로 origin/main을 보고, 움직였으면 `feat/agent-cli-terminal`을 rebase한 HEAD에서 gate를 돌린다. 충돌 시 main의 문서는 그대로 두고 feature 쪽만 고친다(사용자).
 
 - T1에서 Copilot update 위치가 어긋났다: `copilot update`는 JS 패키지를 실제 HOME 캐시에 받고 PATH 바이너리를 교체한다. Doan은 HOME=<profileDir>로 띄워 바이너리만 쓰고, ToolFacts는 실제 HOME으로 버전을 읽는다. 바이너리 교체가 실패하면 facts와 실행 바이너리가 갈린다. → Copilot update는 설치 페이지로 둔다. Copilot install은 터미널 명령을 유지한다(사용자).
+- `setup:open-install`이 page 경로에서 `openExternal`에 실패하면 `pageFailed`를 돌려준다. 결과는 `terminal | page | failed | pageFailed` 넷이다. — conductor 판단, 근거: spec 완료 기준 7, design.md '행 상태와 문구'의 `pageFailed` 행
+- 스크립트는 실행 줄 앞에 `set -o pipefail 2>/dev/null`을 둔다. 보여 주는 명령은 바꾸지 않는다. — conductor 판단, 근거: spec 완료 기준 3. `curl | bash`에서 curl이 실패해도 bash가 0으로 끝나 Finished가 뜨는 것을 막는다.
 
 ## 배치
 
