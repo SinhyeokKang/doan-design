@@ -267,3 +267,9 @@ test("the capture snapshot hides app marks with opacity alone", () => {
   expect(hide![2]!.trim()).toBe("opacity: 0 !important;");
   expect(styles).not.toMatch(/\[data-capture-snapshot\][^{]*\{[^}]*(visibility|display)/);
 });
+
+// A tooltip is a label: it never takes a click, so a closing (fading) or open capsule over a neighbouring control
+// does not swallow the click meant for that control.
+test("tooltips never take pointer events", () => {
+  expect(rule(read("./surfaces.css"), ".doan-tooltip")).toContain("pointer-events: none;");
+});
