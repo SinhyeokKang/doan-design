@@ -2655,3 +2655,39 @@ describe("fast turned off", () => {
     expect(h.store.list()[0]).toMatchObject({ fast: true });
   });
 });
+
+// fast-mode M fix round 1: a turn-off whose index write fails takes the persistence-failure path. Nothing claims Fast
+// went off while the index still holds it, and nothing runs on as if it had.
+describe("fast turned off, index write failed", () => {
+  const canvas = { path: ".doan/canvases/a.html", id: "a" };
+  it("records no notice, stops the turn and its queue, and the next run after a restart still has the stored Fast", async () => {
+    const h = homeFixture([], { fast: () => true });
+    const id = (await h.service.start({ ...homeRequest, mode: "new", canvas, model: "opus", fast: true })).conversationId;
+    h.service.queue(id, { text: "next", anchors: [] });
+    const save = vi.spyOn(h.store, "save").mockImplementationOnce(() => { throw new Error("EACCES"); });
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    h.service.receive(id, { type: "fast.unused", reason: "plan", turnedOff: true });
+    expect(save).toHaveBeenCalled(); expect(errors).toHaveBeenCalled();
+    // The index still says Fast; no history line or published event says it went off.
+    expect(h.store.list()[0]).toMatchObject({ fast: true });
+    expect(h.service.list("/repo")[0]).toMatchObject({ fast: true });
+    expect(h.store.read(id).some(e => e.type === "fast.unused")).toBe(false);
+    expect(h.published.some(e => e.type === "fast.unused")).toBe(false);
+    // The history stopped taking writes: the runner closes, the turn's end is not recorded and nothing goes out after it.
+    expect(h.runners[0]!.close).toHaveBeenCalled();
+    h.service.receive(id, { type: "turn.done" });
+    expect(h.store.read(id).some(e => e.type === "turn.done")).toBe(false);
+    h.open.mock.calls[0]![2]();
+    await new Promise(resolve => setTimeout(resolve, 20));
+    expect(h.open).toHaveBeenCalledOnce();
+    await expect(h.service.send(id, "again", [], { fastTurn: true })).rejects.toThrow("busy");
+    // After a restart the stored Fast still holds, so the next run asks for it and can be judged again.
+    const restarted = new ConversationService(new ConversationStore(h.dir), h.prepare, h.open, () => {}, undefined, 10_000, () => [], () => {}, { fast: () => true });
+    await restarted.send(id, "again", [], { fastTurn: true });
+    expect(h.open).toHaveBeenCalledTimes(2);
+    expect(h.open.mock.calls[1]![0]).toMatchObject({ fast: true });
+    restarted.receive(id, { type: "fast.unused", reason: "plan", turnedOff: true });
+    expect(new ConversationStore(h.dir).list()[0]).not.toHaveProperty("fast");
+    expect(new ConversationStore(h.dir).read(id).filter(e => e.type === "fast.unused")).toEqual([expect.objectContaining({ reason: "plan", turnedOff: true })]);
+  });
+});

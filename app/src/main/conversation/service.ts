@@ -497,8 +497,10 @@ export class ConversationService {
     if (!live.accepted) { live.events.push(event); return; }
     if (live.terminal) return;
     try {
-      this.append(id, live.turnId, event);
+      // A turned-off Fast is saved before its event: a failed index write then takes this persistence-failure path with
+      // no notice saying Fast went off, and a failed append leaves Fast off without one.
       if (event.type === "fast.unused" && event.turnedOff) this.turnFastOff(id);
+      this.append(id, live.turnId, event);
       const evidence = this.evidence.get(id);
       if (event.type === "activity" && event.kind === "edit" && event.path && evidence && evidence.endedAt === undefined) evidence.edits.add(event.path);
       if (event.type === "permission.request" || event.type === "question.request") (live.asking ??= new Set()).add(askingKey(event));
@@ -516,13 +518,11 @@ export class ConversationService {
     }
   }
   // A reason that holds on turned the turn's Fast off: the conversation's choice goes too, so later turns, a queue
-  // flushed after this one included, run without it. A failed index write leaves the choice on; the next turn judges again.
+  // flushed after this one included, run without it. A failed write throws to receive; the event's append announces the list.
   private turnFastOff(id: string): void {
-    try {
-      const entries = this.store.list(), m = entries.find(e => e.conversationId === id); if (!m?.fast) return;
-      const { fast: _fast, ...rest } = m;
-      this.store.save(entries.map(e => e === m ? rest : e)); this.changed(m.root);
-    } catch (error) { console.error("doan: Fast could not be turned off", error); }
+    const entries = this.store.list(), m = entries.find(e => e.conversationId === id); if (!m?.fast) return;
+    const { fast: _fast, ...rest } = m;
+    this.store.save(entries.map(e => e === m ? rest : e));
   }
   // Each conversation's current turn for `doan work update` (conversationWork.ts): running from its acceptance until
   // its terminal event, archive, a history that stopped taking writes, or the quit. A send being prepared is not
