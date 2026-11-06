@@ -18,6 +18,7 @@
 - T1에서 Copilot update 위치가 어긋났다: `copilot update`는 JS 패키지를 실제 HOME 캐시에 받고 PATH 바이너리를 교체한다. Doan은 HOME=<profileDir>로 띄워 바이너리만 쓰고, ToolFacts는 실제 HOME으로 버전을 읽는다. 바이너리 교체가 실패하면 facts와 실행 바이너리가 갈린다. → Copilot update는 설치 페이지로 둔다. Copilot install은 터미널 명령을 유지한다(사용자).
 - `setup:open-install`이 page 경로에서 `openExternal`에 실패하면 `pageFailed`를 돌려준다. 결과는 `terminal | page | failed | pageFailed` 넷이다. — conductor 판단, 근거: spec 완료 기준 7, design.md '행 상태와 문구'의 `pageFailed` 행
 - 스크립트는 실행 줄 앞에 `set -o pipefail 2>/dev/null`을 둔다. 보여 주는 명령은 바꾸지 않는다. — conductor 판단, 근거: spec 완료 기준 3. `curl | bash`에서 curl이 실패해도 bash가 0으로 끝나 Finished가 뜨는 것을 막는다.
+- T1 격리 조건에서 app/dist 복사본에 quarantine을 붙이자 앱 자체가 "damaged"로 막혔다(ad-hoc 서명이 깨짐). → 임시 HOME 복사본을 tester-build 4단계처럼 재서명하고 quarantine 플래그 00c3(승인 상태)으로 다시 확인한다. 실제 System Settings는 건드리지 않는다(사용자).
 
 ## 배치
 
