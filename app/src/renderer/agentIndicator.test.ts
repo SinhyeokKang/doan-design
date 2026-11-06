@@ -275,7 +275,7 @@ describe("drawDotField", () => {
   test("paints every dot outside the cursor's radius as one path, in one fill", () => {
     const { ctx, calls } = recorder();
     const dots = [{ x: 0, y: 0 }, { x: 12, y: 0 }, { x: 1000, y: 0 }, { x: 1012, y: 0 }];
-    drawDotField(ctx, 1100, 20, dots, { x: 0, y: 0 }, "white");
+    drawDotField(ctx, 1100, 20, dots, [{ x: 0, y: 0 }], "white");
     const fills = calls.filter(call => call.startsWith("fill"));
     // Two near dots, each with its own alpha, and one fill for both far dots at the base alpha.
     expect(fills).toHaveLength(3);
@@ -284,10 +284,44 @@ describe("drawDotField", () => {
     expect(calls[0]).toBe("clear");
     expect(ctx.fillStyle).toBe("white");
   });
-  test("without a cursor (reduced motion) every dot is far: one fill", () => {
+  test("without spots (reduced motion) every dot is far: one fill, once", () => {
     const { ctx, calls } = recorder();
-    drawDotField(ctx, 100, 100, [{ x: 0, y: 0 }, { x: 12, y: 0 }], null, "white");
+    drawDotField(ctx, 100, 100, [{ x: 0, y: 0 }, { x: 12, y: 0 }], [], "white");
     expect(calls.filter(call => call.startsWith("fill"))).toEqual(["fill@0.16"]);
+    expect(calls.filter(call => call === "arc")).toHaveLength(2);
+  });
+  // Records the radius and alpha of each arc (the alpha at the time of the call) to see how near dots are drawn.
+  function arcs() {
+    const drawn: { x: number; y: number; r: number; alpha: number }[] = [];
+    let alpha = 1;
+    const ctx = {
+      get globalAlpha() { return alpha; }, set globalAlpha(value: number) { alpha = value; },
+      fillStyle: "", clearRect: () => {}, beginPath: () => {}, moveTo: () => {}, fill: () => {},
+      arc: (x: number, y: number, r: number) => { drawn.push({ x, y, r, alpha }); },
+    };
+    return { ctx, drawn };
+  }
+  test("a dot near two overlapping spots is drawn once, at most 2px and 0.5 alpha", () => {
+    const { ctx, drawn } = arcs();
+    const spot = { x: 100, y: 100 };
+    drawDotField(ctx, 200, 200, [{ x: 100, y: 100 }], [spot, { ...spot }], "white");
+    expect(drawn).toEqual([{ x: 100, y: 100, r: 2, alpha: 0.5 }]);
+  });
+  test("a near dot's size and alpha follow its nearest spot", () => {
+    const { ctx, drawn } = arcs();
+    // 100px from the first spot, 20px from the second.
+    drawDotField(ctx, 1000, 100, [{ x: 100, y: 0 }], [{ x: 0, y: 0 }, { x: 120, y: 0 }], "white");
+    const { baseRadius, maxRadius, baseAlpha, maxAlpha, radius } = DOT_FIELD;
+    const t = 1 - 20 / radius;
+    expect(drawn).toHaveLength(1);
+    expect(drawn[0]!.r).toBeCloseTo(baseRadius + (maxRadius - baseRadius) * t);
+    expect(drawn[0]!.alpha).toBeCloseTo(baseAlpha + (maxAlpha - baseAlpha) * t);
+  });
+  test("dots near the second spot only are drawn near, the rest far", () => {
+    const { ctx, calls } = recorder();
+    drawDotField(ctx, 2000, 20, [{ x: 0, y: 0 }, { x: 1000, y: 0 }, { x: 1990, y: 0 }], [{ x: 0, y: 0 }, { x: 2000, y: 0 }], "white");
+    // Two near dots with their own alpha, one far dot at the base alpha.
+    expect(calls.filter(call => call.startsWith("fill")).sort()).toEqual(["fill@0.16", "fill@0.49", "fill@0.50"]);
   });
 });
 
