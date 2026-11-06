@@ -52,8 +52,9 @@ function setup(list: ListView) {
     onWorktree: () => {}, onOpenCanvas: () => {}, onRetryList: () => {}, onStart: async () => ({ ok: true }), onSettings: () => {},
     onSendConversation: async () => {}, onAction: () => {}, onProjectSettings: () => {},
   };
-  const render = () => { renderToStaticMarkup(<TooltipProvider><ProjectOverview {...props} /></TooltipProvider>); return composer.props!.context; };
-  return { run, render };
+  const html = () => renderToStaticMarkup(<TooltipProvider><ProjectOverview {...props} /></TooltipProvider>);
+  const render = () => { html(); return composer.props!.context; };
+  return { run, render, html };
 }
 
 test("the shown conversation's last value, a live one, another conversation's own, and none before a thread or for a new one", async () => {
@@ -73,4 +74,19 @@ test("the shown conversation's last value, a live one, another conversation's ow
   expect(render()).toBeNull();
   run.select(ROOT, null);
   expect(render()).toBeNull();
+});
+
+// turn-activity U1: the Overview passes its thread the same turn indicator the canvas panel does (CanvasConversationPanel
+// test of the same name): the store's stage for the live turn, the event rule without one, nothing once it ended.
+test("the thread shows the live turn's indicator from the store's stage, and none once the turn ended", async () => {
+  reads[A] = [at(A, 1, { type: "user.message", text: "Draw the checkout", anchors: [] }), at(A, 2, { type: "turn.started" })];
+  const { run, html } = setup([{ ...summary(A), phase: "running", working: true }]);
+  run.select(ROOT, A);
+  run.store.track(A);
+  await flush();
+  expect(html()).toContain('<span class="ti-text ti-shimmer">Claude Code is working</span>');
+  run.store.stage({ conversationId: A, turnId: "t1", seq: 2, rev: 1, stage: { kind: "thinking" } });
+  expect(html()).toContain('<span class="ti-text ti-shimmer">Claude Code is thinking</span>');
+  run.event(at(A, 3, { type: "turn.done" }));
+  expect(html()).not.toContain("ti-reply");
 });

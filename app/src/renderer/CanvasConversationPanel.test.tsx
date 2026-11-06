@@ -328,3 +328,19 @@ test("the shown conversation's last recorded context value reaches the composer'
   // A new conversation state has no ring.
   expect(await panel([])).not.toContain("context-ring");
 });
+
+// turn-activity U1: the panel passes its thread the same turn indicator the Overview does (ProjectOverview.context test
+// of the same name).
+test("the thread shows the live turn's indicator from the store's stage, and none once the turn ended", async () => {
+  const doan = (window as unknown as { doan: Record<string, ReturnType<typeof vi.fn>> }).doan;
+  const at = (seq: number, payload: Record<string, unknown>) => ({ v: 1, conversationId: "now", seq, turnId: "t1", at: "2026-11-01T00:00:00Z", ...payload }) as ConversationEvent;
+  doan.readConversation!.mockResolvedValue({ events: [at(1, { type: "user.message", text: "hi", anchors: [] }), at(2, { type: "turn.started" })], lastSeq: 2, turn: "running" });
+  const list = [summary("now", { phase: "running", working: true })];
+  const shown = (setup: (run: CanvasRun) => void = () => {}) => panel(list, run => { run.store.track("now"); setup(run); });
+  expect(await shown()).toContain('<span class="ti-text ti-shimmer">Claude Code is working</span>');
+  const thinking = (run: CanvasRun) => run.store.stage({ conversationId: "now", turnId: "t1", seq: 2, rev: 1, stage: { kind: "thinking" } });
+  // The stage comes once the read settled, as conversation:stage does.
+  const out = await panel(list, run => { run.store.track("now"); void flush().then(() => thinking(run)); });
+  expect(out).toContain('<span class="ti-text ti-shimmer">Claude Code is thinking</span>');
+  expect(await shown(run => void flush().then(() => run.store.event(at(3, { type: "turn.done" }))))).not.toContain("ti-reply");
+});

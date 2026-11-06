@@ -150,10 +150,13 @@ describe("thread items", () => {
   });
 
   test("no reply, the phase status and stable item keys", () => {
-    const out = html([{ kind: "noReply", key: "n4" }, { kind: "activity", key: "a5", running: true, head: "Reading x", steps: [] }]);
+    const items: ThreadItem[] = [{ kind: "noReply", key: "n4" }, { kind: "activity", key: "a5", running: true, head: "Reading x", steps: [] }];
+    const out = html(items, { turn: { status: { kind: "tool", activity: "read", text: "Reading x" }, at: "2026-11-06T10:00:00.000Z" } });
     expect(out).toContain('<div class="msg-agent"><p class="muted">No reply.</p></div>');
     expect(out).toContain('data-item="n4"');
-    expect(out).toContain('<div class="sr-only" role="status">Claude Code is working</div>');
+    // turn-activity: the status says the turn indicator's stage kind, without its path (it said "is working" before).
+    expect(out).toContain('<div class="sr-only" role="status">Claude Code is reading files</div>');
+    expect(html(items)).toContain('<div class="sr-only" role="status"></div>');
   });
 });
 
