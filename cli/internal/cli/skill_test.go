@@ -363,3 +363,11 @@ func TestSkillGuideExportCommand(t *testing.T) {
 		}
 	}
 }
+
+func TestSkillStorageChoicesAndCommitScope(t *testing.T) {
+	for _, text := range []string{"Include in Git", "Keep out of Git (this Mac only)", "`storage`", "`repo`", "`local`", "do not ignore the whole directory", "do not commit", "{repo, selection?}", "html, truncated?, text?", "to canvases", "Old `doan/` and `design/`", "`local_not_git`", "`local_exclude_failed`"} {
+		if !strings.Contains(skillBody, text) {
+			t.Errorf("missing %s", text)
+		}
+	}
+}
