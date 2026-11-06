@@ -232,3 +232,44 @@ test("a handoff arrival waits for the receiving canvas and conversation, then is
   render(panel(CANVAS));
   expect(onArrived).toHaveBeenCalledExactlyOnceWith(7);
 });
+
+// The DockedComposer element the panel renders, found in its element tree.
+function dockedProps(node: ReactNode): Record<string, unknown> | null {
+  if (Array.isArray(node)) { for (const child of node) { const found = dockedProps(child); if (found) return found; } return null; }
+  if (!node || typeof node !== "object" || !("props" in node)) return null;
+  const element = node as { type: unknown; props: Record<string, unknown> & { children?: ReactNode } };
+  if (typeof element.type === "function" && element.type.name === "DockedComposer") return element.props;
+  return dockedProps(element.props.children);
+}
+
+// fast-mode B2 (POSTMORTEM 2026-11-02): the panel's own start sends the Fast its switch shows, and its remembered
+// choice carries no Fast, which only a switch records.
+test("a new conversation started from the panel sends the Fast it shows and remembers none", async () => {
+  const { authStatus } = await import("../main/agentAuth/state");
+  const start = vi.fn(async (_request: unknown) => ({ conversationId: "c9" }));
+  Object.assign((window as unknown as { doan: Record<string, unknown> }).doan, {
+    conversationResumeTarget: vi.fn(async () => ({ available: false, reason: "no_record" })), startConversation: start,
+    readConversation: vi.fn(() => new Promise(() => {})), takeConversationDraft: vi.fn(async () => null), listConversations: vi.fn(() => new Promise(() => {})),
+  });
+  const store = new ConversationStore({ list: () => [], readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() });
+  const run = new CanvasRun({ list: () => [], readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store);
+  run.show({ root: ROOT, canvas: CANVAS });
+  run.sync();
+  await flush();
+  const support = Object.assign(new DockedSupport(() => {}), { readPresets: vi.fn(), readModels: vi.fn() });
+  support.auth = { revision: 1, providers: [authStatus({ provider: "claude", generation: 1, verified: true, expired: false, connection: { provider: "claude", connectionId: "c", profile: "claude", account: { id: "a", workspace: "org", email: "ada@example.com" } }, attempt: null, error: null, phase: "connected" }, { cli: "found", version: "supported", tools: "ready" }, 1)] };
+  support.models = { [`${ROOT}\nclaude`]: { models: [{ id: "opus", label: "Opus", default: true, efforts: ["high"], fast: {} }] } };
+  const onRemember = vi.fn();
+  const panel = () => CanvasConversation({
+    run, support, target: { root: ROOT, canvas: CANVAS }, canvasName: "checkout", project: "acme-web", entry: ENTRY, list: [], seen: new Set(),
+    prefs: { lastProvider: "claude", fast: { claude: true } }, defaults: null, now: Date.parse("2026-11-01T15:00:00"), blocked: null, frames: [], locateDisabled: false, arrival: null, onArrived: vi.fn(),
+    onLocate: vi.fn(async () => "shown" as const), pick: { pressed: false, enabled: true, reason: null, onToggle: () => {} }, composerLink: { current: null },
+    onSettings: vi.fn(), onNotice: vi.fn(), onOpenProjectConversation: vi.fn(), work: [], onRemember,
+  });
+  const composer = dockedProps(render(panel))! as { picker: { effort: { ariaLabel: string } | null }; onSend(request: unknown): Promise<unknown> };
+  expect(composer.picker.effort?.ariaLabel).toBe("Effort: Default, Fast on");
+  await composer.onSend({ text: "Go", anchors: [], attachments: [] });
+  expect(start.mock.calls[0]![0]).toMatchObject({ mode: "new", runtime: "claude", model: "opus", fast: true });
+  expect(onRemember).toHaveBeenCalled();
+  for (const [choice] of onRemember.mock.calls) expect(choice).not.toHaveProperty("fast");
+});

@@ -74,7 +74,7 @@ function setup(patch: Partial<DockedComposerProps> = {}, drafts: [string, Docked
     mode: A, project: "doan-design", homeDirectory: null, placeholder: "Reply, / for presets",
     drafts: store.current, onDrafts: update => { store.current = update(store.current); props.drafts = store.current; },
     auth: AUTH, picker: PICKER, provider: "claude", effort: null,
-    onPickerOpen: vi.fn(), onPickModel: vi.fn(), onPickEffort: vi.fn(), onSettings: vi.fn(),
+    onPickerOpen: vi.fn(), onPickModel: vi.fn(), onPickEffort: vi.fn(), onPickFast: vi.fn(), onSettings: vi.fn(),
     presets: undefined, suggested: [], onPresetsOpen: vi.fn(), onPresetsRetry: vi.fn(),
     thumbnails: {}, onAttach: vi.fn(), onFiles: vi.fn(), onAttachmentRemoved: vi.fn(),
     turn: "idle", busy: null, canvasGone: false, queued: [],

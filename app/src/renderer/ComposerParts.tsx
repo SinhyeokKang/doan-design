@@ -1,7 +1,7 @@
 import { forwardRef, Fragment, useEffect, useId, useImperativeHandle, useLayoutEffect, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type MutableRefObject, type PointerEvent, type ReactNode, type RefObject } from "react";
 import { flushSync } from "react-dom";
 import { DropdownMenu, Popover } from "radix-ui";
-import { ArrowUp, Check, ChevronDown, Compass, Eye, FilePenLine, FileText, Gauge, Paintbrush, PencilSparkles, Plus, ScanEye, Search, Settings, Shapes, Shield, ShieldAlert, Square, TextAlignStart, TriangleAlert, X } from "lucide-react";
+import { ArrowUp, Check, ChevronDown, Compass, Eye, FilePenLine, FileText, Gauge, Paintbrush, PencilSparkles, Plus, ScanEye, Search, Settings, Shapes, Shield, ShieldAlert, Square, TextAlignStart, TriangleAlert, X, Zap } from "lucide-react";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
 import type { PermissionModeId } from "../main/conversation/permissionMode";
@@ -344,16 +344,30 @@ export function AgentPicker(props: {
 
 // The effort picker, shown only when the chosen model has effort steps.
 // In the docked tray (xs) the label can hide at a narrow width (styles.css container steps), so the trigger keeps
-// its name in a tooltip there.
-export function EffortPicker({ view, effort, disabled, onPick, size = "sm" }: { view: NonNullable<Picker["effort"]>; effort: string | null; disabled: boolean; onPick(value: string): void; size?: "sm" | "xs" }) {
-  const trigger = <DropdownMenu.Trigger asChild><button type="button" className="composer-effort doan-button" data-ui-size={size} data-ui-variant="trigger" aria-label={view.ariaLabel} disabled={disabled}><Gauge aria-hidden="true" /><span className="label">{view.label}</span><ChevronDown className="chev" aria-hidden="true" /></button></DropdownMenu.Trigger>;
+// its name in a tooltip there. With a Fast row (fast-mode design §1) the tooltip shows at both sizes: the trigger's
+// Fast icon is its only mark, and the name says whether Fast is on.
+export function EffortPicker({ view, effort, disabled, onPick, onPickFast, size = "sm" }: { view: NonNullable<Picker["effort"]>; effort: string | null; disabled: boolean; onPick(value: string): void; onPickFast?(on: boolean): void; size?: "sm" | "xs" }) {
+  const { fast } = view;
+  const describedBy = useId();
+  const trigger = <DropdownMenu.Trigger asChild><button type="button" className="composer-effort doan-button" data-ui-size={size} data-ui-variant="trigger" aria-label={view.ariaLabel} disabled={disabled}><Gauge aria-hidden="true" /><span className="label">{view.label}</span>{fast?.on && <Zap className="fast-icon" aria-hidden="true" />}<ChevronDown className="chev" aria-hidden="true" /></button></DropdownMenu.Trigger>;
   return <DropdownMenu.Root>
-    {size === "xs" ? <IconTip label={view.ariaLabel}>{trigger}</IconTip> : trigger}
-    <DropdownMenu.Portal><DropdownMenu.Content className="doan-floating doan-menu effort-popover" data-ui-size="compact" aria-label={view.menuLabel} side="top" align="end" sideOffset={8} collisionPadding={8}>
+    {size === "xs" || fast ? <IconTip label={view.ariaLabel}>{trigger}</IconTip> : trigger}
+    <DropdownMenu.Portal><DropdownMenu.Content className={`doan-floating doan-menu effort-popover${fast ? " has-fast" : ""}`} data-ui-size="compact" aria-label={view.menuLabel} side="top" align="end" sideOffset={8} collisionPadding={8}>
       <DropdownMenu.Label className="doan-menu-head">{view.title}</DropdownMenu.Label>
       <DropdownMenu.RadioGroup value={effort ?? ""} onValueChange={onPick}>
         {view.options.map(item => <DropdownMenu.RadioItem key={item.id} value={item.id} className="doan-menu-item"><span className="model-name">{item.label}</span><span className="check-slot">{item.selected && <Check className="check" aria-hidden="true" />}</span></DropdownMenu.RadioItem>)}
       </DropdownMenu.RadioGroup>
+      {/* A menuitemcheckbox, not .doan-switch: that is a button[role="switch"], which cannot sit in a menu item. The switch
+          look is drawn, with no check mark, so it never reads as a level. Toggling keeps the menu open (onSelect). */}
+      {fast && <>
+        <DropdownMenu.Separator className="doan-menu-sep" />
+        <DropdownMenu.CheckboxItem className="doan-menu-item fast-item" checked={fast.on} disabled={fast.unavailable !== undefined} aria-describedby={fast.description ? describedBy : undefined}
+          onCheckedChange={on => onPickFast?.(on)} onSelect={event => event.preventDefault()}>
+          <span className="fast-slot" aria-hidden="true"><Zap /></span>
+          <span className="fast-copy"><span className="model-name">Fast</span>{fast.description && <span className="sub" id={describedBy}>{fast.description}</span>}</span>
+          <span className="fast-switch" aria-hidden="true" />
+        </DropdownMenu.CheckboxItem>
+      </>}
     </DropdownMenu.Content></DropdownMenu.Portal>
   </DropdownMenu.Root>;
 }

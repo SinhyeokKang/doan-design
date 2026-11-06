@@ -72,6 +72,7 @@ const { SettingsPage } = await import("./SettingsPage");
 const { CAPTURE_LIMIT, CAPTURE_TERMINAL, CAPTURE_UNAVAILABLE } = await import("./canvasCapture");
 const { DUPLICATE_CANVAS_TEXT } = await import("./canvasConversation");
 const { HomeRun } = await import("./homeRun");
+const { Home } = await import("./Home");
 const { CanvasConversation } = await import("./CanvasConversationPanel");
 const { CanvasConversations } = await import("./RightPanel");
 const { initialCanvasState } = await import("./CanvasController");
@@ -212,6 +213,21 @@ test("no save is sent before the initial ui-state read, even after an early send
   readUiState({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, rightPanel: { open: false, width: 400 } }); await Promise.resolve(); await Promise.resolve(); render();
   expect(doan.saveUiState).toHaveBeenCalled();
   expect(saved()).toMatchObject({ screen: "workspace", root: "/w/a", home: { lastRoot: "/w/a", lastProvider: "codex" }, rightPanel: { open: false, width: 400 } });
+});
+
+// fast-mode B2 (POSTMORTEM 2026-11-01): a Fast switch and a Fast turned off are Home memory like any pick, so neither
+// sends a save while the startup read is held; the first save after it carries them.
+test("no save is sent before the initial ui-state read after a Fast switch or a Fast turned off", async () => {
+  doan.listConversations!.mockImplementation(async () => [{ conversationId: "c1", title: "", state: "current", owner: "doan", provider: "codex", fromHome: false, phase: "ended", unseen: false, queued: 0, lastActivityAt: "2026-11-06T00:00:00Z", preview: "", working: false }]);
+  render(); folders([listed("/w/a")]); await Promise.resolve(); await Promise.resolve(); render();
+  const home = () => find<{ onRemember(choice: unknown): void }>(Home)[0]!.props;
+  home().onRemember({ provider: "claude", model: null, effort: null, fast: true }); render();
+  home().onRemember({ provider: "codex", model: null, effort: null, fast: true }); render();
+  listeners.conversation!({ v: 1, conversationId: "c1", seq: 4, turnId: "t1", at: "2026-11-06T00:00:00Z", type: "fast.unused", reason: "plan", turnedOff: true } as never); render();
+  expect(doan.saveUiState).not.toHaveBeenCalled();
+  readUiState({ screen: "home", expanded: {}, lastByRoot: {}, home: {} }); await Promise.resolve(); await Promise.resolve(); render();
+  expect(saved()).toMatchObject({ home: { fast: { claude: true } } });
+  expect((saved() as { home?: { fast?: unknown } }).home?.fast).toEqual({ claude: true });
 });
 
 test("a read that fails still lets saves through, with the panel's own state", async () => {

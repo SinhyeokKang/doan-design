@@ -32,7 +32,7 @@ function render(patch: Partial<DockedComposerProps> = {}, { text, ...draft }: Pa
     mode: MODE, project: "doan-design", homeDirectory: "/Users/ada", placeholder: "Reply, / for presets",
     drafts: new Map([[draftKey(patch.mode ?? MODE), { ...EMPTY_DRAFT, ...(text === undefined ? {} : { segments: textSegments(text) }), ...draft }]]), onDrafts: () => {},
     auth: AUTH, picker: PICKER, provider: "claude", effort: "high",
-    onPickerOpen: () => {}, onPickModel: () => {}, onPickEffort: () => {}, onSettings: () => {},
+    onPickerOpen: () => {}, onPickModel: () => {}, onPickEffort: () => {}, onPickFast: () => {}, onSettings: () => {},
     presets: undefined, suggested: [], onPresetsOpen: () => {}, onPresetsRetry: () => {},
     thumbnails: {}, onAttach: () => {}, onFiles: () => {}, onAttachmentRemoved: () => {},
     turn: "idle", busy: null, canvasGone: false, queued: [],
@@ -190,6 +190,15 @@ test("a terminal session shows a fixed Permission trigger after its fixed Effort
   expect(html).toMatch(/aria-label="Permission: set by the terminal session"[^>]*>.*?<span class="label">Default<\/span>/);
   expect(html).not.toContain('data-mode="bypass"');
   expect(html.indexOf("composer-effort")).toBeLessThan(html.indexOf("composer-permission"));
+});
+
+// fast-mode spec 'Fast 스위치': a terminal session's fixed Effort trigger never shows the Fast icon; the docked one does.
+test("the docked Effort trigger shows Fast on; a terminal session's fixed trigger never does", () => {
+  const picker = { ...PICKER, effort: { ...PICKER.effort!, ariaLabel: "Effort: High, Fast on", fast: { on: true } } };
+  expect(render({ picker })).toMatch(/class="composer-effort doan-button" data-ui-size="xs"[^>]*aria-label="Effort: High, Fast on"[^>]*>.*?lucide-zap/);
+  const fixed = render({ picker, fixed: true });
+  expect(fixed).toContain('aria-label="Effort: set by the terminal session"');
+  expect(fixed).not.toContain("lucide-zap");
 });
 
 // queue-send-now design §8; canvas-composer-polish draft frame `sending` (the shared xs subtle capsule).

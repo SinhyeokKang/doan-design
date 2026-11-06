@@ -593,6 +593,9 @@ body:has(.shell-top) { background: transparent; }
 .composer-effort { gap: var(--space-1h); font-weight: var(--type-weight-regular); }
 /* The capsule's chevron steps down with its gauge, unlike the model trigger's. */
 .composer-effort svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+/* Fast on: the level, the Fast icon in the accent (an Accent place, fast-mode decision 11), then the chevron. The icon
+   never shrinks, so an icon-only docked trigger still shows Fast; its name and tooltip say "Fast on". */
+.composer-effort .fast-icon { flex-shrink: 0; color: var(--affordance-accent); }
 /* The permission mode trigger (permission-mode draft frames home-toolrow, picker-menu): the Effort trigger with the
    mode's own icon, so an icon-only trigger still names the mode. Full access takes the danger ink on the trigger's own
    fills; its name, icon and aria-label carry it too, so colour is never the only signal. No coloured edge or fill. */
@@ -630,6 +633,27 @@ body:has(.shell-top) { background: transparent; }
 .slash-popover { position: absolute; z-index: 2; bottom: calc(100% + var(--space-2)); left: var(--space-8); }
 .agent-popover { width: 300px; }
 .effort-popover { width: 200px; }
+/* fast-mode (draft frame effort-menu): with a Fast row the menu takes Permission's 280, so a description ends within
+   two lines; without one it keeps 200. The row always leads with the Fast icon in the accent; the drawn switch alone
+   shows on or off (the shared .doan-switch's track and thumb, which is a button and cannot sit in a menu item). */
+.effort-popover.has-fast { width: 280px; }
+/* Over the shared Effort row rule below (:is(... .effort-popover .doan-menu-item)), which centres its items. */
+.effort-popover .doan-menu-item.fast-item { align-items: flex-start; padding-block: var(--space-1h); }
+.fast-slot { display: inline-flex; flex: none; align-items: center; width: var(--size-icon-sm); height: var(--type-body-sm-line-height); color: var(--affordance-accent); }
+.fast-slot > svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+.fast-copy { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+/* The description wraps and is never ellipsized: it is where the cost shows ("increased usage", "usage credits"). */
+.fast-copy .sub { white-space: normal; overflow: visible; text-overflow: clip; color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+.fast-switch { display: inline-flex; flex-shrink: 0; align-items: center; box-sizing: border-box; width: 36px; height: 20px; padding: 2px; border: 1px solid var(--border-standard); border-radius: var(--radius-pill); background: var(--affordance-subtle-hover); }
+.fast-switch::before { content: ""; width: 14px; height: 14px; border-radius: var(--radius-pill); background: var(--text-on-prominent); box-shadow: var(--shadow-xs); }
+.fast-item[aria-checked="true"] .fast-switch { border-color: var(--affordance-prominent); background: var(--affordance-prominent); }
+.fast-item[aria-checked="true"] .fast-switch::before { transform: translateX(16px); }
+/* Unavailable for the account: the shared disabled ink, the switch's own disabled look; the reason keeps the
+   description's ink so it stays readable. */
+.fast-item[data-disabled] .fast-slot { color: var(--text-disabled); }
+.fast-item[data-disabled] .fast-copy .sub { color: var(--text-metadata); }
+.fast-item[data-disabled] .fast-switch { border-color: transparent; background: var(--affordance-disabled); }
+.fast-item[data-disabled] .fast-switch::before { background: var(--surface-panel); box-shadow: none; }
 /* One row per mode, its name over a one-line description, like the preset rows. 280 is the component constant: Effort's
    200 is too narrow for the descriptions, and the shared menu cap is 320. */
 .permission-popover { width: 280px; }
@@ -943,6 +967,10 @@ body:has(.shell-top) { background: transparent; }
 .conversation-thread .activity-head span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .conversation-thread .activity-head .chev { transform: rotate(-90deg); transition: transform 120ms; }
 .conversation-thread .activity-head[aria-expanded="true"] .chev { transform: none; }
+/* A turn that did not run Fast (fast-mode draft frame thread-notice): a folded line with the accent Fast icon; it wraps. */
+.conversation-thread .activity-head.fast-note { align-items: flex-start; padding-block: var(--space-1h); }
+.conversation-thread .activity-head.fast-note svg { flex: none; width: var(--size-icon-sm); height: var(--size-icon-sm); margin-block: calc((var(--type-body-sm-line-height) - var(--size-icon-sm)) / 2); color: var(--affordance-accent); }
+.conversation-thread .activity-head.fast-note span { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
 .conversation-thread .activity-head .doan-spinner { width: var(--size-icon-sm); height: var(--size-icon-sm); }
 .conversation-thread .activity-steps { display: flex; flex-direction: column; gap: var(--space-1h); padding-left: var(--space-6); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
 .conversation-thread .activity-steps li { display: flex; align-items: center; gap: var(--space-2); min-width: 0; list-style: none; }

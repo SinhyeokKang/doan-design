@@ -1,7 +1,9 @@
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test, vi } from "vitest";
-import { PermissionPicker, presetBody, PresetsButton, SlashPresets } from "./ComposerParts";
+import { DropdownMenu } from "radix-ui";
+import { EffortPicker, IconTip, PermissionPicker, presetBody, PresetsButton, SlashPresets } from "./ComposerParts";
+import type { ModelPickerView } from "./homeComposer";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { permissionPickerView } from "./permissionPicker";
 
@@ -12,6 +14,7 @@ vi.mock("react", async original => {
   const react = await original<typeof import("react")>();
   return {
     ...react,
+    useId: () => hooks.on ? "fast-id" : react.useId(),
     useEffect: (effect: () => unknown, deps?: unknown[]) => hooks.on ? void hooks.effects.push(effect) : react.useEffect(effect as () => void, deps),
     useRef: (value: unknown) => { if (!hooks.on) return react.useRef(value); const index = hooks.refCursor++; if (!(index in hooks.refs)) hooks.refs[index] = { current: value }; return hooks.refs[index]; },
     useState: (value: unknown) => {
@@ -139,4 +142,61 @@ test("the canvas's press signal closes an open Presets popover without returning
     (draw().content.onCloseAutoFocus as (event: unknown) => void)(escape);
     expect(escape.preventDefault).not.toHaveBeenCalled();
   } finally { hooks.on = false; }
+});
+
+// fast-mode B2 (design §1, decisions 9–11): the Fast row under the Effort levels and the trigger's Fast icon.
+type EffortView = NonNullable<ModelPickerView["effort"]>;
+const effortView = (fast: EffortView["fast"], ariaLabel = "Effort: High"): EffortView => ({
+  label: "High", ariaLabel, menuLabel: "Effort for GPT-6.1 Sol", title: "Effort · GPT-6.1 Sol",
+  options: [{ id: "low", label: "Low", selected: false }, { id: "high", label: "High", selected: true }], fast,
+});
+function effortTree(view: EffortView, onPick = vi.fn(), onPickFast = vi.fn(), size?: "xs") {
+  hooks.on = true; hooks.cursor = 0; hooks.refCursor = 0; hooks.effects = [];
+  try { return propsOf(EffortPicker({ view, effort: "high", disabled: false, onPick, onPickFast, ...(size ? { size } : {}) })); } finally { hooks.on = false; }
+}
+
+test("Fast on puts the accent Fast icon on the trigger at both sizes, with its name as the tooltip", () => {
+  const on = effortView({ on: true, description: "2x speed, increased usage" }, "Effort: High, Fast on");
+  for (const size of [undefined, "xs"] as const) {
+    const html = renderToStaticMarkup(<TooltipProvider><EffortPicker view={on} effort="high" disabled={false} onPick={() => {}} {...(size ? { size } : {})} /></TooltipProvider>);
+    expect(html).toMatch(/aria-label="Effort: High, Fast on"[^>]*><svg[^>]*lucide-gauge[^>]*>.*?<\/svg><span class="label">High<\/span><svg[^>]*lucide-zap[^>]*fast-icon[^>]*aria-hidden="true"[^>]*>.*?<\/svg><svg[^>]*chev/);
+    expect(effortTree(on, vi.fn(), vi.fn(), size).find(item => item.type === IconTip)?.props.label).toBe("Effort: High, Fast on");
+  }
+  const off = effortView({ on: false, description: "2x speed, increased usage" }, "Effort: High, Fast off");
+  expect(renderToStaticMarkup(<TooltipProvider><EffortPicker view={off} effort="high" disabled={false} onPick={() => {}} /></TooltipProvider>)).not.toContain("lucide-zap");
+  expect(effortTree(off).find(item => item.type === IconTip)?.props.label).toBe("Effort: High, Fast off");
+  // Without Fast, Home's trigger keeps no tooltip, as before; the docked one keeps its own.
+  expect(effortTree(effortView(null)).some(item => item.type === IconTip)).toBe(false);
+  expect(effortTree(effortView(null), vi.fn(), vi.fn(), "xs").find(item => item.type === IconTip)?.props.label).toBe("Effort: High");
+});
+
+test("the Fast row is a checkbox item under a separator; switching it keeps the menu open, a level closes it", () => {
+  const onPick = vi.fn(), onPickFast = vi.fn();
+  const tree = effortTree(effortView({ on: false, description: "2x speed, increased usage" }), onPick, onPickFast);
+  expect(tree.find(item => item.type === DropdownMenu.Content)?.props.className).toBe("doan-floating doan-menu effort-popover has-fast");
+  const kinds = tree.map(item => item.type);
+  expect(kinds.indexOf(DropdownMenu.Separator)).toBeGreaterThan(kinds.indexOf(DropdownMenu.RadioGroup));
+  const row = tree.find(item => item.type === DropdownMenu.CheckboxItem)!.props;
+  expect(row).toMatchObject({ className: "doan-menu-item fast-item", checked: false, disabled: false, "aria-describedby": "fast-id" });
+  // Radix closes a menu and moves focus on an item's select unless it is prevented; the switch's own change still runs.
+  const select = { preventDefault: vi.fn() };
+  (row.onSelect as (event: unknown) => void)(select);
+  expect(select.preventDefault).toHaveBeenCalled();
+  (row.onCheckedChange as (on: boolean) => void)(true);
+  expect(onPickFast).toHaveBeenCalledWith(true);
+  // The levels keep Radix's own select, which closes the menu.
+  for (const item of tree.filter(entry => entry.type === DropdownMenu.RadioItem)) expect(item.props.onSelect).toBeUndefined();
+  // The Fast icon leads, then the name over its description, then the drawn switch; no check mark.
+  const html = renderToStaticMarkup(<>{row.children as ReactNode}</>);
+  expect(html).toMatch(/^<span class="fast-slot" aria-hidden="true"><svg[^>]*lucide-zap[^>]*>.*?<\/svg><\/span><span class="fast-copy"><span class="model-name">Fast<\/span><span class="sub" id="fast-id">2x speed, increased usage<\/span><\/span><span class="fast-switch" aria-hidden="true"><\/span>$/);
+  expect(html).not.toContain("check");
+});
+
+test("an unavailable Fast row is disabled and says why; without Fast the menu stays 200 wide with no row", () => {
+  const unavailable = effortTree(effortView({ on: false, description: "Extra usage is turned off for this account.", unavailable: "extra_usage" }));
+  expect(unavailable.find(item => item.type === DropdownMenu.CheckboxItem)?.props).toMatchObject({ checked: false, disabled: true });
+  expect(renderToStaticMarkup(<>{unavailable.find(item => item.type === DropdownMenu.CheckboxItem)!.props.children as ReactNode}</>)).toContain("Extra usage is turned off for this account.");
+  const none = effortTree(effortView(null));
+  expect(none.find(item => item.type === DropdownMenu.Content)?.props.className).toBe("doan-floating doan-menu effort-popover");
+  expect(none.some(item => item.type === DropdownMenu.CheckboxItem || item.type === DropdownMenu.Separator)).toBe(false);
 });

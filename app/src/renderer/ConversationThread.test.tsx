@@ -5,7 +5,8 @@ import type { ReactElement } from "react";
 import type { Anchor } from "../main/conversation/types";
 import type { CanvasRow } from "../main/view";
 import { answerReached, ConversationThread, endView, HandoffCard, HandoffLine, httpsUrl, SentChip, type ConversationThreadProps } from "./ConversationThread";
-import type { ThreadItem } from "./threadItems";
+import { threadItems, type ThreadItem } from "./threadItems";
+import type { ConversationEvent } from "../main/conversation/types";
 
 const noop = () => {};
 const props = (items: ConversationThreadProps["items"], patch: Partial<ConversationThreadProps> = {}): ConversationThreadProps => ({
@@ -68,6 +69,23 @@ describe("thread items", () => {
     expect(out).toContain("Shape</span>\nMake &lt;b&gt;<span class=\"bubble-anchor\">{{1}}</span> darker\nplease</div>");
     expect(out).toContain('<div class="msg-files"><span class="attach-chip"><span class="file-icon" aria-hidden="true">');
     expect(out).toContain("<b>spec.md</b><small>6 KB</small>");
+  });
+
+  // fast-mode B2 (draft frame thread-notice): the line sits in its turn, under the reply and before a failed turn's end,
+  // and a reread of the history draws it again.
+  test("a turn that did not run Fast keeps its line in the turn, live and when read again", () => {
+    let seq = 0;
+    const ev = (payload: Record<string, unknown>) => ({ v: 1, conversationId: "c1", seq: ++seq, turnId: "t1", at: "2026-11-06T00:00:00Z", ...payload }) as ConversationEvent;
+    const events = [ev({ type: "user.message", text: "Split the header", anchors: [] }), ev({ type: "turn.started" }), ev({ type: "message.done", messageId: "m1", text: "Split it." }),
+      ev({ type: "fast.unused", reason: "extra_usage", turnedOff: true }), ev({ type: "turn.failed", code: "process_exited" })];
+    const line = '<div class="activity"><div class="activity-head fast-note"><svg';
+    for (const live of [true, false]) {
+      const out = html(threadItems(events, "/r", live));
+      expect(out).toContain(line);
+      expect(out).toMatch(/lucide-zap[^>]*aria-hidden="true"[^>]*>.*?<\/svg><span>Fast was turned off\. Extra usage is turned off for this account\.<\/span><\/div><\/div>/);
+      expect(out.indexOf("Split it.")).toBeLessThan(out.indexOf(line));
+      expect(out.indexOf(line)).toBeLessThan(out.indexOf("doan-notice error thread-notice"));
+    }
   });
 
   test("an activity line is a disclosure button; a running one has a spinner", () => {

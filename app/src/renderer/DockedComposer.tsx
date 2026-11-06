@@ -73,7 +73,7 @@ export interface DockedComposerProps {
   // The host's modelPickerView for this conversation's provider, or for a new conversation the picker Home shows.
   picker: ModelPickerView;
   provider: Provider | null; effort: string | null;
-  onPickerOpen(): void; onPickModel(provider: Provider, value: string): void; onPickEffort(value: string): void;
+  onPickerOpen(): void; onPickModel(provider: Provider, value: string): void; onPickEffort(value: string): void; onPickFast(on: boolean): void;
   // The permission mode picker after Effort (permission-mode spec decision 1); null or absent: the provider offers no
   // choice. A terminal session (`fixed`) shows its fixed trigger instead.
   permission?: PermissionPickerView | null; onPickPermission?(mode: PermissionModeId): void;
@@ -421,7 +421,7 @@ export function DockedComposer(props: DockedComposerProps) {
           aria-label="Permission: set by the terminal session"><Shield aria-hidden="true" /><span className="label">Default</span></button></FixedTip>
       </> : <>
         <AgentPicker size="xs" picker={picker} auth={props.auth} disabled={isSending} onOpen={props.onPickerOpen} onPick={props.onPickModel} onSettings={target => queueMicrotask(() => props.onSettings(target))} />
-        {picker.effort && <EffortPicker size="xs" view={picker.effort} effort={props.effort} disabled={isSending} onPick={props.onPickEffort} />}
+        {picker.effort && <EffortPicker size="xs" view={picker.effort} effort={props.effort} disabled={isSending} onPick={props.onPickEffort} onPickFast={props.onPickFast} />}
         {props.permission && <PermissionPicker size="xs" view={props.permission} disabled={isSending} onPick={mode => props.onPickPermission?.(mode)} />}
       </>}
       {props.context && <ContextRing usage={props.context} />}

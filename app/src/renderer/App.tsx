@@ -96,7 +96,7 @@ import { notificationTarget, type NotificationTarget } from "../main/notificatio
 import type { Provider } from "../main/agentAuth/types";
 import type { PermissionModeId } from "../main/conversation/permissionMode";
 import type { PreferencesPatch, PreferencesSnapshot } from "../main/preferences";
-import { preferenceAfterPick, rememberChoice, rememberPermission, type ComposerChoice } from "./rememberChoice";
+import { preferenceAfterPick, rememberChoice, rememberFast, rememberPermission, shouldTurnOffFast, type ComposerChoice } from "./rememberChoice";
 
 // Each command names its handler; one App does not know does nothing (R-M ⚪5).
 export function menuCommand(name: MenuCommand, to: { home: () => void; quickOpen: () => void; newConversation: () => void; pickFromCanvas: () => void; toggleSidebar: () => void }): void {
@@ -1823,7 +1823,19 @@ export function App() {
   const canvasList: CanvasList = overview === null || listed === null ? [] : typeof listed === "string" ? listed
     : canvasConversationRows(listed, overview.kind === "list" ? overview.canvases : [], Date.now(), run.seenPending());
   const thumbs = useThumbnails(overview?.kind === "list" ? overview.path : null, typeof canvasList === "string" ? [] : canvasList.flatMap(item => item.row ? [item.row] : []));
-  useEffect(() => window.doan.onConversationEvent(event => { homeRun.current.event(event); overviewRun.current!.event(event); }), []);
+  // Fast turned itself off (fast-mode decision 4): that provider's Last used follows, and the conversation's own switch
+  // held in a composer goes, so the next turn is not asked for Fast again. Only here, as events arrive: this channel
+  // never replays history, so a restart cannot undo a Fast the person turned on again (shouldTurnOffFast).
+  const fastTurnedOff = (conversationId: string) => {
+    support.current?.fastTurnedOff(conversationId);
+    const provider = [...homeRun.current.lists.values()].flat().find(c => c.conversationId === conversationId)?.provider
+      ?? homeRun.current.conversations.find(c => c.conversationId === conversationId)?.provider;
+    if (provider) setHomeMemory(previous => previous?.fast?.[provider] ? rememberFast(previous, provider, false) : previous);
+  };
+  useEffect(() => window.doan.onConversationEvent(event => {
+    homeRun.current.event(event); overviewRun.current!.event(event);
+    if (shouldTurnOffFast(event, true)) fastTurnedOff(event.conversationId);
+  }), []);
   useEffect(() => window.doan.onConversationListChanged(({ root }) => homeRun.current.listChanged(root)), []);
   useEffect(() => {
     if (modal) { homeRun.current.modalChanged(true); return; }

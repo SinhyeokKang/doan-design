@@ -17,7 +17,7 @@ import { textSegments, typedText } from "./anchorField";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import { cardRow, groupProjects } from "./homeCards";
 import {
-  attachmentChipView, attachmentLimit, chipRemoval, composeRequest, defaultEffort, defaultModel, defaultProject, defaultProvider,
+  attachmentChipView, attachmentLimit, chipRemoval, composeRequest, defaultEffort, defaultFast, defaultModel, defaultProject, defaultProvider,
   fixedPreference, greetingText, groupIcon, lengthCounter, modelOption, modelPickerView, presetListView, presetPlaceholder,
   rootForProject, selectableProvider, sendAvailability, slashQuery, startErrorView, suggestedPresets, suggestedPrompts, TEXT_LIMIT,
   type AttachmentDraft, type ModelsState, type NewConversationDefault, type PresetListReply, type PresetSummary,
@@ -41,6 +41,8 @@ export interface ComposerMemory {
   models: Partial<Record<Provider, string>>; efforts: Record<string, string>;
   // Permission mode picks by provider (permission-mode), kept the same way as the model picks.
   permissions: Partial<Record<Provider, PermissionModeId>>;
+  // Fast switched by provider (fast-mode design §1); absent follows the provider's Last used.
+  fast: Partial<Record<Provider, boolean>>;
   // The Settings default this input started with: a change in Settings applies from the next new input
   // (buzz-settings design 'New conversations'). undefined: not taken yet.
   defaults?: NewConversationDefault | null;
@@ -62,7 +64,7 @@ export interface ComposerMemory {
   seen: { select: number; restore: number };
 }
 export function emptyComposer(): ComposerMemory {
-  return { text: "", preset: null, attachments: [], root: null, provider: null, models: {}, efforts: {}, permissions: {}, lists: {}, presets: undefined, auth: undefined, thumbnails: {}, lastKeys: {}, lastIds: {}, sending: null, generation: 0, notice: null, greeting: null, seen: { select: 0, restore: 0 } };
+  return { text: "", preset: null, attachments: [], root: null, provider: null, models: {}, efforts: {}, permissions: {}, fast: {}, lists: {}, presets: undefined, auth: undefined, thumbnails: {}, lastKeys: {}, lastIds: {}, sending: null, generation: 0, notice: null, greeting: null, seen: { select: 0, restore: 0 } };
 }
 
 const mountsByMemory = new WeakMap<object, Set<() => void>>();
@@ -72,7 +74,7 @@ function viewers(memory: { current: ComposerMemory }): Set<() => void> {
   return mounts;
 }
 
-export interface StartInput { root: string; mode: "newDesign"; runtime: Provider; text: string; model?: string; effort?: string; permissionMode?: PermissionModeId; attachments?: { id: string }[] }
+export interface StartInput { root: string; mode: "newDesign"; runtime: Provider; text: string; model?: string; effort?: string; fast?: boolean; permissionMode?: PermissionModeId; attachments?: { id: string }[] }
 // conversationId: the started conversation, for a host that shows it in place (the project Overview).
 export type StartOutcome = { ok: true; conversationId?: string } | { error: string; missing?: string[] };
 
@@ -238,12 +240,14 @@ export function HeroComposer(props: HeroComposerProps) {
   const option = modelOption(listState, model);
   const pickedEffort = provider && model ? m.efforts[effortKey(provider, model)] : undefined;
   const effort = pickedEffort !== undefined ? defaultEffort(option, pickedEffort) : defaultEffort(option, saved?.model === model ? saved.effort : undefined, fixed);
-  const picker = modelPickerView(auth, lists, { provider, model, effort });
+  const pickedFast = provider ? m.fast[provider] : undefined;
+  const picker = modelPickerView(auth, lists, { provider, model, effort, fast: pickedFast ?? defaultFast(props.prefs, provider) });
   const pickedPermission = provider ? m.permissions[provider] : undefined;
   const permission = provider ? permissionPickerView(provider, listState, defaultPermission(permissionChoices(provider, listState), pickedPermission, props.prefs?.permissions?.[provider], fixed)) : null;
   const permissionMode = permission?.mode;
-  const choiceTouched = m.provider !== undefined || explicitModel !== undefined || pickedEffort !== undefined || pickedPermission !== undefined;
-  useEffect(() => { if (choiceTouched && provider) props.onRemember?.({ provider, model, effort, ...(permissionMode ? { permissionMode } : {}) }); }, [choiceTouched, provider, model, effort, permissionMode]);
+  const choiceTouched = m.provider !== undefined || explicitModel !== undefined || pickedEffort !== undefined || pickedPermission !== undefined || pickedFast !== undefined;
+  // Fast goes to Last used only when it was switched here (fast-mode decision 3).
+  useEffect(() => { if (choiceTouched && provider) props.onRemember?.({ provider, model, effort, ...(permissionMode ? { permissionMode } : {}), ...(pickedFast !== undefined ? { fast: pickedFast } : {}) }); }, [choiceTouched, provider, model, effort, permissionMode, pickedFast]);
   // The menu closes on select; the move waits for that, so the menu's own focus return comes first.
   const openSettings = (target: SettingsTarget) => queueMicrotask(() => props.openSettings(target));
 
@@ -402,7 +406,7 @@ export function HeroComposer(props: HeroComposerProps) {
     doany.current?.hop();
     const request: StartInput = {
       root, mode: "newDesign", runtime: provider, text: composed,
-      ...(model ? { model } : {}), ...(model && effort ? { effort } : {}), ...(permissionMode && permissionMode !== "default" ? { permissionMode } : {}),
+      ...(model ? { model } : {}), ...(model && effort ? { effort } : {}), ...(picker.effort?.fast?.on ? { fast: true } : {}), ...(permissionMode && permissionMode !== "default" ? { permissionMode } : {}),
       ...(attachments.length ? { attachments: attachments.flatMap(a => a.id ? [{ id: a.id }] : []) } : {}),
     };
     const last: LastRequest = { root, text, preset, attachments, provider, model, effort };
@@ -425,7 +429,7 @@ export function HeroComposer(props: HeroComposerProps) {
         const released = (current.lastIds[root] ?? []).filter(id => !usedIds.has(id));
         if (released.length) void window.doan.releaseAttachments(released).catch(console.error);
         // The next input starts from the defaults again: the fixed one, or with Last used the run App just recorded.
-        return { sending: null, thumbnails, lastKeys, lastIds, root, provider: null, models: {}, efforts: {}, permissions: {}, ...(same ? { text: "", preset: null, attachments: [] } : {}) };
+        return { sending: null, thumbnails, lastKeys, lastIds, root, provider: null, models: {}, efforts: {}, permissions: {}, fast: {}, ...(same ? { text: "", preset: null, attachments: [] } : {}) };
       });
       return;
     }
@@ -532,7 +536,7 @@ export function HeroComposer(props: HeroComposerProps) {
             <span className="grow" />
             <AgentPicker picker={picker} auth={auth} disabled={sending} onOpen={() => { if (root && healthy) for (const group of picker.groups) if (group.read) readModels(root, group.provider); }}
               onPick={(pickedProvider, value) => edit({ provider: pickedProvider, ...(value === "default" ? {} : { models: { ...memory.current.models, [pickedProvider]: value } }) })} onSettings={openSettings} />
-            {picker.effort && provider && model && <EffortPicker view={picker.effort} effort={effort} disabled={sending} onPick={value => edit({ efforts: { ...memory.current.efforts, [effortKey(provider, model)]: value } })} />}
+            {picker.effort && provider && model && <EffortPicker view={picker.effort} effort={effort} disabled={sending} onPick={value => edit({ efforts: { ...memory.current.efforts, [effortKey(provider, model)]: value } })} onPickFast={on => edit({ fast: { ...memory.current.fast, [provider]: on } })} />}
             {permission && provider && <PermissionPicker view={permission} disabled={sending} onPick={mode => edit({ permissions: { ...memory.current.permissions, [provider]: mode } })} />}
             <SendButton enabled={availability.enabled} sending={sending} onSend={() => void send()} hint={reason?.kind === "noAgent" ? reason.text : undefined} />
           </ComposerTools>
