@@ -306,3 +306,15 @@ test("the move's card focus is dropped once the person leaves the receiving canv
   showCanvas(drafts); await flushAll();
   expect(panel()!.arrival).toBeNull();
 });
+
+test("a toast's Open on a project that can no longer be read answers at once", async () => {
+  await overview(listA([drafts]));
+  handoff();
+  const open = harness.toast.show.mock.lastCall![2] as () => void;
+  folders([{ path: "/w/a", kind: "error", message: "unreadable" }]);
+  clearController(); harness.toast.show.mockClear();
+  open(); render();
+  expect(harness.controller!.openCanvas).not.toHaveBeenCalled();
+  expect(harness.toast.show).toHaveBeenCalledOnce();
+  expect(harness.toast.show.mock.lastCall![0]).not.toMatch(/handed off/);
+});

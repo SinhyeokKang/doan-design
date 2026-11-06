@@ -1470,7 +1470,9 @@ export function App() {
     const notice = wait.notice, { entry, row } = listedRow(notice.root, notice.target.canvas);
     const done = () => { clearTimeout(wait.timer); handoffOpen.current = null; };
     if (wait.intent !== navigationIntent.current) { done(); return; }
-    if (!row && !wait.expired && (entry === wait.entry || entry?.kind !== "list")) return;
+    // Only a read still to come is waited for: a finished one that failed, or a project removed, answers at once
+    // (POSTMORTEM 2026-10-25 recurrence).
+    if (!row && !wait.expired && (entry?.kind === "loading" || (entry?.kind === "list" && entry === wait.entry))) return;
     done();
     if (!row) { live.current.toast.show(entry?.kind === "list" ? handoffGoneText(notice.target.canvas.path, live.current.projectLabel(notice.root)) : unavailableCanvasMessage(entry, notice.target.canvas.path)); return; }
     openCanvasConversation(notice.root, row, notice.target.conversationId, { kind: "notification", permission: false });
