@@ -200,3 +200,20 @@ test("suggestion CSS: full-width rows with an accent icon tile, Home's group 32p
   expect(css).toMatch(/\.suggestion-go \{[^}]*visibility: hidden;/);
   expect(css).toMatch(/\.suggestion:is\(:hover, :focus-visible\) \.suggestion-go \{ visibility: visible; \}/);
 });
+
+// small-ui-tweaks decisions 3, 5, 6, 9: a sentence runs to three lines, rows stay centered with the 4px gap, and a
+// 1px line separates neighbors without touching the first or last row.
+test("suggestion CSS: the sentence clamps at three lines and a 1px divider separates rows", () => {
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  const label = /\.suggestion-label \{([^}]*)\}/.exec(css)?.[1] ?? "";
+  expect(label).toMatch(/display: -webkit-box;/);
+  expect(label).toMatch(/-webkit-box-orient: vertical;/);
+  expect(label).toMatch(/-webkit-line-clamp: 3;/);
+  expect(label).toMatch(/overflow: hidden;/);
+  expect(label).toMatch(/overflow-wrap: anywhere;/);
+  expect(label).not.toMatch(/white-space: nowrap|text-overflow/);
+  expect(css).toMatch(/\.suggestion \{[^}]*position: relative;[^}]*align-items: center;/);
+  expect(css).toMatch(/\.suggestion \+ \.suggestion::before \{[^}]*content: "";[^}]*position: absolute;[^}]*inset-inline: var\(--space-3\);[^}]*top: calc\(var\(--space-half\) \* -1 - 1px\);[^}]*height: 1px;[^}]*background: var\(--border-standard\);[^}]*pointer-events: none;/);
+  expect(css).toMatch(/\.home-suggestions \{[^}]*gap: var\(--space-1\);/);
+  expect(css).toMatch(/\.ov-suggestions \{[^}]*gap: var\(--space-1\);/);
+});

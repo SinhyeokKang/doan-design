@@ -736,12 +736,15 @@ body:has(.shell-top) { background: transparent; }
 .home-suggestions { display: flex; flex-direction: column; gap: var(--space-1); width: min(680px, 100%); margin-top: var(--space-8); }
 /* Hidden while the draft is not empty but keeping its place, so the field above does not move (design '배치'). */
 .home-stage .home-suggestions[inert] { visibility: hidden; }
-.suggestion { display: flex; align-items: center; width: 100%; min-width: 0; gap: var(--space-3); padding: var(--space-2) var(--space-3) var(--space-2) var(--space-2); border-radius: var(--radius-row); background: transparent; color: var(--text-standard); cursor: pointer; text-align: left; font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); transition: background-color var(--time-state) var(--ease-state); }
+.suggestion { position: relative; display: flex; align-items: center; width: 100%; min-width: 0; gap: var(--space-3); padding: var(--space-2) var(--space-3) var(--space-2) var(--space-2); border-radius: var(--radius-row); background: transparent; color: var(--text-standard); cursor: pointer; text-align: left; font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); transition: background-color var(--time-state) var(--ease-state); }
 @media (hover: hover) { .suggestion:hover { background: var(--affordance-subtle); } }
 .suggestion:active { background: var(--affordance-subtle-pressed); }
 .suggestion:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
 .suggestion-icon { flex: none; display: grid; place-items: center; width: var(--size-control-xs); height: var(--size-control-xs); border-radius: var(--radius-toolbar-icon); background: var(--surface-accent-subtle); }
-.suggestion-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Up to three lines, then an ellipsis; same clamp as .cv-preview. */
+.suggestion-label { flex: 1; min-width: 0; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; overflow-wrap: anywhere; }
+/* A 1px line inside the 4px gap (1px below the upper row, 2px above the lower), inset like .doan-menu-sep; none above the first or below the last row. */
+.suggestion + .suggestion::before { content: ""; position: absolute; inset-inline: var(--space-3); top: calc(var(--space-half) * -1 - 1px); height: 1px; background: var(--border-standard); pointer-events: none; }
 /* The group icon and the hover arrow carry the accent; the sentence stays standard ink (2026-10-29 user). */
 .suggestion svg { flex: none; width: var(--size-icon-sm); height: var(--size-icon-sm); color: var(--affordance-accent); }
 .suggestion-go { visibility: hidden; }
