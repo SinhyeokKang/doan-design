@@ -1,0 +1,43 @@
+# picker-default-labels — orch
+
+- 원본: [spec.md](./spec.md), [design.md](./design.md), [tasks.md](./tasks.md). 초안: `.doan/canvases/picker-default-labels.html`(D1·D2 완료, round 4 확정).
+- 시작 hash: `bd5b71ba`(main, fast-mode 병합 뒤).
+- 통합 branch: `feat/picker-default-labels`(사람이 만든 worktree를 그대로 쓴다).
+- 지휘: Claude Code(Opus 5.5).
+
+## 결정 기록
+
+| # | 내용 | 근거 |
+|---|---|---|
+| 1 | Codex worker를 섞어 쓴다 | 사람, 이번 실행의 상시 허가 |
+| 2 | `/verify` 전과 최종 push 전에 매번 최신 `origin/main`으로 rebase하고, rebase 뒤에만 `/verify`를 돌린다 | 사람, 이번 실행의 상시 규칙 |
+| 3 | 실제 앱 확인(`/runtime-test`, `/design-sync`) 전에 다른 실행(tester-notarization)의 Doan 앱이 떠 있는지 보고, 떠 있으면 기다리거나 사람에게 묻는다 | 사람, 이번 실행의 상시 규칙 |
+| 4 | 공용 로그인 프로필 `~/code/doan-design/.scratch/provider-profile/userData`를 쓰되, 로그아웃하거나 지우지 않는다 | 사람, 이번 실행의 상시 규칙(다른 feature도 쓴다) |
+| 5 | push와 PR까지만 한다. 병합하지 않는다 | 사람 |
+| 6 | worker의 `/ship`은 push 직전에 멈추고, `/runtime-test`(5단계 앞)와 docs freshness(9단계)를 건너뛴다. 실제 앱 확인은 통합 뒤 R1에서, 문서 승격은 Z1에서 지휘자가 한다 | 지휘자 판단 — GUI probe를 한 곳에서 조율하고(결정 3), 문서 승격은 tasks Z1이 한 번에 한다 |
+| 7 | A2·A3·A4·B1을 한 batch(RA)로 묶는다 | 지휘자 판단 — 모두 renderer이고 `homeComposer.ts`·`SettingsAgents.tsx`·`ComposerParts.tsx`를 서로 이어서 고친다. 나누면 파일이 겹쳐 직렬이 되므로 batch를 나눠 얻는 것이 없다 |
+| 8 | B2(`/design-sync`)는 RA 통합 뒤 RA worker에게 새 Task로 보낸다 | 지휘자 판단 — 구현을 고치는 단계이므로 RA 파일을 가진 worker가 맡는다 |
+| 9 | 독립 리뷰는 통합한 MA+RA diff 하나를 Codex Astra가 본다 | 지휘자 판단 — 다른 계열이 읽는다(사람의 이전 선호, worker-model-mix) |
+
+## Batch
+
+| Batch | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 gate | 상태 |
+|---|---|---|---|---|---|---|
+| MA | A1 | `app/src/main/conversation/models.ts`, `models.test.ts` | 없음 | Codex Sol `medium` — 함수 하나와 테스트 네 경우가 spec에 정해져 있다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 대기 |
+| RA | A2, A3, A4, B1 | `app/src/renderer/` 중 `homeComposer.ts`, `dockedRules.ts`, `permissionPicker.ts`, `ComposerParts.tsx`, `DockedComposer.tsx`, `SettingsAgents.tsx`, `HomeComposerView.tsx`, `ProjectOverview.tsx`, `CanvasConversationPanel.tsx`, Settings 순수 함수 새 파일, 각 테스트와 CSS | 없음 | Claude Opus `high` — 접근성 이름, 저장 규칙(POSTMORTEM 2026-11-02), Settings 고정 해제처럼 틀리면 보내는 값이 어긋나는 판단이 많다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 대기 |
+| RV | MA+RA 독립 리뷰(`/code-review`) | 보고만 | MA, RA 통합 | Codex Astra `medium` — 판단이 필요한 리뷰, 다른 계열 | 보고서 | 대기 |
+| B2 | `/design-sync picker-default-labels` | RA 파일 + `docs/DESIGN.md`의 tray 측정값 | RA 통합, RV 🔴 0 | RA worker(Claude Opus `high`) — 실제 앱 측정과 구현 수정 | `/design-sync` 보고에 불일치 없음 | 대기 |
+| R1 | `/runtime-test` | 없음(확인만) | B2 통합 | 지휘자 | 보고, 스크린샷, frame 발췌 | 대기 |
+| R2 | `/verify` | 없음 | rebase 뒤 | 지휘자 | 종료 코드 0 | 대기 |
+| Z1 | 문서 승격, feature 디렉터리 삭제 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/DESIGN.md`, `docs/BACKLOG.md` | R1, R2 | 지휘자 | tasks Z1 검증 | 대기 |
+
+- tasks의 체크 항목 D1·D2는 완료됐고, A1–A4·B1·B2·R1·R2·Z1은 위 표의 한 행에 하나씩 속한다.
+
+## 파일 겹침과 순서
+
+- MA와 RA는 고치는 파일이 겹치지 않으므로 병렬로 돌린다.
+- RV는 둘을 통합한 뒤에 돌린다. 수정은 소유 worker에게 보낸다.
+- B2는 RA 파일과 `docs/DESIGN.md`를 고치므로 RV 수정 round가 끝난 뒤 직렬로 돌린다.
+- R1·R2·Z1은 B2 통합 뒤 지휘자가 차례로 한다.
+
+## 진행 기록
