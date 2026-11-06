@@ -614,9 +614,8 @@ test("the permission pick is remembered at once and sent with the start", async 
   expect(box.current.permissions).toEqual({});
 });
 
-// picker-default-labels B2: an untouched composer remembers nothing. Remembering on mount wrote Last used and moved a
-// fixed Settings default without a model onto the default model (preferenceAfterPick), so Settings read "GPT-6-Luna"
-// instead of "Default · GPT-6-Luna" after Home was opened.
+// An untouched composer remembers nothing: remembering on mount would write Last used and move a fixed Settings
+// default without a model onto the provider's default model (preferenceAfterPick).
 test("an untouched composer remembers nothing; a pick does", () => {
   const onRemember = vi.fn();
   const { render } = setup({}, { prefs: { lastProvider: "claude" }, defaults: { provider: "claude" }, onRemember });
