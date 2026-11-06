@@ -64,7 +64,7 @@
 | 링크 | 세션·worktree | 시작 | PR·병합 | 상태 |
 |---|---|---|---|---|
 | 1 work-update | work-update-orch | 2026-11-06 | [#104](https://github.com/SinhyeokKang/doan-design/pull/104) · `3e98f455` | 병합됨 |
-| 2 canvas-handoff | canvas-handoff-orch | 2026-11-06 | — | 진행 중 |
+| 2 canvas-handoff | canvas-handoff-orch | 2026-11-06 | [#105](https://github.com/SinhyeokKang/doan-design/pull/105) · `6ec117ea` | 병합됨 |
 | 3 small-ui-tweaks | — | — | — | 대기 |
 
 ## 인계 기록
@@ -96,3 +96,8 @@
     5. 공용 프로필에 work-update probe 대화 기록 다섯 개가 남았다(체인 '전부 남김'). folders·ui-state·canvas-seen은 byte 단위로 같게 되돌렸다.
     6. canvas-handoff D1 체크박스(위 참고)를 체크한다.
 - 2026-11-06 **링크 2 시작**(canvas-handoff-orch). 브리프를 받고 `feat/canvas-handoff`에서 `/orchestrate`를 시작했다. 인계 1(Codex 프로필의 `doan` 전부 허용): 사람이 "handoff만 묻게"를 골랐다. Codex 프로필에만 `doan handoff` `prompt` 규칙을 더한다(canvas-handoff design §4, tasks C4). D1을 체크했다. Codex 주간 한도가 92% 사용이라 이 링크는 Claude 작업자만 쓰고 남은 양은 E3에 남긴다.
+- 2026-11-06 **링크 2 끝**(canvas-handoff-orch). PR [#105](https://github.com/SinhyeokKang/doan-design/pull/105)를 main에 병합했다(`6ec117ea`). 통합 gate: 병합 전 HEAD `3850986d`(main이 그동안 움직이지 않아 rebase할 것이 없었다)에서 `verify.mjs --eval` PASS. `/runtime-test` R1은 공용 프로필에서 Claude Default·Full access·Stop과 Codex Default를 봤다. `/design-sync`는 6 frame·62쌍이고 차이 60개는 모두 DESIGN.md에 적었다. `/agent-eval` round `canvas-handoff`는 R10 Claude 통과, Codex 실패(U-024), R8d·R9b에서 잘못된 핸드오프 없음이다. batch는 S·G·M·U·E 다섯 개이고 작업자와 리뷰(RG·RM·RE)는 모두 Claude였다. Codex 작업자는 쓰지 않았다(주간 한도 92%→94%, 2026-11-11 초기화). feature 디렉터리와 orch.md는 지웠다. 작업자 worktree는 지웠고 작업 branch(`SinhyeokKang/ch-*`)는 local에 남겼다. 근거 자료는 `canvas-handoff-orch/.scratch/evidence/`(orch.md 사본 포함)와 `.scratch/runtime-test/canvas-handoff/`에 있다.
+  - 사람의 결정 두 개(링크 2 중): Codex 프로필에서 `doan handoff`만 묻게 한다(`prompt` 규칙). R1에서 Codex Default가 두 번 묻는 것을 보인 뒤 "두 번 묻기 유지"를 골랐다(PRODUCT §3 'Resume and permissions', BACKLOG).
+  - 미검증: Cursor·Antigravity·Copilot 핸드오프, Accept edits·Plan, dialog·first run·글 쓰던 composer 때의 toast와 10 s 대기, composer로 보낸 흐름, U-024 heredoc. 목록은 BACKLOG에 있다.
+  - 공용 프로필: `folders.json`·`ui-state.json`·`canvas-seen.json`은 byte 단위로 같게 되돌렸다. R1 probe 대화 기록(probe repo `.scratch/r1/repo`는 이 worktree에 있음)과 Codex 프로필의 `rules/doan-handoff.rules`는 남았다(체인 '전부 남김').
+  - **링크 3이 알아야 할 것**: (1) 링크 2가 `CanvasConversationPanel.tsx`, `styles.css`, `ProjectOverview.tsx`, DESIGN.md('Canvas handoff' 절)를 고쳤다. small-ui-tweaks도 이 파일들을 고치므로 main의 지금 모양을 다시 읽고 시작한다. `CanvasAgent.tsx`·`agentIndicator.ts`·`dotField.ts`·`ComposerParts.tsx`·`homeComposer.ts`는 링크 2가 건드리지 않았다. (2) 모든 App 테스트의 `window.doan` mock에 `onConversationHandoff`가 있어야 한다(새 App 테스트 파일도). (3) Codex 주간 한도는 94% 사용이다. 링크 3은 `/agent-eval`이 해당하지 않으니 Codex는 쓰지 않아도 된다.
