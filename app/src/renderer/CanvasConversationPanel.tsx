@@ -264,8 +264,8 @@ export function CanvasConversation(props: CanvasConversationProps) {
   // carry a mode (Full access included) the person chose for that conversation into new ones.
   const rememberedMode = mode.kind === "new" || pick.permissionMode !== undefined ? permissionMode : undefined;
   // Only a model picked here is marked: the shown one may be the provider's default (preferenceAfterPick).
-  const modelPicked = pick.model !== undefined && pick.model === model ? { modelPicked: true as const } : {};
-  useEffect(() => { if (choiceTouched && chosen) props.onRemember?.({ provider: chosen, model, effort, ...modelPicked, ...(rememberedMode ? { permissionMode: rememberedMode } : {}) }); }, [choiceTouched, chosen, model, effort, rememberedMode, pick.model]);
+  const modelPicked = { ...(pick.model !== undefined && pick.model === model ? { modelPicked: true as const } : {}), ...(pick.effort !== undefined ? { effortPicked: true as const } : {}) };
+  useEffect(() => { if (choiceTouched && chosen) props.onRemember?.({ provider: chosen, model, effort, ...modelPicked, ...(rememberedMode ? { permissionMode: rememberedMode } : {}) }); }, [choiceTouched, chosen, model, effort, rememberedMode, pick.model, pick.effort]);
   const ready = chosen !== null && (auth?.providers ?? []).some(status => status.provider === chosen && status.account !== null && selectableProvider(status));
   useEffect(() => { if (healthy && chosen && ready && !fixed) support.readModels(root, chosen); }, [root, healthy, chosen, ready, fixed]);
 

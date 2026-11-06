@@ -8,9 +8,9 @@ import type { NewConversationDefault } from "./homeComposer";
 // model's default level, which is sent as no effort. permissionMode is absent when the composer shows no permission
 // picker (an ACP provider without modes), so nothing about the mode is remembered.
 // fast is present only when the person switched Fast: a send alone never records it (fast-mode decision 3).
-// modelPicked: the person picked this model in the composer; without it the model is only what the composer resolved
-// (the provider's default, a remembered or a fixed one), which a fixed Settings default must not take on.
-export interface ComposerChoice { provider: Provider; model: string | null; effort: string | null; permissionMode?: PermissionModeId; fast?: boolean; modelPicked?: true }
+// modelPicked, effortPicked: the person picked this model, this level (the Default row included) in the composer;
+// without them they are only what the composer resolved, which a fixed Settings default must not take on.
+export interface ComposerChoice { provider: Provider; model: string | null; effort: string | null; permissionMode?: PermissionModeId; fast?: boolean; modelPicked?: true; effortPicked?: true }
 
 // The provider's last Fast, apart from its model: `models[provider]` is replaced on every model pick. Off is no entry.
 export function rememberFast(memory: HomeMemory | null, provider: Provider, on: boolean): HomeMemory {
@@ -67,10 +67,12 @@ export function preferenceAfterPick(current: NewConversationDefault | null, choi
   if (!current) return undefined;
   const same = current.provider === choice.provider;
   if (!choice.model && !same) return undefined;
-  const kept = same && current.model ? { model: current.model } : {};
-  const model = !choice.model ? { ...kept, ...(current.effort ? { effort: current.effort } : {}) }
-    : choice.modelPicked ? { model: choice.model, ...(choice.effort ? { effort: choice.effort } : {}) }
-    : { ...kept, ...(choice.effort ? { effort: choice.effort } : {}) };
+  const keptModel = same ? current.model : undefined;
+  // A level is fixed only for the model it was picked for: the fixed one, or under Model Default the default shown.
+  const ownEffort = choice.effortPicked === true && !!choice.model && (keptModel === undefined || keptModel === choice.model);
+  const effort = ownEffort ? choice.effort ?? undefined : same ? current.effort : undefined;
+  const model = choice.model && choice.modelPicked ? { model: choice.model, ...(choice.effort ? { effort: choice.effort } : {}) }
+    : { ...(keptModel ? { model: keptModel } : {}), ...(effort ? { effort } : {}) };
   const mode = choice.permissionMode !== undefined ? choice.permissionMode : same ? current.permissionMode : undefined;
   const next: NewConversationDefault = { provider: choice.provider, ...model, ...(mode !== undefined && mode !== "default" ? { permissionMode: mode } : {}) };
   return same && current.model === next.model && current.effort === next.effort && current.permissionMode === next.permissionMode ? undefined : next;
