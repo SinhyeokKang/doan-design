@@ -5,7 +5,7 @@ import type { AccountIdentity, AuthState, AuthStatusDto, Provider, ToolFacts } f
 import type { CanvasRow, FolderEntry } from "../main/view";
 import {
   attachmentChipView, attachmentLimit, chipRemoval, composeRequest, defaultEffort, defaultFast, defaultModel, fastToSend, defaultProject, defaultProvider, dropTarget, fixedPreference,
-  GREETINGS, greetingText, foldRows, heldScrollTop, NO_OLDER, olderLabel, olderOpened, olderToggled, groupIcon, groupLabel, isSubmitKey, steerKey, takesSuggestion, lengthCounter, MAX_ATTACHMENTS, MAX_PASTED_BYTES, modelPickerView, pickGreeting, presetListView,
+  GREETINGS, greetingText, foldRows, olderOrder, heldScrollTop, NO_OLDER, olderLabel, olderOpened, olderToggled, groupIcon, groupLabel, isSubmitKey, steerKey, takesSuggestion, lengthCounter, MAX_ATTACHMENTS, MAX_PASTED_BYTES, modelPickerView, pickGreeting, presetListView,
   draftProblem, presetPlaceholder, rootForProject, searchPresets, selectableProvider, sendAvailability, slashQuery, startErrorView, suggestedPresets,
   suggestedPrompts, TEXT_LIMIT,
   type AttachmentDraft, type ModelsState, type PresetListReply, type PresetSummary, type SendInput,
@@ -913,4 +913,22 @@ test("a toggle scrolls the menu by the line's move so the line keeps its place, 
   // No scroll range: the line cannot be held and moves.
   expect(heldScrollTop({ scrollTop: 0, maxScrollTop: 0, lineBefore: 300, lineAfter: 180 })).toBe(0);
   expect(heldScrollTop({ scrollTop: 500, maxScrollTop: 560, lineBefore: 300, lineAfter: 420 })).toBe(560);
+});
+
+
+test("older rows follow the painted side, keep provider order and leave the line last above", () => {
+  const rows = ["GPT-6-Sol", "GPT-5.6-Sol", "GPT-5.6-Terra", "GPT-5.6-Luna"];
+  expect(olderOrder("Older models", rows, "top")).toEqual([...rows, "Older models"]);
+  expect(olderOrder("Older models", rows, "bottom")).toEqual(["Older models", ...rows]);
+  expect(olderOrder("Older models", [], "top")).toEqual(["Older models"]);
+});
+
+test("above-line expansion uses the residual growth as scroll without moving the line", () => {
+  // Codex + Copilot: 128px inserted above, 60px of menu growth, 68px of new scroll range.
+  expect(heldScrollTop({ scrollTop: 0, maxScrollTop: 68, lineBefore: 343.5, lineAfter: 411.5 })).toBe(68);
+  // Already capped: all inserted rows become scroll, and folding reverses it.
+  expect(heldScrollTop({ scrollTop: 23, maxScrollTop: 1073, lineBefore: 465.5, lineAfter: 593.5 })).toBe(151);
+  expect(heldScrollTop({ scrollTop: 151, maxScrollTop: 945, lineBefore: 465.5, lineAfter: 337.5 })).toBe(23);
+  // A short upward menu grows by exactly the inserted height; the line does not move.
+  expect(heldScrollTop({ scrollTop: 0, maxScrollTop: 0, lineBefore: 420.5, lineAfter: 420.5 })).toBe(0);
 });
