@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { modelPickerView, NO_OLDER, olderOpened, shownRows, type ModelsState } from "./homeComposer";
+import { foldRows, modelPickerView, NO_OLDER, olderOpened, type ModelsState } from "./homeComposer";
 import { settingsEffortLabel, settingsModelMenu, settingsModelPick } from "./newConversationSettings";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import { authStatus } from "../main/agentAuth/state";
@@ -115,6 +115,6 @@ test("an older model keeps its row marked, and picking it fixes that model rathe
 });
 test("the Settings Default row stays above the fold with the current models", () => {
   const menu = settingsModelMenu("codex", CODEX_OLDER, undefined);
-  expect(shownRows(menu.rows, false).map(row => row.value)).toEqual(["unset", "model:gpt-6.1-sol"]);
+  expect(foldRows(menu.rows).current.map(row => row.value)).toEqual(["unset", "model:gpt-6.1-sol"]);
   expect(olderOpened(NO_OLDER, [{ provider: "codex", rows: menu.rows }])).toBe(NO_OLDER);
 });

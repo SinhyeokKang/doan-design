@@ -5,7 +5,7 @@ import type { AccountIdentity, AuthState, AuthStatusDto, Provider, ToolFacts } f
 import type { CanvasRow, FolderEntry } from "../main/view";
 import {
   attachmentChipView, attachmentLimit, chipRemoval, composeRequest, defaultEffort, defaultFast, defaultModel, fastToSend, defaultProject, defaultProvider, dropTarget, fixedPreference,
-  GREETINGS, greetingText, heldScrollTop, NO_OLDER, olderCount, olderLabel, olderOpened, olderToggled, shownRows, groupIcon, groupLabel, isSubmitKey, steerKey, takesSuggestion, lengthCounter, MAX_ATTACHMENTS, MAX_PASTED_BYTES, modelPickerView, pickGreeting, presetListView,
+  GREETINGS, greetingText, foldRows, heldScrollTop, NO_OLDER, olderLabel, olderOpened, olderToggled, groupIcon, groupLabel, isSubmitKey, steerKey, takesSuggestion, lengthCounter, MAX_ATTACHMENTS, MAX_PASTED_BYTES, modelPickerView, pickGreeting, presetListView,
   draftProblem, presetPlaceholder, rootForProject, searchPresets, selectableProvider, sendAvailability, slashQuery, startErrorView, suggestedPresets,
   suggestedPrompts, TEXT_LIMIT,
   type AttachmentDraft, type ModelsState, type PresetListReply, type PresetSummary, type SendInput,
@@ -856,16 +856,16 @@ test("rows keep older models marked, so picking one checks it and names it on th
     { kind: "model", id: "gpt-5.6-terra", label: "GPT-5.6-Terra", effort: false, selected: false, isDefault: false, older: true },
   ]);
   expect(view.trigger).toMatchObject({ label: "GPT-6-Sol", placeholder: false });
-  expect(olderCount(view.groups[1]!.rows)).toBe(2);
-  expect(shownRows(view.groups[1]!.rows, false).map(r => r.kind === "model" && r.id)).toEqual(["gpt-6.1-sol"]);
-  expect(shownRows(view.groups[1]!.rows, true)).toEqual(view.groups[1]!.rows);
+  const { current, older } = foldRows(view.groups[1]!.rows);
+  expect(current.map(r => r.kind === "model" && r.id)).toEqual(["gpt-6.1-sol"]);
+  expect(older.map(r => r.kind === "model" && r.id)).toEqual(["gpt-6-sol", "gpt-5.6-terra"]);
 });
 
 test("no line before a list is read, after it failed, for an empty list or a list without older models", () => {
   const auth = snapshot(dto("codex"));
   const choice = { provider: "codex" as const, model: null, effort: null };
   for (const state of [undefined, "loading", { error: "unavailable" }, { models: [] }, { models: [F_SOL] }] as ModelsState[]) {
-    expect(olderCount(modelPickerView(auth, { codex: state }, choice).groups[0]!.rows)).toBe(0);
+    expect(foldRows(modelPickerView(auth, { codex: state }, choice).groups[0]!.rows).older.length).toBe(0);
   }
 });
 
@@ -898,9 +898,9 @@ test("a group the person toggled stays as they left it when a list arrives", () 
 test("a list read again after an account change is classified from its own rows", () => {
   const auth = snapshot(dto("codex"));
   const choice = { provider: "codex" as const, model: "gpt-6-sol", effort: null };
-  expect(olderCount(modelPickerView(auth, { codex: FOLDING.codex }, choice).groups[0]!.rows)).toBe(2);
+  expect(foldRows(modelPickerView(auth, { codex: FOLDING.codex }, choice).groups[0]!.rows).older.length).toBe(2);
   const next = modelPickerView(auth, { codex: { models: [F_SOL, { id: F_OLD_SOL.id, label: F_OLD_SOL.label, default: false }] } }, choice).groups[0]!;
-  expect(olderCount(next.rows)).toBe(0);
+  expect(foldRows(next.rows).older.length).toBe(0);
   expect(olderOpened(NO_OLDER, [next])).toBe(NO_OLDER);
 });
 

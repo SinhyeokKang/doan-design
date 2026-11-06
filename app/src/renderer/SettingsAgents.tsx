@@ -9,9 +9,9 @@ import { agentsSettingsView, PROVIDER_NAMES, type AuthButton, type AuthCommand, 
 import type { AgentSignIn } from "./agentSignIn";
 import { AgentStepSession } from "./agentStep";
 import { AlertIcon } from "./AlertIcon";
-import { PermissionIconView, PermissionMenuItems } from "./ComposerParts";
+import { PermissionIconView, PermissionMenuItems, useOlderFold } from "./ComposerParts";
 import { generationOf, modelsKey } from "./dockedSupport";
-import { modelPickerView, providerLogo, selectableProvider, type ModelsState } from "./homeComposer";
+import { foldRows, modelPickerView, providerLogo, selectableProvider, type ModelsState } from "./homeComposer";
 import { firstUsable, focusLost, NoticeView, PasteDialog, StopDialog } from "./Onboarding";
 import { settingsEffortLabel, settingsModelMenu, settingsModelPick } from "./newConversationSettings";
 import { permissionPickerView } from "./permissionPicker";
@@ -201,6 +201,8 @@ function NewConversations({ auth, preferences, save, project }: Pick<SettingsAge
 
   const menu = provider ? settingsModelMenu(provider, listState, pref?.model) : null;
   const pinned = menu?.pinned ?? null;
+  const fold = useOlderFold(provider && menu ? [{ provider, rows: menu.rows }] : []);
+  const modelRows = menu ? foldRows(menu.rows) : null;
   const loadFailed = listState !== undefined && listState !== "loading" && "error" in listState;
   // Effort follows the chosen model, or with Default the model the project lists as its default (spec 'New
   // conversations'); a model that lists no efforts has no Effort row.
@@ -214,12 +216,13 @@ function NewConversations({ auth, preferences, save, project }: Pick<SettingsAge
   const permission = provider ? permissionPickerView(provider, listState, readPermissionMode(pref?.permissionMode)) : null;
   const keepMode = pref?.permissionMode ? { permissionMode: pref.permissionMode } : {};
 
-  const trigger = (label: string, aria: string, content: ReactNode, disabled: boolean, menu: ReactNode) => <DropdownMenu.Root>
+  // folded: the Model menu, whose older models fold under a line (model-drawer-older).
+  const trigger = (label: string, aria: string, content: ReactNode, disabled: boolean, menu: ReactNode, folded?: typeof fold) => <DropdownMenu.Root {...(folded ? { onOpenChange: folded.onOpenChange } : {})}>
     <DropdownMenu.Trigger asChild disabled={disabled}><button type="button" className="doan-button settings-select" data-ui-variant="trigger" data-ui-size="sm" aria-label={`${aria}: ${label}`} disabled={disabled}>
       {content}<ChevronDown className="chev" aria-hidden="true" /></button></DropdownMenu.Trigger>
-    <DropdownMenu.Portal><DropdownMenu.Content className="doan-floating doan-menu settings-menu" aria-label={aria} side="bottom" align="end" sideOffset={4} collisionPadding={8}>{menu}</DropdownMenu.Content></DropdownMenu.Portal>
+    <DropdownMenu.Portal><DropdownMenu.Content {...(folded ? { ref: folded.contentRef } : {})} className="doan-floating doan-menu settings-menu" aria-label={aria} side="bottom" align="end" sideOffset={4} collisionPadding={8}>{menu}</DropdownMenu.Content></DropdownMenu.Portal>
   </DropdownMenu.Root>;
-  const radio = (value: string, label: ReactNode, selected: boolean) => <DropdownMenu.RadioItem key={value} value={value} className="doan-menu-item">
+  const radio = (value: string, label: ReactNode, selected: boolean, onKeyDown?: ReturnType<typeof fold.olderKeyDown>) => <DropdownMenu.RadioItem key={value} value={value} className="doan-menu-item" {...(onKeyDown ? { onKeyDown } : {})}>
     {label}<span className="check-slot">{selected && <Check className="check" aria-hidden="true" />}</span></DropdownMenu.RadioItem>;
   // The Model menu's Default row: its name over the model it stands for, the check on the name line (draft frame settings).
   const unset = (value: string, label: string, description: string | null, selected: boolean) => <DropdownMenu.RadioItem key={value} value={value} className="doan-menu-item unset-item">
@@ -250,9 +253,11 @@ function NewConversations({ auth, preferences, save, project }: Pick<SettingsAge
         {project && listState === "loading" ? <div className="doan-preference-row-trailing"><span className="settings-loading" role="status"><span className="doan-spinner" aria-hidden="true" />Loading models</span></div>
           : !loadFailed && menu && <div className="doan-preference-row-trailing">{trigger(menu.label, "Model for new conversations", <span>{menu.label}</span>, off || !project || !runnable,
             <DropdownMenu.RadioGroup value={menu.value} onValueChange={value => { const picked = settingsModelPick(menu, value); choose(picked === null ? { provider, ...keepMode } : { provider, model: picked, ...keepMode }); }}>
-              {menu.rows.map((item, index) => item.kind === "model" ? radio(item.value, <span className="model-name">{item.label}</span>, item.selected)
-                : <Fragment key={item.value}>{unset(item.value, item.label, item.description, item.selected)}{index < menu.rows.length - 1 && <DropdownMenu.Separator className="doan-menu-sep" />}</Fragment>)}
-            </DropdownMenu.RadioGroup>)}</div>}
+              {modelRows!.current.map(item => item.kind === "model" ? radio(item.value, <span className="model-name">{item.label}</span>, item.selected)
+                : <Fragment key={item.value}>{unset(item.value, item.label, item.description, item.selected)}{menu.rows.length > 1 && <DropdownMenu.Separator className="doan-menu-sep" />}</Fragment>)}
+              {modelRows!.older.length > 0 && fold.line(provider, name, modelRows!.older.length)}
+              {fold.isOpen(provider) && modelRows!.older.map(item => item.kind === "model" && radio(item.value, <span className="model-name">{item.label}</span>, item.selected, fold.olderKeyDown(provider)))}
+            </DropdownMenu.RadioGroup>, fold)}</div>}
         {project && loadFailed && <div className="doan-preference-row-extra settings-msg-row"><p className="settings-msg error" role="alert"><AlertIcon /><span>Couldn’t load the models for {project.name}.</span></p>
           <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={() => setLists(current => { const next = { ...current }; delete next[key!]; return next; })}>Retry</button></div>}
       </div>}

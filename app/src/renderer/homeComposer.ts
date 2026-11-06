@@ -315,8 +315,10 @@ export function modelPickerView(auth: AuthSnapshot | null | undefined, models: P
 // Older models (model-drawer-older): a group's rows keep every model, and the menu folds the older ones under one line
 // only when drawing. Picking and finding the checked row read the full rows, so an older pick never falls back to Default.
 type FoldRow = { older?: true; selected: boolean };
-export function olderCount(rows: readonly FoldRow[]): number { return rows.filter(row => row.older).length; }
-export function shownRows<T extends FoldRow>(rows: readonly T[], open: boolean): readonly T[] { return open ? rows : rows.filter(row => !row.older); }
+// The menu draws the current rows, then the line, then (unfolded) the older rows, each in the list's order.
+export function foldRows<T extends FoldRow>(rows: readonly T[]): { current: T[]; older: T[] } {
+  return { current: rows.filter(row => !row.older), older: rows.filter(row => row.older) };
+}
 // The line's name leads with its visible label (WCAG 2.5.3), the provider as in the docked names.
 export function olderLabel(provider: string, count: number): string { return `Older models (${provider}), ${count}`; }
 // Which groups are unfolded, and which the person toggled. It lives with an open menu and is dropped when it closes.
