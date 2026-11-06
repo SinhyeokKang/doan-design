@@ -28,7 +28,7 @@
 |---|---|---|---|---|---|---|
 | C | A1, A2, 계약 타입(`StartRequest.fast?`, preload `sendConversation` 요청의 `fast?`) | `app/src/main/conversation/{store,types,summary,models}.ts`와 그 테스트, `service.ts`의 `StartRequest` 한 줄, `app/src/preload/index.ts` | — | Codex `gpt-6.1-sol` medium — 검증 규칙과 파싱이 정해진 기계적 작업 | `npm --prefix app test`(storeIndex·storeRecovery·summary·models), `npm --prefix app run typecheck` | 통합(`e8c93f85`·`4ce3ab55`·`99e1380a`, 1 round) |
 | M | A3, A4(main: `claudeFastOutcome`, 자동 끔), B1 | `app/src/main/conversation/{ipc,service,runners,transport}.ts`와 그 테스트 | C | Claude Opus high — queue·Send now·핸드오프·steer·이벤트 순서와 자동 끔이 얽혀 틀리면 잘못된 과금 요청이 나간다 | `npm --prefix app test`, `npm --prefix app run typecheck`, `grep -rn '\.acquire(' app/src/main` 전후 동일 | 진행 |
-| R | A4(renderer: `fastUnusedText`), A5, B2 | `app/src/renderer/**`, `app/src/restore/uiState.ts`와 그 테스트 | C | Claude Opus high — 메뉴 접근성, 기억 경로(POSTMORTEM 11-01·11-02), 실시간 이벤트만 반영하는 자동 끔 | `npm --prefix app test`, `npm --prefix app run typecheck`, `rg -n "startConversation\(\|sendConversation\(\|onRemember" app/src/renderer --glob '!*.test.*'` | 진행 |
+| R | A4(renderer: `fastUnusedText`), A5, B2 | `app/src/renderer/**`, `app/src/restore/uiState.ts`와 그 테스트 | C | Claude Opus high — 메뉴 접근성, 기억 경로(POSTMORTEM 11-01·11-02), 실시간 이벤트만 반영하는 자동 끔 | `npm --prefix app test`, `npm --prefix app run typecheck`, `rg -n "startConversation\(\|sendConversation\(\|onRemember" app/src/renderer --glob '!*.test.*'` | 통합(`23f46879`…`a128cc87`, 2 rounds) |
 | S | B3 `/design-sync fast-mode` | renderer 구현 수정, `docs/DESIGN.md` | R 통합 | R worker의 후속 Task(Claude Opus high) — 자기 구현을 재는 편이 맥락이 이어진다 | `/design-sync` 보고에 불일치 없음 | 대기 |
 | T | R1 `/runtime-test` | 없음(보고만, `.scratch/`) | C·M·R·S 통합 | Claude Opus high — 실제 계정, 계정 교체, 여러 경우 | `/runtime-test` 보고와 스크린샷 | 대기 |
 | — | R2 `/verify` | — | 모든 통합, rebase 뒤 | conductor | 종료 코드 0 | 대기 |
@@ -62,6 +62,10 @@
   - 🟡1: 자동 끔에서 index 저장이 실패해도 그 실패를 삼킨다. 그러면 화면은 꺼졌다고 알리지만 저장된 값은 켜진 채로 남는다.
   - 🟢1: Claude resume + Fast, Send now, 자동 끔 직후 다시 켜기를 고정하는 테스트가 없다.
   - M이 C 소유인 `models.ts`(`ModelCatalog.fast`)와 `types.ts`(`TransportState` 필드), `index.ts` 배선을 고쳤다. 리뷰가 셋 다 필요하다고 판정했고, 그때 같은 파일을 고치는 다른 배치는 없었다.
+- R r2 재검토(같은 리뷰어, `ctx_02bbc78f1872`, `.scratch/review-R-r2.md`): 🔴1·🟡1–3·🟢2가 고쳐졌고, 새 🔴·🟡는 없다.
+  - 🟡4는 일부만 닫혔다. ARCHITECTURE §7 'Home tests without a DOM'이 jsdom 추가를 막는다. 그래서 설치된 Radix의 select 동작을 고정하는 테스트만 두었다. 토글 뒤 메뉴가 열려 있고 focus가 남는지는 S가 실제 앱에서 확인한다.
+  - 🟢(테스트 주석의 focus 단정)은 고치지 않는다.
+- R을 통합했다(`23f46879`…`a128cc87`, 7 commits, 2 rounds). M 통합 뒤 rebase하고 `/verify`를 함께 돌린다.
 - C worktree는 M·R이 계약 수정을 요청할 수 있어서 둘을 통합할 때까지 남긴다. handoff와 리뷰는 conductor `.scratch/C/`에 복사했다.
 
 ## Orca
