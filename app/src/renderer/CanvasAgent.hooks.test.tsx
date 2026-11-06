@@ -246,6 +246,40 @@ describe("DotField lifecycle", () => {
     } finally { media.matches = false; }
   });
 
+  // Records each arc's radius to tell near dots (bigger than the base 1.5px) from far ones.
+  function nearArcs(width: number, height: number) {
+    const near: { x: number; y: number }[] = [];
+    let far = 0;
+    ctx.arc.mockImplementation((x: number, y: number, r: number) => { if (r > 1.5) near.push({ x, y }); else far++; });
+    const wide = { ...node, getBoundingClientRect: () => ({ width, height }) };
+    const attachWide = () => { if (!hooks.refs[0]!.current) hooks.refs[0]!.current = wide; };
+    return { near, farCount: () => far, attachWide, reset: () => { near.length = 0; far = 0; } };
+  }
+
+  test("a running frame draws near dots around the sweeping spot and its opposing spot", () => {
+    const probe = nearArcs(1000, 60);
+    try {
+      render(field(true), probe.attachWide);
+      probe.reset();
+      // The first frame starts the clock; the second is 1000ms in: the spot is at x 0 and its opposite at x 1000.
+      (frames.get(1) as (now: number) => void)(1000);
+      (frames.get(2) as (now: number) => void)(2000);
+      expect(probe.near.some(dot => dot.x < 300)).toBe(true);
+      expect(probe.near.some(dot => dot.x > 700)).toBe(true);
+      expect(probe.near.every(dot => dot.x < 320 || dot.x > 680)).toBe(true);
+    } finally { ctx.arc.mockReset(); }
+  });
+
+  test("reduced motion draws no spot at all: every dot is far", () => {
+    media.matches = true;
+    try {
+      const probe = nearArcs(1000, 60);
+      render(field(true), probe.attachWide);
+      expect(probe.near).toEqual([]);
+      expect(probe.farCount()).toBeGreaterThan(0);
+    } finally { media.matches = false; ctx.arc.mockReset(); }
+  });
+
   test("unmount leaves no frame, observer, media listener or visibility subscription", () => {
     render(field(true), attach);
     expect(observer.observe).toHaveBeenCalledWith(node);
