@@ -326,14 +326,16 @@ export function suggestedPresets(entry: FolderEntry | null, presets: readonly Pr
   return ids.flatMap(id => presets.filter(p => p.id === id)).slice(0, 3);
 }
 
-export interface SuggestedPrompt { label: string; preset: PresetSummary; text: string }
+// `parts` splits `label` for display only: `value` marks the project and canvas names the screens highlight.
+export interface SuggestionPart { text: string; value: boolean }
+export interface SuggestedPrompt { label: string; parts: readonly SuggestionPart[]; preset: PresetSummary; text: string }
 
 // The same rules as suggestedPresets. Labels are short imperatives in the words a person would type; the composer
 // text adds the target canvas's path so the agent does not ask which design is meant.
 export function suggestedPrompts(entry: FolderEntry | null, project: string, presets: readonly PresetSummary[]): SuggestedPrompt[] {
   if (entry?.kind !== "list") return [];
-  const plain = (label: string) => ({ label, text: `${label}.` });
-  type Wanted = [string, { label: string; text: string }];
+  const plain = (label: string) => ({ label, parts: [{ text: label, value: false }], text: `${label}.` });
+  type Wanted = [string, { label: string; parts: SuggestionPart[]; text: string }];
   let wanted: Wanted[];
   const { screens, designSystem } = split(entry.canvases);
   if (screens.length === 0) {
@@ -341,16 +343,20 @@ export function suggestedPrompts(entry: FolderEntry | null, project: string, pre
   } else {
     const recent = screens.map((row, i) => ({ row, i })).sort((a, b) => (b.row.mtimeMs ?? -Infinity) - (a.row.mtimeMs ?? -Infinity) || a.i - b.i).map(x => x.row);
     const first = recent[0]!, second = recent[1] ?? first;
-    const named = (label: string, row: CanvasRow) => ({ label, text: `${label} (${row.path}).` });
+    const named = (verb: string, row: CanvasRow) => {
+      const name = canvasLabel(row), label = `${verb} the ${name} canvas`;
+      return { label, parts: [{ text: `${verb} the `, value: false }, { text: name, value: true }, { text: " canvas", value: false }], text: `${label} (${row.path}).` };
+    };
+    const documentLead = "Document the design system of ";
     wanted = [
-      ...(designSystem ? [] : [["document", plain(`Document the design system of ${project}`)] as Wanted]),
-      ["critique", named(`Review the ${canvasLabel(first)} canvas`, first)],
-      ["polish", named(`Polish the ${canvasLabel(second)} canvas`, second)],
+      ...(designSystem ? [] : [["document", { label: documentLead + project, parts: [{ text: documentLead, value: false }, { text: project, value: true }], text: `${documentLead}${project}.` }] as Wanted]),
+      ["critique", named("Review", first)],
+      ["polish", named("Polish", second)],
     ];
   }
   return wanted.flatMap(([id, prompt]) => {
     const preset = presets.find(p => p.id === id);
-    return preset ? [{ label: prompt.label, preset, text: prompt.text }] : [];
+    return preset ? [{ label: prompt.label, parts: prompt.parts, preset, text: prompt.text }] : [];
   });
 }
 

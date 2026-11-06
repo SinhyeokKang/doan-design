@@ -393,9 +393,9 @@ test("suggested prompts name the target canvas by recency and fill a sentence wi
     canvas(".doan/canvases/projects-home.html", { mtimeMs: 20 }),
   ]);
   expect(suggestedPrompts(entry, "doan-design", PRESETS)).toEqual([
-    { label: "Document the design system of doan-design", preset: preset("document"), text: "Document the design system of doan-design." },
-    { label: "Review the buzz-onboarding canvas", preset: preset("critique"), text: "Review the buzz-onboarding canvas (.doan/canvases/buzz-onboarding.html)." },
-    { label: "Polish the projects-home canvas", preset: preset("polish"), text: "Polish the projects-home canvas (.doan/canvases/projects-home.html)." },
+    { label: "Document the design system of doan-design", parts: [{ text: "Document the design system of ", value: false }, { text: "doan-design", value: true }], preset: preset("document"), text: "Document the design system of doan-design." },
+    { label: "Review the buzz-onboarding canvas", parts: [{ text: "Review the ", value: false }, { text: "buzz-onboarding", value: true }, { text: " canvas", value: false }], preset: preset("critique"), text: "Review the buzz-onboarding canvas (.doan/canvases/buzz-onboarding.html)." },
+    { label: "Polish the projects-home canvas", parts: [{ text: "Polish the ", value: false }, { text: "projects-home", value: true }, { text: " canvas", value: false }], preset: preset("polish"), text: "Polish the projects-home canvas (.doan/canvases/projects-home.html)." },
   ]);
 });
 
@@ -408,12 +408,22 @@ test("one canvas is both critiqued and polished; a design-system canvas drops th
 
 test("a project without canvases gets the three starting prompts; missing presets are skipped", () => {
   expect(suggestedPrompts(list("/r/p"), "p", PRESETS)).toEqual([
-    { label: "Get to know this project", preset: preset("context"), text: "Get to know this project." },
-    { label: "Plan the first screen", preset: preset("shape"), text: "Plan the first screen." },
-    { label: "Document the design system", preset: preset("document"), text: "Document the design system." },
+    { label: "Get to know this project", parts: [{ text: "Get to know this project", value: false }], preset: preset("context"), text: "Get to know this project." },
+    { label: "Plan the first screen", parts: [{ text: "Plan the first screen", value: false }], preset: preset("shape"), text: "Plan the first screen." },
+    { label: "Document the design system", parts: [{ text: "Document the design system", value: false }], preset: preset("document"), text: "Document the design system." },
   ]);
   expect(suggestedPrompts(list("/r/p"), "p", PRESETS.filter(p => p.id !== "context")).map(p => p.preset.id)).toEqual(["shape", "document"]);
   expect(suggestedPrompts(missing("/r/p"), "p", PRESETS)).toEqual([]);
+});
+
+test("suggested prompt parts join back to the label and mark only the project and canvas names as values", () => {
+  const entry = list("/r/p", [canvas(".doan/canvases/context-window_ring.html", { mtimeMs: 2 }), canvas(".doan/canvases/home.html", { mtimeMs: 1 })]);
+  const prompts = suggestedPrompts(entry, "my-project", PRESETS);
+  expect(prompts.map(p => p.parts.map(part => part.text).join(""))).toEqual(prompts.map(p => p.label));
+  expect(prompts.map(p => p.parts.filter(part => part.value).map(part => part.text))).toEqual([["my-project"], ["context-window_ring"], ["home"]]);
+  expect(prompts[1]!.text).toBe("Review the context-window_ring canvas (.doan/canvases/context-window_ring.html).");
+  const starting = suggestedPrompts(list("/r/p"), "p", PRESETS);
+  expect(starting.every(p => p.parts.length === 1 && !p.parts[0]!.value)).toBe(true);
 });
 
 test("search matches every token over title, id, scope and description, NFC and case-insensitive, prefix first", () => {
