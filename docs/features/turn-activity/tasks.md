@@ -14,7 +14,7 @@
   - 검증: 'P 결과'에 버전마다 판정과 `commandActions` 예(명령 글은 지움)가 있다.
 - [x] P3. ACP(P3): Copilot thought chunk가 다른 턴에서도 오는지, 수 초 걸리는 명령(예: `sleep 5`)에서 `tool_call` pending → in_progress → completed 간격이 그만큼 벌어지는지(Copilot, Antigravity).
   - 검증: 'P 결과'에 provider마다 간격과 판정이 있다.
-- [ ] P4. (선택) 실제 디자인 작업 턴 하나의 빈 구간을 `.scratch/turn-activity/gaps.py`로 잰다.
+- [x] P4. (선택) 실제 디자인 작업 턴 하나의 빈 구간을 `.scratch/turn-activity/gaps.py`로 잰다.
   - 검증: 'P 결과'에 provider, 턴 길이, 가장 긴 빈 구간이 있다.
 
 P를 마치면 한 번 커밋한다(`docs(feature): turn-activity PoC results`). — 커밋
@@ -32,7 +32,10 @@ P를 마치면 한 번 커밋한다(`docs(feature): turn-activity PoC results`).
   - Copilot 1.0.105(bypass, `sleep 5 && echo done`): `tool_call` pending 뒤 5.06초 동안 다른 update가 없고, 끝에 status 없는 `tool_call_update`와 completed가 같은 ms에 왔다. in_progress는 오지 않았다. pending이 도구 시간만큼 이어지므로 도구 단계 규칙(pending·in_progress)은 그대로 맞다. thought chunk는 두 턴 모두 왔다(83개, 0.9초 / 167개, 12.2초에 걸쳐).
   - Antigravity(bypass, `gemini-3.8-flash-medium`): `tool_call`이 pending 없이 in_progress로 시작했고 5.03초 뒤 completed였다. `view_file`도 in_progress에서 completed까지 6.07초였다. thought chunk는 없었다.
 - design §2 표와 spec 완료 조건 2의 provider 목록은 바꾸지 않는다. 위 관찰은 모두 표의 규칙 안에 있다.
-- P4(선택)는 돌리지 않았다.
+- **P4 긴 턴**(2026-11-06, 같은 프로필의 앱, Accept edits, 프롬프트 "Add a new frame to this canvas that shows an empty state for a project list … then run doan check and fix what it reports", frame `.scratch/turn-activity/out/frames-p4/`, `gaps.py`):
+  - Claude Code 2.1.318(기본 모델): Skill, Read, Bash, Edit를 14번 쓰고 75초째에 질문 카드(AskUserQuestion)를 띄웠다. 질문에 답하지 않아 600초 뒤 driver가 멈췄으므로 질문까지만 쟀다(`out/p4-trunc/`). 첫 출력까지 2.4초, 그 75초 가운데 thread에 아무것도 보이지 않은 시간이 합 55.6초(74%), 가장 긴 빈 구간 12.0초, thinking block 8개 합 13.0초였다.
+  - Codex 0.166.0: 45초 턴(완료). 첫 출력까지 5.8초, 빈 구간 합 8.9초(20%), 가장 긴 빈 구간 5.8초(첫 출력 전), `reasoning` item 8개.
+  - 가정(design '잰 빈 시간' 끝)대로 실제 디자인 작업 턴의 빈 구간은 짧은 probe(Claude 1.9–6.2초)보다 길었다(Claude 12.0초). Codex는 짧은 probe 범위(2.3–11.2초) 안이었다. 설계는 바꾸지 않는다.
 
 ## D. UI 초안
 
