@@ -50,6 +50,18 @@
   - ❓2 계정 제한일 때 `supportsFastMode`가 남는가: `extra_usage_disabled` 계정에서도 opus의 `supportsFastMode`가 true였다(conductor의 `p2-init.mjs`, 2026-11-06). 규칙을 그대로 둔다.
   - nit 3개(설명 512자 상한, `unavailable` 타입 폭, 커밋에서 red가 보이지 않음)는 고치지 않는다.
 - C r1 수정(`14220645`)을 확인하고 통합했다. `origin/main`(`ff59c416`)으로 rebase한 뒤 `/verify` PASS(`.scratch/verify-int1.log`, HEAD `99e1380a`).
+- R r1 리뷰(Codex `gpt-6-astra` medium, `ctx_9c94359d147b`, `.scratch/review-R.md`): 🔴 1, 🟡 4, 🟢 2. conductor 판단으로 🔴1·🟡1–4·🟢2를 고치게 했다(fix r1 `ctx_4efa19db0bed`).
+  - 🔴1: 시작 시 읽기 전에 Fast를 바꾸면 다른 provider의 `home.fast`가 지워지고, 그때 온 자동 끔이 되살아난다.
+  - 🟡1: 지원하지 않는 모델로 보내면 명시적인 off가 저장되지 않는다.
+  - 🟡2: 오래된 pick이 Last used를 다시 켠다.
+  - 🟡3: provider를 모르는 live 자동 끔이 사라진다.
+  - 🟡4: 실제 Radix focus 테스트가 없다.
+  - 🟢2: 행 접근성 이름이 `Fast`가 아니다.
+  - 🟢1(비활성 행 아이콘이 text-disabled)은 고치지 않는다. 사람이 확인한 초안(`.doan/canvases/fast-mode.html:126`)과 같다.
+- M r1 리뷰(Codex `gpt-6-astra` medium, `ctx_0267a03fe69d`, `.scratch/review-M.md`): 🔴 0, 🟡 1, 🟢 1. 둘 다 고치게 했다(fix r1 `ctx_8a608bad1675`).
+  - 🟡1: 자동 끔에서 index 저장이 실패해도 그 실패를 삼킨다. 그러면 화면은 꺼졌다고 알리지만 저장된 값은 켜진 채로 남는다.
+  - 🟢1: Claude resume + Fast, Send now, 자동 끔 직후 다시 켜기를 고정하는 테스트가 없다.
+  - M이 C 소유인 `models.ts`(`ModelCatalog.fast`)와 `types.ts`(`TransportState` 필드), `index.ts` 배선을 고쳤다. 리뷰가 셋 다 필요하다고 판정했고, 그때 같은 파일을 고치는 다른 배치는 없었다.
 - C worktree는 M·R이 계약 수정을 요청할 수 있어서 둘을 통합할 때까지 남긴다. handoff와 리뷰는 conductor `.scratch/C/`에 복사했다.
 
 ## Orca
