@@ -17,7 +17,7 @@
 
 | batch | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 gate | 상태 |
 |---|---|---|---|---|---|---|
-| A | tasks 1, 2, 3 | `app/src/main/conversation/models.ts`(+test), `app/src/renderer/homeComposer.ts`(+test), `newConversationSettings.ts`(+test), `ComposerParts.tsx`(+test), `SettingsAgents.tsx`(+test), `styles.css`, fixture | — | Claude Opus medium: 분류 규칙의 경계와 Radix 메뉴의 포커스·scroll 보정은 판단이 들지만 범위가 좁다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 대기 |
+| A | tasks 1, 2, 3 | `app/src/main/conversation/models.ts`(+test), `app/src/renderer/homeComposer.ts`(+test), `newConversationSettings.ts`(+test), `ComposerParts.tsx`(+test), `SettingsAgents.tsx`(+test), `styles.css`, fixture | — | Claude Opus medium: 분류 규칙의 경계와 Radix 메뉴의 포커스·scroll 보정은 판단이 들지만 범위가 좁다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 진행 중(worktree `mdo-batch-a`, run `run_7e170dc27f6c`, dispatch `ctx_c5df7cafa58e`) |
 | RA | A의 `/code-review` | 읽기만 | A | Claude Opus medium: 모델 선택이 Default로 돌아가는 회귀를 잡아야 한다 | 보고 | 대기 |
 | B | tasks 4a, 4b | 4a가 고치는 A의 renderer 파일, `docs/DESIGN.md`, `.scratch/` probe | A 통합 | Claude Opus medium: computed style 비교와 IPC handler 교체 probe는 단계가 많다 | `/design-sync` 보고, `/runtime-test` 스크린샷·probe 결과 | 대기 |
 | — | task 5 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/BACKLOG.md`, feature 디렉터리 삭제 | B 통합 | 지휘자 | tasks 5의 검증 | 대기 |
