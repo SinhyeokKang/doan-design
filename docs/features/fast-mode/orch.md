@@ -31,7 +31,7 @@
 | M | A3, A4(main: `claudeFastOutcome`, 자동 끔), B1 | `app/src/main/conversation/{ipc,service,runners,transport}.ts`와 그 테스트 | C | Claude Opus high — queue·Send now·핸드오프·steer·이벤트 순서와 자동 끔이 얽혀 틀리면 잘못된 과금 요청이 나간다 | `npm --prefix app test`, `npm --prefix app run typecheck`, `grep -rn '\.acquire(' app/src/main` 전후 동일 | 통합(2 rounds) |
 | R | A4(renderer: `fastUnusedText`), A5, B2 | `app/src/renderer/**`, `app/src/restore/uiState.ts`와 그 테스트 | C | Claude Opus high — 메뉴 접근성, 기억 경로(POSTMORTEM 11-01·11-02), 실시간 이벤트만 반영하는 자동 끔 | `npm --prefix app test`, `npm --prefix app run typecheck`, `rg -n "startConversation\(\|sendConversation\(\|onRemember" app/src/renderer --glob '!*.test.*'` | 통합(`23f46879`…`a128cc87`, 2 rounds) |
 | S | B3 `/design-sync fast-mode` | renderer 구현 수정, `docs/DESIGN.md` | R 통합 | R worker의 후속 Task(Claude Opus high) — 자기 구현을 재는 편이 맥락이 이어진다 | `/design-sync` 보고에 불일치 없음 | 통합(`5ee97116`·`ac893bf8`) |
-| T | R1 `/runtime-test` | 없음(보고만, `.scratch/`) | C·M·R·S 통합 | Claude Opus high — 실제 계정, 계정 교체, 여러 경우 | `/runtime-test` 보고와 스크린샷 | 진행 |
+| T | R1 `/runtime-test` | 없음(보고만, `.scratch/`) | C·M·R·S 통합 | Claude Opus high — 실제 계정, 계정 교체, 여러 경우 | `/runtime-test` 보고와 스크린샷 | 완료(보고만) |
 | — | R2 `/verify` | — | 모든 통합, rebase 뒤 | conductor | 종료 코드 0 | 대기 |
 | — | Z1 문서 승격 | PRODUCT, ARCHITECTURE, DESIGN, BACKLOG, `docs/features/fast-mode/` 삭제 | T | conductor | tasks Z1 검증 | 대기 |
 
@@ -79,6 +79,7 @@
   - Claude: 프로필 계정은 서버에서 추가 사용량이 꺼져 있다(`hasExtraUsageEnabled: false`).
   - Codex: 프로필의 keyring 계정은 ChatGPT free 플랜이라 티어가 없다. keyring 없이 읽은 9개 목록은 로그아웃 상태의 카탈로그였다.
 - T(R1)를 시작했다(`ctx_a59efc2fd83a`, worktree `fast-mode-T`, Claude Opus high, 결정 8 범위).
+- T 결과(`.scratch/T/handoff-T.md`): 닿을 수 있는 경우 1–4가 모두 통과했다. 핸드오프는 닿지 못했다. probe는 exit 0, real state도 같았다. Z1 승격을 마쳤다(PRODUCT, ARCHITECTURE, DESIGN, BACKLOG).
 
 ## Orca
 
