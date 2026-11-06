@@ -68,3 +68,5 @@
 - BC를 통합했다(test `57e557d2`, fix `5751e5c1`, postmortem). `POSTMORTEM.md` 충돌은 같은 방식으로 풀었다. 원인은 renderer였다. 창이 모델 목록을 `root + provider`로만 보관했다(Home memory, DockedSupport, Settings). main은 이미 connection마다 목록을 다시 읽고 있었다. 수정은 Status DTO에 auth `generation`을 싣고, 목록 키에 그 값을 붙이는 것이다. 다섯 provider가 같은 상태 기계를 쓰므로 모두에 적용된다. 테스트는 Codex 교체만 다룬다. worker 자체 리뷰는 🔴0 🟡0 ⚪3이다. 실제 두 계정 확인은 하지 않았다(R1에서 사람에게 묻는다). ARCHITECTURE §7 'Model lists' 문장은 Z1에서 고친다.
 - RA fix round 2(RV2 🟡3)를 보냈다(dispatch `ctx_fd06241beed7`). 그 뒤 BC와 RA fix 2를 묶어 독립 리뷰(RV3)를 받는다.
 - 참고: BC 정리 때 `git cherry`가 `9d726fa1`(postmortem)을 `+`로 보였다. 충돌을 풀면서 hash 두 개를 통합 hash로 바꿔 patch가 달라졌기 때문이고, 항목 내용은 통합됐다. branch `SinhyeokKang/pdl-bc`는 남아 있다.
+- RA fix round 2를 통합했다(`e03b6ecc`·`5992ccee`). RV3(Codex Astra medium)는 BC와 RA fix 2를 보고 🔴0 🟡0 ⚪0을 냈다(`.scratch/orch/review-RV3.md`). RV3 worker와 worktree는 정리했다.
+- 사람의 결정: BC를 실제 두 Codex 계정으로 확인한다. 로그인은 지휘자가 ego-browser로 직접 한다. 공용 프로필을 복사하지 않고, 새 userData에서 real HOME으로 확인한다. Codex keyring은 정규화한 `CODEX_HOME` 경로로 키가 잡히므로(`agentAuth/providers.ts:137`), 다른 경로에서 로그인하거나 교체해도 공용 프로필의 항목은 바뀌지 않는다.
