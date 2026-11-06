@@ -97,7 +97,7 @@ test("rememberFast changes one provider and returns the same memory when nothing
 
 test("a fixed Settings default ignores Fast", () => {
   expect(preferenceAfterPick({ provider: "claude", model: "opus" }, { provider: "claude", model: "opus", effort: null, fast: true })).toBeUndefined();
-  expect(preferenceAfterPick({ provider: "claude", model: "opus" }, { provider: "claude", model: "sonnet", effort: null, fast: true })).toEqual({ provider: "claude", model: "sonnet" });
+  expect(preferenceAfterPick({ provider: "claude", model: "opus" }, { provider: "claude", model: "sonnet", effort: null, fast: true, modelPicked: true })).toEqual({ provider: "claude", model: "sonnet" });
 });
 
 test("only a turnedOff Fast-not-used event received live turns Last used off", () => {

@@ -249,7 +249,8 @@ export function HeroComposer(props: HeroComposerProps) {
   const choiceTouched = m.provider !== null || explicitModel !== undefined || pickedEffort !== undefined || pickedPermission !== undefined || pickedFast !== undefined;
   // Fast is not in this effect: it goes to Last used only from the toggle itself (onPickFast), never from a switch
   // held since then when the composer mounts again or another pick changes (fast-mode decision 3, review R 🟡2).
-  useEffect(() => { if (choiceTouched && provider) props.onRemember?.({ provider, model, effort, ...(permissionMode ? { permissionMode } : {}) }); }, [choiceTouched, provider, model, effort, permissionMode]);
+  const modelPicked = explicitModel !== undefined && explicitModel === model ? { modelPicked: true as const } : {};
+  useEffect(() => { if (choiceTouched && provider) props.onRemember?.({ provider, model, effort, ...modelPicked, ...(permissionMode ? { permissionMode } : {}) }); }, [choiceTouched, provider, model, effort, permissionMode, explicitModel]);
   // The menu closes on select; the move waits for that, so the menu's own focus return comes first.
   const openSettings = (target: SettingsTarget) => queueMicrotask(() => props.openSettings(target));
 
@@ -538,7 +539,7 @@ export function HeroComposer(props: HeroComposerProps) {
             <span className="grow" />
             <AgentPicker picker={picker} auth={auth} disabled={sending} onOpen={() => { if (root && healthy) for (const group of picker.groups) if (group.read) readModels(root, group.provider); }}
               onPick={(pickedProvider, value) => edit({ provider: pickedProvider, ...(value === null ? {} : { models: { ...memory.current.models, [pickedProvider]: value } }) })} onSettings={openSettings} />
-            {picker.effort && provider && model && <EffortPicker view={picker.effort} effort={effort} disabled={sending} onPick={value => edit({ efforts: { ...memory.current.efforts, [effortKey(provider, model)]: value } })} onPickFast={on => { edit({ fast: { ...memory.current.fast, [provider]: on } }); props.onRemember?.({ provider, model, effort, fast: on }); }} />}
+            {picker.effort && provider && model && <EffortPicker view={picker.effort} effort={effort} disabled={sending} onPick={value => edit({ efforts: { ...memory.current.efforts, [effortKey(provider, model)]: value } })} onPickFast={on => { edit({ fast: { ...memory.current.fast, [provider]: on } }); props.onRemember?.({ provider, model, effort, ...modelPicked, fast: on }); }} />}
             {permission && provider && <PermissionPicker view={permission} disabled={sending} onPick={mode => edit({ permissions: { ...memory.current.permissions, [provider]: mode } })} />}
             <SendButton enabled={availability.enabled} sending={sending} onSend={() => void send()} hint={reason?.kind === "noAgent" ? reason.text : undefined} />
           </ComposerTools>

@@ -166,7 +166,9 @@ export function ProjectOverview(props: ProjectOverviewProps) {
   // An existing conversation's stored mode is remembered only when it is picked here: a model pick alone must not
   // carry a mode (Full access included) the person chose for that conversation into new ones.
   const rememberedMode = mode.kind === "new" || pick.permissionMode !== undefined ? permissionMode : undefined;
-  useEffect(() => { if (choiceTouched && chosen) props.onRemember?.({ provider: chosen, model, effort, ...(rememberedMode ? { permissionMode: rememberedMode } : {}) }); }, [choiceTouched, chosen, model, effort, rememberedMode]);
+  // Only a model picked here is marked: the shown one may be the provider's default (preferenceAfterPick).
+  const modelPicked = pick.model !== undefined && pick.model === model ? { modelPicked: true as const } : {};
+  useEffect(() => { if (choiceTouched && chosen) props.onRemember?.({ provider: chosen, model, effort, ...modelPicked, ...(rememberedMode ? { permissionMode: rememberedMode } : {}) }); }, [choiceTouched, chosen, model, effort, rememberedMode, pick.model]);
   const ready = chosen !== null && (auth?.providers ?? []).some(status => status.provider === chosen && status.account !== null && selectableProvider(status));
   useEffect(() => { if (healthy && chosen && ready) support.readModels(root, chosen); }, [root, healthy, chosen, ready]);
 
@@ -413,7 +415,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         auth={auth} picker={picker} provider={chosen} effort={effort}
         onPickerOpen={() => { if (healthy) for (const group of picker.groups) if (group.read) support.readModels(root, group.provider); }}
         onPickModel={(picked, value) => support.pick(key, { ...(mode.kind === "new" ? { provider: picked } : {}), ...(picked !== chosen ? { permissionMode: undefined, fast: undefined } : {}), model: value ?? undefined })}
-        onPickEffort={value => support.pick(key, { effort: value })} onPickFast={on => { support.pick(key, { fast: on }); if (chosen) props.onRemember?.({ provider: chosen, model, effort, fast: on }); }}
+        onPickEffort={value => support.pick(key, { effort: value })} onPickFast={on => { support.pick(key, { fast: on }); if (chosen) props.onRemember?.({ provider: chosen, model, effort, ...modelPicked, fast: on }); }}
         permission={permission} onPickPermission={value => support.pickPermission(key, mode.kind === "new" ? null : mode.conversationId, value, summary ? stored : undefined)}
         onSettings={props.onSettings}
         presets={support.presets} suggested={suggestedPresets(props.entry, presets)}
