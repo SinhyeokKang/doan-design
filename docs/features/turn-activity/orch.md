@@ -20,6 +20,8 @@
 - RU settle 해석(아무것도 없거나 답 기다림 뒤 첫 단계는 바로 보인다)은 받아들인다(conductor's call — spec 완료 조건 1이 메시지가 들어간 렌더부터 표시를 요구한다). replyChip 테스트 stub을 좁혀 제품 코드의 우회를 없앤다(conductor's call).
 - RU-rev 🟡 RU-R2: Codex `listFiles`·`search` 단계에 경로를 싣지 않고, renderer는 `path`가 있을 때만 경로 글을 보인다(conductor's call — 요약 글을 구분자로 쓰면 이름이 `Reading files`인 파일의 경로가 사라진다). `transport.ts` 변경은 끝난 MA 대신 RU가 맡는다. design §3과 settle 문단을 맞췄다.
 - RU 리뷰는 후속 1(연결)까지 끝난 전체 diff로 한 번 한다(conductor's call — 연결 없이 리뷰하면 단계 경로 전체를 볼 수 없다).
+- SY finding: 흐르는 답의 caret이 Markdown 아래 자기 줄에 선다(89aa20d6부터 있던 결함). 이 feature에서 고치지 않고 Z2에서 BACKLOG 'Known defects'에 적는다(conductor's call — 결정 4와 범위 밖).
+- R1 실행: 사람이 승인했고, 설치된 Doan(실제 userData)과 함께 띄워도 된다고 했다.
 - Z1–Z3(문서 승격)은 지휘자가 통합 뒤 문서별 커밋으로 쓴다(orchestrate §4·§5). DESIGN.md는 U2가 쓴다.
 
 ## batch
@@ -32,8 +34,8 @@
 | MC-rev | MC 리뷰 | 없음 | MC | Codex Astra medium | `/code-review` 보고 | 완료, 🔴 0 · 🟡 0 · 🟢 2(`.scratch/review-MC.md`). 🟢 둘 다 테스트로 보강(conductor's call — 검증을 더 확실히) |
 | RU | B3, U1 | renderer의 새 순수 함수 파일과 테스트, `conversationStore.ts`, `ConversationThread.tsx`, `ProjectOverview.tsx`, `CanvasConversationPanel.tsx`, `styles.css`, `App.tsx`(deferred) | MA 통합(`App.tsx` 구독은 MC 통합) | Claude Opus high — settle·rev·timer·접근성 규칙이 서로 얽힌다 | `npm --prefix app test`, typecheck, `npm --prefix app run build`, `rendererImports.test.ts` | worker 1차 완료 `614b9b26`..`75ac0c07`, 315 files/8810 pass, build pass. 후속 1(`App.tsx` 연결)과 fix 1 완료. 통합 `cdda8efc`..`fa7ab5e2`(worker `614b9b26`..`644db3d3`, MC cherry-pick `b270c8b6` 제외), 318 files/8831 pass |
 | RU-rev | RU 리뷰 | 없음 | RU | Codex Astra medium | `/code-review` 보고 | 완료, 🔴 0 · 🟡 2 · 🟢 2(`.scratch/review-RU.md`). fix 1 통합. 재확인 🔴 0 · 🟡 0 · 🟢 0(첫 재개는 Codex update prompt로 시작 실패, 같은 모델로 재시도해 통과). `ta-ru` worktree 지움, branch 남김 |
-| SY | U2 | 턴 표시 style 수정, `docs/DESIGN.md` | MC·RU 통합 | Claude Opus high — 실제 앱 computed style 비교와 판단 | `/design-sync` 보고 | 진행 중(`ta-sy`). provider 없이 IPC fixture로 상태를 만든다(buzz-canvas-conversation 선례) |
-| RT | R1 | `.scratch/runtime-test/turn-activity/` | SY 통합, 사람 승인 | Claude Opus medium — 실제 provider 턴을 몰고 관찰만 한다 | `/runtime-test` 스크린샷·로그 | 대기 |
+| SY | U2 | 턴 표시 style 수정, `docs/DESIGN.md` | MC·RU 통합 | Claude Opus high — 실제 앱 computed style 비교와 판단 | `/design-sync` 보고 | 완료. 23 상태 256 pair가 초안과 맞아 코드 변경 없음, 통합 `b8034922`(DESIGN.md, worker `ca31d8ac`). 리뷰 2라운드(Claude subagent). 증거 `.scratch/design-sync/turn-activity/`. `ta-sy` worktree 지움, branch 남김 |
+| RT | R1 | `.scratch/runtime-test/turn-activity/` | SY 통합, 사람 승인 | Claude Opus medium — 실제 provider 턴을 몰고 관찰만 한다 | `/runtime-test` 스크린샷·로그 | 진행 중(`ta-rt`). 사람이 설치된 Doan과 함께 띄우는 것을 승인 |
 | — | R2 | 없음 | 모두 통합, rebase | 지휘자 | `node .agents/skills/verify/scripts/verify.mjs` | 대기 |
 | — | Z1–Z3 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/BACKLOG.md`, `docs/features/turn-activity/` 삭제 | R1·R2 | 지휘자 | tasks.md Z의 grep | 대기 |
 
