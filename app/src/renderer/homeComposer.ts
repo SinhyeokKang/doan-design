@@ -324,6 +324,10 @@ export function foldRows<T extends FoldRow>(rows: readonly T[]): { current: T[];
 export function olderOrder<T>(line: T, rows: readonly T[], side: string): T[] {
   return side === "top" ? [...rows, line] : [line, ...rows];
 }
+// Growth must scroll on the first painted side rather than move the disclosure to the opposite side.
+export function lockedOlderSide(locked: "top" | "bottom" | null, painted: string | undefined): "top" | "bottom" | null {
+  return locked ?? (painted === "top" || painted === "bottom" ? painted : null);
+}
 // The line's name leads with its visible label (WCAG 2.5.3), the provider as in the docked names.
 export function olderLabel(provider: string, count: number): string { return `Older models (${provider}), ${count}`; }
 // Which groups are unfolded, and which the person toggled. It lives with an open menu and is dropped when it closes.
