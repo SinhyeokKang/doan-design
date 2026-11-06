@@ -147,8 +147,8 @@ test("focus: the drop notice is never the alert focus goes to", () => {
     expect(projectFocusNode({ opened: null, asked: false, root: scene as never, active: null, body: body as never, heading: heading as never, state: { ...base, error: { code: "remote_mismatch" } }, agentReady: true, busy: false })).toBe(error);
 });
 
-// local-doan-files draft frames setup-panel and clone: the "Doan files" card above the button, or the fact for a project
-// already kept out of Git; on the clone screen under Save to, disabled while the clone runs.
+// Draft canvas local-doan-files frames setup-panel and clone: the "Doan files" card above the button, or the fact for a
+// project already kept out of Git; on the clone screen under Save to, disabled while the clone runs.
 test("the setup panel offers where the Doan files go, or says the project already keeps them out of Git", () => {
   const setup = (over: object, state: Partial<ProjectStepState> = {}) => page({ phase: { kind: "setup", inspectionId: "i", url: null, path: "/w/a", changes: [".doan/canvases/", ".doan/config.json", ".gitattributes"], ...over }, ...state });
   const html = setup({});
@@ -182,7 +182,7 @@ test("the clone screen asks under Save to, and keeps the choice disabled while t
   expect(running).toContain('<input type="radio" disabled="" name="ob-clone-storage"/>');
 });
 
-// review A2-Y3: after a clone landed, a storage or setup failure is told in main's words, which say the clone stayed.
+// After a clone landed, a storage or setup failure is told in main's words, which say the clone stayed.
 test("a clone that landed but whose storage failed says so on the clone screen", () => {
   const message = "The repository was cloned and added, but Doan could not keep its files out of Git, so they stay in Git for now. Choose Keep out of Git in its Project Settings to try again.";
   for (const code of ["local_exclude_failed", "local_not_git", "init_failed"] as const) {

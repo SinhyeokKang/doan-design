@@ -760,7 +760,8 @@ test("the lock is released through the latest onState when the page goes", async
   expect(latest).toHaveBeenCalledWith({ locked: false });
 });
 
-// local-doan-files design §3.2 and draft frames settings-modes, settings-changes, settings-disabled, not-set-up.
+// PRODUCT §5 item 0 'Doan files' and draft canvas local-doan-files frames settings-modes, settings-changes,
+// settings-disabled, not-set-up.
 const radios = () => all(tree).filter(element => element.type === "input" && element.props.name === "project-settings-storage");
 const chosen = () => radios().map(element => element.props.checked);
 const closed = () => radios().map(element => element.props.disabled);
@@ -890,8 +891,8 @@ test("opening the page asks main to read the worktree's project again", async ()
   expect(doan.startConfigSession).toHaveBeenCalledWith(ROOT);
 });
 
-// review A-Y1: a mode changed outside Doan reaches the listing (window focus, a group re-read); an open page reads its
-// settings again, but never while its own write is in flight.
+// ARCHITECTURE §7 'Settings IPC' 'Storage writes': a mode changed outside Doan reaches the listing (window focus, a
+// group re-read); an open page reads its settings again, but never while its own write is in flight.
 test("a listed mode change re-reads the settings of the open page, but not during its own write", async () => {
   const git = { common: `${ROOT}/.git`, main: ROOT, branch: "main", worktrees: [ROOT] };
   const at = (storage: "repo" | "local", storageReason?: "exclude_unwritable"): FolderEntry => ({ path: ROOT, kind: "list", servedRev: 0, canvases: [], git, storage, ...(storageReason ? { storageReason } : {}) });
@@ -923,7 +924,7 @@ test("a listed mode change re-reads the settings of the open page, but not durin
   expect(chosen()).toEqual([true, false]);
 });
 
-// review A2-Y1: a mode change that arrives while a write runs is read after that write, whether it succeeded or failed;
+// A mode change that arrives while a write runs is read after that write, whether it succeeded or failed;
 // the same listing arriving again afterwards reads nothing more.
 test("a listed mode change during a write is read after the write, also when the write fails", async () => {
   const git = { common: `${ROOT}/.git`, main: ROOT, branch: "main", worktrees: [ROOT] };
@@ -947,7 +948,7 @@ test("a listed mode change during a write is read after the write, also when the
   expect(doan.readConfig).toHaveBeenCalledTimes(2);
 });
 
-// runtime-test (local-doan-files A-G1): the group re-read after a mode write reached the open page as a listed change;
+// Seen in the real app: the group re-read after a mode write reached the open page as a listed change;
 // its config read disabled the options and dropped the focus just returned to the chosen radio. A read for a change
 // made elsewhere refreshes quietly: the controls stay as they are.
 test("a listed mode change refreshes the settings without disabling the controls", async () => {

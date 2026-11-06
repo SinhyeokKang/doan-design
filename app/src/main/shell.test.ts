@@ -584,7 +584,7 @@ describe("project setup and upward refresh", () => {
     expect(existsSync(join(sub, ".doan"))).toBe(false);
   });
 
-  // orch decision 10, design §3.1: the chosen mode is not used on a re-root, so the notice says the target project's
+  // The chosen mode is not used on a re-root, so the notice says the target project's
   // mode from the CLI's listing. Outside Git, with an unknown mode, or from an older CLI it says nothing more. The temp
   // folders are no Git repositories, so the real listing is repo with not_git; the other modes are rewritten into it.
   const keep = (storage: string) => ` | sed -e 's/"storage":"[a-z]*"/"storage":"${storage}"/' -e 's/,"storageReason":"[a-z_]*"//'`;
@@ -651,9 +651,9 @@ describe("project setup and upward refresh", () => {
     expect(readFileSync(args, "utf8").trim()).toBe(`init --json --repo ${root} --storage local`);
   });
 
-  // Integration run (local-doan-files batch A fix round 2): the watcher's read of init's own writes can start after the
-  // post-init read and finish after it, which dropped that read as stale; setup then answered success while the row
-  // was still "Not set up". The post-init read is repeated until it is the newest.
+  // The watcher's read of init's own writes can start after the post-init read and finish after it, which dropped
+  // that read as stale; setup then answered success while the row was still "Not set up". The post-init read is
+  // repeated (a bounded number of times) until it is the newest.
   test("setup answers only once the row is listed, even when the watcher's read overtakes the post-init read", async () => {
     const root = dir(); const wrapper = join(dir(), "doan"); const marker = join(dir(), "inited"); const count = join(dir(), "count");
     writeFileSync(wrapper, `#!/bin/sh\nif [ "$1" = init ]; then '${cli}' "$@"; code=$?; : > '${marker}'; exit $code; fi\nif [ "$1" = ls ] && [ -f '${marker}' ]; then n=$(cat '${count}' 2>/dev/null || echo 0); n=$((n+1)); echo $n > '${count}'; if [ $n = 1 ]; then sleep 0.5; elif [ $n = 2 ]; then sleep 1.2; fi; fi\nexec '${cli}' "$@"\n`); chmodSync(wrapper, 0o755);

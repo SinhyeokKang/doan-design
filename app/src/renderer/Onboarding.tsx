@@ -269,7 +269,7 @@ export function projectNotice(error: ProjectError, message: string | undefined, 
   // Every folder chosen from a URL screen is checked against that repository (D21).
   const choose: ProjectAction = fromUrl ? "chooseExisting" : "chooseFolder";
   // A clone that landed and whose setup or storage then failed is told in main's own words (they say the clone stayed),
-  // which differ from the code's fixed message (review A2-Y3).
+  // which differ from the code's fixed message.
   const landed = fromUrl && destination !== null && (error === "init_failed" || error === "local_not_git" || error === "local_exclude_failed") && message !== undefined && message !== OPERATION_MESSAGES[error];
   if (landed) return { body: message, actions: [action("useExisting", "Use existing folder")] };
   switch (error) {

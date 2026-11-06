@@ -673,8 +673,9 @@ test("CSS picker cancellation and choice IDs stay bound to the folder epoch", as
   expect(mocks.shell.initialize).not.toHaveBeenCalled();
 });
 
-// review A-Y2 (POSTMORTEM 2026-11-03 'Locate on the Project Settings page…'): a setup kept out of Git writes the shared
-// exclude file, so every worktree of the project is read again, as after a Project Settings write.
+// ARCHITECTURE §7 'Settings IPC' 'Storage writes' (POSTMORTEM 2026-11-03 'Locate on the Project Settings page…'): a
+// setup kept out of Git writes the shared exclude file, so every worktree of the project is read again, as after a
+// Project Settings write.
 test("a local setup reads every worktree of its project again; a setup in Git or a failed one does not", async () => {
   const A = "/w/studio", B = "/w/studio-b";
   const git = { common: `${A}/.git`, main: A, worktrees: [A, B] };
@@ -1951,8 +1952,8 @@ describe("settings page", () => {
     expect(mocks.dialog.showOpenDialog).toHaveBeenCalledWith(window(), expect.objectContaining({ defaultPath: ROOT }));
   });
 
-  // local-doan-files design §3.3: the mode belongs to every worktree of the project, so writing it in worktree A reads
-  // B again, and opening the page reads its group again for a mode changed outside Doan.
+  // ARCHITECTURE §7 'Settings IPC' 'Storage writes': the mode belongs to every worktree of the project, so writing it
+  // in worktree A reads B again, and opening the page reads its group again for a mode changed outside Doan.
   test("a mode written in one worktree reads every worktree of its project again", async () => {
     const git = { common: `${ROOT}/.git`, main: ROOT, worktrees: [ROOT, `${ROOT}-b`, `${ROOT}-c`] };
     const entries = [{ ...LIST, git }, { path: `${ROOT}-b`, kind: "list", canvases: [], servedRev: 0, git }, { path: `${ROOT}-c`, kind: "uninitialized" }, { path: "/elsewhere", kind: "list", canvases: [], servedRev: 0 }];

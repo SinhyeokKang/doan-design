@@ -1,7 +1,8 @@
 import { describe, expect, test } from "vitest";
 import { keptLocal, storageSectionView, storedNote, switchNote } from "./storageRules";
 
-// local-doan-files design §3.2 and draft frames settings-modes, settings-changes, settings-disabled.
+// PRODUCT §5 item 0 'Doan files' and draft canvas local-doan-files frames settings-modes, settings-changes,
+// settings-disabled.
 describe("the Doan files section", () => {
   test("is not drawn when doan reported no mode", () => {
     expect(storageSectionView({}, null)).toBeNull();
@@ -24,7 +25,8 @@ describe("the Doan files section", () => {
     expect(storageSectionView({ storage: "unknown", storageReason: "git_unreadable" }, null)).toEqual({ checked: null, disabled: { repo: true, local: true }, reason: { text: "git_unreadable", tone: "warning" }, guidance: false });
     expect(storageSectionView({ storage: "unknown" }, null)).toMatchObject({ checked: null, disabled: { repo: true, local: true }, reason: { text: "git_unreadable", tone: "warning" } });
     expect(storageSectionView({ storage: "repo", storageReason: "exclude_unwritable" }, null)).toEqual({ checked: "repo", disabled: { repo: true, local: true }, reason: { text: "exclude_unwritable", tone: "subtle" }, guidance: false });
-    // Out of Git with an exclude Doan can no longer write: still out of Git, so the guidance stays (spec decision 3).
+    // Out of Git with an exclude Doan can no longer write: still out of Git, so the guidance stays (it always shows
+    // out of Git).
     expect(storageSectionView({ storage: "local", storageReason: "exclude_unwritable" }, null)).toMatchObject({ checked: "local", disabled: { repo: true, local: true }, guidance: true });
   });
 });

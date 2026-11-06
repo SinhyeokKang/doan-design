@@ -153,8 +153,8 @@ test("the Share confirmation names a path inside the worktree repo-relative and 
   expect(sharedPathLabel("/w/a", "design/brand")).toBe("design/brand");
 });
 
-// local-doan-files design §3.2: the Doan files options are disabled while Saving, so focus goes to the chosen radio;
-// a failed mode write names no path, so its message is the CLI's as it is.
+// ARCHITECTURE §7 'Settings IPC' 'Storage writes': the Doan files options are disabled while Saving, so focus goes to
+// the chosen radio; a failed mode write names no path, so its message is the CLI's as it is.
 describe("Doan files writes", () => {
   test("return focus to the chosen radio, whether or not the pressed one is still there", () => {
     expect(projectSettingsFocusAfter({ section: "storage", pressedAlive: true })).toEqual({ kind: "storageChosen" });

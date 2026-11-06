@@ -126,7 +126,8 @@ describe("folderState", () => {
     }
   });
 
-  // local-doan-files: where the Doan files are kept, as ls reports it; anything else is left out, not an error.
+  // ARCHITECTURE §12 'Storage': where the Doan files are kept, as ls reports it; anything else is left out, not an
+  // error.
   test("passes the storage mode and its reason through, and drops unknown values", () => {
     const listed = (extra: object) => folderState(run({ stdout: envelope({ v: 1, ok: true, result: { ...listResult, ...extra } }) }));
     expect(listed({ storage: "local" })).toEqual({ kind: "list", root: "/repo", scope: [".doan/canvases", "tokens.css"], canvases, storage: "local" });
@@ -175,7 +176,7 @@ describe("initOutcome", () => {
     expect(initOutcome(run({ timedOut: true }))).toMatchObject({ kind: "cliError", reason: "timed out after 10 s" });
     expect(initOutcome(run({ spawnError: "ENOENT" }))).toMatchObject({ kind: "cliError", reason: "ENOENT" });
   });
-  // review A2-Y2: G's real envelopes (cli/internal/cli/storage.go, init.go) carry short path-free messages, so the Set
+  // The CLI's real envelopes (cli/internal/cli/storage.go, init.go) carry short path-free messages, so the Set
   // Up dialog's sentences for the two storage codes are the app's (draft frame setup-dialog), whatever the CLI said.
   // An exclude failure is not always a link, so its recovery is the common one. CSS guidance only follows a chosen
   // token CSS: an unrelated usage_error ("already set up", a .gitattributes directory) gets none of it.

@@ -1,7 +1,7 @@
 import type { OnboardingChange } from "../formats/types";
 import type { StorageMode, StorageReason } from "../main/storage";
 
-// Where the Doan files are kept, as every setup screen and Project Settings show it (local-doan-files design §3.1–3.2,
+// Where the Doan files are kept, as every setup screen and Project Settings show it (PRODUCT §5 item 0 'Doan files',
 // draft canvas local-doan-files). The words are the draft's; the descriptions carry code chips, so the components
 // spell them, and this module holds what the choice and the section decide.
 
@@ -24,7 +24,8 @@ export interface StorageSectionView {
   disabled: Record<StorageChoice, boolean>;
   // Why an option cannot be chosen; warning ink when the mode itself is unknown.
   reason: { text: StorageReason; tone: "subtle" | "warning" } | null;
-  // The conditional `git rm -r --cached` guidance: always with Keep out of Git on disk (spec decision 3).
+  // The conditional `git rm -r --cached` guidance: always with Keep out of Git on disk, since Doan cannot know whether
+  // .doan/ was ever committed.
   guidance: boolean;
 }
 

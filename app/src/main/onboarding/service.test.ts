@@ -552,8 +552,9 @@ describe("project selection", () => {
   });
 });
 
-// local-doan-files: the inspection plans for the requested storage, a reply speaks of storage only to a request that
-// did (older clients reject unknown properties), and select or clone must restate the storage the reply showed.
+// ARCHITECTURE §4 'Storage in onboarding': the inspection plans for the requested storage, a reply speaks of storage
+// only to a request that did (older clients reject unknown properties), and select or clone must restate the storage
+// the reply showed.
 describe("storage mode", () => {
   const LOCAL = [".doan/canvases/", ".doan/config.json", ".git/info/exclude"];
   const KEPT = [".doan/canvases/", ".doan/config.json"];

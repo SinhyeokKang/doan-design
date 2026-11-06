@@ -44,7 +44,7 @@ describe("shell helpers", () => {
 test("builds init argv without shell interpolation", () => {
   expect(initArgs("/tmp/project", null)).toEqual(["init", "--json", "--repo", "/tmp/project"]);
   expect(initArgs("/tmp/project", "/tmp/project/a b.css")).toEqual(["init", "--json", "--repo", "/tmp/project", "--token-css", "/tmp/project/a b.css"]);
-  // Kept out of Git only when asked; otherwise init follows the root's current mode (local-doan-files spec 3).
+  // Kept out of Git only when asked; otherwise init follows the root's current mode (PRODUCT §5 item 8).
   expect(initArgs("/tmp/project", null, "local")).toEqual(["init", "--json", "--repo", "/tmp/project", "--storage", "local"]);
   expect(initArgs("/tmp/project", "/tmp/project/t.css", "local")).toEqual(["init", "--json", "--repo", "/tmp/project", "--token-css", "/tmp/project/t.css", "--storage", "local"]);
   expect(initArgs("/tmp/project", null, null)).toEqual(["init", "--json", "--repo", "/tmp/project"]);

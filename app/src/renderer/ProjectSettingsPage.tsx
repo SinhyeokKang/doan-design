@@ -198,8 +198,8 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
       if (live.current && stale === generation.current && changedDuringWrite.current) { changedDuringWrite.current = false; void read(request.root, true); }
     }
   }
-  // A press writes at once, with no confirmation: nothing is moved or deleted and it can be switched back (design §3.2).
-  // Focus returns to the chosen radio once the write ends, whatever it chose.
+  // A press writes at once, with no confirmation: nothing is moved or deleted and it can be switched back (PRODUCT §5
+  // item 0 'Project Settings'). Focus returns to the chosen radio once the write ends, whatever it chose.
   function writeStorage(storage: StorageChoice, input: HTMLInputElement) {
     if (busy || picking || reading || choice) return;
     returnFocus.current = { button: input, section: "storage" };

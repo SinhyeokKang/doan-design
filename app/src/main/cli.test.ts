@@ -187,7 +187,7 @@ test("runInit settles timeout and spawn errors", async () => {
   expect(initOutcome(await runInit(join(tmp, "missing"), dir(), null))).toMatchObject({ kind: "cliError", reason: expect.stringContaining("ENOENT") });
 });
 
-// review A2-Y2: the real CLI's refusal of a local setup outside Git reads as the draft's sentence in the Set Up dialog.
+// The real CLI's refusal of a local setup outside Git reads as the draft's sentence in the Set Up dialog.
 test("a local setup outside Git is refused by the real CLI with the draft's words", async () => {
   const outcome = initOutcome(await runInit(cli, dir(), null, "local"));
   expect(outcome).toEqual({ kind: "error", code: "local_not_git", message: "This folder isn’t a Git repository, so Doan can’t keep its files out of Git.", guidance: "Choose Include in Git, or run git init here first." });

@@ -67,8 +67,8 @@ describe("planned changes", () => {
   });
 });
 
-// local-doan-files design §3.1: the plan follows the mode. Kept out of Git, setup adds the exclude entry (by its fixed
-// label) instead of the .gitattributes lines; a folder whose project already keeps them out of Git plans neither.
+// PRODUCT §5 item 0 'Doan files': the plan follows the mode. Kept out of Git, setup adds the exclude entry (by its
+// fixed label) instead of the .gitattributes lines; a folder whose project already keeps them out of Git plans neither.
 describe("planned changes by storage mode", () => {
   it("name the exclude entry instead of .gitattributes for local, and neither for a project already local", async () => {
     const bare = temp();
@@ -228,7 +228,8 @@ describe("selectProject", () => {
     expect(await selectProject(repo(temp()), true, null, d.deps)).toEqual({ ok: false, code: "project_unavailable" });
   });
 
-  // The init flag comes from the plan; a refused setup is told apart by the CLI's literal codes (orch decision 9).
+  // The init flag comes from the plan; a refused setup is told apart by the CLI's literal codes (ARCHITECTURE §12
+  // 'Storage').
   it("sets up out of Git when asked and names a refused setup by its code", async () => {
     const fresh = repo(temp());
     const d = deps();
@@ -247,9 +248,9 @@ describe("selectProject", () => {
     expect(c.deps.initialize).toHaveBeenCalledWith(cloned, "local");
   });
 
-  // review A-R1: a cloned repository that brings its own setup is already a project, so init has nothing to do; the
-  // person chose Keep out of Git for this new checkout, so the choice is applied with `doan config --storage local`.
-  // review A2-Y3: only the two storage codes keep their meaning there; anything else (a timeout, an unexpected reply)
+  // A cloned repository that brings its own setup is already a project, so init has nothing to do; the person chose
+  // Keep out of Git for this new checkout, so the choice is applied with `doan config --storage local`. Only the two
+  // storage codes keep their meaning there; anything else (a timeout, an unexpected reply)
   // may have written or not, so it is a general failure that says so. Either way the clone stays and is added.
   it("applies Keep out of Git to a clone that brings its own setup, and says the clone stayed when that fails", async () => {
     const cloned = repo(temp(), { config: "{\"v\":1}" });

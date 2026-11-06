@@ -70,7 +70,7 @@ export interface ProjectSettingsPageView {
 const PROBLEMS = {
   notFound: "Doan can’t find this folder, so its settings can’t be read or changed.",
   uninitialized: "This folder isn’t set up for Doan yet, so it has no settings to change.",
-  // A worktree of a project that keeps its Doan files out of Git has none until it is set up (local-doan-files 'not-set-up').
+  // A worktree of a project that keeps its Doan files out of Git has none until it is set up (draft frame not-set-up).
   uninitializedLocal: "This project keeps its Doan files out of Git, so this worktree doesn’t have them yet. Set it up to use Doan here.",
   error: "Doan couldn’t read this folder’s configuration, so its settings can’t be changed.",
   cliError: "Doan couldn’t read this folder, so its settings can’t be read or changed.",
@@ -113,8 +113,8 @@ export function sharedPathLabel(root: string, path: string): string {
   return path.startsWith(`${root}/`) ? path.slice(root.length + 1) : path;
 }
 
-// storageChosen: the Doan files radio now chosen, the mode on disk after the write (design §3.2): its options are
-// disabled while Saving, so focus would otherwise fall to <body>.
+// storageChosen: the Doan files radio now chosen, the mode on disk after the write (ARCHITECTURE §7 'Settings IPC'
+// 'Storage writes'): its options are disabled while Saving, so focus would otherwise fall to <body>.
 export type FocusAfterWrite = { kind: "pressed" } | { kind: "tokenPrimary" } | { kind: "sharedAdd" } | { kind: "sharedRemove"; path: string } | { kind: "storageChosen" };
 // Where focus goes once the page's controls re-enable (design '포커스'): the button that was pressed while it is still
 // there; else its section's main button: Change or Choose for Token CSS (Clear removes itself), Add File or Folder for

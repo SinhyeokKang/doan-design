@@ -68,8 +68,8 @@ interface Folder {
   common: string | undefined;
 }
 
-// The mode chosen for setup is not used on a re-root, so the notice says the project's own (local-doan-files design
-// §3.1); an unknown mode, or none from an older doan, is not guessed. Outside Git the CLI reports repo with not_git,
+// The mode chosen for setup is not used on a re-root, so the notice says the project's own; an unknown mode, or none
+// from an older doan, is not guessed. Outside Git the CLI reports repo with not_git,
 // which is no Git to include the files in.
 function rerootMessage(root: string, listing: { storage?: StorageMode; storageReason?: StorageReason }): string {
   const { storage, storageReason } = listing;

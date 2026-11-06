@@ -100,8 +100,8 @@ test("adds a serve entry and clears token CSS", async () => {
   expect(await bridge.write({ root: ROOT, op: "clearTokenCss", more: 1 })).toEqual({ kind: "unavailable" });
 });
 
-// local-doan-files design §3.2–3.3: the mode is read with the settings, written at once, and a written mode makes main
-// read the whole project group again.
+// ARCHITECTURE §7 'Settings IPC' 'Storage writes': the mode is read with the settings, written at once, and a written
+// mode makes main read the whole project group again.
 test("reads the storage mode with the settings, and leaves it out when an older doan sent none", async () => {
   run.mockResolvedValueOnce(ok({ repo: ROOT, serve: [], changed: false, storage: "local" }));
   expect(await bridge.read({ root: ROOT })).toEqual({ kind: "config", root: ROOT, tokenCss: null, serve: [], changed: false, storage: "local" });
@@ -264,7 +264,7 @@ describe("dialog session", () => {
   });
 });
 
-// review A-R1: a clone's Keep out of Git applied with `doan config --storage local` succeeds or names the CLI's code.
+// A clone's Keep out of Git applied with `doan config --storage local` succeeds or names the CLI's code.
 test("a storage write outside Project Settings answers success or the CLI's code", () => {
   expect(storageWrite(ok({ repo: ROOT, serve: [], changed: true, storage: "local" }))).toEqual({ ok: true });
   expect(storageWrite({ exitCode: 5, timedOut: false, stderr: "", stdout: JSON.stringify({ v: 1, ok: false, error: { code: "local_exclude_failed", message: "m", nextSteps: [] } }) })).toEqual({ ok: false, code: "local_exclude_failed" });

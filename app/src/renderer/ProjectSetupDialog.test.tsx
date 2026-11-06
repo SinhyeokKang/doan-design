@@ -3,7 +3,8 @@ import { expect, test } from "vitest";
 import type { ProjectForm } from "./onboardingView";
 import { ProjectFields, type StorageInput } from "./ProjectSetupDialog";
 
-// local-doan-files draft frame setup-dialog: a "Doan files" field between Token CSS and Will add; the list follows it.
+// Draft canvas local-doan-files frame setup-dialog: a "Doan files" field between Token CSS and Will add; the list
+// follows it.
 const form: ProjectForm = { running: false, token: null, error: null, rerooted: null };
 const fields = (storage: Partial<StorageInput>, over: Partial<typeof form> = {}) =>
   renderToStaticMarkup(<ProjectFields form={{ ...form, ...over }} choose={() => {}} storage={{ value: "repo", kept: false, change: () => {}, ...storage }} />);
@@ -45,7 +46,7 @@ test("the refusal's git init is a code chip", () => {
   expect(html).toContain("<span>This folder isn’t a Git repository, so Doan can’t keep its files out of Git. Choose Include in Git, or run <code>git init</code> here first.</span>");
 });
 
-// review A3-Y1 (draft frame setup-dialog, '.git/info/exclude couldn’t be written'): the fixed path is a code chip.
+// Draft frame setup-dialog, '.git/info/exclude couldn’t be written': the fixed path is a code chip.
 test("the exclude failure's path is a code chip", () => {
   const html = fields({ value: "local" }, { error: "Couldn’t add Doan’s lines to .git/info/exclude, so nothing was set up. Make sure the repository’s Git metadata and its exclude file can be read and written, then try again." });
   expect(html).toContain("<span>Couldn’t add Doan’s lines to <code>.git/info/exclude</code>, so nothing was set up. Make sure the repository’s Git metadata and its exclude file can be read and written, then try again.</span>");

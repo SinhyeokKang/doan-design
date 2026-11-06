@@ -8,7 +8,7 @@ import type { StorageChoice } from "./storageRules";
 // One project setup form, used by the wizard's Project step and the sidebar's
 // Set Up dialog. Main keeps the picked CSS file; the renderer holds only its ID.
 // kept: another worktree of the project keeps its Doan files out of Git, so setup follows it with plain init and the
-// form offers no choice (local-doan-files design §3.1). A refused setup keeps the chosen mode.
+// form offers no choice (PRODUCT §5 item 0 'Doan files'). A refused setup keeps the chosen mode.
 export function useProjectSetup(root: string, kept = false) {
   const [token, setToken] = useState<{ id: string; path: string } | null>(null);
   const [storage, setStorage] = useState<StorageChoice>("repo");

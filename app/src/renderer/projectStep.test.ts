@@ -851,7 +851,7 @@ test("Find repository clears a refused drop's notice, on the page and in first r
   expect(first.session.dropNotice).toBeNull();
 });
 
-// local-doan-files design §3.1: the choice is the screen's; a plan made for the other mode is made again before setup
+// PRODUCT §5 item 0 'Doan files': the choice is the screen's; a plan made for the other mode is made again before setup
 // or clone writes anything, and the choice outlives a refused setup.
 const LOCAL = [".doan/canvases/", ".doan/config.json", ".git/info/exclude"];
 const REPO = [".doan/canvases/", ".doan/config.json", ".gitattributes"];

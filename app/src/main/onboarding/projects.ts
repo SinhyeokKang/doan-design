@@ -31,7 +31,7 @@ export interface ProjectDeps {
 // absent means repo. The adder decides whether a reply may show it.
 export interface Candidate { path: string; changes: OnboardingChange[]; storage?: "local" }
 // leftovers: directories the clone made and could not remove (cleanup_failed only).
-// message: this failure's own account in place of the code's fixed message (a clone that stayed, design review A2-Y3).
+// message: this failure's own account in place of the code's fixed message (a clone that stayed and was added).
 export type ProjectOutcome = { ok: true; root: string } | { ok: false; code: OnboardingOperationErrorCode; leftovers?: string[]; message?: string };
 
 // The lines `doan init` adds to .gitattributes (cli/internal/cli/init.go); it writes the file while either is missing.
@@ -65,7 +65,7 @@ export async function cloneDestination(path: string, deps: ProjectDeps): Promise
 
 // How a setup would keep the Doan files: "repo" commits them; "local" adds the exclude entry instead of the
 // .gitattributes lines; "kept" is a folder whose project already keeps them out of Git, so plain init follows that
-// mode and its entry is already there (local-doan-files spec 3).
+// mode and its entry is already there (PRODUCT §5 item 0 'Doan files').
 export type SetupPlan = "repo" | "local" | "kept";
 
 // What `doan init` would create here, read the way init reads it; a folder with any config gets nothing. The exclude
@@ -151,14 +151,15 @@ export async function selectProject(path: string, initialize: boolean, repo: Git
   return register(path, initialize, deps, storage);
 }
 
-// A refused setup, by the CLI's literal code (local-doan-files orch decision 9). Plain init in a project already out of
+// A refused setup, by the CLI's literal code (ARCHITECTURE §12 'Storage'). Plain init in a project already out of
 // Git can fail on the exclude file too, so the codes are read whatever was asked.
 function setupFailure(code: string): OnboardingOperationErrorCode {
   return code === "local_not_git" || code === "local_exclude_failed" ? code : "init_failed";
 }
 
 // keepChosen: the folder is a clone made for this choice, so a repository that brings its own setup still gets the
-// chosen Keep out of Git. A folder picked as it is never has its project's mode changed (spec decision 6).
+// chosen Keep out of Git. A folder picked as it is never has its project's mode changed: the mode belongs to the root
+// and every worktree shares it (PRODUCT §5 item 0 'Doan files').
 async function register(path: string, initialize: boolean, deps: ProjectDeps, storage: "local" | null, keepChosen = false): Promise<ProjectOutcome> {
   const stored = await deps.add(path);
   if (stored === null) return failed("project_unavailable");
