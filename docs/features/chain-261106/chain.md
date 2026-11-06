@@ -65,7 +65,7 @@
 |---|---|---|---|---|
 | 1 work-update | work-update-orch | 2026-11-06 | [#104](https://github.com/SinhyeokKang/doan-design/pull/104) · `3e98f455` | 병합됨 |
 | 2 canvas-handoff | canvas-handoff-orch | 2026-11-06 | [#105](https://github.com/SinhyeokKang/doan-design/pull/105) · `6ec117ea` | 병합됨 |
-| 3 small-ui-tweaks | — | — | — | 대기 |
+| 3 small-ui-tweaks | small-ui-tweaks-orch | 2026-11-06 | — | 진행 중 |
 
 ## 인계 기록
 
@@ -101,3 +101,4 @@
   - 미검증: Cursor·Antigravity·Copilot 핸드오프, Accept edits·Plan, dialog·first run·글 쓰던 composer 때의 toast와 10 s 대기, composer로 보낸 흐름, U-024 heredoc. 목록은 BACKLOG에 있다.
   - 공용 프로필: `folders.json`·`ui-state.json`·`canvas-seen.json`은 byte 단위로 같게 되돌렸다. R1 probe 대화 기록(probe repo `.scratch/r1/repo`는 이 worktree에 있음)과 Codex 프로필의 `rules/doan-handoff.rules`는 남았다(체인 '전부 남김').
   - **링크 3이 알아야 할 것**: (1) 링크 2가 `CanvasConversationPanel.tsx`, `styles.css`, `ProjectOverview.tsx`, DESIGN.md('Canvas handoff' 절)를 고쳤다. small-ui-tweaks도 이 파일들을 고치므로 main의 지금 모양을 다시 읽고 시작한다. `CanvasAgent.tsx`·`agentIndicator.ts`·`dotField.ts`·`ComposerParts.tsx`·`homeComposer.ts`는 링크 2가 건드리지 않았다. (2) 모든 App 테스트의 `window.doan` mock에 `onConversationHandoff`가 있어야 한다(새 App 테스트 파일도). (3) Codex 주간 한도는 94% 사용이다. 링크 3은 `/agent-eval`이 해당하지 않으니 Codex는 쓰지 않아도 된다.
+- 2026-11-06 **링크 3 시작**(small-ui-tweaks-orch). 브리프를 받고 `feat/small-ui-tweaks`(`c0b6078e`에서)에서 `/orchestrate`를 시작했다. Codex 주간 한도가 94% 사용(2026-11-11 초기화)이라 이 링크는 Claude 작업자만 쓴다. R1 (b)는 시작 점검 7대로 녹화와 rAF 프레임 측정으로 보고, design §2.2 기준에 맞으면 병합한다.
