@@ -214,12 +214,13 @@ export class AgentStepSession {
     const r = this.status(provider)?.readiness;
     return r && !r.ready ? (r.cause === "cli_missing" ? "install" : r.cause === "version_unsupported" ? "update" : null) : null;
   }
-  // The row's cause went away (installed, updated): its install state ends and the change is announced once. A CLI that
-  // went missing after an update is not news of one.
+  // The row's cause changed: its install state ends. Only the next state (Sign in, Connected) is announced, once. A
+  // version Doan could not read (a failed probe reads as unknown even for a missing CLI), one it cannot run, or a CLI
+  // that went missing after an update is not news of an install or update (review C-1).
   private followInstall(): void {
-    const shown = this.own.install;
-    if (!shown || this.actionOf(shown.provider) === shown.action || !this.status(shown.provider)) return;
-    const solved = this.actionOf(shown.provider) !== "install";
+    const shown = this.own.install, r = shown && this.status(shown.provider)?.readiness;
+    if (!shown || !r || this.actionOf(shown.provider) === shown.action) return;
+    const solved = r.ready || !(r.cause === "cli_missing" || r.cause.startsWith("version_"));
     this.own = { ...this.own, install: null };
     if (!solved) return;
     this.own = { ...this.own, announcement: { text: installedAnnouncement(shown.provider, shown.action), seq: ++this.seq } };
