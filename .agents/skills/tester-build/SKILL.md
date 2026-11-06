@@ -54,11 +54,11 @@ Stop at any failure, report what was found and what the human must do. Never fal
 3. **Package**: `npm --prefix app run package`. It builds the versioned CLI (`app/build/bin/doan`) and `app/out/`, which the next step re-bundles. Its unsigned `app/dist` output is not used.
 4. **Signed build and app notarization.** Make a fresh staging directory `<stage>` (absolute path). From `<worktree>/app` run exactly:
    ```
-   env -u APPLE_ID -u APPLE_APP_SPECIFIC_PASSWORD -u APPLE_TEAM_ID -u APPLE_API_KEY -u APPLE_API_KEY_ID -u APPLE_API_ISSUER -u APPLE_KEYCHAIN -u CSC_LINK -u CSC_KEY_PASSWORD -u CSC_NAME -u CSC_IDENTITY_AUTO_DISCOVERY \
+   env -u APPLE_ID -u APPLE_APP_SPECIFIC_PASSWORD -u APPLE_TEAM_ID -u APPLE_API_KEY -u APPLE_API_KEY_ID -u APPLE_API_ISSUER -u APPLE_KEYCHAIN -u CSC_LINK -u CSC_KEYCHAIN -u CSC_KEY_PASSWORD -u CSC_NAME -u CSC_IDENTITY_AUTO_DISCOVERY \
      APPLE_KEYCHAIN_PROFILE=doan-notary npx electron-builder --mac dmg --arm64 \
      -c.mac.identity="<Name> (<Team ID>)" -c.dmg.sign=true -c.directories.output=<stage>/out
    ```
-   - The variables are unset because electron-builder prefers `APPLE_ID…` and `APPLE_API_KEY…` over the keychain profile (`MacTargetHelper.js` `getNotarizeOptions`), and a set `CSC_LINK` makes it sign from a temporary keychain (`macPackager.js`).
+   - The variables are unset because electron-builder prefers `APPLE_ID…` and `APPLE_API_KEY…` over the keychain profile (`MacTargetHelper.js` `getNotarizeOptions`), a set `CSC_LINK` makes it sign from a temporary keychain, and a set `CSC_KEYCHAIN` makes it look up the identity and sign from that keychain instead of the login keychain preflight checked, even without `CSC_LINK` (`macPackager.js`, `dmg-builder` `dmg.js`).
    - `--prepackaged` cannot be used: it skips signing (`macPackager.js` `packMacTargets`). electron-builder re-bundles `out/` with `build/bin/doan`, signs every binary under `Contents/` deepest first with hardened runtime, `--timestamp` and the committed entitlements, notarizes and staples the app, then builds the installer layout from `build.dmg` in `app/package.json` and signs the dmg.
    - `notarize` is left at its default, which notarizes when `APPLE_KEYCHAIN_PROFILE` is set and otherwise only warns and skips (`MacTargetHelper.js` `notarizeIfProvided`). So the output must contain "notarization successful"; if it does not, stop even though the build succeeded.
    - App notarization runs inside electron-builder, so it has no time limit. The app submission id is not printed: read it from the newest entry of `xcrun notarytool history --keychain-profile doan-notary`.
