@@ -462,3 +462,66 @@ test("Settings: an update that ends in an unreadable version shows the version a
   expect(all(row("codex")).some(element => element.props["data-command"] === "signIn")).toBe(true);
   expect(live()).toBeUndefined();
 });
+
+// model-drawer-older task 3 (spec 6): the Model menu folds older models under the same line; Default stays on top.
+const CODEX_OLDER = [
+  { id: "gpt-6.1-sol", label: "GPT-6.1-Sol", default: true },
+  { id: "gpt-6-sol", label: "GPT-6-Sol", default: false, older: true },
+  { id: "gpt-6-astra", label: "GPT-6-Astra", default: false },
+  { id: "gpt-5.6-terra", label: "GPT-5.6-Terra", default: false, older: true },
+];
+const modelRoot = () => all(tree).filter(element => element.type === DropdownMenu.Root).find(root => all(root).some(element => element.props["aria-label"] === "Model for new conversations" && element.type === DropdownMenu.Content))!;
+const olderLines = () => all(modelRoot()).filter(element => element.type === DropdownMenu.Item && String(element.props.className).includes("older-row"));
+async function openModelMenu() {
+  const frames: FrameRequestCallback[] = [];
+  vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => frames.push(callback));
+  vi.stubGlobal("cancelAnimationFrame", () => {});
+  try {
+    const content = all(modelRoot()).find(element => element.type === DropdownMenu.Content)!;
+    (content.props.ref as (node: unknown) => void)({ dataset: { side: "bottom" }, querySelector: () => null });
+    (modelRoot().props.onOpenChange as (open: boolean) => void)(true);
+    await settle();
+    frames.splice(0).forEach(callback => callback(0));
+    await settle();
+    frames.splice(0).forEach(callback => callback(0));
+    return render();
+  } finally { vi.unstubAllGlobals(); }
+}
+test("the Model menu shows Default and the current models, then the Older models line; the line unfolds the rest", async () => {
+  auth = { revision: 1, providers: [dto("claude"), dto("codex")] };
+  resetHooksAndList(CODEX_OLDER);
+  await settle({ preferences: prefs({ provider: "codex" }) });
+  await settle();
+  await openModelMenu();
+  expect(modelRows().map(item => words(item.props.children))).toEqual(["DefaultGPT-6.1-Sol", "GPT-6.1-Sol", "GPT-6-Astra"]);
+  expect(olderLines()).toHaveLength(1);
+  expect(olderLines()[0]!.props).toMatchObject({ className: "doan-menu-item older-row", textValue: "Older models", "aria-label": "Older models (Codex), 2", "aria-expanded": false });
+  // Only the Default row has a separator after it.
+  expect(all(modelRoot()).filter(element => element.type === DropdownMenu.Separator)).toHaveLength(1);
+  const select = { preventDefault: vi.fn() };
+  (olderLines()[0]!.props.onSelect as (event: unknown) => void)(select);
+  expect(select.preventDefault).toHaveBeenCalled();
+  render();
+  expect(olderLines()[0]!.props["aria-expanded"]).toBe(true);
+  expect(modelRows().map(item => words(item.props.children))).toEqual(["DefaultGPT-6.1-Sol", "GPT-6.1-Sol", "GPT-6-Astra", "GPT-6-Sol", "GPT-5.6-Terra"]);
+  pickModel("GPT-6-Sol");
+  expect(props.save).toHaveBeenLastCalledWith({ newConversation: { provider: "codex", model: "gpt-6-sol" } });
+});
+test("a fixed older model opens the Model menu with its rows unfolded and checked", async () => {
+  auth = { revision: 1, providers: [dto("claude"), dto("codex")] };
+  resetHooksAndList(CODEX_OLDER);
+  await settle({ preferences: prefs({ provider: "codex", model: "gpt-5.6-terra" }) });
+  await settle();
+  expect(labelled("Model for new conversations")[0]?.props["aria-label"]).toBe("Model for new conversations: GPT-5.6-Terra");
+  await openModelMenu();
+  expect(olderLines()[0]!.props["aria-expanded"]).toBe(true);
+  expect(checked()).toEqual(["GPT-5.6-Terra"]);
+});
+test("a list without older models draws no line", async () => {
+  auth = { revision: 1, providers: [dto("claude"), dto("codex")] };
+  resetHooksAndList([{ id: "gpt-6.1-sol", label: "GPT-6.1-Sol", default: true }, { id: "gpt-6-astra", label: "GPT-6-Astra", default: false }]);
+  await settle({ preferences: prefs({ provider: "codex" }) });
+  await settle();
+  await openModelMenu();
+  expect(olderLines()).toHaveLength(0);
+});

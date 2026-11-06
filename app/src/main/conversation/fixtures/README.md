@@ -144,3 +144,8 @@ glob completing 72 ms later while the command still ran, its status-less update 
 search, the reply and the `session/prompt` result. Frame order, kinds, statuses and token values are as recorded;
 ids, the root (`/repo`), thought text, the command and queries (`COMMAND_TEXT`, `QUERY`), tool titles (each keeps its
 recorded form) and outputs are synthetic, `rawOutput` is dropped, and the reply is as recorded in three chunks.
+
+`models-older.json` (2026-11-06, model-drawer-older) keeps only the IDs, display names,
+resolved models and default flags of three real model lists read with a signed-in
+account: Claude Code 2.1.318 `supportedModels`, Codex 0.166.0 `model/list` and Cursor's
+ACP `session/new`. Each list is in the shape its parser reads; every other field was dropped.

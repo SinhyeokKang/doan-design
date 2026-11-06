@@ -9,7 +9,7 @@ import type { EffortView, ModelsState } from "./homeComposer";
 // and the model rows' values live apart (by kind) and never collide; settingsModelPick reads one back.
 export type SettingsModelRow =
   | { kind: "unset"; value: string; label: "Default"; description: string | null; selected: boolean }
-  | { kind: "model"; value: string; id: string; label: string; selected: boolean };
+  | { kind: "model"; value: string; id: string; label: string; selected: boolean; older?: true };
 // pinned: the fixed model this project lists, else null (nothing fixed). value: the checked row's value.
 export interface SettingsModelMenu { label: string; pinned: string | null; value: string; rows: SettingsModelRow[] }
 
@@ -32,7 +32,7 @@ export function settingsModelMenu(provider: Provider, state: ModelsState, model:
     value: fixed ? modelValue(fixed.id) : UNSET_VALUE,
     rows: [
       { kind: "unset", value: UNSET_VALUE, label: "Default", description: standing?.label ?? null, selected: !fixed },
-      ...list.filter(item => !sameAsUnset(provider, item.id)).map((item): SettingsModelRow => ({ kind: "model", value: modelValue(item.id), id: item.id, label: item.label, selected: item.id === fixed?.id })),
+      ...list.filter(item => !sameAsUnset(provider, item.id)).map((item): SettingsModelRow => ({ kind: "model", value: modelValue(item.id), id: item.id, label: item.label, selected: item.id === fixed?.id, ...(item.older ? { older: true as const } : {}) })),
     ],
   };
 }

@@ -699,6 +699,12 @@ body:has(.shell-top) { background: transparent; }
 /* The provider's default row carries a small "Default" after its name, the Frame drawer's "Viewing" look (caption,
    metadata ink). */
 .model-default { margin-left: var(--space-1h); color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+/* The Older models line at a group's end (model-drawer-older, draft frames inline and settings): its name in the subtle
+   ink, the count in the metadata ink, a chevron in the check slot that points down while folded and up while open. */
+.older-row { gap: var(--space-2); color: var(--text-subtle); }
+.older-row .count { color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+.older-row .check-slot > svg { width: var(--size-icon-sm); height: var(--size-icon-sm); color: var(--text-metadata); }
+.older-row[aria-expanded="true"] .check-slot > svg { transform: rotate(180deg); }
 /* A trigger with no value shows its drawer's name ("Model", "Effort", "Permission") so it reads as a heading. */
 .doan-button .label.placeholder { color: var(--text-metadata); }
 .model-item .sub { display: inline-flex; align-items: center; gap: var(--space-1); font-size: var(--type-caption-size); }

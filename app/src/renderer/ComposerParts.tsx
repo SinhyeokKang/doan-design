@@ -15,8 +15,8 @@ import type { ComposerAction } from "./composerRules";
 import { outsidePresetList } from "./presetOutside";
 import type { SettingsTarget } from "./settingsSections";
 import {
-  attachmentChipView, dropTarget, groupIcon, isSubmitKey, steerKey, modelPickerView, presetListView, providerLogo,
-  type AttachmentDraft, type PresetListReply, type PresetRow, type PresetSummary, type SuggestionPart,
+  attachmentChipView, dropTarget, foldRows, groupIcon, heldScrollTop, lockedOlderSide, isSubmitKey, steerKey, modelPickerView, NO_OLDER, olderLabel, olderOpened, olderOrder, olderToggled,
+  presetListView, providerLogo, type AttachmentDraft, type PresetListReply, type PresetRow, type PresetSummary, type SuggestionPart,
 } from "./homeComposer";
 import type { PermissionIcon, PermissionPickerView } from "./permissionPicker";
 
@@ -301,6 +301,92 @@ export function usePresetListOutside(open: boolean, list: RefObject<HTMLElement 
 }
 
 type Picker = ReturnType<typeof modelPickerView>;
+
+// The Older models fold of a model menu (model-drawer-older design §2), shared by the agent picker and Settings' Model
+// menu. Opening or closing the menu (onOpenChange) drops it, so a menu always opens folded but for a checked older model.
+export interface OlderFold {
+  onOpenChange(open: boolean): void;
+  contentRef(node: HTMLDivElement | null): void;
+  isOpen(provider: string): boolean;
+  placement: { side: "top" | "bottom"; avoidCollisions: boolean };
+  line(provider: string, name: string, count: number): ReactNode;
+  // An older row's ←: focus goes to its group's line, which folds.
+  olderKeyDown(provider: string): (event: KeyboardEvent<HTMLElement>) => void;
+}
+export function useOlderFold(groups: readonly { provider: string; rows: readonly { older?: true; selected: boolean }[] }[], preferredSide: "top" | "bottom" = "bottom"): OlderFold {
+  const [open, setOpen] = useState(false);
+  const [fold, setFold] = useState(NO_OLDER);
+  const [locked, setLocked] = useState<"top" | "bottom" | null>(null);
+  const content = useRef<HTMLDivElement | null>(null);
+  const lines = useRef(new Map<string, HTMLElement>());
+  // The line's viewport top just before a toggle, so the toggle's layout can put it back.
+  const held = useRef<{ provider: string; top: number } | null>(null);
+  const reveal = useRef(false);
+  // Radix does not scroll an opening menu to its checked row; this does, once the content is laid out.
+  const showChecked = () => requestAnimationFrame(() => {
+    content.current?.querySelector<HTMLElement>('[role="menuitemradio"][aria-checked="true"]')?.scrollIntoView({ block: "nearest" });
+  });
+  // On opening and when a list arrives, groups the person has not toggled unfold around a checked older model.
+  useLayoutEffect(() => {
+    if (!open) return;
+    const next = olderOpened(fold, groups);
+    if (next !== fold) {
+      const node = content.current;
+      if (!node) return;
+      // Floating UI resolves placement asynchronously. Expand in its settled order, then reveal after that render.
+      const frame = requestAnimationFrame(() => {
+        if (content.current !== node) return;
+        setLocked(current => lockedOlderSide(current, node.dataset.side));
+        reveal.current = true;
+        setFold(current => olderOpened(current, groups));
+      });
+      return () => cancelAnimationFrame(frame);
+    }
+    if (reveal.current && content.current) { reveal.current = false; showChecked(); }
+    const h = held.current, line = h && lines.current.get(h.provider), box = content.current;
+    if (!h || !line || !box) return;
+    held.current = null;
+    // Again a frame later: an up-opening menu that grew is moved by Radix's positioning after this layout.
+    const hold = () => { box.scrollTop = heldScrollTop({ scrollTop: box.scrollTop, maxScrollTop: box.scrollHeight - box.clientHeight, lineBefore: h.top, lineAfter: line.getBoundingClientRect().top }); };
+    hold();
+    requestAnimationFrame(hold);
+  });
+  const toggle = (provider: string, next: boolean) => {
+    const line = lines.current.get(provider);
+    if (line) held.current = { provider, top: line.getBoundingClientRect().top };
+    const side = lockedOlderSide(locked, content.current?.dataset.side);
+    setLocked(side);
+    setFold(current => olderToggled(current, provider, next));
+  };
+  const isOpen = (provider: string) => fold.open.includes(provider);
+  return {
+    onOpenChange: next => { setOpen(next); setFold(NO_OLDER); setLocked(null); reveal.current = next; held.current = null; },
+    contentRef: node => {
+      content.current = node;
+      if (node && reveal.current && olderOpened(fold, groups) === fold) { reveal.current = false; showChecked(); }
+    },
+    isOpen,
+    placement: { side: locked ?? preferredSide, avoidCollisions: locked === null },
+    // Not a radio item and carries no value, so it can never be taken for a model; its key stays the same folded or
+    // not, or focus would fall to the menu.
+    line: (provider, name, count) => <DropdownMenu.Item key={`older:${provider}`} ref={node => { if (node) lines.current.set(provider, node); else lines.current.delete(provider); }}
+      className="doan-menu-item older-row" textValue="Older models" aria-expanded={isOpen(provider)} aria-label={olderLabel(name, count)}
+      onSelect={event => { event.preventDefault(); toggle(provider, !isOpen(provider)); }}
+      onKeyDown={event => {
+        if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
+        event.preventDefault();
+        if ((event.key === "ArrowRight") !== isOpen(provider)) toggle(provider, event.key === "ArrowRight");
+      }}>
+      <span className="model-name">Older models</span><span className="count">{count}</span><span className="check-slot"><ChevronDown aria-hidden="true" /></span>
+    </DropdownMenu.Item>,
+    olderKeyDown: provider => event => {
+      if (event.key !== "ArrowLeft") return;
+      event.preventDefault();
+      lines.current.get(provider)?.focus();
+      toggle(provider, false);
+    },
+  };
+}
 // A trigger with no value shows its drawer's name in the metadata ink, so it reads as a heading, not a choice
 // (picker-default-labels decision 9).
 export function TriggerLabel({ text, placeholder }: { text: string; placeholder: boolean }) {
@@ -316,11 +402,12 @@ export function AgentPicker(props: {
 }) {
   const { picker, auth } = props;
   const footer = pickerFooter(picker.groups.some(group => group.selectable));
-  return <DropdownMenu.Root onOpenChange={open => { if (open) props.onOpen(); }}>
+  const fold = useOlderFold(picker.groups.filter(group => group.selectable), "top");
+  return <DropdownMenu.Root onOpenChange={open => { fold.onOpenChange(open); if (open) props.onOpen(); }}>
     <DropdownMenu.Trigger asChild><button type="button" className="composer-agent doan-button" data-ui-size={props.size ?? "sm"} data-ui-variant="trigger" aria-label={picker.trigger.ariaLabel} disabled={props.disabled}>
       {picker.trigger.provider ? <><img className="logo" src={providerLogo(picker.trigger.provider)} alt="" /><TriggerLabel text={picker.trigger.label} placeholder={picker.trigger.placeholder} /></> : <span className="muted">{picker.trigger.label}</span>}<ChevronDown className="chev" aria-hidden="true" />
     </button></DropdownMenu.Trigger>
-    <DropdownMenu.Portal><DropdownMenu.Content className="doan-floating doan-menu agent-popover" aria-label="Agent and model" side="top" align="end" sideOffset={8} collisionPadding={8}>
+    <DropdownMenu.Portal><DropdownMenu.Content ref={fold.contentRef} className="doan-floating doan-menu agent-popover" aria-label="Agent and model" {...fold.placement} align="end" sideOffset={8} collisionPadding={8}>
       {picker.groups.map((group, index) => {
         const status = auth?.providers.find(item => item.provider === group.provider);
         const short = status ? providerShortStatus(status) : null;
@@ -328,14 +415,18 @@ export function AgentPicker(props: {
         const selected = group.rows.find(row => row.selected);
         // A group that cannot run says why in its head and offers its fix in Settings below it.
         const note = group.note ?? (group.selectable ? null : short);
+        const { current, older } = foldRows(group.rows);
+        const item = (row: Picker["groups"][number]["rows"][number]) => <DropdownMenu.RadioItem key={row.kind === "model" ? row.id : "default"} value={row.kind === "model" ? row.id : "default"} className="doan-menu-item model-item"
+          {...(row.kind === "model" && row.older ? { onKeyDown: fold.olderKeyDown(group.provider) } : {})}>
+          <span className="model-name">{row.label}{row.kind === "model" && row.isDefault && <span className="model-default">Default</span>}</span>{row.kind === "model" && row.effort && <span className="sub"><Gauge className="inline" aria-hidden="true" />Effort</span>}
+          <span className="check-slot">{row.selected && <Check className="check" aria-hidden="true" />}</span>
+        </DropdownMenu.RadioItem>;
         return <Fragment key={group.provider}>{index > 0 && <DropdownMenu.Separator className="doan-menu-sep" />}<div className="agent-group">
           <DropdownMenu.Label className="doan-menu-head agent-head"><img className="logo" src={providerLogo(group.provider)} alt="" /><span>{group.name}</span>
             {note && <span className="agent-note">{note === "Loading models" && <span className="doan-spinner" aria-hidden="true" />}{note}</span>}</DropdownMenu.Label>
           {group.selectable ? <DropdownMenu.RadioGroup value={!selected ? "" : selected.kind === "model" ? selected.id : "default"} onValueChange={value => props.onPick(group.provider, group.rows.some(row => row.kind === "model" && row.id === value) ? value : null)}>
-            {group.rows.map(row => <DropdownMenu.RadioItem key={row.kind === "model" ? row.id : "default"} value={row.kind === "model" ? row.id : "default"} className="doan-menu-item model-item">
-              <span className="model-name">{row.label}{row.kind === "model" && row.isDefault && <span className="model-default">Default</span>}</span>{row.kind === "model" && row.effort && <span className="sub"><Gauge className="inline" aria-hidden="true" />Effort</span>}
-              <span className="check-slot">{row.selected && <Check className="check" aria-hidden="true" />}</span>
-            </DropdownMenu.RadioItem>)}
+            {current.map(item)}
+            {older.length > 0 && olderOrder<ReactNode>(fold.line(group.provider, group.name, older.length), fold.isOpen(group.provider) ? older.map(item) : [], fold.placement.side)}
           </DropdownMenu.RadioGroup> : fix ? <DropdownMenu.Item className="doan-menu-item" onSelect={() => props.onSettings(fix.target)}>{fix.label}</DropdownMenu.Item>
             : <DropdownMenu.Item className="doan-menu-item" disabled><span className="sub">{short ?? "Not available right now"}</span></DropdownMenu.Item>}
           {group.selectable && short && <p className="menu-note">{short}</p>}

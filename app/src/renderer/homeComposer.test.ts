@@ -5,7 +5,7 @@ import type { AccountIdentity, AuthState, AuthStatusDto, Provider, ToolFacts } f
 import type { CanvasRow, FolderEntry } from "../main/view";
 import {
   attachmentChipView, attachmentLimit, chipRemoval, composeRequest, defaultEffort, defaultFast, defaultModel, fastToSend, defaultProject, defaultProvider, dropTarget, fixedPreference,
-  GREETINGS, greetingText, groupIcon, groupLabel, isSubmitKey, steerKey, takesSuggestion, lengthCounter, MAX_ATTACHMENTS, MAX_PASTED_BYTES, modelPickerView, pickGreeting, presetListView,
+  GREETINGS, greetingText, foldRows, olderOrder, lockedOlderSide, heldScrollTop, NO_OLDER, olderLabel, olderOpened, olderToggled, groupIcon, groupLabel, isSubmitKey, steerKey, takesSuggestion, lengthCounter, MAX_ATTACHMENTS, MAX_PASTED_BYTES, modelPickerView, pickGreeting, presetListView,
   draftProblem, presetPlaceholder, rootForProject, searchPresets, selectableProvider, sendAvailability, slashQuery, startErrorView, suggestedPresets,
   suggestedPrompts, TEXT_LIMIT,
   type AttachmentDraft, type ModelsState, type PresetListReply, type PresetSummary, type SendInput,
@@ -838,4 +838,109 @@ test("an existing conversation's send names an off always and an on only while i
   expect(fastToSend(true, "claude", { on: false, unavailable: "plan" })).toEqual({});
   expect(fastToSend(false, null, null)).toEqual({});
   expect(fastToSend(false, "cursor", null)).toEqual({});
+});
+
+// model-drawer-older: the menu folds a group's older models under one line; rows still hold every model.
+const F_C55 = { id: "claude-opus-5-5", label: "Opus 5.5", default: true };
+const F_C48 = { id: "claude-opus-4-8", label: "Opus 4.8", default: false, older: true as const };
+const F_SOL = { id: "gpt-6.1-sol", label: "GPT-6.1-Sol", default: true };
+const F_OLD_SOL = { id: "gpt-6-sol", label: "GPT-6-Sol", default: false, older: true as const };
+const F_OLD_TERRA = { id: "gpt-5.6-terra", label: "GPT-5.6-Terra", default: false, older: true as const };
+const FOLDING: Partial<Record<Provider, ModelsState>> = { claude: { models: [F_C55, F_C48] }, codex: { models: [F_SOL, F_OLD_SOL, F_OLD_TERRA] } };
+
+test("rows keep older models marked, so picking one checks it and names it on the trigger instead of returning to Default", () => {
+  const view = modelPickerView(snapshot(dto("claude"), dto("codex")), FOLDING, { provider: "codex", model: "gpt-6-sol", effort: null });
+  expect(view.groups[1]!.rows).toEqual([
+    { kind: "model", id: "gpt-6.1-sol", label: "GPT-6.1-Sol", effort: false, selected: false, isDefault: true },
+    { kind: "model", id: "gpt-6-sol", label: "GPT-6-Sol", effort: false, selected: true, isDefault: false, older: true },
+    { kind: "model", id: "gpt-5.6-terra", label: "GPT-5.6-Terra", effort: false, selected: false, isDefault: false, older: true },
+  ]);
+  expect(view.trigger).toMatchObject({ label: "GPT-6-Sol", placeholder: false });
+  const { current, older } = foldRows(view.groups[1]!.rows);
+  expect(current.map(r => r.kind === "model" && r.id)).toEqual(["gpt-6.1-sol"]);
+  expect(older.map(r => r.kind === "model" && r.id)).toEqual(["gpt-6-sol", "gpt-5.6-terra"]);
+});
+
+test("no line before a list is read, after it failed, for an empty list or a list without older models", () => {
+  const auth = snapshot(dto("codex"));
+  const choice = { provider: "codex" as const, model: null, effort: null };
+  for (const state of [undefined, "loading", { error: "unavailable" }, { models: [] }, { models: [F_SOL] }] as ModelsState[]) {
+    expect(foldRows(modelPickerView(auth, { codex: state }, choice).groups[0]!.rows).older.length).toBe(0);
+  }
+});
+
+test("the line's accessible name starts with its visible label, then the provider and the count", () => {
+  expect(olderLabel("Cursor", 22)).toBe("Older models (Cursor), 22");
+});
+
+test("opening, or a list arriving, unfolds only the groups whose checked row is older", () => {
+  const auth = snapshot(dto("claude"), dto("codex"));
+  const groups = (model: string | null, models = FOLDING) => modelPickerView(auth, models, { provider: "codex", model, effort: null }).groups;
+  expect(olderOpened(NO_OLDER, groups("gpt-6-sol"))).toEqual({ open: ["codex"], touched: [] });
+  expect(olderOpened(NO_OLDER, groups("gpt-6.1-sol"))).toBe(NO_OLDER);
+  // A chosen model the list does not name checks nothing, so nothing unfolds.
+  expect(olderOpened(NO_OLDER, groups("retired"))).toBe(NO_OLDER);
+  // Before the list: nothing to unfold; once it arrives with the chosen older model, its group unfolds.
+  expect(olderOpened(NO_OLDER, groups("gpt-6-sol", { claude: FOLDING.claude, codex: "loading" }))).toBe(NO_OLDER);
+  const opened = olderOpened(NO_OLDER, groups("gpt-6-sol"));
+  expect(olderOpened(opened, groups("gpt-6-sol"))).toBe(opened);
+});
+
+test("a group the person toggled stays as they left it when a list arrives", () => {
+  const auth = snapshot(dto("claude"), dto("codex"));
+  const closed = olderToggled(olderToggled(NO_OLDER, "codex", true), "codex", false);
+  expect(closed).toEqual({ open: [], touched: ["codex"] });
+  expect(olderOpened(closed, modelPickerView(auth, FOLDING, { provider: "codex", model: "gpt-6-sol", effort: null }).groups)).toBe(closed);
+  // Groups fold and unfold apart.
+  expect(olderToggled(olderToggled(NO_OLDER, "codex", true), "claude", true)).toEqual({ open: ["codex", "claude"], touched: ["codex", "claude"] });
+});
+
+// main classifies each list it reads (models.ts olderIds); the view keeps no fold state of its own, so a replacement
+// list read after an account change is shown with its own older marks.
+test("a replacement list read after an account change carries its own older marks into the view", () => {
+  const auth = snapshot(dto("codex"));
+  const choice = { provider: "codex" as const, model: "gpt-6-sol", effort: null };
+  expect(foldRows(modelPickerView(auth, { codex: FOLDING.codex }, choice).groups[0]!.rows).older.length).toBe(2);
+  const next = modelPickerView(auth, { codex: { models: [F_SOL, { id: F_OLD_SOL.id, label: F_OLD_SOL.label, default: false }] } }, choice).groups[0]!;
+  expect(foldRows(next.rows).older.length).toBe(0);
+  expect(olderOpened(NO_OLDER, [next])).toBe(NO_OLDER);
+});
+
+test("a toggle scrolls the menu by the line's move so the line keeps its place, within the menu's scroll range", () => {
+  expect(heldScrollTop({ scrollTop: 100, maxScrollTop: 600, lineBefore: 300, lineAfter: 180 })).toBe(0);
+  expect(heldScrollTop({ scrollTop: 100, maxScrollTop: 600, lineBefore: 300, lineAfter: 420 })).toBe(220);
+  expect(heldScrollTop({ scrollTop: 100, maxScrollTop: 600, lineBefore: 300, lineAfter: 250 })).toBe(50);
+  // No scroll range: the line cannot be held and moves.
+  expect(heldScrollTop({ scrollTop: 0, maxScrollTop: 0, lineBefore: 300, lineAfter: 180 })).toBe(0);
+  expect(heldScrollTop({ scrollTop: 500, maxScrollTop: 560, lineBefore: 300, lineAfter: 420 })).toBe(560);
+});
+
+
+test("older rows follow the painted side, keep provider order and leave the line last above", () => {
+  const rows = ["GPT-6-Sol", "GPT-5.6-Sol", "GPT-5.6-Terra", "GPT-5.6-Luna"];
+  expect(olderOrder("Older models", rows, "top")).toEqual([...rows, "Older models"]);
+  expect(olderOrder("Older models", rows, "bottom")).toEqual(["Older models", ...rows]);
+  expect(olderOrder("Older models", [], "top")).toEqual(["Older models"]);
+});
+
+test("above-line expansion uses the residual growth as scroll without moving the line", () => {
+  // Codex + Copilot: 128px inserted above, 60px of menu growth, 68px of new scroll range.
+  expect(heldScrollTop({ scrollTop: 0, maxScrollTop: 68, lineBefore: 343.5, lineAfter: 411.5 })).toBe(68);
+  // Already capped: all inserted rows become scroll, and folding reverses it.
+  expect(heldScrollTop({ scrollTop: 23, maxScrollTop: 1073, lineBefore: 465.5, lineAfter: 593.5 })).toBe(151);
+  expect(heldScrollTop({ scrollTop: 151, maxScrollTop: 945, lineBefore: 465.5, lineAfter: 337.5 })).toBe(23);
+  // A short upward menu grows by exactly the inserted height; the line does not move.
+  expect(heldScrollTop({ scrollTop: 0, maxScrollTop: 0, lineBefore: 420.5, lineAfter: 420.5 })).toBe(0);
+});
+
+
+test("an open model menu keeps its first painted side until close releases the lock", () => {
+  expect(lockedOlderSide(null, undefined)).toBeNull();
+  const bottom = lockedOlderSide(null, "bottom");
+  expect(bottom).toBe("bottom");
+  expect(lockedOlderSide(bottom, "top")).toBe("bottom");
+  const top = lockedOlderSide(null, "top");
+  expect(top).toBe("top");
+  expect(lockedOlderSide(top, "bottom")).toBe("top");
+  expect(lockedOlderSide(null, "left")).toBeNull();
 });

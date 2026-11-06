@@ -42,6 +42,7 @@ What Doan has not settled or not shown yet: product questions without a decision
 - GitHub Copilot has no question tool (Copilot CLI 1.0.105 listed none and sent no question request over ACP); revisit if it gains one.
 - Whether Doan should show or manage claude.ai account connectors: Claude Code loads them in Doan's profile too, so a service connected both there and in MCP Connectors gives Claude two sets of the same tools, and Doan does not prevent it.
 - Space after a click on a canvas toolbar button: the click leaves focus on the button, so Space presses it instead of panning, in the app and in the export viewer alike (PRODUCT §5 item 2 'Toolbar', item 3 'Export and viewer'). Whether a pointer press should move focus back to the canvas area is undecided; it would change both toolbars together.
+- Cursor's model menu still lists 25 current models after older ones fold (PRODUCT §5 item 1 'Agent and model picker'); grouping by vendor or another way to shorten it was not decided.
 
 ## Not verified in the real app
 
@@ -96,6 +97,8 @@ What Doan has not settled or not shown yet: product questions without a decision
 - Picker default labels (DESIGN.md 'Picker default labels' and its Not verified list): the Overview's docked composer and the box-shaped docked composer were not measured against the draft (only the canvas panel's tray was), nor the ink of a disabled docked trigger.
 - Model lists after an account change not seen in the real app: the fix (window lists keyed by the auth generation) is pinned by unit tests with a fake provider for a Codex replacement; a real two-account switch was not run, nor a sign-in or replacement for Claude Code or an ACP agent.
 - Whether Cursor's default `agent` mode asks before acting (the Ask first line says it asks when Cursor needs approval): the real-app check got only Cursor's plan-limit reply, so no tool call happened. Copilot (`agent`, `allow_all` off) and Antigravity (`default`) asked before acting.
+
+- Older model folding (PRODUCT §5 item 1 'Agent and model picker'): GitHub Copilot's list on a paid account was not read (a free account lists no models), so its folding was not seen. The real app was checked with replaced model lists (DESIGN.md 'Older model disclosure'), not real provider reads.
 
 ## Known defects
 

@@ -219,7 +219,8 @@ export function defaultProvider(auth: AuthSnapshot | null | undefined, last: Pro
 
 // fast: the model offers Fast (fast-mode design §1); description is Codex's tier text, unavailable an account-level
 // reason Claude Code's list read gave (decision 12). defaultEffort: Codex's level for this model when none is sent.
-export interface ModelOption { id: string; label: string; default: boolean; efforts?: string[]; defaultEffort?: string; fast?: { description?: string; unavailable?: FastUnusedReason } }
+// older: an earlier generation the menus fold (main models.ts olderIds).
+export interface ModelOption { id: string; label: string; default: boolean; older?: true; efforts?: string[]; defaultEffort?: string; fast?: { description?: string; unavailable?: FastUnusedReason } }
 // undefined: not read in this run. Lists are never hard-coded, so only a received list offers models.
 // modes: what an ACP server listed with its models (permission-mode); absent for Claude and Codex.
 export type ModelsState = undefined | "loading" | { models: ModelOption[]; modes?: AcpModes } | { error: string };
@@ -258,7 +259,7 @@ function effortLabel(id: string): string { return EFFORT_LABELS[id] ?? id.charAt
 // isDefault: the provider's own default row (Claude Code's default, Codex's isDefault, an ACP agent's current model),
 // marked "Default" in the menu.
 export type ModelRow =
-  | { kind: "model"; id: string; label: string; effort: boolean; selected: boolean; isDefault: boolean }
+  | { kind: "model"; id: string; label: string; effort: boolean; selected: boolean; isDefault: boolean; older?: true }
   | { kind: "default"; label: "Default"; selected: boolean };
 export interface ProviderGroup {
   provider: Provider; name: string; selectable: boolean;
@@ -297,7 +298,7 @@ export function modelPickerView(auth: AuthSnapshot | null | undefined, models: P
     const group: ProviderGroup = { provider, name: PROVIDER_NAMES[provider], selectable, cause: status.readiness.ready ? null : status.readiness.cause, note: null, read: false, rows: [] };
     if (!selectable) return group;
     const state = models[provider], list = receivedModels(state), mine = choice.provider === provider;
-    if (list) return { ...group, rows: list.map(m => ({ kind: "model", id: m.id, label: m.label, effort: (m.efforts?.length ?? 0) > 0, selected: mine && m.id === chosen?.id, isDefault: m.default })) };
+    if (list) return { ...group, rows: list.map(m => ({ kind: "model", id: m.id, label: m.label, effort: (m.efforts?.length ?? 0) > 0, selected: mine && m.id === chosen?.id, isDefault: m.default, ...(m.older ? { older: true as const } : {}) })) };
     const rows: ModelRow[] = [{ kind: "default", label: "Default", selected: mine }];
     if (state === "loading") return { ...group, note: "Loading models", rows };
     if (state !== undefined) return { ...group, note: "Models unavailable", rows };
@@ -309,6 +310,45 @@ export function modelPickerView(auth: AuthSnapshot | null | undefined, models: P
     : { provider: choice.provider, label: chosen.label, ariaLabel: `Agent: ${PROVIDER_NAMES[choice.provider]}, model ${chosen.label}${chosen.default ? ", default" : ""}`, placeholder: false, isDefault: chosen.default };
   const effort = chosen && choice.provider && (chosen.efforts?.length ?? 0) > 0 ? effortView(choice.provider, chosen, choice) : null;
   return { trigger, groups, effort };
+}
+
+// Older models (model-drawer-older): a group's rows keep every model, and the menu folds the older ones under one line
+// only when drawing. Picking and finding the checked row read the full rows, so an older pick never falls back to Default.
+type FoldRow = { older?: true; selected: boolean };
+// Current and older rows each retain the provider's list order.
+export function foldRows<T extends FoldRow>(rows: readonly T[]): { current: T[]; older: T[] } {
+  return { current: rows.filter(row => !row.older), older: rows.filter(row => row.older) };
+}
+// An upward menu grows above its anchor: inserting before the line keeps it under the pointer. Use the
+// painted side, since Radix can flip a top-requested menu below the trigger.
+export function olderOrder<T>(line: T, rows: readonly T[], side: string): T[] {
+  return side === "top" ? [...rows, line] : [line, ...rows];
+}
+// After a disclosure toggles, growth must scroll on that side rather than move the line to the opposite side.
+export function lockedOlderSide(locked: "top" | "bottom" | null, painted: string | undefined): "top" | "bottom" | null {
+  return locked ?? (painted === "top" || painted === "bottom" ? painted : null);
+}
+// The line's name leads with its visible label (WCAG 2.5.3), the provider as in the docked names.
+export function olderLabel(provider: string, count: number): string { return `Older models (${provider}), ${count}`; }
+// Which groups are unfolded, and which the person toggled. It lives with an open menu and is dropped when it closes.
+export interface OlderGroups { open: readonly string[]; touched: readonly string[] }
+export const NO_OLDER: OlderGroups = { open: [], touched: [] };
+// On opening and when a list arrives, a group the person has not toggled unfolds when its checked row is older.
+// Returns the same state when nothing changes.
+export function olderOpened(state: OlderGroups, groups: readonly { provider: string; rows: readonly FoldRow[] }[]): OlderGroups {
+  const add = groups.filter(g => !state.open.includes(g.provider) && !state.touched.includes(g.provider) && g.rows.some(row => row.older && row.selected)).map(g => g.provider);
+  return add.length ? { ...state, open: [...state.open, ...add] } : state;
+}
+export function olderToggled(state: OlderGroups, provider: string, open: boolean): OlderGroups {
+  return {
+    open: open ? [...state.open.filter(p => p !== provider), provider] : state.open.filter(p => p !== provider),
+    touched: state.touched.includes(provider) ? state.touched : [...state.touched, provider],
+  };
+}
+// The menu's scrollTop after a toggle: moved by as much as the line moved, so the line stays under the pointer
+// (an up-opening menu grows upward). Clamped to the scroll range; with no range the line moves.
+export function heldScrollTop(m: { scrollTop: number; maxScrollTop: number; lineBefore: number; lineAfter: number }): number {
+  return Math.min(Math.max(m.scrollTop + m.lineAfter - m.lineBefore, 0), Math.max(m.maxScrollTop, 0));
 }
 
 // With no level chosen the trigger shows the level the provider will run when Doan knows it (Codex's defaultEffort),

@@ -1,5 +1,7 @@
 import { expect, it, vi } from "vitest";
-import { applyClaudeFastUnavailable, ModelCatalog, parseAcpModels, parseAcpModes, parseClaudeModels, parseCodexModels, type ModelList, type ModelOption } from "./models";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { applyClaudeFastUnavailable, ModelCatalog, olderIds, parseAcpModels, parseAcpModes, parseClaudeModels, parseCodexModels, type ModelList, type ModelOption } from "./models";
 import type { Prepared } from "./service";
 import type { Provider } from "../agentAuth/types";
 
@@ -170,8 +172,8 @@ it("answers an ACP list's modes with its models, and none for a provider that li
 
 
 it("reads Claude Fast only from a true capability without provider description copy", () => {
-  const rows = [true, false, undefined, "true", 1].map((supportsFastMode, i) => ({ value: String(i), supportsFastMode, description: "provider copy" }));
-  expect(parseClaudeModels(rows)).toEqual(rows.map((_, i) => ({ id: String(i), label: String(i), default: false, ...(i === 0 ? { fast: {} } : {}) })));
+  const rows = [true, false, undefined, "true", 1].map((supportsFastMode, i) => ({ value: `m${"abcde"[i]}`, supportsFastMode, description: "provider copy" }));
+  expect(parseClaudeModels(rows)).toEqual(rows.map((_, i) => ({ id: `m${"abcde"[i]}`, label: `m${"abcde"[i]}`, default: false, ...(i === 0 ? { fast: {} } : {}) })));
 });
 it("reads Codex Fast from priority id and its valid description, ignoring names and old tiers", () => {
   const tierRows = [
@@ -238,4 +240,72 @@ it("answers whether a model takes Fast from this run's list, the default row sta
   await c.models.models("/repo", "cursor");
   // No default row: a conversation without a stored model cannot be judged.
   expect(c.models.fast("/repo", "cursor", undefined)).toBe(false);
+});
+
+// model-drawer-older: a provider's earlier generations are marked `older`, the menu folds them.
+const measured = JSON.parse(readFileSync(join(__dirname, "fixtures", "models-older.json"), "utf8"));
+const split = (models: ModelOption[]): [string[], string[]] => [models.filter(m => !m.older).map(m => m.id), models.filter(m => m.older).map(m => m.id)];
+const row = (id: string, isDefault = false) => ({ id, name: id, isDefault });
+it("folds the measured Claude list to its four aliases, the default row resolving to the newest Opus", () => {
+  const [current, older] = split(parseClaudeModels(measured.claude));
+  expect(current).toEqual(["default", "fable", "sonnet", "haiku"]);
+  expect(older).toEqual(["claude-haiku-4-5-20251001", "claude-sonnet-5", "claude-opus-5", "claude-fable-5", "claude-opus-4-8", "claude-opus-4-7", "claude-opus-4-6", "claude-sonnet-4-6"]);
+});
+it("folds the measured Codex list to the newest of each family", () => {
+  const [current, older] = split(parseCodexModels(measured.codex));
+  expect(current).toEqual(["gpt-6.1-sol", "gpt-6-astra", "gpt-6.1-terra", "gpt-6-luna"]);
+  expect(older).toEqual(["gpt-6-sol", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"]);
+});
+it("folds the measured Cursor list to 25 current and 22 older rows, reading names without the bracket tail", () => {
+  const models = parseAcpModels(measured.cursor);
+  const [current, older] = split(models);
+  expect([current.length, older.length]).toEqual([25, 22]);
+  expect(current).toEqual(expect.arrayContaining(["default[]", "gpt-5.5[context=272k,reasoning=medium,fast=false]", "glm-5.2[reasoning=high]", "gemini-3.1-pro[]", "deepseek-v41-flash-1017[reasoning_effort=high]", "claude-haiku-5-5[thinking=true,context=300k,reasoning_effort=high]"]));
+  expect(older).toEqual(expect.arrayContaining(["claude-opus-4-8[thinking=true,context=300k,effort=high,fast=false]", "gemini-3-flash[]", "gpt-5-mini[]", "claude-haiku-4-5[thinking=true]"]));
+  expect(models.map(m => m.id)).toEqual(measured.cursor.models.availableModels.map((m: { modelId: string }) => m.modelId));
+});
+it("keeps every Antigravity effort variant current, its families split by the effort suffix", () => {
+  expect(olderIds(["gemini-3.8-flash-high", "gemini-3.8-flash-medium", "gemini-3.8-flash-low"].map(id => row(id)))).toEqual(new Set());
+});
+it("marks nothing in an empty list or a list without version numbers", () => {
+  expect(olderIds([])).toEqual(new Set());
+  expect(olderIds(["auto", "default", "kimi-k3", "glm-5p3"].map(id => row(id)))).toEqual(new Set());
+});
+it("keeps tied versions current and reads a shorter equal prefix as smaller", () => {
+  expect(olderIds([row("a-6"), row("b-6"), row("a-6", true)])).toEqual(new Set());
+  expect(olderIds([row("gpt-6-sol"), row("gpt-6.1-sol")])).toEqual(new Set(["gpt-6-sol"]));
+  expect(olderIds([row("x-5"), row("x-5-5")])).toEqual(new Set(["x-5"]));
+  expect(olderIds([row("x-10"), row("x-9")])).toEqual(new Set(["x-9"]));
+});
+it("ignores date pieces so a dated id does not beat the undated id of the same generation", () => {
+  expect(olderIds([row("claude-haiku-4-5-20251001"), row("claude-haiku-4-5")])).toEqual(new Set());
+  expect(olderIds([row("m-2-0101"), row("m-2")])).toEqual(new Set());
+  expect(olderIds([row("claude-haiku-4-5-20251001"), row("claude-haiku-5-5")])).toEqual(new Set(["claude-haiku-4-5-20251001"]));
+});
+it("compares names without a trailing bracket part", () => {
+  expect(olderIds([row("claude-opus-5[1m]"), row("claude-opus-5-5")])).toEqual(new Set(["claude-opus-5[1m]"]));
+  expect(olderIds([row("m-1[a=1]"), row("m-1[b=2]")])).toEqual(new Set());
+});
+it("counts the default row toward its family's newest version but never folds it", () => {
+  expect(olderIds([{ id: "default", name: "claude-opus-5-5", isDefault: true }, row("claude-opus-4-8")])).toEqual(new Set(["claude-opus-4-8"]));
+  expect(olderIds([row("m-1", true), row("m-2")])).toEqual(new Set());
+});
+it("marks Codex and ACP rows older only after duplicates are removed, and keeps the default row current", () => {
+  expect(parseCodexModels({ data: [{ id: "gpt-5", isDefault: true }, { id: "gpt-6" }, { id: "gpt-5.1" }, { id: "gpt-5.1" }] })).toEqual([
+    { id: "gpt-5", label: "gpt-5", default: true },
+    { id: "gpt-6", label: "gpt-6", default: false },
+    { id: "gpt-5.1", label: "gpt-5.1", default: false, older: true },
+  ]);
+  expect(parseAcpModels({ models: { currentModelId: "auto", availableModels: [{ modelId: "auto" }, { modelId: "auto" }, { modelId: "m-1" }, { modelId: "m-2" }] } })).toEqual([
+    { id: "auto", label: "auto", default: true },
+    { id: "m-1", label: "m-1", default: false, older: true },
+    { id: "m-2", label: "m-2", default: false },
+  ]);
+});
+// Review RA 🟡: a duplicate Claude row that unique drops must not lend its resolvedModel to the row kept.
+it("classifies a kept Claude row by its own resolvedModel, never a dropped duplicate's", () => {
+  expect(parseClaudeModels([{ value: "alias", displayName: "First alias" }, { value: "alias", resolvedModel: "m-1" }, { value: "m-2" }])).toEqual([
+    { id: "alias", label: "First alias", default: false },
+    { id: "m-2", label: "m-2", default: false },
+  ]);
 });
