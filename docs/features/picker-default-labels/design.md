@@ -97,4 +97,4 @@ UI 문구는 영어다.
 - `docked-widths`: 384~400과 288에서 "Ask first + GPT-6-Luna + Extra high"가 넘치지 않는지.
 - `settings`: Settings > New conversations의 세 행과 Model 메뉴 맨 위 Default 행.
 
-상태: 초안 전.
+상태: 초안 round 1(`docs(design): picker-default-labels draft`), 사람 확인 전. Chromium 렌더링: 권한 설명 세 개는 280px 메뉴에서 두 줄이고, docked 420(내용 396)에서는 "Ask first"와 "Extra high"가 라벨을 유지해 모델 라벨이 "GPT-5…"까지 줄어든다.
