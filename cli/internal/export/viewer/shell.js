@@ -499,6 +499,15 @@ tools.addEventListener("keydown", (event) => {
 // Text goes in with textContent only.
 const TOOLTIP_OFFSET = 4;
 let tipFor = null;
+let tipTimer = 0;
+let tipClosedAt = null;
+
+function scheduleTip(button) {
+  clearTimeout(tipTimer);
+  const wait = tipWait(performance.now(), tipClosedAt);
+  if (wait === 0) showTip(button);
+  else tipTimer = setTimeout(() => showTip(button), wait);
+}
 
 function showTip(button) {
   const key = document.createElement("span");
@@ -519,6 +528,8 @@ function showTip(button) {
 }
 
 function hideTip() {
+  clearTimeout(tipTimer);
+  if (!tip.hidden) tipClosedAt = performance.now();
   if (tipFor !== null) tipFor.removeAttribute("aria-describedby");
   tipFor = null;
   tip.hidden = true;
@@ -526,7 +537,7 @@ function hideTip() {
 
 for (const button of toolButtons) {
   button.addEventListener("pointerenter", (event) => {
-    if (event.pointerType !== "touch") showTip(button);
+    if (event.pointerType !== "touch") scheduleTip(button);
   });
   button.addEventListener("pointerleave", hideTip);
   button.addEventListener("pointerdown", hideTip);
