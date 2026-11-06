@@ -82,7 +82,7 @@ renderer의 순수 함수 `turnStatus(items, turn, stage)`가 턴 표시의 상�
 - `context.usage` 같은 event는 `threadItems`가 항목으로 만들지 않으므로 따로 예외가 필요 없다.
 - Send now로 보내는 중인 메시지(`withSending`)는 thread 끝에 붙는다. 턴 표시가 thread 끝에 있는 변형이면 그 뒤다.
 - Stop을 누르면 main이 `interrupted`를 바로 쓰므로(`service.ts`) 표시가 바로 사라진다. 따로 "Stopping" 상태를 두지 않는다.
-- **settle(300ms)**: 새 단계는 300ms 이어진 뒤에 보인다. 그 전에 다른 단계가 오면 앞 단계는 보이지 않는다. 답 쓰기로 바뀔 때와 답 기다림·없음으로 바뀔 때는 바로 바뀐다. Claude 기록에서 일반(requesting 약 0.6–0.8초)과 짧은 도구가 번갈아 와서, 이 규칙이 없으면 "Reading <path>"가 깜빡이고 사라진다(`.scratch/turn-activity/claude_phases.txt`). 짧은 도구는 activity 행이 이미 보이므로 잃는 정보가 없다. settle은 renderer의 표시 쪽에서 하고, `turnStatus`는 순간의 상태만 돌려준다.
+- **settle(300ms)**: 새 단계는 300ms 이어진 뒤에 보인다. 그 전에 다른 단계가 오면 앞 단계는 보이지 않는다. 답 쓰기로 바뀔 때와 답 기다림·없음으로 바뀔 때는 바로 바뀐다. Claude 기록에서 일반(requesting 약 0.6–0.8초)과 짧은 도구가 번갈아 와서, 이 규칙이 없으면 "Reading <path>"가 깜빡이고 사라진다(`.scratch/turn-activity/claude_phases.txt`). 짧은 도구는 activity 행이 이미 보이므로 잃는 정보가 없다. 아무것도 보이지 않던 때(없음, 답 기다림) 뒤의 첫 단계는 바로 보인다. 그래야 메시지가 들어간 렌더부터 표시가 있다(spec 완료 조건 1). 턴이 바뀌면 settle 상태를 비워, 앞 턴의 단계가 새 턴 옆에 남지 않는다. settle은 renderer의 표시 쪽에서 하고, `turnStatus`는 순간의 상태만 돌려준다.
 
 activity 행(결정 4): `threadItems`와 activity 행은 바뀌지 않는다. 행은 지금처럼 thread의 마지막 항목이고 턴이 안 끝났으면 spinner와 진행형 머리를 보인다. 그래서 다음이 그대로 남는다.
 
@@ -121,7 +121,7 @@ activity 기록은 바뀌지 않는다. `codexActivities`는 지금처럼 모든
 `normalizeCodex`가 `commandExecution`의 `item/started`에서 `commandActions`가 하나이면 단계 신호를 낸다:
 
 - `read`이고 `path`가 있으면 `{kind: "tool", activity: "read", path, summary: displayPath(path, root)}`.
-- `listFiles`나 `search`이면 `{kind: "tool", activity: "read", summary: GENERIC_SUMMARY.read}`(경로가 있으면 함께).
+- `listFiles`나 `search`이면 `{kind: "tool", activity: "read", summary: GENERIC_SUMMARY.read}`. 경로는 싣지 않는다. renderer는 단계에 `path`가 있을 때만 "Reading <path>"를, 없으면 `summary`를 보이므로, 요약 글을 단계 종류의 구분자로 쓰지 않는다.
 - 그 밖(`unknown`, action이 없거나 여럿)은 단계를 내지 않는다. 턴 표시는 §1의 도구(event) 상태로 명령 실행을 말한다.
 
 명령 글(`command`)은 어디에도 쓰지 않는다. permission 요약 경로(`codexPermission`)는 바뀌지 않는다. 경로는 Claude `Read`처럼 root 밖이면 절대 경로로 보인다(`threadItems.ts`의 `rootRelative`).
