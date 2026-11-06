@@ -42,3 +42,4 @@
 
 ## 진행 기록
 - Orca run `run_9a87ca7f6348`. MA: task `task_2eefb08278fa`, dispatch `ctx_5104aba571e0`, worktree `pdl-ma`(branch `SinhyeokKang/pdl-ma`), Codex `gpt-6.1-sol` medium 확인. RA: task `task_a4da549949af`, dispatch `ctx_3fdb8ad9dd05`, worktree `pdl-ra`(branch `SinhyeokKang/pdl-ra`), Claude Opus high 확인. 둘 다 `5f0f5cf6`에서 시작했다.
+- RA 질문(Settings Claude Model 메뉴, 초안 tile은 Default 아래 Opus 5.5 고정 행을 두지만 design 결정 5와 A1은 `opus` 행을 뺀다): 사람이 design대로 정했다. 메뉴는 Default(설명 'Opus 5.5') · Fable · Sonnet · Haiku다. 초안 `settings` tile은 B2 전에 이 결정에 맞게 고친다(draft-follows-decisions).
