@@ -937,7 +937,9 @@ body:has(.shell-top) { background: transparent; }
 .conversation-thread .thread-scroll { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb-quiet) transparent; }
 .conversation-thread .thread { display: flex; flex-direction: column; gap: var(--space-6); }
 .conversation-thread .thread-item { display: flex; flex-direction: column; min-width: 0; }
-.conversation-thread .caret { display: inline-block; width: 1px; height: var(--type-label-line-height); margin: 0 1px -6px; background: var(--text-standard); animation: thread-caret 1s steps(1) infinite; }
+/* The caret ends the reply's last line (ConversationThread streamingCaret): one line tall and top-aligned, so it never
+   makes that line taller (the panel's 14/20 and a code line included) and the reply does not shrink when it goes. */
+.conversation-thread .caret { display: inline-block; width: 1px; height: 1lh; margin: 0 1px; vertical-align: top; background: var(--text-standard); animation: thread-caret 1s steps(1) infinite; }
 @keyframes thread-caret { 50% { opacity: 0; } }
 /* The person's message: a light accent bubble, plain text that keeps its line breaks (common decision 2). */
 .conversation-thread .msg-user { align-self: flex-end; display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-1h); max-width: 80%; min-width: 0; }
