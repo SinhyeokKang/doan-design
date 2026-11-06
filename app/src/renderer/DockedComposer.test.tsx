@@ -298,3 +298,12 @@ test("docked tray steps: Permission's label hides below a 432 content width, Eff
   // A drawer's name in a trigger is drawn in the metadata ink (decision 9).
   expect(css).toMatch(/\.doan-button \.label\.placeholder \{ color: var\(--text-metadata\); \}/);
 });
+
+// picker-default-labels (the user's answer to review B2 🟡2): in the docked tray a value reads in the standard ink and a
+// drawer's name in the metadata ink, as on Home; a disabled trigger and Full access keep their own inks.
+test("docked tray CSS: trigger values in the standard ink, drawer names in the metadata ink", () => {
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toContain('.docked .composer-tray :is(.composer-agent, .composer-effort, .composer-permission:not([data-mode="bypass"])):not(:disabled) { color: var(--text-standard); }');
+  expect(css).toContain(".doan-button .label.placeholder { color: var(--text-metadata); }");
+  expect(css).toContain(".composer-tray .doan-button { margin-left: calc(-1 * var(--space-2)); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); font-weight: var(--type-weight-regular); color: var(--text-subtle); }");
+});
