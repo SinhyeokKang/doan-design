@@ -84,6 +84,8 @@ test("canvases but no conversations: a new conversation with suggestions naming 
   const html = render([]);
   expect(html).toContain("Review the checkout canvas");
   expect(html).toContain('class="suggestion" title="Review the checkout canvas"><span class="suggestion-icon">');
+  // small-ui-tweaks decision 7: the name is highlighted; title and the sentence's text are unchanged.
+  expect(html).toContain('<span class="suggestion-label">Review the <span class="suggestion-value">checkout</span> canvas</span>');
 });
 
 test("a promotion leaves the moved line with Open above the suggestions", () => {

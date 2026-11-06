@@ -8,7 +8,7 @@ import type { ConversationWork } from "../main/conversationWork";
 import type { CanvasWorkTarget } from "./CanvasController";
 import type { CanvasFrameRect } from "./canvasMessage";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
-import { autoCursor, dotGrid, type Dot } from "./dotField";
+import { autoCursor, dotGrid, opposingCursor, type Dot } from "./dotField";
 import { crossesBoundary, NoticeTyping, typesOn, type NoticeMoment, type TypedText } from "./noticeTyping";
 
 // The agent indicator on the board while this canvas's current conversation works or waits (buzz-canvas design §2
@@ -154,8 +154,8 @@ function WorkWords({ view, moment }: { view: AgentNoticeView; moment: NoticeMome
   </>;
 }
 
-// The board-wide dot field (design §2): canvas 2D, a virtual cursor sweeping the board, the colour read from the
-// element's computed `color` so the theme's role decides it.
+// The board-wide dot field (design §2): canvas 2D, two virtual spots sweeping the board (the second walks the first's
+// path backwards, `opposingCursor`), the colour read from the element's computed `color` so the theme's role decides it.
 export function DotField({ running }: { running: boolean }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const loop = useRef<DotFieldLoop | null>(null);
@@ -174,8 +174,9 @@ export function DotField({ running }: { running: boolean }) {
       cancel: frame => cancelAnimationFrame(frame),
       draw: elapsed => {
         const { width, height } = size;
+        // No spots in reduced motion: the still field has no bright place, not even a centred one.
         const spot = elapsed === null ? null : autoCursor(elapsed, width, height, DOT_FIELD.speed, DOT_FIELD.rows, DOT_FIELD.radius);
-        drawDotField(ctx, width, height, dots, spot, color);
+        drawDotField(ctx, width, height, dots, spot ? [spot, opposingCursor(spot, width, height)] : [], color);
       },
     });
     loop.current = field;

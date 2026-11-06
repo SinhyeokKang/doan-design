@@ -120,6 +120,16 @@ test("another session, or an anonymous one, working in a terminal leaves the cho
   expect(out).toContain('aria-label="Model: set by the terminal session (Codex)"');
 });
 
+// small-ui-tweaks decision 7: the new conversation's suggestion rows highlight the canvas name inside the same sentence.
+test("a new conversation's suggestion rows highlight the canvas name and keep the sentence as the title", async () => {
+  const presets = (["critique", "polish"] as const).map(id => ({ id, title: id, description: `About ${id}.`, scope: `${id} scope`, group: "review" }));
+  const support = Object.assign(new DockedSupport(() => {}), { auth: { revision: 1, providers: [connected("claude")] }, presets: { v: 1 as const, ok: true as const, result: { version: "1", presets } } });
+  const out = await panel([], () => {}, { support });
+  expect(out).toContain('title="Review the checkout canvas"');
+  expect(out).toContain('<span class="suggestion-label">Review the <span class="suggestion-value">checkout</span> canvas</span>');
+  expect(out).toContain('<span class="suggestion-label">Polish the <span class="suggestion-value">checkout</span> canvas</span>');
+});
+
 // permission-mode U1, RV-B ⚪6: a terminal session's mode is its own; the tray shows the fixed trigger, never the picker.
 test("a terminal session shows the fixed Permission trigger and no picker", async () => {
   resume = { available: true, runtime: "claude", lastCheckAt: "2026-11-01T14:02:00" };

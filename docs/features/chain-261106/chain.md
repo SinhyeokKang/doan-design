@@ -65,7 +65,7 @@
 |---|---|---|---|---|
 | 1 work-update | work-update-orch | 2026-11-06 | [#104](https://github.com/SinhyeokKang/doan-design/pull/104) · `3e98f455` | 병합됨 |
 | 2 canvas-handoff | canvas-handoff-orch | 2026-11-06 | [#105](https://github.com/SinhyeokKang/doan-design/pull/105) · `6ec117ea` | 병합됨 |
-| 3 small-ui-tweaks | — | — | — | 대기 |
+| 3 small-ui-tweaks | small-ui-tweaks-orch | 2026-11-06 | [#106](https://github.com/SinhyeokKang/doan-design/pull/106) | 병합 준비됨(사람 지시로 대기) |
 
 ## 인계 기록
 
@@ -101,3 +101,7 @@
   - 미검증: Cursor·Antigravity·Copilot 핸드오프, Accept edits·Plan, dialog·first run·글 쓰던 composer 때의 toast와 10 s 대기, composer로 보낸 흐름, U-024 heredoc. 목록은 BACKLOG에 있다.
   - 공용 프로필: `folders.json`·`ui-state.json`·`canvas-seen.json`은 byte 단위로 같게 되돌렸다. R1 probe 대화 기록(probe repo `.scratch/r1/repo`는 이 worktree에 있음)과 Codex 프로필의 `rules/doan-handoff.rules`는 남았다(체인 '전부 남김').
   - **링크 3이 알아야 할 것**: (1) 링크 2가 `CanvasConversationPanel.tsx`, `styles.css`, `ProjectOverview.tsx`, DESIGN.md('Canvas handoff' 절)를 고쳤다. small-ui-tweaks도 이 파일들을 고치므로 main의 지금 모양을 다시 읽고 시작한다. `CanvasAgent.tsx`·`agentIndicator.ts`·`dotField.ts`·`ComposerParts.tsx`·`homeComposer.ts`는 링크 2가 건드리지 않았다. (2) 모든 App 테스트의 `window.doan` mock에 `onConversationHandoff`가 있어야 한다(새 App 테스트 파일도). (3) Codex 주간 한도는 94% 사용이다. 링크 3은 `/agent-eval`이 해당하지 않으니 Codex는 쓰지 않아도 된다.
+- 2026-11-06 **링크 3 시작**(small-ui-tweaks-orch). 브리프를 받고 `feat/small-ui-tweaks`(`c0b6078e`에서)에서 `/orchestrate`를 시작했다. Codex 주간 한도가 94% 사용(2026-11-11 초기화)이라 이 링크는 Claude 작업자만 쓴다. R1 (b)는 시작 점검 7대로 녹화와 rAF 프레임 측정으로 보고, design §2.2 기준에 맞으면 병합한다.
+- 2026-11-06 **링크 3 병합 준비됨**(small-ui-tweaks-orch). PR [#106](https://github.com/SinhyeokKang/doan-design/pull/106), HEAD `f810bb38`(`origin/main` `9f1e61e9` 위로 rebase), 그 HEAD에서 `verify.mjs` PASS. R1 (b)는 녹화와 rAF 측정으로 봤다. 60Hz 1238×780에서 720프레임이고, 두 자리는 p95 17.6·max 17.7ms, 한 자리 기준(`c0b6078e`)은 p95 17.3·max 17.8ms다. 18ms를 넘는 프레임과 long task가 없어 design §2.2 기준을 지킨다(시작 점검 7). 사람이 "main에 feat 두개 정도 더 생길거임 병합할 때 감안해"라고 한 뒤 "병합은 대기"를 지시했다. 그래서 체인의 병합 권한보다 이 지시를 따라 병합하지 않고 기다린다. 병합할 때는 최신 `origin/main`으로 다시 rebase하고, `/verify`를 돌린다. 새 feat가 제안 행·사이드바 CSS, 세 화면의 제안 행, `CanvasAgent.tsx`·`agentIndicator.ts`·`dotField.ts`, DESIGN.md를 바꿨으면 해당 측정을 다시 한다. 그 뒤 병합하고 이 디렉터리를 지운다. 작업자는 모두 Claude였다(S·F Sonnet high, VS·VF·RZ Opus medium). Codex는 쓰지 않았다. 근거 자료는 `small-ui-tweaks-orch/.scratch/evidence/`(orch.md 사본 포함)와 `.scratch/runtime-test/small-ui-tweaks/`에 있다. 작업 branch `SinhyeokKang/sut-s/-f/-rz`는 local에 남겼다.
+  - 미검증: 실제 macOS Reduce motion 설정, 60Hz가 아닌 화면, 실제 로그인한 provider에서 제안 행이 보이는지(probe가 agent-auth를 준비된 계정으로 답함), dark mode.
+  - main의 project-skill-drawer·turn-activity 문서는 "small-ui-tweaks 결정 7"을 이름으로 가리킨다. 지운 feature 디렉터리의 번호이므로 git 이력(`f810bb38` 이전)에서 찾는다. main 쪽 문서라 고치지 않았다.

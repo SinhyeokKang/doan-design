@@ -15,7 +15,7 @@ import { startNewConversation, steerPhaseOf } from "./CanvasConversationPanel";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import { canvasLabel } from "./canvasTree";
 import { focusFieldEnd } from "./chipField";
-import { GroupIcon } from "./ComposerParts";
+import { GroupIcon, SuggestionLabel } from "./ComposerParts";
 import { ConversationDeleteItem, type DeleteTarget } from "./ConversationDeleteDialog";
 import { ConversationHead } from "./ConversationLine";
 import { ConversationThread, LOADING_DELAY_MS, type ConversationThreadHandle, type LocateOutcome } from "./ConversationThread";
@@ -401,7 +401,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
           {prompts.length > 0 && !started && <div className="ov-suggestions" role="group" aria-label="Suggested prompts">{prompts.map(prompt =>
             <button key={prompt.label} type="button" className="suggestion" title={prompt.label}
               onClick={() => { run.setDrafts(drafts => new Map(drafts).set(key, { ...(drafts.get(key) ?? EMPTY_DRAFT), preset: prompt.preset, segments: textSegments(prompt.text) })); focusField(); }}>
-              <span className="suggestion-icon"><GroupIcon name={groupIcon(prompt.preset.group)} /></span><span className="suggestion-label">{prompt.label}</span><ArrowUpRight className="suggestion-go" aria-hidden="true" /></button>)}</div>}
+              <span className="suggestion-icon"><GroupIcon name={groupIcon(prompt.preset.group)} /></span><SuggestionLabel parts={prompt.parts} /><ArrowUpRight className="suggestion-go" aria-hidden="true" /></button>)}</div>}
         </div>}
     </div>
     <div className="ov-foot"><div className="ov-col">

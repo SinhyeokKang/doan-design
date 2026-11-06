@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { autoCursor, dotGrid, dotScale, partitionDots } from "./dotField";
+import { autoCursor, dotGrid, dotScale, opposingCursor, partitionDots } from "./dotField";
+import { DOT_FIELD } from "./agentIndicator";
 
 describe("dotGrid", () => {
   test("lays out a 12px grid in row order, including the right and bottom edges", () => {
@@ -65,21 +66,22 @@ describe("partitionDots", () => {
 
   test("partitions every dot once without changing input order or points", () => {
     const original = [...dots];
-    const { near, far } = partitionDots(dots, spot, 320);
+    const { near, far } = partitionDots(dots, [spot], 320);
+    const nearDots = near.map(entry => entry.dot);
     expect(near.length).toBeGreaterThan(0);
     expect(far.length).toBeGreaterThan(0);
     expect(near.length + far.length).toBe(dots.length);
-    expect(new Set([...near, ...far])).toEqual(new Set(dots));
-    expect(near.filter(dot => far.includes(dot))).toEqual([]);
-    expect(near).toEqual(dots.filter(dot => near.includes(dot)));
+    expect(new Set([...nearDots, ...far])).toEqual(new Set(dots));
+    expect(nearDots.filter(dot => far.includes(dot))).toEqual([]);
+    expect(nearDots).toEqual(dots.filter(dot => nearDots.includes(dot)));
     expect(far).toEqual(dots.filter(dot => far.includes(dot)));
     expect(dots).toEqual(original);
   });
 
   test("agrees with dotScale for both radius and alpha", () => {
-    const { near, far } = partitionDots(dots, spot, 320);
-    for (const dot of near) {
-      const distance = Math.hypot(dot.x - spot.x, dot.y - spot.y);
+    const { near, far } = partitionDots(dots, [spot], 320);
+    for (const { dot, distance } of near) {
+      expect(distance).toBe(Math.hypot(dot.x - spot.x, dot.y - spot.y));
       expect(dotScale(distance, 320, 1.5, 2)).toBeGreaterThan(1.5);
       expect(dotScale(distance, 320, 0.08, 0.3)).toBeGreaterThan(0.08);
     }
@@ -92,20 +94,94 @@ describe("partitionDots", () => {
 
   test("puts the exact radius boundary outside, including a diagonal distance", () => {
     const boundary = [{ x: 320, y: 0 }, { x: 0, y: -320 }, { x: 192, y: 256 }];
-    expect(partitionDots(boundary, { x: 0, y: 0 }, 320)).toEqual({ near: [], far: boundary });
-    expect(partitionDots([{ x: 319, y: 0 }], { x: 0, y: 0 }, 320).near).toHaveLength(1);
+    expect(partitionDots(boundary, [{ x: 0, y: 0 }], 320)).toEqual({ near: [], far: boundary });
+    expect(partitionDots([{ x: 319, y: 0 }], [{ x: 0, y: 0 }], 320).near).toHaveLength(1);
   });
 
-  test("puts all points outside when there is no cursor", () => {
-    expect(partitionDots(dots, null, 320)).toEqual({ near: [], far: dots });
+  test("puts all points outside when there are no spots (reduced motion)", () => {
+    expect(partitionDots(dots, [], 320)).toEqual({ near: [], far: dots });
   });
 
   test.each([0, -320])("puts all points outside for radius %s", radius => {
-    expect(partitionDots(dots, spot, radius)).toEqual({ near: [], far: dots });
+    expect(partitionDots(dots, [spot], radius)).toEqual({ near: [], far: dots });
   });
 
   test("accepts an empty grid", () => {
-    expect(partitionDots([], spot, 320)).toEqual({ near: [], far: [] });
+    expect(partitionDots([], [spot], 320)).toEqual({ near: [], far: [] });
+  });
+
+  test("a dot near any spot is near, at the distance to its nearest spot", () => {
+    const left = { x: 0, y: 0 }, right = { x: 1000, y: 0 };
+    const { near, far } = partitionDots([{ x: 10, y: 0 }, { x: 500, y: 0 }, { x: 960, y: 0 }, { x: 990, y: 0 }], [left, right], 320);
+    expect(near).toEqual([
+      { dot: { x: 10, y: 0 }, distance: 10 },
+      { dot: { x: 960, y: 0 }, distance: 40 },
+      { dot: { x: 990, y: 0 }, distance: 10 },
+    ]);
+    expect(far).toEqual([{ x: 500, y: 0 }]);
+  });
+
+  test("two coincident spots give the same result as one", () => {
+    expect(partitionDots(dots, [spot, { ...spot }], 320)).toEqual(partitionDots(dots, [spot], 320));
+  });
+});
+
+describe("opposingCursor", () => {
+  const { speed, rows, radius } = DOT_FIELD;
+  const width = 640, height = 715;
+  const across = ((width + 2 * radius) / speed) * 1000;
+  const down = ((height / (rows - 1)) / speed) * 1000;
+  const cycle = rows * across + (rows - 1) * down;
+  const first = (t: number) => autoCursor(t, width, height, speed, rows, radius);
+
+  test("mirrors a spot through the centre of the area", () => {
+    expect(opposingCursor({ x: 100, y: 50 }, 640, 320)).toEqual({ x: 540, y: 270 });
+    expect(opposingCursor({ x: -320, y: 0 }, 640, 320)).toEqual({ x: 960, y: 320 });
+  });
+
+  test("DOT_FIELD.rows is odd, so a middle row exists where the two spots meet", () => {
+    expect(rows % 2).toBe(1);
+  });
+
+  test("meets the first spot at the centre once per cycle, on the middle row", () => {
+    const middle = (rows - 1) / 2;
+    const centreTime = middle * (across + down) + across / 2;
+    const a = first(centreTime);
+    expect(a).toEqual({ x: width / 2, y: height / 2 });
+    expect(opposingCursor(a, width, height)).toEqual(a);
+  });
+
+  test("passes the first spot on the middle row moving the opposite way", () => {
+    const middle = (rows - 1) / 2;
+    const centreTime = middle * (across + down) + across / 2;
+    const dt = 100;
+    const [a0, a1] = [first(centreTime - dt), first(centreTime + dt)];
+    const [b0, b1] = [opposingCursor(a0, width, height), opposingCursor(a1, width, height)];
+    expect(a1.x - a0.x).toBeGreaterThan(0);
+    expect(b1.x - b0.x).toBeLessThan(0);
+    expect(a0.y).toBe(a1.y);
+    expect(b0.y).toBe(b1.y);
+  });
+
+  // t = 0 is left out: autoCursor wraps there from the last row's end back to the first row's start, off the board.
+  test("walks the first spot's path backwards: equals autoCursor(cycle − t)", () => {
+    for (let t = 137; t < cycle; t += 137) {
+      const mirrored = opposingCursor(first(t), width, height);
+      const reversed = first(cycle - t);
+      expect(mirrored.x).toBeCloseTo(reversed.x, 6);
+      expect(mirrored.y).toBeCloseTo(reversed.y, 6);
+    }
+  });
+
+  test("does not overlap the first spot at other sampled times", () => {
+    const middle = (rows - 1) / 2;
+    const centreTime = middle * (across + down) + across / 2;
+    for (let t = 0; t < cycle; t += 50) {
+      if (Math.abs(t - centreTime) < 50) continue;
+      const a = first(t);
+      const b = opposingCursor(a, width, height);
+      expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeGreaterThan(0);
+    }
   });
 });
 
@@ -195,10 +271,10 @@ describe("autoCursor", () => {
       for (let elapsed = corner; elapsed <= corner + down; elapsed += 10) {
         const spot = autoCursor(elapsed, width, height, speed, rows, 320);
         expect(spot.x < 0 || spot.x > width).toBe(true);
-        expect(partitionDots(dots, spot, 320).near).toEqual([]);
+        expect(partitionDots(dots, [spot], 320).near).toEqual([]);
       }
     }
-    expect(partitionDots(dots, autoCursor(expandedAcross / 2, width, height, speed, rows, 320), 320).near.length).toBeGreaterThan(0);
+    expect(partitionDots(dots, [autoCursor(expandedAcross / 2, width, height, speed, rows, 320)], 320).near.length).toBeGreaterThan(0);
   });
 
   test("keeps all overshoot row transitions continuous", () => {

@@ -1,5 +1,7 @@
 // Ported from malmoi lib/signin/dot-field.ts at 6dcdd575 to preserve its
 // continuous row turns and matching scale/partition boundary for canvas drawing.
+// Several spots at once and the opposing spot (`opposingCursor`) are Doan's additions at the user's request;
+// malmoi draws one spot and there is no outside source for them.
 export type Dot = { x: number; y: number };
 
 export function dotGrid(width: number, height: number, gap: number): Dot[] {
@@ -16,14 +18,25 @@ export function dotScale(distance: number, radius: number, base: number, max: nu
   return base + (max - base) * (1 - distance / radius);
 }
 
-export function partitionDots(dots: Dot[], spot: Dot | null, radius: number): { near: Dot[]; far: Dot[] } {
-  if (spot === null || radius <= 0) return { near: [], far: dots };
-  const near: Dot[] = [];
+// A dot is near when any spot is within the radius, and `distance` is the one to its nearest spot, so overlapping
+// spots never add up: size and alpha stay within the single-spot maximum. No spots (reduced motion) leaves all far.
+export function partitionDots(dots: Dot[], spots: readonly Dot[], radius: number): { near: { dot: Dot; distance: number }[]; far: Dot[] } {
+  if (spots.length === 0 || radius <= 0) return { near: [], far: dots };
+  const near: { dot: Dot; distance: number }[] = [];
   const far: Dot[] = [];
   for (const dot of dots) {
-    (Math.hypot(dot.x - spot.x, dot.y - spot.y) < radius ? near : far).push(dot);
+    let nearest = Infinity;
+    for (const spot of spots) nearest = Math.min(nearest, Math.hypot(dot.x - spot.x, dot.y - spot.y));
+    if (nearest < radius) near.push({ dot, distance: nearest });
+    else far.push(dot);
   }
   return { near, far };
+}
+
+// The spot's point reflection through the area's centre. With an odd row count, `autoCursor`'s zig-zag reflected this
+// way is the same path walked backwards at the same speed, and the two spots cross at the centre on the middle row.
+export function opposingCursor(spot: Dot, width: number, height: number): Dot {
+  return { x: width - spot.x, y: height - spot.y };
 }
 
 export function autoCursor(

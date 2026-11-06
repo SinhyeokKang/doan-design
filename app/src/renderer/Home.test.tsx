@@ -67,7 +67,11 @@ test("an empty composer for a project with canvases: project above, tray below, 
   // suggested-prompt-variants C: a prompt-only row (icon tile, sentence, hover arrow), not the shared doan-button.
   expect(html.match(/<button type="button" class="suggestion"[^>]*><span class="suggestion-icon"><svg[^>]*aria-hidden="true"/g)).toHaveLength(3);
   expect(html).not.toContain("suggestion doan-button");
-  expect(html).toContain('<span class="suggestion-label">Review the buzz-onboarding canvas</span>');
+  // small-ui-tweaks decision 7: the canvas name is a highlighted inline value; the button keeps the full sentence as its text.
+  expect(html).toContain('<span class="suggestion-label">Review the <span class="suggestion-value">buzz-onboarding</span> canvas</span>');
+  expect(html).toContain('<span class="suggestion-value">doan-design</span>');
+  expect(html.match(/class="suggestion-value"/g)).toHaveLength(3);
+  expect(html.replace(/<[^>]+>/g, "")).toContain("Review the buzz-onboarding canvas");
   expect(html.match(/suggestion-go/g)).toHaveLength(3);
   expect(html).not.toContain("composer-reason");
 });
@@ -199,4 +203,39 @@ test("suggestion CSS: full-width rows with an accent icon tile, Home's group 32p
   expect(css).toMatch(/\.suggestion-icon \{[^}]*width: var\(--size-control-xs\);[^}]*height: var\(--size-control-xs\);[^}]*border-radius: var\(--radius-toolbar-icon\);[^}]*background: var\(--surface-accent-subtle\);/);
   expect(css).toMatch(/\.suggestion-go \{[^}]*visibility: hidden;/);
   expect(css).toMatch(/\.suggestion:is\(:hover, :focus-visible\) \.suggestion-go \{ visibility: visible; \}/);
+});
+
+// small-ui-tweaks decisions 3, 5, 6, 9: a sentence runs to three lines, rows stay centered with the 4px gap, and a
+// 1px line separates neighbors without touching the first or last row.
+test("suggestion CSS: the sentence clamps at three lines and a 1px divider separates rows", () => {
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  const label = /\.suggestion-label \{([^}]*)\}/.exec(css)?.[1] ?? "";
+  expect(label).toMatch(/display: -webkit-box;/);
+  expect(label).toMatch(/-webkit-box-orient: vertical;/);
+  expect(label).toMatch(/-webkit-line-clamp: 3;/);
+  expect(label).toMatch(/overflow: hidden;/);
+  expect(label).toMatch(/overflow-wrap: anywhere;/);
+  expect(label).not.toMatch(/white-space: nowrap|text-overflow/);
+  expect(css).toMatch(/\.suggestion \{[^}]*position: relative;[^}]*align-items: center;/);
+  expect(css).toMatch(/\.suggestion \+ \.suggestion::before \{[^}]*content: "";[^}]*position: absolute;[^}]*inset-inline: var\(--space-3\);[^}]*top: calc\(var\(--space-half\) \* -1 - 1px\);[^}]*height: 1px;[^}]*background: var\(--border-standard\);[^}]*pointer-events: none;/);
+  expect(css).toMatch(/\.home-suggestions \{[^}]*gap: var\(--space-1\);/);
+  expect(css).toMatch(/\.ov-suggestions \{[^}]*gap: var\(--space-1\);/);
+});
+
+// small-ui-tweaks decisions 7, 8: the name highlight repeats .anchor-chip's values but is inline, so it can wrap and
+// is never truncated; the two rules are pinned together because .anchor-chip itself cannot be reused.
+test("suggestion CSS: the name highlight repeats the anchor chip's values and wraps with a clone per fragment", () => {
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  const rule = (selector: string) => new RegExp(`(?:^|\\n)${selector.replace(/[.\\]/g, "\\$&")} \\{([^}]*)\\}`).exec(css)?.[1] ?? "";
+  const declaration = (body: string, property: string) => new RegExp(`(?:^|[ ;])${property}: ([^;]+);`).exec(body)?.[1];
+  const chip = rule(".anchor-chip"), value = rule(".suggestion-value");
+  expect(value).not.toBe("");
+  for (const property of ["padding", "border-radius", "background", "color", "font-weight"]) {
+    expect(declaration(value, property), property).toBeDefined();
+    expect(declaration(value, property), property).toBe(declaration(chip, property));
+  }
+  expect(declaration(value, "padding")).toBe("0 var(--space-1h)");
+  expect(value).toMatch(/-webkit-box-decoration-break: clone;/);
+  expect(value).toMatch(/(^|[ ;])box-decoration-break: clone;/);
+  expect(value).not.toMatch(/display:|white-space:|max-width:|text-overflow:/);
 });

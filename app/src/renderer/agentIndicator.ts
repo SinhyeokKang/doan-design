@@ -186,21 +186,20 @@ export const DOT_FIELD = { gap: 12, baseRadius: 1.5, maxRadius: 2, baseAlpha: 0.
 
 type DotContext = Pick<CanvasRenderingContext2D, "globalAlpha" | "fillStyle" | "clearRect" | "beginPath" | "moveTo" | "arc" | "fill">;
 
-// Dots outside the cursor's radius all share the base size and alpha, so they go into one path and one fill (malmoi R8):
+// Dots outside every spot's radius all share the base size and alpha, so they go into one path and one fill (malmoi R8):
 // a full board is thousands of dots each frame.
-export function drawDotField(ctx: DotContext, width: number, height: number, dots: Dot[], spot: Dot | null, color: string): void {
+export function drawDotField(ctx: DotContext, width: number, height: number, dots: Dot[], spots: readonly Dot[], color: string): void {
   const { baseRadius, maxRadius, baseAlpha, maxAlpha, radius } = DOT_FIELD;
   ctx.clearRect(0, 0, width, height);
   ctx.fillStyle = color;
-  const { near, far } = partitionDots(dots, spot, radius);
+  const { near, far } = partitionDots(dots, spots, radius);
   if (far.length) {
     ctx.globalAlpha = baseAlpha;
     ctx.beginPath();
     for (const dot of far) { ctx.moveTo(dot.x + baseRadius, dot.y); ctx.arc(dot.x, dot.y, baseRadius, 0, Math.PI * 2); }
     ctx.fill();
   }
-  for (const dot of near) {
-    const distance = Math.hypot(dot.x - spot!.x, dot.y - spot!.y);
+  for (const { dot, distance } of near) {
     ctx.globalAlpha = dotScale(distance, radius, baseAlpha, maxAlpha);
     ctx.beginPath();
     ctx.arc(dot.x, dot.y, dotScale(distance, radius, baseRadius, maxRadius), 0, Math.PI * 2);
