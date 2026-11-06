@@ -86,7 +86,7 @@ const props = (items: readonly ThreadItem[], turn: ThreadTurn | null, patch: Par
   items, conversationId: "c1", provider: "claude", project: "acme", liveAfter: 0, canvasListed: () => true, turn,
   onAnswer: noop, onStop: noop, onEditAndResend: noop, onSignIn: noop, onRetry: noop, onOpenCanvas: noop, onOpenLink: noop, onCopy: async () => true, ...patch,
 });
-const at = (status: TurnStatus): ThreadTurn => ({ status, at: AT });
+const at = (status: TurnStatus, turnId = "t1"): ThreadTurn => ({ turnId, status, at: AT });
 const html = (items: readonly ThreadItem[], turn: ThreadTurn | null, patch: Partial<ConversationThreadProps> = {}) => renderToStaticMarkup(<ConversationThread {...props(items, turn, patch)} />);
 // The thread body run with plain hooks (ConversationThread is a forwardRef whose render keys the body by conversation).
 function body(p: ConversationThreadProps): () => ReactNode {
@@ -219,6 +219,28 @@ describe("settle and the screen reader's status", () => {
     const tree = run();
     expect(indicator(tree)?.props.text).toBe("Reading src/b.ts");
     expect(status(tree)).toBe(first);
+  });
+
+  // Review RU-R1: the same conversation's next turn arrives in the render after the earlier one's stage, with no render
+  // of its end between (a queue starting it at once).
+  test("a next turn starts from nothing: the earlier turn's shown or pending stage never shows beside it", () => {
+    let p = props([user, running], at({ kind: "tool", activity: "read", text: "Reading old.ts" }, "t1"));
+    const run = () => render(body(p));
+    expect(indicator(run())?.props.text).toBe("Reading old.ts");
+    p = props([user], at({ kind: "general" }, "t2"));
+    expect(indicator(run())?.props.text).toBe("Claude Code is working");
+    expect(vi.getTimerCount()).toBe(0);
+    // A stage still waiting out its 300 ms in the earlier turn is dropped too, and the new turn's first stage shows at once.
+    p = props([user], at({ kind: "tool", activity: "read", text: "Reading old.ts" }, "t2"));
+    run();
+    expect(vi.getTimerCount()).toBe(1);
+    p = props([user], at({ kind: "thinking" }, "t3"));
+    const tree = run();
+    expect(indicator(tree)?.props.text).toBe("Claude Code is thinking");
+    expect(status(tree)).toBe("Claude Code is thinking");
+    expect(vi.getTimerCount()).toBe(0);
+    vi.advanceTimersByTime(1000);
+    expect(indicator(run())?.props.text).toBe("Claude Code is thinking");
   });
 
   test("the body sets no timer of its own while the stage holds, so the thread does not redraw every second", () => {

@@ -163,15 +163,18 @@ describe("Codex stages", () => {
   function command(actions: unknown, method = "item/started", over: Record<string, unknown> = {}) {
     return { method, params: { threadId: "session-1", turnId: "turn-1", item: { type: "commandExecution", id: "c", command: "/bin/zsh -c \"COMMAND_TEXT\"", cwd: "/repo", status: "inProgress", ...(actions === undefined ? {} : { commandActions: actions }) } }, ...over };
   }
-  it("reports a read stage for a single search action, with its path", () => {
+  it("reports a read stage for a single search or listFiles action without its folder path", () => {
     const search = [{ type: "search", command: "COMMAND_TEXT", query: "lantern", path: "." }];
     const { steps } = codexSteps([command(search), command(search, "item/completed")]);
-    expect(stagesOf(steps)).toEqual([{ kind: "tool", activity: "read", path: ".", summary: GENERIC_SUMMARY.read }, GENERAL]);
+    expect(stagesOf(steps)).toEqual([{ kind: "tool", activity: "read", summary: GENERIC_SUMMARY.read }, GENERAL]);
+    expect(stagesOf(codexSteps([command([{ type: "listFiles", command: "COMMAND_TEXT", path: "src" }])]).steps)).toEqual([{ kind: "tool", activity: "read", summary: GENERIC_SUMMARY.read }]);
     expect(eventsOf(steps)).toEqual([{ type: "activity", kind: "command", summary: GENERIC_SUMMARY.command }]);
   });
   it("shows a read path outside the root as written, and inside it relative", () => {
     expect(stagesOf(codexSteps([command([{ type: "read", command: "COMMAND_TEXT", name: "a", path: "/elsewhere/a.txt" }])]).steps)).toEqual([{ kind: "tool", activity: "read", path: "/elsewhere/a.txt", summary: "/elsewhere/a.txt" }]);
     expect(stagesOf(codexSteps([command([{ type: "read", command: "COMMAND_TEXT", name: "a", path: "src/a.ts" }])]).steps)).toEqual([{ kind: "tool", activity: "read", path: "src/a.ts", summary: "src/a.ts" }]);
+    // A file named like the generic phrase keeps its path, which is what the renderer goes by (review RU-R2).
+    expect(stagesOf(codexSteps([command([{ type: "read", command: "COMMAND_TEXT", name: "Reading files", path: "Reading files" }])]).steps)).toEqual([{ kind: "tool", activity: "read", path: "Reading files", summary: "Reading files" }]);
   });
   it.each([
     ["an unknown action", [{ type: "unknown", command: "COMMAND_TEXT" }]],

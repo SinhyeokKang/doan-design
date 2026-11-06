@@ -59,8 +59,12 @@ describe("turnStatus", () => {
     const tool = (stage: Omit<Extract<TurnStage, { kind: "tool" }>, "kind">) => statusOf(events, signal("t1", { kind: "tool", ...stage }, seq));
     expect(tool({ activity: "read", path: `${ROOT}/src/App.tsx`, summary: "src/App.tsx" })).toEqual({ kind: "tool", activity: "read", text: "Reading src/App.tsx" });
     expect(tool({ activity: "read", path: "/etc/hosts", summary: "/etc/hosts" })).toEqual({ kind: "tool", activity: "read", text: "Reading /etc/hosts" });
-    expect(tool({ activity: "read", path: "src", summary: "Reading files" })).toEqual({ kind: "tool", activity: "read", text: "Reading files" });
+    // Main leaves the folder out of a Codex listFiles or search (transport.ts codexReadStage).
     expect(tool({ activity: "read", summary: "Reading files" })).toEqual({ kind: "tool", activity: "read", text: "Reading files" });
+    // Review RU-R2: the summary is words only, never what decides the form; a path present is shown.
+    expect(tool({ activity: "read", path: "Reading files", summary: "Reading files" })).toEqual({ kind: "tool", activity: "read", text: "Reading Reading files" });
+    expect(tool({ activity: "read", path: `${ROOT}/src/App.tsx`, summary: "Reading files" })).toEqual({ kind: "tool", activity: "read", text: "Reading src/App.tsx" });
+    expect(tool({ activity: "edit", path: "src/a.ts", summary: "Reading files" })).toEqual({ kind: "tool", activity: "edit", text: "Editing src/a.ts" });
     expect(tool({ activity: "edit", path: "src/a.ts", summary: "Edit a.ts" })).toEqual({ kind: "tool", activity: "edit", text: "Editing src/a.ts" });
     expect(tool({ activity: "command", summary: "Running a command" })).toEqual({ kind: "tool", activity: "command", text: "Running a command" });
     expect(tool({ activity: "other", summary: "Fetch the page" })).toEqual({ kind: "tool", activity: "other", text: "Fetch the page" });

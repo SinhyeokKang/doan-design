@@ -148,14 +148,15 @@ function claudeActivity(tool: string, input: Record<string, unknown>, root: stri
 }
 // A command Codex parsed into one read-only action reads files; the turn indicator says so, while its activity stays a
 // command (turn-activity 결정 6). Anything else (unknown, several actions, none) gives no stage. The command text never
-// goes in, only the path.
+// goes in, only a read's file path. A listFiles or search names a folder the indicator does not show ("Reading files"),
+// so its stage carries no path: the renderer shows "Reading <path>" exactly when a path is there.
 function codexReadStage(item: Record<string, unknown>, root: string): TurnStage | null {
   const actions = Array.isArray(item.commandActions) ? item.commandActions : [];
   const [only] = actions;
   if (actions.length !== 1 || !object(only)) return null;
   const path = text(only.path);
   if (only.type === "read") return path ? { kind: "tool", activity: "read", path: path.slice(0, 512), summary: displayPath(path, root).slice(0, 512) } : null;
-  if (only.type === "listFiles" || only.type === "search") return { kind: "tool", activity: "read", ...(path ? { path: path.slice(0, 512) } : {}), summary: GENERIC_SUMMARY.read };
+  if (only.type === "listFiles" || only.type === "search") return { kind: "tool", activity: "read", summary: GENERIC_SUMMARY.read };
   return null;
 }
 function codexActivities(item: Record<string, unknown>, root: string, labels: Readonly<Record<string, string>>): { events: EventPayload[]; files: string } {

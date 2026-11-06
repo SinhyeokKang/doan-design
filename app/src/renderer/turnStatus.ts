@@ -26,12 +26,10 @@ export function turnOf(events: readonly ConversationEvent[], live: boolean): Tur
   return { turnId: started.turnId, at: started.at, lastSeq, live, ended };
 }
 
-// The phrase main gives a Codex listFiles or search, and any read without a single file (transport.ts GENERIC_SUMMARY,
-// which the renderer cannot import: that module loads node:path). Those read as "Reading files" even with the folder's
-// path (design decision 1).
-const READING_FILES = "Reading files";
+// A read or edit with a path reads "Reading/Editing <path>", as the activity rows do; without one, its summary. Main
+// leaves the folder out of a Codex listFiles or search, which reads as "Reading files" (design decision 1).
 function stageTool(stage: Extract<TurnStage, { kind: "tool" }>, root: string): TurnStatus {
-  const path = stage.path && stage.summary !== READING_FILES ? rootRelative(stage.path, root) : null;
+  const path = stage.path ? rootRelative(stage.path, root) : null;
   return { kind: "tool", activity: stage.activity, text: runningHead({ key: "", kind: stage.activity, verb: stage.summary, path }) };
 }
 const eventTool = (step: ActivityStep): TurnStatus => ({ kind: "tool", activity: step.kind, text: runningHead(step) });
@@ -53,11 +51,12 @@ export function turnStatus(items: readonly ThreadItem[], turn: TurnInfo | null, 
   return step && !step.sentence ? eventTool(step) : { kind: "general" };
 }
 
-// What both hosts pass the thread (design §4): the last turn's status and its start, which the elapsed time counts from.
-export interface ThreadTurn { status: TurnStatus; at: string }
+// What both hosts pass the thread (design §4): the last turn's status, its id and its start, which the elapsed time
+// counts from. The id lets the thread drop the settle state of an earlier turn.
+export interface ThreadTurn { turnId: string; status: TurnStatus; at: string }
 export function threadTurn(events: readonly ConversationEvent[], items: readonly ThreadItem[], live: boolean, stage: StageSignal | null, root: string): ThreadTurn | null {
   const turn = turnOf(events, live);
-  return turn ? { status: turnStatus(items, turn, stage, root), at: turn.at } : null;
+  return turn ? { turnId: turn.turnId, status: turnStatus(items, turn, stage, root), at: turn.at } : null;
 }
 
 // Which stage to keep (design §2): within a turn the higher rev, since a read's reply and a push sent after it may

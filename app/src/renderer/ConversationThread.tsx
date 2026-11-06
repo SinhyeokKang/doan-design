@@ -516,9 +516,12 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // The indicator's stage after settle (design §1), kept as state derived while rendering: an immediate change shows in
   // the same render, so the indicator is there from the render the person's message enters.
-  const [held, setHeld] = useState<Settled | null>(null);
-  const settled = settle(held, props.turn?.status ?? NO_TURN, Date.now());
-  if (settled !== held) setHeld(settled);
+  // It belongs to one turn: a next turn starts from nothing, even when no render showed the earlier one's end (a queue
+  // starting it at once), so an earlier turn's shown or pending stage never shows beside it.
+  const turnId = props.turn?.turnId ?? null;
+  const [held, setHeld] = useState<{ turnId: string | null; settled: Settled } | null>(null);
+  const settled = settle(held?.turnId === turnId ? held.settled : null, props.turn?.status ?? NO_TURN, Date.now());
+  if (settled !== held?.settled) setHeld({ turnId, settled });
   const [, wake] = useState(0);
   useEffect(() => {
     if (!settled.pending) return;
