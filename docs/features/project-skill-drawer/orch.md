@@ -19,12 +19,12 @@
 
 | batch | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 gate | 상태 |
 |---|---|---|---|---|---|---|
-| A | F1, A1, C1(대화 제목 제외) | `app/src/main/agentAuth/providers.ts`·테스트, `app/src/main/conversation/`의 새 skill parser 모듈·fixture·`ipc.ts`·`service.ts`·`runners.ts`·`models.ts`(lease를 넓힐 때만)·그 테스트, `app/src/preload/` | 없음 | Claude Opus high — lease·동시성(POSTMORTEM 2026-10-28·10-30)과 캐시 promise 공유가 틀리면 send·sign-out이 막힌다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 진행(worktree `psd-batch-a`, dispatch `ctx_74152e3feaa8`) |
+| A | F1, A1, C1(대화 제목 제외) | `app/src/main/agentAuth/providers.ts`·테스트, `app/src/main/conversation/`의 새 skill parser 모듈·fixture·`ipc.ts`·`service.ts`·`runners.ts`·`models.ts`(lease를 넓힐 때만)·그 테스트, `app/src/preload/` | 없음 | Claude Opus high — lease·동시성(POSTMORTEM 2026-10-28·10-30)과 캐시 promise 공유가 틀리면 send·sign-out이 막힌다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 완료 `a293e4da`·`d59d745b`·`8732e368`(전체 테스트 8,906개·typecheck 통과), 리뷰 RA 대기 |
 | A2 | C1의 대화 제목(결정 18, `service.ts` `messageLine`) | `service.ts`의 제목 줄과 그 테스트 | A, B 통합 | A 작업자 후속(같은 모델) — 한 줄 변경 | 같음 | 대기 |
 | B | B1, B2, B3 | `app/src/renderer/homeComposer.ts`·테스트, 새 renderer 순수 모듈(`skillWords` 등)·테스트, 새 `app/src/main/conversation/requestLines.ts`·테스트, `rendererImports.test.ts`의 `EXTRA_ROOTS` | 없음 | Codex gpt-6-astra medium — 경계 규칙·검색 순서가 많지만 design §4.1·tasks B에 예가 다 있다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 완료 `3e6e63f1`(전체 테스트 8,974개·typecheck 통과), 리뷰 RB 대기 |
 | D | D1, D2, R2 | `chipField.ts`, `styles.css`, `ds/checks.test.ts`, `Home.test.tsx`, `ComposerParts.tsx`, `HomeComposerView.tsx`, `DockedComposer.tsx`, `ConversationThread.tsx`, `Home.tsx`, `ProjectOverview.tsx`, `CanvasConversationPanel.tsx` 등 host, 그 테스트, `docs/DESIGN.md`(R2 측정값) | A, B 통합 | Claude Opus high — chip field 그리기·IME·root 경쟁(POSTMORTEM 2026-11-01, 10-25)과 design-sync 판단 | `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run build`, `/design-sync` 보고 | 대기 |
 | R | R1, F1 실제 턴 | 코드 없음(문제는 D·A 소유 작업자에게 돌려보냄), `.scratch/` 기록 | D 통합 | Claude Sonnet high — 정해진 probe를 돌리고 기록하는 일 | `/runtime-test` 기록, 녹화·스크린샷 위치 | 대기 |
-| 리뷰 RA | A의 diff `/code-review` | 보고만 | A 완료 | Codex gpt-6-astra medium — 다른 계열의 독립 판단 | 보고 | 대기 |
+| 리뷰 RA | A의 diff `/code-review` | 보고만 | A 완료 | Codex gpt-6-astra medium — 다른 계열의 독립 판단 | 보고 | 진행(dispatch `ctx_f374a1b6bdd5`) |
 | 리뷰 RB | B의 diff `/code-review` | 보고만 | B 완료 | Claude Opus high — 다른 계열의 독립 판단 | 보고 | 진행(dispatch `ctx_c7637fce73f2`) |
 | 리뷰 RD | D의 diff `/code-review` | 보고만 | D 완료 | Codex gpt-6-astra medium — 다른 계열의 독립 판단 | 보고 | 대기 |
 | 지휘자 | R3, Z1 | `docs/` 승격, feature·chain 디렉터리 삭제 | 전부 | — | `/verify`, `/agent-eval` | 대기 |
