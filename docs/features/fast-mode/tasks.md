@@ -95,7 +95,7 @@
 - [ ] Z1. 결론을 현재 규칙으로 올린다(영어, 근거는 커밋 메시지).
   - PRODUCT: §5 item 1 'Agent and model picker'에 Fast 스위치·자동 끔, item 0 'New conversations'에 Last used의 Fast, item 2 'Handoff'에 Fast 상속을 적는다.
   - ARCHITECTURE §7: 'Models'에 Fast 읽기, 'IPC contract'에 `fast` 검증, 'Events'에 `fast.unused`, 'Permission modes' 옆에 Codex `serviceTierForTurn`, index·ui-state 필드를 적는다.
-  - DESIGN.md에 측정값, 확인하지 못한 표면은 BACKLOG.md에 적는다.
+  - DESIGN.md에 측정값과 'Accent places'의 Fast 아이콘(트리거·메뉴 행·스레드 알림)을 적고, 확인하지 못한 표면은 BACKLOG.md에 적는다.
   - 그 뒤 `docs/features/fast-mode/`를 지운다.
   - 검증: `rg -n "docs/features/fast-mode" docs AGENTS.md README.md`에 결과가 없고, `test ! -d docs/features/fast-mode`가 성공한다.
 

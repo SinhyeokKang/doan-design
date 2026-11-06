@@ -9,6 +9,10 @@
 5. **모델 변경**: Fast를 지원하지 않는 모델로 바꿔도 대화의 Fast는 남긴다. 지원하는 모델로 돌아오면 다시 켜진다.
 6. **핸드오프**: 새 대화는 원래 대화의 Fast를 물려받는다.
 7. **Claude 설명**: Claude Code 자체 문구로 설명을 둔다(§6).
+8. **조직 정책**: 조직이 Fast를 막은 경우(`preference`)도 계속되는 이유로 보고 자동으로 끈다.
+9. **행 아이콘**: Fast 행의 Fast 아이콘은 스위치가 켜졌을 때만 보인다. 꺼지면 같은 크기의 빈 자리를 두어 이름이 움직이지 않는다.
+10. **메뉴 폭**: Fast 행이 있으면 Effort 메뉴는 280px(Permission 메뉴의 폭)이고, 없으면 200px 그대로다. 설명이 두 줄 안에서 끝나게 하기 위해서다. provider가 준 Codex 설명은 Doan이 줄이지 않는다.
+11. **아이콘 색**: 트리거, 메뉴 행, 스레드 알림의 Fast 아이콘을 모두 accent(`--affordance-accent`, Send와 같은 violet)로 칠한다. 글자는 지금의 색 그대로다.
 
 ## 1. 영향받는 구성 요소
 
@@ -43,7 +47,7 @@
   - renderer 쪽 `ModelOption`(`homeComposer.ts:218`, main과 다른 타입)에 `fast?: { description?: string }`.
   - `ModelChoice`에 선택 필드 `fast?: boolean`. `modelPickerView`의 `effort` view에 `fast: { on: boolean; description?: string } | null`. `choice.fast`가 없으면(Settings) `fast: null`이다.
   - `effort.label`은 레벨만 담는다. Fast는 `ariaLabel`과 `fast`에만 반영한다. Settings는 `label`을 화면 문구로 쓰므로(`SettingsAgents.tsx:206`, `:252`) Settings는 바뀌지 않는다.
-- `ComposerParts.tsx` `EffortPicker`: RadioGroup 아래에 `DropdownMenu.Separator`와 `DropdownMenu.CheckboxItem` 행을 둔다(`menuitemcheckbox`, VoiceOver는 checked/unchecked로 읽는다). 모양은 행 끝에 `aria-hidden` 스위치 모양 span을 그린다. `.doan-switch`는 `button[role="switch"]`라 menuitem 안에 넣을 수 없다. 레벨의 체크 표시와 구분되도록 체크 표시는 쓰지 않는다. 설명은 `aria-describedby`로 잇는다. `onSelect`에서 `preventDefault`를 불러 메뉴를 열어 둔다. 트리거에는 `fast.on`일 때 lucide `Zap` 아이콘을 붙이고 `flex-shrink: 0`이다. sm·xs 모두 `IconTip`으로 `ariaLabel`을 보인다.
+- `ComposerParts.tsx` `EffortPicker`: Fast 행이 있을 때 메뉴에 280px 클래스를 더한다(결정 10). RadioGroup 아래에 `DropdownMenu.Separator`와 `DropdownMenu.CheckboxItem` 행을 둔다(`menuitemcheckbox`, VoiceOver는 checked/unchecked로 읽는다). 모양은 행 끝에 `aria-hidden` 스위치 모양 span을 그린다. `.doan-switch`는 `button[role="switch"]`라 menuitem 안에 넣을 수 없다. 레벨의 체크 표시와 구분되도록 체크 표시는 쓰지 않는다. 설명은 `aria-describedby`로 잇는다. `onSelect`에서 `preventDefault`를 불러 메뉴를 열어 둔다. 행의 Fast 아이콘은 켜졌을 때만 그리고, 꺼지면 같은 크기의 빈 자리를 둔다(결정 9). 트리거에는 `fast.on`일 때 lucide `Zap` 아이콘을 붙이고 `flex-shrink: 0`이다. 두 아이콘 모두 `--affordance-accent`다(결정 11). sm·xs 모두 `IconTip`으로 `ariaLabel`을 보인다.
 - `rememberChoice.ts`: `rememberFast(memory, provider, on)`. `home.models[provider]`는 모델을 고를 때마다 통째로 바뀌므로(`rememberChoice.ts:25`) Fast는 거기에 두지 않는다. `home.permissions`처럼 provider 단위로 `home.fast`에 둔다. `rememberChoice`는 보내기만으로 Fast를 기록하지 않는다. `preferenceAfterPick`은 `fast`를 무시한다(결정 3).
 - `app/src/restore/uiState.ts` `HomeMemory`·`parseHome`: `fast?: Partial<Record<Provider, true>>`를 `permissions`(`uiState.ts:37-39`)와 같은 방식으로 읽는다. 읽지 않으면 다음 저장에서 지워진다(POSTMORTEM 2026-11-01).
 - `dockedSupport.ts` `DockedPick`과 field 목록(`dockedSupport.ts:54`), `HomeComposerView.tsx`, `DockedComposer.tsx`, `ProjectOverview.tsx`, `CanvasConversationPanel.tsx`: `onPickFast`를 effort와 같은 길로 잇는다. 새 대화 start는 보이는 상태의 Fast를 보낸다. 기존 대화 send는 사람이 바꾼 경우만 보낸다. 세 composer의 `onRemember` effect 의존 배열에 `fast`를 넣는다(`HomeComposerView.tsx:246`, `ProjectOverview.tsx:167`, `CanvasConversationPanel.tsx:264`).
@@ -120,7 +124,9 @@ UI 문구는 영어다. 기존 Effort 메뉴의 말투(짧은 명사)를 따르�
 - `thread-notice`: 자동으로 꺼진 알림, 켜 둔 채의 알림(이유 있음·없음). 턴의 답 아래 어디에 놓이는지.
   - 모양(사람, 2026-11-06): 턴 안의 접힌 activity 줄이다. 그 턴의 답 아래에 Fast 아이콘과 subtle 글자로 두고, 길면 줄을 바꾼다. 대화 단위 marker(가운데 줄)는 쓰지 않는다. 실패한 턴에서는 끝 알림 앞에 온다.
 
-상태: 초안 그림(round 1, `docs(design): fast-mode draft`), 사람 확인 전.
+- round 2(사람, 2026-11-06): 결정 9–11을 반영했다. Chromium 렌더링에서 280px 메뉴의 설명은 Codex "2x speed, increased usage"가 1줄, Claude 문구가 2줄이었다.
+
+상태: 초안 round 2, 사람 확인 전.
 
 ## 8. PoC 의존
 
