@@ -60,3 +60,7 @@
 - B2를 통합했다(`518c89d2`..`c0bf2417`, 커밋 14개). worker 보고: 17 tile에서 152쌍을 쟀다. docked 단계는 13개 폭(432/431, 384/383, 320/319 포함)에서 초안과 맞았고, 간격은 2/2/2와 링 앞 4다. gate는 typecheck, 8722 tests, build다. worker가 확인하지 못한 것: 실제 provider 목록, Overview와 box docked composer, 비활성 docked 트리거의 잉크. 마지막 `effortPicked` 커밋은 리뷰를 받지 않았다. 그래서 B2 코드 변경 전체를 RV2(Codex Astra medium, dispatch `ctx_fb2b63dd67e8`)에 맡겼다.
 - BC 시작: task `task_ef0ceabf8e07`, dispatch `ctx_612bc1d2b94a`, worktree `pdl-bc`, Claude Opus high.
 - postmortem(사람의 지시): RA 쪽 세 건(Home이 마운트될 때 선택을 기억함, 고른 값과 해석된 값을 구별하지 못함, 미선택 sentinel이 모델 id와 겹침)을 지휘자가 `98f72a51`로 기록했다. BG와 BC는 각 worker가 자기 버그를 기록한다.
+- BG를 통합했다(test `6bd89da9`, fix `1a85332f`, postmortem). `POSTMORTEM.md`가 충돌해서 같은 날짜 항목 위에 BG 항목을 두는 방식으로 풀었고, 항목 안의 hash를 통합 hash로 고쳤다. worker의 probe는 수정 뒤 6/6 통과했고, 키보드 화살표와 Tab에서도 chevron이 보인다.
+- 사람의 결정: 캔버스 행의 ⋯ 메뉴 버튼도 클릭 뒤에 남으므로 같이 고친다. PRODUCT §5 'Canvas row menu'의 "focus is in it"은 Z1에서 키보드 focus로 고친다. BG follow-up은 dispatch `ctx_22d38b603aa0`이다.
+- RV2(B2 코드 리뷰) 결과는 🔴0 🟡3이다(`.scratch/orch/review-RV2.md`). Edit 복원 표식이 effect 의존성에 빠졌고, `modelPicked` 경로가 고정 노력을 무시하며, docked에서 provider를 바꿔도 이전 effort와 표식이 남는다. 고칠 파일이 BC가 고치는 파일과 겹치므로, BC를 통합한 뒤 RA fix round 2로 보낸다.
+- RV2 worker는 release한다.
