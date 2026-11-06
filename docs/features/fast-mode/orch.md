@@ -20,6 +20,7 @@
 | 4 | B3 `/design-sync`에서 모델 목록을 어떻게 얻을까 | 결정 1의 프로필로 목록만 읽는다(프롬프트를 보내지 않는다). Fast 행은 목록이 있어야 보인다 | conductor 판단 — 결정 1과 같은 계정, 목록 읽기는 사용량을 쓰지 않는다 |
 | 5 | 계약 타입을 어디에 둘까 | 배치 C가 main 쪽 타입(`types.ts`, `models.ts`, `summary.ts`, `StartRequest`, preload send 요청)을 먼저 정한다. 그 뒤 M과 R을 나란히 돌린다 | conductor 판단 — preload와 renderer가 main 타입을 import하므로 파일 겹침 없이 병렬로 가려면 계약이 먼저 와야 한다 |
 | 6 | Claude 목록 읽기의 `unavailable` | C가 `models.ts`에 reason → `unavailable` 순수 함수를 두고, M이 `runners.ts`의 목록 읽기에서 부른다 | conductor 판단 — design §1 `models.ts`·§2 1 |
+| 8 | R1 범위 | 지금 계정으로 비활성 경로만 확인한다. Claude는 미리 비활성 행, Codex는 Fast 행 없음과 끈 턴의 `"default"`, 저장된 Fast의 미전송, ACP 전환을 본다. Fast가 켜진 턴, `on`·`cooldown`, 자동 끔, 알림은 BACKLOG에 남긴다. 조직 추가 사용량은 켤 수 없다 | 사람(I1 뒤) |
 | 7 | R1·Z1 담당 | R1은 별도 확인 worker(보고만), R2·Z1은 conductor | conductor 판단 — orchestrate §4·§5 |
 
 ## 배치
@@ -29,8 +30,8 @@
 | C | A1, A2, 계약 타입(`StartRequest.fast?`, preload `sendConversation` 요청의 `fast?`) | `app/src/main/conversation/{store,types,summary,models}.ts`와 그 테스트, `service.ts`의 `StartRequest` 한 줄, `app/src/preload/index.ts` | — | Codex `gpt-6.1-sol` medium — 검증 규칙과 파싱이 정해진 기계적 작업 | `npm --prefix app test`(storeIndex·storeRecovery·summary·models), `npm --prefix app run typecheck` | 통합(`e8c93f85`·`4ce3ab55`·`99e1380a`, 1 round) |
 | M | A3, A4(main: `claudeFastOutcome`, 자동 끔), B1 | `app/src/main/conversation/{ipc,service,runners,transport}.ts`와 그 테스트 | C | Claude Opus high — queue·Send now·핸드오프·steer·이벤트 순서와 자동 끔이 얽혀 틀리면 잘못된 과금 요청이 나간다 | `npm --prefix app test`, `npm --prefix app run typecheck`, `grep -rn '\.acquire(' app/src/main` 전후 동일 | 통합(2 rounds) |
 | R | A4(renderer: `fastUnusedText`), A5, B2 | `app/src/renderer/**`, `app/src/restore/uiState.ts`와 그 테스트 | C | Claude Opus high — 메뉴 접근성, 기억 경로(POSTMORTEM 11-01·11-02), 실시간 이벤트만 반영하는 자동 끔 | `npm --prefix app test`, `npm --prefix app run typecheck`, `rg -n "startConversation\(\|sendConversation\(\|onRemember" app/src/renderer --glob '!*.test.*'` | 통합(`23f46879`…`a128cc87`, 2 rounds) |
-| S | B3 `/design-sync fast-mode` | renderer 구현 수정, `docs/DESIGN.md` | R 통합 | R worker의 후속 Task(Claude Opus high) — 자기 구현을 재는 편이 맥락이 이어진다 | `/design-sync` 보고에 불일치 없음 | 진행 |
-| T | R1 `/runtime-test` | 없음(보고만, `.scratch/`) | C·M·R·S 통합 | Claude Opus high — 실제 계정, 계정 교체, 여러 경우 | `/runtime-test` 보고와 스크린샷 | 대기 |
+| S | B3 `/design-sync fast-mode` | renderer 구현 수정, `docs/DESIGN.md` | R 통합 | R worker의 후속 Task(Claude Opus high) — 자기 구현을 재는 편이 맥락이 이어진다 | `/design-sync` 보고에 불일치 없음 | 통합(`5ee97116`·`ac893bf8`) |
+| T | R1 `/runtime-test` | 없음(보고만, `.scratch/`) | C·M·R·S 통합 | Claude Opus high — 실제 계정, 계정 교체, 여러 경우 | `/runtime-test` 보고와 스크린샷 | 진행 |
 | — | R2 `/verify` | — | 모든 통합, rebase 뒤 | conductor | 종료 코드 0 | 대기 |
 | — | Z1 문서 승격 | PRODUCT, ARCHITECTURE, DESIGN, BACKLOG, `docs/features/fast-mode/` 삭제 | T | conductor | tasks Z1 검증 | 대기 |
 
@@ -77,6 +78,7 @@
 - I1 결과: 두 provider 모두 계정 때문이다(class c). 코드는 바꾸지 않았다.
   - Claude: 프로필 계정은 서버에서 추가 사용량이 꺼져 있다(`hasExtraUsageEnabled: false`).
   - Codex: 프로필의 keyring 계정은 ChatGPT free 플랜이라 티어가 없다. keyring 없이 읽은 9개 목록은 로그아웃 상태의 카탈로그였다.
+- T(R1)를 시작했다(`ctx_a59efc2fd83a`, worktree `fast-mode-T`, Claude Opus high, 결정 8 범위).
 
 ## Orca
 
