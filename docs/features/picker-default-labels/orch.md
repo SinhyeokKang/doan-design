@@ -24,7 +24,7 @@
 | Batch | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 gate | 상태 |
 |---|---|---|---|---|---|---|
 | MA | A1 | `app/src/main/conversation/models.ts`, `models.test.ts` | 없음 | Codex Sol `medium` — 함수 하나와 테스트 네 경우가 spec에 정해져 있다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 통합 `87d2769d`·`98ecb231`(worker red 2건 → 전체 8688 통과, typecheck 통과) |
-| RA | A2, A3, A4, B1 | `app/src/renderer/` 중 `homeComposer.ts`, `dockedRules.ts`, `permissionPicker.ts`, `ComposerParts.tsx`, `DockedComposer.tsx`, `SettingsAgents.tsx`, `HomeComposerView.tsx`, `ProjectOverview.tsx`, `CanvasConversationPanel.tsx`, Settings 순수 함수 새 파일, 각 테스트와 CSS | 없음 | Claude Opus `high` — 접근성 이름, 저장 규칙(POSTMORTEM 2026-11-02), Settings 고정 해제처럼 틀리면 보내는 값이 어긋나는 판단이 많다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 대기 |
+| RA | A2, A3, A4, B1 | `app/src/renderer/` 중 `homeComposer.ts`, `dockedRules.ts`, `permissionPicker.ts`, `ComposerParts.tsx`, `DockedComposer.tsx`, `SettingsAgents.tsx`, `HomeComposerView.tsx`, `ProjectOverview.tsx`, `CanvasConversationPanel.tsx`, Settings 순수 함수 새 파일, 각 테스트와 CSS | 없음 | Claude Opus `high` — 접근성 이름, 저장 규칙(POSTMORTEM 2026-11-02), Settings 고정 해제처럼 틀리면 보내는 값이 어긋나는 판단이 많다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 통합 `bcbac125`까지 9 commit(worker 자체 리뷰 🔴1 수정 포함) |
 | RV | MA+RA 독립 리뷰(`/code-review`) | 보고만 | MA, RA 통합 | Codex Astra `medium` — 판단이 필요한 리뷰, 다른 계열 | 보고서 | 대기 |
 | B2 | `/design-sync picker-default-labels` | RA 파일 + `docs/DESIGN.md`의 tray 측정값 | RA 통합, RV 🔴 0 | RA worker(Claude Opus `high`) — 실제 앱 측정과 구현 수정 | `/design-sync` 보고에 불일치 없음 | 대기 |
 | R1 | `/runtime-test` | 없음(확인만) | B2 통합 | 지휘자 | 보고, 스크린샷, frame 발췌 | 대기 |
@@ -43,3 +43,6 @@
 ## 진행 기록
 - Orca run `run_9a87ca7f6348`. MA: task `task_2eefb08278fa`, dispatch `ctx_5104aba571e0`, worktree `pdl-ma`(branch `SinhyeokKang/pdl-ma`), Codex `gpt-6.1-sol` medium 확인. RA: task `task_a4da549949af`, dispatch `ctx_3fdb8ad9dd05`, worktree `pdl-ra`(branch `SinhyeokKang/pdl-ra`), Claude Opus high 확인. 둘 다 `5f0f5cf6`에서 시작했다.
 - RA 질문(Settings Claude Model 메뉴, 초안 tile은 Default 아래 Opus 5.5 고정 행을 두지만 design 결정 5와 A1은 `opus` 행을 뺀다): 사람이 design대로 정했다. 메뉴는 Default(설명 'Opus 5.5') · Fable · Sonnet · Haiku다. 초안 `settings` tile은 B2 전에 이 결정에 맞게 고친다(draft-follows-decisions).
+- RA 통합 뒤 통합 HEAD `bcbac125`에서 typecheck 통과, `npm --prefix app test` 310 files · 8711 tests 통과(MA의 A1 모양과 RA fixture가 함께 맞는다).
+- 지휘자 판단: Codex 모델에 `defaultReasoningEffort`가 없을 때 노력 Default 행 설명을 `Set by Codex`로 쓴 RA의 일반화를 받는다 — design §5는 Claude만 정했고, 같은 문형이 사실과 맞다.
+- postmortem 후보(RA 리뷰 🔴1, 목록 전 Default 행 값 `"default"`가 Claude 모델 id와 겹침)는 main에 닿기 전에 잡혔으므로 `/postmortem` 대상으로 보고 Z1 전에 판단한다.
