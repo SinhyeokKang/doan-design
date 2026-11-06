@@ -71,3 +71,4 @@
 - RA fix round 2를 통합했다(`e03b6ecc`·`5992ccee`). RV3(Codex Astra medium)는 BC와 RA fix 2를 보고 🔴0 🟡0 ⚪0을 냈다(`.scratch/orch/review-RV3.md`). RV3 worker와 worktree는 정리했다.
 - 사람의 결정: BC를 실제 두 Codex 계정으로 확인한다. 로그인은 지휘자가 ego-browser로 직접 한다. 공용 프로필을 복사하지 않고, 새 userData에서 real HOME으로 확인한다. Codex keyring은 정규화한 `CODEX_HOME` 경로로 키가 잡히므로(`agentAuth/providers.ts:137`), 다른 경로에서 로그인하거나 교체해도 공용 프로필의 항목은 바뀌지 않는다.
 - origin/main으로 rebase했다(커밋 60개, 충돌 없음; tester-notarization은 main에 병합됐다). R1 시작: dispatch `ctx_95fb0d2c611b`, worktree `pdl-r1`, Claude Opus high. A는 공용 프로필로 tasks R1 통과 조건을, B는 새 userData와 ego 로그인으로 BC 두 계정 확인을 한다. 보고만 한다.
+- Z1 시작: dispatch `ctx_b1391ec85f0c`, worktree `pdl-z1`, Claude Opus medium(문서만). 지휘자는 결과를 검토해 통합하고, R1 결과는 BACKLOG에 직접 더한다. feature 디렉터리는 마지막에 지휘자가 지운다.
