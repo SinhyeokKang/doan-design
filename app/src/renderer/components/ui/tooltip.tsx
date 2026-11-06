@@ -2,14 +2,21 @@ import * as React from "react"
 import { cn } from "cn"
 import { Tooltip as TooltipPrimitive } from "radix-ui"
 
+// The first tooltip waits so passing over controls does not flash labels; within the skip window the next one opens
+// at once (Radix's own defaults, which shadcn's template had set to 0). Content is not hoverable: a tooltip is a label,
+// so the pointer heading for the capsule must not keep it open over the controls beside its trigger.
 function TooltipProvider({
-  delayDuration = 0,
+  delayDuration = 700,
+  skipDelayDuration = 300,
+  disableHoverableContent = true,
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
   return (
     <TooltipPrimitive.Provider
       data-slot="tooltip-provider"
       delayDuration={delayDuration}
+      skipDelayDuration={skipDelayDuration}
+      disableHoverableContent={disableHoverableContent}
       {...props}
     />
   )

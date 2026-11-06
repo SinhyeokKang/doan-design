@@ -280,6 +280,7 @@ svg { display: block; flex: none; }
   line-height: var(--type-caption-line-height);
   letter-spacing: var(--type-caption-letter-spacing);
   overflow-wrap: anywhere;
+  pointer-events: none;
 }
 .doan-tooltip.has-key {
   display: flex;

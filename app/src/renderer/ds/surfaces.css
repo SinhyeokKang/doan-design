@@ -107,7 +107,9 @@
 
 /* ── Tooltip ─────────────────────────────────────────────────────────────────
    A near-black capsule. Its corner is half of its one-line height, so a short label stays
-   a capsule; a long path wraps inside the width cap instead of running off the window. */
+   a capsule; a long path wraps inside the width cap instead of running off the window.
+   A label takes no clicks: Radix keeps a closing tooltip mounted until its fade ends, and the
+   capsule often sits over the control next to its trigger. */
 .doan-tooltip {
   width: fit-content;
   max-width: min(384px, calc(100vw - 2 * var(--space-4)));
@@ -122,6 +124,7 @@
   letter-spacing: var(--type-caption-letter-spacing);
   overflow-wrap: anywhere;
   transform-origin: var(--radix-tooltip-content-transform-origin);
+  pointer-events: none;
 }
 
 /* ── Modal dialog ────────────────────────────────────────────────────────────
