@@ -1,4 +1,5 @@
 import type { ConversationSummary } from "../main/conversation/summary";
+import type { Canvas } from "../main/conversation/types";
 import { conversationWork } from "./conversationList";
 import type { Slot } from "./homeConversations";
 
@@ -9,10 +10,16 @@ import type { Slot } from "./homeConversations";
 // agent: the agent's own turn start, permission request or turn end, which never open the panel.
 export type PanelTrigger =
   | { kind: "overviewRow" } | { kind: "notification"; permission: boolean } | { kind: "promotion" } | { kind: "capsule" }
-  | { kind: "sidebarRow" } | { kind: "picker" } | { kind: "newConversation" } | { kind: "agent" };
+  | { kind: "sidebarRow" } | { kind: "picker" } | { kind: "newConversation" } | { kind: "agent" }
+  // A started handoff's move (canvas-handoff design §6): focus goes to the receiving thread's handoff card.
+  | { kind: "handoff" };
 
 // keep: the panel stays as it was. Opening focuses the first choice of the waiting request, else the composer.
-export type PanelOpen = { open: "keep" } | { open: true; focus: "permission" | "composer" };
+export type PanelOpen = { open: "keep" } | { open: true; focus: PanelFocus };
+export type PanelFocus = "permission" | "composer" | "handoff";
+// Where focus goes once the panel shows what an entry asked for; each entry has its own seq. A handoff's names the
+// receiving conversation, which the panel shows only after the render that brings the arrival.
+export interface PanelArrival { focus: PanelFocus; seq: number; handoff?: { root: string; canvas: Canvas; conversationId: string } }
 
 // `slot` is the canvas's sidebar slot, which the sidebar row reads.
 export function panelOpenFor(trigger: PanelTrigger, slot: Slot["kind"] | null): PanelOpen {
@@ -21,6 +28,7 @@ export function panelOpenFor(trigger: PanelTrigger, slot: Slot["kind"] | null): 
     // The capsule offers Open only while the agent waits for an answer.
     case "capsule": return { open: true, focus: "permission" };
     case "notification": return { open: true, focus: trigger.permission ? "permission" : "composer" };
+    case "handoff": return { open: true, focus: "handoff" };
     // Working or no mark: the indicator already says so, and the panel keeps its last state.
     case "sidebarRow":
       if (slot === "permission") return { open: true, focus: "permission" };

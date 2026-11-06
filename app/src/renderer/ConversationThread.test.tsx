@@ -4,13 +4,13 @@ import { describe, expect, test } from "vitest";
 import type { ReactElement } from "react";
 import type { Anchor } from "../main/conversation/types";
 import type { CanvasRow } from "../main/view";
-import { answerReached, ConversationThread, endView, httpsUrl, SentChip, type ConversationThreadProps } from "./ConversationThread";
+import { answerReached, ConversationThread, endView, HandoffCard, HandoffLine, httpsUrl, SentChip, type ConversationThreadProps } from "./ConversationThread";
 import type { ThreadItem } from "./threadItems";
 
 const noop = () => {};
 const props = (items: ConversationThreadProps["items"], patch: Partial<ConversationThreadProps> = {}): ConversationThreadProps => ({
   items, conversationId: "c1", provider: "claude", project: "doan-design", liveAfter: 0, canvasListed: () => true,
-  onAnswer: noop, onStop: noop, onEditAndResend: noop, onSignIn: noop, onRetry: noop, onOpenCanvas: noop, onOpenLink: noop, onCopy: async () => true, ...patch,
+  onAnswer: noop, onStop: noop, onEditAndResend: noop, onSignIn: noop, onRetry: noop, onOpenCanvas: noop, onOpenHandoff: noop, onOpenLink: noop, onCopy: async () => true, ...patch,
 });
 const html = (items: ConversationThreadProps["items"], patch: Partial<ConversationThreadProps> = {}) => renderToStaticMarkup(<ConversationThread {...props(items, patch)} />);
 const agent = (text: string, streaming = false): ThreadItem => ({ kind: "agent", key: "m1", messageId: "m1", text, streaming });
@@ -367,5 +367,71 @@ describe("a message Send now has in flight", () => {
     expect(html([{ ...sent, key: "u1", seq: 1 }])).not.toContain("msg-sending");
     const out = html([{ kind: "end", key: "e2", seq: 2, end: { kind: "interrupted", reason: "user" } }, sending]);
     expect(out).toContain("Edit and resend");
+  });
+});
+
+// canvas-handoff U1: the draft's frames source-requested, source-handed-off, source-refused, source-cancelled and
+// handoff-card (.doan/canvases/canvas-handoff.html).
+describe("handoff lines and the handoff card", () => {
+  const CHECKOUT = { path: ".doan/canvases/checkout-flow.html", id: "checkout" }, DRAFTS = { path: ".doan/canvases/drafts.html", id: "drafts" };
+  const line = (patch: Partial<Extract<ThreadItem, { kind: "handoff" }>>): ThreadItem => ({ kind: "handoff", key: "ht1", canvas: { path: CHECKOUT.path }, outcome: "pending", ...patch });
+  const marker = (icon: string, text: string, open = "") => new RegExp(`<div class="marker handoff"><span><svg[^>]*lucide-${icon}[^>]*>.*?</svg>${text}</span>${open}</div>`);
+  const OPEN = '<button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="trigger">Open</button>';
+
+  test("pending: the forward line without an action", () => {
+    expect(html([line({})])).toMatch(marker("forward", "Hands off to checkout-flow.html when this turn ends"));
+  });
+  test("handed off: Open, hidden with a note once the target is gone", () => {
+    const started = line({ outcome: "started", target: { conversationId: "c2", canvas: CHECKOUT } });
+    expect(html([started])).toMatch(marker("forward", "Handed off to checkout-flow.html", OPEN));
+    expect(html([started], { canvasListed: () => false })).toMatch(marker("forward", "Handed off to checkout-flow.html · No longer in doan-design"));
+  });
+  test("refused and cancelled: the ban line without Open", () => {
+    expect(html([line({ outcome: "refused", reason: "not_new" })])).toMatch(marker("ban", "Didn’t hand off to checkout-flow.html. It existed before this turn started."));
+    expect(html([line({ outcome: "refused", reason: "not_logged_in" })])).toMatch(marker("ban", "Didn’t hand off to checkout-flow.html. Couldn’t start with Claude Code: its sign-in has expired. Choose another agent."));
+    expect(html([line({ outcome: "cancelled" })])).toMatch(marker("ban", "Didn’t hand off to checkout-flow.html. The turn didn’t finish."));
+  });
+  test("the card: a labelled group with its head, Open and the text as agent Markdown, a {{1}} kept as typed", () => {
+    const card: ThreadItem = { kind: "handoffCard", key: "u1", seq: 1, origin: { kind: "handoff", conversationId: "c0", canvas: DRAFTS }, text: "Pick up **Payment**.\n\nThe person wrote “{{1}}”." };
+    const out = html([card]);
+    expect(out).toMatch(/<div class="handoff-card" role="group" aria-labelledby="([^"]+)" tabindex="-1"><div class="handoff-head"><svg[^>]*lucide-forward[^>]*>.*?<\/svg><span id="\1">Handed off from drafts.html<\/span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="trigger">Open<\/button><\/div><div class="md"><p>Pick up <strong>Payment<\/strong>.<\/p>\s*<p>The person wrote “\{\{1\}\}”.<\/p><\/div><\/div>/);
+    expect(out).not.toContain("bubble");
+    expect(html([card], { canvasListed: () => false })).toMatch(/<span id="[^"]+">Handed off from drafts.html · No longer in doan-design<\/span><\/div>/);
+  });
+  test("Open on the line opens the target conversation, Open on the card the source conversation", () => {
+    const opened: unknown[] = [];
+    const started = line({ outcome: "started", target: { conversationId: "c2", canvas: CHECKOUT } });
+    const lineEl = HandoffLine({ entry: started as Extract<ThreadItem, { kind: "handoff" }>, project: "p", provider: "claude", canvasListed: () => true, onOpen: (canvas, id) => opened.push([canvas, id]) });
+    const cardEl = HandoffCard({ entry: { kind: "handoffCard", key: "u1", seq: 1, origin: { kind: "handoff", conversationId: "c0", canvas: DRAFTS }, text: "x" }, headId: "h", project: "p", canvasListed: () => true, onOpen: (canvas, id) => opened.push([canvas, id]) });
+    for (const element of [lineEl, cardEl]) (findButton(element)!.props as { onClick(): void }).onClick();
+    expect(opened).toEqual([[CHECKOUT, "c2"], [DRAFTS, "c0"]]);
+  });
+});
+function findButton(node: unknown): ReactElement | null {
+  if (!node || typeof node !== "object" || !("props" in node)) return null;
+  const element = node as ReactElement<{ children?: unknown }>;
+  if (element.type === "button") return element;
+  for (const child of [element.props.children].flat()) { const found = findButton(child); if (found) return found; }
+  return null;
+}
+
+// canvas-handoff fix round 1 (conductor's decision on review 🟡4): a turn the handoff card started was not the person's
+// message, so its end never offers Edit and resend; Sign in again stays, and a later turn of the person's resends.
+describe("the end of a handoff card's turn", () => {
+  const card: ThreadItem = { kind: "handoffCard", key: "u1", seq: 1, origin: { kind: "handoff", conversationId: "c0", canvas: { path: ".doan/canvases/drafts.html", id: "drafts" } }, text: "Continue." };
+  const failed = (code: "process_exited" | "not_logged_in", key = "e3"): ThreadItem => ({ kind: "end", key, seq: 3, end: { kind: "failed", code } });
+  test("offers no Edit and resend, keeps the notice and Sign in again", () => {
+    const out = html([card, failed("process_exited")]);
+    expect(out).toContain("<b>Claude Code stopped unexpectedly</b>");
+    expect(out).not.toContain("Edit and resend");
+    const signIn = html([card, { kind: "end", key: "x1", seq: null, end: { kind: "interrupted", reason: "crashed" } }]);
+    expect(signIn).not.toContain("Edit and resend");
+    const expired = html([card, failed("not_logged_in")]);
+    expect(expired).toContain(">Sign in again…</button>");
+    expect(expired).not.toContain("Edit and resend");
+  });
+  test("a later turn of the person's still offers it", () => {
+    const user: ThreadItem = { kind: "user", key: "u5", seq: 5, anchors: [], preset: null, parts: [{ text: "Use the red" }], attachments: [] };
+    expect(html([card, { kind: "agent", key: "m1", messageId: "m1", text: "Done.", streaming: false }, user, failed("process_exited", "e7")])).toContain(">Edit and resend</button>");
   });
 });

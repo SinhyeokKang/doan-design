@@ -1,5 +1,5 @@
 import type { Question, QuestionOutcome, StoredAnswer } from "../main/conversation/question";
-import type { Anchor, Canvas, ConversationEvent, FailureCode, PermissionOption } from "../main/conversation/types";
+import type { Anchor, Canvas, ConversationEvent, FailureCode, HandoffOrigin, PermissionOption } from "../main/conversation/types";
 import { splitRequest, type PresetRef } from "./homeComposer";
 import { PRESETS } from "../main/mcpConnectors/presets";
 
@@ -25,7 +25,13 @@ export type ThreadItem =
   | { kind: "question"; key: string; seq: number; requestId: string; questions: Question[]; status: "pending" | QuestionOutcome; answers: Record<string, StoredAnswer> | null }
   // seq is null for the end a crash-folded turn never wrote; its key is the turn's, so it stays when later turns arrive.
   | { kind: "end"; key: string; seq: number | null; end: TurnEnd }
-  | { kind: "marker"; key: string; seq: number; marker: "bound" | "archived" | "restored"; canvas: Canvas | null };
+  | { kind: "marker"; key: string; seq: number; marker: "bound" | "archived" | "restored"; canvas: Canvas | null }
+  // A turn's handoff (canvas-handoff design §6): the line sits where the request was made, and its resolution, which
+  // comes after the turn's end, replaces it there. Keyed by the turn: one request per turn.
+  | { kind: "handoff"; key: string; canvas: { path: string }; outcome: "pending" | "started" | "refused" | "cancelled"; target?: { conversationId: string; canvas: Canvas }; reason?: string }
+  // A conversation a handoff started: its first message is the earlier agent's text, never the person's, so it is not
+  // read for a preset line or {{n}} markers.
+  | { kind: "handoffCard"; key: string; seq: number; origin: HandoffOrigin; text: string };
 
 export interface SentFile { name: string; size: number; kind: "image" | "file" }
 // A queued message Send now put into the running turn, as its request: the text with its preset line and `{{n}}`
@@ -136,6 +142,7 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
   let turn: string | null = null, group: { item: Extract<ThreadItem, { kind: "activity" }>; turnId: string } | null = null;
   const groups: { item: Extract<ThreadItem, { kind: "activity" }>; turnId: string }[] = [];
   const turnOf = new Map<string, string>(), askTurn = new Map<string, string>();
+  const handoffs = new Map<string, Extract<ThreadItem, { kind: "handoff" }>>();
   const endTurn = (turnId: string) => {
     ended.add(turnId);
     for (const [key, message] of agents) if (message.streaming && turnOf.get(key) === turnId) message.streaming = false;
@@ -155,6 +162,7 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
       case "user.message": {
         // The next turn's message comes before its turn.started: an unfinished turn before it was folded.
         if (turn !== null && event.turnId !== turn && !ended.has(turn)) foldCrashed(turn);
+        if (event.origin) { push({ kind: "handoffCard", key: `u${event.seq}`, seq: event.seq, origin: event.origin, text: event.text }); continue; }
         const attachments = (event.attachments ?? []).map(a => ({ name: a.name, size: a.size, kind: a.kind }));
         const { preset, body } = splitRequest(event.text, attachments.length);
         push({ kind: "user", key: `u${event.seq}`, seq: event.seq, parts: anchorParts(body), anchors: event.anchors, preset, attachments });
@@ -165,6 +173,15 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
         if (turn !== null && !ended.has(turn)) foldCrashed(turn);
         turn = event.turnId;
         continue;
+      // Written after the turn's end with the asking turn's id, and possibly after an archive marker.
+      case "handoff.resolved": {
+        const line = handoffs.get(event.turnId);
+        if (line?.outcome !== "pending") continue;
+        line.outcome = event.outcome;
+        if (event.outcome === "started") line.target = event.target;
+        if (event.outcome === "refused") line.reason = event.reason;
+        continue;
+      }
     }
     // Nothing after a turn's end counts, as in main's fold.
     if (event.turnId !== turn || ended.has(event.turnId)) continue;
@@ -221,6 +238,13 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
         if (ask?.status === "pending") { ask.status = event.outcome; ask.answers = event.answers ?? null; }
         break;
       }
+      case "handoff.requested": {
+        if (handoffs.has(event.turnId)) break;
+        const item = { kind: "handoff" as const, key: `h${event.turnId}`, canvas: { path: event.canvas.path }, outcome: "pending" as Extract<ThreadItem, { kind: "handoff" }>["outcome"] };
+        handoffs.set(event.turnId, item);
+        push(item);
+        break;
+      }
       case "turn.done":
         endTurn(event.turnId);
         if (!replied.has(event.turnId)) push({ kind: "noReply", key: `n${event.seq}` });
@@ -236,6 +260,8 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
     }
   }
   if (!live && turn !== null && !ended.has(turn)) foldCrashed(turn);
+  // Nothing judges a request once main holds nothing of this conversation (main's fold: a restart's cancel).
+  if (!live) for (const line of handoffs.values()) if (line.outcome === "pending") line.outcome = "cancelled";
   const last = items.at(-1);
   for (const { item, turnId } of groups) {
     item.running = item === last && !ended.has(turnId);

@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="doan:canvas" content="account">
+  <meta name="doan:width" content="1200">
+  <title>Account</title>
+  <link rel="stylesheet" href="../../styles/tokens.css">
+  <style>
+    body { margin: 0; padding: var(--space-8); display: flex; gap: var(--space-8); align-items: flex-start; background: var(--color-surface); color: var(--color-text); font: 16px/1.5 var(--font-body); }
+    [data-doan-frame] { box-sizing: border-box; flex: none; width: 480px; height: 360px; padding: var(--space-4); background: var(--color-panel); }
+    h1 { margin: 0 0 var(--space-2); font-size: 24px; line-height: 32px; }
+    p { margin: 0 0 var(--space-4); }
+    button { font: inherit; padding: var(--space-2) var(--space-4); border: 0; background: var(--color-muted); color: var(--color-text); }
+  </style>
+</head>
+<body>
+  <section data-doan-frame="profile-form" data-doan-title="Profile">
+    <h1 data-doan-id="profile-title">Profile</h1>
+    <p data-doan-id="profile-email">Sign-in email: ada@example.com</p>
+    <button data-doan-id="save-profile">Save</button>
+  </section>
+  <section data-doan-frame="billing-form" data-doan-title="Billing">
+    <h1 data-doan-id="billing-title">Billing</h1>
+    <p data-doan-id="billing-note">Invoices are sent on the first of each month.</p>
+    <button data-doan-id="update-card">Update card</button>
+  </section>
+</body>
+</html>

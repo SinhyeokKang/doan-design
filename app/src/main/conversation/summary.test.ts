@@ -151,3 +151,14 @@ describe("a turn with two user.message events (queue-send-now)", () => {
     expect(s).toMatchObject({ title: "Make a pricing page", phase: "ended", unseen: true, preview: "Both done." });
   });
 });
+// canvas-handoff B4: a handoff's resolution comes after the turn's end, like a binding marker, and does not make a
+// seen end unseen again; the request inside the turn counts as the turn's.
+describe("handoff events", () => {
+  const canvasDoan: ConversationMetadata = { ...doan, canvas: { path: ".doan/canvases/a.html", id: "a" } };
+  it("leaves a seen end seen when the resolution arrives", () => {
+    const events = history(...started, { type: "handoff.requested", canvas: { path: ".doan/canvases/new.html" }, text: "Continue." }, { type: "turn.done" },
+      { type: "handoff.resolved", outcome: "started", target: { conversationId: "b", canvas: { path: ".doan/canvases/new.html", id: "new" } } });
+    expect(conversationSummary({ ...canvasDoan, seenSeq: 4 }, { ok: true, events }, live).unseen).toBe(false);
+    expect(conversationSummary({ ...canvasDoan, seenSeq: 3 }, { ok: true, events }, live).unseen).toBe(true);
+  });
+});

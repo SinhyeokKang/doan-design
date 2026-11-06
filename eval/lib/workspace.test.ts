@@ -66,6 +66,33 @@ test("work context and retained evidence read the fake app's v3 exchanges", asyn
   } finally { await ws.dispose(); }
 });
 
+test("a handoff scenario gives the agent the conversation key the fake app accepts, and no other scenario gets one", async () => {
+  const saved = process.env.DOAN_HANDOFF;
+  try {
+    process.env.DOAN_HANDOFF = "f".repeat(64);
+    const plain = await prepareWorkspace({ scenario: r6(), agent: "claude", cli, stub: "stub\n" });
+    try { assert.equal(plain.env.DOAN_HANDOFF, undefined); } finally { await plain.dispose(); }
+    const ws = await prepareWorkspace({ scenario: loadScenario(join(import.meta.dirname, "../scenarios"), "R10"), agent: "fixture", cli, stub: "stub\n" });
+    try {
+      assert.match(ws.env.DOAN_HANDOFF ?? "", /^[0-9a-f]{64}$/);
+      assert.notEqual(ws.env.DOAN_HANDOFF, "f".repeat(64));
+      const ctx = createContext({ repo: ws.repo, agent: "fixture", transcript: "", cli, env: ws.env, seedCommit: ws.seedCommit, handoffLog: ws.handoffLog });
+      assert.deepEqual(ctx.handoff(), []);
+      writeFileSync(join(ws.repo, ".doan/canvases/next.html"), "<p>next</p>\n");
+      const asked = sh(cli, ["handoff", ".doan/canvases/next.html", "--message", "Continue on next.", "--repo", ws.repo, "--json"], ws.repo, ws.env);
+      assert.equal(asked.code, 0, asked.stderr + asked.stdout);
+      assert.equal(ctx.handoff().length, 1);
+      assert.equal(ctx.handoff()[0].request.handoff, ws.env.DOAN_HANDOFF);
+      const out = mkdtempSync(join(root, "run-"));
+      keepOnboardingLog(ws, out);
+      assert.equal(readFileSync(join(out, "handoff.jsonl"), "utf8"), readFileSync(ws.handoffLog, "utf8"));
+    } finally { await ws.dispose(); }
+  } finally {
+    if (saved === undefined) delete process.env.DOAN_HANDOFF;
+    else process.env.DOAN_HANDOFF = saved;
+  }
+});
+
 test("without worktree the agent works in the instruction's root", async () => {
   const ws = await prepareWorkspace({ scenario: r6(), agent: "fixture", cli, stub: "stub\n" });
   try {

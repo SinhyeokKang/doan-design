@@ -1,7 +1,7 @@
 import { createContext, forwardRef, Fragment, memo, useContext, useEffect, useId, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type Ref } from "react";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Archive, ArrowDown, ArrowUpRight, ChevronDown, CircleStop, Copy, Eye, FileText, Frame, MapPin, Pencil, PencilSparkles, RotateCcw, SquareMousePointer, Terminal } from "lucide-react";
+import { Archive, ArrowDown, ArrowUpRight, Ban, ChevronDown, CircleStop, Copy, Eye, FileText, Forward, Frame, MapPin, Pencil, PencilSparkles, RotateCcw, SquareMousePointer, Terminal } from "lucide-react";
 import type { Provider } from "../main/agentAuth/types";
 import type { Anchor, Canvas } from "../main/conversation/types";
 import { QUESTION_LIMITS, type Question, type QuestionAnswerInput } from "../main/conversation/question";
@@ -13,6 +13,7 @@ import { AlertIcon } from "./AlertIcon";
 import { canvasLabel } from "./canvasTree";
 import { focusAfter } from "./composerRules";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
+import { handoffCardHead, handoffLineText } from "./handoffView";
 import { formatSize, providerLogo } from "./homeComposer";
 import { replyUrlTransform } from "./replyUrlTransform";
 import { canSend, EMPTY_QUESTION_DRAFT, questionInput, sendBlockedText, type QuestionDraft, type QuestionDraftAction } from "./questionDraft";
@@ -32,7 +33,7 @@ export interface ConversationThreadProps {
   // Requests with a later seq arrived while the thread was open. Only those are announced as alerts; drawing history
   // announces nothing.
   liveAfter: number;
-  // Whether a promotion marker's canvas is still listed (found by ID).
+  // Whether a promotion marker's canvas, a handoff's target or a handoff card's source is still listed (found by ID).
   canvasListed(canvas: Canvas): boolean;
   // Resolves to main's refusal, or rejects, when the answer did not reach the agent; the request then says so.
   onAnswer(requestId: string, optionId: string): Promise<void | { error: string }> | void;
@@ -49,6 +50,8 @@ export interface ConversationThreadProps {
   onSignIn(): void;
   onRetry(): void;
   onOpenCanvas(canvas: Canvas): void;
+  // A handoff line's or card's Open: that canvas with its panel on the given conversation. Without it neither offers Open.
+  onOpenHandoff?(canvas: Canvas, conversationId: string): void;
   // Only https links reach this (design §2.7); main checks again.
   onOpenLink(url: string): void;
   onCopy(text: string): Promise<boolean>;
@@ -71,9 +74,10 @@ export interface ConversationThreadProps {
   canvasRows?: readonly CanvasRow[];
 }
 // focusItem: an entry's focus on a waiting request (design §6): a question's first option or answer input, a
-// permission request's first choice. False when the item has no such control drawn.
+// permission request's first choice; after a handoff's move, the handoff card itself (canvas-handoff design §6). False
+// when the item has no such control drawn.
 export interface ConversationThreadHandle { scrollToItem(key: string): void; focusItem(key: string): boolean }
-const ENTRY_FOCUS = ":is(.q-card input, .strip-actions button)";
+const ENTRY_FOCUS = ":is(.q-card input, .strip-actions button, .handoff-card)";
 
 export const LOADING_DELAY_MS = 300;
 
@@ -230,14 +234,15 @@ function useFrameText(text: string, streaming: boolean): string {
   return streaming ? shown : text;
 }
 // A reply, and under it the "No longer in the canvas" note of a reply chip (draft frame `panel-missing`).
-function AgentMessage({ text, streaming }: { text: string; streaming: boolean }) {
+// className: a handoff card's body is the same Markdown without the reply's own block.
+function AgentMessage({ text, streaming, className = "msg-agent md" }: { text: string; streaming: boolean; className?: string }) {
   const shown = useFrameText(text, streaming), prefix = useId();
   const [noted, show] = useLocateNote();
   const [chip, setChip] = useState<string | null>(null);
   const shownFor = noted ? chip : null;
   const note = useMemo(() => ({ shownFor, show: (key: string) => { setChip(key); show(); } }), [shownFor]);
   return <ReplyNote.Provider value={note}>
-    <div className="msg-agent md"><MarkdownText text={shown} prefix={prefix} />{streaming && <span className="caret" aria-hidden="true" />}</div>
+    <div className={className}><MarkdownText text={shown} prefix={prefix} />{streaming && <span className="caret" aria-hidden="true" />}</div>
     {shownFor && <span className="chip-missing" id={`${shownFor}-missing`} role="status">{LOCATE_MISSING_TEXT}</span>}
   </ReplyNote.Provider>;
 }
@@ -395,12 +400,38 @@ function Steps({ id, steps }: { id: string; steps: readonly ActivityStep[] }) {
   })}</ul>;
 }
 
-function lastEnd(items: readonly ThreadItem[]): string | null {
+// A turn's handoff line (draft frames source-*): one line in the promotion marker's style, at the request's place.
+export function HandoffLine({ entry, project, provider, canvasListed, onOpen }: { entry: Extract<ThreadItem, { kind: "handoff" }>; project: string; provider: Provider;
+  canvasListed(canvas: Canvas): boolean; onOpen?: ((canvas: Canvas, conversationId: string) => void) | undefined }) {
+  const view = handoffLineText(entry, { project, provider, listed: canvasListed });
+  const Icon = view.icon === "forward" ? Forward : Ban, open = view.open;
+  return <div className="marker handoff"><span><Icon aria-hidden="true" />{view.text}</span>
+    {open && onOpen && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="trigger" onClick={() => onOpen(open.canvas, open.conversationId)}>Open</button>}</div>;
+}
+// The receiving conversation's first message (draft frame handoff-card): the earlier agent's text as its Markdown, apart
+// from the person's bubble. The card takes focus after a move, so it is a labelled group.
+export function HandoffCard({ entry, headId, project, canvasListed, onOpen }: { entry: Extract<ThreadItem, { kind: "handoffCard" }>; headId: string; project: string;
+  canvasListed(canvas: Canvas): boolean; onOpen?: ((canvas: Canvas, conversationId: string) => void) | undefined }) {
+  const source = entry.origin.canvas, listed = canvasListed(source);
+  return <div className="handoff-card" role="group" aria-labelledby={headId} tabIndex={-1}>
+    <div className="handoff-head"><Forward aria-hidden="true" /><span id={headId}>{handoffCardHead(source, project, listed)}</span>
+      {listed && onOpen && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="trigger" onClick={() => onOpen(source, entry.origin.conversationId)}>Open</button>}</div>
+    <AgentMessage text={entry.text} streaming={false} className="md" />
+  </div>;
+}
+
+// The last turn's end, which offers the end actions. resend: that turn began with the person's message; a turn the
+// handoff card began did not (the earlier agent wrote it), so its text never becomes the person's draft.
+function lastEnd(items: readonly ThreadItem[]): { key: string; resend: boolean } | null {
   for (let i = items.length - 1; i >= 0; i--) {
     const item = items[i]!;
     // A message Send now has in flight is not in the history yet, so it starts no turn after the end.
     if (item.kind === "user" && !item.sending) return null;
-    if (item.kind === "end") return item.key;
+    if (item.kind === "end") {
+      let j = i - 1;
+      while (j >= 0 && items[j]!.kind !== "user" && items[j]!.kind !== "handoffCard") j--;
+      return { key: item.key, resend: items[j]?.kind !== "handoffCard" };
+    }
   }
   return null;
 }
@@ -499,8 +530,8 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   useImperativeHandle(ref, () => ({
     scrollToItem(key: string) {
       const node = scroller.current?.querySelector(`[data-item="${CSS.escape(key)}"]`);
-      // A question card scrolls to its top: in a 280px panel a tall card's centre would leave its title out of view.
-      node?.scrollIntoView({ block: node.querySelector(".q-card") ? "start" : "center", behavior: reduced() ? "auto" : "smooth" });
+      // A question or handoff card scrolls to its top: in a 280px panel a tall card's centre would leave its title out of view.
+      node?.scrollIntoView({ block: node.querySelector(".q-card, .handoff-card") ? "start" : "center", behavior: reduced() ? "auto" : "smooth" });
     },
     focusItem: focusIn,
   }), []);
@@ -529,7 +560,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   if (items === null) return <div className="conversation-thread">{slow && <div className="thread-loading" role="status"><span className="doan-spinner" aria-hidden="true" /><span>Loading conversation</span></div>}</div>;
 
   const p = PROVIDER_NAMES[provider];
-  const resend = lastEnd(items);
+  const last = lastEnd(items);
   const toggle = (key: string) => setExpanded(current => { const next = new Set(current); if (next.has(key)) next.delete(key); else next.add(key); return next; });
   const item = (entry: ThreadItem): ReactNode => {
     switch (entry.kind) {
@@ -570,12 +601,14 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
         return <div className={`doan-notice${view.tone ? ` ${view.tone}` : ""} thread-notice`}>
           {view.tone ? <AlertIcon /> : <CircleStop className="doan-alert-icon" aria-hidden="true" />}
           <span className="strip-text"><b>{view.title}</b><span>{view.body}</span></span>
-          {entry.key === resend && <span className="strip-actions">
+          {entry.key === last?.key && (view.signIn || last.resend) && <span className="strip-actions">
             {view.signIn && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={props.onSignIn}>Sign in again…</button>}
-            <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={props.onEditAndResend}>Edit and resend</button>
+            {last.resend && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={props.onEditAndResend}>Edit and resend</button>}
           </span>}
         </div>;
       }
+      case "handoff": return <HandoffLine entry={entry} project={props.project} provider={provider} canvasListed={props.canvasListed} onOpen={props.onOpenHandoff} />;
+      case "handoffCard": return <HandoffCard entry={entry} headId={`${base}-${entry.key}-head`} project={props.project} canvasListed={props.canvasListed} onOpen={props.onOpenHandoff} />;
       case "marker": {
         if (entry.marker === "archived") return <div className="marker"><span><Archive aria-hidden="true" />Archived when another conversation became current on this canvas. Send a message to make it current again.</span></div>;
         if (entry.marker === "restored") return <div className="marker"><span><RotateCcw aria-hidden="true" />Made current again</span></div>;

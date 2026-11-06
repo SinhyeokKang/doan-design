@@ -37,7 +37,7 @@ describe("provider child environment", () => {
     expect(inherited).not.toHaveProperty("AGENT_CLI_CREDENTIAL_STORE");
   });
   it("refuses extras that would replace the routed path, runtime or profile", () => {
-    for (const name of ["PATH", "DOAN_RUNTIME", "DOAN_APP_CONVERSATION", "DOAN_CONVERSATION_ID", "HOME", "CLAUDE_CONFIG_DIR", "CODEX_HOME", "GEMINI_HOME", "SSH_AUTH_SOCK", "GIT_CONFIG_GLOBAL"]) {
+    for (const name of ["PATH", "DOAN_RUNTIME", "DOAN_APP_CONVERSATION", "DOAN_CONVERSATION_ID", "DOAN_HANDOFF", "HOME", "CLAUDE_CONFIG_DIR", "CODEX_HOME", "GEMINI_HOME", "SSH_AUTH_SOCK", "GIT_CONFIG_GLOBAL"]) {
       expect(providerEnv(input("copilot", { extra: { [name]: "/elsewhere" } }))).toEqual({ ok: false, code: "reserved_extra" });
     }
     for (const extra of [{ "bad-name": "x" }, { lower: "x" }, { VALUE: "a\0b" }, { VALUE: 1 }]) {

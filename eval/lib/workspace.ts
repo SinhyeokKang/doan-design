@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, realpathSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { delimiter, join, resolve } from "node:path";
 import type { Agent } from "./args.ts";
@@ -23,6 +24,7 @@ export interface Workspace {
   onboardingLog: string;
   workLog: string;
   openLog: string;
+  handoffLog: string;
   // Files the fake app wrote into `repo` with their content; absent until it writes one.
   appWrites: string;
   dispose(): Promise<void>;
@@ -63,7 +65,9 @@ export async function prepareWorkspace(o: { scenario: LoadedScenario; agent: Age
       return filtered;
     });
     mkdirSync(join(base, "rt"), { mode: 0o700 });
-    const env = { ...agentEnvironment(process.env), PATH: [join(base, "bin"), ...path].join(delimiter), DOAN_RUNTIME: join(base, "rt/runtime.json") };
+    // The key the app puts in a canvas conversation's environment; the fake app knows the same one.
+    const handoff = o.scenario.handoff ? { key: randomBytes(32).toString("hex"), canvas: o.scenario.handoff.canvas } : null;
+    const env = { ...agentEnvironment(process.env), PATH: [join(base, "bin"), ...path].join(delimiter), DOAN_RUNTIME: join(base, "rt/runtime.json"), ...(handoff ? { DOAN_HANDOFF: handoff.key } : {}) };
     const git = (args: string[]) => must(sh("git", [...GIT, "-C", repo, ...args], repo, env), `git ${args[0]}`);
     git(["init", "-q"]);
     if (o.scenario.init && !existsSync(join(repo, ".doan/config.json")))
@@ -90,11 +94,11 @@ export async function prepareWorkspace(o: { scenario: LoadedScenario; agent: Age
     // A worktree scenario stands for an instruction copied from the running app,
     // so the app is up even without a selection; `doan active` from the second
     // worktree then gets project_not_open.
-    const app = o.scenario.selectionValue || o.scenario.worktree || o.scenario.onboardingValue
-      ? await startFakeApp({ dir: join(base, "rt"), root: repo, selection: o.scenario.selectionValue ? { root: repo, ...o.scenario.selectionValue } : null, onboarding: o.scenario.onboardingValue })
+    const app = o.scenario.selectionValue || o.scenario.worktree || o.scenario.onboardingValue || handoff
+      ? await startFakeApp({ dir: join(base, "rt"), root: repo, selection: o.scenario.selectionValue ? { root: repo, ...o.scenario.selectionValue } : null, onboarding: o.scenario.onboardingValue, handoff })
       : null;
     return {
-      base, repo, cwd, env, seedCommit, app, onboardingLog: join(base, "rt/onboarding.jsonl"), workLog: join(base, "rt/work.jsonl"), openLog: join(base, "rt/open.jsonl"), appWrites: join(base, "rt", APP_WRITES),
+      base, repo, cwd, env, seedCommit, app, onboardingLog: join(base, "rt/onboarding.jsonl"), workLog: join(base, "rt/work.jsonl"), openLog: join(base, "rt/open.jsonl"), handoffLog: join(base, "rt/handoff.jsonl"), appWrites: join(base, "rt", APP_WRITES),
       async dispose() {
         await app?.close();
         rmSync(base, { recursive: true, force: true });
@@ -108,10 +112,11 @@ export async function prepareWorkspace(o: { scenario: LoadedScenario; agent: Age
 
 // dispose deletes rt/, and the log is what onboarding checks were scored on.
 // It holds no token (eval/lib/socket.ts strips it).
-export function keepOnboardingLog(ws: Pick<Workspace, "onboardingLog"> & Partial<Pick<Workspace, "workLog" | "openLog">>, dir: string): void {
+export function keepOnboardingLog(ws: Pick<Workspace, "onboardingLog"> & Partial<Pick<Workspace, "workLog" | "openLog" | "handoffLog">>, dir: string): void {
   if (existsSync(ws.onboardingLog)) cpSync(ws.onboardingLog, join(dir, "onboarding.jsonl"));
   if (ws.workLog && existsSync(ws.workLog)) cpSync(ws.workLog, join(dir, "work.jsonl"));
   if (ws.openLog && existsSync(ws.openLog)) cpSync(ws.openLog, join(dir, "open.jsonl"));
+  if (ws.handoffLog && existsSync(ws.handoffLog)) cpSync(ws.handoffLog, join(dir, "handoff.jsonl"));
 }
 
 export function copyRepo(repo: string, dest: string): void {

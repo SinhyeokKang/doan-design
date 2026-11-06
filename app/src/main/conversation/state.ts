@@ -1,6 +1,8 @@
 import { sameCanvas } from "./sessions";
 import type { QuestionOutcome } from "./question";
 import type { Canvas, ConversationBinding, ConversationEvent, TurnState } from "./types";
+// A turn's handoff: the canvas it asked for and how it ended. pending: still judged by this run.
+export interface HandoffFold { canvas: { path: string }; outcome: "pending" | "started" | "refused" | "cancelled"; target?: { conversationId: string; canvas: Canvas }; reason?: string }
 export type TurnAction = "send" | "output" | "permission" | "resolved" | "done" | "exit" | "interrupt";
 export function turnState(state: TurnState, action: TurnAction): { state: TurnState; error?: "busy" } {
   const running = state === "starting" || state === "streaming" || state === "waitingPermission";
@@ -28,9 +30,11 @@ export interface FoldedConversation {
   permissions: Record<string, string>;
   questions: Record<string, "pending" | QuestionOutcome>;
   messages: { id: string; text: string; done: boolean }[];
+  // By the requesting turn's id.
+  handoffs: Record<string, HandoffFold>;
 }
 export function foldConversation(input: readonly ConversationEvent[], conversationId: string, restarting = true): FoldedConversation {
-  const state: FoldedConversation = { turn: "idle", turnId: null, archived: false, lastSeq: 0, interruption: null, permissions: {}, questions: {}, messages: [] };
+  const state: FoldedConversation = { turn: "idle", turnId: null, archived: false, lastSeq: 0, interruption: null, permissions: {}, questions: {}, messages: [], handoffs: {} };
   // Keyed by kind and id: a resolution settles only a request of its own kind, so a permission.resolved never answers a
   // question that shares its id.
   const pending = new Map<string, { kind: "permission" | "question"; id: string }>();
@@ -42,6 +46,14 @@ export function foldConversation(input: readonly ConversationEvent[], conversati
   };
   for (const event of mergeEvents(input, [], conversationId)) {
     state.lastSeq = event.seq;
+    // Before the archive and turn checks: the resolution comes after the turn's end, also after an archive.
+    if (event.type === "handoff.requested") { state.handoffs[event.turnId] = { canvas: { path: event.canvas.path }, outcome: "pending" }; continue; }
+    if (event.type === "handoff.resolved") {
+      const asked = state.handoffs[event.turnId];
+      if (asked?.outcome === "pending") state.handoffs[event.turnId] = { canvas: asked.canvas, outcome: event.outcome,
+        ...(event.outcome === "started" ? { target: event.target } : event.outcome === "refused" ? { reason: event.reason } : {}) };
+      continue;
+    }
     if (event.type === "conversation.archived") { state.archived = true; expire(); continue; }
     if (event.type === "conversation.restored") { state.archived = false; continue; }
     if (state.archived || event.type === "conversation.bound") continue;
@@ -81,6 +93,8 @@ export function foldConversation(input: readonly ConversationEvent[], conversati
   }
   if (restarting) {
     expire();
+    // Nothing judges a handoff an earlier run left unresolved.
+    for (const handoff of Object.values(state.handoffs)) if (handoff.outcome === "pending") handoff.outcome = "cancelled";
     if (state.turn === "starting" || state.turn === "streaming" || state.turn === "waitingPermission") {
       state.turn = "interrupted"; state.interruption = "crashed";
     }

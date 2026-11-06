@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { CANVAS_DIRS, canvasDir } from "../../formats/canvasPath";
 import { canonicalDirectory, openRegular, readRegular, readDescriptor, CONVERSATION_HISTORY_BYTES } from "./io";
 import { absolutePath, object, sameCanvas } from "./sessions";
-import { anchorTokens, validAnchor } from "./prompt";
+import { anchorTokens, LIMITS, validAnchor } from "./prompt";
 import { validAuthId, validOwner } from "../agentAuth/metadata";
 import { permissionModeId, type PermissionModeId } from "./permissionMode";
 import { QUESTION_LIMITS } from "./question";
@@ -80,8 +80,15 @@ function payload(value: Record<string, unknown>): value is Record<string, unknow
   switch (value.type) {
     case "turn.started": case "turn.done": case "conversation.archived": case "conversation.restored": return true;
     case "conversation.bound": return validCanvas(value.canvas);
-    case "user.message": return str(value.text) && Array.isArray(value.anchors) && [...value.anchors].every(validAnchor) && anchorTokens(value.text, value.anchors) !== null &&
+    // A handoff's first message holds the earlier agent's text as written, so its markers are not anchor tokens.
+    case "user.message": return str(value.text) && Array.isArray(value.anchors) && [...value.anchors].every(validAnchor) &&
+      (value.origin === undefined ? anchorTokens(value.text, value.anchors) !== null : origin(value.origin) && value.anchors.length === 0 && bounded(value.text, LIMITS.text)) &&
       (value.attachments === undefined || (Array.isArray(value.attachments) && [...value.attachments].every(attachment)));
+    case "handoff.requested": return object(value.canvas) && bounded(value.canvas.path, LIMITS.path) && bounded(value.text, LIMITS.text);
+    case "handoff.resolved":
+      if (value.outcome === "started") return object(value.target) && bounded(value.target.conversationId, LIMITS.label) && validCanvas(value.target.canvas);
+      if (value.outcome === "refused") return bounded(value.reason, LIMITS.label);
+      return value.outcome === "cancelled";
     case "message.delta": case "message.done": return str(value.messageId) && str(value.text);
     case "activity": return ["edit", "read", "command", "other"].includes(String(value.kind)) && str(value.summary) && (value.path === undefined || str(value.path)) && (value.insideDesign === undefined || typeof value.insideDesign === "boolean");
     case "permission.request": return str(value.requestId) && str(value.tool) && str(value.summary) && Array.isArray(value.options) && value.options.length > 0 && [...value.options].every(o => object(o) && str(o.id) && str(o.label) && ["allow", "allowAlways", "deny"].includes(String(o.kind)));
@@ -113,6 +120,9 @@ function storedAnswers(value: unknown): boolean {
 function attachment(value: unknown): boolean {
   return object(value) && label(value.name) && typeof value.size === "number" && Number.isSafeInteger(value.size) && value.size >= 0 &&
     (value.kind === "image" || value.kind === "file") && typeof value.path === "string" && absolutePath(value.path);
+}
+function origin(value: unknown): boolean {
+  return object(value) && value.kind === "handoff" && bounded(value.conversationId, LIMITS.label) && validCanvas(value.canvas);
 }
 function event(value: unknown, id: string, seq: number): value is ConversationEvent {
   return object(value) && value.v === 1 && value.conversationId === id && value.seq === seq && validId(value.turnId) &&

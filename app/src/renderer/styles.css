@@ -963,6 +963,19 @@ body:has(.shell-top) { background: transparent; }
 .conversation-thread .marker svg { flex: none; width: var(--size-icon-sm); height: var(--size-icon-sm); }
 .conversation-thread .marker .doan-button { color: var(--text-standard); }
 .conversation-thread .marker .doan-button:disabled { color: var(--text-disabled); }
+/* Handoff lines (canvas-handoff design §6) reuse the promotion marker. A reason line is longer than "Moved to …", so
+   its text wraps inside the marker's 80% with the icon kept on the first line. */
+.conversation-thread .marker.handoff span { align-items: flex-start; }
+.conversation-thread .marker.handoff span svg { margin-block: calc((var(--type-caption-line-height) - var(--size-icon-sm)) / 2); }
+/* The handoff card: the receiving conversation's first message. Full width on an inset fill, apart from the person's
+   right-aligned accent bubble, with no edge stripe. Its head is the marker's caption line with Open at its end. */
+.conversation-thread .handoff-card { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3) var(--space-4) var(--space-4); border-radius: var(--radius-row); background: var(--surface-inset); min-width: 0; }
+.conversation-thread .handoff-card:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+.conversation-thread .handoff-head { display: flex; align-items: center; gap: var(--space-1h); min-height: var(--size-control-sm); color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+.conversation-thread .handoff-head svg { flex: none; width: var(--size-icon-sm); height: var(--size-icon-sm); }
+.conversation-thread .handoff-head > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.conversation-thread .handoff-head .doan-button { flex: none; color: var(--text-standard); }
+.conversation-thread .handoff-card .md code { background: var(--surface-panel); }
 .conversation-thread .thread-loading { display: flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: 160px; color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
 .conversation-thread .jump-latest { position: absolute; left: 50%; bottom: var(--space-3); transform: translateX(-50%); box-shadow: var(--shadow-sm); }
 @media (prefers-reduced-motion: reduce) {

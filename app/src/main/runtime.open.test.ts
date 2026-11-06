@@ -19,7 +19,7 @@ const fixtures = join(__dirname, "../../../schema/fixtures/app-socket-v4/request
 const state = (open: (request: OpenRequest) => Promise<OpenResponse> = async () => ({ v: 4, ok: true, opened: true, frame: "none" })) => ({
   isOpen: vi.fn((value: string) => value === root), selection: vi.fn(() => null), work: vi.fn(), conversationWork: vi.fn(),
   onboarding: vi.fn(async (): Promise<OnboardingResponse> => ({ v: 2, ok: false, error: { code: "bad_request", message: "unused" } })),
-  open: vi.fn(open),
+  open: vi.fn(open), handoff: vi.fn(() => null),
   roots: () => [root], readRoot: vi.fn(async (): Promise<FolderState> => ({ kind: "uninitialized" })), adopt: vi.fn(),
 });
 

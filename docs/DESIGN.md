@@ -1300,3 +1300,36 @@ Context, not deviations: the Stop glyph's computed `stroke-width` (the draft set
 ### Regression pointers
 
 `ConversationThread.question.test.tsx` (card structure, names, keyboard, Send states, sending and failure, folding), `questionDraft.test.ts`, `threadItems.test.ts`, `ConversationStripView.test.tsx`, `conversationStrip.test.ts`. The measured values above are unpinned; the probes are `.scratch/design-sync/agent-questions/` (`driver.ts`, `cmp.cjs`, `lib.js`).
+
+## Canvas handoff
+
+Reference: `.doan/canvases/canvas-handoff.html` (frames `source-requested`, `source-handed-off`, `source-refused`, `source-cancelled`, `handoff-card`, `toasts`). Measured by `/design-sync` in the built app at 1238 × 780 with the panel at 347 (`.scratch/design-sync/canvas-handoff/measure.mjs`): the draft is copied into a fixture repo `acme-web` as `drafts.html` and `checkout-flow.html` and read in the app's canvas iframe, next to the panel it draws. Conversations were seeded as real `index.json` and JSONL history in an isolated userData; the requested line came from main sending a live turn's events (`conversation:event`), the move and both toasts from main sending `conversation:handoff`. No provider signed in. 62 pairs, 2,418 comparisons (37 computed properties each plus text and box): 60 differences, all of the three documented kinds below.
+
+### Measured contracts
+
+| Element | Measured contract | Reason |
+|---|---|---|
+| Handoff line | The promotion marker's line (`.marker.handoff`): caption 12/16 `--text-metadata` (rgb(95,95,95)), 1 px `--border-standard` rules on both sides (rgb(232,232,232)), gap 12; the text span at most 80 %, gap 6, `align-items: flex-start`, so a two-line reason keeps its 14 px icon (Lucide `forward` or `ban`) on the first line, 1 px down. Open is the sm `trigger` button in `--text-standard` (51 × 32). One line sits at the request's place for every outcome: "Hands off to <file> when this turn ends", "Handed off to <file>" + Open, "Didn’t hand off to <file>. <reason>", "Didn’t hand off. <file> is this conversation’s own canvas.", "Didn’t hand off to <file>. The turn didn’t finish." | Design §6 '확정 문구': one line in the promotion line's style, no coloured edge. |
+| Gone target | When the handed-off target is no longer listed (by ID), Open is hidden, not disabled, and the line ends with " · No longer in <project>". The card head does the same for its source | Unlike the promotion line, which disables Open. |
+| Refused start | A start main refused with its own code reads as the line's lead plus Home's start refusal for that code (`startErrorView`), for example "Didn’t hand off to <file>. Couldn’t start with Claude Code: its sign-in has expired. Choose another agent."; `canvas_not_found` reads as `not_listed` | No second wording for the start codes (clarify preset). Not drawn in the draft; pinned by `handoffView.test.ts`. |
+| Handoff card | The receiving conversation's first message: full width, `--surface-inset` (rgb(245,245,246)), radius 16 (`--radius-row`), padding 12 / 16 / 16, gap 8, `role="group"` named by its head ("Handed off from drafts.html", CDP AX). Head 32 high: caption 12/16 with 0.16 px tracking, `--text-metadata`, 14 px `forward`, the text ellipsized on one line, Open last. Body: the agent Markdown at body-sm 14/20 (the panel's rule), its inline code on `--surface-panel` (white). Its text is never read for `{{n}}` markers or a preset line | Apart from the person's right-aligned accent bubble. |
+| End of the card's turn | When the turn the handoff card began fails or stops, its end notice keeps its shipped text and Sign in again but offers no Edit and resend; a later turn of the person's offers it as before | The card's text is the earlier agent's, not the person's message (design '결정 영향'). Not drawn in the draft; pinned by `ConversationThread.test.tsx`. |
+| Move | From the source canvas, a started handoff opens the target canvas through Quick Open's path (one canvas visit: Back enabled after it), the panel on the receiving conversation, and keyboard focus on the card: 2 px black outline at offset 2 (`:focus-visible` after a keyboard modality). The card's focus waits for the render that shows the receiving conversation and is dropped once the person leaves that canvas | Design §6 'Move'. The arrival first lands on the render still drawing the canvas left behind. |
+| Toasts | The shipped toast (384 wide, padding 12, gap 12, radius 24, message 14/20): "drafts.html handed off to checkout-flow.html" with the prominent Open; Open on a target no longer listed answers "Couldn’t open checkout-flow.html. The canvas isn’t in acme-web." without an action | |
+
+### Documented differences from the draft
+
+- **Panel width.** Every thread element is 1 px narrower (thread 314 where the draft's tiles draw 315; the line's rules and its 80 % span follow): the panel's 1 px start border, which the draft's tiles leave out ('Context window ring', 'Panel composer width').
+- **Text-less containers.** The card and toast roots inherit the app body's 13 px / normal where the draft page gives 14 / 20; neither paints text of its own, and every text child matches.
+- **The gone card's tile.** The draft draws "drafts.html later deleted or renamed" as a line tile outside the panel, so its body falls back to the thread's 16/24; the app draws every card inside the panel at body-sm 14/20, as the draft's panel tiles do.
+- **Fixture text.** The gone line and card name `checkout-flow.html` / `drafts.html` with an ID no longer listed (the renamed or deleted case).
+
+### Not verified
+
+- The draft's shipped parts left unmeasured: the permission notice in `source-requested`, the end notices in `source-cancelled`, and the person's bubble in the second `handoff-card` tile (the card itself is the same rule; the literal `{{1}}` is pinned by `ConversationThread.test.tsx`).
+- A real handoff from a provider turn (the R1 runtime check). Not reached in the real app: the move held by a typing composer, a dialog or a choice made while the read is awaited, the 10 s wait, and a toast's Open waiting for the list read (`App.handoff.test.tsx`); first run is checked only in the pure `handoffMove` test (`handoffView.test.ts`).
+- Hover and pressed states of Open (the draft draws none); dark mode, reduced transparency and forced colours.
+
+### Regression pointers
+
+`threadItems.test.ts` (line placement and replacement, card item), `handoffView.test.ts` (copy, `handoffMove`), `ConversationThread.test.tsx` (line and card markup, Open targets), `App.handoff.test.tsx` (move, wait, a choice or move made meanwhile, typing and dialog, toast, the toast Open's wait, gone toast, dropped card focus), `CanvasConversationPanel.hooks.test.tsx` (the move's focus waits for the receiving conversation). Sizes and colours above are `.scratch/` probes only.

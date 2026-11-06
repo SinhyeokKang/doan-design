@@ -468,6 +468,16 @@ test("buzz-conversation: list, seen marker, list changes, extended send, links a
   expect(changes).toEqual([{ root: "/repo" }]); expect(emitter.listenerCount("conversation:listChanged")).toBe(0);
 });
 
+// canvas-handoff C2: main tells the window that a handoff started a conversation; the renderer decides the move.
+test("exposes conversation handoffs as their own event with cleanup", () => {
+  const notices: unknown[] = [];
+  const notice = { root: "/repo", source: { conversationId: "a", canvas: { path: ".doan/canvases/a.html", id: "a" } }, target: { conversationId: "b", canvas: { path: ".doan/canvases/b.html", id: "b" } } };
+  const stop = api.onConversationHandoff(value => notices.push(value));
+  emitter.emit("conversation:handoff", {}, notice);
+  stop(); stop(); emitter.emit("conversation:handoff", {}, notice);
+  expect(notices).toEqual([notice]); expect(emitter.listenerCount("conversation:handoff")).toBe(0);
+});
+
 test("work and deep links expose dedicated events with independent cleanup", async () => {
   const work = vi.fn(), links = vi.fn();
   const stopWork = api.onWorkChanged(work), stopLinks = api.onOpenLink(links);

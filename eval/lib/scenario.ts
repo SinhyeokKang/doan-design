@@ -15,6 +15,9 @@ export interface Scenario {
   worktree: { branch: string } | null;
   // The fake app's scripted app-socket v2 onboarding state.
   onboarding: "onboarding.json" | null;
+  // Stands for a Doan canvas conversation on `canvas`: the agent's environment carries DOAN_HANDOFF and the fake app
+  // answers app-socket v5 for it.
+  handoff: { canvas: string } | null;
 }
 
 export interface LoadedScenario extends Scenario {
@@ -27,7 +30,9 @@ export interface LoadedScenario extends Scenario {
 }
 
 const FOCUS = ["write", "comments", "active", "injection", "implement", "understand", "onboarding", "preset"];
-const KEYS = ["id", "title", "focus", "init", "selection", "timeoutSec", "shellCli", "worktree", "onboarding"];
+const KEYS = ["id", "title", "focus", "init", "selection", "timeoutSec", "shellCli", "worktree", "onboarding", "handoff"];
+// The v5 schema's path pattern.
+const HANDOFF_CANVAS = /^\.doan\/canvases\/[^/]+\.html$/;
 // The first worktree is on main (init.defaultBranch in workspace.ts).
 const BRANCH = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
@@ -64,9 +69,15 @@ export function parseScenarioJson(value: unknown, dirName: string): Scenario {
   }
   const onboarding = v.onboarding ?? null;
   if (onboarding !== null && onboarding !== "onboarding.json") fail(dirName, 'onboarding must be null or "onboarding.json"');
+  const handoff = v.handoff ?? null;
+  if (handoff !== null) {
+    const keys = typeof handoff === "object" && !Array.isArray(handoff) ? Object.keys(handoff) : [];
+    const canvas = (handoff as { canvas?: unknown }).canvas;
+    if (keys.length !== 1 || keys[0] !== "canvas" || typeof canvas !== "string" || !HANDOFF_CANVAS.test(canvas)) fail(dirName, "handoff must be null or { canvas: \".doan/canvases/<name>.html\" }");
+  }
   const timeoutSec = v.timeoutSec ?? 900;
   if (!Number.isInteger(timeoutSec) || (timeoutSec as number) < 1) fail(dirName, "timeoutSec must be a positive whole number");
-  return { shellCli, worktree: worktree as Scenario["worktree"], onboarding: onboarding as Scenario["onboarding"], id: dirName, title: v.title, focus: v.focus as Scenario["focus"], init: init as Scenario["init"], selection: selection as Scenario["selection"], timeoutSec: timeoutSec as number };
+  return { shellCli, worktree: worktree as Scenario["worktree"], onboarding: onboarding as Scenario["onboarding"], handoff: handoff as Scenario["handoff"], id: dirName, title: v.title, focus: v.focus as Scenario["focus"], init: init as Scenario["init"], selection: selection as Scenario["selection"], timeoutSec: timeoutSec as number };
 }
 
 export function renderPrompt(template: string, repo: string): string {

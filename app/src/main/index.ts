@@ -710,6 +710,8 @@ async function start(): Promise<void> {
     // The shell publishes the list synchronously, so the work state holds the root before the start's work applies.
     adopt(root, view) { ready.adopt(root, view); },
     open: request => openCanvasRequests.open(request),
+    // Before the conversation service exists no conversation holds a key.
+    handoff: request => conversations ? conversations.requestHandoff(request) : "not_app_conversation",
     async onboarding(request) {
       const service = await onboardingStarted;
       // start keeps the session and its input (design '설치 직후 진입'); the window comes forward only when Doan is
@@ -914,7 +916,7 @@ async function start(): Promise<void> {
     const project = ready.entries().find(entry => entry.path === root);
     return project?.kind === "list" ? project.canvases : [];
   }, root => send("conversation:listChanged", { root }), { drafts: conversationDrafts, files: queueFiles(attachments), defaultEffort: (root, provider, model) => modelCatalog?.defaultEffort(root, provider, model) }, id => notify.close(id),
-  id => updateConversationWork(endConversationWork(conversationWork, id)));
+  id => updateConversationWork(endConversationWork(conversationWork, id)), notice => send("conversation:handoff", notice));
   conversations = conversationService;
   attachments.cleanup();
   modelCatalog = new ModelCatalog((root, runtime) => conversationService.prepareListing(root, runtime), input => conversationService.listModels(input, listModels));

@@ -123,3 +123,8 @@ test("doan export flags are read as flags, so the canvas stays the second positi
   assert.equal(doanPositionals(["doan", "export", "a.html", "-o"]), undefined);
   assert.equal(doanPositionals(["doan", "export", "a.html", "-x", "y"]), undefined);
 });
+test("doan handoff --message takes a value, so its message is never a positional", () => {
+  assert.deepEqual(doanPositionals(["doan", "handoff", ".doan/canvases/next.html", "--message", "-", "--json"]), ["handoff", ".doan/canvases/next.html"]);
+  assert.deepEqual(doanPositionals(["doan", "handoff", "--message=Continue here", ".doan/canvases/next.html"]), ["handoff", ".doan/canvases/next.html"]);
+  assert.equal(doanPositionals(["doan", "handoff", ".doan/canvases/next.html", "--message"]), undefined);
+});

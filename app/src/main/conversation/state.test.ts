@@ -167,3 +167,35 @@ describe("a turn with two user.message events (queue-send-now)", () => {
     expect(foldConversation([...events, event(5, { type: "turn.done" })], "a", false).turn).toBe("idle");
   });
 });
+// canvas-handoff B4 (design §5 'events'): a request lives in its turn, its resolution comes after the turn's end, and a
+// request a restart finds unresolved reads as cancelled.
+describe("handoff fold", () => {
+  const requested: EventPayload = { type: "handoff.requested", canvas: { path: ".doan/canvases/new.html" }, text: "Continue the checkout flow." };
+  const turn = (resolution?: EventPayload, end: EventPayload = { type: "turn.done" }) =>
+    [event(1, { type: "user.message", text: "Make a checkout", anchors: [] }), event(2, { type: "turn.started" }), event(3, requested), event(4, end), ...(resolution ? [event(5, resolution)] : [])];
+  it("keeps a request pending while this run still judges it, and reads it as cancelled after a restart", () => {
+    expect(foldConversation(turn(), "a", false).handoffs).toEqual({ "turn-1": { canvas: { path: ".doan/canvases/new.html" }, outcome: "pending" } });
+    expect(foldConversation(turn(), "a", true).handoffs).toEqual({ "turn-1": { canvas: { path: ".doan/canvases/new.html" }, outcome: "cancelled" } });
+  });
+  it("takes the resolution written after the turn's end, which a restart keeps", () => {
+    const started: EventPayload = { type: "handoff.resolved", outcome: "started", target: { conversationId: "b", canvas: { path: ".doan/canvases/new.html", id: "new" } } };
+    for (const restarting of [false, true]) {
+      expect(foldConversation(turn(started), "a", restarting).handoffs["turn-1"]).toEqual({ canvas: { path: ".doan/canvases/new.html" }, outcome: "started", target: { conversationId: "b", canvas: { path: ".doan/canvases/new.html", id: "new" } } });
+      expect(foldConversation(turn(started), "a", restarting).turn).toBe("idle");
+    }
+    expect(foldConversation(turn({ type: "handoff.resolved", outcome: "refused", reason: "not_new" }), "a", true).handoffs["turn-1"]).toEqual({ canvas: { path: ".doan/canvases/new.html" }, outcome: "refused", reason: "not_new" });
+    expect(foldConversation(turn({ type: "handoff.resolved", outcome: "cancelled" }, { type: "interrupted", reason: "user" }), "a", false).handoffs["turn-1"]).toEqual({ canvas: { path: ".doan/canvases/new.html" }, outcome: "cancelled" });
+  });
+  it("keeps a resolution written after an archive, and ignores one without its request", () => {
+    const archived = [...turn(), event(5, { type: "conversation.archived" }), event(6, { type: "handoff.resolved", outcome: "cancelled" })];
+    expect(foldConversation(archived, "a", false).handoffs["turn-1"]?.outcome).toBe("cancelled");
+    expect(foldConversation([event(1, { type: "turn.started" }), event(2, { type: "handoff.resolved", outcome: "cancelled" })], "a", false).handoffs).toEqual({});
+  });
+  it("keeps one entry per turn, so a later turn's request does not change an earlier one", () => {
+    const later = [...turn({ type: "handoff.resolved", outcome: "refused", reason: "has_conversation" }),
+      event(6, { type: "turn.started" }, "turn-2"), event(7, requested, "turn-2"), event(8, { type: "turn.done" }, "turn-2")];
+    const folded = foldConversation(later, "a", false).handoffs;
+    expect(folded["turn-1"]?.outcome).toBe("refused");
+    expect(folded["turn-2"]?.outcome).toBe("pending");
+  });
+});

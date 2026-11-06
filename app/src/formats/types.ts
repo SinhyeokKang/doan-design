@@ -211,3 +211,18 @@ export type OpenRequest = { v: 4; token: string; root: string; path: string; fra
 export type OpenFrameResult = "found" | "missing" | "none";
 export type OpenErrorCode = "bad_request" | "bad_token" | "project_not_open" | "canvas_not_found" | "busy" | "not_ready";
 export type OpenResponse = { v: 4; ok: true; opened: true; frame: OpenFrameResult } | { v: 4; ok: false; error: { code: OpenErrorCode; message: string } };
+
+export type HandoffRequest = { v: 5; token: string; root: string; handoff: string; path: string; text: string };
+export type HandoffErrorCode =
+  | "bad_request"
+  | "bad_token"
+  | "project_not_open"
+  | "not_app_conversation"
+  | "root_mismatch"
+  | "not_running"
+  | "not_canvas_conversation"
+  | "plan_mode"
+  | "handoff_turn"
+  | "already_requested"
+  | "same_canvas";
+export type HandoffResponse = { v: 5; ok: true; requested: true } | { v: 5; ok: false; error: { code: HandoffErrorCode; message: string } };

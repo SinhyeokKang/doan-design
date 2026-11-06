@@ -1,0 +1,8 @@
+{
+  "text": "Start a mobile version of this screen as a new canvas, `account-mobile`: 390 px wide, with {{1}} and {{2}} stacked in one column for a narrow screen. Leave this canvas as it is. The mobile version is the one we keep working on from here: next I want to tune its tap targets.",
+  "anchors": [
+    { "frame": { "id": "profile-form", "title": "Profile" } },
+    { "frame": { "id": "billing-form", "title": "Billing" } }
+  ],
+  "canvas": { "path": ".doan/canvases/account.html", "id": "account" }
+}
