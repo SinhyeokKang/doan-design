@@ -100,6 +100,12 @@ export class ModelCatalog {
   defaultEffort(root: string, runtime: Provider, model: string): string | undefined {
     return this.received.get(JSON.stringify([root, runtime]))?.find(m => m.id === model)?.defaultEffort;
   }
+  // Whether this run's list says the model takes Fast now. No model: the list's default row, which a conversation without
+  // a stored model runs on (Claude `default`, Codex isDefault).
+  fast(root: string, runtime: Provider, model: string | undefined): boolean {
+    const id = model ?? this.received.get(JSON.stringify([root, runtime]))?.find(m => m.default)?.id;
+    return id !== undefined && this.accepts(root, runtime, id, undefined, true);
+  }
   accepts(root: string, runtime: Provider, model: string, effort: string | undefined, fast?: boolean): boolean {
     const found = this.received.get(JSON.stringify([root, runtime]))?.find(m => m.id === model);
     return !!found && (effort === undefined || !!found.efforts?.includes(effort)) &&

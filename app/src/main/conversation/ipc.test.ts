@@ -549,3 +549,150 @@ describe("answerQuestion", () => {
     finally { rmSync(h.dir, { recursive: true, force: true }); }
   });
 });
+
+// fast-mode A3: Fast only for doan-owned Claude and Codex conversations, judged by the turn's model in this run's list;
+// the turn's effective Fast goes along like the default effort.
+describe("fast", () => {
+  const catalog = {
+    accepts: vi.fn((_root: string, _runtime: string, model: string) => ["sonnet", "opus", "haiku"].includes(model)),
+    fast: vi.fn((_root: string, runtime: string, model?: string) => (runtime === "claude" || runtime === "codex") && (model === undefined || model === "opus")),
+  };
+  const home = { models: catalog as unknown as ModelCatalog };
+  const check = (request: Record<string, unknown>, provider: "claude" | "codex" | "cursor" | "copilot" | "antigravity" = "claude", owner: "doan" | "legacy-external" = "doan", stored: { model?: string } = {}) => {
+    try { return validateSendExtras(request, "/repo", provider, owner, home, stored); } catch (error) { return { error: (error as Error).message }; }
+  };
+  it("accepts Fast on a doan Claude or Codex conversation when the judged model takes it, a Fast-only send included", () => {
+    expect(check({ fast: true }, "claude", "doan", { model: "opus" })).toEqual({ fast: true, ids: [] });
+    expect(check({ fast: true }, "codex", "doan", { model: "opus" })).toEqual({ fast: true, ids: [] });
+    expect(catalog.fast).toHaveBeenLastCalledWith("/repo", "codex", "opus");
+    // No stored model: the list's default row judges it.
+    expect(check({ fast: true })).toEqual({ fast: true, ids: [] });
+    expect(catalog.fast).toHaveBeenLastCalledWith("/repo", "claude", undefined);
+    // The request's model judges it over the stored one.
+    expect(check({ model: "opus", fast: true }, "claude", "doan", { model: "haiku" })).toEqual({ model: "opus", fast: true, ids: [] });
+    expect(check({ model: "haiku", fast: true }, "claude", "doan", { model: "opus" })).toEqual({ error: "bad_request" });
+    expect(check({ fast: true }, "claude", "doan", { model: "haiku" })).toEqual({ error: "bad_request" });
+  });
+  it("accepts turning Fast off without a list", () => {
+    expect(check({ fast: false }, "claude", "doan", { model: "haiku" })).toEqual({ fast: false, ids: [] });
+    expect(validateSendExtras({ fast: false }, "/repo", "codex", "doan", {})).toEqual({ fast: false, ids: [] });
+  });
+  it("refuses Fast on ACP providers, legacy external conversations and in any shape but a boolean", () => {
+    for (const provider of ["cursor", "copilot", "antigravity"] as const) for (const fast of [true, false]) expect(check({ fast }, provider)).toEqual({ error: "bad_request" });
+    for (const fast of [true, false]) expect(check({ fast }, "claude", "legacy-external")).toEqual({ error: "bad_request" });
+    for (const fast of ["true", 1, null]) expect(check({ fast })).toEqual({ error: "bad_request" });
+  });
+});
+
+describe("fast through the channels", () => {
+  const FAST: ModelOption[] = [
+    { id: "default", label: "Default", default: true, efforts: ["low", "high"], fast: {} },
+    { id: "opus", label: "Opus", default: false, efforts: ["low", "high"], fast: { description: "Same model, faster output." } },
+    { id: "haiku", label: "Haiku", default: false },
+  ];
+  function fixture(dir: string, list: ModelOption[] = FAST, runtime: "claude" | "codex" = "claude") {
+    const owner = { kind: "doan" as const, provider: runtime, connectionId: "c", accountId: "a", workspaceId: "o", profile: "p" };
+    const prepare = vi.fn<Prepare>(async (_request, stored) => ({ runtime, configDir: "/profile", cwd: "/repo", command: "/fake", env: {}, owner, ...(stored ? { sessionId: stored.session.sessionId } : {}) }));
+    const steer = vi.fn(async () => {}); let session = 0;
+    const open = vi.fn<OpenRunner>(async () => ({ sessionId: `s${++session}`, send: vi.fn(async () => {}), steer, answer: () => false, stop: vi.fn(async () => {}), close: vi.fn(async () => {}) }));
+    const store = new ConversationStore(dir);
+    const service = new ConversationService(store, prepare, open, () => {});
+    const catalog = new ModelCatalog((root, r) => prepare({ root, mode: "new", runtime: r, text: "", anchors: [] }), async () => ({ models: list }));
+    const handle = conversationHandler(service, prepare, () => [{ path: "/repo", kind: "list", canvases: [{ path: ".doan/canvases/a.html" }, { path: ".doan/canvases/b.html" }] }], { models: catalog });
+    const start = vi.spyOn(service, "start");
+    const send = vi.spyOn(service, "send").mockResolvedValue(undefined);
+    const entry = (id: string, change: Record<string, unknown>) => store.save(store.list().map(m => m.conversationId === id ? { ...m, ...change } : m));
+    const started = async () => (await handle(true, "start", { root: "/repo", mode: "newDesign", runtime, text: "x" }) as { conversationId: string }).conversationId;
+    return { handle, service, store, start, send, entry, started, steer };
+  }
+  const listed = (h: ReturnType<typeof fixture>, runtime = "claude") => h.handle(true, "models", { root: "/repo", runtime });
+  it("refuses Fast before this run read the list, and sends no Fast for the turn then", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
+    try {
+      const h = fixture(dir); const id = await h.started();
+      expect(await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", text: "x", fast: true })).toEqual({ error: "bad_request" });
+      expect(await h.handle(true, "send", { conversationId: id, text: "y", fast: true })).toEqual({ error: "bad_request" });
+      // A stored Fast does not go out while nothing says the model takes it.
+      h.entry(id, { fast: true, model: "opus" });
+      expect(await h.handle(true, "send", { conversationId: id, text: "y" })).toBeUndefined();
+      expect(h.send.mock.calls[0]![3]).toEqual({});
+    } finally { vi.restoreAllMocks(); rmSync(dir, { recursive: true, force: true }); }
+  });
+  it("judges a Fast-only send by the stored model, else the list's default row, and passes the turn's Fast", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
+    try {
+      const h = fixture(dir); const id = await h.started(); await listed(h);
+      expect(await h.handle(true, "send", { conversationId: id, text: "y", fast: true })).toBeUndefined();
+      expect(h.send.mock.calls[0]![3]).toEqual({ fast: true, fastTurn: true });
+      h.entry(id, { model: "haiku" });
+      expect(await h.handle(true, "send", { conversationId: id, text: "y", fast: true })).toEqual({ error: "bad_request" });
+      h.entry(id, { model: "opus" });
+      expect(await h.handle(true, "send", { conversationId: id, text: "y", fast: true })).toBeUndefined();
+      expect(h.send.mock.calls[1]![3]).toEqual({ fast: true, fastTurn: true });
+      expect(await h.handle(true, "send", { conversationId: id, text: "y", fast: false })).toBeUndefined();
+      expect(h.send.mock.calls[2]![3]).toEqual({ fast: false });
+    } finally { vi.restoreAllMocks(); rmSync(dir, { recursive: true, force: true }); }
+  });
+  it("sends a stored Fast only on a model that takes it, and again once the conversation is back on one", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
+    try {
+      const h = fixture(dir); const id = await h.started(); await listed(h);
+      h.entry(id, { fast: true, model: "opus" });
+      await h.handle(true, "send", { conversationId: id, text: "y" });
+      expect(h.send.mock.calls[0]![3]).toEqual({ fastTurn: true });
+      await h.handle(true, "send", { conversationId: id, text: "y", model: "haiku" });
+      expect(h.send.mock.calls[1]![3]).toEqual({ model: "haiku" });
+      h.entry(id, { model: "haiku" });
+      await h.handle(true, "send", { conversationId: id, text: "y" });
+      expect(h.send.mock.calls[2]![3]).toEqual({});
+      await h.handle(true, "send", { conversationId: id, text: "y", model: "opus", effort: "high" });
+      expect(h.send.mock.calls[3]![3]).toEqual({ model: "opus", effort: "high", fastTurn: true });
+    } finally { vi.restoreAllMocks(); rmSync(dir, { recursive: true, force: true }); }
+  });
+  it("sends no Fast for a model whose account cannot use it, and refuses turning it on there", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
+    try {
+      const h = fixture(dir, [{ id: "default", label: "Default", default: true, fast: { unavailable: "extra_usage" } }]); const id = await h.started(); await listed(h);
+      expect(await h.handle(true, "send", { conversationId: id, text: "y", fast: true })).toEqual({ error: "bad_request" });
+      h.entry(id, { fast: true });
+      await h.handle(true, "send", { conversationId: id, text: "y" });
+      expect(h.send.mock.calls[0]![3]).toEqual({});
+    } finally { vi.restoreAllMocks(); rmSync(dir, { recursive: true, force: true }); }
+  });
+  it("passes a start's Fast once the list says its model takes it, and refuses it for resume and ACP starts", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
+    try {
+      const h = fixture(dir); await listed(h);
+      const canvas = { path: ".doan/canvases/a.html" };
+      expect(await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", text: "x", model: "haiku", fast: true })).toEqual({ error: "bad_request" });
+      for (const fast of [true, false]) {
+        expect(await h.handle(true, "start", { root: "/repo", mode: "resume", canvas, text: "x", fast })).toEqual({ error: "bad_request" });
+        expect(await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "cursor", text: "x", fast })).toEqual({ error: "bad_request" });
+      }
+      expect(h.start).not.toHaveBeenCalled();
+      expect(await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", text: "x", fast: true })).toHaveProperty("conversationId");
+      expect(h.start.mock.calls[0]![0]).toMatchObject({ fast: true });
+      expect(await h.handle(true, "start", { root: "/repo", mode: "new", canvas, runtime: "claude", text: "x", model: "opus", fast: true })).toHaveProperty("conversationId");
+      expect(h.start.mock.calls[1]![0]).toMatchObject({ model: "opus", fast: true });
+      expect(await h.handle(true, "start", { root: "/repo", mode: "new", canvas: { path: ".doan/canvases/b.html" }, runtime: "claude", text: "x", model: "haiku", fast: false })).toHaveProperty("conversationId");
+      expect(h.start.mock.calls[2]![0]).toMatchObject({ model: "haiku", fast: false });
+    } finally { vi.restoreAllMocks(); rmSync(dir, { recursive: true, force: true }); }
+  });
+  it("refuses Fast on a legacy external send, a queued message and Send now", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
+    try {
+      const h = fixture(dir, FAST, "codex"); await listed(h, "codex");
+      h.store.save([...h.store.list(), { conversationId: "legacy", root: "/repo", canvas: { path: ".doan/canvases/a.html" }, title: "t", state: "current", owner: { kind: "legacy-external" }, session: { runtime: "codex", origin: "resumed", sessionId: "s", configDir: "/c", cwd: "/repo" } }]);
+      for (const fast of [true, false]) expect(await h.handle(true, "send", { conversationId: "legacy", text: "y", fast })).toEqual({ error: "bad_request" });
+      h.send.mockRestore();
+      const id = await h.started();
+      const queued = await h.handle(true, "queue", { conversationId: id, text: "q" }) as { itemId: string };
+      expect(queued).toHaveProperty("itemId");
+      for (const fast of [true, false]) {
+        expect(await h.handle(true, "queue", { conversationId: id, text: "q", fast })).toEqual({ error: "bad_request" });
+        expect(await h.handle(true, "sendQueuedNow", { conversationId: id, itemId: queued.itemId, fast })).toEqual({ error: "bad_request" });
+      }
+      expect(h.steer).not.toHaveBeenCalled();
+    } finally { vi.restoreAllMocks(); rmSync(dir, { recursive: true, force: true }); }
+  });
+});

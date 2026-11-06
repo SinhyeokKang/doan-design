@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ConversationStore } from "./store";
 import { HANDOFF_GUIDANCE } from "./prompt";
-import { ConversationService, resolveListedCanvas, type OpenRunner, type Prepare, type QueueFiles, type Runner, type StartRequest } from "./service";
+import { ConversationService, resolveListedCanvas, type OpenRunner, type Prepare, type QueueFiles, type QueueOptions, type Runner, type StartRequest } from "./service";
 import { foldConversation } from "./state";
 import { DraftStore } from "./drafts";
 import type { HandoffNotice } from "./handoff";
@@ -15,7 +15,7 @@ const paths: string[] = [];
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); paths.splice(0).forEach(p => rmSync(p, { recursive: true, force: true })); });
 const a = { path: ".doan/canvases/a.html", id: "a" }, b = { path: ".doan/canvases/b.html", id: "b" }, c = { path: ".doan/canvases/c.html", id: "c" };
 type Steering = Runner & { steer: NonNullable<Runner["steer"]> };
-function fixture(options: { provider?: "claude" | "codex"; listed?: Canvas[]; legacy?: boolean; files?: QueueFiles } = {}) {
+function fixture(options: { provider?: "claude" | "codex"; listed?: Canvas[]; legacy?: boolean; files?: QueueFiles; fast?: QueueOptions["fast"] } = {}) {
   const provider = options.provider ?? "codex";
   const dir = mkdtempSync(join(tmpdir(), "doan-handoff-")); paths.push(dir);
   const store = new ConversationStore(dir); const runners: Steering[] = []; let session = 0;
@@ -31,7 +31,7 @@ function fixture(options: { provider?: "claude" | "codex"; listed?: Canvas[]; le
   const notices: HandoffNotice[] = [];
   const published: ConversationEvent[] = [];
   const admit = (_root: string, canvas?: Canvas) => canvas ? resolveListedCanvas(canvas, listed) : undefined;
-  const service = new ConversationService(store, prepare, open, e => published.push(e), admit, 10_000, () => listed, () => {}, { drafts, ...(options.files ? { files: options.files } : {}) }, undefined, undefined, notice => notices.push(notice));
+  const service = new ConversationService(store, prepare, open, e => published.push(e), admit, 10_000, () => listed, () => {}, { drafts, ...(options.files ? { files: options.files } : {}), ...(options.fast ? { fast: options.fast } : {}) }, undefined, undefined, notice => notices.push(notice));
   const sourceRequest: StartRequest = { root: "/repo", mode: "new", runtime: provider, canvas: a, text: "Make a checkout page", anchors: [], model: "gpt-x", effort: "high", permissionMode: "acceptEdits" };
   const key = (runner: number) => open.mock.calls[runner]![0].env.DOAN_HANDOFF;
   const ask = (handoff: string | undefined, path: string, root = "/repo", text = "The person wants a checkout flow; the cart is next.") =>
@@ -484,5 +484,36 @@ describe("Send now and the handoff guidance", () => {
     h.service.receive(source, { type: "turn.done" });
     await h.settled();
     expect(await steered(h, h.on(b)!.conversationId, 1)).not.toContain(HANDOFF_GUIDANCE);
+  });
+});
+
+// fast-mode A3 (decision 6): the next conversation inherits the earlier one's Fast; its run takes Fast only when this
+// run's list says the model takes it.
+describe("fast", () => {
+  async function handOff(h: ReturnType<typeof fixture>, request: Partial<StartRequest>) {
+    const id = await h.start(request);
+    expect(h.ask(h.key(0), b.path)).toBeNull();
+    h.listed.push(b);
+    h.service.receive(id, { type: "turn.done" });
+    await h.settled();
+    return h.on(b)!;
+  }
+  it("inherits the stored Fast and runs with it on a model that takes it", async () => {
+    const h = fixture({ fast: () => true });
+    const target = await handOff(h, { fast: true });
+    expect(target).toMatchObject({ model: "gpt-x", fast: true });
+    expect(h.open.mock.calls[1]![0]).toMatchObject({ model: "gpt-x", fast: true });
+  });
+  it("inherits the stored Fast but runs without it on a model that does not take it", async () => {
+    const h = fixture({ fast: (_root, _provider, model) => model !== "gpt-x" });
+    const target = await handOff(h, { fast: true });
+    expect(target).toMatchObject({ fast: true });
+    expect(h.open.mock.calls[1]![0]).not.toHaveProperty("fast");
+  });
+  it("starts without Fast when the earlier conversation had none", async () => {
+    const h = fixture({ fast: () => true });
+    const target = await handOff(h, {});
+    expect(target).not.toHaveProperty("fast");
+    expect(h.open.mock.calls[1]![0]).not.toHaveProperty("fast");
   });
 });

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { existsSync, mkdtempSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { listModels, openRunner } from "./runners";
+import { claudeFastSettings, codexServiceTierForTurn, listModels, openRunner } from "./runners";
 import { ConversationService } from "./service";
 import { ConversationStore } from "./store";
 import type { EventPayload } from "./types";
@@ -1556,5 +1556,21 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line 
         expect(suggested).not.toHaveBeenCalled();
       }, { usageAtTurnEnd });
     }, 15000);
+  });
+});
+
+// fast-mode A3: the run's Fast as each provider takes it. Claude opens a process per turn, so its flag-tier setting goes
+// on every run with Fast; Codex names the tier on every doan turn (serviceTierForTurn holds for that turn only, P1).
+describe("fast arguments", () => {
+  it("sets Claude's flag-tier fastMode only on a run with Fast", () => {
+    expect(claudeFastSettings(true)).toEqual({ settings: { fastMode: true } });
+    expect(claudeFastSettings(false)).toEqual({});
+    expect(claudeFastSettings(undefined)).toEqual({});
+  });
+  it("names Codex's tier on every doan turn, standard included, and none on a terminal session's turn", () => {
+    expect(codexServiceTierForTurn("doan", true)).toEqual({ serviceTierForTurn: "priority" });
+    expect(codexServiceTierForTurn("doan", false)).toEqual({ serviceTierForTurn: "default" });
+    expect(codexServiceTierForTurn("legacy-external", true)).toEqual({});
+    expect(codexServiceTierForTurn("legacy-external", false)).toEqual({});
   });
 });

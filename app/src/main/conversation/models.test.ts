@@ -174,3 +174,26 @@ it("accepts Fast only from an available model in this run's received root and pr
   const restarted = catalog();
   expect(restarted.models.accepts("/repo", "claude", "fast", undefined, true)).toBe(false);
 });
+
+// fast-mode A3: whether a turn's model takes Fast now, the list's default row standing in for a conversation that has
+// no stored model; nothing before this run read the list.
+it("answers whether a model takes Fast from this run's list, the default row standing in for no model", async () => {
+  const c = catalog();
+  c.list.mockResolvedValue({ models: [{ id: "luna", label: "Luna", default: true, fast: {} }, { id: "sol", label: "Sol", default: false, fast: { description: "1.5x speed" } }, { id: "plain", label: "Plain", default: false }] });
+  expect(c.models.fast("/repo", "codex", "sol")).toBe(false);
+  expect(c.models.fast("/repo", "codex", undefined)).toBe(false);
+  await c.models.models("/repo", "codex");
+  expect(c.models.fast("/repo", "codex", "sol")).toBe(true);
+  expect(c.models.fast("/repo", "codex", undefined)).toBe(true);
+  expect(c.models.fast("/repo", "codex", "plain")).toBe(false);
+  expect(c.models.fast("/repo", "codex", "missing")).toBe(false);
+  expect(c.models.fast("/other", "codex", "sol")).toBe(false);
+  c.list.mockResolvedValue({ models: [{ id: "default", label: "Default", default: true, fast: { unavailable: "extra_usage" } }, { id: "plain", label: "Plain", default: false }] });
+  await c.models.models("/repo", "claude");
+  expect(c.models.fast("/repo", "claude", "default")).toBe(false);
+  expect(c.models.fast("/repo", "claude", undefined)).toBe(false);
+  c.list.mockResolvedValue({ models: [{ id: "plain", label: "Plain", default: false, fast: {} }] });
+  await c.models.models("/repo", "cursor");
+  // No default row: a conversation without a stored model cannot be judged.
+  expect(c.models.fast("/repo", "cursor", undefined)).toBe(false);
+});

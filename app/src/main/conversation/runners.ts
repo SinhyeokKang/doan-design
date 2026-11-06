@@ -33,6 +33,17 @@ export const listModels: ReadModels = async (input, exited, registerStop) => {
   const runner = await (input.runtime === "claude" ? openClaude : input.runtime === "codex" ? openCodexList : openAcp)(input, () => {}, exited, registerStop);
   try { return await runner.models!(); } finally { await runner.close(); }
 };
+// Fast for a Claude run: the flag-tier setting, since an SDK run is off with sdk_opt_in_required otherwise, even with
+// fastMode in the project's .claude/settings.json (fast-mode P2 b, b2). A run without Fast passes nothing.
+export function claudeFastSettings(fast: boolean | undefined): { settings?: { fastMode: true } } {
+  return fast ? { settings: { fastMode: true } } : {};
+}
+// Fast for a Codex turn: a doan turn always names its tier, standard included, so a model whose catalog default is Fast
+// still runs standard when Fast is off; serviceTierForTurn holds for that turn only (fast-mode P1 a). A terminal
+// session's turn names none and keeps the person's own setting, as with permission modes.
+export function codexServiceTierForTurn(owner: "doan" | "legacy-external", fast: boolean): { serviceTierForTurn?: "priority" | "default" } {
+  return owner === "doan" ? { serviceTierForTurn: fast ? "priority" : "default" } : {};
+}
 // Account and ownership answers say nothing about the protocol shape, so they never record an installed version.
 const NOT_EVIDENCE: readonly FailureCode[] = ["not_logged_in", "rate_limited", "session_in_use"];
 function codexFailure(error: unknown): HandshakeReply {
