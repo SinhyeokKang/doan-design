@@ -52,8 +52,8 @@
 
 | 링크 | 세션·worktree | 시작 | PR·병합 | 상태 |
 |---|---|---|---|---|
-| 1 model-drawer-older | Claude Code, Orca worktree `model-drawer-older-orch` | 2026-11-06 | — | 진행 중 |
-| 2 project-skill-drawer | — | — | — | 대기 |
+| 1 model-drawer-older | Claude Code, Orca worktree `model-drawer-older-orch` | 2026-11-06 | PR #112, `0825d9eb` | 병합 |
+| 2 project-skill-drawer | Claude Code, Orca worktree `project-skill-drawer-orch` | 2026-11-06 | — | 시작 |
 
 ## 인계 기록
 
@@ -66,3 +66,8 @@
     - 체인 끝 로그인 정리: 전부 남긴다. 공용 프로필 userData와 그 Keychain 항목, `.scratch/prompt-suggestion/claude-config`와 Keychain `Claude Code-credentials-dc1943d2`를 지우지 않는다.
   - 두 링크 문서의 줄 번호 인용을 `d936d157` 코드와 대조했다. model-drawer-older는 모두 맞았고, project-skill-drawer spec·design의 인용 43곳을 고쳤다(`sdk.d.ts` 0.3.312 인용은 맞음). 링크 1이 `homeComposer.ts`·`ComposerParts.tsx`·`styles.css`를 고치므로 링크 2 문서의 그 파일 인용은 링크 1 병합 뒤 다시 어긋날 수 있다. 링크 2 지휘자는 시작할 때 그 파일 인용만 다시 맞춘다.
   - Codex 주간 한도: Orca가 띄우는 Codex의 rollout은 `~/.codex`가 아니라 Orca Codex 계정의 `$CODEX_HOME`(`~/Library/Application Support/orca/codex-accounts/<id>/home/sessions`)에 있다. 그 가장 최근 rollout의 10080분 창은 28% 사용(2026-11-06)이다. 사용자가 "코덱스 한도 졸라 여유로움 팡팡 써도 돼"라고 했다. 링크 1은 리뷰와 4a·4b를 Codex로 돌린다.
+- 2026-11-06 링크 1 지휘자: model-drawer-older를 PR #112로 병합했다(`0825d9eb`). batch A(tasks 1–3, Claude Opus), 리뷰 RA(Codex gpt-6-astra), batch B(4a·4b, Codex gpt-6-astra), 리뷰 RB(Claude Opus). 통합 gate: rebase한 HEAD에서 `/verify` PASS, `/runtime-test`는 B가 같은 코드에서 다섯 화면을 확인했다. `/agent-eval`은 해당하지 않는다. batch worktree `mdo-batch-a`·`mdo-batch-b`는 지웠고 로컬 브랜치 `SinhyeokKang/mdo-batch-a`(`0d961737`)·`SinhyeokKang/mdo-batch-b`(`3ff82b20`)는 남겼다.
+  - 사용자 결정(구현 중): 위로 열린 composer 메뉴는 이전 모델을 "Older models" 줄 위에 펼친다. 지휘자 판단: 메뉴는 처음 펼치거나 접을 때 그려진 쪽에 닫힐 때까지 고정한다. PRODUCT §5 item 0·1, ARCHITECTURE §7 'Models', DESIGN 'Older model disclosure', POSTMORTEM에 있다.
+  - 확인하지 못한 것: 실제 provider 목록 읽기와 턴(fixture로 대신함), Copilot 유료 계정의 접기(BACKLOG).
+  - **링크 2가 알아야 할 것**: `ComposerParts.tsx`(`AgentPicker`, 새 `useOlderFold`), `homeComposer.ts`(`foldRows`·`olderOrder`·`lockedOlderSide`·`heldScrollTop` 추가), `SettingsAgents.tsx`, `styles.css`가 바뀌었다. project-skill-drawer spec·design의 이 파일 줄 번호 인용(spec 2곳, design 7곳)은 링크 2 지휘자가 시작할 때 다시 맞춘다. `PresetOption`·`presetListView`·`slashQuery` 자체는 이 링크가 고치지 않았다.
+  - Codex 한도는 Orca Codex 계정의 `$CODEX_HOME/sessions` rollout에서 읽는다(위 시작 점검 기록). 사용자는 Codex를 넉넉히 써도 된다고 했다.
