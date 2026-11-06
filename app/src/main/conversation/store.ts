@@ -402,7 +402,8 @@ export class ConversationStore {
     return this.appendAll(id, turnId, [body])[0]!;
   }
   // Several events of one turn in one write: an invalid event, the size limit or a failed open or read leaves none of
-  // them, so a send's user.message is never saved without the turn.started that follows it.
+  // them, so those failures never save a send's user.message without its turn.started. A short write is not rolled
+  // back, as with one event; only journaled changes (acceptChange) recover a prefix.
   appendAll(id: string, turnId: string, bodies: readonly EventPayload[]): ConversationEvent[] {
     if (!this.accepting) this.recover();
     if (!validId(id)) throw new Error("Invalid conversation ID");

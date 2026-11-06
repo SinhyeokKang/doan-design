@@ -361,7 +361,8 @@ export class ConversationService {
       } else {
         if (rebound || chosen.model !== metadata.model || chosen.effort !== metadata.effort || fast.fast !== metadata.fast || stored.permissionMode !== metadata.permissionMode || seenSeq !== metadata.seenSeq || JSON.stringify(canvasesAtStart) !== JSON.stringify(metadata.canvasesAtStart))
           this.store.save(this.store.list().map(m => m.conversationId === id ? updated : m));
-        // One write: a turn.started that cannot be saved must not leave the message, which would read as a turn that runs.
+        // One write: a turn.started refused by validation, the size limit or a failed open or read must not leave the
+        // message, which would read as a turn that runs. A short write is not rolled back (no journal here).
         for (const event of this.store.appendAll(id, live.turnId, [message, { type: "turn.started" }])) this.deliver(event);
         this.changedOf(id); live.accepted = true; this.suggestions.delete(id);
       }

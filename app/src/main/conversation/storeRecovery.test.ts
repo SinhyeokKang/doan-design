@@ -39,7 +39,8 @@ it("checks serialized UTF-8 bytes before append, allowing the exact read boundar
   hooks.limit++; f.store.append("old", "t", body);
   expect(statSync(f.path("old")).size).toBe(hooks.limit); expect(f.store.read("old")).toHaveLength(2);
 });
-// FX review: a turn's opening events go in one write, so a limit or write failure leaves neither of them.
+// FX review: a turn's opening events go in one write, so validation, the size limit and an open or read failure leave
+// neither of them. A short write is not rolled back, as before; only journaled starts and restores recover a prefix.
 it("appends several events in one write, or none when they cross the bound together", () => {
   vi.useFakeTimers(); vi.setSystemTime(new Date("2026-11-06T00:00:00Z"));
   const f = setup(); f.store.append("old", "t1", { type: "turn.done" });
