@@ -39,6 +39,9 @@ export interface ComposerMemory {
   // picks last until the input is sent (buzz-settings design 'New conversations'); the project stays.
   root: string | null; provider: Provider | null;
   models: Partial<Record<Provider, string>>; efforts: Record<string, string>;
+  // Models that Edit on Home brought back into `models`: shown as chosen, but not picked here, so a fixed Settings
+  // default does not take them on (rememberChoice preferenceAfterPick). A pick of the model clears its entry.
+  restoredModels?: Partial<Record<Provider, string>>;
   // Permission mode picks by provider (permission-mode), kept the same way as the model picks.
   permissions: Partial<Record<Provider, PermissionModeId>>;
   // Fast switched by provider (fast-mode design §1); absent follows the provider's Last used.
@@ -249,7 +252,7 @@ export function HeroComposer(props: HeroComposerProps) {
   const choiceTouched = m.provider !== null || explicitModel !== undefined || pickedEffort !== undefined || pickedPermission !== undefined || pickedFast !== undefined;
   // Fast is not in this effect: it goes to Last used only from the toggle itself (onPickFast), never from a switch
   // held since then when the composer mounts again or another pick changes (fast-mode decision 3, review R 🟡2).
-  const modelPicked = explicitModel !== undefined && explicitModel === model ? { modelPicked: true as const } : {};
+  const modelPicked = explicitModel !== undefined && explicitModel === model && m.restoredModels?.[provider!] !== explicitModel ? { modelPicked: true as const } : {};
   useEffect(() => { if (choiceTouched && provider) props.onRemember?.({ provider, model, effort, ...modelPicked, ...(permissionMode ? { permissionMode } : {}) }); }, [choiceTouched, provider, model, effort, permissionMode, explicitModel]);
   // The menu closes on select; the move waits for that, so the menu's own focus return comes first.
   const openSettings = (target: SettingsTarget) => queueMicrotask(() => props.openSettings(target));
@@ -432,7 +435,7 @@ export function HeroComposer(props: HeroComposerProps) {
         const released = (current.lastIds[root] ?? []).filter(id => !usedIds.has(id));
         if (released.length) void window.doan.releaseAttachments(released).catch(console.error);
         // The next input starts from the defaults again: the fixed one, or with Last used the run App just recorded.
-        return { sending: null, thumbnails, lastKeys, lastIds, root, provider: null, models: {}, efforts: {}, permissions: {}, fast: {}, ...(same ? { text: "", preset: null, attachments: [] } : {}) };
+        return { sending: null, thumbnails, lastKeys, lastIds, root, provider: null, models: {}, restoredModels: {}, efforts: {}, permissions: {}, fast: {}, ...(same ? { text: "", preset: null, attachments: [] } : {}) };
       });
       return;
     }
@@ -472,6 +475,7 @@ export function HeroComposer(props: HeroComposerProps) {
     for (const [key, bytes] of Object.entries(request.thumbnails ?? {})) if (!thumbnails[key]) { const url = thumbnailUrl(bytes); if (url) thumbnails[key] = url; }
     edit({ text: request.text, preset, thumbnails, attachments: request.attachments.map(a => a.id ? { ...a, status: "checking" } : a), root: request.root, provider: request.provider,
       models: request.model ? { ...memory.current.models, [request.provider]: request.model } : memory.current.models,
+      restoredModels: request.model ? { [request.provider]: request.model } : {},
       efforts: request.model && request.effort ? { ...memory.current.efforts, [effortKey(request.provider, request.model)]: request.effort } : memory.current.efforts });
     queueMicrotask(focusEnd);
   };
@@ -538,7 +542,7 @@ export function HeroComposer(props: HeroComposerProps) {
             {slashOpen && slashView && <SlashPresets view={slashView} query={slash} listId={listId} highlight={highlight} listRef={slashList} onHighlight={setHighlight} onChoose={id => choosePreset(id, true)} onRetry={readPresets} />}
             <span className="grow" />
             <AgentPicker picker={picker} auth={auth} disabled={sending} onOpen={() => { if (root && healthy) for (const group of picker.groups) if (group.read) readModels(root, group.provider); }}
-              onPick={(pickedProvider, value) => edit({ provider: pickedProvider, ...(value === null ? {} : { models: { ...memory.current.models, [pickedProvider]: value } }) })} onSettings={openSettings} />
+              onPick={(pickedProvider, value) => edit({ provider: pickedProvider, ...(value === null ? {} : { models: { ...memory.current.models, [pickedProvider]: value }, restoredModels: { ...memory.current.restoredModels, [pickedProvider]: undefined } }) })} onSettings={openSettings} />
             {picker.effort && provider && model && <EffortPicker view={picker.effort} effort={effort} disabled={sending} onPick={value => edit({ efforts: { ...memory.current.efforts, [effortKey(provider, model)]: value } })} onPickFast={on => { edit({ fast: { ...memory.current.fast, [provider]: on } }); props.onRemember?.({ provider, model, effort, ...modelPicked, fast: on }); }} />}
             {permission && provider && <PermissionPicker view={permission} disabled={sending} onPick={mode => edit({ permissions: { ...memory.current.permissions, [provider]: mode } })} />}
             <SendButton enabled={availability.enabled} sending={sending} onSend={() => void send()} hint={reason?.kind === "noAgent" ? reason.text : undefined} />
