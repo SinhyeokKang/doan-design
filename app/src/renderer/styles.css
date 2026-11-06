@@ -663,12 +663,13 @@ body:has(.shell-top) { background: transparent; }
 .perm-item > svg:first-child { width: var(--size-icon); height: var(--size-icon); margin-top: var(--space-half); color: var(--text-subtle); }
 .doan-menu .perm-item[data-mode="bypass"] > svg:first-child { color: var(--text-danger); }
 .perm-copy { display: flex; flex-direction: column; flex: 1; min-width: 0; }
-.perm-copy .sub { color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+/* A description wraps and is never ellipsized: Ask first's per-provider line takes two lines in the 280 menu. */
+.perm-copy .sub { color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); white-space: normal; }
 .perm-item .check-slot { margin-top: var(--space-half); }
-/* The effort menu's and Settings' Default row (picker-default-labels draft frames menus, settings): its name over a
-   one-line description of what the default is, the check on the name's line as in .perm-item. The second selector
-   outweighs the shared Effort row rule below, which centres its items. */
-:is(.unset-item, .effort-popover .doan-menu-item.unset-item) { align-items: flex-start; padding-block: var(--space-1h); }
+/* The effort menu's and Settings' Default row: its name over a one-line description of what the default is, the check
+   on the name's line as in .perm-item and .fast-item. The second selector outweighs the shared Effort row rule below,
+   which centres its items. The row keeps its menu's own padding (compact 4 / 8 in Effort, 6 / 12 in Settings). */
+:is(.unset-item, .effort-popover .doan-menu-item.unset-item) { align-items: flex-start; }
 .unset-copy { display: flex; flex-direction: column; flex: 1; min-width: 0; }
 .unset-copy .sub { color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); white-space: normal; }
 .unset-item .check-slot { margin-top: var(--space-half); }
