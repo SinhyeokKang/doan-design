@@ -36,3 +36,5 @@
 - RM ❓1(시작 거절 코드의 문구)은 사람에게 묻지 않았다. 지휘자 판단으로 앞의 규칙(이미 있는 시작 거절 문장을 붙인다)을 쓴다. 근거: 확정 문구를 바꾸지 않고 새 문구를 만들지 않는다. M 수정 1회는 POSTMORTEM에 적지 않는다(지휘자 판단: main에 들어간 적 없는 결함을 리뷰가 잡았다).
 - 통합 HEAD `1e4f2c39`에서 `npm --prefix app test`는 exit 0(8460 tests)이다.
 - E 결과(`.scratch/evidence/handoff-E.md`): R10 Codex가 heredoc `doan handoff … --message - <<'EOF'`에서 socket에 닿지 못했다(U-024, 원인 미확인: Codex 규칙이 heredoc 명령에 맞지 않는 것으로 보인다). 실제 앱에서도 그러면 `doan-handoff.rules`의 `prompt`도 걸리지 않는다. R1에서 Codex Default로 확인하고, `HANDOFF_GUIDANCE`를 고칠지는 그 결과로 정한다.
+- E 리뷰 RE(Sonnet high): 🔴0 🟡2 🟢5 ❓2. 🟡1(heredoc 본문을 명령으로 읽음)·🟡2(R10 검사가 과제를 재지 않음)와 🟢1·4·5를 E 작업자에게 수정 1회로 보냈다. ❓1(거절 뒤 수락)은 수락 한 번이면 통과로 정했다(지휘자 판단: 앱이 턴마다 수락을 한 번만 받는다). ❓2(대용 대화에 `DOAN_APP_CONVERSATION`·`DOAN_CONVERSATION_ID`가 없음)는 Z2에서 ARCHITECTURE §14에 적는다. 근거: `.scratch/evidence/review-E.md`.
+- Codex `execpolicy check`(0.166.0)로 맨 명령 `doan handoff …`는 `doan`(allow)과 `doan handoff`(prompt)가 둘 다 맞고 결정은 `prompt`인 것을 확인했다. `bash -lc` 스크립트는 이 명령이 쪼개지 않아 heredoc 가설(U-024)은 이것으로 확인할 수 없다.
