@@ -62,8 +62,7 @@
   - main 프로세스가 node-pty(`pty.node`, `spawn-helper`)를 로드하고 pty 프로세스 하나를 spawn한다.
   - 번들 CLI `Contents/Resources/bin/doan design-skill --json`의 `version`이 `app/package.json` 버전과 같다.
   - `<tmp HOME>/Applications`에서 실행한 복사본의 Agent setup이 관리자 대화 상자(`osascriptAdmin`)를 거쳐 `/usr/local/bin/doan`을 만든다.
-  - LaunchServices로 띄운 복사본의 알림이 `show` 이벤트로 표시되거나, 권한 요청이 뜬다.
-- 보고서의 테스터 설치 안내는 "Applications로 끌어 놓고 연다. 인터넷에서 받은 앱이라는 확인을 한 번 누른다"이고, Open Anyway나 `xattr` 안내가 없다. 이전 ad-hoc 빌드를 쓰던 테스터에게 `doan Safe Storage` 키체인 접근을 다시 물을 수 있다는 점은 미확인으로 적는다. 알림은 P2 관찰대로 적는다.
+- 보고서의 테스터 설치 안내는 "Applications로 끌어 놓고 연다. 인터넷에서 받은 앱이라는 확인을 한 번 누른다"이고, Open Anyway나 `xattr` 안내가 없다. 이전 ad-hoc 빌드를 쓰던 테스터에게 `doan Safe Storage` 키체인 접근을 다시 물을 수 있다는 점은 미확인으로 적는다.
 - `app/package.json`의 `mac.identity: null`과 `app/scripts/package.mjs`는 바뀌지 않는다. `npm --prefix app run package` 결과의 `codesign -dv`에 Developer ID authority가 없다.
 
 ## 비목표
@@ -73,5 +72,5 @@
 - `npm --prefix app run package`와 개발용 Electron에 서명하는 일.
 - 인증서를 갱신한 뒤 identity 두 개 가운데 하나를 자동으로 고르는 일. 사람이 옛 identity를 지운다(design §0 6).
 - 다른 Mac에서 테스터가 설치하는 흐름을 에이전트가 확인하는 일. 사람이나 테스터가 확인하고, 보고서에는 미확인으로 남긴다.
-- 이전 ad-hoc 빌드에서 Developer ID 빌드로 넘어간 테스터의 키체인 접근 프롬프트(`doan Safe Storage`)와 알림 권한 재요청을 없애는 일.
+- 이전 ad-hoc 빌드에서 Developer ID 빌드로 넘어간 테스터의 키체인 접근 프롬프트(`doan Safe Storage`)와 알림 문제를 다루는 일. 이전 서명의 기록이 있는 머신에서 Developer ID 빌드의 알림이 묻지 않고 거부되었다(design §8 P2(d)). 사람의 결정으로 기록만 하고 안내에는 넣지 않는다.
 - Codex sandbox에서 `/tester-build`가 끝까지 도는지 확인하는 일. skill과 보고서에 미확인으로 남긴다.

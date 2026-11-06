@@ -10,7 +10,7 @@
 6. 유효한 Developer ID Application identity가 둘 이상이면 멈추고 목록(이름, SHA-1, 만료일)을 보고한다(사람, 2026-11-06). 사람이 옛 identity를 키체인에서 지우고 `.p12` 백업을 새 것으로 바꾼다. 하나를 골라 진행할 수 없는 이유가 있다. electron-builder는 앱 서명에 identity 이름만 넘기는데(`macPackager.js` `doSign`: `identity.name`), 갱신 직후 두 identity는 이름이 같아서 codesign이 ambiguous로 실패한다.
 7. dmg 공증은 30분을 상한으로 기다린다. 넘으면 submission id를 보고하고 멈추며, 다음 실행에서 `notarytool wait <id>`로 이어 간다. Accepted 뒤 staple이 실패하면 30초 간격으로 세 번까지 다시 하고, 그래도 실패하면 멈추고 보고한다(사람, 2026-11-06). 앱 공증은 electron-builder 안에서 일어나므로 상한을 둘 수 없다.
 8. hardened runtime에서 관리자 권한 실행(`osascriptAdmin`)이 되는지는 실제로 확인한다(사람, 2026-11-06; §8 P2(c)).
-9. 알림은 프로브로 관찰한다(사람, 2026-11-06; §8 P2(d)). `doan Safe Storage` 키체인 프롬프트는 격리 HOME에서 관찰할 수 없으므로 테스터 안내에 미확인으로 적는다.
+9. 알림은 프로브로 관찰한다(사람, 2026-11-06; §8 P2(d)). 관찰된 거부는 다루지 않고 기록만 한다(사람, 2026-11-06). `doan Safe Storage` 키체인 프롬프트는 격리 HOME에서 관찰할 수 없으므로 테스터 안내에 미확인으로 적는다.
 10. S1(skill 수정)은 S0(entitlements)와 같은 `/ship` PR로 merge한다(사람, 2026-11-06). skill만 먼저 main에 들어가면, `/tester-build`가 entitlements 설정이 없는 origin/main을 빌드해 템플릿(`disable-library-validation`)으로 조용히 서명하기 때문이다.
 11. 다른 머신 추가 절차는 skill에 적고, 확인은 사람이 그 머신을 준비할 때 하는 선택 task U4로 한다(사람, 2026-11-06).
 
@@ -79,7 +79,7 @@
 보고서:
 - dmg 경로, sha와 커밋 제목, identity 이름(Team ID 포함), 앱과 dmg의 submission id와 결과, 확인 결과.
 - 테스터 설치 안내(spec과 같다).
-- 이전 ad-hoc 빌드를 쓰던 테스터: `doan Safe Storage` 키체인 접근을 다시 물을 수 있다(미확인). 알림은 P2(d) 관찰대로 적는다.
+- 이전 ad-hoc 빌드를 쓰던 테스터: `doan Safe Storage` 키체인 접근을 다시 물을 수 있다(미확인).
 - Agent setup 경고(실제 HOME의 `~/.local/bin/doan` 등)는 그대로 둔다.
 - Codex에서 실행했다면 sandbox 밖 실행 여부를 적는다.
 
@@ -143,6 +143,8 @@
   - (e) `stapler staple`·`validate`가 dmg에서 처음 시도에 통과했다. 앱의 `stapler validate`도 통과했다. quarantine을 붙인 dmg 복사본은 `spctl -a -t open --context context:primary-signature`에서 `accepted`, `source=Notarized Developer ID`였다. 그 dmg에서 마운트한 앱은 `spctl -a -t exec`에서 같은 결과였고, `bin/doan design-skill --json`의 `version`은 `0.1.0`이었다.
   - 첫 제출의 앱 공증은 41분 걸려 dmg 상한(30분)을 넘었을 것이다. 앱 공증에는 상한이 없어서 이번에는 기다렸다. 다음 빌드들의 시간을 보고 상한을 다시 정할지 판단한다.
   - 이 결과물은 그대로 tester dmg로 `~/Desktop/Doan-tester-2026-11-06-f5f250f.dmg`에 두었다(사람 요청, 테스터 대기).
+  - 두 번째 실행(origin/main `ba5163d2`, fast-mode PR #108이 merge되어 앱 코드가 바뀐 빌드): 같은 명령이 키체인 창 없이 돌았다. 빌드 전체가 355초였다(첫 실행은 2,727초). 앱 공증(id `cf655876-b44c-458f-b6ed-21c72274c2e9`)은 06:06:34 UTC에 제출되어 `Accepted`였고, 빌드는 06:08:05에 끝났다. 그래서 앱 공증은 1분 반 안에 끝났다. 첫 실행이 오래 걸린 것은 팀의 첫 제출이었기 때문으로 본다. dmg 공증(id `5b863db4-f0ae-4b19-9fbb-017b0da06fdc`)은 이 기록을 쓸 때 진행 중이었다. 중간에 기다리던 명령이 끊겼지만 `notarytool wait <id>`로 이어서 기다릴 수 있었다(§0 7의 재개 절차). 이 빌드는 테스터에게 줄 dmg로 쓴다.
+  - 결론: 서명·공증 절차는 두 번 모두 그대로 돌았다. §3과 §0 7의 상한(30분)은 바꾸지 않는다.
 - **P2 서명한 앱 실행**: HOME, SHELL, `CLAUDE_CONFIG_DIR`, `CODEX_HOME`은 AGENTS.md 'Commands'의 dev 실행처럼 격리한다. 프로브는 `.scratch/tester-notarization/`에 둔다.
   - (a) P1의 앱을 staging(Applications 밖)에서 `Contents/MacOS/Doan --user-data-dir=<tmp> --inspect=<port>`로 실행하고 메인 창 로드 이벤트를 기록한다.
   - (b) 같은 실행에서 main inspector로 `require('node-pty')`를 불러 pty 하나(`/bin/echo`)를 spawn하고, 출력과 exit 이벤트를 기록한다. 번들 CLI `Contents/Resources/bin/doan design-skill --json`의 `version`을 `app/package.json` 버전과 비교한다.
@@ -156,3 +158,8 @@
     - staging 복사본을 `open -n … --args --user-data-dir=<tmp> --inspect=<port>`로 띄우고, main에서 테스트 알림 하나를 보낸다.
     - `show` 이벤트, 권한 요청, 조용한 거부 중 무엇이 일어났는지 기록한다.
     - 끝나면 복사본을 `lsregister -u`하고, 실제 `~/Library/Application Support/doan*`이 바뀌지 않았음을 확인한다. 처음에 등록을 해제한 복사본은 다음 실행 때 다시 등록된다고 보고에 적는다.
+- **P2 결과(2026-11-06, P1 첫 빌드 `f5f250f`)**:
+  - (a)(b) 통과했다. `.scratch/tester-notarization/p2ab.ts`, Playwright `_electron`, `isolatedEnv`. 메인 창이 `readyState: complete`였다. main에서 앱의 `node-pty`를 `createRequire(<resourcesPath>/app.asar/package.json)`로 불러 `/bin/echo pty-ok`를 spawn했고, 출력 `pty-ok`, exit 0이었다. library validation이 켜진 상태에서 `pty.node`와 `spawn-helper`가 동작했다. `bin/doan design-skill --json`의 `version`은 `0.1.0`이었다. `assertRealState`는 바뀐 것이 없었다.
+  - (c) 통과했다. `p2c.ts`. `<tmp HOME>/Applications/Doan.app` 복사본을 fake `SHELL`(PATH에 `~/.local/bin` 없음)로 실행했다. Agent setup이 관리자 대화 상자를 띄웠고, 사람이 비밀번호를 넣었다. `/usr/local/bin/doan`이 `<tmp HOME>/.local/share/doan/current/bin/doan`을 가리키며 생겼다. 이 머신에는 `/usr/local/bin` 폴더가 없었으므로 폴더도 함께 생겼다. 사람이 `sudo rm` / `rmdir`로 지웠다. 그래서 `automation.apple-events` 없이 두 항목으로 entitlements를 확정한다.
+  - (d) `p2d.ts`. 다른 `design.doan.app` 등록 13개를 `lsregister -u`하고, 임시 복사본을 `open -n`으로 띄워 main에서 `Notification`을 보냈다. `isSupported()`는 true였지만 바로 `failed: Notifications are not allowed for this application`이었고, 권한 요청은 뜨지 않았다. 알림 설정에는 Electron 기본 아이콘의 "Doan"이 허용 상태로 있었다. 이 머신의 `/Applications/Doan.app`은 ad-hoc 서명(designated requirement가 cdhash)이었다. 같은 bundle id의 이전 기록이 다른 서명에 묶여 있으면 새 서명이 묻지 않고 거부되는 것으로 보이지만, 원인은 확정하지 않았다. 사람의 결정으로 이 현상은 다루지 않고 기록만 한다(테스터 안내에 넣지 않는다). 끝난 뒤 `/Applications/Doan.app`을 `lsregister -f`로 다시 등록했다. 실제 `~/Library/Application Support/doan`의 mtime은 바뀌지 않았다.
+

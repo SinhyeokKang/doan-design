@@ -23,7 +23,7 @@
   - entitlements는 design §4의 처음 내용으로 만든 `.scratch/` 파일을 절대 경로로 `-c.mac.entitlements`·`-c.mac.entitlementsInherit`에 넘긴다.
   - 산출물은 `.scratch/tester-notarization/`에만 두고 Desktop에 복사하지 않는다.
   - 검증(명령 미정): spec '`/tester-build` 결과'의 codesign·entitlements·designated requirement·dmg Timestamp·stapler·spctl 항목이 모두 통과한다. design §8 P1 (a)–(e)의 관찰(날짜 포함)을 design §8에 적고, §3을 확정 절차로 고친다.
-- [ ] P2. design §8 P2: P1의 앱을 격리 실행한다. (c)와 (d)는 각각 시작 전에 사람에게 묻는다.
+- [x] P2. design §8 P2: P1의 앱을 격리 실행한다. (c)와 (d)는 각각 시작 전에 사람에게 묻는다.
   - 검증(명령 미정):
     - (a) 메인 창 로드 이벤트가 기록된다.
     - (b) pty spawn의 출력과 exit 이벤트가 기록되고, `bin/doan design-skill --json`의 `version`이 `app/package.json` 버전과 같다.
@@ -31,8 +31,10 @@
     - (d) 알림 결과(`show`·권한 요청·조용한 거부)가 기록되고, 테스트한 복사본의 `lsregister -u`가 끝난다.
     - 실제 `~/Library/Application Support/doan*`이 실행 전과 같다.
     - (c) 결과로 design §4 entitlements 내용을 확정하고, (d) 결과로 테스터 안내의 알림 문장을 확정한다.
-- [ ] P3. P1·P2가 만든 worktree, staging, 임시 HOME을 지운다. worktree는 `git status`를 확인한 뒤 `git worktree remove`로 지운다.
+- [x] P3. P1·P2가 만든 worktree, staging, 임시 HOME을 지운다(2026-11-06). 두 번째 실행의 staging(`.scratch/tester-notarization/stage2`)은 테스터 dmg를 Desktop에 둔 뒤 지운다. worktree는 `git status`를 확인한 뒤 `git worktree remove`로 지운다.
   - 검증: `git worktree list`에 `.scratch/tester-notarization/` 아래 worktree가 없다.
+
+PoC 완료(2026-11-06): P1(두 번), P2 (a)–(d), P3.
 
 커밋 경계: P1·P2 관찰과 design 수정(`docs/features/tester-notarization/`만). `docs(feature): tester-notarization PoC results`.
 
@@ -53,7 +55,7 @@
 - [ ] Z1. 결론을 현재 규칙으로 올리고 이 디렉터리를 지운다. S1 실행 검증이 끝난 뒤에 한다.
   - ARCHITECTURE §9 'Distribution': 로컬 package는 서명하지 않는다. tester dmg는 빌드한 머신의 로그인 키체인(identity, 프로필 `doan-notary`)으로 hardened runtime 서명과 앱·dmg 공증을 한다. entitlements 파일과 `entitlementsInherit`가 필요한 이유를 적는다.
   - ARCHITECTURE §7 'CLI lookup and local package'의 Packaging 줄을 고친다.
-  - BACKLOG 'Release packaging'에서 tester dmg 서명·공증과 "tester dmgs are re-signed by hand"를 빼고, CI(GitHub Actions Secrets), updater, brew, x64, 다운로드, OPERATIONS를 남긴다. 알림 문장은 P2(d) 관찰에 맞춘다. U4를 하지 않았으면 "다른 머신에서 자격증명이 iCloud로 옮겨지지 않는다는 것은 미확인"을 남긴다. `doan Safe Storage` 프롬프트 미확인도 남긴다.
+  - BACKLOG 'Release packaging'에서 tester dmg 서명·공증과 "tester dmgs are re-signed by hand"를 빼고, CI(GitHub Actions Secrets), updater, brew, x64, 다운로드, OPERATIONS를 남긴다. 알림 문장은 P2(d) 관찰(이전 서명의 기록이 있으면 Developer ID 빌드의 알림이 묻지 않고 거부됨, 원인 미확정)로 바꾼다. U4를 하지 않았으면 "다른 머신에서 자격증명이 iCloud로 옮겨지지 않는다는 것은 미확인"을 남긴다. `doan Safe Storage` 프롬프트 미확인도 남긴다.
   - DIRECTORY.md의 `app/resources/` 역할에 entitlements 파일을 더한다.
   - README.md 'no signed build or installer yet'을 고칠지 판단한다. 공개 배포는 아직 없으므로 그대로 둘 가능성이 높다.
   - PRODUCT는 바뀌지 않는다.
