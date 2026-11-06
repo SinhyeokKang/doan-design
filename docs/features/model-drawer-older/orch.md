@@ -19,9 +19,13 @@
 |---|---|---|---|---|---|---|
 | A | tasks 1, 2, 3 | `app/src/main/conversation/models.ts`(+test), `app/src/renderer/homeComposer.ts`(+test), `newConversationSettings.ts`(+test), `ComposerParts.tsx`(+test), `SettingsAgents.tsx`(+test), `styles.css`, fixture | — | Claude Opus medium: 분류 규칙의 경계와 Radix 메뉴의 포커스·scroll 보정은 판단이 들지만 범위가 좁다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 통합 `831002ca..0e8f81c7`(커밋 9개, RA 수정 1회차 포함). 통합 HEAD `/verify` PASS |
 | RA | A의 `/code-review` | 읽기만 | A | Codex gpt-6-astra medium: 모델 선택이 Default로 돌아가는 회귀를 잡아야 하고, 다른 계열이 읽으면 A의 판단에 묶이지 않는다 | 보고 | 완료: 🔴 0, 🟡 1(`resolvedOf`가 버린 Claude 중복 행의 `resolvedModel`로 분류), ⚪ 2. 수정 1회차(`780ad5e3`, `0d961737`)로 🟡 해결 |
-| B | tasks 4a, 4b | 4a가 고치는 A의 renderer 파일, `docs/DESIGN.md`, `.scratch/` probe | A 통합 | Codex gpt-6-astra medium: computed style 비교와 IPC handler 교체 probe는 단계가 많고 판단이 든다 | `/design-sync` 보고, `/runtime-test` 스크린샷·probe 결과 | 대기 |
+| B | tasks 4a, 4b | 4a가 고치는 A의 renderer 파일, `docs/DESIGN.md`, `.scratch/` probe | A 통합 | Codex gpt-6-astra medium: computed style 비교와 IPC handler 교체 probe는 단계가 많고 판단이 든다 | `/design-sync` 보고, `/runtime-test` 스크린샷·probe 결과 | 진행 중(worktree `mdo-batch-b`, dispatch `ctx_8c729423b352`) |
 | — | task 5 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/BACKLOG.md`, feature 디렉터리 삭제 | B 통합 | 지휘자 | tasks 5의 검증 | 대기 |
 
 ## 겹침과 순서
 
 A → RA → (A 수정) → 통합 → B → 통합 → `/verify` → task 5 → rebase·`/verify` → push·PR → 병합. 모든 batch가 renderer 파일을 함께 고치므로 직렬이다.
+
+## 정리
+
+- A 작업자 terminal은 release했다(`ctx_6ec0a82f607a`). worktree `mdo-batch-a`는 B가 handoff·리뷰를 읽으므로 B가 끝날 때까지 남긴다. 미통합 커밋 없음(`git cherry` `+` 0). handoff·리뷰 사본은 지휘자 `.scratch/`에 있다.
