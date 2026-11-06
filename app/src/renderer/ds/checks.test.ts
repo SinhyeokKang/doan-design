@@ -49,6 +49,9 @@ const violetAllowed = [
   // The project and canvas names inside a suggested sentence: the anchor chip's values as an inline highlight
   // (small-ui-tweaks decision 7, confirmed draft 2026-11-06).
   ".suggestion-value",
+  ".skill-word",
+  ".preset-item .suggestion-icon svg",
+  ".group-tabs.shell-modes button svg",
   ".home-composer .composer",
   ".drop-target",
   ".row-slot.permission",

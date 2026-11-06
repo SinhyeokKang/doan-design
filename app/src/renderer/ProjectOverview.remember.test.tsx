@@ -33,7 +33,7 @@ function status(provider: Provider) {
 }
 const AUTH: AuthSnapshot = { revision: 1, providers: [status("claude")] };
 
-beforeEach(() => vi.stubGlobal("window", { doan: { readConversation: vi.fn(() => new Promise(() => {})), takeConversationDraft: vi.fn(async () => null), onAgentAuth: vi.fn(() => () => {}), listConversationModels: vi.fn(() => new Promise(() => {})), setConversationPermissionMode: vi.fn(async () => undefined) } }));
+beforeEach(() => vi.stubGlobal("window", { doan: { readConversation: vi.fn(() => new Promise(() => {})), takeConversationDraft: vi.fn(async () => null), onAgentAuth: vi.fn(() => () => {}), listConversationSkills: vi.fn(async () => ({ skills: [] })), listConversationModels: vi.fn(() => new Promise(() => {})), setConversationPermissionMode: vi.fn(async () => undefined) } }));
 afterEach(() => vi.unstubAllGlobals());
 
 function render(list: ListView, patch: Partial<ProjectOverviewProps> = {}, setup?: (run: OverviewRun) => void, picks?: (support: DockedSupport) => void) {

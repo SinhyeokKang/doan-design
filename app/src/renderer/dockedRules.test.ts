@@ -22,7 +22,7 @@ const EXISTING = { kind: "existing", conversationId: "c1", provider: "claude" } 
 const draft = ({ text, ...patch }: Partial<DockedDraft> & { text?: string }): DockedDraft => ({ ...EMPTY_DRAFT, ...(text === undefined ? {} : { segments: textSegments(text) }), ...patch });
 const payment: Anchor = { frame: { id: "payment", title: "Payment" } };
 const file = (patch: Partial<AttachmentDraft>): AttachmentDraft => ({ key: "k", id: "id", name: "notes.md", kind: "file", pasted: false, status: "ready", ...patch });
-const input = (patch: Partial<DockedInput>): DockedInput => ({ mode: EXISTING, project: "doan-design", auth: READY, provider: "claude", draft: draft({ text: "Make it lighter" }), turn: "idle", busy: null, sending: false, ...patch });
+const input = (patch: Partial<DockedInput>): DockedInput => ({ skills: [], mode: EXISTING, project: "doan-design", auth: READY, provider: "claude", draft: draft({ text: "Make it lighter" }), turn: "idle", busy: null, sending: false, ...patch });
 
 describe("draftKey", () => {
   test("keeps drafts per conversation, and a new conversation's draft per root", () => {

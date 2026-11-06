@@ -48,7 +48,7 @@ function attachment(name: string, extra: Partial<AttachmentDraft> = {}): Attachm
   return { key: name, name, kind: "file", pasted: false, status: "ready", size: 1000, path: `/Users/ada/Desktop/${name}`, ...extra };
 }
 const base = (over: Partial<SendInput> = {}): SendInput => ({
-  projects: 1, root: list("/r/doan-design"), projectName: "doan-design", auth: snapshot(dto("claude")), provider: "claude",
+  skills: [], projects: 1, root: list("/r/doan-design"), projectName: "doan-design", auth: snapshot(dto("claude")), provider: "claude",
   text: "Draw a pricing page.", preset: null, attachments: [], running: null, sending: false, ...over,
 });
 
@@ -110,19 +110,19 @@ test("draftProblem checks only what was typed: a chip passes, typed braces do no
   const frame = { frame: { id: "payment" } };
   const text = (t: string) => ({ kind: "text" as const, text: t }), chip = { kind: "chip" as const, anchor: frame };
   const markers = { kind: "anchorMarkers", text: "Remove {{ and }} from the message to send it." };
-  expect(draftProblem([chip], null, [])).toBeNull();
-  expect(draftProblem([text("Move "), chip, text(" left of "), chip], null, [])).toBeNull();
+  expect(draftProblem([chip], null, [], [])).toBeNull();
+  expect(draftProblem([text("Move "), chip, text(" left of "), chip], null, [], [])).toBeNull();
   // Braces typed on both sides of a chip are separate pieces.
-  expect(draftProblem([text("{"), chip, text("}")], null, [])).toBeNull();
+  expect(draftProblem([text("{"), chip, text("}")], null, [], [])).toBeNull();
   // A typed {{1}} is refused even though a chip has that number.
-  expect(draftProblem([text("Literal {{1}} then "), chip], null, [])).toEqual(markers);
-  expect(draftProblem([chip, text(" then }}")], null, [])).toEqual(markers);
+  expect(draftProblem([text("Literal {{1}} then "), chip], null, [], [])).toEqual(markers);
+  expect(draftProblem([chip, text(" then }}")], null, [], [])).toEqual(markers);
   // Text segments next to each other read as one piece.
-  expect(draftProblem([text("Use {"), text("{ here"), chip], null, [])).toEqual(markers);
-  expect(draftProblem([chip], { id: "clarify", title: "Clarify" }, [])).toBeNull();
+  expect(draftProblem([text("Use {"), text("{ here"), chip], null, [], [])).toEqual(markers);
+  expect(draftProblem([chip], { id: "clarify", title: "Clarify" }, [], [])).toBeNull();
   // A plain string is typed text, so any marker in it was typed.
-  expect(draftProblem("Move {{1}}", null, [])).toEqual(markers);
-  expect(draftProblem([text("x".repeat(32_767)), chip], null, [])).toEqual({ kind: "overLimit", text: "Shorten the message to send it." });
+  expect(draftProblem("Move {{1}}", null, [], [])).toEqual(markers);
+  expect(draftProblem([text("x".repeat(32_767)), chip], null, [], [])).toEqual({ kind: "overLimit", text: "Shorten the message to send it." });
 });
 
 test("an empty composer disables Send without a reason line; a preset or an attachment alone can be sent", () => {

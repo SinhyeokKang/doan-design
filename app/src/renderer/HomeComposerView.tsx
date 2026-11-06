@@ -1,3 +1,5 @@
+import { useProjectSkills } from "./useProjectSkills";
+import { fieldSkillRuns, replaceSlashSkill } from "./skillWords";
 import { Fragment, useEffect, useId, useLayoutEffect, useReducer, useRef, useState, type ClipboardEvent, type KeyboardEvent, type ReactNode } from "react";
 import { DropdownMenu } from "radix-ui";
 import { ArrowUpRight, Check, ChevronDown, GitBranch, Plus } from "lucide-react";
@@ -18,7 +20,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip
 import { cardRow, groupProjects } from "./homeCards";
 import { generationOf, modelsKey } from "./dockedSupport";
 import {
-  attachmentChipView, attachmentLimit, chipRemoval, composeRequest, defaultEffort, defaultFast, defaultModel, defaultProject, defaultProvider,
+  followDrawerHighlight, type PresetRow, attachmentChipView, attachmentLimit, chipRemoval, composeRequest, defaultEffort, defaultFast, defaultModel, defaultProject, defaultProvider,
   fixedPreference, greetingText, groupIcon, lengthCounter, modelOption, modelPickerView, presetListView, presetPlaceholder,
   rootForProject, selectableProvider, sendAvailability, slashKey, slashQuery, startErrorView, suggestedPresets, suggestedPrompts, TEXT_LIMIT,
   type AttachmentDraft, type ModelsState, type NewConversationDefault, type PresetListReply, type PresetSummary,
@@ -278,13 +280,17 @@ export function HeroComposer(props: HeroComposerProps) {
 
   // The draft
   const { text, preset, attachments } = m;
+  const projectSkills = useProjectSkills(root, provider, root && props.running.has(root) ? "running" : "idle", generation);
+  const skills = projectSkills.skills;
+  const skillNames = new Set(skills.map(skill => skill.name));
+  const matched = fieldSkillRuns(textSegments(text), skillNames).map(run => run.name);
   const chips = [...attachments.map(a => ({ label: attachmentChipView(a, props.homeDirectory).label })), ...(preset ? [{ label: preset.title, preset: true }] : [])];
   const running = root ? props.running.get(root) ?? null : null;
-  const availability = sendAvailability({ projects: cards.length, root: entry, projectName: project, auth, provider, text, preset, attachments, running, sending });
-  const composed = composeRequest(text, preset, [], attachments.length);
+  const availability = sendAvailability({ projects: cards.length, root: entry, projectName: project, auth, provider, text, preset, skills: matched, attachments, running, sending });
+  const composed = composeRequest(text, preset, matched, attachments.length);
   const counter = lengthCounter(composed.length);
-  const slash = slashQuery(text, dismissed);
-  const slashView = slash !== null ? presetListView(m.presets, { project, suggested, query: slash, tab: null, slash: true }) : null;
+  const slash = slashQuery(text, dismissed, skillNames);
+  const slashView = slash !== null ? presetListView(m.presets, { project, suggested, query: slash, tab: null, slash: true, skills }) : null;
   const slashRows = slashView?.kind === "list" ? slashView.sections.flatMap(section => section.rows) : [];
   const slashOpen = slash !== null && !sending;
   // A press outside closes the list as Escape does: it stays closed until the field is empty again.
@@ -292,9 +298,23 @@ export function HeroComposer(props: HeroComposerProps) {
   const prompts = ready && healthy ? suggestedPrompts(entry, project, presets) : [];
   const edit = (patch: Partial<ComposerMemory>) => update({ ...patch, notice: null });
   useEffect(() => { if (text === "") setDismissed(false); }, [text]);
-  useEffect(() => { setHighlight(0); }, [slash]);
+  const previousRows = useRef<{ query: string | null; rows: PresetRow[] }>({ query: null, rows: [] });
+  const rowKeys = slashRows.map(row => row.key).join("\n");
+  useEffect(() => {
+    const before = previousRows.current;
+    setHighlight(current => before.query === slash ? followDrawerHighlight(before.rows, slashRows, current) : 0);
+    previousRows.current = { query: slash, rows: slashRows };
+  }, [slash, rowKeys]);
+  useEffect(() => { if (slashOpen) projectSkills.read(); }, [slashOpen]);
 
-  const focusEnd = () => field.current?.focus("end");
+  const pickedSkill = useRef(false);
+  const focusEnd = () => { field.current?.focus(pickedSkill.current ? undefined : "end"); pickedSkill.current = false; };
+  const chooseRow = (id: string, kind: PresetRow["kind"], fromSlash: boolean) => {
+    if (kind === "preset") { choosePreset(id, fromSlash); return; }
+    pickedSkill.current = !fromSlash;
+    if (fromSlash) { edit({ text: typedText(replaceSlashSkill(id).segments) }); queueMicrotask(focusEnd); }
+    else field.current?.insertSkill(id);
+  };
   // Either way of picking puts the caret at the end of the field (design §4.9); the popover does it once it closes.
   const choosePreset = (id: string, fromSlash: boolean) => {
     const chosen = presets.find(p => p.id === id);
@@ -484,9 +504,9 @@ export function HeroComposer(props: HeroComposerProps) {
   const keyDown = (event: KeyboardEvent<HTMLDivElement>): boolean => {
     const composing = event.nativeEvent.isComposing || event.keyCode === 229;
     if (slashOpen) {
-      const action = slashKey(event.key, highlight, slashRows.length, composing);
+      const action = slashKey(event.key, highlight, slashRows.length, composing, { query: slash ?? "", row: slashRows[highlight] });
       if (action?.kind === "move") { event.preventDefault(); setHighlight(action.highlight); return true; }
-      if (action?.kind === "pick") { event.preventDefault(); const row = slashRows[highlight]; if (row) choosePreset(row.id, true); return true; }
+      if (action?.kind === "pick") { event.preventDefault(); const row = slashRows[highlight]; if (row) chooseRow(row.id, row.kind, true); return true; }
       if (action?.kind === "close") { if (event.key === "Escape") event.preventDefault(); setDismissed(action.dismiss); return true; }
     }
     if (event.key === "Backspace" && removeChip(-1, "backspace")) { event.preventDefault(); return true; }
@@ -531,15 +551,15 @@ export function HeroComposer(props: HeroComposerProps) {
         {drop.cover}
         <ComposerCard readonly={sending}>
           <ComposerChips attachments={attachments} preset={preset} thumbnails={m.thumbnails} homeDirectory={props.homeDirectory} disabled={sending} removeButtons={removeButtons} onRemove={index => removeChip(index, "button")} />
-          <ComposerField ref={field} value={textSegments(text)} onChange={value => edit({ text: typedText(value) })} readOnly={sending} placeholder={presetPlaceholder(preset)}
+          <ComposerField ref={field} skillNames={skillNames} onAnnounce={setAnnouncement} value={textSegments(text)} onChange={value => edit({ text: typedText(value) })} readOnly={sending} placeholder={presetPlaceholder(preset)}
             combobox={slashOpen ? { listId: `${listId}-slash`, activeId: slashRows[highlight] ? `${listId}-s-${highlight}` : undefined } : null}
             onKey={keyDown} onSubmit={() => void send()} onPaste={paste} onInput={() => doany.current?.typing()} />
           {counter && <div className={`composer-count${composed.length > TEXT_LIMIT ? " over" : ""}`} aria-live="polite">{counter}</div>}
           <ComposerTools>
             <AttachButton disabled={sending} onClick={choose} />
-            <PresetsButton reply={m.presets} project={project} suggested={suggested} listId={listId} disabled={sending}
-              onOpen={() => { if (memory.current.presets && !memory.current.presets.ok) readPresets(); }} onChoose={id => choosePreset(id, false)} onRetry={readPresets} onPicked={focusEnd} />
-            {slashOpen && slashView && <SlashPresets view={slashView} query={slash} listId={listId} highlight={highlight} listRef={slashList} onHighlight={setHighlight} onChoose={id => choosePreset(id, true)} onRetry={readPresets} />}
+            <PresetsButton skills={skills} reply={m.presets} project={project} suggested={suggested} listId={listId} disabled={sending}
+              onOpen={() => { projectSkills.read(); if (memory.current.presets && !memory.current.presets.ok) readPresets(); }} onChoose={(id, kind) => chooseRow(id, kind, false)} onRetry={readPresets} onPicked={focusEnd} />
+            {slashOpen && slashView && <SlashPresets skills={skills} view={slashView} query={slash} listId={listId} highlight={highlight} listRef={slashList} onHighlight={setHighlight} onChoose={(id, kind) => chooseRow(id, kind, true)} onRetry={readPresets} />}
             <span className="grow" />
             <AgentPicker picker={picker} auth={auth} disabled={sending} onOpen={() => { if (root && healthy) for (const group of picker.groups) if (group.read) readModels(root, group.provider); }}
               onPick={(pickedProvider, value) => edit({ provider: pickedProvider, ...(value === null ? {} : { models: { ...memory.current.models, [pickedProvider]: value }, restoredModels: { ...memory.current.restoredModels, [pickedProvider]: undefined } }) })} onSettings={openSettings} />

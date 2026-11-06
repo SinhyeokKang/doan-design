@@ -1,3 +1,5 @@
+import { requestTitleText, stripRequestLines } from "../main/conversation/requestLines";
+import { useProjectSkills } from "./useProjectSkills";
 import { useEffect, useRef, useState } from "react";
 import { DropdownMenu } from "radix-ui";
 import { ArrowUpRight, Check, ChevronDown, FolderOpen, GitBranch, Plus, Settings, SquarePen } from "lucide-react";
@@ -173,6 +175,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
   const ready = chosen !== null && (auth?.providers ?? []).some(status => status.provider === chosen && status.account !== null && selectableProvider(status));
   // A new connection of the provider has a list of its own to read.
   const generation = chosen ? generationOf(auth, chosen) : 0;
+  const projectSkills = useProjectSkills(root, chosen, conversationId ? turnOf(thread?.events ?? null, summary, live) : "idle", generation);
   useEffect(() => { if (healthy && chosen && ready) support.readModels(root, chosen); }, [root, healthy, chosen, ready, generation]);
 
   const presets = support.presets?.ok ? support.presets.result.presets : [];
@@ -279,7 +282,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
     const reply = await window.doan.queueConversation({ conversationId: mode.conversationId, text: request.text, anchors: [...request.anchors], ...(request.attachments.length ? { attachments: request.attachments } : {}) }).catch(() => ({ error: "unknown" as const }));
     if ("error" in reply) return { error: reply.error, ...("missing" in reply && Array.isArray(reply.missing) ? { missing: reply.missing as string[] } : {}) };
     // The row keeps the request's text; the request itself is kept for the thread, where Send now moves it.
-    run.queued(root, mode.conversationId, { id: reply.itemId, text: request.text, message: { text: request.text, anchors: request.anchors, attachments: request.files ?? [] } });
+    run.queued(root, mode.conversationId, { id: reply.itemId, text: stripRequestLines(request.text), message: { text: request.text, anchors: request.anchors, attachments: request.files ?? [] } });
     return { ok: true, itemId: reply.itemId };
   };
   const busy: DockedBusy | null = props.holder && props.holder.conversationId !== conversationId
@@ -289,7 +292,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
   // The header
   const menuItems = listed ? projectConversationMenu(listed, props.now, props.seen) : [];
   const firstMessage = thread?.events.find(event => event.type === "user.message");
-  const title = conversationId ? summary?.title || (firstMessage?.type === "user.message" ? firstMessage.text : "") : "New conversation";
+  const title = conversationId ? summary?.title || (firstMessage?.type === "user.message" ? requestTitleText(firstMessage.text) : "") : "New conversation";
   const picked = useRef(false);
   // The title menu's trigger, where focus returns after a Delete's confirmation; `deleting` keeps the closing menu from
   // taking focus back while the alert opens.
@@ -413,7 +416,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         </div>}
     </div>
     <div className="ov-foot"><div className="ov-col">
-      <DockedComposer mode={mode} project={project} homeDirectory={props.homeDirectory} placeholder={placeholder} suggestion={summary ? summary.suggestion ?? null : undefined}
+      <DockedComposer skills={projectSkills.skills} onSkillsWanted={projectSkills.read} mode={mode} project={project} homeDirectory={props.homeDirectory} placeholder={placeholder} suggestion={summary ? summary.suggestion ?? null : undefined}
         drafts={run.drafts} onDrafts={update => run.setDrafts(update)}
         auth={auth} picker={picker} provider={chosen} effort={effort}
         onPickerOpen={() => { if (healthy) for (const group of picker.groups) if (group.read) support.readModels(root, group.provider); }}

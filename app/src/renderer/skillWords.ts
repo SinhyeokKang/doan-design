@@ -53,3 +53,21 @@ export function skillAnnouncements(before: readonly string[], after: readonly st
   const previous = new Set(before);
   return [...new Set(after)].filter(name => !previous.has(name)).map(name => `Project skill ${name}`);
 }
+
+export function skillTextParts(text: string, at: number, runs: readonly SkillRun[]): { text: string; skill?: true }[] {
+  const parts: { text: string; skill?: true }[] = [];
+  let cursor = 0;
+  for (const run of runs) {
+    if (run.start < at || run.end > at + text.length) continue;
+    const start = run.start - at, end = run.end - at;
+    if (start > cursor) parts.push({ text: text.slice(cursor, start) });
+    parts.push({ text: text.slice(start, end), skill: true });
+    cursor = end;
+  }
+  if (cursor < text.length) parts.push({ text: text.slice(cursor) });
+  return parts;
+}
+
+export function sameSkillRanges(expected: readonly { start: number; end: number }[], drawn: readonly { start: number; end: number }[]): boolean {
+  return expected.length === drawn.length && expected.every((run, i) => run.start === drawn[i]!.start && run.end === drawn[i]!.end);
+}

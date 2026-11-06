@@ -14,7 +14,7 @@ export type TurnEnd = { kind: "failed"; code: FailureCode } | { kind: "interrupt
 export type ThreadItem =
   // anchors: the message's own, which its `{{n}}` parts point at (1-based), drawn as chips. `sending`: Send now has it
   // in flight and the history has no event for it yet (seq null).
-  | { kind: "user"; key: string; seq: number | null; parts: MessagePart[]; anchors: readonly Anchor[]; preset: PresetRef | null; attachments: SentFile[]; sending?: true }
+  | { kind: "user"; key: string; seq: number | null; parts: MessagePart[]; anchors: readonly Anchor[]; preset: PresetRef | null; skills?: string[]; attachments: SentFile[]; sending?: true }
   // `streaming`: more text may still come; a stopped or failed turn keeps what arrived and drops the caret.
   | { kind: "agent"; key: string; messageId: string; text: string; streaming: boolean }
   | { kind: "noReply"; key: string }
@@ -172,8 +172,8 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
         if (turn !== null && event.turnId !== turn && !ended.has(turn)) foldCrashed(turn);
         if (event.origin) { push({ kind: "handoffCard", key: `u${event.seq}`, seq: event.seq, origin: event.origin, text: event.text }); continue; }
         const attachments = (event.attachments ?? []).map(a => ({ name: a.name, size: a.size, kind: a.kind }));
-        const { preset, body } = splitRequest(event.text, attachments.length);
-        push({ kind: "user", key: `u${event.seq}`, seq: event.seq, parts: anchorParts(body), anchors: event.anchors, preset, attachments });
+        const { preset, skills, body } = splitRequest(event.text, attachments.length);
+        push({ kind: "user", key: `u${event.seq}`, seq: event.seq, parts: anchorParts(body), anchors: event.anchors, preset, ...(skills.length ? { skills } : {}), attachments });
         continue;
       }
       case "turn.started":
@@ -290,8 +290,8 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
 export function withSending(items: ThreadItem[], sending: readonly SendingMessage[]): ThreadItem[] {
   if (sending.length === 0) return items;
   const messages = sending.map((message): ThreadItem => {
-    const { preset, body } = splitRequest(message.text, message.attachments.length);
-    return { kind: "user", key: `q${message.id}`, seq: null, sending: true, parts: anchorParts(body), anchors: message.anchors, preset, attachments: message.attachments.map(({ name, size, kind }) => ({ name, size, kind })) };
+    const { preset, skills, body } = splitRequest(message.text, message.attachments.length);
+    return { kind: "user", key: `q${message.id}`, seq: null, sending: true, parts: anchorParts(body), anchors: message.anchors, preset, ...(skills.length ? { skills } : {}), attachments: message.attachments.map(({ name, size, kind }) => ({ name, size, kind })) };
   });
   const ask = items.findIndex(waitsForPerson);
   const at = ask === -1 ? items.length : ask;

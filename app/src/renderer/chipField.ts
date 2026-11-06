@@ -1,3 +1,4 @@
+import { fieldSkillRuns, insertSkillText, sameSkillRanges, skillAnnouncements, skillTextParts } from "./skillWords";
 import { chipLabel, LIMITS } from "../main/conversation/messageText";
 import type { Anchor } from "../main/conversation/types";
 import {
@@ -26,6 +27,7 @@ export interface ChipFieldHooks {
   onAnnounce(text: string): void;
   // The canvas this field's chips belong to; null takes no chips, so a chip clipboard pastes as the chips' names.
   scope(): string | null;
+  skillNames?(): ReadonlySet<string>;
   // A click on a chip, after the caret moved right after it: its host locates the chip on the canvas and may place a
   // note by the chip's node (its attributes are not read back, so a describing id on it changes no segment).
   onChipClick?(anchor: Anchor, chip: HTMLElement): void;
@@ -55,6 +57,7 @@ export class ChipField {
   private discarding = false;
   private segments: FieldSegment[] = [];
   private composingNow = false;
+  private announced: string[] = [];
   private pending: Anchor[] = [];
   private selection: Selection = { anchor: 0, focus: 0 };
   private history: Step[] = [{ segments: [], before: { anchor: 0, focus: 0 }, after: { anchor: 0, focus: 0 }, kind: "init", at: 0 }];
@@ -125,7 +128,8 @@ export class ChipField {
       this.reset(normalize(value));
       return;
     }
-    if (this.composingNow || sameSegments(value, this.segments)) return;
+    if (this.composingNow) return;
+    if (sameSegments(value, this.segments)) { this.repair(); return; }
     this.reset(normalize(value));
   }
 
@@ -175,6 +179,22 @@ export class ChipField {
     this.replace(start, end, normalize([{ kind: "text", text }]), "insert");
   }
 
+  insertSkill(name: string): void {
+    if (this.composingNow || this.readOnly()) return;
+    const before = this.readSelection();
+    const result = insertSkillText(this.segments, before.focus, name);
+    this.render(result.segments);
+    this.placeCaret({ anchor: result.caret, focus: result.caret });
+    this.commit("insert", before);
+  }
+
+  private announceSkills(): void {
+    const next = fieldSkillRuns(this.segments, this.hooks.skillNames?.() ?? new Set()).map(run => run.name);
+    const messages = skillAnnouncements(this.announced, next);
+    this.announced = next;
+    if (messages.length) this.hooks.onAnnounce(messages.join(". "));
+  }
+
   caretAtStart(): boolean {
     const { anchor, focus } = this.readSelection();
     return anchor === 0 && focus === 0;
@@ -205,6 +225,7 @@ export class ChipField {
     this.render(segments);
     this.placeCaret(selection);
     this.mergeable = false;
+    this.announceSkills();
     this.hooks.onChange(this.segments);
   }
 
@@ -224,6 +245,7 @@ export class ChipField {
     this.groupBefore = null;
     // selectionchange arrives as a later task; a chip inserted right after typing must see the caret now.
     this.selection = after;
+    this.announceSkills();
     this.hooks.onChange(this.segments);
   }
 
@@ -404,8 +426,13 @@ export class ChipField {
   private misdrawn(): boolean {
     const nodes = Array.from(this.el.childNodes);
     let at = 0;
+    const spans: { start: number; end: number }[] = [];
     for (const [index, node] of nodes.entries()) {
       if (node.nodeType === Node.TEXT_NODE) { at += this.textOf(node).length; continue; }
+      if (node instanceof HTMLElement && node.className === "skill-word" && Array.from(node.childNodes).every(child => child.nodeType === Node.TEXT_NODE)) {
+        const end = at + (node.textContent?.length ?? 0);
+        spans.push({ start: at, end }); at = end; continue;
+      }
       if (this.chips.has(node)) {
         const previous = nodes[index - 1];
         const filled = previous !== undefined && this.fillers.has(previous) && this.textOf(previous) === "" && (previous as Text).data === FILLER;
@@ -416,6 +443,7 @@ export class ChipField {
       if (node.nodeName === "BR" && this.breaks.has(node) && index === nodes.length - 1) continue;
       return true;
     }
+    if (!sameSkillRanges(fieldSkillRuns(this.segments, this.hooks.skillNames?.() ?? new Set()), spans)) return true;
     // A filler is only ever directly before a chip; one that took typed text keeps it as text until the next draw.
     const last = this.segments[this.segments.length - 1];
     const trailing = nodes[nodes.length - 1];
@@ -491,9 +519,16 @@ export class ChipField {
   // Always the same element: only its children change, so focus, the accessibility node and the IME client survive.
   private render(segments: FieldSegment[]): void {
     const nodes: Node[] = [];
+    const runs = fieldSkillRuns(segments, this.hooks.skillNames?.() ?? new Set());
     let at = 0;
     for (const segment of segments) {
-      if (segment.kind === "text") { nodes.push(document.createTextNode(segment.text)); at += segment.text.length; continue; }
+      if (segment.kind === "text") {
+        for (const part of skillTextParts(segment.text, at, runs)) {
+          if (!part.skill) nodes.push(document.createTextNode(part.text));
+          else { const span = document.createElement("span"); span.className = "skill-word"; span.textContent = part.text; nodes.push(span); }
+        }
+        at += segment.text.length; continue;
+      }
       if (isLineStart(segments, at)) { const filler = document.createTextNode(FILLER); this.fillers.add(filler); nodes.push(filler); }
       nodes.push(this.chipNode(segment.anchor));
       at += 1;

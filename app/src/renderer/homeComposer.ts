@@ -3,7 +3,7 @@ import { skillWords } from "./skillWords";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import { PROVIDERS, type AuthStatusDto, type Provider, type ReadinessCause } from "../main/agentAuth/types";
 import type { AcpModes, PermissionModeId } from "../main/conversation/permissionMode";
-import type { FastUnusedReason } from "../main/conversation/types";
+import type { FastUnusedReason, SkillSummary } from "../main/conversation/types";
 import type { DesignPresetSummary, DesignSkillReply } from "../main/designSkills";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { HomeMemory } from "../restore/uiState";
@@ -68,7 +68,7 @@ export interface SendInput {
   projects: number;
   root: FolderEntry | null; projectName: string;
   auth: AuthSnapshot | null | undefined; provider: Provider | null;
-  text: string; preset: PresetRef | null; skills?: readonly string[]; attachments: readonly AttachmentDraft[];
+  text: string; preset: PresetRef | null; skills: readonly string[]; attachments: readonly AttachmentDraft[];
   // A project conversation still running in this root (HomeRun.running).
   running: { conversationId: string } | null;
   sending: boolean;
@@ -100,7 +100,7 @@ export function agentProblem(auth: AuthSnapshot | null | undefined, provider: Pr
 
 // What in a non-empty draft stops the send. Shared with the docked composer. A plain string is typed text only; the
 // chip field passes its segments, because {text, anchors} cannot tell a typed {{1}} from a chip's marker.
-export function draftProblem(draft: string | readonly FieldSegment[], preset: PresetRef | null, attachments: readonly AttachmentDraft[], skills: readonly string[] = []): SendReason | null {
+export function draftProblem(draft: string | readonly FieldSegment[], preset: PresetRef | null, attachments: readonly AttachmentDraft[], skills: readonly string[]): SendReason | null {
   const typed = typedPieces(draft);
   const text = typeof draft === "string" ? draft : toMessage(draft)?.text ?? typed.join("");
   const request = composeRequest(text, preset, skills, attachments.length);
@@ -488,7 +488,7 @@ export function searchPresets(presets: readonly PresetSummary[], query: string):
   return scored.sort((a, b) => b.score - a.score || a.i - b.i).map(s => s.preset);
 }
 
-export interface ProjectSkillSummary { name: string; description: string }
+export type ProjectSkillSummary = SkillSummary;
 export interface PresetRow {
   kind: "preset" | "skill"; key: string; icon: string;
   id: string; title: string; description: string; scope: string; tooltip: string; group: string | null;

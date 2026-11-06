@@ -1,3 +1,4 @@
+import { skillWords, skillTextParts } from "./skillWords";
 import { createContext, forwardRef, Fragment, memo, useContext, useEffect, useId, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type Ref } from "react";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -386,8 +387,15 @@ function UserMessage({ entry, frames, disabled, onLocate }: { entry: Extract<Thr
   const missing = (key: string) => ({ key, shownFor, show: (at: string) => { setChip(at); show(); } });
   return <div className="msg-user">
     <div className="bubble">{entry.preset && <span className="bubble-preset"><PencilSparkles aria-hidden="true" />{entry.preset.title}</span>}{entry.preset && entry.parts.length > 0 && "\n"}
-      {entry.parts.map((part, i) => "text" in part ? <Fragment key={i}>{part.text}</Fragment> : <SentChip key={i} marker={part.anchor} anchor={entry.anchors[part.anchor - 1]} frames={frames}
-        disabled={disabled} onLocate={onLocate} missing={missing(`${base}-${i}`)} />)}</div>
+      {entry.parts.map((part, i) => {
+        if (!("text" in part)) return <SentChip key={i} marker={part.anchor} anchor={entry.anchors[part.anchor - 1]} frames={frames}
+          disabled={disabled} onLocate={onLocate} missing={missing(`${base}-${i}`)} />;
+        // An anchor ends the preceding word but cannot start the next one.
+        const previous = entry.parts[i - 1], prefix = previous && !("text" in previous) ? "x" : "";
+        const runs = skillWords(prefix + part.text, new Set(entry.skills ?? []));
+        return <Fragment key={i}>{skillTextParts(part.text, prefix.length, runs).map((piece, index) =>
+          piece.skill ? <span key={index} className="skill-word">{piece.text}</span> : <Fragment key={index}>{piece.text}</Fragment>)}</Fragment>;
+      })}</div>
     {entry.attachments.length > 0 && <div className="msg-files">{entry.attachments.map((file, i) => <span key={i} className="attach-chip">
       <span className="file-icon" aria-hidden="true"><FileText /></span><span className="attach-text"><b>{file.name}</b><small>{formatSize(file.size)}</small></span></span>)}</div>}
     {entry.sending && <span className="msg-sending"><span className="doan-spinner" aria-hidden="true" />Sending</span>}

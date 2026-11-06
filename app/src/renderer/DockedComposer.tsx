@@ -1,9 +1,10 @@
+import { fieldSkillRuns, replaceSlashSkill } from "./skillWords";
 import { useEffect, useId, useImperativeHandle, useLayoutEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent, type MutableRefObject, type ReactElement } from "react";
 import { Clock, Crosshair, Gauge, Plus, Shield, X } from "lucide-react";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
 import type { PermissionModeId } from "../main/conversation/permissionMode";
-import type { Anchor } from "../main/conversation/types";
+import type { Anchor, SkillSummary } from "../main/conversation/types";
 import { PROVIDER_NAMES } from "./agentAuthView";
 import { AlertIcon } from "./AlertIcon";
 import { ContextRing } from "./ContextRing";
@@ -25,7 +26,7 @@ import type { SentFile } from "./threadItems";
 import { ANCHOR_LIMIT_TEXT } from "./canvasPicker";
 import { LOCATE_MISSING_TEXT, useLocateNote, type LocateOutcome } from "./ConversationThread";
 import {
-  attachmentChipView, chipRemoval, presetListView, providerLogo, slashQuery, takesSuggestion, type AttachmentDraft, type ModelPickerView,
+  followDrawerHighlight, type PresetRow, attachmentChipView, chipRemoval, presetListView, providerLogo, slashQuery, takesSuggestion, type AttachmentDraft, type ModelPickerView,
   type PresetListReply, type PresetSummary,
 } from "./homeComposer";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
@@ -78,6 +79,7 @@ export interface DockedComposerProps {
   // choice. A terminal session (`fixed`) shows its fixed trigger instead.
   permission?: PermissionPickerView | null; onPickPermission?(mode: PermissionModeId): void;
   onSettings(target: SettingsTarget): void;
+  skills: readonly SkillSummary[]; onSkillsWanted(): void;
   presets: PresetListReply | undefined; suggested: readonly PresetSummary[];
   onPresetsOpen(): void; onPresetsRetry(): void;
   thumbnails: Readonly<Record<string, string>>;
@@ -189,10 +191,12 @@ export function DockedComposer(props: DockedComposerProps) {
   const locked = !!props.locked && !!props.unavailable;
   // A blocked refusal holds Send with its reason until the person changes the draft (design §2 'Errors').
   const blocked = refusal?.kind === "blocked" ? refusal : null;
-  const checked = dockedAvailability({ mode, project: props.project, auth: props.auth, provider: props.provider, draft, turn: props.turn, busy, sending: isSending, unavailable: props.unavailable ?? null, external: !!props.fixed });
+  const skillNames = new Set(props.skills.map(skill => skill.name));
+  const matched = fieldSkillRuns(draft.segments, skillNames).map(run => run.name);
+  const checked = dockedAvailability({ mode, project: props.project, auth: props.auth, provider: props.provider, draft, skills: matched, turn: props.turn, busy, sending: isSending, unavailable: props.unavailable ?? null, external: !!props.fixed });
   const availability = blocked && !isSending && !props.unavailable ? { enabled: false, reason: { text: blocked.text, ...(blocked.action ? { action: blocked.action } : {}) } }
     : props.held && checked.enabled ? { enabled: false, reason: checked.reason } : checked;
-  const message = dockedMessage(draft);
+  const message = dockedMessage(draft, matched);
   const placeholder = composerPlaceholder({ readOnly: isSending || locked, preset: draft.preset, empty: draft.segments.length === 0, mode: mode.kind, text: props.placeholder, suggestion: props.suggestion });
   const action = composerAction(props.turn !== "idle", message.text);
   const canSendNow = !!props.sendNow && !!props.onSendQueuedNow;
@@ -201,8 +205,8 @@ export function DockedComposer(props: DockedComposerProps) {
   const fixedProvider = mode.kind === "new" ? props.provider : mode.provider;
   const presets = props.presets?.ok ? props.presets.result.presets : [];
   // The `/` list reads a field of typed text only; a chip anywhere means the field holds a message, not a search.
-  const slash = slashQuery(text === typedText(draft.segments) ? text : "", dismissed);
-  const slashView = slash !== null ? presetListView(props.presets, { project: props.project, suggested: props.suggested, query: slash, tab: null, slash: true }) : null;
+  const slash = slashQuery(text === typedText(draft.segments) ? text : "", dismissed, skillNames);
+  const slashView = slash !== null ? presetListView(props.presets, { project: props.project, suggested: props.suggested, query: slash, tab: null, slash: true, skills: props.skills }) : null;
   const slashRows = slashView?.kind === "list" ? slashView.sections.flatMap(section => section.rows) : [];
   const slashOpen = slash !== null && !isSending;
   // A press outside closes the list as Escape does, for the draft on screen, until its field is empty again.
@@ -235,12 +239,26 @@ export function DockedComposer(props: DockedComposerProps) {
     if (line > 0 && node.scrollHeight > line * 1.5) edit({}, key, true);
   }, [key, text, draft.shape, shape]);
   useEffect(() => { if (text === "") setDismissedKey(current => current === key ? null : current); }, [text]);
-  useEffect(() => { setHighlight(0); }, [slash]);
+  const previousRows = useRef<{ query: string | null; rows: PresetRow[] }>({ query: null, rows: [] });
+  const rowKeys = slashRows.map(row => row.key).join("\n");
+  useEffect(() => {
+    const before = previousRows.current;
+    setHighlight(before.query === slash ? followDrawerHighlight(before.rows, slashRows, highlight) : 0);
+    previousRows.current = { query: slash, rows: slashRows };
+  }, [slash, rowKeys]);
+  useEffect(() => { if (slashOpen) props.onSkillsWanted(); }, [slashOpen]);
 
   const focus = (after: FocusAction) => queueMicrotask(() => {
     const target = focusAfter(after, { pending: [] });
     if (target.kind === "field") field.current?.focus(target.caretAtEnd ? "end" : undefined);
   });
+  const pickedSkill = useRef(false);
+  const chooseRow = (id: string, kind: PresetRow["kind"], fromSlash: boolean) => {
+    if (kind === "preset") { choosePreset(id, fromSlash); return; }
+    pickedSkill.current = !fromSlash;
+    if (fromSlash) { edit({ segments: replaceSlashSkill(id).segments }); focus({ kind: "restored" }); }
+    else field.current?.insertSkill(id);
+  };
   const choosePreset = (id: string, fromSlash: boolean) => {
     const chosen = presets.find(p => p.id === id);
     if (!chosen) return;
@@ -352,9 +370,9 @@ export function DockedComposer(props: DockedComposerProps) {
   const keyDown = (event: KeyboardEvent<HTMLDivElement>): boolean => {
     const composing = event.nativeEvent.isComposing || event.keyCode === 229;
     if (slashOpen) {
-      const step = slashKey(event.key, highlight, slashRows.length, composing);
+      const step = slashKey(event.key, highlight, slashRows.length, composing, { query: slash ?? "", row: slashRows[highlight] });
       if (step?.kind === "move") { event.preventDefault(); setHighlight(step.highlight); return true; }
-      if (step?.kind === "pick") { event.preventDefault(); const row = slashRows[highlight]; if (row) choosePreset(row.id, true); return true; }
+      if (step?.kind === "pick") { event.preventDefault(); const row = slashRows[highlight]; if (row) chooseRow(row.id, row.kind, true); return true; }
       // Escape closes the list only; there is no shortcut that stops the turn (spec decision 9).
       if (step?.kind === "close") { if (event.key === "Escape") event.preventDefault(); setDismissedKey(step.dismiss ? key : null); return true; }
     }
@@ -395,14 +413,14 @@ export function DockedComposer(props: DockedComposerProps) {
     <ComposerCard readonly={isSending}>
       <ComposerChips attachments={draft.attachments} preset={draft.preset} thumbnails={props.thumbnails} homeDirectory={props.homeDirectory} disabled={isSending || locked} removeButtons={removeButtons} onRemove={index => removeChip(index, "button")} />
       {/* One field element in both shapes, at the same place and key: remounting it would drop focus and IME composition. */}
-      <ComposerField key="field" ref={field} draftKey={key} value={draft.segments} onChange={segments => edit({ segments })} readOnly={isSending || locked}
+      <ComposerField skillNames={skillNames} key="field" ref={field} draftKey={key} value={draft.segments} onChange={segments => edit({ segments })} readOnly={isSending || locked}
         placeholder={placeholder.text} describedBy={describedBy} chipScope={props.chipScope ?? null} onAnnounce={setAnnouncement} onChipClick={props.onLocate ? locate : undefined}
         combobox={slashOpen ? { listId: `${listId}-slash`, activeId: slashRows[highlight] ? `${listId}-s-${highlight}` : undefined } : null}
         onKey={keyDown} onSteerKey={() => void steerAll()} sendNow={canSendNow} onSubmit={() => void send()} onPaste={paste} />
       <ComposerTools>
-        <PresetsButton reply={props.presets} project={props.project} suggested={props.suggested} listId={listId} disabled={isSending || locked}
-          onOpen={props.onPresetsOpen} onChoose={id => choosePreset(id, false)} onRetry={props.onPresetsRetry} onPicked={() => focus({ kind: "restored" })} canvasPress={props.canvasPress} />
-        {slashOpen && slashView && <SlashPresets view={slashView} query={slash} listId={listId} highlight={highlight} listRef={slashList} onHighlight={setHighlight} onChoose={id => choosePreset(id, true)} onRetry={props.onPresetsRetry} />}
+        <PresetsButton skills={props.skills} reply={props.presets} project={props.project} suggested={props.suggested} listId={listId} disabled={isSending || locked}
+          onOpen={() => { props.onSkillsWanted(); props.onPresetsOpen(); }} onChoose={(id, kind) => chooseRow(id, kind, false)} onRetry={props.onPresetsRetry} onPicked={() => { if (pickedSkill.current) { pickedSkill.current = false; field.current?.focus(); } else focus({ kind: "restored" }); }} canvasPress={props.canvasPress} />
+        {slashOpen && slashView && <SlashPresets skills={props.skills} view={slashView} query={slash} listId={listId} highlight={highlight} listRef={slashList} onHighlight={setHighlight} onChoose={(id, kind) => chooseRow(id, kind, true)} onRetry={props.onPresetsRetry} />}
         <span className="grow" />
         <SendButton action={action} enabled={action === "stop" ? !isSending : availability.enabled} sending={isSending} onSend={() => { if (action === "stop") stop(); else void send(); }} hint={reason?.noAgent ? reason.text : undefined} />
       </ComposerTools>

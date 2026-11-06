@@ -1,11 +1,11 @@
 import { forwardRef, Fragment, useEffect, useId, useImperativeHandle, useLayoutEffect, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type MutableRefObject, type PointerEvent, type ReactNode, type RefObject } from "react";
 import { flushSync } from "react-dom";
 import { DropdownMenu, Popover } from "radix-ui";
-import { ArrowUp, Check, ChevronDown, Compass, Eye, FilePenLine, FileText, Gauge, Paintbrush, PencilSparkles, Plus, ScanEye, Search, Settings, Shapes, Shield, ShieldAlert, Square, TextAlignStart, TriangleAlert, X, Zap } from "lucide-react";
+import { ArrowUp, Check, ChevronDown, Compass, Eye, FilePenLine, FileText, Gauge, Paintbrush, PencilSparkles, Plus, ScanEye, Search, Settings, Shapes, Shield, ShieldAlert, SquareSlash, Square, TextAlignStart, TriangleAlert, X, Zap } from "lucide-react";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
 import type { PermissionModeId } from "../main/conversation/permissionMode";
-import type { Anchor } from "../main/conversation/types";
+import type { Anchor, SkillSummary } from "../main/conversation/types";
 import { pickerAction, pickerFooter, providerShortStatus } from "./agentAuthView";
 import { AlertIcon } from "./AlertIcon";
 import type { FieldSegment } from "./anchorField";
@@ -16,14 +16,14 @@ import { outsidePresetList } from "./presetOutside";
 import type { SettingsTarget } from "./settingsSections";
 import {
   attachmentChipView, dropTarget, foldRows, groupIcon, heldScrollTop, lockedOlderSide, isSubmitKey, steerKey, modelPickerView, NO_OLDER, olderLabel, olderOpened, olderOrder, olderToggled,
-  presetListView, providerLogo, type AttachmentDraft, type PresetListReply, type PresetRow, type PresetSummary, type SuggestionPart,
+  drawerSearchLabel, presetListView, providerLogo, type AttachmentDraft, type PresetListReply, type PresetRow, type PresetSummary, type SuggestionPart,
 } from "./homeComposer";
 import type { PermissionIcon, PermissionPickerView } from "./permissionPicker";
 
 // The composer's shared primitives (buzz-conversation design §3.1): Home's HeroComposer assembles them today and the
 // docked composer will. Each draws the markup Home drew before the split, so Home's computed styles and DOM order stay.
 
-const GROUP_ICONS: Record<string, typeof Compass> = { compass: Compass, "scan-eye": ScanEye, paintbrush: Paintbrush, "text-align-start": TextAlignStart, shapes: Shapes, "pencil-sparkles": PencilSparkles };
+const GROUP_ICONS: Record<string, typeof Compass> = { "square-slash": SquareSlash, compass: Compass, "scan-eye": ScanEye, paintbrush: Paintbrush, "text-align-start": TextAlignStart, shapes: Shapes, "pencil-sparkles": PencilSparkles };
 // A suggested prompt's sentence with its project and canvas names highlighted; the text itself is unchanged, so the
 // button's accessible name stays the whole sentence.
 export function SuggestionLabel({ parts }: { parts: readonly SuggestionPart[] }) {
@@ -106,6 +106,7 @@ export interface ComposerFieldHandle {
   caretAtStart(): boolean;
   insertChip(anchor: Anchor): ChipInsert;
   insertText(text: string): void;
+  insertSkill(name: string): void;
   composing(): boolean;
   element(): HTMLElement | null;
 }
@@ -114,6 +115,7 @@ export const ComposerField = forwardRef<ComposerFieldHandle, {
   // The draft the value belongs to (draftKey(mode) in the docked composer). A change ends the field's undo history,
   // caret and waiting chips even when the values are equal; the element itself stays, so focus and shape do too.
   draftKey?: string;
+  skillNames?: ReadonlySet<string>;
   // The canvas the field's chips belong to (its canvas panel sets it); null, the default, takes no chips.
   chipScope?: string | null;
   // The `/` preset list while it is open: the field is its combobox.
@@ -140,17 +142,19 @@ export const ComposerField = forwardRef<ComposerFieldHandle, {
       onInput: () => latest.current.onInput?.(),
       onAnnounce: text => latest.current.onAnnounce?.(text),
       scope: () => latest.current.chipScope ?? null,
+      skillNames: () => latest.current.skillNames ?? new Set(),
       onChipClick: (anchor, chip) => latest.current.onChipClick?.(anchor, chip),
     }, latest.current.value, latest.current.draftKey);
     field.current = created;
     return () => { created.dispose(); field.current = null; };
   }, []);
-  useLayoutEffect(() => { field.current?.setValue(props.value, props.draftKey); }, [props.value, props.draftKey]);
+  useLayoutEffect(() => { field.current?.setValue(props.value, props.draftKey); }, [props.value, props.draftKey, props.skillNames]);
   useImperativeHandle(ref, () => ({
     focus: caret => field.current?.focus(caret === "end"),
     caretAtStart: () => field.current?.caretAtStart() ?? true,
     insertChip: anchor => field.current?.insertChip(anchor) ?? "refused",
     insertText: text => field.current?.insertText(text),
+    insertSkill: name => field.current?.insertSkill(name),
     composing: () => field.current?.composing() ?? false,
     element: () => node.current,
   }), []);
@@ -185,7 +189,7 @@ export function tabKey(keys: readonly string[], current: string, key: string): s
 }
 
 type PresetView = ReturnType<typeof presetListView>;
-interface PresetBodyOptions { listId: string; highlight: number; onHighlight?(index: number): void; onChoose(id: string): void; onRetry(): void; onTab?(key: string): void }
+interface PresetBodyOptions { listId: string; highlight: number; onHighlight?(index: number): void; onChoose(id: string, kind: PresetRow["kind"]): void; onRetry(): void; onTab?(key: string): void }
 // Once focus is on a row of the list (arrow keys), the pointer carries it along as in the frame list. With focus elsewhere
 // (the popover opens in the search box) a row only fills on hover (ds/surfaces.css), so typing and Space keep their target.
 // focusVisible: false keeps a pointer-moved focus from drawing the keyboard ring.
@@ -198,12 +202,13 @@ function PresetOption({ row, index, slash, options }: { row: PresetRow; index: n
   const focusRow = (at: number) => document.getElementById(`${options.listId}-p-${at}`)?.focus();
   return <div id={`${options.listId}-${slash ? "s" : "p"}-${index}`} className="doan-menu-item preset-item" role="option" aria-selected={slash ? index === options.highlight : false}
     tabIndex={slash ? undefined : -1} title={row.tooltip} data-highlighted={slash && index === options.highlight ? "" : undefined}
-    onMouseDown={slash ? event => event.preventDefault() : undefined} onPointerMove={slash ? () => options.onHighlight?.(index) : pointerFocus} onClick={() => options.onChoose(row.id)}
+    onMouseDown={slash ? event => event.preventDefault() : undefined} onPointerMove={slash ? () => options.onHighlight?.(index) : pointerFocus} onClick={() => options.onChoose(row.id, row.kind)}
     onKeyDown={slash ? undefined : event => {
       if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); focusRow(Math.max(0, Math.min(options.rows - 1, index + (event.key === "ArrowDown" ? 1 : -1)))); }
-      else if (event.key === "Enter" || event.key === " ") { event.preventDefault(); options.onChoose(row.id); }
+      else if (event.key === "Enter" || event.key === " ") { event.preventDefault(); options.onChoose(row.id, row.kind); }
     }}>
     {/* A card: the preset's name over its one-line description (dogfooding); the full text stays in the tooltip. */}
+    <span className={`suggestion-icon${row.kind === "skill" ? " project-skill-icon" : ""}`}><GroupIcon name={row.icon} /></span>
     <span className="preset-text"><span className="preset-title">{row.title}</span>{row.description && <span className="preset-desc">{row.description}</span>}</span>
   </div>;
 }
@@ -216,7 +221,9 @@ export function presetBody(view: PresetView, slash: boolean, options: PresetBody
   const rows = view.sections.reduce((n, section) => n + section.rows.length, 0);
   let index = 0;
   return <>
-    {view.tabs.length > 0 && <div className="group-tabs shell-modes" role="tablist" aria-label="Preset groups">{view.tabs.map(item => <button key={item.key} type="button" role="tab" className={item.selected ? "current" : ""} aria-selected={item.selected} tabIndex={item.selected ? 0 : -1}
+    {view.notice && presetBody(view.notice, slash, options)}
+    {view.emptyText && <div className="popover-state" role="status">{view.emptyText}</div>}
+    {view.tabs.length > 0 && <div className="group-tabs shell-modes" role="tablist" aria-label="Preset groups">{view.tabs.map(item => <button key={item.key} type="button" role="tab" data-group={item.key} className={item.selected ? "current" : ""} aria-selected={item.selected} tabIndex={item.selected ? 0 : -1}
       onClick={() => options.onTab?.(item.key)} onKeyDown={event => {
         const next = tabKey(view.tabs.map(t => t.key), item.key, event.key);
         if (!next) return;
@@ -227,12 +234,12 @@ export function presetBody(view: PresetView, slash: boolean, options: PresetBody
       }}>
       <GroupIcon name={item.icon} />{item.label}</button>)}</div>}
     <div className="popover-list doan-scroll" role="listbox" id={slash ? `${options.listId}-slash` : undefined} aria-label={view.summary ?? view.sections[0]?.title ?? "Design presets"}>
-      {view.sections.map(section => <Fragment key={section.title ?? "results"}>{section.title && !slash && <div className="doan-menu-head">{section.title}</div>}{section.rows.map(row => <PresetOption key={row.id} row={row} index={index++} slash={slash} options={{ ...options, rows }} />)}</Fragment>)}
+      {view.sections.map(section => <Fragment key={section.title ?? "results"}>{section.title && !slash && <div className="doan-menu-head">{section.title}</div>}{section.rows.map(row => <PresetOption key={row.key} row={row} index={index++} slash={slash} options={{ ...options, rows }} />)}</Fragment>)}
     </div>
   </>;
 }
-function SearchField({ value, slash, listId, onChange }: { value: string; slash: boolean; listId: string; onChange?(value: string): void }) {
-  return <label className="popover-search"><Search aria-hidden="true" /><input className="doan-input" data-ui-size="sm" placeholder="Search presets" aria-label="Search presets" value={value}
+function SearchField({ value, slash, listId, onChange, label = "Search presets" }: { label?: string; value: string; slash: boolean; listId: string; onChange?(value: string): void }) {
+  return <label className="popover-search"><Search aria-hidden="true" /><input className="doan-input" data-ui-size="sm" placeholder={label} aria-label={label} value={value}
     readOnly={slash} tabIndex={slash ? -1 : undefined} aria-hidden={slash || undefined}
     onChange={slash ? undefined : event => onChange?.(event.target.value)}
     onKeyDown={slash ? undefined : event => { if (event.key === "ArrowDown") { event.preventDefault(); document.getElementById(`${listId}-p-0`)?.focus(); } }} /></label>;
@@ -246,13 +253,15 @@ export type CanvasPress = (listener: () => void) => () => void;
 // the field through `onPicked`; a list that failed is read again when the popover opens. A press outside it in the
 // app's document closes it by Radix's own rule; a press in the canvas closes it through `canvasPress`.
 export function PresetsButton(props: {
+  skills?: readonly SkillSummary[];
   reply: PresetListReply | undefined; project: string; suggested: readonly PresetSummary[]; listId: string; disabled: boolean;
-  onOpen(): void; onChoose(id: string): void; onRetry(): void; onPicked(): void; canvasPress?: CanvasPress | undefined;
+  onOpen(): void; onChoose(id: string, kind: PresetRow["kind"]): void; onRetry(): void; onPicked(): void; canvasPress?: CanvasPress | undefined;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<string | null>(null);
   const picked = useRef(false);
+  const content = useRef<HTMLDivElement | null>(null);
   // Radix returns focus to the trigger after a close it did not see as an outside press; a canvas press put focus in
   // the canvas, so it stays there.
   const pressed = useRef(false);
@@ -262,16 +271,23 @@ export function PresetsButton(props: {
     // Closed at once, so the canvas page sees where focus fell when the search box went with the popover.
     return canvasPress(() => { pressed.current = true; flushSync(() => setOpen(false)); });
   }, [open, canvasPress]);
-  const view = presetListView(props.reply, { project: props.project, suggested: props.suggested, query, tab });
-  const choose = (id: string) => { picked.current = true; setOpen(false); props.onChoose(id); };
+  const view = presetListView(props.reply, { project: props.project, suggested: props.suggested, query, tab, skills: props.skills ?? [] });
+  const selected = view.kind === "list" ? view.tabs.find(item => item.selected)?.key : undefined;
+  useLayoutEffect(() => {
+    if (open && tab !== null && query === "" && selected && selected !== tab) {
+      setTab(selected);
+      content.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus();
+    }
+  }, [open, tab, query, selected]);
+  const choose = (id: string, kind: PresetRow["kind"]) => { picked.current = true; setOpen(false); props.onChoose(id, kind); };
   return <Popover.Root open={open} onOpenChange={next => { setOpen(next); if (next) { pressed.current = false; setQuery(""); props.onOpen(); } }}>
     <IconTip label="Design presets"><Popover.Trigger asChild><button type="button" className="doan-icon-button composer-presets" aria-label="Design presets" disabled={props.disabled}><PencilSparkles aria-hidden="true" /></button></Popover.Trigger></IconTip>
-    <Popover.Portal><Popover.Content className="doan-floating preset-popover" aria-label="Design presets" side="top" align="start" sideOffset={8} collisionPadding={8}
+    <Popover.Portal><Popover.Content ref={content} className={`doan-floating preset-popover${props.skills?.length ? " has-skills" : ""}`} aria-label="Design presets" side="top" align="start" sideOffset={8} collisionPadding={8}
       onCloseAutoFocus={event => {
         if (picked.current) { picked.current = false; event.preventDefault(); props.onPicked(); }
         else if (pressed.current) { pressed.current = false; event.preventDefault(); }
       }}>
-      <SearchField value={query} slash={false} listId={props.listId} onChange={setQuery} />
+      <SearchField label={drawerSearchLabel(props.skills ?? [])} value={query} slash={false} listId={props.listId} onChange={setQuery} />
       {presetBody(view, false, { listId: props.listId, highlight: 0, onChoose: choose, onRetry: props.onRetry, onTab: setTab })}
     </Popover.Content></Popover.Portal>
   </Popover.Root>;
@@ -279,9 +295,9 @@ export function PresetsButton(props: {
 
 // The `/` list keeps focus in the field, so it is drawn in place rather than as a focus-taking popover.
 // The pointer moves the one highlight the arrow keys move, as in a Radix menu.
-export function SlashPresets(props: { view: PresetView; query: string; listId: string; highlight: number; listRef?: RefObject<HTMLDivElement | null>; onHighlight(index: number): void; onChoose(id: string): void; onRetry(): void }) {
+export function SlashPresets(props: { skills?: readonly SkillSummary[]; view: PresetView; query: string; listId: string; highlight: number; listRef?: RefObject<HTMLDivElement | null>; onHighlight(index: number): void; onChoose(id: string, kind: PresetRow["kind"]): void; onRetry(): void }) {
   return <div className="doan-floating preset-popover slash-popover" role="presentation" ref={props.listRef}>
-    <SearchField value={props.query} slash listId={props.listId} />
+    <SearchField label={drawerSearchLabel(props.skills ?? [])} value={props.query} slash listId={props.listId} />
     {presetBody(props.view, true, { listId: props.listId, highlight: props.highlight, onHighlight: props.onHighlight, onChoose: props.onChoose, onRetry: props.onRetry })}
   </div>;
 }
