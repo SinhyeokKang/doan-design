@@ -217,6 +217,8 @@ test("an empty group's line is a dashed box", async () => {
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toMatch(/\.shell-group \.shell-empty \{[^}]*border: 1px dashed var\(--border-standard\);[^}]*border-radius: var\(--radius-chip\);/);
   expect(css).not.toMatch(/(^|\n)\.shell-empty[^{]*\{[^}]*dashed/);
+  // small-ui-tweaks decision 4: the box grows by its own vertical padding (8 -> 12px); margins and side padding stay.
+  expect(css).toMatch(/\.shell-group \.shell-empty \{[^}]*margin: var\(--space-half\) 10px var\(--space-2\) 34px;[^}]*padding: var\(--space-3\);/);
 });
 
 // The sidebar column follows the resizable width; its handle is the panel's, laid in the gutter after the sidebar,
