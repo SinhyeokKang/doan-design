@@ -1403,3 +1403,37 @@ Context, not a deviation: the menu root inherits the app body's 13 px / normal w
 ### Regression pointers
 
 `ComposerParts.test.tsx` (row, trigger icon and tooltip, the Radix select contract), `DockedComposer.test.tsx` (fixed trigger), `homeComposer.test.ts` (Fast view and names), `ConversationThread.test.tsx` and `threadItems.test.ts` (the line), `ds/checks.test.ts` (accent places). Sizes and colours above are `.scratch/` probes only.
+
+## Turn indicator
+
+Reference: `.doan/canvases/turn-activity.html` (frames `states` (1)–(12), `widths`, `reduced-motion`; `copy-format` is the wording reference). Measured by `/design-sync` in the built app (`.scratch/design-sync/turn-activity/measure.mjs`): the draft is copied into a fixture repo `acme-web` as its own canvas and read in the app's canvas iframe, next to the panel it draws, at 1238 × 780 (panel 347 and the 280 minimum) and at 1400 × 860 for the Overview's 720 column. No provider signed in: main's conversation handlers were replaced, the read reply carried the injected stage, a later stage was pushed on `conversation:stage`, and each turn's start was set at the read so the time shows the draft's value. 256 pairs over 23 states, 50 computed properties each plus text, box, clipping and ARIA attributes; the only differences are the documented panel width and the context kinds below. The `copy-format` words and elapsed format were checked against `turnText`, `turnAnnouncement` and `elapsedText`.
+
+### Measured contracts
+
+| Element | Measured contract | Reason |
+|---|---|---|
+| Place | The thread's last item, in the reply's place: after the last item at the thread's item gap (20 in the panel, 24 in the Overview), after a Send now sending message, under the hand-off line, and next to a still-spinning activity row (two progress marks, design decision 4). Absent while a permission card waits | Design decisions 3, 4 and 10. |
+| Line | `.ti-reply`: flex, centred, gap 8, `--text-subtle`; one line in the reply's type, body-sm 14/20 (−0.035 px) in the panel and 16/24 in the Overview, so it is 20 / 24 high in every state: a stage change pushed after the read kept the item 20 high and the scroll height unchanged | The scroll follows `[items]` only (design §4), so a stage change must not move the thread. |
+| Logo | The provider logo, 16 × 16 (`.logo`) | |
+| Words | `.ti-text ti-shimmer`: `--text-metadata` (rgb(95,95,95)) words drawn by a text-clipped gradient (transparent colour and fill): stops at 42.5 / 47.5 / 52.5 / 57.5 % with the white band `color-mix(in oklch, --text-metadata, --surface-panel 55%)`, size 200 % × 100 %, `ti-shimmer` 2 s linear infinite (background position 100 % → −100 %, read moving in the app). A long path ends in an ellipsis (clipped at 347 and 280; whole at 720) | Decision 1: dark words under a strong white sweep, no accent. |
+| Time | `.ti-time`: `flex: none`, `--text-metadata`, tabular figures, `aria-hidden`; never sweeps. `0s`, `59s`, `1m 0s`, `59m 59s`, `1h 0m 0s` (`1h 4m 12s` measured), 0s for an unreadable or future start | The stage gives way first; the time keeps its width as it counts. |
+| Reduced motion | No animation and no background; the words `--text-metadata` (rgb(95,95,95)) still change with the stage | |
+| Accessibility | Not a live region and nothing focusable; the time is not in the AX tree; the thread's `sr-only` status says the stage kind only ("Codex is reading files" for a path) and "needs your answer" while a card waits (CDP AX) | Spec condition 7. |
+
+The activity rows' shipped values were unchanged: head, label, spinner and chevron equal the draft's restated rules in every state apart from the context kinds below (`styles.css` adds only the indicator's rules).
+
+### Documented differences from the draft
+
+- **Panel width.** Every thread element is 1 px narrower in the panel (thread 314 where the tiles draw 315): the panel's 1 px start border ('Canvas handoff').
+
+Context, not deviations: the Overview column is 720 centred in a wider window (54 px auto margins); the draft page's reset (`.activity` border style, 0 wide) and its board-only `:where(svg){flex:none}` on the activity chevron; the shipped spinner's rotation phase; the permission notice's `role="alert"` only for a request newer than the read; and in (6) the shipped streaming caret, which sits on its own line under the Markdown because `.msg-agent` is a flex column (the draft draws it at the end of the line, as `buzz-conversation.html` does), so the indicator is 31 px lower there with the same 20 px gap. That caret placement is a defect older than the indicator, not a choice.
+
+### Not verified
+
+- Any real provider turn (every state is injected); Copilot's thinking stage (Claude's was measured; same markup).
+- The timer stopping in a hidden window and recounting from the start (unit-tested only).
+- The shipped spinner under reduced motion (the reduced-motion tile has no activity row); dark mode and forced colours, including how the text-clipped gradient renders there.
+
+### Regression pointers
+
+`ConversationThread.turn.test.tsx` (markup, place, no live region or focus, hidden time, the reduced-motion rule), `turnStatus.test.ts` (states, settle, words, elapsed format), `App.turnStage.test.tsx` (stage wiring). Sizes, colours and the sweep are `.scratch/` probes only.
