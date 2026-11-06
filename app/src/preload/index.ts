@@ -17,7 +17,7 @@ import type { ReturnedDraft } from "../main/conversation/drafts";
 import type { HandoffNotice } from "../main/conversation/handoff";
 import type { AttachmentResult, RecheckResult } from "../main/attachments";
 import type { DesignSkillList, DesignSkillPreset, DesignSkillReply } from "../main/designSkills";
-import type { Anchor, Canvas, ConversationEvent, Runtime, UnavailableReason } from "../main/conversation/types";
+import type { Anchor, Canvas, ConversationEvent, Runtime, StageSignal, UnavailableReason } from "../main/conversation/types";
 import type {
   Author, OnboardingCancelRequest, OnboardingCheckRequest, OnboardingCompleteRequest, OnboardingProjectCloneRequest,
   OnboardingProjectInspectRequest, OnboardingProjectSelectRequest, OnboardingResponse, OnboardingState, OnboardingStatusRequest,
@@ -203,6 +203,14 @@ const api = {
     const receive = (_event: Electron.IpcRendererEvent, event: ConversationEvent) => listener(event);
     ipcRenderer.on("conversation:event", receive);
     return () => ipcRenderer.removeListener("conversation:event", receive);
+  },
+  // A running turn's stage (turn-activity design §2), never stored. seq is the conversation's last event seq when it was
+  // sent, rev orders stages within a turn: keep the highest rev per turnId, since neither this event nor a
+  // readConversation reply (whose stage is the turn's last one) is ordered against the other.
+  onConversationStage(listener: (signal: StageSignal) => void): () => void {
+    const receive = (_event: Electron.IpcRendererEvent, signal: StageSignal) => listener(signal);
+    ipcRenderer.on("conversation:stage", receive);
+    return () => ipcRenderer.removeListener("conversation:stage", receive);
   },
   // Agent accounts. Main checks provider and attempt IDs and binds sign-in, cancel, pasted addresses and link
   // opening to this window. Snapshots carry one revision; onAgentAuth delivers only ones newer than the last it

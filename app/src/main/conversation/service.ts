@@ -15,7 +15,7 @@ import type { ConversationOwner, Provider } from "../agentAuth/types";
 import type { ModelList } from "./models";
 import type { PermissionModeId } from "./permissionMode";
 import type { QuestionAnswerInput } from "./question";
-import type { Anchor, AttachmentRecord, Canvas, ConversationEvent, EventPayload, HandoffOrigin, HandoffResolution, Reservation } from "./types";
+import type { Anchor, AttachmentRecord, Canvas, ConversationEvent, EventPayload, HandoffOrigin, HandoffResolution, Reservation, StageSignal, TurnStage } from "./types";
 import type { LiveTurn } from "../conversationWork";
 // External (legacy) runs are claude or codex only; doan-account runs may use any app provider.
 // model and effort: a choice from the list this run delivered (ipc checks it). attachments: files main rechecked just now.
@@ -54,6 +54,9 @@ export interface Prepared {
   usageAtTurnEnd?: (read: () => Promise<unknown>) => Promise<void>;
   // Claude runs only: the cleaned text of the first prompt suggestion after a done turn (runners.ts openClaude).
   suggested?: (text: string) => void;
+  // The turn's stage after a frame, called right after that frame's events (turn-activity design §2). It names no turn:
+  // a reused Codex server keeps the callback it opened with, and the service takes the live turn of that moment.
+  stage?: (stage: TurnStage) => void;
 }
 // generation: the provider's connector generation now. labels: connector names by doan- name, for permission
 // summaries and activity lines.
@@ -114,7 +117,9 @@ const EXIT_WAIT_MS = 10_000;
 // (projectBusy). A turn's end expires them.
 // done: the turn's terminal event was turn.done.
 // handoffKey: the DOAN_HANDOFF value of the runner it holds now (openRunner).
-interface Live { turnId: string; busy: boolean; accepted: boolean; runner?: Runner; cleanup?: () => Promise<void>; terminal: boolean; events: EventPayload[]; failedPersistence: boolean; exited: boolean; provider?: Provider; since: number; endedAt?: number; project?: string; closed?: boolean; holding?: object; mcpGeneration?: number | undefined; asking?: Set<string>; done?: boolean; handoffKey?: string }
+// lastSeq: the conversation's last written seq (deliver). stage: the running turn's last stage signal, never stored;
+// stageRev counts this entry's signals, so stages that share a seq keep their order (turn-activity design §2).
+interface Live { turnId: string; busy: boolean; accepted: boolean; runner?: Runner; cleanup?: () => Promise<void>; terminal: boolean; events: EventPayload[]; failedPersistence: boolean; exited: boolean; provider?: Provider; since: number; endedAt?: number; project?: string; closed?: boolean; holding?: object; mcpGeneration?: number | undefined; asking?: Set<string>; done?: boolean; handoffKey?: string; lastSeq?: number; stage?: StageSignal; stageRev?: number }
 // A project turn's grounds for promotion (design §2.4): the canvas list when the turn was accepted, the paths of its own
 // edit activities and the canvas files the folder watcher saw change. endedAt: the turn is over and waits for its first
 // folder refresh, or for the timer at the end of the binding window. turnId: the judged turn, for its bound marker.
@@ -170,7 +175,8 @@ export class ConversationService {
   // workEnded: the conversation's turn can no longer take a `doan work update` (its end, an archive or deletion, a
   // history that stopped taking writes, the app quitting), so main drops its work (conversationWork.ts).
   // handedOff: a handoff started its target conversation (conversation:handoff, main window only).
-  constructor(private store: ConversationStore, private prepare: Prepare, private open: OpenRunner, private publish: (event: ConversationEvent) => void, private admit: (root: string, canvas?: Canvas) => Canvas | void = () => {}, private exitWaitMs = EXIT_WAIT_MS, private canvases: (root: string) => readonly Canvas[] = () => [], private listChanged: (root: string) => void = () => {}, private queueOptions: QueueOptions = {}, private deleted: (id: string) => void = () => {}, private workEnded: (id: string) => void = () => {}, private handedOff: (notice: HandoffNotice) => void = () => {}) {
+  // staged: a running turn's stage changed (conversation:stage, main window only); never written to the history.
+  constructor(private store: ConversationStore, private prepare: Prepare, private open: OpenRunner, private publish: (event: ConversationEvent) => void, private admit: (root: string, canvas?: Canvas) => Canvas | void = () => {}, private exitWaitMs = EXIT_WAIT_MS, private canvases: (root: string) => readonly Canvas[] = () => [], private listChanged: (root: string) => void = () => {}, private queueOptions: QueueOptions = {}, private deleted: (id: string) => void = () => {}, private workEnded: (id: string) => void = () => {}, private handedOff: (notice: HandoffNotice) => void = () => {}, private staged: (signal: StageSignal) => void = () => {}) {
     this.drafts = queueOptions.drafts ?? new DraftStore(null);
     // The deletions an earlier run recorded finish here, their drafts included (store.ts finishDeletions).
     store.finishDeletions(id => this.drafts.discard(id));
@@ -202,7 +208,7 @@ export class ConversationService {
     const turnId = live.turnId;
     try {
       const prepared = await this.prepare(request);
-      input = { ...prepared, ...choice(request), ...this.runFast(request.fast === true, request.root, prepared, request.model), ...mode(request.permissionMode), planApproved: reported => this.planApproved(id, live, turnId, reported), steerConsumed: messageId => this.steerConsumed(id, messageId), suggested: text => this.suggested(id, live, turnId, text) };
+      input = { ...prepared, ...choice(request), ...this.runFast(request.fast === true, request.root, prepared, request.model), ...mode(request.permissionMode), planApproved: reported => this.planApproved(id, live, turnId, reported), steerConsumed: messageId => this.steerConsumed(id, messageId), suggested: text => this.suggested(id, live, turnId, text), stage: stage => this.stage(id, live, stage) };
       if (input.owner) live.provider = input.owner.provider;
       if (this.quitting) throw new Error("busy");
       if (input.sessionId) this.promote(id, input, input.sessionId);
@@ -294,7 +300,7 @@ export class ConversationService {
     if (project) this.checkProject(project, id);
     // An archived conversation's runner is closing; previousExit waited for its process, so a new one opens.
     const live: Live = (existing?.runner && !existing.closed ? existing : undefined) ?? { turnId: "", busy: false, accepted: false, terminal: false, events: [], failedPersistence: false, exited: false, since: 0 };
-    live.busy = true; live.exited = false; live.terminal = false; live.accepted = false; delete live.closed; live.turnId = randomUUID(); live.since = this.stops; this.live.set(id, live);
+    live.busy = true; live.exited = false; live.terminal = false; live.accepted = false; delete live.closed; delete live.stage; live.turnId = randomUUID(); live.since = this.stops; this.live.set(id, live);
     if (project) live.project = project; else delete live.project;
     this.changedOf(id);
     // The mode is judged apart from the model: a send may change either alone.
@@ -307,7 +313,7 @@ export class ConversationService {
       this.reserve(id, { ...metadata.session, runtime, command: "", env: {} }, reusing); reserved = true;
       const turnId = live.turnId;
       // steerConsumed names no turn: a reused Codex server keeps the callback it opened with.
-      input = { ...await this.prepare({ root: metadata.root, ...(metadata.canvas ? { canvas: metadata.canvas } : {}), mode: "resume", text, anchors }, metadata, undefined, reusing), ...chosen, ...(extras.fastTurn ? { fast: true as const } : {}), planApproved: reported => this.planApproved(id, live, turnId, reported), steerConsumed: messageId => this.steerConsumed(id, messageId), suggested: text => this.suggested(id, live, turnId, text) };
+      input = { ...await this.prepare({ root: metadata.root, ...(metadata.canvas ? { canvas: metadata.canvas } : {}), mode: "resume", text, anchors }, metadata, undefined, reusing), ...chosen, ...(extras.fastTurn ? { fast: true as const } : {}), planApproved: reported => this.planApproved(id, live, turnId, reported), steerConsumed: messageId => this.steerConsumed(id, messageId), suggested: text => this.suggested(id, live, turnId, text), stage: stage => this.stage(id, live, stage) };
       if (input.owner) live.provider = input.owner.provider;
       this.checkSend(id, live, expected);
       if (live.exited) throw new Error("process_exited");
@@ -505,9 +511,9 @@ export class ConversationService {
       if (event.type === "activity" && event.kind === "edit" && event.path && evidence && evidence.endedAt === undefined) evidence.edits.add(event.path);
       if (event.type === "permission.request" || event.type === "question.request") (live.asking ??= new Set()).add(askingKey(event));
       else if (event.type === "permission.resolved" || event.type === "question.resolved") live.asking?.delete(askingKey(event));
-      if (event.type === "turn.done" || event.type === "turn.failed" || event.type === "interrupted") { live.terminal = true; live.busy = false; live.done = event.type === "turn.done"; live.endedAt = Date.now(); delete live.asking; this.endWork(id); this.dropSteers(id); this.ended(id, live, event.type); }
+      if (event.type === "turn.done" || event.type === "turn.failed" || event.type === "interrupted") { live.terminal = true; live.busy = false; live.done = event.type === "turn.done"; live.endedAt = Date.now(); delete live.asking; delete live.stage; this.endWork(id); this.dropSteers(id); this.ended(id, live, event.type); }
     } catch (error) {
-      live.failedPersistence = true; console.error("doan: conversation event persistence failed", error); void live.runner?.close();
+      live.failedPersistence = true; delete live.stage; console.error("doan: conversation event persistence failed", error); void live.runner?.close();
       this.endWork(id);
       this.dropSteers(id);
       // Its turn never ends, so it is never judged and must not hold its root, nor hand off.
@@ -542,7 +548,9 @@ export class ConversationService {
   read(id: string) {
     this.metadata(id); const events = this.store.read(id); const state = foldConversation(events, id, !this.ran(id));
     const pendingPermission = [...events].reverse().find(e => e.type === "permission.request" && state.permissions[e.requestId] === "pending");
-    return { events, lastSeq: state.lastSeq, turn: state.turn, ...(pendingPermission ? { pendingPermission } : {}) };
+    // The running turn's last stage, so a renderer that reads again need not wait for the next one; absent otherwise.
+    const live = this.live.get(id), stage = live && this.staging(id, live) ? live.stage : undefined;
+    return { events, lastSeq: state.lastSeq, turn: state.turn, ...(pendingPermission ? { pendingPermission } : {}), ...(stage ? { stage } : {}) };
   }
   forCanvas(root: string, canvas: Canvas) {
     for (const m of this.store.list()) if (m.root === root && m.canvas && sameCanvas(m.canvas, canvas)) this.refreshCanvas(m);
@@ -641,7 +649,7 @@ export class ConversationService {
       // A queue held for its judgement or for the previous process is the person's to send again, not this run's.
       if (live.holding && !live.busy) { this.release(id, live, live.holding); this.giveBack(id, "interrupted"); }
       if (live.accepted && live.busy && !live.terminal) this.receive(id, { type: "interrupted", reason: "user" });
-      if (live.accepted) { live.terminal = true; live.busy = false; }
+      if (live.accepted) { live.terminal = true; live.busy = false; delete live.stage; }
       if (live.runner) closing.push(live.runner.close()); else if (live.cleanup) closing.push(live.cleanup());
     }
     // A handoff waiting for its judgement or its start would start a turn on the provider the person chose to stop
@@ -667,7 +675,7 @@ export class ConversationService {
     for (const [id, live] of this.live) {
       if (live.runner) closing.push(live.runner.close()); else if (live.cleanup) closing.push(live.cleanup());
       if (live.accepted && live.busy && !live.terminal) this.append(id, live.turnId, { type: "interrupted", reason: "appQuit" });
-      live.terminal = true; live.busy = false;
+      live.terminal = true; live.busy = false; delete live.stage;
       this.dropSteers(id);
     }
     return Promise.all(closing).then(() => undefined);
@@ -920,7 +928,7 @@ export class ConversationService {
     this.endWork(id);
     const running = this.live.get(id);
     if (running) {
-      running.terminal = true; running.busy = false; running.closed = true; delete running.holding; delete running.project;
+      running.terminal = true; running.busy = false; running.closed = true; delete running.holding; delete running.project; delete running.stage;
       void running.runner?.close();
     }
     const turn = this.handoffTurns.get(id);
@@ -1066,6 +1074,22 @@ export class ConversationService {
     this.store.save(entries.map(e => e === m ? { ...rest, ...next } as ConversationMetadata : e));
     this.changed(m.root);
   }
+  // A turn takes stages from its acceptance to its end, with receive()'s fence: a Stop writes interrupted at once while
+  // the provider still sends frames until its own result, and a finished turn's late frame must not reach the next.
+  private staging(id: string, live: Live): boolean {
+    return !this.quitting && this.live.get(id) === live && live.accepted && !live.terminal && !live.closed && !live.failedPersistence;
+  }
+  // The same stage again at the same seq is not sent (Copilot sends 76-88 thought chunks a turn). After an event it goes
+  // out again with the new seq: the renderer takes a stage only when no event came after it.
+  private stage(id: string, live: Live, stage: TurnStage): void {
+    if (!this.staging(id, live) || live.lastSeq === undefined) return;
+    const last = live.stage;
+    if (last && last.turnId === live.turnId && last.seq === live.lastSeq && sameStage(last.stage, stage)) return;
+    live.stageRev = (live.stageRev ?? 0) + 1;
+    const signal: StageSignal = { conversationId: id, turnId: live.turnId, seq: live.lastSeq, rev: live.stageRev, stage };
+    live.stage = signal;
+    try { this.staged(signal); } catch (error) { console.error("doan: conversation stage could not be delivered", error); }
+  }
   private stopped(live: { provider?: Provider; since: number }): boolean { return !!live.provider && (this.lastStop.get(live.provider) ?? 0) > live.since; }
   // Only a turn accepted in this run can still be running; a live entry left by a refused send is not one, and a turn an
   // earlier run left unfinished folds as crashed. Nor is a turn whose history stopped taking writes once its process is
@@ -1101,12 +1125,13 @@ export class ConversationService {
     try { this.listChanged(root); } catch (error) { console.error("doan: conversation list change could not be announced", error); }
   }
   private deliver(saved: ConversationEvent): void {
+    const live = this.live.get(saved.conversationId); if (live) live.lastSeq = saved.seq;
     try { this.publish(saved); } catch (error) { console.error("doan: persisted conversation event could not be delivered", error); }
   }
   private exited(id: string): void {
     this.reservations = releaseReservation(this.reservations, id, "process_exited");
     this.waits.get(id)?.wake();
-    const live = this.live.get(id); if (!live) return; live.exited = true; delete live.runner;
+    const live = this.live.get(id); if (!live) return; live.exited = true; delete live.runner; delete live.stage;
     if (live.failedPersistence) this.changedOf(id);
     if (!live.accepted) this.live.delete(id);
     if (live.accepted && live.busy) this.receive(id, { type: "turn.failed", code: "process_exited" });
@@ -1124,6 +1149,10 @@ export class ConversationService {
 function reason(error: unknown): string { return error instanceof Error && /^[a-z_]{1,64}$/.test(error.message) ? error.message : "unknown"; }
 function choice(source: { model?: string; effort?: string }): { model?: string; effort?: string } {
   return { ...(source.model ? { model: source.model } : {}), ...(source.effort ? { effort: source.effort } : {}) };
+}
+function sameStage(a: TurnStage, b: TurnStage): boolean {
+  if (a.kind !== "tool" || b.kind !== "tool") return a.kind === b.kind;
+  return a.activity === b.activity && a.path === b.path && a.summary === b.summary;
 }
 // Fast is stored only when on.
 function fastOf(source: { fast?: boolean }): { fast?: true } { return source.fast === true ? { fast: true } : {}; }

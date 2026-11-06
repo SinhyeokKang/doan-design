@@ -14,7 +14,7 @@ import { imageType, MAX_IMAGE_BYTES } from "../attachments";
 import type { Prepared, Runner } from "./service";
 import { questionAnswer } from "./questionAnswer";
 import type { Question } from "./question";
-import type { AttachmentRecord, EventPayload } from "./types";
+import type { AttachmentRecord, EventPayload, TurnStage } from "./types";
 const OPEN_TIMEOUT_MS = 60_000;
 // ACP stop reasons that mean the agent ran the prompt (protocol schema StopReason, minus "cancelled").
 const RAN = new Set(["end_turn", "max_tokens", "max_turn_requests", "refusal"]);
@@ -29,8 +29,9 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
   type Pending = { rpc: string | number; kind: "permission"; choices: AcpChoice[] } | { rpc: string | number; kind: "question"; question: Question; optionIds: string[] };
   const permissions = new Map<string, Pending>();
   let settle: (() => void) | undefined;
-  const apply = (result: { state: AcpTransport; events: EventPayload[] }) => {
+  const apply = (result: { state: AcpTransport; events: EventPayload[]; stage?: TurnStage }) => {
     state = result.state; for (const event of result.events) emit(event);
+    if (result.stage) input.stage?.(result.stage);
     if (state.terminal) { expire(); settle?.(); }
   };
   const expire = () => {

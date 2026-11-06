@@ -498,6 +498,18 @@ test("work and deep links expose dedicated events with independent cleanup", asy
   expect(emitter.listenerCount("deep-link:open")).toBe(0);
 });
 
+test("a conversation stage has its own event with its own cleanup, apart from conversation events", () => {
+  const stages = vi.fn(), events = vi.fn();
+  const stop = api.onConversationStage(stages), stopEvents = api.onConversationEvent(events);
+  const signal = { conversationId: "c", turnId: "t", seq: 2, rev: 1, stage: { kind: "tool" as const, activity: "read" as const, path: "a.ts", summary: "a.ts" } };
+  emitter.emit("conversation:stage", {}, signal);
+  expect(stages).toHaveBeenCalledWith(signal); expect(events).not.toHaveBeenCalled();
+  stop(); stop(); emitter.emit("conversation:stage", {}, signal);
+  expect(stages).toHaveBeenCalledOnce();
+  expect(emitter.listenerCount("conversation:stage")).toBe(0); expect(emitter.listenerCount("conversation:event")).toBe(1);
+  stopEvents();
+});
+
 test("conversation work has its own read and event with its own cleanup", async () => {
   const work = vi.fn(), terminal = vi.fn();
   const stop = api.onConversationWorkChanged(work), stopTerminal = api.onWorkChanged(terminal);

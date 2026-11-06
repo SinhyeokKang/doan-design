@@ -58,6 +58,8 @@ const mocks = await vi.hoisted(async () => {
     deletedConversation: undefined as ((id: string) => void) | undefined,
     // The callback main gave the service for a turn that can no longer take a work update.
     workEnded: undefined as ((id: string) => void) | undefined,
+    // The callback main gave the service for a running turn's stage.
+    stageConversation: undefined as ((signal: unknown) => void) | undefined,
     // The conversation service main created, so a test can pin what main asks it.
     conversationService: undefined as { list(root: string): unknown[]; projectEvidence(root: string): unknown[] } | undefined,
     preferences: { read: vi.fn(), current: vi.fn(), update: vi.fn() },
@@ -118,7 +120,7 @@ vi.mock("./conversation/drafts", async (importOriginal) => { const original = aw
 vi.mock("./conversation/service", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./conversation/service")>();
   return { ...actual, ConversationService: class extends actual.ConversationService {
-    constructor(...args: ConstructorParameters<typeof actual.ConversationService>) { super(...args); mocks.publishConversation = args[3] as never; mocks.deletedConversation = args[9] as never; mocks.workEnded = args[10] as never; mocks.conversationService = this; }
+    constructor(...args: ConstructorParameters<typeof actual.ConversationService>) { super(...args); mocks.publishConversation = args[3] as never; mocks.deletedConversation = args[9] as never; mocks.workEnded = args[10] as never; mocks.stageConversation = args[12] as never; mocks.conversationService = this; }
   } };
 });
 vi.mock("./preferences", async (importOriginal) => ({ ...await importOriginal<typeof import("./preferences")>(), createPreferencesStore: mocks.createPreferencesStore }));
@@ -1967,6 +1969,14 @@ describe("settings page", () => {
       window().isFocused.mockReturnValue(true);
       publish({ ...turnDone, seq: 3 });
       expect(mocks.Notification.instances).toHaveLength(1);
+    });
+
+    test("a stage reaches the main window on its own channel, with no notification and not as an event", () => {
+      const signal = { conversationId: "c1", turnId: "t1", seq: 2, rev: 1, stage: { kind: "thinking" } };
+      window().webContents.send.mockClear();
+      mocks.stageConversation!(signal);
+      expect(window().webContents.send.mock.calls).toEqual([["conversation:stage", signal]]);
+      expect(mocks.Notification.instances).toEqual([]);
     });
 
     test("deleting a conversation closes its notification", () => {
