@@ -73,3 +73,4 @@
 - origin/main으로 rebase했다(커밋 60개, 충돌 없음; tester-notarization은 main에 병합됐다). R1 시작: dispatch `ctx_95fb0d2c611b`, worktree `pdl-r1`, Claude Opus high. A는 공용 프로필로 tasks R1 통과 조건을, B는 새 userData와 ego 로그인으로 BC 두 계정 확인을 한다. 보고만 한다.
 - Z1 시작: dispatch `ctx_b1391ec85f0c`, worktree `pdl-z1`, Claude Opus medium(문서만). 지휘자는 결과를 검토해 통합하고, R1 결과는 BACKLOG에 직접 더한다. feature 디렉터리는 마지막에 지휘자가 지운다.
 - Z1을 통합했다(PRODUCT·ARCHITECTURE·DESIGN·BACKLOG 커밋 4개). 지휘자가 diff를 결정 기록과 맞춰 봤다. ARCHITECTURE에는 remembered-choice 절이 없어서, 고른 값만 고정하는 규칙은 PRODUCT item 0에만 적었다. Z1 worker와 worktree는 정리했다.
+- R1 B의 계정: 구계정은 ox501501@gmail.com이고 worker가 ego로 로그인한다. 구독 계정은 사람이 직접 로그인한다. worker가 교체 단계에서 로그인 URL을 ask로 보내면 지휘자가 전달한다.
