@@ -65,4 +65,4 @@
     - `/agent-eval`: 링크 2는 통합 gate에서 돌린다(F1이 skill stub 경로를 옮기므로). 링크 1은 해당하지 않는다.
     - 체인 끝 로그인 정리: 전부 남긴다. 공용 프로필 userData와 그 Keychain 항목, `.scratch/prompt-suggestion/claude-config`와 Keychain `Claude Code-credentials-dc1943d2`를 지우지 않는다.
   - 두 링크 문서의 줄 번호 인용을 `d936d157` 코드와 대조했다. model-drawer-older는 모두 맞았고, project-skill-drawer spec·design의 인용 43곳을 고쳤다(`sdk.d.ts` 0.3.312 인용은 맞음). 링크 1이 `homeComposer.ts`·`ComposerParts.tsx`·`styles.css`를 고치므로 링크 2 문서의 그 파일 인용은 링크 1 병합 뒤 다시 어긋날 수 있다. 링크 2 지휘자는 시작할 때 그 파일 인용만 다시 맞춘다.
-  - Codex 주간 한도: 가장 최근 rollout(2026-11-04)의 `rate_limits`에는 30일 창(`window_minutes` 43200, 20% 사용, plan `free`)만 있고 10080분 창이 없다. 링크 1은 작으므로 Codex 작업자를 쓰지 않는다.
+  - Codex 주간 한도: Orca가 띄우는 Codex의 rollout은 `~/.codex`가 아니라 Orca Codex 계정의 `$CODEX_HOME`(`~/Library/Application Support/orca/codex-accounts/<id>/home/sessions`)에 있다. 그 가장 최근 rollout의 10080분 창은 28% 사용(2026-11-06)이다. 사용자가 "코덱스 한도 졸라 여유로움 팡팡 써도 돼"라고 했다. 링크 1은 리뷰와 4a·4b를 Codex로 돌린다.
