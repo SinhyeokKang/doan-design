@@ -151,9 +151,13 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
     if (!resume && !object(initialized)) throw new Error("Malformed initialize result");
     write({ method: "initialized" });
     if (list) {
-      return { sessionId: "", models: async () => ({ models: parseCodexModels(await dispatcher.request("model/list", {})) }),
+      // A list request runs after this try, so it names its failure as the handshake's catch below does.
+      const listed = async <T>(read: () => Promise<T>): Promise<T> => {
+        try { return await read(); } catch (error) { throw new Error(dead ? "process_exited" : transportError(error instanceof Error ? error.message : "")); }
+      };
+      return { sessionId: "", models: () => listed(async () => ({ models: parseCodexModels(await dispatcher.request("model/list", {})) })),
         // forceReload: a skill added since this app-server's cache was filled is listed (the person or an agent just made it).
-        skills: async () => parseCodexSkills(await dispatcher.request("skills/list", { cwds: [input.cwd], forceReload: true })), send: async () => { throw new Error("session_unavailable"); }, steer: async () => { throw new Error("not_running"); }, answer: () => false, stop: async () => { await group?.stop(); }, close: async () => { dispatcher.close(); await group?.stop(); } };
+        skills: () => listed(async () => parseCodexSkills(await dispatcher.request("skills/list", { cwds: [input.cwd], forceReload: true }))), send: async () => { throw new Error("session_unavailable"); }, steer: async () => { throw new Error("not_running"); }, answer: () => false, stop: async () => { await group?.stop(); }, close: async () => { dispatcher.close(); await group?.stop(); } };
     }
     const result = await judgedStep(dispatcher.request(resume ? "thread/resume" : "thread/start", resume ? { threadId: input.sessionId } : { cwd: input.cwd }), reply => { if (!resume) judge(codexThreadStart(reply)); });
     if (!object(result) || !object(result.thread) || typeof result.thread.id !== "string" || !result.thread.id) throw new Error("session_unavailable");

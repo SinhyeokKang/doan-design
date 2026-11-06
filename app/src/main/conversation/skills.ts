@@ -38,29 +38,40 @@ export function parseClaudeSkills(commands: unknown): SkillSummary[] {
 // lists SKILL.md files Codex could not read; those are simply not offered.
 export function parseCodexSkills(result: unknown): SkillSummary[] {
   if (!record(result) || !Array.isArray(result.data)) throw new Error("session_unavailable");
-  return limited(result.data.filter(record).flatMap(folder => Array.isArray(folder.skills) ? folder.skills.filter(record) : [])
+  // A folder without its skills list is a broken answer; only single rows that do not fit are dropped.
+  if (!result.data.every(folder => record(folder) && Array.isArray(folder.skills))) throw new Error("session_unavailable");
+  return limited((result.data as Record<string, unknown[]>[]).flatMap(folder => folder.skills!.filter(record))
     .filter(s => s.scope === "repo" && s.enabled !== false && s.pluginId == null && name(s.name))
     .map(s => ({ name: s.name as string, description: typeof s.description === "string" ? firstLine(s.description) : "" })));
 }
 
-// Skills change in the repository while the app runs, so unlike ModelCatalog this keeps a list only briefly: a folder
-// and provider are read at most once in this window, and every list opening asks again after it.
+function free(input: Prepared): void {
+  void input.release?.().catch(error => console.error("doan: account lease release failed", error));
+}
+// Skills change in the repository while the app runs, so unlike ModelCatalog this keeps a list only briefly: a key is
+// read at most once in this window, and every list opening asks again after it.
 const FRESH_MS = 30_000;
-// Lists for Claude and Codex; the other providers answer an empty list without opening anything. A read in flight is
-// shared, so composers drawn together open the provider once. A failure passes its error on (the ipc maps it to a start
-// code) and records no time, so the next request reads again; the host keeps showing the last list it received.
+// Lists for Claude and Codex; the other providers answer an empty list without opening anything. As in ModelCatalog,
+// every request prepares under its own lease, which reads the connection and installed version that key the list
+// (POSTMORTEM 2026-11-06): a sign-out fails the request and a reconnection reads again inside the window, and a read
+// begun under the previous connection fills only that connection's key. A request served from a list or from a read in
+// flight frees its lease at once; the shared read keeps the lease of the request that started it. A failure passes its
+// error on (the ipc maps it to a start code) and records no time, so the next request reads again; the host keeps
+// showing the last list it received.
 export class SkillCatalog {
   private last = new Map<string, { skills: SkillSummary[]; at: number }>();
   private reading = new Map<string, Promise<SkillSummary[]>>();
   constructor(private prepare: (root: string, provider: Provider) => Promise<Prepared>, private list: (input: Prepared) => Promise<SkillSummary[]>, private now: () => number = Date.now) {}
   async skills(root: string, provider: Provider): Promise<{ skills: SkillSummary[] }> {
     if (provider !== "claude" && provider !== "codex") return { skills: [] };
-    const key = JSON.stringify([root, provider]);
+    const input = await this.prepare(root, provider);
+    const key = JSON.stringify([root, provider, input.owner?.connectionId ?? "", input.installed ?? ""]);
     const last = this.last.get(key);
-    if (last && this.now() - last.at < FRESH_MS) return { skills: last.skills };
+    if (last && this.now() - last.at < FRESH_MS) { free(input); return { skills: last.skills }; }
     let reading = this.reading.get(key);
-    if (!reading) {
-      const started = (async () => this.list(await this.prepare(root, provider)))();
+    if (reading) free(input);
+    else {
+      const started = this.list(input);
       reading = started; this.reading.set(key, started);
       const done = () => { if (this.reading.get(key) === started) this.reading.delete(key); };
       started.then(skills => { this.last.set(key, { skills, at: this.now() }); done(); }, done);

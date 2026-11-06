@@ -102,13 +102,20 @@ describe("parseCodexSkills", () => {
       ], errors: [{ path: "/r/.agents/skills/broken/SKILL.md", message: "missing YAML frontmatter delimited by ---" }] },
     ] })).toEqual([{ name: "no-flag", description: "no-flag." }, { name: "kept", description: "kept." }]);
   });
-  it("unwraps every folder's list, keeps the first row of a name and skips malformed entries", () => {
+  it("unwraps every folder's list, keeps the first row of a name and skips invalid skill rows", () => {
     expect(parseCodexSkills({ data: [
       { cwd: "/r", skills: [{ name: "a", description: "A first.", scope: "repo" }, { name: "two words", description: "x", scope: "repo" }, "row"] },
-      { cwd: "/r/sub", skills: "none" },
-      "folder",
+      { cwd: "/r/sub", skills: [] },
       { cwd: "/r/other", skills: [{ name: "a", description: "A again.", scope: "repo" }, { name: "b", scope: "repo" }] },
     ] })).toEqual([{ name: "a", description: "A first." }, { name: "b", description: "" }]);
+    expect(parseCodexSkills({ data: [{ cwd: "/r", skills: [], errors: [] }] })).toEqual([]);
+  });
+  // A folder without its skills list is a broken answer, not an empty folder: an empty success would replace the list
+  // the host shows and be kept as fresh.
+  it("refuses an answer with a folder entry that has no skills list", () => {
+    const good = { cwd: "/r", skills: [{ name: "a", description: "A.", scope: "repo" }] };
+    for (const folder of [{ cwd: "/r/sub", skills: null }, {}, { cwd: "/r/sub", skills: "none" }, { cwd: "/r/sub", skills: {} }, "folder", null])
+      expect(() => parseCodexSkills({ data: [good, folder] }), JSON.stringify(folder)).toThrow("session_unavailable");
   });
   it("applies the same description and row limits", () => {
     const skills = Array.from({ length: 250 }, (_, i) => ({ name: `s${i}`, description: `${"d".repeat(300)}\nmore`, scope: "repo", enabled: true }));
@@ -125,9 +132,12 @@ describe("SkillCatalog", () => {
   const DEPLOY: SkillSummary[] = [{ name: "deploy", description: "Ship." }];
   function catalog(read: (input: Prepared) => Promise<SkillSummary[]> = async () => DEPLOY) {
     let clock = 1_000_000;
-    const prepare = vi.fn(async (root: string, provider: Prepared["runtime"]): Promise<Prepared> => ({ runtime: provider, configDir: "/p", cwd: root, command: "/fake", env: {} }));
+    let connectionId = "conn-a", installed = "1.0.0";
+    const release = vi.fn(async () => {});
+    const owner = (id: string) => ({ kind: "doan" as const, provider: "claude" as const, connectionId: id, accountId: "acct", workspaceId: "org", profile: "p" });
+    const prepare = vi.fn(async (root: string, provider: Prepared["runtime"]): Promise<Prepared> => ({ runtime: provider, configDir: "/p", cwd: root, command: "/fake", env: {}, owner: owner(connectionId), installed, release }));
     const list = vi.fn(read);
-    return { catalog: new SkillCatalog(prepare, list, () => clock), prepare, list, advance: (ms: number) => { clock += ms; } };
+    return { catalog: new SkillCatalog(prepare, list, () => clock), prepare, list, release, advance: (ms: number) => { clock += ms; }, connect: (id: string) => { connectionId = id; }, install: (version: string) => { installed = version; } };
   }
   it("answers an empty list for the ACP providers without opening anything", async () => {
     const h = catalog();
@@ -158,7 +168,62 @@ describe("SkillCatalog", () => {
     await vi.waitFor(() => expect(h.list).toHaveBeenCalledOnce());
     finish(DEPLOY);
     expect(await Promise.all([first, second])).toEqual([{ skills: DEPLOY }, { skills: DEPLOY }]);
-    expect(h.prepare).toHaveBeenCalledOnce();
+    // Each request prepares (that reads the connection the key needs); the one that shares the read frees its lease.
+    expect(h.prepare).toHaveBeenCalledTimes(2);
+    expect(h.release).toHaveBeenCalledOnce();
+  });
+  it("frees the lease of a request answered from the last list", async () => {
+    const h = catalog();
+    await h.catalog.skills("/repo", "claude");
+    expect(h.release).not.toHaveBeenCalled();
+    await h.catalog.skills("/repo", "claude");
+    expect(h.list).toHaveBeenCalledOnce();
+    expect(h.release).toHaveBeenCalledOnce();
+  });
+  it("reads again after TTL when the answer turned malformed, and again at once after that failure", async () => {
+    let answer: unknown = { data: [{ cwd: "/repo", skills: [{ name: "deploy", description: "Ship.", scope: "repo" }] }] };
+    const h = catalog(async () => parseCodexSkills(answer));
+    expect(await h.catalog.skills("/repo", "codex")).toEqual({ skills: DEPLOY });
+    h.advance(30_000);
+    answer = { data: [{ cwd: "/repo", skills: null }] };
+    await expect(h.catalog.skills("/repo", "codex")).rejects.toThrow("session_unavailable");
+    answer = { data: [{ cwd: "/repo", skills: [] }] };
+    expect(await h.catalog.skills("/repo", "codex")).toEqual({ skills: [] });
+    expect(h.list).toHaveBeenCalledTimes(3);
+  });
+  // POSTMORTEM 2026-11-06: a value read for a connection is keyed by it, so a sign-out or reconnection inside the window
+  // is not answered from the previous connection's list.
+  it("reads again within 30 seconds when the connection changed, and passes a sign-out's error on", async () => {
+    const h = catalog();
+    expect(await h.catalog.skills("/repo", "claude")).toEqual({ skills: DEPLOY });
+    h.prepare.mockRejectedValueOnce(new Error("not_logged_in"));
+    await expect(h.catalog.skills("/repo", "claude")).rejects.toThrow("not_logged_in");
+    h.connect("conn-b");
+    h.list.mockResolvedValueOnce([{ name: "other", description: "" }]);
+    expect(await h.catalog.skills("/repo", "claude")).toEqual({ skills: [{ name: "other", description: "" }] });
+    expect(h.list).toHaveBeenCalledTimes(2);
+  });
+  it("reads again when the installed version changed", async () => {
+    const h = catalog();
+    await h.catalog.skills("/repo", "codex");
+    h.install("0.167.0");
+    await h.catalog.skills("/repo", "codex");
+    expect(h.list).toHaveBeenCalledTimes(2);
+  });
+  it.each(["old first", "new first"] as const)("keeps a read under the previous connection out of the new one's list (%s)", async order => {
+    const finish: Record<string, (skills: SkillSummary[]) => void> = {};
+    const h = catalog(input => new Promise(resolve => { finish[input.owner!.connectionId] = resolve; }));
+    const old = h.catalog.skills("/repo", "claude");
+    await vi.waitFor(() => expect(finish["conn-a"]).toBeDefined());
+    h.connect("conn-b");
+    const current = h.catalog.skills("/repo", "claude");
+    await vi.waitFor(() => expect(finish["conn-b"]).toBeDefined());
+    const OLD = [{ name: "old", description: "" }], NEW = [{ name: "new", description: "" }];
+    if (order === "old first") { finish["conn-a"]!(OLD); finish["conn-b"]!(NEW); } else { finish["conn-b"]!(NEW); finish["conn-a"]!(OLD); }
+    expect(await old).toEqual({ skills: OLD });
+    expect(await current).toEqual({ skills: NEW });
+    expect(await h.catalog.skills("/repo", "claude")).toEqual({ skills: NEW });
+    expect(h.list).toHaveBeenCalledTimes(2);
   });
   it("passes a failure on and reads again at once on the next request", async () => {
     const h = catalog();

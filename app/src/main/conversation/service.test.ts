@@ -551,7 +551,7 @@ it("frees the lease at once when a model-list read fails before anything spawned
 });
 
 // project-skill-drawer C1: a project skill read takes the model list's lease path (POSTMORTEM 2026-10-28, 2026-10-30).
-it("reads project skills as a listing that a sign-out stops without asking and that no send waits for", async () => {
+it("prepares a project skill read as a listing that stopRuns stops, and a send after the previous run's exit is not refused while it reads", async () => {
   const h = homeFixture();
   const id = (await h.service.start(homeRequest)).conversationId;
   h.service.receive(id, { type: "turn.done" });

@@ -361,6 +361,7 @@ readline.createInterface({input:process.stdin}).on('line', line => {
  fs.appendFileSync(${JSON.stringify(join(root, "seen"))}, line + '\\n');
  const r = JSON.parse(line);
  if(r.method==='initialize') send({id:r.id,result:{userAgent:'fake'}});
+ if((r.method==='model/list'||r.method==='skills/list')&&process.env.FAKE_LIST_ERROR) { send({id:r.id,error:{code:-32603,message:process.env.FAKE_LIST_ERROR}}); return; }
  if(r.method==='model/list') send({id:r.id,result:{data:[{id:'gpt-6-luna',displayName:'GPT-6-Luna',isDefault:true,hidden:false,supportedReasoningEfforts:[{reasoningEffort:'low'},{reasoningEffort:'high'}]}],nextCursor:null}});
  if(r.method==='skills/list') send({id:r.id,result:{data:[{cwd:r.params.cwds[0],skills:[{name:'migrate',description:'Run migrations.',path:'/r/.agents/skills/migrate/SKILL.md',scope:'repo',enabled:true,pluginId:null},{name:'mine',description:'Own.',path:'/h/.agents/skills/mine/SKILL.md',scope:'user',enabled:true,pluginId:null}],errors:[]}]}});
  if(r.method==='thread/start') send({id:r.id,result:{thread:{id:'session'},approvalPolicy:'on-request',sandbox:{type:'readOnly'}}});
@@ -389,6 +390,30 @@ it("lists Codex project skills with skills/list for the folder and starts no thr
     expect(requests.map(r => r.method)).toEqual(["initialize", "initialized", "skills/list"]);
     expect(requests[2]!.params).toEqual({ cwds: [root], forceReload: true });
     await vi.waitFor(() => expect(release).toHaveBeenCalledOnce());
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+// Fix round 1 (RA 🟡2): a list request after initialize fails with the same codes as the handshake did.
+it.each([["authentication required", "not_logged_in"], ["rate limit exceeded", "rate_limited"], ["something odd", "unknown"]])("names a Codex list request's RPC error %s as %s", async (message, code) => {
+  const root = mkdtempSync(join(tmpdir(), "doan-codex-list-error-")), command = listingCodex(root);
+  try {
+    const env = { ...process.env, FAKE_LIST_ERROR: message };
+    await expect(listModels({ command, runtime: "codex", cwd: root, configDir: root, env }, () => {}, () => {})).rejects.toThrow(new RegExp(`^${code}$`));
+    await expect(listSkills({ command, runtime: "codex", cwd: root, configDir: root, env }, () => {}, () => {})).rejects.toThrow(new RegExp(`^${code}$`));
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+it("names a Codex list request that loses its server process_exited", async () => {
+  const root = mkdtempSync(join(tmpdir(), "doan-codex-list-exit-")), command = join(root, "codex");
+  writeFileSync(command, `#!/usr/bin/env node
+const readline = require('node:readline');
+readline.createInterface({input:process.stdin}).on('line', line => {
+ const r = JSON.parse(line);
+ if(r.method==='initialize') process.stdout.write(JSON.stringify({id:r.id,result:{userAgent:'fake'}})+'\\n');
+ if(r.method==='skills/list'||r.method==='model/list') process.exit(3);
+});
+`, { mode: 0o700 });
+  try {
+    await expect(listSkills({ command, runtime: "codex", cwd: root, configDir: root, env: process.env }, () => {}, () => {})).rejects.toThrow(/^process_exited$/);
+    await expect(listModels({ command, runtime: "codex", cwd: root, configDir: root, env: process.env }, () => {}, () => {})).rejects.toThrow(/^process_exited$/);
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 it("reads no skills for the ACP providers", async () => {
