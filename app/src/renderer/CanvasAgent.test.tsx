@@ -22,17 +22,28 @@ const LINE = (text: string, caret = '<span class="doan-agent-caret"></span>') =>
 const MEASURE = '<span class="doan-agent-measure" aria-hidden="true"></span>';
 // Without an indicator the column stays, empty, for the canvas notices.
 const COLUMN = '<div class="doan-canvas-top"></div>';
+// Doany the artist in the notice's mark slot (.doan/canvases/doany-artist.html): the painting GIF while the agent
+// works, its first frame when still (waiting, a hidden workspace) and, through the picture source, under reduced motion.
+const ARTIST = '<span class="doan-agent-artist" aria-hidden="true"><picture><source srcSet="doany/artist-rest.png" media="(prefers-reduced-motion: reduce)"/><img src="doany/artist-painting.gif" alt=""/></picture></span>';
+const ARTIST_STILL = '<span class="doan-agent-artist" aria-hidden="true"><picture><source srcSet="doany/artist-rest.png" media="(prefers-reduced-motion: reduce)"/><img src="doany/artist-rest.png" alt=""/></picture></span>';
 const tag = (html: string, pattern: string) => html.match(new RegExp(`<[a-z0-9]+[^>]*${pattern}[^>]*>`))?.[0] ?? "";
 
 describe("CanvasAgent", () => {
-  test("working: the edge glow with the dot field, and the notice with the moving dot, the label and Stop", () => {
+  test("a hidden workspace keeps Doany on the first frame, as the dot field pauses, in every notice", () => {
+    expect(markup([summary({})], { running: false })).toContain('<div class="doan-agent">' + ARTIST_STILL);
+    const work = [{ touched: 0, turn: "none:t", session: "s1", provider: "codex" as const, root: "/w/a", path: canvas.path }];
+    expect(markup([], { work, running: false })).toContain('<div class="doan-agent doan-agent-terminal">' + ARTIST_STILL);
+  });
+
+  test("working: the edge glow with the dot field, and the notice with Doany painting, the label and Stop", () => {
     const html = markup([summary({})]);
     const glow = tag(html, 'class="doan-agent-glow"');
     expect(glow).toContain('aria-hidden="true"');
     expect(html).toMatch(/<div class="doan-agent-glow"[^>]*><canvas class="doan-agent-dots"><\/canvas><\/div>/);
     expect(html).toContain('class="doan-canvas-top"');
     expect(tag(html, 'class="doan-agent"')).toBeTruthy();
-    expect(html).toMatch(/<span class="doan-agent-dot" aria-hidden="true"><\/span>/);
+    expect(html).toContain('<div class="doan-agent">' + ARTIST);
+    expect(html).not.toContain("doan-agent-dot\"");
     // Only the wording is the live region: the button's name is not announced with it.
     expect(html).toContain('<span class="sr-only" role="status">Agent is working</span>');
     expect(html.match(/role="status"/g)).toHaveLength(1);
@@ -47,9 +58,9 @@ describe("CanvasAgent", () => {
     expect(glyph).toContain('fill="currentColor"');
   });
 
-  test("waiting: a still dot, 'needs your answer' and Open named for the request; no Stop", () => {
+  test("waiting: Doany still on the first frame, 'needs your answer' and Open named for the request; no Stop", () => {
     const html = markup([summary({ phase: "waiting" })]);
-    expect(html).toContain('class="doan-agent-dot" data-steady=""');
+    expect(html).toContain('<div class="doan-agent">' + ARTIST_STILL);
     expect(html).toContain("Agent needs your answer");
     expect(tag(html, 'aria-label="Open the request"')).toMatch(/^<button/);
     // Open has no glyph.
@@ -75,11 +86,11 @@ describe("CanvasAgent", () => {
 
   // terminal-agent-activity (draft terminal-notice, user decision D1): a terminal session shows the glow, the dot field
   // and the app notice's text with no button; the text is the status itself.
-  test("a terminal session: the glow and the notice with its moving dot and text, and no button", () => {
+  test("a terminal session: the glow and the notice with Doany painting and text, and no button", () => {
     const work = [{ touched: 0, turn: "none:t", session: "s1", provider: "codex" as const, root: "/w/a", path: canvas.path }];
     const html = markup([], { work });
     expect(html).toMatch(/<div class="doan-agent-glow"[^>]*><canvas class="doan-agent-dots"><\/canvas><\/div>/);
-    expect(html).toContain('<div class="doan-agent doan-agent-terminal"><span class="doan-agent-dot" aria-hidden="true"></span>' + LINE("Agent is working") + MEASURE + '<span class="sr-only" role="status">Agent is working</span></div>');
+    expect(html).toContain('<div class="doan-agent doan-agent-terminal">' + ARTIST + LINE("Agent is working") + MEASURE + '<span class="sr-only" role="status">Agent is working</span></div>');
     expect(html).not.toContain("<button");
     // Another worktree's session on the same path shows nothing here.
     expect(markup([], { work: [{ ...work[0]!, root: "/w/b" }] })).toBe(COLUMN);
@@ -107,7 +118,7 @@ describe("CanvasAgent", () => {
       expect(html).not.toContain("doan-agent-glow");
       const notice = tag(html, 'class="doan-agent doan-agent-sibling"');
       expect(notice).toMatch(/^<div/);
-      expect(html).toMatch(/<span class="doan-agent-dot" aria-hidden="true"><\/span>/);
+      expect(html).toContain('<div class="doan-agent doan-agent-sibling">' + ARTIST);
       expect(tag(html, 'class="doan-agent-text"')).toContain('role="status"');
       expect(html).toMatch(/class="doan-agent-text"[^>]*>Agent is working in feat\/checkout-copy<\/span>/);
       expect(html.match(/role="status"/g)).toHaveLength(1);
@@ -387,5 +398,25 @@ describe("typing across a canvas or visibility boundary", () => {
     vi.advanceTimersByTime(1000);
     expect(shown.at(-1)).toEqual({ text: "Other", minWidth: null, typing: false });
     expect(shown.filter(state => state.typing).length).toBeGreaterThan(1);
+  });
+});
+
+// .doan/canvases/doany-artist.html: a 32px window in the 40px card, the card's start inset 8px beside it.
+describe("Doany the artist", () => {
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  test("the artist window is 32px, the notice starts 8px from it, and no dot rule is left", () => {
+    expect(css).toMatch(/\.doan-agent-artist \{[^}]*width: var\(--size-control-sm\); height: var\(--size-control-sm\);/);
+    expect(css).toMatch(/\.doan-agent:has\(> \.doan-agent-artist\) \{ padding-left: var\(--space-2\); \}/);
+    expect(css).not.toContain(".doan-agent-dot");
+    // A capture leaves the notice out, Doany included.
+    expect(css).toMatch(/\[data-capture-snapshot\] :is\([^)]*\.doan-agent-artist/);
+  });
+
+  test("the artwork is 128 x 128, four times the window", () => {
+    const png = readFileSync(new URL("./public/doany/artist-rest.png", import.meta.url));
+    expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([128, 128]);
+    const gif = readFileSync(new URL("./public/doany/artist-painting.gif", import.meta.url));
+    expect(gif.subarray(0, 6).toString("ascii")).toBe("GIF89a");
+    expect([gif.readUInt16LE(6), gif.readUInt16LE(8)]).toEqual([128, 128]);
   });
 });
