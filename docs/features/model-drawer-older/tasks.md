@@ -18,7 +18,7 @@
    - 검증: `/design-sync` 보고와 docs/DESIGN.md 측정값 기록.
 
 4b. **`/runtime-test`** — build한 앱을 격리해 띄우고, main의 `conversation:models` handler를 task 1 fixture를 돌려주는 handler로 바꾼다(`ipcMain.removeHandler` 뒤 `handle`. 선례: `.scratch/design-sync/buzz-shell/retired-e2e/*.ts`, DESIGN.md의 picker-default-labels 측정). Home·Overview·canvas 패널·docked·Settings에서 다음을 본다.
-   - 접힘·펼침·다시 접힘, 메뉴가 닫히지 않음, 키보드(Enter·Space·→·←, 포커스 유지, ↓로 첫 이전 행), 접근 이름과 `aria-expanded`.
+   - 접힘·펼침·다시 접힘, 메뉴가 닫히지 않음, 키보드(Enter·Space·→·←, 포커스 유지, 위로 열린 메뉴는 ↑·Settings는 ↓로 줄에 가장 가까운 이전 행), 접근 이름과 `aria-expanded`.
    - 줄 자리 고정: 토글 전후 줄의 viewport top이 같은지(provider 여럿, 스크롤 범위 있음). 스크롤 범위가 없는 경우(Codex 하나만 연결해 4행을 펼침)에 줄이 얼마나 움직이는지 재서 기록한다.
    - 이전 모델을 고르면 트리거가 그 이름을 보이고, 다시 열면 그 그룹이 펼친 채 체크된 행이 보임. 고른 뒤 보내기는 전송 IPC(`conversation:start`/`send`) 인자에 이전 모델 ID가 실리는지로 판정한다(실제 provider로 보내지 않는다).
    - Overview는 펼친 메뉴가 그려지는지 스크린샷으로 판정한다(POSTMORTEM 'Overview's model and effort pickers did not open', `elementFromPoint`를 근거로 삼지 않음).
