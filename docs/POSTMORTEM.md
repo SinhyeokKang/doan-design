@@ -19,7 +19,7 @@
 - **Area**: `eval/lib/socket-app.test.ts`, `app/src/main/agentAuth/state.ts` (`authStatus`).
 - **Symptom**: `node .agents/skills/verify/scripts/verify.mjs --eval` failed at eval-tests (303/304) on main: the fake app's provider status no longer deep-equalled `authStatus` because main `00302c30` added `generation` to it.
 - **Root cause**: the test derives the expected fake status by removing a hand-written list of app-only keys (`account`, `attempt`, `revision`) from the real DTO, so any new app-only field fails the comparison. The change that added the field did not touch `eval/` and did not run `--eval`, which `/verify` only adds for eval runner changes.
-- **Net**: found by the next `--eval` gate run (local-doan-files batch G); the app's own tests and the gate without `--eval` passed.
+- **Net**: found by the next `--eval` gate run, in the PR that added Doan files storage; the app's own tests and the gate without `--eval` passed.
 - **Prevention**: a change to an agent-auth or onboarding DTO runs `verify.mjs --eval`, since the eval fake mirrors those shapes. Search: `rg -n "const \{ [a-zA-Z]+: _[a-zA-Z]*" eval --glob '*.test.ts'` (2026-11-07: only `socket-app.test.ts`, now also stripping `generation`).
 
 ### 2026-11-07 — The streaming reply's caret sat on its own line under the Markdown
