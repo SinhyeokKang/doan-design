@@ -1,0 +1,1 @@
+Run doan init for this repository, with no token CSS. Keep all Doan files out of Git on this Mac only; Doan may add the local setup files it needs. Do not commit anything. Tell me what changed and whether Git sees the Doan files.
