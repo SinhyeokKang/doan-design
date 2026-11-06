@@ -19,16 +19,17 @@
 4. guide 크기: `doan skill` 출력은 약 20,696 B, 예산은 21,600 B(`cli/internal/cli/skill_test.go`)다. T6 변경은 약 900 B 안에 들어가야 하고, 넘으면 다른 곳을 줄인다. 예산 자체는 올리지 않는다.
 5. `/runtime-test`와 `/design-sync`는 실제 CLI의 `--storage`가 필요하므로 G와 A를 둘 다 통합한 뒤 A worker의 후속 Task로 돈다.
 6. `/agent-eval`(T6)은 CLI만 쓰므로 G worker가 자기 branch에서 `npm --prefix app run package` 뒤 돈다.
-7. 모델: 구현은 Claude, 독립 리뷰는 Codex `gpt-6-astra` medium(교차 리뷰, 사용자 상시 권한과 memory의 혼합 방식).
+7. 모델(사용자 결정, 2026-11-07, Claude 7일 사용량 84%·Codex 주간 42%를 보고): G는 Codex `gpt-6-astra` medium, A는 Claude Opus high다. 리뷰는 구현과 다른 계열이다(F·A는 Codex `gpt-6-astra` medium, G는 Claude Sonnet high).
+8. F 리뷰 🟡 1(구 CLI의 plain inspect가 이미 로컬인 프로젝트의 응답을 읽지 못함): 응답의 `storage`는 요청에 `storage`가 있을 때만 싣고, 새 CLI는 `--storage`가 주어졌을 때만 보낸다. 근거: ARCHITECTURE §4 'update stays in v3'(새 앱은 이전 요청을 모두 받는다). 지휘자 판단.
 
 ## 배치
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | gate | 상태 |
 |---|---|---|---|---|---|---|
-| F | T1 | `schema/app-socket.v2.schema.json`, `schema/fixtures/app-socket-v2/`, `app/src/formats/types.ts`의 onboarding 형식, 두 쪽 fixture 테스트, Go 쪽 v2 형식 정의(필요하면) | 없음 | Claude Sonnet high — 형식 하나지만 이전 CLI·앱과의 호환(`additionalProperties: false`)을 판단해야 한다 | `go test ./...`, `go vet ./...`, `npm --prefix app test`, typecheck | 대기 |
-| G | T2, T3, T6 | `cli/**`(skill.md 포함), 필요하면 `eval/scenarios/` 새 시나리오, `docs/USABILITY-EVAL.md`의 기록 | F 통합 | Claude Opus high — 파일 경쟁·링크·원자적 쓰기가 틀리면 사용자 저장소를 망친다 | `go test ./...`, `go vet ./...`, `/agent-eval` O1,O2,O3,O3b × claude,codex, eval을 바꾸면 `verify.mjs --eval` | 대기 |
+| F | T1 | `schema/app-socket.v2.schema.json`, `schema/fixtures/app-socket-v2/`, `app/src/formats/types.ts`의 onboarding 형식, 두 쪽 fixture 테스트, Go 쪽 v2 형식 정의(필요하면) | 없음 | Claude Sonnet high — 형식 하나지만 이전 CLI·앱과의 호환(`additionalProperties: false`)을 판단해야 한다 | `go test ./...`, `go vet ./...`, `npm --prefix app test`, typecheck | 통합 |
+| G | T2, T3, T6 | `cli/**`(skill.md 포함), 필요하면 `eval/scenarios/` 새 시나리오, `docs/USABILITY-EVAL.md`의 기록 | F 통합 | Codex gpt-6-astra medium — 파일 경쟁·링크·원자적 쓰기가 틀리면 사용자 저장소를 망친다. 판단이 많아 Astra(결정 7) | `go test ./...`, `go vet ./...`, `/agent-eval` O1,O2,O3,O3b × claude,codex, eval을 바꾸면 `verify.mjs --eval` | 대기 |
 | A | T4, T5 | `app/src/main/**`, `app/src/renderer/**`, `app/src/preload/**`(F가 고친 `types.ts` 부분 제외) | F 통합. runtime-test·design-sync는 G 통합 뒤 | Claude Opus high — 셋업 경로 네 곳, 잠금·focus·다시 읽기 규칙이 얽혀 있다 | `npm --prefix app test`, typecheck, build; 후속 `/runtime-test`, `/design-sync` | 대기 |
-| R-F, R-G, R-A | 각 배치 `/code-review` | 보고만 | 해당 배치 완료 | Codex gpt-6-astra medium — 다른 계열의 판단 리뷰 | 🔴 0 | 대기 |
+| R-F, R-G, R-A | 각 배치 `/code-review` | 보고만 | 해당 배치 완료 | R-F·R-A는 Codex gpt-6-astra medium, R-G는 Claude Sonnet high — 구현과 다른 계열의 판단 리뷰 | 🔴 0 | 대기 |
 | T7 | 문서 승격, 디렉터리 삭제 | `docs/**`, README | 모든 배치 통합 | 지휘자 | `verify.mjs`(필요하면 `--eval`), `rg -n "local-doan-files" docs app cli .agents eval AGENTS.md` 없음 | 대기 |
 
 T0(초안)은 끝났다(사용자 확정).
@@ -39,3 +40,5 @@ T0(초안)은 끝났다(사용자 확정).
 - G 통합 + A 통합 → A 후속(`/runtime-test`, `/design-sync`) → T7 → 통합 `/verify` → push·PR → merge.
 
 ## 진행 기록
+
+- F: Sonnet high, `4ab12aaa`·`116e6075`, gate 전부 exit 0. R-F(Codex Astra medium): 🔴0 🟡1 → 수정 1회차 `5b8551c8`(gate exit 0). 통합: `aeca3488`·`c905e26c`·`b25b1e4b`.
