@@ -74,3 +74,4 @@
 - Z1 시작: dispatch `ctx_b1391ec85f0c`, worktree `pdl-z1`, Claude Opus medium(문서만). 지휘자는 결과를 검토해 통합하고, R1 결과는 BACKLOG에 직접 더한다. feature 디렉터리는 마지막에 지휘자가 지운다.
 - Z1을 통합했다(PRODUCT·ARCHITECTURE·DESIGN·BACKLOG 커밋 4개). 지휘자가 diff를 결정 기록과 맞춰 봤다. ARCHITECTURE에는 remembered-choice 절이 없어서, 고른 값만 고정하는 규칙은 PRODUCT item 0에만 적었다. Z1 worker와 worktree는 정리했다.
 - R1 B의 계정: 구계정은 ox501501@gmail.com이고 worker가 ego로 로그인한다. 구독 계정은 사람이 직접 로그인한다. worker가 교체 단계에서 로그인 URL을 ask로 보내면 지휘자가 전달한다.
+- 사람의 정정: ox501501@gmail.com은 구독 계정이다. 확인 방향은 상관없으므로, 구독 계정(ego 로그인)에서 구계정(사람 로그인)으로 바꾼다.
