@@ -330,3 +330,18 @@ describe("handoff events in event v1", () => {
     }
   });
 });
+
+
+describe("Fast metadata", () => {
+  it("round-trips true without changing index version or adding Fast to older entries", () => {
+    const f = seed(); const store = new ConversationStore(f.root);
+    const fast = { ...owned("fast"), fast: true as const };
+    store.save([fast, owned("old")]);
+    expect(new ConversationStore(f.root).list()).toEqual([fast, owned("old")]);
+    expect(JSON.parse(readFileSync(f.index, "utf8")).v).toBe(2);
+    expect(new ConversationStore(f.root).list()[1]).not.toHaveProperty("fast");
+  });
+  it.each(["yes", false, null, 1, {}])("rejects invalid Fast metadata: %j", fast => {
+    expect(parseIndex(JSON.stringify({ v: 2, conversations: [{ ...owned("bad"), fast }] }))).toEqual({ ok: false, code: "invalid" });
+  });
+});

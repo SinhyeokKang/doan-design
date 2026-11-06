@@ -40,6 +40,7 @@ export interface HandoffOrigin { kind: "handoff"; conversationId: string; canvas
 // reason: a judgement's reason (handoff.ts HandoffReason) or the refused start's code. target sits in its own object
 // because the event's envelope already has a conversationId, the history's own.
 export type HandoffResolution = { outcome: "started"; target: { conversationId: string; canvas: Canvas } } | { outcome: "refused"; reason: string } | { outcome: "cancelled" };
+export type FastUnusedReason = "plan" | "extra_usage" | "model" | "policy" | "cooldown";
 export type EventPayload =
   | { type: "user.message"; text: string; anchors: Anchor[]; attachments?: AttachmentRecord[]; origin?: HandoffOrigin }
   | { type: "turn.started" }
@@ -50,6 +51,7 @@ export type EventPayload =
   | { type: "permission.resolved"; requestId: string; optionId: string }
   | QuestionRequest
   | QuestionResolved
+  | { type: "fast.unused"; reason?: FastUnusedReason; turnedOff?: true }
   | { type: "context.usage"; used: number; size: number }
   | { type: "turn.done" }
   | { type: "turn.failed"; code: FailureCode; detail?: string }
