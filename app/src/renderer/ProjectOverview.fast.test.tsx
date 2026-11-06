@@ -67,8 +67,8 @@ const REQUEST = { text: "Go", anchors: [], attachments: [] };
 const KEY = `conversation:${A}`;
 
 test("an existing conversation shows its stored Fast, kept while a model without Fast is chosen", () => {
-  expect(render([summary({ fast: true })], A).composer.picker.effort).toMatchObject({ ariaLabel: "Effort: Default, Fast on", fast: { on: true } });
-  expect(render([summary()], A).composer.picker.effort).toMatchObject({ ariaLabel: "Effort: Default, Fast off", fast: { on: false } });
+  expect(render([summary({ fast: true })], A).composer.picker.effort).toMatchObject({ ariaLabel: "Effort: default, Fast on", fast: { on: true } });
+  expect(render([summary()], A).composer.picker.effort).toMatchObject({ ariaLabel: "Effort: default, Fast off", fast: { on: false } });
   const sonnet = render([summary({ fast: true })], A, {}, support => support.pick(KEY, { model: "sonnet" }));
   expect(sonnet.composer.picker.effort?.fast).toBeNull();
   expect(render([summary({ fast: true })], A, {}, support => support.pick(KEY, { model: "sonnet" })).support.picks[KEY]).not.toHaveProperty("fast");

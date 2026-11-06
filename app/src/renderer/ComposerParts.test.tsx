@@ -149,7 +149,8 @@ test("the canvas's press signal closes an open Presets popover without returning
 // fast-mode B2 (design §1, decisions 9–11): the Fast row under the Effort levels and the trigger's Fast icon.
 type EffortView = NonNullable<ModelPickerView["effort"]>;
 const effortView = (fast: EffortView["fast"], ariaLabel = "Effort: High"): EffortView => ({
-  label: "High", ariaLabel, menuLabel: "Effort for GPT-6.1 Sol", title: "Effort · GPT-6.1 Sol",
+  label: "High", ariaLabel, placeholder: false, menuLabel: "Effort for GPT-6.1 Sol", title: "Effort · GPT-6.1 Sol",
+  unset: { label: "Default", description: "Medium for this model", selected: false },
   options: [{ id: "low", label: "Low", selected: false }, { id: "high", label: "High", selected: true }], fast,
 });
 function effortTree(view: EffortView, onPick = vi.fn(), onPickFast = vi.fn(), size?: "xs") {

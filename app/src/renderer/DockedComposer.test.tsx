@@ -20,9 +20,9 @@ function status(provider: Provider) {
 }
 const AUTH: AuthSnapshot = { revision: 1, providers: [status("claude"), status("codex")] };
 const PICKER: ModelPickerView = {
-  trigger: { provider: "claude", label: "Opus 5.5", ariaLabel: "Agent: Claude Code, model Opus 5.5" },
+  trigger: { provider: "claude", label: "Opus 5.5", ariaLabel: "Agent: Claude Code, model Opus 5.5", placeholder: false, isDefault: false },
   groups: [{ provider: "claude", name: "Claude Code", selectable: true, cause: null, note: null, read: false, rows: [] }],
-  effort: { label: "High", ariaLabel: "Effort: High", menuLabel: "Effort for Opus 5.5", title: "Effort · Opus 5.5", options: [], fast: null },
+  effort: { label: "High", ariaLabel: "Effort: High", placeholder: false, menuLabel: "Effort for Opus 5.5", title: "Effort · Opus 5.5", unset: { label: "Default", description: "Set by Claude Code", selected: false }, options: [], fast: null },
 };
 const MODE = { kind: "existing", conversationId: "c1", provider: "claude" } as const;
 const ok = async () => ({ ok: true as const });

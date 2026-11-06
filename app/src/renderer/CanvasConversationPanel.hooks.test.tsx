@@ -267,7 +267,7 @@ test("a new conversation started from the panel sends the Fast it shows and reme
     onSettings: vi.fn(), onNotice: vi.fn(), onOpenProjectConversation: vi.fn(), work: [], onRemember,
   });
   const composer = dockedProps(render(panel))! as { picker: { effort: { ariaLabel: string } | null }; onSend(request: unknown): Promise<unknown> };
-  expect(composer.picker.effort?.ariaLabel).toBe("Effort: Default, Fast on");
+  expect(composer.picker.effort?.ariaLabel).toBe("Effort: default, Fast on");
   await composer.onSend({ text: "Go", anchors: [], attachments: [] });
   expect(start.mock.calls[0]![0]).toMatchObject({ mode: "new", runtime: "claude", model: "opus", fast: true });
   expect(onRemember).toHaveBeenCalled();

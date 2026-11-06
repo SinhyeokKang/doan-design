@@ -173,10 +173,14 @@ export function canvasGoneText(project: string): string {
 // the model with the provider in brackets ("Model: Opus 5.5 (Claude Code)").
 export function dockedPicker(view: ModelPickerView, mode: DockedMode): ModelPickerView {
   if (mode.kind === "new") return view;
-  const label = view.trigger.provider === mode.provider ? view.trigger.label : "Default";
+  const name = PROVIDER_NAMES[mode.provider];
+  const mine = view.trigger.provider === mode.provider && !view.trigger.placeholder;
+  const trigger = mine
+    ? { ...view.trigger, provider: mode.provider, ariaLabel: `Model: ${view.trigger.label}${view.trigger.isDefault ? ", default" : ""} (${name})` }
+    : { provider: mode.provider, label: "Model", ariaLabel: `Model: not chosen (${name})`, placeholder: true, isDefault: false };
   return {
     ...view,
-    trigger: { provider: mode.provider, label, ariaLabel: `Model: ${label} (${PROVIDER_NAMES[mode.provider]})` },
+    trigger,
     groups: view.groups.filter(group => group.provider === mode.provider),
   };
 }

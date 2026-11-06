@@ -207,6 +207,7 @@ function NewConversations({ auth, preferences, save, project }: Pick<SettingsAge
   const listed = listState !== undefined && listState !== "loading" && "models" in listState ? listState.models : [];
   const effortModel = model?.kind === "model" ? model.id : listed.find(item => item.default)?.id ?? null;
   const effort = provider && effortModel ? modelPickerView(auth, { [provider]: listState }, { provider, model: effortModel, effort: pref?.effort ?? null }).effort : null;
+  const effortLabel = !effort ? "" : effort.unset.selected ? "Default" : effort.label;
   const status = auth?.providers.find(item => item.provider === provider);
   // Permission (permission-mode U1): the composer's menu, saved with the model and effort; a saved mode this provider
   // cannot offer reads as Default. An ACP provider offers its modes only once the project's list is read.
@@ -252,7 +253,7 @@ function NewConversations({ auth, preferences, save, project }: Pick<SettingsAge
       </div>}
       {provider && effort && <div className="doan-preference-row">
         <div className="doan-preference-row-content"><span className="doan-preference-row-label">Effort</span></div>
-        <div className="doan-preference-row-trailing">{trigger(effort.label, "Effort for new conversations", <><Gauge className="inline" aria-hidden="true" /><span>{effort.label}</span></>, off,
+        <div className="doan-preference-row-trailing">{trigger(effortLabel, "Effort for new conversations", <><Gauge className="inline" aria-hidden="true" /><span>{effortLabel}</span></>, off,
           <DropdownMenu.RadioGroup value={effort.options.find(item => item.selected)?.id ?? DEFAULT} onValueChange={value => choose({ provider, ...(model?.kind === "model" ? { model: model.id } : {}), ...(value === DEFAULT ? {} : { effort: value }), ...keepMode })}>
             {radio(DEFAULT, <span className="model-name">Default</span>, !effort.options.some(item => item.selected))}
             {effort.options.map(item => radio(item.id, <span className="model-name">{item.label}</span>, item.selected))}
