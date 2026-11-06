@@ -181,7 +181,7 @@ test("packaged cliCommand never falls back to PATH and DOAN_CLI wins", () => {
   expect(readFileSync(out, "utf8").trim().split("\n")).toEqual(["init", "--json", "--repo", "/some repo", "--token-css", "/some repo/a.css"]);
 });
 test("runInit settles timeout and spawn errors", async () => {
-  expect(initOutcome(await runInit(fakeCli("sleep 30"), dir(), null, 50))).toMatchObject({ kind: "cliError", reason: "timed out after 10 s" });
+  expect(initOutcome(await runInit(fakeCli("sleep 30"), dir(), null, null, 50))).toMatchObject({ kind: "cliError", reason: "timed out after 10 s" });
   expect(initOutcome(await runInit(join(tmp, "missing"), dir(), null))).toMatchObject({ kind: "cliError", reason: expect.stringContaining("ENOENT") });
 });
 

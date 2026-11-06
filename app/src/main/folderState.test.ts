@@ -126,6 +126,17 @@ describe("folderState", () => {
     }
   });
 
+  // local-doan-files: where the Doan files are kept, as ls reports it; anything else is left out, not an error.
+  test("passes the storage mode and its reason through, and drops unknown values", () => {
+    const listed = (extra: object) => folderState(run({ stdout: envelope({ v: 1, ok: true, result: { ...listResult, ...extra } }) }));
+    expect(listed({ storage: "local" })).toEqual({ kind: "list", root: "/repo", scope: [".doan/canvases", "tokens.css"], canvases, storage: "local" });
+    expect(listed({ storage: "repo", storageReason: "not_git" })).toMatchObject({ storage: "repo", storageReason: "not_git" });
+    expect(listed({ storage: "unknown", storageReason: "git_unreadable" })).toMatchObject({ storage: "unknown", storageReason: "git_unreadable" });
+    expect(listed({ storage: "repo", storageReason: "exclude_unwritable" })).toMatchObject({ storage: "repo", storageReason: "exclude_unwritable" });
+    expect(listed({ storage: "elsewhere" })).toEqual({ kind: "list", root: "/repo", scope: [".doan/canvases", "tokens.css"], canvases });
+    expect(listed({ storage: "local", storageReason: 1 })).toEqual({ kind: "list", root: "/repo", scope: [".doan/canvases", "tokens.css"], canvases, storage: "local" });
+  });
+
   test("drops a malformed git field and keeps the listing", () => {
     const bad = [
       null,
@@ -159,10 +170,20 @@ describe("initOutcome", () => {
     expect(initOutcome(run({ stdout: envelope({ v: 1, ok: true, result: { initialized, repo: "/REPO", created: [] } }) }))).toEqual({ kind: "success" });
   });
   test("keeps CLI errors and app guidance, never CLI nextSteps", () => {
-    expect(initOutcome(run({ exitCode: 2, stdout: failure("invalid_config", "Broken config") }))).toEqual({ kind: "error", message: "Broken config", guidance: "Fix the project configuration, then try again." });
+    expect(initOutcome(run({ exitCode: 2, stdout: failure("invalid_config", "Broken config") }))).toEqual({ kind: "error", code: "invalid_config", message: "Broken config", guidance: "Fix the project configuration, then try again." });
     expect(initOutcome(run({ exitCode: 2, stdout: failure("usage_error", "Outside repo") }))).toMatchObject({ kind: "error", message: "Outside repo" });
     expect(initOutcome(run({ timedOut: true }))).toMatchObject({ kind: "cliError", reason: "timed out after 10 s" });
     expect(initOutcome(run({ spawnError: "ENOENT" }))).toMatchObject({ kind: "cliError", reason: "ENOENT" });
+  });
+  // local-doan-files design §2.3: a local setup outside Git is the CLI's usage_error. A chosen token CSS has its own
+  // usage_error, so it keeps the CSS guidance.
+  test("a refused local setup keeps its code and says what to choose", () => {
+    const refused = run({ exitCode: 2, stdout: failure("usage_error", "This folder isn’t a Git repository, so Doan can’t keep its files out of Git.") });
+    expect(initOutcome(refused, { local: true })).toEqual({ kind: "error", code: "usage_error", message: "This folder isn’t a Git repository, so Doan can’t keep its files out of Git.", guidance: "Choose Include in Git, or run git init here first." });
+    expect(initOutcome(refused, { local: true, tokenCss: true })).toMatchObject({ guidance: "Check the project and choose a CSS file inside it, then try again." });
+    expect(initOutcome(refused)).toMatchObject({ guidance: "Check the project and choose a CSS file inside it, then try again." });
+    expect(initOutcome(run({ exitCode: 1, stdout: failure("internal_error", "Couldn’t add Doan’s lines to .git/info/exclude.") }), { local: true }))
+      .toEqual({ kind: "error", code: "internal_error", message: "Couldn’t add Doan’s lines to .git/info/exclude.", guidance: "Check the project, then try again." });
   });
   test("rejects malformed results and inconsistent exits", () => {
     for (const result of [{}, { initialized: "false" }, { initialized: false, repo: "/r", created: "x" }]) expect(initOutcome(run({ stdout: envelope({ v: 1, ok: true, result }) })).kind).toBe("cliError");

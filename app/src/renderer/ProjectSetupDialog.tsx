@@ -23,7 +23,7 @@ export function useProjectSetup(root: string) {
     if (running) return null;
     setRunning(true); setError(null);
     let result: ProjectInitResult;
-    try { result = await window.doan.initializeProject({ root, choiceId: token?.id ?? null }); }
+    try { result = await window.doan.initializeProject({ root, choiceId: token?.id ?? null, storage: null }); }
     catch (failure) { result = { kind: "cliError", reason: failure instanceof Error ? failure.message : String(failure) }; }
     if (!live.current) return result;
     setRunning(false);

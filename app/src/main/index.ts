@@ -30,6 +30,7 @@ import { onboardingComplete, readCompletion, writeCompletion } from "./onboardin
 import { cloneEnv, locateGit } from "./onboarding/clone";
 import { readGitRemotes } from "./onboarding/gitConfig";
 import { canonicalFolder, cloneDestination, cloneProject, confirmProject, inspectPath, leftoverPresent, inspectUrl, selectProject, type ProjectDeps } from "./onboarding/projects";
+import { groupRoots, projectKeepsLocal } from "./storage";
 import { DocumentBindings } from "./comments/document";
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, nativeTheme, Notification, screen, session, shell as electronShell, systemPreferences, webContents, webFrameMain, type BaseWindow, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from "electron";
 import { randomUUID } from "node:crypto";
@@ -82,7 +83,9 @@ import { applyConversationWork, endConversationWork, type ConversationWork } fro
 // A `--user-data-dir` switch still wins, which is how e2e keeps off the real one.
 app.setName("doan");
 
-export interface ProjectInitRequest { root: string; choiceId: string | null }
+// storage "local" keeps the Doan files out of Git; null runs plain init, which follows the root's current mode (the
+// Set Up form sends null for a project that already keeps them out of Git).
+export interface ProjectInitRequest { root: string; choiceId: string | null; storage: "local" | null }
 export type TokenCssChoice = { kind: "selected"; choiceId: string; path: string } | { kind: "cancelled" } | { kind: "unavailable"; message: string };
 
 export type ViewCommand = "zoomIn" | "zoomOut" | "actualSize" | "fit" | "reload";
@@ -820,8 +823,9 @@ async function start(): Promise<void> {
       const confirmed = await flow.confirm({ confirmId: confirm.confirmId });
       return confirmed.kind === "added" && ready.entries().some(entry => entry.path === confirm.path) ? confirm.path : null;
     },
-    initialize: root => ready.initialize(root, null),
+    initialize: (root, storage) => ready.initialize(root, null, storage),
     remotes: root => readGitRemotes(root, homeDirectory()),
+    keepsLocal: path => projectKeepsLocal(ready.entries(), path),
   };
   const realOrNull = (path: string) => { try { return realpathSync(path); } catch { return null; } };
   // The developer directory xcode-select would use, read without running it (see locateGit).
@@ -830,10 +834,10 @@ async function start(): Promise<void> {
   const locks = projectLocks();
   const projectWork: AdderProjects = {
     folder: canonicalFolder, destination: path => cloneDestination(path, projectDeps),
-    inspectPath: (real, repo) => inspectPath(real, projectDeps, repo), inspectUrl: repo => inspectUrl(repo, projectDeps),
-    select: (path, initialize, repo) => selectProject(path, initialize, repo, projectDeps),
+    inspectPath: (real, repo, storage) => inspectPath(real, projectDeps, repo, storage), inspectUrl: (repo, storage) => inspectUrl(repo, projectDeps, storage),
+    select: (path, initialize, repo, storage) => selectProject(path, initialize, repo, projectDeps, storage),
     present: leftoverPresent,
-    clone: (url, destination, signal, commit) => cloneProject(url, destination, signal, {
+    clone: (url, destination, signal, commit, storage) => cloneProject(url, destination, signal, {
       ...projectDeps,
       async git() {
         const probe = await shellForFacts();
@@ -841,7 +845,7 @@ async function start(): Promise<void> {
         const git = locateGit({ path, executable, realpath: realOrNull, developerDir });
         return git !== null && path !== null ? { git, env: cloneEnv(process.env, path) } : null;
       },
-    }, commit),
+    }, commit, storage),
   };
   const onboardingService = new OnboardingService({
     auth: authIpc ?? null,
@@ -970,16 +974,17 @@ async function start(): Promise<void> {
     return { kind: "selected", choiceId: choice.id, path: choice.path };
   });
   handle("project:init", unavailable, async (event, value: unknown): Promise<ProjectInitResult> => {
-    if (!fromWindow(event) || typeof value !== "object" || value === null || Object.keys(value).length !== 2 ||
+    if (!fromWindow(event) || typeof value !== "object" || value === null || Object.keys(value).length !== 3 ||
       !("root" in value) || typeof value.root !== "string" || !("choiceId" in value) ||
-      (value.choiceId !== null && typeof value.choiceId !== "string") || !canSetUp(value.root)) return unavailable;
+      (value.choiceId !== null && typeof value.choiceId !== "string") || !("storage" in value) ||
+      (value.storage !== null && value.storage !== "local") || !canSetUp(value.root)) return unavailable;
     let tokenCss: string | null = null;
     if (value.choiceId !== null) {
       const choice = choices.get(value.root);
       if (!choice || choice.id !== value.choiceId || choice.epoch !== ready.epoch(value.root)) return unavailable;
       tokenCss = choice.path;
     }
-    return ready.initialize(value.root, tokenCss);
+    return ready.initialize(value.root, tokenCss, value.storage);
   });
   handle("app:home", null, event => fromWindow(event) ? homeDirectory() : null);
   handle("window:visible", null, event => fromWindow(event) ? { visible: windowShown && !appHidden } : null);
@@ -1136,6 +1141,8 @@ async function start(): Promise<void> {
 
   const bridge = createConfigBridge({
     run: (root, args) => runConfig(command, root, args),
+    // Every worktree of the project shows the mode, and an unset-up one's Not set up notice depends on it.
+    storageWritten: root => ready.reread(groupRoots(ready.entries(), root)),
     epoch: root => ready.entries().some(entry => entry.path === root && entry.kind === "list") ? ready.epoch(root) : null,
     async pick(root, kind) {
       const window = win;
@@ -1154,7 +1161,11 @@ async function start(): Promise<void> {
   });
   handle("config:write", { kind: "unavailable" }, (_event, value: unknown) => bridge.write(value));
   // A Project Settings page mounted or unmounted: a new session, and late replies of the old one answer unavailable.
-  handle("config:session-start", undefined, () => { bridge.clear(); });
+  // Opening the page reads the project group again: a mode changed outside Doan shows without waiting for focus.
+  handle("config:session-start", undefined, (_event, value: unknown) => {
+    bridge.clear();
+    if (typeof value === "object" && value !== null && "root" in value && typeof value.root === "string" && ready.entries().some(entry => entry.path === value.root)) ready.reread(groupRoots(ready.entries(), value.root));
+  });
   handle("config:session-end", undefined, () => { bridge.clear(); });
 
   onboardingOpen = !onboardingComplete(readCompletion(userData));

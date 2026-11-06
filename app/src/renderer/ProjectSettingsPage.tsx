@@ -84,7 +84,7 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
   }
   useEffect(() => {
     live.current = true;
-    started.current = window.doan.startConfigSession().catch(console.error);
+    started.current = window.doan.startConfigSession(opened).catch(console.error);
     if (view.view === "settings") void read(root);
     return () => { live.current = false; epoch.current++; void window.doan.endConfigSession().catch(console.error); };
   }, []);

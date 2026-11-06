@@ -166,6 +166,15 @@ describe("folderEntry", () => {
     expect(entry.canvases[2]).not.toHaveProperty("mtimeMs");
   });
 
+  test("passes the storage mode and its reason through, and leaves both out when ls sent none", () => {
+    const local = folderEntry("/repo", { kind: "list", root: "/repo", scope: [], canvases: [], storage: "local" }, base, 0);
+    expect(local).toEqual({ path: "/repo", kind: "list", servedRev: 0, canvases: [], storage: "local" });
+    expect(folderEntry("/repo", { kind: "list", root: "/repo", scope: [], canvases: [], storage: "repo", storageReason: "not_git" }, base, 0)).toMatchObject({ storage: "repo", storageReason: "not_git" });
+    const older = folderEntry("/repo", { kind: "list", root: "/repo", scope: [], canvases: [] }, base, 0);
+    expect(older).not.toHaveProperty("storage");
+    expect(older).not.toHaveProperty("storageReason");
+  });
+
   test("leaves changedAt out without canvases or mtimes", () => {
     const empty = folderEntry("/repo", { kind: "list", root: "/repo", scope: [], canvases: [] }, base, 0, new Map());
     expect(empty).not.toHaveProperty("changedAt");

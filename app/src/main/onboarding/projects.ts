@@ -1,10 +1,11 @@
 import { lstat, readFile, realpath, stat } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
-import type { OnboardingChange, OnboardingOperationErrorCode } from "../../formats/types";
+import type { OnboardingChange, OnboardingOperationErrorCode, OnboardingStorage } from "../../formats/types";
 import { gitChildren, hasGitEntry } from "../addProjects";
 import type { LsTarget } from "../cli";
 import type { FolderState } from "../folderState";
 import type { ProjectInitResult } from "../shell";
+import { EXCLUDE_LABEL } from "../storage";
 import { openDecision } from "../view";
 import { runClone, type CloneRequest, type CloneResult } from "./clone";
 import type { RemoteRead } from "./gitConfig";
@@ -18,10 +19,15 @@ export interface ProjectDeps {
   registered(): readonly string[];
   // Registers through Add Project's flow and answers the stored root, or null when it did not store one.
   add(path: string): Promise<string | null>;
-  initialize(root: string): Promise<ProjectInitResult>;
+  // storage "local": `init --storage local`; null runs plain init, which follows the root's current mode.
+  initialize(root: string, storage: "local" | null): Promise<ProjectInitResult>;
   remotes(root: string): RemoteRead;
+  // Another listed worktree of this folder's Doan root keeps its files out of Git (storage.ts projectKeepsLocal).
+  keepsLocal(path: string): boolean;
 }
-export interface Candidate { path: string; changes: OnboardingChange[] }
+// storage: "local" when the folder is set up that way or its setup is planned that way (app-socket v2 inspection);
+// absent means repo. The adder decides whether a reply may show it.
+export interface Candidate { path: string; changes: OnboardingChange[]; storage?: "local" }
 // leftovers: directories the clone made and could not remove (cleanup_failed only).
 export type ProjectOutcome = { ok: true; root: string } | { ok: false; code: OnboardingOperationErrorCode; leftovers?: string[] };
 
@@ -50,39 +56,56 @@ export async function cloneDestination(path: string, deps: ProjectDeps): Promise
   return (await deps.ls({ cwd: parent })).kind === "list" ? { state: "inside_project" } : { state: "absent", path: join(parent, basename(path)) };
 }
 
-// What `doan init` would create here, read the way init reads it; a folder with any config gets nothing.
-export async function plannedChanges(root: string, state: FolderState): Promise<OnboardingChange[]> {
+// How a setup would keep the Doan files: "repo" commits them; "local" adds the exclude entry instead of the
+// .gitattributes lines; "kept" is a folder whose project already keeps them out of Git, so plain init follows that
+// mode and its entry is already there (local-doan-files spec 3).
+export type SetupPlan = "repo" | "local" | "kept";
+
+// What `doan init` would create here, read the way init reads it; a folder with any config gets nothing. The exclude
+// file sits in the repository's common Git directory, which TS never looks for (§13), so "local" names it by its label.
+export async function plannedChanges(root: string, state: FolderState, plan: SetupPlan = "repo"): Promise<OnboardingChange[]> {
   if (state.kind !== "uninitialized") return [];
   const changes: OnboardingChange[] = [];
   try { await lstat(join(root, ".doan/canvases")); } catch { changes.push(".doan/canvases/"); }
-  const attributes = await readFile(join(root, ".gitattributes"), "utf8").catch(() => "");
-  const present = attributes.split("\n").map(line => line.replace(/\r$/, ""));
-  if (ATTRIBUTE_LINES.some(line => !present.includes(line))) changes.push(".gitattributes");
+  if (plan === "repo") {
+    const attributes = await readFile(join(root, ".gitattributes"), "utf8").catch(() => "");
+    const present = attributes.split("\n").map(line => line.replace(/\r$/, ""));
+    if (ATTRIBUTE_LINES.some(line => !present.includes(line))) changes.push(".gitattributes");
+  }
+  if (plan === "local") changes.push(EXCLUDE_LABEL);
   changes.push(".doan/config.json");
   return changes.sort();
 }
 
-async function candidate(path: string, deps: ProjectDeps): Promise<Candidate | null> {
+// The candidate of a folder that may still need setup, planned for the requested mode unless its project already
+// decided it.
+async function planned(path: string, state: FolderState, storage: OnboardingStorage, deps: ProjectDeps): Promise<Candidate> {
+  const plan: SetupPlan = deps.keepsLocal(path) ? "kept" : storage;
+  return { path, changes: await plannedChanges(path, state, plan), ...(plan === "repo" ? {} : { storage: "local" as const }) };
+}
+const listed = (state: Extract<FolderState, { kind: "list" }>): Candidate => ({ path: state.root, changes: [], ...(state.storage === "local" ? { storage: "local" as const } : {}) });
+
+async function candidate(path: string, deps: ProjectDeps, storage: OnboardingStorage): Promise<Candidate | null> {
   const state = await deps.ls({ repo: path });
-  if (state.kind === "list") return { path: state.root, changes: [] };
+  if (state.kind === "list") return listed(state);
   if (state.kind === "cliError") return null;
-  return { path, changes: await plannedChanges(path, state) };
+  return planned(path, state, storage, deps);
 }
 
 // A picked folder: its repo, the repos directly inside it (one is chosen, the parent is never registered), or the
 // folder itself to be set up with the user's explicit initialize.
 // Picked for a GitHub URL, only folders that may be that repository stay (spec: a folder found from a URL is
 // connected only after its remote is checked); a config that cannot be read is no mismatch.
-export async function inspectPath(real: string, deps: ProjectDeps, repo: GitHubRepository | null = null): Promise<{ ok: true; candidates: Candidate[] } | { ok: false; code: OnboardingOperationErrorCode }> {
-  const found = await inspectFolder(real, deps);
+export async function inspectPath(real: string, deps: ProjectDeps, repo: GitHubRepository | null = null, storage: OnboardingStorage = "repo"): Promise<{ ok: true; candidates: Candidate[] } | { ok: false; code: OnboardingOperationErrorCode }> {
+  const found = await inspectFolder(real, deps, storage);
   if (!found.ok || repo === null) return found;
   const candidates = found.candidates.filter(c => folderMatch(repo, deps.remotes(c.path)) !== "mismatch");
   return candidates.length === 0 ? { ok: false, code: "remote_mismatch" } : { ok: true, candidates };
 }
 
-async function inspectFolder(real: string, deps: ProjectDeps): Promise<{ ok: true; candidates: Candidate[] } | { ok: false; code: OnboardingOperationErrorCode }> {
+async function inspectFolder(real: string, deps: ProjectDeps, storage: OnboardingStorage): Promise<{ ok: true; candidates: Candidate[] } | { ok: false; code: OnboardingOperationErrorCode }> {
   const state = await deps.ls({ cwd: real });
-  if (state.kind === "list") return { ok: true, candidates: [{ path: state.root, changes: [] }] };
+  if (state.kind === "list") return { ok: true, candidates: [listed(state)] };
   if (state.kind !== "uninitialized") {
     const decision = openDecision(state, real, await deps.ls({ repo: real }));
     return "store" in decision ? { ok: true, candidates: [{ path: decision.store, changes: [] }] } : { ok: false, code: "project_unavailable" };
@@ -92,10 +115,10 @@ async function inspectFolder(real: string, deps: ProjectDeps): Promise<{ ok: tru
   const children = git ? [] : await gitChildren(real);
   // Not knowing must not read as "holds no repos": that would offer to set up the parent.
   if (children === null) return { ok: false, code: "project_unavailable" };
-  if (children.length === 0) return { ok: true, candidates: [{ path: real, changes: await plannedChanges(real, state) }] };
+  if (children.length === 0) return { ok: true, candidates: [await planned(real, state, storage, deps)] };
   const found: Candidate[] = [];
   for (const child of children) {
-    const item = await candidate(child, deps);
+    const item = await candidate(child, deps, storage);
     if (item && !found.some(other => other.path === item.path)) found.push(item);
   }
   return found.length === 0 ? { ok: false, code: "project_unavailable" } : { ok: true, candidates: found };
@@ -103,24 +126,33 @@ async function inspectFolder(real: string, deps: ProjectDeps): Promise<{ ok: tru
 
 // Registered projects whose configured remotes name the repository; a config that cannot be read is no candidate
 // and no mismatch either.
-export async function inspectUrl(repo: GitHubRepository, deps: ProjectDeps): Promise<Candidate[]> {
+export async function inspectUrl(repo: GitHubRepository, deps: ProjectDeps, storage: OnboardingStorage = "repo"): Promise<Candidate[]> {
   const found = findCandidates(repo, deps.registered().map(root => ({ root, remotes: deps.remotes(root) })));
   const candidates: Candidate[] = [];
   for (const root of found.roots) {
-    const item = await candidate(root, deps);
+    const item = await candidate(root, deps, storage);
     if (item && !candidates.some(other => other.path === item.path)) candidates.push(item);
   }
   return candidates;
 }
 
 // Registers at selection, then sets up only what the user asked for; a broken config is never written over.
-export async function selectProject(path: string, initialize: boolean, repo: GitHubRepository | null, deps: ProjectDeps): Promise<ProjectOutcome> {
+// storage "local": the plan named the exclude entry, so init keeps the files out of Git; null runs plain init.
+export async function selectProject(path: string, initialize: boolean, repo: GitHubRepository | null, deps: ProjectDeps, storage: "local" | null = null): Promise<ProjectOutcome> {
   if (await canonicalFolder(path) !== path) return failed("project_unavailable");
   if (repo && folderMatch(repo, deps.remotes(path)) === "mismatch") return failed("remote_mismatch");
-  return register(path, initialize, deps);
+  return register(path, initialize, deps, storage);
 }
 
-async function register(path: string, initialize: boolean, deps: ProjectDeps): Promise<ProjectOutcome> {
+// A refused `init --storage local`, by the CLI's code. The CLI refuses a folder outside Git with usage_error (design
+// §2.3); onboarding chooses no token CSS, so that is the only usage_error a local setup meets. Any other failure,
+// an exclude write among them unless the CLI names it, stays the generic init_failed.
+function localFailure(code: string): OnboardingOperationErrorCode {
+  if (code === "usage_error" || code === "local_not_git") return "local_not_git";
+  return code === "local_exclude_failed" ? "local_exclude_failed" : "init_failed";
+}
+
+async function register(path: string, initialize: boolean, deps: ProjectDeps, storage: "local" | null): Promise<ProjectOutcome> {
   const stored = await deps.add(path);
   if (stored === null) return failed("project_unavailable");
   const state = await deps.ls({ repo: stored });
@@ -128,18 +160,19 @@ async function register(path: string, initialize: boolean, deps: ProjectDeps): P
   if (state.kind === "cliError") return failed("project_unavailable");
   if (state.kind === "list") return confirmProject(state.root, deps);
   if (!initialize) return failed("project_unavailable");
-  const outcome = await deps.initialize(stored);
+  const outcome = await deps.initialize(stored, storage);
   switch (outcome.kind) {
     case "success": return confirmProject(stored, deps);
     case "rerooted": return confirmProject(outcome.root, deps);
     case "unavailable": return failed("project_unavailable");
+    case "error": return failed(storage === "local" ? localFailure(outcome.code) : "init_failed");
     default: return failed("init_failed");
   }
 }
 
 // After a clone the user asked for: the new folder is registered and set up like a selected one.
-export async function registerClone(destination: string, deps: ProjectDeps): Promise<ProjectOutcome> {
-  const outcome = await register(destination, true, deps);
+export async function registerClone(destination: string, deps: ProjectDeps, storage: "local" | null = null): Promise<ProjectOutcome> {
+  const outcome = await register(destination, true, deps, storage);
   // Anything else (an ancestor project made meanwhile) is not the repository that was cloned.
   return outcome.ok && outcome.root !== await canonicalFolder(destination) ? failed("project_unavailable") : outcome;
 }
@@ -155,14 +188,14 @@ export async function leftoverPresent(path: string): Promise<boolean> {
 }
 
 // After commit the clone is the user's project: registration and setup run without a cancel.
-export async function cloneProject(url: string, destination: string, signal: AbortSignal, deps: CloneDeps, commit?: () => boolean): Promise<ProjectOutcome | { ok: false; cancelled: true }> {
+export async function cloneProject(url: string, destination: string, signal: AbortSignal, deps: CloneDeps, commit?: () => boolean, storage: "local" | null = null): Promise<ProjectOutcome | { ok: false; cancelled: true }> {
   const located = await deps.git();
   if (located === null) return failed("git_missing");
   if (signal.aborted) return { ok: false, cancelled: true };
   const result = await (deps.run ?? runClone)({ git: located.git, url, destination, env: located.env, signal, ...(commit ? { commit } : {}) });
   if (result.kind === "cancelled") return { ok: false, cancelled: true };
   if (result.kind === "failed") return result.code === "cleanup_failed" ? { ok: false, code: result.code, leftovers: result.leftovers } : failed(result.code);
-  return registerClone(result.destination, deps);
+  return registerClone(result.destination, deps, storage);
 }
 
 // Read again and found registered; never registers or initializes anything itself.

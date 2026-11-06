@@ -145,7 +145,7 @@ describe("the page's session", () => {
     const newer = inspectionId(await p.ask("inspect", { path: "/work/studio" }));
     expect(refusal(await p.ask("select", { inspectionId: older, path: "/work/studio", initialize: true }))).toBe("inspection_stale");
     expect(operation(await p.ask("select", { inspectionId: newer, path: "/work/studio", initialize: true }))).toMatchObject({ state: "succeeded", project: { root: "/work/studio" } });
-    expect(projects.select).toHaveBeenCalledExactlyOnceWith("/work/studio", true, null);
+    expect(projects.select).toHaveBeenCalledExactlyOnceWith("/work/studio", true, null, null);
     expect(p.session.state().project).toEqual({ root: "/work/studio" });
   });
 
@@ -380,12 +380,13 @@ function real(registered: string[] = [], init: (root: string) => ProjectInitResu
     add: vi.fn(async (path: string): Promise<string | null> => { if (!registered.includes(path)) registered.push(path); return path; }),
     initialize: vi.fn(async (r: string) => init(r)),
     remotes: vi.fn((r: string) => readGitRemotes(r, temp())),
+    keepsLocal: vi.fn((_path: string) => false),
   } satisfies ProjectDeps;
   const projects: AdderProjects = {
     folder: canonicalFolder, destination: path => cloneDestination(path, deps), present: leftoverPresent,
-    inspectPath: (path, repository) => inspectPath(path, deps, repository), inspectUrl: repository => inspectUrl(repository, deps),
-    select: (path, initialize, repository) => selectProject(path, initialize, repository, deps),
-    clone: (url, destination, signal, commit) => cloneProject(url, destination, signal, { ...deps, git: async () => null }, commit),
+    inspectPath: (path, repository, storage) => inspectPath(path, deps, repository, storage), inspectUrl: (repository, storage) => inspectUrl(repository, deps, storage),
+    select: (path, initialize, repository, storage) => selectProject(path, initialize, repository, deps, storage),
+    clone: (url, destination, signal, commit, storage) => cloneProject(url, destination, signal, { ...deps, git: async () => null }, commit, storage),
   };
   return { ...page(projects), deps, registered };
 }
@@ -490,7 +491,7 @@ describe("the page instance over real folders", () => {
 
   test("a failed setup leaves the folder registered, not set up", async () => {
     const fresh = repo(temp());
-    const p = real([], () => ({ kind: "error", message: "m", guidance: "g" }));
+    const p = real([], () => ({ kind: "error", code: "internal_error", message: "m", guidance: "g" }));
     const found = await inspected(p, fresh);
     expect(await selected(p, found.inspection!.inspectionId, fresh, true)).toMatchObject({ state: "failed", error: { code: "init_failed" } });
     expect(p.registered).toEqual([fresh]);

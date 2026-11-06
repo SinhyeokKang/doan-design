@@ -1,4 +1,5 @@
 import { validateEnvelope } from "../formats/validate";
+import { storageFacts, type StorageFacts } from "./storage";
 import { isRowError, type GitInfo, type OrphanFile } from "./view";
 
 export interface CliRun {
@@ -12,7 +13,7 @@ export interface CliRun {
 }
 
 export type FolderState =
-  | { kind: "list"; root: string; scope: string[]; canvases: unknown[]; git?: GitInfo; orphans?: OrphanFile[] }
+  | ({ kind: "list"; root: string; scope: string[]; canvases: unknown[]; git?: GitInfo; orphans?: OrphanFile[] } & StorageFacts)
   | { kind: "uninitialized" }
   | { kind: "error"; message: string }
   | { kind: "cliError"; reason: string };
@@ -49,7 +50,7 @@ export function folderState(run: CliRun): FolderState {
   const { root, scope, canvases } = value.result;
   const git: unknown = Reflect.get(value.result, "git");
   const orphans: unknown = Reflect.get(value.result, "orphans");
-  return { kind: "list", root, scope, canvases, ...(isGitInfo(git) ? { git } : {}), ...(Array.isArray(orphans) ? { orphans: orphans.flatMap(orphanFile) } : {}) };
+  return { kind: "list", root, scope, canvases, ...(isGitInfo(git) ? { git } : {}), ...(Array.isArray(orphans) ? { orphans: orphans.flatMap(orphanFile) } : {}), ...storageFacts(value.result) };
 }
 
 // CLI orphan counts support the Comments notice after a canvas ID changes.
@@ -104,10 +105,12 @@ function isListResult(result: unknown): result is ListResult {
 
 export type InitOutcome =
   | { kind: "success" }
-  | { kind: "error"; message: string; guidance: string }
+  | { kind: "error"; code: string; message: string; guidance: string }
   | { kind: "cliError"; reason: string };
 
-export function initOutcome(run: CliRun): InitOutcome {
+// local: the setup asked to keep Doan files out of Git. Its usage_error is read as "not a Git repository" (design §2.3)
+// unless a token CSS was chosen, whose own usage_error ("outside the repository") keeps the CSS guidance.
+export function initOutcome(run: CliRun, request: { local?: boolean; tokenCss?: boolean } = {}): InitOutcome {
   const reason = run.spawnError ?? (run.timedOut ? "timed out after 10 s" : run.stderr.split(/\r?\n/, 1)[0] || "Invalid response from doan CLI.");
   const cliError: InitOutcome = { kind: "cliError", reason };
   if (run.spawnError !== undefined || run.timedOut || run.exitCode === null) return cliError;
@@ -120,10 +123,12 @@ export function initOutcome(run: CliRun): InitOutcome {
   if (!isEnvelope(value)) return cliError;
   if (!value.ok) {
     if (run.exitCode === 0) return cliError;
-    const guidance = value.error.code === "invalid_config" ? "Fix the project configuration, then try again."
-      : value.error.code === "usage_error" ? "Check the project and choose a CSS file inside it, then try again."
-        : "Check the project, then try again.";
-    return { kind: "error", message: value.error.message, guidance };
+    const code = value.error.code;
+    const guidance = code === "invalid_config" ? "Fix the project configuration, then try again."
+      : code === "usage_error" && request.local && !request.tokenCss ? "Choose Include in Git, or run git init here first."
+        : code === "usage_error" ? "Check the project and choose a CSS file inside it, then try again."
+          : "Check the project, then try again.";
+    return { kind: "error", code, message: value.error.message, guidance };
   }
   const result = value.result;
   if (run.exitCode !== 0 || typeof result !== "object" || result === null ||

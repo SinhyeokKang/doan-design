@@ -621,7 +621,18 @@ describe("project setup and upward refresh", () => {
     const root = dir(); const wrapper = join(dir(), "doan");
     writeFileSync(wrapper, `#!/bin/sh\nif [ "$1" = init ]; then echo '{"v":1,"ok":false,"error":{"code":"invalid_config","message":"bad config","nextSteps":["do not show"]}}'; exit 2; fi\nexec '${cli}' "$@"\n`); chmodSync(wrapper, 0o755);
     const { shell } = await uninitialized(root, wrapper);
-    expect(await shell.initialize(root, null)).toEqual({ kind: "error", message: "bad config", guidance: "Fix the project configuration, then try again." });
+    expect(await shell.initialize(root, null)).toEqual({ kind: "error", code: "invalid_config", message: "bad config", guidance: "Fix the project configuration, then try again." });
+  });
+
+  test("a local setup runs init --storage local and a refused one says what to choose", async () => {
+    const root = dir(); const wrapper = join(dir(), "doan"); const args = join(dir(), "args");
+    writeFileSync(wrapper, `#!/bin/sh
+if [ "$1" = init ]; then echo "$@" > '${args}'; echo '{"v":1,"ok":false,"error":{"code":"usage_error","message":"Not a Git repository.","nextSteps":[]}}'; exit 2; fi
+exec '${cli}' "$@"
+`); chmodSync(wrapper, 0o755);
+    const { shell } = await uninitialized(root, wrapper);
+    expect(await shell.initialize(root, null, "local")).toEqual({ kind: "error", code: "usage_error", message: "Not a Git repository.", guidance: "Choose Include in Git, or run git init here first." });
+    expect(readFileSync(args, "utf8").trim()).toBe(`init --json --repo ${root} --storage local`);
   });
 
   test("init result.repo cannot replace the stored identity", async () => {
@@ -748,6 +759,22 @@ describe("storing, removing and restoring", () => {
     shell.rereadAll();
     await vi.waitFor(() => expect(counting.reads()).toBe(reads + 2), until);
     await sleep(300);
+    for (const entries of changes.slice(checkpoint)) expect(entries.every((entry) => entry.kind === "list")).toBe(true);
+  });
+
+  test("reread reads only the given stored folders again, without a loading state", async () => {
+    const counting = countingCli();
+    const [a, b] = [writeRepo(dir()), writeRepo(dir())];
+    const { shell, changes } = await start(counting.path);
+    await shell.store([a, b]);
+    await vi.waitFor(() => expect(listed(shell.entries(), a) && listed(shell.entries(), b)).toBeTruthy(), until);
+    await sleep(500);
+    const reads = counting.reads();
+    const checkpoint = changes.length;
+    shell.reread([a, a, "/not/stored"]);
+    await vi.waitFor(() => expect(counting.reads()).toBe(reads + 1), until);
+    await sleep(300);
+    expect(counting.reads()).toBe(reads + 1);
     for (const entries of changes.slice(checkpoint)) expect(entries.every((entry) => entry.kind === "list")).toBe(true);
   });
 
