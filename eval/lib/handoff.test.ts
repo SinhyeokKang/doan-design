@@ -4,6 +4,7 @@ import { connect } from "node:net";
 import { join } from "node:path";
 import { test } from "node:test";
 import { handoffCommands, noHandoff } from "./handoff.ts";
+import { openCalls } from "./open.ts";
 import { startFakeApp, validHandoffRequest, validHandoffResponse } from "./socket.ts";
 import { toolCalls } from "./transcript.ts";
 import { contentHash } from "./work.ts";
@@ -28,6 +29,21 @@ test("handoffCommands reads doan handoff only, whatever the flags around it", ()
     "doan ls --json",
   );
   assert.equal(handoffCommands({ calls }).length, 2);
+});
+
+test("a heredoc body is message text, not commands: a line starting with doan open or doan handoff in it counts for neither", () => {
+  const body = "Next step:\ndoan open .doan/canvases/a.html\ndoan handoff .doan/canvases/b.html --message x";
+  for (const open of ["<<'EOF'", "<<EOF", '<<"EOF"', "<<-EOF"]) {
+    const calls = shell(`doan handoff .doan/canvases/a.html --message - ${open}\n${body}\nEOF`);
+    assert.equal(handoffCommands({ calls }).length, 1, open);
+    assert.deepEqual(openCalls({ calls }), [], open);
+  }
+  // Commands after the terminator and inside a bash -c string still count, and a here-string is not a heredoc.
+  assert.equal(handoffCommands({ calls: shell(`cat <<'EOF'\nx\nEOF\ndoan handoff .doan/canvases/a.html --message y`) }).length, 1);
+  assert.equal(handoffCommands({ calls: shell(`bash -lc "doan handoff .doan/canvases/a.html --message - <<'EOF'\ndoan handoff z\nEOF"`) }).length, 1);
+  assert.equal(handoffCommands({ calls: shell(`cat <<< hi\ndoan handoff .doan/canvases/a.html --message y`) }).length, 1);
+  // A body that never reaches its terminator runs to the end, as the shell reads it.
+  assert.equal(handoffCommands({ calls: shell(`doan handoff .doan/canvases/a.html --message - <<EOF\ndoan handoff z`) }).length, 1);
 });
 
 test("noHandoff fails on a command or on a request the app received, and passes on neither", () => {

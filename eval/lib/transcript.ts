@@ -140,10 +140,51 @@ export function shellCommands(transcript: string): string[] {
   return commands;
 }
 
+// A heredoc body (the lines after `<<TAG`, `<<'TAG'`, `<<"TAG"` or `<<-TAG` up to the line that is the tag) is data for
+// the command, such as a handoff message that may well contain a line starting with `doan open`. Quoted text is kept
+// whole, so a `<<` inside a string starts nothing and `bash -c "…<<EOF…"` is read when its script is.
+function withoutHeredocBodies(command: string): string {
+  let out = "", quote: string | null = null;
+  const pending: { tag: string; indented: boolean }[] = [];
+  for (let i = 0; i < command.length; i++) {
+    const c = command[i]!;
+    if (quote) {
+      out += c;
+      if (c === "\\" && quote === '"') out += command[++i] ?? "";
+      else if (c === quote) quote = null;
+    } else if (c === "\\") {
+      out += c + (command[++i] ?? "");
+    } else if (c === "'" || c === '"') {
+      quote = c;
+      out += c;
+    } else if (c === "<" && command.startsWith("<<<", i)) {
+      out += "<<<";
+      i += 2;
+    } else if (c === "<" && command[i + 1] === "<" && /^<<(-?)[ \t]*(?:'([^']*)'|"([^"]*)"|([^\s;&|<>()'"]+))/.test(command.slice(i))) {
+      const m = /^<<(-?)[ \t]*(?:'([^']*)'|"([^"]*)"|([^\s;&|<>()'"]+))/.exec(command.slice(i))!;
+      pending.push({ tag: m[2] ?? m[3] ?? m[4]!, indented: m[1] === "-" });
+      out += m[0];
+      i += m[0].length - 1;
+    } else if (c === "\n" && pending.length) {
+      out += c;
+      for (const { tag, indented } of pending.splice(0)) {
+        // An unterminated body runs to the end, as the shell reads it.
+        while (i + 1 < command.length) {
+          const end = command.indexOf("\n", i + 1);
+          const line = command.slice(i + 1, end === -1 ? command.length : end);
+          i = end === -1 ? command.length : end;
+          if ((indented ? line.replace(/^\t+/, "") : line) === tag) break;
+        }
+      }
+    } else out += c;
+  }
+  return out;
+}
+
 // Preserve quoted arguments so echoing a command cannot count as invoking it.
 export function commandWords(command: string): string[][] {
   const groups: string[][] = [[]];
-  for (const token of command.matchAll(/[;&|\n]+|(?:"(?:\\.|[^"\\])*"|'[^']*'|[^\s;&|"'])+/g)) {
+  for (const token of withoutHeredocBodies(command).matchAll(/[;&|\n]+|(?:"(?:\\.|[^"\\])*"|'[^']*'|[^\s;&|"'])+/g)) {
     const value = token[0];
     if (/^[;&|\n]+$/.test(value)) groups.push([]);
     else groups.at(-1)!.push(value.replace(/"((?:\\.|[^"\\])*)"|'([^']*)'/g, (_, double, single) => single ?? double.replace(/\\([\$`"\\\n])/g, "$1")));
