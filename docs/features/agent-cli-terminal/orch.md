@@ -28,8 +28,8 @@
 | A | T1 PoC | `.scratch/agent-cli-terminal/`, `docs/features/agent-cli-terminal/design.md`('PoC 의존'만) | 없음 | Claude Opus high (실제 계정 Terminal을 열고 실제 상태를 지켜야 하며, 멈춤 판단이 필요하다) | 관찰 기록, real-state 미변경 확인 | 통합 (worker 65204f81). worker 해제, worktree 제거, 증거는 conductor `.scratch/agent-cli-terminal-A/` |
 | B | T2, T3 | `app/src/main/installCommand.ts`(+test), `app/src/main/index.ts`, `app/src/main/senderAllowed.ts`(+test), `app/src/main/agentAuth/ipc.ts`(+test), `app/src/main/settings.ts`(필요 시), `app/src/preload/index.ts`(+test), 관련 main test | 없음 (Cursor 하한·Copilot은 A 뒤 후속) | Claude Opus high (IPC 입력 경계와 파일 쓰기, 하한 판정이 틀리면 구버전 CLI가 `update`를 프롬프트로 받는다) | `npm --prefix app test`, typecheck, build | 통합 3b1d0f3d..c212001c (worker 09afad6e, verify PASS). 후속 대기: Cursor 하한, Copilot update→page, Control-C 안내 |
 | B-review | B diff 리뷰 | 없음(보고만) | B | Codex gpt-6-astra medium (판단 위주 리뷰, 다른 계열 관점) | `/code-review` 보고 | 완료 🔴0 🟡1 (B-1 연속 열기 삭제 경쟁) |
-| C | T4 | `app/src/renderer/agentStep.ts`(+test), `app/src/renderer/agentAuthView.ts`(+test), `app/src/renderer/Onboarding.tsx`, `app/src/renderer/SettingsAgents.tsx`(+test) | B 통합 (preload `openInstall` 타입) | Claude Opus high (마지막 요청 소유권, POSTMORTEM 2026-10-25 함정, 실제 앱 probe) | `npm --prefix app test`, typecheck, `/runtime-test` | 진행 (ctx_6d46519541d3, worktree act-c-ui). GUI probe 전 conductor 허락 |
-| C-review | C diff 리뷰 | 없음(보고만) | C | Codex gpt-6-astra medium (상태 전이와 순서 판단) | `/code-review` 보고 | 대기 |
+| C | T4 | `app/src/renderer/agentStep.ts`(+test), `app/src/renderer/agentAuthView.ts`(+test), `app/src/renderer/Onboarding.tsx`, `app/src/renderer/SettingsAgents.tsx`(+test) | B 통합 (preload `openInstall` 타입) | Claude Opus high (마지막 요청 소유권, POSTMORTEM 2026-10-25 함정, 실제 앱 probe) | `npm --prefix app test`, typecheck, `/runtime-test` | 통합 249da91c, 4646cf26 (verify PASS, runtime probe PASS: 첫 실행·Settings Update→Terminal→Control-C/닫기→Check again→"Codex is updated.", 실제 codex 0.166.0 그대로). 후속: C-1 수정 중 |
+| C-review | C diff 리뷰 | 없음(보고만) | C | Codex gpt-6-astra medium (상태 전이와 순서 판단) | `/code-review` 보고 | 완료 🔴0 🟡1 (C-1 `version_unknown`을 성공으로 알림). B follow-up 1의 B-1 해결 확인 |
 | T5 | 승격과 정리 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/DESIGN.md`, `docs/BACKLOG.md`, `docs/features/agent-cli-terminal/` 삭제 | A·B·C 통합 | conductor | tasks.md T5 검증, `/verify` | 대기 |
 
 - tasks.md 항목 대응: T1→A, T2·T3→B, T4→C, T5→conductor. 소유자 없는 항목은 없다.
@@ -47,4 +47,7 @@
 - B-1(🟡): 다음 열기가 이전 스크립트를 지우면 Terminal이 읽기 전에 사라진다. A의 race probe로 재현됐다(`openPath`가 shell이 파일을 읽기 전에 resolve된다). 수정: 스크립트가 시작하자마자 `rm -f -- "$0"`로 자기 자신을 지운다. Doan은 앱 세션의 첫 열기에서만 남은 파일을 지운다. — conductor 판단, 근거: 실행 중인 sh가 파일을 이미 열고 있어 안전하고, 남은 파일 정리는 창이 시작하지 않은 경우만 남는다.
 - T1 결과로 B에 보낼 후속: Copilot update→page, Cursor 하한 2026.10.22 유지(이전 버전을 찾지 못함), 안내 문구를 Control-C로 바꿈, B-1 수정. B follow-up 1로 보냈다.
 - B follow-up 1을 통합했다(5cec8afb, ae91bd09). Copilot `update`는 `null`이고, 열기 큐와 임시 이름 rename은 없앴다. 파일마다 새 이름으로 `wx` 쓰기를 하므로 필요 없다. 이 두 커밋의 독립 리뷰는 C-review에 함께 맡긴다.
+- C-1(🟡): 복귀 probe가 실패해 `version_unknown`이 되면 "is updated/installed"를 알린다. 수정: 원인이 아예 없어질 때(Sign in, Connected)만 알리고 Continue로 포커스를 옮긴다. `version_unknown`·`version_incompatible`이면 알림 없이 install 상태만 지운다. — conductor 판단, 근거: spec 완료 기준 8, design '원인이 풀림 → 다음 상태'
+- B-1 수정의 한계(리뷰): 앱을 다시 시작한 직후의 첫 열기는, 이전 세션 창이 아직 읽지 않은 스크립트를 지울 수 있다. 같은 세션 안에서는 해결됐다. 승격 문서에 "어떤 창에도 영향 없음"이라고 쓰지 않는다.
+- B 작업 종료: worker 해제, worktree act-b-main 제거, 브랜치 `SinhyeokKang/act-b-main`(456b0a96) 유지.
 - 통합 `/verify` (중간, ae91bd09, origin/main 87b02c9f 그대로): PASS — verify-tests, runtime-support, go-test, go-vet, typecheck, app-test, build.
