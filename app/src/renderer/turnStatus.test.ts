@@ -103,6 +103,23 @@ describe("turnStatus", () => {
     expect(statusOf(events, thinking)).toEqual({ kind: "general" });
   });
 
+  // R1 defect 2: main appends and pushes a turn's opening user.message and its turn.started one after the other, so a
+  // render can see the message alone; the indicator is there from that render (spec condition 1).
+  test("the next turn's message alone opens its turn, until its turn.started arrives", () => {
+    seq = 0;
+    const events = [...turn("t1"), ev("t1", { type: "message.done", messageId: "m1", text: "Done." }), ev("t1", { type: "turn.done" }),
+      ev("t2", { type: "user.message", text: "Next", anchors: [] }, "2026-11-06T10:01:00.000Z")];
+    expect(turnOf(events, true)).toEqual({ turnId: "t2", at: "2026-11-06T10:01:00.000Z", lastSeq: seq, live: true, ended: false });
+    expect(statusOf(events)).toEqual({ kind: "general" });
+    expect(statusOf(events, signal("t1", { kind: "thinking" }, seq))).toEqual({ kind: "general" });
+    expect(statusOf(events, null, false)).toEqual({ kind: "none" });
+    events.push(ev("t2", { type: "turn.started" }, "2026-11-06T10:01:00.010Z"));
+    expect(turnOf(events, true)).toEqual({ turnId: "t2", at: "2026-11-06T10:01:00.010Z", lastSeq: seq, live: true, ended: false });
+    // A first turn's message alone, as a thread tracked before its read could merge it.
+    seq = 0;
+    expect(turnOf([ev("t1", { type: "user.message", text: "Draw it", anchors: [] })], true)).toMatchObject({ turnId: "t1", ended: false });
+  });
+
   test("a queue starting the next turn at once: the earlier turn's stage is ignored", () => {
     seq = 0;
     const events = [...turn("t1"), ev("t1", { type: "message.done", messageId: "m1", text: "Done." }), ev("t1", { type: "turn.done" }), ...turn("t2")];

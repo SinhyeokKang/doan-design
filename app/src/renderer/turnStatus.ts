@@ -13,9 +13,16 @@ export type TurnStatus =
   | { kind: "none" } | { kind: "waiting" } | { kind: "reply" } | { kind: "general" } | { kind: "thinking" }
   | { kind: "tool"; activity: "read" | "edit" | "command" | "other"; text: string };
 
+// Main appends a turn's opening user.message and its turn.started one after the other and pushes each (a save and a
+// list notice lie between), so a render can hold the message alone; that message already opens its turn, or the
+// indicator would miss the render the message enters (turn-activity R1: 10–14 ms on an existing conversation). A
+// steered message carries the running turn's id and opens nothing.
 export function turnOf(events: readonly ConversationEvent[], live: boolean): TurnInfo | null {
-  let started: ConversationEvent | undefined;
-  for (let i = events.length - 1; i >= 0 && !started; i--) if (events[i]!.type === "turn.started") started = events[i];
+  let last = events.length - 1;
+  while (last >= 0 && events[last]!.type !== "turn.started") last--;
+  const latest = last >= 0 ? events[last] : undefined;
+  const opening = events.slice(last + 1).find(event => event.type === "user.message" && event.turnId !== latest?.turnId);
+  const started = opening ?? latest;
   if (!started) return null;
   let lastSeq = started.seq, ended = false;
   for (const event of events) {

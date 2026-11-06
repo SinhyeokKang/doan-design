@@ -90,3 +90,19 @@ test("the thread shows the live turn's indicator from the store's stage, and non
   run.event(at(A, 3, { type: "turn.done" }));
   expect(html()).not.toContain("ti-reply");
 });
+
+// R1 defect 2: on an existing conversation's next turn main pushes the person's message and turn.started separately;
+// the render that draws the message already has the indicator (spec condition 1).
+test("the next turn's indicator is in the render that draws the person's message", async () => {
+  const { run, html } = setup([summary(A)]);
+  run.select(ROOT, A);
+  run.store.track(A);
+  await flush();
+  expect(html()).not.toContain("ti-reply");
+  const next = (seq: number, payload: Record<string, unknown>) => ({ ...at(A, seq, payload), turnId: "t2" } as ConversationEvent);
+  run.event(next(5, { type: "user.message", text: "Now the cart", anchors: [] }));
+  expect(html()).toContain("Now the cart");
+  expect(html()).toContain('<span class="ti-text ti-shimmer">Claude Code is working</span>');
+  run.event(next(6, { type: "turn.started" }));
+  expect(html()).toContain('<span class="ti-text ti-shimmer">Claude Code is working</span>');
+});
