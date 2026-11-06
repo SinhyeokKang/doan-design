@@ -326,6 +326,15 @@ function fastView(provider: Provider, model: ModelOption, on: boolean): FastView
   return { on, ...(text ? { description: text } : {}) };
 }
 
+// What an existing conversation's send says of Fast: nothing until the person switched it. An off is stored whatever
+// the model; an on only while the shown model's row can be used, since main refuses Fast for a model without it.
+// provider: null for a conversation that takes no Fast (a terminal session).
+export function fastToSend(picked: boolean | undefined, provider: Provider | null, view: FastView | null): { fast?: boolean } {
+  if (picked === undefined || provider === null || !FAST_PROVIDERS.includes(provider)) return {};
+  if (!picked) return { fast: false };
+  return view && !view.unavailable ? { fast: true } : {};
+}
+
 // A new input's Fast is its provider's Last used; a fixed Settings default never sets it (decision 3). The switch shows
 // it on only for a model that offers Fast (fastView).
 export function defaultFast(memory: HomeMemory | null | undefined, provider: Provider | null): boolean {

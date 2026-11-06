@@ -106,12 +106,28 @@ test("a new conversation's switch belongs to its provider: picking another provi
   expect(support.picks[`root:${ROOT}`]).toEqual({ provider: "codex", model: "gpt-6.1-sol" });
 });
 
-test("only a Fast switch is remembered as Last used Fast", () => {
+// review R 🟡2 (decision 3): a switch held from earlier is never sent to Last used again on a mount or another pick;
+// only the toggle itself records Fast.
+test("only the Fast toggle itself is remembered as Last used Fast", () => {
   const onRemember = vi.fn();
-  render([summary()], A, { onRemember }, support => support.pick(KEY, { model: "opus" }));
-  expect(onRemember.mock.calls.at(-1)![0]).not.toHaveProperty("fast");
+  // Toggled in A earlier, then Last used changed elsewhere: coming back to A, or changing A's effort, records no Fast.
   render([summary()], A, { onRemember }, support => support.pick(KEY, { fast: true }));
-  expect(onRemember.mock.calls.at(-1)![0]).toMatchObject({ provider: "claude", fast: true });
+  render([summary()], A, { onRemember }, support => support.pick(KEY, { fast: true, effort: "high" }));
+  expect(onRemember).toHaveBeenCalled();
+  for (const [choice] of onRemember.mock.calls) expect(choice).not.toHaveProperty("fast");
+  onRemember.mockClear();
+  render([summary()], A, { onRemember }).composer.onPickFast(true);
+  expect(onRemember).toHaveBeenCalledTimes(1);
+  expect(onRemember.mock.calls[0]![0]).toMatchObject({ provider: "claude", model: "opus", fast: true });
+});
+
+// review R 🟡1: an off is stored whatever the model; only an on waits for a model that can use it.
+test("a switch off is sent even after a model without Fast is chosen; a terminal session sends neither", async () => {
+  const sent = vi.fn(async (_provider: Provider, _request: unknown) => {});
+  await render([summary({ fast: true })], A, { onSendConversation: sent }, support => support.pick(KEY, { fast: false, model: "sonnet" })).composer.onSend(REQUEST);
+  expect(sent.mock.calls.at(-1)![1]).toMatchObject({ model: "sonnet", fast: false });
+  await render([summary({ fast: true, owner: "legacy-external" })], A, { onSendConversation: sent }, support => support.pick(KEY, { fast: false })).composer.onSend(REQUEST);
+  expect(sent.mock.calls.at(-1)![1]).not.toHaveProperty("fast");
 });
 
 test("Fast turned off in a conversation drops the switch its composer still held", () => {

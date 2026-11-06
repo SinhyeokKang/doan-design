@@ -32,7 +32,7 @@ import { DockedComposer, type DockedFieldLink, type DockedOutcome, type DockedPi
 import { draftKey, EMPTY_DRAFT, type DockedMode, type DockedRefusal } from "./dockedRules";
 import { modelsKey, type DockedSupport } from "./dockedSupport";
 import {
-  attachmentLimit, defaultEffort, defaultFast, defaultModel, defaultProvider, fixedPreference, groupIcon, modelOption, modelPickerView,
+  attachmentLimit, defaultEffort, defaultFast, defaultModel, fastToSend, defaultProvider, fixedPreference, groupIcon, modelOption, modelPickerView,
   selectableProvider, suggestedPresets, suggestedPrompts, type AttachmentDraft, type NewConversationDefault, type ModelsState,
 } from "./homeComposer";
 import { PROVIDER_NAMES } from "./agentAuthView";
@@ -263,7 +263,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
   // An existing conversation's stored mode is remembered only when it is picked here: a model pick alone must not
   // carry a mode (Full access included) the person chose for that conversation into new ones.
   const rememberedMode = mode.kind === "new" || pick.permissionMode !== undefined ? permissionMode : undefined;
-  useEffect(() => { if (choiceTouched && chosen) props.onRemember?.({ provider: chosen, model, effort, ...(rememberedMode ? { permissionMode: rememberedMode } : {}), ...(pick.fast !== undefined ? { fast: pick.fast } : {}) }); }, [choiceTouched, chosen, model, effort, rememberedMode, pick.fast]);
+  useEffect(() => { if (choiceTouched && chosen) props.onRemember?.({ provider: chosen, model, effort, ...(rememberedMode ? { permissionMode: rememberedMode } : {}) }); }, [choiceTouched, chosen, model, effort, rememberedMode]);
   const ready = chosen !== null && (auth?.providers ?? []).some(status => status.provider === chosen && status.account !== null && selectableProvider(status));
   useEffect(() => { if (healthy && chosen && ready && !fixed) support.readModels(root, chosen); }, [root, healthy, chosen, ready, fixed]);
 
@@ -368,9 +368,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
   // that lands after the person chose something else, or after another canvas opened, leaves that choice alone
   // (POSTMORTEM 2026-10-26 late replies).
   const changedModel = pick.model !== undefined || pick.effort !== undefined;
-  // An existing conversation's send names Fast only once the person switched it, and only while the row can be used:
-  // a switch made for another model waits until that model is chosen again (main refuses Fast a model lacks).
-  const changedFast = pick.fast !== undefined && picker.effort?.fast && !picker.effort.fast.unavailable ? { fast: pick.fast } : {};
+  const changedFast = fastToSend(pick.fast, fixed ? null : chosen, picker.effort?.fast ?? null);
   const send = async (request: DockedRequest): Promise<DockedOutcome> => {
     const revision = run.revision();
     const sentUnder = notice;
@@ -473,7 +471,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
         auth={auth} picker={picker} provider={chosen} effort={effort}
         onPickerOpen={() => { if (healthy && !fixed) for (const group of picker.groups) if (group.read) support.readModels(root, group.provider); }}
         onPickModel={(picked, value) => support.pick(key, { ...(mode.kind === "new" ? { provider: picked } : {}), ...(picked !== chosen ? { permissionMode: undefined, fast: undefined } : {}), model: value === "default" ? undefined : value })}
-        onPickEffort={value => support.pick(key, { effort: value })} onPickFast={on => support.pick(key, { fast: on })}
+        onPickEffort={value => support.pick(key, { effort: value })} onPickFast={on => { support.pick(key, { fast: on }); if (chosen) props.onRemember?.({ provider: chosen, model, effort, fast: on }); }}
         permission={permission} onPickPermission={value => support.pickPermission(key, mode.kind === "existing" || mode.kind === "archived" ? mode.conversationId : null, value, summary ? stored : undefined)}
         onSettings={props.onSettings}
         presets={support.presets} suggested={suggestedPresets(props.entry, presets)}

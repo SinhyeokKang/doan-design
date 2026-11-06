@@ -4,7 +4,7 @@ import { authStatus } from "../main/agentAuth/state";
 import type { AccountIdentity, AuthState, AuthStatusDto, Provider, ToolFacts } from "../main/agentAuth/types";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import {
-  attachmentChipView, attachmentLimit, chipRemoval, composeRequest, defaultEffort, defaultFast, defaultModel, defaultProject, defaultProvider, dropTarget, fixedPreference,
+  attachmentChipView, attachmentLimit, chipRemoval, composeRequest, defaultEffort, defaultFast, defaultModel, fastToSend, defaultProject, defaultProvider, dropTarget, fixedPreference,
   GREETINGS, greetingText, groupIcon, groupLabel, isSubmitKey, steerKey, takesSuggestion, lengthCounter, MAX_ATTACHMENTS, MAX_PASTED_BYTES, modelPickerView, pickGreeting, presetListView,
   draftProblem, presetPlaceholder, rootForProject, searchPresets, selectableProvider, sendAvailability, slashQuery, startErrorView, suggestedPresets,
   suggestedPrompts, TEXT_LIMIT,
@@ -742,4 +742,16 @@ test("a new conversation starts from its provider's Last used Fast, whatever the
   expect(defaultFast(memory, "claude")).toBe(false);
   expect(defaultFast(null, "codex")).toBe(false);
   expect(defaultFast(memory, null)).toBe(false);
+});
+
+// review R 🟡1: an existing conversation's send stores an off whatever the model; an on only for a usable row; a terminal
+// session (provider null) and an ACP provider send neither.
+test("an existing conversation's send names an off always and an on only while it can be used", () => {
+  expect(fastToSend(undefined, "claude", { on: true })).toEqual({});
+  expect(fastToSend(false, "claude", null)).toEqual({ fast: false });
+  expect(fastToSend(true, "codex", { on: true })).toEqual({ fast: true });
+  expect(fastToSend(true, "claude", null)).toEqual({});
+  expect(fastToSend(true, "claude", { on: false, unavailable: "plan" })).toEqual({});
+  expect(fastToSend(false, null, null)).toEqual({});
+  expect(fastToSend(false, "cursor", null)).toEqual({});
 });
