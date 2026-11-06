@@ -64,6 +64,7 @@ import { startRuntime, type Runtime } from "./runtime";
 import { menuState, type Screen } from "./menuState";
 import { senderAllowed, type WindowKind } from "./senderAllowed";
 import { INSTALL_URLS, NOTIFICATION_SETTINGS_URL, parseExternalTarget, type SettingsPageTarget } from "./settings";
+import { createInstallOpener } from "./installCommand";
 import { startShell, type Shell, type ProjectInitResult } from "./shell";
 import { createThrottle } from "./throttle";
 import { createThumbnails, type ThumbnailReply, type Thumbnails } from "./thumbnails";
@@ -1094,11 +1095,17 @@ async function start(): Promise<void> {
   });
 
   const command = cliCommand(process.env, app.isPackaged, process.resourcesPath);
-  // First run and Agents' Install/Update open the providers' install pages.
+  // First run and Agents' Open install page: the provider's fixed install page.
   handle("setup:open-external", false, async (_event, value: unknown) => {
     const target = parseExternalTarget(value);
     if (target === null) return false;
     try { await electronShell.openExternal(INSTALL_URLS[target]); return true; } catch { return false; }
+  });
+  // First run and Agents' Install/Update: main picks a command, or the page, from its own tool facts.
+  const openInstall = createInstallOpener({ dir: join(userData, "terminal"), openPath: path => electronShell.openPath(path), openExternal: url => electronShell.openExternal(url) });
+  handle("setup:open-install", "failed", async (_event, value: unknown) => {
+    const target = parseExternalTarget(value);
+    return target === null ? "failed" : openInstall(target, authIpc?.toolFacts(target) ?? null);
   });
   // Links in agent replies: https only, rebuilt by main from the request.
   handle("shell:openLink", false, async (_event, value: unknown) => {

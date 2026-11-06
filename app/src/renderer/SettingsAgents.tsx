@@ -4,6 +4,7 @@ import { Check, ChevronDown, Gauge } from "lucide-react";
 import type { AuthStatusDto, Provider } from "../main/agentAuth/types";
 import { readPermissionMode } from "../main/conversation/permissionMode";
 import type { NewConversationPreference, PreferencesPatch, PreferencesSnapshot, PreferencesWriteReply } from "../main/preferences";
+import type { DoanApi } from "../preload";
 import { agentsSettingsView, PROVIDER_NAMES, type AuthButton, type AuthCommand, type ProviderView } from "./agentAuthView";
 import type { AgentSignIn } from "./agentSignIn";
 import { AgentStepSession } from "./agentStep";
@@ -28,8 +29,11 @@ export interface SettingsAgentsProps {
   project: { root: string; name: string } | null;
 }
 
-// Antigravity has no install page: Doan downloads its sign-in server itself.
-function openInstall(provider: Provider): Promise<boolean> {
+// Antigravity has no install command or page: Doan downloads its sign-in server itself.
+function openInstall(provider: Provider): ReturnType<DoanApi["openInstall"]> {
+  return provider === "antigravity" ? Promise.resolve("failed") : window.doan.openInstall(provider);
+}
+function openInstallPage(provider: Provider): Promise<boolean> {
   return provider === "antigravity" ? Promise.resolve(false) : window.doan.openInstallPage(provider);
 }
 const groupSelector = (provider: Provider) => `.doan-preference-row[role="group"][data-provider="${provider}"]`;
@@ -45,7 +49,7 @@ export function SettingsAgents({ signIn, arrival, onLock, preferences, save, pro
   const locked = useRef(false);
   const [session] = useState(() => {
     const created: AgentStepSession = new AgentStepSession({
-      api: window.doan, openInstall, hasFocus: () => document.hasFocus(), signIn,
+      api: window.doan, openInstall, openInstallPage, hasFocus: () => document.hasFocus(), signIn,
       // Reported as the session changes, not after a render: a move between the two must already see the lock.
       changed: () => {
         redraw();
@@ -95,7 +99,7 @@ export function SettingsAgents({ signIn, arrival, onLock, preferences, save, pro
   const run = (provider: Provider) => (command: AuthCommand) => {
     // The paste modal returns focus itself.
     watch.current = command === "pasteAddress" || !(document.activeElement instanceof HTMLElement) ? null : { provider, node: document.activeElement };
-    session.command(provider, command);
+    return session.command(provider, command);
   };
 
   // An arrival from Home's picker or a toast focuses the provider's row group once its row is drawn, and flashes it
@@ -144,7 +148,6 @@ export function SettingsAgents({ signIn, arrival, onLock, preferences, save, pro
   const stop = session.stopView(), paste = session.pasteView();
   return <>
     {list.notice && <div className="settings-notice"><NoticeView notice={list.notice} run={command => { if (command === "read") session.retryRead(); }} /></div>}
-    {state.installError && <div className="doan-notice error" role="alert"><AlertIcon /><span>{state.installError}</span></div>}
     {list.sections.map(section => <section key={section.id} className="settings-section" aria-labelledby={`settings-agents-${section.id}`}>
       <div className="settings-section-header"><div className="settings-header-copy"><h2 className="settings-section-title" id={`settings-agents-${section.id}`}>{section.title}</h2></div></div>
       <div className="doan-settings-group" data-layout="rows">{section.providers.map(row)}</div>

@@ -314,7 +314,8 @@ Frame ids name the canvas frames that draw each state.
   - `onboarding project inspect` (CLI) still returns every candidate.
 - **Clone destination default** (`repository-clone`): `<parent of the most recently registered project>/<repository>`, else `~/<repository>`. Change picks a parent.
 - **Copy outside the measured draft** (`agent-install-page-failed`, `agent-paste-too-long`, `repository-cleanup-failed`):
-  - Install failures read "Couldn’t open the <Provider> install page." Antigravity has no install page.
+  - Install and Update failures are row notices. When Terminal cannot open: "Couldn’t open Terminal to install <Provider>. Open the install page to install it yourself." (update: "to update <Provider>", "to update it yourself") with Open install page. When the install page cannot open: "Couldn’t open the <Provider> install page." Antigravity has no install page.
+  - After Terminal opens, the row's helper reads "Terminal is open with the install command. Press Return there, then come back to Doan." (update: "update command"); the install page path keeps the before-click helper.
   - A paste over 16,384 characters shows "This address is too long to submit." in caption `--text-danger` under the field.
   - Main's fixed messages are shown for refusals without draft copy, for example a kept clone folder: "Couldn't remove <path>. Remove it, then try again."
 - **Cancelled and failed clone** (`repository-cancelled`, `repository-clone-failed`). The cancelled clone adds an sm subtle Edit repository URL under its Choose local folder / Retry row. Back from a cancelled or failed clone returns to the editable URL and drops the old inspection; otherwise Back→Continue would bring the same clone screen back with no way to change the URL. "Cloning was cancelled" is a role=status notice panel (`doan-notice doan-panel ob-project-notice`, alert icon in the text ink), not plain help text.

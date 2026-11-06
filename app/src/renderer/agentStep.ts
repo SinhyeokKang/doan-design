@@ -1,9 +1,10 @@
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
+import type { InstallResult } from "../main/installCommand";
 import type { DoanApi } from "../preload";
 import {
-  authListView, MAX_PASTE, PROVIDER_NAMES, pasteDialog, pasteSubmittable, stopDialog,
-  type AuthCommand, type ProviderContext,
+  authListView, installedAnnouncement, MAX_PASTE, pasteDialog, pasteSubmittable, stopDialog,
+  type AuthCommand, type InstallState, type ProviderContext,
 } from "./agentAuthView";
 import { AgentSignIn } from "./agentSignIn";
 import { canAdvance } from "./onboardingScene";
@@ -12,8 +13,10 @@ type Api = Pick<DoanApi, "readAgentAuth" | "onAgentAuth" | "checkAgentAuth" | "s
   "submitAgentSignInCode" | "openAgentSignInLink" | "onAgentSignInPrompt">;
 export interface AgentStepDeps {
   api: Api;
-  // Resolves false when the page could not be opened.
-  openInstall(provider: Provider): Promise<boolean>;
+  // Install or Update: main picks Terminal or the install page from the provider alone.
+  openInstall(provider: Provider): Promise<InstallResult>;
+  // A failed Terminal's Open install page. Resolves false when the page could not be opened.
+  openInstallPage(provider: Provider): Promise<boolean>;
   hasFocus(): boolean;
   changed(): void;
   // Attempt ids this window started, kept across a renderer reload; agent-auth still names the window their owner.
@@ -33,7 +36,8 @@ export interface AgentStepState {
   dialog: AgentDialog | null;
   announcement: { text: string; seq: number } | null;
   focus: { target: "continue" | "paste"; provider?: Provider; seq: number } | null;
-  installError: string | null;
+  // The latest Install, Update or Open install page request's result; its row shows it.
+  install: InstallState | null;
   continuing: boolean;
 }
 type OwnState = Omit<AgentStepState, "auth" | "contexts">;
@@ -45,7 +49,7 @@ const AUTO_CHECK = new Set(["unverified", "tools_missing", "tools_failed"]);
 // The onboarding Agent step's state over the renderer's sign-in controller. It never judges readiness itself
 // (authListView does), and it cancels only attempts this renderer started.
 export class AgentStepSession {
-  private own: OwnState = { dialog: null, announcement: null, focus: null, installError: null, continuing: false };
+  private own: OwnState = { dialog: null, announcement: null, focus: null, install: null, continuing: false };
   private live = false;
   private stops: (() => void)[] = [];
   private seq = 0;
@@ -60,13 +64,16 @@ export class AgentStepSession {
     this.signIn = deps.signIn ?? new AgentSignIn({ api: deps.api, hasFocus: () => deps.hasFocus(), remember: ids => deps.remember?.(ids), recall: () => deps.recall?.() ?? [] });
   }
 
-  get state(): AgentStepState { return { ...this.own, auth: this.signIn.state.auth, contexts: this.signIn.state.contexts }; }
+  get state(): AgentStepState {
+    const contexts = this.signIn.state.contexts, install = this.own.install;
+    return { ...this.own, auth: this.signIn.state.auth, contexts: install ? { ...contexts, [install.provider]: { ...contexts[install.provider], install } } : contexts };
+  }
 
   // The wizard shows the rows for its whole life, so first-run announcements stay on its live region as before.
   start(): void {
     this.live = true;
     this.signIn.start();
-    this.stops.push(this.signIn.subscribe(() => { this.followPaste(); this.deps.changed(); }), this.signIn.show({
+    this.stops.push(this.signIn.subscribe(() => { this.followPaste(); this.followInstall(); this.deps.changed(); }), this.signIn.show({
       announce: (text, returning) => {
         this.announce(text);
         if (returning && canAdvance(this.signIn.state.auth ?? null)) this.focusOn("continue");
@@ -87,14 +94,14 @@ export class AgentStepSession {
     for (const stop of this.stops.splice(0)) stop();
     if (this.owner) this.signIn.dispose();
   }
-  view() { return authListView(this.signIn.state.auth, this.signIn.state.contexts, { autoCheck: true }); }
+  view() { return authListView(this.signIn.state.auth, this.state.contexts, { autoCheck: true }); }
   canContinue(): boolean { return canAdvance(this.signIn.state.auth ?? null) && !this.own.continuing; }
 
   retryRead(): void { void this.signIn.read(); }
   // Returning from a browser or an install page: read everything; only install returns check. Copilot is checked only
   // while its cause is the CLI or its version, when a check re-reads tool facts and spends no request (D21).
   windowFocused(): void {
-    const installed = [...this.installs];
+    const installed = [...this.installs], request = this.installRequests;
     this.installs.clear();
     void this.signIn.read().then(() => {
       if (!this.live) return;
@@ -102,18 +109,24 @@ export class AgentStepSession {
         const r = this.status(provider)?.readiness;
         if (provider !== "copilot" || (r && !r.ready && (r.cause === "cli_missing" || r.cause.startsWith("version_")))) this.signIn.check(provider);
       }
+      // A check that settles the cause publishes a snapshot (followInstall); while it stays, the row offers Check again.
+      // A request made meanwhile owns the row and has not been checked.
+      const shown = this.own.install;
+      if (shown && request === this.installRequests && !shown.checked && installed.includes(shown.provider)) this.set({ install: { ...shown, checked: true } });
     });
     this.signIn.windowFocused();
   }
 
-  command(provider: Provider, command: AuthCommand): void {
+  // Install, Update and Open install page return their request, so a caller can wait for its result.
+  command(provider: Provider, command: AuthCommand): Promise<void> | void {
     if (!this.live) return;
     const attempt = this.status(provider)?.attempt;
     switch (command) {
       case "signIn": case "reauth": void this.signIn.signIn(provider); return;
       case "signOut": void this.signIn.signOut(provider); return;
       case "check": this.signIn.checkAgain(provider); return;
-      case "install": case "update": void this.install(provider); return;
+      case "install": case "update": return this.install(provider);
+      case "installPage": return this.installPage(provider);
       case "cancel": this.signIn.cancel(provider); return;
       case "openLink": this.signIn.openLink(provider); return;
       case "pasteAddress":
@@ -167,18 +180,51 @@ export class AgentStepSession {
   }
   // Back keeps saved connections; only this renderer's running sign-ins are cancelled.
   async back(): Promise<void> { this.leave(); await this.signIn.cancelOwned(); }
-  private leave(): void { this.onStep = false; if (this.own.dialog) this.set({ dialog: null }); }
+  // A pending install result belongs to the step it was asked on.
+  private leave(): void { this.onStep = false; this.installRequests++; if (this.own.dialog || this.own.install) this.set({ dialog: null, install: null }); }
 
-  // Only the latest Install or Update result is shown (POSTMORTEM 2026-10-25, an older install failure).
+  // Only the latest Install, Update or Open install page result is shown (POSTMORTEM 2026-10-25, an older install failure).
   private installRequests = 0;
   private async install(provider: Provider): Promise<void> {
+    const action = this.actionOf(provider);
+    const request = this.request();
+    const result = await this.deps.openInstall(provider).catch((): InstallResult => "failed");
+    this.settleInstall(provider, action, request, result);
+  }
+  // Only from a failed Terminal's notice, which goes at once; focus recovery hands its focus to the row's button.
+  private async installPage(provider: Provider): Promise<void> {
+    const shown = this.own.install;
+    if (shown?.provider !== provider) return;
+    const request = this.request();
+    const opened = await this.deps.openInstallPage(provider).catch(() => false);
+    this.settleInstall(provider, shown.action, request, opened ? "page" : "pageFailed");
+  }
+  private request(): number {
     const request = ++this.installRequests;
-    this.set({ installError: null });
-    const opened = await this.deps.openInstall(provider).catch(() => false);
+    if (this.own.install) this.set({ install: null });
+    return request;
+  }
+  private settleInstall(provider: Provider, action: InstallState["action"] | null, request: number, result: InstallResult): void {
     if (!this.live) return;
-    // Every page that opened is checked on return; only the latest result decides the error line.
-    if (opened) this.installs.add(provider);
-    if (request === this.installRequests && !opened) this.set({ installError: `Couldn’t open the ${PROVIDER_NAMES[provider]} install page.` });
+    // Every Terminal or page that opened is checked on return; only the latest result is shown on its row.
+    if (result === "terminal" || result === "page") this.installs.add(provider);
+    if (action && request === this.installRequests) this.set({ install: { provider, action, result, checked: false } });
+  }
+  private actionOf(provider: Provider): InstallState["action"] | null {
+    const r = this.status(provider)?.readiness;
+    return r && !r.ready ? (r.cause === "cli_missing" ? "install" : r.cause === "version_unsupported" ? "update" : null) : null;
+  }
+  // The row's cause changed: its install state ends. Only the next state (Sign in, Connected) is announced, once. A
+  // version Doan could not read (a failed probe reads as unknown even for a missing CLI), one it cannot run, or a CLI
+  // that went missing after an update is not news of an install or update (review C-1).
+  private followInstall(): void {
+    const shown = this.own.install, r = shown && this.status(shown.provider)?.readiness;
+    if (!shown || !r || this.actionOf(shown.provider) === shown.action) return;
+    const solved = r.ready || !(r.cause === "cli_missing" || r.cause.startsWith("version_"));
+    this.own = { ...this.own, install: null };
+    if (!solved) return;
+    this.own = { ...this.own, announcement: { text: installedAnnouncement(shown.provider, shown.action), seq: ++this.seq } };
+    if (canAdvance(this.signIn.state.auth ?? null)) this.own = { ...this.own, focus: { target: "continue", seq: ++this.seq } };
   }
   // The attempt behind the paste modal ended (the page loaded after all, or it was cancelled): nothing is left to submit.
   private followPaste(): void {

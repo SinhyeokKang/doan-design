@@ -146,6 +146,12 @@ vi.mock("./agentAuth/usageService", async (importOriginal) => {
   const original = await importOriginal<typeof import("./agentAuth/usageService")>();
   return { ...original, UsageService: class extends original.UsageService { override trigger(event: Parameters<InstanceType<typeof original.UsageService>["trigger"]>[0]) { usageProbe.triggers.push(event); return super.trigger(event); } } };
 });
+// agent-cli-terminal: what main hands the Install/Update opener; its file writes are covered in installCommand.test.ts.
+const installOpener = vi.hoisted(() => ({ open: vi.fn<(provider: string, facts: unknown) => Promise<string>>(), deps: [] as { dir: string }[] }));
+vi.mock("./installCommand", async (importOriginal) => ({
+  ...await importOriginal<typeof import("./installCommand")>(),
+  createInstallOpener: (deps: { dir: string }) => { installOpener.deps.push(deps); return installOpener.open; },
+}));
 vi.mock("./canvasSeen", async (importOriginal) => {
   const original = await importOriginal<typeof import("./canvasSeen")>();
   return { createCanvasSeenStore: (file: string) => {
@@ -717,6 +723,7 @@ test("the old wizard and Connections channels are gone; folder choice and instal
   for (const channel of ["onboarding:get-open", "onboarding:read", "onboarding:run", "onboarding:answer", "onboarding:close", "onboarding:open-project",
     ...REMOVED_SETUP_CHANNELS]) expect(mocks.ipc.has(channel)).toBe(false);
   expect(mocks.ipc.has("setup:open-external")).toBe(true);
+  expect(mocks.ipc.has("setup:open-install")).toBe(true);
   expect(mocks.ipc.has("onboarding:choose-folder")).toBe(true);
 });
 describe("a launch with a v1 completion record", () => {
@@ -1531,6 +1538,19 @@ describe("main-window setup and settings", () => {
       expect(await invoke("setup:open-external", window().webContents, null, bad)).toBe(false);
     }
     expect(mocks.electronShell.openExternal).toHaveBeenCalledOnce();
+  });
+
+  test("Install and Update: the window names only the provider, and main opens what it chose from its own facts", async () => {
+    expect(installOpener.deps.at(-1)?.dir).toBe("/tmp/doan-index-test/terminal");
+    installOpener.open.mockResolvedValueOnce("terminal");
+    expect(await invoke("setup:open-install", window().webContents, null, { target: "codex" })).toBe("terminal");
+    expect(installOpener.open).toHaveBeenCalledOnce();
+    expect(installOpener.open.mock.calls[0]![0]).toBe("codex");
+    for (const bad of [{ target: "antigravity" }, { target: "evil" }, { target: "toString" }, { target: "codex", action: "update" }, { target: "codex", command: "rm -rf ~" }, {}, "codex", null]) {
+      expect(await invoke("setup:open-install", window().webContents, null, bad), JSON.stringify(bad)).toBe("failed");
+    }
+    expect(installOpener.open).toHaveBeenCalledOnce();
+    expect(mocks.electronShell.openExternal).not.toHaveBeenCalled();
   });
 
   test("the Project step's folder picker returns a path only and registers nothing", async () => {
