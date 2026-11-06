@@ -637,10 +637,12 @@ body:has(.shell-top) { background: transparent; }
    two lines; without one it keeps 200. The row always leads with the Fast icon in the accent; the drawn switch alone
    shows on or off (the shared .doan-switch's track and thumb, which is a button and cannot sit in a menu item). */
 .effort-popover.has-fast { width: 280px; }
-/* Over the shared Effort row rule below (:is(... .effort-popover .doan-menu-item)), which centres its items. */
-.effort-popover .doan-menu-item.fast-item { align-items: flex-start; padding-block: var(--space-1h); }
+/* Over the shared Effort row rule below (:is(... .effort-popover .doan-menu-item)), which centres its items: the icon
+   and the switch sit on the name's line, not in the middle of a two-line description. The row keeps the compact menu
+   row's padding, as the levels above it do. */
+.effort-popover .doan-menu-item.fast-item { align-items: flex-start; }
 .fast-slot { display: inline-flex; flex: none; align-items: center; width: var(--size-icon-sm); height: var(--type-body-sm-line-height); color: var(--affordance-accent); }
-.fast-slot > svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+.fast-slot > svg { flex: none; width: var(--size-icon-sm); height: var(--size-icon-sm); }
 .fast-copy { display: flex; flex-direction: column; flex: 1; min-width: 0; }
 /* The description wraps and is never ellipsized: it is where the cost shows ("increased usage", "usage credits"). */
 .fast-copy .sub { white-space: normal; overflow: visible; text-overflow: clip; color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
