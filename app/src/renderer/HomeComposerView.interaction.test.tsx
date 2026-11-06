@@ -614,6 +614,23 @@ test("the permission pick is remembered at once and sent with the start", async 
   expect(box.current.permissions).toEqual({});
 });
 
+// picker-default-labels B2: an untouched composer remembers nothing. Remembering on mount wrote Last used and moved a
+// fixed Settings default without a model onto the default model (preferenceAfterPick), so Settings read "GPT-6-Luna"
+// instead of "Default · GPT-6-Luna" after Home was opened.
+test("an untouched composer remembers nothing; a pick does", () => {
+  const onRemember = vi.fn();
+  const { render } = setup({}, { prefs: { lastProvider: "claude" }, defaults: { provider: "claude" }, onRemember });
+  render();
+  for (const effect of hooks.effects) effect();
+  expect(onRemember).not.toHaveBeenCalled();
+  // The permission menu is the last radio group; picking a mode is a choice.
+  const groups = render().filter(props => typeof props.onValueChange === "function" && "value" in props);
+  (groups.at(-1)!.onValueChange as (value: string) => void)("plan");
+  render();
+  for (const effect of hooks.effects) effect();
+  expect(onRemember).toHaveBeenLastCalledWith({ provider: "claude", model: null, effort: null, permissionMode: "plan" });
+});
+
 // A press outside the `/` list and its field closes it as Escape does; the field keeps its text and the list stays
 // closed until the field is empty again. A press in the field keeps it open.
 test("a press outside the / list closes it until the field is empty; a press in the list or the field keeps it", () => {
