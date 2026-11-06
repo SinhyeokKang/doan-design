@@ -683,3 +683,20 @@ test("Home marks the model as picked only when the person picked it", () => {
   for (const effect of hooks.effects) effect();
   expect(onRemember.mock.calls.at(-1)![0]).toMatchObject({ provider: "claude", model: "sonnet", modelPicked: true });
 });
+
+// Edit on Home brings the sent model back; that is not a pick, so a fixed Settings default without a model stays unfixed.
+test("a model restored by Edit on Home is not marked as picked; picking it again is", () => {
+  const onRemember = vi.fn();
+  const lists = { ["/code/doan-design\nclaude"]: { models: [{ id: "opus", label: "Opus 5.5", default: true }, { id: "sonnet", label: "Sonnet 5.5", default: false }] } };
+  const last: LastRequest = { root: "/code/doan-design", text: "Polish it.", preset: null, attachments: [], provider: "claude", model: "opus", effort: null };
+  const { render } = setup({ lists }, { prefs: { lastProvider: "claude" }, defaults: { provider: "claude" }, restore: { request: last, seq: 1 }, onRemember });
+  render(); runEffects(); render(); runEffects();
+  expect(onRemember).toHaveBeenCalled();
+  expect(onRemember.mock.calls.at(-1)![0]).toMatchObject({ provider: "claude", model: "opus" });
+  expect(onRemember.mock.calls.at(-1)![0]).not.toHaveProperty("modelPicked");
+  // The Claude Code group's model menu, with the restored model checked.
+  const group = find(render(), props => typeof props.onValueChange === "function" && props.value === "opus");
+  (group.onValueChange as (value: string) => void)("opus");
+  render(); runEffects();
+  expect(onRemember.mock.calls.at(-1)![0]).toMatchObject({ provider: "claude", model: "opus", modelPicked: true });
+});
