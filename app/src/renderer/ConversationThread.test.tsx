@@ -414,3 +414,24 @@ function findButton(node: unknown): ReactElement | null {
   for (const child of [element.props.children].flat()) { const found = findButton(child); if (found) return found; }
   return null;
 }
+
+// canvas-handoff fix round 1 (conductor's decision on review 🟡4): a turn the handoff card started was not the person's
+// message, so its end never offers Edit and resend; Sign in again stays, and a later turn of the person's resends.
+describe("the end of a handoff card's turn", () => {
+  const card: ThreadItem = { kind: "handoffCard", key: "u1", seq: 1, origin: { kind: "handoff", conversationId: "c0", canvas: { path: ".doan/canvases/drafts.html", id: "drafts" } }, text: "Continue." };
+  const failed = (code: "process_exited" | "not_logged_in", key = "e3"): ThreadItem => ({ kind: "end", key, seq: 3, end: { kind: "failed", code } });
+  test("offers no Edit and resend, keeps the notice and Sign in again", () => {
+    const out = html([card, failed("process_exited")]);
+    expect(out).toContain("<b>Claude Code stopped unexpectedly</b>");
+    expect(out).not.toContain("Edit and resend");
+    const signIn = html([card, { kind: "end", key: "x1", seq: null, end: { kind: "interrupted", reason: "crashed" } }]);
+    expect(signIn).not.toContain("Edit and resend");
+    const expired = html([card, failed("not_logged_in")]);
+    expect(expired).toContain(">Sign in again…</button>");
+    expect(expired).not.toContain("Edit and resend");
+  });
+  test("a later turn of the person's still offers it", () => {
+    const user: ThreadItem = { kind: "user", key: "u5", seq: 5, anchors: [], preset: null, parts: [{ text: "Use the red" }], attachments: [] };
+    expect(html([card, { kind: "agent", key: "m1", messageId: "m1", text: "Done.", streaming: false }, user, failed("process_exited", "e7")])).toContain(">Edit and resend</button>");
+  });
+});
