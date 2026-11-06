@@ -75,3 +75,4 @@
 - Z1을 통합했다(PRODUCT·ARCHITECTURE·DESIGN·BACKLOG 커밋 4개). 지휘자가 diff를 결정 기록과 맞춰 봤다. ARCHITECTURE에는 remembered-choice 절이 없어서, 고른 값만 고정하는 규칙은 PRODUCT item 0에만 적었다. Z1 worker와 worktree는 정리했다.
 - R1 B의 계정: 구계정은 ox501501@gmail.com이고 worker가 ego로 로그인한다. 구독 계정은 사람이 직접 로그인한다. worker가 교체 단계에서 로그인 URL을 ask로 보내면 지휘자가 전달한다.
 - 사람의 정정: ox501501@gmail.com은 구독 계정이다. 확인 방향은 상관없으므로, 구독 계정(ego 로그인)에서 구계정(사람 로그인)으로 바꾼다.
+- R1 B: 사람의 수동 로그인이 재시도 끝에 패스키에 막혔다. 바꿀 계정을 b2b_product_group@day1company.co.kr(사람의 설치본 Doan이 쓰는 Codex 계정)로 하고, worker가 ego로 새 프로필에 로그인한다. 설치본과 그 userData는 건드리지 않는다.
