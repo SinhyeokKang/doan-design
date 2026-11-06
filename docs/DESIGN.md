@@ -1437,3 +1437,20 @@ Context, not deviations: the Overview column is 720 centred in a wider window (5
 ### Regression pointers
 
 `ConversationThread.turn.test.tsx` (markup, place, no live region or focus, hidden time, the reduced-motion rule), `turnStatus.test.ts` (states, settle, words, elapsed format), `App.turnStage.test.tsx` (stage wiring). Sizes, colours and the sweep are `.scratch/` probes only.
+
+## Older model disclosure
+
+Reference: `.doan/canvases/model-drawer-older.html`, frames `inline` and `settings`. Computed styles were read in the built Electron app and its canvas iframe; evidence: `.scratch/design-sync/model-drawer-older/measure.mjs`, `table.md`, `inline-styles.json`, `settings-styles.json`, `draft-styles.json`, and `states.json`. The model lists use the repository's `models-older.json` fixture through its parsers, returned by a replaced `conversation:models` handler; no provider turn is sent. The `polish` design preset was read.
+
+| Element | Measured contract |
+|---|---|
+| Older models line | 32px high, 6px / 12px padding, 8px gap, 19px radius; transparent at rest, rgb(245,245,246) on hover. Label: Geist stack, 14px / 20px, weight 400, -0.035px tracking, rgb(82,82,82). |
+| Count | 12px / 16px, weight 400, 0.1596px tracking, rgb(95,95,95); the provider's count follows the flexible name. |
+| Chevron | 14 × 14px in the 16px-wide check slot, rgb(95,95,95); expanded transform `matrix(-1, 0, 0, -1, 0, 0)`. |
+| Keyboard focus | A 2px solid black outline on the disclosure; ArrowRight expands and ArrowLeft folds while the line remains focused. |
+| Accessibility | Real Chromium accessibility tree reports a `menuitem`, expanded state, and label-first names such as `Older models (Claude Code), 8` and `Older models (Codex), 4`. |
+| Selected older model | Choosing GPT-6-Sol in Home or Settings and reopening exposes the older group and its checked row. Cursor's 22 older rows also expand in the shared menu. |
+
+The existing **Picker default labels / Settings menu density** deviation still applies: the draft's compact 280px Settings menu does not replace the shared shipped menu (184px with this fixture, 174px row width). Its line keeps the same 32px height as the draft, with shipped padding 6px / 12px and 19px corners instead of 4px / 8px and 13px. The agent menu remains 300px wide and capped at 384px; its scrollbar gutter makes the line 282px wide, versus 290px in the unrolled draft. The draft intentionally unfolds full menu contents for comparison. Accessible names follow the label-first contract above, rather than the draft's alternate wording.
+
+Draft hover/focus states were not independently compared: its static rows are not keyboard-focusable, and the tested hover target was clipped by the board viewport. Actual app hover and keyboard focus were measured. Loading, error and disabled disclosure states have no draft frame and are not claimed as compared. The disclosure is not itself a selectable model. Runtime positioning and repeat-click limits require the separate affected-state probe; these style measurements do not establish position stability.
