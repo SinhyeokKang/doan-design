@@ -946,3 +946,24 @@ test("a listed mode change during a write is read after the write, also when the
   await flush();
   expect(doan.readConfig).toHaveBeenCalledTimes(2);
 });
+
+// runtime-test (local-doan-files A-G1): the group re-read after a mode write reached the open page as a listed change;
+// its config read disabled the options and dropped the focus just returned to the chosen radio. A read for a change
+// made elsewhere refreshes quietly: the controls stay as they are.
+test("a listed mode change refreshes the settings without disabling the controls", async () => {
+  const git = { common: `${ROOT}/.git`, main: ROOT, branch: "main", worktrees: [ROOT] };
+  const at = (storage: "repo" | "local"): FolderEntry => ({ path: ROOT, kind: "list", servedRev: 0, canvases: [], git, storage });
+  doan.readConfig!.mockImplementation(withStorage({ storage: "repo" }));
+  await open({ entries: [at("repo")] });
+  let finish!: (reply: unknown) => void;
+  doan.readConfig!.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  render({ entries: [at("local")] });
+  await flush(); render();
+  expect(doan.readConfig).toHaveBeenCalledTimes(2);
+  expect(closed()).toEqual([false, false]);
+  expect(hasButton("Change")).toBe(true);
+  expect(button("Change").props.disabled).toBe(false);
+  finish({ ...CONFIG, root: ROOT, storage: "local" });
+  await flush(); render();
+  expect(chosen()).toEqual([false, true]);
+});

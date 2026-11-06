@@ -95,9 +95,12 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
   const locked = projectSettingsLocked({ picking, confirming: !!choice, writing: !!busy });
 
   function focusTitle() { requestAnimationFrame(() => heading.current?.focus()); }
-  async function read(target: string) {
+  // quiet: a refresh for a change made elsewhere (a listed mode change). It keeps the controls as they are, so a focus
+  // just returned to them is not dropped; it still supersedes any older read.
+  async function read(target: string, quiet = false) {
     const request = ++epoch.current;
-    setReading(true); setReadError(null);
+    if (!quiet) setReading(true);
+    setReadError(null);
     try {
       // A read sent before the session starts would answer from the previous session (configBridge), so it waits.
       await started.current;
@@ -145,7 +148,7 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
       // read again. A write in flight reads them itself when it ends, so a read now could only be older than it.
       if (view.view === "settings" && before !== null && listedMode.current !== null && before !== listedMode.current) {
         if (busy) changedDuringWrite.current = true;
-        else void read(view.root);
+        else void read(view.root, true);
       }
       return;
     }
@@ -192,7 +195,7 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
     } catch (failure) { if (live.current && stale === generation.current) setError({ section, message: failure instanceof Error ? failure.message : String(failure) }); }
     finally {
       if (live.current) { setBusy(null); setWritingStorage(null); }
-      if (live.current && stale === generation.current && changedDuringWrite.current) { changedDuringWrite.current = false; void read(request.root); }
+      if (live.current && stale === generation.current && changedDuringWrite.current) { changedDuringWrite.current = false; void read(request.root, true); }
     }
   }
   // A press writes at once, with no confirmation: nothing is moved or deleted and it can be switched back (design §3.2).
