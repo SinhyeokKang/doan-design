@@ -81,12 +81,23 @@ describe("Claude stages", () => {
     const fixtures = [claudeThinking.thinking, claudeThinking.task, claudeFixture, claudeContext.tool, claudeContext.compact, [askFixture.toolUse]];
     for (const frames of fixtures) expect(stagesOf(claudeSteps(frames).steps).filter(stage => stage.kind === "tool")).toEqual([]);
   });
-  it("ignores a subagent's frames, so the parent turn stays general while the subagent runs", () => {
-    const { steps } = claudeSteps(claudeThinking.task);
-    const nested = claudeThinking.task.flatMap((frame, i) => (frame as { parent_tool_use_id?: string | null }).parent_tool_use_id ? [i] : []);
+  it("reports nothing for a subagent's frames, nor after the Agent activity until the top-level tool result", () => {
+    const frames = claudeThinking.task as Record<string, any>[], { steps } = claudeSteps(frames);
+    const nested = frames.flatMap((frame, i) => frame.parent_tool_use_id ? [i] : []);
     expect(nested.length).toBeGreaterThan(0);
     for (const i of nested) expect(steps[i]).toEqual({ events: [] });
-    // requesting, the Agent result, requesting; the system/task_* frames report nothing.
+    // While the subagent runs the Agent activity is the newest event, so the indicator is in the 도구(event) state: no
+    // general follows it, not even at the Agent tool block's stop, until the Agent's own tool result.
+    const agent = steps.findIndex(step => step.events.some(e => e.type === "activity"));
+    const result = frames.findIndex(f => f.type === "user" && !f.parent_tool_use_id && f.message.content.some((c: { type: string }) => c.type === "tool_result"));
+    const toolStop = frames.findIndex((f, i) => i > agent && f.type === "stream_event" && f.event.type === "content_block_stop");
+    expect(agent).toBeGreaterThanOrEqual(0);
+    expect(toolStop).toBeGreaterThan(agent);
+    expect(toolStop).toBeLessThan(result);
+    expect(steps[toolStop]).toEqual({ events: [] });
+    expect(steps.slice(agent + 1, result).filter(step => step.stage)).toEqual([]);
+    expect(steps[result]!.stage).toEqual(GENERAL);
+    // requesting before the call, the Agent result, requesting after it; the system/task_* frames report nothing.
     expect(stagesOf(steps)).toEqual([GENERAL, GENERAL, GENERAL]);
     expectNoStageAfterTerminal(steps);
   });
@@ -264,6 +275,23 @@ describe("ACP stages", () => {
     const frames = [update({ sessionUpdate: "usage_update", used: 10, size: 100 }), update({ sessionUpdate: "agent_message_chunk", content: { type: "text", text: "hi" } }), update({ sessionUpdate: "plan", entries: [] })];
     expect(stagesOf(acpSteps(frames as Record<string, any>[]).steps)).toEqual([]);
   });
+  it("ends thinking on a status-bearing update even for a tool already completed", () => {
+    const done = update({ sessionUpdate: "tool_call_update", toolCallId: "t", kind: "read", status: "completed" });
+    const { state } = acpSteps([done] as Record<string, any>[]);
+    const { steps, state: after } = acpSteps([thought, update({ sessionUpdate: "tool_call_update", toolCallId: "t", status: "completed" })] as Record<string, any>[], state);
+    expect(steps).toEqual([{ events: [], stage: THINKING }, { events: [], stage: GENERAL }]);
+    expect(after.thinking).toBeUndefined();
+    // A status-less update for it leaves thinking on.
+    expect(stagesOf(acpSteps([thought, update({ sessionUpdate: "tool_call_update", toolCallId: "t", content: [] })] as Record<string, any>[], state).steps)).toEqual([THINKING]);
+  });
+  it("ends an unknown status as general, in thinking or not", () => {
+    const odd = update({ sessionUpdate: "tool_call_update", toolCallId: "t", kind: "read", title: "Read a", status: "cancelled" });
+    expect(acpSteps([odd] as Record<string, any>[]).steps).toEqual([{ events: [], stage: GENERAL }]);
+    const { steps, state } = acpSteps([thought, odd] as Record<string, any>[]);
+    expect(stagesOf(steps)).toEqual([THINKING, GENERAL]);
+    expect(state.thinking).toBeUndefined();
+    expect(state.activities).toEqual([]);
+  });
   it("reports Cursor's pending and in-progress tools by kind, never an execute title, and general when each ends", () => {
     const { steps } = acpSteps(cursorFixture.turn);
     expect(folded(stagesOf(steps))).toEqual([
@@ -301,27 +329,36 @@ describe("ACP stages", () => {
 });
 
 describe("ACP tool summary (B2)", () => {
-  // The summary a running tool's stage shows is the one its completed activity gets, from the same tool record.
+  // In the recorded turns no completion changes a tool's kind, path or title after its last running update, so the stage
+  // that tool showed while it ran is its completed activity's kind, path and summary.
   it.each([
-    ["Copilot thought turn", copilotThought.turn],
-    ["Copilot", copilotFixture.turn],
-    ["Cursor", cursorFixture.turn],
-  ])("matches each %s tool's last running stage to its completed activity", (_, frames) => {
-    let state = initialAcp("turn-1"); const running = new Map<string, TurnStage>(); let compared = 0;
+    ["Copilot thought turn", copilotThought.turn, 2],
+    ["Copilot", copilotFixture.turn, 1],
+    ["Cursor", cursorFixture.turn, 2],
+  ])("gives each %s tool's last running stage its completed activity's summary (%i tools)", (_, frames, tools) => {
+    let state = initialAcp("turn-1");
+    const running = new Map<string, { stage: TurnStage; tool: unknown }>(); let compared = 0;
     for (const frame of frames as Record<string, any>[]) {
       if (frame.method !== "session/update") continue;
       const u = frame.params.update, result = normalizeAcp(state, u, "/repo"); state = result.state;
-      if (result.stage?.kind === "tool") running.set(u.toolCallId, result.stage);
+      if (result.stage?.kind === "tool") running.set(u.toolCallId, { stage: result.stage, tool: state.tools[u.toolCallId] });
       const activity = result.events.find(e => e.type === "activity");
       if (activity?.type !== "activity") continue;
-      const stage = running.get(u.toolCallId);
-      if (stage?.kind !== "tool") continue;
-      // The completion may still bring a new title or path; the summary rule is what is shared.
-      const final = normalizeAcp({ ...initialAcp("turn-1"), tools: { [u.toolCallId]: state.tools[u.toolCallId]! } }, { sessionUpdate: "tool_call_update", toolCallId: u.toolCallId, status: "in_progress" }, "/repo").stage;
-      expect(final).toMatchObject({ kind: "tool", activity: activity.kind, summary: activity.summary });
+      const last = running.get(u.toolCallId);
+      expect(last?.tool).toEqual(state.tools[u.toolCallId]);
+      expect(last?.stage).toEqual({ kind: "tool", activity: activity.kind, ...(activity.path ? { path: activity.path } : {}), summary: activity.summary });
       compared++;
     }
-    expect(compared).toBeGreaterThan(0);
+    expect(compared).toBe(tools);
+  });
+  it("words a completion that brings a new title by the same rule the running stage used", () => {
+    const tool = (u: Record<string, unknown>) => update({ toolCallId: "t", kind: "edit", locations: [{ path: "/repo/a.txt" }], ...u });
+    const { steps } = acpSteps([tool({ sessionUpdate: "tool_call", title: "Edit File", status: "pending" }), tool({ sessionUpdate: "tool_call_update", title: "Edit `/repo/a.txt`", status: "completed" })] as Record<string, any>[]);
+    expect(steps[0]!.stage).toEqual({ kind: "tool", activity: "edit", path: "/repo/a.txt", summary: "Edit File" });
+    expect(steps[1]!.events).toEqual([{ type: "activity", kind: "edit", path: "/repo/a.txt", insideDesign: false, summary: "Edit `/repo/a.txt`" }]);
+    // The same final record, still running, reads as the activity does.
+    const running = acpSteps([tool({ sessionUpdate: "tool_call", title: "Edit File", status: "pending" }), tool({ sessionUpdate: "tool_call_update", title: "Edit `/repo/a.txt`", status: "in_progress" })] as Record<string, any>[]).steps[1]!.stage;
+    expect(running).toEqual({ kind: "tool", activity: "edit", path: "/repo/a.txt", summary: "Edit `/repo/a.txt`" });
   });
   it("keeps the recorded ACP turns' activities as they were", () => {
     // The A1 turns are pinned whole in turnActivityFixtures.test.ts.
