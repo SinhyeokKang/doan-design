@@ -15,6 +15,8 @@
 - T5(승격과 정리)는 conductor가 통합 뒤 문서별 커밋으로 한다(`/orchestrate` §5). — conductor 판단
 - main이 앞서 나가면: 통합 `/verify` 전마다 `git fetch origin`으로 origin/main을 보고, 움직였으면 `feat/agent-cli-terminal`을 rebase한 HEAD에서 gate를 돌린다. 충돌 시 main의 문서는 그대로 두고 feature 쪽만 고친다(사용자).
 
+- T1에서 Copilot update 위치가 어긋났다: `copilot update`는 JS 패키지를 실제 HOME 캐시에 받고 PATH 바이너리를 교체한다. Doan은 HOME=<profileDir>로 띄워 바이너리만 쓰고, ToolFacts는 실제 HOME으로 버전을 읽는다. 바이너리 교체가 실패하면 facts와 실행 바이너리가 갈린다. → Copilot update는 설치 페이지로 둔다. Copilot install은 터미널 명령을 유지한다(사용자).
+
 ## 배치
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort (이유) | 검증 gate | 상태 |
