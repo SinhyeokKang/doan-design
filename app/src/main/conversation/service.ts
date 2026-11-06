@@ -361,7 +361,9 @@ export class ConversationService {
       } else {
         if (rebound || chosen.model !== metadata.model || chosen.effort !== metadata.effort || fast.fast !== metadata.fast || stored.permissionMode !== metadata.permissionMode || seenSeq !== metadata.seenSeq || JSON.stringify(canvasesAtStart) !== JSON.stringify(metadata.canvasesAtStart))
           this.store.save(this.store.list().map(m => m.conversationId === id ? updated : m));
-        this.append(id, live.turnId, message); this.append(id, live.turnId, { type: "turn.started" }); live.accepted = true; this.suggestions.delete(id);
+        // One write: a turn.started that cannot be saved must not leave the message, which would read as a turn that runs.
+        for (const event of this.store.appendAll(id, live.turnId, [message, { type: "turn.started" }])) this.deliver(event);
+        this.changedOf(id); live.accepted = true; this.suggestions.delete(id);
       }
       if (projectTurn) this.evidence.set(id, { root: metadata.root, turnId: live.turnId, snapshot: canvasesAtStart ?? [], edits: new Set(), changed: new Set(), taken: [], waiters: [] });
       // The previous turn's handoff was resolved before this send went on (handoffWait).

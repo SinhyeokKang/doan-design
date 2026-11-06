@@ -883,8 +883,9 @@ describe("send extras", () => {
   }
   it("saves the new model and effort before the turn's events and opens the run with them", async () => {
     const h = homeFixture(); const id = await finished(h);
-    const append = h.store.append.bind(h.store); const atMessage: unknown[] = [];
-    vi.spyOn(h.store, "append").mockImplementation((...args) => { if (args[2].type === "user.message") atMessage.push(h.store.list()[0]!.model); return append(...args); });
+    // The message goes out with its turn.started in one write (FX review).
+    const appendAll = h.store.appendAll.bind(h.store); const atMessage: unknown[] = [];
+    vi.spyOn(h.store, "appendAll").mockImplementation((...args) => { if (args[2].some(body => body.type === "user.message")) atMessage.push(h.store.list()[0]!.model); return appendAll(...args); });
     await h.service.send(id, "again", [], { model: "opus", effort: "high" });
     expect(atMessage).toEqual(["opus"]);
     expect(h.store.list()[0]).toMatchObject({ model: "opus", effort: "high" });
