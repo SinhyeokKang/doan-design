@@ -118,8 +118,9 @@ UI 문구는 영어다. 기존 Effort 메뉴의 말투(짧은 명사)를 따르�
 - `effort-menu`: Effort 메뉴의 세 경우. Codex 모델(레벨 + 구분선 + 두 줄로 줄바꿈된 설명의 Fast 스위치, 꺼짐과 켜짐), Claude opus(Claude 설명), Fast를 지원하지 않는 모델(지금과 같은 메뉴). 메뉴 폭은 200px을 유지하고 설명은 줄바꿈한다.
 - `trigger`: Effort 트리거 꺼짐과 켜짐. Home 도구 행(`sm`)과 도킹된 composer(`xs`). Fast 켜짐 + "Extra high"로 216–384px 사이에서 라벨이 숨는 경계(384·288)가 그대로인지, 모델 라벨이 넘치지 않는지. tooltip.
 - `thread-notice`: 자동으로 꺼진 알림, 켜 둔 채의 알림(이유 있음·없음). 턴의 답 아래 어디에 놓이는지.
+  - 모양(사람, 2026-11-06): 턴 안의 접힌 activity 줄이다. 그 턴의 답 아래에 Fast 아이콘과 subtle 글자로 두고, 길면 줄을 바꾼다. 대화 단위 marker(가운데 줄)는 쓰지 않는다. 실패한 턴에서는 끝 알림 앞에 온다.
 
-상태: 초안 전.
+상태: 초안 그림(round 1, `docs(design): fast-mode draft`), 사람 확인 전.
 
 ## 8. PoC 의존
 
