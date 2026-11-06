@@ -52,6 +52,16 @@ it("draws every project hue as a light tint with dark ink, shared with onboardin
   expect(render("/repo")).toContain('<span class="shell-thumbnail hue-');
 });
 
+// PRODUCT §5: the chevron shows on hover or keyboard focus. A mouse click focuses the row (a treeitem), so :focus-within
+// kept the chevron after the pointer left; only focus-visible focus may show it.
+it("shows the project row's chevron on hover or keyboard focus, not on focus left by a click", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toContain(".shell-project-row:is(:hover, :focus-visible, :has(:focus-visible)) .shell-disclosure { visibility: visible; }");
+  expect(css).toContain(".shell-project-row:is(:hover, :focus-visible, :has(:focus-visible)) .shell-lead > .shell-thumbnail { visibility: hidden; }");
+  expect(css).not.toMatch(/\.shell-project-row:[^{]*focus-within/);
+});
+
 it("keeps every thumbnail letter readable on its tint, for the sidebar's 10px letter too", async () => {
   const { readFileSync } = await import("node:fs");
   const { contrastPairs } = await import("./ds/checks");
