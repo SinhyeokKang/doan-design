@@ -8,20 +8,39 @@ design '결정' 0–26(사람, 2026-11-06)을 따른 순서다.
 
 ## P. PoC(실제 provider, 공용 로그인 프로필과 사람의 승인 필요, P1–P5를 한 세션에서)
 
-- [ ] P1. 목록: 임시 repo(design 'PoC 의존' P1의 목록: `.claude/skills/a`, `.claude/commands/b.md`, 중첩 `.claude/commands/sub/x.md`, `.agents/skills/c`, `.agents/skills/d`를 가리키는 symlink `.claude/skills/d`, `disable-model-invocation` skill, `user-invocable: false` skill, 이상한 이름(대문자, 한글, 끝이 문장부호, 64자))와 MCP connector 하나로, Doan 프로필의 Claude `initializationResult().commands`가 첫 메시지 전에 답하는지, 섞여 오는 항목(MCP prompt, claude.ai connector, plugin), symlink를 따라가는지 기록한다. Codex `skills/list {cwds: [root]}`의 `data[].skills[]`의 `scope`·`enabled`·`pluginId`와 `errors`를, 신뢰하지 않은 project에서도 기록한다. 결과로 `parseClaudeSkills`의 거르기 규칙을 design §1에 적는다. 두 응답은 개인 정보를 지운 뒤 A1의 fixture로 쓴다.
+- [x] P1. 목록: 임시 repo(design 'PoC 의존' P1의 목록: `.claude/skills/a`, `.claude/commands/b.md`, 중첩 `.claude/commands/sub/x.md`, `.agents/skills/c`, `.agents/skills/d`를 가리키는 symlink `.claude/skills/d`, `disable-model-invocation` skill, `user-invocable: false` skill, 이상한 이름(대문자, 한글, 끝이 문장부호, 64자))와 MCP connector 하나로, Doan 프로필의 Claude `initializationResult().commands`가 첫 메시지 전에 답하는지, 섞여 오는 항목(MCP prompt, claude.ai connector, plugin), symlink를 따라가는지 기록한다. Codex `skills/list {cwds: [root]}`의 `data[].skills[]`의 `scope`·`enabled`·`pluginId`와 `errors`를, 신뢰하지 않은 project에서도 기록한다. 결과로 `parseClaudeSkills`의 거르기 규칙을 design §1에 적는다. 두 응답은 개인 정보를 지운 뒤 A1의 fixture로 쓴다.
   - 검증: command undecided — needs user confirmation(`.scratch/project-skill-drawer/`의 probe와 출력, 결과를 아래 'P 결과'에 적는다).
-- [ ] P2. 전달: design §3의 고정 줄과 글 속 `/<이름>`이 든 Doan prompt(`turnPrompt`로 만든 것)로 Claude가 Skill 도구를 부르는지, Default 모드에서 승인을 묻는지, `disable-model-invocation` skill에서 무엇이 일어나는지 본다. Codex는 rollout에 `<skill>` fragment가 남는지 본다. 따르지 않는 provider가 있으면 그 provider만 따로 길을 정하도록 사람에게 묻는다(결정 3, 8).
+- [x] P2. 전달: design §3의 고정 줄과 글 속 `/<이름>`이 든 Doan prompt(`turnPrompt`로 만든 것)로 Claude가 Skill 도구를 부르는지, Default 모드에서 승인을 묻는지, `disable-model-invocation` skill에서 무엇이 일어나는지 본다. Codex는 rollout에 `<skill>` fragment가 남는지 본다. 따르지 않는 provider가 있으면 그 provider만 따로 길을 정하도록 사람에게 묻는다(결정 3, 8).
   - 검증: command undecided — needs user confirmation(provider 턴 기록과 rollout 발췌를 'P 결과'에 적는다).
-- [ ] P3. 최소 버전: Claude Code 2.1.284와 Codex 0.158.0에서 P1의 두 호출이 같은 모양으로 답하는지. 옛 버전은 임시 prefix에 설치하고 사람의 전역 설치는 건드리지 않는다. 아니면 최소 버전을 올릴지 사람에게 묻는다(ARCHITECTURE §7 'Agent authentication' 'Versions').
+- [x] P3. 최소 버전: Claude Code 2.1.284와 Codex 0.158.0에서 P1의 두 호출이 같은 모양으로 답하는지. 옛 버전은 임시 prefix에 설치하고 사람의 전역 설치는 건드리지 않는다. 아니면 최소 버전을 올릴지 사람에게 묻는다(ARCHITECTURE §7 'Agent authentication' 'Versions').
   - 검증: command undecided — needs user confirmation. 두 버전의 응답 모양과 설치 방법(임시 prefix, 전역 설치 불변)을 'P 결과'에 적는다.
-- [ ] P5. Antigravity doan stub: Doan 연결 Antigravity 캔버스 대화에서 agent에게 가진 skill과 `doan` skill이 있는지 묻고, ACP frame과 서버의 파일 읽기에서 `skills/doan` 참조를 찾는다. 저장소의 `.agents/skills`를 찾는지도 본다. 서버 버전(`antigravity.ts`의 `ANTIGRAVITY_SERVER.version`과 실제 내려받은 서버)을 함께 기록한다. 찾으면 F1을 지우고 `providers.ts`의 `HOME_STUB` 주석의 "B3 live check 2026-10-28"을 그대로 둔다. 찾지 못하면 F1을 한다.
+- [x] P5. Antigravity doan stub: Doan 연결 Antigravity 캔버스 대화에서 agent에게 가진 skill과 `doan` skill이 있는지 묻고, ACP frame과 서버의 파일 읽기에서 `skills/doan` 참조를 찾는다. 저장소의 `.agents/skills`를 찾는지도 본다. 서버 버전(`antigravity.ts`의 `ANTIGRAVITY_SERVER.version`과 실제 내려받은 서버)을 함께 기록한다. 찾으면 F1을 지우고 `providers.ts`의 `HOME_STUB` 주석의 "B3 live check 2026-10-28"을 그대로 둔다. 찾지 못하면 F1을 한다.
   - 검증: command undecided — needs user confirmation(대화 기록, frame·파일 읽기 발췌, 판정을 'P 결과'에 적는다).
 
 ── commit 없음(PoC 기록은 `.scratch/`, 결론만 이 문서에) ──
 
 ### P 결과
 
-(PoC 뒤에 적는다.)
+2026-11-06. 목록 읽기(P1·P3)는 공용 로그인 프로필의 config 디렉터리(`CLAUDE_CONFIG_DIR`, `CODEX_HOME`)로 SDK와 app-server를 직접 열어 prompt 없이 읽었다(`.scratch/project-skill-drawer/p1-claude.mjs`, `p1-codex.mjs`, 출력은 `out/p1-*.json`). 옛 버전은 context-window-ring 때 임시 prefix에 설치한 `.scratch/context-window-ring/old/`의 Claude Code 2.1.284와 Codex 0.158.0이고, 사람의 전역 설치는 건드리지 않았다. 전달(P2)과 Antigravity(P5)는 그 프로필로 main을 build한 앱을 띄워(`launch.sh`, CDP 9336, frame hook) 캔버스 대화로 보냈다(`drive.mjs`, 결과 `out/results.json`, frame `out/frames/`). 임시 repo `.scratch/project-skill-drawer/repo`는 design 'PoC 의존' P1의 목록 그대로이고, 프로필의 `folders.json`에 잠시 더했다가 되돌렸다. MCP connector는 프로필에 없어서, prompt 하나와 도구 하나를 가진 stdio MCP server(`mcp-server.mjs`)를 SDK `mcpServers`로 붙였다.
+
+- **P1·P3 Claude**(첫 메시지 전에 답함: 2.1.318 294ms, 2.1.284 929–985ms): `initializationResult().commands`의 키는 `name, description, argumentHint, builtin, aliases`로 두 버전이 같다.
+  - project 항목: `a`, `d`(symlink를 따라감), `ends-bang!`, 64자 이름, `manual`(`disable-model-invocation`), `Upper-Case`, `한글스킬`, `b`, `sub:x`(중첩 command). `hidden`(`user-invocable: false`)은 없다.
+  - 설명 끝에 출처가 붙는다: ` (project)` 9개, ` (user)` 1개(Doan stub `doan`), ` (claude.ai sync)` 12개.
+  - MCP prompt는 `initializationResult()`에 없다. server가 연결된 뒤 `supportedCommands()`에 `probe:probe-prompt`와 claude.ai connector의 `claude.ai Figma:create_design_system_rules`가 설명 ` (MCP)`로 왔다.
+  - 결과로 design §1의 `parseClaudeSkills` 규칙을 고쳤다(` (project)` 꼬리만 남김).
+- **P1·P3 Codex**(0.166.0과 0.158.0이 같은 모양): `skills/list {cwds: [root], forceReload: true}`의 `data[0]`에 `cwd`, `errors`, `skills[]`(`name, description, path, scope, enabled, pluginId`, 일부는 `interface`·`shortDescription`)가 왔다.
+  - 신뢰하지 않은 project에서도 `.agents/skills`의 `c`, `d`, `manualc`, `Upper-Codex`가 `scope: "repo"`로 왔다(모두 `enabled: true`, `pluginId` 없음).
+  - 그 밖에 `user`(Doan.app의 `doan`, 프로필의 stub `doan`, 사람의 `~/.agents/skills` 네 개, 다른 앱의 skill)와 `system`(프로필의 `.system/` 다섯·여섯 개)이 섞인다.
+  - frontmatter가 깨진 SKILL.md는 `errors[]`에 `{path, message: "missing YAML frontmatter delimited by ---"}`로 오고 목록에서 빠진다.
+  - 신뢰한 project는 `-c projects."<root>".trust_level` 덮어쓰기를 app-server가 무시해서 따로 보지 못했다. 신뢰하지 않은 project에서도 repo skill이 오므로 design §1의 규칙(`scope === "repo"`)은 그대로다.
+- **P2 전달**(Default 모드, 모두 permission 요청 없음):
+  - Claude 2.1.318: 고정 줄 하나와 `/a`가 든 글에 Skill 도구 `{skill: "a"}`를 불렀고 `SKILL-A-USED`로 답했다. 고정 줄이 둘(`b`, `d`)이면 Skill 도구를 두 번 불렀다(`b`는 `.claude/commands`, `d`는 symlink).
+  - `disable-model-invocation` skill `manual`: Skill 도구를 부르지 못하고 Bash `ls`·`cat`으로 SKILL.md를 읽어 그대로 따랐다(`SKILL-MANUAL-USED`). 막히지는 않는다.
+  - Codex 0.166.0: rollout에 `<skill>` fragment는 0건이다. 대신 모델이 `cat .agents/skills/c/SKILL.md`를 실행해 읽고 따랐다(`SKILL-C-USED`, `manualc`도 같음). 전달은 되지만 provider의 주입이 아니라 모델의 파일 읽기다.
+  - 따르지 않은 provider가 없으므로 결정 3·8대로 간다.
+- **P5 Antigravity**(ACP 서버 1.3.0, `ANTIGRAVITY_SERVER.version`과 내려받은 `agent-runtimes/antigravity-acp/1.3.0`이 같다): 가진 skill로 `Upper-Codex`, `c`, `d`를 대고 `doan`은 없다고 답했다. frame에 `skills/doan` 참조는 0건이다. 저장소의 `.agents/skills`는 찾는다(`manualc`는 대지 않았다).
+  - 프로필의 stub `<GEMINI_HOME>/skills/doan`을 `<GEMINI_HOME>/config/skills/doan`에 잠시 복사하자 같은 질문에 `doan`이 있다고 답했다. 확인 뒤 복사본과 `config/`를 지웠다.
+  - 판정: F1을 한다. 옮길 경로는 `<GEMINI_HOME>/config/skills`다.
 
 ## D0. UI 초안(구현 전)
 
@@ -30,7 +49,7 @@ design '결정' 0–26(사람, 2026-11-06)을 따른 순서다.
 
 ## F. Antigravity stub 수정(P5가 "찾지 못함"일 때만)
 
-- [ ] F1. `HOME_STUB(".gemini")`(`app/src/main/agentAuth/providers.ts`의 `HOME_STUB` 정의와 `.gemini` 사용)가 쓰는 경로를 P5에서 서버가 실제로 읽는다고 확인한 경로(1.3.0 소스로는 `<GEMINI_HOME>/config/skills` 또는 `<GEMINI_HOME>/antigravity-cli/skills`, `GEMINI_HOME=<profile>/.gemini`는 `environment.ts:35-36`)로 옮기고 주석의 근거를 바꾼다. stub은 provider 프로세스마다 쓰이므로(`manager.ts:778` `writeSetting`) 이미 있는 profile도 다음 프로세스부터 새 경로에 stub을 가진다. 옛 경로의 파일은 서버가 읽지 않으므로 그대로 둔다(지우는 코드를 더하지 않는다). 지금 `providers.test.ts`는 `skills/doan/SKILL.md`로 끝나는지만 보고 `manager.test.ts`에는 antigravity stub 쓰기 테스트가 없으므로, antigravity의 정확한 stub 경로를 고정하는 테스트를 새로 더하고 바꾸기 전에 red를 확인한다.
+- [ ] F1. `HOME_STUB(".gemini")`(`app/src/main/agentAuth/providers.ts`의 `HOME_STUB` 정의와 `.gemini` 사용)가 쓰는 경로를 P5에서 서버가 실제로 읽는다고 확인한 `<GEMINI_HOME>/config/skills`(`GEMINI_HOME=<profile>/.gemini`는 `environment.ts:35-36`)로 옮기고 주석의 근거를 바꾼다. stub은 provider 프로세스마다 쓰이므로(`manager.ts:778` `writeSetting`) 이미 있는 profile도 다음 프로세스부터 새 경로에 stub을 가진다. 옛 경로의 파일은 서버가 읽지 않으므로 그대로 둔다(지우는 코드를 더하지 않는다). 지금 `providers.test.ts`는 `skills/doan/SKILL.md`로 끝나는지만 보고 `manager.test.ts`에는 antigravity stub 쓰기 테스트가 없으므로, antigravity의 정확한 stub 경로를 고정하는 테스트를 새로 더하고 바꾸기 전에 red를 확인한다.
   - 검증: `npm --prefix app test` 통과(새 테스트가 바꾸기 전 red였음을 기록), 그리고 실제 Antigravity 턴 하나에서 agent가 `doan` skill을 찾는다(공용 프로필, 사람 승인; 'P 결과'에 기록).
 
 ── commit: `fix: put the Antigravity doan skill stub where its server reads skills` ──
