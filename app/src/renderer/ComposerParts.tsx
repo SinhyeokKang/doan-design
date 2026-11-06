@@ -415,7 +415,7 @@ export function AgentPicker(props: {
             {note && <span className="agent-note">{note === "Loading models" && <span className="doan-spinner" aria-hidden="true" />}{note}</span>}</DropdownMenu.Label>
           {group.selectable ? <DropdownMenu.RadioGroup value={!selected ? "" : selected.kind === "model" ? selected.id : "default"} onValueChange={value => props.onPick(group.provider, group.rows.some(row => row.kind === "model" && row.id === value) ? value : null)}>
             {current.map(item)}
-            {older.length > 0 && olderOrder(fold.line(group.provider, group.name, older.length), fold.isOpen(group.provider) ? older.map(item) : [], fold.side(group.provider))}
+            {older.length > 0 && olderOrder<ReactNode>(fold.line(group.provider, group.name, older.length), fold.isOpen(group.provider) ? older.map(item) : [], fold.side(group.provider))}
           </DropdownMenu.RadioGroup> : fix ? <DropdownMenu.Item className="doan-menu-item" onSelect={() => props.onSettings(fix.target)}>{fix.label}</DropdownMenu.Item>
             : <DropdownMenu.Item className="doan-menu-item" disabled><span className="sub">{short ?? "Not available right now"}</span></DropdownMenu.Item>}
           {group.selectable && short && <p className="menu-note">{short}</p>}
