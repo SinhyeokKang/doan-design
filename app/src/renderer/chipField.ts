@@ -1,4 +1,4 @@
-import { fieldSkillRuns, insertSkillText, sameSkillRanges, skillAnnouncements, skillTextParts } from "./skillWords";
+import { fieldSkillRuns, insertSkillText, replaceSlashSkill, sameSkillRanges, skillAnnouncements, skillTextParts } from "./skillWords";
 import { chipLabel, LIMITS } from "../main/conversation/messageText";
 import type { Anchor } from "../main/conversation/types";
 import {
@@ -154,6 +154,7 @@ export class ChipField {
     this.index = 0;
     this.mergeable = false;
     this.placeCaret(end);
+    this.announceSkills();
   }
 
   // "pending" waits for the composition to end; "limit" would point at more than LIMITS.anchors places; "refused": this
@@ -179,9 +180,10 @@ export class ChipField {
     this.replace(start, end, normalize([{ kind: "text", text }]), "insert");
   }
 
-  insertSkill(name: string): void {
+  insertSkill(name: string, fromSlash = false): void {
     if (this.composingNow || this.readOnly()) return;
     const before = this.readSelection();
+    if (fromSlash) { this.replace(0, unitLength(this.segments), replaceSlashSkill(name).segments, "insert"); return; }
     const result = insertSkillText(this.segments, before.focus, name);
     this.render(result.segments);
     this.placeCaret({ anchor: result.caret, focus: result.caret });

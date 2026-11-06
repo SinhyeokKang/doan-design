@@ -1,4 +1,4 @@
-import { fieldSkillRuns, replaceSlashSkill } from "./skillWords";
+import { fieldSkillRuns } from "./skillWords";
 import { useEffect, useId, useImperativeHandle, useLayoutEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent, type MutableRefObject, type ReactElement } from "react";
 import { Clock, Crosshair, Gauge, Plus, Shield, X } from "lucide-react";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
@@ -256,8 +256,8 @@ export function DockedComposer(props: DockedComposerProps) {
   const chooseRow = (id: string, kind: PresetRow["kind"], fromSlash: boolean) => {
     if (kind === "preset") { choosePreset(id, fromSlash); return; }
     pickedSkill.current = !fromSlash;
-    if (fromSlash) { edit({ segments: replaceSlashSkill(id).segments }); focus({ kind: "restored" }); }
-    else field.current?.insertSkill(id);
+    field.current?.insertSkill(id, fromSlash);
+    if (fromSlash) focus({ kind: "restored" });
   };
   const choosePreset = (id: string, fromSlash: boolean) => {
     const chosen = presets.find(p => p.id === id);

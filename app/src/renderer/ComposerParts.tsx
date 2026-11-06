@@ -106,7 +106,7 @@ export interface ComposerFieldHandle {
   caretAtStart(): boolean;
   insertChip(anchor: Anchor): ChipInsert;
   insertText(text: string): void;
-  insertSkill(name: string): void;
+  insertSkill(name: string, fromSlash?: boolean): void;
   composing(): boolean;
   element(): HTMLElement | null;
 }
@@ -154,7 +154,7 @@ export const ComposerField = forwardRef<ComposerFieldHandle, {
     caretAtStart: () => field.current?.caretAtStart() ?? true,
     insertChip: anchor => field.current?.insertChip(anchor) ?? "refused",
     insertText: text => field.current?.insertText(text),
-    insertSkill: name => field.current?.insertSkill(name),
+    insertSkill: (name, fromSlash) => field.current?.insertSkill(name, fromSlash),
     composing: () => field.current?.composing() ?? false,
     element: () => node.current,
   }), []);

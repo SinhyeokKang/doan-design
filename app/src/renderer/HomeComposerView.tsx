@@ -1,5 +1,5 @@
 import { useProjectSkills } from "./useProjectSkills";
-import { fieldSkillRuns, replaceSlashSkill } from "./skillWords";
+import { fieldSkillRuns } from "./skillWords";
 import { Fragment, useEffect, useId, useLayoutEffect, useReducer, useRef, useState, type ClipboardEvent, type KeyboardEvent, type ReactNode } from "react";
 import { DropdownMenu } from "radix-ui";
 import { ArrowUpRight, Check, ChevronDown, GitBranch, Plus } from "lucide-react";
@@ -312,8 +312,8 @@ export function HeroComposer(props: HeroComposerProps) {
   const chooseRow = (id: string, kind: PresetRow["kind"], fromSlash: boolean) => {
     if (kind === "preset") { choosePreset(id, fromSlash); return; }
     pickedSkill.current = !fromSlash;
-    if (fromSlash) { edit({ text: typedText(replaceSlashSkill(id).segments) }); queueMicrotask(focusEnd); }
-    else field.current?.insertSkill(id);
+    field.current?.insertSkill(id, fromSlash);
+    if (fromSlash) queueMicrotask(focusEnd);
   };
   // Either way of picking puts the caret at the end of the field (design §4.9); the popover does it once it closes.
   const choosePreset = (id: string, fromSlash: boolean) => {
