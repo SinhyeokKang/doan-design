@@ -420,12 +420,18 @@ export function HandoffCard({ entry, headId, project, canvasListed, onOpen }: { 
   </div>;
 }
 
-function lastEnd(items: readonly ThreadItem[]): string | null {
+// The last turn's end, which offers the end actions. resend: that turn began with the person's message; a turn the
+// handoff card began did not (the earlier agent wrote it), so its text never becomes the person's draft.
+function lastEnd(items: readonly ThreadItem[]): { key: string; resend: boolean } | null {
   for (let i = items.length - 1; i >= 0; i--) {
     const item = items[i]!;
     // A message Send now has in flight is not in the history yet, so it starts no turn after the end.
     if (item.kind === "user" && !item.sending) return null;
-    if (item.kind === "end") return item.key;
+    if (item.kind === "end") {
+      let j = i - 1;
+      while (j >= 0 && items[j]!.kind !== "user" && items[j]!.kind !== "handoffCard") j--;
+      return { key: item.key, resend: items[j]?.kind !== "handoffCard" };
+    }
   }
   return null;
 }
@@ -554,7 +560,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   if (items === null) return <div className="conversation-thread">{slow && <div className="thread-loading" role="status"><span className="doan-spinner" aria-hidden="true" /><span>Loading conversation</span></div>}</div>;
 
   const p = PROVIDER_NAMES[provider];
-  const resend = lastEnd(items);
+  const last = lastEnd(items);
   const toggle = (key: string) => setExpanded(current => { const next = new Set(current); if (next.has(key)) next.delete(key); else next.add(key); return next; });
   const item = (entry: ThreadItem): ReactNode => {
     switch (entry.kind) {
@@ -595,9 +601,9 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
         return <div className={`doan-notice${view.tone ? ` ${view.tone}` : ""} thread-notice`}>
           {view.tone ? <AlertIcon /> : <CircleStop className="doan-alert-icon" aria-hidden="true" />}
           <span className="strip-text"><b>{view.title}</b><span>{view.body}</span></span>
-          {entry.key === resend && <span className="strip-actions">
+          {entry.key === last?.key && (view.signIn || last.resend) && <span className="strip-actions">
             {view.signIn && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={props.onSignIn}>Sign in again…</button>}
-            <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={props.onEditAndResend}>Edit and resend</button>
+            {last.resend && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={props.onEditAndResend}>Edit and resend</button>}
           </span>}
         </div>;
       }
