@@ -14,6 +14,9 @@ func Config(ctx Context, f Flags, args []string) (Outcome, *Error) {
 	if failure := validateStorage(f); failure != nil {
 		return Outcome{}, failure
 	}
+	if (f.Given["storage"] || f.Storage != "") && (f.TokenCSSSet || f.ClearTokenCSS || len(f.AddServe) > 0 || len(f.RemoveServe) > 0) {
+		return Outcome{}, usageError("--storage cannot be combined with other config write flags")
+	}
 	if len(args) != 0 {
 		return Outcome{}, usageError("config takes no positional arguments")
 	}

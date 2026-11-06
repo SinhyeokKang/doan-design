@@ -48,6 +48,7 @@ func TestStorageReadBoundaries(t *testing.T) {
 			}
 			switch kind {
 			case "non-git":
+				home = root
 				reason = "not_git"
 			case "no-exclude":
 				os.Mkdir(filepath.Join(root, ".git/info"), 0755)
@@ -69,7 +70,7 @@ func TestStorageReadBoundaries(t *testing.T) {
 				put(t, root, "outside", "keep")
 				os.MkdirAll(filepath.Join(root, ".git/info"), 0755)
 				link(t, filepath.Join(root, "outside"), filepath.Join(root, ".git/info/exclude"))
-				want = "unknown"
+				want = "repo"
 				reason = "exclude_unwritable"
 			case "readonly":
 				put(t, root, ".git/info/exclude", "# doan: local\n/.doan/\n")
@@ -213,5 +214,54 @@ func TestStorageWriteLinks(t *testing.T) {
 	data, _ := os.ReadFile(outside)
 	if string(data) != "unchanged" {
 		t.Fatal(string(data))
+	}
+}
+
+func TestStorageReviewPatternBytesAndCap(t *testing.T) {
+	if got := StoragePattern("bad\xff*"); got != "/bad\xff\\*/.doan/" {
+		t.Fatalf("%q", got)
+	}
+	root := real(t, t.TempDir())
+	put(t, root, ".git/info/exclude", strings.Repeat("x", excludeLimit-1))
+	if got := ReadStorage(root, ""); got.Storage != "repo" || got.Reason != "exclude_unwritable" {
+		t.Fatal(got)
+	}
+}
+
+func TestStorageRemovalRecheckFailureCleansTemp(t *testing.T) {
+	for _, kind := range []string{"changed", "unreadable"} {
+		t.Run(kind, func(t *testing.T) {
+			root := real(t, t.TempDir())
+			path := filepath.Join(root, "exclude")
+			original := []byte("foreign\n# doan: local\n/.doan/\n")
+			os.WriteFile(path, original, 0600)
+			info, _ := os.Stat(path)
+			err := replaceExclude(path, original, RemoveStoragePair(original, "/.doan/"), info, func(p string) ([]byte, os.FileInfo, error) {
+				temps, _ := filepath.Glob(filepath.Join(root, ".exclude-*"))
+				if len(temps) != 1 {
+					t.Fatalf("expected staged replacement: %v", temps)
+				}
+				if kind == "unreadable" {
+					return nil, nil, os.ErrPermission
+				}
+				os.WriteFile(p, []byte("competitor\n"), 0600)
+				return readExclude(p)
+			})
+			if err == nil {
+				t.Fatal("recheck succeeded")
+			}
+			temps, _ := filepath.Glob(filepath.Join(root, ".exclude-*"))
+			if len(temps) != 0 {
+				t.Fatal(temps)
+			}
+			data, _ := os.ReadFile(path)
+			want := string(original)
+			if kind == "changed" {
+				want = "competitor\n"
+			}
+			if string(data) != want {
+				t.Fatal(string(data))
+			}
+		})
 	}
 }

@@ -57,7 +57,11 @@ func initWithRename(ctx Context, f Flags, args []string, rename func(string, str
 	} else if err != nil && !os.IsNotExist(err) {
 		return Outcome{}, internal(err)
 	}
-	result := map[string]any{"initialized": false, "repo": root, "created": []string{}, "nextSteps": []string{initContextStep}}
+	storage := repo.ReadStorage(root, ctx.Home)
+	if f.Storage == "repo" && storage.Storage == "local" {
+		return Outcome{}, &Error{Code: "usage_error", Message: "Project storage is already local", NextSteps: []string{"Run `doan config --storage repo` to change this project"}}
+	}
+	result := map[string]any{"initialized": false, "storage": storage.Storage, "repo": root, "created": []string{}, "nextSteps": []string{initContextStep}}
 	configPath := filepath.Join(root, ".doan/config.json")
 	st, e = os.Stat(configPath)
 	if e == nil {
@@ -83,9 +87,8 @@ func initWithRename(ctx Context, f Flags, args []string, rename func(string, str
 	if !os.IsNotExist(e) {
 		return Outcome{}, internal(e)
 	}
-	storage := repo.ReadStorage(root, ctx.Home)
 	local := f.Storage == "local" || storage.Storage == "local"
-	if local || storage.Storage == "unknown" {
+	if (f.Storage != "repo" && storage.Storage == "unknown") || (local && storage.Storage != "local") {
 		if failure := storageFailure(storage); failure != nil {
 			return Outcome{}, failure
 		}
@@ -94,7 +97,7 @@ func initWithRename(ctx Context, f Flags, args []string, rename func(string, str
 		if info, err := os.Stat(filepath.Join(root, ".gitattributes")); err == nil && info.IsDir() {
 			return Outcome{}, &Error{Code: "usage_error", Message: ".gitattributes must be a regular file", NextSteps: []string{"Remove or rename .gitattributes before running `doan init`"}}
 		} else if err != nil && !os.IsNotExist(err) {
-			return Outcome{}, internal(err)
+			return Outcome{}, &Error{Code: "internal_error", Message: "Cannot read .gitattributes for repo storage", NextSteps: []string{"Make .gitattributes readable inside the repository, then retry"}}
 		}
 	}
 	token := f.TokenCSS
@@ -170,10 +173,19 @@ func initWithRename(ctx Context, f Flags, args []string, rename func(string, str
 	if local {
 		changed, err := repo.WriteStorage(root, ctx.Home, "local")
 		if err != nil {
-			return Outcome{}, excludeFailure(err)
+			return Outcome{}, excludeFailure()
 		}
 		if changed {
 			created = append(created, repo.ExcludeLabel)
+		}
+	}
+	if !local {
+		changed, err := writeAttributes(root)
+		if err != nil {
+			return Outcome{}, &Error{Code: "internal_error", Message: "Cannot prepare .gitattributes for repo storage", NextSteps: []string{"Make .gitattributes readable and writable inside the repository, then retry"}}
+		}
+		if changed {
+			created = append(created, ".gitattributes")
 		}
 	}
 	if _, e := os.Stat(filepath.Join(root, ".doan/canvases")); os.IsNotExist(e) {
@@ -208,21 +220,13 @@ func initWithRename(ctx Context, f Flags, args []string, rename func(string, str
 	if e := staged.Close(); e != nil {
 		return Outcome{}, internal(e)
 	}
-	if !local {
-		changed, err := writeAttributes(root)
-		if err != nil {
-			return Outcome{}, internal(err)
-		}
-		if changed {
-			created = append(created, ".gitattributes")
-		}
-	}
 	// Publish only after merge setup; independent initializers are not serialized.
 	if e := rename(staged.Name(), configPath); e != nil {
 		return Outcome{}, internal(e)
 	}
 	created = append(created, ".doan/config.json")
 	sort.Strings(created)
+	result["storage"] = repo.ReadStorage(root, ctx.Home).Storage
 	result["initialized"] = true
 	result["created"] = created
 	return Outcome{Result: result}, nil

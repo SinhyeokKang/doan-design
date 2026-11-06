@@ -94,7 +94,7 @@ func TestInitLocalFailureAndRetry(t *testing.T) {
 	os.MkdirAll(filepath.Join(root, ".git/info"), 0755)
 	os.WriteFile(filepath.Join(root, ".git/info/exclude"), []byte("foreign\r\n"), 0444)
 	env, code := storageRun(t, root, "init", "--storage", "local")
-	if code != 1 {
+	if code != 5 {
 		t.Fatal(code, env)
 	}
 	if _, e := os.Stat(filepath.Join(root, ".doan")); !os.IsNotExist(e) {
@@ -112,8 +112,9 @@ func TestInitLocalFailureAndRetry(t *testing.T) {
 }
 func TestStorageNonGitAndInvalid(t *testing.T) {
 	root := t.TempDir()
+	t.Setenv("HOME", root)
 	env, code := storageRun(t, root, "init", "--storage", "local")
-	if code != 2 || env["error"].(map[string]any)["code"] != "usage_error" {
+	if code != 5 || env["error"].(map[string]any)["code"] != "local_not_git" {
 		t.Fatal(code, env)
 	}
 	entries, _ := os.ReadDir(root)
@@ -151,6 +152,7 @@ func TestPlainInitInLocalWorktree(t *testing.T) {
 
 func TestStorageReadDeepCompare(t *testing.T) {
 	root := t.TempDir()
+	t.Setenv("HOME", root)
 	root, _ = filepath.EvalSymlinks(root)
 	storageOK(t, root, "init")
 	got := storageOK(t, root, "config")

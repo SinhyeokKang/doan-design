@@ -22,12 +22,9 @@ func WriteStorage(root, home, storage string) (bool, error) {
 	}
 	path := filepath.Join(loc.common, "info/exclude")
 	pattern := StoragePattern(loc.rel)
-	data, info, err := readExclude(path)
+	data, info, err := readExcludeMode(path)
 	if err != nil {
 		return false, err
-	}
-	if !excludeWritable(path, info) {
-		return false, errors.New("exclude is not writable")
 	}
 	if storage == "local" {
 		next := AddStoragePair(data, pattern)
@@ -36,6 +33,9 @@ func WriteStorage(root, home, storage string) (bool, error) {
 		}
 		if bytes.Equal(next, data) {
 			return false, nil
+		}
+		if !excludeWritable(path, info) {
+			return false, errors.New("exclude is not writable")
 		}
 		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 			return false, err
@@ -71,31 +71,41 @@ func WriteStorage(root, home, storage string) (bool, error) {
 	if bytes.Equal(next, data) {
 		return false, nil
 	}
+	if !excludeWritable(path, info) {
+		return false, errors.New("exclude is not writable")
+	}
+	if err := replaceExclude(path, data, next, info, readExclude); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func replaceExclude(path string, data, next []byte, info os.FileInfo, recheck func(string) ([]byte, os.FileInfo, error)) error {
 	temp, err := os.CreateTemp(filepath.Dir(path), ".exclude-*")
 	if err != nil {
-		return false, err
+		return err
 	}
 	defer os.Remove(temp.Name())
 	if err := temp.Chmod(info.Mode().Perm()); err != nil {
 		temp.Close()
-		return false, err
+		return err
 	}
 	if _, err := temp.Write(next); err != nil {
 		temp.Close()
-		return false, err
+		return err
 	}
 	if err := temp.Close(); err != nil {
-		return false, err
+		return err
 	}
-	current, currentInfo, err := readExclude(path)
+	current, currentInfo, err := recheck(path)
 	if err != nil {
-		return false, err
+		return err
 	}
 	if currentInfo == nil || !os.SameFile(info, currentInfo) || !bytes.Equal(current, data) {
-		return false, errors.New("exclude changed before replacement; retry")
+		return errors.New("exclude changed before replacement; retry")
 	}
 	if err := os.Rename(temp.Name(), path); err != nil {
-		return false, err
+		return err
 	}
-	return true, nil
+	return nil
 }

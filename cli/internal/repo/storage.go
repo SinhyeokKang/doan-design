@@ -29,11 +29,13 @@ func StoragePattern(rel string) string {
 	}
 	var b strings.Builder
 	b.WriteByte('/')
-	for _, r := range filepath.ToSlash(rel) {
-		if strings.ContainsRune("*?[\\! ", r) {
+	path := filepath.ToSlash(rel)
+	for i := 0; i < len(path); i++ {
+		r := path[i]
+		if strings.ContainsRune("*?[\\! ", rune(r)) {
 			b.WriteByte('\\')
 		}
-		b.WriteRune(r)
+		b.WriteByte(r)
 	}
 	b.WriteString("/.doan/")
 	return b.String()
@@ -120,8 +122,24 @@ func readExclude(path string) ([]byte, os.FileInfo, error) {
 	return data, opened, nil
 }
 
+// Mode inspection follows a final link as Git does; mutation still checks its own path.
+func readExcludeMode(path string) ([]byte, os.FileInfo, error) {
+	info, err := os.Lstat(path)
+	if err == nil && info.Mode()&os.ModeSymlink != 0 {
+		target, err := filepath.EvalSymlinks(path)
+		if err != nil {
+			return nil, nil, err
+		}
+		return readExclude(target)
+	}
+	return readExclude(path)
+}
+
 // A missing info directory is creatable only when its nearest existing parent is writable.
 func excludeWritable(path string, info os.FileInfo) bool {
+	if entry, err := os.Lstat(path); err == nil && entry.Mode()&os.ModeSymlink != 0 {
+		return false
+	}
 	if info != nil && (info.Mode().Perm()&0222 == 0 || unix.Access(path, unix.W_OK) != nil) {
 		return false
 	}
@@ -159,7 +177,7 @@ func ReadStorage(root, home string) StorageInfo {
 		}
 	}
 	path := filepath.Join(loc.common, "info/exclude")
-	data, info, err := readExclude(path)
+	data, info, err := readExcludeMode(path)
 	if err != nil {
 		return StorageInfo{"unknown", "exclude_unwritable"}
 	}
@@ -167,7 +185,7 @@ func ReadStorage(root, home string) StorageInfo {
 	if HasStoragePair(data, StoragePattern(loc.rel)) {
 		result.Storage = "local"
 	}
-	if !excludeWritable(path, info) {
+	if !excludeWritable(path, info) || len(AddStoragePair(data, StoragePattern(loc.rel))) > excludeLimit {
 		result.Reason = "exclude_unwritable"
 	}
 	return result

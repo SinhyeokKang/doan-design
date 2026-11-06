@@ -30,15 +30,14 @@ func TestInitAttributesFailureDoesNotPublishConfig(t *testing.T) {
 	if readFile(t, root, ".gitattributes") != before {
 		t.Fatal("foreign attributes changed")
 	}
-	entries, err := os.ReadDir(filepath.Join(root, ".doan"))
-	if err != nil || len(entries) != 1 || entries[0].Name() != "canvases" {
-		t.Fatalf("staged config leaked: %v %v", entries, err)
+	if _, err := os.Stat(filepath.Join(root, ".doan")); !os.IsNotExist(err) {
+		t.Fatalf("attributes refusal created .doan: %v", err)
 	}
 	if err := os.Chmod(attrs, 0644); err != nil {
 		t.Fatal(err)
 	}
 	got := result(t, root, 0, "init")
-	if got["initialized"] != true || !reflect.DeepEqual(got["created"], []any{".doan/config.json", ".gitattributes"}) {
+	if got["initialized"] != true || !reflect.DeepEqual(got["created"], []any{".doan/canvases/", ".doan/config.json", ".gitattributes"}) {
 		t.Fatal(got)
 	}
 	if readFile(t, root, ".gitattributes") != before+".doan/comments/*.jsonl merge=union\r\n.doan/** linguist-documentation\r\n" {
