@@ -5,11 +5,16 @@ import type { EffortView, ModelsState } from "./homeComposer";
 // conversations', design decision 5). Nothing fixed reads "Default" and, when known, the value it stands for, so it
 // never reads as a fixed choice.
 
+// value: the row's menu value. A model id can be any string, an ACP agent's "default" included, so the top row's value
+// and the model rows' values live apart (by kind) and never collide; settingsModelPick reads one back.
 export type SettingsModelRow =
-  | { kind: "unset"; label: "Default"; description: string | null; selected: boolean }
-  | { kind: "model"; id: string; label: string; selected: boolean };
-// pinned: the fixed model this project lists, else null (nothing fixed).
-export interface SettingsModelMenu { label: string; pinned: string | null; rows: SettingsModelRow[] }
+  | { kind: "unset"; value: string; label: "Default"; description: string | null; selected: boolean }
+  | { kind: "model"; value: string; id: string; label: string; selected: boolean };
+// pinned: the fixed model this project lists, else null (nothing fixed). value: the checked row's value.
+export interface SettingsModelMenu { label: string; pinned: string | null; value: string; rows: SettingsModelRow[] }
+
+const UNSET_VALUE = "unset";
+const modelValue = (id: string) => `model:${id}`;
 
 // Claude Code's own default row sends "default", which follows the account's default just as nothing fixed does, so
 // the Settings menu leaves it out and a saved "default" reads as nothing fixed.
@@ -24,11 +29,18 @@ export function settingsModelMenu(provider: Provider, state: ModelsState, model:
   return {
     label: fixed ? fixed.label : standing ? `Default · ${standing.label}` : "Default",
     pinned: fixed?.id ?? null,
+    value: fixed ? modelValue(fixed.id) : UNSET_VALUE,
     rows: [
-      { kind: "unset", label: "Default", description: standing?.label ?? null, selected: !fixed },
-      ...list.filter(item => !sameAsUnset(provider, item.id)).map((item): SettingsModelRow => ({ kind: "model", id: item.id, label: item.label, selected: item.id === fixed?.id })),
+      { kind: "unset", value: UNSET_VALUE, label: "Default", description: standing?.label ?? null, selected: !fixed },
+      ...list.filter(item => !sameAsUnset(provider, item.id)).map((item): SettingsModelRow => ({ kind: "model", value: modelValue(item.id), id: item.id, label: item.label, selected: item.id === fixed?.id })),
     ],
   };
+}
+
+// The model id to store for a picked row's value; null unfixes (the top row, or a value no row carries).
+export function settingsModelPick(menu: SettingsModelMenu, value: string): string | null {
+  const row = menu.rows.find(item => item.value === value);
+  return row?.kind === "model" ? row.id : null;
 }
 
 // effort: the composer's view for the fixed model, or the default one. Its label is the level alone; a placeholder

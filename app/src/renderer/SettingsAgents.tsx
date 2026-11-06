@@ -12,7 +12,7 @@ import { AlertIcon } from "./AlertIcon";
 import { PermissionIconView, PermissionMenuItems } from "./ComposerParts";
 import { modelPickerView, providerLogo, selectableProvider, type ModelsState } from "./homeComposer";
 import { firstUsable, focusLost, NoticeView, PasteDialog, StopDialog } from "./Onboarding";
-import { settingsEffortLabel, settingsModelMenu } from "./newConversationSettings";
+import { settingsEffortLabel, settingsModelMenu, settingsModelPick } from "./newConversationSettings";
 import { permissionPickerView } from "./permissionPicker";
 import { preferencesNotice } from "./SettingsNotifications";
 
@@ -221,7 +221,7 @@ function NewConversations({ auth, preferences, save, project }: Pick<SettingsAge
   const radio = (value: string, label: ReactNode, selected: boolean) => <DropdownMenu.RadioItem key={value} value={value} className="doan-menu-item">
     {label}<span className="check-slot">{selected && <Check className="check" aria-hidden="true" />}</span></DropdownMenu.RadioItem>;
   // The Model menu's Default row: its name over the model it stands for, the check on the name line (draft frame settings).
-  const unset = (label: string, description: string | null, selected: boolean) => <DropdownMenu.RadioItem key={DEFAULT} value={DEFAULT} className="doan-menu-item unset-item">
+  const unset = (value: string, label: string, description: string | null, selected: boolean) => <DropdownMenu.RadioItem key={value} value={value} className="doan-menu-item unset-item">
     <span className="unset-copy"><span className="model-name">{label}</span>{description && <span className="sub">{description}</span>}</span>
     <span className="check-slot">{selected && <Check className="check" aria-hidden="true" />}</span></DropdownMenu.RadioItem>;
   const agents = [...connected.map(status => status.provider), ...(provider && !connected.some(status => status.provider === provider) ? [provider] : [])];
@@ -248,9 +248,9 @@ function NewConversations({ auth, preferences, save, project }: Pick<SettingsAge
             : !loadFailed && <span className="doan-preference-row-description">Models listed for {project.name}.{listState !== "loading" && ` In a project without this model, Home uses ${name}’s default.`}</span>}</div>
         {project && listState === "loading" ? <div className="doan-preference-row-trailing"><span className="settings-loading" role="status"><span className="doan-spinner" aria-hidden="true" />Loading models</span></div>
           : !loadFailed && menu && <div className="doan-preference-row-trailing">{trigger(menu.label, "Model for new conversations", <span>{menu.label}</span>, off || !project || !runnable,
-            <DropdownMenu.RadioGroup value={pinned ?? DEFAULT} onValueChange={value => choose(value === DEFAULT ? { provider, ...keepMode } : { provider, model: value, ...keepMode })}>
-              {menu.rows.map((item, index) => item.kind === "model" ? radio(item.id, <span className="model-name">{item.label}</span>, item.selected)
-                : <Fragment key={DEFAULT}>{unset(item.label, item.description, item.selected)}{index < menu.rows.length - 1 && <DropdownMenu.Separator className="doan-menu-sep" />}</Fragment>)}
+            <DropdownMenu.RadioGroup value={menu.value} onValueChange={value => { const picked = settingsModelPick(menu, value); choose(picked === null ? { provider, ...keepMode } : { provider, model: picked, ...keepMode }); }}>
+              {menu.rows.map((item, index) => item.kind === "model" ? radio(item.value, <span className="model-name">{item.label}</span>, item.selected)
+                : <Fragment key={item.value}>{unset(item.value, item.label, item.description, item.selected)}{index < menu.rows.length - 1 && <DropdownMenu.Separator className="doan-menu-sep" />}</Fragment>)}
             </DropdownMenu.RadioGroup>)}</div>}
         {project && loadFailed && <div className="doan-preference-row-extra settings-msg-row"><p className="settings-msg error" role="alert"><AlertIcon /><span>Couldn’t load the models for {project.name}.</span></p>
           <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={() => setLists(current => { const next = { ...current }; delete next[key!]; return next; })}>Retry</button></div>}

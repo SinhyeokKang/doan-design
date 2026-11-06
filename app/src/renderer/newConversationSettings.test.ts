@@ -24,9 +24,9 @@ test("nothing fixed: the trigger reads Default and the model it stands for; the 
   expect(claude.pinned).toBeNull();
   // Claude Code's own default row means the same as the Default row, so only this menu leaves it out.
   expect(claude.rows).toEqual([
-    { kind: "unset", label: "Default", description: "Opus 5.5", selected: true },
-    { kind: "model", id: "sonnet", label: "Sonnet 5.5", selected: false },
-    { kind: "model", id: "haiku", label: "Haiku 5.5", selected: false },
+    { kind: "unset", value: "unset", label: "Default", description: "Opus 5.5", selected: true },
+    { kind: "model", value: "model:sonnet", id: "sonnet", label: "Sonnet 5.5", selected: false },
+    { kind: "model", value: "model:haiku", id: "haiku", label: "Haiku 5.5", selected: false },
   ]);
   // Codex's default row is a model of its own, so it stays and can be fixed.
   const codex = settingsModelMenu("codex", CODEX, undefined);
@@ -37,7 +37,7 @@ test("nothing fixed: the trigger reads Default and the model it stands for; the 
 test("a fixed model is checked and named alone; the Default row unfixes it", () => {
   const menu = settingsModelMenu("codex", CODEX, "gpt-5.6-terra");
   expect(menu).toMatchObject({ label: "GPT-5.6-Terra", pinned: "gpt-5.6-terra" });
-  expect(menu.rows[0]).toEqual({ kind: "unset", label: "Default", description: "GPT-6-Luna", selected: false });
+  expect(menu.rows[0]).toEqual({ kind: "unset", value: "unset", label: "Default", description: "GPT-6-Luna", selected: false });
   expect(menu.rows.find(row => row.kind === "model" && row.selected)).toMatchObject({ id: "gpt-5.6-terra" });
   expect(settingsModelMenu("codex", CODEX, "gpt-6-luna")).toMatchObject({ label: "GPT-6-Luna", pinned: "gpt-6-luna" });
 });
@@ -51,7 +51,7 @@ test("a saved Claude Code \"default\", or a model this project does not list, re
 
 test("without a list the trigger is Default alone and the menu holds the Default row with no line", () => {
   for (const state of [undefined, "loading", { error: "unavailable" }, { models: [] }] as ModelsState[]) {
-    expect(settingsModelMenu("claude", state, "sonnet")).toEqual({ label: "Default", pinned: null, rows: [{ kind: "unset", label: "Default", description: null, selected: true }] });
+    expect(settingsModelMenu("claude", state, "sonnet")).toEqual({ label: "Default", pinned: null, value: "unset", rows: [{ kind: "unset", value: "unset", label: "Default", description: null, selected: true }] });
   }
   // A list with no default row has nothing to name.
   expect(settingsModelMenu("codex", { models: [{ id: "gpt-5.6-terra", label: "GPT-5.6-Terra", default: false }] }, undefined)).toMatchObject({ label: "Default", rows: [{ kind: "unset", description: null }, {}] });
