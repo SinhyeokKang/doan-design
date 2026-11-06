@@ -96,6 +96,7 @@ spec 결정 1~8을 CLI(파일 쓰기와 판단), app main(셋업 계획, onboard
   - `settings-disabled` — 이유별 비활성: Git 아님, `.git` 읽기 실패(unknown), exclude 쓰기 불가.
   - `not-set-up` — 로컬 저장소의 셋업되지 않은 worktree의 'Not set up' 안내.
 - 문구는 §3.1·§3.2의 내용과 후보를 `clarify` preset으로 다듬는다. radio 이름은 "Include in Git" / "Keep out of Git (this Mac only)"이다.
+- 시안 확정(사용자, 2026-11-07, `0e158536` 기준).
 - 시안 검토 결정(사용자, 2026-11-07):
   - setup 패널과 clone 화면의 두 옵션은 따로 떨어진 카드(`.ob-choice`) 대신 에이전트 단계의 묶인 카드(`.ob-provider-list`)에 둔다. 행 사이는 1px 구분선이고, radio는 provider mark 자리에 둔다.
   - clone 화면의 선택지는 "Save to" 아래, "Already have this repository?" 위다. clone하는 동안에는 고른 값을 유지한 채 비활성이고, 취소·실패 뒤에는 같은 값으로 다시 활성이다.
