@@ -26,7 +26,7 @@
 
 - Claude 또는 Codex를 고른 composer에서 Effort 메뉴가 보이고 그 모델이 Fast를 지원하면, 레벨 목록 아래에 구분선과 Fast 스위치 행이 있다. 그 밖에는 행이 없다.
   - Claude: 모델 행의 `supportsFastMode === true`. Codex: 모델의 `serviceTiers`에 Fast 티어가 있다(판별 규칙은 tasks P1에서 확정한다).
-  - 스위치 아래에 설명 한 줄을 보인다. Codex는 그 티어의 `description`, Claude는 Claude Code 문구를 옮긴 `Same model, faster output. Requires usage credits.`(design §6). Fast 행이 있으면 메뉴 폭은 280px이고, 관찰한 설명은 두 줄 안에서 끝난다. 설명은 말줄임하지 않는다. 행의 Fast 아이콘은 스위치가 켜졌을 때만 보이고, 꺼져도 이름 위치는 그대로다.
+  - 스위치 아래에 설명 한 줄을 보인다. Codex는 그 티어의 `description`, Claude는 Claude Code 문구를 옮긴 `Same model, faster output. Requires usage credits.`(design §6). Fast 행이 있으면 메뉴 폭은 280px이고, 관찰한 설명은 두 줄 안에서 끝난다. 설명은 말줄임하지 않는다. 행은 스위치 상태와 관계없이 accent 색의 Fast 아이콘으로 시작한다.
 - 스위치는 체크 상태를 갖는 메뉴 항목이다. Enter·Space·클릭으로 바꾸고, 바꿔도 메뉴는 열린 채이며 focus는 그 행에 남는다. 레벨을 고르면 지금처럼 닫힌다.
 - 스위치를 켜면 Effort 트리거의 레벨 라벨 뒤에 accent 색의 Fast 아이콘이 붙는다. 아이콘은 폭이 좁아져도 줄어들지 않는다. 트리거의 접근성 이름과 tooltip은 design §6의 문구(`Effort: High, Fast on` / `Fast off`)다. Home(sm)과 도킹된 composer(xs) 모두 tooltip을 보인다. 도킹된 composer가 287px 이하라 라벨을 숨겨도 아이콘과 tooltip이 상태를 알려 준다.
 - 스위치가 보이지 않는 상태에서는 Fast를 보내지 않는다. 모델 목록을 아직 읽지 않았거나 읽지 못한 경우, Effort 레벨이 없는 모델, Fast를 지원하지 않는 모델, ACP provider가 여기에 해당한다. 저장된 Fast가 켜져 있어도 마찬가지다.
