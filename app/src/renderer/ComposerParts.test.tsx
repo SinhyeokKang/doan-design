@@ -18,6 +18,7 @@ vi.mock("react", async original => {
     ...react,
     useId: () => hooks.on ? "fast-id" : react.useId(),
     useEffect: (effect: () => unknown, deps?: unknown[]) => hooks.on ? void hooks.effects.push(effect) : react.useEffect(effect as () => void, deps),
+    useLayoutEffect: (effect: () => unknown, deps?: unknown[]) => hooks.on ? void hooks.effects.push(effect) : react.useLayoutEffect(effect as () => void, deps),
     useRef: (value: unknown) => { if (!hooks.on) return react.useRef(value); const index = hooks.refCursor++; if (!(index in hooks.refs)) hooks.refs[index] = { current: value }; return hooks.refs[index]; },
     useState: (value: unknown) => {
       if (!hooks.on) return react.useState(value);
@@ -241,6 +242,13 @@ test("a trigger with no value draws its drawer's name as a placeholder", () => {
   expect(html({ ...effortView(null), label: "Medium", ariaLabel: "Effort: Medium, default" })).toContain('<span class="label">Medium</span>');
 });
 
+// AgentPicker keeps the Older models fold in hooks, so it is called with them as plain state. fresh: start from no state.
+function agentTree(p: { picker: ModelPickerView; onPick(provider: string, value: string | null): void; size?: "xs" }, fresh = false) {
+  if (fresh) { hooks.states = []; hooks.refs = []; }
+  hooks.on = true; hooks.cursor = 0; hooks.refCursor = 0; hooks.effects = [];
+  try { return propsOf(AgentPicker({ picker: p.picker, auth: undefined, disabled: false, onOpen: () => {}, onPick: p.onPick, onSettings: () => {}, ...(p.size ? { size: p.size } : {}) })); } finally { hooks.on = false; }
+}
+
 // picker-default-labels B1 (spec 'Model'): the default row carries a small Default after its name; a trigger with no
 // model names its drawer in the placeholder ink.
 const agentPicker = (trigger: ModelPickerView["trigger"]): ModelPickerView => ({
@@ -251,7 +259,7 @@ const agentPicker = (trigger: ModelPickerView["trigger"]): ModelPickerView => ({
   ] }],
 });
 test("the model menu marks the default row, and an unchosen trigger reads Model as a placeholder", () => {
-  const draw = (trigger: ModelPickerView["trigger"]) => propsOf(AgentPicker({ picker: agentPicker(trigger), auth: undefined, disabled: false, onOpen: () => {}, onPick: () => {}, onSettings: () => {} }));
+  const draw = (trigger: ModelPickerView["trigger"]) => agentTree({ picker: agentPicker(trigger), onPick: () => {} }, true);
   const tree = draw({ provider: "codex", label: "GPT-5.6-Terra", ariaLabel: "Agent: Codex, model GPT-5.6-Terra", placeholder: false, isDefault: false });
   const rows = tree.filter(item => item.type === DropdownMenu.RadioItem).map(item => renderToStaticMarkup(<>{item.props.children as ReactNode}</>));
   expect(rows[0]).toMatch(/^<span class="model-name">GPT-6-Luna<span class="model-default">Default<\/span><\/span>/);
@@ -287,9 +295,116 @@ test("the agent picker passes null for the pre-list Default row and a model row'
       { provider: "codex", name: "Codex", selectable: true, cause: null, note: "Loading models", read: false, rows: [{ kind: "default", label: "Default", selected: false }] },
     ],
   };
-  const groups = propsOf(AgentPicker({ picker, auth: undefined, disabled: false, onOpen: () => {}, onPick, onSettings: () => {} })).filter(item => item.type === DropdownMenu.RadioGroup);
+  const groups = agentTree({ picker, onPick }, true).filter(item => item.type === DropdownMenu.RadioGroup);
   (groups[0]!.props.onValueChange as (value: string) => void)("default");
   expect(onPick).toHaveBeenLastCalledWith("claude", "default");
   (groups[1]!.props.onValueChange as (value: string) => void)("default");
   expect(onPick).toHaveBeenLastCalledWith("codex", null);
+});
+
+// model-drawer-older task 3 (spec 3–8, design §2): a group's older models fold under an "Older models" line.
+const OLDER_PICKER = (selected: string | null): ModelPickerView => ({
+  trigger: { provider: "codex", label: "GPT-6.1-Sol", ariaLabel: "Agent: Codex, model GPT-6.1-Sol", placeholder: false, isDefault: true }, effort: null,
+  groups: [
+    { provider: "claude", name: "Claude Code", selectable: true, cause: null, note: null, read: false, rows: [{ kind: "model", id: "default", label: "Opus 5.5", effort: true, selected: false, isDefault: true }] },
+    { provider: "codex", name: "Codex", selectable: true, cause: null, note: null, read: false, rows: [
+      { kind: "model", id: "gpt-6.1-sol", label: "GPT-6.1-Sol", effort: true, selected: selected === "gpt-6.1-sol", isDefault: true },
+      { kind: "model", id: "gpt-6-sol", label: "GPT-6-Sol", effort: true, selected: selected === "gpt-6-sol", isDefault: false, older: true },
+      { kind: "model", id: "gpt-6-astra", label: "GPT-6-Astra", effort: true, selected: false, isDefault: false },
+      { kind: "model", id: "gpt-5.6-terra", label: "GPT-5.6-Terra", effort: true, selected: false, isDefault: false, older: true },
+    ] },
+    { provider: "copilot", name: "GitHub Copilot", selectable: true, cause: null, note: "Models unavailable", read: false, rows: [{ kind: "default", label: "Default", selected: false }] },
+  ],
+});
+const radioIds = (tree: ReturnType<typeof propsOf>) => tree.filter(item => item.type === DropdownMenu.RadioItem).map(item => item.props.value);
+const olderLine = (tree: ReturnType<typeof propsOf>) => tree.filter(item => item.type === DropdownMenu.Item && String(item.props.className).includes("older-row"));
+// Opens the menu as Radix would and runs the effects the open schedules, then draws again.
+function openAgentMenu(picker: ModelPickerView, size?: "xs") {
+  const first = agentTree({ picker, onPick: () => {}, ...(size ? { size } : {}) }, true);
+  (first.find(item => item.type === DropdownMenu.Root)!.props.onOpenChange as (open: boolean) => void)(true);
+  agentTree({ picker, onPick: () => {}, ...(size ? { size } : {}) });
+  hooks.on = true;
+  try { for (const effect of hooks.effects.splice(0)) effect(); } finally { hooks.on = false; }
+  return agentTree({ picker, onPick: () => {}, ...(size ? { size } : {}) });
+}
+
+test("a group with older models shows its current models, then an Older models line with the count, at both sizes", () => {
+  for (const size of [undefined, "xs"] as const) {
+    const tree = openAgentMenu(OLDER_PICKER("gpt-6.1-sol"), size);
+    expect(radioIds(tree)).toEqual(["default", "gpt-6.1-sol", "gpt-6-astra", "default"]);
+    const lines = olderLine(tree);
+    // Only Codex lists older models; the pre-list Default row and a group without older models draw no line.
+    expect(lines).toHaveLength(1);
+    expect(lines[0]!.props).toMatchObject({ className: "doan-menu-item older-row", textValue: "Older models", "aria-label": "Older models (Codex), 2", "aria-expanded": false });
+    expect(lines[0]!.props.value).toBeUndefined();
+    expect(renderToStaticMarkup(<>{lines[0]!.props.children as ReactNode}</>)).toMatch(/^<span class="model-name">Older models<\/span><span class="count">2<\/span><span class="check-slot"><svg[^>]*lucide-chevron-down[^>]*aria-hidden="true"/);
+    // The line sits after the group's current rows, inside the group.
+    const group = tree.filter(item => item.type === DropdownMenu.RadioGroup)[1]!;
+    const children = propsOf(group.props.children as ReactNode);
+    expect(children.indexOf(children.find(item => item.type === DropdownMenu.Item)!)).toBeGreaterThan(children.findIndex(item => item.props.value === "gpt-6-astra"));
+  }
+});
+
+test("pressing the line unfolds the older models under it without closing the menu, and pressing again folds them", () => {
+  openAgentMenu(OLDER_PICKER("gpt-6.1-sol"));
+  const select = { preventDefault: vi.fn() };
+  (olderLine(agentTree({ picker: OLDER_PICKER("gpt-6.1-sol"), onPick: () => {} }))[0]!.props.onSelect as (event: unknown) => void)(select);
+  expect(select.preventDefault).toHaveBeenCalled();
+  const open = agentTree({ picker: OLDER_PICKER("gpt-6.1-sol"), onPick: () => {} });
+  expect(radioIds(open)).toEqual(["default", "gpt-6.1-sol", "gpt-6-astra", "gpt-6-sol", "gpt-5.6-terra", "default"]);
+  expect(olderLine(open)[0]!.props["aria-expanded"]).toBe(true);
+  (olderLine(open)[0]!.props.onSelect as (event: unknown) => void)({ preventDefault: () => {} });
+  expect(radioIds(agentTree({ picker: OLDER_PICKER("gpt-6.1-sol"), onPick: () => {} }))).toEqual(["default", "gpt-6.1-sol", "gpt-6-astra", "default"]);
+});
+
+test("→ unfolds and ← folds on the line; ← on an older row folds its group", () => {
+  openAgentMenu(OLDER_PICKER("gpt-6.1-sol"));
+  const key = (k: string) => ({ key: k, preventDefault: vi.fn() });
+  const line = () => olderLine(agentTree({ picker: OLDER_PICKER("gpt-6.1-sol"), onPick: () => {} }))[0]!.props;
+  const right = key("ArrowRight");
+  (line().onKeyDown as (event: unknown) => void)(right);
+  expect(right.preventDefault).toHaveBeenCalled();
+  expect(line()["aria-expanded"]).toBe(true);
+  const row = agentTree({ picker: OLDER_PICKER("gpt-6.1-sol"), onPick: () => {} }).find(item => item.type === DropdownMenu.RadioItem && item.props.value === "gpt-6-sol")!;
+  (row.props.onKeyDown as (event: unknown) => void)(key("ArrowLeft"));
+  expect(line()["aria-expanded"]).toBe(false);
+  (line().onKeyDown as (event: unknown) => void)(key("ArrowRight"));
+  (line().onKeyDown as (event: unknown) => void)(key("ArrowLeft"));
+  expect(line()["aria-expanded"]).toBe(false);
+  // A current row's ← is Radix's own.
+  expect(agentTree({ picker: OLDER_PICKER("gpt-6.1-sol"), onPick: () => {} }).find(item => item.props.value === "gpt-6.1-sol")!.props.onKeyDown).toBeUndefined();
+});
+
+test("a chosen older model opens the menu with its group unfolded and checked; picking an older row passes its id", () => {
+  const tree = openAgentMenu(OLDER_PICKER("gpt-6-sol"));
+  expect(olderLine(tree)[0]!.props["aria-expanded"]).toBe(true);
+  expect(radioIds(tree)).toContain("gpt-6-sol");
+  const onPick = vi.fn();
+  const group = agentTree({ picker: OLDER_PICKER("gpt-6-sol"), onPick }).filter(item => item.type === DropdownMenu.RadioGroup)[1]!;
+  expect(group.props.value).toBe("gpt-6-sol");
+  (group.props.onValueChange as (value: string) => void)("gpt-5.6-terra");
+  expect(onPick).toHaveBeenLastCalledWith("codex", "gpt-5.6-terra");
+});
+
+test("the line keeps one key whether its group is folded or not, so focus stays on it", () => {
+  openAgentMenu(OLDER_PICKER("gpt-6.1-sol"));
+  const before = olderLine(agentTree({ picker: OLDER_PICKER("gpt-6.1-sol"), onPick: () => {} }));
+  (before[0]!.props.onSelect as (event: unknown) => void)({ preventDefault: () => {} });
+  const keyOf = (tree: ReturnType<typeof propsOf>) => {
+    const group = tree.filter(item => item.type === DropdownMenu.RadioGroup)[1]!;
+    return (group.props.children as ReactElement[]).flat().find(child => isValidElement(child) && String((child.props as { className?: string }).className).includes("older-row"))?.key;
+  };
+  const folded = keyOf(openAgentMenu(OLDER_PICKER("gpt-6.1-sol")));
+  expect(folded).toBeTruthy();
+  const tree = agentTree({ picker: OLDER_PICKER("gpt-6.1-sol"), onPick: () => {} });
+  (olderLine(tree)[0]!.props.onSelect as (event: unknown) => void)({ preventDefault: () => {} });
+  expect(keyOf(agentTree({ picker: OLDER_PICKER("gpt-6.1-sol"), onPick: () => {} }))).toBe(folded);
+});
+
+test("closing the menu forgets what was unfolded", () => {
+  openAgentMenu(OLDER_PICKER("gpt-6.1-sol"));
+  const tree = agentTree({ picker: OLDER_PICKER("gpt-6.1-sol"), onPick: () => {} });
+  (olderLine(tree)[0]!.props.onSelect as (event: unknown) => void)({ preventDefault: () => {} });
+  (agentTree({ picker: OLDER_PICKER("gpt-6.1-sol"), onPick: () => {} }).find(item => item.type === DropdownMenu.Root)!.props.onOpenChange as (open: boolean) => void)(false);
+  expect(olderLine(agentTree({ picker: OLDER_PICKER("gpt-6.1-sol"), onPick: () => {} }))[0]!.props["aria-expanded"]).toBe(false);
 });
