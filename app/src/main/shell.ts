@@ -338,9 +338,9 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
         if (root === false || folders.get(path) !== folder || folder.epoch !== epoch || folder.entry.kind !== "uninitialized") return unavailable;
         const outcome = initOutcome(await runInit(cli, path, tokenCss, storage), { tokenCss: tokenCss !== null });
         if (folders.get(path) !== folder || folder.epoch !== epoch) return unavailable;
-        // init's own writes start a watcher read that can overtake this one and drop it as stale; the setup answers only
-        // after a read that is the newest has published, so the caller never sees the row still "Not set up". Bounded:
-        // a folder that keeps changing is left to its watcher.
+        // init's own writes start a watcher read that can overtake this one and drop it as stale. The read is repeated
+        // up to three times, so in the usual race the setup answers after its listing has published; if every try is
+        // overtaken (a folder that keeps changing), it still answers success and the watcher's newer read publishes.
         if (outcome.kind === "success") {
           for (let tries = 0; tries < 3 && await refresh(folder, { reread: true, served: false }) === false && folders.get(path) === folder; tries++);
         }

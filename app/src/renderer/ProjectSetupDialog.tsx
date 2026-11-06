@@ -39,11 +39,11 @@ export function useProjectSetup(root: string, kept = false) {
   return { form, choose, setUp, storage: { value: storage, kept, change: setStorage } };
 }
 
-// The command a refused local setup suggests reads as a command, as everywhere else in the dialog.
-const COMMAND = "git init";
+// The command and the fixed path a refused local setup names read as code, as everywhere else in the dialog.
+const CHIPS = /(git init|\.git\/info\/exclude)/;
 function withCommand(text: string) {
-  const at = text.indexOf(COMMAND);
-  return at < 0 ? text : <>{text.slice(0, at)}<code>{COMMAND}</code>{text.slice(at + COMMAND.length)}</>;
+  const parts = text.split(CHIPS);
+  return parts.length === 1 ? text : <>{parts.map((part, i) => i % 2 === 1 ? <code key={i}>{part}</code> : part)}</>;
 }
 
 export interface StorageInput { value: StorageChoice; kept: boolean; change: (value: StorageChoice) => void }
