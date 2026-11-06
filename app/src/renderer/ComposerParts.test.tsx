@@ -4,7 +4,7 @@ import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test, vi } from "vitest";
 import { DropdownMenu } from "radix-ui";
-import { AgentPicker, EffortPicker, IconTip, PermissionPicker, presetBody, PresetsButton, SlashPresets } from "./ComposerParts";
+import { AgentPicker, EffortPicker, IconTip, PermissionPicker, useOlderFold, presetBody, PresetsButton, SlashPresets } from "./ComposerParts";
 import type { ModelPickerView } from "./homeComposer";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { permissionPickerView } from "./permissionPicker";
@@ -407,4 +407,61 @@ test("closing the menu forgets what was unfolded", () => {
   (olderLine(tree)[0]!.props.onSelect as (event: unknown) => void)({ preventDefault: () => {} });
   (agentTree({ picker: OLDER_PICKER("gpt-6.1-sol"), onPick: () => {} }).find(item => item.type === DropdownMenu.Root)!.props.onOpenChange as (open: boolean) => void)(false);
   expect(olderLine(agentTree({ picker: OLDER_PICKER("gpt-6.1-sol"), onPick: () => {} }))[0]!.props["aria-expanded"]).toBe(false);
+});
+
+
+test("a model menu waits to lock until a toggle and releases the side on reopen", () => {
+  const frames: FrameRequestCallback[] = [];
+  vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => frames.push(callback));
+  try {
+    const draw = () => agentTree({ picker: OLDER_PICKER("gpt-6.1-sol"), onPick: () => {} });
+    const initial = openAgentMenu(OLDER_PICKER("gpt-6.1-sol"));
+    const content = (tree = draw()) => tree.find(item => item.type === DropdownMenu.Content)!;
+    const node = { dataset: { side: "bottom" }, querySelector: () => null };
+    (content(initial).props.ref as (node: unknown) => void)(node);
+    frames.splice(0).forEach(callback => callback(0));
+    expect(content().props.avoidCollisions).toBe(true);
+    expect(content().props.style).toBeUndefined();
+    const line = olderLine(draw())[0]!;
+    (line.props.onSelect as (event: unknown) => void)({ preventDefault() {} });
+    expect(content().props).toMatchObject({ side: "bottom", avoidCollisions: false });
+    const close = draw().find(item => item.type === DropdownMenu.Root)!;
+    (close.props.onOpenChange as (open: boolean) => void)(false);
+    expect(content().props.avoidCollisions).toBe(true);
+    (draw().find(item => item.type === DropdownMenu.Root)!.props.onOpenChange as (open: boolean) => void)(true);
+    node.dataset.side = "top";
+    (content().props.ref as (node: unknown) => void)(node);
+    const before = olderLine(draw())[0]!;
+    (before.props.onSelect as (event: unknown) => void)({ preventDefault() {} });
+    expect(content().props).toMatchObject({ side: "top", avoidCollisions: false });
+    expect(olderLine(draw())[0]!.props["aria-expanded"]).toBe(true);
+  } finally { vi.unstubAllGlobals(); }
+});
+
+test("a checked older group waits for settled placement before unfolding, then reveals in that order", () => {
+  const frames: FrameRequestCallback[] = [];
+  vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => frames.push(callback));
+  vi.stubGlobal("cancelAnimationFrame", () => {});
+  const groups = [{ provider: "codex", rows: [{ older: true as const, selected: true }] }];
+  const draw = (fresh = false) => {
+    if (fresh) { hooks.states = []; hooks.refs = []; }
+    hooks.on = true; hooks.cursor = 0; hooks.refCursor = 0; hooks.effects = [];
+    try { return useOlderFold(groups, "top"); } finally { hooks.on = false; }
+  };
+  const effects = () => { hooks.on = true; try { hooks.effects.splice(0).forEach(effect => effect()); } finally { hooks.on = false; } };
+  const shown = vi.fn();
+  const node = { dataset: { side: "top" }, querySelector: () => ({ scrollIntoView: shown }) };
+  try {
+    let fold = draw(true); fold.onOpenChange(true); fold = draw(); fold.contentRef(node as unknown as HTMLDivElement); effects();
+    const key = (fold.line("codex", "Codex", 1) as ReactElement).key;
+    expect(draw().isOpen("codex")).toBe(false);
+    node.dataset.side = "bottom";
+    frames.splice(0).forEach(callback => callback(0));
+    fold = draw(); effects();
+    expect(fold.isOpen("codex")).toBe(true);
+    expect(fold.placement).toMatchObject({ side: "bottom", avoidCollisions: false });
+    expect((fold.line("codex", "Codex", 1) as ReactElement).key).toBe(key);
+    shown.mockClear(); frames.splice(0).forEach(callback => callback(0));
+    expect(shown).toHaveBeenCalledWith({ block: "nearest" });
+  } finally { vi.unstubAllGlobals(); }
 });
