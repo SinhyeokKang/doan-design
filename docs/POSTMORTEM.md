@@ -6,6 +6,14 @@
 > Historical `app/e2e/` paths refer to the suite retired on 2026-10-27. Current runtime safety helpers live in `app/runtime/`; use focused probes under `.scratch/`, as specified in AGENTS.md.
 > Some entries name app code removed later: the app's comment UI (`useComments.tsx`, `CommentsSession.ts`, `CommentsPanel.tsx`, `CommentPins.ts` and most of `app/src/comments/` and `app/src/main/comments/`, with their tests) on 2026-11-01; the separate Settings window (`settingsWindow.tsx`) and the `Sidebar.tsx` component on 2026-10-30; Settings > Connections (`ConnectionRows.tsx`, `connectionRowView.ts`, `setupBroker.ts`) on 2026-10-31. Their search commands and test pointers apply only to code that still exists; the comment files, the CLI comment commands and `app/src/comments/projection.ts` remain.
 
+### 2026-11-06 — The project row chevron stayed after a click until something else took focus
+
+- **Area**: `app/src/renderer/styles.css` (`.shell-project-row` chevron and thumbnail rules); test 7a20f1de, fixed in 5651f626.
+- **Symptom**: with a canvas open, clicking a project row (the loaded one or another) and moving the pointer away left the chevron showing in place of the thumbnail. PRODUCT §5 says the chevron shows on hover or keyboard focus.
+- **Root cause**: the row is a focusable treeitem (`tabIndex`), so a mouse click focuses it, and the reveal rule used `:focus-within`, which matches any focus. The draft and DESIGN wording ("focus is in it") read like `:focus-within`, while the intent was keyboard focus, which only `:focus-visible` separates from click focus.
+- **Net**: caught by the user in the real app. Missed by the `/design-sync` measurement, which read "row keyboard focus" and "rest" but never the state after a click with the pointer away, and by no unit test pinning the selector.
+- **Prevention**: a reveal-on-focus rule on a clickable focusable element uses `:focus-visible` / `:has(:focus-visible)`, unless PRODUCT says any focus. Run `rg -n 'focus-within' app/src/renderer/styles.css app/src/renderer/ds`; for each hit on a clickable row, probe click → pointer away and read the computed visibility. `ShellSidebar.test.tsx` pins the project row selector.
+- **Remaining**: `.shell-canvas-row`'s menu button rules (styles.css:478-481) use `:focus-within` too and keep the button after a click (probe `.scratch/runtime-test/project-row-chevron/`); PRODUCT §5 'Canvas row menu' says "focus is in it", so changing it is a product decision, not this fix.
 ### 2026-11-06 — A menu's "nothing chosen" value shared its string with a real model id
 
 - **Area**: `app/src/renderer/ComposerParts.tsx` (`AgentPicker`, the pre-list Default row), its callers in `HomeComposerView.tsx`, `ProjectOverview.tsx`, `CanvasConversationPanel.tsx`, `DockedComposer.tsx`; `SettingsAgents.tsx` and `newConversationSettings.ts` (Settings Model menu); fixed in bcbac125 and 13892d5c (picker-default-labels).
