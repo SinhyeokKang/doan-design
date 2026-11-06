@@ -300,16 +300,20 @@ it("judges an open canvas menu by its own row, so the project menu's rule never 
   expect(staleMenu({ kind: "project", key: "common" }, cards, "/gone", rows, false)).toBe(true);
 });
 
-it("shows a canvas row's button only under the pointer, with focus in the row or an open menu, in place of the status spot", async () => {
+it("shows a canvas row's button only under the pointer, with keyboard focus in the row or an open menu, in place of the status spot", async () => {
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   // RC2 🔴1: the idle button is hidden visually only. A display: none (or visibility: hidden) button cannot take the
   // focus Radix returns when its menu closes (Esc, Export…) or App when the Move to Trash dialog does: it fell to <body>.
-  const idle = css.match(/\.shell-canvas-row:not\(:hover, :focus-within\):not\(:has\(> \.shell-more\[aria-expanded="true"\]\)\) > \.shell-more \{([^}]*)\}/)![1]!;
+  // A mouse click focuses the row (a treeitem), so :focus-within kept the button after the pointer left; only
+  // focus-visible focus may show it (as the project row's chevron).
+  const idle = css.match(/\.shell-canvas-row:not\(:hover, :focus-visible, :has\(:focus-visible\)\):not\(:has\(> \.shell-more\[aria-expanded="true"\]\)\) > \.shell-more \{([^}]*)\}/)![1]!;
   expect(idle).toContain("position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%);");
   expect(idle).not.toMatch(/display|visibility/);
   for (const rule of css.replace(/\/\*[\s\S]*?\*\//g, "").match(/[^}]*\.shell-more[^{]*\{[^}]*\}/g) ?? []) expect(rule).not.toMatch(/display: none|visibility: hidden/);
-  expect(css).toContain('.shell-side .shell-canvas-row:is(:hover, :focus-within, :has(> .shell-more[aria-expanded="true"])) { padding-right: 0; }');
+  expect(css).toContain('.shell-side .shell-canvas-row:is(:hover, :focus-visible, :has(:focus-visible), :has(> .shell-more[aria-expanded="true"])) { padding-right: 0; }');
+  expect(css).toContain('.shell-canvas-row:is(:hover, :focus-visible, :has(:focus-visible), :has(> .shell-more[aria-expanded="true"])) > .row-slot {');
+  expect(css).not.toMatch(/\.shell-canvas-row:[^{]*focus-within/);
   // Hidden visually only: never display: none or visibility: hidden, which would drop the spot's name.
   const spot = css.match(/\.shell-canvas-row:is\([^{]*\) > \.row-slot \{([^}]*)\}/)![1]!;
   expect(spot).toContain("clip-path: inset(50%)");
