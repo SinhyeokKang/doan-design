@@ -157,7 +157,7 @@ describe("handoff events", () => {
   const canvasDoan: ConversationMetadata = { ...doan, canvas: { path: ".doan/canvases/a.html", id: "a" } };
   it("leaves a seen end seen when the resolution arrives", () => {
     const events = history(...started, { type: "handoff.requested", canvas: { path: ".doan/canvases/new.html" }, text: "Continue." }, { type: "turn.done" },
-      { type: "handoff.resolved", outcome: "started", conversationId: "b", canvas: { path: ".doan/canvases/new.html", id: "new" } });
+      { type: "handoff.resolved", outcome: "started", target: { conversationId: "b", canvas: { path: ".doan/canvases/new.html", id: "new" } } });
     expect(conversationSummary({ ...canvasDoan, seenSeq: 4 }, { ok: true, events }, live).unseen).toBe(false);
     expect(conversationSummary({ ...canvasDoan, seenSeq: 3 }, { ok: true, events }, live).unseen).toBe(true);
   });

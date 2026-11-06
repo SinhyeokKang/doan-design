@@ -52,7 +52,7 @@ function fixture(options: { provider?: "claude" | "codex"; listed?: Canvas[]; le
 
 describe("the handoff key", () => {
   it("gives each runner of a Doan-connected conversation its own 64-hex DOAN_HANDOFF next to its id", async () => {
-    const h = fixture();
+    const h = fixture({ listed: [a, b] });
     const first = await h.start(), second = await h.start({ canvas: b });
     expect(h.key(0)).toMatch(/^[0-9a-f]{64}$/);
     expect(h.key(1)).toMatch(/^[0-9a-f]{64}$/);
@@ -135,7 +135,7 @@ describe("the end of a turn that asked", () => {
     const data = JSON.parse(h.prompt(1).split("\n\n")[1]!) as Record<string, unknown>;
     expect(data).toEqual({ context: { root: "/repo", canvas: b, from: a }, handoffText: text });
     expect(h.prompt(1)).not.toContain(HANDOFF_GUIDANCE);
-    expect(h.last(id)).toMatchObject({ type: "handoff.resolved", outcome: "started", conversationId: target.conversationId, canvas: b, turnId: requestedIn });
+    expect(h.last(id)).toMatchObject({ type: "handoff.resolved", outcome: "started", target: { conversationId: target.conversationId, canvas: b }, turnId: requestedIn, conversationId: id });
     expect(h.entry(id)).toMatchObject({ state: "current", canvas: a });
     expect(h.notices).toEqual([{ root: "/repo", source: { conversationId: id, canvas: a }, target: { conversationId: target.conversationId, canvas: b } }]);
   });

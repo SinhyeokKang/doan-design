@@ -21,7 +21,7 @@ describe("handoffEligibility", () => {
     expect(handoffEligibility(sameAsk, { ...worst, root: "/repo" })).toBe("not_running");
     expect(handoffEligibility(sameAsk, { ...worst, root: "/repo", running: true })).toBe("not_canvas_conversation");
     expect(handoffEligibility(sameAsk, { ...worst, root: "/repo", running: true, canvas: source })).toBe("plan_mode");
-    expect(handoffEligibility(sameAsk, { ...worst, root: "/repo", running: true, canvas: source, permissionMode: undefined })).toBe("handoff_turn");
+    expect(handoffEligibility(sameAsk, { root: "/repo", running: true, canvas: source, startedBy: "handoff", requested: true })).toBe("handoff_turn");
     expect(handoffEligibility(sameAsk, { ...asker, requested: true })).toBe("already_requested");
     expect(handoffEligibility(sameAsk, asker)).toBe("same_canvas");
   });

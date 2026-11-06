@@ -302,7 +302,7 @@ describe("handoff events in event v1", () => {
     const saved = [
       store.append("c", "t", { type: "user.message", text: "Keep {{1}} as typed.", anchors: [], origin }),
       store.append("c", "t", { type: "handoff.requested", canvas: { path: ".doan/canvases/new.html" }, text: "Continue {{2}}." }),
-      store.append("c", "t", { type: "handoff.resolved", outcome: "started", conversationId: "b", canvas: { path: ".doan/canvases/new.html", id: "new" } }),
+      store.append("c", "t", { type: "handoff.resolved", outcome: "started", target: { conversationId: "b", canvas: { path: ".doan/canvases/new.html", id: "new" } } }),
       store.append("c", "t", { type: "handoff.resolved", outcome: "refused", reason: "not_logged_in" }),
       store.append("c", "t", { type: "handoff.resolved", outcome: "cancelled" }),
     ];
@@ -319,7 +319,8 @@ describe("handoff events in event v1", () => {
       { type: "user.message", text: "x", anchors: [{ frame: { id: "f" } }], origin },
       { type: "handoff.requested", canvas: { path: "" }, text: "x" },
       { type: "handoff.requested", canvas: { path: ".doan/canvases/a.html" } },
-      { type: "handoff.resolved", outcome: "started", canvas: { path: ".doan/canvases/a.html" } },
+      { type: "handoff.resolved", outcome: "started", target: { canvas: { path: ".doan/canvases/a.html" } } },
+      { type: "handoff.resolved", outcome: "started", conversationId: "b", canvas: { path: ".doan/canvases/a.html" } },
       { type: "handoff.resolved", outcome: "refused" },
       { type: "handoff.resolved", outcome: "maybe" },
     ];
