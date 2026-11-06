@@ -245,7 +245,8 @@ export function HeroComposer(props: HeroComposerProps) {
   const pickedPermission = provider ? m.permissions[provider] : undefined;
   const permission = provider ? permissionPickerView(provider, listState, defaultPermission(permissionChoices(provider, listState), pickedPermission, props.prefs?.permissions?.[provider], fixed)) : null;
   const permissionMode = permission?.mode;
-  const choiceTouched = m.provider !== undefined || explicitModel !== undefined || pickedEffort !== undefined || pickedPermission !== undefined || pickedFast !== undefined;
+  // memory's provider is null until the person picks one (emptyComposer), never undefined.
+  const choiceTouched = m.provider !== null || explicitModel !== undefined || pickedEffort !== undefined || pickedPermission !== undefined || pickedFast !== undefined;
   // Fast is not in this effect: it goes to Last used only from the toggle itself (onPickFast), never from a switch
   // held since then when the composer mounts again or another pick changes (fast-mode decision 3, review R 🟡2).
   useEffect(() => { if (choiceTouched && provider) props.onRemember?.({ provider, model, effort, ...(permissionMode ? { permissionMode } : {}) }); }, [choiceTouched, provider, model, effort, permissionMode]);
