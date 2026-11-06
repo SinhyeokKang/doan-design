@@ -64,10 +64,11 @@ export function parseClaudeModels(rows: unknown): ModelOption[] {
     const efforts = r.supportsEffort === true && Array.isArray(r.supportedEffortLevels) ? levels(r.supportedEffortLevels) : undefined;
     return { id: String(r.value), label: text(named.displayName) ? named.displayName : String(named.value), default: r.value === "default", ...(efforts ? { efforts } : {}), ...(r.supportsFastMode === true ? { fast: {} } : {}) };
   }).filter((_, i) => i !== pairedIndex));
-  // An alias (`opus`) is compared by the model it resolves to; resolvedModel is read only here, not delivered.
-  const resolvedOf = new Map<string, string>();
-  for (const r of models) if (text(r.resolvedModel) && !resolvedOf.has(String(r.value))) resolvedOf.set(String(r.value), r.resolvedModel);
-  return markOlder(kept, m => resolvedOf.get(m.id) ?? m.id);
+  // An alias (`opus`) is compared by the model it resolves to; resolvedModel is read only here, not delivered. Only
+  // the first row of a value is kept by unique, so only its own resolvedModel counts.
+  const resolvedOf = new Map<string, unknown>();
+  for (const r of models) if (!resolvedOf.has(String(r.value))) resolvedOf.set(String(r.value), r.resolvedModel);
+  return markOlder(kept, m => { const resolved = resolvedOf.get(m.id); return text(resolved) ? resolved : m.id; });
 }
 // Codex app-server model/list result (0.164.0): {data: [{id, displayName, isDefault, supportedReasoningEfforts}]}.
 export function parseCodexModels(result: unknown): ModelOption[] {
