@@ -6,6 +6,14 @@
 > Historical `app/e2e/` paths refer to the suite retired on 2026-10-27. Current runtime safety helpers live in `app/runtime/`; use focused probes under `.scratch/`, as specified in AGENTS.md.
 > Some entries name app code removed later: the app's comment UI (`useComments.tsx`, `CommentsSession.ts`, `CommentsPanel.tsx`, `CommentPins.ts` and most of `app/src/comments/` and `app/src/main/comments/`, with their tests) on 2026-11-01; the separate Settings window (`settingsWindow.tsx`) and the `Sidebar.tsx` component on 2026-10-30; Settings > Connections (`ConnectionRows.tsx`, `connectionRowView.ts`, `setupBroker.ts`) on 2026-10-31. Their search commands and test pointers apply only to code that still exists; the comment files, the CLI comment commands and `app/src/comments/projection.ts` remain.
 
+### 2026-11-07 — The streaming reply's caret sat on its own line under the Markdown
+
+- **Area**: `app/src/renderer/ConversationThread.tsx` (`AgentMessage`, `MarkdownText`), `styles.css` (`.conversation-thread .caret`, `.msg-agent`)
+- **Symptom**: while a reply streamed, the blinking caret drew on a line of its own below the last paragraph, list item or code block in the Overview thread and the canvas conversation panel; the drafts draw it right after the last character.
+- **Root cause**: the caret was rendered as a sibling of the Markdown output inside `.msg-agent`, which `89aa20d6` made a flex column. A flex item is blockified, so `display: inline-block` had no line to sit on. Static markup tests only checked that a caret existed, not where it was, and nothing failed. Once the caret moved into the text, its fixed 24 px height with a −6 px margin made the panel's 14/20 lines 3 px taller, so the reply would also have shrunk when streaming ended.
+- **Net**: the user caught it in the running app; `/design-sync` for turn-activity recorded it as context rather than a defect. Unit tests missed it because they asserted presence only; now `ConversationThread.test.tsx` asserts the caret is inside the last text block, and the line-height effect was caught only by the runtime probe (`.scratch/runtime-test/reply-caret/probe.mjs`).
+- **Prevention**: an element meant to flow with text must live inside the text's block, never as a child of a flex or grid container; give a text-line decoration `height: 1lh` with `vertical-align: top` instead of a fixed height so it cannot grow the line. Test the placement (the host element), not just presence. Grep `grep -n "inline-block" app/src/renderer/styles.css app/src/renderer/ds/*.css` and check each parent's `display`.
+
 ### 2026-11-07 — Antigravity conversations ran without the doan skill stub
 
 - **Area**: `app/src/main/agentAuth/providers.ts` (`HOME_STUB`, the Antigravity `settings`).
