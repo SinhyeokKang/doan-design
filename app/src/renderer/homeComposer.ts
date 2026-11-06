@@ -315,9 +315,14 @@ export function modelPickerView(auth: AuthSnapshot | null | undefined, models: P
 // Older models (model-drawer-older): a group's rows keep every model, and the menu folds the older ones under one line
 // only when drawing. Picking and finding the checked row read the full rows, so an older pick never falls back to Default.
 type FoldRow = { older?: true; selected: boolean };
-// The menu draws the current rows, then the line, then (unfolded) the older rows, each in the list's order.
+// Current and older rows each retain the provider's list order.
 export function foldRows<T extends FoldRow>(rows: readonly T[]): { current: T[]; older: T[] } {
   return { current: rows.filter(row => !row.older), older: rows.filter(row => row.older) };
+}
+// An upward menu grows above its anchor: inserting before the line keeps it under the pointer. Use the
+// painted side, since Radix can flip a top-requested menu below the trigger.
+export function olderOrder<T>(line: T, rows: readonly T[], side: string): T[] {
+  return side === "top" ? [...rows, line] : [line, ...rows];
 }
 // The line's name leads with its visible label (WCAG 2.5.3), the provider as in the docked names.
 export function olderLabel(provider: string, count: number): string { return `Older models (${provider}), ${count}`; }

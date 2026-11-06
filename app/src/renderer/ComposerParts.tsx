@@ -15,7 +15,7 @@ import type { ComposerAction } from "./composerRules";
 import { outsidePresetList } from "./presetOutside";
 import type { SettingsTarget } from "./settingsSections";
 import {
-  attachmentChipView, dropTarget, foldRows, groupIcon, heldScrollTop, isSubmitKey, steerKey, modelPickerView, NO_OLDER, olderLabel, olderOpened, olderToggled,
+  attachmentChipView, dropTarget, foldRows, groupIcon, heldScrollTop, isSubmitKey, steerKey, modelPickerView, NO_OLDER, olderLabel, olderOpened, olderOrder, olderToggled,
   presetListView, providerLogo, type AttachmentDraft, type PresetListReply, type PresetRow, type PresetSummary, type SuggestionPart,
 } from "./homeComposer";
 import type { PermissionIcon, PermissionPickerView } from "./permissionPicker";
@@ -308,13 +308,15 @@ export interface OlderFold {
   onOpenChange(open: boolean): void;
   contentRef(node: HTMLDivElement | null): void;
   isOpen(provider: string): boolean;
+  side(provider: string): string;
   line(provider: string, name: string, count: number): ReactNode;
   // An older row's ←: focus goes to its group's line, which folds.
   olderKeyDown(provider: string): (event: KeyboardEvent<HTMLElement>) => void;
 }
-export function useOlderFold(groups: readonly { provider: string; rows: readonly { older?: true; selected: boolean }[] }[]): OlderFold {
+export function useOlderFold(groups: readonly { provider: string; rows: readonly { older?: true; selected: boolean }[] }[], preferredSide: "top" | "bottom" = "bottom"): OlderFold {
   const [open, setOpen] = useState(false);
   const [fold, setFold] = useState(NO_OLDER);
+  const [sides, setSides] = useState<Record<string, string>>({});
   const content = useRef<HTMLDivElement | null>(null);
   const lines = useRef(new Map<string, HTMLElement>());
   // The line's viewport top just before a toggle, so the toggle's layout can put it back.
@@ -328,7 +330,11 @@ export function useOlderFold(groups: readonly { provider: string; rows: readonly
   useLayoutEffect(() => {
     if (!open) return;
     const next = olderOpened(fold, groups);
-    if (next !== fold) { reveal.current = true; setFold(next); return; }
+    if (next !== fold) {
+      const side = content.current?.dataset.side ?? preferredSide;
+      setSides(current => Object.fromEntries(next.open.map(provider => [provider, current[provider] ?? side])));
+      reveal.current = true; setFold(next); return;
+    }
     if (reveal.current && content.current) { reveal.current = false; showChecked(); }
     const h = held.current, line = h && lines.current.get(h.provider), box = content.current;
     if (!h || !line || !box) return;
@@ -341,13 +347,15 @@ export function useOlderFold(groups: readonly { provider: string; rows: readonly
   const toggle = (provider: string, next: boolean) => {
     const line = lines.current.get(provider);
     if (line) held.current = { provider, top: line.getBoundingClientRect().top };
+    if (next) setSides(current => ({ ...current, [provider]: content.current?.dataset.side ?? preferredSide }));
     setFold(current => olderToggled(current, provider, next));
   };
   const isOpen = (provider: string) => fold.open.includes(provider);
   return {
-    onOpenChange: next => { setOpen(next); setFold(NO_OLDER); reveal.current = next; held.current = null; },
+    onOpenChange: next => { setOpen(next); setFold(NO_OLDER); setSides({}); reveal.current = next; held.current = null; },
     contentRef: node => { content.current = node; if (node && reveal.current) { reveal.current = false; showChecked(); } },
     isOpen,
+    side: provider => sides[provider] ?? preferredSide,
     // Not a radio item and carries no value, so it can never be taken for a model; its key stays the same folded or
     // not, or focus would fall to the menu.
     line: (provider, name, count) => <DropdownMenu.Item key={`older:${provider}`} ref={node => { if (node) lines.current.set(provider, node); else lines.current.delete(provider); }}
@@ -383,7 +391,7 @@ export function AgentPicker(props: {
 }) {
   const { picker, auth } = props;
   const footer = pickerFooter(picker.groups.some(group => group.selectable));
-  const fold = useOlderFold(picker.groups.filter(group => group.selectable));
+  const fold = useOlderFold(picker.groups.filter(group => group.selectable), "top");
   return <DropdownMenu.Root onOpenChange={open => { fold.onOpenChange(open); if (open) props.onOpen(); }}>
     <DropdownMenu.Trigger asChild><button type="button" className="composer-agent doan-button" data-ui-size={props.size ?? "sm"} data-ui-variant="trigger" aria-label={picker.trigger.ariaLabel} disabled={props.disabled}>
       {picker.trigger.provider ? <><img className="logo" src={providerLogo(picker.trigger.provider)} alt="" /><TriggerLabel text={picker.trigger.label} placeholder={picker.trigger.placeholder} /></> : <span className="muted">{picker.trigger.label}</span>}<ChevronDown className="chev" aria-hidden="true" />
@@ -407,8 +415,7 @@ export function AgentPicker(props: {
             {note && <span className="agent-note">{note === "Loading models" && <span className="doan-spinner" aria-hidden="true" />}{note}</span>}</DropdownMenu.Label>
           {group.selectable ? <DropdownMenu.RadioGroup value={!selected ? "" : selected.kind === "model" ? selected.id : "default"} onValueChange={value => props.onPick(group.provider, group.rows.some(row => row.kind === "model" && row.id === value) ? value : null)}>
             {current.map(item)}
-            {older.length > 0 && fold.line(group.provider, group.name, older.length)}
-            {fold.isOpen(group.provider) && older.map(item)}
+            {older.length > 0 && olderOrder(fold.line(group.provider, group.name, older.length), fold.isOpen(group.provider) ? older.map(item) : [], fold.side(group.provider))}
           </DropdownMenu.RadioGroup> : fix ? <DropdownMenu.Item className="doan-menu-item" onSelect={() => props.onSettings(fix.target)}>{fix.label}</DropdownMenu.Item>
             : <DropdownMenu.Item className="doan-menu-item" disabled><span className="sub">{short ?? "Not available right now"}</span></DropdownMenu.Item>}
           {group.selectable && short && <p className="menu-note">{short}</p>}
