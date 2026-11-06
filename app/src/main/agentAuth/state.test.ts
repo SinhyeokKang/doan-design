@@ -204,6 +204,14 @@ describe("auth transitions", () => {
     const replaced = step(step(first, { type: "signIn", attemptId: "a2", owner: 1 }), { type: "signedIn", attemptId: "a2", result: { status: "stored", connection: connection({ connectionId: "conn-2" }) } });
     expect(replaced).toMatchObject({ generation: 2, connection: { connectionId: "conn-2" } });
   });
+  // The window keys what it read for a connection (a model list) by this: a replacement keeps the provider and may keep
+  // the email, so neither tells the window that the account changed.
+  it("reports the generation in the status, raised by a replacement and a sign-out", () => {
+    const first = connected();
+    const replaced = step(step(first, { type: "signIn", attemptId: "a2", owner: 1 }), { type: "signedIn", attemptId: "a2", result: { status: "stored", connection: connection({ connectionId: "conn-2" }) } });
+    const out = step(step(replaced, { type: "signOut", attemptId: "o1", running: false }), { type: "signedOut", attemptId: "o1", result: { status: "removed" } });
+    expect([first, replaced, out].map(state => authStatus(state, tools, 0).generation)).toEqual([1, 2, 3]);
+  });
   it("rejects a stored connection for another provider or malformed events", () => {
     const signing = step(initialAuthState("claude", null), { type: "signIn", attemptId: "a1", owner: 1 });
     expect(transition(signing, { type: "signedIn", attemptId: "a1", result: { status: "stored", connection: connection({ provider: "codex" }) } })).toMatchObject({ ok: false, reason: "invalid" });

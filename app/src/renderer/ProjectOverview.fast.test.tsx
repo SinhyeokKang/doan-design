@@ -50,7 +50,7 @@ function render(list: ListView, current: string | null, patch: Partial<ProjectOv
   const support = new DockedSupport(() => {});
   support.auth = AUTH;
   support.presets = { v: 1, ok: true, result: { version: "1", presets: [] } };
-  support.models = { [modelsKey(ROOT, "claude")]: { models: [OPUS, SONNET] } };
+  support.models = { [modelsKey(ROOT, "claude", 1)]: { models: [OPUS, SONNET] } };
   picks?.(support);
   const props: ProjectOverviewProps = {
     run, support, root: ROOT, project: "doan", entry, worktrees: [entry], homeDirectory: "/code",
@@ -139,7 +139,7 @@ test("Fast turned off in a conversation drops the switch its composer still held
 // picker-default-labels review 🔴1: Claude Code's default row has the id "default", the same word the pre-list Default
 // row used to pass. Picking it must choose that model, not fall back to the conversation's stored one.
 test("an existing conversation on another model can pick Claude Code's default row", async () => {
-  const paired = (support: DockedSupport) => { support.models = { [modelsKey(ROOT, "claude")]: { models: [{ id: "default", label: "Opus 5.5", default: true, efforts: ["high"] }, SONNET] } }; };
+  const paired = (support: DockedSupport) => { support.models = { [modelsKey(ROOT, "claude", 1)]: { models: [{ id: "default", label: "Opus 5.5", default: true, efforts: ["high"] }, SONNET] } }; };
   const { support, composer } = render([summary({ model: "sonnet" })], A, {}, paired);
   expect(composer.picker.trigger.label).toBe("Sonnet");
   composer.onPickModel("claude", "default");
@@ -184,4 +184,15 @@ test("a new conversation's pick marks the effort as picked only when the effort 
   // The effort menu's Default row is a pick too: it clears a fixed effort.
   render([], null, { onRemember }, support => support.pick(`root:${ROOT}`, { effort: "" }));
   expect(onRemember.mock.calls.at(-1)![0]).toMatchObject({ provider: "claude", effort: null, effortPicked: true });
+});
+
+// A Codex account replacement in Settings > Agents mints a new connection (generation 2); the list this run read for the
+// previous one must not show in an existing conversation, and the new connection's list is read.
+test("an existing conversation reads its provider's list again after that provider's connection changed", () => {
+  const { composer } = render([summary({ provider: "codex", model: "gpt-old" })], A, {}, support => {
+    support.auth = { revision: 2, providers: [status("claude"), { ...status("codex"), generation: 2 }] };
+    support.models = { [modelsKey(ROOT, "codex", 1)]: { models: [{ id: "gpt-old", label: "GPT Old", default: true }] } };
+  });
+  expect(window.doan.listConversationModels).toHaveBeenCalledWith({ root: ROOT, runtime: "codex" });
+  expect(composer.picker.groups.find(group => group.provider === "codex")?.rows.map(row => row.label)).not.toContain("GPT Old");
 });

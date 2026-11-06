@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from "vitest";
-import { DockedSupport } from "./dockedSupport";
+import { DockedSupport, modelsKey } from "./dockedSupport";
 
 afterEach(() => vi.unstubAllGlobals());
 const flush = () => new Promise(resolve => setTimeout(resolve, 0));
@@ -56,4 +56,24 @@ test("a just-started conversation's mode shows until its summary arrives", () =>
   expect(support.started["conversation:c1"]).toBe("bypass");
   support.settlePermission("conversation:c1", "default");
   expect(support.started["conversation:c1"]).toBeUndefined();
+});
+
+// A Codex account replacement mints a new connection; main lists for it again, and the window must ask instead of
+// keeping the list it read for the previous account.
+test("a provider's list is read again for its new connection, and the previous connection's list is not shown for it", async () => {
+  const { authStatus } = await import("../main/agentAuth/state");
+  const snapshot = (generation: number) => ({ revision: generation, providers: [authStatus({ provider: "codex", generation, verified: true, expired: false, connection: { provider: "codex", connectionId: `c${generation}`, profile: "codex", account: { id: null, workspace: null, email: "ada@example.com" } }, attempt: null, error: null, phase: "connected" }, { cli: "found", version: "supported", tools: "ready" }, generation)] });
+  const list = vi.fn().mockResolvedValueOnce({ models: [{ id: "gpt-old", label: "GPT Old", default: true }] }).mockResolvedValueOnce({ models: [{ id: "gpt-new", label: "GPT New", default: true }] });
+  vi.stubGlobal("window", { doan: { listConversationModels: list } });
+  const support = new DockedSupport(() => {});
+  support.setAuth(snapshot(1));
+  support.readModels("/r", "codex");
+  await flush();
+  expect(support.models[modelsKey("/r", "codex", 1)]).toMatchObject({ models: [{ id: "gpt-old" }] });
+  support.setAuth(snapshot(2));
+  expect(support.models[modelsKey("/r", "codex", 2)]).toBeUndefined();
+  support.readModels("/r", "codex");
+  await flush();
+  expect(list).toHaveBeenCalledTimes(2);
+  expect(support.models[modelsKey("/r", "codex", 2)]).toMatchObject({ models: [{ id: "gpt-new" }] });
 });

@@ -7,6 +7,7 @@ import type { CanvasRow, FolderEntry } from "../main/view";
 import { textSegments } from "./anchorField";
 import * as Parts from "./ComposerParts";
 import { tabKey } from "./ComposerParts";
+import { modelsKey } from "./dockedSupport";
 import { emptyComposer, HeroComposer, pasteAction, slashKey, type ComposerMemory, type HeroComposerProps } from "./HomeComposerView";
 import type { PresetListReply, PresetSummary } from "./homeComposer";
 import type { LastRequest } from "./homeConversations";
@@ -481,7 +482,7 @@ test("settings action: the fixed default starts each input; a pick lasts until a
     { prefs: { lastProvider: "claude", models: { codex: { model: "gpt-y" } } }, defaults: { provider: "codex", model: "gpt-x", effort: "high" } });
   render();
   for (const effect of hooks.effects) effect();
-  await vi.waitFor(() => expect(box.current.lists["/code/doan-design\ncodex"]).toMatchObject({ models: expect.any(Array) }));
+  await vi.waitFor(() => expect(box.current.lists[modelsKey("/code/doan-design", "codex", 1)]).toMatchObject({ models: expect.any(Array) }));
   const send = async () => { const calls = start.mock.calls.length; call(field(render()), "onKeyDown", key("Enter")); await vi.waitFor(() => expect(start.mock.calls.length).toBe(calls + 1)); await vi.waitFor(() => expect(box.current.sending).toBeNull()); return start.mock.calls.at(-1)![0] as Record<string, unknown>; };
   // The person picks Low for the fixed model: kept until this input is sent.
   const effort = find(render(), props => typeof props.onValueChange === "function" && props.value === "high");
@@ -668,11 +669,21 @@ test("a press outside the / list closes it until the field is empty; a press in 
   expect(field(render()).role).toBe("combobox");
 });
 
+// A Codex account replacement in Settings > Agents mints a new connection (generation 2). Home's memory outlives the
+// screen, so the list it read for the previous account must not show when Home comes back; the new one is read.
+test("Home reads a provider's list again after that provider's connection changed", () => {
+  const lists = { [modelsKey("/code/doan-design", "codex", 1)]: { models: [{ id: "gpt-old", label: "GPT Old", default: true }] } };
+  const { render } = setup({ lists, auth: { revision: 2, providers: [dto("claude"), { ...dto("codex"), generation: 2 }] } }, { prefs: { lastProvider: "codex" } });
+  render();
+  for (const effect of hooks.effects) effect();
+  expect(doan.listConversationModels).toHaveBeenCalledWith({ root: "/code/doan-design", runtime: "codex" });
+});
+
 // Home says whether its model was picked, so a fixed Settings default without a model stays unfixed after a pick of
 // something else (preferenceAfterPick).
 test("Home marks the model as picked only when the person picked it", () => {
   const onRemember = vi.fn();
-  const lists = { ["/code/doan-design\nclaude"]: { models: [{ id: "opus", label: "Opus 5.5", default: true }, { id: "sonnet", label: "Sonnet 5.5", default: false }] } };
+  const lists = { [modelsKey("/code/doan-design", "claude", 1)]: { models: [{ id: "opus", label: "Opus 5.5", default: true }, { id: "sonnet", label: "Sonnet 5.5", default: false }] } };
   const permissionOnly = setup({ lists, permissions: { claude: "plan" } }, { prefs: { lastProvider: "claude" }, defaults: { provider: "claude" }, onRemember });
   permissionOnly.render();
   for (const effect of hooks.effects) effect();
@@ -687,7 +698,7 @@ test("Home marks the model as picked only when the person picked it", () => {
 // Edit on Home brings the sent model and effort back; that is not a pick, so a fixed Settings default stays as it is.
 test("a model restored by Edit on Home is not marked as picked; picking it again is", () => {
   const onRemember = vi.fn();
-  const effortful = { ["/code/doan-design\nclaude"]: { models: [{ id: "opus", label: "Opus 5.5", default: true, efforts: ["low", "high"] }, { id: "sonnet", label: "Sonnet 5.5", default: false }] } };
+  const effortful = { [modelsKey("/code/doan-design", "claude", 1)]: { models: [{ id: "opus", label: "Opus 5.5", default: true, efforts: ["low", "high"] }, { id: "sonnet", label: "Sonnet 5.5", default: false }] } };
   const last: LastRequest = { root: "/code/doan-design", text: "Polish it.", preset: null, attachments: [], provider: "claude", model: "opus", effort: "high" };
   const { render } = setup({ lists: effortful }, { prefs: { lastProvider: "claude" }, defaults: { provider: "claude" }, restore: { request: last, seq: 1 }, onRemember });
   render(); runEffects(); render(); runEffects();

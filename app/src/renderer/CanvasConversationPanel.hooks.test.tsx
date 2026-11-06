@@ -38,7 +38,7 @@ vi.mock("react", async original => {
 const { CanvasConversation } = await import("./CanvasConversationPanel");
 const { CanvasRun } = await import("./canvasRun");
 const { ConversationStore } = await import("./conversationStore");
-const { DockedSupport } = await import("./dockedSupport");
+const { DockedSupport, modelsKey } = await import("./dockedSupport");
 
 const ROOT = "/w/acme";
 const CANVAS: Canvas = { path: ".doan/canvases/checkout.html", id: "checkout" };
@@ -258,7 +258,7 @@ test("a new conversation started from the panel sends the Fast it shows and reme
   await flush();
   const support = Object.assign(new DockedSupport(() => {}), { readPresets: vi.fn(), readModels: vi.fn() });
   support.auth = { revision: 1, providers: [authStatus({ provider: "claude", generation: 1, verified: true, expired: false, connection: { provider: "claude", connectionId: "c", profile: "claude", account: { id: "a", workspace: "org", email: "ada@example.com" } }, attempt: null, error: null, phase: "connected" }, { cli: "found", version: "supported", tools: "ready" }, 1)] };
-  support.models = { [`${ROOT}\nclaude`]: { models: [{ id: "opus", label: "Opus", default: true, efforts: ["high"], fast: {} }] } };
+  support.models = { [modelsKey(ROOT, "claude", 1)]: { models: [{ id: "opus", label: "Opus", default: true, efforts: ["high"], fast: {} }] } };
   const onRemember = vi.fn();
   const panel = () => CanvasConversation({
     run, support, target: { root: ROOT, canvas: CANVAS }, canvasName: "checkout", project: "acme-web", entry: ENTRY, list: [], seen: new Set(),

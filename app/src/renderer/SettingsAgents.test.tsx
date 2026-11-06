@@ -204,6 +204,21 @@ test("Codex with nothing fixed names its default model and level", async () => {
   expect(labelled("Effort for new conversations")[0]?.props["aria-label"]).toBe("Effort for new conversations: Default · Medium");
   expect(labelled("Permission for new conversations")[0]?.props["aria-label"]).toBe("Permission for new conversations: Ask first");
 });
+// A Codex account replacement mints a new connection, whose list main reads again; the list read for the account
+// before it must not stay on the Model row.
+test("a new connection of the default agent reads its models again instead of keeping the previous account's", async () => {
+  auth = { revision: 1, providers: [dto("claude"), dto("codex")] };
+  resetHooksAndList([{ id: "gpt-old", label: "GPT Old", default: true }]);
+  await settle({ preferences: prefs({ provider: "codex" }) });
+  await settle();
+  expect(labelled("Model for new conversations")[0]?.props["aria-label"]).toBe("Model for new conversations: Default · GPT Old");
+  api.listConversationModels!.mockResolvedValue({ models: [{ id: "gpt-new", label: "GPT New", default: true }] });
+  authListener({ revision: 2, providers: [dto("claude", {}, 2), { ...dto("codex", {}, 2), generation: 2 }] });
+  await settle();
+  await settle();
+  expect(api.listConversationModels).toHaveBeenCalledTimes(2);
+  expect(labelled("Model for new conversations")[0]?.props["aria-label"]).toBe("Model for new conversations: Default · GPT New");
+});
 // RV 🟡1: an ACP agent may list a real model whose id is "default". The top Default row must stay apart from it:
 // picking that model fixes it, the top row unfixes, and a stored value checks exactly one row.
 test("an ACP model whose id is default is fixed by its own row, never confused with the top Default row", async () => {
