@@ -684,16 +684,17 @@ test("Home marks the model as picked only when the person picked it", () => {
   expect(onRemember.mock.calls.at(-1)![0]).toMatchObject({ provider: "claude", model: "sonnet", modelPicked: true });
 });
 
-// Edit on Home brings the sent model back; that is not a pick, so a fixed Settings default without a model stays unfixed.
+// Edit on Home brings the sent model and effort back; that is not a pick, so a fixed Settings default stays as it is.
 test("a model restored by Edit on Home is not marked as picked; picking it again is", () => {
   const onRemember = vi.fn();
-  const lists = { ["/code/doan-design\nclaude"]: { models: [{ id: "opus", label: "Opus 5.5", default: true }, { id: "sonnet", label: "Sonnet 5.5", default: false }] } };
-  const last: LastRequest = { root: "/code/doan-design", text: "Polish it.", preset: null, attachments: [], provider: "claude", model: "opus", effort: null };
-  const { render } = setup({ lists }, { prefs: { lastProvider: "claude" }, defaults: { provider: "claude" }, restore: { request: last, seq: 1 }, onRemember });
+  const effortful = { ["/code/doan-design\nclaude"]: { models: [{ id: "opus", label: "Opus 5.5", default: true, efforts: ["low", "high"] }, { id: "sonnet", label: "Sonnet 5.5", default: false }] } };
+  const last: LastRequest = { root: "/code/doan-design", text: "Polish it.", preset: null, attachments: [], provider: "claude", model: "opus", effort: "high" };
+  const { render } = setup({ lists: effortful }, { prefs: { lastProvider: "claude" }, defaults: { provider: "claude" }, restore: { request: last, seq: 1 }, onRemember });
   render(); runEffects(); render(); runEffects();
   expect(onRemember).toHaveBeenCalled();
-  expect(onRemember.mock.calls.at(-1)![0]).toMatchObject({ provider: "claude", model: "opus" });
+  expect(onRemember.mock.calls.at(-1)![0]).toMatchObject({ provider: "claude", model: "opus", effort: "high" });
   expect(onRemember.mock.calls.at(-1)![0]).not.toHaveProperty("modelPicked");
+  expect(onRemember.mock.calls.at(-1)![0]).not.toHaveProperty("effortPicked");
   // The Claude Code group's model menu, with the restored model checked.
   const group = find(render(), props => typeof props.onValueChange === "function" && props.value === "opus");
   (group.onValueChange as (value: string) => void)("opus");

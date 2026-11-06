@@ -174,3 +174,14 @@ test("a new conversation's pick marks the model as picked only when the model wa
   render([], null, { onRemember }, support => support.pick(`root:${ROOT}`, { model: "sonnet" }));
   expect(onRemember.mock.calls.at(-1)![0]).toMatchObject({ provider: "claude", model: "sonnet", modelPicked: true });
 });
+
+test("a new conversation's pick marks the effort as picked only when the effort was picked", () => {
+  const onRemember = vi.fn();
+  render([], null, { onRemember }, support => support.pick(`root:${ROOT}`, { permissionMode: "plan" }));
+  expect(onRemember.mock.calls.at(-1)![0]).not.toHaveProperty("effortPicked");
+  render([], null, { onRemember }, support => support.pick(`root:${ROOT}`, { effort: "high" }));
+  expect(onRemember.mock.calls.at(-1)![0]).toMatchObject({ provider: "claude", model: "opus", effort: "high", effortPicked: true });
+  // The effort menu's Default row is a pick too: it clears a fixed effort.
+  render([], null, { onRemember }, support => support.pick(`root:${ROOT}`, { effort: "" }));
+  expect(onRemember.mock.calls.at(-1)![0]).toMatchObject({ provider: "claude", effort: null, effortPicked: true });
+});
