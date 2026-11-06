@@ -24,6 +24,7 @@
 - R1 실행: 사람이 승인했고, 설치된 Doan(실제 userData)과 함께 띄워도 된다고 했다.
 - R1 결함 1(Copilot 병렬 도구): 다른 도구가 끝나도 아직 도는 ACP 도구가 있으면 가장 늦게 시작한 도는 도구의 단계를 내고, 도는 도구가 없을 때만 일반을 낸다(conductor's call — spec 완료 조건 2, design §2 표에 병렬 규칙이 없었다).
 - R1 결함 2(다음 턴의 bubble이 턴 표시보다 10–14ms 먼저 commit): 원인을 찾아 같은 렌더로 고친다(conductor's call — spec 완료 조건 1).
+- FX-R2: 이미 있는 대화의 send가 `user.message`와 `turn.started`를 `ConversationStore.appendAll`로 한 번에 쓴다. 크기 제한이나 I/O 실패면 둘 다 쓰지 않는다(conductor's call — 형식·순서·seq는 그대로이고, renderer만 고치면 시각 비교로 모든 consumer의 `live()`를 바꾼다). `store.ts`를 FX가 맡는다.
 - R1 관찰 3(Overview Stop이 `turn.done` 뒤 10초 남음, `BIND_GRACE_MS`): 이 feature 전부터 있던 동작이라 BACKLOG 'Known defects'에 적는다(conductor's call).
 - Z1–Z3(문서 승격)은 지휘자가 통합 뒤 문서별 커밋으로 쓴다(orchestrate §4·§5). DESIGN.md는 U2가 쓴다.
 
