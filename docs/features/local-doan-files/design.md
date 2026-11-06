@@ -83,6 +83,20 @@ spec 결정 1~8을 CLI(파일 쓰기와 판단), app main(셋업 계획, onboard
 - 앱에서 모드를 쓰면 main이 같은 group의 모든 root를 다시 읽는다. 그래서 다른 worktree의 Project Settings도 같은 모드를 보인다(POSTMORTEM 2026-11-03 'Locate on the Project Settings page…': 변화를 만드는 모든 경로가 알린다).
 - Project Settings를 열 때 모드를 다시 읽는다. 앱 밖의 `doan config --storage`는 창 focus 때의 다시 읽기(60초 제한, `app/src/main/index.ts`)에서 보인다. exclude 감시는 두지 않는다. 이 한계는 BACKLOG에 적는다.
 
+## 3.4 초안 요청
+
+- 경로·id: `.doan/canvases/local-doan-files.html`, `local-doan-files`, 폭 1760. 모든 frame이 새 상태다. 바탕 화면(Set Up 폼, 첫 실행·Add Projects setup 패널, clone 화면, Project Settings)은 main의 코드와 DESIGN.md대로 옮긴다.
+- 배치(사용자 결정, 2026-11-07): 셋업 화면의 두 radio는 바뀌는 파일 목록 위에 둔다(목록이 없는 setup 패널은 안내 문장 아래, 버튼 위). Project Settings의 "Doan files" section은 Shared with canvases 다음, Remove from Doan 바로 위다.
+- frame:
+  - `setup-dialog` — Set Up 폼: 레포(기본), 로컬을 고름(목록에 `.git/info/exclude`), 이미 로컬인 group의 사실 표시, Git 아닌 폴더에서 로컬 셋업 거절(선택 유지, 이유), exclude 쓰기 실패.
+  - `setup-panel` — 첫 실행·Add Projects의 "Set up this folder for Doan" 패널: 레포, 로컬.
+  - `clone` — clone 화면("Clone and continue"/"Clone and add"): 레포, 로컬.
+  - `settings-modes` — Project Settings: 레포 모드(지금 경로 줄), 로컬 모드(설명, 조건문 안내와 Copy, 로컬 경로 줄).
+  - `settings-changes` — Project Settings 전환: Saving, 레포→로컬 뒤 한 줄(`.gitattributes` 줄이 남음), 로컬→레포 뒤 한 줄(`git status`에 보이고 커밋하면 팀에 감), 쓰기 실패 alert.
+  - `settings-disabled` — 이유별 비활성: Git 아님, `.git` 읽기 실패(unknown), exclude 쓰기 불가.
+  - `not-set-up` — 로컬 저장소의 셋업되지 않은 worktree의 'Not set up' 안내.
+- 문구는 §3.1·§3.2의 내용과 후보를 `clarify` preset으로 다듬는다. radio 이름은 "Include in Git" / "Keep out of Git (this Mac only)"이다.
+
 ## 4. 순수 함수로 뺄 부분 (`/tdd` 대상)
 
 | 함수 | 위치 | 고정할 사례 |
