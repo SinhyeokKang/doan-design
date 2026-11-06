@@ -31,7 +31,7 @@ const mainOnly = [
   // canvas-row-menu: Move to Trash and Export from the sidebar's canvas row menu.
   "canvas:trashPlan", "canvas:trash", "canvas:export", "canvas:revealExport",
 ];
-const setupAndAuth = ["setup:open-external",
+const setupAndAuth = ["setup:open-external", "setup:open-install",
   "agent-auth:read", "agent-auth:check", "agent-auth:sign-in", "agent-auth:cancel", "agent-auth:submit-code", "agent-auth:open-link", "agent-auth:sign-out",
   "config:read", "config:write", "config:choose"];
 // buzz-settings design '창 제거와 IPC': the Settings page's own requests, and the two events main sends it.

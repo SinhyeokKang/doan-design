@@ -1,10 +1,10 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ToolFacts } from "./agentAuth/types";
-import { installChoice, terminalScript, type TerminalChoice } from "./installCommand";
+import { createInstallOpener, installChoice, terminalScript, type TerminalChoice } from "./installCommand";
 import { INSTALL_URLS } from "./settings";
 
 const missing: ToolFacts = { cli: "missing", version: "unknown", tools: "ready" };
@@ -115,5 +115,88 @@ describe("terminalScript", () => {
     expect(script).toContain(`'Install O'\\''Brien'`);
     const ran = spawnSync("/bin/sh", ["-c", script], { input: "\n", encoding: "utf8" });
     expect(ran.stdout).toBe("Install O'Brien\nThis command installs O'Brien:\n\n  printf '%s' x\n\nPress Return to run it, or close this window to cancel.\nxFinished. Go back to Doan to continue.\n");
+  });
+});
+
+describe("createInstallOpener", () => {
+  const roots: string[] = [];
+  afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
+  function opener(openPath: (path: string) => Promise<string> = async () => "", openExternal: (url: string) => Promise<void> = async () => {}) {
+    const root = mkdtempSync(join(tmpdir(), "doan-install-open-"));
+    roots.push(root);
+    const dir = join(root, "terminal");
+    const deps = { dir, openPath: vi.fn(openPath), openExternal: vi.fn(openExternal) };
+    return { dir, deps, open: createInstallOpener(deps) };
+  }
+
+  it("writes the provider's script as an executable .command and opens it in Terminal", async () => {
+    const t = opener();
+    expect(await t.open("codex", below("0.150.0"))).toBe("terminal");
+    const files = readdirSync(t.dir);
+    expect(files).toHaveLength(1);
+    expect(files[0]).toMatch(/^codex-[0-9a-f]+\.command$/);
+    const path = join(t.dir, files[0]!);
+    expect(readFileSync(path, "utf8")).toBe(terminalScript(installChoice("codex", below("0.150.0")) as TerminalChoice, "Codex"));
+    expect(statSync(path).mode & 0o777).toBe(0o700);
+    expect(t.deps.openPath).toHaveBeenCalledExactlyOnceWith(path);
+    expect(t.deps.openExternal).not.toHaveBeenCalled();
+  });
+
+  it("removes the previous files and writes the new script under a new name", async () => {
+    const t = opener();
+    mkdirSync(t.dir, { recursive: true });
+    writeFileSync(join(t.dir, "claude-old.command"), "old");
+    writeFileSync(join(t.dir, ".codex-left.tmp"), "left");
+    expect(await t.open("claude", missing)).toBe("terminal");
+    const first = readdirSync(t.dir);
+    expect(first).toHaveLength(1);
+    expect(first[0]).toMatch(/^claude-[0-9a-f]+\.command$/);
+    expect(first[0]).not.toBe("claude-old.command");
+    expect(await t.open("claude", missing)).toBe("terminal");
+    const second = readdirSync(t.dir);
+    expect(second).toHaveLength(1);
+    expect(second[0]).not.toBe(first[0]);
+  });
+
+  it("finishes one open before the next one's cleanup, so a concurrent open never loses the file it opens", async () => {
+    const opened: boolean[] = [];
+    const t = opener(async path => { opened.push(existsSync(path)); return ""; });
+    expect(await Promise.all([t.open("codex", missing), t.open("cursor", missing), t.open("copilot", missing)])).toEqual(["terminal", "terminal", "terminal"]);
+    expect(opened).toEqual([true, true, true]);
+    expect(readdirSync(t.dir)).toEqual([expect.stringMatching(/^copilot-/)]);
+  });
+
+  it("fails without opening anything when the directory cannot be made", async () => {
+    const t = opener();
+    writeFileSync(t.dir, "a file where the directory goes");
+    expect(await t.open("codex", missing)).toBe("failed");
+    expect(t.deps.openPath).not.toHaveBeenCalled();
+    expect(t.deps.openExternal).not.toHaveBeenCalled();
+  });
+
+  it("fails without opening anything when the script cannot be written", async () => {
+    const t = opener();
+    mkdirSync(t.dir, { recursive: true });
+    chmodSync(t.dir, 0o500);
+    try { expect(await t.open("codex", missing)).toBe("failed"); } finally { chmodSync(t.dir, 0o700); }
+    expect(t.deps.openPath).not.toHaveBeenCalled();
+  });
+
+  it("fails when Terminal does not open the script: openPath answers an error string instead of rejecting", async () => {
+    const t = opener(async () => "No application knows how to open this file.");
+    expect(await t.open("codex", missing)).toBe("failed");
+    const rejected = opener(async () => { throw new Error("gone"); });
+    expect(await rejected.open("codex", missing)).toBe("failed");
+  });
+
+  it("opens the fixed install page when no command applies, and says when the page did not open", async () => {
+    const t = opener();
+    expect(await t.open("codex", below("0.125.0"))).toBe("page");
+    expect(await t.open("cursor", null)).toBe("page");
+    expect(t.deps.openExternal.mock.calls).toEqual([[INSTALL_URLS.codex], [INSTALL_URLS.cursor]]);
+    expect(existsSync(t.dir)).toBe(false);
+    expect(t.deps.openPath).not.toHaveBeenCalled();
+    const failing = opener(undefined, async () => { throw new Error("no handler"); });
+    expect(await failing.open("codex", below("0.125.0"))).toBe("pageFailed");
   });
 });

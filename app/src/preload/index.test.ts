@@ -204,6 +204,11 @@ test("install pages use their fixed target channel", async () => {
   await api.openInstallPage("claude");
   expect(mocks.invoke).toHaveBeenLastCalledWith("setup:open-external", { target: "claude" });
 });
+test("Install and Update send only the provider; main picks the command", async () => {
+  mocks.invoke.mockResolvedValueOnce("terminal");
+  expect(await api.openInstall("codex")).toBe("terminal");
+  expect(mocks.invoke).toHaveBeenLastCalledWith("setup:open-install", { target: "codex" });
+});
 
 test("conversation listener precedes read and drains the final buffered event without resubscribing", async () => {
   const { mergeEvents } = await import("../main/conversation/state");

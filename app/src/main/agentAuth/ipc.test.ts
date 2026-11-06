@@ -193,6 +193,17 @@ describe("run-time version incompatibility records", () => {
     }
     expect(t.api.check).not.toHaveBeenCalled();
   });
+  // A missing CLI also clears only with new tool facts: a check right after an install must not spend Copilot's request.
+  it("only reads the tool facts again on a check while the CLI is missing", async () => {
+    const t = ipc(async () => ({ cli: "missing", version: "unknown", tools: "ready" }));
+    await t.ipc.read();
+    for (const provider of ["copilot", "codex"] as const) {
+      t.options.probe.mockClear();
+      expect(await t.ipc.handle(AUTH_CHANNELS.check, { provider }, 7)).toEqual({ ok: true });
+      expect(t.options.probe).toHaveBeenCalledWith(provider);
+    }
+    expect(t.api.check).not.toHaveBeenCalled();
+  });
   it("answers the current snapshot without waiting for the first probe", async () => {
     const t = ipc(() => new Promise<ToolFacts>(() => {}));
     void t.ipc.read();
