@@ -16,6 +16,8 @@ describe("panelOpenFor", () => {
     [{ kind: "capsule" }, "permission"],
     [{ kind: "picker" }, "composer"],
     [{ kind: "newConversation" }, "composer"],
+    // canvas-handoff design §6: after a move, focus sits on the receiving thread's handoff card.
+    [{ kind: "handoff" }, "handoff"],
   ] as const)("%o opens the panel and focuses the %s", (trigger, focus) => {
     expect(panelOpenFor(trigger, null)).toEqual({ open: true, focus });
   });

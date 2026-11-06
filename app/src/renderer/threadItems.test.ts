@@ -410,3 +410,57 @@ describe("questions", () => {
     expect(pendingAsks(threadItems(events, ROOT, true)).map(ask => ask.requestId)).toEqual(["q1", "p2"]);
   });
 });
+
+// canvas-handoff B5: the requested line sits where the request happened and its resolution replaces it there; the
+// receiving conversation's first message is the handoff card, its text never read for {{n}} markers.
+describe("threadItems handoff", () => {
+  const CHECKOUT = ".doan/canvases/checkout-flow.html";
+  const requested = (turnId: string) => ev(turnId, { type: "handoff.requested", canvas: { path: CHECKOUT }, text: "Continue the checkout flow." });
+  const reply = (turnId: string) => ev(turnId, { type: "message.done", messageId: "m1", text: "I made it." });
+  const asked = () => { seq = 0; return [...turn("t1"), ev("t1", { type: "activity", kind: "edit", path: CHECKOUT, summary: "Edit" }), requested("t1"), reply("t1")]; };
+
+  test("a request draws a pending line at its place while the turn runs", () => {
+    const items = threadItems(asked(), ROOT, true);
+    expect(items.map(i => i.kind)).toEqual(["user", "activity", "handoff", "agent"]);
+    expect(items[2]).toEqual({ kind: "handoff", key: "ht1", canvas: { path: CHECKOUT }, outcome: "pending" });
+  });
+
+  test("a start replaces the pending line in place: one line, none added at the turn's end", () => {
+    const target = { conversationId: "c2", canvas: { path: CHECKOUT, id: "checkout" } };
+    const events = [...asked(), ev("t1", { type: "turn.done" }), ev("t1", { type: "handoff.resolved", outcome: "started", target })];
+    const items = threadItems(events, ROOT, false);
+    expect(items.map(i => i.kind)).toEqual(["user", "activity", "handoff", "agent"]);
+    expect(items[2]).toEqual({ kind: "handoff", key: "ht1", canvas: { path: CHECKOUT }, outcome: "started", target });
+  });
+
+  test("a refusal keeps its reason, a cancel follows the turn's own end notice", () => {
+    const refused = threadItems([...asked(), ev("t1", { type: "turn.done" }), ev("t1", { type: "handoff.resolved", outcome: "refused", reason: "not_new" })], ROOT, false);
+    expect(refused.filter(i => i.kind === "handoff")).toEqual([{ kind: "handoff", key: "ht1", canvas: { path: CHECKOUT }, outcome: "refused", reason: "not_new" }]);
+    const stopped = threadItems([...asked(), ev("t1", { type: "interrupted", reason: "user" }), ev("t1", { type: "handoff.resolved", outcome: "cancelled" })], ROOT, false);
+    expect(stopped.map(i => i.kind)).toEqual(["user", "activity", "handoff", "agent", "end"]);
+    expect(stopped[2]).toMatchObject({ outcome: "cancelled" });
+  });
+
+  test("a resolution after an archive marker still settles the request's line", () => {
+    const events = [...asked(), ev("t1", { type: "interrupted", reason: "user" }), ev("t1", { type: "conversation.archived" }), ev("t1", { type: "handoff.resolved", outcome: "cancelled" })];
+    const items = threadItems(events, ROOT, false);
+    expect(items.filter(i => i.kind === "handoff")).toEqual([expect.objectContaining({ key: "ht1", outcome: "cancelled" })]);
+    expect(items.at(-1)).toMatchObject({ kind: "marker", marker: "archived" });
+  });
+
+  test("a done turn waiting for its judgement stays pending while main holds it, and reads as cancelled once nothing does", () => {
+    const events = [...asked(), ev("t1", { type: "turn.done" })];
+    expect(threadItems(events, ROOT, true)[2]).toMatchObject({ outcome: "pending" });
+    expect(threadItems(events, ROOT, false)[2]).toMatchObject({ outcome: "cancelled" });
+  });
+
+  test("the receiving conversation's first message is the handoff card with its text as written", () => {
+    seq = 0;
+    const origin = { kind: "handoff", conversationId: "c0", canvas: { path: ".doan/canvases/drafts.html", id: "drafts" } };
+    const text = "/Polish\nThe person wrote “{{1}}” as a placeholder.";
+    const items = threadItems([...turn("t1", text, { origin }), ev("t1", { type: "turn.done" }), ...turn("t2", "Use {{1}}")], ROOT, true);
+    expect(items[0]).toEqual({ kind: "handoffCard", key: "u1", seq: 1, origin, text });
+    // A later message of the person's is a bubble as before.
+    expect(items.at(-1)).toMatchObject({ kind: "user" });
+  });
+});
