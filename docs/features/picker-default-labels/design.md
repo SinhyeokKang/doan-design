@@ -9,6 +9,7 @@
 5. **Settings**: Model 메뉴 맨 위에 늘 "Default" 행(설명은 지금 기본 모델 이름)을 두고, Claude의 `default` 행은 Settings 메뉴에서만 뺀다. 고정하지 않았을 때의 트리거는 `Default · <값>`이다. Permission은 "Ask first"다.
 6. **터미널 세션 고정 트리거**: 값을 모르는 자리는 서랍 이름을 보인다: "Effort", "Permission".
 7. **docked tray 간격**(사람, 2026-11-06, 초안 round 3): tray의 모든 컨트롤(Attach, Pick, 모델, 노력, 권한) 사이를 2px, 마지막 피커와 context ring 사이를 4px로 줄인다(출시: 4px, 링 앞 8px). 이 간격은 이미 출시된 tray를 바꾸므로 B2(`/design-sync`)에서 재고, Z1에서 DESIGN.md의 tray 측정값을 고친다.
+8. **docked 단계**(사람, 2026-11-06, 초안 round 4): 모델 이름이 끝까지 보이도록 권한은 내용 폭 432 아래(출시 384), 노력은 384 아래(출시 288)에서 아이콘만 보인다. 모델 라벨은 320 아래에서 줄어든다. 경계는 가장 긴 라벨 조합("GPT-5.6-Terra", "Extra high"+Fast 아이콘, "Ask first")을 초안에서 잰 값이다: 라벨 모두 432, 권한 아이콘 381, 둘 다 아이콘 320. B2에서 실제 앱으로 다시 잰다.
 
 ## 1. 영향받는 구성 요소
 
