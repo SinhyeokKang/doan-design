@@ -172,8 +172,8 @@ it("answers an ACP list's modes with its models, and none for a provider that li
 
 
 it("reads Claude Fast only from a true capability without provider description copy", () => {
-  const rows = [true, false, undefined, "true", 1].map((supportsFastMode, i) => ({ value: String(i), supportsFastMode, description: "provider copy" }));
-  expect(parseClaudeModels(rows)).toEqual(rows.map((_, i) => ({ id: String(i), label: String(i), default: false, ...(i === 0 ? { fast: {} } : {}) })));
+  const rows = [true, false, undefined, "true", 1].map((supportsFastMode, i) => ({ value: `m${"abcde"[i]}`, supportsFastMode, description: "provider copy" }));
+  expect(parseClaudeModels(rows)).toEqual(rows.map((_, i) => ({ id: `m${"abcde"[i]}`, label: `m${"abcde"[i]}`, default: false, ...(i === 0 ? { fast: {} } : {}) })));
 });
 it("reads Codex Fast from priority id and its valid description, ignoring names and old tiers", () => {
   const tierRows = [
@@ -244,7 +244,7 @@ it("answers whether a model takes Fast from this run's list, the default row sta
 
 // model-drawer-older: a provider's earlier generations are marked `older`, the menu folds them.
 const measured = JSON.parse(readFileSync(join(__dirname, "fixtures", "models-older.json"), "utf8"));
-const split = (models: ModelOption[]) => [models.filter(m => !m.older).map(m => m.id), models.filter(m => m.older).map(m => m.id)];
+const split = (models: ModelOption[]): [string[], string[]] => [models.filter(m => !m.older).map(m => m.id), models.filter(m => m.older).map(m => m.id)];
 const row = (id: string, isDefault = false) => ({ id, name: id, isDefault });
 it("folds the measured Claude list to its four aliases, the default row resolving to the newest Opus", () => {
   const [current, older] = split(parseClaudeModels(measured.claude));
