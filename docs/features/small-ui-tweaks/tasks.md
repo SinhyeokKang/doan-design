@@ -22,24 +22,24 @@
 
 ## A. 순수 함수(항목 2, `/tdd` → `/implement`)
 
-- [ ] A1. `dotField.ts`의 `partitionDots(dots, spots, radius)`(자리 목록, 가장 가까운 거리), `opposingCursor(spot, width, height)`(점대칭), 머리 주석(Doan이 더한 부분). `agentIndicator.ts`의 `drawDotField(…, spots, …)`(design §2.2, §3 1–3).
+- [x] A1. `dotField.ts`의 `partitionDots(dots, spots, radius)`(자리 목록, 가장 가까운 거리), `opposingCursor(spot, width, height)`(점대칭), 머리 주석(Doan이 더한 부분). `agentIndicator.ts`의 `drawDotField(…, spots, …)`(design §2.2, §3 1–3).
   - 검증: `npm --prefix app test`에서 `dotField.test.ts`·`agentIndicator.test.ts`가 통과한다. 새 경우: 빈 목록이면 모두 far이고 far만 한 번 칠함, 경계는 far, 한가운데에서 둘째 자리가 첫째 자리와 같은 점, 셋째 줄에서 반대 방향, `autoCursor(cycle − t)`와 같음, 그 밖의 시각에는 겹치지 않음, `DOT_FIELD.rows`가 홀수, 겹친 곳의 alpha가 0.5·크기가 2를 넘지 않음. 새 테스트가 구현 전 red였음을 기록한다.
 
-- [ ] A2. 항목 4: `homeComposer.ts`의 `SuggestedPrompt.parts`와 `suggestedPrompts`가 조각을 만든다(design §2.1b, §3 4).
+- [x] A2. 항목 4: `homeComposer.ts`의 `SuggestedPrompt.parts`와 `suggestedPrompts`가 조각을 만든다(design §2.1b, §3 4).
   - 검증: `npm --prefix app test`에서 `homeComposer.test.ts`가 통과한다. 새 경우: 화면 캔버스가 없을 때 세 고정 문장의 조각 하나, design system이 없을 때 project 이름 조각, critique·polish의 `canvasLabel` 조각, 하이픈·밑줄 이름, 조각을 이으면 `label`, `text`가 바뀌지 않음. 새 테스트가 구현 전 red였음을 기록한다.
 
 커밋 경계: A1, A2 각각.
 
 ## U. 화면
 
-- [ ] U1. 항목 1: `styles.css`의 `.suggestion-label`을 세 줄 규칙으로(`-webkit-line-clamp: 3`, 결정 9, `overflow-wrap: anywhere`, `nowrap`·`text-overflow` 제거), 행 사이 1px 구분선(`.suggestion`의 `position: relative`, `.suggestion + .suggestion::before`; design §2.1, 결정 5). 행의 `align-items: center`와 gap 4px는 그대로다(결정 3).
+- [x] U1. 항목 1: `styles.css`의 `.suggestion-label`을 세 줄 규칙으로(`-webkit-line-clamp: 3`, 결정 9, `overflow-wrap: anywhere`, `nowrap`·`text-overflow` 제거), 행 사이 1px 구분선(`.suggestion`의 `position: relative`, `.suggestion + .suggestion::before`; design §2.1, 결정 5). 행의 `align-items: center`와 gap 4px는 그대로다(결정 3).
   - 검증: `npm --prefix app test`에서 `Home.test.tsx` 'suggestion CSS'에 더한 기대(세 줄 규칙 `-webkit-line-clamp: 3`, `.suggestion + .suggestion::before`의 `height: 1px`·`background: var(--border-standard)`·`inset-inline: var(--space-3)`, `.home-suggestions`·`.ov-suggestions`의 gap `var(--space-1)` 그대로)가 통과하고(바꾸기 전 red), `npm --prefix app run typecheck`가 통과한다.
-- [ ] U2. 항목 2: `CanvasAgent.tsx`의 `DotField` draw callback이 `autoCursor`의 자리와 `opposingCursor`의 자리를 `drawDotField`에 넘기고, reduced motion(`elapsed === null`)에서는 빈 목록을 넘긴다(design §2.2, §7).
+- [x] U2. 항목 2: `CanvasAgent.tsx`의 `DotField` draw callback이 `autoCursor`의 자리와 `opposingCursor`의 자리를 `drawDotField`에 넘기고, reduced motion(`elapsed === null`)에서는 빈 목록을 넘긴다(design §2.2, §7).
   - 검증: `npm --prefix app test`에서 `CanvasAgent.test.tsx`·`CanvasAgent.hooks.test.tsx`가 통과하고, `npm --prefix app run typecheck`가 통과한다.
-- [ ] U3. 항목 3: `styles.css:501`의 `.shell-group .shell-empty` padding을 `var(--space-3)`으로(위아래 8 → 12px, 좌우 12px 그대로, margin 그대로; design §2.3, 결정 4).
+- [x] U3. 항목 3: `styles.css:501`의 `.shell-group .shell-empty` padding을 `var(--space-3)`으로(위아래 8 → 12px, 좌우 12px 그대로, margin 그대로; design §2.3, 결정 4).
   - 검증: `npm --prefix app test`에서 `ShellSidebar.test.tsx` 'an empty group's line is a dashed box'에 더한 `padding: var(--space-3)` 기대와 margin `var(--space-half) 10px var(--space-2) 34px`가 그대로라는 기대가 통과하고(바꾸기 전 red), group 밖 `.shell-empty`에 dashed가 없다는 기존 기대도 통과한다.
 
-- [ ] U4. 항목 4: `ComposerParts.tsx`의 `SuggestionLabel`, 세 화면(`HomeComposerView.tsx:561`, `ProjectOverview.tsx:403`, `CanvasConversationPanel.tsx:436`)이 그것을 쓰고, `styles.css`의 `.suggestion-value`와 745행 주석, `ds/checks.test.ts` `violetAllowed`에 `.suggestion-value`(design §2.1b, 결정 7·8). U1 뒤에 한다.
+- [x] U4. 항목 4: `ComposerParts.tsx`의 `SuggestionLabel`, 세 화면(`HomeComposerView.tsx:561`, `ProjectOverview.tsx:403`, `CanvasConversationPanel.tsx:436`)이 그것을 쓰고, `styles.css`의 `.suggestion-value`와 745행 주석, `ds/checks.test.ts` `violetAllowed`에 `.suggestion-value`(design §2.1b, 결정 7·8). U1 뒤에 한다.
   - 검증: `npm --prefix app test`에서 `Home.test.tsx`(Home 제안 render에 `.suggestion-value`가 있고 버튼 이름이 문장 그대로, `.suggestion-value`의 값이 `.anchor-chip`과 같고 `box-decoration-break: clone`), `ProjectOverview.test.tsx`·`CanvasConversationPanel.test.tsx`의 제안 render 기대, `ds/checks.test.ts`가 통과하고(바꾸기 전 red), `npm --prefix app run typecheck`가 통과한다.
 
 커밋 경계: U1(항목 1), U2(항목 2), U3(항목 3), U4(항목 4)를 각각 따로.

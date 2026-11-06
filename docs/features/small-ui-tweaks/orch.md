@@ -9,16 +9,17 @@
 - 사람에게 물을 점은 없다. 해석이 갈리던 점은 design '결정' 1–9에 있고, `/feature-review` 생략과 R1 (b)의 대체는 체인 '시작 점검 승인' 6·7이다.
 - R1 (b): 사람 확인 대신 녹화와 rAF 프레임 측정을 남기고, design §2.2 성능 기준(60fps, 프레임 간격 약 16ms)에 맞으면 지휘자가 병합한다(시작 점검 7). 16ms를 넘는 프레임이 늘면 원인을 보고 지휘자가 판단한다(시작 점검 4).
 - 지휘자 판단 — batch 나누기: `styles.css`를 고치는 항목 1·3·4(A2·U1·U3·U4)를 한 batch(S)로, 점 무늬 항목 2(A1·U2)를 다른 batch(F)로 둔다. 두 batch는 파일이 겹치지 않아 나란히 돈다. 근거: orchestrate §0 4(같은 파일은 나란히 돌리지 않음).
+- 지휘자 판단 — 구분선 위치: 확정 초안과 design §2.1의 CSS(`top: calc(var(--space-half) * -1 - 1px)`)는 선을 위 행과 1px, 아래 행과 2px 떨어뜨린다. spec·design 결정 5의 글(위 2px, 아래 1px)과 반대다. 사람이 본 것은 초안의 화면이므로 구현은 초안 CSS를 따르고, Z1이 실제 앱에서 잰 값을 DESIGN.md에 적는다.
 - 지휘자 판단 — R1과 Z1은 한 작업자(RZ)가 통합 뒤에 한다. Z1의 DESIGN.md 값이 R1 측정값이기 때문이다.
 
 ## batch
 
 | batch | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 gate | 상태 |
 |---|---|---|---|---|---|---|
-| S | A2, U1, U3, U4 | `homeComposer.ts`(+test), `ComposerParts.tsx`, `HomeComposerView.tsx`, `ProjectOverview.tsx`, `CanvasConversationPanel.tsx`, `styles.css`, `Home.test.tsx`, `ProjectOverview.test.tsx`, `CanvasConversationPanel.test.tsx`, `ShellSidebar.test.tsx`, `ds/checks.test.ts` | 없음 | Sonnet high — CSS와 문장 조각은 규칙이 정해져 있고, 세 화면을 같은 방식으로 바꾸는 일이라 판단은 적지만 단계가 많다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 대기 |
-| F | A1, U2 | `dotField.ts`(+test), `agentIndicator.ts`(+test), `CanvasAgent.tsx`(+`CanvasAgent.test.tsx`, `CanvasAgent.hooks.test.tsx`) | 없음 | Sonnet high — 점대칭과 가까운 자리 계산은 design §2.2·§3에 식이 있고, 틀리면 테스트가 잡는다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 대기 |
-| VS | S 리뷰 | 없음(보고만) | S | Opus medium — 세 화면의 접근 이름·key·tooltip이 그대로인지와 CSS 값을 독립으로 판단해야 한다 | `/code-review` 보고 | 대기 |
-| VF | F 리뷰 | 없음(보고만) | F | Opus medium — reduced motion의 "자리 없음"과 겹친 곳 최대값을 독립으로 판단해야 한다 | `/code-review` 보고 | 대기 |
+| S | A2, U1, U3, U4 | `homeComposer.ts`(+test), `ComposerParts.tsx`, `HomeComposerView.tsx`, `ProjectOverview.tsx`, `CanvasConversationPanel.tsx`, `styles.css`, `Home.test.tsx`, `ProjectOverview.test.tsx`, `CanvasConversationPanel.test.tsx`, `ShellSidebar.test.tsx`, `ds/checks.test.ts` | 없음 | Sonnet high — CSS와 문장 조각은 규칙이 정해져 있고, 세 화면을 같은 방식으로 바꾸는 일이라 판단은 적지만 단계가 많다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 통합 `6c22ab55`–`8fbce98a`(리뷰 1 round) |
+| F | A1, U2 | `dotField.ts`(+test), `agentIndicator.ts`(+test), `CanvasAgent.tsx`(+`CanvasAgent.test.tsx`, `CanvasAgent.hooks.test.tsx`) | 없음 | Sonnet high — 점대칭과 가까운 자리 계산은 design §2.2·§3에 식이 있고, 틀리면 테스트가 잡는다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 통합 `3940744a`–`0adb1819`(리뷰 1 round) |
+| VS | S 리뷰 | 없음(보고만) | S | Opus medium — 세 화면의 접근 이름·key·tooltip이 그대로인지와 CSS 값을 독립으로 판단해야 한다 | `/code-review` 보고 | 끝: 🔴 0 · 🟡 1(주석, S가 고침) |
+| VF | F 리뷰 | 없음(보고만) | F | Opus medium — reduced motion의 "자리 없음"과 겹친 곳 최대값을 독립으로 판단해야 한다 | `/code-review` 보고 | 끝: 🔴 0 · 🟡 0 · 🟢 3(🟢 1은 F가 고침, 🟢 3은 R1 측정을 봄) |
 | RZ | R1, Z1 | `.scratch/runtime-test/small-ui-tweaks/`, `docs/DESIGN.md`, `docs/features/small-ui-tweaks/` 삭제(orch.md 제외, 지휘자가 지움) | S·F 통합 | Opus medium — 격리된 실제 앱 probe, 녹화, rAF 측정, 측정값을 DESIGN.md에 옮기는 판단 | `/runtime-test` 증거, Z1 `rg` 검증 | 대기 |
 | — | R2 | 지휘자 | RZ | — | `node .agents/skills/verify/scripts/verify.mjs` | 대기 |
 
