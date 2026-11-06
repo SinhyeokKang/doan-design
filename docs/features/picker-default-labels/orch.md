@@ -64,3 +64,4 @@
 - 사람의 결정: 캔버스 행의 ⋯ 메뉴 버튼도 클릭 뒤에 남으므로 같이 고친다. PRODUCT §5 'Canvas row menu'의 "focus is in it"은 Z1에서 키보드 focus로 고친다. BG follow-up은 dispatch `ctx_22d38b603aa0`이다.
 - RV2(B2 코드 리뷰) 결과는 🔴0 🟡3이다(`.scratch/orch/review-RV2.md`). Edit 복원 표식이 effect 의존성에 빠졌고, `modelPicked` 경로가 고정 노력을 무시하며, docked에서 provider를 바꿔도 이전 effort와 표식이 남는다. 고칠 파일이 BC가 고치는 파일과 겹치므로, BC를 통합한 뒤 RA fix round 2로 보낸다.
 - RV2 worker는 release한다.
+- BG follow-up(캔버스 행 ⋯ 버튼)을 통합했다(`8cdae5b6`·`20639b30`·`64e8d004`, postmortem hash도 통합 hash로 고쳤다). worker probe는 11/11 통과했다. design-system 행은 같은 class와 규칙을 쓰지만 직접 probe하지는 않았다. BG는 할 일이 더 없으므로 release한다.
