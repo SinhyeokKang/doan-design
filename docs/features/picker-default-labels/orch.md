@@ -50,3 +50,5 @@
 - RV(Codex Astra medium) 리뷰: 🔴0 🟡1 ⚪2. 🟡1(Settings Model 메뉴의 고정 해제 행과 실제 `default` id 모델 행이 같은 value를 가진다)과 ⚪2(노력 Default 행 → send에서 노력이 빠지는지 composer 수준 테스트)는 RA fix round 1로 보냈다. ⚪1(tray CSS를 소스 문자열로만 고정)은 B2의 computed-style 측정으로 보완한다. RV가 본 `conversation/io.test.ts:233` 시간 초과 1건은 단독 재실행에서 통과했다. RA가 본 `watch.test.ts` 1건과 함께 `/verify`에서 다시 본다.
 - 정리: MA·RV worker를 release했고, worktree `pdl-ma`·`pdl-rv`를 Orca로 지웠다. branch `SinhyeokKang/pdl-ma`(`6dd9c1bd`)·`SinhyeokKang/pdl-rv`(`11d94d54`)는 남아 있다.
 - RA fix round 1(`b4a5ec09`·`1677cb99`)을 지휘자가 diff로 확인하고 통합했다(통합 `13892d5c 06ed0017 `). Settings Model 메뉴 값이 `unset`과 `model:<id>`로 나뉜다. worker 기준 8714 tests 통과. B2를 RA에게 보냈다(dispatch `ctx_efada0971d47`). 보내기 전에 다른 Doan 앱은 떠 있지 않았다(tester-build의 electron-builder dmg 빌드만 돌고 있었다).
+- B2 질문 Q1(Settings Default 상태에서 composer의 어떤 선택이든 해석된 기본 모델을 고정해 버린다): 지휘자 판단으로 고친다(rememberChoice.ts 허용) — Settings Default가 고정을 푸는 결정 5를 지킨다. Q2(docked에서 결정 9의 metadata 잉크가 출시 tray 잉크와 거의 같다)는 사람에게 물었다.
+- Q2: 사람이 초안대로 정했다. docked tray의 모델·노력·권한 값 글은 --text-standard(rgb 15), 서랍 이름은 metadata 잉크(rgb 95), Attach·Pick은 --text-subtle을 유지한다. RA에게 보냈다.
