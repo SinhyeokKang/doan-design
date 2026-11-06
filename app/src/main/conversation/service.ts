@@ -621,6 +621,12 @@ export class ConversationService {
       if (live.accepted) { live.terminal = true; live.busy = false; }
       if (live.runner) closing.push(live.runner.close()); else if (live.cleanup) closing.push(live.cleanup());
     }
+    // A handoff waiting for its judgement or its start would start a turn on the provider the person chose to stop
+    // (design §2-4: a sign-out cancels it). After the loop above, which handed its queue back.
+    for (const [id, turn] of [...this.handoffTurns]) {
+      const m = this.store.list().find(e => e.conversationId === id);
+      if (this.handoffPending(turn) && m?.owner.kind === "doan" && m.owner.provider === provider) this.resolveHandoff(id, turn, { outcome: "cancelled" });
+    }
     await Promise.all(closing);
   }
   quit(): Promise<void> {
@@ -697,8 +703,10 @@ export class ConversationService {
       attachments = attached ? attached.recheck() : item.attachments;
       // The prompt a send of this message would carry, Home's paragraph and guidance included.
       // A message steered into a handoff's first turn does not lift its limit (decision 8).
-      const startedBy = this.handoffTurns.get(id)?.turnId === live.turnId ? this.handoffTurns.get(id)?.startedBy : undefined;
-      prompt = turnPrompt(item.anchors, item.text, m, { home: m.fromHome === true && !m.canvas, attachments, handoff: handoffGuidanceFor(m, { ...mode(m.permissionMode), ...(startedBy ? { startedBy } : {}) }) }); if (prompt === null) throw new Error("bad_request");
+      // A turn that handed off already would only be refused again (already_requested).
+      const turn = this.handoffTurns.get(id), current = turn?.turnId === live.turnId ? turn : undefined;
+      const handoff = !current?.request && handoffGuidanceFor(m, { ...mode(m.permissionMode), ...(current?.startedBy ? { startedBy: current.startedBy } : {}) });
+      prompt = turnPrompt(item.anchors, item.text, m, { home: m.fromHome === true && !m.canvas, attachments, handoff }); if (prompt === null) throw new Error("bad_request");
     } catch (error) { this.drafts.unmarkSending(id, itemId); throw error; }
     const turnId = live.turnId, messageId = randomUUID();
     const message: EventPayload = { type: "user.message", text: item.text, anchors: item.anchors, ...(attachments.length ? { attachments } : {}) };
@@ -814,6 +822,7 @@ export class ConversationService {
   // (decision 6). It passes every check of a start; Last used is the person's choice and stays as it was.
   private async startHandoff(id: string, turn: HandoffTurn, m: ConversationMetadata, target: Canvas): Promise<void> {
     const request = turn.request!, origin: HandoffOrigin = { kind: "handoff", conversationId: id, canvas: m.canvas! };
+    const provider = m.owner.kind === "doan" ? m.owner.provider : undefined, since = this.stops;
     let resolution: HandoffResolution;
     try {
       const { conversationId } = await this.start({ root: m.root, mode: "new", runtime: m.session.runtime, canvas: target, text: request.text, anchors: [], ...choice(m), ...mode(m.permissionMode) },
@@ -821,7 +830,8 @@ export class ConversationService {
       resolution = { outcome: "started", target: { conversationId, canvas: this.store.list().find(e => e.conversationId === conversationId)?.canvas ?? target } };
     } catch (error) {
       const code = reason(error);
-      resolution = code === "handoff_cancelled" ? { outcome: "cancelled" } : { outcome: "refused", reason: code };
+      // A stop of its provider meanwhile is the person's cancel, whatever the start then failed with.
+      resolution = code === "handoff_cancelled" || this.stopped({ ...(provider ? { provider } : {}), since }) ? { outcome: "cancelled" } : { outcome: "refused", reason: code };
     }
     // An archive meanwhile resolved it as cancelled already.
     if (turn.state !== "starting" || this.handoffTurns.get(id) !== turn) return;
@@ -835,7 +845,8 @@ export class ConversationService {
     if (turn?.state !== "starting" || m?.state !== "current") throw new Error("handoff_cancelled");
   }
   // Written with the requesting turn's id once the turn ended (design §5 'events'). A started handoff took the queue
-  // along (moveQueue); otherwise a queue held for the judgement goes out to this conversation as after any done turn.
+  // along (moveQueue); a refused one sends a queue held for the judgement to this conversation as after any done turn,
+  // and a cancelled one hands it back as a draft, as a stop does.
   private resolveHandoff(id: string, turn: HandoffTurn, resolution: HandoffResolution): void {
     clearTimeout(turn.timer); delete turn.timer; turn.state = "resolved";
     if (!this.quitting) {
@@ -843,7 +854,10 @@ export class ConversationService {
       catch (error) { console.error("doan: handoff resolution could not be saved", error); }
     }
     const live = this.live.get(id);
-    if (live?.holding) { if (resolution.outcome === "started") this.release(id, live, live.holding); else this.flush(id, live); }
+    if (live?.holding) {
+      if (resolution.outcome === "refused") this.flush(id, live);
+      else { this.release(id, live, live.holding); if (resolution.outcome === "cancelled") this.giveBack(id, "interrupted"); }
+    }
     for (const wake of turn.waiters.splice(0)) wake();
     this.changedOf(id);
   }
