@@ -14,6 +14,7 @@ import type { PermissionModeId } from "../main/conversation/permissionMode";
 import type { QuestionAnswerInput } from "../main/conversation/question";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { ReturnedDraft } from "../main/conversation/drafts";
+import type { HandoffNotice } from "../main/conversation/handoff";
 import type { AttachmentResult, RecheckResult } from "../main/attachments";
 import type { DesignSkillList, DesignSkillPreset, DesignSkillReply } from "../main/designSkills";
 import type { Anchor, Canvas, ConversationEvent, Runtime, UnavailableReason } from "../main/conversation/types";
@@ -151,6 +152,13 @@ const api = {
     const receive = (_event: Electron.IpcRendererEvent, change: { root: string }) => listener(change);
     ipcRenderer.on("conversation:listChanged", receive);
     return () => ipcRenderer.removeListener("conversation:listChanged", receive);
+  },
+  // A handoff started a conversation on another canvas (canvas-handoff design §5): its root, the earlier conversation
+  // and its canvas, and the new one and its canvas. The renderer decides whether to move there or show a toast.
+  onConversationHandoff(listener: (notice: HandoffNotice) => void): () => void {
+    const receive = (_event: Electron.IpcRendererEvent, notice: HandoffNotice) => listener(notice);
+    ipcRenderer.on("conversation:handoff", receive);
+    return () => ipcRenderer.removeListener("conversation:handoff", receive);
   },
   // An https link from an agent reply, opened in the system browser; false when main refused it.
   openLink: (url: string): Promise<boolean> => ipcRenderer.invoke("shell:openLink", { url }),

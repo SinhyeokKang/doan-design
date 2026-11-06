@@ -34,8 +34,14 @@ export interface QuestionRequest { type: "question.request"; requestId: string; 
 export interface QuestionResolved { type: "question.resolved"; requestId: string; outcome: QuestionOutcome; answers?: Record<string, StoredAnswer> }
 // A file the person attached by local path; doan sends the path, not the bytes.
 export interface AttachmentRecord { name: string; size: number; kind: "image" | "file"; path: string }
+// The first message of a conversation a handoff started: the earlier conversation and its canvas. Its text is that
+// agent's handoff, kept as written and never read for {{n}} markers (anchors stay empty).
+export interface HandoffOrigin { kind: "handoff"; conversationId: string; canvas: Canvas }
+// reason: a judgement's reason (handoff.ts HandoffReason) or the refused start's code. target sits in its own object
+// because the event's envelope already has a conversationId, the history's own.
+export type HandoffResolution = { outcome: "started"; target: { conversationId: string; canvas: Canvas } } | { outcome: "refused"; reason: string } | { outcome: "cancelled" };
 export type EventPayload =
-  | { type: "user.message"; text: string; anchors: Anchor[]; attachments?: AttachmentRecord[] }
+  | { type: "user.message"; text: string; anchors: Anchor[]; attachments?: AttachmentRecord[]; origin?: HandoffOrigin }
   | { type: "turn.started" }
   | { type: "message.delta"; messageId: string; text: string }
   | { type: "message.done"; messageId: string; text: string }
@@ -51,7 +57,11 @@ export type EventPayload =
   | { type: "conversation.archived" }
   // A project conversation became this canvas's current conversation; restored undoes an earlier archive.
   | { type: "conversation.bound"; canvas: Canvas }
-  | { type: "conversation.restored" };
+  | { type: "conversation.restored" }
+  // The turn asked for a handoff (in that turn); its resolution comes once the turn ended and was judged, with the
+  // requesting turn's id, as conversation.bound does. A request a restart finds unresolved reads as cancelled.
+  | { type: "handoff.requested"; canvas: { path: string }; text: string }
+  | ({ type: "handoff.resolved" } & HandoffResolution);
 export type ConversationEvent = EventPayload & { v: 1; conversationId: string; seq: number; turnId: string; at: string };
 // waitingPermission: waiting for the person's answer, to a permission request or a question.
 export type TurnState = "idle" | "starting" | "streaming" | "waitingPermission" | "failed" | "interrupted";

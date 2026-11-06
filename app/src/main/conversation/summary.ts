@@ -38,8 +38,9 @@ export function conversationSummary(m: ConversationMetadata, read: { ok: true; e
   if (!read.ok) return { ...base, phase: "ended", unseen: false, lastActivityAt: "", preview: "", readError: true };
   const events = read.events, folded = foldConversation(events, m.conversationId, !live.live);
   const phase = folded.turn === "waitingPermission" ? "waiting" : folded.turn === "starting" || folded.turn === "streaming" ? "running" : "ended";
-  // Markers of binding, archiving and restoring are not something to see: they would mark a seen end unseen again.
-  const lastTurnSeq = [...events].reverse().find(e => !e.type.startsWith("conversation."))?.seq ?? 0;
+  // Markers of binding, archiving and restoring are not something to see: they would mark a seen end unseen again. A
+  // handoff's resolution also comes after the turn's end, often while the person is moved to the next conversation.
+  const lastTurnSeq = [...events].reverse().find(e => !e.type.startsWith("conversation.") && e.type !== "handoff.resolved")?.seq ?? 0;
   const unseen = phase === "ended" && m.state === "current" && m.seenSeq !== undefined && lastTurnSeq > m.seenSeq;
   // A queue or a returned draft is what the composer offers next, so a suggestion never competes with them.
   const suggested = live.suggestion && m.state === "current" && phase === "ended" && !live.working && live.queued === 0 && !live.returned ? { suggestion: live.suggestion } : {};

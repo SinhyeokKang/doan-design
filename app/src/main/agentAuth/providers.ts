@@ -126,6 +126,9 @@ const CLAUDE_PROFILE_ALLOW: SettingMerge = current => {
 // Personal skill directories under the dedicated HOME: Cursor ~/.cursor/skills, Copilot ~/.copilot/skills,
 // Antigravity <GEMINI_HOME>/skills (B3 live check 2026-10-28).
 const HOME_STUB = (dir: string) => ({ [`${dir}/skills/doan/SKILL.md`]: stub });
+// Codex applies the strictest matching rule (forbidden > prompt > allow, Codex docs 'Rules'), so `doan handoff` still asks
+// in the asking modes, as the person chose for starting a conversation, although rules/doan.rules allows every `doan`.
+const CODEX_HANDOFF_RULE = '# Written by Doan so Codex asks before `doan handoff` starts another conversation.\nprefix_rule(pattern=["doan", "handoff"], decision="prompt")\n';
 const CLI_RUN = { acpAuth: null, acp: null, verifyByRun: false, hookLink: null, loginClears: false, identity: null };
 export const PROVIDER_AUTH: Record<Provider, ProviderAuth> = {
   // PoC 10: a non-default CLAUDE_CONFIG_DIR gets its own Keychain item; .credentials.json would be the plaintext fallback.
@@ -134,7 +137,7 @@ export const PROVIDER_AUTH: Record<Provider, ProviderAuth> = {
   // The keyring entry is keyed by the canonical CODEX_HOME; "auto" could silently write auth.json instead. MCP OAuth
   // tokens are forced into the keyring the same way, on every Codex process: a conversation's token refresh stores too.
   codex: { command: "codex", args: ["-c", 'cli_auth_credentials_store="keyring"', "-c", 'mcp_oauth_credentials_store="keyring"'], env: {}, login: ["login"], status: ["login", "status"], logout: ["logout"],
-    vault: null, plaintext: ["auth.json"], settings: { ...SKILL_STUB, "rules/doan.rules": codexRuleText() }, ...CLI_RUN, loginClears: true, identity: "codex-app-server", parseStatus: codexStatus },
+    vault: null, plaintext: ["auth.json"], settings: { ...SKILL_STUB, "rules/doan.rules": codexRuleText(), "rules/doan-handoff.rules": CODEX_HANDOFF_RULE }, ...CLI_RUN, loginClears: true, identity: "codex-app-server", parseStatus: codexStatus },
   // AGENT_CLI_CREDENTIAL_STORE=file is Cursor's official switch; the default macOS Keychain item is shared by every profile.
   // On macOS the file store is ~/.cursor/auth.json (getAuthFilePath in the 2026.10.22 bundle).
   // Conversations: official `agent acp` (https://cursor.com/docs/cli/acp); it needs authenticate("cursor_login").
