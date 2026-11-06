@@ -18,83 +18,12 @@ type GitInfo struct {
 
 // Git metadata is optional: unreadable metadata must not prevent listing designs.
 func ReadGit(root, home string) *GitInfo {
-	root, ok := gitDirectory(root)
-	if !ok {
-		return nil
-	}
-	if home != "" {
-		if canonical, ok := gitDirectory(home); ok {
-			home = canonical
-		} else {
-			home = filepath.Clean(home)
-		}
-	}
-	tree := root
-	for {
-		if ignoreAtOrAboveHome(tree, home) {
-			return nil
-		}
-		_, err := os.Lstat(filepath.Join(tree, ".git"))
-		if err == nil {
-			break
-		}
-		if !os.IsNotExist(err) {
-			return nil
-		}
-		parent := filepath.Dir(tree)
-		if parent == tree {
-			return nil
-		}
-		tree = parent
-	}
-	gitdir := filepath.Join(tree, ".git")
-	// Follow a directory symlink only after choosing the nearest marker.
-	info, err := os.Stat(gitdir)
+	loc, err := gitLocation(root, home)
 	if err != nil {
 		return nil
 	}
-	isFile := !info.IsDir()
-	if isFile {
-		if !info.Mode().IsRegular() {
-			return nil
-		}
-		text, ok := readGitFile(gitdir)
-		if !ok {
-			return nil
-		}
-		target := parseGitFile(text)
-		if target == "" {
-			return nil
-		}
-		if !filepath.IsAbs(target) {
-			target = filepath.Join(tree, target)
-		}
-		gitdir = target
-	}
-	gitdir, ok = gitDirectory(gitdir)
-	if !ok {
-		return nil
-	}
-	common := gitdir
-	if isFile {
-		path := filepath.Join(gitdir, "commondir")
-		if _, err := os.Lstat(path); err == nil {
-			text, ok := readGitFile(path)
-			if !ok {
-				return nil
-			}
-			common = parseCommondir(text, gitdir)
-			if common == "" {
-				return nil
-			}
-		} else if !os.IsNotExist(err) {
-			return nil
-		}
-	}
-	common, ok = gitDirectory(common)
-	if !ok {
-		return nil
-	}
+	tree, gitdir, common, rel := loc.tree, loc.gitdir, loc.common, loc.rel
+	root = filepath.Join(tree, rel)
 	headPath := filepath.Join(gitdir, "HEAD")
 	headInfo, err := os.Lstat(headPath)
 	if err != nil {
@@ -110,10 +39,6 @@ func ReadGit(root, home string) *GitInfo {
 		branch, detached = parseHead(head)
 	}
 	result := &GitInfo{Common: common, Branch: branch, Detached: detached}
-	rel, err := filepath.Rel(tree, root)
-	if err != nil || outside(rel) {
-		return nil
-	}
 	roots := []string{tree}
 	parent := filepath.Dir(common)
 	parentGit, same := gitDirectory(filepath.Join(parent, ".git"))
@@ -232,4 +157,91 @@ func readWorktreeGitdirs(common string) ([]worktreeGitdirEntry, bool) {
 		}
 	}
 	return result, true
+}
+
+type gitPaths struct{ tree, gitdir, common, rel string }
+
+func gitLocation(root, home string) (gitPaths, error) {
+	root, ok := gitDirectory(root)
+	if !ok {
+		return gitPaths{}, errGitUnreadable
+	}
+	if home != "" {
+		if canonical, ok := gitDirectory(home); ok {
+			home = canonical
+		} else {
+			home = filepath.Clean(home)
+		}
+	}
+	tree := root
+	for {
+		if ignoreAtOrAboveHome(tree, home) {
+			return gitPaths{}, errNotGit
+		}
+		_, err := os.Lstat(filepath.Join(tree, ".git"))
+		if err == nil {
+			break
+		}
+		if !os.IsNotExist(err) {
+			return gitPaths{}, errGitUnreadable
+		}
+		parent := filepath.Dir(tree)
+		if parent == tree {
+			return gitPaths{}, errNotGit
+		}
+		tree = parent
+	}
+	gitdir := filepath.Join(tree, ".git")
+	// Follow a directory symlink only after choosing the nearest marker.
+	info, err := os.Stat(gitdir)
+	if err != nil {
+		return gitPaths{}, errGitUnreadable
+	}
+	isFile := !info.IsDir()
+	if isFile {
+		if !info.Mode().IsRegular() {
+			return gitPaths{}, errGitUnreadable
+		}
+		text, ok := readGitFile(gitdir)
+		if !ok {
+			return gitPaths{}, errGitUnreadable
+		}
+		target := parseGitFile(text)
+		if target == "" {
+			return gitPaths{}, errGitUnreadable
+		}
+		if !filepath.IsAbs(target) {
+			target = filepath.Join(tree, target)
+		}
+		gitdir = target
+	}
+	gitdir, ok = gitDirectory(gitdir)
+	if !ok {
+		return gitPaths{}, errGitUnreadable
+	}
+	common := gitdir
+	if isFile {
+		path := filepath.Join(gitdir, "commondir")
+		if _, err := os.Lstat(path); err == nil {
+			text, ok := readGitFile(path)
+			if !ok {
+				return gitPaths{}, errGitUnreadable
+			}
+			common = parseCommondir(text, gitdir)
+			if common == "" {
+				return gitPaths{}, errGitUnreadable
+			}
+		} else if !os.IsNotExist(err) {
+			return gitPaths{}, errGitUnreadable
+		}
+	}
+	common, ok = gitDirectory(common)
+	if !ok {
+		return gitPaths{}, errGitUnreadable
+	}
+	rel, err := filepath.Rel(tree, root)
+	if err != nil || outside(rel) {
+		return gitPaths{}, errGitUnreadable
+	}
+	return gitPaths{tree: tree, gitdir: gitdir, common: common, rel: rel}, nil
 }
