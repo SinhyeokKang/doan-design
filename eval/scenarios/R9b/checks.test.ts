@@ -7,7 +7,7 @@ import { execFileSync } from "node:child_process";
 import { createContext } from "../../lib/context.ts";
 import checks from "./checks.ts";
 
-const root = mkdtempSync(join(tmpdir(), "doan-r9-checks-"));
+const root = mkdtempSync(join(tmpdir(), "doan-r9b-checks-"));
 const cli = join(root, "doan");
 const dir = import.meta.dirname;
 const env = { ...process.env, DOAN_RUNTIME: join(root, "runtime.json") };

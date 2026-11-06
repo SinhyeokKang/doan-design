@@ -47,6 +47,41 @@ test("R10 fails when no request arrived, two arrived or the only one was refused
   assert.ok(failed(ctx, [request(ctx), request(ctx)]).includes("handoff_requested_once"));
   assert.ok(failed(ctx, [request(ctx, { ok: false })]).includes("handoff_requested_once"));
 });
+test("R10 counts the accepted request: a refused attempt followed by one accepted request passes, two accepted would not", () => {
+  const ctx = setup();
+  assert.deepEqual(failed(ctx, [request(ctx, { path: ".doan/canvases/account.html", ok: false }), request(ctx)]), []);
+  assert.deepEqual(failed(ctx, [request(ctx), request(ctx, { ok: false })]), []);
+  assert.ok(failed(ctx, [request(ctx, { ok: false }), request(ctx, { ok: false })]).includes("handoff_requested_once"));
+  assert.ok(failed(ctx, [request(ctx), request(ctx)]).includes("handoff_requested_once"));
+});
+test("R10 requires the 390 px width and both screens' copy on the new canvas, in whatever frames", () => {
+  const ctx = setup();
+  const html = ctx.read(MOBILE)!;
+  const edit = (change: (text: string) => string) => {
+    const edited = setup();
+    assert.notEqual(change(html), html, "the edit changed nothing");
+    writeFileSync(join(edited.repo, MOBILE), change(html));
+    return edited;
+  };
+  const wide = edit(text => text.replace('content="390"', 'content="1200"'));
+  assert.deepEqual(failed(wide, [request(wide)]).filter(id => id !== "canvas_written_before_request"), ["new_canvas_390_wide"]);
+  const noWidth = edit(text => text.replace(/<meta name="doan:width"[^>]*>\n?/, ""));
+  assert.ok(failed(noWidth, [request(noWidth)]).includes("new_canvas_390_wide"));
+  const noBilling = edit(text => text.replace("Invoices are sent on the first of each month.", "Invoices"));
+  assert.ok(failed(noBilling, [request(noBilling)]).includes("new_canvas_has_both_screens"));
+  const noProfile = edit(text => text.replace("Sign-in email: ada@example.com", "Email"));
+  assert.ok(failed(noProfile, [request(noProfile)]).includes("new_canvas_has_both_screens"));
+  // One frame holding both cards is a way to stack them, so it passes.
+  const oneFrame = edit(text => text.replace(/<section data-doan-frame="billing-form"[^>]*>/, "<section>").replace(/<\/section>\s*<section>/, "</section><section>"));
+  assert.ok(!failed(oneFrame, [request(oneFrame)]).some(id => id.startsWith("new_canvas")));
+});
+test("R10 puts the start of the delivered message in the detail", () => {
+  const ctx = setup();
+  const text = `Continue on the mobile canvas. ${"x".repeat(400)}`;
+  const detail = checks({ ...ctx, handoff: () => [request(ctx, { text })] }).find(c => c.id === "handoff_message_not_empty")!.detail;
+  assert.ok(detail.includes("Continue on the mobile canvas."));
+  assert.ok(!detail.includes("x".repeat(300)));
+});
 test("R10 fails a request for the source canvas or another path", () => {
   const ctx = setup();
   assert.ok(failed(ctx, [request(ctx, { path: ".doan/canvases/account.html" })]).includes("handoff_path_is_new_canvas"));
