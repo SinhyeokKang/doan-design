@@ -53,7 +53,7 @@
 | 링크 | 세션·worktree | 시작 | PR·병합 | 상태 |
 |---|---|---|---|---|
 | 1 model-drawer-older | Claude Code, Orca worktree `model-drawer-older-orch` | 2026-11-06 | PR #112, `0825d9eb` | 병합 |
-| 2 project-skill-drawer | Claude Code, Orca worktree `project-skill-drawer-orch` | 2026-11-06 | PR #113, 병합 안 함 | 병합 보류(사용자) |
+| 2 project-skill-drawer | Claude Code, Orca worktree `project-skill-drawer-orch` | 2026-11-06 | PR #113 | 보류 풀림, 병합 |
 
 ## 인계 기록
 
@@ -79,3 +79,4 @@
   - R1 한글 IME(사람 확인 대신 녹화·스크린샷, 시작 점검 승인): native 2벌식 입력으로 `/deploy에서도`, `/deploy로`, 한글 입력 직후 Enter를 Home과 Overview에서 확인했다. 기록 위치: main checkout `.scratch/project-skill-drawer/runtime-test-r1/`(`*-eseodo-*`, `*-ro-*`, `*-enter.png`, `*-ime-events.json`). PR #113 본문에도 적었다. design-sync 증거는 같은 폴더의 `design-sync-d/`에 있다.
   - 확인하지 못한 것: VoiceOver 알림 읽기, 캔버스 panel composer의 native IME, forced colors, Cursor·Copilot stub 경로의 실제 턴(BACKLOG). R1 중 실제 `ui-state.json` 지문이 한 번 바뀌었다(사용자 앱이 켜져 있었음, 원인 미확정).
   - 남긴 브랜치: 로컬 `SinhyeokKang/psd-batch-a`(`b319574e`), `-b`(`369b5961`), `-d`(`94e9c3b0`), `-r`(`386d2835`). batch worktree는 모두 지웠다.
+  - **보류 풀림**(사용자, 2026-11-07, main checkout 세션이 전함): 이 링크의 병합 보류를 풀었다. project-skill-drawer를 먼저 main에 넣는다. 최신 `origin/main` 위의 통합 gate를 통과하면 체인 권한대로 병합한다. 그다음 main checkout 세션이 PR #114(`fix/tooltip-delay`)를 병합한다.
