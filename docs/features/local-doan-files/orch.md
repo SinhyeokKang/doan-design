@@ -21,6 +21,9 @@
 6. `/agent-eval`(T6)은 CLI만 쓰므로 G worker가 자기 branch에서 `npm --prefix app run package` 뒤 돈다.
 7. 모델(사용자 결정, 2026-11-07, Claude 7일 사용량 84%·Codex 주간 42%를 보고): G는 Codex `gpt-6-astra` medium, A는 Claude Opus high다. 리뷰는 구현과 다른 계열이다(F·A는 Codex `gpt-6-astra` medium, G는 Claude Sonnet high).
 8. F 리뷰 🟡 1(구 CLI의 plain inspect가 이미 로컬인 프로젝트의 응답을 읽지 못함): 응답의 `storage`는 요청에 `storage`가 있을 때만 싣고, 새 CLI는 `--storage`가 주어졌을 때만 보낸다. 근거: ARCHITECTURE §4 'update stays in v3'(새 앱은 이전 요청을 모두 받는다). 지휘자 판단.
+9. `init`·`config`의 저장 위치 실패도 onboarding 코드를 쓴다(exit 5, F가 `ExitCode`에 넣음): Git 아님은 `local_not_git`, exclude·Git 메타데이터 실패는 `local_exclude_failed`다. G는 처음에 `usage_error`와 `internal_error`(ARCHITECTURE §12에서 exit 1은 '버그')로 냈다. 그래서 앱이 셋업 전 폴더에서 이유를 코드로 가를 수 없었다(R-G 🟡3). design §2.3의 `usage_error`를 바꾼다. 지휘자 판단.
+9a. 이미 로컬인 root에서 명시한 `init --storage repo`는 거절하고 `doan config --storage repo`를 안내한다. `init` 결과에 `storage`를 싣는다. 모드를 읽을 때는 최종 링크인 exclude도 따라 읽고(git과 같음), 쓸 때만 거절한다(`exclude_unwritable`). 플래그 없는 init은 모드를 정말 알 수 없을 때만 실패한다. `config --storage`는 다른 쓰기 플래그와 함께 쓸 수 없다. 근거: spec 결정 6(모드는 root 단위이고 셋업이 바꾸지 않음), 사용자가 명시한 값을 조용히 바꾸지 않음. 지휘자 판단(R-G 결정 A·C, 🟡5).
+10. design §3.1 마지막 항목(re-root 안내가 그 저장소의 모드를 말함)은 A가 빠뜨렸으므로 A 수정 회차에 넣는다.
 
 ## 배치
 
@@ -42,3 +45,6 @@ T0(초안)은 끝났다(사용자 확정).
 ## 진행 기록
 
 - F: Sonnet high, `4ab12aaa`·`116e6075`, gate 전부 exit 0. R-F(Codex Astra medium): 🔴0 🟡1 → 수정 1회차 `5b8551c8`(gate exit 0). 통합: `aeca3488`·`c905e26c`·`b25b1e4b`.
+- G·A 시작(`54b486f1` 기준). G의 verify `--eval`: main `00302c30`이 authStatus에 `generation`을 더해 생긴 기존 eval 테스트 drift를 G가 별도 커밋으로 고침. self-test의 실제 상태 비교가 사용자의 실행 중인 Doan.app(agent-auth 프로필 갱신) 때문에 실패 → 사용자 승인으로 지휘자가 Doan.app을 Quit(2026-11-07 03:36 KST). eval 끝나면 사용자에게 다시 열어도 된다고 알린다.
+- G: Codex Astra medium, 커밋 6개(`8a2b3e3d`…`1b23af8f`). 실제 eval `ldf-g-261107` O1·O2·O3·O3b·O4 × claude·codex 10/10 통과, 실제 상태 변화 없음. guide 20,696 → 20,451 B. 사용자에게 Doan.app을 다시 열어도 된다고 알림. R-G(Claude Sonnet high): 🔴0 🟡6 🟢8 → 수정 1회차 보냄(결정 9·9a, guide에서 범위 밖으로 지운 문장 복원).
+- A: Opus high, `ce8aba75`·`7e57eb60`, test 9181·typecheck·build exit 0. R-A(Codex Astra medium): 🔴1(설정이 커밋된 저장소를 clone하며 로컬을 고르면 무시됨) 🟡3(열린 Project Settings가 focus 다시 읽기를 반영하지 않음, 로컬 셋업 뒤 group 다시 읽기 없음, re-root 안내의 모드) 🟢1 → 수정 1회차 보냄(결정 9·9a 계약 반영 포함).
