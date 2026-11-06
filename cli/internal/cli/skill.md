@@ -85,7 +85,7 @@ Exit codes: 0 success (including warnings); 1 internal failure; 2 usage/reposito
 
 Doan app conversation instructions override these rules.
 
-Storage: `--storage repo` = "Include in Git"; `--storage local` = "Keep out of Git (this Mac only)". `init` inherits local, else repo; explicit repo on local refuses. Onboarding `project inspect`/`select`/`clone` accept it; reuse inspection mode (absent=repo). Change mode: `config --storage`, alone. Local needs Git; it marks `.git/info/exclude` (a label), not `.gitattributes`. Files stay per checkout; worktree removal/`git clean -x` can delete them. Share by Export. Tracked files stay tracked; follow config's guidance before untracking, which deletes teammates' copies on pull.
+Storage: `--storage repo` = "Include in Git"; `--storage local` = "Keep out of Git (this Mac only)". Use `init --storage local|repo`; plain init inherits local, else repo; repo on local refuses. Onboarding `project inspect`/`select`/`clone` accept it; reuse inspection mode (absent=repo). Change: `config --storage` alone. Local needs Git; it marks `.git/info/exclude` (label), not `.gitattributes`. Files stay per checkout; worktree removal/`git clean -x` can delete them. Share by Export. Tracked files stay tracked; see config's untracking guidance (deletes teammates' copies on pull).
 
 ## Onboarding
 
