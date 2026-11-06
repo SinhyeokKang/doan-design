@@ -1298,6 +1298,10 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
    canvas script sets the one over the canvas). */
 .docked .composer-tray :is(.composer-attach, .composer-pick) { color: var(--text-subtle); }
 .docked .composer-tray .composer-agent { margin-left: auto; }
+/* A picker's value reads in the standard ink, as on Home, so it stands apart from a drawer's name in the metadata ink
+   (.label.placeholder); against the tray's subtle ink the two were nearly the same grey. Attach and Pick keep the subtle
+   ink, a disabled trigger the disabled one and Full access the danger one. */
+.docked .composer-tray :is(.composer-agent, .composer-effort, .composer-permission:not([data-mode="bypass"])):not(:disabled) { color: var(--text-standard); }
 .composer-pick[aria-pressed="true"] { background: var(--affordance-backdrop-pressed); color: var(--text-standard); }
 .docked .composer-tray :is(.composer-attach, .composer-pick):is(:disabled, [aria-disabled="true"]) { color: var(--text-disabled); }
 /* aria-disabled (not disabled) keeps these controls hoverable for their reason tooltip, so they take the disabled
