@@ -54,8 +54,8 @@ describe("agent Markdown", () => {
     expect(html([agent("Done.")])).not.toContain("caret");
   });
 
-  // The caret follows the last character of the last text block, as the drafts draw it (turn-activity frame
-  // reply): a caret beside the blocks is a flex-column item of .msg-agent and sits on its own line.
+  // The caret follows the last character of the last text block, as the drafts draw it (turn-activity.html frame
+  // `states`, tile 6): a caret beside the blocks is a flex-column item of .msg-agent and sits on its own line.
   test("the streaming caret ends the last text block, whatever block the Markdown renders last", () => {
     const caret = '<span class="caret" aria-hidden="true"></span>';
     const cases: [string, RegExp][] = [

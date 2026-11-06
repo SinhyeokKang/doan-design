@@ -223,11 +223,11 @@ function labelPrefix(prefix: string) {
   };
   return () => visit;
 }
-// The streaming caret follows the reply's last character (turn-activity frame reply): it goes inside the last text
-// block, never beside the blocks, where .msg-agent's flex column would put it on its own line. Containers are entered
-// down to their last child; an element whose last child is text or inline content takes the caret. A code block's text
-// ends in the line break mdast-util-to-hast adds, so the caret goes before it, on the code's last line. With no text
-// block yet (an empty reply, or one ending in a rule) the caret stays after the blocks.
+// The streaming caret follows the reply's last character (turn-activity.html frame `states`, tile 6): it goes inside
+// the last text block, never beside the blocks, where .msg-agent's flex column would put it on its own line. Containers
+// are entered down to their last child; an element whose last child is text or inline content takes the caret. A code
+// block's text ends in the line break mdast-util-to-hast adds, so the caret goes before it, on the code's last line.
+// With no text block yet (an empty reply, or one ending in a rule) the caret stays after the blocks.
 const BLOCKS = new Set(["p", "h1", "h2", "h3", "h4", "h5", "h6", "ul", "ol", "li", "blockquote", "pre", "table", "thead", "tbody", "tr", "td", "th", "section"]);
 const caret = (): HastNode => ({ type: "element", tagName: "span", properties: { className: ["caret"], ariaHidden: "true" }, children: [] });
 // Line breaks between blocks are whitespace text nodes, not content.
