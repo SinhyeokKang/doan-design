@@ -1,6 +1,7 @@
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import { PROVIDERS, type AuthStatusDto, type Provider, type ReadinessCause } from "../main/agentAuth/types";
 import type { AcpModes, PermissionModeId } from "../main/conversation/permissionMode";
+import type { FastUnusedReason } from "../main/conversation/types";
 import type { DesignPresetSummary, DesignSkillReply } from "../main/designSkills";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import { canvasKind } from "../formats/canvasPath";
@@ -239,6 +240,14 @@ export function defaultEffort(model: ModelOption | null, remembered: string | un
   const wanted = fixed ? fixed.effort : remembered;
   return wanted !== undefined && model?.efforts?.includes(wanted) ? wanted : null;
 }
+
+// Why Claude Code did not or cannot run Fast (fast-mode design §6): the thread's line and a disabled switch row's
+// description.
+const FAST_REASONS: Record<FastUnusedReason, string> = {
+  plan: "Your plan doesn’t include it.", extra_usage: "Extra usage is turned off for this account.", model: "It isn’t available for this model.",
+  policy: "Your organization turned it off.", cooldown: "It’s paused after a rate limit.",
+};
+export function fastReason(reason: FastUnusedReason): string { return FAST_REASONS[reason]; }
 
 const EFFORT_LABELS: Record<string, string> = { minimal: "Minimal", low: "Low", medium: "Medium", high: "High", xhigh: "Extra high", max: "Max" };
 function effortLabel(id: string): string { return EFFORT_LABELS[id] ?? id.charAt(0).toUpperCase() + id.slice(1); }

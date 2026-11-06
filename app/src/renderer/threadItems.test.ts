@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { ConversationEvent } from "../main/conversation/types";
-import { anchorParts, pendingAsks, questionLines, rootRelative, scrollFollow, threadItems, threadScroll, withSending, type ThreadItem } from "./threadItems";
+import { anchorParts, fastUnusedText, pendingAsks, questionLines, rootRelative, scrollFollow, threadItems, threadScroll, withSending, type ThreadItem } from "./threadItems";
 import { splitRequest } from "./homeComposer";
 import { notReadyLine, waitingLine } from "../main/conversation/mcpStartup";
 import { parseConnectorUrl } from "../main/mcpConnectors/names";
@@ -462,5 +462,32 @@ describe("threadItems handoff", () => {
     expect(items[0]).toEqual({ kind: "handoffCard", key: "u1", seq: 1, origin, text });
     // A later message of the person's is a bubble as before.
     expect(items.at(-1)).toMatchObject({ kind: "user" });
+  });
+});
+
+// fast-mode A4 (design §6): the line a Claude turn leaves when it did not run Fast, inside that turn, kept on reread.
+describe("Fast not used", () => {
+  const unused = (payload: Record<string, unknown> = {}) => ({ type: "fast.unused", ...payload }) as Extract<ConversationEvent, { type: "fast.unused" }>;
+  test("a lasting reason says Fast was turned off, then why", () => {
+    expect(fastUnusedText(unused({ reason: "plan", turnedOff: true }))).toBe("Fast was turned off. Your plan doesn’t include it.");
+    expect(fastUnusedText(unused({ reason: "extra_usage", turnedOff: true }))).toBe("Fast was turned off. Extra usage is turned off for this account.");
+    expect(fastUnusedText(unused({ reason: "model", turnedOff: true }))).toBe("Fast was turned off. It isn’t available for this model.");
+    expect(fastUnusedText(unused({ reason: "policy", turnedOff: true }))).toBe("Fast was turned off. Your organization turned it off.");
+  });
+  test("otherwise Fast was not used for this turn, with the reason when there is one", () => {
+    expect(fastUnusedText(unused({ reason: "cooldown" }))).toBe("Fast wasn’t used for this turn. It’s paused after a rate limit.");
+    expect(fastUnusedText(unused())).toBe("Fast wasn’t used for this turn.");
+  });
+  test("the line sits in its turn under the reply, before a failed turn's end, and stays when the history is read again", () => {
+    seq = 0;
+    const done = [...turn("t1"), ev("t1", { type: "message.done", messageId: "m1", text: "Done." }), ev("t1", { type: "fast.unused", reason: "plan", turnedOff: true }), ev("t1", { type: "context.usage", used: 1, size: 2 }), ev("t1", { type: "turn.done" })];
+    const items = threadItems(done, ROOT, false);
+    expect(items.map(i => i.kind)).toEqual(["user", "agent", "fast"]);
+    expect(items[2]).toEqual({ kind: "fast", key: "f4", seq: 4, text: "Fast was turned off. Your plan doesn’t include it.", turnedOff: true });
+    expect(threadItems([...done], ROOT, false)).toEqual(items);
+    seq = 0;
+    const failed = [...turn("t1"), ev("t1", { type: "fast.unused" }), ev("t1", { type: "turn.failed", code: "process_exited" })];
+    expect(threadItems(failed, ROOT, true).map(i => i.kind)).toEqual(["user", "fast", "end"]);
+    expect(threadItems(failed, ROOT, true)[1]).toMatchObject({ text: "Fast wasn’t used for this turn.", turnedOff: false });
   });
 });
