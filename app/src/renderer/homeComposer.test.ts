@@ -5,7 +5,7 @@ import type { AccountIdentity, AuthState, AuthStatusDto, Provider, ToolFacts } f
 import type { CanvasRow, FolderEntry } from "../main/view";
 import {
   attachmentChipView, attachmentLimit, chipRemoval, composeRequest, defaultEffort, defaultFast, defaultModel, fastToSend, defaultProject, defaultProvider, dropTarget, fixedPreference,
-  GREETINGS, greetingText, foldRows, olderOrder, heldScrollTop, NO_OLDER, olderLabel, olderOpened, olderToggled, groupIcon, groupLabel, isSubmitKey, steerKey, takesSuggestion, lengthCounter, MAX_ATTACHMENTS, MAX_PASTED_BYTES, modelPickerView, pickGreeting, presetListView,
+  GREETINGS, greetingText, foldRows, olderOrder, lockedOlderSide, heldScrollTop, NO_OLDER, olderLabel, olderOpened, olderToggled, groupIcon, groupLabel, isSubmitKey, steerKey, takesSuggestion, lengthCounter, MAX_ATTACHMENTS, MAX_PASTED_BYTES, modelPickerView, pickGreeting, presetListView,
   draftProblem, presetPlaceholder, rootForProject, searchPresets, selectableProvider, sendAvailability, slashQuery, startErrorView, suggestedPresets,
   suggestedPrompts, TEXT_LIMIT,
   type AttachmentDraft, type ModelsState, type PresetListReply, type PresetSummary, type SendInput,
@@ -931,4 +931,16 @@ test("above-line expansion uses the residual growth as scroll without moving the
   expect(heldScrollTop({ scrollTop: 151, maxScrollTop: 945, lineBefore: 465.5, lineAfter: 337.5 })).toBe(23);
   // A short upward menu grows by exactly the inserted height; the line does not move.
   expect(heldScrollTop({ scrollTop: 0, maxScrollTop: 0, lineBefore: 420.5, lineAfter: 420.5 })).toBe(0);
+});
+
+
+test("an open model menu keeps its first painted side until close releases the lock", () => {
+  expect(lockedOlderSide(null, undefined)).toBeNull();
+  const bottom = lockedOlderSide(null, "bottom");
+  expect(bottom).toBe("bottom");
+  expect(lockedOlderSide(bottom, "top")).toBe("bottom");
+  const top = lockedOlderSide(null, "top");
+  expect(top).toBe("top");
+  expect(lockedOlderSide(top, "bottom")).toBe("top");
+  expect(lockedOlderSide(null, "left")).toBeNull();
 });
