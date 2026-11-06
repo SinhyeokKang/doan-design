@@ -44,7 +44,11 @@
 
 ## 검토 기록
 
-(통합하면서 적는다)
+- C r1 리뷰(Claude Sonnet medium, `.scratch/review-C.md`): 🔴 0, 🟡 1, ❓ 2.
+  - 🟡1 `fast.unused`가 continuing reason 없이 `turnedOff`를 받는다. conductor 판단으로 조이기로 했다(design §6은 계속되는 네 이유에만 `turnedOff`를 붙인다). C에게 fix round 1을 보냈다.
+  - ❓1은 🟡1과 같은 문제라 함께 닫는다.
+  - ❓2 계정 제한일 때 `supportsFastMode`가 남는가: `extra_usage_disabled` 계정에서도 opus의 `supportsFastMode`가 true였다(conductor의 `p2-init.mjs`, 2026-11-06). 규칙을 그대로 둔다.
+  - nit 3개(설명 512자 상한, `unavailable` 타입 폭, 커밋에서 red가 보이지 않음)는 고치지 않는다.
 
 ## Orca
 
