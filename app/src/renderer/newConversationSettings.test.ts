@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { modelPickerView, type ModelsState } from "./homeComposer";
+import { modelPickerView, NO_OLDER, olderOpened, shownRows, type ModelsState } from "./homeComposer";
 import { settingsEffortLabel, settingsModelMenu, settingsModelPick } from "./newConversationSettings";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import { authStatus } from "../main/agentAuth/state";
@@ -95,4 +95,26 @@ test("an ACP model whose id is default keeps its own row and value, apart from t
   const claude = settingsModelMenu("claude", CLAUDE, "default");
   expect(claude.value).toBe(claude.rows[0]!.value);
   expect(claude.rows.some(row => row.kind === "model" && row.id === "default")).toBe(false);
+});
+
+// model-drawer-older: the Settings Model menu folds the same way; its Default row never folds.
+const CODEX_OLDER: ModelsState = { models: [
+  { id: "gpt-6.1-sol", label: "GPT-6.1-Sol", default: true },
+  { id: "gpt-6-sol", label: "GPT-6-Sol", default: false, older: true },
+] };
+test("an older model keeps its row marked, and picking it fixes that model rather than Default", () => {
+  const menu = settingsModelMenu("codex", CODEX_OLDER, "gpt-6-sol");
+  expect(menu.rows).toEqual([
+    { kind: "unset", value: "unset", label: "Default", description: "GPT-6.1-Sol", selected: false },
+    { kind: "model", value: "model:gpt-6.1-sol", id: "gpt-6.1-sol", label: "GPT-6.1-Sol", selected: false },
+    { kind: "model", value: "model:gpt-6-sol", id: "gpt-6-sol", label: "GPT-6-Sol", selected: true, older: true },
+  ]);
+  expect(menu.label).toBe("GPT-6-Sol");
+  expect(settingsModelPick(settingsModelMenu("codex", CODEX_OLDER, undefined), "model:gpt-6-sol")).toBe("gpt-6-sol");
+  expect(olderOpened(NO_OLDER, [{ provider: "codex", rows: menu.rows }])).toEqual({ open: ["codex"], touched: [] });
+});
+test("the Settings Default row stays above the fold with the current models", () => {
+  const menu = settingsModelMenu("codex", CODEX_OLDER, undefined);
+  expect(shownRows(menu.rows, false).map(row => row.value)).toEqual(["unset", "model:gpt-6.1-sol"]);
+  expect(olderOpened(NO_OLDER, [{ provider: "codex", rows: menu.rows }])).toBe(NO_OLDER);
 });
