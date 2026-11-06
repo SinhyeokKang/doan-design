@@ -27,9 +27,9 @@
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 gate | 상태 |
 |---|---|---|---|---|---|---|
 | C | A1, A2, 계약 타입(`StartRequest.fast?`, preload `sendConversation` 요청의 `fast?`) | `app/src/main/conversation/{store,types,summary,models}.ts`와 그 테스트, `service.ts`의 `StartRequest` 한 줄, `app/src/preload/index.ts` | — | Codex `gpt-6.1-sol` medium — 검증 규칙과 파싱이 정해진 기계적 작업 | `npm --prefix app test`(storeIndex·storeRecovery·summary·models), `npm --prefix app run typecheck` | 통합(`e8c93f85`·`4ce3ab55`·`99e1380a`, 1 round) |
-| M | A3, A4(main: `claudeFastOutcome`, 자동 끔), B1 | `app/src/main/conversation/{ipc,service,runners,transport}.ts`와 그 테스트 | C | Claude Opus high — queue·Send now·핸드오프·steer·이벤트 순서와 자동 끔이 얽혀 틀리면 잘못된 과금 요청이 나간다 | `npm --prefix app test`, `npm --prefix app run typecheck`, `grep -rn '\.acquire(' app/src/main` 전후 동일 | 진행 |
+| M | A3, A4(main: `claudeFastOutcome`, 자동 끔), B1 | `app/src/main/conversation/{ipc,service,runners,transport}.ts`와 그 테스트 | C | Claude Opus high — queue·Send now·핸드오프·steer·이벤트 순서와 자동 끔이 얽혀 틀리면 잘못된 과금 요청이 나간다 | `npm --prefix app test`, `npm --prefix app run typecheck`, `grep -rn '\.acquire(' app/src/main` 전후 동일 | 통합(2 rounds) |
 | R | A4(renderer: `fastUnusedText`), A5, B2 | `app/src/renderer/**`, `app/src/restore/uiState.ts`와 그 테스트 | C | Claude Opus high — 메뉴 접근성, 기억 경로(POSTMORTEM 11-01·11-02), 실시간 이벤트만 반영하는 자동 끔 | `npm --prefix app test`, `npm --prefix app run typecheck`, `rg -n "startConversation\(\|sendConversation\(\|onRemember" app/src/renderer --glob '!*.test.*'` | 통합(`23f46879`…`a128cc87`, 2 rounds) |
-| S | B3 `/design-sync fast-mode` | renderer 구현 수정, `docs/DESIGN.md` | R 통합 | R worker의 후속 Task(Claude Opus high) — 자기 구현을 재는 편이 맥락이 이어진다 | `/design-sync` 보고에 불일치 없음 | 대기 |
+| S | B3 `/design-sync fast-mode` | renderer 구현 수정, `docs/DESIGN.md` | R 통합 | R worker의 후속 Task(Claude Opus high) — 자기 구현을 재는 편이 맥락이 이어진다 | `/design-sync` 보고에 불일치 없음 | 진행 |
 | T | R1 `/runtime-test` | 없음(보고만, `.scratch/`) | C·M·R·S 통합 | Claude Opus high — 실제 계정, 계정 교체, 여러 경우 | `/runtime-test` 보고와 스크린샷 | 대기 |
 | — | R2 `/verify` | — | 모든 통합, rebase 뒤 | conductor | 종료 코드 0 | 대기 |
 | — | Z1 문서 승격 | PRODUCT, ARCHITECTURE, DESIGN, BACKLOG, `docs/features/fast-mode/` 삭제 | T | conductor | tasks Z1 검증 | 대기 |
@@ -66,6 +66,8 @@
   - 🟡4는 일부만 닫혔다. ARCHITECTURE §7 'Home tests without a DOM'이 jsdom 추가를 막는다. 그래서 설치된 Radix의 select 동작을 고정하는 테스트만 두었다. 토글 뒤 메뉴가 열려 있고 focus가 남는지는 S가 실제 앱에서 확인한다.
   - 🟢(테스트 주석의 focus 단정)은 고치지 않는다.
 - R을 통합했다(`23f46879`…`a128cc87`, 7 commits, 2 rounds). M 통합 뒤 rebase하고 `/verify`를 함께 돌린다.
+- M r1 수정(`02f5b9eb` index를 이벤트보다 먼저 저장, `b6f01bcc` 테스트 고정)은 conductor가 diff를 읽고 받아들였다. M을 통합했다(7 commits 중 6개 batch 커밋, 2 rounds).
+- 통합 뒤 첫 `/verify`는 app-test의 `clone.test.ts` 2건에서 실패했다(`.scratch/verify-int2.log`). 원인은 실행 중 Xcode 라이선스 동의가 풀려 `/usr/bin/git`이 동작하지 않은 것이다. 사람이 `sudo xcodebuild -license accept`를 실행했다. 그 뒤 `origin/main`(`86311ef4`)으로 rebase하고 다시 돌렸고 PASS였다(`.scratch/verify-int3.log`, HEAD `213adfe9`, 8682 tests).
 - C worktree는 M·R이 계약 수정을 요청할 수 있어서 둘을 통합할 때까지 남긴다. handoff와 리뷰는 conductor `.scratch/C/`에 복사했다.
 
 ## Orca
