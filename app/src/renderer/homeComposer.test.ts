@@ -899,7 +899,7 @@ test("a list read again after an account change is classified from its own rows"
   const auth = snapshot(dto("codex"));
   const choice = { provider: "codex" as const, model: "gpt-6-sol", effort: null };
   expect(olderCount(modelPickerView(auth, { codex: FOLDING.codex }, choice).groups[0]!.rows)).toBe(2);
-  const next = modelPickerView(auth, { codex: { models: [F_SOL, { ...F_OLD_SOL, older: undefined }] } }, choice).groups[0]!;
+  const next = modelPickerView(auth, { codex: { models: [F_SOL, { id: F_OLD_SOL.id, label: F_OLD_SOL.label, default: false }] } }, choice).groups[0]!;
   expect(olderCount(next.rows)).toBe(0);
   expect(olderOpened(NO_OLDER, [next])).toBe(NO_OLDER);
 });
