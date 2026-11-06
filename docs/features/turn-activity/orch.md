@@ -23,8 +23,8 @@
 
 | batch | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 gate | 상태 |
 |---|---|---|---|---|---|---|
-| MA | A1, B1, B2 | `app/src/main/conversation/fixtures/`의 새 fixture와 `README.md`, `types.ts`, `transport.ts`, `acp.ts`, 그 테스트(`transport.test.ts`, `acp.test.ts`, 새 fixture 테스트) | 없음 | Claude Opus high — 세 provider normalizer의 경계 조건이 많고, fixture의 개인 정보 제거와 "events는 그대로"가 틀리면 기록 형식이 깨진다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 통합 `ed04b3ee`·`18dece0f`(worker `6d3918a3`·`88b254e2`), test 312 files/8773 pass |
-| MA-rev | MA 리뷰 | 없음(보고만) | MA | Codex Astra medium — 다른 계열의 독립 판단 | `/code-review` 보고 | 완료, 🔴 0 · 🟡 1 · 🟢 1(`.scratch/review-MA.md`). fix 1(테스트만) 진행 중 |
+| MA | A1, B1, B2 | `app/src/main/conversation/fixtures/`의 새 fixture와 `README.md`, `types.ts`, `transport.ts`, `acp.ts`, 그 테스트(`transport.test.ts`, `acp.test.ts`, 새 fixture 테스트) | 없음 | Claude Opus high — 세 provider normalizer의 경계 조건이 많고, fixture의 개인 정보 제거와 "events는 그대로"가 틀리면 기록 형식이 깨진다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 통합 `ed04b3ee`·`18dece0f`·`2d5eb9eb`(worker `6d3918a3`·`88b254e2`·`56997f01`), test 312 files/8773 pass |
+| MA-rev | MA 리뷰 | 없음(보고만) | MA | Codex Astra medium — 다른 계열의 독립 판단 | `/code-review` 보고 | 완료, 🔴 0 · 🟡 1 · 🟢 1(`.scratch/review-MA.md`). fix 1(테스트만) 통합, 8776 pass. `ta-ma` worktree 지움, branch 남김 |
 | MC | C1 | `runners.ts`, `acpRunner.ts`, `dispatcher.ts`, `service.ts`, `ipc.ts`, `app/src/main/index.ts`, `app/src/preload/index.ts`, 그 테스트 | MA 통합 | Claude Opus high — live entry 수명, Stop·archive·종료 경계, 순서 보장이 걸린 동시성 작업 | `npm --prefix app test`, `npm --prefix app run typecheck` | 진행 중(`ta-mc`) |
 | MC-rev | MC 리뷰 | 없음 | MC | Codex Astra medium | `/code-review` 보고 | 대기 |
 | RU | B3, U1 | renderer의 새 순수 함수 파일과 테스트, `conversationStore.ts`, `ConversationThread.tsx`, `ProjectOverview.tsx`, `CanvasConversationPanel.tsx`, `styles.css`, `App.tsx`(deferred) | MA 통합(`App.tsx` 구독은 MC 통합) | Claude Opus high — settle·rev·timer·접근성 규칙이 서로 얽힌다 | `npm --prefix app test`, typecheck, `npm --prefix app run build`, `rendererImports.test.ts` | 진행 중(`ta-ru`) |
