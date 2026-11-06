@@ -153,3 +153,54 @@ it("writes no stage into the history and changes neither the list nor its unseen
   expect(h.service.list("/repo")).toEqual(before);
   expect(h.listChanged.mock.calls.length).toBe(calls);
 });
+
+it("drops the stage when the history stops taking writes, and takes no later one", async () => {
+  const h = fixture(); const { conversationId: id } = await h.service.start(request);
+  h.stage(THINKING);
+  vi.spyOn(h.store, "append").mockImplementationOnce(() => { throw new Error("File exceeds limit"); });
+  vi.spyOn(console, "error").mockImplementation(() => {});
+  h.last().emit({ type: "activity", kind: "command", summary: "Running a command" });
+  h.stage(GENERAL); h.stage(READ);
+  expect(h.signals.map(s => s.stage)).toEqual([THINKING]);
+  expect(h.service.read(id)).not.toHaveProperty("stage");
+});
+
+it("gives a queued message's turn, started right after the terminal, none of the previous turn's stage", async () => {
+  for (const runtime of ["codex", "claude"] as const) {
+    const h = fixture(runtime); const { conversationId: id } = await h.service.start(request);
+    const firstTurn = h.store.read(id).at(-1)!.turnId, before = h.last();
+    h.service.queue(id, { text: "next", anchors: [] });
+    h.stage(READ);
+    before.emit({ type: "turn.done" });
+    // The previous turn's frame in the same tick as its terminal, before the queue goes out.
+    before.input.stage!(GENERAL);
+    // A Claude turn's queue waits for its process; a reused Codex server takes it at once.
+    if (runtime === "claude") before.exited();
+    await vi.waitFor(() => expect(h.store.read(id).filter(e => e.type === "turn.started")).toHaveLength(2));
+    const nextTurn = h.store.read(id).at(-1)!.turnId;
+    expect(nextTurn).not.toBe(firstTurn);
+    expect(h.service.read(id)).not.toHaveProperty("stage");
+    // Claude's earlier run is not the turn's run any more; its late stage stays out.
+    if (runtime === "claude") { before.input.stage!(THINKING); expect(h.service.read(id)).not.toHaveProperty("stage"); }
+    h.stage(THINKING);
+    expect(h.signals.map(s => [s.turnId === firstTurn ? "first" : s.turnId === nextTurn ? "next" : "other", s.stage.kind])).toEqual([["first", "tool"], ["next", "thinking"]]);
+    expect(h.service.read(id).stage).toMatchObject({ turnId: nextTurn, stage: THINKING });
+  }
+});
+
+it("sends the stage after a steered message with that message's seq and the same turn", async () => {
+  const h = fixture(); const { conversationId: id } = await h.service.start(request);
+  const turnId = h.store.read(id).at(-1)!.turnId, runner = h.last().runner;
+  let steered = "";
+  runner.steer = vi.fn(async (_prompt: string, _turn: string, messageId: string) => { steered = messageId; });
+  const item = h.service.queue(id, { text: "also this", anchors: [] });
+  h.stage(THINKING);
+  const sent = h.service.sendNow(id, item.itemId);
+  await vi.waitFor(() => expect(steered).not.toBe(""));
+  h.last().input.steerConsumed!(steered); await sent;
+  const message = h.store.read(id).at(-1)!;
+  expect(message).toMatchObject({ type: "user.message", text: "also this", turnId });
+  h.stage(THINKING);
+  expect(h.signals.map(s => [s.turnId, s.seq, s.stage.kind])).toEqual([[turnId, 2, "thinking"], [turnId, message.seq, "thinking"]]);
+  expect(h.service.read(id).stage).toMatchObject({ turnId, seq: message.seq });
+});

@@ -25,10 +25,12 @@ function service(root: string, prepare: Prepare) {
 }
 const terminalOf = (events: readonly ConversationEvent[]) => events.filter(e => TERMINALS.includes(e.type));
 const brief = (signals: readonly StageSignal[]) => signals.map(s => [s.stage.kind === "tool" ? `${s.stage.activity}:${s.stage.summary}` : s.stage.kind, s.seq]);
-// Every signal is the turn's, sent before its terminal, with a rising rev; the history holds no stage line.
-function expectTurnSignals(signals: readonly StageSignal[], events: readonly ConversationEvent[], historyFile: string) {
-  const [terminal] = terminalOf(events);
-  expect(terminalOf(events)).toHaveLength(1);
+// Every signal is the turn's (turnId; the history's only turn by default), sent before its one terminal of any kind, with
+// a rev rising by one; the whole history holds no stage line.
+function expectTurnSignals(signals: readonly StageSignal[], events: readonly ConversationEvent[], historyFile: string, turnId = events[0]?.turnId) {
+  const turn = events.filter(e => e.turnId === turnId), [terminal] = terminalOf(turn);
+  expect(terminalOf(turn)).toHaveLength(1);
+  expect(signals.length).toBeGreaterThan(0);
   for (const signal of signals) { expect(signal.turnId).toBe(terminal!.turnId); expect(signal.seq).toBeLessThan(terminal!.seq); }
   expect(signals.map(s => s.rev)).toEqual(signals.map((_, i) => (signals[0]?.rev ?? 1) + i));
   const lines = readFileSync(historyFile, "utf8").split("\n").filter(Boolean);
@@ -137,7 +139,8 @@ describe("Codex", () => {
       await vi.waitFor(() => expect(terminalOf(h.store.read(id))).toHaveLength(2));
       const second = h.store.read(id).filter(e => e.turnId === h.store.read(id).at(-1)!.turnId);
       expect(brief(h.signals)).toEqual(turn.map(([stage, seq]) => [stage, (seq as number) + second[0]!.seq - 1]));
-      expect(h.signals.every(s => s.turnId === second[0]!.turnId)).toBe(true);
+      expectTurnSignals(h.signals, h.store.read(id), join(root, "conversations", `${id}.jsonl`), second[0]!.turnId);
+      expect(terminalOf(h.store.read(id)).map(e => e.type)).toEqual(["turn.done", "turn.done"]);
       // The replayed first-turn start reached no stage, not even before the service's checks.
       expect(h.raw.length - rawFirst).toBe(rawFirst);
       expect(h.signals[0]!.rev).toBeGreaterThan(first.at(-1)!.rev);

@@ -1168,6 +1168,17 @@ describe("thumbnails", () => {
     return hidden;
   }
 
+  // turn-activity C1: the stage goes to the main window only, never to the capture window main also owns.
+  test("a conversation stage reaches the main window and not the capture window", async () => {
+    const hidden = await captureWindow();
+    window().webContents.send.mockClear(); hidden.webContents.send.mockClear();
+    const signal = { conversationId: "c1", turnId: "t1", seq: 2, rev: 1, stage: { kind: "general" } };
+    mocks.stageConversation!(signal);
+    expect(window().webContents.send.mock.calls).toEqual([["conversation:stage", signal]]);
+    expect(hidden.webContents.send).not.toHaveBeenCalled();
+    expect(mocks.Window.instances).toHaveLength(2);
+  });
+
   test("caches under userData with this app's version and the shell's scope", () => {
     expect(deps()).toMatchObject({ dir: "/tmp/doan-index-test/thumbnails", appVersion: "9.8.7" });
     mocks.shell.entries.mockReturnValue([{ path: "/repo", kind: "list" }]);
