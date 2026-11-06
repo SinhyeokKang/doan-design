@@ -379,6 +379,12 @@ describe("ACP stages", () => {
     expect(stages([startA, startB, thought, end("b", "completed")])).toEqual([A, B, THINKING, A]);
     // An update for a tool that already completed reports nothing, as before.
     expect(stages([startA, end("a", "completed"), startB, end("a", "completed")])).toEqual([A, GENERAL, B]);
+    // A call marked done while it runs (the runner's Antigravity question) still ends on its completion.
+    const asked = acpSteps([call("q", { sessionUpdate: "tool_call_update", title: "Which?", status: "pending" })] as Record<string, any>[]).state;
+    const marked = { ...asked, activities: [...asked.activities, "q"] };
+    const after = acpSteps([end("q", "completed"), startA, end("a", "completed")] as Record<string, any>[], marked);
+    expect(stagesOf(after.steps)).toEqual([GENERAL, A, GENERAL]);
+    expect("running" in after.state).toBe(false);
     // No tool left running leaves no trace in the state.
     const { state } = acpSteps([startA, startB, end("b", "completed"), end("a", "failed")] as Record<string, any>[]);
     expect(state).toEqual(acpSteps([startA, end("a", "failed"), startB, end("b", "completed")] as Record<string, any>[]).state);

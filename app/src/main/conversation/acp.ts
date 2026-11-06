@@ -146,6 +146,11 @@ function acpToolSummary(kind: AcpActivityKind, tool: AcpTool, root: string): str
 function acpToolStage(kind: AcpActivityKind, tool: AcpTool, root: string): TurnStage {
   return { kind: "tool", activity: kind, ...(tool.path ? { path: tool.path.slice(0, 512) } : {}), summary: acpToolSummary(kind, tool, root) };
 }
+// The stage once a tool call ends: the latest-started call still running, else general.
+function endedStage(running: readonly string[], tools: Record<string, AcpTool>, root: string): TurnStage {
+  const latest = running.at(-1), tool = latest ? tools[latest] : undefined;
+  return tool ? acpToolStage(ACTIVITY[tool.kind] ?? "other", tool, root) : GENERAL_STAGE;
+}
 // The thinking stage ends here; a stage the caller reports in its place goes out instead of the general one.
 function awake(state: AcpTransport): { state: AcpTransport; stage?: TurnStage } {
   if (!state.thinking) return { state };
@@ -177,7 +182,16 @@ export function normalizeAcp(state: AcpTransport, update: Record<string, unknown
   const status = kind === "tool_call" ? str(update.status) || "pending" : str(update.status);
   const woke = status ? awake(state) : { state };
   const id = str(update.toolCallId);
-  if (!id || woke.state.activities.includes(id)) return { state: woke.state, events: [], ...(woke.stage ? { stage: woke.stage } : {}) };
+  if (!id) return { state: woke.state, events: [], ...(woke.stage ? { stage: woke.stage } : {}) };
+  // A call already in activities gets no second activity, but whether it runs is kept apart from that: the runner puts
+  // an Antigravity question's call there while it still runs, and its completion must end it all the same.
+  if (woke.state.activities.includes(id)) {
+    const before = woke.state.running ?? [];
+    if (!status || status === "pending" || status === "in_progress" || !before.includes(id)) return { state: woke.state, events: [], ...(woke.stage ? { stage: woke.stage } : {}) };
+    const running = before.filter(other => other !== id);
+    const { running: _, ...rest } = woke.state;
+    return { state: { ...rest, ...(running.length ? { running } : {}) }, events: [], stage: endedStage(running, woke.state.tools, root) };
+  }
   const known = woke.state.tools[id] ?? { kind: "", path: "", title: "" };
   const tool = { kind: str(update.kind) || known.kind, path: toolPath(update) || known.path, title: str(update.title) || known.title };
   const flushed = flush(woke.state);
@@ -190,8 +204,7 @@ export function normalizeAcp(state: AcpTransport, update: Record<string, unknown
   const activityKind = ACTIVITY[tool.kind] ?? "other";
   // A running tool is the stage; any other status (completed, failed) ends it. Copilot runs tool calls in parallel, so
   // a call that ends while others still run hands the stage to the latest of them that started.
-  const latest = running.at(-1);
-  const ended = latest ? acpToolStage(ACTIVITY[tools[latest]!.kind] ?? "other", tools[latest]!, root) : GENERAL_STAGE;
+  const ended = endedStage(running, tools, root);
   const stage = !status ? undefined : runs ? acpToolStage(activityKind, tool, root) : ended;
   // One activity per tool call, once it completed: a rejected or failed call changed nothing.
   if (status !== "completed") return { state: next, events: flushed.events, ...(stage ? { stage } : {}) };
