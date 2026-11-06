@@ -60,3 +60,12 @@ test("a path can match only its complete listed name", () => {
   expect(skillWords("/Users/me/deploy", new Set(["Users/me/deploy"])))
     .toEqual([{ start: 0, end: 16, name: "Users/me/deploy" }]);
 });
+
+ test("drawing splits only text and compares exact span ranges", async () => {
+  const { skillTextParts, sameSkillRanges } = await import("./skillWords");
+  const runs = [{ start: 2, end: 9, name: "deploy" }];
+  expect(skillTextParts("x /deploy로", 0, runs)).toEqual([{ text: "x " }, { text: "/deploy", skill: true }, { text: "로" }]);
+  expect(sameSkillRanges(runs, [{ start: 2, end: 9 }])).toBe(true);
+  expect(sameSkillRanges(runs, [{ start: 2, end: 10 }])).toBe(false);
+  expect(sameSkillRanges(runs, [])).toBe(false);
+ });
