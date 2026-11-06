@@ -1,0 +1,201 @@
+{
+ "data": [
+  {
+   "cwd": "/tmp/repo",
+   "skills": [
+    {
+     "name": "Upper-Codex",
+     "description": "Probe skill Upper-Codex for the Doan PoC.",
+     "path": "/tmp/repo/.agents/skills/Upper-Codex/SKILL.md",
+     "scope": "repo",
+     "enabled": true,
+     "pluginId": null
+    },
+    {
+     "name": "c",
+     "description": "Probe skill c for the Doan PoC.",
+     "path": "/tmp/repo/.agents/skills/c/SKILL.md",
+     "scope": "repo",
+     "enabled": true,
+     "pluginId": null
+    },
+    {
+     "name": "d",
+     "description": "Probe skill d for the Doan PoC.",
+     "path": "/tmp/repo/.agents/skills/d/SKILL.md",
+     "scope": "repo",
+     "enabled": true,
+     "pluginId": null
+    },
+    {
+     "name": "manualc",
+     "description": "Probe skill manualc for the Doan PoC.",
+     "path": "/tmp/repo/.agents/skills/manualc/SKILL.md",
+     "scope": "repo",
+     "enabled": true,
+     "pluginId": null
+    },
+    {
+     "name": "doan",
+     "description": "Create and revise design canvases with the doan CLI and app.",
+     "path": "/Applications/Doan.app/Contents/Resources/skills/doan/SKILL.md",
+     "scope": "user",
+     "enabled": true,
+     "pluginId": null
+    },
+    {
+     "name": "doan",
+     "description": "Create and revise design canvases with the doan CLI and app.",
+     "path": "/tmp/profile/codex/skills/doan/SKILL.md",
+     "scope": "user",
+     "enabled": true,
+     "pluginId": null
+    },
+    {
+     "name": "user-skill-1",
+     "description": "Generic user skill 1.",
+     "interface": {
+      "displayName": "user-skill-1",
+      "shortDescription": "Short 1",
+      "iconSmall": null,
+      "iconLarge": null,
+      "iconSmallUrl": null,
+      "iconLargeUrl": null,
+      "brandColor": null,
+      "defaultPrompt": null
+     },
+     "path": "/tmp/home/.agents/skills/user-skill-1/SKILL.md",
+     "scope": "user",
+     "enabled": true,
+     "pluginId": null
+    },
+    {
+     "name": "user-skill-2",
+     "description": "Generic user skill 2.",
+     "path": "/tmp/home/.agents/skills/user-skill-2/SKILL.md",
+     "scope": "user",
+     "enabled": true,
+     "pluginId": null
+    },
+    {
+     "name": "user-skill-3",
+     "description": "Generic user skill 3.",
+     "path": "/tmp/home/.agents/skills/user-skill-3/SKILL.md",
+     "scope": "user",
+     "enabled": true,
+     "pluginId": null
+    },
+    {
+     "name": "user-skill-4",
+     "description": "Generic user skill 4.",
+     "path": "/tmp/home/.agents/skills/user-skill-4/SKILL.md",
+     "scope": "user",
+     "enabled": true,
+     "pluginId": null
+    },
+    {
+     "name": "user-skill-5",
+     "description": "Generic user skill 5.",
+     "path": "/tmp/home/.agents/skills/user-skill-5/SKILL.md",
+     "scope": "user",
+     "enabled": true,
+     "pluginId": null
+    },
+    {
+     "name": "system-skill-6",
+     "description": "Generic system skill 6.",
+     "interface": {
+      "displayName": "system-skill-6",
+      "shortDescription": "Short 6",
+      "iconSmall": null,
+      "iconLarge": null,
+      "iconSmallUrl": null,
+      "iconLargeUrl": null,
+      "brandColor": null,
+      "defaultPrompt": null
+     },
+     "path": "/tmp/profile/codex/skills/.system/system-skill-6/SKILL.md",
+     "scope": "system",
+     "enabled": true,
+     "pluginId": null
+    },
+    {
+     "name": "system-skill-7",
+     "description": "Generic system skill 7.",
+     "shortDescription": "Short 7",
+     "interface": {
+      "displayName": "system-skill-7",
+      "shortDescription": "Short 7",
+      "iconSmall": null,
+      "iconLarge": null,
+      "iconSmallUrl": null,
+      "iconLargeUrl": null,
+      "brandColor": null,
+      "defaultPrompt": null
+     },
+     "path": "/tmp/profile/codex/skills/.system/system-skill-7/SKILL.md",
+     "scope": "system",
+     "enabled": true,
+     "pluginId": null
+    },
+    {
+     "name": "system-skill-8",
+     "description": "Generic system skill 8.",
+     "interface": {
+      "displayName": "system-skill-8",
+      "shortDescription": "Short 8",
+      "iconSmall": null,
+      "iconLarge": null,
+      "iconSmallUrl": null,
+      "iconLargeUrl": null,
+      "brandColor": null,
+      "defaultPrompt": null
+     },
+     "path": "/tmp/profile/codex/skills/.system/system-skill-8/SKILL.md",
+     "scope": "system",
+     "enabled": true,
+     "pluginId": null
+    },
+    {
+     "name": "system-skill-9",
+     "description": "Generic system skill 9.",
+     "shortDescription": "Short 9",
+     "interface": {
+      "displayName": "system-skill-9",
+      "shortDescription": "Short 9",
+      "iconSmall": null,
+      "iconLarge": null,
+      "iconSmallUrl": null,
+      "iconLargeUrl": null,
+      "brandColor": null,
+      "defaultPrompt": null
+     },
+     "path": "/tmp/profile/codex/skills/.system/system-skill-9/SKILL.md",
+     "scope": "system",
+     "enabled": true,
+     "pluginId": null
+    },
+    {
+     "name": "system-skill-10",
+     "description": "Generic system skill 10.",
+     "shortDescription": "Short 10",
+     "interface": {
+      "displayName": "system-skill-10",
+      "shortDescription": "Short 10",
+      "iconSmall": null,
+      "iconLarge": null,
+      "iconSmallUrl": null,
+      "iconLargeUrl": null,
+      "brandColor": null,
+      "defaultPrompt": null
+     },
+     "path": "/tmp/profile/codex/skills/.system/system-skill-10/SKILL.md",
+     "scope": "system",
+     "enabled": true,
+     "pluginId": null
+    }
+   ],
+   "errors": []
+  }
+ ]
+}
