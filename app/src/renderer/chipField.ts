@@ -4,6 +4,7 @@ import {
   chipAt, distinctTargets, FILLER, hardLine, isLineStart, normalize, plainText, readFieldClipboard, sameSegments, sliceUnits, spliceUnits,
   unitLength, writeFieldClipboard, type FieldSegment,
 } from "./anchorField";
+import { fieldSkillRuns, insertSkillText, replaceSlashSkill, sameSkillNames, sameSkillRanges, skillAnnouncements, skillTextParts } from "./skillWords";
 
 // The composer field's DOM, selection, clipboard, undo and IME handling over a contenteditable element
 // (buzz-canvas-conversation design §2 'Chip field', §5 P1). ComposerField (ComposerParts.tsx) owns one per element.
@@ -26,6 +27,7 @@ export interface ChipFieldHooks {
   onAnnounce(text: string): void;
   // The canvas this field's chips belong to; null takes no chips, so a chip clipboard pastes as the chips' names.
   scope(): string | null;
+  skillNames?(): ReadonlySet<string>;
   // A click on a chip, after the caret moved right after it: its host locates the chip on the canvas and may place a
   // note by the chip's node (its attributes are not read back, so a describing id on it changes no segment).
   onChipClick?(anchor: Anchor, chip: HTMLElement): void;
@@ -55,6 +57,9 @@ export class ChipField {
   private discarding = false;
   private segments: FieldSegment[] = [];
   private composingNow = false;
+  private announced: string[] = [];
+  private names: ReadonlySet<string> = new Set();
+  private compositionRepairPending = false;
   private pending: Anchor[] = [];
   private selection: Selection = { anchor: 0, focus: 0 };
   private history: Step[] = [{ segments: [], before: { anchor: 0, focus: 0 }, after: { anchor: 0, focus: 0 }, kind: "init", at: 0 }];
@@ -125,7 +130,15 @@ export class ChipField {
       this.reset(normalize(value));
       return;
     }
-    if (this.composingNow || sameSegments(value, this.segments)) return;
+    const names = this.hooks.skillNames?.() ?? new Set<string>();
+    const changedNames = !sameSkillNames(this.names, names);
+    this.names = new Set(names);
+    if (changedNames) this.announceSkills(false);
+    if (this.composingNow) return;
+    if (sameSegments(value, this.segments)) {
+      if (changedNames && !this.compositionRepairPending) this.repair();
+      return;
+    }
     this.reset(normalize(value));
   }
 
@@ -142,6 +155,7 @@ export class ChipField {
   }
 
   private reset(segments: FieldSegment[]): void {
+    this.names = new Set(this.hooks.skillNames?.() ?? []);
     this.pending = [];
     this.groupBefore = null;
     this.render(segments);
@@ -150,6 +164,7 @@ export class ChipField {
     this.index = 0;
     this.mergeable = false;
     this.placeCaret(end);
+    this.announceSkills(false);
   }
 
   // "pending" waits for the composition to end; "limit" would point at more than LIMITS.anchors places; "refused": this
@@ -173,6 +188,23 @@ export class ChipField {
     if (this.composingNow || this.readOnly()) return;
     const [start, end] = ordered(this.readSelection());
     this.replace(start, end, normalize([{ kind: "text", text }]), "insert");
+  }
+
+  insertSkill(name: string, fromSlash = false): void {
+    if (this.composingNow || this.readOnly()) return;
+    const before = this.readSelection();
+    if (fromSlash) { this.replace(0, unitLength(this.segments), replaceSlashSkill(name).segments, "insert"); return; }
+    const result = insertSkillText(this.segments, before.focus, name);
+    this.render(result.segments);
+    this.placeCaret({ anchor: result.caret, focus: result.caret });
+    this.commit("insert", before);
+  }
+
+  private announceSkills(announce = true): void {
+    const next = fieldSkillRuns(this.segments, this.hooks.skillNames?.() ?? new Set()).map(run => run.name);
+    const messages = skillAnnouncements(this.announced, next);
+    this.announced = next;
+    if (announce && messages.length) this.hooks.onAnnounce(messages.join(". "));
   }
 
   caretAtStart(): boolean {
@@ -205,6 +237,7 @@ export class ChipField {
     this.render(segments);
     this.placeCaret(selection);
     this.mergeable = false;
+    this.announceSkills();
     this.hooks.onChange(this.segments);
   }
 
@@ -224,6 +257,7 @@ export class ChipField {
     this.groupBefore = null;
     // selectionchange arrives as a later task; a chip inserted right after typing must see the caret now.
     this.selection = after;
+    this.announceSkills();
     this.hooks.onChange(this.segments);
   }
 
@@ -387,15 +421,17 @@ export class ChipField {
       return;
     }
     this.composingNow = false;
+    // React can echo the committed value before the next syllable starts in this same key event.
+    this.compositionRepairPending = true;
     this.sync();
-    setTimeout(() => { this.repair(); this.flushPending(); }, 0);
+    setTimeout(() => { this.compositionRepairPending = false; this.repair(); this.flushPending(); }, 0);
   }
 
   // Browser edits keep the DOM drawn as render() would draw it: a chip that an edit leaves at a line's start gets its
   // filler, a filler or <br> Chromium left behind goes, and nothing nests. Drawn again with the same selection, never
   // during a composition (that would cancel it).
   private repair(): void {
-    if (this.composingNow || !this.misdrawn()) return;
+    if (this.composingNow || this.compositionRepairPending || !this.misdrawn()) return;
     const selection = this.readSelection();
     this.render(this.segments);
     this.placeCaret(selection);
@@ -404,8 +440,13 @@ export class ChipField {
   private misdrawn(): boolean {
     const nodes = Array.from(this.el.childNodes);
     let at = 0;
+    const spans: { start: number; end: number }[] = [];
     for (const [index, node] of nodes.entries()) {
       if (node.nodeType === Node.TEXT_NODE) { at += this.textOf(node).length; continue; }
+      if (node instanceof HTMLElement && node.className === "skill-word" && Array.from(node.childNodes).every(child => child.nodeType === Node.TEXT_NODE)) {
+        const end = at + (node.textContent?.length ?? 0);
+        spans.push({ start: at, end }); at = end; continue;
+      }
       if (this.chips.has(node)) {
         const previous = nodes[index - 1];
         const filled = previous !== undefined && this.fillers.has(previous) && this.textOf(previous) === "" && (previous as Text).data === FILLER;
@@ -416,6 +457,7 @@ export class ChipField {
       if (node.nodeName === "BR" && this.breaks.has(node) && index === nodes.length - 1) continue;
       return true;
     }
+    if (!sameSkillRanges(fieldSkillRuns(this.segments, this.hooks.skillNames?.() ?? new Set()), spans)) return true;
     // A filler is only ever directly before a chip; one that took typed text keeps it as text until the next draw.
     const last = this.segments[this.segments.length - 1];
     const trailing = nodes[nodes.length - 1];
@@ -491,9 +533,16 @@ export class ChipField {
   // Always the same element: only its children change, so focus, the accessibility node and the IME client survive.
   private render(segments: FieldSegment[]): void {
     const nodes: Node[] = [];
+    const runs = fieldSkillRuns(segments, this.hooks.skillNames?.() ?? new Set());
     let at = 0;
     for (const segment of segments) {
-      if (segment.kind === "text") { nodes.push(document.createTextNode(segment.text)); at += segment.text.length; continue; }
+      if (segment.kind === "text") {
+        for (const part of skillTextParts(segment.text, at, runs)) {
+          if (!part.skill) nodes.push(document.createTextNode(part.text));
+          else { const span = document.createElement("span"); span.className = "skill-word"; span.textContent = part.text; nodes.push(span); }
+        }
+        at += segment.text.length; continue;
+      }
       if (isLineStart(segments, at)) { const filler = document.createTextNode(FILLER); this.fillers.add(filler); nodes.push(filler); }
       nodes.push(this.chipNode(segment.anchor));
       at += 1;

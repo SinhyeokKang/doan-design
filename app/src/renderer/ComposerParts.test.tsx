@@ -31,7 +31,7 @@ vi.mock("react", async original => {
 
 // Dogfooding: a preset row showed its title and group; it now reads as a card, the title over its one-line description.
 test("a preset row is its title over its description", () => {
-  const view = { kind: "list" as const, tabs: [], summary: "1 preset", sections: [{ title: null, rows: [{ id: "shape", title: "Shape a feature", description: "Work out a feature's purpose and flow.", scope: "feature brief", tooltip: "Work out a feature's purpose and flow. (/shape)", group: "Start" }] }] };
+  const view = { kind: "list" as const, tabs: [], summary: "1 preset", sections: [{ title: null, rows: [{ kind: "preset" as const, key: "preset:shape", icon: "compass", id: "shape", title: "Shape a feature", description: "Work out a feature's purpose and flow.", scope: "feature brief", tooltip: "Work out a feature's purpose and flow. (/shape)", group: "Start" }] }] };
   const html = renderToStaticMarkup(<SlashPresets view={view} query="" listId="l" highlight={0} onHighlight={() => {}} onChoose={() => {}} onRetry={() => {}} />);
   expect(html).toContain('<span class="preset-text"><span class="preset-title">Shape a feature</span><span class="preset-desc">Work out a feature&#x27;s purpose and flow.</span></span>');
   expect(html).not.toContain('class="sub"');
@@ -59,7 +59,7 @@ function optionRows(node: ReactNode, found: ReactElement<Record<string, unknown>
   return found;
 }
 test("the / list highlights the row under the pointer", () => {
-  const row = (id: string) => ({ id, title: id, description: "", scope: "feature brief", tooltip: id, group: "Start" });
+  const row = (id: string) => ({ kind: "preset" as const, key: `preset:${id}`, icon: "compass", id, title: id, description: "", scope: "feature brief", tooltip: id, group: "Start" });
   const view = { kind: "list" as const, tabs: [], summary: "2 presets", sections: [{ title: null, rows: [row("a"), row("b")] }] };
   const highlighted: number[] = [];
   const list = SlashPresets({ view, query: "", listId: "l", highlight: 0, onChoose: () => {}, onRetry: () => {}, onHighlight: index => highlighted.push(index) });
@@ -73,7 +73,7 @@ test("the / list highlights the row under the pointer", () => {
 // The popover opens with focus in its search box. Moving the pointer over rows must not take that focus (typed letters and
 // Space would go to a row); only once focus is on a row does the pointer carry it, like the frame list.
 test("a popover preset row takes focus from the pointer only when focus is already in the list", () => {
-  const row = (id: string) => ({ id, title: id, description: "", scope: "feature brief", tooltip: id, group: "Start" });
+  const row = (id: string) => ({ kind: "preset" as const, key: `preset:${id}`, icon: "compass", id, title: id, description: "", scope: "feature brief", tooltip: id, group: "Start" });
   const view = { kind: "list" as const, tabs: [], summary: "2 presets", sections: [{ title: null, rows: [row("a"), row("b")] }] };
   const list = presetBody(view, false, { listId: "l", highlight: 0, onChoose: () => {}, onRetry: () => {} }) as ReactElement<Record<string, unknown>>;
   const rows = optionRows(list.props.children as ReactNode);

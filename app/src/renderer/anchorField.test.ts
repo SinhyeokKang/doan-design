@@ -126,7 +126,7 @@ describe("line-start chips and the chip clipboard", () => {
     const fragment = [text("{{1}} "), chip(frame)];
     const pasted = readFieldClipboard(writeFieldClipboard("canvas:a", fragment), "canvas:a");
     expect(pasted).toEqual(fragment);
-    expect(draftProblem(pasted!, null, [])?.kind).toBe("anchorMarkers");
+    expect(draftProblem(pasted!, null, [], [])?.kind).toBe("anchorMarkers");
   });
   test("a chip clipboard of another canvas, another shape or broken JSON is not read as chips", () => {
     const raw = writeFieldClipboard("canvas:a", [chip(frame)]);

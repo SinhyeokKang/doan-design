@@ -6,6 +6,14 @@
 > Historical `app/e2e/` paths refer to the suite retired on 2026-10-27. Current runtime safety helpers live in `app/runtime/`; use focused probes under `.scratch/`, as specified in AGENTS.md.
 > Some entries name app code removed later: the app's comment UI (`useComments.tsx`, `CommentsSession.ts`, `CommentsPanel.tsx`, `CommentPins.ts` and most of `app/src/comments/` and `app/src/main/comments/`, with their tests) on 2026-11-01; the separate Settings window (`settingsWindow.tsx`) and the `Sidebar.tsx` component on 2026-10-30; Settings > Connections (`ConnectionRows.tsx`, `connectionRowView.ts`, `setupBroker.ts`) on 2026-10-31. Their search commands and test pointers apply only to code that still exists; the comment files, the CLI comment commands and `app/src/comments/projection.ts` remain.
 
+### 2026-11-07 — Antigravity conversations ran without the doan skill stub
+
+- **Area**: `app/src/main/agentAuth/providers.ts` (`HOME_STUB`, the Antigravity `settings`).
+- **Symptom**: a Doan-connected Antigravity canvas conversation (ACP server 1.3.0) answered that it had no `doan` skill; its ACP frames held no `skills/doan` reference. Doan had written the stub to `<GEMINI_HOME>/skills/doan/SKILL.md` for every Antigravity process. Copying the same file to `<GEMINI_HOME>/config/skills/doan/` made the agent list `doan`.
+- **Root cause**: the stub path was confirmed once by a live check (2026-10-28) and recorded only as a code comment. The ACP server's skill roots (`resolve_skills_paths`: `<GEMINI_HOME>/config/skills`, `<cwd>/.gemini/skills`, `<GEMINI_HOME>/antigravity-cli/skills`, `<cwd>/.agents/skills`) do not include `<GEMINI_HOME>/skills`, and a missing skill does not fail: the agent works without Doan's guide. The unit test checked only that the path ended in `skills/doan/SKILL.md`.
+- **Net**: caught by project-skill-drawer's research reading the server's skill roots and its PoC P5 asking a real turn which skills it had. Missed by `providers.test.ts` (suffix match) and by every turn since, because nothing reports a skill the provider did not load.
+- **Prevention**: pin each provider's exact stub path in a test (`providers.test.ts` "puts the Antigravity stub where its ACP server reads skills") and, when a provider or its server version changes, ask one real turn whether `doan` is among its skills. `rg -n 'HOME_STUB\(|SKILL_STUB' app/src/main/agentAuth/providers.ts` (run 2026-11-07): Cursor `~/.cursor/skills` and Copilot `~/.copilot/skills` under the dedicated HOME are the other derived paths; neither was re-checked by a live turn in this feature.
+
 ### 2026-11-06 — Unfolding older models moved the line under the pointer, so a second press picked a model
 
 - **Area**: `app/src/renderer/ComposerParts.tsx` (`useOlderFold`, `AgentPicker`), `SettingsAgents.tsx` Model menu, `homeComposer.ts` (`heldScrollTop`, `olderOrder`, `lockedOlderSide`)

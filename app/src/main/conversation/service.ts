@@ -7,6 +7,7 @@ import { sameCanvas } from "./sessions";
 import { handoffPrompt, turnPrompt } from "./prompt";
 import { handoffDecision, handoffEligibility, handoffGuidanceFor, type HandoffDecision, type HandoffNotice, type HandoffRefusal } from "./handoff";
 import { messageLine } from "./messageText";
+import { requestTitleText } from "./requestLines";
 import { BIND_GRACE_MS, contestedCanvas, projectBusy, promotionTarget } from "./project";
 import { clampSeen, conversationSummary, type ConversationSummary } from "./summary";
 import { combineQueued } from "./queue";
@@ -15,7 +16,7 @@ import type { ConversationOwner, Provider } from "../agentAuth/types";
 import type { ModelList } from "./models";
 import type { PermissionModeId } from "./permissionMode";
 import type { QuestionAnswerInput } from "./question";
-import type { Anchor, AttachmentRecord, Canvas, ConversationEvent, EventPayload, HandoffOrigin, HandoffResolution, Reservation, StageSignal, TurnStage } from "./types";
+import type { Anchor, AttachmentRecord, Canvas, ConversationEvent, EventPayload, HandoffOrigin, HandoffResolution, Reservation, SkillSummary, StageSignal, TurnStage } from "./types";
 import type { LiveTurn } from "../conversationWork";
 // External (legacy) runs are claude or codex only; doan-account runs may use any app provider.
 // model and effort: a choice from the list this run delivered (ipc checks it). attachments: files main rechecked just now.
@@ -81,7 +82,7 @@ function askingKey(event: { type: string; requestId: string }): string { return 
 // steer: Claude and Codex only (steerSupport.ts); adds a message to the running turn turnId and resolves once the
 // provider accepted it, which is not yet the agent reading it (Prepared.steerConsumed).
 // endSuggestion: Claude only; ends a done turn's process that only waits for its prompt suggestion, true when it did.
-export interface Runner { sessionId: string; send(prompt: string, turnId: string, attachments?: readonly AttachmentRecord[], choice?: TurnChoice): Promise<void>; answer(requestId: string, optionId: string): boolean; answerQuestion?(requestId: string, answer: QuestionAnswerInput): "ok" | "stale" | "bad_request"; stop(): Promise<void>; close(): Promise<void>; models?(): Promise<ModelList>; steer?(prompt: string, turnId: string, messageId: string): Promise<void>; endSuggestion?(): boolean }
+export interface Runner { sessionId: string; send(prompt: string, turnId: string, attachments?: readonly AttachmentRecord[], choice?: TurnChoice): Promise<void>; answer(requestId: string, optionId: string): boolean; answerQuestion?(requestId: string, answer: QuestionAnswerInput): "ok" | "stale" | "bad_request"; stop(): Promise<void>; close(): Promise<void>; models?(): Promise<ModelList>; skills?(): Promise<SkillSummary[]>; steer?(prompt: string, turnId: string, messageId: string): Promise<void>; endSuggestion?(): boolean }
 // What a queued send needs from main's attachment store: the queued ids checked again as the send's attachments
 // (reclaim throws attachment_missing), consumed once that send was accepted, discarded with a removed message (a paste
 // goes with it) and released when they come back in a draft, which carries their paths instead.
@@ -92,12 +93,13 @@ export interface QueueFiles { reclaim(ids: string[]): StartAttachments; consume(
 // a handoff's start and a queue flush (models.ts ModelCatalog.fast). Without it no such turn runs with Fast.
 export interface QueueOptions { drafts?: DraftStore; files?: QueueFiles; defaultEffort?: (root: string, provider: Provider, model: string) => string | undefined; fast?: (root: string, provider: Provider, model: string | undefined) => boolean }
 export type OpenRunner = (input: Prepared, emit: (event: EventPayload) => void, exited: () => void, registerStop: (stop: () => Promise<void>) => void) => Promise<Runner>;
-// use "listing": a model list read, which a sign-out stops without asking (agentAuth/manager.ts acquire).
+// use "listing": a list read (models, project skills), which a sign-out stops without asking (agentAuth/manager.ts acquire).
 // reusing: a send to this conversation's live Codex server, which keeps its thread open between turns.
 export type Prepare = (request: StartRequest, stored?: ConversationMetadata, use?: "run" | "listing", reusing?: boolean) => Promise<Prepared>;
-// Reads a model list through a provider process opened only for that, reporting its spawn and disappearance as
-// OpenRunner does; it never releases the lease itself.
-export type ReadModels = (input: Prepared, exited: () => void, registerStop: (stop: () => Promise<void>) => void) => Promise<ModelList>;
+// Reads a list (models, project skills) through a provider process opened only for that, reporting its spawn and
+// disappearance as OpenRunner does; it never releases the lease itself.
+export type ReadListing<T> = (input: Prepared, exited: () => void, registerStop: (stop: () => Promise<void>) => void) => Promise<T>;
+export type ReadModels = ReadListing<ModelList>;
 function freeLease(input: Prepared | undefined): void {
   void input?.release?.().catch(error => console.error("doan: account lease release failed", error));
 }
@@ -226,8 +228,9 @@ export class ConversationService {
       const session = { runtime: input.runtime, origin: request.mode === "resume" ? "resumed" as const : request.mode, sessionId: runner.sessionId, configDir: input.configDir, cwd: input.cwd };
       // Every turn of a newDesign conversation carries Home's paragraph.
       const fromHome = request.mode === "newDesign";
-      // seenSeq 0: nothing of a new conversation has been seen, so its first end shows as unseen.
-      const base = { conversationId: id, root: request.root, ...(request.canvas ? { canvas: request.canvas } : {}), title: messageLine(request.text, request.anchors), state: "current" as const,
+      // seenSeq 0: nothing of a new conversation has been seen, so its first end shows as unseen. The title leaves out the
+      // fixed preset and skill lines, which would otherwise fill the sidebar; a preset-only request is titled by the preset.
+      const base = { conversationId: id, root: request.root, ...(request.canvas ? { canvas: request.canvas } : {}), title: messageLine(requestTitleText(request.text), request.anchors), state: "current" as const,
         ...choice(request), ...fastOf(request), ...mode(request.permissionMode), ...(fromHome ? { fromHome: true as const } : {}), ...(request.mode === "newDesign" ? { canvasesAtStart: this.snapshot(request.root) } : {}), seenSeq: 0 };
       const runtime = input.runtime;
       // Without an owner the run used an external profile, which exists only for the shared sessions' two runtimes.
@@ -612,7 +615,7 @@ export class ConversationService {
     if (!live || !live.busy) { this.giveBack(id, "interrupted"); return; }
     const stop = live.runner?.stop(); if (live.busy) this.receive(id, { type: "interrupted", reason: "user" }); await stop;
   }
-  // The preparation of a model-list read; a quit or a stop of the provider during it refuses the read and frees its lease.
+  // The preparation of a list read (models, project skills); a quit or a stop of the provider during it refuses the read and frees its lease.
   async prepareListing(root: string, runtime: Provider): Promise<Prepared> {
     if (this.quitting) throw new Error("busy");
     const listing: Listing = { provider: runtime, since: this.stops }; this.listings.add(listing);
@@ -626,7 +629,7 @@ export class ConversationService {
   }
   // The lease is released when the read's process group is gone, or at once when nothing was spawned; a group that
   // never disappears keeps it.
-  async listModels(input: Prepared, read: ReadModels): Promise<ModelList> {
+  async readListing<T>(input: Prepared, read: ReadListing<T>): Promise<T> {
     const listing = this.listingOf.get(input); if (!listing) throw new Error("bad_request");
     if (this.quitting || this.stopped(listing)) { freeLease(input); throw new Error("busy"); }
     let spawned = false;

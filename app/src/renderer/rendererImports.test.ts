@@ -16,6 +16,8 @@ const NODE = new Set(builtinModules.flatMap(name => [name, `node:${name}`]));
 // added now cannot wait for that screen to fail (POSTMORTEM 2026-10-30; buzz-project places the thread and the
 // docked composer).
 const EXTRA_ROOTS = [
+  // project-skill-drawer: fixed request lines are shared by main and renderer by value.
+  join(SRC, "main/conversation/requestLines.ts"),
   join(SRC, "renderer/ConversationThread.tsx"), join(SRC, "renderer/DockedComposer.tsx"),
   // buzz-canvas-conversation: the chip field and the picker, which import the shared limits.
   join(SRC, "renderer/anchorField.ts"), join(SRC, "renderer/canvasPicker.ts"),

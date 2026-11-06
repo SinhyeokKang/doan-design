@@ -1,7 +1,9 @@
+import { requestLines, splitRequestLines } from "../main/conversation/requestLines";
+import { skillWords } from "./skillWords";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import { PROVIDERS, type AuthStatusDto, type Provider, type ReadinessCause } from "../main/agentAuth/types";
 import type { AcpModes, PermissionModeId } from "../main/conversation/permissionMode";
-import type { FastUnusedReason } from "../main/conversation/types";
+import type { FastUnusedReason, SkillSummary } from "../main/conversation/types";
 import type { DesignPresetSummary, DesignSkillReply } from "../main/designSkills";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { HomeMemory } from "../restore/uiState";
@@ -31,23 +33,16 @@ const ATTACHMENTS_ONLY = "Look at the attached files.";
 const FOLDER_DROP = "Folders can’t be attached. Add a project from Add Projects.";
 
 // The attachment list and main's Home paragraph travel outside this text, so neither counts toward the limit.
-export function composeRequest(text: string, preset: PresetRef | null, attachments: number): string {
-  const body = text.trim();
-  if (preset) {
-    const header = `Use the Doan design preset \`${preset.id}\` (${preset.title}).`;
-    return body ? `${header}\n\n${body}` : header;
-  }
+export function composeRequest(text: string, preset: PresetRef | null, skills: readonly string[], attachments: number): string {
+  const body = text.trim(), header = requestLines(preset, skills).join("\n");
+  if (header) return body ? `${header}\n\n${body}` : header;
   return body || (attachments > 0 ? ATTACHMENTS_ONLY : "");
 }
 
-// composeRequest read back from a sent user.message: the preset line and the person's own text. The text that stands in
-// for an attachment-only request was not written by the person, so it reads as no text.
-const PRESET_HEADER = /^Use the Doan design preset `([^`\n]+)` \(([^\n]*)\)\.(?:\n\n|$)/;
-export function splitRequest(text: string, attachments: number): { preset: PresetRef | null; body: string } {
-  const match = PRESET_HEADER.exec(text);
-  const preset = match ? { id: match[1]!, title: match[2]! } : null;
-  const body = match ? text.slice(match[0].length) : text;
-  return { preset, body: !preset && attachments > 0 && body === ATTACHMENTS_ONLY ? "" : body };
+// The attachment-only sentence was not written by the person, so it restores as no text.
+export function splitRequest(text: string, attachments: number): { preset: PresetRef | null; skills: string[]; body: string } {
+  const parts = splitRequestLines(text);
+  return { ...parts, body: !parts.preset && parts.skills.length === 0 && attachments > 0 && parts.body === ATTACHMENTS_ONLY ? "" : parts.body };
 }
 
 // Many presets work on a named design and Home has no canvas selection, so a chosen preset asks for the target.
@@ -73,7 +68,7 @@ export interface SendInput {
   projects: number;
   root: FolderEntry | null; projectName: string;
   auth: AuthSnapshot | null | undefined; provider: Provider | null;
-  text: string; preset: PresetRef | null; attachments: readonly AttachmentDraft[];
+  text: string; preset: PresetRef | null; skills: readonly string[]; attachments: readonly AttachmentDraft[];
   // A project conversation still running in this root (HomeRun.running).
   running: { conversationId: string } | null;
   sending: boolean;
@@ -91,7 +86,7 @@ export function sendAvailability(input: SendInput): { enabled: boolean; reason: 
   // An empty composer shows no line, running or not: Home keeps its suggestions until something is typed.
   if (!input.text.trim() && !input.preset && input.attachments.length === 0) return off(null);
   if (input.running) return off({ kind: "running", text: anotherConversation(input.projectName), open: input.running.conversationId });
-  const draft = draftProblem(input.text, input.preset, input.attachments);
+  const draft = draftProblem(input.text, input.preset, input.attachments, input.skills);
   return draft ? off(draft) : { enabled: true, reason: null };
 }
 
@@ -105,14 +100,14 @@ export function agentProblem(auth: AuthSnapshot | null | undefined, provider: Pr
 
 // What in a non-empty draft stops the send. Shared with the docked composer. A plain string is typed text only; the
 // chip field passes its segments, because {text, anchors} cannot tell a typed {{1}} from a chip's marker.
-export function draftProblem(draft: string | readonly FieldSegment[], preset: PresetRef | null, attachments: readonly AttachmentDraft[]): SendReason | null {
+export function draftProblem(draft: string | readonly FieldSegment[], preset: PresetRef | null, attachments: readonly AttachmentDraft[], skills: readonly string[]): SendReason | null {
   const typed = typedPieces(draft);
   const text = typeof draft === "string" ? draft : toMessage(draft)?.text ?? typed.join("");
-  const request = composeRequest(text, preset, attachments.length);
+  const request = composeRequest(text, preset, skills, attachments.length);
   if (request.length > TEXT_LIMIT) return { kind: "overLimit", text: "Shorten the message to send it." };
   // The conversation IPC reads {{ and }} as anchor markers and refuses stray ones. Only what the person typed is
   // checked, piece by piece between chips: braces typed on both sides of a chip are not one marker.
-  if (preset) typed.push(composeRequest("", preset, 0));
+  typed.push(...requestLines(preset, skills));
   if (typed.some(piece => piece.includes("{{") || piece.includes("}}"))) return { kind: "anchorMarkers", text: "Remove {{ and }} from the message to send it." };
   if (attachments.some(a => a.status === "checking")) return { kind: "checking", text: "Checking attachments" };
   const moved = attachments.find(a => a.status === "missing");
@@ -493,48 +488,113 @@ export function searchPresets(presets: readonly PresetSummary[], query: string):
   return scored.sort((a, b) => b.score - a.score || a.i - b.i).map(s => s.preset);
 }
 
-export interface PresetRow { id: string; title: string; description: string; scope: string; tooltip: string; group: string | null }
+export type ProjectSkillSummary = SkillSummary;
+export interface PresetRow {
+  kind: "preset" | "skill"; key: string; icon: string;
+  id: string; title: string; description: string; scope: string; tooltip: string; group: string | null;
+}
 export interface PresetTab { key: string; label: string; icon: string; selected: boolean }
-export type PresetListView =
+export type PresetNotice =
   | { kind: "loading"; text: string }
   | { kind: "error"; text: string; retry: boolean }
-  | { kind: "olderCli"; text: string }
+  | { kind: "olderCli"; text: string };
+export type PresetListView = PresetNotice
   | { kind: "empty"; text: string }
-  | { kind: "list"; tabs: PresetTab[]; sections: { title: string | null; rows: PresetRow[] }[]; summary: string | null };
+  | { kind: "list"; tabs: PresetTab[]; sections: { title: string | null; rows: PresetRow[] }[]; summary: string | null; notice?: PresetNotice; emptyText?: string };
+
+function presetRow(p: PresetSummary, withGroup: boolean): PresetRow {
+  return { kind: "preset", key: `preset:${p.id}`, icon: groupIcon(p.group), id: p.id, title: p.title,
+    description: p.description, scope: p.scope, tooltip: `${p.description} (/${p.id})`, group: withGroup ? groupLabel(p.group) : null };
+}
+function skillRow(s: ProjectSkillSummary): PresetRow {
+  return { kind: "skill", key: `skill:${s.name}`, icon: "square-slash", id: s.name, title: `/${s.name}`,
+    description: s.description, scope: "", tooltip: s.description, group: null };
+}
+
+export function searchDrawer(presets: readonly PresetSummary[], skills: readonly ProjectSkillSummary[], query: string): PresetRow[] {
+  const trimmed = query.trim(), tokens = searchText(trimmed).split(/\s+/).filter(Boolean);
+  const entries = [
+    ...presets.map(p => ({ row: presetRow(p, true), fields: [p.title, p.id, p.scope, p.description] })),
+    ...[...skills].sort((a, b) => a.name.localeCompare(b.name)).map(s => ({ row: skillRow(s), fields: [s.name, s.description] })),
+  ];
+  const exactPreset = presets.some(p => p.id === trimmed);
+  return entries.flatMap(({ row, fields }, index) => {
+    const scores = tokens.map(token => tokenScore(fields.map(searchText), token));
+    if (scores.some(score => score === 0)) return [];
+    const exact = trimmed !== "" && row.id === trimmed;
+    const priority = exact ? (row.kind === "preset" ? 2 : exactPreset ? 1 : 2) : 0;
+    return [{ row, score: scores.reduce((sum, score) => sum + score, 0), priority, index }];
+  }).sort((a, b) => b.priority - a.priority || b.score - a.score || a.index - b.index).map(entry => entry.row);
+}
+
+export function drawerSearchLabel(skills: readonly ProjectSkillSummary[]): string {
+  return skills.length > 0 ? "Search presets and skills" : "Search presets";
+}
+
+export function followDrawerHighlight(before: readonly PresetRow[], after: readonly PresetRow[], highlight: number): number {
+  const row = before[highlight];
+  const index = row ? after.findIndex(next => next.kind === row.kind && next.id === row.id) : -1;
+  return Math.max(0, index);
+}
 
 const CLI_REASONS: Record<string, string> = {
   unavailable: "the doan CLI couldn’t start", timeout: "the doan CLI didn’t answer in time",
   invalid_response: "Doan couldn’t read the CLI’s answer", failed: "the doan CLI stopped without a result",
 };
 
-// A failure is never an empty list, and every state still lets the person send without a preset (draft board 24).
-export function presetListView(reply: PresetListReply | undefined, opts: { project: string; suggested: readonly PresetSummary[]; query: string; tab: string | null; slash?: boolean }): PresetListView {
+function presetNotice(reply: PresetListReply | undefined): PresetNotice | null {
   if (!reply) return { kind: "loading", text: "Loading presets" };
-  if (!reply.ok) {
-    const { error } = reply;
-    if (error.code === "request_refused") return { kind: "error", text: "Doan refused this preset request. You can still send without a preset.", retry: false };
-    // An older CLI has no design-skill command and answers the list with usage_error (design §4.4).
-    if (error.code === "usage_error") return { kind: "olderCli", text: "This doan CLI has no design presets. Update Doan to use them." };
-    const reason = "reason" in error ? CLI_REASONS[error.reason] : undefined;
-    return { kind: "error", text: reason ? `Doan couldn’t read the design presets: ${reason}. You can still send without one.` : "Doan couldn’t read the design presets. You can still send without one.", retry: true };
-  }
-  const presets = reply.result.presets, query = opts.query.trim();
-  const row = (p: PresetSummary, withGroup: boolean): PresetRow => ({ id: p.id, title: p.title, description: p.description, scope: p.scope, tooltip: `${p.description} (/${p.id})`, group: withGroup ? groupLabel(p.group) : null });
+  if (reply.ok) return null;
+  const { error } = reply;
+  if (error.code === "request_refused") return { kind: "error", text: "Doan refused this preset request. You can still send without a preset.", retry: false };
+  // An older CLI has no design-skill command and answers the list with usage_error.
+  if (error.code === "usage_error") return { kind: "olderCli", text: "This doan CLI has no design presets. Update Doan to use them." };
+  const reason = "reason" in error ? CLI_REASONS[error.reason] : undefined;
+  return { kind: "error", text: reason ? `Doan couldn’t read the design presets: ${reason}. You can still send without one.` : "Doan couldn’t read the design presets. You can still send without one.", retry: true };
+}
+
+function drawerSummary(rows: readonly PresetRow[], query: string, hasSkills: boolean): string {
+  const presets = rows.filter(r => r.kind === "preset").length, skills = rows.length - presets;
+  if (!hasSkills) return `${presets} ${presets === 1 ? "preset matches" : "presets match"} ${query}`;
+  const counts = [
+    ...(presets ? [`${presets} preset${presets === 1 ? "" : "s"}`] : []),
+    ...(skills ? [`${skills} skill${skills === 1 ? "" : "s"}`] : []),
+  ];
+  return `${counts.join(" and ")} ${rows.length === 1 ? "matches" : "match"} ${query}`;
+}
+
+// Preset failures remain visible above usable project skills; they never discard an independent skill read.
+export function presetListView(reply: PresetListReply | undefined, opts: {
+  project: string; suggested: readonly PresetSummary[]; query: string; tab: string | null; slash?: boolean;
+  skills?: readonly ProjectSkillSummary[];
+}): PresetListView {
+  const skills = opts.skills ?? [], notice = presetNotice(reply);
+  if (notice && skills.length === 0) return notice;
+  const presets = reply?.ok ? reply.result.presets : [], query = opts.query.trim();
+  const skillRows = searchDrawer([], skills, "");
+  const project = skills.length > 0 ? [{ title: "Project", rows: skillRows }] : [];
+  const withNotice = notice ? { notice } : {};
   if (query) {
-    const found = searchPresets(presets, query);
-    if (found.length === 0) return { kind: "empty", text: `No presets match “${query}”.` };
-    return { kind: "list", tabs: [], sections: [{ title: null, rows: found.map(p => row(p, true)) }], summary: `${found.length} ${found.length === 1 ? "preset matches" : "presets match"} ${query}` };
+    const found = searchDrawer(presets, skills, query);
+    const text = `No ${skills.length > 0 ? "presets or skills" : "presets"} match “${query}”.`;
+    if (found.length === 0) return notice
+      ? { kind: "list", tabs: [], sections: [], summary: null, notice, emptyText: text }
+      : { kind: "empty", text };
+    return { kind: "list", tabs: [], sections: [{ title: null, rows: found }], summary: drawerSummary(found, query, skills.length > 0), ...withNotice };
   }
-  if (opts.slash) return { kind: "list", tabs: [], sections: [{ title: null, rows: presets.map(p => row(p, true)) }], summary: null };
-  const suggested = opts.suggested.length > 0 ? [{ title: `Suggested for ${opts.project}`, rows: opts.suggested.map(p => row(p, false)) }] : [];
-  if (!presets.every(p => p.group !== undefined)) return { kind: "list", tabs: [], sections: [...suggested, { title: "All presets", rows: presets.map(p => row(p, false)) }], summary: null };
+  if (opts.slash) return { kind: "list", tabs: [], sections: [{ title: null, rows: searchDrawer(presets, skills, "") }], summary: null, ...withNotice };
+  if (notice) return { kind: "list", tabs: [], sections: project, summary: null, notice };
+  const suggested = opts.suggested.length > 0 ? [{ title: `Suggested for ${opts.project}`, rows: opts.suggested.map(p => presetRow(p, false)) }] : [];
+  if (!presets.every(p => p.group !== undefined)) return { kind: "list", tabs: [], sections: [...suggested, { title: "All presets", rows: presets.map(p => presetRow(p, false)) }, ...project], summary: null };
   const keys = [...new Set(presets.map(p => p.group!))];
-  const available = [...(suggested.length > 0 ? ["suggested"] : []), ...keys];
-  const selected = opts.tab !== null && available.includes(opts.tab) ? opts.tab : available[0]!;
+  const available = [...(suggested.length > 0 ? ["suggested"] : []), ...keys, ...(skills.length > 0 ? ["project"] : [])];
+  const selected = opts.tab !== null && available.includes(opts.tab) ? opts.tab : available[0];
   const tabs = available.map(key => key === "suggested"
     ? { key, label: "Suggested", icon: PRESET_ICON, selected: key === selected }
+    : key === "project" ? { key, label: "Project", icon: "square-slash", selected: key === selected }
     : { key, label: groupLabel(key)!, icon: groupIcon(key), selected: key === selected });
-  const sections = selected === "suggested" ? suggested : [{ title: groupLabel(selected), rows: presets.filter(p => p.group === selected).map(p => row(p, false)) }];
+  const sections = selected === "suggested" ? suggested : selected === "project" ? project
+    : selected === undefined ? [] : [{ title: groupLabel(selected), rows: presets.filter(p => p.group === selected).map(p => presetRow(p, false)) }];
   return { kind: "list", tabs, sections, summary: null };
 }
 
@@ -575,7 +635,9 @@ export function takesSuggestion(
 }
 
 // `dismissed`: Escape closed the list, which stays closed until the field is empty again.
-export function slashQuery(text: string, dismissed: boolean): string | null {
+export function slashQuery(text: string, dismissed: boolean, names: ReadonlySet<string> = new Set()): string | null {
+  const first = /^[^\p{White_Space}]+(?=\p{White_Space})/u.exec(text);
+  if (first && skillWords(first[0], names).some(run => run.start === 0)) return null;
   return !dismissed && text.startsWith("/") && !text.includes("\n") ? text.slice(1) : null;
 }
 
@@ -644,4 +706,18 @@ export function chipRemoval(chips: readonly { label: string; preset?: boolean }[
   const chip = chips[trigger.index];
   if (!chip) return null;
   return { remove: trigger.index, announcement: `Removed ${chip.label}`, focus: trigger.index < chips.length - 1 ? trigger.index : "textarea" };
+}
+
+// Arrows move; Enter picks unless an IME is composing; Tab and Escape close until the field is empty.
+// Returning null for an exact skill lets the composer's ordinary submit path handle Enter.
+export function slashKey(key: string, highlight: number, count: number, composing: boolean,
+  skill?: { query: string; row: PresetRow | undefined },
+): { kind: "move"; highlight: number } | { kind: "pick" } | { kind: "close"; dismiss: boolean } | null {
+  if (key === "ArrowDown" || key === "ArrowUp") return count === 0 ? null : { kind: "move", highlight: (highlight + (key === "ArrowDown" ? 1 : -1) + count) % count };
+  if (key === "Enter") {
+    if (composing || count === 0 || (skill?.row?.kind === "skill" && skill.query === skill.row.id)) return null;
+    return { kind: "pick" };
+  }
+  if (key === "Tab" || key === "Escape") return { kind: "close", dismiss: true };
+  return null;
 }

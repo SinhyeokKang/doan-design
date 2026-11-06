@@ -29,6 +29,7 @@ const ok = async () => ({ ok: true as const });
 // `text` is typed text only; the field draws no children in static markup (ChipField draws them once mounted).
 function render(patch: Partial<DockedComposerProps> = {}, { text, ...draft }: Partial<DockedDraft> & { text?: string } = {}) {
   const props: DockedComposerProps = {
+    skills: [], onSkillsWanted: () => {},
     mode: MODE, project: "doan-design", homeDirectory: "/Users/ada", placeholder: "Reply, / for presets",
     drafts: new Map([[draftKey(patch.mode ?? MODE), { ...EMPTY_DRAFT, ...(text === undefined ? {} : { segments: textSegments(text) }), ...draft }]]), onDrafts: () => {},
     auth: AUTH, picker: PICKER, provider: "claude", effort: "high",

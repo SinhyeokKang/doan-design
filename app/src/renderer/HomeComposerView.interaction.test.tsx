@@ -43,6 +43,7 @@ let doan: Record<string, ReturnType<typeof vi.fn>>;
 beforeEach(() => {
   hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.deps = [];
   doan = {
+    listConversationSkills: vi.fn(async () => ({ skills: [] })),
     onAgentAuth: vi.fn(() => () => {}), listConversationModels: vi.fn(async () => ({ models: [] })), designSkills: { list: vi.fn(async () => LISTED) } as never,
     addAttachmentFiles: vi.fn(async (files: File[]) => files.map(file => ({ ok: true, attachment: { id: `id-${file.name}`, name: file.name, size: file.size, kind: "file", path: `/Users/ada/${file.name}`, pasted: false } }))),
     addPastedImage: vi.fn(async () => ({ ok: true, attachment: { id: "pasted", name: "pasted.png", size: 10, kind: "image", path: "/u/pasted.png", pasted: true } })),
@@ -739,4 +740,63 @@ test("re-picking the model or level Edit on Home restored remembers it as picked
   (find(tree, props => typeof props.onValueChange === "function" && props.value === "high").onValueChange as (value: string) => void)("high");
   render(); runChanged(deps);
   expect(onRemember.mock.calls.at(-1)![0]).toMatchObject({ model: "opus", effort: "high", modelPicked: true, effortPicked: true });
+});
+
+const flush = () => new Promise(resolve => setTimeout(resolve, 0));
+function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(done => { resolve = done; }); return { resolve, promise }; }
+test.each([true, false])("skill replies remain with their root in either completion order (%s)", async oldFirst => {
+  vi.stubGlobal("document", { addEventListener: vi.fn(), removeEventListener: vi.fn() });
+  const a = deferred<{ skills: { name: string; description: string }[] }>();
+  const b = deferred<{ skills: { name: string; description: string }[] }>();
+  doan.listConversationSkills!.mockImplementation(({ root }) => root === ENTRY.path ? a.promise : b.promise);
+  const { box, render } = setup({ text: "/deploy", root: ENTRY.path }, { entries: [ENTRY, B] });
+  render(); await runEffects();
+  box.current = { ...box.current, root: B.path };
+  render(); await runEffects();
+  const resolveA = async () => { a.resolve({ skills: [{ name: "deploy", description: "A" }] }); await flush(); };
+  const resolveB = async () => { b.resolve({ skills: [{ name: "review", description: "B" }] }); await flush(); };
+  if (oldFirst) { await resolveA(); await resolveB(); } else { await resolveB(); await resolveA(); }
+  expect(input(render()).skillNames).toEqual(new Set(["review"]));
+  box.current = { ...box.current, root: ENTRY.path };
+  expect(input(render()).skillNames).toEqual(new Set(["deploy"]));
+});
+test("exact skill Enter sends the displayed word and refreshes after a turn ends", async () => {
+  vi.stubGlobal("document", { addEventListener: vi.fn(), removeEventListener: vi.fn() });
+  doan.listConversationSkills!.mockResolvedValue({ skills: [{ name: "deploy", description: "Deploy" }] });
+  const { render, start, props } = setup({ text: "/deploy" });
+  render(); await runEffects(); await flush();
+  call(field(render()), "onKeyDown", key("Enter")); await flush();
+  expect(start.mock.calls[0]?.[0]).toMatchObject({ text: "Use the project skill `deploy`.\n\n/deploy" });
+  props.running = new Map([[ENTRY.path, { conversationId: "c" }]]);
+  render(); await runEffects();
+  await flush();
+  const before = doan.listConversationSkills!.mock.calls.length;
+  props.running = new Map(); render(); await runEffects();
+  expect(doan.listConversationSkills!.mock.calls.length).toBeGreaterThan(before);
+});
+
+test("switching to Cursor removes skills from both the field and sent request", async () => {
+  vi.stubGlobal("document", { addEventListener: vi.fn(), removeEventListener: vi.fn() });
+  doan.listConversationSkills!.mockResolvedValue({ skills: [{ name: "deploy", description: "Deploy" }] });
+  const { render, box, start } = setup({ text: "/deploy", auth: { revision: 1, providers: [dto("claude"), dto("cursor")] } });
+  render(); await runEffects(); await flush();
+  expect(input(render()).skillNames).toEqual(new Set(["deploy"]));
+  box.current = { ...box.current, provider: "cursor" };
+  const tree = render();
+  expect(input(tree).skillNames).toEqual(new Set());
+  call(field(tree), "onKeyDown", key("Enter")); await flush();
+  expect(start.mock.calls[0]?.[0]).toMatchObject({ text: "/deploy" });
+});
+test("a refreshed list changes both highlighted names and fixed send lines", async () => {
+  vi.stubGlobal("document", { addEventListener: vi.fn(), removeEventListener: vi.fn() });
+  doan.listConversationSkills!.mockResolvedValue({ skills: [{ name: "deploy", description: "Deploy" }] });
+  const { render, start } = setup({ text: "/deploy /review" });
+  render(); await runEffects(); await flush();
+  expect(input(render()).skillNames).toEqual(new Set(["deploy"]));
+  doan.listConversationSkills!.mockResolvedValue({ skills: [{ name: "review", description: "Review" }] });
+  (find(render(), p => typeof p.onOpenChange === "function" && p.open === false).onOpenChange as (open: boolean) => void)(true);
+  await flush();
+  expect(input(render()).skillNames).toEqual(new Set(["review"]));
+  call(field(render()), "onKeyDown", key("Enter")); await flush();
+  expect(start.mock.calls[0]?.[0]).toMatchObject({ text: "Use the project skill `review`.\n\n/deploy /review" });
 });

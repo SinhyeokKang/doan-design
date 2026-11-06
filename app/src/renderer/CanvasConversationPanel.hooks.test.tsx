@@ -47,7 +47,7 @@ const flush = async () => { for (let i = 0; i < 5; i++) await Promise.resolve();
 
 beforeEach(() => {
   hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.pending = [];
-  vi.stubGlobal("window", { doan: {
+  vi.stubGlobal("window", { doan: { listConversationSkills: vi.fn(async () => ({ skills: [] })),
     conversationResumeTarget: vi.fn(async () => ({ available: true, runtime: "codex", lastCheckAt: "2026-11-01T14:02:00", session: "s1" })),
     onAgentAuth: vi.fn(() => () => {}),
   } });

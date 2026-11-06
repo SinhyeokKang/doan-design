@@ -71,6 +71,7 @@ function setup(patch: Partial<DockedComposerProps> = {}, drafts: [string, Docked
   const send = vi.fn(async (_request: unknown): Promise<DockedOutcome> => ({ ok: true }));
   const queue = vi.fn(async (_request: unknown): Promise<DockedOutcome> => ({ ok: true }));
   const props: DockedComposerProps = {
+    skills: [], onSkillsWanted: () => {},
     mode: A, project: "doan-design", homeDirectory: null, placeholder: "Reply, / for presets",
     drafts: store.current, onDrafts: update => { store.current = update(store.current); props.drafts = store.current; },
     auth: AUTH, picker: PICKER, provider: "claude", effort: null,
@@ -957,4 +958,13 @@ test("a suggestion that starts with / goes in as text and leaves the preset list
   for (const effect of hooks.effects) effect();
   type(render(), "/");
   expect(field(render()).role).toBe("combobox");
+});
+
+test("a skill ending at an anchor chip sends the same names as its field highlight", async () => {
+  const segments: FieldSegment[] = [{ kind: "text", text: "/deploy" }, { kind: "chip", anchor: { frame: { id: "f" } } }];
+  const { render, send } = setup({ skills: [{ name: "deploy", description: "Deploy" }] }, [["conversation:a", { ...EMPTY_DRAFT, segments }]]);
+  const tree = render();
+  expect(input(tree).skillNames).toEqual(new Set(["deploy"]));
+  (button(tree, "Send").onClick as () => void)(); await flush();
+  expect(send.mock.calls[0]?.[0]).toMatchObject({ text: "Use the project skill `deploy`.\n\n/deploy{{1}}" });
 });

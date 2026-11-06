@@ -91,9 +91,9 @@ describe("threadItems", () => {
   });
 
   test("an attachment-only request shows no text; the same words typed by the person stay", () => {
-    expect(splitRequest("Look at the attached files.", 1)).toEqual({ preset: null, body: "" });
-    expect(splitRequest("Look at the attached files.", 0)).toEqual({ preset: null, body: "Look at the attached files." });
-    expect(splitRequest("Use the Doan design preset `polish` (Polish (final)).", 0)).toEqual({ preset: { id: "polish", title: "Polish (final)" }, body: "" });
+    expect(splitRequest("Look at the attached files.", 1)).toEqual({ preset: null, skills: [], body: "" });
+    expect(splitRequest("Look at the attached files.", 0)).toEqual({ preset: null, skills: [], body: "Look at the attached files." });
+    expect(splitRequest("Use the Doan design preset `polish` (Polish (final)).", 0)).toEqual({ preset: { id: "polish", title: "Polish (final)" }, skills: [], body: "" });
   });
 
   test("a run of activities folds into one line: the latest while running, N steps once the turn moved on", () => {
@@ -490,4 +490,10 @@ describe("Fast not used", () => {
     expect(threadItems(failed, ROOT, true).map(i => i.kind)).toEqual(["user", "fast", "end"]);
     expect(threadItems(failed, ROOT, true)[1]).toMatchObject({ text: "Fast wasn’t used for this turn.", turnedOff: false });
   });
+});
+
+test("history and optimistic messages pass sent skills to their bubble", () => {
+  const text = "Use the project skill `deploy`.\n\n/deploy now\n\nUse the project skill `review`.";
+  expect(threadItems(turn("skills", text), ROOT, false)[0]).toMatchObject({ skills: ["deploy", "review"], parts: [{ text: "/deploy now" }] });
+  expect(withSending([], [{ id: "s", text, anchors: [], attachments: [] }])[0]).toMatchObject({ skills: ["deploy", "review"], parts: [{ text: "/deploy now" }] });
 });

@@ -12,6 +12,8 @@ import { messageLine, type FrameName } from "../main/conversation/messageText";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { WorkItem } from "../main/workState";
 import type { HomeMemory } from "../restore/uiState";
+import { requestTitleText, stripRequestLines } from "../main/conversation/requestLines";
+import { useProjectSkills } from "./useProjectSkills";
 import { AlertIcon } from "./AlertIcon";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import { textSegments } from "./anchorField";
@@ -202,7 +204,7 @@ export function canvasConversationTitle(run: CanvasRun, list: ListView): { title
   const summary = Array.isArray(list) ? list.find(c => c.conversationId === view.conversationId) : undefined;
   const first = run.store.thread(view.conversationId)?.events.find(event => event.type === "user.message");
   // Before a list names it, the first message stands in as main's title does: chips by name (messageLine).
-  return { title: summary?.title || (first?.type === "user.message" ? messageLine(first.text, first.anchors) : ""), current: view.conversationId };
+  return { title: summary?.title || (first?.type === "user.message" ? messageLine(requestTitleText(first.text), first.anchors) : ""), current: view.conversationId };
 }
 
 export function CanvasConversation(props: CanvasConversationProps) {
@@ -270,6 +272,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
   const ready = chosen !== null && (auth?.providers ?? []).some(status => status.provider === chosen && status.account !== null && selectableProvider(status));
   // A new connection of the provider has a list of its own to read.
   const generation = chosen ? generationOf(auth, chosen) : 0;
+  const projectSkills = useProjectSkills(root, chosen, conversationId ? turnOf(thread?.events ?? null, summary, live) : "idle", generation);
   useEffect(() => { if (healthy && chosen && ready && !fixed) support.readModels(root, chosen); }, [root, healthy, chosen, ready, fixed, generation]);
 
   const presets = support.presets?.ok ? support.presets.result.presets : [];
@@ -470,7 +473,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
           onClick={() => notice.kind === "drawing" ? props.onOpenProjectConversation(notice.open) : openConversation(notice.open)}>Open</button></span></div>}
     </div>
     <div className="cp-foot">
-      <DockedComposer mode={mode} project={project} homeDirectory={null} placeholder={placeholder} suggestion={summary ? summary.suggestion ?? null : undefined} chipScope={canvasScope(target)}
+      <DockedComposer skills={projectSkills.skills} onSkillsWanted={projectSkills.read} mode={mode} project={project} homeDirectory={null} placeholder={placeholder} suggestion={summary ? summary.suggestion ?? null : undefined} chipScope={canvasScope(target)}
         pick={props.pick} link={props.composerLink} onLocate={props.onLocate} canvasPress={props.canvasPress}
         drafts={store.drafts} onDrafts={update => store.setDrafts(update)}
         auth={auth} picker={picker} provider={chosen} effort={effort}
@@ -507,7 +510,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
 
 // A queued message's line: chips by name, as other one-line places show them; the request keeps its markers.
 export function queuedText(request: DockedRequest): string {
-  return messageLine(request.text, request.anchors);
+  return messageLine(stripRequestLines(request.text), request.anchors);
 }
 // The row shows the line; the request itself is kept for the thread, where Send now moves the message.
 export function queuedMessage(itemId: string, request: DockedRequest): QueuedMessage {
