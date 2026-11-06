@@ -40,15 +40,27 @@ PoC 완료(2026-11-06): P1(두 번), P2 (a)–(d), P3.
 
 ## S. 설정과 skill(한 `/ship` PR, design §0 10)
 
-- [ ] S0. `/ship`의 `chore/tester-notarization` 브랜치에서 P2로 확정한 `app/resources/entitlements.mac.plist`를 만들고, `app/package.json`에 `mac.entitlements`·`mac.entitlementsInherit`를 넣는다(design §4).
+- [x] S0. `/ship`의 `chore/tester-notarization` 브랜치에서 P2로 확정한 `app/resources/entitlements.mac.plist`를 만들고, `app/package.json`에 `mac.entitlements`·`mac.entitlementsInherit`를 넣는다(design §4).
   - 검증: `node .agents/skills/verify/scripts/verify.mjs`가 통과한다. `app/package.json`의 `mac.identity`가 `null`이고 `app/scripts/package.mjs`가 바뀌지 않는다. (명령 미정) `npm --prefix app run package` 결과의 `codesign -dv`에 Developer ID authority가 없다.
-- [ ] S1. 같은 브랜치에서 `.agents/skills/tester-build/SKILL.md`를 design §3대로 고친다. description, 소개, 일회성 준비(이 머신, 다른 머신, 준비 중 관찰 세 항목), preflight, 단계, 확인, 보고서, 금지 사항을 바꾼다.
+- [x] S1. 같은 브랜치에서 `.agents/skills/tester-build/SKILL.md`를 design §3대로 고친다. description, 소개, 일회성 준비(이 머신, 다른 머신, 준비 중 관찰 세 항목), preflight, 단계, 확인, 보고서, 금지 사항을 바꾼다.
   - 검증(문서): SKILL.md에 G2 중간 인증서, Xcode 라이선스(exit 69 구분), Request Access, identity가 둘 이상일 때의 목록 보고, `env -u` 줄, "notarization successful" 확인, `--timeout 30m`, staple 재시도, Desktop dmg preflight가 있다.
   - 검증(명령 미정, 실행): 사람이 PR을 merge한 뒤 `/tester-build`를 한 번 끝까지 실행한다. Desktop에 `Doan-tester-<date>-<sha>.dmg`가 생기고, 보고서가 spec '`/tester-build` 결과'의 codesign·entitlements·designated requirement·dmg Timestamp·stapler·spctl 항목과 설치 안내 문구를 통과로 보인다. preflight 실패 경로는 없는 프로필 이름으로 `notarytool history`를 실행해, 출력이 "No Keychain password item found"인지만 확인한다.
-- [ ] S2. 같은 브랜치에서 AGENTS.md 'Commands'의 tester build 줄을 고친다("ad-hoc signed" → Developer ID signed and notarized with the building machine's keychain credentials).
+- [x] S2. 같은 브랜치에서 AGENTS.md 'Commands'의 tester build 줄을 고친다("ad-hoc signed" → Developer ID signed and notarized with the building machine's keychain credentials).
   - 검증: `grep -n "Tester build" AGENTS.md`의 줄에 "ad-hoc"이 없다.
 
 커밋 경계: S0(`chore: add hardened runtime entitlements for signed builds`), S1(`docs(skill): notarize tester builds`), S2(`docs: tester build is notarized`)를 파일별로 나누어 한 PR에 담는다. `/ship`은 merge하지 않으므로 merge는 사람이 한다. S1 실행 검증은 그 뒤에 한다.
+
+S0–S2는 PR #109로 merge되었다(`3a27e626`, orch.md). S1 실행 검증(2026-11-06): merge된 skill로 `/tester-build`를 origin/main `3a27e62`에서 끝까지 실행했다.
+- preflight가 통과했다. identity 하나, 프로필 exit 0, Desktop에 같은 이름의 dmg 없음.
+- 빌드는 353초 걸렸고, 출력에 "notarization successful"이 있었다. 앱 submission `85bf0a83-b442-459c-8e7f-2b5fb1f50fdb`는 `Accepted`였다. dmg submission `d9c7aa45-00da-42cf-8b70-23cfc1914a33`은 75초 만에 `Accepted`였고, staple은 처음 시도에 통과했다.
+- skill 단계 6의 확인이 모두 통과했다.
+  - `codesign --verify --deep --strict`가 통과했다. Mach-O 21개 모두 Developer ID, `runtime`, Timestamp를 가졌다.
+  - 앱, helper 4개, `bin/doan`, `spawn-helper`의 entitlements가 커밋한 파일의 두 항목과 같았다.
+  - designated requirement는 `leaf[subject.OU] = "7H4HNHTB45"`였고 cdhash가 아니었다.
+  - dmg는 Developer ID authority와 Timestamp를 가졌다. `stapler validate`가 앱과 dmg 모두 통과했다.
+  - quarantine을 붙인 dmg와 마운트한 앱의 `spctl`이 `accepted`, `source=Notarized Developer ID`였다.
+- 결과물: `~/Desktop/Doan-tester-2026-11-06-3a27e62.dmg`.
+- preflight 실패 경로(없는 프로필)의 출력은 P 단계에서 "No Keychain password item found for profile"로 확인했다.
 
 ## Z. 문서 승격
 
