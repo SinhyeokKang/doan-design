@@ -90,7 +90,7 @@ describe("blocked wording", () => {
     expect(usageDescription([entry], NOW)).toBe(description);
     // The same sentence the Settings > Agents row leads with for that connection, its account included.
     const status: AuthStatusDto = {
-      provider, revision: 3, phase: blocked.phase, account: { email: "ada@example.com" }, readiness: blocked.readiness, actions: [],
+      provider, revision: 3, generation: 1, phase: blocked.phase, account: { email: "ada@example.com" }, readiness: blocked.readiness, actions: [],
       attempt: blocked.attempt ? { id: "a1", kind: blocked.attempt, cancelling: false } : null, error: blocked.error ? { code: blocked.error, retryable: true } : null,
     };
     const settings = providerView(status, { settings: true });

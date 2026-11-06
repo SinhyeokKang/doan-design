@@ -4,7 +4,7 @@ import type { AuthStatusDto, Provider, Readiness } from "../main/agentAuth/types
 import { advance, canAdvance, canComplete, initialScene, isCurrent, mergeStatus, newerAuth, nextScene, ownedSignIns, type SceneEvent, type SceneState } from "./onboardingScene";
 
 function provider(name: Provider, readiness: Readiness, extra: Partial<AuthStatusDto> = {}): AuthStatusDto {
-  return { provider: name, revision: 1, phase: readiness.ready ? "connected" : "disconnected", account: null, attempt: null, readiness, error: null, actions: [], ...extra };
+  return { provider: name, revision: 1, generation: 1, phase: readiness.ready ? "connected" : "disconnected", account: null, attempt: null, readiness, error: null, actions: [], ...extra };
 }
 const READY: Readiness = { ready: true };
 const notConnected: Readiness = { ready: false, cause: "not_connected", action: "signIn" };

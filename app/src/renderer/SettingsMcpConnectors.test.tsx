@@ -62,7 +62,7 @@ function snap(rows: Partial<Record<McpProvider, Record<string, Status>>> = {}, s
   };
 }
 const dto = (provider: Provider, signedIn: boolean, readiness: Readiness = { ready: true }): AuthStatusDto =>
-  ({ provider, revision: 1, phase: readiness.ready ? "connected" : "reauthRequired", account: signedIn ? { email: "ada@example.com" } : null, attempt: null, readiness, error: null, actions: [] });
+  ({ provider, revision: 1, generation: 1, phase: readiness.ready ? "connected" : "reauthRequired", account: signedIn ? { email: "ada@example.com" } : null, attempt: null, readiness, error: null, actions: [] });
 
 let api: Record<string, ReturnType<typeof vi.fn>>;
 let feed: (snapshot: McpSnapshot) => void;

@@ -15,7 +15,12 @@ import type { ModelsState, PresetListReply } from "./homeComposer";
 // fast: the Fast switch the person changed, sent with the next turn as model and effort are (fast-mode design §1).
 export interface DockedPick { provider?: Provider; model?: string; effort?: string; fast?: boolean; permissionMode?: PermissionModeId; permissionFrom?: PermissionModeId }
 
-export const modelsKey = (root: string, provider: Provider) => `${root}\n${provider}`;
+// A list belongs to the provider's connection it was read under (its auth generation): main lists a new connection
+// again, and a Codex replacement can keep the provider and the email shown, so nothing else tells the window.
+export const modelsKey = (root: string, provider: Provider, generation: number) => `${root}\n${provider}\n${generation}`;
+export function generationOf(auth: AuthSnapshot | null | undefined, provider: Provider): number {
+  return auth?.providers.find(status => status.provider === provider)?.generation ?? 0;
+}
 
 export class DockedSupport {
   auth: AuthSnapshot | null | undefined = undefined;
@@ -41,7 +46,7 @@ export class DockedSupport {
     });
   }
   readModels(root: string, provider: Provider): void {
-    const key = modelsKey(root, provider);
+    const key = modelsKey(root, provider, generationOf(this.auth, provider));
     if (this.models[key] !== undefined) return;
     this.models = { ...this.models, [key]: "loading" };
     this.changed();

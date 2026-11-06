@@ -10,6 +10,7 @@ import type { AgentSignIn } from "./agentSignIn";
 import { AgentStepSession } from "./agentStep";
 import { AlertIcon } from "./AlertIcon";
 import { PermissionIconView, PermissionMenuItems } from "./ComposerParts";
+import { generationOf, modelsKey } from "./dockedSupport";
 import { modelPickerView, providerLogo, selectableProvider, type ModelsState } from "./homeComposer";
 import { firstUsable, focusLost, NoticeView, PasteDialog, StopDialog } from "./Onboarding";
 import { settingsEffortLabel, settingsModelMenu, settingsModelPick } from "./newConversationSettings";
@@ -185,7 +186,7 @@ function NewConversations({ auth, preferences, save, project }: Pick<SettingsAge
   const connected = (auth?.providers ?? []).filter(status => status.account !== null);
   const runnable = provider !== null && connected.some(status => status.provider === provider && selectableProvider(status));
   const name = provider ? PROVIDER_NAMES[provider] : "";
-  const key = project && provider ? `${project.root}\n${provider}` : null;
+  const key = project && provider ? modelsKey(project.root, provider, generationOf(auth, provider)) : null;
   const listState = key ? lists[key] : undefined;
   useEffect(() => {
     if (!key || !project || !provider || !runnable || listState !== undefined) return;

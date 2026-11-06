@@ -16,6 +16,7 @@ import { Doany, type DoanyHandle } from "./Doany";
 import { textSegments, typedText } from "./anchorField";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import { cardRow, groupProjects } from "./homeCards";
+import { generationOf, modelsKey } from "./dockedSupport";
 import {
   attachmentChipView, attachmentLimit, chipRemoval, composeRequest, defaultEffort, defaultFast, defaultModel, defaultProject, defaultProvider,
   fixedPreference, greetingText, groupIcon, lengthCounter, modelOption, modelPickerView, presetListView, presetPlaceholder,
@@ -143,7 +144,6 @@ function HomeStage({ children }: { children: ReactNode }) {
   return <div className="home-stage" ref={stage} style={top === null ? undefined : { paddingTop: top }}>{children}</div>;
 }
 
-const listKey = (root: string, provider: Provider) => `${root}\n${provider}`;
 const effortKey = (provider: Provider, model: string) => `${provider}\n${model}`;
 
 // `/` list keys (design §4.9): arrows move, Enter picks unless an IME is composing, Tab closes, Escape closes until
@@ -237,7 +237,7 @@ export function HeroComposer(props: HeroComposerProps) {
   useEffect(() => { if (!started && props.defaults !== undefined && memory.current.defaults !== props.defaults) update({ defaults: props.defaults }); });
   const provider = m.provider ?? defaultProvider(auth, props.prefs?.lastProvider, defaults);
   const fixed = provider ? fixedPreference(defaults, provider) : null;
-  const lists: Partial<Record<Provider, ModelsState>> = root ? Object.fromEntries((auth?.providers ?? []).map(status => [status.provider, m.lists[listKey(root, status.provider)]])) : {};
+  const lists: Partial<Record<Provider, ModelsState>> = root ? Object.fromEntries((auth?.providers ?? []).map(status => [status.provider, m.lists[modelsKey(root, status.provider, status.generation)]])) : {};
   const listState = provider ? lists[provider] : undefined;
   const saved = provider ? props.prefs?.models?.[provider] : undefined;
   const explicitModel = provider ? m.models[provider] : undefined;
@@ -263,7 +263,7 @@ export function HeroComposer(props: HeroComposerProps) {
   const openSettings = (target: SettingsTarget) => queueMicrotask(() => props.openSettings(target));
 
   const readModels = (forRoot: string, forProvider: Provider) => {
-    const key = listKey(forRoot, forProvider);
+    const key = modelsKey(forRoot, forProvider, generationOf(memory.current.auth, forProvider));
     if (memory.current.lists[key] !== undefined) return;
     update(current => ({ lists: { ...current.lists, [key]: "loading" } }));
     void window.doan.listConversationModels({ root: forRoot, runtime: forProvider }).catch(() => ({ error: "unknown" })).then(reply => update(current => ({ lists: { ...current.lists, [key]: reply } })));
@@ -271,7 +271,9 @@ export function HeroComposer(props: HeroComposerProps) {
   const healthy = entry?.kind === "list";
   const ready = provider !== null && (auth?.providers ?? []).some(status => status.provider === provider && status.account !== null && selectableProvider(status));
   // The chosen provider's list shows its model and effort on the closed picker; the rest are read when it opens.
-  useEffect(() => { if (root && healthy && provider && ready) readModels(root, provider); }, [root, healthy, provider, ready]);
+  // A new connection of the provider has a list of its own to read; Home's memory outlives the screen.
+  const generation = provider ? generationOf(auth, provider) : 0;
+  useEffect(() => { if (root && healthy && provider && ready) readModels(root, provider); }, [root, healthy, provider, ready, generation]);
 
   // Presets: read on entering Home and kept for the run; a failure is read again when the popover opens (§4.4).
   const readPresets = () => {

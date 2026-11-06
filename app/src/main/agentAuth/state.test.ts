@@ -290,7 +290,7 @@ describe("status DTO", () => {
   it("publishes account, readiness and actions without secrets or internal references", () => {
     const failed = step(step(connected(), { type: "check", attemptId: "c1" }), { type: "checked", attemptId: "c1", result: { status: "failed", code: "network", detail: "sk-ant-secret /Users/x/.claude/.credentials.json" } });
     const dto = authStatus(failed, tools, 7);
-    expect(dto).toEqual({ provider: "claude", revision: 7, phase: "connected", account: { displayName: "Ada", email: "ada@example.com" }, attempt: null,
+    expect(dto).toEqual({ provider: "claude", revision: 7, generation: 1, phase: "connected", account: { displayName: "Ada", email: "ada@example.com" }, attempt: null,
       readiness: { ready: true }, error: { code: "network", retryable: true }, actions: ["retry", "signOut"] });
     const text = JSON.stringify(dto);
     for (const hidden of ["sk-ant", ".credentials", "conn-1", "claude-1", "acct-1", "detail"]) expect(text).not.toContain(hidden);
