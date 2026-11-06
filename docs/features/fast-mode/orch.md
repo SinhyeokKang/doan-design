@@ -68,7 +68,12 @@
 - R을 통합했다(`23f46879`…`a128cc87`, 7 commits, 2 rounds). M 통합 뒤 rebase하고 `/verify`를 함께 돌린다.
 - M r1 수정(`02f5b9eb` index를 이벤트보다 먼저 저장, `b6f01bcc` 테스트 고정)은 conductor가 diff를 읽고 받아들였다. M을 통합했다(7 commits 중 6개 batch 커밋, 2 rounds).
 - 통합 뒤 첫 `/verify`는 app-test의 `clone.test.ts` 2건에서 실패했다(`.scratch/verify-int2.log`). 원인은 실행 중 Xcode 라이선스 동의가 풀려 `/usr/bin/git`이 동작하지 않은 것이다. 사람이 `sudo xcodebuild -license accept`를 실행했다. 그 뒤 `origin/main`(`86311ef4`)으로 rebase하고 다시 돌렸고 PASS였다(`.scratch/verify-int3.log`, HEAD `213adfe9`, 8682 tests).
-- C worktree는 M·R이 계약 수정을 요청할 수 있어서 둘을 통합할 때까지 남긴다. handoff와 리뷰는 conductor `.scratch/C/`에 복사했다.
+- C를 정리했다. worker 셋을 release했고, `git cherry`에 `+`가 없음을 확인한 뒤 Orca로 worktree `fast-mode-C`를 지웠다(목록에서 사라진 것 확인). 브랜치 `SinhyeokKang/fast-mode-C`(tip `14220645`)는 남아 있다. handoff와 리뷰는 conductor `.scratch/C/`에 있다.
+- S(B3)를 R worker의 후속 Task로 보냈다(`ctx_0828f36a5fe6`, 통합 HEAD로 reset한 뒤 측정).
+- S 결과(`.scratch/S/handoff-S.md`): Fast 행 padding 하나를 고쳤고(`91506c3f`), DESIGN.md에 측정값을 적었다(`c77051c9`). 🟡4는 실제 앱에서 확인했다. 클릭·Enter·Space로 바꿔도 메뉴는 열려 있고 focus는 행에 남으며, 레벨을 고르면 닫힌다. S 안의 독립 리뷰는 🔴 0이었다. 둘 다 통합했다(`5ee97116`, `ac893bf8`).
+  - 결정 4 보충: 프로필로 읽은 목록에 쓸 수 있는 Fast가 없었다. 그래서 켜진 행·트리거 아이콘·토글은 main의 `conversation:models` 응답을 측정용으로 바꿔 넣고 쟀다.
+  - 터미널 세션의 고정 트리거는 실제 앱에서 보지 못했다. 단위 테스트로만 고정되어 있다.
+- 조사 I1(M worker, `ctx_f01af5827511`): Doan 목록 읽기에서 Claude는 `unavailable: extra_usage`가 나왔다. 반면 conductor의 SDK 프로브는 같은 프로필, 설치된 CLI 2.1.319로 `on`이었다. Codex는 keyring 인증으로 읽으면 모델 3개에 티어가 없고, keyring 없이 읽으면 9개 모두 `priority` 티어가 있었다. 원인(이 feature의 결함, 기존 인증 경로, 계정 자체)을 가린다. T(R1)는 이 결과를 본 뒤 시작한다.
 
 ## Orca
 
