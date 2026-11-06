@@ -75,3 +75,38 @@ test("a deleted conversation's stage goes, and one arriving late is dropped", as
   expect(store.stageOf(A)).toBeNull();
   expect(host.changed).not.toHaveBeenCalled();
 });
+
+// Follow-up 1: readThread applies the reply's stage once the merged history is set (MC's `stage?` on the reply).
+test("a read reply's stage shows after a re-read, and a later lower-rev reply never overwrites a newer push", async () => {
+  const { store } = harness();
+  const read = window.doan.readConversation as ReturnType<typeof vi.fn>;
+  read.mockResolvedValueOnce({ error: "unknown" });
+  store.track(A);
+  await flush();
+  expect(store.thread(A)?.read).toBe("error");
+  const replied = signal(A, "t1", 3);
+  read.mockResolvedValueOnce({ events: history, lastSeq: history.at(-1)!.seq, stage: replied });
+  store.retryThread(A);
+  await flush();
+  expect(store.stageOf(A)).toEqual(replied);
+  // A reply sent before a push may arrive after it: the push's higher rev stays.
+  let answer!: (reply: unknown) => void;
+  read.mockImplementationOnce(() => new Promise(resolve => { answer = resolve; }));
+  const { store: reloaded } = harness();
+  reloaded.track(A);
+  const pushed = signal(A, "t1", 5, { kind: "general" });
+  reloaded.stage(pushed);
+  answer({ events: history, lastSeq: history.at(-1)!.seq, stage: signal(A, "t1", 4) });
+  await flush();
+  expect(reloaded.thread(A)?.read).toBe("ready");
+  expect(reloaded.stageOf(A)).toBe(pushed);
+});
+
+test("a reply without a stage leaves the held one", async () => {
+  const { store } = harness();
+  const pushed = signal(A, "t1", 2);
+  store.track(A);
+  store.stage(pushed);
+  await flush();
+  expect(store.stageOf(A)).toBe(pushed);
+});
