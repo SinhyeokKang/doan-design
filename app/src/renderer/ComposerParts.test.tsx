@@ -4,7 +4,7 @@ import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test, vi } from "vitest";
 import { DropdownMenu } from "radix-ui";
-import { EffortPicker, IconTip, PermissionPicker, presetBody, PresetsButton, SlashPresets } from "./ComposerParts";
+import { AgentPicker, EffortPicker, IconTip, PermissionPicker, presetBody, PresetsButton, SlashPresets } from "./ComposerParts";
 import type { ModelPickerView } from "./homeComposer";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { permissionPickerView } from "./permissionPicker";
@@ -42,7 +42,7 @@ test("a preset row is its title over its description", () => {
 // colour alone.
 test("the permission trigger shows the mode's icon and label; Full access warns", () => {
   const html = (mode: "default" | "bypass", size?: "xs") => renderToStaticMarkup(<TooltipProvider><PermissionPicker view={permissionPickerView("codex", undefined, mode)!} disabled={false} onPick={() => {}} {...(size ? { size } : {})} /></TooltipProvider>);
-  expect(html("default")).toMatch(/<button type="button" class="composer-permission doan-button" data-ui-size="sm" data-ui-variant="trigger" data-mode="default" aria-label="Permission: Default"[^>]*><svg[^>]*lucide-shield[^-][^>]*>.*?<\/svg><span class="label">Default<\/span><svg[^>]*chev/);
+  expect(html("default")).toMatch(/<button type="button" class="composer-permission doan-button" data-ui-size="sm" data-ui-variant="trigger" data-mode="default" aria-label="Permission: Ask first"[^>]*><svg[^>]*lucide-shield[^-][^>]*>.*?<\/svg><span class="label">Ask first<\/span><svg[^>]*chev/);
   expect(html("bypass", "xs")).toMatch(/data-ui-size="xs" data-ui-variant="trigger" data-mode="bypass" aria-label="Permission: Full access, no approval requests"[^>]*><svg[^>]*lucide-shield-alert/);
   expect(html("bypass")).toContain('<span class="label">Full access</span>');
 });
@@ -149,7 +149,8 @@ test("the canvas's press signal closes an open Presets popover without returning
 // fast-mode B2 (design §1, decisions 9–11): the Fast row under the Effort levels and the trigger's Fast icon.
 type EffortView = NonNullable<ModelPickerView["effort"]>;
 const effortView = (fast: EffortView["fast"], ariaLabel = "Effort: High"): EffortView => ({
-  label: "High", ariaLabel, menuLabel: "Effort for GPT-6.1 Sol", title: "Effort · GPT-6.1 Sol",
+  label: "High", ariaLabel, placeholder: false, menuLabel: "Effort for GPT-6.1 Sol", title: "Effort · GPT-6.1 Sol",
+  unset: { label: "Default", description: "Medium for this model", selected: false },
   options: [{ id: "low", label: "Low", selected: false }, { id: "high", label: "High", selected: true }], fast,
 });
 function effortTree(view: EffortView, onPick = vi.fn(), onPickFast = vi.fn(), size?: "xs") {
@@ -201,7 +202,64 @@ test("an unavailable Fast row is disabled and says why; without Fast the menu st
   expect(renderToStaticMarkup(<>{unavailable.find(item => item.type === DropdownMenu.CheckboxItem)!.props.children as ReactNode}</>)).toContain("Extra usage is turned off for this account.");
   const none = effortTree(effortView(null));
   expect(none.find(item => item.type === DropdownMenu.Content)?.props.className).toBe("doan-floating doan-menu effort-popover");
-  expect(none.some(item => item.type === DropdownMenu.CheckboxItem || item.type === DropdownMenu.Separator)).toBe(false);
+  expect(none.some(item => item.type === DropdownMenu.CheckboxItem)).toBe(false);
+  // Only the Default row's own separator.
+  expect(none.filter(item => item.type === DropdownMenu.Separator)).toHaveLength(1);
+});
+
+// picker-default-labels B1 (spec 'Effort', design §1 ComposerParts): the menu opens with a Default row that goes back to
+// sending no level, checked while nothing is chosen.
+test("the effort menu opens with a Default row over its line; picking it passes an empty level", () => {
+  const onPick = vi.fn();
+  const unset = { ...effortView(null), label: "Medium", ariaLabel: "Effort: Medium, default", unset: { label: "Default" as const, description: "Medium for this model", selected: true },
+    options: [{ id: "low", label: "Low", selected: false }, { id: "high", label: "High", selected: false }] };
+  hooks.on = true; hooks.cursor = 0; hooks.refCursor = 0; hooks.effects = [];
+  let tree: ReturnType<typeof propsOf>;
+  try { tree = propsOf(EffortPicker({ view: unset, effort: null, disabled: false, onPick })); } finally { hooks.on = false; }
+  const group = tree.find(item => item.type === DropdownMenu.RadioGroup)!;
+  expect(group.props.value).toBe("");
+  const items = tree.filter(item => item.type === DropdownMenu.RadioItem);
+  expect(items.map(item => item.props.value)).toEqual(["", "low", "high"]);
+  expect(items[0]!.props.className).toBe("doan-menu-item unset-item");
+  const row = renderToStaticMarkup(<>{items[0]!.props.children as ReactNode}</>);
+  expect(row).toMatch(/^<span class="unset-copy"><span class="model-name">Default<\/span><span class="sub">Medium for this model<\/span><\/span><span class="check-slot"><svg[^>]*check/);
+  // A separator parts the Default row from the levels; no level shows a check.
+  const kinds = tree.map(item => item.type);
+  expect(kinds.indexOf(DropdownMenu.Separator)).toBeGreaterThan(tree.indexOf(items[0]!));
+  expect(kinds.indexOf(DropdownMenu.Separator)).toBeLessThan(tree.indexOf(items[1]!));
+  expect(items.slice(1).every(item => !renderToStaticMarkup(<>{item.props.children as ReactNode}</>).includes("lucide-check"))).toBe(true);
+  (group.props.onValueChange as (value: string) => void)("");
+  expect(onPick).toHaveBeenCalledWith("");
+  // A chosen level unchecks the Default row.
+  const picked = effortTree(effortView(null));
+  expect(renderToStaticMarkup(<>{picked.filter(item => item.type === DropdownMenu.RadioItem)[0]!.props.children as ReactNode}</>)).not.toContain("lucide-check");
+});
+
+test("a trigger with no value draws its drawer's name as a placeholder", () => {
+  const html = (view: EffortView) => renderToStaticMarkup(<TooltipProvider><EffortPicker view={view} effort={null} disabled={false} onPick={() => {}} /></TooltipProvider>);
+  expect(html({ ...effortView(null), label: "Effort", ariaLabel: "Effort: default", placeholder: true })).toContain('<span class="label placeholder">Effort</span>');
+  expect(html({ ...effortView(null), label: "Medium", ariaLabel: "Effort: Medium, default" })).toContain('<span class="label">Medium</span>');
+});
+
+// picker-default-labels B1 (spec 'Model'): the default row carries a small Default after its name; a trigger with no
+// model names its drawer in the placeholder ink.
+const agentPicker = (trigger: ModelPickerView["trigger"]): ModelPickerView => ({
+  trigger, effort: null,
+  groups: [{ provider: "codex", name: "Codex", selectable: true, cause: null, note: null, read: false, rows: [
+    { kind: "model", id: "gpt-6-luna", label: "GPT-6-Luna", effort: true, selected: false, isDefault: true },
+    { kind: "model", id: "gpt-5.6-terra", label: "GPT-5.6-Terra", effort: true, selected: true, isDefault: false },
+  ] }],
+});
+test("the model menu marks the default row, and an unchosen trigger reads Model as a placeholder", () => {
+  const draw = (trigger: ModelPickerView["trigger"]) => propsOf(AgentPicker({ picker: agentPicker(trigger), auth: undefined, disabled: false, onOpen: () => {}, onPick: () => {}, onSettings: () => {} }));
+  const tree = draw({ provider: "codex", label: "GPT-5.6-Terra", ariaLabel: "Agent: Codex, model GPT-5.6-Terra", placeholder: false, isDefault: false });
+  const rows = tree.filter(item => item.type === DropdownMenu.RadioItem).map(item => renderToStaticMarkup(<>{item.props.children as ReactNode}</>));
+  expect(rows[0]).toMatch(/^<span class="model-name">GPT-6-Luna<span class="model-default">Default<\/span><\/span>/);
+  expect(rows[1]).toMatch(/^<span class="model-name">GPT-5.6-Terra<\/span>/);
+  expect(rows[1]).not.toContain("model-default");
+  const label = (node: ReturnType<typeof draw>) => renderToStaticMarkup(<>{node.find(item => item.type === "button")!.props.children as ReactNode}</>);
+  expect(label(tree)).toContain('<span class="label">GPT-5.6-Terra</span>');
+  expect(label(draw({ provider: "codex", label: "Model", ariaLabel: "Agent: Codex, model not chosen", placeholder: true, isDefault: false }))).toContain('<span class="label placeholder">Model</span>');
 });
 
 // review R 🟡4: the app's Vitest has no DOM (ARCHITECTURE §7 'Home tests without a DOM' adds no jsdom), so a mounted
@@ -216,4 +274,22 @@ test("the installed Radix menu keeps a prevented select open and still toggles a
   expect(source).toMatch(/onClick: \(0, import_primitive\.composeEventHandlers\)\(props\.onClick, handleSelect\)|onClick: composeEventHandlers\(props\.onClick, handleSelect\)/);
   expect(source).toMatch(/if \(itemSelectEvent\.defaultPrevented\) \{\s*isPointerDownRef\.current = false;\s*\} else \{\s*rootContext\.onClose\(\);/);
   expect(source).toMatch(/role: "menuitemcheckbox"[\s\S]*?onSelect: \(0, import_primitive\.composeEventHandlers\)\(\s*checkboxItemProps\.onSelect,\s*\(\) => onCheckedChange\?\.\(isIndeterminate\(checked\) \? true : !checked\),\s*\{ checkForDefaultPrevented: false \}|role: "menuitemcheckbox"[\s\S]*?onSelect: composeEventHandlers\(\s*checkboxItemProps\.onSelect,\s*\(\) => onCheckedChange\?\.\(isIndeterminate\(checked\) \? true : !checked\),\s*\{ checkForDefaultPrevented: false \}/);
+});
+
+// picker-default-labels review 🔴1: the pre-list Default row passes null; a model row passes its id, even Claude Code's
+// "default".
+test("the agent picker passes null for the pre-list Default row and a model row's own id", () => {
+  const onPick = vi.fn();
+  const picker: ModelPickerView = {
+    trigger: { provider: "claude", label: "Opus 5.5", ariaLabel: "Agent: Claude Code, model Opus 5.5, default", placeholder: false, isDefault: true }, effort: null,
+    groups: [
+      { provider: "claude", name: "Claude Code", selectable: true, cause: null, note: null, read: false, rows: [{ kind: "model", id: "default", label: "Opus 5.5", effort: true, selected: true, isDefault: true }] },
+      { provider: "codex", name: "Codex", selectable: true, cause: null, note: "Loading models", read: false, rows: [{ kind: "default", label: "Default", selected: false }] },
+    ],
+  };
+  const groups = propsOf(AgentPicker({ picker, auth: undefined, disabled: false, onOpen: () => {}, onPick, onSettings: () => {} })).filter(item => item.type === DropdownMenu.RadioGroup);
+  (groups[0]!.props.onValueChange as (value: string) => void)("default");
+  expect(onPick).toHaveBeenLastCalledWith("claude", "default");
+  (groups[1]!.props.onValueChange as (value: string) => void)("default");
+  expect(onPick).toHaveBeenLastCalledWith("codex", null);
 });

@@ -56,8 +56,10 @@ export type ReadinessCause =
 export type RecoveryAction = "install" | "update" | "retry" | "wait" | "signOut" | "signIn" | "reauth" | "repair";
 export type Readiness = { ready: true } | { ready: false; cause: ReadinessCause; action: RecoveryAction };
 export type AuthAction = "signIn" | "cancel" | "retry" | "reauth" | "signOut";
+// generation: the state's, raised by every stored sign-in and sign-out. What a window read for a connection (a model
+// list) belongs to that generation only: a replacement keeps the provider and may keep the email shown.
 export interface AuthStatusDto {
-  provider: Provider; revision: number; phase: AuthPhase;
+  provider: Provider; revision: number; generation: number; phase: AuthPhase;
   account: { displayName?: string; email?: string } | null;
   attempt: { id: string; kind: AuthAttempt["kind"]; cancelling: boolean } | null;
   readiness: Readiness; error: { code: AuthErrorCode; retryable: boolean } | null; actions: AuthAction[];

@@ -17,7 +17,7 @@ import { CanvasRun } from "./canvasRun";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { ConversationStore } from "./conversationStore";
 import type { DockedComposerProps } from "./DockedComposer";
-import { DockedSupport } from "./dockedSupport";
+import { DockedSupport, modelsKey } from "./dockedSupport";
 import { OverviewRun, type ListView } from "./overviewRun";
 import { ProjectOverview, type ProjectOverviewProps } from "./ProjectOverview";
 
@@ -117,7 +117,7 @@ for (const [name, { setup }] of Object.entries(setups)) test(`${name}: a provide
   render().onPickPermission!("bypass");
   expect(render().permission?.mode).toBe("bypass");
   onRemember.mockClear();
-  render().onPickModel("codex", "default");
+  render().onPickModel("codex", null);
   expect(render().permission?.mode).toBe("plan");
   const codex = onRemember.mock.calls.map(call => call[0]).filter(choice => choice.provider === "codex");
   expect(codex.length).toBeGreaterThan(0);
@@ -181,4 +181,32 @@ test("canvas panel: a terminal session has no picker and starts without a mode",
   await render().onSend(REQUEST);
   expect(doan.startConversation!.mock.calls[0]![0]).toMatchObject({ mode: "resume" });
   expect(doan.startConversation!.mock.calls[0]![0]).not.toHaveProperty("permissionMode");
+});
+
+// RV2 🟡3: a docked effort pick belongs to the model it was picked for. Switching the provider or the model drops it,
+// even when the new model lists the same level, so it is neither shown nor remembered as picked for the new model.
+for (const [name, { setup }] of Object.entries(setups)) test(`${name}: a provider or model switch drops the picked effort`, async () => {
+  const onRemember = vi.fn();
+  const { render, support } = await setup({ onRemember });
+  const levels = ["low", "high"];
+  support.models = {
+    [modelsKey(ROOT, "claude", 1)]: { models: [{ id: "opus", label: "Opus", default: true, efforts: levels }] },
+    [modelsKey(ROOT, "codex", 1)]: { models: [{ id: "gpt-x", label: "GPT-X", default: true, efforts: levels }, { id: "gpt-y", label: "GPT-Y", default: false, efforts: levels }] },
+  };
+  render().onPickEffort("high");
+  expect(render().picker.effort?.label).toBe("High");
+  onRemember.mockClear();
+  // This harness runs every effect on each render, so only the new model's choices count.
+  const choicesFor = (model: string) => onRemember.mock.calls.map(call => call[0]).filter(choice => choice.model === model);
+  render().onPickModel("codex", "gpt-x");
+  expect(render().picker.effort?.label).toBe("Effort");
+  expect(choicesFor("gpt-x").length).toBeGreaterThan(0);
+  for (const choice of choicesFor("gpt-x")) expect(choice).not.toHaveProperty("effortPicked");
+  render().onPickEffort("high");
+  expect(render().picker.effort?.label).toBe("High");
+  onRemember.mockClear();
+  render().onPickModel("codex", "gpt-y");
+  expect(render().picker.effort?.label).toBe("Effort");
+  expect(choicesFor("gpt-y").length).toBeGreaterThan(0);
+  for (const choice of choicesFor("gpt-y")) expect(choice).not.toHaveProperty("effortPicked");
 });

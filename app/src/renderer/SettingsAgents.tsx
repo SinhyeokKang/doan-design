@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useReducer, useRef, useState, type ReactNode } from "react";
 import { DropdownMenu } from "radix-ui";
 import { Check, ChevronDown, Gauge } from "lucide-react";
 import type { AuthStatusDto, Provider } from "../main/agentAuth/types";
@@ -10,8 +10,10 @@ import type { AgentSignIn } from "./agentSignIn";
 import { AgentStepSession } from "./agentStep";
 import { AlertIcon } from "./AlertIcon";
 import { PermissionIconView, PermissionMenuItems } from "./ComposerParts";
+import { generationOf, modelsKey } from "./dockedSupport";
 import { modelPickerView, providerLogo, selectableProvider, type ModelsState } from "./homeComposer";
 import { firstUsable, focusLost, NoticeView, PasteDialog, StopDialog } from "./Onboarding";
+import { settingsEffortLabel, settingsModelMenu, settingsModelPick } from "./newConversationSettings";
 import { permissionPickerView } from "./permissionPicker";
 import { preferencesNotice } from "./SettingsNotifications";
 
@@ -184,7 +186,7 @@ function NewConversations({ auth, preferences, save, project }: Pick<SettingsAge
   const connected = (auth?.providers ?? []).filter(status => status.account !== null);
   const runnable = provider !== null && connected.some(status => status.provider === provider && selectableProvider(status));
   const name = provider ? PROVIDER_NAMES[provider] : "";
-  const key = project && provider ? `${project.root}\n${provider}` : null;
+  const key = project && provider ? modelsKey(project.root, provider, generationOf(auth, provider)) : null;
   const listState = key ? lists[key] : undefined;
   useEffect(() => {
     if (!key || !project || !provider || !runnable || listState !== undefined) return;
@@ -197,16 +199,15 @@ function NewConversations({ auth, preferences, save, project }: Pick<SettingsAge
   };
   const choose = (next: NewConversationPreference | null) => write({ newConversation: next });
 
-  const picker = provider ? modelPickerView(auth, { [provider]: listState }, { provider, model: pref?.model ?? null, effort: pref?.effort ?? null }) : null;
-  const models = picker?.groups.find(group => group.provider === provider)?.rows ?? [];
-  const model = models.find(item => item.kind === "model" && item.selected);
-  const modelLabel = model?.label ?? "Default";
+  const menu = provider ? settingsModelMenu(provider, listState, pref?.model) : null;
+  const pinned = menu?.pinned ?? null;
   const loadFailed = listState !== undefined && listState !== "loading" && "error" in listState;
   // Effort follows the chosen model, or with Default the model the project lists as its default (spec 'New
   // conversations'); a model that lists no efforts has no Effort row.
   const listed = listState !== undefined && listState !== "loading" && "models" in listState ? listState.models : [];
-  const effortModel = model?.kind === "model" ? model.id : listed.find(item => item.default)?.id ?? null;
+  const effortModel = pinned ?? listed.find(item => item.default)?.id ?? null;
   const effort = provider && effortModel ? modelPickerView(auth, { [provider]: listState }, { provider, model: effortModel, effort: pref?.effort ?? null }).effort : null;
+  const effortLabel = effort ? settingsEffortLabel(effort) : "";
   const status = auth?.providers.find(item => item.provider === provider);
   // Permission (permission-mode U1): the composer's menu, saved with the model and effort; a saved mode this provider
   // cannot offer reads as Default. An ACP provider offers its modes only once the project's list is read.
@@ -220,6 +221,10 @@ function NewConversations({ auth, preferences, save, project }: Pick<SettingsAge
   </DropdownMenu.Root>;
   const radio = (value: string, label: ReactNode, selected: boolean) => <DropdownMenu.RadioItem key={value} value={value} className="doan-menu-item">
     {label}<span className="check-slot">{selected && <Check className="check" aria-hidden="true" />}</span></DropdownMenu.RadioItem>;
+  // The Model menu's Default row: its name over the model it stands for, the check on the name line (draft frame settings).
+  const unset = (value: string, label: string, description: string | null, selected: boolean) => <DropdownMenu.RadioItem key={value} value={value} className="doan-menu-item unset-item">
+    <span className="unset-copy"><span className="model-name">{label}</span>{description && <span className="sub">{description}</span>}</span>
+    <span className="check-slot">{selected && <Check className="check" aria-hidden="true" />}</span></DropdownMenu.RadioItem>;
   const agents = [...connected.map(status => status.provider), ...(provider && !connected.some(status => status.provider === provider) ? [provider] : [])];
 
   return <section className="settings-section" aria-labelledby="settings-agents-defaults">
@@ -243,17 +248,18 @@ function NewConversations({ auth, preferences, save, project }: Pick<SettingsAge
             : auth && !runnable ? <span className="doan-preference-row-description">{name} can’t run right now, so its models can’t be listed.</span>
             : !loadFailed && <span className="doan-preference-row-description">Models listed for {project.name}.{listState !== "loading" && ` In a project without this model, Home uses ${name}’s default.`}</span>}</div>
         {project && listState === "loading" ? <div className="doan-preference-row-trailing"><span className="settings-loading" role="status"><span className="doan-spinner" aria-hidden="true" />Loading models</span></div>
-          : !loadFailed && <div className="doan-preference-row-trailing">{trigger(modelLabel, "Model for new conversations", <span>{modelLabel}</span>, off || !project || !runnable,
-            <DropdownMenu.RadioGroup value={model?.kind === "model" ? model.id : DEFAULT} onValueChange={value => choose(value === DEFAULT ? { provider, ...keepMode } : { provider, model: value, ...keepMode })}>
-              {models.map(item => item.kind === "model" ? radio(item.id, <span className="model-name">{item.label}</span>, item.selected) : radio(DEFAULT, <span className="model-name">Default</span>, item.selected))}
+          : !loadFailed && menu && <div className="doan-preference-row-trailing">{trigger(menu.label, "Model for new conversations", <span>{menu.label}</span>, off || !project || !runnable,
+            <DropdownMenu.RadioGroup value={menu.value} onValueChange={value => { const picked = settingsModelPick(menu, value); choose(picked === null ? { provider, ...keepMode } : { provider, model: picked, ...keepMode }); }}>
+              {menu.rows.map((item, index) => item.kind === "model" ? radio(item.value, <span className="model-name">{item.label}</span>, item.selected)
+                : <Fragment key={item.value}>{unset(item.value, item.label, item.description, item.selected)}{index < menu.rows.length - 1 && <DropdownMenu.Separator className="doan-menu-sep" />}</Fragment>)}
             </DropdownMenu.RadioGroup>)}</div>}
         {project && loadFailed && <div className="doan-preference-row-extra settings-msg-row"><p className="settings-msg error" role="alert"><AlertIcon /><span>Couldn’t load the models for {project.name}.</span></p>
           <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={() => setLists(current => { const next = { ...current }; delete next[key!]; return next; })}>Retry</button></div>}
       </div>}
       {provider && effort && <div className="doan-preference-row">
         <div className="doan-preference-row-content"><span className="doan-preference-row-label">Effort</span></div>
-        <div className="doan-preference-row-trailing">{trigger(effort.label, "Effort for new conversations", <><Gauge className="inline" aria-hidden="true" /><span>{effort.label}</span></>, off,
-          <DropdownMenu.RadioGroup value={effort.options.find(item => item.selected)?.id ?? DEFAULT} onValueChange={value => choose({ provider, ...(model?.kind === "model" ? { model: model.id } : {}), ...(value === DEFAULT ? {} : { effort: value }), ...keepMode })}>
+        <div className="doan-preference-row-trailing">{trigger(effortLabel, "Effort for new conversations", <><Gauge className="inline" aria-hidden="true" /><span>{effortLabel}</span></>, off,
+          <DropdownMenu.RadioGroup value={effort.options.find(item => item.selected)?.id ?? DEFAULT} onValueChange={value => choose({ provider, ...(pinned ? { model: pinned } : {}), ...(value === DEFAULT ? {} : { effort: value }), ...keepMode })}>
             {radio(DEFAULT, <span className="model-name">Default</span>, !effort.options.some(item => item.selected))}
             {effort.options.map(item => radio(item.id, <span className="model-name">{item.label}</span>, item.selected))}
           </DropdownMenu.RadioGroup>)}</div>

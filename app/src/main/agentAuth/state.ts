@@ -143,7 +143,7 @@ export function authStatus(state: AuthState, facts: ToolFacts, revision: number)
   // A version cause clears with a re-read of the tool facts, whatever the account allows.
   if (!ready.ready && (ready.cause === "version_unknown" || ready.cause === "version_incompatible") && !offered.includes("retry")) offered.push("retry");
   return {
-    provider: state.provider, revision, phase: state.phase,
+    provider: state.provider, revision, generation: state.generation, phase: state.phase,
     account: account ? { ...(account.displayName !== undefined ? { displayName: account.displayName } : {}), ...(account.email !== undefined ? { email: account.email } : {}) } : null,
     attempt: state.attempt ? { id: state.attempt.id, kind: state.attempt.kind, cancelling: state.attempt.cancelled } : null,
     readiness: ready,

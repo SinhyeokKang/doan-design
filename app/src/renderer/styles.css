@@ -441,7 +441,8 @@ body:has(.shell-top) { background: transparent; }
 .shell-project-name { margin-left: 4px; letter-spacing: var(--type-body-sm-letter-spacing); color: var(--text-standard); font-weight: 500; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .shell-thumbnail { display: flex; align-items: center; justify-content: center; flex: none; width: 16px; height: 16px; border-radius: 4px; font-size: 10px; font-weight: var(--type-weight-semibold); line-height: 16px; }
 /* project-row-disclosure draft: the lead spot holds the thumbnail at rest and the chevron while the pointer is on the row
-   or focus is in it, both 16px so the name never moves. The chevron folds only; the rest of the row moves. */
+   or keyboard focus is in it, both 16px so the name never moves. The chevron folds only; the rest of the row moves.
+   :focus-visible, not :focus-within: a click focuses the row, which would keep the chevron after the pointer leaves. */
 .shell-lead { position: relative; display: grid; flex: none; width: var(--size-icon); height: var(--size-icon); }
 .shell-lead > * { grid-area: 1 / 1; }
 .shell-disclosure { display: grid; place-items: center; width: var(--size-icon); height: var(--size-icon); padding: 0; border: 0; border-radius: var(--space-1); background: transparent; color: var(--text-metadata); cursor: pointer; visibility: hidden; }
@@ -449,8 +450,8 @@ body:has(.shell-top) { background: transparent; }
 .shell-disclosure::before { content: ""; position: absolute; inset: calc(-1 * var(--space-1)); }
 .shell-disclosure svg { width: var(--size-icon); height: var(--size-icon); transition: transform var(--time-state) var(--ease-state); }
 .shell-project-row[aria-expanded="false"] .shell-disclosure svg { transform: rotate(-90deg); }
-.shell-project-row:is(:hover, :focus-within) .shell-disclosure { visibility: visible; }
-.shell-project-row:is(:hover, :focus-within) .shell-lead > .shell-thumbnail { visibility: hidden; }
+.shell-project-row:is(:hover, :focus-visible, :has(:focus-visible)) .shell-disclosure { visibility: visible; }
+.shell-project-row:is(:hover, :focus-visible, :has(:focus-visible)) .shell-lead > .shell-thumbnail { visibility: hidden; }
 @media (hover: hover) and (pointer: fine) { .shell-disclosure:hover { background: var(--affordance-backdrop-pressed); color: var(--text-standard); } }
 /* A light tint with dark ink (buzz-onboarding approved draft), shared with onboarding project cards. */
 .hue-rose { background: color-mix(in srgb, var(--identity-project-rose) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-rose) 65%, var(--text-standard)); }
@@ -469,15 +470,16 @@ body:has(.shell-top) { background: transparent; }
 .shell-side .shell-canvas-row { padding-inline: 10px; letter-spacing: var(--type-body-sm-letter-spacing); }
 .shell-canvas-row > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* canvas-row-menu (draft row-button, user-confirmed): a canvas row shows its menu button only under the pointer, with
-   focus in the row, or while its menu is open. Then the button takes the status spot's place flush at the row's end,
-   and the spot is hidden visually only, so the row keeps its accessible state. The 32px button keeps the 32px row
-   height. The idle button is hidden visually only too, never display: none: Radix returns focus to it when its menu
-   closes, and App when the Move to Trash dialog does, and a display: none button drops that focus to <body>; once
-   focus lands on it, :focus-within shows it. */
-.shell-canvas-row:not(:hover, :focus-within):not(:has(> .shell-more[aria-expanded="true"])) > .shell-more { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+   keyboard focus in the row, or while its menu is open. Then the button takes the status spot's place flush at the
+   row's end, and the spot is hidden visually only, so the row keeps its accessible state. The 32px button keeps the
+   32px row height. The idle button is hidden visually only too, never display: none: Radix returns focus to it when its
+   menu closes, and App when the Move to Trash dialog does, and a display: none button drops that focus to <body>; once
+   keyboard focus lands on it, :has(:focus-visible) shows it. :focus-visible, not :focus-within: a click focuses the
+   row, which would keep the button after the pointer leaves. */
+.shell-canvas-row:not(:hover, :focus-visible, :has(:focus-visible)):not(:has(> .shell-more[aria-expanded="true"])) > .shell-more { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 .shell-canvas-row > .shell-more { margin-left: auto; }
-.shell-side .shell-canvas-row:is(:hover, :focus-within, :has(> .shell-more[aria-expanded="true"])) { padding-right: 0; }
-.shell-canvas-row:is(:hover, :focus-within, :has(> .shell-more[aria-expanded="true"])) > .row-slot { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.shell-side .shell-canvas-row:is(:hover, :focus-visible, :has(:focus-visible), :has(> .shell-more[aria-expanded="true"])) { padding-right: 0; }
+.shell-canvas-row:is(:hover, :focus-visible, :has(:focus-visible), :has(> .shell-more[aria-expanded="true"])) > .row-slot { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 /* Nothing in a canvas menu works while the page is locked, so its button takes the disabled ink and no hover or pressed
    fill (the project row's button stays as it is: its menu still works). Heavier than the shared button's hover and
    pressed rules (ds/controls.css), which would otherwise paint it. */
@@ -663,8 +665,16 @@ body:has(.shell-top) { background: transparent; }
 .perm-item > svg:first-child { width: var(--size-icon); height: var(--size-icon); margin-top: var(--space-half); color: var(--text-subtle); }
 .doan-menu .perm-item[data-mode="bypass"] > svg:first-child { color: var(--text-danger); }
 .perm-copy { display: flex; flex-direction: column; flex: 1; min-width: 0; }
-.perm-copy .sub { color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+/* A description wraps and is never ellipsized: Ask first's per-provider line takes two lines in the 280 menu. */
+.perm-copy .sub { color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); white-space: normal; overflow: visible; text-overflow: clip; }
 .perm-item .check-slot { margin-top: var(--space-half); }
+/* The effort menu's and Settings' Default row: its name over a one-line description of what the default is, the check
+   on the name's line as in .perm-item and .fast-item. The second selector outweighs the shared Effort row rule below,
+   which centres its items. The row keeps its menu's own padding (compact 4 / 8 in Effort, 6 / 12 in Settings). */
+:is(.unset-item, .effort-popover .doan-menu-item.unset-item) { align-items: flex-start; }
+.unset-copy { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.unset-copy .sub { color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); white-space: normal; }
+.unset-item .check-slot { margin-top: var(--space-half); }
 .project-popover { width: 320px; }
 .popover-search { position: relative; display: block; margin-bottom: var(--space-1); }
 .popover-search > svg { position: absolute; left: var(--space-3); top: 50%; transform: translateY(-50%); color: var(--text-metadata); }
@@ -686,6 +696,11 @@ body:has(.shell-top) { background: transparent; }
 .agent-note { display: inline-flex; align-items: center; gap: var(--space-1h); margin-left: auto; }
 :is(.model-item, .project-item, .effort-popover .doan-menu-item) { display: flex; align-items: center; gap: var(--space-2); }
 .model-name { flex: 1; min-width: 0; }
+/* The provider's default row carries a small "Default" after its name, the Frame drawer's "Viewing" look (caption,
+   metadata ink). */
+.model-default { margin-left: var(--space-1h); color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+/* A trigger with no value shows its drawer's name ("Model", "Effort", "Permission") so it reads as a heading. */
+.doan-button .label.placeholder { color: var(--text-metadata); }
 .model-item .sub { display: inline-flex; align-items: center; gap: var(--space-1); font-size: var(--type-caption-size); }
 .inline { width: var(--size-icon-sm); height: var(--size-icon-sm); }
 .check-slot { display: inline-flex; width: var(--size-icon); justify-content: center; }
@@ -722,20 +737,21 @@ body:has(.shell-top) { background: transparent; }
    included, on one line as the capsule does; a wrapped one would overflow the field and scroll it. The full text stays
    the field's aria-placeholder, and Right Arrow puts a suggestion in. */
 .docked[data-shape="box"] .composer-input[data-empty]::before { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.docked .composer-tray { justify-content: flex-end; gap: var(--space-1); min-height: var(--size-control-sm); padding: var(--space-1) var(--space-3) 0; }
+.docked .composer-tray { justify-content: flex-end; gap: var(--space-half); min-height: var(--size-control-sm); padding: var(--space-1) var(--space-3) 0; }
 .docked .composer-tray .doan-button { margin-left: 0; }
 .docked .composer-tray .logo { width: var(--size-icon-sm); height: var(--size-icon-sm); }
-/* The docked tray when it is short of width (permission-mode draft frame docked-tray): it never wraps, and gives way in
-   order: below a 384px content width Permission shows its icon only, below 288 Effort does too, and the model label
-   ellipsizes last. Pick, logos and chevrons never shrink. The boundaries come from the draft's widest labels ("Plan
-   (read-only)", "Medium"); a hidden label stays in the tooltip and aria-label. */
+/* The docked tray when it is short of width (picker-default-labels draft frame docked-widths): it never wraps, and
+   gives way in order: below a 432px content width Permission shows its icon only, below 384 Effort does too, and the
+   model label ellipsizes last (below 320). Pick, logos and chevrons never shrink. The boundaries come from the draft's
+   widest labels ("GPT-5.6-Terra", "Extra high" with the Fast icon, "Ask first"); a hidden label stays in the tooltip
+   and aria-label. */
 .docked .composer-tray { container-type: inline-size; }
 .composer-tray .doan-button .label { white-space: nowrap; }
 /* The shared .doan-button does not shrink; only the model trigger may, so the last step can ellipsize it. */
 .docked .composer-tray .composer-agent { flex-shrink: 1; min-width: 0; }
 .docked .composer-agent .label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-@container (max-width: 383px) { .docked .composer-permission .label { display: none; } }
-@container (max-width: 287px) { .docked .composer-effort .label { display: none; } }
+@container (max-width: 431px) { .docked .composer-permission .label { display: none; } }
+@container (max-width: 383px) { .docked .composer-effort .label { display: none; } }
 .composer-stop svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
 .composer-reason.docked-reason { justify-content: flex-start; margin-top: var(--space-2); padding-inline: var(--space-4); }
 .queue { display: flex; flex-direction: column; gap: var(--space-1); margin-bottom: var(--space-2); }
@@ -1284,6 +1300,10 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
    canvas script sets the one over the canvas). */
 .docked .composer-tray :is(.composer-attach, .composer-pick) { color: var(--text-subtle); }
 .docked .composer-tray .composer-agent { margin-left: auto; }
+/* A picker's value reads in the standard ink, as on Home, so it stands apart from a drawer's name in the metadata ink
+   (.label.placeholder); against the tray's subtle ink the two were nearly the same grey. Attach and Pick keep the subtle
+   ink, as does a trigger disabled while a send is pending; Full access keeps the danger one. */
+.docked .composer-tray :is(.composer-agent, .composer-effort, .composer-permission:not([data-mode="bypass"])):not(:disabled) { color: var(--text-standard); }
 .composer-pick[aria-pressed="true"] { background: var(--affordance-backdrop-pressed); color: var(--text-standard); }
 .docked .composer-tray :is(.composer-attach, .composer-pick):is(:disabled, [aria-disabled="true"]) { color: var(--text-disabled); }
 /* aria-disabled (not disabled) keeps these controls hoverable for their reason tooltip, so they take the disabled
@@ -1292,10 +1312,10 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 @media (hover: hover) and (pointer: fine) { :is(.docked .composer-tray .composer-attach, .doan-canvas-tools > .doan-canvas-tool)[aria-disabled="true"]:hover { background: transparent; } }
 :is(.docked .composer-tray .composer-attach, .doan-canvas-tools > .doan-canvas-tool)[aria-disabled="true"]:active { background: transparent; }
 /* The context ring (context-window-ring design §3, draft frame ring-geometry): the tray's last child, which the tray's
-   flex-end and the model trigger's auto margin keep at its right end. 8 from the last picker (the tray's 4 gap plus 4)
+   flex-end and the model trigger's auto margin keep at its right end. 4 from the last picker (the tray’s 2 gap plus 2)
    and the tray's 12 end padding after; it never shrinks, so a narrow panel shortens the model label first. Its own
    class sizes it: the header's 24px usage ring rules are bound to .usage. */
-.docked .composer-tray .context-ring { margin-inline-start: var(--space-1); }
+.docked .composer-tray .context-ring { margin-inline-start: var(--space-half); }
 .context-ring { display: block; flex: none; width: var(--size-icon); height: var(--size-icon); cursor: default; }
 .context-ring > svg { display: block; width: 100%; height: 100%; transform: rotate(-90deg); }
 .context-ring .track { stroke: var(--border-track); }

@@ -16,6 +16,7 @@ import { Doany, type DoanyHandle } from "./Doany";
 import { textSegments, typedText } from "./anchorField";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import { cardRow, groupProjects } from "./homeCards";
+import { generationOf, modelsKey } from "./dockedSupport";
 import {
   attachmentChipView, attachmentLimit, chipRemoval, composeRequest, defaultEffort, defaultFast, defaultModel, defaultProject, defaultProvider,
   fixedPreference, greetingText, groupIcon, lengthCounter, modelOption, modelPickerView, presetListView, presetPlaceholder,
@@ -39,6 +40,11 @@ export interface ComposerMemory {
   // picks last until the input is sent (buzz-settings design 'New conversations'); the project stays.
   root: string | null; provider: Provider | null;
   models: Partial<Record<Provider, string>>; efforts: Record<string, string>;
+  // Models that Edit on Home brought back into `models`: shown as chosen, but not picked here, so a fixed Settings
+  // default does not take them on (rememberChoice preferenceAfterPick). A pick of the model clears its entry.
+  restoredModels?: Partial<Record<Provider, string>>;
+  // Levels Edit on Home brought back into `efforts`, by the same key; a pick of a level clears its entry.
+  restoredEfforts?: Partial<Record<string, string>>;
   // Permission mode picks by provider (permission-mode), kept the same way as the model picks.
   permissions: Partial<Record<Provider, PermissionModeId>>;
   // Fast switched by provider (fast-mode design §1); absent follows the provider's Last used.
@@ -138,7 +144,6 @@ function HomeStage({ children }: { children: ReactNode }) {
   return <div className="home-stage" ref={stage} style={top === null ? undefined : { paddingTop: top }}>{children}</div>;
 }
 
-const listKey = (root: string, provider: Provider) => `${root}\n${provider}`;
 const effortKey = (provider: Provider, model: string) => `${provider}\n${model}`;
 
 // `/` list keys (design §4.9): arrows move, Enter picks unless an IME is composing, Tab closes, Escape closes until
@@ -232,7 +237,7 @@ export function HeroComposer(props: HeroComposerProps) {
   useEffect(() => { if (!started && props.defaults !== undefined && memory.current.defaults !== props.defaults) update({ defaults: props.defaults }); });
   const provider = m.provider ?? defaultProvider(auth, props.prefs?.lastProvider, defaults);
   const fixed = provider ? fixedPreference(defaults, provider) : null;
-  const lists: Partial<Record<Provider, ModelsState>> = root ? Object.fromEntries((auth?.providers ?? []).map(status => [status.provider, m.lists[listKey(root, status.provider)]])) : {};
+  const lists: Partial<Record<Provider, ModelsState>> = root ? Object.fromEntries((auth?.providers ?? []).map(status => [status.provider, m.lists[modelsKey(root, status.provider, status.generation)]])) : {};
   const listState = provider ? lists[provider] : undefined;
   const saved = provider ? props.prefs?.models?.[provider] : undefined;
   const explicitModel = provider ? m.models[provider] : undefined;
@@ -245,15 +250,20 @@ export function HeroComposer(props: HeroComposerProps) {
   const pickedPermission = provider ? m.permissions[provider] : undefined;
   const permission = provider ? permissionPickerView(provider, listState, defaultPermission(permissionChoices(provider, listState), pickedPermission, props.prefs?.permissions?.[provider], fixed)) : null;
   const permissionMode = permission?.mode;
-  const choiceTouched = m.provider !== undefined || explicitModel !== undefined || pickedEffort !== undefined || pickedPermission !== undefined || pickedFast !== undefined;
+  // memory's provider is null until the person picks one (emptyComposer), never undefined.
+  const choiceTouched = m.provider !== null || explicitModel !== undefined || pickedEffort !== undefined || pickedPermission !== undefined || pickedFast !== undefined;
   // Fast is not in this effect: it goes to Last used only from the toggle itself (onPickFast), never from a switch
   // held since then when the composer mounts again or another pick changes (fast-mode decision 3, review R 🟡2).
-  useEffect(() => { if (choiceTouched && provider) props.onRemember?.({ provider, model, effort, ...(permissionMode ? { permissionMode } : {}) }); }, [choiceTouched, provider, model, effort, permissionMode]);
+  const isModelPicked = explicitModel !== undefined && explicitModel === model && m.restoredModels?.[provider!] !== explicitModel;
+  const isEffortPicked = pickedEffort !== undefined && m.restoredEfforts?.[effortKey(provider!, model!)] !== pickedEffort;
+  const modelPicked = { ...(isModelPicked ? { modelPicked: true as const } : {}), ...(isEffortPicked ? { effortPicked: true as const } : {}) };
+  // The marks are dependencies: re-picking the row Edit on Home restored changes only whether it was picked.
+  useEffect(() => { if (choiceTouched && provider) props.onRemember?.({ provider, model, effort, ...modelPicked, ...(permissionMode ? { permissionMode } : {}) }); }, [choiceTouched, provider, model, effort, permissionMode, isModelPicked, isEffortPicked]);
   // The menu closes on select; the move waits for that, so the menu's own focus return comes first.
   const openSettings = (target: SettingsTarget) => queueMicrotask(() => props.openSettings(target));
 
   const readModels = (forRoot: string, forProvider: Provider) => {
-    const key = listKey(forRoot, forProvider);
+    const key = modelsKey(forRoot, forProvider, generationOf(memory.current.auth, forProvider));
     if (memory.current.lists[key] !== undefined) return;
     update(current => ({ lists: { ...current.lists, [key]: "loading" } }));
     void window.doan.listConversationModels({ root: forRoot, runtime: forProvider }).catch(() => ({ error: "unknown" })).then(reply => update(current => ({ lists: { ...current.lists, [key]: reply } })));
@@ -261,7 +271,9 @@ export function HeroComposer(props: HeroComposerProps) {
   const healthy = entry?.kind === "list";
   const ready = provider !== null && (auth?.providers ?? []).some(status => status.provider === provider && status.account !== null && selectableProvider(status));
   // The chosen provider's list shows its model and effort on the closed picker; the rest are read when it opens.
-  useEffect(() => { if (root && healthy && provider && ready) readModels(root, provider); }, [root, healthy, provider, ready]);
+  // A new connection of the provider has a list of its own to read; Home's memory outlives the screen.
+  const generation = provider ? generationOf(auth, provider) : 0;
+  useEffect(() => { if (root && healthy && provider && ready) readModels(root, provider); }, [root, healthy, provider, ready, generation]);
 
   // Presets: read on entering Home and kept for the run; a failure is read again when the popover opens (§4.4).
   const readPresets = () => {
@@ -430,7 +442,7 @@ export function HeroComposer(props: HeroComposerProps) {
         const released = (current.lastIds[root] ?? []).filter(id => !usedIds.has(id));
         if (released.length) void window.doan.releaseAttachments(released).catch(console.error);
         // The next input starts from the defaults again: the fixed one, or with Last used the run App just recorded.
-        return { sending: null, thumbnails, lastKeys, lastIds, root, provider: null, models: {}, efforts: {}, permissions: {}, fast: {}, ...(same ? { text: "", preset: null, attachments: [] } : {}) };
+        return { sending: null, thumbnails, lastKeys, lastIds, root, provider: null, models: {}, restoredModels: {}, efforts: {}, restoredEfforts: {}, permissions: {}, fast: {}, ...(same ? { text: "", preset: null, attachments: [] } : {}) };
       });
       return;
     }
@@ -470,6 +482,8 @@ export function HeroComposer(props: HeroComposerProps) {
     for (const [key, bytes] of Object.entries(request.thumbnails ?? {})) if (!thumbnails[key]) { const url = thumbnailUrl(bytes); if (url) thumbnails[key] = url; }
     edit({ text: request.text, preset, thumbnails, attachments: request.attachments.map(a => a.id ? { ...a, status: "checking" } : a), root: request.root, provider: request.provider,
       models: request.model ? { ...memory.current.models, [request.provider]: request.model } : memory.current.models,
+      restoredModels: request.model ? { [request.provider]: request.model } : {},
+      restoredEfforts: request.model && request.effort ? { [effortKey(request.provider, request.model)]: request.effort } : {},
       efforts: request.model && request.effort ? { ...memory.current.efforts, [effortKey(request.provider, request.model)]: request.effort } : memory.current.efforts });
     queueMicrotask(focusEnd);
   };
@@ -536,8 +550,8 @@ export function HeroComposer(props: HeroComposerProps) {
             {slashOpen && slashView && <SlashPresets view={slashView} query={slash} listId={listId} highlight={highlight} listRef={slashList} onHighlight={setHighlight} onChoose={id => choosePreset(id, true)} onRetry={readPresets} />}
             <span className="grow" />
             <AgentPicker picker={picker} auth={auth} disabled={sending} onOpen={() => { if (root && healthy) for (const group of picker.groups) if (group.read) readModels(root, group.provider); }}
-              onPick={(pickedProvider, value) => edit({ provider: pickedProvider, ...(value === "default" ? {} : { models: { ...memory.current.models, [pickedProvider]: value } }) })} onSettings={openSettings} />
-            {picker.effort && provider && model && <EffortPicker view={picker.effort} effort={effort} disabled={sending} onPick={value => edit({ efforts: { ...memory.current.efforts, [effortKey(provider, model)]: value } })} onPickFast={on => { edit({ fast: { ...memory.current.fast, [provider]: on } }); props.onRemember?.({ provider, model, effort, fast: on }); }} />}
+              onPick={(pickedProvider, value) => edit({ provider: pickedProvider, ...(value === null ? {} : { models: { ...memory.current.models, [pickedProvider]: value }, restoredModels: { ...memory.current.restoredModels, [pickedProvider]: undefined } }) })} onSettings={openSettings} />
+            {picker.effort && provider && model && <EffortPicker view={picker.effort} effort={effort} disabled={sending} onPick={value => edit({ efforts: { ...memory.current.efforts, [effortKey(provider, model)]: value }, restoredEfforts: { ...memory.current.restoredEfforts, [effortKey(provider, model)]: undefined } })} onPickFast={on => { edit({ fast: { ...memory.current.fast, [provider]: on } }); props.onRemember?.({ provider, model, effort, ...modelPicked, fast: on }); }} />}
             {permission && provider && <PermissionPicker view={permission} disabled={sending} onPick={mode => edit({ permissions: { ...memory.current.permissions, [provider]: mode } })} />}
             <SendButton enabled={availability.enabled} sending={sending} onSend={() => void send()} hint={reason?.kind === "noAgent" ? reason.text : undefined} />
           </ComposerTools>

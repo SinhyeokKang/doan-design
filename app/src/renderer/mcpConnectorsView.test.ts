@@ -37,7 +37,7 @@ function snapshot(rows: Partial<Record<McpProvider, Record<string, ConnectorStat
   };
 }
 function status(provider: Provider, signedIn = true, readiness: Readiness = { ready: true }, phase: AuthStatusDto["phase"] = "connected"): AuthStatusDto {
-  return { provider, revision: 1, phase, account: signedIn ? { email: "ada@example.com" } : null, attempt: null, readiness, error: null, actions: [] };
+  return { provider, revision: 1, generation: 1, phase, account: signedIn ? { email: "ada@example.com" } : null, attempt: null, readiness, error: null, actions: [] };
 }
 const AUTH: AuthSnapshot = { revision: 1, providers: [status("claude"), status("codex"), status("cursor"), status("copilot", false), status("antigravity", false)] };
 const auth = (claude: boolean, codex: boolean, extra: Partial<Record<"claude" | "codex", AuthStatusDto>> = {}): AuthSnapshot =>

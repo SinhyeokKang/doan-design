@@ -8,7 +8,9 @@ import type { NewConversationDefault } from "./homeComposer";
 // model's default level, which is sent as no effort. permissionMode is absent when the composer shows no permission
 // picker (an ACP provider without modes), so nothing about the mode is remembered.
 // fast is present only when the person switched Fast: a send alone never records it (fast-mode decision 3).
-export interface ComposerChoice { provider: Provider; model: string | null; effort: string | null; permissionMode?: PermissionModeId; fast?: boolean }
+// modelPicked, effortPicked: the person picked this model, this level (the Default row included) in the composer;
+// without them they are only what the composer resolved, which a fixed Settings default must not take on.
+export interface ComposerChoice { provider: Provider; model: string | null; effort: string | null; permissionMode?: PermissionModeId; fast?: boolean; modelPicked?: true; effortPicked?: true }
 
 // The provider's last Fast, apart from its model: `models[provider]` is replaced on every model pick. Off is no entry.
 export function rememberFast(memory: HomeMemory | null, provider: Provider, on: boolean): HomeMemory {
@@ -56,15 +58,23 @@ export function rememberChoice(memory: HomeMemory | null, choice: ComposerChoice
 }
 
 // A fixed agent in Settings > Agents 'New conversations' would otherwise override the pick at the next new
-// conversation, so it follows the pick; Last used (null) already does. undefined: nothing to write. The mode is
-// judged apart from the model: a mode picked before the model list is read still replaces the saved one, and a model
-// pick without a picker keeps the saved mode of the same provider.
+// conversation, so it follows the pick; Last used (null) already does. undefined: nothing to write. Only a picked model
+// is fixed: a pick of something else keeps Model Default (no model) unfixed, so it goes on following the provider's
+// default (picker-default-labels decision 5), and keeps a fixed model. The mode is judged apart from the model: a mode
+// picked before the model list is read still replaces the saved one, and a model pick without a picker keeps the saved
+// mode of the same provider.
 export function preferenceAfterPick(current: NewConversationDefault | null, choice: ComposerChoice): NewConversationDefault | undefined {
   if (!current) return undefined;
   const same = current.provider === choice.provider;
   if (!choice.model && !same) return undefined;
-  const model = choice.model ? { model: choice.model, ...(choice.effort ? { effort: choice.effort } : {}) }
-    : { ...(current.model ? { model: current.model } : {}), ...(current.effort ? { effort: current.effort } : {}) };
+  const keptModel = same ? current.model : undefined;
+  // The model and the level apply apart, each only when picked.
+  const nextModel = choice.model && choice.modelPicked ? choice.model : keptModel;
+  // A level is fixed only for the model it was picked for: the fixed one, or under Model Default the default shown.
+  const ownEffort = choice.effortPicked === true && !!choice.model && (nextModel === undefined || nextModel === choice.model);
+  // An unpicked level stays with its model: kept while the fixed model stays, dropped when another model is picked.
+  const effort = ownEffort ? choice.effort ?? undefined : same && nextModel === keptModel ? current.effort : undefined;
+  const model = { ...(nextModel ? { model: nextModel } : {}), ...(effort ? { effort } : {}) };
   const mode = choice.permissionMode !== undefined ? choice.permissionMode : same ? current.permissionMode : undefined;
   const next: NewConversationDefault = { provider: choice.provider, ...model, ...(mode !== undefined && mode !== "default" ? { permissionMode: mode } : {}) };
   return same && current.model === next.model && current.effort === next.effort && current.permissionMode === next.permissionMode ? undefined : next;

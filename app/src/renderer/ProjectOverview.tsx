@@ -25,7 +25,7 @@ import { copyText } from "./copyText";
 import { contextRing } from "./contextWindow";
 import { DockedComposer, type DockedOutcome, type DockedRequest } from "./DockedComposer";
 import { draftKey, EMPTY_DRAFT, type DockedBusy, type DockedMode } from "./dockedRules";
-import { modelsKey, type DockedSupport } from "./dockedSupport";
+import { generationOf, modelsKey, type DockedSupport } from "./dockedSupport";
 import { cardRow, ROW_ACTION_LABELS, type RowAction } from "./homeCards";
 import {
   attachmentLimit, defaultEffort, defaultFast, defaultModel, fastToSend, defaultProvider, fixedPreference, groupIcon, modelOption, modelPickerView,
@@ -142,7 +142,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
   const pick = support.picks[key] ?? {};
   const chosen = mode.kind === "new" ? pick.provider ?? defaultProvider(auth, props.prefs?.lastProvider, props.defaults ?? null) : mode.provider;
   const fixed = mode.kind === "new" && chosen ? fixedPreference(props.defaults ?? null, chosen) : null;
-  const lists: Partial<Record<Provider, ModelsState>> = Object.fromEntries((auth?.providers ?? []).map(status => [status.provider, support.models[modelsKey(root, status.provider)]]));
+  const lists: Partial<Record<Provider, ModelsState>> = Object.fromEntries((auth?.providers ?? []).map(status => [status.provider, support.models[modelsKey(root, status.provider, status.generation)]]));
   const listState = chosen ? lists[chosen] : undefined;
   const saved = mode.kind === "new" ? (chosen ? props.prefs?.models?.[chosen] : undefined) : summary?.model ? { model: summary.model, ...(summary.effort ? { effort: summary.effort } : {}) } : undefined;
   const model = chosen ? modelOption(listState, pick.model ?? null)?.id ?? defaultModel(listState, saved, fixed) : null;
@@ -166,9 +166,13 @@ export function ProjectOverview(props: ProjectOverviewProps) {
   // An existing conversation's stored mode is remembered only when it is picked here: a model pick alone must not
   // carry a mode (Full access included) the person chose for that conversation into new ones.
   const rememberedMode = mode.kind === "new" || pick.permissionMode !== undefined ? permissionMode : undefined;
-  useEffect(() => { if (choiceTouched && chosen) props.onRemember?.({ provider: chosen, model, effort, ...(rememberedMode ? { permissionMode: rememberedMode } : {}) }); }, [choiceTouched, chosen, model, effort, rememberedMode]);
+  // Only a model picked here is marked: the shown one may be the provider's default (preferenceAfterPick).
+  const modelPicked = { ...(pick.model !== undefined && pick.model === model ? { modelPicked: true as const } : {}), ...(pick.effort !== undefined ? { effortPicked: true as const } : {}) };
+  useEffect(() => { if (choiceTouched && chosen) props.onRemember?.({ provider: chosen, model, effort, ...modelPicked, ...(rememberedMode ? { permissionMode: rememberedMode } : {}) }); }, [choiceTouched, chosen, model, effort, rememberedMode, pick.model, pick.effort]);
   const ready = chosen !== null && (auth?.providers ?? []).some(status => status.provider === chosen && status.account !== null && selectableProvider(status));
-  useEffect(() => { if (healthy && chosen && ready) support.readModels(root, chosen); }, [root, healthy, chosen, ready]);
+  // A new connection of the provider has a list of its own to read.
+  const generation = chosen ? generationOf(auth, chosen) : 0;
+  useEffect(() => { if (healthy && chosen && ready) support.readModels(root, chosen); }, [root, healthy, chosen, ready, generation]);
 
   const presets = support.presets?.ok ? support.presets.result.presets : [];
   const prompts = mode.kind === "new" && !waiting && ready && healthy ? suggestedPrompts(props.entry, project, presets) : [];
@@ -412,8 +416,10 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         drafts={run.drafts} onDrafts={update => run.setDrafts(update)}
         auth={auth} picker={picker} provider={chosen} effort={effort}
         onPickerOpen={() => { if (healthy) for (const group of picker.groups) if (group.read) support.readModels(root, group.provider); }}
-        onPickModel={(picked, value) => support.pick(key, { ...(mode.kind === "new" ? { provider: picked } : {}), ...(picked !== chosen ? { permissionMode: undefined, fast: undefined } : {}), model: value === "default" ? undefined : value })}
-        onPickEffort={value => support.pick(key, { effort: value })} onPickFast={on => { support.pick(key, { fast: on }); if (chosen) props.onRemember?.({ provider: chosen, model, effort, fast: on }); }}
+        onPickModel={(picked, value) => support.pick(key, { ...(mode.kind === "new" ? { provider: picked } : {}), ...(picked !== chosen ? { permissionMode: undefined, fast: undefined } : {}),
+          // A picked level belongs to the model it was picked for (Home keeps one per provider and model).
+          ...(picked !== chosen || (value ?? null) !== model ? { effort: undefined } : {}), model: value ?? undefined })}
+        onPickEffort={value => support.pick(key, { effort: value })} onPickFast={on => { support.pick(key, { fast: on }); if (chosen) props.onRemember?.({ provider: chosen, model, effort, ...modelPicked, fast: on }); }}
         permission={permission} onPickPermission={value => support.pickPermission(key, mode.kind === "new" ? null : mode.conversationId, value, summary ? stored : undefined)}
         onSettings={props.onSettings}
         presets={support.presets} suggested={suggestedPresets(props.entry, presets)}

@@ -218,8 +218,8 @@ export function defaultProvider(auth: AuthSnapshot | null | undefined, last: Pro
 // Models and effort
 
 // fast: the model offers Fast (fast-mode design §1); description is Codex's tier text, unavailable an account-level
-// reason Claude Code's list read gave (decision 12).
-export interface ModelOption { id: string; label: string; default: boolean; efforts?: string[]; fast?: { description?: string; unavailable?: FastUnusedReason } }
+// reason Claude Code's list read gave (decision 12). defaultEffort: Codex's level for this model when none is sent.
+export interface ModelOption { id: string; label: string; default: boolean; efforts?: string[]; defaultEffort?: string; fast?: { description?: string; unavailable?: FastUnusedReason } }
 // undefined: not read in this run. Lists are never hard-coded, so only a received list offers models.
 // modes: what an ACP server listed with its models (permission-mode); absent for Claude and Codex.
 export type ModelsState = undefined | "loading" | { models: ModelOption[]; modes?: AcpModes } | { error: string };
@@ -255,8 +255,10 @@ export function fastReason(reason: FastUnusedReason): string { return FAST_REASO
 const EFFORT_LABELS: Record<string, string> = { minimal: "Minimal", low: "Low", medium: "Medium", high: "High", xhigh: "Extra high", max: "Max" };
 function effortLabel(id: string): string { return EFFORT_LABELS[id] ?? id.charAt(0).toUpperCase() + id.slice(1); }
 
+// isDefault: the provider's own default row (Claude Code's default, Codex's isDefault, an ACP agent's current model),
+// marked "Default" in the menu.
 export type ModelRow =
-  | { kind: "model"; id: string; label: string; effort: boolean; selected: boolean }
+  | { kind: "model"; id: string; label: string; effort: boolean; selected: boolean; isDefault: boolean }
   | { kind: "default"; label: "Default"; selected: boolean };
 export interface ProviderGroup {
   provider: Provider; name: string; selectable: boolean;
@@ -272,11 +274,17 @@ export interface ProviderGroup {
 // composer offers no Fast (Settings > Agents 'New conversations').
 export interface ModelChoice { provider: Provider | null; model: string | null; effort: string | null; fast?: boolean }
 export interface FastView { on: boolean; description?: string; unavailable?: FastUnusedReason }
-export interface ModelPickerView {
-  trigger: { provider: Provider | null; label: string; ariaLabel: string };
-  groups: ProviderGroup[];
-  effort: { label: string; ariaLabel: string; menuLabel: string; title: string; options: { id: string; label: string; selected: boolean }[]; fast: FastView | null } | null;
+// placeholder: the label is the drawer's name, not a value (picker-default-labels decision 9: drawn in the metadata ink).
+// isDefault: the shown model is the provider's default row.
+export interface ModelTrigger { provider: Provider | null; label: string; ariaLabel: string; placeholder: boolean; isDefault: boolean }
+// unset: the menu's first row, which goes back to sending no level. It stays out of options, so Settings, which draws
+// its own Default row, never shows two.
+export interface EffortView {
+  label: string; ariaLabel: string; placeholder: boolean; menuLabel: string; title: string;
+  unset: { label: "Default"; description: string; selected: boolean };
+  options: { id: string; label: string; selected: boolean }[]; fast: FastView | null;
 }
+export interface ModelPickerView { trigger: ModelTrigger; groups: ProviderGroup[]; effort: EffortView | null }
 
 export function modelOption(state: ModelsState, id: string | null): ModelOption | null {
   return id === null ? null : receivedModels(state)?.find(m => m.id === id) ?? null;
@@ -289,28 +297,36 @@ export function modelPickerView(auth: AuthSnapshot | null | undefined, models: P
     const group: ProviderGroup = { provider, name: PROVIDER_NAMES[provider], selectable, cause: status.readiness.ready ? null : status.readiness.cause, note: null, read: false, rows: [] };
     if (!selectable) return group;
     const state = models[provider], list = receivedModels(state), mine = choice.provider === provider;
-    if (list) return { ...group, rows: list.map(m => ({ kind: "model", id: m.id, label: m.label, effort: (m.efforts?.length ?? 0) > 0, selected: mine && m.id === chosen?.id })) };
+    if (list) return { ...group, rows: list.map(m => ({ kind: "model", id: m.id, label: m.label, effort: (m.efforts?.length ?? 0) > 0, selected: mine && m.id === chosen?.id, isDefault: m.default })) };
     const rows: ModelRow[] = [{ kind: "default", label: "Default", selected: mine }];
     if (state === "loading") return { ...group, note: "Loading models", rows };
     if (state !== undefined) return { ...group, note: "Models unavailable", rows };
     // Every provider, Copilot included, lists its models without a model request (PoC P1), so all are read.
     return { ...group, read: true, rows };
   });
-  const label = chosen?.label ?? "Default";
-  const trigger = choice.provider
-    ? { provider: choice.provider, label, ariaLabel: `Agent: ${PROVIDER_NAMES[choice.provider]}, model ${label}` }
-    : { provider: null, label: "No agent ready", ariaLabel: "Agent: none ready" };
-  const levels = chosen?.efforts ?? [];
-  const effort = chosen && levels.length > 0 ? (() => {
-    const current = choice.effort !== null && levels.includes(choice.effort) ? effortLabel(choice.effort) : "Default";
-    const fast = choice.provider && choice.fast !== undefined ? fastView(choice.provider, chosen, choice.fast) : null;
-    // label stays the level alone: Settings shows it as its row's text (fast-mode design §1).
-    return {
-      label: current, ariaLabel: fast && !fast.unavailable ? `Effort: ${current}, Fast ${fast.on ? "on" : "off"}` : `Effort: ${current}`, menuLabel: `Effort for ${chosen.label}`, title: `Effort · ${chosen.label}`,
-      options: levels.map(id => ({ id, label: effortLabel(id), selected: id === choice.effort })), fast,
-    };
-  })() : null;
+  const trigger: ModelTrigger = !choice.provider ? { provider: null, label: "No agent ready", ariaLabel: "Agent: none ready", placeholder: false, isDefault: false }
+    : !chosen ? { provider: choice.provider, label: "Model", ariaLabel: `Agent: ${PROVIDER_NAMES[choice.provider]}, model not chosen`, placeholder: true, isDefault: false }
+    : { provider: choice.provider, label: chosen.label, ariaLabel: `Agent: ${PROVIDER_NAMES[choice.provider]}, model ${chosen.label}${chosen.default ? ", default" : ""}`, placeholder: false, isDefault: chosen.default };
+  const effort = chosen && choice.provider && (chosen.efforts?.length ?? 0) > 0 ? effortView(choice.provider, chosen, choice) : null;
   return { trigger, groups, effort };
+}
+
+// With no level chosen the trigger shows the level the provider will run when Doan knows it (Codex's defaultEffort),
+// else the drawer's name (picker-default-labels spec 'Effort').
+function effortView(provider: Provider, model: ModelOption, choice: ModelChoice): EffortView {
+  const levels = model.efforts ?? [];
+  const picked = choice.effort !== null && levels.includes(choice.effort) ? choice.effort : null;
+  const known = model.defaultEffort !== undefined && levels.includes(model.defaultEffort) ? model.defaultEffort : null;
+  const label = picked ? effortLabel(picked) : known ? effortLabel(known) : "Effort";
+  const named = picked ? label : known ? `${label}, default` : "default";
+  const fast = choice.fast !== undefined ? fastView(provider, model, choice.fast) : null;
+  // label stays the level alone: Settings shows it as its row's text (fast-mode design §1).
+  return {
+    label, ariaLabel: fast && !fast.unavailable ? `Effort: ${named}, Fast ${fast.on ? "on" : "off"}` : `Effort: ${named}`, placeholder: !picked && !known,
+    menuLabel: `Effort for ${model.label}`, title: `Effort · ${model.label}`,
+    unset: { label: "Default", description: known ? `${effortLabel(known)} for this model` : `Set by ${PROVIDER_NAMES[provider]}`, selected: !picked },
+    options: levels.map(id => ({ id, label: effortLabel(id), selected: id === picked })), fast,
+  };
 }
 
 // Only Claude Code and Codex list Fast per model; the others offer Fast as a model of its own (fast-mode decision 1).

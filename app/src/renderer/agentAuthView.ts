@@ -173,9 +173,9 @@ export function providerView(status: AuthStatusDto, ctx: ProviderContext = {}): 
 // provider known only by what that wording depends on. Agent usage shows it for a connection that can't be used
 // (ARCHITECTURE §7 'Agent usage'), so the two never word one state differently.
 export function connectionLine(provider: Provider, facts: Pick<AuthStatusDto, "phase" | "readiness"> & { error?: AuthErrorCode; attempt?: AuthAttempt["kind"] }): string {
-  // The row's wording never reads the revision, actions, attempt ID or retryable flag; an empty account is connected without an email.
+  // The row's wording never reads the revision, generation, actions, attempt ID or retryable flag; an empty account is connected without an email.
   const status: AuthStatusDto = {
-    provider, revision: 0, phase: facts.phase, account: {}, readiness: facts.readiness, actions: [],
+    provider, revision: 0, generation: 0, phase: facts.phase, account: {}, readiness: facts.readiness, actions: [],
     attempt: facts.attempt ? { id: "", kind: facts.attempt, cancelling: false } : null, error: facts.error ? { code: facts.error, retryable: false } : null,
   };
   const view = providerView(status, { settings: true });

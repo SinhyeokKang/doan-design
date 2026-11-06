@@ -17,6 +17,48 @@ it("reads Claude's supportedModels rows with per-model effort levels and the def
   ]);
   expect(() => parseClaudeModels({})).toThrow("session_unavailable");
 });
+it("names Claude's default row after its resolved model and removes the paired row", () => {
+  expect(parseClaudeModels([
+    { value: "default", resolvedModel: "claude-opus-5-5", displayName: "Default (recommended)", supportsEffort: true, supportedEffortLevels: ["low", "high"], supportsFastMode: true },
+    { value: "opus", resolvedModel: "claude-opus-5-5", displayName: "Opus 5.5" },
+    { value: "sonnet", resolvedModel: "claude-sonnet-5-5", displayName: "Sonnet 5.5" },
+  ])).toEqual([
+    { id: "default", label: "Opus 5.5", default: true, efforts: ["low", "high"], fast: {} },
+    { id: "sonnet", label: "Sonnet 5.5", default: false },
+  ]);
+});
+it("keeps Claude's default row unchanged when no other resolved model matches", () => {
+  expect(parseClaudeModels([
+    { value: "default", resolvedModel: "claude-opus-5-5", displayName: "Default (recommended)" },
+    { value: "sonnet", resolvedModel: "claude-sonnet-5-5", displayName: "Sonnet 5.5" },
+  ])).toEqual([
+    { id: "default", label: "Default (recommended)", default: true },
+    { id: "sonnet", label: "Sonnet 5.5", default: false },
+  ]);
+});
+it.each([
+  [undefined, undefined],
+  [undefined, "claude-opus-5-5"],
+  ["claude-opus-5-5", undefined],
+])("keeps Claude's rows when resolvedModel is missing (%s, %s)", (defaultResolved, opusResolved) => {
+  expect(parseClaudeModels([
+    { value: "default", resolvedModel: defaultResolved, displayName: "Default (recommended)" },
+    { value: "opus", resolvedModel: opusResolved, displayName: "Opus 5.5" },
+  ])).toEqual([
+    { id: "default", label: "Default (recommended)", default: true },
+    { id: "opus", label: "Opus 5.5", default: false },
+  ]);
+});
+it("pairs only the first other Claude row with the default row's resolved model", () => {
+  expect(parseClaudeModels([
+    { value: "opus", resolvedModel: "claude-opus-5-5", displayName: "Opus 5.5" },
+    { value: "default", resolvedModel: "claude-opus-5-5", displayName: "Default (recommended)" },
+    { value: "opus-alias", resolvedModel: "claude-opus-5-5", displayName: "Another Opus" },
+  ])).toEqual([
+    { id: "default", label: "Opus 5.5", default: true },
+    { id: "opus-alias", label: "Another Opus", default: false },
+  ]);
+});
 it("reads Codex model/list with isDefault and supportedReasoningEfforts, leaving hidden models out", () => {
   expect(parseCodexModels({ data: [
     { id: "gpt-6-luna", displayName: "GPT-6-Luna", isDefault: true, hidden: false, defaultReasoningEffort: "medium", supportedReasoningEfforts: [{ reasoningEffort: "low", description: "" }, { reasoningEffort: "max", description: "" }] },

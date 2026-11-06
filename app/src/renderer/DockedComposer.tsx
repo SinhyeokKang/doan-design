@@ -12,7 +12,7 @@ import { distinctTargets, plainText, sameSegments, typedText } from "./anchorFie
 import { LIMITS } from "../main/conversation/messageText";
 import {
   AgentPicker, AttachButton, ComposerCard, ComposerChips, ComposerField, ComposerTools, EffortPicker, PermissionPicker, PresetsButton,
-  SendButton, SlashPresets, useComposerDrop, usePresetListOutside, type CanvasPress, type ComposerFieldHandle,
+  SendButton, SlashPresets, TriggerLabel, useComposerDrop, usePresetListOutside, type CanvasPress, type ComposerFieldHandle,
 } from "./ComposerParts";
 import { composerAction, composerShape, focusAfter, steerAllPlan, type FocusAction } from "./composerRules";
 import {
@@ -73,7 +73,7 @@ export interface DockedComposerProps {
   // The host's modelPickerView for this conversation's provider, or for a new conversation the picker Home shows.
   picker: ModelPickerView;
   provider: Provider | null; effort: string | null;
-  onPickerOpen(): void; onPickModel(provider: Provider, value: string): void; onPickEffort(value: string): void; onPickFast(on: boolean): void;
+  onPickerOpen(): void; onPickModel(provider: Provider, value: string | null): void; onPickEffort(value: string): void; onPickFast(on: boolean): void;
   // The permission mode picker after Effort (permission-mode spec decision 1); null or absent: the provider offers no
   // choice. A terminal session (`fixed`) shows its fixed trigger instead.
   permission?: PermissionPickerView | null; onPickPermission?(mode: PermissionModeId): void;
@@ -416,9 +416,9 @@ export function DockedComposer(props: DockedComposerProps) {
         <FixedTip label="Set in your terminal"><button type="button" className="composer-agent doan-button is-fixed" data-ui-size="xs" data-ui-variant="trigger" aria-disabled="true"
           aria-label={`Model: set by the terminal session (${PROVIDER_NAMES[fixedProvider]})`}><img className="logo" src={providerLogo(fixedProvider)} alt="" /><span className="label">Terminal session</span></button></FixedTip>
         <FixedTip label="Set in your terminal"><button type="button" className="composer-effort doan-button is-fixed" data-ui-size="xs" data-ui-variant="trigger" aria-disabled="true"
-          aria-label="Effort: set by the terminal session"><Gauge aria-hidden="true" /><span className="label">Default</span></button></FixedTip>
+          aria-label="Effort: set by the terminal session"><Gauge aria-hidden="true" /><TriggerLabel text="Effort" placeholder /></button></FixedTip>
         <FixedTip label="Set in your terminal"><button type="button" className="composer-permission doan-button is-fixed" data-ui-size="xs" data-ui-variant="trigger" aria-disabled="true"
-          aria-label="Permission: set by the terminal session"><Shield aria-hidden="true" /><span className="label">Default</span></button></FixedTip>
+          aria-label="Permission: set by the terminal session"><Shield aria-hidden="true" /><TriggerLabel text="Permission" placeholder /></button></FixedTip>
       </> : <>
         <AgentPicker size="xs" picker={picker} auth={props.auth} disabled={isSending} onOpen={props.onPickerOpen} onPick={props.onPickModel} onSettings={target => queueMicrotask(() => props.onSettings(target))} />
         {picker.effort && <EffortPicker size="xs" view={picker.effort} effort={props.effort} disabled={isSending} onPick={props.onPickEffort} onPickFast={props.onPickFast} />}

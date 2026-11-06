@@ -31,7 +31,7 @@ function status(provider: Provider) {
   return authStatus(state, { cli: "found", version: "supported", tools: "ready" }, 1);
 }
 const AUTH: AuthSnapshot = { revision: 1, providers: [status("claude")] };
-const PICKER: ModelPickerView = { trigger: { provider: "claude", label: "Opus 5.5", ariaLabel: "Agent: Claude Code, model Opus 5.5" }, groups: [], effort: null };
+const PICKER: ModelPickerView = { trigger: { provider: "claude", label: "Opus 5.5", ariaLabel: "Agent: Claude Code, model Opus 5.5", placeholder: false, isDefault: false }, groups: [], effort: null };
 const A: DockedMode = { kind: "existing", conversationId: "a", provider: "claude" };
 const B: DockedMode = { kind: "existing", conversationId: "b", provider: "claude" };
 

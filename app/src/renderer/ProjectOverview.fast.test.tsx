@@ -50,7 +50,7 @@ function render(list: ListView, current: string | null, patch: Partial<ProjectOv
   const support = new DockedSupport(() => {});
   support.auth = AUTH;
   support.presets = { v: 1, ok: true, result: { version: "1", presets: [] } };
-  support.models = { [modelsKey(ROOT, "claude")]: { models: [OPUS, SONNET] } };
+  support.models = { [modelsKey(ROOT, "claude", 1)]: { models: [OPUS, SONNET] } };
   picks?.(support);
   const props: ProjectOverviewProps = {
     run, support, root: ROOT, project: "doan", entry, worktrees: [entry], homeDirectory: "/code",
@@ -61,14 +61,14 @@ function render(list: ListView, current: string | null, patch: Partial<ProjectOv
   effects.length = 0; docked.props = null;
   renderToStaticMarkup(<TooltipProvider><ProjectOverview {...props} /></TooltipProvider>);
   for (const run of effects.splice(0)) run();
-  return { support, composer: docked.props! as { picker: ModelPickerView; onSend(request: unknown): Promise<unknown>; onPickFast(on: boolean): void; onPickModel(provider: Provider, value: string): void } };
+  return { support, composer: docked.props! as { picker: ModelPickerView; onSend(request: unknown): Promise<unknown>; onPickFast(on: boolean): void; onPickModel(provider: Provider, value: string | null): void; onPickEffort(value: string): void } };
 }
 const REQUEST = { text: "Go", anchors: [], attachments: [] };
 const KEY = `conversation:${A}`;
 
 test("an existing conversation shows its stored Fast, kept while a model without Fast is chosen", () => {
-  expect(render([summary({ fast: true })], A).composer.picker.effort).toMatchObject({ ariaLabel: "Effort: Default, Fast on", fast: { on: true } });
-  expect(render([summary()], A).composer.picker.effort).toMatchObject({ ariaLabel: "Effort: Default, Fast off", fast: { on: false } });
+  expect(render([summary({ fast: true })], A).composer.picker.effort).toMatchObject({ ariaLabel: "Effort: default, Fast on", fast: { on: true } });
+  expect(render([summary()], A).composer.picker.effort).toMatchObject({ ariaLabel: "Effort: default, Fast off", fast: { on: false } });
   const sonnet = render([summary({ fast: true })], A, {}, support => support.pick(KEY, { model: "sonnet" }));
   expect(sonnet.composer.picker.effort?.fast).toBeNull();
   expect(render([summary({ fast: true })], A, {}, support => support.pick(KEY, { model: "sonnet" })).support.picks[KEY]).not.toHaveProperty("fast");
@@ -134,4 +134,65 @@ test("Fast turned off in a conversation drops the switch its composer still held
   const { support } = render([summary()], A, {}, support => support.pick(KEY, { fast: true, model: "opus" }));
   support.fastTurnedOff(A);
   expect(support.picks[KEY]).toEqual({ model: "opus" });
+});
+
+// picker-default-labels review 🔴1: Claude Code's default row has the id "default", the same word the pre-list Default
+// row used to pass. Picking it must choose that model, not fall back to the conversation's stored one.
+test("an existing conversation on another model can pick Claude Code's default row", async () => {
+  const paired = (support: DockedSupport) => { support.models = { [modelsKey(ROOT, "claude", 1)]: { models: [{ id: "default", label: "Opus 5.5", default: true, efforts: ["high"] }, SONNET] } }; };
+  const { support, composer } = render([summary({ model: "sonnet" })], A, {}, paired);
+  expect(composer.picker.trigger.label).toBe("Sonnet");
+  composer.onPickModel("claude", "default");
+  const sent = vi.fn(async (_provider: Provider, _request: unknown) => {});
+  const after = render([summary({ model: "sonnet" })], A, { onSendConversation: sent }, next => { paired(next); next.picks = support.picks; });
+  expect(after.composer.picker.trigger).toMatchObject({ label: "Opus 5.5", isDefault: true });
+  await after.composer.onSend(REQUEST);
+  expect(sent.mock.calls.at(-1)![1]).toMatchObject({ model: "default" });
+});
+
+// RV ⚪2: the effort menu's Default row, picked in a conversation that stored a level, sends the model with no effort,
+// so main clears the stored level (Codex then sends its model's defaultEffort for that turn, unchanged here).
+test("an existing conversation that picks the effort Default row sends its model and no effort", async () => {
+  const { support, composer } = render([summary({ effort: "high" })], A);
+  expect(composer.picker.effort).toMatchObject({ label: "High", unset: { selected: false } });
+  composer.onPickEffort("");
+  const sent = vi.fn(async (_provider: Provider, _request: unknown) => {});
+  const after = render([summary({ effort: "high" })], A, { onSendConversation: sent }, next => { next.picks = support.picks; });
+  expect(after.composer.picker.effort).toMatchObject({ label: "Effort", placeholder: true, unset: { selected: true } });
+  await after.composer.onSend(REQUEST);
+  expect(sent.mock.calls.at(-1)![1]).toMatchObject({ conversationId: A, model: "opus" });
+  expect(sent.mock.calls.at(-1)![1]).not.toHaveProperty("effort");
+});
+
+// A docked new conversation says whether its model was picked, so a fixed Settings default without a model is not moved
+// onto the provider's default by a pick of something else.
+test("a new conversation's pick marks the model as picked only when the model was picked", () => {
+  const onRemember = vi.fn();
+  render([], null, { onRemember }, support => support.pick(`root:${ROOT}`, { permissionMode: "plan" }));
+  expect(onRemember.mock.calls.at(-1)![0]).toMatchObject({ provider: "claude", model: "opus", permissionMode: "plan" });
+  expect(onRemember.mock.calls.at(-1)![0]).not.toHaveProperty("modelPicked");
+  render([], null, { onRemember }, support => support.pick(`root:${ROOT}`, { model: "sonnet" }));
+  expect(onRemember.mock.calls.at(-1)![0]).toMatchObject({ provider: "claude", model: "sonnet", modelPicked: true });
+});
+
+test("a new conversation's pick marks the effort as picked only when the effort was picked", () => {
+  const onRemember = vi.fn();
+  render([], null, { onRemember }, support => support.pick(`root:${ROOT}`, { permissionMode: "plan" }));
+  expect(onRemember.mock.calls.at(-1)![0]).not.toHaveProperty("effortPicked");
+  render([], null, { onRemember }, support => support.pick(`root:${ROOT}`, { effort: "high" }));
+  expect(onRemember.mock.calls.at(-1)![0]).toMatchObject({ provider: "claude", model: "opus", effort: "high", effortPicked: true });
+  // The effort menu's Default row is a pick too: it clears a fixed effort.
+  render([], null, { onRemember }, support => support.pick(`root:${ROOT}`, { effort: "" }));
+  expect(onRemember.mock.calls.at(-1)![0]).toMatchObject({ provider: "claude", effort: null, effortPicked: true });
+});
+
+// A Codex account replacement in Settings > Agents mints a new connection (generation 2); the list this run read for the
+// previous one must not show in an existing conversation, and the new connection's list is read.
+test("an existing conversation reads its provider's list again after that provider's connection changed", () => {
+  const { composer } = render([summary({ provider: "codex", model: "gpt-old" })], A, {}, support => {
+    support.auth = { revision: 2, providers: [status("claude"), { ...status("codex"), generation: 2 }] };
+    support.models = { [modelsKey(ROOT, "codex", 1)]: { models: [{ id: "gpt-old", label: "GPT Old", default: true }] } };
+  });
+  expect(window.doan.listConversationModels).toHaveBeenCalledWith({ root: ROOT, runtime: "codex" });
+  expect(composer.picker.groups.find(group => group.provider === "codex")?.rows.map(row => row.label)).not.toContain("GPT Old");
 });

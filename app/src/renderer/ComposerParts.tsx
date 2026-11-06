@@ -301,18 +301,24 @@ export function usePresetListOutside(open: boolean, list: RefObject<HTMLElement 
 }
 
 type Picker = ReturnType<typeof modelPickerView>;
+// A trigger with no value shows its drawer's name in the metadata ink, so it reads as a heading, not a choice
+// (picker-default-labels decision 9).
+export function TriggerLabel({ text, placeholder }: { text: string; placeholder: boolean }) {
+  return <span className={placeholder ? "label placeholder" : "label"}>{text}</span>;
+}
 // The agent and model picker (buzz-settings design '홈 공급자 선택기'): a group per provider, its fix in Settings when it
-// cannot run. `onPick` gets the provider and a model id or "default".
+// cannot run. `onPick` gets the provider and a model id, or null for the Default row shown before the list is read:
+// Claude Code's own default model has the id "default", so that word cannot stand for the row.
 // `size`: Home's tools row uses sm; the docked row under the card steps down to xs (design §0).
 export function AgentPicker(props: {
   picker: Picker; auth: AuthSnapshot | null | undefined; disabled: boolean; size?: "sm" | "xs";
-  onOpen(): void; onPick(provider: Provider, value: string): void; onSettings(target: SettingsTarget): void;
+  onOpen(): void; onPick(provider: Provider, value: string | null): void; onSettings(target: SettingsTarget): void;
 }) {
   const { picker, auth } = props;
   const footer = pickerFooter(picker.groups.some(group => group.selectable));
   return <DropdownMenu.Root onOpenChange={open => { if (open) props.onOpen(); }}>
     <DropdownMenu.Trigger asChild><button type="button" className="composer-agent doan-button" data-ui-size={props.size ?? "sm"} data-ui-variant="trigger" aria-label={picker.trigger.ariaLabel} disabled={props.disabled}>
-      {picker.trigger.provider ? <><img className="logo" src={providerLogo(picker.trigger.provider)} alt="" /><span className="label">{picker.trigger.label}</span></> : <span className="muted">{picker.trigger.label}</span>}<ChevronDown className="chev" aria-hidden="true" />
+      {picker.trigger.provider ? <><img className="logo" src={providerLogo(picker.trigger.provider)} alt="" /><TriggerLabel text={picker.trigger.label} placeholder={picker.trigger.placeholder} /></> : <span className="muted">{picker.trigger.label}</span>}<ChevronDown className="chev" aria-hidden="true" />
     </button></DropdownMenu.Trigger>
     <DropdownMenu.Portal><DropdownMenu.Content className="doan-floating doan-menu agent-popover" aria-label="Agent and model" side="top" align="end" sideOffset={8} collisionPadding={8}>
       {picker.groups.map((group, index) => {
@@ -325,9 +331,9 @@ export function AgentPicker(props: {
         return <Fragment key={group.provider}>{index > 0 && <DropdownMenu.Separator className="doan-menu-sep" />}<div className="agent-group">
           <DropdownMenu.Label className="doan-menu-head agent-head"><img className="logo" src={providerLogo(group.provider)} alt="" /><span>{group.name}</span>
             {note && <span className="agent-note">{note === "Loading models" && <span className="doan-spinner" aria-hidden="true" />}{note}</span>}</DropdownMenu.Label>
-          {group.selectable ? <DropdownMenu.RadioGroup value={!selected ? "" : selected.kind === "model" ? selected.id : "default"} onValueChange={value => props.onPick(group.provider, value)}>
+          {group.selectable ? <DropdownMenu.RadioGroup value={!selected ? "" : selected.kind === "model" ? selected.id : "default"} onValueChange={value => props.onPick(group.provider, group.rows.some(row => row.kind === "model" && row.id === value) ? value : null)}>
             {group.rows.map(row => <DropdownMenu.RadioItem key={row.kind === "model" ? row.id : "default"} value={row.kind === "model" ? row.id : "default"} className="doan-menu-item model-item">
-              <span className="model-name">{row.label}</span>{row.kind === "model" && row.effort && <span className="sub"><Gauge className="inline" aria-hidden="true" />Effort</span>}
+              <span className="model-name">{row.label}{row.kind === "model" && row.isDefault && <span className="model-default">Default</span>}</span>{row.kind === "model" && row.effort && <span className="sub"><Gauge className="inline" aria-hidden="true" />Effort</span>}
               <span className="check-slot">{row.selected && <Check className="check" aria-hidden="true" />}</span>
             </DropdownMenu.RadioItem>)}
           </DropdownMenu.RadioGroup> : fix ? <DropdownMenu.Item className="doan-menu-item" onSelect={() => props.onSettings(fix.target)}>{fix.label}</DropdownMenu.Item>
@@ -350,12 +356,17 @@ export function EffortPicker({ view, effort, disabled, onPick, onPickFast, size 
   const { fast } = view;
   // The row's name is its Fast span alone, so the description is read once, as a description.
   const rowId = useId(), nameId = `${rowId}-name`, describedBy = `${rowId}-description`;
-  const trigger = <DropdownMenu.Trigger asChild><button type="button" className="composer-effort doan-button" data-ui-size={size} data-ui-variant="trigger" aria-label={view.ariaLabel} disabled={disabled}><Gauge aria-hidden="true" /><span className="label">{view.label}</span>{fast?.on && <Zap className="fast-icon" aria-hidden="true" />}<ChevronDown className="chev" aria-hidden="true" /></button></DropdownMenu.Trigger>;
+  const trigger = <DropdownMenu.Trigger asChild><button type="button" className="composer-effort doan-button" data-ui-size={size} data-ui-variant="trigger" aria-label={view.ariaLabel} disabled={disabled}><Gauge aria-hidden="true" /><TriggerLabel text={view.label} placeholder={view.placeholder} />{fast?.on && <Zap className="fast-icon" aria-hidden="true" />}<ChevronDown className="chev" aria-hidden="true" /></button></DropdownMenu.Trigger>;
   return <DropdownMenu.Root>
     {size === "xs" || fast ? <IconTip label={view.ariaLabel}>{trigger}</IconTip> : trigger}
     <DropdownMenu.Portal><DropdownMenu.Content className={`doan-floating doan-menu effort-popover${fast ? " has-fast" : ""}`} data-ui-size="compact" aria-label={view.menuLabel} side="top" align="end" sideOffset={8} collisionPadding={8}>
       <DropdownMenu.Label className="doan-menu-head">{view.title}</DropdownMenu.Label>
+      {/* The Default row's value is "", the no-level state, so it is checked while nothing is chosen; picking it passes
+          "" on, which the composers store and defaultEffort reads as no level. */}
       <DropdownMenu.RadioGroup value={effort ?? ""} onValueChange={onPick}>
+        <DropdownMenu.RadioItem value="" className="doan-menu-item unset-item"><span className="unset-copy"><span className="model-name">{view.unset.label}</span><span className="sub">{view.unset.description}</span></span>
+          <span className="check-slot">{view.unset.selected && <Check className="check" aria-hidden="true" />}</span></DropdownMenu.RadioItem>
+        <DropdownMenu.Separator className="doan-menu-sep" />
         {view.options.map(item => <DropdownMenu.RadioItem key={item.id} value={item.id} className="doan-menu-item"><span className="model-name">{item.label}</span><span className="check-slot">{item.selected && <Check className="check" aria-hidden="true" />}</span></DropdownMenu.RadioItem>)}
       </DropdownMenu.RadioGroup>
       {/* A menuitemcheckbox, not .doan-switch: that is a button[role="switch"], which cannot sit in a menu item. The switch
