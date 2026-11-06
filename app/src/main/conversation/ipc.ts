@@ -37,7 +37,7 @@ function questionInput(raw: Record<string, unknown>): QuestionAnswerInput | null
 }
 function choice(value: unknown): value is string { return typeof value === "string" && value.length > 0 && value.length <= 512 && !value.includes("\0"); }
 // ids: the attachment ids as sent, for the recheck, the sent marker and consume; attachments: their records now.
-// fast: the person's Fast choice, stored with the conversation; whether a turn runs with it is judged apart (turnFast).
+// fast: the person's Fast choice, stored with the conversation; whether a turn runs with it is judged apart (the send's fastTurn).
 export interface SendExtras { model?: string; effort?: string; fast?: boolean; permissionMode?: PermissionModeId; ids: unknown[]; attachments?: AttachmentRecord[] }
 // The model, effort, Fast, permission mode and attachments a start or send may carry. The provider is the conversation's
 // and never changes; a legacy external conversation runs on the person's own CLI profile, so it takes none of them. A
