@@ -49,3 +49,4 @@
 - 초안 `settings` tile 수정(RA follow-up)을 지휘자가 diff로 확인했다. Opus 5.5 고정 행이 빠지고 note가 메뉴 내용을 말한다. 이 캔버스의 `doan check` finding은 0이다(다른 파일의 기존 finding 13개는 무관). 통합 커밋은 `3608f2f4`이다.
 - RV(Codex Astra medium) 리뷰: 🔴0 🟡1 ⚪2. 🟡1(Settings Model 메뉴의 고정 해제 행과 실제 `default` id 모델 행이 같은 value를 가진다)과 ⚪2(노력 Default 행 → send에서 노력이 빠지는지 composer 수준 테스트)는 RA fix round 1로 보냈다. ⚪1(tray CSS를 소스 문자열로만 고정)은 B2의 computed-style 측정으로 보완한다. RV가 본 `conversation/io.test.ts:233` 시간 초과 1건은 단독 재실행에서 통과했다. RA가 본 `watch.test.ts` 1건과 함께 `/verify`에서 다시 본다.
 - 정리: MA·RV worker를 release했고, worktree `pdl-ma`·`pdl-rv`를 Orca로 지웠다. branch `SinhyeokKang/pdl-ma`(`6dd9c1bd`)·`SinhyeokKang/pdl-rv`(`11d94d54`)는 남아 있다.
+- RA fix round 1(`b4a5ec09`·`1677cb99`)을 지휘자가 diff로 확인하고 통합했다(통합 `13892d5c 06ed0017 `). Settings Model 메뉴 값이 `unset`과 `model:<id>`로 나뉜다. worker 기준 8714 tests 통과. B2를 RA에게 보냈다(dispatch `ctx_efada0971d47`). 보내기 전에 다른 Doan 앱은 떠 있지 않았다(tester-build의 electron-builder dmg 빌드만 돌고 있었다).
