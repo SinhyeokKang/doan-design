@@ -40,3 +40,19 @@
 - Codex `execpolicy check`(0.166.0)로 맨 명령 `doan handoff …`는 `doan`(allow)과 `doan handoff`(prompt)가 둘 다 맞고 결정은 `prompt`인 것을 확인했다. `bash -lc` 스크립트는 이 명령이 쪼개지 않아 heredoc 가설(U-024)은 이것으로 확인할 수 없다.
 - U(Opus high): 커밋 7개를 통합했다(`9e549c27`…`0b62d72e`의 cherry-pick). 리뷰는 U 작업자가 띄운 독립 Claude subagent가 두 번 했다(🔴0, 🟡5 중 4개 고침, ⚪). 별도 리뷰 작업자는 띄우지 않았다(지휘자 판단: subagent가 따로 된 맥락에서 `/code-review`를 돌렸고 두 번째에 🔴·🟡이 0이다). `/design-sync`: 6 frame, 62쌍, 차이 60개는 모두 DESIGN.md 'Canvas handoff'에 적었다(패널 경계 1 px, 글 없는 root가 상속한 body 글꼴, 패널 밖에 그린 초안 tile).
 - U 🟡4(이어받는 대화의 첫 턴이 실패하면 Edit and resend가 인계 메시지를 사람의 draft로 바꿈): 숨긴다(지휘자 판단, 근거: design '결정 영향' "인계 메시지는 사람의 메시지가 아니라고 prompt와 화면이 모두 밝힌다"). U 수정 1회로 보냈다. design-sync가 찾은 focus 결함은 main에 들어간 적이 없어 POSTMORTEM에 적지 않는다.
+- U 수정 1회(`9cbd9934`·`dc797714`·`02b7f551`의 cherry-pick, 끝 `a1f2df23`): 핸드오프 카드로 시작한 턴의 끝 notice에서 Edit and resend를 숨겼다.
+
+## R1 결과(2026-11-06, 지휘자)
+
+이 worktree 빌드(`0f747e68`)를 main checkout의 Electron과 공용 프로필로 띄웠다. 새 CLI(`go build`)를 `DOAN_CLI`로 주었다. probe repo는 `.scratch/r1/repo`(앞 PoC repo 복사)이고 `folders.json`에 잠시 더했다가 되돌렸다(`folders.json`·`ui-state.json`·`canvas-seen.json`을 byte 단위로 같게 되돌림). 대화는 preload API로 시작했고 permission은 allow-once로 답했다. 자료는 `.scratch/runtime-test/canvas-handoff/`(`results.json`, `shots/`, `r1.mjs`, `launch.sh`)에 있다.
+
+| 경우 | 결과 |
+|---|---|
+| Claude Default | `doan handoff`가 Bash 승인 요청("Hand off new canvas and end work session")으로 보였고 승인 뒤 `handoff.requested` → 턴 done → `started`. 화면이 `r1-claude-default`로 옮겨 가고 focus가 인계 카드("Handed off from probe.html" + Open)에 있었다. Back으로 probe에 돌아왔고 원래 대화에 "Handed off to r1-claude-default.html" + Open 줄이 `requested` 자리에 남았다. 이어받는 대화는 같은 mode로 턴을 마쳤다 |
+| Codex Default | 승인 요청이 두 번 보였다. agent는 `printf … \| doan handoff … --message -`를 썼다. 첫 요청은 `doan-handoff.rules`의 `prompt`였고, 승인 뒤에도 sandbox 안에서 실행돼 "Cannot connect to Doan"을 받았다. agent가 escalation을 요청했고 두 번째 승인 뒤 닿았다(Codex rollout `rollout-2026-11-06T10-10-07-…`에서 확인). 그 뒤 이동·카드·이어받는 대화는 Claude와 같다 |
+| Claude Full access | 승인 요청 0개. 핸드오프 시작, 이동, 이어받는 대화 mode `bypass` |
+| Claude Default + Stop | `handoff.requested`를 본 뒤 interrupt → `handoff.resolved cancelled`, 이어받는 대화 없음, 원래 대화에 "Didn’t hand off to r1-claude-stop.html. The turn didn’t finish."(`ban`) |
+
+- **Codex 두 번 묻기**(사람, 2026-11-06): R1 결과를 사람에게 보였고 사람이 "두 번 묻기 유지"를 골랐다. `prompt` 규칙을 그대로 두고, 첫 승인이 sandbox 안에서 끝나는 점과 agent가 escalation을 고르지 않으면 실패하는 점을 BACKLOG에 적는다. 고르지 않은 것: 안내 문구로 처음부터 escalation을 요청하게 하기, `prompt` 규칙 빼기.
+- 확인하지 못한 것: Cursor·Antigravity·Copilot의 핸드오프, Codex Accept edits·Plan, Claude Accept edits·Plan, 실제 앱에서 dialog·first run·글을 쓰던 composer 때의 toast, 10 s 대기 상한. 이들은 unit 테스트로만 확인했다.
+- probe 방식의 한계: preload API로 시작한 대화는 renderer 패널이 고르지 않아, 패널은 "New conversation"을 보였다. 원래 대화 줄은 패널에서 그 대화를 골라 확인했다. 사람의 composer로 보낸 흐름은 실제 앱에서 보지 않았다.

@@ -93,7 +93,7 @@
 
 ## R. 실제 앱 확인
 
-- [ ] R1. `/runtime-test`: 로그인한 Doan 연결로 캔버스 대화에서 새 캔버스를 만들고 넘기게 해, 승인 요청(Default), 원래 대화 줄, 이동, 인계 카드, Back, Stop으로 취소를 확인한다. Full access에서 묻지 않는 것도 본다.
+- [x] R1. `/runtime-test`: 로그인한 Doan 연결로 캔버스 대화에서 새 캔버스를 만들고 넘기게 해, 승인 요청(Default), 원래 대화 줄, 이동, 인계 카드, Back, Stop으로 취소를 확인한다. Full access에서 묻지 않는 것도 본다.
   - 검증: `.scratch/runtime-test/canvas-handoff/`에 스크린샷과 로그가 있고, 확인하지 못한 표면은 BACKLOG 후보로 적었다. 실행은 P의 공용 로그인 프로필 방식(main checkout Electron, `.scratch/` 아래 userData, 실제 HOME)이고, 실행 때 사람의 승인이 필요하다.
 - [ ] R2. `/verify`.
   - 검증: `node .agents/skills/verify/scripts/verify.mjs --eval`이 통과한다.
