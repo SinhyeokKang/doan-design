@@ -28,8 +28,8 @@
 
 ## 문제(관찰한 사실)
 
-1. **목록에는 Doan의 design preset만 있다.** composer의 preset 목록은 CLI의 `doan design-skill --json` 목록(20개)만 보인다(`app/src/main/designSkills.ts`, `presetListView` `app/src/renderer/homeComposer.ts:471`). 검색도 preset의 title·id·scope·description만 본다(`searchPresets`, `homeComposer.ts:440`). 저장소의 skill(예: 이 저장소의 `.agents/skills/<name>/SKILL.md`와 `.claude/skills/<name>` 링크)은 목록에 없다.
-2. **`/<이름>`을 쳐도 skill로 전달되지 않는다.** `/` 목록은 field가 `/`로 시작하고 줄바꿈이 없을 때만 열리고(`slashQuery`, `homeComposer.ts:538`), Enter는 목록의 강조된 preset을 고른다(`slashKey`, `HomeComposerView.tsx:151`). 맞는 preset이 없으면 Enter는 `/이름`을 보통 글로 보낸다. 글 속의 `/이름`은 아무 표시도 받지 않는다.
+1. **목록에는 Doan의 design preset만 있다.** composer의 preset 목록은 CLI의 `doan design-skill --json` 목록(20개)만 보인다(`app/src/main/designSkills.ts`, `presetListView` `app/src/renderer/homeComposer.ts:511`). 검색도 preset의 title·id·scope·description만 본다(`searchPresets`, `homeComposer.ts:480`). 저장소의 skill(예: 이 저장소의 `.agents/skills/<name>/SKILL.md`와 `.claude/skills/<name>` 링크)은 목록에 없다.
+2. **`/<이름>`을 쳐도 skill로 전달되지 않는다.** `/` 목록은 field가 `/`로 시작하고 줄바꿈이 없을 때만 열리고(`slashQuery`, `homeComposer.ts:578`), Enter는 목록의 강조된 preset을 고른다(`slashKey`, `HomeComposerView.tsx:151`). 맞는 preset이 없으면 Enter는 `/이름`을 보통 글로 보낸다. 글 속의 `/이름`은 아무 표시도 받지 않는다.
 3. **보통 글로 보낸 `/이름`이 skill로 쓰일지는 provider마다 다르고, Doan이 정하지 않는다.** Doan의 턴 prompt는 항상 고정 안내 문장으로 시작하고, 사람의 글은 그 뒤 JSON의 `userText` 필드 안에 들어간다(`turnPrompt`, `app/src/main/conversation/prompt.ts:46-79`). 그래서 메시지 **맨 앞**의 `/name`만 펼치는 동작(Claude Code, Copilot의 맨 앞 규칙)은 Doan 대화에 닿지 않는다. 반대로 글 속 어디에 있든 이름을 잡는 동작도 있다: Cursor는 공백 뒤의 `/name`을, Codex는 `$name`을 글 어디서든 skill 선택으로 읽는다(design '조사 결과'). 같은 글이 provider에 따라 skill을 부르기도 하고 안 부르기도 한다.
 4. **Doan 대화가 어떤 skill을 실제로 불러오는지는 provider마다 다르다.** Doan 대화는 Doan의 profile에서 돈다(PRODUCT §3 In scope 7). Claude Code는 `settingSources: ["user", "project", "local"]`(`runners.ts:299`)이고 user 범위는 Doan profile(`CLAUDE_CONFIG_DIR`)이라 doan stub만 있다. Codex는 `CODEX_HOME`이 Doan profile이다. Cursor, Antigravity, Copilot은 Doan이 정한 HOME에서 돈다(`app/src/main/agentAuth/providers.ts:115-153`). 저장소의 skill을 각 provider가 어디서 읽는지는 design '조사 결과'에 정리했다.
 

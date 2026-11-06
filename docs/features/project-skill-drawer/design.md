@@ -9,11 +9,11 @@
 ### 지금 목록과 전달(코드로 확인)
 
 - 목록은 CLI의 `doan design-skill --json` 결과다. main의 `design-skills:list|get`(`app/src/main/designSkills.ts`)이 CLI를 한 번 돌리고, renderer는 사본을 두지 않는다(ARCHITECTURE §7 'Design preset reads').
-- `/` 목록은 field가 `/`로 시작하고 줄바꿈이 없을 때 열리고, `/` 뒤 글이 검색어다(`slashQuery`, `homeComposer.ts:538`). 행에는 group 이름이 붙는다(`presetListView`의 `slash`, `homeComposer.ts:488`). Enter는 강조 행을 고르고, 맞는 행이 없으면 Enter는 보내기로 간다(`slashKey`, `HomeComposerView.tsx:151-157`). Home(`HomeComposerView.tsx:294-311`)과 docked(`DockedComposer.tsx:202-249`)가 같은 순수 함수를 쓴다.
+- `/` 목록은 field가 `/`로 시작하고 줄바꿈이 없을 때 열리고, `/` 뒤 글이 검색어다(`slashQuery`, `homeComposer.ts:578`). 행에는 group 이름이 붙는다(`presetListView`의 `slash`, `homeComposer.ts:528`). Enter는 강조 행을 고르고, 맞는 행이 없으면 Enter는 보내기로 간다(`slashKey`, `HomeComposerView.tsx:151-157`). Home(`HomeComposerView.tsx:294-311`)과 docked(`DockedComposer.tsx:202-249`)가 같은 순수 함수를 쓴다.
 - 고른 preset은 chip 줄의 `.preset-chip`이다(`ComposerParts.tsx:92`). 한 번에 하나다.
 - 보낼 때 `composeRequest`가 사람의 글 앞에 "Use the Doan design preset \`<id>\` (<title>)." 한 줄을 붙인다(`homeComposer.ts:34-41`). 이 글이 `user.message`의 text로 저장되고 턴 prompt의 `userText`가 된다. thread·queue·Edit on Home은 `splitRequest`(`homeComposer.ts:46-51`)로 그 줄을 다시 읽어 말풍선의 `.bubble-preset`(`ConversationThread.tsx:388`)과 chip으로 되살린다. 그래서 preset에는 schema나 IPC 필드가 없다(`schema/`의 `*.schema.json`에 preset 필드가 없다).
 - 턴 prompt는 고정 안내 문장 → JSON(`context`, `parts[].userText`, `anchorData`, `attachments`) → `PRESET_GUIDANCE` 등 고정 문단 순서다(`prompt.ts:46-79`). Claude는 SDK 메시지 content 문자열로(`runners.ts:420`, `:429`), Codex는 `turn/start`의 `[{type: "text"}]`로(`runners.ts:216`), ACP는 `session/prompt`의 text block으로(`acpRunner.ts:151`) 보낸다.
-- 모델 목록은 이미 "provider를 열되 prompt는 보내지 않는" 길로 읽는다: `listModels`(`runners.ts:30-37`)가 Claude는 `initializationResult()` 뒤 `supportedModels()`, Codex는 thread 없이 `model/list`, ACP는 `session/new`를 쓰고, `ModelCatalog`(`models.ts:84-119`)가 root × provider × 연결 × 설치 버전으로 이 실행 동안 캐시한다.
+- 모델 목록은 이미 "provider를 열되 prompt는 보내지 않는" 길로 읽는다: `listModels`(`runners.ts:30-37`)가 Claude는 `initializationResult()` 뒤 `supportedModels()`, Codex는 thread 없이 `model/list`, ACP는 `session/new`를 쓰고, `ModelCatalog`(`models.ts:118-153`)가 root × provider × 연결 × 설치 버전으로 이 실행 동안 캐시한다.
 
 ### provider별: Doan 대화가 불러오는 project skill과 부르는 법
 
@@ -44,7 +44,7 @@
 - Claude: 목록용 SDK `query`(prompt 없음)를 여는 `openClaude`가 이미 `initializationResult()`를 기다린다(`runners.ts:352`). 그 응답의 `commands`(`sdk.d.ts:3845`)를 읽는다. 거르는 규칙(`parseClaudeSkills`, PoC P1): `builtin !== true`이고 `description`이 ` (project)`로 끝나는 항목만 남기고, 그 꼬리를 떼어 설명으로 쓴다. SDK는 출처 필드를 주지 않지만 2.1.284와 2.1.318 모두 설명 끝에 출처를 붙였다: ` (project)`, ` (user)`(Doan stub `doan`), ` (claude.ai sync)`, MCP prompt와 claude.ai connector는 ` (MCP)`(이름은 `<server>:<prompt>`). 이 꼬리 규칙이 바뀌면 목록이 비는 쪽으로 실패한다. `.claude/commands/*.md`는 project 항목으로 오고, 중첩 command는 `sub:x`처럼 `:`로 이은 이름이다. `.agents/skills`를 가리키는 symlink skill도 온다. `user-invocable: false` skill은 오지 않고, `disable-model-invocation: true` skill은 온다. MCP prompt는 `initializationResult()`에는 없고 server가 연결된 뒤의 `supportedCommands()`에만 오므로, 목록용 읽기는 `initializationResult()`만 쓴다.
 - Codex: 목록용 app-server(`openCodexList`)에서 `skills/list {cwds: [root], forceReload: true}`를 부른다. `parseCodexSkills`는 `data[].skills[]`를 풀고 `scope === "repo"`, `enabled !== false`, `pluginId == null`인 것만 남긴다. `errors`(SKILL.md를 읽지 못한 경로)는 버린다. 사람의 `~/.agents/skills`(user), system skill, 저장소 marketplace의 plugin skill은 뺀다.
 - 두 parser 모두 저장소 글(다른 사람이 git으로 넣었을 수 있다)을 IPC로 넘기므로 상한을 둔다: 항목 200개, 설명은 첫 줄만 200 code unit까지, 이름 검증(빈 값, 공백·줄바꿈, backtick, 64자 상한).
-- 캐시(main, 결정 6·21): root × provider마다 마지막 성공 목록과 읽은 시각, 진행 중 읽기의 promise를 둔다. 30초 안의 요청은 마지막 목록을 바로 돌려준다. 진행 중 읽기가 있으면 같은 promise를 기다린다(Home과 docked composer가 함께 처음 그려져도 provider가 한 번만 뜬다, `ModelCatalog`의 promise 캐시와 같은 방식, `models.ts:91-98`). 실패는 시각을 남기지 않으므로 다음 요청이 바로 다시 읽는다. 모델 목록의 `ModelCatalog` 캐시(연결·버전이 바뀔 때만)와는 따로 둔다. skill은 이 실행 중에도 저장소에서 바뀌기 때문이다.
+- 캐시(main, 결정 6·21): root × provider마다 마지막 성공 목록과 읽은 시각, 진행 중 읽기의 promise를 둔다. 30초 안의 요청은 마지막 목록을 바로 돌려준다. 진행 중 읽기가 있으면 같은 promise를 기다린다(Home과 docked composer가 함께 처음 그려져도 provider가 한 번만 뜬다, `ModelCatalog`의 promise 캐시와 같은 방식, `models.ts:125-132`). 실패는 시각을 남기지 않으므로 다음 요청이 바로 다시 읽는다. 모델 목록의 `ModelCatalog` 캐시(연결·버전이 바뀔 때만)와는 따로 둔다. skill은 이 실행 중에도 저장소에서 바뀌기 때문이다.
 - 읽는 때: composer를 처음 그릴 때(하이라이트가 목록 없이 정해질 수 없으므로), 목록이 열릴 때, 턴이 끝날 때(agent가 방금 만든 skill을 바로 쓰도록), Home에서 provider나 project를 바꿀 때. host는 읽는 동안과 실패했을 때 마지막으로 받은 목록을 쓰고, 받은 적이 없으면 빈 목록이다.
 - terminal session(legacy external) 대화의 docked composer도 같은 길로 Doan 프로필에서 읽은 목록을 쓴다.
 - Cursor, Copilot, Antigravity: 읽지 않는다. 빈 목록이다(결정 2).
@@ -55,7 +55,7 @@
 - 순서: 검색은 `searchPresets`의 점수 규칙을 skill의 `name`·`description`에 쓰고, 같은 점수면 preset이 먼저다. 검색어가 preset id와 정확히 같으면 그 preset 행이 맨 위이고, 같은 이름의 skill 행이 바로 아래다(결정 16; 이 저장소의 `audit`). 그렇지 않고 검색어가 skill 이름과 정확히 같으면 그 skill 행이 맨 위다.
 - 행 모양은 preset 행(이름 위, 설명 아래 한 줄)과 같고, 이름은 `/<이름>`으로 보인다. Doan preset 행에는 왼쪽에 보라 아이콘 타일을 둔다. 제안 프롬프트 행과 같은 primitive(`.suggestion-icon`, `HomeComposerView.tsx`의 `GroupIcon name={groupIcon(group)}`)이고 아이콘은 그 preset의 group 아이콘이다. skill 행은 같은 타일을 회색으로, 아이콘은 `SquareSlash`로 둔다(결정 23). 지금 행은 이름과 설명만 그린다(`ComposerParts.tsx`의 `PresetOption`). "Project" 탭의 아이콘은 lucide `SquareSlash`다(결정 22).
 - 검색 칸 placeholder와 접근 이름(`aria-label`, 지금 "Search presets", `ComposerParts.tsx:235`)은 skill이 하나 이상일 때만 "Search presets and skills"이고, 아니면 지금 그대로다. Presets 버튼의 이름 "Design presets"는 그대로다(결정 7). 결과 없음과 결과 수 문구도 skill이 있을 때는 skill을 함께 말한다(예: "No presets or skills match “q”."). 최종 문구는 초안 때 clarify preset으로 정한다. composer placeholder "Describe what to design, / for presets"는 그대로다.
-- skill이 없거나 목록을 받은 적 없이 읽기에 실패하면 skill 탭과 행이 없을 뿐이다(결정 5). 반대로 preset 읽기가 loading·error·olderCli여도 skill 목록이 있으면 preset 쪽 notice나 loading 줄을 위에 두고 그 아래에 skill section을 보인다(결정 19; 지금 `presetListView`는 이 상태에서 일찍 반환한다, `homeComposer.ts:471-480`).
+- skill이 없거나 목록을 받은 적 없이 읽기에 실패하면 skill 탭과 행이 없을 뿐이다(결정 5). 반대로 preset 읽기가 loading·error·olderCli여도 skill 목록이 있으면 preset 쪽 notice나 loading 줄을 위에 두고 그 아래에 skill section을 보인다(결정 19; 지금 `presetListView`는 이 상태에서 일찍 반환한다, `homeComposer.ts:511-520`).
 - 목록이 열린 채 행이 바뀌면(다시 읽은 결과 도착): 강조는 같은 행(`kind` + 이름)을 따라가고, 그 행이 없으면 맨 위로 간다. 지금은 검색어가 바뀔 때만 강조가 0으로 돌아가서(`HomeComposerView.tsx:303`, `DockedComposer.tsx:238`), 행이 줄면 Enter가 아무 일도 하지 않을 수 있다. popover에서 고른 탭이 사라지면 첫 탭으로 가고 focus도 그 탭으로 간다(POSTMORTEM 2026-11-01 'A frame drawer list closed by a disabled trigger reopened by itself': 사라진 상태를 남겨 두지 않는다).
 - **skill 행을 고르면**(§4 '고르기'): chip을 만들지 않고 `/<이름>` 글을 넣는다. preset 행을 고르는 동작은 지금 그대로다.
 
@@ -199,7 +199,7 @@
 - **context-window-ring**(병합됨): `DockedComposer`의 tray 끝에 링을 더했다. 이 feature는 그 모양 위에서 시작한다.
 - **turn-activity**(먼저 구현함, PR `feat/turn-activity`): thread의 마지막 항목에 턴 표시를 더했다(PRODUCT §5 item 3 'Turn indicator'). `ConversationThread.tsx`, `turnStatus.ts`, `conversationStore.ts`를 고쳤고 사람 메시지 말풍선은 바꾸지 않았다. 이 feature는 그 변경 위에서 시작한다.
 - **chain-261106**(work-update → canvas-handoff → small-ui-tweaks): canvas-handoff가 `turnPrompt`에 `extras.handoff`를 더한다(그 tasks B3). 이 feature는 `turnPrompt`를 바꾸지 않으므로(고정 줄은 renderer의 `composeRequest`가 만든다) 충돌이 없다.
-- **prompt-suggestion**(병합됨): 빈 field의 Right Arrow로 제안을 받는다(`takesSuggestion`, `homeComposer.ts:529`). 하이라이트는 글이 있을 때만 생기므로 서로 닿지 않는다. 제안을 받아 들어온 글에 skill 단어가 있으면 같은 규칙으로 하이라이트된다.
+- **prompt-suggestion**(병합됨): 빈 field의 Right Arrow로 제안을 받는다(`takesSuggestion`, `homeComposer.ts:569`). 하이라이트는 글이 있을 때만 생기므로 서로 닿지 않는다. 제안을 받아 들어온 글에 skill 단어가 있으면 같은 규칙으로 하이라이트된다.
 
 ## POSTMORTEM에서 가져온 함정
 
