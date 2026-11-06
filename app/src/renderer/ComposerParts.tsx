@@ -307,11 +307,12 @@ export function TriggerLabel({ text, placeholder }: { text: string; placeholder:
   return <span className={placeholder ? "label placeholder" : "label"}>{text}</span>;
 }
 // The agent and model picker (buzz-settings design '홈 공급자 선택기'): a group per provider, its fix in Settings when it
-// cannot run. `onPick` gets the provider and a model id or "default".
+// cannot run. `onPick` gets the provider and a model id, or null for the Default row shown before the list is read:
+// Claude Code's own default model has the id "default", so that word cannot stand for the row.
 // `size`: Home's tools row uses sm; the docked row under the card steps down to xs (design §0).
 export function AgentPicker(props: {
   picker: Picker; auth: AuthSnapshot | null | undefined; disabled: boolean; size?: "sm" | "xs";
-  onOpen(): void; onPick(provider: Provider, value: string): void; onSettings(target: SettingsTarget): void;
+  onOpen(): void; onPick(provider: Provider, value: string | null): void; onSettings(target: SettingsTarget): void;
 }) {
   const { picker, auth } = props;
   const footer = pickerFooter(picker.groups.some(group => group.selectable));
@@ -330,7 +331,7 @@ export function AgentPicker(props: {
         return <Fragment key={group.provider}>{index > 0 && <DropdownMenu.Separator className="doan-menu-sep" />}<div className="agent-group">
           <DropdownMenu.Label className="doan-menu-head agent-head"><img className="logo" src={providerLogo(group.provider)} alt="" /><span>{group.name}</span>
             {note && <span className="agent-note">{note === "Loading models" && <span className="doan-spinner" aria-hidden="true" />}{note}</span>}</DropdownMenu.Label>
-          {group.selectable ? <DropdownMenu.RadioGroup value={!selected ? "" : selected.kind === "model" ? selected.id : "default"} onValueChange={value => props.onPick(group.provider, value)}>
+          {group.selectable ? <DropdownMenu.RadioGroup value={!selected ? "" : selected.kind === "model" ? selected.id : "default"} onValueChange={value => props.onPick(group.provider, group.rows.some(row => row.kind === "model" && row.id === value) ? value : null)}>
             {group.rows.map(row => <DropdownMenu.RadioItem key={row.kind === "model" ? row.id : "default"} value={row.kind === "model" ? row.id : "default"} className="doan-menu-item model-item">
               <span className="model-name">{row.label}{row.kind === "model" && row.isDefault && <span className="model-default">Default</span>}</span>{row.kind === "model" && row.effort && <span className="sub"><Gauge className="inline" aria-hidden="true" />Effort</span>}
               <span className="check-slot">{row.selected && <Check className="check" aria-hidden="true" />}</span>

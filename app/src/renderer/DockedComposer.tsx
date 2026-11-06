@@ -73,7 +73,7 @@ export interface DockedComposerProps {
   // The host's modelPickerView for this conversation's provider, or for a new conversation the picker Home shows.
   picker: ModelPickerView;
   provider: Provider | null; effort: string | null;
-  onPickerOpen(): void; onPickModel(provider: Provider, value: string): void; onPickEffort(value: string): void; onPickFast(on: boolean): void;
+  onPickerOpen(): void; onPickModel(provider: Provider, value: string | null): void; onPickEffort(value: string): void; onPickFast(on: boolean): void;
   // The permission mode picker after Effort (permission-mode spec decision 1); null or absent: the provider offers no
   // choice. A terminal session (`fixed`) shows its fixed trigger instead.
   permission?: PermissionPickerView | null; onPickPermission?(mode: PermissionModeId): void;

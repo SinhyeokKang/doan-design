@@ -536,7 +536,7 @@ export function HeroComposer(props: HeroComposerProps) {
             {slashOpen && slashView && <SlashPresets view={slashView} query={slash} listId={listId} highlight={highlight} listRef={slashList} onHighlight={setHighlight} onChoose={id => choosePreset(id, true)} onRetry={readPresets} />}
             <span className="grow" />
             <AgentPicker picker={picker} auth={auth} disabled={sending} onOpen={() => { if (root && healthy) for (const group of picker.groups) if (group.read) readModels(root, group.provider); }}
-              onPick={(pickedProvider, value) => edit({ provider: pickedProvider, ...(value === "default" ? {} : { models: { ...memory.current.models, [pickedProvider]: value } }) })} onSettings={openSettings} />
+              onPick={(pickedProvider, value) => edit({ provider: pickedProvider, ...(value === null ? {} : { models: { ...memory.current.models, [pickedProvider]: value } }) })} onSettings={openSettings} />
             {picker.effort && provider && model && <EffortPicker view={picker.effort} effort={effort} disabled={sending} onPick={value => edit({ efforts: { ...memory.current.efforts, [effortKey(provider, model)]: value } })} onPickFast={on => { edit({ fast: { ...memory.current.fast, [provider]: on } }); props.onRemember?.({ provider, model, effort, fast: on }); }} />}
             {permission && provider && <PermissionPicker view={permission} disabled={sending} onPick={mode => edit({ permissions: { ...memory.current.permissions, [provider]: mode } })} />}
             <SendButton enabled={availability.enabled} sending={sending} onSend={() => void send()} hint={reason?.kind === "noAgent" ? reason.text : undefined} />

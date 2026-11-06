@@ -275,3 +275,21 @@ test("the installed Radix menu keeps a prevented select open and still toggles a
   expect(source).toMatch(/if \(itemSelectEvent\.defaultPrevented\) \{\s*isPointerDownRef\.current = false;\s*\} else \{\s*rootContext\.onClose\(\);/);
   expect(source).toMatch(/role: "menuitemcheckbox"[\s\S]*?onSelect: \(0, import_primitive\.composeEventHandlers\)\(\s*checkboxItemProps\.onSelect,\s*\(\) => onCheckedChange\?\.\(isIndeterminate\(checked\) \? true : !checked\),\s*\{ checkForDefaultPrevented: false \}|role: "menuitemcheckbox"[\s\S]*?onSelect: composeEventHandlers\(\s*checkboxItemProps\.onSelect,\s*\(\) => onCheckedChange\?\.\(isIndeterminate\(checked\) \? true : !checked\),\s*\{ checkForDefaultPrevented: false \}/);
 });
+
+// picker-default-labels review 🔴1: the pre-list Default row passes null; a model row passes its id, even Claude Code's
+// "default".
+test("the agent picker passes null for the pre-list Default row and a model row's own id", () => {
+  const onPick = vi.fn();
+  const picker: ModelPickerView = {
+    trigger: { provider: "claude", label: "Opus 5.5", ariaLabel: "Agent: Claude Code, model Opus 5.5, default", placeholder: false, isDefault: true }, effort: null,
+    groups: [
+      { provider: "claude", name: "Claude Code", selectable: true, cause: null, note: null, read: false, rows: [{ kind: "model", id: "default", label: "Opus 5.5", effort: true, selected: true, isDefault: true }] },
+      { provider: "codex", name: "Codex", selectable: true, cause: null, note: "Loading models", read: false, rows: [{ kind: "default", label: "Default", selected: false }] },
+    ],
+  };
+  const groups = propsOf(AgentPicker({ picker, auth: undefined, disabled: false, onOpen: () => {}, onPick, onSettings: () => {} })).filter(item => item.type === DropdownMenu.RadioGroup);
+  (groups[0]!.props.onValueChange as (value: string) => void)("default");
+  expect(onPick).toHaveBeenLastCalledWith("claude", "default");
+  (groups[1]!.props.onValueChange as (value: string) => void)("default");
+  expect(onPick).toHaveBeenLastCalledWith("codex", null);
+});

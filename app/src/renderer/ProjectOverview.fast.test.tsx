@@ -61,7 +61,7 @@ function render(list: ListView, current: string | null, patch: Partial<ProjectOv
   effects.length = 0; docked.props = null;
   renderToStaticMarkup(<TooltipProvider><ProjectOverview {...props} /></TooltipProvider>);
   for (const run of effects.splice(0)) run();
-  return { support, composer: docked.props! as { picker: ModelPickerView; onSend(request: unknown): Promise<unknown>; onPickFast(on: boolean): void; onPickModel(provider: Provider, value: string): void } };
+  return { support, composer: docked.props! as { picker: ModelPickerView; onSend(request: unknown): Promise<unknown>; onPickFast(on: boolean): void; onPickModel(provider: Provider, value: string | null): void } };
 }
 const REQUEST = { text: "Go", anchors: [], attachments: [] };
 const KEY = `conversation:${A}`;
@@ -134,4 +134,18 @@ test("Fast turned off in a conversation drops the switch its composer still held
   const { support } = render([summary()], A, {}, support => support.pick(KEY, { fast: true, model: "opus" }));
   support.fastTurnedOff(A);
   expect(support.picks[KEY]).toEqual({ model: "opus" });
+});
+
+// picker-default-labels review 🔴1: Claude Code's default row has the id "default", the same word the pre-list Default
+// row used to pass. Picking it must choose that model, not fall back to the conversation's stored one.
+test("an existing conversation on another model can pick Claude Code's default row", async () => {
+  const paired = (support: DockedSupport) => { support.models = { [modelsKey(ROOT, "claude")]: { models: [{ id: "default", label: "Opus 5.5", default: true, efforts: ["high"] }, SONNET] } }; };
+  const { support, composer } = render([summary({ model: "sonnet" })], A, {}, paired);
+  expect(composer.picker.trigger.label).toBe("Sonnet");
+  composer.onPickModel("claude", "default");
+  const sent = vi.fn(async (_provider: Provider, _request: unknown) => {});
+  const after = render([summary({ model: "sonnet" })], A, { onSendConversation: sent }, next => { paired(next); next.picks = support.picks; });
+  expect(after.composer.picker.trigger).toMatchObject({ label: "Opus 5.5", isDefault: true });
+  await after.composer.onSend(REQUEST);
+  expect(sent.mock.calls.at(-1)![1]).toMatchObject({ model: "default" });
 });

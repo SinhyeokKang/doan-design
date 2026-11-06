@@ -117,7 +117,7 @@ for (const [name, { setup }] of Object.entries(setups)) test(`${name}: a provide
   render().onPickPermission!("bypass");
   expect(render().permission?.mode).toBe("bypass");
   onRemember.mockClear();
-  render().onPickModel("codex", "default");
+  render().onPickModel("codex", null);
   expect(render().permission?.mode).toBe("plan");
   const codex = onRemember.mock.calls.map(call => call[0]).filter(choice => choice.provider === "codex");
   expect(codex.length).toBeGreaterThan(0);
