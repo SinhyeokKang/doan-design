@@ -23,7 +23,7 @@ test("an unchanged pick returns the same memory, so remembering it again renders
 
 test("Last used in Settings stays Last used; a fixed default takes the pick", () => {
   expect(preferenceAfterPick(null, { provider: "claude", model: "opus", effort: "low" })).toBeUndefined();
-  expect(preferenceAfterPick({ provider: "codex", model: "gpt-6" }, { provider: "claude", model: "opus", effort: "low", modelPicked: true })).toEqual({ provider: "claude", model: "opus", effort: "low" });
+  expect(preferenceAfterPick({ provider: "codex", model: "gpt-6" }, { provider: "claude", model: "opus", effort: "low", modelPicked: true, effortPicked: true })).toEqual({ provider: "claude", model: "opus", effort: "low" });
   expect(preferenceAfterPick({ provider: "claude", model: "opus" }, { provider: "claude", model: "sonnet", effort: null, modelPicked: true })).toEqual({ provider: "claude", model: "sonnet" });
   // Nothing to write when the pick already matches, or when the model list is not read yet.
   expect(preferenceAfterPick({ provider: "claude", model: "opus", effort: "low" }, { provider: "claude", model: "opus", effort: "low", modelPicked: true })).toBeUndefined();
@@ -134,4 +134,17 @@ test("a pick that leaves the effort alone keeps a fixed effort; a picked effort 
   expect(preferenceAfterPick({ provider: "codex", effort: "high" }, { provider: "codex", model: "gpt-6-luna", effort: null, permissionMode: "plan" })).toEqual({ provider: "codex", effort: "high", permissionMode: "plan" });
   expect(preferenceAfterPick({ provider: "codex", effort: "high" }, { provider: "codex", model: "gpt-6-luna", effort: null, effortPicked: true })).toEqual({ provider: "codex" });
   expect(preferenceAfterPick({ provider: "codex", model: "gpt-5.6-terra", effort: "xhigh" }, { provider: "codex", model: "gpt-5.6-terra", effort: "low", effortPicked: true })).toEqual({ provider: "codex", model: "gpt-5.6-terra", effort: "low" });
+});
+
+// RV2 🟡2: the model's and the level's provenance apply apart. Re-picking the fixed model keeps its fixed level unless a
+// level was picked; a newly picked model takes no level that was only shown.
+test("a model pick keeps the fixed level unless a level was picked, and carries no shown level to another model", () => {
+  const terra = { provider: "codex" as const, model: "gpt-5.6-terra", effort: "xhigh" };
+  expect(preferenceAfterPick(terra, { provider: "codex", model: "gpt-5.6-terra", effort: null, modelPicked: true, permissionMode: "plan" })).toEqual({ ...terra, permissionMode: "plan" });
+  expect(preferenceAfterPick(terra, { provider: "codex", model: "gpt-5.6-terra", effort: "high", modelPicked: true })).toBeUndefined();
+  expect(preferenceAfterPick(terra, { provider: "codex", model: "gpt-5.6-terra", effort: null, modelPicked: true, effortPicked: true })).toEqual({ provider: "codex", model: "gpt-5.6-terra" });
+  // Another model: a shown level stays behind; a level picked with it comes along.
+  expect(preferenceAfterPick({ provider: "claude" }, { provider: "claude", model: "sonnet", effort: "high", modelPicked: true })).toEqual({ provider: "claude", model: "sonnet" });
+  expect(preferenceAfterPick(terra, { provider: "codex", model: "gpt-6-luna", effort: "high", modelPicked: true })).toEqual({ provider: "codex", model: "gpt-6-luna" });
+  expect(preferenceAfterPick(terra, { provider: "codex", model: "gpt-6-luna", effort: "high", modelPicked: true, effortPicked: true })).toEqual({ provider: "codex", model: "gpt-6-luna", effort: "high" });
 });

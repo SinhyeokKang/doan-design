@@ -13,11 +13,12 @@ import type { PresetListReply, PresetSummary } from "./homeComposer";
 import type { LastRequest } from "./homeConversations";
 
 // Hooks run as plain state so the component's own handlers can be called (ShellSidebar.interaction.test.tsx).
-const hooks = vi.hoisted(() => ({ states: [] as unknown[], refs: [] as { current: unknown }[], cursor: 0, refCursor: 0, effects: [] as (() => unknown)[], redraw: () => {} }));
+const hooks = vi.hoisted(() => ({ states: [] as unknown[], refs: [] as { current: unknown }[], cursor: 0, refCursor: 0, effects: [] as (() => unknown)[], deps: [] as (unknown[] | undefined)[], redraw: () => {} }));
 vi.mock("react", async original => ({
   ...await original<typeof import("react")>(),
   useId: () => "id",
-  useEffect: (effect: () => unknown) => { hooks.effects.push(effect); },
+  // Effects run on demand; their dependency lists are kept so a test can run only those React would (runChanged).
+  useEffect: (effect: () => unknown, deps?: unknown[]) => { hooks.effects.push(effect); hooks.deps.push(deps); },
   useLayoutEffect: () => {},
   useImperativeHandle: () => {},
   useReducer: () => [0, hooks.redraw],
@@ -40,7 +41,7 @@ const ENTRY: FolderEntry = { kind: "list", path: "/code/doan-design", servedRev:
 
 let doan: Record<string, ReturnType<typeof vi.fn>>;
 beforeEach(() => {
-  hooks.states = []; hooks.refs = []; hooks.effects = [];
+  hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.deps = [];
   doan = {
     onAgentAuth: vi.fn(() => () => {}), listConversationModels: vi.fn(async () => ({ models: [] })), designSkills: { list: vi.fn(async () => LISTED) } as never,
     addAttachmentFiles: vi.fn(async (files: File[]) => files.map(file => ({ ok: true, attachment: { id: `id-${file.name}`, name: file.name, size: file.size, kind: "file", path: `/Users/ada/${file.name}`, pasted: false } }))),
@@ -71,7 +72,7 @@ function setup(memory: Partial<ComposerMemory> = {}, props: Partial<HeroComposer
   const box = { current: { ...emptyComposer(), auth: AUTH, presets: LISTED, ...memory } };
   const start = vi.fn(async (_request: unknown, _last: unknown) => ({ ok: true } as const));
   const all: HeroComposerProps = { entries: [ENTRY], homeDirectory: null, shellProjects: {}, loaded: null, select: null, prefs: {}, memory: box, running: new Map(), restore: null, greeting: "Where should we start?", start, openConversation: vi.fn(), addProjects: vi.fn(), openSettings: vi.fn(), ...props };
-  const render = () => { hooks.cursor = 0; hooks.refCursor = 0; hooks.effects = []; return elements(HeroComposer(all)); };
+  const render = () => { hooks.cursor = 0; hooks.refCursor = 0; hooks.effects = []; hooks.deps = []; return elements(HeroComposer(all)); };
   return { box, start, render, props: all };
 }
 const find = (tree: Record<string, unknown>[], test: (props: Record<string, unknown>) => boolean) => { const found = tree.find(test); if (!found) throw new Error("not found"); return found; };
@@ -711,4 +712,31 @@ test("a model restored by Edit on Home is not marked as picked; picking it again
   (group.onValueChange as (value: string) => void)("opus");
   render(); runEffects();
   expect(onRemember.mock.calls.at(-1)![0]).toMatchObject({ provider: "claude", model: "opus", modelPicked: true });
+});
+
+// React runs an effect again only when a dependency changed (Object.is). Re-picking the row Edit on Home restored
+// changes no value, only whether it was picked, so that mark itself must be a dependency.
+function runChanged(previous: (unknown[] | undefined)[]) {
+  hooks.effects.forEach((effect, index) => {
+    const before = previous[index], now = hooks.deps[index];
+    if (!before || !now || now.length !== before.length || now.some((dep, at) => !Object.is(dep, before[at]))) effect();
+  });
+}
+test("re-picking the model or level Edit on Home restored remembers it as picked", () => {
+  const onRemember = vi.fn();
+  const lists = { [modelsKey("/code/doan-design", "claude", 1)]: { models: [{ id: "opus", label: "Opus 5.5", default: true, efforts: ["low", "high"] }, { id: "sonnet", label: "Sonnet 5.5", default: false }] } };
+  const last: LastRequest = { root: "/code/doan-design", text: "Polish it.", preset: null, attachments: [], provider: "claude", model: "opus", effort: "high" };
+  const { render } = setup({ lists }, { prefs: { lastProvider: "claude" }, defaults: { provider: "claude" }, restore: { request: last, seq: 1 }, onRemember });
+  render(); runEffects(); render(); runEffects();
+  let tree = render(); runEffects();
+  expect(onRemember.mock.calls.at(-1)![0]).not.toHaveProperty("modelPicked");
+  let deps = [...hooks.deps];
+  (find(tree, props => typeof props.onValueChange === "function" && props.value === "opus").onValueChange as (value: string) => void)("opus");
+  tree = render(); runChanged(deps);
+  expect(onRemember.mock.calls.at(-1)![0]).toMatchObject({ model: "opus", modelPicked: true });
+  expect(onRemember.mock.calls.at(-1)![0]).not.toHaveProperty("effortPicked");
+  deps = [...hooks.deps];
+  (find(tree, props => typeof props.onValueChange === "function" && props.value === "high").onValueChange as (value: string) => void)("high");
+  render(); runChanged(deps);
+  expect(onRemember.mock.calls.at(-1)![0]).toMatchObject({ model: "opus", effort: "high", modelPicked: true, effortPicked: true });
 });
