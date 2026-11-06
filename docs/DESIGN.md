@@ -1234,7 +1234,15 @@ The page is Settings' column (see Settings: panel, column, header, sections, gro
 
 ## Where Doan files are kept
 
-Reference: `.doan/canvases/local-doan-files.html`, frames `setup-dialog`, `setup-panel`, `clone`, `settings-modes`, `settings-changes`, `settings-disabled` and `not-set-up`. Measured by `/design-sync` in the built app against the same draft opened at its served URL in a second window of the app, both read with `getComputedStyle`. Every state below was reached for real with temporary repositories and the CLI: a non-Git folder, a Git repository and a `git worktree add` checkout, a slowed `doan config --storage` for Saving, a read-only exclude file for a failed write, an exclude file that is a link (`exclude_unwritable`), a `.git` file that points nowhere (`git_unreadable`), and a public GitHub clone. 170 element pairs were read. Their text, size and computed styles match, apart from the differences listed below.
+Reference: `.doan/canvases/local-doan-files.html`, frames `setup-dialog`, `setup-panel`, `clone`, `settings-modes`, `settings-changes`, `settings-disabled` and `not-set-up`. Measured by `/design-sync` in the built app. The same draft was opened at its served URL in a second window of the app, and both sides were read with `getComputedStyle`. Every state was reached for real with temporary repositories and the CLI:
+
+- a non-Git folder, a Git repository and a `git worktree add` checkout;
+- an exclude file that is a link (the dialog's exclude failure and `exclude_unwritable`) and a `.git` file that points nowhere (`git_unreadable`);
+- a slowed `doan config --storage` (Saving) and a read-only exclude file (a failed write);
+- a public GitHub clone, held by a slowed `git clone` for the disabled options;
+- real keyboard focus (Tab onto the chosen radio, `:focus-visible` on both sides), pointer hover, and a press released elsewhere.
+
+367 element pairs in 31 states were read: text, element state, size and 43 computed properties each (16,698 values, outlines included). 16,308 values match and 390 are the documented differences below; none mismatch. Code chips were paired one by one. The 21 radios, radio groups and Copy button read through CDP (`Accessibility.getPartialAXTree`) have the same role, name, checked and disabled state on both sides.
 
 ### Measured contracts
 
@@ -1257,18 +1265,19 @@ Reference: `.doan/canvases/local-doan-files.html`, frames `setup-dialog`, `setup
 ### Documented differences from the draft
 
 - **Inherited type of containers and the radio dot.** Containers with no text of their own, and the `::before` dot, read the app body's 13px/normal where the canvas body is 14px/20px. Nothing paints with it.
+- **The native radio's user-agent values.** The `opacity: 0` input over each option reads Arial and black ink in the canvas and the app's font and ink in the app. It is transparent, so none of it paints.
+- **The dialog's position.** The draft draws the modal in place (`position: static`); the app centres it as a fixed modal.
 - **Icon-slot ink of disabled rows.** In a disabled row, `.ob-radio`'s `color` is `--text-disabled` (the shipped `.doan-preference-row[data-disabled] .doan-preference-row-icon` rule). The draft reads `--text-subtle` there. The radio paints only its border, fill and dot, which match.
-- **Sample messages.** The draft's failed-write line is a sample CLI message. The app shows the CLI's message, "Cannot read or write the Git exclude file for Doan storage".
+- **Sample messages.** The draft's failed-write line is a sample CLI message. The app shows the CLI's message, "Cannot read or write the Git exclude file for Doan storage". The second sentence of the dialog's exclude failure is a sample too ("The file is a link…"). The app gives the recovery for every exclude failure instead, so that line wraps once more.
 
 ### Not verified
 
 - First run's setup panel and clone tiles. The Project step needs a signed-in agent, which an isolated run cannot have. The Add Projects page renders the same Project screen, and its tiles were measured.
-- The clone screen while a clone runs (disabled options) and the dialog's exclude-failure tile, which uses the same error line as the measured refusal.
-- Hover and pressed states of the options; dark mode; reduced transparency.
+- Dark mode and reduced transparency.
 
 ### Regression pointers
 
-`ProjectSetupDialog.test.tsx` pins the field, the Will add line and the `git init` chip. `AddProjectsPage.test.tsx` pins the card, the fact and the clone screen's disabled options. `ProjectSettingsPage.test.tsx` pins the section, the result line, the guidance and the reasons. `storageRules.test.ts` pins the rules behind them. `.scratch/runtime-test/local-doan-files/probe.mjs` checks focus return in the real app.
+`ProjectSetupDialog.test.tsx` pins the field, the Will add line and the `git init` and `.git/info/exclude` chips. `AddProjectsPage.test.tsx` pins the card, the fact and the clone screen's disabled options. `ProjectSettingsPage.test.tsx` pins the section, the result line, the guidance and the reasons. `storageRules.test.ts` pins the rules behind them. `.scratch/runtime-test/local-doan-files/probe.mjs` checks focus return in the real app.
 
 ## Canvas row menu and export viewer
 
