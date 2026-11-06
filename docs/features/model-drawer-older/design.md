@@ -32,6 +32,15 @@
 - 문구(clarify 프리셋 기준): 줄 라벨 "Older models", 끝에 개수(metadata ink). 접근성 이름 "Older Cursor models, 22"; 펼치기 안은 `aria-expanded`로 상태를 전한다.
 - 메뉴 높이: 공유 메뉴는 이미 스크롤된다(DESIGN.md Home 'Menus'). 높이 상한은 바꾸지 않는다.
 
+## 3. 시안 요청
+
+- 경로·id: `.doan/canvases/model-drawer-older.html`, `model-drawer-older`, 폭 1760.
+- frame:
+  - `inline` — 안 A 같은 자리에서 펼치기. 타일: 모두 접힘, Cursor 이전 모델 펼침, 이전 모델(Codex GPT-6-Sol)을 고른 채 메뉴를 엶.
+  - `submenu` — 안 B 서브메뉴. 타일: 모두 접힘, Cursor 서브메뉴 열림, 이전 모델(Codex GPT-6-Sol)을 고른 채 메뉴를 엶.
+  - `settings` — Settings 'New conversations' Model 메뉴(Codex)에 안 A와 안 B.
+- 목록은 §1 실측 결과를 쓴다. Copilot은 목록이 없어 그리지 않는다. 공유 메뉴는 앱에서 384px에서 잘리고 스크롤되지만, 시안은 비교를 위해 내용을 펼쳐 그린다.
+
 ## 영향 범위
 
 - **app (main)**: `models.ts` 파서와 `ModelOption`. `ModelCatalog`·IPC는 필드 하나를 그대로 넘긴다. `parseClaudeModels`는 `resolvedModel`을 분류에만 쓰고 결과에 싣지 않는다.
