@@ -97,4 +97,4 @@ UI 문구는 영어다.
 - `docked-widths`: 384~400과 288에서 "Ask first + GPT-6-Luna + Extra high"가 넘치지 않는지.
 - `settings`: Settings > New conversations의 세 행과 Model 메뉴 맨 위 Default 행.
 
-상태: 초안 round 1(`docs(design): picker-default-labels draft`), 사람 확인 전. Chromium 렌더링: 권한 설명 세 개는 280px 메뉴에서 두 줄이고, docked 420(내용 396)에서는 "Ask first"와 "Extra high"가 라벨을 유지해 모델 라벨이 "GPT-5…"까지 줄어든다.
+상태: 초안 round 2, 사람 확인 전. round 2(사람, 2026-11-06)에서 노력 메뉴와 트리거에 fast-mode의 Fast 행과 아이콘을 넣었다(이 feature는 fast-mode 병합 뒤 시작한다). Chromium 렌더링: 권한 설명 세 개는 280px 메뉴에서 두 줄이다. docked에서 "Extra high"+Fast 아이콘+"Ask first"이면 모델 라벨이 420(내용 396)에서 "GPT…", 360·288에서 "G…"까지 줄어든다. 384·288 단계를 옮길지는 B2(`/design-sync`)에서 정한다.
