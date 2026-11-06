@@ -2691,3 +2691,36 @@ describe("fast turned off, index write failed", () => {
     expect(new ConversationStore(h.dir).read(id).filter(e => e.type === "fast.unused")).toEqual([expect.objectContaining({ reason: "plan", turnedOff: true })]);
   });
 });
+
+// fast-mode M fix round 1: pins for a run's Fast around Send now and a send right after a turn-off.
+describe("fast kept", () => {
+  const canvas = { path: ".doan/canvases/a.html", id: "a" };
+  it("puts a Send now message into the running Fast turn without opening or sending another run", async () => {
+    const h = homeFixture([], { fast: () => true });
+    const id = (await h.service.start({ ...homeRequest, mode: "new", canvas, model: "opus", fast: true })).conversationId;
+    const runner = h.runners[0]!; runner.steer = vi.fn(async () => {});
+    const item = h.service.queue(id, { text: "one", anchors: [] });
+    const sent = h.service.sendNow(id, item.itemId);
+    await vi.waitFor(() => expect(runner.steer).toHaveBeenCalledOnce());
+    h.open.mock.calls[0]![0].steerConsumed!(vi.mocked(runner.steer).mock.calls[0]![2]);
+    await sent;
+    expect(h.open).toHaveBeenCalledOnce();
+    expect(h.open.mock.calls[0]![0]).toMatchObject({ fast: true });
+    expect(runner.send).toHaveBeenCalledOnce();
+    expect(h.store.list()[0]).toMatchObject({ fast: true });
+  });
+  it("turns Fast on again with a send right after a turn-off, which runs with it", async () => {
+    const h = homeFixture([], { fast: () => true });
+    const id = (await h.service.start({ ...homeRequest, mode: "new", canvas, model: "opus", fast: true })).conversationId;
+    h.service.receive(id, { type: "fast.unused", reason: "extra_usage", turnedOff: true });
+    h.service.receive(id, { type: "turn.done" });
+    expect(h.store.list()[0]).not.toHaveProperty("fast");
+    // Sent while the turned-off turn's process is still exiting: the send waits, then stores and runs its Fast.
+    const sending = h.service.send(id, "fast again", [], { fast: true, fastTurn: true });
+    h.open.mock.calls[0]![2]();
+    await sending;
+    expect(h.store.list()[0]).toMatchObject({ model: "opus", fast: true });
+    expect(h.open.mock.calls.at(-1)![0]).toMatchObject({ fast: true });
+    expect(h.store.read(id).filter(e => e.type === "fast.unused")).toHaveLength(1);
+  });
+});

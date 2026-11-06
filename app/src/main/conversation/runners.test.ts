@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { existsSync, mkdtempSync, writeFileSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, renameSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { claudeFastSettings, codexServiceTierForTurn, listModels, openRunner } from "./runners";
@@ -1646,4 +1646,42 @@ describe("fast on the wire", () => {
       expect(seenLines(external).find(r => r.method === "turn/start")!.params).not.toHaveProperty("serviceTierForTurn");
     } finally { await legacy.close(); rmSync(external, { recursive: true, force: true }); }
   });
+});
+
+// fast-mode M fix round 1: pins for paths that keep a run's Fast. The SDK hands Options.settings to the CLI as
+// `--settings <json>` (0.3.312), so the argv value is read, not only searched for.
+const settingsOf = (argv: string[]) => { const at = argv.indexOf("--settings"); return at < 0 ? undefined : JSON.parse(argv[at + 1]!) as unknown; };
+describe("fast kept", () => {
+  it("resumes a Claude session with Fast: --resume and settings fastMode true on the same run", async () => {
+    const root = mkdtempSync(join(tmpdir(), "doan-claude-fast-resume-")), command = fastClaude(root);
+    try {
+      const runner = await openRunner({ command, runtime: "claude", cwd: root, configDir: root, env: claudeEnv(root), sessionId: "11111111-1111-4111-8111-111111111111", fast: true }, () => {}, () => {}, () => {});
+      await runner.send("hello", "turn"); await runner.close();
+      const runs = readFileSync(join(root, "seen"), "utf8").split("\n").filter(line => line.startsWith("[")).map(line => JSON.parse(line) as string[]);
+      expect(runs).toHaveLength(1);
+      expect(runs[0]!.some(arg => arg === "--resume=11111111-1111-4111-8111-111111111111" || arg === "--resume")).toBe(true);
+      expect(settingsOf(runs[0]!)).toEqual({ fastMode: true });
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  }, 15000);
+  it("adds a Send now message to the running Fast Claude run without opening another", async () => {
+    const root = mkdtempSync(join(tmpdir(), "doan-claude-fast-steer-")), real = steerClaude(root), command = join(root, "claude-wrapper");
+    renameSync(real, join(root, "claude-real"));
+    writeFileSync(command, `#!/usr/bin/env node
+require('node:fs').appendFileSync(${JSON.stringify(join(root, "argv"))}, JSON.stringify(process.argv.slice(2)) + '\\n');
+require('node:child_process').spawn(${JSON.stringify(join(root, "claude-real"))}, process.argv.slice(2), { stdio: 'inherit', env: process.env }).on('exit', code => process.exit(code ?? 0));
+`, { mode: 0o700 });
+    const seq: unknown[] = [];
+    const runner = await openRunner({ command, runtime: "claude", cwd: root, configDir: root, env: claudeEnv(root, { FAKE_STEER: "fold" }), fast: true, steerConsumed: (id: string) => seq.push({ consumed: id }) } as Parameters<typeof openRunner>[0], e => seq.push(e), () => {}, () => {});
+    try {
+      const sending = runner.send("hello", "turn-1");
+      await vi.waitFor(() => expect(seq).toContainEqual(expect.objectContaining({ type: "activity" })));
+      await runner.steer!("Extra note", "turn-1", STEER_ID);
+      await sending;
+      expect(seq).toContainEqual({ consumed: STEER_ID }); expect(seq.at(-1)).toEqual({ type: "turn.done" });
+      const runs = readFileSync(join(root, "argv"), "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line) as string[]);
+      expect(runs).toHaveLength(1);
+      expect(settingsOf(runs[0]!)).toEqual({ fastMode: true });
+      expect(userLines(root).map(r => (r.message as { content: string }).content)).toEqual(["hello", "Extra note"]);
+    } finally { await runner.close(); rmSync(root, { recursive: true, force: true }); }
+  }, 20000);
 });
