@@ -1232,6 +1232,44 @@ The page is Settings' column (see Settings: panel, column, header, sections, gro
 
 `ProjectSettingsPage.test.tsx` (states, Saving / Saved placement, write errors, the confirmation's path and enabled controls, focus after writes, lock reports), `projectSettingsRules.test.ts` (page view table, `writeErrorMessage`, `sharedPathLabel`, `followProjectSettings`), `addProjectsNav.test.ts`, `App.settings.test.tsx` (entry, origin, lock, `gone`, reroot) and `ShellSidebar.interaction.test.tsx` (locked Project Settings item); `shell.test.ts` 'replace reports the move as a re-root focus'. Probes: `.scratch/runtime-test/project-settings/probe.mjs`, `.scratch/design-sync/buzz-project-settings/measure.mjs`. The measured values above are unpinned.
 
+## Where Doan files are kept
+
+Reference: `.doan/canvases/local-doan-files.html`, frames `setup-dialog`, `setup-panel`, `clone`, `settings-modes`, `settings-changes`, `settings-disabled` and `not-set-up`. Measured by `/design-sync` in the built app against the same draft opened at its served URL in a second window of the app, both read with `getComputedStyle`. Every state below was reached for real with temporary repositories and the CLI: a non-Git folder, a Git repository and a `git worktree add` checkout, a slowed `doan config --storage` for Saving, a read-only exclude file for a failed write, an exclude file that is a link (`exclude_unwritable`), a `.git` file that points nowhere (`git_unreadable`), and a public GitHub clone. 170 element pairs were read. Their text, size and computed styles match, apart from the differences listed below.
+
+### Measured contracts
+
+| Element | Measured contract | Reason |
+|---|---|---|
+| Set Up dialog field | A "Doan files" `.ob-field.storage-field` between Token CSS and Will add, aligned to the top; `.storage-options` spans the value columns with a `--space-3` gap. Each `.storage-option` is a two-column grid (16px `.ob-radio` across both lines, then a label-sm medium label and a caption `--text-subtle` description, `--space-half`/`--space-2` gaps); the native radio covers the whole option | The dialog's hairline card already groups the options, so they have no row box. |
+| Will add | The third line is `.git/info/exclude` (a code chip) in place of `.gitattributes` when Keep out of Git is chosen or the project already keeps its files out of Git | The label is fixed: in a linked worktree or submodule it is not the real path. |
+| Fact | In place of the options, `.storage-fact` with the label as `.value` and the sentence as `.ob-helper` (dialog), or one `.ob-provider` row in the provider-list card (setup panel) | Setup follows the project's mode and never turns other worktrees back into Git. |
+| Refusal | The dialog's `.ob-msg.error` line; `git init` is a code chip | |
+| Setup panel and clone | "Doan files" field label (`.storage-label`, `--space-6` above it in the setup panel; `.ob-spaced` under Save to on the clone screen), then one `.ob-provider-list.storage-list` card: rows split by the provider list's 1px divider, the radio in the 32px mark slot on the label line, label-sm label, caption description with code chips (`--surface-inset`, `--space-1` radius and side padding, no wrap) | The Agent step's provider card, so the screen keeps one card style. |
+| Disabled while cloning | The clone screen's options keep their value with `disabled`; label and description take `--text-disabled`, the radio the disabled fills | Like Save to's Change. |
+| Project Settings section | "Doan files" after Shared with canvases and above Remove from Doan, description "Applies to every worktree of this project."; two `.doan-preference-row.storage-pref` rows with the radio in the icon slot, the native radio covering the row, focus as the inset row ring | The thread's settings radio row, outside the thread. |
+| Result line | Under the options in its own `.doan-preference-row-extra.storage-result` (`role="status"`): Saving (pending ink), then Saved with its check and a caption `--text-subtle` line about what changed outside Doan | |
+| Write failure | The page's `.settings-msg-row` error line (`role="alert"`) in the same place; the options go back to the mode on disk | |
+| Guidance | Out of Git, always: `.doan-notice.storage-guidance` with code chips on `--surface-panel`, the command as a block code chip and a `panel` Copy button that reads Copied with a check for 2 s | Doan cannot know whether `.doan/` was ever committed. |
+| Reason line | `.storage-reason` body-sm `--text-subtle` with the alert icon; warning ink when the mode is unknown. Disabled rows (`data-disabled`) take `--text-disabled` text and the disabled radio fills | One sentence per reason. |
+| Path line | "Stored in `.doan/config.json` in this worktree" + the commit sentence (in Git), ", on this Mac only." (out of Git), or nothing more (unknown) | |
+| Not set up | The shipped notice; its sentence names the project's out-of-Git mode | |
+
+### Documented differences from the draft
+
+- **Inherited type of containers and the radio dot.** Containers with no text of their own, and the `::before` dot, read the app body's 13px/normal where the canvas body is 14px/20px. Nothing paints with it.
+- **Icon-slot ink of disabled rows.** In a disabled row, `.ob-radio`'s `color` is `--text-disabled` (the shipped `.doan-preference-row[data-disabled] .doan-preference-row-icon` rule). The draft reads `--text-subtle` there. The radio paints only its border, fill and dot, which match.
+- **Sample messages.** The draft's failed-write line is a sample CLI message. The app shows the CLI's message, "Cannot read or write the Git exclude file for Doan storage".
+
+### Not verified
+
+- First run's setup panel and clone tiles. The Project step needs a signed-in agent, which an isolated run cannot have. The Add Projects page renders the same Project screen, and its tiles were measured.
+- The clone screen while a clone runs (disabled options) and the dialog's exclude-failure tile, which uses the same error line as the measured refusal.
+- Hover and pressed states of the options; dark mode; reduced transparency.
+
+### Regression pointers
+
+`ProjectSetupDialog.test.tsx` pins the field, the Will add line and the `git init` chip. `AddProjectsPage.test.tsx` pins the card, the fact and the clone screen's disabled options. `ProjectSettingsPage.test.tsx` pins the section, the result line, the guidance and the reasons. `storageRules.test.ts` pins the rules behind them. `.scratch/runtime-test/local-doan-files/probe.mjs` checks focus return in the real app.
+
 ## Canvas row menu and export viewer
 
 Reference: `.doan/canvases/canvas-row-menu.html`, the frames `row-button`, `row-menu`, `trash-dialog`, `export-toast` and `viewer-shell`. Measured by `/design-sync` in the built app at 1280 × 800 (`.scratch/design-sync/canvas-row-menu/measure.mjs`): 13,380 property rows across every drawn state that could be reached, read with `getComputedStyle` in one Electron, the draft in a second window and the sidebar at its 220px default. The viewer was a file written by the built CLI's `doan export`, opened in a 960 × 600 window of the same Chromium. States were reached for real: a canvas that appeared while the app ran (unseen dot), `doan work start` in a terminal (spinner, Move to Trash unavailable), a held `init` (the locked sidebar), a held `export` (progress toast, Export unavailable), an unreadable file (error row), a temp canvas moved to the real Trash (success and comments-stay toasts). Probe-only seams: a wrapper script around the CLI that delays or fails one command, and `dialog.showSaveDialog` / `shell.trashItem` replaced in main for the save path and the refused-Trash toast.
