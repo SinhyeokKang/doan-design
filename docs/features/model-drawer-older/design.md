@@ -26,19 +26,18 @@
 
 - `homeComposer.ts` `modelPickerView`: `ProviderGroup`에 `older: ModelRow[]`을 더해 `rows`(현재)와 나눈다. 이전 모델이 선택된 상태면 `olderSelected`(그 행)를 둔다.
 - `newConversationSettings.ts` `settingsModelMenu`: 같은 방식으로 `rows`와 `older`로 나눈다.
-- `ComposerParts.tsx` `AgentPicker`, `SettingsAgents.tsx` Model 메뉴: 그룹 끝에 "Older models" 줄을 그린다. 시안 두 안:
-  - **A. 같은 자리에서 펼치기**: 줄을 누르면(Enter/Space 포함) 그 아래 이전 모델 행이 펼쳐진다. 메뉴는 닫히지 않는다. 이전 모델이 선택된 상태로 열면 펼친 채로 연다. 펼침 상태는 메뉴가 닫히면 잊는다.
-  - **B. 서브메뉴**: Radix `DropdownMenu.Sub`. hover·→ 키로 열린다. 이전 모델이 선택돼 있으면 줄의 보조 문구가 그 이름이다.
-- 문구(clarify 프리셋 기준): 줄 라벨 "Older models", 끝에 개수(metadata ink). 접근성 이름 "Older Cursor models, 22"; 펼치기 안은 `aria-expanded`로 상태를 전한다.
+- `ComposerParts.tsx` `AgentPicker`, `SettingsAgents.tsx` Model 메뉴: 그룹 끝에 "Older models" 줄을 그리고, 누르면(Enter/Space 포함) 같은 메뉴 안 그 줄 아래에 이전 모델 행을 펼친다. 메뉴는 닫히지 않는다(Radix `Item`의 `onSelect`에서 `preventDefault`). 이전 모델이 선택된 상태로 열면 펼친 채로 연다. 펼침 상태는 메뉴가 닫히면 잊는다. 서브메뉴 안은 2026-11-06 시안 비교 뒤 사용자가 버렸다(같은 자리에서 펼치기가 쉽고 편하다).
+- 줄은 RadioItem이 아니라 값이 없는 `Item`이다. 이전 모델 행은 지금 모델 행과 같은 RadioItem이다.
+- 문구(clarify 프리셋 기준): 줄 라벨 "Older models", 끝에 개수(metadata ink), 체크 자리에 chevron(접힘 아래, 펼침 위). 접근성 이름 "Older Cursor models, 22"이고 `aria-expanded`로 상태를 전한다.
 - 메뉴 높이: 공유 메뉴는 이미 스크롤된다(DESIGN.md Home 'Menus'). 높이 상한은 바꾸지 않는다.
 
 ## 3. 시안 요청
 
 - 경로·id: `.doan/canvases/model-drawer-older.html`, `model-drawer-older`, 폭 1760.
 - frame:
-  - `inline` — 안 A 같은 자리에서 펼치기. 타일: 모두 접힘, Cursor 이전 모델 펼침, 이전 모델(Codex GPT-6-Sol)을 고른 채 메뉴를 엶.
-  - `submenu` — 안 B 서브메뉴. 타일: 모두 접힘, Cursor 서브메뉴 열림, 이전 모델(Codex GPT-6-Sol)을 고른 채 메뉴를 엶.
-  - `settings` — Settings 'New conversations' Model 메뉴(Codex)에 안 A와 안 B.
+  - `inline` — 에이전트·모델 메뉴. 타일: 모두 접힘, Cursor 이전 모델 펼침, 이전 모델(Codex GPT-6-Sol)을 고른 채 메뉴를 엶.
+  - `settings` — Settings 'New conversations' Model 메뉴(Codex). 타일: 접힘, 펼침, 이전 모델 고정.
+- 사용자가 2026-11-06 두 안(같은 자리에서 펼치기, 서브메뉴)을 비교하고 펼치기를 골랐다. 서브메뉴 frame은 지웠다.
 - 목록은 §1 실측 결과를 쓴다. Copilot은 목록이 없어 그리지 않는다. 공유 메뉴는 앱에서 384px에서 잘리고 스크롤되지만, 시안은 비교를 위해 내용을 펼쳐 그린다.
 
 ## 영향 범위
@@ -68,7 +67,7 @@
 - 2026-11-06 "A menu's 'nothing chosen' value shared its string with a real model id": 접힌 줄과 서브메뉴는 RadioItem 값을 갖지 않게 한다. 이전 모델 행은 지금처럼 kind-tagged 값을 쓴다.
 - 2026-11-06 picker-default-labels(1): Claude `default` 행은 기본 행이라 항상 현재다. 분류가 이 행을 접으면 Opus 5.5로 가는 길이 사라진다.
 - 2026-11-06 "The Codex model list stayed the previous account's": 분류는 목록과 함께 계산되므로 계정 교체 뒤 다시 읽은 목록에서 다시 계산된다. 별도 캐시를 두지 않는다.
-- Overview 포털 메뉴가 그려지지 않은 사례(POSTMORTEM 'Overview's model and effort pickers did not open'): 서브메뉴 안은 포털 안의 두 번째 포털이므로 Overview에서 실제로 그려지는지 `/runtime-test`로 확인한다.
+- Overview 포털 메뉴가 그려지지 않은 사례(POSTMORTEM 'Overview's model and effort pickers did not open'): 펼친 메뉴가 Overview에서도 그려지는지 `/runtime-test`로 확인한다.
 
 ## PoC 의존
 

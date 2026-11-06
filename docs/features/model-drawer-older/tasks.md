@@ -1,8 +1,6 @@
 # model-drawer-older — tasks
 
-0. **시안** — `/design-draft`로 안 A(같은 자리에서 펼치기)와 안 B(서브메뉴)를 Home 에이전트·모델 선택 메뉴와 Settings Model 메뉴에 그린다. 실측 목록(Claude·Codex·Cursor)을 쓰고, 상태는 접힘·펼침(또는 서브메뉴 열림)·이전 모델 선택이다. 사용자가 앱에서 한 안을 고르고, 고른 안을 spec·design에 반영한다.
-   - 검증: `doan check --repo .` 통과, `doan ls --repo .`에 시안이 보인다.
-   - 커밋 경계: 시안 + 문서 반영.
+0. ~~**시안**~~ — 완료. 두 안을 그려 비교했고 사용자가 같은 자리에서 펼치기를 골랐다(`.doan/canvases/model-drawer-older.html`, frame `inline`·`settings`).
 
 1. **분류 함수** — `models.ts` `markOlder`와 `ModelOption.older`, 세 파서 적용. 실측 목록 fixture.
    - 검증: `npm --prefix app test` (models.test.ts) green.
