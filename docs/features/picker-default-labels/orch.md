@@ -46,3 +46,4 @@
 - RA 통합 뒤 통합 HEAD `bcbac125`에서 typecheck 통과, `npm --prefix app test` 310 files · 8711 tests 통과(MA의 A1 모양과 RA fixture가 함께 맞는다).
 - 지휘자 판단: Codex 모델에 `defaultReasoningEffort`가 없을 때 노력 Default 행 설명을 `Set by Codex`로 쓴 RA의 일반화를 받는다 — design §5는 Claude만 정했고, 같은 문형이 사실과 맞다.
 - postmortem 후보(RA 리뷰 🔴1, 목록 전 Default 행 값 `"default"`가 Claude 모델 id와 겹침)는 main에 닿기 전에 잡혔으므로 `/postmortem` 대상으로 보고 Z1 전에 판단한다.
+- 초안 `settings` tile 수정(RA follow-up)을 지휘자가 diff로 확인했다. Opus 5.5 고정 행이 빠지고 note가 메뉴 내용을 말한다. 이 캔버스의 `doan check` finding은 0이다(다른 파일의 기존 finding 13개는 무관). 통합 커밋은 `3608f2f4`이다.
