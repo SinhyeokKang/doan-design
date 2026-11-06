@@ -8,6 +8,7 @@ import codexFixture from "./fixtures/codex.json";
 import codexHome from "./fixtures/codex-home.json";
 import copilotThought from "./fixtures/acp-copilot-thought.json";
 import copilotFixture from "./fixtures/acp-copilot.json";
+import copilotParallel from "./fixtures/acp-copilot-parallel.json";
 import cursorFixture from "./fixtures/acp-cursor.json";
 import { GENERIC_SUMMARY, initialTransport, normalizeClaude, normalizeCodex, type CodexContext } from "./transport";
 import { acpPromptDone, initialAcp, normalizeAcp, type AcpTransport } from "./acp";
@@ -295,12 +296,13 @@ describe("ACP stages", () => {
     expect(state.thinking).toBeUndefined();
     expect(state.activities).toEqual([]);
   });
-  it("reports Cursor's pending and in-progress tools by kind, never an execute title, and general when each ends", () => {
+  it("reports Cursor's pending and in-progress tools by kind, never an execute title, and general once none runs", () => {
     const { steps } = acpSteps(cursorFixture.turn);
     expect(folded(stagesOf(steps))).toEqual([
       COMMAND,
       { kind: "tool", activity: "edit", summary: "Edit File" },
       { kind: "tool", activity: "edit", path: "/repo/hello.txt", summary: "Edit `/repo/hello.txt`" },
+      COMMAND, // the edit completed while the execute was still in progress
       GENERAL,
     ]);
     expect(JSON.stringify(stagesOf(steps))).not.toMatch(/command -v|echo \$PATH/);
@@ -321,6 +323,66 @@ describe("ACP stages", () => {
     const ended = acpSteps(copilotThought.turn).state;
     expect(ended.terminal).toBe(true);
     expect(stagesOf(acpSteps(copilotThought.turn.filter(f => f.method), ended).steps)).toEqual([]);
+  });
+  // R1: Copilot started a search, a glob and a 6 s command within 4 ms; the first two completed 72 ms later.
+  it("keeps the command that still runs as the stage when Copilot's parallel search and glob complete", () => {
+    const { steps } = acpSteps(copilotParallel.turn);
+    const SEARCH: TurnStage = { kind: "tool", activity: "other", path: "/repo", summary: "Searching for 'QUERY'" };
+    expect(folded(stagesOf(steps))).toEqual([
+      THINKING,
+      SEARCH,
+      { kind: "tool", activity: "read", path: "/repo", summary: "Finding files matching QUERY" },
+      COMMAND,
+      GENERAL, // the command completed last
+      THINKING,
+      { kind: "tool", activity: "read", path: "/repo/notes.txt", summary: "Viewing /repo/notes.txt" },
+      GENERAL,
+      SEARCH,
+      GENERAL,
+    ]);
+    const completions = copilotParallel.turn.flatMap((f, i) => (f as Record<string, any>).params?.update?.status === "completed" ? [i] : []);
+    expect(completions.slice(0, 2).map(i => steps[i]!.stage)).toEqual([COMMAND, COMMAND]);
+    expect(eventsOf(steps)).toEqual([
+      { type: "activity", kind: "read", path: "/repo", insideDesign: false, summary: "Finding files matching QUERY" },
+      { type: "activity", kind: "other", path: "/repo", insideDesign: false, summary: "Searching for 'QUERY'" },
+      { type: "activity", kind: "command", summary: GENERIC_SUMMARY.command },
+      { type: "activity", kind: "read", path: "/repo/notes.txt", insideDesign: false, summary: "Viewing /repo/notes.txt" },
+      { type: "activity", kind: "other", path: "/repo", insideDesign: false, summary: "Searching for 'QUERY'" },
+      { type: "message.delta", messageId: "turn-1:0", text: "The word **lantern** appears in `src/a.ts` and `notes.txt`." },
+      { type: "message.delta", messageId: "turn-1:0", text: " The command output was `done`. The second line of `notes.t" },
+      { type: "message.delta", messageId: "turn-1:0", text: "xt` is: “The word lantern appears only in this notes file.”" },
+      { type: "message.done", messageId: "turn-1:0", text: "The word **lantern** appears in `src/a.ts` and `notes.txt`. The command output was `done`. The second line of `notes.txt` is: “The word lantern appears only in this notes file.”" },
+      { type: "context.usage", used: 15574, size: 272000 },
+      { type: "turn.done" },
+    ]);
+    expect(JSON.stringify(stagesOf(steps))).not.toMatch(/COMMAND_TEXT/);
+    expectNoStageAfterTerminal(steps);
+  });
+  it("gives the stage back to the latest tool still running when another ends, and general once none runs", () => {
+    const call = (id: string, u: Record<string, unknown>) => update({ toolCallId: id, ...u });
+    const A: TurnStage = { kind: "tool", activity: "read", path: "/repo/a", summary: "Read a" };
+    const B: TurnStage = { kind: "tool", activity: "edit", path: "/repo/b", summary: "Edit b" };
+    const startA = call("a", { sessionUpdate: "tool_call", kind: "read", title: "Read a", status: "pending", locations: [{ path: "/repo/a" }] });
+    const startB = call("b", { sessionUpdate: "tool_call", kind: "edit", title: "Edit b", status: "pending", locations: [{ path: "/repo/b" }] });
+    const startC = call("c", { sessionUpdate: "tool_call", kind: "execute", title: "COMMAND_TEXT", status: "pending" });
+    const end = (id: string, status: string) => call(id, { sessionUpdate: "tool_call_update", status });
+    const stages = (frames: unknown[]) => stagesOf(acpSteps(frames as Record<string, any>[]).steps);
+    // Two running, one fails: the other one is the stage; it completes last: general.
+    expect(stages([startA, startB, end("b", "failed"), end("a", "completed")])).toEqual([A, B, A, GENERAL]);
+    expect(stages([startA, startB, end("a", "failed"), end("b", "completed")])).toEqual([A, B, B, GENERAL]);
+    // The most recently started of those still running, not the most recently updated.
+    expect(stages([startA, startB, startC, call("a", { sessionUpdate: "tool_call_update", status: "in_progress" }), end("c", "completed")])).toEqual([A, B, COMMAND, A, B]);
+    expect(stages([startA, startB, startC, end("b", "completed"), end("c", "completed"), end("a", "completed")])).toEqual([A, B, COMMAND, COMMAND, A, GENERAL]);
+    // An unknown status ends a tool too; a status-less update changes nothing.
+    expect(stages([startA, startB, call("b", { sessionUpdate: "tool_call_update", content: [] }), end("b", "cancelled"), end("a", "cancelled")])).toEqual([A, B, A, GENERAL]);
+    // Thinking still comes and goes as before: a thought chunk is thinking, the next completion names the running tool.
+    expect(stages([startA, startB, thought, end("b", "completed")])).toEqual([A, B, THINKING, A]);
+    // An update for a tool that already completed reports nothing, as before.
+    expect(stages([startA, end("a", "completed"), startB, end("a", "completed")])).toEqual([A, GENERAL, B]);
+    // No tool left running leaves no trace in the state.
+    const { state } = acpSteps([startA, startB, end("b", "completed"), end("a", "failed")] as Record<string, any>[]);
+    expect(state).toEqual(acpSteps([startA, end("a", "failed"), startB, end("b", "completed")] as Record<string, any>[]).state);
+    expect("running" in state).toBe(false);
   });
   it("bounds a tool's path and summary to 512", () => {
     const long = "/repo/" + "d/".repeat(400) + "a.txt";
@@ -344,7 +406,9 @@ describe("ACP tool summary (B2)", () => {
     for (const frame of frames as Record<string, any>[]) {
       if (frame.method !== "session/update") continue;
       const u = frame.params.update, result = normalizeAcp(state, u, "/repo"); state = result.state;
-      if (result.stage?.kind === "tool") running.set(u.toolCallId, { stage: result.stage, tool: state.tools[u.toolCallId] });
+      // Only the update's own running stage: an ending update names another tool still running.
+      const runs = u.status === "pending" || u.status === "in_progress" || (u.sessionUpdate === "tool_call" && !u.status);
+      if (runs && result.stage?.kind === "tool") running.set(u.toolCallId, { stage: result.stage, tool: state.tools[u.toolCallId] });
       const activity = result.events.find(e => e.type === "activity");
       if (activity?.type !== "activity") continue;
       const last = running.get(u.toolCallId);

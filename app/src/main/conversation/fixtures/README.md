@@ -136,3 +136,11 @@ root is `/repo`. Prompts, thinking signatures, thought text, commands (`COMMAND_
 read title keeps the recorded "Viewing <path>" form), tool inputs other than paths and descriptions, and tool outputs
 are synthetic; reply text, Codex `query` values, token values, model keys and `contextWindow` are as recorded.
 `turnActivityFixtures.test.ts` pins each turn's whole event list.
+
+`acp-copilot-parallel.json` (turn-activity FX) is reduced the same way from the turn-activity R1 `/runtime-test`
+spawn frames of one Copilot 1.0.106 turn in Full access (`copilot-ov`): 165 `agent_thought_chunk`s in two runs, three
+`tool_call`s within 4 ms (a search with kind `other`, a `read` glob, an `execute` of a 6 s command), the search and
+glob completing 72 ms later while the command still ran, its status-less update and completion, a `read` and a second
+search, the reply and the `session/prompt` result. Frame order, kinds, statuses and token values are as recorded;
+ids, the root (`/repo`), thought text, the command and queries (`COMMAND_TEXT`, `QUERY`), tool titles (each keeps its
+recorded form) and outputs are synthetic, `rawOutput` is dropped, and the reply is as recorded in three chunks.

@@ -117,8 +117,9 @@ export function acpQuestion(params: Record<string, unknown>, requestId: string):
   };
 }
 
-// thinking: thought chunks came and nothing that ends thinking since (normalizeAcp).
-export interface AcpTransport extends TransportState { turn: string; segment: number; text: string; tools: Record<string, AcpTool>; thinking?: true }
+// thinking: thought chunks came and nothing that ends thinking since (normalizeAcp). running: the tool calls still
+// pending or in progress, in the order they started; absent when none runs.
+export interface AcpTransport extends TransportState { turn: string; segment: number; text: string; tools: Record<string, AcpTool>; thinking?: true; running?: string[] }
 interface AcpTool { kind: string; path: string; title: string }
 export function initialAcp(turn: string): AcpTransport {
   return { terminal: false, stop: null, messageId: `${turn}:0`, textBlock: null, completedMessages: [], activities: [], fileSummaries: {}, turn, segment: 0, text: "", tools: {} };
@@ -180,17 +181,25 @@ export function normalizeAcp(state: AcpTransport, update: Record<string, unknown
   const known = woke.state.tools[id] ?? { kind: "", path: "", title: "" };
   const tool = { kind: str(update.kind) || known.kind, path: toolPath(update) || known.path, title: str(update.title) || known.title };
   const flushed = flush(woke.state);
-  const next = { ...flushed.state, tools: { ...woke.state.tools, [id]: tool } };
+  const tools = { ...woke.state.tools, [id]: tool };
+  const runs = status === "pending" || status === "in_progress";
+  const before = woke.state.running ?? [];
+  const running = !status ? before : runs ? (before.includes(id) ? before : [...before, id]) : before.filter(other => other !== id);
+  const { running: _, ...rest } = flushed.state;
+  const next: AcpTransport = { ...rest, tools, ...(running.length ? { running } : {}) };
   const activityKind = ACTIVITY[tool.kind] ?? "other";
-  // A running tool is the stage; any other status (completed, failed) ends it.
-  const stage = !status ? undefined : status === "pending" || status === "in_progress" ? acpToolStage(activityKind, tool, root) : GENERAL_STAGE;
+  // A running tool is the stage; any other status (completed, failed) ends it. Copilot runs tool calls in parallel, so
+  // a call that ends while others still run hands the stage to the latest of them that started.
+  const latest = running.at(-1);
+  const ended = latest ? acpToolStage(ACTIVITY[tools[latest]!.kind] ?? "other", tools[latest]!, root) : GENERAL_STAGE;
+  const stage = !status ? undefined : runs ? acpToolStage(activityKind, tool, root) : ended;
   // One activity per tool call, once it completed: a rejected or failed call changed nothing.
   if (status !== "completed") return { state: next, events: flushed.events, ...(stage ? { stage } : {}) };
   const summary = acpToolSummary(activityKind, tool, root);
   const event: EventPayload = tool.path
     ? { type: "activity", kind: activityKind, path: tool.path, insideDesign: canvasDir(posix.relative(root, posix.resolve(root, tool.path))) !== null, summary }
     : { type: "activity", kind: activityKind, summary };
-  return { state: { ...next, activities: [...woke.state.activities, id] }, events: [...flushed.events, event], stage: GENERAL_STAGE };
+  return { state: { ...next, activities: [...woke.state.activities, id] }, events: [...flushed.events, event], stage: ended };
 }
 function finishAcp(state: AcpTransport, event: EventPayload): TransportResult & { state: AcpTransport } {
   if (state.terminal) return { state, events: [] };
