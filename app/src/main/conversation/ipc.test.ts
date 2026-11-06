@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { conversationHandler, conversationMethods, validateSendExtras } from "./ipc";
 import { ConversationService, type OpenRunner, type Prepare } from "./service";
 import { ModelCatalog, parseCodexModels, type ModelOption } from "./models";
+import { SkillCatalog } from "./skills";
 import { AttachmentStore } from "../attachments";
 import { ConversationStore } from "./store";
 import { mkdtempSync, realpathSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
@@ -78,6 +79,39 @@ it("accepts a model and effort only from the list delivered in this run for that
     expect(await start({ model: "sonnet", effort: "high" })).toHaveProperty("conversationId");
     expect(h.start.mock.calls[0]![0]).toMatchObject({ model: "sonnet", effort: "high" });
     expect(await h.handle(true, "start", { root: "/repo", mode: "new", runtime: "claude", text: "x", model: "sonnet", canvas: undefined })).toEqual({ error: "bad_request" });
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+// project-skill-drawer C1: the project skill list has the model list's checks, so no provider opens for an unopened folder.
+it("answers conversation:skills for an open project and refuses other windows, frames and inputs", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
+  try {
+    const prepare = vi.fn<Prepare>(async request => ({ runtime: request.runtime ?? "claude", configDir: "/profile", cwd: "/repo", command: "/fake", env: {} }));
+    const service = new ConversationService(new ConversationStore(dir), prepare, vi.fn(), () => {});
+    const list = vi.fn(async () => [{ name: "deploy", description: "Ship." }]);
+    const skills = new SkillCatalog((root, provider) => prepare({ root, mode: "new", runtime: provider, text: "", anchors: [] }), list);
+    const handle = conversationHandler(service, prepare, () => [{ path: "/repo", kind: "list", canvases: [] }], { skills });
+    expect(conversationMethods).toContain("skills");
+    expect(await handle(false, "skills", { root: "/repo", provider: "claude" })).toEqual({ error: "bad_request" });
+    expect(await handle(true, "skills", { root: "/missing", provider: "claude" })).toEqual({ error: "project_not_open" });
+    for (const bad of [{ root: "/repo", provider: "gemini" }, { root: "/repo" }, { root: "/repo", runtime: "claude" }, { root: 1, provider: "claude" }, { root: "x".repeat(4097), provider: "claude" }])
+      expect(await handle(true, "skills", bad)).toEqual({ error: "bad_request" });
+    expect(prepare).not.toHaveBeenCalled();
+    expect(await handle(true, "skills", { root: "/repo", provider: "claude" })).toEqual({ skills: [{ name: "deploy", description: "Ship." }] });
+    expect(await handle(true, "skills", { root: "/repo", provider: "cursor" })).toEqual({ skills: [] });
+    expect(list).toHaveBeenCalledOnce();
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+it("answers conversation:skills with the start code when the provider cannot be read", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
+  try {
+    for (const code of ["cli_missing", "not_logged_in", "no_agent", "process_exited", "outside_root", "something else"]) {
+      const prepare = vi.fn<Prepare>(async () => { throw new Error(code); });
+      const service = new ConversationService(new ConversationStore(dir), prepare, vi.fn(), () => {});
+      const skills = new SkillCatalog((root, provider) => prepare({ root, mode: "new", runtime: provider, text: "", anchors: [] }), vi.fn());
+      const handle = conversationHandler(service, prepare, () => [{ path: "/repo", kind: "list", canvases: [] }], { skills });
+      const expected = code === "outside_root" ? "session_unavailable" : code === "something else" ? "unknown" : code;
+      expect(await handle(true, "skills", { root: "/repo", provider: "codex" })).toEqual({ error: expected });
+    }
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 it("answers conversation:models for an open project and refuses other windows, frames and inputs", async () => {

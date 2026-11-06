@@ -1,0 +1,518 @@
+{
+ "version": "2.1.284 (Claude Code)",
+ "commands": [
+  {
+   "name": "doan",
+   "description": "Create and revise design canvases with the doan CLI and app. (user)",
+   "argumentHint": ""
+  },
+  {
+   "name": "a",
+   "description": "Probe skill a for the Doan PoC. (project)",
+   "argumentHint": ""
+  },
+  {
+   "name": "d",
+   "description": "Probe skill d for the Doan PoC. (project)",
+   "argumentHint": ""
+  },
+  {
+   "name": "ends-bang!",
+   "description": "Probe skill ends-bang! for the Doan PoC. (project)",
+   "argumentHint": ""
+  },
+  {
+   "name": "long-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "description": "Probe skill long-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx for the Doan PoC. (project)",
+   "argumentHint": ""
+  },
+  {
+   "name": "manual",
+   "description": "Probe skill manual for the Doan PoC. (project)",
+   "argumentHint": ""
+  },
+  {
+   "name": "Upper-Case",
+   "description": "Probe skill Upper-Case for the Doan PoC. (project)",
+   "argumentHint": ""
+  },
+  {
+   "name": "한글스킬",
+   "description": "Probe skill 한글스킬 for the Doan PoC. (project)",
+   "argumentHint": ""
+  },
+  {
+   "name": "b",
+   "description": "Probe command b for the Doan PoC. (project)",
+   "argumentHint": ""
+  },
+  {
+   "name": "sub:x",
+   "description": "Probe nested command x for the Doan PoC. (project)",
+   "argumentHint": ""
+  },
+  {
+   "name": "deep-research",
+   "description": "Built-in command.",
+   "argumentHint": "",
+   "builtin": true
+  },
+  {
+   "name": "design",
+   "description": "Built-in command.",
+   "argumentHint": "consent | revoke",
+   "builtin": true
+  },
+  {
+   "name": "design-sync",
+   "description": "Built-in command.",
+   "argumentHint": "[<project hint, e.g. \"Acme DS\">]",
+   "builtin": true
+  },
+  {
+   "name": "dataviz",
+   "description": "Built-in command.",
+   "argumentHint": "",
+   "builtin": true
+  },
+  {
+   "name": "update-config",
+   "description": "Built-in command.",
+   "argumentHint": "",
+   "builtin": true
+  },
+  {
+   "name": "verify",
+   "description": "Built-in command.",
+   "argumentHint": "",
+   "builtin": true
+  },
+  {
+   "name": "debug",
+   "description": "Built-in command.",
+   "argumentHint": "[issue description]",
+   "builtin": true
+  },
+  {
+   "name": "code-review",
+   "description": "Built-in command.",
+   "argumentHint": "[low|medium|high|xhigh|max|ultra] [--fix] [--comment] [<pr#>|<branch>|<path>]",
+   "aliases": [
+    "review"
+   ],
+   "builtin": true
+  },
+  {
+   "name": "simplify",
+   "description": "Built-in command.",
+   "argumentHint": "[<target>]",
+   "builtin": true
+  },
+  {
+   "name": "batch",
+   "description": "Built-in command.",
+   "argumentHint": "<instruction>",
+   "builtin": true
+  },
+  {
+   "name": "fewer-permission-prompts",
+   "description": "Built-in command.",
+   "argumentHint": "",
+   "builtin": true
+  },
+  {
+   "name": "doctor",
+   "description": "Built-in command.",
+   "argumentHint": "[prompt-audit [<path>]]",
+   "aliases": [
+    "checkup"
+   ],
+   "builtin": true
+  },
+  {
+   "name": "loop",
+   "description": "Built-in command.",
+   "argumentHint": "[interval] [prompt]",
+   "aliases": [
+    "proactive"
+   ],
+   "builtin": true
+  },
+  {
+   "name": "schedule",
+   "description": "Built-in command.",
+   "argumentHint": "",
+   "aliases": [
+    "routines"
+   ],
+   "builtin": true
+  },
+  {
+   "name": "claude-api",
+   "description": "Built-in command.",
+   "argumentHint": "",
+   "builtin": true
+  },
+  {
+   "name": "workflow-authoring",
+   "description": "Built-in command.",
+   "argumentHint": "",
+   "builtin": true
+  },
+  {
+   "name": "run",
+   "description": "Built-in command.",
+   "argumentHint": "",
+   "builtin": true
+  },
+  {
+   "name": "run-skill-generator",
+   "description": "Built-in command.",
+   "argumentHint": "",
+   "builtin": true
+  },
+  {
+   "name": "plugin-authoring",
+   "description": "Built-in command.",
+   "argumentHint": "",
+   "builtin": true
+  },
+  {
+   "name": "advisor",
+   "description": "Built-in command.",
+   "argumentHint": "[fable|opus|sonnet|off]",
+   "builtin": true
+  },
+  {
+   "name": "agents",
+   "description": "Built-in command.",
+   "argumentHint": "",
+   "builtin": true
+  },
+  {
+   "name": "auto-mode-setup",
+   "description": "Built-in command.",
+   "argumentHint": "[--request-id <uuid>] (--wizard posture=… scope=… depth=… --propose | --expect-sha256 <64-hex> --apply-file <path>)",
+   "builtin": true
+  },
+  {
+   "name": "autocompact",
+   "description": "Built-in command.",
+   "argumentHint": "[auto|<tokens>]",
+   "builtin": true
+  },
+  {
+   "name": "clear",
+   "description": "Built-in command.",
+   "argumentHint": "[name]",
+   "aliases": [
+    "reset",
+    "new"
+   ],
+   "builtin": true
+  },
+  {
+   "name": "color",
+   "description": "Built-in command.",
+   "argumentHint": "[red|blue|green|yellow|purple|orange|pink|cyan|default]",
+   "builtin": true
+  },
+  {
+   "name": "compact",
+   "description": "Built-in command.",
+   "argumentHint": "<optional custom summarization instructions>",
+   "builtin": true
+  },
+  {
+   "name": "config",
+   "description": "Built-in command.",
+   "argumentHint": "key=value",
+   "aliases": [
+    "settings"
+   ],
+   "builtin": true
+  },
+  {
+   "name": "output-style",
+   "description": "Built-in command.",
+   "argumentHint": "[style]",
+   "builtin": true
+  },
+  {
+   "name": "context",
+   "description": "Built-in command.",
+   "argumentHint": "",
+   "builtin": true
+  },
+  {
+   "name": "effort",
+   "description": "Built-in command.",
+   "argumentHint": "<low|medium|high|xhigh|max|auto|ultracode [on|off]>",
+   "builtin": true
+  },
+  {
+   "name": "fast",
+   "description": "Built-in command.",
+   "argumentHint": "[on|off]",
+   "builtin": true
+  },
+  {
+   "name": "focus",
+   "description": "Built-in command.",
+   "argumentHint": "[on|off]",
+   "builtin": true
+  },
+  {
+   "name": "heapdump",
+   "description": "Built-in command.",
+   "argumentHint": "",
+   "builtin": true
+  },
+  {
+   "name": "init",
+   "description": "Built-in command.",
+   "argumentHint": "",
+   "builtin": true
+  },
+  {
+   "name": "mcp",
+   "description": "Built-in command.",
+   "argumentHint": "[reconnect|enable|disable [<server>|all]]",
+   "builtin": true
+  },
+  {
+   "name": "import",
+   "description": "Built-in command.",
+   "argumentHint": "",
+   "builtin": true
+  },
+  {
+   "name": "model",
+   "description": "Built-in command.",
+   "argumentHint": "<model>",
+   "builtin": true
+  },
+  {
+   "name": "__remote-workflow",
+   "description": "Built-in command.",
+   "argumentHint": "",
+   "builtin": true
+  },
+  {
+   "name": "workflow-launch-exec",
+   "description": "Built-in command.",
+   "argumentHint": "",
+   "builtin": true
+  },
+  {
+   "name": "plugin-types",
+   "description": "Built-in command.",
+   "argumentHint": "[dir]",
+   "builtin": true
+  },
+  {
+   "name": "reload-plugins",
+   "description": "Built-in command.",
+   "argumentHint": "[--force]",
+   "builtin": true
+  },
+  {
+   "name": "reload-skills",
+   "description": "Built-in command.",
+   "argumentHint": "",
+   "builtin": true
+  },
+  {
+   "name": "rename",
+   "description": "Built-in command.",
+   "argumentHint": "[name]",
+   "aliases": [
+    "name"
+   ],
+   "builtin": true
+  },
+  {
+   "name": "ultrareview",
+   "description": "Built-in command.",
+   "argumentHint": "",
+   "builtin": true
+  },
+  {
+   "name": "security-review",
+   "description": "Built-in command.",
+   "argumentHint": "",
+   "builtin": true
+  },
+  {
+   "name": "usage-credits",
+   "description": "Built-in command.",
+   "argumentHint": "",
+   "builtin": true
+  },
+  {
+   "name": "extra-usage",
+   "description": "Built-in command.",
+   "argumentHint": "",
+   "builtin": true
+  },
+  {
+   "name": "usage",
+   "description": "Built-in command.",
+   "argumentHint": "",
+   "aliases": [
+    "cost",
+    "stats"
+   ],
+   "builtin": true
+  },
+  {
+   "name": "insights",
+   "description": "Built-in command.",
+   "argumentHint": "",
+   "builtin": true
+  },
+  {
+   "name": "recap",
+   "description": "Built-in command.",
+   "argumentHint": "",
+   "builtin": true
+  },
+  {
+   "name": "skill-doctor",
+   "description": "Built-in command.",
+   "argumentHint": "",
+   "builtin": true
+  },
+  {
+   "name": "goal",
+   "description": "Built-in command.",
+   "argumentHint": "",
+   "builtin": true
+  },
+  {
+   "name": "design-consent",
+   "description": "Built-in command.",
+   "argumentHint": "",
+   "builtin": true
+  },
+  {
+   "name": "design-revoke",
+   "description": "Built-in command.",
+   "argumentHint": "",
+   "builtin": true
+  },
+  {
+   "name": "list-agents",
+   "description": "Built-in command.",
+   "argumentHint": "",
+   "aliases": [
+    "peers"
+   ],
+   "builtin": true
+  },
+  {
+   "name": "team-onboarding",
+   "description": "Built-in command.",
+   "argumentHint": "",
+   "builtin": true
+  },
+  {
+   "name": "synced-1",
+   "description": "Synced skill 1. (claude.ai sync)",
+   "argumentHint": "",
+   "aliases": [
+    "anthropic-skills:synced-1"
+   ]
+  },
+  {
+   "name": "synced-2",
+   "description": "Synced skill 2. (claude.ai sync)",
+   "argumentHint": "",
+   "aliases": [
+    "anthropic-skills:synced-2"
+   ]
+  },
+  {
+   "name": "synced-3",
+   "description": "Synced skill 3. (claude.ai sync)",
+   "argumentHint": "",
+   "aliases": [
+    "anthropic-skills:synced-3"
+   ]
+  },
+  {
+   "name": "synced-4",
+   "description": "Synced skill 4. (claude.ai sync)",
+   "argumentHint": ""
+  },
+  {
+   "name": "synced-5",
+   "description": "Synced skill 5. (claude.ai sync)",
+   "argumentHint": "",
+   "aliases": [
+    "anthropic-skills:synced-5"
+   ]
+  },
+  {
+   "name": "synced-6",
+   "description": "Synced skill 6. (claude.ai sync)",
+   "argumentHint": "",
+   "aliases": [
+    "anthropic-skills:synced-6"
+   ]
+  },
+  {
+   "name": "synced-7",
+   "description": "Synced skill 7. (claude.ai sync)",
+   "argumentHint": "",
+   "aliases": [
+    "anthropic-skills:synced-7"
+   ]
+  },
+  {
+   "name": "synced-8",
+   "description": "Synced skill 8. (claude.ai sync)",
+   "argumentHint": "",
+   "aliases": [
+    "anthropic-skills:synced-8"
+   ]
+  },
+  {
+   "name": "synced-9",
+   "description": "Synced skill 9. (claude.ai sync)",
+   "argumentHint": "",
+   "aliases": [
+    "anthropic-skills:synced-9"
+   ]
+  },
+  {
+   "name": "synced-10",
+   "description": "Synced skill 10. (claude.ai sync)",
+   "argumentHint": "",
+   "aliases": [
+    "anthropic-skills:synced-10"
+   ]
+  },
+  {
+   "name": "synced-11",
+   "description": "Synced skill 11. (claude.ai sync)",
+   "argumentHint": "",
+   "aliases": [
+    "anthropic-skills:synced-11"
+   ]
+  },
+  {
+   "name": "synced-12",
+   "description": "Synced skill 12. (claude.ai sync)",
+   "argumentHint": "",
+   "aliases": [
+    "anthropic-skills:synced-12"
+   ]
+  },
+  {
+   "name": "probe:probe-prompt (MCP)",
+   "description": "A probe MCP prompt",
+   "argumentHint": ""
+  }
+ ]
+}

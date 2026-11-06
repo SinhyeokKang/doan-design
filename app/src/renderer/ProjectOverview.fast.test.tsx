@@ -36,7 +36,7 @@ const AUTH: AuthSnapshot = { revision: 1, providers: [status("claude")] };
 const OPUS: ModelOption = { id: "opus", label: "Opus", default: true, efforts: ["high"], fast: {} };
 const SONNET: ModelOption = { id: "sonnet", label: "Sonnet", default: false, efforts: ["high"] };
 
-beforeEach(() => vi.stubGlobal("window", { doan: { readConversation: vi.fn(() => new Promise(() => {})), takeConversationDraft: vi.fn(async () => null), onAgentAuth: vi.fn(() => () => {}), listConversationModels: vi.fn(() => new Promise(() => {})), setConversationPermissionMode: vi.fn(async () => undefined) } }));
+beforeEach(() => vi.stubGlobal("window", { doan: { readConversation: vi.fn(() => new Promise(() => {})), takeConversationDraft: vi.fn(async () => null), onAgentAuth: vi.fn(() => () => {}), listConversationSkills: vi.fn(async () => ({ skills: [] })), listConversationModels: vi.fn(() => new Promise(() => {})), setConversationPermissionMode: vi.fn(async () => undefined) } }));
 afterEach(() => vi.unstubAllGlobals());
 
 function render(list: ListView, current: string | null, patch: Partial<ProjectOverviewProps> = {}, picks?: (support: DockedSupport) => void) {

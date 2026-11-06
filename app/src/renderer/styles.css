@@ -626,7 +626,7 @@ body:has(.shell-top) { background: transparent; }
 .attach-chip.problem :is(.file-icon, small) { color: var(--text-danger); }
 /* The remove button is the shared icon button xs; only its ink is set here. */
 .chip-remove.doan-icon-button { color: var(--text-metadata); }
-/* Accent marks the chosen preset only (2026-10-29 user); the preset button, tabs and suggestions stay neutral so Send keeps the strongest accent. */
+/* Preset tiles and group icons identify Doan presets; project skills use neutral tiles. */
 .preset-chip { height: var(--size-control); padding: 0 var(--space-1) 0 var(--space-3); font-weight: var(--type-weight-medium); background: var(--surface-accent-subtle); color: var(--text-accent-subtle); }
 .preset-chip > svg { width: var(--size-icon-sm); height: var(--size-icon-sm); color: currentColor; }
 /* Popovers: shared floating material and menu rows (ds/surfaces.css); the preset popover has search and tabs, so it is wider than a menu. */
@@ -1516,3 +1516,13 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .usage-note svg { width: var(--size-icon); height: var(--size-icon); }
 .usage-note[data-kind="error"] { color: var(--text-danger); }
 .usage-note[data-kind="warn"] { color: var(--text-warning); }
+
+.skill-word { padding: 0 var(--space-1h); border-radius: 6px; background: var(--surface-accent-subtle); color: var(--text-accent-subtle); font-weight: var(--type-weight-medium); -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.bubble .skill-word { background: var(--surface-panel); }
+
+.preset-popover.has-skills:not(.slash-popover) { width: 691px; }
+.preset-item .suggestion-icon svg { width: var(--size-icon-sm); height: var(--size-icon-sm); color: var(--affordance-accent); }
+.preset-item .suggestion-icon.project-skill-icon { background: var(--affordance-backdrop-hover); }
+.preset-item .suggestion-icon.project-skill-icon svg { color: var(--text-standard); }
+.preset-popover .group-tabs button svg { color: var(--affordance-accent); }
+.preset-popover .group-tabs button[data-group="project"] svg { color: var(--text-metadata); }

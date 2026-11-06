@@ -95,3 +95,11 @@ test("Send now shows the queued message with its chips and files above the open 
   expect(composer.props!.queued.map(({ id, text }) => ({ id, text }))).toEqual([{ id: "q1", text: "Tighten {{1}}" }]);
   expect(run.sending(A)).toEqual([]);
 });
+
+test("Overview queue rows strip fixed lines while retaining the full request for Send now", async () => {
+  const { render } = setup(); render(); await flush(); render();
+  const text = "Use the project skill `deploy`.\n\n/deploy now\n\nUse the Doan design preset `polish` (Polish).";
+  await composer.props!.onQueue({ text, anchors: [], attachments: [] });
+  render();
+  expect(composer.props!.queued[0]).toMatchObject({ text: "/deploy now", message: { text } });
+});

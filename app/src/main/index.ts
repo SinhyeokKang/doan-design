@@ -2,8 +2,9 @@ import { parseActivityRoots, readShellActivity } from "./shellActivity";
 import { ConversationService, resolveListedCanvas } from "./conversation/service";
 import { ConversationStore } from "./conversation/store";
 import { connectorFacts, createAccountPrepare, createPrepare, routePrepare } from "./conversation/prepare";
-import { listModels, openRunner } from "./conversation/runners";
+import { listModels, listSkills, openRunner } from "./conversation/runners";
 import { ModelCatalog } from "./conversation/models";
+import { SkillCatalog } from "./conversation/skills";
 import { AttachmentStore, captureRequest, type AttachmentResult } from "./attachments";
 import { conversationHandler, conversationMethods, queueFiles } from "./conversation/ipc";
 import { DraftStore } from "./conversation/drafts";
@@ -921,8 +922,9 @@ async function start(): Promise<void> {
   id => updateConversationWork(endConversationWork(conversationWork, id)), notice => send("conversation:handoff", notice), signal => send("conversation:stage", signal));
   conversations = conversationService;
   attachments.cleanup();
-  modelCatalog = new ModelCatalog((root, runtime) => conversationService.prepareListing(root, runtime), input => conversationService.listModels(input, listModels));
-  const conversationRequest = conversationHandler(conversationService, prepareConversation, () => ready.entries(), { models: modelCatalog, attachments });
+  modelCatalog = new ModelCatalog((root, runtime) => conversationService.prepareListing(root, runtime), input => conversationService.readListing(input, listModels));
+  const skillCatalog = new SkillCatalog((root, provider) => conversationService.prepareListing(root, provider), input => conversationService.readListing(input, listSkills));
+  const conversationRequest = conversationHandler(conversationService, prepareConversation, () => ready.entries(), { models: modelCatalog, skills: skillCatalog, attachments });
   for (const method of conversationMethods) {
     ipcMain.handle(`conversation:${method}`, (event, value: unknown) => conversationRequest(fromWindow(event), method, value));
   }

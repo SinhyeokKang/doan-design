@@ -53,7 +53,7 @@
 | 링크 | 세션·worktree | 시작 | PR·병합 | 상태 |
 |---|---|---|---|---|
 | 1 model-drawer-older | Claude Code, Orca worktree `model-drawer-older-orch` | 2026-11-06 | PR #112, `0825d9eb` | 병합 |
-| 2 project-skill-drawer | Claude Code, Orca worktree `project-skill-drawer-orch` | 2026-11-06 | — | 시작 |
+| 2 project-skill-drawer | Claude Code, Orca worktree `project-skill-drawer-orch` | 2026-11-06 | PR #113 | 보류 풀림, 병합 |
 
 ## 인계 기록
 
@@ -71,3 +71,12 @@
   - 확인하지 못한 것: 실제 provider 목록 읽기와 턴(fixture로 대신함), Copilot 유료 계정의 접기(BACKLOG).
   - **링크 2가 알아야 할 것**: `ComposerParts.tsx`(`AgentPicker`, 새 `useOlderFold`), `homeComposer.ts`(`foldRows`·`olderOrder`·`lockedOlderSide`·`heldScrollTop` 추가), `SettingsAgents.tsx`, `styles.css`가 바뀌었다. project-skill-drawer spec·design의 이 파일 줄 번호 인용(spec 2곳, design 7곳)은 링크 2 지휘자가 시작할 때 다시 맞춘다. `PresetOption`·`presetListView`·`slashQuery` 자체는 이 링크가 고치지 않았다.
   - Codex 한도는 Orca Codex 계정의 `$CODEX_HOME/sessions` rollout에서 읽는다(위 시작 점검 기록). 사용자는 Codex를 넉넉히 써도 된다고 했다.
+- 2026-11-07 링크 2 지휘자(worktree `project-skill-drawer-orch`): project-skill-drawer를 PR #113(`feat/project-skill-drawer`)으로 올렸다. **병합하지 않았다.**
+  - **병합 보류**(사용자, 2026-11-07, main checkout 세션이 전함): main 병합을 모두 멈춘다. 통합 gate를 통과해도 '병합 준비됨'에서 멈춘다. 이 보류가 '상시 권한'의 main 병합 권한보다 우선한다. 그래서 이 기록도 main에 직접 push하지 않고 PR 브랜치에 커밋했다. 보류가 풀리면 병합하는 세션이 최신 `origin/main` 위로 rebase하고 `/verify`를 다시 돌린 뒤 병합한다. 이 링크가 마지막이므로 병합 뒤 `docs(chain): remove chain-261106`로 이 디렉터리를 지운다. 로그인 정리는 하지 않는다(시작 점검 승인: 전부 남김).
+  - batch: A(F1, A1, C1, A2; Claude Opus high), B(B1–B3; Codex gpt-6-astra medium), D(D1, D2, R2 design-sync; Codex. Claude 주간 사용 81%라 계획한 Claude에서 옮김), R(R1과 F1 실제 턴; Codex). 리뷰 RA(Codex), RB·RD(Claude Opus)는 모두 🔴 0이었고 🟡는 수정 round로 고쳤다. 지휘자 확인에서 IME 지연 가드가 조합 직후 host 값을 버리는 회귀를 찾아 D가 고쳤다.
+  - 사용자 결정(구현 중): queue에서 합친 메시지의 고정 줄은 화면에서 문단마다 뗀다. 고정 줄을 떼고 남는 글이 없으면 대화 제목은 preset title이다. PRODUCT §5 item 1 'Project skills'에 있다.
+  - 통합 gate: rebase한 HEAD에서 `/verify` PASS. `/agent-eval` round `psd-261107`(USABILITY-EVAL 'project-skill-drawer full round'): Codex 40/42, Claude 34/42 pass. Claude 2.1.319 단일 run에서 D2b·D11e·O3b가 fail, D8이 partial로 나빠졌다. R10-codex는 알려진 U-024다. runner는 real-state 검사로 exit 1이다(사용자 앱이 켜져 있었음, 원인 미확정).
+  - R1 한글 IME(사람 확인 대신 녹화·스크린샷, 시작 점검 승인): native 2벌식 입력으로 `/deploy에서도`, `/deploy로`, 한글 입력 직후 Enter를 Home과 Overview에서 확인했다. 기록 위치: main checkout `.scratch/project-skill-drawer/runtime-test-r1/`(`*-eseodo-*`, `*-ro-*`, `*-enter.png`, `*-ime-events.json`). PR #113 본문에도 적었다. design-sync 증거는 같은 폴더의 `design-sync-d/`에 있다.
+  - 확인하지 못한 것: VoiceOver 알림 읽기, 캔버스 panel composer의 native IME, forced colors, Cursor·Copilot stub 경로의 실제 턴(BACKLOG). R1 중 실제 `ui-state.json` 지문이 한 번 바뀌었다(사용자 앱이 켜져 있었음, 원인 미확정).
+  - 남긴 브랜치: 로컬 `SinhyeokKang/psd-batch-a`(`b319574e`), `-b`(`369b5961`), `-d`(`94e9c3b0`), `-r`(`386d2835`). batch worktree는 모두 지웠다.
+  - **보류 풀림**(사용자, 2026-11-07, main checkout 세션이 전함): 이 링크의 병합 보류를 풀었다. project-skill-drawer를 먼저 main에 넣는다. 최신 `origin/main` 위의 통합 gate를 통과하면 체인 권한대로 병합한다. 그다음 main checkout 세션이 PR #114(`fix/tooltip-delay`)를 병합한다.

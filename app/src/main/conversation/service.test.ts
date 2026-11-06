@@ -6,6 +6,7 @@ import { ConversationStore } from "./store";
 import { HOME_GUIDANCE, PRESET_GUIDANCE } from "./prompt";
 import { ConversationService, resolveListedCanvas, type Runner, type OpenRunner, type Prepare, type QueueFiles, type QueueOptions } from "./service";
 import { DraftStore } from "./drafts";
+import { SkillCatalog } from "./skills";
 import type { Canvas, ConversationEvent } from "./types";
 import { storedAnswers } from "./transport";
 import { foldConversation } from "./state";
@@ -488,7 +489,7 @@ it.each(["quit", "stopRuns"] as const)("stops a model-list read on %s during its
   const h = listingFixture();
   const input = await h.service.prepareListing("/repo", "cursor");
   let exited!: () => void; const stop = vi.fn(async () => {});
-  const reading = h.service.listModels(input, async (_input, gone, registerStop) => {
+  const reading = h.service.readListing(input, async (_input, gone, registerStop) => {
     exited = gone; registerStop(stop);
     await new Promise((_resolve, reject) => { stop.mockImplementation(async () => { reject(new Error("process_exited")); }); });
     return { models: [] };
@@ -510,7 +511,7 @@ it("keeps a model-list read of another provider running on a sign-out", async ()
   const h = listingFixture();
   const input = await h.service.prepareListing("/repo", "cursor");
   const stop = vi.fn(async () => {});
-  void h.service.listModels(input, async (_input, _gone, registerStop) => { registerStop(stop); return new Promise(() => {}); });
+  void h.service.readListing(input, async (_input, _gone, registerStop) => { registerStop(stop); return new Promise(() => {}); });
   await vi.waitFor(() => expect(h.prepare).toHaveBeenCalled());
   await h.service.stopRuns("codex");
   expect(stop).not.toHaveBeenCalled();
@@ -518,7 +519,7 @@ it("keeps a model-list read of another provider running on a sign-out", async ()
 it("keeps the lease of a model-list group that never disappears, even after its list came back", async () => {
   const h = listingFixture();
   const input = await h.service.prepareListing("/repo", "copilot");
-  expect(await h.service.listModels(input, async (_input, _gone, registerStop) => { registerStop(async () => {}); return { models: [{ id: "auto", label: "Auto", default: true }] }; })).toEqual({ models: [{ id: "auto", label: "Auto", default: true }] });
+  expect(await h.service.readListing(input, async (_input, _gone, registerStop) => { registerStop(async () => {}); return { models: [{ id: "auto", label: "Auto", default: true }] }; })).toEqual({ models: [{ id: "auto", label: "Auto", default: true }] });
   await new Promise(resolve => setTimeout(resolve, 50));
   expect(h.release).not.toHaveBeenCalled();
 });
@@ -526,7 +527,7 @@ it("stops a model-list process that spawns after its provider was stopped", asyn
   const h = listingFixture();
   const input = await h.service.prepareListing("/repo", "cursor");
   let spawn!: () => void; const stop = vi.fn(async () => {});
-  const reading = h.service.listModels(input, async (_input, _gone, registerStop) => { await new Promise<void>(resolve => { spawn = resolve; }); registerStop(stop); return { models: [] }; });
+  const reading = h.service.readListing(input, async (_input, _gone, registerStop) => { await new Promise<void>(resolve => { spawn = resolve; }); registerStop(stop); return { models: [] }; });
   await vi.waitFor(() => expect(spawn).toBeDefined());
   await h.service.stopRuns("cursor");
   spawn(); await reading;
@@ -545,8 +546,25 @@ it("refuses a model-list read stopped during its preparation and frees the lease
 it("frees the lease at once when a model-list read fails before anything spawned", async () => {
   const h = listingFixture();
   const input = await h.service.prepareListing("/repo", "claude");
-  await expect(h.service.listModels(input, async () => { throw new Error("not_logged_in"); })).rejects.toThrow("not_logged_in");
+  await expect(h.service.readListing(input, async () => { throw new Error("not_logged_in"); })).rejects.toThrow("not_logged_in");
   await vi.waitFor(() => expect(h.release).toHaveBeenCalledOnce());
+});
+
+// project-skill-drawer C1: a project skill read takes the model list's lease path (POSTMORTEM 2026-10-28, 2026-10-30).
+it("prepares a project skill read as a listing that stopRuns stops, and a send after the previous run's exit is not refused while it reads", async () => {
+  const h = homeFixture();
+  const id = (await h.service.start(homeRequest)).conversationId;
+  h.service.receive(id, { type: "turn.done" });
+  const stop = vi.fn(async () => {});
+  const skills = new SkillCatalog((root, provider) => h.service.prepareListing(root, provider), input => h.service.readListing(input, async (_input, _gone, registerStop) => { registerStop(stop); return new Promise(() => {}); }));
+  void skills.skills("/repo", "claude");
+  await vi.waitFor(() => expect(h.prepare).toHaveBeenLastCalledWith(expect.objectContaining({ root: "/repo", runtime: "claude" }), undefined, "listing"));
+  // The first run's process is gone; the listing's process, still reading, holds no conversation reservation.
+  h.open.mock.calls[0]![2]();
+  await expect(h.service.send(id, "next", [])).resolves.toBeUndefined();
+  expect(h.open).toHaveBeenCalledTimes(2);
+  await h.service.stopRuns("claude");
+  expect(stop).toHaveBeenCalledOnce();
 });
 
 // buzz-home fix round 1: Home's paragraph follows the conversation's origin, not its binding.
@@ -1541,6 +1559,18 @@ describe("cancelled waits and their queues", () => {
 });
 
 
+// project-skill-drawer A2 (decisions 18, 28): the title leaves out the fixed request lines; the message keeps them.
+it.each([
+  ["skill lines and text", "Use the project skill `deploy`.\nUse the project skill `db-migrate`.\n\nrun /db-migrate first, then /deploy to staging", "run /db-migrate first, then /deploy to staging"],
+  ["a preset line, a skill line and text", "Use the Doan design preset `polish` (Polish).\nUse the project skill `deploy`.\n\n/deploy the hero", "/deploy the hero"],
+  ["a preset line only", "Use the Doan design preset `polish` (Polish).", "Polish"],
+  ["no fixed line", "Make a pricing page", "Make a pricing page"],
+])("titles a first message with %s without its fixed lines", async (_case, text, title) => {
+  const h = fixture();
+  const id = (await h.service.start({ root: request.root, mode: "newDesign", runtime: "codex", text, anchors: [] })).conversationId;
+  expect(h.store.list()[0]!.title).toBe(title);
+  expect(h.store.read(id)[0]).toMatchObject({ type: "user.message", text });
+});
 it.each(["new", "newDesign", "resume"] as const)("stores a one-line chip title without changing the %s message", async mode => {
   const h = fixture();
   const anchors = [{ frame: { id: "hero", title: "Hero section" } }];

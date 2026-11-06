@@ -344,3 +344,7 @@ test("the thread shows the live turn's indicator from the store's stage, and non
   expect(out).toContain('<span class="ti-text ti-shimmer">Claude Code is thinking</span>');
   expect(await shown(run => void flush().then(() => run.store.event(at(3, { type: "turn.done" }))))).not.toContain("ti-reply");
 });
+
+test("queued text strips fixed request paragraphs wherever they occur", () => {
+  expect(queuedText({ text: "Use the project skill `deploy`.\n\n/deploy {{1}}\n\nUse the Doan design preset `polish` (Polish).", anchors: [{ frame: { id: "cart", title: "Cart" } }], attachments: [] })).toBe("/deploy Cart");
+});

@@ -228,11 +228,13 @@ test("suggestion CSS: the name highlight repeats the anchor chip's values and wr
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   const rule = (selector: string) => new RegExp(`(?:^|\\n)${selector.replace(/[.\\]/g, "\\$&")} \\{([^}]*)\\}`).exec(css)?.[1] ?? "";
   const declaration = (body: string, property: string) => new RegExp(`(?:^|[ ;])${property}: ([^;]+);`).exec(body)?.[1];
-  const chip = rule(".anchor-chip"), value = rule(".suggestion-value");
+  const chip = rule(".anchor-chip"), value = rule(".suggestion-value"), skill = rule(".skill-word");
+  expect(skill).not.toBe("");
   expect(value).not.toBe("");
   for (const property of ["padding", "border-radius", "background", "color", "font-weight"]) {
     expect(declaration(value, property), property).toBeDefined();
     expect(declaration(value, property), property).toBe(declaration(chip, property));
+    expect(declaration(skill, property), property).toBe(declaration(chip, property));
   }
   expect(declaration(value, "padding")).toBe("0 var(--space-1h)");
   expect(value).toMatch(/-webkit-box-decoration-break: clone;/);

@@ -287,7 +287,7 @@ it.each(["quit", "stopRuns"] as const)("stops a real ACP model-list read hanging
   const release = vi.fn(async () => {});
   const service = new ConversationService(new ConversationStore(dir), async () => ({ ...input("cursor", { env: { PATH: process.env.PATH ?? "", FAKE_ACP: "hang-init", FAKE_ACP_LOG: log } }), release }), vi.fn(), () => {});
   // Settled as soon as the stop ends the handshake, while quit still waits for the group.
-  const reading = service.listModels(await service.prepareListing(CWD, "cursor"), listModels).then(() => null, (error: Error) => error);
+  const reading = service.readListing(await service.prepareListing(CWD, "cursor"), listModels).then(() => null, (error: Error) => error);
   await vi.waitFor(() => expect(logged(log).map(r => r.method)).toContain("initialize"));
   await (how === "quit" ? service.quit() : service.stopRuns("cursor"));
   expect(await reading).toBeInstanceOf(Error);
