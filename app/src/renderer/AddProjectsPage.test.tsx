@@ -169,7 +169,7 @@ test("a refused local setup says why in the panel's notice, with the choice stil
   expect(html).toContain("This folder isn’t a Git repository, so Doan can’t keep its files out of Git. Choose Include in Git, or run git init here first.");
   expect(html).toContain('<input type="radio" name="ob-setup-storage" checked=""/>');
   expect(page({ phase: { kind: "setup", inspectionId: "i", url: null, path: "/w/a", changes: [] }, error: { code: "local_exclude_failed" } }))
-    .toContain("Couldn’t add Doan’s lines to .git/info/exclude, so nothing was set up. Check that file, then retry.");
+    .toContain("Couldn’t add Doan’s lines to .git/info/exclude, so nothing was set up. Make sure the repository’s Git metadata and its exclude file can be read and written, then retry.");
 });
 
 test("the clone screen asks under Save to, and keeps the choice disabled while the clone runs", () => {
@@ -180,4 +180,14 @@ test("the clone screen asks under Save to, and keeps the choice disabled while t
   const running = page({ storage: "local", phase: cloning }, true);
   expect(running).toContain('<input type="radio" disabled="" name="ob-clone-storage" checked=""/>');
   expect(running).toContain('<input type="radio" disabled="" name="ob-clone-storage"/>');
+});
+
+// review A2-Y3: after a clone landed, a storage or setup failure is told in main's words, which say the clone stayed.
+test("a clone that landed but whose storage failed says so on the clone screen", () => {
+  const message = "The repository was cloned and added, but Doan could not keep its files out of Git, so they stay in Git for now. Choose Keep out of Git in its Project Settings to try again.";
+  for (const code of ["local_exclude_failed", "local_not_git", "init_failed"] as const) {
+    const html = page({ storage: "local", phase: { kind: "clone", url: "https://github.com/acme/tokens", inspectionId: null, destination: "/Users/ada/code/tokens" }, error: { code, message } });
+    expect(html, code).toContain(message);
+    expect(html, code).not.toContain("nothing was set up");
+  }
 });

@@ -585,19 +585,22 @@ describe("project setup and upward refresh", () => {
   });
 
   // orch decision 10, design §3.1: the chosen mode is not used on a re-root, so the notice says the target project's
-  // mode from the CLI's listing; an older CLI (or an unknown mode) gets the shipped sentence only.
+  // mode from the CLI's listing. Outside Git, with an unknown mode, or from an older CLI it says nothing more. The temp
+  // folders are no Git repositories, so the real listing is repo with not_git; the other modes are rewritten into it.
+  const keep = (storage: string) => ` | sed -e 's/"storage":"[a-z]*"/"storage":"${storage}"/' -e 's/,"storageReason":"[a-z_]*"//'`;
+  const drop = ` | sed -e 's/,"storageReason":"[a-z_]*"//' -e 's/"storageReason":"[a-z_]*",//' -e 's/,"storage":"[a-z]*"//' -e 's/"storage":"[a-z]*",//'`;
   test.each([
-    ["local", "This folder is inside ROOT, which is already set up and keeps its Doan files out of Git."],
-    ["repo", "This folder is inside ROOT, which is already set up and includes its Doan files in Git."],
-    ["unknown", "This folder is inside ROOT, which is already set up."],
-    [null, "This folder is inside ROOT, which is already set up."],
-  ])("a re-root says the target project's mode (%s)", async (storage, message) => {
+    ["local", keep("local"), "This folder is inside ROOT, which is already set up and keeps its Doan files out of Git."],
+    ["repo", keep("repo"), "This folder is inside ROOT, which is already set up and includes its Doan files in Git."],
+    ["outside Git", "", "This folder is inside ROOT, which is already set up."],
+    ["unknown", keep("unknown"), "This folder is inside ROOT, which is already set up."],
+    ["an older CLI", drop, "This folder is inside ROOT, which is already set up."],
+  ])("a re-root says the target project's mode (%s)", async (label, filter, message) => {
     const root = dir(); const sub = join(root, "web"); mkdirSync(sub);
     const wrapper = join(dir(), "doan");
-    const inject = storage === null ? "" : ` | sed 's/"result":{/"result":{"storage":"${storage}",/'`;
-    writeFileSync(wrapper, `#!/bin/sh\nif [ "$1" = ls ]; then out=$('${cli}' "$@"); code=$?; printf '%s\\n' "$out"${inject}; exit $code; fi\nexec '${cli}' "$@"\n`); chmodSync(wrapper, 0o755);
+    writeFileSync(wrapper, `#!/bin/sh\nif [ "$1" = ls ]; then out=$('${cli}' "$@"); code=$?; printf '%s\\n' "$out"${filter}; exit $code; fi\nexec '${cli}' "$@"\n`); chmodSync(wrapper, 0o755);
     const { shell } = await uninitialized(sub, wrapper); writeRepo(root);
-    expect(await shell.initialize(sub, null, storage === "local" ? null : "local")).toEqual({ kind: "rerooted", root, message: message.replace("ROOT", root) });
+    expect(await shell.initialize(sub, null, label === "local" ? null : "local")).toEqual({ kind: "rerooted", root, message: message.replace("ROOT", root) });
   });
 
   test("initializes once for simultaneous requests, uses selected CSS and re-reads stored spelling", async () => {
@@ -644,8 +647,19 @@ describe("project setup and upward refresh", () => {
     const root = dir(); const wrapper = join(dir(), "doan"); const args = join(dir(), "args");
     writeFileSync(wrapper, `#!/bin/sh\nif [ "$1" = init ]; then echo "$@" > '${args}'; echo '{"v":1,"ok":false,"error":{"code":"local_not_git","message":"Not a Git repository.","nextSteps":[]}}'; exit 5; fi\nexec '${cli}' "$@"\n`); chmodSync(wrapper, 0o755);
     const { shell } = await uninitialized(root, wrapper);
-    expect(await shell.initialize(root, null, "local")).toEqual({ kind: "error", code: "local_not_git", message: "Not a Git repository.", guidance: "Choose Include in Git, or run git init here first." });
+    expect(await shell.initialize(root, null, "local")).toEqual({ kind: "error", code: "local_not_git", message: "This folder isn’t a Git repository, so Doan can’t keep its files out of Git.", guidance: "Choose Include in Git, or run git init here first." });
     expect(readFileSync(args, "utf8").trim()).toBe(`init --json --repo ${root} --storage local`);
+  });
+
+  // Integration run (local-doan-files batch A fix round 2): the watcher's read of init's own writes can start after the
+  // post-init read and finish after it, which dropped that read as stale; setup then answered success while the row
+  // was still "Not set up". The post-init read is repeated until it is the newest.
+  test("setup answers only once the row is listed, even when the watcher's read overtakes the post-init read", async () => {
+    const root = dir(); const wrapper = join(dir(), "doan"); const marker = join(dir(), "inited"); const count = join(dir(), "count");
+    writeFileSync(wrapper, `#!/bin/sh\nif [ "$1" = init ]; then '${cli}' "$@"; code=$?; : > '${marker}'; exit $code; fi\nif [ "$1" = ls ] && [ -f '${marker}' ]; then n=$(cat '${count}' 2>/dev/null || echo 0); n=$((n+1)); echo $n > '${count}'; if [ $n = 1 ]; then sleep 0.5; elif [ $n = 2 ]; then sleep 1.2; fi; fi\nexec '${cli}' "$@"\n`); chmodSync(wrapper, 0o755);
+    const { shell } = await uninitialized(root, wrapper);
+    expect(await shell.initialize(root, null)).toEqual({ kind: "success" });
+    expect(shell.entries()[0]).toMatchObject({ path: root, kind: "list" });
   });
 
   test("init result.repo cannot replace the stored identity", async () => {

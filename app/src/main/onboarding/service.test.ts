@@ -615,6 +615,15 @@ describe("storage mode", () => {
     expect(await t.ask({ op: "project_clone", sessionId: id, requestId: "c3", inspectionId: repo.inspection!.inspectionId, destination: "/Users/ada/studio2", storage: "local" })).toMatchObject({ ok: false, error: { code: "inspection_stale" } });
   });
 
+  it("passes a clone's own failure message through, so it can say the clone stayed", async () => {
+    const t = setup();
+    const id = await session(t);
+    const op = operation(await t.ask({ op: "project_inspect", sessionId: id, requestId: "i1", url: "https://github.com/acme/studio", destination: "/Users/ada/studio", storage: "local" }));
+    t.projects.clone.mockResolvedValueOnce({ ok: false, code: "init_failed", message: "The repository was cloned and added, but Doan could not confirm whether its files are kept out of Git. Check Doan files in its Project Settings." });
+    expect(operation(await t.ask({ op: "project_clone", sessionId: id, requestId: "c1", inspectionId: op.inspection!.inspectionId, destination: "/Users/ada/studio", storage: "local" })))
+      .toMatchObject({ state: "failed", error: { code: "init_failed", message: "The repository was cloned and added, but Doan could not confirm whether its files are kept out of Git. Check Doan files in its Project Settings." } });
+  });
+
   it("names a refused local setup with its own message", async () => {
     const t = setup();
     const id = await session(t);

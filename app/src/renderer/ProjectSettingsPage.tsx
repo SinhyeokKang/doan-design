@@ -85,6 +85,8 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
   const removeButtons = useRef(new Map<string, HTMLButtonElement>()), storageInputs = useRef(new Map<StorageChoice, HTMLInputElement>());
   const returnFocus = useRef<{ button: HTMLButtonElement | HTMLInputElement; section: Section; removed?: { path: string; before: readonly string[] } } | null>(null);
   const reported = useRef(false), arrived = useRef(0), config$ = useRef<Config | null>(null), listedMode = useRef(listedStorage(initial));
+  // A listed mode change that arrived while a write ran: the write's end reads the settings, success or not.
+  const changedDuringWrite = useRef(false);
   config$.current = config;
   const root = view.root;
   const found = entries.find(item => item.path === root);
@@ -141,7 +143,10 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
     if (next.kind === "stay") {
       // A mode changed outside Doan reaches the listing (window focus, a group re-read) before the page; the settings are
       // read again. A write in flight reads them itself when it ends, so a read now could only be older than it.
-      if (view.view === "settings" && !busy && before !== null && listedMode.current !== null && before !== listedMode.current) void read(view.root);
+      if (view.view === "settings" && before !== null && listedMode.current !== null && before !== listedMode.current) {
+        if (busy) changedDuringWrite.current = true;
+        else void read(view.root);
+      }
       return;
     }
     if (next.kind === "leave") {
@@ -178,13 +183,17 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
   async function send(request: ConfigWrite, section: Section) {
     const stale = generation.current, before = config$.current?.storage;
     setBusy(section); setError(null); setSaved(null); setSwitched(null);
+    changedDuringWrite.current = false;
     try {
       const reply = await window.doan.writeConfig(request);
       if (!live.current || stale !== generation.current) return;
-      if (reply.kind === "config") { setConfig(reply); setSaved(section); if (section === "storage") setSwitched(switchNote(before, reply.storage)); await read(request.root); }
+      if (reply.kind === "config") { setConfig(reply); setSaved(section); if (section === "storage") setSwitched(switchNote(before, reply.storage)); changedDuringWrite.current = false; await read(request.root); }
       else setError({ section, message: writeErrorMessage(section, reply, title) });
     } catch (failure) { if (live.current && stale === generation.current) setError({ section, message: failure instanceof Error ? failure.message : String(failure) }); }
-    finally { if (live.current) { setBusy(null); setWritingStorage(null); } }
+    finally {
+      if (live.current) { setBusy(null); setWritingStorage(null); }
+      if (live.current && stale === generation.current && changedDuringWrite.current) { changedDuringWrite.current = false; void read(request.root); }
+    }
   }
   // A press writes at once, with no confirmation: nothing is moved or deleted and it can be switched back (design §3.2).
   // Focus returns to the chosen radio once the write ends, whatever it chose.

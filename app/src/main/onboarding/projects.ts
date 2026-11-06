@@ -31,11 +31,16 @@ export interface ProjectDeps {
 // absent means repo. The adder decides whether a reply may show it.
 export interface Candidate { path: string; changes: OnboardingChange[]; storage?: "local" }
 // leftovers: directories the clone made and could not remove (cleanup_failed only).
-export type ProjectOutcome = { ok: true; root: string } | { ok: false; code: OnboardingOperationErrorCode; leftovers?: string[] };
+// message: this failure's own account in place of the code's fixed message (a clone that stayed, design review A2-Y3).
+export type ProjectOutcome = { ok: true; root: string } | { ok: false; code: OnboardingOperationErrorCode; leftovers?: string[]; message?: string };
 
 // The lines `doan init` adds to .gitattributes (cli/internal/cli/init.go); it writes the file while either is missing.
 const ATTRIBUTE_LINES = [".doan/comments/*.jsonl merge=union", ".doan/** linguist-documentation"];
 const failed = (code: OnboardingOperationErrorCode): ProjectOutcome => ({ ok: false, code });
+// The clone is in place and added either way. Only the two storage codes say the write did not happen; anything else
+// (a timeout, an unexpected reply) may have written, so the mode is not stated.
+const CLONE_NOT_KEPT = "The repository was cloned and added, but Doan could not keep its files out of Git, so they stay in Git for now. Choose Keep out of Git in its Project Settings to try again.";
+const CLONE_UNCONFIRMED = "The repository was cloned and added, but Doan could not confirm whether its files are kept out of Git. Check Doan files in its Project Settings.";
 
 export async function canonicalFolder(path: string): Promise<string | null> {
   try { const real = await realpath(path); return (await stat(real)).isDirectory() ? real : null; } catch { return null; }
@@ -163,8 +168,10 @@ async function register(path: string, initialize: boolean, deps: ProjectDeps, st
   if (state.kind === "list") {
     if (keepChosen && storage === "local" && state.storage !== "local") {
       const kept = await deps.keepLocal(state.root);
-      // The clone stays registered; only its storage choice failed.
-      if (!kept.ok) return failed(kept.code === "local_not_git" ? "local_not_git" : "local_exclude_failed");
+      if (!kept.ok) {
+        return kept.code === "local_not_git" || kept.code === "local_exclude_failed"
+          ? { ok: false, code: kept.code, message: CLONE_NOT_KEPT } : { ok: false, code: "init_failed", message: CLONE_UNCONFIRMED };
+      }
     }
     return confirmProject(state.root, deps);
   }

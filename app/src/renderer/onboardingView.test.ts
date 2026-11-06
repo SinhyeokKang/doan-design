@@ -32,6 +32,10 @@ describe("project setup copy", () => {
     expect(initMessage({ kind: "success" })).toBeNull();
     expect(initMessage({ kind: "error", code: "usage_error", message: "Token CSS must be a file inside the repository.", guidance: "Check the project and choose a CSS file inside it, then try again." })).toBe("Token CSS must be a file inside the repository. Check the project and choose a CSS file inside it, then try again.");
     expect(initMessage({ kind: "cliError", reason: "timed out after 10 s" })).toBe("doan CLI error: timed out after 10 s");
+    // A CLI message without its own full stop still reads as a sentence before the guidance (review A2-Y2).
+    expect(initMessage({ kind: "error", code: "usage_error", message: "Project is already set up; use doan config --storage local", guidance: "Check the project, then try again." }))
+      .toBe("Project is already set up; use doan config --storage local. Check the project, then try again.");
+    expect(initMessage({ kind: "error", code: "local_exclude_failed", message: "Couldn’t add it.", guidance: "" })).toBe("Couldn’t add it.");
     expect(initMessage({ kind: "unavailable", message: "This project is no longer available for setup." })).toBe("This project is no longer available for setup.");
     expect(initMessage({ kind: "rerooted", root: "/a", message: "This folder is inside /a, which is already set up." })).toBe("This folder is inside /a, which is already set up.");
   });

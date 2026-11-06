@@ -9,6 +9,8 @@ vi.mock("node:child_process", async importOriginal => {
   return { ...real, spawn: vi.fn(real.spawn) };
 });
 import { cliCommand, EXPORT_TIMEOUT_MS, readFolder, runConfig, runDesignSkill, runExport, runLs, runInit } from "./cli";
+// The Set Up dialog's line, so the real CLI's refusal is checked as the person reads it.
+import { initMessage } from "../renderer/onboardingView";
 import { designSkillGetRequest, interpretGet, interpretList } from "./designSkills";
 import { configReply } from "./configBridge";
 import { folderState, initOutcome } from "./folderState";
@@ -185,15 +187,24 @@ test("runInit settles timeout and spawn errors", async () => {
   expect(initOutcome(await runInit(join(tmp, "missing"), dir(), null))).toMatchObject({ kind: "cliError", reason: expect.stringContaining("ENOENT") });
 });
 
+// review A2-Y2: the real CLI's refusal of a local setup outside Git reads as the draft's sentence in the Set Up dialog.
+test("a local setup outside Git is refused by the real CLI with the draft's words", async () => {
+  const outcome = initOutcome(await runInit(cli, dir(), null, "local"));
+  expect(outcome).toEqual({ kind: "error", code: "local_not_git", message: "This folder isn’t a Git repository, so Doan can’t keep its files out of Git.", guidance: "Choose Include in Git, or run git init here first." });
+  expect(initMessage(outcome)).toBe("This folder isn’t a Git repository, so Doan can’t keep its files out of Git. Choose Include in Git, or run git init here first.");
+});
+
 test("runConfig reads and writes through the real CLI with absolute paths", async () => {
   const root = repo();
   writeFileSync(join(root, "tokens.css"), ":root{}");
   mkdirSync(join(root, "styles"));
-  expect(configReply(root, await runConfig(cli, root, []))).toEqual({ kind: "config", root, tokenCss: null, serve: [], changed: false });
+  // The temp repo is no Git repository: the CLI reports repo with the reason Keep out of Git can't be chosen.
+  const notGit = { storage: "repo", storageReason: "not_git" };
+  expect(configReply(root, await runConfig(cli, root, []))).toEqual({ kind: "config", root, tokenCss: null, serve: [], changed: false, ...notGit });
   expect(configReply(root, await runConfig(cli, root, ["--token-css", join(root, "tokens.css"), "--add-serve", join(root, "styles")])))
-    .toEqual({ kind: "config", root, tokenCss: "tokens.css", serve: ["styles"], changed: true });
+    .toEqual({ kind: "config", root, tokenCss: "tokens.css", serve: ["styles"], changed: true, ...notGit });
   expect(configReply(root, await runConfig(cli, root, ["--remove-serve", join(root, "styles"), "--clear-token-css"])))
-    .toEqual({ kind: "config", root, tokenCss: null, serve: [], changed: true });
+    .toEqual({ kind: "config", root, tokenCss: null, serve: [], changed: true, ...notGit });
   const outside = configReply(root, await runConfig(cli, root, ["--add-serve", tmp]));
   expect(outside).toMatchObject({ kind: "error", message: expect.stringContaining("outside the repository") });
   writeFileSync(join(root, ".doan", "config.json"), "{broken");

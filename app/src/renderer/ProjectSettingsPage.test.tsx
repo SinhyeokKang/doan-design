@@ -922,3 +922,27 @@ test("a listed mode change re-reads the settings of the open page, but not durin
   expect(doan.readConfig).toHaveBeenCalledTimes(4);
   expect(chosen()).toEqual([true, false]);
 });
+
+// review A2-Y1: a mode change that arrives while a write runs is read after that write, whether it succeeded or failed;
+// the same listing arriving again afterwards reads nothing more.
+test("a listed mode change during a write is read after the write, also when the write fails", async () => {
+  const git = { common: `${ROOT}/.git`, main: ROOT, branch: "main", worktrees: [ROOT] };
+  const at = (storage: "repo" | "local"): FolderEntry => ({ path: ROOT, kind: "list", servedRev: 0, canvases: [], git, storage });
+  doan.readConfig!.mockImplementation(withStorage({ storage: "repo" }));
+  await open({ entries: [at("repo")] });
+  let finish!: (reply: unknown) => void;
+  doan.writeConfig!.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  press(1);
+  render();
+  doan.readConfig!.mockImplementation(withStorage({ storage: "local" }));
+  render({ entries: [at("local")] });
+  await flush();
+  expect(doan.readConfig).toHaveBeenCalledTimes(1);
+  finish({ kind: "error", message: "Couldn’t update .git/info/exclude: permission denied." });
+  await flush(); render(); await flush(); render();
+  expect(doan.readConfig).toHaveBeenCalledTimes(2);
+  expect(chosen()).toEqual([false, true]);
+  render({ entries: [at("local")] });
+  await flush();
+  expect(doan.readConfig).toHaveBeenCalledTimes(2);
+});

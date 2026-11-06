@@ -13,6 +13,7 @@ import { projectHue, projectInitial } from "./shellNavigation";
 import { tilde } from "./onboardingView";
 import { AlertIcon } from "./AlertIcon";
 import { StorageCard } from "./StorageChoice";
+import { OPERATION_MESSAGES } from "../main/onboarding/operations";
 import { keptLocal, type StorageChoice } from "./storageRules";
 import { Doany } from "./Doany";
 
@@ -267,6 +268,10 @@ const action = (command: ProjectAction, label: string, variant: Button["variant"
 export function projectNotice(error: ProjectError, message: string | undefined, destination: string | null, fromUrl = false, insideProject: string | null = null, folder: string | null = null): ProjectNotice {
   // Every folder chosen from a URL screen is checked against that repository (D21).
   const choose: ProjectAction = fromUrl ? "chooseExisting" : "chooseFolder";
+  // A clone that landed and whose setup or storage then failed is told in main's own words (they say the clone stayed),
+  // which differ from the code's fixed message (review A2-Y3).
+  const landed = fromUrl && destination !== null && (error === "init_failed" || error === "local_not_git" || error === "local_exclude_failed") && message !== undefined && message !== OPERATION_MESSAGES[error];
+  if (landed) return { body: message, actions: [action("useExisting", "Use existing folder")] };
   switch (error) {
     case "invalid_url": return { body: "Enter a GitHub repository URL, such as https://github.com/owner/repository.", actions: [] };
     case "access_failed": return { title: "Couldn’t access this repository", body: "Check your account and repository access with gh auth login, then try again.", actions: [] };
@@ -280,7 +285,7 @@ export function projectNotice(error: ProjectError, message: string | undefined, 
     case "init_failed": return { body: "Couldn’t set up this folder. Check folder access and try again.", actions: [action(choose, "Choose another folder", "subtle"), action("retry", "Retry")] };
     // The setup was refused and nothing was written; the choice stays, so Include in Git is one press away.
     case "local_not_git": return { body: "This folder isn’t a Git repository, so Doan can’t keep its files out of Git. Choose Include in Git, or run git init here first.", actions: [action(choose, "Choose another folder", "subtle"), action("retry", "Retry")] };
-    case "local_exclude_failed": return { body: "Couldn’t add Doan’s lines to .git/info/exclude, so nothing was set up. Check that file, then retry.", actions: [action(choose, "Choose another folder", "subtle"), action("retry", "Retry")] };
+    case "local_exclude_failed": return { body: "Couldn’t add Doan’s lines to .git/info/exclude, so nothing was set up. Make sure the repository’s Git metadata and its exclude file can be read and written, then retry.", actions: [action(choose, "Choose another folder", "subtle"), action("retry", "Retry")] };
     case "config_invalid": return { body: "This folder’s Doan configuration couldn’t be read. Fix it and retry, or choose another folder.", actions: [action(choose, "Choose another folder", "subtle"), action("retry", "Retry")] };
     case "clone_failed": return { body: "Couldn’t clone this repository. Check your connection and folder access, then retry.", ...(destination ? { detail: destination } : {}), actions: [action("changeLocation", "Change location", "subtle"), action("retry", "Retry")] };
     case "git_missing": return { body: "Install Git to clone a repository, or choose a local folder.", actions: [action(choose, "Choose local folder", "subtle"), action("retry", "Check again")] };

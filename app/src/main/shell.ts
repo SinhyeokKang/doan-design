@@ -8,7 +8,7 @@ import { openFolderStore } from "./folderStore";
 import { classifyDesignChange } from "./designChange";
 import { folderState, initOutcome, reconcileFolders, type FolderState, type InitOutcome } from "./folderState";
 import { startServer, type LocalServer } from "./serve/server";
-import type { StorageMode } from "./storage";
+import type { StorageMode, StorageReason } from "./storage";
 import { folderEntry, openDecision, type FolderEntry } from "./view";
 import { watchFolder, type Change, type FolderWatch } from "./watch";
 
@@ -69,9 +69,11 @@ interface Folder {
 }
 
 // The mode chosen for setup is not used on a re-root, so the notice says the project's own (local-doan-files design
-// §3.1); an unknown mode, or none from an older doan, is not guessed.
-function rerootMessage(root: string, storage: StorageMode | undefined): string {
-  const kept = storage === "local" ? " and keeps its Doan files out of Git" : storage === "repo" ? " and includes its Doan files in Git" : "";
+// §3.1); an unknown mode, or none from an older doan, is not guessed. Outside Git the CLI reports repo with not_git,
+// which is no Git to include the files in.
+function rerootMessage(root: string, listing: { storage?: StorageMode; storageReason?: StorageReason }): string {
+  const { storage, storageReason } = listing;
+  const kept = storage === "local" ? " and keeps its Doan files out of Git" : storage === "repo" && storageReason !== "not_git" ? " and includes its Doan files in Git" : "";
   return `This folder is inside ${root}, which is already set up${kept}.`;
 }
 
@@ -332,11 +334,16 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
       const epoch = folder.epoch;
       const task = (async (): Promise<ProjectInitResult> => {
         const root = await refresh(folder, { reread: true, served: false });
-        if (root) return { kind: "rerooted", root: root.root, message: rerootMessage(root.root, root.storage) };
+        if (root) return { kind: "rerooted", root: root.root, message: rerootMessage(root.root, root) };
         if (root === false || folders.get(path) !== folder || folder.epoch !== epoch || folder.entry.kind !== "uninitialized") return unavailable;
-        const outcome = initOutcome(await runInit(cli, path, tokenCss, storage));
+        const outcome = initOutcome(await runInit(cli, path, tokenCss, storage), { tokenCss: tokenCss !== null });
         if (folders.get(path) !== folder || folder.epoch !== epoch) return unavailable;
-        if (outcome.kind === "success") await refresh(folder, { reread: true, served: false });
+        // init's own writes start a watcher read that can overtake this one and drop it as stale; the setup answers only
+        // after a read that is the newest has published, so the caller never sees the row still "Not set up". Bounded:
+        // a folder that keeps changing is left to its watcher.
+        if (outcome.kind === "success") {
+          for (let tries = 0; tries < 3 && await refresh(folder, { reread: true, served: false }) === false && folders.get(path) === folder; tries++);
+        }
         return outcome;
       })().finally(() => initializing.delete(folder));
       initializing.set(folder, task);

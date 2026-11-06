@@ -249,22 +249,23 @@ describe("selectProject", () => {
 
   // review A-R1: a cloned repository that brings its own setup is already a project, so init has nothing to do; the
   // person chose Keep out of Git for this new checkout, so the choice is applied with `doan config --storage local`.
-  it("applies Keep out of Git to a clone that brings its own setup, and fails the clone's setup when that fails", async () => {
+  // review A2-Y3: only the two storage codes keep their meaning there; anything else (a timeout, an unexpected reply)
+  // may have written or not, so it is a general failure that says so. Either way the clone stays and is added.
+  it("applies Keep out of Git to a clone that brings its own setup, and says the clone stayed when that fails", async () => {
     const cloned = repo(temp(), { config: "{\"v\":1}" });
     const d = deps([]);
     expect(await registerClone(cloned, d.deps, "local")).toEqual({ ok: true, root: cloned });
     expect(d.deps.keepLocal).toHaveBeenCalledExactlyOnceWith(cloned);
     expect(d.deps.initialize).not.toHaveBeenCalled();
-    for (const code of ["local_exclude_failed", "local_not_git"] as const) {
+    const kept = "The repository was cloned and added, but Doan could not keep its files out of Git, so they stay in Git for now. Choose Keep out of Git in its Project Settings to try again.";
+    const unconfirmed = "The repository was cloned and added, but Doan could not confirm whether its files are kept out of Git. Check Doan files in its Project Settings.";
+    for (const [code, expected] of [["local_exclude_failed", { code: "local_exclude_failed", message: kept }], ["local_not_git", { code: "local_not_git", message: kept }],
+      ["internal_error", { code: "init_failed", message: unconfirmed }], ["usage_error", { code: "init_failed", message: unconfirmed }]] as const) {
       const f = deps([]);
       f.deps.keepLocal.mockResolvedValueOnce({ ok: false, code });
-      expect(await registerClone(repo(temp(), { config: "{}" }), f.deps, "local")).toEqual({ ok: false, code });
-      // The clone stays registered: it is the person's project now.
+      expect(await registerClone(repo(temp(), { config: "{}" }), f.deps, "local"), code).toEqual({ ok: false, ...expected });
       expect(f.registered).toHaveLength(1);
     }
-    const other = deps([]);
-    other.deps.keepLocal.mockResolvedValueOnce({ ok: false, code: "internal_error" });
-    expect(await registerClone(repo(temp(), { config: "{}" }), other.deps, "local")).toEqual({ ok: false, code: "local_exclude_failed" });
   });
 
   it("never changes the mode of a clone kept in Git, nor of a folder selected as it is", async () => {

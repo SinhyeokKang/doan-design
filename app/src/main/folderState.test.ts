@@ -175,15 +175,26 @@ describe("initOutcome", () => {
     expect(initOutcome(run({ timedOut: true }))).toMatchObject({ kind: "cliError", reason: "timed out after 10 s" });
     expect(initOutcome(run({ spawnError: "ENOENT" }))).toMatchObject({ kind: "cliError", reason: "ENOENT" });
   });
-  // local-doan-files orch decision 9: storage failures carry their own codes (exit 5). usage_error is no longer the
-  // not-Git signal: it keeps the CSS guidance (an already set-up checkout refuses a local init with it).
-  test("a refused local setup keeps its code and says what to do", () => {
-    const notGit = run({ exitCode: 5, stdout: failure("local_not_git", "This folder isn’t a Git repository, so Doan can’t keep its files out of Git.") });
-    expect(initOutcome(notGit)).toEqual({ kind: "error", code: "local_not_git", message: "This folder isn’t a Git repository, so Doan can’t keep its files out of Git.", guidance: "Choose Include in Git, or run git init here first." });
-    // The CLI's sentence already says what failed and that nothing was set up (draft frame setup-dialog).
-    const exclude = run({ exitCode: 5, stdout: failure("local_exclude_failed", "Couldn’t add Doan’s lines to .git/info/exclude, so nothing was set up.") });
-    expect(initOutcome(exclude)).toEqual({ kind: "error", code: "local_exclude_failed", message: "Couldn’t add Doan’s lines to .git/info/exclude, so nothing was set up.", guidance: "" });
-    expect(initOutcome(run({ exitCode: 2, stdout: failure("usage_error", "Already set up.") }))).toMatchObject({ code: "usage_error", guidance: "Check the project and choose a CSS file inside it, then try again." });
+  // review A2-Y2: G's real envelopes (cli/internal/cli/storage.go, init.go) carry short path-free messages, so the Set
+  // Up dialog's sentences for the two storage codes are the app's (draft frame setup-dialog), whatever the CLI said.
+  // An exclude failure is not always a link, so its recovery is the common one. CSS guidance only follows a chosen
+  // token CSS: an unrelated usage_error ("already set up", a .gitattributes directory) gets none of it.
+  const G = {
+    notGit: { code: "local_not_git", message: "Local storage requires a Git repository", nextSteps: ["Choose Include in Git (--storage repo), or use a Git repository"] },
+    exclude: { code: "local_exclude_failed", message: "Cannot read or write the Git exclude file for Doan storage", nextSteps: ["Use a regular exclude file within 1 MiB, with readable and writable Git metadata, then retry"] },
+    metadata: { code: "local_exclude_failed", message: "Cannot read Git metadata for Doan storage", nextSteps: ["Make the Git metadata readable, then retry"] },
+    setUp: { code: "usage_error", message: "Project is already set up; use doan config --storage local", nextSteps: ["Run `doan config --storage local` to change this project"] },
+  };
+  const refusal = (error: object, exitCode: number) => run({ exitCode, stdout: envelope({ v: 1, ok: false, error }) });
+  test("a refused local setup says what failed and what to do in the draft's words", () => {
+    expect(initOutcome(refusal(G.notGit, 5))).toEqual({ kind: "error", code: "local_not_git", message: "This folder isn’t a Git repository, so Doan can’t keep its files out of Git.", guidance: "Choose Include in Git, or run git init here first." });
+    for (const error of [G.exclude, G.metadata]) {
+      expect(initOutcome(refusal(error, 5))).toEqual({ kind: "error", code: "local_exclude_failed", message: "Couldn’t add Doan’s lines to .git/info/exclude, so nothing was set up.", guidance: "Make sure the repository’s Git metadata and its exclude file can be read and written, then try again." });
+    }
+  });
+  test("CSS guidance follows only a chosen token CSS", () => {
+    expect(initOutcome(refusal(G.setUp, 2))).toEqual({ kind: "error", code: "usage_error", message: "Project is already set up; use doan config --storage local", guidance: "Check the project, then try again." });
+    expect(initOutcome(run({ exitCode: 2, stdout: failure("usage_error", "Token CSS must be inside the repository") }), { tokenCss: true })).toMatchObject({ guidance: "Check the project and choose a CSS file inside it, then try again." });
   });
   test("rejects malformed results and inconsistent exits", () => {
     for (const result of [{}, { initialized: "false" }, { initialized: false, repo: "/r", created: "x" }]) expect(initOutcome(run({ stdout: envelope({ v: 1, ok: true, result }) })).kind).toBe("cliError");
