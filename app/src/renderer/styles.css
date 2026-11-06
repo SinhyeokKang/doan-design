@@ -665,6 +665,13 @@ body:has(.shell-top) { background: transparent; }
 .perm-copy { display: flex; flex-direction: column; flex: 1; min-width: 0; }
 .perm-copy .sub { color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
 .perm-item .check-slot { margin-top: var(--space-half); }
+/* The effort menu's and Settings' Default row (picker-default-labels draft frames menus, settings): its name over a
+   one-line description of what the default is, the check on the name's line as in .perm-item. The second selector
+   outweighs the shared Effort row rule below, which centres its items. */
+:is(.unset-item, .effort-popover .doan-menu-item.unset-item) { align-items: flex-start; padding-block: var(--space-1h); }
+.unset-copy { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.unset-copy .sub { color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); white-space: normal; }
+.unset-item .check-slot { margin-top: var(--space-half); }
 .project-popover { width: 320px; }
 .popover-search { position: relative; display: block; margin-bottom: var(--space-1); }
 .popover-search > svg { position: absolute; left: var(--space-3); top: 50%; transform: translateY(-50%); color: var(--text-metadata); }
@@ -686,6 +693,11 @@ body:has(.shell-top) { background: transparent; }
 .agent-note { display: inline-flex; align-items: center; gap: var(--space-1h); margin-left: auto; }
 :is(.model-item, .project-item, .effort-popover .doan-menu-item) { display: flex; align-items: center; gap: var(--space-2); }
 .model-name { flex: 1; min-width: 0; }
+/* The provider's default row carries a small "Default" after its name, the Frame drawer's "Viewing" look (caption,
+   metadata ink). */
+.model-default { margin-left: var(--space-1h); color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+/* A trigger with no value shows its drawer's name ("Model", "Effort", "Permission") so it reads as a heading. */
+.doan-button .label.placeholder { color: var(--text-metadata); }
 .model-item .sub { display: inline-flex; align-items: center; gap: var(--space-1); font-size: var(--type-caption-size); }
 .inline { width: var(--size-icon-sm); height: var(--size-icon-sm); }
 .check-slot { display: inline-flex; width: var(--size-icon); justify-content: center; }
@@ -722,20 +734,21 @@ body:has(.shell-top) { background: transparent; }
    included, on one line as the capsule does; a wrapped one would overflow the field and scroll it. The full text stays
    the field's aria-placeholder, and Right Arrow puts a suggestion in. */
 .docked[data-shape="box"] .composer-input[data-empty]::before { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.docked .composer-tray { justify-content: flex-end; gap: var(--space-1); min-height: var(--size-control-sm); padding: var(--space-1) var(--space-3) 0; }
+.docked .composer-tray { justify-content: flex-end; gap: var(--space-half); min-height: var(--size-control-sm); padding: var(--space-1) var(--space-3) 0; }
 .docked .composer-tray .doan-button { margin-left: 0; }
 .docked .composer-tray .logo { width: var(--size-icon-sm); height: var(--size-icon-sm); }
-/* The docked tray when it is short of width (permission-mode draft frame docked-tray): it never wraps, and gives way in
-   order: below a 384px content width Permission shows its icon only, below 288 Effort does too, and the model label
-   ellipsizes last. Pick, logos and chevrons never shrink. The boundaries come from the draft's widest labels ("Plan
-   (read-only)", "Medium"); a hidden label stays in the tooltip and aria-label. */
+/* The docked tray when it is short of width (picker-default-labels draft frame docked-widths): it never wraps, and
+   gives way in order: below a 432px content width Permission shows its icon only, below 384 Effort does too, and the
+   model label ellipsizes last (below 320). Pick, logos and chevrons never shrink. The boundaries come from the draft's
+   widest labels ("GPT-5.6-Terra", "Extra high" with the Fast icon, "Ask first"); a hidden label stays in the tooltip
+   and aria-label. */
 .docked .composer-tray { container-type: inline-size; }
 .composer-tray .doan-button .label { white-space: nowrap; }
 /* The shared .doan-button does not shrink; only the model trigger may, so the last step can ellipsize it. */
 .docked .composer-tray .composer-agent { flex-shrink: 1; min-width: 0; }
 .docked .composer-agent .label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-@container (max-width: 383px) { .docked .composer-permission .label { display: none; } }
-@container (max-width: 287px) { .docked .composer-effort .label { display: none; } }
+@container (max-width: 431px) { .docked .composer-permission .label { display: none; } }
+@container (max-width: 383px) { .docked .composer-effort .label { display: none; } }
 .composer-stop svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
 .composer-reason.docked-reason { justify-content: flex-start; margin-top: var(--space-2); padding-inline: var(--space-4); }
 .queue { display: flex; flex-direction: column; gap: var(--space-1); margin-bottom: var(--space-2); }
@@ -1292,10 +1305,10 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 @media (hover: hover) and (pointer: fine) { :is(.docked .composer-tray .composer-attach, .doan-canvas-tools > .doan-canvas-tool)[aria-disabled="true"]:hover { background: transparent; } }
 :is(.docked .composer-tray .composer-attach, .doan-canvas-tools > .doan-canvas-tool)[aria-disabled="true"]:active { background: transparent; }
 /* The context ring (context-window-ring design §3, draft frame ring-geometry): the tray's last child, which the tray's
-   flex-end and the model trigger's auto margin keep at its right end. 8 from the last picker (the tray's 4 gap plus 4)
+   flex-end and the model trigger's auto margin keep at its right end. 4 from the last picker (the tray’s 2 gap plus 2)
    and the tray's 12 end padding after; it never shrinks, so a narrow panel shortens the model label first. Its own
    class sizes it: the header's 24px usage ring rules are bound to .usage. */
-.docked .composer-tray .context-ring { margin-inline-start: var(--space-1); }
+.docked .composer-tray .context-ring { margin-inline-start: var(--space-half); }
 .context-ring { display: block; flex: none; width: var(--size-icon); height: var(--size-icon); cursor: default; }
 .context-ring > svg { display: block; width: 100%; height: 100%; transform: rotate(-90deg); }
 .context-ring .track { stroke: var(--border-track); }
