@@ -28,9 +28,14 @@
 - **공증 자격증명(App Store Connect API 키)**:
   - 사람이 App Store Connect > Users and Access > Integrations > App Store Connect API에서 Team 키를 만든다. 키를 만드는 사람은 Account Holder나 Admin이어야 하고, 키 역할은 Developer로 둔다(공증에 충분한지 P1에서 확인). `.p8`은 만들 때 한 번만 내려받을 수 있다.
   - 사람이 `! xcrun notarytool store-credentials doan-notary --key <.p8 경로> --key-id <Key ID> --issuer <Issuer ID>`로 저장한다. `!`로 실행하므로 명령과 출력이 대화에 남는다. 이 출력에는 키 경로와 ID만 있고 키 내용은 없다.
-  - 저장한 뒤 `.p8`은 비밀번호 관리자로 옮기고, 내려받은 위치(Downloads 등)에서는 지운다. 키체인 프로필은 저장할 때 키 내용을 담으므로, 이후 `.p8` 파일이 없어도 공증할 수 있다(P1에서 확인).
+  - 저장한 뒤 `.p8`은 비밀번호 관리자로 옮기고, 내려받은 위치(Downloads 등)에서는 지운다. 키체인 프로필은 저장할 때 키 내용을 담으므로, 이후 `.p8` 파일이 없어도 공증할 수 있다(2026-11-06 확인).
 - **다른 머신**: Apple ID 로그인만으로는 개인키와 키체인 프로필이 옮겨지지 않는다. 로그인 키체인의 인증서 개인키와 notarytool 프로필은 iCloud 키체인으로 동기화되지 않는다고 이해하고 있다(미확인, 다른 머신에서 확인 명령으로 검증). 그래서 `.p12`를 가져오고, 비밀번호 관리자의 `.p8`로 `store-credentials`를 다시 실행한다. 머신마다 키를 따로 만들 수도 있다. 그러면 한 대만 폐기할 수 있지만, 키가 늘어날 때마다 보관할 `.p8`도 늘어난다.
 - **에이전트의 경계**: 비밀값(`.p12`와 그 비밀번호, `.p8`)을 읽거나 출력하거나 파일로 쓰지 않는다. 쓰는 것은 프로필 이름 `doan-notary`와 키체인이 보여 주는 identity 이름뿐이다. identity 이름과 Team ID는 모든 서명에 들어가는 값이라 비밀이 아니다.
+- **준비 중 관찰(2026-11-06, 이 머신)**:
+  - 웹에서 받은 `.cer`만으로는 identity가 유효하지 않았다. `security find-identity -p codesigning`이 짝은 찾았지만 "0 valid identities"였다. Apple 중간 인증서 `DeveloperIDG2CA.cer`(https://www.apple.com/certificateauthority/)를 로그인 키체인에 넣은 뒤에 유효해졌다.
+  - Xcode 라이선스에 동의하지 않은 머신에서는 `xcrun notarytool`이 exit 69로 끝난다. `sudo xcodebuild -license accept`는 비밀번호를 물으므로 사람이 터미널에서 실행한다. preflight는 exit 69를 "프로필 없음"으로 읽지 말고 출력을 함께 보고한다.
+  - App Store Connect API는 처음 쓸 때 Account Holder가 Integrations에서 Request Access를 눌러야 Team 키를 만들 수 있었다.
+  - `store-credentials`는 `.p8`, Key ID, Issuer ID로 "Credentials validated", "saved to Keychain"을 출력했고, 이어서 `notarytool history`가 exit 0으로 끝났다. `.p8`을 지운 뒤에도 exit 0이었다. 프로필이 키 내용을 키체인에 담는다.
 - **키체인 프롬프트**: codesign이 개인키를 처음 쓸 때 "codesign wants to sign using key …" 대화 상자가 뜬다. 사람이 Always Allow를 누른다. Codex에서는 키체인과 네트워크가 sandbox 밖에 있으므로, 서명·공증 명령에 sandbox 밖 실행을 요청한다.
 
 ## 3. `/tester-build` 서명·공증 흐름

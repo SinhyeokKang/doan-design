@@ -6,11 +6,11 @@
 
 ## U. 사람의 자격증명 준비(이 머신)
 
-- [ ] U1. Developer ID Application 인증서를 만들어 로그인 키체인에 넣는다(design §2).
+- [x] U1. Developer ID Application 인증서를 만들어 로그인 키체인에 넣는다(design §2).
   - 검증: 명령 미정 — 사람 확인 필요. `security find-identity -v -p codesigning`에 `Developer ID Application:` 줄이 정확히 하나 있다.
-- [ ] U2. 인증서와 개인키를 `.p12`로 내보내 비밀번호 관리자에 둔다. repo, `.scratch/`, Desktop에는 두지 않는다.
+- [x] U2. 인증서와 개인키를 `.p12`로 내보내 비밀번호 관리자에 둔다. repo, `.scratch/`, Desktop에는 두지 않는다.
   - 검증: 사람 확인.
-- [ ] U3. App Store Connect에서 Team API 키를 만들고, `! xcrun notarytool store-credentials doan-notary --key … --key-id … --issuer …`로 저장한다. 그런 다음 `.p8`을 비밀번호 관리자로 옮기고 내려받은 곳에서는 지운다(design §2).
+- [x] U3. App Store Connect에서 Team API 키를 만들고, `! xcrun notarytool store-credentials doan-notary --key … --key-id … --issuer …`로 저장한다. 그런 다음 `.p8`을 비밀번호 관리자로 옮기고 내려받은 곳에서는 지운다(design §2).
   - 검증: 명령 미정 — 사람 확인 필요. `.p8`을 지운 뒤에도 `xcrun notarytool history --keychain-profile doan-notary`가 exit 0이다.
 
 ## P. PoC(skill을 고치기 전)
