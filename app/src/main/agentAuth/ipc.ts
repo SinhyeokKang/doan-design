@@ -15,7 +15,8 @@ export interface AuthSnapshot { revision: number; providers: AuthStatusDto[] }
 export type AuthReason = AuthRejection | "open_failed";
 export type AuthStartReply = { ok: true; attemptId: string } | { ok: false; reason: AuthReason };
 export type AuthReply = { ok: true } | { ok: false; reason: AuthReason };
-// A check started an attempt, or, while readiness has a version cause, only re-read the tool facts and started none.
+// A check started an attempt, or, while the CLI is missing or readiness has a version cause, only re-read the tool
+// facts and started none.
 export type AuthCheckReply = AuthStartReply | AuthReply;
 // Sent only to the window that started the sign-in.
 export interface AuthPromptEvent { provider: Provider; attemptId: string; url: string }
@@ -130,8 +131,9 @@ export class AuthIpc {
   async check(provider: Provider): Promise<{ reply: AuthCheckReply; outcome?: Promise<CheckOutcome> }> {
     const ready = readiness(this.options.backend.state(provider), this.factsOf(provider));
     void this.refresh(provider, true);
-    // A version cause clears only with new tool facts; an account check (Copilot's costs a request) cannot clear it.
-    if (!ready.ready && ready.cause.startsWith("version_")) return { reply: { ok: true } };
+    // A missing CLI or a version cause clears only with new tool facts; an account check (Copilot's costs a request)
+    // cannot clear it.
+    if (!ready.ready && (ready.cause === "cli_missing" || ready.cause.startsWith("version_"))) return { reply: { ok: true } };
     const result = await this.options.backend.check(provider);
     return result.ok ? { reply: { ok: true, attemptId: result.attemptId }, outcome: result.outcome } : { reply: { ok: false, reason: result.reason } };
   }

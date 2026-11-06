@@ -27,6 +27,7 @@ import type { Selection } from "../formats/types";
 import type { FolderFocus, ProjectInitResult } from "../main/shell";
 import type { FolderPurpose, LocateResult, MenuCommand, MenuInputs, ProjectInitRequest, RemoveResult, TokenCssChoice, ViewCommand } from "../main/index";
 import type { ExternalTarget, SettingsPageTarget, SettingsSection } from "../main/settings";
+import type { InstallResult } from "../main/installCommand";
 import type { ConfigChoice, ConfigKind, ConfigReply } from "../main/configBridge";
 import type { Preferences, PreferencesPatch, PreferencesSnapshot, PreferencesWriteReply } from "../main/preferences";
 import type { NotificationTarget } from "../main/notifications";
@@ -331,7 +332,10 @@ const api = {
     const path = webUtils.getPathForFile(file);
     return path === "" ? null : path;
   },
+  // Open install page; Install and Update go through openInstall.
   openInstallPage: (target: ExternalTarget): Promise<boolean> => ipcRenderer.invoke("setup:open-external", { target }),
+  // Only the provider: main picks install or update, the command and the script path.
+  openInstall: (target: ExternalTarget): Promise<InstallResult> => ipcRenderer.invoke("setup:open-install", { target }),
   chooseTokenCss: (root: string): Promise<TokenCssChoice> => ipcRenderer.invoke("project:choose-token-css", { root }),
   initializeProject: (request: ProjectInitRequest): Promise<ProjectInitResult> => ipcRenderer.invoke("project:init", request),
   // The stored root, or null when the sheet was cancelled or the folder refused.

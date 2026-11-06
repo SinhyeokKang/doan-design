@@ -1,3 +1,6 @@
+import { randomBytes } from "node:crypto";
+import { mkdir, readdir, rename, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import type { Provider, ToolFacts } from "./agentAuth/types";
 import { storedVersionAtLeast } from "./conversation/sessions";
 import { INSTALL_URLS, type ExternalTarget } from "./settings";
@@ -55,4 +58,40 @@ export function terminalScript(choice: TerminalChoice, name: string): string {
     "fi",
     "",
   ].join("\n");
+}
+
+// pageFailed: no command applied and the install page did not open either.
+export type InstallResult = "terminal" | "page" | "failed" | "pageFailed";
+export interface InstallOpenerDeps {
+  dir: string;
+  // Electron's shell.openPath: it answers an error string rather than rejecting.
+  openPath(path: string): Promise<string>;
+  openExternal(url: string): Promise<void>;
+}
+
+// Each open first removes the previous scripts, so opens run one at a time: a later open's cleanup must not take the
+// file an earlier one is still writing or handing to Terminal. A window already open keeps reading its removed file,
+// and a new name means a waiting window never runs changed content.
+export function createInstallOpener(deps: InstallOpenerDeps): (provider: ExternalTarget, facts: ToolFacts | null) => Promise<InstallResult> {
+  let queue: Promise<unknown> = Promise.resolve();
+  async function open(provider: ExternalTarget, facts: ToolFacts | null): Promise<InstallResult> {
+    const choice = installChoice(provider, facts);
+    if (choice.kind === "page") {
+      try { await deps.openExternal(INSTALL_URLS[provider]); return "page"; } catch { return "pageFailed"; }
+    }
+    try {
+      await mkdir(deps.dir, { recursive: true, mode: 0o700 });
+      for (const entry of await readdir(deps.dir)) await rm(join(deps.dir, entry), { recursive: true, force: true });
+      const name = `${provider}-${randomBytes(8).toString("hex")}.command`;
+      const temporary = join(deps.dir, `.${name}.tmp`), path = join(deps.dir, name);
+      await writeFile(temporary, terminalScript(choice, INSTALL_NAMES[provider]), { mode: 0o700, flag: "wx" });
+      await rename(temporary, path);
+      return await deps.openPath(path) === "" ? "terminal" : "failed";
+    } catch { return "failed"; }
+  }
+  return (provider, facts) => {
+    const result = queue.then(() => open(provider, facts));
+    queue = result;
+    return result;
+  };
 }

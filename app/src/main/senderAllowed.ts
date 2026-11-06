@@ -32,6 +32,8 @@ const mainOnly = new Set([
   "preferences:read", "preferences:write", "notifications:test", "notifications:open-settings", "about:read", "about:copy",
   "config:session-start", "config:session-end",
   "setup:open-external",
+  // agent-cli-terminal: Install and Update name a provider; main picks the command and writes the script.
+  "setup:open-install",
   "agent-auth:read", "agent-auth:check", "agent-auth:sign-in", "agent-auth:cancel", "agent-auth:submit-code", "agent-auth:open-link", "agent-auth:sign-out",
   // provider-usage: the header's usage rings; agent-usage:changed is an event main sends, not a request.
   "agent-usage:read",
