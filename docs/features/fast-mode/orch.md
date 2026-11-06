@@ -26,9 +26,9 @@
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 gate | 상태 |
 |---|---|---|---|---|---|---|
-| C | A1, A2, 계약 타입(`StartRequest.fast?`, preload `sendConversation` 요청의 `fast?`) | `app/src/main/conversation/{store,types,summary,models}.ts`와 그 테스트, `service.ts`의 `StartRequest` 한 줄, `app/src/preload/index.ts` | — | Codex `gpt-6.1-sol` medium — 검증 규칙과 파싱이 정해진 기계적 작업 | `npm --prefix app test`(storeIndex·storeRecovery·summary·models), `npm --prefix app run typecheck` | 대기 |
-| M | A3, A4(main: `claudeFastOutcome`, 자동 끔), B1 | `app/src/main/conversation/{ipc,service,runners,transport}.ts`와 그 테스트 | C | Claude Opus high — queue·Send now·핸드오프·steer·이벤트 순서와 자동 끔이 얽혀 틀리면 잘못된 과금 요청이 나간다 | `npm --prefix app test`, `npm --prefix app run typecheck`, `grep -rn '\.acquire(' app/src/main` 전후 동일 | 대기 |
-| R | A4(renderer: `fastUnusedText`), A5, B2 | `app/src/renderer/**`, `app/src/restore/uiState.ts`와 그 테스트 | C | Claude Opus high — 메뉴 접근성, 기억 경로(POSTMORTEM 11-01·11-02), 실시간 이벤트만 반영하는 자동 끔 | `npm --prefix app test`, `npm --prefix app run typecheck`, `rg -n "startConversation\(\|sendConversation\(\|onRemember" app/src/renderer --glob '!*.test.*'` | 대기 |
+| C | A1, A2, 계약 타입(`StartRequest.fast?`, preload `sendConversation` 요청의 `fast?`) | `app/src/main/conversation/{store,types,summary,models}.ts`와 그 테스트, `service.ts`의 `StartRequest` 한 줄, `app/src/preload/index.ts` | — | Codex `gpt-6.1-sol` medium — 검증 규칙과 파싱이 정해진 기계적 작업 | `npm --prefix app test`(storeIndex·storeRecovery·summary·models), `npm --prefix app run typecheck` | 통합(`e8c93f85`·`4ce3ab55`·`99e1380a`, 1 round) |
+| M | A3, A4(main: `claudeFastOutcome`, 자동 끔), B1 | `app/src/main/conversation/{ipc,service,runners,transport}.ts`와 그 테스트 | C | Claude Opus high — queue·Send now·핸드오프·steer·이벤트 순서와 자동 끔이 얽혀 틀리면 잘못된 과금 요청이 나간다 | `npm --prefix app test`, `npm --prefix app run typecheck`, `grep -rn '\.acquire(' app/src/main` 전후 동일 | 진행 |
+| R | A4(renderer: `fastUnusedText`), A5, B2 | `app/src/renderer/**`, `app/src/restore/uiState.ts`와 그 테스트 | C | Claude Opus high — 메뉴 접근성, 기억 경로(POSTMORTEM 11-01·11-02), 실시간 이벤트만 반영하는 자동 끔 | `npm --prefix app test`, `npm --prefix app run typecheck`, `rg -n "startConversation\(\|sendConversation\(\|onRemember" app/src/renderer --glob '!*.test.*'` | 진행 |
 | S | B3 `/design-sync fast-mode` | renderer 구현 수정, `docs/DESIGN.md` | R 통합 | R worker의 후속 Task(Claude Opus high) — 자기 구현을 재는 편이 맥락이 이어진다 | `/design-sync` 보고에 불일치 없음 | 대기 |
 | T | R1 `/runtime-test` | 없음(보고만, `.scratch/`) | C·M·R·S 통합 | Claude Opus high — 실제 계정, 계정 교체, 여러 경우 | `/runtime-test` 보고와 스크린샷 | 대기 |
 | — | R2 `/verify` | — | 모든 통합, rebase 뒤 | conductor | 종료 코드 0 | 대기 |
@@ -49,7 +49,10 @@
   - ❓1은 🟡1과 같은 문제라 함께 닫는다.
   - ❓2 계정 제한일 때 `supportsFastMode`가 남는가: `extra_usage_disabled` 계정에서도 opus의 `supportsFastMode`가 true였다(conductor의 `p2-init.mjs`, 2026-11-06). 규칙을 그대로 둔다.
   - nit 3개(설명 512자 상한, `unavailable` 타입 폭, 커밋에서 red가 보이지 않음)는 고치지 않는다.
+- C r1 수정(`14220645`)을 확인하고 통합했다. `origin/main`(`ff59c416`)으로 rebase한 뒤 `/verify` PASS(`.scratch/verify-int1.log`, HEAD `99e1380a`).
+- C worktree는 M·R이 계약 수정을 요청할 수 있어서 둘을 통합할 때까지 남긴다. handoff와 리뷰는 conductor `.scratch/C/`에 복사했다.
 
 ## Orca
 
-- Run `run_8fba8fe095f4`. C: task `task_34b06fe375f9`, dispatch `ctx_5d4e43326007`, worktree `fast-mode-C`(Codex `gpt-6.1-sol` medium, `launch.effective` 확인).
+- Run `run_8fba8fe095f4`. C: task `task_34b06fe375f9`, dispatch `ctx_5d4e43326007`, worktree `fast-mode-C`(Codex `gpt-6.1-sol` medium, `launch.effective` 확인). review C `ctx_0758918c1693`(Claude Sonnet medium). C fix r1 `ctx_7ab335e862e7`.
+- M: dispatch `ctx_722d7d853900`, worktree `fast-mode-M`(Claude Opus high). R: dispatch `ctx_88efb35a42b8`, worktree `fast-mode-R`(Claude Opus high). 둘 다 `99e1380a`에서 시작.
