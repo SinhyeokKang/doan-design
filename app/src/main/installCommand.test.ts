@@ -101,6 +101,14 @@ describe("terminalScript", () => {
     expect(stdout.endsWith(`Press Return to run it, or close this window to cancel.\nThe command failed. See the output above.\n${line}\n`)).toBe(true);
   });
 
+  // The install commands pipe curl into a shell: a failed download must not end as Finished.
+  it("reports a failure of any piped stage, without changing the shown command", () => {
+    const { stdout } = run({ ...install, command: "false | true" }, "\n");
+    expect(stdout).toBe("Install Codex\nThis command installs Codex:\n\n  false | true\n\nPress Return to run it, or close this window to cancel.\n" +
+      "The command failed. See the output above.\nTo install Codex another way, open https://learn.chatgpt.com/docs/codex/cli\n");
+    expect(terminalScript(install, "Codex")).toContain("\nset -o pipefail 2>/dev/null\ncurl -fsSL https://chatgpt.com/codex/install.sh | sh\n");
+  });
+
   it("escapes single quotes in every printed literal", () => {
     const odd: TerminalChoice = { kind: "terminal", action: "install", command: "printf '%s' x", title: "Install O'Brien", url: "https://example.com/it's" };
     const script = terminalScript(odd, "O'Brien");
