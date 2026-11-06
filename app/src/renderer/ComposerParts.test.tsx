@@ -376,7 +376,17 @@ test("→ unfolds and ← folds on the line; ← on an older row folds its group
 });
 
 test("a chosen older model opens the menu with its group unfolded and checked; picking an older row passes its id", () => {
-  const tree = openAgentMenu(OLDER_PICKER("gpt-6-sol"));
+  let tree = openAgentMenu(OLDER_PICKER("gpt-6-sol"));
+  const frames: FrameRequestCallback[] = [];
+  vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => frames.push(callback));
+  vi.stubGlobal("cancelAnimationFrame", () => {});
+  try {
+    (tree.find(item => item.type === DropdownMenu.Content)!.props.ref as (node: unknown) => void)({ dataset: { side: "top" }, querySelector: () => null });
+    tree = agentTree({ picker: OLDER_PICKER("gpt-6-sol"), onPick: () => {} });
+    hooks.on = true; try { hooks.effects.splice(0).forEach(effect => effect()); } finally { hooks.on = false; }
+    frames.splice(0).forEach(callback => callback(0));
+    tree = agentTree({ picker: OLDER_PICKER("gpt-6-sol"), onPick: () => {} });
+  } finally { vi.unstubAllGlobals(); }
   expect(olderLine(tree)[0]!.props["aria-expanded"]).toBe(true);
   expect(radioIds(tree)).toContain("gpt-6-sol");
   const onPick = vi.fn();
@@ -457,6 +467,7 @@ test("a checked older group waits for settled placement before unfolding, then r
     expect(draw().isOpen("codex")).toBe(false);
     node.dataset.side = "bottom";
     frames.splice(0).forEach(callback => callback(0));
+    expect(shown).not.toHaveBeenCalled();
     fold = draw(); effects();
     expect(fold.isOpen("codex")).toBe(true);
     expect(fold.placement).toMatchObject({ side: "bottom", avoidCollisions: false });

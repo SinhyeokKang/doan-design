@@ -324,7 +324,7 @@ export function foldRows<T extends FoldRow>(rows: readonly T[]): { current: T[];
 export function olderOrder<T>(line: T, rows: readonly T[], side: string): T[] {
   return side === "top" ? [...rows, line] : [line, ...rows];
 }
-// Growth must scroll on the first painted side rather than move the disclosure to the opposite side.
+// After a disclosure toggles, growth must scroll on that side rather than move the line to the opposite side.
 export function lockedOlderSide(locked: "top" | "bottom" | null, painted: string | undefined): "top" | "bottom" | null {
   return locked ?? (painted === "top" || painted === "bottom" ? painted : null);
 }

@@ -220,7 +220,7 @@ function NewConversations({ auth, preferences, save, project }: Pick<SettingsAge
   const trigger = (label: string, aria: string, content: ReactNode, disabled: boolean, menu: ReactNode, folded?: typeof fold) => <DropdownMenu.Root {...(folded ? { onOpenChange: folded.onOpenChange } : {})}>
     <DropdownMenu.Trigger asChild disabled={disabled}><button type="button" className="doan-button settings-select" data-ui-variant="trigger" data-ui-size="sm" aria-label={`${aria}: ${label}`} disabled={disabled}>
       {content}<ChevronDown className="chev" aria-hidden="true" /></button></DropdownMenu.Trigger>
-    <DropdownMenu.Portal><DropdownMenu.Content {...(folded ? { ref: folded.contentRef } : {})} className="doan-floating doan-menu settings-menu" aria-label={aria} side="bottom" {...(folded ? folded.placement : {})} align="end" sideOffset={4} collisionPadding={8}>{menu}</DropdownMenu.Content></DropdownMenu.Portal>
+    <DropdownMenu.Portal><DropdownMenu.Content {...(folded ? { ref: folded.contentRef } : {})} className="doan-floating doan-menu settings-menu" aria-label={aria} {...(folded ? folded.placement : { side: "bottom" as const })} align="end" sideOffset={4} collisionPadding={8}>{menu}</DropdownMenu.Content></DropdownMenu.Portal>
   </DropdownMenu.Root>;
   const radio = (value: string, label: ReactNode, selected: boolean, onKeyDown?: ReturnType<typeof fold.olderKeyDown>) => <DropdownMenu.RadioItem key={value} value={value} className="doan-menu-item" {...(onKeyDown ? { onKeyDown } : {})}>
     {label}<span className="check-slot">{selected && <Check className="check" aria-hidden="true" />}</span></DropdownMenu.RadioItem>;
@@ -256,7 +256,7 @@ function NewConversations({ auth, preferences, save, project }: Pick<SettingsAge
               {modelRows!.current.map(item => item.kind === "model" ? radio(item.value, <span className="model-name">{item.label}</span>, item.selected)
                 : <Fragment key={item.value}>{unset(item.value, item.label, item.description, item.selected)}{menu.rows.length > 1 && <DropdownMenu.Separator className="doan-menu-sep" />}</Fragment>)}
               {modelRows!.older.length > 0 && olderOrder<ReactNode>(fold.line(provider, name, modelRows!.older.length),
-                fold.isOpen(provider) ? modelRows!.older.map(item => item.kind === "model" && radio(item.value, <span className="model-name">{item.label}</span>, item.selected, fold.olderKeyDown(provider))) : [], fold.side(provider))}
+                fold.isOpen(provider) ? modelRows!.older.map(item => item.kind === "model" && radio(item.value, <span className="model-name">{item.label}</span>, item.selected, fold.olderKeyDown(provider))) : [], fold.placement.side)}
             </DropdownMenu.RadioGroup>, fold)}</div>}
         {project && loadFailed && <div className="doan-preference-row-extra settings-msg-row"><p className="settings-msg error" role="alert"><AlertIcon /><span>Couldn’t load the models for {project.name}.</span></p>
           <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={() => setLists(current => { const next = { ...current }; delete next[key!]; return next; })}>Retry</button></div>}

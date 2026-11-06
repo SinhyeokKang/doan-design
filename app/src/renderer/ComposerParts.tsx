@@ -308,8 +308,7 @@ export interface OlderFold {
   onOpenChange(open: boolean): void;
   contentRef(node: HTMLDivElement | null): void;
   isOpen(provider: string): boolean;
-  side(provider: string): string;
-  placement: { side: "top" | "bottom"; avoidCollisions: boolean; style: { maxHeight: string } };
+  placement: { side: "top" | "bottom"; avoidCollisions: boolean };
   line(provider: string, name: string, count: number): ReactNode;
   // An older row's ←: focus goes to its group's line, which folds.
   olderKeyDown(provider: string): (event: KeyboardEvent<HTMLElement>) => void;
@@ -318,7 +317,6 @@ export function useOlderFold(groups: readonly { provider: string; rows: readonly
   const [open, setOpen] = useState(false);
   const [fold, setFold] = useState(NO_OLDER);
   const [locked, setLocked] = useState<"top" | "bottom" | null>(null);
-  const [sides, setSides] = useState<Record<string, string>>({});
   const content = useRef<HTMLDivElement | null>(null);
   const lines = useRef(new Map<string, HTMLElement>());
   // The line's viewport top just before a toggle, so the toggle's layout can put it back.
@@ -333,9 +331,16 @@ export function useOlderFold(groups: readonly { provider: string; rows: readonly
     if (!open) return;
     const next = olderOpened(fold, groups);
     if (next !== fold) {
-      const side = locked ?? content.current?.dataset.side ?? preferredSide;
-      setSides(current => Object.fromEntries(next.open.map(provider => [provider, current[provider] ?? side])));
-      reveal.current = true; setFold(next); return;
+      const node = content.current;
+      if (!node) return;
+      // Floating UI resolves placement asynchronously. Expand in its settled order, then reveal after that render.
+      const frame = requestAnimationFrame(() => {
+        if (content.current !== node) return;
+        setLocked(current => lockedOlderSide(current, node.dataset.side));
+        reveal.current = true;
+        setFold(current => olderOpened(current, groups));
+      });
+      return () => cancelAnimationFrame(frame);
     }
     if (reveal.current && content.current) { reveal.current = false; showChecked(); }
     const h = held.current, line = h && lines.current.get(h.provider), box = content.current;
@@ -351,24 +356,17 @@ export function useOlderFold(groups: readonly { provider: string; rows: readonly
     if (line) held.current = { provider, top: line.getBoundingClientRect().top };
     const side = lockedOlderSide(locked, content.current?.dataset.side);
     setLocked(side);
-    if (next) setSides(current => ({ ...current, [provider]: side ?? preferredSide }));
     setFold(current => olderToggled(current, provider, next));
   };
   const isOpen = (provider: string) => fold.open.includes(provider);
   return {
-    onOpenChange: next => { setOpen(next); setFold(NO_OLDER); setSides({}); setLocked(null); reveal.current = next; held.current = null; },
+    onOpenChange: next => { setOpen(next); setFold(NO_OLDER); setLocked(null); reveal.current = next; held.current = null; },
     contentRef: node => {
       content.current = node;
-      if (node) requestAnimationFrame(() => {
-        if (content.current !== node) return;
-        setLocked(current => lockedOlderSide(current, node.dataset.side));
-      });
-      if (node && reveal.current) { reveal.current = false; showChecked(); }
+      if (node && reveal.current && olderOpened(fold, groups) === fold) { reveal.current = false; showChecked(); }
     },
     isOpen,
-    side: provider => locked ?? sides[provider] ?? preferredSide,
-    placement: { side: locked ?? preferredSide, avoidCollisions: locked === null,
-      style: { maxHeight: "min(384px, var(--radix-dropdown-menu-content-available-height, 384px))" } },
+    placement: { side: locked ?? preferredSide, avoidCollisions: locked === null },
     // Not a radio item and carries no value, so it can never be taken for a model; its key stays the same folded or
     // not, or focus would fall to the menu.
     line: (provider, name, count) => <DropdownMenu.Item key={`older:${provider}`} ref={node => { if (node) lines.current.set(provider, node); else lines.current.delete(provider); }}
@@ -428,7 +426,7 @@ export function AgentPicker(props: {
             {note && <span className="agent-note">{note === "Loading models" && <span className="doan-spinner" aria-hidden="true" />}{note}</span>}</DropdownMenu.Label>
           {group.selectable ? <DropdownMenu.RadioGroup value={!selected ? "" : selected.kind === "model" ? selected.id : "default"} onValueChange={value => props.onPick(group.provider, group.rows.some(row => row.kind === "model" && row.id === value) ? value : null)}>
             {current.map(item)}
-            {older.length > 0 && olderOrder<ReactNode>(fold.line(group.provider, group.name, older.length), fold.isOpen(group.provider) ? older.map(item) : [], fold.side(group.provider))}
+            {older.length > 0 && olderOrder<ReactNode>(fold.line(group.provider, group.name, older.length), fold.isOpen(group.provider) ? older.map(item) : [], fold.placement.side)}
           </DropdownMenu.RadioGroup> : fix ? <DropdownMenu.Item className="doan-menu-item" onSelect={() => props.onSettings(fix.target)}>{fix.label}</DropdownMenu.Item>
             : <DropdownMenu.Item className="doan-menu-item" disabled><span className="sub">{short ?? "Not available right now"}</span></DropdownMenu.Item>}
           {group.selectable && short && <p className="menu-note">{short}</p>}

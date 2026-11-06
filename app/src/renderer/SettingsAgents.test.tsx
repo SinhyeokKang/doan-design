@@ -473,9 +473,19 @@ const CODEX_OLDER = [
 const modelRoot = () => all(tree).filter(element => element.type === DropdownMenu.Root).find(root => all(root).some(element => element.props["aria-label"] === "Model for new conversations" && element.type === DropdownMenu.Content))!;
 const olderLines = () => all(modelRoot()).filter(element => element.type === DropdownMenu.Item && String(element.props.className).includes("older-row"));
 async function openModelMenu() {
-  (modelRoot().props.onOpenChange as (open: boolean) => void)(true);
-  await settle();
-  return render();
+  const frames: FrameRequestCallback[] = [];
+  vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => frames.push(callback));
+  vi.stubGlobal("cancelAnimationFrame", () => {});
+  try {
+    const content = all(modelRoot()).find(element => element.type === DropdownMenu.Content)!;
+    (content.props.ref as (node: unknown) => void)({ dataset: { side: "bottom" }, querySelector: () => null });
+    (modelRoot().props.onOpenChange as (open: boolean) => void)(true);
+    await settle();
+    frames.splice(0).forEach(callback => callback(0));
+    await settle();
+    frames.splice(0).forEach(callback => callback(0));
+    return render();
+  } finally { vi.unstubAllGlobals(); }
 }
 test("the Model menu shows Default and the current models, then the Older models line; the line unfolds the rest", async () => {
   auth = { revision: 1, providers: [dto("claude"), dto("codex")] };
