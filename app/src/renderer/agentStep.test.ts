@@ -577,6 +577,41 @@ test("a resolved update says so, and moves focus to Continue when the step can a
   expect(h.session.state.focus).toMatchObject({ target: "continue" });
 });
 
+// review C-1: a version that could not be read is not proof of an install or update; only the next state (Sign in,
+// Connected) is announced, and a cleared state cannot announce later.
+test.each([
+  ["install", { cli: "missing" }, { version: "unknown" }],
+  ["update", { version: "unsupported", installed: "0.150.0" }, { version: "unknown" }],
+  ["update", { version: "unsupported", installed: "0.150.0" }, { version: "incompatible", installed: "0.170.0" }],
+] as const)("%s ending in an unreadable or incompatible version clears the row without an announcement or focus move", async (action, before, after) => {
+  const h = harness(snap(1, { claude: connected, codex: { facts: before } }));
+  h.session.start(); h.session.enter();
+  await flush();
+  await h.session.command("codex", action);
+  expect(h.session.state.install).toMatchObject({ provider: "codex", action, result: "terminal" });
+  h.emit(snap(2, { claude: connected, codex: { facts: after } }));
+  expect(h.session.state.install).toBeNull();
+  expect(h.session.state.announcement).toBeNull();
+  expect(h.session.state.focus).toBeNull();
+  expect(row(h, "codex").notice?.title).toBe(after.version === "unknown" ? "Couldn’t read the Codex version" : "Doan can’t run this Codex version");
+  // Readable facts later reach Sign in without a late announcement from the cleared state.
+  h.emit(snap(3, { claude: connected }));
+  expect(row(h, "codex").button).toMatchObject({ command: "signIn" });
+  expect(h.session.state.announcement).toBeNull();
+  expect(h.session.state.focus).toBeNull();
+});
+
+test("an install that leaves a version below the minimum clears the row without an announcement", async () => {
+  const h = harness(snap(1, { codex: { facts: { cli: "missing" } } }));
+  h.session.start(); h.session.enter();
+  await flush();
+  await h.session.command("codex", "install");
+  h.emit(snap(2, { codex: { facts: { version: "unsupported", installed: "0.100.0" } } }));
+  expect(h.session.state.install).toBeNull();
+  expect(h.session.state.announcement).toBeNull();
+  expect(row(h, "codex")).toMatchObject({ button: { command: "update" }, helper: "After you update it, Doan checks again when you return." });
+});
+
 test("leaving the step clears the row's install state, and a result landing afterwards is not shown", async () => {
   const h = harness(snap(1, { claude: connected, codex: { facts: { cli: "missing" } } }));
   h.session.start(); h.session.enter();

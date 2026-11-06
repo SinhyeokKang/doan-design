@@ -360,3 +360,19 @@ test("Settings: an older Install result never replaces the newer one, in either 
   render();
   expect(alerts()).toEqual(["Couldn’t open Terminal to install Cursor. Open the install page to install it yourself."]);
 });
+
+test("Settings: an update that ends in an unreadable version shows the version alert, not an update announcement", async () => {
+  auth = { revision: 1, providers: [dto("claude"), dto("codex", { account: false, facts: { version: "unsupported", installed: "0.150.0" } })] };
+  api.openInstall = vi.fn(async () => "terminal");
+  await settle();
+  await click("codex", "update");
+  auth = { revision: 2, providers: [dto("claude", {}, 2), dto("codex", { account: false, facts: { version: "unknown" } }, 2)] };
+  authListener(auth); render();
+  const live = () => all(tree).find(element => element.props.role === "status" && element.props.className === "ob-live")?.props.children;
+  expect(live()).toBeUndefined();
+  expect(drawn(row("codex")).some(element => words(element.props.children) === "Couldn’t read the Codex version")).toBe(true);
+  auth = { revision: 3, providers: [dto("claude", {}, 3), dto("codex", { account: false }, 3)] };
+  authListener(auth); render();
+  expect(all(row("codex")).some(element => element.props["data-command"] === "signIn")).toBe(true);
+  expect(live()).toBeUndefined();
+});
