@@ -185,7 +185,7 @@ test("Agent, Model and Effort are menus (role=menu), never a listbox Select, and
   await settle();
   const triggers = all(tree).filter(element => element.type === DropdownMenu.Trigger);
   expect(triggers.map(trigger => (trigger.props.children as ReactElement<Record<string, unknown>>).props["aria-label"])).toEqual([
-    "Agent for new conversations: Claude Code", "Model for new conversations: Opus 5.5", "Effort for new conversations: High", "Permission for new conversations: Default"]);
+    "Agent for new conversations: Claude Code", "Model for new conversations: Opus 5.5", "Effort for new conversations: High", "Permission for new conversations: Ask first"]);
   expect(all(tree).filter(element => element.type === DropdownMenu.Content)).toHaveLength(4);
   expect(all(tree).some(element => typeof element.type === "object" && element.type !== null && String((element.type as { displayName?: string }).displayName).startsWith("Select"))).toBe(false);
   const groups = all(tree).filter(element => element.type === DropdownMenu.RadioGroup);
@@ -208,7 +208,7 @@ test("Permission is a menu after Effort and saves the mode with the saved model 
   expect(words(trigger.props.children)).toBe("Full access");
   const menu = all(all(tree).filter(element => element.type === DropdownMenu.Content).at(-1)!).find(element => element.type === PermissionMenuItems)!;
   expect(menu.props.view).toMatchObject({ title: "Permissions · Claude Code", mode: "bypass" });
-  expect((menu.props.view as { options: { description: string }[] }).options[0]!.description).toBe("Follows Doan’s Claude Code settings");
+  expect((menu.props.view as { options: { description: string }[] }).options[0]!.description).toBe("Asks before edits and commands unless allowed");
   const groups = all(tree).filter(element => element.type === DropdownMenu.RadioGroup);
   const pickMode = menu.props.onPick as (value: string) => void;
   pickMode("plan");

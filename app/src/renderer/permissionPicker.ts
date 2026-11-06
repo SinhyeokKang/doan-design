@@ -10,8 +10,11 @@ import type { ModelsState, NewConversationDefault } from "./homeComposer";
 export type PermissionIcon = "shield" | "file-pen-line" | "eye" | "shield-alert";
 export interface PermissionTrigger { label: string; ariaLabel: string; icon: PermissionIcon; warning: boolean }
 
-const MODES: Record<PermissionModeId, { label: string; icon: PermissionIcon; description: (name: string) => string }> = {
-  default: { label: "Default", icon: "shield", description: name => `Follows Doan’s ${name} settings` },
+// Default is named for what it does (picker-default-labels decision 4); "Auto" would read as Claude Code's auto mode.
+// Its line says, per provider, when it asks.
+const ASK_FIRST: Partial<Record<Provider, string>> = { claude: "Asks before edits and commands unless allowed", codex: "Asks before going outside its sandbox" };
+const MODES: Record<PermissionModeId, { label: string; icon: PermissionIcon; description: (provider: Provider) => string }> = {
+  default: { label: "Ask first", icon: "shield", description: provider => ASK_FIRST[provider] ?? `Asks when ${PROVIDER_NAMES[provider]} needs approval` },
   acceptEdits: { label: "Accept edits", icon: "file-pen-line", description: () => "Edits files without asking" },
   plan: { label: "Plan (read-only)", icon: "eye", description: () => "Plans without changing files" },
   bypass: { label: "Full access", icon: "shield-alert", description: () => "Runs everything without asking" },
@@ -50,6 +53,6 @@ export function permissionPickerView(provider: Provider | null, state: ModelsSta
   const name = PROVIDER_NAMES[provider];
   return {
     mode: shown, trigger: permissionTrigger(shown), title: `Permissions · ${name}`, menuLabel: `Permissions for ${name}`,
-    options: options.map(id => ({ id, label: MODES[id].label, description: MODES[id].description(name), icon: MODES[id].icon, warning: id === "bypass", selected: id === shown })),
+    options: options.map(id => ({ id, label: MODES[id].label, description: MODES[id].description(provider), icon: MODES[id].icon, warning: id === "bypass", selected: id === shown })),
   };
 }

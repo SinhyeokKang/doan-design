@@ -188,7 +188,7 @@ test("the capsule's placeholder stays on one line and ends in an ellipsis", asyn
 // one starts from the fixed Settings default, else the provider's last mode.
 test("the picker shows the conversation's own mode, and a new conversation's default", () => {
   expect(render([summary({ permissionMode: "plan" })], { prefs: { permissions: { claude: "bypass" } } })).toContain('data-mode="plan" aria-label="Permission: Plan (read-only)"');
-  expect(render([summary()], { prefs: { permissions: { claude: "bypass" } } })).toContain('data-mode="default" aria-label="Permission: Default"');
+  expect(render([summary()], { prefs: { permissions: { claude: "bypass" } } })).toContain('data-mode="default" aria-label="Permission: Ask first"');
   expect(render([], { prefs: { permissions: { claude: "bypass" } } })).toContain('data-mode="bypass" aria-label="Permission: Full access, no approval requests"');
   expect(render([], { prefs: { permissions: { claude: "bypass" } }, defaults: { provider: "claude", permissionMode: "acceptEdits" } })).toContain('data-mode="acceptEdits"');
 });
