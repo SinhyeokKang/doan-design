@@ -110,6 +110,14 @@ function all(node: ReactNode): ReactElement<Record<string, unknown>>[] {
 }
 const words = (node: unknown): string => Array.isArray(node) ? node.map(words).join("") : typeof node === "string" ? node : isValidElement<Record<string, unknown>>(node) ? words(node.props.children) : "";
 const labelled = (prefix: string) => all(tree).filter(element => typeof element.props["aria-label"] === "string" && (element.props["aria-label"] as string).startsWith(prefix));
+// Picks a Model menu row by its text, through the value the row itself carries.
+function pickModel(text: string) {
+  const group = all(tree).filter(element => element.type === DropdownMenu.RadioGroup)[1]!;
+  const item = all(group).find(element => element.type === DropdownMenu.RadioItem && words(element.props.children).startsWith(text))!;
+  (group.props.onValueChange as (value: string) => void)(item.props.value as string);
+}
+const modelRows = () => all(all(tree).filter(element => element.type === DropdownMenu.RadioGroup)[1]!).filter(element => element.type === DropdownMenu.RadioItem);
+const checked = () => modelRows().filter(item => all(item.props.children as ReactNode).some(element => element.props.className === "check")).map(item => words(item.props.children));
 const row = (provider: Provider) => all(tree).find(element => element.props["data-provider"] === provider && element.props.role === "group");
 
 test("rows are provider groups split into Connected and Not connected; an empty section is hidden", async () => {
@@ -167,10 +175,9 @@ test("the Model menu opens with a Default row naming today's default; picking it
   expect(labelled("Model for new conversations")[0]?.props["aria-label"]).toBe("Model for new conversations: Haiku 5.5");
   const group = all(tree).filter(element => element.type === DropdownMenu.RadioGroup)[1]!;
   const items = all(group).filter(element => element.type === DropdownMenu.RadioItem);
-  expect(items.map(item => item.props.value)).toEqual(["default", "haiku"]);
-  expect(words(items[0]!.props.children)).toBe("DefaultOpus 5.5");
-  expect(group.props.value).toBe("haiku");
-  (group.props.onValueChange as (value: string) => void)("default");
+  expect(items.map(item => words(item.props.children))).toEqual(["DefaultOpus 5.5", "Haiku 5.5"]);
+  expect(group.props.value).toBe(items[1]!.props.value);
+  pickModel("Default");
   expect(props.save).toHaveBeenLastCalledWith({ newConversation: { provider: "claude", permissionMode: "plan" } });
 });
 
@@ -180,7 +187,7 @@ test("a saved Claude Code \"default\" reads as nothing fixed", async () => {
   await settle();
   expect(labelled("Model for new conversations")[0]?.props["aria-label"]).toBe("Model for new conversations: Default · Opus 5.5");
   const groups = all(tree).filter(element => element.type === DropdownMenu.RadioGroup);
-  expect(groups[1]!.props.value).toBe("default");
+  expect(checked()).toEqual(["DefaultOpus 5.5"]);
   // Only the Default row stands for it: the saved id is never offered as a model of its own.
   expect(all(groups[1]!).filter(element => element.type === DropdownMenu.RadioItem)).toHaveLength(2);
   expect(labelled("Effort for new conversations")[0]?.props["aria-label"]).toBe("Effort for new conversations: High");
@@ -196,6 +203,31 @@ test("Codex with nothing fixed names its default model and level", async () => {
   expect(labelled("Model for new conversations")[0]?.props["aria-label"]).toBe("Model for new conversations: Default · GPT-6-Luna");
   expect(labelled("Effort for new conversations")[0]?.props["aria-label"]).toBe("Effort for new conversations: Default · Medium");
   expect(labelled("Permission for new conversations")[0]?.props["aria-label"]).toBe("Permission for new conversations: Ask first");
+});
+// RV 🟡1: an ACP agent may list a real model whose id is "default". The top Default row must stay apart from it:
+// picking that model fixes it, the top row unfixes, and a stored value checks exactly one row.
+test("an ACP model whose id is default is fixed by its own row, never confused with the top Default row", async () => {
+  auth = { revision: 1, providers: [dto("claude"), dto("copilot")] };
+  resetHooksAndList([{ id: "default", label: "Auto", default: true }, { id: "gpt-5.6", label: "GPT-5.6", default: false }]);
+  await settle({ preferences: prefs({ provider: "copilot", model: "gpt-5.6" }) });
+  await settle();
+  expect(modelRows().map(item => words(item.props.children))).toEqual(["DefaultAuto", "Auto", "GPT-5.6"]);
+  expect(new Set(modelRows().map(item => item.props.value)).size).toBe(3);
+  expect(checked()).toEqual(["GPT-5.6"]);
+  pickModel("Auto");
+  expect(props.save).toHaveBeenLastCalledWith({ newConversation: { provider: "copilot", model: "default" } });
+  pickModel("Default");
+  expect(props.save).toHaveBeenLastCalledWith({ newConversation: { provider: "copilot" } });
+  // A stored "default" is that model, fixed: only its row is checked and the trigger names it alone.
+  resetHooksAndList([{ id: "default", label: "Auto", default: true }, { id: "gpt-5.6", label: "GPT-5.6", default: false }]);
+  await settle({ preferences: prefs({ provider: "copilot", model: "default" }) });
+  await settle();
+  expect(checked()).toEqual(["Auto"]);
+  expect(labelled("Model for new conversations")[0]?.props["aria-label"]).toBe("Model for new conversations: Auto");
+  resetHooksAndList([{ id: "default", label: "Auto", default: true }, { id: "gpt-5.6", label: "GPT-5.6", default: false }]);
+  await settle({ preferences: prefs({ provider: "copilot" }) });
+  await settle();
+  expect(checked()).toEqual(["DefaultAuto"]);
 });
 function resetHooksAndList(models: unknown[]) {
   hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.pending = [];
@@ -230,7 +262,7 @@ test("Agent, Model and Effort are menus (role=menu), never a listbox Select, and
   const groups = all(tree).filter(element => element.type === DropdownMenu.RadioGroup);
   (groups[0]!.props.onValueChange as (value: string) => void)("last");
   expect(props.save).toHaveBeenLastCalledWith({ newConversation: null });
-  (groups[1]!.props.onValueChange as (value: string) => void)("haiku");
+  pickModel("Haiku 5.5");
   expect(props.save).toHaveBeenLastCalledWith({ newConversation: { provider: "claude", model: "haiku" } });
   (groups[2]!.props.onValueChange as (value: string) => void)("low");
   expect(props.save).toHaveBeenLastCalledWith({ newConversation: { provider: "claude", model: "opus", effort: "low" } });
@@ -254,7 +286,7 @@ test("Permission is a menu after Effort and saves the mode with the saved model 
   expect(props.save).toHaveBeenLastCalledWith({ newConversation: { provider: "claude", model: "opus", effort: "high", permissionMode: "plan" } });
   pickMode("default");
   expect(props.save).toHaveBeenLastCalledWith({ newConversation: { provider: "claude", model: "opus", effort: "high" } });
-  (groups[1]!.props.onValueChange as (value: string) => void)("haiku");
+  pickModel("Haiku 5.5");
   expect(props.save).toHaveBeenLastCalledWith({ newConversation: { provider: "claude", model: "haiku", permissionMode: "bypass" } });
   (groups[2]!.props.onValueChange as (value: string) => void)("low");
   expect(props.save).toHaveBeenLastCalledWith({ newConversation: { provider: "claude", model: "opus", effort: "low", permissionMode: "bypass" } });

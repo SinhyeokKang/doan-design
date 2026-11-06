@@ -61,7 +61,7 @@ function render(list: ListView, current: string | null, patch: Partial<ProjectOv
   effects.length = 0; docked.props = null;
   renderToStaticMarkup(<TooltipProvider><ProjectOverview {...props} /></TooltipProvider>);
   for (const run of effects.splice(0)) run();
-  return { support, composer: docked.props! as { picker: ModelPickerView; onSend(request: unknown): Promise<unknown>; onPickFast(on: boolean): void; onPickModel(provider: Provider, value: string | null): void } };
+  return { support, composer: docked.props! as { picker: ModelPickerView; onSend(request: unknown): Promise<unknown>; onPickFast(on: boolean): void; onPickModel(provider: Provider, value: string | null): void; onPickEffort(value: string): void } };
 }
 const REQUEST = { text: "Go", anchors: [], attachments: [] };
 const KEY = `conversation:${A}`;
@@ -148,4 +148,18 @@ test("an existing conversation on another model can pick Claude Code's default r
   expect(after.composer.picker.trigger).toMatchObject({ label: "Opus 5.5", isDefault: true });
   await after.composer.onSend(REQUEST);
   expect(sent.mock.calls.at(-1)![1]).toMatchObject({ model: "default" });
+});
+
+// RV ⚪2: the effort menu's Default row, picked in a conversation that stored a level, sends the model with no effort,
+// so main clears the stored level (Codex then sends its model's defaultEffort for that turn, unchanged here).
+test("an existing conversation that picks the effort Default row sends its model and no effort", async () => {
+  const { support, composer } = render([summary({ effort: "high" })], A);
+  expect(composer.picker.effort).toMatchObject({ label: "High", unset: { selected: false } });
+  composer.onPickEffort("");
+  const sent = vi.fn(async (_provider: Provider, _request: unknown) => {});
+  const after = render([summary({ effort: "high" })], A, { onSendConversation: sent }, next => { next.picks = support.picks; });
+  expect(after.composer.picker.effort).toMatchObject({ label: "Effort", placeholder: true, unset: { selected: true } });
+  await after.composer.onSend(REQUEST);
+  expect(sent.mock.calls.at(-1)![1]).toMatchObject({ conversationId: A, model: "opus" });
+  expect(sent.mock.calls.at(-1)![1]).not.toHaveProperty("effort");
 });

@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { modelPickerView, type ModelsState } from "./homeComposer";
-import { settingsEffortLabel, settingsModelMenu } from "./newConversationSettings";
+import { settingsEffortLabel, settingsModelMenu, settingsModelPick } from "./newConversationSettings";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import { authStatus } from "../main/agentAuth/state";
 import type { AuthState, Provider } from "../main/agentAuth/types";
@@ -71,4 +71,28 @@ test("effort with nothing fixed reads Default and the level it stands for, or De
   expect(settingsEffortLabel(effort("claude", CLAUDE, "default", null))).toBe("Default");
   expect(settingsEffortLabel(effort("codex", CODEX, "gpt-6-luna", "high"))).toBe("High");
   expect(settingsEffortLabel(effort("claude", CLAUDE, "default", "max"))).toBe("Max");
+});
+
+// RV 🟡1: each row's menu value is its own, so an ACP model whose id is "default" never shares the top row's value.
+test("an ACP model whose id is default keeps its own row and value, apart from the top Default row", () => {
+  const ACP: ModelsState = { models: [{ id: "default", label: "Auto", default: true }, { id: "gpt-5.6", label: "GPT-5.6", default: false }] };
+  const values = (menu: ReturnType<typeof settingsModelMenu>) => menu.rows.map(row => row.value);
+  const other = settingsModelMenu("copilot", ACP, "gpt-5.6");
+  expect(other.rows.map(row => row.kind === "model" ? [row.id, row.selected] : ["unset", row.selected])).toEqual([["unset", false], ["default", false], ["gpt-5.6", true]]);
+  expect(new Set(values(other)).size).toBe(3);
+  expect(other.value).toBe(other.rows[2]!.value);
+  // Picking a row's value gives back what to store: the model id, or null for the top row.
+  expect(settingsModelPick(other, other.rows[1]!.value)).toBe("default");
+  expect(settingsModelPick(other, other.rows[0]!.value)).toBeNull();
+  const fixed = settingsModelMenu("copilot", ACP, "default");
+  expect(fixed).toMatchObject({ label: "Auto", pinned: "default" });
+  expect(fixed.rows.filter(row => row.selected).map(row => row.kind === "model" ? row.id : "unset")).toEqual(["default"]);
+  expect(fixed.value).toBe(fixed.rows[1]!.value);
+  const unset = settingsModelMenu("copilot", ACP, undefined);
+  expect(unset.rows.filter(row => row.selected).map(row => row.kind)).toEqual(["unset"]);
+  expect(unset.value).toBe(unset.rows[0]!.value);
+  // Claude Code's own default row stays out, and its saved id still reads as nothing fixed.
+  const claude = settingsModelMenu("claude", CLAUDE, "default");
+  expect(claude.value).toBe(claude.rows[0]!.value);
+  expect(claude.rows.some(row => row.kind === "model" && row.id === "default")).toBe(false);
 });
