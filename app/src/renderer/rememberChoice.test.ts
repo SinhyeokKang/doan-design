@@ -1,5 +1,6 @@
 import { expect, test } from "vitest";
-import { preferenceAfterPick, rememberChoice, rememberPermission } from "./rememberChoice";
+import type { ConversationEvent } from "../main/conversation/types";
+import { preferenceAfterPick, rememberChoice, rememberFast, rememberPermission, shouldTurnOffFast } from "./rememberChoice";
 
 // Dogfooding #6: a pick alone is remembered as Last used, per provider, and a fixed Settings default follows it.
 test("a pick becomes the last provider and that provider's model and effort", () => {
@@ -64,4 +65,47 @@ test("a fixed Settings default takes the picked mode, with or without a model", 
   expect(preferenceAfterPick({ provider: "claude", permissionMode: "plan" }, { provider: "claude", model: null, effort: null, permissionMode: "plan" })).toBeUndefined();
   expect(preferenceAfterPick(null, { provider: "claude", model: null, effort: null, permissionMode: "plan" })).toBeUndefined();
   expect(preferenceAfterPick({ provider: "codex" }, { provider: "claude", model: null, effort: null, permissionMode: "plan" })).toBeUndefined();
+});
+
+// fast-mode A5 (design §2 9–10, decision 3): Fast is remembered per provider, apart from the model, only when the switch
+// changes or Fast turns itself off.
+test("a switched Fast is its provider's, kept across model picks and apart from the other provider", () => {
+  const memory = { lastProvider: "codex" as const, models: { codex: { model: "gpt-6" } } };
+  const on = rememberChoice(memory, { provider: "codex", model: "gpt-6", effort: null, fast: true });
+  expect(on).toEqual({ ...memory, fast: { codex: true } });
+  const moved = rememberChoice(on, { provider: "codex", model: "gpt-6-mini", effort: null });
+  expect(moved.fast).toEqual({ codex: true });
+  const claude = rememberChoice(moved, { provider: "claude", model: "opus", effort: null, fast: false });
+  expect(claude.fast).toEqual({ codex: true });
+  expect(rememberChoice(claude, { provider: "codex", model: "gpt-6", effort: null, fast: false }).fast).toEqual({});
+  expect(rememberChoice(on, { provider: "codex", model: "gpt-6", effort: null, fast: true })).toBe(on);
+});
+
+test("a choice without a switch change (a send) leaves Fast alone", () => {
+  const memory = { fast: { claude: true as const } };
+  expect(rememberChoice(memory, { provider: "claude", model: "opus", effort: "high" }).fast).toEqual({ claude: true });
+  expect(rememberChoice(null, { provider: "claude", model: "opus", effort: "high" })).not.toHaveProperty("fast");
+});
+
+test("rememberFast changes one provider and returns the same memory when nothing changes", () => {
+  const memory = { lastProvider: "codex" as const, fast: { codex: true as const } };
+  expect(rememberFast(memory, "claude", true)).toEqual({ lastProvider: "codex", fast: { codex: true, claude: true } });
+  expect(rememberFast(memory, "codex", false)).toEqual({ lastProvider: "codex", fast: {} });
+  expect(rememberFast(memory, "codex", true)).toBe(memory);
+  expect(rememberFast(null, "claude", true)).toEqual({ fast: { claude: true } });
+});
+
+test("a fixed Settings default ignores Fast", () => {
+  expect(preferenceAfterPick({ provider: "claude", model: "opus" }, { provider: "claude", model: "opus", effort: null, fast: true })).toBeUndefined();
+  expect(preferenceAfterPick({ provider: "claude", model: "opus" }, { provider: "claude", model: "sonnet", effort: null, fast: true })).toEqual({ provider: "claude", model: "sonnet" });
+});
+
+test("only a turnedOff Fast-not-used event received live turns Last used off", () => {
+  const event = (payload: Record<string, unknown>) => ({ v: 1, conversationId: "c1", seq: 3, turnId: "t1", at: "2026-11-06T00:00:00Z", ...payload }) as ConversationEvent;
+  expect(shouldTurnOffFast(event({ type: "fast.unused", reason: "plan", turnedOff: true }), true)).toBe(true);
+  // A history read or a subscription's snapshot replays it: a restart must not turn off a Fast the person turned on again.
+  expect(shouldTurnOffFast(event({ type: "fast.unused", reason: "plan", turnedOff: true }), false)).toBe(false);
+  expect(shouldTurnOffFast(event({ type: "fast.unused", reason: "cooldown" }), true)).toBe(false);
+  expect(shouldTurnOffFast(event({ type: "fast.unused" }), true)).toBe(false);
+  expect(shouldTurnOffFast(event({ type: "turn.done" }), true)).toBe(false);
 });

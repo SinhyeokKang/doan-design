@@ -1,12 +1,27 @@
 import type { Provider } from "../main/agentAuth/types";
 import type { PermissionModeId } from "../main/conversation/permissionMode";
+import type { ConversationEvent } from "../main/conversation/types";
 import type { HomeMemory } from "../restore/uiState";
 import type { NewConversationDefault } from "./homeComposer";
 
 // What a composer shows after a pick. model is null while the provider's list is not read; effort is null for the
 // model's default level, which is sent as no effort. permissionMode is absent when the composer shows no permission
 // picker (an ACP provider without modes), so nothing about the mode is remembered.
-export interface ComposerChoice { provider: Provider; model: string | null; effort: string | null; permissionMode?: PermissionModeId }
+// fast is present only when the person switched Fast: a send alone never records it (fast-mode decision 3).
+export interface ComposerChoice { provider: Provider; model: string | null; effort: string | null; permissionMode?: PermissionModeId; fast?: boolean }
+
+// The provider's last Fast, apart from its model: `models[provider]` is replaced on every model pick. Off is no entry.
+export function rememberFast(memory: HomeMemory | null, provider: Provider, on: boolean): HomeMemory {
+  if (memory && (memory.fast?.[provider] === true) === on) return memory;
+  const { [provider]: _old, ...rest } = memory?.fast ?? {};
+  return { ...memory, fast: on ? { ...rest, [provider]: true } : rest };
+}
+
+// Fast turned itself off for a reason that lasts: Last used follows only an event received as it happened. The same
+// event read back from history (a reopen, a restart) must not undo a Fast the person turned on again since.
+export function shouldTurnOffFast(event: ConversationEvent, live: boolean): boolean {
+  return live && event.type === "fast.unused" && event.turnedOff === true;
+}
 
 // The provider's last mode, judged apart from its model (permission-mode design '저장 규칙'). Default is no entry.
 // The same memory comes back when nothing changes. Used alone for a mode the composer followed rather than picked
@@ -23,7 +38,8 @@ export function rememberPermission(memory: HomeMemory | null, provider: Provider
 export function rememberChoice(memory: HomeMemory | null, choice: ComposerChoice): HomeMemory {
   const saved = memory?.models?.[choice.provider];
   const model = choice.model ? { model: choice.model, ...(choice.effort ? { effort: choice.effort } : {}) } : saved;
-  const withMode = choice.permissionMode === undefined ? memory : rememberPermission(memory, choice.provider, choice.permissionMode);
+  const withFast = choice.fast === undefined ? memory : rememberFast(memory, choice.provider, choice.fast);
+  const withMode = choice.permissionMode === undefined ? withFast : rememberPermission(withFast, choice.provider, choice.permissionMode);
   if (withMode && withMode === memory && memory.lastProvider === choice.provider && saved?.model === model?.model && saved?.effort === model?.effort) return memory;
   const models = model ? { ...withMode?.models, [choice.provider]: model } : withMode?.models;
   return { ...withMode, lastProvider: choice.provider, ...(models ? { models } : {}) };

@@ -4,7 +4,7 @@ import { authStatus } from "../main/agentAuth/state";
 import type { AccountIdentity, AuthState, AuthStatusDto, Provider, ToolFacts } from "../main/agentAuth/types";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import {
-  attachmentChipView, attachmentLimit, chipRemoval, composeRequest, defaultEffort, defaultModel, defaultProject, defaultProvider, dropTarget, fixedPreference,
+  attachmentChipView, attachmentLimit, chipRemoval, composeRequest, defaultEffort, defaultFast, defaultModel, defaultProject, defaultProvider, dropTarget, fixedPreference,
   GREETINGS, greetingText, groupIcon, groupLabel, isSubmitKey, steerKey, takesSuggestion, lengthCounter, MAX_ATTACHMENTS, MAX_PASTED_BYTES, modelPickerView, pickGreeting, presetListView,
   draftProblem, presetPlaceholder, rootForProject, searchPresets, selectableProvider, sendAvailability, slashQuery, startErrorView, suggestedPresets,
   suggestedPrompts, TEXT_LIMIT,
@@ -311,6 +311,7 @@ test("the picker lists connected providers only, in order, with model rows and t
   expect(view.effort).toEqual({
     label: "High", ariaLabel: "Effort: High", menuLabel: "Effort for Opus 5.5", title: "Effort · Opus 5.5",
     options: [{ id: "low", label: "Low", selected: false }, { id: "medium", label: "Medium", selected: false }, { id: "high", label: "High", selected: true }, { id: "max", label: "Max", selected: false }],
+    fast: null,
   });
 });
 
@@ -700,4 +701,45 @@ test("takesSuggestion accepts only a plain Right Arrow on an empty field while a
   for (const change of [{ suggestion: null }, { empty: false }, { composing: true }]) {
     expect(takesSuggestion(event, { ...state, ...change })).toBe(false);
   }
+});
+
+// fast-mode A5 (design §2 8, decision 12): the Fast switch row under the Effort levels, and its trigger name.
+const FAST_OPUS = { ...OPUS, fast: {} };
+const SOL = { id: "gpt-6.1-sol", label: "GPT-6.1 Sol", default: true, efforts: ["low", "high"], fast: { description: "2x speed, increased usage" } };
+test("the switch row shows only for a Claude or Codex model with Fast and effort levels, and never in Settings", () => {
+  const auth = snapshot(dto("claude"), dto("codex"), dto("cursor"));
+  const claude: ModelsState = { models: [FAST_OPUS, SONNET, { ...HAIKU, fast: {} }] };
+  // choice null: the composer offers no Fast (Settings), so the choice has no fast field.
+  const fast = (provider: Provider, models: ModelsState, model: string | null, choice: boolean | null = true) =>
+    modelPickerView(auth, { [provider]: models }, { provider, model, effort: "high", ...(choice === null ? {} : { fast: choice }) }).effort?.fast;
+  expect(fast("claude", claude, "opus")).toEqual({ on: true, description: "Same model, faster output. Requires usage credits." });
+  expect(fast("codex", { models: [SOL] }, "gpt-6.1-sol", false)).toEqual({ on: false, description: "2x speed, increased usage" });
+  // A Codex tier without a description has none.
+  expect(fast("codex", { models: [{ ...SOL, fast: {} }] }, "gpt-6.1-sol")).toEqual({ on: true });
+  // No Fast: a model without it, no model (the list not read or failed), a model without levels, an ACP provider, Settings.
+  expect(fast("claude", claude, "sonnet")).toBeNull();
+  expect(modelPickerView(auth, { claude: "loading" }, { provider: "claude", model: null, effort: null, fast: true }).effort).toBeNull();
+  expect(fast("claude", claude, "haiku")).toBeUndefined();
+  expect(fast("cursor", { models: [{ id: "auto", label: "Auto", default: true, efforts: ["high"], fast: {} }] }, "auto")).toBeNull();
+  expect(fast("claude", claude, "opus", null)).toBeNull();
+});
+
+test("Fast on or off changes the trigger's name, never its label; an unavailable row is off with its reason", () => {
+  const auth = snapshot(dto("claude"));
+  const view = (fast: boolean, models: ModelsState = { models: [FAST_OPUS] }) => modelPickerView(auth, { claude: models }, { provider: "claude", model: "opus", effort: "high", fast }).effort!;
+  expect(view(true)).toMatchObject({ label: "High", ariaLabel: "Effort: High, Fast on" });
+  expect(view(false)).toMatchObject({ label: "High", ariaLabel: "Effort: High, Fast off" });
+  const unavailable = view(true, { models: [{ ...OPUS, fast: { unavailable: "extra_usage" } }] });
+  expect(unavailable).toMatchObject({ label: "High", ariaLabel: "Effort: High" });
+  expect(unavailable.fast).toEqual({ on: false, description: "Extra usage is turned off for this account.", unavailable: "extra_usage" });
+  // Without Fast the name reads as before.
+  expect(modelPickerView(auth, { claude: { models: [OPUS] } }, { provider: "claude", model: "opus", effort: "high", fast: true }).effort).toMatchObject({ ariaLabel: "Effort: High", fast: null });
+});
+
+test("a new conversation starts from its provider's Last used Fast, whatever the model or a fixed default", () => {
+  const memory = { fast: { codex: true as const } };
+  expect(defaultFast(memory, "codex")).toBe(true);
+  expect(defaultFast(memory, "claude")).toBe(false);
+  expect(defaultFast(null, "codex")).toBe(false);
+  expect(defaultFast(memory, null)).toBe(false);
 });
