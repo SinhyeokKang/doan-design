@@ -300,6 +300,8 @@ export class ConversationStore {
       if ("error" in reply) { this.threads.set(conversationId, { ...thread, read: "error" }); this.host.changed(); return; }
       const events = mergeConversationEvents(reply.events, thread.events, conversationId);
       this.threads.set(conversationId, { events, read: "ready", liveAfter: reply.lastSeq ?? events.at(-1)?.seq ?? 0 });
+      // After the set: stage() reads the current turn from the merged history.
+      if (reply.stage) this.stage(reply.stage);
       this.tell(conversationId, "read");
       this.host.changed();
     });
