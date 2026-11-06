@@ -20,6 +20,7 @@ import { deleteAvailability, deleteDialogView, deleteRefusalText } from "./conve
 import { focusFieldEnd } from "./chipField";
 import { draftKey, EMPTY_DRAFT } from "./dockedRules";
 import type { OpenAsk, OpenLinkResult, OpenResult } from "../main/deepLinks";
+import type { HandoffNotice } from "../main/conversation/handoff";
 import type { MenuCommand, ViewCommand } from "../main/index";
 import { CanvasController, initialCanvasState, type CanvasState, type CanvasWorkTarget, type PickResult } from "./CanvasController";
 import { CanvasHeader } from "./CanvasHeader";
@@ -45,7 +46,8 @@ import { CanvasRun, type CanvasTarget } from "./canvasRun";
 import { CanvasConversation, CanvasConversationTitle, canvasConversationTitle, composerFixed, settleChips } from "./CanvasConversationPanel";
 import { captureAvailability } from "./canvasCapture";
 import { canvasUnlistedText, DUPLICATE_CANVAS_TEXT } from "./canvasConversation";
-import { openButtonBadge, panelOpenFor, type OpenBadge, type PanelTrigger } from "./rightPanelOpen";
+import { openButtonBadge, panelOpenFor, type OpenBadge, type PanelFocus, type PanelTrigger } from "./rightPanelOpen";
+import { HANDOFF_WAIT_MS, handoffArrival, handoffGoneText, handoffToastText, type HandoffScreen } from "./handoffView";
 import { PICKER_UNAVAILABLE, pickerAvailability, type CanvasLoad, type Rect } from "./canvasPicker";
 import type { DockedFieldLink } from "./DockedComposer";
 import type { LocateOutcome } from "./ConversationThread";
@@ -390,7 +392,7 @@ export function App() {
   }, overviewRun.current.store);
   // Where focus goes once the panel shows what an entry asked for (design §2 'Opening the panel'); a new seq per entry.
   // The seq only grows: the panel applies an arrival once by its seq, so a later entry must never reuse one.
-  const [arrival, setArrival] = useState<{ focus: "permission" | "composer"; seq: number } | null>(null);
+  const [arrival, setArrival] = useState<{ focus: PanelFocus; seq: number } | null>(null);
   const panelArrivals = useRef(0);
   const support = useRef<DockedSupport | null>(null);
   if (!support.current) support.current = new DockedSupport(() => setRunTick(tick => tick + 1));
@@ -835,8 +837,8 @@ export function App() {
   // renderer-only lifetime checks').
   const toastHeld = modal || (screen === "projectSettings" && projectSettings.locked);
   useLayoutEffect(() => { toast.setModal(toastHeld); }, [toastHeld]);
-  const live = useRef({ home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: (root: string) => root, askConversation, openConversationCanvas, openCanvasConversation, newConversation: () => {}, pickFromCanvas: () => {}, toggleSidebar: () => {}, pickEnded: (_result: PickResult) => {}, captured: (_rect: Rect): (() => Promise<unknown>) | null => null, followMode: (_provider: Provider, _mode: PermissionModeId) => {}, openLink: (_result: OpenLinkResult) => {}, openCanvasRequest: (_request: OpenAsk) => {} });
-  live.current = { home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: root => projectLabelRef.current(root), askConversation, openConversationCanvas, openCanvasConversation, newConversation, pickFromCanvas, toggleSidebar, pickEnded, captured, followMode, openLink, openCanvasRequest };
+  const live = useRef({ home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: (root: string) => root, askConversation, openConversationCanvas, openCanvasConversation, newConversation: () => {}, pickFromCanvas: () => {}, toggleSidebar: () => {}, pickEnded: (_result: PickResult) => {}, captured: (_rect: Rect): (() => Promise<unknown>) | null => null, followMode: (_provider: Provider, _mode: PermissionModeId) => {}, openLink: (_result: OpenLinkResult) => {}, openCanvasRequest: (_request: OpenAsk) => {}, conversationHandoff: (_notice: HandoffNotice) => {}, handoffCheck: () => {} });
+  live.current = { home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: root => projectLabelRef.current(root), askConversation, openConversationCanvas, openCanvasConversation, newConversation, pickFromCanvas, toggleSidebar, pickEnded, captured, followMode, openLink, openCanvasRequest, conversationHandoff, handoffCheck };
   const rememberFocus = () => { beforeModal.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; };
   const modalClosed = () => { focusAfterModal.current = true; };
   useEffect(() => {
@@ -1041,6 +1043,9 @@ export function App() {
   useEffect(() => window.doan.onOpenLink(result => live.current.openLink(result)), []);
   // `doan open` requests (canvas-open-offer): main sends them only once links are ready, and each is answered by its id.
   useEffect(() => window.doan.onOpenRequest(request => live.current.openCanvasRequest(request)), []);
+  // A started handoff (canvas-handoff design §6), and every later render's check of the one still waiting for its read.
+  useEffect(() => window.doan.onConversationHandoff(notice => live.current.conversationHandoff(notice)), []);
+  useEffect(() => { live.current.handoffCheck(); });
   // Ready once the launch restore is applied (or cancelled) and the first folders are in, so a link's canvas opens over
   // the restored screen (terminal-agent-activity design 'Deep link' '대기').
   const linksReady = useRef(false);
@@ -1398,6 +1403,51 @@ export function App() {
     if (!opened) { answer({ kind: "canvas_not_found" }); return; }
     answer({ kind: "opened", frame: request.frame === undefined ? "none" : decision.row.frames?.some(frame => frame.id === request.frame) ? "found" : "missing" });
   }
+  // A started handoff (canvas-handoff design §6, decision 5) moves from its source canvas through Quick Open's path, with
+  // the panel on the receiving conversation and focus on its card, or shows the toast. A target the renderer's list does
+  // not name yet waits for that read up to HANDOFF_WAIT_MS, and leaving the source canvas meanwhile turns the move into
+  // the toast (POSTMORTEM 2026-10-25: an action offered before a read finishes waits for it). Unlike a link, it never
+  // closes a dialog: the person did not ask for this move.
+  const handoffWait = useRef<{ notice: HandoffNotice; expired: boolean; timer: ReturnType<typeof setTimeout> } | null>(null);
+  function conversationHandoff(notice: HandoffNotice) {
+    const earlier = handoffWait.current;
+    if (earlier) { clearTimeout(earlier.timer); handoffWait.current = null; handoffToast(earlier.notice); }
+    const wait = { notice, expired: false, timer: setTimeout(() => { wait.expired = true; live.current.handoffCheck(); }, HANDOFF_WAIT_MS) };
+    handoffWait.current = wait;
+    handoffCheck();
+  }
+  function handoffCheck() {
+    const wait = handoffWait.current;
+    if (!wait) return;
+    const notice = wait.notice, row = listedRow(notice.root, notice.target.canvas).row;
+    const step = handoffArrival(handoffScreen(notice), notice, row !== undefined, wait.expired);
+    if (step === "wait") return;
+    clearTimeout(wait.timer);
+    handoffWait.current = null;
+    if (step === "move") openCanvasConversation(notice.root, row!, notice.target.conversationId, { kind: "handoff" });
+    else handoffToast(notice);
+  }
+  function handoffScreen(notice: HandoffNotice): HandoffScreen {
+    const open = openRef.current;
+    const canvas = currentScreen.current === "workspace" && open && shownOverviewRef.current === null ? { root: open.folder, canvas: open.row.id ? { path: open.canvas, id: open.row.id } : { path: open.canvas } } : null;
+    // The source conversation's composer holding focus with something in it: a draft, or an IME composition.
+    const key = `conversation:${notice.source.conversationId}`, link = composerLink.current, field = link?.element() ?? null, active = document.activeElement;
+    const draft = canvasRun.current!.composerKey() === key ? overviewRun.current!.store.drafts.get(key) : undefined;
+    const filled = !!draft && (draft.segments.length > 0 || draft.preset !== null || draft.attachments.length > 0);
+    const typing = !!field && !!active && field.contains(active) && (filled || link!.composing());
+    return { canvas, locked: locked(), dialog: topDialog() !== null, firstRun: wizard !== null, typing };
+  }
+  function handoffToast(notice: HandoffNotice) {
+    live.current.toast.show(handoffToastText(notice), "Open", () => {
+      const { entry, row } = listedRow(notice.root, notice.target.canvas);
+      if (!row) { live.current.toast.show(entry?.kind === "list" ? handoffGoneText(notice.target.canvas.path, live.current.projectLabel(notice.root)) : unavailableCanvasMessage(entry, notice.target.canvas.path)); return; }
+      live.current.openCanvasConversation(notice.root, row, notice.target.conversationId, { kind: "notification", permission: false });
+    });
+  }
+  function listedRow(root: string, canvas: Canvas): { entry: FolderEntry | undefined; row: CanvasRow | undefined } {
+    const entry = entriesRef.current.find(entry => entry.path === root);
+    return { entry, row: entry?.kind === "list" ? entry.canvases.find(row => sameCanvas(canvas, row)) : undefined };
+  }
   function openPage(): OpenPage {
     const screen = currentScreen.current;
     const page = !locked() ? null : screen === "addProjects" ? "add_projects" : screen === "settings" ? "settings" : "project_settings";
@@ -1691,7 +1741,7 @@ export function App() {
   const focusPanel = () => document.querySelector<HTMLElement>(".doan-conv-panel :is(.rp-head, .doan-conv-title .ov-title)")?.focus();
   // An entry unfolds a folded panel (never the agent's own events) and hands focus to what it asked for, once the panel
   // shows it (design §2 'Opening the panel').
-  function revealPanel(focus: "permission" | "composer") {
+  function revealPanel(focus: PanelFocus) {
     if (!rightPanelRef.current.open) foldPanel(true, "content");
     setArrival({ focus, seq: ++panelArrivals.current });
   }
@@ -1847,7 +1897,8 @@ export function App() {
           frames={state.layout?.frames} locateDisabled={state.status !== null || state.unlisted} arrival={arrival} onArrived={seq => setArrival(current => current?.seq === seq ? null : current)}
           onLocate={locateChip} onReplyChip={link => replyChip(panelTarget.root, link)} onChoose={() => controller.current?.dropPendingLocate()} pick={{ pressed: picking, enabled: pickerReady, reason: pickerView.reason, onToggle: togglePick }} composerLink={composerLink} canvasPress={controller.current?.canvasPress}
           onSettings={target => openSettings(target)} onNotice={text => toast.show(text)}
-          onOpenProjectConversation={id => showShellOverview(panelTarget.root, undefined, () => askConversation(panelTarget.root, id))} work={work} />}
+          onOpenProjectConversation={id => showShellOverview(panelTarget.root, undefined, () => askConversation(panelTarget.root, id))}
+          onOpenHandoff={(canvas, id) => openConversationCanvas(panelTarget.root, canvas, id, { kind: "promotion" })} work={work} />}
       </ConversationPanel>}
   </main>
   {setup && <ProjectSetupDialog key={setup} root={setup} name={names.get(setup) ?? setup.split("/").at(-1) ?? setup} onClose={() => { setSetup(null); modalClosed(); }} onRerooted={(root, message) => { choose(root); setSetup(null); setHighlight([root]); toast.show(message); modalClosed(); }} />}

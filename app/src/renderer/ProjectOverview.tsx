@@ -390,7 +390,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         onEditAndResend={() => editAndResend(conversationId)}
         onSignIn={() => props.onSettings({ section: "agents", provider })}
         onRetry={() => run.retryThread(conversationId)}
-        onOpenCanvas={canvas => props.onOpenCanvas(canvas, conversationId)}
+        onOpenCanvas={canvas => props.onOpenCanvas(canvas, conversationId)} onOpenHandoff={(canvas, id) => props.onOpenCanvas(canvas, id)}
         onOpenLink={url => void window.doan.openLink(url).catch(console.error)}
         onCopy={text => Promise.resolve(copyText(text))}
         {...(props.onReplyChip ? { onReplyChip: props.onReplyChip } : {})} openCanvasId={null} canvasRows={props.entry.kind === "list" ? props.entry.canvases : NO_ROWS} />

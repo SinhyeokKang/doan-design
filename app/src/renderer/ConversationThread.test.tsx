@@ -10,7 +10,7 @@ import type { ThreadItem } from "./threadItems";
 const noop = () => {};
 const props = (items: ConversationThreadProps["items"], patch: Partial<ConversationThreadProps> = {}): ConversationThreadProps => ({
   items, conversationId: "c1", provider: "claude", project: "doan-design", liveAfter: 0, canvasListed: () => true,
-  onAnswer: noop, onStop: noop, onEditAndResend: noop, onSignIn: noop, onRetry: noop, onOpenCanvas: noop, onOpenLink: noop, onCopy: async () => true, ...patch,
+  onAnswer: noop, onStop: noop, onEditAndResend: noop, onSignIn: noop, onRetry: noop, onOpenCanvas: noop, onOpenHandoff: noop, onOpenLink: noop, onCopy: async () => true, ...patch,
 });
 const html = (items: ConversationThreadProps["items"], patch: Partial<ConversationThreadProps> = {}) => renderToStaticMarkup(<ConversationThread {...props(items, patch)} />);
 const agent = (text: string, streaming = false): ThreadItem => ({ kind: "agent", key: "m1", messageId: "m1", text, streaming });
