@@ -19,8 +19,8 @@
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort (이유) | 검증 gate | 상태 |
 |---|---|---|---|---|---|---|
-| A | T1 PoC | `.scratch/agent-cli-terminal/`, `docs/features/agent-cli-terminal/design.md`('PoC 의존'만) | 없음 | Claude Opus high (실제 계정 Terminal을 열고 실제 상태를 지켜야 하며, 멈춤 판단이 필요하다) | 관찰 기록, real-state 미변경 확인 | 대기 |
-| B | T2, T3 | `app/src/main/installCommand.ts`(+test), `app/src/main/index.ts`, `app/src/main/senderAllowed.ts`(+test), `app/src/main/agentAuth/ipc.ts`(+test), `app/src/main/settings.ts`(필요 시), `app/src/preload/index.ts`(+test), 관련 main test | 없음 (Cursor 하한·Copilot은 A 뒤 후속) | Claude Opus high (IPC 입력 경계와 파일 쓰기, 하한 판정이 틀리면 구버전 CLI가 `update`를 프롬프트로 받는다) | `npm --prefix app test`, typecheck, build | 대기 |
+| A | T1 PoC | `.scratch/agent-cli-terminal/`, `docs/features/agent-cli-terminal/design.md`('PoC 의존'만) | 없음 | Claude Opus high (실제 계정 Terminal을 열고 실제 상태를 지켜야 하며, 멈춤 판단이 필요하다) | 관찰 기록, real-state 미변경 확인 | 진행 (run_7b6c10f4e3e9, ctx_7b4526505f5c, worktree act-a-poc) |
+| B | T2, T3 | `app/src/main/installCommand.ts`(+test), `app/src/main/index.ts`, `app/src/main/senderAllowed.ts`(+test), `app/src/main/agentAuth/ipc.ts`(+test), `app/src/main/settings.ts`(필요 시), `app/src/preload/index.ts`(+test), 관련 main test | 없음 (Cursor 하한·Copilot은 A 뒤 후속) | Claude Opus high (IPC 입력 경계와 파일 쓰기, 하한 판정이 틀리면 구버전 CLI가 `update`를 프롬프트로 받는다) | `npm --prefix app test`, typecheck, build | 진행 (ctx_89bd31a67ab5, worktree act-b-main) |
 | B-review | B diff 리뷰 | 없음(보고만) | B | Codex gpt-6-astra medium (판단 위주 리뷰, 다른 계열 관점) | `/code-review` 보고 | 대기 |
 | C | T4 | `app/src/renderer/agentStep.ts`(+test), `app/src/renderer/agentAuthView.ts`(+test), `app/src/renderer/Onboarding.tsx`, `app/src/renderer/SettingsAgents.tsx`(+test) | B 통합 (preload `openInstall` 타입) | Claude Opus high (마지막 요청 소유권, POSTMORTEM 2026-10-25 함정, 실제 앱 probe) | `npm --prefix app test`, typecheck, `/runtime-test` | 대기 |
 | C-review | C diff 리뷰 | 없음(보고만) | C | Codex gpt-6-astra medium (상태 전이와 순서 판단) | `/code-review` 보고 | 대기 |
