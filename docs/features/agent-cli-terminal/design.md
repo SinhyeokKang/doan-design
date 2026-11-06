@@ -106,15 +106,32 @@ Press Return to run it, or close this window to cancel.
 - 같은 항목의 Recurrence(UX K): Settings 테스트는 클릭 핸들러의 then/catch 끝을 기다린다. 오류가 없다는 것을 고정 시간 대기로 확인하지 않는다.
 - 2026-10-30 "Packaged-app probes … focus": Playwright는 focus emulation을 켠다. 포커스 복귀 검사를 보려면 `Emulation.setFocusEmulationEnabled {enabled:false}`를 쓴다.
 
-## PoC 의존 (T1)
+## PoC 의존 (T1 결과)
 
-- 패키징한 Doan이 userData에 쓴 `.command`를 `shell.openPath`로 열 때 Gatekeeper나 격리(quarantine) 대화상자가 뜨지 않는가. `app/package.json`에 `LSFileQuarantineEnabled`가 없으므로 Doan이 쓴 파일에는 격리 속성이 붙지 않을 가능성이 높다. 다운로드한 tester dmg와 같은 조건(앱에 격리 속성)에서도 확인한다.
-- Return 전에는 실행되지 않는가. 기다리는 창을 닫을 때 Terminal이 확인 대화상자를 띄우는가. Doan이 전체 화면일 때 Terminal이 앞으로 나오는가.
-- 스크립트 안의 `command -v codex`가 probe의 결과와 같은가.
-- `.command`의 기본 앱이 Terminal이 아니면 무엇이 열리는가(기록만 한다).
-- Cursor `cursor-agent update`가 생긴 버전. 확인하지 못하면 Cursor의 하한을 현재 최소 버전 2026.10.22로 둔다. 그러면 최소 버전 미만인 Cursor는 항상 설치 페이지로 간다.
-- `copilot update`가 갱신하는 위치가 Doan이 실행하는 Copilot(`providers.ts`의 환경)과 같은가. 다르면 업데이트 뒤에도 Doan이 옛 버전을 볼 수 있다. 그 경우 Copilot update는 설치 페이지로 둔다.
-- 대화상자가 뜨거나 경로가 다르면 멈추고 사용자에게 묻는다. AppleScript 대안도 자동화 권한 대화상자를 띄우므로, 자동으로 그쪽으로 바꾸지 않는다.
+`node .scratch/agent-cli-terminal/poc.mjs`(plain), `poc.mjs quarantine`(격리 속성), `race.mjs 3`(열기 직후 삭제)로 2026-11-06에 확인했다. 패키징한 `app/dist/mac-arm64/Doan.app`을 Playwright `_electron.launch({ executablePath })`로 띄우고 `app/runtime/` 격리(임시 userData·HOME·가짜 SHELL·CLAUDE_CONFIG_DIR·CODEX_HOME)를 썼다. 쓰기(임시 이름 → rename, 0700)와 `shell.openPath`는 `electronApp.evaluate`로 main 프로세스 안에서 실행했다. 스크립트는 Return 뒤에 `echo doan-poc`와 `command -v`만 실행한다. 원본 로그와 스크린샷은 `.scratch/agent-cli-terminal/`에 있다(`status-plain.log`, `status-quarantine.log`, `race-status.log`, `*.png`).
+
+- **대화상자 (plain)**: 뜨지 않았다. `shell.openPath`는 두 번 모두 `""`를 돌려줬다. Doan이 쓴 `.command`의 확장 속성은 `com.apple.provenance`뿐이고 `com.apple.quarantine`은 없다. 권한은 `-rwx------`다.
+- **대화상자 (격리 속성)**: `app/dist`의 Doan.app을 그대로 `<임시 HOME>/Applications`에 복사하고 `com.apple.quarantine`(`0083;…;Safari;`)을 붙이면 앱이 시작하지 못한다. macOS가 "'Doan.app'은(는) 손상되었기 때문에 열 수 없습니다."를 띄운다. `app/dist`의 ad-hoc 서명이 깨져 있기 때문이다(`.agents/skills/tester-build/SKILL.md` 4단계). 그래서 tester-build 4단계대로 다시 서명하고(`codesign --force --deep --sign - --identifier design.doan.app`, `--verify --deep --strict` 통과), Open Anyway로 승인한 상태인 플래그 `00c3`을 붙여 다시 확인했다. 이때 대화상자는 뜨지 않았다. `openPath`는 `""`를 돌려줬고, 그 앱이 쓴 `.command`에도 `com.apple.quarantine`이 없다. 실제 Privacy & Security의 Open Anyway 절차와 LaunchServices로 연 앱은 확인하지 않았다. 앱은 실행 파일로 직접 띄웠다.
+- **Return 전 미실행**: plain·격리 모두 Return 전에는 결과 파일이 생기지 않았다. Return을 누른 뒤에만 생겼다. Terminal은 사람의 login 대화형 zsh에 `<경로> ; exit;`를 입력하는 방식으로 스크립트를 실행한다(창 내용).
+- **기다리는 창을 닫을 때**: Terminal이 시트를 띄운다. "이 윈도우에서 실행 중인 프로세스를 종료하겠습니까? / 이 윈도우를 닫으면 실행 중인 sh 프로세스가 중단됩니다." (버튼: 취소, 종료. `plain-2-close-confirmation.png`) 그래서 '스크립트'의 안내 문구를 `Press Return to run it, or press Control-C to cancel.`로 바꿔야 한다. 이 변경은 conductor가 batch B에 넘긴다. Control-C를 누르면 스크립트가 멈추고 명령은 실행되지 않는다. 다만 `; exit`까지 건너뛰어 창에 zsh 프롬프트가 남는다. 그 창은 시트 없이 닫혔다.
+- **Doan 전체 화면**: Doan 창이 전체 화면(`isFullScreen() === true`)일 때 연 경우에도, 열고 0.5·2·4초 뒤 `lsappinfo front`의 앞 앱은 Terminal이었다.
+- **경로**: 스크립트가 출력한 `command -v codex / claude / cursor-agent / copilot`(`/opt/homebrew/bin/codex`, `~/.local/bin/claude`, `~/.local/bin/cursor-agent`, `/opt/homebrew/bin/copilot`)이 실제 login shell의 읽기 전용 `$SHELL -lic 'command -v …'` 결과와 네 줄 모두 같다(plain·격리).
+- **`.command`의 기본 앱**: 이 기기에서는 `/System/Applications/Utilities/Terminal.app`이다(`NSWorkspace.URLForApplicationToOpenURL`). 기본 앱이 Terminal이 아닌 경우는 보지 못했다.
+- **열기 직후 이전 파일 삭제 (race)**: main 안에서 스크립트 1을 쓰고 `openPath`가 resolve되자마자(10~40ms) 지운 뒤 스크립트 2를 쓰고 열었다. 3회 반복했다. 1·2회에서 창 1은 `zsh: no such file or directory: …/codex-r1a.command`로 끝났다. 3회에서는 창 1을 보지 못했다. 세 번 모두 스크립트 1의 결과 파일은 생기지 않았다. 창 2는 매번 Return 뒤에 실행됐다. `openPath`는 Terminal의 shell이 파일을 읽기 전에 resolve된다. 그래서 '흐름' 3의 "이미 열린 창은 지운 파일을 계속 읽으므로 영향을 받지 않는다"는 맞지 않는다. 열고 바로 이전 파일을 지우면 그 창의 명령이 사라진다.
+- **Cursor `update` 하한**: Cursor CLI changelog(https://cursor.com/docs/cli/changelog)에는 `update` 하위 명령이 생긴 버전이 없다. 이 페이지의 가장 오래된 항목은 January 2026이다. 업데이트 관련 항목은 auto-update 수정("Parallel auto-updates can't corrupt an install, and `--disable-auto-update` turns background updates off", January 2026)과 `/update` 슬래시 명령(v2026.06.09)뿐이다. 페이지 머리말은 "`agent update` to upgrade in place"라고만 적는다. 다른 페이지(https://cursor.com/changelog)와 검색에서도 찾지 못했다. 그래서 하한은 현재 최소 버전 2026.10.22로 둔다. 설치된 `cursor-agent` 2026.10.22-27dcf5f의 `--help`에는 `update  Update Cursor Agent to the latest version`이 있다.
+- **Copilot `update` 위치**: 위치가 다르다. 설치된 Copilot 1.0.105(npm 전역)를 읽기만 해서 확인했다.
+  - `/opt/homebrew/bin/copilot` → `@github/copilot/npm-loader.js`(7행)는 `@github/copilot-darwin-arm64/copilot` 네이티브 바이너리를 실행할 뿐이다.
+  - `copilot update`(`~/Library/Caches/copilot/pkg/darwin-arm64/1.0.105/cli-main.js`의 `rjo`, offset 약 8292300 → `Ite` 약 723703)는 두 곳에 쓴다.
+    - (1) JS 패키지를 `_Nt()`에 받는다(약 725868). `~/.copilot/pkg`가 있으면 그곳, 없으면 `~/Library/Caches/copilot/pkg/<universal|darwin-arm64>/<버전>`이다.
+    - (2) `Zbr`(약 726935)가 `process.execPath`, 즉 npm 패키지 안의 네이티브 바이너리를 교체한다.
+  - 네이티브 바이너리는 시작할 때 자기 버전 이상인 캐시 패키지 중 가장 새것을 HOME 기준 경로에서만 고른다(바이너리 문자열 `Xi()`·`Wi()`: `COPILOT_PKG_CACHE_HOME`, `COPILOT_CACHE_HOME`, `~/Library/Caches/copilot/pkg`, XDG, `COPILOT_HOME`, `~/.copilot/pkg`).
+  - Doan은 Copilot을 `HOME=<profileDir>`로 실행한다(`agentAuth/environment.ts` 13·28행). 그래서 (1)은 Doan 실행에서 선택되지 않고 (2)만 선택된다.
+  - ToolFacts는 실제 HOME으로 `copilot --version`을 읽는다(`agentAuth/facts.ts` 31행, `launchEnv`). 그래서 바이너리 교체만 실패하면("downloaded, but the executable was not replaced", 종료 코드 1), Doan은 새 버전으로 판정하지만 대화는 옛 버전으로 실행된다.
+  - 결정(사용자): Copilot update는 설치 페이지로 간다. Copilot install(CLI 없음)은 터미널 명령을 유지한다.
+- **실제 상태**:
+  - 실제 CLI 버전은 PoC 전후로 같다(`codex-cli 0.166.0`, `2.1.318 (Claude Code)`, `2026.10.22-27dcf5f`, `GitHub Copilot CLI 1.0.105.`).
+  - quarantine과 race 실행에서는 real-state fingerprint를 비교했다. race는 변화가 없었다. quarantine에서는 `~/Library/Application Support/doan/ui-state.json`만 달라졌다. 그 내용이 실제 repo와 캔버스를 가리키므로, 실행 중이던 사람의 `/Applications/Doan.app`이 쓴 것이다. plain 실행은 node가 정리 단계 전에 끝나 fingerprint를 비교하지 못했다.
+- **AppleScript 대안**: 쓰지 않았다.
 
 ## 검토한 대안
 
