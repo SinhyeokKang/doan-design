@@ -15,7 +15,7 @@
 | # | 질문 | 답 | 근거 |
 |---|---|---|---|
 | 1 | R1을 실제 계정으로 돌릴까 | main checkout의 `.scratch/provider-profile/userData`(실제 HOME, 기존 로그인)를 재사용해 진행한다 | 사람 |
-| 2 | R1에서 Claude `fast_mode_state: "on"`을 어떻게 볼까 | 토큰(추가 사용량)이 남은 Claude 계정으로 바꿔 로그인한다. 로그인 승인은 사람이 브라우저에서 한다 | 사람 |
+| 2 | R1에서 Claude `fast_mode_state: "on"`을 어떻게 볼까 | 사람이 계정 교체를 요청해 Doan 프로필의 Claude를 다시 로그인했다. 결과는 같은 계정(B2B Product Group)이었다. 프롬프트 없는 `initializationResult()`에 flag를 넣으면 이 계정은 `on`이다. P2의 `extra_usage_disabled`는 터미널 기본 Claude 로그인에서 나왔다. 그래서 R1은 이 프로필로 `on`을 확인한다 | 사람, 확인은 conductor(`.scratch/fast-mode/p2-init.mjs`, 2026-11-06) |
 | 3 | P1·P2 확인 명령 | 이미 끝났다(tasks P1·P2 체크, design §8) | conductor 판단 — tasks |
 | 4 | B3 `/design-sync`에서 모델 목록을 어떻게 얻을까 | 결정 1의 프로필로 목록만 읽는다(프롬프트를 보내지 않는다). Fast 행은 목록이 있어야 보인다 | conductor 판단 — 결정 1과 같은 계정, 목록 읽기는 사용량을 쓰지 않는다 |
 | 5 | 계약 타입을 어디에 둘까 | 배치 C가 main 쪽 타입(`types.ts`, `models.ts`, `summary.ts`, `StartRequest`, preload send 요청)을 먼저 정한다. 그 뒤 M과 R을 나란히 돌린다 | conductor 판단 — preload와 renderer가 main 타입을 import하므로 파일 겹침 없이 병렬로 가려면 계약이 먼저 와야 한다 |
@@ -45,3 +45,7 @@
 ## 검토 기록
 
 (통합하면서 적는다)
+
+## Orca
+
+- Run `run_8fba8fe095f4`. C: task `task_34b06fe375f9`, dispatch `ctx_5d4e43326007`, worktree `fast-mode-C`(Codex `gpt-6.1-sol` medium, `launch.effective` 확인).
