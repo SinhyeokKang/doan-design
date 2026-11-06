@@ -165,8 +165,9 @@ export interface OnboardingProject { root: string }
 export type OnboardingChange = ".doan/config.json" | ".doan/canvases/" | ".gitattributes" | ".git/info/exclude";
 export interface OnboardingInspection {
   inspectionId: string;
-  // storage is only ever "local": present when the changes are planned for local or the project is already set up
-  // that way; absent means "repo".
+  // storage is only ever "local", and only in a reply to a request that carried storage: present when the changes are
+  // planned for local or the project is already set up that way; absent means "repo". A reply to a request without
+  // storage never carries it, so older clients (which reject unknown properties) can read it.
   candidates: { path: string; changes: OnboardingChange[]; storage?: "local" }[];
   clone?: { destination: string; changes: OnboardingChange[]; storage?: "local" };
 }

@@ -73,6 +73,37 @@ func TestValidationFixtures(t *testing.T) {
 	}
 }
 
+// A reply to a request without storage must stay readable by a client from before the storage field: its schema
+// rejects unknown properties, so such a reply may carry no storage key and no .git/info/exclude label.
+func TestStoragelessInspectionRepliesStayReadableByOlderClients(t *testing.T) {
+	files, err := filepath.Glob(filepath.Join("..", "..", "..", "schema", "fixtures", "app-socket-v2", "response", "valid", "*-storageless.json"))
+	if err != nil || len(files) < 2 {
+		t.Fatalf("storageless reply fixtures = %v, %v; want at least 2", files, err)
+	}
+	olderChanges := map[any]bool{".doan/config.json": true, ".doan/canvases/": true, ".gitattributes": true}
+	check := func(file, where string, item map[string]any, pathKey string) {
+		for key := range item {
+			if key != pathKey && key != "changes" {
+				t.Errorf("%s %s has key %q an older client rejects", filepath.Base(file), where, key)
+			}
+		}
+		for _, change := range item["changes"].([]any) {
+			if !olderChanges[change] {
+				t.Errorf("%s %s lists %v, which an older client rejects", filepath.Base(file), where, change)
+			}
+		}
+	}
+	for _, file := range files {
+		inspection := readJSON(t, file).(map[string]any)["result"].(map[string]any)["operation"].(map[string]any)["inspection"].(map[string]any)
+		for _, candidate := range inspection["candidates"].([]any) {
+			check(file, "candidate", candidate.(map[string]any), "path")
+		}
+		if clone, ok := inspection["clone"].(map[string]any); ok {
+			check(file, "clone", clone, "destination")
+		}
+	}
+}
+
 func TestSocketProtocolsStayApart(t *testing.T) {
 	pairs := []struct {
 		kind   string

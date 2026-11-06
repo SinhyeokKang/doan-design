@@ -136,6 +136,28 @@ describe("app-socket v5 text limit", () => {
   });
 });
 
+// A reply to a request without storage must stay readable by a client from before the storage field: its schema
+// rejects unknown properties, so such a reply may carry no storage key and no .git/info/exclude label.
+describe("app-socket v2 storage-less inspection replies stay readable by older clients", () => {
+  const files = fixtureFiles("app-socket-v2/response", "valid").filter((file) => file.endsWith("-storageless.json"));
+  const olderChanges = [".doan/config.json", ".doan/canvases/", ".gitattributes"];
+  type Item = Record<string, unknown> & { changes: string[] };
+  test("fixtures exist", () => expect(files.length).toBeGreaterThanOrEqual(2));
+  for (const file of files) {
+    test(file, () => {
+      const reply = readJson(new URL(file, fixtureDirectory("app-socket-v2/response", "valid"))) as {
+        result: { operation: { inspection: { candidates: (Item & { path: string })[]; clone?: Item & { destination: string } } } };
+      };
+      const { candidates, clone } = reply.result.operation.inspection;
+      const items: [Item, string][] = [...candidates.map((c): [Item, string] => [c, "path"]), ...(clone ? [[clone, "destination"] as [Item, string]] : [])];
+      for (const [item, pathKey] of items) {
+        expect(Object.keys(item).filter((key) => key !== pathKey && key !== "changes")).toEqual([]);
+        expect(item.changes.filter((change) => !olderChanges.includes(change))).toEqual([]);
+      }
+    });
+  }
+});
+
 describe("app-socket v1 and v2 stay apart", () => {
   const pairs: { kind: string; v1: Validate; v2: Validate }[] = [
     { kind: "request", v1: validateSocketRequest, v2: validateOnboardingRequest },
