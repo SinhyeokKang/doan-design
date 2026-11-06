@@ -1,5 +1,6 @@
 import type { AuthReason, AuthSnapshot } from "../main/agentAuth/ipc";
 import type { AuthAttempt, AuthErrorCode, AuthStatusDto, Provider } from "../main/agentAuth/types";
+import type { InstallResult } from "../main/installCommand";
 import type { SettingsTarget } from "./settingsSections";
 
 // Shared by onboarding, Settings, Home and conversations (2026-10-28 user). Copy follows the approved
@@ -11,7 +12,7 @@ const VENDORS: Record<Provider, string> = { claude: "Anthropic", codex: "OpenAI"
 const OPENS_OWN_BROWSER: readonly Provider[] = ["codex", "cursor", "copilot"];
 export const MAX_PASTE = 16384;
 
-export type AuthCommand = "install" | "update" | "signIn" | "reauth" | "signOut" | "check" | "cancel" | "openLink" | "pasteAddress" | "submitCode" | "read" | "dismiss";
+export type AuthCommand = "install" | "update" | "installPage" | "signIn" | "reauth" | "signOut" | "check" | "cancel" | "openLink" | "pasteAddress" | "submitCode" | "read" | "dismiss";
 // note: visible text shown next to the button (the Copilot request cost).
 export interface Button<C extends string = AuthCommand> { command: C; label: string; variant: "prominent" | "subtle" | "ghost"; disabled: boolean; ariaLabel?: string; note?: string }
 export type AuthButton = Button;
@@ -34,7 +35,10 @@ export interface ProviderView {
 // busyWith: the provider whose sign-in or sign-out holds the lock. autoCheck: the consumer checks unverified
 // connections itself when its screen opens (the onboarding Agent step), so the row may say so.
 // settings: the row is on Settings > Agents rather than the first-run Agent step (buzz-settings design 'Agents').
-export interface ProviderContext { prompt?: string | null; reply?: AuthReason | null; failures?: number; busyWith?: Provider | null; autoCheck?: boolean; settings?: boolean }
+// install: the latest Install or Update request's result on this row, set by the screen showing the rows.
+export interface ProviderContext { prompt?: string | null; reply?: AuthReason | null; failures?: number; busyWith?: Provider | null; autoCheck?: boolean; settings?: boolean; install?: InstallState | null }
+// checked: the window came back after it opened, and the return check ran.
+export interface InstallState { provider: Provider; action: "install" | "update"; result: InstallResult; checked: boolean }
 
 function button<C extends string>(command: C, label: string, variant: Button["variant"] = "prominent", disabled = false, ariaLabel?: string): Button<C> {
   return { command, label, variant, disabled, ...(ariaLabel ? { ariaLabel } : {}) };
@@ -72,8 +76,9 @@ function readinessView(status: AuthStatusDto, ctx: ProviderContext, view: Provid
   // Settings sorts rows into Connected and Not connected, so a ready row needs no Connected button of its own.
   if (r.ready) return ctx.settings ? view : { ...view, button: button("signIn", "Connected", "prominent", true, `Connected to ${name}`) };
   switch (r.cause) {
-    case "cli_missing": return { ...view, detail: "Not installed", button: button("install", "Install", "prominent", false, `Install ${name}`), helper: "After you install it, Doan checks again when you return." };
-    case "version_unsupported": return { ...view, detail: "This version is older than Doan supports.", button: button("update", "Update", "prominent", false, `Update ${name}`), helper: "After you update it, Doan checks again when you return." };
+    case "cli_missing": case "version_unsupported": return {
+      ...view, detail: r.cause === "cli_missing" ? "Not installed" : "This version is older than Doan supports.", ...installRowView({ cause: r.cause }, ctx.install ?? null, name),
+    };
     case "version_unknown": return { ...view, notice: alert(`Check that ${name} is installed correctly, then retry.`, [check(provider, "Retry", true)], `Couldn’t read the ${name} version`) };
     case "version_incompatible": return { ...view, notice: alert(`Update ${name} or wait for a Doan update, then retry.`, [check(provider, "Retry", true)], `Doan can’t run this ${name} version`) };
     case "sign_out_failed": return { ...view, notice: alert(`Doan couldn’t sign out of ${name}. Sign out again before you use it.`, [button("signOut", "Sign out")]) };
@@ -110,6 +115,27 @@ function readinessView(status: AuthStatusDto, ctx: ProviderContext, view: Provid
     case "busy": return { ...view, button: button("signIn", "Sign in", "prominent", true, `Sign in to ${name}`) };
   }
 }
+
+// A row whose CLI is missing or below the minimum, after its Install or Update (agent-cli-terminal design '행 상태와 문구').
+// The row keeps one button; a state left from the other action reads as before the click.
+export function installRowView(readiness: { cause: "cli_missing" | "version_unsupported" }, install: InstallState | null, name: string): Pick<ProviderView, "button" | "helper" | "notice"> {
+  const action = readiness.cause === "cli_missing" ? "install" : "update";
+  const label = action === "install" ? "Install" : "Update";
+  const before = `After you ${action} it, Doan checks again when you return.`;
+  const primary = button(action, label, "prominent", false, `${label} ${name}`);
+  const state = install?.action === action ? install : null;
+  switch (state?.result) {
+    case undefined: return { button: primary, helper: before, notice: null };
+    case "failed": return { button: primary, helper: null, notice: alert(`Couldn’t open Terminal to ${action} ${name}. Open the install page to ${action} it yourself.`, [button("installPage", "Open install page", "prominent", false, `Open the ${name} install page`)]) };
+    case "pageFailed": return { button: primary, helper: null, notice: alert(`Couldn’t open the ${name} install page.`, []) };
+    case "terminal": case "page": {
+      const helper = state.result === "terminal" ? `Terminal is open with the ${action} command. Press Return there, then come back to Doan.` : before;
+      // The return check already ran, so the cause is still there: this check re-reads tool facts and costs nothing.
+      return { button: state.checked ? button("check", "Check again", "prominent", false, `Check ${name} again`) : primary, helper, notice: null };
+    }
+  }
+}
+export function installedAnnouncement(provider: Provider, action: InstallState["action"]): string { return `${PROVIDER_NAMES[provider]} is ${action === "install" ? "installed" : "updated"}.`; }
 
 export function providerView(status: AuthStatusDto, ctx: ProviderContext = {}): ProviderView {
   const { provider, attempt } = status, name = PROVIDER_NAMES[provider];

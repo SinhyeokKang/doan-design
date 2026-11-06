@@ -287,12 +287,16 @@ test("an arrival with a provider focuses its row group and flashes it for 2.4 s"
 
 // agent-cli-terminal T4: the row's install states on Settings, with the click handler's own promise awaited (POSTMORTEM
 // 2026-10-25 UX K: a fixed pause let an unconsumed stale error pass).
+// Row notices and their buttons are components (NoticeView, ActionButton); drawn here as React would.
+const NOTICE_PARTS = new Set(["NoticeView", "ActionButton"]);
+const drawn = (node: ReactNode): ReactElement<Record<string, unknown>>[] => all(node).flatMap(element =>
+  typeof element.type === "function" && NOTICE_PARTS.has(element.type.name) ? [element, ...drawn((element.type as (props: unknown) => ReactNode)(element.props))] : [element]);
 const click = (provider: Provider, command: string) => {
-  const button = all(row(provider)).find(element => element.props["data-command"] === command);
+  const button = drawn(row(provider)).find(element => element.props["data-command"] === command && element.type === "button");
   if (!button) throw new Error(`no ${command} on ${provider}`);
   return (button.props.onClick as () => Promise<void> | undefined)();
 };
-const alerts = () => all(tree).filter(element => element.props.role === "alert").map(element => words(element.props.children));
+const alerts = () => drawn(tree).filter(element => element.props.role === "alert").map(element => words(element.props.children));
 
 test("Install opens Terminal: the row says to press Return there, and after the return check offers Check again", async () => {
   auth = { revision: 1, providers: [dto("claude"), dto("codex", { account: false, facts: { cli: "missing" } })] };
@@ -327,7 +331,7 @@ test("a Terminal that would not open puts the alert on its row with Open install
   await click("codex", "installPage");
   render();
   expect(api.openInstallPage).toHaveBeenCalledWith("codex");
-  const failed = all(row("codex")).find(element => element.props.role === "alert")!;
+  const failed = drawn(row("codex")).find(element => element.props.role === "alert")!;
   expect(words(failed.props.children)).toBe("Couldn’t open the Codex install page.");
   // On the white page the row notice keeps the default look: error tone, alert icon, no panel.
   expect(failed.props.className).toBe("doan-notice error");

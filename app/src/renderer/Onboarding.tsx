@@ -2,6 +2,7 @@ import { useEffect, useReducer, useRef, useState, type DragEvent, type RefObject
 import { ArrowLeft, ArrowRight, Check, Folder } from "lucide-react";
 import type { Provider } from "../main/agentAuth/types";
 import type { OnboardingState } from "../formats/types";
+import type { DoanApi } from "../preload";
 import { nextFocusIndex } from "./onboardingView";
 import { noAgentReadyNotice, type AuthCommand, type Button, type Notice, type ProviderView, type pasteDialog, type stopDialog } from "./agentAuthView";
 import { AgentStepSession } from "./agentStep";
@@ -18,7 +19,10 @@ const FOCUSABLE = 'button:not(:disabled), input:not(:disabled), [href], [tabinde
 // file:// renderer resolves them next to index.html.
 const LOGOS: Record<Provider, string> = { claude: "claude.png", codex: "codex.png", cursor: "cursor.svg", antigravity: "antigravity.svg", copilot: "copilot.svg" };
 
-// Antigravity has no install page: Doan downloads its sign-in server itself (design 'Install·Update 안내 URL').
+// Antigravity has no install command or page: Doan downloads its sign-in server itself (design 'Install·Update 안내 URL').
+function openInstall(provider: Provider): ReturnType<DoanApi["openInstall"]> {
+  return provider === "antigravity" ? Promise.resolve("failed") : window.doan.openInstall(provider);
+}
 function openInstallPage(provider: Provider): Promise<boolean> {
   return provider === "antigravity" ? Promise.resolve(false) : window.doan.openInstallPage(provider);
 }
@@ -198,7 +202,7 @@ export function AgentStep({ session, heading, back, next }: { session: AgentStep
   const run = (provider: Provider) => (command: AuthCommand) => {
     // The paste modal returns focus itself (its button, else the heading).
     watch.current = command === "pasteAddress" || !(document.activeElement instanceof HTMLElement) ? null : { provider, node: document.activeElement };
-    session.command(provider, command);
+    return session.command(provider, command);
   };
   const stop = session.stopView(), paste = session.pasteView();
   return <>
@@ -207,7 +211,6 @@ export function AgentStep({ session, heading, back, next }: { session: AgentStep
       <p>{list.anyReady ? "You’re connected. Add another agent or continue." : "Sign in to at least one agent to continue."}</p>
     </div>
     {list.notice && <div className="ob-list-notice"><NoticeView panel notice={list.notice} run={command => { if (command === "read") session.retryRead(); }} /></div>}
-    {state.installError && <div className="doan-notice error doan-panel ob-list-notice" role="alert"><AlertIcon /><span>{state.installError}</span></div>}
     {list.providers.length > 0 && <div className="doan-panel ob-provider-list">{list.providers.map(view => <ProviderRow key={view.provider} view={view} run={run(view.provider)} />)}</div>}
     <p className="ob-fine">{list.anyReady ? "You can manage your connections later in Settings." : "Your agent account stays on this Mac."}</p>
     <p className="ob-live" role="status">{state.announcement?.text}</p>
@@ -604,7 +607,7 @@ export function SceneScroll({ children }: { children: React.ReactNode }) {
 // drive the same session; its completion closes this window too.
 export function Wizard({ session, projects, homeDirectory, onClose, mainCheckout }: { session: string; projects: readonly string[]; homeDirectory: string | null; onClose: (root: string | null) => void; mainCheckout: (path: string) => boolean }) {
   const [, redraw] = useReducer((n: number) => n + 1, 0);
-  const [agents] = useState(() => new AgentStepSession({ api: window.doan, openInstall: openInstallPage, hasFocus: () => document.hasFocus(), changed: redraw, signIn: agentSignIn() }));
+  const [agents] = useState(() => new AgentStepSession({ api: window.doan, openInstall, openInstallPage, hasFocus: () => document.hasFocus(), changed: redraw, signIn: agentSignIn() }));
   const projectsRef = useRef(projects);
   projectsRef.current = projects;
   const homeRef = useRef(homeDirectory);
