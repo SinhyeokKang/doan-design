@@ -135,6 +135,14 @@
   - (d) dmg 서명의 Timestamp. `dmg.js`는 `--timestamp` 없이 codesign을 부른다.
   - (e) quarantine을 붙인 복사본의 spctl 결과.
   - 결과가 다르면 §3을 먼저 고친다.
+- **P1 결과(2026-11-06, origin/main `f5f250f`, electron-builder 26.18.0, macOS 26.6.2)**: 모두 통과했다. §3의 절차는 바꾸지 않는다.
+  - (a) §3 1의 명령이 그대로 돌았다. identity는 `"Sinhyeok Kang (7H4HNHTB45)"`로 넘겼다. 처음 서명할 때 키체인 허용을 사람이 눌렀다.
+  - (b) `codesign --verify --deep --strict`가 통과했다. `Contents/` 아래 Mach-O 21개가 모두 Developer ID authority, `runtime`, Timestamp를 가졌다. 여기에는 `Resources/bin/doan`, node-pty `darwin-arm64`와 `darwin-x64`의 `pty.node`·`spawn-helper`가 들어간다. win32 파일은 Mach-O가 아니라서 서명되지 않았고, 공증에도 걸리지 않았다. 앱 본체, `bin/doan`, `spawn-helper`, Renderer helper의 entitlements는 `allow-jit`와 `allow-unsigned-executable-memory` 둘뿐이었다. designated requirement는 `identifier "design.doan.app" and anchor apple generic and … certificate leaf[subject.OU] = "7H4HNHTB45"`였다.
+  - (c) 앱 공증(id `79987874-6ea4-45a6-925e-b5a77251ad02`)은 `Accepted`, issues 없음이었다. 제출부터 결과까지 약 41분 걸렸고, 빌드 전체는 2,727초였다. 팀의 첫 제출이었다. 출력에 "notarization successful"이 나왔고, 앱 id는 `notarytool history`에서 읽혔다. dmg 공증(id `d64872c6-7a22-4c01-b6ff-86ead01af5e0`)은 72초 만에 `Accepted`, issues 없음이었다. API 키 역할 Developer로 충분했다.
+  - (d) dmg는 Developer ID authority와 Timestamp(14:58:43)를 가졌다. `--timestamp` 없이도 Timestamp가 붙었다.
+  - (e) `stapler staple`·`validate`가 dmg에서 처음 시도에 통과했다. 앱의 `stapler validate`도 통과했다. quarantine을 붙인 dmg 복사본은 `spctl -a -t open --context context:primary-signature`에서 `accepted`, `source=Notarized Developer ID`였다. 그 dmg에서 마운트한 앱은 `spctl -a -t exec`에서 같은 결과였고, `bin/doan design-skill --json`의 `version`은 `0.1.0`이었다.
+  - 첫 제출의 앱 공증은 41분 걸려 dmg 상한(30분)을 넘었을 것이다. 앱 공증에는 상한이 없어서 이번에는 기다렸다. 다음 빌드들의 시간을 보고 상한을 다시 정할지 판단한다.
+  - 이 결과물은 그대로 tester dmg로 `~/Desktop/Doan-tester-2026-11-06-f5f250f.dmg`에 두었다(사람 요청, 테스터 대기).
 - **P2 서명한 앱 실행**: HOME, SHELL, `CLAUDE_CONFIG_DIR`, `CODEX_HOME`은 AGENTS.md 'Commands'의 dev 실행처럼 격리한다. 프로브는 `.scratch/tester-notarization/`에 둔다.
   - (a) P1의 앱을 staging(Applications 밖)에서 `Contents/MacOS/Doan --user-data-dir=<tmp> --inspect=<port>`로 실행하고 메인 창 로드 이벤트를 기록한다.
   - (b) 같은 실행에서 main inspector로 `require('node-pty')`를 불러 pty 하나(`/bin/echo`)를 spawn하고, 출력과 exit 이벤트를 기록한다. 번들 CLI `Contents/Resources/bin/doan design-skill --json`의 `version`을 `app/package.json` 버전과 비교한다.

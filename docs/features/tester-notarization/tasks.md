@@ -19,7 +19,7 @@
 
 ## P. PoC(설정과 skill을 고치기 전)
 
-- [ ] P1. design §8 P1: origin/main을 design §3대로 서명·공증한다. 사람이 자리에 있는지 먼저 묻는다(키체인 Always Allow).
+- [x] P1. design §8 P1: origin/main을 design §3대로 서명·공증한다. 사람이 자리에 있는지 먼저 묻는다(키체인 Always Allow).
   - entitlements는 design §4의 처음 내용으로 만든 `.scratch/` 파일을 절대 경로로 `-c.mac.entitlements`·`-c.mac.entitlementsInherit`에 넘긴다.
   - 산출물은 `.scratch/tester-notarization/`에만 두고 Desktop에 복사하지 않는다.
   - 검증(명령 미정): spec '`/tester-build` 결과'의 codesign·entitlements·designated requirement·dmg Timestamp·stapler·spctl 항목이 모두 통과한다. design §8 P1 (a)–(e)의 관찰(날짜 포함)을 design §8에 적고, §3을 확정 절차로 고친다.
