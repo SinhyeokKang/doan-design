@@ -10,6 +10,7 @@
 6. **터미널 세션 고정 트리거**: 값을 모르는 자리는 서랍 이름을 보인다: "Effort", "Permission".
 7. **docked tray 간격**(사람, 2026-11-06, 초안 round 3): tray의 모든 컨트롤(Attach, Pick, 모델, 노력, 권한) 사이를 2px, 마지막 피커와 context ring 사이를 4px로 줄인다(출시: 4px, 링 앞 8px). 이 간격은 이미 출시된 tray를 바꾸므로 B2(`/design-sync`)에서 재고, Z1에서 DESIGN.md의 tray 측정값을 고친다.
 8. **docked 단계**(사람, 2026-11-06, 초안 round 4): 모델 이름이 끝까지 보이도록 권한은 내용 폭 432 아래(출시 384), 노력은 384 아래(출시 288)에서 아이콘만 보인다. 모델 라벨은 320 아래에서 줄어든다. 경계는 가장 긴 라벨 조합("GPT-5.6-Terra", "Extra high"+Fast 아이콘, "Ask first")을 초안에서 잰 값이다: 라벨 모두 432, 권한 아이콘 381, 둘 다 아이콘 320. B2에서 실제 앱으로 다시 잰다.
+9. **값이 없는 트리거의 글**(사람, 2026-11-06): 서랍 이름("Model", "Effort", 터미널 고정 트리거의 "Effort"·"Permission")은 metadata 잉크로 그려 고른 값과 구별한다.
 
 ## 1. 영향받는 구성 요소
 
@@ -99,4 +100,4 @@ UI 문구는 영어다.
 - `docked-widths`: 384~400과 288에서 "Ask first + GPT-6-Luna + Extra high"가 넘치지 않는지.
 - `settings`: Settings > New conversations의 세 행과 Model 메뉴 맨 위 Default 행.
 
-상태: 초안 round 2, 사람 확인 전. round 2(사람, 2026-11-06)에서 노력 메뉴와 트리거에 fast-mode의 Fast 행과 아이콘을 넣었다(이 feature는 fast-mode 병합 뒤 시작한다). Chromium 렌더링: 권한 설명 세 개는 280px 메뉴에서 두 줄이다. docked에서 "Extra high"+Fast 아이콘+"Ask first"이면 모델 라벨이 420(내용 396)에서 "GPT…", 360·288에서 "G…"까지 줄어든다. 384·288 단계를 옮길지는 B2(`/design-sync`)에서 정한다.
+상태: 사람 확인(2026-11-06, round 4 확정). round 2에서 노력 메뉴와 트리거에 fast-mode의 Fast 행과 아이콘을 넣었고, round 3·4에서 docked tray 간격(결정 7)과 단계(결정 8)를 바꿨다. Chromium 렌더링: 권한 설명 세 개는 280px 메뉴에서 두 줄이다. 새 단계에서 가장 긴 조합의 모델 이름은 내용 폭 320 이상에서 다 보인다.

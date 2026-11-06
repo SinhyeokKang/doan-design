@@ -6,9 +6,9 @@
 
 ## D. UI 초안
 
-- [ ] D1. `/design-draft picker-default-labels`: design §8대로 `.doan/canvases/picker-default-labels.html`(frame `triggers`, `menus`, `docked-widths`, `settings`)을 그린다. 글은 `doan design-skill clarify --json`을 읽고 design §5를 다듬는다.
+- [x] D1. `/design-draft picker-default-labels`: design §8대로 `.doan/canvases/picker-default-labels.html`(frame `triggers`, `menus`, `docked-widths`, `settings`)을 그린다. 글은 `doan design-skill clarify --json`을 읽고 design §5를 다듬는다.
   - 검증: `doan check --json --repo .`에 이 캔버스의 finding이 없고, `doan ls --json --repo .`가 canvas id `picker-default-labels`와 frame 네 개를 보인다.
-- [ ] D2. 사람이 앱에서 초안을 확인한다.
+- [x] D2. 사람이 앱에서 초안을 확인했다(2026-11-06, round 4).
   - 검증: 명령 미정 — 사람 확인 필요. design §8 상태가 "사람 확인(날짜)"이고, 다듬은 글이 design §5에 있다.
 
 커밋 경계: D1·D2(`docs(design): picker-default-labels draft`).
