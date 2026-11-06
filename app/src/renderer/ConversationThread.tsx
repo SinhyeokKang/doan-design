@@ -212,7 +212,7 @@ const PLUGINS = [remarkGfm];
 // A finished message parses once; a streaming one parses at most once per animation frame (design §0).
 // remark-gfm's footnotes take fixed ids: clobberPrefix renames the notes, and the label ("footnote-label", which every
 // reference names in aria-describedby) is renamed here, so two messages never share an id.
-type HastNode = { properties?: Record<string, unknown>; children?: HastNode[] };
+type HastNode = { type?: string; tagName?: string; value?: string; properties?: Record<string, unknown>; children?: HastNode[] };
 function labelPrefix(prefix: string) {
   const label = `${prefix}-footnote-label`;
   const visit = (node: HastNode) => {
@@ -223,8 +223,29 @@ function labelPrefix(prefix: string) {
   };
   return () => visit;
 }
-const MarkdownText = memo(function MarkdownText({ text, prefix }: { text: string; prefix: string }) {
-  return <Markdown remarkPlugins={PLUGINS} rehypePlugins={[labelPrefix(prefix)]} remarkRehypeOptions={{ clobberPrefix: `${prefix}-` }} components={COMPONENTS} urlTransform={replyUrlTransform}>{text}</Markdown>;
+// The streaming caret follows the reply's last character (turn-activity frame reply): it goes inside the last text
+// block, never beside the blocks, where .msg-agent's flex column would put it on its own line. Containers are entered
+// down to their last child; an element whose last child is text or inline content takes the caret. A code block's text
+// ends in the line break mdast-util-to-hast adds, so the caret goes before it, on the code's last line. With no text
+// block yet (an empty reply, or one ending in a rule) the caret stays after the blocks.
+const BLOCKS = new Set(["p", "h1", "h2", "h3", "h4", "h5", "h6", "ul", "ol", "li", "blockquote", "pre", "table", "thead", "tbody", "tr", "td", "th", "section"]);
+const caret = (): HastNode => ({ type: "element", tagName: "span", properties: { className: ["caret"], ariaHidden: "true" }, children: [] });
+// Line breaks between blocks are whitespace text nodes, not content.
+const lastContent = (node: HastNode) => node.children?.filter(child => child.type !== "text" || child.value?.trim()).at(-1);
+const enters = (host: HastNode, child: HastNode | undefined): child is HastNode =>
+  child?.type === "element" && (BLOCKS.has(child.tagName ?? "") || (host.tagName === "pre" && child.tagName === "code"));
+function streamingCaret() {
+  return (root: HastNode) => {
+    let host = root;
+    for (let last = lastContent(host); enters(host, last); last = lastContent(host)) host = last;
+    const children = host.children ??= [];
+    const end = children.at(-1);
+    if (host.tagName === "code" && end?.type === "text" && end.value?.endsWith("\n")) children.splice(-1, 1, { type: "text", value: end.value.slice(0, -1) }, caret(), { type: "text", value: "\n" });
+    else children.push(caret());
+  };
+}
+const MarkdownText = memo(function MarkdownText({ text, prefix, streaming }: { text: string; prefix: string; streaming: boolean }) {
+  return <Markdown remarkPlugins={PLUGINS} rehypePlugins={streaming ? [labelPrefix(prefix), streamingCaret] : [labelPrefix(prefix)]} remarkRehypeOptions={{ clobberPrefix: `${prefix}-` }} components={COMPONENTS} urlTransform={replyUrlTransform}>{text}</Markdown>;
 });
 function useFrameText(text: string, streaming: boolean): string {
   const [shown, setShown] = useState(text);
@@ -246,7 +267,7 @@ function AgentMessage({ text, streaming, className = "msg-agent md" }: { text: s
   const shownFor = noted ? chip : null;
   const note = useMemo(() => ({ shownFor, show: (key: string) => { setChip(key); show(); } }), [shownFor]);
   return <ReplyNote.Provider value={note}>
-    <div className={className}><MarkdownText text={shown} prefix={prefix} />{streaming && <span className="caret" aria-hidden="true" />}</div>
+    <div className={className}><MarkdownText text={shown} prefix={prefix} streaming={streaming} /></div>
     {shownFor && <span className="chip-missing" id={`${shownFor}-missing`} role="status">{LOCATE_MISSING_TEXT}</span>}
   </ReplyNote.Provider>;
 }
