@@ -24,12 +24,17 @@ describe("installChoice", () => {
     ["claude", "claude update", "Update Claude Code", "2.0.66", "2.0.67", "2.0.68"],
     ["codex", "codex update", "Update Codex", "0.125.0", "0.126.0", "0.150.0"],
     ["cursor", "cursor-agent update", "Update Cursor", "2026.10.21", "2026.10.22", "2026.10.23"],
-    ["copilot", "copilot update", "Update GitHub Copilot", "0.0.395", "0.0.396", "0.0.397"],
   ] as const)("updates %s only from the first version that has the update subcommand", (provider, command, title, under, at, over) => {
     expect(installChoice(provider, below(under))).toEqual({ kind: "page" });
     for (const installed of [at, over]) {
       expect(installChoice(provider, below(installed))).toEqual({ kind: "terminal", action: "update", command, title, url: INSTALL_URLS[provider] });
     }
+  });
+
+  // copilot update can replace a package Doan's Copilot never runs (HOME=<profileDir>), so updating is the page's job.
+  it("opens the install page for every below-minimum Copilot, but installs a missing one in Terminal", () => {
+    for (const installed of ["0.0.395", "0.0.396", "1.0.88", "1.0.88-beta.1"]) expect(installChoice("copilot", below(installed))).toEqual({ kind: "page" });
+    expect(installChoice("copilot", missing)).toMatchObject({ kind: "terminal", action: "install" });
   });
 
   it("compares a suffixed version by its x.y.z", () => {
@@ -57,28 +62,43 @@ describe("terminalScript", () => {
   const install = installChoice("codex", missing) as TerminalChoice;
   let dir: string | undefined;
   afterEach(() => { if (dir) rmSync(dir, { recursive: true, force: true }); dir = undefined; });
-  // Runs the script the way Terminal does, with the command replaced by a harmless one.
-  function run(choice: TerminalChoice, input: string): { stdout: string; status: number | null } {
+  // Runs the script from its file the way Terminal does, with the command replaced by a harmless one. Never with
+  // sh -c: the script removes "$0".
+  function runScript(script: string, input: string): { stdout: string; status: number | null; file: string } {
     dir = mkdtempSync(join(tmpdir(), "doan-install-script-"));
-    const result = spawnSync("/bin/sh", ["-c", terminalScript(choice, "Codex")], { cwd: dir, input, encoding: "utf8" });
-    return { stdout: result.stdout, status: result.status };
+    const file = join(dir, "codex-test.command");
+    writeFileSync(file, script, { mode: 0o700 });
+    const result = spawnSync("/bin/sh", [file], { cwd: dir, input, encoding: "utf8" });
+    return { stdout: result.stdout, status: result.status, file };
   }
+  const run = (choice: TerminalChoice, input: string) => runScript(terminalScript(choice, "Codex"), input);
 
   it("starts with a /bin/sh shebang and shows the update command before waiting", () => {
     const script = terminalScript(update, "Codex");
     expect(script.startsWith("#!/bin/sh\n")).toBe(true);
     const { stdout } = run({ ...update, command: "true" }, "");
-    expect(stdout).toBe("Update Codex\nThis command updates Codex:\n\n  true\n\nPress Return to run it, or close this window to cancel.\n");
+    expect(stdout).toBe("Update Codex\nThis command updates Codex:\n\n  true\n\nPress Return to run it, or press Control-C to cancel.\n");
   });
 
   it("titles and describes an install", () => {
     const { stdout } = run({ ...install, command: "true" }, "");
-    expect(stdout).toBe("Install Codex\nThis command installs Codex:\n\n  true\n\nPress Return to run it, or close this window to cancel.\n");
+    expect(stdout).toBe("Install Codex\nThis command installs Codex:\n\n  true\n\nPress Return to run it, or press Control-C to cancel.\n");
   });
 
   it("writes the fixed command itself into the script", () => {
     expect(terminalScript(update, "Codex")).toContain("\ncodex update\n");
     expect(terminalScript(install, "Codex")).toContain("\ncurl -fsSL https://chatgpt.com/codex/install.sh | sh\n");
+  });
+
+  // Terminal reads the file only after openPath resolved, so Doan cannot remove it; the running sh already has it open.
+  it("removes its own file first, so no script is left once a window started it", () => {
+    expect(terminalScript(update, "Codex").startsWith(`#!/bin/sh\nrm -f -- "$0"\n`)).toBe(true);
+    const { file, stdout } = run({ ...update, command: "true" }, "");
+    expect(existsSync(file)).toBe(false);
+    expect(stdout.startsWith("Update Codex\n")).toBe(true);
+    const ran = run({ ...update, command: "touch ran" }, "\n");
+    expect(existsSync(ran.file)).toBe(false);
+    expect(existsSync(join(dir!, "ran"))).toBe(true);
   });
 
   it("runs nothing until Return", () => {
@@ -89,7 +109,7 @@ describe("terminalScript", () => {
   it("tells the person to go back to Doan when the command exits 0", () => {
     const { stdout } = run({ ...update, command: "touch ran" }, "\n");
     expect(existsSync(join(dir!, "ran"))).toBe(true);
-    expect(stdout.endsWith("Press Return to run it, or close this window to cancel.\nFinished. Go back to Doan to continue.\n")).toBe(true);
+    expect(stdout.endsWith("Press Return to run it, or press Control-C to cancel.\nFinished. Go back to Doan to continue.\n")).toBe(true);
   });
 
   it.each([
@@ -98,13 +118,13 @@ describe("terminalScript", () => {
   ] as const)("names the install page when the command fails", (choice, line) => {
     expect(choice.url).toBe(INSTALL_URLS.codex);
     const { stdout } = run({ ...choice, command: "false" }, "\n");
-    expect(stdout.endsWith(`Press Return to run it, or close this window to cancel.\nThe command failed. See the output above.\n${line}\n`)).toBe(true);
+    expect(stdout.endsWith(`Press Return to run it, or press Control-C to cancel.\nThe command failed. See the output above.\n${line}\n`)).toBe(true);
   });
 
   // The install commands pipe curl into a shell: a failed download must not end as Finished.
   it("reports a failure of any piped stage, without changing the shown command", () => {
     const { stdout } = run({ ...install, command: "false | true" }, "\n");
-    expect(stdout).toBe("Install Codex\nThis command installs Codex:\n\n  false | true\n\nPress Return to run it, or close this window to cancel.\n" +
+    expect(stdout).toBe("Install Codex\nThis command installs Codex:\n\n  false | true\n\nPress Return to run it, or press Control-C to cancel.\n" +
       "The command failed. See the output above.\nTo install Codex another way, open https://learn.chatgpt.com/docs/codex/cli\n");
     expect(terminalScript(install, "Codex")).toContain("\nset -o pipefail 2>/dev/null\ncurl -fsSL https://chatgpt.com/codex/install.sh | sh\n");
   });
@@ -113,8 +133,8 @@ describe("terminalScript", () => {
     const odd: TerminalChoice = { kind: "terminal", action: "install", command: "printf '%s' x", title: "Install O'Brien", url: "https://example.com/it's" };
     const script = terminalScript(odd, "O'Brien");
     expect(script).toContain(`'Install O'\\''Brien'`);
-    const ran = spawnSync("/bin/sh", ["-c", script], { input: "\n", encoding: "utf8" });
-    expect(ran.stdout).toBe("Install O'Brien\nThis command installs O'Brien:\n\n  printf '%s' x\n\nPress Return to run it, or close this window to cancel.\nxFinished. Go back to Doan to continue.\n");
+    const ran = runScript(script, "\n");
+    expect(ran.stdout).toBe("Install O'Brien\nThis command installs O'Brien:\n\n  printf '%s' x\n\nPress Return to run it, or press Control-C to cancel.\nxFinished. Go back to Doan to continue.\n");
   });
 });
 
@@ -142,28 +162,42 @@ describe("createInstallOpener", () => {
     expect(t.deps.openExternal).not.toHaveBeenCalled();
   });
 
-  it("removes the previous files and writes the new script under a new name", async () => {
+  it("clears files an earlier session left only on its first open, and removes nothing later", async () => {
     const t = opener();
     mkdirSync(t.dir, { recursive: true });
     writeFileSync(join(t.dir, "claude-old.command"), "old");
     writeFileSync(join(t.dir, ".codex-left.tmp"), "left");
     expect(await t.open("claude", missing)).toBe("terminal");
     const first = readdirSync(t.dir);
-    expect(first).toHaveLength(1);
-    expect(first[0]).toMatch(/^claude-[0-9a-f]+\.command$/);
-    expect(first[0]).not.toBe("claude-old.command");
+    expect(first).toEqual([expect.stringMatching(/^claude-[0-9a-f]+\.command$/)]);
     expect(await t.open("claude", missing)).toBe("terminal");
     const second = readdirSync(t.dir);
-    expect(second).toHaveLength(1);
-    expect(second[0]).not.toBe(first[0]);
+    expect(second).toHaveLength(2);
+    expect(second).toContain(first[0]);
+    // The next app session starts with a new opener and clears this session's unstarted scripts.
+    const next = createInstallOpener(t.deps);
+    expect(await next("codex", missing)).toBe("terminal");
+    expect(readdirSync(t.dir)).toEqual([expect.stringMatching(/^codex-/)]);
   });
 
-  it("finishes one open before the next one's cleanup, so a concurrent open never loses the file it opens", async () => {
-    const opened: boolean[] = [];
-    const t = opener(async path => { opened.push(existsSync(path)); return ""; });
+  // openPath resolves before Terminal's shell reads the file (T1 race probe): Terminal is a late reader.
+  it("leaves an earlier script for its window to read after a later open completed", async () => {
+    const t = opener();
+    expect(await t.open("codex", missing)).toBe("terminal");
+    expect(await t.open("cursor", missing)).toBe("terminal");
+    const [first] = t.deps.openPath.mock.calls[0]!;
+    expect(readFileSync(first, "utf8")).toBe(terminalScript(installChoice("codex", missing) as TerminalChoice, "Codex"));
+  });
+
+  it("keeps every script of concurrent first opens: the first clear runs before any of them writes", async () => {
+    const t = opener();
+    mkdirSync(t.dir, { recursive: true });
+    writeFileSync(join(t.dir, "claude-old.command"), "old");
     expect(await Promise.all([t.open("codex", missing), t.open("cursor", missing), t.open("copilot", missing)])).toEqual(["terminal", "terminal", "terminal"]);
-    expect(opened).toEqual([true, true, true]);
-    expect(readdirSync(t.dir)).toEqual([expect.stringMatching(/^copilot-/)]);
+    const opened = t.deps.openPath.mock.calls.map(([path]) => path);
+    expect(opened).toHaveLength(3);
+    for (const path of opened) expect(existsSync(path)).toBe(true);
+    expect(readdirSync(t.dir)).toHaveLength(3);
   });
 
   it("fails without opening anything when the directory cannot be made", async () => {
