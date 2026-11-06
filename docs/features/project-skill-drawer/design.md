@@ -246,6 +246,9 @@
 25. **"Project" 탭 안 skill 행은 이름순이다.** 이유: provider가 바뀌어도 같은 저장소는 같은 순서로 보인다.
 26. **검색 문구**: 결과 없음 "No presets or skills match “<q>”.", 목록 접근 이름 "<n> preset(s) and <m> skill(s) match <q>"(예: "1 preset and 1 skill match rev", "2 skills match dep"), placeholder "Search presets and skills"(skill이 없으면 "Search presets"). clarify preset으로 다듬은 초안의 문구를 사람이 확인했다.
 
+27. **queue에서 합친 메시지의 고정 줄은 문단마다 뗀다.** 말풍선, 되돌린 draft, 한 줄 글은 각 문단 맨 앞의 고정 줄 묶음(preset 줄, skill 줄)을 떼고 보인다. agent에게 가는 글(`combineQueued`)은 바꾸지 않는다(사람, 2026-11-07, RB 리뷰). 이유: 표시만 고쳐 spec 완료 조건 7을 지키고, main의 결합 규칙과 agent가 받는 글은 그대로 둔다.
+28. **고정 줄을 떼고 남는 글이 없으면 대화 제목은 preset title이다**(예: "Polish"). preset도 없으면(skill 줄만 있고 글이 빈 경우는 없다. skill 줄은 글 속 단어에서 나온다) 지금 규칙 그대로다(사람, 2026-11-07, RB 리뷰). 이유: 고정 줄 원문을 제목에 보이지 않으면서(결정 18) 무엇을 보냈는지 알 수 있다.
+
 ## 결정할 점
 
 없음. 남은 확인은 PoC(P1–P3, P5)와 R1의 결과로 정한다: Claude의 거르기 규칙(P1), 따르지 않는 provider의 길(P2, 결정 3·8), 최소 버전(P3), Antigravity stub(P5, 결정 9), span 그리기의 IME·caret 문제(R1, 결정 12·20).

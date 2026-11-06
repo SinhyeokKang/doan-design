@@ -13,6 +13,8 @@
 - 지휘자 판단 — small-ui-tweaks는 이미 main에 있다(`Home.test.tsx`의 `.anchor-chip`·`.suggestion-value` CSS 테스트, `ds/checks.test.ts`의 `.suggestion-value`). D1은 그 테스트에 `.skill-word`를 더한다.
 - 지휘자 판단 — F1의 실제 Antigravity 턴과 R1의 실제 Claude Code·Codex 턴, 한글 IME 녹화는 batch R이 공용 프로필로 한 번에 돈다(체인 '시작 점검 승인': 묻지 않고 돌림, 사람 확인 대신 녹화·스크린샷). F1 코드는 batch A가 한다.
 - 지휘자 판단 — R2 `/design-sync`는 UI를 만든 batch D 작업자가 한다(측정 뒤 고치는 코드가 D의 코드). R1 `/runtime-test`는 D 통합 뒤 따로 batch R로 돈다. GUI probe가 겹치지 않게 R2 → R1 순서다.
+- 사람(2026-11-07, RB 리뷰): queue에서 합친 메시지의 고정 줄은 표시에서 문단마다 뗀다(design 결정 27). 고정 줄을 떼고 남는 글이 없으면 대화 제목은 preset title이다(결정 28).
+- 지휘자 판단 — anchor chip 바로 앞에서 skill 단어가 끝난다(`/deploy<chip>`은 하이라이트). 근거: design §4.1의 단어는 "`/` 뒤로 다음 공백이나 글 끝까지의 글자"이고 chip은 글자가 아니다. 그래서 보낼 skill과 하이라이트는 글(`{{n}}` 자리표시)이 아니라 segment(`fieldSkillRuns`)로 정한다. Z1에서 승격한다.
 - 지휘자 판단 — Z1 문서 승격과 R3 `/verify`는 지휘자가 통합 gate에서 한다.
 
 ## batch
