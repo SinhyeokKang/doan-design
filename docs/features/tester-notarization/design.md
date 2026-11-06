@@ -60,11 +60,11 @@
    - `~/Desktop/Doan-tester-<YYYY-MM-DD>-<sha>.dmg`가 있으면 덮어쓰지 않고 묻는다.
 1. **서명한 빌드와 앱 공증**: `<worktree>/app`에서 다음을 실행한다.
    ```
-   env -u APPLE_ID -u APPLE_APP_SPECIFIC_PASSWORD -u APPLE_TEAM_ID -u APPLE_API_KEY -u APPLE_API_KEY_ID -u APPLE_API_ISSUER -u APPLE_KEYCHAIN -u CSC_LINK -u CSC_KEY_PASSWORD -u CSC_NAME -u CSC_IDENTITY_AUTO_DISCOVERY \
+   env -u APPLE_ID -u APPLE_APP_SPECIFIC_PASSWORD -u APPLE_TEAM_ID -u APPLE_API_KEY -u APPLE_API_KEY_ID -u APPLE_API_ISSUER -u APPLE_KEYCHAIN -u CSC_LINK -u CSC_KEY_PASSWORD -u CSC_NAME -u CSC_KEYCHAIN -u CSC_IDENTITY_AUTO_DISCOVERY \
      APPLE_KEYCHAIN_PROFILE=doan-notary npx electron-builder --mac dmg --arm64 \
      -c.mac.identity="<Name> (<Team ID>)" -c.dmg.sign=true -c.directories.output=<stage>/out
    ```
-   - 환경 변수를 지우는 이유가 있다. electron-builder는 `APPLE_ID…`와 `APPLE_API_KEY…`를 키체인 프로필보다 먼저 본다(`MacTargetHelper.js` `getNotarizeOptions`). `CSC_LINK`가 있으면 임시 키체인에서 서명한다(`macPackager.js`).
+   - 환경 변수를 지우는 이유가 있다. electron-builder는 `APPLE_ID…`와 `APPLE_API_KEY…`를 키체인 프로필보다 먼저 본다(`MacTargetHelper.js` `getNotarizeOptions`). `CSC_LINK`가 있으면 임시 키체인에서 서명하고, `CSC_KEYCHAIN`이 있으면 그 키체인에서 identity를 찾아 서명한다(`macPackager.js`, `dmg-builder` `dmg.js`).
    - `notarize`는 지정하지 않는다. 기본값이면 `APPLE_KEYCHAIN_PROFILE`이 있을 때 공증하고, 프로필 변수가 비면 경고만 남기고 건너뛴다(`MacTargetHelper.js` `notarizeIfProvided`). 그래서 출력에 "notarization successful"이 없으면 빌드가 성공했어도 멈춘다.
    - electron-builder가 `out/`과 `build/bin/doan`으로 다시 묶고, hardened runtime과 §4의 entitlements로 `Contents/` 아래 모든 바이너리를 깊은 것부터 서명한다. 서명에는 `--timestamp`가 붙는다(`@electron/osx-sign` `sign.js`, `util.js` `walkAsync`). 그다음 앱을 공증하고 staple한 뒤(`@electron/notarize`) dmg를 만들고 서명한다.
    - 앱 submission id는 출력되지 않는다. 끝난 뒤 `xcrun notarytool history --keychain-profile doan-notary`의 가장 최근 항목에서 읽는다.
