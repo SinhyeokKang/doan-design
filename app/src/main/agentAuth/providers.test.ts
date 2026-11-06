@@ -126,6 +126,11 @@ describe("provider auth adapters", () => {
       Object.entries(PROVIDER_AUTH[provider].settings).filter(([rel]) => rel.endsWith("skills/doan/SKILL.md")).map(([, text]) => text));
     expect(stubs).toEqual([[stub], [stub], [stub], [stub], [stub]]);
   });
+  // GEMINI_HOME is <profile>/.gemini (environment.ts). ACP server 1.3.0 does not read <GEMINI_HOME>/skills: in a live
+  // turn (2026-11-06) it found no doan skill there, and found one once the stub was copied to <GEMINI_HOME>/config/skills.
+  it("puts the Antigravity stub where its ACP server reads skills", () => {
+    expect(Object.keys(PROVIDER_AUTH.antigravity.settings)).toEqual([".gemini/config/skills/doan/SKILL.md"]);
+  });
   it("tells agents that a truncation notice means the guide is incomplete, since a cut in the middle keeps the end marker", () => {
     const stub = readFileSync(join(__dirname, "../onboarding/SKILL.md"), "utf8");
     expect(stub).toContain('A truncation notice (such as\n"tokens truncated") means the same even with that line: save `doan skill`\noutput to a file and read it in parts.\n');
