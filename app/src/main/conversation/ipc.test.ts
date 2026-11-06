@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { conversationHandler, conversationMethods, validateSendExtras } from "./ipc";
 import { ConversationService, type OpenRunner, type Prepare } from "./service";
-import { ModelCatalog, type ModelOption } from "./models";
+import { ModelCatalog, parseCodexModels, type ModelOption } from "./models";
 import { AttachmentStore } from "../attachments";
 import { ConversationStore } from "./store";
 import { mkdtempSync, realpathSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
@@ -693,6 +693,25 @@ describe("fast through the channels", () => {
         expect(await h.handle(true, "sendQueuedNow", { conversationId: id, itemId: queued.itemId, fast })).toEqual({ error: "bad_request" });
       }
       expect(h.steer).not.toHaveBeenCalled();
+    } finally { vi.restoreAllMocks(); rmSync(dir, { recursive: true, force: true }); }
+  });
+});
+
+// fast-mode B1: the renderer reads Fast from the models reply and the list, never a provider's tier id.
+describe("fast in the replies", () => {
+  it("carries Fast rows without a tier id in the models reply and the stored Fast in the list", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
+    try {
+      const rows = parseCodexModels({ data: [
+        { id: "gpt-6-luna", displayName: "GPT-6-Luna", isDefault: true, supportedReasoningEfforts: [{ reasoningEffort: "low" }], serviceTiers: [{ id: "priority", name: "Fast", description: "2x speed, increased usage" }] },
+        { id: "gpt-6-sol", displayName: "GPT-6-Sol", isDefault: false, serviceTiers: [] },
+      ] });
+      const h = home(dir, rows);
+      const reply = await h.handle(true, "models", { root: "/repo", runtime: "codex" }) as { models: ModelOption[] };
+      expect(reply.models.map(m => m.fast)).toEqual([{ description: "2x speed, increased usage" }, undefined]);
+      expect(JSON.stringify(reply)).not.toContain("priority");
+      const id = (await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "codex", text: "x", fast: true }) as { conversationId: string }).conversationId;
+      expect(await h.handle(true, "list", { root: "/repo" })).toEqual([expect.objectContaining({ conversationId: id, fast: true })]);
     } finally { vi.restoreAllMocks(); rmSync(dir, { recursive: true, force: true }); }
   });
 });

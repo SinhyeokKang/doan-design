@@ -9,7 +9,7 @@ import { CodexDispatcher, RpcError } from "./dispatcher";
 import { codexInitialize, codexThreadStart, type HandshakeReply, type HandshakeVerdict } from "./handshake";
 import { OwnedGroup } from "./process";
 import { object } from "./sessions";
-import { parseClaudeModels, parseCodexModels } from "./models";
+import { applyClaudeFastUnavailable, parseClaudeModels, parseCodexModels } from "./models";
 import { CodexStartupWatch, codexProfileServers } from "./mcpStartup";
 import { connectorLabels } from "../mcpConnectors/presets";
 import { CLAUDE_QUESTION_TOOL, claudePermissionSummary, claudeQuestion, claudeQuestionResult, claudeReportedMode, claudeUnansweredSupport, endSteerWait, endTransport, initialTransport, normalizeClaude, steerTransport, storedAnswers, transportError, type ClaudeQuestion } from "./transport";
@@ -29,8 +29,10 @@ export const openRunner: OpenRunner = (input, emit, exited, registerStop) =>
   input.runtime === "claude" ? openClaude(input, emit, exited, registerStop) : input.runtime === "codex" ? openCodex(input, emit, exited, registerStop) : openAcp(input, emit, exited, registerStop);
 // Opens the provider only to read its model list for this folder: no prompt, no model request.
 // The caller owns the lease and the stop (ConversationService.listModels).
+// A Claude read opens with Fast asked for, so initialize names an account-wide reason Fast cannot serve; without the flag
+// the reason is always sdk_opt_in_required (fast-mode P2). It reads the existing list, with no new lease or prompt.
 export const listModels: ReadModels = async (input, exited, registerStop) => {
-  const runner = await (input.runtime === "claude" ? openClaude : input.runtime === "codex" ? openCodexList : openAcp)(input, () => {}, exited, registerStop);
+  const runner = await (input.runtime === "claude" ? openClaude : input.runtime === "codex" ? openCodexList : openAcp)(input.runtime === "claude" ? { ...input, fast: true } : input, () => {}, exited, registerStop);
   try { return await runner.models!(); } finally { await runner.close(); }
 };
 // Fast for a Claude run: the flag-tier setting, since an SDK run is off with sdk_opt_in_required otherwise, even with
@@ -203,6 +205,7 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
         if (own.stopped) { stopped(); return; }
         // The server was opened with the conversation's choice then; a send may have changed it since.
         const turn = choice ?? input, permission = defaults ? codexPermission(turn.permissionMode ?? "default", defaults, workspace) : {};
+        const tier = codexServiceTierForTurn(input.owner ? "doan" : "legacy-external", turn.fast === true);
         activeTurn = turnId; localTurn = turnId;
         const labels = input.mcp?.labels() ?? connectorLabels([]);
         dispatcher.begin({ root: input.cwd, sessionId, turnId, labels });
@@ -210,7 +213,7 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
         startingTurn = true;
         let result: unknown;
         // Passed on every turn, as Claude and ACP must be, though Codex keeps a turn's model for the next (P1).
-        try { result = await dispatcher.request("turn/start", { threadId: sessionId, input: [{ type: "text", text: prompt }], ...(turn.model ? { model: turn.model } : {}), ...(turn.effort ? { effort: turn.effort } : {}), ...permission }); } catch (error) { startingTurn = false; for (const raw of queued.splice(0)) dispatcher.receive(raw); throw error; }
+        try { result = await dispatcher.request("turn/start", { threadId: sessionId, input: [{ type: "text", text: prompt }], ...(turn.model ? { model: turn.model } : {}), ...(turn.effort ? { effort: turn.effort } : {}), ...permission, ...tier }); } catch (error) { startingTurn = false; for (const raw of queued.splice(0)) dispatcher.receive(raw); throw error; }
         if (dead) throw new Error("process_exited");
         if (!object(result) || !object(result.turn) || typeof result.turn.id !== "string") { failProtocol(); throw new Error("session_unavailable"); }
         startingTurn = false;
@@ -259,7 +262,7 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
   const sessionId = input.sessionId ?? randomUUID(); const controller = new AbortController();
   // A Claude run opens for one turn, so the connector names read here are current for it.
   const labels = input.mcp?.labels();
-  let group: OwnedGroup | undefined, state = initialTransport();
+  let group: OwnedGroup | undefined, state = { ...initialTransport(), ...(input.fast ? { fastRequested: true as const } : {}) };
   const pending = new Map<string, { input: Record<string, unknown>; suggestions: PermissionUpdate[]; resolve(value: PermissionResult): void }>();
   // Apart from permissions, so answer() never allows a question with no answer and answerQuestion() never answers a
   // permission. unanswered: the turn's system/init advertised the skip mark; read long before anyone can answer.
@@ -304,6 +307,8 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
     abortController: controller, ...(input.sessionId ? { resume: input.sessionId } : { sessionId }),
     // A resume without them starts on the default model (P1), so every run passes the conversation's choice.
     ...(input.model ? { model: input.model } : {}), ...(input.effort ? { effort: input.effort as EffortLevel } : {}),
+    // Every run with Fast asks for it, as each turn opens a new process; a run without it passes nothing.
+    ...claudeFastSettings(input.fast),
     // Default passes nothing, so the Doan profile's and the project's settings decide, as before this option existed.
     // A terminal session's run (no doan owner) keeps the person's own profile settings, as Codex does.
     ...(input.owner ? claudePermission(input.permissionMode ?? "default") : {}),
@@ -343,14 +348,15 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
     for (const [requestId, request] of pending) { pending.delete(requestId); request.resolve({ behavior: "deny", message: "Request expired." }); emit({ type: "permission.resolved", requestId, optionId: "expired" }); }
     for (const [requestId, request] of questions) { questions.delete(requestId); request.resolve({ behavior: "deny", message: "Request expired." }); emit({ type: "question.resolved", requestId, outcome: "expired" }); }
   };
-  try { await timeout(q.initializationResult()); } catch (error) {
+  let initialized: unknown;
+  try { initialized = await timeout(q.initializationResult()); } catch (error) {
     controller.abort(); closeInput(); void group?.stop();
     if (input.owner) { await Promise.race([stderrDone, new Promise(resolve => setTimeout(resolve, 1000).unref())]); if (PIN_REFUSED.test(stderr)) throw new Error("credential_override"); }
     throw error;
   }
   return {
     sessionId,
-    models: async () => ({ models: parseClaudeModels(await timeout(q.supportedModels())) }),
+    models: async () => ({ models: applyClaudeFastUnavailable(object(initialized) ? initialized.fast_mode_disabled_reason : undefined, parseClaudeModels(await timeout(q.supportedModels()))) }),
     async send(prompt, turnId) {
       if (finished) throw new Error("process_exited");
       // The group stops as on any terminal that leaves a steered uuid unread; the SDK error that follows is that stop's.
