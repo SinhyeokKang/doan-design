@@ -8,7 +8,7 @@
 
 ### 2026-11-06 — The project row chevron stayed after a click until something else took focus
 
-- **Area**: `app/src/renderer/styles.css` (`.shell-project-row` chevron and thumbnail rules); test 7a20f1de, fixed in 5651f626.
+- **Area**: `app/src/renderer/styles.css` (`.shell-project-row` chevron and thumbnail rules); test 6bd89da9, fixed in 1a85332f.
 - **Symptom**: with a canvas open, clicking a project row (the loaded one or another) and moving the pointer away left the chevron showing in place of the thumbnail. PRODUCT §5 says the chevron shows on hover or keyboard focus.
 - **Root cause**: the row is a focusable treeitem (`tabIndex`), so a mouse click focuses it, and the reveal rule used `:focus-within`, which matches any focus. The draft and DESIGN wording ("focus is in it") read like `:focus-within`, while the intent was keyboard focus, which only `:focus-visible` separates from click focus.
 - **Net**: caught by the user in the real app. Missed by the `/design-sync` measurement, which read "row keyboard focus" and "rest" but never the state after a click with the pointer away, and by no unit test pinning the selector.
