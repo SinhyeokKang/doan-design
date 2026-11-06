@@ -163,3 +163,14 @@ test("an existing conversation that picks the effort Default row sends its model
   expect(sent.mock.calls.at(-1)![1]).toMatchObject({ conversationId: A, model: "opus" });
   expect(sent.mock.calls.at(-1)![1]).not.toHaveProperty("effort");
 });
+
+// A docked new conversation says whether its model was picked, so a fixed Settings default without a model is not moved
+// onto the provider's default by a pick of something else.
+test("a new conversation's pick marks the model as picked only when the model was picked", () => {
+  const onRemember = vi.fn();
+  render([], null, { onRemember }, support => support.pick(`root:${ROOT}`, { permissionMode: "plan" }));
+  expect(onRemember.mock.calls.at(-1)![0]).toMatchObject({ provider: "claude", model: "opus", permissionMode: "plan" });
+  expect(onRemember.mock.calls.at(-1)![0]).not.toHaveProperty("modelPicked");
+  render([], null, { onRemember }, support => support.pick(`root:${ROOT}`, { model: "sonnet" }));
+  expect(onRemember.mock.calls.at(-1)![0]).toMatchObject({ provider: "claude", model: "sonnet", modelPicked: true });
+});

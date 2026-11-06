@@ -667,3 +667,19 @@ test("a press outside the / list closes it until the field is empty; a press in 
   box.current = { ...box.current, text: "/" };
   expect(field(render()).role).toBe("combobox");
 });
+
+// Home says whether its model was picked, so a fixed Settings default without a model stays unfixed after a pick of
+// something else (preferenceAfterPick).
+test("Home marks the model as picked only when the person picked it", () => {
+  const onRemember = vi.fn();
+  const lists = { ["/code/doan-design\nclaude"]: { models: [{ id: "opus", label: "Opus 5.5", default: true }, { id: "sonnet", label: "Sonnet 5.5", default: false }] } };
+  const permissionOnly = setup({ lists, permissions: { claude: "plan" } }, { prefs: { lastProvider: "claude" }, defaults: { provider: "claude" }, onRemember });
+  permissionOnly.render();
+  for (const effect of hooks.effects) effect();
+  expect(onRemember.mock.calls.at(-1)![0]).toMatchObject({ provider: "claude", model: "opus", permissionMode: "plan" });
+  expect(onRemember.mock.calls.at(-1)![0]).not.toHaveProperty("modelPicked");
+  const picked = setup({ lists, models: { claude: "sonnet" } }, { prefs: { lastProvider: "claude" }, defaults: { provider: "claude" }, onRemember });
+  picked.render();
+  for (const effect of hooks.effects) effect();
+  expect(onRemember.mock.calls.at(-1)![0]).toMatchObject({ provider: "claude", model: "sonnet", modelPicked: true });
+});

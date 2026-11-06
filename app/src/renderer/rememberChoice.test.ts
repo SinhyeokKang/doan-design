@@ -23,10 +23,10 @@ test("an unchanged pick returns the same memory, so remembering it again renders
 
 test("Last used in Settings stays Last used; a fixed default takes the pick", () => {
   expect(preferenceAfterPick(null, { provider: "claude", model: "opus", effort: "low" })).toBeUndefined();
-  expect(preferenceAfterPick({ provider: "codex", model: "gpt-6" }, { provider: "claude", model: "opus", effort: "low" })).toEqual({ provider: "claude", model: "opus", effort: "low" });
-  expect(preferenceAfterPick({ provider: "claude", model: "opus" }, { provider: "claude", model: "sonnet", effort: null })).toEqual({ provider: "claude", model: "sonnet" });
+  expect(preferenceAfterPick({ provider: "codex", model: "gpt-6" }, { provider: "claude", model: "opus", effort: "low", modelPicked: true })).toEqual({ provider: "claude", model: "opus", effort: "low" });
+  expect(preferenceAfterPick({ provider: "claude", model: "opus" }, { provider: "claude", model: "sonnet", effort: null, modelPicked: true })).toEqual({ provider: "claude", model: "sonnet" });
   // Nothing to write when the pick already matches, or when the model list is not read yet.
-  expect(preferenceAfterPick({ provider: "claude", model: "opus", effort: "low" }, { provider: "claude", model: "opus", effort: "low" })).toBeUndefined();
+  expect(preferenceAfterPick({ provider: "claude", model: "opus", effort: "low" }, { provider: "claude", model: "opus", effort: "low", modelPicked: true })).toBeUndefined();
   expect(preferenceAfterPick({ provider: "claude", model: "opus" }, { provider: "claude", model: null, effort: null })).toBeUndefined();
 });
 
@@ -56,11 +56,11 @@ test("a followed mode changes only that provider's last mode, not the last provi
 
 test("a fixed Settings default takes the picked mode, with or without a model", () => {
   expect(preferenceAfterPick({ provider: "claude", model: "opus" }, { provider: "claude", model: null, effort: null, permissionMode: "bypass" })).toEqual({ provider: "claude", model: "opus", permissionMode: "bypass" });
-  expect(preferenceAfterPick({ provider: "claude", model: "opus", effort: "low", permissionMode: "bypass" }, { provider: "claude", model: "opus", effort: "low", permissionMode: "default" })).toEqual({ provider: "claude", model: "opus", effort: "low" });
-  expect(preferenceAfterPick({ provider: "codex", permissionMode: "plan" }, { provider: "claude", model: "opus", effort: null, permissionMode: "acceptEdits" })).toEqual({ provider: "claude", model: "opus", permissionMode: "acceptEdits" });
+  expect(preferenceAfterPick({ provider: "claude", model: "opus", effort: "low", permissionMode: "bypass" }, { provider: "claude", model: "opus", effort: "low", permissionMode: "default", modelPicked: true })).toEqual({ provider: "claude", model: "opus", effort: "low" });
+  expect(preferenceAfterPick({ provider: "codex", permissionMode: "plan" }, { provider: "claude", model: "opus", effort: null, permissionMode: "acceptEdits", modelPicked: true })).toEqual({ provider: "claude", model: "opus", permissionMode: "acceptEdits" });
   // A model pick without a picker keeps the saved mode of the same provider, and does not carry it to another.
-  expect(preferenceAfterPick({ provider: "claude", permissionMode: "plan" }, { provider: "claude", model: "opus", effort: null })).toEqual({ provider: "claude", model: "opus", permissionMode: "plan" });
-  expect(preferenceAfterPick({ provider: "claude", permissionMode: "plan" }, { provider: "cursor", model: "auto", effort: null })).toEqual({ provider: "cursor", model: "auto" });
+  expect(preferenceAfterPick({ provider: "claude", permissionMode: "plan" }, { provider: "claude", model: "opus", effort: null, modelPicked: true })).toEqual({ provider: "claude", model: "opus", permissionMode: "plan" });
+  expect(preferenceAfterPick({ provider: "claude", permissionMode: "plan" }, { provider: "cursor", model: "auto", effort: null, modelPicked: true })).toEqual({ provider: "cursor", model: "auto" });
   // Nothing to write: unchanged, Last used, or another provider whose models are not read.
   expect(preferenceAfterPick({ provider: "claude", permissionMode: "plan" }, { provider: "claude", model: null, effort: null, permissionMode: "plan" })).toBeUndefined();
   expect(preferenceAfterPick(null, { provider: "claude", model: null, effort: null, permissionMode: "plan" })).toBeUndefined();
@@ -108,4 +108,17 @@ test("only a turnedOff Fast-not-used event received live turns Last used off", (
   expect(shouldTurnOffFast(event({ type: "fast.unused", reason: "cooldown" }), true)).toBe(false);
   expect(shouldTurnOffFast(event({ type: "fast.unused" }), true)).toBe(false);
   expect(shouldTurnOffFast(event({ type: "turn.done" }), true)).toBe(false);
+});
+
+// A fixed default with Model Default (no model) stays unfixed after a composer pick that leaves the model alone: the
+// composer's model is then only the provider's default, which Settings' Default row already stands for.
+test("a pick that leaves the model alone never fixes the provider's default model", () => {
+  expect(preferenceAfterPick({ provider: "codex" }, { provider: "codex", model: "gpt-6-luna", effort: null, permissionMode: "plan" })).toEqual({ provider: "codex", permissionMode: "plan" });
+  expect(preferenceAfterPick({ provider: "codex" }, { provider: "codex", model: "gpt-6-luna", effort: "high" })).toEqual({ provider: "codex", effort: "high" });
+  expect(preferenceAfterPick({ provider: "codex" }, { provider: "codex", model: "gpt-6-luna", effort: null, fast: true })).toBeUndefined();
+  // A fixed model stays fixed; another provider's default is that provider, unfixed.
+  expect(preferenceAfterPick({ provider: "codex", model: "gpt-5.6-terra" }, { provider: "codex", model: "gpt-5.6-terra", effort: "high" })).toEqual({ provider: "codex", model: "gpt-5.6-terra", effort: "high" });
+  expect(preferenceAfterPick({ provider: "claude" }, { provider: "codex", model: "gpt-6-luna", effort: null })).toEqual({ provider: "codex" });
+  // A picked model, even the default one, is fixed.
+  expect(preferenceAfterPick({ provider: "codex" }, { provider: "codex", model: "gpt-6-luna", effort: null, modelPicked: true })).toEqual({ provider: "codex", model: "gpt-6-luna" });
 });
