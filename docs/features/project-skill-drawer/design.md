@@ -197,7 +197,7 @@
 
 - **small-ui-tweaks**(구현 전, chain-261106 링크 3): 결정 7의 `.suggestion-value`가 이 feature의 `.skill-word`와 같은 값을 쓴다. 그 feature가 먼저 병합되면 그 CSS 테스트에 `.skill-word`를 더하고, 이 feature가 먼저면 그 feature가 더한다. `ds/checks.test.ts` `violetAllowed`도 두 feature가 고친다. 제안 프롬프트는 preset을 채우므로(`suggestedPrompts`) `composeRequest`의 새 인자를 함께 맞춘다.
 - **context-window-ring**(병합됨): `DockedComposer`의 tray 끝에 링을 더했다. 이 feature는 그 모양 위에서 시작한다.
-- **turn-activity**(구현 전): thread의 턴 표시를 바꾼다. 사람 메시지 말풍선(`ConversationThread.tsx`)을 함께 고칠 수 있다. 두 feature 모두 chain-261106 뒤에 시작하고, 둘 사이의 순서는 그때 정한다.
+- **turn-activity**(먼저 구현함, PR `feat/turn-activity`): thread의 마지막 항목에 턴 표시를 더했다(PRODUCT §5 item 3 'Turn indicator'). `ConversationThread.tsx`, `turnStatus.ts`, `conversationStore.ts`를 고쳤고 사람 메시지 말풍선은 바꾸지 않았다. 이 feature는 그 변경 위에서 시작한다.
 - **chain-261106**(work-update → canvas-handoff → small-ui-tweaks): canvas-handoff가 `turnPrompt`에 `extras.handoff`를 더한다(그 tasks B3). 이 feature는 `turnPrompt`를 바꾸지 않으므로(고정 줄은 renderer의 `composeRequest`가 만든다) 충돌이 없다.
 - **prompt-suggestion**(병합됨): 빈 field의 Right Arrow로 제안을 받는다(`takesSuggestion`, `homeComposer.ts:462`). 하이라이트는 글이 있을 때만 생기므로 서로 닿지 않는다. 제안을 받아 들어온 글에 skill 단어가 있으면 같은 규칙으로 하이라이트된다.
 
