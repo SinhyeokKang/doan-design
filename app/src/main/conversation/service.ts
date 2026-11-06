@@ -23,7 +23,7 @@ import type { LiveTurn } from "../conversationWork";
 // A start a handoff makes (canvas-handoff design §5), never one ipc makes: the earlier conversation, the handoff text
 // for the prompt (never read for markers) and the rule that the target has no current conversation at acceptance.
 export interface HandoffStart { origin: HandoffOrigin; requireNoCurrent: true; handoffText: string }
-export interface StartRequest { root: string; mode: "resume" | "new" | "newDesign"; runtime?: Provider; canvas?: Canvas; text: string; anchors: Anchor[]; model?: string; effort?: string; permissionMode?: PermissionModeId; attachments?: AttachmentRecord[] }
+export interface StartRequest { root: string; mode: "resume" | "new" | "newDesign"; runtime?: Provider; canvas?: Canvas; text: string; anchors: Anchor[]; model?: string; effort?: string; fast?: boolean; permissionMode?: PermissionModeId; attachments?: AttachmentRecord[] }
 export interface Prepared {
   runtime: Provider; configDir: string; cwd: string; sessionId?: string; command: string; env: NodeJS.ProcessEnv; lastCheckAt?: string;
   // Doan-account runs only: arguments ahead of the runner's own, the account the run uses, the lease to release once the
@@ -38,6 +38,9 @@ export interface Prepared {
   // The conversation's chosen model and effort, applied by the runner on every send: a Claude resume and an ACP
   // session/load fall back to the default model otherwise.
   model?: string; effort?: string;
+  // The run's own Fast, never the stored choice: set only when the choice is on and this run's list says the turn's
+  // model takes Fast now (ipc for a send, QueueOptions.fast otherwise). Claude and Codex runners only read it.
+  fast?: true;
   // The conversation's chosen permission mode for this run, absent for Default. planApproved: the mode Claude switched
   // to once the person approved a plan on a turn sent with Plan, which becomes the conversation's stored mode.
   permissionMode?: PermissionModeId; planApproved?: (mode: PermissionModeId) => void;
@@ -64,11 +67,13 @@ export interface StartAttachments { recheck(): AttachmentRecord[]; sent(): void 
 // reused Codex server needs them on the turn itself. A send names its mode always, Default included, since a Codex
 // override holds for later turns.
 // reloadMcp: a reused Codex server whose provider's connectors changed since it opened reloads its MCP servers first.
-export interface TurnChoice { model?: string; effort?: string; permissionMode?: PermissionModeId; reloadMcp?: true }
+// fast: the turn's own Fast (Prepared.fast); a doan Codex turn states standard speed when it is absent.
+export interface TurnChoice { model?: string; effort?: string; fast?: true; permissionMode?: PermissionModeId; reloadMcp?: true }
 // What a send may carry besides its text: a new choice (model given, effort optional), a new permission mode (judged
-// apart from the model, Default included) and rechecked attachments.
+// apart from the model, Default included), a new Fast choice (judged apart from the model too) and rechecked attachments.
 // defaultEffort: the level the turn names when its choice has none (models.ts ModelOption); it is never stored.
-export interface SendExtras extends TurnChoice { attachments?: AttachmentRecord[]; defaultEffort?: string }
+// fastTurn: the turn runs with Fast (ipc's judgement); it is never stored.
+export interface SendExtras extends Omit<TurnChoice, "fast"> { fast?: boolean; attachments?: AttachmentRecord[]; defaultEffort?: string; fastTurn?: true }
 function askingKey(event: { type: string; requestId: string }): string { return `${event.type.startsWith("question.") ? "question" : "permission"}:${event.requestId}`; }
 // steer: Claude and Codex only (steerSupport.ts); adds a message to the running turn turnId and resolves once the
 // provider accepted it, which is not yet the agent reading it (Prepared.steerConsumed).
@@ -79,8 +84,10 @@ export interface Runner { sessionId: string; send(prompt: string, turnId: string
 // goes with it) and released when they come back in a draft, which carries their paths instead.
 export interface QueueFiles { reclaim(ids: string[]): StartAttachments; consume(ids: string[]): void; discard?(ids: string[]): void; release?(ids: string[]): void }
 // drafts: the input queue and the drafts it hands back; files: the queue's attachments; defaultEffort: the level a queued
-// turn names when the conversation's model has no stored effort (models.ts ModelCatalog.defaultEffort).
-export interface QueueOptions { drafts?: DraftStore; files?: QueueFiles; defaultEffort?: (root: string, provider: Provider, model: string) => string | undefined }
+// turn names when the conversation's model has no stored effort (models.ts ModelCatalog.defaultEffort); fast: whether
+// this run's list says the model (its default row when none) takes Fast now, for the turns ipc does not judge: a start,
+// a handoff's start and a queue flush (models.ts ModelCatalog.fast). Without it no such turn runs with Fast.
+export interface QueueOptions { drafts?: DraftStore; files?: QueueFiles; defaultEffort?: (root: string, provider: Provider, model: string) => string | undefined; fast?: (root: string, provider: Provider, model: string | undefined) => boolean }
 export type OpenRunner = (input: Prepared, emit: (event: EventPayload) => void, exited: () => void, registerStop: (stop: () => Promise<void>) => void) => Promise<Runner>;
 // use "listing": a model list read, which a sign-out stops without asking (agentAuth/manager.ts acquire).
 // reusing: a send to this conversation's live Codex server, which keeps its thread open between turns.
@@ -194,7 +201,8 @@ export class ConversationService {
     let opening = false, input: Prepared | undefined;
     const turnId = live.turnId;
     try {
-      input = { ...await this.prepare(request), ...choice(request), ...mode(request.permissionMode), planApproved: reported => this.planApproved(id, live, turnId, reported), steerConsumed: messageId => this.steerConsumed(id, messageId), suggested: text => this.suggested(id, live, turnId, text) };
+      const prepared = await this.prepare(request);
+      input = { ...prepared, ...choice(request), ...this.runFast(request.fast === true, request.root, prepared, request.model), ...mode(request.permissionMode), planApproved: reported => this.planApproved(id, live, turnId, reported), steerConsumed: messageId => this.steerConsumed(id, messageId), suggested: text => this.suggested(id, live, turnId, text) };
       if (input.owner) live.provider = input.owner.provider;
       if (this.quitting) throw new Error("busy");
       if (input.sessionId) this.promote(id, input, input.sessionId);
@@ -214,7 +222,7 @@ export class ConversationService {
       const fromHome = request.mode === "newDesign";
       // seenSeq 0: nothing of a new conversation has been seen, so its first end shows as unseen.
       const base = { conversationId: id, root: request.root, ...(request.canvas ? { canvas: request.canvas } : {}), title: messageLine(request.text, request.anchors), state: "current" as const,
-        ...choice(request), ...mode(request.permissionMode), ...(fromHome ? { fromHome: true as const } : {}), ...(request.mode === "newDesign" ? { canvasesAtStart: this.snapshot(request.root) } : {}), seenSeq: 0 };
+        ...choice(request), ...fastOf(request), ...mode(request.permissionMode), ...(fromHome ? { fromHome: true as const } : {}), ...(request.mode === "newDesign" ? { canvasesAtStart: this.snapshot(request.root) } : {}), seenSeq: 0 };
       const runtime = input.runtime;
       // Without an owner the run used an external profile, which exists only for the shared sessions' two runtimes.
       if (!input.owner && runtime !== "claude" && runtime !== "codex") throw new Error("session_unavailable");
@@ -299,7 +307,7 @@ export class ConversationService {
       this.reserve(id, { ...metadata.session, runtime, command: "", env: {} }, reusing); reserved = true;
       const turnId = live.turnId;
       // steerConsumed names no turn: a reused Codex server keeps the callback it opened with.
-      input = { ...await this.prepare({ root: metadata.root, ...(metadata.canvas ? { canvas: metadata.canvas } : {}), mode: "resume", text, anchors }, metadata, undefined, reusing), ...chosen, planApproved: reported => this.planApproved(id, live, turnId, reported), steerConsumed: messageId => this.steerConsumed(id, messageId), suggested: text => this.suggested(id, live, turnId, text) };
+      input = { ...await this.prepare({ root: metadata.root, ...(metadata.canvas ? { canvas: metadata.canvas } : {}), mode: "resume", text, anchors }, metadata, undefined, reusing), ...chosen, ...(extras.fastTurn ? { fast: true as const } : {}), planApproved: reported => this.planApproved(id, live, turnId, reported), steerConsumed: messageId => this.steerConsumed(id, messageId), suggested: text => this.suggested(id, live, turnId, text) };
       if (input.owner) live.provider = input.owner.provider;
       this.checkSend(id, live, expected);
       if (live.exited) throw new Error("process_exited");
@@ -328,10 +336,11 @@ export class ConversationService {
       const projectTurn = project !== undefined && !metadata.canvas;
       const canvasesAtStart = projectTurn ? this.snapshot(metadata.root) : metadata.canvasesAtStart;
       const seenSeq = metadata.seenSeq ?? this.store.read(id).at(-1)?.seq ?? 0;
-      const { model: _model, effort: _effort, permissionMode: _mode, canvasesAtStart: _snapshot, ...rest } = metadata;
+      const { model: _model, effort: _effort, fast: _fast, permissionMode: _mode, canvasesAtStart: _snapshot, ...rest } = metadata;
       // A picker change stored while this send was prepared is the later pick, so it stays for the next turn.
       const stored = metadata.permissionMode !== admittedMode ? mode(metadata.permissionMode) : mode(chosen.permissionMode);
-      const updated: ConversationMetadata = { ...rest, ...choice(chosen), ...stored, ...(canvasesAtStart ? { canvasesAtStart } : {}), seenSeq };
+      const fast = fastOf(extras.fast !== undefined ? extras : metadata);
+      const updated: ConversationMetadata = { ...rest, ...choice(chosen), ...fast, ...stored, ...(canvasesAtStart ? { canvasesAtStart } : {}), seenSeq };
       const message: EventPayload = { type: "user.message", text, anchors, ...(attachments.length ? { attachments } : {}) };
       attached?.sent();
       if (restoring) {
@@ -344,7 +353,7 @@ export class ConversationService {
         for (const event of saved) this.deliver(event);
         this.changed(metadata.root);
       } else {
-        if (rebound || chosen.model !== metadata.model || chosen.effort !== metadata.effort || stored.permissionMode !== metadata.permissionMode || seenSeq !== metadata.seenSeq || JSON.stringify(canvasesAtStart) !== JSON.stringify(metadata.canvasesAtStart))
+        if (rebound || chosen.model !== metadata.model || chosen.effort !== metadata.effort || fast.fast !== metadata.fast || stored.permissionMode !== metadata.permissionMode || seenSeq !== metadata.seenSeq || JSON.stringify(canvasesAtStart) !== JSON.stringify(metadata.canvasesAtStart))
           this.store.save(this.store.list().map(m => m.conversationId === id ? updated : m));
         this.append(id, live.turnId, message); this.append(id, live.turnId, { type: "turn.started" }); live.accepted = true; this.suggestions.delete(id);
       }
@@ -358,7 +367,7 @@ export class ConversationService {
       const generation = input.mcp?.generation();
       const reloadMcp = !opening && generation !== undefined && generation !== live.mcpGeneration;
       if (reloadMcp) live.mcpGeneration = generation;
-      const turnChoice: TurnChoice = { ...chosen, permissionMode: chosen.permissionMode ?? "default", ...(!chosen.effort && extras.defaultEffort ? { effort: extras.defaultEffort } : {}), ...(reloadMcp ? { reloadMcp: true as const } : {}) };
+      const turnChoice: TurnChoice = { ...chosen, permissionMode: chosen.permissionMode ?? "default", ...(!chosen.effort && extras.defaultEffort ? { effort: extras.defaultEffort } : {}), ...(extras.fastTurn ? { fast: true as const } : {}), ...(reloadMcp ? { reloadMcp: true as const } : {}) };
       this.sendTurn(id, live, live.runner, prompt, attachments.length ? attachments : undefined, turnChoice);
     } catch (error) {
       live.busy = false;
@@ -453,6 +462,10 @@ export class ConversationService {
   // DOAN_HANDOFF: a random key per runner of a Doan-connected conversation, a project one included, since a Codex server
   // lives on after a promotion (canvas-handoff design §3). It only says which conversation asks: the socket token is the
   // boundary, and the conversation id is readable in index.json. It is forgotten once the runner's process is gone.
+  // A start's Fast for its run (Prepared.fast): chosen, a doan run, and this run's list says the model takes it now.
+  private runFast(on: boolean, root: string, input: Prepared, model: string | undefined): { fast?: true } {
+    return on && input.owner && this.queueOptions.fast?.(root, input.runtime, model) === true ? { fast: true } : {};
+  }
   private async openRunner(id: string, live: Live, input: Prepared): Promise<Runner> {
     let spawned = false;
     const key = input.owner ? randomBytes(32).toString("hex") : undefined;
@@ -484,6 +497,9 @@ export class ConversationService {
     if (!live.accepted) { live.events.push(event); return; }
     if (live.terminal) return;
     try {
+      // A turned-off Fast is saved before its event: a failed index write then takes this persistence-failure path with
+      // no notice saying Fast went off, and a failed append leaves Fast off without one.
+      if (event.type === "fast.unused" && event.turnedOff) this.turnFastOff(id);
       this.append(id, live.turnId, event);
       const evidence = this.evidence.get(id);
       if (event.type === "activity" && event.kind === "edit" && event.path && evidence && evidence.endedAt === undefined) evidence.edits.add(event.path);
@@ -500,6 +516,13 @@ export class ConversationService {
       // No event says so, but the list's projectBusy and, once the process is gone, the phase change.
       this.changedOf(id);
     }
+  }
+  // A reason that holds on turned the turn's Fast off: the conversation's choice goes too, so later turns, a queue
+  // flushed after this one included, run without it. A failed write throws to receive; the event's append announces the list.
+  private turnFastOff(id: string): void {
+    const entries = this.store.list(), m = entries.find(e => e.conversationId === id); if (!m?.fast) return;
+    const { fast: _fast, ...rest } = m;
+    this.store.save(entries.map(e => e === m ? rest : e));
   }
   // Each conversation's current turn for `doan work update` (conversationWork.ts): running from its acceptance until
   // its terminal event, archive, a history that stopped taking writes, or the quit. A send being prepared is not
@@ -560,8 +583,8 @@ export class ConversationService {
   // with; the next send that names none and a queue flushed later use this one (decision 8). ipc refuses it for a
   // legacy external conversation.
   setPermissionMode(id: string, permissionMode: PermissionModeId): void { this.storeMode(id, permissionMode); }
-  sendTarget(id: string): { root: string; provider: Provider; owner: ConversationOwner["kind"]; model?: string; effort?: string } {
-    const m = this.metadata(id); return { root: m.root, provider: m.session.runtime, owner: m.owner.kind, ...choice(m) };
+  sendTarget(id: string): { root: string; provider: Provider; owner: ConversationOwner["kind"]; model?: string; effort?: string; fast?: true } {
+    const m = this.metadata(id); return { root: m.root, provider: m.session.runtime, owner: m.owner.kind, ...choice(m), ...fastOf(m) };
   }
   answer(id: string, requestId: string, option: string): void { this.metadata(id); if (!this.live.get(id)?.runner?.answer(requestId, option)) throw new Error("stale"); }
   // The runner holding the question checks the answer against it; a runner without questions holds none.
@@ -818,14 +841,14 @@ export class ConversationService {
     if (decision.kind === "start") { turn.state = "starting"; void this.startHandoff(id, turn, m, decision.canvas); return; }
     this.resolveHandoff(id, turn, decision.kind === "refused" ? { outcome: "refused", reason: decision.reason } : { outcome: "cancelled" });
   }
-  // The next conversation runs on the earlier one's provider, model, effort and permission mode as they are now
+  // The next conversation runs on the earlier one's provider, model, effort, Fast and permission mode as they are now
   // (decision 6). It passes every check of a start; Last used is the person's choice and stays as it was.
   private async startHandoff(id: string, turn: HandoffTurn, m: ConversationMetadata, target: Canvas): Promise<void> {
     const request = turn.request!, origin: HandoffOrigin = { kind: "handoff", conversationId: id, canvas: m.canvas! };
     const provider = m.owner.kind === "doan" ? m.owner.provider : undefined, since = this.stops;
     let resolution: HandoffResolution;
     try {
-      const { conversationId } = await this.start({ root: m.root, mode: "new", runtime: m.session.runtime, canvas: target, text: request.text, anchors: [], ...choice(m), ...mode(m.permissionMode) },
+      const { conversationId } = await this.start({ root: m.root, mode: "new", runtime: m.session.runtime, canvas: target, text: request.text, anchors: [], ...choice(m), ...fastOf(m), ...mode(m.permissionMode) },
         undefined, { origin, requireNoCurrent: true, handoffText: request.text });
       resolution = { outcome: "started", target: { conversationId, canvas: this.store.list().find(e => e.conversationId === conversationId)?.canvas ?? target } };
     } catch (error) {
@@ -940,7 +963,9 @@ export class ConversationService {
         const attached = ids.length && files ? files.reclaim(ids) : undefined;
         const m = this.metadata(id);
         const defaultEffort = m.model && !m.effort ? this.queueOptions.defaultEffort?.(m.root, m.session.runtime, m.model) : undefined;
-        await this.submit(id, combined.text, combined.anchors, { ...(combined.attachments.length ? { attachments: combined.attachments } : {}), ...(defaultEffort ? { defaultEffort } : {}) }, attached);
+        // The Fast stored now, judged for the model the queue goes out on.
+        const fastTurn = m.fast === true && m.owner.kind === "doan" && this.queueOptions.fast?.(m.root, m.session.runtime, m.model) === true;
+        await this.submit(id, combined.text, combined.anchors, { ...(combined.attachments.length ? { attachments: combined.attachments } : {}), ...(defaultEffort ? { defaultEffort } : {}), ...(fastTurn ? { fastTurn: true as const } : {}) }, attached);
         const sent = items.map(item => item.itemId);
         this.forget(id, sent); this.drafts.sent(id, sent);
         if (ids.length) files?.consume(ids);
@@ -1100,6 +1125,8 @@ function reason(error: unknown): string { return error instanceof Error && /^[a-
 function choice(source: { model?: string; effort?: string }): { model?: string; effort?: string } {
   return { ...(source.model ? { model: source.model } : {}), ...(source.effort ? { effort: source.effort } : {}) };
 }
+// Fast is stored only when on.
+function fastOf(source: { fast?: boolean }): { fast?: true } { return source.fast === true ? { fast: true } : {}; }
 // Default is stored, and opened, as no mode.
 function mode(value: PermissionModeId | undefined): { permissionMode?: Exclude<PermissionModeId, "default"> } {
   return value && value !== "default" ? { permissionMode: value } : {};

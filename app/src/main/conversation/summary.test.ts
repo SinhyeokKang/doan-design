@@ -162,3 +162,11 @@ describe("handoff events", () => {
     expect(conversationSummary({ ...canvasDoan, seenSeq: 3 }, { ok: true, events }, live).unseen).toBe(true);
   });
 });
+
+
+it("carries stored Fast in summaries, including unreadable history, without adding it to old conversations", () => {
+  const fast = { ...doan, fast: true as const };
+  expect(conversationSummary(fast, { ok: true, events: [] }, live)).toMatchObject({ fast: true });
+  expect(conversationSummary(fast, { ok: false }, live)).toMatchObject({ fast: true, readError: true });
+  expect(conversationSummary(doan, { ok: true, events: [] }, live)).not.toHaveProperty("fast");
+});

@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { existsSync, mkdtempSync, writeFileSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, renameSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { listModels, openRunner } from "./runners";
+import { claudeFastSettings, codexServiceTierForTurn, listModels, openRunner } from "./runners";
 import { ConversationService } from "./service";
 import { ConversationStore } from "./store";
 import type { EventPayload } from "./types";
@@ -1557,4 +1557,131 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line 
       }, { usageAtTurnEnd });
     }, 15000);
   });
+});
+
+// fast-mode A3: the run's Fast as each provider takes it. Claude opens a process per turn, so its flag-tier setting goes
+// on every run with Fast; Codex names the tier on every doan turn (serviceTierForTurn holds for that turn only, P1).
+describe("fast arguments", () => {
+  it("sets Claude's flag-tier fastMode only on a run with Fast", () => {
+    expect(claudeFastSettings(true)).toEqual({ settings: { fastMode: true } });
+    expect(claudeFastSettings(false)).toEqual({});
+    expect(claudeFastSettings(undefined)).toEqual({});
+  });
+  it("names Codex's tier on every doan turn, standard included, and none on a terminal session's turn", () => {
+    expect(codexServiceTierForTurn("doan", true)).toEqual({ serviceTierForTurn: "priority" });
+    expect(codexServiceTierForTurn("doan", false)).toEqual({ serviceTierForTurn: "default" });
+    expect(codexServiceTierForTurn("legacy-external", true)).toEqual({});
+    expect(codexServiceTierForTurn("legacy-external", false)).toEqual({});
+  });
+});
+
+// fast-mode B1: Fast on the wire. The fakes record argv and stdin lines; the SDK carries Options.settings to the CLI.
+function fastClaude(root: string): string {
+  const command = join(root, "claude");
+  writeFileSync(command, `#!/usr/bin/env node
+const fs = require('node:fs'); const readline = require('node:readline');
+fs.appendFileSync(${JSON.stringify(join(root, "seen"))}, JSON.stringify(process.argv.slice(2)) + '\\n');
+const send = value => process.stdout.write(JSON.stringify(value)+'\\n');
+const reason = process.env.FAKE_REASON;
+const models = [{value:'default',displayName:'Default',description:'',supportsEffort:true,supportedEffortLevels:['low'],supportsFastMode:true},{value:'haiku',displayName:'Haiku',description:'',supportsEffort:false}];
+readline.createInterface({input:process.stdin}).on('line', line => {
+ fs.appendFileSync(${JSON.stringify(join(root, "seen"))}, line + '\\n');
+ const r = JSON.parse(line);
+ if(r.type==='control_request') send({type:'control_response',response:{subtype:'success',request_id:r.request_id,response:{commands:[],models,account:{},fast_mode_state:'off',...(reason?{fast_mode_disabled_reason:reason}:{})}}});
+ if(r.type==='user') { send({type:'result',subtype:'success',is_error:false,result:'ok',session_id:r.session_id,fast_mode_state:'off',fast_mode_disabled_reason:'free'}); process.stdin.pause(); setTimeout(()=>process.exit(0),20); }
+});
+`, { mode: 0o700 });
+  return command;
+}
+const claudeEnv = (root: string, extra: Record<string, string> = {}) => ({ PATH: process.env.PATH, HOME: root, CLAUDE_CONFIG_DIR: root, ...extra });
+describe("fast on the wire", () => {
+  it("puts fastMode on a Claude run with Fast only, and records the turn that ran without it", async () => {
+    for (const fast of [true, false]) {
+      const root = mkdtempSync(join(tmpdir(), "doan-claude-fast-")), command = fastClaude(root);
+      const events: EventPayload[] = [];
+      try {
+        const runner = await openRunner({ command, runtime: "claude", cwd: root, configDir: root, env: claudeEnv(root), ...(fast ? { fast: true as const } : {}) }, e => events.push(e), () => {}, () => {});
+        await runner.send("hello", "turn"); await runner.close();
+        expect(readFileSync(join(root, "seen"), "utf8").includes("fastMode")).toBe(fast);
+        expect(events.filter(e => e.type === "fast.unused")).toEqual(fast ? [{ type: "fast.unused", reason: "plan", turnedOff: true }] : []);
+        expect(events.at(-1)).toEqual({ type: "turn.done" });
+      } finally { rmSync(root, { recursive: true, force: true }); }
+    }
+  }, 30000);
+  it("reads Claude's list with fastMode and marks Fast rows unavailable for an account-wide reason, sending no prompt", async () => {
+    for (const [reason, unavailable] of [["extra_usage_disabled", "extra_usage"], ["free", "plan"], ["preference", "policy"], ["model_not_allowed", undefined], ["", undefined]] as const) {
+      const root = mkdtempSync(join(tmpdir(), "doan-claude-fast-list-")), command = fastClaude(root);
+      try {
+        const listed = await listModels({ command, runtime: "claude", cwd: root, configDir: root, env: claudeEnv(root, reason ? { FAKE_REASON: reason } : {}) }, () => {}, () => {});
+        expect(listed.models).toEqual([
+          { id: "default", label: "Default", default: true, efforts: ["low"], fast: unavailable ? { unavailable } : {} },
+          { id: "haiku", label: "Haiku", default: false },
+        ]);
+        const seen = readFileSync(join(root, "seen"), "utf8");
+        expect(seen).toContain("fastMode"); expect(seen).not.toContain('"type":"user"');
+      } finally { rmSync(root, { recursive: true, force: true }); }
+    }
+  }, 60000);
+  it("names the tier on every doan Codex turn, standard included, the first after a resume too, and none on an external profile's", async () => {
+    const turns = (root: string) => seenLines(root).filter(r => r.method === "turn/start").map(r => r.params?.serviceTierForTurn);
+    const doan = mkdtempSync(join(tmpdir(), "doan-codex-fast-")), events: EventPayload[] = [];
+    const runner = await openRunner({ command: modeCodex(doan), runtime: "codex", owner: CODEX_OWNER, cwd: doan, configDir: doan, env: process.env, fast: true }, e => events.push(e), () => {}, () => {});
+    try {
+      const choices = [undefined, { permissionMode: "default" as const }, { permissionMode: "default" as const, fast: true as const }];
+      for (const [i, choice] of choices.entries()) { await runner.send("x", `t${i}`, undefined, choice); await vi.waitFor(() => expect(events.filter(e => e.type === "turn.done")).toHaveLength(i + 1)); }
+      // The first turn runs on the start's Fast; a send's choice names its own.
+      expect(turns(doan)).toEqual(["priority", "default", "priority"]);
+    } finally { await runner.close(); rmSync(doan, { recursive: true, force: true }); }
+    const resumed = mkdtempSync(join(tmpdir(), "doan-codex-fast-resume-")), again: EventPayload[] = [];
+    const restarted = await openRunner({ command: modeCodex(resumed), runtime: "codex", owner: CODEX_OWNER, cwd: resumed, configDir: resumed, env: process.env, sessionId: "session" }, e => again.push(e), () => {}, () => {});
+    try {
+      await restarted.send("x", "t1", undefined, { permissionMode: "default" }); await vi.waitFor(() => expect(again).toContainEqual({ type: "turn.done" }));
+      expect(seenLines(resumed).filter(r => r.method === "thread/resume")).toHaveLength(1);
+      expect(turns(resumed)).toEqual(["default"]);
+    } finally { await restarted.close(); rmSync(resumed, { recursive: true, force: true }); }
+    const external = mkdtempSync(join(tmpdir(), "doan-codex-fast-external-")), outside: EventPayload[] = [];
+    const legacy = await openRunner({ command: modeCodex(external), runtime: "codex", cwd: external, configDir: external, env: process.env, sessionId: "session" }, e => outside.push(e), () => {}, () => {});
+    try {
+      await legacy.send("x", "t1"); await vi.waitFor(() => expect(outside).toContainEqual({ type: "turn.done" }));
+      expect(seenLines(external).find(r => r.method === "turn/start")!.params).not.toHaveProperty("serviceTierForTurn");
+    } finally { await legacy.close(); rmSync(external, { recursive: true, force: true }); }
+  });
+});
+
+// fast-mode M fix round 1: pins for paths that keep a run's Fast. The SDK hands Options.settings to the CLI as
+// `--settings <json>` (0.3.312), so the argv value is read, not only searched for.
+const settingsOf = (argv: string[]) => { const at = argv.indexOf("--settings"); return at < 0 ? undefined : JSON.parse(argv[at + 1]!) as unknown; };
+describe("fast kept", () => {
+  it("resumes a Claude session with Fast: --resume and settings fastMode true on the same run", async () => {
+    const root = mkdtempSync(join(tmpdir(), "doan-claude-fast-resume-")), command = fastClaude(root);
+    try {
+      const runner = await openRunner({ command, runtime: "claude", cwd: root, configDir: root, env: claudeEnv(root), sessionId: "11111111-1111-4111-8111-111111111111", fast: true }, () => {}, () => {}, () => {});
+      await runner.send("hello", "turn"); await runner.close();
+      const runs = readFileSync(join(root, "seen"), "utf8").split("\n").filter(line => line.startsWith("[")).map(line => JSON.parse(line) as string[]);
+      expect(runs).toHaveLength(1);
+      expect(runs[0]!.some(arg => arg === "--resume=11111111-1111-4111-8111-111111111111" || arg === "--resume")).toBe(true);
+      expect(settingsOf(runs[0]!)).toEqual({ fastMode: true });
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  }, 15000);
+  it("adds a Send now message to the running Fast Claude run without opening another", async () => {
+    const root = mkdtempSync(join(tmpdir(), "doan-claude-fast-steer-")), real = steerClaude(root), command = join(root, "claude-wrapper");
+    renameSync(real, join(root, "claude-real"));
+    writeFileSync(command, `#!/usr/bin/env node
+require('node:fs').appendFileSync(${JSON.stringify(join(root, "argv"))}, JSON.stringify(process.argv.slice(2)) + '\\n');
+require('node:child_process').spawn(${JSON.stringify(join(root, "claude-real"))}, process.argv.slice(2), { stdio: 'inherit', env: process.env }).on('exit', code => process.exit(code ?? 0));
+`, { mode: 0o700 });
+    const seq: unknown[] = [];
+    const runner = await openRunner({ command, runtime: "claude", cwd: root, configDir: root, env: claudeEnv(root, { FAKE_STEER: "fold" }), fast: true, steerConsumed: (id: string) => seq.push({ consumed: id }) } as Parameters<typeof openRunner>[0], e => seq.push(e), () => {}, () => {});
+    try {
+      const sending = runner.send("hello", "turn-1");
+      await vi.waitFor(() => expect(seq).toContainEqual(expect.objectContaining({ type: "activity" })));
+      await runner.steer!("Extra note", "turn-1", STEER_ID);
+      await sending;
+      expect(seq).toContainEqual({ consumed: STEER_ID }); expect(seq.at(-1)).toEqual({ type: "turn.done" });
+      const runs = readFileSync(join(root, "argv"), "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line) as string[]);
+      expect(runs).toHaveLength(1);
+      expect(settingsOf(runs[0]!)).toEqual({ fastMode: true });
+      expect(userLines(root).map(r => (r.message as { content: string }).content)).toEqual(["hello", "Extra note"]);
+    } finally { await runner.close(); rmSync(root, { recursive: true, force: true }); }
+  }, 20000);
 });

@@ -1,7 +1,7 @@
 import { createContext, forwardRef, Fragment, memo, useContext, useEffect, useId, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type Ref } from "react";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Archive, ArrowDown, ArrowUpRight, Ban, ChevronDown, CircleStop, Copy, Eye, FileText, Forward, Frame, MapPin, Pencil, PencilSparkles, RotateCcw, SquareMousePointer, Terminal } from "lucide-react";
+import { Archive, ArrowDown, ArrowUpRight, Ban, ChevronDown, CircleStop, Copy, Eye, FileText, Forward, Frame, MapPin, Pencil, PencilSparkles, RotateCcw, SquareMousePointer, Terminal, Zap } from "lucide-react";
 import type { Provider } from "../main/agentAuth/types";
 import type { Anchor, Canvas } from "../main/conversation/types";
 import { QUESTION_LIMITS, type Question, type QuestionAnswerInput } from "../main/conversation/question";
@@ -567,6 +567,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
       case "user": return <UserMessage entry={entry} frames={props.frames} disabled={!!props.locateDisabled} onLocate={props.onLocate} />;
       case "agent": return <AgentMessage text={entry.text} streaming={entry.streaming} />;
       case "noReply": return <div className="msg-agent"><p className="muted">No reply.</p></div>;
+      case "fast": return <div className="activity"><div className="activity-head fast-note"><Zap aria-hidden="true" /><span>{entry.text}</span></div></div>;
       case "activity": {
         const open = expanded.has(entry.key), id = `${base}-${entry.key}`;
         return <div className="activity">

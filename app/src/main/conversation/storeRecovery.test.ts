@@ -244,3 +244,18 @@ it("lists a history over the byte limit as a read error for that row only", () =
   const service = new ConversationService(f.store, async () => { throw new Error("unused"); }, async () => { throw new Error("unused"); }, () => {});
   expect(service.list("/repo").map(s => [s.conversationId, s.readError ?? false])).toEqual([["big", true], ["small", false]]);
 });
+
+
+describe("Fast unused history", () => {
+  it.each([{}, { reason: "plan", turnedOff: true }, { reason: "extra_usage", turnedOff: true }, { reason: "model", turnedOff: true }, { reason: "policy", turnedOff: true }, { reason: "cooldown" }])("reads Fast unused after reopening: %j", fields => {
+    const f = setup();
+    const event = { type: "fast.unused", ...fields, v: 1, conversationId: "c", turnId: "t", seq: 1, at: "2026-11-06T00:00:00Z" };
+    writeFileSync(f.path("c"), JSON.stringify(event) + "\n");
+    expect(new ConversationStore(f.root).read("c")).toEqual([event]);
+  });
+  it.each([{ turnedOff: true }, { reason: "cooldown", turnedOff: true }, { reason: "unknown" }, { reason: null }, { reason: 1 }, { turnedOff: false }, { turnedOff: "true" }, { turnedOff: null }])("rejects corrupt Fast unused fields: %j", fields => {
+    const f = setup();
+    writeFileSync(f.path("c"), JSON.stringify({ type: "fast.unused", ...fields, v: 1, conversationId: "c", turnId: "t", seq: 1, at: "2026-11-06T00:00:00Z" }) + "\n");
+    expect(() => new ConversationStore(f.root).read("c")).toThrow();
+  });
+});

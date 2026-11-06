@@ -220,6 +220,16 @@ test("keeps each provider's last permission mode and reads an unknown one as Def
   for (const bad of [null, [], "plan", 1]) expect(parse({ screen: "home", home: { ...home, permissions: bad } })?.home).toEqual(home);
 });
 
+// fast-mode A5 (design §3): each provider's Last used Fast. Read back like permissions, so a save does not drop it
+// (POSTMORTEM 2026-11-01); a damaged entry is dropped alone.
+test("keeps each provider's Fast and drops a damaged entry alone", () => {
+  const state = { screen: "home", expanded: {}, lastByRoot: {}, home: { ...home, fast: { claude: true, codex: true } } };
+  expect(parse(state)).toEqual(state);
+  const read = parse({ screen: "home", home: { ...home, fast: { codex: "yes", claude: true, cursor: false, nobody: true } } });
+  expect(read?.home).toEqual({ ...home, fast: { claude: true } });
+  for (const bad of [null, [], true, 1]) expect(parse({ screen: "home", home: { ...home, fast: bad } })?.home).toEqual(home);
+});
+
 test("home memory never keeps a removed root", () => {
   expect(parse({ screen: "home", home: { lastRoot: "/repo/a" } }, ["/repo/b"])).toEqual({ screen: "home", expanded: {}, lastByRoot: {}, home: {} });
 });

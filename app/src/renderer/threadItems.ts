@@ -1,6 +1,6 @@
 import type { Question, QuestionOutcome, StoredAnswer } from "../main/conversation/question";
-import type { Anchor, Canvas, ConversationEvent, FailureCode, HandoffOrigin, PermissionOption } from "../main/conversation/types";
-import { splitRequest, type PresetRef } from "./homeComposer";
+import type { Anchor, Canvas, ConversationEvent, FailureCode, FastUnusedReason, HandoffOrigin, PermissionOption } from "../main/conversation/types";
+import { fastReason, splitRequest, type PresetRef } from "./homeComposer";
 import { PRESETS } from "../main/mcpConnectors/presets";
 
 // A conversation's merged events (conversationStrip's mergeConversationEvents) as the thread draws them
@@ -18,6 +18,8 @@ export type ThreadItem =
   // `streaming`: more text may still come; a stopped or failed turn keeps what arrived and drops the caret.
   | { kind: "agent"; key: string; messageId: string; text: string; streaming: boolean }
   | { kind: "noReply"; key: string }
+  // A Claude turn that asked for Fast and did not run it (fast-mode design §6): one line in the turn, under the reply.
+  | { kind: "fast"; key: string; seq: number; text: string; turnedOff: boolean }
   // A run of activities folds into one line: the latest activity while it runs, "N steps" once the turn moved on.
   | { kind: "activity"; key: string; running: boolean; head: string; steps: ActivityStep[] }
   | { kind: "permission"; key: string; seq: number; requestId: string; summary: string; options: PermissionOption[]; status: "pending" | "answered" | "expired"; answer: PermissionOption | null }
@@ -65,6 +67,12 @@ export function rootRelative(path: string, root: string): string {
   const roots = [root, root.startsWith("/private/") ? root.slice("/private".length) : `/private${root}`].map(normal);
   for (const base of roots) if (base.length <= target.length && base.every((part, i) => target[i] === part)) return target.slice(base.length).join("/") || ".";
   return `/${target.join("/")}`;
+}
+
+// fast-mode design §6. The reason is its own sentence (fastReason), so it never reads as a fragment of the lead.
+export function fastUnusedText(event: { reason?: FastUnusedReason; turnedOff?: true }): string {
+  const lead = event.turnedOff ? "Fast was turned off." : "Fast wasn’t used for this turn.";
+  return event.reason ? `${lead} ${fastReason(event.reason)}` : lead;
 }
 
 const DONE_VERB = { read: "Read", edit: "Edited" } as const;
@@ -245,6 +253,9 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
         push(item);
         break;
       }
+      case "fast.unused":
+        push({ kind: "fast", key: `f${event.seq}`, seq: event.seq, text: fastUnusedText(event), turnedOff: event.turnedOff === true });
+        break;
       case "turn.done":
         endTurn(event.turnId);
         if (!replied.has(event.turnId)) push({ kind: "noReply", key: `n${event.seq}` });

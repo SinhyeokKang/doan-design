@@ -7,7 +7,7 @@ import type { Canvas, ConversationEvent } from "./types";
 export interface ConversationSummary {
   conversationId: string; canvas?: Canvas; title: string; state: "current" | "archived";
   // permissionMode: the conversation's chosen mode, absent for Default; it also changes after a Claude plan approval.
-  owner: "doan" | "legacy-external"; provider: Provider; model?: string; effort?: string; permissionMode?: PermissionModeId; fromHome: boolean;
+  owner: "doan" | "legacy-external"; provider: Provider; model?: string; effort?: string; fast?: true; permissionMode?: PermissionModeId; fromHome: boolean;
   // waiting: an unanswered permission request or question. ended also covers a turn a restart folded as crashed.
   phase: "running" | "waiting" | "ended"; unseen: boolean; queued: number; lastActivityAt: string; preview: string;
   // main is still working on it, whatever the history says: preparing, running or waiting for an answer, a project turn
@@ -32,7 +32,7 @@ export function conversationSummary(m: ConversationMetadata, read: { ok: true; e
   const base = {
     conversationId: m.conversationId, ...(m.canvas ? { canvas: m.canvas } : {}), title: m.title, state: m.state,
     owner: m.owner.kind, provider: m.session.runtime, ...(m.model ? { model: m.model } : {}), ...(m.effort ? { effort: m.effort } : {}),
-    ...(m.permissionMode ? { permissionMode: m.permissionMode } : {}), fromHome: m.fromHome === true, queued: live.queued, working: live.working,
+    ...(m.fast ? { fast: true as const } : {}), ...(m.permissionMode ? { permissionMode: m.permissionMode } : {}), fromHome: m.fromHome === true, queued: live.queued, working: live.working,
     ...(live.returned ? { returnedDraft: true as const } : {}),
   };
   if (!read.ok) return { ...base, phase: "ended", unseen: false, lastActivityAt: "", preview: "", readError: true };

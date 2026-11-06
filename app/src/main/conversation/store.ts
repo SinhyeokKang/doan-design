@@ -19,7 +19,7 @@ export type ExternalSession = SessionBinding<Runtime>;
 // permissionMode is the conversation's chosen mode; Default is stored as no key.
 interface MetadataBase {
   conversationId: string; root: string; canvas?: Canvas; title: string; state: "current" | "archived";
-  model?: string; effort?: string; permissionMode?: Exclude<PermissionModeId, "default">; canvasesAtStart?: Canvas[]; fromHome?: true; seenSeq?: number;
+  model?: string; effort?: string; fast?: true; permissionMode?: Exclude<PermissionModeId, "default">; canvasesAtStart?: Canvas[]; fromHome?: true; seenSeq?: number;
 }
 // Legacy-external conversations keep the shared two-runtime session; doan-owned ones run on an app provider.
 export type ConversationMetadata = MetadataBase & (
@@ -42,7 +42,7 @@ function label(value: unknown): value is string { return str(value) && value.len
 function metadata(value: unknown, version: 1 | 2): value is ConversationMetadata {
   if (!object(value) || !validId(value.conversationId) || typeof value.root !== "string" || !absolutePath(value.root) || !str(value.title) ||
       (value.state !== "current" && value.state !== "archived") || (value.canvas !== undefined && !validCanvas(value.canvas)) || !object(value.session) ||
-      (value.fromHome !== undefined && value.fromHome !== true) || (value.model !== undefined && !label(value.model)) || (value.effort !== undefined && !label(value.effort)) ||
+      (value.fromHome !== undefined && value.fromHome !== true) || (value.fast !== undefined && value.fast !== true) || (value.model !== undefined && !label(value.model)) || (value.effort !== undefined && !label(value.effort)) ||
       (value.canvasesAtStart !== undefined && (!Array.isArray(value.canvasesAtStart) || ![...value.canvasesAtStart].every(validCanvas))) ||
       (value.seenSeq !== undefined && (typeof value.seenSeq !== "number" || !Number.isSafeInteger(value.seenSeq) || value.seenSeq < 0))) return false;
   const s = value.session;
@@ -96,6 +96,8 @@ function payload(value: Record<string, unknown>): value is Record<string, unknow
     case "question.request": return str(value.requestId) && Array.isArray(value.questions) && questions([...value.questions]);
     case "question.resolved": return str(value.requestId) && ["answered", "skipped", "expired"].includes(String(value.outcome)) &&
       (value.answers === undefined || (value.outcome === "answered" && storedAnswers(value.answers)));
+    case "fast.unused": return (value.reason === undefined || (typeof value.reason === "string" && ["plan", "extra_usage", "model", "policy", "cooldown"].includes(value.reason))) &&
+      (value.turnedOff === undefined || (value.turnedOff === true && value.reason !== undefined && value.reason !== "cooldown"));
     case "context.usage": return Number.isSafeInteger(value.used) && (value.used as number) >= 0 && Number.isSafeInteger(value.size) && (value.size as number) >= 1;
     case "interrupted": return ["user", "appQuit", "crashed"].includes(String(value.reason));
     case "turn.failed": return ["runtime_unsupported", "cli_missing", "not_logged_in", "session_unavailable", "session_in_use", "process_exited", "rate_limited", "unknown"].includes(String(value.code)) && (value.detail === undefined || str(value.detail));

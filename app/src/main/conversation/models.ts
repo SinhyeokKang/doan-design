@@ -1,13 +1,14 @@
 import { object } from "./sessions";
 import type { Provider } from "../agentAuth/types";
 import type { Prepared } from "./service";
+import type { FastUnusedReason } from "./types";
 import type { AcpModes } from "./permissionMode";
 
 // One model the provider listed for a folder. efforts: the levels that model takes, only from Claude and Codex
 // (Cursor and Antigravity put effort in the model ID, Copilot has none). defaultEffort: Codex's default level of that
 // model, which a send names when the choice has none: turn/start's effort holds for later turns too (0.164.0
 // TurnStartParams), so leaving it out would keep the previous turn's level on a reused server.
-export interface ModelOption { id: string; label: string; default: boolean; efforts?: string[]; defaultEffort?: string }
+export interface ModelOption { id: string; label: string; default: boolean; efforts?: string[]; defaultEffort?: string; fast?: { description?: string; unavailable?: FastUnusedReason } }
 // A provider's list for a folder. modes: the ACP server's mode list from the same session/new reply (none for Claude
 // and Codex, whose four modes are fixed, or for an ACP server that listed none).
 export interface ModelList { models: ModelOption[]; modes?: AcpModes }
@@ -27,7 +28,7 @@ export function parseClaudeModels(rows: unknown): ModelOption[] {
   if (!Array.isArray(rows)) throw new Error("session_unavailable");
   return unique(rows.filter(object).filter(r => text(r.value)).map(r => {
     const efforts = r.supportsEffort === true && Array.isArray(r.supportedEffortLevels) ? levels(r.supportedEffortLevels) : undefined;
-    return { id: String(r.value), label: text(r.displayName) ? r.displayName : String(r.value), default: r.value === "default", ...(efforts ? { efforts } : {}) };
+    return { id: String(r.value), label: text(r.displayName) ? r.displayName : String(r.value), default: r.value === "default", ...(efforts ? { efforts } : {}), ...(r.supportsFastMode === true ? { fast: {} } : {}) };
   }));
 }
 // Codex app-server model/list result (0.164.0): {data: [{id, displayName, isDefault, supportedReasoningEfforts}]}.
@@ -36,8 +37,14 @@ export function parseCodexModels(result: unknown): ModelOption[] {
   return unique(result.data.filter(object).filter(r => text(r.id) && r.hidden !== true).map(r => {
     const efforts = Array.isArray(r.supportedReasoningEfforts) ? levels(r.supportedReasoningEfforts.filter(object).map(e => e.reasoningEffort)) : undefined;
     const fallback = text(r.defaultReasoningEffort) && efforts?.includes(r.defaultReasoningEffort) ? r.defaultReasoningEffort : undefined;
-    return { id: String(r.id), label: text(r.displayName) ? r.displayName : String(r.id), default: r.isDefault === true, ...(efforts ? { efforts } : {}), ...(fallback ? { defaultEffort: fallback } : {}) };
+    const priority = Array.isArray(r.serviceTiers) ? r.serviceTiers.filter(object).find(t => t.id === "priority") : undefined;
+    return { id: String(r.id), label: text(r.displayName) ? r.displayName : String(r.id), default: r.isDefault === true, ...(efforts ? { efforts } : {}), ...(fallback ? { defaultEffort: fallback } : {}), ...(priority ? { fast: { ...(text(priority.description) ? { description: priority.description } : {}) } } : {}) };
   }));
+}
+// Model-specific and transient failures do not disable other Fast rows during a list read.
+export function applyClaudeFastUnavailable(disabledReason: unknown, models: ModelOption[]): ModelOption[] {
+  const unavailable: FastUnusedReason | undefined = disabledReason === "free" ? "plan" : disabledReason === "extra_usage_disabled" ? "extra_usage" : disabledReason === "preference" ? "policy" : undefined;
+  return unavailable ? models.map(m => m.fast ? { ...m, fast: { ...m.fast, unavailable } } : m) : models;
 }
 // ACP session/new result: models {currentModelId, availableModels [{modelId, name}]}. Copilot lists `auto` twice.
 export function parseAcpModels(result: unknown): ModelOption[] {
@@ -93,8 +100,15 @@ export class ModelCatalog {
   defaultEffort(root: string, runtime: Provider, model: string): string | undefined {
     return this.received.get(JSON.stringify([root, runtime]))?.find(m => m.id === model)?.defaultEffort;
   }
-  accepts(root: string, runtime: Provider, model: string, effort: string | undefined): boolean {
+  // Whether this run's list says the model takes Fast now. No model: the list's default row, which a conversation without
+  // a stored model runs on (Claude `default`, Codex isDefault).
+  fast(root: string, runtime: Provider, model: string | undefined): boolean {
+    const id = model ?? this.received.get(JSON.stringify([root, runtime]))?.find(m => m.default)?.id;
+    return id !== undefined && this.accepts(root, runtime, id, undefined, true);
+  }
+  accepts(root: string, runtime: Provider, model: string, effort: string | undefined, fast?: boolean): boolean {
     const found = this.received.get(JSON.stringify([root, runtime]))?.find(m => m.id === model);
-    return !!found && (effort === undefined || !!found.efforts?.includes(effort));
+    return !!found && (effort === undefined || !!found.efforts?.includes(effort)) &&
+      (fast !== true || (found.fast !== undefined && found.fast.unavailable === undefined));
   }
 }

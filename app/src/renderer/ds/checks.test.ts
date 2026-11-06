@@ -53,6 +53,11 @@ const violetAllowed = [
   ".drop-target",
   ".row-slot.permission",
   ".row-slot.unseen i",
+  // The Fast icon on the Effort trigger, the Effort menu's Fast row and the thread's Fast-not-used line (fast-mode
+  // decision 11, confirmed draft 2026-11-06).
+  ".composer-effort .fast-icon",
+  ".fast-slot",
+  ".conversation-thread .activity-head.fast-note svg",
   // The person's message in the conversation thread: a light accent bubble and its preset line (buzz-conversation
   // design §0, confirmed draft 2026-10-31).
   ".conversation-thread .bubble",

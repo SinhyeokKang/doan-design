@@ -96,7 +96,7 @@ import { notificationTarget, type NotificationTarget } from "../main/notificatio
 import type { Provider } from "../main/agentAuth/types";
 import type { PermissionModeId } from "../main/conversation/permissionMode";
 import type { PreferencesPatch, PreferencesSnapshot } from "../main/preferences";
-import { preferenceAfterPick, rememberChoice, rememberPermission, type ComposerChoice } from "./rememberChoice";
+import { preferenceAfterPick, rememberChoice, rememberFast, rememberPermission, shouldTurnOffFast, withFastChanges, type ComposerChoice } from "./rememberChoice";
 
 // Each command names its handler; one App does not know does nothing (R-M ⚪5).
 export function menuCommand(name: MenuCommand, to: { home: () => void; quickOpen: () => void; newConversation: () => void; pickFromCanvas: () => void; toggleSidebar: () => void }): void {
@@ -305,6 +305,14 @@ export function App() {
   // The initial ui-state read has settled (a failed read counts). No save is sent before it: main replaces the whole
   // file on each save, so an early save would drop every remembered field it does not carry (RBR4).
   const memoryRead = useRef(false);
+  // Fast changes (switches and auto-offs) made before that read, laid over the read map per provider when it lands.
+  const fastBeforeRead = useRef(new Map<Provider, boolean>());
+  // One clock for the person's Fast switches and the auto-offs seen live, so an auto-off whose provider is learned
+  // later never undoes a switch the person made after it was seen.
+  const fastClock = useRef(0);
+  const fastSwitchedAt = useRef(new Map<Provider, number>());
+  // Live auto-offs for conversations no list names yet, by conversation, with when they were seen.
+  const fastOffPending = useRef(new Map<string, number>());
   // Roots the run wrote, cleared or removed before that read.
   const memoryTouched = useRef(new Set<string>());
   const [memoryTick, setMemoryTick] = useState(0);
@@ -531,7 +539,10 @@ export function App() {
     void window.doan.readUiState().then(state => state, () => null).then(state => {
       // Main replaces the whole state on each save, so Home's memory is kept even when the restore was cancelled.
       // A send that finished before this read keeps its newer choices over the saved ones.
-      if (active) setHomeMemory(previous => ({ ...state?.home, ...previous }));
+      if (active) setHomeMemory(previous => {
+        const fast = withFastChanges(state?.home?.fast, fastBeforeRead.current);
+        return { ...state?.home, ...previous, ...(fast ? { fast } : {}) };
+      });
       // The same for the Overview's memory: a conversation shown before the read keeps its newer entry.
       if (active) { conversationByRoot.current = mergeConversationMemory(state?.conversationByRoot, conversationByRoot.current, memoryTouched.current); memoryRead.current = true; setMemoryTick(tick => tick + 1); overviewRun.current?.sync(); }
       if (active && state?.settingsSection && !sectionChosen.current) setSettings({ ...settingsRef.current, section: state.settingsSection });
@@ -1114,6 +1125,10 @@ export function App() {
     return reply;
   };
   const rememberPick = (choice: ComposerChoice) => {
+    if (choice.fast !== undefined) {
+      fastSwitchedAt.current.set(choice.provider, ++fastClock.current);
+      if (!memoryRead.current) fastBeforeRead.current.set(choice.provider, choice.fast);
+    }
     setHomeMemory(previous => rememberChoice(previous, choice));
     const next = preferenceAfterPick(preferences?.preferences.newConversation ?? null, choice);
     if (next) void savePreferences({ newConversation: next });
@@ -1823,7 +1838,31 @@ export function App() {
   const canvasList: CanvasList = overview === null || listed === null ? [] : typeof listed === "string" ? listed
     : canvasConversationRows(listed, overview.kind === "list" ? overview.canvases : [], Date.now(), run.seenPending());
   const thumbs = useThumbnails(overview?.kind === "list" ? overview.path : null, typeof canvasList === "string" ? [] : canvasList.flatMap(item => item.row ? [item.row] : []));
-  useEffect(() => window.doan.onConversationEvent(event => { homeRun.current.event(event); overviewRun.current!.event(event); }), []);
+  // Fast turned itself off (fast-mode decision 4): that provider's Last used follows, and the conversation's own switch
+  // held in a composer goes, so the next turn is not asked for Fast again. Only here, as events arrive: this channel
+  // never replays history, so a restart cannot undo a Fast the person turned on again (shouldTurnOffFast).
+  // A conversation the lists do not name yet waits in fastOffPending until one does (review R 🟡3).
+  const fastOffFor = (conversationId: string, seenAt: number): boolean => {
+    const provider = [...homeRun.current.lists.values()].flat().find(c => c.conversationId === conversationId)?.provider
+      ?? homeRun.current.conversations.find(c => c.conversationId === conversationId)?.provider;
+    if (!provider) return false;
+    if ((fastSwitchedAt.current.get(provider) ?? 0) < seenAt) {
+      if (!memoryRead.current) fastBeforeRead.current.set(provider, false);
+      setHomeMemory(previous => previous ? rememberFast(previous, provider, false) : previous);
+    }
+    return true;
+  };
+  const fastTurnedOff = (conversationId: string) => {
+    support.current?.fastTurnedOff(conversationId);
+    const seenAt = ++fastClock.current;
+    if (!fastOffFor(conversationId, seenAt)) fastOffPending.current.set(conversationId, seenAt);
+  };
+  useEffect(() => window.doan.onConversationEvent(event => {
+    homeRun.current.event(event); overviewRun.current!.event(event);
+    if (shouldTurnOffFast(event, true)) fastTurnedOff(event.conversationId);
+  }), []);
+  // Every render follows a list change, so a waiting auto-off is tried again once a list may name its conversation.
+  useEffect(() => { for (const [conversationId, seenAt] of fastOffPending.current) if (fastOffFor(conversationId, seenAt)) fastOffPending.current.delete(conversationId); });
   useEffect(() => window.doan.onConversationListChanged(({ root }) => homeRun.current.listChanged(root)), []);
   useEffect(() => {
     if (modal) { homeRun.current.modalChanged(true); return; }

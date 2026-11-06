@@ -1,8 +1,10 @@
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import { PROVIDERS, type AuthStatusDto, type Provider, type ReadinessCause } from "../main/agentAuth/types";
 import type { AcpModes, PermissionModeId } from "../main/conversation/permissionMode";
+import type { FastUnusedReason } from "../main/conversation/types";
 import type { DesignPresetSummary, DesignSkillReply } from "../main/designSkills";
 import type { CanvasRow, FolderEntry } from "../main/view";
+import type { HomeMemory } from "../restore/uiState";
 import { canvasKind } from "../formats/canvasPath";
 import { PROVIDER_NAMES } from "./agentAuthView";
 import { toMessage, type FieldSegment } from "./anchorField";
@@ -215,7 +217,9 @@ export function defaultProvider(auth: AuthSnapshot | null | undefined, last: Pro
 
 // Models and effort
 
-export interface ModelOption { id: string; label: string; default: boolean; efforts?: string[] }
+// fast: the model offers Fast (fast-mode design §1); description is Codex's tier text, unavailable an account-level
+// reason Claude Code's list read gave (decision 12).
+export interface ModelOption { id: string; label: string; default: boolean; efforts?: string[]; fast?: { description?: string; unavailable?: FastUnusedReason } }
 // undefined: not read in this run. Lists are never hard-coded, so only a received list offers models.
 // modes: what an ACP server listed with its models (permission-mode); absent for Claude and Codex.
 export type ModelsState = undefined | "loading" | { models: ModelOption[]; modes?: AcpModes } | { error: string };
@@ -240,6 +244,14 @@ export function defaultEffort(model: ModelOption | null, remembered: string | un
   return wanted !== undefined && model?.efforts?.includes(wanted) ? wanted : null;
 }
 
+// Why Claude Code did not or cannot run Fast (fast-mode design §6): the thread's line and a disabled switch row's
+// description.
+const FAST_REASONS: Record<FastUnusedReason, string> = {
+  plan: "Your plan doesn’t include it.", extra_usage: "Extra usage is turned off for this account.", model: "It isn’t available for this model.",
+  policy: "Your organization turned it off.", cooldown: "It’s paused after a rate limit.",
+};
+export function fastReason(reason: FastUnusedReason): string { return FAST_REASONS[reason]; }
+
 const EFFORT_LABELS: Record<string, string> = { minimal: "Minimal", low: "Low", medium: "Medium", high: "High", xhigh: "Extra high", max: "Max" };
 function effortLabel(id: string): string { return EFFORT_LABELS[id] ?? id.charAt(0).toUpperCase() + id.slice(1); }
 
@@ -256,11 +268,14 @@ export interface ProviderGroup {
   read: boolean;
   rows: ModelRow[];
 }
-export interface ModelChoice { provider: Provider | null; model: string | null; effort: string | null }
+// fast: the conversation's or the new input's Fast, kept even for a model without it (decision 5); absent where the
+// composer offers no Fast (Settings > Agents 'New conversations').
+export interface ModelChoice { provider: Provider | null; model: string | null; effort: string | null; fast?: boolean }
+export interface FastView { on: boolean; description?: string; unavailable?: FastUnusedReason }
 export interface ModelPickerView {
   trigger: { provider: Provider | null; label: string; ariaLabel: string };
   groups: ProviderGroup[];
-  effort: { label: string; ariaLabel: string; menuLabel: string; title: string; options: { id: string; label: string; selected: boolean }[] } | null;
+  effort: { label: string; ariaLabel: string; menuLabel: string; title: string; options: { id: string; label: string; selected: boolean }[]; fast: FastView | null } | null;
 }
 
 export function modelOption(state: ModelsState, id: string | null): ModelOption | null {
@@ -288,12 +303,42 @@ export function modelPickerView(auth: AuthSnapshot | null | undefined, models: P
   const levels = chosen?.efforts ?? [];
   const effort = chosen && levels.length > 0 ? (() => {
     const current = choice.effort !== null && levels.includes(choice.effort) ? effortLabel(choice.effort) : "Default";
+    const fast = choice.provider && choice.fast !== undefined ? fastView(choice.provider, chosen, choice.fast) : null;
+    // label stays the level alone: Settings shows it as its row's text (fast-mode design §1).
     return {
-      label: current, ariaLabel: `Effort: ${current}`, menuLabel: `Effort for ${chosen.label}`, title: `Effort · ${chosen.label}`,
-      options: levels.map(id => ({ id, label: effortLabel(id), selected: id === choice.effort })),
+      label: current, ariaLabel: fast && !fast.unavailable ? `Effort: ${current}, Fast ${fast.on ? "on" : "off"}` : `Effort: ${current}`, menuLabel: `Effort for ${chosen.label}`, title: `Effort · ${chosen.label}`,
+      options: levels.map(id => ({ id, label: effortLabel(id), selected: id === choice.effort })), fast,
     };
   })() : null;
   return { trigger, groups, effort };
+}
+
+// Only Claude Code and Codex list Fast per model; the others offer Fast as a model of its own (fast-mode decision 1).
+const FAST_PROVIDERS: readonly Provider[] = ["claude", "codex"];
+// Claude Code's own words (2.1.318: "same model, faster output", "Fast mode requires usage credits"); check them again
+// when the CLI's copy changes. Codex's description is its tier's, as listed.
+const CLAUDE_FAST = "Same model, faster output. Requires usage credits.";
+function fastView(provider: Provider, model: ModelOption, on: boolean): FastView | null {
+  if (!FAST_PROVIDERS.includes(provider) || !model.fast) return null;
+  const { description, unavailable } = model.fast;
+  if (unavailable) return { on: false, description: fastReason(unavailable), unavailable };
+  const text = provider === "claude" ? CLAUDE_FAST : description;
+  return { on, ...(text ? { description: text } : {}) };
+}
+
+// What an existing conversation's send says of Fast: nothing until the person switched it. An off is stored whatever
+// the model; an on only while the shown model's row can be used, since main refuses Fast for a model without it.
+// provider: null for a conversation that takes no Fast (a terminal session).
+export function fastToSend(picked: boolean | undefined, provider: Provider | null, view: FastView | null): { fast?: boolean } {
+  if (picked === undefined || provider === null || !FAST_PROVIDERS.includes(provider)) return {};
+  if (!picked) return { fast: false };
+  return view && !view.unavailable ? { fast: true } : {};
+}
+
+// A new input's Fast is its provider's Last used; a fixed Settings default never sets it (decision 3). The switch shows
+// it on only for a model that offers Fast (fastView).
+export function defaultFast(memory: HomeMemory | null | undefined, provider: Provider | null): boolean {
+  return provider !== null && memory?.fast?.[provider] === true;
 }
 
 // Presets

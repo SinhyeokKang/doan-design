@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ConversationStore } from "./store";
 import { HOME_GUIDANCE, PRESET_GUIDANCE } from "./prompt";
-import { ConversationService, resolveListedCanvas, type Runner, type OpenRunner, type Prepare, type QueueFiles } from "./service";
+import { ConversationService, resolveListedCanvas, type Runner, type OpenRunner, type Prepare, type QueueFiles, type QueueOptions } from "./service";
 import { DraftStore } from "./drafts";
 import type { Canvas, ConversationEvent } from "./types";
 import { storedAnswers } from "./transport";
@@ -319,7 +319,7 @@ it("sends the fixed preset guidance on a follow-up turn as on the first", async 
 
 // buzz-home: Home starts (newDesign), chosen models, attachments and binding by start-time lists.
 // admit: resolve a canvas against the listed rows as main does (restore needs it); files: the queue's attachment hooks.
-function homeFixture(canvases: { path: string; id?: string }[] = [], options: { admit?: boolean; files?: QueueFiles } = {}) {
+function homeFixture(canvases: { path: string; id?: string }[] = [], options: { admit?: boolean; files?: QueueFiles; fast?: QueueOptions["fast"] } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "doan-service-")); paths.push(dir);
   const store = new ConversationStore(dir); const runners: Runner[] = []; let session = 0;
   const open = vi.fn<OpenRunner>(async input => {
@@ -334,7 +334,7 @@ function homeFixture(canvases: { path: string; id?: string }[] = [], options: { 
   const admit = (_root: string, canvas?: Canvas) => options.admit && canvas ? resolveListedCanvas(canvas, listed) : undefined;
   const drafts = new DraftStore(join(dir, "conversations"));
   const deleted: string[] = [];
-  const service = new ConversationService(store, prepare, open, e => published.push(e), admit, 10_000, () => listed, root => changes.push(root), { drafts, ...(options.files ? { files: options.files } : {}) }, id => deleted.push(id));
+  const service = new ConversationService(store, prepare, open, e => published.push(e), admit, 10_000, () => listed, root => changes.push(root), { drafts, ...(options.files ? { files: options.files } : {}), ...(options.fast ? { fast: options.fast } : {}) }, id => deleted.push(id));
   // Moves the clock the project limit reads past the binding window of every turn that ended so far.
   let skew = 0; const now = Date.now; vi.spyOn(Date, "now").mockImplementation(() => now() + skew);
   return { dir, service, store, runners, open, prepare, listed, changes, published, owner, drafts, deleted, passBindingWindow: () => { skew += 10_001; } };
@@ -2515,5 +2515,212 @@ describe("conversation work", () => {
     const h = fixture(); h.prepare.mockRejectedValueOnce(new Error("session_unavailable"));
     await expect(h.service.start(request)).rejects.toThrow("session_unavailable");
     expect(h.ended).toEqual([]);
+  });
+});
+
+// fast-mode A3: the conversation stores the person's Fast; the runner gets the turn's effective Fast, which ipc judges
+// for a send and the QueueOptions callback for a start, a handoff and a queue flush.
+describe("fast", () => {
+  const canvas = { path: ".doan/canvases/a.html", id: "a" };
+  const takes = (_root: string, _provider: string, model: string | undefined) => model !== "haiku";
+  const lastTurn = (h: ReturnType<typeof homeFixture>) => vi.mocked(h.runners.at(-1)!.send).mock.calls.at(-1)![3];
+  async function ended(h: ReturnType<typeof homeFixture>, id: string) { h.service.receive(id, { type: "turn.done" }); h.open.mock.calls.at(-1)![2](); }
+  it("stores a start's Fast and runs it with Fast only when this run's list says its model takes it", async () => {
+    const h = homeFixture([], { fast: takes });
+    const id = (await h.service.start({ ...homeRequest, mode: "new", canvas, model: "sonnet", fast: true })).conversationId;
+    expect(h.store.list()[0]).toMatchObject({ fast: true });
+    expect(h.open.mock.calls[0]![0]).toMatchObject({ fast: true });
+    expect(h.service.list("/repo")[0]).toMatchObject({ fast: true });
+    await ended(h, id);
+    const other = (await h.service.start({ ...homeRequest, model: "haiku", fast: true })).conversationId;
+    expect(h.store.list().find(m => m.conversationId === other)).toMatchObject({ fast: true });
+    expect(h.open.mock.calls[1]![0]).not.toHaveProperty("fast");
+    const off = (await h.service.start({ ...homeRequest, mode: "new", canvas: { path: ".doan/canvases/b.html" }, fast: false })).conversationId;
+    expect(h.store.list().find(m => m.conversationId === off)).not.toHaveProperty("fast");
+    expect(h.open.mock.calls[2]![0]).not.toHaveProperty("fast");
+  });
+  it("runs no start with Fast without the callback, which only this run's list answers", async () => {
+    const h = homeFixture();
+    await h.service.start({ ...homeRequest, mode: "new", canvas, fast: true });
+    expect(h.store.list()[0]).toMatchObject({ fast: true });
+    expect(h.open.mock.calls[0]![0]).not.toHaveProperty("fast");
+  });
+  it("stores a send's Fast choice, runs the turn's Fast as ipc judged it, and keeps the choice across a model without Fast", async () => {
+    const h = homeFixture([], { fast: takes });
+    const id = (await h.service.start({ ...homeRequest, mode: "new", canvas, model: "sonnet" })).conversationId;
+    await ended(h, id);
+    await h.service.send(id, "fast", [], { fast: true, fastTurn: true });
+    expect(h.store.list()[0]).toMatchObject({ model: "sonnet", fast: true });
+    expect(h.open.mock.calls.at(-1)![0]).toMatchObject({ fast: true });
+    await ended(h, id);
+    // A model without Fast: no Fast for the turn, the stored choice stays.
+    await h.service.send(id, "plain", [], { model: "haiku" });
+    expect(h.store.list()[0]).toMatchObject({ model: "haiku", fast: true });
+    expect(h.open.mock.calls.at(-1)![0]).not.toHaveProperty("fast");
+    await ended(h, id);
+    await h.service.send(id, "back", [], { model: "opus", fastTurn: true });
+    expect(h.store.list()[0]).toMatchObject({ model: "opus", fast: true });
+    expect(h.open.mock.calls.at(-1)![0]).toMatchObject({ fast: true });
+    await ended(h, id);
+    await h.service.send(id, "off", [], { fast: false });
+    expect(h.store.list()[0]).not.toHaveProperty("fast");
+    expect(h.store.list()[0]).toMatchObject({ model: "opus" });
+    expect(h.open.mock.calls.at(-1)![0]).not.toHaveProperty("fast");
+  });
+  it("names the turn's Fast on every turn of a reused Codex server", async () => {
+    const h = homeFixture([], { fast: takes });
+    const codex = { ...h.owner, provider: "codex" as const };
+    h.prepare.mockImplementation(async (_request, stored) => ({ runtime: "codex", configDir: "/config", cwd: "/repo", command: "/fake", env: {}, owner: codex, ...(stored ? { sessionId: stored.session.sessionId } : {}) }));
+    const id = (await h.service.start({ ...homeRequest, mode: "new", canvas, runtime: "codex", model: "gpt-6-luna", fast: true })).conversationId;
+    expect(h.open.mock.calls[0]![0]).toMatchObject({ fast: true });
+    h.service.receive(id, { type: "turn.done" });
+    await h.service.send(id, "again", [], { fastTurn: true });
+    expect(lastTurn(h)).toEqual({ model: "gpt-6-luna", permissionMode: "default", fast: true });
+    h.service.receive(id, { type: "turn.done" });
+    await h.service.send(id, "off", [], { fast: false });
+    expect(lastTurn(h)).toEqual({ model: "gpt-6-luna", permissionMode: "default" });
+    expect(h.open).toHaveBeenCalledOnce();
+  });
+  it("sends a queue with the Fast stored when it goes out, judged for the model it goes out on", async () => {
+    const h = homeFixture([], { fast: takes });
+    const id = (await h.service.start({ ...homeRequest, mode: "new", canvas, model: "sonnet", fast: true })).conversationId;
+    h.service.queue(id, { text: "one", anchors: [] });
+    h.service.receive(id, { type: "turn.done" }); h.open.mock.calls[0]![2]();
+    await vi.waitFor(() => expect(h.open).toHaveBeenCalledTimes(2));
+    expect(h.open.mock.calls[1]![0]).toMatchObject({ fast: true });
+    // Stored off while the turn runs: the queue goes out without Fast.
+    h.service.queue(id, { text: "two", anchors: [] });
+    h.store.save(h.store.list().map(({ fast: _fast, ...m }) => m));
+    h.service.receive(id, { type: "turn.done" }); h.open.mock.calls[1]![2]();
+    await vi.waitFor(() => expect(h.open).toHaveBeenCalledTimes(3));
+    expect(h.open.mock.calls[2]![0]).not.toHaveProperty("fast");
+    // On a model without Fast the stored choice stays and the turn goes without it.
+    h.service.queue(id, { text: "three", anchors: [] });
+    h.store.save(h.store.list().map(m => ({ ...m, model: "haiku", fast: true as const })));
+    h.service.receive(id, { type: "turn.done" }); h.open.mock.calls[2]![2]();
+    await vi.waitFor(() => expect(h.open).toHaveBeenCalledTimes(4));
+    expect(h.open.mock.calls[3]![0]).not.toHaveProperty("fast");
+    expect(h.store.list()[0]).toMatchObject({ model: "haiku", fast: true });
+  });
+  it("names the stored Fast in the send target", async () => {
+    const h = homeFixture();
+    const id = (await h.service.start({ ...homeRequest, mode: "new", canvas, model: "sonnet", fast: true })).conversationId;
+    expect(h.service.sendTarget(id)).toMatchObject({ model: "sonnet", fast: true });
+  });
+});
+
+// fast-mode A4: a reason that goes on turns the conversation's Fast off in the flow that records the event.
+describe("fast turned off", () => {
+  const canvas = { path: ".doan/canvases/a.html", id: "a" };
+  it("clears the stored Fast when the turn records a fast.unused that turned it off, and keeps it otherwise", async () => {
+    const h = homeFixture([], { fast: () => true });
+    const id = (await h.service.start({ ...homeRequest, mode: "new", canvas, model: "opus", fast: true })).conversationId;
+    h.service.receive(id, { type: "fast.unused", reason: "cooldown" });
+    expect(h.store.list()[0]).toMatchObject({ fast: true });
+    h.service.receive(id, { type: "fast.unused" });
+    expect(h.store.list()[0]).toMatchObject({ fast: true });
+    // The list announced after the index changed, so the composer reads Fast off.
+    const listed: unknown[] = []; h.changes.length = 0;
+    const changes = h.changes; vi.spyOn(changes, "push").mockImplementation((...roots) => { listed.push(h.service.list("/repo")[0]!.fast); return Array.prototype.push.apply(changes, roots); });
+    h.service.receive(id, { type: "fast.unused", reason: "extra_usage", turnedOff: true });
+    expect(listed.at(-1)).toBeUndefined();
+    expect(h.store.list()[0]).not.toHaveProperty("fast");
+    expect(h.store.list()[0]).toMatchObject({ model: "opus" });
+    expect(h.store.read(id).filter(e => e.type === "fast.unused")).toHaveLength(3);
+    expect(h.service.list("/repo")[0]).not.toHaveProperty("fast");
+    h.service.receive(id, { type: "turn.done" }); h.open.mock.calls.at(-1)![2]();
+    // The next send that names no Fast runs without it.
+    await h.service.send(id, "again", []);
+    expect(h.open.mock.calls.at(-1)![0]).not.toHaveProperty("fast");
+  });
+  it("turns Fast off before a queue held for the turn goes out", async () => {
+    const h = homeFixture([], { fast: () => true });
+    const id = (await h.service.start({ ...homeRequest, mode: "new", canvas, model: "opus", fast: true })).conversationId;
+    h.service.queue(id, { text: "next", anchors: [] });
+    h.service.receive(id, { type: "fast.unused", reason: "plan", turnedOff: true });
+    h.service.receive(id, { type: "turn.done" }); h.open.mock.calls[0]![2]();
+    await vi.waitFor(() => expect(h.open).toHaveBeenCalledTimes(2));
+    expect(h.open.mock.calls[1]![0]).not.toHaveProperty("fast");
+  });
+  it("leaves a conversation whose Fast is already off alone, and reading the history again turns nothing off", async () => {
+    const h = homeFixture([], { fast: () => true });
+    const id = (await h.service.start({ ...homeRequest, mode: "new", canvas, model: "opus", fast: true })).conversationId;
+    h.service.receive(id, { type: "fast.unused", reason: "plan", turnedOff: true });
+    h.service.receive(id, { type: "turn.done" });
+    const save = vi.spyOn(h.store, "save");
+    h.store.save(h.store.list().map(m => ({ ...m, fast: true as const })));
+    save.mockClear();
+    h.service.read(id); h.service.list("/repo");
+    expect(save).not.toHaveBeenCalled();
+    expect(h.store.list()[0]).toMatchObject({ fast: true });
+  });
+});
+
+// fast-mode M fix round 1: a turn-off whose index write fails takes the persistence-failure path. Nothing claims Fast
+// went off while the index still holds it, and nothing runs on as if it had.
+describe("fast turned off, index write failed", () => {
+  const canvas = { path: ".doan/canvases/a.html", id: "a" };
+  it("records no notice, stops the turn and its queue, and the next run after a restart still has the stored Fast", async () => {
+    const h = homeFixture([], { fast: () => true });
+    const id = (await h.service.start({ ...homeRequest, mode: "new", canvas, model: "opus", fast: true })).conversationId;
+    h.service.queue(id, { text: "next", anchors: [] });
+    const save = vi.spyOn(h.store, "save").mockImplementationOnce(() => { throw new Error("EACCES"); });
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    h.service.receive(id, { type: "fast.unused", reason: "plan", turnedOff: true });
+    expect(save).toHaveBeenCalled(); expect(errors).toHaveBeenCalled();
+    // The index still says Fast; no history line or published event says it went off.
+    expect(h.store.list()[0]).toMatchObject({ fast: true });
+    expect(h.service.list("/repo")[0]).toMatchObject({ fast: true });
+    expect(h.store.read(id).some(e => e.type === "fast.unused")).toBe(false);
+    expect(h.published.some(e => e.type === "fast.unused")).toBe(false);
+    // The history stopped taking writes: the runner closes, the turn's end is not recorded and nothing goes out after it.
+    expect(h.runners[0]!.close).toHaveBeenCalled();
+    h.service.receive(id, { type: "turn.done" });
+    expect(h.store.read(id).some(e => e.type === "turn.done")).toBe(false);
+    h.open.mock.calls[0]![2]();
+    await new Promise(resolve => setTimeout(resolve, 20));
+    expect(h.open).toHaveBeenCalledOnce();
+    await expect(h.service.send(id, "again", [], { fastTurn: true })).rejects.toThrow("busy");
+    // After a restart the stored Fast still holds, so the next run asks for it and can be judged again.
+    const restarted = new ConversationService(new ConversationStore(h.dir), h.prepare, h.open, () => {}, undefined, 10_000, () => [], () => {}, { fast: () => true });
+    await restarted.send(id, "again", [], { fastTurn: true });
+    expect(h.open).toHaveBeenCalledTimes(2);
+    expect(h.open.mock.calls[1]![0]).toMatchObject({ fast: true });
+    restarted.receive(id, { type: "fast.unused", reason: "plan", turnedOff: true });
+    expect(new ConversationStore(h.dir).list()[0]).not.toHaveProperty("fast");
+    expect(new ConversationStore(h.dir).read(id).filter(e => e.type === "fast.unused")).toEqual([expect.objectContaining({ reason: "plan", turnedOff: true })]);
+  });
+});
+
+// fast-mode M fix round 1: pins for a run's Fast around Send now and a send right after a turn-off.
+describe("fast kept", () => {
+  const canvas = { path: ".doan/canvases/a.html", id: "a" };
+  it("puts a Send now message into the running Fast turn without opening or sending another run", async () => {
+    const h = homeFixture([], { fast: () => true });
+    const id = (await h.service.start({ ...homeRequest, mode: "new", canvas, model: "opus", fast: true })).conversationId;
+    const runner = h.runners[0]!; runner.steer = vi.fn(async () => {});
+    const item = h.service.queue(id, { text: "one", anchors: [] });
+    const sent = h.service.sendNow(id, item.itemId);
+    await vi.waitFor(() => expect(runner.steer).toHaveBeenCalledOnce());
+    h.open.mock.calls[0]![0].steerConsumed!(vi.mocked(runner.steer).mock.calls[0]![2]);
+    await sent;
+    expect(h.open).toHaveBeenCalledOnce();
+    expect(h.open.mock.calls[0]![0]).toMatchObject({ fast: true });
+    expect(runner.send).toHaveBeenCalledOnce();
+    expect(h.store.list()[0]).toMatchObject({ fast: true });
+  });
+  it("turns Fast on again with a send right after a turn-off, which runs with it", async () => {
+    const h = homeFixture([], { fast: () => true });
+    const id = (await h.service.start({ ...homeRequest, mode: "new", canvas, model: "opus", fast: true })).conversationId;
+    h.service.receive(id, { type: "fast.unused", reason: "extra_usage", turnedOff: true });
+    h.service.receive(id, { type: "turn.done" });
+    expect(h.store.list()[0]).not.toHaveProperty("fast");
+    // Sent while the turned-off turn's process is still exiting: the send waits, then stores and runs its Fast.
+    const sending = h.service.send(id, "fast again", [], { fast: true, fastTurn: true });
+    h.open.mock.calls[0]![2]();
+    await sending;
+    expect(h.store.list()[0]).toMatchObject({ model: "opus", fast: true });
+    expect(h.open.mock.calls.at(-1)![0]).toMatchObject({ fast: true });
+    expect(h.store.read(id).filter(e => e.type === "fast.unused")).toHaveLength(1);
   });
 });

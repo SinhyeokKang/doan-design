@@ -28,7 +28,7 @@ import { draftKey, EMPTY_DRAFT, type DockedBusy, type DockedMode } from "./docke
 import { modelsKey, type DockedSupport } from "./dockedSupport";
 import { cardRow, ROW_ACTION_LABELS, type RowAction } from "./homeCards";
 import {
-  attachmentLimit, defaultEffort, defaultModel, defaultProvider, fixedPreference, groupIcon, modelOption, modelPickerView,
+  attachmentLimit, defaultEffort, defaultFast, defaultModel, fastToSend, defaultProvider, fixedPreference, groupIcon, modelOption, modelPickerView,
   selectableProvider, suggestedPresets, suggestedPrompts, type AttachmentDraft, type ModelsState, type NewConversationDefault,
 } from "./homeComposer";
 import type { LastRequest } from "./homeConversations";
@@ -148,7 +148,9 @@ export function ProjectOverview(props: ProjectOverviewProps) {
   const model = chosen ? modelOption(listState, pick.model ?? null)?.id ?? defaultModel(listState, saved, fixed) : null;
   const option = modelOption(listState, model);
   const effort = pick.effort !== undefined ? defaultEffort(option, pick.effort) : defaultEffort(option, saved?.model === model ? saved?.effort : undefined, fixed);
-  const picker = modelPickerView(auth, lists, { provider: chosen, model, effort });
+  // Fast, as effort: a new conversation's from its provider's Last used, an existing one's its own stored choice.
+  const fast = pick.fast ?? (mode.kind === "new" ? defaultFast(props.prefs, chosen) : summary?.fast === true);
+  const picker = modelPickerView(auth, lists, { provider: chosen, model, effort, fast });
   // The mode, as the model: a new conversation's from Home's rules, an existing one's its own stored mode.
   const stored = readPermissionMode(summary?.permissionMode);
   const choices = chosen ? permissionChoices(chosen, listState) : [];
@@ -240,12 +242,13 @@ export function ProjectOverview(props: ProjectOverviewProps) {
 
   // Send, queue and the rest of the composer's calls.
   const changedModel = pick.model !== undefined || pick.effort !== undefined;
+  const changedFast = fastToSend(pick.fast, summary?.owner === "legacy-external" ? null : chosen, picker.effort?.fast ?? null);
   const send = async (request: DockedRequest): Promise<DockedOutcome> => {
     if (mode.kind === "new") {
       if (!chosen) return { error: "no_agent" };
       const start: StartInput = {
         root, mode: "newDesign", runtime: chosen, text: request.text,
-        ...(model ? { model } : {}), ...(model && effort ? { effort } : {}), ...(permissionMode && permissionMode !== "default" ? { permissionMode } : {}), ...(request.attachments.length ? { attachments: request.attachments } : {}),
+        ...(model ? { model } : {}), ...(model && effort ? { effort } : {}), ...(picker.effort?.fast?.on ? { fast: true } : {}), ...(permissionMode && permissionMode !== "default" ? { permissionMode } : {}), ...(request.attachments.length ? { attachments: request.attachments } : {}),
       };
       const last: LastRequest = { root, text: plainText(draft.segments), preset: draft.preset, attachments: [...draft.attachments], provider: chosen, model, effort };
       const revision = run.revision(root);
@@ -260,7 +263,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
     const revision = run.revision(root);
     const reply = await props.onSendConversation(mode.provider, {
       conversationId: mode.conversationId, text: request.text, anchors: [...request.anchors],
-      ...(changedModel && model ? { model, ...(effort ? { effort } : {}) } : {}), ...(sentMode ? { permissionMode: sentMode } : {}), ...(request.attachments.length ? { attachments: request.attachments } : {}),
+      ...(changedModel && model ? { model, ...(effort ? { effort } : {}) } : {}), ...changedFast, ...(sentMode ? { permissionMode: sentMode } : {}), ...(request.attachments.length ? { attachments: request.attachments } : {}),
     }).catch(() => ({ error: "unknown" }));
     if (reply && "error" in reply) return reply;
     run.sent(root, mode.conversationId, revision);
@@ -409,8 +412,8 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         drafts={run.drafts} onDrafts={update => run.setDrafts(update)}
         auth={auth} picker={picker} provider={chosen} effort={effort}
         onPickerOpen={() => { if (healthy) for (const group of picker.groups) if (group.read) support.readModels(root, group.provider); }}
-        onPickModel={(picked, value) => support.pick(key, { ...(mode.kind === "new" ? { provider: picked } : {}), ...(picked !== chosen ? { permissionMode: undefined } : {}), model: value === "default" ? undefined : value })}
-        onPickEffort={value => support.pick(key, { effort: value })}
+        onPickModel={(picked, value) => support.pick(key, { ...(mode.kind === "new" ? { provider: picked } : {}), ...(picked !== chosen ? { permissionMode: undefined, fast: undefined } : {}), model: value === "default" ? undefined : value })}
+        onPickEffort={value => support.pick(key, { effort: value })} onPickFast={on => { support.pick(key, { fast: on }); if (chosen) props.onRemember?.({ provider: chosen, model, effort, fast: on }); }}
         permission={permission} onPickPermission={value => support.pickPermission(key, mode.kind === "new" ? null : mode.conversationId, value, summary ? stored : undefined)}
         onSettings={props.onSettings}
         presets={support.presets} suggested={suggestedPresets(props.entry, presets)}

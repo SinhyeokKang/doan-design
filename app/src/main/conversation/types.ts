@@ -40,6 +40,7 @@ export interface HandoffOrigin { kind: "handoff"; conversationId: string; canvas
 // reason: a judgement's reason (handoff.ts HandoffReason) or the refused start's code. target sits in its own object
 // because the event's envelope already has a conversationId, the history's own.
 export type HandoffResolution = { outcome: "started"; target: { conversationId: string; canvas: Canvas } } | { outcome: "refused"; reason: string } | { outcome: "cancelled" };
+export type FastUnusedReason = "plan" | "extra_usage" | "model" | "policy" | "cooldown";
 export type EventPayload =
   | { type: "user.message"; text: string; anchors: Anchor[]; attachments?: AttachmentRecord[]; origin?: HandoffOrigin }
   | { type: "turn.started" }
@@ -50,6 +51,7 @@ export type EventPayload =
   | { type: "permission.resolved"; requestId: string; optionId: string }
   | QuestionRequest
   | QuestionResolved
+  | { type: "fast.unused"; reason?: FastUnusedReason; turnedOff?: true }
   | { type: "context.usage"; used: number; size: number }
   | { type: "turn.done" }
   | { type: "turn.failed"; code: FailureCode; detail?: string }
@@ -86,7 +88,12 @@ export interface TransportState {
   context?: { used: number; size: number };
   // Claude only: the last top-level call's input tokens and model; its window comes with the result.
   claudeCall?: { used: number; model: string };
+  // Claude only: the run asked for Fast (Prepared.fast), and the last result's verdict when it did not get it
+  // (claudeFastOutcome), emitted right before a done or failed terminal's context value.
+  fastRequested?: true;
+  fastUnused?: FastUnused;
 }
+export type FastUnused = Extract<EventPayload, { type: "fast.unused" }>;
 export interface TransportResult { state: TransportState; events: EventPayload[] }
 export interface PermissionChoice { option: PermissionOption; response: unknown }
 export interface PendingPermission { event: PermissionRequest; choices: PermissionChoice[] }

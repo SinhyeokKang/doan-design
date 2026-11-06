@@ -37,6 +37,8 @@ export interface HomeMemory {
   // Each provider's last permission mode, apart from `models`: a mode is kept even when no model was read
   // (permission-mode design '저장 규칙'). Default is no entry.
   permissions?: Partial<Record<Provider, PermissionModeId>>;
+  // Each provider's last Fast (fast-mode design §3), apart from `models` like `permissions`. Off is no entry.
+  fast?: Partial<Record<Provider, true>>;
 }
 
 export interface UiState {
@@ -181,6 +183,11 @@ function parseHome(value: Record<string, unknown>, saved: ReadonlySet<string>): 
       if (validProvider(provider) && mode !== "default") permissions.push([provider, mode]);
     }
     home.permissions = Object.fromEntries(permissions);
+  }
+  if (isRecord(value["fast"])) {
+    const fast: [Provider, true][] = [];
+    for (const [provider, on] of Object.entries(value["fast"])) if (validProvider(provider) && on === true) fast.push([provider, true]);
+    home.fast = Object.fromEntries(fast);
   }
   return home;
 }

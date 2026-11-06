@@ -72,6 +72,7 @@ const { SettingsPage } = await import("./SettingsPage");
 const { CAPTURE_LIMIT, CAPTURE_TERMINAL, CAPTURE_UNAVAILABLE } = await import("./canvasCapture");
 const { DUPLICATE_CANVAS_TEXT } = await import("./canvasConversation");
 const { HomeRun } = await import("./homeRun");
+const { Home } = await import("./Home");
 const { CanvasConversation } = await import("./CanvasConversationPanel");
 const { CanvasConversations } = await import("./RightPanel");
 const { initialCanvasState } = await import("./CanvasController");
@@ -212,6 +213,70 @@ test("no save is sent before the initial ui-state read, even after an early send
   readUiState({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, rightPanel: { open: false, width: 400 } }); await Promise.resolve(); await Promise.resolve(); render();
   expect(doan.saveUiState).toHaveBeenCalled();
   expect(saved()).toMatchObject({ screen: "workspace", root: "/w/a", home: { lastRoot: "/w/a", lastProvider: "codex" }, rightPanel: { open: false, width: 400 } });
+});
+
+// fast-mode B2 (POSTMORTEM 2026-11-01): a Fast switch and a Fast turned off are Home memory like any pick, so neither
+// sends a save while the startup read is held; the first save after it carries them.
+test("no save is sent before the initial ui-state read after a Fast switch or a Fast turned off", async () => {
+  doan.listConversations!.mockImplementation(async () => [{ conversationId: "c1", title: "", state: "current", owner: "doan", provider: "codex", fromHome: false, phase: "ended", unseen: false, queued: 0, lastActivityAt: "2026-11-06T00:00:00Z", preview: "", working: false }]);
+  render(); folders([listed("/w/a")]); await Promise.resolve(); await Promise.resolve(); render();
+  const home = () => find<{ onRemember(choice: unknown): void }>(Home)[0]!.props;
+  home().onRemember({ provider: "claude", model: null, effort: null, fast: true }); render();
+  home().onRemember({ provider: "codex", model: null, effort: null, fast: true }); render();
+  listeners.conversation!({ v: 1, conversationId: "c1", seq: 4, turnId: "t1", at: "2026-11-06T00:00:00Z", type: "fast.unused", reason: "plan", turnedOff: true } as never); render();
+  expect(doan.saveUiState).not.toHaveBeenCalled();
+  readUiState({ screen: "home", expanded: {}, lastByRoot: {}, home: {} }); await Promise.resolve(); await Promise.resolve(); render();
+  expect(saved()).toMatchObject({ home: { fast: { claude: true } } });
+  expect((saved() as { home?: { fast?: unknown } }).home?.fast).toEqual({ claude: true });
+});
+
+// fast-mode R fix round 1 (review 🔴1, 🟡3): Fast changed before the startup read lands only for the provider it
+// changed; the read keeps every other provider's Fast, an auto-off seen first still holds, and a later switch on wins.
+const summaryOf = (conversationId: string, provider: string) => ({ conversationId, title: "", state: "current", owner: "doan", provider, fromHome: false, phase: "ended", unseen: false, queued: 0, lastActivityAt: "2026-11-06T00:00:00Z", preview: "", working: false });
+const fastOff = (conversationId: string) => listeners.conversation!({ v: 1, conversationId, seq: 4, turnId: "t1", at: "2026-11-06T00:00:00Z", type: "fast.unused", reason: "plan", turnedOff: true } as never);
+const savedFast = () => (saved() as { home?: { fast?: unknown } }).home?.fast;
+async function fastBeforeRead(steps: (home: { onRemember(choice: unknown): void }) => void, read: unknown) {
+  doan.listConversations!.mockImplementation(async () => [summaryOf("c1", "claude")]);
+  render(); folders([listed("/w/a")]); await Promise.resolve(); await Promise.resolve(); render();
+  steps(find<{ onRemember(choice: unknown): void }>(Home)[0]!.props); render();
+  expect(doan.saveUiState).not.toHaveBeenCalled();
+  readUiState({ screen: "home", expanded: {}, lastByRoot: {}, home: { fast: read } }); await Promise.resolve(); await Promise.resolve(); render();
+}
+test("a Fast switch before the startup read keeps the read Fast of the other providers", async () => {
+  await fastBeforeRead(home => home.onRemember({ provider: "codex", model: null, effort: null, fast: true }), { claude: true, cursor: true });
+  expect(savedFast()).toEqual({ claude: true, cursor: true, codex: true });
+});
+test("a switch off before the startup read removes only that provider's read Fast", async () => {
+  await fastBeforeRead(home => home.onRemember({ provider: "claude", model: null, effort: null, fast: false }), { claude: true, codex: true });
+  expect(savedFast()).toEqual({ codex: true });
+});
+test("an auto-off seen before the startup read holds after it", async () => {
+  await fastBeforeRead(() => fastOff("c1"), { claude: true, codex: true });
+  expect(savedFast()).toEqual({ codex: true });
+});
+test("a switch on after an auto-off, both before the startup read, wins", async () => {
+  await fastBeforeRead(home => { fastOff("c1"); render(); home.onRemember({ provider: "claude", model: null, effort: null, fast: true }); }, { codex: true });
+  expect(savedFast()).toEqual({ codex: true, claude: true });
+});
+
+// review 🟡3: a live auto-off for a conversation the lists do not name yet waits for its provider.
+test("a live auto-off waits until a list names the conversation's provider", async () => {
+  render(); folders([listed("/w/a")]); await Promise.resolve(); await Promise.resolve(); render();
+  readUiState({ screen: "home", expanded: {}, lastByRoot: {}, home: { fast: { claude: true, codex: true } } }); await Promise.resolve(); await Promise.resolve(); render();
+  fastOff("c1"); render();
+  expect(savedFast()).toEqual({ claude: true, codex: true });
+  doan.listConversations!.mockImplementation(async () => [summaryOf("c1", "claude")]);
+  listeners.conversationList!({ root: "/w/a" } as never); await Promise.resolve(); await Promise.resolve(); render();
+  expect(savedFast()).toEqual({ codex: true });
+});
+test("a switch on made after the auto-off was seen wins over the late provider", async () => {
+  render(); folders([listed("/w/a")]); await Promise.resolve(); await Promise.resolve(); render();
+  readUiState({ screen: "home", expanded: {}, lastByRoot: {}, home: { fast: { codex: true } } }); await Promise.resolve(); await Promise.resolve(); render();
+  fastOff("c1"); render();
+  find<{ onRemember(choice: unknown): void }>(Home)[0]!.props.onRemember({ provider: "claude", model: null, effort: null, fast: true }); render();
+  doan.listConversations!.mockImplementation(async () => [summaryOf("c1", "claude")]);
+  listeners.conversationList!({ root: "/w/a" } as never); await Promise.resolve(); await Promise.resolve(); render();
+  expect(savedFast()).toEqual({ codex: true, claude: true });
 });
 
 test("a read that fails still lets saves through, with the panel's own state", async () => {

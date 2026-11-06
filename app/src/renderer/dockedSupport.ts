@@ -1,6 +1,7 @@
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
 import type { PermissionModeId } from "../main/conversation/permissionMode";
+import { draftKey } from "./dockedRules";
 import type { ModelsState, PresetListReply } from "./homeComposer";
 
 // What the Overview's docked composer reads from main besides the conversation (buzz-conversation design §8, buzz-project
@@ -9,9 +10,10 @@ import type { ModelsState, PresetListReply } from "./homeComposer";
 
 // provider: a new conversation's agent; model and effort: what the person changed, sent only then. permissionMode: a
 // new conversation's pick for its provider (a provider switch drops it: modes are remembered per provider, spec
-// decision 4, and Full access never carries to another); in an existing one, a pick main has not yet reported back in
+// decision 4, and Full access never carries to another; fast likewise); in an existing one, a pick main has not yet reported back in
 // the conversation's summary, with permissionFrom, the stored mode it was picked over (when the summary was known).
-export interface DockedPick { provider?: Provider; model?: string; effort?: string; permissionMode?: PermissionModeId; permissionFrom?: PermissionModeId }
+// fast: the Fast switch the person changed, sent with the next turn as model and effort are (fast-mode design §1).
+export interface DockedPick { provider?: Provider; model?: string; effort?: string; fast?: boolean; permissionMode?: PermissionModeId; permissionFrom?: PermissionModeId }
 
 export const modelsKey = (root: string, provider: Provider) => `${root}\n${provider}`;
 
@@ -51,7 +53,7 @@ export class DockedSupport {
   // An undefined field drops that pick, back to the default.
   pick(key: string, patch: { [K in keyof DockedPick]?: DockedPick[K] | undefined }): void {
     const next = { ...this.picks[key], ...patch };
-    for (const field of ["provider", "model", "effort", "permissionMode", "permissionFrom"] as const) if (next[field] === undefined) delete next[field];
+    for (const field of ["provider", "model", "effort", "fast", "permissionMode", "permissionFrom"] as const) if (next[field] === undefined) delete next[field];
     this.picks = { ...this.picks, [key]: next as DockedPick };
     this.changed();
   }
@@ -65,6 +67,12 @@ export class DockedSupport {
     void window.doan.setConversationPermissionMode({ conversationId, permissionMode: mode }).catch(() => ({ error: "unknown" })).then(reply => {
       if (reply && "error" in reply && this.picks[key]?.permissionMode === mode) this.pick(key, { permissionMode: undefined, permissionFrom: undefined });
     });
+  }
+  // Fast turned itself off in this conversation (fast-mode decision 4): a switch still held here would send it again.
+  fastTurnedOff(conversationId: string): void {
+    // An existing conversation's draft key is its id alone; the provider does not enter it.
+    const key = draftKey({ kind: "existing", conversationId, provider: "claude" });
+    if (this.picks[key]?.fast !== undefined) this.pick(key, { fast: undefined });
   }
   startedIn(key: string, mode: PermissionModeId): void { this.started = { ...this.started, [key]: mode }; this.changed(); }
   // stored: the conversation's summary's mode, null before the list names it.
