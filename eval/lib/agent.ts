@@ -10,7 +10,8 @@ import { toolCalls, type ToolCalls } from "./transcript.ts";
 // cross-provider work signals ambiguous and leak into fixture evidence.
 export function agentEnvironment(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const child = { ...env };
-  for (const key of ["CLAUDE_CODE_SESSION_ID", "CODEX_THREAD_ID", "CODEX_SESSION_ID"]) delete child[key];
+  // DOAN_HANDOFF names a Doan conversation; a runner started inside one must not pass its key to every scenario.
+  for (const key of ["CLAUDE_CODE_SESSION_ID", "CODEX_THREAD_ID", "CODEX_SESSION_ID", "DOAN_HANDOFF"]) delete child[key];
   return child;
 }
 

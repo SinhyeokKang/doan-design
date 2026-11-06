@@ -71,6 +71,7 @@ export interface ContextOptions {
   onboardingLog?: string;
   workLog?: string;
   openLog?: string;
+  handoffLog?: string;
   // The fake app's record of the files it wrote into `repo` (socket.ts initializeRepo).
   appWrites?: string;
 }
@@ -176,6 +177,10 @@ export function createContext(o: ContextOptions): CheckContext {
     open() {
       if (!o.openLog || !existsSync(o.openLog)) return [];
       return readFileSync(o.openLog, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line));
+    },
+    handoff() {
+      if (!o.handoffLog || !existsSync(o.handoffLog)) return [];
+      return readFileSync(o.handoffLog, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line));
     },
     run: (cmd, args) => sh(cmd, args, o.repo, o.env),
   };

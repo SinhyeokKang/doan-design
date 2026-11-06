@@ -24,6 +24,14 @@ export interface OpenExchange {
   hashes: Record<string, string | null>;
 }
 
+export interface HandoffExchange {
+  request: { v: 5; root: string; handoff: string; path: string; text: string };
+  response: { v: 5; ok: true; requested: true } | { v: 5; ok: false; error: { code: string; message: string } };
+  at: string;
+  // SHA-256 of the requested canvas when the request arrived; empty for a refused request.
+  hashes: Record<string, string | null>;
+}
+
 export interface CheckContext {
   // Absolute path of the final repo (the pasted instruction's root).
   repo: string;
@@ -57,6 +65,8 @@ export interface CheckContext {
   work(): WorkExchange[];
   // App-socket v4 exchanges (`doan open`) in order, token removed; empty when there were none.
   open(): OpenExchange[];
+  // App-socket v5 exchanges (`doan handoff`) in order, token removed; empty when there were none.
+  handoff(): HandoffExchange[];
   // Runs in the repo with the agent's environment and stdin from /dev/null.
   run(cmd: string, args: string[]): { code: number; stdout: string; stderr: string };
 }

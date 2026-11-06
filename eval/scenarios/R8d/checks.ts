@@ -2,6 +2,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { noHandoff } from "../../lib/handoff.ts";
 import { noOpen } from "../../lib/open.ts";
 import type { Check, Checks } from "../../lib/types.ts";
 
@@ -54,6 +55,8 @@ const checks: Checks = ctx => {
     { id: "only_canvas_changed", pass: changed.length === 1 && changed[0] === CANVAS, detail: `changed: ${changed.join(", ") || "(none)"}` },
     // The turn prompt tells the agent this conversation is inside Doan, so it neither offers nor runs `doan open`.
     noOpen(ctx),
+    // The prompt carries the handoff line, but nothing here asks for a new canvas.
+    noHandoff(ctx),
   ];
   const final = ctx.read(CANVAS), seed = ctx.seed(CANVAS)!;
   const measured = final === null ? "the canvas is missing" : layouts(ctx, final, seed);

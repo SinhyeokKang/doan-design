@@ -4,7 +4,7 @@ import { parseScenarioJson, renderPrompt, selectIds } from "./scenario.ts";
 
 test("scenario.json is read with its defaults", () => {
   assert.deepEqual(parseScenarioJson({ id: "W1", title: "t", focus: "write", init: { tokenCss: "styles/tokens.css" }, selection: null }, "W1"),
-    { id: "W1", title: "t", focus: "write", init: { tokenCss: "styles/tokens.css" }, selection: null, timeoutSec: 900, shellCli: true, worktree: null, onboarding: null });
+    { id: "W1", title: "t", focus: "write", init: { tokenCss: "styles/tokens.css" }, selection: null, timeoutSec: 900, shellCli: true, worktree: null, onboarding: null, handoff: null });
   assert.equal(parseScenarioJson({ id: "R2", title: "t", focus: "active", init: null, selection: "selection.json", timeoutSec: 60 }, "R2").timeoutSec, 60);
 });
 
@@ -60,4 +60,12 @@ test("worktree is null or one branch name for the agent's second worktree", () =
   assert.deepEqual(parseScenarioJson({ ...value, worktree: { branch: "feat-plan-copy" } }, "H7").worktree, { branch: "feat-plan-copy" });
   for (const worktree of ["feat", {}, { branch: "" }, { branch: "main" }, { branch: "Feat" }, { branch: "a/b" }, { branch: "-x" }, { branch: "x", path: "y" }, [{ branch: "x" }]])
     assert.throws(() => parseScenarioJson({ ...value, worktree }, "H7"), Error, JSON.stringify(worktree));
+});
+
+test("handoff is null or the canvas the conversation works on", () => {
+  const value = { id: "R10", title: "t", focus: "write", init: null, selection: null };
+  assert.equal(parseScenarioJson(value, "R10").handoff, null);
+  assert.deepEqual(parseScenarioJson({ ...value, handoff: { canvas: ".doan/canvases/account.html" } }, "R10").handoff, { canvas: ".doan/canvases/account.html" });
+  for (const handoff of ["account", {}, { canvas: "" }, { canvas: "account.html" }, { canvas: ".doan/ds/button.html" }, { canvas: ".doan/canvases/a/b.html" }, { canvas: ".doan/canvases/a.html", key: "x" }, [{ canvas: ".doan/canvases/a.html" }]])
+    assert.throws(() => parseScenarioJson({ ...value, handoff }, "R10"), Error, JSON.stringify(handoff));
 });

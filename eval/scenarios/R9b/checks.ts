@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseReplyAnchor, type ReplyAnchor } from "../../../app/src/main/conversation/replyAnchor.ts";
 import { finalAnswer, withoutCode } from "../../lib/answer.ts";
+import { noHandoff } from "../../lib/handoff.ts";
 import { noOpen } from "../../lib/open.ts";
 import type { Checks } from "../../lib/types.ts";
 
@@ -76,6 +77,8 @@ const checks: Checks = ctx => {
     { id: "edits_applied", pass: heading === "Billing details" && button === "Save changes", detail: `billing-title: ${JSON.stringify(heading)}, ${ELEMENT}: ${JSON.stringify(button)}` },
     // The turn prompt tells the agent this conversation is inside Doan, so it neither offers nor runs `doan open`.
     noOpen(ctx),
+    // The prompt carries the handoff line, but nothing here asks for a new canvas.
+    noHandoff(ctx),
     { id: "doan_links_well_formed", pass: bad.length === 0, detail: bad.length ? `doan: text that the app would not draw as a link: ${JSON.stringify(bad)}` : `${links.length} doan link(s) in the answer outside code, all well-formed` },
     { id: "links_name_real_targets", pass: links.length > 0 && unreal.length === 0, detail: unreal.length ? `no such target in ${CANVAS_ID}'s final canvas: ${JSON.stringify(unreal)}` : `${links.length} link(s), every one a frame or element of ${CANVAS_ID}` },
     { id: "heading_change_linked", pass: headingLinked, detail: `want frame ${FRAME} or an element inside it (${[...insideFrame].join(", ") || "none"}); links: ${JSON.stringify(valid)}` },
