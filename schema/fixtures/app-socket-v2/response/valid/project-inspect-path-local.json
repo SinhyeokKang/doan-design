@@ -1,0 +1,40 @@
+{
+  "v": 2,
+  "ok": true,
+  "op": "project_inspect",
+  "result": {
+    "operation": {
+      "operationId": "op_9",
+      "requestId": "req-1",
+      "kind": "project_inspect",
+      "state": "succeeded",
+      "inspection": {
+        "inspectionId": "insp_3",
+        "candidates": [
+          {
+            "path": "/Users/sam/code/app",
+            "changes": [
+              ".doan/config.json",
+              ".doan/canvases/",
+              ".git/info/exclude"
+            ],
+            "storage": "local"
+          },
+          {
+            "path": "/Users/sam/code/app-wt",
+            "changes": [
+              ".doan/config.json",
+              ".doan/canvases/"
+            ],
+            "storage": "local"
+          },
+          {
+            "path": "/Users/sam/code/app-done",
+            "changes": [],
+            "storage": "local"
+          }
+        ]
+      }
+    }
+  }
+}
