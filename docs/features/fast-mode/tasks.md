@@ -15,9 +15,9 @@
 
 ## D. UI 초안
 
-- [ ] D1. `/design-draft fast-mode`: design §7대로 `.doan/canvases/fast-mode.html`(frame `effort-menu`, `trigger`, `thread-notice`)을 그린다.
+- [x] D1. `/design-draft fast-mode`: design §7대로 `.doan/canvases/fast-mode.html`(frame `effort-menu`, `trigger`, `thread-notice`)을 그린다.
   - 검증: `doan check --json --repo .`에 이 캔버스의 finding이 없고, `doan ls --json --repo .`가 canvas id `fast-mode`와 frame 세 개를 보인다.
-- [ ] D2. 사람이 앱에서 초안을 확인한다.
+- [x] D2. 사람이 앱에서 초안을 확인했다(2026-11-06, round 3).
   - 검증: design §7 상태가 "사람 확인(날짜)"이다. 초안은 `docs(design): fast-mode draft`로 커밋한다.
 
 커밋 경계: D1·D2(`.doan/canvases/fast-mode.html`와 design §7).
