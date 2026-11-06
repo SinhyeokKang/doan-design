@@ -23,11 +23,11 @@
 
 | batch | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 gate | 상태 |
 |---|---|---|---|---|---|---|
-| MA | A1, B1, B2 | `app/src/main/conversation/fixtures/`의 새 fixture와 `README.md`, `types.ts`, `transport.ts`, `acp.ts`, 그 테스트(`transport.test.ts`, `acp.test.ts`, 새 fixture 테스트) | 없음 | Claude Opus high — 세 provider normalizer의 경계 조건이 많고, fixture의 개인 정보 제거와 "events는 그대로"가 틀리면 기록 형식이 깨진다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 완료 `6d3918a3`·`88b254e2`(worker 기준), test 312 files/8773 pass |
+| MA | A1, B1, B2 | `app/src/main/conversation/fixtures/`의 새 fixture와 `README.md`, `types.ts`, `transport.ts`, `acp.ts`, 그 테스트(`transport.test.ts`, `acp.test.ts`, 새 fixture 테스트) | 없음 | Claude Opus high — 세 provider normalizer의 경계 조건이 많고, fixture의 개인 정보 제거와 "events는 그대로"가 틀리면 기록 형식이 깨진다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 통합 `ed04b3ee`·`18dece0f`(worker `6d3918a3`·`88b254e2`), test 312 files/8773 pass |
 | MA-rev | MA 리뷰 | 없음(보고만) | MA | Codex Astra medium — 다른 계열의 독립 판단 | `/code-review` 보고 | 완료, 🔴 0 · 🟡 1 · 🟢 1(`.scratch/review-MA.md`). fix 1(테스트만) 진행 중 |
-| MC | C1 | `runners.ts`, `acpRunner.ts`, `dispatcher.ts`, `service.ts`, `ipc.ts`, `app/src/main/index.ts`, `app/src/preload/index.ts`, 그 테스트 | MA 통합 | Claude Opus high — live entry 수명, Stop·archive·종료 경계, 순서 보장이 걸린 동시성 작업 | `npm --prefix app test`, `npm --prefix app run typecheck` | 대기 |
+| MC | C1 | `runners.ts`, `acpRunner.ts`, `dispatcher.ts`, `service.ts`, `ipc.ts`, `app/src/main/index.ts`, `app/src/preload/index.ts`, 그 테스트 | MA 통합 | Claude Opus high — live entry 수명, Stop·archive·종료 경계, 순서 보장이 걸린 동시성 작업 | `npm --prefix app test`, `npm --prefix app run typecheck` | 진행 중(`ta-mc`) |
 | MC-rev | MC 리뷰 | 없음 | MC | Codex Astra medium | `/code-review` 보고 | 대기 |
-| RU | B3, U1 | renderer의 새 순수 함수 파일과 테스트, `conversationStore.ts`, `ConversationThread.tsx`, `ProjectOverview.tsx`, `CanvasConversationPanel.tsx`, `styles.css`, `App.tsx`(deferred) | MA 통합(`App.tsx` 구독은 MC 통합) | Claude Opus high — settle·rev·timer·접근성 규칙이 서로 얽힌다 | `npm --prefix app test`, typecheck, `npm --prefix app run build`, `rendererImports.test.ts` | 대기 |
+| RU | B3, U1 | renderer의 새 순수 함수 파일과 테스트, `conversationStore.ts`, `ConversationThread.tsx`, `ProjectOverview.tsx`, `CanvasConversationPanel.tsx`, `styles.css`, `App.tsx`(deferred) | MA 통합(`App.tsx` 구독은 MC 통합) | Claude Opus high — settle·rev·timer·접근성 규칙이 서로 얽힌다 | `npm --prefix app test`, typecheck, `npm --prefix app run build`, `rendererImports.test.ts` | 진행 중(`ta-ru`) |
 | RU-rev | RU 리뷰 | 없음 | RU | Codex Astra medium | `/code-review` 보고 | 대기 |
 | SY | U2 | 턴 표시 style 수정, `docs/DESIGN.md` | MC·RU 통합 | Claude Opus high — 실제 앱 computed style 비교와 판단 | `/design-sync` 보고 | 대기 |
 | RT | R1 | `.scratch/runtime-test/turn-activity/` | SY 통합, 사람 승인 | Claude Opus medium — 실제 provider 턴을 몰고 관찰만 한다 | `/runtime-test` 스크린샷·로그 | 대기 |
