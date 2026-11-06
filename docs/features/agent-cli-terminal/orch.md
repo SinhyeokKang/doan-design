@@ -26,9 +26,9 @@
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort (이유) | 검증 gate | 상태 |
 |---|---|---|---|---|---|---|
 | A | T1 PoC | `.scratch/agent-cli-terminal/`, `docs/features/agent-cli-terminal/design.md`('PoC 의존'만) | 없음 | Claude Opus high (실제 계정 Terminal을 열고 실제 상태를 지켜야 하며, 멈춤 판단이 필요하다) | 관찰 기록, real-state 미변경 확인 | 진행 (run_7b6c10f4e3e9, ctx_7b4526505f5c, worktree act-a-poc) |
-| B | T2, T3 | `app/src/main/installCommand.ts`(+test), `app/src/main/index.ts`, `app/src/main/senderAllowed.ts`(+test), `app/src/main/agentAuth/ipc.ts`(+test), `app/src/main/settings.ts`(필요 시), `app/src/preload/index.ts`(+test), 관련 main test | 없음 (Cursor 하한·Copilot은 A 뒤 후속) | Claude Opus high (IPC 입력 경계와 파일 쓰기, 하한 판정이 틀리면 구버전 CLI가 `update`를 프롬프트로 받는다) | `npm --prefix app test`, typecheck, build | 진행 (ctx_89bd31a67ab5, worktree act-b-main) |
-| B-review | B diff 리뷰 | 없음(보고만) | B | Codex gpt-6-astra medium (판단 위주 리뷰, 다른 계열 관점) | `/code-review` 보고 | 대기 |
-| C | T4 | `app/src/renderer/agentStep.ts`(+test), `app/src/renderer/agentAuthView.ts`(+test), `app/src/renderer/Onboarding.tsx`, `app/src/renderer/SettingsAgents.tsx`(+test) | B 통합 (preload `openInstall` 타입) | Claude Opus high (마지막 요청 소유권, POSTMORTEM 2026-10-25 함정, 실제 앱 probe) | `npm --prefix app test`, typecheck, `/runtime-test` | 대기 |
+| B | T2, T3 | `app/src/main/installCommand.ts`(+test), `app/src/main/index.ts`, `app/src/main/senderAllowed.ts`(+test), `app/src/main/agentAuth/ipc.ts`(+test), `app/src/main/settings.ts`(필요 시), `app/src/preload/index.ts`(+test), 관련 main test | 없음 (Cursor 하한·Copilot은 A 뒤 후속) | Claude Opus high (IPC 입력 경계와 파일 쓰기, 하한 판정이 틀리면 구버전 CLI가 `update`를 프롬프트로 받는다) | `npm --prefix app test`, typecheck, build | 통합 3b1d0f3d..c212001c (worker 09afad6e, verify PASS). 후속 대기: Cursor 하한, Copilot update→page, Control-C 안내 |
+| B-review | B diff 리뷰 | 없음(보고만) | B | Codex gpt-6-astra medium (판단 위주 리뷰, 다른 계열 관점) | `/code-review` 보고 | 진행 (ctx_551b682442e7, conductor checkout 읽기 전용) |
+| C | T4 | `app/src/renderer/agentStep.ts`(+test), `app/src/renderer/agentAuthView.ts`(+test), `app/src/renderer/Onboarding.tsx`, `app/src/renderer/SettingsAgents.tsx`(+test) | B 통합 (preload `openInstall` 타입) | Claude Opus high (마지막 요청 소유권, POSTMORTEM 2026-10-25 함정, 실제 앱 probe) | `npm --prefix app test`, typecheck, `/runtime-test` | 진행 (ctx_6d46519541d3, worktree act-c-ui). GUI probe 전 conductor 허락 |
 | C-review | C diff 리뷰 | 없음(보고만) | C | Codex gpt-6-astra medium (상태 전이와 순서 판단) | `/code-review` 보고 | 대기 |
 | T5 | 승격과 정리 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/DESIGN.md`, `docs/BACKLOG.md`, `docs/features/agent-cli-terminal/` 삭제 | A·B·C 통합 | conductor | tasks.md T5 검증, `/verify` | 대기 |
 
@@ -43,4 +43,5 @@
 
 ## 리뷰·검증 기록
 
-(진행하면서 적는다)
+- A 격리 재확인: 재서명+00c3 복사본은 대화상자 없이 떴다. Doan이 쓴 `.command`에는 `com.apple.quarantine`이 없다. 이때 하네스의 tmp HOME이 canonical 경로(`/private/var/...`)가 아니어서 agent setup이 `/usr/local/bin/doan` 관리자 대화상자를 띄웠다. 승인하지 않았고 worker가 osascript를 종료했다. 실제 상태 변화는 없다. 재실행하지 않는다. — conductor 판단, 근거: 대화상자 원인이 `.command` 열기가 아니다.
+- B의 열린 위험(연속 열기에서 이전 스크립트 삭제)을 A가 실제 Terminal로 재현한다.
