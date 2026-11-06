@@ -43,4 +43,5 @@
 ## 진행
 
 - Orca run `run_6ab071426733`. A·B를 `0481bd0a`에서 병렬로 시작했다(2026-11-06).
+- A+B 통합 HEAD `12df3451`에서 `/verify` PASS(verify-tests, runtime-support, go-test, go-vet, typecheck, app-test, build).
 - Codex 사용 범위: batch B, 리뷰 RA, batch D.
