@@ -1524,5 +1524,5 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .preset-item .suggestion-icon svg { width: var(--size-icon-sm); height: var(--size-icon-sm); color: var(--affordance-accent); }
 .preset-item .suggestion-icon.project-skill-icon { background: var(--affordance-backdrop-hover); }
 .preset-item .suggestion-icon.project-skill-icon svg { color: var(--text-standard); }
-.group-tabs.shell-modes button svg { color: var(--affordance-accent); }
-.group-tabs.shell-modes button[data-group="project"] svg { color: var(--text-metadata); }
+.preset-popover .group-tabs button svg { color: var(--affordance-accent); }
+.preset-popover .group-tabs button[data-group="project"] svg { color: var(--text-metadata); }

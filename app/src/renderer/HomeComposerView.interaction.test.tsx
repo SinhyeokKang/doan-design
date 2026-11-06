@@ -744,7 +744,7 @@ test("re-picking the model or level Edit on Home restored remembers it as picked
 
 const flush = () => new Promise(resolve => setTimeout(resolve, 0));
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(done => { resolve = done; }); return { resolve, promise }; }
- test.each([true, false])("skill replies remain with their root in either completion order (%s)", async oldFirst => {
+test.each([true, false])("skill replies remain with their root in either completion order (%s)", async oldFirst => {
   vi.stubGlobal("document", { addEventListener: vi.fn(), removeEventListener: vi.fn() });
   const a = deferred<{ skills: { name: string; description: string }[] }>();
   const b = deferred<{ skills: { name: string; description: string }[] }>();
@@ -759,8 +759,8 @@ function deferred<T>() { let resolve!: (value: T) => void; const promise = new P
   expect(input(render()).skillNames).toEqual(new Set(["review"]));
   box.current = { ...box.current, root: ENTRY.path };
   expect(input(render()).skillNames).toEqual(new Set(["deploy"]));
- });
- test("exact skill Enter sends the displayed word and refreshes after a turn ends", async () => {
+});
+test("exact skill Enter sends the displayed word and refreshes after a turn ends", async () => {
   vi.stubGlobal("document", { addEventListener: vi.fn(), removeEventListener: vi.fn() });
   doan.listConversationSkills!.mockResolvedValue({ skills: [{ name: "deploy", description: "Deploy" }] });
   const { render, start, props } = setup({ text: "/deploy" });
@@ -773,4 +773,30 @@ function deferred<T>() { let resolve!: (value: T) => void; const promise = new P
   const before = doan.listConversationSkills!.mock.calls.length;
   props.running = new Map(); render(); await runEffects();
   expect(doan.listConversationSkills!.mock.calls.length).toBeGreaterThan(before);
- });
+});
+
+test("switching to Cursor removes skills from both the field and sent request", async () => {
+  vi.stubGlobal("document", { addEventListener: vi.fn(), removeEventListener: vi.fn() });
+  doan.listConversationSkills!.mockResolvedValue({ skills: [{ name: "deploy", description: "Deploy" }] });
+  const { render, box, start } = setup({ text: "/deploy", auth: { revision: 1, providers: [dto("claude"), dto("cursor")] } });
+  render(); await runEffects(); await flush();
+  expect(input(render()).skillNames).toEqual(new Set(["deploy"]));
+  box.current = { ...box.current, provider: "cursor" };
+  const tree = render();
+  expect(input(tree).skillNames).toEqual(new Set());
+  call(field(tree), "onKeyDown", key("Enter")); await flush();
+  expect(start.mock.calls[0]?.[0]).toMatchObject({ text: "/deploy" });
+});
+test("a refreshed list changes both highlighted names and fixed send lines", async () => {
+  vi.stubGlobal("document", { addEventListener: vi.fn(), removeEventListener: vi.fn() });
+  doan.listConversationSkills!.mockResolvedValue({ skills: [{ name: "deploy", description: "Deploy" }] });
+  const { render, start } = setup({ text: "/deploy /review" });
+  render(); await runEffects(); await flush();
+  expect(input(render()).skillNames).toEqual(new Set(["deploy"]));
+  doan.listConversationSkills!.mockResolvedValue({ skills: [{ name: "review", description: "Review" }] });
+  (find(render(), p => typeof p.onOpenChange === "function" && p.open === false).onOpenChange as (open: boolean) => void)(true);
+  await flush();
+  expect(input(render()).skillNames).toEqual(new Set(["review"]));
+  call(field(render()), "onKeyDown", key("Enter")); await flush();
+  expect(start.mock.calls[0]?.[0]).toMatchObject({ text: "Use the project skill `review`.\n\n/deploy /review" });
+});

@@ -456,3 +456,11 @@ describe("the end of a handoff card's turn", () => {
     expect(html([card, { kind: "agent", key: "m1", messageId: "m1", text: "Done.", streaming: false }, user, failed("process_exited", "e7")])).toContain(">Edit and resend</button>");
   });
 });
+
+test("a chip ends a preceding skill word but cannot start a following one", () => {
+  const out = html([{ kind: "user", key: "skills", seq: 1, preset: null, skills: ["deploy"], attachments: [],
+    anchors: [{ frame: { id: "cart", title: "Cart" } }], parts: [{ text: "/deploy" }, { anchor: 1 }, { text: "/deploy /deploy" }] }]);
+  expect(out.match(/class="skill-word"/g)).toHaveLength(2);
+  expect(out).toContain('<span class="skill-word">/deploy</span>');
+  expect(out).toContain('/deploy <span class="skill-word">/deploy</span>');
+});

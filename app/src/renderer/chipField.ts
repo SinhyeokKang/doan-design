@@ -1,10 +1,10 @@
-import { fieldSkillRuns, insertSkillText, replaceSlashSkill, sameSkillRanges, skillAnnouncements, skillTextParts } from "./skillWords";
 import { chipLabel, LIMITS } from "../main/conversation/messageText";
 import type { Anchor } from "../main/conversation/types";
 import {
   chipAt, distinctTargets, FILLER, hardLine, isLineStart, normalize, plainText, readFieldClipboard, sameSegments, sliceUnits, spliceUnits,
   unitLength, writeFieldClipboard, type FieldSegment,
 } from "./anchorField";
+import { fieldSkillRuns, insertSkillText, replaceSlashSkill, sameSkillNames, sameSkillRanges, skillAnnouncements, skillTextParts } from "./skillWords";
 
 // The composer field's DOM, selection, clipboard, undo and IME handling over a contenteditable element
 // (buzz-canvas-conversation design §2 'Chip field', §5 P1). ComposerField (ComposerParts.tsx) owns one per element.
@@ -58,6 +58,8 @@ export class ChipField {
   private segments: FieldSegment[] = [];
   private composingNow = false;
   private announced: string[] = [];
+  private names: ReadonlySet<string> = new Set();
+  private compositionRepairPending = false;
   private pending: Anchor[] = [];
   private selection: Selection = { anchor: 0, focus: 0 };
   private history: Step[] = [{ segments: [], before: { anchor: 0, focus: 0 }, after: { anchor: 0, focus: 0 }, kind: "init", at: 0 }];
@@ -128,8 +130,12 @@ export class ChipField {
       this.reset(normalize(value));
       return;
     }
-    if (this.composingNow) return;
-    if (sameSegments(value, this.segments)) { this.repair(); return; }
+    const names = this.hooks.skillNames?.() ?? new Set<string>();
+    const changedNames = !sameSkillNames(this.names, names);
+    this.names = new Set(names);
+    if (changedNames) this.announceSkills(false);
+    if (this.composingNow || this.compositionRepairPending) return;
+    if (sameSegments(value, this.segments)) { if (changedNames) this.repair(); return; }
     this.reset(normalize(value));
   }
 
@@ -146,6 +152,7 @@ export class ChipField {
   }
 
   private reset(segments: FieldSegment[]): void {
+    this.names = new Set(this.hooks.skillNames?.() ?? []);
     this.pending = [];
     this.groupBefore = null;
     this.render(segments);
@@ -154,7 +161,7 @@ export class ChipField {
     this.index = 0;
     this.mergeable = false;
     this.placeCaret(end);
-    this.announceSkills();
+    this.announceSkills(false);
   }
 
   // "pending" waits for the composition to end; "limit" would point at more than LIMITS.anchors places; "refused": this
@@ -190,11 +197,11 @@ export class ChipField {
     this.commit("insert", before);
   }
 
-  private announceSkills(): void {
+  private announceSkills(announce = true): void {
     const next = fieldSkillRuns(this.segments, this.hooks.skillNames?.() ?? new Set()).map(run => run.name);
     const messages = skillAnnouncements(this.announced, next);
     this.announced = next;
-    if (messages.length) this.hooks.onAnnounce(messages.join(". "));
+    if (announce && messages.length) this.hooks.onAnnounce(messages.join(". "));
   }
 
   caretAtStart(): boolean {
@@ -411,15 +418,17 @@ export class ChipField {
       return;
     }
     this.composingNow = false;
+    // React can echo the committed value before the next syllable starts in this same key event.
+    this.compositionRepairPending = true;
     this.sync();
-    setTimeout(() => { this.repair(); this.flushPending(); }, 0);
+    setTimeout(() => { this.compositionRepairPending = false; this.repair(); this.flushPending(); }, 0);
   }
 
   // Browser edits keep the DOM drawn as render() would draw it: a chip that an edit leaves at a line's start gets its
   // filler, a filler or <br> Chromium left behind goes, and nothing nests. Drawn again with the same selection, never
   // during a composition (that would cancel it).
   private repair(): void {
-    if (this.composingNow || !this.misdrawn()) return;
+    if (this.composingNow || this.compositionRepairPending || !this.misdrawn()) return;
     const selection = this.readSelection();
     this.render(this.segments);
     this.placeCaret(selection);

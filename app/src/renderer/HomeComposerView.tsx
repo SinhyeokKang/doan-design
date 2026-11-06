@@ -1,5 +1,3 @@
-import { useProjectSkills } from "./useProjectSkills";
-import { fieldSkillRuns } from "./skillWords";
 import { Fragment, useEffect, useId, useLayoutEffect, useReducer, useRef, useState, type ClipboardEvent, type KeyboardEvent, type ReactNode } from "react";
 import { DropdownMenu } from "radix-ui";
 import { ArrowUpRight, Check, ChevronDown, GitBranch, Plus } from "lucide-react";
@@ -9,6 +7,8 @@ import type { AttachmentResult } from "../main/attachments";
 import type { PermissionModeId } from "../main/conversation/permissionMode";
 import type { FolderEntry } from "../main/view";
 import type { HomeMemory, ShellProject } from "../restore/uiState";
+import { useProjectSkills } from "./useProjectSkills";
+import { fieldSkillRuns } from "./skillWords";
 import { AlertIcon } from "./AlertIcon";
 import {
   AgentPicker, AttachButton, ComposerCard, ComposerChips, ComposerField, ComposerTools, EffortPicker, GroupIcon, PermissionPicker, PresetsButton, SendButton, SlashPresets, SuggestionLabel, useComposerDrop, usePresetListOutside,

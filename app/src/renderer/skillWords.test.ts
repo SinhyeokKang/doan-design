@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { fieldSkillRuns, insertSkillText, replaceSlashSkill, skillAnnouncements, skillWords } from "./skillWords";
+import { fieldSkillRuns, insertSkillText, replaceSlashSkill, skillAnnouncements, skillWords, skillTextParts, sameSkillRanges, sameSkillNames } from "./skillWords";
 import { textSegments, type FieldSegment } from "./anchorField";
 
 const names = new Set(["deploy", "db-migrate"]);
@@ -61,11 +61,16 @@ test("a path can match only its complete listed name", () => {
     .toEqual([{ start: 0, end: 16, name: "Users/me/deploy" }]);
 });
 
- test("drawing splits only text and compares exact span ranges", async () => {
-  const { skillTextParts, sameSkillRanges } = await import("./skillWords");
+test("drawing splits only text and compares exact span ranges", () => {
   const runs = [{ start: 2, end: 9, name: "deploy" }];
   expect(skillTextParts("x /deploy로", 0, runs)).toEqual([{ text: "x " }, { text: "/deploy", skill: true }, { text: "로" }]);
   expect(sameSkillRanges(runs, [{ start: 2, end: 9 }])).toBe(true);
   expect(sameSkillRanges(runs, [{ start: 2, end: 10 }])).toBe(false);
   expect(sameSkillRanges(runs, [])).toBe(false);
- });
+});
+
+test("name equality ignores Set identity and order but detects additions and removals", () => {
+  expect(sameSkillNames(names, new Set(["db-migrate", "deploy"]))).toBe(true);
+  expect(sameSkillNames(names, new Set(["deploy"]))).toBe(false);
+  expect(sameSkillNames(names, new Set(["deploy", "review"]))).toBe(false);
+});

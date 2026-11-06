@@ -71,3 +71,7 @@ export function skillTextParts(text: string, at: number, runs: readonly SkillRun
 export function sameSkillRanges(expected: readonly { start: number; end: number }[], drawn: readonly { start: number; end: number }[]): boolean {
   return expected.length === drawn.length && expected.every((run, i) => run.start === drawn[i]!.start && run.end === drawn[i]!.end);
 }
+
+export function sameSkillNames(before: ReadonlySet<string>, after: ReadonlySet<string>): boolean {
+  return before.size === after.size && [...before].every(name => after.has(name));
+}

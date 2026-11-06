@@ -1,4 +1,3 @@
-import { skillWords, skillTextParts } from "./skillWords";
 import { createContext, forwardRef, Fragment, memo, useContext, useEffect, useId, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type Ref } from "react";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -9,6 +8,7 @@ import { QUESTION_LIMITS, type Question, type QuestionAnswerInput } from "../mai
 import { chipLabel, type FrameName } from "../main/conversation/messageText";
 import { parseReplyAnchor, type ReplyAnchor } from "../main/conversation/replyAnchor";
 import type { CanvasRow } from "../main/view";
+import { skillWords, skillTextParts } from "./skillWords";
 import { PROVIDER_NAMES } from "./agentAuthView";
 import { AlertIcon } from "./AlertIcon";
 import { canvasLabel } from "./canvasTree";

@@ -9,11 +9,11 @@ vi.mock("react", async original => ({
   useRef: (value: unknown) => { const i = hooks.refCursor++; return hooks.refs[i] ??= { current: value }; },
   useState: (value: unknown) => { const i = hooks.cursor++; if (!(i in hooks.states)) hooks.states[i] = value; return [hooks.states[i], (next: unknown) => { hooks.states[i] = next; }]; },
 }));
-beforeEach(() => { hooks.states = []; hooks.refs = []; });
+beforeEach(() => { hooks.states = []; hooks.refs = []; vi.stubGlobal("HTMLElement", class {}); vi.stubGlobal("document", { activeElement: null, body: null }); });
 function elements(node: ReactNode): Record<string, unknown>[] {
   return Children.toArray(node).flatMap(child => isValidElement<{ children?: ReactNode }>(child) ? [child.props, ...elements(child.props.children)] : []);
 }
-test("an open Project tab that vanishes stores and focuses the fallback, and stays there when skills return", () => {
+test.each([true, false])("a vanished tab persists its fallback and moves focus only from its removed content (%s)", inTab => {
   const props = { reply: { v: 1 as const, ok: true as const, result: { version: "1", presets: [{ id: "polish", title: "Polish", group: "refine", description: "Polish", scope: "canvas" }] } }, skills: [{ name: "deploy", description: "Deploy" }], project: "Project", suggested: [], listId: "skills", disabled: false, onOpen: vi.fn(), onChoose: vi.fn(), onRetry: vi.fn(), onPicked: vi.fn() };
   const render = () => { hooks.cursor = 0; hooks.refCursor = 0; hooks.layouts = []; return elements(PresetsButton(props)); };
   let tree = render();
@@ -22,9 +22,12 @@ test("an open Project tab that vanishes stores and focuses the fallback, and sta
   (tree.find(p => p["data-group"] === "project")!.onClick as () => void)();
   const focus = vi.fn();
   hooks.refs[1]!.current = { querySelector: () => ({ focus }) };
+  const focused = { isConnected: false, closest: () => inTab ? {} : null };
+  (tree.find(p => p.className === "doan-floating preset-popover has-skills")!.onFocusCapture as (e: unknown) => void)({ target: focused });
+  if (!inTab) vi.stubGlobal("document", { activeElement: {}, body: null });
   props.skills = [];
   render(); hooks.layouts.forEach(effect => effect());
-  expect(focus).toHaveBeenCalledOnce();
+  expect(focus).toHaveBeenCalledTimes(inTab ? 1 : 0);
   props.skills = [{ name: "deploy", description: "Deploy" }];
   tree = render();
   expect(tree.find(p => p["data-group"] === "project")!["aria-selected"]).toBe(false);

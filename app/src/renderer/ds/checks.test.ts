@@ -51,7 +51,7 @@ const violetAllowed = [
   ".suggestion-value",
   ".skill-word",
   ".preset-item .suggestion-icon svg",
-  ".group-tabs.shell-modes button svg",
+  ".preset-popover .group-tabs button svg",
   ".home-composer .composer",
   ".drop-target",
   ".row-slot.permission",
@@ -358,6 +358,11 @@ describe("renderer sources", () => {
   test("accentPlaces: violet is read only by the allowed places", () => {
     const found = accentPlaces(rendererSources().filter(file => file.path !== "tokens.css"), tokensCss());
     expect(compareAllowed(found, violetAllowed)).toEqual({ unexpected: [], missing: [] });
+  });
+
+  test("preset tab accents cannot match Quick Open tabs", () => {
+    const tabAccents = violetAllowed.filter(selector => selector.includes("group-tabs"));
+    expect(tabAccents).toEqual([".preset-popover .group-tabs button svg"]);
   });
 
   test("edgeStripes: no message, notice, card or row is marked by a start-side stripe", () => {

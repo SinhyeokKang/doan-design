@@ -265,6 +265,7 @@ export function PresetsButton(props: {
   // Radix returns focus to the trigger after a close it did not see as an outside press; a canvas press put focus in
   // the canvas, so it stays there.
   const pressed = useRef(false);
+  const lastFocused = useRef<HTMLElement | null>(null);
   const { canvasPress } = props;
   useEffect(() => {
     if (!open || !canvasPress) return;
@@ -276,13 +277,17 @@ export function PresetsButton(props: {
   useLayoutEffect(() => {
     if (open && tab !== null && query === "" && selected && selected !== tab) {
       setTab(selected);
-      content.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus();
+      const active = document.activeElement;
+      const lost = lastFocused.current;
+      const restore = lost && !lost.isConnected && active === document.body;
+      const inList = active instanceof HTMLElement && content.current?.contains(active) && !!active.closest('[role="listbox"]');
+      if (restore || inList) content.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus();
     }
   }, [open, tab, query, selected]);
   const choose = (id: string, kind: PresetRow["kind"]) => { picked.current = true; setOpen(false); props.onChoose(id, kind); };
   return <Popover.Root open={open} onOpenChange={next => { setOpen(next); if (next) { pressed.current = false; setQuery(""); props.onOpen(); } }}>
     <IconTip label="Design presets"><Popover.Trigger asChild><button type="button" className="doan-icon-button composer-presets" aria-label="Design presets" disabled={props.disabled}><PencilSparkles aria-hidden="true" /></button></Popover.Trigger></IconTip>
-    <Popover.Portal><Popover.Content ref={content} className={`doan-floating preset-popover${props.skills?.length ? " has-skills" : ""}`} aria-label="Design presets" side="top" align="start" sideOffset={8} collisionPadding={8}
+    <Popover.Portal><Popover.Content ref={content} onFocusCapture={event => { const target = event.target as HTMLElement; lastFocused.current = target.closest('[role="tab"], [role="listbox"]') ? target : null; }} className={`doan-floating preset-popover${props.skills?.length ? " has-skills" : ""}`} aria-label="Design presets" side="top" align="start" sideOffset={8} collisionPadding={8}
       onCloseAutoFocus={event => {
         if (picked.current) { picked.current = false; event.preventDefault(); props.onPicked(); }
         else if (pressed.current) { pressed.current = false; event.preventDefault(); }

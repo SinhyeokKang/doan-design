@@ -1,5 +1,3 @@
-import { requestTitleText, stripRequestLines } from "../main/conversation/requestLines";
-import { useProjectSkills } from "./useProjectSkills";
 import { useEffect, useRef, useState } from "react";
 import { DropdownMenu } from "radix-ui";
 import { ArrowUpRight, Check, ChevronDown, FolderOpen, GitBranch, Plus, Settings, SquarePen } from "lucide-react";
@@ -11,6 +9,8 @@ import type { AttachmentResult } from "../main/attachments";
 import type { Canvas, ConversationEvent } from "../main/conversation/types";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { HomeMemory } from "../restore/uiState";
+import { requestTitleText, stripRequestLines } from "../main/conversation/requestLines";
+import { useProjectSkills } from "./useProjectSkills";
 import { AlertIcon } from "./AlertIcon";
 import { plainText, textSegments } from "./anchorField";
 import { startNewConversation, steerPhaseOf } from "./CanvasConversationPanel";

@@ -1,10 +1,10 @@
-import { fieldSkillRuns } from "./skillWords";
 import { useEffect, useId, useImperativeHandle, useLayoutEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent, type MutableRefObject, type ReactElement } from "react";
 import { Clock, Crosshair, Gauge, Plus, Shield, X } from "lucide-react";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
 import type { PermissionModeId } from "../main/conversation/permissionMode";
 import type { Anchor, SkillSummary } from "../main/conversation/types";
+import { fieldSkillRuns } from "./skillWords";
 import { PROVIDER_NAMES } from "./agentAuthView";
 import { AlertIcon } from "./AlertIcon";
 import { ContextRing } from "./ContextRing";

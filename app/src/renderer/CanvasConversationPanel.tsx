@@ -1,5 +1,3 @@
-import { requestTitleText, stripRequestLines } from "../main/conversation/requestLines";
-import { useProjectSkills } from "./useProjectSkills";
 import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type MutableRefObject } from "react";
 import { DropdownMenu } from "radix-ui";
 import { ArrowUpRight, ChevronDown, Info, Plus, SquarePen } from "lucide-react";
@@ -14,6 +12,8 @@ import { messageLine, type FrameName } from "../main/conversation/messageText";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { WorkItem } from "../main/workState";
 import type { HomeMemory } from "../restore/uiState";
+import { requestTitleText, stripRequestLines } from "../main/conversation/requestLines";
+import { useProjectSkills } from "./useProjectSkills";
 import { AlertIcon } from "./AlertIcon";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import { textSegments } from "./anchorField";

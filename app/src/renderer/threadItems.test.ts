@@ -491,3 +491,9 @@ describe("Fast not used", () => {
     expect(threadItems(failed, ROOT, true)[1]).toMatchObject({ text: "Fast wasn’t used for this turn.", turnedOff: false });
   });
 });
+
+test("history and optimistic messages pass sent skills to their bubble", () => {
+  const text = "Use the project skill `deploy`.\n\n/deploy now\n\nUse the project skill `review`.";
+  expect(threadItems(turn("skills", text), ROOT, false)[0]).toMatchObject({ skills: ["deploy", "review"], parts: [{ text: "/deploy now" }] });
+  expect(withSending([], [{ id: "s", text, anchors: [], attachments: [] }])[0]).toMatchObject({ skills: ["deploy", "review"], parts: [{ text: "/deploy now" }] });
+});
