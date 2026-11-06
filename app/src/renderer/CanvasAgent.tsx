@@ -154,8 +154,8 @@ function WorkWords({ view, moment }: { view: AgentNoticeView; moment: NoticeMome
   </>;
 }
 
-// The board-wide dot field (design §2): canvas 2D, a virtual cursor sweeping the board, the colour read from the
-// element's computed `color` so the theme's role decides it.
+// The board-wide dot field (design §2): canvas 2D, two virtual spots sweeping the board (the second walks the first's
+// path backwards, `opposingCursor`), the colour read from the element's computed `color` so the theme's role decides it.
 export function DotField({ running }: { running: boolean }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const loop = useRef<DotFieldLoop | null>(null);
