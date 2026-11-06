@@ -69,7 +69,7 @@ beforeEach(() => {
     onAgentSignInPrompt: vi.fn((listener: typeof promptListener) => { promptListener = listener; return () => {}; }),
     checkAgentAuth: vi.fn(async () => ({ ok: true })), signInAgent: vi.fn(async () => ({ ok: true, attemptId: "a1" })), signOutAgent: vi.fn(async () => ({ ok: true })),
     cancelAgentSignIn: vi.fn(async () => ({ ok: true })), submitAgentSignInCode: vi.fn(async () => ({ ok: true })), openAgentSignInLink: vi.fn(async () => ({ ok: true })),
-    openInstallPage: vi.fn(async () => true),
+    openInstallPage: vi.fn(async () => true), openInstall: vi.fn(async () => "terminal"),
     listConversationModels: vi.fn(async () => ({ models: [{ id: "opus", label: "Opus 5.5", default: true, efforts: ["low", "high"] }, { id: "haiku", label: "Haiku 5.5", default: false }] })),
     startConversation: vi.fn(), sendConversation: vi.fn(),
   };
@@ -285,15 +285,74 @@ test("an arrival with a provider focuses its row group and flashes it for 2.4 s"
   expect(focus).toHaveBeenCalledTimes(1);
 });
 
-test("an install page that would not open says so in the default notice on the white page: error tone, alert icon, no panel", async () => {
+// agent-cli-terminal T4: the row's install states on Settings, with the click handler's own promise awaited (POSTMORTEM
+// 2026-10-25 UX K: a fixed pause let an unconsumed stale error pass).
+const click = (provider: Provider, command: string) => {
+  const button = all(row(provider)).find(element => element.props["data-command"] === command);
+  if (!button) throw new Error(`no ${command} on ${provider}`);
+  return (button.props.onClick as () => Promise<void> | undefined)();
+};
+const alerts = () => all(tree).filter(element => element.props.role === "alert").map(element => words(element.props.children));
+
+test("Install opens Terminal: the row says to press Return there, and after the return check offers Check again", async () => {
   auth = { revision: 1, providers: [dto("claude"), dto("codex", { account: false, facts: { cli: "missing" } })] };
+  api.openInstall = vi.fn(async () => "terminal");
+  await settle();
+  await click("codex", "install");
+  render();
+  expect(api.openInstall).toHaveBeenCalledWith("codex");
+  expect(words(all(row("codex")).find(element => String(element.props.className).includes("settings-help"))?.props.children)).toBe("Terminal is open with the install command. Press Return there, then come back to Doan.");
+  const focus = vi.mocked(window.addEventListener).mock.calls.find(call => call[0] === "focus")![1] as () => void;
+  focus();
+  await settle();
+  expect(api.checkAgentAuth).toHaveBeenCalledWith("codex");
+  await click("codex", "check");
+  expect(api.checkAgentAuth).toHaveBeenCalledTimes(2);
+  auth = { revision: 2, providers: [dto("claude", {}, 2), dto("codex", { account: false }, 2)] };
+  authListener(auth); render();
+  expect(all(tree).find(element => element.props.role === "status" && element.props.className === "ob-live")?.props.children).toBe("Codex is installed.");
+  expect(all(row("codex")).some(element => element.props["data-command"] === "signIn")).toBe(true);
+});
+
+test("a Terminal that would not open puts the alert on its row with Open install page; a page that also fails says so there", async () => {
+  auth = { revision: 1, providers: [dto("claude"), dto("codex", { account: false, facts: { cli: "missing" } })] };
+  api.openInstall = vi.fn(async () => "failed");
   api.openInstallPage = vi.fn(async () => false);
   await settle();
-  const install = all(tree).find(element => element.props["data-command"] === "install")!;
-  (install.props.onClick as () => void)();
-  for (let i = 0; i < 5; i++) await Promise.resolve();
+  await click("codex", "install");
   render();
-  const notice = all(tree).find(element => element.props.role === "alert" && words(element.props.children) === "Couldn’t open the Codex install page.")!;
-  expect(notice.props.className).toBe("doan-notice error");
-  expect((notice.props.children as ReactElement[])[0]!.type).toBe(AlertIcon);
+  expect(alerts()).toEqual(["Couldn’t open Terminal to install Codex. Open the install page to install it yourself."]);
+  const notice = all(row("codex")).find(element => element.type === NoticeView);
+  expect(notice).toBeDefined();
+  await click("codex", "installPage");
+  render();
+  expect(api.openInstallPage).toHaveBeenCalledWith("codex");
+  const failed = all(row("codex")).find(element => element.props.role === "alert")!;
+  expect(words(failed.props.children)).toBe("Couldn’t open the Codex install page.");
+  // On the white page the row notice keeps the default look: error tone, alert icon, no panel.
+  expect(failed.props.className).toBe("doan-notice error");
+  expect((failed.props.children as ReactElement[])[0]!.type).toBe(AlertIcon);
+  expect(alerts()).toEqual(["Couldn’t open the Codex install page."]);
+});
+
+test("Settings: an older Install result never replaces the newer one, in either completion order", async () => {
+  auth = { revision: 1, providers: [dto("claude"), dto("codex", { account: false, facts: { cli: "missing" } }), dto("cursor", { account: false, facts: { cli: "missing" } })] };
+  const held: ((result: string) => void)[] = [];
+  api.openInstall = vi.fn(() => new Promise<string>(resolve => { held.push(resolve); }));
+  await settle();
+  // Newer first: the older failure lands after the newer Terminal opened.
+  const older = click("codex", "install"), newer = click("cursor", "install");
+  held[1]!("terminal"); await newer;
+  held[0]!("failed"); await older;
+  render();
+  expect(alerts()).toEqual([]);
+  expect(all(row("cursor")).some(element => words(element.props.children) === "Terminal is open with the install command. Press Return there, then come back to Doan.")).toBe(true);
+  // Older first: the older failure lands while the newer is pending, then the newer one shows.
+  const third = click("codex", "install"), fourth = click("cursor", "install");
+  held[2]!("failed"); await third;
+  render();
+  expect(alerts()).toEqual([]);
+  held[3]!("failed"); await fourth;
+  render();
+  expect(alerts()).toEqual(["Couldn’t open Terminal to install Cursor. Open the install page to install it yourself."]);
 });

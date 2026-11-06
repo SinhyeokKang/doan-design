@@ -2,6 +2,7 @@ import { expect, test, vi } from "vitest";
 import type { AuthPromptEvent, AuthReply, AuthSnapshot, AuthStartReply } from "../main/agentAuth/ipc";
 import { authStatus } from "../main/agentAuth/state";
 import { PROVIDERS, type AccountIdentity, type AuthAttempt, type AuthErrorCode, type AuthState, type AuthStatusDto, type Provider, type ToolFacts } from "../main/agentAuth/types";
+import type { InstallResult } from "../main/installCommand";
 import { AgentStepSession, type AgentStepDeps } from "./agentStep";
 
 // DTOs come from agent-auth's own authStatus, as in agentAuthView.test.ts.
@@ -42,7 +43,10 @@ function harness(initial: AuthSnapshot | null = snap(1), focused = true) {
     onAgentSignInPrompt: vi.fn((listener: (e: AuthPromptEvent) => void) => { prompt = listener; return () => { unsubscribed.push("prompt"); prompt = null; }; }),
   };
   let current: AuthSnapshot | null = initial;
-  const deps: AgentStepDeps = { api, openInstall: vi.fn(async (_p: Provider) => true), hasFocus: () => focused, changed: vi.fn() };
+  const deps: AgentStepDeps = {
+    api, openInstall: vi.fn(async (_p: Provider): Promise<InstallResult> => "terminal"), openInstallPage: vi.fn(async (_p: Provider) => true),
+    hasFocus: () => focused, changed: vi.fn(),
+  };
   const session = new AgentStepSession(deps);
   return {
     session, api, deps, replies, unsubscribed,
@@ -110,17 +114,22 @@ test("returning from an install page reads, then checks each installed provider 
   expect(h.api.readAgentAuth).toHaveBeenCalledTimes(3);
 });
 
-test("a failed install page open is shown and no return check is armed", async () => {
+test("a Terminal that would not open is shown on its row with Open install page, and no return check is armed", async () => {
   const h = harness(snap(1, { claude: { facts: { cli: "missing" } } }));
-  vi.mocked(h.deps.openInstall).mockResolvedValueOnce(false);
+  vi.mocked(h.deps.openInstall).mockResolvedValueOnce("failed").mockRejectedValueOnce(new Error("ipc"));
   h.session.start(); h.session.enter();
   await flush();
   h.session.command("claude", "install");
   await flush();
-  expect(h.session.state.installError).toBe("Couldn’t open the Claude Code install page.");
+  expect(h.session.state.install).toEqual({ provider: "claude", action: "install", result: "failed", checked: false });
+  expect(row(h, "claude").notice).toMatchObject({ role: "alert", body: "Couldn’t open Terminal to install Claude Code. Open the install page to install it yourself." });
+  expect(row(h, "claude").notice?.actions.map(b => b.command)).toEqual(["installPage"]);
   h.session.windowFocused();
   await flush();
   expect(checked(h)).toEqual([]);
+  // A rejected call reads as one that did not open.
+  await h.session.command("claude", "install");
+  expect(h.session.state.install).toMatchObject({ provider: "claude", result: "failed" });
 });
 
 test("sign-in success: links open automatically for Claude and Antigravity only, once per attempt", async () => {
@@ -410,21 +419,181 @@ test("a ready change seen while the window has focus is not announced and does n
   expect(h.session.state.focus).toBeNull();
 });
 
-test("an older install page result never replaces a newer one", async () => {
+// POSTMORTEM 2026-10-25 'An older install failure replaced newer feedback': both completion orders, every result.
+const RESULTS: InstallResult[] = ["terminal", "page", "failed", "pageFailed"];
+const other = (result: InstallResult): InstallResult => result === "failed" ? "terminal" : "failed";
+test.each(RESULTS)("an older Install result landing after a newer %s never replaces it", async result => {
   const h = harness(snap(1, { claude: { facts: { cli: "missing" } }, codex: { facts: { cli: "missing" } } }));
-  let first: (ok: boolean) => void = () => {};
-  vi.mocked(h.deps.openInstall).mockImplementationOnce(() => new Promise(resolve => { first = resolve; })).mockResolvedValueOnce(true);
+  let first: (r: InstallResult) => void = () => {};
+  vi.mocked(h.deps.openInstall).mockImplementationOnce(() => new Promise(resolve => { first = resolve; })).mockResolvedValueOnce(result);
   h.session.start(); h.session.enter();
   await flush();
-  h.session.command("claude", "install");
-  h.session.command("codex", "install");
+  const older = h.session.command("claude", "install");
+  await h.session.command("codex", "install");
+  expect(h.session.state.install).toEqual({ provider: "codex", action: "install", result, checked: false });
+  first(other(result));
+  await older;
+  expect(h.session.state.install).toEqual({ provider: "codex", action: "install", result, checked: false });
+  expect(row(h, "claude").notice).toBeNull();
+});
+test.each(RESULTS)("an older %s landing while a newer Install is pending is not shown; the newer one is", async result => {
+  const h = harness(snap(1, { claude: { facts: { cli: "missing" } }, codex: { facts: { cli: "missing" } } }));
+  let second: (r: InstallResult) => void = () => {};
+  vi.mocked(h.deps.openInstall).mockResolvedValueOnce(result).mockImplementationOnce(() => new Promise(resolve => { second = resolve; }));
+  h.session.start(); h.session.enter();
   await flush();
-  first(false);
+  const older = h.session.command("claude", "install");
+  const newer = h.session.command("codex", "install");
+  await older;
+  expect(h.session.state.install).toBeNull();
+  second(other(result));
+  await newer;
+  expect(h.session.state.install).toEqual({ provider: "codex", action: "install", result: other(result), checked: false });
+});
+
+test("every Terminal or page that opened is checked on return, whichever result is shown", async () => {
+  const h = harness(snap(1, { claude: { facts: { cli: "missing" } }, codex: { facts: { cli: "missing" } } }));
+  let first: (r: InstallResult) => void = () => {};
+  vi.mocked(h.deps.openInstall).mockImplementationOnce(() => new Promise(resolve => { first = resolve; })).mockResolvedValueOnce("failed");
+  h.session.start(); h.session.enter();
   await flush();
-  expect(h.session.state.installError).toBeNull();
+  const older = h.session.command("claude", "install");
+  await h.session.command("codex", "install");
+  first("terminal");
+  await older;
+  h.session.windowFocused();
+  await flush();
+  expect(checked(h)).toEqual(["claude"]);
+  // The shown failure had no return check, so it is not marked checked.
+  expect(h.session.state.install).toMatchObject({ provider: "codex", result: "failed", checked: false });
+});
+
+test("an install page opened instead of Terminal keeps the helper from before the click and is checked on return", async () => {
+  const h = harness(snap(1, { codex: { facts: { version: "unsupported", installed: "0.100.0" } } }));
+  vi.mocked(h.deps.openInstall).mockResolvedValueOnce("page");
+  h.session.start(); h.session.enter();
+  await flush();
+  await h.session.command("codex", "update");
+  expect(h.session.state.install).toEqual({ provider: "codex", action: "update", result: "page", checked: false });
+  expect(row(h, "codex")).toMatchObject({ button: { command: "update", label: "Update" }, helper: "After you update it, Doan checks again when you return.", notice: null });
   h.session.windowFocused();
   await flush();
   expect(checked(h)).toEqual(["codex"]);
+  expect(h.session.state.install?.checked).toBe(true);
+  expect(row(h, "codex")).toMatchObject({ button: { command: "check", label: "Check again" }, helper: "After you update it, Doan checks again when you return." });
+});
+
+test("Open install page after a failed Terminal: the notice goes at once, then the page opens or says it did not", async () => {
+  const h = harness(snap(1, { codex: { facts: { cli: "missing" } } }));
+  vi.mocked(h.deps.openInstall).mockResolvedValue("failed");
+  let page: (ok: boolean) => void = () => {};
+  vi.mocked(h.deps.openInstallPage).mockImplementationOnce(() => new Promise(resolve => { page = resolve; })).mockResolvedValueOnce(false).mockRejectedValueOnce(new Error("ipc"));
+  h.session.start(); h.session.enter();
+  await flush();
+  await h.session.command("codex", "install");
+  const opening = h.session.command("codex", "installPage");
+  expect(h.deps.openInstallPage).toHaveBeenCalledWith("codex");
+  expect(h.session.state.install).toBeNull();
+  expect(row(h, "codex").notice).toBeNull();
+  page(true);
+  await opening;
+  expect(h.session.state.install).toEqual({ provider: "codex", action: "install", result: "page", checked: false });
+  h.session.windowFocused();
+  await flush();
+  expect(checked(h)).toEqual(["codex"]);
+  for (const _ of [0, 1]) {
+    await h.session.command("codex", "install");
+    await h.session.command("codex", "installPage");
+    expect(h.session.state.install).toEqual({ provider: "codex", action: "install", result: "pageFailed", checked: false });
+    expect(row(h, "codex").notice).toMatchObject({ role: "alert", body: "Couldn’t open the Codex install page.", actions: [] });
+  }
+});
+
+test("Open install page is a new request: a later Install owns the row, and an earlier Install cannot replace the page", async () => {
+  const h = harness(snap(1, { codex: { facts: { cli: "missing" } } }));
+  vi.mocked(h.deps.openInstall).mockResolvedValueOnce("failed");
+  let page: (ok: boolean) => void = () => {};
+  vi.mocked(h.deps.openInstallPage).mockImplementationOnce(() => new Promise(resolve => { page = resolve; }));
+  h.session.start(); h.session.enter();
+  await flush();
+  await h.session.command("codex", "install");
+  const opening = h.session.command("codex", "installPage");
+  await h.session.command("codex", "install");
+  expect(h.session.state.install).toMatchObject({ result: "terminal" });
+  page(false);
+  await opening;
+  expect(h.session.state.install).toMatchObject({ result: "terminal" });
+
+  // The other order: the page opens while a later Install is still pending.
+  let terminal: (r: InstallResult) => void = () => {}, opened: (ok: boolean) => void = () => {};
+  vi.mocked(h.deps.openInstall).mockResolvedValueOnce("failed").mockImplementationOnce(() => new Promise(resolve => { terminal = resolve; }));
+  vi.mocked(h.deps.openInstallPage).mockImplementationOnce(() => new Promise(resolve => { opened = resolve; }));
+  await h.session.command("codex", "install");
+  const second = h.session.command("codex", "installPage");
+  const later = h.session.command("codex", "install");
+  opened(true);
+  await second;
+  expect(h.session.state.install).toBeNull();
+  terminal("failed");
+  await later;
+  expect(h.session.state.install).toMatchObject({ result: "failed" });
+});
+
+test("after the return check the row offers Check again while the cause stays; resolving it is announced once", async () => {
+  const h = harness(snap(1, { codex: { facts: { cli: "missing" } } }), false);
+  h.session.start(); h.session.enter();
+  await flush();
+  await h.session.command("codex", "install");
+  expect(row(h, "codex").helper).toBe("Terminal is open with the install command. Press Return there, then come back to Doan.");
+  expect(row(h, "codex").button).toMatchObject({ command: "install" });
+  h.setFocus(true);
+  h.session.windowFocused();
+  await flush();
+  expect(checked(h)).toEqual(["codex"]);
+  expect(row(h, "codex").button).toMatchObject({ command: "check", label: "Check again" });
+  expect(row(h, "codex").helper).toBe("Terminal is open with the install command. Press Return there, then come back to Doan.");
+  h.session.command("codex", "check");
+  await flush();
+  expect(checked(h)).toEqual(["codex", "codex"]);
+  h.emit(snap(2));
+  expect(h.session.state.install).toBeNull();
+  expect(h.session.state.announcement?.text).toBe("Codex is installed.");
+  expect(row(h, "codex").button).toMatchObject({ command: "signIn", label: "Sign in" });
+  // No provider is ready, so focus stays where it is.
+  expect(h.session.state.focus).toBeNull();
+  const seq = h.session.state.announcement?.seq;
+  h.emit(snap(3));
+  expect(h.session.state.announcement?.seq).toBe(seq);
+});
+
+test("a resolved update says so, and moves focus to Continue when the step can advance", async () => {
+  const h = harness(snap(1, { claude: connected, codex: { account: ACCOUNT, verified: true, facts: { version: "unsupported", installed: "0.150.0" } } }));
+  h.session.start(); h.session.enter();
+  await flush();
+  await h.session.command("codex", "update");
+  expect(row(h, "codex").helper).toBe("Terminal is open with the update command. Press Return there, then come back to Doan.");
+  h.emit(snap(2, { claude: connected, codex: connected }));
+  expect(h.session.state.announcement?.text).toBe("Codex is updated.");
+  expect(h.session.state.focus).toMatchObject({ target: "continue" });
+});
+
+test("leaving the step clears the row's install state, and a result landing afterwards is not shown", async () => {
+  const h = harness(snap(1, { claude: connected, codex: { facts: { cli: "missing" } } }));
+  h.session.start(); h.session.enter();
+  await flush();
+  await h.session.command("codex", "install");
+  expect(h.session.state.install).not.toBeNull();
+  await h.session.back();
+  expect(h.session.state.install).toBeNull();
+  h.session.enter();
+  await flush();
+  let late: (r: InstallResult) => void = () => {};
+  vi.mocked(h.deps.openInstall).mockImplementationOnce(() => new Promise(resolve => { late = resolve; }));
+  const pending = h.session.command("codex", "install");
+  expect(await h.session.continue()).toBe(true);
+  late("failed");
+  await pending;
+  expect(h.session.state.install).toBeNull();
 });
 
 test("the paste modal cannot be dismissed while its address is being submitted", async () => {
@@ -549,14 +718,14 @@ test("a rejected read keeps the list already shown", async () => {
   expect(h.session.view().notice).toBeNull();
 });
 
-test("U2: the install line names the provider whose page did not open", async () => {
-  const h = harness(snap(1, { cursor: { facts: { cli: "missing" } } }));
-  vi.mocked(h.deps.openInstall).mockResolvedValueOnce(false);
+test("U2: the install notice is on the row of the provider whose Terminal did not open", async () => {
+  const h = harness(snap(1, { cursor: { facts: { cli: "missing" } }, codex: { facts: { cli: "missing" } } }));
+  vi.mocked(h.deps.openInstall).mockResolvedValueOnce("failed");
   h.session.start(); h.session.enter();
   await flush();
-  h.session.command("cursor", "install");
-  await flush();
-  expect(h.session.state.installError).toBe("Couldn’t open the Cursor install page.");
+  await h.session.command("cursor", "install");
+  expect(row(h, "cursor").notice?.body).toBe("Couldn’t open Terminal to install Cursor. Open the install page to install it yourself.");
+  expect(row(h, "codex").notice).toBeNull();
 });
 
 test("U2: a reloaded window still cancels the sign-ins it started before the reload", async () => {

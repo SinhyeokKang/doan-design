@@ -3,8 +3,8 @@ import type { AuthReason, AuthSnapshot } from "../main/agentAuth/ipc";
 import { authStatus } from "../main/agentAuth/state";
 import { PROVIDERS, type AccountIdentity, type AuthAttempt, type AuthErrorCode, type AuthPhase, type AuthState, type AuthStatusDto, type Provider, type RecoveryAction, type ToolFacts } from "../main/agentAuth/types";
 import {
-  agentsSettingsView, authListView, cancelledAnnouncement, MAX_PASTE, noAgentReadyNotice, pasteDialog, pasteSubmittable, pickerAction, pickerFooter, PROVIDER_NAMES, providerShortStatus, providerView, readyAnnouncements, replyEffect, signInToast, stopDialog,
-  type AuthButton, type ProviderView,
+  agentsSettingsView, authListView, cancelledAnnouncement, installedAnnouncement, installRowView, MAX_PASTE, noAgentReadyNotice, pasteDialog, pasteSubmittable, pickerAction, pickerFooter, PROVIDER_NAMES, providerShortStatus, providerView, readyAnnouncements, replyEffect, signInToast, stopDialog,
+  type AuthButton, type InstallState, type ProviderView,
 } from "./agentAuthView";
 
 // DTOs come from agent-auth's own authStatus, so readiness, actions and error shapes are the backend's.
@@ -423,4 +423,47 @@ test("settings context: a connected row refused as busy keeps its account and a 
   expect(signOutOf(view)).toBe("subtle-disabled:Sign out:signOut");
   // A row without a connection keeps first run's disabled Sign in.
   expect(only(providerView(dto("cursor"), { ...S, reply: "busy", busyWith: "codex" })).button).toBe("prominent-disabled:Sign in:signIn");
+});
+
+// agent-cli-terminal design '행 상태와 문구': the Install or Update row after its button was used.
+test("installRowView: every install result before and after the return check, for Install and Update", () => {
+  const row = (cause: "cli_missing" | "version_unsupported", install: Omit<InstallState, "provider" | "action"> | null) => {
+    const action = cause === "cli_missing" ? "install" : "update";
+    const view = installRowView({ cause }, install && { provider: "codex", action, ...install }, "Codex");
+    return { button: view.button && labels([view.button])[0], ariaLabel: view.button?.ariaLabel, helper: view.helper, notice: view.notice && { role: view.notice.role, body: view.notice.body, actions: labels(view.notice.actions), aria: view.notice.actions.map(b => b.ariaLabel) } };
+  };
+  for (const [cause, verb, label] of [["cli_missing", "install", "Install"], ["version_unsupported", "update", "Update"]] as const) {
+    const before = `After you ${verb} it, Doan checks again when you return.`;
+    const terminal = `Terminal is open with the ${verb} command. Press Return there, then come back to Doan.`;
+    const primary = { button: `prominent:${label}:${verb}`, ariaLabel: `${label} Codex` };
+    const again = { button: "prominent:Check again:check", ariaLabel: "Check Codex again" };
+    expect(row(cause, null)).toEqual({ ...primary, helper: before, notice: null });
+    expect(row(cause, { result: "terminal", checked: false })).toEqual({ ...primary, helper: terminal, notice: null });
+    expect(row(cause, { result: "page", checked: false })).toEqual({ ...primary, helper: before, notice: null });
+    expect(row(cause, { result: "terminal", checked: true })).toEqual({ ...again, helper: terminal, notice: null });
+    expect(row(cause, { result: "page", checked: true })).toEqual({ ...again, helper: before, notice: null });
+    expect(row(cause, { result: "failed", checked: false })).toEqual({ ...primary, helper: null, notice: {
+      role: "alert", body: `Couldn’t open Terminal to ${verb} Codex. Open the install page to ${verb} it yourself.`, actions: ["prominent:Open install page:installPage"], aria: ["Open the Codex install page"],
+    } });
+    expect(row(cause, { result: "pageFailed", checked: false })).toEqual({ ...primary, helper: null, notice: { role: "alert", body: "Couldn’t open the Codex install page.", actions: [], aria: [] } });
+  }
+});
+
+test("a row shows its install state through its context; another action's state is ignored and Copilot's Check again is free", () => {
+  const install = (provider: Provider, action: InstallState["action"], result: InstallState["result"], checked = false): InstallState => ({ provider, action, result, checked });
+  expect(only(providerView(dto("cursor", { facts: { cli: "missing" } }), { install: install("cursor", "install", "terminal") })).helper)
+    .toBe("Terminal is open with the install command. Press Return there, then come back to Doan.");
+  // A state for Install on a row whose cause is now its version reads as before the click.
+  expect(only(providerView(dto("cursor", { facts: { version: "unsupported" } }), { install: install("cursor", "install", "terminal", true) })))
+    .toEqual({ detail: "This version is older than Doan supports.", button: "prominent:Update:update", notice: null, helper: "After you update it, Doan checks again when you return." });
+  const copilot = providerView(dto("copilot", { facts: { cli: "missing" } }), { install: install("copilot", "install", "page", true), settings: true });
+  expect(only(copilot)).toMatchObject({ detail: "Not installed", button: "prominent:Check again:check" });
+  expect(copilot.button?.note).toBeUndefined();
+  // A ready row has nothing to install, whatever state is left.
+  expect(only(providerView(ready("codex"), { install: install("codex", "update", "failed") })).notice).toBeNull();
+});
+
+test("a resolved install or update is announced once with what happened", () => {
+  expect(installedAnnouncement("codex", "install")).toBe("Codex is installed.");
+  expect(installedAnnouncement("copilot", "update")).toBe("GitHub Copilot is updated.");
 });
