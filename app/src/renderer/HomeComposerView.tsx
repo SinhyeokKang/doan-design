@@ -254,11 +254,11 @@ export function HeroComposer(props: HeroComposerProps) {
   const choiceTouched = m.provider !== null || explicitModel !== undefined || pickedEffort !== undefined || pickedPermission !== undefined || pickedFast !== undefined;
   // Fast is not in this effect: it goes to Last used only from the toggle itself (onPickFast), never from a switch
   // held since then when the composer mounts again or another pick changes (fast-mode decision 3, review R 🟡2).
-  const modelPicked = {
-    ...(explicitModel !== undefined && explicitModel === model && m.restoredModels?.[provider!] !== explicitModel ? { modelPicked: true as const } : {}),
-    ...(pickedEffort !== undefined && m.restoredEfforts?.[effortKey(provider!, model!)] !== pickedEffort ? { effortPicked: true as const } : {}),
-  };
-  useEffect(() => { if (choiceTouched && provider) props.onRemember?.({ provider, model, effort, ...modelPicked, ...(permissionMode ? { permissionMode } : {}) }); }, [choiceTouched, provider, model, effort, permissionMode, explicitModel, pickedEffort]);
+  const isModelPicked = explicitModel !== undefined && explicitModel === model && m.restoredModels?.[provider!] !== explicitModel;
+  const isEffortPicked = pickedEffort !== undefined && m.restoredEfforts?.[effortKey(provider!, model!)] !== pickedEffort;
+  const modelPicked = { ...(isModelPicked ? { modelPicked: true as const } : {}), ...(isEffortPicked ? { effortPicked: true as const } : {}) };
+  // The marks are dependencies: re-picking the row Edit on Home restored changes only whether it was picked.
+  useEffect(() => { if (choiceTouched && provider) props.onRemember?.({ provider, model, effort, ...modelPicked, ...(permissionMode ? { permissionMode } : {}) }); }, [choiceTouched, provider, model, effort, permissionMode, isModelPicked, isEffortPicked]);
   // The menu closes on select; the move waits for that, so the menu's own focus return comes first.
   const openSettings = (target: SettingsTarget) => queueMicrotask(() => props.openSettings(target));
 

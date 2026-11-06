@@ -68,11 +68,13 @@ export function preferenceAfterPick(current: NewConversationDefault | null, choi
   const same = current.provider === choice.provider;
   if (!choice.model && !same) return undefined;
   const keptModel = same ? current.model : undefined;
+  // The model and the level apply apart, each only when picked.
+  const nextModel = choice.model && choice.modelPicked ? choice.model : keptModel;
   // A level is fixed only for the model it was picked for: the fixed one, or under Model Default the default shown.
-  const ownEffort = choice.effortPicked === true && !!choice.model && (keptModel === undefined || keptModel === choice.model);
-  const effort = ownEffort ? choice.effort ?? undefined : same ? current.effort : undefined;
-  const model = choice.model && choice.modelPicked ? { model: choice.model, ...(choice.effort ? { effort: choice.effort } : {}) }
-    : { ...(keptModel ? { model: keptModel } : {}), ...(effort ? { effort } : {}) };
+  const ownEffort = choice.effortPicked === true && !!choice.model && (nextModel === undefined || nextModel === choice.model);
+  // An unpicked level stays with its model: kept while the fixed model stays, dropped when another model is picked.
+  const effort = ownEffort ? choice.effort ?? undefined : same && nextModel === keptModel ? current.effort : undefined;
+  const model = { ...(nextModel ? { model: nextModel } : {}), ...(effort ? { effort } : {}) };
   const mode = choice.permissionMode !== undefined ? choice.permissionMode : same ? current.permissionMode : undefined;
   const next: NewConversationDefault = { provider: choice.provider, ...model, ...(mode !== undefined && mode !== "default" ? { permissionMode: mode } : {}) };
   return same && current.model === next.model && current.effort === next.effort && current.permissionMode === next.permissionMode ? undefined : next;

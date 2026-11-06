@@ -416,7 +416,9 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         drafts={run.drafts} onDrafts={update => run.setDrafts(update)}
         auth={auth} picker={picker} provider={chosen} effort={effort}
         onPickerOpen={() => { if (healthy) for (const group of picker.groups) if (group.read) support.readModels(root, group.provider); }}
-        onPickModel={(picked, value) => support.pick(key, { ...(mode.kind === "new" ? { provider: picked } : {}), ...(picked !== chosen ? { permissionMode: undefined, fast: undefined } : {}), model: value ?? undefined })}
+        onPickModel={(picked, value) => support.pick(key, { ...(mode.kind === "new" ? { provider: picked } : {}), ...(picked !== chosen ? { permissionMode: undefined, fast: undefined } : {}),
+          // A picked level belongs to the model it was picked for (Home keeps one per provider and model).
+          ...(picked !== chosen || (value ?? null) !== model ? { effort: undefined } : {}), model: value ?? undefined })}
         onPickEffort={value => support.pick(key, { effort: value })} onPickFast={on => { support.pick(key, { fast: on }); if (chosen) props.onRemember?.({ provider: chosen, model, effort, ...modelPicked, fast: on }); }}
         permission={permission} onPickPermission={value => support.pickPermission(key, mode.kind === "new" ? null : mode.conversationId, value, summary ? stored : undefined)}
         onSettings={props.onSettings}
