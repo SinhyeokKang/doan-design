@@ -531,6 +531,7 @@ Reference: `.doan/canvases/buzz-project.html` (nine frames: `overview-thread`, `
 | Narrow window | At 960 × 600 the title gives way first: project and branch keep their widths, the title ellipsizes (197 px with a three-worktree chip) | `overview-narrow`. |
 | Worktree chip | With two or more worktrees a `button` chip with a 14 px chevron opening `.wt-menu` (280, `.shell-worktree` rows); open fill `--affordance-backdrop-pressed` | `button.doan-chip`'s open fill (`data-state="open"`) is more specific than the chip's own rule, so the pressed fill is set as `.ov-project button.wt-chip[aria-expanded="true"]`. |
 | Thread column | 720 px maximum (666 at 1238 × 780) with a 24 px inset; items 24 apart and 24 under the last item at the bottom of the scroll; bubbles, Markdown (paragraphs, lists with disc / circle / decimal markers 24 px in, inline and block code, table, blockquote), activity rows, permission and end notices equal the boards in type, colour, radius and spacing | The inset sits on `.thread-scroll` and `.ov-col` rather than the draft's `.ov-scroll`; every child offset matches. |
+| Streaming caret | While a reply streams, a 1 px `--text-standard` caret ends its last text block (paragraph, list item, heading, table cell, or a code block's last line, before its final line break), 1 px after the last character, one line tall and top-aligned: 24 high in the Overview, 20 in the canvas panel and on a code line; the block keeps its height with or without it (measured in both places); blinks on and off once a second (`steps(1)`), steady under reduced motion; none on a finished reply. With no text block yet it sits after the blocks | `.msg-agent` is a flex column, so a caret beside the blocks would be blockified onto its own line; drawn inside the text it must not grow the line, or the reply shrinks when streaming ends. |
 | Notice glyphs | Thread end notices and the moved line draw 16 px glyphs | Bare lucide icons render 24 px unless sized; `AlertIcon` and the agent mark size themselves. |
 | Notice text | A thread notice's body wraps and is not clipped (`overflow: visible`) | The strip's one-line rule (`overflow: hidden`, ellipsis) would clip glyphs on a wrapped line. |
 | Docked composer | Capsule (padding 8, `--radius-pill`) while one line; box (padding 16 / 12 / 12 / 16, radius 24) once wrapped or with chips; 32 px Presets and accent Send / Stop / Queue in the card; the tray starts with xs Attach and Pick from canvas in `--text-subtle`, then the xs `trigger` model, effort and permission at its end, 14 px logo; focus ring as Home's; placeholder `--text-metadata` | Measured empty, one line, wrapped, running (Stop), queueing (Queue with a queued item) and waiting for a permission answer. |
@@ -545,6 +546,7 @@ Reference: `.doan/canvases/buzz-project.html` (nine frames: `overview-thread`, `
 
 ### Documented deviations from the draft
 
+- **Streaming caret height.** The drafts draw the caret 24 high with a −6 px bottom margin in every type size; the app draws it one line tall (20 in the canvas panel's 14/20 text), because the drafts' caret makes a 14/20 line 23 high.
 - **Conversation menu width.** 360 px is the menu's component constant; the draft's own rule asks for 360 but the shared `.doan-menu` `max-width` caps its render at 320.
 - **Current worktree check.** The chip's worktree menu marks the current worktree with a check like the shipped sidebar project menu's rows (the draft fills it but draws no check).
 - **Moved line alignment.** The draft centres the moved line's icon and text on the Open button's row; the app keeps the shared notice's top alignment (screens set only outer margins on a notice, `ds/controls.test.ts`). The line never wraps, so both render the same 44 px row (measured).
@@ -558,13 +560,13 @@ Reference: `.doan/canvases/buzz-project.html` (nine frames: `overview-thread`, `
 ### Not verified
 
 - Right-panel rows in Working or Needs your answer (see 'Running canvas row'). The same status marks were measured in conversation-menu items.
-- Docked composer with preset chips and no text, Sending, blocked by another project conversation (running), and the archived modes; the bubble's preset line; the streaming caret; an expired permission; the promoted, archived and restored markers (canvas conversations, shown on the canvas page); Jump to latest; the 300 ms loading line; the action rows of a failed or sign-in notice that is not the latest end (only the latest end offers actions).
+- Docked composer with preset chips and no text, Sending, blocked by another project conversation (running), and the archived modes; the bubble's preset line; an expired permission; the promoted, archived and restored markers (canvas conversations, shown on the canvas page); Jump to latest; the 300 ms loading line; the action rows of a failed or sign-in notice that is not the latest end (only the latest end offers actions).
 - Keyboard focus rings, reduced transparency, forced colours and dark mode.
 - A real conversation's long title in the Overview header (a DOM-injected title was measured); the switch from a shown conversation to a new one through the header button is unit-tested only.
 
 ### Regression pointers
 
-`app/src/renderer/ProjectOverview.test.tsx` pins the numerals, the open chip's pressed fill, the 16 px notice glyphs, the wrapped notice body and the one-line moved line. `canvasConversationRows.test.ts` pins an unreadable canvas (listed without its id) matching its conversation by path; `overviewConversation.test.ts` pins the short times. Geometry above is a `.scratch/` probe only.
+`app/src/renderer/ProjectOverview.test.tsx` pins the numerals, the open chip's pressed fill, the 16 px notice glyphs, the wrapped notice body and the one-line moved line. `ConversationThread.test.tsx` pins the streaming caret inside the last text block; its geometry is `.scratch/runtime-test/reply-caret/probe.mjs` only. `canvasConversationRows.test.ts` pins an unreadable canvas (listed without its id) matching its conversation by path; `overviewConversation.test.ts` pins the short times. Geometry above is a `.scratch/` probe only.
 
 ## Design navigation
 
@@ -1426,7 +1428,7 @@ The activity rows' shipped values were unchanged: head, label, spinner and chevr
 
 - **Panel width.** Every thread element is 1 px narrower in the panel (thread 314 where the tiles draw 315): the panel's 1 px start border ('Canvas handoff').
 
-Context, not deviations: the Overview column is 720 centred in a wider window (54 px auto margins); the draft page's reset (`.activity` border style, 0 wide) and its board-only `:where(svg){flex:none}` on the activity chevron; the shipped spinner's rotation phase; the permission notice's `role="alert"` only for a request newer than the read; and in (6) the shipped streaming caret, which sits on its own line under the Markdown because `.msg-agent` is a flex column (the draft draws it at the end of the line, as `buzz-conversation.html` does), so the indicator is 31 px lower there with the same 20 px gap. That caret placement is a defect older than the indicator, not a choice.
+Context, not deviations: the Overview column is 720 centred in a wider window (54 px auto margins); the draft page's reset (`.activity` border style, 0 wide) and its board-only `:where(svg){flex:none}` on the activity chevron; the shipped spinner's rotation phase; the permission notice's `role="alert"` only for a request newer than the read; and in (6) the streaming caret's height (one line, 20 in the panel: 'Project Overview', 'Streaming caret height'); the indicator keeps the 20 px gap under the reply (measured with the caret in a paragraph, a list item and a code line).
 
 ### Not verified
 

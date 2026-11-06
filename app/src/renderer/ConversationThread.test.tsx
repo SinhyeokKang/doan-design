@@ -54,6 +54,35 @@ describe("agent Markdown", () => {
     expect(html([agent("Done.")])).not.toContain("caret");
   });
 
+  // The caret follows the last character of the last text block, as the drafts draw it (turn-activity.html frame
+  // `states`, tile 6): a caret beside the blocks is a flex-column item of .msg-agent and sits on its own line.
+  test("the streaming caret ends the last text block, whatever block the Markdown renders last", () => {
+    const caret = '<span class="caret" aria-hidden="true"></span>';
+    const cases: [string, RegExp][] = [
+      ["Half", /<p>Half<span class="caret"[^>]*><\/span><\/p>/],
+      ["First.\n\nSecond", /<p>First\.<\/p>\s*<p>Second<span class="caret"[^>]*><\/span><\/p>/],
+      ["- one\n- two", /<li>two<span class="caret"[^>]*><\/span><\/li>/],
+      ["- one\n  - nested", /<li>nested<span class="caret"[^>]*><\/span><\/li>/],
+      ["- a\n\n- b", /<li>\s*<p>b<span class="caret"[^>]*><\/span><\/p>\s*<\/li>/],
+      ["Intro\n\n## Title", /<h2>Title<span class="caret"[^>]*><\/span><\/h2>/],
+      ["Some **bold**", /<p>Some <strong>bold<\/strong><span class="caret"[^>]*><\/span><\/p>/],
+      ["> quote", /<blockquote>\s*<p>quote<span class="caret"[^>]*><\/span><\/p>\s*<\/blockquote>/],
+      ["| A |\n|---|\n| 1 |", /<td>1<span class="caret"[^>]*><\/span><\/td>/],
+      // A code block's text ends in a line break; the caret goes before it, on the code's last line.
+      ["```\n$ doan check", /<pre><code>\$ doan check<span class="caret"[^>]*><\/span>\n<\/code><\/pre>/],
+    ];
+    for (const [text, where] of cases) {
+      const out = html([agent(text, true)]);
+      expect(out, text).toMatch(where);
+      expect(out.split(caret).length - 1, text).toBe(1);
+      expect(html([agent(text)]), text).not.toContain("caret");
+    }
+  });
+
+  test("a streaming reply with no text block yet still shows one caret", () => {
+    for (const text of ["", "---"]) expect(html([agent(text, true)]).split('<span class="caret" aria-hidden="true"></span>').length - 1, text).toBe(1);
+  });
+
   test("httpsUrl", () => {
     expect(httpsUrl("https://example.com")).toBe("https://example.com/");
     expect(httpsUrl(" javascript:alert(1)")).toBeNull();
