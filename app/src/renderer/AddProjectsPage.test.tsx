@@ -6,7 +6,7 @@ import type { ProjectStepState } from "./projectStep";
 // buzz-add-projects U2: the page renders the onboarding Project screen with the differences in design '온보딩과의 공유'.
 const noop = () => {};
 const on: ProjectScreenProps["on"] = { back: noop, backToAgents: noop, chooseFolder: noop, chooseExisting: noop, setUrl: noop, find: noop, cancelInspect: noop, edit: noop,
-  pickListed: noop, useListed: noop, pickCandidate: noop, select: noop, setUp: noop, changeDestination: noop, useExisting: noop, clone: noop, cancelClone: noop, complete: noop, retry: noop };
+  pickListed: noop, useListed: noop, pickCandidate: noop, select: noop, setUp: noop, changeDestination: noop, useExisting: noop, clone: noop, cancelClone: noop, complete: noop, retry: noop, setStorage: noop };
 const base: ProjectStepState = { phase: { kind: "choose" }, url: "", inspectedUrl: null, error: null, listChoice: null };
 const page = (state: Partial<ProjectStepState>, busy = false) => renderToStaticMarkup(<ProjectScreen use="addPage" headingId="add-page-title" state={{ ...base, ...state }} busy={busy} agentReady projects={["/Users/ada/code/doan"]} home="/Users/ada" urlValid={false} heading={noop} on={on} />);
 const cloning = { kind: "cloning", url: "https://github.com/acme/tokens", destination: "/Users/ada/code/tokens", operationId: "op", cancelling: false } as const;
@@ -145,4 +145,39 @@ test("focus: the drop notice is never the alert focus goes to", () => {
   const scene = { querySelector: (selector: string) => !selector.includes('role="alert"') ? null : selector.includes(":not(.ob-drop-notice)") ? error : dropNotice };
   for (const _use of ["page", "onboarding"])
     expect(projectFocusNode({ opened: null, asked: false, root: scene as never, active: null, body: body as never, heading: heading as never, state: { ...base, error: { code: "remote_mismatch" } }, agentReady: true, busy: false })).toBe(error);
+});
+
+// local-doan-files draft frames setup-panel and clone: the "Doan files" card above the button, or the fact for a project
+// already kept out of Git; on the clone screen under Save to, disabled while the clone runs.
+test("the setup panel offers where the Doan files go, or says the project already keeps them out of Git", () => {
+  const setup = (over: object, state: Partial<ProjectStepState> = {}) => page({ phase: { kind: "setup", inspectionId: "i", url: null, path: "/w/a", changes: [".doan/canvases/", ".doan/config.json", ".gitattributes"], ...over }, ...state });
+  const html = setup({});
+  expect(html).toMatch(/<div class="ob-field-label storage-label" id="ob-setup-storage-label">Doan files<\/div><div role="radiogroup" aria-labelledby="ob-setup-storage-label" class="doan-panel ob-provider-list storage-list">/);
+  expect(html).toContain('<input type="radio" name="ob-setup-storage" checked=""/>');
+  expect(html).toContain("<strong>Include in Git</strong><span>Git tracks these files. Commit them so your team gets your canvases and settings.</span>");
+  expect(html).toContain("<strong>Keep out of Git (this Mac only)</strong><span>These files stay in this worktree on this Mac; other worktrees and Macs don’t get them. Git ignores them, so <code>git worktree remove</code> or <code>git clean -x</code> deletes them. To show someone a canvas, use Export in the canvas menu.</span>");
+  expect(html.indexOf("Doan files")).toBeLessThan(html.indexOf("Set up and add"));
+  const local = setup({}, { storage: "local" });
+  expect(local.match(/<input type="radio" name="ob-setup-storage"( checked="")?\/>/g)).toEqual(['<input type="radio" name="ob-setup-storage"/>', '<input type="radio" name="ob-setup-storage" checked=""/>']);
+  const kept = setup({ changes: [".doan/canvases/", ".doan/config.json"], storage: "local" });
+  expect(kept).toContain('<div class="doan-panel ob-provider-list"><div class="ob-provider"><div class="ob-provider-label"><strong>Keep out of Git (this Mac only)</strong><span>This project already keeps its Doan files out of Git in every worktree. Change it in Project Settings.</span></div></div></div>');
+  expect(kept).not.toContain('type="radio"');
+});
+
+test("a refused local setup says why in the panel's notice, with the choice still there", () => {
+  const html = page({ storage: "local", phase: { kind: "setup", inspectionId: "i", url: null, path: "/w/a", changes: [".doan/canvases/", ".doan/config.json", ".git/info/exclude"], storage: "local" }, error: { code: "local_not_git" } });
+  expect(html).toContain("This folder isn’t a Git repository, so Doan can’t keep its files out of Git. Choose Include in Git, or run git init here first.");
+  expect(html).toContain('<input type="radio" name="ob-setup-storage" checked=""/>');
+  expect(page({ phase: { kind: "setup", inspectionId: "i", url: null, path: "/w/a", changes: [] }, error: { code: "local_exclude_failed" } }))
+    .toContain("Couldn’t add Doan’s lines to .git/info/exclude, so nothing was set up. Check that file, then retry.");
+});
+
+test("the clone screen asks under Save to, and keeps the choice disabled while the clone runs", () => {
+  const clone = page({ storage: "local", phase: { kind: "clone", url: "https://github.com/acme/tokens", inspectionId: "i", destination: "/Users/ada/code/tokens" } });
+  expect(clone).toContain('Change</button></div><div class="ob-field-label ob-spaced" id="ob-clone-storage-label">Doan files</div><div role="radiogroup"');
+  expect(clone.indexOf("Doan files")).toBeLessThan(clone.indexOf("Already have this repository?"));
+  expect(clone).toContain('<input type="radio" name="ob-clone-storage" checked=""/>');
+  const running = page({ storage: "local", phase: cloning }, true);
+  expect(running).toContain('<input type="radio" disabled="" name="ob-clone-storage" checked=""/>');
+  expect(running).toContain('<input type="radio" disabled="" name="ob-clone-storage"/>');
 });

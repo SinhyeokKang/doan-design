@@ -1,4 +1,4 @@
-import { expect, test } from "vitest";
+import { describe, expect, test } from "vitest";
 import type { FolderEntry } from "../main/view";
 import type { AddPageOrigin } from "./addProjectsNav";
 import { followProjectSettings, projectSettingsFocusAfter, projectSettingsLocked, projectSettingsPageView, projectSettingsView, sharedPathLabel, writeErrorMessage, type ProjectSettingsPageView, type ReadState } from "./projectSettingsRules";
@@ -151,4 +151,22 @@ test("the Share confirmation names a path inside the worktree repo-relative and 
   expect(sharedPathLabel("/w/a", "/w/design-kit")).toBe("/w/design-kit");
   expect(sharedPathLabel("/w/a", "/w/a")).toBe("/w/a");
   expect(sharedPathLabel("/w/a", "design/brand")).toBe("design/brand");
+});
+
+// local-doan-files design §3.2: the Doan files options are disabled while Saving, so focus goes to the chosen radio;
+// a failed mode write names no path, so its message is the CLI's as it is.
+describe("Doan files writes", () => {
+  test("return focus to the chosen radio, whether or not the pressed one is still there", () => {
+    expect(projectSettingsFocusAfter({ section: "storage", pressedAlive: true })).toEqual({ kind: "storageChosen" });
+    expect(projectSettingsFocusAfter({ section: "storage", pressedAlive: false })).toEqual({ kind: "storageChosen" });
+  });
+  test("show the CLI's message without path guidance", () => {
+    expect(writeErrorMessage("storage", { kind: "error", message: "Couldn’t update .git/info/exclude: file not found." }, "studio")).toBe("Couldn’t update .git/info/exclude: file not found.");
+    expect(writeErrorMessage("storage", { kind: "unavailable" }, "studio")).toBe("This worktree changed. Choose again.");
+  });
+  test("a worktree not set up in a project kept out of Git says why", () => {
+    expect(projectSettingsPageView({ path: "/w/x", kind: "uninitialized" }, { kind: "ready" }, true).notice?.text)
+      .toBe("This project keeps its Doan files out of Git, so this worktree doesn’t have them yet. Set it up to use Doan here.");
+    expect(projectSettingsPageView({ path: "/w/x", kind: "uninitialized" }, { kind: "ready" }).notice?.text).toBe("This folder isn’t set up for Doan yet, so it has no settings to change.");
+  });
 });
