@@ -19,7 +19,7 @@
 - project-skill-drawer R1의 사람 확인: native macOS 한글 IME로 `/deploy에서도`와 `/deploy로`를 조합하는 동안·끝난 뒤의 하이라이트와 caret을 사람이 한 번 본다(tasks R1, 결정 20). 링크 2 구현 뒤에만 할 수 있다. 사용자가 그때 볼 수 있는지, 아니면 녹화·스크린샷으로 대신하고 병합할지, 링크 2 PR을 병합하지 않고 기다릴지 받는다.
 - 공용 프로필 probe 승인: project-skill-drawer F1 검증의 실제 Antigravity 턴과 R1의 실제 Claude Code·Codex 턴(공용 프로필, probe repo는 `folders.json`에 잠시 더했다가 되돌림). model-drawer-older는 로그인이 필요 없다(4b는 `conversation:models` handler를 fixture로 바꾼다).
 - `/agent-eval`: project-skill-drawer F1은 Doan이 Antigravity에 쓰는 skill stub의 경로를 옮긴다. AGENTS.md는 skill stub을 바꾸는 PR에 `/agent-eval`을 요구한다. 돌릴지(Antigravity는 eval 대상이 아니므로 생략할 수 있다) 받는다.
-- 체인 끝 로그인 정리: 공용 프로필 userData와 그 Keychain 항목, `.scratch/prompt-suggestion/claude-config`와 Keychain `Claude Code-credentials-dc1943d2`, 그리고 이 파일을 쓴 세션이 실제 HOME에 만든 Cursor CLI 로그인(`cursor-agent login`, 2026-11-06, 모델 목록 실측용)을 남길지 지울지 받는다. 앞 체인은 "전부 남김"이었다. 이 체인에 그대로 옮기지 않는다.
+- 체인 끝 로그인 정리: 공용 프로필 userData와 그 Keychain 항목, `.scratch/prompt-suggestion/claude-config`와 Keychain `Claude Code-credentials-dc1943d2`를 남길지 지울지 받는다. 앞 체인은 "전부 남김"이었다. 이 체인에 그대로 옮기지 않는다. 이 파일을 쓴 세션이 실제 HOME에 만든 Cursor CLI 로그인(`cursor-agent login`, 2026-11-06, Keychain `cursor-access-token`·`cursor-refresh-token`)은 Orca와 터미널이 함께 쓰게 되었고, 사용자가 그대로 두기로 했다. 정리 대상이 아니다.
 
 ## 상시 권한
 
