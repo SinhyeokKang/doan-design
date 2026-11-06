@@ -31,3 +31,4 @@ tasks의 체크박스 항목: A1·U2 → F, A2·U1·U3·U4 → S, R1·Z1 → RZ,
 - 리뷰(VS·VF)는 각 batch가 끝나는 대로 돈다. 🔴가 0이 되면 통합한다.
 - RZ는 S·F를 `feat/small-ui-tweaks`에 통합한 뒤 그 branch에서 시작한다.
 - 병합 전: `feat/small-ui-tweaks`를 최신 `origin/main` 위로 rebase하고, 그 HEAD에서 `/verify`를 돌린다(체인 '운영 메모').
+- 사람(2026-11-06): "main에 feat 두개 정도 더 생길거임 병합할 때 감안해". 병합 직전에 최신 `origin/main`으로 rebase하고, 충돌은 main 동작을 지키며 링크 쪽만 맞춘다. 그 HEAD에서 `/verify`를 다시 돌린다. 새 feat가 같은 파일(`styles.css`의 제안·사이드바 규칙, 세 화면의 제안 행, `CanvasAgent.tsx`·`agentIndicator.ts`·`dotField.ts`, DESIGN.md)을 바꿨으면 R1의 해당 측정을 다시 한다.
