@@ -46,3 +46,5 @@
 - A 격리 재확인: 재서명+00c3 복사본은 대화상자 없이 떴다. Doan이 쓴 `.command`에는 `com.apple.quarantine`이 없다. 이때 하네스의 tmp HOME이 canonical 경로(`/private/var/...`)가 아니어서 agent setup이 `/usr/local/bin/doan` 관리자 대화상자를 띄웠다. 승인하지 않았고 worker가 osascript를 종료했다. 실제 상태 변화는 없다. 재실행하지 않는다. — conductor 판단, 근거: 대화상자 원인이 `.command` 열기가 아니다.
 - B-1(🟡): 다음 열기가 이전 스크립트를 지우면 Terminal이 읽기 전에 사라진다. A의 race probe로 재현됐다(`openPath`가 shell이 파일을 읽기 전에 resolve된다). 수정: 스크립트가 시작하자마자 `rm -f -- "$0"`로 자기 자신을 지운다. Doan은 앱 세션의 첫 열기에서만 남은 파일을 지운다. — conductor 판단, 근거: 실행 중인 sh가 파일을 이미 열고 있어 안전하고, 남은 파일 정리는 창이 시작하지 않은 경우만 남는다.
 - T1 결과로 B에 보낼 후속: Copilot update→page, Cursor 하한 2026.10.22 유지(이전 버전을 찾지 못함), 안내 문구를 Control-C로 바꿈, B-1 수정. B follow-up 1로 보냈다.
+- B follow-up 1을 통합했다(5cec8afb, ae91bd09). Copilot `update`는 `null`이고, 열기 큐와 임시 이름 rename은 없앴다. 파일마다 새 이름으로 `wx` 쓰기를 하므로 필요 없다. 이 두 커밋의 독립 리뷰는 C-review에 함께 맡긴다.
+- 통합 `/verify` (중간, ae91bd09, origin/main 87b02c9f 그대로): PASS — verify-tests, runtime-support, go-test, go-vet, typecheck, app-test, build.
