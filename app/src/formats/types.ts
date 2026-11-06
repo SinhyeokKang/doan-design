@@ -109,18 +109,27 @@ export type OnboardingCheckRequest = OnboardingWriteBase & { op: "check" } & (
 );
 export interface OnboardingSignInRequest extends OnboardingWriteBase { op: "sign_in"; provider: OnboardingProvider }
 export interface OnboardingCancelRequest extends OnboardingWriteBase { op: "cancel"; operationId: string }
-export type OnboardingProjectInspectRequest = OnboardingWriteBase & { op: "project_inspect" } & (
+export type OnboardingProjectInspectRequest = OnboardingWriteBase & { op: "project_inspect"; storage?: OnboardingStorage } & (
   // url with path: the repository the chosen folder must belong to.
   | { path: string; url?: string }
   | { url: string; destination?: string }
 );
+// Where a project's .doan/ is kept: committed with the repository, or out of Git on this Mac (schema `storage`).
+export type OnboardingStorage = "repo" | "local";
 export interface OnboardingProjectSelectRequest extends OnboardingWriteBase {
   op: "project_select";
   inspectionId: string;
   path: string;
   initialize?: boolean;
+  // Must equal the inspected candidate's mode; omitted means "repo".
+  storage?: OnboardingStorage;
 }
-export interface OnboardingProjectCloneRequest extends OnboardingWriteBase { op: "project_clone"; inspectionId: string; destination: string }
+export interface OnboardingProjectCloneRequest extends OnboardingWriteBase {
+  op: "project_clone";
+  inspectionId: string;
+  destination: string;
+  storage?: OnboardingStorage;
+}
 export interface OnboardingCompleteRequest extends OnboardingWriteBase { op: "complete" }
 
 export type OnboardingRequest =
@@ -152,11 +161,15 @@ export interface OnboardingAgentStatus {
 }
 
 export interface OnboardingProject { root: string }
-export type OnboardingChange = ".doan/config.json" | ".doan/canvases/" | ".gitattributes";
+// ".git/info/exclude" is a fixed label, not a path: in a linked worktree or submodule .git is a file.
+export type OnboardingChange = ".doan/config.json" | ".doan/canvases/" | ".gitattributes" | ".git/info/exclude";
 export interface OnboardingInspection {
   inspectionId: string;
-  candidates: { path: string; changes: OnboardingChange[] }[];
-  clone?: { destination: string; changes: OnboardingChange[] };
+  // storage is only ever "local", and only in a reply to a request that carried storage: present when the changes are
+  // planned for local or the project is already set up that way; absent means "repo". A reply to a request without
+  // storage never carries it, so older clients (which reject unknown properties) can read it.
+  candidates: { path: string; changes: OnboardingChange[]; storage?: "local" }[];
+  clone?: { destination: string; changes: OnboardingChange[]; storage?: "local" };
 }
 
 export type OnboardingOperationKind = "check" | "sign_in" | "project_inspect" | "project_select" | "project_clone" | "complete";
@@ -164,7 +177,7 @@ export type OnboardingOperationState = "pending" | "running" | "awaiting_user" |
 export type OnboardingOperationErrorCode =
   | "sign_in_failed" | "network" | "storage_failed" | "check_failed" | "account_mismatch" | "cli_install_failed"
   | "repository_unreachable" | "git_missing" | "remote_mismatch" | "destination_exists" | "clone_failed" | "cleanup_failed"
-  | "config_invalid" | "init_failed" | "project_unavailable" | "no_ready_agent" | "completion_save_failed"
+  | "config_invalid" | "init_failed" | "local_not_git" | "local_exclude_failed" | "project_unavailable" | "no_ready_agent" | "completion_save_failed"
   | "completion_unsupported_version";
 
 export interface OnboardingOperation {

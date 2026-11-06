@@ -12,6 +12,9 @@ import { canAdvance, initialScene, nextScene, type Scene, type SceneEvent } from
 import { projectHue, projectInitial } from "./shellNavigation";
 import { tilde } from "./onboardingView";
 import { AlertIcon } from "./AlertIcon";
+import { StorageCard } from "./StorageChoice";
+import { OPERATION_MESSAGES } from "../main/onboarding/operations";
+import { keptLocal, type StorageChoice } from "./storageRules";
 import { Doany } from "./Doany";
 
 const FOCUSABLE = 'button:not(:disabled), input:not(:disabled), [href], [tabindex]:not([tabindex="-1"])';
@@ -265,6 +268,10 @@ const action = (command: ProjectAction, label: string, variant: Button["variant"
 export function projectNotice(error: ProjectError, message: string | undefined, destination: string | null, fromUrl = false, insideProject: string | null = null, folder: string | null = null): ProjectNotice {
   // Every folder chosen from a URL screen is checked against that repository (D21).
   const choose: ProjectAction = fromUrl ? "chooseExisting" : "chooseFolder";
+  // A clone that landed and whose setup or storage then failed is told in main's own words (they say the clone stayed),
+  // which differ from the code's fixed message.
+  const landed = fromUrl && destination !== null && (error === "init_failed" || error === "local_not_git" || error === "local_exclude_failed") && message !== undefined && message !== OPERATION_MESSAGES[error];
+  if (landed) return { body: message, actions: [action("useExisting", "Use existing folder")] };
   switch (error) {
     case "invalid_url": return { body: "Enter a GitHub repository URL, such as https://github.com/owner/repository.", actions: [] };
     case "access_failed": return { title: "Couldn’t access this repository", body: "Check your account and repository access with gh auth login, then try again.", actions: [] };
@@ -276,6 +283,9 @@ export function projectNotice(error: ProjectError, message: string | undefined, 
       return { body: "This folder is no longer available. Choose it again or select another folder.", actions: [action(choose, "Choose folder")] };
     case "destination_exists": return { body: "A folder already exists at this destination. Choose another location or use the existing folder.", actions: [action("changeLocation", "Change location", "subtle"), action("useExisting", "Use existing folder")] };
     case "init_failed": return { body: "Couldn’t set up this folder. Check folder access and try again.", actions: [action(choose, "Choose another folder", "subtle"), action("retry", "Retry")] };
+    // The setup was refused and nothing was written; the choice stays, so Include in Git is one press away.
+    case "local_not_git": return { body: "This folder isn’t a Git repository, so Doan can’t keep its files out of Git. Choose Include in Git, or run git init here first.", actions: [action(choose, "Choose another folder", "subtle"), action("retry", "Retry")] };
+    case "local_exclude_failed": return { body: "Couldn’t add Doan’s lines to .git/info/exclude, so nothing was set up. Make sure the repository’s Git metadata and its exclude file can be read and written, then retry.", actions: [action(choose, "Choose another folder", "subtle"), action("retry", "Retry")] };
     case "config_invalid": return { body: "This folder’s Doan configuration couldn’t be read. Fix it and retry, or choose another folder.", actions: [action(choose, "Choose another folder", "subtle"), action("retry", "Retry")] };
     case "clone_failed": return { body: "Couldn’t clone this repository. Check your connection and folder access, then retry.", ...(destination ? { detail: destination } : {}), actions: [action("changeLocation", "Change location", "subtle"), action("retry", "Retry")] };
     case "git_missing": return { body: "Install Git to clone a repository, or choose a local folder.", actions: [action(choose, "Choose local folder", "subtle"), action("retry", "Check again")] };
@@ -440,6 +450,7 @@ export interface ProjectScreenProps {
     back(): void; backToAgents(): void; chooseFolder(): void; chooseExisting(): void; setUrl(url: string): void; find(): void; cancelInspect(): void; edit(): void;
     pickListed(path: string): void; useListed(): void; pickCandidate(path: string): void; select(): void; setUp(inspectionId: string): void;
     changeDestination(): void; useExisting(): void; clone(): void; cancelClone(): void; complete(): void; retry(): void;
+    setStorage(storage: StorageChoice): void;
   };
 }
 // One screen per phase (draft frames project, project-local, repository-found, repository-clone, repository-error and
@@ -543,6 +554,7 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
         <strong>Set up this folder for Doan</strong>
         <p>Doan will add its project configuration and a design folder. Existing files stay in place.</p>
         <ChosenProject path={p.path} home={home} />
+        <StorageCard id="ob-setup-storage" value={state.storage ?? "repo"} kept={keptLocal(p)} disabled={busy} change={on.setStorage} />
         {notice ? <ProjectNoticeView notice={notice} run={run} />
           : <div className="ob-state-actions submit-only"><button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled={busy} data-consent="" onClick={() => on.setUp(p.inspectionId)}>{setUpLabel(use)}</button></div>}
       </section>}
@@ -558,6 +570,8 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
       <div className="doan-panel ob-destination"><ProjectThumbnail path={p.destination} />
         <div className="ob-destination-name"><strong>{nameOf(p.destination)}</strong><p className="ob-path">{shown(p.destination, home)}</p></div>
         {!offered.has("changeLocation") && <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={busy} onClick={on.changeDestination}>Change</button>}</div>
+      {/* A clone is a new repository, so it always offers the choice; while it runs the choice keeps its value, disabled. */}
+      <StorageCard id="ob-clone-storage" value={state.storage ?? "repo"} kept={false} disabled={busy || p.kind === "cloning"} change={on.setStorage} spaced />
       {p.kind === "cloning" ? <>
         {p.cancelling ? <Progress panel={panel} title="Stopping clone and cleaning up" body="Wait before starting another clone." /> : <Progress panel={panel} title={`Cloning ${nameOf(p.destination)}`} body={shown(p.destination, home)} />}
         <div className="ob-state-actions">
@@ -693,7 +707,7 @@ export function Wizard({ session, projects, homeDirectory, onClose, mainCheckout
         drop={{ notice: p.dropNotice, allowed: () => p.canDrop(), started: () => p.dragStarted(), dropped: items => void p.drop(items) }} on={{
         back: () => { if (p.backToUrl()) toUrl(); else move({ type: "back" }); }, backToAgents: () => move({ type: "step", to: "agent" }),
         chooseFolder: () => openPicker(() => void p.chooseFolder()), chooseExisting: () => openPicker(() => void p.chooseExisting()), setUrl: url => p.setUrl(url), find: () => void p.findRepository(), cancelInspect: () => p.cancelInspect(), edit: toUrl,
-        pickListed: path => p.pickListed(path), useListed: () => void p.useListed(), pickCandidate: path => p.pickCandidate(path), select: () => void p.select(), setUp: inspectionId => void p.setUp(inspectionId),
+        pickListed: path => p.pickListed(path), useListed: () => void p.useListed(), pickCandidate: path => p.pickCandidate(path), setStorage: storage => p.setStorage(storage), select: () => void p.select(), setUp: inspectionId => void p.setUp(inspectionId),
         changeDestination: () => openPicker(() => void p.changeDestination()), useExisting: () => void p.useExisting(), clone: () => void p.clone(), cancelClone: () => void p.cancelClone(),
         complete: () => void p.complete(), retry: () => void p.retry(),
       }} />}

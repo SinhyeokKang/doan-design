@@ -1,14 +1,12 @@
 package cli
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"github.com/SinhyeokKang/doan-design/cli/internal/repo"
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 )
 
 // initContextStep points an agent from project setup to design context; doan init itself never runs a preset.
@@ -20,6 +18,9 @@ func Init(ctx Context, f Flags, args []string) (Outcome, *Error) {
 
 // A per-call publisher lets tests fail after attributes are written without timing races.
 func initWithRename(ctx Context, f Flags, args []string, rename func(string, string) error) (Outcome, *Error) {
+	if failure := validateStorage(f); failure != nil {
+		return Outcome{}, failure
+	}
 	if len(args) != 0 {
 		return Outcome{}, usageError("init takes no positional arguments")
 	}
@@ -56,7 +57,11 @@ func initWithRename(ctx Context, f Flags, args []string, rename func(string, str
 	} else if err != nil && !os.IsNotExist(err) {
 		return Outcome{}, internal(err)
 	}
-	result := map[string]any{"initialized": false, "repo": root, "created": []string{}, "nextSteps": []string{initContextStep}}
+	storage := repo.ReadStorage(root, ctx.Home)
+	if f.Storage == "repo" && storage.Storage == "local" {
+		return Outcome{}, &Error{Code: "usage_error", Message: "Project storage is already local", NextSteps: []string{"Run `doan config --storage repo` to change this project"}}
+	}
+	result := map[string]any{"initialized": false, "storage": storage.Storage, "repo": root, "created": []string{}, "nextSteps": []string{initContextStep}}
 	configPath := filepath.Join(root, ".doan/config.json")
 	st, e = os.Stat(configPath)
 	if e == nil {
@@ -71,6 +76,9 @@ func initWithRename(ctx Context, f Flags, args []string, rename func(string, str
 		if code != "" {
 			return Outcome{}, &Error{Code: code, Message: "Cannot read config: " + configPath}
 		}
+		if f.Storage == "local" {
+			return Outcome{}, &Error{Code: "usage_error", Message: "Project is already set up; use doan config --storage local", NextSteps: []string{"Run `doan config --storage local` to change this project"}}
+		}
 		if c.TokenCSS != "" {
 			result["tokenCss"] = c.TokenCSS
 		}
@@ -79,10 +87,18 @@ func initWithRename(ctx Context, f Flags, args []string, rename func(string, str
 	if !os.IsNotExist(e) {
 		return Outcome{}, internal(e)
 	}
-	if info, err := os.Stat(filepath.Join(root, ".gitattributes")); err == nil && info.IsDir() {
-		return Outcome{}, &Error{Code: "usage_error", Message: ".gitattributes must be a regular file", NextSteps: []string{"Remove or rename .gitattributes before running `doan init`"}}
-	} else if err != nil && !os.IsNotExist(err) {
-		return Outcome{}, internal(err)
+	local := f.Storage == "local" || storage.Storage == "local"
+	if (f.Storage != "repo" && storage.Storage == "unknown") || (local && storage.Storage != "local") {
+		if failure := storageFailure(storage); failure != nil {
+			return Outcome{}, failure
+		}
+	}
+	if !local {
+		if info, err := os.Stat(filepath.Join(root, ".gitattributes")); err == nil && info.IsDir() {
+			return Outcome{}, &Error{Code: "usage_error", Message: ".gitattributes must be a regular file", NextSteps: []string{"Remove or rename .gitattributes before running `doan init`"}}
+		} else if err != nil && !os.IsNotExist(err) {
+			return Outcome{}, &Error{Code: "internal_error", Message: "Cannot read .gitattributes for repo storage", NextSteps: []string{"Make .gitattributes readable inside the repository, then retry"}}
+		}
 	}
 	token := f.TokenCSS
 	if !f.TokenCSSSet && token == "" && ctx.Terminal && !f.JSON {
@@ -130,7 +146,11 @@ func initWithRename(ctx Context, f Flags, args []string, rename func(string, str
 		result["tokenCss"] = config.TokenCSS
 	}
 	// Initialization must not follow output paths into a different repository.
-	for _, p := range []string{".doan/canvases", ".doan", ".doan/config.json", ".gitattributes"} {
+	paths := []string{".doan/canvases", ".doan", ".doan/config.json"}
+	if !local {
+		paths = append(paths, ".gitattributes")
+	}
+	for _, p := range paths {
 		state, _, e := repo.Resolve(root, root, p)
 		if e != nil {
 			return Outcome{}, internal(e)
@@ -149,26 +169,25 @@ func initWithRename(ctx Context, f Flags, args []string, rename func(string, str
 			return Outcome{}, usageError("Initialization path leaves repository: " + p)
 		}
 	}
-	attrsPath := filepath.Join(root, ".gitattributes")
-	attrs, e := os.ReadFile(attrsPath)
-	if e != nil && !os.IsNotExist(e) {
-		return Outcome{}, internal(e)
-	}
-	// The union merge keeps comment lines from both sides; linguist-documentation keeps the HTML canvases out of
-	// GitHub's language stats, so they are not counted as the repository's code.
-	missing := []string{}
-	for _, line := range []string{".doan/comments/*.jsonl merge=union", ".doan/** linguist-documentation"} {
-		has := false
-		for _, s := range strings.Split(string(attrs), "\n") {
-			if strings.TrimSuffix(s, "\r") == line {
-				has = true
-			}
-		}
-		if !has {
-			missing = append(missing, line)
-		}
-	}
 	created := []string{}
+	if local {
+		changed, err := repo.WriteStorage(root, ctx.Home, "local")
+		if err != nil {
+			return Outcome{}, excludeFailure()
+		}
+		if changed {
+			created = append(created, repo.ExcludeLabel)
+		}
+	}
+	if !local {
+		changed, err := writeAttributes(root)
+		if err != nil {
+			return Outcome{}, &Error{Code: "internal_error", Message: "Cannot prepare .gitattributes for repo storage", NextSteps: []string{"Make .gitattributes readable and writable inside the repository, then retry"}}
+		}
+		if changed {
+			created = append(created, ".gitattributes")
+		}
+	}
 	if _, e := os.Stat(filepath.Join(root, ".doan/canvases")); os.IsNotExist(e) {
 		created = append(created, ".doan/canvases/")
 	} else if e != nil {
@@ -201,28 +220,13 @@ func initWithRename(ctx Context, f Flags, args []string, rename func(string, str
 	if e := staged.Close(); e != nil {
 		return Outcome{}, internal(e)
 	}
-	if len(missing) > 0 {
-		newline := "\n"
-		if bytes.Contains(attrs, []byte("\r\n")) {
-			newline = "\r\n"
-		}
-		if len(attrs) > 0 && attrs[len(attrs)-1] != '\n' {
-			attrs = append(attrs, newline...)
-		}
-		for _, line := range missing {
-			attrs = append(attrs, line+newline...)
-		}
-		if e := os.WriteFile(attrsPath, attrs, 0644); e != nil {
-			return Outcome{}, internal(e)
-		}
-		created = append(created, ".gitattributes")
-	}
 	// Publish only after merge setup; independent initializers are not serialized.
 	if e := rename(staged.Name(), configPath); e != nil {
 		return Outcome{}, internal(e)
 	}
 	created = append(created, ".doan/config.json")
 	sort.Strings(created)
+	result["storage"] = repo.ReadStorage(root, ctx.Home).Storage
 	result["initialized"] = true
 	result["created"] = created
 	return Outcome{Result: result}, nil

@@ -1527,3 +1527,59 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .preset-item .suggestion-icon.project-skill-icon svg { color: var(--text-standard); }
 .preset-popover .group-tabs button svg { color: var(--affordance-accent); }
 .preset-popover .group-tabs button[data-group="project"] svg { color: var(--text-metadata); }
+
+/* Where the Doan files are kept (local-doan-files draft frames setup-dialog, setup-panel, clone, settings-*). */
+/* The Set Up dialog's field: the settings radio row's parts without a row box; the dialog's card is the group. */
+.ob-field.storage-field { align-items: start; }
+.storage-options { grid-column: 2 / -1; display: grid; gap: var(--space-3); min-width: 0; }
+.storage-option { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-half) var(--space-2); cursor: pointer; }
+.storage-option .ob-radio { grid-row: 1 / 3; }
+.storage-option strong { font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); font-weight: var(--type-weight-medium); color: var(--text-standard); }
+.storage-option small { grid-column: 2; color: var(--text-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+.storage-option > input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.storage-option:has(> input:checked) .ob-radio { border-color: var(--affordance-prominent); background: var(--affordance-prominent); }
+.storage-option:has(> input:checked) .ob-radio::before { content: ""; width: var(--space-1h); height: var(--space-1h); border-radius: 50%; background: var(--text-on-prominent); }
+.storage-option:has(> input:focus-visible) { outline: 2px solid var(--border-focus); outline-offset: 2px; border-radius: var(--space-1); }
+.storage-option:has(> input:disabled), .storage-option > input:disabled { cursor: default; }
+/* A command or path chip in a caption description keeps the caption size and never breaks inside itself. */
+:is(.storage-option small, .storage-pref .doan-preference-row-description) code { white-space: nowrap; color: var(--text-standard); background: var(--surface-inset); border-radius: var(--space-1); padding: 0 var(--space-1); }
+.storage-fact { grid-column: 2 / -1; display: grid; gap: var(--space-half); }
+/* The card rows' caption descriptions carry the same command chips as the dialog's. */
+.storage-row .ob-provider-label span code { white-space: nowrap; color: var(--text-standard); background: var(--surface-inset); border-radius: var(--space-1); padding: 0 var(--space-1); }
+/* The setup panel and the clone screen: one card like the Agent step's provider list, the radio in the mark's slot. */
+.ob-setup .storage-label { margin-top: var(--space-6); }
+.storage-row { position: relative; cursor: pointer; }
+.storage-row .ob-provider-row { align-items: flex-start; }
+.storage-row .ob-provider-mark { height: var(--type-label-sm-line-height); }
+.storage-row .ob-radio { margin-top: 0; }
+.storage-row > input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.storage-row:has(> input:checked) .ob-radio { border-color: var(--affordance-prominent); background: var(--affordance-prominent); }
+.storage-row:has(> input:checked) .ob-radio::before { content: ""; width: var(--space-1h); height: var(--space-1h); border-radius: 50%; background: var(--text-on-prominent); }
+.storage-row:has(> input:focus-visible) { outline: 2px solid var(--border-focus); outline-offset: -2px; border-radius: var(--radius-row); }
+/* While a clone runs the choice keeps its value and is disabled, like Save to's Change. */
+.storage-row:has(> input:disabled), .storage-row > input:disabled { cursor: default; }
+.storage-row:has(> input:disabled) .ob-provider-label :is(strong, span) { color: var(--text-disabled); }
+.storage-row:has(> input:disabled) .ob-radio { border-color: var(--border-standard); background: var(--surface-inset); }
+.storage-row:has(> input:disabled:checked) .ob-radio { border-color: var(--affordance-disabled); background: var(--affordance-disabled); }
+.storage-row:has(> input:disabled:checked) .ob-radio::before { background: var(--text-disabled); }
+/* Project Settings: the thread's settings radio row (.conversation-thread .q-pref) outside the thread. */
+.storage-pref { position: relative; align-items: start; cursor: pointer; }
+.storage-pref .ob-radio { margin-top: 0; }
+.storage-pref:has(> input:checked) .ob-radio { border-color: var(--affordance-prominent); background: var(--affordance-prominent); }
+.storage-pref:has(> input:checked) .ob-radio::before { content: ""; width: var(--space-1h); height: var(--space-1h); border-radius: 50%; background: var(--text-on-prominent); }
+.storage-pref > input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.storage-pref:has(> input:focus-visible) { outline: 2px solid var(--border-focus); outline-offset: -2px; border-radius: var(--radius-row); }
+.doan-preference-row[data-disabled].storage-pref .ob-radio { border-color: var(--border-standard); background: var(--surface-inset); }
+.doan-preference-row[data-disabled].storage-pref:has(> input:checked) .ob-radio { border-color: var(--affordance-disabled); background: var(--affordance-disabled); }
+.doan-preference-row[data-disabled].storage-pref:has(> input:checked) .ob-radio::before { background: var(--text-disabled); }
+.doan-preference-row[data-disabled].storage-pref, .doan-preference-row[data-disabled].storage-pref > input { cursor: default; }
+/* About's setup notice: code chips go white on the notice's inset fill. */
+.doan-notice.storage-guidance code { background: var(--surface-panel); }
+.storage-guidance-body { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
+.storage-command { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.storage-command code { display: block; width: fit-content; }
+.storage-result { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); }
+.storage-result-text { color: var(--text-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+.storage-reason { display: flex; align-items: flex-start; gap: var(--space-1h); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+.storage-reason > svg { margin-block: calc((var(--type-body-sm-line-height) - var(--size-icon)) / 2); }
+.storage-reason.warn { color: var(--text-warning); }

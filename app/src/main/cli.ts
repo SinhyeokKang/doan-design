@@ -24,8 +24,8 @@ export function runLs(cli: string, target: LsTarget, timeoutMs = CLI_TIMEOUT_MS)
   return runCli(cli, args, "cwd" in target ? target.cwd : undefined, timeoutMs);
 }
 
-export function runInit(cli: string, folder: string, tokenCss: string | null, timeoutMs = CLI_TIMEOUT_MS): Promise<CliRun> {
-  return runCli(cli, initArgs(folder, tokenCss), undefined, timeoutMs);
+export function runInit(cli: string, folder: string, tokenCss: string | null, storage: "local" | null = null, timeoutMs = CLI_TIMEOUT_MS): Promise<CliRun> {
+  return runCli(cli, initArgs(folder, tokenCss, storage), undefined, timeoutMs);
 }
 
 // `args` holds only absolute paths, so the CLI's root-relative rule never

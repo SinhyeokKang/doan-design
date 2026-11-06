@@ -53,7 +53,7 @@ test("the fake's provider status follows agent-auth's authStatus for every state
             if (!connected && (error || attempt?.kind === "check")) continue; // the fake checks only connections
             if (error && verified) continue; // a failed check of a verified login keeps it verified, and the fake verifies it instead
             const a: FakeAuth = { provider, connected, verified, error, attempt, ...(cli ? { cli } : {}) };
-            const { account: _a, attempt: _t, revision: _r, ...expected } = state.authStatus(real(a), cli ? { ...tools, cli } : tools, 1);
+            const { account: _a, attempt: _t, revision: _r, generation: _g, ...expected } = state.authStatus(real(a), cli ? { ...tools, cli } : tools, 1);
             assert.deepEqual(fakeAuthStatus(a), expected, JSON.stringify(a));
             compared++;
           }

@@ -584,6 +584,25 @@ describe("project setup and upward refresh", () => {
     expect(existsSync(join(sub, ".doan"))).toBe(false);
   });
 
+  // The chosen mode is not used on a re-root, so the notice says the target project's
+  // mode from the CLI's listing. Outside Git, with an unknown mode, or from an older CLI it says nothing more. The temp
+  // folders are no Git repositories, so the real listing is repo with not_git; the other modes are rewritten into it.
+  const keep = (storage: string) => ` | sed -e 's/"storage":"[a-z]*"/"storage":"${storage}"/' -e 's/,"storageReason":"[a-z_]*"//'`;
+  const drop = ` | sed -e 's/,"storageReason":"[a-z_]*"//' -e 's/"storageReason":"[a-z_]*",//' -e 's/,"storage":"[a-z]*"//' -e 's/"storage":"[a-z]*",//'`;
+  test.each([
+    ["local", keep("local"), "This folder is inside ROOT, which is already set up and keeps its Doan files out of Git."],
+    ["repo", keep("repo"), "This folder is inside ROOT, which is already set up and includes its Doan files in Git."],
+    ["outside Git", "", "This folder is inside ROOT, which is already set up."],
+    ["unknown", keep("unknown"), "This folder is inside ROOT, which is already set up."],
+    ["an older CLI", drop, "This folder is inside ROOT, which is already set up."],
+  ])("a re-root says the target project's mode (%s)", async (label, filter, message) => {
+    const root = dir(); const sub = join(root, "web"); mkdirSync(sub);
+    const wrapper = join(dir(), "doan");
+    writeFileSync(wrapper, `#!/bin/sh\nif [ "$1" = ls ]; then out=$('${cli}' "$@"); code=$?; printf '%s\\n' "$out"${filter}; exit $code; fi\nexec '${cli}' "$@"\n`); chmodSync(wrapper, 0o755);
+    const { shell } = await uninitialized(sub, wrapper); writeRepo(root);
+    expect(await shell.initialize(sub, null, label === "local" ? null : "local")).toEqual({ kind: "rerooted", root, message: message.replace("ROOT", root) });
+  });
+
   test("initializes once for simultaneous requests, uses selected CSS and re-reads stored spelling", async () => {
     const root = dir(); const token = join(root, "tokens.css"); writeFileSync(token, ":root{}");
     const log = join(dir(), "calls"); const wrapper = join(dir(), "doan");
@@ -621,7 +640,26 @@ describe("project setup and upward refresh", () => {
     const root = dir(); const wrapper = join(dir(), "doan");
     writeFileSync(wrapper, `#!/bin/sh\nif [ "$1" = init ]; then echo '{"v":1,"ok":false,"error":{"code":"invalid_config","message":"bad config","nextSteps":["do not show"]}}'; exit 2; fi\nexec '${cli}' "$@"\n`); chmodSync(wrapper, 0o755);
     const { shell } = await uninitialized(root, wrapper);
-    expect(await shell.initialize(root, null)).toEqual({ kind: "error", message: "bad config", guidance: "Fix the project configuration, then try again." });
+    expect(await shell.initialize(root, null)).toEqual({ kind: "error", code: "invalid_config", message: "bad config", guidance: "Fix the project configuration, then try again." });
+  });
+
+  test("a local setup runs init --storage local and a refused one keeps the CLI's code and says what to do", async () => {
+    const root = dir(); const wrapper = join(dir(), "doan"); const args = join(dir(), "args");
+    writeFileSync(wrapper, `#!/bin/sh\nif [ "$1" = init ]; then echo "$@" > '${args}'; echo '{"v":1,"ok":false,"error":{"code":"local_not_git","message":"Not a Git repository.","nextSteps":[]}}'; exit 5; fi\nexec '${cli}' "$@"\n`); chmodSync(wrapper, 0o755);
+    const { shell } = await uninitialized(root, wrapper);
+    expect(await shell.initialize(root, null, "local")).toEqual({ kind: "error", code: "local_not_git", message: "This folder isn’t a Git repository, so Doan can’t keep its files out of Git.", guidance: "Choose Include in Git, or run git init here first." });
+    expect(readFileSync(args, "utf8").trim()).toBe(`init --json --repo ${root} --storage local`);
+  });
+
+  // The watcher's read of init's own writes can start after the post-init read and finish after it, which dropped
+  // that read as stale; setup then answered success while the row was still "Not set up". The post-init read is
+  // repeated (a bounded number of times) until it is the newest.
+  test("setup answers only once the row is listed, even when the watcher's read overtakes the post-init read", async () => {
+    const root = dir(); const wrapper = join(dir(), "doan"); const marker = join(dir(), "inited"); const count = join(dir(), "count");
+    writeFileSync(wrapper, `#!/bin/sh\nif [ "$1" = init ]; then '${cli}' "$@"; code=$?; : > '${marker}'; exit $code; fi\nif [ "$1" = ls ] && [ -f '${marker}' ]; then n=$(cat '${count}' 2>/dev/null || echo 0); n=$((n+1)); echo $n > '${count}'; if [ $n = 1 ]; then sleep 0.5; elif [ $n = 2 ]; then sleep 1.2; fi; fi\nexec '${cli}' "$@"\n`); chmodSync(wrapper, 0o755);
+    const { shell } = await uninitialized(root, wrapper);
+    expect(await shell.initialize(root, null)).toEqual({ kind: "success" });
+    expect(shell.entries()[0]).toMatchObject({ path: root, kind: "list" });
   });
 
   test("init result.repo cannot replace the stored identity", async () => {
@@ -748,6 +786,22 @@ describe("storing, removing and restoring", () => {
     shell.rereadAll();
     await vi.waitFor(() => expect(counting.reads()).toBe(reads + 2), until);
     await sleep(300);
+    for (const entries of changes.slice(checkpoint)) expect(entries.every((entry) => entry.kind === "list")).toBe(true);
+  });
+
+  test("reread reads only the given stored folders again, without a loading state", async () => {
+    const counting = countingCli();
+    const [a, b] = [writeRepo(dir()), writeRepo(dir())];
+    const { shell, changes } = await start(counting.path);
+    await shell.store([a, b]);
+    await vi.waitFor(() => expect(listed(shell.entries(), a) && listed(shell.entries(), b)).toBeTruthy(), until);
+    await sleep(500);
+    const reads = counting.reads();
+    const checkpoint = changes.length;
+    shell.reread([a, a, "/not/stored"]);
+    await vi.waitFor(() => expect(counting.reads()).toBe(reads + 1), until);
+    await sleep(300);
+    expect(counting.reads()).toBe(reads + 1);
     for (const entries of changes.slice(checkpoint)) expect(entries.every((entry) => entry.kind === "list")).toBe(true);
   });
 

@@ -1,11 +1,12 @@
 import type {
-  OnboardingChange, OnboardingOperation, OnboardingOperationErrorCode, OnboardingResponse, OnboardingSocketErrorCode, OnboardingState,
+  OnboardingChange, OnboardingOperation, OnboardingOperationErrorCode, OnboardingResponse, OnboardingSocketErrorCode, OnboardingState, OnboardingStorage,
 } from "../formats/types";
 import type { AddPageResponse, AddPageState, DoanApi } from "../preload";
 import type { FolderEntry } from "../main/view";
 import { parseGitHubUrl } from "../main/onboarding/repository";
 import { leaveLocked } from "./addProjectsNav";
 import { dropFolder } from "./folderDrop";
+import { keptLocal } from "./storageRules";
 
 // The session's calls, named after first run's; the Add Projects page passes `addPageApi`, whose replies are the same
 // project DTOs over its own main instance (buzz-add-projects design 'main의 project 처리').
@@ -58,16 +59,19 @@ export function isMainCheckout(entries: readonly FolderEntry[], path: string): b
 }
 
 export type ProjectError = OnboardingOperationErrorCode | OnboardingSocketErrorCode | "access_failed";
+// A candidate as the inspection showed it; storage "local" is set up or planned out of Git (app-socket v2).
+export interface ProjectCandidate { path: string; changes: OnboardingChange[]; storage?: "local" }
 // What the Project step shows. Each user action advances `generation`; a result for an older one is dropped.
 export type ProjectPhase =
   | { kind: "choose" }
   | { kind: "inspecting"; url: string }
-  | { kind: "candidates"; inspectionId: string; url: string | null; candidates: { path: string; changes: OnboardingChange[] }[]; choice: string }
-  | { kind: "setup"; inspectionId: string; url: string | null; path: string; changes: OnboardingChange[] }
+  | { kind: "candidates"; inspectionId: string; url: string | null; candidates: ProjectCandidate[]; choice: string }
+  | { kind: "setup"; inspectionId: string; url: string | null; path: string; changes: OnboardingChange[]; storage?: "local" }
   // A chosen folder being inspected: nothing is written yet, so it is not 'Setting up'.
   | { kind: "checking"; path: string }
   | { kind: "selecting"; path: string }
-  | { kind: "clone"; url: string; inspectionId: string | null; destination: string }
+  // planned: the storage the clone's inspection was made for, which the clone request restates.
+  | { kind: "clone"; url: string; inspectionId: string | null; destination: string; planned?: OnboardingStorage }
   // operationId is null until main answers; the step is busy from the click on, so nothing races the reply.
   | { kind: "cloning"; url: string; destination: string; operationId: string | null; cancelling: boolean }
   | { kind: "cloneCancelled"; url: string; destination: string }
@@ -82,6 +86,9 @@ export interface ProjectStepState {
   error: { code: ProjectError; message?: string; path?: string } | null;
   // The registered project picked in 'Your projects', before it is inspected.
   listChoice: string | null;
+  // Where the Doan files of a setup or clone go (absent: Include in Git, the default). It outlives a refused or failed
+  // setup and a cancelled or failed clone, so the choice stays.
+  storage?: OnboardingStorage;
 }
 
 const TERMINAL = new Set(["succeeded", "failed", "cancelled"]);
@@ -127,6 +134,9 @@ export class ProjectStepSession {
 
   // A completion refused because no agent was ready no longer applies once one is (POSTMORTEM 2026-10-25).
   agentsReady(ready: boolean): void { if (ready && this.state.error?.code === "no_ready_agent") this.set({ error: null }); }
+  // The plan on screen may be for the other mode; Set up and Clone plan again for this one before they write.
+  setStorage(storage: OnboardingStorage): void { if (!this.busy()) this.set({ storage }); }
+  private storage(): OnboardingStorage { return this.state.storage ?? "repo"; }
   setUrl(url: string): void { this.set({ url, error: this.state.error?.code === "invalid_url" ? null : this.state.error }); }
   pickListed(path: string): void { this.set({ listChoice: path }); }
   pickCandidate(path: string): void { const p = this.state.phase; if (p.kind === "candidates") this.set({ phase: { ...p, choice: path } }); }
@@ -264,18 +274,18 @@ export class ProjectStepSession {
   private source: Inspect | null = null;
   // D25 (2026-10-29 user): a URL with several local checkouts is not a choice. One is taken: a checkout that needs
   // no setup, then the main checkout, then the most recently registered; worktrees are switched later from the shell.
-  private pickCheckout(candidates: { path: string; changes: OnboardingChange[] }[]): { path: string; changes: OnboardingChange[] } {
+  private pickCheckout(candidates: ProjectCandidate[]): ProjectCandidate {
     const order = this.deps.projects();
-    const rank = (c: { path: string; changes: OnboardingChange[] }) => [c.changes.length === 0 ? 0 : 1, this.deps.mainCheckout?.(c.path) ? 0 : 1, -order.lastIndexOf(c.path)];
+    const rank = (c: ProjectCandidate) => [c.changes.length === 0 ? 0 : 1, this.deps.mainCheckout?.(c.path) ? 0 : 1, -order.lastIndexOf(c.path)];
     return [...candidates].sort((a, b) => { const x = rank(a), y = rank(b); return x[0]! - y[0]! || x[1]! - y[1]! || x[2]! - y[2]!; })[0]!;
   }
-  private offer(inspectionId: string, url: string | null, found: { path: string; changes: OnboardingChange[] }[], source: Inspect): void {
+  private offer(inspectionId: string, url: string | null, found: ProjectCandidate[], source: Inspect): void {
     this.source = source;
     // A new inspection needs its own consent.
     this.consent = null;
     const candidates = url !== null && found.length > 1 ? [this.pickCheckout(found)] : found;
     const first = candidates[0]!;
-    if (candidates.length === 1 && first.changes.length > 0) this.set({ phase: { kind: "setup", inspectionId, url, path: first.path, changes: first.changes }, error: null });
+    if (candidates.length === 1 && first.changes.length > 0) this.set({ phase: { kind: "setup", inspectionId, url, path: first.path, changes: first.changes, ...(first.storage ? { storage: first.storage } : {}) }, error: null });
     else this.set({ phase: { kind: "candidates", inspectionId, url, candidates, choice: first.path }, error: null });
   }
   private async reinspect(keep: { path?: string }): Promise<void> {
@@ -294,22 +304,34 @@ export class ProjectStepSession {
 
   // Consent given on Set up and continue: valid only for that inspection and folder.
   private consent: { inspectionId: string; path: string } | null = null;
-  private async runSelect(): Promise<void> {
+  private async runSelect(replanned = false): Promise<void> {
     const p = this.state.phase;
-    let inspectionId: string, path: string, changes: OnboardingChange[], url: string | null;
+    let inspectionId: string, url: string | null, candidate: ProjectCandidate;
     if (p.kind === "candidates") {
-      const candidate = p.candidates.find(c => c.path === p.choice);
-      if (!candidate) return;
-      ({ inspectionId, url } = p); ({ path, changes } = candidate);
-    } else if (p.kind === "setup") ({ inspectionId, url, path, changes } = p);
-    else return;
+      const found = p.candidates.find(c => c.path === p.choice);
+      if (!found) return;
+      ({ inspectionId, url } = p); candidate = found;
+    } else if (p.kind === "setup") {
+      ({ inspectionId, url } = p); candidate = { path: p.path, changes: p.changes, ...(p.storage ? { storage: p.storage } : {}) };
+    } else return;
+    const { path, changes } = candidate;
     // Setup writes files in the user's folder, so it needs this explicit step (design '고정 명령·도구').
     const initialize = changes.length > 0 && this.consent?.inspectionId === inspectionId && this.consent.path === path;
-    if (changes.length > 0 && !initialize) { this.set({ phase: { kind: "setup", inspectionId, url, path, changes }, error: null }); return; }
+    if (changes.length > 0 && !initialize) { this.set({ phase: { kind: "setup", inspectionId, url, path, changes, ...(candidate.storage ? { storage: candidate.storage } : {}) }, error: null }); return; }
+    // The consent covers the mode on screen: a plan made for the other one is made again first, and the consent moves to
+    // the new inspection of the same folder. A project already kept out of Git has no choice to follow.
+    const shown: OnboardingStorage = candidate.storage ?? "repo";
+    if (initialize && !replanned && !keptLocal(candidate) && shown !== this.storage()) {
+      await this.reinspect({ path });
+      const next = this.state.phase;
+      const same = next.kind === "setup" ? next.path === path : next.kind === "candidates" && next.choice === path;
+      if ((next.kind === "setup" || next.kind === "candidates") && same) { this.consent = { inspectionId: next.inspectionId, path }; await this.runSelect(true); }
+      return;
+    }
     const at = this.fence();
     const back = p;
     this.set({ phase: { kind: "selecting", path }, error: null });
-    const reply = await this.call(this.deps.api.selectOnboardingProject({ sessionId: this.deps.sessionId, requestId: this.deps.requestId(), inspectionId, path, ...(initialize ? { initialize: true } : {}) }));
+    const reply = await this.call(this.deps.api.selectOnboardingProject({ sessionId: this.deps.sessionId, requestId: this.deps.requestId(), inspectionId, path, ...(initialize ? { initialize: true } : {}), storage: shown }));
     if (!this.current(at)) return;
     if (!reply.ok && reply.code === "inspection_stale") { this.set({ phase: back }); await this.reinspect({ path }); return; }
     if (!reply.ok) { this.failed(reply, back, () => { this.set({ phase: back }); return this.runSelect(); }); return; }
@@ -325,12 +347,14 @@ export class ProjectStepSession {
     if (!this.current(at)) return;
     if (!reply.ok) { this.failed(reply, { kind: "clone", url, inspectionId: null, destination }, () => this.planClone(url, destination, this.fence())); return; }
     this.source = { url, destination };
-    this.set({ phase: { kind: "clone", url, inspectionId: reply.operation.inspection!.inspectionId, destination }, error: null });
+    const planned = reply.operation.inspection!.clone?.storage ?? "repo";
+    this.set({ phase: { kind: "clone", url, inspectionId: reply.operation.inspection!.inspectionId, destination, planned }, error: null });
   }
   private async runClone(): Promise<void> {
     let p = this.state.phase;
-    // Retry after a cancel or a failure plans the clone again: main keeps one plan per inspection.
-    if (p.kind === "cloneCancelled" || (p.kind === "clone" && p.inspectionId === null)) {
+    // Retry after a cancel or a failure plans the clone again: main keeps one plan per inspection. So does a plan made
+    // for the other storage mode than the one now chosen.
+    if (p.kind === "cloneCancelled" || (p.kind === "clone" && (p.inspectionId === null || (p.planned ?? "repo") !== this.storage()))) {
       await this.planClone(p.url, p.destination, this.fence());
       p = this.state.phase;
       if (p.kind !== "clone" || p.inspectionId === null || this.state.error) return;
@@ -339,7 +363,7 @@ export class ProjectStepSession {
     const { url, destination, inspectionId } = p;
     const at = this.fence();
     this.set({ phase: { kind: "cloning", url, destination, operationId: null, cancelling: false }, error: null });
-    const reply = await this.call(this.deps.api.cloneOnboardingProject({ sessionId: this.deps.sessionId, requestId: this.deps.requestId(), inspectionId, destination }));
+    const reply = await this.call(this.deps.api.cloneOnboardingProject({ sessionId: this.deps.sessionId, requestId: this.deps.requestId(), inspectionId, destination, storage: p.planned ?? "repo" }));
     if (!this.current(at)) return;
     // The failure may be shown on the first screen (an unreachable repository), so the clone screen is restored first.
     const retryPlan = () => { this.set({ phase: { kind: "clone", url, inspectionId: null, destination }, error: null }); return this.runClone(); };
@@ -377,7 +401,8 @@ export class ProjectStepSession {
     return `${last ? parent(last) : home.replace(/\/+$/, "")}/${repo}`;
   }
   private async inspect(target: Inspect): Promise<Reply> {
-    const reply = await this.call(this.deps.api.inspectOnboardingProject({ sessionId: this.deps.sessionId, requestId: this.deps.requestId(), ...target }));
+    // Always with storage: this app's own window speaks the field, so the reply shows which candidates are out of Git.
+    const reply = await this.call(this.deps.api.inspectOnboardingProject({ sessionId: this.deps.sessionId, requestId: this.deps.requestId(), ...target, storage: this.storage() }));
     if (!reply.ok) return reply;
     const done = await this.settled(reply.operation);
     if (done.state === "succeeded" && done.inspection) return { ok: true, operation: done };

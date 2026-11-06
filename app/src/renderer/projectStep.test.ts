@@ -47,8 +47,8 @@ test("Choose folder: a picked set-up folder is inspected and selected; a cancell
   h.queue.inspect!.push(ok(op("project_inspect", { inspection: found })));
   h.queue.select!.push(ok(op("project_select", { project: { root: "/code/app" } })));
   await h.session.chooseFolder();
-  expect(h.api.inspectOnboardingProject.mock.calls[0]![0]).toEqual({ sessionId: "s1", requestId: "req-1", path: "/code/app" });
-  expect(h.api.selectOnboardingProject.mock.calls[0]![0]).toEqual({ sessionId: "s1", requestId: "req-2", inspectionId: found.inspectionId, path: "/code/app" });
+  expect(h.api.inspectOnboardingProject.mock.calls[0]![0]).toEqual({ sessionId: "s1", requestId: "req-1", path: "/code/app", storage: "repo" });
+  expect(h.api.selectOnboardingProject.mock.calls[0]![0]).toEqual({ sessionId: "s1", requestId: "req-2", inspectionId: found.inspectionId, path: "/code/app", storage: "repo" });
   expect(phase(h)).toEqual({ kind: "ready", root: "/code/app" });
 });
 
@@ -103,7 +103,7 @@ test("a repository with no local checkout plans a clone next to the most recentl
   h.queue.inspect!.push(ok(op("project_inspect", { inspection: plan })));
   await h.session.findRepository();
   expect(h.api.inspectOnboardingProject.mock.calls[1]![0]).toMatchObject({ url: "git@github.com:acme/studio.git", destination: "/Users/ada/code/studio" });
-  expect(phase(h)).toEqual({ kind: "clone", url: "git@github.com:acme/studio.git", inspectionId: plan.inspectionId, destination: "/Users/ada/code/studio" });
+  expect(phase(h)).toEqual({ kind: "clone", url: "git@github.com:acme/studio.git", inspectionId: plan.inspectionId, destination: "/Users/ada/code/studio", planned: "repo" });
 });
 
 test("without registered projects the clone goes under the home folder", async () => {
@@ -561,7 +561,7 @@ test("V fix: Back from a cancelled or failed clone returns to the editable URL, 
   // With the old inspection discarded, Retry looks the URL up again instead of re-planning the old clone.
   h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([["/code/studio"]]) })));
   await h.session.retry();
-  expect(h.api.inspectOnboardingProject.mock.calls.at(-1)![0]).toEqual({ sessionId: "s1", requestId: expect.any(String), url: "https://github.com/acme/studio" });
+  expect(h.api.inspectOnboardingProject.mock.calls.at(-1)![0]).toEqual({ sessionId: "s1", requestId: expect.any(String), url: "https://github.com/acme/studio", storage: "repo" });
   expect(phase(h)).toMatchObject({ kind: "candidates" });
   await planned(h);
   h.queue.clone!.push(ok(op("project_clone", { state: "failed", error: { code: "clone_failed", message: "x" } })));
@@ -579,7 +579,7 @@ test("V re-check: Retry on the access error inspects an edited URL, like Enter, 
   h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([["/code/git"]]) })));
   await h.session.retry();
   expect(h.api.cloneOnboardingProject).toHaveBeenCalledTimes(1);
-  expect(h.api.inspectOnboardingProject.mock.calls.at(-1)![0]).toEqual({ sessionId: "s1", requestId: expect.any(String), url: "https://github.com/git/git" });
+  expect(h.api.inspectOnboardingProject.mock.calls.at(-1)![0]).toEqual({ sessionId: "s1", requestId: expect.any(String), url: "https://github.com/git/git", storage: "repo" });
   expect(phase(h)).toMatchObject({ kind: "candidates", url: "https://github.com/git/git" });
 });
 
@@ -780,8 +780,8 @@ test("the page session talks to the page instance and hands a registered root ov
   h.queue.inspect!.push(ok(op("project_inspect", { inspection: found })));
   h.queue.select!.push(ok(op("project_select", { project: { root: "/code/app" } })));
   await h.session.chooseFolder();
-  expect(h.doan.inspectAddPageProject.mock.calls[0]![0]).toEqual({ sessionId: "p1", requestId: "req-1", path: "/code/app" });
-  expect(h.doan.selectAddPageProject.mock.calls[0]![0]).toEqual({ sessionId: "p1", requestId: "req-2", inspectionId: found.inspectionId, path: "/code/app" });
+  expect(h.doan.inspectAddPageProject.mock.calls[0]![0]).toEqual({ sessionId: "p1", requestId: "req-1", path: "/code/app", storage: "repo" });
+  expect(h.doan.selectAddPageProject.mock.calls[0]![0]).toEqual({ sessionId: "p1", requestId: "req-2", inspectionId: found.inspectionId, path: "/code/app", storage: "repo" });
   expect(h.completed).toHaveBeenCalledWith("/code/app");
   expect(phase(h as never).kind).not.toBe("ready");
 });
@@ -849,4 +849,73 @@ test("Find repository clears a refused drop's notice, on the page and in first r
   first.session.setUrl("https://github.com/acme/studio");
   void first.session.findRepository();
   expect(first.session.dropNotice).toBeNull();
+});
+
+// PRODUCT §5 item 0 'Doan files': the choice is the screen's; a plan made for the other mode is made again before setup
+// or clone writes anything, and the choice outlives a refused setup.
+const LOCAL = [".doan/canvases/", ".doan/config.json", ".git/info/exclude"];
+const REPO = [".doan/canvases/", ".doan/config.json", ".gitattributes"];
+test("setting up out of Git plans again for that mode and selects with the storage it showed", async () => {
+  const h = harness();
+  h.api.chooseOnboardingFolder.mockResolvedValueOnce("/code/app");
+  h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([["/code/app", REPO]]) })));
+  await h.session.chooseFolder();
+  expect(phase(h)).toMatchObject({ kind: "setup", path: "/code/app", changes: REPO });
+  h.session.setStorage("local");
+  const local = { inspectionId: "i-local", candidates: [{ path: "/code/app", changes: LOCAL as never, storage: "local" as const }] };
+  h.queue.inspect!.push(ok(op("project_inspect", { inspection: local })));
+  h.queue.select!.push(ok(op("project_select", { project: { root: "/code/app" } })));
+  await setUp(h);
+  expect(h.api.inspectOnboardingProject.mock.calls.at(-1)![0]).toEqual({ sessionId: "s1", requestId: expect.any(String), path: "/code/app", storage: "local" });
+  expect(h.api.selectOnboardingProject.mock.calls.at(-1)![0]).toEqual({ sessionId: "s1", requestId: expect.any(String), inspectionId: "i-local", path: "/code/app", initialize: true, storage: "local" });
+  expect(phase(h)).toEqual({ kind: "ready", root: "/code/app" });
+});
+
+test("a project already kept out of Git is set up as it is, whatever the choice", async () => {
+  const h = harness();
+  h.api.chooseOnboardingFolder.mockResolvedValueOnce("/code/app-x");
+  const kept = { inspectionId: "i-kept", candidates: [{ path: "/code/app-x", changes: [".doan/canvases/", ".doan/config.json"] as never, storage: "local" as const }] };
+  h.queue.inspect!.push(ok(op("project_inspect", { inspection: kept })));
+  h.queue.select!.push(ok(op("project_select", { project: { root: "/code/app-x" } })));
+  await h.session.chooseFolder();
+  expect(phase(h)).toMatchObject({ kind: "setup", storage: "local" });
+  await setUp(h);
+  expect(h.api.inspectOnboardingProject).toHaveBeenCalledTimes(1);
+  expect(h.api.selectOnboardingProject.mock.calls[0]![0]).toMatchObject({ inspectionId: "i-kept", initialize: true, storage: "local" });
+});
+
+test("a refused local setup keeps the choice and its reason on the setup screen", async () => {
+  const h = harness();
+  h.session.setStorage("local");
+  h.api.chooseOnboardingFolder.mockResolvedValueOnce("/code/notes");
+  const local = { inspectionId: "i-1", candidates: [{ path: "/code/notes", changes: LOCAL as never, storage: "local" as const }] };
+  h.queue.inspect!.push(ok(op("project_inspect", { inspection: local })));
+  h.queue.select!.push(ok(op("project_select", { state: "failed", error: { code: "local_not_git", message: "m" } })));
+  await h.session.chooseFolder();
+  await setUp(h);
+  expect(h.api.inspectOnboardingProject).toHaveBeenCalledTimes(1);
+  expect(h.session.state).toMatchObject({ storage: "local", phase: { kind: "setup", path: "/code/notes" }, error: { code: "local_not_git" } });
+});
+
+test("a clone planned for one mode is planned again for the one chosen, and the choice cannot change while it runs", async () => {
+  const h = harness();
+  h.session.setUrl("https://github.com/acme/studio");
+  h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([]) })));
+  h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([], "/Users/ada/studio") })));
+  await h.session.findRepository();
+  expect(phase(h)).toMatchObject({ kind: "clone", planned: "repo" });
+  h.session.setStorage("local");
+  const plan = { inspectionId: "i-clone", candidates: [], clone: { destination: "/Users/ada/studio", changes: LOCAL as never, storage: "local" as const } };
+  h.queue.inspect!.push(ok(op("project_inspect", { inspection: plan })));
+  let finish!: (reply: OnboardingResponse) => void;
+  h.queue.clone!.push(new Promise(resolve => { finish = resolve; }));
+  const cloning = h.session.clone();
+  await flush();
+  expect(h.api.inspectOnboardingProject.mock.calls.at(-1)![0]).toMatchObject({ url: "https://github.com/acme/studio", destination: "/Users/ada/studio", storage: "local" });
+  expect(h.api.cloneOnboardingProject.mock.calls[0]![0]).toMatchObject({ inspectionId: "i-clone", destination: "/Users/ada/studio", storage: "local" });
+  h.session.setStorage("repo");
+  expect(h.session.state.storage).toBe("local");
+  finish(ok(op("project_clone", { project: { root: "/Users/ada/studio" } })));
+  await cloning;
+  expect(phase(h)).toEqual({ kind: "ready", root: "/Users/ada/studio" });
 });

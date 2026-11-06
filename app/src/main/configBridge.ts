@@ -2,13 +2,15 @@ import { randomUUID } from "node:crypto";
 import { isAbsolute, join } from "node:path";
 import { validateEnvelope } from "../formats/validate";
 import type { CliRun } from "./folderState";
+import { storageFacts, type StorageFacts } from "./storage";
 
 // Keep config parsing and writes in Go by delegating to `doan config`
 // (ARCHITECTURE §7, Config bridge; POSTMORTEM 2026-10-22).
 
 export type ConfigKind = "tokenCss" | "serve";
+// storage/storageReason: where the worktree's Doan files are kept, absent from an older doan.
 export type ConfigReply =
-  | { kind: "config"; root: string; tokenCss: string | null; serve: string[]; changed: boolean }
+  | ({ kind: "config"; root: string; tokenCss: string | null; serve: string[]; changed: boolean } & StorageFacts)
   | { kind: "error"; message: string }
   | { kind: "unavailable" };
 export type ConfigChoice = { kind: "selected"; choiceId: string; path: string } | { kind: "cancelled" } | { kind: "unavailable" };
@@ -20,6 +22,8 @@ export interface ConfigBridgeDeps {
   epoch(root: string): number | null;
   // A sheet on the main window; null when cancelled.
   pick(root: string, kind: ConfigKind): Promise<string | null>;
+  // A mode write succeeded for root: it applies to every worktree of the project, so main reads them all again.
+  storageWritten?(root: string): void;
 }
 
 interface Choice { root: string; kind: ConfigKind; path: string; epoch: number }
@@ -52,7 +56,18 @@ export function configReply(root: string, run: CliRun): ConfigReply {
   if (!envelope.ok) return error(envelope.error.message);
   if (run.exitCode !== 0 || !isConfigResult(envelope.result)) return error(UNEXPECTED);
   const { serve, changed, tokenCss } = envelope.result;
-  return { kind: "config", root, tokenCss: tokenCss ?? null, serve, changed };
+  return { kind: "config", root, tokenCss: tokenCss ?? null, serve, changed, ...storageFacts(envelope.result) };
+}
+
+// A storage write made outside Project Settings (a clone's Keep out of Git), told apart by the CLI's code: a run that
+// did not answer with an envelope is internal_error, as the CLI's own unexpected failures are.
+export function storageWrite(run: CliRun): { ok: true } | { ok: false; code: string } {
+  let value: unknown;
+  try { value = JSON.parse(run.stdout); } catch { return { ok: false, code: "internal_error" }; }
+  if (run.spawnError !== undefined || run.timedOut || !validateEnvelope(value)) return { ok: false, code: "internal_error" };
+  const envelope = value as { ok: true } | { ok: false; error: { code: string } };
+  if (!envelope.ok) return { ok: false, code: envelope.error.code };
+  return run.exitCode === 0 ? { ok: true } : { ok: false, code: "internal_error" };
 }
 
 export function createConfigBridge(deps: ConfigBridgeDeps) {
@@ -126,6 +141,15 @@ export function createConfigBridge(deps: ConfigBridgeDeps) {
         const choice = target === null ? null : take(target, op === "setTokenCss" ? "tokenCss" : "serve", (value as Record<string, unknown>).choiceId);
         if (target === null || choice === null) return unavailable;
         return call(target, [op === "setTokenCss" ? "--token-css" : "--add-serve", choice.path]);
+      }
+      if (op === "setStorage") {
+        const target = exact(value, ["root", "op", "storage"]) ? root(value) : null;
+        const storage = (value as Record<string, unknown>).storage;
+        if (target === null || (storage !== "repo" && storage !== "local")) return unavailable;
+        return call(target, ["--storage", storage]).then(reply => {
+          if (reply.kind === "config") deps.storageWritten?.(target);
+          return reply;
+        });
       }
       if (op === "clearTokenCss") {
         const target = exact(value, ["root", "op"]) ? root(value) : null;

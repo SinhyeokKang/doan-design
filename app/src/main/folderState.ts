@@ -1,4 +1,5 @@
 import { validateEnvelope } from "../formats/validate";
+import { storageFacts, type StorageFacts } from "./storage";
 import { isRowError, type GitInfo, type OrphanFile } from "./view";
 
 export interface CliRun {
@@ -12,7 +13,7 @@ export interface CliRun {
 }
 
 export type FolderState =
-  | { kind: "list"; root: string; scope: string[]; canvases: unknown[]; git?: GitInfo; orphans?: OrphanFile[] }
+  | ({ kind: "list"; root: string; scope: string[]; canvases: unknown[]; git?: GitInfo; orphans?: OrphanFile[] } & StorageFacts)
   | { kind: "uninitialized" }
   | { kind: "error"; message: string }
   | { kind: "cliError"; reason: string };
@@ -49,7 +50,7 @@ export function folderState(run: CliRun): FolderState {
   const { root, scope, canvases } = value.result;
   const git: unknown = Reflect.get(value.result, "git");
   const orphans: unknown = Reflect.get(value.result, "orphans");
-  return { kind: "list", root, scope, canvases, ...(isGitInfo(git) ? { git } : {}), ...(Array.isArray(orphans) ? { orphans: orphans.flatMap(orphanFile) } : {}) };
+  return { kind: "list", root, scope, canvases, ...(isGitInfo(git) ? { git } : {}), ...(Array.isArray(orphans) ? { orphans: orphans.flatMap(orphanFile) } : {}), ...storageFacts(value.result) };
 }
 
 // CLI orphan counts support the Comments notice after a canvas ID changes.
@@ -104,10 +105,19 @@ function isListResult(result: unknown): result is ListResult {
 
 export type InitOutcome =
   | { kind: "success" }
-  | { kind: "error"; message: string; guidance: string }
+  | { kind: "error"; code: string; message: string; guidance: string }
   | { kind: "cliError"; reason: string };
 
-export function initOutcome(run: CliRun): InitOutcome {
+// The Set Up dialog's sentences for a refused local setup (draft frame setup-dialog). The CLI's messages for these codes
+// are short and path-free and do not say that nothing was set up, so the dialog says it; an exclude failure may be a
+// link, a permission or an unreadable Git directory, so its recovery covers all of them.
+const STORAGE_REFUSALS: Record<string, { message: string; guidance: string }> = {
+  local_not_git: { message: "This folder isn’t a Git repository, so Doan can’t keep its files out of Git.", guidance: "Choose Include in Git, or run git init here first." },
+  local_exclude_failed: { message: "Couldn’t add Doan’s lines to .git/info/exclude, so nothing was set up.", guidance: "Make sure the repository’s Git metadata and its exclude file can be read and written, then try again." },
+};
+
+// tokenCss: a token CSS was chosen, so a usage_error may be about it; otherwise CSS guidance would point elsewhere.
+export function initOutcome(run: CliRun, request: { tokenCss?: boolean } = {}): InitOutcome {
   const reason = run.spawnError ?? (run.timedOut ? "timed out after 10 s" : run.stderr.split(/\r?\n/, 1)[0] || "Invalid response from doan CLI.");
   const cliError: InitOutcome = { kind: "cliError", reason };
   if (run.spawnError !== undefined || run.timedOut || run.exitCode === null) return cliError;
@@ -120,10 +130,13 @@ export function initOutcome(run: CliRun): InitOutcome {
   if (!isEnvelope(value)) return cliError;
   if (!value.ok) {
     if (run.exitCode === 0) return cliError;
-    const guidance = value.error.code === "invalid_config" ? "Fix the project configuration, then try again."
-      : value.error.code === "usage_error" ? "Check the project and choose a CSS file inside it, then try again."
+    const code = value.error.code;
+    const refusal = STORAGE_REFUSALS[code];
+    if (refusal) return { kind: "error", code, ...refusal };
+    const guidance = code === "invalid_config" ? "Fix the project configuration, then try again."
+      : code === "usage_error" && request.tokenCss ? "Check the project and choose a CSS file inside it, then try again."
         : "Check the project, then try again.";
-    return { kind: "error", message: value.error.message, guidance };
+    return { kind: "error", code, message: value.error.message, guidance };
   }
   const result = value.result;
   if (run.exitCode !== 0 || typeof result !== "object" || result === null ||

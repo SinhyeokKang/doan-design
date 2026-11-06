@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Check, File as FileIcon, Folder as FolderIcon, GitBranch } from "lucide-react";
+import { Check, Copy, File as FileIcon, Folder as FolderIcon, GitBranch } from "lucide-react";
 import type { ConfigKind, ConfigReply } from "../main/configBridge";
 import type { FolderFocus } from "../main/shell";
+import { projectKeepsLocal } from "../main/storage";
 import type { FolderEntry } from "../main/view";
 import type { ConfigWrite } from "../preload";
 import type { AddPageOrigin } from "./addProjectsNav";
 import { AlertIcon } from "./AlertIcon";
+import { copyText } from "./copyText";
 import { cardRow, groupProjects, ROW_ACTION_LABELS as LABELS, type RowAction } from "./homeCards";
 import { displayPath } from "./projectDisplay";
 import {
@@ -14,8 +16,27 @@ import {
 } from "./projectSettingsRules";
 import { SettingsDialog } from "./SettingsDialog";
 import { projectHue, projectInitial } from "./shellNavigation";
+import { StorageDescription } from "./StorageChoice";
+import { STORAGE_LABELS, storageSectionView, storedNote, switchNote, type StorageChoice, type SwitchNote } from "./storageRules";
 
 type Config = Extract<ConfigReply, { kind: "config" }>;
+// The mode a listed worktree reports, to notice a change made outside Doan; null for a row that is not a list.
+const listedStorage = (entry: FolderEntry | undefined): string | null => entry?.kind === "list" ? `${entry.storage ?? ""}:${entry.storageReason ?? ""}` : null;
+// A config section that writes: the two path settings, and where the Doan files are kept.
+type Section = ConfigKind | "storage";
+const STORAGE_CHOICES: StorageChoice[] = ["repo", "local"];
+const STORAGE_REASONS = {
+  not_git: <>Keep out of Git needs a Git repository, and this folder isn’t one.</>,
+  git_unreadable: <>Doan couldn’t read this repository’s Git metadata, so it can’t tell whether these files are kept out of Git.</>,
+  exclude_unwritable: <>Doan can’t write <code>.git/info/exclude</code> in this repository, so this setting can’t change here.</>,
+};
+const SWITCH_NOTES: Record<SwitchNote, ReactNode> = {
+  attributesStay: <>Doan’s two lines stay in <code>.gitattributes</code>.</>,
+  nowTracked: <><code>.doan/</code> now shows in <code>git status</code>. When you commit it, your team gets it.</>,
+};
+const STORED_NOTES = { commit: <> · Stored in <code>.doan/config.json</code> in this worktree. Commit it so your team gets these settings.</>,
+  thisMac: <> · Stored in <code>.doan/config.json</code> in this worktree, on this Mac only.</>, plain: <> · Stored in <code>.doan/config.json</code> in this worktree.</> };
+const UNTRACK_COMMAND = "git rm -r --cached .doan";
 type Recovery = Extract<RowAction, "setUp" | "locate" | "retry">;
 
 
@@ -46,9 +67,13 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
   const [reading, setReading] = useState(false);
   const [readError, setReadError] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
-  const [busy, setBusy] = useState<ConfigKind | null>(null);
-  const [saved, setSaved] = useState<ConfigKind | null>(null);
-  const [error, setError] = useState<{ section: ConfigKind; message: string } | null>(null);
+  const [busy, setBusy] = useState<Section | null>(null);
+  const [saved, setSaved] = useState<Section | null>(null);
+  const [error, setError] = useState<{ section: Section; message: string } | null>(null);
+  // The mode being written (the pressed option stays chosen while Saving), and what the last switch changed outside Doan.
+  const [writingStorage, setWritingStorage] = useState<StorageChoice | null>(null);
+  const [switched, setSwitched] = useState<SwitchNote | null>(null);
+  const [copied, setCopied] = useState<"idle" | "copied" | "failed">("idle");
   const [choice, setChoice] = useState<{ choiceId: string; path: string } | null>(null);
   // Details expands the config error in place, and a recovery's feedback shows under the notice.
   const [details, setDetails] = useState(false);
@@ -57,9 +82,11 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
   // Bumped when the page moves to another root or turns into a problem: a picker or write that began before it is stale.
   const generation = useRef(0), gone = useRef(false), lastEntry = useRef<FolderEntry | undefined>(initial);
   const heading = useRef<HTMLHeadingElement | null>(null), tokenButton = useRef<HTMLButtonElement | null>(null), addButton = useRef<HTMLButtonElement | null>(null);
-  const removeButtons = useRef(new Map<string, HTMLButtonElement>());
-  const returnFocus = useRef<{ button: HTMLButtonElement; section: ConfigKind; removed?: { path: string; before: readonly string[] } } | null>(null);
-  const reported = useRef(false), arrived = useRef(0), config$ = useRef<Config | null>(null);
+  const removeButtons = useRef(new Map<string, HTMLButtonElement>()), storageInputs = useRef(new Map<StorageChoice, HTMLInputElement>());
+  const returnFocus = useRef<{ button: HTMLButtonElement | HTMLInputElement; section: Section; removed?: { path: string; before: readonly string[] } } | null>(null);
+  const reported = useRef(false), arrived = useRef(0), config$ = useRef<Config | null>(null), listedMode = useRef(listedStorage(initial));
+  // A listed mode change that arrived while a write ran: the write's end reads the settings, success or not.
+  const changedDuringWrite = useRef(false);
   config$.current = config;
   const root = view.root;
   const found = entries.find(item => item.path === root);
@@ -68,9 +95,12 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
   const locked = projectSettingsLocked({ picking, confirming: !!choice, writing: !!busy });
 
   function focusTitle() { requestAnimationFrame(() => heading.current?.focus()); }
-  async function read(target: string) {
+  // quiet: a refresh for a change made elsewhere (a listed mode change). It keeps the controls as they are, so a focus
+  // just returned to them is not dropped; it still supersedes any older read.
+  async function read(target: string, quiet = false) {
     const request = ++epoch.current;
-    setReading(true); setReadError(null);
+    if (!quiet) setReading(true);
+    setReadError(null);
     try {
       // A read sent before the session starts would answer from the previous session (configBridge), so it waits.
       await started.current;
@@ -84,7 +114,7 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
   }
   useEffect(() => {
     live.current = true;
-    started.current = window.doan.startConfigSession().catch(console.error);
+    started.current = window.doan.startConfigSession(opened).catch(console.error);
     if (view.view === "settings") void read(root);
     return () => { live.current = false; epoch.current++; void window.doan.endConfigSession().catch(console.error); };
   }, []);
@@ -111,7 +141,17 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
     const focus = reroot && reroot.seq !== seenReroot.current ? reroot : undefined;
     if (reroot) seenReroot.current = reroot.seq;
     const next = followProjectSettings(view, entries, origin, focus);
-    if (next.kind === "stay") return;
+    const before = listedMode.current;
+    listedMode.current = listedStorage(entries.find(item => item.path === (next.kind === "show" ? next.root : view.root)));
+    if (next.kind === "stay") {
+      // A mode changed outside Doan reaches the listing (window focus, a group re-read) before the page; the settings are
+      // read again. A write in flight reads them itself when it ends, so a read now could only be older than it.
+      if (view.view === "settings" && before !== null && listedMode.current !== null && before !== listedMode.current) {
+        if (busy) changedDuringWrite.current = true;
+        else void read(view.root, true);
+      }
+      return;
+    }
     if (next.kind === "leave") {
       // An open confirmation is cancelled by the page going; a picker or read answering before App unmounts the page is
       // for a worktree that is gone, so it opens nothing.
@@ -141,16 +181,37 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
   }
   async function write(request: ConfigWrite, section: ConfigKind, removed?: string) {
     rememberFocus(section, removed);
-    const stale = generation.current;
-    setBusy(section); setError(null); setSaved(null);
+    await send(request, section);
+  }
+  async function send(request: ConfigWrite, section: Section) {
+    const stale = generation.current, before = config$.current?.storage;
+    setBusy(section); setError(null); setSaved(null); setSwitched(null);
+    changedDuringWrite.current = false;
     try {
       const reply = await window.doan.writeConfig(request);
       if (!live.current || stale !== generation.current) return;
-      if (reply.kind === "config") { setConfig(reply); setSaved(section); await read(request.root); }
+      if (reply.kind === "config") { setConfig(reply); setSaved(section); if (section === "storage") setSwitched(switchNote(before, reply.storage)); changedDuringWrite.current = false; await read(request.root); }
       else setError({ section, message: writeErrorMessage(section, reply, title) });
     } catch (failure) { if (live.current && stale === generation.current) setError({ section, message: failure instanceof Error ? failure.message : String(failure) }); }
-    finally { if (live.current) setBusy(null); }
+    finally {
+      if (live.current) { setBusy(null); setWritingStorage(null); }
+      if (live.current && stale === generation.current && changedDuringWrite.current) { changedDuringWrite.current = false; void read(request.root, true); }
+    }
   }
+  // A press writes at once, with no confirmation: nothing is moved or deleted and it can be switched back (PRODUCT §5
+  // item 0 'Project Settings'). Focus returns to the chosen radio once the write ends, whatever it chose.
+  function writeStorage(storage: StorageChoice, input: HTMLInputElement) {
+    if (busy || picking || reading || choice) return;
+    returnFocus.current = { button: input, section: "storage" };
+    setWritingStorage(storage);
+    void send({ root, op: "setStorage", storage }, "storage");
+  }
+  function copyCommand() { setCopied(copyText(UNTRACK_COMMAND) ? "copied" : "failed"); }
+  useEffect(() => {
+    if (copied !== "copied") return;
+    const timer = setTimeout(() => setCopied("idle"), 2000);
+    return () => clearTimeout(timer);
+  }, [copied]);
   async function choose(kind: ConfigKind) {
     // The confirmation counts: its controls are drawn enabled and only the modal dialog keeps a press from getting here.
     if (busy || picking || reading || choice) return;
@@ -183,6 +244,11 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
         section: origin.section, pressedAlive: origin.button.isConnected && !origin.button.disabled,
         ...(origin.removed ? { removed: { path: origin.removed.path, before: origin.removed.before, after: config$.current?.serve ?? [] } } : {}),
       });
+      if (target.kind === "storageChosen") {
+        const chosen = config$.current ? storageSectionView(config$.current, null)?.checked : null;
+        (chosen ? storageInputs.current.get(chosen) : undefined)?.focus();
+        return;
+      }
       (target.kind === "pressed" ? origin.button : target.kind === "tokenPrimary" ? tokenButton.current : target.kind === "sharedRemove" ? removeButtons.current.get(target.path) ?? addButton.current : addButton.current)?.focus();
     });
     return () => cancelAnimationFrame(frame);
@@ -190,7 +256,7 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
 
   // A list with neither settings nor a failure has not been read yet, whether or not the read has started.
   const readState: ReadState = readError !== null ? { kind: "failed", message: readError } : config ? { kind: "ready" } : { kind: "reading" };
-  const page = entry ? projectSettingsPageView(entry, readState) : null;
+  const page = entry ? projectSettingsPageView(entry, readState, projectKeepsLocal(entries, root)) : null;
   // A recovery that changes what the page draws removes the button that had focus; focus falls to the title.
   const drawn = useRef("");
   const shape = page ? `${page.body}:${page.notice?.actions.join(",") ?? ""}` : "";
@@ -217,10 +283,47 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
   const lastCommon = new Map(entries.flatMap(item => item.lastCommon ? [[item.path, item.lastCommon] as const] : []));
   const title = groupProjects(entries, lastCommon).find(card => card.rows.some(row => row.path === root))?.name ?? root.split("/").filter(Boolean).at(-1) ?? root;
   const branch = entry ? cardRow(entry, null, null).summary?.branch : undefined;
-  const status = (section: ConfigKind) => busy === section ? <span className="settings-saved pending" role="status">Saving</span>
+  const status = (section: Section) => busy === section ? <span className="settings-saved pending" role="status">Saving</span>
     : saved === section ? <span className="settings-saved" role="status"><Check aria-hidden="true" />Saved</span> : null;
-  const message = (section: ConfigKind) => error?.section === section && <div className="doan-preference-row-extra settings-msg-row project-settings-msg"><p className="settings-msg error" role="alert"><AlertIcon /><span>{error.message}</span></p></div>;
+  const message = (section: Section) => error?.section === section && <div className="doan-preference-row-extra settings-msg-row project-settings-msg"><p className="settings-msg error" role="alert"><AlertIcon /><span>{error.message}</span></p></div>;
   const shared = choice && sharedPathLabel(root, choice.path);
+  const storage = config && storageSectionView(config, writingStorage);
+  // The thread's settings radio rows outside the thread (draft frames settings-modes, settings-changes, settings-disabled).
+  const storageSection = storage && <section>
+    <div className="settings-section-header"><div>
+      <h2 className="settings-section-title" id="project-settings-storage-title">Doan files</h2>
+      <p className="settings-section-description">Applies to every worktree of this project.</p>
+    </div></div>
+    <div className="doan-settings-group" data-layout="rows" role="radiogroup" aria-labelledby="project-settings-storage-title">
+      {STORAGE_CHOICES.map(value => {
+        const off = storage.disabled[value] || disabled;
+        return <label key={value} className="doan-preference-row storage-pref" data-has-icon="" data-disabled={off ? "" : undefined}>
+          <input type="radio" name="project-settings-storage" checked={storage.checked === value} disabled={off}
+            ref={node => { if (node) storageInputs.current.set(value, node); else storageInputs.current.delete(value); }}
+            onChange={event => { if (storage.checked !== value) writeStorage(value, event.currentTarget); }} />
+          <span className="doan-preference-row-icon"><span className="ob-radio" aria-hidden="true" /></span>
+          <span className="doan-preference-row-content"><span className="doan-preference-row-label">{STORAGE_LABELS[value]}</span>
+            <span className="doan-preference-row-description"><StorageDescription choice={value} /></span></span>
+        </label>;
+      })}
+      {storage.reason && <div className="doan-preference-row-extra"><p className={storage.reason.tone === "warning" ? "storage-reason warn" : "storage-reason"}><AlertIcon /><span>{STORAGE_REASONS[storage.reason.text]}</span></p></div>}
+      {(busy === "storage" || saved === "storage") && <div className="doan-preference-row-extra storage-result" role="status">
+        {busy === "storage" ? <span className="settings-saved pending">Saving</span> : <><span className="settings-saved"><Check aria-hidden="true" />Saved</span>
+          {switched && <span className="storage-result-text">{SWITCH_NOTES[switched]}</span>}</>}
+      </div>}
+      {message("storage")}
+      {storage.guidance && <div className="doan-preference-row-extra"><div className="doan-notice storage-guidance" role="status"><AlertIcon />
+        <div className="storage-guidance-body">
+          <span>If <code>.doan/</code> was committed before, Git keeps tracking those files. To stop, run this in this project folder, then commit:</span>
+          <div className="storage-command"><code>{UNTRACK_COMMAND}</code>
+            <button type="button" className="doan-button" data-ui-variant="panel" data-ui-size="sm" aria-label="Copy command" aria-live="polite" onClick={copyCommand}>
+              {copied === "copied" ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}{copied === "copied" ? "Copied" : "Copy"}</button></div>
+          {copied === "failed" && <span role="alert">Couldn’t copy the command. Select it and copy it yourself.</span>}
+          <span>When teammates pull that commit, Git deletes <code>.doan/</code> from their checkouts too.</span>
+        </div>
+      </div></div>}
+    </div>
+  </section>;
   const removeSection = page?.removeSection && <section>
     <div className="settings-section-header"><div><h2 className="settings-section-title">Remove from Doan</h2></div></div>
     <div className="doan-settings-group" data-layout="rows"><div className="doan-preference-row">
@@ -239,7 +342,7 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
               <span className={`shell-thumbnail project-settings-thumbnail hue-${projectHue(title)}`} aria-hidden="true">{projectInitial(title)}</span>{title}
               {branch && <span className="doan-chip shell-branch" data-ui-variant="translucent"><GitBranch aria-hidden="true" /><span>{branch}</span></span>}
             </h1>
-            {entry && <p className="settings-lead">{displayPath(entry.path, homeDirectory)}{page?.storedNote && <> · Stored in <code>.doan/config.json</code> in this worktree. Commit it so your team gets these settings.</>}</p>}
+            {entry && <p className="settings-lead">{displayPath(entry.path, homeDirectory)}{page?.storedNote && STORED_NOTES[storedNote(config?.storage)]}</p>}
           </div>
           <div className="settings-header-actions">
             {page?.showInFinder && <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={() => void window.doan.revealProject(root).catch(console.error)}>Show in Finder</button>}
@@ -300,6 +403,7 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
                 {message("serve")}
               </div>
             </section>
+            {storageSection}
           </>}
           {removeSection}
         </div>}

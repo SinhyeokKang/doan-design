@@ -1,8 +1,9 @@
 import { dirname } from "node:path";
 import type {
   OnboardingChange, OnboardingInspection, OnboardingOperation, OnboardingOperationErrorCode, OnboardingProject, OnboardingProjectCloneRequest,
-  OnboardingProjectInspectRequest, OnboardingProjectSelectRequest, OnboardingResponse,
+  OnboardingProjectInspectRequest, OnboardingProjectSelectRequest, OnboardingResponse, OnboardingStorage,
 } from "../../formats/types";
+import { EXCLUDE_LABEL } from "../storage";
 import { refuse, TERMINAL, type Finished, type Tracked, type WriteRequest } from "./operations";
 import type { Candidate, CloneTarget, ProjectOutcome } from "./projects";
 import { parseGitHubUrl, type GitHubUrl } from "./repository";
@@ -19,12 +20,14 @@ export interface AdderProjects {
   destination(path: string): Promise<CloneTarget>;
   present(path: string): Promise<boolean>;
   // repo: the GitHub repository a folder chosen from the URL path must belong to.
-  inspectPath(real: string, repo: GitHubUrl | null): Promise<{ ok: true; candidates: Candidate[] } | { ok: false; code: OnboardingOperationErrorCode }>;
-  inspectUrl(repo: GitHubUrl): Promise<Candidate[]>;
-  select(path: string, initialize: boolean, repo: GitHubUrl | null): Promise<ProjectOutcome>;
+  // storage: the mode setup is planned for; a folder whose project already keeps its files out of Git plans that.
+  inspectPath(real: string, repo: GitHubUrl | null, storage: OnboardingStorage): Promise<{ ok: true; candidates: Candidate[] } | { ok: false; code: OnboardingOperationErrorCode }>;
+  inspectUrl(repo: GitHubUrl, storage: OnboardingStorage): Promise<Candidate[]>;
+  // storage "local": set up with `init --storage local`; null runs plain init.
+  select(path: string, initialize: boolean, repo: GitHubUrl | null, storage: "local" | null): Promise<ProjectOutcome>;
   // Resolves only after the clone's processes are gone and its own temporary directory is removed. commit() is asked
   // once the clone sits at its destination; after it says true no cancel applies.
-  clone(url: string, destination: string, signal: AbortSignal, commit: () => boolean): Promise<ProjectOutcome | { ok: false; cancelled: true }>;
+  clone(url: string, destination: string, signal: AbortSignal, commit: () => boolean, storage: "local" | null): Promise<ProjectOutcome | { ok: false; cancelled: true }>;
 }
 // Shared by every adder: the CLI can still clone through first run's session while the page clones.
 export interface ProjectLocks {
@@ -48,8 +51,15 @@ export interface ProjectSession {
 const QUICK_REPLY_MS = 1000;
 // Bounded like agent-auth's quit: a clone's group is stopped within about 2.5 s.
 const QUIT_WAIT_MS = 5000;
-// The most a clone can need: whether the repository brings its own setup is known only after the clone.
-const CLONE_CHANGES: OnboardingChange[] = [".doan/canvases/", ".doan/config.json", ".gitattributes"];
+// The most a clone can need: whether the repository brings its own setup is known only after the clone. A clone is a
+// new repository, so kept out of Git it always needs the exclude entry.
+const CLONE_CHANGES: Record<OnboardingStorage, OnboardingChange[]> = {
+  repo: [".doan/canvases/", ".doan/config.json", ".gitattributes"],
+  local: [".doan/canvases/", ".doan/config.json", EXCLUDE_LABEL],
+};
+// What setup a shown plan asks for: only a plan naming the exclude entry runs `init --storage local`. A folder whose
+// project already keeps its files out of Git runs plain init, which follows that mode.
+const initStorage = (changes: readonly OnboardingChange[]): "local" | null => changes.includes(EXCLUDE_LABEL) ? "local" : null;
 // Selection, clone and completion change or save the one project, so only one of them runs at a time.
 export const PROJECT_WORK = ["project_select", "project_clone", "complete"] as const;
 // What an operation reports when its work threw instead of answering.
@@ -132,11 +142,17 @@ export class ProjectAdder {
     }
     // Checked again after the awaits, with nothing awaited between this and the launch that records the operation.
     if (this.closing || this.busy(["project_clone"])) return refuse("busy");
+    // A request without storage is an older client's (or a CLI run without --storage): it is planned for repo and its
+    // reply never speaks of storage, which that client's schema would reject (app-socket v2 `inspection`).
+    const storage = request.storage ?? "repo", speaks = request.storage !== undefined;
     return this.launch("project_inspect", request.requestId, async () => {
-      const found = "path" in source ? await projects.inspectPath(source.path, source.repo) : { ok: true as const, candidates: await projects.inspectUrl(source.repo) };
+      const found = "path" in source ? await projects.inspectPath(source.path, source.repo, storage) : { ok: true as const, candidates: await projects.inspectUrl(source.repo, storage) };
       if (!found.ok) return { state: "failed", code: found.code };
-      const inspection: OnboardingInspection = { inspectionId: this.options.newId(), candidates: found.candidates };
-      if ("destination" in source && source.destination !== undefined) inspection.clone = { destination: source.destination, changes: CLONE_CHANGES };
+      const candidates = found.candidates.map(c => ({ path: c.path, changes: c.changes, ...(speaks && c.storage ? { storage: c.storage } : {}) }));
+      const inspection: OnboardingInspection = { inspectionId: this.options.newId(), candidates };
+      if ("destination" in source && source.destination !== undefined) {
+        inspection.clone = { destination: source.destination, changes: CLONE_CHANGES[storage], ...(storage === "local" ? { storage: "local" as const } : {}) };
+      }
       // The repository stays with the inspection so select checks the folder's remote again before registering it.
       if (generation === this.inspected) this.inspection = { generation, inspection, repo: source.repo, ...("target" in source && source.target ? { target: source.target } : {}) };
       return { state: "succeeded", inspection };
@@ -149,16 +165,21 @@ export class ProjectAdder {
     if (!current) return refuse("inspection_stale");
     const candidate = current.inspection.candidates.find(c => c.path === request.path);
     if (!candidate) return refuse("not_candidate");
+    // The consent covers the mode the inspection showed: another one is a plan the user never saw. A folder already set
+    // up writes nothing, so its mode is not asked.
+    if (candidate.changes.length > 0 && (request.storage ?? "repo") !== (candidate.storage ?? "repo")) return refuse("inspection_stale");
     // Setup writes files in the user's folder, so it happens only when asked for (design '고정 명령·도구').
     const initialize = request.initialize === true;
     if (candidate.changes.length > 0 && !initialize) return refuse("initialize_required");
-    return this.launch("project_select", request.requestId, async () => this.selected(await this.projects.select(candidate.path, initialize, current.repo)));
+    const storage = initStorage(candidate.changes);
+    return this.launch("project_select", request.requestId, async () => this.selected(await this.projects.select(candidate.path, initialize, current.repo, storage)));
   }
 
   async clone(request: OnboardingProjectCloneRequest): Promise<OnboardingResponse> {
     if (this.closing || this.busy(PROJECT_WORK)) return refuse("busy");
     const current = this.current(request.inspectionId);
-    if (!current || !current.repo || !current.target || current.inspection.clone?.destination !== request.destination) return refuse("inspection_stale");
+    if (!current || !current.repo || !current.target || current.inspection.clone?.destination !== request.destination ||
+      (request.storage ?? "repo") !== (current.inspection.clone.storage ?? "repo")) return refuse("inspection_stale");
     const cancelled = this.clonesCancelled;
     const destination = await this.projects.destination(request.destination);
     if (destination.state !== "absent") return refuse(destination.state === "exists" ? "destination_exists" : "path_unavailable");
@@ -168,6 +189,7 @@ export class ProjectAdder {
     // The other adder may be cloning into the same folder; the destination check cannot see a clone not yet renamed there.
     if (this.closing || this.busy(PROJECT_WORK) || this.locks.targets.has(destination.path)) return refuse("busy");
     const repo = current.repo, target = destination.path, abort = new AbortController(), projects = this.projects, leftovers = this.locks.leftovers;
+    const storage = initStorage(current.inspection.clone.changes);
     this.locks.targets.add(target);
     return this.launch("project_clone", request.requestId, async tracked => {
       try {
@@ -183,7 +205,7 @@ export class ProjectAdder {
         // running operation unchanged and registration and setup continue: cancelling would delete a folder already in
         // its final place.
         const commit = () => { if (abort.signal.aborted) return false; tracked.committed = true; return true; };
-        const result = await projects.clone(repo.url, target, abort.signal, commit);
+        const result = await projects.clone(repo.url, target, abort.signal, commit, storage);
         if ("cancelled" in result) return { state: "cancelled" };
         if (!result.ok && result.leftovers !== undefined) {
           // Merged, not replaced: the other adder's clone may have failed under the same parent.
@@ -210,7 +232,7 @@ export class ProjectAdder {
   }
 
   private selected(outcome: ProjectOutcome): Finished {
-    if (!outcome.ok) return { state: "failed", code: outcome.code };
+    if (!outcome.ok) return { state: "failed", code: outcome.code, ...(outcome.message ? { message: outcome.message } : {}) };
     this.project = { root: outcome.root };
     return { state: "succeeded", project: { root: outcome.root } };
   }

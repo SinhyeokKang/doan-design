@@ -48,6 +48,7 @@ type Outcome struct {
 	Text string
 }
 type Flags struct {
+	Storage                       string
 	JSON                          bool
 	Repo, TokenCSS, Canvas, Agent string
 	TokenCSSSet, CanvasSet        bool
@@ -72,8 +73,8 @@ var kebabID = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 var agentName = regexp.MustCompile(`^[a-z0-9-]+$`)
 
 const usage = `Usage: doan <command> [--repo <path>] [--json]
-  init [--token-css <path>]
-  config [--token-css <path> | --clear-token-css] [--add-serve <path>]... [--remove-serve <path>]...
+  init [--token-css <path>] [--storage local|repo]
+  config [--storage local|repo] [--token-css <path> | --clear-token-css] [--add-serve <path>]... [--remove-serve <path>]...
   ls
   comments [--canvas <id>]
   comment resolve <cmt_id>... --agent <name>
@@ -92,13 +93,14 @@ const usage = `Usage: doan <command> [--repo <path>] [--json]
   onboarding sign-in --session <id> --provider <id> --request <id>
   onboarding cancel --session <id> --operation <id> --request <id>
       (cancels only a sign_in or project_clone operation; any other kind returns the target unchanged)
-  onboarding project inspect --session <id> (--path <absolute> [--url <github-url>] | --url <github-url> [--destination <absolute>]) --request <id>
-  onboarding project select --session <id> --inspection <id> --path <absolute> [--initialize] --request <id>
-  onboarding project clone --session <id> --inspection <id> --destination <absolute> --request <id>
+  onboarding project inspect --session <id> (--path <absolute> [--url <github-url>] | --url <github-url> [--destination <absolute>]) --request <id> [--storage local|repo]
+  onboarding project select --session <id> --inspection <id> --path <absolute> [--initialize] --request <id> [--storage local|repo]
+  onboarding project clone --session <id> --inspection <id> --destination <absolute> --request <id> [--storage local|repo]
   onboarding complete --session <id> --request <id>
   skill
   design-skill [<id>]
   help
+Storage: repo = Include in Git; local = Keep out of Git (this Mac only).
 `
 
 func internal(err error) *Error { return &Error{Code: "internal_error", Message: err.Error()} }
@@ -145,6 +147,7 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	var f Flags
 	fs.BoolVar(&f.JSON, "json", false, "")
 	fs.StringVar(&f.Repo, "repo", "", "")
+	fs.StringVar(&f.Storage, "storage", "", "")
 	fs.StringVar(&f.TokenCSS, "token-css", "", "")
 	fs.BoolVar(&f.ClearTokenCSS, "clear-token-css", false, "")
 	fs.Func("add-serve", "", func(s string) error { f.AddServe = append(f.AddServe, s); return nil })
@@ -178,11 +181,13 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		allowed := map[string]bool{"json": true, "repo": true}
 		switch cmd {
 		case "config":
+			allowed["storage"] = true
 			allowed["token-css"] = true
 			allowed["clear-token-css"] = true
 			allowed["add-serve"] = true
 			allowed["remove-serve"] = true
 		case "init":
+			allowed["storage"] = true
 			allowed["token-css"] = true
 		case "comments":
 			allowed["canvas"] = true

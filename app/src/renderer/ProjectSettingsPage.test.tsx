@@ -31,6 +31,8 @@ vi.mock("react", async original => {
 });
 // A portal renders in place here, so the header actions it places are in the tree.
 vi.mock("react-dom", async original => ({ ...await original<typeof import("react-dom")>(), createPortal: (children: ReactNode) => children }));
+const copied = vi.hoisted(() => ({ text: [] as string[], ok: true }));
+vi.mock("./copyText", () => ({ copyText: (text: string) => { copied.text.push(text); return copied.ok; } }));
 
 function all(node: ReactNode): ReactElement<Record<string, unknown>>[] {
   if (Array.isArray(node)) return node.flatMap(all);
@@ -756,4 +758,213 @@ test("the lock is released through the latest onState when the page goes", async
   render({ onState: latest });
   unmount();
   expect(latest).toHaveBeenCalledWith({ locked: false });
+});
+
+// PRODUCT §5 item 0 'Doan files' and draft canvas local-doan-files frames settings-modes, settings-changes,
+// settings-disabled, not-set-up.
+const radios = () => all(tree).filter(element => element.type === "input" && element.props.name === "project-settings-storage");
+const chosen = () => radios().map(element => element.props.checked);
+const closed = () => radios().map(element => element.props.disabled);
+const press = (index: number) => { const input = { focus: vi.fn(), isConnected: true, disabled: false }; (radios()[index]!.props.onChange as (event: unknown) => void)({ currentTarget: input }); return input; };
+const sectionTitles = () => all(tree).filter(element => element.type === "h2").map(element => words(element.props.children));
+const withStorage = (facts: object) => (root: string) => Promise.resolve({ ...CONFIG, root, ...facts });
+
+test("the Doan files section sits above Remove from Doan and shows the mode on disk, with the shipped path line in Git", async () => {
+  doan.readConfig!.mockImplementation(withStorage({ storage: "repo" }));
+  await open();
+  expect(sectionTitles()).toEqual(["Token CSS", "Shared with canvases", "Doan files", "Remove from Doan"]);
+  expect(text()).toContain("Applies to every worktree of this project.");
+  expect(text()).toContain("Include in Git");
+  expect(text()).toContain("Keep out of Git (this Mac only)");
+  expect(chosen()).toEqual([true, false]);
+  expect(closed()).toEqual([false, false]);
+  expect(text()).toContain("in this worktree. Commit it so your team gets these settings.");
+  expect(text()).not.toContain("git rm -r --cached .doan");
+});
+
+test("an older doan reports no mode, so the section is not drawn", async () => {
+  await open();
+  expect(sectionTitles()).not.toContain("Doan files");
+});
+
+test("out of Git: the guidance with a Copy button and the path line on this Mac", async () => {
+  doan.readConfig!.mockImplementation(withStorage({ storage: "local" }));
+  copied.text = []; copied.ok = true;
+  await open();
+  expect(chosen()).toEqual([false, true]);
+  expect(text()).toContain("in this worktree, on this Mac only.");
+  expect(text()).not.toContain("Commit it so your team gets these settings.");
+  expect(text()).toContain("was committed before, Git keeps tracking those files. To stop, run this in this project folder, then commit:");
+  expect(text()).toContain("git rm -r --cached .doan");
+  expect(text()).toContain("When teammates pull that commit, Git deletes ");
+  expect(byClass("storage-guidance")[0]!.props.role).toBe("status");
+  click("Copy command");
+  render();
+  expect(copied.text).toEqual(["git rm -r --cached .doan"]);
+  expect(words(button("Copy command").props.children)).toBe("Copied");
+});
+
+test("a press writes at once and locks the page while Saving; Saved then says what changed outside Doan", async () => {
+  doan.readConfig!.mockImplementation(withStorage({ storage: "repo" }));
+  await open();
+  let finish!: (reply: unknown) => void;
+  doan.writeConfig!.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  const input = press(1);
+  render();
+  expect(doan.writeConfig).toHaveBeenCalledWith({ root: ROOT, op: "setStorage", storage: "local" });
+  expect(onState()).toEqual([true]);
+  expect(chosen()).toEqual([false, true]);
+  expect(closed()).toEqual([true, true]);
+  expect(text()).toContain("Saving");
+  // The guidance and the path line follow the mode on disk, so they change once the write is done.
+  expect(text()).not.toContain("git rm -r --cached .doan");
+  doan.readConfig!.mockImplementation(withStorage({ storage: "local" }));
+  finish({ ...CONFIG, changed: true, storage: "local" });
+  await flush(); render(); await flush(); render();
+  expect(onState()).toEqual([true, false]);
+  expect(text()).toContain("Saved");
+  expect(text()).toContain("’s two lines stay in .gitattributes.");
+  expect(text()).toContain("git rm -r --cached .doan");
+  expect(byClass("storage-result")[0]!.props.role).toBe("status");
+  void input;
+});
+
+test("switching back into Git says the files now show in git status", async () => {
+  doan.readConfig!.mockImplementation(withStorage({ storage: "local" }));
+  await open();
+  doan.writeConfig!.mockResolvedValueOnce({ ...CONFIG, changed: true, storage: "repo" });
+  doan.readConfig!.mockImplementation(withStorage({ storage: "repo" }));
+  press(0);
+  await flush(); render(); await flush(); render();
+  expect(doan.writeConfig).toHaveBeenCalledWith({ root: ROOT, op: "setStorage", storage: "repo" });
+  expect(text()).toContain(".doan/ now shows in git status. When you commit it, your team gets it.");
+});
+
+test("a failed write puts its alert under the options and goes back to the mode on disk", async () => {
+  doan.readConfig!.mockImplementation(withStorage({ storage: "repo" }));
+  await open();
+  doan.writeConfig!.mockResolvedValueOnce({ kind: "error", message: "Couldn’t update .git/info/exclude: permission denied." });
+  press(1);
+  await flush(); render();
+  expect(chosen()).toEqual([true, false]);
+  expect(closed()).toEqual([false, false]);
+  const alert = all(tree).find(element => element.props.role === "alert")!;
+  expect(words(alert.props.children)).toContain("Couldn’t update .git/info/exclude: permission denied.");
+  expect(text()).not.toContain("Saved");
+});
+
+test("an option that cannot be chosen is disabled, with one reason each", async () => {
+  doan.readConfig!.mockImplementation(withStorage({ storage: "repo", storageReason: "not_git" }));
+  await open();
+  expect(chosen()).toEqual([true, false]);
+  expect(closed()).toEqual([false, true]);
+  expect(text()).toContain("Keep out of Git needs a Git repository, and this folder isn’t one.");
+  resetHooks();
+  doan.readConfig!.mockImplementation(withStorage({ storage: "unknown", storageReason: "git_unreadable" }));
+  await open();
+  expect(chosen()).toEqual([false, false]);
+  expect(closed()).toEqual([true, true]);
+  expect(byClass("storage-reason")[0]!.props.className).toBe("storage-reason warn");
+  expect(text()).toContain("Doan couldn’t read this repository’s Git metadata, so it can’t tell whether these files are kept out of Git.");
+  expect(text()).toContain("in this worktree.");
+  expect(text()).not.toContain("Commit it so your team gets these settings.");
+  resetHooks();
+  doan.readConfig!.mockImplementation(withStorage({ storage: "repo", storageReason: "exclude_unwritable" }));
+  await open();
+  expect(closed()).toEqual([true, true]);
+  expect(text()).toContain("in this repository, so this setting can’t change here.");
+});
+
+test("a worktree not set up in a project kept out of Git says why it has no Doan files", async () => {
+  const other = `${ROOT}-feature`;
+  const local: FolderEntry = { path: ROOT, kind: "list", servedRev: 0, canvases: [], storage: "local", git: { common: `${ROOT}/.git`, main: ROOT, branch: "main", worktrees: [ROOT, other] } };
+  await open({ root: other, entries: [local, uninitialized(other)] });
+  expect(words(notice()!.props.children)).toContain("This project keeps its Doan files out of Git, so this worktree doesn’t have them yet. Set it up to use Doan here.");
+  expect(hasButton("Set Up")).toBe(true);
+  resetHooks();
+  await open({ root: other, entries: [listed(), uninitialized(other)] });
+  expect(words(notice()!.props.children)).toContain("This folder isn’t set up for Doan yet, so it has no settings to change.");
+});
+
+test("opening the page asks main to read the worktree's project again", async () => {
+  await open();
+  expect(doan.startConfigSession).toHaveBeenCalledWith(ROOT);
+});
+
+// ARCHITECTURE §7 'Settings IPC' 'Storage writes': a mode changed outside Doan reaches the listing (window focus, a
+// group re-read); an open page reads its settings again, but never while its own write is in flight.
+test("a listed mode change re-reads the settings of the open page, but not during its own write", async () => {
+  const git = { common: `${ROOT}/.git`, main: ROOT, branch: "main", worktrees: [ROOT] };
+  const at = (storage: "repo" | "local", storageReason?: "exclude_unwritable"): FolderEntry => ({ path: ROOT, kind: "list", servedRev: 0, canvases: [], git, storage, ...(storageReason ? { storageReason } : {}) });
+  doan.readConfig!.mockImplementation(withStorage({ storage: "repo" }));
+  await open({ entries: [at("repo")] });
+  expect(doan.readConfig).toHaveBeenCalledTimes(1);
+  render({ entries: [at("repo")] });
+  expect(doan.readConfig).toHaveBeenCalledTimes(1);
+  doan.readConfig!.mockImplementation(withStorage({ storage: "local" }));
+  render({ entries: [at("local")] });
+  await flush(); render();
+  expect(doan.readConfig).toHaveBeenCalledTimes(2);
+  expect(chosen()).toEqual([false, true]);
+  render({ entries: [at("local", "exclude_unwritable")] });
+  await flush(); render();
+  expect(doan.readConfig).toHaveBeenCalledTimes(3);
+  // Its own write: the entries change mid-write, and only the write's own read follows it.
+  let finish!: (reply: unknown) => void;
+  doan.writeConfig!.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  press(0);
+  render();
+  render({ entries: [at("repo")] });
+  await flush();
+  expect(doan.readConfig).toHaveBeenCalledTimes(3);
+  doan.readConfig!.mockImplementation(withStorage({ storage: "repo" }));
+  finish({ ...CONFIG, changed: true, storage: "repo" });
+  await flush(); render(); await flush(); render();
+  expect(doan.readConfig).toHaveBeenCalledTimes(4);
+  expect(chosen()).toEqual([true, false]);
+});
+
+// A mode change that arrives while a write runs is read after that write, whether it succeeded or failed;
+// the same listing arriving again afterwards reads nothing more.
+test("a listed mode change during a write is read after the write, also when the write fails", async () => {
+  const git = { common: `${ROOT}/.git`, main: ROOT, branch: "main", worktrees: [ROOT] };
+  const at = (storage: "repo" | "local"): FolderEntry => ({ path: ROOT, kind: "list", servedRev: 0, canvases: [], git, storage });
+  doan.readConfig!.mockImplementation(withStorage({ storage: "repo" }));
+  await open({ entries: [at("repo")] });
+  let finish!: (reply: unknown) => void;
+  doan.writeConfig!.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  press(1);
+  render();
+  doan.readConfig!.mockImplementation(withStorage({ storage: "local" }));
+  render({ entries: [at("local")] });
+  await flush();
+  expect(doan.readConfig).toHaveBeenCalledTimes(1);
+  finish({ kind: "error", message: "Couldn’t update .git/info/exclude: permission denied." });
+  await flush(); render(); await flush(); render();
+  expect(doan.readConfig).toHaveBeenCalledTimes(2);
+  expect(chosen()).toEqual([false, true]);
+  render({ entries: [at("local")] });
+  await flush();
+  expect(doan.readConfig).toHaveBeenCalledTimes(2);
+});
+
+// Seen in the real app: the group re-read after a mode write reached the open page as a listed change;
+// its config read disabled the options and dropped the focus just returned to the chosen radio. A read for a change
+// made elsewhere refreshes quietly: the controls stay as they are.
+test("a listed mode change refreshes the settings without disabling the controls", async () => {
+  const git = { common: `${ROOT}/.git`, main: ROOT, branch: "main", worktrees: [ROOT] };
+  const at = (storage: "repo" | "local"): FolderEntry => ({ path: ROOT, kind: "list", servedRev: 0, canvases: [], git, storage });
+  doan.readConfig!.mockImplementation(withStorage({ storage: "repo" }));
+  await open({ entries: [at("repo")] });
+  let finish!: (reply: unknown) => void;
+  doan.readConfig!.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  render({ entries: [at("local")] });
+  await flush(); render();
+  expect(doan.readConfig).toHaveBeenCalledTimes(2);
+  expect(closed()).toEqual([false, false]);
+  expect(hasButton("Change")).toBe(true);
+  expect(button("Change").props.disabled).toBe(false);
+  finish({ ...CONFIG, root: ROOT, storage: "local" });
+  await flush(); render();
+  expect(chosen()).toEqual([false, true]);
 });

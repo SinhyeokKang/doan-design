@@ -2,11 +2,16 @@ import { useEffect, useRef, useState } from "react";
 import type { ProjectInitResult } from "../main/shell";
 import { formView, initMessage, type ProjectForm } from "./onboardingView";
 import { AlertIcon } from "./AlertIcon";
+import { StorageField } from "./StorageChoice";
+import type { StorageChoice } from "./storageRules";
 
 // One project setup form, used by the wizard's Project step and the sidebar's
 // Set Up dialog. Main keeps the picked CSS file; the renderer holds only its ID.
-export function useProjectSetup(root: string) {
+// kept: another worktree of the project keeps its Doan files out of Git, so setup follows it with plain init and the
+// form offers no choice (PRODUCT §5 item 0 'Doan files'). A refused setup keeps the chosen mode.
+export function useProjectSetup(root: string, kept = false) {
   const [token, setToken] = useState<{ id: string; path: string } | null>(null);
+  const [storage, setStorage] = useState<StorageChoice>("repo");
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const live = useRef(true);
@@ -23,7 +28,7 @@ export function useProjectSetup(root: string) {
     if (running) return null;
     setRunning(true); setError(null);
     let result: ProjectInitResult;
-    try { result = await window.doan.initializeProject({ root, choiceId: token?.id ?? null }); }
+    try { result = await window.doan.initializeProject({ root, choiceId: token?.id ?? null, storage: !kept && storage === "local" ? "local" : null }); }
     catch (failure) { result = { kind: "cliError", reason: failure instanceof Error ? failure.message : String(failure) }; }
     if (!live.current) return result;
     setRunning(false);
@@ -31,11 +36,21 @@ export function useProjectSetup(root: string) {
     return result;
   }
   const form: ProjectForm = { running, token: token?.path ?? null, error, rerooted: null };
-  return { form, choose, setUp };
+  return { form, choose, setUp, storage: { value: storage, kept, change: setStorage } };
 }
 
-export function ProjectFields({ form, choose, chooseRef }: { form: ProjectForm; choose: () => void; chooseRef?: (node: HTMLButtonElement | null) => void }) {
+// The command and the fixed path a refused local setup names read as code, as everywhere else in the dialog.
+const CHIPS = /(git init|\.git\/info\/exclude)/;
+function withCommand(text: string) {
+  const parts = text.split(CHIPS);
+  return parts.length === 1 ? text : <>{parts.map((part, i) => i % 2 === 1 ? <code key={i}>{part}</code> : part)}</>;
+}
+
+export interface StorageInput { value: StorageChoice; kept: boolean; change: (value: StorageChoice) => void }
+export function ProjectFields({ form, choose, chooseRef, storage }: { form: ProjectForm; choose: () => void; chooseRef?: (node: HTMLButtonElement | null) => void; storage: StorageInput }) {
   const view = formView(form);
+  // Kept out of Git, the exclude entry takes the place of the .gitattributes lines; the label is fixed, not the path.
+  const local = storage.kept || storage.value === "local";
   return <>
     <div className="ob-field">
       <span className="ob-label">Token CSS</span>
@@ -43,17 +58,18 @@ export function ProjectFields({ form, choose, chooseRef }: { form: ProjectForm; 
       <button type="button" className="btn doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={view.choose.disabled} ref={chooseRef} onClick={choose}>Choose…</button>
       {view.helper && <span className="ob-helper">{view.helper}</span>}
     </div>
+    <StorageField id="setup-storage" value={storage.value} kept={storage.kept} disabled={form.running} change={storage.change} />
     <div className="ob-field">
       <span className="ob-label">Will add</span>
-      <span className="ob-changes"><span><code>.doan/canvases/</code></span><span><code>.doan/config.json</code></span><span><code>.gitattributes</code> — two lines, if missing</span></span>
+      <span className="ob-changes"><span><code>.doan/canvases/</code></span><span><code>.doan/config.json</code></span><span><code>{local ? ".git/info/exclude" : ".gitattributes"}</code> — two lines, if missing</span></span>
       <span />
     </div>
-    {view.error && <div className="ob-field"><span className="ob-msg error ob-wide" role="alert"><AlertIcon /><span>{view.error}</span></span></div>}
+    {view.error && <div className="ob-field"><span className="ob-msg error ob-wide" role="alert"><AlertIcon /><span>{withCommand(view.error)}</span></span></div>}
   </>;
 }
 
-export function ProjectSetupDialog({ root, name, onClose, onRerooted }: { root: string; name: string; onClose: () => void; onRerooted: (root: string, message: string) => void }) {
-  const { form, choose, setUp } = useProjectSetup(root);
+export function ProjectSetupDialog({ root, name, kept = false, onClose, onRerooted }: { root: string; name: string; kept?: boolean; onClose: () => void; onRerooted: (root: string, message: string) => void }) {
+  const { form, choose, setUp, storage } = useProjectSetup(root, kept);
   const chooseButton = useRef<HTMLButtonElement | null>(null);
   const dialog = useRef<HTMLDialogElement | null>(null);
   const close = () => { if (form.running) return; dialog.current?.close(); onClose(); };
@@ -73,7 +89,7 @@ export function ProjectSetupDialog({ root, name, onClose, onRerooted }: { root: 
     }}>
     <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title">Set up {name}</h3><p className="doan-dialog-description ob-project-path" title={root}>{root}</p></div></div>
     <div className="ob-card">
-      <ProjectFields form={form} choose={() => void choose()} chooseRef={node => { chooseButton.current = node; }} />
+      <ProjectFields form={form} choose={() => void choose()} chooseRef={node => { chooseButton.current = node; }} storage={storage} />
     </div>
     <div className="ob-buttons doan-dialog-actions">
       <button type="button" className="btn doan-button" data-ui-variant="subtle" disabled={form.running} onClick={close}>Cancel</button>

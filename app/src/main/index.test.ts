@@ -68,7 +68,7 @@ const mocks = await vi.hoisted(async () => {
       isActive: vi.fn(() => true), dock: { bounce: vi.fn(() => 7) } }),
     ipc: new Map<string, (...args: unknown[]) => unknown>(),
     shell: { tokenBase: "http://127.0.0.1:1/t/tok/", entries: vi.fn<() => { path: string; kind?: string }[]>(() => []), open: vi.fn<() => Promise<{ root: string } | { refused: string }>>(), reopen: vi.fn(), initialize: vi.fn(), epoch: vi.fn(), dispose: vi.fn(),
-      store: vi.fn(), remove: vi.fn(), replace: vi.fn(), rereadAll: vi.fn(), adopt: vi.fn() },
+      store: vi.fn(), remove: vi.fn(), replace: vi.fn(), rereadAll: vi.fn(), reread: vi.fn(), adopt: vi.fn() },
     flow: { add: vi.fn(), confirm: vi.fn(), judge: vi.fn() },
     createAddFlow: vi.fn(),
     electronShell: { showItemInFolder: vi.fn(), openExternal: vi.fn(), trashItem: vi.fn() },
@@ -650,7 +650,8 @@ test("project setup IPC rejects untrusted frames, arbitrary paths and forged cho
     expect(await invoke(channel, window().webContents, null, { root: ROOT, choiceId: null })).toMatchObject({ kind: "unavailable" });
   }
   mocks.shell.entries.mockReturnValue([{ path: ROOT, kind: "uninitialized" }]);
-  for (const request of [{ root: ROOT, choiceId: "forged" }, { root: ROOT, choiceId: null, tokenCss: "/arbitrary" }, null, { root: ROOT }]) {
+  for (const request of [{ root: ROOT, choiceId: "forged", storage: null }, { root: ROOT, choiceId: null, storage: null, tokenCss: "/arbitrary" }, null, { root: ROOT },
+    { root: ROOT, choiceId: null }, { root: ROOT, choiceId: null, storage: "repo" }, { root: ROOT, choiceId: null, storage: "unknown" }]) {
     expect(await invoke("project:init", window().webContents, null, request)).toMatchObject({ kind: "unavailable" });
   }
   expect(mocks.shell.initialize).not.toHaveBeenCalled();
@@ -665,11 +666,29 @@ test("CSS picker cancellation and choice IDs stay bound to the folder epoch", as
   const picked = await invoke("project:choose-token-css", window().webContents, null, { root: ROOT });
   expect(picked).toMatchObject({ kind: "selected", path: ROOT + "/tokens.css", choiceId: expect.any(String) });
   if (typeof picked !== "object" || picked === null || !("choiceId" in picked)) throw new Error("no choice");
-  expect(await invoke("project:init", window().webContents, null, { root: ROOT, choiceId: picked.choiceId })).toEqual({ kind: "success" });
-  expect(mocks.shell.initialize).toHaveBeenCalledWith(ROOT, ROOT + "/tokens.css");
+  expect(await invoke("project:init", window().webContents, null, { root: ROOT, choiceId: picked.choiceId, storage: null })).toEqual({ kind: "success" });
+  expect(mocks.shell.initialize).toHaveBeenCalledWith(ROOT, ROOT + "/tokens.css", null);
   mocks.shell.initialize.mockClear(); mocks.shell.epoch.mockReturnValue(2);
-  expect(await invoke("project:init", window().webContents, null, { root: ROOT, choiceId: picked.choiceId })).toMatchObject({ kind: "unavailable" });
+  expect(await invoke("project:init", window().webContents, null, { root: ROOT, choiceId: picked.choiceId, storage: null })).toMatchObject({ kind: "unavailable" });
   expect(mocks.shell.initialize).not.toHaveBeenCalled();
+});
+
+// ARCHITECTURE §7 'Settings IPC' 'Storage writes' (POSTMORTEM 2026-11-03 'Locate on the Project Settings page…'): a
+// setup kept out of Git writes the shared exclude file, so every worktree of the project is read again, as after a
+// Project Settings write.
+test("a local setup reads every worktree of its project again; a setup in Git or a failed one does not", async () => {
+  const A = "/w/studio", B = "/w/studio-b";
+  const git = { common: `${A}/.git`, main: A, worktrees: [A, B] };
+  mocks.shell.entries.mockReturnValue([{ path: A, kind: "list", canvases: [], servedRev: 0, git, storage: "repo" } as { path: string; kind?: string }, { path: B, kind: "uninitialized" }]);
+  mocks.shell.initialize.mockResolvedValue({ kind: "success" });
+  expect(await invoke("project:init", window().webContents, null, { root: B, choiceId: null, storage: "local" })).toEqual({ kind: "success" });
+  expect(mocks.shell.initialize).toHaveBeenCalledWith(B, null, "local");
+  expect(mocks.shell.reread).toHaveBeenCalledExactlyOnceWith([A, B]);
+  mocks.shell.reread.mockClear();
+  await invoke("project:init", window().webContents, null, { root: B, choiceId: null, storage: null });
+  mocks.shell.initialize.mockResolvedValueOnce({ kind: "error", code: "local_not_git", message: "m", guidance: "g" });
+  await invoke("project:init", window().webContents, null, { root: B, choiceId: null, storage: "local" });
+  expect(mocks.shell.reread).not.toHaveBeenCalled();
 });
 
 test("a picker finishing after its project closes cannot retain a choice", async () => {
@@ -1931,6 +1950,26 @@ describe("settings page", () => {
     mocks.dialog.showOpenDialog.mockResolvedValueOnce({ canceled: false, filePaths: [`${ROOT}/tokens.css`] });
     expect(await invoke("config:choose", contents, null, { root: ROOT, kind: "tokenCss" })).toMatchObject({ kind: "selected", path: `${ROOT}/tokens.css` });
     expect(mocks.dialog.showOpenDialog).toHaveBeenCalledWith(window(), expect.objectContaining({ defaultPath: ROOT }));
+  });
+
+  // ARCHITECTURE §7 'Settings IPC' 'Storage writes': the mode belongs to every worktree of the project, so writing it
+  // in worktree A reads B again, and opening the page reads its group again for a mode changed outside Doan.
+  test("a mode written in one worktree reads every worktree of its project again", async () => {
+    const git = { common: `${ROOT}/.git`, main: ROOT, worktrees: [ROOT, `${ROOT}-b`, `${ROOT}-c`] };
+    const entries = [{ ...LIST, git }, { path: `${ROOT}-b`, kind: "list", canvases: [], servedRev: 0, git }, { path: `${ROOT}-c`, kind: "uninitialized" }, { path: "/elsewhere", kind: "list", canvases: [], servedRev: 0 }];
+    mocks.shell.entries.mockReturnValue(entries);
+    const contents = window().webContents;
+    mocks.runConfig.mockResolvedValueOnce({ exitCode: 0, timedOut: false, stderr: "", stdout: JSON.stringify({ v: 1, ok: true, result: { repo: ROOT, serve: [], changed: true, storage: "local" } }) });
+    expect(await invoke("config:write", contents, null, { root: ROOT, op: "setStorage", storage: "local" })).toMatchObject({ kind: "config", storage: "local" });
+    expect(mocks.runConfig).toHaveBeenLastCalledWith(expect.any(String), ROOT, ["--storage", "local"]);
+    expect(mocks.shell.reread).toHaveBeenCalledExactlyOnceWith([ROOT, `${ROOT}-b`, `${ROOT}-c`]);
+    mocks.shell.reread.mockClear();
+    await invoke("config:session-start", contents, null, { root: `${ROOT}-b` });
+    expect(mocks.shell.reread).toHaveBeenCalledExactlyOnceWith([ROOT, `${ROOT}-b`, `${ROOT}-c`]);
+    mocks.shell.reread.mockClear();
+    await invoke("config:session-start", contents, null, { root: "/not-stored" });
+    await invoke("config:session-start", contents, null);
+    expect(mocks.shell.reread).not.toHaveBeenCalled();
   });
 
   describe("dialog session", () => {

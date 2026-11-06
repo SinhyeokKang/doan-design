@@ -42,6 +42,8 @@ function deps(registered: string[] = [], init: (root: string) => ProjectInitResu
     add: vi.fn(async (path: string): Promise<string | null> => { if (!registered.includes(path)) registered.push(path); return path; }),
     initialize: vi.fn(async (r: string) => init(r)),
     remotes: vi.fn((r: string) => readGitRemotes(r, temp())),
+    keepsLocal: vi.fn((_path: string) => false),
+    keepLocal: vi.fn(async (_root: string): Promise<{ ok: true } | { ok: false; code: string }> => ({ ok: true })),
   } satisfies ProjectDeps;
   return { deps: d, registered };
 }
@@ -62,6 +64,43 @@ describe("planned changes", () => {
     expect(await plannedChanges(both, { kind: "uninitialized" })).toEqual([".doan/config.json"]);
     const setUp = repo(temp(), { canvases: true, config: "{\"v\":1}", attributes: ".doan/comments/*.jsonl merge=union\n" });
     expect(await plannedChanges(setUp, { kind: "list", root: setUp, scope: [], canvases: [] })).toEqual([]);
+  });
+});
+
+// PRODUCT §5 item 0 'Doan files': the plan follows the mode. Kept out of Git, setup adds the exclude entry (by its
+// fixed label) instead of the .gitattributes lines; a folder whose project already keeps them out of Git plans neither.
+describe("planned changes by storage mode", () => {
+  it("name the exclude entry instead of .gitattributes for local, and neither for a project already local", async () => {
+    const bare = temp();
+    expect(await plannedChanges(bare, { kind: "uninitialized" }, "repo")).toEqual([".doan/canvases/", ".doan/config.json", ".gitattributes"]);
+    expect(await plannedChanges(bare, { kind: "uninitialized" }, "local")).toEqual([".doan/canvases/", ".doan/config.json", ".git/info/exclude"]);
+    expect(await plannedChanges(bare, { kind: "uninitialized" }, "kept")).toEqual([".doan/canvases/", ".doan/config.json"]);
+    const partly = repo(temp(), { canvases: true });
+    expect(await plannedChanges(partly, { kind: "uninitialized" }, "local")).toEqual([".doan/config.json", ".git/info/exclude"]);
+    expect(await plannedChanges(partly, { kind: "list", root: partly, scope: [], canvases: [] }, "local")).toEqual([]);
+  });
+
+  it("inspection plans for the requested mode unless the folder's project already decided it", async () => {
+    const fresh = repo(temp());
+    expect(await inspectPath(fresh, deps().deps, null, "local")).toEqual({ ok: true, candidates: [{ path: fresh, changes: [".doan/canvases/", ".doan/config.json", ".git/info/exclude"], storage: "local" }] });
+    expect(await inspectPath(fresh, deps().deps, null, "repo")).toEqual({ ok: true, candidates: [{ path: fresh, changes: [".doan/canvases/", ".doan/config.json", ".gitattributes"] }] });
+    const kept = deps();
+    kept.deps.keepsLocal.mockImplementation(path => path === fresh);
+    for (const storage of ["repo", "local"] as const) {
+      expect(await inspectPath(fresh, kept.deps, null, storage)).toEqual({ ok: true, candidates: [{ path: fresh, changes: [".doan/canvases/", ".doan/config.json"], storage: "local" }] });
+    }
+  });
+
+  it("shows a set-up folder kept out of Git as local, whatever was requested", async () => {
+    const ready = repo(temp(), { config: "{}" });
+    const d = deps();
+    d.deps.ls.mockImplementation(async target => { const state = cliLs(target); return state.kind === "list" ? { ...state, storage: "local" } : state; });
+    expect(await inspectPath(ready, d.deps, null, "repo")).toEqual({ ok: true, candidates: [{ path: ready, changes: [], storage: "local" }] });
+    const parent = temp();
+    const child = repo(join(parent, "a"), { config: "{}" });
+    expect(await inspectPath(parent, d.deps, null, "repo")).toEqual({ ok: true, candidates: [{ path: child, changes: [], storage: "local" }] });
+    expect(await inspectUrl({ owner: "acme", repository: "studio" }, { ...d.deps, registered: () => [repo(temp(), { remote: "https://github.com/acme/studio", config: "{}" })] }, "repo"))
+      .toEqual([expect.objectContaining({ changes: [], storage: "local" })]);
   });
 });
 
@@ -148,7 +187,7 @@ describe("selectProject", () => {
     const d = deps();
     expect(await selectProject(fresh, true, null, d.deps)).toEqual({ ok: true, root: fresh });
     expect(d.deps.add).toHaveBeenCalledWith(fresh);
-    expect(d.deps.initialize).toHaveBeenCalledWith(fresh);
+    expect(d.deps.initialize).toHaveBeenCalledWith(fresh, null);
     expect(d.registered).toEqual([fresh]);
     const other = repo(temp());
     const without = deps();
@@ -183,17 +222,70 @@ describe("selectProject", () => {
 
   it("reports a failed setup and a store that took nothing", async () => {
     const fresh = repo(temp());
-    expect(await selectProject(fresh, true, null, deps([], () => ({ kind: "error", message: "m", guidance: "g" })).deps)).toEqual({ ok: false, code: "init_failed" });
+    expect(await selectProject(fresh, true, null, deps([], () => ({ kind: "error", code: "internal_error", message: "m", guidance: "g" })).deps)).toEqual({ ok: false, code: "init_failed" });
     const d = deps();
     d.deps.add.mockResolvedValueOnce(null);
     expect(await selectProject(repo(temp()), true, null, d.deps)).toEqual({ ok: false, code: "project_unavailable" });
+  });
+
+  // The init flag comes from the plan; a refused setup is told apart by the CLI's literal codes (ARCHITECTURE §12
+  // 'Storage').
+  it("sets up out of Git when asked and names a refused setup by its code", async () => {
+    const fresh = repo(temp());
+    const d = deps();
+    expect(await selectProject(fresh, true, null, d.deps, "local")).toEqual({ ok: true, root: fresh });
+    expect(d.deps.initialize).toHaveBeenCalledWith(fresh, "local");
+    const refused = (code: string) => deps([], () => ({ kind: "error", code, message: "m", guidance: "g" })).deps;
+    expect(await selectProject(repo(temp()), true, null, refused("local_not_git"), "local")).toEqual({ ok: false, code: "local_not_git" });
+    expect(await selectProject(repo(temp()), true, null, refused("local_exclude_failed"), "local")).toEqual({ ok: false, code: "local_exclude_failed" });
+    // A project already out of Git runs plain init, which can still fail on the exclude file.
+    expect(await selectProject(repo(temp()), true, null, refused("local_exclude_failed"), null)).toEqual({ ok: false, code: "local_exclude_failed" });
+    expect(await selectProject(repo(temp()), true, null, refused("usage_error"), "local")).toEqual({ ok: false, code: "init_failed" });
+    expect(await selectProject(repo(temp()), true, null, refused("internal_error"), "local")).toEqual({ ok: false, code: "init_failed" });
+    const cloned = repo(temp());
+    const c = deps();
+    expect(await registerClone(cloned, c.deps, "local")).toEqual({ ok: true, root: cloned });
+    expect(c.deps.initialize).toHaveBeenCalledWith(cloned, "local");
+  });
+
+  // A cloned repository that brings its own setup is already a project, so init has nothing to do; the person chose
+  // Keep out of Git for this new checkout, so the choice is applied with `doan config --storage local`. Only the two
+  // storage codes keep their meaning there; anything else (a timeout, an unexpected reply)
+  // may have written or not, so it is a general failure that says so. Either way the clone stays and is added.
+  it("applies Keep out of Git to a clone that brings its own setup, and says the clone stayed when that fails", async () => {
+    const cloned = repo(temp(), { config: "{\"v\":1}" });
+    const d = deps([]);
+    expect(await registerClone(cloned, d.deps, "local")).toEqual({ ok: true, root: cloned });
+    expect(d.deps.keepLocal).toHaveBeenCalledExactlyOnceWith(cloned);
+    expect(d.deps.initialize).not.toHaveBeenCalled();
+    const kept = "The repository was cloned and added, but Doan could not keep its files out of Git, so they stay in Git for now. Choose Keep out of Git in its Project Settings to try again.";
+    const unconfirmed = "The repository was cloned and added, but Doan could not confirm whether its files are kept out of Git. Check Doan files in its Project Settings.";
+    for (const [code, expected] of [["local_exclude_failed", { code: "local_exclude_failed", message: kept }], ["local_not_git", { code: "local_not_git", message: kept }],
+      ["internal_error", { code: "init_failed", message: unconfirmed }], ["usage_error", { code: "init_failed", message: unconfirmed }]] as const) {
+      const f = deps([]);
+      f.deps.keepLocal.mockResolvedValueOnce({ ok: false, code });
+      expect(await registerClone(repo(temp(), { config: "{}" }), f.deps, "local"), code).toEqual({ ok: false, ...expected });
+      expect(f.registered).toHaveLength(1);
+    }
+  });
+
+  it("never changes the mode of a clone kept in Git, nor of a folder selected as it is", async () => {
+    const d = deps([]);
+    expect(await registerClone(repo(temp(), { config: "{}" }), d.deps, null)).toMatchObject({ ok: true });
+    const ready = repo(temp(), { config: "{}" });
+    expect(await selectProject(ready, false, null, d.deps, "local")).toEqual({ ok: true, root: ready });
+    expect(d.deps.keepLocal).not.toHaveBeenCalled();
+    const kept = deps([]);
+    kept.deps.ls.mockImplementation(async target => { const state = cliLs(target); return state.kind === "list" ? { ...state, storage: "local" } : state; });
+    expect(await registerClone(repo(temp(), { config: "{}" }), kept.deps, "local")).toMatchObject({ ok: true });
+    expect(kept.deps.keepLocal).not.toHaveBeenCalled();
   });
 
   it("sets up a new clone the same way", async () => {
     const cloned = repo(temp());
     const d = deps();
     expect(await registerClone(cloned, d.deps)).toEqual({ ok: true, root: cloned });
-    expect(d.deps.initialize).toHaveBeenCalledWith(cloned);
+    expect(d.deps.initialize).toHaveBeenCalledWith(cloned, null);
   });
 });
 
@@ -231,7 +323,7 @@ describe("cloneProject", () => {
     const d = deps();
     expect(await cloneProject("u", destination, new AbortController().signal, { ...d.deps, git: async () => ok, run: async () => ({ kind: "cloned", destination }) })).toEqual({ ok: true, root: destination });
     expect(d.registered).toEqual([destination]);
-    expect(d.deps.initialize).toHaveBeenCalledWith(destination);
+    expect(d.deps.initialize).toHaveBeenCalledWith(destination, null);
     expect(await cloneProject("u", "/tmp/y", new AbortController().signal, { ...deps().deps, git: async () => ok, run: async () => ({ kind: "failed", code: "repository_unreachable" }) })).toEqual({ ok: false, code: "repository_unreachable" });
     expect(await cloneProject("u", "/tmp/y", new AbortController().signal, { ...deps().deps, git: async () => ok, run: async () => ({ kind: "cancelled" }) })).toEqual({ ok: false, cancelled: true });
     expect(await cloneProject("u", "/tmp/y", new AbortController().signal, { ...deps().deps, git: async () => ok, run: async () => ({ kind: "failed", code: "cleanup_failed", leftovers: ["/tmp/.y.doan-clone-1"] }) })).toEqual({ ok: false, code: "cleanup_failed", leftovers: ["/tmp/.y.doan-clone-1"] });

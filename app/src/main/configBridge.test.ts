@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import { createConfigBridge } from "./configBridge";
+import { createConfigBridge, storageWrite } from "./configBridge";
 import type { CliRun } from "./folderState";
 
 const ROOT = "/repo";
@@ -15,6 +15,7 @@ function deferred<T>() {
 
 const run = vi.fn<(root: string, args: string[]) => Promise<CliRun>>();
 const pick = vi.fn<(root: string, kind: "tokenCss" | "serve") => Promise<string | null>>();
+const storageWritten = vi.fn<(root: string) => void>();
 let epochs: Map<string, number>;
 let bridge: ReturnType<typeof createConfigBridge>;
 beforeEach(() => {
@@ -22,7 +23,7 @@ beforeEach(() => {
   epochs = new Map([[ROOT, 1]]);
   run.mockResolvedValue(config(["styles"], "tokens.css"));
   pick.mockResolvedValue("/repo/tokens/new.css");
-  bridge = createConfigBridge({ run, pick, epoch: root => epochs.get(root) ?? null });
+  bridge = createConfigBridge({ run, pick, epoch: root => epochs.get(root) ?? null, storageWritten });
 });
 
 test("reads config for a stored, set-up root through the CLI", async () => {
@@ -97,6 +98,35 @@ test("adds a serve entry and clears token CSS", async () => {
   await bridge.write({ root: ROOT, op: "clearTokenCss" });
   expect(run).toHaveBeenLastCalledWith(ROOT, ["--clear-token-css"]);
   expect(await bridge.write({ root: ROOT, op: "clearTokenCss", more: 1 })).toEqual({ kind: "unavailable" });
+});
+
+// ARCHITECTURE §7 'Settings IPC' 'Storage writes': the mode is read with the settings, written at once, and a written
+// mode makes main read the whole project group again.
+test("reads the storage mode with the settings, and leaves it out when an older doan sent none", async () => {
+  run.mockResolvedValueOnce(ok({ repo: ROOT, serve: [], changed: false, storage: "local" }));
+  expect(await bridge.read({ root: ROOT })).toEqual({ kind: "config", root: ROOT, tokenCss: null, serve: [], changed: false, storage: "local" });
+  run.mockResolvedValueOnce(ok({ repo: ROOT, serve: [], changed: false, storage: "repo", storageReason: "exclude_unwritable" }));
+  expect(await bridge.read({ root: ROOT })).toMatchObject({ storage: "repo", storageReason: "exclude_unwritable" });
+  expect(await bridge.read({ root: ROOT })).not.toHaveProperty("storage");
+});
+
+test("writes the storage mode through doan config and has the group read again only after it succeeded", async () => {
+  run.mockResolvedValueOnce(ok({ repo: ROOT, serve: ["styles"], changed: true, storage: "local" }));
+  expect(await bridge.write({ root: ROOT, op: "setStorage", storage: "local" })).toMatchObject({ kind: "config", storage: "local", changed: true });
+  expect(run).toHaveBeenLastCalledWith(ROOT, ["--storage", "local"]);
+  expect(storageWritten).toHaveBeenCalledExactlyOnceWith(ROOT);
+  run.mockResolvedValueOnce(failed("internal_error", "Couldn’t update .git/info/exclude: permission denied."));
+  expect(await bridge.write({ root: ROOT, op: "setStorage", storage: "repo" })).toEqual({ kind: "error", message: "Couldn’t update .git/info/exclude: permission denied." });
+  expect(run).toHaveBeenLastCalledWith(ROOT, ["--storage", "repo"]);
+  expect(storageWritten).toHaveBeenCalledTimes(1);
+});
+
+test("refuses a malformed storage write without running the CLI", async () => {
+  for (const request of [{ root: ROOT, op: "setStorage", storage: "unknown" }, { root: ROOT, op: "setStorage" }, { root: ROOT, op: "setStorage", storage: "local", more: 1 }, { root: "/other", op: "setStorage", storage: "local" }]) {
+    expect(await bridge.write(request), JSON.stringify(request)).toEqual({ kind: "unavailable" });
+  }
+  expect(run).not.toHaveBeenCalled();
+  expect(storageWritten).not.toHaveBeenCalled();
 });
 
 test("removes only a serve path the last read returned, as an absolute path", async () => {
@@ -232,4 +262,12 @@ describe("dialog session", () => {
     expect(await bridge.write({ root: ROOT, op: "removeServe", path: "styles" })).toEqual({ kind: "unavailable" });
     expect(await bridge.read({ root: ROOT })).toMatchObject({ kind: "config", serve: ["styles"] });
   });
+});
+
+// A clone's Keep out of Git applied with `doan config --storage local` succeeds or names the CLI's code.
+test("a storage write outside Project Settings answers success or the CLI's code", () => {
+  expect(storageWrite(ok({ repo: ROOT, serve: [], changed: true, storage: "local" }))).toEqual({ ok: true });
+  expect(storageWrite({ exitCode: 5, timedOut: false, stderr: "", stdout: JSON.stringify({ v: 1, ok: false, error: { code: "local_exclude_failed", message: "m", nextSteps: [] } }) })).toEqual({ ok: false, code: "local_exclude_failed" });
+  expect(storageWrite({ exitCode: null, timedOut: true, stderr: "", stdout: "" })).toEqual({ ok: false, code: "internal_error" });
+  expect(storageWrite({ exitCode: 0, timedOut: false, stderr: "", stdout: "garbage" })).toEqual({ ok: false, code: "internal_error" });
 });

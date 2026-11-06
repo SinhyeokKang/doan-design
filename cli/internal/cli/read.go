@@ -191,6 +191,7 @@ func List(ctx Context, f Flags, args []string) (Outcome, *Error) {
 		orphans = append(orphans, orphan)
 	}
 	result := map[string]any{"root": r.Root, "scope": scope, "canvases": items, "orphans": orphans}
+	addStorageResult(result, repo.ReadStorage(r.Root, ctx.Home))
 	if git := repo.ReadGit(r.Root, ctx.Home); git != nil {
 		result["git"] = git
 	}

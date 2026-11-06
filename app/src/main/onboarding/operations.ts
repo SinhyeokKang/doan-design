@@ -41,6 +41,8 @@ export const OPERATION_MESSAGES: Record<OnboardingOperationErrorCode, string> = 
   cleanup_failed: "Doan could not remove the unfinished clone. Remove it, then try again.",
   config_invalid: "The project settings cannot be read.",
   init_failed: "Doan could not set up the project.",
+  local_not_git: "That folder is not a Git repository, so Doan cannot keep its files out of Git. Set it up with storage repo, or run git init there first.",
+  local_exclude_failed: "Doan could not add its lines to the repository's .git/info/exclude, so nothing was set up. Check that file, then try again.",
   project_unavailable: "The project folder cannot be opened.",
   no_ready_agent: "No agent is ready. Sign in to one first.",
   completion_save_failed: "Doan could not save that setup is complete.",

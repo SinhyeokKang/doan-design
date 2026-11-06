@@ -454,7 +454,7 @@ describe("project inspection", () => {
     t.projects.inspectUrl.mockResolvedValueOnce([{ path: "/Users/ada/studio", changes: [] }]);
     const op = operation(await t.ask({ op: "project_inspect", sessionId: id, requestId: "r4", url: "git@github.com:acme/studio.git", destination: "/Users/ada/new" }));
     expect(op.inspection).toEqual({ inspectionId: expect.any(String), candidates: [{ path: "/Users/ada/studio", changes: [] }], clone: { destination: "/Users/ada/new", changes: ALL } });
-    expect(t.projects.inspectUrl).toHaveBeenCalledWith({ owner: "acme", repository: "studio", transport: "ssh", url: "git@github.com:acme/studio.git" });
+    expect(t.projects.inspectUrl).toHaveBeenCalledWith({ owner: "acme", repository: "studio", transport: "ssh", url: "git@github.com:acme/studio.git" }, "repo");
   });
 
   it("checks a folder chosen for a GitHub URL against that repository, and selection checks it again", async () => {
@@ -467,18 +467,18 @@ describe("project inspection", () => {
     t.projects.inspectPath.mockResolvedValueOnce({ ok: false, code: "remote_mismatch" });
     expect(operation(await t.ask({ op: "project_inspect", sessionId: id, requestId: "r3", path: "/Users/ada/other", url: "https://github.com/acme/studio" })))
       .toMatchObject({ state: "failed", error: { code: "remote_mismatch", message: "That folder belongs to another repository." } });
-    expect(t.projects.inspectPath).toHaveBeenLastCalledWith("/Users/ada/other", repo);
+    expect(t.projects.inspectPath).toHaveBeenLastCalledWith("/Users/ada/other", repo, "repo");
     const op = operation(await t.ask({ op: "project_inspect", sessionId: id, requestId: "r4", path: "/Users/ada/studio", url: "https://github.com/acme/studio" }));
     expect(op.inspection).toEqual({ inspectionId: expect.any(String), candidates: [{ path: "/Users/ada/studio", changes: [] }] });
     await t.ask({ op: "project_select", sessionId: id, requestId: "s1", inspectionId: op.inspection!.inspectionId, path: "/Users/ada/studio" });
-    expect(t.projects.select).toHaveBeenCalledWith("/Users/ada/studio", false, repo);
+    expect(t.projects.select).toHaveBeenCalledWith("/Users/ada/studio", false, repo, null);
   });
 
   it("checks a picked folder without a URL for no repository", async () => {
     const t = setup();
     const id = await session(t);
     await t.ask({ op: "project_inspect", sessionId: id, requestId: "r1", path: "/Users/ada/studio" });
-    expect(t.projects.inspectPath).toHaveBeenCalledWith("/Users/ada/studio", null);
+    expect(t.projects.inspectPath).toHaveBeenCalledWith("/Users/ada/studio", null, "repo");
   });
 
   it("answers running past its reply limit and finishes on status", async () => {
@@ -521,7 +521,7 @@ describe("project selection", () => {
     const { id, inspectionId } = await inspected(t);
     expect(await t.ask({ op: "project_select", sessionId: id, requestId: "s1", inspectionId, path: "/Users/ada/other" })).toMatchObject({ ok: false, error: { code: "not_candidate" } });
     expect(operation(await t.ask({ op: "project_select", sessionId: id, requestId: "s2", inspectionId, path: "/Users/ada/studio" }))).toMatchObject({ kind: "project_select", state: "succeeded", project: { root: "/Users/ada/studio" } });
-    expect(t.projects.select).toHaveBeenCalledWith("/Users/ada/studio", false, null);
+    expect(t.projects.select).toHaveBeenCalledWith("/Users/ada/studio", false, null, null);
     expect(state(await t.ask({ op: "status", sessionId: id })).project).toEqual({ root: "/Users/ada/studio" });
   });
 
@@ -531,7 +531,7 @@ describe("project selection", () => {
     expect(await t.ask({ op: "project_select", sessionId: id, requestId: "s1", inspectionId, path: "/Users/ada/studio" })).toMatchObject({ ok: false, error: { code: "initialize_required" } });
     expect(t.projects.select).not.toHaveBeenCalled();
     expect(operation(await t.ask({ op: "project_select", sessionId: id, requestId: "s2", inspectionId, path: "/Users/ada/studio", initialize: true }))).toMatchObject({ state: "succeeded" });
-    expect(t.projects.select).toHaveBeenCalledWith("/Users/ada/studio", true, null);
+    expect(t.projects.select).toHaveBeenCalledWith("/Users/ada/studio", true, null, null);
   });
 
   it("goes stale as soon as a newer inspection starts, from the window or a client", async () => {
@@ -549,6 +549,90 @@ describe("project selection", () => {
     t.projects.select.mockResolvedValueOnce({ ok: false, code: "remote_mismatch" });
     expect(operation(await t.ask({ op: "project_select", sessionId: id, requestId: "s2", inspectionId, path: "/Users/ada/studio" }))).toMatchObject({ state: "failed", error: { code: "remote_mismatch", message: expect.any(String) } });
     expect(state(await t.ask({ op: "status", sessionId: id })).project).toEqual({ root: "/Users/ada/studio" });
+  });
+});
+
+// ARCHITECTURE §4 'Storage in onboarding': the inspection plans for the requested storage, a reply speaks of storage
+// only to a request that did (older clients reject unknown properties), and select or clone must restate the storage
+// the reply showed.
+describe("storage mode", () => {
+  const LOCAL = [".doan/canvases/", ".doan/config.json", ".git/info/exclude"];
+  const KEPT = [".doan/canvases/", ".doan/config.json"];
+  const found = { ok: true as const, candidates: [{ path: "/Users/ada/studio", changes: LOCAL, storage: "local" as const }, { path: "/Users/ada/studio-x", changes: KEPT, storage: "local" as const }, { path: "/Users/ada/done", changes: [], storage: "local" as const }] };
+
+  it("shows storage only to a request that carried it, and plans for the mode it named", async () => {
+    const t = setup();
+    const id = await session(t);
+    t.projects.inspectPath.mockResolvedValueOnce(found);
+    const asked = operation(await t.ask({ op: "project_inspect", sessionId: id, requestId: "i1", path: "/Users/ada/code", storage: "local" }));
+    expect(t.projects.inspectPath).toHaveBeenLastCalledWith("/Users/ada/code", null, "local");
+    expect(asked.inspection!.candidates).toEqual(found.candidates);
+    // An older CLI's plain inspect: the kept project's real plan, no storage key (*-storageless.json).
+    t.projects.inspectPath.mockResolvedValueOnce({ ok: true, candidates: [found.candidates[1]!, found.candidates[2]!] });
+    const plain = operation(await t.ask({ op: "project_inspect", sessionId: id, requestId: "i2", path: "/Users/ada/code" }));
+    expect(t.projects.inspectPath).toHaveBeenLastCalledWith("/Users/ada/code", null, "repo");
+    expect(plain.inspection!.candidates).toEqual([{ path: "/Users/ada/studio-x", changes: KEPT }, { path: "/Users/ada/done", changes: [] }]);
+  });
+
+  it("refuses a selection whose storage is not the one shown, and sets up out of Git only for a plan that adds the exclude entry", async () => {
+    const t = setup();
+    const id = await session(t);
+    t.projects.inspectPath.mockResolvedValueOnce(found);
+    const { inspectionId } = operation(await t.ask({ op: "project_inspect", sessionId: id, requestId: "i1", path: "/Users/ada/code", storage: "repo" })).inspection!;
+    for (const [requestId, extra] of [["s1", {}], ["s2", { storage: "repo" }]] as const) {
+      expect(await t.ask({ op: "project_select", sessionId: id, requestId, inspectionId, path: "/Users/ada/studio", initialize: true, ...extra })).toMatchObject({ ok: false, error: { code: "inspection_stale" } });
+    }
+    expect(t.projects.select).not.toHaveBeenCalled();
+    expect(operation(await t.ask({ op: "project_select", sessionId: id, requestId: "s3", inspectionId, path: "/Users/ada/studio", initialize: true, storage: "local" }))).toMatchObject({ state: "succeeded" });
+    expect(t.projects.select).toHaveBeenLastCalledWith("/Users/ada/studio", true, null, "local");
+    // The project already keeps its files out of Git: plain init follows it.
+    expect(operation(await t.ask({ op: "project_select", sessionId: id, requestId: "s4", inspectionId, path: "/Users/ada/studio-x", initialize: true, storage: "local" }))).toMatchObject({ state: "succeeded" });
+    expect(t.projects.select).toHaveBeenLastCalledWith("/Users/ada/studio-x", true, null, null);
+    // Already set up: nothing is written, so its storage is not asked.
+    expect(operation(await t.ask({ op: "project_select", sessionId: id, requestId: "s5", inspectionId, path: "/Users/ada/done" }))).toMatchObject({ state: "succeeded" });
+  });
+
+  it("a plain inspect of a project kept out of Git is selected without storage and follows it", async () => {
+    const t = setup();
+    const id = await session(t);
+    t.projects.inspectPath.mockResolvedValueOnce({ ok: true, candidates: [found.candidates[1]!] });
+    const { inspectionId } = operation(await t.ask({ op: "project_inspect", sessionId: id, requestId: "i1", path: "/Users/ada/studio-x" })).inspection!;
+    expect(operation(await t.ask({ op: "project_select", sessionId: id, requestId: "s1", inspectionId, path: "/Users/ada/studio-x", initialize: true }))).toMatchObject({ state: "succeeded" });
+    expect(t.projects.select).toHaveBeenLastCalledWith("/Users/ada/studio-x", true, null, null);
+  });
+
+  it("plans a clone kept out of Git and clones it only for that storage", async () => {
+    const t = setup();
+    const id = await session(t);
+    const op = operation(await t.ask({ op: "project_inspect", sessionId: id, requestId: "i1", url: "https://github.com/acme/studio", destination: "/Users/ada/studio", storage: "local" }));
+    expect(op.inspection!.clone).toEqual({ destination: "/Users/ada/studio", changes: LOCAL, storage: "local" });
+    const inspectionId = op.inspection!.inspectionId;
+    expect(await t.ask({ op: "project_clone", sessionId: id, requestId: "c1", inspectionId, destination: "/Users/ada/studio" })).toMatchObject({ ok: false, error: { code: "inspection_stale" } });
+    expect(t.projects.clone).not.toHaveBeenCalled();
+    expect(operation(await t.ask({ op: "project_clone", sessionId: id, requestId: "c2", inspectionId, destination: "/Users/ada/studio", storage: "local" }))).toMatchObject({ state: "succeeded" });
+    expect(t.projects.clone).toHaveBeenLastCalledWith("https://github.com/acme/studio", "/Users/ada/studio", expect.anything(), expect.any(Function), "local");
+    const repo = operation(await t.ask({ op: "project_inspect", sessionId: id, requestId: "i2", url: "https://github.com/acme/studio", destination: "/Users/ada/studio2", storage: "repo" }));
+    expect(repo.inspection!.clone).toEqual({ destination: "/Users/ada/studio2", changes: ALL });
+    expect(await t.ask({ op: "project_clone", sessionId: id, requestId: "c3", inspectionId: repo.inspection!.inspectionId, destination: "/Users/ada/studio2", storage: "local" })).toMatchObject({ ok: false, error: { code: "inspection_stale" } });
+  });
+
+  it("passes a clone's own failure message through, so it can say the clone stayed", async () => {
+    const t = setup();
+    const id = await session(t);
+    const op = operation(await t.ask({ op: "project_inspect", sessionId: id, requestId: "i1", url: "https://github.com/acme/studio", destination: "/Users/ada/studio", storage: "local" }));
+    t.projects.clone.mockResolvedValueOnce({ ok: false, code: "init_failed", message: "The repository was cloned and added, but Doan could not confirm whether its files are kept out of Git. Check Doan files in its Project Settings." });
+    expect(operation(await t.ask({ op: "project_clone", sessionId: id, requestId: "c1", inspectionId: op.inspection!.inspectionId, destination: "/Users/ada/studio", storage: "local" })))
+      .toMatchObject({ state: "failed", error: { code: "init_failed", message: "The repository was cloned and added, but Doan could not confirm whether its files are kept out of Git. Check Doan files in its Project Settings." } });
+  });
+
+  it("names a refused local setup with its own message", async () => {
+    const t = setup();
+    const id = await session(t);
+    t.projects.inspectPath.mockResolvedValueOnce(found);
+    const { inspectionId } = operation(await t.ask({ op: "project_inspect", sessionId: id, requestId: "i1", path: "/Users/ada/code", storage: "local" })).inspection!;
+    t.projects.select.mockResolvedValueOnce({ ok: false, code: "local_not_git" });
+    expect(operation(await t.ask({ op: "project_select", sessionId: id, requestId: "s1", inspectionId, path: "/Users/ada/studio", initialize: true, storage: "local" })))
+      .toMatchObject({ state: "failed", error: { code: "local_not_git", message: "That folder is not a Git repository, so Doan cannot keep its files out of Git. Set it up with storage repo, or run git init there first." } });
   });
 });
 
@@ -583,7 +667,7 @@ describe("clone", () => {
     t.projects.clone.mockImplementationOnce(async (_url: string, _destination: string, s: AbortSignal) => { signal = s; return result.promise; });
     const op = operation(await t.ask({ op: "project_clone", sessionId: id, requestId: "c1", inspectionId, destination }));
     expect(op).toMatchObject({ kind: "project_clone", state: "running" });
-    expect(t.projects.clone).toHaveBeenCalledWith("https://github.com/acme/studio", destination, expect.anything(), expect.any(Function));
+    expect(t.projects.clone).toHaveBeenCalledWith("https://github.com/acme/studio", destination, expect.anything(), expect.any(Function), null);
     expect(await t.ask({ op: "project_clone", sessionId: id, requestId: "c2", inspectionId, destination })).toMatchObject({ ok: false, error: { code: "busy" } });
     const cancelling = operation(await t.ask({ op: "cancel", sessionId: id, requestId: "x1", operationId: op.operationId }));
     expect(cancelling).toMatchObject({ state: "running", cancelling: true });
@@ -719,7 +803,7 @@ describe("clone boundaries", () => {
     const { id, inspectionId } = await planned(t, "/tmp/studio");
     const op = operation(await t.ask({ op: "project_clone", sessionId: id, requestId: "c1", inspectionId, destination: "/tmp/studio" }));
     expect(op).toMatchObject({ state: "succeeded", project: { root: "/private/tmp/studio" } });
-    expect(t.projects.clone).toHaveBeenCalledWith("https://github.com/acme/old", "/private/tmp/studio", expect.anything(), expect.any(Function));
+    expect(t.projects.clone).toHaveBeenCalledWith("https://github.com/acme/old", "/private/tmp/studio", expect.anything(), expect.any(Function), null);
   });
 
   it("takes no cancel once the clone is published", async () => {

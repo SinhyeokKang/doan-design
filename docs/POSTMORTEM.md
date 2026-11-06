@@ -6,6 +6,22 @@
 > Historical `app/e2e/` paths refer to the suite retired on 2026-10-27. Current runtime safety helpers live in `app/runtime/`; use focused probes under `.scratch/`, as specified in AGENTS.md.
 > Some entries name app code removed later: the app's comment UI (`useComments.tsx`, `CommentsSession.ts`, `CommentsPanel.tsx`, `CommentPins.ts` and most of `app/src/comments/` and `app/src/main/comments/`, with their tests) on 2026-11-01; the separate Settings window (`settingsWindow.tsx`) and the `Sidebar.tsx` component on 2026-10-30; Settings > Connections (`ConnectionRows.tsx`, `connectionRowView.ts`, `setupBroker.ts`) on 2026-10-31. Their search commands and test pointers apply only to code that still exists; the comment files, the CLI comment commands and `app/src/comments/projection.ts` remain.
 
+### 2026-11-07 — Setup reported success while the project row still read Not set up
+
+- **Area**: `app/src/main/shell.ts` (`initialize`, `refresh`), `app/src/main/shell.test.ts`.
+- **Symptom**: after a successful `doan init`, the setup answered success but the row stayed `uninitialized`; `shell.test.ts` 'initializes once for simultaneous requests…' and 'init result.repo cannot replace the stored identity' failed under load (earlier seen as a one-off flake of 'initializes a folder stored a moment ago…').
+- **Root cause**: init's own writes wake the folder watcher, whose read can start after the post-init read and finish before it. `refresh` drops a read that a newer one overtook (it returns `false`), and `initialize` ignored that result, so it answered with nothing published from its own read. A stale-read guard that is right for watcher reads turned a caller's "read after my write" into "maybe read".
+- **Net**: caught at integration, when batch G's real CLI changed the timing enough to fail two shell tests consistently; batch A's own runs passed and an earlier flake was dismissed as unrelated. A wrapper test that delays the post-init read behind the watcher's read reproduces it deterministically ('setup answers only once the row is listed…').
+- **Prevention**: a caller that must publish its own post-write state checks `refresh`'s result and re-reads (bounded; `shell.initialize` tries three times and then leaves the row to its watcher). Treat a flake in a test that writes and then reads as a race to reproduce, not noise. Search: `rg -n "await refresh\(" app/src/main --glob '!*.test.*'` (2026-11-07: the watcher callback, which may be overtaken, and `initialize`, now checked).
+
+### 2026-11-07 — The eval fake's auth status comparison broke when the app's DTO gained a field
+
+- **Area**: `eval/lib/socket-app.test.ts`, `app/src/main/agentAuth/state.ts` (`authStatus`).
+- **Symptom**: `node .agents/skills/verify/scripts/verify.mjs --eval` failed at eval-tests (303/304) on main: the fake app's provider status no longer deep-equalled `authStatus` because main `00302c30` added `generation` to it.
+- **Root cause**: the test derives the expected fake status by removing a hand-written list of app-only keys (`account`, `attempt`, `revision`) from the real DTO, so any new app-only field fails the comparison. The change that added the field did not touch `eval/` and did not run `--eval`, which `/verify` only adds for eval runner changes.
+- **Net**: found by the next `--eval` gate run, in the PR that added Doan files storage; the app's own tests and the gate without `--eval` passed.
+- **Prevention**: a change to an agent-auth or onboarding DTO runs `verify.mjs --eval`, since the eval fake mirrors those shapes. Search: `rg -n "const \{ [a-zA-Z]+: _[a-zA-Z]*" eval --glob '*.test.ts'` (2026-11-07: only `socket-app.test.ts`, now also stripping `generation`).
+
 ### 2026-11-07 — The streaming reply's caret sat on its own line under the Markdown
 
 - **Area**: `app/src/renderer/ConversationThread.tsx` (`AgentMessage`, `MarkdownText`), `styles.css` (`.conversation-thread .caret`, `.msg-agent`)

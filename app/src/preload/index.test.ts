@@ -101,9 +101,9 @@ test("asks main for inspector rows on its dedicated IPC channel", async () => {
 
 test("project setup exposes choice IDs and forwards focus with folder state", async () => {
   await api.chooseTokenCss(ROOT);
-  await api.initializeProject({ root: ROOT, choiceId: "choice" });
+  await api.initializeProject({ root: ROOT, choiceId: "choice", storage: "local" });
   expect(mocks.invoke).toHaveBeenCalledWith("project:choose-token-css", { root: ROOT });
-  expect(mocks.invoke).toHaveBeenCalledWith("project:init", { root: ROOT, choiceId: "choice" });
+  expect(mocks.invoke).toHaveBeenCalledWith("project:init", { root: ROOT, choiceId: "choice", storage: "local" });
   const listener = vi.fn(); const stop = api.onFolders(listener);
   emitter.emit("folders", {}, [], { from: "/old", root: ROOT });
   expect(listener).toHaveBeenCalledWith([], { from: "/old", root: ROOT });
@@ -409,11 +409,12 @@ test("settings page calls use fixed channels and pass their requests as data", a
     [() => api.openNotificationSettings(), ["notifications:open-settings"]],
     [() => api.readAbout(), ["about:read"]],
     [() => api.copyAbout(), ["about:copy"]],
-    [() => api.startConfigSession(), ["config:session-start"]],
+    [() => api.startConfigSession("/repo"), ["config:session-start", { root: "/repo" }]],
     [() => api.endConfigSession(), ["config:session-end"]],
     [() => api.readConfig("/repo"), ["config:read", { root: "/repo" }]],
     [() => api.chooseConfigPath("/repo", "serve"), ["config:choose", { root: "/repo", kind: "serve" }]],
     [() => api.writeConfig({ root: "/repo", op: "removeServe", path: "styles" }), ["config:write", { root: "/repo", op: "removeServe", path: "styles" }]],
+    [() => api.writeConfig({ root: "/repo", op: "setStorage", storage: "local" }), ["config:write", { root: "/repo", op: "setStorage", storage: "local" }]],
   ];
   for (const [call, args] of calls) {
     await call();

@@ -11,6 +11,12 @@ import (
 )
 
 func Config(ctx Context, f Flags, args []string) (Outcome, *Error) {
+	if failure := validateStorage(f); failure != nil {
+		return Outcome{}, failure
+	}
+	if (f.Given["storage"] || f.Storage != "") && (f.TokenCSSSet || f.ClearTokenCSS || len(f.AddServe) > 0 || len(f.RemoveServe) > 0) {
+		return Outcome{}, usageError("--storage cannot be combined with other config write flags")
+	}
 	if len(args) != 0 {
 		return Outcome{}, usageError("config takes no positional arguments")
 	}
@@ -69,6 +75,14 @@ func Config(ctx Context, f Flags, args []string) (Outcome, *Error) {
 	if failure != nil {
 		return Outcome{}, failure
 	}
+	var storageResult map[string]any
+	if f.Given["storage"] || f.Storage != "" {
+		out, failure := configStorage(ctx, r.Root, f.Storage)
+		if failure != nil {
+			return Outcome{}, failure
+		}
+		storageResult = out.Result.(map[string]any)
+	}
 	if changed {
 		data, err := json.MarshalIndent(next, "", "  ")
 		if err != nil {
@@ -92,8 +106,18 @@ func Config(ctx Context, f Flags, args []string) (Outcome, *Error) {
 	}
 	serve := append([]string{}, next.Serve...)
 	result := map[string]any{"repo": r.Root, "serve": serve, "changed": changed}
+	addStorageResult(result, repo.ReadStorage(r.Root, ctx.Home))
 	if next.TokenCSS != "" {
 		result["tokenCss"] = next.TokenCSS
+	}
+	if storageResult != nil {
+		result["changed"] = changed || storageResult["changed"] == true
+		written := storageResult["written"].([]string)
+		if changed {
+			written = append(written, ".doan/config.json")
+		}
+		result["written"] = written
+		result["guidance"] = storageResult["guidance"]
 	}
 	return Outcome{Result: result}, nil
 }

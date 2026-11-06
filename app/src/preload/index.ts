@@ -53,7 +53,8 @@ type CopyResult = { kind: "success" } | { kind: "error"; message: string } | { k
 export type ConfigWrite =
   | { root: string; op: "setTokenCss" | "addServe"; choiceId: string }
   | { root: string; op: "clearTokenCss" }
-  | { root: string; op: "removeServe"; path: string };
+  | { root: string; op: "removeServe"; path: string }
+  | { root: string; op: "setStorage"; storage: "repo" | "local" };
 
 // Events with a current value: the value is asked for too, because the first
 // event can come before the listener. An event that arrives first wins.
@@ -428,7 +429,8 @@ const api = {
   copyAbout: (): Promise<CopyResult> => ipcRenderer.invoke("about:copy"),
   // Project Settings page: start a session when it mounts and end it when it unmounts; replies to calls of an ended
   // session answer unavailable.
-  startConfigSession: (): Promise<void> => ipcRenderer.invoke("config:session-start"),
+  // root: the worktree the page opens; main reads its project group again.
+  startConfigSession: (root: string): Promise<void> => ipcRenderer.invoke("config:session-start", { root }),
   endConfigSession: (): Promise<void> => ipcRenderer.invoke("config:session-end"),
   readConfig: (root: string): Promise<ConfigReply> => ipcRenderer.invoke("config:read", { root }),
   // A sheet on this window; only the choice id goes back in writeConfig.

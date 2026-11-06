@@ -8,6 +8,7 @@ import { openFolderStore } from "./folderStore";
 import { classifyDesignChange } from "./designChange";
 import { folderState, initOutcome, reconcileFolders, type FolderState, type InitOutcome } from "./folderState";
 import { startServer, type LocalServer } from "./serve/server";
+import type { StorageMode, StorageReason } from "./storage";
 import { folderEntry, openDecision, type FolderEntry } from "./view";
 import { watchFolder, type Change, type FolderWatch } from "./watch";
 
@@ -24,7 +25,8 @@ export interface Shell {
   // The stored root (the picked folder or the repo above it), or a message for
   // the human when the folder is not opened.
   open(picked: string): Promise<{ root: string } | { refused: string }>;
-  initialize(path: string, tokenCss: string | null): Promise<ProjectInitResult>;
+  // storage "local": keep the Doan files out of Git (`init --storage local`); null follows the root's current mode.
+  initialize(path: string, tokenCss: string | null, storage?: "local" | null): Promise<ProjectInitResult>;
   reopen(path: string): Promise<void>;
   // Stores roots main already judged, after the stored ones; resolves to the
   // paths that were not stored yet. A given root already stored becomes hand-added.
@@ -41,6 +43,8 @@ export interface Shell {
   // Re-reads every root without a loading state (the branch may have changed:
   // the watcher does not see `.git/HEAD`).
   rereadAll(): void;
+  // The same for these stored roots only: a mode written for one root changes what its whole group shows.
+  reread(paths: readonly string[]): void;
   dispose(): Promise<void>;
 }
 
@@ -62,6 +66,15 @@ interface Folder {
   scope: string[];
   // The last `git.common` seen; memory only (design 'app side').
   common: string | undefined;
+}
+
+// The mode chosen for setup is not used on a re-root, so the notice says the project's own; an unknown mode, or none
+// from an older doan, is not guessed. Outside Git the CLI reports repo with not_git,
+// which is no Git to include the files in.
+function rerootMessage(root: string, listing: { storage?: StorageMode; storageReason?: StorageReason }): string {
+  const { storage, storageReason } = listing;
+  const kept = storage === "local" ? " and keeps its Doan files out of Git" : storage === "repo" && storageReason !== "not_git" ? " and includes its Doan files in Git" : "";
+  return `This folder is inside ${root}, which is already set up${kept}.`;
 }
 
 // A canvas removed after `doan ls` has no entry; the row then shows no time.
@@ -103,7 +116,8 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
     if (error) console.error("doan: cannot save folders.json", error);
   };
 
-  const refresh = async (folder: Folder, change: Change): Promise<string | null | false> => {
+  // A re-root answers the listing of the root above (its root and storage); null published, false dropped.
+  const refresh = async (folder: Folder, change: Change): Promise<Extract<FolderState, { kind: "list" }> | null | false> => {
     // Decided before the read: names say what changed, the listing does not.
     const design = change.names === undefined ? undefined : classifyDesignChange(change.names);
     if (change.served || design?.bumpServed) folder.servedRev++;
@@ -153,7 +167,7 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
         const write = store.replace(next.folders);
         onChange(entries(), { from: folder.path, root: view.root });
         logWrite(await write);
-        return view.root;
+        return view;
       }
     }
     let mtimes: Map<string, number> | undefined;
@@ -268,6 +282,12 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
     server.removeFolder(folder.key);
   };
 
+  // A missing root lost its watcher (see refresh); attach arms a new one.
+  const reread = (folder: Folder) => {
+    if (folder.watch) void refresh(folder, { reread: true, served: false });
+    else attach(folder);
+  };
+
   for (const path of store.list()) add(path);
 
   return {
@@ -303,7 +323,7 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
       logWrite(await write);
       return { root: path };
     },
-    initialize(path, tokenCss) {
+    initialize(path, tokenCss, storage = null) {
       const folder = folders.get(path);
       const unavailable: ProjectInitResult = { kind: "unavailable", message: "This project is no longer available for setup." };
       if (!folder) return Promise.resolve(unavailable);
@@ -314,11 +334,16 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
       const epoch = folder.epoch;
       const task = (async (): Promise<ProjectInitResult> => {
         const root = await refresh(folder, { reread: true, served: false });
-        if (typeof root === "string") return { kind: "rerooted", root, message: `This folder is inside ${root}, which is already set up.` };
+        if (root) return { kind: "rerooted", root: root.root, message: rerootMessage(root.root, root) };
         if (root === false || folders.get(path) !== folder || folder.epoch !== epoch || folder.entry.kind !== "uninitialized") return unavailable;
-        const outcome = initOutcome(await runInit(cli, path, tokenCss));
+        const outcome = initOutcome(await runInit(cli, path, tokenCss, storage), { tokenCss: tokenCss !== null });
         if (folders.get(path) !== folder || folder.epoch !== epoch) return unavailable;
-        if (outcome.kind === "success") await refresh(folder, { reread: true, served: false });
+        // init's own writes start a watcher read that can overtake this one and drop it as stale. The read is repeated
+        // up to three times, so in the usual race the setup answers after its listing has published; if every try is
+        // overtaken (a folder that keeps changing), it still answers success and the watcher's newer read publishes.
+        if (outcome.kind === "success") {
+          for (let tries = 0; tries < 3 && await refresh(folder, { reread: true, served: false }) === false && folders.get(path) === folder; tries++);
+        }
         return outcome;
       })().finally(() => initializing.delete(folder));
       initializing.set(folder, task);
@@ -387,10 +412,12 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
       return true;
     },
     rereadAll() {
-      for (const folder of folders.values()) {
-        // A missing root lost its watcher (see refresh); attach arms a new one.
-        if (folder.watch) void refresh(folder, { reread: true, served: false });
-        else attach(folder);
+      for (const folder of folders.values()) reread(folder);
+    },
+    reread(paths) {
+      for (const path of new Set(paths)) {
+        const folder = folders.get(path);
+        if (folder) reread(folder);
       }
     },
     async dispose() {

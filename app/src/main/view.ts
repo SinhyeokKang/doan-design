@@ -2,6 +2,7 @@ import type { FolderView } from "./cli";
 import type { FolderState } from "./folderState";
 import { capFrames, type StaticFrame } from "./frameCap";
 import { latestChange } from "./latestChange";
+import type { StorageFacts } from "./storage";
 
 // What the renderer gets over IPC. Main narrows the CLI's `canvases` here so the
 // renderer never handles `unknown` and never sees fields it does not show.
@@ -60,7 +61,8 @@ export type FolderEntry = { path: string; lastCommon?: string; autoRegistered?: 
   // renderer reloads an open canvas on a new value. Only a list is served.
   // `changedAt` is the newest canvas mtime; absent with no canvases.
   // `orphans` is absent only when the CLI sent none (an older doan).
-  | { kind: "list"; canvases: CanvasRow[]; servedRev: number; git?: GitInfo; changedAt?: number; orphans?: OrphanFile[] }
+  // `storage`/`storageReason` are `doan ls`'s, absent from an older doan.
+  | ({ kind: "list"; canvases: CanvasRow[]; servedRev: number; git?: GitInfo; changedAt?: number; orphans?: OrphanFile[] } & StorageFacts)
   | { kind: "uninitialized" }
   | { kind: "error"; message: string }
   | { kind: "cliError"; reason: string }
@@ -129,7 +131,8 @@ export function folderEntry(path: string, view: FolderView, baseUrl: string, ser
         if (mtime !== undefined) row.mtimeMs = mtime;
       }
       const changedAt = latestChange(canvases.map((row) => row.mtimeMs));
-      return { path, kind: "list", canvases, servedRev, ...(view.git ? { git: view.git } : {}), ...(changedAt === undefined ? {} : { changedAt }), ...(view.orphans ? { orphans: view.orphans } : {}) };
+      return { path, kind: "list", canvases, servedRev, ...(view.git ? { git: view.git } : {}), ...(changedAt === undefined ? {} : { changedAt }), ...(view.orphans ? { orphans: view.orphans } : {}),
+        ...(view.storage ? { storage: view.storage } : {}), ...(view.storageReason ? { storageReason: view.storageReason } : {}) };
     }
     case "error":
       return { path, kind: "error", message: view.message };
