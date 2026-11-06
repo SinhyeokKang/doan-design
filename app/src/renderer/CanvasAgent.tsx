@@ -75,7 +75,7 @@ export function CanvasAgent({ list, canvas, running, work, conversationWork = []
     {view && <div className="doan-agent-glow" aria-hidden="true"><DotField running={running} /></div>}
     <div className="doan-canvas-top">
       {view && <div className={action ? "doan-agent" : "doan-agent doan-agent-terminal"}>
-        <span className="doan-agent-dot" data-steady={view.steady ? "" : undefined} aria-hidden="true" />
+        <DoanyArtist still={view.steady || !running} />
         <WorkWords view={view} moment={moment} />
         {!action ? null : action.kind === "stop"
           // aria-disabled, not disabled: "Stopping" keeps focus (design §2 'Esc와 포커스').
@@ -89,7 +89,7 @@ export function CanvasAgent({ list, canvas, running, work, conversationWork = []
           14 = the tooltip's usual 4px gap plus the 10px between the 20px text line and the 40px capsule's bottom, so it
           clears the capsule instead of covering it. */}
       {sibling && <div className="doan-agent doan-agent-sibling">
-        <span className="doan-agent-dot" aria-hidden="true" />
+        <DoanyArtist still={!running} />
         <Tooltip><TooltipTrigger asChild><span className="doan-agent-text" role="status">{`Agent is working in ${sibling.label}`}</span></TooltipTrigger>
           <TooltipContent side="bottom" sideOffset={14}>{`Agent is working on this canvas in ${sibling.label}`}</TooltipContent></Tooltip>
         <button type="button" className="doan-button doan-agent-action" data-ui-size="sm" aria-label={`Open this canvas in ${sibling.label}`} onClick={() => onOpenSibling(sibling.root)}>Open</button>
@@ -152,6 +152,16 @@ function WorkWords({ view, moment }: { view: AgentNoticeView; moment: NoticeMome
     <span className="doan-agent-measure" aria-hidden="true" ref={measure} />
     <span className="sr-only" role="status">{view.status}</span>
   </>;
+}
+
+// Doany the artist in the notice's mark slot (.doan/canvases/doany-artist.html). A GIF cannot pause, so a still Doany
+// is its first frame: waiting, and while the workspace is hidden (the dot field pauses then too). The picture source
+// keeps the first frame under reduced motion in every state.
+function DoanyArtist({ still }: { still: boolean }) {
+  return <span className="doan-agent-artist" aria-hidden="true"><picture>
+    <source srcSet="doany/artist-rest.png" media="(prefers-reduced-motion: reduce)" />
+    <img src={still ? "doany/artist-rest.png" : "doany/artist-painting.gif"} alt="" />
+  </picture></span>;
 }
 
 // The board-wide dot field (design §2): canvas 2D, two virtual spots sweeping the board (the second walks the first's

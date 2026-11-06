@@ -82,7 +82,7 @@ code, kbd { font-family: var(--type-family); }
    and portalled surfaces turn transparent. Opacity only, so nothing moves and the focused tool keeps focus (POSTMORTEM
    2026-11-03, never visibility or display); !important beats the agent glow's opacity animation. Here, not inline:
    the renderer CSP blocks inline styles (PoC C1). */
-[data-capture-snapshot] :is(.overlay, .capture-marquee, .doan-canvas-top, .doan-canvas-bottom, .doan-agent-glow, .doan-agent-dot, .toast, [data-radix-popper-content-wrapper]) { opacity: 0 !important; }
+[data-capture-snapshot] :is(.overlay, .capture-marquee, .doan-canvas-top, .doan-canvas-bottom, .doan-agent-glow, .doan-agent-artist, .toast, [data-radix-popper-content-wrapper]) { opacity: 0 !important; }
 /* Overlay marks (select-inspect draft): screen px, so lines stay 1px at any scale. */
 /* Agents draw canvases in any colour, so the dark line carries a white outer line to stay visible. */
 .mark { position: absolute; border: 1px solid var(--border-focus); box-shadow: 0 0 0 1px var(--surface-panel); }
@@ -1443,11 +1443,10 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .doan-agent .doan-button.doan-agent-action[aria-disabled="true"] { color: color-mix(in srgb, var(--text-on-prominent) 60%, transparent); cursor: default; }
 .doan-agent-action svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
 /* One accent dot that grows and shrinks, with a ring spreading from it in step; still while the agent waits. */
-.doan-agent-dot { position: relative; flex: none; width: var(--space-2); height: var(--space-2); border-radius: 50%; background: var(--affordance-accent); animation: doan-agent-breathe 2.4s var(--ease-state) infinite; }
-.doan-agent-dot::after { content: ""; position: absolute; inset: 0; border-radius: 50%; box-shadow: 0 0 0 0 color-mix(in srgb, var(--affordance-accent) 70%, transparent); animation: doan-agent-ring 2.4s var(--ease-settle) infinite; }
-.doan-agent-dot[data-steady], .doan-agent-dot[data-steady]::after { animation: none; }
-@keyframes doan-agent-breathe { 0%, 100% { transform: scale(.75); } 50% { transform: scale(1.25); } }
-@keyframes doan-agent-ring { to { box-shadow: 0 0 0 var(--space-2) transparent; } }
+/* Doany the artist (.doan/canvases/doany-artist.html): a 32px window in the 40px card, 8px from its start. */
+.doan-agent:has(> .doan-agent-artist) { padding-left: var(--space-2); }
+.doan-agent-artist { display: block; flex: none; width: var(--size-control-sm); height: var(--size-control-sm); }
+.doan-agent-artist img { display: block; width: 100%; height: 100%; }
 /* The working notice's line holds the text and its caret (work-update decisions 19–20, draft frame notice-typing): the
    caret follows the last visible character, after the ellipsis when cut, and a width floor's extra room stays empty
    after it. The measuring node takes the text's type and no room. */
@@ -1461,7 +1460,7 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 @media (forced-colors: active) { .doan-agent-caret { forced-color-adjust: none; background: CanvasText; } }
 @media (prefers-reduced-motion: reduce) {
   .doan-agent-caret { animation: none; }
-  .doan-agent-glow, .doan-agent-dot, .doan-agent-dot::after { animation: none; }
+  .doan-agent-glow { animation: none; }
 }
 @media (prefers-reduced-transparency: reduce) {
   .doan-agent { background: var(--affordance-prominent); -webkit-backdrop-filter: none; backdrop-filter: none; }
