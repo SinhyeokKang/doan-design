@@ -91,9 +91,9 @@ describe("threadItems", () => {
   });
 
   test("an attachment-only request shows no text; the same words typed by the person stay", () => {
-    expect(splitRequest("Look at the attached files.", 1)).toEqual({ preset: null, body: "" });
-    expect(splitRequest("Look at the attached files.", 0)).toEqual({ preset: null, body: "Look at the attached files." });
-    expect(splitRequest("Use the Doan design preset `polish` (Polish (final)).", 0)).toEqual({ preset: { id: "polish", title: "Polish (final)" }, body: "" });
+    expect(splitRequest("Look at the attached files.", 1)).toEqual({ preset: null, skills: [], body: "" });
+    expect(splitRequest("Look at the attached files.", 0)).toEqual({ preset: null, skills: [], body: "Look at the attached files." });
+    expect(splitRequest("Use the Doan design preset `polish` (Polish (final)).", 0)).toEqual({ preset: { id: "polish", title: "Polish (final)" }, skills: [], body: "" });
   });
 
   test("a run of activities folds into one line: the latest while running, N steps once the turn moved on", () => {

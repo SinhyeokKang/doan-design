@@ -20,7 +20,7 @@ import { generationOf, modelsKey } from "./dockedSupport";
 import {
   attachmentChipView, attachmentLimit, chipRemoval, composeRequest, defaultEffort, defaultFast, defaultModel, defaultProject, defaultProvider,
   fixedPreference, greetingText, groupIcon, lengthCounter, modelOption, modelPickerView, presetListView, presetPlaceholder,
-  rootForProject, selectableProvider, sendAvailability, slashQuery, startErrorView, suggestedPresets, suggestedPrompts, TEXT_LIMIT,
+  rootForProject, selectableProvider, sendAvailability, slashKey, slashQuery, startErrorView, suggestedPresets, suggestedPrompts, TEXT_LIMIT,
   type AttachmentDraft, type ModelsState, type NewConversationDefault, type PresetListReply, type PresetSummary,
 } from "./homeComposer";
 import type { LastRequest } from "./homeConversations";
@@ -146,15 +146,7 @@ function HomeStage({ children }: { children: ReactNode }) {
 
 const effortKey = (provider: Provider, model: string) => `${provider}\n${model}`;
 
-// `/` list keys (design §4.9): arrows move, Enter picks unless an IME is composing, Tab closes, Escape closes until
-// the field is empty again.
-export function slashKey(key: string, highlight: number, count: number, composing: boolean): { kind: "move"; highlight: number } | { kind: "pick" } | { kind: "close"; dismiss: boolean } | null {
-  if (key === "ArrowDown" || key === "ArrowUp") return count === 0 ? null : { kind: "move", highlight: (highlight + (key === "ArrowDown" ? 1 : -1) + count) % count };
-  if (key === "Enter") return composing || count === 0 ? null : { kind: "pick" };
-  if (key === "Tab") return { kind: "close", dismiss: true };
-  if (key === "Escape") return { kind: "close", dismiss: true };
-  return null;
-}
+export { slashKey } from "./homeComposer";
 
 // Cmd+V (design §4.8): text pastes as text; Finder files attach by their local path; an image alone attaches as a
 // pasted image. Finder puts the file names on the clipboard as text too, so text that names the copied files is
@@ -289,7 +281,7 @@ export function HeroComposer(props: HeroComposerProps) {
   const chips = [...attachments.map(a => ({ label: attachmentChipView(a, props.homeDirectory).label })), ...(preset ? [{ label: preset.title, preset: true }] : [])];
   const running = root ? props.running.get(root) ?? null : null;
   const availability = sendAvailability({ projects: cards.length, root: entry, projectName: project, auth, provider, text, preset, attachments, running, sending });
-  const composed = composeRequest(text, preset, attachments.length);
+  const composed = composeRequest(text, preset, [], attachments.length);
   const counter = lengthCounter(composed.length);
   const slash = slashQuery(text, dismissed);
   const slashView = slash !== null ? presetListView(m.presets, { project, suggested, query: slash, tab: null, slash: true }) : null;

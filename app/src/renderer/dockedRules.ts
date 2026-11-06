@@ -103,7 +103,7 @@ function providerProblem(auth: AuthSnapshot | null | undefined, provider: Provid
 // What main receives: the preset line and the person's text as Home composes it, each chip a {{n}} marker.
 export function dockedMessage(draft: DockedDraft): { text: string; anchors: Anchor[] } {
   const message = toMessage(draft.segments) ?? { text: typedText(draft.segments), anchors: [] };
-  return { text: composeRequest(message.text, draft.preset, draft.attachments.length), anchors: message.anchors };
+  return { text: composeRequest(message.text, draft.preset, [], draft.attachments.length), anchors: message.anchors };
 }
 
 // A send or start main refused. The limits become the busy line until the host reports the busy conversation and it

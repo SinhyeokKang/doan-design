@@ -55,22 +55,22 @@ const base = (over: Partial<SendInput> = {}): SendInput => ({
 // composeRequest
 
 test("a request without a preset is the user's text, trimmed", () => {
-  expect(composeRequest("  Draw a pricing page.\n\n", null, 0)).toBe("Draw a pricing page.");
+  expect(composeRequest("  Draw a pricing page.\n\n", null, [], 0)).toBe("Draw a pricing page.");
 });
 
 test("a preset adds its one-line header, a blank line, then the user's text", () => {
-  expect(composeRequest("Turn the onboarding screens into a design system.", preset("document"), 0))
+  expect(composeRequest("Turn the onboarding screens into a design system.", preset("document"), [], 0))
     .toBe("Use the Doan design preset `document` (Document the design system).\n\nTurn the onboarding screens into a design system.");
 });
 
 test("a preset alone sends only its header line, even with attachments", () => {
-  expect(composeRequest("   ", preset("critique"), 0)).toBe("Use the Doan design preset `critique` (Critique the design).");
-  expect(composeRequest("", preset("critique"), 2)).toBe("Use the Doan design preset `critique` (Critique the design).");
+  expect(composeRequest("   ", preset("critique"), [], 0)).toBe("Use the Doan design preset `critique` (Critique the design).");
+  expect(composeRequest("", preset("critique"), [], 2)).toBe("Use the Doan design preset `critique` (Critique the design).");
 });
 
 test("attachments alone send the fixed sentence; nothing at all sends nothing", () => {
-  expect(composeRequest(" \n ", null, 1)).toBe("Look at the attached files.");
-  expect(composeRequest("", null, 0)).toBe("");
+  expect(composeRequest(" \n ", null, [], 1)).toBe("Look at the attached files.");
+  expect(composeRequest("", null, [], 0)).toBe("");
 });
 
 test("the placeholder asks for a target once a preset is chosen", () => {
@@ -81,9 +81,9 @@ test("the placeholder asks for a target once a preset is chosen", () => {
 // sendAvailability and the length limit
 
 test("the limit counts the user's text plus the preset header: 32,768 sends, 32,769 does not", () => {
-  const header = composeRequest("", preset("polish"), 0).length + 2;
+  const header = composeRequest("", preset("polish"), [], 0).length + 2;
   const at = "a".repeat(TEXT_LIMIT - header), over = at + "a";
-  expect(composeRequest(at, preset("polish"), 0)).toHaveLength(TEXT_LIMIT);
+  expect(composeRequest(at, preset("polish"), [], 0)).toHaveLength(TEXT_LIMIT);
   expect(sendAvailability(base({ text: at, preset: preset("polish") }))).toEqual({ enabled: true, reason: null });
   expect(sendAvailability(base({ text: over, preset: preset("polish") }))).toEqual({ enabled: false, reason: { kind: "overLimit", text: "Shorten the message to send it." } });
   expect(sendAvailability(base({ text: "a".repeat(TEXT_LIMIT) })).enabled).toBe(true);
@@ -555,7 +555,7 @@ test("grouped presets show Suggested and the five tabs; a tab shows its group in
     { key: "content", label: "Content", icon: "text-align-start", selected: false },
     { key: "explore", label: "Explore", icon: "shapes", selected: false },
   ]);
-  expect(view.sections).toEqual([{ title: "Suggested for doan-design", rows: suggested.map(p => ({ id: p.id, title: p.title, description: p.description, scope: p.scope, tooltip: `${p.description} (/${p.id})`, group: null })) }]);
+  expect(view.sections).toEqual([{ title: "Suggested for doan-design", rows: suggested.map(p => ({ kind: "preset", key: `preset:${p.id}`, icon: groupIcon(p.group), id: p.id, title: p.title, description: p.description, scope: p.scope, tooltip: `${p.description} (/${p.id})`, group: null })) }]);
   const refine = presetListView(listed(), { project: "doan-design", suggested, query: "", tab: "refine" });
   if (refine.kind !== "list") throw new Error("list");
   expect(refine.sections).toHaveLength(1);
@@ -572,7 +572,7 @@ test("no suggestions hides the Suggested tab and opens Start; an unknown group k
 
 test("a query searches every group, drops the tabs and names each row's group", () => {
   const view = presetListView(listed(), { project: "p", suggested: [preset("critique")], query: "cri", tab: "refine" });
-  expect(view).toEqual({ kind: "list", tabs: [], sections: [{ title: null, rows: [{ id: "critique", title: "Critique the design", description: "About critique.", scope: "critique scope", tooltip: "About critique. (/critique)", group: "Review" }] }], summary: "1 preset matches cri" });
+  expect(view).toEqual({ kind: "list", tabs: [], sections: [{ title: null, rows: [{ kind: "preset", key: "preset:critique", icon: "scan-eye", id: "critique", title: "Critique the design", description: "About critique.", scope: "critique scope", tooltip: "About critique. (/critique)", group: "Review" }] }], summary: "1 preset matches cri" });
   const two = presetListView(listed(), { project: "p", suggested: [], query: "the", tab: null });
   if (two.kind !== "list") throw new Error("list");
   expect(two.summary).toBe(`${two.sections[0]!.rows.length} presets match the`);
