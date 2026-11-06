@@ -52,9 +52,17 @@
 
 | 링크 | 세션·worktree | 시작 | PR·병합 | 상태 |
 |---|---|---|---|---|
-| 1 model-drawer-older | — | — | — | 대기(turn-activity 병합 대기) |
+| 1 model-drawer-older | Claude Code, Orca worktree `model-drawer-older-orch` | 2026-11-06 | — | 진행 중 |
 | 2 project-skill-drawer | — | — | — | 대기 |
 
 ## 인계 기록
 
 - 2026-11-06 체인 작성 세션(main checkout, model-drawer-older를 `/feature`·`/design-draft`·`/feature-review`한 세션): 사용자가 model-drawer-older와 project-skill-drawer를 한 체인으로 묶었다. 같은 날 `/chain` 규칙을 바꿔, 코드·테스트·시안이 겹치지 않는 링크는 병렬로 돌게 했다(`cbce13d5`). 이 두 링크는 겹치므로 직렬이다. 사용자가 Codex 작업자를 허용했다. turn-activity가 main에 병합되면 이 세션이 첫 지휘자를 시작한다.
+- 2026-11-06 링크 1 지휘자(worktree `model-drawer-older-orch`), turn-activity 병합(PR #111, `d936d157`) 확인 뒤 시작했다.
+  - **시작 점검 승인**(사용자, 2026-11-06):
+    - project-skill-drawer R1의 한글 IME 확인: 녹화·스크린샷으로 대신하고, 사람 확인 없이 병합한다. 링크 2 지휘자는 조합 중·조합 뒤의 하이라이트와 caret을 녹화나 스크린샷으로 남기고 PR과 이 파일에 위치를 적는다.
+    - 공용 프로필 probe: 전부 승인. F1의 실제 Antigravity 턴과 R1의 실제 Claude Code·Codex 턴을 묻지 않고 돌린다. 로그인이 끊겼을 때만 사용자에게 승인을 요청한다. probe repo를 `folders.json`에 더했다면 끝나고 되돌린다.
+    - `/agent-eval`: 링크 2는 통합 gate에서 돌린다(F1이 skill stub 경로를 옮기므로). 링크 1은 해당하지 않는다.
+    - 체인 끝 로그인 정리: 전부 남긴다. 공용 프로필 userData와 그 Keychain 항목, `.scratch/prompt-suggestion/claude-config`와 Keychain `Claude Code-credentials-dc1943d2`를 지우지 않는다.
+  - 두 링크 문서의 줄 번호 인용을 `d936d157` 코드와 대조했다. model-drawer-older는 모두 맞았고, project-skill-drawer spec·design의 인용 43곳을 고쳤다(`sdk.d.ts` 0.3.312 인용은 맞음). 링크 1이 `homeComposer.ts`·`ComposerParts.tsx`·`styles.css`를 고치므로 링크 2 문서의 그 파일 인용은 링크 1 병합 뒤 다시 어긋날 수 있다. 링크 2 지휘자는 시작할 때 그 파일 인용만 다시 맞춘다.
+  - Codex 주간 한도: 가장 최근 rollout(2026-11-04)의 `rate_limits`에는 30일 창(`window_minutes` 43200, 20% 사용, plan `free`)만 있고 10080분 창이 없다. 링크 1은 작으므로 Codex 작업자를 쓰지 않는다.
