@@ -16,14 +16,15 @@
 - A1을 B1·B2와 한 batch로 묶는다(conductor's call — B1의 "events는 그대로" 기준이 A1 fixture이고 같은 normalizer 파일을 읽는다).
 - B3는 U1과 한 batch로 묶는다(conductor's call — 둘 다 renderer이고 U1이 B3 함수를 바로 쓴다). 단계 type(`types.ts`)은 MA가 만들므로 RU는 MA 통합 뒤에 시작한다.
 - RU의 `App.tsx` 단계 구독과 `conversation:read` 답의 단계 읽기는 C1의 preload API(`onConversationStage`)가 필요하다. RU는 그것을 deferred item으로 남기고, MC 통합 뒤 새 Task로 보낸다.
+- MA 해석 1–4(handoff-MA)는 받아들인다(conductor's call — design §2 표의 Codex 일반은 '같은 item'의 완료이고, Claude 도구 block의 stop에 일반을 내면 도구(event) 상태를 가린다). MA-rev 🟡(Claude 도구 block stop): 해석 2를 유지하고 design §2 표와 tasks P1 Task 관찰을 그에 맞춘다. subagent가 도는 동안 턴 표시는 Task activity다(conductor's call — 결정 2가 Claude 도구 상태를 activity event로 정했다). ACP thought chunk 중복 제거는 단계와 seq를 함께 비교한다(MA가 MC에 넘김).
 - Z1–Z3(문서 승격)은 지휘자가 통합 뒤 문서별 커밋으로 쓴다(orchestrate §4·§5). DESIGN.md는 U2가 쓴다.
 
 ## batch
 
 | batch | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 gate | 상태 |
 |---|---|---|---|---|---|---|
-| MA | A1, B1, B2 | `app/src/main/conversation/fixtures/`의 새 fixture와 `README.md`, `types.ts`, `transport.ts`, `acp.ts`, 그 테스트(`transport.test.ts`, `acp.test.ts`, 새 fixture 테스트) | 없음 | Claude Opus high — 세 provider normalizer의 경계 조건이 많고, fixture의 개인 정보 제거와 "events는 그대로"가 틀리면 기록 형식이 깨진다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 대기 |
-| MA-rev | MA 리뷰 | 없음(보고만) | MA | Codex Astra medium — 다른 계열의 독립 판단 | `/code-review` 보고 | 대기 |
+| MA | A1, B1, B2 | `app/src/main/conversation/fixtures/`의 새 fixture와 `README.md`, `types.ts`, `transport.ts`, `acp.ts`, 그 테스트(`transport.test.ts`, `acp.test.ts`, 새 fixture 테스트) | 없음 | Claude Opus high — 세 provider normalizer의 경계 조건이 많고, fixture의 개인 정보 제거와 "events는 그대로"가 틀리면 기록 형식이 깨진다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 완료 `6d3918a3`·`88b254e2`(worker 기준), test 312 files/8773 pass |
+| MA-rev | MA 리뷰 | 없음(보고만) | MA | Codex Astra medium — 다른 계열의 독립 판단 | `/code-review` 보고 | 완료, 🔴 0 · 🟡 1 · 🟢 1(`.scratch/review-MA.md`). fix 1(테스트만) 진행 중 |
 | MC | C1 | `runners.ts`, `acpRunner.ts`, `dispatcher.ts`, `service.ts`, `ipc.ts`, `app/src/main/index.ts`, `app/src/preload/index.ts`, 그 테스트 | MA 통합 | Claude Opus high — live entry 수명, Stop·archive·종료 경계, 순서 보장이 걸린 동시성 작업 | `npm --prefix app test`, `npm --prefix app run typecheck` | 대기 |
 | MC-rev | MC 리뷰 | 없음 | MC | Codex Astra medium | `/code-review` 보고 | 대기 |
 | RU | B3, U1 | renderer의 새 순수 함수 파일과 테스트, `conversationStore.ts`, `ConversationThread.tsx`, `ProjectOverview.tsx`, `CanvasConversationPanel.tsx`, `styles.css`, `App.tsx`(deferred) | MA 통합(`App.tsx` 구독은 MC 통합) | Claude Opus high — settle·rev·timer·접근성 규칙이 서로 얽힌다 | `npm --prefix app test`, typecheck, `npm --prefix app run build`, `rendererImports.test.ts` | 대기 |

@@ -99,7 +99,7 @@ main의 normalizer가 provider frame을 읽는 같은 자리에서 단계를 함
 
 | provider | 생각 | 도구 | 일반(도구 끝, 모델 요청) |
 |---|---|---|---|
-| Claude | `content_block_start` `thinking`부터 그 block의 `content_block_stop`까지 | 내지 않는다(activity event가 같은 정보를 이미 같은 seq로 낸다, §1 도구(event)) | 도구 결과 `user` frame, `system/status` `requesting`, `content_block_stop` |
+| Claude | `content_block_start` `thinking`부터 그 block의 `content_block_stop`까지 | 내지 않는다(activity event가 같은 정보를 이미 같은 seq로 낸다, §1 도구(event)) | 도구 결과 `user` frame, `system/status` `requesting`, thinking block의 `content_block_stop`(도구·글 block의 stop은 단계를 내지 않는다. 도구 block의 stop에 일반을 내면 같은 seq의 activity를 가려 도는 도구가 "working"으로 보인다) |
 | Codex | 없음 | `item/started`의 `commandExecution` 가운데 `commandActions`가 `read`·`listFiles`·`search` 하나인 것만(결정 6, §3). 다른 도구는 activity event로 충분하므로 내지 않는다 | 같은 item의 `item/completed` |
 | ACP | Copilot `agent_thought_chunk`가 오는 동안. 끝나는 때: `agent_message_chunk`, `tool_call`, status가 있는 `tool_call_update`, terminal. `usage_update`·`plan`·`available_commands_update`·status 없는 `tool_call_update`는 생각을 끝내지 않는다(Copilot은 턴 시작 2.5초쯤 `usage_update`를 보낸다) | `tool_call` pending·in_progress(kind와 `locations`의 경로; `execute`는 명령이라는 사실만, title을 쓰지 않는다). 요약은 completed 때의 activity 요약 코드(`normalizeAcp`)를 함수로 빼서 같은 규칙을 쓴다 | `tool_call_update` completed·failed |
 
