@@ -187,9 +187,19 @@ test("the permission picker follows Effort in the tray, at xs, with its mode and
 test("a terminal session shows a fixed Permission trigger after its fixed Effort", () => {
   const html = render({ fixed: true, permission: permissionPickerView("claude", undefined, "bypass"), onPickPermission: () => {} });
   expect(html).toMatch(/class="composer-permission doan-button is-fixed" data-ui-size="xs" data-ui-variant="trigger" aria-disabled="true" aria-label="Permission: set by the terminal session"[^>]*><svg[^>]*lucide-shield[^-]/);
-  expect(html).toMatch(/aria-label="Permission: set by the terminal session"[^>]*>.*?<span class="label">Default<\/span>/);
+  expect(html).toMatch(/aria-label="Permission: set by the terminal session"[^>]*>.*?<span class="label placeholder">Permission<\/span>/);
   expect(html).not.toContain('data-mode="bypass"');
   expect(html.indexOf("composer-effort")).toBeLessThan(html.indexOf("composer-permission"));
+});
+
+// picker-default-labels B1 (decisions 6, 9): a terminal session's fixed triggers name their drawers, in the placeholder
+// ink; the tooltip and the names still say the terminal sets them.
+test("a terminal session's fixed Effort and Permission triggers read Effort and Permission", () => {
+  const html = render({ fixed: true, permission: permissionPickerView("claude", undefined, "default"), onPickPermission: () => {} });
+  expect(html).toMatch(/aria-label="Effort: set by the terminal session"[^>]*><svg[^>]*lucide-gauge[^>]*>.*?<\/svg><span class="label placeholder">Effort<\/span><\/button>/);
+  expect(html).toMatch(/aria-label="Permission: set by the terminal session"[^>]*><svg[^>]*lucide-shield[^>]*>.*?<\/svg><span class="label placeholder">Permission<\/span><\/button>/);
+  expect(html).toContain('aria-label="Model: set by the terminal session (Claude Code)"');
+  expect(html).not.toContain(">Default<");
 });
 
 // fast-mode spec 'Fast 스위치': a terminal session's fixed Effort trigger never shows the Fast icon; the docked one does.
@@ -267,13 +277,24 @@ test("an archived conversation whose canvas is gone has no ring", () => {
   expect(render({ mode: { kind: "archived", conversationId: "c1", provider: "claude" }, context: CONTEXT })).toContain("context-ring");
 });
 
-// Decision 13: 8px from the last picker (tray gap 4 + the ring's start margin 4), the tray's 12px end padding after.
-test("context ring CSS: 16px, no shrink, 4px start margin in the docked tray, track and danger inks", () => {
+// picker-default-labels decision 7: every tray control 2px apart, and the ring 4px after the last picker (tray gap 2 +
+// the ring's start margin 2), the tray's 12px end padding after.
+test("context ring CSS: 16px, no shrink, 2px start margin in the docked tray, track and danger inks", () => {
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
-  expect(css).toContain(".docked .composer-tray { justify-content: flex-end; gap: var(--space-1); min-height: var(--size-control-sm); padding: var(--space-1) var(--space-3) 0; }");
-  expect(css).toContain(".docked .composer-tray .context-ring { margin-inline-start: var(--space-1); }");
+  expect(css).toContain(".docked .composer-tray { justify-content: flex-end; gap: var(--space-half); min-height: var(--size-control-sm); padding: var(--space-1) var(--space-3) 0; }");
+  expect(css).toContain(".docked .composer-tray .context-ring { margin-inline-start: var(--space-half); }");
   expect(css).toMatch(/\.context-ring \{[^}]*flex: none;[^}]*width: var\(--size-icon\); height: var\(--size-icon\);/);
   expect(css).toContain(".context-ring .track { stroke: var(--border-track); }");
   expect(css).toContain(".context-ring .value { stroke: var(--affordance-prominent); }");
   expect(css).toContain('.context-ring[data-band="full"] .value { stroke: var(--border-danger); }');
+});
+
+// picker-default-labels decision 8: the steps move earlier so the model name stays whole with the new labels.
+test("docked tray steps: Permission's label hides below a 432 content width, Effort's below 384", () => {
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toContain("@container (max-width: 431px) { .docked .composer-permission .label { display: none; } }");
+  expect(css).toContain("@container (max-width: 383px) { .docked .composer-effort .label { display: none; } }");
+  expect(css).not.toContain("@container (max-width: 287px)");
+  // A drawer's name in a trigger is drawn in the metadata ink (decision 9).
+  expect(css).toMatch(/\.doan-button \.label\.placeholder \{ color: var\(--text-metadata\); \}/);
 });
