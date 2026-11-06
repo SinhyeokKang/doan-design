@@ -39,6 +39,13 @@ export function useProjectSetup(root: string, kept = false) {
   return { form, choose, setUp, storage: { value: storage, kept, change: setStorage } };
 }
 
+// The command a refused local setup suggests reads as a command, as everywhere else in the dialog.
+const COMMAND = "git init";
+function withCommand(text: string) {
+  const at = text.indexOf(COMMAND);
+  return at < 0 ? text : <>{text.slice(0, at)}<code>{COMMAND}</code>{text.slice(at + COMMAND.length)}</>;
+}
+
 export interface StorageInput { value: StorageChoice; kept: boolean; change: (value: StorageChoice) => void }
 export function ProjectFields({ form, choose, chooseRef, storage }: { form: ProjectForm; choose: () => void; chooseRef?: (node: HTMLButtonElement | null) => void; storage: StorageInput }) {
   const view = formView(form);
@@ -57,7 +64,7 @@ export function ProjectFields({ form, choose, chooseRef, storage }: { form: Proj
       <span className="ob-changes"><span><code>.doan/canvases/</code></span><span><code>.doan/config.json</code></span><span><code>{local ? ".git/info/exclude" : ".gitattributes"}</code> — two lines, if missing</span></span>
       <span />
     </div>
-    {view.error && <div className="ob-field"><span className="ob-msg error ob-wide" role="alert"><AlertIcon /><span>{view.error}</span></span></div>}
+    {view.error && <div className="ob-field"><span className="ob-msg error ob-wide" role="alert"><AlertIcon /><span>{withCommand(view.error)}</span></span></div>}
   </>;
 }
 

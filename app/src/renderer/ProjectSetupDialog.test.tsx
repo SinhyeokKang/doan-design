@@ -35,6 +35,12 @@ test("a refused local setup keeps Keep out of Git chosen and shows why", () => {
   const html = fields({ value: "local" }, { error: "This folder isn’t a Git repository, so Doan can’t keep its files out of Git. Choose Include in Git, or run git init here first." });
   expect(html).toContain('<input type="radio" name="setup-storage" checked=""/><span class="ob-radio" aria-hidden="true"></span><strong>Keep out of Git (this Mac only)</strong>');
   expect(html).toContain('role="alert"');
-  expect(html).toContain("Choose Include in Git, or run git init here first.");
+  expect(html).toContain("Choose Include in Git, or run <code>git init</code> here first.");
   expect(fields({}, { running: true })).toContain('<input type="radio" disabled="" name="setup-storage" checked=""/>');
+});
+
+// design-sync (draft frame setup-dialog, 'Not a Git repository'): the command in the refusal is a code chip.
+test("the refusal's git init is a code chip", () => {
+  const html = fields({ value: "local" }, { error: "This folder isn’t a Git repository, so Doan can’t keep its files out of Git. Choose Include in Git, or run git init here first." });
+  expect(html).toContain("<span>This folder isn’t a Git repository, so Doan can’t keep its files out of Git. Choose Include in Git, or run <code>git init</code> here first.</span>");
 });

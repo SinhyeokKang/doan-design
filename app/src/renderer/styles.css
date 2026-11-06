@@ -1544,6 +1544,8 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 /* A command or path chip in a caption description keeps the caption size and never breaks inside itself. */
 :is(.storage-option small, .storage-pref .doan-preference-row-description) code { white-space: nowrap; color: var(--text-standard); background: var(--surface-inset); border-radius: var(--space-1); padding: 0 var(--space-1); }
 .storage-fact { grid-column: 2 / -1; display: grid; gap: var(--space-half); }
+/* The card rows' caption descriptions carry the same command chips as the dialog's. */
+.storage-row .ob-provider-label span code { white-space: nowrap; color: var(--text-standard); background: var(--surface-inset); border-radius: var(--space-1); padding: 0 var(--space-1); }
 /* The setup panel and the clone screen: one card like the Agent step's provider list, the radio in the mark's slot. */
 .ob-setup .storage-label { margin-top: var(--space-6); }
 .storage-row { position: relative; cursor: pointer; }
