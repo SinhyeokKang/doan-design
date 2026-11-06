@@ -50,3 +50,25 @@ test("reset records matched names without announcing a confirmed edit", () => {
   value.announceSkills();
   expect(value.hooks.onAnnounce).not.toHaveBeenCalled();
 });
+
+test.each(["", "Restored draft"])("a host replacement %j after compositionend is applied before deferred repair", text => {
+  vi.useFakeTimers();
+  try {
+    const value = field(); delete value.reset;
+    value.segments = textSegments("안녕");
+    value.composingNow = true;
+    value.render = vi.fn(segments => { value.segments = segments; });
+    value.placeCaret = vi.fn(); value.hooks.onAnnounce = vi.fn();
+    value.sync = vi.fn(); value.flushPending = vi.fn();
+    value.onCompositionEnd();
+    expect(value.compositionRepairPending).toBe(true);
+    value.setValue(textSegments("안녕"));
+    expect(value.render).not.toHaveBeenCalled();
+    expect(value.repair).not.toHaveBeenCalled();
+    value.setValue(textSegments(text));
+    expect(value.segments).toEqual(textSegments(text));
+    expect(value.render).toHaveBeenCalledOnce();
+    vi.runAllTimers();
+    expect(value.segments).toEqual(textSegments(text));
+  } finally { vi.useRealTimers(); }
+});

@@ -134,8 +134,11 @@ export class ChipField {
     const changedNames = !sameSkillNames(this.names, names);
     this.names = new Set(names);
     if (changedNames) this.announceSkills(false);
-    if (this.composingNow || this.compositionRepairPending) return;
-    if (sameSegments(value, this.segments)) { if (changedNames) this.repair(); return; }
+    if (this.composingNow) return;
+    if (sameSegments(value, this.segments)) {
+      if (changedNames && !this.compositionRepairPending) this.repair();
+      return;
+    }
     this.reset(normalize(value));
   }
 
