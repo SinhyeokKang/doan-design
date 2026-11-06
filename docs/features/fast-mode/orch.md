@@ -15,7 +15,7 @@
 | # | 질문 | 답 | 근거 |
 |---|---|---|---|
 | 1 | R1을 실제 계정으로 돌릴까 | main checkout의 `.scratch/provider-profile/userData`(실제 HOME, 기존 로그인)를 재사용해 진행한다 | 사람 |
-| 2 | R1에서 Claude `fast_mode_state: "on"`을 어떻게 볼까 | 사람이 계정 교체를 요청해 Doan 프로필의 Claude를 다시 로그인했다. 결과는 같은 계정(B2B Product Group)이었다. 프롬프트 없는 `initializationResult()`에 flag를 넣으면 이 계정은 `on`이다. P2의 `extra_usage_disabled`는 터미널 기본 Claude 로그인에서 나왔다. 그래서 R1은 이 프로필로 `on`을 확인한다 | 사람, 확인은 conductor(`.scratch/fast-mode/p2-init.mjs`, 2026-11-06) |
+| 2 | R1에서 Claude `fast_mode_state: "on"`을 어떻게 볼까 | 사람의 요청으로 Doan 프로필의 Claude를 다시 로그인했지만 같은 계정(B2B Product Group, Claude Ultra)이었다. 이 계정은 서버에서 추가 사용량이 꺼져 있다(I1). conductor 프로브의 `on`은 org 확인이 끝나기 전에 온 값이었다. Doan의 읽기는 `forceLoginOrgUUID`를 고정하므로 org 확인을 기다리고 `extra_usage_disabled`를 받는다 | 사람, 조사 I1(`.scratch/I1/handoff-I1.md`) |
 | 3 | P1·P2 확인 명령 | 이미 끝났다(tasks P1·P2 체크, design §8) | conductor 판단 — tasks |
 | 4 | B3 `/design-sync`에서 모델 목록을 어떻게 얻을까 | 결정 1의 프로필로 목록만 읽는다(프롬프트를 보내지 않는다). Fast 행은 목록이 있어야 보인다 | conductor 판단 — 결정 1과 같은 계정, 목록 읽기는 사용량을 쓰지 않는다 |
 | 5 | 계약 타입을 어디에 둘까 | 배치 C가 main 쪽 타입(`types.ts`, `models.ts`, `summary.ts`, `StartRequest`, preload send 요청)을 먼저 정한다. 그 뒤 M과 R을 나란히 돌린다 | conductor 판단 — preload와 renderer가 main 타입을 import하므로 파일 겹침 없이 병렬로 가려면 계약이 먼저 와야 한다 |
@@ -74,6 +74,9 @@
   - 결정 4 보충: 프로필로 읽은 목록에 쓸 수 있는 Fast가 없었다. 그래서 켜진 행·트리거 아이콘·토글은 main의 `conversation:models` 응답을 측정용으로 바꿔 넣고 쟀다.
   - 터미널 세션의 고정 트리거는 실제 앱에서 보지 못했다. 단위 테스트로만 고정되어 있다.
 - 조사 I1(M worker, `ctx_f01af5827511`): Doan 목록 읽기에서 Claude는 `unavailable: extra_usage`가 나왔다. 반면 conductor의 SDK 프로브는 같은 프로필, 설치된 CLI 2.1.319로 `on`이었다. Codex는 keyring 인증으로 읽으면 모델 3개에 티어가 없고, keyring 없이 읽으면 9개 모두 `priority` 티어가 있었다. 원인(이 feature의 결함, 기존 인증 경로, 계정 자체)을 가린다. T(R1)는 이 결과를 본 뒤 시작한다.
+- I1 결과: 두 provider 모두 계정 때문이다(class c). 코드는 바꾸지 않았다.
+  - Claude: 프로필 계정은 서버에서 추가 사용량이 꺼져 있다(`hasExtraUsageEnabled: false`).
+  - Codex: 프로필의 keyring 계정은 ChatGPT free 플랜이라 티어가 없다. keyring 없이 읽은 9개 목록은 로그아웃 상태의 카탈로그였다.
 
 ## Orca
 
