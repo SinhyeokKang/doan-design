@@ -17,6 +17,16 @@ export function rememberFast(memory: HomeMemory | null, provider: Provider, on: 
   return { ...memory, fast: on ? { ...rest, [provider]: true } : rest };
 }
 
+// Fast changed before the startup ui-state read landed, by provider (the last change counts), laid over the read map
+// one provider at a time. A whole-map merge would drop the read Fast of every other provider, and an off is a removal
+// a merge cannot carry (review R 🔴1, POSTMORTEM 2026-11-01).
+export function withFastChanges(fast: HomeMemory["fast"], changes: ReadonlyMap<Provider, boolean>): HomeMemory["fast"] {
+  if (changes.size === 0) return fast;
+  const next = { ...fast };
+  for (const [provider, on] of changes) { if (on) next[provider] = true; else delete next[provider]; }
+  return next;
+}
+
 // Fast turned itself off for a reason that lasts: Last used follows only an event received as it happened. The same
 // event read back from history (a reopen, a restart) must not undo a Fast the person turned on again since.
 export function shouldTurnOffFast(event: ConversationEvent, live: boolean): boolean {
