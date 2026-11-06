@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { existsSync, mkdtempSync, renameSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { claudeFastSettings, codexServiceTierForTurn, listModels, openRunner } from "./runners";
+import { claudeFastSettings, codexServiceTierForTurn, listModels, listSkills, openRunner } from "./runners";
 import { ConversationService } from "./service";
 import { ConversationStore } from "./store";
 import type { EventPayload } from "./types";
@@ -307,10 +307,11 @@ const fs = require('node:fs'); const readline = require('node:readline');
 fs.appendFileSync(${JSON.stringify(join(root, "seen"))}, JSON.stringify(process.argv.slice(2)) + '\\n');
 const send = value => process.stdout.write(JSON.stringify(value)+'\\n');
 const models = [{value:'default',displayName:'Default (recommended)',description:'',supportsEffort:true,supportedEffortLevels:['low','high']},{value:'haiku',displayName:'Haiku',description:'',supportsEffort:false}];
+const commands = [{name:'deploy',description:'Ship to staging. (project)',argumentHint:''},{name:'doan',description:'Doan stub. (user)',argumentHint:''},{name:'compact',description:'Built-in command.',argumentHint:'',builtin:true}];
 readline.createInterface({input:process.stdin}).on('line', line => {
  fs.appendFileSync(${JSON.stringify(join(root, "seen"))}, line + '\\n');
  const r = JSON.parse(line);
- if(r.type==='control_request') send({type:'control_response',response:{subtype:'success',request_id:r.request_id,response:{commands:[],models,account:{}}}});
+ if(r.type==='control_request') send({type:'control_response',response:{subtype:'success',request_id:r.request_id,response:{commands,models,account:{}}}});
  if(r.type==='user') { send({type:'result',subtype:'success',is_error:false,result:'ok',session_id:r.session_id}); process.stdin.pause(); setTimeout(()=>process.exit(0),20); }
 });
 `, { mode: 0o700 });
@@ -322,6 +323,17 @@ it("lists Claude's models from the SDK without sending a prompt and reports the 
   try {
     const models = await listModels({ command, runtime: "claude", cwd: root, configDir: root, env: { PATH: process.env.PATH, HOME: root, CLAUDE_CONFIG_DIR: root } }, release, () => {});
     expect(models).toEqual({ models: [{ id: "default", label: "Default (recommended)", default: true, efforts: ["low", "high"] }, { id: "haiku", label: "Haiku", default: false }] });
+    await vi.waitFor(() => expect(release).toHaveBeenCalledOnce());
+    expect(readFileSync(join(root, "seen"), "utf8")).not.toContain('"type":"user"');
+  } finally { rmSync(root, { recursive: true, force: true }); }
+}, 15000);
+// project-skill-drawer C1: the project skill list comes from the same prompt-free provider read as the model list.
+it("lists Claude's project skills from initialize without sending a prompt and reports the process gone", async () => {
+  const root = mkdtempSync(join(tmpdir(), "doan-claude-skills-")), command = listingClaude(root);
+  const release = vi.fn();
+  try {
+    expect(await listSkills({ command, runtime: "claude", cwd: root, configDir: root, env: { PATH: process.env.PATH, HOME: root, CLAUDE_CONFIG_DIR: root } }, release, () => {}))
+      .toEqual([{ name: "deploy", description: "Ship to staging." }]);
     await vi.waitFor(() => expect(release).toHaveBeenCalledOnce());
     expect(readFileSync(join(root, "seen"), "utf8")).not.toContain('"type":"user"');
   } finally { rmSync(root, { recursive: true, force: true }); }
@@ -350,6 +362,7 @@ readline.createInterface({input:process.stdin}).on('line', line => {
  const r = JSON.parse(line);
  if(r.method==='initialize') send({id:r.id,result:{userAgent:'fake'}});
  if(r.method==='model/list') send({id:r.id,result:{data:[{id:'gpt-6-luna',displayName:'GPT-6-Luna',isDefault:true,hidden:false,supportedReasoningEfforts:[{reasoningEffort:'low'},{reasoningEffort:'high'}]}],nextCursor:null}});
+ if(r.method==='skills/list') send({id:r.id,result:{data:[{cwd:r.params.cwds[0],skills:[{name:'migrate',description:'Run migrations.',path:'/r/.agents/skills/migrate/SKILL.md',scope:'repo',enabled:true,pluginId:null},{name:'mine',description:'Own.',path:'/h/.agents/skills/mine/SKILL.md',scope:'user',enabled:true,pluginId:null}],errors:[]}]}});
  if(r.method==='thread/start') send({id:r.id,result:{thread:{id:'session'},approvalPolicy:'on-request',sandbox:{type:'readOnly'}}});
  if(r.method==='config/read') send({id:r.id,result:{config:{}}});
  if(r.method==='turn/start') { const id = 'native-' + (++turn); send({id:r.id,result:{turn:{id}}}); send({method:'turn/completed',params:{threadId:'session',turn:{id,status:'completed'}}}); }
@@ -366,6 +379,21 @@ it("lists Codex models with model/list and starts no thread", async () => {
     expect(methods).toEqual(["initialize", "initialized", "model/list"]);
     await vi.waitFor(() => expect(release).toHaveBeenCalledOnce());
   } finally { rmSync(root, { recursive: true, force: true }); }
+});
+it("lists Codex project skills with skills/list for the folder and starts no thread", async () => {
+  const root = mkdtempSync(join(tmpdir(), "doan-codex-skills-")), command = listingCodex(root);
+  const release = vi.fn();
+  try {
+    expect(await listSkills({ command, runtime: "codex", cwd: root, configDir: root, env: process.env }, release, () => {})).toEqual([{ name: "migrate", description: "Run migrations." }]);
+    const requests = readFileSync(join(root, "seen"), "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line) as { method?: string; params?: unknown });
+    expect(requests.map(r => r.method)).toEqual(["initialize", "initialized", "skills/list"]);
+    expect(requests[2]!.params).toEqual({ cwds: [root], forceReload: true });
+    await vi.waitFor(() => expect(release).toHaveBeenCalledOnce());
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+it("reads no skills for the ACP providers", async () => {
+  for (const runtime of ["cursor", "copilot", "antigravity"] as const)
+    await expect(listSkills({ command: "/missing", runtime, cwd: "/", configDir: "/", env: {} }, () => {}, () => {})).rejects.toThrow("runtime_unsupported");
 });
 it("passes the chosen Codex model and effort on every turn/start of the same server", async () => {
   const root = mkdtempSync(join(tmpdir(), "doan-codex-choice-")), command = listingCodex(root);

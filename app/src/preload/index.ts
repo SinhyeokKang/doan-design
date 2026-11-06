@@ -17,7 +17,7 @@ import type { ReturnedDraft } from "../main/conversation/drafts";
 import type { HandoffNotice } from "../main/conversation/handoff";
 import type { AttachmentResult, RecheckResult } from "../main/attachments";
 import type { DesignSkillList, DesignSkillPreset, DesignSkillReply } from "../main/designSkills";
-import type { Anchor, Canvas, ConversationEvent, Runtime, StageSignal, UnavailableReason } from "../main/conversation/types";
+import type { Anchor, Canvas, ConversationEvent, Runtime, SkillSummary, StageSignal, UnavailableReason } from "../main/conversation/types";
 import type {
   Author, OnboardingCancelRequest, OnboardingCheckRequest, OnboardingCompleteRequest, OnboardingProjectCloneRequest,
   OnboardingProjectInspectRequest, OnboardingProjectSelectRequest, OnboardingResponse, OnboardingState, OnboardingStatusRequest,
@@ -173,6 +173,9 @@ const api = {
   // or installed version changes. An error carries a conversation start code. modes: an ACP server's mode list from the
   // same read, for permissionOptions (permissionMode.ts); none for Claude and Codex.
   listConversationModels: (request: { root: string; runtime: Provider }): Promise<ModelsReply> => ipcRenderer.invoke("conversation:models", request),
+  // The project skills the provider loads in this folder (Claude and Codex; an empty list for the others), read the
+  // same prompt-free way and kept by main for 30 seconds. An error carries a conversation start code.
+  listConversationSkills: (request: { root: string; provider: Provider }): Promise<{ skills: SkillSummary[] } | ConversationError> => ipcRenderer.invoke("conversation:skills", request),
   // Home attachments. Main checks each file (real path, regular file, image signature) and answers per item in order;
   // nothing is copied except a pasted image, which main re-encodes to PNG under userData. A thumbnail is PNG bytes.
   chooseAttachments: (): Promise<AttachmentResult[]> => ipcRenderer.invoke("attachments:choose"),

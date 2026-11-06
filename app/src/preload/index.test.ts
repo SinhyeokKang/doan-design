@@ -462,6 +462,8 @@ test("buzz-conversation: list, seen marker, list changes, extended send, links a
   expect(mocks.invoke).toHaveBeenLastCalledWith("conversation:setPermissionMode", { conversationId: "c", permissionMode: "bypass" });
   await api.deleteConversation({ conversationId: "c" });
   expect(mocks.invoke).toHaveBeenLastCalledWith("conversation:delete", { conversationId: "c" });
+  await api.listConversationSkills({ root: "/repo", provider: "claude" });
+  expect(mocks.invoke).toHaveBeenLastCalledWith("conversation:skills", { root: "/repo", provider: "claude" });
   await api.openLink("https://example.com");
   expect(mocks.invoke).toHaveBeenLastCalledWith("shell:openLink", { url: "https://example.com" });
   await api.attachmentsFromPaths(["/Users/me/a.png"]);

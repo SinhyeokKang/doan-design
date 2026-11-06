@@ -5,10 +5,11 @@ import { validProvider, type Provider } from "../agentAuth/types";
 import { permissionModeId, type PermissionModeId } from "./permissionMode";
 import type { ConversationService, Prepare, QueueFiles, StartAttachments, StartRequest } from "./service";
 import type { ModelCatalog } from "./models";
+import type { SkillCatalog } from "./skills";
 import type { AttachmentStore } from "../attachments";
 import { QUESTION_LIMITS, type QuestionAnswerInput } from "./question";
 import type { Anchor, AttachmentRecord, Canvas } from "./types";
-export const conversationMethods = ["resumeTarget", "forCanvas", "start", "send", "interrupt", "answerPermission", "answerQuestion", "read", "models", "list", "markSeen", "queue", "removeQueued", "sendQueuedNow", "takeDraft", "setPermissionMode", "delete"] as const;
+export const conversationMethods = ["resumeTarget", "forCanvas", "start", "send", "interrupt", "answerPermission", "answerQuestion", "read", "models", "skills", "list", "markSeen", "queue", "removeQueued", "sendQueuedNow", "takeDraft", "setPermissionMode", "delete"] as const;
 export type ConversationMethod = typeof conversationMethods[number];
 // attachment_missing names the attachments that were moved, deleted or forgotten since they were added.
 export interface ConversationError { error: string; missing?: string[] }
@@ -101,7 +102,7 @@ export function queueFiles(store: AttachmentStore): QueueFiles {
     release: ids => { store.release({ ids }); },
   };
 }
-export function conversationHandler(service: ConversationService, prepare: Prepare, projects: () => Project[], home: { models?: ModelCatalog; attachments?: AttachmentStore } = {}) {
+export function conversationHandler(service: ConversationService, prepare: Prepare, projects: () => Project[], home: { models?: ModelCatalog; skills?: SkillCatalog; attachments?: AttachmentStore } = {}) {
   return async (allowed: boolean, method: ConversationMethod, raw: unknown): Promise<unknown> => {
     if (!allowed || !object(raw)) return { error: "bad_request" };
     try {
@@ -114,6 +115,12 @@ export function conversationHandler(service: ConversationService, prepare: Prepa
         if (typeof raw.root !== "string" || raw.root.length > LIMITS.path || !validProvider(raw.runtime) || !home.models) throw new Error("bad_request");
         if (!projects().some(p => p.path === raw.root)) throw new Error("project_not_open");
         return await home.models.models(raw.root, raw.runtime);
+      }
+      // The model list's checks: a provider process opens only for an open project.
+      if (method === "skills") {
+        if (typeof raw.root !== "string" || raw.root.length > LIMITS.path || !validProvider(raw.provider) || !home.skills) throw new Error("bad_request");
+        if (!projects().some(p => p.path === raw.root)) throw new Error("project_not_open");
+        return await home.skills.skills(raw.root, raw.provider);
       }
       if (["start", "resumeTarget", "forCanvas"].includes(method)) {
         if (typeof raw.root !== "string" || raw.root.length > LIMITS.path) throw new Error("bad_request");

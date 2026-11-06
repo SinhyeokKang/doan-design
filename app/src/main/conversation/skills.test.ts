@@ -1,5 +1,7 @@
-import { describe, expect, it } from "vitest";
-import { parseClaudeSkills, parseCodexSkills } from "./skills";
+import { describe, expect, it, vi } from "vitest";
+import { parseClaudeSkills, parseCodexSkills, SkillCatalog } from "./skills";
+import type { Prepared } from "./service";
+import type { SkillSummary } from "./types";
 // Recorded answers from a probe repository (.claude/skills, .claude/commands, .agents/skills, a symlinked skill and odd
 // names), with the person's own rows replaced by generic rows of the same shape: Claude initializationResult().commands
 // and Codex skills/list {cwds: [root], forceReload: true} for an untrusted project.
@@ -116,5 +118,70 @@ describe("parseCodexSkills", () => {
   });
   it("refuses an answer without a data list", () => {
     for (const answer of [undefined, null, [], { data: {} }, { skills: [] }]) expect(() => parseCodexSkills(answer)).toThrow("session_unavailable");
+  });
+});
+
+describe("SkillCatalog", () => {
+  const DEPLOY: SkillSummary[] = [{ name: "deploy", description: "Ship." }];
+  function catalog(read: (input: Prepared) => Promise<SkillSummary[]> = async () => DEPLOY) {
+    let clock = 1_000_000;
+    const prepare = vi.fn(async (root: string, provider: Prepared["runtime"]): Promise<Prepared> => ({ runtime: provider, configDir: "/p", cwd: root, command: "/fake", env: {} }));
+    const list = vi.fn(read);
+    return { catalog: new SkillCatalog(prepare, list, () => clock), prepare, list, advance: (ms: number) => { clock += ms; } };
+  }
+  it("answers an empty list for the ACP providers without opening anything", async () => {
+    const h = catalog();
+    for (const provider of ["cursor", "copilot", "antigravity"] as const) expect(await h.catalog.skills("/repo", provider)).toEqual({ skills: [] });
+    expect(h.prepare).not.toHaveBeenCalled();
+  });
+  it("reads a folder and provider at most once in 30 seconds and again after that", async () => {
+    const h = catalog();
+    expect(await h.catalog.skills("/repo", "claude")).toEqual({ skills: DEPLOY });
+    h.advance(29_999);
+    expect(await h.catalog.skills("/repo", "claude")).toEqual({ skills: DEPLOY });
+    expect(h.list).toHaveBeenCalledOnce();
+    h.advance(1);
+    await h.catalog.skills("/repo", "claude");
+    expect(h.list).toHaveBeenCalledTimes(2);
+  });
+  it("keeps folders and providers apart", async () => {
+    const h = catalog(async input => [{ name: `${input.runtime}-${input.cwd.slice(1)}`, description: "" }]);
+    expect(await h.catalog.skills("/a", "claude")).toEqual({ skills: [{ name: "claude-a", description: "" }] });
+    expect(await h.catalog.skills("/a", "codex")).toEqual({ skills: [{ name: "codex-a", description: "" }] });
+    expect(await h.catalog.skills("/b", "claude")).toEqual({ skills: [{ name: "claude-b", description: "" }] });
+    expect(h.list).toHaveBeenCalledTimes(3);
+  });
+  it("opens the provider once for requests of the same folder and provider that arrive together", async () => {
+    let finish!: (skills: SkillSummary[]) => void;
+    const h = catalog(() => new Promise(resolve => { finish = resolve; }));
+    const first = h.catalog.skills("/repo", "codex"), second = h.catalog.skills("/repo", "codex");
+    await vi.waitFor(() => expect(h.list).toHaveBeenCalledOnce());
+    finish(DEPLOY);
+    expect(await Promise.all([first, second])).toEqual([{ skills: DEPLOY }, { skills: DEPLOY }]);
+    expect(h.prepare).toHaveBeenCalledOnce();
+  });
+  it("passes a failure on and reads again at once on the next request", async () => {
+    const h = catalog();
+    h.list.mockRejectedValueOnce(new Error("not_logged_in"));
+    await expect(h.catalog.skills("/repo", "claude")).rejects.toThrow("not_logged_in");
+    expect(await h.catalog.skills("/repo", "claude")).toEqual({ skills: DEPLOY });
+    expect(h.list).toHaveBeenCalledTimes(2);
+  });
+  it("passes a preparation failure on without reading and tries again on the next request", async () => {
+    const h = catalog();
+    h.prepare.mockRejectedValueOnce(new Error("cli_missing"));
+    await expect(h.catalog.skills("/repo", "codex")).rejects.toThrow("cli_missing");
+    expect(h.list).not.toHaveBeenCalled();
+    expect(await h.catalog.skills("/repo", "codex")).toEqual({ skills: DEPLOY });
+  });
+  // A failed read after a success does not refresh the time: the next request reads again instead of serving the old list.
+  it("does not count a failed read as a fresh one", async () => {
+    const h = catalog();
+    await h.catalog.skills("/repo", "claude");
+    h.advance(30_000);
+    h.list.mockRejectedValueOnce(new Error("process_exited"));
+    await expect(h.catalog.skills("/repo", "claude")).rejects.toThrow("process_exited");
+    expect(await h.catalog.skills("/repo", "claude")).toEqual({ skills: DEPLOY });
+    expect(h.list).toHaveBeenCalledTimes(3);
   });
 });

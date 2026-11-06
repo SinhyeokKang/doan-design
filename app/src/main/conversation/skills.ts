@@ -1,3 +1,5 @@
+import type { Provider } from "../agentAuth/types";
+import type { Prepared } from "./service";
 import type { SkillSummary } from "./types";
 
 // Both lists carry repository text that anyone with push access wrote, and it crosses IPC into every composer.
@@ -39,4 +41,30 @@ export function parseCodexSkills(result: unknown): SkillSummary[] {
   return limited(result.data.filter(record).flatMap(folder => Array.isArray(folder.skills) ? folder.skills.filter(record) : [])
     .filter(s => s.scope === "repo" && s.enabled !== false && s.pluginId == null && name(s.name))
     .map(s => ({ name: s.name as string, description: typeof s.description === "string" ? firstLine(s.description) : "" })));
+}
+
+// Skills change in the repository while the app runs, so unlike ModelCatalog this keeps a list only briefly: a folder
+// and provider are read at most once in this window, and every list opening asks again after it.
+const FRESH_MS = 30_000;
+// Lists for Claude and Codex; the other providers answer an empty list without opening anything. A read in flight is
+// shared, so composers drawn together open the provider once. A failure passes its error on (the ipc maps it to a start
+// code) and records no time, so the next request reads again; the host keeps showing the last list it received.
+export class SkillCatalog {
+  private last = new Map<string, { skills: SkillSummary[]; at: number }>();
+  private reading = new Map<string, Promise<SkillSummary[]>>();
+  constructor(private prepare: (root: string, provider: Provider) => Promise<Prepared>, private list: (input: Prepared) => Promise<SkillSummary[]>, private now: () => number = Date.now) {}
+  async skills(root: string, provider: Provider): Promise<{ skills: SkillSummary[] }> {
+    if (provider !== "claude" && provider !== "codex") return { skills: [] };
+    const key = JSON.stringify([root, provider]);
+    const last = this.last.get(key);
+    if (last && this.now() - last.at < FRESH_MS) return { skills: last.skills };
+    let reading = this.reading.get(key);
+    if (!reading) {
+      const started = (async () => this.list(await this.prepare(root, provider)))();
+      reading = started; this.reading.set(key, started);
+      const done = () => { if (this.reading.get(key) === started) this.reading.delete(key); };
+      started.then(skills => { this.last.set(key, { skills, at: this.now() }); done(); }, done);
+    }
+    return { skills: await reading };
+  }
 }

@@ -10,14 +10,15 @@ import { codexInitialize, codexThreadStart, type HandshakeReply, type HandshakeV
 import { OwnedGroup } from "./process";
 import { object } from "./sessions";
 import { applyClaudeFastUnavailable, parseClaudeModels, parseCodexModels } from "./models";
+import { parseClaudeSkills, parseCodexSkills } from "./skills";
 import { CodexStartupWatch, codexProfileServers } from "./mcpStartup";
 import { connectorLabels } from "../mcpConnectors/presets";
 import { CLAUDE_QUESTION_TOOL, claudePermissionSummary, claudeQuestion, claudeQuestionResult, claudeReportedMode, claudeUnansweredSupport, endSteerWait, endTransport, initialTransport, normalizeClaude, steerTransport, storedAnswers, transportError, type ClaudeQuestion } from "./transport";
 import { questionAnswer } from "./questionAnswer";
 import { promptSuggestionText } from "./promptSuggestion";
 import { claudePermission, codexDefaults, codexPermission, codexWorkspace, type CodexDefaults, type CodexWorkspace } from "./permissionMode";
-import type { OpenRunner, Prepared, ReadModels, Runner } from "./service";
-import type { EventPayload, FailureCode } from "./types";
+import type { OpenRunner, Prepared, ReadListing, ReadModels, Runner } from "./service";
+import type { EventPayload, FailureCode, SkillSummary } from "./types";
 // steerConsumed: the agent read a steered message, called in line with the run's events so the message
 // takes its place in the thread there.
 export interface SteerHooks { steerConsumed?: (messageId: string) => void }
@@ -28,12 +29,19 @@ export interface SteeringRunner extends Runner { steer(prompt: string, turnId: s
 export const openRunner: OpenRunner = (input, emit, exited, registerStop) =>
   input.runtime === "claude" ? openClaude(input, emit, exited, registerStop) : input.runtime === "codex" ? openCodex(input, emit, exited, registerStop) : openAcp(input, emit, exited, registerStop);
 // Opens the provider only to read its model list for this folder: no prompt, no model request.
-// The caller owns the lease and the stop (ConversationService.listModels).
+// The caller owns the lease and the stop (ConversationService.readListing).
 // A Claude read opens with Fast asked for, so initialize names an account-wide reason Fast cannot serve; without the flag
 // the reason is always sdk_opt_in_required (fast-mode P2). It reads the existing list, with no new lease or prompt.
 export const listModels: ReadModels = async (input, exited, registerStop) => {
   const runner = await (input.runtime === "claude" ? openClaude : input.runtime === "codex" ? openCodexList : openAcp)(input.runtime === "claude" ? { ...input, fast: true } : input, () => {}, exited, registerStop);
   try { return await runner.models!(); } finally { await runner.close(); }
+};
+// The same prompt-free read for the folder's project skills. Only Claude and Codex list them apart from built-in
+// commands; the ACP servers' command lists name no source (Cursor, Copilot) or no skills (Antigravity).
+export const listSkills: ReadListing<SkillSummary[]> = async (input, exited, registerStop) => {
+  if (input.runtime !== "claude" && input.runtime !== "codex") throw new Error("runtime_unsupported");
+  const runner = await (input.runtime === "claude" ? openClaude : openCodexList)(input, () => {}, exited, registerStop);
+  try { return await runner.skills!(); } finally { await runner.close(); }
 };
 // Fast for a Claude run: the flag-tier setting, since an SDK run is off with sdk_opt_in_required otherwise, even with
 // fastMode in the project's .claude/settings.json (fast-mode P2 b, b2). A run without Fast passes nothing.
@@ -89,7 +97,7 @@ interface Start { stopped: boolean; wake(): void }
 function openCodexList(input: Prepared, emit: (event: EventPayload) => void, exited: () => void, registerStop: (stop: () => Promise<void>) => void): Promise<Runner> {
   return openCodex(input, emit, exited, registerStop, true);
 }
-// list: model/list after initialize instead of a thread, so reading the list starts no session.
+// list: model/list or skills/list after initialize instead of a thread, so reading a list starts no session.
 async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayload) => void, exited: () => void, registerStop: (stop: () => Promise<void>) => void, list = false): Promise<SteeringRunner> {
   // Doan-account args select the dedicated credential store; they must precede the subcommand.
   const child = spawn(input.command, [...input.args ?? [], "app-server"], { cwd: input.cwd, env: input.env, detached: true, stdio: ["pipe", "pipe", "pipe"] });
@@ -143,8 +151,9 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
     if (!resume && !object(initialized)) throw new Error("Malformed initialize result");
     write({ method: "initialized" });
     if (list) {
-      const models = parseCodexModels(await dispatcher.request("model/list", {}));
-      return { sessionId: "", models: async () => ({ models }), send: async () => { throw new Error("session_unavailable"); }, steer: async () => { throw new Error("not_running"); }, answer: () => false, stop: async () => { await group?.stop(); }, close: async () => { dispatcher.close(); await group?.stop(); } };
+      return { sessionId: "", models: async () => ({ models: parseCodexModels(await dispatcher.request("model/list", {})) }),
+        // forceReload: a skill added since this app-server's cache was filled is listed (the person or an agent just made it).
+        skills: async () => parseCodexSkills(await dispatcher.request("skills/list", { cwds: [input.cwd], forceReload: true })), send: async () => { throw new Error("session_unavailable"); }, steer: async () => { throw new Error("not_running"); }, answer: () => false, stop: async () => { await group?.stop(); }, close: async () => { dispatcher.close(); await group?.stop(); } };
     }
     const result = await judgedStep(dispatcher.request(resume ? "thread/resume" : "thread/start", resume ? { threadId: input.sessionId } : { cwd: input.cwd }), reply => { if (!resume) judge(codexThreadStart(reply)); });
     if (!object(result) || !object(result.thread) || typeof result.thread.id !== "string" || !result.thread.id) throw new Error("session_unavailable");
@@ -357,6 +366,8 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
   return {
     sessionId,
     models: async () => ({ models: applyClaudeFastUnavailable(object(initialized) ? initialized.fast_mode_disabled_reason : undefined, parseClaudeModels(await timeout(q.supportedModels()))) }),
+    // initialize's commands, not supportedCommands(): the latter adds MCP prompts once servers connect.
+    skills: async () => parseClaudeSkills(object(initialized) ? initialized.commands : undefined),
     async send(prompt, turnId) {
       if (finished) throw new Error("process_exited");
       // The group stops as on any terminal that leaves a steered uuid unread; the SDK error that follows is that stop's.
