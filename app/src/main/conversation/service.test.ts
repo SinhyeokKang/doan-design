@@ -1559,6 +1559,18 @@ describe("cancelled waits and their queues", () => {
 });
 
 
+// project-skill-drawer A2 (decisions 18, 28): the title leaves out the fixed request lines; the message keeps them.
+it.each([
+  ["skill lines and text", "Use the project skill `deploy`.\nUse the project skill `db-migrate`.\n\nrun /db-migrate first, then /deploy to staging", "run /db-migrate first, then /deploy to staging"],
+  ["a preset line, a skill line and text", "Use the Doan design preset `polish` (Polish).\nUse the project skill `deploy`.\n\n/deploy the hero", "/deploy the hero"],
+  ["a preset line only", "Use the Doan design preset `polish` (Polish).", "Polish"],
+  ["no fixed line", "Make a pricing page", "Make a pricing page"],
+])("titles a first message with %s without its fixed lines", async (_case, text, title) => {
+  const h = fixture();
+  const id = (await h.service.start({ root: request.root, mode: "newDesign", runtime: "codex", text, anchors: [] })).conversationId;
+  expect(h.store.list()[0]!.title).toBe(title);
+  expect(h.store.read(id)[0]).toMatchObject({ type: "user.message", text });
+});
 it.each(["new", "newDesign", "resume"] as const)("stores a one-line chip title without changing the %s message", async mode => {
   const h = fixture();
   const anchors = [{ frame: { id: "hero", title: "Hero section" } }];

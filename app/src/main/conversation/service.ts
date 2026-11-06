@@ -7,6 +7,7 @@ import { sameCanvas } from "./sessions";
 import { handoffPrompt, turnPrompt } from "./prompt";
 import { handoffDecision, handoffEligibility, handoffGuidanceFor, type HandoffDecision, type HandoffNotice, type HandoffRefusal } from "./handoff";
 import { messageLine } from "./messageText";
+import { requestTitleText } from "./requestLines";
 import { BIND_GRACE_MS, contestedCanvas, projectBusy, promotionTarget } from "./project";
 import { clampSeen, conversationSummary, type ConversationSummary } from "./summary";
 import { combineQueued } from "./queue";
@@ -227,8 +228,9 @@ export class ConversationService {
       const session = { runtime: input.runtime, origin: request.mode === "resume" ? "resumed" as const : request.mode, sessionId: runner.sessionId, configDir: input.configDir, cwd: input.cwd };
       // Every turn of a newDesign conversation carries Home's paragraph.
       const fromHome = request.mode === "newDesign";
-      // seenSeq 0: nothing of a new conversation has been seen, so its first end shows as unseen.
-      const base = { conversationId: id, root: request.root, ...(request.canvas ? { canvas: request.canvas } : {}), title: messageLine(request.text, request.anchors), state: "current" as const,
+      // seenSeq 0: nothing of a new conversation has been seen, so its first end shows as unseen. The title leaves out the
+      // fixed preset and skill lines, which would otherwise fill the sidebar; a preset-only request is titled by the preset.
+      const base = { conversationId: id, root: request.root, ...(request.canvas ? { canvas: request.canvas } : {}), title: messageLine(requestTitleText(request.text), request.anchors), state: "current" as const,
         ...choice(request), ...fastOf(request), ...mode(request.permissionMode), ...(fromHome ? { fromHome: true as const } : {}), ...(request.mode === "newDesign" ? { canvasesAtStart: this.snapshot(request.root) } : {}), seenSeq: 0 };
       const runtime = input.runtime;
       // Without an owner the run used an external profile, which exists only for the shared sessions' two runtimes.
