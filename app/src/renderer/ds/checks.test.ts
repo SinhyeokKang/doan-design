@@ -46,6 +46,9 @@ const violetAllowed = [
   ".suggestion svg",
   // The suggested prompt's icon tile (suggested-prompt-variants C, confirmed 2026-11-03).
   ".suggestion-icon",
+  // The project and canvas names inside a suggested sentence: the anchor chip's values as an inline highlight
+  // (small-ui-tweaks decision 7, confirmed draft 2026-11-06).
+  ".suggestion-value",
   ".home-composer .composer",
   ".drop-target",
   ".row-slot.permission",

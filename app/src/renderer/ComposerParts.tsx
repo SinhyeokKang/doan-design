@@ -16,7 +16,7 @@ import { outsidePresetList } from "./presetOutside";
 import type { SettingsTarget } from "./settingsSections";
 import {
   attachmentChipView, dropTarget, groupIcon, isSubmitKey, steerKey, modelPickerView, presetListView, providerLogo,
-  type AttachmentDraft, type PresetListReply, type PresetRow, type PresetSummary,
+  type AttachmentDraft, type PresetListReply, type PresetRow, type PresetSummary, type SuggestionPart,
 } from "./homeComposer";
 import type { PermissionIcon, PermissionPickerView } from "./permissionPicker";
 
@@ -24,6 +24,12 @@ import type { PermissionIcon, PermissionPickerView } from "./permissionPicker";
 // docked composer will. Each draws the markup Home drew before the split, so Home's computed styles and DOM order stay.
 
 const GROUP_ICONS: Record<string, typeof Compass> = { compass: Compass, "scan-eye": ScanEye, paintbrush: Paintbrush, "text-align-start": TextAlignStart, shapes: Shapes, "pencil-sparkles": PencilSparkles };
+// A suggested prompt's sentence with its project and canvas names highlighted; the text itself is unchanged, so the
+// button's accessible name stays the whole sentence.
+export function SuggestionLabel({ parts }: { parts: readonly SuggestionPart[] }) {
+  return <span className="suggestion-label">{parts.map((part, i) => part.value ? <span key={i} className="suggestion-value">{part.text}</span> : <Fragment key={i}>{part.text}</Fragment>)}</span>;
+}
+
 export function GroupIcon({ name, className }: { name: string; className?: string }) {
   const Icon = GROUP_ICONS[name] ?? PencilSparkles;
   return <Icon className={className} aria-hidden="true" />;

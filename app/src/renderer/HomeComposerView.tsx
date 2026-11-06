@@ -9,7 +9,7 @@ import type { FolderEntry } from "../main/view";
 import type { HomeMemory, ShellProject } from "../restore/uiState";
 import { AlertIcon } from "./AlertIcon";
 import {
-  AgentPicker, AttachButton, ComposerCard, ComposerChips, ComposerField, ComposerTools, EffortPicker, GroupIcon, PermissionPicker, PresetsButton, SendButton, SlashPresets, useComposerDrop, usePresetListOutside,
+  AgentPicker, AttachButton, ComposerCard, ComposerChips, ComposerField, ComposerTools, EffortPicker, GroupIcon, PermissionPicker, PresetsButton, SendButton, SlashPresets, SuggestionLabel, useComposerDrop, usePresetListOutside,
   type ComposerFieldHandle,
 } from "./ComposerParts";
 import { Doany, type DoanyHandle } from "./Doany";
@@ -558,7 +558,7 @@ export function HeroComposer(props: HeroComposerProps) {
       </div>
       {prompts.length > 0 && <div className="home-suggestions" role="group" aria-label="Suggested prompts" inert={started}>{prompts.map(prompt => {
         const button = <button key={prompt.label} type="button" className="suggestion" onClick={() => { edit({ preset: prompt.preset, text: prompt.text }); queueMicrotask(focusEnd); }}>
-          <span className="suggestion-icon"><GroupIcon name={groupIcon(prompt.preset.group)} /></span><span className="suggestion-label">{prompt.label}</span><ArrowUpRight className="suggestion-go" aria-hidden="true" /></button>;
+          <span className="suggestion-icon"><GroupIcon name={groupIcon(prompt.preset.group)} /></span><SuggestionLabel parts={prompt.parts} /><ArrowUpRight className="suggestion-go" aria-hidden="true" /></button>;
         return <Tooltip key={prompt.label}><TooltipTrigger asChild>{button}</TooltipTrigger><TooltipContent>{prompt.label}</TooltipContent></Tooltip>;
       })}</div>}
       {notice && <div className="doan-notice error doan-panel composer-notice" role="alert"><AlertIcon /><span className="grow-text">{notice.text}</span>{notice.retry && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="subtle" onClick={() => void send()}>Retry</button>}</div>}
