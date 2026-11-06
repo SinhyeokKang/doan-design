@@ -39,9 +39,9 @@ var onboardingCommands = map[string]onboardingCommand{
 	"check":           {"check", []string{"session", "provider", "request", "spend-copilot-request"}, []string{"session", "provider", "request"}},
 	"sign-in":         {"sign_in", []string{"session", "provider", "request"}, []string{"session", "provider", "request"}},
 	"cancel":          {"cancel", []string{"session", "operation", "request"}, []string{"session", "operation", "request"}},
-	"project inspect": {"project_inspect", []string{"session", "path", "url", "destination", "request"}, []string{"session", "request"}},
-	"project select":  {"project_select", []string{"session", "inspection", "path", "initialize", "request"}, []string{"session", "inspection", "path", "request"}},
-	"project clone":   {"project_clone", []string{"session", "inspection", "destination", "request"}, []string{"session", "inspection", "destination", "request"}},
+	"project inspect": {"project_inspect", []string{"session", "path", "url", "destination", "request", "storage"}, []string{"session", "request"}},
+	"project select":  {"project_select", []string{"session", "inspection", "path", "initialize", "request", "storage"}, []string{"session", "inspection", "path", "request"}},
+	"project clone":   {"project_clone", []string{"session", "inspection", "destination", "request", "storage"}, []string{"session", "inspection", "destination", "request"}},
 	"complete":        {"complete", []string{"session", "request"}, []string{"session", "request"}},
 }
 
@@ -49,7 +49,7 @@ var onboardingCommands = map[string]onboardingCommand{
 var onboardingFlags = map[string]string{
 	"session": "sessionId", "operation": "operationId", "provider": "provider", "request": "requestId",
 	"path": "path", "url": "url", "destination": "destination", "inspection": "inspectionId",
-	"spend-copilot-request": "spendCopilotRequest", "initialize": "initialize",
+	"storage": "storage", "spend-copilot-request": "spendCopilotRequest", "initialize": "initialize",
 }
 
 // The operation-starting ops whose own failed or cancelled operation fails the command;
@@ -73,13 +73,15 @@ func onboardingFailure(code, message string) *Error {
 		"app_launch_failed":     unreachable,
 		"app_protocol_mismatch": {"Ask the user to update Doan and the doan CLI to matching versions"},
 		"session_stale":         {"Doan restarted; run `doan onboarding start` and use the new sessionId"},
-		"inspection_stale":      {"Run `doan onboarding project inspect` again and use its inspectionId"},
+		"inspection_stale":      {"Run `doan onboarding project inspect` again with the intended --storage mode and use its inspectionId and storage for select or clone"},
 		"operation_not_found":   {"Run `doan onboarding status` to list this session's operations"},
 		"request_conflict":      {"Use a new --request id for other arguments; reuse an id only to resend the same request"},
 		"busy":                  {"Wait for the running operation (`doan onboarding status`), then send a new --request id"},
 		"stop_required":         {"Ask the user to click Doan in the Dock, stop the running conversation there, then retry"},
 		"initialize_required":   {"Tell the user the planned changes from inspect; run select again with --initialize once they agree; a request to set up Doan or select a repository is not agreement, only an explicit agreement to Doan adding these files"},
 		"no_ready_agent":        {"Sign in to an agent first (`doan onboarding sign-in`)"},
+		"local_not_git":         {"Choose Include in Git (--storage repo), or select a Git repository and inspect again"},
+		"local_exclude_failed":  {"Ask the user to make the repository Git metadata and exclude file readable and writable, then inspect and retry"},
 		"no_project":            {"Select or clone a project first (`doan onboarding project select` or `clone`)"},
 	}[code]
 	return &Error{Code: code, Message: message, NextSteps: steps}
@@ -120,6 +122,9 @@ func Onboarding(ctx Context, f Flags, args []string) (Outcome, *Error) {
 }
 
 func onboardingRequest(name string, cmd onboardingCommand, f Flags) (map[string]any, *Error) {
+	if failure := validateStorage(f); failure != nil {
+		return nil, failure
+	}
 	for flag := range f.Given {
 		if flag == "json" {
 			continue
@@ -139,7 +144,7 @@ func onboardingRequest(name string, cmd onboardingCommand, f Flags) (map[string]
 	}
 	values := map[string]string{
 		"session": f.Session, "operation": f.Operation, "provider": f.Provider, "request": f.Request,
-		"path": f.Path, "url": f.URL, "destination": f.Destination, "inspection": f.Inspection,
+		"storage": f.Storage, "path": f.Path, "url": f.URL, "destination": f.Destination, "inspection": f.Inspection,
 	}
 	request := map[string]any{"v": 2, "op": cmd.op}
 	for _, flag := range cmd.flags {

@@ -827,9 +827,9 @@ func TestOnboardingHelpAndGuide(t *testing.T) {
 		"onboarding check --session <id> --provider <id> --request <id> [--spend-copilot-request]",
 		"onboarding sign-in --session <id> --provider <id> --request <id>",
 		"onboarding cancel --session <id> --operation <id> --request <id>",
-		"onboarding project inspect --session <id> (--path <absolute> [--url <github-url>] | --url <github-url> [--destination <absolute>]) --request <id>",
-		"onboarding project select --session <id> --inspection <id> --path <absolute> [--initialize] --request <id>",
-		"onboarding project clone --session <id> --inspection <id> --destination <absolute> --request <id>",
+		"onboarding project inspect --session <id> (--path <absolute> [--url <github-url>] | --url <github-url> [--destination <absolute>]) --request <id> [--storage local|repo]",
+		"onboarding project select --session <id> --inspection <id> --path <absolute> [--initialize] --request <id> [--storage local|repo]",
+		"onboarding project clone --session <id> --inspection <id> --destination <absolute> --request <id> [--storage local|repo]",
 		"onboarding complete --session <id> --request <id>",
 	} {
 		if !strings.Contains(usage, "  "+line+"\n") {

@@ -122,7 +122,7 @@ func readExclude(path string) ([]byte, os.FileInfo, error) {
 
 // A missing info directory is creatable only when its nearest existing parent is writable.
 func excludeWritable(path string, info os.FileInfo) bool {
-	if info != nil && info.Mode().Perm()&0222 == 0 {
+	if info != nil && (info.Mode().Perm()&0222 == 0 || unix.Access(path, unix.W_OK) != nil) {
 		return false
 	}
 	parent := filepath.Dir(path)
@@ -149,6 +149,14 @@ func ReadStorage(root, home string) StorageInfo {
 	}
 	if err != nil {
 		return StorageInfo{"unknown", "git_unreadable"}
+	}
+	if strings.ContainsAny(loc.rel, "\r\n") {
+		return StorageInfo{"unknown", "exclude_unwritable"}
+	}
+	for _, dir := range []string{loc.gitdir, loc.common} {
+		if unix.Access(dir, unix.R_OK|unix.X_OK) != nil {
+			return StorageInfo{"unknown", "git_unreadable"}
+		}
 	}
 	path := filepath.Join(loc.common, "info/exclude")
 	data, info, err := readExclude(path)

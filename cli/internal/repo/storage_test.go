@@ -152,3 +152,66 @@ func TestStorageRealGitLayouts(t *testing.T) {
 		t.Fatalf("%+v %v", loc, err)
 	}
 }
+
+func TestStorageWritesPreserveForeignBytesAndPermissions(t *testing.T) {
+	root := real(t, t.TempDir())
+	put(t, root, ".git/info/exclude", "foreign\r\n# doan: local\r\n/.doan/\r\n# doan: local\r\n/.doan/\r\nlast")
+	path := filepath.Join(root, ".git/info/exclude")
+	os.Chmod(path, 0600)
+	if changed, err := WriteStorage(root, "", "repo"); err != nil || !changed {
+		t.Fatal(changed, err)
+	}
+	data, _ := os.ReadFile(path)
+	if string(data) != "foreign\r\nlast" {
+		t.Fatal(string(data))
+	}
+	info, _ := os.Stat(path)
+	if info.Mode().Perm() != 0600 {
+		t.Fatal(info.Mode())
+	}
+	if _, err := WriteStorage(root, "", "local"); err != nil {
+		t.Fatal(err)
+	}
+	matches, _ := filepath.Glob(filepath.Join(root, ".git/info/.exclude-*"))
+	if len(matches) > 0 {
+		t.Fatal(matches)
+	}
+}
+func TestStorageConcurrentCreate(t *testing.T) {
+	root := real(t, t.TempDir())
+	put(t, root, ".git/HEAD", "ref: refs/heads/main")
+	done := make(chan error, 2)
+	for i := 0; i < 2; i++ {
+		go func() { _, err := WriteStorage(root, "", "local"); done <- err }()
+	}
+	for i := 0; i < 2; i++ {
+		if err := <-done; err != nil {
+			t.Fatal(err)
+		}
+	}
+	data, _ := os.ReadFile(filepath.Join(root, ".git/info/exclude"))
+	if !HasStoragePair(data, "/.doan/") {
+		t.Fatal(string(data))
+	}
+}
+func TestStorageWriteLinks(t *testing.T) {
+	root := real(t, t.TempDir())
+	put(t, root, ".git/HEAD", "ref: refs/heads/main")
+	dir := real(t, t.TempDir())
+	link(t, dir, filepath.Join(root, ".git/info"))
+	if _, err := WriteStorage(root, "", "local"); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "exclude")
+	os.Remove(path)
+	outside := filepath.Join(root, "sentinel")
+	put(t, root, "sentinel", "unchanged")
+	link(t, outside, path)
+	if _, err := WriteStorage(root, "", "local"); err == nil {
+		t.Fatal("followed final link")
+	}
+	data, _ := os.ReadFile(outside)
+	if string(data) != "unchanged" {
+		t.Fatal(string(data))
+	}
+}
