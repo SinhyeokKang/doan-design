@@ -23,7 +23,7 @@
 
 | Batch | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 gate | 상태 |
 |---|---|---|---|---|---|---|
-| MA | A1 | `app/src/main/conversation/models.ts`, `models.test.ts` | 없음 | Codex Sol `medium` — 함수 하나와 테스트 네 경우가 spec에 정해져 있다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 대기 |
+| MA | A1 | `app/src/main/conversation/models.ts`, `models.test.ts` | 없음 | Codex Sol `medium` — 함수 하나와 테스트 네 경우가 spec에 정해져 있다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 통합 `87d2769d`·`98ecb231`(worker red 2건 → 전체 8688 통과, typecheck 통과) |
 | RA | A2, A3, A4, B1 | `app/src/renderer/` 중 `homeComposer.ts`, `dockedRules.ts`, `permissionPicker.ts`, `ComposerParts.tsx`, `DockedComposer.tsx`, `SettingsAgents.tsx`, `HomeComposerView.tsx`, `ProjectOverview.tsx`, `CanvasConversationPanel.tsx`, Settings 순수 함수 새 파일, 각 테스트와 CSS | 없음 | Claude Opus `high` — 접근성 이름, 저장 규칙(POSTMORTEM 2026-11-02), Settings 고정 해제처럼 틀리면 보내는 값이 어긋나는 판단이 많다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 대기 |
 | RV | MA+RA 독립 리뷰(`/code-review`) | 보고만 | MA, RA 통합 | Codex Astra `medium` — 판단이 필요한 리뷰, 다른 계열 | 보고서 | 대기 |
 | B2 | `/design-sync picker-default-labels` | RA 파일 + `docs/DESIGN.md`의 tray 측정값 | RA 통합, RV 🔴 0 | RA worker(Claude Opus `high`) — 실제 앱 측정과 구현 수정 | `/design-sync` 보고에 불일치 없음 | 대기 |
