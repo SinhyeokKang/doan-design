@@ -8,6 +8,7 @@ import { openFolderStore } from "./folderStore";
 import { classifyDesignChange } from "./designChange";
 import { folderState, initOutcome, reconcileFolders, type FolderState, type InitOutcome } from "./folderState";
 import { startServer, type LocalServer } from "./serve/server";
+import type { StorageMode } from "./storage";
 import { folderEntry, openDecision, type FolderEntry } from "./view";
 import { watchFolder, type Change, type FolderWatch } from "./watch";
 
@@ -67,6 +68,13 @@ interface Folder {
   common: string | undefined;
 }
 
+// The mode chosen for setup is not used on a re-root, so the notice says the project's own (local-doan-files design
+// §3.1); an unknown mode, or none from an older doan, is not guessed.
+function rerootMessage(root: string, storage: StorageMode | undefined): string {
+  const kept = storage === "local" ? " and keeps its Doan files out of Git" : storage === "repo" ? " and includes its Doan files in Git" : "";
+  return `This folder is inside ${root}, which is already set up${kept}.`;
+}
+
 // A canvas removed after `doan ls` has no entry; the row then shows no time.
 export async function canvasMtimes(root: string, paths: readonly string[]): Promise<Map<string, number>> {
   const mtimes = new Map<string, number>();
@@ -106,7 +114,8 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
     if (error) console.error("doan: cannot save folders.json", error);
   };
 
-  const refresh = async (folder: Folder, change: Change): Promise<string | null | false> => {
+  // A re-root answers the listing of the root above (its root and storage); null published, false dropped.
+  const refresh = async (folder: Folder, change: Change): Promise<Extract<FolderState, { kind: "list" }> | null | false> => {
     // Decided before the read: names say what changed, the listing does not.
     const design = change.names === undefined ? undefined : classifyDesignChange(change.names);
     if (change.served || design?.bumpServed) folder.servedRev++;
@@ -156,7 +165,7 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
         const write = store.replace(next.folders);
         onChange(entries(), { from: folder.path, root: view.root });
         logWrite(await write);
-        return view.root;
+        return view;
       }
     }
     let mtimes: Map<string, number> | undefined;
@@ -323,9 +332,9 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
       const epoch = folder.epoch;
       const task = (async (): Promise<ProjectInitResult> => {
         const root = await refresh(folder, { reread: true, served: false });
-        if (typeof root === "string") return { kind: "rerooted", root, message: `This folder is inside ${root}, which is already set up.` };
+        if (root) return { kind: "rerooted", root: root.root, message: rerootMessage(root.root, root.storage) };
         if (root === false || folders.get(path) !== folder || folder.epoch !== epoch || folder.entry.kind !== "uninitialized") return unavailable;
-        const outcome = initOutcome(await runInit(cli, path, tokenCss, storage), { local: storage === "local", tokenCss: tokenCss !== null });
+        const outcome = initOutcome(await runInit(cli, path, tokenCss, storage));
         if (folders.get(path) !== folder || folder.epoch !== epoch) return unavailable;
         if (outcome.kind === "success") await refresh(folder, { reread: true, served: false });
         return outcome;

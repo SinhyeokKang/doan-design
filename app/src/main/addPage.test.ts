@@ -381,6 +381,7 @@ function real(registered: string[] = [], init: (root: string) => ProjectInitResu
     initialize: vi.fn(async (r: string) => init(r)),
     remotes: vi.fn((r: string) => readGitRemotes(r, temp())),
     keepsLocal: vi.fn((_path: string) => false),
+    keepLocal: vi.fn(async (_root: string): Promise<{ ok: true } | { ok: false; code: string }> => ({ ok: true })),
   } satisfies ProjectDeps;
   const projects: AdderProjects = {
     folder: canonicalFolder, destination: path => cloneDestination(path, deps), present: leftoverPresent,

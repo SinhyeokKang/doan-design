@@ -59,6 +59,17 @@ export function configReply(root: string, run: CliRun): ConfigReply {
   return { kind: "config", root, tokenCss: tokenCss ?? null, serve, changed, ...storageFacts(envelope.result) };
 }
 
+// A storage write made outside Project Settings (a clone's Keep out of Git), told apart by the CLI's code: a run that
+// did not answer with an envelope is internal_error, as the CLI's own unexpected failures are.
+export function storageWrite(run: CliRun): { ok: true } | { ok: false; code: string } {
+  let value: unknown;
+  try { value = JSON.parse(run.stdout); } catch { return { ok: false, code: "internal_error" }; }
+  if (run.spawnError !== undefined || run.timedOut || !validateEnvelope(value)) return { ok: false, code: "internal_error" };
+  const envelope = value as { ok: true } | { ok: false; error: { code: string } };
+  if (!envelope.ok) return { ok: false, code: envelope.error.code };
+  return run.exitCode === 0 ? { ok: true } : { ok: false, code: "internal_error" };
+}
+
 export function createConfigBridge(deps: ConfigBridgeDeps) {
   const choices = new Map<string, Choice>();
   // The serve list of each root's last good result: Remove takes only these.

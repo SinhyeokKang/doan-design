@@ -889,3 +889,36 @@ test("opening the page asks main to read the worktree's project again", async ()
   await open();
   expect(doan.startConfigSession).toHaveBeenCalledWith(ROOT);
 });
+
+// review A-Y1: a mode changed outside Doan reaches the listing (window focus, a group re-read); an open page reads its
+// settings again, but never while its own write is in flight.
+test("a listed mode change re-reads the settings of the open page, but not during its own write", async () => {
+  const git = { common: `${ROOT}/.git`, main: ROOT, branch: "main", worktrees: [ROOT] };
+  const at = (storage: "repo" | "local", storageReason?: "exclude_unwritable"): FolderEntry => ({ path: ROOT, kind: "list", servedRev: 0, canvases: [], git, storage, ...(storageReason ? { storageReason } : {}) });
+  doan.readConfig!.mockImplementation(withStorage({ storage: "repo" }));
+  await open({ entries: [at("repo")] });
+  expect(doan.readConfig).toHaveBeenCalledTimes(1);
+  render({ entries: [at("repo")] });
+  expect(doan.readConfig).toHaveBeenCalledTimes(1);
+  doan.readConfig!.mockImplementation(withStorage({ storage: "local" }));
+  render({ entries: [at("local")] });
+  await flush(); render();
+  expect(doan.readConfig).toHaveBeenCalledTimes(2);
+  expect(chosen()).toEqual([false, true]);
+  render({ entries: [at("local", "exclude_unwritable")] });
+  await flush(); render();
+  expect(doan.readConfig).toHaveBeenCalledTimes(3);
+  // Its own write: the entries change mid-write, and only the write's own read follows it.
+  let finish!: (reply: unknown) => void;
+  doan.writeConfig!.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  press(0);
+  render();
+  render({ entries: [at("repo")] });
+  await flush();
+  expect(doan.readConfig).toHaveBeenCalledTimes(3);
+  doan.readConfig!.mockImplementation(withStorage({ storage: "repo" }));
+  finish({ ...CONFIG, changed: true, storage: "repo" });
+  await flush(); render(); await flush(); render();
+  expect(doan.readConfig).toHaveBeenCalledTimes(4);
+  expect(chosen()).toEqual([true, false]);
+});

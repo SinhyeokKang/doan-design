@@ -108,9 +108,7 @@ export type InitOutcome =
   | { kind: "error"; code: string; message: string; guidance: string }
   | { kind: "cliError"; reason: string };
 
-// local: the setup asked to keep Doan files out of Git. Its usage_error is read as "not a Git repository" (design §2.3)
-// unless a token CSS was chosen, whose own usage_error ("outside the repository") keeps the CSS guidance.
-export function initOutcome(run: CliRun, request: { local?: boolean; tokenCss?: boolean } = {}): InitOutcome {
+export function initOutcome(run: CliRun): InitOutcome {
   const reason = run.spawnError ?? (run.timedOut ? "timed out after 10 s" : run.stderr.split(/\r?\n/, 1)[0] || "Invalid response from doan CLI.");
   const cliError: InitOutcome = { kind: "cliError", reason };
   if (run.spawnError !== undefined || run.timedOut || run.exitCode === null) return cliError;
@@ -125,9 +123,12 @@ export function initOutcome(run: CliRun, request: { local?: boolean; tokenCss?: 
     if (run.exitCode === 0) return cliError;
     const code = value.error.code;
     const guidance = code === "invalid_config" ? "Fix the project configuration, then try again."
-      : code === "usage_error" && request.local && !request.tokenCss ? "Choose Include in Git, or run git init here first."
-        : code === "usage_error" ? "Check the project and choose a CSS file inside it, then try again."
-          : "Check the project, then try again.";
+      // Storage failures have their own codes (local-doan-files orch decision 9). The exclude failure's own sentence
+      // already says that nothing was set up and why.
+      : code === "local_not_git" ? "Choose Include in Git, or run git init here first."
+        : code === "local_exclude_failed" ? ""
+          : code === "usage_error" ? "Check the project and choose a CSS file inside it, then try again."
+            : "Check the project, then try again.";
     return { kind: "error", code, message: value.error.message, guidance };
   }
   const result = value.result;

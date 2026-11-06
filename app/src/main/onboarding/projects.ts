@@ -24,6 +24,8 @@ export interface ProjectDeps {
   remotes(root: string): RemoteRead;
   // Another listed worktree of this folder's Doan root keeps its files out of Git (storage.ts projectKeepsLocal).
   keepsLocal(path: string): boolean;
+  // `doan config --storage local` for a set-up root: success, or the CLI's error code.
+  keepLocal(root: string): Promise<{ ok: true } | { ok: false; code: string }>;
 }
 // storage: "local" when the folder is set up that way or its setup is planned that way (app-socket v2 inspection);
 // absent means repo. The adder decides whether a reply may show it.
@@ -144,35 +146,42 @@ export async function selectProject(path: string, initialize: boolean, repo: Git
   return register(path, initialize, deps, storage);
 }
 
-// A refused `init --storage local`, by the CLI's code. The CLI refuses a folder outside Git with usage_error (design
-// §2.3); onboarding chooses no token CSS, so that is the only usage_error a local setup meets. Any other failure,
-// an exclude write among them unless the CLI names it, stays the generic init_failed.
-function localFailure(code: string): OnboardingOperationErrorCode {
-  if (code === "usage_error" || code === "local_not_git") return "local_not_git";
-  return code === "local_exclude_failed" ? "local_exclude_failed" : "init_failed";
+// A refused setup, by the CLI's literal code (local-doan-files orch decision 9). Plain init in a project already out of
+// Git can fail on the exclude file too, so the codes are read whatever was asked.
+function setupFailure(code: string): OnboardingOperationErrorCode {
+  return code === "local_not_git" || code === "local_exclude_failed" ? code : "init_failed";
 }
 
-async function register(path: string, initialize: boolean, deps: ProjectDeps, storage: "local" | null): Promise<ProjectOutcome> {
+// keepChosen: the folder is a clone made for this choice, so a repository that brings its own setup still gets the
+// chosen Keep out of Git. A folder picked as it is never has its project's mode changed (spec decision 6).
+async function register(path: string, initialize: boolean, deps: ProjectDeps, storage: "local" | null, keepChosen = false): Promise<ProjectOutcome> {
   const stored = await deps.add(path);
   if (stored === null) return failed("project_unavailable");
   const state = await deps.ls({ repo: stored });
   if (state.kind === "error") return failed("config_invalid");
   if (state.kind === "cliError") return failed("project_unavailable");
-  if (state.kind === "list") return confirmProject(state.root, deps);
+  if (state.kind === "list") {
+    if (keepChosen && storage === "local" && state.storage !== "local") {
+      const kept = await deps.keepLocal(state.root);
+      // The clone stays registered; only its storage choice failed.
+      if (!kept.ok) return failed(kept.code === "local_not_git" ? "local_not_git" : "local_exclude_failed");
+    }
+    return confirmProject(state.root, deps);
+  }
   if (!initialize) return failed("project_unavailable");
   const outcome = await deps.initialize(stored, storage);
   switch (outcome.kind) {
     case "success": return confirmProject(stored, deps);
     case "rerooted": return confirmProject(outcome.root, deps);
     case "unavailable": return failed("project_unavailable");
-    case "error": return failed(storage === "local" ? localFailure(outcome.code) : "init_failed");
+    case "error": return failed(setupFailure(outcome.code));
     default: return failed("init_failed");
   }
 }
 
 // After a clone the user asked for: the new folder is registered and set up like a selected one.
 export async function registerClone(destination: string, deps: ProjectDeps, storage: "local" | null = null): Promise<ProjectOutcome> {
-  const outcome = await register(destination, true, deps, storage);
+  const outcome = await register(destination, true, deps, storage, true);
   // Anything else (an ancestor project made meanwhile) is not the repository that was cloned.
   return outcome.ok && outcome.root !== await canonicalFolder(destination) ? failed("project_unavailable") : outcome;
 }

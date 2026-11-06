@@ -175,15 +175,15 @@ describe("initOutcome", () => {
     expect(initOutcome(run({ timedOut: true }))).toMatchObject({ kind: "cliError", reason: "timed out after 10 s" });
     expect(initOutcome(run({ spawnError: "ENOENT" }))).toMatchObject({ kind: "cliError", reason: "ENOENT" });
   });
-  // local-doan-files design §2.3: a local setup outside Git is the CLI's usage_error. A chosen token CSS has its own
-  // usage_error, so it keeps the CSS guidance.
-  test("a refused local setup keeps its code and says what to choose", () => {
-    const refused = run({ exitCode: 2, stdout: failure("usage_error", "This folder isn’t a Git repository, so Doan can’t keep its files out of Git.") });
-    expect(initOutcome(refused, { local: true })).toEqual({ kind: "error", code: "usage_error", message: "This folder isn’t a Git repository, so Doan can’t keep its files out of Git.", guidance: "Choose Include in Git, or run git init here first." });
-    expect(initOutcome(refused, { local: true, tokenCss: true })).toMatchObject({ guidance: "Check the project and choose a CSS file inside it, then try again." });
-    expect(initOutcome(refused)).toMatchObject({ guidance: "Check the project and choose a CSS file inside it, then try again." });
-    expect(initOutcome(run({ exitCode: 1, stdout: failure("internal_error", "Couldn’t add Doan’s lines to .git/info/exclude.") }), { local: true }))
-      .toEqual({ kind: "error", code: "internal_error", message: "Couldn’t add Doan’s lines to .git/info/exclude.", guidance: "Check the project, then try again." });
+  // local-doan-files orch decision 9: storage failures carry their own codes (exit 5). usage_error is no longer the
+  // not-Git signal: it keeps the CSS guidance (an already set-up checkout refuses a local init with it).
+  test("a refused local setup keeps its code and says what to do", () => {
+    const notGit = run({ exitCode: 5, stdout: failure("local_not_git", "This folder isn’t a Git repository, so Doan can’t keep its files out of Git.") });
+    expect(initOutcome(notGit)).toEqual({ kind: "error", code: "local_not_git", message: "This folder isn’t a Git repository, so Doan can’t keep its files out of Git.", guidance: "Choose Include in Git, or run git init here first." });
+    // The CLI's sentence already says what failed and that nothing was set up (draft frame setup-dialog).
+    const exclude = run({ exitCode: 5, stdout: failure("local_exclude_failed", "Couldn’t add Doan’s lines to .git/info/exclude, so nothing was set up.") });
+    expect(initOutcome(exclude)).toEqual({ kind: "error", code: "local_exclude_failed", message: "Couldn’t add Doan’s lines to .git/info/exclude, so nothing was set up.", guidance: "" });
+    expect(initOutcome(run({ exitCode: 2, stdout: failure("usage_error", "Already set up.") }))).toMatchObject({ code: "usage_error", guidance: "Check the project and choose a CSS file inside it, then try again." });
   });
   test("rejects malformed results and inconsistent exits", () => {
     for (const result of [{}, { initialized: "false" }, { initialized: false, repo: "/r", created: "x" }]) expect(initOutcome(run({ stdout: envelope({ v: 1, ok: true, result }) })).kind).toBe("cliError");

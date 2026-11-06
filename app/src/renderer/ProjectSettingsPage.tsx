@@ -20,6 +20,8 @@ import { StorageDescription } from "./StorageChoice";
 import { STORAGE_LABELS, storageSectionView, storedNote, switchNote, type StorageChoice, type SwitchNote } from "./storageRules";
 
 type Config = Extract<ConfigReply, { kind: "config" }>;
+// The mode a listed worktree reports, to notice a change made outside Doan; null for a row that is not a list.
+const listedStorage = (entry: FolderEntry | undefined): string | null => entry?.kind === "list" ? `${entry.storage ?? ""}:${entry.storageReason ?? ""}` : null;
 // A config section that writes: the two path settings, and where the Doan files are kept.
 type Section = ConfigKind | "storage";
 const STORAGE_CHOICES: StorageChoice[] = ["repo", "local"];
@@ -82,7 +84,7 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
   const heading = useRef<HTMLHeadingElement | null>(null), tokenButton = useRef<HTMLButtonElement | null>(null), addButton = useRef<HTMLButtonElement | null>(null);
   const removeButtons = useRef(new Map<string, HTMLButtonElement>()), storageInputs = useRef(new Map<StorageChoice, HTMLInputElement>());
   const returnFocus = useRef<{ button: HTMLButtonElement | HTMLInputElement; section: Section; removed?: { path: string; before: readonly string[] } } | null>(null);
-  const reported = useRef(false), arrived = useRef(0), config$ = useRef<Config | null>(null);
+  const reported = useRef(false), arrived = useRef(0), config$ = useRef<Config | null>(null), listedMode = useRef(listedStorage(initial));
   config$.current = config;
   const root = view.root;
   const found = entries.find(item => item.path === root);
@@ -134,7 +136,14 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
     const focus = reroot && reroot.seq !== seenReroot.current ? reroot : undefined;
     if (reroot) seenReroot.current = reroot.seq;
     const next = followProjectSettings(view, entries, origin, focus);
-    if (next.kind === "stay") return;
+    const before = listedMode.current;
+    listedMode.current = listedStorage(entries.find(item => item.path === (next.kind === "show" ? next.root : view.root)));
+    if (next.kind === "stay") {
+      // A mode changed outside Doan reaches the listing (window focus, a group re-read) before the page; the settings are
+      // read again. A write in flight reads them itself when it ends, so a read now could only be older than it.
+      if (view.view === "settings" && !busy && before !== null && listedMode.current !== null && before !== listedMode.current) void read(view.root);
+      return;
+    }
     if (next.kind === "leave") {
       // An open confirmation is cancelled by the page going; a picker or read answering before App unmounts the page is
       // for a worktree that is gone, so it opens nothing.

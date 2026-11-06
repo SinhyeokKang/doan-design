@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import { createConfigBridge } from "./configBridge";
+import { createConfigBridge, storageWrite } from "./configBridge";
 import type { CliRun } from "./folderState";
 
 const ROOT = "/repo";
@@ -262,4 +262,12 @@ describe("dialog session", () => {
     expect(await bridge.write({ root: ROOT, op: "removeServe", path: "styles" })).toEqual({ kind: "unavailable" });
     expect(await bridge.read({ root: ROOT })).toMatchObject({ kind: "config", serve: ["styles"] });
   });
+});
+
+// review A-R1: a clone's Keep out of Git applied with `doan config --storage local` succeeds or names the CLI's code.
+test("a storage write outside Project Settings answers success or the CLI's code", () => {
+  expect(storageWrite(ok({ repo: ROOT, serve: [], changed: true, storage: "local" }))).toEqual({ ok: true });
+  expect(storageWrite({ exitCode: 5, timedOut: false, stderr: "", stdout: JSON.stringify({ v: 1, ok: false, error: { code: "local_exclude_failed", message: "m", nextSteps: [] } }) })).toEqual({ ok: false, code: "local_exclude_failed" });
+  expect(storageWrite({ exitCode: null, timedOut: true, stderr: "", stdout: "" })).toEqual({ ok: false, code: "internal_error" });
+  expect(storageWrite({ exitCode: 0, timedOut: false, stderr: "", stdout: "garbage" })).toEqual({ ok: false, code: "internal_error" });
 });

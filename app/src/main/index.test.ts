@@ -673,6 +673,23 @@ test("CSS picker cancellation and choice IDs stay bound to the folder epoch", as
   expect(mocks.shell.initialize).not.toHaveBeenCalled();
 });
 
+// review A-Y2 (POSTMORTEM 2026-11-03 'Locate on the Project Settings page…'): a setup kept out of Git writes the shared
+// exclude file, so every worktree of the project is read again, as after a Project Settings write.
+test("a local setup reads every worktree of its project again; a setup in Git or a failed one does not", async () => {
+  const A = "/w/studio", B = "/w/studio-b";
+  const git = { common: `${A}/.git`, main: A, worktrees: [A, B] };
+  mocks.shell.entries.mockReturnValue([{ path: A, kind: "list", canvases: [], servedRev: 0, git, storage: "repo" } as { path: string; kind?: string }, { path: B, kind: "uninitialized" }]);
+  mocks.shell.initialize.mockResolvedValue({ kind: "success" });
+  expect(await invoke("project:init", window().webContents, null, { root: B, choiceId: null, storage: "local" })).toEqual({ kind: "success" });
+  expect(mocks.shell.initialize).toHaveBeenCalledWith(B, null, "local");
+  expect(mocks.shell.reread).toHaveBeenCalledExactlyOnceWith([A, B]);
+  mocks.shell.reread.mockClear();
+  await invoke("project:init", window().webContents, null, { root: B, choiceId: null, storage: null });
+  mocks.shell.initialize.mockResolvedValueOnce({ kind: "error", code: "local_not_git", message: "m", guidance: "g" });
+  await invoke("project:init", window().webContents, null, { root: B, choiceId: null, storage: "local" });
+  expect(mocks.shell.reread).not.toHaveBeenCalled();
+});
+
 test("a picker finishing after its project closes cannot retain a choice", async () => {
   mocks.shell.entries.mockReturnValue([{ path: ROOT, kind: "uninitialized" }]);
   mocks.dialog.showOpenDialog.mockImplementation(async () => {

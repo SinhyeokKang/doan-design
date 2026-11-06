@@ -584,6 +584,22 @@ describe("project setup and upward refresh", () => {
     expect(existsSync(join(sub, ".doan"))).toBe(false);
   });
 
+  // orch decision 10, design §3.1: the chosen mode is not used on a re-root, so the notice says the target project's
+  // mode from the CLI's listing; an older CLI (or an unknown mode) gets the shipped sentence only.
+  test.each([
+    ["local", "This folder is inside ROOT, which is already set up and keeps its Doan files out of Git."],
+    ["repo", "This folder is inside ROOT, which is already set up and includes its Doan files in Git."],
+    ["unknown", "This folder is inside ROOT, which is already set up."],
+    [null, "This folder is inside ROOT, which is already set up."],
+  ])("a re-root says the target project's mode (%s)", async (storage, message) => {
+    const root = dir(); const sub = join(root, "web"); mkdirSync(sub);
+    const wrapper = join(dir(), "doan");
+    const inject = storage === null ? "" : ` | sed 's/"result":{/"result":{"storage":"${storage}",/'`;
+    writeFileSync(wrapper, `#!/bin/sh\nif [ "$1" = ls ]; then out=$('${cli}' "$@"); code=$?; printf '%s\\n' "$out"${inject}; exit $code; fi\nexec '${cli}' "$@"\n`); chmodSync(wrapper, 0o755);
+    const { shell } = await uninitialized(sub, wrapper); writeRepo(root);
+    expect(await shell.initialize(sub, null, storage === "local" ? null : "local")).toEqual({ kind: "rerooted", root, message: message.replace("ROOT", root) });
+  });
+
   test("initializes once for simultaneous requests, uses selected CSS and re-reads stored spelling", async () => {
     const root = dir(); const token = join(root, "tokens.css"); writeFileSync(token, ":root{}");
     const log = join(dir(), "calls"); const wrapper = join(dir(), "doan");
@@ -624,14 +640,11 @@ describe("project setup and upward refresh", () => {
     expect(await shell.initialize(root, null)).toEqual({ kind: "error", code: "invalid_config", message: "bad config", guidance: "Fix the project configuration, then try again." });
   });
 
-  test("a local setup runs init --storage local and a refused one says what to choose", async () => {
+  test("a local setup runs init --storage local and a refused one keeps the CLI's code and says what to do", async () => {
     const root = dir(); const wrapper = join(dir(), "doan"); const args = join(dir(), "args");
-    writeFileSync(wrapper, `#!/bin/sh
-if [ "$1" = init ]; then echo "$@" > '${args}'; echo '{"v":1,"ok":false,"error":{"code":"usage_error","message":"Not a Git repository.","nextSteps":[]}}'; exit 2; fi
-exec '${cli}' "$@"
-`); chmodSync(wrapper, 0o755);
+    writeFileSync(wrapper, `#!/bin/sh\nif [ "$1" = init ]; then echo "$@" > '${args}'; echo '{"v":1,"ok":false,"error":{"code":"local_not_git","message":"Not a Git repository.","nextSteps":[]}}'; exit 5; fi\nexec '${cli}' "$@"\n`); chmodSync(wrapper, 0o755);
     const { shell } = await uninitialized(root, wrapper);
-    expect(await shell.initialize(root, null, "local")).toEqual({ kind: "error", code: "usage_error", message: "Not a Git repository.", guidance: "Choose Include in Git, or run git init here first." });
+    expect(await shell.initialize(root, null, "local")).toEqual({ kind: "error", code: "local_not_git", message: "Not a Git repository.", guidance: "Choose Include in Git, or run git init here first." });
     expect(readFileSync(args, "utf8").trim()).toBe(`init --json --repo ${root} --storage local`);
   });
 

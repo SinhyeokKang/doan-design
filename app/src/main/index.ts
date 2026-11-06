@@ -46,7 +46,7 @@ import { createAddFlow, type AddFlow } from "./addProjects";
 import { cliCommand, readFolder, runConfig, runDesignSkill, runExport, runLs } from "./cli";
 import { createCanvasExport, EXPORT_REFUSED } from "./canvasExport";
 import { createCanvasTrash, TRASH_REFUSED, trashBusy } from "./canvasTrash";
-import { createConfigBridge, type ConfigBridge } from "./configBridge";
+import { createConfigBridge, storageWrite, type ConfigBridge } from "./configBridge";
 import { aboutCli, aboutText, aboutTool, type AboutRead } from "./about";
 import { PROVIDERS } from "./agentAuth/types";
 import { MCP_CHANNELS, McpIpc } from "./mcpConnectors/ipc";
@@ -805,6 +805,14 @@ async function start(): Promise<void> {
     const refused = channel === AUTH_CHANNELS.read ? null : { ok: false, reason: "invalid" };
     handle(channel, refused, (event, value) => authIpc ? authIpc.handle(channel, value, event.sender.id) : refused);
   }
+  // A write of the shared exclude file changes the mode of every worktree of the project, so all of them are read
+  // again, as after a Project Settings write (POSTMORTEM 2026-11-03 'Locate on the Project Settings page…').
+  const rereadGroup = (root: string) => ready.reread(groupRoots(ready.entries(), root));
+  const initializeProject = async (root: string, tokenCss: string | null, storage: "local" | null): Promise<ProjectInitResult> => {
+    const outcome = await ready.initialize(root, tokenCss, storage);
+    if (outcome.kind === "success" && storage === "local") rereadGroup(root);
+    return outcome;
+  };
   // Registration goes through Add Project's judgement; a folder that only a confirmation would store is confirmed
   // here because the request already carried the user's explicit setup intent.
   const projectDeps: ProjectDeps = {
@@ -823,9 +831,14 @@ async function start(): Promise<void> {
       const confirmed = await flow.confirm({ confirmId: confirm.confirmId });
       return confirmed.kind === "added" && ready.entries().some(entry => entry.path === confirm.path) ? confirm.path : null;
     },
-    initialize: (root, storage) => ready.initialize(root, null, storage),
+    initialize: (root, storage) => initializeProject(root, null, storage),
     remotes: root => readGitRemotes(root, homeDirectory()),
     keepsLocal: path => projectKeepsLocal(ready.entries(), path),
+    async keepLocal(root) {
+      const result = storageWrite(await runConfig(cli, root, ["--storage", "local"]));
+      if (result.ok) rereadGroup(root);
+      return result;
+    },
   };
   const realOrNull = (path: string) => { try { return realpathSync(path); } catch { return null; } };
   // The developer directory xcode-select would use, read without running it (see locateGit).
@@ -984,7 +997,7 @@ async function start(): Promise<void> {
       if (!choice || choice.id !== value.choiceId || choice.epoch !== ready.epoch(value.root)) return unavailable;
       tokenCss = choice.path;
     }
-    return ready.initialize(value.root, tokenCss, value.storage);
+    return initializeProject(value.root, tokenCss, value.storage);
   });
   handle("app:home", null, event => fromWindow(event) ? homeDirectory() : null);
   handle("window:visible", null, event => fromWindow(event) ? { visible: windowShown && !appHidden } : null);
