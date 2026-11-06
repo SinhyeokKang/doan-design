@@ -96,6 +96,14 @@ spec 결정 1~8을 CLI(파일 쓰기와 판단), app main(셋업 계획, onboard
   - `settings-disabled` — 이유별 비활성: Git 아님, `.git` 읽기 실패(unknown), exclude 쓰기 불가.
   - `not-set-up` — 로컬 저장소의 셋업되지 않은 worktree의 'Not set up' 안내.
 - 문구는 §3.1·§3.2의 내용과 후보를 `clarify` preset으로 다듬는다. radio 이름은 "Include in Git" / "Keep out of Git (this Mac only)"이다.
+- 시안 검토 결정(사용자, 2026-11-07):
+  - setup 패널과 clone 화면의 두 옵션은 따로 떨어진 카드(`.ob-choice`) 대신 에이전트 단계의 묶인 카드(`.ob-provider-list`)에 둔다. 행 사이는 1px 구분선이고, radio는 provider mark 자리에 둔다.
+  - clone 화면의 선택지는 "Save to" 아래, "Already have this repository?" 위다. clone하는 동안에는 고른 값을 유지한 채 비활성이고, 취소·실패 뒤에는 같은 값으로 다시 활성이다.
+  - 그 root의 모드가 이미 로컬이면 setup 패널도 Set Up 폼처럼 선택지 대신 사실을 보인다. 사실 안내 끝에 "Change it in Project Settings."를 둔다. clone은 새 저장소라 해당하지 않는다.
+  - Project Settings의 Saving / Saved와 그 한 줄 / 쓰기 오류는 옵션 아래 한 줄이다.
+  - 비활성은 이유별이다. Git 아님은 Keep out of Git만 비활성(Include in Git은 지금 값이라 활성), `.git` 읽기 실패와 exclude 쓰기 불가는 둘 다 비활성이다.
+  - 모드가 unknown이면 경로 줄은 커밋 문장을 빼고 "Stored in `.doan/config.json` in this worktree."다.
+  - 체크된 채 비활성인 radio는 비활성 checkbox를 따른 모양 그대로 둔다.
 
 ## 4. 순수 함수로 뺄 부분 (`/tdd` 대상)
 
