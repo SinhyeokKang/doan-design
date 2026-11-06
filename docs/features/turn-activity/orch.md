@@ -22,6 +22,9 @@
 - RU 리뷰는 후속 1(연결)까지 끝난 전체 diff로 한 번 한다(conductor's call — 연결 없이 리뷰하면 단계 경로 전체를 볼 수 없다).
 - SY finding: 흐르는 답의 caret이 Markdown 아래 자기 줄에 선다(89aa20d6부터 있던 결함). 이 feature에서 고치지 않고 Z2에서 BACKLOG 'Known defects'에 적는다(conductor's call — 결정 4와 범위 밖).
 - R1 실행: 사람이 승인했고, 설치된 Doan(실제 userData)과 함께 띄워도 된다고 했다.
+- R1 결함 1(Copilot 병렬 도구): 다른 도구가 끝나도 아직 도는 ACP 도구가 있으면 가장 늦게 시작한 도는 도구의 단계를 내고, 도는 도구가 없을 때만 일반을 낸다(conductor's call — spec 완료 조건 2, design §2 표에 병렬 규칙이 없었다).
+- R1 결함 2(다음 턴의 bubble이 턴 표시보다 10–14ms 먼저 commit): 원인을 찾아 같은 렌더로 고친다(conductor's call — spec 완료 조건 1).
+- R1 관찰 3(Overview Stop이 `turn.done` 뒤 10초 남음, `BIND_GRACE_MS`): 이 feature 전부터 있던 동작이라 BACKLOG 'Known defects'에 적는다(conductor's call).
 - Z1–Z3(문서 승격)은 지휘자가 통합 뒤 문서별 커밋으로 쓴다(orchestrate §4·§5). DESIGN.md는 U2가 쓴다.
 
 ## batch
@@ -35,7 +38,8 @@
 | RU | B3, U1 | renderer의 새 순수 함수 파일과 테스트, `conversationStore.ts`, `ConversationThread.tsx`, `ProjectOverview.tsx`, `CanvasConversationPanel.tsx`, `styles.css`, `App.tsx`(deferred) | MA 통합(`App.tsx` 구독은 MC 통합) | Claude Opus high — settle·rev·timer·접근성 규칙이 서로 얽힌다 | `npm --prefix app test`, typecheck, `npm --prefix app run build`, `rendererImports.test.ts` | worker 1차 완료 `614b9b26`..`75ac0c07`, 315 files/8810 pass, build pass. 후속 1(`App.tsx` 연결)과 fix 1 완료. 통합 `cdda8efc`..`fa7ab5e2`(worker `614b9b26`..`644db3d3`, MC cherry-pick `b270c8b6` 제외), 318 files/8831 pass |
 | RU-rev | RU 리뷰 | 없음 | RU | Codex Astra medium | `/code-review` 보고 | 완료, 🔴 0 · 🟡 2 · 🟢 2(`.scratch/review-RU.md`). fix 1 통합. 재확인 🔴 0 · 🟡 0 · 🟢 0(첫 재개는 Codex update prompt로 시작 실패, 같은 모델로 재시도해 통과). `ta-ru` worktree 지움, branch 남김 |
 | SY | U2 | 턴 표시 style 수정, `docs/DESIGN.md` | MC·RU 통합 | Claude Opus high — 실제 앱 computed style 비교와 판단 | `/design-sync` 보고 | 완료. 23 상태 256 pair가 초안과 맞아 코드 변경 없음, 통합 `b8034922`(DESIGN.md, worker `ca31d8ac`). 리뷰 2라운드(Claude subagent). 증거 `.scratch/design-sync/turn-activity/`. `ta-sy` worktree 지움, branch 남김 |
-| RT | R1 | `.scratch/runtime-test/turn-activity/` | SY 통합, 사람 승인 | Claude Opus medium — 실제 provider 턴을 몰고 관찰만 한다 | `/runtime-test` 스크린샷·로그 | 진행 중(`ta-rt`). 사람이 설치된 Doan과 함께 띄우는 것을 승인 |
+| RT | R1 | `.scratch/runtime-test/turn-activity/` | SY 통합, 사람 승인 | Claude Opus medium — 실제 provider 턴을 몰고 관찰만 한다 | `/runtime-test` 스크린샷·로그 | 1차 완료(`.scratch/handoff-RT.md`, 증거 `.scratch/runtime-test/turn-activity/`). 결함 2개 → FX. Cursor는 사용량 100%로 미확인. `ta-rt`는 재확인용으로 남김 |
+| FX | R1 결함 1·2 | `acp.ts`, renderer 턴 표시 경로, 그 테스트 | RT | Claude Opus high — 원인 조사가 필요한 render 순서 결함과 normalizer 규칙 추가 | test, typecheck, build | 진행 중(`ta-fx`) |
 | — | R2 | 없음 | 모두 통합, rebase | 지휘자 | `node .agents/skills/verify/scripts/verify.mjs` | 대기 |
 | — | Z1–Z3 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/BACKLOG.md`, `docs/features/turn-activity/` 삭제 | R1·R2 | 지휘자 | tasks.md Z의 grep | 대기 |
 
