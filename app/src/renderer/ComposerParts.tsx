@@ -303,7 +303,7 @@ export function usePresetListOutside(open: boolean, list: RefObject<HTMLElement 
 type Picker = ReturnType<typeof modelPickerView>;
 
 // The Older models fold of a model menu (model-drawer-older design §2), shared by the agent picker and Settings' Model
-// menu. It lives while the menu is open: Radix unmounts the content on close, and the state is dropped with it.
+// menu. Opening or closing the menu (onOpenChange) drops it, so a menu always opens folded but for a checked older model.
 export interface OlderFold {
   onOpenChange(open: boolean): void;
   contentRef(node: HTMLDivElement | null): void;
