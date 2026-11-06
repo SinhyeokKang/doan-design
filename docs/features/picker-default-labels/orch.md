@@ -67,3 +67,4 @@
 - BG follow-up(캔버스 행 ⋯ 버튼)을 통합했다(`8cdae5b6`·`20639b30`·`64e8d004`, postmortem hash도 통합 hash로 고쳤다). worker probe는 11/11 통과했다. design-system 행은 같은 class와 규칙을 쓰지만 직접 probe하지는 않았다. BG는 할 일이 더 없으므로 release한다.
 - BC를 통합했다(test `57e557d2`, fix `5751e5c1`, postmortem). `POSTMORTEM.md` 충돌은 같은 방식으로 풀었다. 원인은 renderer였다. 창이 모델 목록을 `root + provider`로만 보관했다(Home memory, DockedSupport, Settings). main은 이미 connection마다 목록을 다시 읽고 있었다. 수정은 Status DTO에 auth `generation`을 싣고, 목록 키에 그 값을 붙이는 것이다. 다섯 provider가 같은 상태 기계를 쓰므로 모두에 적용된다. 테스트는 Codex 교체만 다룬다. worker 자체 리뷰는 🔴0 🟡0 ⚪3이다. 실제 두 계정 확인은 하지 않았다(R1에서 사람에게 묻는다). ARCHITECTURE §7 'Model lists' 문장은 Z1에서 고친다.
 - RA fix round 2(RV2 🟡3)를 보냈다(dispatch `ctx_fd06241beed7`). 그 뒤 BC와 RA fix 2를 묶어 독립 리뷰(RV3)를 받는다.
+- 참고: BC 정리 때 `git cherry`가 `9d726fa1`(postmortem)을 `+`로 보였다. 충돌을 풀면서 hash 두 개를 통합 hash로 바꿔 patch가 달라졌기 때문이고, 항목 내용은 통합됐다. branch `SinhyeokKang/pdl-bc`는 남아 있다.
