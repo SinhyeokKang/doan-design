@@ -20,7 +20,7 @@
 |---|---|---|---|---|---|---|
 | S | A1 | `schema/app-socket.v5.schema.json`, `schema/fixtures/app-socket-v5/`, `app/src/formats/validate.ts`, `cli/internal/formats/validate.go`(+테스트) | — | Sonnet high(v4 패턴을 따르지만 바이트 상한·코드 목록을 맞춰야 한다) | `go test ./...`, `npm --prefix app test` | 통합(`3e7a38a8`·`7821d922`). 리뷰는 G·M 리뷰가 schema를 함께 본다(지휘자 판단: schema·fixture만이고 v4 패턴) |
 | G | B1, C3 | `cli/`(formats 제외) | S | Opus medium(직렬화 줄 상한과 exit 매핑의 경계 사례가 많다) | `go test ./...`, `go vet ./...` | 통합(`d353bb8a`·`5ea6bd15`·`f58cff7d`). 리뷰 RG(Opus medium): 🔴0 🟡0 🟢4, 고치지 않음 |
-| M | B2, B3, B4, C1, C2, C4 | `app/src/main/`(runtime·conversation·agentAuth), `app/src/shared/`·preload의 이벤트·IPC 타입 | S | Opus high(턴 끝 판정, `contested`, 큐 옮기기, 수락 직전 재확인 등 동시성) | `npm --prefix app test`, typecheck | 통합(`87c5d927`·`dc232869`·`78ad1803`). 리뷰 RM(Opus high) 진행 중 |
+| M | B2, B3, B4, C1, C2, C4 | `app/src/main/`(runtime·conversation·agentAuth), `app/src/shared/`·preload의 이벤트·IPC 타입 | S | Opus high(턴 끝 판정, `contested`, 큐 옮기기, 수락 직전 재확인 등 동시성) | `npm --prefix app test`, typecheck | 통합(`87c5d927`·`dc232869`·`78ad1803`, 수정 1회 `965795cc`·`1e4f2c39`). 리뷰 RM(Opus high): 🔴0 🟡2(고침) ⚪5(⚪2만 고침) ❓1(지휘자 판단) |
 | U | B5, U1, U2, `/design-sync` | `app/src/renderer/`, DESIGN.md | M | Opus high(이동·toast·read 대기 규칙과 초안 일치) | `npm --prefix app test`, typecheck, build, `/design-sync` | 진행(`ctx_ac7f36eafb88`, ch-u) |
 | E | E1, E2, E3 | `eval/`, USABILITY-EVAL.md | G, M | Sonnet high(fake app·시나리오는 기존 패턴, E3는 실제 실행) | `node eval/run.ts --self-test`, `node --test 'eval/**/*.test.ts'`, E3 라운드 | 진행(`ctx_015931529fb3`, ch-e) |
 | 지휘자 | R1, R2, Z1–Z3 | PRODUCT·ARCHITECTURE·BACKLOG, feature 디렉터리 | 모두 | — | `/runtime-test`, `verify.mjs --eval`, `/doc-check` 범위 확인 | 대기 |
@@ -33,3 +33,6 @@
 - G 리뷰 RG의 🟢 4개(U+FEFF만 있는 메시지가 Go에서는 통과하고 ajv `\S`에서는 막혀 `internal_error`가 됨, C1 허용 fixture 없음, root가 길 때 넘침 메시지가 `--message`를 탓함, `v` 해석 중복)는 고치지 않는다(지휘자 판단: 사람이 쓰지 않는 경계이거나 동작에 영향이 없다). 근거: `.scratch/evidence/review-G.md`.
 - M은 리뷰 전에 통합했다(지휘자 판단: U·E가 M의 이벤트·IPC 모양에 기대고, 리뷰 수정은 `app/src/main/`에만 생기므로 U·E와 겹치지 않는다). RM의 수정은 M 작업자가 ch-m에서 고치고 다시 cherry-pick한다.
 - M의 계획과 다른 점: `handoff.resolved` started는 `{outcome, target: {conversationId, canvas}}`이다(이벤트 envelope의 `conversationId`와 겹쳐서). refused `reason`에는 판정 이유 넷 밖에 시작 거절 코드(`not_logged_in` 등)도 온다. 이 문구는 초안에 없으므로 U가 "Didn’t hand off to <file>." 뒤에 이미 있는 시작 거절 문장을 붙인다(지휘자 판단: 새 문구를 만들지 않는다).
+- RM ❓1(시작 거절 코드의 문구)은 사람에게 묻지 않았다. 지휘자 판단으로 앞의 규칙(이미 있는 시작 거절 문장을 붙인다)을 쓴다. 근거: 확정 문구를 바꾸지 않고 새 문구를 만들지 않는다. M 수정 1회는 POSTMORTEM에 적지 않는다(지휘자 판단: main에 들어간 적 없는 결함을 리뷰가 잡았다).
+- 통합 HEAD `1e4f2c39`에서 `npm --prefix app test`는 exit 0(8460 tests)이다.
+- E 결과(`.scratch/evidence/handoff-E.md`): R10 Codex가 heredoc `doan handoff … --message - <<'EOF'`에서 socket에 닿지 못했다(U-024, 원인 미확인: Codex 규칙이 heredoc 명령에 맞지 않는 것으로 보인다). 실제 앱에서도 그러면 `doan-handoff.rules`의 `prompt`도 걸리지 않는다. R1에서 Codex Default로 확인하고, `HANDOFF_GUIDANCE`를 고칠지는 그 결과로 정한다.
