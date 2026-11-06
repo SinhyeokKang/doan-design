@@ -49,6 +49,8 @@
     "cleanup_failed": 5,
     "config_invalid": 5,
     "init_failed": 5,
+    "local_not_git": 5,
+    "local_exclude_failed": 5,
     "project_unavailable": 5,
     "completion_save_failed": 5,
     "completion_unsupported_version": 5

@@ -25,6 +25,13 @@
         "copilot"
       ]
     },
+    "storage": {
+      "$comment": "Where a project's .doan/ is kept: repo (committed with the repository, the default) or local (kept out of Git through the repository's exclude file, this Mac only). A request that omits it means repo, so a client that never heard of it sends nothing new; a reply never spells the default (see inspection).",
+      "enum": [
+        "repo",
+        "local"
+      ]
+    },
     "request": {
       "oneOf": [
         {
@@ -224,7 +231,7 @@
       "additionalProperties": false
     },
     "projectInspectRequest": {
-      "$comment": "path or url is the target. url with path names the repository the folder must belong to (its remotes are checked); destination, the final clone directory, goes only with url alone.",
+      "$comment": "path or url is the target. url with path names the repository the folder must belong to (its remotes are checked); destination, the final clone directory, goes only with url alone. storage is the mode the inspection plans its changes for (see inspection); omitted means repo.",
       "type": "object",
       "properties": {
         "v": {
@@ -253,6 +260,9 @@
         },
         "destination": {
           "$ref": "#/$defs/absolutePath"
+        },
+        "storage": {
+          "$ref": "#/$defs/storage"
         }
       },
       "required": [
@@ -287,7 +297,7 @@
       ]
     },
     "projectSelectRequest": {
-      "$comment": "initialize: true is the explicit consent to create the inspection's planned changes; without it nothing is written.",
+      "$comment": "initialize: true is the explicit consent to create the inspection's planned changes; without it nothing is written. storage restates the mode that consent covers: it must equal the inspected candidate's storage (omitted means repo on both sides), otherwise the app refuses with inspection_stale and writes nothing. It is ignored when the candidate is already set up.",
       "type": "object",
       "properties": {
         "v": {
@@ -313,6 +323,9 @@
         },
         "initialize": {
           "type": "boolean"
+        },
+        "storage": {
+          "$ref": "#/$defs/storage"
         }
       },
       "required": [
@@ -327,6 +340,7 @@
       "additionalProperties": false
     },
     "projectCloneRequest": {
+      "$comment": "storage must equal the inspection's clone.storage (omitted means repo on both sides), otherwise the app refuses with inspection_stale and clones nothing.",
       "type": "object",
       "properties": {
         "v": {
@@ -349,6 +363,9 @@
         },
         "destination": {
           "$ref": "#/$defs/absolutePath"
+        },
+        "storage": {
+          "$ref": "#/$defs/storage"
         }
       },
       "required": [
@@ -1095,6 +1112,8 @@
         "cleanup_failed",
         "config_invalid",
         "init_failed",
+        "local_not_git",
+        "local_exclude_failed",
         "project_unavailable",
         "no_ready_agent",
         "completion_save_failed",
@@ -1102,7 +1121,7 @@
       ]
     },
     "inspection": {
-      "$comment": "candidates are local folders project_select accepts; clone appears when a url inspection's destination is free. changes empty means the folder is already set up.",
+      "$comment": "candidates are local folders project_select accepts; clone appears when a url inspection's destination is free. changes empty means the folder is already set up. changes is what setup would create in the mode the inspection plans for: the project_inspect request's storage, except that a folder whose project is already kept out of Git (another worktree set it up) always plans local, so its changes carry no .gitattributes and, once the exclude entry exists, no .git/info/exclude. storage is present, and only as local, on a candidate or clone planned for local or already set up that way; absent means repo (also when the mode is unknown), so a repo-mode reply is byte-identical to one from before this field existed.",
       "type": "object",
       "properties": {
         "inspectionId": {
@@ -1118,6 +1137,9 @@
               },
               "changes": {
                 "$ref": "#/$defs/changes"
+              },
+              "storage": {
+                "const": "local"
               }
             },
             "required": [
@@ -1135,6 +1157,9 @@
             },
             "changes": {
               "$ref": "#/$defs/changes"
+            },
+            "storage": {
+              "const": "local"
             }
           },
           "required": [
@@ -1151,12 +1176,14 @@
       "additionalProperties": false
     },
     "changes": {
+      "$comment": ".git/info/exclude is a fixed label, not a path: in a linked worktree or submodule .git is a file and the real exclude file lives in the repository's common Git directory.",
       "type": "array",
       "items": {
         "enum": [
           ".doan/config.json",
           ".doan/canvases/",
-          ".gitattributes"
+          ".gitattributes",
+          ".git/info/exclude"
         ]
       },
       "uniqueItems": true
