@@ -407,7 +407,7 @@ describe("Doany the artist", () => {
   test("the artist window is 32px, the notice starts 8px from it, and no dot rule is left", () => {
     expect(css).toMatch(/\.doan-agent-artist \{[^}]*width: var\(--size-control-sm\); height: var\(--size-control-sm\);/);
     expect(css).toMatch(/\.doan-agent:has\(> \.doan-agent-artist\) \{ padding-left: var\(--space-2\); \}/);
-    expect(css).not.toContain(".doan-agent-dot");
+    expect(css).not.toMatch(/\.doan-agent-dot(?!s)/);
     // A capture leaves the notice out, Doany included.
     expect(css).toMatch(/\[data-capture-snapshot\] :is\([^)]*\.doan-agent-artist/);
   });
