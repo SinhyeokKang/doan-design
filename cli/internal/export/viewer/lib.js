@@ -312,6 +312,14 @@ function toolbarMove(index, count, key) {
   return next >= 0 && next < count ? next : null;
 }
 
+// A pointer tooltip waits as the app's (Radix delayDuration and skipDelayDuration in components/ui/tooltip.tsx):
+// the first one after TIP_DELAY_MS, and one entered within TIP_SKIP_MS of the last tooltip closing at once.
+const TIP_DELAY_MS = 700;
+const TIP_SKIP_MS = 300;
+function tipWait(now, closedAt) {
+  return closedAt !== null && now - closedAt < TIP_SKIP_MS ? 0 : TIP_DELAY_MS;
+}
+
 // ── Viewer state ──────────────────────────────────────────────────────────────
 
 // The iframe's height after a layout: only one measured at the height we set counts (a layout

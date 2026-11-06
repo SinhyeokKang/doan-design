@@ -34,7 +34,7 @@ const NAMES = [
   "nextHeight", "documentHeight", "frameBottom", "canScrollAxis", "clipText", "parseLayout", "parseWheel", "parseMessage", "acceptMessage",
   "fitScale", "fitWidth", "fitFrame", "zoomAt", "wheelAction", "geometry", "scrollFor", "viewFrom", "currentFrame", "layoutHeight",
   "initialViewer", "viewerLayout", "viewerTimeout", "frameName", "drawerView", "ZOOM_ITEMS", "zoomView", "shortcutCommand", "popupOpen", "popupKey", "popupBlur",
-  "toolShortcut", "editableTarget", "panScroll", "layerShown", "escapeSelects", "toolbarMove",
+  "toolShortcut", "editableTarget", "panScroll", "layerShown", "escapeSelects", "toolbarMove", "TIP_DELAY_MS", "TIP_SKIP_MS", "tipWait",
 ];
 type Lib = Record<string, any>;
 const load = (source: string): Lib => runInNewContext(`${source}\n({ ${NAMES.join(", ")} })`, {}) as Lib;
@@ -806,6 +806,21 @@ describe("the content panel", () => {
 });
 
 describe("the toolbar", () => {
+  // The app's tooltips wait 700ms and skip the wait within 300ms of the last one (components/ui/tooltip.tsx).
+  test("a pointer tooltip waits as the app's, and opens at once right after another one closed", () => {
+    expect([v.TIP_DELAY_MS, v.TIP_SKIP_MS]).toEqual([700, 300]);
+    expect(v.tipWait(10_000, null)).toBe(700);
+    expect(v.tipWait(10_000, 9_800)).toBe(0);
+    expect(v.tipWait(10_000, 9_700)).toBe(700);
+    expect(v.tipWait(10_000, 9_701)).toBe(0);
+  });
+
+  test("shell.js waits tipWait on pointer entry, cancels a pending open on leave, press and blur, and opens at once on keyboard focus", () => {
+    expect(shellJs).toMatch(/pointerenter", \(event\) => \{\s*if \(event\.pointerType !== "touch"\) scheduleTip\(button\);/);
+    expect(shellJs).toMatch(/function hideTip\(\) \{\s*clearTimeout\(tipTimer\);/);
+    expect(shellJs).toMatch(/if \(button\.matches\(":focus-visible"\)\) showTip\(button\);/);
+  });
+
   test("its rules are the app's", () => {
     for (const selector of [".doan-canvas-bottom", ".doan-canvas-bottom > *", ".doan-canvas-tools", ".doan-canvas-tools .doan-icon-button", '.doan-canvas-tools > .doan-icon-button.doan-canvas-tool[aria-pressed="true"]:not(:disabled)']) {
       expect(declarations(shellCss, selector), selector).toEqual(declarations(stylesCss, selector));
