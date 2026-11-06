@@ -1,0 +1,1077 @@
+{
+  "source": "turn-activity P1 (2026-11-06), Claude Code 2.1.318; see README.md",
+  "thinking": [
+    {
+      "type": "system",
+      "subtype": "status",
+      "status": "requesting",
+      "session_id": "session-1"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "message_start",
+        "message": {
+          "model": "claude-haiku-5-5",
+          "id": "msg-1",
+          "type": "message",
+          "role": "assistant",
+          "content": [],
+          "usage": {
+            "input_tokens": 2,
+            "cache_creation_input_tokens": 30904,
+            "cache_read_input_tokens": 0,
+            "output_tokens": 8
+          }
+        }
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_start",
+        "index": 0,
+        "content_block": {
+          "type": "thinking",
+          "thinking": "",
+          "signature": ""
+        }
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "system",
+      "subtype": "thinking_tokens",
+      "estimated_tokens": 50,
+      "estimated_tokens_delta": 50,
+      "session_id": "session-1"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "thinking_delta",
+          "thinking": ""
+        }
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "thinking_delta",
+          "thinking": ""
+        }
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "system",
+      "subtype": "thinking_tokens",
+      "estimated_tokens": 244,
+      "estimated_tokens_delta": 194,
+      "session_id": "session-1"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "signature_delta",
+          "signature": "sig"
+        }
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "assistant",
+      "message": {
+        "model": "claude-haiku-5-5",
+        "id": "msg-1",
+        "type": "message",
+        "role": "assistant",
+        "content": [
+          {
+            "type": "thinking",
+            "thinking": "",
+            "signature": "sig"
+          }
+        ],
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 30904,
+          "cache_read_input_tokens": 0,
+          "output_tokens": 8
+        }
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_stop",
+        "index": 0
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_start",
+        "index": 1,
+        "content_block": {
+          "type": "tool_use",
+          "id": "tool-1",
+          "name": "Bash",
+          "input": {}
+        }
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "assistant",
+      "message": {
+        "model": "claude-haiku-5-5",
+        "id": "msg-1",
+        "type": "message",
+        "role": "assistant",
+        "content": [
+          {
+            "type": "tool_use",
+            "id": "tool-1",
+            "name": "Bash",
+            "input": {
+              "command": "echo COMMAND_TEXT",
+              "description": "Search repo files for the word lantern"
+            }
+          }
+        ],
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 30904,
+          "cache_read_input_tokens": 0,
+          "output_tokens": 8
+        }
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_stop",
+        "index": 1
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "message_delta",
+        "delta": {
+          "stop_reason": "tool_use"
+        },
+        "usage": {
+          "output_tokens": 273
+        }
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "message_stop"
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "user",
+      "message": {
+        "role": "user",
+        "content": [
+          {
+            "type": "tool_result",
+            "tool_use_id": "tool-1",
+            "content": "tool output",
+            "is_error": false
+          }
+        ]
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "system",
+      "subtype": "status",
+      "status": "requesting",
+      "session_id": "session-1"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "message_start",
+        "message": {
+          "model": "claude-haiku-5-5",
+          "id": "msg-2",
+          "type": "message",
+          "role": "assistant",
+          "content": [],
+          "usage": {
+            "input_tokens": 2,
+            "cache_creation_input_tokens": 5089,
+            "cache_read_input_tokens": 30904,
+            "output_tokens": 4
+          }
+        }
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_start",
+        "index": 0,
+        "content_block": {
+          "type": "thinking",
+          "thinking": "",
+          "signature": ""
+        }
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "system",
+      "subtype": "thinking_tokens",
+      "estimated_tokens": 50,
+      "estimated_tokens_delta": 50,
+      "session_id": "session-1"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "thinking_delta",
+          "thinking": ""
+        }
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "thinking_delta",
+          "thinking": ""
+        }
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "system",
+      "subtype": "thinking_tokens",
+      "estimated_tokens": 242,
+      "estimated_tokens_delta": 192,
+      "session_id": "session-1"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "signature_delta",
+          "signature": "sig"
+        }
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "assistant",
+      "message": {
+        "model": "claude-haiku-5-5",
+        "id": "msg-2",
+        "type": "message",
+        "role": "assistant",
+        "content": [
+          {
+            "type": "thinking",
+            "thinking": "",
+            "signature": "sig"
+          }
+        ],
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 5089,
+          "cache_read_input_tokens": 30904,
+          "output_tokens": 4
+        }
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_stop",
+        "index": 0
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_start",
+        "index": 1,
+        "content_block": {
+          "type": "tool_use",
+          "id": "tool-2",
+          "name": "Bash",
+          "input": {}
+        }
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "assistant",
+      "message": {
+        "model": "claude-haiku-5-5",
+        "id": "msg-2",
+        "type": "message",
+        "role": "assistant",
+        "content": [
+          {
+            "type": "tool_use",
+            "id": "tool-2",
+            "name": "Bash",
+            "input": {
+              "command": "echo COMMAND_TEXT",
+              "description": "Show lantern matches and contents of both matched files"
+            }
+          }
+        ],
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 5089,
+          "cache_read_input_tokens": 30904,
+          "output_tokens": 4
+        }
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_stop",
+        "index": 1
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "message_delta",
+        "delta": {
+          "stop_reason": "tool_use"
+        },
+        "usage": {
+          "output_tokens": 279
+        }
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "message_stop"
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "user",
+      "message": {
+        "role": "user",
+        "content": [
+          {
+            "type": "tool_result",
+            "tool_use_id": "tool-2",
+            "content": "tool output",
+            "is_error": false
+          }
+        ]
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "system",
+      "subtype": "status",
+      "status": "requesting",
+      "session_id": "session-1"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "message_start",
+        "message": {
+          "model": "claude-haiku-5-5",
+          "id": "msg-3",
+          "type": "message",
+          "role": "assistant",
+          "content": [],
+          "usage": {
+            "input_tokens": 2,
+            "cache_creation_input_tokens": 391,
+            "cache_read_input_tokens": 35993,
+            "output_tokens": 4
+          }
+        }
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_start",
+        "index": 0,
+        "content_block": {
+          "type": "thinking",
+          "thinking": "",
+          "signature": ""
+        }
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "system",
+      "subtype": "thinking_tokens",
+      "estimated_tokens": 50,
+      "estimated_tokens_delta": 50,
+      "session_id": "session-1"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "thinking_delta",
+          "thinking": ""
+        }
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "system",
+      "subtype": "thinking_tokens",
+      "estimated_tokens": 300,
+      "estimated_tokens_delta": 250,
+      "session_id": "session-1"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "thinking_delta",
+          "thinking": ""
+        }
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "thinking_delta",
+          "thinking": ""
+        }
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "system",
+      "subtype": "thinking_tokens",
+      "estimated_tokens": 395,
+      "estimated_tokens_delta": 95,
+      "session_id": "session-1"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "signature_delta",
+          "signature": "sig"
+        }
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "assistant",
+      "message": {
+        "model": "claude-haiku-5-5",
+        "id": "msg-3",
+        "type": "message",
+        "role": "assistant",
+        "content": [
+          {
+            "type": "thinking",
+            "thinking": "",
+            "signature": "sig"
+          }
+        ],
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 391,
+          "cache_read_input_tokens": 35993,
+          "output_tokens": 4
+        }
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_stop",
+        "index": 0
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_start",
+        "index": 1,
+        "content_block": {
+          "type": "text",
+          "text": ""
+        }
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 1,
+        "delta": {
+          "type": "text_delta",
+          "text": "src/a.ts에 `export const lantern = 1;`로 나오"
+        }
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 1,
+        "delta": {
+          "type": "text_delta",
+          "text": "는 것이 답이다. notes.txt에도 이 단어가 있지만, 그 파일이 \"이"
+        }
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 1,
+        "delta": {
+          "type": "text_delta",
+          "text": " 파일에만 나온다\"고 적은 문장은 사실이 아니다. 파일은 수정하지 않았다."
+        }
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "assistant",
+      "message": {
+        "model": "claude-haiku-5-5",
+        "id": "msg-3",
+        "type": "message",
+        "role": "assistant",
+        "content": [
+          {
+            "type": "text",
+            "text": "src/a.ts에 `export const lantern = 1;`로 나오는 것이 답이다. notes.txt에도 이 단어가 있지만, 그 파일이 \"이 파일에만 나온다\"고 적은 문장은 사실이 아니다. 파일은 수정하지 않았다."
+          }
+        ],
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 391,
+          "cache_read_input_tokens": 35993,
+          "output_tokens": 4
+        }
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_stop",
+        "index": 1
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "message_delta",
+        "delta": {
+          "stop_reason": "end_turn"
+        },
+        "usage": {
+          "output_tokens": 442
+        }
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "message_stop"
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "result",
+      "subtype": "success",
+      "is_error": false,
+      "num_turns": 3,
+      "result": "src/a.ts에 `export const lantern = 1;`로 나오는 것이 답이다. notes.txt에도 이 단어가 있지만, 그 파일이 \"이 파일에만 나온다\"고 적은 문장은 사실이 아니다. 파일은 수정하지 않았다.",
+      "stop_reason": "end_turn",
+      "terminal_reason": "completed",
+      "modelUsage": {
+        "claude-haiku-5-5": {
+          "inputTokens": 1939,
+          "outputTokens": 1010,
+          "cacheReadInputTokens": 66897,
+          "cacheCreationInputTokens": 36384,
+          "contextWindow": 1000000
+        }
+      },
+      "session_id": "session-1"
+    }
+  ],
+  "task": [
+    {
+      "type": "system",
+      "subtype": "status",
+      "status": "requesting",
+      "session_id": "session-1"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "message_start",
+        "message": {
+          "model": "claude-sonnet-5-5",
+          "id": "msg-1",
+          "type": "message",
+          "role": "assistant",
+          "content": [],
+          "usage": {
+            "input_tokens": 2,
+            "cache_creation_input_tokens": 18441,
+            "cache_read_input_tokens": 12447,
+            "output_tokens": 16
+          }
+        }
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_start",
+        "index": 0,
+        "content_block": {
+          "type": "tool_use",
+          "id": "tool-1",
+          "name": "Agent",
+          "input": {}
+        }
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "assistant",
+      "message": {
+        "model": "claude-sonnet-5-5",
+        "id": "msg-1",
+        "type": "message",
+        "role": "assistant",
+        "content": [
+          {
+            "type": "tool_use",
+            "id": "tool-1",
+            "name": "Agent",
+            "input": {
+              "description": "Read notes.txt second line",
+              "subagent_type": "Explore",
+              "prompt": "Report the second line of notes.txt."
+            }
+          }
+        ],
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 18441,
+          "cache_read_input_tokens": 12447,
+          "output_tokens": 16
+        }
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_stop",
+        "index": 0
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "system",
+      "subtype": "task_started",
+      "task_id": "task-1",
+      "tool_use_id": "tool-1",
+      "session_id": "session-1"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "message_delta",
+        "delta": {
+          "stop_reason": "tool_use"
+        },
+        "usage": {
+          "output_tokens": 187
+        }
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "user",
+      "message": {
+        "role": "user",
+        "content": [
+          {
+            "type": "text",
+            "text": "Report the second line of notes.txt."
+          }
+        ]
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": "tool-1"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "message_stop"
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "system",
+      "subtype": "task_progress",
+      "task_id": "task-1",
+      "tool_use_id": "tool-1",
+      "session_id": "session-1"
+    },
+    {
+      "type": "assistant",
+      "message": {
+        "model": "claude-sonnet-5-5",
+        "id": "msg-2",
+        "type": "message",
+        "role": "assistant",
+        "content": [
+          {
+            "type": "tool_use",
+            "id": "tool-2",
+            "name": "Bash",
+            "input": {
+              "command": "echo COMMAND_TEXT"
+            }
+          }
+        ],
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 14113,
+          "cache_read_input_tokens": 0,
+          "output_tokens": 16
+        }
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": "tool-1"
+    },
+    {
+      "type": "user",
+      "message": {
+        "role": "user",
+        "content": [
+          {
+            "type": "tool_result",
+            "tool_use_id": "tool-2",
+            "content": "tool output",
+            "is_error": false
+          }
+        ]
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": "tool-1"
+    },
+    {
+      "type": "system",
+      "subtype": "task_updated",
+      "task_id": "task-1",
+      "patch": {
+        "status": "completed"
+      },
+      "session_id": "session-1"
+    },
+    {
+      "type": "system",
+      "subtype": "task_notification",
+      "task_id": "task-1",
+      "tool_use_id": "tool-1",
+      "status": "completed",
+      "session_id": "session-1"
+    },
+    {
+      "type": "user",
+      "message": {
+        "role": "user",
+        "content": [
+          {
+            "type": "tool_result",
+            "tool_use_id": "tool-1",
+            "content": "tool output"
+          }
+        ]
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "system",
+      "subtype": "status",
+      "status": "requesting",
+      "session_id": "session-1"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "message_start",
+        "message": {
+          "model": "claude-sonnet-5-5",
+          "id": "msg-3",
+          "type": "message",
+          "role": "assistant",
+          "content": [],
+          "usage": {
+            "input_tokens": 2,
+            "cache_creation_input_tokens": 5160,
+            "cache_read_input_tokens": 30888,
+            "output_tokens": 90
+          }
+        }
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_start",
+        "index": 0,
+        "content_block": {
+          "type": "text",
+          "text": ""
+        }
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "text_delta",
+          "text": "서브에이전트가 보고한 `notes.txt`의 두 번째 줄: \"The word "
+        }
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "text_delta",
+          "text": "lantern appears only in this notes file.\"\n\n"
+        }
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "text_delta",
+          "text": "(서브에이전트의 보고 내용을 그대로 전달한 것이다. 파일은 수정하지 않았다.)"
+        }
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "assistant",
+      "message": {
+        "model": "claude-sonnet-5-5",
+        "id": "msg-3",
+        "type": "message",
+        "role": "assistant",
+        "content": [
+          {
+            "type": "text",
+            "text": "서브에이전트가 보고한 `notes.txt`의 두 번째 줄: \"The word lantern appears only in this notes file.\"\n\n(서브에이전트의 보고 내용을 그대로 전달한 것이다. 파일은 수정하지 않았다.)"
+          }
+        ],
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 5160,
+          "cache_read_input_tokens": 30888,
+          "output_tokens": 90
+        }
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_stop",
+        "index": 0
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "message_delta",
+        "delta": {
+          "stop_reason": "end_turn"
+        },
+        "usage": {
+          "output_tokens": 90
+        }
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "message_stop"
+      },
+      "session_id": "session-1",
+      "parent_tool_use_id": null
+    },
+    {
+      "type": "result",
+      "subtype": "success",
+      "is_error": false,
+      "num_turns": 2,
+      "result": "서브에이전트가 보고한 `notes.txt`의 두 번째 줄: \"The word lantern appears only in this notes file.\"\n\n(서브에이전트의 보고 내용을 그대로 전달한 것이다. 파일은 수정하지 않았다.)",
+      "stop_reason": "end_turn",
+      "terminal_reason": "completed",
+      "modelUsage": {
+        "claude-haiku-5-5": {
+          "inputTokens": 1937,
+          "outputTokens": 20,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "contextWindow": 1000000
+        },
+        "claude-sonnet-5-5": {
+          "inputTokens": 8,
+          "outputTokens": 399,
+          "cacheReadInputTokens": 57448,
+          "cacheCreationInputTokens": 40350,
+          "contextWindow": 1000000
+        }
+      },
+      "session_id": "session-1"
+    }
+  ]
+}

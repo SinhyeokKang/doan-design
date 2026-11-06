@@ -108,3 +108,31 @@ assistant call's `model` and `usage` and the result's `modelUsage`, not the raw 
 `compact` its `/compact` turn (no top-level call). Token values, model keys and `contextWindow` are as recorded;
 message ids, content, the tool input and the omitted `modelUsage` fields are synthetic. Tests change single fields
 of these fixtures for the boundary cases; those variants are synthetic.
+
+`claude-thinking.json`, `codex-read.json` and `acp-copilot-thought.json` (turn-activity A1) are reduced from recorded
+spawn frames (`{t, d, s}` stdout chunks, reassembled into lines) of the turn-activity PoC, whose method and results
+are recorded in commit `ea36aece`, and of the context-window-ring P2 probe (commit `5a327f38`):
+
+- `claude-thinking.json`: Claude Code 2.1.318 through the app. `thinking` is the Haiku (`claude-haiku-5-5`), effort high
+  turn (three thinking blocks, two Bash calls, the first answered allow-once, a text reply); `task` is the Sonnet
+  (`claude-sonnet-5-5`), effort medium turn whose Agent call ran a subagent (frames with `parent_tool_use_id`, the
+  `system/task_*` frames, no subagent `stream_event`).
+- `codex-read.json`: Codex app-server 0.166.0 through the app. `read` is the context-window-ring tool turn (one
+  `listFiles` command with a null path, then one `read` command); `search` is the turn-activity P2 turn (two instant
+  `reasoning` items and one command whose `commandActions` hold a `search` and a `listFiles`).
+- `acp-copilot-thought.json`: Copilot through the app (`agentInfo.version` 1.0.106) in bypass: `usage_update`, 83
+  `agent_thought_chunk`s, a pending `execute` `tool_call`, a status-less `tool_call_update` and its completion 5 s
+  later, a pending `read` `tool_call` with `locations` and its completion, the reply and the `session/prompt` result.
+
+Kept: the frames the transports read and their envelopes, in recorded order: Claude `stream_event`, `assistant`, `user`,
+`system/status`, `system/thinking_tokens`, `system/task_*` and `result`; Codex `turn/started`, `item/started`,
+`item/completed`, `item/agentMessage/delta`, `thread/tokenUsage/updated` and `turn/completed` of the one turn; ACP
+`session/update`s from the prompt on and the prompt result. Dropped: Claude `system/init`, `session_state_changed`,
+`commands_changed`, `rate_limit_event` and `input_json_delta` stream events (the tool input as it streams, the
+command included); Codex `turn/moderationMetadata`, rate limit, status and read-state notifications; ACP
+`session_info_update` (the prompt as title) and `config_option_update`. Each turn's reply text was joined into three
+deltas or chunks per message. Session, thread, turn, message, tool, item and call ids are synthetic; the probe repo's
+root is `/repo`. Prompts, thinking signatures, thought text, commands (`COMMAND_TEXT`), Copilot's tool titles (the
+read title keeps the recorded "Viewing <path>" form), tool inputs other than paths and descriptions, and tool outputs
+are synthetic; reply text, Codex `query` values, token values, model keys and `contextWindow` are as recorded.
+`turnActivityFixtures.test.ts` pins each turn's whole event list.
