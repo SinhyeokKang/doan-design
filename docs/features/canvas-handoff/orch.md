@@ -22,7 +22,7 @@
 | G | B1, C3 | `cli/`(formats 제외) | S | Opus medium(직렬화 줄 상한과 exit 매핑의 경계 사례가 많다) | `go test ./...`, `go vet ./...` | 통합(`d353bb8a`·`5ea6bd15`·`f58cff7d`). 리뷰 RG(Opus medium): 🔴0 🟡0 🟢4, 고치지 않음 |
 | M | B2, B3, B4, C1, C2, C4 | `app/src/main/`(runtime·conversation·agentAuth), `app/src/shared/`·preload의 이벤트·IPC 타입 | S | Opus high(턴 끝 판정, `contested`, 큐 옮기기, 수락 직전 재확인 등 동시성) | `npm --prefix app test`, typecheck | 통합(`87c5d927`·`dc232869`·`78ad1803`, 수정 1회 `965795cc`·`1e4f2c39`). 리뷰 RM(Opus high): 🔴0 🟡2(고침) ⚪5(⚪2만 고침) ❓1(지휘자 판단) |
 | U | B5, U1, U2, `/design-sync` | `app/src/renderer/`, DESIGN.md | M | Opus high(이동·toast·read 대기 규칙과 초안 일치) | `npm --prefix app test`, typecheck, build, `/design-sync` | 진행(`ctx_ac7f36eafb88`, ch-u) |
-| E | E1, E2, E3 | `eval/`, USABILITY-EVAL.md | G, M | Sonnet high(fake app·시나리오는 기존 패턴, E3는 실제 실행) | `node eval/run.ts --self-test`, `node --test 'eval/**/*.test.ts'`, E3 라운드 | 진행(`ctx_015931529fb3`, ch-e) |
+| E | E1, E2, E3 | `eval/`, USABILITY-EVAL.md | G, M | Sonnet high(fake app·시나리오는 기존 패턴, E3는 실제 실행) | `node eval/run.ts --self-test`, `node --test 'eval/**/*.test.ts'`, E3 라운드 | 통합(`cc6988a2`·`fcc549a6`, 수정 1회 `00f6aeb6`·`00ab1296`). 리뷰 RE: 🔴0 🟡2(고침). E3: R10 Claude 통과(새 검사로 다시 채점), Codex 실패(U-024), R8d·R9b 통과·부분 |
 | 지휘자 | R1, R2, Z1–Z3 | PRODUCT·ARCHITECTURE·BACKLOG, feature 디렉터리 | 모두 | — | `/runtime-test`, `verify.mjs --eval`, `/doc-check` 범위 확인 | 대기 |
 
 리뷰: batch마다 독립 Claude 리뷰 작업자가 `/code-review`를 돈다(모델은 diff 난이도로 정한다).
