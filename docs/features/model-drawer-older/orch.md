@@ -13,6 +13,7 @@
 - task 4a와 4b를 한 batch로 묶는다 — 지휘자 판단: 둘 다 build한 앱을 격리해 띄우고, 4b는 4a가 고친 뒤의 모양을 본다.
 - task 5(승격)는 지휘자가 통합 뒤 문서 커밋으로 한다.
 - **위로 열린 메뉴는 이전 모델을 줄 위에 펼친다**(사용자, 2026-11-06). B의 실측: 위로 열린 composer 메뉴에서 줄이 Codex 하나만 연결 시 128px, Codex+Copilot 60px 위로 움직였고, 같은 자리를 다시 누르면 GPT-5.6-Luna가 골라지며 메뉴가 닫혔다(근거 `mdo-batch-b/.scratch/runtime-test/model-drawer-older/bounds.json`). 사용자가 예외 수용과 클릭 보호 대신 이 안을 골랐다. Settings는 줄 아래 그대로다. spec·design·tasks를 고쳤고(`3ef90ebd`), B에게 구현과 초안 `inline` frame 수정을 맡겼다.
+- **열린 동안 메뉴의 쪽을 고정한다** — 지휘자 판단(spec 4 '줄 자리 고정' 사용자 결정의 구현): B의 실측에서 1440x1000, provider 다섯의 Settings Model 메뉴가 펼친 뒤 Radix collision으로 위로 뒤집혀 줄이 395px 움직였다(`mdo-batch-b/.scratch/runtime-test/model-drawer-older/settings-positions.json`). 두 메뉴 모두 처음 그린 쪽으로 고정하고 높이를 그쪽 가용 공간으로 제한해, 늘어난 만큼 메뉴 안에서 스크롤하게 한다.
 
 ## batch
 
