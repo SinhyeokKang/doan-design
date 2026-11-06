@@ -41,3 +41,4 @@
 - R1·R2·Z1은 B2 통합 뒤 지휘자가 차례로 한다.
 
 ## 진행 기록
+- Orca run `run_9a87ca7f6348`. MA: task `task_2eefb08278fa`, dispatch `ctx_5104aba571e0`, worktree `pdl-ma`(branch `SinhyeokKang/pdl-ma`), Codex `gpt-6.1-sol` medium 확인. RA: task `task_a4da549949af`, dispatch `ctx_3fdb8ad9dd05`, worktree `pdl-ra`(branch `SinhyeokKang/pdl-ra`), Claude Opus high 확인. 둘 다 `5f0f5cf6`에서 시작했다.
