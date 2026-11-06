@@ -1028,9 +1028,19 @@ body:has(.shell-top) { background: transparent; }
 .conversation-thread .handoff-card .md code { background: var(--surface-panel); }
 .conversation-thread .thread-loading { display: flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: 160px; color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
 .conversation-thread .jump-latest { position: absolute; left: 50%; bottom: var(--space-3); transform: translateX(-50%); box-shadow: var(--shadow-sm); }
+/* turn-activity: the turn indicator in the reply's place (.doan/canvases/turn-activity.html, frame states). One line of
+   fixed height, so a stage change never moves the thread: a long path ends in an ellipsis and the time keeps its place.
+   The words are --text-metadata under a narrow white sweep (the panel colour mixed 55 %, 30 % of the words' width);
+   the time never sweeps. */
+.conversation-thread .ti-reply { display: flex; align-items: center; gap: var(--space-2); min-width: 0; color: var(--text-subtle); font-size: var(--type-label-size); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing); }
+.conversation-thread .ti-reply .ti-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.conversation-thread .ti-reply .ti-time { flex: none; color: var(--text-metadata); font-variant-numeric: tabular-nums; }
+.conversation-thread .ti-shimmer { background: linear-gradient(90deg, var(--text-metadata) 0 42.5%, color-mix(in oklch, var(--text-metadata), var(--surface-panel) 55%) 47.5% 52.5%, var(--text-metadata) 57.5% 100%); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: ti-shimmer 2s linear infinite; }
+@keyframes ti-shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
 @media (prefers-reduced-motion: reduce) {
   .conversation-thread .caret { animation: none; }
   .conversation-thread .activity-head .chev { transition: none; }
+  .conversation-thread .ti-shimmer { animation: none; background: none; color: var(--text-metadata); }
 }
 
 /* buzz-project: the Overview as the project conversation screen (.doan/canvases/buzz-project.html, confirmed 2026-10-31).
@@ -1246,6 +1256,7 @@ body:has(.shell-top) { background: transparent; }
 .doan-conv-panel .conversation-thread .thread { gap: var(--space-5); }
 .doan-conv-panel .msg-user { max-width: 92%; }
 .doan-conv-panel :is(.md, .msg-agent p, .bubble) { font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
+.doan-conv-panel .conversation-thread .ti-reply { font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
 .cp-foot { flex: none; padding: var(--space-3); }
 .cp-resume { margin-top: auto; margin-bottom: var(--space-1); }
 /* A reason whose action label is long puts the action under the text, so the text keeps the row's width. */

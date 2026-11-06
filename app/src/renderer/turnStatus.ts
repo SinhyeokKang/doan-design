@@ -53,6 +53,13 @@ export function turnStatus(items: readonly ThreadItem[], turn: TurnInfo | null, 
   return step && !step.sentence ? eventTool(step) : { kind: "general" };
 }
 
+// What both hosts pass the thread (design §4): the last turn's status and its start, which the elapsed time counts from.
+export interface ThreadTurn { status: TurnStatus; at: string }
+export function threadTurn(events: readonly ConversationEvent[], items: readonly ThreadItem[], live: boolean, stage: StageSignal | null, root: string): ThreadTurn | null {
+  const turn = turnOf(events, live);
+  return turn ? { status: turnStatus(items, turn, stage, root), at: turn.at } : null;
+}
+
 // Which stage to keep (design §2): within a turn the higher rev, since a read's reply and a push sent after it may
 // arrive in either order (POSTMORTEM 2026-10-26). A stage of another turn than the history's current one is dropped;
 // `current` is null while the history is not read.
@@ -69,8 +76,11 @@ export const SETTLE_MS = 300;
 export interface Settled { shown: TurnStatus; pending: TurnStatus | null; since: number }
 const hidden = (status: TurnStatus) => status.kind === "none" || status.kind === "waiting";
 export const statusKey = (status: TurnStatus) => status.kind === "tool" ? `tool:${status.activity}:${status.text}` : status.kind;
+// Nothing changed gives `previous` itself, so the thread can keep the result as state derived while it renders.
 export function settle(previous: Settled | null, next: TurnStatus, now: number): Settled {
-  if (!previous || hidden(previous.shown) || hidden(next) || next.kind === "reply" || statusKey(next) === statusKey(previous.shown)) return { shown: next, pending: null, since: now };
+  const same = previous !== null && statusKey(next) === statusKey(previous.shown);
+  if (same && !previous.pending) return previous;
+  if (!previous || same || hidden(previous.shown) || hidden(next) || next.kind === "reply") return { shown: next, pending: null, since: now };
   if (previous.pending && statusKey(previous.pending) === statusKey(next)) {
     return now - previous.since >= SETTLE_MS ? { shown: next, pending: null, since: now } : previous;
   }

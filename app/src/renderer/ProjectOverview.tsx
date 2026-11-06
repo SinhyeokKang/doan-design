@@ -39,6 +39,7 @@ import { displayPath } from "./projectDisplay";
 import { projectHue, projectInitial } from "./shellNavigation";
 import type { SettingsTarget } from "./settingsSections";
 import { threadItems, withSending } from "./threadItems";
+import { threadTurn } from "./turnStatus";
 import type { ComposerChoice } from "./rememberChoice";
 import { defaultPermission, permissionChoices, permissionPickerView } from "./permissionPicker";
 
@@ -388,7 +389,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
     {props.notice && <div className="doan-notice ov-notice" role="status"><AlertIcon /><span className="grow-text">{props.notice}</span></div>}
     <div className="ov-scroll">
       {conversationId && provider ? <ConversationThread ref={handle} conversationId={conversationId} items={items} provider={provider} project={project}
-        liveAfter={thread?.liveAfter ?? Number.MAX_SAFE_INTEGER} canvasListed={canvasListed}
+        liveAfter={thread?.liveAfter ?? Number.MAX_SAFE_INTEGER} turn={thread && Array.isArray(items) ? threadTurn(thread.events, items, live, run.store.stageOf(conversationId), root) : null} canvasListed={canvasListed}
         onAnswer={(requestId, optionId) => window.doan.answerConversationPermission({ conversationId, requestId, optionId })}
         onAnswerQuestion={(requestId, answer) => window.doan.answerConversationQuestion({ conversationId, requestId, ...answer })}
         questionDraft={requestId => run.store.questionDraft(conversationId, requestId)} onQuestionDraft={(requestId, action) => run.store.editQuestion(conversationId, requestId, action)}

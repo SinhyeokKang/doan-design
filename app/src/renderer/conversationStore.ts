@@ -1,7 +1,7 @@
 import type { Provider } from "../main/agentAuth/types";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { AttachmentResult } from "../main/attachments";
-import type { Anchor, AttachmentRecord, ConversationEvent } from "../main/conversation/types";
+import type { Anchor, AttachmentRecord, ConversationEvent, StageSignal } from "../main/conversation/types";
 import { fromMessage, normalize, plainText, type FieldSegment } from "./anchorField";
 import { ATTACHMENT_LIMIT_TEXT } from "./canvasConversation";
 import type { SteerPhase } from "../main/conversation/steerSupport";
@@ -10,6 +10,7 @@ import { EMPTY_DRAFT, type DockedDraft } from "./dockedRules";
 import { EMPTY_QUESTION_DRAFT, questionDraft, type QuestionDraft, type QuestionDraftAction } from "./questionDraft";
 import { splitRequest, type AttachmentDraft } from "./homeComposer";
 import type { SendingMessage, SentFile } from "./threadItems";
+import { newerStage } from "./turnStatus";
 
 // What the Overview's main conversation and the canvas panel share (buzz-canvas-conversation design §1): the threads
 // read and merged with live events, the composer drafts by draftKey, queued messages, returned drafts and the
@@ -69,6 +70,9 @@ export class ConversationStore {
   // The answers being chosen on question cards, by conversation and request (agent-questions design §7): kept across
   // the thread's redraw for another conversation or canvas, gone once the question is resolved; not across a reload.
   private questions = new Map<string, Map<string, QuestionDraft>>();
+  // Each conversation's latest stage signal (turn-activity design §2), pushed or on a read's reply. Kept for a
+  // conversation not read yet as its events are; the indicator uses it only for the turn and seq it names.
+  private stages = new Map<string, StageSignal>();
 
   constructor(private host: ConversationStoreHost) {}
 
@@ -176,6 +180,7 @@ export class ConversationStore {
     this.dropDrafts(key => key === `conversation:${conversationId}`);
     this.threads.delete(conversationId);
     this.questions.delete(conversationId);
+    this.stages.delete(conversationId);
     this.queues.delete(conversationId);
     this.taking.delete(conversationId);
     this.taken.delete(conversationId);
@@ -262,6 +267,22 @@ export class ConversationStore {
     this.threads.set(event.conversationId, { ...thread, events: mergeConversationEvents(thread.events, [event], event.conversationId) });
     this.tell(event.conversationId, "event");
     this.host.changed();
+  }
+  // conversation:stage, and the stage a conversation:read reply carries once its events are merged: either may come
+  // first (POSTMORTEM 2026-10-26), so newerStage orders them by rev against the history's current turn.
+  stage(signal: StageSignal): void {
+    if (this.deletedIds.has(signal.conversationId)) return;
+    const held = this.stages.get(signal.conversationId) ?? null;
+    const next = newerStage(held, signal, this.currentTurn(signal.conversationId));
+    if (next === held || next === null) return;
+    this.stages.set(signal.conversationId, next);
+    this.host.changed();
+  }
+  stageOf(conversationId: string): StageSignal | null { return this.stages.get(conversationId) ?? null; }
+  private currentTurn(conversationId: string): string | null {
+    const events = this.threads.get(conversationId)?.events ?? [];
+    for (let i = events.length - 1; i >= 0; i--) if (events[i]!.type === "turn.started") return events[i]!.turnId;
+    return null;
   }
   // Subscribed first (App), then read: events that came meanwhile merge by seq. True when the thread was already read.
   track(conversationId: string): boolean {
