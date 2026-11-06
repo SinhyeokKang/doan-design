@@ -6,6 +6,13 @@
 > Historical `app/e2e/` paths refer to the suite retired on 2026-10-27. Current runtime safety helpers live in `app/runtime/`; use focused probes under `.scratch/`, as specified in AGENTS.md.
 > Some entries name app code removed later: the app's comment UI (`useComments.tsx`, `CommentsSession.ts`, `CommentsPanel.tsx`, `CommentPins.ts` and most of `app/src/comments/` and `app/src/main/comments/`, with their tests) on 2026-11-01; the separate Settings window (`settingsWindow.tsx`) and the `Sidebar.tsx` component on 2026-10-30; Settings > Connections (`ConnectionRows.tsx`, `connectionRowView.ts`, `setupBroker.ts`) on 2026-10-31. Their search commands and test pointers apply only to code that still exists; the comment files, the CLI comment commands and `app/src/comments/projection.ts` remain.
 
+### 2026-11-06 — The Codex model list stayed the previous account's after an account replacement
+
+- **Area**: `app/src/renderer/dockedSupport.ts` (`modelsKey`, `generationOf`), `HomeComposerView.tsx`, `ProjectOverview.tsx`, `CanvasConversationPanel.tsx`, `SettingsAgents.tsx` (`NewConversations`), `app/src/main/agentAuth/state.ts` (`authStatus`).
+- **Symptom**: after replacing the Codex account in Settings > Agents, the model picker of every conversation (and the Settings Model row) still listed the previous account's models.
+- **Root cause**: main lists a new connection again (`ModelCatalog` keys by `connectionId`), but each window-side holder kept the list by folder and provider only and never asked main again once it held one. The Status DTO carried nothing that changes with the connection: a replacement keeps the provider, and the email it shows may stay the same, so no holder could tell the account had changed. Home's memory and `DockedSupport` also outlive their screens, so they miss the sign-in while Settings is shown.
+- **Net**: caught by the user in the real app. Missed by unit tests, which pinned main's cache across a reconnect but never drove a window holder through a second connection.
+- **Prevention**: the Status DTO carries the auth `generation`, and a window-side value read for a connection is keyed by it (`modelsKey(root, provider, generation)`), with the effect that reads it depending on it. A new window-side cache of anything account-bound must key by the generation too. Grep: `grep -rn 'listConversationModels' app/src/renderer` (every caller must key by `modelsKey` with a generation).
 ### 2026-11-06 — The project row chevron stayed after a click until something else took focus
 
 - **Area**: `app/src/renderer/styles.css` (`.shell-project-row` chevron and thumbnail rules); test 6bd89da9, fixed in 1a85332f.
