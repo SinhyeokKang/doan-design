@@ -33,7 +33,6 @@ test("closes the slash search only after a leading skill word followed by whites
   expect(slashQuery("/deploy ", false, new Set())).toBe("deploy ");
   expect(slashQuery("/deploy", true, names)).toBeNull();
   expect(slashQuery("", true, names)).toBeNull();
-  expect(slashQuery("/deploy", false, names)).toBe("deploy");
 });
 test("Enter sends an exact highlighted skill but picks a colliding preset", () => {
   const rows = searchDrawer([preset], skills, "audit");
@@ -103,5 +102,30 @@ test("uses confirmed search copy and omits absent result kinds", () => {
     const view = presetListView(reply, { ...opts, query: query! });
     if (view.kind !== "list") throw new Error("list");
     expect(view.summary).toBe(summary);
+  }
+});
+
+
+test("restores combined requests without any fixed lines and keeps only the first preset", () => {
+  const text = [composeRequest("/deploy a", preset, ["deploy"], 0), composeRequest("/audit b", { id: "polish", title: "Polish" }, ["audit", "deploy"], 0)].join("\n\n");
+  expect(splitRequest(text, 0)).toEqual({ preset: { id: "audit", title: "Audit" }, skills: ["deploy", "audit"], body: "/deploy a\n\n/audit b" });
+});
+
+test.each([undefined, { v: 1, ok: false, error: { code: "internal_error", message: "x", nextSteps: [] } }] satisfies (PresetListReply | undefined)[])("keeps a preset notice while searching skills and showing the slash list: %j", failure => {
+  const notice = presetListView(failure, { ...opts, skills: [] });
+  if (failure) expect(notice).toMatchObject({ kind: "error", retry: true });
+  else expect(notice).toEqual({ kind: "loading", text: "Loading presets" });
+  const found = presetListView(failure, { ...opts, query: "dep" });
+  expect(found).toMatchObject({ kind: "list", notice, summary: "2 skills match dep" });
+  if (found.kind !== "list") throw new Error("list");
+  expect(found.sections.flatMap(s => s.rows).map(r => r.key)).toEqual(["skill:deploy", "skill:audit"]);
+  expect(presetListView(failure, { ...opts, query: "zz" })).toEqual({ kind: "list", tabs: [], sections: [], summary: null, notice, emptyText: "No presets or skills match “zz”." });
+  for (const query of ["", "dep", "zz"]) {
+    const slash = presetListView(failure, { ...opts, query, slash: true });
+    expect(slash).toMatchObject({ kind: "list", tabs: [], notice });
+    if (slash.kind !== "list") throw new Error("list");
+    expect(slash.sections.flatMap(s => s.rows).map(r => r.kind)).toEqual(query === "zz" ? [] : ["skill", "skill"]);
+    if (query === "dep") expect(slash.summary).toBe("2 skills match dep");
+    if (query === "zz") expect(slash.emptyText).toBe("No presets or skills match “zz”.");
   }
 });

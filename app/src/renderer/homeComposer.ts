@@ -39,6 +39,7 @@ export function composeRequest(text: string, preset: PresetRef | null, skills: r
   return body || (attachments > 0 ? ATTACHMENTS_ONLY : "");
 }
 
+// The attachment-only sentence was not written by the person, so it restores as no text.
 export function splitRequest(text: string, attachments: number): { preset: PresetRef | null; skills: string[]; body: string } {
   const parts = splitRequestLines(text);
   return { ...parts, body: !parts.preset && parts.skills.length === 0 && attachments > 0 && parts.body === ATTACHMENTS_ONLY ? "" : parts.body };
@@ -546,6 +547,7 @@ function presetNotice(reply: PresetListReply | undefined): PresetNotice | null {
   if (reply.ok) return null;
   const { error } = reply;
   if (error.code === "request_refused") return { kind: "error", text: "Doan refused this preset request. You can still send without a preset.", retry: false };
+  // An older CLI has no design-skill command and answers the list with usage_error.
   if (error.code === "usage_error") return { kind: "olderCli", text: "This doan CLI has no design presets. Update Doan to use them." };
   const reason = "reason" in error ? CLI_REASONS[error.reason] : undefined;
   return { kind: "error", text: reason ? `Doan couldn’t read the design presets: ${reason}. You can still send without one.` : "Doan couldn’t read the design presets. You can still send without one.", retry: true };
@@ -706,6 +708,7 @@ export function chipRemoval(chips: readonly { label: string; preset?: boolean }[
   return { remove: trigger.index, announcement: `Removed ${chip.label}`, focus: trigger.index < chips.length - 1 ? trigger.index : "textarea" };
 }
 
+// Arrows move; Enter picks unless an IME is composing; Tab and Escape close until the field is empty.
 // Returning null for an exact skill lets the composer's ordinary submit path handle Enter.
 export function slashKey(key: string, highlight: number, count: number, composing: boolean,
   skill?: { query: string; row: PresetRow | undefined },
