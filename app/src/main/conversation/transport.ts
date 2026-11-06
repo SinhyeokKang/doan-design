@@ -5,12 +5,14 @@ import { claudeModeAfterPlan, type PermissionModeId } from "./permissionMode";
 import { connectorLabels, serverLabel } from "../mcpConnectors/presets";
 import { codexMcpApproval } from "../mcpConnectors/codexApproval";
 import { QUESTION_LIMITS, type Question, type QuestionAnswer, type StoredAnswer } from "./question";
-import type { EventPayload, FailureCode, FastUnused, FastUnusedReason, PendingPermission, PermissionChoice, TransportResult, TransportState } from "./types";
+import type { EventPayload, FailureCode, FastUnused, FastUnusedReason, PendingPermission, PermissionChoice, TransportResult, TransportState, TurnStage } from "./types";
 
 export function initialTransport(): TransportState {
   return { terminal: false, stop: null, messageId: "assistant", textBlock: null, completedMessages: [], activities: [], fileSummaries: {} };
 }
 function unchanged(state: TransportState): TransportResult { return { state, events: [] }; }
+export const GENERAL_STAGE: TurnStage = { kind: "general" };
+const THINKING_STAGE: TurnStage = { kind: "thinking" };
 // judged: the turn's own end, whose Fast verdict goes out first; a crash or an aborted result is not judged.
 function finish(state: TransportState, event: EventPayload, judged = true): TransportResult {
   if (state.terminal) return unchanged(state);
@@ -144,6 +146,19 @@ function claudeActivity(tool: string, input: Record<string, unknown>, root: stri
   const kind = claudeKind(tool);
   return activity(kind, DOAN_MCP_TOOL.test(tool) ? "" : claudePath(input), kind === "command" ? GENERIC_SUMMARY.command : claudePermissionSummary(tool, input, root, labels), root);
 }
+// A command Codex parsed into one read-only action reads files; the turn indicator says so, while its activity stays a
+// command (turn-activity 결정 6). Anything else (unknown, several actions, none) gives no stage. The command text never
+// goes in, only a read's file path. A listFiles or search names a folder the indicator does not show ("Reading files"),
+// so its stage carries no path: the renderer shows "Reading <path>" exactly when a path is there.
+function codexReadStage(item: Record<string, unknown>, root: string): TurnStage | null {
+  const actions = Array.isArray(item.commandActions) ? item.commandActions : [];
+  const [only] = actions;
+  if (actions.length !== 1 || !object(only)) return null;
+  const path = text(only.path);
+  if (only.type === "read") return path ? { kind: "tool", activity: "read", path: path.slice(0, 512), summary: displayPath(path, root).slice(0, 512) } : null;
+  if (only.type === "listFiles" || only.type === "search") return { kind: "tool", activity: "read", summary: GENERIC_SUMMARY.read };
+  return null;
+}
 function codexActivities(item: Record<string, unknown>, root: string, labels: Readonly<Record<string, string>>): { events: EventPayload[]; files: string } {
   if (item.type === "fileChange") {
     const paths = (Array.isArray(item.changes) ? item.changes.filter(object) : []).map(change => text(change.path));
@@ -174,6 +189,15 @@ function claudeFrame(state: TransportState, raw: Record<string, unknown>, root: 
     if (event.type === "message_start" && object(event.message) && typeof event.message.id === "string") return { state: { ...state, messageId: event.message.id, textBlock: null }, events: [] };
     if (event.type === "content_block_start" && object(event.content_block) && event.content_block.type === "text" && typeof event.index === "number") {
       return { state: { ...state, textBlock: event.index }, events: [] };
+    }
+    // Thinking lasts from its block's start to that block's stop. A tool block's stop says nothing: the activity its
+    // assistant frame brought already tells the tool (turn-activity design §2).
+    if (event.type === "content_block_start" && object(event.content_block) && event.content_block.type === "thinking" && typeof event.index === "number") {
+      return { state: { ...state, thinkingBlock: event.index }, events: [], stage: THINKING_STAGE };
+    }
+    if (event.type === "content_block_stop" && state.thinkingBlock !== undefined && event.index === state.thinkingBlock) {
+      const { thinkingBlock: _, ...rest } = state;
+      return { state: rest, events: [], stage: GENERAL_STAGE };
     }
     if (event.type === "content_block_delta" && object(event.delta) && event.delta.type === "text_delta" && typeof event.delta.text === "string") {
       return { state, events: [{ type: "message.delta", messageId: `${state.messageId}:${event.index}`, text: event.delta.text }] };
@@ -212,6 +236,11 @@ function claudeFrame(state: TransportState, raw: Record<string, unknown>, root: 
     if (raw.subtype === "success" && raw.is_error === false) return state.steered?.length && !state.stop ? { ...unchanged(state), awaitingRead: true } : finish(state, { type: "turn.done" });
     const detail = Array.isArray(raw.errors) ? raw.errors.filter((e): e is string => typeof e === "string").join("\n") : text(raw.result);
     return failed(state, detail);
+  }
+  // The model is being asked again (after the prompt and after every tool result), or a tool just returned.
+  if (raw.type === "system" && raw.subtype === "status" && raw.status === "requesting") return { ...unchanged(state), stage: GENERAL_STAGE };
+  if (raw.type === "user" && object(raw.message) && Array.isArray(raw.message.content) && raw.message.content.some(c => object(c) && c.type === "tool_result")) {
+    return { ...unchanged(state), stage: GENERAL_STAGE };
   }
   return unchanged(state);
 }
@@ -344,12 +373,15 @@ export function normalizeCodex(state: TransportState, raw: unknown, context: Cod
     if (raw.method === "item/completed" && item.type === "agentMessage" && id && !state.completedMessages.includes(id)) {
       return { state: { ...state, completedMessages: [...state.completedMessages, id] }, events: [{ type: "message.done", messageId: id, text: text(item.text) }] };
     }
+    const read = item.type === "commandExecution" ? codexReadStage(item, context.root) : null;
+    const stage = read && (raw.method === "item/started" ? read : GENERAL_STAGE);
     if (id && !state.activities.includes(id) && (item.type === "fileChange" || item.type === "commandExecution" || item.type === "mcpToolCall")) {
       const { events, files } = codexActivities(item, context.root, context.labels ?? PRESET_LABELS);
       // A file approval names only its itemId, so the paths seen when the item started are kept for it.
       const fileSummaries = files && raw.method === "item/started" ? withFileSummary(state.fileSummaries, id, files) : state.fileSummaries;
-      return { state: { ...state, activities: [...state.activities, id], fileSummaries }, events };
+      return { state: { ...state, activities: [...state.activities, id], fileSummaries }, events, ...(stage ? { stage } : {}) };
     }
+    if (stage) return { ...unchanged(state), stage };
   }
   if (raw.method === "turn/completed" && object(params.turn)) {
     if (params.turn.status === "interrupted") return aborted(state);

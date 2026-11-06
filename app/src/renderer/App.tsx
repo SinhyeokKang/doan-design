@@ -1861,6 +1861,8 @@ export function App() {
     homeRun.current.event(event); overviewRun.current!.event(event);
     if (shouldTurnOffFast(event, true)) fastTurnedOff(event.conversationId);
   }), []);
+  // A running turn's stage (turn-activity design §2) for the threads' turn indicator: one store serves both screens.
+  useEffect(() => window.doan.onConversationStage(signal => overviewRun.current!.store.stage(signal)), []);
   // Every render follows a list change, so a waiting auto-off is tried again once a list may name its conversation.
   useEffect(() => { for (const [conversationId, seenAt] of fastOffPending.current) if (fastOffFor(conversationId, seenAt)) fastOffPending.current.delete(conversationId); });
   useEffect(() => window.doan.onConversationListChanged(({ root }) => homeRun.current.listChanged(root)), []);

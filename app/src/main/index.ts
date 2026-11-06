@@ -917,7 +917,8 @@ async function start(): Promise<void> {
     const project = ready.entries().find(entry => entry.path === root);
     return project?.kind === "list" ? project.canvases : [];
   }, root => send("conversation:listChanged", { root }), { drafts: conversationDrafts, files: queueFiles(attachments), defaultEffort: (root, provider, model) => modelCatalog?.defaultEffort(root, provider, model), fast: (root, provider, model) => modelCatalog?.fast(root, provider, model) === true }, id => notify.close(id),
-  id => updateConversationWork(endConversationWork(conversationWork, id)), notice => send("conversation:handoff", notice));
+  // A stage is a live signal beside the events, never one of them: its own channel, to the main window only as events go.
+  id => updateConversationWork(endConversationWork(conversationWork, id)), notice => send("conversation:handoff", notice), signal => send("conversation:stage", signal));
   conversations = conversationService;
   attachments.cleanup();
   modelCatalog = new ModelCatalog((root, runtime) => conversationService.prepareListing(root, runtime), input => conversationService.listModels(input, listModels));

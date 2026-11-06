@@ -130,7 +130,7 @@ function endsWaiting(previous: ActivityStep, next: ActivityStep): boolean {
   const begins = (start: string) => before.names.some(name => name.startsWith(start)) || (before.cut !== null && (before.cut.startsWith(start) || start.startsWith(before.cut)));
   return after.names.every(waited) && (after.cut === null || begins(after.cut));
 }
-function runningHead(last: ActivityStep): string {
+export function runningHead(last: ActivityStep): string {
   if (last.kind === "command") return "Running a command";
   return (last.kind === "read" || last.kind === "edit") && last.path ? `${RUNNING_VERB[last.kind]} ${last.path}` : last.verb;
 }

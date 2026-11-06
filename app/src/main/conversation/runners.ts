@@ -108,7 +108,7 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
   const dispatcher: CodexDispatcher = new CodexDispatcher(write, event => {
     emit(event);
     if (event.type === "turn.done") void input.usageAtTurnEnd?.(() => dispatcher.query("account/rateLimits/read", undefined)).catch(() => {});
-  }, () => failProtocol(), id => input.steerConsumed?.(id));
+  }, () => failProtocol(), id => input.steerConsumed?.(id), stage => input.stage?.(stage));
   const failProtocol = () => {
     if (protocolFailed) return; protocolFailed = true;
     emit({ type: "turn.failed", code: "session_unavailable" }); dispatcher.close(); void group?.stop();
@@ -389,6 +389,7 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
             if (result.consumed?.length) endReadWait();
             if (result.awaitingRead && !readWait) readWait = setTimeout(expireRead, STEER_READ_WAIT_MS);
             for (const event of result.events) emit(event);
+            if (result.stage) input.stage?.(result.stage);
             if (!state.terminal) continue;
             endReadWait();
             // Set by the frame that ended the turn, before anything awaits: the service may ask to end this process as soon

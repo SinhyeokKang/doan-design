@@ -4,6 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ConversationStore, type ConversationMetadata, type JournalChange } from "./store";
 import { ConversationService } from "./service";
+import type { ConversationEvent } from "./types";
+import { turnOf } from "../../renderer/turnStatus";
 const hooks = vi.hoisted(() => ({ limit: 256 * 1024 * 1024, opened: new Set<number>(), journal: "" }));
 vi.mock("./io", async original => {
   const io = await original<typeof import("./io")>();
@@ -36,6 +38,43 @@ it("checks serialized UTF-8 bytes before append, allowing the exact read boundar
   expect(readFileSync(f.path("old"))).toEqual(before);
   hooks.limit++; f.store.append("old", "t", body);
   expect(statSync(f.path("old")).size).toBe(hooks.limit); expect(f.store.read("old")).toHaveLength(2);
+});
+// FX review: a turn's opening events go in one write, so validation, the size limit and an open or read failure leave
+// neither of them. A short write is not rolled back, as before; only journaled starts and restores recover a prefix.
+it("appends several events in one write, or none when they cross the bound together", () => {
+  vi.useFakeTimers(); vi.setSystemTime(new Date("2026-11-06T00:00:00Z"));
+  const f = setup(); f.store.append("old", "t1", { type: "turn.done" });
+  const before = readFileSync(f.path("old"));
+  const message = { type: "user.message" as const, text: "again", anchors: [] }, started = { type: "turn.started" as const };
+  const line = (body: object, seq: number) => JSON.stringify({ ...body, v: 1, conversationId: "old", turnId: "t2", seq, at: new Date().toISOString() }) + "\n";
+  // The message alone would fit; with its turn.started it does not.
+  hooks.limit = before.length + Buffer.byteLength(line(message, 2)) + Buffer.byteLength(line(started, 3)) - 1;
+  expect(() => f.store.appendAll("old", "t2", [message, started])).toThrow("File exceeds limit");
+  expect(readFileSync(f.path("old"))).toEqual(before);
+  hooks.limit++;
+  expect(f.store.appendAll("old", "t2", [message, started]).map(e => [e.type, e.seq])).toEqual([["user.message", 2], ["turn.started", 3]]);
+  expect(f.store.read("old").map(e => e.seq)).toEqual([1, 2, 3]);
+  expect(statSync(f.path("old")).size).toBe(hooks.limit);
+  // An invalid event among them writes nothing either.
+  const saved = readFileSync(f.path("old")); hooks.limit = 256 * 1024 * 1024;
+  expect(() => f.store.appendAll("old", "t3", [message, { type: "activity", kind: "nope" } as never])).toThrow("Invalid conversation event");
+  expect(readFileSync(f.path("old"))).toEqual(saved);
+});
+// FX review: an existing conversation's send whose turn.started cannot be saved leaves no user.message either, so the
+// renderer has no message alone to open a live turn from.
+it("rejects a next send whose turn.started cannot be saved without saving or publishing its message", async () => {
+  const f = setup(), published: ConversationEvent[] = []; let session = 0;
+  const service = new ConversationService(f.store, async () => ({ runtime: "codex", configDir: "/profile", cwd: "/repo", command: "/fake", env: {} }), async () => ({ sessionId: `s${++session}`, send: async () => {}, answer: () => false, stop: async () => {}, close: async () => {} }), e => published.push(e));
+  const request = { root: "/repo", canvas: { path: ".doan/canvases/a.html" }, mode: "new" as const, runtime: "codex" as const, text: "hello", anchors: [] };
+  const id = (await service.start(request)).conversationId; service.receive(id, { type: "turn.done" });
+  const bytes = readFileSync(f.path(id)), count = published.length;
+  const message = JSON.stringify({ type: "user.message", text: "again", anchors: [], v: 1, conversationId: id, turnId: id, seq: 4, at: new Date().toISOString() }) + "\n";
+  hooks.limit = bytes.length + Buffer.byteLength(message) + 8;
+  await expect(service.send(id, "again", [])).rejects.toThrow("File exceeds limit");
+  expect(readFileSync(f.path(id))).toEqual(bytes);
+  expect(published).toHaveLength(count);
+  expect(service.list("/repo").find(c => c.conversationId === id)).toMatchObject({ phase: "ended", working: false });
+  expect(turnOf(f.store.read(id), true)).toMatchObject({ ended: true });
 });
 it("rejects an archival bound crossing without publication and leaves forCanvas readable", async () => {
   const f = setup(), published: unknown[] = []; let session = 0;

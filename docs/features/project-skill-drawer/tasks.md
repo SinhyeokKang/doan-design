@@ -4,7 +4,7 @@ design '결정' 0–26(사람, 2026-11-06)을 따른 순서다.
 
 순서: PoC → UI 초안(구현 전, AGENTS.md 'Workflow') → (필요하면) Antigravity stub 수정 → 순수 함수 → main(I/O) → renderer(UI) → 실제 앱 확인 → 문서 승격.
 
-시작 조건: chain-261106(work-update → canvas-handoff → small-ui-tweaks)이 병합된 뒤 시작한다. turn-activity와의 순서는 그때 정한다(design '겹치는 feature와 순서').
+시작 조건: chain-261106(work-update → canvas-handoff → small-ui-tweaks)이 병합된 뒤 시작한다. turn-activity는 먼저 구현했다(PR `feat/turn-activity`). 그 변경 위에서 시작한다(design '겹치는 feature와 순서').
 
 ## P. PoC(실제 provider, 공용 로그인 프로필과 사람의 승인 필요, P1–P5를 한 세션에서)
 

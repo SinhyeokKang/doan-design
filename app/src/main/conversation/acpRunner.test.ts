@@ -9,7 +9,7 @@ import { ConversationService } from "./service";
 import { ConversationStore } from "./store";
 import { MAX_IMAGE_BYTES } from "../attachments";
 import type { Prepared } from "./service";
-import type { EventPayload } from "./types";
+import type { EventPayload, TurnStage } from "./types";
 import cursor from "./fixtures/acp-cursor.json";
 import copilot from "./fixtures/acp-copilot.json";
 
@@ -343,21 +343,23 @@ it("lists an ACP provider's modes with its models from the same session/new", as
 
 // agent-questions: Antigravity asks with a standard permission request whose options are the answers (P5).
 const QUESTION = "Which color should the header be?";
-function questionFixture(): string {
+// after: updates the server sends after the question's own completion, before the closing reply.
+function questionFixture(after: Record<string, unknown>[] = []): string {
   const sessionId = copilot.turn[0]!.params!.sessionId;
   const fixture = { ...copilot, turn: [
     { jsonrpc: "2.0", method: "session/update", params: { sessionId, update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "Let me ask." } } } },
     { jsonrpc: "2.0", id: 0, method: "session/request_permission", params: { sessionId, toolCall: { toolCallId: "interaction_1", title: QUESTION, rawInput: {} }, options: [{ optionId: "1", name: "Red", kind: "allow_once" }, { optionId: "2", name: "Blue", kind: "allow_once" }] } },
     // Antigravity then reports the question's own tool call done; it is the question, not a step of the turn.
     { jsonrpc: "2.0", method: "session/update", params: { sessionId, update: { sessionUpdate: "tool_call_update", toolCallId: "interaction_1", status: "completed", title: "Response received" } } },
+    ...after.map(update => ({ jsonrpc: "2.0", method: "session/update", params: { sessionId, update } })),
     { jsonrpc: "2.0", method: "session/update", params: { sessionId, update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "Thanks." } } } },
     { jsonrpc: "2.0", id: 3, result: { stopReason: "end_turn" } }] };
   const path = join(realpathSync(mkdtempSync(join(tmpdir(), "doan-acp-question-"))), "acp-antigravity.json");
   writeFileSync(path, JSON.stringify(fixture)); return path;
 }
-async function asking(runtime: "antigravity" | "copilot", mode = "") {
+async function asking(runtime: "antigravity" | "copilot", mode = "", after: Record<string, unknown>[] = [], stage?: (stage: TurnStage) => void) {
   const log = logFile(), events: EventPayload[] = [];
-  const runner = await openAcp({ ...input("copilot", { args: [SERVER, questionFixture()], env: { PATH: process.env.PATH ?? "", FAKE_ACP: mode, FAKE_ACP_LOG: log } }), runtime }, e => events.push(e), () => {}, () => {});
+  const runner = await openAcp({ ...input("copilot", { args: [SERVER, questionFixture(after)], env: { PATH: process.env.PATH ?? "", FAKE_ACP: mode, FAKE_ACP_LOG: log } }), runtime, ...(stage ? { stage } : {}) }, e => events.push(e), () => {}, () => {});
   const sent = runner.send("hi", "turn-1");
   await vi.waitFor(() => expect(events.some(e => e.type === "question.request" || e.type === "permission.request")).toBe(true));
   const request = events.find(e => e.type === "question.request" || e.type === "permission.request") as Extract<EventPayload, { type: "question.request" | "permission.request" }>;
@@ -381,6 +383,23 @@ it("shows Antigravity's question as a question card and answers with the chosen 
   expect(events.at(-1)).toEqual({ type: "turn.done" });
   expect(replies()).toEqual([{ outcome: { outcome: "selected", optionId: "2" } }]);
   expect(events.filter(e => e.type === "activity")).toEqual([]);
+});
+
+// FX review: the question's tool call ran as a tool until it completed; its completion must end it, though it never
+// becomes an activity, or a later tool's completion names the answered question again.
+it("ends an answered Antigravity question's tool, so a later tool's completion is general", async () => {
+  const stages: TurnStage[] = [];
+  const read = { toolCallId: "read_1", kind: "read", title: "Read a.txt", locations: [{ path: join(CWD, "a.txt") }] };
+  const { runner, events, sent, request } = await asking("antigravity", "", [
+    { sessionUpdate: "tool_call", ...read, status: "pending" },
+    { sessionUpdate: "tool_call_update", toolCallId: "read_1", status: "completed" },
+  ], stage => stages.push(stage));
+  expect(runner.answerQuestion!(request.requestId, { outcome: "answered", answers: { "0": { selected: [0] } } })).toBe("ok");
+  await sent;
+  const READ: TurnStage = { kind: "tool", activity: "read", path: join(CWD, "a.txt"), summary: "Read a.txt" };
+  expect(stages).toEqual([{ kind: "tool", activity: "other", summary: QUESTION }, { kind: "general" }, READ, { kind: "general" }]);
+  // The question still leaves no activity step; the read does.
+  expect(events.filter(e => e.type === "activity")).toEqual([{ type: "activity", kind: "read", path: join(CWD, "a.txt"), insideDesign: false, summary: "Read a.txt" }]);
 });
 
 it("answers a skipped Antigravity question as cancelled", async () => {

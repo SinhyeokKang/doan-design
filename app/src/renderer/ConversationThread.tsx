@@ -18,6 +18,7 @@ import { formatSize, providerLogo } from "./homeComposer";
 import { replyUrlTransform } from "./replyUrlTransform";
 import { canSend, EMPTY_QUESTION_DRAFT, questionInput, sendBlockedText, type QuestionDraft, type QuestionDraftAction } from "./questionDraft";
 import { pendingAsks, questionLines, scrollFollow, threadScroll, waitsForPerson, type ActivityStep, type ThreadItem, type TurnEnd } from "./threadItems";
+import { elapsedText, settle, SETTLE_MS, turnAnnouncement, turnText, type Settled, type ThreadTurn, type TurnStatus } from "./turnStatus";
 
 // The conversation thread (buzz-conversation design §3.3, draft frames thread-*). The host reads the history, merges
 // live events and passes threadItems' result; links, copying and every action go back through callbacks, so the
@@ -72,6 +73,8 @@ export interface ConversationThreadProps {
   openCanvasId?: string | null;
   // The canvas rows of the conversation's root, which name another canvas's chips and that canvas.
   canvasRows?: readonly CanvasRow[];
+  // The last turn's indicator state (turnStatus) and start; without it no turn indicator shows.
+  turn?: ThreadTurn | null;
 }
 // focusItem: an entry's focus on a waiting request (design §6): a question's first option or answer input, a
 // permission request's first choice; after a handoff's move, the handoff card itself (canvas-handoff design §6). False
@@ -435,14 +438,44 @@ function lastEnd(items: readonly ThreadItem[]): { key: string; resend: boolean }
   }
   return null;
 }
-function phaseText(items: readonly ThreadItem[], provider: Provider): string {
+// The running turn reads as the indicator's settled stage kind, so it changes only when that kind does (turn-activity
+// spec condition 7).
+function phaseText(items: readonly ThreadItem[], provider: Provider, shown: TurnStatus): string {
   const p = PROVIDER_NAMES[provider];
   if (items.some(waitsForPerson)) return `${p} needs your answer`;
+  const stage = turnAnnouncement(shown, p);
+  if (stage) return stage;
   const last = items.at(-1);
-  if (last && ((last.kind === "activity" && last.running) || (last.kind === "agent" && last.streaming))) return `${p} is working`;
   if (last?.kind === "end") return endView(last.end, provider).title;
   return "";
 }
+
+// The turn indicator (turn-activity draft frame `states`, decision 1): in the reply's place at the thread's end, one
+// line of the stage's words under a sweep and the time since the turn started. It is no live region and takes no
+// focus; the time is hidden from screen readers. Its own timer redraws only this line each second, so the thread's
+// items and scroll effect do not run every second. The timer stops while the window is hidden and the time is counted
+// again from `at` once it shows (POSTMORTEM 2026-10-25).
+export function TurnIndicator({ text, at, provider }: { text: string; at: string; provider: Provider }) {
+  const [, tick] = useState(0);
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const stop = () => { if (timer !== null) clearTimeout(timer); timer = null; };
+    // Wakes on the next whole second of the turn's time, so the shown second never lags behind it.
+    const schedule = () => {
+      stop();
+      if (document.hidden) return;
+      const since = Date.now() - Date.parse(at);
+      timer = setTimeout(() => { tick(n => n + 1); schedule(); }, Number.isFinite(since) && since > 0 ? 1000 - since % 1000 : 1000);
+    };
+    const visibility = () => { if (document.hidden) stop(); else { tick(n => n + 1); schedule(); } };
+    schedule();
+    document.addEventListener("visibilitychange", visibility);
+    return () => { stop(); document.removeEventListener("visibilitychange", visibility); };
+  }, [at]);
+  return <div className="ti ti-reply"><img className="logo" src={providerLogo(provider)} alt="" />
+    <span className="ti-text ti-shimmer">{text}</span><span className="ti-time" aria-hidden="true">{elapsedText(Date.now() - Date.parse(at))}</span></div>;
+}
+const NO_TURN: TurnStatus = { kind: "none" };
 
 export const ConversationThread = forwardRef<ConversationThreadHandle, ConversationThreadProps>(function ConversationThread(props, ref) {
   return <ThreadBody key={props.conversationId} {...props} handle={ref} />;
@@ -481,6 +514,20 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     return !!control;
   };
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The indicator's stage after settle (design §1), kept as state derived while rendering: an immediate change shows in
+  // the same render, so the indicator is there from the render the person's message enters.
+  // It belongs to one turn: a next turn starts from nothing, even when no render showed the earlier one's end (a queue
+  // starting it at once), so an earlier turn's shown or pending stage never shows beside it.
+  const turnId = props.turn?.turnId ?? null;
+  const [held, setHeld] = useState<{ turnId: string | null; settled: Settled } | null>(null);
+  const settled = settle(held?.turnId === turnId ? held.settled : null, props.turn?.status ?? NO_TURN, Date.now());
+  if (settled !== held?.settled) setHeld({ turnId, settled });
+  const [, wake] = useState(0);
+  useEffect(() => {
+    if (!settled.pending) return;
+    const timer = setTimeout(() => wake(n => n + 1), Math.max(0, SETTLE_MS - (Date.now() - settled.since)));
+    return () => clearTimeout(timer);
+  }, [settled]);
   const reduced = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   useEffect(() => {
@@ -622,10 +669,12 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
 
   return <Actions.Provider value={context}><ReplyCanvasContext.Provider value={replyCanvas}><div className="conversation-thread">
     <div className="thread-scroll" ref={scroller} onScroll={onScroll}>
-      <div className="thread">{items.map(entry => <div key={entry.key} className="thread-item" data-item={entry.key}>{item(entry)}</div>)}</div>
+      <div className="thread">{items.map(entry => <div key={entry.key} className="thread-item" data-item={entry.key}>{item(entry)}</div>)}
+        {props.turn && settled.shown.kind !== "none" && settled.shown.kind !== "waiting" &&
+          <div className="thread-item"><TurnIndicator text={turnText(settled.shown, p)} at={props.turn.at} provider={provider} /></div>}</div>
     </div>
     {behind && <button type="button" className="doan-button jump-latest" data-ui-size="sm" data-ui-variant="panel" onClick={jump}><ArrowDown aria-hidden="true" />Jump to latest</button>}
-    <div className="sr-only" role="status">{copied ? "Copied" : phaseText(items, provider)}</div>
+    <div className="sr-only" role="status">{copied ? "Copied" : phaseText(items, provider, settled.shown)}</div>
   </div></ReplyCanvasContext.Provider></Actions.Provider>;
 };
 

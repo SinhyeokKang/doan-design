@@ -399,17 +399,24 @@ export class ConversationStore {
     return result;
   }
   append(id: string, turnId: string, body: EventPayload): ConversationEvent {
+    return this.appendAll(id, turnId, [body])[0]!;
+  }
+  // Several events of one turn in one write: an invalid event, the size limit or a failed open or read leaves none of
+  // them, so those failures never save a send's user.message without its turn.started. A short write is not rolled
+  // back, as with one event; only journaled changes (acceptChange) recover a prefix.
+  appendAll(id: string, turnId: string, bodies: readonly EventPayload[]): ConversationEvent[] {
     if (!this.accepting) this.recover();
     if (!validId(id)) throw new Error("Invalid conversation ID");
     const fd = openRegular(join(this.directory, `${id}.jsonl`), constants.O_RDWR | constants.O_APPEND | constants.O_CREAT);
     try {
       const history = this.parse(readDescriptor(fd, CONVERSATION_HISTORY_BYTES), id);
-      const next: ConversationEvent = { ...body, v: 1, conversationId: id, turnId, seq: history.length + 1, at: new Date().toISOString() };
-      if (!event(next, id, next.seq)) throw new Error("Invalid conversation event");
-      const serialized = JSON.stringify(next) + "\n";
+      const at = new Date().toISOString();
+      const saved = bodies.map((body, i): ConversationEvent => ({ ...body, v: 1, conversationId: id, turnId, seq: history.length + 1 + i, at }));
+      if (!saved.every(next => event(next, id, next.seq))) throw new Error("Invalid conversation event");
+      const serialized = saved.map(next => JSON.stringify(next) + "\n").join("");
       if (fstatSync(fd).size + Buffer.byteLength(serialized, "utf8") > CONVERSATION_HISTORY_BYTES) throw new Error("File exceeds limit");
       this.write(fd, serialized);
-      return next;
+      return saved;
     } finally { closeSync(fd); }
   }
   private write(fd: number, text: string): void {
