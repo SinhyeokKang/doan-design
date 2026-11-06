@@ -26,10 +26,15 @@ function unique(models: ModelOption[]): ModelOption[] {
 // Agent SDK Query.supportedModels() rows; the "default" row is the account's default (0.3.312).
 export function parseClaudeModels(rows: unknown): ModelOption[] {
   if (!Array.isArray(rows)) throw new Error("session_unavailable");
-  return unique(rows.filter(object).filter(r => text(r.value)).map(r => {
+  const models = rows.filter(object).filter(r => text(r.value));
+  const defaultIndex = models.findIndex(r => r.value === "default");
+  const resolved = models[defaultIndex]?.resolvedModel;
+  const pairedIndex = text(resolved) ? models.findIndex((r, i) => i !== defaultIndex && r.resolvedModel === resolved) : -1;
+  return unique(models.map((r, i) => {
+    const named = i === defaultIndex ? models[pairedIndex] ?? r : r;
     const efforts = r.supportsEffort === true && Array.isArray(r.supportedEffortLevels) ? levels(r.supportedEffortLevels) : undefined;
-    return { id: String(r.value), label: text(r.displayName) ? r.displayName : String(r.value), default: r.value === "default", ...(efforts ? { efforts } : {}), ...(r.supportsFastMode === true ? { fast: {} } : {}) };
-  }));
+    return { id: String(r.value), label: text(named.displayName) ? named.displayName : String(named.value), default: r.value === "default", ...(efforts ? { efforts } : {}), ...(r.supportsFastMode === true ? { fast: {} } : {}) };
+  }).filter((_, i) => i !== pairedIndex));
 }
 // Codex app-server model/list result (0.164.0): {data: [{id, displayName, isDefault, supportedReasoningEfforts}]}.
 export function parseCodexModels(result: unknown): ModelOption[] {
