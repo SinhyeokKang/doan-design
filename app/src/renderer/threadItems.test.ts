@@ -474,7 +474,7 @@ describe("threadItems handoff", () => {
   });
 });
 
-// fast-mode A4: the line a Claude turn leaves when it did not run Fast, inside that turn, kept on reread.
+// The line a Claude turn leaves when it did not run Fast, inside that turn, kept on reread.
 describe("Fast not used", () => {
   const unused = (payload: Record<string, unknown> = {}) => ({ type: "fast.unused", ...payload }) as Extract<ConversationEvent, { type: "fast.unused" }>;
   test("a lasting reason says Fast was turned off, then why", () => {
