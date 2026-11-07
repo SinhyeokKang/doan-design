@@ -10,7 +10,7 @@ import { CanvasConversations } from "./RightPanel";
 import { TooltipContent, TooltipProvider } from "./components/ui/tooltip";
 import type { ThumbnailState } from "./thumbnails";
 
-// buzz-project design §0 'right rows', §2.3 and §2.5.
+// PRODUCT §5 item 3 'Project Overview', 'Canvas conversations'.
 const NOW = Date.parse("2026-11-01T12:00:00.000Z");
 const MIN = 60_000;
 const ago = (ms: number) => new Date(NOW - ms).toISOString();
