@@ -963,8 +963,9 @@ async function start(): Promise<void> {
     reencode: bytes => { const image = nativeImage.createFromBuffer(Buffer.from(bytes)); return image.isEmpty() ? null : new Uint8Array(image.toPNG()); },
   });
   let modelCatalog: ModelCatalog | undefined;
-  // Every conversation event may start or end a turn or a question, which Restart to Update waits for.
-  const conversationService = new ConversationService(conversationStore, prepareConversation, openRunner, event => { send("conversation:event", event); notify.event(event); updates?.refreshGate(); }, (root, canvas) => {
+  // Every conversation event, and every end of a turn's work (a history that stopped taking writes publishes no event),
+  // may start or end a turn or a question, which Restart to Update waits for.
+  const conversationService = new ConversationService(conversationStore, prepareConversation, openRunner, event => { send("conversation:event", event); notify.event(event); updates?.conversationsChanged(); }, (root, canvas) => {
     const project = ready.entries().find(entry => entry.path === root);
     if (!project) throw new Error("project_not_open");
     if (canvas) {
@@ -976,7 +977,7 @@ async function start(): Promise<void> {
     return project?.kind === "list" ? project.canvases : [];
   }, root => send("conversation:listChanged", { root }), { drafts: conversationDrafts, files: queueFiles(attachments), defaultEffort: (root, provider, model) => modelCatalog?.defaultEffort(root, provider, model), fast: (root, provider, model) => modelCatalog?.fast(root, provider, model) === true }, id => notify.close(id),
   // A stage is a live signal beside the events, never one of them: its own channel, to the main window only as events go.
-  id => updateConversationWork(endConversationWork(conversationWork, id)), notice => send("conversation:handoff", notice), signal => send("conversation:stage", signal));
+  id => { updateConversationWork(endConversationWork(conversationWork, id)); updates?.conversationsChanged(); }, notice => send("conversation:handoff", notice), signal => send("conversation:stage", signal));
   conversations = conversationService;
   attachments.cleanup();
   modelCatalog = new ModelCatalog((root, runtime) => conversationService.prepareListing(root, runtime), input => conversationService.readListing(input, listModels));
@@ -1209,6 +1210,7 @@ async function start(): Promise<void> {
       if (JSON.stringify(updateMenu(updateView(snapshot, Date.now()).menu, menuEnabledNow())) !== updateMenuKey) setMenu();
     },
     quit: () => app.quit(),
+    relaunch: () => app.relaunch(),
     log: (message, detail) => { if (detail === undefined) console.log(message); else console.error(message, detail); },
     now: () => Date.now(),
   });

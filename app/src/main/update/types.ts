@@ -28,7 +28,7 @@ export type UpdateState =
   | { kind: "restartAborted"; version: string };
 
 // electron-updater's events, and the app's: a check starting (`manual` when a person asked), the restart the gate
-// allowed, and the quit a conversation's save cancelled. An error's `source` is `native` when Electron's autoUpdater
+// allowed, a conversation that started before the restart could quit, and the quit a conversation's save cancelled. An error's `source` is `native` when Electron's autoUpdater
 // (Squirrel.Mac) raised it, which after the download means staging or installing failed, and `js` when
 // electron-updater did (updateErrorSource).
 export type UpdateEvent =
@@ -41,6 +41,7 @@ export type UpdateEvent =
   | { type: "update-cancelled" }
   | { type: "error"; code: UpdateErrorCode; source: UpdateErrorSource }
   | { type: "install" }
+  | { type: "restart-held" }
   | { type: "quit-cancelled" };
 
 // `version` is the running Doan's. `lastCheckedAt` (ms since the epoch) is the last check that got an answer; it

@@ -37,6 +37,9 @@ export function updateState(prev: UpdateState, event: UpdateEvent): UpdateState 
       if (installable(prev)) return { kind: "restarting", version: prev.version };
       // An automatic check after a failed install still shows that install's Restart to Update.
       return prev.kind === "checking" && installable(prev.last) ? { kind: "restarting", version: prev.last.version } : prev;
+    // A hold, not a failure: the update waits ready, and the gate gives the reason.
+    case "restart-held":
+      return prev.kind === "restarting" ? { kind: "ready", version: prev.version } : prev;
     case "quit-cancelled":
       return prev.kind === "restarting" ? { kind: "restartAborted", version: prev.version } : prev;
   }

@@ -20,7 +20,7 @@ export interface Updater {
   on(event: "update-downloaded", listener: (info: { version: string }) => void): unknown;
   on(event: "download-progress", listener: (progress: { percent: number }) => void): unknown;
   on(event: "error", listener: (error: Error) => void): unknown;
-  checkForUpdates(): Promise<unknown>;
+  checkForUpdates(): Promise<{ downloadPromise?: Promise<unknown> | null } | null>;
   downloadUpdate(): Promise<unknown>;
   quitAndInstall(): void;
 }
@@ -31,11 +31,14 @@ export interface UpdateServiceDeps {
   createUpdater(): Updater;
   // Squirrel.Mac finished staging the download, after electron-updater already reported it downloaded.
   onStaged(listener: () => void): void;
-  // D23, asked at each press and whenever main says conversations changed.
+  // Only a conversation holds the restart back: quitting would stop its turn or drop the answer it waits for. Asked at
+  // each press, before the quit that follows a staging wait, and whenever main says conversations changed.
   gate(): InstallGate;
   publish(snapshot: UpdateSnapshot): void;
   // app.quit(): main's own quit, whose before-quit saves conversations and flushes state.
   quit(): void;
+  // app.relaunch(): reopen this copy after the quit that follows.
+  relaunch(): void;
   log(message: string, detail?: unknown): void;
   now(): number;
 }
@@ -90,6 +93,7 @@ export class UpdateService {
   private pending = false;
   private installing = false;
   private timer: ReturnType<typeof setTimeout> | undefined;
+  private gateQueued = false;
 
   constructor(private readonly deps: UpdateServiceDeps) {
     this.gateNow = deps.gate();
@@ -108,7 +112,8 @@ export class UpdateService {
     this.updater = updater;
     updater.autoDownload = true;
     updater.autoInstallOnAppQuit = true;
-    // D12: an rc copy follows rc releases; a stable copy never takes one.
+    // A prerelease copy follows prereleases, so a release candidate updates to the next one; a stable copy never takes
+    // a prerelease.
     updater.allowPrerelease = prerelease(this.deps.version);
     const log = (level: string) => (message?: unknown) => { this.deps.log(`doan: update: ${level}: ${String(message)}`); };
     updater.logger = { info: log("info"), warn: log("warn"), error: log("error") };
@@ -141,7 +146,16 @@ export class UpdateService {
     this.tick();
   }
 
-  refreshGate(): void {
+  // Main calls this from the conversation service's callbacks, which run before the service has finished applying the
+  // change (a turn's end is published before the turn is marked ended, a send's turn.started before it is accepted),
+  // so the gate is read once the current task is done, once for a burst of events.
+  conversationsChanged(): void {
+    if (this.gateQueued) return;
+    this.gateQueued = true;
+    queueMicrotask(() => { this.gateQueued = false; this.refreshGate(); });
+  }
+
+  private refreshGate(): void {
     const gate = this.deps.gate();
     if (gate.kind === this.gateNow.kind) return;
     this.gateNow = gate;
@@ -200,8 +214,9 @@ export class UpdateService {
     // is ignored: neither asks the updater again.
     if (this.state.kind !== "checking" || before.kind === "checking") return;
     this.lastAttemptAt = this.deps.now();
-    // A failure also arrives as an error event, which is where it is handled.
-    updater.checkForUpdates().catch(() => {});
+    // Failures also arrive as error events, which is where they are handled. With autoDownload the result carries the
+    // download, which rejects on its own when the download or Squirrel's staging fails.
+    updater.checkForUpdates().then(result => { result?.downloadPromise?.catch(() => {}); }, () => {});
   }
 
   private failed(error: Error): void {
@@ -217,7 +232,16 @@ export class UpdateService {
   private stagedNow(): void {
     this.staged = true;
     this.stagingFailed = false;
-    if (this.state.kind === "restarting" && !this.pending) this.beginQuit();
+    if (this.state.kind !== "restarting" || this.pending) return;
+    // The press asked the gate, but a conversation can start during the staging wait.
+    const gate = this.deps.gate();
+    if (gate.kind === "blocked") {
+      this.disarm();
+      this.gateNow = gate;
+      this.apply({ type: "restart-held" });
+      return;
+    }
+    this.beginQuit();
   }
 
   private beginQuit(): void {
@@ -226,11 +250,13 @@ export class UpdateService {
     this.deps.quit();
   }
 
-  // Main has torn down conversations, sign-ins and state, so the app ends with a plain quit rather than staying.
+  // Main has torn down conversations, sign-ins and state, so the app cannot stay. It relaunches this version, as the
+  // person asked for a restart; autoInstallOnAppQuit tries the update again on the next quit.
   private fallBack(reason: string): void {
     this.disarm();
     this.installing = false;
-    this.deps.log(`doan: update: ${reason}; quitting without it`);
+    this.deps.log(`doan: update: ${reason}; relaunching without it`);
+    this.deps.relaunch();
     this.deps.quit();
   }
 
