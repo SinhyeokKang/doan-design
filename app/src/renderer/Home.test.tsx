@@ -164,7 +164,7 @@ test("Home CSS: the focused composer uses the field-focus border with shadow-sm;
   expect(disabled).toBeGreaterThan(standard);
 });
 
-// doan-mascot design '배치': the stage is placed from the reference group (empty two-line field, suggestions shown), so
+// The stage is placed from the reference group (empty two-line field, suggestions shown), so
 // typing keeps the field still and growth goes downward only.
 test("typing keeps the suggestions' place, out of the accessibility tree and the focus order", () => {
   const empty = render([project("/code/doan-design")]);

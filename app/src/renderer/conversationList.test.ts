@@ -70,7 +70,7 @@ describe("stripFromList", () => {
   });
 });
 
-// terminal-agent-activity design '표시' (sidebar): a terminal session's `doan work` puts the working spinner on the canvas
+// In the sidebar, a terminal session's `doan work` puts the working spinner on the canvas
 // row, with its own source and name. Identity is root + path (POSTMORTEM 2026-11-01).
 describe("withTerminalSlots", () => {
   const A = ".doan/canvases/a.html", B = ".doan/canvases/b.html", C = ".doan/ds/c.html";

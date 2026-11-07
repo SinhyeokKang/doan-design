@@ -37,8 +37,8 @@ export interface HomeRunHost {
   toast(message: string, action?: string, run?: () => void): void;
   // ui-state's Home memory after a send.
   sent(request: StartInput): void;
-  // A conversation main moved out of Plan (a Claude plan approval): its provider's last mode follows, as after a pick
-  // (permission-mode design '저장 규칙'). Any other change of a stored mode is a pick the composer already remembered.
+  // A conversation main moved out of Plan (a Claude plan approval): its provider's last mode follows, as after a pick.
+  // Any other change of a stored mode is a pick the composer already remembered.
   followedMode?(provider: Provider, mode: PermissionModeId): void;
   changed(): void;
 }

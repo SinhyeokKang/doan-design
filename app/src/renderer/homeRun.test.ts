@@ -352,7 +352,7 @@ test("only a project conversation waiting for an answer of those that hold the r
   for (const [state, patch, blocks] of table) expect([state, blocksStart(summary(patch))]).toEqual([state, blocks]);
 });
 
-// canvas-composer-polish design §4 'Home의 새 캔버스': with two live turns in one root, a new canvas may be either's.
+// With two live turns in one root, a new canvas may be either's.
 test("a new canvas in a root with two live project turns neither opens nor toasts nor counts as drawn", async () => {
   lists({ [ROOT]: [summary({ conversationId: "o", phase: "waiting", fromHome: false })] });
   const h = harness();
@@ -892,7 +892,7 @@ test("a send's permission request toasts once away from its project, whether it 
   }
 });
 
-// permission-mode design '저장 규칙' 'Plan 승인 뒤 전환': main moves a conversation out of Plan after a Claude plan is
+// Main moves a conversation out of Plan after a Claude plan is
 // approved; the provider's last mode follows it, wherever the conversation is shown, by the same rule as a pick.
 test("a conversation that leaves Plan in main's list tells App the mode it moved to", async () => {
   const h = harness();

@@ -147,7 +147,7 @@ describe("measureNarrow", () => {
   });
 });
 
-// project-settings design '영향 범위' 복구 라벨 (spec 9): the status line, the sidebar's project menu, the Overview's
+// Recovery labels: the status line, the sidebar's project menu, the Overview's
 // recovery menu and the Project Settings page share one label table, with no trailing ellipsis.
 test("recovery labels drop the ellipsis, and Remove is Remove from Doan everywhere", () => {
   expect(ROW_ACTION_LABELS).toEqual({ setUp: "Set Up", locate: "Locate", remove: "Remove from Doan", showInFinder: "Show in Finder", retry: "Retry", details: "Details" });

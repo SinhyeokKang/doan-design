@@ -12,7 +12,7 @@ export function dragPanel(start: number, startX: number, x: number, bounds: Pane
   return Math.min(bounds.max, Math.max(bounds.min, start + (edge === "start" ? startX - x : x - startX)));
 }
 
-// The canvas page's right column (buzz-canvas design §2 '오른쪽 패널'): the canvas conversation panel shell, its title row
+// The canvas page's right column: the canvas conversation panel shell, its title row
 // reused from the Overview's right panel, and the resize handle on its left edge. The canvas conversation fills it:
 // `title` is its conversation menu, `children` its thread and composer; with no
 // canvas shown the shell keeps its own title and empty line. While folded the column stays in the DOM, out of the Tab

@@ -259,7 +259,7 @@ test("a deleted conversation's chosen answers go with it", () => {
   expect(h.store.questionDraft(A, "q1").choices).toEqual({});
 });
 
-// canvas-capture design §3 '실패' and 결정 11: main answers capture_failed for an empty image or a PNG it could not
+// Main answers capture_failed for an empty image or a PNG it could not
 // save; the chip goes and the notice names the capture, not the file name that `unreadable` would show.
 test("a capture main could not take leaves the draft with the capture notice", () => {
   const { store } = harness();

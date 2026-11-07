@@ -106,13 +106,13 @@ export interface HeroComposerProps {
   addProjects(): void;
   // Settings > Agents' New conversations; null is Last used, undefined not read yet.
   defaults?: NewConversationDefault | null | undefined;
-  // The agent picker's way into Settings > Agents (buzz-settings design '홈 공급자 선택기').
+  // The agent picker's way into Settings > Agents.
   openSettings(target: SettingsTarget): void;
   // A model or effort pick is remembered as Last used before any send (dogfooding #6).
   onRemember?(choice: ComposerChoice): void;
 }
 
-// The group sits 64px above the panel's centre with at least --space-8 around it (doan-mascot design '배치').
+// The group sits 64px above the panel's centre with at least --space-8 around it.
 const STAGE_LIFT = 64, STAGE_MIN = 32;
 // The group's height in its reference state: an empty two-line field with the suggestions shown (their place is kept
 // while hidden). What a draft adds inside the card (chips, extra lines, the counter) and the reason line or notice
@@ -427,7 +427,7 @@ export function HeroComposer(props: HeroComposerProps) {
   // Send
   const send = async () => {
     if (!availability.enabled || !root || !provider) return;
-    // A send that starts hops; one that cannot start does nothing (doan-mascot spec 'Home 전송').
+    // A send that starts hops; one that cannot start does nothing.
     doany.current?.hop();
     const request: StartInput = {
       root, mode: "newDesign", runtime: provider, text: composed,

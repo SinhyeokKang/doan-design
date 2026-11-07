@@ -444,7 +444,7 @@ test("removing a restored chip that no last request uses releases its sent id", 
 });
 
 // A group that cannot run sends the person to its Agents row; the fixed new-conversation default
-// starts each input, and a pick lasts until the input is sent (design '홈 공급자 선택기', 'New conversations').
+// starts each input, and a pick lasts until the input is sent.
 function status(provider: Provider, patch: { expired?: boolean; facts?: Partial<ToolFacts> } = {}): AuthStatusDto {
   const state: AuthState = { provider, generation: 1, verified: true, expired: patch.expired ?? false, connection: { provider, connectionId: "c", profile: provider, account: ACCOUNT }, attempt: null, error: null, phase: patch.expired ? "reauthRequired" : "connected" };
   return authStatus(state, { ...FACTS, ...patch.facts }, 1);
@@ -502,7 +502,7 @@ test("settings action: the fixed default starts each input; a pick lasts until a
   expect((await send()).runtime).toBe("codex");
 });
 
-// review BU1 ❓1 (design 'New conversations' 적용 규칙): a default changed in Settings applies from the next new input;
+// A default changed in Settings applies from the next new input;
 // an input already started keeps the default it started with.
 test("settings action: a changed default waits for the next input; the draft keeps the one it started with", async () => {
   const { box, start, render, props } = setup({ auth: { revision: 1, providers: [dto("claude"), dto("codex")] } }, { defaults: { provider: "codex" } });
@@ -524,7 +524,7 @@ test("settings action: a changed default waits for the next input; the draft kee
   expect((start.mock.calls[1]![0] as { runtime: string }).runtime).toBe("claude");
 });
 
-// doan-mascot spec 'Home 전송': Doany hops when a send starts, through Send, the submit key or the notice's Retry, and
+// Doany hops when a send starts, through Send, the submit key or the notice's Retry, and
 // not when the guard refuses; input draws its gaze (IME composition included).
 function withDoany(tree: Record<string, unknown>[]) {
   const doany = { hop: vi.fn(), typing: vi.fn() };

@@ -33,7 +33,7 @@ test("removing a project with a running conversation asks first and names the co
     .toBe("A conversation in doan-design needs your answer. Doan stops it, then removes the project from the list. Files and Git worktrees stay on disk.");
 });
 
-// project-remove-confirm design §2 '확인 알림': without a running conversation the removal still asks first.
+// Without a running conversation the removal still asks first.
 test("removing a project without a running conversation asks first, naming one worktree or how many", () => {
   expect(removalConfirm([], "doan-design", 1)).toEqual({
     conversations: [],
