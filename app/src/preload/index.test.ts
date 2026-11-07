@@ -449,7 +449,7 @@ test("notification clicks and the open-Settings command are subscriptions that u
   expect(emitter.listenerCount("notifications:click") + emitter.listenerCount("settings-page:open")).toBe(0);
 });
 
-test("list, seen marker, list changes, extended send, links and re-issued attachments", async () => {
+test("conversation list, seen marker, list changes, extended send, links and re-issued attachments", async () => {
   mocks.invoke.mockResolvedValue(undefined);
   await api.listConversations({ root: "/repo" });
   expect(mocks.invoke).toHaveBeenLastCalledWith("conversation:list", { root: "/repo" });
