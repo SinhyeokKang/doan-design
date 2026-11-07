@@ -74,7 +74,7 @@ code, kbd { font-family: var(--type-family); }
    wheel still pans the board. */
 .drag-layer { position: absolute; inset: 0; z-index: 0; cursor: grab; }
 .drag-layer[data-grabbing] { cursor: grabbing; }
-/* Capture mode (canvas-capture design §2): the drag layer's place, so Stop, Open, Reload and the tools stay over it and
+/* Capture mode: the drag layer's place, so Stop, Open, Reload and the tools stay over it and
    clickable. The controller shows it and its marquee with `hidden`, so neither sets display. The marquee is the
    selection mark's line over the backdrop-hover fill, in the area's screen px, with no size readout. */
 .capture-layer { position: absolute; inset: 0; z-index: 0; cursor: crosshair; }
@@ -233,7 +233,7 @@ code, kbd { font-family: var(--type-family); }
 /* Inside the setup panel the notice follows the chosen card, where the rule above does not reach; it keeps the same
    16px the panel uses between the card and its actions. */
 .ob-project-notice { margin-top: var(--space-4); }
-/* Choice cards (D23) take the chosen card's box, so a picked project reads the same before and after it is chosen. */
+/* Choice cards take the chosen card's box, so a picked project reads the same before and after it is chosen. */
 .ob-chosen, .ob-choice { display: flex; align-items: center; gap: var(--space-3); min-height: var(--size-row); padding: var(--space-4); }
 .ob-chosen { margin-top: var(--space-6); }
 .ob-chosen > div, .ob-destination-name, .ob-choice-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-half); }
@@ -245,7 +245,7 @@ code, kbd { font-family: var(--type-family); }
 .ob-projects { margin-bottom: var(--space-6); }
 .ob-choice-list { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-4); }
 .ob-choice { position: relative; align-items: flex-start; cursor: pointer; }
-/* The shared choice card's radio (buzz-canvas-conversation design §0): 16px, centred on the title's first line, so it
+/* The shared choice card's radio: 16px, centred on the title's first line, so it
    stays there when the title wraps; on, it takes the checkbox's fill and a 6px dot. */
 .ob-radio { display: grid; place-content: center; flex: none; width: var(--size-icon); height: var(--size-icon); margin-top: calc((var(--type-label-sm-line-height) - var(--size-icon)) / 2); border: 1px solid var(--border-prominent); border-radius: 50%; background: var(--surface-panel); }
 .ob-choice:has(input:checked) .ob-radio { border-color: var(--affordance-prominent); background: var(--affordance-prominent); }
@@ -575,12 +575,12 @@ body:has(.shell-top) { background: transparent; }
    shadow carry the focus with it. */
 .composer-card:focus-within { box-shadow: var(--shadow-sm), 0 0 0 1px var(--border-field-focus); }
 .composer-chips { display: flex; flex-wrap: wrap; gap: var(--space-1h); }
-/* Grows with the text up to eight lines, then scrolls inside the card (design §4.1). */
+/* Grows with the text up to eight lines, then scrolls inside the card. */
 .composer-input { display: block; width: 100%; min-height: calc(2 * var(--type-label-line-height)); max-height: calc(8 * var(--type-label-line-height)); padding: 0 var(--space-1) 0 0; border: 0; outline: none; position: relative; overflow-y: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: transparent; font-family: var(--type-family); font-size: var(--type-label-size); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing); color: var(--text-standard); scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb-quiet) transparent; }
 /* A contenteditable has no placeholder: ChipField marks an empty field and its aria-placeholder is drawn over it, inset
    by the field's padding. */
 .composer-input[data-empty]::before { content: attr(aria-placeholder); position: absolute; inset-inline: 0 var(--space-1); color: var(--text-metadata); pointer-events: none; }
-/* Inline anchor chips (buzz-canvas-conversation design §0, confirmed draft; 180px and 6px are component constants with no
+/* Inline anchor chips (confirmed draft; 180px and 6px are component constants with no
    token). contenteditable=false keeps the caret before or after a chip, never inside. */
 .anchor-chip { display: inline-flex; align-items: center; gap: var(--space-1); max-width: 180px; margin: 0 var(--space-half); padding: 0 var(--space-1h); border: 0; border-radius: 6px; background: var(--surface-accent-subtle); color: var(--text-accent-subtle); font: inherit; font-weight: var(--type-weight-medium); vertical-align: bottom; white-space: nowrap; }
 .anchor-chip svg { width: var(--size-icon-sm); height: var(--size-icon-sm); flex: none; }
@@ -598,7 +598,7 @@ body:has(.shell-top) { background: transparent; }
 .composer-effort { gap: var(--space-1h); font-weight: var(--type-weight-regular); }
 /* The capsule's chevron steps down with its gauge, unlike the model trigger's. */
 .composer-effort svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
-/* Fast on: the level, the Fast icon in the accent (an Accent place, fast-mode decision 11), then the chevron. The icon
+/* Fast on: the level, the Fast icon in the accent (an Accent place), then the chevron. The icon
    never shrinks, so an icon-only docked trigger still shows Fast; its name and tooltip say "Fast on". */
 .composer-effort .fast-icon { flex-shrink: 0; color: var(--affordance-accent); }
 /* The permission mode trigger (permission-mode draft frames home-toolrow, picker-menu): the Effort trigger with the
@@ -613,7 +613,7 @@ body:has(.shell-top) { background: transparent; }
 .composer-tray { position: relative; display: flex; align-items: center; gap: var(--space-3); min-height: var(--size-control); padding: var(--space-1) var(--space-4); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-subtle); }
 .composer-tray .doan-button { margin-left: calc(-1 * var(--space-2)); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); font-weight: var(--type-weight-regular); color: var(--text-subtle); }
 .composer-tray :is(.doan-button, .tray-branch) svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
-/* One worktree: the branch is read-only text in the trigger's place (design §4.2). */
+/* One worktree: the branch is read-only text in the trigger's place. */
 .tray-branch { display: inline-flex; align-items: center; gap: var(--space-1h); }
 .tray-path { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-metadata); }
 /* Chips: neutral fill, like the shared .doan-chip, sized for a thumbnail. */
@@ -802,7 +802,7 @@ body:has(.shell-top) { background: transparent; }
 .suggestion-go { visibility: hidden; }
 .suggestion:is(:hover, :focus-visible) .suggestion-go { visibility: visible; }
 
-/* buzz-home: the temporary Home-conversation strip at the top of the workspace body (design §7), on the same white panel. */
+/* buzz-home: the temporary Home-conversation strip at the top of the workspace body, on the same white panel. */
 .workspace.with-strip { grid-template-rows: var(--size-chrome) auto minmax(0, 1fr); }
 .workspace.with-strip > :is(.side, .right-stack) { grid-row: -3 / -1; }
 .workspace > .strip-slot { grid-column: 2; grid-row: -3; z-index: 2; margin-left: var(--space-2); padding: var(--space-3) var(--space-3) 0; background: var(--surface-panel); border-radius: var(--radius-container) 0 0 0; }
@@ -818,7 +818,7 @@ body:has(.shell-top) { background: transparent; }
 .strip-main { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; flex: 1; }
 .strip-error { display: flex; align-items: flex-start; gap: var(--space-1h); }
 
-/* buzz-home: the sidebar row's status slot (design §7.2), at the right of the row before its menu, and an added project's flash (§6). */
+/* buzz-home: the sidebar row's status slot, at the right of the row before its menu, and an added project's flash. */
 .row-slot { display: inline-grid; place-items: center; width: var(--size-icon); height: var(--size-icon); flex: none; margin-left: auto; }
 .shell-project-row .row-slot { margin-left: 0; }
 .row-slot.permission { color: var(--affordance-accent); }
@@ -896,7 +896,7 @@ body:has(.shell-top) { background: transparent; }
 /* Home's agent picker: the link to Settings at the bottom of the menu. */
 .settings-menu-link { display: flex; gap: var(--space-2); align-items: center; }
 .settings-menu-link svg { width: var(--size-icon); height: var(--size-icon); color: var(--text-subtle); }
-/* buzz-settings U4: the header's action slot (Check Again, Copy details) and the category bodies, from the same
+/* The header's action slot (Check Again, Copy details) and the category bodies, from the same
    draft. An empty slot takes no room beside the lead. */
 .settings-page code { color: var(--text-standard); background: var(--surface-inset); border-radius: var(--space-1); padding: 0 var(--space-1); }
 .settings-header-actions { display: flex; flex: none; flex-wrap: wrap; gap: var(--space-2); }
@@ -950,7 +950,7 @@ body:has(.shell-top) { background: transparent; }
    makes that line taller (the panel's 14/20 and a code line included) and the reply does not shrink when it goes. */
 .conversation-thread .caret { display: inline-block; width: 1px; height: 1lh; margin: 0 1px; vertical-align: top; background: var(--text-standard); animation: thread-caret 1s steps(1) infinite; }
 @keyframes thread-caret { 50% { opacity: 0; } }
-/* The person's message: a light accent bubble, plain text that keeps its line breaks (common decision 2). */
+/* The person's message: a light accent bubble, plain text that keeps its line breaks. */
 .conversation-thread .msg-user { align-self: flex-end; display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-1h); max-width: 80%; min-width: 0; }
 .conversation-thread .bubble { padding: var(--space-2) var(--space-4); border-radius: var(--radius-row); background: var(--surface-accent-subtle); color: var(--text-standard); font-size: var(--type-label-size); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing); white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; user-select: text; }
 .conversation-thread .bubble-preset { display: inline-flex; align-items: center; gap: var(--space-1h); color: var(--text-accent-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); font-weight: var(--type-weight-medium); }
@@ -1030,7 +1030,7 @@ body:has(.shell-top) { background: transparent; }
 .conversation-thread .marker svg { flex: none; width: var(--size-icon-sm); height: var(--size-icon-sm); }
 .conversation-thread .marker .doan-button { color: var(--text-standard); }
 .conversation-thread .marker .doan-button:disabled { color: var(--text-disabled); }
-/* Handoff lines (canvas-handoff design §6) reuse the promotion marker. A reason line is longer than "Moved to …", so
+/* Handoff lines reuse the promotion marker. A reason line is longer than "Moved to …", so
    its text wraps inside the marker's 80% with the icon kept on the first line. */
 .conversation-thread .marker.handoff span { align-items: flex-start; }
 .conversation-thread .marker.handoff span svg { margin-block: calc((var(--type-caption-line-height) - var(--size-icon-sm)) / 2); }
@@ -1077,7 +1077,7 @@ body:has(.shell-top) { background: transparent; }
 .ov-project button.wt-chip[aria-expanded="true"] { background: var(--affordance-backdrop-pressed); }
 .shell-project-menu.wt-menu { width: 280px; }
 .ov-sep { flex: none; color: var(--text-metadata); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); }
-/* The title gives way first in a narrow window (design §2.1). */
+/* The title gives way first in a narrow window. */
 .ov-title-wrap { display: flex; min-width: 0; }
 .ov-new-conv { flex: none; margin-left: auto; }
 /* New conversation on the new conversation state: unavailable, still focusable with its tooltip. */
@@ -1109,7 +1109,7 @@ body:has(.shell-top) { background: transparent; }
 .conv-new svg { width: var(--size-icon); height: var(--size-icon); flex: none; }
 .conv-menu .doan-menu-item.current { background: var(--affordance-backdrop-pressed); }
 .conv-item { position: relative; display: flex; flex-direction: column; align-items: stretch; gap: var(--space-half); padding-block: var(--space-2); }
-/* A row is its radio item and its Delete in a .conv-row wrapper (conversation-delete design §3.3), so the hairline and
+/* A row is its radio item and its Delete in a .conv-row wrapper, so the hairline and
    the highlight read from the wrapper: the row keeps its fill while the highlight sits on its Delete. */
 .conv-row { position: relative; }
 .conv-list .conv-row + .conv-row > .conv-item::before { content: ""; position: absolute; top: 0; left: var(--space-3); right: var(--space-3); height: 1px; background: var(--border-standard); }
@@ -1151,7 +1151,7 @@ body:has(.shell-top) { background: transparent; }
 .cv-row:not([aria-disabled="true"]):hover { background: var(--affordance-backdrop-hover); }
 .cv-row:focus-visible { outline-offset: -2px; }
 .cv-row[aria-disabled="true"] { cursor: default; align-items: center; }
-/* A row's Delete (canvas-composer-polish spec 6, draft frames cv-delete, cv-special): the title menu's row Delete
+/* A row's Delete (draft frames cv-delete, cv-special): the title menu's row Delete
    (.conv-delete) as a sibling of the row button, over the time's spot and centred on the row's first line (the head
    line, or a special row's name, which a centred special row places lower), found by anchor positioning. */
 .cv-item { anchor-scope: --cv-line; }
@@ -1231,7 +1231,7 @@ body:has(.shell-top) { background: transparent; }
    would otherwise replace it, and the default tool would look unpressed while its tooltip shows. Equal weight and later
    in the cascade wins; a disabled tool still takes the shared disabled look. */
 .doan-canvas-tools > .doan-icon-button.doan-canvas-tool[aria-pressed="true"]:not(:disabled) { background: var(--affordance-backdrop-pressed); }
-/* An unavailable Picker or Export draws its icon as the composer's unavailable Attach and Pick do (canvas-composer-polish B2). */
+/* An unavailable Picker or Export draws its icon as the composer's unavailable Attach and Pick do. */
 .doan-canvas-tools > .doan-icon-button.doan-canvas-tool[aria-disabled="true"] { color: var(--text-disabled); }
 /* The divider before Export takes the canvas header's divider values (.doan-canvas-head-sep). */
 .doan-canvas-tools-sep { flex: none; width: 1px; height: var(--space-5); margin-inline: var(--space-1); background: var(--border-standard); }
@@ -1281,14 +1281,14 @@ body:has(.shell-top) { background: transparent; }
 .docked-reason.reason-stack > span { flex-basis: 100%; }
 /* A terminal session sets its own model and effort: the same triggers without chevrons, not interactive. */
 .composer-tray .doan-button.is-fixed { cursor: default; }
-/* News on the folded panel's open button: the sidebar slot's unseen dot (design §2 'News dot'). */
+/* News on the folded panel's open button: the sidebar slot's unseen dot. */
 .doan-icon-button[data-badge="true"] { position: relative; }
 .doan-icon-button[data-badge="true"]::after { content: ""; position: absolute; top: var(--space-1); right: var(--space-1); width: var(--space-2); height: var(--space-2); border-radius: 50%; background: var(--affordance-accent); box-shadow: 0 0 0 2px var(--surface-panel); }
 /* A sent message's chips show their target on the canvas; inside the accent bubble they take the panel surface. */
 .bubble .anchor-chip { background: var(--surface-panel); }
 button.anchor-chip { cursor: pointer; }
 button.anchor-chip[aria-disabled="true"] { cursor: default; }
-/* Chip locate (buzz-canvas-conversation design §2): a chip in the composer's field locates too, so it points as a
+/* Chip locate: a chip in the composer's field locates too, so it points as a
    thread chip does; a target that is gone gets the metadata line under its message or composer. */
 .composer-input .anchor-chip { cursor: pointer; }
 .chip-missing { color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
@@ -1323,7 +1323,7 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 @media (prefers-reduced-transparency: reduce) { .mark.jump-highlight.working { animation: none; box-shadow: 0 0 0 1px var(--surface-panel); } }
 /* The composer's note sits under its chip, over the card, without entering the field's DOM. */
 .chip-note { position: absolute; z-index: 2; margin-top: var(--space-1); padding: var(--space-half) var(--space-1h); border-radius: var(--radius-chip); background: var(--surface-panel); box-shadow: var(--shadow-sm); white-space: nowrap; pointer-events: none; }
-/* Attach, then Pick from canvas (design §2 'Picker'), at the left end of the model row; the pickers sit at the right
+/* Attach, then Pick from canvas, at the left end of the model row; the pickers sit at the right
    end. The picking hint is the agent notice's capsule with an outlined Esc key, and the board shows a crosshair (the
    canvas script sets the one over the canvas). */
 .docked .composer-tray :is(.composer-attach, .composer-pick) { color: var(--text-subtle); }
@@ -1339,7 +1339,7 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 :is(.docked .composer-tray .composer-attach, .doan-canvas-tools > .doan-canvas-tool)[aria-disabled="true"] { cursor: not-allowed; }
 @media (hover: hover) and (pointer: fine) { :is(.docked .composer-tray .composer-attach, .doan-canvas-tools > .doan-canvas-tool)[aria-disabled="true"]:hover { background: transparent; } }
 :is(.docked .composer-tray .composer-attach, .doan-canvas-tools > .doan-canvas-tool)[aria-disabled="true"]:active { background: transparent; }
-/* The context ring (context-window-ring design §3, draft frame ring-geometry): the tray's last child, which the tray's
+/* The context ring (draft frame ring-geometry): the tray's last child, which the tray's
    flex-end and the model trigger's auto margin keep at its right end. 4 from the last picker (the tray’s 2 gap plus 2)
    and the tray's 12 end padding after; it never shrinks, so a narrow panel shortens the model label first. Its own
    class sizes it: the header's 24px usage ring rules are bound to .usage. */
@@ -1349,7 +1349,7 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .context-ring .track { stroke: var(--border-track); }
 .context-ring .value { stroke: var(--affordance-prominent); }
 .context-ring[data-band="full"] .value { stroke: var(--border-danger); }
-/* Its tooltip's two lines, both in the tooltip's caption ink (decision 16). */
+/* Its tooltip's two lines, both in the tooltip's caption ink. */
 .doan-tooltip .tip-line { display: block; }
 /* .doan-agent (later, same weight) sets a 4px end inset for its action button; the hint ends in the Esc key instead. */
 .doan-agent.doan-picking { padding-right: var(--space-2); }
@@ -1424,7 +1424,7 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 
 /* buzz-canvas: the agent indicator while this canvas's current conversation works or waits (.doan/canvases/buzz-canvas.html
    'agent-working', 'agent-waiting'). Reference: ego lite's agent tab as the user described it (2026-11-01); its values are
-   compiled into a native view, and the one web token read is the task bar's #0009 (design §2). doan uses its accent for
+   compiled into a native view, and the one web token read is the task bar's #0009. doan uses its accent for
    the edge instead of ego's blue, the parent's common decision 2 exception. Above the overlay, under the board's floating
    controls; nothing here takes pointer input. */
 .doan-agent-glow { position: absolute; inset: 0; z-index: 1; pointer-events: none; border-radius: 0 0 0 var(--radius-container); box-shadow: inset 0 0 calc(var(--space-3) * 3) color-mix(in srgb, var(--affordance-accent) 85%, transparent), inset 0 0 calc(var(--space-6) * 4.5) color-mix(in srgb, var(--affordance-accent) 50%, transparent); animation: doan-agent-glow 8s var(--ease-state) infinite; }
