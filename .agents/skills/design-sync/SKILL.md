@@ -88,7 +88,7 @@ Pin logic regressions with focused unit tests where practical. Keep geometry, in
 ### 8. Record and commit
 
 - `docs/DESIGN.md` (English; create it on the first run, AGENTS.md 'Documents'): the measured values the screen relies on and why, and every documented deviation. Write only what is true in the code now.
-- Gates: `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run build`, then `/runtime-test`.
+- Gates: `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run lint` (oxlint), `npm --prefix app run build`, then `/runtime-test`.
 - Commits: code first, then one commit per document. No push.
 
 ## Report
