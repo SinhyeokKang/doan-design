@@ -42,7 +42,7 @@
 
 ## 운영 메모
 
-- **main이 체인 밖에서도 움직인다**: local-doan-files가 자기 worktree(`local-doan-files-orch`)에서 진행 중이고, 그 뒤 overview-tabs가 이어진다. thread 답 caret 수정(`reply-caret-orch`)도 따로 PR을 낸다. 각 링크는 PR을 병합하기 전에 `feat/<slug>`를 최신 `origin/main` 위로 rebase하고, 통합 gate를 그 HEAD에서 돌린다. 충돌이 나면 main 쪽을 그대로 두고 링크 쪽만 맞춘다. local-doan-files는 `Onboarding.tsx`·`ProjectSettingsPage.tsx`·CLI·`skill.md`를 고치므로 링크 1·3과 겹칠 수 있다.
+- **main이 체인 밖에서도 움직인다**: local-doan-files가 자기 worktree(`local-doan-files-orch`)에서 진행 중이다. thread 답 caret 수정(`reply-caret-orch`)도 따로 PR을 낸다. 각 링크는 PR을 병합하기 전에 `feat/<slug>`를 최신 `origin/main` 위로 rebase하고, 통합 gate를 그 HEAD에서 돌린다. 충돌이 나면 main 쪽을 그대로 두고 링크 쪽만 맞춘다. local-doan-files는 `Onboarding.tsx`·`ProjectSettingsPage.tsx`·CLI·`skill.md`를 고치므로 링크 1·3과 겹칠 수 있다.
 - 작업자 대기는 orchestrate의 대기 loop를 따른다. 멈춘 작업자 감지 포함(orchestrate §2).
 - `/agent-eval`: 세 링크 모두 guide, skill stub, `doan check` 규칙을 바꾸지 않는다. 링크 1의 D1(`doan active`·`doan onboarding`이 64 KiB를 넘는 응답 줄을 거절)은 CLI 출력의 경계만 바꾸므로 지휘자가 해당 여부를 판단한다. 링크 1의 E3는 eval 판정을 고치므로 `/verify --eval`과 필터 없는 `node eval/run.ts --self-test`를 돌린다.
 - 링크 3의 N은 링크 1·2 병합 뒤의 main에서 센다. 링크 3 지휘자가 시작할 때 다시 센다.
