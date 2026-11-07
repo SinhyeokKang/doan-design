@@ -369,17 +369,19 @@ test("every screen's header ends with Agent usage; its Agent settings opens Sett
 
 // Unavailable by the Settings menu item's rule: a locked page, an open modal or first run.
 test("the header's update button is unavailable while a page is locked or a modal is open", () => {
-  openFromWorkspace();
+  render();
+  folders([listed("/w/a")]);
   expect(usageOf(homeEl()!.props.header).update!.props.disabled).toBe(false);
-  click(topBar(homeEl()!.props.header).settings);
+  listeners.menu!("quickOpen" as never); render();
+  expect(usageOf(homeEl()!.props.header).update!.props.disabled).toBe(true);
+  reset();
+  openFromWorkspace();
+  cmdComma();
   expect(usageOf(settings()!.props.header).update!.props.disabled).toBe(false);
   lock();
   expect(usageOf(settings()!.props.header).update!.props.disabled).toBe(true);
   lock(false);
   expect(usageOf(settings()!.props.header).update!.props.disabled).toBe(false);
-  click(topBar(settings()!.props.header).projects);
-  listeners.menu!("quickOpen" as never); render();
-  expect(usageOf(homeEl()!.props.header).update!.props.disabled).toBe(true);
 });
 
 // The open usage popover is a Radix Popover, which closes on Escape at the document's

@@ -44,10 +44,10 @@ describe("reading", () => {
 });
 
 describe("aboutView", () => {
-  test("the draft's rows: version, doan command, and each agent tool with the version Doan needs", () => {
+  // The Version row shows the update push (update/view.ts), not this read.
+  test("the draft's rows: doan command, and each agent tool with the version Doan needs", () => {
     const view = aboutView(READ);
     expect(view.app).toEqual([
-      { id: "version", label: "Version", description: null, value: "0.1.0", status: null, tone: "neutral", error: null },
       { id: "cli", label: "doan command", description: PATH, value: "0.1.0", status: null, tone: "neutral", error: null },
     ]);
     expect(view.tools).toEqual([
@@ -60,13 +60,12 @@ describe("aboutView", () => {
   });
 
   test("a development build shows the CLI as it was found: version dev, a bare doan", () => {
-    expect(aboutView({ ...READ, cli: { path: "doan", version: "dev" } }).app[1]).toMatchObject({ description: "doan", value: "dev", error: null });
+    expect(aboutView({ ...READ, cli: { path: "doan", version: "dev" } }).app[0]).toMatchObject({ description: "doan", value: "dev", error: null });
   });
 
   test("a version that could not be read says so on its own row only", () => {
     const view = aboutView({ ...READ, cli: { path: PATH, version: null }, tools: [{ provider: "claude", cli: "found", installed: null, support: "unknown" }, { provider: "cursor", cli: "found", installed: "2026.11.03", support: "incompatible" }] });
-    expect(view.app[1]).toEqual({ id: "cli", label: "doan command", description: PATH, value: null, status: null, tone: "error", error: "Couldn’t read the doan command’s version." });
-    expect(view.app[0]).toMatchObject({ value: "0.1.0", error: null });
+    expect(view.app).toEqual([{ id: "cli", label: "doan command", description: PATH, value: null, status: null, tone: "error", error: "Couldn’t read the doan command’s version." }]);
     // The same contract as the doan command row: `error` replaces value and status, and the page offers Retry.
     expect(view.tools.find(row => row.id === "claude")).toEqual({ id: "claude", label: "Claude Code", description: "Doan needs 2.1.284 or later.", value: null, status: null, tone: "error", error: "Couldn’t read the version." });
     expect(view.tools.find(row => row.id === "cursor")).toMatchObject({ value: "2026.11.03", status: "Doan can’t run this version", tone: "error" });
@@ -85,7 +84,7 @@ describe("aboutView", () => {
 
   test("while reading, every value is Checking and the descriptions stay", () => {
     const view = aboutView(null);
-    expect(view.app.map(row => [row.label, row.value])).toEqual([["Version", "Checking"], ["doan command", "Checking"]]);
+    expect(view.app.map(row => [row.label, row.value])).toEqual([["doan command", "Checking"]]);
     expect(view.tools.map(row => row.id)).toEqual(["claude", "codex", "cursor", "antigravity", "copilot"]);
     for (const row of view.tools) expect(row).toMatchObject({ value: "Checking", status: null, error: null });
     expect(view.tools[1]?.description).toBe("Doan needs 0.158.0 or later.");

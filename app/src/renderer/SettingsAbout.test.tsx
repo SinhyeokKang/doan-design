@@ -269,7 +269,7 @@ test("downloading draws a progressbar named by the state text, with the percent 
   const state = all(row("version").props.children as ReactNode).find(element => element.props.id === bar.props["aria-labelledby"])!;
   expect(words(state.props.children)).toBe("0.1.0 · Downloading Doan 0.1.1");
   const percent = all(row("version").props.children as ReactNode).find(element => element.props.className === "settings-value")!;
-  expect(percent.props).toMatchObject({ "aria-hidden": "true", children: ["42", "%"] });
+  expect(percent.props).toMatchObject({ "aria-hidden": "true", children: [42, "%"] });
 });
 
 test("a failure puts its line under the row, without a live role", () => {
@@ -361,7 +361,7 @@ test("the automatic-check switch shows the pushed choice and saves a change; a f
   click("Save the automatic-check choice again");
   expect(save).toHaveBeenLastCalledWith({ updates: { autoCheck: true } });
   await flush(); render();
-  expect(text()).not.toContain("Couldn’t save your automatic-check choice.");
+  expect(all(autoRow()!.props.children as ReactNode).some(element => String(element.props.className) === "settings-msg error")).toBe(false);
 });
 
 test("the switch waits for preferences and stays off a newer preferences file, whose notice the page shows", () => {

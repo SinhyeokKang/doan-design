@@ -31,7 +31,8 @@ export interface UpdateView { row: UpdateRowView; autoCheck: UpdateAutoCheckView
 const AUTO_CHECK_LABEL = "Check for updates automatically";
 const AUTO_CHECK_DESCRIPTION = "Checks GitHub when Doan opens and every 6 hours, and downloads in the background. When off, a downloaded update still installs when you quit.";
 
-const BLOCKED: UpdateNotice = { title: "Can’t restart yet", text: "A conversation is running or waiting for your answer. Restart after it finishes, or Doan updates when you quit." };
+// Exported for a press answered blocked, which can arrive before the push that carries the gate.
+export const UPDATE_BLOCKED: UpdateNotice = { title: "Can’t restart yet", text: "A conversation is running or waiting for your answer. Restart after it finishes, or Doan updates when you quit." };
 const STOPPED: UpdateNotice = { title: "Couldn’t restart Doan.", text: "Try again, or quit and open it again." };
 const STOPPED_LINE = `${STOPPED.title} ${STOPPED.text}`;
 // The line under a failed row says why only as far as the code knows, and how to recover.
@@ -95,7 +96,7 @@ function settledRow(state: SettledUpdateState, snapshot: UpdateSnapshot, now: nu
       const actions = state.stage === "check" ? [{ ...CHECK, label: "Retry", ariaLabel: "Check for updates again" }]
         : state.stage === "download" ? [NOTES, { ...CHECK, label: "Retry", ariaLabel: `Download Doan ${state.version} again` }]
         : [NOTES, RESTART];
-      const notice = state.stage === "install" && snapshot.gate.kind === "blocked" ? BLOCKED : null;
+      const notice = state.stage === "install" && snapshot.gate.kind === "blocked" ? UPDATE_BLOCKED : null;
       return { ...EMPTY_ROW, description: withVersion(title), actions, notice, error: line, announcement: `${title} ${line}` };
     }
   }
@@ -120,12 +121,12 @@ function row(snapshot: UpdateSnapshot, now: number): UpdateRowView {
       // The announcement ignores the gate: a turn starting or ending is not news to read. The page reads the notice
       // when a press is answered blocked.
       return blocked
-        ? { ...EMPTY_ROW, description: `${version} · Doan ${state.version} is ready.`, actions: [NOTES, RESTART], notice: BLOCKED, announcement: `Doan ${state.version} is ready.` }
+        ? { ...EMPTY_ROW, description: `${version} · Doan ${state.version} is ready.`, actions: [NOTES, RESTART], notice: UPDATE_BLOCKED, announcement: `Doan ${state.version} is ready.` }
         : { ...EMPTY_ROW, description: `${version} · Doan ${state.version} is ready. Restart now, or Doan installs it when you quit.`, actions: [NOTES, RESTART], announcement: `Doan ${state.version} is ready.` };
     case "restarting":
       return { ...EMPTY_ROW, description: `${version} · Doan ${state.version} is ready.`, busy: "Restarting" };
     case "restartAborted":
-      return { ...EMPTY_ROW, description: `${version} · Doan ${state.version} is ready.`, actions: [NOTES, RESTART], notice: blocked ? BLOCKED : null, error: STOPPED_LINE, announcement: STOPPED_LINE };
+      return { ...EMPTY_ROW, description: `${version} · Doan ${state.version} is ready.`, actions: [NOTES, RESTART], notice: blocked ? UPDATE_BLOCKED : null, error: STOPPED_LINE, announcement: STOPPED_LINE };
   }
 }
 
@@ -135,7 +136,7 @@ function header(snapshot: UpdateSnapshot): UpdateHeaderView | null {
   const tooltip = `Doan ${state.version} is ready`;
   if (state.kind === "restarting") return { label: "Restarting", busy: true, tooltip, popover: null };
   // A conversation still running is why a press would fail now, so its reason wins over the stopped restart.
-  const popover = snapshot.gate.kind === "blocked" ? BLOCKED : state.kind === "restartAborted" ? STOPPED : null;
+  const popover = snapshot.gate.kind === "blocked" ? UPDATE_BLOCKED : state.kind === "restartAborted" ? STOPPED : null;
   return { label: "Restart to Update", busy: false, tooltip, popover };
 }
 
