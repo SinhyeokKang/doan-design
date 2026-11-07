@@ -1,63 +1,95 @@
 # release-ci — design
 
-결정: 부모 [design.md](../release-0-1-0/design.md)의 '사용자 결정' 1·2(테스트 빌드 원천 `develop`, 릴리스는 `/release`가 시작), D5(러너), D6(비밀·권한), D7(게시 방식), D8(테스트 빌드 형태), D13(버전 검사), D14(아키텍처), D15(고지 파일), D18(저장소 위치). 모두 결론이다(사용자, 2026-11-07). 근거 문서는 부모 '조사'의 electron-builder 26.18.0 문서와 Orca 워크플로다.
+결정: 부모 [design.md](../release-0-1-0/design.md)의 '사용자 결정' 1·2, D5(러너), D6(비밀·권한, 배포 ref `v*` 태그·`develop`), D7(태그 push로 시작, 게시는 `/release`), D8(테스트 빌드, 입력 없음), D13(버전 검사), D14(아키텍처), D15(고지 파일), D18(저장소 위치). 근거는 부모 '조사'의 electron-builder 26.18.0 문서와 코드, Orca 워크플로다.
 
 ## 영향 범위
 
-- `app/package.json` `build`: `mac.target`에 dmg와 zip(arm64), `publish: { provider: "github", owner: "SinhyeokKang", repo: "doan-design", releaseType: "draft" }`(D18), dmg `artifactName`을 버전 없는 이름으로(README의 `releases/latest/download/…` 링크용, Orca의 `orca-macos-${arch}.${ext}` 방식), `extraResources`에 `../LICENSE`와 `../cli/internal/designskill/notices`(D15). `mac.identity: null`은 그대로 두고 CI가 명령줄로 덮는다(docs/ARCHITECTURE.md:720).
-- `app/scripts/package.mjs`: 로컬 패키지가 `--mac dir`로 남는지 확인만 한다(바꾸지 않는 것이 목표).
-- 새 `.github/workflows/test-build.yml`, `.github/workflows/release.yml`. ci-gate의 Node 고정과 설치 단계를 재사용한다.
+- `app/package.json` `build`: `mac.target`에 dmg와 zip(arm64), `publish: { provider: "github", owner: "SinhyeokKang", repo: "doan-design", releaseType: "draft" }`(D18), dmg `artifactName`을 버전 없는 `Doan-macos-arm64.dmg`로(README의 `releases/latest/download/…` 링크용, Orca의 `orca-macos-${arch}.${ext}` 방식), `extraResources`에 `{ from: "../LICENSE", to: "LICENSE" }`와 `{ from: "../cli/internal/designskill/notices", to: "notices" }`(D15). `mac.identity: null`은 그대로 두고 CI가 명령줄로 덮는다(docs/ARCHITECTURE.md:720).
+- `app/scripts/package.mjs`: 로컬 패키지는 `--mac dir`로 남는다(`:19`). `publish` 설정을 더한 뒤 로컬 패키지에 `app-update.yml`이 생기면 `-c.publish=null`을 더한다(T4).
+- 새 `.github/workflows/test-build.yml`, `.github/workflows/release.yml`. 게이트는 ci-gate의 `ci.yml`을 `workflow_call`로 부른다.
 - 새 검사 스크립트(서명 검증, 버전 검사)와 그 테스트. 위치는 `app/scripts/`(패키징 스크립트 옆).
-- `.agents/skills/tester-build/SKILL.md` 재작성, AGENTS.md 'Commands'(75행)와 'Workflow'.
-- 형식(§11)·app-socket·`doan check`: 영향 없음. ARCHITECTURE 결정 중 "Doan never commits"는 앱의 동작이라 CI의 태그 생성과 무관하다.
+- `.agents/skills/tester-build/SKILL.md` 재작성, AGENTS.md 'Commands'(75행)와 'Workflow', [release-skill design](../release-skill/design.md) 'One-time setup'.
+- 형식(§11)·app-socket·`doan check`: 영향 없음. ARCHITECTURE 결정 중 "Doan never commits"는 앱의 동작이라 CI와 무관하다.
 
 ## 순수 함수 (`/tdd` 대상)
 
-- `checkReleaseVersion(packageVersion, existingTags, latestPublished)` — 태그 중복, SemVer 형식, 최신 게시본보다 큰지(rc는 같은 base의 이전 rc보다 큰지). 실패 이유를 코드로 돌려준다.
+- `checkReleaseVersion(packageVersion, tag, existingTags, latestPublished, existingDraft)` — 태그가 `v<packageVersion>`인지, SemVer 형식, 최신 정식 게시본보다 큰지(rc는 같은 base의 이전 rc보다 큰지, 정식은 그 rc들보다 큰지), 같은 버전의 draft·게시본이 이미 있는지. 실패 이유를 코드로 돌려준다(`tag_mismatch`, `bad_semver`, `not_newer`, `draft_exists`, `published_exists`).
 - `parseCodesignDetails(text)` → authority 목록, `runtime` 플래그, `Timestamp` 유무, Team ID. `/tester-build` 6단계의 "Developer ID Application authority, runtime flag, Timestamp" 검사를 데이터로 바꾼다.
 - `compareEntitlements(committedPlist, signedXml)` → 커밋된 `app/resources/entitlements.mac.plist`에 없는 키(특히 `disable-library-validation`)를 찾는다.
 - `parseSpctl(text)` → `accepted`와 `source=Notarized Developer ID` 여부.
-- 셸 부분(실행, 마운트, 파일 찾기)은 이 함수들을 부르는 얇은 스크립트로 둔다.
+- 셸 부분(실행, 마운트, zip 풀기, 파일 찾기)은 이 함수들을 부르는 얇은 스크립트로 둔다.
 
 ## 비밀과 권한 (D6)
 
-- 환경 `release`: 필수 검토자 = 사용자, 배포 ref = `v*` 태그와 `develop`(테스트 빌드). 공개 저장소에서만 쓸 수 있다(부모 '조사' GitHub).
-- 비밀 이름(값은 사용자가 넣는다): `MAC_CERT_P12_BASE64`(→ `CSC_LINK`), `MAC_CERT_PASSWORD`(→ `CSC_KEY_PASSWORD`), `MAC_IDENTITY_NAME`(`<Name> (<Team ID>)`, `-c.mac.identity`에 넘긴다), `APPLE_API_KEY_P8`, `APPLE_API_KEY_ID`, `APPLE_API_ISSUER`. API 키가 경로인지 내용인지는 v26 문서가 "base64-encoded-p8-content"라고 적었지만 `@electron/notarize`의 실제 기대값을 PoC에서 확인한다.
-- 워크플로 `permissions`는 기본 `contents: read`, 릴리스 게시 작업만 `contents: write`. 서명 작업은 `pull_request` 계열 이벤트에 걸지 않는다.
-- `/tester-build`의 'Prohibited'(비밀을 읽거나 출력하지 않는다)를 워크플로 로그에도 적용한다: `set -x`를 쓰지 않고, 비밀을 파일로 쓸 때는 `$RUNNER_TEMP`에 쓰고 작업 끝에 지운다.
+- 환경 `release`: 필수 검토자 = 사용자, 배포 ref = `v*` 태그(릴리스)와 `develop`(테스트 빌드). 공개 저장소에서만 쓸 수 있다(부모 '조사' GitHub). 등록은 부모 G3a.
+- 비밀 이름(값은 사용자가 넣는다): `MAC_CERT_P12_BASE64`(→ `CSC_LINK`), `MAC_CERT_PASSWORD`(→ `CSC_KEY_PASSWORD`), `APPLE_API_KEY_P8`(내용), `APPLE_API_KEY_ID`, `APPLE_API_ISSUER`. 환경 변수(비밀 아님): `MAC_IDENTITY_NAME`(`<Name> (<Team ID>)`, `-c.mac.identity`에 넘긴다, `vars`로 둬서 로그에서 읽을 수 있게 한다).
+- `APPLE_API_KEY`는 파일 경로다(부모 '조사'). 서명 작업이 `APPLE_API_KEY_P8`를 `$RUNNER_TEMP/AuthKey_<id>.p8`에 쓰고 그 경로를 `APPLE_API_KEY`로 넘긴다. dmg 공증도 `notarytool submit --key <경로> --key-id … --issuer …`로 한다(`--keychain-profile`이 아니다).
+- 작업과 권한:
+  - `gate`: ci-gate의 `ci.yml`을 `workflow_call`로. 비밀 없음, `contents: read`.
+  - `sign`(`needs: gate`): 환경 `release`, `contents: read`. 첫 단계에서 다섯 비밀이 비었는지 이름만 검사한다. `timeout-minutes`를 둔다(앱 공증에는 시간 제한이 없다).
+  - `publish`(release만, `needs: sign`): 환경 없음, 비밀 없음, `contents: write`. 산출물을 받아 `gh release create`로 올린다.
+- `/tester-build`의 'Prohibited'(비밀을 읽거나 출력하지 않는다)를 워크플로 로그에도 적용한다: `set -x`를 쓰지 않고, 비밀을 파일로 쓸 때는 `$RUNNER_TEMP`에 쓰고 작업 끝에 지운다. 임시 keychain도 작업 끝에 지운다.
 
 ## 워크플로
 
 ### test-build (D8)
 
-1. 입력: `ref`(기본 `develop`).
-2. 게이트를 먼저 돌린다(ci-gate와 같은 단계).
-3. `npm --prefix app run package`로 CLI와 `out/`을 만들고(`.agents/skills/tester-build/SKILL.md` 3단계와 같다), electron-builder로 `--mac dmg --arm64 --publish never`, `-c.mac.identity=$MAC_IDENTITY_NAME`, `-c.dmg.sign=true`, `-c.publish=null`(업데이트 피드 없음, 아래 계약)로 서명·공증한다.
-4. dmg를 `notarytool submit --wait --timeout 30m`으로 공증하고 스테이플한다(`/tester-build` 5단계). 시간 초과면 제출 id를 출력하고 실패한다.
-5. 서명 검증 스크립트(위 순수 함수)로 6단계 검사를 모두 돈다.
-6. 산출물 `Doan-tester-<date>-<sha>.dmg`, 보존 기간은 짧게(값은 구현 때 정한다).
+1. `workflow_dispatch`, 입력 없음. `github.ref == refs/heads/develop`이 아니면 실패한다. PoC 동안만 `refs/heads/chore/release-ci`도 받고, T6 커밋에서 그 예외를 지운다.
+2. `gate`(workflow_call).
+3. `sign`: `npm --prefix app run package`로 CLI와 `out/`을 만들고(`.agents/skills/tester-build/SKILL.md` 3단계와 같다), electron-builder로 `--mac dmg --arm64 --publish never`, `-c.mac.identity=$MAC_IDENTITY_NAME`, `-c.dmg.sign=true`, `-c.publish=null`(업데이트 피드 없음)로 서명·공증한다.
+4. dmg를 `notarytool submit --wait --timeout 30m`으로 공증하고 스테이플한다(`/tester-build` 5단계). 시간 초과면 제출 id를 출력하고 실패한다(dmg 공증은 `notarytool wait`로 이어 갈 수 있다).
+5. 서명 검증 스크립트로 dmg와 앱을 검사한다.
+6. 산출물 `Doan-tester-<date>-<sha>.dmg`, 보존 7일.
 
-### release (`/release`가 시작한다)
+### release (`/release`의 태그 push로 시작한다)
 
-1. `main`에서만 시작할 수 있다(`github.ref == refs/heads/main` 검사). 입력은 없고 버전은 `main`의 `app/package.json`에서 읽는다. 환경 `release`의 승인을 기다린다.
-2. `checkReleaseVersion`으로 버전을 검사한다.
-3. 게이트 → 패키징 → `--mac dmg zip --arm64 --publish always`(draft, `releaseType: draft`) → dmg 공증·스테이플 → 서명 검증 → `latest-mac.yml`이 올라갔는지 확인.
-4. 태그 `v<version>`은 electron-builder가 draft를 만들 때 대상 커밋에 단다. 이 동작(draft Release가 태그를 언제 만드는지)은 PoC에서 확인하고, 다르면 워크플로가 태그를 먼저 만든다.
-5. 게시는 워크플로가 하지 않는다. `/release`가 draft를 검사해 보고하고, 사용자가 승인하면 게시한다(D7). 릴리스 노트는 `/release`가 draft에 넣는다(D13).
+1. `on: push: tags: v*`. 첫 단계에서 태그 커밋이 `origin/main`의 조상인지 확인한다(`git merge-base --is-ancestor`). 아니면 실패한다.
+2. `checkReleaseVersion`으로 버전을 검사한다(기존 태그·게시본·draft는 `gh release list`로 모은다).
+3. `gate` → `sign`: 패키징 → `--mac dmg zip --arm64 --publish never` → dmg 공증·스테이플 → 서명 검증(dmg, 그리고 zip을 `ditto -x -k`로 푼 앱에 `codesign --verify --deep --strict`·`stapler validate`·`spctl -a -t exec`) → `latest-mac.yml`의 sha512가 zip과 맞는지 → 산출물로 넘긴다. dmg는 스테이플 뒤에 바이트가 바뀌므로 업로드는 스테이플 뒤에 한 번만 한다.
+4. `publish`: `gh release create v<version> --draft --verify-tag [--prerelease] <dmg> <zip> <zip.blockmap> latest-mac.yml`. rc(`-rc.N`)면 `--prerelease`를 붙인다(README의 `releases/latest` 링크가 rc를 가리키지 않게). 노트는 비워 둔다.
+5. 게시는 워크플로가 하지 않는다. `/release`가 draft를 검사해 보고하고, 노트를 넣고, 사용자가 승인하면 게시한다(D7).
+
+### PoC용 수동 실행
+
+`release.yml`에 `workflow_dispatch` 입력 `dry_run`(기본 true)을 둔다. `dry_run`이면 1단계의 조상 검사와 4단계 게시를 건너뛰고 산출물만 남긴다. PoC와 이후 점검에 쓴다.
+
+## /release와의 계약
+
+release-skill은 이 절의 이름만 쓴다. 바뀌면 두 문서를 같이 고친다.
+
+| 항목 | 값 |
+|---|---|
+| 릴리스 워크플로 | `.github/workflows/release.yml`, 트리거 `push: tags: v*`. `/release`는 태그를 push하고 `gh run list --workflow release.yml --branch v<version>`으로 실행을 찾는다 |
+| 테스트 빌드 워크플로 | `.github/workflows/test-build.yml`, `gh workflow run test-build.yml --ref develop` |
+| 버전 검사 | `node app/scripts/checkReleaseVersion.mjs <version>` — 종료 코드 0이면 통과, 아니면 표준 오류에 실패 코드(위 '순수 함수') |
+| 서명 검증 | `node app/scripts/verifySignedPackage.mjs <dmg> [<zip>]` — 0이면 통과, 아니면 실패한 검사 이름 |
+| 자산 | `Doan-macos-arm64.dmg`, `Doan-<version>-arm64-mac.zip`, 그 `.blockmap`, `latest-mac.yml` |
+| 노트 | draft는 노트 없이 만든다. `/release`가 `gh release edit v<version> --notes-file …`로 넣는다 |
+| 재실행 | 실패한 실행은 `gh run rerun`. 게시 전 draft가 있으면 `draft_exists`로 실패하므로 `/release`가 그 draft를 지운 뒤 재실행한다 |
+
+스크립트 이름은 T2에서 확정하고 이 표와 release-skill design을 같이 고친다.
 
 ## app-update와의 계약
 
-- **업데이트 피드는 릴리스 빌드에만 있다.** electron-builder는 `publish` 설정이 있을 때 앱 안에 `app-update.yml`을 쓴다(Orca 번들의 `Contents/Resources/app-update.yml`에서 확인). 테스트 빌드와 로컬 패키지는 `publish`를 끄므로 그 파일이 없고, app-update는 파일이 없으면 업데이트를 끈다. `--publish never`만으로 파일이 빠지지 않는다는 점과 `-c.publish=null`이 파일을 빼는지는 PoC에서 확인한다.
-- zip 안의 앱이 공증·스테이플된 상태인지 PoC에서 확인한다(Squirrel.Mac이 받는 것은 zip이다).
+- **업데이트 피드는 릴리스 빌드에만 있다.** electron-builder는 `publish` 설정이 있을 때 앱 안에 `app-update.yml`을 쓴다(Orca 번들의 `Contents/Resources/app-update.yml`에서 확인). 테스트 빌드와 로컬 패키지는 `-c.publish=null`로 파일을 빼고, app-update는 파일이 없으면 업데이트를 끈다. `--publish never`만으로는 파일이 빠지지 않는다는 점과 `-c.publish=null`이 파일을 빼는지는 PoC에서 확인한다.
+- zip 안의 앱은 스테이플된 앱이다(부모 '조사', 코드로 확인). PoC에서는 `stapler validate` 한 줄로 확인만 한다.
+- rc도 `latest-mac.yml`을 쓴다(부모 '조사').
 
-## PoC (첫 task)
+## PoC (T1·T5·T6)
 
-비공개 상태로 먼저 할 수 없다(환경은 공개 뒤에만, 부모 D21). 공개 뒤 `develop`의 임시 브랜치에서:
-1. test-build를 한 번 돌려 서명·공증·검사가 통과하는지, 시간이 얼마인지.
-2. release 워크플로를 `--publish never`로 돌려 dmg·zip·`latest-mac.yml`이 만들어지는지, zip 안 앱의 스테이플, `app-update.yml` 유무.
-3. 위 두 계약 질문의 답을 이 문서에 적는다.
+`workflow_dispatch`는 워크플로 파일이 기본 브랜치(`develop`)에 있어야 시작되고, 환경 `release`는 배포 ref(`v*` 태그, `develop`)에서만 비밀을 연다. 그래서:
+
+1. T1: 서명 없는 골격(`test-build.yml`과 `release.yml`, `workflow_dispatch`와 `gate`·패키징만)을 작은 PR로 먼저 `develop`에 넣는다.
+2. 사용자가 PoC 동안 환경 `release`의 배포 ref에 `chore/release-ci`를 잠시 더한다(T5·T6이 끝나면 지운다).
+3. 이 브랜치에서 `gh workflow run <file> --ref chore/release-ci`로 test-build와 release(`dry_run`)를 한 번씩 돌려 확인한다:
+   - 서명·공증·검사가 통과하는지, 시간이 얼마인지
+   - dmg·zip·`latest-mac.yml`이 만들어지는지, `app-update.yml` 유무(릴리스 빌드에는 있고 테스트 빌드에는 없는지)
+   - CI 서명의 Team ID가 지금 로컬 서명과 같은지(`codesign -d -r-`)
+   - 러너의 임시 keychain에서 서명이 되는지
+4. 답을 이 문서에 적고, T8에서 ARCHITECTURE §9로 올린다.
 
 ## 공통 함정
 
 - `/tester-build`가 이미 찾은 함정을 그대로 옮긴다: `CSC_KEYCHAIN`·`APPLE_ID…` 변수가 섞이면 엉뚱한 자격 증명을 쓴다, `--prepackaged`는 서명을 건너뛴다, `mac.entitlementsInherit`가 없으면 `disable-library-validation`이 붙는다, dmg 서명이 조용히 빠질 수 있어 `spctl -t open` 검사를 건너뛰지 않는다(`.agents/skills/tester-build/SKILL.md` 4·6단계).
 - POSTMORTEM 2026-10-30(서명 정체성): CI 서명과 지금 로컬 서명이 같은 Team ID인지 PoC에서 `codesign -d -r-`로 확인한다. 다르면 기존 테스터의 알림·keychain 권한이 이어지지 않는다.
+- 패키징이 두 번 돈다(`package.mjs:19`의 `--mac dir`와 서명 단계). 지금 `/tester-build`와 같은 방식이라 바꾸지 않고, 시간을 잴 때 감안한다.
