@@ -3683,21 +3683,43 @@ describe("capture", () => {
   it("the toolbar tooltip's Escape takes the step the window's Escape would: capture, then Hand, then the selection", () => {
     const h = harness();
     try {
+      // As the tooltip hands it on: already handled, from the focused toolbar button.
+      const tooltipEscape = (over: Record<string, unknown> = {}) => { const event = keyEvent("keydown", "Escape", { target: { tagName: "BUTTON", isContentEditable: false }, ...over }); event.preventDefault(); return event as unknown as KeyboardEvent; };
       h.select(1);
       h.controller.startCapture();
       const handled = keyEvent("keydown", "Escape");
       handled.preventDefault();
       h.host.dispatchEvent(handled);
       expect(h.state().capturing).toBe(true);
-      h.controller.toolbarEscape();
+      h.controller.toolbarEscape(tooltipEscape());
       expect(h.state()).toMatchObject({ capturing: false, tool: "select" });
       expect(h.state().selection).not.toBeNull();
       press(h, "KeyH");
-      h.controller.toolbarEscape();
+      h.controller.toolbarEscape(tooltipEscape());
       expect(h.state().tool).toBe("select");
       h.select(1);
-      h.controller.toolbarEscape();
+      h.controller.toolbarEscape(tooltipEscape());
       expect(h.state().selection).toBeNull();
+    } finally { h.controller.dispose(); }
+  });
+
+  // The tooltip stays open on hover while focus is in a text field: its Escape keeps the field's rules.
+  it("the toolbar tooltip's Escape from a text field ends capture only, and a composing Escape does nothing", () => {
+    const h = harness();
+    try {
+      const fromField = (over: Record<string, unknown> = {}) => keyEvent("keydown", "Escape", { target: { tagName: "TEXTAREA", isContentEditable: false }, ...over }) as unknown as KeyboardEvent;
+      h.select(1);
+      h.controller.toolbarEscape(fromField());
+      expect(h.state().selection).not.toBeNull();
+      press(h, "KeyH");
+      h.controller.toolbarEscape(fromField());
+      expect(h.state().tool).toBe("hand");
+      h.controller.startCapture();
+      h.controller.toolbarEscape(fromField({ isComposing: true }));
+      h.controller.toolbarEscape(fromField({ keyCode: 229 }));
+      expect(h.state().capturing).toBe(true);
+      h.controller.toolbarEscape(fromField());
+      expect(h.state()).toMatchObject({ capturing: false, tool: "hand" });
     } finally { h.controller.dispose(); }
   });
 

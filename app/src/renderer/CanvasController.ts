@@ -1236,8 +1236,13 @@ export class CanvasController {
   };
 
   // An open toolbar tooltip takes the Escape (Radix prevents it, so keydown skips it); its Escape takes the step the
-  // window's would from a toolbar button, so one press closes the tooltip and ends capture or the pick (defect-sweep A2).
-  toolbarEscape(): void { if (this.workspaceActive) this.escape(false); }
+  // window's would, so one press closes the tooltip and ends capture or the pick (defect-sweep A2). The tooltip stays
+  // open on hover while focus is elsewhere, so the key keeps keydown's own rules: a composition is left alone and a
+  // text field keeps its Esc.
+  toolbarEscape(event: KeyboardEvent): void {
+    if (!this.workspaceActive || event.isComposing || event.keyCode === 229) return;
+    this.escape(editableTarget(event.target));
+  }
 
   // Esc's next step (canvas-hand-tool design '키' 'Esc'); `editable`: it came from a text field. Returns the step.
   private escape(editable: boolean): ReturnType<typeof escapeStep> {

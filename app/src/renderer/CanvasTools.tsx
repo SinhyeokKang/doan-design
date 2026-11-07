@@ -36,7 +36,7 @@ export interface CaptureTool { enabled: boolean; reason: string | null; onToggle
 export interface ExportTool { reason: string | null; onExport(button: HTMLElement): void }
 // An open tooltip takes the Escape first (Radix prevents it), so each tooltip's Escape also runs `onEscape`, the
 // canvas's next Escape step; the tooltip still closes on that press (defect-sweep A2).
-export function CanvasTools({ tool, picking, capturing, onTool, picker, capture, exporter, onEscape }: { tool: CanvasTool; picking: boolean; capturing: boolean; onTool(tool: CanvasTool): void; picker: PickerTool; capture: CaptureTool; exporter: ExportTool; onEscape(): void }) {
+export function CanvasTools({ tool, picking, capturing, onTool, picker, capture, exporter, onEscape }: { tool: CanvasTool; picking: boolean; capturing: boolean; onTool(tool: CanvasTool): void; picker: PickerTool; capture: CaptureTool; exporter: ExportTool; onEscape(event: globalThis.KeyboardEvent): void }) {
   const pressed = (own: CanvasTool) => !picking && !capturing && tool === own;
   const captureOff = !capturing && !capture.enabled;
   return <div className="doan-floating doan-canvas-tools" role="toolbar" aria-label="Canvas tools" onKeyDown={moveBetweenTools}>

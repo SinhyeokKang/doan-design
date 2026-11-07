@@ -214,7 +214,7 @@ describe("CanvasTools", () => {
         onEscape.mockClear();
         const event = { defaultPrevented: false, preventDefault: vi.fn() };
         (content.props.onEscapeKeyDown as (event: unknown) => void)(event);
-        expect(onEscape).toHaveBeenCalledOnce();
+        expect(onEscape).toHaveBeenCalledExactlyOnceWith(event);
         expect(event.preventDefault).not.toHaveBeenCalled();
       }
     }
