@@ -53,8 +53,8 @@
 | 링크 | 세션·worktree | 시작 | PR·병합 | 상태 |
 |---|---|---|---|---|
 | 1 defect-sweep | Claude Code, `defect-sweep-orch` | 2026-11-07 `e9e92711` | PR #118 · `470bc3dd` | 병합 |
-| 2 text-edit-menu | Claude Code, `text-edit-menu-orch` | 2026-11-07 `5c5aad3e` | — | 진행 |
-| 3 ts-lint-gate | — | — | — | 대기 |
+| 2 text-edit-menu | Claude Code, `text-edit-menu-orch` | 2026-11-07 `5c5aad3e` | PR #119 · `9470b29f` | 병합 |
+| 3 ts-lint-gate | Claude Code, `ts-lint-gate-orch` | 인계 중 | — | 시작 |
 
 ## 인계 기록
 
@@ -71,3 +71,9 @@
   - 링크 2가 알아야 할 것: `SettingsMcpConnectors.tsx`의 `RowButton`이 테스트용으로 export되었다. `components/ui/tooltip.tsx`는 `aria-disabled`(`true`/`"true"`)이고 자기 `aria-describedby`가 있는 trigger에서 Radix id를 합치지 않는다. `styles.css`에 `.strip-main`·`.strip-error`·`.qo-reading`·`.toast[data-placement="dialog"]`가 더해졌다. `CanvasController.toolbarEscape`는 Radix DismissableLayer 순서에 기대고, `CanvasController.test.ts`가 설치본으로 그 순서를 고정한다. 새 known defect: canvas iframe에 focus가 있을 때 Esc가 열린 툴바 툴팁을 닫지 않는다(BACKLOG).
   - 링크 3이 알아야 할 것: 링크 1이 renderer 파일을 많이 바꿨다(`ConversationThread.tsx`·`conversationStrip.ts`·`App.tsx`·`Toast.tsx`·`QuickOpenDialog.tsx` 등). exhaustive-deps 경고 수 N은 링크 2가 병합된 뒤 다시 센다.
   - 남긴 branch: `feat/defect-sweep`, `SinhyeokKang/ds-{C,T,F,R,M}`. batch worktree는 모두 지웠다.
+- 2026-11-07 **링크 2 text-edit-menu 끝**(지휘자 `text-edit-menu-orch`): PR #119를 병합했다(`9470b29f`). batch는 A(T1·T2 main, Claude Opus medium), B(T3 renderer, Codex `gpt-6.1-sol` medium), C(T4 실제 앱 확인, Claude Opus high)다. 리뷰는 A를 Codex `gpt-6-astra` medium이, B를 Claude Sonnet medium이 했다. 링크 끝의 Codex 주간 사용량은 53%였다(`window_minutes` 10080). 링크 2 진행 중 Claude 7일 사용량은 92%였다. 통합 gate는 최종 HEAD `00fd2f81`에서 돌렸다: `verify.mjs` PASS. T4는 실제 오른쪽 클릭, native 메뉴 클릭, OS 스크린샷으로 네 번 돌렸고, 실제 상태 변화는 없었다. origin/main이 링크 중 움직이지 않아 rebase는 필요 없었다. 실제 `/agent-eval`은 돌리지 않았다(guide·CLI 메시지·`doan check` 규칙·skill stub이 바뀌지 않았다).
+  - 사용자 결정 세 가지(T4 뒤): 메뉴가 열린 사이 필드가 바뀌면 항목이 아무것도 하지 않도록 main에서 확인한다. 그래서 편집 항목은 role이 아니라 click 항목이고 `accelerator`로 단축키 표시를 단다. disabled 필드는 읽기 전용과 같다. PRODUCT §5 'Text edit menu'와 ARCHITECTURE §7 'App menu'에 승격했다.
+  - 미검증(BACKLOG 'Not verified in the real app'에 적었다): native IME 조합, 실제 busy Antigravity `PasteDialog`, thumbnail 창, VoiceOver, 다른 필드가 원래 메뉴 자리와 focus를 차지하는 경우.
+  - 새 known defect(BACKLOG): 시스템 언어가 한국어인 Mac에서는 맞춤법 제안이 비어 있다(이 Mac이 그렇다), chip이 든 선택의 Look Up label에 화면 낭독용 텍스트가 들어간다, `app/runtime/clipboard.ts`는 빈 clipboard를 되돌리지 못한다(probe마다 직접 비웠다).
+  - 링크 3이 알아야 할 것: 사용자가 링크 3의 주 작업자를 Codex로 정했다('상시 권한' 참고, `gpt-6-astra` effort `high`까지). 지휘는 Claude Code다. 링크 2가 바꾼 파일은 `app/src/main/editMenu.ts`(새 파일)·`index.ts`·`canvasFrame.ts`, `app/src/renderer/styles.css`·`SettingsMcpConnectors.tsx`·`Onboarding.tsx`와 그 테스트, 새 `textSelection.test.ts`다. exhaustive-deps 경고 수 N은 이 병합 뒤의 main에서 센다. 새 Codex worktree는 처음 띄울 때 `npm --prefix app ci`가 필요하다(B가 그 때문에 한 번 멈췄다). 끝난 Codex dispatch에 `send`로 다시 열면 `agent-update-prompt`로 실패할 수 있다. 새 `worker-start`로 띄우면 된다.
+  - 남긴 branch: `feat/text-edit-menu`, `SinhyeokKang/tem-{A,B,C}`. batch worktree는 모두 지웠다.
