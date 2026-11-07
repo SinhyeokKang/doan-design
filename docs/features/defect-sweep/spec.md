@@ -37,7 +37,7 @@ docs/BACKLOG.md 'Known defects' 가운데 `/ship` 하나 크기로 고칠 수 �
 ### E. 테스트·eval
 - **E1** `service.test.ts`가 quit과 persistence 실패가 진행 중인 steer를 해제한다는 것을 고정하지 않는다(terminal 이벤트와 archive만 고정).
 - **E2** `app/src/main/shell.test.ts` "replace reports the move as a re-root focus, and only a real move"가 부하에서 가끔 실패한다(11번 중 2번). `shell.store([a, b])`가 각 폴더의 첫 `doan ls`를 기다리지 않아 `replace` 뒤에 focus 없는 목록이 하나 더 온다. BACKLOG에 같은 테스트가 두 항목으로 있다.
-- **E3** `/agent-eval` D7b의 `read_harden_or_clarify_or_onboard` 판정이 shell 변수로 읽은 preset(`for p in harden clarify; do doan design-skill $p --json …`)을 놓친다. 이 판정은 D1–D13이 함께 쓰는 `presetLookups`·`presetChecks`(`eval/scenarios/D1/presets.ts`)와 judge의 `invocationSummary`(`eval/lib/judge.ts`)에 있다.
+- **E3** `/agent-eval` D7b의 `read_harden_or_clarify_or_onboard` 판정이 shell 변수로 읽은 preset(`for p in harden clarify; do doan design-skill $p --json …`)을 놓친다. 이 판정은 D1–D13이 함께 쓰는 `presetLookups`·`presetChecks`(`eval/scenarios/D1/presets.ts`)와 judge의 `buildJudgePrompt`가 만드는 `doanDesignSkill` 요약(`eval/lib/judge.ts`)에 있고, 둘 다 `eval/lib/transcript.ts`의 `commandWords`·`doanPositionals`로 명령을 읽는다.
 
 ## 완료 조건
 

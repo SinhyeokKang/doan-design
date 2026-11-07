@@ -24,7 +24,7 @@
 
 ### C. 앱 기타
 - **C1** `quickOpen.ts`가 Quick Open이 찾는 범위(Home은 모든 프로젝트, workspace는 그 범위)에서 아직 읽는(`kind: "loading"`) 프로젝트 수를 센다. `QuickOpenDialog.tsx`는 그 수가 1 이상인 동안 `role="listbox"` 밖, 목록 끝에 spinner와 "Still reading <n> projects…"(1개면 "Still reading 1 project…") 행을 polite status로 그린다. 검색어 유무와 상관없다. 이 행이 있는 동안 `emptyText`는 "Project is still being read. Try again shortly."와 "No canvases to show"를 내지 않는다. 검색어에 맞는 결과가 없으면 기존 "No … match" 문장과 이 행을 함께 보인다. `App.tsx` `replyChipRefusal`의 같은 문장은 그대로 둔다.
-- **C2** `prepare.ts`의 Doan 연결 시작은 `canonicalDirectory(request.root)`와 `request.root`가 다르면 `session_unavailable`로 거절한다(터미널 세션 이어하기 경로도 root와 configDir에 같은 비교를 한다). 이 비교는 그대로 두고, 프로젝트를 등록할 때와 저장된 `folders.json` 목록을 읽을 때 root를 real path로 맞춘다(UI 등록 `addProjects.ts`·`shell.ts`는 이미 real path다). 읽은 목록에서 두 항목이 같은 real path가 되면 하나만 둔다.
+- **C2** `prepare.ts`의 Doan 연결 시작은 `canonicalDirectory(request.root)`와 `request.root`가 다르면 `session_unavailable`로 거절한다(터미널 세션 이어하기 경로도 root와 configDir에 같은 비교를 한다). 이 비교는 그대로 두고, 프로젝트를 등록할 때와 저장된 `folders.json` 목록을 읽을 때 root를 real path로 맞춘다(UI 등록 `app/src/main/addProjects.ts`·`shell.ts`는 이미 real path다). 읽은 목록에서 두 항목이 같은 real path가 되면 하나만 둔다.
   - `doan://` 링크와 `doan open --repo`: CLI는 `repo.Find`에서 root를 real path(`EvalSymlinks`와 disk spelling)로 바꿔 보내고, 링크(`work_rules.go` `canvasLink`)도 그 root로 만든다. 그래서 정규화 뒤에는 symlink 경로로 등록됐던 프로젝트에도 맞는다(지금은 `/tmp/<x>` 등록과 어긋난다). 사람이 symlink spelling으로 직접 쓴 링크는 등록된 root와 문자열이 같아야 한다는 규칙(`deepLinks.ts` `resolveOpenTarget`)대로 "unregistered-root"로 거절된다. 이 규칙은 바꾸지 않는다.
   - red 테스트는 symlink root의 Codex 시작과 Claude 시작, 그리고 symlink인 configDir(Claude `CLAUDE_CONFIG_DIR`, Codex `CODEX_HOME`)를 다룬다.
 - **C3** `App.tsx` `openLink`는 `decideOpen`(`openDecision.ts`)이 `busy`(`OpenBlock`)를 돌려주면 말없이 돌아간다. 그 자리에서 toast "Couldn’t open the link. <reason>"을 띄운다. 이유는 `deepLinks.ts` `BLOCKED`에서 "in Doan"을 뺀 문장이다:
@@ -43,11 +43,11 @@
 ### E. 테스트·eval
 - **E1** `service.test.ts`에 quit과 persistence 실패가 진행 중인 steer를 unmark하는 케이스를 더한다. 지금 코드가 이미 그렇게 하면 green이 정상이다. unmark를 잠시 지워 그 테스트가 red가 되는 것을 한 번 확인하고 되돌린 뒤 보고한다.
 - **E2** 먼저 fake에서 두 번째 root의 첫 `doan ls`를 늦춰, 지금의 assertion이 매번 실패하게 만든다. 그 상태에서 테스트가 두 root의 첫 목록을 기다리거나 focus를 실은 호출을 찾게 고친다. 연속 통과 횟수는 증거가 아니다. BACKLOG의 중복 두 항목을 함께 지운다.
-- **E3** 공용 `presetLookups`·`presetChecks`(`eval/scenarios/D1/presets.ts`, D1–D13이 쓴다)와 judge의 `invocationSummary`(`eval/lib/judge.ts`)가 shell 변수·반복문으로 실제 실행한 `doan design-skill <id>`를 인식하게 고친다. 응답 본문으로 인식하는 방법은 쓰지 않는다. red 단위 케이스:
+- **E3** 공용 `presetLookups`·`presetChecks`(`eval/scenarios/D1/presets.ts`, D1–D13이 쓴다)와 judge의 `buildJudgePrompt` `doanDesignSkill` 요약(`eval/lib/judge.ts`)이, 둘이 함께 쓰는 `commandWords`·`doanPositionals`(`eval/lib/transcript.ts`)를 거쳐 shell 변수·반복문으로 실제 실행한 `doan design-skill <id>`를 인식하게 고친다. 응답 본문으로 인식하는 방법은 쓰지 않는다. red 단위 케이스:
   - 양성: `for p in harden clarify; do doan design-skill $p …` → harden·clarify를 읽음.
   - 음성: `echo doan design-skill $p`는 읽음이 아니다.
   - 음성: `for p in harden polish`는 `preset_reads_allowed`에서 실패한다.
-  - `judge.test.ts`의 음성(인용된 guide 문장은 읽음이 아니다)은 그대로 통과한다.
+  - `judge.test.ts`의 음성(인용된 guide 문장은 읽음이 아니다, 테스트 helper `invocationSummary`)은 그대로 통과한다.
 
 ## 2. red 테스트 (`/tdd` 대상)
 
