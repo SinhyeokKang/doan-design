@@ -11,7 +11,10 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  # Under workflow_call, github.workflow is the caller's name, so a caller's
+  # gate does not share (and get cancelled from) the push-triggered CI run's
+  # group; the `-ci-` part keeps it apart from the caller's own group.
+  group: ${{ github.workflow }}-ci-${{ github.ref }}
   # Cancelling on develop/main pushes would leave a merged commit's result as
   # "cancelled" when several PRs merge back to back.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
