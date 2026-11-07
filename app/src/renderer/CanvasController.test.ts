@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { InspectResult, InspectRow } from "../main/inspect";
 import type { FolderEntry } from "../main/view";
@@ -3706,6 +3708,15 @@ describe("capture", () => {
     if (targetCloses) event.preventDefault();
     h.host.dispatchEvent(event);
   };
+
+  // toolbarEscape's preventDefault wrapper takes the first call after the tooltip's onEscapeKeyDown as Radix's own. Pinned
+  // against the installed Radix: the tooltip content hands onEscapeKeyDown to its DismissableLayer with onDismiss as
+  // onClose, and the layer calls it, then prevents the event and dismisses only when it is still unprevented.
+  it("the installed Radix tooltip calls onEscapeKeyDown, then prevents the Escape and closes", () => {
+    const read = (name: string) => readFileSync(createRequire(import.meta.url).resolve(name), "utf8");
+    expect(read("@radix-ui/react-tooltip")).toMatch(/DismissableLayer,\s*\{\s*asChild: true,\s*disableOutsidePointerEvents: false,\s*onEscapeKeyDown,\s*onPointerDownOutside,\s*onFocusOutside: \(event\) => event\.preventDefault\(\),\s*onDismiss: onClose,/);
+    expect(read("@radix-ui/react-dismissable-layer")).toMatch(/onEscapeKeyDown\?\.\(event\);\s*if \(!event\.defaultPrevented && onDismiss\) \{\s*event\.preventDefault\(\);\s*onDismiss\(\);\s*\}/);
+  });
 
   it("with a toolbar tooltip open, one Escape ends capture mode as with no tooltip, and goes no further", () => {
     for (const tooltip of [false, true]) {
