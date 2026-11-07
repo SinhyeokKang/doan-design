@@ -54,3 +54,12 @@
 - B1 수정 1회차 완료: `f623af6a`, `120f556f`, `3702db7c`. worker 보고 `verify.mjs` PASS(9583). 🔴은 처음부터 0이라 재리뷰 없이 통합한다. 상태 기계와 서비스의 맞물림은 B2 리뷰가 본다.
 - B1 통합: `b17f7a7a`..`88304821`(커밋 6개 cherry-pick). 통합 HEAD `88304821`에서 `verify.mjs` PASS(앱 테스트 9583개, 로그 `.scratch/orch/verify-B1.log`). B1 worker를 release하고 worktree `app-update-b1`을 Orca로 지웠다. 브랜치 `SinhyeokKang/app-update-b1`(`3702db7c`)은 남아 있다. handoff와 리뷰 사본은 `.scratch/orch/`에 있다.
 - B2 시작: dispatch `ctx_6d3858b9458d`, worktree `app-update-b2`(base `88304821`), Opus high.
+- B2 완료(worker_done): `bb39c6c3` test, `8f59d854` feat, `17f40dd9` refactor. worker 보고 `verify.mjs` PASS(앱 테스트 9666개), main 번들에 electron-updater가 들어간 것을 grep으로 확인했다고 한다. 계획 밖 파일 두 개(`agentSetup/runner.ts` `setupEligibility`, `ConversationService.restartHolds()`)를 더했다. staging을 60초 기다리고, `quitAndInstall` 뒤 10초가 지나면 그냥 종료한다.
+- R2(B2 리뷰) 시작: dispatch `ctx_314b47c106e1`, Opus high, 보고만.
+- R2 결과: 🔴 0, 🟡 4, ⚪ 5(`.scratch/orch/review-B2.md`). conductor 판단:
+  - 🟡1 snapshot 게이트를 대화 서비스가 상태를 바꾼 뒤에 읽게 한다(지금은 한 이벤트씩 늦어 turn이 끝난 뒤에도 막힘 notice가 남는다).
+  - 🟡2 staging 대기 뒤 종료 직전에 게이트를 다시 묻는다. 막히면 종료하지 않고 `ready`로 돌린다. 실패가 아니라 대화 때문에 막힌 것이라 "Couldn’t restart" 대신 막힘 이유를 보인다.
+  - 🟡3 주석의 D23·D12 인용을 이유 문장으로 바꾼다. 🟡4 자동 받기의 `downloadPromise` rejection을 처리한다.
+  - `quitAndInstall` 뒤 10초 fallback은 `app.relaunch()`를 부른 뒤 종료한다. 사용자가 Restart를 눌렀으니 옛 버전으로라도 다시 열리고, 업데이트는 다음 종료 때 다시 시도된다.
+- B2 수정 1회차 보냄: dispatch `ctx_5615fdcff60f`.
+- B2 수정 1회차 완료: `1cfe6233`, `c03bb048`. worker 보고 `verify.mjs` PASS(9675). B1의 `types.ts`·`state.ts`에 `restart-held` 이벤트를 더했다. 🔴은 처음부터 0이라 재리뷰 없이 통합한다.
