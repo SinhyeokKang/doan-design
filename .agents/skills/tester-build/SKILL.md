@@ -1,11 +1,11 @@
 ---
 name: tester-build
-description: Build a Developer ID signed and notarized (app and dmg) tester dmg of Doan from the latest remote main and put it on the Desktop as Doan-tester-<date>-<sha>.dmg. Signs with the building machine's login keychain (Developer ID Application identity, notarytool profile doan-notary). Use when the user asks for a test or tester build, a dmg to install locally, or to share with a tester. Builds only; does not install, commit or push.
+description: Build a Developer ID signed and notarized (app and dmg) tester dmg of Doan from the latest remote develop and put it on the Desktop as Doan-tester-<date>-<sha>.dmg. Signs with the building machine's login keychain (Developer ID Application identity, notarytool profile doan-notary). Use when the user asks for a test or tester build, a dmg to install locally, or to share with a tester. Builds only; does not install, commit or push.
 ---
 
 # Tester build
 
-A local stand-in until release packaging exists (BACKLOG 'Release packaging'): arm64 only, built from the latest `origin/main`, signed with Developer ID under hardened runtime, with both the app and the dmg notarized and stapled. The credentials live in the building machine's login keychain: one `Developer ID Application` identity and the notarytool keychain profile `doan-notary`. `npm --prefix app run package` stays unsigned; signing happens only inside this skill, through command-line overrides, so no build setting changes. Everything happens in a temporary worktree.
+A local stand-in until release packaging exists (BACKLOG 'Release packaging'): arm64 only, built from the latest `origin/develop`, signed with Developer ID under hardened runtime, with both the app and the dmg notarized and stapled. The credentials live in the building machine's login keychain: one `Developer ID Application` identity and the notarytool keychain profile `doan-notary`. `npm --prefix app run package` stays unsigned; signing happens only inside this skill, through command-line overrides, so no build setting changes. Everything happens in a temporary worktree.
 
 **The dmg always goes to the Desktop (`~/Desktop`).** Never leave it in the repo, `.scratch/`, `app/dist/` or any other folder, even when asked for "a build" without a location.
 
@@ -45,11 +45,11 @@ Stop at any failure, report what was found and what the human must do. Never fal
    - Two or more (typically after renewal): stop and report each one's name, SHA-1 and expiry (`security find-certificate -Z -p -c "<name>" -a | openssl x509 -enddate -noout` per certificate; `-a` prints every match, so split the PEM blocks). The human deletes the old identity and replaces the `.p12` backup. Do not pick one: electron-builder passes only the identity name to codesign (`macPackager.js` `doSign`), and renewed identities share the name, so codesign fails as ambiguous.
    - From that line take `<Name> (<Team ID>)`, the part after `Developer ID Application: `, as this run's identity. Passing the prefix makes electron-builder throw `InvalidConfigurationError` (`codeSign/macCodeSign.js` `checkPrefix`).
 2. **Profile.** `xcrun notarytool history --keychain-profile doan-notary` must exit 0. On failure, tell the cases apart by output: license text → the human runs `sudo xcodebuild -license accept`; "No Keychain password item found for profile" → the human runs the `store-credentials` setup step.
-3. **Source and target.** `git fetch origin main`, note `sha=$(git rev-parse --short=7 origin/main)` and today's local date. If `~/Desktop/Doan-tester-<YYYY-MM-DD>-<sha>.dmg` exists, stop and ask instead of overwriting.
+3. **Source and target.** `git fetch origin develop`, note `sha=$(git rev-parse --short=7 origin/develop)` and today's local date. If `~/Desktop/Doan-tester-<YYYY-MM-DD>-<sha>.dmg` exists, stop and ask instead of overwriting.
 
 ## Steps
 
-1. **Worktree.** Add a temporary worktree at `origin/main` under `.scratch/tester-build/<sha>` (detached). Never build from a dirty or unpushed checkout.
+1. **Worktree.** Add a temporary worktree at `origin/develop` under `.scratch/tester-build/<sha>` (detached). Never build from a dirty or unpushed checkout.
 2. **Setup** (AGENTS.md 'Commands'): in that worktree run `npm --prefix app ci`, then `node -e "require('electron')"` from `app/` once.
 3. **Package**: `npm --prefix app run package`. It builds the versioned CLI (`app/build/bin/doan`) and `app/out/`, which the next step re-bundles. Its unsigned `app/dist` output is not used.
 4. **Signed build and app notarization.** Make a fresh staging directory `<stage>` (absolute path). From `<worktree>/app` run exactly:

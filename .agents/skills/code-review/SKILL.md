@@ -11,7 +11,7 @@ Statically review the changes. **Report only**; `/refactor` does the fixing.
 
 ## Usage
 
-- `/code-review` — commits not yet pushed (`git diff @{u}..HEAD`) + uncommitted changes. On a feature branch, `git diff main...HEAD`.
+- `/code-review` — commits not yet pushed (`git diff @{u}..HEAD`) + uncommitted changes. On a feature branch, compare with the PR's base: `git diff develop...HEAD`, or `git diff main...HEAD` on a `hotfix/*` branch.
 - `/code-review <path|commit range>` — name the target explicitly.
 
 ## Procedure
