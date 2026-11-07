@@ -181,25 +181,75 @@ function withoutHeredocBodies(command: string): string {
   return out;
 }
 
+const ASSIGNMENT = /^[A-Za-z_][A-Za-z_0-9]*=/;
+const VARIABLE = /\$(?:(\w+)|\{(\w+)\})/g;
+// Loops longer than this are cut, so a transcript cannot make the reader expand without bound.
+const LOOP_LIMIT = 64;
+
+// One raw token (quotes still on) to the words the shell makes of it. Single quotes keep `$name`, an escaped `\$` in
+// double quotes stays literal, and a variable that is not known here stays as written. A bare `$name` holding
+// several words splits into them, as an unquoted expansion does.
+function expandToken(raw: string, env: ReadonlyMap<string, string>): string[] {
+  const whole = /^\$(?:(\w+)|\{(\w+)\})$/.exec(raw);
+  const held = whole ? env.get(whole[1] ?? whole[2]!) : undefined;
+  if (held !== undefined) return held.split(/\s+/).filter(Boolean);
+  const known = (written: string, plain?: string, braced?: string) => env.get(plain ?? braced!) ?? written;
+  return [raw.replace(/"((?:\\.|[^"\\])*)"|'([^']*)'|([^"']+)/g, (_, double, single, bare) => {
+    if (single !== undefined) return single;
+    if (double !== undefined) return double.replace(/\\([\$`"\\\n])|\$(?:(\w+)|\{(\w+)\})/g, (m: string, escaped: string | undefined, plain?: string, braced?: string) => escaped ?? known(m, plain, braced));
+    return bare.replace(VARIABLE, known);
+  })];
+}
+
+// Executes the words of raw token groups the way the shell would, for what a transcript can show: `NAME=value`
+// assignments on their own, and `for NAME in words; do …; done` with its body run once per word. Anything else
+// (`while`, `if`, command substitution) is read as written.
+function runGroups(groups: string[][], env: ReadonlyMap<string, string>): string[][] {
+  const out: string[][] = [];
+  const vars = new Map(env);
+  for (let i = 0; i < groups.length; i++) {
+    const group = groups[i]!;
+    const head = groups[i + 1];
+    if (group[0] === "for" && /^[A-Za-z_]\w*$/.test(group[1] ?? "") && group[2] === "in" && head?.[0] === "do") {
+      const rest = head.length > 1 ? [head.slice(1)] : [];
+      const body = [...rest, ...groups.slice(i + 2)];
+      let depth = 1, done = body.length;
+      for (let j = 0; j < body.length; j++) {
+        if (["for", "while", "until", "select"].includes(body[j]![0]!)) depth++;
+        if (body[j]![0] === "done" && --depth === 0) { done = j; break; }
+      }
+      const values = group.slice(3).flatMap(token => expandToken(token, vars)).slice(0, LOOP_LIMIT);
+      for (const value of values) out.push(...runGroups(body.slice(0, done), new Map(vars).set(group[1]!, value)));
+      // Continue after the loop's `done`, or at the end when it never closes.
+      i = done < body.length ? i + 2 + done - rest.length : groups.length;
+      continue;
+    }
+    let skipped = 0;
+    while (ASSIGNMENT.test(group[skipped] ?? "")) skipped++;
+    // Assignments before a command belong to that command alone; a group of only assignments sets them for the rest.
+    if (skipped > 0 && skipped === group.length) for (const token of group) vars.set(token.slice(0, token.indexOf("=")), expandToken(token.slice(token.indexOf("=") + 1), vars).join(" "));
+    let words = group.slice(skipped).flatMap(token => expandToken(token, vars));
+    // The `command` builtin runs its operand, except -v/-V, which only look the name up.
+    if (words[0] === "command") {
+      let k = 1;
+      while (/^-[pvV]+$/.test(words[k] ?? "")) k++;
+      if (!/[vV]/.test(words.slice(1, k).join(""))) words = words.slice(words[k] === "--" ? k + 1 : k);
+    }
+    if (/^(?:.*\/)?(?:ba|z|da)?sh$/.test(words[0] ?? "") && /^-[a-z]*c$/.test(words[1] ?? "") && words[2]) out.push(...commandWords(words[2]));
+    else if (words.length) out.push(words);
+  }
+  return out;
+}
+
 // Preserve quoted arguments so echoing a command cannot count as invoking it.
 export function commandWords(command: string): string[][] {
   const groups: string[][] = [[]];
   for (const token of withoutHeredocBodies(command).matchAll(/[;&|\n]+|(?:"(?:\\.|[^"\\])*"|'[^']*'|[^\s;&|"'])+/g)) {
     const value = token[0];
     if (/^[;&|\n]+$/.test(value)) groups.push([]);
-    else groups.at(-1)!.push(value.replace(/"((?:\\.|[^"\\])*)"|'([^']*)'/g, (_, double, single) => single ?? double.replace(/\\([\$`"\\\n])/g, "$1")));
+    else groups.at(-1)!.push(value);
   }
-  return groups.filter(g => g.length).flatMap(words => {
-    while (/^[A-Za-z_][A-Za-z_0-9]*=/.test(words[0] ?? "")) words.shift();
-    // The `command` builtin runs its operand, except -v/-V, which only look the name up.
-    if (words[0] === "command") {
-      let i = 1;
-      while (/^-[pvV]+$/.test(words[i] ?? "")) i++;
-      if (!/[vV]/.test(words.slice(1, i).join(""))) words = words.slice(words[i] === "--" ? i + 1 : i);
-    }
-    if (/^(?:.*\/)?(?:ba|z|da)?sh$/.test(words[0] ?? "") && /^-[a-z]*c$/.test(words[1] ?? "") && words[2]) return commandWords(words[2]);
-    return words.length ? [words] : [];
-  });
+  return runGroups(groups.filter(g => g.length), new Map());
 }
 
 export interface InvocationOutput {

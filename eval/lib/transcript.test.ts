@@ -128,3 +128,29 @@ test("doan handoff --message takes a value, so its message is never a positional
   assert.deepEqual(doanPositionals(["doan", "handoff", "--message=Continue here", ".doan/canvases/next.html"]), ["handoff", ".doan/canvases/next.html"]);
   assert.equal(doanPositionals(["doan", "handoff", ".doan/canvases/next.html", "--message"]), undefined);
 });
+
+// A command run through a shell variable or `for` loop is still run, so a preset read through them is still a read;
+// only the words the shell would execute count, never an echoed or quoted example.
+test("commandWords expands loop and assigned variables where the shell would", () => {
+  assert.deepEqual(commandWords("for p in harden clarify; do doan design-skill $p --json; done"),
+    [["doan", "design-skill", "harden", "--json"], ["doan", "design-skill", "clarify", "--json"]]);
+  assert.deepEqual(commandWords('for p in harden clarify\ndo\n  doan design-skill "${p}" --json | head -5\ndone'),
+    [["doan", "design-skill", "harden", "--json"], ["head", "-5"], ["doan", "design-skill", "clarify", "--json"], ["head", "-5"]]);
+  assert.deepEqual(commandWords("p=harden; doan design-skill $p --json"), [["doan", "design-skill", "harden", "--json"]]);
+  assert.deepEqual(commandWords("ids='harden clarify'; for p in $ids; do doan design-skill $p; done"),
+    [["doan", "design-skill", "harden"], ["doan", "design-skill", "clarify"]]);
+  assert.deepEqual(commandWords("for a in x y; do for b in 1 2; do echo $a$b; done; done"),
+    [["echo", "x1"], ["echo", "x2"], ["echo", "y1"], ["echo", "y2"]]);
+  assert.deepEqual(commandWords("bash -c 'for p in harden; do doan design-skill $p; done'"), [["doan", "design-skill", "harden"]]);
+  // What follows the loop runs once; a loop that never closes runs to the end.
+  assert.deepEqual(commandWords("cd /tmp; for p in a b; do echo $p; done; doan active"), [["cd", "/tmp"], ["echo", "a"], ["echo", "b"], ["doan", "active"]]);
+  assert.deepEqual(commandWords("for p in a b; do echo $p; doan active"), [["echo", "a"], ["doan", "active"], ["echo", "b"], ["doan", "active"]]);
+});
+test("commandWords leaves unset, quoted and escaped variables as written", () => {
+  assert.deepEqual(commandWords("doan design-skill $p"), [["doan", "design-skill", "$p"]]);
+  assert.deepEqual(commandWords("for p in harden; do doan design-skill '$p' \"\\$p\"; done"), [["doan", "design-skill", "$p", "$p"]]);
+  assert.deepEqual(commandWords("p=harden doan design-skill $p"), [["doan", "design-skill", "$p"]]);
+  assert.deepEqual(commandWords("for p in harden; do echo doan design-skill $p; done"), [["echo", "doan", "design-skill", "harden"]]);
+  // Not a loop the words can follow: kept as before.
+  assert.deepEqual(commandWords("for p in harden"), [["for", "p", "in", "harden"]]);
+});
