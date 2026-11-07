@@ -1199,7 +1199,7 @@ describe("text edit menu", () => {
     expect(template?.map(entry => entry.type ?? [entry.label, entry.enabled, entry.accelerator, typeof entry.click, entry.role])).toEqual([["Cut", false, "CmdOrCtrl+X", "function", undefined], ["Copy", false, "CmdOrCtrl+C", "function", undefined], ["Paste", true, "CmdOrCtrl+V", "function", undefined], "separator", ["Select All", true, "CmdOrCtrl+A", "function", undefined]]);
   });
 
-  // text-edit-menu condition 9: the field the menu opened on may be gone by the time an item is chosen.
+  // PRODUCT §5 'Text edit menu': the field the menu opened on may be gone by the time an item is chosen.
   test("a suggestion or Paste acts on the clicked page only when the page says focus is still on the opened field", async () => {
     const contents = window().webContents;
     const { template } = rightClick();
