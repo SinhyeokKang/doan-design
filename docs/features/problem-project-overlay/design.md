@@ -179,9 +179,17 @@
 
 ## 5. 초안
 
-`.doan/canvases/problem-project.html`(id `problem-project`, `doan:width` 1440). 지금 프레임: `overlay-missing`, `overlay-not-set-up`, `overlay-config-error`, `overlay-config-error-details`, `overlay-cli-error`, `overlay-reading`, `overlay-reduced-transparency`, `overlay-narrow`. 바탕은 실제 앱에서 뜬 Overview DOM이다.
+`.doan/canvases/problem-project.html`(id `problem-project`, `doan:width` 1440). 프레임은 14개다: `overlay-missing`, `overlay-not-set-up`, `overlay-config-error`, `overlay-config-error-details`, `overlay-cli-error`, `overlay-reading`, `overlay-reduced-transparency`, `overlay-narrow`과 아래 표의 여섯 개. 바탕은 실제 앱에서 뜬 Overview DOM이다.
 
-보강할 프레임(`/design-draft problem-project-overlay`, tasks T1):
+사용자가 앱에서 초안을 확정했다(2026-11-07). 초안이 문서 결정 없이 제안한 세 점도 그대로 확정했다.
+
+- `overlay-retrying`: 회복 중 누른 Retry는 채움을 유지하고 spinner를 보인다. 다른 버튼은 `--text-disabled` 글자로 그린다.
+- `sidebar-states`: 문제 프로젝트 행에는 펼침 chevron이 없다(`aria-expanded`·group이 없으므로).
+- `sidebar-states`: 읽는 중 spinner와 working 표시가 거의 같은 모양이어도 그대로 둔다. tooltip과 설명 문장(`Reading <name>`)이 둘을 구분한다.
+
+아래 표에서 `ProblemOverlay.tsx`를 implements로 적은 세 프레임은 초안에서 `App.tsx`를 가리킨다. 그 파일이 아직 없어 `doan check`가 `implements_not_found`를 내기 때문이다.
+
+T1에서 더한 프레임(`/design-draft problem-project-overlay`):
 
 | frame id | 그릴 것 | implements |
 |---|---|---|
