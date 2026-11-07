@@ -82,7 +82,7 @@ export interface ProjectStepState {
   url: string;
   // The URL of the last inspection, so an edited URL says it must be checked again.
   inspectedUrl: string | null;
-  // path: the folder whose inspection failed, so a mismatch can name it (D28).
+  // path: the folder whose inspection failed, so a mismatch can name it.
   error: { code: ProjectError; message?: string; path?: string } | null;
   // The registered project picked in 'Your projects', before it is inspected.
   listChoice: string | null;
@@ -94,7 +94,7 @@ export interface ProjectStepState {
 const TERMINAL = new Set(["succeeded", "failed", "cancelled"]);
 const basename = (path: string) => path.replace(/\/+$/, "").split("/").at(-1) ?? path;
 const parent = (path: string) => path.replace(/\/+$/, "").split("/").slice(0, -1).join("/") || "/";
-// url on a path inspection: a folder chosen for that repository, so main checks its remote (D20).
+// url on a path inspection: a folder chosen for that repository, so main checks its remote.
 type Inspect = { path: string; url?: string } | { url: string; destination?: string };
 type Reply = { ok: true; operation: OnboardingOperation } | { ok: false; code: ProjectError; message?: string };
 

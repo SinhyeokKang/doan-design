@@ -17,7 +17,7 @@ import { OverviewRun, type ListView, type OverviewRunHost } from "./overviewRun"
 import { ProjectOverview, type ProjectOverviewProps } from "./ProjectOverview";
 import { TooltipProvider } from "./components/ui/tooltip";
 
-// fast-mode B2 (design §1 renderer): the Overview's composer shows the conversation's stored Fast, a new start sends the
+// The Overview's composer shows the conversation's stored Fast, a new start sends the
 // Fast it shows, an existing conversation's send names Fast only once the person switched it, and only a switch is
 // remembered. The canvas panel's composer follows the same lines (CanvasConversationPanel.tsx).
 
@@ -106,7 +106,7 @@ test("a new conversation's switch belongs to its provider: picking another provi
   expect(support.picks[`root:${ROOT}`]).toEqual({ provider: "codex", model: "gpt-6.1-sol" });
 });
 
-// review R 🟡2 (decision 3): a switch held from earlier is never sent to Last used again on a mount or another pick;
+// review R 🟡2: a switch held from earlier is never sent to Last used again on a mount or another pick;
 // only the toggle itself records Fast.
 test("only the Fast toggle itself is remembered as Last used Fast", () => {
   const onRemember = vi.fn();

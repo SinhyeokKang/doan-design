@@ -5,7 +5,7 @@ import { plainText, textSegments } from "./anchorField";
 import { EMPTY_DRAFT, type DockedDraft } from "./dockedRules";
 import { OverviewRun, scrollTarget, type ListView, type OverviewRunHost } from "./overviewRun";
 
-// buzz-project tasks R1, R3, R4: the Overview's main conversation, driven without a DOM. The host stands in for App
+// The Overview's main conversation, driven without a DOM. The host stands in for App
 // and HomeRun (list reads and their counts, ui-state memory, seen marks, focus, navigation, toasts).
 
 const ROOT = "/code/doan", OTHER = "/code/doan-wt";
@@ -154,7 +154,7 @@ test("a requested canvas conversation opens its canvas instead of the main threa
 });
 
 // Review RM r1 🟡6: reopening an Overview applies spec decision 5 again; only the drafts by root stay.
-test("reopening an Overview picks again by decision 5, and each root keeps its new-conversation draft", () => {
+test("reopening an Overview picks again, and each root keeps its new-conversation draft", () => {
   const h = harness();
   h.run.show(ROOT);
   h.answer(ROOT, [summary(A)]);
@@ -370,7 +370,7 @@ test("the main conversation is seen only while it shows with the window focused,
   h.run.show(ROOT);
   h.answer(ROOT, [summary(A, { unseen: true })]);
   await flush();
-  // Opening the Overview alone does not mark it (spec decision 11).
+  // Opening the Overview alone does not mark it.
   expect(h.host.markSeen).not.toHaveBeenCalled();
   h.state.focused = true;
   h.run.focusChanged();
@@ -391,7 +391,7 @@ test("the main conversation is seen only while it shows with the window focused,
   expect(h.host.markSeen).toHaveBeenCalledTimes(2);
 });
 
-// spec decision 6, design §2.5: promotion resets the main column and the host owns the seen rule.
+// Promotion resets the main column and the host owns the seen rule.
 function promotedSetup(focused: boolean) {
   const h = harness();
   histories.set(A, ended(A));
@@ -516,7 +516,7 @@ test("queued messages stay until a list read started after the queue says none a
   expect(h.run.queue(A)).toEqual([]);
 });
 
-// canvas-composer-polish A2: the row leaves the queue at the press and shows in the thread on either screen until main
+// The row leaves the queue at the press and shows in the thread on either screen until main
 // answers; read, it goes; refused, it is back in the queue.
 test("Send now moves the queued message to sending until main answers, then drops it or puts it back", async () => {
   const h = harness();
@@ -643,7 +643,7 @@ test("an Edit and resend restore dropped for newer typing releases its issued at
   expect(textOf(h.run.drafts.get(`conversation:${A}`))).toBe("newer");
 });
 
-// conversation-delete tasks T3, design §3.2: the state after a conversation is deleted. App marks the conversation
+// The state after a conversation is deleted. App marks the conversation
 // deleting before conversation:delete, then on success calls each run's deleted and the store's.
 function deleteShown() {
   const h = harness();
@@ -666,7 +666,7 @@ test("deleting the shown conversation shows the new conversation state, keeps th
   expect(h.run.view(ROOT)).toEqual({ kind: "new", moved: null });
   expect(h.run.revision(ROOT)).toBeGreaterThan(revision);
   expect(h.state.remembered).toEqual({});
-  // Spec decision 5: the deleted conversation's draft goes; the new conversation's stays as it was.
+  // The deleted conversation's draft goes; the new conversation's stays as it was.
   expect(h.run.drafts.has(`conversation:${A}`)).toBe(false);
   expect(textOf(h.run.drafts.get(`root:${ROOT}`))).toBe("separate new words");
   expect(h.run.thread(A)).toBeNull();

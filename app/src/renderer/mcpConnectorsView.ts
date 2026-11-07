@@ -5,7 +5,7 @@ import type { ConnectorAction, ConnectorStatus } from "../main/mcpConnectors/sta
 import { MCP_PROVIDERS, type McpProvider } from "../main/mcpConnectors/presets";
 import { PROVIDER_NAMES, type Button, type Notice } from "./agentAuthView";
 
-// Settings > MCP Connectors (mcp-connectors design 'renderer'): main's snapshot and agent-auth as the page draws them.
+// Settings > MCP Connectors: main's snapshot and agent-auth as the page draws them.
 // States come from main (service.ts, state.ts connectorState), never re-judged here; this only words them. Rows reuse
 // the first-run Agent step's provider row and Settings > Agents' notices and copy forms.
 

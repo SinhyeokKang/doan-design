@@ -1,7 +1,7 @@
 import type { ReplyAnchor } from "../main/conversation/replyAnchor";
 import type { CanvasRow, FolderEntry } from "../main/view";
 
-// What pressing a reply chip does (agent-reply-chips design 'Pressing'). The link's canvas id is untrusted agent
+// What pressing a reply chip does. The link's canvas id is untrusted agent
 // output, so it is only ever compared with the ids of the rows of the conversation's own root.
 export type ReplyChipTarget = "locate" | "missing" | "duplicate" | "unavailable" | { open: CanvasRow };
 

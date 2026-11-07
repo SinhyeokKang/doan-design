@@ -188,7 +188,7 @@ describe("scrollFollow", () => {
   });
 });
 
-// agent-questions design §6: an entry scrolled a tall question card to its top, and the thread's re-renders (about every
+// An entry scrolled a tall question card to its top, and the thread's re-renders (about every
 // 100 ms in the real app) pulled it back to the bottom before the scroll could report a distance.
 describe("threadScroll", () => {
   test("a re-render that drew nothing new leaves the scroll where it is", () => {
@@ -217,7 +217,7 @@ describe("threadItems with a message pushed into a running turn (queue-send-now)
   });
 });
 
-// mcp-connectors spec 6 and draft frame 11: main writes "Waiting for <X>" and then "<X> wasn’t ready…" as two
+// Draft frame 11: main writes "Waiting for <X>" and then "<X> wasn’t ready…" as two
 // activities (history is append-only, mcpStartup.ts), and the thread shows one step that changed its text.
 describe("threadItems with a Codex MCP server that was not ready", () => {
   const waiting = (text: string) => ev("t1", { type: "activity", kind: "other", summary: text });
@@ -313,7 +313,7 @@ describe("threadItems with a Codex MCP server that was not ready", () => {
   });
 });
 
-// canvas-composer-polish A2: messages Send now has in flight, as the person's messages at the thread's end.
+// Messages Send now has in flight, as the person's messages at the thread's end.
 describe("withSending", () => {
   const CTA = { element: { doanId: "hero-cta", selector: "[data-doan-id=\"hero-cta\"]" } };
   const sending = [
@@ -351,7 +351,7 @@ describe("questions", () => {
   const layout = { id: "0", header: "Layout", question: "Which layout should the settings header use?", options: [{ label: "Compact", description: "One line" }, { label: "Two rows" }], multiSelect: false, other: true };
   const sections = { id: "1", header: "Sections", question: "Which sections should the Settings page keep?", options: [{ label: "Agents" }, { label: "Notifications" }], multiSelect: true, other: true };
   const token = { id: "t", header: "Staging token", question: "Paste the token", options: [], multiSelect: false, other: true, secret: true };
-  // Antigravity's questions have no header (agent-questions design §4).
+  // Antigravity's questions have no header.
   const bare = { id: "0", header: "", question: "Which colour?", options: [{ label: "Red" }, { label: "Blue" }], multiSelect: false, other: false };
   const sending = [{ id: "q1", text: "Also this", anchors: [], attachments: [] }, { id: "q2", text: "And this", anchors: [], attachments: [] }];
 
@@ -420,7 +420,7 @@ describe("questions", () => {
   });
 });
 
-// canvas-handoff B5: the requested line sits where the request happened and its resolution replaces it there; the
+// The requested line sits where the request happened and its resolution replaces it there; the
 // receiving conversation's first message is the handoff card, its text never read for {{n}} markers.
 describe("threadItems handoff", () => {
   const CHECKOUT = ".doan/canvases/checkout-flow.html";
@@ -474,7 +474,7 @@ describe("threadItems handoff", () => {
   });
 });
 
-// fast-mode A4 (design §6): the line a Claude turn leaves when it did not run Fast, inside that turn, kept on reread.
+// fast-mode A4: the line a Claude turn leaves when it did not run Fast, inside that turn, kept on reread.
 describe("Fast not used", () => {
   const unused = (payload: Record<string, unknown> = {}) => ({ type: "fast.unused", ...payload }) as Extract<ConversationEvent, { type: "fast.unused" }>;
   test("a lasting reason says Fast was turned off, then why", () => {

@@ -12,7 +12,7 @@ import { OverviewRun, type ListView, type OverviewRunHost } from "./overviewRun"
 import { ProjectOverview, worktreeChoice, type ProjectOverviewProps } from "./ProjectOverview";
 import { TooltipProvider } from "./components/ui/tooltip";
 
-// buzz-project design §2.1, §2.2, §2.5: the Overview's header and main column as static markup.
+// The Overview's header and main column as static markup.
 
 const ROOT = "/code/doan", WT = "/code/doan-checkout";
 const A = "aaaaaaaa-0000-4000-8000-000000000001";
@@ -84,7 +84,7 @@ test("canvases but no conversations: a new conversation with suggestions naming 
   const html = render([]);
   expect(html).toContain("Review the checkout canvas");
   expect(html).toContain('class="suggestion" title="Review the checkout canvas"><span class="suggestion-icon">');
-  // small-ui-tweaks decision 7: the name is highlighted; title and the sentence's text are unchanged.
+  // The name is highlighted; title and the sentence's text are unchanged.
   expect(html).toContain('<span class="suggestion-label">Review the <span class="suggestion-value">checkout</span> canvas</span>');
 });
 
@@ -148,7 +148,7 @@ test("switching conversations draws each one's own draft and title at once", () 
   expect(second).not.toContain("for A");
 });
 
-// Review RM r1 🟡7, design §2.1: the chip's worktree rows behave as the sidebar's: a listed or reading worktree opens,
+// Review RM r1 🟡7: the chip's worktree rows behave as the sidebar's: a listed or reading worktree opens,
 // a problem one turns the menu to its repair actions.
 test("a problem worktree in the chip menu shows its repair actions instead of opening", () => {
   const missing = { kind: "notFound", path: "/code/gone" } as FolderEntry;
@@ -184,7 +184,7 @@ test("the capsule's placeholder stays on one line and ends in an ellipsis", asyn
   expect(css).toContain('.docked[data-shape="capsule"] .composer-input[data-empty]::before { inset-inline: var(--space-2) var(--space-1); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }');
 });
 
-// permission-mode spec decision 7 (U1): an existing conversation's picker shows that conversation's stored mode; a new
+// An existing conversation's picker shows that conversation's stored mode; a new
 // one starts from the fixed Settings default, else the provider's last mode.
 test("the picker shows the conversation's own mode, and a new conversation's default", () => {
   expect(render([summary({ permissionMode: "plan" })], { prefs: { permissions: { claude: "bypass" } } })).toContain('data-mode="plan" aria-label="Permission: Plan (read-only)"');
@@ -206,7 +206,7 @@ test("thread spacing, and the suggestion rows right above the composer on the Ov
   expect(css).not.toMatch(/\.ov-new \{/);
 });
 
-// prompt-suggestion design 'renderer' 1: the shown conversation's suggestion from the Overview's list reaches its composer.
+// The shown conversation's suggestion from the Overview's list reaches its composer.
 test("the shown conversation's suggestion stands in for the reply placeholder, with the Right Arrow hint", () => {
   const html = render([summary({ suggestion: "Add an expired-cart illustration" })]);
   expect(html).toContain('aria-placeholder="Add an expired-cart illustration"');

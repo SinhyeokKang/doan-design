@@ -65,7 +65,7 @@ function ActionButton<C extends string>({ button, run, data }: { button: Button<
 // A notice takes the white panel surface only where the backdrop is first run's transparent overlay; on a white surface
 // (a card, the provider list, Settings) the panel fill would vanish, so it keeps the inset notice.
 // live: false keeps the notice's look without its live role, for a page whose one live region announces changes
-// (Settings > MCP Connectors, mcp-connectors spec 2).
+// (Settings > MCP Connectors).
 export function NoticeView<C extends string = AuthCommand>({ notice, run, panel = false, live = true }: { notice: Notice<C>; run: (command: C) => void; panel?: boolean; live?: boolean }) {
   return <>
     <div className={`doan-notice${notice.role === "alert" ? " error" : ""}${panel ? " doan-panel" : ""}`} role={live ? notice.role : undefined} tabIndex={-1}>
@@ -146,7 +146,7 @@ export function StopDialog({ view, busy, confirm, close }: { view: ReturnType<ty
 
 // Where focus goes when the control the user just used is removed or disabled (design '이동·취소·포커스 계약'): the
 // row's first usable control in DOM order (row button, notice actions, paste), else its notice, else the step heading.
-// Sign out acts at once, so recovery never lands on it (D24).
+// Sign out acts at once, so recovery never lands on it.
 export function firstUsable(view: ProviderView): AuthCommand | "notice" | null {
   const usable = [view.button, ...(view.notice?.actions ?? []), view.paste?.button].find(button => button && !button.disabled && button.command !== "signOut");
   return usable ? usable.command : view.notice ? "notice" : null;
@@ -245,7 +245,7 @@ export function ChosenProject({ path, home }: { path: string; home: string | nul
   return <div className="doan-panel ob-chosen"><ProjectThumbnail path={path} /><div><strong>{nameOf(path)}</strong><p className="ob-path">{shown(path, home)}</p></div><Check aria-hidden="true" /></div>;
 }
 // D23 (2026-10-29 user): each choice is a card like the chosen project. A visible radio at the start shows the choice
-// (buzz-canvas-conversation design §0, the shared choice card); the native radio under it keeps arrow keys and Space,
+// (the shared choice card); the native radio under it keeps arrow keys and Space,
 // and Enter picks too.
 export function ProjectChoice({ paths, choice, home, pick, name }: {
   paths: readonly string[]; choice: string | null; home: string | null; pick: (path: string) => void; name: string;
@@ -262,11 +262,11 @@ type ProjectAction = "chooseFolder" | "chooseExisting" | "edit" | "retry" | "cha
 interface ProjectNotice { title?: string; body: string; detail?: string; note?: string; actions: Button<ProjectAction>[] }
 const action = (command: ProjectAction, label: string, variant: Button["variant"] = "prominent"): Button<ProjectAction> => ({ command, label, variant, disabled: false });
 // Copy from the approved draft's Project states tiles; D13 for the newer marker version.
-// fromUrl: the screen belongs to a GitHub URL, so a folder chosen there must be that repository's (D20).
+// fromUrl: the screen belongs to a GitHub URL, so a folder chosen there must be that repository's.
 // insideProject: the name of the doan project a clone destination sits in (main refuses it as path_unavailable).
-// folder: the chosen folder a mismatch is about; on the clone screen "This folder" would read as the destination (D28).
+// folder: the chosen folder a mismatch is about; on the clone screen "This folder" would read as the destination.
 export function projectNotice(error: ProjectError, message: string | undefined, destination: string | null, fromUrl = false, insideProject: string | null = null, folder: string | null = null): ProjectNotice {
-  // Every folder chosen from a URL screen is checked against that repository (D21).
+  // Every folder chosen from a URL screen is checked against that repository.
   const choose: ProjectAction = fromUrl ? "chooseExisting" : "chooseFolder";
   // A clone that landed and whose setup or storage then failed is told in main's own words (they say the clone stayed),
   // which differ from the code's fixed message.
@@ -548,7 +548,7 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
     body = <Progress panel={panel} title="Checking this folder" body={shown(p.path, home)} />;
   } else if (p.kind === "setup" || p.kind === "selecting") {
     body = <>
-      {/* From a URL the screen keeps that repository: its URL, another folder of it, or a different URL (D25). */}
+      {/* From a URL the screen keeps that repository: its URL, another folder of it, or a different URL. */}
       {p.kind === "setup" && p.url !== null && urlField(true)}
       {p.kind === "setup" && <section className="doan-panel ob-setup">
         <strong>Set up this folder for Doan</strong>

@@ -4,7 +4,7 @@ import { defaultPermission, permissionChoices, permissionPickerView, permissionT
 
 const COPILOT = "https://agentclientprotocol.com/protocol/session-modes#";
 
-// permission-mode spec decisions 2 and 5: the four labels, the aria-label, and Full access marked by more than colour.
+// The four labels, the aria-label, and Full access marked by more than colour.
 test("each mode's trigger names it, with its own icon; Full access also warns", () => {
   expect(PERMISSION_MODES.map(permissionTrigger)).toEqual([
     { label: "Ask first", ariaLabel: "Permission: Ask first", icon: "shield", warning: false },
@@ -49,7 +49,7 @@ test("the menu is titled for its provider and describes each mode; the chosen on
   expect(permissionPickerView("codex", undefined, "default")!.options[0]!.description).toBe("Asks before going outside its sandbox");
 });
 
-// picker-default-labels A3 (spec 'Permission', design §5): the Default mode is named Ask first everywhere it shows, and
+// The Default mode is named Ask first everywhere it shows, and
 // its line says when each provider asks. The stored id stays "default".
 test("Ask first names the Default mode, with a line per provider", () => {
   const claude = permissionPickerView("claude", undefined, "default")!;

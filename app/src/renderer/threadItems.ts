@@ -3,10 +3,10 @@ import type { Anchor, Canvas, ConversationEvent, FailureCode, FastUnusedReason, 
 import { fastReason, splitRequest, type PresetRef } from "./homeComposer";
 import { PRESETS } from "../main/mcpConnectors/presets";
 
-// A conversation's merged events (conversationStrip's mergeConversationEvents) as the thread draws them
-// (buzz-conversation design §3.3). Every item has a key that stays the same while later events arrive.
+// A conversation's merged events (conversationStrip's mergeConversationEvents) as the thread draws them.
+// Every item has a key that stays the same while later events arrive.
 
-// The person's text in order, with each anchor token `{{n}}` kept where it was typed (spec decision 17).
+// The person's text in order, with each anchor token `{{n}}` kept where it was typed.
 export type MessagePart = { text: string } | { anchor: number };
 // sentence: a step whose text is a sentence and wraps instead of staying on one line (Codex's MCP startup lines).
 export interface ActivityStep { key: string; kind: "edit" | "read" | "command" | "other"; verb: string; path: string | null; sentence?: true }
@@ -19,17 +19,17 @@ export type ThreadItem =
   // `streaming`: more text may still come; a stopped or failed turn keeps what arrived and drops the caret.
   | { kind: "agent"; key: string; messageId: string; text: string; streaming: boolean }
   | { kind: "noReply"; key: string }
-  // A Claude turn that asked for Fast and did not run it (fast-mode design §6): one line in the turn, under the reply.
+  // A Claude turn that asked for Fast and did not run it: one line in the turn, under the reply.
   | { kind: "fast"; key: string; seq: number; text: string; turnedOff: boolean }
   // A run of activities folds into one line: the latest activity while it runs, "N steps" once the turn moved on.
   | { kind: "activity"; key: string; running: boolean; head: string; steps: ActivityStep[] }
   | { kind: "permission"; key: string; seq: number; requestId: string; summary: string; options: PermissionOption[]; status: "pending" | "answered" | "expired"; answer: PermissionOption | null }
-  // An agent's question (agent-questions design §7). answers: what main kept of an answered one, by question id.
+  // An agent's question. answers: what main kept of an answered one, by question id.
   | { kind: "question"; key: string; seq: number; requestId: string; questions: Question[]; status: "pending" | QuestionOutcome; answers: Record<string, StoredAnswer> | null }
   // seq is null for the end a crash-folded turn never wrote; its key is the turn's, so it stays when later turns arrive.
   | { kind: "end"; key: string; seq: number | null; end: TurnEnd }
   | { kind: "marker"; key: string; seq: number; marker: "bound" | "archived" | "restored"; canvas: Canvas | null }
-  // A turn's handoff (canvas-handoff design §6): the line sits where the request was made, and its resolution, which
+  // A turn's handoff: the line sits where the request was made, and its resolution, which
   // comes after the turn's end, replaces it there. Keyed by the turn: one request per turn.
   | { kind: "handoff"; key: string; canvas: { path: string }; outcome: "pending" | "started" | "refused" | "cancelled"; target?: { conversationId: string; canvas: Canvas }; reason?: string }
   // A conversation a handoff started: its first message is the earlier agent's text, never the person's, so it is not
@@ -70,7 +70,7 @@ export function rootRelative(path: string, root: string): string {
   return `/${target.join("/")}`;
 }
 
-// fast-mode design §6. The reason is its own sentence (fastReason), so it never reads as a fragment of the lead.
+// The reason is its own sentence (fastReason), so it never reads as a fragment of the lead.
 export function fastUnusedText(event: { reason?: FastUnusedReason; turnedOff?: true }): string {
   const lead = event.turnedOff ? "Fast was turned off." : "Fast wasn’t used for this turn.";
   return event.reason ? `${lead} ${fastReason(event.reason)}` : lead;
@@ -88,8 +88,7 @@ function step(event: ActivityEvent, root: string): ActivityStep {
   return { key: `s${event.seq}`, kind: event.kind, verb, path, ...(sentence ? { sentence: true as const } : {}) };
 }
 // Codex's MCP startup lines (main/conversation/mcpStartup.ts waitingLine and notReadyLine). History is append-only, so
-// main writes the not-ready line after its Waiting line; the thread shows them as one step that changed its text
-// (mcp-connectors spec 6).
+// main writes the not-ready line after its Waiting line; the thread shows them as one step that changed its text.
 const WAITING = /^Waiting for (.+)$/;
 const NOT_READY = /^(.+) (?:wasn’t ready, so this turn started without it|weren’t ready, so this turn started without them)\.$/;
 // What mcpStartup.ts names: a preset's label or a URL server's label, which is connectorLabel's URL host (presets.ts)
@@ -286,8 +285,8 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
   return items;
 }
 
-// Messages Send now has in flight, as the person's messages after the history in press order (canvas-composer-polish
-// design §2). An open permission request or question stays last, so they sit right above the first one still waiting. The history
+// Messages Send now has in flight, as the person's messages after the history in press order.
+// An open permission request or question stays last, so they sit right above the first one still waiting. The history
 // has no event for them until the agent reads one; main writes that event before it answers Send now, so for a
 // moment both may show.
 export function withSending(items: ThreadItem[], sending: readonly SendingMessage[]): ThreadItem[] {
@@ -310,7 +309,7 @@ export function pendingAsks(items: readonly ThreadItem[]): { requestId: string; 
   return items.filter(waitsForPerson).map(item => ({ requestId: item.requestId, key: item.key }));
 }
 
-// A finished question's folded lines (design §7): one per answered question, one per skipped or expired request. A
+// A finished question's folded lines: one per answered question, one per skipped or expired request. A
 // question without a header (Antigravity's) names itself by its sentence; a secret answer is never shown.
 export function questionLines(item: Extract<ThreadItem, { kind: "question" }>): string[] {
   const name = (question: Question) => question.header || question.question;
@@ -324,7 +323,7 @@ export function questionLines(item: Extract<ThreadItem, { kind: "question" }>): 
 
 export const FOLLOW_DISTANCE = 24;
 // The thread opens at the bottom and follows new output only while it is within 24px of the bottom; scrolled further
-// up, it stays and offers Jump to latest (design §3.3).
+// up, it stays and offers Jump to latest.
 export function scrollFollow(opening: boolean, distanceFromBottom: number): boolean {
   return opening || distanceFromBottom <= FOLLOW_DISTANCE;
 }

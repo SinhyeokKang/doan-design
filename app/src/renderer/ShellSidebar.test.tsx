@@ -88,7 +88,7 @@ it("keeps every thumbnail letter readable on its tint, for the sidebar's 10px le
   expect(results.filter(r => !r.ok).map(r => `${r.fg} ${r.wcag.toFixed(2)} Lc ${r.apca.toFixed(0)}`)).toEqual([]);
 });
 
-// buzz-home design §3, §6, §7.2: Home shows the sidebar without a current row, the status slot sits at the right of
+// Home shows the sidebar without a current row, the status slot sits at the right of
 // a row (before a project's menu), and an added project's row flashes.
 test("on Home no row is current; the slot shows a permission hand, a spinner or an unseen Dot with its label", () => {
   const Sidebar = ShellSidebar;
@@ -114,7 +114,7 @@ test("a project row carries a bound canvas's slot only while that canvas row is 
   expect(projectSlot(new Map([["/a\n.doan/canvases/x.html", { kind: "permission" as const, label: "p" }]]), ["/a"], ["/a\n.doan/canvases/x.html"])).toBeUndefined();
 });
 
-// design-system-canvases design 'sidebar' (Q6–Q8): two groups under an expanded, listed project.
+// Two groups under an expanded, listed project.
 function groups(canvases: string[], closed?: { ds?: false; canvases?: false }, extra: { slots?: Map<string, Slot>; entry?: FolderEntry } = {}) {
   const listed: FolderEntry = extra.entry ?? { path: "/a", kind: "list", servedRev: 0, canvases: canvases.map(name => ({ path: `.doan/${name}.html`, url: name })) };
   return renderToStaticMarkup(<TooltipProvider><ShellSidebar cards={[{ key: "common", name: "demo", rows: [listed] }]} projects={{ common: { roots: ["/a"], expanded: true, ...(closed ? { groups: closed } : {}) } }} loaded={null} canvas={undefined} homeDirectory={null} {...(extra.slots ? { slots: extra.slots } : {})}
@@ -266,7 +266,7 @@ it("scrolls the project list and the Settings categories with the shared thin sc
   expect(settings).toContain('<div class="shell-projects doan-scroll">');
 });
 
-// canvas-viewport-units D9/D10: a canvas notice is the same violet dot, under every conversation state.
+// A canvas notice is the same violet dot, under every conversation state.
 test("a canvas notice is the unseen dot on its row, and on the project row while that row is off screen", () => {
   const notice = { kind: "canvas" as const, label: "button changed since you last opened it" };
   const slots = new Map([["/a\n.doan/ds/button.html", notice]]);
@@ -292,7 +292,7 @@ test("an empty group's line is a dashed box", async () => {
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toMatch(/\.shell-group \.shell-empty \{[^}]*border: 1px dashed var\(--border-standard\);[^}]*border-radius: var\(--radius-chip\);/);
   expect(css).not.toMatch(/(^|\n)\.shell-empty[^{]*\{[^}]*dashed/);
-  // small-ui-tweaks decision 4: the box grows by its own vertical padding (8 -> 12px); margins and side padding stay.
+  // The box grows by its own vertical padding (8 -> 12px); margins and side padding stay.
   expect(css).toMatch(/\.shell-group \.shell-empty \{[^}]*margin: var\(--space-half\) 10px var\(--space-2\) 34px;[^}]*padding: var\(--space-3\);/);
 });
 

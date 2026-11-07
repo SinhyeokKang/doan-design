@@ -31,7 +31,7 @@ test("Welcome centres its group 72px high in the area under the chrome", async (
 });
 
 // showModal() first focuses Doany, the dialog's first control; a heading focused a frame later leaves a frame in which
-// Doany's focus ring can paint (doan-mascot V1 measured Doany :focus-visible for ~42ms on Welcome).
+// Doany's focus ring can paint (measured Doany :focus-visible for ~42ms on Welcome).
 test("the overlay opens with its heading focused in the same task as showModal", () => {
   const calls: string[] = [];
   const dialog = { open: false, showModal() { calls.push("showModal"); this.open = true; } };
@@ -348,7 +348,7 @@ test("review: the Project step's lost focus goes to the error, else the progress
 
 // A notice's 16px icon is centred on a 20px first line (ds/surfaces.css .doan-alert-icon). A body without a title, such
 // as "Your Codex connection expired. Sign in again.", must start on that line: a top margin there put the icon 4px
-// above the text in Settings and first run (measured in the built app, buzz-settings R3).
+// above the text in Settings and first run (measured in the built app).
 test("a notice body takes its top margin only under a title, so a body alone stays centred on its icon", async () => {
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
@@ -454,7 +454,7 @@ test("D24: an agent row's recovery skips Sign out, which signs out at once", asy
   expect(firstUsable(failed)).toBe("notice");
 });
 
-test("UX: a clone destination inside a doan project names it and offers Change location (D26)", () => {
+test("UX: a clone destination inside a doan project names it and offers Change location", () => {
   const n = projectNotice("path_unavailable", "x", "/Users/ada/code/doan-design/studio", true, "doan-design");
   expect([n.body, n.actions.map(a => `${a.variant}:${a.label}:${a.command}`)]).toEqual(["This location is inside the Doan project doan-design. Choose a location outside it.", ["prominent:Change location:changeLocation"]]);
   const html = screen({ url: "https://github.com/acme/studio", phase: { kind: "clone", url: "https://github.com/acme/studio", inspectionId: null, destination: "/Users/ada/code/doan-design/studio" }, error: { code: "path_unavailable" } },

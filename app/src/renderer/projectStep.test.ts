@@ -751,7 +751,7 @@ test("the no-agent notice belongs to first run only", () => {
   expect(projectNoticeCode("addPage", footerState(clonePlan, { code: "destination_exists" }), true)).toBe("destination_exists");
 });
 
-// buzz-add-projects U2/U3: the same session over the page's main instance.
+// The same session over the page's main instance.
 function pageHarness() {
   let listener: ((state: { sessionId: string; revision: number; project: null; operations: OnboardingOperation[] }) => void) | null = null;
   const queue: Record<string, Reply[]> = { inspect: [], select: [], clone: [], cancel: [] };

@@ -282,7 +282,7 @@ it("marks Search, project and canvas rows, Overview, Project Settings and worktr
   expect(open.filter(item => item["aria-disabled"] !== undefined && item["aria-disabled"] !== false)).toEqual([]);
 });
 
-// design-system-canvases design 'sidebar' (Q11): the group heads join the one visible row list, and ←/→ follow the APG tree.
+// The group heads join the one visible row list, and ←/→ follow the APG tree.
 function groupsFixture(closed?: { ds?: false; canvases?: false }, canvases = ["ds/button", "ds/color", "canvases/checkout"], extra: Record<string, unknown> = {}) {
   const { props } = fixture();
   props.cards[0]!.rows[0] = { path: "/a", kind: "list", servedRev: 0, canvases: canvases.map(name => ({ path: `.doan/${name}.html`, url: name })) };
@@ -385,7 +385,7 @@ it("still opens and closes groups while the page is locked, showing their heads 
   tree.press("Canvases", "ArrowLeft");
   expect(tree.props.toggleGroup.mock.calls).toEqual([["common", "ds"], ["common", "canvases"]]);
 });
-// canvas-viewport-units D10: a project row whose slot is a canvas notice hands that canvas to its activation; any
+// A project row whose slot is a canvas notice hands that canvas to its activation; any
 // other slot leaves the activation as it was.
 it("passes the project row's canvas notice to toggle on click and Enter", () => {
   const row = { path: ".doan/canvases/a.html", url: "u" };

@@ -24,7 +24,7 @@ export function SettingsPage({ header, sidebar, section, arrival, onState, agent
   // Notifications saves the same preferences snapshot as Agents' New conversations.
   agents: Omit<SettingsAgentsProps, "arrival" | "onLock">;
   mcp?: Pick<SettingsMcpConnectorsProps, "watch" | "openAgents">;
-  // Read once by the page: MCP Connectors turning into Agents while shown (mcp-connectors spec 1).
+  // Read once by the page: MCP Connectors turning into Agents while shown.
   announcement?: string | undefined;
 }) {
   const heading = useRef<HTMLHeadingElement | null>(null);

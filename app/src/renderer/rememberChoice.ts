@@ -7,7 +7,7 @@ import type { NewConversationDefault } from "./homeComposer";
 // What a composer shows after a pick. model is null while the provider's list is not read; effort is null for the
 // model's default level, which is sent as no effort. permissionMode is absent when the composer shows no permission
 // picker (an ACP provider without modes), so nothing about the mode is remembered.
-// fast is present only when the person switched Fast: a send alone never records it (fast-mode decision 3).
+// fast is present only when the person switched Fast: a send alone never records it.
 // modelPicked, effortPicked: the person picked this model, this level (the Default row included) in the composer;
 // without them they are only what the composer resolved, which a fixed Settings default must not take on.
 export interface ComposerChoice { provider: Provider; model: string | null; effort: string | null; permissionMode?: PermissionModeId; fast?: boolean; modelPicked?: true; effortPicked?: true }
@@ -60,7 +60,7 @@ export function rememberChoice(memory: HomeMemory | null, choice: ComposerChoice
 // A fixed agent in Settings > Agents 'New conversations' would otherwise override the pick at the next new
 // conversation, so it follows the pick; Last used (null) already does. undefined: nothing to write. Only a picked model
 // is fixed: a pick of something else keeps Model Default (no model) unfixed, so it goes on following the provider's
-// default (picker-default-labels decision 5), and keeps a fixed model. The mode is judged apart from the model: a mode
+// default, and keeps a fixed model. The mode is judged apart from the model: a mode
 // picked before the model list is read still replaces the saved one, and a model pick without a picker keeps the saved
 // mode of the same provider.
 export function preferenceAfterPick(current: NewConversationDefault | null, choice: ComposerChoice): NewConversationDefault | undefined {

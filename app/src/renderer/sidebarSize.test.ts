@@ -16,7 +16,7 @@ test("a saved width shows clamped; a missing or unusable one is the default", ()
   expect(sidebarWidth(900)).toBe(360);
 });
 
-// shell-panel-layout design §3-2: the header's sidebar button. Hidden, it carries the most urgent signal the sidebar's
+// The header's sidebar button. Hidden, it carries the most urgent signal the sidebar's
 // slots would show; canvas notices are left out (spec '결정' 2).
 describe("sidebarToggleView", () => {
   const slots = (...kinds: SidebarSlot["kind"][]) => new Map<string, SidebarSlot>(kinds.map((kind, i) => [`k${i}`, kind === "canvas" ? { kind, label: "c" } : { kind, label: "l" }]));

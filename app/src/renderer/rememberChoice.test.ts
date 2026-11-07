@@ -67,7 +67,7 @@ test("a fixed Settings default takes the picked mode, with or without a model", 
   expect(preferenceAfterPick({ provider: "codex" }, { provider: "claude", model: null, effort: null, permissionMode: "plan" })).toBeUndefined();
 });
 
-// fast-mode A5 (design §2 9–10, decision 3): Fast is remembered per provider, apart from the model, only when the switch
+// Fast is remembered per provider, apart from the model, only when the switch
 // changes or Fast turns itself off.
 test("a switched Fast is its provider's, kept across model picks and apart from the other provider", () => {
   const memory = { lastProvider: "codex" as const, models: { codex: { model: "gpt-6" } } };

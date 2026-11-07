@@ -7,7 +7,7 @@ const DRAFTS = { path: ".doan/canvases/drafts.html", id: "drafts" }, CHECKOUT = 
 const notice: HandoffNotice = { root: "/w/a", source: { conversationId: "c1", canvas: DRAFTS }, target: { conversationId: "c2", canvas: CHECKOUT } };
 const onSource: HandoffScreen = { canvas: { root: "/w/a", canvas: DRAFTS }, locked: false, dialog: false, firstRun: false, typing: false, chose: false };
 
-describe("handoffMove (design §6 'Move', decision 5)", () => {
+describe("handoffMove", () => {
   test("moves only from the source conversation's canvas page with nothing in the way", () => {
     expect(handoffMove(onSource, notice)).toBe("move");
     // Found by ID: a rename since the start is still the same canvas.

@@ -1,6 +1,6 @@
 import { validProvider, type Provider } from "../main/agentAuth/types";
 
-// The Settings page's categories (buzz-settings design 'LNB'). Kept apart from SettingsPage.tsx under a name that
+// The Settings page's categories. Kept apart from SettingsPage.tsx under a name that
 // differs beyond capitalization (POSTMORTEM 2026-10-25 'A TS helper hid its TSX component on case-insensitive macOS').
 export type SettingsSection = "agents" | "mcp" | "notifications" | "about";
 export const SETTINGS_SECTIONS: readonly { id: SettingsSection; title: string }[] = [
@@ -14,7 +14,7 @@ export function parseSettingsSection(value: unknown): SettingsSection | null {
   return IDS.includes(value) ? value as SettingsSection : null;
 }
 
-// MCP Connectors exists only while Claude Code or Codex is signed in to Doan (mcp-connectors spec 1). mcp is
+// MCP Connectors exists only while Claude Code or Codex is signed in to Doan. mcp is
 // mcpConnectorsView's mcpAvailable: null until agent-auth is read, when a restored MCP Connectors is kept.
 export function settingsSectionsShown(mcp: boolean): readonly { id: SettingsSection; title: string }[] {
   return mcp ? SETTINGS_SECTIONS : SETTINGS_SECTIONS.filter(section => section.id !== "mcp");

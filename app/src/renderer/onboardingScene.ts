@@ -1,7 +1,7 @@
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
 
-// Welcome → Agent → Project → Home, with no Skip (buzz-onboarding design, 2026-10-28 user).
+// Welcome → Agent → Project → Home, with no Skip.
 export type Scene = "welcome" | "agent" | "project" | "home";
 // Every accepted scene change advances the generation, so results started on an earlier scene are dropped.
 export interface Fence { generation: number }

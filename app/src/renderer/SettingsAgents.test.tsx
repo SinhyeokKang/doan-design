@@ -6,7 +6,7 @@ import { authStatus } from "../main/agentAuth/state";
 import type { AccountIdentity, AuthAttempt, AuthState, AuthStatusDto, Provider, ToolFacts } from "../main/agentAuth/types";
 import type { Preferences, PreferencesSnapshot } from "../main/preferences";
 
-// buzz-settings U3: Settings > Agents, driven with hooks as plain state so the component's own handlers and effects run
+// Settings > Agents, driven with hooks as plain state so the component's own handlers and effects run
 // (App.addProjects.test.tsx style). The sign-in controller is the real one over a fake agent-auth API.
 const hooks = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],
@@ -156,7 +156,7 @@ test("a connected default that cannot run says the real cause, and Model says wh
   expect(words(modelRow.props.children)).toContain("Codex can’t run right now, so its models can’t be listed.");
 });
 
-// review BU1 ❓2 (spec 'New conversations'): Effort is offered with Model Default too, from the default model's efforts.
+// review BU1 ❓2: Effort is offered with Model Default too, from the default model's efforts.
 test("with Model Default, Effort lists the default model's efforts and saves without a model; a default without efforts hides it", async () => {
   await settle({ preferences: prefs({ provider: "claude" }) });
   await settle();
@@ -172,7 +172,7 @@ test("with Model Default, Effort lists the default model's efforts and saves wit
   await settle();
   expect(labelled("Effort for new conversations")).toHaveLength(0);
 });
-// picker-default-labels A4 (spec 'Settings > New conversations', design decision 5): the Model menu always opens with a
+// The Model menu always opens with a
 // Default row that unfixes it, and only this menu leaves Claude Code's own default row out.
 test("the Model menu opens with a Default row naming today's default; picking it unfixes the model", async () => {
   resetHooksAndList([{ id: "default", label: "Opus 5.5", default: true, efforts: ["low", "high"] }, { id: "haiku", label: "Haiku 5.5", default: false }]);
@@ -307,7 +307,7 @@ test("Agent, Model and Effort are menus (role=menu), never a listbox Select, and
   expect(props.save).toHaveBeenLastCalledWith({ newConversation: { provider: "claude", model: "opus", effort: "low" } });
 });
 
-// permission-mode U1 (draft frame settings-row): Permission follows Effort, uses the composer's menu, and is saved
+// Draft frame settings-row: Permission follows Effort, uses the composer's menu, and is saved
 // with the model and effort; a model or effort change keeps the saved mode.
 test("Permission is a menu after Effort and saves the mode with the saved model and effort", async () => {
   await settle({ preferences: prefs({ provider: "claude", model: "opus", effort: "high", permissionMode: "bypass" }) });
@@ -369,7 +369,7 @@ test("a stop_required refusal opens the stop dialog and locks the page until it 
   render();
   expect(props.onLock).toHaveBeenLastCalledWith(true);
   const dialog = all(tree).find(element => element.type === StopDialog)!;
-  // mcp-connectors spec 8: signing out also drops the agent's MCP connections.
+  // Signing out also drops the agent's MCP connections.
   expect((dialog.props.view as { body: string }).body).toBe("Claude Code is running a conversation. Signing out stops it. Your conversation history stays. Its MCP connectors need connecting again.");
   (dialog.props.close as () => void)();
   render();

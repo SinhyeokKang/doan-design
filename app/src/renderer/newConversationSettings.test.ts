@@ -5,8 +5,6 @@ import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import { authStatus } from "../main/agentAuth/state";
 import type { AuthState, Provider } from "../main/agentAuth/types";
 
-// picker-default-labels A4 (spec 'Settings > New conversations', design decision 5, §2 6).
-
 // The 2026-11-06 shape after main's pairing (A1): Claude Code's default row carries its model's name, the opus row is gone.
 const CLAUDE: ModelsState = { models: [
   { id: "default", label: "Opus 5.5", default: true, efforts: ["low", "medium", "high", "max"] },

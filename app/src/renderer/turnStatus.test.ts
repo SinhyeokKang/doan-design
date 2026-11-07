@@ -84,7 +84,7 @@ describe("turnStatus", () => {
     expect(statusOf(waiting)).toEqual({ kind: "general" });
   });
 
-  test("a general stage leaves the activity row spinning with its running head (decision 4)", () => {
+  test("a general stage leaves the activity row spinning with its running head", () => {
     seq = 0;
     const events = [...turn("t1"), ev("t1", { type: "activity", kind: "command", summary: "Running a command" })];
     const items = threadItems(events, ROOT, true);

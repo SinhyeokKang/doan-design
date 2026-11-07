@@ -3,14 +3,14 @@ import { permissionOptions, type PermissionModeId } from "../main/conversation/p
 import { PROVIDER_NAMES } from "./agentAuthView";
 import type { ModelsState, NewConversationDefault } from "./homeComposer";
 
-// The permission mode picker's view (permission-mode spec decisions 2, 5, 7; draft frames picker-menu and settings-row).
+// The permission mode picker's view (draft frames picker-menu and settings-row).
 // Which modes a provider offers, and how each reaches the provider, is the shared module's (main/conversation/
 // permissionMode.ts); this file only names, orders and defaults them for a composer.
 
 export type PermissionIcon = "shield" | "file-pen-line" | "eye" | "shield-alert";
 export interface PermissionTrigger { label: string; ariaLabel: string; icon: PermissionIcon; warning: boolean }
 
-// Default is named for what it does (picker-default-labels decision 4); "Auto" would read as Claude Code's auto mode.
+// Default is named for what it does; "Auto" would read as Claude Code's auto mode.
 // Its line says, per provider, when it asks.
 const ASK_FIRST: Partial<Record<Provider, string>> = { claude: "Asks before edits and commands unless allowed", codex: "Asks before going outside its sandbox" };
 const MODES: Record<PermissionModeId, { label: string; icon: PermissionIcon; description: (provider: Provider) => string }> = {

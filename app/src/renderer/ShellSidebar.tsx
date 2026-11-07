@@ -33,8 +33,8 @@ interface Props {
   unlisted?: boolean;
   homeDirectory: string | null;
   search(): void;
-  // `notice`: the canvas the project row's canvas notice or terminal session stands for, which the activation opens
-  // (canvas-viewport-units D10, terminal-agent-activity); passed only when the row shows one.
+  // `notice`: the canvas the project row's canvas notice or terminal session stands for, which the activation opens;
+  // passed only when the row shows one.
   toggle(key: string, notice?: { root: string; path: string }): void;
   // The project row's chevron and ←/→: fold or unfold without moving (project-row-disclosure draft).
   disclose(key: string): void;
@@ -48,22 +48,22 @@ interface Props {
   // The project menu's Project Settings: the page for the worktree the menu shows. It is a move, so a locked page shows
   // it unavailable (project-settings design '이동과 잠금').
   projectSettings(root: string): void;
-  // On Home and the pages the sidebar marks no current project or canvas (buzz-home design §3).
+  // On Home and the pages the sidebar marks no current project or canvas.
   home?: boolean;
   // The Home row is current only on Home itself, not on a page that shows Home's sidebar (PRODUCT §5 item 3).
   homeCurrent?: boolean;
   // The Home row above the projects (dogfooding #2: Home had no visible way back).
   goHome?(): void;
-  // Home-conversation states by slotKey (design §7.2) and roots to flash after an add (design §6).
+  // Home-conversation states by slotKey and roots to flash after an add.
   slots?: ReadonlyMap<string, Slot>;
   highlight?: readonly string[];
   // A page holds work (Add Projects selecting or cloning; Settings or Project Settings a confirmation or a write): moves
   // away are shown unavailable and App ignores them (buzz-add-projects design '잠금'). aria-disabled keeps them in the
   // focus order.
   locked?: boolean;
-  // The Settings page: the project tree gives way to its categories, a plain list of buttons (buzz-settings design
-  // 'LNB'). Choosing one leaves focus on its row.
-  // mcp: MCP Connectors is listed only while Claude Code or Codex is signed in (mcp-connectors spec 1).
+  // The Settings page: the project tree gives way to its categories, a plain list of buttons.
+  // Choosing one leaves focus on its row.
+  // mcp: MCP Connectors is listed only while Claude Code or Codex is signed in.
   settings?: { section: SettingsSection; select(section: SettingsSection): void; mcp?: boolean };
   canvasMenu: CanvasMenu;
 }
@@ -122,7 +122,7 @@ function noticeTarget(entry: { key: string; slot: Slot } | undefined): { root: s
 }
 function SlotMark({ slot }: { slot: Slot | undefined }) {
   if (!slot) return null;
-  // A canvas notice is the unseen dot itself (canvas-viewport-units D9); only its label differs.
+  // A canvas notice is the unseen dot itself; only its label differs.
   return <span className={`row-slot ${slot.kind === "canvas" ? "unseen" : slot.kind}`} role="img" aria-label={slot.label}>{slot.kind === "permission" ? <Hand aria-hidden="true" /> : slot.kind === "working" ? <span className="doan-spinner" aria-hidden="true" /> : <i />}</span>;
 }
 // A project row's slot: a problem icon or the reading spinner, which are hidden from assistive technology and named by

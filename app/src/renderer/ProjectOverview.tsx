@@ -45,7 +45,7 @@ import { threadTurn } from "./turnStatus";
 import type { ComposerChoice } from "./rememberChoice";
 import { defaultPermission, permissionChoices, permissionPickerView } from "./permissionPicker";
 
-// The project Overview as the project conversation screen (buzz-project design §2.1, §2.2, §2.5): the header with the
+// The project Overview as the project conversation screen: the header with the
 // project, its worktree chip and the conversation dropdown, the thread and the docked composer. OverviewRun decides
 // which conversation shows; this component draws it and makes the calls to main the thread and composer ask for.
 
@@ -60,7 +60,7 @@ export interface ProjectOverviewProps {
   homeDirectory: string | null;
   // The duplicate-ID notice (App's), under the header.
   notice: string | null;
-  // Home's reason when the open Overview's project turned into a problem (spec decision 12); Send waits on it.
+  // Home's reason when the open Overview's project turned into a problem; Send waits on it.
   unavailable: string | null;
   list: ListView;
   // HomeRun's pending seen marks, so a status never flashes back between a mark and the next read.
@@ -79,14 +79,14 @@ export interface ProjectOverviewProps {
   onReplyChip?(link: ReplyAnchor): Promise<LocateOutcome | null>;
   onRetryList(): void;
   onStart(request: StartInput, last: LastRequest): Promise<StartOutcome>;
-  // A send in an existing conversation, through HomeRun so the new canvas its turn makes opens (spec decision 6).
+  // A send in an existing conversation, through HomeRun so the new canvas its turn makes opens.
   onSendConversation(provider: Provider, request: Parameters<Window["doan"]["sendConversation"]>[0]): Promise<void | { error: string; missing?: string[] }>;
   // A problem worktree's repair actions in the branch chip's menu, as the sidebar's project menu runs them.
   onAction(name: RowAction, root: string): void;
   onProjectSettings(root: string): void;
   onSettings(target: SettingsTarget): void;
   onNotice?(text: string): void;
-  // A row's Delete in the title menu: the host asks for confirmation and returns focus to `trigger` (design §3.4). False
+  // A row's Delete in the title menu: the host asks for confirmation and returns focus to `trigger`. False
   // when it does not open the alert (another modal, a locked page), so the closing menu returns focus as usual.
   onDeleteConversation?(target: DeleteTarget, trigger: HTMLElement | null): boolean;
 }
@@ -97,7 +97,7 @@ const NEW = "";
 // One empty list for a project without one, so the thread's memoized chip data keeps its identity across renders.
 const NO_ROWS: readonly CanvasRow[] = [];
 
-// A worktree row in the branch chip's menu does what the sidebar's does (design §2.1): a listed or reading worktree
+// A worktree row in the branch chip's menu does what the sidebar's does: a listed or reading worktree
 // opens its Overview; a problem one turns the menu to its repair actions. Show in Finder and Project Settings are
 // fixed items there, and removing the project stays in the sidebar.
 export function worktreeChoice(row: FolderEntry): { kind: "open" } | { kind: "repair"; actions: RowAction[] } {
@@ -123,7 +123,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
   const { run, support, root, project, list } = props;
   const listed = Array.isArray(list) ? list : null;
   const view = run.view(root);
-  // A failed first read leaves nothing to wait for: the column is a new conversation (design §2.5).
+  // A failed first read leaves nothing to wait for: the column is a new conversation.
   const conversationId = view.kind === "conversation" ? view.conversationId : null;
   const waiting = view.kind === "wait" && list !== "error";
   const summary = conversationId ? listed?.find(c => c.conversationId === conversationId) : undefined;
@@ -196,7 +196,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
     run.takeScroll(conversationId);
     if (target.kind !== "item") return;
     handle.current?.scrollToItem(target.key);
-    // A question's entry also focuses its first option or answer input (agent-questions design §6); a permission
+    // A question's entry also focuses its first option or answer input; a permission
     // request's entry only scrolls here.
     if (items.some(item => item.key === target.key && item.kind === "question")) handle.current?.focusItem(target.key);
   }, [conversationId, scroll?.seq, Array.isArray(items) ? items.length : -1, asking]);
@@ -223,7 +223,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
     addChips(at, accepted.map((file, i) => ({ key: keys[i]!, name: file.name, kind: file.type.startsWith("image/") ? "image" : "file", pasted: false, status: "checking", size: file.size })));
     void window.doan.addAttachmentFiles(accepted).catch(() => null).then(async results => {
       if (!results) { settle(keys, keys.map(() => null)); return; }
-      // A copied screenshot has no path on disk; it attaches as a pasted image instead (buzz-home design §4.8).
+      // A copied screenshot has no path on disk; it attaches as a pasted image instead.
       const final = await Promise.all(results.map(async (result, i) => {
         const file = accepted[i]!;
         if (!pasted || result.ok || result.error !== "not_found" || !file.type.startsWith("image/")) return result;
@@ -313,7 +313,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
   const repairChoice = repairRow ? worktreeChoice(repairRow) : null;
   const chipLabel = branch ?? root.split("/").at(-1) ?? root;
 
-  // The column shows the new conversation state (design §2.5: a failed first read is one too).
+  // The column shows the new conversation state.
   const showsNew = conversationId === null && !waiting;
   const moved = view.kind === "new" ? view.moved : null;
   const movedCanvas = moved && canvasLabel({ path: moved.canvas.path, url: "" });
@@ -448,7 +448,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
   </section>;
 }
 
-// The list or the history is read: blank first, then the thread's own loading line (design §2.5).
+// The list or the history is read: blank first, then the thread's own loading line.
 function Waiting() {
   const [slow, setSlow] = useState(false);
   useEffect(() => { const timer = setTimeout(() => setSlow(true), LOADING_DELAY_MS); return () => clearTimeout(timer); }, []);

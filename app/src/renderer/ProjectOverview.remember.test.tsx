@@ -15,7 +15,7 @@ import { OverviewRun, type ListView, type OverviewRunHost } from "./overviewRun"
 import { ProjectOverview, worktreeChoice, type ProjectOverviewProps } from "./ProjectOverview";
 import { TooltipProvider } from "./components/ui/tooltip";
 
-// buzz-project design §2.1, §2.2, §2.5: the Overview's header and main column as static markup.
+// The Overview's header and main column as static markup.
 
 const ROOT = "/code/doan", WT = "/code/doan-checkout";
 const A = "aaaaaaaa-0000-4000-8000-000000000001";

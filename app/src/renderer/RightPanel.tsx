@@ -23,7 +23,7 @@ export function RightPanel({ state, selectPath }: { state: CanvasState; selectPa
   </aside>;
 }
 
-// The Overview's right panel (buzz-project design §2.3): the region and its title, named once; the list inside is
+// The Overview's right panel: the region and its title, named once; the list inside is
 // unnamed.
 export function CanvasConversations(props: Omit<CanvasConversationListProps, "scroller" | "title">) {
   const scroller = useRef<HTMLElement>(null);
@@ -34,7 +34,7 @@ export function CanvasConversations(props: Omit<CanvasConversationListProps, "sc
   </aside>;
 }
 
-// Canvas strings are React text only (design 'decision impact'); a cut value
+// Canvas strings are React text only; a cut value
 // keeps its full text in the native tooltip.
 function Truncate({ value, title = value, className }: { value: string; title?: string; className?: string }) {
   return <span className={className === undefined ? "truncate" : `truncate ${className}`} title={title}>{value}</span>;

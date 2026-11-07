@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test } from "vitest";
 import { SettingsDialog } from "./SettingsDialog";
 
-// project-settings T4: the Share confirmation's title shows the path as code, so the dialog's accessible name comes
+// The Share confirmation's title shows the path as code, so the dialog's accessible name comes
 // from `label`; a plain title still names it. Focus guards find it by role (POSTMORTEM 2026-10-30).
 test("a plain title names the dialog; a title with markup is named by its label", () => {
   const plain = renderToStaticMarkup(<SettingsDialog title="Fix the link?" description="d" verb="Fix" answer={() => {}} />);

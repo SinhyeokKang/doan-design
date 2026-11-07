@@ -105,7 +105,7 @@ export function SettingsAgents({ signIn, arrival, onLock, preferences, save, pro
   };
 
   // An arrival from Home's picker or a toast focuses the provider's row group once its row is drawn, and flashes it
-  // like an added project's sidebar row (design 'Agents').
+  // like an added project's sidebar row.
   const arrived = useRef(0);
   const [flash, setFlash] = useState<Provider | null>(null);
   useEffect(() => {
@@ -204,15 +204,15 @@ function NewConversations({ auth, preferences, save, project }: Pick<SettingsAge
   const fold = useOlderFold(provider && menu ? [{ provider, rows: menu.rows }] : []);
   const modelRows = menu ? foldRows(menu.rows) : null;
   const loadFailed = listState !== undefined && listState !== "loading" && "error" in listState;
-  // Effort follows the chosen model, or with Default the model the project lists as its default (spec 'New
-  // conversations'); a model that lists no efforts has no Effort row.
+  // Effort follows the chosen model, or with Default the model the project lists as its default;
+  // a model that lists no efforts has no Effort row.
   const listed = listState !== undefined && listState !== "loading" && "models" in listState ? listState.models : [];
   const effortModel = pinned ?? listed.find(item => item.default)?.id ?? null;
   const effort = provider && effortModel ? modelPickerView(auth, { [provider]: listState }, { provider, model: effortModel, effort: pref?.effort ?? null }).effort : null;
   const effortLabel = effort ? settingsEffortLabel(effort) : "";
   const effortMenu = effort ? settingsEffortMenu(effort) : null;
   const status = auth?.providers.find(item => item.provider === provider);
-  // Permission (permission-mode U1): the composer's menu, saved with the model and effort; a saved mode this provider
+  // Permission: the composer's menu, saved with the model and effort; a saved mode this provider
   // cannot offer reads as Default. An ACP provider offers its modes only once the project's list is read.
   const permission = provider ? permissionPickerView(provider, listState, readPermissionMode(pref?.permissionMode)) : null;
   const keepMode = pref?.permissionMode ? { permissionMode: pref.permissionMode } : {};
