@@ -97,13 +97,17 @@ function sameScope(a: readonly string[], b: readonly string[]): boolean {
 // Electron-free on purpose: the window, dialog and IPC live in index.ts.
 // `autoRemoved` runs when a vanished auto-registered root left the list on its own, before the list goes out, so main
 // clears what it keeps for that root as on Remove; `before` is the list before the removal.
+// `aliased` runs at most once, before any folder is read or listed, with the saved spellings the folder store read as another
+// real path (FolderStore.aliases), so stores keyed by root move that root's memory before anything prunes it.
 export interface ShellHooks {
   response?(record: ResponseRecord): void;
   autoRemoved?(paths: string[], before: FolderEntry[]): void;
+  aliased?(aliases: ReadonlyMap<string, string>): void;
 }
 
 export async function startShell(foldersFile: string, cli: string, onChange: (entries: FolderEntry[], focus?: FolderFocus) => void, hooks?: ShellHooks): Promise<Shell> {
   const store = await openFolderStore(foldersFile);
+  if (store.aliases().size > 0) hooks?.aliased?.(store.aliases());
   const server: LocalServer = await startServer(hooks?.response);
   // Insertion order is folders.json order, which is the order the human opened them.
   let nextEpoch = 0;

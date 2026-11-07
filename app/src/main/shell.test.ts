@@ -7,6 +7,7 @@ import {
   realpathSync,
   renameSync,
   rmSync,
+  symlinkSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
@@ -556,6 +557,17 @@ async function uninitialized(root: string, cliPath = cli) {
   await vi.waitFor(() => expect(started.shell.entries()[0]?.kind).toBe("uninitialized"), until);
   return started;
 }
+
+// defect-sweep C2 fix round 1: the stores keyed by root (canvas-seen.json, ui-state.json) learn which saved spelling
+// reads as which real path before the first list goes out, so they can move that root's memory instead of dropping it.
+test("hands the saved spellings read as another real path to the hook before the first list goes out", async () => {
+  const real = realpathSync(writeRepo(dir())), link = join(dir(), "repo"); symlinkSync(real, link);
+  const file = join(dir(), "folders.json"); writeFileSync(file, JSON.stringify([link]));
+  const order: string[] = [];
+  const shell = await startShell(file, cli, () => order.push("change"), { aliased: aliases => { order.push(`aliased ${JSON.stringify([...aliases])}`); } }); shells.push(shell);
+  await vi.waitFor(() => expect(listed(shell.entries(), real)).toBeDefined(), until);
+  expect(order[0]).toBe(`aliased ${JSON.stringify([[link, real]])}`);
+});
 
 describe("project setup and upward refresh", () => {
   test("re-roots in place, saves order, forwards focus and serves and watches the parent", async () => {

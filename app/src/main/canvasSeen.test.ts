@@ -211,3 +211,30 @@ describe("persistence", () => {
     expect(unseen(store.apply([list("/r", [row(A, 10), row(B, 1)])]))).toEqual(["/r:" + B]);
   });
 });
+
+// defect-sweep C2 fix round 1: a root saved through a symlink is read as its real path. That is the same project, not
+// one leaving Doan's list, so its record moves with it: the real path's record wins per canvas, the alias's fills only
+// canvases the real path lacks.
+describe("rename", () => {
+  test("a record kept under an alias moves to the real path, so a canvas changed since it was seen stays unseen", () => {
+    const path = file();
+    writeFileSync(path, JSON.stringify({ v: 1, roots: { "/alias/repo": { [A]: 1 } } }));
+    const store = createCanvasSeenStore(path);
+    store.rename(new Map([["/alias/repo", "/real/repo"]]));
+    expect(unseen(store.apply([list("/real/repo", [row(A, 2)])]))).toEqual(["/real/repo:" + A]);
+    expect(JSON.parse(readFileSync(path, "utf8"))).toEqual({ v: 1, roots: { "/real/repo": { [A]: 1 } } });
+  });
+
+  test("with both spellings recorded the real path wins per canvas and the alias fills the rest; a second rename changes nothing", () => {
+    const path = file();
+    writeFileSync(path, JSON.stringify({ v: 1, roots: { "/alias/repo": { [A]: 1, [B]: 5 }, "/real/repo": { [A]: 3 }, "/other": { [A]: 7 } } }));
+    const write = vi.fn((target: string, text: string) => writeFileSync(target, text));
+    const store = createCanvasSeenStore(path, write);
+    store.rename(new Map([["/alias/repo", "/real/repo"]]));
+    expect(JSON.parse(readFileSync(path, "utf8"))).toEqual({ v: 1, roots: { "/real/repo": { [A]: 3, [B]: 5 }, "/other": { [A]: 7 } } });
+    write.mockClear();
+    store.rename(new Map([["/alias/repo", "/real/repo"]]));
+    store.rename(new Map());
+    expect(write).not.toHaveBeenCalled();
+  });
+});

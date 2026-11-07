@@ -342,3 +342,12 @@ test("a fully populated state is saved and read back unchanged, and reparses to 
   expect(await createUiStateStore(path, saved).read()).toEqual(full);
   expect(parseUiState(JSON.stringify(full), saved())).toEqual(full);
 });
+
+// defect-sweep C2 fix round 1: the store reads with the folder store's aliases, so a workspace saved under a symlink
+// spelling reopens on its real path.
+test("a read moves memory saved under an alias root to its real path", async () => {
+  const path = file();
+  writeFileSync(path, JSON.stringify({ screen: "workspace", root: "/alias/repo", expanded: { "/alias/repo": ["a"] }, lastByRoot: {} }));
+  const store = createUiStateStore(path, () => ["/real/repo"], undefined, undefined, () => new Map([["/alias/repo", "/real/repo"]]));
+  expect(await store.read()).toMatchObject({ screen: "workspace", root: "/real/repo", expanded: { "/real/repo": ["a"] } });
+});

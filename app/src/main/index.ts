@@ -612,6 +612,7 @@ async function start(): Promise<void> {
   const choices = new Map<string, { id: string; path: string; epoch: number }>();
   // Only the window's copy of the list carries `unseen`; thumbnails and conversations read the shell's own entries.
   const seenStore = createCanvasSeenStore(join(userData, "canvas-seen.json"));
+  let rootAliases: ReadonlyMap<string, string> = new Map();
   canvasSeen = seenStore;
   const ready = await startShell(join(userData, "folders.json"), cliCommand(process.env, app.isPackaged, process.resourcesPath), (entries, focus) => {
     const refreshes = folderRefreshes(conversationLists, entries);
@@ -644,6 +645,11 @@ async function start(): Promise<void> {
     autoRemoved(paths, before) {
       if (selection && paths.includes(selection.root)) selection = null;
       void thumbnails?.removed(paths, before);
+    },
+    // A root saved through a symlink is read as its real path; its seen canvases and UI memory move with it.
+    aliased(aliases) {
+      rootAliases = aliases;
+      seenStore.rename(aliases);
     },
   });
   shell = ready;
@@ -1056,7 +1062,7 @@ async function start(): Promise<void> {
     if (fromWindow(event) && path !== null) electronShell.showItemInFolder(path);
   });
   // Validated against the saved roots in main; the renderer's copy is not trusted.
-  const store = createUiStateStore(join(userData, "ui-state.json"), () => ready.entries().map((entry) => entry.path));
+  const store = createUiStateStore(join(userData, "ui-state.json"), () => ready.entries().map((entry) => entry.path), undefined, undefined, () => rootAliases);
   uiState = store;
   handle("shell:activity", null, (event, value: unknown) => {
     if (!fromWindow(event)) return null;

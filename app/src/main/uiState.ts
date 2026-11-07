@@ -35,7 +35,8 @@ const defaultFs: UiStateFs = {
 
 const tempName = (file: string) => `${file}.${randomBytes(6).toString("hex")}.tmp`;
 
-export function createUiStateStore(file: string, savedRoots: () => readonly string[], delayMs = UI_STATE_DELAY_MS, fs: UiStateFs = defaultFs): UiStateStore {
+// `aliases`: the saved root spellings read as another real path (FolderStore.aliases); a read moves their memory to it.
+export function createUiStateStore(file: string, savedRoots: () => readonly string[], delayMs = UI_STATE_DELAY_MS, fs: UiStateFs = defaultFs, aliases: () => ReadonlyMap<string, string> = () => new Map()): UiStateStore {
   // The newest accepted value that is not on disk yet, whether its write is
   // waiting for the debounce or already running; a quit flush writes it.
   let unsaved: string | null = null;
@@ -65,7 +66,7 @@ export function createUiStateStore(file: string, savedRoots: () => readonly stri
   return {
     async read() {
       try {
-        return parseUiState(await readFile(file, "utf8"), savedRoots());
+        return parseUiState(await readFile(file, "utf8"), savedRoots(), aliases());
       } catch {
         return null;
       }

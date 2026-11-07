@@ -2,6 +2,7 @@ import { chmodSync, linkSync, mkdirSync, mkdtempSync, readdirSync, readFileSync,
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, test } from "vitest";
+import { pruneAuto } from "./autoFolders";
 import { openFolderStore, readFoldersFile, readFoldersFileForPruning, writeFoldersFile } from "./folderStore";
 
 const tmp = mkdtempSync(join(tmpdir(), "doan-folders-"));
@@ -138,6 +139,24 @@ describe("roots saved through a symlink", () => {
     const file = join(dir(), "folders.json");
     writeFileSync(file, JSON.stringify([link, "/missing/one", real, "/missing/two"]));
     expect((await openFolderStore(file)).list()).toEqual([real, "/missing/one", "/missing/two"]);
+  });
+
+  test("names each saved spelling that reads as another real path, for the stores keyed by root", async () => {
+    const { real, link } = linked();
+    const file = join(dir(), "folders.json");
+    writeFileSync(file, JSON.stringify(["/gone", link, real]));
+    expect([...(await openFolderStore(file)).aliases()]).toEqual([[link, real]]);
+  });
+
+  test("two spellings of one folder stay hand-added when either was added by hand, so a missing one is not pruned", async () => {
+    const { real, link } = linked();
+    const file = join(dir(), "folders.json");
+    writeFileSync(file, JSON.stringify([link, real]));
+    writeFileSync(join(file, "..", "auto-folders.json"), JSON.stringify([real]));
+    const store = await openFolderStore(file);
+    expect(store.list()).toEqual([real]);
+    expect(store.auto()).toEqual([]);
+    expect(pruneAuto(store.list(), store.auto(), new Map([[real, "ENOENT"]]))).toEqual([real]);
   });
 
   test("an auto-registered mark saved through a symlink still marks its root, and the next write saves it as the real path", async () => {

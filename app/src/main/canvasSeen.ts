@@ -20,6 +20,10 @@ export interface CanvasSeenStore {
   mark(entries: readonly FolderEntry[], value: unknown): boolean;
   // Writes the record if an earlier write failed. Called at quit.
   flushSync(): void;
+  // Moves each alias root's record to its real path (FolderStore.aliases), before the first apply: a spelling change
+  // is the same project, not one leaving the list. The real path's record wins per canvas; the alias's fills only
+  // canvases it lacks.
+  rename(aliases: ReadonlyMap<string, string>): void;
 }
 
 type Seen = Map<string, Map<string, number>>;
@@ -117,6 +121,17 @@ export function createCanvasSeenStore(file: string, write: (file: string, text: 
     },
     flushSync() {
       if (dirty) save();
+    },
+    rename(aliases) {
+      let changed = false;
+      for (const [alias, real] of aliases) {
+        const moved = seen.get(alias);
+        if (!moved || alias === real) continue;
+        seen.set(real, new Map([...moved, ...seen.get(real) ?? []]));
+        seen.delete(alias);
+        changed = true;
+      }
+      if (changed) save();
     },
   };
 }
