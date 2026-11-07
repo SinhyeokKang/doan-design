@@ -151,7 +151,7 @@ test("forward and back leave the Agent step only after its own sign-ins are canc
   expect(moves).toEqual(["continue"]);
 });
 
-test("fix 3: an over-long paste shows the limit line and keeps Submit disabled", () => {
+test("an over-long paste shows the limit line and keeps Submit disabled", () => {
   const html = renderToStaticMarkup(<PasteDialog view={pasteDialog()} value={"x".repeat(16385)} submittable={false} tooLong busy={false} change={noop} submit={noop} close={noop} />);
   expect(html).toContain('<p class="ob-field-error" role="alert">This address is too long to submit.</p>');
   expect(html).toMatch(/<button type="submit"[^>]* disabled="">Submit<\/button>/);
@@ -168,17 +168,17 @@ function row(provider: Provider, state: Omit<Partial<AuthState>, "attempt"> & { 
   return providerView(authStatus(full, { cli: "found", version: "supported", tools: (state as { tools?: "ready" | "failed" }).tools ?? "ready" }, 1), ctx);
 }
 
-test("fix 2: Sign in replaced by the waiting notice hands focus to Cancel", () => {
+test("Sign in replaced by the waiting notice hands focus to Cancel", () => {
   expect(firstUsable(row("claude", {}))).toBe("signIn");
   expect(firstUsable(row("claude", { phase: "signingIn", attempt: { kind: "signIn" } }))).toBe("cancel");
 });
 
-test("fix 2: Retry disabled while its check runs leaves no control, so focus goes to the heading", () => {
+test("Retry disabled while its check runs leaves no control, so focus goes to the heading", () => {
   expect(firstUsable(row("codex", { phase: "connected", verified: false }))).toBe("check");
   expect(firstUsable(row("codex", { phase: "checking", verified: false, attempt: { kind: "check" } }))).toBeNull();
 });
 
-test("fix 2: Check again disabled while its check runs hands focus to the row's notice", () => {
+test("Check again disabled while its check runs hands focus to the row's notice", () => {
   const failed = providerView(authStatus({ provider: "codex", generation: 1, verified: true, expired: false, phase: "checking", error: null,
     connection: { provider: "codex", connectionId: "c", profile: "codex", account: { id: "a", workspace: "w" } }, attempt: { id: "k", owner: 7, cancelled: false, kind: "check" } },
   { cli: "found", version: "supported", tools: "failed" }, 1));
@@ -186,15 +186,15 @@ test("fix 2: Check again disabled while its check runs hands focus to the row's 
   expect(firstUsable(failed)).toBe("notice");
 });
 
-test("fix 2: Cancel disabled while cancelling hands focus to the row's notice", () => {
+test("Cancel disabled while cancelling hands focus to the row's notice", () => {
   expect(firstUsable(row("cursor", { phase: "signingIn", attempt: { kind: "signIn", cancelled: true } }, { prompt: "a1" }))).toBe("notice");
 });
 
-test("fix 2: after Stop and sign in, the new attempt's Cancel takes focus from the removed Sign in again", () => {
+test("after Stop and sign in, the new attempt's Cancel takes focus from the removed Sign in again", () => {
   expect(firstUsable(row("claude", { phase: "signingIn", attempt: { kind: "signIn" } }, { prompt: "a1" }))).toBe("cancel");
 });
 
-test("fix 2: focus is recovered only when it was lost, never taken from where the user moved it", () => {
+test("focus is recovered only when it was lost, never taken from where the user moved it", () => {
   const node = (connected: boolean, disabled: boolean) => ({ isConnected: connected, matches: (selector: string) => selector === ":disabled" && disabled });
   const watched = node(true, false);
   expect(focusLost(watched, watched)).toBe("keep");
@@ -210,7 +210,7 @@ const on: ProjectScreenProps["on"] = new Proxy({} as ProjectScreenProps["on"], {
 const base2: ProjectStepState = { phase: { kind: "choose" }, url: "", inspectedUrl: null, error: null, listChoice: null };
 const screen = (state: Partial<ProjectStepState>, props: Partial<ProjectScreenProps> = {}) => renderToStaticMarkup(<ProjectScreen state={{ ...base2, ...state }} busy={false} agentReady projects={[]} home="/Users/ada" urlValid={false} heading={noop} on={on} {...props} />);
 
-test("U2 Choose your project: local folder card, divider, URL field and a disabled Open doan", () => {
+test("Choose your project: local folder card, divider, URL field and a disabled Open doan", () => {
   const html = screen({});
   expect(html).toMatch(/<input[^>]*aria-label="GitHub repository URL"[^>]*spellCheck="false"/);
   expect(html).toContain('<h2 tabindex="-1">Choose your project</h2><p>Start with a folder on your Mac, or a GitHub repository.</p>');
@@ -222,7 +222,7 @@ test("U2 Choose your project: local folder card, divider, URL field and a disabl
   expect(html).not.toMatch(/…/);
 });
 
-test("U2 Your projects lists registered projects with the sidebar thumbnail rule", () => {
+test("Your projects lists registered projects with the sidebar thumbnail rule", () => {
   const html = screen({ listChoice: "/Users/ada/code/doan-design" }, { projects: ["/Users/ada/code/doan-design"] });
   expect(html).toContain('<div class="ob-field-label">Your projects</div>');
   // The shared choice card: radio, thumbnail, then text; no check at the end.
@@ -231,7 +231,7 @@ test("U2 Your projects lists registered projects with the sidebar thumbnail rule
   expect(html).toContain('data-ui-size="sm">Use this folder</button>');
 });
 
-test("U2 an invalid URL marks the field and keeps Find repository disabled; an access failure offers Retry", () => {
+test("an invalid URL marks the field and keeps Find repository disabled; an access failure offers Retry", () => {
   const invalid = screen({ url: "github.com/acme", error: { code: "invalid_url" } });
   expect(invalid).toContain('aria-invalid="true" aria-describedby="ob-project-error"');
   expect(invalid).toContain('role="alert" tabindex="-1" id="ob-project-error"');
@@ -244,19 +244,19 @@ test("U2 an invalid URL marks the field and keeps Find repository disabled; an a
   expect(access).not.toContain("Open a local folder");
 });
 
-test("U2 looking for a repository shows a status with Cancel", () => {
+test("looking for a repository shows a status with Cancel", () => {
   const html = screen({ url: "https://github.com/acme/studio", phase: { kind: "inspecting", url: "https://github.com/acme/studio" } });
   expect(html).toContain('<div class="doan-notice doan-panel ob-project-notice" role="status" tabindex="-1"><span class="doan-spinner doan-alert-icon" aria-hidden="true"></span><span><strong class="ob-notice-title">Checking repository</strong><span class="ob-notice-body">https://github.com/acme/studio</span></span></div>');
   expect(html).toContain('readOnly=""');
   expect(html).toContain('data-ui-size="sm">Cancel</button>');
 });
 
-test("U2 an edited URL asks to be checked again", () => {
+test("an edited URL asks to be checked again", () => {
   const changed = screen({ url: "https://github.com/acme/another", inspectedUrl: "https://github.com/acme/studio" });
   expect(changed).toContain('<p class="ob-provider-help">Check this URL before choosing a local folder or cloning.</p><div class="ob-state-actions"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Choose local folder</button><button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="sm">Find repository</button></div>');
 });
 
-test("U2 an existing checkout: Already on your Mac, the chosen card and Use this folder", () => {
+test("an existing checkout: Already on your Mac, the chosen card and Use this folder", () => {
   const html = screen({ url: "https://github.com/acme/doan-design", phase: { kind: "candidates", inspectionId: "i", url: "https://github.com/acme/doan-design", candidates: [{ path: "/Users/ada/code/doan-design", changes: [] }], choice: "/Users/ada/code/doan-design" } });
   expect(html).toContain('<h2 tabindex="-1">Already on your Mac</h2><p>This GitHub repository matches a local project.</p>');
   expect(html).toMatch(/<div class="doan-panel ob-chosen"><span class="shell-thumbnail onboarding-thumbnail hue-indigo" aria-hidden="true">D<\/span><div><strong>doan-design<\/strong><p class="ob-path">~\/code\/doan-design<\/p><\/div><svg/);
@@ -276,13 +276,13 @@ test("repositories inside a picked folder are radio cards; a URL never shows a c
 });
 
 
-test("U2 a folder that needs setup asks before writing", () => {
+test("a folder that needs setup asks before writing", () => {
   const html = screen({ phase: { kind: "setup", inspectionId: "i", url: null, path: "/Users/ada/plain", changes: [".doan/config.json"] } });
   expect(html).toContain('<section class="doan-panel ob-setup"><strong>Set up this folder for Doan</strong><p>Doan will add its project configuration and a design folder. Existing files stay in place.</p>');
   expect(html).toContain('data-ui-size="sm" data-consent="">Set up and continue</button>');
 });
 
-test("U2 clone: Save to with Change, progress with Cancel, cleanup with everything held, cancelled with Retry", () => {
+test("clone: Save to with Change, progress with Cancel, cleanup with everything held, cancelled with Retry", () => {
   const clone = { url: "https://github.com/acme/studio", destination: "/Users/ada/code/studio" };
   const plan = screen({ url: clone.url, phase: { kind: "clone", ...clone, inspectionId: "i" } });
   expect(plan).toContain('<h2 tabindex="-1">Clone repository</h2><p>Bring this project onto your Mac.</p>');
@@ -299,7 +299,7 @@ test("U2 clone: Save to with Change, progress with Cancel, cleanup with everythi
   expect(cancelled).toContain("Cloning was cancelled. Choose a folder or try again.");
 });
 
-test("U2 ready: Your project is ready with Open doan; no ready agent blocks it with Back to agents", () => {
+test("ready: Your project is ready with Open doan; no ready agent blocks it with Back to agents", () => {
   const ready = screen({ phase: { kind: "ready", root: "/Users/ada/code/doan-design" } });
   expect(ready).toContain('<h2 tabindex="-1">Your project is ready</h2><p>Start creating with the tools and code you already have.</p>');
   expect(ready).toContain('<p class="ob-fine">Your selected project will be ready on Home.</p>');
@@ -311,7 +311,7 @@ test("U2 ready: Your project is ready with Open doan; no ready agent blocks it w
   expect(blocked).toMatch(/disabled="" data-consent="">Open Doan<svg/);
 });
 
-test("U2 completion: saving holds the footer, a failed save offers Retry, a newer marker version offers none", () => {
+test("completion: saving holds the footer, a failed save offers Retry, a newer marker version offers none", () => {
   const ready = { kind: "ready" as const, root: "/r" };
   expect(screen({ phase: { kind: "completing", root: "/r" } }, { busy: true })).toContain("<strong class=\"ob-notice-title\">Saving your setup</strong><span class=\"ob-notice-body\">Your project is ready. Finishing setup before opening Home.</span>");
   const failed = screen({ phase: ready, error: { code: "completion_save_failed" } });
@@ -323,7 +323,7 @@ test("U2 completion: saving holds the footer, a failed save offers Retry, a newe
   expect(newer).toMatch(/disabled="" data-consent="">Open Doan<svg/);
 });
 
-test("U2 every project error has the draft's copy and actions", () => {
+test("every project error has the draft's copy and actions", () => {
   const view = (code: Parameters<typeof projectNotice>[0]) => { const n = projectNotice(code, "main message", "~/code/studio"); return [n.body, n.actions.map(a => `${a.variant}:${a.label}`)]; };
   expect(view("remote_mismatch")).toEqual(["This folder belongs to a different repository.", ["prominent:Choose another folder"]]);
   expect(view("project_unavailable")).toEqual(["This folder is no longer available. Choose it again or select another folder.", ["prominent:Choose folder"]]);
@@ -336,7 +336,7 @@ test("U2 every project error has the draft's copy and actions", () => {
   expect(view("cleanup_failed")).toEqual(["main message", ["prominent:Retry"]]);
 });
 
-test("review: the Project step's lost focus goes to the error, else the progress notice, else the first usable action", () => {
+test("the Project step's lost focus goes to the error, else the progress notice, else the first usable action", () => {
   const st = (over: Partial<ProjectStepState>): ProjectStepState => ({ ...base2, ...over });
   expect(projectFocusTarget(st({ error: { code: "remote_mismatch" }, phase: { kind: "setup", inspectionId: "i", url: null, path: "/p", changes: [".doan/config.json"] } }), true)).toBe("alert");
   expect(projectFocusTarget(st({ phase: { kind: "ready", root: "/p" } }), false)).toBe("alert");
@@ -365,7 +365,7 @@ test("design-sync: onboarding text drops the shell's tabular figures and the ste
   expect(css).toMatch(/\.ob-page-help \{[^}]*color: var\(--text-subtle\);/);
 });
 
-test("review 2: Cancel waits until main names the clone", () => {
+test("Cancel waits until main names the clone", () => {
   const clone = { url: "https://github.com/acme/studio", destination: "/Users/ada/code/studio" };
   expect(screen({ phase: { kind: "cloning", ...clone, operationId: null, cancelling: false } }, { busy: true })).toContain('data-ui-size="sm" disabled="">Cancel</button>');
   expect(screen({ phase: { kind: "cloning", ...clone, operationId: "o", cancelling: false } }, { busy: true })).toContain('data-ui-size="sm">Cancel</button>');
@@ -386,7 +386,7 @@ test("folder recoveries on a URL screen choose an existing folder of that reposi
   }
 });
 
-test("V fix: a cancelled clone offers Edit repository URL under its Choose local folder / Retry row", () => {
+test("a cancelled clone offers Edit repository URL under its Choose local folder / Retry row", () => {
   const html = screen({ url: "https://github.com/acme/studio", phase: { kind: "cloneCancelled", url: "https://github.com/acme/studio", destination: "/Users/ada/code/studio" } });
   expect(html).toContain('data-ui-variant="subtle" data-ui-size="sm">Choose local folder</button><button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="sm" data-consent="">Retry</button></div><div class="ob-small-action"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Edit repository URL</button></div>');
   const failed = screen({ url: "https://github.com/acme/studio", phase: { kind: "clone", url: "https://github.com/acme/studio", inspectionId: null, destination: "/Users/ada/code/studio" }, error: { code: "clone_failed" } });

@@ -90,7 +90,7 @@ function chain(files: Map<string, string | null>, file: string): string {
 }
 
 // The walker must read syntax, not spacing: a missed value import lets ajv or a Node module back into the renderer, and a
-// type query read as a value import fails the guard for nothing (BS review).
+// type query read as a value import fails the guard for nothing.
 describe("value imports the renderer bundle keeps", () => {
   it.each([
     ["import { validateCanvas } from \"../formats/validate\";", ["../formats/validate"]],

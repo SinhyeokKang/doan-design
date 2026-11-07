@@ -121,8 +121,8 @@ function startupServers(summary: string): StartupServers | null {
   return names.every(isServerLabel) ? { kind: waiting ? "waiting" : "notReady", names, cut: cut || null } : null;
 }
 // The not-ready line replaces the Waiting line it ends: the servers it names were all waited for (some of them may have
-// become ready meanwhile). Complete names match exactly; a cut item matches the waited-for name it begins (BU review
-// R3-Y1), so another server's line still stays apart.
+// become ready meanwhile). Complete names match exactly; a cut item matches the waited-for name it begins,
+// so another server's line still stays apart.
 function endsWaiting(previous: ActivityStep, next: ActivityStep): boolean {
   const before = previous.sentence ? startupServers(previous.verb) : null, after = next.sentence ? startupServers(next.verb) : null;
   if (before?.kind !== "waiting" || after?.kind !== "notReady") return false;

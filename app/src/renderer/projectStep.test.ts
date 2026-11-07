@@ -331,7 +331,7 @@ test("repositories found inside a picked folder are still a list", async () => {
 });
 
 
-test("review: Clone and continue is busy before main answers, so a second click sends nothing and the reply is kept", async () => {
+test("Clone and continue is busy before main answers, so a second click sends nothing and the reply is kept", async () => {
   const h = harness();
   await planned(h);
   let release: (r: OnboardingResponse) => void = () => {};
@@ -353,7 +353,7 @@ test("review: Clone and continue is busy before main answers, so a second click 
   expect(phase(h)).toEqual({ kind: "ready", root: "/Users/ada/studio" });
 });
 
-test("review: Cancel that main refuses because the clone is already published returns to its progress", async () => {
+test("Cancel that main refuses because the clone is already published returns to its progress", async () => {
   const h = harness();
   await planned(h);
   const running = op("project_clone", { state: "running" });
@@ -365,7 +365,7 @@ test("review: Cancel that main refuses because the clone is already published re
   expect(phase(h)).toMatchObject({ kind: "cloning", cancelling: false });
 });
 
-test("review: a stale inspection is inspected again instead of retrying the same request", async () => {
+test("a stale inspection is inspected again instead of retrying the same request", async () => {
   const h = harness();
   h.api.chooseOnboardingFolder.mockResolvedValueOnce("/code/plain");
   h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([["/code/plain", [".doan/config.json"]]]) })));
@@ -379,7 +379,7 @@ test("review: a stale inspection is inspected again instead of retrying the same
   expect(phase(h)).toMatchObject({ kind: "setup", inspectionId: fresh.inspectionId });
 });
 
-test("review: Retry after a failed folder inspection inspects that folder again, not the URL field", async () => {
+test("Retry after a failed folder inspection inspects that folder again, not the URL field", async () => {
   const h = harness();
   h.api.chooseOnboardingFolder.mockResolvedValueOnce("/code/app");
   h.queue.inspect!.push(refused("busy"));
@@ -392,7 +392,7 @@ test("review: Retry after a failed folder inspection inspects that folder again,
   expect(phase(h)).toEqual({ kind: "ready", root: "/code/app" });
 });
 
-test("review: an operation retired from the published list is read by its id", async () => {
+test("an operation retired from the published list is read by its id", async () => {
   const h = harness();
   h.session.setUrl("https://github.com/acme/studio");
   const running = op("project_inspect", { state: "running" });
@@ -406,7 +406,7 @@ test("review: an operation retired from the published list is read by its id", a
   expect(phase(h)).toMatchObject({ kind: "candidates" });
 });
 
-test("review 2: Retry on a cancelled clone plans the current destination, not an older failure", async () => {
+test("Retry on a cancelled clone plans the current destination, not an older failure", async () => {
   const h = harness();
   h.session.setUrl("https://github.com/acme/studio");
   h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([]) })), refused("destination_exists"));
@@ -429,7 +429,7 @@ test("review 2: Retry on a cancelled clone plans the current destination, not an
   expect(phase(h)).toEqual({ kind: "ready", root: "/Volumes/work/studio" });
 });
 
-test("review 2: the session says when it waits on the folder picker", async () => {
+test("the session says when it waits on the folder picker", async () => {
   const h = harness();
   let pick: (path: string | null) => void = () => {};
   h.api.chooseOnboardingFolder.mockImplementationOnce(() => new Promise(resolve => { pick = resolve; }));
@@ -544,7 +544,7 @@ test("⚪: an operation main no longer knows is asked for once, not on every eve
   expect(h.api.readOnboardingSession).toHaveBeenCalledTimes(1);
 });
 
-test("V fix: Back from a cancelled or failed clone returns to the editable URL, and the old inspection is gone", async () => {
+test("Back from a cancelled or failed clone returns to the editable URL, and the old inspection is gone", async () => {
   const h = harness();
   await planned(h);
   expect(h.session.backToUrl()).toBe(false);
