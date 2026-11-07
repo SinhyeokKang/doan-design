@@ -2,8 +2,8 @@
 
 하네스 변경이라 대화 중에 `develop`에 커밋한다. 스킬 링크는 기존 스킬과 같은 형태로 만든다(`ls -la .claude/skills`의 `agent-eval -> ../../.agents/skills/agent-eval`). 부모 tasks.md는 체크하지 않는다(부모 '자식 진행 규칙' 1).
 
-- [ ] T0. release-ci가 `develop`에 병합됐고, release-ci design '/release와의 계약'의 이름(워크플로 파일, 스크립트 경로)이 실제로 있으며, 그 PoC 답이 ARCHITECTURE §9에 올라갔는지 확인한다. 'One-time setup' 절이 채워졌는지 본다.
-  - 검증: `git fetch origin` 뒤 `git ls-tree origin/develop docs/features/release-ci` 결과 없음, `ls .github/workflows/release.yml .github/workflows/test-build.yml`과 계약 표의 스크립트 두 개가 있다, `grep -n 'MAC_CERT_P12_BASE64' docs/features/release-skill/design.md`가 한 줄 이상.
+- [ ] T0. release-ci가 `develop`에 병합됐고, ARCHITECTURE §9 'Signing in CI'·'Release builds'의 이름(워크플로 파일, 스크립트 경로)이 실제로 있으며, 그 PoC 답이 ARCHITECTURE §9에 올라갔는지 확인한다. 'One-time setup' 절이 채워졌는지 본다.
+  - 검증: `git fetch origin` 뒤 `git ls-tree origin/develop docs/features/release-ci` 결과 없음, `ls .github/workflows/release.yml .github/workflows/test-build.yml`과 `ls app/scripts/checkReleaseVersion.mjs app/scripts/verifySignedPackage.mjs`가 둘 다 있다, `grep -n 'MAC_CERT_P12_BASE64' docs/features/release-skill/design.md`가 한 줄 이상.
 - [ ] T1. `.agents/skills/release/SKILL.md`를 design.md '출시 모드'·'hotfix 모드'·'재개와 중단'·'One-time setup'·'금지'대로 쓰고 `.claude/skills/release` 링크를 만든다. Claude Code 문서로 `disable-model-invocation`을 확인해 frontmatter에 넣는다.
   - 검증: `readlink .claude/skills/release`가 `../../.agents/skills/release`. `head -5 .agents/skills/release/SKILL.md`에 `name: release`, description, `disable-model-invocation: true`가 있다(문서로 확인한 경우). `grep -n -E '재개|Resume' .agents/skills/release/SKILL.md`가 표 머리에서 나온다.
 

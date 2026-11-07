@@ -26,6 +26,8 @@ Source: the Malmoi case. These problems were hit while running a Claude Design h
 
 The primary users are external users in general; installation, onboarding and documentation are in product scope.
 
+Doan is downloaded from the repository's GitHub Releases as a notarized arm64 (Apple silicon) dmg.
+
 Doan's own agent connections cover five providers — Claude Code, Codex, Cursor, Antigravity and GitHub Copilot — with one account each (§3 In scope 7); first run signs in to them and selects a project. Opening the packaged app from Applications also sets up the `doan` command and skill, with no setup screen, for the same five agents' sessions outside Doan (§5 item 0 'Agent setup'). A user who has only the app can ask their own agent to run first run, or to set up a repository for Doan, through `doan onboarding` (§5 item 0).
 
 A canvas can also reach people who use neither Doan nor the repo, such as a reviewer or a stakeholder: they receive an exported file and open it in a browser (§3 In scope 8).

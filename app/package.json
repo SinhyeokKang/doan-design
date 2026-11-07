@@ -66,15 +66,34 @@
       {
         "from": "src/main/onboarding/SKILL.md",
         "to": "skills/doan/SKILL.md"
+      },
+      {
+        "from": "../LICENSE",
+        "to": "LICENSE"
+      },
+      {
+        "from": "../cli/internal/designskill/notices",
+        "to": "notices"
       }
     ],
     "mac": {
       "icon": "resources/icon-rounded.png",
       "identity": null,
+      "target": [
+        { "target": "dmg", "arch": ["arm64"] },
+        { "target": "zip", "arch": ["arm64"] }
+      ],
       "entitlements": "resources/entitlements.mac.plist",
       "entitlementsInherit": "resources/entitlements.mac.plist"
     },
+    "publish": {
+      "provider": "github",
+      "owner": "SinhyeokKang",
+      "repo": "doan-design",
+      "releaseType": "draft"
+    },
     "dmg": {
+      "artifactName": "Doan-macos-arm64.${ext}",
       "title": "${productName}",
       "background": "resources/installer-background.png",
       "iconSize": 88,

@@ -42,7 +42,7 @@ CI runs the same gate (without `--eval`) as the `gate` check on every pull reque
 - [AGENTS.md](../AGENTS.md) holds the working rules that Claude Code and Codex both read. It also carries maintainer preferences, such as the language agents reply in.
 - `.claude/settings.json` has a `UserPromptSubmit` hook that re-injects that preference (Korean replies) on every Claude Code turn. To turn it off for yourself, add `.claude/settings.local.json` with `{ "disableAllHooks": true }`; that file is not committed.
 - `docs/features/<slug>/` holds the maintainer's plans for features in progress. They are written in Korean, and when a feature is done its conclusions move into the English PRODUCT and ARCHITECTURE documents and the directory is deleted.
-- Some development skills cannot run outside the maintainer's setup: `/tester-build` (needs the Developer ID certificate), `/agent-eval` (signs in to and changes real agent state), and `/orchestrate` and `/chain` (need Orca). The other skills under `.agents/skills/` work in any clone.
+- Some development skills cannot run outside the maintainer's setup: `/tester-build` (pushes a tag to this repository and needs the maintainer to approve the signing environment), `/agent-eval` (signs in to and changes real agent state), and `/orchestrate` and `/chain` (need Orca). The other skills under `.agents/skills/` work in any clone.
 
 ## License
 

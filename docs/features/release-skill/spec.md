@@ -22,7 +22,7 @@
 
 - `.agents/skills/release/SKILL.md`가 있고, `.claude/skills/release`가 `../../.agents/skills/release`를 가리키는 링크다(AGENTS.md 'Runtime differences'의 스킬 위치 규칙, 다른 스킬과 같은 상대 링크 형태).
 - 스킬이 출시 모드, hotfix 모드(두 번 호출, D1), '재개와 중단' 표를 가지고, 각 단계의 멈춤 조건과 보고 형식을 가진다(design.md).
-- 스킬은 release-ci의 '/release와의 계약'에 있는 이름만 쓴다.
+- 스킬은 ARCHITECTURE §9 'Signing in CI'·'Release builds'에 있는 이름만 쓴다.
 - 모델이 스스로 이 스킬을 부르지 못하게 하는 장치를 확인해 적용했다(Claude Code frontmatter `disable-model-invocation: true`, 문서로 확인. Codex에 같은 장치가 없으면 0단계의 자기 점검만 남긴다).
 - AGENTS.md에 다음이 있다:
   - 'Workflow'의 `/release` 줄(사용자만 부른다, `main`을 바꾸는 유일한 길).

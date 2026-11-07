@@ -1,0 +1,184 @@
+name: Release
+
+# /release pushes v<version> at the develop -> main merge commit; the workflow
+# builds, signs and uploads a draft release, and /release publishes it.
+# A release-dryrun-* tag on develop runs the same build without the version
+# check and without a draft, to check the pipeline.
+on:
+  push:
+    tags: ['v*', 'release-dryrun-*']
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    # An explicit bash adds pipefail, so a failing build is not hidden by tee.
+    shell: bash
+
+jobs:
+  source:
+    runs-on: macos-26
+    timeout-minutes: 5
+    outputs:
+      dry_run: ${{ steps.kind.outputs.dry_run }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - id: kind
+        name: Check the tag commit
+        run: |
+          # A release is cut only from main; dry runs sign develop commits.
+          if [[ "$GITHUB_REF_NAME" == release-dryrun-* ]]; then
+            echo "dry_run=true" >> "$GITHUB_OUTPUT"
+            branch=develop
+          else
+            echo "dry_run=false" >> "$GITHUB_OUTPUT"
+            branch=main
+          fi
+          git merge-base --is-ancestor "$GITHUB_SHA" "origin/$branch" || { echo "::error::$GITHUB_REF_NAME ($GITHUB_SHA) is not on $branch"; exit 1; }
+      - name: Check the version
+        if: steps.kind.outputs.dry_run == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node app/scripts/checkReleaseVersion.mjs --tag "$GITHUB_REF_NAME"
+
+  gate:
+    needs: source
+    uses: ./.github/workflows/ci.yml
+
+  sign:
+    needs: gate
+    runs-on: macos-26
+    environment: release
+    # Packaging twice plus app notarization (no time limit inside
+    # electron-builder) plus up to 30 minutes of dmg notarization.
+    timeout-minutes: 90
+    steps:
+      - name: Check signing secrets are set
+        env:
+          MAC_CERT_P12_BASE64: ${{ secrets.MAC_CERT_P12_BASE64 }}
+          MAC_CERT_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          MAC_IDENTITY_NAME: ${{ vars.MAC_IDENTITY_NAME }}
+        run: |
+          missing=""
+          for name in MAC_CERT_P12_BASE64 MAC_CERT_PASSWORD APPLE_API_KEY_P8 APPLE_API_KEY_ID APPLE_API_ISSUER MAC_IDENTITY_NAME; do
+            [ -n "${!name}" ] || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::not set in the release environment:$missing"
+            exit 1
+          fi
+          # notarytool reports a malformed ID only after the app is signed;
+          # these shape checks fail in seconds and never print a value.
+          shape() { local v="$1"; local ws=no; [ "$v" = "${v//[[:space:]]/}" ] || ws=yes; echo "${#v} characters, whitespace: $ws"; }
+          bad=0
+          uuid='^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$'
+          keyid='^[A-Z0-9]{10}$'
+          [[ "$APPLE_API_ISSUER" =~ $uuid ]] || { echo "::error::APPLE_API_ISSUER is not a UUID ($(shape "$APPLE_API_ISSUER"))"; bad=1; }
+          [[ "$APPLE_API_KEY_ID" =~ $keyid ]] || { echo "::error::APPLE_API_KEY_ID is not 10 uppercase letters or digits ($(shape "$APPLE_API_KEY_ID"))"; bad=1; }
+          [[ "$APPLE_API_KEY_P8" == *"-----BEGIN PRIVATE KEY-----"* ]] || { echo "::error::APPLE_API_KEY_P8 is not the .p8 file content"; bad=1; }
+          exit "$bad"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - run: npm --prefix app ci
+      # Builds the versioned CLI and out/, which the signed build re-bundles.
+      - run: npm --prefix app run package
+      - name: Build, sign and notarize the app
+        working-directory: app
+        env:
+          CSC_LINK: ${{ secrets.MAC_CERT_P12_BASE64 }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          MAC_IDENTITY_NAME: ${{ vars.MAC_IDENTITY_NAME }}
+        run: |
+          # electron-builder takes APPLE_API_KEY as a path to the .p8 file.
+          export APPLE_API_KEY="$RUNNER_TEMP/AuthKey_$APPLE_API_KEY_ID.p8"
+          printf '%s\n' "$APPLE_API_KEY_P8" > "$APPLE_API_KEY"
+          # --publish never only stops the upload; the publish setting still
+          # writes app-update.yml and latest-mac.yml, and the publish job
+          # uploads the stapled dmg instead.
+          npx electron-builder --mac dmg zip --arm64 --publish never \
+            -c.mac.identity="$MAC_IDENTITY_NAME" -c.dmg.sign=true -c.directories.output="$RUNNER_TEMP/out" \
+            2>&1 | tee "$RUNNER_TEMP/builder.log"
+          # Without notarization credentials electron-builder only warns, so
+          # a successful build alone does not prove the app was notarized.
+          grep -q "notarization successful" "$RUNNER_TEMP/builder.log" || { echo "::error::app notarization did not run"; exit 1; }
+          test -e "$RUNNER_TEMP/out/mac-arm64/Doan.app/Contents/Resources/app-update.yml" || { echo "::error::release build has no update feed"; exit 1; }
+      - name: Notarize and staple the dmg
+        env:
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          dmg="$RUNNER_TEMP/out/Doan-macos-arm64.dmg"
+          xcrun notarytool submit "$dmg" --key "$RUNNER_TEMP/AuthKey_$APPLE_API_KEY_ID.p8" --key-id "$APPLE_API_KEY_ID" --issuer "$APPLE_API_ISSUER" \
+            --wait --timeout 30m 2>&1 | tee "$RUNNER_TEMP/notary.log" || true
+          id=$(sed -n 's/^ *id: //p' "$RUNNER_TEMP/notary.log" | head -n 1)
+          if ! grep -q "status: Accepted" "$RUNNER_TEMP/notary.log"; then
+            echo "::error::dmg notarization not accepted (submission id: ${id:-none}); a timed-out submission continues with notarytool wait $id"
+            [ -z "$id" ] || xcrun notarytool log "$id" --key "$RUNNER_TEMP/AuthKey_$APPLE_API_KEY_ID.p8" --key-id "$APPLE_API_KEY_ID" --issuer "$APPLE_API_ISSUER" || true
+            exit 1
+          fi
+          for attempt in 1 2 3; do
+            xcrun stapler staple "$dmg" && exit 0
+            sleep 30
+          done
+          echo "::error::stapling the dmg failed three times"
+          exit 1
+      - name: Remove the API key file
+        if: always()
+        run: rm -f "$RUNNER_TEMP"/AuthKey_*.p8
+      - name: Verify the signed dmg, zip and update feed
+        run: |
+          version=$(node -p 'require("./app/package.json").version')
+          node app/scripts/verifySignedPackage.mjs "$RUNNER_TEMP/out/Doan-macos-arm64.dmg" "$RUNNER_TEMP/out/Doan-$version-arm64-mac.zip"
+          mkdir "$RUNNER_TEMP/assets"
+          mv "$RUNNER_TEMP/out/Doan-macos-arm64.dmg" "$RUNNER_TEMP/out/Doan-$version-arm64-mac.zip" \
+            "$RUNNER_TEMP/out/Doan-$version-arm64-mac.zip.blockmap" "$RUNNER_TEMP/out/latest-mac.yml" "$RUNNER_TEMP/assets/"
+      # Uploaded once, after stapling, because stapling changes the dmg bytes.
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-${{ github.ref_name }}
+          path: ${{ runner.temp }}/assets/
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+  # No environment and no secrets: only the built assets and a token that can
+  # write releases.
+  publish:
+    needs: [source, sign]
+    if: needs.source.outputs.dry_run == 'false'
+    runs-on: macos-26
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-${{ github.ref_name }}
+          path: assets
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Checked again with a token that can see drafts, which the source
+          # job's read-only token may not.
+          node app/scripts/checkReleaseVersion.mjs --tag "$GITHUB_REF_NAME"
+          prerelease=()
+          [[ "$GITHUB_REF_NAME" != *-rc.* ]] || prerelease=(--prerelease)
+          gh release create "$GITHUB_REF_NAME" --draft --verify-tag "${prerelease[@]}" --notes "" assets/*

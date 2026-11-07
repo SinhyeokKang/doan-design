@@ -8,7 +8,7 @@ Where things live, one entry per directory. File-level detail is in the code; ru
 - `LICENSE`, `README.md`, `AGENTS.md`; `.gitattributes`: union merge for `.doan/comments/*.jsonl` and `.doan/**` as linguist documentation.
 - `.agents/skills/<name>/`: development skills (source); `.claude/skills/<name>` are symlinks to them. `verify/scripts/` holds the shared gate (`verify.mjs`) and its tests.
 - `.claude/settings.json`: Claude Code settings, including the response-style `UserPromptSubmit` hook.
-- `.github/`: issue forms (`ISSUE_TEMPLATE/`), the pull request template and `workflows/` (the CI gate, `ci.yml`).
+- `.github/`: issue forms (`ISSUE_TEMPLATE/`), the pull request template and `workflows/` (the CI gate `ci.yml`, and the signing workflows `test-build.yml` and `release.yml`).
 - `docs/`: product, architecture and working documents; `docs/features/<slug>/` holds active feature plans, audit reports and chain files.
 - `docs/assets/readme/`: the README's feature images, exported from the frames of `.doan/canvases/readme-features.html`.
 - `.scratch/`: ignored experiments, probe scripts and evidence.
@@ -35,7 +35,7 @@ Where things live, one entry per directory. File-level detail is in the code; ru
 ## App (Electron + TypeScript)
 
 - `app/`: the npm project, build and test configuration (`package.json` also carries the electron-builder settings), `components.json` (shadcn), `.npmrc` (exact pins) and `.oxlintrc.json` (lint configuration).
-- `app/scripts/`: packaging (`package.mjs`). `app/resources/`: the packaged app icon source, the installer disk background and the signing entitlements.
+- `app/scripts/`: packaging (`package.mjs`) and the release checks the signing workflows, `/tester-build` and `/release` run (`checkReleaseVersion.mjs`, `verifySignedPackage.mjs`). `app/resources/`: the packaged app icon source, the installer disk background and the signing entitlements.
 - `app/src/main/`: the Electron main process (`index.ts` is the entry) — window, menus, IPC, local server wiring, folder lifecycle, CLI runner, persistence and notifications. Subdirectories:
   - `agentAuth/`: Doan-owned agent sign-in, vault and profiles.
   - `agentSetup/`: launch-time agent setup for sessions outside Doan.

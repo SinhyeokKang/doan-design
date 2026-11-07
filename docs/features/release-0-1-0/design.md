@@ -139,7 +139,7 @@ design-draft·design-sync의 "on main"은 "출시됐다"가 아니라 "통합됐
 - 제약:
   - 새 PR의 기본 대상이 `main`이다. CONTRIBUTING·PR 템플릿은 `develop`을 대상으로 적고, 스킬은 `gh pr create --base develop`을 늘 명시하며, 외부 PR이 `main`으로 오면 메인테이너가 대상을 `develop`으로 바꾼다.
   - Orca의 `worktree create`는 `--base-branch`가 없으면 저장소 기본 브랜치(`main`)에서 나온다. 스킬은 `--base-branch`를 늘 명시한다.
-  - `workflow_dispatch`와 예약(`schedule`) 실행은 워크플로 파일이 기본 브랜치(`main`)에 있어야 돈다. 그래서 첫 `/release`가 워크플로를 `main`에 넣기 전에는 dispatch로 테스트 빌드를 시작할 수 없다. D8의 시작 방식은 release-ci가 다시 정한다(예: 태그 push 트리거). 태그 push 트리거(D7의 릴리스)는 이 제약을 받지 않는다.
+  - `workflow_dispatch`와 예약(`schedule`) 실행은 워크플로 파일이 기본 브랜치(`main`)에 있어야 돈다. 그래서 첫 `/release`가 워크플로를 `main`에 넣기 전에는 dispatch로 테스트 빌드를 시작할 수 없다. 태그 push 트리거는 이 제약을 받지 않으므로 D8의 테스트 빌드는 `tester-*` 태그 push로 시작한다(사용자, 2026-11-08, release-ci).
 
 ### D3. 하네스·문서 변경이 들어가는 브랜치 — 결론(사용자, 2026-11-07)
 - 지금 브랜치에 커밋하고, `develop`이면 바로 push한다. `main`에는 커밋하지 않는다(`main` 체크아웃이면 `develop`으로 바꾼 뒤 커밋한다). `hotfix/*` 체크아웃에는 그 수정만 커밋한다. 공개 뒤 `main` 보호 규칙(G3c)이 이것을 강제한다.
@@ -152,7 +152,7 @@ design-draft·design-sync의 "on main"은 "출시됐다"가 아니라 "통합됐
 - 제약: `-latest` 라벨은 1–2개월에 걸쳐 조용히 바뀐다(runner-images README). 앱 테스트 일부가 darwin을 가정한다.
 
 ### D6. 서명 비밀의 보관과 실행 권한 — 결론(사용자, 2026-11-07)
-- 환경 `release`(필수 검토자 = 사용자, 배포 ref = 릴리스 워크플로를 시작하는 `v*` 태그와 테스트 빌드의 `develop`)에 비밀을 두고, 서명 작업만 그 환경을 쓴다. 공증은 기존 App Store Connect API Team 키(지금 `doan-notary`와 같은 키)로 한다. `APPLE_API_KEY`는 `.p8` 파일 경로라서 워크플로가 비밀 내용을 `$RUNNER_TEMP`의 파일로 쓰고 그 경로를 넘긴다('조사').
+- 환경 `release`(필수 검토자 = 사용자, 배포 ref = 릴리스 워크플로를 시작하는 `v*` 태그, 테스트 빌드의 `tester-*` 태그, 릴리스 dry run의 `release-dryrun-*` 태그)에 비밀을 두고, 서명 작업만 그 환경을 쓴다. 공증은 기존 App Store Connect API Team 키(지금 `doan-notary`와 같은 키)로 한다. `APPLE_API_KEY`는 `.p8` 파일 경로라서 워크플로가 비밀 내용을 `$RUNNER_TEMP`의 파일로 쓰고 그 경로를 넘긴다('조사').
 - 제약: 무료 계정은 공개 저장소에서만 환경을 쓸 수 있다(D21의 순서가 이것에 기댄다).
 
 ### D7. 릴리스 Release의 게시 방식 — 결론(사용자, 2026-11-07)
@@ -160,7 +160,7 @@ design-draft·design-sync의 "on main"은 "출시됐다"가 아니라 "통합됐
 - 제약: electron-builder는 태그를 만들지 않으므로('조사') 태그는 스킬이 먼저 만든다.
 
 ### D8. 테스트 빌드 — 결론(사용자, 2026-11-07)
-- CI의 `workflow_dispatch`가 `develop` HEAD를 서명·공증한 dmg를 Actions 산출물로 남긴다. ref 입력은 두지 않는다(2026-11-07 `/feature-review`: 환경 규칙은 워크플로가 도는 브랜치만 보므로 입력 ref가 있으면 임의 커밋을 서명할 수 있다). `/tester-build`는 그 워크플로를 시작해 받은 dmg를 Desktop에 두는 스킬로 바뀐다. 테스트 빌드는 업데이트 확인을 끈다.
+- `/tester-build`가 `origin/develop` HEAD에 `tester-*` 태그를 push하면 CI가 그 커밋을 서명·공증한 dmg를 Actions 산출물로 남긴다. 워크플로는 태그 커밋이 `develop`에 있는지 검사한다(2026-11-07 `/feature-review`: 환경 규칙은 ref 이름만 보므로 검사가 없으면 임의 커밋을 서명할 수 있다). `workflow_dispatch`는 기본 브랜치 `main`에 파일이 있어야 돌아 쓰지 않는다(D2, 사용자 2026-11-08). `/tester-build`는 태그를 push해 받은 dmg를 Desktop에 두는 스킬로 바뀐다. 테스트 빌드는 업데이트 확인을 끈다.
 
 ### D9. 업데이트 방식 — 결론(사용자, 2026-11-07)
 - `electron-updater` + GitHub 공급자.
