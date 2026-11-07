@@ -12,7 +12,7 @@ interface Props {
 }
 
 // The temporary Home-conversation strip at the top of the workspace body, the shared panel
-// notice with actions, until buzz-conversation's panel replaces it.
+// notice with actions, until the conversation panel replaces it.
 export function ConversationStrip({ conversationId, provider, state, view, onEditOnHome, onDismiss, onOpen }: Props) {
   const stop = useRef<HTMLButtonElement | null>(null);
   const dismiss = useRef<HTMLButtonElement | null>(null);

@@ -225,7 +225,7 @@ describe("loading and read errors", () => {
 });
 
 // Tailwind's preflight and styles.css's own `ol { list-style: none; }` would hide the markers; static markup cannot
-// show that, so the rules are pinned here (their look is compared when buzz-project places the thread).
+// show that, so the rules are pinned here (their look is compared when the project Overview places the thread).
 test("agent reply lists keep their bullets and numbers", () => {
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   const rules = [".conversation-thread .md ul { list-style: disc; }", ".conversation-thread .md ol { list-style: decimal; }", ".conversation-thread .md ul ul { list-style: circle; }"];
@@ -361,7 +361,7 @@ describe("reply chips", () => {
     expect(out).toContain('aria-label="Open checkout and show gone"');
   });
 
-  // Runtime test C against the draft (conductor's call, fix round 2): an other-canvas chip is at most 180px like every
+  // A runtime test against the draft: an other-canvas chip is at most 180px like every
   // chip, the label shrinks and ellipsizes first and the suffix is never cut; the chip grows past 180px only when the
   // suffix alone does not fit, and never past the reply block. Pure CSS; the real-app widths are checked by batch C.
   test("the label and the canvas name are drawn apart, so the label ellipsizes first inside the 180px chip", () => {
@@ -378,7 +378,7 @@ describe("reply chips", () => {
     // The plain chip keeps its 180px cap, which a reply chip shares; min-width beats it only for a long suffix.
     expect(css).toMatch(/\.anchor-chip \{ display: inline-flex; align-items: center; gap: var\(--space-1\); max-width: 180px; margin: 0 var\(--space-half\); padding: 0 var\(--space-1h\);/);
     expect(css.indexOf(chip)).toBeGreaterThan(css.indexOf(".anchor-chip { display: inline-flex;"));
-    // Fix round 1's growth past 180px for every suffix chip is gone.
+    // An earlier growth past 180px for every suffix chip is gone.
     expect(css).not.toContain("> span:not(.chip-canvas) { max-width:");
     expect(css).not.toMatch(/\.anchor-chip:has\(> span\.chip-canvas\) \{[^}]*max-width/);
     expect(css).toContain(".conversation-thread .thread-item > .msg-agent + .chip-missing { margin-top: var(--space-1h); }");

@@ -2,7 +2,7 @@ import type { Provider } from "../main/agentAuth/types";
 import type { ConversationEvent, PermissionOption, PermissionRequest, QuestionRequest } from "../main/conversation/types";
 import { PROVIDER_NAMES } from "./agentAuthView";
 
-// The temporary workspace strip for a Home conversation, until buzz-conversation's panel
+// The temporary workspace strip for a Home conversation, until the conversation panel
 // replaces it. Copy follows the draft's 'States · Conversation strip' board.
 
 export type StripState =
