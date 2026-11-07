@@ -1196,7 +1196,7 @@ describe("text edit menu", () => {
 
   test("edit items are click items carrying Chromium's enablement", () => {
     const { template } = rightClick({ selectionText: "", misspelledWord: "", editFlags: { ...FLAGS, canCut: false, canCopy: false } });
-    expect(template?.map(entry => entry.type ?? [entry.label, entry.enabled, typeof entry.click, entry.role])).toEqual([["Cut", false, "function", undefined], ["Copy", false, "function", undefined], ["Paste", true, "function", undefined], "separator", ["Select All", true, "function", undefined]]);
+    expect(template?.map(entry => entry.type ?? [entry.label, entry.enabled, entry.accelerator, typeof entry.click, entry.role])).toEqual([["Cut", false, "CmdOrCtrl+X", "function", undefined], ["Copy", false, "CmdOrCtrl+C", "function", undefined], ["Paste", true, "CmdOrCtrl+V", "function", undefined], "separator", ["Select All", true, "CmdOrCtrl+A", "function", undefined]]);
   });
 
   // text-edit-menu condition 9: the field the menu opened on may be gone by the time an item is chosen.

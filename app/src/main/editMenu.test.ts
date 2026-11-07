@@ -193,7 +193,7 @@ describe("editMenuTemplate", () => {
 
   test("edit items are click items with macOS labels and Chromium's enablement", () => {
     const template = editMenuTemplate(input({ flags: { ...ALL, canCut: false, canCopy: false } }), contents());
-    expect(template.map(entry => "label" in entry ? [entry.label, entry.enabled] : "-")).toEqual([["Cut", false], ["Copy", false], ["Paste", true], "-", ["Select All", true]]);
+    expect(template.map(entry => "label" in entry ? [entry.label, entry.enabled, entry.accelerator] : "-")).toEqual([["Cut", false, "CmdOrCtrl+X"], ["Copy", false, "CmdOrCtrl+C"], ["Paste", true, "CmdOrCtrl+V"], "-", ["Select All", true, "CmdOrCtrl+A"]]);
     expect(template.some(entry => "role" in entry)).toBe(false);
   });
 
@@ -247,6 +247,12 @@ describe("editMenuTemplate", () => {
     expect(target.executeJavaScript).not.toHaveBeenCalled();
     expect(target.replaceMisspelling).not.toHaveBeenCalled();
     expect(target.paste).not.toHaveBeenCalled();
+  });
+
+  test("suggestions and Look Up carry no shortcut hint; a non-editable Copy keeps ⌘C", () => {
+    const template = editMenuTemplate(SPELLING, contents());
+    expect(template.filter(entry => "label" in entry && (entry.label === "the" || entry.label === "Look Up “teh”")).map(entry => "accelerator" in entry ? entry.accelerator : undefined)).toEqual([undefined, undefined]);
+    expect(editMenuTemplate(input({ editable: false, selection: "x" }), contents()).at(-1)).toMatchObject({ label: "Copy", accelerator: "CmdOrCtrl+C" });
   });
 
   test("Look Up and a non-editable menu's Copy run without a check", async () => {

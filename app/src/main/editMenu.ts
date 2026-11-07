@@ -91,9 +91,11 @@ export interface EditMenuContents {
   executeJavaScript(code: string): Promise<unknown>;
 }
 
-export type EditMenuTemplateItem = { label: string; enabled?: boolean; click: () => void } | { type: "separator" };
+export type EditMenuTemplateItem = { label: string; enabled?: boolean; accelerator?: string; click: () => void } | { type: "separator" };
 
 const EDIT_LABELS: Record<EditRole, string> = { cut: "Cut", copy: "Copy", paste: "Paste", selectAll: "Select All" };
+// Only for the hint macOS draws beside the label: a click item loses the one a role item showed.
+const EDIT_ACCELERATORS: Record<EditRole, string> = { cut: "CmdOrCtrl+X", copy: "CmdOrCtrl+C", paste: "CmdOrCtrl+V", selectAll: "CmdOrCtrl+A" };
 
 // True only while the focused element is the one under the menu's point, or holds it (a chip inside the composer).
 // A fixed script with two numbers in it: main never runs a string the renderer chose. Non-finite input gets no script,
@@ -121,7 +123,7 @@ export function editMenuTemplate(input: EditMenuInput, contents: EditMenuContent
   };
   return editMenuItems(input).map((item): EditMenuTemplateItem => {
     switch (item.kind) {
-      case "role": return { label: EDIT_LABELS[item.role], enabled: item.enabled, click: checked(() => contents[item.role]()) };
+      case "role": return { label: EDIT_LABELS[item.role], enabled: item.enabled, accelerator: EDIT_ACCELERATORS[item.role], click: checked(() => contents[item.role]()) };
       case "suggestion": return { label: item.word, click: checked(() => contents.replaceMisspelling(item.word)) };
       case "lookUp": return { label: item.label, click: () => { if (!contents.isDestroyed()) contents.showDefinitionForSelection(); } };
       case "separator": return { type: "separator" };
