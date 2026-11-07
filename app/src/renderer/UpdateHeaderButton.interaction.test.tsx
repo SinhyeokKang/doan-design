@@ -59,18 +59,22 @@ afterEach(() => { vi.unstubAllGlobals(); });
 let disabled = false;
 let pressListener: (() => void) | null = null;
 const canvasPress = vi.fn((listener: () => void) => { pressListener = listener; return () => { pressListener = null; }; });
+// The button as mounted: in the shown header, or in a hidden screen's header under [inert].
+let inert = false;
+const node = { closest: (selector: string) => selector === "[inert]" && inert ? {} : selector === "header" ? null : null, focus: vi.fn() };
 function render(): ViewProps {
   let view: ReactElement<ViewProps> | null = null;
   for (let pass = 0; pass < 5; pass++) {
     hooks.cursor = 0; hooks.refCursor = 0; hooks.effectCursor = 0;
     view = UpdateHeaderButton({ disabled, canvasPress }) as ReactElement<ViewProps>;
+    if (view.props.header !== null) view.props.buttonRef(node as unknown as HTMLButtonElement);
     if (!hooks.pending.length) break;
     for (const run of hooks.pending.splice(0)) run();
   }
   return view!.props;
 }
 const flush = async () => { for (let i = 0; i < 6; i++) await Promise.resolve(); };
-beforeEach(() => { disabled = false; pressListener = null; });
+beforeEach(() => { disabled = false; pressListener = null; inert = false; });
 
 test("subscribes to the update push and the menu's popover once, shows nothing until ready, and unsubscribes", () => {
   expect(render().header).toBeNull();
@@ -112,7 +116,7 @@ test("a press while disabled or restarting asks nothing", () => {
 });
 
 test("the Doan menu's blocked Restart to Update opens the reason", () => {
-  render(); push(snap(READY, { gate: { kind: "blocked", reason: "conversation" } }));
+  render(); push(snap(READY, { gate: { kind: "blocked", reason: "conversation" } })); render();
   menuPopover();
   const view = render();
   expect(view.open).toBe(true);
@@ -153,11 +157,23 @@ test("a renderer that first sees a stopped restart does not open it", () => {
 });
 
 test("the popover closes when the update leaves the header, and on a press in the canvas", () => {
-  render(); push(snap(READY, { gate: { kind: "blocked", reason: "conversation" } }));
+  render(); push(snap(READY, { gate: { kind: "blocked", reason: "conversation" } })); render();
   menuPopover(); expect(render().open).toBe(true);
   pressListener!();
   expect(render().open).toBe(false);
   menuPopover(); expect(render().open).toBe(true);
   push(snap({ kind: "restarting", version: "0.1.1" }));
+  expect(render().open).toBe(false);
+});
+
+// (real app, 2026-11-08): the hidden workspace keeps its header mounted under [inert]; the menu's popover opened in
+// both headers and each closed the other at once, so none stayed open.
+test("only the shown header opens a popover nobody pressed for", () => {
+  inert = true;
+  render(); push(snap(READY, { gate: { kind: "blocked", reason: "conversation" } })); render();
+  menuPopover();
+  expect(render().open).toBe(false);
+  push(snap({ kind: "restarting", version: "0.1.1" })); render();
+  push(snap({ kind: "restartAborted", version: "0.1.1" }));
   expect(render().open).toBe(false);
 });

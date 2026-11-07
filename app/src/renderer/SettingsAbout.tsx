@@ -23,9 +23,14 @@ function versionRow(row: UpdateRowView | null, stateId: string, press: (button: 
   let trailing: ReactNode = null;
   if (row === null) trailing = <span className="settings-loading" role="status"><span className="doan-spinner" aria-hidden="true" />{CHECKING}</span>;
   else if (row.busy !== null) trailing = <span className="settings-loading"><span className="doan-spinner" aria-hidden="true" />{row.busy}</span>;
-  else if (row.progress !== null) trailing = <span className="settings-value" aria-hidden="true">{row.progress}%</span>;
-  else if (row.actions.length > 0) trailing = <span className="update-msg-actions">{row.actions.map(button => <button key={button.action} type="button" className="doan-button"
-    data-ui-variant={button.prominent ? "prominent" : "subtle"} data-ui-size="sm" aria-label={button.ariaLabel} onClick={() => press(button)}>{button.label}</button>)}</span>;
+  else if (row.progress !== null) trailing = <span className="settings-value" aria-hidden="true">{`${row.progress}%`}</span>;
+  else if (row.actions.length > 0) {
+    const buttons = row.actions.map(button => <button key={button.action} type="button" className="doan-button"
+      data-ui-variant={button.prominent ? "prominent" : "subtle"} data-ui-size="sm" aria-label={button.ariaLabel} onClick={() => press(button)}>{button.label}</button>);
+    // A lone Check for Updates sits in the trailing column as the shipped rows' single control does; a pair, or an
+    // action answering the line under the row, sit together in the actions group.
+    trailing = row.actions.length === 1 && row.error === null ? buttons : <span className="update-msg-actions">{buttons}</span>;
+  }
   return <div className="doan-preference-row" data-about="version">
     <div className="doan-preference-row-content"><span className="doan-preference-row-label">Version</span>
       {row !== null && <span className="doan-preference-row-description"><span id={stateId}>{row.description}</span>

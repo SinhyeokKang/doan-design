@@ -47,6 +47,9 @@ export function UpdateHeaderButton({ disabled, canvasPress }: { disabled: boolea
   // The menu's popover can come right after a push, before the render that push asked for.
   const latest = useRef<UpdateSnapshot | null>(null);
   const header = snapshot === null ? null : updateView(snapshot, Date.now()).header;
+  // Every screen draws its own header and the hidden ones stay mounted under [inert]. Only the shown one opens a
+  // popover nobody pressed for: two open at once each close the other (the first one's focus is outside the second).
+  const shownHeader = () => button.current !== null && button.current.closest("[inert]") === null;
   const open = (notice: UpdateNotice, focus: boolean) => { quiet.current = !focus; setShown(notice); };
   useEffect(() => {
     let previous: UpdateSnapshot["state"]["kind"] | null = null;
@@ -54,7 +57,7 @@ export function UpdateHeaderButton({ disabled, canvasPress }: { disabled: boolea
       // Only a restart seen stopping opens on its own; a renderer that loads into the stopped state does not.
       if (previous === "restarting" && next.state.kind === "restartAborted") {
         const popover = updateView(next, Date.now()).header?.popover;
-        if (popover) open(popover, false);
+        if (popover && shownHeader()) open(popover, false);
       }
       previous = next.state.kind;
       latest.current = next;
@@ -64,7 +67,7 @@ export function UpdateHeaderButton({ disabled, canvasPress }: { disabled: boolea
   // Main has already shown the window.
   useEffect(() => window.doan.onUpdatePopover(() => {
     const now = latest.current === null ? null : updateView(latest.current, Date.now()).header;
-    if (now !== null && !now.busy) open(UPDATE_BLOCKED, true);
+    if (now !== null && !now.busy && shownHeader()) open(UPDATE_BLOCKED, true);
   }), []);
   // Restarting or no update: nothing to explain.
   const closed = header === null || header.busy;
