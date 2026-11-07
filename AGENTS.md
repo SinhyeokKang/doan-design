@@ -123,7 +123,9 @@ The source for development skills is `.agents/skills/<name>/SKILL.md` (pipeline 
 | docs/DESIGN.md | Measured values the app UI relies on, documented deviations from drafts, unverified surfaces, as the UI is now, in English | When `/design-sync` runs or a measured value changes |
 | docs/POSTMORTEM.md | Record of pitfalls from bugs and regressions (newest date first; preserve existing entry content), in English. `/postmortem` creates it on first write | When a regression is fixed |
 | docs/USABILITY-EVAL.md | How agents fare writing and reading Doan designs: the usability loop, the issue list and `/agent-eval` rounds, in English | When `/agent-eval` runs or an agent usability issue is found or fixed |
-| Documents to create later | `docs/OPERATIONS.md` (release packaging `dist`, BACKLOG.md 'Undecided') · `docs/CONTRIBUTING.md` · `docs/CODE_OF_CONDUCT.md` · `docs/SECURITY.md` (right before going public). All in English | Create them when that time comes. Do not create empty shells ahead of time |
+| [docs/CONTRIBUTING.md](./docs/CONTRIBUTING.md) | How outside contributors work: decision sources, setup, branches, the verify gate, commits, working with agents, in English. Summarizes this file for humans; the rules themselves stay here | When the way we work changes in a way contributors see (branches, checks, commit rules, skills they can run) |
+| [docs/CODE_OF_CONDUCT.md](./docs/CODE_OF_CONDUCT.md) · [docs/SECURITY.md](./docs/SECURITY.md) | Contributor Covenant 3.0 with the maintainer as the reporting contact; the security policy (private vulnerability reporting, supported versions, scope), in English. Issue and PR templates are in `.github/` | When the contact, the supported versions or the reporting path changes |
+| Documents to create later | `docs/OPERATIONS.md` (release packaging `dist`, BACKLOG.md 'Undecided'), in English | Create it when that time comes. Do not create an empty shell ahead of time |
 | [AGENTS.md](./AGENTS.md) | How we work (this file), in English — the shared source for both runtimes | When the way we work changes |
 
 ## Commit conventions
