@@ -687,6 +687,20 @@ describe("inspector rows from main", () => {
     } finally { h.controller.dispose(); }
   });
 
+  // problem-project-overlay R2 🟡2: under a problem's overlay Esc takes no step on the covered canvas.
+  it("keeps the selection on Escape while the canvas is covered", () => {
+    const h = selectionHarness();
+    try {
+      h.select(1);
+      h.controller.setCovered(true);
+      h.key("Escape");
+      expect(h.state().selection).not.toBeNull();
+      h.controller.setCovered(false);
+      h.key("Escape");
+      expect(h.state().selection).toBeNull();
+    } finally { h.controller.dispose(); }
+  });
+
   it("drops an answer that arrives after the selection was cleared", async () => {
     const h = selectionHarness();
     try {

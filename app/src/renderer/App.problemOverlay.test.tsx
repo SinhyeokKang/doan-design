@@ -50,7 +50,7 @@ vi.mock("./CanvasController", async original => ({
     constructor(_viewport: unknown, _board: unknown, _overlay: unknown, setState: (state: unknown) => void) {
       harness.setState = setState;
       const self = this as unknown as Record<string, ReturnType<typeof vi.fn>>;
-      for (const name of ["dispose", "command", "updateEntries", "setWorkspaceActive", "setCanvasPage", "setTool", "restoreTool", "openCanvas", "cancelWorkspaceOpen", "remember", "selectPath", "onPicked", "pick", "cancelPick", "onCapture", "startCapture", "cancelCapture", "locate", "dropPendingLocate", "settleFit"]) self[name] = vi.fn();
+      for (const name of ["dispose", "command", "updateEntries", "setWorkspaceActive", "setCanvasPage", "setCovered", "setTool", "restoreTool", "openCanvas", "cancelWorkspaceOpen", "remember", "selectPath", "onPicked", "pick", "cancelPick", "onCapture", "startCapture", "cancelCapture", "locate", "dropPendingLocate", "settleFit"]) self[name] = vi.fn();
       self.openWorkspace = vi.fn((root: string, done: (root: string) => void) => done(root));
       self.showOverview = vi.fn((done: () => void) => done());
       self.destination = vi.fn((root: string) => ({ root }));
@@ -68,7 +68,7 @@ const { ShellSidebar } = await import("./ShellSidebar");
 const { ProjectOverview } = await import("./ProjectOverview");
 const { ProblemOverlay } = await import("./ProblemOverlay");
 const { ProjectSetupDialog } = await import("./ProjectSetupDialog");
-const { KeyedConversationStrip } = await import("./ConversationStripView");
+const { KeyedConversationStrip, ConversationStrip } = await import("./ConversationStripView");
 const { HomeRun } = await import("./homeRun");
 const { OverviewRun } = await import("./overviewRun");
 const { Home } = await import("./Home");
@@ -274,6 +274,8 @@ test("Locate from the overlay opens the located root; a root still in a problem 
     expect(call.length, after.kind).toBe(args);
     if (args === 5) expect(call[4]).toBe(true);
     expect(overview()?.root).toBe("/w/moved");
+    if (args === 5) expect(overlay()?.view).toMatchObject({ kind: "problem", entryKind: "uninitialized" });
+    else expect(overlay()).toBeUndefined();
   }
 });
 
@@ -408,6 +410,60 @@ test("reading: a list read within 300 ms shows nothing and moves no focus; past 
   expect(overlay()?.view).toMatchObject({ kind: "problem", entryKind: "error", busy: false });
 });
 
+// R2 🟡1: the covered Overview's inert comes off in the same commit the overlay goes; focus must reach the composer
+// after it, not the sidebar row. The fake DOM keeps the inert state its toggle sets, and focus falls to the page only
+// because the overlay (and the Retry button in it) left the tree (POSTMORTEM 2026-10-24).
+test("Retry that clears the problem lands focus in the Overview's composer once it is no longer inert", () => {
+  render(); folders([configError()]);
+  toOverview();
+  const ovMain = Object.assign(element("ov-main"), { inert: false });
+  ovMain.toggleAttribute = ((_name: string, on: boolean) => { ovMain.inert = on; return on; }) as never;
+  const composer = Object.assign(element("composer", ["ov-main", "workspace"]), {
+    closest: (selector: string) => selector === "[inert]" ? (ovMain.inert ? ovMain : null) : ["ov-main", "workspace"].some(name => selector.includes(name)) ? {} : null,
+  });
+  const retry = element("retry", ["problem-overlay", "workspace"]);
+  Object.defineProperty(retry, "isConnected", { get: () => overlay() !== undefined });
+  const row = element("row", ["shell-side", "workspace"]);
+  const nodes: Record<string, unknown> = { [HEADING]: element("heading", ["problem-overlay", "workspace"]), [COMPOSER]: composer };
+  vi.stubGlobal("document", { get activeElement() { return overlay() ? retry : BODY; }, body: BODY, hasFocus: () => true, querySelector: (selector: string) => nodes[selector] ?? null,
+    querySelectorAll: (selector: string) => selector.includes(".ov-main") ? [ovMain] : selector.includes("treeitem") ? [row] : [] });
+  render();
+  expect(ovMain.inert).toBe(true);
+  overlay()!.onAction("retry"); render();
+  folders([loading()]);
+  focused.length = 0;
+  folders([listed("/w/a")]);
+  expect(overlay()).toBeUndefined();
+  expect(ovMain.inert).toBe(false);
+  expect(focused).toEqual(["composer"]);
+});
+
+// R2 🟡2: Esc's steps reach no covered canvas.
+test("the overlay tells the controller its canvas is covered, and not once it goes", () => {
+  render(); folders([listed("/w/a")]);
+  canvasOpen();
+  expect(harness.controller!.setCovered).toHaveBeenLastCalledWith(false);
+  folders([configError()]);
+  expect(harness.controller!.setCovered).toHaveBeenLastCalledWith(true);
+  folders([listed("/w/a")]);
+  expect(harness.controller!.setCovered).toHaveBeenLastCalledWith(false);
+});
+
+// R2 ⚪1: a press that ends without a busy phase leaves no spinner for a later read the person did not start.
+test("a Retry that settles without a read, or a cancelled Remove, leaves no pressed action for a later busy scene", async () => {
+  vi.useFakeTimers();
+  render(); folders([configError()]);
+  toOverview();
+  overlay()!.onAction("retry"); render();
+  expect(overlay()?.pressed).toBe("retry");
+  await flush();
+  expect(overlay()?.pressed).toBeNull();
+  overlay()!.onAction("remove"); render();
+  (removalDialog()!.props.onCancel as (event: { preventDefault(): void }) => void)({ preventDefault: vi.fn() }); render();
+  folders([loading()]);
+  expect(overlay()).toMatchObject({ view: { busy: true }, pressed: null });
+});
+
 test("when the problem clears with focus in the overlay, focus goes to the composer or the canvas area, not the page body", () => {
   render(); folders([configError()]);
   toOverview();
@@ -503,6 +559,24 @@ test("a problem workspace keeps the conversation strip over the overlay without 
   expect(strip!.props.view.actions.map(action => action.command)).toEqual(["dismiss"]);
   folders([listed("/w/a")]);
   expect(find(KeyedConversationStrip)).toHaveLength(0);
+});
+
+test("over the overlay the strip's Stop and permission answers still reach their handlers", () => {
+  render(); folders([listed("/w/a")]);
+  toOverview();
+  doan.interruptConversation = vi.fn(async () => {});
+  doan.answerConversationPermission = vi.fn(async () => {});
+  vi.spyOn(homeRun(), "strip").mockReturnValue({ conversation: { conversationId: "c1", root: "/w/a", provider: "codex", phase: "waiting" },
+    state: { kind: "permission", requestId: "r1", summary: "Edit a.html", options: [{ id: "allow", label: "Allow", kind: "allow" }] } } as never);
+  folders([notFound()]);
+  expect(overlay()).toBeDefined();
+  const strip = find<Parameters<typeof ConversationStrip>[0]>(KeyedConversationStrip)[0]!;
+  const buttons = all(ConversationStrip(strip.props) as ReactNode).filter(element => element.type === "button");
+  const press = (label: string) => (buttons.find(button => [button.props.children].flat(2).includes(label))!.props.onClick as () => void)();
+  press("Allow");
+  expect(doan.answerConversationPermission).toHaveBeenCalledWith({ conversationId: "c1", requestId: "r1", optionId: "allow" });
+  press("Stop");
+  expect(doan.interruptConversation).toHaveBeenCalledWith({ conversationId: "c1" });
 });
 
 test("a re-read shorter than 300 ms does not flash the strip in; the reading panel brings it", () => {
