@@ -26,7 +26,13 @@
 4. 커밋 scope: `app/src/*`는 `chore(app)`, `cli`는 `chore(cli)`, `eval`은 `chore(eval)`(지휘자 판단 — 근거: tasks의 꼴을 디렉터리에 맞춤).
 5. 감시: Orca 1.4.250 안내서는 감시 스크립트의 `check`가 메일을 가로챈다며 폴링을 금한다. Orca가 `worker_done`·`question`·`escalation`(stopReason 포함)으로 지휘자를 깨우므로 이 run은 별도 루프를 돌리지 않는다(지휘자 판단 — 근거: 버전이 맞는 바이너리 안내서가 orchestrate §2의 루프 예시보다 우선).
 6. 테스트 제목을 바꾸면 이름으로 찾는 곳이 깨질 수 있다: 저장소에 snapshot 파일과 `-t`·`testNamePattern` 사용이 없다(`git grep`, 2026-11-07).
-7. T1 gitleaks 버전 고정: (T1 진행 뒤 기록)
+7. T1 gitleaks 버전 고정: `github.com/zricethezav/gitleaks/v8@v8.30.1`(2026-02-21 게시, `go list -m -versions`의 최신). `git fetch`로 원격 ref 197개(PR ref 121개 포함)를 받고 `--log-opts=--all`로 5,945개 커밋을 스캔했다(38초, exit 1). 발견 269건, 진짜 비밀 0건: schema 픽스처의 자리표시자 token 264건(반복·순차 hex), Go 테스트 상수 3건(`testToken`, `testHandoffKey`), redaction 테스트의 가짜 curl 인증 2건(`example.invalid`). 값은 출력하지 않고 해시와 꼴로만 분류했다. 무시 목록(fingerprint)과 요약은 `.scratch/public-cleanup/gitleaks-{ignore.txt,summary.md}`.
+
+8. batch 끝의 전체 `npm --prefix app test`를 바꾼 테스트 파일만 도는 `--maxWorkers=2` 실행으로 줄였다(지휘자 판단, 2026-11-07 21:10 — 근거: worker 8개가 동시에 돌아 load average가 213–264까지 올랐다. B3는 `quickOpen.test.ts`의 50ms 기준이 195ms로 실패했고, B2d는 전체 실행이 진행되지 않았다). 전체 suite는 통합 뒤 지휘자가 한 번 돌린다.
+
+10. 주석의 "(user decision 2026-10-28)"처럼 날짜만 단 사용자 결정 표기는 feature 문서의 id가 아니므로 남기고 허용 목록에 넣는다. 함께 붙은 task id(예: `R-B3`)는 D26대로 지운다(지휘자 판단 — 근거: D26은 문서의 절·결정·task id·slug를 금하고, 날짜 표기는 그 어느 것도 아니다).
+
+11. B2c 리뷰의 🟡(① 커밋 안에 참조 삭제를 넘는 문장 재작성 3곳)은 고치지 않고 받아들였다(지휘자 판단 — 근거: 리뷰어가 세 곳을 원문과 대조해 의미 변화가 없다고 확인했다. ①·②·③ 분리는 리뷰 깊이를 정하려는 것이고, 이 줄들은 이미 깊게 리뷰됐다. 커밋을 다시 나누는 것은 이력만 바뀐다). B2a의 ⚪(① 커밋 안 문장 첫 글자 대문자화)도 같다.
 
 ## batch
 
@@ -35,15 +41,18 @@
 | batch | 파일 소유 | 규모(합집합) | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|
 | B1a | `app/src/main/conversation/**` | 175줄, 57파일 | Claude Opus high — 결정 id 인용이 가장 촘촘하고, 대화 전송 불변식의 이유를 이력에서 옮겨야 한다 | 커밋마다 typecheck·lint, 끝에 app test, 범위 scan | 대기 |
-| B1b | `app/src/main/**`(conversation 밖) | 172줄, 83파일 | Claude Sonnet high — 이유 판단이 섞인 다수 파일 | 같음 | 대기 |
-| B2a | `app/src/renderer/App.tsx`, `styles.css` | 105줄, 2파일 | Claude Sonnet high — JSX·CSS 주석 문법, 큰 파일 둘 | 같음 | 대기 |
-| B2b | `app/src/renderer/{canvas,Canvas}*`(최상위) | 154줄, 37파일 | Claude Sonnet high | 같음 | 대기 |
-| B2c | `app/src/renderer/{home,Home,conversation,Conversation}*`(최상위) | 175줄, 33파일 | Claude Sonnet high | 같음 | 대기 |
-| B2d | renderer 나머지 중 a–d로 시작(`components/`, `ds/` 포함) | 201줄, 54파일 | Codex Sol high — 기계적 처리가 다수이고 단계가 많다(교차 허용) | 같음 | 대기 |
-| B2e | renderer 나머지 중 e–z로 시작(`public/` 포함) | 248줄, 77파일 | Claude Sonnet high | 같음 | 대기 |
+| B1b | `app/src/main/**`(conversation 밖) | 172줄, 83파일 | Claude Sonnet high — 이유 판단이 섞인 다수 파일 | 같음 | 완료(`4a57f7cc` `93a70eb8` `8df79b9f` fixup `b976db53`, 남은 ref 9·ko 9), 리뷰 중 |
+| B2a | `app/src/renderer/App.tsx`, `styles.css` | 105줄, 2파일 | Claude Sonnet high — JSX·CSS 주석 문법, 큰 파일 둘 | 같음 | 완료(`4a695b7e` `1429d9b9` `e2495403`, scan 0/0), 리뷰 중 |
+| B2b | `app/src/renderer/{canvas,Canvas}*`(최상위) | 154줄, 37파일 | Claude Sonnet high | 같음 | 완료(`eeb3ff5d` `4e265103` `8476bb3b`, 남은 ko 7은 테스트 데이터), 리뷰 중 |
+| B2c | `app/src/renderer/{home,Home,conversation,Conversation}*`(최상위) | 175줄, 33파일 | Claude Sonnet high | 같음 | 완료(`347f4c30` `9a340f59`, ② 없음, 남은 scan은 테스트 데이터 ref 2·ko 3), 리뷰 🔴0 🟡1(결정 11로 수용), 통합 |
+| B2d | renderer 나머지 중 a–d로 시작(`components/`, `ds/` 포함) | 201줄, 54파일 | Codex Sol high — 기계적 처리가 다수이고 단계가 많다(교차 허용) | 같음 | 완료(`d4385d56` `d668be51` `bd0294c4` fixup, 남은 ko 3은 테스트 데이터), 리뷰 중 |
+| B2e | renderer 나머지 중 e–z로 시작(`public/` 포함) | 248줄, 77파일 | Claude Sonnet high | 같음 | 완료(`975af7dd` `14ccf8f7` `35bd52c3` `5461abaa` fixup, 남은 ref 5·ko 22는 테스트 데이터·날짜 문장), 리뷰 중 |
 | B3 | `app/src/restore`, `app/src/preload`, `app/runtime`, `app/scripts`, `cli`, `eval`, 초안 세 파일(T4) | 72줄, 36파일 + 초안 5줄 | Codex Sol high — 작고 허용 목록 판단이 대부분, Go·TS·초안이 섞여 단계가 많다(교차 허용) | 커밋마다 typecheck·lint 또는 `go vet ./...`, 끝에 app test·`go test ./...`·eval unit test, `doan check` 전후 diff | 대기 |
 
 - 리뷰: batch마다 독립 리뷰 worker(`/code-review`, 보고만)가 ②③ 커밋을 원문과 대조한다. Claude batch는 Codex Astra medium(교차 읽기), Codex batch는 Claude Opus high가 본다. 리뷰 worker와 모델은 batch가 끝날 때 이 표 아래에 적는다.
+  - B2a 리뷰: Codex `gpt-6-astra` medium, B2a worktree에서 보고만(`ctx_31bd10c9df6e`).
+  - B2c 리뷰: Codex `gpt-6-astra` medium(`ctx_318bf4754acf`). B2d 리뷰: Claude Opus high(`ctx_3a9d9d91ae01`, Codex batch라 교차). B2e 리뷰: Codex `gpt-6-astra` medium(`ctx_77423684996b`). B2b 리뷰: Codex `gpt-6-astra` medium(`ctx_aec971a6c8b5`). B1b 리뷰: Codex `gpt-6-astra` medium(`ctx_d3e9d5dd1ffd`).
+9. B3의 Go 전체 실행이 부하로 `cli/internal/cli` 기본 10분 제한을 넘겼다. 그 패키지만 `-timeout 30m`으로 다시 돌리고, eval은 바꾼 테스트 파일만 돌리게 했다(지휘자 판단 — 근거: 결정 8과 같음). 전체 eval·Go는 통합 뒤 지휘자가 돌린다.
 
 ## task 대응
 
