@@ -8,7 +8,7 @@
 - 링크 1과 2는 `app/src/renderer/SettingsMcpConnectors.tsx`(1: A6 RowButton의 툴팁 설명, 2: URL 칸 `spellCheck={false}`)와 `app/src/renderer/styles.css`(1: Quick Open 읽는 중 행·strip 오류 줄, 2: 앱 크롬 `user-select`)를 함께 고친다.
 - 링크 3은 `app/src/main/index.ts`(2: context-menu, 3: 종료 경로), `Onboarding.tsx`, `SettingsAgents.tsx`(1: Esc·Effort 값, 3: `run` helper)를 함께 고치고, exhaustive-deps 경고 수 N이 앞 두 링크가 바꾸는 renderer 파일에 따라 달라진다.
 
-1. `defect-sweep` — [spec](../defect-sweep/spec.md)·[design](../defect-sweep/design.md)·[tasks](../defect-sweep/tasks.md). `/feature-review` 반영(`06191f45`), BACKLOG 결정(`a75964d0`, `d75f21ec`). 시안 없음(문구·상태 수정이라 DESIGN 측정값만 고친다). 버그 고침이라 먼저 둔다. 다섯 batch 가운데 C(CLI)와 T(테스트·eval)는 링크 안에서 병렬로 시작할 수 있다(design §5).
+1. `defect-sweep` — spec·design·tasks·orch는 링크 1이 승격한 뒤 지웠다(`70c29395`). `/feature-review` 반영(`06191f45`), BACKLOG 결정(`a75964d0`, `d75f21ec`). 시안 없음(문구·상태 수정이라 DESIGN 측정값만 고친다). 버그 고침이라 먼저 둔다. 다섯 batch 가운데 C(CLI)와 T(테스트·eval)는 링크 안에서 병렬로 시작할 수 있다(design §5).
 2. `text-edit-menu` — [spec](../text-edit-menu/spec.md)·[design](../text-edit-menu/design.md)·[tasks](../text-edit-menu/tasks.md). `/feature-review` 반영(`f66c2bf5`). 시안 없음(macOS가 그리는 메뉴, 사용자 결정). 링크 1이 고친 renderer와 `styles.css` 위에서 시작한다.
 3. `ts-lint-gate` — [spec](../ts-lint-gate/spec.md)·[design](../ts-lint-gate/design.md)·[tasks](../ts-lint-gate/tasks.md). `/feature-review` 반영(`58d67bc5`). 앞 두 링크가 병합된 뒤 경고 수 N을 한 번만 정확히 세도록 마지막에 둔다(tasks T4의 rebase 뒤 재측정).
 
