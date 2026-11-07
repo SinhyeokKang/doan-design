@@ -31,6 +31,9 @@ const mainOnly = new Set([
   // notification itself; these carry choices and requests only.
   "preferences:read", "preferences:write", "notifications:test", "notifications:open-settings", "about:read", "about:copy",
   "config:session-start", "config:session-end",
+  // Settings > About's update row, the header button and the Doan menu item; update:state and update:popover are events
+  // main sends, not requests.
+  "update:get", "update:check", "update:install", "update:openNotes",
   "setup:open-external",
   // Install and Update name a provider; main picks the command and writes the script.
   "setup:open-install",
