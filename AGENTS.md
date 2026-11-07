@@ -51,7 +51,7 @@ These apply to conversation replies and reports to the user, and to feature docu
 
 ⚠️ **The source of truth for planning decisions is [docs/PRODUCT.md](./docs/PRODUCT.md) (product judgment) and [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) (structure, formats, conventions). Anything not in those two is undecided.** Both describe the product as it is now; history (dates, who decided, superseded rules, PoC observations) lives in git. Everything they state is decided, whoever decided it: changing it needs the user's approval.
 
-- [README.md](./README.md) is the public introduction: what Doan is, its status, how to build it, background and references. It summarizes; **do not cite README content as a decision** — cite PRODUCT or ARCHITECTURE.
+- [README.md](./README.md) is the public introduction: what Doan is, its status, its features, how to install and build it, and a short background. It summarizes; **do not cite README content as a decision** — cite PRODUCT or ARCHITECTURE.
 - Read ARCHITECTURE.md for the stack and implementation constraints. It holds only what the code cannot tell: conventions, boundaries and invariants, non-obvious constraints with their reason, and public-contract summaries. Shapes, channel lists, field lists and constants stay in code and schemas; the document points to the file. Keep it that way when promoting a feature. **Do not lay down** package manifests, directory structure, or build settings without a request.
 - For product requests outside the scope defined in PRODUCT.md, ask back first, citing that scope, even when asked.
 - When a decision is made, rewrite the relevant document (PRODUCT or ARCHITECTURE) so it states the current rule; delete what it replaces rather than marking it superseded. Do not add dates, decider tags or a log entry; the rationale goes in the commit message. Keep a reason in the text only when it is a non-obvious constraint someone would otherwise undo. AGENTS.md and the skills follow the same rule: they state the current procedure, without dates or history. Update AGENTS.md only when the way we work changes.
@@ -114,7 +114,7 @@ The source for development skills is `.agents/skills/<name>/SKILL.md` (pipeline 
 
 | Document | What | When to update |
 |---|---|---|
-| [README.md](./README.md) | Public introduction, in English — what Doan is, status, what works, build from source, background (the malmoi case), references. Decisions live in PRODUCT.md | When the product's status, capabilities or build steps change |
+| [README.md](./README.md) | Public introduction, in English — what Doan is, status, features (one image each), supported agents, install, CLI, build from source, a short background. Decisions live in PRODUCT.md. Feature images are frames of `.doan/canvases/readme-features.html` (dummy data only) exported to `docs/assets/readme/` (at most 500 KB each); when a screen changes, edit the canvas and export again rather than taking app screenshots | When the product's status, capabilities or build steps change |
 | [docs/PRODUCT.md](./docs/PRODUCT.md) | **Source of truth for product judgment**, in English — problem · users · scope · loop · MVP, as the product is now | When a product decision is made: rewrite the affected text to the current rule |
 | [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | **Source of truth for structure**, in English — conventions (the baseline for skills and `doan check`) · formats · rendering · CLI↔app · skills · stack · distribution · moving between machines | When a structure, format, or conventions decision is made. When a feature is done, promote its conclusions here |
 | `docs/features/<slug>/` | Feature documents (spec·design·tasks) from `/feature`, **in Korean**. Deleted once the conclusions are promoted. Also holds dated `/audit` and `/ux-audit` reports and `/chain` chain files (`chain-YYMMDD/chain.md`) in their own directories; those are not subject to automatic feature-completion deletion | While a feature is in progress, or when an audit produces a report |
@@ -153,5 +153,5 @@ The source for development skills is `.agents/skills/<name>/SKILL.md` (pipeline 
 
 ## References
 
-- `~/code/malmoi` — the origin of this harness. The real-world case in the background (README §1) also came from there. **When referring to the harness, do not carry malmoi's stack or product rules over to this repo.**
+- `~/code/malmoi` — the origin of this harness. The real-world case behind the product (PRODUCT §1) also came from there. **When referring to the harness, do not carry malmoi's stack or product rules over to this repo.**
 - `~/.claude/projects/<checkout path slug>/memory/` — Claude Code-only personal memory (Codex does not read it). **The path differs per machine, so do not hard-code it in docs.**
