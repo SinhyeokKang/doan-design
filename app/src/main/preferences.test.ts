@@ -5,11 +5,11 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { createPreferencesStore, DEFAULT_PREFERENCES, mergePreferences, parsePreferences, parsePreferencesPatch, type PreferencesFs } from "./preferences";
 
 // ARCHITECTURE §7 'Settings IPC': `<userData>/preferences.json`, written and read by TS only, kept by these tests.
-const FULL = { v: 1, notifications: { enabled: false, approval: true, finished: false, failed: true }, newConversation: { provider: "codex", model: "gpt-6", effort: "high" } };
+const FULL = { v: 1, notifications: { enabled: false, approval: true, finished: false, failed: true }, newConversation: { provider: "codex", model: "gpt-6", effort: "high" }, updates: { autoCheck: false } };
 
 describe("parsePreferences", () => {
-  test("defaults: notifications all on, Last used for new conversations", () => {
-    expect(DEFAULT_PREFERENCES).toEqual({ v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: null });
+  test("defaults: notifications all on, Last used for new conversations, automatic update checks on", () => {
+    expect(DEFAULT_PREFERENCES).toEqual({ v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: null, updates: { autoCheck: true } });
   });
 
   test("a missing file is the defaults, with no notice", () => {
@@ -26,8 +26,16 @@ describe("parsePreferences", () => {
 
   test("ignores unknown fields, and a known field left out takes its default", () => {
     const read = parsePreferences(JSON.stringify({ v: 1, theme: "dark", notifications: { approval: false, sound: "ping" }, newConversation: { provider: "cursor", color: 1 } }));
-    expect(read).toEqual({ preferences: { v: 1, notifications: { enabled: true, approval: false, finished: true, failed: true }, newConversation: { provider: "cursor" } }, notice: null });
+    expect(read).toEqual({ preferences: { v: 1, notifications: { enabled: true, approval: false, finished: true, failed: true }, newConversation: { provider: "cursor" }, updates: { autoCheck: true } }, notice: null });
     expect(parsePreferences(JSON.stringify({ v: 1 }))).toEqual({ preferences: DEFAULT_PREFERENCES, notice: null });
+  });
+
+  // A file written before the switch existed keeps checking automatically.
+  test("without the updates key, automatic update checks are on", () => {
+    const { updates: _, ...older } = FULL;
+    expect(parsePreferences(JSON.stringify(older))).toEqual({ preferences: { ...FULL, updates: { autoCheck: true } }, notice: null });
+    expect(parsePreferences(JSON.stringify({ ...FULL, updates: {} }))).toEqual({ preferences: { ...FULL, updates: { autoCheck: true } }, notice: null });
+    expect(parsePreferences(JSON.stringify({ ...FULL, updates: { autoCheck: false, channel: "beta" } }))).toEqual({ preferences: FULL, notice: null });
   });
 
   test("reads a chosen permission mode, and a mode it cannot read as Default for that field only", () => {
@@ -46,7 +54,8 @@ describe("parsePreferences", () => {
       JSON.stringify({ ...FULL, notifications: { ...FULL.notifications, enabled: "yes" } }), JSON.stringify({ ...FULL, notifications: [] }),
       JSON.stringify({ ...FULL, newConversation: { provider: "gemini" } }), JSON.stringify({ ...FULL, newConversation: { model: "x" } }),
       JSON.stringify({ ...FULL, newConversation: { provider: "codex", model: "" } }), JSON.stringify({ ...FULL, newConversation: { provider: "codex", effort: 3 } }),
-      JSON.stringify({ ...FULL, newConversation: "codex" })]) {
+      JSON.stringify({ ...FULL, newConversation: "codex" }),
+      JSON.stringify({ ...FULL, updates: { autoCheck: "yes" } }), JSON.stringify({ ...FULL, updates: { autoCheck: null } }), JSON.stringify({ ...FULL, updates: [] }), JSON.stringify({ ...FULL, updates: false })]) {
       expect(parsePreferences(text), text).toEqual({ preferences: DEFAULT_PREFERENCES, notice: "broken" });
     }
   });
@@ -67,6 +76,14 @@ describe("changing preferences", () => {
     expect(mergePreferences(FULL as never, parsePreferencesPatch({ newConversation: null })!)).toEqual({ ...FULL, newConversation: null });
   });
 
+  test("a patch takes the automatic update check switch", () => {
+    const off = parsePreferencesPatch({ updates: { autoCheck: false } });
+    expect(off).toEqual({ updates: { autoCheck: false } });
+    expect(mergePreferences(DEFAULT_PREFERENCES, off!)).toEqual({ ...DEFAULT_PREFERENCES, updates: { autoCheck: false } });
+    expect(mergePreferences(FULL as never, parsePreferencesPatch({ updates: { autoCheck: true } })!)).toEqual({ ...FULL, updates: { autoCheck: true } });
+    expect(mergePreferences(FULL as never, parsePreferencesPatch({ notifications: { enabled: true } })!).updates).toEqual({ autoCheck: false });
+  });
+
   test("a patch takes a permission mode, with or without a model; Default is stored as no mode", () => {
     expect(parsePreferencesPatch({ newConversation: { provider: "codex", model: "gpt-6", permissionMode: "acceptEdits" } })).toEqual({ newConversation: { provider: "codex", model: "gpt-6", permissionMode: "acceptEdits" } });
     expect(parsePreferencesPatch({ newConversation: { provider: "claude", permissionMode: "plan" } })).toEqual({ newConversation: { provider: "claude", permissionMode: "plan" } });
@@ -78,7 +95,8 @@ describe("changing preferences", () => {
   test("refuses a patch that is not exactly one of the known shapes", () => {
     for (const value of [undefined, null, {}, [], "x", { v: 1 }, { notifications: {} }, { notifications: { enabled: 1 } }, { notifications: { sound: true } },
       { newConversation: { provider: "gemini" } }, { newConversation: { provider: "codex", model: 1 } }, { newConversation: { provider: "codex", extra: "x" } },
-      { newConversation: { provider: "codex", model: "x".repeat(257) } }, { notifications: { enabled: true }, other: 1 }]) {
+      { newConversation: { provider: "codex", model: "x".repeat(257) } }, { notifications: { enabled: true }, other: 1 },
+      { updates: {} }, { updates: null }, { updates: true }, { updates: { autoCheck: 1 } }, { updates: { autoCheck: true, channel: "beta" } }]) {
       expect(parsePreferencesPatch(value), JSON.stringify(value)).toBeNull();
     }
   });
@@ -143,6 +161,13 @@ describe("preferences store", () => {
     expect(readFileSync(file, "utf8")).toBe(newer);
   });
 
+  test("writes the automatic update check switch and reads it back", async () => {
+    const store = createPreferencesStore(file, { now });
+    expect(await store.update({ updates: { autoCheck: false } })).toEqual({ ok: true, snapshot: { preferences: { ...DEFAULT_PREFERENCES, updates: { autoCheck: false } }, notice: null } });
+    expect(onDisk()).toEqual({ ...DEFAULT_PREFERENCES, updates: { autoCheck: false } });
+    expect(createPreferencesStore(file, { now }).current().updates).toEqual({ autoCheck: false });
+  });
+
   test("writes a chosen permission mode and reads it back", async () => {
     const store = createPreferencesStore(file, { now });
     await store.update({ newConversation: { provider: "antigravity", permissionMode: "acceptEdits" } });
@@ -179,6 +204,6 @@ describe("preferences store", () => {
     const first = store.update({ notifications: { approval: false } });
     const second = store.update({ newConversation: { provider: "claude", effort: "low" } });
     await Promise.all([first, second]);
-    expect(onDisk()).toEqual({ v: 1, notifications: { enabled: true, approval: false, finished: true, failed: true }, newConversation: { provider: "claude", effort: "low" } });
+    expect(onDisk()).toEqual({ v: 1, notifications: { enabled: true, approval: false, finished: true, failed: true }, newConversation: { provider: "claude", effort: "low" }, updates: { autoCheck: true } });
   });
 });
