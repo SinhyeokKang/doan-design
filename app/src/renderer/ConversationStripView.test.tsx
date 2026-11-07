@@ -195,7 +195,7 @@ test("a refused Skip or permission answer shows its error line until the next pr
   const line = (state: StripState) => /<span class="strip-error" role="alert"><svg[^>]*class="lucide[^"]*doan-alert-icon"[^>]*>.*?<\/svg>([^<]*)<\/span>/.exec(renderToStaticMarkup(draw(state)))?.[1] ?? null;
   const refused = async (): Promise<void | { error: string }> => ({ error: "unknown" });
   const answer = vi.fn(refused), skip = vi.fn(refused);
-  vi.stubGlobal("window", { doan: { answerConversationPermission: answer, answerConversationQuestion: skip, interruptConversation: vi.fn() } });
+  vi.stubGlobal("window", { doan: { answerConversationPermission: answer, answerConversationQuestion: skip, interruptConversation: vi.fn(async () => {}) } });
 
   expect(line(ASK)).toBeNull();
   press(ASK, "Allow"); await flush();
@@ -233,4 +233,13 @@ test("a refused Skip or permission answer shows its error line until the next pr
   press(ASK, "Deny"); await flush();
   late({ error: "unknown" }); await flush();
   expect(line(ASK)).toBeNull();
+  // Stop is a press too: it takes the line away at once, and an earlier press's late refusal cannot bring it back.
+  press(QUESTION, "Skip"); await flush();
+  expect(line(QUESTION)).toBe("Couldn’t skip the question. Try again.");
+  skip.mockImplementationOnce(() => new Promise(resolve => { late = resolve; }));
+  press(QUESTION, "Skip");
+  press(QUESTION, "Stop");
+  expect(line(QUESTION)).toBeNull();
+  late({ error: "unknown" }); await flush();
+  expect(line(QUESTION)).toBeNull();
 });

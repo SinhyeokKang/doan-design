@@ -50,7 +50,12 @@ export function ConversationStrip({ conversationId, provider, state, view, onEdi
       if (state.kind === "question") send(state.requestId, "skip", () => window.doan.answerConversationQuestion({ conversationId, requestId: state.requestId, outcome: "skipped" }));
       // As after a permission answer: Stop is the one control left while the turn runs.
       stop.current?.focus();
-    } else if (action.command === "stop") void window.doan.interruptConversation({ conversationId }).catch(console.error);
+    } else if (action.command === "stop") {
+      // Stop is the next press too: the line goes, and no earlier press's reply can bring it back.
+      lastSend.current++;
+      setSendError(null);
+      void window.doan.interruptConversation({ conversationId }).catch(console.error);
+    }
     else if (action.command === "editOnHome") onEditOnHome();
     else if (action.command === "open") onOpen();
     else onDismiss();
