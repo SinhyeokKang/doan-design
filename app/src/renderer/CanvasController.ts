@@ -7,7 +7,6 @@ import type { InspectResult, InspectRow } from "../main/inspect";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import { acceptCanvasMessage, type CanvasRect, type LayoutMessage, type PathItem, type SelectionMessage } from "./canvasMessage";
 import { canvasAtHref, canvasViewUpdate, INITIAL_HEIGHT, layoutHeight, MAX_HEIGHT, sameDocument, TrashMarks, type OpenCanvas } from "./canvasView";
-import { projectNames } from "./projectRow";
 import { switchTarget } from "./switchTarget";
 import { activityKey, activityKind, pushActivity, type ActivityEvent } from "./activity";
 import { acceptSelectionMessage, anchorRequest, editableTarget, mainSelection, SELECTION_LOST, selectedFromLayout, selectionAfter, shouldGuardEscape, sizeLabel, type AnchorRequest, type SelectionTrigger, type SelectionView } from "./selection";
@@ -96,6 +95,9 @@ export type InspectorView = { status: "loading" } | { status: "ready"; rows: Ins
 export function initialCanvasState(): CanvasState {
   return { hasFrame: false, open: null, shown: null, layout: null, selection: null, currentFrame: null, notice: "", inspector: null, status: "empty", reanchoring: false, reloading: false, message: "Pick a canvas from the list", error: "", unlisted: false, zoom: 100, scale: 1, activity: [], tool: "select", picking: false, capturing: false };
 }
+
+const isProblemKind = (kind: FolderEntry["kind"] | undefined): boolean =>
+  kind === "notFound" || kind === "uninitialized" || kind === "error" || kind === "cliError";
 
 // ARCH §13: a row has no `rev` until main sees its file change after the folder
 // was added, so a missing one is 0, not unknown.
@@ -434,7 +436,7 @@ export class CanvasController {
     const kind = waiting && next.find(entry => entry.path === waiting.folder)?.kind;
     if (!waiting || kind === "loading") return;
     this.waitingWorkspace = null;
-    if (waiting.intent === this.transitionIntent && (kind === "list" || waiting.unavailable)) {
+    if (waiting.intent === this.transitionIntent && waiting.settled(kind ?? undefined)) {
       this.transition(waiting.open, () => this.entries.find(entry => entry.path === waiting.folder)?.kind !== "loading");
     }
   }
@@ -483,16 +485,15 @@ export class CanvasController {
         else this.setFrameWidth(update.canvas.width);
         break;
       case "clear": {
-        const name = projectNames(prev.map(entry => entry.path)).get(open.folder) ?? open.folder;
         this.state.open = null;
         this.state.shown = null;
         this.state.error = "";
         this.dropFrame();
         if (update.reason === "missing" || update.reason === "duplicateId") this.canvasRemoved?.({ folder: open.folder, row: open.row, duplicates: update.reason === "duplicateId" ? update.count : null });
         this.state.status = update.reason === "closed" ? "empty" : "missing";
+        // A problem root's overlay names the problem (PRODUCT §5 item 3 'Problem states').
         this.state.message = update.reason === "closed" ? "Pick a canvas from the list"
-          : update.reason === "notFound" ? `The project ${name} is missing. Use Locate above.`
-          : update.reason === "uninitialized" ? `The project ${name} is not set up. Use Set Up above.`
+          : update.reason === "notFound" || update.reason === "uninitialized" ? ""
           : `${open.canvas} is no longer in the list. It was deleted or moved.`;
         break;
       }
@@ -554,6 +555,11 @@ export class CanvasController {
 
   private onCanvasPage(): boolean { return this.workspaceActive && this.canvasPage; }
 
+  // A problem project's overlay covers the canvas (ARCHITECTURE §7 'Problem overlay'): no key reaches it, Esc's
+  // clearing of the selection included, while focus sits in the overlay.
+  private covered = false;
+  setCovered(covered: boolean): void { this.covered = covered; }
+
   // The toolbar's Select and Hand. While picking they cancel the pick first (canvas-composer-polish spec 3); V and H
   // still change nothing then (shortcut).
   setTool(tool: CanvasTool): void {
@@ -603,25 +609,29 @@ export class CanvasController {
   // A project added a moment ago is still being read when its "Added" toast
   // offers Open; dropping that click left the previous workspace on screen.
   // Any later transition bumps `transitionIntent` and so supersedes the wait.
-  private waitingWorkspace: { folder: string; intent: number; open: () => void; unavailable: boolean } | null = null;
+  // `settled`: whether the open goes ahead (entering or reporting) when the folder's read settles to this kind.
+  private waitingWorkspace: { folder: string; intent: number; open: () => void; settled: (kind: FolderEntry["kind"] | undefined) => boolean } | null = null;
 
+  // `overview`: the Overview shows a problem root's overlay, so a problem root enters it too (ARCHITECTURE §7
+  // 'Memory'); a path that opens a canvas still needs a list.
   openWorkspace(folder: string, entered: (folder: string) => void, sameCanvas = false, unavailable?: (entry: FolderEntry | undefined) => void, overview = false): void {
     const kind = () => this.entries.find(entry => entry.path === folder)?.kind;
+    const enters = (kind: FolderEntry["kind"] | undefined) => kind === "list" || (overview && isProblemKind(kind));
     this.transition(() => {
       this.waitingWorkspace = null;
-      const open = () => { if (kind() === "list") this.enterWorkspace(folder, entered, sameCanvas, overview); else unavailable?.(this.entries.find(entry => entry.path === folder)); };
-      if (kind() === "loading") this.waitingWorkspace = { folder, intent: this.transitionIntent, open, unavailable: !!unavailable };
+      const open = () => { if (enters(kind())) this.enterWorkspace(folder, entered, sameCanvas, overview); else unavailable?.(this.entries.find(entry => entry.path === folder)); };
+      if (kind() === "loading") this.waitingWorkspace = { folder, intent: this.transitionIntent, open, settled: kind => enters(kind) || !!unavailable };
       else open();
-    }, () => kind() === "list" || kind() === "loading" || !!unavailable);
+    }, () => enters(kind()) || kind() === "loading" || !!unavailable);
   }
 
   private enterWorkspace(folder: string, entered: (folder: string) => void, sameCanvas: boolean, overview: boolean): void {
     const entry = this.entries.find(entry => entry.path === folder);
-    if (entry?.kind !== "list") return;
+    if (!entry || (entry.kind !== "list" && !(overview && isProblemKind(entry.kind)))) return;
     const open = this.state.open;
     if (open) this.workspaceMemory.set(open.folder, { path: open.canvas, view: { ...this.view } });
     const remembered = this.workspaceMemory.get(folder);
-    const row = overview ? undefined : switchTarget(sameCanvas ? open?.row.id : undefined, entry.canvases, remembered?.path);
+    const row = overview || entry.kind !== "list" ? undefined : switchTarget(sameCanvas ? open?.row.id : undefined, entry.canvases, remembered?.path);
     if (row) {
       this.openCanvasNow(folder, row);
       if (remembered?.path === row.path) { this.view = { ...remembered.view }; this.applyView("app"); }
@@ -1218,7 +1228,7 @@ export class CanvasController {
   }
 
   private keydown = (event: KeyboardEvent): void => {
-    if (!this.workspaceActive) return;
+    if (!this.workspaceActive || this.covered) return;
     if (event.key === "Alt") {
       // Focus may move into the canvas before keyup; fence off earlier snapshots.
       if (!this.altHeld) this.sendHoverCommand({ type: "hover-alt", alt: true });

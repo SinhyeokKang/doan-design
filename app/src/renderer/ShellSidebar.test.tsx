@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { expect, it, test, vi } from "vitest";
+import { describe, expect, it, test, vi } from "vitest";
+import { TooltipProvider } from "./components/ui/tooltip";
 import { projectSlotEntry, recoveryKey, ShellSidebar, staleMenu } from "./ShellSidebar";
 import type { FolderEntry } from "../main/view";
 import type { SidebarSlot as Slot } from "./canvasNotice";
@@ -58,7 +59,10 @@ it("shows the project row's chevron on hover or keyboard focus, not on focus lef
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toContain(".shell-project-row:is(:hover, :focus-visible, :has(:focus-visible)) .shell-disclosure { visibility: visible; }");
-  expect(css).toContain(".shell-project-row:is(:hover, :focus-visible, :has(:focus-visible)) .shell-lead > .shell-thumbnail { visibility: hidden; }");
+  // Only a row with a chevron gives its thumbnail's place to it; a problem or reading row has none and keeps its
+  // thumbnail, or its lead would go empty on hover.
+  expect(css).toContain(".shell-project-row:is(:hover, :focus-visible, :has(:focus-visible)) .shell-lead:has(> .shell-disclosure) > .shell-thumbnail { visibility: hidden; }");
+  expect(css).not.toMatch(/\.shell-project-row:[^{]*\.shell-lead > \.shell-thumbnail \{ visibility: hidden/);
   expect(css).not.toMatch(/\.shell-project-row:[^{]*focus-within/);
 });
 
@@ -113,8 +117,8 @@ test("a project row carries a bound canvas's slot only while that canvas row is 
 // design-system-canvases design 'sidebar' (Q6–Q8): two groups under an expanded, listed project.
 function groups(canvases: string[], closed?: { ds?: false; canvases?: false }, extra: { slots?: Map<string, Slot>; entry?: FolderEntry } = {}) {
   const listed: FolderEntry = extra.entry ?? { path: "/a", kind: "list", servedRev: 0, canvases: canvases.map(name => ({ path: `.doan/${name}.html`, url: name })) };
-  return renderToStaticMarkup(<ShellSidebar cards={[{ key: "common", name: "demo", rows: [listed] }]} projects={{ common: { roots: ["/a"], expanded: true, ...(closed ? { groups: closed } : {}) } }} loaded={null} canvas={undefined} homeDirectory={null} {...(extra.slots ? { slots: extra.slots } : {})}
-    search={vi.fn()} toggle={vi.fn()} disclose={vi.fn()} toggleGroup={vi.fn()} worktree={vi.fn()} open={vi.fn()} overview={vi.fn()} action={vi.fn()} remove={async () => {}} projectSettings={vi.fn()} canvasMenu={NO_CANVAS_MENU} />);
+  return renderToStaticMarkup(<TooltipProvider><ShellSidebar cards={[{ key: "common", name: "demo", rows: [listed] }]} projects={{ common: { roots: ["/a"], expanded: true, ...(closed ? { groups: closed } : {}) } }} loaded={null} canvas={undefined} homeDirectory={null} {...(extra.slots ? { slots: extra.slots } : {})}
+    search={vi.fn()} toggle={vi.fn()} disclose={vi.fn()} toggleGroup={vi.fn()} worktree={vi.fn()} open={vi.fn()} overview={vi.fn()} action={vi.fn()} remove={async () => {}} projectSettings={vi.fn()} canvasMenu={NO_CANVAS_MENU} /></TooltipProvider>);
 }
 const heads = (html: string) => [...html.matchAll(/<div class="shell-group-head row"[^>]*>.*?<\/div>/g)].map(match => match[0]);
 
@@ -164,10 +168,71 @@ test("a closed group hides its rows and turns its chevron; the other group stays
   expect(html).toContain('aria-label="checkout"');
 });
 
-test("a project whose canvases could not be listed keeps its single status line and no groups", () => {
-  const html = groups([], undefined, { entry: { path: "/a", kind: "uninitialized" } });
+// PRODUCT §5 item 1: a project that could not be listed shows an icon in its slot, not a status line.
+const PROBLEMS: [FolderEntry, string, string][] = [
+  [{ path: "/a", kind: "notFound" }, "lucide-folder-x", "demo is missing"],
+  [{ path: "/a", kind: "uninitialized" }, "lucide-folder-cog", "demo isn’t set up"],
+  [{ path: "/a", kind: "error", message: "bad config" }, "lucide-file-", "Doan couldn’t read demo’s configuration"],
+  [{ path: "/a", kind: "cliError", reason: "offline" }, "lucide-square-terminal", "Doan couldn’t read demo"],
+];
+// The row's own tag: the project menu's trigger inside it carries its own aria-expanded.
+const rowTag = (row: string) => /^<div[^>]*>/.exec(row)![0];
+const projectRow = (html: string) => /<div class="shell-project-row[^>]*>.*?<\/button><\/div>/s.exec(html)![0];
+
+test.each(PROBLEMS)("a project that could not be listed shows its kind's icon and sentence, with no chevron, group or status line (%j)", (entry, icon, sentence) => {
+  const html = groups([], undefined, { entry });
+  const row = projectRow(html);
+  expect(row).toMatch(/<span class="row-slot problem"[^>]*aria-hidden="true"[^>]*><svg[^>]*aria-hidden="true"/);
+  expect(row).toContain(icon);
+  const described = row.match(/aria-describedby="([^"]+)"/)![1]!;
+  expect(row).toContain(`<span id="${described}" class="sr-only">${sentence}</span>`);
+  expect(row).toContain('aria-label="demo"');
+  expect(rowTag(row)).not.toContain("aria-expanded");
+  expect(row).not.toContain("shell-disclosure");
+  expect(row).not.toContain("shell-problem");
   expect(html).not.toContain("shell-group-head");
-  expect(html).toContain('<p class="shell-empty">');
+  expect(html).not.toContain("shell-empty");
+  expect(html).not.toContain('role="group"');
+});
+
+test("a listed project keeps its chevron, aria-expanded and no state description", () => {
+  const row = projectRow(groups(["canvases/checkout"]));
+  expect(rowTag(row)).toContain('aria-expanded="true"');
+  expect(row).toContain("shell-disclosure");
+  expect(row).not.toContain("aria-describedby");
+  expect(row).not.toContain("sr-only");
+});
+
+test("a project still loading draws no spinner before the delay, and is not expandable meanwhile", () => {
+  const html = groups([], undefined, { entry: { path: "/a", kind: "loading" } });
+  expect(html).not.toContain("row-slot");
+  expect(html).not.toContain("aria-describedby");
+  expect(rowTag(projectRow(html))).not.toContain("aria-expanded");
+  expect(html).not.toContain("shell-disclosure");
+  expect(html).not.toContain('role="group"');
+});
+
+// PRODUCT §5 item 1 order: permission request or question, problem icon, working, unseen.
+describe("what wins the slot of a project in a problem state", () => {
+  const entry: FolderEntry = { path: "/a", kind: "notFound" };
+  const slotsOf = (key: string, slot: Slot) => new Map([[key, slot]]);
+  const drawn = (slot: Slot, key = "/a\n.doan/canvases/x.html") => projectRow(groups([], undefined, { entry, slots: slotsOf(key, slot) }));
+  test("a permission request wins, whichever worktree holds it, and the row keeps its problem description", () => {
+    for (const key of ["/a\n.doan/canvases/x.html", "/b\n.doan/canvases/x.html"]) {
+      const row = projectRow(renderToStaticMarkup(<TooltipProvider><ShellSidebar cards={[{ key: "common", name: "demo", rows: [entry, { ...entry, path: "/b", kind: "list", servedRev: 0, canvases: [] } as FolderEntry] }]} projects={{ common: { roots: ["/a", "/b"], selectedRoot: "/a", expanded: true } }} loaded={null} canvas={undefined} homeDirectory={null} slots={slotsOf(key, { kind: "permission", label: "Codex needs your answer" })}
+        search={vi.fn()} toggle={vi.fn()} disclose={vi.fn()} toggleGroup={vi.fn()} worktree={vi.fn()} open={vi.fn()} overview={vi.fn()} action={vi.fn()} remove={async () => {}} projectSettings={vi.fn()} canvasMenu={NO_CANVAS_MENU} /></TooltipProvider>));
+      expect(row).toContain('<span class="row-slot permission" role="img" aria-label="Codex needs your answer">');
+      expect(row).not.toContain("row-slot problem");
+      expect(row).toContain("demo is missing</span>");
+    }
+  });
+  test("the problem icon wins over working, unseen and a canvas notice", () => {
+    for (const slot of [{ kind: "working", label: "Codex is working" }, { kind: "unseen", label: "Codex finished" }, { kind: "canvas", label: "x is new" }] as Slot[]) {
+      const row = drawn(slot);
+      expect(row).toContain("row-slot problem");
+      expect(row).not.toContain(`row-slot ${slot.kind === "canvas" ? "unseen" : slot.kind}`);
+    }
+  });
 });
 
 test("a slot in a closed group shows on the project row; open, it stays on its own row", () => {

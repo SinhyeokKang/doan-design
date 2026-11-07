@@ -1,19 +1,36 @@
 import { Children, isValidElement, type ReactNode } from "react";
-import { beforeEach, expect, it, vi } from "vitest";
-import { ShellSidebar } from "./ShellSidebar";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { RowSlotMark, ShellSidebar } from "./ShellSidebar";
 import type { FolderEntry } from "../main/view";
 import type { SidebarSlot } from "./canvasNotice";
 import type { CanvasMenu } from "./ShellSidebar";
 const NO_CANVAS_MENU: CanvasMenu = { blocked: () => false, exporting: () => false, exportCanvas: () => {}, trash: () => {} };
-const hooks = vi.hoisted(() => ({ refs: [] as { current: unknown }[], states: [] as unknown[], cursor: 0 }));
+type Effect = { deps: unknown[] | undefined; cleanup?: () => void };
+// `stable`: refs keep their place across renders (a real render's), for the tests that run effects; the others rely on a
+// fresh ref per call. `pending`: effects waiting for `commit`.
+const hooks = vi.hoisted(() => ({ refs: [] as { current: unknown }[], states: [] as unknown[], cursor: 0, stable: false, stableRefs: [] as { current: unknown }[], refCursor: 0, effects: [] as (Effect | undefined)[], effectCursor: 0, pending: [] as (() => void)[] }));
 vi.mock("react", async original => ({
   ...await original<typeof import("react")>(),
   useId: () => "description",
   useLayoutEffect: () => {},
-  useRef: (value: unknown) => { const ref = { current: value }; hooks.refs.push(ref); return ref; },
-  useState: (value: unknown) => { const index = hooks.cursor++; if (!(index in hooks.states)) hooks.states[index] = value; return [hooks.states[index], (next: unknown) => { hooks.states[index] = next; }]; },
+  useRef: (value: unknown) => {
+    if (hooks.stable) { const index = hooks.refCursor++; return hooks.stableRefs[index] ??= { current: value }; }
+    const ref = { current: value }; hooks.refs.push(ref); return ref;
+  },
+  useState: (value: unknown) => {
+    const index = hooks.cursor++;
+    if (!(index in hooks.states)) hooks.states[index] = value;
+    return [hooks.states[index], (next: unknown) => { hooks.states[index] = typeof next === "function" ? (next as (value: unknown) => unknown)(hooks.states[index]) : next; }];
+  },
+  useEffect: (run: () => unknown, deps?: unknown[]) => {
+    const index = hooks.effectCursor++, previous = hooks.effects[index];
+    if (previous && deps && previous.deps && deps.length === previous.deps.length && deps.every((dep, i) => Object.is(dep, previous.deps![i]))) return;
+    const effect: Effect = { deps };
+    hooks.effects[index] = effect;
+    hooks.pending.push(() => { previous?.cleanup?.(); const cleanup = run(); if (typeof cleanup === "function") effect.cleanup = cleanup as () => void; });
+  },
 }));
-beforeEach(() => { hooks.refs = []; hooks.states = []; hooks.cursor = 0; });
+beforeEach(() => { hooks.refs = []; hooks.states = []; hooks.cursor = 0; hooks.stable = false; hooks.stableRefs = []; hooks.refCursor = 0; hooks.effects = []; hooks.effectCursor = 0; hooks.pending = []; });
 function elements(node: ReactNode): Record<string, unknown>[] {
   return Children.toArray(node).flatMap(child => isValidElement<{ children?: ReactNode; [key: string]: unknown }>(child) ? [child.props, ...elements(child.props.children)] : []);
 }
@@ -526,4 +543,133 @@ it("on close, focus returns to the button unless a dialog the menu opened or ano
     // Move to Trash opened its dialog: App returns focus to the button once it closes.
     expect(close(true)).toHaveBeenCalledOnce();
   } finally { vi.unstubAllGlobals(); }
+});
+
+// PRODUCT §5 item 1: a project row in a problem state has no groups to fold.
+const problemRows: [FolderEntry, string][] = [
+  [{ path: "/a", kind: "notFound" }, "demo is missing"],
+  [{ path: "/a", kind: "uninitialized" }, "demo isn’t set up"],
+  [{ path: "/a", kind: "error", message: "bad config" }, "Doan couldn’t read demo’s configuration"],
+  [{ path: "/a", kind: "cliError", reason: "offline" }, "Doan couldn’t read demo"],
+];
+function problemFixture(problem: FolderEntry, extra: Record<string, unknown> = {}) {
+  const { props } = fixture();
+  props.cards[0]!.rows[0] = problem;
+  const all = { ...props, ...extra };
+  hooks.cursor = 0;
+  const rendered = elements(ShellSidebar(all));
+  return { props: all, rendered, project: rendered.find(item => item["data-key"] === "common")! };
+}
+
+it.each(problemRows)("a project row in a problem state is not expandable: no chevron, and arrows do not fold it (%j)", problem => {
+  const { props, project, rendered } = problemFixture(problem);
+  expect(rendered.find(item => item.className === "shell-disclosure")).toBeUndefined();
+  expect(project["aria-expanded"]).toBeUndefined();
+  key(project, "ArrowRight");
+  key(project, "ArrowLeft");
+  expect(props.disclose).not.toHaveBeenCalled();
+  // The row still moves to the project's workspace.
+  (project.onClick as () => void)();
+  expect(props.toggle).toHaveBeenCalledWith("common");
+});
+
+it.each(problemRows)("describes the row by a sr-only sentence the icon's tooltip repeats, and the open tooltip cannot change it (%j)", (problem, sentence) => {
+  const { project, rendered } = problemFixture(problem);
+  const described = rendered.find(item => item.className === "sr-only" && item.id === project["aria-describedby"]);
+  expect(described?.children).toBe(sentence);
+  expect(project["aria-label"]).toBe("demo");
+  // The row is not a tooltip trigger, so Radix has no row description to add the open content's id to; only the
+  // aria-hidden icon is, and the tooltip repeats the sentence (POSTMORTEM 2026-11-07).
+  const mark = rendered.find(item => (item.slot as { kind?: string } | undefined)?.kind === "problem")!;
+  expect(mark.slot).toMatchObject({ kind: "problem", label: sentence });
+  const parts = elements(RowSlotMark(mark as { slot: never }));
+  const trigger = parts.find(item => item.asChild === true)!;
+  expect(elements(trigger.children as ReactNode)[0]).toMatchObject({ className: "row-slot problem", "aria-hidden": "true" });
+  expect(parts.some(item => item.children === sentence)).toBe(true);
+  for (const own of rendered.filter(item => item.asChild === true)) expect(elements(own.children as ReactNode).some(item => item["data-key"] === "common")).toBe(false);
+});
+
+it("a canvas notice or terminal session does not redirect the click of a row whose problem icon wins", () => {
+  const terminal = { kind: "working" as const, label: "Codex is working in a terminal", source: "terminal" as const };
+  const { props, project } = problemFixture({ path: "/a", kind: "notFound" }, { slots: new Map<string, SidebarSlot>([["/b\n.doan/canvases/a.html", terminal]]) });
+  (project.onClick as () => void)();
+  expect(props.toggle).toHaveBeenLastCalledWith("common");
+  key(project, "Enter");
+  expect(props.toggle).toHaveBeenLastCalledWith("common");
+});
+
+it("a permission request beats the problem icon, and its click still opens the conversation", () => {
+  const permission = { kind: "permission" as const, label: "Codex needs your answer", source: "terminal" as const };
+  const { props, project, rendered } = problemFixture({ path: "/a", kind: "notFound" }, { slots: new Map<string, SidebarSlot>([["/b\n.doan/canvases/a.html", permission]]) });
+  expect(rendered).toContainEqual({ slot: permission });
+  expect(project["aria-describedby"]).toBeDefined();
+  (project.onClick as () => void)();
+  expect(props.toggle).toHaveBeenLastCalledWith("common", { root: "/b", path: ".doan/canvases/a.html" });
+});
+
+it("the project menu's Overview item is available on a problem root, and opens it", () => {
+  const { props, rendered } = problemFixture({ path: "/a", kind: "notFound" });
+  const item = rendered.find(entry => [entry.children].flat().includes("Overview"))!;
+  expect(item.disabled).toBeUndefined();
+  expect(item["aria-disabled"]).toBeUndefined();
+  (item.onSelect as () => void)();
+  expect(props.overview).toHaveBeenCalledWith("/a");
+});
+
+// PRODUCT §5 item 1: the spinner waits for LOADING_DELAY_MS, timed from when the root began to load.
+describe("reading spinner", () => {
+  const slotOf = (rendered: Record<string, unknown>[]) => rendered.find(item => (item.slot as { kind?: string } | undefined)?.kind === "reading")?.slot;
+  function reading() {
+    hooks.stable = true;
+    const { props } = fixture(null, false);
+    const draw = () => { hooks.cursor = 0; hooks.refCursor = 0; hooks.effectCursor = 0; const rendered = elements(ShellSidebar(props)); const run = hooks.pending; hooks.pending = []; for (const effect of run) effect(); return rendered; };
+    const set = (path: string, kind: "loading" | "list") => { props.cards[0]!.rows = props.cards[0]!.rows.map(row => row.path === path ? kind === "loading" ? { path, kind } : fixtureList(path) : row); };
+    return { props, draw, set };
+  }
+  const fixtureList = (path: string): FolderEntry => ({ path, kind: "list", servedRev: 0, canvases: [] });
+  it("shows only after the delay, with the row described as Reading <name>", () => {
+    vi.useFakeTimers();
+    try {
+      const { draw, set } = reading();
+      set("/a", "loading");
+      expect(slotOf(draw())).toBeUndefined();
+      vi.advanceTimersByTime(299);
+      expect(slotOf(draw())).toBeUndefined();
+      vi.advanceTimersByTime(1);
+      const rendered = draw();
+      expect(slotOf(rendered)).toEqual({ kind: "reading", label: "Reading demo" });
+      const row = rendered.find(item => item["data-key"] === "common")!;
+      expect(rendered.find(item => item.id === row["aria-describedby"])?.children).toBe("Reading demo");
+      expect(row["aria-expanded"]).toBeUndefined();
+    } finally { vi.useRealTimers(); }
+  });
+  it("is timed per root: another root starting to load does not restart it", () => {
+    vi.useFakeTimers();
+    try {
+      const { draw, set } = reading();
+      set("/a", "loading");
+      draw();
+      vi.advanceTimersByTime(200);
+      set("/b", "loading");
+      draw();
+      vi.advanceTimersByTime(100);
+      expect(slotOf(draw())).toBeDefined();
+    } finally { vi.useRealTimers(); }
+  });
+  it("waits again when the root loads again after it was read", () => {
+    vi.useFakeTimers();
+    try {
+      const { draw, set } = reading();
+      set("/a", "loading");
+      draw();
+      vi.advanceTimersByTime(300);
+      expect(slotOf(draw())).toBeDefined();
+      set("/a", "list");
+      expect(slotOf(draw())).toBeUndefined();
+      set("/a", "loading");
+      draw();
+      vi.advanceTimersByTime(299);
+      expect(slotOf(draw())).toBeUndefined();
+    } finally { vi.useRealTimers(); }
+  });
 });

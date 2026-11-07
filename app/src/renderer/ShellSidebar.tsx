@@ -1,4 +1,4 @@
-import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactElement } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactElement } from "react";
 import { DropdownMenu } from "radix-ui";
 import { Bell, Bot, Check, ChevronDown, CircleMinus, Download, Ellipsis, FolderOpen, GitBranch, Hand, House, Info, LayoutGrid, PanelsTopLeft, Plug, Search, Settings, SwatchBook, Trash2 } from "lucide-react";
 import type { CanvasRow } from "../main/view";
@@ -16,6 +16,9 @@ import { canvasStem } from "./canvasRowMessages";
 import { canvasExportReason } from "./canvasRowMenu";
 import type { SidebarSlot as Slot } from "./canvasNotice";
 import { settingsSectionsShown, type SettingsSection } from "./settingsSections";
+import { LOADING_DELAY_MS } from "./ConversationThread";
+import { sidebarSlot, type RowSlot } from "./problemView";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import { countDescription, headArrow, sidebarGroups, visibleItems, type GroupId, type SidebarGroup, type SidebarItem } from "./sidebarGroups";
 
 interface Props {
@@ -122,6 +125,32 @@ function SlotMark({ slot }: { slot: Slot | undefined }) {
   // A canvas notice is the unseen dot itself (canvas-viewport-units D9); only its label differs.
   return <span className={`row-slot ${slot.kind === "canvas" ? "unseen" : slot.kind}`} role="img" aria-label={slot.label}>{slot.kind === "permission" ? <Hand aria-hidden="true" /> : slot.kind === "working" ? <span className="doan-spinner" aria-hidden="true" /> : <i />}</span>;
 }
+// A project row's slot: a problem icon or the reading spinner, which are hidden from assistive technology and named by
+// the row's own description instead (PRODUCT §5 item 1), or a conversation state as on a canvas row.
+export function RowSlotMark({ slot }: { slot: RowSlot | null }) {
+  if (slot?.kind === "problem") {
+    const Icon = slot.icon;
+    return <Tooltip><TooltipTrigger asChild><span className="row-slot problem" aria-hidden="true"><Icon aria-hidden="true" /></span></TooltipTrigger><TooltipContent>{slot.label}</TooltipContent></Tooltip>;
+  }
+  if (slot?.kind === "reading") return <Tooltip><TooltipTrigger asChild><span className="row-slot reading" aria-hidden="true"><span className="doan-spinner" aria-hidden="true" /></span></TooltipTrigger><TooltipContent>{slot.label}</TooltipContent></Tooltip>;
+  return <SlotMark slot={slot ?? undefined} />;
+}
+// The roots that have been `loading` for LOADING_DELAY_MS, each timed from its own start so a root that starts later
+// does not restart the others'. A root that stops loading leaves the set, so its next read waits again.
+function useSlowRoots(loading: readonly string[]): ReadonlySet<string> {
+  const [slow, setSlow] = useState<ReadonlySet<string>>(new Set());
+  const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const key = loading.join("\n");
+  useEffect(() => {
+    const roots = new Set(key ? key.split("\n") : []);
+    for (const [root, timer] of timers.current) if (!roots.has(root)) { clearTimeout(timer); timers.current.delete(root); }
+    for (const root of roots) if (!timers.current.has(root)) timers.current.set(root, setTimeout(() => setSlow(previous => new Set(previous).add(root)), LOADING_DELAY_MS));
+    setSlow(previous => { const kept = [...previous].filter(root => roots.has(root)); return kept.length === previous.size ? previous : new Set(kept); });
+  }, [key]);
+  // Emptied too, so an effect run again after this cleanup (React's strict-mode remount) starts the timers again.
+  useEffect(() => () => { for (const timer of timers.current.values()) clearTimeout(timer); timers.current.clear(); }, []);
+  return slow;
+}
 interface RowMenu {
   menu: CanvasMenu; root: string; row: CanvasRow; name: string; reasonId: string; open: boolean; locked: boolean; tabIndex: number;
   setOpen(open: boolean): void;
@@ -181,7 +210,11 @@ export function ShellSidebar(props: Props) {
   const live = useRef(props); live.current = props;
   const rows: { key: string; parent?: string; canvas?: boolean; name: string; activate(): void; right(): void; left(): void }[] = [];
   // Each listed, expanded project's groups and visible rows, built once for both the keyboard order and the render.
-  const layouts = new Map<string, { groups: SidebarGroup[]; items: SidebarItem[]; slot: { key: string; slot: Slot } | undefined }>();
+  // `mark`: what the slot shows; `state`: the root's own problem or reading state, which describes the row even while a
+  // conversation state wins the slot. `notice`: the canvas the row's activation opens, only while the conversation slot is
+  // the one shown.
+  const layouts = new Map<string, { groups: SidebarGroup[]; items: SidebarItem[]; mark: RowSlot | null; state: RowSlot | null; notice: { root: string; path: string } | undefined }>();
+  const slowRoots = useSlowRoots(cards.flatMap(card => card.rows.filter(row => row.kind === "loading").map(row => row.path)));
   const focus = (key: string | undefined) => {
     if (!key) { search.current?.focus(); return; }
     setFocused(key);
@@ -221,9 +254,13 @@ export function ShellSidebar(props: Props) {
     const items = visibleItems(groups);
     const shown = items.flatMap(item => item.kind === "canvas" ? [slotKey(root!, item.row.path)] : []);
     const slot = props.slots && projectSlotEntry(props.slots, card.rows.map(row => row.path), shown);
-    const notice = noticeTarget(slot);
-    layouts.set(card.key, { groups, items, slot });
-    rows.push({ key: card.key, name: card.name, activate: () => notice ? props.toggle(card.key, notice) : props.toggle(card.key), right: () => expanded ? focus(groups[0] ? headKey(root!, groups[0].id) : card.key) : props.disclose(card.key), left: () => { if (expanded) props.disclose(card.key); } });
+    const slow = slowRoots.has(entry!.path);
+    const mark = sidebarSlot(entry!, card.name, slot?.slot ?? null, slow);
+    const notice = mark === slot?.slot ? noticeTarget(slot) : undefined;
+    layouts.set(card.key, { groups, items, mark, state: sidebarSlot(entry!, card.name, null, slow), notice });
+    // A project that is not listed has no groups to fold, so its row is not expandable (no aria-expanded).
+    const listed = entry!.kind === "list";
+    rows.push({ key: card.key, name: card.name, activate: () => notice ? props.toggle(card.key, notice) : props.toggle(card.key), right: () => { if (!listed) return; if (expanded) focus(groups[0] ? headKey(root!, groups[0].id) : card.key); else props.disclose(card.key); }, left: () => { if (listed && expanded) props.disclose(card.key); } });
     for (const item of items) {
       const group = item.group, head = headKey(root!, group.id);
       if (item.kind === "head") {
@@ -290,8 +327,8 @@ export function ShellSidebar(props: Props) {
         const selected = (card.rows.some(row => row.path === loaded) ? loaded : card.rows.some(row => row.path === project.selectedRoot) ? project.selectedRoot : undefined) ?? card.rows[0]?.path;
         const entry = card.rows.find(row => row.path === selected) ?? card.rows[0]!;
         const expanded = projectExpanded(project, loaded), current = !props.home && card.rows.some(row => row.path === loaded);
-        const layout = layouts.get(card.key) ?? { groups: [], items: [], slot: undefined };
-        const notice = noticeTarget(layout.slot);
+        const layout = layouts.get(card.key) ?? { groups: [], items: [], mark: null, state: null, notice: undefined };
+        const { notice } = layout, listed = entry.kind === "list", stateId = `${descriptionPrefix}-${index}-state`;
         const info = cardRow(entry, loaded, null);
         const projectMenu = menu?.kind === "project" && menu.key === card.key;
         const menuEntry = (projectMenu && card.rows.find(row => row.path === repairRoot)) || entry;
@@ -299,15 +336,15 @@ export function ShellSidebar(props: Props) {
         const target = () => live.current.cards.find(item => item.key === card.key)?.rows.find(row => row.path === menuEntry.path);
         const run = (action: () => void) => { if (target()) action(); };
         return <div className="shell-project" key={card.key}>
-          <div ref={rowRef(card.key)} className={`shell-project-row row${card.rows.some(row => props.highlight?.includes(row.path)) ? " flash" : ""}`} role="treeitem" data-key={card.key} aria-label={card.name} aria-disabled={locked} aria-level={1} aria-expanded={expanded} aria-current={current && !canvas && !props.unlisted ? "location" : undefined} tabIndex={active === card.key ? 0 : -1} onFocus={event => { if (event.target === event.currentTarget) setFocused(card.key); }} onKeyDown={event => keyboard(event, card.key)} onClick={() => notice ? props.toggle(card.key, notice) : props.toggle(card.key)}>
+          <div ref={rowRef(card.key)} className={`shell-project-row row${card.rows.some(row => props.highlight?.includes(row.path)) ? " flash" : ""}`} role="treeitem" data-key={card.key} aria-label={card.name} aria-describedby={layout.state ? stateId : undefined} aria-disabled={locked} aria-level={1} aria-expanded={listed ? expanded : undefined} aria-current={current && !canvas && !props.unlisted ? "location" : undefined} tabIndex={active === card.key ? 0 : -1} onFocus={event => { if (event.target === event.currentTarget) setFocused(card.key); }} onKeyDown={event => keyboard(event, card.key)} onClick={() => notice ? props.toggle(card.key, notice) : props.toggle(card.key)}>
             {/* The chevron takes the thumbnail's place on hover and focus; tabIndex -1 because the row is the tree's stop
                 and ←/→ fold it (project-row-disclosure draft). */}
             <span className="shell-lead"><span className={`shell-thumbnail hue-${projectHue(card.name)}`} aria-hidden="true">{projectInitial(card.name)}</span>
-              <button type="button" className="shell-disclosure" aria-label={`${expanded ? "Collapse" : "Expand"} ${card.name}`} tabIndex={-1} onClick={event => { event.stopPropagation(); props.disclose(card.key); }}><ChevronDown aria-hidden="true" /></button></span>
+              {listed && <button type="button" className="shell-disclosure" aria-label={`${expanded ? "Collapse" : "Expand"} ${card.name}`} tabIndex={-1} onClick={event => { event.stopPropagation(); props.disclose(card.key); }}><ChevronDown aria-hidden="true" /></button>}</span>
             <span className="shell-project-name">{card.name}</span>
             {info.summary?.branch && <span className="doan-chip shell-branch" data-ui-variant="translucent"><GitBranch aria-hidden="true" /><span>{info.summary.branch}</span></span>}
-            {info.chip && <span className="shell-problem">{info.chip}</span>}
-            <SlotMark slot={layout.slot?.slot} />
+            <RowSlotMark slot={layout.mark} />
+            {layout.state && <span id={stateId} className="sr-only">{layout.state.label}</span>}
             <DropdownMenu.Root open={projectMenu} onOpenChange={open => { setMenu(open ? { kind: "project", key: card.key } : null); if (open) { setRepairRoot(null); menuIndex.current = index; menuRoot.current = entry.path; } }}>
               <DropdownMenu.Trigger asChild><button className="doan-icon-button shell-more" aria-label={`${card.name} menu`} tabIndex={active === card.key ? 0 : -1} onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}><Ellipsis aria-hidden="true" /></button></DropdownMenu.Trigger>
               <DropdownMenu.Portal><DropdownMenu.Content className="menu doan-floating doan-menu shell-project-menu shell-side-menu" sideOffset={4} collisionPadding={8} align="end" onClick={event => event.stopPropagation()} onCloseAutoFocus={event => {
@@ -323,7 +360,7 @@ export function ShellSidebar(props: Props) {
                   else { event.preventDefault(); setRepairRoot(current.path); menuRoot.current = current.path; }
                 }}><GitBranch aria-hidden="true" /><span><span>{cardRow(row, null, null).summary?.branch ?? row.path.split("/").at(-1)}</span><small>{displayPath(row.path, props.homeDirectory)}</small></span>{row.path === menuEntry.path && <Check aria-hidden="true" />}</DropdownMenu.Item>)}
                 <DropdownMenu.Separator className="doan-menu-sep" />
-                <DropdownMenu.Item className="doan-menu-item" disabled={menuEntry.kind !== "list"} aria-disabled={locked ?? (menuEntry.kind !== "list" || undefined)} onSelect={() => run(() => props.overview(menuEntry.path))}><LayoutGrid />Overview</DropdownMenu.Item>
+                <DropdownMenu.Item className="doan-menu-item" aria-disabled={locked} onSelect={() => run(() => props.overview(menuEntry.path))}><LayoutGrid />Overview</DropdownMenu.Item>
                 <DropdownMenu.Item className="doan-menu-item" onSelect={() => run(() => props.action("showInFinder", menuEntry.path))}><FolderOpen />Show in Finder</DropdownMenu.Item>
                 <DropdownMenu.Item className="doan-menu-item" aria-disabled={locked} onSelect={() => run(() => props.projectSettings(menuEntry.path))}><Settings />Project Settings</DropdownMenu.Item>
                 {menuInfo.actions.filter(action => action !== "remove" && action !== "showInFinder").map(action => <DropdownMenu.Item className="doan-menu-item" key={action} onSelect={() => run(() => props.action(action, menuEntry.path))}>{labels[action]}</DropdownMenu.Item>)}
@@ -334,8 +371,8 @@ export function ShellSidebar(props: Props) {
               </DropdownMenu.Content></DropdownMenu.Portal>
             </DropdownMenu.Root>
           </div>
-          {expanded && <div role="group">
-            {entry.kind === "list" ? layout.groups.map(group => {
+          {expanded && listed && <div role="group">
+            {layout.groups.map(group => {
               const key = headKey(entry.path, group.id), countId = `${descriptionPrefix}-${index}-${group.id}`;
               const Icon = group.id === "ds" ? SwatchBook : PanelsTopLeft;
               return <div className="shell-group" key={group.id}>
@@ -350,7 +387,7 @@ export function ShellSidebar(props: Props) {
                       lostFocus: () => focus(canvasMenuFocus.current) })}</div>{problem && <div id={descriptionId} className="shell-canvas-error">{problem.sentence}<ErrorDetails className="btn ghost" detail={problem.detail}>{(button, detail) => <>{button}{detail && <pre>{detail}</pre>}</>}</ErrorDetails></div>}</div>;
                 }) : <p className="shell-empty">{group.empty}</p>}</div>}
               </div>;
-            }) : <p className="shell-empty">{info.chip}</p>}
+            })}
           </div>}
         </div>;
       })}

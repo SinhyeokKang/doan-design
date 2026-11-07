@@ -321,18 +321,10 @@ code, kbd { font-family: var(--type-family); }
 /* Disabled reads through the ink, so parts with their own colour follow it. */
 .branch:disabled :is(.caret, .glyph) { color: var(--text-disabled); }
 .branch[aria-expanded="true"] { background: var(--affordance-subtle-hover); border-color: var(--border-prominent); }
-.ws-status { display: flex; align-items: center; gap: 10px; padding: 7px 12px; background: var(--surface-inset); border-bottom: 1px solid var(--border-standard); font: 12px var(--type-family); color: var(--text-subtle); min-width: 0; }
-.ws-status .text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
-.ws-status .text code { color: var(--text-subtle); background: var(--surface-panel); border-radius: 4px; padding: 0 4px; }
 
 .workspace { position: absolute; inset: 0; }
 
 .menu[role="menu"] { position: relative; outline: none; z-index: 20; }
-.workspace.with-status { grid-template-rows: 40px auto minmax(0, 1fr); }
-.ws-recovery { grid-column: 1 / -1; }
-.ws-status { flex-wrap: wrap; }
-.ws-status .wt-actions { padding: 0; margin: 0; gap: 10px; align-items: center; }
-.ws-detail { padding: 8px 12px 10px; background: var(--surface-inset); border-bottom: 1px solid var(--border-standard); }
 
 
 
@@ -419,7 +411,6 @@ body:has(.shell-top) { background: transparent; }
 /* The sidebar's width: App sets the remembered one on the root element, so every shell follows it (sidebarSize.ts). */
 :root { --doan-sidebar-width: 220px; }
 .workspace.app-shell { grid-template-columns: var(--doan-sidebar-width) minmax(0, 1fr) var(--doan-right-width); grid-template-rows: var(--size-chrome) minmax(0, 1fr); gap: 0; padding: 0 8px 8px; background: transparent; }
-.workspace.with-status { grid-template-rows: var(--size-chrome) auto minmax(0, 1fr); }
 .shell-top.top { position: relative; padding: 0 8px; gap: 0; border: 0; background: transparent; }
 .shell-top .traffic-space { width: 72px; }
 /* Fullscreen has no traffic lights: the first header button lines up with the panels' left edge (x8). The header
@@ -461,7 +452,9 @@ body:has(.shell-top) { background: transparent; }
 .shell-disclosure svg { width: var(--size-icon); height: var(--size-icon); transition: transform var(--time-state) var(--ease-state); }
 .shell-project-row[aria-expanded="false"] .shell-disclosure svg { transform: rotate(-90deg); }
 .shell-project-row:is(:hover, :focus-visible, :has(:focus-visible)) .shell-disclosure { visibility: visible; }
-.shell-project-row:is(:hover, :focus-visible, :has(:focus-visible)) .shell-lead > .shell-thumbnail { visibility: hidden; }
+/* Only a row with a chevron hands its thumbnail's place to it; a row without one (a project that has no list) keeps the
+   thumbnail, or its lead would go empty on hover. */
+.shell-project-row:is(:hover, :focus-visible, :has(:focus-visible)) .shell-lead:has(> .shell-disclosure) > .shell-thumbnail { visibility: hidden; }
 @media (hover: hover) and (pointer: fine) { .shell-disclosure:hover { background: var(--affordance-backdrop-pressed); color: var(--text-standard); } }
 /* A light tint with dark ink (buzz-onboarding approved draft), shared with onboarding project cards. */
 .hue-rose { background: color-mix(in srgb, var(--identity-project-rose) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-rose) 65%, var(--text-standard)); }
@@ -811,7 +804,6 @@ body:has(.shell-top) { background: transparent; }
 
 /* buzz-home: the temporary Home-conversation strip at the top of the workspace body (design §7), on the same white panel. */
 .workspace.with-strip { grid-template-rows: var(--size-chrome) auto minmax(0, 1fr); }
-.workspace.with-status.with-strip { grid-template-rows: var(--size-chrome) auto auto minmax(0, 1fr); }
 .workspace.with-strip > :is(.side, .right-stack) { grid-row: -3 / -1; }
 .workspace > .strip-slot { grid-column: 2; grid-row: -3; z-index: 2; margin-left: var(--space-2); padding: var(--space-3) var(--space-3) 0; background: var(--surface-panel); border-radius: var(--radius-container) 0 0 0; }
 .workspace.with-strip > :is(.doan-canvas-panel, .ov) { border-top-left-radius: 0; }
@@ -830,6 +822,9 @@ body:has(.shell-top) { background: transparent; }
 .row-slot { display: inline-grid; place-items: center; width: var(--size-icon); height: var(--size-icon); flex: none; margin-left: auto; }
 .shell-project-row .row-slot { margin-left: 0; }
 .row-slot.permission { color: var(--affordance-accent); }
+/* A problem project's kind icon (16, the slot's svg size); the reading spinner takes the
+   working mark's 14px rule below. */
+.row-slot.problem { color: var(--text-subtle); }
 .row-slot svg { width: var(--size-icon); height: var(--size-icon); }
 .row-slot .doan-spinner { width: var(--size-icon-sm); height: var(--size-icon-sm); }
 .row-slot.unseen i { width: var(--space-2); height: var(--space-2); border-radius: 50%; background: var(--affordance-accent); }
@@ -1419,12 +1414,12 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 :root[data-sidebar="hidden"] .home-shell { grid-template-columns: 0px minmax(0, 1fr); }
 :root[data-sidebar="hidden"] .home-shell > .home-panel { grid-column: 2; }
 :root[data-sidebar="hidden"] .workspace > :is(.doan-conv-column, .right-stack) { grid-column: 3; }
-:root[data-sidebar="hidden"] :is(.workspace > .doan-canvas-panel, .workspace > .ov, .workspace > .strip-slot, .home-panel) { margin-left: 0; }
+:root[data-sidebar="hidden"] :is(.workspace > .doan-canvas-panel, .workspace > .ov, .workspace > .strip-slot, .workspace > .problem-overlay, .home-panel) { margin-left: 0; }
 :root[data-sidebar-motion] :is(.workspace.app-shell, .home-shell) { transition: grid-template-columns var(--time-panel-enter) var(--ease-settle); }
-:root[data-sidebar-motion] :is(.workspace > .doan-canvas-panel, .workspace > .ov, .workspace > .strip-slot, .home-panel) { transition: margin-left var(--time-panel-enter) var(--ease-settle); }
+:root[data-sidebar-motion] :is(.workspace > .doan-canvas-panel, .workspace > .ov, .workspace > .strip-slot, .workspace > .problem-overlay, .home-panel) { transition: margin-left var(--time-panel-enter) var(--ease-settle); }
 @media (prefers-reduced-motion: reduce) {
   .workspace.app-shell[data-panel-motion], .workspace[data-panel-motion] > .doan-conv-column[data-collapsed] { transition: none; }
-  :root[data-sidebar-motion] :is(.workspace.app-shell, .home-shell, .workspace > .doan-canvas-panel, .workspace > .ov, .workspace > .strip-slot, .home-panel) { transition: none; }
+  :root[data-sidebar-motion] :is(.workspace.app-shell, .home-shell, .workspace > .doan-canvas-panel, .workspace > .ov, .workspace > .strip-slot, .workspace > .problem-overlay, .home-panel) { transition: none; }
 }
 
 /* buzz-canvas: the agent indicator while this canvas's current conversation works or waits (.doan/canvases/buzz-canvas.html
@@ -1597,3 +1592,40 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .storage-reason { display: flex; align-items: flex-start; gap: var(--space-1h); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
 .storage-reason > svg { margin-block: calc((var(--type-body-sm-line-height) - var(--size-icon)) / 2); }
 .storage-reason.warn { color: var(--text-warning); }
+
+/* Problem overlay (.doan/canvases/problem-project.html): a problem project's content under an overlay that holds
+   its recovery actions. It covers the main and right columns inside the content panel's corners; the header, the
+   sidebar and its resize handle stay usable. Layer: above the panel handles (4), under the toast (6) and the portalled
+   menus and tooltips (50); .workspace has no z-index, so these compare in the root stacking context. */
+.workspace > .problem-overlay { z-index: 5; grid-column: 2 / 4; grid-row: -2; min-height: 0; display: flex; overflow-y: auto; margin-left: var(--space-2); padding-block: var(--space-6); border-radius: var(--radius-container); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); background: color-mix(in srgb, var(--surface-panel) 60%, transparent); -webkit-backdrop-filter: blur(var(--blur-sm)); backdrop-filter: blur(var(--blur-sm)); }
+@media (prefers-reduced-transparency: reduce) { .workspace > .problem-overlay { background: var(--surface-panel); -webkit-backdrop-filter: none; backdrop-filter: none; } }
+/* Reading: no blur and no scene, the opaque panel with its status line. */
+.workspace > .problem-overlay.reading { background: var(--surface-panel); -webkit-backdrop-filter: none; backdrop-filter: none; }
+/* The overlay takes the right column's cell, so the right column (the Overview's list or the canvas page's
+   conversation column, placed by order alone) needs its own cell or it is pushed into a new row under the sidebar. */
+.workspace.overlaid > :is(.right-stack, .doan-conv-column) { grid-column: 3; }
+.workspace.overlaid:not(.with-strip) > :is(.right-stack, .doan-conv-column) { grid-row: -2; }
+/* With the conversation strip the overlay covers both content rows and the strip sits above it, still answerable. */
+.workspace.with-strip > .problem-overlay { grid-row: -3 / -1; }
+.workspace.overlaid > .strip-slot { z-index: 6; }
+/* The scene is centred while it fits and starts at the top when it does not, so every action stays reachable. */
+.problem-overlay > :is(.problem-scene, .problem-reading) { margin: auto; }
+.problem-scene { display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 560px; padding: 0 var(--space-6); }
+/* 32px and the 1.5 stroke are this screen's constants: no icon token has 32 (--size-control-sm is a control size), and
+   a 2 stroke in the 24 box would draw 2.67px at 32. */
+.problem-scene .problem-icon { flex: none; width: 32px; height: 32px; stroke-width: 1.5; margin-bottom: var(--space-4); color: var(--text-subtle); }
+/* Onboarding's centred heading with the Settings page title's type. */
+.problem-heading { margin-bottom: var(--space-6); }
+.problem-heading h2 { font-size: var(--type-heading-size); line-height: var(--type-heading-line-height); letter-spacing: var(--type-heading-letter-spacing); }
+.problem-heading p code { padding: 0 var(--space-1); border-radius: var(--space-1); background: var(--surface-inset); color: var(--text-standard); }
+.problem-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-2); }
+/* A subtle button at rest on the glass takes the hover fill, as on onboarding's overlay. */
+.problem-overlay .doan-button[data-ui-variant="subtle"]:not(:hover, :active) { background: var(--affordance-backdrop-hover); }
+/* Busy while a recovery reads the project again: every action is unavailable but focusable; the pressed, filled one
+   keeps its fill and shows the spinner. */
+.problem-actions .doan-button[aria-disabled="true"] { cursor: default; }
+.problem-actions .doan-button[aria-disabled="true"]:not([data-ui-variant="prominent"]) { color: var(--text-disabled); }
+.problem-busy .doan-spinner { width: var(--size-icon-sm); height: var(--size-icon-sm); border-color: color-mix(in srgb, currentColor 30%, transparent); border-top-color: currentColor; }
+/* Project Settings' details block (.project-settings-details), under the actions. */
+.problem-detail { width: 100%; margin-top: var(--space-4); padding: var(--space-3) var(--space-4); border-radius: var(--radius-row); background: var(--surface-inset); color: var(--text-subtle); font: var(--type-caption-size)/var(--type-caption-line-height) var(--type-family); white-space: pre-wrap; overflow-wrap: anywhere; text-align: start; }
+.problem-reading { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
