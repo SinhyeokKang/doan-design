@@ -66,6 +66,16 @@ jobs:
             echo "::error::not set in the release environment:$missing"
             exit 1
           fi
+          # notarytool reports a malformed ID only after the app is signed;
+          # these shape checks fail in seconds and never print a value.
+          shape() { local v="$1"; local ws=no; [ "$v" = "${v//[[:space:]]/}" ] || ws=yes; echo "${#v} characters, whitespace: $ws"; }
+          bad=0
+          uuid='^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$'
+          keyid='^[A-Z0-9]{10}$'
+          [[ "$APPLE_API_ISSUER" =~ $uuid ]] || { echo "::error::APPLE_API_ISSUER is not a UUID ($(shape "$APPLE_API_ISSUER"))"; bad=1; }
+          [[ "$APPLE_API_KEY_ID" =~ $keyid ]] || { echo "::error::APPLE_API_KEY_ID is not 10 uppercase letters or digits ($(shape "$APPLE_API_KEY_ID"))"; bad=1; }
+          [[ "$APPLE_API_KEY_P8" == *"-----BEGIN PRIVATE KEY-----"* ]] || { echo "::error::APPLE_API_KEY_P8 is not the .p8 file content"; bad=1; }
+          exit "$bad"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
