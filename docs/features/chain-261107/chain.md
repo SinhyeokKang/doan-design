@@ -52,7 +52,7 @@
 | 링크 | 세션·worktree | 시작 | PR·병합 | 상태 |
 |---|---|---|---|---|
 | 1 defect-sweep | Claude Code, `defect-sweep-orch` | 2026-11-07 `e9e92711` | PR #118 · `470bc3dd` | 병합 |
-| 2 text-edit-menu | Claude Code, `text-edit-menu-orch` | 인계 중 | — | 시작 |
+| 2 text-edit-menu | Claude Code, `text-edit-menu-orch` | 2026-11-07 `5c5aad3e` | — | 진행 |
 | 3 ts-lint-gate | — | — | — | 대기 |
 
 ## 인계 기록
