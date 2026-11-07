@@ -116,6 +116,12 @@ function pickModel(text: string) {
   const item = all(group).find(element => element.type === DropdownMenu.RadioItem && words(element.props.children).startsWith(text))!;
   (group.props.onValueChange as (value: string) => void)(item.props.value as string);
 }
+// Picks an Effort menu row by its text, through the value the row itself carries.
+function pickEffort(text: string) {
+  const group = all(tree).filter(element => element.type === DropdownMenu.RadioGroup)[2]!;
+  const item = all(group).find(element => element.type === DropdownMenu.RadioItem && words(element.props.children) === text)!;
+  (group.props.onValueChange as (value: string) => void)(item.props.value as string);
+}
 const modelRows = () => all(all(tree).filter(element => element.type === DropdownMenu.RadioGroup)[1]!).filter(element => element.type === DropdownMenu.RadioItem);
 const checked = () => modelRows().filter(item => all(item.props.children as ReactNode).some(element => element.props.className === "check")).map(item => words(item.props.children));
 const row = (provider: Provider) => all(tree).find(element => element.props["data-provider"] === provider && element.props.role === "group");
@@ -157,7 +163,7 @@ test("with Model Default, Effort lists the default model's efforts and saves wit
   expect(labelled("Model for new conversations")[0]?.props["aria-label"]).toBe("Model for new conversations: Default · Opus 5.5");
   expect(labelled("Effort for new conversations")[0]?.props["aria-label"]).toBe("Effort for new conversations: Default");
   const groups = all(tree).filter(element => element.type === DropdownMenu.RadioGroup);
-  (groups[2]!.props.onValueChange as (value: string) => void)("high");
+  pickEffort("High");
   expect(props.save).toHaveBeenLastCalledWith({ newConversation: { provider: "claude", effort: "high" } });
   await settle({ preferences: prefs({ provider: "claude", effort: "high" }) });
   expect(labelled("Effort for new conversations")[0]?.props["aria-label"]).toBe("Effort for new conversations: High");
@@ -191,7 +197,7 @@ test("a saved Claude Code \"default\" reads as nothing fixed", async () => {
   // Only the Default row stands for it: the saved id is never offered as a model of its own.
   expect(all(groups[1]!).filter(element => element.type === DropdownMenu.RadioItem)).toHaveLength(2);
   expect(labelled("Effort for new conversations")[0]?.props["aria-label"]).toBe("Effort for new conversations: High");
-  (groups[2]!.props.onValueChange as (value: string) => void)("low");
+  pickEffort("Low");
   expect(props.save).toHaveBeenLastCalledWith({ newConversation: { provider: "claude", effort: "low" } });
 });
 
@@ -203,6 +209,24 @@ test("Codex with nothing fixed names its default model and level", async () => {
   expect(labelled("Model for new conversations")[0]?.props["aria-label"]).toBe("Model for new conversations: Default · GPT-6-Luna");
   expect(labelled("Effort for new conversations")[0]?.props["aria-label"]).toBe("Effort for new conversations: Default · Medium");
   expect(labelled("Permission for new conversations")[0]?.props["aria-label"]).toBe("Permission for new conversations: Ask first");
+});
+// defect-sweep B5 (POSTMORTEM 2026-11-06 'A menu's "nothing chosen" value shared its string with a real model id'): a
+// level a provider names "default" is a level of its own, apart from the Effort menu's Default row.
+test("an effort level named default stays apart from the Effort menu's Default row", async () => {
+  auth = { revision: 1, providers: [dto("claude"), dto("codex")] };
+  resetHooksAndList([{ id: "gpt-x", label: "GPT-X", default: true, efforts: ["default", "high"] }]);
+  await settle({ preferences: prefs({ provider: "codex" }) });
+  await settle();
+  const effortGroup = () => all(tree).filter(element => element.type === DropdownMenu.RadioGroup)[2]!;
+  const items = () => all(effortGroup()).filter(element => element.type === DropdownMenu.RadioItem);
+  expect(new Set(items().map(item => item.props.value)).size).toBe(3);
+  expect(effortGroup().props.value).toBe(items()[0]!.props.value);
+  (effortGroup().props.onValueChange as (value: string) => void)(items()[1]!.props.value as string);
+  expect(props.save).toHaveBeenLastCalledWith({ newConversation: { provider: "codex", effort: "default" } });
+  await settle({ preferences: prefs({ provider: "codex", effort: "default" }) });
+  expect(effortGroup().props.value).toBe(items()[1]!.props.value);
+  (effortGroup().props.onValueChange as (value: string) => void)(items()[0]!.props.value as string);
+  expect(props.save).toHaveBeenLastCalledWith({ newConversation: { provider: "codex" } });
 });
 // A Codex account replacement mints a new connection, whose list main reads again; the list read for the account
 // before it must not stay on the Model row.
@@ -279,7 +303,7 @@ test("Agent, Model and Effort are menus (role=menu), never a listbox Select, and
   expect(props.save).toHaveBeenLastCalledWith({ newConversation: null });
   pickModel("Haiku 5.5");
   expect(props.save).toHaveBeenLastCalledWith({ newConversation: { provider: "claude", model: "haiku" } });
-  (groups[2]!.props.onValueChange as (value: string) => void)("low");
+  pickEffort("Low");
   expect(props.save).toHaveBeenLastCalledWith({ newConversation: { provider: "claude", model: "opus", effort: "low" } });
 });
 
@@ -303,7 +327,7 @@ test("Permission is a menu after Effort and saves the mode with the saved model 
   expect(props.save).toHaveBeenLastCalledWith({ newConversation: { provider: "claude", model: "opus", effort: "high" } });
   pickModel("Haiku 5.5");
   expect(props.save).toHaveBeenLastCalledWith({ newConversation: { provider: "claude", model: "haiku", permissionMode: "bypass" } });
-  (groups[2]!.props.onValueChange as (value: string) => void)("low");
+  pickEffort("Low");
   expect(props.save).toHaveBeenLastCalledWith({ newConversation: { provider: "claude", model: "opus", effort: "low", permissionMode: "bypass" } });
 });
 

@@ -49,3 +49,28 @@ export function settingsEffortLabel(effort: EffortView): string {
   if (!effort.unset.selected) return effort.label;
   return effort.placeholder ? "Default" : `Default · ${effort.label}`;
 }
+
+// The Effort menu's rows, kept apart by kind as the Model menu's are (POSTMORTEM 2026-11-06): a level a provider names
+// "default" is a level of its own, never the Default row that stores no effort. value: the checked row's value.
+export type SettingsEffortRow =
+  | { kind: "unset"; value: string; label: "Default"; selected: boolean }
+  | { kind: "level"; value: string; id: string; label: string; selected: boolean };
+export interface SettingsEffortMenu { value: string; rows: SettingsEffortRow[] }
+const levelValue = (id: string) => `effort:${id}`;
+
+export function settingsEffortMenu(effort: EffortView): SettingsEffortMenu {
+  const chosen = effort.options.find(item => item.selected) ?? null;
+  return {
+    value: chosen ? levelValue(chosen.id) : UNSET_VALUE,
+    rows: [
+      { kind: "unset", value: UNSET_VALUE, label: "Default", selected: !chosen },
+      ...effort.options.map((item): SettingsEffortRow => ({ kind: "level", value: levelValue(item.id), id: item.id, label: item.label, selected: item.selected })),
+    ],
+  };
+}
+
+// The level to store for a picked row's value; null stores none (the Default row, or a value no row carries).
+export function settingsEffortPick(menu: SettingsEffortMenu, value: string): string | null {
+  const row = menu.rows.find(item => item.value === value);
+  return row?.kind === "level" ? row.id : null;
+}

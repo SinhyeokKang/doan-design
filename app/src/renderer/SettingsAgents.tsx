@@ -13,7 +13,7 @@ import { PermissionIconView, PermissionMenuItems, useOlderFold } from "./Compose
 import { generationOf, modelsKey } from "./dockedSupport";
 import { foldRows, olderOrder, modelPickerView, providerLogo, selectableProvider, type ModelsState } from "./homeComposer";
 import { firstUsable, focusLost, NoticeView, PasteDialog, StopDialog } from "./Onboarding";
-import { settingsEffortLabel, settingsModelMenu, settingsModelPick } from "./newConversationSettings";
+import { settingsEffortLabel, settingsEffortMenu, settingsEffortPick, settingsModelMenu, settingsModelPick } from "./newConversationSettings";
 import { permissionPickerView } from "./permissionPicker";
 import { preferencesNotice } from "./SettingsNotifications";
 
@@ -39,7 +39,7 @@ function openInstallPage(provider: Provider): Promise<boolean> {
   return provider === "antigravity" ? Promise.resolve(false) : window.doan.openInstallPage(provider);
 }
 const groupSelector = (provider: Provider) => `.doan-preference-row[role="group"][data-provider="${provider}"]`;
-const LAST_USED = "last", DEFAULT = "default";
+const LAST_USED = "last";
 
 // Settings > Agents (buzz-settings design 'Agents'): the provider rows over the renderer's sign-in controller, and the
 // new-conversation defaults. The rows reuse the first-run Agent step's session and copy; agentAuthView's Settings
@@ -210,6 +210,7 @@ function NewConversations({ auth, preferences, save, project }: Pick<SettingsAge
   const effortModel = pinned ?? listed.find(item => item.default)?.id ?? null;
   const effort = provider && effortModel ? modelPickerView(auth, { [provider]: listState }, { provider, model: effortModel, effort: pref?.effort ?? null }).effort : null;
   const effortLabel = effort ? settingsEffortLabel(effort) : "";
+  const effortMenu = effort ? settingsEffortMenu(effort) : null;
   const status = auth?.providers.find(item => item.provider === provider);
   // Permission (permission-mode U1): the composer's menu, saved with the model and effort; a saved mode this provider
   // cannot offer reads as Default. An ACP provider offers its modes only once the project's list is read.
@@ -261,12 +262,11 @@ function NewConversations({ auth, preferences, save, project }: Pick<SettingsAge
         {project && loadFailed && <div className="doan-preference-row-extra settings-msg-row"><p className="settings-msg error" role="alert"><AlertIcon /><span>Couldn’t load the models for {project.name}.</span></p>
           <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={() => setLists(current => { const next = { ...current }; delete next[key!]; return next; })}>Retry</button></div>}
       </div>}
-      {provider && effort && <div className="doan-preference-row">
+      {provider && effortMenu && <div className="doan-preference-row">
         <div className="doan-preference-row-content"><span className="doan-preference-row-label">Effort</span></div>
         <div className="doan-preference-row-trailing">{trigger(effortLabel, "Effort for new conversations", <><Gauge className="inline" aria-hidden="true" /><span>{effortLabel}</span></>, off,
-          <DropdownMenu.RadioGroup value={effort.options.find(item => item.selected)?.id ?? DEFAULT} onValueChange={value => choose({ provider, ...(pinned ? { model: pinned } : {}), ...(value === DEFAULT ? {} : { effort: value }), ...keepMode })}>
-            {radio(DEFAULT, <span className="model-name">Default</span>, !effort.options.some(item => item.selected))}
-            {effort.options.map(item => radio(item.id, <span className="model-name">{item.label}</span>, item.selected))}
+          <DropdownMenu.RadioGroup value={effortMenu.value} onValueChange={value => { const level = settingsEffortPick(effortMenu, value); choose({ provider, ...(pinned ? { model: pinned } : {}), ...(level === null ? {} : { effort: level }), ...keepMode }); }}>
+            {effortMenu.rows.map(item => radio(item.value, <span className="model-name">{item.label}</span>, item.selected))}
           </DropdownMenu.RadioGroup>)}</div>
       </div>}
       {provider && permission && <div className="doan-preference-row">

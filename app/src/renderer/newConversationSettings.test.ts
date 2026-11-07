@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
-import { foldRows, modelPickerView, NO_OLDER, olderOpened, type ModelsState } from "./homeComposer";
-import { settingsEffortLabel, settingsModelMenu, settingsModelPick } from "./newConversationSettings";
+import { foldRows, modelPickerView, NO_OLDER, olderOpened, type EffortView, type ModelsState } from "./homeComposer";
+import { settingsEffortLabel, settingsEffortMenu, settingsEffortPick, settingsModelMenu, settingsModelPick } from "./newConversationSettings";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import { authStatus } from "../main/agentAuth/state";
 import type { AuthState, Provider } from "../main/agentAuth/types";
@@ -117,4 +117,22 @@ test("the Settings Default row stays above the fold with the current models", ()
   const menu = settingsModelMenu("codex", CODEX_OLDER, undefined);
   expect(foldRows(menu.rows).current.map(row => row.value)).toEqual(["unset", "model:gpt-6.1-sol"]);
   expect(olderOpened(NO_OLDER, [{ provider: "codex", rows: menu.rows }])).toBe(NO_OLDER);
+});
+
+// defect-sweep B5: the Effort menu's values live apart by kind, so a level named "default" never reads as the Default row.
+test("the Effort menu keeps its Default row apart from a level named default", () => {
+  const view = (selected: string | null): EffortView => ({ label: "", ariaLabel: "", placeholder: false, menuLabel: "", title: "", fast: null,
+    unset: { label: "Default", description: "", selected: selected === null },
+    options: ["default", "high"].map(id => ({ id, label: id === "high" ? "High" : "Default", selected: id === selected })) });
+  const none = settingsEffortMenu(view(null));
+  expect(none.rows.map(row => [row.kind, row.selected])).toEqual([["unset", true], ["level", false], ["level", false]]);
+  expect(new Set(none.rows.map(row => row.value)).size).toBe(3);
+  expect(none.value).toBe(none.rows[0]!.value);
+  expect(settingsEffortPick(none, none.rows[0]!.value)).toBeNull();
+  expect(settingsEffortPick(none, none.rows[1]!.value)).toBe("default");
+  expect(settingsEffortPick(none, none.rows[2]!.value)).toBe("high");
+  expect(settingsEffortPick(none, "default")).toBeNull();
+  const chosen = settingsEffortMenu(view("default"));
+  expect(chosen.value).toBe(chosen.rows[1]!.value);
+  expect(chosen.rows.map(row => row.selected)).toEqual([false, true, false]);
 });
