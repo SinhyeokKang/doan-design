@@ -2,7 +2,7 @@ import type { Provider } from "../main/agentAuth/types";
 import type { ConversationSummary } from "../main/conversation/summary";
 import { PROVIDER_NAMES } from "./agentAuthView";
 
-// Deleting a conversation from the title menus (conversation-delete design §3.1): whether its row's Delete can be
+// Deleting a conversation from the title menus: whether its row's Delete can be
 // used, the confirm alert's words and the refusal toast. main judges again when the person confirms.
 
 export const DELETE_TOOLTIP = "Delete conversation";

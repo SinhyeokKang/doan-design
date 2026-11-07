@@ -11,7 +11,7 @@ import thought from "./fixtures/acp-copilot-thought.json";
 import copilot from "./fixtures/acp-copilot.json";
 import type { ConversationEvent, StageSignal, TurnStage } from "./types";
 
-// turn-activity C1: real runners against fake executables replaying the A1 recordings, through the service. These runs
+// Real runners against fake executables replaying the recorded turns, through the service. These runs
 // carry no doan owner, so they also take the terminal session (legacy external) path: the same runners and callbacks.
 const TERMINALS = ["turn.done", "turn.failed", "interrupted"];
 const dirs: string[] = []; afterEach(() => { dirs.splice(0).forEach(dir => rmSync(dir, { recursive: true, force: true })); });

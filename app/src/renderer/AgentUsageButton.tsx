@@ -57,7 +57,7 @@ export function UsagePanel({ titleId, rows, busy, listRef, onRefresh, onSettings
   </>;
 }
 
-// The header button and its non-modal popover, drawn from state (design §4, draft frames place-header and ring-states).
+// The header button and its non-modal popover, drawn from state (draft frames place-header and ring-states).
 export function UsageView(props: UsageViewProps) {
   const { rings, folded, description, descriptionId, open } = props;
   const fold = folded ? foldedRing(rings) : null;

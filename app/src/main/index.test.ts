@@ -138,7 +138,7 @@ vi.mock("./runtime", () => ({ startRuntime: mocks.startRuntime }));
 vi.mock("./addProjects", async (importOriginal) => ({ ...await importOriginal<typeof import("./addProjects")>(), createAddFlow: mocks.createAddFlow }));
 vi.mock("./inspector", async (importOriginal) => ({ ...await importOriginal<typeof import("./inspector")>(), createInspector: mocks.createInspector }));
 vi.mock("./uiState", () => ({ createUiStateStore: mocks.createUiStateStore }));
-// provider-usage R3: the first tool-facts probe and the usage service's triggers, observed where index.ts wires them.
+// The first tool-facts probe and the usage service's triggers, observed where index.ts wires them.
 const usageProbe = vi.hoisted(() => ({ read: undefined as undefined | (() => Promise<unknown>), triggers: [] as unknown[] }));
 vi.mock("./agentAuth/ipc", async (importOriginal) => {
   const original = await importOriginal<typeof import("./agentAuth/ipc")>();
@@ -148,7 +148,7 @@ vi.mock("./agentAuth/usageService", async (importOriginal) => {
   const original = await importOriginal<typeof import("./agentAuth/usageService")>();
   return { ...original, UsageService: class extends original.UsageService { override trigger(event: Parameters<InstanceType<typeof original.UsageService>["trigger"]>[0]) { usageProbe.triggers.push(event); return super.trigger(event); } } };
 });
-// agent-cli-terminal: what main hands the Install/Update opener; its file writes are covered in installCommand.test.ts.
+// What main hands the Install/Update opener; its file writes are covered in installCommand.test.ts.
 const installOpener = vi.hoisted(() => ({ open: vi.fn<(provider: string, facts: unknown) => Promise<string>>(), deps: [] as { dir: string }[] }));
 vi.mock("./installCommand", async (importOriginal) => ({
   ...await importOriginal<typeof import("./installCommand")>(),
@@ -820,7 +820,7 @@ describe("menus", () => {
     expect(() => item("Undo Remove")).toThrow();
   });
 
-  // buzz-canvas-conversation R1: the chip field refuses Chromium's undo, so the role items could not redo it.
+  // The chip field refuses Chromium's undo, so the role items could not redo it.
   test("Edit > Undo and Redo hand a focused chip field its history step, and run the WebContents undo or redo otherwise", async () => {
     const contents = window().webContents;
     const run = async (label: string) => { Reflect.apply(item(label).click!, undefined, [{}, window(), {}]); await new Promise(resolve => setTimeout(resolve, 0)); };
@@ -885,7 +885,7 @@ describe("menus", () => {
     expect(menuEnabled("New Conversation")).toBe(false);
   });
 
-  // shell-panel-layout design §2.4 '단축키와 메뉴': View's first item hides and shows the sidebar; its name follows the
+  // View's first item hides and shows the sidebar; its name follows the
   // renderer's state, a page lock keeps it, a modal turns it off.
   test("View > Hide/Show Sidebar follows the validated sidebar state and tells the renderer", async () => {
     const contents = window().webContents;
@@ -951,7 +951,7 @@ describe("menus", () => {
     expect(window().webContents.send).toHaveBeenCalledWith("menu-command", "home");
   });
 
-  // buzz-add-projects: the page opens in the renderer; no native picker, and none with multiSelections, opens here.
+  // The page opens in the renderer; no native picker, and none with multiSelections, opens here.
   test("Add Project… shows a hidden window first, then tells the renderer to open the Add Projects page", async () => {
     window().emit("close", { preventDefault: vi.fn() });
     expect(window().hide).toHaveBeenCalledOnce();
@@ -986,7 +986,7 @@ describe("menus", () => {
     expect(menuEnabled("Add Project…")).toBe(true);
   });
 
-  // buzz-settings: the Settings page is a screen; its lock (and the Add Projects page's) disables Settings… too.
+  // The Settings page is a screen; its lock (and the Add Projects page's) disables Settings… too.
   test("the Settings page keeps Add Project…, Home and Quick Open; a lock on either page disables Settings…", async () => {
     const contents = window().webContents;
     await completeFirstRun();
@@ -1113,7 +1113,7 @@ describe("locate and reveal", () => {
   });
 });
 
-// canvas-hand-tool: a canvas click is the canvas's message, so the renderer asks where the OS cursor is.
+// A canvas click is the canvas's message, so the renderer asks where the OS cursor is.
 describe("pointer", () => {
   test("answers the window's main frame with the OS cursor in content coordinates at the page zoom", async () => {
     const contents = window().webContents;
@@ -1251,7 +1251,7 @@ describe("thumbnails", () => {
     return hidden;
   }
 
-  // turn-activity C1: the stage goes to the main window only, never to the capture window main also owns.
+  // The stage goes to the main window only, never to the capture window main also owns.
   test("a conversation stage reaches the main window and not the capture window", async () => {
     const hidden = await captureWindow();
     window().webContents.send.mockClear(); hidden.webContents.send.mockClear();
@@ -1444,7 +1444,7 @@ test("home path is available only to the application main frame", async () => {
   expect(await invoke("app:home", window().webContents, {})).toBeNull();
 });
 
-// canvas-row-menu: Move to Trash and Export from the sidebar's canvas row menu.
+// Move to Trash and Export from the sidebar's canvas row menu.
 describe("canvas trash and export", () => {
   const row = { path: ".doan/canvases/a.html", id: "a", url: "http://127.0.0.1:1/t/tok/k/.doan/canvases/a.html" };
   const listed = { path: "/repo", kind: "list", servedRev: 1, canvases: [row] };
@@ -1498,7 +1498,7 @@ describe("canvas trash and export", () => {
   });
 });
 
-// canvas-row-menu: main's own busy grounds and trashItem wiring, on a registered root that passes the disk checks
+// Main's own busy grounds and trashItem wiring, on a registered root that passes the disk checks
 // (POSTMORTEM 2026-11-01: the root is part of the identity; 2026-11-03: pin in main what the renderer relies on).
 describe("canvas trash on main's grounds", () => {
   const tmp = realpathSync(mkdtempSync(join(tmpdir(), "doan-index-trash-")));
@@ -1684,9 +1684,9 @@ test("an approved quit prevents native window teardown until the next event-loop
   expect(resumed.preventDefault).not.toHaveBeenCalled();
 });
 
-// conversation-delete orch decision 5: conversation:delete answers busy while quitting as while working, so the
+// conversation:delete answers busy while quitting as while working, so the
 // renderer learns of the quit from main and its refusal toast can stay quiet. An aborted quit leaves the conversations
-// stopped (the service stays quitting), so main never takes it back (review RA Y3, D2).
+// stopped (the service stays quitting), so main never takes it back.
 test("main tells the renderer it is quitting before the conversations stop, and never takes it back after an aborted quit", async () => {
   const contents = window().webContents;
   const service = mocks.conversationService as unknown as { quit(): Promise<void> };
@@ -1834,7 +1834,7 @@ test("canvas seen refuses foreign windows, subframes, unregistered roots and bad
   expect(await invoke("canvas:seen", contents, null, null)).toBe(false);
 });
 
-// buzz-add-projects: the page's own project instance, beside the onboarding session's (design 'main의 project 처리').
+// The page's own project instance, beside the onboarding session's.
 describe("Add Projects page session", () => {
   const PAGE = ["add-projects:read", "add-projects:inspect", "add-projects:select", "add-projects:clone", "add-projects:cancel"];
   const REFUSED = { v: 2, ok: false, error: { code: "bad_request", message: "Doan could not handle this request." } };
@@ -1944,7 +1944,7 @@ describe("Add Projects page session", () => {
     expect(selected).toMatchObject({ ok: true, result: { operation: { kind: "project_select", state: "succeeded", project: { root: "/plain" } } } });
   });
 
-  // review-BS ⚪3: a confirmation answered "added" counts only once the registry holds the path.
+  // A confirmation answered "added" counts only once the registry holds the path.
   test("a confirmed folder the registry does not list is not registered", async () => {
     const contents = window().webContents, sessionId = await pageSession();
     mocks.projects.canonicalFolder.mockResolvedValue("/plain");
@@ -2011,7 +2011,7 @@ describe("Add Projects page session", () => {
   });
 });
 
-// buzz-settings S2–S4: the Settings page's main-window IPC, notifications and the dialog session.
+// The Settings page's main-window IPC, notifications and the dialog session.
 describe("settings page", () => {
   const LIST = { path: ROOT, kind: "list", canvases: [], servedRev: 0, git: { common: `${ROOT}/.git`, main: ROOT, branch: "main", worktrees: [ROOT] } };
   const configRun = (serve: string[]) => ({ exitCode: 0, timedOut: false, stderr: "", stdout: JSON.stringify({ v: 1, ok: true, result: { repo: ROOT, serve, changed: false } }) });
@@ -2117,7 +2117,7 @@ describe("settings page", () => {
   });
 
   describe("dialog session", () => {
-    test("다이얼로그를 닫은 뒤 늦게 온 읽기·선택 답은 버려진다", async () => {
+    test("a read or choose answer that arrives after the dialog closed is dropped", async () => {
       mocks.shell.entries.mockReturnValue([LIST]);
       const contents = window().webContents;
       await invoke("config:session-start", contents, null);
@@ -2130,7 +2130,7 @@ describe("settings page", () => {
       expect(await reading).toEqual({ kind: "unavailable" });
     });
 
-    test.each(["did-navigate", "render-process-gone"])("reload 뒤 대기 중인 config 읽기가 취소된다 (%s)", async event => {
+    test.each(["did-navigate", "render-process-gone"])("a config read pending across a reload is cancelled (%s)", async event => {
       mocks.shell.entries.mockReturnValue([LIST]);
       const contents = window().webContents;
       let finish!: (value: unknown) => void;
@@ -2227,7 +2227,7 @@ describe("settings page", () => {
   });
 });
 
-// zero-setup-agents: agent setup runs once per launch, beside the window, and About waits for its result.
+// Agent setup runs once per launch, beside the window, and About waits for its result.
 describe("agent setup on launch", () => {
   const LISTED = { exitCode: 0, timedOut: false, stderr: "", stdout: JSON.stringify({ v: 1, ok: true, result: { version: "1.2.3", presets: [] } }) };
   const ALL = ["claude", "codex", "cursor", "antigravity", "copilot"];
@@ -2277,7 +2277,7 @@ describe("agent setup on launch", () => {
     failed.catch(() => {});
     beforeAll(() => { launchSetup = HELD; });
     afterAll(() => { launchSetup = { home: "/Users/you", items: [], steps: [] }; });
-    // A crash must not read as "every agent was set up" (design 'About 알림').
+    // A crash must not read as "every agent was set up".
     test("the failure is logged and About answers with a crashed item, which Copy details names", async () => {
       const logged = vi.spyOn(console, "error").mockImplementation(() => {});
       mocks.runDesignSkill.mockResolvedValue(LISTED);
@@ -2338,7 +2338,7 @@ test("unchanged work does not publish during startup or folder refreshes", () =>
   expect(publications()).toHaveLength(2);
 });
 
-// work-update design §2 function 5: an update's content and a renewed start reach the renderer.
+// An update's content and a renewed start reach the renderer.
 test("work content and a later start publish work:changed", () => {
   vi.useFakeTimers();
   onTestFinished(() => { vi.useRealTimers(); });
@@ -2362,7 +2362,7 @@ test("work content and a later start publish work:changed", () => {
   expect(new Set(published.map(items => items[0]?.turn)).size).toBe(1);
 });
 
-// V2 review: the same conversation update in the same ms publishes once; a later one renews touched and publishes.
+// The same conversation update in the same ms publishes once; a later one renews touched and publishes.
 test("an identical conversation update publishes again only when its time changed", () => {
   vi.useFakeTimers();
   onTestFinished(() => { vi.useRealTimers(); });
@@ -2382,7 +2382,7 @@ test("an identical conversation update publishes again only when its time change
   expect(publications()[1]?.[0]?.touched).toBe((publications()[0]?.[0]?.touched ?? 0) + 5);
 });
 
-// work-update design decision 9 and §1 rule 5: an app conversation's update is its own state and channel, never
+// An app conversation's update is its own state and channel, never
 // terminal work, and its turn's end clears it.
 test("conversation work has its own channel, only for a running turn, and a turn's end clears it", () => {
   const state = mocks.startRuntime.mock.calls[0]?.[1] as { conversationWork(request: unknown): void } | undefined;
@@ -2527,7 +2527,7 @@ test("work deadlines use one timeout and file changes stay within their root", (
   } finally { timeout.mockRestore(); interval.mockRestore(); vi.useRealTimers(); }
 });
 
-// onboarding-background-open: `onboarding start` keeps Doan behind the app in use and shows the window on activation.
+// `onboarding start` keeps Doan behind the app in use and shows the window on activation.
 describe("background onboarding launch and start", () => {
   // Relaunches main with the CLI's background flag in argv (or without it) and the given activation at window creation.
   async function launch({ background, active }: { background: boolean; active: boolean }) {
@@ -2768,7 +2768,7 @@ describe("background onboarding launch and start", () => {
   });
 });
 
-// provider-usage B2: the usage read answers the window's entries; a frame that is not the window gets an empty list.
+// The usage read answers the window's entries; a frame that is not the window gets an empty list.
 test("answers agent-usage:read with entries for the window and an empty list for anyone else", async () => {
   const contents = window().webContents;
   const entries = await invoke("agent-usage:read", contents, null, undefined);

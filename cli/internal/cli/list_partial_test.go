@@ -43,7 +43,7 @@ func expectJSON(t *testing.T, name string, got any, want string) {
 
 const fooRow = `{"path":".doan/canvases/a.html","id":"foo","width":800,"title":"Example","frames":[{"id":"main","title":"Main"}]`
 
-// Commands that read the unreadable file keep failing as a whole (spec: out of scope).
+// Commands that read the unreadable file keep failing as a whole.
 func expectWholeFailures(t *testing.T, root string, commands ...[]string) {
 	t.Helper()
 	for _, args := range commands {

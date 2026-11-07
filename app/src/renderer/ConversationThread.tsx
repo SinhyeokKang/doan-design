@@ -21,7 +21,7 @@ import { canSend, EMPTY_QUESTION_DRAFT, questionInput, sendBlockedText, type Que
 import { pendingAsks, questionLines, scrollFollow, threadScroll, waitsForPerson, type ActivityStep, type ThreadItem, type TurnEnd } from "./threadItems";
 import { elapsedText, settle, SETTLE_MS, turnAnnouncement, turnText, type Settled, type ThreadTurn, type TurnStatus } from "./turnStatus";
 
-// The conversation thread (buzz-conversation design §3.3, draft frames thread-*). The host reads the history, merges
+// The conversation thread (draft frames thread-*). The host reads the history, merges
 // live events and passes threadItems' result; links, copying and every action go back through callbacks, so the
 // thread never reaches main itself.
 
@@ -39,10 +39,10 @@ export interface ConversationThreadProps {
   canvasListed(canvas: Canvas): boolean;
   // Resolves to main's refusal, or rejects, when the answer did not reach the agent; the request then says so.
   onAnswer(requestId: string, optionId: string): Promise<void | { error: string }> | void;
-  // A question card's answer or skip (agent-questions design §7), with the same refusal rule as onAnswer.
+  // A question card's answer or skip, with the same refusal rule as onAnswer.
   onAnswerQuestion?(requestId: string, answer: QuestionAnswerInput): Promise<void | { error: string }> | void;
   // The answers being chosen live in the host's store by request, so they outlive this thread's redraw for another
-  // conversation (design §7); without them a card shows nothing chosen.
+  // conversation; without them a card shows nothing chosen.
   questionDraft?(requestId: string): QuestionDraft;
   onQuestionDraft?(requestId: string, action: QuestionDraftAction): void;
   // Where focus goes when an answered question leaves no request waiting (composerRules.focusAfter's field).
@@ -54,17 +54,17 @@ export interface ConversationThreadProps {
   onOpenCanvas(canvas: Canvas): void;
   // A handoff line's or card's Open: that canvas with its panel on the given conversation. Without it neither offers Open.
   onOpenHandoff?(canvas: Canvas, conversationId: string): void;
-  // Only https links reach this (design §2.7); main checks again.
+  // Only https links reach this; main checks again.
   onOpenLink(url: string): void;
   onCopy(text: string): Promise<boolean>;
-  // The canvas panel's: a sent message's chips are buttons that show their target on the canvas (design §2 'Chip
-  // locate'); without it they are drawn as plain chips. `locateDisabled` while the canvas cannot be shown. Settles
+  // The canvas panel's: a sent message's chips are buttons that show their target on the canvas;
+  // without it they are drawn as plain chips. `locateDisabled` while the canvas cannot be shown. Settles
   // with how the locate ended; only "missing" shows "No longer in the canvas".
   onLocate?(anchor: Anchor): Promise<LocateOutcome>;
   locateDisabled?: boolean;
   // The open canvas's frames, which name a frame chip by its current title; undefined while it has no layout.
   frames?: readonly FrameName[] | undefined;
-  // Chips in the agent's replies (agent-reply-chips design 'Rendering'): `doan:` links that point into a canvas of the
+  // Chips in the agent's replies: `doan:` links that point into a canvas of the
   // conversation's root. Pressing one asks the host; it settles with the locate's outcome when the chip pointed into
   // the open canvas, so "missing" shows "No longer in the canvas" under the reply. Without it reply chips are drawn as
   // plain chips.
@@ -77,8 +77,8 @@ export interface ConversationThreadProps {
   // The last turn's indicator state (turnStatus) and start; without it no turn indicator shows.
   turn?: ThreadTurn | null;
 }
-// focusItem: an entry's focus on a waiting request (design §6): a question's first option or answer input, a
-// permission request's first choice; after a handoff's move, the handoff card itself (canvas-handoff design §6). False
+// focusItem: an entry's focus on a waiting request: a question's first option or answer input, a
+// permission request's first choice; after a handoff's move, the handoff card itself. False
 // when the item has no such control drawn.
 export interface ConversationThreadHandle { scrollToItem(key: string): void; focusItem(key: string): boolean }
 const ENTRY_FOCUS = ":is(.q-card input, .strip-actions button, .handoff-card)";
@@ -86,7 +86,7 @@ const ENTRY_FOCUS = ":is(.q-card input, .strip-actions button, .handoff-card)";
 export const LOADING_DELAY_MS = 300;
 
 // How a chip locate ended: "timeout" (the canvas did not answer) and "unavailable" end silently, because neither says
-// the target is gone (design §2 'Chip locate').
+// the target is gone.
 export type LocateOutcome = "shown" | "missing" | "timeout" | "unavailable";
 export const LOCATE_MISSING_TEXT = "No longer in the canvas";
 export const LOCATE_NOTE_MS = 4000;
@@ -165,7 +165,7 @@ function Link({ href, children }: { href: string | undefined; children?: ReactNo
 }
 const CHIP_ICONS = { frame: Frame, element: SquareMousePointer, point: MapPin } as const;
 
-// How a reply chip reads (agent-reply-chips design 'Rendering'). The link's text is agent output and never names the
+// How a reply chip reads. The link's text is agent output and never names the
 // chip. A chip into the open canvas takes that canvas's frame titles while it has a layout; any other chip, and that
 // one without a layout, takes the titles of the list row with the link's canvas id. Without exactly one such row the
 // chip shows the id itself and names its canvas by the link's id.
@@ -212,7 +212,7 @@ const COMPONENTS: Components = {
   table: ({ children }) => <div className="md-table"><table>{children}</table></div>,
 };
 const PLUGINS = [remarkGfm];
-// A finished message parses once; a streaming one parses at most once per animation frame (design §0).
+// A finished message parses once; a streaming one parses at most once per animation frame.
 // remark-gfm's footnotes take fixed ids: clobberPrefix renames the notes, and the label ("footnote-label", which every
 // reference names in aria-describedby) is renamed here, so two messages never share an id.
 type HastNode = { type?: string; tagName?: string; value?: string; properties?: Record<string, unknown>; children?: HastNode[] };
@@ -289,7 +289,7 @@ export async function answerReached(send: () => Promise<void | { error: string }
   return await answerRefusal(send) === null;
 }
 // A question's answer or skip: the card stays locked until question.resolved folds it. A stale refusal means main
-// settled the request already, or will by its own expiry, so it waits without an error line (batch G review); any
+// settled the request already, or will by its own expiry, so it waits without an error line; any
 // other refusal unlocks the card with its choices kept.
 export async function settleQuestionSend(send: () => Promise<void | { error: string }> | void, edit: (action: QuestionDraftAction) => void): Promise<void> {
   const refusal = await answerRefusal(send);
@@ -297,7 +297,7 @@ export async function settleQuestionSend(send: () => Promise<void | { error: str
 }
 
 // Arrow keys choose radios as they move, so an Other reached that way only opens its input, while a click or Space on
-// it also moves focus there (design §7). The keydown comes before the change it causes and the keyup after, so a flag
+// it also moves focus there. The keydown comes before the change it causes and the keyup after, so a flag
 // between them tells the two apart; one keyboard is in use at a time, so one flag serves every card.
 let arrowing = false;
 const ARROWS = new Set(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);
@@ -319,9 +319,9 @@ export interface QuestionCardProps {
   onSkip(): void;
   onStop(): void;
 }
-// A waiting question (design §7, draft frames question-card, keyboard, send-states). The permission notice without its
+// A waiting question (draft frames question-card, keyboard, send-states). The permission notice without its
 // "needs your answer" title: the first question is the title beside the mark, and each further question's sentence
-// sits above its options. The options are Settings rows (decided rule 16); nothing in them is cut. No hooks: the
+// sits above its options. The options are Settings rows; nothing in them is cut. No hooks: the
 // draft is the host's, and focus goes by id.
 export function QuestionCard({ item, provider, live, base, draft, onDraft, onSend, onSkip, onStop }: QuestionCardProps) {
   const locked = draft.sending !== null, ready = canSend(item.questions, draft);
@@ -470,8 +470,7 @@ function lastEnd(items: readonly ThreadItem[]): { key: string; resend: boolean }
   }
   return null;
 }
-// The running turn reads as the indicator's settled stage kind, so it changes only when that kind does (turn-activity
-// spec condition 7).
+// The running turn reads as the indicator's settled stage kind, so it changes only when that kind does.
 function phaseText(items: readonly ThreadItem[], provider: Provider, shown: TurnStatus): string {
   const p = PROVIDER_NAMES[provider];
   if (items.some(waitsForPerson)) return `${p} needs your answer`;
@@ -482,7 +481,7 @@ function phaseText(items: readonly ThreadItem[], provider: Provider, shown: Turn
   return "";
 }
 
-// The turn indicator (turn-activity draft frame `states`, decision 1): in the reply's place at the thread's end, one
+// The turn indicator (draft frame `states`): in the reply's place at the thread's end, one
 // line of the stage's words under a sweep and the time since the turn started. It is no live region and takes no
 // focus; the time is hidden from screen readers. Its own timer redraws only this line each second, so the thread's
 // items and scroll effect do not run every second. The timer stops while the window is hidden and the time is counted
@@ -539,7 +538,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   const focusedKey = focusedItem(scroller.current);
   const shown = useRef<readonly { requestId: string; key: string; unsent: boolean }[]>([]);
   const stop = (requestId: string) => { folding.current = { requestId, action: { kind: "stopped" } }; props.onStop(); };
-  // Requests whose last answer did not reach main (design §2 'Errors'): the person chooses again.
+  // Requests whose last answer did not reach main: the person chooses again.
   const [unanswered, setUnanswered] = useState<ReadonlySet<string>>(new Set());
   const answer = (requestId: string, optionId: string) => {
     folding.current = { requestId, action: { kind: "answered", requestId } };
@@ -562,7 +561,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     return !!control;
   };
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // The indicator's stage after settle (design §1), kept as state derived while rendering: an immediate change shows in
+  // The indicator's stage after settle, kept as state derived while rendering: an immediate change shows in
   // the same render, so the indicator is there from the render the person's message enters.
   // It belongs to one turn: a next turn starts from nothing, even when no render showed the earlier one's end (a queue
   // starting it at once), so an earlier turn's shown or pending stage never shows beside it.
@@ -585,7 +584,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   }, [items === null]);
   useEffect(() => () => { if (copiedTimer.current) clearTimeout(copiedTimer.current); }, []);
 
-  // Follow new output only from within 24px of the bottom, measured before this update (design §3.3).
+  // Follow new output only from within 24px of the bottom, measured before this update.
   useLayoutEffect(() => {
     const node = scroller.current;
     if (!node || !Array.isArray(items)) return;

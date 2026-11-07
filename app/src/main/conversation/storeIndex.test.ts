@@ -292,7 +292,7 @@ describe("restoreEntries", () => {
     expect(restoreEntries([legacy("now")], "missing")).toBeNull();
   });
 });
-// canvas-handoff B4 (design §5 'events'): the successor's first user.message carries its origin and the agent's text
+// The successor's first user.message carries its origin and the agent's text
 // as written, markers included; the earlier conversation keeps its request and resolution.
 describe("handoff events in event v1", () => {
   const origin = { kind: "handoff", conversationId: "a", canvas: { path: ".doan/canvases/a.html", id: "a" } } as const;

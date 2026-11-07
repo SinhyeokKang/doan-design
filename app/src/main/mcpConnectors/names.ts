@@ -2,7 +2,7 @@ import { PRESETS, type ConnectorServer } from "./presets";
 
 const MAX_URL = 2048;
 const MAX_SLUG = 16;
-// `mcp__doan-<slug>__` leaves room for the tool name within the providers' tool-name limits (design '이름 규칙').
+// `mcp__doan-<slug>__` leaves room for the tool name within the providers' tool-name limits.
 export const CONNECTOR_NAME = /^doan-[a-z0-9][a-z0-9-]{0,15}$/;
 
 export type UrlRejection = "empty" | "too_long" | "invalid" | "not_https" | "credentials" | "fragment";

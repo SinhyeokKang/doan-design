@@ -3,7 +3,7 @@ import type { FolderFocus } from "../main/shell";
 import type { FolderEntry } from "../main/view";
 import type { AddPageOrigin } from "./addProjectsNav";
 
-// The Project Settings page's rules (project-settings design '순수 함수로 뺄 부분'). The page shows one worktree, chosen
+// The Project Settings page's rules. The page shows one worktree, chosen
 // from a project menu, and follows that worktree while it is open. Named apart from the page component beyond
 // capitalization (POSTMORTEM 2026-10-25 'A TS helper hid its TSX component on case-insensitive macOS').
 
@@ -116,7 +116,7 @@ export function sharedPathLabel(root: string, path: string): string {
 // storageChosen: the Doan files radio now chosen, the mode on disk after the write (ARCHITECTURE §7 'Settings IPC'
 // 'Storage writes'): its options are disabled while Saving, so focus would otherwise fall to <body>.
 export type FocusAfterWrite = { kind: "pressed" } | { kind: "tokenPrimary" } | { kind: "sharedAdd" } | { kind: "sharedRemove"; path: string } | { kind: "storageChosen" };
-// Where focus goes once the page's controls re-enable (design '포커스'): the button that was pressed while it is still
+// Where focus goes once the page's controls re-enable: the button that was pressed while it is still
 // there; else its section's main button: Change or Choose for Token CSS (Clear removes itself), Add File or Folder for
 // Shared, or the Remove of the path after a removed one.
 export function projectSettingsFocusAfter(done: { section: ConfigKind | "storage"; pressedAlive: boolean; removed?: { path: string; before: readonly string[]; after: readonly string[] } }): FocusAfterWrite {

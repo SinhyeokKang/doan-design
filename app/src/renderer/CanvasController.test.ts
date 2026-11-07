@@ -42,7 +42,7 @@ it("notifies React only when the rounded zoom percentage changes", () => {
   controller.dispose();
 });
 
-// buzz-canvas R2: the zoom menu's 50% and 200%, and the exact scale the zoom controller reads.
+// The zoom menu's 50% and 200%, and the exact scale the zoom controller reads.
 describe("zoom to a scale", () => {
   it("lands on the scale and keeps the view center fixed", () => {
     const { controller, changed } = loadedController();
@@ -126,12 +126,12 @@ it("does not notify React for repeated layouts or geometry-only changes", () => 
   } finally { controller.dispose(); }
 });
 
-// The drag layer App renders after the overlay (canvas-hand-tool design '방식').
+// The drag layer App renders after the overlay.
 function fakeLayer() {
   const captured = new Set<number>();
   return Object.assign(new EventTarget(), {
     hidden: false, dataset: {} as Record<string, string>, captured,
-    // Where the controller puts the capture layer: right after this one (canvas-capture design §2 '캡처 레이어').
+    // Where the controller puts the capture layer: right after this one.
     after: vi.fn(),
     setPointerCapture: (id: number) => { captured.add(id); },
     releasePointerCapture: (id: number) => { captured.delete(id); },
@@ -158,7 +158,7 @@ function selectionHarness() {
   const frames: (EventTarget & { contentWindow: { postMessage: ReturnType<typeof vi.fn> }; style: Record<string, string> })[] = [];
   const marks: FakeMark[] = [];
   // What the hand tool reads: which element has focus, and whether the app window has it.
-  // The document root carries the capture snapshot's attribute (canvas-capture design §2 '스냅숏').
+  // The document root carries the capture snapshot's attribute.
   const rootAttributes = new Map<string, string>();
   const doc = {
     activeElement: null as unknown,
@@ -343,7 +343,7 @@ describe("selection", () => {
     } finally { h.controller.dispose(); }
   });
 
-  // buzz-canvas R1: the frame drawer's row carries the index and id it was drawn with; the layout may have changed
+  // The frame drawer's row carries the index and id it was drawn with; the layout may have changed
   // since (POSTMORTEM 2026-10-25 'Navigation feedback read the previous React snapshot').
   describe("a frame picked from the drawer", () => {
     const frame = (id: string, y: number) => ({ id, x: 0, y, width: 10, height: 10 });
@@ -510,9 +510,9 @@ describe("selection", () => {
   });
 });
 
-// design.md flow 7: each row is a pure decision (selection.test.ts); these pin
+// Each case of when the selection clears or is kept is a pure decision (selection.test.ts); these pin
 // that the controller actually applies it on the matching code path.
-describe("selection wiring (flow 7)", () => {
+describe("selection wiring", () => {
   afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
   const cleared = (h: ReturnType<typeof selectionHarness>) => {
@@ -536,7 +536,7 @@ describe("selection wiring (flow 7)", () => {
   });
 
   // The previous layout stays shown with a null status, so only `reloading`
-  // tells the Comments panel the new document is not known yet (F2).
+  // tells the Comments panel the new document is not known yet.
   it("reports a reload of the open canvas as reloading until its first layout or the timeout", () => {
     vi.useFakeTimers();
     const h = selectionHarness();
@@ -809,7 +809,7 @@ it("resets both channels on reload and rejects old-window, href and viewport hov
   } finally { h.controller.dispose(); }
 });
 
-// buzz-canvas-conversation keeps the anchors query and reply for chip locate: the controller asks for plain targets,
+// The anchors query and reply for chip locate: the controller asks for plain targets,
 // takes only the newest reply for its own request in the current document, and moves to the node it names.
 describe("anchors channel", () => {
   const queries = (h: ReturnType<typeof selectionHarness>) => h.current().contentWindow.postMessage.mock.calls.map(c => c[0]).filter(c => c.type === "anchors-query");
@@ -900,7 +900,7 @@ it("opens another canvas synchronously", () => {
   } finally { h.controller.dispose(); }
 });
 
-// buzz-canvas-conversation X1 (POSTMORTEM 2026-10-23 draft guards): with the comment draft guard gone, opening,
+// POSTMORTEM 2026-10-23 draft guards: with the comment draft guard gone, opening,
 // selecting, reloading and following a move still happen within the call, in the order they did without a draft.
 describe("canvas open, select, reload and move without a draft guard", () => {
   afterEach(() => vi.unstubAllGlobals());
@@ -1013,7 +1013,7 @@ it("drops a waiting workspace open when a later navigation, a failed read or lea
 });
 
 
-// buzz-canvas R6: Fit and frame jumps keep the board's safe area (top 56, sides 32, bottom 64), not today's even 32.
+// Fit and frame jumps keep the board's safe area (top 56, sides 32, bottom 64), not today's even 32.
 describe("Fit and frame jumps inside FIT_INSET", () => {
   const size = { width: 800, height: 600 };
   const tall = (height: number) => [{ id: "tall", x: 0, y: 0, width: 10, height }];
@@ -1210,7 +1210,7 @@ it("forgets navigation memory when a project is removed and added again", () => 
 });
 
 // A restart: reads an auto-registered worktree as `loading`, and App hides it meanwhile. Hidden
-// is not removed: its remembered canvas stays while main still lists it (R2 review 🟡1).
+// is not removed: its remembered canvas stays while main still lists it.
 it("keeps the memory of a root hidden from the shown list while main still lists it", () => {
   const h = selectionHarness();
   try {
@@ -1484,7 +1484,7 @@ describe("a canvas moved with the same id", () => {
   });
 });
 
-// canvas-row-menu: a canvas moved to the Trash is not followed to the one other canvas sharing its id.
+// A canvas moved to the Trash is not followed to the one other canvas sharing its id.
 describe("a canvas moved to the Trash", () => {
   afterEach(() => vi.unstubAllGlobals());
   function trashHarness() {
@@ -1865,7 +1865,7 @@ it("opens another canvas of the open root at once, and only tells `opened` for t
   } finally { h.controller.dispose(); vi.unstubAllGlobals(); }
 });
 
-// buzz-canvas design §2 '첫 Fit': a canvas opened under the Overview is fitted to the board the canvas page lays out
+// A canvas opened under the Overview is fitted to the board the canvas page lays out
 // (its panel width, or none when folded), not to the Overview's layout; later width changes keep the view's top-left.
 describe("first Fit", () => {
   function opened(width: number) {
@@ -1948,7 +1948,7 @@ describe("first Fit", () => {
   });
 });
 
-// buzz-canvas-conversation R4: the tool state, the pick commands and their replies, and chip locate on the anchors
+// The tool state, the pick commands and their replies, and chip locate on the anchors
 // channel. Picking and locating never change the selection or what main holds for `doan active`.
 describe("picking", () => {
   afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
@@ -2070,7 +2070,7 @@ describe("picking", () => {
     } finally { h.controller.dispose(); }
   });
 
-  // canvas-selection-tools spec 5–7: a pick that starts drops the selection, and its end does not bring it back.
+  // A pick that starts drops the selection, and its end does not bring it back.
   it("a pick that starts clears the selection before pick-start, tells main once and shows no notice", () => {
     const h = harness();
     try {
@@ -2657,7 +2657,7 @@ describe("chip locate", () => {
   });
 });
 
-// agent-reply-chips T4 (design 'Pressing'): a reply chip opens another canvas and moves to its element after the first
+// A reply chip opens another canvas and moves to its element after the first
 // layout. The waiting element lives as Quick Open's waiting frame does and is tied to its root and canvas.
 describe("reply chip open", () => {
   afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
@@ -2771,7 +2771,7 @@ describe("reply chip open", () => {
     } finally { h.controller.dispose(); }
   });
 
-  // Review RA2: the waiting element is tied to the canvas path, so a move of that canvas before its first layout has
+  // The waiting element is tied to the canvas path, so a move of that canvas before its first layout has
   // to carry it along, as the waiting frame is carried.
   it("a canvas moved (same id) before its first layout still locates the waiting element, and keeps a waiting frame too", () => {
     const h = selectionHarness();
@@ -2820,7 +2820,7 @@ it("clips the canvas area instead of letting a focus scroll it", async () => {
   expect(css).toMatch(/\.doan-canvas-panel > \.area \{[^}]*overflow: clip;/);
 });
 
-// canvas-hand-tool T3: the Select and Hand tools, the drag layer, Space, V, H and Esc, canvas focus and hover.
+// The Select and Hand tools, the drag layer, Space, V, H and Esc, canvas focus and hover.
 describe("hand tool", () => {
   afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
   type H = ReturnType<typeof selectionHarness>;
@@ -2890,7 +2890,7 @@ describe("hand tool", () => {
     } finally { h.controller.dispose(); }
   });
 
-  // In Hand only the Frames drawer selects (canvas-selection-tools spec decision 4).
+  // In Hand only the Frames drawer selects.
   it("Esc in Hand turns Hand off before it clears a frame the drawer selected", () => {
     const h = harness();
     try {
@@ -2919,7 +2919,7 @@ describe("hand tool", () => {
     } finally { h.controller.dispose(); }
   });
 
-  // canvas-selection-tools spec 1–4: switching to Hand drops the selection; a held Space does not.
+  // Switching to Hand drops the selection; a held Space does not.
   const clears = (h: H) => posted(h).filter(m => m.type === "clear");
   const cleared = (h: H) => {
     expect(h.state()).toMatchObject({ tool: "hand", selection: null, inspector: null, notice: "" });
@@ -3067,7 +3067,7 @@ describe("hand tool", () => {
     } finally { h.controller.dispose(); }
   });
 
-  // canvas-composer-polish spec 3: the toolbar's Select and Hand cancel a pick and then switch; V and H stay ignored.
+  // The toolbar's Select and Hand cancel a pick and then switch; V and H stay ignored.
   it("the toolbar's Select or Hand while picking cancels the pick, then switches to that tool", () => {
     const h = harness();
     try {
@@ -3430,7 +3430,7 @@ describe("hand tool", () => {
     } finally { h.controller.dispose(); vi.useRealTimers(); }
   });
 
-  // Review RA 🟡1: a click can win the race with a command still on its way and take that command's seq.
+  // A click can win the race with a command still on its way and take that command's seq.
   it("a click at the seq of a command in flight still moves focus", async () => {
     const h = harness();
     try {
@@ -3450,7 +3450,7 @@ describe("hand tool", () => {
     } finally { h.controller.dispose(); }
   });
 
-  // Review RA 🔴1: a held Space belongs to the board that took it; the next document or board starts without it.
+  // A held Space belongs to the board that took it; the next document or board starts without it.
   it("a held Space ends with its document: a reload, a canvas switch and a close", () => {
     const h = harness();
     try {
@@ -3544,7 +3544,7 @@ describe("hand tool", () => {
   });
 });
 
-// canvas-hand-tool design '방식' and '어두운 바탕의 키 표시': the layer sits over the board and under the canvas
+// The layer sits over the board and under the canvas
 // chrome, and the picking hint's Esc uses the shared key variant instead of its own rule.
 it("styles the drag layer between the board and the canvas chrome, and drops the picking hint's own key rule", async () => {
   const { readFileSync } = await import("node:fs");
@@ -3557,7 +3557,7 @@ it("styles the drag layer between the board and the canvas chrome, and drops the
   expect(controls).toMatch(/\.doan-kbd\[data-ui-size="sm"\] \{[^}]*padding: 0 var\(--space-1h\);[^}]*font-size: var\(--type-caption-size\);/);
 });
 
-// canvas-selection-tools design §3: every jump highlight is a 3px accent gradient line, a 1px panel ring and an accent
+// Every jump highlight is a 3px accent gradient line, a 1px panel ring and an accent
 // glow, drawn by a masked ::before so the 12px point keeps its circle; each media fallback keeps a visible edge.
 it("styles the jump highlight as an accent gradient line with a ring and a glow, and its fallbacks", async () => {
   const { readFileSync } = await import("node:fs");
@@ -3611,7 +3611,7 @@ describe("canvas press", () => {
     } finally { h.controller.dispose(); }
   });
 
-  // Review 🟡1: a list closed by the press takes its focused search box with it. Focus then lands on the canvas area
+  // A list closed by the press takes its focused search box with it. Focus then lands on the canvas area
   // the person pressed, never on the page body, whatever the later click's cursor reading says.
   it("a press that removes the focused element moves focus to the canvas area; otherwise focus stays", () => {
     const h = harness();
@@ -3640,7 +3640,7 @@ describe("canvas press", () => {
   });
 });
 
-// canvas-capture design §2: capture mode, its layer and drag, the snapshot, and when it ends.
+// Capture mode, its layer and drag, the snapshot, and when it ends.
 describe("capture", () => {
   afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
   type H = ReturnType<typeof selectionHarness>;
@@ -3980,7 +3980,7 @@ describe("capture", () => {
     } finally { h.controller.dispose(); }
   });
 
-  // Review K ⚪1: leaving mid-drag must release the drag too, or a dropped drag would hold the layer up off the page.
+  // Leaving mid-drag must release the drag too, or a dropped drag would hold the layer up off the page.
   it.each([
     ["Home or Settings", (h: H) => h.controller.setWorkspaceActive(false)],
     ["the Overview or a modal", (h: H) => h.controller.setCanvasPage(false)],
@@ -4063,7 +4063,7 @@ describe("capture", () => {
       expect(captureShown(h)).toBe(true);
       pointer(h, "pointerup", { clientX: 640, clientY: 298 });
       expect(areas).toEqual([{ x: 340, y: 98, width: 300, height: 200 }]);
-      // App hears of the area after capture mode has ended and the layer is down (design 결정 2).
+      // App hears of the area after capture mode has ended and the layer is down.
       expect(seen).toEqual([{ capturing: false, layer: false }]);
       expect(h.state()).toMatchObject({ capturing: false, tool: "select" });
       expect(captureLayer(h).captured?.size).toBe(0);
@@ -4233,7 +4233,7 @@ describe("capture", () => {
   });
 });
 
-// work-update U1 (design §1 rule 8, decisions 16–17): the working-frame marker, a jump highlight that stays for the work
+// The working-frame marker, a jump highlight that stays for the work
 // turn, slides 220 ms only when the working frame changes, and comes back by id after a reload.
 describe("working-frame marker", () => {
   afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
@@ -4357,7 +4357,7 @@ describe("working-frame marker", () => {
   });
 });
 
-// work-update U2 (design §1 rule 9): the board follows the working frame while the person rests; every view change the
+// The board follows the working frame while the person rests; every view change the
 // person makes stops it for the work turn, the app's own (follow, open fit, restore, settleFit, reload) do not.
 describe("following the working frame", () => {
   afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
@@ -4597,7 +4597,7 @@ describe("following the working frame", () => {
       expect(followsNext(h, "farther")).toBe(true);
     } finally { h.controller.dispose(); }
   });
-  // V3 review 🟡1: a change of work source counts its frame as followed even before the frame exists or mid-reload.
+  // A change of work source counts its frame as followed even before the frame exists or mid-reload.
   it("an update from another source naming a frame the document does not have yet never moves when a reload adds it", () => {
     const h = rested();
     try {
@@ -4623,7 +4623,7 @@ describe("following the working frame", () => {
     } finally { h.controller.dispose(); }
   });
 
-  // V3 review 🟡2: the canvas reports pointer activity even when the hovered element stays the same.
+  // The canvas reports pointer activity even when the hovered element stays the same.
   it("the canvas's pointer activity restarts the rest", () => {
     const h = rested();
     try {
@@ -4636,7 +4636,7 @@ describe("following the working frame", () => {
     } finally { h.controller.dispose(); }
   });
 
-  // V3 review 🟡3: any open menu on the page (conversation and composer menus are role=menu) holds following off.
+  // Any open menu on the page (conversation and composer menus are role=menu) holds following off.
   for (const part of [".doan-frame-list", ".doan-zoom-menu", '[role="menu"]', "dialog[open]", '[role="dialog"]:not(dialog)']) {
     it(`an open ${part} holds following off`, () => {
       const h = rested();
@@ -4649,7 +4649,7 @@ describe("following the working frame", () => {
     });
   }
 
-  // V3 review 🟡7: the person's deselect (Escape, a click on the board's margin) stops the turn; the app's does not.
+  // The person's deselect (Escape, a click on the board's margin) stops the turn; the app's does not.
   it("Escape clearing a selection made before the turn stops following", () => {
     const h = rested();
     try {
@@ -4676,7 +4676,7 @@ describe("following the working frame", () => {
     } finally { h.controller.dispose(); }
   });
 
-  // V3 review 🟡4: reduced motion turns the slide off too, at the slide's own specificity.
+  // Reduced motion turns the slide off too, at the slide's own specificity.
   it("the slide is defined only for people who allow motion", async () => {
     const { readFileSync } = await import("node:fs");
     const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");

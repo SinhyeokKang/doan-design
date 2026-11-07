@@ -25,7 +25,7 @@ describe("menuState", () => {
     expect(menuState("workspace", false, { wizardOpen: false, overview: true, locked: true }).newConversation).toBe(false);
   });
 
-  // buzz-settings design '메뉴': Settings… is a page move now, so a modal disables it too.
+  // Settings… is a page move now, so a modal disables it too.
   test("an open modal disables everything, Settings… included", () => {
     for (const screen of ["home", "workspace", "canvas"] as const) {
       expect(menuState(screen, true)).toEqual({ addProject: false, home: false, canvasView: false, quickOpen: false, settings: false, newConversation: false, pickFromCanvas: false, toggleSidebar: false });
@@ -37,7 +37,7 @@ test("disables Settings while the wizard is open", () => {
   expect(menuState("canvas", false, { wizardOpen: true }).settings).toBe(false);
 });
 
-// buzz-add-projects design '메뉴': the page is a screen of its own; `choose` is its choose phase and `locked` its
+// The Add Projects page is a screen of its own; `choose` is its choose phase and `locked` its
 // selecting and cloning phases, which nothing may leave.
 describe("Add Projects page", () => {
   const main = { wizardOpen: false };
@@ -65,7 +65,7 @@ describe("Add Projects page", () => {
   });
 });
 
-// buzz-settings design '메뉴' and '잠금': the Settings page is a screen of its own. Settings… there focuses the category
+// The Settings page is a screen of its own. Settings… there focuses the category
 // title again, Add Project… moves to the Add Projects page, and `locked` is the page's write or confirmation.
 describe("settings page", () => {
   const main = { wizardOpen: false };
@@ -93,7 +93,7 @@ describe("settings page", () => {
 });
 
 
-// canvas-composer-polish spec 3: Pick from Canvas (⌘L) starts a pick, so it needs no selection, only the canvas page
+// Pick from Canvas (⌘L) starts a pick, so it needs no selection, only the canvas page
 // and an available picker.
 test("Pick from Canvas is enabled on the canvas page with an available picker, without a selection", () => {
   const ready = { wizardOpen: false, pickerAvailable: true };
@@ -105,7 +105,7 @@ test("Pick from Canvas is enabled on the canvas page with an available picker, w
   expect(menuState("canvas", true, ready).pickFromCanvas).toBe(false);
 });
 
-// shell-panel-layout design §3-3: Hide/Show Sidebar never leaves the screen, so a page lock keeps it; a modal or first
+// Hide/Show Sidebar never leaves the screen, so a page lock keeps it; a modal or first
 // run turns it off like every other main-window item.
 test("Hide/Show Sidebar is off behind a modal and in first run, and on under a page lock", () => {
   for (const screen of ["home", "workspace", "canvas", "addProjects", "settings"] as const) {

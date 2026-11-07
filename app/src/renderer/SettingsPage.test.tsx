@@ -4,7 +4,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { CanvasMenu } from "./ShellSidebar";
 const NO_CANVAS_MENU: CanvasMenu = { blocked: () => false, exporting: () => false, exportCanvas: () => {}, trash: () => {} };
 
-// buzz-settings U2: the Settings page frame and its sidebar categories, with hooks as plain state
+// The Settings page frame and its sidebar categories, with hooks as plain state
 // (App.addProjects.test.tsx style) so the page's own effects and the sidebar's handlers run.
 const hooks = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],
@@ -135,7 +135,7 @@ test("on the Settings page the sidebar keeps Search and lists the three categori
   expect(select).toHaveBeenCalledWith("about");
 });
 
-// mcp-connectors spec 1: MCP Connectors sits between Agents and Notifications while Claude Code or Codex is signed in.
+// MCP Connectors sits between Agents and Notifications while Claude Code or Codex is signed in.
 test("MCP Connectors is listed between Agents and Notifications only while the category exists", () => {
   const nav = (mcp: boolean) => all(all(sidebar({ section: "agents", select: vi.fn(), mcp })).find(element => element.type === "nav")!.props.children as ReactNode).filter(element => element.type === "button");
   expect(nav(true).map(button => words(button.props.children))).toEqual(["Agents", "MCP Connectors", "Notifications", "About"]);
@@ -156,7 +156,7 @@ test("while the page is locked the other categories and Search show as unavailab
   expect(side.find(element => element.props.className === "shell-search")!.props["aria-disabled"]).toBe(true);
 });
 
-// buzz-settings R3 (design-sync against .doan/canvases/buzz-settings.html): values a jsdom render cannot show.
+// design-sync against .doan/canvases/buzz-settings.html: values a jsdom render cannot show.
 test("the current category takes the pressed fill with standard ink, and a locked category's icon dims with its label", () => {
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toContain('.shell-side .shell-settings-row[aria-current="page"] { background: var(--affordance-backdrop-pressed); color: var(--text-standard); }');

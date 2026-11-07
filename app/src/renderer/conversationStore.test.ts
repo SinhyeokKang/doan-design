@@ -4,7 +4,7 @@ import type { Anchor, ConversationEvent } from "../main/conversation/types";
 import { ConversationStore, type ListView } from "./conversationStore";
 import { threadItems, withSending } from "./threadItems";
 
-// canvas-composer-polish A2: Send now takes the row out of the queue at once and shows the message at the thread's end
+// Send now takes the row out of the queue at once and shows the message at the thread's end
 // until main answers. Read, it goes (the history's own message stays); refused or ended, it is back in its own place.
 
 const ROOT = "/code/doan", A = "aaaaaaaa-0000-4000-8000-000000000001";
@@ -173,7 +173,7 @@ test("deleting the conversation drops its sending messages", () => {
   expect(h.store.sending(A)).toEqual([]);
 });
 
-// Review Y1: main's count leaves out a message in flight, so a read taken then says none are queued; a refusal that
+// Main's count leaves out a message in flight, so a read taken then says none are queued; a refusal that
 // puts the row back must not be dropped by that read, only by one started after the refusal.
 test("a row refused back into the queue stays until a read started after the refusal says main sent it", async () => {
   const h = harness();
@@ -192,7 +192,7 @@ test("a row refused back into the queue stays until a read started after the ref
   expect(h.ids()).toEqual([]);
 });
 
-// Review Y1: the answer says whether the turn still runs as the store reads it then, so a turn.done that reached the
+// The answer says whether the turn still runs as the store reads it then, so a turn.done that reached the
 // store before the screen was drawn again decides it.
 test("a refusal says whether the turn still runs as the store reads it at the answer", async () => {
   const h = harness();
@@ -211,7 +211,7 @@ test("a refusal says whether the turn still runs as the store reads it at the an
   expect(h.ids()).toEqual(["q1", "q2", "q3"]);
 });
 
-// agent-questions design §7: the answer being chosen is kept by request in the store the canvas panel and the Overview
+// The answer being chosen is kept by request in the store the canvas panel and the Overview
 // share, so it outlives the thread's redraw for another conversation; it goes once the question is settled.
 test("a question's chosen answer is kept by conversation and request until that question is resolved", async () => {
   const h = harness();
@@ -234,7 +234,7 @@ test("a question's chosen answer is kept by conversation and request until that 
   expect(h.store.questionDraft(A, "q1").choices).toEqual({});
 });
 
-// A refusal or an edit that lands after the question was settled must not bring its draft back (batch R review ⚪4).
+// A refusal or an edit that lands after the question was settled must not bring its draft back.
 test("a resolved or deleted question's draft is not made again by a late edit", () => {
   const h = harness();
   const question = { id: "0", header: "Layout", question: "Which layout?", options: [{ label: "Compact" }], multiSelect: false, other: true };
@@ -259,7 +259,7 @@ test("a deleted conversation's chosen answers go with it", () => {
   expect(h.store.questionDraft(A, "q1").choices).toEqual({});
 });
 
-// canvas-capture design §3 '실패' and 결정 11: main answers capture_failed for an empty image or a PNG it could not
+// Main answers capture_failed for an empty image or a PNG it could not
 // save; the chip goes and the notice names the capture, not the file name that `unreadable` would show.
 test("a capture main could not take leaves the draft with the capture notice", () => {
   const { store } = harness();

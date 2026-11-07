@@ -5,7 +5,7 @@ import { OperationBook, refuse, type WriteRequest } from "./onboarding/operation
 import { ProjectAdder, type AdderProjects, type ProjectLocks } from "./onboarding/projectAdder";
 
 // The Add Projects page's project session: a second project adder beside first run's, answering with the onboarding
-// session's DTOs so the renderer's Project step reads both alike (buzz-add-projects design 'main의 project 처리').
+// session's DTOs so the renderer's Project step reads both alike.
 // Electron-free; index.ts carries the IPC, the window events and quit.
 
 export const ADD_PAGE_CHANNELS = {

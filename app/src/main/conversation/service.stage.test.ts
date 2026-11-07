@@ -6,7 +6,7 @@ import { ConversationService, type OpenRunner, type Prepare, type Prepared, type
 import { ConversationStore } from "./store";
 import type { EventPayload, StageSignal, TurnStage } from "./types";
 
-// turn-activity C1: the service keeps each live turn's last stage and sends it beside the events, never into the history.
+// The service keeps each live turn's last stage and sends it beside the events, never into the history.
 const dirs: string[] = []; afterEach(() => { dirs.splice(0).forEach(dir => rmSync(dir, { recursive: true, force: true })); });
 const THINKING: TurnStage = { kind: "thinking" }, GENERAL: TurnStage = { kind: "general" };
 const READ: TurnStage = { kind: "tool", activity: "read", path: "src/a.ts", summary: "src/a.ts" };

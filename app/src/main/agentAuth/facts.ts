@@ -12,7 +12,7 @@ export interface FactsDeps {
   // The bundled doan executable that every doan-account run puts first on PATH (createAccountPrepare).
   cli: string;
 }
-// Concurrent provider probes share one login shell run: four at once missed the shell's 5 s answer under load (B45 live).
+// Concurrent provider probes share one login shell run: four at once missed the shell's 5 s answer under load (observed live).
 export function sharedShell(probe: () => Promise<ShellProbe>): () => Promise<ShellProbe> {
   let running: Promise<ShellProbe> | null = null;
   return () => running ??= probe().finally(() => { running = null; });

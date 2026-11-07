@@ -158,7 +158,7 @@ describe("bound and restored markers", () => {
   });
 });
 
-describe("a turn with two user.message events (queue-send-now)", () => {
+describe("a turn with two user.message events", () => {
   it("folds as one turn that continues past the second message", () => {
     const events = [event(1, { type: "user.message", text: "first", anchors: [] }), event(2, { type: "turn.started" }), event(3, { type: "user.message", text: "pushed in", anchors: [] }), event(4, { type: "message.done", messageId: "m", text: "Both." })];
     const running = foldConversation(events, "a", false);
@@ -167,7 +167,7 @@ describe("a turn with two user.message events (queue-send-now)", () => {
     expect(foldConversation([...events, event(5, { type: "turn.done" })], "a", false).turn).toBe("idle");
   });
 });
-// canvas-handoff B4 (design §5 'events'): a request lives in its turn, its resolution comes after the turn's end, and a
+// A request lives in its turn, its resolution comes after the turn's end, and a
 // request a restart finds unresolved reads as cancelled.
 describe("handoff fold", () => {
   const requested: EventPayload = { type: "handoff.requested", canvas: { path: ".doan/canvases/new.html" }, text: "Continue the checkout flow." };

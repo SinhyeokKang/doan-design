@@ -4,7 +4,7 @@ import { BrowserWindow, webFrameMain, type FrameCreatedDetails } from "electron"
 // less memory, so the window is an ordinary hidden one.
 export const THUMBNAIL_WIDTH = 480;
 // The iframe's `load` + 500 ms, or what is painted at 8 s when `load` never
-// ends (design-nav orch decision). Only the whole-job limit is a failure.
+// ends. Only the whole-job limit is a failure.
 export const SETTLE_MS = 500;
 export const LOAD_LIMIT_MS = 8000;
 export const JOB_LIMIT_MS = 20_000;

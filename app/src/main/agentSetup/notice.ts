@@ -27,7 +27,7 @@ export type NoticePart = { text: string } | { code: string };
 export interface NoticeLine { agents: string | null; parts: NoticePart[]; command?: string }
 export interface AboutNotice { tone: "warning" | "neutral"; title: string; lines: NoticeLine[] }
 
-// About's fixed order (design 'About 알림'): this copy, a run that crashed, CLI links, skill links, the Codex rule,
+// About's fixed order: this copy, a run that crashed, CLI links, skill links, the Codex rule,
 // the Claude Code allow rule.
 const ORDER: (SetupItem["target"])[] = ["copy", "setup", "current", "cli", "system-cli", "skill", "agents-skill", "claude-skill", "gemini-skill", "codex-rule", "claude-allow"];
 const REOPEN = ", then reopen Doan.";

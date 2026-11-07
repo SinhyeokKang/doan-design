@@ -5,7 +5,7 @@ import { canvasLabel, rowProblem } from "./canvasTree";
 import { deleteAvailability, type DeleteAvailability } from "./conversationDelete";
 import { conversationLine, type ConversationLine } from "./overviewConversation";
 
-// The Overview's right panel: canvases with a current conversation (buzz-project design §2.3).
+// The Overview's right panel: canvases with a current conversation.
 
 export type CanvasRowProblem = { kind: "gone" } | { kind: "duplicate"; count: number } | { kind: "unreadable"; sentence: string };
 
@@ -14,7 +14,7 @@ export interface CanvasConversationRow extends ConversationLine {
   // The listed row to open and capture; null when the canvas is gone or its id is shared.
   row: CanvasRow | null;
   problem: CanvasRowProblem | null; openable: boolean;
-  // The row's Delete (canvas-composer-polish spec 6): the conversation's title names it, as in the title menu.
+  // The row's Delete: the conversation's title names it, as in the title menu.
   title: string; deletable: DeleteAvailability;
 }
 

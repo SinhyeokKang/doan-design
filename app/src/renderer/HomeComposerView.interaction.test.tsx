@@ -259,7 +259,6 @@ test("a dropped folder is recognised by its own item even when string items come
   expect(doan.addAttachmentFiles).toHaveBeenCalledWith([file]);
 });
 
-// Review BU3 fix round 1.
 const B: FolderEntry = { kind: "list", path: "/code/acme", servedRev: 0, canvases: [], git: { common: "/code/acme/.git", main: "/code/acme", branch: "main", worktrees: [] } };
 const runEffects = () => { for (const effect of hooks.effects) effect(); };
 const pending = () => { let resolve!: (value: { ok: true } | { error: string }) => void; const promise = new Promise<{ ok: true } | { error: string }>(r => { resolve = r; }); return { promise, resolve }; };
@@ -367,7 +366,6 @@ test("a request rebuilt after a reload brings its image thumbnails into the comp
   create.mockRestore();
 });
 
-// Review BU3 r2.
 // One mount's life: render, run its effects, and keep their cleanups to unmount it like React does.
 function mount(props: HeroComposerProps, redraw: () => void) {
   hooks.states = []; hooks.refs = []; hooks.redraw = redraw;
@@ -443,8 +441,8 @@ test("removing a restored chip that no last request uses releases its sent id", 
   await vi.waitFor(() => expect(doan.releaseAttachments).toHaveBeenCalledWith(["id-k"]));
 });
 
-// buzz-settings U3: a group that cannot run sends the person to its Agents row; the fixed new-conversation default
-// starts each input, and a pick lasts until the input is sent (design '홈 공급자 선택기', 'New conversations').
+// A group that cannot run sends the person to its Agents row; the fixed new-conversation default
+// starts each input, and a pick lasts until the input is sent.
 function status(provider: Provider, patch: { expired?: boolean; facts?: Partial<ToolFacts> } = {}): AuthStatusDto {
   const state: AuthState = { provider, generation: 1, verified: true, expired: patch.expired ?? false, connection: { provider, connectionId: "c", profile: provider, account: ACCOUNT }, attempt: null, error: null, phase: patch.expired ? "reauthRequired" : "connected" };
   return authStatus(state, { ...FACTS, ...patch.facts }, 1);
@@ -502,7 +500,7 @@ test("settings action: the fixed default starts each input; a pick lasts until a
   expect((await send()).runtime).toBe("codex");
 });
 
-// review BU1 ❓1 (design 'New conversations' 적용 규칙): a default changed in Settings applies from the next new input;
+// A default changed in Settings applies from the next new input;
 // an input already started keeps the default it started with.
 test("settings action: a changed default waits for the next input; the draft keeps the one it started with", async () => {
   const { box, start, render, props } = setup({ auth: { revision: 1, providers: [dto("claude"), dto("codex")] } }, { defaults: { provider: "codex" } });
@@ -524,7 +522,7 @@ test("settings action: a changed default waits for the next input; the draft kee
   expect((start.mock.calls[1]![0] as { runtime: string }).runtime).toBe("claude");
 });
 
-// doan-mascot spec 'Home 전송': Doany hops when a send starts, through Send, the submit key or the notice's Retry, and
+// Doany hops when a send starts, through Send, the submit key or the notice's Retry, and
 // not when the guard refuses; input draws its gaze (IME composition included).
 function withDoany(tree: Record<string, unknown>[]) {
   const doany = { hop: vi.fn(), typing: vi.fn() };
@@ -597,7 +595,7 @@ test("while a start is pending, Send, the submit key and the notice's Retry neit
   expect(doany.hop).toHaveBeenCalledTimes(1);
 });
 
-// permission-mode U1: the picker sits in Home's tool row, starts from the provider's last mode, is remembered on the
+// The picker sits in Home's tool row, starts from the provider's last mode, is remembered on the
 // pick alone, and the send carries it; after a send the next input starts from the remembered mode again.
 test("the permission pick is remembered at once and sent with the start", async () => {
   const onRemember = vi.fn();

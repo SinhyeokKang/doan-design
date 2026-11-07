@@ -1,6 +1,6 @@
 import type { WorkRequest } from "../formats/types";
 
-// An app conversation's last `doan work update` (design decision 10), in main's memory only: one per conversation,
+// An app conversation's last `doan work update`, in main's memory only: one per conversation,
 // cleared when its turn ends. turnId: the turn it was accepted in, the renderer's follow key with conversationId.
 export interface ConversationWork { conversationId: string; root: string; path: string; frame?: string; note?: string; touched: number; turnId: string }
 export type ConversationUpdate = Extract<WorkRequest, { conversation: string }>;
@@ -9,7 +9,7 @@ export interface LiveTurn { root: string; turnId: string; running: boolean }
 
 const FIELDS = ["conversationId", "root", "path", "frame", "note", "touched", "turnId"] as const;
 // The request names the conversation but no turn: a previous turn's update that arrives after the next turn was
-// accepted counts for the new turn (design §1 rule 5 '한계').
+// accepted counts for the new turn.
 export function applyConversationWork(state: readonly ConversationWork[], request: ConversationUpdate, live: ReadonlyMap<string, LiveTurn>, now: number): readonly ConversationWork[] {
   const turn = live.get(request.conversation);
   if (!turn?.running || turn.root !== request.root) return state;

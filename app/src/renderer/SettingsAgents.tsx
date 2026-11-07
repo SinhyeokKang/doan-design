@@ -18,11 +18,11 @@ import { permissionPickerView } from "./permissionPicker";
 import { preferencesNotice } from "./SettingsNotifications";
 
 export interface SettingsAgentsProps {
-  // The renderer's sign-in controller: a sign-in outlives this page (design 'App 수준 로그인 컨트롤러').
+  // The renderer's sign-in controller: a sign-in outlives this page.
   signIn: AgentSignIn;
   // A provider to focus and flash once; seq makes a repeated arrival distinct.
   arrival: { provider: Provider; seq: number } | null;
-  // The stop dialog owns the page until it is answered (design '잠금').
+  // The stop dialog owns the page until it is answered.
   onLock(locked: boolean): void;
   // null until App has read preferences.json.
   preferences: PreferencesSnapshot | null;
@@ -41,7 +41,7 @@ function openInstallPage(provider: Provider): Promise<boolean> {
 const groupSelector = (provider: Provider) => `.doan-preference-row[role="group"][data-provider="${provider}"]`;
 const LAST_USED = "last";
 
-// Settings > Agents (buzz-settings design 'Agents'): the provider rows over the renderer's sign-in controller, and the
+// Settings > Agents (PRODUCT §5 item 0 'Agents'): the provider rows over the renderer's sign-in controller, and the
 // new-conversation defaults. The rows reuse the first-run Agent step's session and copy; agentAuthView's Settings
 // context is the only difference. It never starts or sends a conversation; models are read with conversation:models.
 export function SettingsAgents({ signIn, arrival, onLock, preferences, save, project }: SettingsAgentsProps) {
@@ -105,7 +105,7 @@ export function SettingsAgents({ signIn, arrival, onLock, preferences, save, pro
   };
 
   // An arrival from Home's picker or a toast focuses the provider's row group once its row is drawn, and flashes it
-  // like an added project's sidebar row (design 'Agents').
+  // like an added project's sidebar row.
   const arrived = useRef(0);
   const [flash, setFlash] = useState<Provider | null>(null);
   useEffect(() => {
@@ -173,7 +173,7 @@ function unavailable(name: string, status: AuthStatusDto | undefined): string {
 
 const SAVE_FAILED = "Couldn’t save your new conversation choices. Your last saved choices still apply.";
 
-// The defaults Home starts a new input with (design 'New conversations'). Last used hides Model and Effort, which then
+// The defaults Home starts a new input with (PRODUCT §5 item 0 'New conversations'). Last used hides Model and Effort, which then
 // follow the conversation sent last. The pickers are menus like Home's (role=menu): a listbox Select would let the
 // Escape that closes it reach the page and leave Settings.
 function NewConversations({ auth, preferences, save, project }: Pick<SettingsAgentsProps, "preferences" | "save" | "project"> & { auth: AgentSignIn["state"]["auth"] }) {
@@ -204,20 +204,20 @@ function NewConversations({ auth, preferences, save, project }: Pick<SettingsAge
   const fold = useOlderFold(provider && menu ? [{ provider, rows: menu.rows }] : []);
   const modelRows = menu ? foldRows(menu.rows) : null;
   const loadFailed = listState !== undefined && listState !== "loading" && "error" in listState;
-  // Effort follows the chosen model, or with Default the model the project lists as its default (spec 'New
-  // conversations'); a model that lists no efforts has no Effort row.
+  // Effort follows the chosen model, or with Default the model the project lists as its default;
+  // a model that lists no efforts has no Effort row.
   const listed = listState !== undefined && listState !== "loading" && "models" in listState ? listState.models : [];
   const effortModel = pinned ?? listed.find(item => item.default)?.id ?? null;
   const effort = provider && effortModel ? modelPickerView(auth, { [provider]: listState }, { provider, model: effortModel, effort: pref?.effort ?? null }).effort : null;
   const effortLabel = effort ? settingsEffortLabel(effort) : "";
   const effortMenu = effort ? settingsEffortMenu(effort) : null;
   const status = auth?.providers.find(item => item.provider === provider);
-  // Permission (permission-mode U1): the composer's menu, saved with the model and effort; a saved mode this provider
+  // Permission: the composer's menu, saved with the model and effort; a saved mode this provider
   // cannot offer reads as Default. An ACP provider offers its modes only once the project's list is read.
   const permission = provider ? permissionPickerView(provider, listState, readPermissionMode(pref?.permissionMode)) : null;
   const keepMode = pref?.permissionMode ? { permissionMode: pref.permissionMode } : {};
 
-  // folded: the Model menu, whose older models fold under a line (model-drawer-older).
+  // folded: the Model menu, whose older models fold under a line.
   const trigger = (label: string, aria: string, content: ReactNode, disabled: boolean, menu: ReactNode, folded?: typeof fold) => <DropdownMenu.Root {...(folded ? { onOpenChange: folded.onOpenChange } : {})}>
     <DropdownMenu.Trigger asChild disabled={disabled}><button type="button" className="doan-button settings-select" data-ui-variant="trigger" data-ui-size="sm" aria-label={`${aria}: ${label}`} disabled={disabled}>
       {content}<ChevronDown className="chev" aria-hidden="true" /></button></DropdownMenu.Trigger>

@@ -221,7 +221,7 @@ it("never records an ACP resume, a server exit at initialize, or an Antigravity 
   expect((antigravity.opened as Error).message).toBe("runtime_unsupported"); expect(antigravity.order).toEqual(["refused"]);
 });
 
-// buzz-home: ACP model lists from session/new, the chosen model after every open, and Antigravity's image blocks.
+// ACP model lists from session/new, the chosen model after every open, and Antigravity's image blocks.
 const MODELS = { currentModelId: "gemini-3.8-flash-high", availableModels: [{ modelId: "gemini-3.8-flash-high", name: "Gemini 3.8 Flash (High)" }, { modelId: "gemini-3.8-flash-low", name: "Gemini 3.8 Flash (Low)" }] };
 function logged(log: string): { method?: string; params?: Record<string, unknown> }[] {
   return readFileSync(log, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line) as { method?: string; params?: Record<string, unknown> });
@@ -294,7 +294,7 @@ it.each(["quit", "stopRuns"] as const)("stops a real ACP model-list read hanging
   await vi.waitFor(() => expect(release).toHaveBeenCalledOnce());
 });
 
-// permission-mode S2: the chosen mode set after every open by the mapping table, Default included.
+// The chosen mode set after every open by the mapping table, Default included.
 const COPILOT_MODE = "https://agentclientprotocol.com/protocol/session-modes#";
 const cursorModes = (current: string) => ({ modes: { currentModeId: current, availableModes: [{ id: "agent", name: "Agent" }, { id: "plan", name: "Plan" }, { id: "ask", name: "Ask" }] } });
 const copilotModes = (mode: string, allowAll: string) => ({
@@ -326,7 +326,7 @@ it("sets no mode when the server lists none, or lists no mode the mapping table 
   expect(await modeRequests("cursor", { modes: { currentModeId: "ask", availableModes: [{ id: "ask" }] } }, {})).toEqual(["prompt"]);
 });
 // A loaded session keeps its last, possibly wider, mode, so a mode the provider cannot take falls back to Default
-// rather than leaving the session as it was (RV-A 🔴 1).
+// rather than leaving the session as it was.
 it("sets Default when the chosen mode has no mapping for the provider", async () => {
   expect(await modeRequests("copilot", copilotModes("agent", "on"), { sessionId: SESSION_OF.copilot, permissionMode: "acceptEdits" })).toEqual([{ sessionId: SESSION_OF.copilot, configId: "allow_all", value: "off" }, "prompt"]);
   const antigravityModes = { modes: { currentModeId: "yolo", availableModes: ["default", "auto_edit", "yolo"].map(id => ({ id, name: id })) } };
@@ -341,7 +341,7 @@ it("lists an ACP provider's modes with its models from the same session/new", as
   expect(logged(log).map(r => r.method)).toEqual(["initialize", "session/new"]);
 });
 
-// agent-questions: Antigravity asks with a standard permission request whose options are the answers (P5).
+// Antigravity asks with a standard permission request whose options are the answers.
 const QUESTION = "Which color should the header be?";
 // after: updates the server sends after the question's own completion, before the closing reply.
 function questionFixture(after: Record<string, unknown>[] = []): string {
@@ -385,7 +385,7 @@ it("shows Antigravity's question as a question card and answers with the chosen 
   expect(events.filter(e => e.type === "activity")).toEqual([]);
 });
 
-// FX review: the question's tool call ran as a tool until it completed; its completion must end it, though it never
+// The question's tool call ran as a tool until it completed; its completion must end it, though it never
 // becomes an activity, or a later tool's completion names the answered question again.
 it("ends an answered Antigravity question's tool, so a later tool's completion is general", async () => {
   const stages: TurnStage[] = [];

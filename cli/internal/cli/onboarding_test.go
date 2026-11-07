@@ -875,7 +875,7 @@ func TestOnboardingHelpAndGuide(t *testing.T) {
 	}
 }
 
-// cancel only reaches sign_in and project_clone (buzz-onboarding D15); the guide and help must say so.
+// cancel only reaches sign_in and project_clone; the guide and help must say so.
 func TestOnboardingCancelWordingStatesScope(t *testing.T) {
 	want := "only a `sign_in` or `project_clone` operation; for any other kind it returns the target unchanged"
 	if !strings.Contains(skillBody, want) {

@@ -97,7 +97,7 @@ it("does not tag an RPC timeout as an error reply", async () => {
     const error = await timedOut; expect((error as Error).message).toBe("RPC timeout"); expect(error).not.toBeInstanceOf(RpcError);
   } finally { vi.useRealTimers(); }
 });
-// queue-send-now: turn/steer goes through a request whose timeout refuses only that steer, and its echo is reported
+// turn/steer goes through a request whose timeout refuses only that steer, and its echo is reported
 // in line with the turn's events.
 describe("Codex steer path", () => {
   function steering() {
@@ -152,7 +152,7 @@ describe("Codex steer path", () => {
   });
 });
 
-// mcp-connectors C2 (POSTMORTEM 2026-10-27 'Codex ingress confused unowned requests and notification errors'): every
+// POSTMORTEM 2026-10-27 'Codex ingress confused unowned requests and notification errors': every
 // MCP elicitation is answered exactly once with an explicit disposition, and none of them fails the turn.
 describe("Codex MCP elicitation wiring", () => {
   const thread = elicitation.params.threadId, turn = elicitation.params.turnId;
@@ -209,7 +209,7 @@ describe("Codex MCP elicitation wiring", () => {
     expect(h.events.slice(1)).toEqual([{ type: "turn.done" }, { type: "permission.resolved", requestId: "number:7", optionId: "expired" }]);
     expect(h.rpc.answer("number:7", "accept")).toBe(false); expect(h.writes).toHaveLength(1);
   });
-  // Review BC yellow 1: a stopped turn is no longer asked anything; Stop already answered what it was asking.
+  // A stopped turn is no longer asked anything; Stop already answered what it was asking.
   it("declines an approval that comes after Stop at once and never holds it", () => {
     const h = mcp(); h.rpc.stop("user"); h.rpc.receive(elicitation);
     expect(h.writes).toEqual([{ id: 7, result: { action: "decline" } }]);
@@ -230,7 +230,7 @@ describe("Codex MCP elicitation wiring", () => {
     expect(h.cleanup).toHaveBeenCalledOnce(); expect(h.writes).toEqual([{ id: 7, error: { code: -32601, message: "Unsupported request or unavailable owner." } }]);
   });
 });
-// agent-questions B2 (reduced by P2): every requestUserInput of this thread gets one empty answer at once and the turn
+// Every requestUserInput of this thread gets one empty answer at once and the turn
 // goes on; nothing is held, so Stop, the turn's end and close write nothing more for it.
 describe("Codex requestUserInput wiring", () => {
   const ask = (id: number | string, patch: Record<string, unknown> = {}) => ({ id, method: "item/tool/requestUserInput", params: { threadId: "s", turnId: "t", itemId: "i", isBlocking: true, questions: [{ id: "q", header: "H", question: "Which?", isOther: true, isSecret: false, options: null }], ...patch } });
@@ -264,7 +264,7 @@ describe("Codex requestUserInput wiring", () => {
     expect(h.writes).toEqual([{ id: 7, error: { code: -32601, message: "Unsupported request or unavailable owner." } }]);
   });
 });
-// provider-usage B1: a usage read on a conversation's live server must never fail the conversation's protocol.
+// A usage read on a conversation's live server must never fail the conversation's protocol.
 it("lets a side request time out or fail without failing the protocol of the running conversation", async () => {
   vi.useFakeTimers();
   try {
@@ -278,7 +278,7 @@ it("lets a side request time out or fail without failing the protocol of the run
     const { id } = h.writes.at(-1) as { id: string };
     h.rpc.receive({ id, error: { code: -32601, message: "Method not found" } });
     expect(await refused).toBeInstanceOf(RpcError);
-    // review-B 🟢3: the code reaches usageNotSupported whatever the server's wording.
+    // The code reaches usageNotSupported whatever the server's wording.
     const reworded = h.rpc.query("account/rateLimits/read", undefined).catch((error: unknown) => error);
     h.rpc.receive({ id: (h.writes.at(-1) as { id: string }).id, error: { code: -32601, message: "unknown variant `account/rateLimits/read`" } });
     expect(await reworded).toMatchObject({ code: -32601 });

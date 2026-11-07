@@ -54,7 +54,7 @@ it("unsubscribes both preload bridges across StrictMode effect setup, cleanup an
   } finally { vi.unstubAllGlobals(); }
 });
 
-// R-M ⚪5: a command App does not name runs no handler.
+// a command App does not name runs no handler.
 it("routes each menu command to its own handler, and an unknown or removed command reaches none", () => {
   const to = { home: vi.fn(), quickOpen: vi.fn(), newConversation: vi.fn(), pickFromCanvas: vi.fn(), toggleSidebar: vi.fn() };
   for (const name of ["nextResolved", "previousResolved", "future"]) menuCommand(name as never, to);
@@ -62,15 +62,15 @@ it("routes each menu command to its own handler, and an unknown or removed comma
   menuCommand("home", to); menuCommand("quickOpen", to);
   expect(to.home).toHaveBeenCalledOnce();
   expect(to.quickOpen).toHaveBeenCalledOnce();
-  // buzz-project: File > New Conversation (⌘N).
+  // File > New Conversation (⌘N).
   menuCommand("newConversation", to);
   expect(to.newConversation).toHaveBeenCalledOnce();
-  // canvas-composer-polish spec 3: Edit > Pick from Canvas (⌘L); the removed Add Selection command reaches nothing.
+  // Edit > Pick from Canvas (⌘L); the removed Add Selection command reaches nothing.
   menuCommand("addSelectionToConversation" as never, to);
   expect(to.pickFromCanvas).not.toHaveBeenCalled();
   menuCommand("pickFromCanvas", to);
   expect(to.pickFromCanvas).toHaveBeenCalledOnce();
-  // shell-panel-layout: View > Hide/Show Sidebar (⌘B).
+  // View > Hide/Show Sidebar (⌘B).
   menuCommand("toggleSidebar", to);
   expect(to.toggleSidebar).toHaveBeenCalledOnce();
 });

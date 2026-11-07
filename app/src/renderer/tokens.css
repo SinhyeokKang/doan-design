@@ -150,7 +150,7 @@
   --affordance-accent-hover: var(--violet-10);
   --affordance-accent-pressed: var(--violet-pressed);
   --text-on-accent: var(--violet-contrast);
-  /* The chosen design preset in the Home composer (buzz-home): a soft accent fill with dark ink, like an anchor chip. */
+  /* The chosen design preset in the Home composer: a soft accent fill with dark ink, like an anchor chip. */
   --surface-accent-subtle: var(--violet-3);
   --text-accent-subtle: var(--violet-11);
 
@@ -183,7 +183,7 @@
   --size-chrome: 56px;
   --size-row: 72px;
   --size-icon: 16px;
-  /* Home composer (buzz-home): small icons inside chips and triggers, large marks in the strip and pickers,
+  /* Home composer: small icons inside chips and triggers, large marks in the strip and pickers,
      and the extra-small control (a chip's remove button). */
   --size-icon-sm: 14px;
   --size-icon-lg: 20px;

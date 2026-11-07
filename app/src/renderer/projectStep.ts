@@ -9,7 +9,7 @@ import { dropFolder } from "./folderDrop";
 import { keptLocal } from "./storageRules";
 
 // The session's calls, named after first run's; the Add Projects page passes `addPageApi`, whose replies are the same
-// project DTOs over its own main instance (buzz-add-projects design 'main의 project 처리').
+// project DTOs over its own main instance.
 type Request<K extends keyof DoanApi> = DoanApi[K] extends (request: infer R) => unknown ? R : never;
 interface Api {
   readOnboardingSession(request: { sessionId: string; operationId?: string }): Promise<OnboardingResponse | AddPageResponse>;
@@ -82,7 +82,7 @@ export interface ProjectStepState {
   url: string;
   // The URL of the last inspection, so an edited URL says it must be checked again.
   inspectedUrl: string | null;
-  // path: the folder whose inspection failed, so a mismatch can name it (D28).
+  // path: the folder whose inspection failed, so a mismatch can name it.
   error: { code: ProjectError; message?: string; path?: string } | null;
   // The registered project picked in 'Your projects', before it is inspected.
   listChoice: string | null;
@@ -94,7 +94,7 @@ export interface ProjectStepState {
 const TERMINAL = new Set(["succeeded", "failed", "cancelled"]);
 const basename = (path: string) => path.replace(/\/+$/, "").split("/").at(-1) ?? path;
 const parent = (path: string) => path.replace(/\/+$/, "").split("/").slice(0, -1).join("/") || "/";
-// url on a path inspection: a folder chosen for that repository, so main checks its remote (D20).
+// url on a path inspection: a folder chosen for that repository, so main checks its remote.
 type Inspect = { path: string; url?: string } | { url: string; destination?: string };
 type Reply = { ok: true; operation: OnboardingOperation } | { ok: false; code: ProjectError; message?: string };
 
@@ -114,7 +114,7 @@ export class ProjectStepSession {
   private again: (() => Promise<void>) | null = null;
   // The native folder sheet is open: the step is busy, but focus belongs to the button that opened it.
   private choosing = false;
-  // A refused card drop's notice; the next drag or Choose folder clears it (design '폴더 드롭').
+  // A refused card drop's notice; the next drag or Choose folder clears it.
   dropNotice: string | null = null;
   constructor(private readonly deps: ProjectStepDeps) {}
 
@@ -127,7 +127,7 @@ export class ProjectStepSession {
     for (const stop of this.stops.splice(0)) stop();
     this.waiting.clear();
   }
-  // Long work (clone, setup, saving) holds Back and the stepper (design '이동·취소·포커스 계약').
+  // Long work (clone, setup, saving) holds Back and the stepper.
   busy(): boolean { return this.acting !== null || ["inspecting", "checking", "selecting", "cloning", "completing"].includes(this.state.phase.kind); }
   picking(): boolean { return this.choosing; }
   urlValid(): boolean { return parseGitHubUrl(this.state.url) !== null; }
@@ -145,7 +145,7 @@ export class ProjectStepSession {
   restart(): void { this.fence(); this.acting = null; this.again = null; this.source = null; this.consent = null; this.set({ phase: { kind: "choose" }, error: null }); }
   // A cancelled or failed clone is left through its URL: Back returns there rather than to the Agent step, where
   // Continue would bring the same clone screen back.
-  // A setup screen reached from a URL (D25 picked a checkout that needs setup) is left the same way.
+  // A setup screen reached from a URL (a checkout that needs setup was picked) is left the same way.
   backToUrl(): boolean { const p = this.state.phase; return p.kind === "cloneCancelled" || (p.kind === "clone" && this.state.error !== null) || (p.kind === "setup" && p.url !== null); }
   // Looking for a repository can be left at once: the inspection is read-only, so its late result is dropped.
   cancelInspect(): void { if (this.state.phase.kind === "inspecting") this.restart(); }
@@ -272,7 +272,7 @@ export class ProjectStepSession {
   }
   // The inspection each candidate list came from, so a stale one is inspected again rather than retried.
   private source: Inspect | null = null;
-  // D25 (2026-10-29 user): a URL with several local checkouts is not a choice. One is taken: a checkout that needs
+  // (2026-10-29 user): a URL with several local checkouts is not a choice. One is taken: a checkout that needs
   // no setup, then the main checkout, then the most recently registered; worktrees are switched later from the shell.
   private pickCheckout(candidates: ProjectCandidate[]): ProjectCandidate {
     const order = this.deps.projects();
@@ -315,7 +315,7 @@ export class ProjectStepSession {
       ({ inspectionId, url } = p); candidate = { path: p.path, changes: p.changes, ...(p.storage ? { storage: p.storage } : {}) };
     } else return;
     const { path, changes } = candidate;
-    // Setup writes files in the user's folder, so it needs this explicit step (design '고정 명령·도구').
+    // Setup writes files in the user's folder, so it needs this explicit step.
     const initialize = changes.length > 0 && this.consent?.inspectionId === inspectionId && this.consent.path === path;
     if (changes.length > 0 && !initialize) { this.set({ phase: { kind: "setup", inspectionId, url, path, changes, ...(candidate.storage ? { storage: candidate.storage } : {}) }, error: null }); return; }
     // The consent covers the mode on screen: a plan made for the other one is made again first, and the consent moves to
@@ -462,7 +462,7 @@ export class ProjectStepSession {
   }
 }
 
-// The Project step serves first run and the Add Projects page; only the differences in design '온보딩과의 공유' depend
+// The Project step serves first run and the Add Projects page; what the Project step varies between the two (heading, the 'Your projects' list, notices, actions, surface) depends
 // on the use.
 export type ProjectUse = "onboarding" | "addPage";
 export interface ProjectFooter {

@@ -41,6 +41,7 @@ Statically review the changes. **Report only**; `/refactor` does the fixing.
 - Code and `docs/PRODUCT.md` disagree.
 - Out-of-scope features creeping in (§3), configuration or abstraction nobody asked for.
 - Comments that repeat the "what" or are not in English.
+- Comments that cite `docs/features/` documents (a section, a decision or task id, a slug) instead of stating the reason or pointing to a PRODUCT or ARCHITECTURE section.
 
 ### ⚪ Note
 - Naming and comment density, room to extract duplication, room to strengthen tests.

@@ -4,7 +4,7 @@ import type { CanvasRow, FolderEntry } from "../main/view";
 import type { PreferencesSnapshot } from "../main/preferences";
 import { initialCanvasState } from "./CanvasController";
 
-// canvas-viewport-units D9/D10: App gives the sidebar canvas notices from main's `unseen` rows, tells main when the
+// App gives the sidebar canvas notices from main's `unseen` rows, tells main when the
 // canvas page shows an unseen canvas, and lets a project row's notice open that canvas. Hooks run as plain state so
 // App's own wiring runs (App.sidebarGroups.test.tsx).
 // each newly shown canvas, driven with hooks as plain state so App's own wiring runs (App.settings.test.tsx).

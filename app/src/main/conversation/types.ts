@@ -18,7 +18,7 @@ export interface AvailabilityFacts extends DirectoryFacts {
 }
 export interface Anchor {
   frame?: { id: string; title?: string };
-  // selector is absent only on a reply chip (agent-reply-chips): it names the element by its doan id alone. A person's
+  // selector is absent only on a reply chip: it names the element by its doan id alone. A person's
   // anchor always has one, and validAnchor rejects one without.
   element?: { doanId?: string; selector?: string; text?: string; tag?: string };
   point?: { frameId?: string; dx: number; dy: number };
@@ -102,7 +102,7 @@ export interface TransportState {
   thinkingBlock?: number;
 }
 export type FastUnused = Extract<EventPayload, { type: "fast.unused" }>;
-// What a live turn is doing now, read from provider frames beside the events (turn-activity design §2). It is never
+// What a live turn is doing now, read from provider frames beside the events. It is never
 // stored: it only means something while the turn runs. A tool stage follows the activity rules: a path, a summary of at
 // most 512 characters, no shell command text and no Doan connector tool input.
 export type TurnStage =

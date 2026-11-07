@@ -74,7 +74,7 @@ describe("selectedFromLayout", () => {
   });
 });
 
-// design.md flow 7. Window hiding never reaches the renderer (the selection
+// Window hiding never reaches the renderer (the selection
 // simply stays), and a renderer reload or crash is main's to clear.
 describe("selectionAfter", () => {
   test("a reload keeps the selection and hides the mark until the anchor answer", () => {

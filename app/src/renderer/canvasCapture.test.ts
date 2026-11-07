@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { CAPTURE_LIMIT, CAPTURE_TERMINAL, CAPTURE_UNAVAILABLE, captureAvailability, captureRect, MIN_CAPTURE } from "./canvasCapture";
 
-// canvas-capture design '순수 함수' 1: the dragged area in `.area` px, clipped to the area, whole px, at least 8 px.
+// The dragged area in `.area` px, clipped to the area, whole px, at least 8 px.
 describe("captureRect", () => {
   const bounds = { width: 800, height: 600 };
 
@@ -52,7 +52,7 @@ describe("captureRect", () => {
   });
 });
 
-// canvas-capture design §3 '쓸 수 있는지': canvas → composer → terminal session (`fixed`) → 10 attachments.
+// Canvas → composer → terminal session (`fixed`) → 10 attachments.
 describe("captureAvailability", () => {
   const ready = { canvas: "loaded" as const, composer: null, fixed: false, attachments: 0 };
 

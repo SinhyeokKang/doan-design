@@ -1,7 +1,7 @@
 import type { ExportReply } from "../main/canvasExport";
 import type { TrashReply } from "../main/canvasTrash";
 
-// The toasts of a canvas row's Move to Trash and Export (canvas-row-menu design '문구'). `stem` is the row's name, the
+// The toasts of a canvas row's Move to Trash and Export. `stem` is the row's name, the
 // file name without `.html`, as the sidebar shows it.
 export const canvasStem = (path: string) => path.split("/").at(-1)!.replace(/\.html$/, "");
 

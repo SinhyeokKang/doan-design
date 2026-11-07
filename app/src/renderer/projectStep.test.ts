@@ -66,7 +66,7 @@ test("a folder that needs setup asks first, and Set up and continue sends initia
   expect(phase(h)).toEqual({ kind: "ready", root: "/code/plain" });
 });
 
-test("D25: several checkouts of the URL are not offered as a list: one is picked (no setup, then main checkout, then newest)", async () => {
+test("several checkouts of the URL are not offered as a list: one is picked (no setup, then main checkout, then newest)", async () => {
   const h = harness(["/code/studio-main", "/wt/studio-old", "/wt/studio-new", "/code/plain"], "/Users/ada", ["/code/studio-main"]);
   h.session.setUrl("https://github.com/acme/studio");
   h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([["/code/plain", [".doan/config.json"]], ["/wt/studio-old"], ["/code/studio-main"], ["/wt/studio-new"]]) })));
@@ -313,7 +313,7 @@ test("events of another session are ignored and dispose unsubscribes", async () 
   void finding;
 });
 
-test("D25: when every checkout needs setup, the picked one goes to the setup screen without a select", async () => {
+test("when every checkout needs setup, the picked one goes to the setup screen without a select", async () => {
   const h = harness(["/code/studio", "/wt/plain"], "/Users/ada", ["/code/studio"]);
   h.session.setUrl("https://github.com/acme/studio");
   h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([["/wt/plain", [".doan/config.json"]], ["/code/studio", [".doan/config.json"]]]) })));
@@ -322,7 +322,7 @@ test("D25: when every checkout needs setup, the picked one goes to the setup scr
   expect(phase(h)).toMatchObject({ kind: "setup", path: "/code/studio", url: "https://github.com/acme/studio" });
 });
 
-test("D25: repositories found inside a picked folder are still a list", async () => {
+test("repositories found inside a picked folder are still a list", async () => {
   const h = harness();
   h.api.chooseOnboardingFolder.mockResolvedValueOnce("/code");
   h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([["/code/a"], ["/code/b"]]) })));
@@ -331,7 +331,7 @@ test("D25: repositories found inside a picked folder are still a list", async ()
 });
 
 
-test("review: Clone and continue is busy before main answers, so a second click sends nothing and the reply is kept", async () => {
+test("Clone and continue is busy before main answers, so a second click sends nothing and the reply is kept", async () => {
   const h = harness();
   await planned(h);
   let release: (r: OnboardingResponse) => void = () => {};
@@ -353,7 +353,7 @@ test("review: Clone and continue is busy before main answers, so a second click 
   expect(phase(h)).toEqual({ kind: "ready", root: "/Users/ada/studio" });
 });
 
-test("review: Cancel that main refuses because the clone is already published returns to its progress", async () => {
+test("Cancel that main refuses because the clone is already published returns to its progress", async () => {
   const h = harness();
   await planned(h);
   const running = op("project_clone", { state: "running" });
@@ -365,7 +365,7 @@ test("review: Cancel that main refuses because the clone is already published re
   expect(phase(h)).toMatchObject({ kind: "cloning", cancelling: false });
 });
 
-test("review: a stale inspection is inspected again instead of retrying the same request", async () => {
+test("a stale inspection is inspected again instead of retrying the same request", async () => {
   const h = harness();
   h.api.chooseOnboardingFolder.mockResolvedValueOnce("/code/plain");
   h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([["/code/plain", [".doan/config.json"]]]) })));
@@ -379,7 +379,7 @@ test("review: a stale inspection is inspected again instead of retrying the same
   expect(phase(h)).toMatchObject({ kind: "setup", inspectionId: fresh.inspectionId });
 });
 
-test("review: Retry after a failed folder inspection inspects that folder again, not the URL field", async () => {
+test("Retry after a failed folder inspection inspects that folder again, not the URL field", async () => {
   const h = harness();
   h.api.chooseOnboardingFolder.mockResolvedValueOnce("/code/app");
   h.queue.inspect!.push(refused("busy"));
@@ -392,7 +392,7 @@ test("review: Retry after a failed folder inspection inspects that folder again,
   expect(phase(h)).toEqual({ kind: "ready", root: "/code/app" });
 });
 
-test("review: an operation retired from the published list is read by its id", async () => {
+test("an operation retired from the published list is read by its id", async () => {
   const h = harness();
   h.session.setUrl("https://github.com/acme/studio");
   const running = op("project_inspect", { state: "running" });
@@ -406,7 +406,7 @@ test("review: an operation retired from the published list is read by its id", a
   expect(phase(h)).toMatchObject({ kind: "candidates" });
 });
 
-test("review 2: Retry on a cancelled clone plans the current destination, not an older failure", async () => {
+test("Retry on a cancelled clone plans the current destination, not an older failure", async () => {
   const h = harness();
   h.session.setUrl("https://github.com/acme/studio");
   h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([]) })), refused("destination_exists"));
@@ -429,7 +429,7 @@ test("review 2: Retry on a cancelled clone plans the current destination, not an
   expect(phase(h)).toEqual({ kind: "ready", root: "/Volumes/work/studio" });
 });
 
-test("review 2: the session says when it waits on the folder picker", async () => {
+test("the session says when it waits on the folder picker", async () => {
   const h = harness();
   let pick: (path: string | null) => void = () => {};
   h.api.chooseOnboardingFolder.mockImplementationOnce(() => new Promise(resolve => { pick = resolve; }));
@@ -442,7 +442,7 @@ test("review 2: the session says when it waits on the folder picker", async () =
   expect(phase(h)).toEqual({ kind: "choose" });
 });
 
-test("D20: an existing folder chosen from the URL path is inspected with that URL; a mismatch stays on the URL screen", async () => {
+test("an existing folder chosen from the URL path is inspected with that URL; a mismatch stays on the URL screen", async () => {
   const h = harness();
   await planned(h);
   h.api.chooseOnboardingFolder.mockResolvedValueOnce("/code/other");
@@ -456,7 +456,7 @@ test("D20: an existing folder chosen from the URL path is inspected with that UR
   expect(h.api.inspectOnboardingProject.mock.calls.at(-1)![0]).toMatchObject({ path: "/code/other", url: "https://github.com/acme/studio" });
 });
 
-test("D20: Use existing folder sends the URL with the destination path", async () => {
+test("Use existing folder sends the URL with the destination path", async () => {
   const h = harness();
   h.session.setUrl("https://github.com/acme/studio");
   h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([]) })), refused("destination_exists"));
@@ -467,7 +467,7 @@ test("D20: Use existing folder sends the URL with the destination path", async (
   expect(h.api.inspectOnboardingProject.mock.calls.at(-1)![0]).toMatchObject({ path: "/Users/ada/studio", url: "https://github.com/acme/studio" });
 });
 
-test("D20: Choose another folder on a found checkout keeps the URL; a plain Choose folder does not send one", async () => {
+test("Choose another folder on a found checkout keeps the URL; a plain Choose folder does not send one", async () => {
   const h = harness();
   h.session.setUrl("https://github.com/acme/studio");
   h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([["/a/studio"], ["/b/studio"]]) })));
@@ -485,7 +485,7 @@ test("D20: Choose another folder on a found checkout keeps the URL; a plain Choo
   expect(h.api.inspectOnboardingProject.mock.calls.at(-1)![0]).not.toHaveProperty("url");
 });
 
-test("D21: a folder recovery on a URL screen sends the URL too (not available, setup failed, unreadable configuration, cancelled clone)", async () => {
+test("a folder recovery on a URL screen sends the URL too (not available, setup failed, unreadable configuration, cancelled clone)", async () => {
   const h = harness();
   await planned(h);
   h.api.chooseOnboardingFolder.mockResolvedValueOnce("/code/gone");
@@ -505,7 +505,7 @@ test("D21: a folder recovery on a URL screen sends the URL too (not available, s
   expect(h.api.inspectOnboardingProject.mock.calls.at(-1)![0]).toMatchObject({ path: "/code/third", url: "https://github.com/acme/studio" });
 });
 
-test("D21: a cancelled clone's Choose local folder keeps the URL", async () => {
+test("a cancelled clone's Choose local folder keeps the URL", async () => {
   const h = harness();
   await planned(h);
   const running = op("project_clone", { state: "running" });
@@ -520,7 +520,7 @@ test("D21: a cancelled clone's Choose local folder keeps the URL", async () => {
   expect(h.api.inspectOnboardingProject.mock.calls.at(-1)![0]).toMatchObject({ path: "/code/local", url: "https://github.com/acme/studio" });
 });
 
-test("🟡2: a refused completion for no ready agent is cleared once an agent is ready again", async () => {
+test("a refused completion for no ready agent is cleared once an agent is ready again", async () => {
   const h = harness();
   await ready(h);
   h.queue.complete!.push(refused("no_ready_agent"));
@@ -544,7 +544,7 @@ test("⚪: an operation main no longer knows is asked for once, not on every eve
   expect(h.api.readOnboardingSession).toHaveBeenCalledTimes(1);
 });
 
-test("V fix: Back from a cancelled or failed clone returns to the editable URL, and the old inspection is gone", async () => {
+test("Back from a cancelled or failed clone returns to the editable URL, and the old inspection is gone", async () => {
   const h = harness();
   await planned(h);
   expect(h.session.backToUrl()).toBe(false);
@@ -658,7 +658,7 @@ test("consent: a re-inspection after a stale select needs Set up and continue ag
 });
 
 
-test("D25: the main checkout is read from the folder list's git facts", () => {
+test("the main checkout is read from the folder list's git facts", () => {
   const list = (path: string, git: { common: string; main?: string; worktrees: string[] }) => ({ path, kind: "list" as const, canvases: [], servedRev: 0, git });
   const entries = [list("/code/s", { common: "/code/s/.git", worktrees: ["/code/s", "/wt/s"] }), list("/wt/s", { common: "/code/s/.git", main: "/code/s", worktrees: [] }), { path: "/x", kind: "loading" as const }];
   expect(isMainCheckout(entries, "/code/s")).toBe(true);
@@ -681,7 +681,7 @@ test("UX: inspecting a chosen folder is 'checking', not the setup progress; noth
   expect(phase(h)).toMatchObject({ kind: "setup" });
 });
 
-test("D25 follow-up: Back from a URL setup screen returns to the editable URL; a folder setup does not", async () => {
+test("Back from a URL setup screen returns to the editable URL; a folder setup does not", async () => {
   const h = harness(["/code/studio"], "/Users/ada", ["/code/studio"]);
   h.session.setUrl("https://github.com/acme/studio");
   h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([["/wt/a", [".doan/config.json"]], ["/code/studio", [".doan/config.json"]]]) })));
@@ -751,7 +751,7 @@ test("the no-agent notice belongs to first run only", () => {
   expect(projectNoticeCode("addPage", footerState(clonePlan, { code: "destination_exists" }), true)).toBe("destination_exists");
 });
 
-// buzz-add-projects U2/U3: the same session over the page's main instance.
+// The same session over the page's main instance.
 function pageHarness() {
   let listener: ((state: { sessionId: string; revision: number; project: null; operations: OnboardingOperation[] }) => void) | null = null;
   const queue: Record<string, Reply[]> = { inspect: [], select: [], clone: [], cancel: [] };
@@ -836,7 +836,7 @@ test("a drop is refused while the step is busy, and a second quick drop while th
   expect(h.session.canDrop()).toBe(false);
 });
 
-// Conductor decision ⚪1: Find repository starts a new action, so the last drop notice goes with it (both uses).
+// Find repository starts a new action, so the last drop notice goes with it (both uses).
 test("Find repository clears a refused drop's notice, on the page and in first run", async () => {
   const page = pageHarness();
   await page.session.drop([folder("/a"), folder("/b")]);

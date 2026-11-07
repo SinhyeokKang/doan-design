@@ -10,7 +10,7 @@ import (
 
 const spritePrologue = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE svg PUBLIC \"-//W3C//DTD SVG 1.1//EN\" \"http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd\">\n<!-- exported -->\n"
 
-// RA1 🟡3: <use> cannot load a data: URL, so the sprite goes into the document.
+// <use> cannot load a data: URL, so the sprite goes into the document.
 func TestInlineSpritesForUse(t *testing.T) {
 	root := exporttest.Seed(t)
 	other := `<svg xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="grad"/></defs><symbol id="star"><use href="#grad"/></symbol></svg>`

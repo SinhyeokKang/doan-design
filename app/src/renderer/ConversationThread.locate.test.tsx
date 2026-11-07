@@ -78,7 +78,7 @@ test("after an action hid it, a new miss shows it again for its own 4 s", () => 
   expect(shown()).toBe(false);
 });
 
-// A scroll of the field that holds the chip moves the chip away from the note placed by it (BR4b re-review R3), so it
+// A scroll of the field that holds the chip moves the chip away from the note placed by it, so it
 // counts as the next action: the note goes, and with it the chip's describing link (DockedComposer's effect cleanup).
 test("a scroll of the chip's field hides the note at once and leaves no timer", () => {
   const field = new EventTarget();

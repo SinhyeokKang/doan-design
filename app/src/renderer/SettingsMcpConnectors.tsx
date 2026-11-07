@@ -30,7 +30,7 @@ const rowGroup = (provider: McpProvider, name: string) => document.querySelector
 const unusable = (node: HTMLElement) => !node.isConnected || node.matches(":disabled") || node.getAttribute?.("aria-disabled") === "true";
 const snapshotReply = (value: unknown): value is McpSnapshot => typeof value === "object" && value !== null && "revision" in value;
 
-// Settings > MCP Connectors (mcp-connectors spec 2–4, 8, 10; draft frames 1–9): one section per signed-in agent,
+// Settings > MCP Connectors (PRODUCT §5 item 0 'MCP Connectors'; draft frames 1–9): one section per signed-in agent,
 // listing the presets and the URL servers as the first-run Agent step's provider rows. Focus follows Settings > Agents'
 // rule (a control that goes away or is disabled hands focus to its row group) and the page has one live region.
 export function SettingsMcpConnectors({ watch, signIn, onLock, openAgents, actions }: SettingsMcpConnectorsProps) {
@@ -53,7 +53,7 @@ export function SettingsMcpConnectors({ watch, signIn, onLock, openAgents, actio
   if (since.current === null) since.current = watch.announcementSeq();
   useEffect(() => {
     const offWatch = watch.subscribe(redraw), offAuth = signIn.subscribe(redraw);
-    // Status commands use the network, so they run on entering the page, never on a timer (design '상태 판정').
+    // Status commands use the network, so they run on entering the page, never on a timer.
     void window.doan.readMcpConnectors({ refresh: true }).then(reply => { if (snapshotReply(reply)) watch.receive(reply); }, () => {});
     return () => {
       offWatch(); offAuth();

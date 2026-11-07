@@ -1,7 +1,7 @@
 import type { ConversationEvent, StageSignal, TurnStage } from "../main/conversation/types";
 import { rootRelative, runningHead, waitsForPerson, type ActivityStep, type ThreadItem } from "./threadItems";
 
-// The turn indicator's state (turn-activity design §1): what the agent of the last turn does now, read from the
+// The turn indicator's state: what the agent of the last turn does now, read from the
 // thread's items, the turn and main's latest stage signal. threadItems already folds streaming, waiting cards, ends and
 // crashes, so none of it is decided again here.
 
@@ -15,7 +15,7 @@ export type TurnStatus =
 
 // Main appends a turn's opening user.message and its turn.started one after the other and pushes each (a save and a
 // list notice lie between), so a render can hold the message alone; that message already opens its turn, or the
-// indicator would miss the render the message enters (turn-activity R1: 10–14 ms on an existing conversation). A
+// indicator would miss the render the message enters (measured 10–14 ms on an existing conversation). A
 // steered message carries the running turn's id and opens nothing.
 export function turnOf(events: readonly ConversationEvent[], live: boolean): TurnInfo | null {
   let last = events.length - 1;
@@ -34,7 +34,7 @@ export function turnOf(events: readonly ConversationEvent[], live: boolean): Tur
 }
 
 // A read or edit with a path reads "Reading/Editing <path>", as the activity rows do; without one, its summary. Main
-// leaves the folder out of a Codex listFiles or search, which reads as "Reading files" (design decision 1).
+// leaves the folder out of a Codex listFiles or search, which reads as "Reading files".
 function stageTool(stage: Extract<TurnStage, { kind: "tool" }>, root: string): TurnStatus {
   const path = stage.path ? rootRelative(stage.path, root) : null;
   return { kind: "tool", activity: stage.activity, text: runningHead({ key: "", kind: stage.activity, verb: stage.summary, path }) };
@@ -43,7 +43,7 @@ const eventTool = (step: ActivityStep): TurnStatus => ({ kind: "tool", activity:
 
 // A stage counts only for this turn and only while no event of it came after (seq). Without one, the last item says it:
 // an activity, or a permission answered with Allow right after one (the tool now runs). Codex's MCP startup lines are
-// activities but no tool. A tool activity row may still spin while this says general (decision 4).
+// activities but no tool. A tool activity row may still spin while this says general.
 export function turnStatus(items: readonly ThreadItem[], turn: TurnInfo | null, stage: StageSignal | null, root: string): TurnStatus {
   if (!turn || !turn.live || turn.ended) return { kind: "none" };
   if (items.some(waitsForPerson)) return { kind: "waiting" };
@@ -58,7 +58,7 @@ export function turnStatus(items: readonly ThreadItem[], turn: TurnInfo | null, 
   return step && !step.sentence ? eventTool(step) : { kind: "general" };
 }
 
-// What both hosts pass the thread (design §4): the last turn's status, its id and its start, which the elapsed time
+// What both hosts pass the thread: the last turn's status, its id and its start, which the elapsed time
 // counts from. The id lets the thread drop the settle state of an earlier turn.
 export interface ThreadTurn { turnId: string; status: TurnStatus; at: string }
 export function threadTurn(events: readonly ConversationEvent[], items: readonly ThreadItem[], live: boolean, stage: StageSignal | null, root: string): ThreadTurn | null {
@@ -66,7 +66,7 @@ export function threadTurn(events: readonly ConversationEvent[], items: readonly
   return turn ? { turnId: turn.turnId, status: turnStatus(items, turn, stage, root), at: turn.at } : null;
 }
 
-// Which stage to keep (design §2): within a turn the higher rev, since a read's reply and a push sent after it may
+// Which stage to keep: within a turn the higher rev, since a read's reply and a push sent after it may
 // arrive in either order (POSTMORTEM 2026-10-26). A stage of another turn than the history's current one is dropped;
 // `current` is null while the history is not read.
 export function newerStage(held: StageSignal | null, incoming: StageSignal, current: string | null): StageSignal | null {
@@ -75,7 +75,7 @@ export function newerStage(held: StageSignal | null, incoming: StageSignal, curr
   return incoming;
 }
 
-// Settle (design §1): a new stage shows once it has held for 300 ms, so short tools between model requests do not
+// Settle: a new stage shows once it has held for 300 ms, so short tools between model requests do not
 // flicker; one replaced sooner never shows. Replying, waiting and none show at once, and so does the first stage after
 // none or waiting (spec condition 1: the indicator is there from the render the message enters, and again right after
 // a card is answered). Every other change waits, replying back to general included.
@@ -94,14 +94,14 @@ export function settle(previous: Settled | null, next: TurnStatus, now: number):
   return { shown: previous.shown, pending: next, since: now };
 }
 
-// Elapsed time in whole seconds, seconds always shown (decision 1); an unreadable, negative or future span is 0s.
+// Elapsed time in whole seconds, seconds always shown; an unreadable, negative or future span is 0s.
 export function elapsedText(ms: number): string {
   const total = Number.isFinite(ms) && ms > 0 ? Math.floor(ms / 1000) : 0;
   const h = Math.floor(total / 3600), m = Math.floor(total / 60) % 60, s = total % 60;
   return h > 0 ? `${h}h ${m}m ${s}s` : m > 0 ? `${m}m ${s}s` : `${s}s`;
 }
 
-// The indicator's words (decision 1): the provider names only the stages without a tool.
+// The indicator's words: the provider names only the stages without a tool.
 export function turnText(status: TurnStatus, provider: string): string {
   switch (status.kind) {
     case "tool": return status.text;

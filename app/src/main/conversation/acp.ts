@@ -97,8 +97,8 @@ export function acpPermission(params: Record<string, unknown>, requestId: string
   return { event: { type: "permission.request", requestId, tool: typeof tool.kind === "string" ? tool.kind : "other", summary: title, options: choices.map(c => c.option) }, choices };
 }
 
-// Antigravity asks the person through a standard permission request whose options are the answers (agent-questions
-// P5): two or more, all allow_once, no reject, the question as toolCall.title. Anything else, or past the question
+// Antigravity asks the person through a standard permission request whose options are the answers:
+// two or more, all allow_once, no reject, the question as toolCall.title. Anything else, or past the question
 // limits, stays a permission request, which can still be answered; a cut question or a merged answer could not.
 export function acpQuestion(params: Record<string, unknown>, requestId: string): { event: Extract<EventPayload, { type: "question.request" }>; optionIds: string[] } | null {
   const L = QUESTION_LIMITS;

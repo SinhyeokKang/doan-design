@@ -30,7 +30,7 @@ test("Last used in Settings stays Last used; a fixed default takes the pick", ()
   expect(preferenceAfterPick({ provider: "claude", model: "opus" }, { provider: "claude", model: null, effort: null })).toBeUndefined();
 });
 
-// permission-mode T1 (design '저장 규칙'): the mode is remembered apart from the model, and a mode picked while the
+// The mode is remembered apart from the model, and a mode picked while the
 // model list is not read still counts.
 test("a picked mode is the provider's last mode; Default is stored as none", () => {
   const memory = { lastProvider: "claude" as const, models: { claude: { model: "opus" } } };
@@ -67,7 +67,7 @@ test("a fixed Settings default takes the picked mode, with or without a model", 
   expect(preferenceAfterPick({ provider: "codex" }, { provider: "claude", model: null, effort: null, permissionMode: "plan" })).toBeUndefined();
 });
 
-// fast-mode A5 (design §2 9–10, decision 3): Fast is remembered per provider, apart from the model, only when the switch
+// Fast is remembered per provider, apart from the model, only when the switch
 // changes or Fast turns itself off.
 test("a switched Fast is its provider's, kept across model picks and apart from the other provider", () => {
   const memory = { lastProvider: "codex" as const, models: { codex: { model: "gpt-6" } } };
@@ -136,7 +136,7 @@ test("a pick that leaves the effort alone keeps a fixed effort; a picked effort 
   expect(preferenceAfterPick({ provider: "codex", model: "gpt-5.6-terra", effort: "xhigh" }, { provider: "codex", model: "gpt-5.6-terra", effort: "low", effortPicked: true })).toEqual({ provider: "codex", model: "gpt-5.6-terra", effort: "low" });
 });
 
-// RV2 🟡2: the model's and the level's provenance apply apart. Re-picking the fixed model keeps its fixed level unless a
+// The model's and the level's provenance apply apart. Re-picking the fixed model keeps its fixed level unless a
 // level was picked; a newly picked model takes no level that was only shown.
 test("a model pick keeps the fixed level unless a level was picked, and carries no shown level to another model", () => {
   const terra = { provider: "codex" as const, model: "gpt-5.6-terra", effort: "xhigh" };

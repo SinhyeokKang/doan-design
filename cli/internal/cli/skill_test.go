@@ -95,7 +95,7 @@ func TestSkillGuideHandoff(t *testing.T) {
 }
 
 // `doan init --json` never prompts, so the guide must make the agent ask first when the user names it.
-// The onboarding fallback runs it without asking, and it never registers the project in the app (setup-via-onboarding decisions 3, 4).
+// The onboarding fallback runs it without asking, and it never registers the project in the app.
 func TestSkillInitRequiresHumanRequestAndTokenPath(t *testing.T) {
 	for _, l := range strings.Split(skillBody, "\n") {
 		if strings.HasPrefix(l, "- `doan init ") {
@@ -114,7 +114,7 @@ func TestSkillInitRequiresHumanRequestAndTokenPath(t *testing.T) {
 }
 
 // A request to set up a repository goes through onboarding, which registers it in the app; init is only the fallback
-// when Doan cannot be reached, so unattended runs do not stop (setup-via-onboarding decisions 1, 2, 3, 5).
+// when Doan cannot be reached, so unattended runs do not stop.
 func TestSkillGuideSetupGoesThroughOnboarding(t *testing.T) {
 	var first, step1 string
 	for _, l := range strings.Split(skillBody, "\n") {
@@ -252,7 +252,7 @@ func TestSkillGuideWorkLifecycle(t *testing.T) {
 			t.Errorf("missing work guidance: %s", required)
 		}
 	}
-	// Only start and done are suppressed in an app conversation; update carries the conversation id (work-update design §1 rule 3).
+	// Only start and done are suppressed in an app conversation; update carries the conversation id.
 	if !strings.Contains(skillBody, "In an app conversation only `update` is sent, with the conversation's id.") || strings.Contains(skillBody, "or this is an app conversation") {
 		t.Error("guide does not separate app-conversation suppression of start and done from update")
 	}
@@ -262,7 +262,7 @@ func TestSkillGuideWorkLifecycle(t *testing.T) {
 	}
 }
 
-// Rule J offers to open the edited canvas instead of printing links (canvas-open-offer spec 5, 6, 11).
+// Rule J offers to open the edited canvas instead of printing links.
 func TestSkillGuideOpenOffer(t *testing.T) {
 	var rule string
 	for _, l := range strings.Split(skillBody, "\n") {

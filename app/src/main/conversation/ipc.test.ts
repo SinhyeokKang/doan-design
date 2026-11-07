@@ -41,7 +41,7 @@ function home(dir: string, models?: ModelOption[], canvases: { path: string }[] 
   const handle = conversationHandler(service, prepare, () => [{ path: "/repo", kind: "list", canvases }], { models: catalog, attachments: attachments as unknown as AttachmentStore });
   return { handle, start, prepare, catalog, attachments, service };
 }
-// terminal-agent-activity: the renderer holds the terminal session choice while that session (provider:id) works in a
+// The renderer holds the terminal session choice while that session (provider:id) works in a
 // terminal, so the resume target names its session.
 it("names the terminal session in the resume target", async () => {
   const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
@@ -81,7 +81,7 @@ it("accepts a model and effort only from the list delivered in this run for that
     expect(await h.handle(true, "start", { root: "/repo", mode: "new", runtime: "claude", text: "x", model: "sonnet", canvas: undefined })).toEqual({ error: "bad_request" });
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
-// project-skill-drawer C1: the project skill list has the model list's checks, so no provider opens for an unopened folder.
+// The project skill list has the model list's checks, so no provider opens for an unopened folder.
 it("answers conversation:skills for an open project and refuses other windows, frames and inputs", async () => {
   const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
   try {
@@ -207,7 +207,7 @@ describe("validateSendExtras", () => {
   });
 });
 
-// buzz-conversation M1/M3: the list, the seen marker and a send's extras through IPC.
+// The list, the seen marker and a send's extras through IPC.
 describe("conversation list, seen marker and send extras", () => {
   function sendFixture(dir: string, list: ModelOption[] = MODELS) {
     const owner = { kind: "doan" as const, provider: "claude" as const, connectionId: "c", accountId: "a", workspaceId: "o", profile: "p" };
@@ -326,7 +326,7 @@ describe("conversation list, seen marker and send extras", () => {
   });
 });
 
-// buzz-conversation M6: the queue channels and the returned draft.
+// The queue channels and the returned draft.
 describe("queue channels", () => {
   function queueFixture(dir: string) {
     const owner = { kind: "doan" as const, provider: "claude" as const, connectionId: "c", accountId: "a", workspaceId: "o", profile: "p" };
@@ -365,7 +365,7 @@ describe("queue channels", () => {
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
   // A queue goes out in the mode stored when it is flushed, so a queued message carries none; a picker change goes
-  // through setPermissionMode instead (permission-mode spec decisions 7 and 8).
+  // through setPermissionMode instead.
   it("refuses a queued message's mode, and stores a picker change except on a legacy external conversation", async () => {
     const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
     try {
@@ -401,7 +401,7 @@ describe("queue channels", () => {
   });
 });
 
-// conversation-delete design §2.4: conversation:delete takes an opaque id and answers nothing or a known code.
+// conversation:delete takes an opaque id and answers nothing or a known code.
 describe("delete channel", () => {
   it("deletes an idle conversation and answers busy, not_found, unknown and bad_request as codes", async () => {
     const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
@@ -426,7 +426,7 @@ describe("delete channel", () => {
   });
 });
 
-// buzz-conversation fix round 1 (RA2 Y4): a queued message is accepted only after main holds its attachments.
+// A queued message is accepted only after main holds its attachments.
 describe("queue acceptance", () => {
   function fixture(dir: string, markSent: () => void) {
     const owner = { kind: "doan" as const, provider: "claude" as const, connectionId: "c", accountId: "a", workspaceId: "o", profile: "p" };
@@ -490,7 +490,7 @@ it("accepts validated extras for a new canvas conversation and refuses each extr
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-// queue-send-now T4: Send now's channel answers once the agent read the message, not when the provider took it.
+// Send now's channel answers once the agent read the message, not when the provider took it.
 describe("send queued now channel", () => {
   it("validates the request, answers after the read, and passes stale and not_running through", async () => {
     const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
@@ -522,7 +522,7 @@ describe("send queued now channel", () => {
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 });
-// agent-questions B3 (design §5): ipc checks the shape and limits only; the runner holding the question checks the rest.
+// ipc checks the shape and limits only; the runner holding the question checks the rest.
 describe("answerQuestion", () => {
   function questions(result: "ok" | "stale" | "bad_request" = "ok") {
     const dir = mkdtempSync(join(tmpdir(), "doan-ipc-")); const answerQuestion = vi.fn(() => result);
@@ -597,7 +597,7 @@ describe("answerQuestion", () => {
   });
 });
 
-// fast-mode A3: Fast only for doan-owned Claude and Codex conversations, judged by the turn's model in this run's list;
+// Fast only for doan-owned Claude and Codex conversations, judged by the turn's model in this run's list;
 // the turn's effective Fast goes along like the default effort.
 describe("fast", () => {
   const catalog = {
@@ -744,7 +744,7 @@ describe("fast through the channels", () => {
   });
 });
 
-// fast-mode B1: the renderer reads Fast from the models reply and the list, never a provider's tier id.
+// The renderer reads Fast from the models reply and the list, never a provider's tier id.
 describe("fast in the replies", () => {
   it("carries Fast rows without a tier id in the models reply and the stored Fast in the list", async () => {
     const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));

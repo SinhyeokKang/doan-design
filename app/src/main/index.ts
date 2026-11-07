@@ -92,7 +92,7 @@ export type TokenCssChoice = { kind: "selected"; choiceId: string; path: string 
 export type ViewCommand = "zoomIn" | "zoomOut" | "actualSize" | "fit" | "reload";
 // Menu items whose work belongs to the renderer's screen state.
 export type MenuCommand = "home" | "quickOpen" | "newConversation" | "pickFromCanvas" | "toggleSidebar";
-// What the renderer reports so main can enable menu items (design 'Menus').
+// What the renderer reports so main can enable menu items.
 // `choose`, `locked`: the Add Projects page shows its choose phase, or a phase nothing may leave (menuState).
 // `overview`: a project Overview shows (File > New Conversation).
 // `pickerAvailable`: the composer takes input and the canvas is loaded, so the menu follows the canvas toolbar's Picker.
@@ -150,7 +150,7 @@ function updateWork(next: WorkState): void {
   armWorkTimer();
   if (workItemsChanged(previous, items)) send("work:changed", items);
 }
-// App conversations' work updates, kept apart from terminal work so they never count as a terminal (design decision 9).
+// App conversations' work updates, kept apart from terminal work so they never count as a terminal.
 let conversationWork: readonly ConversationWork[] = [];
 function updateConversationWork(next: readonly ConversationWork[]): void {
   if (next === conversationWork) return;
@@ -170,7 +170,7 @@ function openLinksReady(): boolean {
 function readyOpenLinks(): void {
   if (openLinksReady()) openLinks.ready();
 }
-// `doan open` (canvas-open-offer): not queued like a link; each request is answered on its own (deepLinks.ts).
+// `doan open`: not queued like a link; each request is answered on its own (deepLinks.ts).
 const openCanvasRequests = openRequests({
   ready: openLinksReady,
   entries: () => shell?.entries() ?? [],
@@ -205,7 +205,7 @@ const onboardingStarted = new Promise<OnboardingService>(resolve => { onboarding
 // Each listed folder's canvas rows as last handed to the conversation service (conversation/refreshes.ts).
 let conversationLists = new Map<string, readonly { path: string; rev?: number }[]>();
 let inspector: Inspector | undefined;
-// One selection app-wide (select-inspect R1); the socket answers it only for
+// One selection app-wide; the socket answers it only for
 // its own project. Memory only, never written to disk.
 let selection: Selection | null = null;
 const documents = new DocumentBindings();
@@ -221,7 +221,7 @@ let addFlow: AddFlow | undefined;
 let uiState: UiStateStore | undefined;
 let canvasSeen: CanvasSeenStore | undefined;
 let thumbnails: Thumbnails | undefined;
-// The app always starts on Home (design 'Memory model').
+// The app always starts on Home.
 const HOME: MenuInputs = { screen: "home", modal: false };
 let menuInputs: MenuInputs = HOME;
 const FULLSCREEN_EXIT_WAIT_MS = 2000;
@@ -385,7 +385,7 @@ function setMenu(): void {
         ],
       },
       // Finder's place for Home. Quick Open is a menu item so ⌘K is never only
-      // a hidden key (design-nav draft, after Sorcerer's "Go to…").
+      // a hidden key (after Sorcerer's "Go to…").
       { label: "Go", submenu: [
         { label: "Home", accelerator: "Shift+CmdOrCtrl+H", enabled: enabled.home, click: command("home") },
         { label: "Quick Open…", accelerator: "CmdOrCtrl+K", enabled: enabled.quickOpen, click: command("quickOpen") },
@@ -425,7 +425,7 @@ function denyPermissions(): void {
   session.defaultSession.setPermissionCheckHandler(() => false);
   session.defaultSession.setDevicePermissionHandler(() => false);
   // Chromium turns an ⌥-clicked canvas link into a download, and the iframe
-  // sandbox without `allow-downloads` does not stop it (select-inspect P6).
+  // sandbox without `allow-downloads` does not stop it.
   session.defaultSession.on("will-download", (event) => event.preventDefault());
 }
 
@@ -484,7 +484,7 @@ function createWindow(): BrowserWindow {
   const owner = window.webContents.id;
   // A sign-in belongs to the renderer that started it; a lost renderer cannot cancel it any more.
   window.webContents.on("render-process-gone", () => { configBridge?.clear(); void agentAuth?.ownerClosed(owner); });
-  // A reloaded renderer has no Project Settings page left to answer (buzz-settings S4).
+  // A reloaded renderer has no Project Settings page left to answer.
   window.webContents.on("did-navigate", () => { configBridge?.clear(); });
   // `.git/HEAD` is not watched, so a branch switched elsewhere shows when the
   // human comes back to the window.
@@ -511,7 +511,7 @@ function createWindow(): BrowserWindow {
       window.setFullScreen(false);
     } else hideWindow(window);
   });
-  // The traffic lights are gone in fullscreen, so the header gives back their space (shell-panel-layout §2.5).
+  // The traffic lights are gone in fullscreen, so the header gives back their space.
   window.on("enter-full-screen", () => send("window:fullscreen", { fullScreen: true }));
   window.on("leave-full-screen", () => send("window:fullscreen", { fullScreen: false }));
   window.on("closed", () => {
@@ -522,7 +522,7 @@ function createWindow(): BrowserWindow {
   return window;
 }
 
-// The open-Settings command (buzz-settings design '들어가는 길'): a hidden window is shown first, then the renderer
+// The open-Settings command: a hidden window is shown first, then the renderer
 // moves to the page. Not while first run is open, like Settings….
 export function openSettingsPage(target: SettingsPageTarget = {}): boolean {
   const window = win;
@@ -689,7 +689,7 @@ async function start(): Promise<void> {
     const id = designSkillGetRequest(value);
     return id === null ? DESIGN_SKILL_REFUSED : interpretGet(await runDesignSkill(cli, id), id);
   });
-  // canvas-row-menu: Move to Trash and Export act only on rows of main's own list. Busy is judged on main's grounds:
+  // Move to Trash and Export act only on rows of main's own list. Busy is judged on main's grounds:
   // this root's conversations, its unjudged project turns and terminal work.
   const canvasTrash = createCanvasTrash({
     entries: () => ready.entries(),
@@ -730,7 +730,7 @@ async function start(): Promise<void> {
     handoff: request => conversations ? conversations.requestHandoff(request) : "not_app_conversation",
     async onboarding(request) {
       const service = await onboardingStarted;
-      // start keeps the session and its input (design '설치 직후 진입'); the window comes forward only when Doan is
+      // start keeps the session and its input; the window comes forward only when Doan is
       // already in front.
       if (request.op === "start" && win && !win.isDestroyed()) revealForStart(win);
       return service.answer(request);
@@ -753,7 +753,7 @@ async function start(): Promise<void> {
   try { await auth.load(); agentAuth = auth; } catch (error) { console.error("doan: agent sign-in storage is unreadable", error); }
   const executable = (path: string) => { try { accessSync(path, fsConstants.X_OK); return statSync(path).isFile(); } catch { return false; } };
   const shellForFacts = sharedShell(() => probeShell(process.env));
-  // Agent setup (zero-setup-agents design '언제, 어떤 복사본이 쓰는가'): once per launch, beside the window rather than
+  // Agent setup (ARCHITECTURE §7 'Agent setup'): once per launch, beside the window rather than
   // before it. About waits for this result, which stays pending while the administrator dialog is open; a run that
   // throws becomes a crashed item, so About never shows its failure as "every agent was set up".
   const agentSetup = shellForFacts().then(probe => runAgentSetup({
@@ -793,7 +793,7 @@ async function start(): Promise<void> {
     });
   }
   handle(USAGE_CHANNELS.read, [], (_event, value) => usage ? usageRequest(usage, value) : []);
-  // MCP Connectors (mcp-connectors): provider CLIs register, sign in and keep the tokens in the Doan profiles; Doan
+  // MCP Connectors: provider CLIs register, sign in and keep the tokens in the Doan profiles; Doan
   // keeps the server list. It needs agent sign-in storage: without it every MCP call is refused like a forged one.
   if (agentAuth) {
     const auth = agentAuth;
@@ -854,7 +854,7 @@ async function start(): Promise<void> {
   const realOrNull = (path: string) => { try { return realpathSync(path); } catch { return null; } };
   // The developer directory xcode-select would use, read without running it (see locateGit).
   const developerDir = () => { if (process.env.DEVELOPER_DIR) return process.env.DEVELOPER_DIR; try { return readlinkSync("/var/db/xcode_select_link"); } catch { return null; } };
-  // First run and the Add Projects page add projects with the same folder work and locks (design 'main의 project 처리').
+  // First run and the Add Projects page add projects with the same folder work and locks.
   const locks = projectLocks();
   const projectWork: AdderProjects = {
     folder: canonicalFolder, destination: path => cloneDestination(path, projectDeps),
@@ -901,7 +901,7 @@ async function start(): Promise<void> {
     });
   }
   // The legacy external prepare gets no records: its runs use the user's own profile and readiness does not cover them.
-  // Runs read the MCP connectors' generation and names when they ask (mcp-connectors C1/C2).
+  // Runs read the MCP connectors' generation and names when they ask.
   const accountPrepare = createAccountPrepare(auth, cli, provider => void authIpc?.refreshTools(provider), authIpc, connectorFacts(() => mcp));
   // Without readable account storage a doan-account run is refused; it never falls back to the external profile.
   const prepareConversation = routePrepare(createPrepare(userData, join(userData, "runtime.json"), process.env),
@@ -1083,7 +1083,7 @@ async function start(): Promise<void> {
   });
   handle("ui-state:get", null, (event) => (fromWindow(event) ? store.read() : null));
   handle("ui-state:save", false, (event, value: unknown) => fromWindow(event) && store.save(value));
-  // buzz-settings: the Settings page's preferences, notifications and About. Main fixes the URL, the notification
+  // The Settings page's preferences, notifications and About. Main fixes the URL, the notification
   // and the clipboard text; the renderer sends a change or nothing.
   handle("preferences:read", null, () => preferences.read());
   handle("preferences:write", null, (_event, value: unknown) => preferences.update(value));

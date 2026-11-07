@@ -11,14 +11,14 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip
 import { autoCursor, dotGrid, opposingCursor, type Dot } from "./dotField";
 import { crossesBoundary, NoticeTyping, typesOn, type NoticeMoment, type TypedText } from "./noticeTyping";
 
-// The agent indicator on the board while this canvas's current conversation works or waits (buzz-canvas design §2
-// '에이전트 작업 표시', .doan/canvases/buzz-canvas.html 'agent-working', 'agent-waiting'). The glow and the dot field take
+// The agent indicator on the board while this canvas's current conversation works or waits (PRODUCT §5 item 2 'Agent indicator',
+// .doan/canvases/buzz-canvas.html 'agent-working', 'agent-waiting'). The glow and the dot field take
 // no pointer input; the notice floats at the board's top centre with one button. Reference: ego lite's agent tab as the
-// user described it (2026-11-01); its values live in a native view and were not read (design §2).
+// user described it (2026-11-01); its values live in a native view and were not read.
 // `list` is HomeRun's list state for the canvas's project; `running` is false while the workspace is hidden or the
 // Overview covers the canvas, which pauses the dot field. `children` are the canvas notices: they stack in the same
-// top-centre column under the agent notice (design §0 '확정 값'), so the column stays when no agent shows.
-// `work`: the canvases terminal sessions work on (terminal-agent-activity, draft frame terminal-notice); one on this
+// top-centre column under the agent notice, so the column stays when no agent shows.
+// `work`: the canvases terminal sessions work on (draft frame terminal-notice); one on this
 // canvas shows the same indicator without a button.
 // `entries` group the worktrees: with nothing on this canvas here, a session on its path in another worktree of the
 // project shows a notice with Open and no glow (DESIGN 'Terminal work in another worktree', draft frame sibling-notice).
@@ -78,7 +78,7 @@ export function CanvasAgent({ list, canvas, running, work, conversationWork = []
         <DoanyArtist still={view.steady || !running} />
         <WorkWords view={view} moment={moment} />
         {!action ? null : action.kind === "stop"
-          // aria-disabled, not disabled: "Stopping" keeps focus (design §2 'Esc와 포커스').
+          // aria-disabled, not disabled: "Stopping" keeps focus.
           // The composer's Stop glyph; "Stopping" spins in its place.
           ? <button type="button" className="doan-button doan-agent-action" data-ui-size="sm" aria-disabled={action.disabled || undefined} onClick={stop}>
             {action.disabled ? <span className="doan-spinner" aria-hidden="true" /> : <Square fill="currentColor" stroke="none" aria-hidden="true" />}{action.label}</button>
@@ -99,10 +99,10 @@ export function CanvasAgent({ list, canvas, running, work, conversationWork = []
   </>;
 }
 
-// The notice's words (work-update decisions 19–20): the visible line is aria-hidden, the text with its caret right after
+// The notice's words: the visible line is aria-hidden, the text with its caret right after
 // the last visible character; the live region beside it holds the final words from the first moment. A long text
 // ellipsizes and its tooltip shows it whole. While a change erases and types, the line keeps a floor of the shorter
-// text's width plus the caret, in px (a percentage resolves to 0 in the content-sized card, design §9) and capped by
+// text's width plus the caret, in px (a percentage resolves to 0 in the content-sized card) and capped by
 // the width the card can give the line.
 function WorkWords({ view, moment }: { view: AgentNoticeView; moment: NoticeMoment }) {
   const [typed, setTyped] = useState<TypedText>({ text: view.text, minWidth: null, typing: false });
@@ -164,7 +164,7 @@ function DoanyArtist({ still }: { still: boolean }) {
   </picture></span>;
 }
 
-// The board-wide dot field (design §2): canvas 2D, two virtual spots sweeping the board (the second walks the first's
+// The board-wide dot field: canvas 2D, two virtual spots sweeping the board (the second walks the first's
 // path backwards, `opposingCursor`), the colour read from the element's computed `color` so the theme's role decides it.
 export function DotField({ running }: { running: boolean }) {
   const canvas = useRef<HTMLCanvasElement>(null);

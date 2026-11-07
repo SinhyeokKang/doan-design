@@ -10,7 +10,7 @@ import { DraftStore } from "./drafts";
 import type { HandoffNotice } from "./handoff";
 import type { Canvas, ConversationEvent } from "./types";
 
-// canvas-handoff C2 (design §2, §5): the conversation service's half of a handoff, with fake runners.
+// The conversation service's half of a handoff, with fake runners.
 const paths: string[] = [];
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); paths.splice(0).forEach(p => rmSync(p, { recursive: true, force: true })); });
 const a = { path: ".doan/canvases/a.html", id: "a" }, b = { path: ".doan/canvases/b.html", id: "b" }, c = { path: ".doan/canvases/c.html", id: "c" };
@@ -327,8 +327,8 @@ describe("a handoff beside the root's project turns", () => {
   });
 });
 
-// Fix round 1 (review RM 🟡1, 🟡2, ⚪2): a sign-out cancels a handoff it finds waiting, and the concurrency paths of
-// design §2 and §5 each have a case.
+// A sign-out cancels a handoff it finds waiting, and the concurrency paths of
+// ARCHITECTURE §7 'Handoff' each have a case.
 describe("a handoff a stop, an archive, a quit or a broken history meets", () => {
   // The successor's preparation, held until release.
   function hold(h: ReturnType<typeof fixture>) {
@@ -487,7 +487,7 @@ describe("Send now and the handoff guidance", () => {
   });
 });
 
-// fast-mode A3 (decision 6): the next conversation inherits the earlier one's Fast; its run takes Fast only when this
+// The next conversation inherits the earlier one's Fast; its run takes Fast only when this
 // run's list says the model takes it.
 describe("fast", () => {
   async function handOff(h: ReturnType<typeof fixture>, request: Partial<StartRequest>) {

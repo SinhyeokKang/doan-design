@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import type { ConversationSummary } from "../main/conversation/summary";
 import { DELETE_TOOLTIP, deleteAvailability, deleteDialogView, deleteItemLabel, deleteRefusalText } from "./conversationDelete";
 
-// conversation-delete tasks T3, design §3.1: whether a conversation can be deleted, the confirm alert's words and the
+// Whether a conversation can be deleted, the confirm alert's words and the
 // refusal toast.
 
 const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
@@ -99,7 +99,7 @@ describe("deleteRefusalText", () => {
   });
 });
 
-// The row Delete's accessible name quotes the title as the alert and the toast do (review RC 🟡2).
+// The row Delete's accessible name quotes the title as the alert and the toast do.
 describe("deleteItemLabel", () => {
   test("names the conversation by its quoted title", () => {
     expect(deleteItemLabel("Ideas")).toBe("Delete “Ideas”");

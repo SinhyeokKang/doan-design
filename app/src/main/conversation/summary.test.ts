@@ -140,7 +140,7 @@ describe("clampSeen", () => {
   });
 });
 
-describe("a turn with two user.message events (queue-send-now)", () => {
+describe("a turn with two user.message events", () => {
   const pushed: EventPayload = { type: "user.message", text: "pushed in", anchors: [] };
   it("keeps the title and shows the turn as running with its activity as the preview", () => {
     const s = conversationSummary(doan, { ok: true, events: history(...started, pushed, { type: "activity", kind: "read", summary: "Reading index.html" }) }, live);
@@ -151,7 +151,7 @@ describe("a turn with two user.message events (queue-send-now)", () => {
     expect(s).toMatchObject({ title: "Make a pricing page", phase: "ended", unseen: true, preview: "Both done." });
   });
 });
-// canvas-handoff B4: a handoff's resolution comes after the turn's end, like a binding marker, and does not make a
+// A handoff's resolution comes after the turn's end, like a binding marker, and does not make a
 // seen end unseen again; the request inside the turn counts as the turn's.
 describe("handoff events", () => {
   const canvasDoan: ConversationMetadata = { ...doan, canvas: { path: ".doan/canvases/a.html", id: "a" } };

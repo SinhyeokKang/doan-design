@@ -15,7 +15,7 @@ describe("promptSuggestionText", () => {
     expect(text("  Run\nthe\r\n\r\ntests \t now  ")).toBe("Run the tests now");
     expect(text("a\u000bb\u000cc")).toBe("a b c");
   });
-  // prompt-suggestion design, pure function 1: both ends of every character range, and the character just outside it.
+  // Both ends of every character range, and the character just outside it.
   it.each([
     ["U+0009", "\u0009", " "], ["U+000D", "\u000d", " "], ["U+0085", "\u0085", " "], ["U+00A0", "\u00a0", " "], ["U+2028", "\u2028", " "], ["U+2029", "\u2029", " "], ["U+0020", " ", " "],
   ])("folds %s into a space", (_name, char, shown) => {

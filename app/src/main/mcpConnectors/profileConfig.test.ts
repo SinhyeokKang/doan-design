@@ -30,7 +30,7 @@ test("Claude .claude.json: only the doan- mcpServers keys and their urls are tak
   expect(claudeConfigServers("not json")).toBeNull();
 });
 
-// BB review round 2: a config the parser cannot positively read in its mcp_servers part is a failure, never "no
+// A config the parser cannot positively read in its mcp_servers part is a failure, never "no
 // servers", so the logout falls back to every server Doan knows.
 test("Codex config.toml: trailing comments on headers and url lines are read", () => {
   const text = ['[mcp_servers.doan-notion] # MCP', 'url = "https://mcp.notion.com/mcp" # the Notion server', "enabled = true # on", "",
@@ -72,7 +72,7 @@ test("Claude .claude.json: mcpServers of the wrong type is a failure; no mcpServ
   expect(claudeConfigServers(JSON.stringify({ other: 1 }))).toEqual([]);
 });
 
-// BB review round 3: the parser is total. An unclosed multi-line string anywhere or a value it cannot decode is the
+// The parser is total. An unclosed multi-line string anywhere or a value it cannot decode is the
 // failure value, never an exception and never an empty list.
 test("Codex config.toml: an unclosed multi-line string anywhere or an undecodable escape is a failure, not a throw", () => {
   expect(codexConfigServers('instructions = """\n[mcp_servers.doan-notion]\nurl = "https://mcp.notion.com/mcp"\n')).toBeNull();

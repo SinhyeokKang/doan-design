@@ -1,10 +1,9 @@
 import type { OnboardingInspection, OnboardingOperation, OnboardingOperationErrorCode, OnboardingProject, OnboardingRequest, OnboardingResponse, OnboardingSocketErrorCode } from "../../formats/types";
 
 // The operation records, request replay and fixed messages of an app-socket v2 session. The first-run session and
-// the Add Projects page's session share them, so both answer with the same DTOs (buzz-add-projects design 'main의
-// project 처리').
+// the Add Projects page's session share them, so both answer with the same DTOs.
 
-// Fixed text only: provider output, OAuth text, paths and accounts never reach a message (review G ⚪1).
+// Fixed text only: provider output, OAuth text, paths and accounts never reach a message.
 const MESSAGES: Record<OnboardingSocketErrorCode, string> = {
   bad_request: "Doan could not handle this request.",
   bad_token: "The token does not match this app.",

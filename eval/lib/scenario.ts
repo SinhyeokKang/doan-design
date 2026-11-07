@@ -11,7 +11,7 @@ export interface Scenario {
   timeoutSec: number;
   shellCli: boolean;
   // Runs the agent in a second worktree on this branch while the instruction's
-  // root and the fake app stay on the first (design.md §7, agent-handoff).
+  // root and the fake app stay on the first.
   worktree: { branch: string } | null;
   // The fake app's scripted app-socket v2 onboarding state.
   onboarding: "onboarding.json" | null;

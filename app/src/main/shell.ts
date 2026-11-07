@@ -66,7 +66,7 @@ interface Folder {
   canvasRevs: Map<string, number>;
   // The scope last given to the server.
   scope: string[];
-  // The last `git.common` seen; memory only (design 'app side').
+  // The last `git.common` seen; memory only.
   common: string | undefined;
 }
 
@@ -139,7 +139,7 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
     let view = await readFolder(cli, folder.path);
     if (folders.get(folder.path) !== folder || read !== folder.reads) return false;
     if (view.kind === "notFound") {
-      // A vanished auto-registered root leaves quietly instead of showing as missing (design §2.3). No focus: the
+      // A vanished auto-registered root leaves quietly instead of showing as missing. No focus: the
       // renderer moves off it on its own.
       const next = pruneAuto(store.list(), store.auto(), new Map([[folder.path, view.code]]));
       if (!next.includes(folder.path)) {
@@ -152,15 +152,15 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
         return false;
       }
     }
-    // An auto-registered root stays uninitialized for the renderer to hide (design §3.3): an upward re-root would make
-    // a parent the person never added hand-added and move focus to it (design §2.4, POSTMORTEM 2026-11-03).
+    // An auto-registered root stays uninitialized for the renderer to hide: an upward re-root would make
+    // a parent the person never added hand-added and move focus to it (POSTMORTEM 2026-11-03).
     if (view.kind === "uninitialized" && !store.auto().includes(folder.path)) {
       view = folderState(await runLs(cli, { cwd: folder.path }));
       if (folders.get(folder.path) !== folder || read !== folder.reads) return false;
       if (view.kind === "list" && view.root !== folder.path) {
         const next = reconcileFolders(store.list(), folder.path, view);
         detach(folder);
-        // The new root is hand-added (design §2.2), even over a mark an interrupted write left.
+        // The new root is hand-added, even over a mark an interrupted write left.
         if (!folders.has(view.root)) {
           void store.claim(view.root).then(logWrite);
           add(view.root);

@@ -7,7 +7,7 @@ import type { CanvasRow, FolderEntry } from "../main/view";
 import type { PreferencesSnapshot } from "../main/preferences";
 import type { ProjectOverviewProps } from "./ProjectOverview";
 
-// turn-activity follow-up 1: App subscribes to conversation:stage and hands each signal to the store both screens share,
+// App subscribes to conversation:stage and hands each signal to the store both screens share,
 // so a pushed stage reaches the Overview thread's turn indicator. App runs with hooks as plain state
 // (App.conversationPanel.test.tsx); the Overview it shows is then drawn as static markup with React's own hooks.
 const hooks = vi.hoisted(() => ({

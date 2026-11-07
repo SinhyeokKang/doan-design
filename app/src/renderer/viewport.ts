@@ -105,7 +105,7 @@ export function fitWidth(boardWidth: number, viewport: Size, inset: Inset): View
   return { x: safe.x + (safe.width - boardWidth * scale) / 2, y: safe.y, scale };
 }
 
-// Chip locate for an element or a point (buzz-canvas-conversation design §2 'Chip locate'): the person's scale, the
+// Chip locate for an element or a point: the person's scale, the
 // target centred in the safe area; an element larger than that area is zoomed out until it fits whole, never in.
 export function elementView(rect: Rect, viewport: Size, inset: Inset, current: View): View {
   if (![rect.x, rect.y, rect.width, rect.height].every(Number.isFinite)) return current;

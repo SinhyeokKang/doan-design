@@ -28,8 +28,8 @@ export type Started = { ok: true; attemptId: string; done: Promise<AuthState> } 
 // A check's own result once its write-back is done; "replaced": a sign-in or sign-out took its place before the result.
 export type CheckOutcome = "ok" | "replaced" | "network" | "check_failed" | "cli_install_failed" | "account_mismatch" | "storage_failed";
 export type CheckStarted = (Extract<Started, { ok: true }> & { outcome: Promise<CheckOutcome> }) | Extract<Started, { ok: false }>;
-// The MCP connector step of a sign-out or a committed replacement (mcp-connectors design 'sign-out·교체의 MCP 로그아웃
-// 경계'). agentAuth knows no connector file: the step decides from the provider's own list. run executes the provider
+// The MCP connector step of a sign-out or a committed replacement (ARCHITECTURE §7 'MCP connectors').
+// agentAuth knows no connector file: the step decides from the provider's own list. run executes the provider
 // CLI (with its base arguments) in the profile being left, the live one or a replaced one, and resolves after its
 // group is gone. staging: the new profile of a staged replacement (Codex), which takes the servers still valid.
 // profileDir: that profile's directory, whose own config names its servers when the provider's list cannot be read.
@@ -60,7 +60,7 @@ const OUTPUT_LIMIT = 1024 * 1024;
 const QUIT_WAIT_MS = 5000;
 const ACP_OPEN_MS = 60_000;
 const LINK_POLL_MS = 100;
-// The CLI launches the browser right after printing its link (D1: the hook ran within the same second), so a printed
+// The CLI launches the browser right after printing its link (the hook ran within the same second), so a printed
 // link with no accepted hook link this long after it means the CLI no longer behaves as `claudeLink` expects.
 const HOOK_LINK_MS = 10_000;
 const LINK_DIR_PREFIX = "doan-auth-link-";
@@ -230,7 +230,7 @@ export class AuthManager {
         }
         const previous = this.state(provider).connection;
         // A login that logs the profile out first would destroy the stored login before the user approves anything,
-        // so its replacement signs in to a fresh profile that becomes the connection's only on success (D22).
+        // so its replacement signs in to a fresh profile that becomes the connection's only on success.
         const staged = this.adapters[provider].loginClears && previous ? `${provider}-${this.newId()}` : null;
         const touch = { live: false };
         let outcome: SignInResult | null, recorded = false;
@@ -333,8 +333,8 @@ export class AuthManager {
     return { ok: true, attemptId, done };
   }
 
-  // listing: a model list read; mcp: an MCP connector command (mcp-connectors); usage: an account usage read
-  // (provider-usage). Each holds the profile like a run, but none is a conversation the person would be asked to stop:
+  // listing: a model list read; mcp: an MCP connector command; usage: an account usage read.
+  // Each holds the profile like a run, but none is a conversation the person would be asked to stop:
   // a sign-out or replacement stops it (stopRuns) and waits for it without stop_required. added: extra environment,
   // such as the MCP sign-in's link file.
   async acquire(provider: Provider, use: "run" | "listing" | "mcp" | "usage" = "run", added: Record<string, string> = {}): Promise<Lease> {
@@ -513,7 +513,7 @@ export class AuthManager {
 
   private async signOutFlow(provider: Provider, attemptId: string): Promise<void> {
     const auth = this.adapters[provider], storage = this.options.storage;
-    // Before the provider logout: Codex keeps MCP tokens in keychain entries its logout does not clear (P1).
+    // Before the provider logout: Codex keeps MCP tokens in keychain entries its logout does not clear.
     const connection = this.state(provider).connection;
     if (connection) await this.mcpStep(provider, attemptId, connection.profile, { kind: "signOut", previousAccountId: connection.account.id, nextAccountId: null, staging: null });
     // The server's own logout clears its stored token (logout.py, 1.3.0; no remote revocation is documented). doan's

@@ -8,8 +8,8 @@ export type HandoffRefusal = "root_mismatch" | "not_running" | "not_canvas_conve
 // Why a judged handoff did not start; a refused start adds its own code instead (resolved.reason).
 export type HandoffReason = "not_listed" | "not_new" | "has_conversation" | "same_canvas";
 // The conversation whose key asked, as main holds it now. permissionMode: the conversation's mode now, which a plan
-// approval may have changed during the turn (decision 1). running: its current turn is accepted and not over.
-// startedBy: that turn was a handoff's first (decision 8). requested: that turn's handoff was taken already.
+// approval may have changed during the turn. running: its current turn is accepted and not over.
+// startedBy: that turn was a handoff's first. requested: that turn's handoff was taken already.
 export interface HandoffAsker { root: string; canvas?: Canvas; permissionMode?: string; running: boolean; startedBy?: "handoff"; requested: boolean }
 // The root is compared as a string, as every app-socket request's is (POSTMORTEM 2026-10-22).
 export function handoffEligibility(ask: { root: string; path: string }, asker: HandoffAsker): HandoffRefusal | null {
@@ -34,7 +34,7 @@ export function handoffDecision(input: HandoffJudgement): HandoffDecision {
   const row = rows[0]!;
   if (rows.length > 1 || (row.id !== undefined && input.listed.filter(other => other.id === row.id).length > 1)) return { kind: "refused", reason: "not_listed" };
   if (input.source && same(input.source, row)) return { kind: "refused", reason: "same_canvas" };
-  // A path that held a canvas at the start counts as existing too: decision 3 keeps the exception to new canvases.
+  // A path that held a canvas at the start counts as existing too: a handoff goes only to a new canvas (ARCHITECTURE §7 'Handoff').
   if (input.snapshot.some(old => same(old, row) || old.path === row.path)) return { kind: "refused", reason: "not_new" };
   if (input.current(row)) return { kind: "refused", reason: "has_conversation" };
   return { kind: "start", canvas: row.id === undefined ? { path: row.path } : { path: row.path, id: row.id } };

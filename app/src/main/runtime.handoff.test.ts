@@ -6,8 +6,8 @@ import { validateHandoffResponse } from "../formats/validate";
 import { answerLine, type RuntimeState } from "./runtime";
 import type { FolderState } from "./folderState";
 
-// canvas-handoff C1: app-socket v5 (`doan handoff`), main's half. answerLine checks schema, token and registered root
-// in the v3/v4 order, and only then asks the conversation service, which owns every later check (design §3).
+// App-socket v5 (`doan handoff`), main's half. answerLine checks schema, token and registered root
+// in the v3/v4 order, and only then asks the conversation service, which owns every later check.
 const token = "secret", root = "/repo";
 const request: HandoffRequest = { v: 5, token, root, handoff: "a".repeat(64), path: ".doan/canvases/new.html", text: "Continue the checkout flow." };
 const fixtures = join(__dirname, "../../../schema/fixtures/app-socket-v5/request");

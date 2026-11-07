@@ -700,7 +700,7 @@ describe("a replacement that does not finish", () => {
     expect(state).toMatchObject({ connection: first.connection, verified: true, error: { code: "storage_failed" } });
     expect(await storage.loadVault("cursor")).toEqual(vaultU1);
   });
-  // Fix round 1, R-A-1: nothing that can fail runs after the vault and metadata name the new login.
+  // Nothing that can fail runs after the vault and metadata name the new login.
   it("keeps the previous connection, vault and metadata when the working copy cannot be removed before the commit", async () => {
     const m = manager(); await m.load();
     const first = await signedInCursor(m, "u1");
@@ -754,7 +754,7 @@ describe("a replacement that does not finish", () => {
     // The live login is never logged out for a replacement.
     expect(processes.filter(p => p.step === "logout")).toEqual([]);
   });
-  describe("a provider whose login clears the profile first (Codex, D22)", () => {
+  describe("a provider whose login clears the profile first (Codex)", () => {
     const codex = () => manager({ adapters: { ...withAcp(), codex: { ...keychainProvider(() => keychain), settings: { "skills/doan/SKILL.md": "stub" }, loginClears: true } } });
     const profiles = () => readdirSync(join(root, "profiles")).filter(name => name.startsWith("codex")).sort();
     async function connectedCodex(m: AuthManager) {
@@ -817,7 +817,7 @@ describe("a replacement that does not finish", () => {
       expect((await again.done).connection!.profile).toBe(next2.cwd.split("/").at(-1));
       expect(profiles()).toEqual([next2.cwd.split("/").at(-1)]);
     });
-    // Fix round 1, R-A-2/R-A-3: a staged or replaced profile goes only after its logout succeeded, and a record of it
+    // A staged or replaced profile goes only after its logout succeeded, and a record of it
     // outlives a crash or a failed logout until a later start finishes the cleanup.
     it("records the staging profile before its login and keeps it with its record when the cleanup logout fails", async () => {
       const m = codex(); await m.load();
@@ -888,7 +888,7 @@ describe("a replacement that does not finish", () => {
       expect(processes.filter(p => p.step === "logout")).toEqual([]);
       expect(storage.pendingCleanup()).toEqual([{ provider: "codex", profile: "codex" }]);
     });
-    // Fix round 2, R-A2-1: only a profile a stored connection references is live; a signed-out provider's own name is not.
+    // Only a profile a stored connection references is live; a signed-out provider's own name is not.
     it("cleans a replaced base profile at the next start after the connection that replaced it signed out", async () => {
       const m = codex(); await m.load();
       await connectedCodex(m);
@@ -902,7 +902,7 @@ describe("a replacement that does not finish", () => {
       await vi.waitFor(() => expect(storage.pendingCleanup()).toEqual([]));
       expect(existsSync(join(root, "profiles", "codex"))).toBe(false);
     });
-    // Fix round 2, R-A2-2: a staging profile that could not be recorded is never created.
+    // A staging profile that could not be recorded is never created.
     it("fails the replacement without a staging profile or any process when its cleanup record cannot be written", async () => {
       const m = codex(); await m.load();
       const connection = await connectedCodex(m);
@@ -1138,13 +1138,13 @@ describe("check", () => {
     await signedInCursor(m, "u1");
     vi.spyOn(cipher, "decrypt").mockImplementation(async () => { throw new Error("key changed"); });
     const check = started(await m.check("cursor"));
-    // A failed check keeps the verified connection and shows the error beside it (batch A decision 2).
+    // A failed check keeps the verified connection and shows the error beside it.
     expect(await check.done).toMatchObject({ phase: "connected", error: { code: "check_failed" }, connection: { account: { id: "u1" } } });
     expect(existsSync(join(root, "vault", "cursor.bin"))).toBe(true);
   });
 });
 
-// prompt-suggestion decision 2: the login shell's CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION reaches the run through its
+// The login shell's CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION reaches the run through its
 // lease; a Claude run's preparation applies it (conversation/prepare.ts).
 describe("the login shell's prompt suggestion setting", () => {
   it.each([["set", "false"], ["unset", undefined]] as const)("rides on the lease when the shell %s it", async (_name, value) => {
@@ -1250,7 +1250,7 @@ describe("stopping runs for sign-out and replacement", () => {
     const out = started(await m.signOut("cursor", { stop: true }));
     expect(await out.done).toMatchObject({ phase: "error", error: { code: "sign_out_failed" }, connection: { account: { id: "u1" } } });
   }, 2000);
-  // buzz-settings R2: Home lists models right after a sign-in. A list read holds a lease but is not a conversation, so
+  // Home lists models right after a sign-in. A list read holds a lease but is not a conversation, so
   // a sign-out must not ask the person to stop conversations; it stops the read itself and waits for its group.
   it("a model list read does not need stop: sign-out stops the read, waits for its lease, then signs out", async () => {
     let stopRuns!: ReturnType<typeof runs>["stopRuns"];
@@ -1976,7 +1976,7 @@ describe("account identity lookup", () => {
   });
 });
 
-// mcp-connectors B2/B3: MCP leases, and the MCP logout step a sign-out or a committed replacement runs.
+// MCP leases, and the MCP logout step a sign-out or a committed replacement runs.
 describe("MCP connector steps", () => {
   const account = (id: string | null): CheckResult => ({ status: "connected", account: { id, workspace: null } });
   async function signedInClaude(m: AuthManager, id: string | null) {
@@ -2072,7 +2072,7 @@ describe("MCP connector steps", () => {
     expect(retired.cwd).toBe(storage.profileDir("codex"));
     expect((await run.done).connection!.profile).toBe(login.cwd.split("/").at(-1));
   });
-  // BB review R1: the new connection must not run (a conversation or another MCP command) while the previous
+  // The new connection must not run (a conversation or another MCP command) while the previous
   // account's MCP tokens are being logged out or the staging profile is being registered.
   it("keeps the provider closed until a committed replacement's MCP step finished, then publishes again", async () => {
     let entered!: () => void, release!: () => void;
@@ -2085,7 +2085,7 @@ describe("MCP connector steps", () => {
     await inStep;
     expect(m.state("claude").connection?.account.id).toBe("a2");
     expect(m.settling("claude")).toBe(true);
-    // Round 2 W1: readers see the provider busy, and nothing announced the new connection yet.
+    // Readers see the provider busy, and nothing announced the new connection yet.
     expect(m.status("claude", { cli: "found", version: "supported", tools: "ready" }).readiness).toEqual({ ready: false, cause: "busy", action: "wait" });
     expect(published.some(state => state.connection?.account.id === "a2")).toBe(false);
     await expect(m.acquire("claude", "run")).rejects.toThrow("busy");
@@ -2134,7 +2134,7 @@ describe("MCP connector steps", () => {
   });
 });
 
-// provider-usage B1 (POSTMORTEM 2026-10-30): a usage read is not a conversation the person would be asked to stop.
+// POSTMORTEM 2026-10-30: a usage read is not a conversation the person would be asked to stop.
 describe("usage leases", () => {
   it("lets a sign-out stop a usage read without stop_required, waiting for its lease", async () => {
     const leases: Awaited<ReturnType<AuthManager["acquire"]>>[] = [];

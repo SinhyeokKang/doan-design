@@ -34,7 +34,7 @@ describe("canvasConversationRows", () => {
       key: "b", conversationId: "b", name: "billing", canvas: { path: billing.path, id: "billing" }, row: billing,
       provider: "codex", status: { kind: "working", label: "Working" }, time: { text: "3m", label: "3 minutes ago" },
       preview: "Editing the header", problem: null, openable: true,
-      // canvas-composer-polish spec 6: the row's Delete names the conversation and follows the title menu's rule.
+      // The row's Delete names the conversation and follows the title menu's rule.
       title: "Edit the header", deletable: { available: false, reason: "The agent is working on this conversation." },
     });
   });
@@ -102,7 +102,7 @@ describe("canvasConversationRows", () => {
     expect(only).toMatchObject({ row: broken, openable: true, problem: { kind: "unreadable" } });
   });
 
-  // review DS r1: ls lists an unreadable file without its id, so a conversation bound to {path, id} matches it by path.
+  // ls lists an unreadable file without its id, so a conversation bound to {path, id} matches it by path.
   test("an unreadable canvas listed without its id still matches its conversation by path, and opens", () => {
     const broken = row({ path: ".doan/canvases/legacy-cart.html", error: { code: "unreadable_canvas", message: "permission denied" } });
     const [only, ...rest] = canvasConversationRows([summary({ canvas: { path: broken.path, id: "legacy-cart" } })], [broken, billing], NOW);

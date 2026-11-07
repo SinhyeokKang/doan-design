@@ -61,7 +61,7 @@ describe("turnStatus", () => {
     expect(tool({ activity: "read", path: "/etc/hosts", summary: "/etc/hosts" })).toEqual({ kind: "tool", activity: "read", text: "Reading /etc/hosts" });
     // Main leaves the folder out of a Codex listFiles or search (transport.ts codexReadStage).
     expect(tool({ activity: "read", summary: "Reading files" })).toEqual({ kind: "tool", activity: "read", text: "Reading files" });
-    // Review RU-R2: the summary is words only, never what decides the form; a path present is shown.
+    // The summary is words only, never what decides the form; a path present is shown.
     expect(tool({ activity: "read", path: "Reading files", summary: "Reading files" })).toEqual({ kind: "tool", activity: "read", text: "Reading Reading files" });
     expect(tool({ activity: "read", path: `${ROOT}/src/App.tsx`, summary: "Reading files" })).toEqual({ kind: "tool", activity: "read", text: "Reading src/App.tsx" });
     expect(tool({ activity: "edit", path: "src/a.ts", summary: "Reading files" })).toEqual({ kind: "tool", activity: "edit", text: "Editing src/a.ts" });
@@ -84,7 +84,7 @@ describe("turnStatus", () => {
     expect(statusOf(waiting)).toEqual({ kind: "general" });
   });
 
-  test("a general stage leaves the activity row spinning with its running head (decision 4)", () => {
+  test("a general stage leaves the activity row spinning with its running head", () => {
     seq = 0;
     const events = [...turn("t1"), ev("t1", { type: "activity", kind: "command", summary: "Running a command" })];
     const items = threadItems(events, ROOT, true);

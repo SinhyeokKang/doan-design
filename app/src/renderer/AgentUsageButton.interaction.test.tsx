@@ -159,7 +159,7 @@ test("redraws when a window's reset time passes while closed, with the delay kep
 });
 
 // Radix's non-modal popover hands focus back only when nothing was pressed outside; a press on a blank area of the
-// window left focus on <body> in the real app (E1). Its close focus runs a tick after the press, so the press's own
+// window left focus on <body> in the real app. Its close focus runs a tick after the press, so the press's own
 // focus is already in place when it is decided.
 test("Escape or an outside press on a blank area returns focus to the button", () => {
   const body = {};
@@ -172,7 +172,7 @@ test("Escape or an outside press on a blank area returns focus to the button", (
   expect(button.focus).toHaveBeenCalledOnce();
 });
 
-// Focus handed back after a pointer press opened the button's "Agent usage" tooltip under it, and it stayed (E1 review).
+// Focus handed back after a pointer press opened the button's "Agent usage" tooltip under it, and it stayed.
 // Escape keeps it: a tooltip on a keyboard return is the shared tooltip's own behaviour.
 test("focus handed back after an outside press does not open the button's tooltip; after Escape it may", () => {
   const body = {};
@@ -279,7 +279,7 @@ test("folds when the header's free end is too narrow for every ring", () => {
   expect(observed).toBeNull();
 });
 
-// U fix round 1 (real app, 2026-11-06): a .top:has() rule left the header a drag region for native presses, so the
+// (real app, 2026-11-06): a .top:has() rule left the header a drag region for native presses, so the
 // open popover did not close on a press in its empty part; an inline app-region on the header did. The open popover
 // sets it on the header element and takes it off when it closes, so a closed header still drags the window.
 test("the header is no-drag inline while the popover is open, and drags again once it closes", () => {

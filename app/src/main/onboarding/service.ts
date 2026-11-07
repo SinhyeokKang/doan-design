@@ -13,7 +13,7 @@ import { PROJECT_WORK, ProjectAdder, projectLocks, type AdderProjects, type Proj
 import type { ProjectOutcome } from "./projects";
 
 
-// The first-run session the window and a local CLI share (buzz-onboarding).
+// The first-run session the window and a local CLI share.
 // Electron-free: index.ts supplies the main window, the auth IPC and completion, and carries the socket and IPC.
 
 // The old wizard's onboarding:read|run|answer|close|get-open are different channels and go away with it.
@@ -189,7 +189,7 @@ export class OnboardingService {
     if (!auth) return refuse("auth_unavailable");
     const owner = this.options.mainOwner();
     if (owner === null) return refuse("busy");
-    // No stop: stopping running conversations is confirmed in the app only (design '고정 명령·도구').
+    // No stop: stopping running conversations is confirmed in the app only.
     const reply = await auth.handle(AUTH_CHANNELS.signIn, { provider }, owner);
     if (!("ok" in reply)) return refuse("bad_request");
     if (!reply.ok) return refuse(AUTH_REFUSALS[reply.reason] ?? "bad_request");

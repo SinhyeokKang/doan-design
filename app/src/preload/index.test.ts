@@ -361,7 +361,7 @@ test("design skills read through two fixed channels and pass the id as data", as
   expect(Object.keys(api.designSkills).sort()).toEqual(["get", "list"]);
 });
 
-// buzz-add-projects: the page's project session mirrors the onboarding session's project calls on its own channels.
+// the page's project session mirrors the onboarding session's project calls on its own channels.
 test("Add Projects page calls use their own fixed channels and pass the request as data", async () => {
   const ids = { sessionId: "s", requestId: "r" };
   await api.readAddPage(); expect(mocks.invoke).toHaveBeenLastCalledWith("add-projects:read", {});
@@ -399,7 +399,7 @@ test("a dropped item's disk path is read in the preload; one the page made itsel
   expect(mocks.invoke).not.toHaveBeenCalled();
 });
 
-// buzz-settings S2: the Settings page and the Project Settings page live in the main window.
+// the Settings page and the Project Settings page live in the main window.
 test("settings page calls use fixed channels and pass their requests as data", async () => {
   const calls: [() => Promise<unknown>, unknown[]][] = [
     [() => api.readPreferences(), ["preferences:read"]],
@@ -449,7 +449,7 @@ test("notification clicks and the open-Settings command are subscriptions that u
   expect(emitter.listenerCount("notifications:click") + emitter.listenerCount("settings-page:open")).toBe(0);
 });
 
-test("buzz-conversation: list, seen marker, list changes, extended send, links and re-issued attachments", async () => {
+test("conversation list, seen marker, list changes, extended send, links and re-issued attachments", async () => {
   mocks.invoke.mockResolvedValue(undefined);
   await api.listConversations({ root: "/repo" });
   expect(mocks.invoke).toHaveBeenLastCalledWith("conversation:list", { root: "/repo" });
@@ -476,7 +476,7 @@ test("buzz-conversation: list, seen marker, list changes, extended send, links a
   expect(changes).toEqual([{ root: "/repo" }]); expect(emitter.listenerCount("conversation:listChanged")).toBe(0);
 });
 
-// canvas-handoff C2: main tells the window that a handoff started a conversation; the renderer decides the move.
+// main tells the window that a handoff started a conversation; the renderer decides the move.
 test("exposes conversation handoffs as their own event with cleanup", () => {
   const notices: unknown[] = [];
   const notice = { root: "/repo", source: { conversationId: "a", canvas: { path: ".doan/canvases/a.html", id: "a" } }, target: { conversationId: "b", canvas: { path: ".doan/canvases/b.html", id: "b" } } };
@@ -560,7 +560,7 @@ test("onExportRunning passes the running export's root and path and unsubscribes
   expect(emitter.listenerCount("canvas:exportRunning")).toBe(0);
 });
 
-// mcp-connectors B4: Settings > MCP Connectors names a provider and a server, never a URL to open.
+// Settings > MCP Connectors names a provider and a server, never a URL to open.
 test("MCP connector requests use fixed channels with provider and server names", async () => {
   mocks.invoke.mockResolvedValue({ ok: true });
   await api.readMcpConnectors(); expect(mocks.invoke).toHaveBeenLastCalledWith("mcp-connectors:list", undefined);

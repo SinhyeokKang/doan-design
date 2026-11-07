@@ -5,7 +5,7 @@ import type { ConnectorAction, ConnectorStatus } from "../main/mcpConnectors/sta
 import { MCP_PROVIDERS, type McpProvider } from "../main/mcpConnectors/presets";
 import { PROVIDER_NAMES, type Button, type Notice } from "./agentAuthView";
 
-// Settings > MCP Connectors (mcp-connectors design 'renderer'): main's snapshot and agent-auth as the page draws them.
+// Settings > MCP Connectors: main's snapshot and agent-auth as the page draws them.
 // States come from main (service.ts, state.ts connectorState), never re-judged here; this only words them. Rows reuse
 // the first-run Agent step's provider row and Settings > Agents' notices and copy forms.
 
@@ -31,7 +31,7 @@ const STATUS: Record<ConnectorStatus, string> = {
   disconnecting: "Disconnecting", removing: "Removing", reconnect_needed: "Reconnect needed", check_failed: "Couldn’t check",
 };
 export const BLOCKED_LINE = "Doan is still disconnecting the previous account. Try again later.";
-// URL servers are one list for every agent, so what happens to one is said for both (spec 2 '읽어 주기').
+// URL servers are one list for every agent, so what happens to one is said for both.
 const BOTH = "Claude Code and Codex";
 export const MCP_HIDDEN_ANNOUNCEMENT = "MCP Connectors is available while Claude Code or Codex is signed in.";
 
@@ -110,7 +110,7 @@ function rowView(provider: McpProvider, server: McpServerDto, row: McpRowDto, bu
   if (view.status === "reconnect_needed" && !view.blocked) helper = `${agent} was connected to ${label} before, and that access has ended. Reconnect to use it again.`;
   if (view.blocked) helper = BLOCKED_LINE;
   // A failed Remove shows its own alert over an earlier Connect failure; while a Remove runs, an earlier failure's alert
-  // stays (it lasts until the row's next Connect, Retry or Cancel, spec 3) with its Retry disabled (BU review Y3).
+  // stays (it lasts until the row's next Connect, Retry or Cancel) with its Retry disabled.
   // A running attempt's own actions (Cancel, Open again) win over the Remove failure, which shows again once it ends.
   if (server.removeFailed && view.status !== "removing" && view.status !== "connecting") notice = alert(`Couldn’t remove ${label} from Doan’s agents. Try again.`, [button("remove", "Retry", "prominent", `Retry removing ${label} from ${BOTH}`)]);
   // A failed attempt keeps the row it returned to and puts the reason and Retry in place of the row's button.
@@ -172,8 +172,8 @@ export function removeFocus(names: readonly string[], removed: string): string |
   return names[at + 1] ?? names[at - 1] ?? null;
 }
 
-// What changed between two snapshots that the page reads aloud, a toast tells or a notice follows (spec 2 '읽어 주기',
-// 4, 10). A status settling from Checking is not a change; a success is told by its generation, not by a missing
+// What changed between two snapshots that the page reads aloud, a toast tells or a notice follows.
+// A status settling from Checking is not a change; a success is told by its generation, not by a missing
 // failure, so a cancel says nothing.
 export type McpChange =
   | { kind: "connected" | "disconnected" | "failed" | "disconnectFailed" | "reconnectNeeded" | "checkFailed" | "succeeded"; provider: McpProvider; name: string; label: string }
@@ -196,7 +196,7 @@ export function mcpChanges(prev: McpSnapshot | null, next: McpSnapshot): McpChan
       else if (succeeded === row.name && was === "connecting") change("connected");
       else if (succeeded === row.name && was === "disconnecting") change("disconnected");
       // An attempt that ended without a success was cancelled or failed (told by its failure); a first Checking result
-      // is not read (spec 2 '읽어 주기').
+      // is not read.
       else if (was === "checking" || was === now || ["connecting", "disconnecting", "removing"].includes(was)) continue;
       else if (now === "connected") change("connected");
       else if (now === "not_connected" && was === "connected") change("disconnected");

@@ -56,11 +56,11 @@ export function terminalSlotLabel(provider: WorkItem["provider"]): string {
   return provider ? `${PROVIDER_NAMES[provider]} is working in a terminal` : "An agent is working in a terminal";
 }
 
-// The conversation slots plus terminal sessions' working spinners (terminal-agent-activity design '표시'). A row is
+// The conversation slots plus terminal sessions' working spinners. A row is
 // root + path: worktrees share canvas paths (POSTMORTEM 2026-11-01). Only listed canvas rows show one, so a path not
 // listed yet shows once it appears. On its row an app conversation working or waiting wins, and a terminal session
 // beats an unseen ending. Terminal rows go in newest-changed first, so a project row standing for several opens the
-// most recently changed canvas (`projectSlotEntry`, canvas-viewport-units D10); app slots that win come before them.
+// most recently changed canvas (`projectSlotEntry`); app slots that win come before them.
 export function withTerminalSlots(conversations: ReadonlyMap<string, Slot>, work: readonly WorkItem[], entries: readonly FolderEntry[]): Map<string, Slot> {
   const terminal = new Map<string, { slot: Slot; mtimeMs: number }>();
   for (const item of work) {

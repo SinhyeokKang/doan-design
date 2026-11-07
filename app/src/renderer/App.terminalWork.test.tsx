@@ -8,7 +8,7 @@ import { initialCanvasState } from "./CanvasController";
 import { projectExpanded } from "./shellNavigation";
 import type { ShellProject } from "../restore/uiState";
 
-// terminal-agent-activity design 'Renderer IPC', '표시' and 'Deep link': App reads main's terminal work list (subscribing
+// App reads main's terminal work list (subscribing
 // first), gives it to the sidebar and the canvas page, and opens doan:// links once the launch restore and the first
 // folders are in. Hooks run as plain state so App's own wiring runs (App.canvasNotice.test.tsx).
 const hooks = vi.hoisted(() => ({
@@ -159,7 +159,7 @@ test("the read list shows on the sidebar and the canvas page; a change replaces 
   expect(agent().work).toEqual([]);
 });
 
-// RD2: a project row's terminal slot stands for the canvas its session works on, so the click opens that canvas before
+// a project row's terminal slot stands for the canvas its session works on, so the click opens that canvas before
 // the row's own move, which would re-enter the loaded project's last canvas from Home or fold an expanded project.
 test("from Home, the loaded project's terminal slot opens its canvas, not the last one", async () => {
   await start();
@@ -294,7 +294,7 @@ test("a refused link shows one toast with its reason and no action, and moves no
   expect(harness.controller!.openCanvas!.mock.calls.length).toBe(before);
 });
 
-// User decision D7: a link only ever comes from a person's click, so an open dialog is dismissed as Escape or Cancel
+// a link only ever comes from a person's click, so an open dialog is dismissed as Escape or Cancel
 // would (its own cancel event), and the link then moves as usual. A dialog that refuses to close keeps the link from
 // moving under it.
 function openDialog(closes: boolean) {
@@ -306,7 +306,7 @@ function openDialog(closes: boolean) {
   vi.stubGlobal("document", { activeElement: null, body: {}, querySelector: () => null, querySelectorAll: (selector: string) => selector === "dialog[open]" && dialog.open ? [dialog] : [] });
   return dialog;
 }
-// The Set Up dialog stands for any dialog here (Project Settings is a page now, project-settings T4).
+// The Set Up dialog stands for any dialog here (Project Settings is a page now).
 function openSetUp() {
   folders([{ path: "/w/b", kind: "uninitialized" }]);
   (all(tree).find(element => element.type === ShellSidebar)!.props as unknown as { action(action: string, root: string): void }).action("setUp", "/w/b"); render();
@@ -336,7 +336,7 @@ test("a dialog that does not close for its cancel (busy) keeps the link from mov
   expect(harness.toast.show).not.toHaveBeenCalled();
 });
 
-// canvas-open-offer T5: a `doan open` request moves as a link does and answers main by its id once the move is decided.
+// a `doan open` request moves as a link does and answers main by its id once the move is decided.
 // A refusal answers with its reason and shows nothing: no toast, no move. The frame result comes from the listed frames.
 const opens = () => harness.controller!.openCanvas!.mockImplementation((...args: unknown[]) => { (args[3] as { opened?: () => void } | undefined)?.opened?.(); });
 const framed = () => { listeners.folders!([{ path: "/w/a", kind: "list", servedRev: 0, canvases: [{ ...rows()[0]!, frames: [{ id: "hero" }] }, rows()[1]!] }] as never); render(); };
@@ -381,7 +381,7 @@ test("an open request dismisses a dialog that agrees to close and opens; one tha
   expect(harness.toast.show).not.toHaveBeenCalled();
 });
 
-// Review RB 🟡1: once main told the CLI busy, the request is dead. The renderer touches nothing for it: no dialog closes
+// once main told the CLI busy, the request is dead. The renderer touches nothing for it: no dialog closes
 // and nothing moves, and it does not answer (main dropped the id). Expiry is checked again before the move commits.
 test("an expired open request closes no dialog, moves nowhere and is not answered", async () => {
   await start(); opens();
@@ -421,8 +421,7 @@ test("during first run an open request answers busy and leaves every dialog alon
   expect(harness.toast.show).not.toHaveBeenCalled();
 });
 
-// A project row opens its Overview, never the last canvas, from Home and from a workspace alike (user decisions;
-// project-row-disclosure draft): only its chevron folds or unfolds it.
+// A project row opens its Overview, never the last canvas, from Home and from a workspace alike (project-row-disclosure draft): only its chevron folds or unfolds it.
 test("from Home, a project row opens its Overview, the loaded project's and another's", async () => {
   await start();
   folders([{ path: "/w/b", kind: "list", servedRev: 0, canvases: [{ path: B, url: "u-b2", mtimeMs: 3 }] }]);
@@ -461,7 +460,7 @@ test("from a canvas, another project's unfolded row opens its Overview and does 
   expect(sidebar().projects[key]?.expanded).toBe(true);
 });
 
-// The chevron only folds or unfolds: no move, the open canvas stays, and the loaded project folds too (user decision).
+// The chevron only folds or unfolds: no move, the open canvas stays, and the loaded project folds too.
 test("a project's chevron folds and unfolds it without moving, the loaded project included", async () => {
   await start();
   folders([{ path: "/w/b", kind: "list", servedRev: 0, canvases: [{ path: B, url: "u-b2", mtimeMs: 3 }] }]);
@@ -495,7 +494,7 @@ test("leaving a project folded by its chevron drops the fold, so it unfolds when
   expect(projectExpanded({ ...sidebar().projects[key("/w/a")]!, roots: ["/w/a"] }, "/w/a")).toBe(true);
 });
 
-// work-update R2: app conversations' `doan work update` content, read like terminal work (subscribed first), and the
+// app conversations' `doan work update` content, read like terminal work (subscribed first), and the
 // open document's frames go to the canvas page; the indicator's work for the canvas goes to the controller.
 const conv = (path: string, root = "/w/a"): ConversationWork => ({ conversationId: "p1", root, path, frame: "hero", touched: 3, turnId: "u1" });
 

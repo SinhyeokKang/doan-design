@@ -205,7 +205,7 @@ describe("readable activity and permission summaries", () => {
     expect(claudePermissionSummary("Bash", { command: "npm test" }, "/repo")).toBe("npm test");
     expect(claudePermissionSummary("WebFetch", {}, "/repo")).toBe("Using a tool");
   });
-  // mcp-connectors spec 완료 조건 6: a Doan connector's tool is named with the connector, and its input (page ids,
+  // A Doan connector's tool is named with the connector, and its input (page ids,
   // queries, bodies) never reaches the summary or the stored activity.
   it("names a Doan MCP connector's tool and its connector, never its input or internal doan- name", () => {
     const input = { description: "Read the spec page", path: "/repo/secret.md", pattern: "token", id: "page-123" };
@@ -219,7 +219,7 @@ describe("readable activity and permission summaries", () => {
     expect(claudePermissionSummary(`mcp__doan-notion__${"t".repeat(2000)}`, {}, "/repo")).toHaveLength(512);
     expect(claudePermission("r1", "mcp__doan-notion__notion-fetch", input, [], "/repo").event.summary).toBe("Run notion-fetch on Notion");
     const tool = { type: "assistant", message: { id: "m", content: [{ type: "tool_use", id: "t1", name: "mcp__doan-notion__notion-fetch", input }] } };
-    // The activity is stored for every call, so the input's path stays out of it as well (C3).
+    // The activity is stored for every call, so the input's path stays out of it as well.
     expect(collect("claude", [tool]).events).toEqual([{ type: "activity", kind: "other", summary: "Run notion-fetch on Notion" }]);
     const added = { type: "assistant", message: { id: "m", content: [{ type: "tool_use", id: "t2", name: "mcp__doan-example-com__search", input: { file_path: "/repo/.doan/canvases/a.html" } }] } };
     expect(normalizeClaude(initialTransport(), added, "/repo", { "doan-example-com": "example.com" }).events).toEqual([{ type: "activity", kind: "other", summary: "Run search on example.com" }]);
@@ -248,7 +248,7 @@ it("forwards Codex additional-permission profiles without adding auto-review pol
   expect(permissionAnswer(request, "deny")?.response).toEqual({ id: 7, result: { permissions: {}, scope: "turn" } });
   expect(permissionAnswer(request, "always")?.response).toEqual({ id: 7, result: { permissions, scope: "session" } });
 });
-// permission-mode: Claude reports the mode it switched to after a plan approval in a status message (P1).
+// Claude reports the mode it switched to after a plan approval in a status message.
 it("reads the mode a Claude status message reports, and nothing from other messages", () => {
   expect(claudeReportedMode({ type: "system", subtype: "status", status: null, permissionMode: "default" })).toBe("default");
   expect(claudeReportedMode({ type: "system", subtype: "status", status: null, permissionMode: "acceptEdits" })).toBe("acceptEdits");
@@ -371,7 +371,7 @@ describe("steered message consumption", () => {
     expect(run("codex", [{ steer: STEERED }, { method: "turn/completed", params: { threadId: "session-1", turn: { id: "turn-1", status: "completed" } } }]).seen).toEqual([{ type: "turn.done" }]);
   });
 });
-// agent-questions A2: Claude's AskUserQuestion, as P1 recorded it (fixtures/claude-ask-user-question.json).
+// Claude's AskUserQuestion, as a probe recorded it (fixtures/claude-ask-user-question.json).
 describe("Claude AskUserQuestion", () => {
   const single = askFixture.canUseTool.single.input, multi = askFixture.canUseTool.multi.input;
   const color = "Which color do you prefer?";
@@ -455,7 +455,7 @@ describe("Claude AskUserQuestion", () => {
   });
 });
 
-// fast-mode A4: a Claude turn that asked for Fast and did not get it, judged from its result (Agent SDK 0.3.312
+// A Claude turn that asked for Fast and did not get it, judged from its result (Agent SDK 0.3.312
 // fast_mode_state, fast_mode_disabled_reason). Reasons that go on (plan, extra usage, model, policy) turn Fast off.
 describe("Fast outcome", () => {
   const result = (fast: Record<string, unknown> = {}, subtype = "success") => ({ type: "result", subtype, is_error: subtype !== "success", result: "", ...fast });

@@ -81,7 +81,7 @@ const api = {
     ipcRenderer.on("work:changed", receive);
     return () => ipcRenderer.removeListener("work:changed", receive);
   },
-  // An app conversation's last work update, while its turn runs (work-update design decision 10). Subscribe first, as
+  // An app conversation's last work update, while its turn runs. Subscribe first, as
   // for getWork.
   getConversationWork: (): Promise<ConversationWork[]> => ipcRenderer.invoke("conversation-work:get"),
   onConversationWorkChanged(listener: (items: ConversationWork[]) => void): () => void {
@@ -155,7 +155,7 @@ const api = {
     ipcRenderer.on("conversation:listChanged", receive);
     return () => ipcRenderer.removeListener("conversation:listChanged", receive);
   },
-  // A handoff started a conversation on another canvas (canvas-handoff design §5): its root, the earlier conversation
+  // A handoff started a conversation on another canvas: its root, the earlier conversation
   // and its canvas, and the new one and its canvas. The renderer decides whether to move there or show a toast.
   onConversationHandoff(listener: (notice: HandoffNotice) => void): () => void {
     const receive = (_event: Electron.IpcRendererEvent, notice: HandoffNotice) => listener(notice);
@@ -208,7 +208,7 @@ const api = {
     ipcRenderer.on("conversation:event", receive);
     return () => ipcRenderer.removeListener("conversation:event", receive);
   },
-  // A running turn's stage (turn-activity design §2), never stored. seq is the conversation's last event seq when it was
+  // A running turn's stage, never stored. seq is the conversation's last event seq when it was
   // sent, rev orders stages within a turn: keep the highest rev per turnId, since neither this event nor a
   // readConversation reply (whose stage is the turn's last one) is ordered against the other.
   onConversationStage(listener: (signal: StageSignal) => void): () => void {
@@ -262,7 +262,7 @@ const api = {
     ipcRenderer.on("agent-auth:prompt", receive);
     return () => ipcRenderer.removeListener("agent-auth:prompt", receive);
   },
-  // Settings > MCP Connectors (mcp-connectors). Snapshots carry one revision, delivered newest only as onAgentAuth.
+  // Settings > MCP Connectors. Snapshots carry one revision, delivered newest only as onAgentAuth.
   // refresh re-reads the provider statuses (entering the page, Retry of a failed read); they are never polled. Links
   // stay in main: a Claude sign-in's link opens in the browser by itself and openMcpLink opens it again.
   readMcpConnectors: (options: { refresh?: boolean } = {}): Promise<McpSnapshot> => ipcRenderer.invoke("mcp-connectors:list", options.refresh ? { refresh: true } : undefined),
@@ -379,7 +379,7 @@ const api = {
   locateProject: (path: string): Promise<LocateResult> => ipcRenderer.invoke("folders:locate", { path }),
   revealProject: (path: string): Promise<void> => ipcRenderer.invoke("folders:reveal", { path }),
   setMenuState: (inputs: MenuInputs): Promise<void> => ipcRenderer.invoke("menu:state", inputs),
-  // canvas-row-menu: a listed canvas row by root and path; main checks it against its own list and the disk, and judges
+  // a listed canvas row by root and path; main checks it against its own list and the disk, and judges
   // busy again. Ask the plan when the Move to Trash dialog opens (does a comment file go too?), then move on confirm.
   planCanvasTrash: (root: string, path: string): Promise<TrashPlanReply> => ipcRenderer.invoke("canvas:trashPlan", { root, path }),
   trashCanvas: (root: string, path: string): Promise<TrashReply> => ipcRenderer.invoke("canvas:trash", { root, path }),
@@ -405,7 +405,7 @@ const api = {
   },
   // `ui-state.json` as main validated it against the saved roots; null starts at home.
   readShellActivity: (request: { roots: string[] }): Promise<ShellActivity[] | null> => ipcRenderer.invoke("shell:activity", request),
-  // The canvas page shows an unseen canvas (canvas-viewport-units D9); main records its mtime and sends the list again.
+  // The canvas page shows an unseen canvas; main records its mtime and sends the list again.
   markCanvasSeen: (request: { root: string; path: string; mtimeMs: number }): Promise<boolean> => ipcRenderer.invoke("canvas:seen", request),
   readUiState: (): Promise<UiState | null> => ipcRenderer.invoke("ui-state:get"),
   // Main validates again and writes the last value after 500 ms; false when refused.
@@ -415,7 +415,7 @@ const api = {
     ipcRenderer.on("menu-command", receive);
     return () => ipcRenderer.removeListener("menu-command", receive);
   },
-  // Settings page (buzz-settings). Preferences: main validates the change, merges it and writes it; a refused or
+  // Settings page. Preferences: main validates the change, merges it and writes it; a refused or
   // failed write answers the choices still in effect. null only when main refused the caller.
   readPreferences: (): Promise<PreferencesSnapshot | null> => ipcRenderer.invoke("preferences:read"),
   savePreferences: (patch: PreferencesPatch): Promise<PreferencesWriteReply | null> => ipcRenderer.invoke("preferences:write", patch),

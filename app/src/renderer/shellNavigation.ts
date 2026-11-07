@@ -67,7 +67,7 @@ export function reconcileProjects(saved: Record<string, ShellProject>, groups: r
 
 // The loaded project's sidebar row (dogfooding #2, PRODUCT §5 item 3 'Project Overview' "the sidebar project row"):
 // elsewhere it re-enters the workspace; on a canvas it opens the Overview; on the Overview it opens the row's slot.
-// From Home and the Project Settings page, which shows Home's sidebar (project-settings design '화면'), the row opens the
+// From Home and the Project Settings page, which shows Home's sidebar, the row opens the
 // Overview rather than re-entering the last canvas (user decision); another page goes back to the loaded workspace as it
 // was.
 export function loadedProjectRow(at: { screen: string; overviewShown: boolean }): "enter" | "overview" | "slot" {

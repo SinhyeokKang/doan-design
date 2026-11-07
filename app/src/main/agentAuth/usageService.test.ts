@@ -182,7 +182,7 @@ describe("UsageService checks", () => {
   });
 });
 
-// review-B 🟡2: a check runs up to 20 s (statusRun); quit and a sign-out stop a read waiting on it at once, and
+// A check runs up to 20 s (statusRun); quit and a sign-out stop a read waiting on it at once, and
 // AuthManager stops the check itself.
 describe("UsageService quit and stop during a check", () => {
   const hung = (h: ReturnType<typeof setup>) => {

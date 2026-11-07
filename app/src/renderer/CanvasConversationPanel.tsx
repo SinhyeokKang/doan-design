@@ -45,7 +45,7 @@ import { threadTurn } from "./turnStatus";
 import type { ComposerChoice } from "./rememberChoice";
 import { defaultPermission, permissionChoices, permissionPickerView } from "./permissionPicker";
 
-// The canvas page's conversation panel body (buzz-canvas-conversation design §2 'Conversation panel', draft frames
+// The canvas page's conversation panel body (draft frames
 // panel-*): the conversation menu in the panel's title row, the thread and the docked composer. CanvasRun decides which
 // conversation shows; this component draws it and makes the calls to main the thread and composer ask for, as the
 // Overview's does (ProjectOverview).
@@ -66,7 +66,7 @@ export interface CanvasConversationProps {
   onRemember?(choice: ComposerChoice): void;
   now: number;
   // Why the composer keeps its draft but takes no input: the page shows a canvas outside the list, or one whose ID
-  // another canvas shares (design §2 'Errors').
+  // another canvas shares.
   blocked: string | null;
   // The open canvas's frames, which name frame chips (undefined while it has no layout); locate is unavailable while
   // the canvas cannot be shown.
@@ -76,9 +76,9 @@ export interface CanvasConversationProps {
   arrival: PanelArrival | null;
   // An arrival was applied: the host drops it, so a panel drawn again later does not take focus for it once more.
   onArrived(seq: number): void;
-  // Chip locate from the thread and from the composer's field (design §2 'Chip locate').
+  // Chip locate from the thread and from the composer's field.
   onLocate(anchor: Anchor): Promise<LocateOutcome>;
-  // A chip in an agent's reply (agent-reply-chips): the host locates it on this canvas or opens another canvas.
+  // A chip in an agent's reply: the host locates it on this canvas or opens another canvas.
   onReplyChip?(link: ReplyAnchor): Promise<LocateOutcome | null>;
   // The person chose what the panel shows (a conversation, New, a notice's Open).
   onChoose?(): void;
@@ -89,7 +89,7 @@ export interface CanvasConversationProps {
   onNotice(text: string): void;
   // The drawing project conversation's Open: its root's Overview shows it.
   onOpenProjectConversation(conversationId: string): void;
-  // A handoff line's or card's Open (canvas-handoff design §6): that canvas of this root with its panel on that conversation.
+  // A handoff line's or card's Open: that canvas of this root with its panel on that conversation.
   onOpenHandoff?(canvas: Canvas, conversationId: string): void;
   // The canvases terminal sessions work on: the terminal session choice waits while its session is among them.
   work: readonly WorkItem[];
@@ -115,7 +115,7 @@ function turnOf(events: readonly ConversationEvent[] | null, summary: Conversati
 export { steerPhaseOf };
 // Whether the shown composer refuses attachments (Attach, paste, drop, and the toolbar's Capture area): it continues a
 // terminal session, which keeps its own model and effort, or shows a conversation an external agent started. A resume
-// held while its terminal still works is a new conversation. App reads it too (canvas-capture design §3).
+// held while its terminal still works is a new conversation. App reads it too.
 export function composerFixed(view: CanvasView, list: ListView, work: readonly WorkItem[]): boolean {
   if (view.kind === "new") return view.mode.kind === "resume" && !resumeHeld(view.resume, work);
   return view.kind === "conversation" && Array.isArray(list) && list.find(c => c.conversationId === view.conversationId)?.owner === "legacy-external";
@@ -149,7 +149,7 @@ export function CanvasConversationTitle({ run, list, canvasName, now, seen, titl
   run: CanvasRun; list: ListView; canvasName: string; now: number; seen: ReadonlySet<string>; title: string; current: string | null; onPicked(): void;
   // The person chose what the panel shows, before the run hears it.
   onChoose?(): void;
-  // A row's Delete: the host asks for confirmation and returns focus to `trigger` (conversation-delete design §3.4).
+  // A row's Delete: the host asks for confirmation and returns focus to `trigger`.
   // False when it does not open the alert, so the closing menu returns focus as usual.
   onDelete?(target: DeleteTarget, trigger: HTMLElement | null): boolean;
 }) {
@@ -291,8 +291,8 @@ export function CanvasConversation(props: CanvasConversationProps) {
     run.takeScroll(conversationId);
     if (target.kind === "item") handle.current?.scrollToItem(target.key);
   }, [conversationId, scroll?.seq, Array.isArray(items) ? items.length : -1, asking]);
-  // An entry's focus (design §2 'Opening the panel'): a permission entry's first choice once its request draws, or a
-  // question's first option or answer input (agent-questions design §6), else the composer. Each arrival is applied
+  // An entry's focus: a permission entry's first choice once its request draws, or a
+  // question's first option or answer input, else the composer. Each arrival is applied
   // once; one whose request has nothing pending falls back to the composer.
   const arrived = useRef(0);
   // The canvas this render's view belongs to. Read here, not in the effect: the page's layout effect shows a newly
@@ -346,7 +346,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
     addChips(at, accepted.map((file, i) => ({ key: keys[i]!, name: file.name, kind: file.type.startsWith("image/") ? "image" : "file", pasted: false, status: "checking", size: file.size })));
     void window.doan.addAttachmentFiles(accepted).catch(() => null).then(async results => {
       if (!results) { settle(keys, keys.map(() => null)); return; }
-      // A copied screenshot has no path on disk; it attaches as a pasted image instead (buzz-home design §4.8).
+      // A copied screenshot has no path on disk; it attaches as a pasted image instead.
       const final = await Promise.all(results.map(async (result, i) => {
         const file = accepted[i]!;
         if (!pasted || result.ok || result.error !== "not_found" || !file.type.startsWith("image/")) return result;
@@ -424,7 +424,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
   };
   const newView = view.kind === "new" ? view : null;
   // The canvas's current conversation still works: a new conversation, or restoring an archived one, would end its
-  // turn, so Send waits with the busy line whose Open shows it (design §2 'Conversation panel', 'Errors').
+  // turn, so Send waits with the busy line whose Open shows it.
   const current = listed?.find(c => c.state === "current" && c.canvas !== undefined && sameCanvas(c.canvas, target.canvas));
   const restoreBusy = archived && current && (current.working || current.phase !== "ended") ? { kind: "restore" as const, open: current.conversationId } : null;
   const busy = newView?.start.busy ?? restoreBusy;
@@ -517,13 +517,13 @@ export function queuedMessage(itemId: string, request: DockedRequest): QueuedMes
   return { id: itemId, text: queuedText(request), message: { text: request.text, anchors: request.anchors, attachments: request.files ?? [] } };
 }
 
-// The chips the canvas panel's field takes and pastes as chips: the open canvas's (design §2 'Chip field').
+// The chips the canvas panel's field takes and pastes as chips: the open canvas's.
 export function canvasScope(target: CanvasTarget): string {
   return draftKey({ kind: "new", root: target.root, canvas: target.canvas });
 }
 
 // The terminal session choice (draft panel-resume): the shared choice cards with their start radio. `held`: the session
-// still works in a terminal (terminal-agent-activity draft resume-disabled); its card is disabled and its line becomes
+// still works in a terminal (draft resume-disabled); its card is disabled and its line becomes
 // the reason, which describes the radio.
 function ResumeChoice({ offer, reply, now, mode, held, onChoose }: { offer: Provider; reply: ResumeReply | undefined; now: number; mode: "resume" | "new"; held: boolean; onChoose(choice: "resume" | "new"): void }) {
   const at = linkedAt(reply && "available" in reply && reply.available ? reply.lastCheckAt : undefined, now);
@@ -539,7 +539,7 @@ function ResumeChoice({ offer, reply, now, mode, held, onChoose }: { offer: Prov
   </div>;
 }
 
-// The list or the history is read: blank first, then the thread's own loading line (design §2 'States').
+// The list or the history is read: blank first, then the thread's own loading line.
 function Waiting() {
   const [slow, setSlow] = useState(false);
   useEffect(() => { const timer = setTimeout(() => setSlow(true), LOADING_DELAY_MS); return () => clearTimeout(timer); }, []);

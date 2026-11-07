@@ -3,8 +3,7 @@ import type { Canvas } from "../main/conversation/types";
 import { sameCanvas } from "./canvasConversationRows";
 import { conversationWork } from "./conversationList";
 
-// What the board shows while this canvas's current conversation has work in flight (buzz-canvas design §2
-// 'Agent working indicator'). The label is the sidebar's own wording.
+// What the board shows while this canvas's current conversation has work in flight. The label is the sidebar's own wording.
 export interface AgentPresence {
   conversationId: string;
   kind: "working" | "waiting";

@@ -12,7 +12,7 @@ import { OverviewRun, type ListView, type OverviewRunHost } from "./overviewRun"
 import { ProjectOverview, type ProjectOverviewProps } from "./ProjectOverview";
 import { TooltipProvider } from "./components/ui/tooltip";
 
-// canvas-composer-polish A2 on the Overview: a queued message keeps its request, and Send now shows it in the
+// On the Overview: a queued message keeps its request, and Send now shows it in the
 // Overview's thread, above an open permission request, until main answers. Static markup has no clicks, so the
 // composer records its props for the test to queue and press Send now through.
 const composer = vi.hoisted(() => ({ props: null as DockedComposerProps | null }));

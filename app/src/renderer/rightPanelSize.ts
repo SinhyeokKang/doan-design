@@ -1,5 +1,5 @@
-// Size rules for the canvas page's conversation panel and the Overview's canvas conversations panel (buzz-canvas
-// design §2 'Right panel', §3). Pure: the renderer measures the window and the shell column and passes them in.
+// Size rules for the canvas page's conversation panel and the Overview's canvas conversations panel.
+// Pure: the renderer measures the window and the shell column and passes them in.
 
 export interface PanelBounds {
   min: number;

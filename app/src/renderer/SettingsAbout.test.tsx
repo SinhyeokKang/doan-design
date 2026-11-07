@@ -52,7 +52,7 @@ const click = (label: string) => (button(label).props.onClick as () => void)();
 const text = () => words(all(tree).filter(element => typeof element.type === "string").map(element => element.props.children));
 function resetHooks() { hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.pending = []; }
 
-// buzz-settings U4: Settings > About (design 'About'), over BM's aboutView rows.
+// Settings > About (PRODUCT §5 item 0 'About'), over BM's aboutView rows.
 const { SettingsAbout } = await import("./SettingsAbout");
 const { AlertIcon } = await import("./AlertIcon");
 import type { AboutRead } from "../main/about";
@@ -69,7 +69,7 @@ beforeEach(() => {
   doan = { startConversation: vi.fn(), sendConversation: vi.fn(), readAbout: vi.fn(() => new Promise(resolve => { reply = resolve; })), copyAbout: vi.fn(async () => ({ kind: "success" })) };
   vi.stubGlobal("window", { doan, addEventListener: (name: string, listener: () => void) => { windowListeners[name] = listener; }, removeEventListener: vi.fn() });
 });
-// review BU1 ⚪4: nothing on the Settings page may start or send a conversation.
+// Nothing on the Settings page may start or send a conversation.
 afterEach(() => { expect(doan.startConversation).not.toHaveBeenCalled(); expect(doan.sendConversation).not.toHaveBeenCalled(); });
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
 const actions = {} as HTMLElement;
@@ -102,7 +102,7 @@ test("a row whose version couldn’t be read says so with Retry, which reads Abo
   expect(doan.readAbout).toHaveBeenCalledTimes(2);
 });
 
-// review BU2-3: a focus re-read keeps the shown versions, and a read in flight is not started again.
+// A focus re-read keeps the shown versions, and a read in flight is not started again.
 test("returning to the window reads About again without Checking; a focus during a read starts no other", async () => {
   render();
   windowListeners.focus!();
@@ -132,7 +132,7 @@ test("Copy details asks main to copy, then reads Copied for a moment", async () 
   expect(text()).toContain("Couldn’t copy the details.");
 });
 
-// zero-setup-agents T5b: the setup notice sits in the doan command row, as static text with selectable paths.
+// The setup notice sits in the doan command row, as static text with selectable paths.
 const ALL = ["claude", "codex", "cursor", "antigravity", "copilot"] as const;
 const notice = () => all(row("cli").props.children as ReactNode).find(element => String(element.props.className).includes("doan-notice"));
 const extra = () => all(row("cli").props.children as ReactNode).find(element => element.props.className === "doan-preference-row-extra" && element !== undefined);

@@ -8,8 +8,8 @@ import { refuse, TERMINAL, type Finished, type Tracked, type WriteRequest } from
 import type { Candidate, CloneTarget, ProjectOutcome } from "./projects";
 import { parseGitHubUrl, type GitHubUrl } from "./repository";
 
-// Adding one project: inspect a folder or GitHub URL, then select or clone (buzz-add-projects design 'main의 project
-// 처리'). First run's session and the Add Projects page each own one; the page's has no session record, completion,
+// Adding one project: inspect a folder or GitHub URL, then select or clone.
+// First run's session and the Add Projects page each own one; the page's has no session record, completion,
 // socket or CLI.
 
 // Folder work (projects.ts and clone.ts), wired by index.ts.
@@ -67,7 +67,7 @@ const THROWN: Record<"project_inspect" | "project_select" | "project_clone" | "c
   project_inspect: "project_unavailable", project_select: "project_unavailable", project_clone: "clone_failed", complete: "completion_save_failed",
 };
 export type FolderKind = keyof typeof THROWN;
-// Only the newest inspection started in this session can be acted on (design '동일 상태·소유권·재시도'). target is the
+// Only the newest inspection started in this session can be acted on. target is the
 // planned clone folder in canonical spelling; the inspection shows the destination as it was asked for.
 interface Inspection { generation: number; inspection: OnboardingInspection; repo: GitHubUrl | null; target?: string }
 const leftoverMessage = (paths: readonly string[]) => paths.length === 1
@@ -168,7 +168,7 @@ export class ProjectAdder {
     // The consent covers the mode the inspection showed: another one is a plan the user never saw. A folder already set
     // up writes nothing, so its mode is not asked.
     if (candidate.changes.length > 0 && (request.storage ?? "repo") !== (candidate.storage ?? "repo")) return refuse("inspection_stale");
-    // Setup writes files in the user's folder, so it happens only when asked for (design '고정 명령·도구').
+    // Setup writes files in the user's folder, so it happens only when asked for.
     const initialize = request.initialize === true;
     if (candidate.changes.length > 0 && !initialize) return refuse("initialize_required");
     const storage = initStorage(candidate.changes);
@@ -201,7 +201,7 @@ export class ProjectAdder {
           if (remaining.length > 0) { leftovers.set(parent, remaining); return { state: "failed", code: "cleanup_failed", message: leftoverMessage(remaining) }; }
           leftovers.delete(parent);
         }
-        // D19 (2026-10-29): the rename into the destination publishes the clone. After this commit a cancel returns the
+        // 2026-10-29: the rename into the destination publishes the clone. After this commit a cancel returns the
         // running operation unchanged and registration and setup continue: cancelling would delete a folder already in
         // its final place.
         const commit = () => { if (abort.signal.aborted) return false; tracked.committed = true; return true; };

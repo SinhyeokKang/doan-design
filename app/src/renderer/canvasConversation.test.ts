@@ -108,7 +108,7 @@ describe("canvasConversationMenu", () => {
     expect(canvasConversationMenu([summary({ unseen: true })], billing, null, NOW, new Set(["c1"]))[0]!.status).toBeNull();
   });
 
-  // conversation-delete design §3.1: both menus build their rows with menuItem, so Delete reads the same in each.
+  // Both menus build their rows with menuItem, so Delete reads the same in each.
   test("each row says whether it can be deleted, as the Overview's menu does", () => {
     const list = [
       summary({ conversationId: "w", phase: "waiting", working: true, lastActivityAt: at(1) }),
@@ -247,7 +247,7 @@ describe("canvasConversationError", () => {
   });
 });
 
-// terminal-agent-activity design '표시' (canvas conversation panel): the terminal session choice waits while that
+// In the canvas conversation panel, the terminal session choice waits while that
 // session (provider:id) is in the working list. Identified sessions span roots; an anonymous one matches nothing.
 describe("resumeHeld", () => {
   const reply = { available: true as const, runtime: "codex" as const, session: "s1" };
@@ -262,7 +262,7 @@ describe("resumeHeld", () => {
   test("the choice comes back when the session leaves the list", () => {
     expect(resumeHeld(reply, [])).toBe(false);
   });
-  // RD1: main names a session a live terminal process holds (session_in_use), so it holds while it works.
+  // Main names a session a live terminal process holds (session_in_use), so it holds while it works.
   test("a session a terminal process holds is held while it works, and only that refusal names one", () => {
     const occupied = { available: false as const, reason: "session_in_use", runtime: "claude" as const, session: "s1" };
     expect(resumeHeld(occupied, [item({ provider: "claude" })])).toBe(true);

@@ -19,7 +19,7 @@ test("v3 validates schema, then token, then registered root, before applying wor
   expect(service.work).toHaveBeenCalledWith(request);
   expect(await response({ v: 3, token, root, action: "done" })).toEqual({ v: 3, ok: true });
 });
-// work-update design §1 rule 1-5: an update counts as a start; one naming a conversation goes to the conversation state.
+// An update counts as a start; one naming a conversation goes to the conversation state.
 describe("update", () => {
   const update = { v: 3, token, root, action: "update", path, frame: "hero", note: "Drawing the hero", session: "s1", provider: "claude" };
   const conversation = { v: 3, token, root, action: "update", path, frame: "hero", conversation: "c1" };
@@ -174,7 +174,7 @@ describe("auto-registration", () => {
     expect(service.work).not.toHaveBeenCalled();
   });
 
-  // spec decision 5: the CLI's 2 s budget has passed, but the registration and this start's work still land.
+  // The CLI's 2 s budget has passed, but the registration and this start's work still land.
   test("past the deadline the start is refused, then registered and applied", async () => {
     vi.useFakeTimers();
     const { service, events, send, settle } = registry();

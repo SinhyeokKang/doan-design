@@ -9,7 +9,7 @@ export type ProviderEnv = { ok: true; env: Record<string, string> } | { ok: fals
 // terminal-launched app signs in the way a Dock-launched one does.
 const INHERITED = new Set(["HOME", "USER", "LOGNAME", "SHELL", "TMPDIR", "LANG", "TZ", "SSL_CERT_FILE", "SSL_CERT_DIR", "NODE_EXTRA_CA_CERTS",
   "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "no_proxy", "all_proxy"]);
-// PoC 10 isolated Cursor, Antigravity and Copilot only through a dedicated HOME; Codex needed the real HOME for its keyring.
+// The PoC isolated Cursor, Antigravity and Copilot only through a dedicated HOME; Codex needed the real HOME for its keyring.
 const PROFILE_VARIABLE: Record<Provider, string> = { claude: "CLAUDE_CONFIG_DIR", codex: "CODEX_HOME", cursor: "HOME", antigravity: "HOME", copilot: "HOME" };
 const RESERVED = new Set(["PATH", "DOAN_RUNTIME", "DOAN_APP_CONVERSATION", "DOAN_CONVERSATION_ID", "DOAN_HANDOFF", "HOME", "CLAUDE_CONFIG_DIR", "CODEX_HOME", "GEMINI_HOME", "SSH_AUTH_SOCK", "GIT_CONFIG_GLOBAL"]);
 function absolute(value: unknown): value is string { return typeof value === "string" && value.startsWith("/") && !value.includes("\0"); }

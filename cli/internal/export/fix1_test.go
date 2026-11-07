@@ -13,7 +13,7 @@ import (
 	"github.com/SinhyeokKang/doan-design/cli/internal/repo"
 )
 
-// RA1 🟡1: a decoded "<" written back into <style> text must not end it.
+// a decoded "<" written back into <style> text must not end it.
 func TestInlineCannotCloseStyleFromCSS(t *testing.T) {
 	root := exporttest.Seed(t)
 	exporttest.Put(t, root, ".doan/canvases/breakout.html", `<style>.a{background:url(//x.example/\3c/style\3e\3cscript\3e alert\28 1\29\3c/script\3e)}
@@ -28,7 +28,7 @@ func TestInlineCannotCloseStyleFromCSS(t *testing.T) {
 	}
 }
 
-// RA1 ⚪3: one refusal is one message line.
+// one refusal is one message line.
 func TestRefusalHrefHasNoControlCharacters(t *testing.T) {
 	root := exporttest.Seed(t)
 	exporttest.Put(t, root, ".doan/canvases/lines.html", "<img src=\"../none&#10;forged&#13;\x01.png\"><style>.a{background:url(\"../gone\\a line.png\")}</style>")
@@ -50,7 +50,7 @@ func timed(t *testing.T, f func() Result) Result {
 	return res
 }
 
-// RA1 🟡2: each level imports the next twice, doubling the output per level.
+// each level imports the next twice, doubling the output per level.
 func TestInlineStopsADiamondLadder(t *testing.T) {
 	root := exporttest.Seed(t)
 	for i := 0; i < 18; i++ {
@@ -67,7 +67,7 @@ func TestInlineStopsADiamondLadder(t *testing.T) {
 	}
 }
 
-// RA1 🟡2: a complete import graph re-expands every simple path below a cut cycle.
+// a complete import graph re-expands every simple path below a cut cycle.
 func TestInlineStopsMutualImports(t *testing.T) {
 	root := exporttest.Seed(t)
 	for _, n := range []int{8, 10} {

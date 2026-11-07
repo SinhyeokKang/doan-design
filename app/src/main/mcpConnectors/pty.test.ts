@@ -12,7 +12,7 @@ let dir: string;
 beforeEach(() => { dir = mkdtempSync(join(tmpdir(), "doan-mcp-pty-")); });
 afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
-// design 'pty: node-pty': the group is stopped with OwnedGroup(pty.pid), which is right only because forkpty's setsid
+// ARCHITECTURE §7 'MCP connectors': the group is stopped with OwnedGroup(pty.pid), which is right only because forkpty's setsid
 // makes the pty's child its own process group leader. This pins that fact on the real node-pty.
 test("the pty child leads its own process group, and stopping it ends a descendant too", async () => {
   const spawn = ptySpawner({ packaged: false });

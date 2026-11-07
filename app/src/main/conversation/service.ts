@@ -21,7 +21,7 @@ import type { LiveTurn } from "../conversationWork";
 // External (legacy) runs are claude or codex only; doan-account runs may use any app provider.
 // model and effort: a choice from the list this run delivered (ipc checks it). attachments: files main rechecked just now.
 // permissionMode: one of the common ids (ipc checks it); Default is never stored.
-// A start a handoff makes (canvas-handoff design §5), never one ipc makes: the earlier conversation, the handoff text
+// A start a handoff makes, never one ipc makes: the earlier conversation, the handoff text
 // for the prompt (never read for markers) and the rule that the target has no current conversation at acceptance.
 export interface HandoffStart { origin: HandoffOrigin; requireNoCurrent: true; handoffText: string }
 // defaultEffort: as SendExtras's, the level the first turn names when its model has no effort; it is never stored.
@@ -56,7 +56,7 @@ export interface Prepared {
   usageAtTurnEnd?: (read: () => Promise<unknown>) => Promise<void>;
   // Claude runs only: the cleaned text of the first prompt suggestion after a done turn (runners.ts openClaude).
   suggested?: (text: string) => void;
-  // The turn's stage after a frame, called right after that frame's events (turn-activity design §2). It names no turn:
+  // The turn's stage after a frame, called right after that frame's events. It names no turn:
   // a reused Codex server keeps the callback it opened with, and the service takes the live turn of that moment.
   stage?: (stage: TurnStage) => void;
 }
@@ -105,7 +105,7 @@ function freeLease(input: Prepared | undefined): void {
   void input?.release?.().catch(error => console.error("doan: account lease release failed", error));
 }
 // A Claude process ended about 0.75 s after turn.done, but its reservation held for 2.1-5.0 s after turn.done until the
-// group was gone (packaged app, D1 2026-10-28). The wait allows twice the slowest observed.
+// group was gone (packaged app, 2026-10-28). The wait allows twice the slowest observed.
 const EXIT_WAIT_MS = 10_000;
 // provider: set for a run on a doan account, whose lease a sign-out or replacement waits for (stopRuns).
 // since: the stopRuns count when this start or send began; a later stop of its provider stops it once it spawns.
@@ -121,9 +121,9 @@ const EXIT_WAIT_MS = 10_000;
 // done: the turn's terminal event was turn.done.
 // handoffKey: the DOAN_HANDOFF value of the runner it holds now (openRunner).
 // lastSeq: the conversation's last written seq (deliver). stage: the running turn's last stage signal, never stored;
-// stageRev counts this entry's signals, so stages that share a seq keep their order (turn-activity design §2).
+// stageRev counts this entry's signals, so stages that share a seq keep their order.
 interface Live { turnId: string; busy: boolean; accepted: boolean; runner?: Runner; cleanup?: () => Promise<void>; terminal: boolean; events: EventPayload[]; failedPersistence: boolean; exited: boolean; provider?: Provider; since: number; endedAt?: number; project?: string; closed?: boolean; holding?: object; mcpGeneration?: number | undefined; asking?: Set<string>; done?: boolean; handoffKey?: string; lastSeq?: number; stage?: StageSignal; stageRev?: number }
-// A project turn's grounds for promotion (design §2.4): the canvas list when the turn was accepted, the paths of its own
+// A project turn's grounds for promotion: the canvas list when the turn was accepted, the paths of its own
 // edit activities and the canvas files the folder watcher saw change. endedAt: the turn is over and waits for its first
 // folder refresh, or for the timer at the end of the binding window. turnId: the judged turn, for its bound marker.
 // Only one turn's own grounds count: the conversation's next send waits for this judgement (waiters) and starts with a
@@ -131,8 +131,8 @@ interface Live { turnId: string; busy: boolean; accepted: boolean; runner?: Runn
 // its root (checkProject), unless it waits for an answer.
 // taken: canvases another conversation of the root was promoted to after this snapshot (promotionTarget).
 interface Evidence { root: string; turnId: string; snapshot: Canvas[]; edits: Set<string>; changed: Set<string>; taken: Canvas[]; endedAt?: number; timer?: ReturnType<typeof setTimeout>; waiters: (() => void)[] }
-// A Doan-connected conversation's current turn for handoffs (canvas-handoff design §5), in memory only. snapshot: the
-// root's listed canvases when the turn was accepted. startedBy: a handoff started it, so it cannot hand off (decision 8).
+// A Doan-connected conversation's current turn for handoffs, in memory only. snapshot: the
+// root's listed canvases when the turn was accepted. startedBy: a handoff started it, so it cannot hand off.
 // request: the handoff it asked for. state: judging once the turn ended done and the canvas may still be listed (the
 // first folder refresh or the window's end, like a promotion); starting while the next conversation starts; resolved
 // once handoff.resolved is written. waiters: sends waiting for that, as for a project judgement.
@@ -163,14 +163,14 @@ export class ConversationService {
   private drafts: DraftStore;
   // By messageId, until the agent reads it or its turn ends; a refused one stays, since its read may still come.
   private steers = new Map<string, Steer>();
-  // Claude's suggestion for each conversation's next message, in memory only (prompt-suggestion decision 3): kept
+  // Claude's suggestion for each conversation's next message, in memory only: kept
   // until the next turn is accepted, the conversation is archived or deleted, or its Claude connection signs out or
   // changes. connectionId: the doan connection the turn ran on; none for a legacy external run.
   private suggestions = new Map<string, { text: string; root: string; provider?: Provider; connectionId?: string }>();
   // Each provider's connection as auth last reported it (connectionChanged; undefined: signed out). A run on another
   // connection may still send its suggestion after the change, and must not bring it back.
   private connections = new Map<Provider, string | undefined>();
-  // DOAN_HANDOFF value → conversation, for each runner process still alive; never on disk (design §3 'conversation').
+  // DOAN_HANDOFF value → conversation, for each runner process still alive; never on disk.
   private handoffKeys = new Map<string, string>();
   private handoffTurns = new Map<string, HandoffTurn>();
   // listChanged: a root whose conversation list (conversation:list) changed, sent after the write it reports.
@@ -281,7 +281,7 @@ export class ConversationService {
   }
   // extras: a model (with its effort, if any) replaces the stored choice from this turn on; attachments were checked by
   // ipc, and attached rechecks them right before acceptance and marks pasted ones sent.
-  // A send to an archived conversation restores it (design §2.5): its canvas is found again by ID, the canvas's current
+  // A send to an archived conversation restores it: its canvas is found again by ID, the canvas's current
   // conversation must not be working, and both are swapped through the journal at acceptance. Whether a send restores
   // is decided at admission; a conversation archived while its send prepared is refused as busy.
   // A conversation whose queue is about to go out takes no other send first: the queued messages keep their place.
@@ -415,8 +415,8 @@ export class ConversationService {
     if (metadata.session.runtime === "codex" && live?.runner && !live.closed) return;
     if (this.waits.has(id)) throw new Error("busy");
     // A done turn's Claude process may go on generating its suggestion (up to 30 s) after its input closed, past this
-    // wait (EXIT_WAIT_MS). Its suggestion is dropped and the process ended, so the send is no later than before
-    // (prompt-suggestion decision 5). Any other process (a failed or stopped turn, a suggestion already here) ends by
+    // wait (EXIT_WAIT_MS). Its suggestion is dropped and the process ended, so the send is no later than before.
+    // Any other process (a failed or stopped turn, a suggestion already here) ends by
     // itself as before; the reservation is still released only once the group is gone (POSTMORTEM 2026-10-28).
     if (live?.done && !this.suggestions.has(id)) live.runner?.endSuggestion?.();
     return this.exitOf(id, live);
@@ -470,10 +470,10 @@ export class ConversationService {
   }
   // The lease belongs to this runner's process group: it is released when that group is gone, or at once when
   // opening failed before anything was spawned.
-  // DOAN_CONVERSATION_ID: the CLI's `work update` names this conversation (work-update design decision 8). Set here,
+  // DOAN_CONVERSATION_ID: the CLI's `work update` names this conversation. Set here,
   // for both the doan-account and the legacy external path; a reused Codex server keeps it across turns.
   // DOAN_HANDOFF: a random key per runner of a Doan-connected conversation, a project one included, since a Codex server
-  // lives on after a promotion (canvas-handoff design §3). It only says which conversation asks: the socket token is the
+  // lives on after a promotion. It only says which conversation asks: the socket token is the
   // boundary, and the conversation id is readable in index.json. It is forgotten once the runner's process is gone.
   // A start's Fast for its run (Prepared.fast): chosen, a doan run, and this run's list says the model takes it now.
   private runFast(on: boolean, root: string, input: Prepared, model: string | undefined): { fast?: true } {
@@ -488,7 +488,7 @@ export class ConversationService {
       return await this.open({ ...input, env: { ...input.env, DOAN_CONVERSATION_ID: id, ...(key ? { DOAN_HANDOFF: key } : {}) } }, event => { if (this.live.get(id) === live) this.receive(id, event); }, () => { release(); if (this.live.get(id) === live) this.exited(id); }, stop => { spawned = true; live.cleanup = stop; if (this.quitting || this.stopped(live)) void stop(); });
     } catch (error) { if (!spawned) release(); throw error; }
   }
-  // A `doan handoff` request after the socket's own checks (canvas-handoff design §3): null when it was taken and written
+  // A `doan handoff` request after the socket's own checks: null when it was taken and written
   // as handoff.requested in the asking turn. The key must be the one of the runner the conversation runs on now: a
   // previous turn's process that is still exiting asks for no turn.
   requestHandoff(request: { root: string; handoff: string; path: string; text: string }): "not_app_conversation" | HandoffRefusal | null {
@@ -568,7 +568,7 @@ export class ConversationService {
     });
     return { current: summaries.find(m => m.state === "current") ?? null, archived: summaries.filter(m => m.state === "archived") };
   }
-  // canvas-row-menu: the grounds of this root's project turns not judged yet (running, or ended within the binding
+  // The grounds of this root's project turns not judged yet (running, or ended within the binding
   // window), for Move to Trash's busy check (canvasTrash.ts trashBusy). Exactly this root, as copies.
   projectEvidence(root: string): { edits: string[]; changed: string[] }[] {
     const now = Date.now();
@@ -594,8 +594,8 @@ export class ConversationService {
     this.changed(m.root);
   }
   // What ipc needs to check a send's extras: the conversation's folder, its fixed provider and its owner kind.
-  // The picker changed without a send (permission-mode spec decision 7). A running turn keeps the mode it was sent
-  // with; the next send that names none and a queue flushed later use this one (decision 8). ipc refuses it for a
+  // The picker changed without a send. A running turn keeps the mode it was sent
+  // with; the next send that names none and a queue flushed later use this one. ipc refuses it for a
   // legacy external conversation.
   setPermissionMode(id: string, permissionMode: PermissionModeId): void { this.storeMode(id, permissionMode); }
   sendTarget(id: string): { root: string; provider: Provider; owner: ConversationOwner["kind"]; model?: string; effort?: string; fast?: true } {
@@ -660,7 +660,7 @@ export class ConversationService {
       if (live.runner) closing.push(live.runner.close()); else if (live.cleanup) closing.push(live.cleanup());
     }
     // A handoff waiting for its judgement or its start would start a turn on the provider the person chose to stop
-    // (design §2-4: a sign-out cancels it). After the loop above, which handed its queue back.
+    // (a sign-out cancels it). After the loop above, which handed its queue back.
     for (const [id, turn] of [...this.handoffTurns]) {
       const m = this.store.list().find(e => e.conversationId === id);
       if (this.handoffPending(turn) && m?.owner.kind === "doan" && m.owner.provider === provider) this.resolveHandoff(id, turn, { outcome: "cancelled" });
@@ -688,7 +688,7 @@ export class ConversationService {
     return Promise.all(closing).then(() => undefined);
   }
   // A folder listing of root was read again. changed: root-relative canvas paths whose files the watcher saw change since
-  // the listing before. Project turns collect them while they run; one that ended is judged now (design §2.4).
+  // the listing before. Project turns collect them while they run; one that ended is judged now.
   refreshed(root: string, changed: readonly string[]): void {
     for (const [id, evidence] of [...this.evidence]) {
       if (evidence.root !== root) continue;
@@ -697,7 +697,7 @@ export class ConversationService {
     }
     for (const [id, turn] of [...this.handoffTurns]) if (turn.root === root && turn.state === "judging") this.judgeHandoff(id, true);
   }
-  // A message sent while its conversation works waits in main, in drafts.json, until the turn ends (design §2.6).
+  // A message sent while its conversation works waits in main, in drafts.json, until the turn ends.
   // ids: the attachment ids main holds for it until it goes out. not_running: nothing is working to queue behind.
   // The queue goes out in the mode stored when it is flushed (setPermissionMode), not one of its messages'.
   queue(id: string, item: { text: string; anchors: Anchor[]; attachments?: AttachmentRecord[]; ids?: string[] }): { itemId: string } {
@@ -740,7 +740,7 @@ export class ConversationService {
       attached = ids.length && files ? files.reclaim(ids) : undefined;
       attachments = attached ? attached.recheck() : item.attachments;
       // The prompt a send of this message would carry, Home's paragraph and guidance included.
-      // A message steered into a handoff's first turn does not lift its limit (decision 8).
+      // A message steered into a handoff's first turn does not lift its limit.
       // A turn that handed off already would only be refused again (already_requested).
       const turn = this.handoffTurns.get(id), current = turn?.turnId === live.turnId ? turn : undefined;
       const handoff = !current?.request && handoffGuidanceFor(m, { ...mode(m.permissionMode), ...(current?.startedBy ? { startedBy: current.startedBy } : {}) });
@@ -822,8 +822,7 @@ export class ConversationService {
       // The other turns of the root not judged yet (this one is out of the map already): running, waiting for an
       // answer, or ended within their window.
       const listed = this.snapshot(evidence.root), others = [...this.evidence.values()].filter(other => other.root === evidence.root);
-      // A handoff taken and not resolved yet may have made any canvas new to its turn, the requested one included
-      // (canvas-handoff design §5 'overlap').
+      // A handoff taken and not resolved yet may have made any canvas new to its turn, the requested one included.
       const handoffs = [...this.handoffTurns.values()].filter(turn => turn.root === evidence.root && !!turn.request && turn.state !== "resolved");
       const contested = listed.filter(row => others.some(other => !other.snapshot.some(old => sameCanvas(old, row))) ||
         handoffs.some(turn => row.path === turn.request!.path || !turn.snapshot.some(old => sameCanvas(old, row))));
@@ -856,8 +855,8 @@ export class ConversationService {
     if (decision.kind === "start") { turn.state = "starting"; void this.startHandoff(id, turn, m, decision.canvas); return; }
     this.resolveHandoff(id, turn, decision.kind === "refused" ? { outcome: "refused", reason: decision.reason } : { outcome: "cancelled" });
   }
-  // The next conversation runs on the earlier one's provider, model, effort, Fast and permission mode as they are now
-  // (decision 6). It passes every check of a start; Last used is the person's choice and stays as it was.
+  // The next conversation runs on the earlier one's provider, model, effort, Fast and permission mode as they are now.
+  // It passes every check of a start; Last used is the person's choice and stays as it was.
   private async startHandoff(id: string, turn: HandoffTurn, m: ConversationMetadata, target: Canvas): Promise<void> {
     const request = turn.request!, origin: HandoffOrigin = { kind: "handoff", conversationId: id, canvas: m.canvas! };
     const provider = m.owner.kind === "doan" ? m.owner.provider : undefined, since = this.stops;
@@ -884,7 +883,7 @@ export class ConversationService {
     const turn = this.handoffTurns.get(id), m = this.store.list().find(e => e.conversationId === id);
     if (turn?.state !== "starting" || m?.state !== "current") throw new Error("handoff_cancelled");
   }
-  // Written with the requesting turn's id once the turn ended (design §5 'events'). A started handoff took the queue
+  // Written with the requesting turn's id once the turn ended. A started handoff took the queue
   // along (moveQueue); a refused one sends a queue held for the judgement to this conversation as after any done turn,
   // and a cancelled one hands it back as a draft, as a stop does.
   private resolveHandoff(id: string, turn: HandoffTurn, resolution: HandoffResolution): void {
@@ -907,7 +906,7 @@ export class ConversationService {
     clearTimeout(turn.timer); this.handoffTurns.delete(id);
     for (const wake of turn.waiters.splice(0)) wake();
   }
-  // The earlier conversation's queue follows the work (design §2-4): it goes out after the new conversation's first turn.
+  // The earlier conversation's queue follows the work: it goes out after the new conversation's first turn.
   private moveQueue(from: string, to: string): void {
     const moved = this.drafts.move(from, to);
     for (const item of moved) { const held = this.queuedExtras.get(item.itemId); if (held) held.owner = to; }
@@ -1046,7 +1045,7 @@ export class ConversationService {
   }
   // The one mode Doan follows by itself: after the person approved a plan, the mode Claude reported becomes the
   // conversation's, so its picker and its next turn show what now runs. Only the turn that ran the plan counts, and
-  // only while the conversation is still in Plan: a mode the person picked during the turn stays (spec decision 8).
+  // only while the conversation is still in Plan: a mode the person picked during the turn stays.
   private planApproved(id: string, live: Live, turnId: string, reported: PermissionModeId): void {
     if (this.live.get(id) !== live || live.turnId !== turnId || !live.accepted) return;
     if (this.store.list().find(e => e.conversationId === id)?.permissionMode !== "plan") return;

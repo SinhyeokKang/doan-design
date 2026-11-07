@@ -3,7 +3,7 @@ export const TOAST_MS = 8000;
 export interface Toast {
   id: string;
   message: string;
-  // At most one action button (design 'Common toast').
+  // At most one action button.
   action?: string;
   // The open modal dialog it is drawn inside (Toast.tsx `showIn`), where it is visible and read, so the modal does not
   // hold its clock.

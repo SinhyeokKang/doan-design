@@ -4,7 +4,7 @@ import type { Readiness } from "../agentAuth/types";
 export type McpFacts = { registered: false } | { registered: true; authenticated: boolean };
 export type CheckOutcome = { ok: true; facts: McpFacts } | { ok: false; reason: "failed" | "timeout" | "unparsable" };
 // Status commands use the network, so they run only at set moments and the last value stays shown meanwhile
-// (design '상태 판정').
+// (ARCHITECTURE §7 'MCP connectors').
 export interface CheckRead { reading: boolean; last: CheckOutcome | null }
 // The provider's one running attempt, on whichever server.
 export interface ConnectorAttempt { name: string; kind: "connect" | "disconnect" | "remove" }
@@ -33,8 +33,8 @@ function settled(check: CheckRead, everConnected: boolean): { status: ConnectorS
   return everConnected ? { status: "reconnect_needed", action: "reconnect" } : { status: "not_connected", action: "connect" };
 }
 
-// While the previous account's logout is pending, every read row offers Connect, which retries that logout first
-// (spec 완료 조건 8). A server that reads as signed in may still hold the previous account's token, so it is shown as
+// While the previous account's logout is pending, every read row offers Connect, which retries that logout first.
+// A server that reads as signed in may still hold the previous account's token, so it is shown as
 // Reconnect needed, never Connected; a failed read keeps its status but trades Retry for Connect.
 function blockedSettled(check: CheckRead, everConnected: boolean): { status: ConnectorStatus; action: ConnectorAction | null } {
   const read = settled(check, everConnected);
@@ -48,7 +48,7 @@ export function connectorState(input: ConnectorStateInput): ConnectorView {
   if (own) return { status: ATTEMPT_STATUS[own.kind], action: own.kind === "connect" ? "cancel" : null, disabled: null, blocked: false };
   const { status, action } = input.blocked ? blockedSettled(input.check, input.everConnected) : settled(input.check, input.everConnected);
   const connects = action === "connect" || action === "reconnect";
-  // A sign-in or sign-out in progress leaves Connect pressable: it fails with the busy reason (spec 완료 조건 3).
+  // A sign-in or sign-out in progress leaves Connect pressable: it fails with the busy reason.
   const notReady = !input.readiness.ready && input.readiness.cause !== "busy";
   const disabled = action === null ? null : notReady ? "not_ready" : connects && input.attempt ? "busy" : null;
   return { status, action, disabled, blocked: connects && input.blocked };

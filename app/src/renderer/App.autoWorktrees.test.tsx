@@ -209,7 +209,7 @@ test("without a remembered selection (the worktree was restored at launch), the 
   expect(sidebar().loaded).toBe(MAIN);
 });
 
-test("the worktree selected before goes on the screen even in a problem state (orch decision 7)", async () => {
+test("the worktree selected before goes on the screen even in a problem state", async () => {
   await start();
   enter(OTHER); enter(W); show(W, A);
   folders([main(), { path: OTHER, kind: "uninitialized", lastCommon: KEY }, wt()]);
@@ -271,7 +271,7 @@ test("a launch restore on an auto-registered worktree waits while it is read, th
   expect(sidebar().loaded).toBe(W);
 });
 
-// R2 review 🟡1·🟡2: at a restart the auto-registered worktree is `loading`, hidden but not gone. Its remembered canvas
+// at a restart the auto-registered worktree is `loading`, hidden but not gone. Its remembered canvas
 // and the group's saved selection stay until it is read, even when another root is read first.
 const loading = (root: string): FolderEntry => ({ path: root, kind: "loading", lastCommon: KEY });
 const VIEW = { scale: 0.5, x: 12, y: -40 };
@@ -298,7 +298,7 @@ test("a Home restore keeps the group's selected auto-registered worktree while i
   expect(home()).toBeDefined();
 });
 
-// orch decision 10: a page opened from the vanished worktree's workspace leaves for the worktree that took its place,
+// a page opened from the vanished worktree's workspace leaves for the worktree that took its place,
 // as Locate moves the origin (POSTMORTEM 2026-10-25); Remove from Doan of the whole group still leaves for Home.
 const leave = () => { (all(tree).find(element => "forward" in element.props && "previous" in element.props)!.props as { previous(): void }).previous(); render(); };
 const pages = [

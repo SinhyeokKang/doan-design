@@ -10,7 +10,7 @@ import { DockedSupport } from "./dockedSupport";
 import { OverviewRun, type ListView, type OverviewRunHost } from "./overviewRun";
 import { ProjectOverview, type ProjectOverviewProps } from "./ProjectOverview";
 
-// shell-panel-layout spec 1: the Overview header's New conversation button does what the title menu's New conversation
+// The Overview header's New conversation button does what the title menu's New conversation
 // and ⌘N do. Static markup has no clicks, so the tooltip trigger records its button's props for the test to press.
 const triggers = vi.hoisted(() => [] as Record<string, unknown>[]);
 vi.mock("./components/ui/tooltip", async original => {
@@ -76,7 +76,7 @@ test("on a shown conversation the button moves to a new conversation and focuses
   expect(focused.calls).toEqual([FIELD]);
 });
 
-// N1 (conversation-delete orch decisions 1–2): on the new conversation state the button is unavailable and does nothing.
+// On the new conversation state the button is unavailable and does nothing.
 test("on the new conversation state the button does nothing, also while the list is read", async () => {
   for (const list of [[summary], "loading"] as ListView[]) {
     const { run, press } = setup(list, null);

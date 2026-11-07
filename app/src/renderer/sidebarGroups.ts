@@ -1,7 +1,7 @@
 import type { CanvasRow } from "../main/view";
 import { canvasDir, type CanvasKind } from "../formats/canvasPath";
 
-// The sidebar's two groups under an expanded project (design-system-canvases design 'sidebar'): the directory a
+// The sidebar's two groups under an expanded project: the directory a
 // canvas sits in picks its group. Ids are fixed so a saved closed state survives a label or order change.
 export type GroupId = CanvasKind;
 export type ClosedGroups = Partial<Record<GroupId, false>>;

@@ -26,7 +26,7 @@ export interface ActiveState {
 export interface RuntimeState extends ActiveState {
   // A terminal start, update or done (never one naming a conversation).
   work(request: WorkRequest): void;
-  // An app conversation's update: answered ok whatever the conversation state does with it (design §1 rule 5), and
+  // An app conversation's update: answered ok whatever the conversation state does with it, and
   // never registers a root, since a conversation's root is registered already.
   conversationWork(request: ConversationUpdate): void;
   // Called only with a schema-valid v2 request whose token matched. It must answer quickly: long work answers with
@@ -107,7 +107,7 @@ function openError(code: "bad_request" | "bad_token" | "project_not_open", messa
 }
 
 export type HandoffRefusalCode = Exclude<HandoffErrorCode, "bad_request" | "bad_token" | "project_not_open">;
-// The CLI writes its own message and next steps from the code (design §3); these only name the refusal.
+// The CLI writes its own message and next steps from the code; these only name the refusal.
 const HANDOFF_MESSAGES: Record<HandoffErrorCode, string> = {
   bad_request: "Doan could not handle this request.",
   bad_token: "The token does not match this app.",
@@ -159,7 +159,7 @@ function register(state: RuntimeState, root: string): Promise<boolean> {
 
 // A start or terminal update from an unregistered root may register it; a done only waits for a registration already running, so it
 // lands after that start's work. Either way the work applies once registered, even after the answer said
-// project_not_open (spec decision 5).
+// project_not_open.
 async function workAfterRegistration(state: RuntimeState, request: WorkRequest): Promise<WorkResponse> {
   const notOpen = workError("project_not_open", "The project is not open in Doan.");
   const pending = registrations.get(state)?.get(request.root) ??

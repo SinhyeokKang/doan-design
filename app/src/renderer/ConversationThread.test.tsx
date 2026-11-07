@@ -100,7 +100,7 @@ describe("thread items", () => {
     expect(out).toContain("<b>spec.md</b><small>6 KB</small>");
   });
 
-  // fast-mode B2 (draft frame thread-notice): the line sits in its turn, under the reply and before a failed turn's end,
+  // Draft frame thread-notice: the line sits in its turn, under the reply and before a failed turn's end,
   // and a reread of the history draws it again.
   test("a turn that did not run Fast keeps its line in the turn, live and when read again", () => {
     let seq = 0;
@@ -206,7 +206,7 @@ describe("thread items", () => {
     const out = html(items, { turn: { turnId: "t1", status: { kind: "tool", activity: "read", text: "Reading x" }, at: "2026-11-06T10:00:00.000Z" } });
     expect(out).toContain('<div class="msg-agent"><p class="muted">No reply.</p></div>');
     expect(out).toContain('data-item="n4"');
-    // turn-activity: the status says the turn indicator's stage kind, without its path (it said "is working" before).
+    // The status says the turn indicator's stage kind, without its path (it said "is working" before).
     expect(out).toContain('<div class="sr-only" role="status">Claude Code is reading files</div>');
     expect(html(items)).toContain('<div class="sr-only" role="status"></div>');
   });
@@ -225,7 +225,7 @@ describe("loading and read errors", () => {
 });
 
 // Tailwind's preflight and styles.css's own `ol { list-style: none; }` would hide the markers; static markup cannot
-// show that, so the rules are pinned here (their look is compared when buzz-project places the thread).
+// show that, so the rules are pinned here (their look is compared when the project Overview places the thread).
 test("agent reply lists keep their bullets and numbers", () => {
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   const rules = [".conversation-thread .md ul { list-style: disc; }", ".conversation-thread .md ol { list-style: decimal; }", ".conversation-thread .md ul ul { list-style: circle; }"];
@@ -234,7 +234,7 @@ test("agent reply lists keep their bullets and numbers", () => {
   expect(css.indexOf(rules[1]!)).toBeGreaterThan(css.indexOf("ol { list-style: none; }"));
 });
 
-// buzz-canvas-conversation design §2 'Chip locate': a sent message's chips, named as the composer names them.
+// A sent message's chips, named as the composer names them.
 describe("sent message chips", () => {
   const located = async () => "shown" as const;
   const user = (anchors: readonly Anchor[]): ThreadItem => ({
@@ -274,8 +274,8 @@ describe("sent message chips", () => {
     expect(asked).toHaveLength(1);
   });
 
-  // design §2 'Chip locate': only a target the canvas no longer has shows the note; a canvas that did not answer, or
-  // could not be asked, ends silently (orch decision: a timeout is not "missing").
+  // Only a target the canvas no longer has shows the note; a canvas that did not answer, or
+  // could not be asked, ends silently (a timeout is not "missing").
   test.each([["missing", 1], ["timeout", 0], ["unavailable", 0], ["shown", 0]] as const)("a locate that ends %s shows the note %i times", async (outcome, times) => {
     const shown: string[] = [];
     const chip = SentChip({ marker: 1, anchor: anchors[0]!, frames: undefined, disabled: false, onLocate: async () => outcome,
@@ -295,7 +295,7 @@ describe("sent message chips", () => {
   });
 });
 
-// agent-reply-chips T3 (design 'Rendering'): `doan:` links in a reply are chips, named from the app's own lists.
+// `doan:` links in a reply are chips, named from the app's own lists.
 describe("reply chips", () => {
   const rows: CanvasRow[] = [
     { path: ".doan/canvases/drafts.html", url: "http://localhost/drafts.html", id: "drafts", frames: [{ id: "editor", title: "Editor" }] },
@@ -361,7 +361,7 @@ describe("reply chips", () => {
     expect(out).toContain('aria-label="Open checkout and show gone"');
   });
 
-  // Runtime test C against the draft (conductor's call, fix round 2): an other-canvas chip is at most 180px like every
+  // A runtime test against the draft: an other-canvas chip is at most 180px like every
   // chip, the label shrinks and ellipsizes first and the suffix is never cut; the chip grows past 180px only when the
   // suffix alone does not fit, and never past the reply block. Pure CSS; the real-app widths are checked by batch C.
   test("the label and the canvas name are drawn apart, so the label ellipsizes first inside the 180px chip", () => {
@@ -378,7 +378,7 @@ describe("reply chips", () => {
     // The plain chip keeps its 180px cap, which a reply chip shares; min-width beats it only for a long suffix.
     expect(css).toMatch(/\.anchor-chip \{ display: inline-flex; align-items: center; gap: var\(--space-1\); max-width: 180px; margin: 0 var\(--space-half\); padding: 0 var\(--space-1h\);/);
     expect(css.indexOf(chip)).toBeGreaterThan(css.indexOf(".anchor-chip { display: inline-flex;"));
-    // Fix round 1's growth past 180px for every suffix chip is gone.
+    // An earlier growth past 180px for every suffix chip is gone.
     expect(css).not.toContain("> span:not(.chip-canvas) { max-width:");
     expect(css).not.toMatch(/\.anchor-chip:has\(> span\.chip-canvas\) \{[^}]*max-width/);
     expect(css).toContain(".conversation-thread .thread-item > .msg-agent + .chip-missing { margin-top: var(--space-1h); }");
@@ -419,14 +419,14 @@ describe("reply chips", () => {
   });
 });
 
-// design §2 'Errors': an answer that did not reach the agent says so under its request.
+// An answer that did not reach the agent says so under its request.
 test("a permission answer counts as sent only when main took it", async () => {
   expect(await answerReached(async () => {})).toBe(true);
   expect(await answerReached(async () => ({ error: "not_found" }))).toBe(false);
   expect(await answerReached(() => Promise.reject(new Error("ipc")))).toBe(false);
 });
 
-// canvas-composer-polish A2, draft frame `sending`: the message Send now has in flight, with one caption line under it.
+// Draft frame `sending`: the message Send now has in flight, with one caption line under it.
 describe("a message Send now has in flight", () => {
   const sending: ThreadItem = { kind: "user", key: "qq1", seq: null, sending: true, anchors: [], preset: null, parts: [{ text: "Use the spacing" }], attachments: [{ name: "notes.pdf", size: 86016, kind: "file" }] };
   test("is the person's message with its files, then a spinner and Sending; it has no actions", () => {
@@ -443,7 +443,7 @@ describe("a message Send now has in flight", () => {
   });
 });
 
-// canvas-handoff U1: the draft's frames source-requested, source-handed-off, source-refused, source-cancelled and
+// The draft's frames source-requested, source-handed-off, source-refused, source-cancelled and
 // handoff-card (.doan/canvases/canvas-handoff.html).
 describe("handoff lines and the handoff card", () => {
   const CHECKOUT = { path: ".doan/canvases/checkout-flow.html", id: "checkout" }, DRAFTS = { path: ".doan/canvases/drafts.html", id: "drafts" };
@@ -488,7 +488,7 @@ function findButton(node: unknown): ReactElement | null {
   return null;
 }
 
-// canvas-handoff fix round 1 (conductor's decision on review 🟡4): a turn the handoff card started was not the person's
+// A turn the handoff card started was not the person's
 // message, so its end never offers Edit and resend; Sign in again stays, and a later turn of the person's resends.
 describe("the end of a handoff card's turn", () => {
   const card: ThreadItem = { kind: "handoffCard", key: "u1", seq: 1, origin: { kind: "handoff", conversationId: "c0", canvas: { path: ".doan/canvases/drafts.html", id: "drafts" } }, text: "Continue." };

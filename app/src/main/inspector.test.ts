@@ -92,7 +92,7 @@ test("inspects the canvas iframe and returns the rows", async () => {
 });
 
 test("DOM and CSS are on only during a request", async () => {
-  // Left on, a canvas that mutates its DOM sent ~6,300 events/s to main (Fix 2 measurement).
+  // Left on, a canvas that mutates its DOM sent ~6,300 events/s to main (measured).
   const dbg = new FakeDebugger();
   const inspector = createInspector(dbg, () => BASE);
   dbg.target("S1", "iframe", { id: "F1", parentId: "MAIN", url: CANVAS });
@@ -161,7 +161,7 @@ test("ignores target events scoped to a child session", async () => {
 test("a reload of the same iframe keeps its session; the URL is read at request time", async () => {
   const dbg = new FakeDebugger();
   const inspector = createInspector(dbg, () => BASE);
-  // URL is empty at attach time (PoC 2); the frame tree has it later.
+  // URL is empty at attach time (PoC); the frame tree has it later.
   dbg.target("S1", "iframe", { id: "F1", parentId: "MAIN", url: "" });
   expect(await inspector.inspect("#c3")).toMatchObject({ ok: false });
   dbg.frames.set("S1", { id: "F1", parentId: "MAIN", url: CANVAS });

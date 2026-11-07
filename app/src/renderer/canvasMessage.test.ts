@@ -202,7 +202,7 @@ describe("parseCanvasMessage: press", () => {
   // The app's lists close on any press in the canvas; the message carries nothing a forged one could misuse.
   test("accepts a press and keeps none of its other fields", () => {
     expect(parseCanvasMessage({ type: "press" })).toEqual({ type: "press" });
-    // work-update: pointer activity inside the canvas frame, which the app's document never sees.
+    // Pointer activity inside the canvas frame, which the app's document never sees.
     expect(parseCanvasMessage({ type: "activity" })).toEqual({ type: "activity" });
     expect(parseCanvasMessage({ type: "activity", href: "x" })).toEqual({ type: "activity" });
     expect(parseCanvasMessage({ type: "press", href: "x", target: { id: "a" } })).toEqual({ type: "press" });
@@ -376,7 +376,7 @@ describe("parseCanvasMessage: select", () => {
     expect(parseCanvasMessage(select({}, { element }))).toHaveProperty("target.element", element);
   });
 
-  test("drops the message when a string is over its cap (design 'length caps')", () => {
+  test("drops the message when a string is over its cap", () => {
     const over: Record<string, unknown>[] = [
       { tag: "t".repeat(201) },
       { frame: { id: "f".repeat(201) } },
@@ -471,7 +471,7 @@ test("validates Alt state messages separately from Escape", () => {
   }
 });
 
-// canvas-hand-tool design '키' 'iframe 경로': Space down/up and V/H forwarded from a focused canvas.
+// Space down/up and V/H forwarded from a focused canvas.
 describe("parseCanvasMessage: hand tool keys", () => {
   test("accepts Space down and up", () => {
     for (const down of [true, false]) {
@@ -504,7 +504,7 @@ test("drops a transition-intent message", () => {
   expect(parseCanvasMessage({ type: "transition-intent", document: "d1", href: "http://x/a.html", viewport: 150, intent: 1, kind: "selection" })).toBeNull();
 });
 
-// buzz-canvas-conversation design §4: the canvas answers the app's pick with `picked`, bound to the pick command by
+// The canvas answers the app's pick with `picked`, bound to the pick command by
 // its own `pick` seq and its own type, never by the selection seq.
 describe("parseCanvasMessage: picked", () => {
   const picked = (over: Record<string, unknown>) => ({ type: "picked", href: HREF, document: "doc", pick: 2, ...over });

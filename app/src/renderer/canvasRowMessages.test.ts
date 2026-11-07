@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import { canvasStem, exportProgress, exportToast, trashToast } from "./canvasRowMessages";
 
-// canvas-row-menu design '문구': the toasts are fixed there, word for word.
+// The toasts' wording is pinned word for word.
 test("a canvas's name is its file stem, from any subdirectory", () => {
   expect(canvasStem(".doan/canvases/checkout.html")).toBe("checkout");
   expect(canvasStem(".doan/ds/flows/checkout.html")).toBe("checkout");

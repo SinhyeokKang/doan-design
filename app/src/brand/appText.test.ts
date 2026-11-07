@@ -3,7 +3,7 @@ import { parseSync, Visitor } from "vite";
 import { expect, test } from "vitest";
 import { brandCandidates } from "./candidates";
 
-// Human-facing text names the product Doan (doan-naming, 2026-10-30 user); a lowercase
+// Human-facing text names the product Doan (user decision 2026-10-30); a lowercase
 // `doan` may remain only where it is a command, a path or an identifier.
 
 const src = new URL("../", import.meta.url);

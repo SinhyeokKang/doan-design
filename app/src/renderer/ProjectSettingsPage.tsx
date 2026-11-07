@@ -41,7 +41,7 @@ type Recovery = Extract<RowAction, "setUp" | "locate" | "retry">;
 
 
 // The Project Settings page edits one worktree's .doan/config.json in the white body, where Agents and Notifications
-// already live (project-settings design '화면'), and follows that worktree while it is open (projectSettingsRules).
+// already live, and follows that worktree while it is open (projectSettingsRules).
 // App owns navigation, the lock and Remove from Doan; this component reports only whether it holds a picker, a
 // confirmation or a write. `root` is the worktree opened: the page follows a reroot itself and reports it, so App
 // remounts it (a new key) only to show another worktree. Config session lifetime is the page's: it starts on mount and

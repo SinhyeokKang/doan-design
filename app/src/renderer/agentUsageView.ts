@@ -22,7 +22,7 @@ export function ringViews(entries: readonly UsageEntry[], now: number): RingView
 }
 
 // Sizes of the drawn button (draft frame 02): 24px rings 4px apart inside a 4px inset, and at least 8px between it
-// and the centred tabs. Where it folds is measured against the draft later (design §4 '좁은 앱 창').
+// and the centred tabs. Where it folds is measured against the draft later.
 export const USAGE_FOLD = { ring: 24, gap: 8, between: 4, inset: 4 } as const;
 export function usageFolds(free: number, count: number): boolean {
   if (count < 2 || Number.isNaN(free)) return false;

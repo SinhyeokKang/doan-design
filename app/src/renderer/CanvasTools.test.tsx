@@ -5,8 +5,7 @@ import { CanvasTools } from "./CanvasTools";
 import { TooltipContent, TooltipProvider } from "./components/ui/tooltip";
 import type { CanvasTool } from "./canvasTool";
 
-// buzz-canvas design §2 '도구모음', canvas-hand-tool design '도구모음', canvas-composer-polish spec 3 and canvas-capture
-// design §3: one Tab stop on the pressed tool, Select and Hand pressed one at a time, then the Picker and Capture area,
+// One Tab stop on the pressed tool, Select and Hand pressed one at a time, then the Picker and Capture area,
 // each pressed only during its own mode.
 const PICKER = { enabled: true, reason: null, onToggle: () => {} };
 const CAPTURE = { enabled: true, reason: null, onToggle: () => {} };
@@ -79,7 +78,7 @@ describe("CanvasTools", () => {
     expect(chosen).toEqual(["select", "hand", "select", "hand", "select", "hand"]);
   });
 
-  // canvas-capture design 결정 5: Capture area has no shortcut, so its tooltip is its name alone.
+  // Capture area has no shortcut, so its tooltip is its name alone.
   it("names each tool's key in its tooltip and aria-keyshortcuts; the Picker's is ⌘L and Capture area has none", () => {
     const tree = CanvasTools(props());
     const [select, hand, picker, capture] = buttons(tree);
@@ -115,7 +114,7 @@ describe("CanvasTools", () => {
     expect(markup({ picker: { enabled: false, reason: UNAVAILABLE, onToggle: () => {} } })).toMatch(/aria-label="Pick from canvas"[^>]*aria-disabled="true"/);
   });
 
-  // canvas-capture spec 1 and design §3: aria-disabled like the Picker, with Export's sr-only reason.
+  // aria-disabled like the Picker, with Export's sr-only reason.
   it("Capture area toggles capture mode when it can, and otherwise stays focusable, does nothing and says why", () => {
     let toggled = 0;
     const capture = (over: Partial<Props>) => buttons(CanvasTools(props(over)))[3]!;
@@ -149,7 +148,7 @@ describe("CanvasTools", () => {
     expect(toggled).toBe(1);
   });
 
-  // canvas-composer-polish spec 5: Export is an action, not a tool, and stays focusable while unavailable.
+  // Export is an action, not a tool, and stays focusable while unavailable.
   it("Export is a named action without a pressed state that hands its button to the export", () => {
     const pressed: unknown[] = [];
     const exporter = buttons(CanvasTools(props({ exporter: { reason: null, onExport: button => pressed.push(button) } })))[4]!;
@@ -173,7 +172,7 @@ describe("CanvasTools", () => {
   });
 
   // Radix links the tooltip only while it is open, so a closed one (after a press, or under a screen reader's cursor)
-  // left the button without its reason (design-sync measurement, canvas-composer-polish draft frame toolbar-disabled).
+  // left the button without its reason (design-sync measurement, draft frame toolbar-disabled).
   it("an unavailable Export names its reason with aria-describedby even while the tooltip is closed", () => {
     const html = markup({ exporter: { reason: "This page is not a listed canvas.", onExport: () => {} } });
     const tag = html.match(/<button[^>]*aria-label="Export canvas"[^>]*>/)?.[0] ?? "";

@@ -21,7 +21,7 @@ export interface CanvasRow {
   rev?: number;
   // Set by `canvasSeen.ts` when the canvas appeared or changed since the person last had it on the canvas page.
   unseen?: "new" | "changed";
-  // `doan ls` could not read the canvas file (project-feedback design §1).
+  // `doan ls` could not read the canvas file.
   // The listing's comment counts and `commentsError` are not kept: nothing in
   // the app shows comments.
   error?: RowError;

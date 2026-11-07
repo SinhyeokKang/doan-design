@@ -182,7 +182,7 @@ describe("ConversationStore.delete", () => {
 });
 
 describe("finishing recorded deletions at start", () => {
-  it("never removes a history no deletion recorded, also across launches after index.json was lost (review Y1)", () => {
+  it("never removes a history no deletion recorded, also across launches after index.json was lost", () => {
     const f = seed({ "old1.jsonl": line("old1", 1, "turn.started"), "old2.jsonl": line("old2", 1, "turn.started") });
     const store = launch(f.root);
     // The person starts one new conversation, which writes a new index over the lost one.

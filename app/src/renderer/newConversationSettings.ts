@@ -1,8 +1,8 @@
 import type { Provider } from "../main/agentAuth/types";
 import type { EffortView, ModelsState } from "./homeComposer";
 
-// Settings > Agents > New conversations' Model and Effort words (picker-default-labels spec 'Settings > New
-// conversations', design decision 5). Nothing fixed reads "Default" and, when known, the value it stands for, so it
+// Settings > Agents > New conversations' Model and Effort words.
+// Nothing fixed reads "Default" and, when known, the value it stands for, so it
 // never reads as a fixed choice.
 
 // value: the row's menu value. A model id can be any string, an ACP agent's "default" included, so the top row's value

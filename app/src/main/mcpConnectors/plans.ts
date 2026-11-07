@@ -49,7 +49,7 @@ function tomlString(text: string): string {
   return `"${text.replace(/[\\"\u0000-\u001f\u007f]/g, ch => ch === "\\" ? "\\\\" : ch === '"' ? '\\"' : `\\u${ch.charCodeAt(0).toString(16).padStart(4, "0")}`)}"`;
 }
 
-// The block Doan writes into a Codex staging profile's config.toml (design '계정 교체'): `codex mcp add` would start a
+// The block Doan writes into a Codex staging profile's config.toml (ARCHITECTURE §7 'MCP connectors'): `codex mcp add` would start a
 // new OAuth sign-in and open the default browser even when a token exists. The URL string is written as the provider
 // registered it: Codex derives the keychain key from that string, so re-serializing it could name another entry.
 export function codexServerToml(name: string, url: string): string {
@@ -62,7 +62,7 @@ export function codexServerToml(name: string, url: string): string {
 const PLAINTEXT: Record<McpProvider, readonly string[]> = {
   // Claude falls back to this file when the keychain fails (agentAuth/providers.ts).
   claude: [".credentials.json"],
-  // Codex runs with mcp_oauth_credentials_store="keyring", so it writes no token file (design '토큰 저장 확인').
+  // Codex runs with mcp_oauth_credentials_store="keyring", so it writes no token file (ARCHITECTURE §7 'MCP connectors').
   codex: [],
 };
 

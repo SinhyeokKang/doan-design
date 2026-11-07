@@ -3,7 +3,7 @@ import { readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 
 // Device-local first-run record in userData. Only v1 with completed true ends onboarding; the legacy `{}` written by
-// markClosed meant only "the old wizard was closed once" (buzz-onboarding design, 2026-10-28 user).
+// markClosed meant only "the old wizard was closed once" (2026-10-28 user).
 export const COMPLETION_FILE = "onboarding.json";
 export type CompletionRead =
   | { kind: "missing" }

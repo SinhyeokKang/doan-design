@@ -471,7 +471,7 @@ describe("popup lists", () => {
   });
 });
 
-// ── Tools: Select and Hand (export-viewer-chrome) ─────────────────────────────
+// ── Tools: Select and Hand ─────────────────────────────
 
 describe("tool keys are the app's", () => {
   const press = (over: Partial<ShortcutEvent> = {}): ShortcutEvent => ({ type: "keydown", code: "KeyV", key: "v", repeat: false, isComposing: false, keyCode: 0, defaultPrevented: false, metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, target: null, ...over });
@@ -680,8 +680,8 @@ describe("viewer files", () => {
   });
 });
 
-// design-sync (canvas-row-menu): the draft's header was measured against this page in Chromium, and three rules were missing or lost
-// a cascade tie. The values are the app's; the computed-style probe is `.scratch/design-sync/canvas-row-menu/viewer.mjs`.
+// design-sync: the draft's header was measured against this page in Chromium, and three rules were missing or lost
+// a cascade tie. The values are the app's.
 describe("header rules the draft's measurement pinned", () => {
   const rule = (selector: string): string => new RegExp(`^${selector.replace(/[.[\]()]/g, "\\$&")} \\{([^}]*)\\}$`, "m").exec(shellCss)?.[1] ?? "";
 
@@ -728,7 +728,7 @@ describe("without JavaScript", () => {
   });
 });
 
-// ── The content panel and the toolbar (export-viewer-chrome B1) ───────────────
+// ── The content panel and the toolbar ───────────────
 
 const appCss = (path: string): string => readFileSync(new URL(`../renderer/${path}`, import.meta.url), "utf8");
 const tokensCss = appCss("tokens.css");
@@ -893,7 +893,7 @@ describe("the toolbar", () => {
   });
 });
 
-// ── Tool wiring in the page and in the canvas (export-viewer-chrome B2) ───────
+// ── Tool wiring in the page and in the canvas ───────
 
 describe("tool wiring", () => {
   const code = (source: string) => source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");

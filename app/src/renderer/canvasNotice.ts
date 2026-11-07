@@ -1,7 +1,7 @@
 import type { CanvasRow, FolderEntry } from "../main/view";
 import { slotKey, type Slot } from "./homeConversations";
 
-// Canvas notices (canvas-viewport-units D9/D10): the sidebar's dot for a canvas the person has not had on the canvas
+// Canvas notices: the sidebar's dot for a canvas the person has not had on the canvas
 // page since it appeared or changed. Main decides `unseen` (`main/canvasSeen.ts`); this only places it.
 
 // The sidebar's row slot: a conversation state, or a canvas notice under every conversation state.

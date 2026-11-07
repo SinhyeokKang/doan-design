@@ -215,7 +215,7 @@ test("reply stop_required opens a confirmation for sign-out and for sign-in", ()
     cancel: { command: "dismiss", label: "Cancel", variant: "subtle", disabled: false }, confirm: { command: "signOut", label: "Stop and sign out", variant: "prominent", disabled: false },
   });
   expect(stopDialog("codex", "signIn")).toMatchObject({ title: "Stop Codex conversations?", body: "Codex is running a conversation. Signing in again stops it. Your conversation history stays.", confirm: { command: "signIn", label: "Stop and sign in" } });
-  // Only Claude Code and Codex have MCP connectors (mcp-connectors spec 8).
+  // Only Claude Code and Codex have MCP connectors.
   expect(stopDialog("codex", "signOut").body).toBe("Codex is running a conversation. Signing out stops it. Your conversation history stays. Its MCP connectors need connecting again.");
   expect(stopDialog("cursor", "signOut").body).toBe("Cursor is running a conversation. Signing out stops it. Your conversation history stays.");
 });
@@ -320,7 +320,7 @@ test("the short status leaves the onboarding row copy unchanged", () => {
   expect(only(providerView(status)).notice?.body).toBe("Your Codex connection expired. Sign in again.");
 });
 
-// buzz-settings design 'Agents': the Settings page reuses the same rows with a Settings context.
+// the Settings page reuses the same rows with a Settings context.
 const S = { settings: true } as const;
 const signOutOf = (view: ProviderView) => view.signOut && labels([view.signOut])[0];
 
@@ -425,7 +425,7 @@ test("settings context: a connected row refused as busy keeps its account and a 
   expect(only(providerView(dto("cursor"), { ...S, reply: "busy", busyWith: "codex" })).button).toBe("prominent-disabled:Sign in:signIn");
 });
 
-// agent-cli-terminal design '행 상태와 문구': the Install or Update row after its button was used.
+// the Install or Update row after its button was used.
 test("installRowView: every install result before and after the return check, for Install and Update", () => {
   const row = (cause: "cli_missing" | "version_unsupported", install: Omit<InstallState, "provider" | "action"> | null) => {
     const action = cause === "cli_missing" ? "install" : "update";

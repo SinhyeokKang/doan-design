@@ -3,7 +3,7 @@ import type { ConversationEvent } from "../main/conversation/types";
 import { contextRing, contextText, tokenText } from "./contextWindow";
 import { DANGER, ringDanger } from "./ProgressRing";
 
-// context-window-ring design §3 'UI' and pure functions 5–7; the confirmed draft .doan/canvases/context-window-ring.html.
+// The confirmed draft .doan/canvases/context-window-ring.html.
 let seq = 0;
 const ev = (payload: Record<string, unknown>): ConversationEvent => ({ v: 1, conversationId: "c1", seq: ++seq, turnId: "t1", at: "2026-11-06T00:00:00Z", ...payload } as ConversationEvent);
 const usage = (used: number, size: number) => ev({ type: "context.usage", used, size });
@@ -29,7 +29,7 @@ describe("contextText", () => {
     expect(contextText({ value: 42, percent: 42, used: 84_000, size: 200_000 })).toEqual({ label: "Context window 42% used · last turn", tokens: "84K of 200K tokens" });
   });
 
-  it("floors the percent (decision 15) and keeps a ratio past 100", () => {
+  it("floors the percent and keeps a ratio past 100", () => {
     expect(contextText({ value: 69.9, percent: 69.9, used: 699_000, size: 1_000_000 }).label).toBe("Context window 69% used · last turn");
     expect(contextText(contextRing([usage(208_000, 200_000)])!).label).toBe("Context window 104% used · last turn");
   });

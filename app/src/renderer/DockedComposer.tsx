@@ -34,8 +34,8 @@ import { queueFocusAfter, type QueueFocus } from "./queueFocus";
 import type { PermissionPickerView } from "./permissionPicker";
 import type { SettingsTarget } from "./settingsSections";
 
-// The composer under a conversation (buzz-conversation design §3.1, draft frame `docked-composer`). It has no screen
-// in this feature: its host (buzz-project's Overview, later the canvas panel) owns the conversation, the drafts map,
+// The composer under a conversation (draft frame `docked-composer`). It has no screen
+// in this feature: its host (Overview, later the canvas panel) owns the conversation, the drafts map,
 // the model and preset lists and every call to main, and passes them in. This component decides shape, the Send slot,
 // the reason line and focus.
 
@@ -43,7 +43,7 @@ import type { SettingsTarget } from "./settingsSections";
 // takes only the ids.
 export interface DockedRequest { text: string; anchors: readonly Anchor[]; attachments: { id: string }[]; files?: SentFile[] }
 
-// The canvas page's way into the shown composer's field (design §2 'Picker'). `insert` puts a chip at the field's
+// The canvas page's way into the shown composer's field. `insert` puts a chip at the field's
 // caret and shows the 32-place line itself when the chip would pass the limit.
 export interface DockedFieldLink {
   insert(anchor: Anchor): ChipInsert;
@@ -61,7 +61,7 @@ export interface DockedComposerProps {
   // The host's placeholder: a reply, a new conversation in the project, or restoring an archived conversation. A
   // preset's line and the suggestion stand in for it by composerPlaceholder.
   placeholder: string;
-  // The conversation's next-input suggestion from the host's latest list read (prompt-suggestion design 'renderer' 1);
+  // The conversation's next-input suggestion from the host's latest list read;
   // null: the list has none; undefined: the host has not read the list yet, so a suggestion that then appears is not
   // announced as new.
   suggestion?: string | null | undefined;
@@ -75,7 +75,7 @@ export interface DockedComposerProps {
   picker: ModelPickerView;
   provider: Provider | null; effort: string | null;
   onPickerOpen(): void; onPickModel(provider: Provider, value: string | null): void; onPickEffort(value: string): void; onPickFast(on: boolean): void;
-  // The permission mode picker after Effort (permission-mode spec decision 1); null or absent: the provider offers no
+  // The permission mode picker after Effort; null or absent: the provider offers no
   // choice. A terminal session (`fixed`) shows its fixed trigger instead.
   permission?: PermissionPickerView | null; onPickPermission?(mode: PermissionModeId): void;
   onSettings(target: SettingsTarget): void;
@@ -95,10 +95,10 @@ export interface DockedComposerProps {
   unavailable?: string | null;
   // With `unavailable`, the field keeps the draft but takes no input (a canvas outside the list or sharing its ID).
   locked?: boolean;
-  // Send waits without a reason line (a canvas's terminal session not answered yet, design §2).
+  // Send waits without a reason line (a canvas's terminal session not answered yet).
   held?: boolean;
   // The provider, model and effort are the terminal session's own (a resume, or a legacy external conversation):
-  // the triggers keep their place but cannot be chosen, and nothing can be attached (design §0 'Model and effort').
+  // the triggers keep their place but cannot be chosen, and nothing can be attached.
   fixed?: boolean;
   // The host's reading of a refused send (the canvas panel's canvasConversationError); dockedRefusal otherwise.
   refuse?(code: string, provider: Provider): DockedRefusal;
@@ -126,7 +126,7 @@ export interface DockedComposerProps {
   canvasPress?: CanvasPress | undefined;
   onLocate?(anchor: Anchor): Promise<LocateOutcome>;
   // The shown conversation's last recorded context value (contextRing); null or absent: no ring, and the tray is as
-  // without it (context-window-ring decision 2).
+  // without it.
   context?: ContextUsage | null;
 }
 
@@ -156,11 +156,11 @@ export function DockedComposer(props: DockedComposerProps) {
   // The 32-place line, for the draft it was refused on; the next edit drops it.
   const [limitAt, setLimitAt] = useState<string | null>(null);
   const [missing, showMissing] = useLocateNote(() => field.current?.element() ?? null);
-  // "No longer in the canvas" by the composer chip that was not found (design §2 'Chip locate'): an overlay placed
+  // "No longer in the canvas" by the composer chip that was not found: an overlay placed
   // under the chip, outside the field's DOM, and the chip described by it like a thread chip.
   const [missingAt, setMissingAt] = useState<{ chip: HTMLElement; left: number; top: number } | null>(null);
   // A draft already pointing at the limit's number of places takes no more from the canvas, so the canvas panel's
-  // composer says why under the card (design §2 'Chip field'); removing one takes the line away.
+  // composer says why under the card; removing one takes the line away.
   const full = !!props.pick && distinctTargets(draft.segments) >= LIMITS.anchors;
   const generation = useRef(0);
   // The key on screen when a reply lands, which may differ from the one the send left from.
@@ -180,7 +180,7 @@ export function DockedComposer(props: DockedComposerProps) {
   const dismissed = dismissedKey === key;
   const highlight = highlightAt.key === key ? highlightAt.index : 0;
   const setHighlight = (index: number) => setHighlightAt(at => at.key === key && at.index === index ? at : { key, index });
-  // Chips the host added (Attach, paste, drop) make a box as typing does (design §3.2); the drawn shape follows the
+  // Chips the host added (Attach, paste, drop) make a box as typing does; the drawn shape follows the
   // rule at once and the stored one catches up below.
   const text = plainText(draft.segments);
   const shape = composerShape(draft.shape, { empty: text === "", chips: chipCount(draft), overflows: text.includes("\n") });
@@ -189,7 +189,7 @@ export function DockedComposer(props: DockedComposerProps) {
   if (props.busy && refusal?.kind === "busy") hostSawBusy.current.add(key);
   const busy = props.busy ?? (refusal?.kind === "busy" && !hostSawBusy.current.has(key) ? refusal.busy : null);
   const locked = !!props.locked && !!props.unavailable;
-  // A blocked refusal holds Send with its reason until the person changes the draft (design §2 'Errors').
+  // A blocked refusal holds Send with its reason until the person changes the draft.
   const blocked = refusal?.kind === "blocked" ? refusal : null;
   const skillNames = new Set(props.skills.map(skill => skill.name));
   const matched = fieldSkillRuns(draft.segments, skillNames).map(run => run.name);
@@ -229,7 +229,7 @@ export function DockedComposer(props: DockedComposerProps) {
     hostSawBusy.current.delete(at);
     if (refusals.has(at)) setRefusals(previous => { const next = new Map(previous); next.delete(at); return next; });
   }
-  // A capsule becomes a box once its text wraps at the capsule's own width (design §3.2). A box is never measured: it
+  // A capsule becomes a box once its text wraps at the capsule's own width. A box is never measured: it
   // returns to a capsule only when emptied, so the narrower capsule's wrap cannot flip it back and forth.
   useLayoutEffect(() => {
     if (shape !== draft.shape) { edit({}, key); return; }
@@ -373,10 +373,10 @@ export function DockedComposer(props: DockedComposerProps) {
       const step = slashKey(event.key, highlight, slashRows.length, composing, { query: slash ?? "", row: slashRows[highlight] });
       if (step?.kind === "move") { event.preventDefault(); setHighlight(step.highlight); return true; }
       if (step?.kind === "pick") { event.preventDefault(); const row = slashRows[highlight]; if (row) chooseRow(row.id, row.kind, true); return true; }
-      // Escape closes the list only; there is no shortcut that stops the turn (spec decision 9).
+      // Escape closes the list only; there is no shortcut that stops the turn.
       if (step?.kind === "close") { if (event.key === "Escape") event.preventDefault(); setDismissedKey(step.dismiss ? key : null); return true; }
     }
-    // → puts the shown suggestion in the field as one undo step; it never sends (decision 8).
+    // → puts the shown suggestion in the field as one undo step; it never sends.
     // The field's composing state is read last (a getter), so other keys never reach into the field.
     const shown = placeholder.suggestion;
     if (shown !== null && takesSuggestion({ key: event.key, shiftKey: event.shiftKey, altKey: event.altKey, metaKey: event.metaKey, ctrlKey: event.ctrlKey, isComposing: event.nativeEvent.isComposing, keyCode: event.keyCode },
@@ -388,7 +388,7 @@ export function DockedComposer(props: DockedComposerProps) {
     if (event.key === "Backspace" && removeChip(-1, "backspace")) { event.preventDefault(); return true; }
     return false;
   };
-  // A new suggestion for the conversation on screen is read once while its empty field has focus (decision 7); a
+  // A new suggestion for the conversation on screen is read once while its empty field has focus; a
   // first list read, a switch or the same text shown again after emptying is left to the placeholder and the hint.
   const lastSuggestion = useRef({ key, suggestion: props.suggestion });
   useEffect(() => {
@@ -480,19 +480,18 @@ export interface QueueRowsProps {
   onSendNow(id: string): Promise<void | { error: string; turnRuns?: boolean }>;
   onRemove(id: string): Promise<boolean>;
   focusInput(): void;
-  // The composer's lasting live region: a row drawn again with its refusal may not be read (canvas-composer-polish
-  // design §2).
+  // The composer's lasting live region: a row drawn again with its refusal may not be read.
   announce(text: string): void;
 }
 
-// The queued messages above the card (queue-send-now design §8): Send now between the text and Remove, both described
+// The queued messages above the card: Send now between the text and Remove, both described
 // by the row's text so each row's buttons are told apart. Keyed by conversation, so a switch drops its notes and focus.
 export function QueueRows(props: QueueRowsProps) {
   const [refused, setRefused] = useState<ReadonlySet<string>>(new Set());
   // The rows as last drawn, read when an answer lands after the render it was asked from.
   const latest = useRef(props); latest.current = props;
   const buttons = useRef(new Map<string, HTMLButtonElement>());
-  // Where focus goes once the row that left is no longer drawn (spec completion condition 11).
+  // Where focus goes once the row that left is no longer drawn.
   const pending = useRef<{ leaving: string; target: QueueFocus } | null>(null);
   // A focused queue button that is no longer drawn (a phase change took Send now away, main sent the queue).
   const lost = useRef(false);
@@ -587,7 +586,7 @@ function QueueButtonLife({ onLost, children }: { onLost(): void; children(life: 
   return children(current => { if (current) node.current = current; });
 }
 
-// Pick from canvas, after Attach at the left end of the model row (design §2 'Picker'). aria-disabled, not disabled, so its reason
+// Pick from canvas, after Attach at the left end of the model row. aria-disabled, not disabled, so its reason
 // shows as a tooltip on hover and focus. It starts the same pick as the toolbar Picker and ⌘L, so it names the key too.
 function PickButton({ pick }: { pick: DockedPicker }) {
   const unavailable = !pick.enabled && !pick.pressed;

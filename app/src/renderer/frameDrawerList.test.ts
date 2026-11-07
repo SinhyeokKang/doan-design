@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { drawerKeyTarget, drawerTypeahead, focusedRowAfter } from "./frameDrawerList";
 
-// buzz-canvas design §2 '프레임 서랍': the open list keeps its focused row by frame id across a reload.
+// The open list keeps its focused row by frame id across a reload.
 const row = (key: string, name = key, current = false) => ({ key, name, current });
 
 describe("focusedRowAfter", () => {

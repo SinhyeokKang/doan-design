@@ -10,7 +10,7 @@ import { CanvasConversations } from "./RightPanel";
 import { TooltipContent, TooltipProvider } from "./components/ui/tooltip";
 import type { ThumbnailState } from "./thumbnails";
 
-// buzz-project design §0 'right rows', §2.3 and §2.5.
+// PRODUCT §5 item 3 'Project Overview', 'Canvas conversations'.
 const NOW = Date.parse("2026-11-01T12:00:00.000Z");
 const MIN = 60_000;
 const ago = (ms: number) => new Date(NOW - ms).toISOString();
@@ -109,7 +109,7 @@ describe("canvas conversation list", () => {
     expect(li).toContain('class="note"');
   });
 
-  // canvas-composer-polish spec 6 (draft frames cv-delete, cv-special): the title menu's Delete on every row.
+  // Draft frames cv-delete, cv-special: the title menu's Delete on every row.
   test("every row, special rows included, has a Delete beside its row button, named by the conversation", () => {
     for (const key of ["b", "r", "f", "l", "g", "t"]) {
       const li = item(html, key);
@@ -208,7 +208,7 @@ describe("RowFocusMemory", () => {
   });
 });
 
-// review RL r1 🟡2: a canvas whose current conversation changes keeps its path but gets a new button to observe.
+// A canvas whose current conversation changes keeps its path but gets a new button to observe.
 describe("observedRows", () => {
   test("changes when a row's conversation changes on the same canvas", () => {
     const [first] = canvasConversationRows([summary({ conversationId: "c1", canvas: { path: billing.path, id: "billing" } })], [billing], NOW);
@@ -223,7 +223,7 @@ describe("observedRows", () => {
   });
 });
 
-// canvas-composer-polish spec 6, A5: the Delete's press. Where focus goes after the delete is computed before the
+// The Delete's press. Where focus goes after the delete is computed before the
 // confirmation opens, since the alert takes focus from the list.
 function tree(node: ReactNode): ReactElement<Record<string, unknown>>[] {
   if (Array.isArray(node)) return node.flatMap(tree);

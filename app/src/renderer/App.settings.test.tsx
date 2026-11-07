@@ -6,7 +6,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { PreferencesSnapshot } from "../main/preferences";
 
-// buzz-settings U2: App's Settings page — entry, return, lock, the incoming-target queue and notification clicks —
+// App's Settings page — entry, return, lock, the incoming-target queue and notification clicks —
 // driven with hooks as plain state so App's own navigation functions run (App.addProjects.test.tsx).
 const hooks = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],
@@ -294,7 +294,7 @@ test("entering the page cancels a pending startup restore and a workspace still 
   expect(doan.saveUiState!.mock.lastCall?.[0]).toMatchObject({ screen: "home" });
 });
 
-// review BU1 🟡1: a target on the page is a navigation too, so a move still in flight must not land after it
+// a target on the page is a navigation too, so a move still in flight must not land after it
 // (POSTMORTEM 2026-10-27 no-op path rule); the same for Add Projects' own re-entry.
 test("on a page, ⌘, or the page's own tab cancels a navigation still in flight", () => {
   for (const reenter of ["cmdComma", "toast"] as const) {
@@ -327,7 +327,7 @@ test("on a page, ⌘, or the page's own tab cancels a navigation still in flight
   }
 });
 
-// review BU1 ⚪3: the Settings tab is a control the lock shows unavailable; only targets from outside wait.
+// the Settings tab is a control the lock shows unavailable; only targets from outside wait.
 test("while the page is locked a click on the Settings tab is ignored, not queued", () => {
   openFromWorkspace();
   lock();
@@ -466,7 +466,7 @@ test("App reads preferences once; Home starts from the saved default and Setting
   expect(doan.readPreferences).toHaveBeenCalledTimes(1);
 });
 
-// design '창 제거와 IPC' 잃는 보장: the Settings page shares the main window's preload, so only this convention keeps it
+// the Settings page shares the main window's preload, so only this convention keeps it
 // from starting or sending a conversation.
 test("Settings components never start or send a conversation", () => {
   const dir = new URL(".", import.meta.url);
@@ -475,7 +475,7 @@ test("Settings components never start or send a conversation", () => {
   for (const name of files) expect(readFileSync(new URL(name, dir), "utf8"), name).not.toMatch(/startConversation|sendConversation/);
 });
 
-// project-settings T4: Project Settings is a page now (design '이동과 잠금'). App opens it from the project menus,
+// Project Settings is a page now. App opens it from the project menus,
 // keeps the origin it shares with Add Projects and Settings, holds the page's lock and leaves when its worktree goes.
 type ProjectPage = ReactElement<{ root: string; origin: unknown; arrival: { seq: number } | null; header: ReactElement; sidebar: Sidebar & { props: { home?: boolean } };
   onState(report: { locked: boolean }): void; onGone(): void; onRerooted(root: string, origin: unknown): void;
@@ -809,7 +809,7 @@ test("Set Up opens its dialog over the page; closed from outside, focus returns 
   expect(focused).toEqual(["title"]);
 });
 
-// project-remove-confirm design §2: every Remove from Doan asks first in one alert dialog, found by its role and title.
+// every Remove from Doan asks first in one alert dialog, found by its role and title.
 const removalDialog = () => all(tree).find(element => element.type === "dialog" && element.props.role === "alertdialog" && element.props["aria-labelledby"] === "project-remove-title");
 const removalTitle = () => { const dialog = removalDialog(); return dialog && all(dialog).find(element => element.props.id === "project-remove-title")?.props.children; };
 const dialogButton = (label: string) => all(removalDialog()!).find(element => element.type === "button" && element.props.children === label)!;
@@ -914,7 +914,7 @@ const problemEntries: FolderEntry[] = [
 ];
 
 // PRODUCT §5 item 3 'Problem states': a problem or reading root shows its Overview, whether it was open when the problem
-// came or is entered while it lasts; the overlay replaces the composer's reason line (buzz-canvas R4: no Canvas info).
+// came or is entered while it lasts; the overlay replaces the composer's reason line (no Canvas info).
 test("the Overview's panel replaces the conversation panel, and a problem root keeps or enters its Overview", () => {
   render(); folders([listed("/w/a")]);
   find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render();
@@ -957,7 +957,7 @@ test("a problem or reading root shows the conversation strip, over its Overview 
   vi.useRealTimers();
 });
 
-// buzz-project design §2.5: a worktree picked from the Overview's branch chip lands focus on the new Overview's chip;
+// a worktree picked from the Overview's branch chip lands focus on the new Overview's chip;
 // the runtime test found it on the sidebar's project row, where the workspace's default focus put it after the chip.
 test("a worktree picked from the branch chip focuses the new Overview's chip, not the sidebar row", () => {
   render(); folders([listed("/w/a"), listed("/w/b")]);
@@ -969,7 +969,7 @@ test("a worktree picked from the branch chip focuses the new Overview's chip, no
   expect(focused).toEqual([".workspace .ov-main .wt-chip"]);
 });
 
-// Fix round 1 (review RA2 ⚪3): what the sidebar does around the page, as Home does.
+// what the sidebar does around the page, as Home does.
 test("entering the page leaves the sidebar's expansion as it was", () => {
   render();
   folders([listed("/w/a"), listed("/w/b")]);
@@ -989,7 +989,7 @@ test("another project's row opens its Overview from the page, as from Home, neve
   expect(projectPage()).toBeUndefined();
 });
 
-// project-remove-confirm design §1: the loaded workspace's project leaving the list (Remove from Doan) goes Home; a
+// the loaded workspace's project leaving the list (Remove from Doan) goes Home; a
 // reroot (Locate, Set Up) or another project's removal keeps the workspace.
 const workspaceMain = () => all(tree).find(element => element.type === "main" && String(element.props.className).includes("workspace"))!;
 const workspaceShown = () => (workspaceMain().props.style as { visibility: string }).visibility === "visible" && workspaceMain().props.inert === false;
@@ -1051,7 +1051,7 @@ test("a workspace Locate or a Set Up reroot of the loaded root keeps the workspa
   expect(loadedOf(find(ShellSidebar)[0]!)).toBe("/w/a2");
 });
 
-// mcp-connectors spec 1: MCP Connectors exists only while Claude Code or Codex is signed in to Doan.
+// MCP Connectors exists only while Claude Code or Codex is signed in to Doan.
 const signedIn = (claude: boolean, codex: boolean) => ({ revision: 1, providers: [["claude", claude], ["codex", codex], ["cursor", true]].map(([provider, account]) => ({ provider, account: account ? { email: "a@b.c" } : null })) });
 function signIns(claude: boolean, codex: boolean) { harness.signIn.state.auth = signedIn(claude, codex); harness.signIn.listener?.(); render(); }
 
@@ -1090,7 +1090,7 @@ test("while the category is hidden, a target or a saved section of MCP Connector
   }
 });
 
-// agent-questions spec 7: a toast's Open from Settings lands the conversation's entry focus on its waiting question or
+// a toast's Open from Settings lands the conversation's entry focus on its waiting question or
 // permission; the runtime test saw the workspace's default focus take it to the sidebar row a moment later.
 test("an entry from Settings keeps the focus the conversation's waiting request took", () => {
   render(); folders([listed("/w/a")]);

@@ -1294,7 +1294,7 @@ describe("canvasScript hover", () => {
     expect(ofType(canvas, "hover")).toHaveLength(1);
   });
 
-  // work-update (V3 review 🟡2): the app never sees pointer moves inside the canvas frame and hover is sent only when
+  // The app never sees pointer moves inside the canvas frame and hover is sent only when
   // its rect changes, so trusted moves also post an activity message, at most once a second and without an animation
   // frame, which an off-screen frame never gets.
   test("trusted moves post activity at most once a second, over the same element too", () => {
@@ -1605,7 +1605,7 @@ describe("comment anchors", () => {
   });
 });
 
-test("Y2 same-size replacement recovers selected anchor token without another event", () => {
+test("same-size replacement recovers selected anchor token without another event", () => {
   const { canvas, button, form } = heroCanvas();
   canvas.context.innerWidth = 600;
   canvas.fromParent({ type: "measure" });
@@ -1624,7 +1624,7 @@ test("Y2 same-size replacement recovers selected anchor token without another ev
   expect(after.selected).toBe(after.results[0].candidates.doanId[0]);
 });
 
-// buzz-canvas-conversation removed the app's comment drafts and their guard: a click, a background click and an
+// The app's comment drafts and their guard are gone: a click, a background click and an
 // ⌥-clicked link act at once, and the guard's messages from the app change nothing.
 describe("selection without a draft guard", () => {
   test("a click selects at once, and draft-guard and transition-answer messages are ignored", () => {
@@ -1671,7 +1671,7 @@ describe("nextHeight after a first measurement of 0", () => {
   });
 });
 
-// buzz-canvas-conversation design §4 'Structure': picking is the canvas script's internal command. Start and cancel
+// Picking is the canvas script's internal command. Start and cancel
 // use their own seq, a pick click answers `picked` and leaves the selection, its anchor and the hover as they were.
 describe("canvasScript picking", () => {
   const at = (x: number, y: number) => ({ clientX: x, clientY: y }) as Partial<FakeEvent>;
@@ -1881,7 +1881,7 @@ describe("canvasScript picking", () => {
       expect.objectContaining({ point: { x: 5, y: 45 } }),
     ]);
   });
-  // The board's crosshair while picking (design §2 'Picker'). The cursor over the canvas is the canvas document's own,
+  // The board's crosshair while picking. The cursor over the canvas is the canvas document's own,
   // so the script adopts a constructed sheet: it changes no DOM node, so no MutationObserver or layout runs for it.
   test("adopts a crosshair sheet while picking and removes only its own when picking ends", () => {
     const { canvas, span } = heroCanvas();
@@ -1928,7 +1928,7 @@ describe("anchors-query reply", () => {
     expect(ofType(canvas, "anchors")).toEqual([expect.objectContaining({ generation: 1, request: 1, results: [{ id: "f", candidates: { frame: [expect.any(String)] } }] })]);
   });
 
-  // agent-reply-chips T0: a reply chip carries a doan id and no selector.
+  // A reply chip carries a doan id and no selector.
   const ask = (canvas: ReturnType<typeof heroCanvas>["canvas"], targets: Record<string, unknown>[]) => {
     canvas.context.innerWidth = 600;
     canvas.fromParent({ type: "measure" });

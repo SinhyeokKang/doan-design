@@ -93,7 +93,7 @@ export function parseAcpModels(result: unknown): ModelOption[] {
     ({ id: String(r.modelId), label: text(r.name) ? r.name : String(r.modelId), default: r.modelId === models.currentModelId }))));
 }
 // ACP session/new (or session/load) result: modes {currentModeId, availableModes [{id, name}]}, and Copilot's
-// configOptions entry {id: "allow_all", options [{value: "on"}, {value: "off"}]} (permission-mode P3).
+// configOptions entry {id: "allow_all", options [{value: "on"}, {value: "off"}]}.
 export function parseAcpModes(result: unknown): AcpModes | undefined {
   const modes = object(result) && object(result.modes) ? result.modes : null;
   if (!modes || !Array.isArray(modes.availableModes)) return undefined;

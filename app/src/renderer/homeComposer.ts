@@ -15,10 +15,10 @@ import { groupProjects } from "./homeCards";
 import { anotherConversation } from "./homeConversations";
 import { displayPath } from "./projectDisplay";
 
-// Pure parts of the Home composer (buzz-home design §4, §11). Copy follows the confirmed draft
-// `.doan/canvases/buzz-home.html` and design §4.5's tables.
+// Pure parts of the Home composer. Copy follows the confirmed draft
+// `.doan/canvases/buzz-home.html`.
 
-// `group` is optional: an older CLI on PATH lists presets without it (design §4.4a).
+// `group` is optional: an older CLI on PATH lists presets without it.
 export type PresetSummary = DesignPresetSummary & { group?: string };
 export type PresetListReply = DesignSkillReply<{ version: string; presets: PresetSummary[] }>;
 export interface PresetRef { id: string; title: string }
@@ -153,7 +153,7 @@ export function startErrorView(code: string, provider: Provider, project: string
 
 // Projects
 
-// Order (design §4.2): the first-run handoff, the loaded workspace, the last Home send, then the sidebar's first
+// Order: the first-run handoff, the loaded workspace, the last Home send, then the sidebar's first
 // healthy root. A chosen root that is still listed stays chosen even when unhealthy, so Send explains it; a removed
 // one falls back to the sidebar order only, and adding it again does not choose it again.
 export function defaultProject(entries: readonly FolderEntry[], lastCommon: ReadonlyMap<string, string>, prefs: {
@@ -183,7 +183,7 @@ export function rootForProject(rows: readonly FolderEntry[], remembered: string 
 const LOGOS: Record<Provider, string> = { claude: "claude.png", codex: "codex.png", cursor: "cursor.svg", antigravity: "antigravity.svg", copilot: "copilot.svg" };
 export function providerLogo(provider: Provider): string { return `provider-logos/${LOGOS[provider]}`; }
 
-// Only providers with a saved connection are listed (design §4.3), in agent-auth's order.
+// Only providers with a saved connection are listed, in agent-auth's order.
 function connectedProviders(auth: AuthSnapshot | null | undefined): AuthStatusDto[] {
   return (auth?.providers ?? []).filter(p => p.account !== null).sort((a, b) => PROVIDERS.indexOf(a.provider) - PROVIDERS.indexOf(b.provider));
 }
@@ -193,8 +193,8 @@ export function selectableProvider(status: AuthStatusDto): boolean {
   return status.readiness.ready || status.readiness.cause === "unverified";
 }
 
-// The agent, model and effort fixed in Settings > Agents > New conversations; null is Last used (buzz-settings
-// design 'New conversations'). Home starts each new input from it; the person's picks override it until they send.
+// The agent, model and effort fixed in Settings > Agents > New conversations; null is Last used.
+// Home starts each new input from it; the person's picks override it until they send.
 export interface NewConversationDefault { provider: Provider; model?: string; effort?: string; permissionMode?: Exclude<PermissionModeId, "default"> }
 
 // The fixed preference speaks only for its own agent: a fallback agent keeps its own remembered model and effort.
@@ -212,12 +212,12 @@ export function defaultProvider(auth: AuthSnapshot | null | undefined, last: Pro
 
 // Models and effort
 
-// fast: the model offers Fast (fast-mode design §1); description is Codex's tier text, unavailable an account-level
-// reason Claude Code's list read gave (decision 12). defaultEffort: Codex's level for this model when none is sent.
+// fast: the model offers Fast; description is Codex's tier text, unavailable an account-level
+// reason Claude Code's list read gave. defaultEffort: Codex's level for this model when none is sent.
 // older: an earlier generation the menus fold (main models.ts olderIds).
 export interface ModelOption { id: string; label: string; default: boolean; older?: true; efforts?: string[]; defaultEffort?: string; fast?: { description?: string; unavailable?: FastUnusedReason } }
 // undefined: not read in this run. Lists are never hard-coded, so only a received list offers models.
-// modes: what an ACP server listed with its models (permission-mode); absent for Claude and Codex.
+// modes: what an ACP server listed with its models; absent for Claude and Codex.
 export type ModelsState = undefined | "loading" | { models: ModelOption[]; modes?: AcpModes } | { error: string };
 
 function receivedModels(state: ModelsState): ModelOption[] | null {
@@ -240,7 +240,7 @@ export function defaultEffort(model: ModelOption | null, remembered: string | un
   return wanted !== undefined && model?.efforts?.includes(wanted) ? wanted : null;
 }
 
-// Why Claude Code did not or cannot run Fast (fast-mode design §6): the thread's line and a disabled switch row's
+// Why Claude Code did not or cannot run Fast: the thread's line and a disabled switch row's
 // description.
 const FAST_REASONS: Record<FastUnusedReason, string> = {
   plan: "Your plan doesn’t include it.", extra_usage: "Extra usage is turned off for this account.", model: "It isn’t available for this model.",
@@ -266,11 +266,11 @@ export interface ProviderGroup {
   read: boolean;
   rows: ModelRow[];
 }
-// fast: the conversation's or the new input's Fast, kept even for a model without it (decision 5); absent where the
+// fast: the conversation's or the new input's Fast, kept even for a model without it; absent where the
 // composer offers no Fast (Settings > Agents 'New conversations').
 export interface ModelChoice { provider: Provider | null; model: string | null; effort: string | null; fast?: boolean }
 export interface FastView { on: boolean; description?: string; unavailable?: FastUnusedReason }
-// placeholder: the label is the drawer's name, not a value (picker-default-labels decision 9: drawn in the metadata ink).
+// placeholder: the label is the drawer's name, not a value (drawn in the metadata ink).
 // isDefault: the shown model is the provider's default row.
 export interface ModelTrigger { provider: Provider | null; label: string; ariaLabel: string; placeholder: boolean; isDefault: boolean }
 // unset: the menu's first row, which goes back to sending no level. It stays out of options, so Settings, which draws
@@ -297,7 +297,7 @@ export function modelPickerView(auth: AuthSnapshot | null | undefined, models: P
     const rows: ModelRow[] = [{ kind: "default", label: "Default", selected: mine }];
     if (state === "loading") return { ...group, note: "Loading models", rows };
     if (state !== undefined) return { ...group, note: "Models unavailable", rows };
-    // Every provider, Copilot included, lists its models without a model request (PoC P1), so all are read.
+    // Every provider, Copilot included, lists its models without a model request, so all are read.
     return { ...group, read: true, rows };
   });
   const trigger: ModelTrigger = !choice.provider ? { provider: null, label: "No agent ready", ariaLabel: "Agent: none ready", placeholder: false, isDefault: false }
@@ -307,7 +307,7 @@ export function modelPickerView(auth: AuthSnapshot | null | undefined, models: P
   return { trigger, groups, effort };
 }
 
-// Older models (model-drawer-older): a group's rows keep every model, and the menu folds the older ones under one line
+// Older models: a group's rows keep every model, and the menu folds the older ones under one line
 // only when drawing. Picking and finding the checked row read the full rows, so an older pick never falls back to Default.
 type FoldRow = { older?: true; selected: boolean };
 // Current and older rows each retain the provider's list order.
@@ -347,7 +347,7 @@ export function heldScrollTop(m: { scrollTop: number; maxScrollTop: number; line
 }
 
 // With no level chosen the trigger shows the level the provider will run when Doan knows it (Codex's defaultEffort),
-// else the drawer's name (picker-default-labels spec 'Effort').
+// else the drawer's name.
 function effortView(provider: Provider, model: ModelOption, choice: ModelChoice): EffortView {
   const levels = model.efforts ?? [];
   const picked = choice.effort !== null && levels.includes(choice.effort) ? choice.effort : null;
@@ -355,7 +355,7 @@ function effortView(provider: Provider, model: ModelOption, choice: ModelChoice)
   const label = picked ? effortLabel(picked) : known ? effortLabel(known) : "Effort";
   const named = picked ? label : known ? `${label}, default` : "default";
   const fast = choice.fast !== undefined ? fastView(provider, model, choice.fast) : null;
-  // label stays the level alone: Settings shows it as its row's text (fast-mode design §1).
+  // label stays the level alone: Settings shows it as its row's text.
   return {
     label, ariaLabel: fast && !fast.unavailable ? `Effort: ${named}, Fast ${fast.on ? "on" : "off"}` : `Effort: ${named}`, placeholder: !picked && !known,
     menuLabel: `Effort for ${model.label}`, title: `Effort · ${model.label}`,
@@ -364,7 +364,7 @@ function effortView(provider: Provider, model: ModelOption, choice: ModelChoice)
   };
 }
 
-// Only Claude Code and Codex list Fast per model; the others offer Fast as a model of its own (fast-mode decision 1).
+// Only Claude Code and Codex list Fast per model; the others offer Fast as a model of its own.
 const FAST_PROVIDERS: readonly Provider[] = ["claude", "codex"];
 // Claude Code's own words (2.1.318: "same model, faster output", "Fast mode requires usage credits"); check them again
 // when the CLI's copy changes. Codex's description is its tier's, as listed.
@@ -386,7 +386,7 @@ export function fastToSend(picked: boolean | undefined, provider: Provider | nul
   return view && !view.unavailable ? { fast: true } : {};
 }
 
-// A new input's Fast is its provider's Last used; a fixed Settings default never sets it (decision 3). The switch shows
+// A new input's Fast is its provider's Last used; a fixed Settings default never sets it. The switch shows
 // it on only for a model that offers Fast (fastView).
 export function defaultFast(memory: HomeMemory | null | undefined, provider: Provider | null): boolean {
   return provider !== null && memory?.fast?.[provider] === true;
@@ -408,12 +408,12 @@ export function groupIcon(key: string | undefined): string {
 }
 
 // Screens are the `.doan/canvases/` canvases; a design system is any canvas in `.doan/ds/`.
-// A legacy `.doan/canvases/design-system.html` counts as a screen (design-system-canvases Q9).
+// A legacy `.doan/canvases/design-system.html` counts as a screen.
 function split(canvases: readonly CanvasRow[]): { screens: CanvasRow[]; designSystem: boolean } {
   return { screens: canvases.filter(row => canvasKind(row.path) !== "ds"), designSystem: canvases.some(row => canvasKind(row.path) === "ds") };
 }
 
-// Fixed rules on what Doan knows about the project (design §4.4); ids the CLI did not list are skipped.
+// Fixed rules on what Doan knows about the project; ids the CLI did not list are skipped.
 export function suggestedPresets(entry: FolderEntry | null, presets: readonly PresetSummary[]): PresetSummary[] {
   if (entry?.kind !== "list") return [];
   const { screens, designSystem } = split(entry.canvases);
@@ -624,7 +624,7 @@ export function steerKey(event: { key: string; ctrlKey: boolean; metaKey: boolea
   return isSubmitKey(event) && event.ctrlKey && !event.metaKey && !event.altKey;
 }
 
-// A plain → on an empty field takes the suggestion its placeholder shows (prompt-suggestion design 'Pure functions' 4).
+// A plain → on an empty field takes the suggestion its placeholder shows.
 // Any modifier keeps the key's own selection or word and line move; keyCode 229 is the IME's own key.
 export function takesSuggestion(
   event: { key: string; shiftKey: boolean; altKey: boolean; metaKey: boolean; ctrlKey: boolean; isComposing: boolean; keyCode: number },
@@ -695,7 +695,7 @@ export function dropTarget(entries: readonly { isDirectory: boolean }[]): { file
 }
 
 // Chips in DOM order (attachments, then the preset). Backspace takes the preset first, then the last attachment;
-// × hands focus to the chip that moves into its place, else the field (design §4.9).
+// × hands focus to the chip that moves into its place, else the field.
 export function chipRemoval(chips: readonly { label: string; preset?: boolean }[], trigger: { kind: "backspace"; text: string; caret: number } | { kind: "button"; index: number }): { remove: number; announcement: string; focus: number | "textarea" } | null {
   if (trigger.kind === "backspace") {
     if (trigger.text !== "" || trigger.caret !== 0 || chips.length === 0) return null;

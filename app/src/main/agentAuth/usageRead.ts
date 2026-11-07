@@ -53,7 +53,7 @@ export async function readUsage(provider: UsageProvider, lease: Pick<Lease, "com
         read: ["account/rateLimits/read", undefined],
       })
       : provider === "copilot" ? await rpcRead(lease, options, signal, {
-        // The SDK's server mode: Doan's ACP mode answers account.getQuota with Method not found (PoC U3).
+        // The SDK's server mode: Doan's ACP mode answers account.getQuota with Method not found (PoC).
         args: [...PROVIDER_AUTH.copilot.args, "--headless", "--no-auto-update", "--stdio"], cwd: options.probeDir, framed: true,
         open: ["connect", { supportedTaskKinds: ["agent", "client", "shell"] }], initialized: false,
         read: ["account.getQuota", {}],
@@ -222,7 +222,7 @@ async function cursorRead(lease: Pick<Lease, "profileDir">, options: UsageReadOp
   try {
     const fetch = options.fetch ?? globalThis.fetch;
     let reply: Response;
-    // Headers as Orca 1.4.240 sends them and the PoC (U5) answered with.
+    // Headers as Orca 1.4.240 sends them and the PoC answered with.
     try { reply = await fetch(CURSOR_USAGE_URL, { method: "GET", headers: { Cookie: cookie, Accept: "application/json", Origin: CURSOR_ORIGIN, Referer: `${CURSOR_ORIGIN}/dashboard` }, redirect: "error", credentials: "omit", signal: controller.signal }); }
     catch { throw signal?.aborted ? new Stopped() : new ReadFailure(controller.signal.aborted ? `no answer within ${limit} ms` : "the request could not be completed"); }
     if (reply.redirected || (reply.url && new URL(reply.url).origin !== CURSOR_ORIGIN)) throw new ReadFailure("the answer came from another address");

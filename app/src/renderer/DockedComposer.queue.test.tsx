@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { QueueRows, SEND_NOW_REFUSED_TEXT, type QueueRowsProps } from "./DockedComposer";
 
 // QueueRows's handlers called without a DOM, hooks as plain state (as DockedComposer.interaction). Real Chromium focus
-// (aria-disabled keeping focus, the unmount fixup) is left to queue-send-now's /runtime-test.
+// (aria-disabled keeping focus, the unmount fixup) is left to /runtime-test.
 const hooks = vi.hoisted(() => ({ states: [] as unknown[], refs: [] as { current: unknown }[], cursor: 0, refCursor: 0, layout: [] as (() => unknown)[], cleanups: [] as (() => unknown)[] }));
 vi.mock("react", async original => ({
   ...await original<typeof import("react")>(),
@@ -69,7 +69,7 @@ test("Send now and Remove hand the row's id to the host; Send now is the subtle 
   expect(props.onRemove).toHaveBeenCalledWith("q2");
 });
 
-// canvas-composer-polish A2: the row leaves at the press, so focus moves then, before the agent reads it.
+// the row leaves at the press, so focus moves then, before the agent reads it.
 test("Send now moves focus to the next row's Send now once the row has left, without waiting for main's answer", async () => {
   const answer = (() => { let resolve!: () => void; const promise = new Promise<void>(r => { resolve = r; }); return { promise, resolve }; })();
   const { props, focused, draw, rows } = setup({ onSendNow: vi.fn(() => answer.promise) });
@@ -143,7 +143,7 @@ test("a refusal while the turn still runs shows the status line under the row; o
   // The status line is drawn again with the row, so the composer's lasting live region says it too.
   expect(running.props.announce).toHaveBeenCalledWith(SEND_NOW_REFUSED_TEXT);
 
-  // Review Y1: turn.done reached the store but the rows were not drawn again before main's refusal, so the last draw
+  // turn.done reached the store but the rows were not drawn again before main's refusal, so the last draw
   // still offers Send now. The answer's own reading of the turn decides: no line, no announcement.
   const ended = setup({ onSendNow: vi.fn(async () => ({ error: "not_running", turnRuns: false })) });
   (ended.rows(ended.draw(), "Send queued message now")[1]!.onClick as () => void)();
@@ -153,7 +153,7 @@ test("a refusal while the turn still runs shows the status line under the row; o
   expect(ended.props.announce).not.toHaveBeenCalled();
 });
 
-// Review W2: two presses before the row is drawn out of the queue ask main once and say nothing about the second.
+// two presses before the row is drawn out of the queue ask main once and say nothing about the second.
 test("a second Send now on a row already in flight is ignored", async () => {
   const answer = (() => { let resolve!: (value: { error: string; turnRuns: boolean }) => void; const promise = new Promise<{ error: string; turnRuns: boolean }>(r => { resolve = r; }); return { promise, resolve }; })();
   const { props, draw, rows } = setup({ onSendNow: vi.fn(() => answer.promise) });

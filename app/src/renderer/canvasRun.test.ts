@@ -5,7 +5,7 @@ import { CanvasRun, canvasKey, type CanvasRunHost } from "./canvasRun";
 import { DRAWING_TEXT, PROMOTED_TEXT } from "./canvasConversation";
 import { ConversationStore, type ListView } from "./conversationStore";
 
-// buzz-canvas-conversation tasks R2: the canvas panel's conversation, driven without a DOM. The host stands in for App
+// The canvas panel's conversation, driven without a DOM. The host stands in for App
 // and HomeRun (list reads and their counts, seen marks, focus and the drawing project conversation).
 
 const ROOT = "/code/doan";
@@ -256,7 +256,7 @@ test("an announced promotion stays over later list reads until the person acts; 
   expect(replaced.run.view()).toMatchObject({ kind: "conversation", conversationId: A, notice: null });
 });
 
-// Review BF 🔴: revisions count per canvas, so a send reply from the canvas left behind can carry the same number.
+// Revisions count per canvas, so a send reply from the canvas left behind can carry the same number.
 test("a send reply from another canvas leaves this canvas's promotion notice", () => {
   const h = harness();
   h.run.show(checkout);
@@ -378,7 +378,7 @@ test("an archived conversation shown in the panel is never marked seen", async (
   expect(h.host.markSeen).not.toHaveBeenCalled();
 });
 
-// Review BR2 R2: choosing New again while a start is in flight is a newer choice than that start.
+// Choosing New again while a start is in flight is a newer choice than that start.
 test("choosing New again while the first send starts keeps the new conversation state when the late reply lands", () => {
   const h = harness();
   h.run.show(checkout);
@@ -389,7 +389,7 @@ test("choosing New again while the first send starts keeps the new conversation 
   expect(h.run.view()).toMatchObject({ kind: "new" });
 });
 
-// Review BR2 R3: a start shows before any list names it; a list read that does not name it yet keeps it.
+// A start shows before any list names it; a list read that does not name it yet keeps it.
 test("a started conversation stays shown through list reads that do not name it yet, then the list confirms it", () => {
   const h = harness();
   h.run.show(checkout);
@@ -420,7 +420,7 @@ test("a list naming the started conversation before its reply keeps it once the 
   expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: A });
 });
 
-// Review BR2 Y2: a late Edit and resend focuses only while the same canvas still shows the same conversation.
+// A late Edit and resend focuses only while the same canvas still shows the same conversation.
 test("what shows is identified by canvas, conversation and revision", () => {
   const h = harness();
   h.run.show(checkout);
@@ -435,7 +435,7 @@ test("what shows is identified by canvas, conversation and revision", () => {
   expect(h.run.stillShowing(shown!)).toBe(false);
 });
 
-// Re-review BR2 R4: New chosen while the first list read loads stays held after the session answers.
+// New chosen while the first list read loads stays held after the session answers.
 test("New chosen while the list loads holds Send until the list answers; a failed read lets a new one start", async () => {
   const h = harness();
   h.run.show(checkout);
@@ -455,7 +455,7 @@ test("New chosen while the list loads holds Send until the list answers; a faile
   expect(failed.run.view()).toMatchObject({ kind: "new", listError: true, start: { pending: false } });
 });
 
-// conversation-delete tasks T3, design §3.2: the state after a conversation is deleted. App marks the conversation
+// The state after a conversation is deleted. App marks the conversation
 // deleting before conversation:delete, then on success calls each run's deleted and the store's.
 const confirmDelete = (h: ReturnType<typeof harness>, id: string) => { h.run.deleted(id); h.store.deleted(id); };
 
@@ -584,7 +584,7 @@ test("other canvases and conversations keep what they show", () => {
   expect(h.run.revision()).toBe(revision);
 });
 
-// Review RB ⚪1: until the list is read again, a pick from the list read before the delete must not choose it.
+// Until the list is read again, a pick from the list read before the delete must not choose it.
 test("a canvas that opens before the next list read does not pick the deleted conversation", async () => {
   const h = harness();
   h.run.show(checkout);

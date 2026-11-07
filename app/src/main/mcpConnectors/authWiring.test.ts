@@ -11,7 +11,7 @@ import { FakeCli } from "./fixtures/fakeCli";
 import { McpService } from "./service";
 import { ConnectorStore } from "./store";
 
-// BB review round 2: the real AuthManager and McpService together. A sign-out or replacement must stop the provider's
+// The real AuthManager and McpService together. A sign-out or replacement must stop the provider's
 // MCP work even when that work holds no lease (a pending Codex logout runs in a temporary CODEX_HOME), while
 // conversations keep their own stop_required rule.
 

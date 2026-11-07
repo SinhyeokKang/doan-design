@@ -4,7 +4,7 @@ import type { CanvasRow, FolderEntry } from "../main/view";
 import type { PreferencesSnapshot } from "../main/preferences";
 import type { WorkItem } from "../main/workState";
 
-// shell-panel-layout design §2.4: App hides and shows the sidebar on every screen from the header button and the
+// App hides and shows the sidebar on every screen from the header button and the
 // menu, remembers it after the startup read, and names the hidden button by the sidebar's signals. Driven with hooks as
 // plain state so App's own wiring runs (App.settings.test.tsx).
 const hooks = vi.hoisted(() => ({
@@ -223,7 +223,7 @@ test("⌘B in the composer toggles the sidebar instead of Bold, once; other keys
   expect(sidebars().length).toBeGreaterThan(0);
 });
 
-// T11 runtime probe: the page panels and the workspace's right column are auto-placed after the sidebar, so with it
+// Runtime probe: the page panels and the workspace's right column are auto-placed after the sidebar, so with it
 // unmounted they fell into the empty first column (0px wide). Hidden, they are placed explicitly.
 test("a hidden sidebar places the auto-placed panels in their own columns", async () => {
   const { readFileSync } = await import("node:fs");
@@ -232,7 +232,7 @@ test("a hidden sidebar places the auto-placed panels in their own columns", asyn
   expect(css).toContain(':root[data-sidebar="hidden"] .workspace > :is(.doan-conv-column, .right-stack) { grid-column: 3; }');
 });
 
-// shell-panel-layout design §2.5: main's fullscreen value (its initial read, then each change) marks the root element,
+// main's fullscreen value (its initial read, then each change) marks the root element,
 // and the header's traffic-light space collapses under it.
 test("fullscreen marks the root element so the header drops the traffic-light space", async () => {
   const attributes = new Map<string, string>();
@@ -252,6 +252,6 @@ test("fullscreen marks the root element so the header drops the traffic-light sp
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toContain(":root[data-fullscreen] .shell-top .traffic-space { width: 0; }");
-  // The header sits inside the shell's 8px margin, so its padding would put the first button at x16 (T13 probe).
+  // The header sits inside the shell's 8px margin, so its padding would put the first button at x16 (probe).
   expect(css).toContain(":root[data-fullscreen] .shell-top.top { padding-left: 0; }");
 });
