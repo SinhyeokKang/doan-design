@@ -3,7 +3,8 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { HANDOFF_TEXT_LIMIT, handoffDecision, handoffEligibility, handoffGuidanceFor, type HandoffAsker, type HandoffJudgement } from "./handoff";
 
-// canvas-handoff B2 (design §3 request-time order, §5 judgement and prompt condition).
+// The request-time order, the judgement and the prompt condition (ARCHITECTURE §4 'Handoff over app-socket v5' 'Dispatch',
+// §7 'Handoff').
 const source = { path: ".doan/canvases/a.html", id: "a" };
 const asker: HandoffAsker = { root: "/repo", canvas: source, running: true, requested: false };
 const ask = { root: "/repo", path: ".doan/canvases/new.html" };

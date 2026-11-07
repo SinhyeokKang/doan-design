@@ -34,7 +34,7 @@ export function handoffDecision(input: HandoffJudgement): HandoffDecision {
   const row = rows[0]!;
   if (rows.length > 1 || (row.id !== undefined && input.listed.filter(other => other.id === row.id).length > 1)) return { kind: "refused", reason: "not_listed" };
   if (input.source && same(input.source, row)) return { kind: "refused", reason: "same_canvas" };
-  // A path that held a canvas at the start counts as existing too: decision 3 keeps the exception to new canvases.
+  // A path that held a canvas at the start counts as existing too: a handoff goes only to a new canvas (ARCHITECTURE §7 'Handoff').
   if (input.snapshot.some(old => same(old, row) || old.path === row.path)) return { kind: "refused", reason: "not_new" };
   if (input.current(row)) return { kind: "refused", reason: "has_conversation" };
   return { kind: "start", canvas: row.id === undefined ? { path: row.path } : { path: row.path, id: row.id } };
