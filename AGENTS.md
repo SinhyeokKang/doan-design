@@ -59,6 +59,7 @@ These apply to conversation replies and reports to the user, and to feature docu
 ## Commands
 
 - `node .agents/skills/verify/scripts/verify.mjs [--eval]` — shared sequential static/unit/build gate for `/verify`, `/ship`, and `/orchestrate`. Runs runner and runtime-support tests, Go tests/vet, app typecheck/lint/tests/build; `--eval` adds eval unit tests and fake-agent self-tests. Stops on failure and retains logs under `.scratch/verify/`. Real-app checks use short affected-behavior probes separately; there is no full e2e gate or `--runtime` flag.
+- CI (`.github/workflows/ci.yml`) runs the same gate, without `--eval`, as the `gate` job on pull requests to and pushes to `develop` and `main`. `gh pr checks <n>` reads a PR's result; a failing step's output is in the job log (`gh run view <run id> --log-failed`).
 - `node --test .agents/skills/verify/scripts/verify.test.mjs` — shared gate runner regression tests.
 - `go test ./...` — Go tests, from the repo root.
 - `go vet ./...` — Go static checks, from the repo root.

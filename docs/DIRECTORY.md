@@ -4,11 +4,11 @@ Where things live, one entry per directory. File-level detail is in the code; ru
 
 ## Root
 
-- `go.mod`, `go.sum`: the root Go module.
+- `go.mod`, `go.sum`: the root Go module. `.node-version`: the Node version for local runs and CI.
 - `LICENSE`, `README.md`, `AGENTS.md`; `.gitattributes`: union merge for `.doan/comments/*.jsonl` and `.doan/**` as linguist documentation.
 - `.agents/skills/<name>/`: development skills (source); `.claude/skills/<name>` are symlinks to them. `verify/scripts/` holds the shared gate (`verify.mjs`) and its tests.
 - `.claude/settings.json`: Claude Code settings, including the response-style `UserPromptSubmit` hook.
-- `.github/`: issue forms (`ISSUE_TEMPLATE/`) and the pull request template; no workflows yet.
+- `.github/`: issue forms (`ISSUE_TEMPLATE/`), the pull request template and `workflows/` (the CI gate, `ci.yml`).
 - `docs/`: product, architecture and working documents; `docs/features/<slug>/` holds active feature plans, audit reports and chain files.
 - `docs/assets/readme/`: the README's feature images, exported from the frames of `.doan/canvases/readme-features.html`.
 - `.scratch/`: ignored experiments, probe scripts and evidence.
