@@ -133,7 +133,7 @@ describe("workspaceBody", () => {
   });
 
   test("an open canvas of another root is the Overview", () => {
-    expect(workspaceBody("workspace", root, { folder: "/Users/me/code/other", canvas: "a.html" })).toBe("overview");
+    expect(workspaceBody("workspace", root, { ...open, folder: "/Users/me/code/other" })).toBe("overview");
   });
 
   test("no loaded root has no body", () => {
