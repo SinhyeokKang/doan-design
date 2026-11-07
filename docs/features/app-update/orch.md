@@ -39,4 +39,16 @@
 
 ## 진행 기록
 
-- (비어 있음)
+- Run `run_5130ff98f541`. B1 시작: dispatch `ctx_325b01f3ccb4`, worktree `app-update-b1`(base `a0266c25`), Opus high.
+- B1 질문: `Preferences.updates` 필수 키 때문에 renderer 테스트 픽스처 16개가 typecheck에 실패한다 → 테스트 픽스처만 고치도록 답했다(conductor 판단 — 타입을 optional로 약하게 하지 않는다).
+- B1 완료(worker_done): `a98fa11c` test, `ce3796c1` feat, `1e530a92` refactor. worker 보고는 `verify.mjs` PASS(앱 테스트 9577개). 계획과 다른 점은 handoff에 있다(`updateView(snapshot, now)`, `lastAttemptAt`, 꺼진 사본 문구는 초안을 따름, 설치 실패 때 헤더 숨김).
+- R1(B1 리뷰) 시작: dispatch `ctx_d956d3429cae`, B1 worktree에서 보고만, Opus high.
+- R1 결과: 🔴 0, 🟡 4, ⚪ 3(`.scratch/review-B1.md`, conductor checkout에 사본을 남긴다). conductor 판단:
+  - 🟡1 GitHub 공급자가 다시 감싼 오류(최신 릴리스 404, 릴리스 없음)는 `feedMissing`이 아니라 `other`로 둔다. feedMissing 문구는 "릴리스에 업데이트 정보가 없다"라서 릴리스가 없을 때는 사실이 아니고, design은 실패 문구가 원인을 단정하지 않게 한다.
+  - 🟡2 `update-downloaded` 뒤 native(Squirrel) 오류는 코드와 상관없이 받기 실패(Retry)로 보낸다. 오류에 출처(`native`/`js`)를 싣고 B2 서비스가 채운다.
+  - 🟡3 `view.ts`를 지금 `rendererImports.test.ts` EXTRA_ROOTS에 넣는다.
+  - 🟡4 ready 행의 announcement는 게이트와 상관없이 같다. 막힘 이유는 Restart 누름이 `blocked`로 답할 때만 읽는다(초안 "a press reads the reason again").
+  - 설치 실패 때 헤더 숨김·메뉴 "Check for Updates…"는 유지한다. 쓸 수 없는 `/Applications` 사본 같은 설치 실패는 헤더에서 다시 눌러도 낫지 않는다.
+- B1 수정 1회차 보냄: dispatch `ctx_757dcb464f16`.
+- B1 질문(수정 1회차): native `installFailed`는 설치 단계 실패(About에 Restart to Update)로, 나머지 native 오류는 받기 실패(Retry)로 둔다고 답했다(초안 row-failed 프레임과 같다). staging 중 설치 실패 뒤 Restart가 `quitAndInstall`에서 영원히 기다리지 않게 하는 처리는 B2 brief에 넣는다.
+- B1 수정 1회차 완료: `f623af6a`, `120f556f`, `3702db7c`. worker 보고 `verify.mjs` PASS(9583). 🔴은 처음부터 0이라 재리뷰 없이 통합한다. 상태 기계와 서비스의 맞물림은 B2 리뷰가 본다.
