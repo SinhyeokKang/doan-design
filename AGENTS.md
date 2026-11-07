@@ -58,7 +58,7 @@ These apply to conversation replies and reports to the user, and to feature docu
 
 ## Commands
 
-- `node .agents/skills/verify/scripts/verify.mjs [--eval]` — shared sequential static/unit/build gate for `/verify`, `/ship`, and `/orchestrate`. Runs runner and runtime-support tests, Go tests/vet, app typecheck/tests/build; `--eval` adds eval unit tests and fake-agent self-tests. Stops on failure and retains logs under `.scratch/verify/`. Real-app checks use short affected-behavior probes separately; there is no full e2e gate or `--runtime` flag.
+- `node .agents/skills/verify/scripts/verify.mjs [--eval]` — shared sequential static/unit/build gate for `/verify`, `/ship`, and `/orchestrate`. Runs runner and runtime-support tests, Go tests/vet, app typecheck/lint/tests/build; `--eval` adds eval unit tests and fake-agent self-tests. Stops on failure and retains logs under `.scratch/verify/`. Real-app checks use short affected-behavior probes separately; there is no full e2e gate or `--runtime` flag.
 - `node --test .agents/skills/verify/scripts/verify.test.mjs` — shared gate runner regression tests.
 - `go test ./...` — Go tests, from the repo root.
 - `go vet ./...` — Go static checks, from the repo root.
@@ -69,6 +69,7 @@ These apply to conversation replies and reports to the user, and to feature docu
 - `npm --prefix app test` — TypeScript tests (`vitest run`).
 - `npx shadcn@4.22.1 add <component>` from `app/` — add a shadcn component. `app/.npmrc` has `save-exact=true`; install new packages with `npm --prefix app install --save-exact <pkg@version>`. Check PRODUCT.md and ARCHITECTURE.md for dependency constraints.
 - `npm --prefix app run typecheck` — TypeScript checks (`tsc --noEmit`).
+- `npm --prefix app run lint` — type-aware oxlint + oxlint-tsgolint on `app/src` and `app/runtime`, excluding `*.test.ts` and `*.test.tsx`. Only `react/rules-of-hooks`, `react/exhaustive-deps`, `typescript/no-floating-promises` and `typescript/no-misused-promises` are enabled; exhaustive-deps warns under the `--max-warnings` cap, and the other three rules error. The cap follows the ratchet in the verify skill.
 - App setup: `npm --prefix app ci`, then `node -e "require('electron')"` from `app/` once to download the Electron binary (Electron 45 has no postinstall).
 - `npm --prefix app run build` — build the app into `app/out/` (`electron-vite build`).
 - `npm --prefix app run package` — build the versioned arm64 Go CLI and an unsigned local `app/dist/mac-arm64/Doan.app` with electron-builder.
