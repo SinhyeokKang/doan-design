@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { QueueRows, SEND_NOW_REFUSED_TEXT, type QueueRowsProps } from "./DockedComposer";
 
 // QueueRows's handlers called without a DOM, hooks as plain state (as DockedComposer.interaction). Real Chromium focus
-// (aria-disabled keeping focus, the unmount fixup) is left to queue-send-now's /runtime-test.
+// (aria-disabled keeping focus, the unmount fixup) is left to /runtime-test.
 const hooks = vi.hoisted(() => ({ states: [] as unknown[], refs: [] as { current: unknown }[], cursor: 0, refCursor: 0, layout: [] as (() => unknown)[], cleanups: [] as (() => unknown)[] }));
 vi.mock("react", async original => ({
   ...await original<typeof import("react")>(),

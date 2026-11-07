@@ -77,7 +77,7 @@ beforeEach(() => {
   const on = (name: string) => vi.fn((listener: (...args: never[]) => void) => { listeners[name] = listener; return () => {}; });
   doan = {
     onFolders: on("folders"), onViewCommand: on("view"), onMenuCommand: on("menu"), onConversationEvent: on("conversation"), onConversationStage: on("stage"), onConversationListChanged: on("conversationList"), listConversations: vi.fn(async () => []), onOpenAddProjects: on("openAddProjects"),
-    // buzz-settings: App also listens for Settings…, notification clicks and sign-in changes, and reads preferences.
+    // App also listens for Settings…, notification clicks and sign-in changes, and reads preferences.
     onOpenSettingsPage: on("openSettingsPage"), onNotificationClick: on("notificationClick"),
     onWorkChanged: on("work"), onConversationWorkChanged: on("conversationWork"), getConversationWork: vi.fn(async () => []), onMcpConnectors: on("mcp"), onExportRunning: on("exportRunning"), onFullScreen: on("fullScreen"), getWork: vi.fn(async () => []), onOpenLink: on("openLink"), onQuitting: vi.fn(() => () => {}), openLinksReady: vi.fn(async () => {}), onOpenRequest: on("openRequest"), onConversationHandoff: on("handoff"), answerOpenRequest: vi.fn(async () => {}), onAgentAuth: on("agentAuth"), onAgentSignInPrompt: on("prompt"), readPreferences: vi.fn(async () => null),
     homeDirectory: vi.fn(async () => "/Users/ada"), startOnboardingSession: vi.fn(async () => ({ ok: true, result: { sessionId: "s", completed: true } })),
@@ -339,7 +339,7 @@ test("while locked a project row still unfolds and its chevron folds it, without
   expect(doan.readShellActivity).not.toHaveBeenCalled();
 });
 
-// review-BU1 🟡1: a move started on the page before the lock must not land after it.
+// a move started on the page before the lock must not land after it.
 test("locking cancels a workspace open still waiting for its project's read", () => {
   openFromWorkspace();
   let pending: (() => void) | null = null;
@@ -366,7 +366,7 @@ test("locking supersedes a project row still reading its worktrees' activity", a
   expect(onPage()).toBe(true);
 });
 
-// review-BU1 🟡2: only file drags are refused; text and links still reach fields that take them.
+// only file drags are refused; text and links still reach fields that take them.
 test("text and link drags are left to the window's fields", () => {
   render();
   for (const type of ["text/plain", "text/uri-list"]) for (const name of ["dragover", "drop"]) {

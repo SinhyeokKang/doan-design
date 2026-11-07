@@ -7,7 +7,7 @@ import { addPageApi, ProjectStepSession } from "./projectStep";
 // Choose folder.
 export interface AddPageReport { locked: boolean; choose: boolean }
 
-// The Add Projects page (buzz-add-projects): the shell's header and sidebar around first run's Project screen, over the
+// The Add Projects page: the shell's header and sidebar around first run's Project screen, over the
 // page's own main instance. Each opening starts at choose; leaving drops an inspection in flight with the session.
 export function AddProjectsPage({ header, sidebar, projects, homeDirectory, mainCheckout, choose, onState, onCancel, onAdded }: {
   header: ReactNode; sidebar: ReactNode; projects: readonly string[]; homeDirectory: string | null; mainCheckout: (path: string) => boolean;

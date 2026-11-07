@@ -35,7 +35,7 @@ test("a finished add goes Home with that root chosen, new or already registered"
 });
 
 // A sidebar row and a Quick Open pick leave through the shell's own navigation, whose controller asks the draft guard
-// canvas by canvas (review-BP 🟡1); the page never decides that a move may skip it, so they are not events here.
+// canvas by canvas; the page never decides that a move may skip it, so they are not events here.
 test("the destination never carries a guard decision", () => {
   for (const event of [{ kind: "projectsTab" }, { kind: "back" }, { kind: "cancel" }, escape] as const)
     expect(Object.keys(addPageReturn(ws, event, roots)).sort()).toEqual(["kind", "root"]);

@@ -231,7 +231,7 @@ test("a locked page shows the toast instead of moving", async () => {
   expect(harness.toast.show).toHaveBeenCalledWith("drafts.html handed off to checkout-flow.html", "Open", expect.any(Function));
 });
 
-// Review: a person's choice while the read is awaited is never replaced by the move (POSTMORTEM 2026-10-26).
+// a person's choice while the read is awaited is never replaced by the move (POSTMORTEM 2026-10-26).
 test("a panel choice of the person's while the read is awaited turns the move into the toast", async () => {
   await onDrafts(listA([drafts]));
   clearController();

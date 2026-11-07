@@ -216,7 +216,7 @@ export class AgentStepSession {
   }
   // The row's cause changed: its install state ends. Only the next state (Sign in, Connected) is announced, once. A
   // version Doan could not read (a failed probe reads as unknown even for a missing CLI), one it cannot run, or a CLI
-  // that went missing after an update is not news of an install or update (review C-1).
+  // that went missing after an update is not news of an install or update.
   private followInstall(): void {
     const shown = this.own.install, r = shown && this.status(shown.provider)?.readiness;
     if (!shown || !r || this.actionOf(shown.provider) === shown.action) return;

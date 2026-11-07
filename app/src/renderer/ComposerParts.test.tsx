@@ -181,7 +181,7 @@ test("the Fast row is a checkbox item under a separator; switching it keeps the 
   const kinds = tree.map(item => item.type);
   expect(kinds.indexOf(DropdownMenu.Separator)).toBeGreaterThan(kinds.indexOf(DropdownMenu.RadioGroup));
   const row = tree.find(item => item.type === DropdownMenu.CheckboxItem)!.props;
-  // Its name is the Fast span alone; the description stays a description (review R 🟢2).
+  // Its name is the Fast span alone; the description stays a description.
   expect(row).toMatchObject({ className: "doan-menu-item fast-item", checked: false, disabled: false, "aria-labelledby": "fast-id-name", "aria-describedby": "fast-id-description" });
   // Radix closes a menu and moves focus on an item's select unless it is prevented; the switch's own change still runs.
   const select = { preventDefault: vi.fn() };
@@ -270,7 +270,7 @@ test("the model menu marks the default row, and an unchosen trigger reads Model 
   expect(label(draw({ provider: "codex", label: "Model", ariaLabel: "Agent: Codex, model not chosen", placeholder: true, isDefault: false }))).toContain('<span class="label placeholder">Model</span>');
 });
 
-// review R 🟡4: the app's Vitest has no DOM (ARCHITECTURE §7 'Home tests without a DOM' adds no jsdom), so a mounted
+// the app's Vitest has no DOM (ARCHITECTURE §7 'Home tests without a DOM' adds no jsdom), so a mounted
 // Radix menu cannot be driven here; the real-app probe (/design-sync, /runtime-test) checks open state and focus.
 // What the row relies on is pinned against the installed Radix menu instead: a click, Enter or Space all reach the
 // item's select, which closes the menu only when the select event is not prevented, and a checkbox item still toggles
@@ -284,7 +284,7 @@ test("the installed Radix menu keeps a prevented select open and still toggles a
   expect(source).toMatch(/role: "menuitemcheckbox"[\s\S]*?onSelect: \(0, import_primitive\.composeEventHandlers\)\(\s*checkboxItemProps\.onSelect,\s*\(\) => onCheckedChange\?\.\(isIndeterminate\(checked\) \? true : !checked\),\s*\{ checkForDefaultPrevented: false \}|role: "menuitemcheckbox"[\s\S]*?onSelect: composeEventHandlers\(\s*checkboxItemProps\.onSelect,\s*\(\) => onCheckedChange\?\.\(isIndeterminate\(checked\) \? true : !checked\),\s*\{ checkForDefaultPrevented: false \}/);
 });
 
-// picker-default-labels review 🔴1: the pre-list Default row passes null; a model row passes its id, even Claude Code's
+// the pre-list Default row passes null; a model row passes its id, even Claude Code's
 // "default".
 test("the agent picker passes null for the pre-list Default row and a model row's own id", () => {
   const onPick = vi.fn();

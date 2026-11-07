@@ -211,7 +211,7 @@ test("a canvas that cannot load after the chip opened it says so as Quick Open d
   expect(harness.toast.show).toHaveBeenCalledExactlyOnceWith(unavailableCanvasMessage(listA(), C));
 });
 
-// Review RA2: the Overview covers the canvas it came from, so a chip into that canvas opens it again instead of
+// the Overview covers the canvas it came from, so a chip into that canvas opens it again instead of
 // locating in a canvas nobody sees.
 test("the Overview's chips open their canvas, the one it last showed included", async () => {
   await onDrafts();

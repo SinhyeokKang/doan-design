@@ -35,7 +35,7 @@ import type { PermissionPickerView } from "./permissionPicker";
 import type { SettingsTarget } from "./settingsSections";
 
 // The composer under a conversation (draft frame `docked-composer`). It has no screen
-// in this feature: its host (buzz-project's Overview, later the canvas panel) owns the conversation, the drafts map,
+// in this feature: its host (Overview, later the canvas panel) owns the conversation, the drafts map,
 // the model and preset lists and every call to main, and passes them in. This component decides shape, the Send slot,
 // the reason line and focus.
 

@@ -32,7 +32,7 @@ test("a refused pick goes back to the stored mode; a new conversation's pick cal
   expect(support.picks["new:/r"]).toEqual({ permissionMode: "plan" });
 });
 
-// RV-B 🟡3: a pending pick remembers the stored mode it was made from. When main moves the stored mode off that value
+// a pending pick remembers the stored mode it was made from. When main moves the stored mode off that value
 // (a plan approval the list read caught only at its end), the pick is dropped and the stored mode shows.
 test("a pending pick is dropped when the stored mode changes from the one it was made from", async () => {
   vi.stubGlobal("window", { doan: { setConversationPermissionMode: vi.fn(async () => undefined) } });
@@ -45,7 +45,7 @@ test("a pending pick is dropped when the stored mode changes from the one it was
   expect(support.picks["conversation:c1"]).toEqual({});
 });
 
-// RV-B 🟡2: a conversation started here shows the mode it was started in until its summary arrives; the summary then
+// a conversation started here shows the mode it was started in until its summary arrives; the summary then
 // speaks, whatever it says. It is no pick of the person's: it is not sent or remembered.
 test("a just-started conversation's mode shows until its summary arrives", () => {
   const support = new DockedSupport(() => {});

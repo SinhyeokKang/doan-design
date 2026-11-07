@@ -12,7 +12,7 @@ import type { ModelPickerView } from "./homeComposer";
 import { permissionPickerView } from "./permissionPicker";
 
 // Static markup with mocked handlers (ARCHITECTURE §7 'Home tests without a DOM'). Real focus and IME across a shape
-// change are left to buzz-project's /runtime-test.
+// change are left to /runtime-test.
 
 function status(provider: Provider) {
   const state: AuthState = { provider, generation: 1, verified: true, expired: false, connection: { provider, connectionId: "c", profile: provider, account: { id: "a", workspace: "org", email: "ada@example.com" } }, attempt: null, error: null, phase: "connected" };

@@ -206,7 +206,7 @@ test("a change made before ui-state was read wins over the read value", async ()
   expect(saved()?.rightPanel).toMatchObject({ open: false });
 });
 
-// RBR4 🟡1: main replaces the whole ui-state file on each save, so leaving a field out does not keep it. Nothing is
+// main replaces the whole ui-state file on each save, so leaving a field out does not keep it. Nothing is
 // saved until the initial read settles; the first save after it carries the saved panel and the early changes.
 test("no save is sent before the initial ui-state read, even after an early send and navigation", async () => {
   render(); folders([listed("/w/a")]);
@@ -234,7 +234,7 @@ test("no save is sent before the initial ui-state read after a Fast switch or a 
   expect((saved() as { home?: { fast?: unknown } }).home?.fast).toEqual({ claude: true });
 });
 
-// fast-mode R fix round 1 (review 🔴1, 🟡3): Fast changed before the startup read lands only for the provider it
+// Fast changed before the startup read lands only for the provider it
 // changed; the read keeps every other provider's Fast, an auto-off seen first still holds, and a later switch on wins.
 const summaryOf = (conversationId: string, provider: string) => ({ conversationId, title: "", state: "current", owner: "doan", provider, fromHome: false, phase: "ended", unseen: false, queued: 0, lastActivityAt: "2026-11-06T00:00:00Z", preview: "", working: false });
 const fastOff = (conversationId: string) => listeners.conversation!({ v: 1, conversationId, seq: 4, turnId: "t1", at: "2026-11-06T00:00:00Z", type: "fast.unused", reason: "plan", turnedOff: true } as never);
@@ -263,7 +263,7 @@ test("a switch on after an auto-off, both before the startup read, wins", async 
   expect(savedFast()).toEqual({ codex: true, claude: true });
 });
 
-// review 🟡3: a live auto-off for a conversation the lists do not name yet waits for its provider.
+// a live auto-off for a conversation the lists do not name yet waits for its provider.
 test("a live auto-off waits until a list names the conversation's provider", async () => {
   render(); folders([listed("/w/a")]); await Promise.resolve(); await Promise.resolve(); render();
   readUiState({ screen: "home", expanded: {}, lastByRoot: {}, home: { fast: { claude: true, codex: true } } }); await Promise.resolve(); await Promise.resolve(); render();
@@ -529,7 +529,7 @@ test("a sidebar canvas row unfolds the panel only when its slot needs an answer 
   expect(conversation()?.arrival).toMatchObject({ focus: "composer" });
 });
 
-// RD3: the row shows the terminal spinner over the app's unseen ending (withTerminalSlots), so its click decides with
+// the row shows the terminal spinner over the app's unseen ending (withTerminalSlots), so its click decides with
 // that working slot and keeps the panel as it was.
 test("a sidebar canvas row whose terminal spinner covers an unseen ending keeps a folded panel folded", async () => {
   doan.listConversations!.mockResolvedValue([rowSummary({ fromHome: true, unseen: true })]);
@@ -720,7 +720,7 @@ test("a pick cancelled by Esc returns focus to where it was before the pick, nev
   expect(second.link.focus).toHaveBeenCalledOnce();
 });
 
-// Review TOOL 🟡1: going back to where focus was is for focus the pick left behind (the page, the canvas, the element
+// going back to where focus was is for focus the pick left behind (the page, the canvas, the element
 // before it), never for focus the person moved meanwhile, such as into the field they type in.
 test("Esc pressed in the field after a pick started from the toolbar's Picker keeps focus in the field", async () => {
   const { link, field } = await canvasWithComposer();
@@ -925,7 +925,7 @@ test("capture mode shows its hint line above the tools, with Esc and a spoken ca
   expect(order[0]).toBe(line);
 });
 
-// Review U-1: capture mode does not end when the composer turns to one that refuses files, so the release checks the
+// capture mode does not end when the composer turns to one that refuses files, so the release checks the
 // composer again, with captureAvailability's order and copy, before any chip or snapshot.
 test("a release after the composer turned to a terminal session takes no snapshot and gives Attach's reason", async () => {
   doan.conversationResumeTarget!.mockResolvedValue({ available: true, runtime: "codex", lastCheckAt: "2026-11-01T14:02:00", session: "s1" });
@@ -972,7 +972,7 @@ test("a release after another canvas took the same ID takes no snapshot and give
   expect(harness.toast.show).toHaveBeenCalledExactlyOnceWith(DUPLICATE_CANVAS_TEXT);
 });
 
-// Review U-1 note: an answer that lands after the composer changed settles on its chip but moves no panel or focus.
+// an answer that lands after the composer changed settles on its chip but moves no panel or focus.
 test("a late answer after the panel switched conversation or the canvas page left settles its chip without unfolding", async () => {
   for (const leave of ["conversation", "home"] as const) {
     reset();

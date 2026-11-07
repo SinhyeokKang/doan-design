@@ -214,7 +214,7 @@ test("cancelOwned cancels only the sign-ins this renderer started", async () => 
   expect(h.api.cancelAgentSignIn.mock.calls).toEqual([["claude", "sign-1"]]);
 });
 
-// review-BP 🟡1: a queued row announcement keeps where it came from, so a check is never told as a sign-in.
+// a queued row announcement keeps where it came from, so a check is never told as a sign-in.
 test("a check that turned ready in the background is not a toast once the page that would announce it is gone", async () => {
   const h = harness(false);
   h.controller.start();
@@ -242,7 +242,7 @@ test("a sign-in that finished in the background is one toast once the page that 
   expect(h.announced).toEqual([]);
 });
 
-// review-BP ⚪1: the controller's own lifetime.
+// the controller's own lifetime.
 test("start after dispose subscribes again, and each snapshot and prompt is handled once", async () => {
   const h = harness();
   const changed = vi.fn();

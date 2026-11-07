@@ -247,7 +247,6 @@ test("a reply that lands after a switch settles its own draft and leaves focus w
   expect(focus).not.toHaveBeenCalled();
 });
 
-// Review RB2 🟡1–🟡4, ⚪2.
 test("sends from two conversations stay pending independently, and each reply settles only its own draft", async () => {
   const replies = new Map<string, (outcome: DockedOutcome) => void>();
   const { props, store, render } = setup({ onSend: request => new Promise(resolve => { replies.set((request as { text: string }).text, resolve); }) }, [["conversation:a", draft("A")], ["conversation:b", draft("B")]]);
@@ -329,7 +328,7 @@ test("Overview's field takes no chips: chipScope defaults to null", () => {
   expect(input(setup().render()).chipScope).toBeNull();
 });
 
-// BR1 fix round 1: the field learns which draft it shows, so a switch ends the previous draft's undo history.
+// the field learns which draft it shows, so a switch ends the previous draft's undo history.
 test("the field gets the draft key, which changes with the conversation while the element keeps its key", () => {
   const { props, render, draw } = setup({}, [["conversation:a", draft("")], ["conversation:b", draft("")]]);
   expect(input(render()).draftKey).toBe("conversation:a");
@@ -943,7 +942,7 @@ test("a suggestion is not announced on the first list read, a switch, a refill a
   expect(typed.said()).toBe("");
 });
 
-// R review ⚪4: a suggestion is plain text, so one that starts with / does not open the preset list when
+// a suggestion is plain text, so one that starts with / does not open the preset list when
 // Right Arrow puts it in; the list opens again once the field is emptied and / is typed.
 test("a suggestion that starts with / goes in as text and leaves the preset list closed", () => {
   const { render, handle } = suggestionSetup({ suggestion: "/compact the thread" });

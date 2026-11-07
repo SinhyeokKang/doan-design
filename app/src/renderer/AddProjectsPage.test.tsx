@@ -38,7 +38,7 @@ test("a local folder's setup offers Choose another folder on the page only", () 
   expect(firstRun).not.toContain("Choose another folder");
 });
 
-// review-BS ⚪4: a setup error whose recovery already offers Choose another folder does not repeat it underneath.
+// a setup error whose recovery already offers Choose another folder does not repeat it underneath.
 test("a failed local setup shows Choose another folder once, in its recovery", () => {
   for (const code of ["init_failed", "config_invalid"] as const) {
     const html = page({ phase: { kind: "setup", inspectionId: "i", url: null, path: "/w/a", changes: [] }, error: { code } });
@@ -130,7 +130,7 @@ test("the page panel sets first run's body text and clips sideways", async () =>
     expect(rule).toContain(declaration);
 });
 
-// review-BU2 🟡1: a locked menu item shows no highlight fill, and its icon and path take the disabled ink; the selected
+// a locked menu item shows no highlight fill, and its icon and path take the disabled ink; the selected
 // worktree keeps its own fill and check.
 test("locked project-menu items get no highlight fill and disabled ink on their icon and path", async () => {
   const { readFileSync } = await import("node:fs");

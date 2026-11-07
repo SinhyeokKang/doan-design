@@ -294,7 +294,7 @@ test("entering the page cancels a pending startup restore and a workspace still 
   expect(doan.saveUiState!.mock.lastCall?.[0]).toMatchObject({ screen: "home" });
 });
 
-// review BU1 🟡1: a target on the page is a navigation too, so a move still in flight must not land after it
+// a target on the page is a navigation too, so a move still in flight must not land after it
 // (POSTMORTEM 2026-10-27 no-op path rule); the same for Add Projects' own re-entry.
 test("on a page, ⌘, or the page's own tab cancels a navigation still in flight", () => {
   for (const reenter of ["cmdComma", "toast"] as const) {
@@ -327,7 +327,7 @@ test("on a page, ⌘, or the page's own tab cancels a navigation still in flight
   }
 });
 
-// review BU1 ⚪3: the Settings tab is a control the lock shows unavailable; only targets from outside wait.
+// the Settings tab is a control the lock shows unavailable; only targets from outside wait.
 test("while the page is locked a click on the Settings tab is ignored, not queued", () => {
   openFromWorkspace();
   lock();
@@ -969,7 +969,7 @@ test("a worktree picked from the branch chip focuses the new Overview's chip, no
   expect(focused).toEqual([".workspace .ov-main .wt-chip"]);
 });
 
-// Fix round 1 (review RA2 ⚪3): what the sidebar does around the page, as Home does.
+// what the sidebar does around the page, as Home does.
 test("entering the page leaves the sidebar's expansion as it was", () => {
   render();
   folders([listed("/w/a"), listed("/w/b")]);

@@ -40,7 +40,7 @@ test("Edit on Home asks before replacing a different draft", () => {
   expect(restoreRequest({ text: "Another idea", preset: null, attachments: [] }, last, "doan").confirm?.title).toBe("Replace your draft?");
 });
 
-// Review RM r1 🟡9: the start's ui-state read merges under what the run wrote, deletions included.
+// the start's ui-state read merges under what the run wrote, deletions included.
 test("a late ui-state read never brings back memory cleared by New or a removed root", () => {
   const saved = { "/a": "aaaaaaaa-0000-4000-8000-000000000001", "/b": "aaaaaaaa-0000-4000-8000-000000000002", "/c": "aaaaaaaa-0000-4000-8000-000000000003" };
   const now = { "/c": "aaaaaaaa-0000-4000-8000-000000000004" };

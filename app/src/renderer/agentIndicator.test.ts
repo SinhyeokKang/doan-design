@@ -76,7 +76,7 @@ describe("canvasAgent", () => {
     expect(canvasAgent([summary({})], null, previous, [])).toBeNull();
     expect(canvasAgent(null, null, previous, [])).toBeNull();
   });
-  // RBR5 🔴1: worktrees of one repository share canvas ids and paths, so a kept presence must not cross roots. Opening
+  // worktrees of one repository share canvas ids and paths, so a kept presence must not cross roots. Opening
   // B's twin canvas while B's list is still loading or failed must not offer A's Stop.
   describe("a kept presence stays in its project", () => {
     const b = { root: "/w/b", canvas: target.canvas };

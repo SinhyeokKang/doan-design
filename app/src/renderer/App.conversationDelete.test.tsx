@@ -298,7 +298,7 @@ test("deleting the canvas's current conversation from its Title menu shows the n
 });
 
 // PRODUCT item 3 'Deep links': a busy dialog refuses its cancel. Cancelling here would stop nothing, and a second
-// request for the same conversation would share the store's one deleting mark with the first (review 🟡1).
+// request for the same conversation would share the store's one deleting mark with the first.
 test("while its request is out the alert refuses Cancel and Escape, and stays until main answers", async () => {
   await openOverview();
   const reply = deferred<undefined>();
@@ -334,7 +334,7 @@ test("a refusal after main said the app is quitting shows no toast", async () =>
   expect(harness.toast.show).not.toHaveBeenCalled();
 });
 
-// Review RC (conductor) 🟡1: a throw in any cleanup must still end the deleting mark and close the alert, which refuses
+// a throw in any cleanup must still end the deleting mark and close the alert, which refuses
 // its cancel while busy and would otherwise hold the window until a reload.
 test("a cleanup that throws after a deletion still ends the mark and closes the alert", async () => {
   await openOverview();
@@ -365,7 +365,7 @@ test("a re-read that throws after a refusal still ends the mark, closes the aler
   expect(error).toHaveBeenCalled();
 });
 
-// Review RC ⚪3: the canvas panel's refusal and Cancel return focus to the panel's title trigger.
+// the canvas panel's refusal and Cancel return focus to the panel's title trigger.
 test.each([["a refusal", true], ["Cancel", false]])("canvas panel, %s: focus returns to the panel's title trigger", async (_name, confirm) => {
   await openCanvasPanel();
   doan.deleteConversation = vi.fn(async () => ({ error: "busy" }));
@@ -446,7 +446,7 @@ test.each([["a refusal", true], ["Cancel", false]])("Canvas conversations, %s: t
   } finally { delete FIELDS['.ov-right .cv-row[data-key="c3"]']; delete FIELDS[".ov-right .rp-head"]; }
 });
 
-// Review TOOL ⚪4: the row the list chose left too before focus moved (another deletion, a re-read): focus goes to the
+// the row the list chose left too before focus moved (another deletion, a re-read): focus goes to the
 // panel title, not to the deleted row's Delete, which leaves with its row and would drop focus to the page.
 test("a Canvas conversations deletion whose next row also left sends focus to the panel title", async () => {
   const { row, head } = listTargets();

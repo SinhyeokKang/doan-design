@@ -96,7 +96,7 @@ export type CanvasAgentState = { root: string; presence: AgentPresence; provider
 
 // agentPresence with the provider's display name, which the Stop failure toast names. A failed read keeps the previous
 // presence, and with it the provider, only within the same project: a twin canvas in another worktree (same id or
-// path) must never show, or Stop, the first project's conversation (RBR5). Without an app conversation working or
+// path) must never show, or Stop, the first project's conversation. Without an app conversation working or
 // waiting on it, a terminal session's `doan work` on the canvas (`work`, root + path) shows the terminal variant, so
 // the indicator stays when the app turn ends and the terminal session goes on. Another conversation's `update` naming
 // this canvas (`conversations`) shows the same variant.
