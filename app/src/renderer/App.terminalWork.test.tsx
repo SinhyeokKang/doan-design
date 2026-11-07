@@ -8,7 +8,7 @@ import { initialCanvasState } from "./CanvasController";
 import { projectExpanded } from "./shellNavigation";
 import type { ShellProject } from "../restore/uiState";
 
-// terminal-agent-activity design 'Renderer IPC', '표시' and 'Deep link': App reads main's terminal work list (subscribing
+// App reads main's terminal work list (subscribing
 // first), gives it to the sidebar and the canvas page, and opens doan:// links once the launch restore and the first
 // folders are in. Hooks run as plain state so App's own wiring runs (App.canvasNotice.test.tsx).
 const hooks = vi.hoisted(() => ({

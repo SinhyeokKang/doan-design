@@ -12,7 +12,7 @@ import { partitionDots, dotScale, type Dot } from "./dotField";
 import { groupProjects } from "./homeCards";
 import { followTurnKey } from "./workFollow";
 
-// The agent indicator on the board (buzz-canvas design §2 '에이전트 작업 표시').
+// The agent indicator on the board.
 
 // The canvas the indicator reads, with its project root: the open canvas while its project is a listed one and the page
 // is a listed canvas. Loading, failed and no-width canvases count (Stop is needed while the HTML is broken); an unlisted

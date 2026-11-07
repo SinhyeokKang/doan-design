@@ -466,7 +466,7 @@ test("App reads preferences once; Home starts from the saved default and Setting
   expect(doan.readPreferences).toHaveBeenCalledTimes(1);
 });
 
-// design '창 제거와 IPC' 잃는 보장: the Settings page shares the main window's preload, so only this convention keeps it
+// the Settings page shares the main window's preload, so only this convention keeps it
 // from starting or sending a conversation.
 test("Settings components never start or send a conversation", () => {
   const dir = new URL(".", import.meta.url);
@@ -475,7 +475,7 @@ test("Settings components never start or send a conversation", () => {
   for (const name of files) expect(readFileSync(new URL(name, dir), "utf8"), name).not.toMatch(/startConversation|sendConversation/);
 });
 
-// project-settings T4: Project Settings is a page now (design '이동과 잠금'). App opens it from the project menus,
+// Project Settings is a page now. App opens it from the project menus,
 // keeps the origin it shares with Add Projects and Settings, holds the page's lock and leaves when its worktree goes.
 type ProjectPage = ReactElement<{ root: string; origin: unknown; arrival: { seq: number } | null; header: ReactElement; sidebar: Sidebar & { props: { home?: boolean } };
   onState(report: { locked: boolean }): void; onGone(): void; onRerooted(root: string, origin: unknown): void;

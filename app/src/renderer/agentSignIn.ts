@@ -35,7 +35,7 @@ function loopback(url: string): boolean {
   try { return ["localhost", "127.0.0.1", "[::1]"].includes(new URL(url).hostname); } catch { return false; }
 }
 
-// Sign-in state for the whole renderer (buzz-settings design 'App 수준 로그인 컨트롤러'). main sends a sign-in prompt
+// Sign-in state for the whole renderer. main sends a sign-in prompt
 // to its owner window once, and a sign-in outlives the screen it started on, so the prompt, the attempts this renderer
 // owns and the ready announcements live here rather than in a component (POSTMORTEM 2026-10-25 'A forwarded Settings
 // target discarded a pending setup confirmation': component and main operation lifetimes diverge). Readiness is never
@@ -200,7 +200,7 @@ export class AgentSignIn {
     // regains focus, which never raises the window (2026-10-28 user). One seen while the window has focus (a check, a
     // Retry) is on screen already and must not pull focus away; a sign-in this renderer started is still announced
     // once, without moving focus (conductor 2026-10-29). With no rows shown, only a sign-in that ended is told, in a
-    // toast: a check that settles in the background is not news (buzz-settings design 'App 수준 로그인 컨트롤러').
+    // toast: a check that settles in the background is not news.
     const focused = this.deps.hasFocus();
     for (const status of next.providers) {
       const { provider } = status, old = previous?.providers.find(p => p.provider === provider);

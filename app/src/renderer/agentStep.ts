@@ -43,7 +43,7 @@ export interface AgentStepState {
 type OwnState = Omit<AgentStepState, "auth" | "contexts">;
 
 // Providers whose check is free and whose state a check can settle: re-checked on step entry and on return from
-// an install page (design '이동·취소·포커스 계약'). Copilot's check spends a model request, so only its Retry checks.
+// an install page. Copilot's check spends a model request, so only its Retry checks.
 const AUTO_CHECK = new Set(["unverified", "tools_missing", "tools_failed"]);
 
 // The onboarding Agent step's state over the renderer's sign-in controller. It never judges readiness itself

@@ -6,7 +6,7 @@ import type { AgentPresence } from "./agentPresence";
 import { agentNoticeView, canvasAgent, DOT_FIELD, DotFieldLoop, drawDotField, listForPresence, canvasWorkTarget, pickWork, workFrameTitle, settleStopping, siblingWork, stopFailedText, stopTurn, workFrameRect, workingCanvas } from "./agentIndicator";
 import type { ConversationWork } from "../main/conversationWork";
 
-// buzz-canvas R5 (design §2 '에이전트 작업 표시', §5 copy): which canvas the indicator reads, the notice's button, Stop's
+// which canvas the indicator reads, the notice's button, Stop's
 // lifecycle and the dot field's loop.
 const row: CanvasRow = { path: ".doan/canvases/billing.html", id: "billing", url: "u" };
 const opened = { folder: "/w/a", canvas: row.path, row };
@@ -108,7 +108,7 @@ describe("canvasAgent", () => {
   });
 });
 
-// terminal-agent-activity design '표시' (canvas page): a terminal session's `doan work` on the open canvas shows the same
+// a terminal session's `doan work` on the open canvas shows the same
 // indicator without Stop; an app conversation on the canvas wins. Identity is root + path (POSTMORTEM 2026-11-01).
 describe("canvasAgent with terminal sessions", () => {
   const target = { root: "/w/a", canvas: { path: row.path, id: "billing" } };

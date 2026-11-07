@@ -1,7 +1,6 @@
 import type { ProjectPhase } from "./projectStep";
 
-// Where a page (Add Projects, Settings or Project Settings) goes when it is left (buzz-add-projects design '화면과
-// 이동', buzz-settings design '화면과 내비게이션'). The origin is the last Projects-side screen, not the previous one, so
+// Where a page (Add Projects, Settings or Project Settings) goes when it is left. The origin is the last Projects-side screen, not the previous one, so
 // moving from one page to another never makes a page the return target.
 export type AddPageOrigin = { screen: "home" } | { screen: "workspace"; root: string };
 export type PageName = "addProjects" | "settings" | "projectSettings";
@@ -29,8 +28,7 @@ export function pageEnter(from: ShellScreen, origin: AddPageOrigin, to: PageName
   return { kind: "enter", origin: from.screen === "home" || from.screen === "workspace" ? from : origin, cancelPending: true };
 }
 
-// Choosing a worktree's Project Settings while its page is already open (project-settings design '같은 페이지에서
-// 다시 들어오기'). It never goes through pageEnter, which would stay: the page is the same, only its worktree changes.
+// Choosing a worktree's Project Settings while its page is already open. It never goes through pageEnter, which would stay: the page is the same, only its worktree changes.
 // The origin is kept as it is.
 export function projectSettingsReentry(shown: string, target: string, locked: boolean):
   { kind: "ignore" } | { kind: "focusTitle" } | { kind: "switch"; root: string; cancelPending: true } {
@@ -59,7 +57,7 @@ export function workspaceRemoved(screen: ShellScreen["screen"], loadedRoot: stri
   return screen === "workspace" && loadedRoot !== null && loadedRoot !== locatingFrom && !roots.includes(loadedRoot);
 }
 
-// Only a field you type into holds Escape (design '화면과 이동': the URL field, an IME composition); a focused radio of
+// Only a field you type into holds Escape (the URL field, an IME composition); a focused radio of
 // the candidates list does not. An IME may hold Escape without setting isComposing; keyCode 229 is its own key then
 // (homeComposer isSubmitKey).
 const UNTYPED = new Set(["button", "checkbox", "color", "file", "hidden", "image", "radio", "range", "reset", "submit"]);
@@ -73,7 +71,7 @@ export function pageEscape(event: { target: unknown; isComposing: boolean; keyCo
 }
 
 // Selecting writes the project and a clone runs until it ends or is cancelled; neither result may be dropped, so the
-// page cannot be left meanwhile (design '잠금').
+// page cannot be left meanwhile.
 export function leaveLocked(phase: Pick<ProjectPhase, "kind">): boolean {
   return phase.kind === "selecting" || phase.kind === "cloning";
 }

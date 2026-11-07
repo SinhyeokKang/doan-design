@@ -3,8 +3,8 @@ import { leaveLocked } from "./addProjectsNav";
 import { ProjectScreen, useProjectFocus } from "./Onboarding";
 import { addPageApi, ProjectStepSession } from "./projectStep";
 
-// What App needs from the page: whether leaving is locked (design '잠금') and whether File > Add Project… may run
-// Choose folder (design '메뉴').
+// What App needs from the page: whether leaving is locked and whether File > Add Project… may run
+// Choose folder.
 export interface AddPageReport { locked: boolean; choose: boolean }
 
 // The Add Projects page (buzz-add-projects): the shell's header and sidebar around first run's Project screen, over the
@@ -59,7 +59,7 @@ function PageBody({ sessionId, projects, homeDirectory, mainCheckout, choose, ch
   const { toUrl, openPicker } = useProjectFocus(session, scene, heading, () => true, true);
   useEffect(() => {
     session.start();
-    // The page opens on its heading, which names the panel (design '포커스').
+    // The page opens on its heading, which names the panel.
     requestAnimationFrame(() => heading.current?.focus());
     return () => session.dispose();
   }, []);

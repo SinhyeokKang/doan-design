@@ -73,7 +73,7 @@ test("a radio, a checkbox or a select is not editing; text fields and textareas 
     expect(pageEscape({ target, isComposing: false, keyCode: 27 }, false)).toEqual({ ...escape, editing: true });
 });
 
-// buzz-settings design '화면과 내비게이션': Settings and Add Projects are both pages and share one origin.
+// Settings and Add Projects are both pages and share one origin.
 test("settings page: entering from Home or a workspace records it as the origin and cancels pending moves", () => {
   expect(pageEnter({ screen: "home" }, ws, "settings", false)).toEqual({ kind: "enter", origin: home, cancelPending: true });
   expect(pageEnter({ screen: "workspace", root: "/w/b" }, home, "settings", false)).toEqual({ kind: "enter", origin: { screen: "workspace", root: "/w/b" }, cancelPending: true });
@@ -109,7 +109,7 @@ test("settings page: every leaving move is ignored while the page is locked", ()
   expect(addPageReturn(ws, { kind: "added", root: "/w/new" }, roots, true)).toEqual({ kind: "home", select: "/w/new" });
 });
 
-// project-settings design '이동과 잠금': Project Settings is a third page that shares the origin.
+// Project Settings is a third page that shares the origin.
 test("project settings page: entering from Home, a workspace or another page records or keeps the origin", () => {
   expect(pageEnter({ screen: "home" }, ws, "projectSettings", false)).toEqual({ kind: "enter", origin: home, cancelPending: true });
   expect(pageEnter({ screen: "workspace", root: "/w/b" }, home, "projectSettings", false)).toEqual({ kind: "enter", origin: { screen: "workspace", root: "/w/b" }, cancelPending: true });

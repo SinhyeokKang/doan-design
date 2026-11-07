@@ -319,7 +319,7 @@ test("the window takes no file drop: dragover and drop only prevent the default,
   }
 });
 
-// Conductor decision on design '잠금' ('펼치기' is allowed): while locked a project row still unfolds, and its chevron
+// while locked a project row still unfolds, and its chevron
 // still folds it; only the move to its workspace is ignored, whether by click or by keyboard activation (both call
 // toggle). The row never folds, locked or not (project-row-disclosure).
 test("while locked a project row still unfolds and its chevron folds it, without leaving the page", () => {

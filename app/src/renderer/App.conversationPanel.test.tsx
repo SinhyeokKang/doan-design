@@ -329,7 +329,7 @@ test("the read Overview width is kept; one changed before the read wins, and not
   expect(savedPanels()?.overviewPanel).toEqual({ width: 600 });
 });
 
-// canvas-hand-tool design '기기 저장' and '시작 복원': the last canvas tool is saved with the rest of ui-state, only
+// the last canvas tool is saved with the rest of ui-state, only
 // after the startup read, and the read's tool goes to the controller, which keeps a tool the person chose before it.
 const publishTool = (tool: "select" | "hand") => { harness.setState!({ ...initialCanvasState(), tool }); render(); };
 const savedTool = () => doan.saveUiState!.mock.lastCall?.[0] as { canvasTool?: unknown; rightPanel?: unknown } | undefined;
@@ -386,7 +386,7 @@ test("tells the controller whether the canvas page is the one shown", async () =
   expect(harness.controller!.setCanvasPage).toHaveBeenLastCalledWith(false);
 });
 
-// buzz-canvas R5 (design §2 '에이전트 작업 표시'): the agent notice's Open unfolds the panel and moves focus into it; a Stop
+// the agent notice's Open unfolds the panel and moves focus into it; a Stop
 // failure is the shared toast; a page without a listed canvas gives the indicator no canvas.
 type Agent = { canvas: unknown; running: boolean; list: unknown; onOpen(): void; onStopFailed(text: string): void };
 const agent = () => (pane() as unknown as { agent: Agent } | undefined)?.agent;
@@ -859,7 +859,7 @@ test("a captured area lands as a checking Canvas capture chip at once, and main'
   expect(harness.toast.show).not.toHaveBeenCalled();
 });
 
-// Conductor decision (orch.md '접힌 패널을 펼치는 때'): unfolding narrows the canvas area, so it waits for main's answer,
+// unfolding narrows the canvas area, so it waits for main's answer,
 // which comes after main has read the pixels; the checking chip goes in at once.
 test("a folded panel unfolds, with focus for the composer, only once main answers the capture", async () => {
   for (const reply of [captured(), { ok: false, name: "Canvas capture", error: "capture_failed" }]) {
@@ -906,7 +906,7 @@ test("a draft that reached 10 files after the render takes no snapshot and says 
   expect(harness.toast.show).toHaveBeenCalledExactlyOnceWith("Only 10 files can be attached. 1 was left out.");
 });
 
-// canvas-capture spec 2 and design §2 '안내 줄': a role=status line above the tools, in the picking hint's look.
+// a role=status line above the tools, in the picking hint's look.
 test("capture mode shows its hint line above the tools, with Esc and a spoken cancel", async () => {
   await canvasWithComposer();
   const paneTree = () => {

@@ -7,7 +7,7 @@ import { initialCanvasState } from "./CanvasController";
 import type { CanvasMenu } from "./ShellSidebar";
 import type { TrashDialogView } from "./CanvasTrashDialog";
 
-// canvas-row-menu design 'Alert Dialog', '삭제 뒤 화면' and '앱 Export 흐름': App owns the Move to Trash dialog and the
+// App owns the Move to Trash dialog and the
 // Export flow the sidebar's canvas row menu starts. Hooks run as plain state so App's own wiring runs
 // (App.terminalWork.test.tsx).
 const hooks = vi.hoisted(() => ({

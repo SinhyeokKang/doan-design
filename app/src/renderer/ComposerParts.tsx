@@ -412,7 +412,7 @@ export function useOlderFold(groups: readonly { provider: string; rows: readonly
 export function TriggerLabel({ text, placeholder }: { text: string; placeholder: boolean }) {
   return <span className={placeholder ? "label placeholder" : "label"}>{text}</span>;
 }
-// The agent and model picker (buzz-settings design '홈 공급자 선택기'): a group per provider, its fix in Settings when it
+// The agent and model picker: a group per provider, its fix in Settings when it
 // cannot run. `onPick` gets the provider and a model id, or null for the Default row shown before the list is read:
 // Claude Code's own default model has the id "default", so that word cannot stand for the row.
 // `size`: Home's tools row uses sm; the docked row under the card steps down to xs.

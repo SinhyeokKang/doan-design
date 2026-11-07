@@ -425,7 +425,7 @@ test("settings context: a connected row refused as busy keeps its account and a 
   expect(only(providerView(dto("cursor"), { ...S, reply: "busy", busyWith: "codex" })).button).toBe("prominent-disabled:Sign in:signIn");
 });
 
-// agent-cli-terminal design '행 상태와 문구': the Install or Update row after its button was used.
+// the Install or Update row after its button was used.
 test("installRowView: every install result before and after the return check, for Install and Update", () => {
   const row = (cause: "cli_missing" | "version_unsupported", install: Omit<InstallState, "provider" | "action"> | null) => {
     const action = cause === "cli_missing" ? "install" : "update";

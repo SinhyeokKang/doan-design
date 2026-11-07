@@ -16,7 +16,7 @@ export type AuthCommand = "install" | "update" | "installPage" | "signIn" | "rea
 // note: visible text shown next to the button (the Copilot request cost).
 export interface Button<C extends string = AuthCommand> { command: C; label: string; variant: "prominent" | "subtle" | "ghost"; disabled: boolean; ariaLabel?: string; note?: string }
 export type AuthButton = Button;
-// Errors are role=alert and progress is role=status with an aria-hidden spinner (design '이동·취소·포커스 계약').
+// Errors are role=alert and progress is role=status with an aria-hidden spinner.
 export interface Notice<C extends string = AuthCommand> { role: "status" | "alert"; spinner: boolean; title?: string; body?: string; note?: string; actions: Button<C>[] }
 export interface ProviderView {
   provider: Provider; name: string;
@@ -116,7 +116,7 @@ function readinessView(status: AuthStatusDto, ctx: ProviderContext, view: Provid
   }
 }
 
-// A row whose CLI is missing or below the minimum, after its Install or Update (agent-cli-terminal design '행 상태와 문구').
+// A row whose CLI is missing or below the minimum, after its Install or Update.
 // The row keeps one button; a state left from the other action reads as before the click.
 export function installRowView(readiness: { cause: "cli_missing" | "version_unsupported" }, install: InstallState | null, name: string): Pick<ProviderView, "button" | "helper" | "notice"> {
   const action = readiness.cause === "cli_missing" ? "install" : "update";
@@ -143,7 +143,7 @@ export function providerView(status: AuthStatusDto, ctx: ProviderContext = {}): 
   const view: ProviderView = { provider, name, detail: status.account ? account : VENDORS[provider], detailRole: null, button: null, helper: null, notice: null, paste: null, signOut: null };
   const signInDisabled = button("signIn", "Sign in", "prominent", true, `Sign in to ${name}`);
   // Ownership is not inferred: after a reload, or for a CLI-started sign-in, this window may own the attempt without
-  // knowing its id, and must keep Cancel ('agent-auth 인계'). Only agent-auth's not_owner reply says otherwise.
+  // knowing its id, and must keep Cancel. Only agent-auth's not_owner reply says otherwise.
   // Settings is in the only window, so the other owner is the CLI that started it.
   if (ctx.reply === "not_owner") return { ...view, detail: ctx.settings ? "Finish this sign-in where it started." : "Finish this sign-in in the window that started it.", detailRole: "status", button: signInDisabled };
   if (attempt?.kind === "signIn") {
@@ -240,7 +240,7 @@ export function agentsSettingsView(auth: AuthSnapshot | null | undefined, contex
   return { notice: list.notice, sections: sections.filter(section => section.providers.length > 0), anyReady: list.anyReady };
 }
 
-// Home's agent picker sends a group that cannot run to its Agents row (buzz-settings design '홈 공급자 선택기'). A row
+// Home's agent picker sends a group that cannot run to its Agents row. A row
 // that can run (ready, or unverified, which main checks on send) and a provider without a connection have none.
 export interface SettingsAction { label: string; target: SettingsTarget }
 export function pickerAction(status: AuthStatusDto): SettingsAction | null {
@@ -259,7 +259,7 @@ export function pickerFooter(anyRunnable: boolean): { note: string | null; actio
     : { note: "No agent is ready to run.", action: { label: "Sign in to an agent…", target: { section: "agents" } } };
 }
 
-// A sign-in that ends while Settings > Agents is not shown (design 'App 수준 로그인 컨트롤러'); the window is not raised.
+// A sign-in that ends while Settings > Agents is not shown; the window is not raised.
 export function signInToast(provider: Provider, ok: boolean): { text: string; action: SettingsAction | null } {
   const name = PROVIDER_NAMES[provider];
   return ok ? { text: `${name} connected.`, action: null } : { text: `${name} sign-in didn’t finish.`, action: { label: "Open Agents settings", target: { section: "agents", provider } } };

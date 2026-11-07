@@ -50,7 +50,7 @@ test("a late ui-state read never brings back memory cleared by New or a removed 
   expect(mergeConversationMemory(undefined, now, new Set(["/c"]))).toEqual(now);
 });
 
-// buzz-canvas design §2 '기억': the canvas page's conversation panel is saved with every save. App sends no save before
+// the canvas page's conversation panel is saved with every save. App sends no save before
 // the initial ui-state read (App.conversationPanel.test.tsx), so the value saved is the read one or the person's.
 test("every save carries the conversation panel's state", () => {
   const home = {};

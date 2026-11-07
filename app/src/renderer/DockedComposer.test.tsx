@@ -203,7 +203,7 @@ test("a terminal session's fixed Effort and Permission triggers read Effort and 
   expect(html).not.toContain(">Default<");
 });
 
-// fast-mode spec 'Fast 스위치': a terminal session's fixed Effort trigger never shows the Fast icon; the docked one does.
+// a terminal session's fixed Effort trigger never shows the Fast icon; the docked one does.
 test("the docked Effort trigger shows Fast on; a terminal session's fixed trigger never does", () => {
   const picker = { ...PICKER, effort: { ...PICKER.effort!, ariaLabel: "Effort: High, Fast on", fast: { on: true } } };
   expect(render({ picker })).toMatch(/class="composer-effort doan-button" data-ui-size="xs"[^>]*aria-label="Effort: High, Fast on"[^>]*>.*?lucide-zap/);
