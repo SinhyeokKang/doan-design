@@ -170,14 +170,14 @@ export function App() {
   const [loadedRoot, setLoadedRoot] = useState<string | null>(null);
   const [highlight, setHighlight] = useState<string[]>([]);
   const [setup, setSetup] = useState<string | null>(null);
-  // canvas-row-menu: the canvas the Move to Trash dialog asks about and main's plan for it (null until main answers);
+  // The canvas the Move to Trash dialog asks about and main's plan for it (null until main answers);
   // `seq` drops a closed dialog's late plan. Set through `changeTrashing`, so a reply that lands before the next render
   // sees the dialog as it is.
   const [trashing, setTrashing] = useState<{ root: string; row: CanvasRow; plan: TrashPlanReply | null; seq: number } | null>(null);
   const trashingRef = useRef(trashing);
   const changeTrashing = (next: typeof trashing) => { trashingRef.current = next; setTrashing(next); };
   const trashSeq = useRef(0);
-  // conversation-delete: the conversation a title menu's Delete asks about, and whether its request is out. Set through
+  // The conversation a title menu's Delete asks about, and whether its request is out. Set through
   // `changeDeleting`, so the reply sees the dialog as it is. `afterDelete` is where focus goes once the conversation
   // was deleted, instead of the Delete's trigger: the shown conversation's composer (`field`), or the Canvas
   // conversations row or title the list chose.
@@ -261,7 +261,7 @@ export function App() {
   const restoreCancelled = useRef(false);
   const cancelRestore = () => { navigationIntent.current++; restoreCancelled.current = true; setRestore("done"); homeRun.current.personNavigated(); };
   const recoveryFocus = useRef<{ element: HTMLElement; root: string } | null>(null);
-  // Home (buzz-home): the composer's run memory, ui-state's Home memory (null until read), the first-run handoff and
+  // Home: the composer's run memory, ui-state's Home memory (null until read), the first-run handoff and
   // an added project to choose. Home conversations, their strip states and last requests live for this run only.
   const composerMemory = useRef(emptyComposer());
   const [homeMemory, setHomeMemory] = useState<HomeMemory | null>(null);
@@ -301,7 +301,7 @@ export function App() {
     followedMode: (provider, mode) => live.current.followMode(provider, mode),
     changed: () => { setRunTick(tick => tick + 1); overviewRun.current?.sync(); canvasRun.current?.sync(); },
   });
-  // The Overview's main conversation and its composer's lists (buzz-project), for the run; the root it shows, as
+  // The Overview's main conversation and its composer's lists, for the run; the root it shows, as
   // committed.
   const shownOverviewRef = useRef<string | null>(null);
   // conversationByRoot is written from the start; the Overview reads it only once ui-state was read (memoryRead).
@@ -390,7 +390,7 @@ export function App() {
     label: root => live.current.projectLabel(root),
     changed: () => setRunTick(tick => tick + 1),
   });
-  // The canvas page's conversation panel (buzz-canvas-conversation); it shares the Overview's threads and drafts.
+  // The canvas page's conversation panel; it shares the Overview's threads and drafts.
   const canvasRun = useRef<CanvasRun | null>(null);
   if (!(canvasRun.current instanceof CanvasRun)) canvasRun.current = new CanvasRun({
     list: root => homeRun.current.listState(root),
@@ -869,7 +869,7 @@ export function App() {
     const group = cards.find(card => card.key === key); if (!group) return;
     setShellProjects(previous => ({ ...previous, [key]: withGroups({ ...(previous[key] ?? { expanded: false }), roots: group.rows.map(row => row.path) }, groups => toggleGroup(groups, id)) }));
   };
-  // Whatever opened it, a newly shown canvas opens its group (Q12); a group closed while it stays shown stays closed.
+  // Whatever opened it, a newly shown canvas opens its group; a group closed while it stays shown stays closed.
   const lastShown = useRef<ShownCanvas | null>(null);
   useEffect(() => {
     const next = state.open && state.shown ? { root: state.open.folder, path: state.shown } : null;
@@ -1112,7 +1112,7 @@ export function App() {
   useEffect(() => window.doan.onQuitting(quitting => { quittingRef.current = quitting; }), []);
   // doan:// links: subscribed on mount, while main holds them until App is ready (below).
   useEffect(() => window.doan.onOpenLink(result => live.current.openLink(result)), []);
-  // `doan open` requests (canvas-open-offer): main sends them only once links are ready, and each is answered by its id.
+  // `doan open` requests: main sends them only once links are ready, and each is answered by its id.
   useEffect(() => window.doan.onOpenRequest(request => live.current.openCanvasRequest(request)), []);
   // A started handoff, and every later render's check of the one still waiting for its read.
   useEffect(() => window.doan.onConversationHandoff(notice => live.current.conversationHandoff(notice)), []);
@@ -1125,7 +1125,7 @@ export function App() {
     linksReady.current = true;
     void window.doan.openLinksReady().catch(console.error);
   }, [restore, foldersSeen]);
-  // The canvases terminal sessions work on (terminal-agent-activity 'Renderer IPC'): subscribed first, then read, and a
+  // The canvases terminal sessions work on: subscribed first, then read, and a
   // change that lands before the read answers is newer than it.
   const [work, setWork] = useState<readonly WorkItem[]>([]);
   useEffect(() => {
