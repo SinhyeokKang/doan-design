@@ -11,7 +11,7 @@
 
 - 저장소에 lint 설정이 없다. `app/`과 루트에 `eslint.config.*`·`.eslintrc*`·`.oxlintrc.json`·`biome.json`이 없고, `app/package.json` scripts에 lint가 없다. gate는 `tsc --noEmit`, Vitest, build, Go test·vet만 돌린다(`verify.mjs` `plan()`).
 - `tsc`는 Promise를 돌려주는 callback을 void 자리에 넘겨도 통과시킨다. 이 때문에 생긴 버그가 이미 있다. POSTMORTEM 2026-10-23 'Comment copy reported success before the clipboard committed': Electron 45의 `clipboard.writeText`는 Promise인데 service 의존성이 void로 타입 지정되어 await 없이 불렸고, 거절된 쓰기가 `copied:true`를 돌려줬다. "A callback that returned a Promise still satisfied the void callback type." 이것이 no-misused-promises(`checksVoidReturn`)가 잡는 모양이다.
-- 지금 코드에도 같은 모양이 있다. 2026-11-07 측정(design §2)에서 테스트를 뺀 소스에 no-misused-promises 4건이 나왔다: `app/src/main/index.ts:1195`(quit 순서의 `setImmediate(async …)`, try 밖의 `await`가 거절되면 처리하는 곳이 없다), `app/src/renderer/Onboarding.tsx:214`, `app/src/renderer/SettingsAgents.tsx:128`·`:136`(`session.command`의 Promise를 void prop에 넘김).
+- 지금 코드에도 같은 모양이 있다. 2026-11-07 측정(design §2)에서 테스트를 뺀 소스에 no-misused-promises 4건이 나왔다: `app/src/main/index.ts:1230`(quit 순서의 `setImmediate(async …)`, try 밖의 `await`가 거절되면 처리하는 곳이 없다), `app/src/renderer/Onboarding.tsx:217`, `app/src/renderer/SettingsAgents.tsx:128`·`:136`(`session.command`의 Promise를 void prop에 넘김).
 - exhaustive-deps 경고는 renderer 18개 파일에 82건이다(`App.tsx` 15, `CanvasConversationPanel.tsx` 12, `HomeComposerView.tsx` 9, `ProjectOverview.tsx` 8). BACKLOG의 2026-11-05 측정은 대부분이 일부러 뺀 의존성이나 복잡한 식이라고 적었다. 고치면 effect가 다시 도는 시점이 바뀌므로 한 번에 고치지 않는다.
 - 앱의 TypeScript는 7.0.2(`app/package.json` devDependencies)다. 2026-11-07 기준 typescript-eslint 8.72.1의 peer는 `typescript >=4.8.4 <6.1.0`이라서, `app/`에 그대로 설치하면 npm이 `ERESOLVE`로 거절한다(design §3). BACKLOG가 적은 ESLint 조합은 이 저장소에 그대로 들어가지 않는다.
 

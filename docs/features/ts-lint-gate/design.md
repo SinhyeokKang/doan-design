@@ -26,7 +26,7 @@ oxlint와 oxlint-tsgolint(typescript-go 기반 타입 검사)를 `app/` devDepen
 |---|---|---|---|
 | rules-of-hooks | 0 | 0 | — |
 | no-floating-promises | 0 | 0 | — |
-| no-misused-promises | 4 | 4 | `main/index.ts:1195`, `renderer/Onboarding.tsx:214`, `renderer/SettingsAgents.tsx:128`·`:136` |
+| no-misused-promises | 4 | 4 | `main/index.ts:1230`, `renderer/Onboarding.tsx:217`, `renderer/SettingsAgents.tsx:128`·`:136` |
 | exhaustive-deps | 82 (18 파일) | 86 (18 파일) | 전부 renderer. `App.tsx` 15(B 18), `CanvasConversationPanel.tsx` 12, `HomeComposerView.tsx` 9, `ProjectOverview.tsx` 8, `DockedComposer.tsx` 6 |
 | 시간 | 0.8–1.5 s | 측정 안 함 | 테스트 포함 전체로는 A 1.8 s, B 23.8 s |
 
@@ -90,8 +90,8 @@ oxlint 바이너리에는 `eslint-disable`과 `oxlint-disable` 문자열이 둘 
 
 오류 규칙의 4건은 gate를 켜기 전에 고친다.
 
-- **renderer 3건** (`SettingsAgents.tsx:128`·`:136`, `Onboarding.tsx:214`): `run(provider)`가 `session.command(…)`의 `Promise<void> | void`를 돌려주고, 이것이 void를 기대하는 `onClick`·`run` prop으로 간다. Promise를 돌려주는 경우는 `agentStep.ts`의 `install()`·`installPage()`뿐이고, 둘 다 실패를 스스로 잡는다(확인함, `agentStep.ts` 188–200줄 부근: `openInstall(…).catch((): InstallResult => "failed")`, `openInstallPage(…).catch(() => false)`, 그 뒤 `settleInstall`). 그래서 `void`가 거절을 숨기지 않는다. 고치는 곳은 파일마다 `run` helper 한 곳이다(`Onboarding.tsx` 202줄 부근, `SettingsAgents.tsx` 101줄 부근): `return session.command(provider, command);`를 `void session.command(provider, command);`로 바꾸고, helper의 반환형이 void가 된다.
-- **main 1건** (`index.ts:1195`): quit 순서의 `setImmediate(async () => …)`. 지금은 `conversations.quit()`만 try 안에 있고, 그 뒤의 `mcp.quit()`, `usage.quit()`, `agentAuth.quit()`, `Promise.all([onboarding.quit(), addPage.quit()])`가 거절하면 처리하는 곳이 없어 `app.quit()`에 닿지 않는다. 각 `quit()`는 대기에 상한을 두지만(`QUIT_WAIT_MS`) 거절하지 않는다는 보장은 코드에 없다. 고친 모양:
+- **renderer 3건** (`SettingsAgents.tsx:128`·`:136`, `Onboarding.tsx:217`): `run(provider)`가 `session.command(…)`의 `Promise<void> | void`를 돌려주고, 이것이 void를 기대하는 `onClick`·`run` prop으로 간다. Promise를 돌려주는 경우는 `agentStep.ts`의 `install()`·`installPage()`뿐이고, 둘 다 실패를 스스로 잡는다(확인함, `agentStep.ts` 188–200줄 부근: `openInstall(…).catch((): InstallResult => "failed")`, `openInstallPage(…).catch(() => false)`, 그 뒤 `settleInstall`). 그래서 `void`가 거절을 숨기지 않는다. 고치는 곳은 파일마다 `run` helper 한 곳이다(`Onboarding.tsx` 205줄 부근, `SettingsAgents.tsx` 101줄 부근): `return session.command(provider, command);`를 `void session.command(provider, command);`로 바꾸고, helper의 반환형이 void가 된다.
+- **main 1건** (`index.ts:1230`): quit 순서의 `setImmediate(async () => …)`. 지금은 `conversations.quit()`만 try 안에 있고, 그 뒤의 `mcp.quit()`, `usage.quit()`, `agentAuth.quit()`, `Promise.all([onboarding.quit(), addPage.quit()])`가 거절하면 처리하는 곳이 없어 `app.quit()`에 닿지 않는다. 각 `quit()`는 대기에 상한을 두지만(`QUIT_WAIT_MS`) 거절하지 않는다는 보장은 코드에 없다. 고친 모양:
   - 거절하지 않는 함수 `quitInOrder()`를 두고, 부르는 쪽은 `setImmediate(() => { void quitInOrder(); })`로 쓴다. async 함수를 `setImmediate`에 바로 넘기면 no-misused-promises가 여전히 걸린다.
   - `conversations.quit()` 실패 경로는 그대로다(quit을 멈추고 onboarding·addPage를 다시 열고 기록).
   - 그 뒤 단계는 같은 순서로 하나씩 따로 잡는다: `mcp`, `usage`, `agentAuth` 각각 try/catch로 감싸 거절을 기록하고 다음 단계로 간다. onboarding·addPage는 `Promise.all` 대신 `Promise.allSettled`로 기다리고 거절된 것을 기록한다. 마지막의 `quitting = true; … app.quit();`는 그대로다.

@@ -24,7 +24,7 @@ lint 명령(`npm --prefix app run lint`)은 T0에서 생기고 T3에서 AGENTS.m
 - `/tdd`: `main/index.ts` quit 순서 회귀 테스트(`index.test.ts`, `before-quit` emit 구조). 사례: `conversations.quit()`가 성공하고 앞 단계인 `mcp.quit()`가 거절해도 `usage.quit()`와 `agentAuth.quit()`가 불리고, 거절이 기록되고, `app.quit()`가 불린다. onboarding·addPage 중 하나가 거절해도 `app.quit()`가 불린다. 고치기 전에 빨간 것을 본다.
 - `/implement`:
   - quit 순서(design §5): 거절하지 않는 `quitInOrder()`와 `setImmediate(() => { void quitInOrder(); })`. `mcp`·`usage`·`agentAuth`를 같은 순서로 하나씩 try/catch해 기록하고 이어 가며, onboarding·addPage는 `Promise.allSettled`로 기다린다. `conversations.quit()` 실패 경로와 마지막 정리는 그대로다.
-  - renderer: `Onboarding.tsx`(202줄 부근)와 `SettingsAgents.tsx`(101줄 부근)의 `run` helper에서 `return session.command(provider, command);`를 `void session.command(provider, command);`로 바꾼다. `install()`·`installPage()`가 실패를 스스로 잡는 것은 확인했다(design §5).
+  - renderer: `Onboarding.tsx`(205줄 부근)와 `SettingsAgents.tsx`(101줄 부근)의 `run` helper에서 `return session.command(provider, command);`를 `void session.command(provider, command);`로 바꾼다. `install()`·`installPage()`가 실패를 스스로 잡는 것은 확인했다(design §5).
 - `/runtime-test`(AGENTS 'Workflow'), 격리된 HOME·SHELL·userData:
   - 보통 Quit: 앱이 exit code 0, 신호 없이 끝난다.
   - Settings > Agents: fake `SHELL`의 `PATH`에 `--version`이 읽을 수 없는 값을 찍는 가짜 `claude`를 둔다. Claude Code 행에 "Couldn’t read the Claude Code version" notice와 Retry가 보이고, Retry를 누르면 다시 확인한 뒤 같은 notice가 돌아온다. Terminal 창과 브라우저는 열리지 않는다. Retry는 `check` 명령이라 `run` helper를 거친다. Install과 Sign in은 Terminal이나 브라우저를 열므로 쓰지 않는다.
