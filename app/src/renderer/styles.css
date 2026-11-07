@@ -822,7 +822,7 @@ body:has(.shell-top) { background: transparent; }
 .row-slot { display: inline-grid; place-items: center; width: var(--size-icon); height: var(--size-icon); flex: none; margin-left: auto; }
 .shell-project-row .row-slot { margin-left: 0; }
 .row-slot.permission { color: var(--affordance-accent); }
-/* problem-project-overlay: a problem project's kind icon (16, the slot's svg size); the reading spinner takes the
+/* A problem project's kind icon (16, the slot's svg size); the reading spinner takes the
    working mark's 14px rule below. */
 .row-slot.problem { color: var(--text-subtle); }
 .row-slot svg { width: var(--size-icon); height: var(--size-icon); }
@@ -1593,7 +1593,7 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .storage-reason > svg { margin-block: calc((var(--type-body-sm-line-height) - var(--size-icon)) / 2); }
 .storage-reason.warn { color: var(--text-warning); }
 
-/* problem-project-overlay (.doan/canvases/problem-project.html): a problem project's content under an overlay that holds
+/* Problem overlay (.doan/canvases/problem-project.html): a problem project's content under an overlay that holds
    its recovery actions. It covers the main and right columns inside the content panel's corners; the header, the
    sidebar and its resize handle stay usable. Layer: above the panel handles (4), under the toast (6) and the portalled
    menus and tooltips (50); .workspace has no z-index, so these compare in the root stacking context. */

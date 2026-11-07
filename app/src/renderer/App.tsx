@@ -410,7 +410,7 @@ export function App() {
   if (!support.current) support.current = new DockedSupport(() => setRunTick(tick => tick + 1));
   const loadedRootRef = useRef(loadedRoot); loadedRootRef.current = loadedRoot;
   const openRef = useRef(state.open); openRef.current = state.open;
-  // problem-project-overlay (design §4): set by the render below, read by effects and listeners declared before it.
+  // Problem overlay (ARCHITECTURE §7): set by the render below, read by effects and listeners declared before it.
   // Whether a problem or reading overlay shows, whether it is a problem scene, and the body under it.
   const overlaidRef = useRef(false), sceneRef = useRef(false);
   const bodyRef = useRef<"overview" | "canvas" | null>(null);
@@ -426,7 +426,7 @@ export function App() {
     document.querySelector<HTMLElement>(".workspace .problem-overlay h2")?.focus();
   }
   // Where focus goes once the overlay is gone: the Overview's composer or the canvas area, else the screen's usual
-  // place (design §4.4), never the page body.
+  // place (PRODUCT §5 item 3 'Problem states'), never the page body.
   function focusResolved() {
     if (live.current.modal || document.querySelector("dialog[open]")) return;
     const to = resolvedFocus(bodyRef.current === "canvas" ? "canvas" : "overview");
@@ -495,7 +495,7 @@ export function App() {
     instance.onPicked(result => live.current.pickEnded(result));
     instance.onCapture(rect => live.current.captured(rect));
     instance.linkedCanvas = root => live.current.completeNavigation(root);
-    // The overlay covers the canvas, so its view commands do nothing meanwhile (design §4.3 '입력').
+    // The overlay covers the canvas, so its view commands do nothing meanwhile (ARCHITECTURE §7 'Problem overlay').
     const stopCommands = window.doan.onViewCommand(name => { if (currentScreen.current === "workspace" && !overlaidRef.current) instance.command(name); });
     return () => { navigationIntent.current++; stopFolders(); stopCommands(); instance.dispose(); controller.current = null; };
   }, []);
@@ -537,7 +537,7 @@ export function App() {
     if (screen === "home") {
       document.querySelector<HTMLElement>(".home-shell .composer-input")?.focus();
     } else if (screen === "workspace") {
-      // A problem scene takes focus first: what it covers is inert (problem-project-overlay design §4.4); the scene's
+      // A problem scene takes focus first: what it covers is inert (PRODUCT §5 item 3 'Problem states'); the scene's
       // own effect gives it to the heading.
       if (sceneRef.current) { homeRun.current.takeFocus(); chipFocus.current = false; return; }
       // A Home send lands in the Overview's composer field (buzz-project design §2.5).
@@ -564,7 +564,7 @@ export function App() {
     const next = entries.find(entry => entry.path === root);
     if (!next || next.kind === "loading") return;
     if (next.kind === "list") controller.current?.openWorkspace(root, setLoadedRoot);
-    // A root still in a problem enters its Overview, where the overlay shows it (design §9 2026-11-03 Locate).
+    // A root still in a problem enters its Overview, where the overlay shows it (POSTMORTEM 2026-11-03 'Locate on the Project Settings page…').
     else controller.current?.openWorkspace(root, setLoadedRoot, false, undefined, true);
     setLocating(null);
   }, [entries, locating]);
@@ -789,7 +789,7 @@ export function App() {
     const visit = history.visits[cursor]; if (!visit) return;
     const entry = entries.find(entry => entry.path === visit.root);
     // A root in a problem (or being read) enters its Overview, where the overlay shows it; canvases open only on a list
-    // (problem-project-overlay design Q20). A deleted root never gets here (validHistoryVisit).
+    // (PRODUCT §5 item 3 'Problem states'). A deleted root never gets here (validHistoryVisit).
     if (entry?.kind !== "list") { showShellOverview(visit.root, cursor); return; }
     const row = entry.canvases.find(row => row.path === visit.canvas);
     if (visit.canvas && row) openShellCanvas(visit.root, row, cursor);
@@ -826,7 +826,7 @@ export function App() {
       const move = loadedProjectRow({ screen: currentScreen.current, overviewShown: shownOverviewRef.current === loadedRoot });
       if (move === "enter") enter(loadedRoot);
       else if (notice) openNotice(notice);
-      // Over the covered Overview a changed conversation would not show: the row takes focus to the scene (design §4.5).
+      // Over the covered Overview a changed conversation would not show: the row takes focus to the scene (PRODUCT §5 item 1).
       else if (move === "slot" && sceneRef.current) focusHeading();
       else if (move === "slot") askSlot(loadedRoot);
       else showShellOverview(loadedRoot, undefined, () => askSlot(loadedRoot));
@@ -901,7 +901,7 @@ export function App() {
     if (field) { if (after.field) focusFieldEnd(field); else field.focus(); return; }
     const previous = beforeModal.current;
     // A Set Up (or other action) opened from the overlay that took the overlay with it lands where the overlay's going
-    // sends focus (design §4.4), not on the screen's fallback.
+    // sends focus (PRODUCT §5 item 3 'Problem states'), not on the screen's fallback.
     if (previous && !previous.isConnected && previous.closest(".problem-overlay")) { focusResolved(); return; }
     focusCurrent(previous);
   }, [modal, entries]);
@@ -923,8 +923,8 @@ export function App() {
     for (const node of document.querySelectorAll<HTMLElement>(".workspace > :is(.ov-main, .doan-overview-handle, .doan-conv-column)"))
       node.toggleAttribute("inert", overlaidRef.current || (node.matches(".doan-conv-column") && !rightPanelRef.current.open));
   });
-  // The overlay just went with focus in it (focus fell to the page): it goes to the uncovered body instead (design
-  // §4.4). After the inert above comes off, or the composer still refuses focus; ahead of the recovery focus below,
+  // The overlay just went with focus in it (focus fell to the page): it goes to the uncovered body instead (PRODUCT §5 item 3
+  // 'Problem states'). After the inert above comes off, or the composer still refuses focus; ahead of the recovery focus below,
   // which would take it to the sidebar.
   useLayoutEffect(() => {
     const was = overlayCommitted.current;
@@ -1568,7 +1568,7 @@ export function App() {
     } };
   }
   // The body: the loaded root's Overview, problem and reading roots included, or the canvas page of its own open canvas
-  // (problem-project-overlay design §4.1).
+  // (PRODUCT §5 item 3 'Problem states').
   const body = workspaceBody(screen, loadedRoot, state.open);
   const overview = body === "overview" && entry ? entry : null;
   const shownOverview = overview?.path ?? null;
@@ -1591,7 +1591,7 @@ export function App() {
   const scene = problem?.kind === "problem" ? problem : null;
   const overlaid = problem !== null;
   overlaidRef.current = overlaid; sceneRef.current = scene !== null;
-  // Details is open per root and kind: another root or kind closes it, a read in between keeps it (design §4.2), and
+  // Details is open per root and kind: another root or kind closes it, a read in between keeps it (PRODUCT §5 item 3 'Problem states'), and
   // keeps the message last shown while the entry carries none.
   const [details, setDetails] = useState<{ root: string; kind: ProblemKind } | null>(null);
   const detailsOpen = scene !== null && details?.root === loadedRoot && details.kind === scene.entryKind;
@@ -1626,7 +1626,7 @@ export function App() {
   const [announcement, setAnnouncement] = useState<{ text: string; seq: number } | null>(null);
   const announce = (text: string) => setAnnouncement(previous => ({ text, seq: (previous?.seq ?? 0) + 1 }));
   // The scene takes focus to its heading when the person arrived at it, or when focus was in what it covers, on the
-  // page, or in the overlay itself (a kind change after a recovery); otherwise the live region reads it (design §4.4).
+  // page, or in the overlay itself (a kind change after a recovery); otherwise the live region reads it (PRODUCT §5 item 3 'Problem states').
   const sceneKey = scene ? `${loadedRoot}\n${scene.entryKind}` : null, sceneHeading = scene?.heading ?? "";
   const entryKey = screen === "workspace" ? loadedRoot : null;
   const sceneSeen = useRef<{ scene: string | null; arrival: number; entry: string | null; busy: boolean }>({ scene: null, arrival: 0, entry: null, busy: false });
@@ -1646,7 +1646,7 @@ export function App() {
     if (seen.busy && !busy) { announce(sceneHeading); return; }
     if (headingPending.current && !modal) focusHeading();
   }, [sceneKey, sceneHeading, arrivalSeq, entryKey, busy, modal]);
-  // A pick or a capture on the covered canvas ends as the overlay shows (design §4.3).
+  // A pick or a capture on the covered canvas ends as the overlay shows (ARCHITECTURE §7 'Problem overlay').
   useEffect(() => {
     if (!overlaid) return;
     if (state.picking) controller.current?.cancelPick();
@@ -1709,7 +1709,7 @@ export function App() {
   // V, H and Space switch tools only on the canvas page itself (canvas-hand-tool design '키').
   const toolPage = screen === "workspace" && shownOverview === null && !modal && !overlaid;
   useEffect(() => { controller.current?.setCanvasPage(toolPage); }, [toolPage]);
-  // No key, Esc included, reaches the canvas under a problem's overlay (design §4.3).
+  // No key, Esc included, reaches the canvas under a problem's overlay (ARCHITECTURE §7 'Problem overlay').
   useLayoutEffect(() => { controller.current?.setCovered(overlaid); }, [overlaid]);
   // Pick from canvas: the composer's Pick, the toolbar's Picker and ⌘L share one pick (canvas-composer-polish spec 3).
   // The pick's start keeps where focus was, so the end can tell whether focus still waits for the composer.
@@ -1811,12 +1811,12 @@ export function App() {
   useEffect(() => {
     // The Project Settings page enables the menu as Settings does (no canvas items, no New Conversation), so main's
     // menu state needs no screen of its own (project-settings design '영향 범위' 메뉴).
-    // Under the overlay the workspace has no canvas or Overview items: they would act on what it covers (design §4.3).
+    // Under the overlay the workspace has no canvas or Overview items: they would act on what it covers (ARCHITECTURE §7 'Problem overlay').
     void window.doan.setMenuState({ screen: onPage ? "addProjects" : onSettings || onProjectSettings ? "settings" : screen === "home" ? "home" : state.open && !overlaid ? "canvas" : "workspace", modal,
       ...(onPage && page.choose ? { choose: true } : {}), ...(pageLocked ? { locked: true } : {}), ...(shownOverview !== null && !overlaid ? { overview: true } : {}),
       ...(menuPicker && !overlaid ? { pickerAvailable: true } : {}), ...(sidebarHidden ? { sidebarHidden: true } : {}) });
   }, [screen, state.open, modal, page.choose, pageLocked, shownOverview, menuPicker, sidebarHidden, overlaid]);
-  // A covered Overview's thread is not seen (design §4.1).
+  // A covered Overview's thread is not seen (PRODUCT §5 item 3 'Problem states').
   useLayoutEffect(() => { overviewRun.current!.show(overlaid ? null : shownOverview); }, [shownOverview, overlaid]);
   // The window's focus decides whether the shown conversation is seen (spec decision 11); the focus listener is the
   // sign-in controller's below.
@@ -2024,7 +2024,7 @@ export function App() {
   const shown = run.strip(loadedRoot);
   // The canvas page has no conversation strip: the panel shows this canvas's conversation, and the sidebar slots and
   // permission toasts the others (design §2 'Strip'). A problem or reading root keeps it over its overlay, without the
-  // Open that would lead under it (problem-project-overlay design §4.3); it follows the overlay, so a re-read shorter
+  // Open that would lead under it (ARCHITECTURE §7 'Problem overlay'); it follows the overlay, so a re-read shorter
   // than 300 ms does not flash it in.
   const stripShown = overlaid && shown && stripView(shown.state, { provider: shown.conversation.provider, project: projectLabel(shown.conversation.root), branch: null, canvas: shown.conversation.canvas ? canvasLabel({ path: shown.conversation.canvas, url: "" }) : null });
   const strip = shown && stripShown && <div className="strip-slot"><KeyedConversationStrip conversationId={shown.conversation.conversationId} provider={shown.conversation.provider} state={shown.state}

@@ -491,7 +491,7 @@ export class CanvasController {
         this.dropFrame();
         if (update.reason === "missing" || update.reason === "duplicateId") this.canvasRemoved?.({ folder: open.folder, row: open.row, duplicates: update.reason === "duplicateId" ? update.count : null });
         this.state.status = update.reason === "closed" ? "empty" : "missing";
-        // A problem root's overlay names the problem (problem-project-overlay spec 3).
+        // A problem root's overlay names the problem (PRODUCT §5 item 3 'Problem states').
         this.state.message = update.reason === "closed" ? "Pick a canvas from the list"
           : update.reason === "notFound" || update.reason === "uninitialized" ? ""
           : `${open.canvas} is no longer in the list. It was deleted or moved.`;
@@ -555,7 +555,7 @@ export class CanvasController {
 
   private onCanvasPage(): boolean { return this.workspaceActive && this.canvasPage; }
 
-  // A problem project's overlay covers the canvas (problem-project-overlay design §4.3): no key reaches it, Esc's
+  // A problem project's overlay covers the canvas (ARCHITECTURE §7 'Problem overlay'): no key reaches it, Esc's
   // clearing of the selection included, while focus sits in the overlay.
   private covered = false;
   setCovered(covered: boolean): void { this.covered = covered; }
@@ -612,8 +612,8 @@ export class CanvasController {
   // `settled`: whether the open goes ahead (entering or reporting) when the folder's read settles to this kind.
   private waitingWorkspace: { folder: string; intent: number; open: () => void; settled: (kind: FolderEntry["kind"] | undefined) => boolean } | null = null;
 
-  // `overview`: the Overview shows a problem root's overlay, so a problem root enters it too (problem-project-overlay
-  // design §1); a path that opens a canvas still needs a list.
+  // `overview`: the Overview shows a problem root's overlay, so a problem root enters it too (ARCHITECTURE §7
+  // 'Memory'); a path that opens a canvas still needs a list.
   openWorkspace(folder: string, entered: (folder: string) => void, sameCanvas = false, unavailable?: (entry: FolderEntry | undefined) => void, overview = false): void {
     const kind = () => this.entries.find(entry => entry.path === folder)?.kind;
     const enters = (kind: FolderEntry["kind"] | undefined) => kind === "list" || (overview && isProblemKind(kind));

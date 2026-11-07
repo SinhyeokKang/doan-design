@@ -6,7 +6,7 @@ import type { SidebarSlot } from "./canvasNotice";
 import { displayPath } from "./projectDisplay";
 
 // What a project in a problem state shows: the overlay over its content and the sidebar row's icon
-// (problem-project-overlay design 4.1-4.5). Pure; the shell owns timers, focus and inert.
+// (PRODUCT §5 items 1 and 3). Pure; the shell owns timers, focus and inert.
 
 export type ProblemKind = "notFound" | "uninitialized" | "error" | "cliError";
 export type ActionVariant = "prominent" | "subtle" | "ghost";
@@ -53,7 +53,7 @@ function scene(kind: ProblemKind, name: string, path: string, home: string | nul
 }
 
 // `slow`: 300 ms have passed since the entry became `loading`. `shown`: the overlay on screen just before. A `loading`
-// that follows a problem scene keeps that scene with its buttons busy, whatever `slow` says (design 4.4).
+// that follows a problem scene keeps that scene with its buttons busy, whatever `slow` says (PRODUCT §5 item 3 'Problem states').
 export function problemView(entry: FolderEntry, name: string, homeDirectory: string | null, state: { slow: boolean; shown: ShownOverlay }): ProblemOverlayView | null {
   if (entry.kind === "list") return null;
   if (entry.kind === "loading") {

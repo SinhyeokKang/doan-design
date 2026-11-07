@@ -913,7 +913,7 @@ const problemEntries: FolderEntry[] = [
   { path: "/w/a", kind: "error", message: "Invalid config" },
 ];
 
-// problem-project-overlay design §4.1: a problem or reading root shows its Overview, whether it was open when the problem
+// PRODUCT §5 item 3 'Problem states': a problem or reading root shows its Overview, whether it was open when the problem
 // came or is entered while it lasts; the overlay replaces the composer's reason line (buzz-canvas R4: no Canvas info).
 test("the Overview's panel replaces the conversation panel, and a problem root keeps or enters its Overview", () => {
   render(); folders([listed("/w/a")]);

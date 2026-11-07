@@ -5,7 +5,7 @@ import type { FolderEntry } from "../main/view";
 import { ProblemOverlay } from "./ProblemOverlay";
 import { problemView, type ProblemOverlayView } from "./problemView";
 
-// problem-project-overlay design §4.2-§4.4 and the confirmed draft (.doan/canvases/problem-project.html).
+// PRODUCT §5 item 3 'Problem states', ARCHITECTURE §7 'Problem overlay' and the confirmed draft (.doan/canvases/problem-project.html).
 const view = (entry: FolderEntry, shown: Parameters<typeof problemView>[3]["shown"] = null, slow = false) => problemView(entry, "acme-web", "/Users/ada", { slow, shown })!;
 const draw = (overlayView: ProblemOverlayView, props: Partial<Parameters<typeof ProblemOverlay>[0]> = {}) =>
   renderToStaticMarkup(<ProblemOverlay view={overlayView} details={false} pressed={null} announcement="" onAction={vi.fn()} {...props} />);

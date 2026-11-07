@@ -545,7 +545,7 @@ it("on close, focus returns to the button unless a dialog the menu opened or ano
   } finally { vi.unstubAllGlobals(); }
 });
 
-// problem-project-overlay design 4.5: a project row in a problem state has no groups to fold.
+// PRODUCT §5 item 1: a project row in a problem state has no groups to fold.
 const problemRows: [FolderEntry, string][] = [
   [{ path: "/a", kind: "notFound" }, "demo is missing"],
   [{ path: "/a", kind: "uninitialized" }, "demo isn’t set up"],
@@ -616,7 +616,7 @@ it("the project menu's Overview item is available on a problem root, and opens i
   expect(props.overview).toHaveBeenCalledWith("/a");
 });
 
-// problem-project-overlay design 4.5: the spinner waits for LOADING_DELAY_MS, timed from when the root began to load.
+// PRODUCT §5 item 1: the spinner waits for LOADING_DELAY_MS, timed from when the root began to load.
 describe("reading spinner", () => {
   const slotOf = (rendered: Record<string, unknown>[]) => rendered.find(item => (item.slot as { kind?: string } | undefined)?.kind === "reading")?.slot;
   function reading() {

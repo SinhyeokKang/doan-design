@@ -168,7 +168,7 @@ test("a closed group hides its rows and turns its chevron; the other group stays
   expect(html).toContain('aria-label="checkout"');
 });
 
-// problem-project-overlay design 4.5: a project that could not be listed shows an icon in its slot, not a status line.
+// PRODUCT §5 item 1: a project that could not be listed shows an icon in its slot, not a status line.
 const PROBLEMS: [FolderEntry, string, string][] = [
   [{ path: "/a", kind: "notFound" }, "lucide-folder-x", "demo is missing"],
   [{ path: "/a", kind: "uninitialized" }, "lucide-folder-cog", "demo isn’t set up"],
@@ -212,7 +212,7 @@ test("a project still loading draws no spinner before the delay, and is not expa
   expect(html).not.toContain('role="group"');
 });
 
-// design 4.5 order: permission request or question, problem icon, working, unseen.
+// PRODUCT §5 item 1 order: permission request or question, problem icon, working, unseen.
 describe("what wins the slot of a project in a problem state", () => {
   const entry: FolderEntry = { path: "/a", kind: "notFound" };
   const slotsOf = (key: string, slot: Slot) => new Map([[key, slot]]);

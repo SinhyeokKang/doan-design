@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { PreferencesSnapshot } from "../main/preferences";
 
-// problem-project-overlay T5: a project in a problem state shows its Overview (or the canvas page it was on) under an
+// A project in a problem state shows its Overview (or the canvas page it was on) under an
 // overlay that holds the recovery actions. Driven with hooks as plain state (App.settings.test.tsx); timers are fake
 // wherever the 300 ms reading rule or the busy state is involved (POSTMORTEM 2026-10-30).
 const hooks = vi.hoisted(() => ({
@@ -410,7 +410,7 @@ test("reading: a list read within 300 ms shows nothing and moves no focus; past 
   expect(overlay()?.view).toMatchObject({ kind: "problem", entryKind: "error", busy: false });
 });
 
-// R2 🟡1: the covered Overview's inert comes off in the same commit the overlay goes; focus must reach the composer
+// The covered Overview's inert comes off in the same commit the overlay goes; focus must reach the composer
 // after it, not the sidebar row. The fake DOM keeps the inert state its toggle sets, and focus falls to the page only
 // because the overlay (and the Retry button in it) left the tree (POSTMORTEM 2026-10-24).
 test("Retry that clears the problem lands focus in the Overview's composer once it is no longer inert", () => {
@@ -438,7 +438,7 @@ test("Retry that clears the problem lands focus in the Overview's composer once 
   expect(focused).toEqual(["composer"]);
 });
 
-// R2 🟡2: Esc's steps reach no covered canvas.
+// Esc's steps reach no covered canvas.
 test("the overlay tells the controller its canvas is covered, and not once it goes", () => {
   render(); folders([listed("/w/a")]);
   canvasOpen();
@@ -449,7 +449,7 @@ test("the overlay tells the controller its canvas is covered, and not once it go
   expect(harness.controller!.setCovered).toHaveBeenLastCalledWith(false);
 });
 
-// R2 ⚪1: a press that ends without a busy phase leaves no spinner for a later read the person did not start.
+// A press that ends without a busy phase leaves no spinner for a later read the person did not start.
 test("a Retry that settles without a read, or a cancelled Remove, leaves no pressed action for a later busy scene", async () => {
   vi.useFakeTimers();
   render(); folders([configError()]);
@@ -609,7 +609,7 @@ test("a launch whose saved root is a problem stays Home; the Overview composer's
   expect(store.drafts.get("new:/w/a")).toMatchObject({ segments: [{ text: "keep me" }] });
 });
 
-// R1 review additions (conductor): the Home run's move, Back/Forward, and the canvas status left by a closed canvas.
+// Also the Home run's move, Back/Forward, and the canvas status left by a closed canvas.
 test("a Home send's move into a problem root lands on its Overview with the overlay and focuses the heading, not the inert composer", () => {
   render(); folders([notFound()]);
   dom(BODY);

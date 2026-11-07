@@ -26,7 +26,7 @@ function problem(entry: FolderEntry, shown = null as Parameters<typeof problemVi
   return view;
 }
 
-describe("problemView content (design 4.2)", () => {
+describe("problemView content (PRODUCT 'Problem states')", () => {
   test("notFound: FolderX, heading, path line, Locate then Remove", () => {
     expect(problem(problems.notFound)).toEqual({
       kind: "problem", entryKind: "notFound", icon: FolderX, heading: "acme is missing",
@@ -85,7 +85,7 @@ describe("problemView content (design 4.2)", () => {
   });
 });
 
-describe("problemView state (design 4.1, 4.4)", () => {
+describe("problemView state (PRODUCT 'Problem states')", () => {
   test("list has no overlay", () => {
     expect(problemView(list, "acme", home, fast)).toBeNull();
     expect(problemView(list, "acme", home, { slow: true, shown: { kind: "reading" } })).toBeNull();

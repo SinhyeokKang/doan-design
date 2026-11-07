@@ -8,7 +8,7 @@ const CONFIG_FILE = ".doan/config.json";
 // The window draws one workspace, so one overlay at most.
 const HEADING_ID = "problem-overlay-heading", LINE_ID = "problem-overlay-line";
 
-// The overlay over a problem project's content (problem-project-overlay design §4.2-§4.4). It draws `problemView`'s
+// The overlay over a problem project's content (PRODUCT §5 item 3 'Problem states'; ARCHITECTURE §7 'Problem overlay'). It draws `problemView`'s
 // result only; App owns the Details state per root, the busy action, focus and the live region's text.
 export function ProblemOverlay({ view, details, detail, pressed, announcement, onAction }: {
   view: ProblemOverlayView;

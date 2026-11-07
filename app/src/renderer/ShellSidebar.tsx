@@ -126,7 +126,7 @@ function SlotMark({ slot }: { slot: Slot | undefined }) {
   return <span className={`row-slot ${slot.kind === "canvas" ? "unseen" : slot.kind}`} role="img" aria-label={slot.label}>{slot.kind === "permission" ? <Hand aria-hidden="true" /> : slot.kind === "working" ? <span className="doan-spinner" aria-hidden="true" /> : <i />}</span>;
 }
 // A project row's slot: a problem icon or the reading spinner, which are hidden from assistive technology and named by
-// the row's own description instead (problem-project-overlay design 4.5), or a conversation state as on a canvas row.
+// the row's own description instead (PRODUCT §5 item 1), or a conversation state as on a canvas row.
 export function RowSlotMark({ slot }: { slot: RowSlot | null }) {
   if (slot?.kind === "problem") {
     const Icon = slot.icon;

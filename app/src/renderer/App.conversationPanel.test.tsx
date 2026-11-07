@@ -140,7 +140,7 @@ const pane = () => all(tree).find(element => typeof element.type === "function" 
 const saved = () => doan.saveUiState!.mock.lastCall?.[0] as { rightPanel?: unknown } | undefined;
 
 // A workspace on /w/a without an Overview: the canvas page of its open canvas, here under a config error's overlay
-// (a problem root's canvas page; problem-project-overlay design §4.1).
+// (a problem root's canvas page; PRODUCT §5 item 3 'Problem states').
 async function canvasPage(state: unknown = null) {
   render();
   readUiState(state); await Promise.resolve(); await Promise.resolve(); render();
@@ -377,7 +377,7 @@ test("switching to Hand or Select saves the merged state; Select saves no field"
 
 test("tells the controller whether the canvas page is the one shown", async () => {
   await canvasPage();
-  // Under a problem's overlay the canvas page takes no tool keys (problem-project-overlay design §4.3).
+  // Under a problem's overlay the canvas page takes no tool keys (ARCHITECTURE §7 'Problem overlay').
   expect(harness.controller!.setCanvasPage).toHaveBeenLastCalledWith(false);
   folders([listed("/w/a")]);
   expect(harness.controller!.setCanvasPage).toHaveBeenLastCalledWith(true);

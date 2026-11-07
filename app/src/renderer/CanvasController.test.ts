@@ -603,7 +603,7 @@ describe("selection wiring (flow 7)", () => {
     } finally { h.controller.dispose(); }
   });
 
-  // problem-project-overlay spec 3: the overlay names the problem, so the cleared canvas carries no sentence of its own.
+  // PRODUCT §5 item 3 'Problem states': the overlay names the problem, so the cleared canvas carries no sentence of its own.
   it.each(["uninitialized", "notFound"] as const)("clears an open canvas of a %s project without a problem sentence", kind => {
     const h = selectionHarness();
     try {
@@ -687,7 +687,7 @@ describe("inspector rows from main", () => {
     } finally { h.controller.dispose(); }
   });
 
-  // problem-project-overlay R2 🟡2: under a problem's overlay Esc takes no step on the covered canvas.
+  // Under a problem's overlay Esc takes no step on the covered canvas.
   it("keeps the selection on Escape while the canvas is covered", () => {
     const h = selectionHarness();
     try {
@@ -1688,7 +1688,7 @@ it("opens an explicit Overview in one workspace transition", () => {
   } finally { controller.dispose(); }
 });
 
-// problem-project-overlay design §1: the Overview is where a problem root shows its overlay.
+// ARCHITECTURE §7 'Memory': the Overview is where a problem root shows its overlay.
 const problemKinds = ["notFound", "uninitialized", "error", "cliError"] as const;
 const problemEntry = (path: string, kind: typeof problemKinds[number]): FolderEntry =>
   kind === "error" ? { path, kind, message: "bad config" } : kind === "cliError" ? { path, kind, reason: "cli failed" } : { path, kind };
