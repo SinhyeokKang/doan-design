@@ -662,6 +662,16 @@ describe("project setup and upward refresh", () => {
     expect(started.shell.entries()[0]?.kind).toBe("list");
   });
 
+  // A newer read of the same folder (the watcher, or a re-read on window focus) can start after setup's own read
+  // before init and drop it as stale; setup then refused a folder that was still there and still uninitialized.
+  test("setup is not refused when a newer read overtakes its read before init", async () => {
+    const root = dir(); const { shell } = await uninitialized(root);
+    const setup = shell.initialize(root, null);
+    shell.rereadAll();
+    expect(await setup).toEqual({ kind: "success" });
+    expect(shell.entries()[0]).toMatchObject({ path: root, kind: "list" });
+  });
+
   test("does not initialize closed, missing or already initialized folders", async () => {
     const root = dir(); const { shell } = await uninitialized(root);
     rmSync(root, { recursive: true });
@@ -870,23 +880,27 @@ describe("auto-registered worktrees", () => {
   const view = (root: string, worktrees: string[]): Extract<FolderState, { kind: "list" }> =>
     ({ kind: "list", root, scope: [".doan/canvases"], canvases: [{ path: ".doan/canvases/a.html", id: "a" }], git: { common: "/c/.git", branch: "w1", worktrees } });
 
-  // Like gitCli, but a cwd run (`open`) reports the working directory as its root.
-  function autoCli(): { path: string; mode: (value: string) => void } {
+  // Like gitCli, but a cwd run (`open`) reports the working directory as its root. With `only`, the mode applies to
+  // that root alone and every other root answers as in "git" mode: a stored root's watcher can re-read it at any time.
+  function autoCli(): { path: string; mode: (value: string, only?: string) => void } {
     const base = dir();
     const modeFile = join(base, "mode");
+    const onlyFile = join(base, "only");
     const path = join(base, "doan");
     writeFileSync(modeFile, "git");
     writeFileSync(path, `#!/bin/sh
 root="$4"; [ -n "$root" ] || root="$(pwd -P)"
-if [ "$(cat '${modeFile}')" = git ]; then
+mode="$(cat '${modeFile}')"; only="$(cat '${onlyFile}' 2>/dev/null)"
+[ -z "$only" ] || [ "$only" = "$root" ] || mode=git
+if [ "$mode" = git ]; then
   printf '{"v":1,"ok":true,"result":{"root":"%s","scope":[".doan/canvases"],"canvases":[],"git":{"common":"/c/.git","branch":"main","worktrees":["%s"]}}}\\n' "$root" "$root"
   exit 0
 fi
-if [ "$(cat '${modeFile}')" = up ] && [ -z "$4" ]; then
+if [ "$mode" = up ] && [ -z "$4" ]; then
   printf '{"v":1,"ok":true,"result":{"root":"%s","scope":[".doan/canvases"],"canvases":[],"git":{"common":"/c/.git","branch":"main","worktrees":[]}}}\\n' "$(dirname "$(pwd -P)")"
   exit 0
 fi
-if [ "$(cat '${modeFile}')" = uninit ] || [ "$(cat '${modeFile}')" = up ]; then
+if [ "$mode" = uninit ] || [ "$mode" = up ]; then
   echo '{"v":1,"ok":false,"error":{"code":"repo_not_found","message":"not found","nextSteps":[]}}'
   exit 3
 fi
@@ -894,7 +908,13 @@ echo '{"v":1,"ok":false,"error":{"code":"invalid_config","message":"bad config",
 exit 2
 `);
     chmodSync(path, 0o755);
-    return { path, mode: (value) => writeFileSync(modeFile, value) };
+    return {
+      path,
+      mode: (value, only = "") => {
+        writeFileSync(onlyFile, only);
+        writeFileSync(modeFile, value);
+      },
+    };
   }
 
   async function withMain(file = join(dir(), "folders.json")) {
@@ -1010,8 +1030,8 @@ exit 2
   // parent the person never added does not become hand-added and no focus moves to it.
   test("an uninitialized worktree is not re-rooted upward", async () => {
     const { shell, changes, removed, main, w, file, git, checkpoint } = await adopted();
-    git.mode("up");
-    // Only W re-reads: the hand-added main would itself take the upward re-root in this mode.
+    // Only W is in this mode: the hand-added main would itself take the upward re-root, and its watcher can re-read it.
+    git.mode("up", w);
     void shell.reopen(w);
     await vi.waitFor(() => expect(shell.entries()[1]).toEqual({ path: w, kind: "uninitialized", autoRegistered: true, lastCommon: "/c/.git" }), until);
     await sleep(300);
