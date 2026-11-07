@@ -1044,7 +1044,7 @@ Reference: `.doan/canvases/picker-default-labels.html` (frames `triggers`, `menu
 
 ## Select and inspect
 
-> buzz-ds 이전 for the Inspector rows. Owner: `buzz-inspector` (it removes the mark). No screen shows the Inspector now (PRODUCT §5 item 4): the Inspector rows describe the retained `Inspector` in `RightPanel.tsx`, measured when it was the canvas page's right panel. The canvas overlay rows (hover and selection outline, dimensions) were remeasured with the canvas page; see 'Canvas area and right panel'.
+> buzz-ds 이전 for the Inspector rows. Owner: the feature that gives the Inspector its new place (docs/BACKLOG.md 'Undecided'; it removes the mark). No screen shows the Inspector now (PRODUCT §5 item 4): the Inspector rows describe the retained `Inspector` in `RightPanel.tsx`, measured when it was the canvas page's right panel. The canvas overlay rows (hover and selection outline, dimensions) were remeasured with the canvas page; see 'Canvas area and right panel'.
 
 Reference: `.doan/canvases/select-inspect.html`, frames `hover`, `element-selected`, `frame-selected`, `inspector-states`, `long-values`, `interactive-element`, `selection-lost`. The no-selection screen is excluded.
 
