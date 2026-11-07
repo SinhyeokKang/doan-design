@@ -449,23 +449,35 @@ test("a Terminal that would not open puts the alert on its row with Open install
   expect(alerts()).toEqual(["Couldn’t open the Codex install page."]);
 });
 
-test("Settings: an older Install result never replaces the newer one, in either completion order", async () => {
+test.each(["newer first", "older first"])("Settings: an older Install result never replaces the newer one (%s)", async order => {
+  const { AgentStepSession } = await import("./agentStep");
+  const command = vi.spyOn(AgentStepSession.prototype, "command");
   auth = { revision: 1, providers: [dto("claude"), dto("codex", { account: false, facts: { cli: "missing" } }), dto("cursor", { account: false, facts: { cli: "missing" } })] };
   const held: ((result: string) => void)[] = [];
   api.openInstall = vi.fn(() => new Promise<string>(resolve => { held.push(resolve); }));
   await settle();
-  // Newer first: the older failure lands after the newer Terminal opened.
-  click("codex", "install"); click("cursor", "install");
-  held[1]!("terminal"); await settle();
-  held[0]!("failed"); await settle();
-  expect(alerts()).toEqual([]);
-  expect(all(row("cursor")).some(element => words(element.props.children) === "Terminal is open with the install command. Press Return there, then come back to Doan.")).toBe(true);
-  // Older first: the older failure lands while the newer is pending, then the newer one shows.
-  click("codex", "install"); click("cursor", "install");
-  held[2]!("failed"); await settle();
-  expect(alerts()).toEqual([]);
-  held[3]!("failed"); await settle();
-  expect(alerts()).toEqual(["Couldn’t open Terminal to install Cursor. Open the install page to install it yourself."]);
+  try {
+    click("codex", "install"); click("cursor", "install");
+    // UX K (POSTMORTEM 2026-10-25): a fixed pause can pass before a stale failure is consumed.
+    // Observe the real command promises even though React's click handlers deliberately return void.
+    const consumed = command.mock.results.map(result => {
+      if (result.type !== "return" || !(result.value instanceof Promise)) throw new Error("Install did not return its completion promise");
+      return result.value;
+    });
+    expect(consumed).toHaveLength(2);
+    const finish = async (index: number, result: string) => { held[index]!(result); await consumed[index]; render(); };
+    if (order === "newer first") {
+      await finish(1, "terminal");
+      await finish(0, "failed");
+      expect(alerts()).toEqual([]);
+      expect(all(row("cursor")).some(element => words(element.props.children) === "Terminal is open with the install command. Press Return there, then come back to Doan.")).toBe(true);
+    } else {
+      await finish(0, "failed");
+      expect(alerts()).toEqual([]);
+      await finish(1, "failed");
+      expect(alerts()).toEqual(["Couldn’t open Terminal to install Cursor. Open the install page to install it yourself."]);
+    }
+  } finally { command.mockRestore(); }
 });
 
 test("Settings: an update that ends in an unreadable version shows the version alert, not an update announcement", async () => {
