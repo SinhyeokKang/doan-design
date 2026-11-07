@@ -45,14 +45,21 @@
 | B2 | T3 | `app/src/renderer/CanvasController.ts`, `CanvasController.test.ts` | — | Opus medium: `openWorkspace`의 `loading` 대기와 상태 비우기가 다른 진입 경로를 깨기 쉽다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 통합 `7d401638`·`634158b0`·`70135265`(R1 보강 test), 완료 |
 | B3 | T4 | `app/src/renderer/ShellSidebar.tsx`, `ShellSidebar.test.tsx` | B1, 초안 확정 | Sonnet high: slot 우선순위·tooltip·aria는 단계가 많지만 판단은 design에 있다 | test, typecheck, lint | 통합 `6ddf05a0`·`8c521593`, review는 R2 |
 | B4 | T5 | `App.tsx`, `ProblemOverlay.tsx`(새), `Home.tsx`, `styles.css`(모두 `app/src/renderer/`, `CanvasPane`은 `App.tsx` 안), `App.*.test.ts(x)`, `Home.test.tsx`, CSS 테스트, 새 `ProblemOverlay` 테스트 | B1, B2, 초안 확정 | Opus high: 포커스·inert·메뉴 상태·seen이 얽히고 틀리면 접근성과 데이터 표시가 깨진다 | test, typecheck, lint, build | 통합 `52ab3032`·`f118cbdc`·`85e248db`, lint cap 81로 낮춤 `81d5ba9e`, review는 R2 |
-| B5 | T6 | B3·B4가 고친 파일, `docs/DESIGN.md` | B3·B4 통합 | Opus medium: computed style 측정과 수정 | `/design-sync` 프레임별 일치, `npm --prefix app test` | 진행(R2와 병렬. R2 수정은 B5 통합 뒤 받는다) |
+| B5 | T6 | B3·B4가 고친 파일, `docs/DESIGN.md` | B3·B4 통합 | Opus medium: computed style 측정과 수정 | `/design-sync` 프레임별 일치, `npm --prefix app test` | 통합 `410e5102`·`0132bccc`. 프레임 14개 중 13개 측정, 남은 차이 0(모두 문서화). 측정에서 renderer crash를 찾아 고쳤다 |
 | R1 | B1·B2 review | 보고만 | B1·B2 통합 | Sonnet high: 작은 순수 함수와 controller diff다 | `/code-review` 보고 | 완료: 🔴 0, 🟡 3(B4 지시로 넘김), ⚪ 5(test 보강 2건 반영, 주석 경로는 T9) |
-| R2 | B3·B4 review | 보고만 | B3·B4 통합 | Opus high: B4 diff가 포커스·inert·입력 막기·seen을 함께 바꾼다 | `/code-review` 보고 | 완료: 🔴 0, 🟡 2(B4), ⚪ 5. 수정은 B5 통합 뒤 B4에 보낸다 |
+| R2 | B3·B4 review | 보고만 | B3·B4 통합 | Opus high: B4 diff가 포커스·inert·입력 막기·seen을 함께 바꾼다 | `/code-review` 보고 | 완료: 🔴 0, 🟡 2(B4), ⚪ 5. 수정은 B4에 보냈다(진행) |
 | — | T7 | 없음(`.scratch/`) | B5 | conductor | `/runtime-test` 보고 | 대기 |
 | — | T8 verify, T9 승격 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/DESIGN.md`, `docs/BACKLOG.md`, 이 디렉터리 | 전부 | conductor | `verify.mjs` exit 0, T9 문구 검색 | 대기 |
 
 - T0·T1(초안 그리기)은 시작 전에 끝났다. T1의 확정 기록 commit은 conductor가 한다.
 - 사이드바 아이콘 CSS는 `styles.css`에 있으므로 B4가 가진다. B3은 클래스 이름을 정해 handoff에 적는다.
+
+## B5 측정이 닿지 못한 상태
+
+- `overlay-with-strip`: 문제 root 위 Home 대화 strip은 살아 있는 agent 실행이 있어야 만들 수 있다. T7에서도 같은 제약이 있다.
+- `sidebar-states`의 checkout(권한 요청이 문제 아이콘을 이김), analytics(문제가 working을 이김), working 표시 행: 실행 중인 agent가 필요하다. 동작은 B3 test가 고정한다.
+- 넘치는 scene의 스크롤: 초안 프레임이 넘치지 않아 실제로 굴려 보지 않았다.
+- crash(오버레이와 Overview가 같은 React key)는 POSTMORTEM에 적었다(`7c227fd1`).
 
 ## 알려진 test 실패
 
