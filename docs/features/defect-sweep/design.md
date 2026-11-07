@@ -57,7 +57,7 @@
 - A2 툴팁이 열린 툴바에서 Esc 한 번 → 툴팁이 닫히고 `escapeStep`의 단계(예: capture 종료)가 일어남.
 - A3·A4 `ConversationThread.interaction.test.tsx`·`ConversationThread.question.test.tsx`: permission 답(클릭, Enter·Space) 뒤, question 카드 Stop 뒤, permission 카드 Stop 뒤의 `document.activeElement`. 다른 요청이 남은 경우와 마지막 요청인 경우 둘 다.
 - A5 strip의 Skip·permission 답이 `{error}`를 받으면 오류 줄이 보이고, 세 조건에서 사라짐.
-- A6 다섯 컨트롤을 툴팁이 열린 채 렌더(jsdom)해 `aria-describedby`에 id가 하나인지.
+- A6 다섯 컨트롤을 툴팁이 열린 채 DOM 없이 렌더해 `aria-describedby`에 id가 하나인지(ARCHITECTURE §7 'Home tests without a DOM'). 실제 앱의 속성은 F-6 probe가 본다.
 - B1 실제 오류 모양 fixture → 새 FailureCode와 모델 ID, 다시 불러온 thread와 strip의 문장.
 - B3 abort signal 주입 → 만료 기록, 접힌 카드, focus 위치.
 - B4 `optionId: "expired"` → "Expired without an answer · <summary>".

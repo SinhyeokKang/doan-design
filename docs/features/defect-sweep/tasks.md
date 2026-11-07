@@ -14,9 +14,9 @@ batch는 design §5 표를 따른다. 각 항목은 `/tdd regression`(동작 수
 ## F. 포커스
 - F-1 A1 Settings 메뉴 Esc. — 검증: `npm --prefix app test` (`App.settings.test.tsx`: 열린 Agent picker에서 Esc → Settings에 머묾, 메뉴 없을 때 Esc → 떠남. green이면 보고하고 코드는 고치지 않는다).
 - F-2 A2 툴바 툴팁 Esc 한 번. — 검증: `npm --prefix app test` (툴팁이 열린 채 Esc 한 번에 툴팁이 닫히고 `escapeStep`의 단계가 일어남).
-- F-3 A3·A4 카드 답·Stop 뒤 focus. — 검증: `npm --prefix app test` (`ConversationThread.interaction.test.tsx`·`ConversationThread.question.test.tsx`의 `document.activeElement`: permission 답(클릭·Enter·Space), question 카드 Stop, permission 카드 Stop, 다른 요청이 남은 경우와 마지막인 경우).
+- F-3 A3·A4 카드 답·Stop 뒤 focus. — 검증: `npm --prefix app test` (`ConversationThread.interaction.test.tsx`·`ConversationThread.question.test.tsx`에서 DOM 없이 focus 대상을 고정하고, 실제 `document.activeElement`는 F-6 probe가 본다: permission 답(클릭·Enter·Space), question 카드 Stop, permission 카드 Stop, 다른 요청이 남은 경우와 마지막인 경우).
 - F-4 A5 strip 오류 줄. — 검증: `npm --prefix app test` (Skip·permission 답 `{error}` → 문장과 alert, 다음 누름·요청 변경·턴 끝에서 사라짐).
-- F-5 A6 툴팁 `aria-describedby` 한 개. — 검증: `npm --prefix app test` (다섯 컨트롤을 툴팁이 열린 채 jsdom으로 렌더).
+- F-5 A6 툴팁 `aria-describedby` 한 개. — 검증: `npm --prefix app test` (다섯 컨트롤을 툴팁이 열린 채 DOM 없이 static markup으로 렌더, ARCHITECTURE §7 'Home tests without a DOM'. 열린 툴팁의 실제 속성은 F-6 probe가 본다).
 - F-6 `/runtime-test`: A1(Esc로 Settings에 머묾, 메뉴 없을 때 떠남), A2(Esc 한 번에 툴팁과 capture 종료), A3·A4(focus 위치), A5(실패 주입 시 오류 줄), A6(설명 id 하나). — 검증: probe 기록과 스크린샷.
 
 ## R. 런타임
