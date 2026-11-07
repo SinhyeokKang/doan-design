@@ -52,3 +52,6 @@
   - 환경에서 찾은 것: 시스템 언어가 ko-KR인 Mac에서는 `dictionarySuggestions`가 늘 비어 맞춤법 제안이 나오지 않는다. `app/runtime/clipboard.ts`는 빈 clipboard를 되돌리지 못하고 probe 텍스트를 남겼다(C가 직접 비웠다).
 - **사용자 결정(AskUserQuestion)**: 조건 9는 main에서 막는다. 편집 항목을 click 항목으로 바꾸고, 실행 직전 focus 확인을 `executeJavaScript`로 한다. disabled 입력은 CSS로 선택을 막는다. design §3·§4, 결정 11·12, spec 조건 4·9, tasks T2·T3에 반영했다.
 - ko-KR 제안 없음과 `clipboard.ts` 결함은 이 feature 범위 밖이다(spec 비목표 '언어 설정', runtime 지원 코드). T5에서 BACKLOG에 적는다.
+- 2차 수정: B `132f9124` → `51284baf`(disabled 입력 선택 막기), A `41162902` → `3680fc48`(click 항목과 필드 확인). design 테스트 목록을 고쳤다(`504ec69c`). `504ec69c`에서 `verify.mjs` PASS.
+- A 2차 리뷰: Codex Astra(`ctx_26434711c867`). 이전 리뷰 dispatch를 다시 열다 `agent-update-prompt`로 실패해서 새로 띄웠다(`ctx_0214df4c97b6`은 정리했다).
+- C 재확인(`ctx_3be255fb1287`): 바뀐 동작만 다시 본다. 조건 9의 양성 대조군과 두 재현, 메뉴 편집 항목과 ⌘ 단축키 비교, 화면에 보이는 사용 가능 여부, disabled 입력이다.
