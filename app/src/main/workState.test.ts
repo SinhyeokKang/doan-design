@@ -155,7 +155,7 @@ describe("update", () => {
     expect(applyWork(state, { v: 3, token: "t", root, action: "update", path, conversation: "c1", frame: "a" } as WorkRequest, 0)).toBe(state);
   });
 });
-// design §1 rule 9 'work-turn key': made once by main when the session starts, so every subscriber sees the same key.
+// The work-turn key: made once by main when the session starts, so every subscriber sees the same key.
 describe("work turn", () => {
   test("a session keeps its turn across updates and starts and gets a new one after done or expiry", () => {
     let state = applyWork(empty(), start(identity), 0);
