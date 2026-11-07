@@ -44,7 +44,7 @@
 | 5 | [ci-gate](../ci-gate/spec.md) | GitHub Actions에서 공유 게이트(`verify.mjs`) 실행, 필수 상태 검사 | `/ship` | git-flow, 공개(D21) | D4 D5 |
 | 6 | [release-ci](../release-ci/spec.md) | CI 서명·공증, 테스트 빌드 워크플로와 태그로 시작하는 릴리스 워크플로, 고지 파일 동봉, `/tester-build` 교체 | `/ship` | ci-gate, G3a | D5 D6 D7 D8 D13 D14 D15 D18 |
 | 7 | [app-update](../app-update/spec.md) | 앱 안 업데이트 알림·확인·설치 | `/orchestrate`(UI 포함, `/design-draft` 필요) | release-ci | D9 D10 D11 D12 D23 D24 |
-| 8 | [release-skill](../release-skill/spec.md) | 새 `/release` 스킬: 버전 올림, `develop`→`main`, `main`의 태그 push, 릴리스 노트, GitHub Release 게시, hotfix 모드(D1) | 하네스·문서(대화 중) | release-ci (app-update와 병렬) | 사용자 결정 2, D1 D7 D12 D13 D22 D25 |
+| 8 | release-skill(완료, `.agents/skills/release`) | 새 `/release` 스킬: 버전 올림, `develop`→`main`, `main`의 태그 push, 릴리스 노트, GitHub Release 게시, hotfix 모드(D1) | 하네스·문서(대화 중) | release-ci (app-update와 병렬) | 사용자 결정 2, D1 D7 D12 D13 D22 D25 |
 
 표는 실행 순서다(# 열은 처음 정한 번호라 순서와 다르다). 자식이 아닌 부모 task: 저장소 공개와 공개 뒤 설정 G3a·G3b·G3c(사용자만 한다, D25), 0.1.0 릴리스, 부모 정리. [tasks.md](./tasks.md)의 G·R·Z다.
 

@@ -69,7 +69,7 @@ C3 community-docs ─ C4 readme-features   (P0과 병렬, main에 커밋)
   - 검증: `develop`을 향한 `chore/release-ci` PR이 병합됐고(확인 명령 미정 — 사용자 확인 필요), `git ls-tree origin/develop docs/features/release-ci` 결과 없음.
 - [ ] C7. [`app-update`](../app-update/tasks.md) — `/orchestrate`. 선행: C6(구현). 문서·초안 단계는 C6과 병렬. C8과 병렬.
   - 검증: `develop`을 향한 `feat/app-update` PR이 병합됐고(확인 명령 미정 — 사용자 확인 필요), `git ls-tree origin/develop docs/features/app-update` 결과 없음.
-- [ ] C8. [`release-skill`](../release-skill/tasks.md) — 하네스·문서, 대화 중. 선행: C6. C7과 병렬. 후행: G3c.
+- [x] C8. `release-skill`(b6be671b에서 지움) — 하네스·문서, 대화 중. 선행: C6. C7과 병렬. 후행: G3c.
   - 검증: `git ls-tree origin/develop docs/features/release-skill` 결과 없음, `ls -l .claude/skills/release`가 `../../.agents/skills/release`를 가리킨다.
 
 ## R. 0.1.0 출시 (사용자가 `/release`를 부른다)
