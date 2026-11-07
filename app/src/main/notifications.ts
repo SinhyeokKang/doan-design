@@ -2,7 +2,7 @@ import type { ConversationEvent } from "./conversation/types";
 import type { NotificationPreferences } from "./preferences";
 
 // macOS notification rules (PRODUCT §5 item 0 'Notifications'). Main decides whether and what to show; the
-// renderer interprets a click with notificationTarget, the one function buzz-conversation replaces for its panel.
+// renderer interprets a click with notificationTarget, the one function the conversation panel replaces.
 // No Electron here: the renderer imports this file.
 
 export type NotificationKind = "approval" | "finished" | "failed";

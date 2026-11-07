@@ -58,10 +58,10 @@ test("rejects unknown channels and every unregistered window", () => {
   for (const channel of [...mainOnly, ...setupAndAuth, ...settingsPage, "", "setup:delete", "comments:evil", "toString", "__proto__", "settings:", "projects:", "setup:"]) {
     for (const kind of [undefined, null, "thumbnail", "unknown", "", 1, {}]) expect(senderAllowed(channel, kind)).toBe(false);
   }
-  // zero-setup-agents removed Settings > Connections and its setup channels.
+  // Settings > Connections and its setup channels were removed.
   // Built from the operation names so a search for the channel literals finds only live code.
   const removed = ["read", "run", "answer", "check-again", "status"].map(op => `setup:${op}`);
-  // buzz-canvas-conversation removed the app's comment screens with their channels.
+  // The app's comment screens were removed with their channels.
   removed.push(...["list", "begin", "mutate", "status", "author", "copy", "guard", "transition-answer"].map(op => `comments:${op}`), "review-state:get", "review-state:raise");
   for (const kind of ["main", "settings"]) for (const channel of [...removed, "", "setup:delete", "comments:evil", "toString", "__proto__", "agent-auth:changed", "agent-auth:prompt", "agent-auth:delete"]) expect(senderAllowed(channel, kind)).toBe(false);
 });

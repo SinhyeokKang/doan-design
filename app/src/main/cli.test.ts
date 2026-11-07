@@ -247,7 +247,7 @@ describe("runDesignSkill", () => {
   });
 });
 
-// canvas-row-menu: `doan export` with its own timeout; the CLI command lands with batch A2, so a fake stands in.
+// `doan export` with its own timeout; a fake stands in for the CLI command.
 describe("runExport", () => {
   test("passes the listed path, the chosen file with --force, the root and --json, and the CLI cannot read stdin", async () => {
     const out = join(dir(), "args");

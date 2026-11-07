@@ -1624,7 +1624,7 @@ test("Y2 same-size replacement recovers selected anchor token without another ev
   expect(after.selected).toBe(after.results[0].candidates.doanId[0]);
 });
 
-// buzz-canvas-conversation removed the app's comment drafts and their guard: a click, a background click and an
+// The app's comment drafts and their guard are gone: a click, a background click and an
 // ⌥-clicked link act at once, and the guard's messages from the app change nothing.
 describe("selection without a draft guard", () => {
   test("a click selects at once, and draft-guard and transition-answer messages are ignored", () => {
