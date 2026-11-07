@@ -30,6 +30,7 @@ html, body, #root { width: 100%; height: 100%; overflow: hidden; }
 /* Keep Tailwind preflight's inherited 1.5 line height out of the shell. */
 body { background: var(--bg-app); color: var(--text-standard); font-family: var(--type-family); font-variant-numeric: tabular-nums; font-size: 13px; line-height: normal; user-select: none; }
 input, textarea, .composer-input { user-select: text; }
+input:disabled, textarea:disabled { user-select: none; }
 button { cursor: pointer; font: inherit; color: inherit; }
 button:disabled { color: var(--text-disabled); cursor: default; }
 button, [role="treeitem"] { outline: none; }
