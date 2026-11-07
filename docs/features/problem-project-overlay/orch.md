@@ -23,6 +23,11 @@
 - B3 handoff에서 conductor가 정한 것:
   - 메뉴의 Overview 항목은 `loading` root에서도 켜진다. 근거: 행 누르기가 이미 `loading` root를 연다(design §4.5 '행 누르기와 같은 곳').
   - 사이드바 hover 때 thumbnail을 숨기는 기존 규칙(`.shell-project-row:is(:hover, …) .shell-lead > .shell-thumbnail`)이 chevron 없는 문제·읽는 중 행에서 빈 자리를 남긴다. `styles.css`와 그 selector를 고정한 `ShellSidebar.test.tsx`를 함께 고쳐야 하므로 통합 뒤 B5가 맡는다.
+- R2 review에서 conductor가 정한 것:
+  - 🟡2(덮인 캔버스 페이지에서 Esc가 선택을 지움)를 고치려면 `CanvasController.ts`도 바꿔야 한다. B2가 끝났으므로 이 한 가지에 한해 B4에 그 파일을 맡긴다.
+  - 사이드바 메뉴에서 문제 worktree를 고르면 repair 보기가 열리고, 거기서 Overview 항목으로 오버레이에 간다. 두 단계지만 그대로 둔다. 근거: Q13은 worktree를 옮기는 길만 요구하고, 한 번에 가게 바꾸면 PRODUCT 판단이 필요하다.
+  - 오버레이를 지운 commit의 layout effect에서 포커스를 옮기는 방식을 받아들인다. 🟡1(목적지가 사이드바 행이 됨)을 고치는 것이 조건이다. 근거: R2가 그리기 전에 대상이 포커스를 받는 것을 확인했고, body를 읽는 경로를 찾지 못했다.
+  - ⚪2(`loading` worktree가 문제로 끝나면 아무 일도 없음)는 전부터 있던 동작이라 이번 범위 밖이다.
 - worker는 `/ship` 9단계(docs freshness)와 11단계(push)를 하지 않는다 — conductor 판단, 근거: 승격은 T9이고 conductor가 한다(orchestrate SKILL §4·§5).
 
 ## 초안 검토(conductor)
@@ -42,7 +47,7 @@
 | B4 | T5 | `App.tsx`, `ProblemOverlay.tsx`(새), `Home.tsx`, `styles.css`(모두 `app/src/renderer/`, `CanvasPane`은 `App.tsx` 안), `App.*.test.ts(x)`, `Home.test.tsx`, CSS 테스트, 새 `ProblemOverlay` 테스트 | B1, B2, 초안 확정 | Opus high: 포커스·inert·메뉴 상태·seen이 얽히고 틀리면 접근성과 데이터 표시가 깨진다 | test, typecheck, lint, build | 통합 `52ab3032`·`f118cbdc`·`85e248db`, lint cap 81로 낮춤 `81d5ba9e`, review는 R2 |
 | B5 | T6 | B3·B4가 고친 파일, `docs/DESIGN.md` | B3·B4 통합 | Opus medium: computed style 측정과 수정 | `/design-sync` 프레임별 일치, `npm --prefix app test` | 진행(R2와 병렬. R2 수정은 B5 통합 뒤 받는다) |
 | R1 | B1·B2 review | 보고만 | B1·B2 통합 | Sonnet high: 작은 순수 함수와 controller diff다 | `/code-review` 보고 | 완료: 🔴 0, 🟡 3(B4 지시로 넘김), ⚪ 5(test 보강 2건 반영, 주석 경로는 T9) |
-| R2 | B3·B4 review | 보고만 | B3·B4 통합 | Opus high: B4 diff가 포커스·inert·입력 막기·seen을 함께 바꾼다 | `/code-review` 보고 | 진행 |
+| R2 | B3·B4 review | 보고만 | B3·B4 통합 | Opus high: B4 diff가 포커스·inert·입력 막기·seen을 함께 바꾼다 | `/code-review` 보고 | 완료: 🔴 0, 🟡 2(B4), ⚪ 5. 수정은 B5 통합 뒤 B4에 보낸다 |
 | — | T7 | 없음(`.scratch/`) | B5 | conductor | `/runtime-test` 보고 | 대기 |
 | — | T8 verify, T9 승격 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/DESIGN.md`, `docs/BACKLOG.md`, 이 디렉터리 | 전부 | conductor | `verify.mjs` exit 0, T9 문구 검색 | 대기 |
 
