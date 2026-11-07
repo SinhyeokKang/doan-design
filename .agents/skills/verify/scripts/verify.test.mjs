@@ -12,8 +12,17 @@ async function workspace(t) {
   return dir;
 }
 
-test("static gates include runtime support without launching Electron; retired runtime flag fails", () => {
+test("static gates include runtime support and app lint without launching Electron; retired runtime flag fails", () => {
   const steps = plan(["--eval"]);
+  for (const flags of [[], ["--eval"]]) {
+    const planned = plan(flags);
+    const lint = planned.filter(s => s.name === "lint");
+    assert.equal(lint.length, 1);
+    const index = planned.indexOf(lint[0]);
+    assert.equal(planned[index - 1].name, "typecheck");
+    assert.equal(planned[index + 1].name, "app-test");
+    assert.deepEqual(lint[0].args, ["--prefix", "app", "run", "lint"]);
+  }
   assert.equal(steps.filter(s => s.name === "build").length, 1);
   assert.ok(!steps.some(s => s.name === "runtime" || s.args.includes("e2e")));
   assert.deepEqual(steps.find(s => s.name === "runtime-support").args, ["--test", "app/runtime/*.test.ts"]);
