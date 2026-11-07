@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { FolderEntry } from "../main/view";
-import { countMatches, emptyText, groupResults, markRuns, matchPositions, missingCanvasMessage, outsideDialog, removedCanvasMessage, resultKey, resultParts, unavailableCanvasMessage, pickTarget, searchIndex, searchMatch, type SearchCanvas, type SearchFolder, type SearchResult } from "./quickOpen";
+import { countMatches, emptyText, readingCount, readingText, groupResults, markRuns, matchPositions, missingCanvasMessage, outsideDialog, removedCanvasMessage, resultKey, resultParts, unavailableCanvasMessage, pickTarget, searchIndex, searchMatch, type SearchCanvas, type SearchFolder, type SearchResult } from "./quickOpen";
 
 function canvas(path: string, extra: Partial<SearchCanvas> = {}): SearchCanvas {
   return { path, url: `http://localhost/${path}`, ...extra };
@@ -381,18 +381,46 @@ describe("quick open empty text", () => {
     expect(emptyText("canvas", "card", listed, 51)).toBe("No canvases match. 50+ frames match in All.");
   });
 
-  it("puts reading and unavailable projects before the empty-query texts", () => {
+  it("leaves a reading project to the reading row and puts unavailable projects before the empty-query texts", () => {
     const loading = [{ path: "/repo", kind: "loading" } as const];
     const broken = [{ path: "/repo", kind: "notFound" } as const];
     for (const kind of ["all", "canvas", "frame"] as const) {
-      expect(emptyText(kind, "", loading, 0)).toBe("Project is still being read. Try again shortly.");
+      expect(emptyText(kind, "", loading, 0)).toBeNull();
+      expect(emptyText(kind, "", [...loading, ...listed], 0)).toBeNull();
       expect(emptyText(kind, " ", broken, 0)).toBe("Project is unavailable. Fix it from its menu in the sidebar.");
+      expect(emptyText(kind, "", [...loading, { path: "/gone", kind: "notFound" }], 0)).toBe("Project is unavailable. Fix it from its menu in the sidebar.");
     }
+    // A query that matches nothing still says so beside the reading row.
+    expect(emptyText("canvas", "card", loading, 0)).toBe("No canvases match");
     expect(emptyText("all", "", listed, 0)).toBe("No canvases to show");
     expect(emptyText("canvas", "", listed, 0)).toBe("No canvases to show");
     expect(emptyText("frame", "", listed, 0)).toBe("No frames to show");
     expect(emptyText("all", "", [], 0)).toBe("No canvases to show");
     expect(emptyText("frame", "", [], 0)).toBe("No frames to show");
+  });
+});
+
+describe("quick open reading row", () => {
+  const entries: FolderEntry[] = [
+    { path: "/a", kind: "loading" },
+    { path: "/b", kind: "loading" },
+    { path: "/c", kind: "list", canvases: [], servedRev: 0 },
+    { path: "/d", kind: "notFound" },
+  ];
+  it("counts the reading projects Quick Open searches: every project on Home or with a query, the workspace's own without one", () => {
+    expect(readingCount(entries, null, "")).toBe(2);
+    expect(readingCount(entries, null, "card")).toBe(2);
+    expect(readingCount(entries, "/a", "")).toBe(1);
+    expect(readingCount(entries, "/c", "")).toBe(0);
+    expect(readingCount(entries, "/c", "card")).toBe(2);
+    expect(readingCount(entries, "/c", "  ")).toBe(0);
+    expect(readingCount([], null, "")).toBe(0);
+  });
+
+  it("names the count, singular for one project", () => {
+    expect(readingText(1)).toBe("Still reading 1 project…");
+    expect(readingText(2)).toBe("Still reading 2 projects…");
+    expect(readingText(12)).toBe("Still reading 12 projects…");
   });
 });
 
