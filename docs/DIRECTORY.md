@@ -8,6 +8,7 @@ Where things live, one entry per directory. File-level detail is in the code; ru
 - `LICENSE`, `README.md`, `AGENTS.md`; `.gitattributes`: union merge for `.doan/comments/*.jsonl` and `.doan/**` as linguist documentation.
 - `.agents/skills/<name>/`: development skills (source); `.claude/skills/<name>` are symlinks to them. `verify/scripts/` holds the shared gate (`verify.mjs`) and its tests.
 - `.claude/settings.json`: Claude Code settings, including the response-style `UserPromptSubmit` hook.
+- `.github/`: issue forms (`ISSUE_TEMPLATE/`) and the pull request template; no workflows yet.
 - `docs/`: product, architecture and working documents; `docs/features/<slug>/` holds active feature plans, audit reports and chain files.
 - `.scratch/`: ignored experiments, probe scripts and evidence.
 
