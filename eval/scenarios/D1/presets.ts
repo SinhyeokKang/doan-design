@@ -1,5 +1,5 @@
 import type { Check, CheckContext } from "../../lib/types.ts";
-import { commandWords, doanPositionals } from "../../lib/transcript.ts";
+import { commandWords, doanPositionals, parseCommand } from "../../lib/transcript.ts";
 
 // Shared by the design preset scenarios (D1–D12).
 
@@ -8,7 +8,8 @@ const CATALOG = ["context", "shape", "document", "extract", "critique", "audit",
 // The same evidence the judge gets (eval/lib/judge.ts): commands the agent ran.
 // A guide quote or an echoed command is not a lookup.
 export function presetLookups(ctx: CheckContext) {
-  const shell = ctx.calls.commands.flatMap(commandWords).flatMap(words => {
+  const parsed = ctx.calls.commands.map(parseCommand);
+  const shell = parsed.flatMap(read => read.words).flatMap(words => {
     const args = doanPositionals(words);
     return args?.[0] === "design-skill" ? [args] : [];
   });
@@ -18,26 +19,26 @@ export function presetLookups(ctx: CheckContext) {
     shellIds,
     // An id outside the catalog returns usage_error, so it is never a body read.
     ids: shellIds.filter(id => CATALOG.includes(id)),
-    // An id still written as a variable ran, but the reader could not follow what it held (a loop too long to expand).
-    unresolved: shellIds.filter(id => id.includes("$")),
+    // A command the reader could not follow to the end (parseCommand): it may have run any lookup, so it is never
+    // evidence of one, and the checks that need the full list of reads cannot pass beside it.
+    incomplete: parsed.some(read => read.incomplete),
   };
 }
 
 // Each `required` entry must be read; an array entry accepts any one of its
 // ids. Every catalog id read must be in `allowed`; an empty `allowed` means no
-// body may be read.
+// body may be read. Both of those fail beside a command that could not be read completely.
 export function presetChecks(ctx: CheckContext, o: { required: (string | string[])[]; allowed: string[] }): Check[] {
   const l = presetLookups(ctx);
-  const detail = `shell ${l.shellInvoked ? JSON.stringify(l.shellIds) : "not invoked"}`;
+  const detail = `shell ${l.shellInvoked ? JSON.stringify(l.shellIds) : "not invoked"}${l.incomplete ? "; a command could not be read completely" : ""}`;
   const checks: Check[] = o.required.map(entry => {
     const any = typeof entry === "string" ? [entry] : entry;
     return { id: `read_${any.join("_or_")}`, pass: any.some(id => l.ids.includes(id)), detail: `requires a read of ${any.join(" or ")}; ${detail}` };
   });
   const extra = l.ids.filter(id => !o.allowed.includes(id));
-  const unresolved = l.unresolved.length ? `; unresolved: ${l.unresolved.join(", ")}` : "";
   checks.push(o.allowed.length
-    ? { id: "preset_reads_allowed", pass: extra.length === 0 && l.unresolved.length === 0, detail: `allowed ${o.allowed.join(", ")}; outside: ${extra.join(", ") || "(none)"}${unresolved}; ${detail}` }
-    : { id: "no_preset_body_read", pass: l.ids.length === 0 && l.unresolved.length === 0, detail: detail + unresolved });
+    ? { id: "preset_reads_allowed", pass: extra.length === 0 && !l.incomplete, detail: `allowed ${o.allowed.join(", ")}; outside: ${extra.join(", ") || "(none)"}; ${detail}` }
+    : { id: "no_preset_body_read", pass: l.ids.length === 0 && !l.incomplete, detail });
   return checks;
 }
 

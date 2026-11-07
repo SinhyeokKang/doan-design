@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { shellCommands, commandWords, doanCommand, doanPositionals, mcpTools, toolCalls } from "./transcript.ts";
+import { shellCommands, commandWords, parseCommand, doanCommand, doanPositionals, mcpTools, toolCalls } from "./transcript.ts";
 test("only Bash tool_use and Codex exec headers yield shell commands", () => {
   assert.deepEqual(shellCommands('guide: doan active\n{"type":"user","message":{"content":[{"type":"tool_result","content":"doan active"}]}}'), []);
   assert.deepEqual(shellCommands('{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"doan active"}}]}}'), ["doan active"]);
@@ -145,13 +145,24 @@ test("commandWords expands loop and assigned variables where the shell would", (
   // What follows the loop runs once.
   assert.deepEqual(commandWords("cd /tmp; for p in a b; do echo $p; done; doan active"), [["cd", "/tmp"], ["echo", "a"], ["echo", "b"], ["doan", "active"]]);
 });
-test("commandWords leaves unset, quoted and escaped variables as written", () => {
-  assert.deepEqual(commandWords("doan design-skill $p"), [["doan", "design-skill", "$p"]]);
-  assert.deepEqual(commandWords("for p in harden; do doan design-skill '$p' \"\\$p\"; done"), [["doan", "design-skill", "$p", "$p"]]);
-  assert.deepEqual(commandWords("p=harden doan design-skill $p"), [["doan", "design-skill", "$p"]]);
+test("commandWords keeps a single-quoted or escaped $ as a literal and reads it as complete", () => {
+  const literal = (command: string) => parseCommand(command);
+  assert.deepEqual(literal("doan design-skill '$p'"), { words: [["doan", "design-skill", "$p"]], incomplete: false });
+  assert.deepEqual(literal('doan design-skill "\\$p"'), { words: [["doan", "design-skill", "$p"]], incomplete: false });
+  assert.deepEqual(literal("doan design-skill \\$p"), { words: [["doan", "design-skill", "$p"]], incomplete: false });
+  assert.deepEqual(literal("doan design-skill harden; doan design-skill '$p'"), { words: [["doan", "design-skill", "harden"], ["doan", "design-skill", "$p"]], incomplete: false });
   assert.deepEqual(commandWords("for p in harden; do echo doan design-skill $p; done"), [["echo", "doan", "design-skill", "harden"]]);
-  // Not a loop the words can follow: kept as before.
-  assert.deepEqual(commandWords("for p in harden"), [["for", "p", "in", "harden"]]);
+  // A variable the shell here may or may not have set is only a problem where it decides what runs.
+  assert.deepEqual(literal("cd $HOME && doan design-skill harden"), { words: [["cd", "$HOME"], ["doan", "design-skill", "harden"]], incomplete: false });
+  assert.deepEqual(literal("doan active --repo $REPO --json"), { words: [["doan", "active", "--repo", "$REPO", "--json"]], incomplete: false });
+});
+test("a command whose program or doan operand is unresolved is incomplete and yields no words for it", () => {
+  for (const command of ["doan design-skill $p", "p=harden doan design-skill $p", "$c design-skill polish", "doan $c", 'doan design-skill "$p"', "doan design-skill $(echo harden)", "doan design-skill `echo harden`"])
+    assert.deepEqual(parseCommand(command), { words: [], incomplete: true }, command);
+  // The rest of the command is still read.
+  assert.deepEqual(parseCommand("doan design-skill harden; $c design-skill polish"), { words: [["doan", "design-skill", "harden"]], incomplete: true });
+  assert.deepEqual(parseCommand("for p in $ids; do doan design-skill $p; done"), { words: [], incomplete: true });
+  assert.deepEqual(parseCommand("q=$unset; doan design-skill $q"), { words: [], incomplete: true });
 });
 test("loop variables and assignments in a body are the shell state that goes on after the loop", () => {
   assert.deepEqual(commandWords("p=harden; for p in polish; do echo $p; done; doan design-skill $p"), [["echo", "polish"], ["doan", "design-skill", "polish"]]);
@@ -160,21 +171,27 @@ test("loop variables and assignments in a body are the shell state that goes on 
   assert.deepEqual(commandWords("for x in 1 2 3; do echo $q; q=$x; done"), [["echo", "$q"], ["echo", "1"], ["echo", "2"]]);
   assert.deepEqual(commandWords("for a in 1 2; do for b in x y; do last=$a$b; done; done; echo $last $b"), [["echo", "2y", "y"]]);
 });
-test("a loop with no closing done is not taken as run", () => {
-  assert.deepEqual(commandWords("for p in harden; do doan design-skill $p"), [["for", "p", "in", "harden"], ["do", "doan", "design-skill", "$p"]]);
-  assert.ok(!commandWords("for p in harden; do doan design-skill $p").some(words => doanCommand(words) === "design-skill"));
-  assert.deepEqual(commandWords("for p in a; do for q in b; do doan active; done"), [["for", "p", "in", "a"], ["do", "for", "q", "in", "b"], ["do", "doan", "active"], ["done"]]);
+test("a loop with no closing done is incomplete, and nothing from it on is taken as run", () => {
+  assert.deepEqual(parseCommand("for p in harden; do doan design-skill $p"), { words: [], incomplete: true });
+  assert.deepEqual(parseCommand("for p in harden; do echo start; doan design-skill harden"), { words: [], incomplete: true });
+  assert.deepEqual(parseCommand("for p in harden"), { words: [], incomplete: true });
+  assert.deepEqual(parseCommand("doan active; for p in a; do for q in b; do doan active; done"), { words: [["doan", "active"]], incomplete: true });
+  assert.deepEqual(parseCommand("for p in harden; do doan design-skill $p; done"), { words: [["doan", "design-skill", "harden"]], incomplete: false });
 });
-test("a loop too long to follow leaves its variable unresolved instead of dropping later values", () => {
+test("a loop past the budget is incomplete and leaves no stale variable behind", () => {
   const long = [...Array(64).fill("harden"), "polish"].join(" ");
-  assert.deepEqual(commandWords(`for p in ${long}; do doan design-skill $p; done`).filter(words => words.includes("polish")), [["doan", "design-skill", "polish"]]);
+  assert.deepEqual(parseCommand(`for p in ${long}; do doan design-skill $p; done`).words.filter(words => words.includes("polish")), [["doan", "design-skill", "polish"]]);
+  assert.equal(parseCommand(`for p in ${long}; do doan design-skill $p; done`).incomplete, false);
   const over = [...Array(300).fill("harden"), "polish"].join(" ");
-  assert.deepEqual(commandWords(`for p in ${over}; do doan design-skill $p; done`), [["doan", "design-skill", "$p"]]);
-  assert.deepEqual(commandWords(`p=harden; for p in ${over}; do echo; done; doan design-skill $p`), [["echo"], ["doan", "design-skill", "$p"]]);
+  assert.deepEqual(parseCommand(`for p in ${over}; do doan design-skill $p; done`), { words: [], incomplete: true });
+  assert.deepEqual(parseCommand(`p=harden; for p in ${over}; do echo; done; doan design-skill $p`), { words: [], incomplete: true });
+  // The body assigns and calls: what ran after the first iteration is unknown, so the first read is not the list.
+  assert.deepEqual(parseCommand(`p=harden; for x in ${Array(257).fill("1").join(" ")}; do doan design-skill $p; p=polish; done`), { words: [], incomplete: true });
+  assert.deepEqual(parseCommand(`doan design-skill harden; for c in ${Array(257).fill("echo").join(" ")} doan; do $c design-skill polish; done`), { words: [["doan", "design-skill", "harden"]], incomplete: true });
   // Nested loops share one budget and the result stays small.
   const sixtyFour = Array.from({ length: 64 }, (_, i) => i).join(" ");
-  const nested = `for a in ${sixtyFour}; do for b in ${sixtyFour}; do for c in ${sixtyFour}; do for d in ${sixtyFour}; do echo x; done; done; done; done`;
-  const words = commandWords(nested);
-  assert.ok(words.length <= 1000, String(words.length));
-  assert.ok(words.every(w => w[0] === "echo"));
+  const nested = parseCommand(`for a in ${sixtyFour}; do for b in ${sixtyFour}; do for c in ${sixtyFour}; do for d in ${sixtyFour}; do echo x; done; done; done; done`);
+  assert.equal(nested.incomplete, true);
+  assert.ok(nested.words.length <= 256, String(nested.words.length));
+  assert.ok(nested.words.every(w => w[0] === "echo"));
 });

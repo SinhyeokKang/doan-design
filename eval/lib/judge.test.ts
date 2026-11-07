@@ -175,7 +175,9 @@ test("preset lookups run through a shell loop keep their IDs, and an echoed loop
   const looped = invocationSummary(bash("for p in harden clarify; do doan design-skill $p --json; done")).summary;
   assert.deepEqual(looped.doanDesignSkill, { shellInvoked: true, shellIds: ["harden", "clarify"] });
   const unclosed = invocationSummary(bash("for p in harden clarify; do doan design-skill $p --json")).summary;
-  assert.deepEqual(unclosed.doanDesignSkill, { shellInvoked: false, shellIds: [] });
+  assert.deepEqual(unclosed.doanDesignSkill, { shellInvoked: false, shellIds: [], incompleteCommands: true });
+  const unresolved = invocationSummary(bash("doan design-skill context; doan design-skill $p")).summary;
+  assert.deepEqual(unresolved.doanDesignSkill, { shellInvoked: true, shellIds: ["context"], incompleteCommands: true });
   const echoed = invocationSummary(bash("for p in harden clarify; do echo doan design-skill $p; done")).summary;
   assert.deepEqual(echoed.doanDesignSkill, { shellInvoked: false, shellIds: [] });
 });

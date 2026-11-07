@@ -184,88 +184,128 @@ function withoutHeredocBodies(command: string): string {
 const ASSIGNMENT = /^[A-Za-z_][A-Za-z_0-9]*=/;
 const VARIABLE = /\$(?:(\w+)|\{(\w+)\})/g;
 // Loop iterations one command may expand in total, nested loops included, so a transcript cannot make the reader
-// work without bound. A loop that would pass it is not followed: its body is read once with the variable unresolved.
+// work without bound.
 const LOOP_BUDGET = 256;
 
-// One raw token (quotes still on) to the words the shell makes of it. Single quotes keep `$name`, an escaped `\$` in
-// double quotes stays literal, and a variable that is not known here stays as written. A bare `$name` holding
-// several words splits into them, as an unquoted expansion does.
-function expandToken(raw: string, env: ReadonlyMap<string, string>): string[] {
+interface ReadState { left: number; incomplete: boolean }
+interface Expanded { words: string[]; unresolved: boolean }
+
+// One raw token (quotes still on) to the words the shell makes of it. Single quotes and an escaped `\$` keep a
+// literal `$`. A variable that is not known here, or a command substitution, is left as written and marks the token
+// unresolved: what the shell would pass there is unknown. A bare `$name` holding several words splits into them, as
+// an unquoted expansion does.
+function expandToken(raw: string, env: ReadonlyMap<string, string>): Expanded {
   const whole = /^\$(?:(\w+)|\{(\w+)\})$/.exec(raw);
   const held = whole ? env.get(whole[1] ?? whole[2]!) : undefined;
-  if (held !== undefined) return held.split(/\s+/).filter(Boolean);
-  const known = (written: string, plain?: string, braced?: string) => env.get(plain ?? braced!) ?? written;
-  return [raw.replace(/"((?:\\.|[^"\\])*)"|'([^']*)'|([^"']+)/g, (_, double, single, bare) => {
+  if (held !== undefined) return { words: held.split(/\s+/).filter(Boolean), unresolved: false };
+  let unresolved = false;
+  const known = (written: string, plain?: string, braced?: string) => {
+    const value = env.get(plain ?? braced!);
+    if (value === undefined) unresolved = true;
+    return value ?? written;
+  };
+  // What is left after the variables: a `$(` or a backtick starts a substitution this reader does not run.
+  const substitution = (text: string) => { if (/\$\(|`/.test(text)) unresolved = true; return text; };
+  const word = raw.replace(/"((?:\\.|[^"\\])*)"|'([^']*)'|([^"']+)/g, (_, double, single, bare) => {
     if (single !== undefined) return single;
-    if (double !== undefined) return double.replace(/\\([\$`"\\\n])|\$(?:(\w+)|\{(\w+)\})/g, (m: string, escaped: string | undefined, plain?: string, braced?: string) => escaped ?? known(m, plain, braced));
-    return bare.replace(VARIABLE, known);
-  })];
+    const text = (double ?? bare) as string;
+    const pattern = double !== undefined ? /\\([\$`"\\\n])|\$(?:(\w+)|\{(\w+)\})/g : /\\(\$)|\$(?:(\w+)|\{(\w+)\})/g;
+    return substitution(text.replace(pattern, (m: string, escaped: string | undefined, plain?: string, braced?: string) => escaped ?? known(m, plain, braced)).replace(/\\\$/g, "$"));
+  });
+  return { words: [word], unresolved };
 }
 
 // Executes the words of raw token groups the way the shell would, for what a transcript can show: `NAME=value`
 // assignments on their own, and a closed `for NAME in words; do …; done` with its body run once per word. The
 // variables are one shell state: a loop variable and an assignment in a body stay set after the loop, as in POSIX
-// sh. A loop with no `done`, or too long to follow, is never taken as run; a word that cannot be resolved stays as
-// written. Anything else (`while`, `if`, command substitution) is read as written.
-function runGroups(groups: string[][], vars: Map<string, string>, budget: { left: number }): string[][] {
+// sh. Whatever cannot be followed (a `for` without its `done`, a loop past the budget, a list that holds an
+// unresolved word) sets `state.incomplete` and yields no words, and so does a simple command whose program or doan
+// operand is unresolved: the read is then not complete and must not be taken for the whole list of what ran.
+// Anything else (`while`, `if`) is read as written.
+function runGroups(groups: string[][], vars: Map<string, string>, state: ReadState): string[][] {
   const out: string[][] = [];
   const append = (words: string[][]) => { for (const entry of words) out.push(entry); };
   for (let i = 0; i < groups.length; i++) {
     const group = groups[i]!;
-    const head = groups[i + 1];
-    if (group[0] === "for" && /^[A-Za-z_]\w*$/.test(group[1] ?? "") && group[2] === "in" && head?.[0] === "do") {
-      const rest = head.length > 1 ? [head.slice(1)] : [];
-      const body = [...rest, ...groups.slice(i + 2)];
+    if (group[0] === "for" && /^[A-Za-z_]\w*$/.test(group[1] ?? "") && group[2] === "in") {
+      const head = groups[i + 1];
+      const rest = head?.[0] === "do" && head.length > 1 ? [head.slice(1)] : [];
+      const body = head?.[0] === "do" ? [...rest, ...groups.slice(i + 2)] : [];
       let depth = 1, done = -1;
       for (let j = 0; j < body.length && done < 0; j++) {
         // A nested loop can open right after its parent's `do`.
         if (["for", "while", "until", "select"].includes((body[j]![0] === "do" ? body[j]![1] : body[j]![0]) ?? "")) depth++;
         if (body[j]![0] === "done" && --depth === 0) done = j;
       }
-      if (done >= 0) {
-        const values = group.slice(3).flatMap(token => expandToken(token, vars));
-        if (values.length <= budget.left) {
-          budget.left -= values.length;
-          for (const value of values) { vars.set(group[1]!, value); append(runGroups(body.slice(0, done), vars, budget)); }
-        } else {
-          vars.delete(group[1]!);
-          append(runGroups(body.slice(0, done), vars, budget));
-        }
-        // Continue after the loop's `done`.
-        i += 2 + done - rest.length;
-        continue;
+      if (done < 0) { state.incomplete = true; return out; }
+      const lists = group.slice(3).map(token => expandToken(token, vars));
+      const values = lists.flatMap(list => list.words);
+      if (lists.some(list => list.unresolved) || values.length > state.left) {
+        // The body ran an unknown number of times with unknown values: nothing after it can rely on the variables.
+        state.incomplete = true;
+        vars.clear();
+      } else {
+        state.left -= values.length;
+        for (const value of values) { vars.set(group[1]!, value); append(runGroups(body.slice(0, done), vars, state)); }
       }
+      // Continue after the loop's `done`.
+      i += 2 + done - rest.length;
+      continue;
     }
     let skipped = 0;
     while (ASSIGNMENT.test(group[skipped] ?? "")) skipped++;
     // Assignments before a command belong to that command alone; a group of only assignments sets them for the rest.
-    if (skipped > 0 && skipped === group.length) for (const token of group) vars.set(token.slice(0, token.indexOf("=")), expandToken(token.slice(token.indexOf("=") + 1), vars).join(" "));
-    let words = group.slice(skipped).flatMap(token => expandToken(token, vars));
+    if (skipped > 0 && skipped === group.length) {
+      for (const token of group) {
+        const name = token.slice(0, token.indexOf("="));
+        const value = expandToken(token.slice(token.indexOf("=") + 1), vars);
+        if (value.unresolved) vars.delete(name); else vars.set(name, value.words.join(" "));
+      }
+    }
+    const expanded = group.slice(skipped).map(token => expandToken(token, vars));
+    let words = expanded.flatMap(token => token.words);
+    let open = expanded.flatMap(token => token.words.map(() => token.unresolved));
     // The `command` builtin runs its operand, except -v/-V, which only look the name up.
     if (words[0] === "command") {
       let k = 1;
       while (/^-[pvV]+$/.test(words[k] ?? "")) k++;
-      if (!/[vV]/.test(words.slice(1, k).join(""))) words = words.slice(words[k] === "--" ? k + 1 : k);
+      if (!/[vV]/.test(words.slice(1, k).join(""))) {
+        const from = words[k] === "--" ? k + 1 : k;
+        words = words.slice(from);
+        open = open.slice(from);
+      }
     }
-    if (/^(?:.*\/)?(?:ba|z|da)?sh$/.test(words[0] ?? "") && /^-[a-z]*c$/.test(words[1] ?? "") && words[2]) append(wordsOf(words[2], budget));
-    else if (words.length) out.push(words);
+    if (/^(?:.*\/)?(?:ba|z|da)?sh$/.test(words[0] ?? "") && /^-[a-z]*c$/.test(words[1] ?? "") && words[2]) { append(parse(words[2], state)); continue; }
+    if (!words.length) continue;
+    // A program or a doan operand the reader could not resolve may be anything, including a lookup.
+    let known = !open[0];
+    if (known && /^(?:.*\/)?doan$/.test(words[0]!)) known = !doanPositionals(words.map((word, index) => open[index] ? "\0" : word))?.some(operand => operand.includes("\0"));
+    if (known) out.push(words); else state.incomplete = true;
   }
   return out;
 }
 
-function wordsOf(command: string, budget: { left: number }): string[][] {
+function parse(command: string, state: ReadState): string[][] {
   const groups: string[][] = [[]];
   for (const token of withoutHeredocBodies(command).matchAll(/[;&|\n]+|(?:"(?:\\.|[^"\\])*"|'[^']*'|[^\s;&|"'])+/g)) {
     const value = token[0];
     if (/^[;&|\n]+$/.test(value)) groups.push([]);
     else groups.at(-1)!.push(value);
   }
-  return runGroups(groups.filter(g => g.length), new Map(), budget);
+  return runGroups(groups.filter(g => g.length), new Map(), state);
+}
+
+// The words of what a command runs, and whether the read is complete. An incomplete read lacks the commands it
+// could not follow (see runGroups): the words it does give are real, but they are not the whole list.
+export function parseCommand(command: string): { words: string[][]; incomplete: boolean } {
+  const state: ReadState = { left: LOOP_BUDGET, incomplete: false };
+  const words = parse(command, state);
+  return { words, incomplete: state.incomplete };
 }
 
 // Preserve quoted arguments so echoing a command cannot count as invoking it.
 export function commandWords(command: string): string[][] {
-  return wordsOf(command, { left: LOOP_BUDGET });
+  return parseCommand(command).words;
 }
 
 export interface InvocationOutput {
