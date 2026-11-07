@@ -1416,7 +1416,7 @@ describe("queue and judgement review fixes", () => {
 });
 
 // Queue limits, the list's working state, sign-out while held.
-describe("fix round 1", () => {
+describe("queue limits, working state and sign-out while held", () => {
   const a = { path: ".doan/canvases/a.html", id: "a" };
   const canvasStart = { ...homeRequest, mode: "new" as const, canvas: a };
   const userMessages = (h: ReturnType<typeof homeFixture>, id: string) => h.store.read(id).filter(e => e.type === "user.message");

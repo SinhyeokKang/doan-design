@@ -301,7 +301,7 @@ it("never records on a Codex resume and clears once its initialize passes", asyn
 // Model lists without a prompt, and the conversation's model and effort on every run.
 function listingClaude(root: string): string {
   const command = join(root, "claude");
-  // Answers initialize with the supportedModels rows the P1 PoC recorded; records argv and stdin lines.
+  // Answers initialize with the supportedModels rows a PoC recorded; records argv and stdin lines.
   writeFileSync(command, `#!/usr/bin/env node
 const fs = require('node:fs'); const readline = require('node:readline');
 fs.appendFileSync(${JSON.stringify(join(root, "seen"))}, JSON.stringify(process.argv.slice(2)) + '\\n');
@@ -959,7 +959,7 @@ const line = value => JSON.stringify(value) + '\\n';
 const status = (threadId, name, value) => line({ method: 'mcpServer/startupStatus/updated', params: { threadId, name, status: value, error: null, failureReason: null } });
 const approval = id => line({ id, method: 'mcpServer/elicitation/request', params: { threadId: 'session', turnId: 'native-turn', serverName: 'doan-example-com', mode: 'form', _meta: { codex_approval_kind: 'mcp_tool_call', persist: ['session', 'always'] }, message: 'Allow the doan-example-com MCP server to run tool "search"?', requestedSchema: { type: 'object', properties: {} } } });
 let reloads = 0, turns = 0;
-// The reply goes alone; the restarted servers' statuses follow in later chunks, as in P2 (22-80 ms after the reply).
+// The reply goes alone; the restarted servers' statuses follow in later chunks, as a probe saw (22-80 ms after the reply).
 const reload = r => {
   reloads += 1; const round = reloads;
   if (plan.reloadError && round === 1) { process.stdout.write(line({ id: r.id, error: { code: -32603, message: 'reload failed' } })); return; }

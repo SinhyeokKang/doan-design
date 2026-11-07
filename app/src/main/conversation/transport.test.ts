@@ -371,7 +371,7 @@ describe("steered message consumption", () => {
     expect(run("codex", [{ steer: STEERED }, { method: "turn/completed", params: { threadId: "session-1", turn: { id: "turn-1", status: "completed" } } }]).seen).toEqual([{ type: "turn.done" }]);
   });
 });
-// Claude's AskUserQuestion, as P1 recorded it (fixtures/claude-ask-user-question.json).
+// Claude's AskUserQuestion, as a probe recorded it (fixtures/claude-ask-user-question.json).
 describe("Claude AskUserQuestion", () => {
   const single = askFixture.canUseTool.single.input, multi = askFixture.canUseTool.multi.input;
   const color = "Which color do you prefer?";

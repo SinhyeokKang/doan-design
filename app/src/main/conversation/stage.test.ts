@@ -23,7 +23,7 @@ const THINKING: TurnStage = { kind: "thinking" };
 const COMMAND: TurnStage = { kind: "tool", activity: "command", summary: GENERIC_SUMMARY.command };
 const stagesOf = (steps: Step[]) => steps.flatMap(step => step.stage ? [step.stage] : []);
 const eventsOf = (steps: Step[]) => steps.flatMap(step => step.events);
-// The stages with each repeat folded, as main sends them (C1 drops a stage equal to the last one).
+// The stages with each repeat folded, as main sends them (it drops a stage equal to the last one).
 const folded = (stages: TurnStage[]) => stages.filter((stage, i) => i === 0 || JSON.stringify(stage) !== JSON.stringify(stages[i - 1]));
 // After the turn's terminal, no step reports a stage.
 function expectNoStageAfterTerminal(steps: Step[]) {
@@ -434,7 +434,7 @@ describe("ACP tool summary", () => {
     expect(running).toEqual({ kind: "tool", activity: "edit", path: "/repo/a.txt", summary: "Edit `/repo/a.txt`" });
   });
   it("keeps the recorded ACP turns' activities as they were", () => {
-    // The A1 turns are pinned whole in turnActivityFixtures.test.ts.
+    // The recorded turns are pinned whole in turnActivityFixtures.test.ts.
     const activities = (frames: readonly unknown[]) => eventsOf(acpSteps(frames as Record<string, any>[]).steps).filter(e => e.type === "activity");
     expect(activities(cursorFixture.turn)).toEqual([
       { type: "activity", kind: "edit", path: "/repo/hello.txt", insideDesign: false, summary: "Edit `/repo/hello.txt`" },
