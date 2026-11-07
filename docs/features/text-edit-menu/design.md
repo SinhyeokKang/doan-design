@@ -47,11 +47,11 @@ main이 메인 창의 `context-menu` 이벤트를 받아 native 메뉴(`Menu.pop
 - 필드 확인(완료 조건 9): role 항목과 `replaceMisspelling`은 고르는 순간 focus된 필드에 작용한다. 그래서 메뉴가 열린 사이 원래 필드가 사라지고 focus가 다른 필드로 옮겨지면, 그 필드의 단어가 바뀌거나 그 필드에 붙여넣어진다(T4가 실제 앱에서 재현했다). 편집 가능한 메뉴의 항목은 실행 직전에 main이 `contents.executeJavaScript`로 "지금 focus된 요소가 메뉴를 연 자리(`params.x`, `params.y`)의 요소이거나 그 요소를 담는가"를 확인하고, 아니면 아무것도 하지 않는다. Edit > Undo·Redo가 이미 같은 방식으로 focus된 chip field를 확인한다(`index.ts` `editHistory`). 확인 script는 고정 문자열이고 좌표만 숫자로 넣는다. renderer가 정한 문자열을 main이 실행하거나 쓰지 않는다. 편집할 수 없는 메뉴(thread 텍스트의 Look Up, Copy)는 아무것도 쓰지 않으므로 확인하지 않는다. 앱은 page zoom을 쓰지 않으므로 `params.x`·`y`를 그대로 CSS px로 쓴다.
 - 띄우기: `Menu.buildFromTemplate(template).popup({ window })`. `frame`은 넘기지 않는다. Electron 45 `PopupOptions`(`electron.d.ts`)는 `frame`을 "Writing Tools 같은 OS 기능"에 쓰라고 한다. 넘기지 않으면 메뉴는 정한 항목만 담는다(사용자 결정). macOS가 그래도 항목을 더하는지는 T4에서 본다.
 - 이벤트를 막지 않는다: renderer가 DOM `contextmenu`를 `preventDefault`하면 Chromium이 메뉴 요청을 보내지 않는다. 지금 `app/src`(renderer, main, 캔버스 script)에는 `contextmenu`나 `context-menu`를 다루는 코드가 없다(2026-11-07 grep, 테스트 제외). 새로 다루는 코드가 생기면 이 메뉴가 사라진다.
-- `index.test.ts` 사례: main frame과 subframe(subframe은 popup 없음), role 항목 → `{ role, enabled }`, suggestion → `replaceMisspelling(word)`, lookUp → `showDefinitionForSelection()`, `popup`에 `frame` 없음, thumbnail 창에 등록하지 않음.
+- 테스트 사례(`editMenu.test.ts`, `index.test.ts`): main frame과 subframe(subframe은 popup 없음), 편집 항목 → `{ label, enabled, click }`와 `contents.cut()` 등, suggestion → `replaceMisspelling(word)`, 필드 확인이 true일 때만 실행·false·거절·destroyed·좌표가 유한수가 아니면 실행 안 함, 편집할 수 없는 메뉴는 확인 없음, lookUp → `showDefinitionForSelection()`, `popup`에 `frame` 없음, thumbnail 창에 등록하지 않음.
 
 ### composer와의 관계
 
-- chip field는 clipboard를 DOM `copy`/`cut`/`paste` 이벤트에서 처리한다(`chipField.ts` `onCopy`, `paste`). native 편집(`insertFromPaste`, `deleteByCut`)은 `beforeinput`에서 막는다. host는 `onPaste`에서 파일을 먼저 가져가고, 남은 텍스트를 field가 붙인다(`ComposerParts.tsx`). Edit 메뉴의 role이 이 이벤트를 일으키므로, 같은 role을 쓰는 context menu도 같은 길을 탄다. 새 코드는 필요 없다.
+- chip field는 clipboard를 DOM `copy`/`cut`/`paste` 이벤트에서 처리한다(`chipField.ts` `onCopy`, `paste`). native 편집(`insertFromPaste`, `deleteByCut`)은 `beforeinput`에서 막는다. host는 `onPaste`에서 파일을 먼저 가져가고, 남은 텍스트를 field가 붙인다(`ComposerParts.tsx`). Edit 메뉴의 role이 이 이벤트를 일으키고, context menu의 `contents.cut()`·`copy()`·`paste()`도 같은 Chromium 편집 명령이라 같은 길을 탄다. composer 쪽 새 코드는 필요 없다.
 - 맞춤법 제안의 `replaceMisspelling`은 `insertReplacementText` 입력으로 들어온다. `onBeforeInput`은 `insertReplacementText`를 막지 않으므로, 브라우저가 DOM을 바꾸고 field가 값을 다시 읽는다. chip 바로 옆 단어, 자체 undo 기록에 어떻게 남는지는 확인하지 않았다 → T4.
 
 ## 4. 앱 chrome 텍스트 선택 끄기 (renderer CSS)
