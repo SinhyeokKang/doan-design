@@ -536,7 +536,7 @@ describe("selection wiring", () => {
   });
 
   // The previous layout stays shown with a null status, so only `reloading`
-  // tells the Comments panel the new document is not known yet (F2).
+  // tells the Comments panel the new document is not known yet.
   it("reports a reload of the open canvas as reloading until its first layout or the timeout", () => {
     vi.useFakeTimers();
     const h = selectionHarness();
@@ -1210,7 +1210,7 @@ it("forgets navigation memory when a project is removed and added again", () => 
 });
 
 // A restart: reads an auto-registered worktree as `loading`, and App hides it meanwhile. Hidden
-// is not removed: its remembered canvas stays while main still lists it (R2 review 🟡1).
+// is not removed: its remembered canvas stays while main still lists it.
 it("keeps the memory of a root hidden from the shown list while main still lists it", () => {
   const h = selectionHarness();
   try {
@@ -1484,7 +1484,7 @@ describe("a canvas moved with the same id", () => {
   });
 });
 
-// canvas-row-menu: a canvas moved to the Trash is not followed to the one other canvas sharing its id.
+// A canvas moved to the Trash is not followed to the one other canvas sharing its id.
 describe("a canvas moved to the Trash", () => {
   afterEach(() => vi.unstubAllGlobals());
   function trashHarness() {
@@ -2771,7 +2771,7 @@ describe("reply chip open", () => {
     } finally { h.controller.dispose(); }
   });
 
-  // Review RA2: the waiting element is tied to the canvas path, so a move of that canvas before its first layout has
+  // The waiting element is tied to the canvas path, so a move of that canvas before its first layout has
   // to carry it along, as the waiting frame is carried.
   it("a canvas moved (same id) before its first layout still locates the waiting element, and keeps a waiting frame too", () => {
     const h = selectionHarness();
@@ -3430,7 +3430,7 @@ describe("hand tool", () => {
     } finally { h.controller.dispose(); vi.useRealTimers(); }
   });
 
-  // Review RA 🟡1: a click can win the race with a command still on its way and take that command's seq.
+  // A click can win the race with a command still on its way and take that command's seq.
   it("a click at the seq of a command in flight still moves focus", async () => {
     const h = harness();
     try {
@@ -3450,7 +3450,7 @@ describe("hand tool", () => {
     } finally { h.controller.dispose(); }
   });
 
-  // Review RA 🔴1: a held Space belongs to the board that took it; the next document or board starts without it.
+  // A held Space belongs to the board that took it; the next document or board starts without it.
   it("a held Space ends with its document: a reload, a canvas switch and a close", () => {
     const h = harness();
     try {
@@ -3611,7 +3611,7 @@ describe("canvas press", () => {
     } finally { h.controller.dispose(); }
   });
 
-  // Review 🟡1: a list closed by the press takes its focused search box with it. Focus then lands on the canvas area
+  // A list closed by the press takes its focused search box with it. Focus then lands on the canvas area
   // the person pressed, never on the page body, whatever the later click's cursor reading says.
   it("a press that removes the focused element moves focus to the canvas area; otherwise focus stays", () => {
     const h = harness();
@@ -3980,7 +3980,7 @@ describe("capture", () => {
     } finally { h.controller.dispose(); }
   });
 
-  // Review K ⚪1: leaving mid-drag must release the drag too, or a dropped drag would hold the layer up off the page.
+  // Leaving mid-drag must release the drag too, or a dropped drag would hold the layer up off the page.
   it.each([
     ["Home or Settings", (h: H) => h.controller.setWorkspaceActive(false)],
     ["the Overview or a modal", (h: H) => h.controller.setCanvasPage(false)],
@@ -4597,7 +4597,7 @@ describe("following the working frame", () => {
       expect(followsNext(h, "farther")).toBe(true);
     } finally { h.controller.dispose(); }
   });
-  // V3 review 🟡1: a change of work source counts its frame as followed even before the frame exists or mid-reload.
+  // A change of work source counts its frame as followed even before the frame exists or mid-reload.
   it("an update from another source naming a frame the document does not have yet never moves when a reload adds it", () => {
     const h = rested();
     try {
@@ -4623,7 +4623,7 @@ describe("following the working frame", () => {
     } finally { h.controller.dispose(); }
   });
 
-  // V3 review 🟡2: the canvas reports pointer activity even when the hovered element stays the same.
+  // The canvas reports pointer activity even when the hovered element stays the same.
   it("the canvas's pointer activity restarts the rest", () => {
     const h = rested();
     try {
@@ -4636,7 +4636,7 @@ describe("following the working frame", () => {
     } finally { h.controller.dispose(); }
   });
 
-  // V3 review 🟡3: any open menu on the page (conversation and composer menus are role=menu) holds following off.
+  // Any open menu on the page (conversation and composer menus are role=menu) holds following off.
   for (const part of [".doan-frame-list", ".doan-zoom-menu", '[role="menu"]', "dialog[open]", '[role="dialog"]:not(dialog)']) {
     it(`an open ${part} holds following off`, () => {
       const h = rested();
@@ -4649,7 +4649,7 @@ describe("following the working frame", () => {
     });
   }
 
-  // V3 review 🟡7: the person's deselect (Escape, a click on the board's margin) stops the turn; the app's does not.
+  // The person's deselect (Escape, a click on the board's margin) stops the turn; the app's does not.
   it("Escape clearing a selection made before the turn stops following", () => {
     const h = rested();
     try {
@@ -4676,7 +4676,7 @@ describe("following the working frame", () => {
     } finally { h.controller.dispose(); }
   });
 
-  // V3 review 🟡4: reduced motion turns the slide off too, at the slide's own specificity.
+  // Reduced motion turns the slide off too, at the slide's own specificity.
   it("the slide is defined only for people who allow motion", async () => {
     const { readFileSync } = await import("node:fs");
     const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");

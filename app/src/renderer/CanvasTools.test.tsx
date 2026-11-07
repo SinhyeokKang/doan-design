@@ -172,7 +172,7 @@ describe("CanvasTools", () => {
   });
 
   // Radix links the tooltip only while it is open, so a closed one (after a press, or under a screen reader's cursor)
-  // left the button without its reason (design-sync measurement, canvas-composer-polish draft frame toolbar-disabled).
+  // left the button without its reason (design-sync measurement, draft frame toolbar-disabled).
   it("an unavailable Export names its reason with aria-describedby even while the tooltip is closed", () => {
     const html = markup({ exporter: { reason: "This page is not a listed canvas.", onExport: () => {} } });
     const tag = html.match(/<button[^>]*aria-label="Export canvas"[^>]*>/)?.[0] ?? "";

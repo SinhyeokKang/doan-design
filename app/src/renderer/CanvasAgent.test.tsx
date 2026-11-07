@@ -367,7 +367,7 @@ test("the caret blinks in two steps once a second, not while typing or under red
   expect(css).toMatch(/@media \(forced-colors: active\) \{ \.doan-agent-caret \{ forced-color-adjust: none; background: CanvasText; \} \}/);
 });
 
-// V3 review 🟡5: moving to another canvas or out of view ends a running change at once, even toward the same words;
+// Moving to another canvas or out of view ends a running change at once, even toward the same words;
 // ordinary re-renders while it runs do not.
 describe("typing across a canvas or visibility boundary", () => {
   afterEach(() => vi.useRealTimers());

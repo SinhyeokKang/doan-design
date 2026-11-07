@@ -100,7 +100,7 @@ function resumeChoice(node: ReactNode): { offer: string; held: boolean } | null 
   return resumeChoice(element.props.children);
 }
 
-// RD1: on the first entry the linked Claude session works in a terminal, so its process holds it (session_in_use) and
+// On the first entry the linked Claude session works in a terminal, so its process holds it (session_in_use) and
 // the choice waits. The target is read again when the work list changes and when the window comes back, since nothing
 // tells the run when that process exits; the choice returns once the session can run.
 test("a Claude session a terminal process holds waits on first entry and returns once it can run", async () => {
@@ -141,7 +141,7 @@ test("a Claude session a terminal process holds waits on first entry and returns
   expect(target).toHaveBeenCalledTimes(asked);
 });
 
-// RD1: the work ending with the process gone (the read after the change answers) brings the choice back at once.
+// The work ending with the process gone (the read after the change answers) brings the choice back at once.
 test("a held Claude session returns when its work ends and the process is free", async () => {
   const target = vi.fn(async () => ({ available: false, reason: "session_in_use", runtime: "claude", session: "s1" }) as unknown);
   (window as unknown as { doan: { conversationResumeTarget: unknown } }).doan.conversationResumeTarget = target;

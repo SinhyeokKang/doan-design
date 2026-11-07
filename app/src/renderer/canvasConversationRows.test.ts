@@ -102,7 +102,7 @@ describe("canvasConversationRows", () => {
     expect(only).toMatchObject({ row: broken, openable: true, problem: { kind: "unreadable" } });
   });
 
-  // review DS r1: ls lists an unreadable file without its id, so a conversation bound to {path, id} matches it by path.
+  // ls lists an unreadable file without its id, so a conversation bound to {path, id} matches it by path.
   test("an unreadable canvas listed without its id still matches its conversation by path, and opens", () => {
     const broken = row({ path: ".doan/canvases/legacy-cart.html", error: { code: "unreadable_canvas", message: "permission denied" } });
     const [only, ...rest] = canvasConversationRows([summary({ canvas: { path: broken.path, id: "legacy-cart" } })], [broken, billing], NOW);

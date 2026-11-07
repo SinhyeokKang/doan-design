@@ -32,8 +32,8 @@ export function trashBlock(
   return null;
 }
 
-// Why Export is unavailable, for the row menu's Export… and the canvas toolbar's Export alike (canvas-composer-polish
-// spec 5); null: it is available. `row` null: the toolbar has no open canvas (a project problem). `exporting`: that
+// Why Export is unavailable, for the row menu's Export… and the canvas toolbar's Export alike;
+// null: it is available. `row` null: the toolbar has no open canvas (a project problem). `exporting`: that
 // canvas's own export runs; another canvas's does not count. `unlisted`: the page shown is not the listed canvas.
 export function canvasExportReason(row: CanvasRow | null, exporting: boolean, unlisted: boolean): string | null {
   if (unlisted) return "This page is not a listed canvas.";

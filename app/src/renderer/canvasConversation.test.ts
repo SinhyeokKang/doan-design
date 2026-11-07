@@ -262,7 +262,7 @@ describe("resumeHeld", () => {
   test("the choice comes back when the session leaves the list", () => {
     expect(resumeHeld(reply, [])).toBe(false);
   });
-  // RD1: main names a session a live terminal process holds (session_in_use), so it holds while it works.
+  // Main names a session a live terminal process holds (session_in_use), so it holds while it works.
   test("a session a terminal process holds is held while it works, and only that refusal names one", () => {
     const occupied = { available: false as const, reason: "session_in_use", runtime: "claude" as const, session: "s1" };
     expect(resumeHeld(occupied, [item({ provider: "claude" })])).toBe(true);

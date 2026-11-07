@@ -208,7 +208,7 @@ describe("RowFocusMemory", () => {
   });
 });
 
-// review RL r1 🟡2: a canvas whose current conversation changes keeps its path but gets a new button to observe.
+// A canvas whose current conversation changes keeps its path but gets a new button to observe.
 describe("observedRows", () => {
   test("changes when a row's conversation changes on the same canvas", () => {
     const [first] = canvasConversationRows([summary({ conversationId: "c1", canvas: { path: billing.path, id: "billing" } })], [billing], NOW);

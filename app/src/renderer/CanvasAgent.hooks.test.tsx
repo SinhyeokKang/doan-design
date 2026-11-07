@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { FolderEntry } from "../main/view";
 
-// RBR5 🟡1: the indicator's wiring, run with hooks as plain state (the App tests' no-DOM style): the Stop callback's
+// The indicator's wiring, run with hooks as plain state (the App tests' no-DOM style): the Stop callback's
 // failure recovery, and the dot field's pauses and cleanup.
 const hooks = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],

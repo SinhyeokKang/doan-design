@@ -78,7 +78,7 @@ export interface CanvasConversationProps {
   onArrived(seq: number): void;
   // Chip locate from the thread and from the composer's field.
   onLocate(anchor: Anchor): Promise<LocateOutcome>;
-  // A chip in an agent's reply (agent-reply-chips): the host locates it on this canvas or opens another canvas.
+  // A chip in an agent's reply: the host locates it on this canvas or opens another canvas.
   onReplyChip?(link: ReplyAnchor): Promise<LocateOutcome | null>;
   // The person chose what the panel shows (a conversation, New, a notice's Open).
   onChoose?(): void;
@@ -523,7 +523,7 @@ export function canvasScope(target: CanvasTarget): string {
 }
 
 // The terminal session choice (draft panel-resume): the shared choice cards with their start radio. `held`: the session
-// still works in a terminal (terminal-agent-activity draft resume-disabled); its card is disabled and its line becomes
+// still works in a terminal (draft resume-disabled); its card is disabled and its line becomes
 // the reason, which describes the radio.
 function ResumeChoice({ offer, reply, now, mode, held, onChoose }: { offer: Provider; reply: ResumeReply | undefined; now: number; mode: "resume" | "new"; held: boolean; onChoose(choice: "resume" | "new"): void }) {
   const at = linkedAt(reply && "available" in reply && reply.available ? reply.lastCheckAt : undefined, now);

@@ -95,7 +95,7 @@ test("a terminal session still working holds its choice with the reason; the com
   expect(out).toContain('aria-placeholder="Ask, / for presets"');
 });
 
-// RD1: a Claude session that a live terminal process holds cannot run now (session_in_use), yet main still names it,
+// A Claude session that a live terminal process holds cannot run now (session_in_use), yet main still names it,
 // so while it works its choice shows waiting with the reason. Not working, it is not offered.
 test("a Claude session a terminal process holds shows its choice waiting while it works", async () => {
   resume = { available: false, reason: "session_in_use", runtime: "claude", session: "s1" };
@@ -166,7 +166,7 @@ test("the shown time of a terminal link reads as the time of day, with the date 
   expect(linkedAt("not a time", now)).toBeNull();
 });
 
-// Review BR2 R4: before the list answers, the panel does not know the busy line or the terminal session yet.
+// Before the list answers, the panel does not know the busy line or the terminal session yet.
 test("while the list is read, Send waits even with a draft and a signed-in agent", async () => {
   const support = new DockedSupport(() => {});
   support.setAuth({ revision: 1, providers: [connected("claude")] });
@@ -176,7 +176,7 @@ test("while the list is read, Send waits even with a draft and a signed-in agent
   expect(await panel("loading", draft, { support })).toMatch(/aria-label="Send"[^>]*disabled=""/);
 });
 
-// Review BR2 Y1: one-line places name chips; the wire text keeps its markers.
+// One-line places name chips; the wire text keeps its markers.
 test("a queued message and the title before the list names the conversation show chip names", async () => {
   expect(queuedText({ text: "Change {{1}}", anchors: [{ frame: { id: "cart", title: "Cart" } }], attachments: [] })).toBe("Change Cart");
   const doan = (window as unknown as { doan: Record<string, ReturnType<typeof vi.fn>> }).doan;
@@ -197,7 +197,7 @@ test("a queued message keeps its request for the thread", () => {
   expect(queuedMessage("q2", { text: "Again", anchors: [], attachments: [] })).toEqual({ id: "q2", text: "Again", message: { text: "Again", anchors: [], attachments: [] } });
 });
 
-// Re-review BR2 R4: ⌘N while the first list read is still loading, with the terminal session answering first, must
+// ⌘N while the first list read is still loading, with the terminal session answering first, must
 // not open Send before the list says whether the canvas's current conversation runs.
 test("New while the list loads holds Send after the session answers, until the list shows the running current", async () => {
   resume = { available: false, reason: "no_record" };

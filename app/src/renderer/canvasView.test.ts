@@ -176,7 +176,7 @@ describe("canvasViewUpdate: row revisions and canvas ids", () => {
   });
 });
 
-// canvas-row-menu: a canvas the person moved to the Trash is not followed to another canvas sharing its id.
+// A canvas the person moved to the Trash is not followed to another canvas sharing its id.
 describe("canvasViewUpdate: Move to Trash", () => {
   const home = { folder: "/repo", canvas: ".doan/canvases/a.html", row: { id: "home" } };
   const a = row(".doan/canvases/a.html", { id: "home" });

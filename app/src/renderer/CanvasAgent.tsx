@@ -18,7 +18,7 @@ import { crossesBoundary, NoticeTyping, typesOn, type NoticeMoment, type TypedTe
 // `list` is HomeRun's list state for the canvas's project; `running` is false while the workspace is hidden or the
 // Overview covers the canvas, which pauses the dot field. `children` are the canvas notices: they stack in the same
 // top-centre column under the agent notice, so the column stays when no agent shows.
-// `work`: the canvases terminal sessions work on (terminal-agent-activity, draft frame terminal-notice); one on this
+// `work`: the canvases terminal sessions work on (draft frame terminal-notice); one on this
 // canvas shows the same indicator without a button.
 // `entries` group the worktrees: with nothing on this canvas here, a session on its path in another worktree of the
 // project shows a notice with Open and no glow (DESIGN 'Terminal work in another worktree', draft frame sibling-notice).
@@ -99,7 +99,7 @@ export function CanvasAgent({ list, canvas, running, work, conversationWork = []
   </>;
 }
 
-// The notice's words (work-update decisions 19–20): the visible line is aria-hidden, the text with its caret right after
+// The notice's words: the visible line is aria-hidden, the text with its caret right after
 // the last visible character; the live region beside it holds the final words from the first moment. A long text
 // ellipsizes and its tooltip shows it whole. While a change erases and types, the line keeps a floor of the shorter
 // text's width plus the caret, in px (a percentage resolves to 0 in the content-sized card) and capped by
