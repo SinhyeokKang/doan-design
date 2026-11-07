@@ -182,6 +182,9 @@ function withoutHeredocBodies(command: string): string {
 }
 
 const ASSIGNMENT = /^[A-Za-z_][A-Za-z_0-9]*=/;
+// Reserved words and group openers that start a construct the reader does not follow (it follows plain commands,
+// `NAME=value` and `for … do … done` only). A `do`/`done` that no parsed `for` consumed belongs here too.
+const UNSUPPORTED = /^(?:if|then|elif|else|fi|while|until|do|done|case|esac|select|function|for|\{|\}|!)$|^[()]|^[A-Za-z_]\w*\(\)?$/;
 const VARIABLE = /\$(?:(\w+)|\{(\w+)\})/g;
 // Loop iterations one command may expand in total, nested loops included, so a transcript cannot make the reader
 // work without bound.
@@ -221,7 +224,7 @@ function expandToken(raw: string, env: ReadonlyMap<string, string>): Expanded {
 // sh. Whatever cannot be followed (a `for` without its `done`, a loop past the budget, a list that holds an
 // unresolved word) sets `state.incomplete` and yields no words, and so does a simple command whose program or doan
 // operand is unresolved: the read is then not complete and must not be taken for the whole list of what ran.
-// Anything else (`while`, `if`) is read as written.
+// Any other compound or reserved word (UNSUPPORTED) stops the read there, as incomplete.
 function runGroups(groups: string[][], vars: Map<string, string>, state: ReadState): string[][] {
   const out: string[][] = [];
   const append = (words: string[][]) => { for (const entry of words) out.push(entry); };
@@ -262,6 +265,8 @@ function runGroups(groups: string[][], vars: Map<string, string>, state: ReadSta
         if (value.unresolved) vars.delete(name); else vars.set(name, value.words.join(" "));
       }
     }
+    // Where such a construct ends is not known, so nothing after it is read and no variable is trusted past it.
+    if (UNSUPPORTED.test(group[skipped] ?? "") || group[skipped + 1] === "()") { state.incomplete = true; vars.clear(); return out; }
     const expanded = group.slice(skipped).map(token => expandToken(token, vars));
     let words = expanded.flatMap(token => token.words);
     let open = expanded.flatMap(token => token.words.map(() => token.unresolved));

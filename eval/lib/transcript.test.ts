@@ -195,3 +195,27 @@ test("a loop past the budget is incomplete and leaves no stale variable behind",
   assert.ok(nested.words.length <= 256, String(nested.words.length));
   assert.ok(nested.words.every(w => w[0] === "echo"));
 });
+test("a shell compound or reserved word the reader does not follow makes the rest of the command incomplete", () => {
+  // Only plain commands, NAME=value and a closed for loop are followed; if/while/case/groups are never interpreted.
+  const unread = (command: string, words: string[][] = []) => assert.deepEqual(parseCommand(command), { words, incomplete: true }, command);
+  unread("p=harden; if true; then p=polish; fi; doan design-skill $p", []);
+  unread("if true; then doan design-skill polish; fi");
+  unread("if true\nthen\n  doan design-skill polish\nfi");
+  unread("while false; do echo waiting; doan design-skill harden; done");
+  unread("while false; do echo waiting; doan active; done");
+  unread("until true; do doan active; done");
+  unread("case $x in a) doan active;; esac");
+  unread("{ doan active; }");
+  unread("(cd /tmp && doan active)");
+  unread("f() { doan active; }; f");
+  unread("function f { doan active; }");
+  unread("select p in a b; do doan active; done");
+  unread("for ((i=0; i<2; i++)); do doan active; done");
+  unread("done; doan active");
+  unread("then doan active");
+  // What ran before the construct is still read; nothing after it is, and no variable survives it.
+  unread("doan design-skill harden; if true; then doan active; fi; doan design-skill $p", [["doan", "design-skill", "harden"]]);
+  unread("p=harden; for x in 1; do while true; do p=polish; done; done; doan design-skill $p", []);
+  // Quoted or non-leading reserved words are arguments.
+  assert.deepEqual(parseCommand("echo if then while; doan 'if'"), { words: [["echo", "if", "then", "while"], ["doan", "if"]], incomplete: false });
+});

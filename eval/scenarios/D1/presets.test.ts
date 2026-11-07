@@ -70,3 +70,17 @@ test("an unclosed for loop reads nothing, however many commands follow its do", 
     assert.deepEqual(checks(ctx), { read_harden_or_clarify_or_onboard: false, preset_reads_allowed: false }, command);
   }
 });
+
+test("a construct the reader does not follow never reads a preset and fails the full-list checks", () => {
+  for (const command of [
+    "p=harden; if true; then p=polish; fi; doan design-skill $p",
+    "if true; then doan design-skill polish; fi",
+    "while false; do echo waiting; doan design-skill harden; done",
+  ]) {
+    const ctx = ran(command);
+    assert.deepEqual(checks(ctx), { read_harden_or_clarify_or_onboard: false, preset_reads_allowed: false }, command);
+    assert.deepEqual(presetChecks(ctx, { required: [], allowed: [] }).map(c => c.pass), [false], command);
+  }
+  // A read before the construct stays a read.
+  assert.deepEqual(checks(ran("doan design-skill harden; if true; then doan design-skill polish; fi")), { read_harden_or_clarify_or_onboard: true, preset_reads_allowed: false });
+});

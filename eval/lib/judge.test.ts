@@ -178,6 +178,10 @@ test("preset lookups run through a shell loop keep their IDs, and an echoed loop
   assert.deepEqual(unclosed.doanDesignSkill, { shellInvoked: false, shellIds: [], incompleteCommands: true });
   const unresolved = invocationSummary(bash("doan design-skill context; doan design-skill $p")).summary;
   assert.deepEqual(unresolved.doanDesignSkill, { shellInvoked: true, shellIds: ["context"], incompleteCommands: true });
+  const branched = invocationSummary(bash("if true; then doan design-skill polish; fi")).summary;
+  assert.deepEqual(branched.doanDesignSkill, { shellInvoked: false, shellIds: [], incompleteCommands: true });
+  assert.equal(branched.doanActive.shellInvoked, false);
+  assert.equal(invocationSummary(bash("while false; do echo waiting; doan active; done")).summary.doanActive.shellInvoked, false);
   const echoed = invocationSummary(bash("for p in harden clarify; do echo doan design-skill $p; done")).summary;
   assert.deepEqual(echoed.doanDesignSkill, { shellInvoked: false, shellIds: [] });
 });
