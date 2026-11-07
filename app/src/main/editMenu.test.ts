@@ -149,8 +149,9 @@ describe("editMenuInput", () => {
 });
 
 describe("editMenuTemplate", () => {
-  function contents(destroyed = false) {
-    return { replaceMisspelling: vi.fn(), showDefinitionForSelection: vi.fn(), isDestroyed: () => destroyed };
+  function contents() {
+    const target = { destroyed: false, replaceMisspelling: vi.fn(), showDefinitionForSelection: vi.fn(), isDestroyed: () => target.destroyed };
+    return target;
   }
 
   test("roles stay roles with their enablement, separators stay separators", () => {
@@ -167,9 +168,12 @@ describe("editMenuTemplate", () => {
     expect(target.showDefinitionForSelection).toHaveBeenCalledOnce();
   });
 
+  // Built while the page is alive, chosen after it is gone: the check belongs to the click, not to the build.
   test("a click after the page is gone does nothing", () => {
-    const target = contents(true);
-    for (const item of editMenuTemplate([{ kind: "suggestion", word: "the" }, { kind: "lookUp", label: "Look Up “teh”" }], target)) if ("click" in item) item.click();
+    const target = contents();
+    const template = editMenuTemplate([{ kind: "suggestion", word: "the" }, { kind: "lookUp", label: "Look Up “teh”" }], target);
+    target.destroyed = true;
+    for (const item of template) if ("click" in item) item.click();
     expect(target.replaceMisspelling).not.toHaveBeenCalled();
     expect(target.showDefinitionForSelection).not.toHaveBeenCalled();
   });
