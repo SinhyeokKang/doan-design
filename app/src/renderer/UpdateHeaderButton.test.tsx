@@ -3,10 +3,12 @@ import type { ReactElement } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { UpdateHeaderButtonView, type UpdateHeaderButtonViewProps } from "./UpdateHeaderButton";
 import { TooltipProvider } from "./components/ui/tooltip";
+import { UPDATE_BLOCKED } from "../main/update/view";
 
 // The confirmed draft .doan/canvases/app-update.html (frames header-ready, header-blocked, header-restarting,
 // header-stopped, header-locked): the header's update button as drawn, without state.
-const BLOCKED = { title: "Can’t restart yet", text: "A conversation is running or waiting for your answer. Restart after it finishes, or Doan updates when you quit." };
+// view.ts hands the button this very object while the gate is blocked.
+const BLOCKED = UPDATE_BLOCKED;
 function props(over: Partial<UpdateHeaderButtonViewProps> = {}): UpdateHeaderButtonViewProps {
   return {
     header: { label: "Restart to Update", busy: false, tooltip: "Doan 0.1.1 is ready", popover: null }, disabled: false, open: false, shown: null,

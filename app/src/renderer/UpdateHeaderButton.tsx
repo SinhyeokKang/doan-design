@@ -19,7 +19,7 @@ export function UpdateHeaderButtonView(props: UpdateHeaderButtonViewProps) {
   const { header, disabled, open, shown, descriptionId, titleId } = props;
   if (header === null) return <span className="update-anchor" />;
   // Only a press that can answer with a popover (a blocked gate) says it has one; a stopped restart's press restarts.
-  const popup = header.popover?.title === UPDATE_BLOCKED.title || shown !== null ? { "aria-haspopup": "dialog" as const, "aria-expanded": open } : {};
+  const popup = header.popover === UPDATE_BLOCKED || shown !== null ? { "aria-haspopup": "dialog" as const, "aria-expanded": open } : {};
   return <span className="update-anchor"><Popover.Root open={open && shown !== null} onOpenChange={props.onOpenChange}>
     <Tooltip><TooltipTrigger asChild><Popover.Anchor asChild><button ref={props.buttonRef} type="button" className="doan-button update-indicator" data-ui-variant="subtle" data-ui-size="sm"
         disabled={disabled || header.busy} {...popup} aria-describedby={descriptionId} onClick={props.onPress}>
