@@ -29,3 +29,18 @@ export function decideOpen(target: { root: string; canvas: string }, page: OpenP
   const row = entry?.kind === "list" ? entry.canvases.find(row => row.path === target.canvas) : undefined;
   return row ? { kind: "opened", row } : { kind: "canvas_not_found", entry };
 }
+
+// A link a lock or a busy dialog refused (defect-sweep C3): `doan open`'s busy reason (deepLinks.ts BLOCKED) without
+// "in Doan", since the person reading it is in Doan. The link is still dropped (POSTMORTEM 2026-10-25 'A forwarded
+// Settings target discarded a pending setup confirmation'); the toast only says so.
+const BLOCKED_LINK: Record<OpenBlock, string> = {
+  add_projects: "The Add Projects page is in the middle of a task. Finish or cancel it, then try again.",
+  settings: "Settings is in the middle of a change. Finish or cancel it, then try again.",
+  project_settings: "Project Settings is in the middle of a change. Finish or cancel it, then try again.",
+  first_run: "Finish Doan’s first run, then try again.",
+  dialog: "A dialog is busy and did not close. Finish it, then try again.",
+};
+
+export function blockedLinkMessage(reason: OpenBlock): string {
+  return `Couldn’t open the link. ${BLOCKED_LINK[reason]}`;
+}

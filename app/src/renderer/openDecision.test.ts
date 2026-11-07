@@ -1,6 +1,6 @@
 import { expect, test, vi } from "vitest";
 import type { FolderEntry } from "../main/view";
-import { decideOpen, type OpenPage } from "./openDecision";
+import { blockedLinkMessage, decideOpen, type OpenPage } from "./openDecision";
 
 const A = ".doan/canvases/a.html", B = ".doan/canvases/b.html";
 const row = { path: A, url: "u-a" };
@@ -42,4 +42,14 @@ test("a root the renderer does not list, or lists as not a list, is not found", 
   expect(decideOpen({ root: "/w/b", canvas: A }, page())).toEqual({ kind: "canvas_not_found", entry: undefined });
   const loading: FolderEntry = { path: "/w/a", kind: "loading" };
   expect(decideOpen({ root: "/w/a", canvas: A }, page({ entries: () => [loading] }))).toEqual({ kind: "canvas_not_found", entry: loading });
+});
+
+// defect-sweep C3: a link that a lock or a busy dialog refuses says so, with the reason `doan open`'s busy answer gives
+// (deepLinks.ts BLOCKED) minus "in Doan", since the person is in Doan.
+test("each block names its reason after the refusal", () => {
+  expect(blockedLinkMessage("add_projects")).toBe("Couldn’t open the link. The Add Projects page is in the middle of a task. Finish or cancel it, then try again.");
+  expect(blockedLinkMessage("settings")).toBe("Couldn’t open the link. Settings is in the middle of a change. Finish or cancel it, then try again.");
+  expect(blockedLinkMessage("project_settings")).toBe("Couldn’t open the link. Project Settings is in the middle of a change. Finish or cancel it, then try again.");
+  expect(blockedLinkMessage("first_run")).toBe("Couldn’t open the link. Finish Doan’s first run, then try again.");
+  expect(blockedLinkMessage("dialog")).toBe("Couldn’t open the link. A dialog is busy and did not close. Finish it, then try again.");
 });

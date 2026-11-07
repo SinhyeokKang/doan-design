@@ -1,4 +1,5 @@
 import { useEffect, useReducer, useRef } from "react";
+import { createPortal } from "react-dom";
 import { initialToastState, toastState } from "./toastState";
 
 export function useToast(restoreFocus?: (previous: HTMLElement | null) => void) {
@@ -23,7 +24,27 @@ export function useToast(restoreFocus?: (previous: HTMLElement | null) => void) 
     if (state.ended.reason === "action") handler?.run?.(); else handler?.expire?.();
   }, [state.ended]);
   useEffect(() => { if (document.querySelector(".toast")?.matches(":hover")) dispatch({ type: "hover", on: true }); }, [state.toast?.id]);
+  // Re-checked on every render, and the clock's tick renders every 100ms: a dialog that closed or was removed drops the
+  // toast back to its usual place, where an App modal holds it again.
+  const host = state.toast?.dialog;
+  const dialog = host?.isConnected && host.open ? host : null;
+  const leftDialog = host !== undefined && dialog === null;
+  useEffect(() => { if (leftDialog) dispatch({ type: "leftDialog" }); }, [leftDialog]);
   const action = () => dispatch({ type: "action" });
+  const element = state.toast && <div key={state.toast.id} className="toast doan-floating doan-toast" role="status" {...(dialog ? { "data-placement": "dialog" } : {})}
+    ref={node => {
+      if (!node) return;
+      return () => {
+        if (node.contains(document.activeElement)) {
+          const previous = previousFocus.current;
+          queueMicrotask(() => restoreFocus?.(previous));
+        }
+      };
+    }}
+    onMouseEnter={() => dispatch({ type: "hover", on: true })} onMouseLeave={() => { timerAt.current = performance.now(); dispatch({ type: "hover", on: false }); }}
+    onFocus={event => { if (!event.currentTarget.contains(event.relatedTarget)) previousFocus.current = event.relatedTarget instanceof HTMLElement ? event.relatedTarget : null; dispatch({ type: "focus", on: true }); }} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) { timerAt.current = performance.now(); dispatch({ type: "focus", on: false }); } }}>
+    <span className="msg">{state.toast.message}</span>{state.toast.action && <button className="btn doan-button" data-ui-variant="prominent" data-ui-size="sm" onClick={action}>{state.toast.action}</button>}
+  </div>;
   return {
     toast: state.toast,
     show(message: string, label?: string, run?: () => void, expire?: () => void) {
@@ -32,21 +53,14 @@ export function useToast(restoreFocus?: (previous: HTMLElement | null) => void) 
       timerAt.current = performance.now();
       dispatch({ type: "show", toast: { id, message, ...(label ? { action: label } : {}) } });
     },
+    // An actionless toast drawn inside `dialog`, the open modal dialog, when there is one: outside it the toast would
+    // sit inert behind the modal, unseen and unread (defect-sweep C3). Without one it is an ordinary toast.
+    showIn(dialog: HTMLDialogElement | null, message: string) {
+      timerAt.current = performance.now();
+      dispatch({ type: "show", toast: { id: crypto.randomUUID(), message, ...(dialog ? { dialog } : {}) } });
+    },
     action,
     setModal(on: boolean) { timerAt.current = performance.now(); dispatch({ type: "modal", on }); },
-    element: state.toast && <div key={state.toast.id} className="toast doan-floating doan-toast" role="status"
-      ref={node => {
-        if (!node) return;
-        return () => {
-          if (node.contains(document.activeElement)) {
-            const previous = previousFocus.current;
-            queueMicrotask(() => restoreFocus?.(previous));
-          }
-        };
-      }}
-      onMouseEnter={() => dispatch({ type: "hover", on: true })} onMouseLeave={() => { timerAt.current = performance.now(); dispatch({ type: "hover", on: false }); }}
-      onFocus={event => { if (!event.currentTarget.contains(event.relatedTarget)) previousFocus.current = event.relatedTarget instanceof HTMLElement ? event.relatedTarget : null; dispatch({ type: "focus", on: true }); }} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) { timerAt.current = performance.now(); dispatch({ type: "focus", on: false }); } }}>
-      <span className="msg">{state.toast.message}</span>{state.toast.action && <button className="btn doan-button" data-ui-variant="prominent" data-ui-size="sm" onClick={action}>{state.toast.action}</button>}
-    </div>,
+    element: element && dialog ? createPortal(element, dialog) : element,
   };
 }

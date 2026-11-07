@@ -305,6 +305,9 @@ code, kbd { font-family: var(--type-family); }
 
 /* Bottom-right on every screen, 16px from the window's edges; the canvas tools row sits at the board's bottom centre. */
 .toast { position: absolute; right: var(--space-4); bottom: var(--space-4); z-index: 6; }
+/* Inside an open modal dialog (Toast.tsx `showIn`) the toast keeps the window's corner rather than the dialog's: an open
+   dialog has no transform, so fixed positioning is relative to the window. */
+.toast[data-placement="dialog"] { position: fixed; }
 .toast .msg { min-width: 0; overflow-wrap: anywhere; }
 
 .back { flex: none; }

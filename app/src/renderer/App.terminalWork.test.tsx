@@ -43,7 +43,7 @@ vi.mock("react", async original => {
 const harness = vi.hoisted(() => ({
   controller: null as null | Record<string, ReturnType<typeof vi.fn>>,
   setState: null as null | ((state: unknown) => void),
-  toast: { toast: null, element: null, show: vi.fn(), action: vi.fn(), setModal: vi.fn() },
+  toast: { toast: null, element: null, show: vi.fn(), showIn: vi.fn(), action: vi.fn(), setModal: vi.fn() },
   signIn: { onToast: null as null | ((toast: { text: string; action: { label: string; target: unknown } | null }) => void), windowFocused: vi.fn() },
 }));
 vi.mock("./Toast", () => ({ useToast: () => harness.toast }));
@@ -85,7 +85,7 @@ let tree: ReactNode;
 function reset() {
   hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.pending = [];
   listeners = {}; calls = [];
-  harness.toast.show.mockClear();
+  harness.toast.show.mockClear(); harness.toast.showIn.mockClear();
   const on = (name: string) => vi.fn((listener: (...args: never[]) => void) => { calls.push(`on:${name}`); listeners[name] = listener; return () => {}; });
   doan = {
     onFolders: on("folders"), onViewCommand: on("view"), onMenuCommand: on("menu"), onConversationEvent: on("conversation"), onConversationStage: on("stage"), onConversationListChanged: on("conversationList"), listConversations: vi.fn(async () => []), conversationResumeTarget: vi.fn(async () => ({ available: false, reason: "no_record" })), onOpenAddProjects: on("openAddProjects"),
@@ -322,7 +322,7 @@ test("a link that lands while a dialog is open dismisses it as its Cancel would,
   expect(harness.controller!.openCanvas!.mock.lastCall!.slice(0, 3)).toEqual(["/w/a", expect.objectContaining({ path: B }), { frame: "pricing" }]);
 });
 
-test("a dialog that does not close for its cancel (busy) keeps the link from moving", async () => {
+test("a dialog that does not close for its cancel (busy) keeps the link from moving, and a toast inside it says why", async () => {
   await start();
   openSetUp();
   const dialog = openDialog(false);
@@ -331,6 +331,9 @@ test("a dialog that does not close for its cancel (busy) keeps the link from mov
   expect(dialog.events).toEqual([{ type: "cancel", cancelable: true }]);
   expect(harness.controller!.openCanvas!.mock.calls.length).toBe(before);
   expect(all(tree).some(element => element.type === ProjectSetupDialog)).toBe(true);
+  // defect-sweep C3: drawn in the open modal dialog, the only place that is not inert.
+  expect(harness.toast.showIn).toHaveBeenCalledExactlyOnceWith(dialog, "Couldn’t open the link. A dialog is busy and did not close. Finish it, then try again.");
+  expect(harness.toast.show).not.toHaveBeenCalled();
 });
 
 // canvas-open-offer T5: a `doan open` request moves as a link does and answers main by its id once the move is decided.

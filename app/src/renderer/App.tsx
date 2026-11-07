@@ -71,7 +71,7 @@ import { canvasConversationRows } from "./canvasConversationRows";
 import type { CanvasList } from "./CanvasConversationList";
 import { QuickOpen } from "./QuickOpenDialog";
 import { missingCanvasMessage, openLinkRefusal, removedCanvasMessage, unavailableCanvasMessage, type SearchResult } from "./quickOpen";
-import { decideOpen, type OpenPage } from "./openDecision";
+import { blockedLinkMessage, decideOpen, type OpenPage } from "./openDecision";
 import { restorePlan, RESTORE_LOADING_WAIT_MS } from "../restore/restorePlan";
 import { withoutRoots, type HomeMemory, type UiState, type ShellProject } from "../restore/uiState";
 import { emptyComposer } from "./HomeComposerView";
@@ -1371,11 +1371,12 @@ export function App() {
   // shows one toast. Main checked the root and the list; the renderer's list may still lag, as for any move. A link
   // landing on a locked page or first run goes nowhere. A link or a `doan open` comes only from a person (a click, or a
   // request they asked an agent for), so an open dialog is dismissed first through its own cancel event, the path
-  // Escape and Cancel take; one that refuses (it is busy) keeps the move from happening.
+  // Escape and Cancel take; one that refuses (it is busy) keeps the move from happening. A blocked link says why, in
+  // the modal dialog still open (a running Set Up, first run), the only place not inert, or else in the usual place.
   function openLink(result: OpenLinkResult) {
     if (result.kind !== "navigate") { live.current.toast.show(openLinkRefusal(result)); return; }
     const decision = decideOpen(result, openPage());
-    if (decision.kind === "busy") return;
+    if (decision.kind === "busy") { live.current.toast.showIn(topDialog(), blockedLinkMessage(decision.reason)); return; }
     cancelRestore();
     const unavailable = (entry: FolderEntry | undefined) => live.current.toast.show(unavailableCanvasMessage(entry, result.canvas));
     if (decision.kind === "canvas_not_found") { unavailable(decision.entry); return; }

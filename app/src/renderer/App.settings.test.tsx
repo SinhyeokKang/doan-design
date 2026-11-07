@@ -39,7 +39,7 @@ vi.mock("react", async original => {
 });
 const harness = vi.hoisted(() => ({
   controller: null as null | Record<string, ReturnType<typeof vi.fn>>,
-  toast: { toast: null, element: null, show: vi.fn(), action: vi.fn(), setModal: vi.fn() },
+  toast: { toast: null, element: null, show: vi.fn(), showIn: vi.fn(), action: vi.fn(), setModal: vi.fn() },
   signIn: { onToast: null as null | ((toast: { text: string; action: { label: string; target: unknown } | null }) => void), windowFocused: vi.fn(),
     state: { auth: undefined as unknown }, listener: null as null | (() => void) },
 }));
@@ -92,7 +92,7 @@ let tree: ReactNode;
 function reset() {
   hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.pending = [];
   listeners = {}; windowListeners = {};
-  harness.toast.show.mockClear(); harness.signIn.windowFocused.mockClear(); harness.signIn.state.auth = undefined;
+  harness.toast.show.mockClear(); harness.toast.showIn.mockClear(); harness.signIn.windowFocused.mockClear(); harness.signIn.state.auth = undefined;
   const on = (name: string) => vi.fn((listener: (...args: never[]) => void) => { listeners[name] = listener; return () => {}; });
   doan = {
     onFolders: on("folders"), onViewCommand: on("view"), onMenuCommand: on("menu"), onConversationEvent: on("conversation"), onConversationStage: on("stage"), onConversationListChanged: on("conversationList"), listConversations: vi.fn(async () => []), onOpenAddProjects: on("openAddProjects"),
@@ -639,14 +639,17 @@ test("while the page holds a picker, a confirmation or a write, every way out an
   expect(projectPage()).toBeUndefined();
 });
 
-test("a doan:// link leaves an unlocked page for its canvas and is dropped on a locked one", () => {
+test("a doan:// link leaves an unlocked page for its canvas and is dropped on a locked one with a toast saying why", () => {
   projectSettingsFromWorkspace();
   lockPage();
   listeners.openLink!({ kind: "navigate", root: "/w/b", canvas: rowA.path } as never); render();
   expect(harness.controller!.openCanvas).not.toHaveBeenCalled();
   expect(projectPage()).toBeDefined();
+  // No modal dialog is open on the locked page, so the toast takes its usual place.
+  expect(harness.toast.showIn).toHaveBeenCalledExactlyOnceWith(null, "Couldn’t open the link. Project Settings is in the middle of a change. Finish or cancel it, then try again.");
   lockPage(false);
   listeners.openLink!({ kind: "navigate", root: "/w/b", canvas: rowA.path } as never); render();
+  expect(harness.toast.showIn).toHaveBeenCalledOnce();
   const call = harness.controller!.openCanvas!.mock.lastCall!;
   expect(call.slice(0, 2)).toEqual(["/w/b", rowA]);
   (call[3] as { opened(): void }).opened(); render();

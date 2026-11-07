@@ -5,6 +5,9 @@ export interface Toast {
   message: string;
   // At most one action button (design 'Common toast').
   action?: string;
+  // The open modal dialog it is drawn inside (Toast.tsx `showIn`), where it is visible and read, so the modal does not
+  // hold its clock.
+  dialog?: HTMLDialogElement;
 }
 
 export type ToastEnd = { id: string; reason: "expired" | "action" | "replaced" };
@@ -27,12 +30,14 @@ export type ToastEvent =
   | { type: "show"; toast: Toast }
   | { type: "tick"; elapsedMs: number }
   | { type: "hover" | "focus" | "hidden" | "modal"; on: boolean }
-  | { type: "action" };
+  | { type: "action" }
+  // The dialog it was drawn in has gone; the toast is drawn in its usual place from now on.
+  | { type: "leftDialog" };
 
 export const initialToastState: ToastState = { toast: null, remainingMs: 0, hovered: false, focused: false, hidden: false, modal: false };
 
 export function isToastPaused(state: ToastState): boolean {
-  return state.hovered || state.focused || state.hidden || state.modal;
+  return state.hovered || state.focused || state.hidden || (state.modal && !state.toast?.dialog);
 }
 
 // Pure so the timer logic runs on a fake clock: the component feeds `tick` with
@@ -62,6 +67,11 @@ export function toastState(state: ToastState, event: ToastEvent): ToastState {
     case "action":
       if (!state.toast?.action) return base;
       return gone(base, state.toast, "action");
+    case "leftDialog": {
+      if (!state.toast?.dialog) return base;
+      const { dialog: _dialog, ...toast } = state.toast;
+      return { ...base, toast };
+    }
   }
 }
 

@@ -95,3 +95,32 @@ test("the action sits to the right of the message as a prominent small button", 
   expect(message.props.className).toBe("msg");
   expect(action.props).toMatchObject({ "data-ui-variant": "prominent", "data-ui-size": "sm", children: "Undo" });
 });
+
+// defect-sweep C3: outside the open modal dialog the toast would be inert and hidden behind it, so a toast shown in a
+// dialog is portalled into it and keeps its clock; when that dialog is gone it is drawn in its usual place and held.
+test("a toast shown in an open modal dialog is drawn inside it and counts down while the modal is up", () => {
+  const h = setup(); h.native(true); h.modal(true);
+  const dialog = { nodeType: 1, open: true, isConnected: true };
+  useToast().showIn(dialog as unknown as HTMLDialogElement, "Couldn’t open the link. Finish Doan’s first run, then try again.");
+  const inside = useToast().element as unknown as { $$typeof: symbol; containerInfo: unknown; children: { props: { className: string; children: unknown[] } } };
+  expect(inside.$$typeof).toBe(Symbol.for("react.portal"));
+  expect(inside.containerInfo).toBe(dialog);
+  expect(inside.children.props.className).toContain("doan-toast");
+  h.tick(3000);
+  expect(h.remaining()).toBe(5000);
+  // The dialog closed: the next render draws the toast in its place and the modal holds it again.
+  dialog.open = false;
+  const outside = useToast().element!;
+  expect(outside.props.className).toContain("doan-toast");
+  for (const effect of hooks.effects.splice(0)) effect();
+  h.tick(3000);
+  expect(h.remaining()).toBe(5000);
+});
+
+test("without an open dialog the toast is drawn in its usual place and held by the modal like any other", () => {
+  const h = setup(); h.native(true); h.modal(true);
+  useToast().showIn(null, "Couldn’t open the link. Settings is in the middle of a change. Finish or cancel it, then try again.");
+  expect(useToast().element!.props.className).toContain("doan-toast");
+  h.tick(3000);
+  expect(h.remaining()).toBe(8000);
+});
