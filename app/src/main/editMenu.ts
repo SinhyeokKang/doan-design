@@ -11,6 +11,8 @@ export interface EditMenuInput {
   flags: { canCut: boolean; canCopy: boolean; canPaste: boolean; canSelectAll: boolean };
   misspelled: string;
   suggestions: readonly string[];
+  // Where the menu was opened, in CSS px (the app uses no page zoom); the field check looks there.
+  point: { x: number; y: number };
 }
 
 export type EditRole = "cut" | "copy" | "paste" | "selectAll";
@@ -58,6 +60,8 @@ export interface ContextMenuParamsLike {
   editFlags: EditMenuInput["flags"];
   misspelledWord: string;
   dictionarySuggestions: readonly string[];
+  x: number;
+  y: number;
 }
 
 export function editMenuInput(params: ContextMenuParamsLike): EditMenuInput {
@@ -72,26 +76,54 @@ export function editMenuInput(params: ContextMenuParamsLike): EditMenuInput {
   return {
     mainFrame, editable: params.isEditable, password: params.formControlType === "input-password", selection: params.selectionText,
     flags: { canCut, canCopy, canPaste, canSelectAll }, misspelled: params.misspelledWord, suggestions: params.dictionarySuggestions,
+    point: { x: params.x, y: params.y },
   };
 }
 
 export interface EditMenuContents {
+  cut(): void;
+  copy(): void;
+  paste(): void;
+  selectAll(): void;
   replaceMisspelling(word: string): void;
   showDefinitionForSelection(): void;
   isDestroyed(): boolean;
+  executeJavaScript(code: string): Promise<unknown>;
 }
 
-export type EditMenuTemplateItem = { role: EditRole; enabled: boolean } | { label: string; click: () => void } | { type: "separator" };
+export type EditMenuTemplateItem = { label: string; enabled?: boolean; click: () => void } | { type: "separator" };
 
-// Roles, not click handlers, for Cut/Copy/Paste/Select All: they run the same editing command as the Edit menu and its
-// keys, so the composer's chip field gets the same DOM copy/cut/paste events it already handles for ⌘C/⌘X/⌘V.
-export function editMenuTemplate(items: readonly EditMenuItem[], contents: EditMenuContents): EditMenuTemplateItem[] {
-  const live = (run: () => void) => () => { if (!contents.isDestroyed()) run(); };
-  return items.map((item): EditMenuTemplateItem => {
+const EDIT_LABELS: Record<EditRole, string> = { cut: "Cut", copy: "Copy", paste: "Paste", selectAll: "Select All" };
+
+// True only while the focused element is the one under the menu's point, or holds it (a chip inside the composer).
+// A fixed script with two numbers in it: main never runs a string the renderer chose. Non-finite input gets no script,
+// so the item does nothing.
+export function fieldCheckScript(point: { x: number; y: number }): string | null {
+  if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) return null;
+  return `(() => { const at = document.elementFromPoint(${point.x}, ${point.y}); const active = document.activeElement;
+    return at !== null && active !== null && active !== document.body && active !== document.documentElement && (active === at || active.contains(at)); })()`;
+}
+
+// Cut/Copy/Paste/Select All and spelling act on whatever is focused when chosen, not on the field the menu opened on.
+// If that field went away while the menu was open (a question card answered, say), focus can sit in another field,
+// which would then take the paste or the replacement. So an editable menu's writing items first ask the page whether
+// focus is still on the opened field, the way Edit > Undo checks for a focused chip field. Look Up and a non-editable
+// menu's Copy write nothing, so they are not checked. The webContents methods run the same Chromium editing commands as
+// the Edit menu's roles, so the chip field gets its usual DOM copy/cut/paste events.
+export function editMenuTemplate(input: EditMenuInput, contents: EditMenuContents): EditMenuTemplateItem[] {
+  const script = fieldCheckScript(input.point);
+  const checked = (run: () => void) => () => {
+    if (contents.isDestroyed()) return;
+    if (!input.editable) return run();
+    if (script === null) return;
+    // A rejected script (the page navigated or crashed) and any non-true answer leave the page alone.
+    void contents.executeJavaScript(script).then(same => { if (same === true && !contents.isDestroyed()) run(); }, () => undefined);
+  };
+  return editMenuItems(input).map((item): EditMenuTemplateItem => {
     switch (item.kind) {
-      case "role": return { role: item.role, enabled: item.enabled };
-      case "suggestion": return { label: item.word, click: live(() => contents.replaceMisspelling(item.word)) };
-      case "lookUp": return { label: item.label, click: live(() => contents.showDefinitionForSelection()) };
+      case "role": return { label: EDIT_LABELS[item.role], enabled: item.enabled, click: checked(() => contents[item.role]()) };
+      case "suggestion": return { label: item.word, click: checked(() => contents.replaceMisspelling(item.word)) };
+      case "lookUp": return { label: item.label, click: () => { if (!contents.isDestroyed()) contents.showDefinitionForSelection(); } };
       case "separator": return { type: "separator" };
     }
   });

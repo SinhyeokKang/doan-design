@@ -41,7 +41,7 @@ import { fileURLToPath } from "node:url";
 import type { Selection } from "../formats/types";
 import { validateSelection } from "../formats/validate";
 import { childOfTopFrame, frameNavigationAllowed, fromAppFrame, isCanvasFrame } from "./canvasFrame";
-import { editMenuInput, editMenuItems, editMenuTemplate } from "./editMenu";
+import { editMenuInput, editMenuTemplate } from "./editMenu";
 import { canvasScriptSource } from "./canvasScript";
 import { createAddFlow, type AddFlow } from "./addProjects";
 import { cliCommand, readFolder, runConfig, runDesignSkill, runExport, runLs } from "./cli";
@@ -466,7 +466,7 @@ function createWindow(): BrowserWindow {
   // Main window only: the thumbnail capture window shows no text a person can reach. Nothing in the app handles DOM
   // `contextmenu`; a preventDefault there would stop Chromium from asking for this menu.
   window.webContents.on("context-menu", (_event, params) => {
-    const template = editMenuTemplate(editMenuItems(editMenuInput(params)), window.webContents);
+    const template = editMenuTemplate(editMenuInput(params), window.webContents);
     // No `frame`: Electron uses it to add OS items such as Writing Tools, and the menu holds only Doan's items.
     if (template.length > 0) Menu.buildFromTemplate(template).popup({ window });
   });

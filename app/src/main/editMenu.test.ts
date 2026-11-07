@@ -1,10 +1,10 @@
 import { describe, expect, test, vi } from "vitest";
-import { editMenuInput, editMenuItems, editMenuTemplate, lookUpLabel, type ContextMenuParamsLike, type EditMenuInput, type EditMenuItem } from "./editMenu";
+import { editMenuInput, editMenuItems, editMenuTemplate, fieldCheckScript, lookUpLabel, type ContextMenuParamsLike, type EditMenuInput, type EditMenuItem } from "./editMenu";
 
 const ALL = { canCut: true, canCopy: true, canPaste: true, canSelectAll: true };
 
 function input(overrides: Partial<EditMenuInput> = {}): EditMenuInput {
-  return { mainFrame: true, editable: true, password: false, selection: "", flags: ALL, misspelled: "", suggestions: [], ...overrides };
+  return { mainFrame: true, editable: true, password: false, selection: "", flags: ALL, misspelled: "", suggestions: [], point: { x: 40, y: 60 }, ...overrides };
 }
 
 // A compact shape for order assertions: suggestions by word, roles by name, Look Up by label, separators as "-".
@@ -122,11 +122,11 @@ describe("lookUpLabel", () => {
 
 describe("editMenuInput", () => {
   function params(overrides: Partial<ContextMenuParamsLike> = {}): ContextMenuParamsLike {
-    return { frame: { parent: null }, isEditable: true, formControlType: "input-text", selectionText: "teh", editFlags: ALL, misspelledWord: "teh", dictionarySuggestions: ["the"], ...overrides };
+    return { frame: { parent: null }, isEditable: true, formControlType: "input-text", selectionText: "teh", editFlags: ALL, misspelledWord: "teh", dictionarySuggestions: ["the"], x: 40, y: 60, ...overrides };
   }
 
   test("copies Chromium's report into the rule input", () => {
-    expect(editMenuInput(params())).toEqual({ mainFrame: true, editable: true, password: false, selection: "teh", flags: ALL, misspelled: "teh", suggestions: ["the"] });
+    expect(editMenuInput(params())).toEqual({ mainFrame: true, editable: true, password: false, selection: "teh", flags: ALL, misspelled: "teh", suggestions: ["the"], point: { x: 40, y: 60 } });
   });
 
   test("only a password input counts as a password", () => {
@@ -148,33 +148,113 @@ describe("editMenuInput", () => {
   });
 });
 
-describe("editMenuTemplate", () => {
-  function contents() {
-    const target = { destroyed: false, replaceMisspelling: vi.fn(), showDefinitionForSelection: vi.fn(), isDestroyed: () => target.destroyed };
-    return target;
-  }
-
-  test("roles stay roles with their enablement, separators stay separators", () => {
-    const template = editMenuTemplate([{ kind: "role", role: "cut", enabled: false }, { kind: "separator" }, { kind: "role", role: "selectAll", enabled: true }], contents());
-    expect(template).toEqual([{ role: "cut", enabled: false }, { type: "separator" }, { role: "selectAll", enabled: true }]);
+describe("fieldCheckScript", () => {
+  test("puts the two numbers into a fixed script", () => {
+    const script = fieldCheckScript({ x: 12.5, y: 300 });
+    expect(script).toContain("document.elementFromPoint(12.5, 300)");
+    expect(script).toBe(fieldCheckScript({ x: 1, y: 2 })?.replace("elementFromPoint(1, 2)", "elementFromPoint(12.5, 300)"));
   });
 
-  test("a suggestion replaces the misspelling, Look Up shows the definition", () => {
+  test("refuses non-finite coordinates", () => {
+    for (const point of [{ x: Number.NaN, y: 1 }, { x: 1, y: Number.POSITIVE_INFINITY }, { x: "1); alert(1" as unknown as number, y: 1 }]) expect(fieldCheckScript(point), JSON.stringify(point)).toBeNull();
+  });
+
+  // The script itself, run against a minimal document: same element, a child of it, another field, and body.
+  test("answers true only when focus is on or around the element at the point", () => {
+    const run = (at: unknown, active: unknown) => {
+      const body = { contains: () => true };
+      const document = { body, documentElement: {}, activeElement: active, elementFromPoint: () => at };
+      return new Function("document", `return ${fieldCheckScript({ x: 1, y: 2 })}`)(document) as boolean;
+    };
+    const field = { contains: (node: unknown) => node === chip }, chip = {}, other = { contains: () => false };
+    expect(run(field, field)).toBe(true);
+    expect(run(chip, field)).toBe(true);
+    expect(run(field, other)).toBe(false);
+    expect(run(null, field)).toBe(false);
+    expect(run(field, null)).toBe(false);
+  });
+});
+
+describe("editMenuTemplate", () => {
+  function contents(answer: () => Promise<unknown> = async () => true) {
+    const target = { destroyed: false, cut: vi.fn(), copy: vi.fn(), paste: vi.fn(), selectAll: vi.fn(), replaceMisspelling: vi.fn(), showDefinitionForSelection: vi.fn(),
+      isDestroyed: () => target.destroyed, executeJavaScript: vi.fn((_code: string) => answer()) };
+    return target;
+  }
+  const flush = () => new Promise(resolve => setTimeout(resolve, 0));
+  async function choose(template: ReturnType<typeof editMenuTemplate>, label: string) {
+    const item = template.find(entry => "label" in entry && entry.label === label);
+    if (!item || !("click" in item)) throw new Error(`no ${label}`);
+    item.click();
+    await flush();
+  }
+  const SPELLING = input({ selection: "teh", misspelled: "teh", suggestions: ["the"] });
+  const ACTIONS = { Cut: "cut", Copy: "copy", Paste: "paste", "Select All": "selectAll" } as const;
+
+  test("edit items are click items with macOS labels and Chromium's enablement", () => {
+    const template = editMenuTemplate(input({ flags: { ...ALL, canCut: false, canCopy: false } }), contents());
+    expect(template.map(entry => "label" in entry ? [entry.label, entry.enabled] : "-")).toEqual([["Cut", false], ["Copy", false], ["Paste", true], "-", ["Select All", true]]);
+    expect(template.some(entry => "role" in entry)).toBe(false);
+  });
+
+  test("with focus still on the field, each item runs its command after the check at the menu's point", async () => {
+    for (const [label, method] of Object.entries(ACTIONS)) {
+      const target = contents();
+      await choose(editMenuTemplate(input(), target), label);
+      expect(target.executeJavaScript).toHaveBeenCalledExactlyOnceWith(fieldCheckScript({ x: 40, y: 60 }));
+      expect(target[method], label).toHaveBeenCalledOnce();
+    }
     const target = contents();
-    const template = editMenuTemplate([{ kind: "suggestion", word: "the" }, { kind: "lookUp", label: "Look Up “teh”" }], target);
-    expect(template.map(item => "label" in item ? item.label : undefined)).toEqual(["the", "Look Up “teh”"]);
-    for (const item of template) if ("click" in item) item.click();
+    await choose(editMenuTemplate(SPELLING, target), "the");
     expect(target.replaceMisspelling).toHaveBeenCalledExactlyOnceWith("the");
-    expect(target.showDefinitionForSelection).toHaveBeenCalledOnce();
+  });
+
+  test("a false or failed check, or a page gone meanwhile, does nothing", async () => {
+    const cases: [string, ReturnType<typeof contents>][] = [
+      ["false", contents(async () => false)], ["not exactly true", contents(async () => "true")], ["rejected", contents(async () => { throw new Error("navigated"); })],
+    ];
+    for (const [name, target] of cases) {
+      const template = editMenuTemplate(SPELLING, target);
+      for (const label of ["the", ...Object.keys(ACTIONS)]) await choose(template, label);
+      for (const method of ["replaceMisspelling", "cut", "copy", "paste", "selectAll"] as const) expect(target[method], `${name} ${method}`).not.toHaveBeenCalled();
+    }
+    // Destroyed after the check started: the answer comes back to a page that is no longer there.
+    let answer: (value: unknown) => void = () => {};
+    const late = contents(() => new Promise(resolve => { answer = resolve; }));
+    const template = editMenuTemplate(SPELLING, late);
+    const item = template.find(entry => "label" in entry && entry.label === "the");
+    if (item && "click" in item) item.click();
+    late.destroyed = true;
+    answer(true);
+    await flush();
+    expect(late.replaceMisspelling).not.toHaveBeenCalled();
   });
 
   // Built while the page is alive, chosen after it is gone: the check belongs to the click, not to the build.
-  test("a click after the page is gone does nothing", () => {
+  test("a click after the page is gone does nothing and asks nothing", async () => {
     const target = contents();
-    const template = editMenuTemplate([{ kind: "suggestion", word: "the" }, { kind: "lookUp", label: "Look Up “teh”" }], target);
+    const template = editMenuTemplate(SPELLING, target);
     target.destroyed = true;
-    for (const item of template) if ("click" in item) item.click();
+    for (const label of ["the", "Look Up “teh”", ...Object.keys(ACTIONS)]) await choose(template, label);
+    expect(target.executeJavaScript).not.toHaveBeenCalled();
+    for (const method of ["replaceMisspelling", "showDefinitionForSelection", "cut", "copy", "paste", "selectAll"] as const) expect(target[method], method).not.toHaveBeenCalled();
+  });
+
+  test("non-finite coordinates leave an editable menu's items inert", async () => {
+    const target = contents();
+    const template = editMenuTemplate({ ...SPELLING, point: { x: Number.NaN, y: 0 } }, target);
+    for (const label of ["the", ...Object.keys(ACTIONS)]) await choose(template, label);
+    expect(target.executeJavaScript).not.toHaveBeenCalled();
     expect(target.replaceMisspelling).not.toHaveBeenCalled();
-    expect(target.showDefinitionForSelection).not.toHaveBeenCalled();
+    expect(target.paste).not.toHaveBeenCalled();
+  });
+
+  test("Look Up and a non-editable menu's Copy run without a check", async () => {
+    const target = contents(async () => false);
+    await choose(editMenuTemplate(SPELLING, target), "Look Up “teh”");
+    await choose(editMenuTemplate(input({ editable: false, selection: "thread text" }), target), "Copy");
+    expect(target.showDefinitionForSelection).toHaveBeenCalledOnce();
+    expect(target.copy).toHaveBeenCalledOnce();
+    expect(target.executeJavaScript).not.toHaveBeenCalled();
   });
 });

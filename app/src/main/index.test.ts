@@ -15,7 +15,7 @@ const mocks = await vi.hoisted(async () => {
     destroyed = false;
     contentsDestroyed = false;
     webContents = Object.assign(new EventEmitter(), { id: ++Window.ids, send: vi.fn(), isDestroyed: () => this.contentsDestroyed, debugger: { name: "debugger" },
-      executeJavaScript: vi.fn(async (_script?: string): Promise<unknown> => ({ x: 0, y: 0, width: 800, height: 500 })), undo: vi.fn(), redo: vi.fn(), replaceMisspelling: vi.fn(), showDefinitionForSelection: vi.fn(), getZoomFactor: vi.fn(() => 1),
+      executeJavaScript: vi.fn(async (_script?: string): Promise<unknown> => ({ x: 0, y: 0, width: 800, height: 500 })), undo: vi.fn(), redo: vi.fn(), cut: vi.fn(), copy: vi.fn(), paste: vi.fn(), selectAll: vi.fn(), replaceMisspelling: vi.fn(), showDefinitionForSelection: vi.fn(), getZoomFactor: vi.fn(() => 1),
       capturePage: vi.fn(async () => ({ isEmpty: () => false, resize: () => ({ toPNG: () => Buffer.from("png") }) })) });
     show = vi.fn();
     hide = vi.fn();
@@ -1176,7 +1176,7 @@ describe("ui state", () => {
 describe("text edit menu", () => {
   const FLAGS = { canUndo: true, canRedo: true, canCut: true, canCopy: true, canPaste: true, canDelete: true, canSelectAll: true, canEditRichly: true };
   function params(overrides: Record<string, unknown> = {}) {
-    return { frame: { parent: null }, isEditable: true, formControlType: "input-text", selectionText: "teh", editFlags: FLAGS, misspelledWord: "teh", dictionarySuggestions: ["the"], ...overrides };
+    return { frame: { parent: null }, isEditable: true, formControlType: "input-text", selectionText: "teh", editFlags: FLAGS, misspelledWord: "teh", dictionarySuggestions: ["the"], x: 40, y: 60, ...overrides };
   }
   // The context menu is the Menu built after the app menu; each test gives it a popup to observe.
   function rightClick(overrides: Record<string, unknown> = {}) {
@@ -1189,23 +1189,34 @@ describe("text edit menu", () => {
 
   test("a main-frame field pops the planned items on the main window, without a frame", () => {
     const { popup, template } = rightClick();
-    expect(template?.map(entry => entry.role ?? entry.label ?? entry.type)).toEqual(["the", "separator", "Look Up “teh”", "separator", "cut", "copy", "paste", "separator", "selectAll"]);
+    expect(template?.map(entry => entry.label ?? entry.type)).toEqual(["the", "separator", "Look Up “teh”", "separator", "Cut", "Copy", "Paste", "separator", "Select All"]);
     expect(popup).toHaveBeenCalledExactlyOnceWith({ window: window() });
     expect(popup.mock.calls[0]?.[0]).not.toHaveProperty("frame");
   });
 
-  test("role items carry Chromium's enablement", () => {
+  test("edit items are click items carrying Chromium's enablement", () => {
     const { template } = rightClick({ selectionText: "", misspelledWord: "", editFlags: { ...FLAGS, canCut: false, canCopy: false } });
-    expect(template).toEqual([{ role: "cut", enabled: false }, { role: "copy", enabled: false }, { role: "paste", enabled: true }, { type: "separator" }, { role: "selectAll", enabled: true }]);
+    expect(template?.map(entry => entry.type ?? [entry.label, entry.enabled, typeof entry.click, entry.role])).toEqual([["Cut", false, "function", undefined], ["Copy", false, "function", undefined], ["Paste", true, "function", undefined], "separator", ["Select All", true, "function", undefined]]);
   });
 
-  test("a suggestion replaces the misspelling and Look Up shows the definition, in the clicked page", () => {
+  // text-edit-menu condition 9: the field the menu opened on may be gone by the time an item is chosen.
+  test("a suggestion or Paste acts on the clicked page only when the page says focus is still on the opened field", async () => {
+    const contents = window().webContents;
     const { template } = rightClick();
-    const run = (label: string) => Reflect.apply(template?.find(entry => entry.label === label)?.click ?? (() => { throw new Error(`no ${label}`); }), undefined, []);
-    run("the");
-    run("Look Up “teh”");
-    expect(window().webContents.replaceMisspelling).toHaveBeenCalledExactlyOnceWith("the");
-    expect(window().webContents.showDefinitionForSelection).toHaveBeenCalledOnce();
+    const run = async (label: string) => { Reflect.apply(template?.find(entry => entry.label === label)?.click ?? (() => { throw new Error(`no ${label}`); }), undefined, []); await new Promise(resolve => setTimeout(resolve, 0)); };
+    contents.executeJavaScript.mockResolvedValueOnce(false).mockResolvedValueOnce(false);
+    await run("the");
+    await run("Paste");
+    expect(contents.replaceMisspelling).not.toHaveBeenCalled();
+    expect(contents.paste).not.toHaveBeenCalled();
+    contents.executeJavaScript.mockResolvedValueOnce(true).mockResolvedValueOnce(true);
+    await run("the");
+    await run("Paste");
+    expect(String(contents.executeJavaScript.mock.calls.at(-1)?.[0])).toContain("document.elementFromPoint(40, 60)");
+    expect(contents.replaceMisspelling).toHaveBeenCalledExactlyOnceWith("the");
+    expect(contents.paste).toHaveBeenCalledOnce();
+    await run("Look Up “teh”");
+    expect(contents.showDefinitionForSelection).toHaveBeenCalledOnce();
   });
 
   test("a subframe (the canvas iframe) and non-editable text with no selection pop nothing", () => {
