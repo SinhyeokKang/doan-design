@@ -11,7 +11,7 @@ import type { UpdateErrorCode } from "./types";
 const OFFLINE_MESSAGE = /net::ERR_(INTERNET_DISCONNECTED|NAME_NOT_RESOLVED|NAME_RESOLUTION_FAILED|NETWORK_CHANGED|NETWORK_IO_SUSPENDED|ADDRESS_UNREACHABLE|CONNECTION_(REFUSED|RESET|CLOSED|ABORTED|FAILED|TIMED_OUT)|TIMED_OUT|PROXY_CONNECTION_FAILED)\b|^Request timed out$/m;
 const OFFLINE_CODES = new Set(["ENOTFOUND", "EAI_AGAIN", "ECONNREFUSED", "ECONNRESET", "ETIMEDOUT", "ENETUNREACH", "EHOSTUNREACH"]);
 // The release has no usable update information: no latest-mac.yml, no release, no zip in it, or an empty file.
-const FEED_CODES = new Set(["ERR_UPDATER_CHANNEL_FILE_NOT_FOUND", "ERR_UPDATER_NO_PUBLISHED_VERSIONS", "ERR_UPDATER_LATEST_VERSION_NOT_FOUND", "ERR_UPDATER_ZIP_FILE_NOT_FOUND", "ERR_UPDATER_INVALID_UPDATE_INFO", "ERR_UPDATER_NO_FILES_PROVIDED"]);
+const FEED_CODES = new Set(["ERR_UPDATER_CHANNEL_FILE_NOT_FOUND", "ERR_UPDATER_NO_PUBLISHED_VERSIONS", "ERR_UPDATER_ZIP_FILE_NOT_FOUND", "ERR_UPDATER_INVALID_UPDATE_INFO", "ERR_UPDATER_NO_FILES_PROVIDED"]);
 // ShipIt replacing the app, the administrator prompt it may raise, and Squirrel refusing a read-only volume.
 const INSTALL_DOMAINS = new Set(["SQRLInstallerErrorDomain", "NSOSStatusErrorDomain"]);
 const SQRL_UPDATER_READ_ONLY_VOLUME = 8;
@@ -30,6 +30,8 @@ export function updateErrorCode(error: unknown): UpdateErrorCode {
   if (code === "ERR_CHECKSUM_MISMATCH") return "checksumMismatch";
   if (code === "ENOSPC") return "diskFull";
   if (typeof code === "string" && FEED_CODES.has(code)) return "feedMissing";
+  // This code wraps any failure reading the latest release; only a 404 means there is none.
+  if (code === "ERR_UPDATER_LATEST_VERSION_NOT_FOUND" && /HttpError: 404\b/.test(message)) return "feedMissing";
   if ((domain !== null && INSTALL_DOMAINS.has(domain)) || (domain === "SQRLUpdaterErrorDomain" && code === SQRL_UPDATER_READ_ONLY_VOLUME)) return "installFailed";
   // Electron's own message when quitAndInstall finds nothing staged.
   if (message === "No update available, can't quit and install") return "installFailed";

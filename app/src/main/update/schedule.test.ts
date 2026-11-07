@@ -11,23 +11,23 @@ describe("shouldCheck", () => {
   });
 
   test("checks once right after launch", () => {
-    expect(shouldCheck({ autoCheck: true, lastCheckedAt: null, now })).toBe(true);
+    expect(shouldCheck({ autoCheck: true, lastAttemptAt: null, now })).toBe(true);
   });
 
   test("then only once 6 hours have passed", () => {
-    expect(shouldCheck({ autoCheck: true, lastCheckedAt: now - 1 * HOUR, now })).toBe(false);
-    expect(shouldCheck({ autoCheck: true, lastCheckedAt: now - 6 * HOUR + 1, now })).toBe(false);
-    expect(shouldCheck({ autoCheck: true, lastCheckedAt: now - 6 * HOUR, now })).toBe(true);
-    expect(shouldCheck({ autoCheck: true, lastCheckedAt: now - 30 * HOUR, now })).toBe(true);
+    expect(shouldCheck({ autoCheck: true, lastAttemptAt: now - 1 * HOUR, now })).toBe(false);
+    expect(shouldCheck({ autoCheck: true, lastAttemptAt: now - 6 * HOUR + 1, now })).toBe(false);
+    expect(shouldCheck({ autoCheck: true, lastAttemptAt: now - 6 * HOUR, now })).toBe(true);
+    expect(shouldCheck({ autoCheck: true, lastAttemptAt: now - 30 * HOUR, now })).toBe(true);
   });
 
   // A clock set back would otherwise hold checks off until it caught up with the old time.
   test("a last check in the future is due", () => {
-    expect(shouldCheck({ autoCheck: true, lastCheckedAt: now + HOUR, now })).toBe(true);
+    expect(shouldCheck({ autoCheck: true, lastAttemptAt: now + HOUR, now })).toBe(true);
   });
 
   test("with automatic checks off, never", () => {
-    expect(shouldCheck({ autoCheck: false, lastCheckedAt: null, now })).toBe(false);
-    expect(shouldCheck({ autoCheck: false, lastCheckedAt: now - 30 * HOUR, now })).toBe(false);
+    expect(shouldCheck({ autoCheck: false, lastAttemptAt: null, now })).toBe(false);
+    expect(shouldCheck({ autoCheck: false, lastAttemptAt: now - 30 * HOUR, now })).toBe(false);
   });
 });

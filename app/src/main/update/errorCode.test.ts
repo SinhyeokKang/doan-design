@@ -65,6 +65,9 @@ const FIXTURES: Record<string, [string, unknown][]> = {
   ],
   other: [
     ["a server error", httpError(502, "Bad Gateway", `method: GET url: ${REPO}/releases.atom`)],
+    // Only a missing release (404) means the feed is missing; an outage or a page in place of JSON does not.
+    ["a server error wrapped in latest version not found", newError(`Unable to find latest version on GitHub (${REPO}/releases/latest), please ensure a production release exists: ${stack(httpError(502, "Bad Gateway", `method: GET url: ${REPO}/releases/latest`))}`, "ERR_UPDATER_LATEST_VERSION_NOT_FOUND")],
+    ["a page in place of the latest release", newError(`Unable to find latest version on GitHub (${REPO}/releases/latest), please ensure a production release exists: SyntaxError: Unexpected token '<', "<!DOCTYPE "... is not valid JSON`, "ERR_UPDATER_LATEST_VERSION_NOT_FOUND")],
     ["a feed GitHub answered with a page", newError("Cannot parse releases feed: Error: Unexpected close tag,\nXML:\n<html></html>", "ERR_UPDATER_INVALID_RELEASE_FEED")],
     ["a 403 that is not the rate limit", httpError(403, "Forbidden", `method: GET url: ${REPO}/releases.atom\n\n          Data:\n          denied\n          `)],
     ["Squirrel's other failures", squirrelError("Update check failed. The server sent an invalid response. Try again later.", 3, "SQRLUpdaterErrorDomain")],
