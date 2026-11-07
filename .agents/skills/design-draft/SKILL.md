@@ -16,7 +16,7 @@ Dogfooding loop (PRODUCT §5 'Dogfooding'): doan's own UI drafts are canvases in
 
 - After `/feature-review`, before `/tdd`: the review settles the list of visible states, and `/design-sync` compares only the states the draft draws. Drawn earlier, the draft is redrawn.
 - For screens whose first implementation is not on main yet.
-- For a redesign child of a parent feature (AGENTS.md 'Terms', e.g. buzz-restyle) whose `design.md` requests a new draft file for a screen already on main.
+- For a redesign child of a parent feature (AGENTS.md 'Terms') whose `design.md` requests a new draft file for a screen already on main.
 
 **Not for**: restyling a screen already on main outside a redesign child. Once a screen ships, the code and `docs/DESIGN.md` are the reference; a new look for it is a change request through `/feature`, which may make it a redesign child.
 
