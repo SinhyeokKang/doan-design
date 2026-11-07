@@ -18,10 +18,15 @@ export interface FolderStore {
   adopt(path: string): Promise<Error | null>;
   // Clears the mark, if any: the human added the root by hand.
   claim(path: string): Promise<Error | null>;
-  // Each saved spelling of folders.json or auto-folders.json that was read as another real path (realRoots), for the
-  // stores keyed by root (canvas-seen.json, ui-state.json) to move that root's memory instead of dropping it.
-  aliases(): ReadonlyMap<string, string>;
+  // The other spelling of a listed root, mapped to the one this run lists, for ui-state.json to read memory saved
+  // under either: alias → real path after the startup step moved the roots, real path → saved alias when it did not.
+  spellings(): ReadonlyMap<string, string>;
 }
+
+// Moves the memory kept under each alias (a saved spelling) to its real path in the stores keyed by root, before
+// folders.json changes; true only when every store holds it under the real path (index.ts: canvas-seen.json, then
+// ui-state.json).
+export type RootMigration = (aliases: ReadonlyMap<string, string>) => Promise<boolean>;
 
 export async function readFoldersFile(file: string): Promise<string[]> {
   return await readFoldersFileForPruning(file) ?? [];
@@ -31,8 +36,8 @@ export async function readFoldersFile(file: string): Promise<string[]> {
 // registration already stores real paths, so a root saved through a symlink (by hand, a script or an older app) is
 // read as its real path; two spellings of one folder become one entry in the first one's place. A root that cannot be
 // resolved now (missing, unreadable) keeps its saved spelling, so it still shows as missing instead of leaving the
-// list. The file itself changes only with the next write. The promise realpath returns the on-disk spelling. Each
-// spelling is resolved once, however many of the two files hold it.
+// list. The promise realpath returns the on-disk spelling. Each spelling is resolved once, however many of the two
+// files hold it.
 async function realRoots(spellings: readonly string[]): Promise<Map<string, string>> {
   const unique = [...new Set(spellings)];
   const real = await Promise.all(unique.map(path => realpath(path).catch(() => path)));
@@ -86,22 +91,53 @@ async function readMarks(file: string): Promise<string[]> {
   }
 }
 
-export async function openFolderStore(file: string): Promise<FolderStore> {
+// The marks once the list is read as real paths. A mark saved through a symlink still marks its root, also when only
+// the list was rewritten before a stop (folders.json goes first). Two list spellings of one folder that collapse keep it
+// hand-added when either was hand-added, as a manual add clears the mark.
+function realMarks(list: readonly string[], marks: readonly string[], real: ReadonlyMap<string, string>): string[] {
+  const to = (path: string) => real.get(path) ?? path;
+  const spellings = new Map<string, string[]>();
+  for (const path of list) spellings.set(to(path), [...spellings.get(to(path)) ?? [], path]);
+  return resolved(marks, real).filter(root => {
+    const listed = spellings.get(root) ?? [];
+    return listed.length <= 1 || listed.every(path => marks.includes(path));
+  });
+}
+
+// One ordered startup step (defect-sweep C2): when a saved root or mark reads as another real path, `migrate` moves the
+// memory kept under the alias, then folders.json is written with the real paths, then auto-folders.json. A stop or a
+// failure at any point leaves files a later launch reads the same way and retries; after a failure this run keeps the
+// saved spellings, so nothing keyed by them is dropped. A list that could not be read is never rewritten.
+export async function openFolderStore(file: string, migrate: RootMigration = async () => true): Promise<FolderStore> {
   const autoFile = join(dirname(file), "auto-folders.json");
   const saved = await readSavedList(file);
   // Marks are pruned by the list only when folders.json was read (POSTMORTEM 2026-10-26); otherwise the empty
   // fallback list would erase them.
   const prunable = saved !== null;
   const savedMarks = await readMarks(autoFile);
-  const real = await realRoots([...saved ?? [], ...savedMarks]);
-  let folders = resolved(saved ?? [], real);
-  // Resolved as the list is, so a mark saved through a symlink still marks its root. Two spellings of one folder that
-  // collapse keep it hand-added when either was hand-added, as a manual add clears the mark. The saved text stays the
-  // baseline, so the next save writes the resolved marks.
-  const handAdded = new Set((saved ?? []).filter(path => !savedMarks.includes(path)).map(path => real.get(path) ?? path));
-  let marks = resolved(savedMarks, real).filter(path => !handAdded.has(path));
+  let folders = saved ?? [];
+  let marks = savedMarks;
   let writtenMarks: string | undefined = JSON.stringify(savedMarks);
+  let spellings: ReadonlyMap<string, string> = new Map();
+  const real = saved === null ? new Map<string, string>() : await realRoots([...saved, ...savedMarks]);
   const aliases: ReadonlyMap<string, string> = new Map([...real].filter(([path, to]) => path !== to));
+  if (saved !== null && aliases.size > 0) {
+    const nextFolders = resolved(saved, real), nextMarks = realMarks(saved, savedMarks, real);
+    const moved = await migrate(aliases).catch((error: unknown) => { console.error("doan: cannot move root memory to real paths", error); return false; });
+    const listed = moved && await writeFoldersFile(file, nextFolders).then(() => true, (error: unknown) => { console.error("doan: cannot save folders.json", error); return false; });
+    if (listed) {
+      folders = nextFolders;
+      marks = nextMarks;
+      spellings = aliases;
+      // After folders.json: a stop before this write leaves marks that still resolve to the listed real paths.
+      await writeFoldersFile(autoFile, nextMarks).then(() => { writtenMarks = JSON.stringify(nextMarks); }, (error: unknown) => console.error("doan: cannot save auto-folders.json", error));
+    } else {
+      // Memory an earlier run already moved to a real path is read under the alias this run lists.
+      const reverse = new Map<string, string>();
+      for (const [alias, to] of aliases) if (saved.includes(alias) && !saved.includes(to) && !reverse.has(to)) reverse.set(to, alias);
+      spellings = reverse;
+    }
+  }
   // Writes run one after another so a slow earlier write cannot rename an
   // older list over a newer one.
   let writing: Promise<unknown> = Promise.resolve();
@@ -141,6 +177,6 @@ export async function openFolderStore(file: string): Promise<FolderStore> {
     auto: () => folders.filter(path => marks.includes(path)),
     adopt: (path) => save(add(folders, path), add(marks, path)),
     claim: (path) => marks.includes(path) ? save([...folders], autoAfterAdd(marks, path)) : Promise.resolve(null),
-    aliases: () => aliases,
+    spellings: () => spellings,
   };
 }

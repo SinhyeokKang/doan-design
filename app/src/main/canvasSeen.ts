@@ -20,10 +20,12 @@ export interface CanvasSeenStore {
   mark(entries: readonly FolderEntry[], value: unknown): boolean;
   // Writes the record if an earlier write failed. Called at quit.
   flushSync(): void;
-  // Moves each alias root's record to its real path (FolderStore.aliases), before the first apply: a spelling change
-  // is the same project, not one leaving the list. The real path's record wins per canvas; the alias's fills only
-  // canvases it lacks.
-  rename(aliases: ReadonlyMap<string, string>): void;
+  // Copies each alias root's record to its real path (FolderStore's startup step), before the first apply: a spelling
+  // change is the same project, not one leaving the list. The real path's record wins per canvas; the alias's fills
+  // only canvases it lacks. The alias's record stays, so whichever spelling this run lists keeps its memory, and apply
+  // drops the other as a root that left the list. True once the file holds the copy; false, with nothing changed,
+  // when it cannot be written (a write error, or a later Doan's file).
+  copyRoots(aliases: ReadonlyMap<string, string>): boolean;
 }
 
 type Seen = Map<string, Map<string, number>>;
@@ -122,16 +124,27 @@ export function createCanvasSeenStore(file: string, write: (file: string, text: 
     flushSync() {
       if (dirty) save();
     },
-    rename(aliases) {
+    copyRoots(aliases) {
+      if (newer) return false;
+      const next: Seen = new Map(seen);
       let changed = false;
       for (const [alias, real] of aliases) {
-        const moved = seen.get(alias);
-        if (!moved || alias === real) continue;
-        seen.set(real, new Map([...moved, ...seen.get(real) ?? []]));
-        seen.delete(alias);
+        const from = seen.get(alias), kept = next.get(real);
+        if (!from || alias === real) continue;
+        const merged = new Map([...from, ...kept ?? []]);
+        if (kept && merged.size === kept.size) continue;
+        next.set(real, merged);
         changed = true;
       }
-      if (changed) save();
+      if (!changed) return true;
+      const previous = seen, wasDirty = dirty;
+      seen = next;
+      save();
+      if (!dirty) return true;
+      // A failed write leaves the record as it was read.
+      seen = previous;
+      dirty = wasDirty;
+      return false;
     },
   };
 }

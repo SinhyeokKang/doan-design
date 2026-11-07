@@ -85,9 +85,9 @@ const CONVERSATION_ID = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/;
 // entry does not cost the rest. Roots outside `savedRoots` are dropped
 // everywhere: a removed project must not keep memory. The scale is kept as
 // saved; the restore plan clamps it.
-// `aliases` (FolderStore.aliases) are saved root spellings read as another real path: their memory moves to that path
-// before the filter, so the same project is not dropped as a removed one.
-export function parseUiState(text: string, savedRoots: readonly string[], aliases: ReadonlyMap<string, string> = new Map()): UiState | null {
+// `spellings` (FolderStore.spellings) map another spelling of a listed root to the listed one: memory kept under it is
+// read under the listed root before the filter, so the same project is not dropped as a removed one.
+export function parseUiState(text: string, savedRoots: readonly string[], spellings: ReadonlyMap<string, string> = new Map()): UiState | null {
   if (new TextEncoder().encode(text).length > UI_STATE_MAX_BYTES) return null;
   let parsed: unknown;
   try {
@@ -96,7 +96,7 @@ export function parseUiState(text: string, savedRoots: readonly string[], aliase
     return null;
   }
   if (!isRecord(parsed)) return null;
-  const value = aliases.size > 0 ? renameRoots(parsed, aliases) : parsed;
+  const value = spellings.size > 0 ? renameUiRoots(parsed, spellings) : parsed;
   const screen = value["screen"];
   if (screen !== "home" && screen !== "workspace") return null;
   const saved = new Set(savedRoots);
@@ -154,10 +154,10 @@ export function parseUiState(text: string, savedRoots: readonly string[], aliase
 }
 
 // Rewrites every root this file keys or names (the open place, `expanded`, `lastByRoot`, `shellProjects` keys, roots
-// and selection, `conversationByRoot`, `home.lastRoot`) from alias to real path, on the raw value so parseUiState still
-// validates the result. Where both spellings hold a value the real path's wins, per map key and per `shellProjects`
-// field; the alias's fills only what the real path lacks.
-function renameRoots(value: Record<string, unknown>, aliases: ReadonlyMap<string, string>): Record<string, unknown> {
+// and selection, `conversationByRoot`, `home.lastRoot`) from each spelling in `aliases` to the one it maps to, on the
+// raw value so parseUiState still validates the result. Where both spellings hold a value the target's wins, per map
+// key and per `shellProjects` field; the other fills only what the target lacks.
+export function renameUiRoots(value: Record<string, unknown>, aliases: ReadonlyMap<string, string>): Record<string, unknown> {
   const real = (root: unknown) => typeof root === "string" ? aliases.get(root) ?? root : root;
   const rekey = (map: unknown, merge: (kept: unknown, alias: unknown) => unknown = kept => kept): unknown => {
     if (!isRecord(map)) return map;

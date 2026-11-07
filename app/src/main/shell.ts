@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { pruneAuto } from "./autoFolders";
 import { readFolder, runLs, runInit } from "./cli";
 import { replaceAt } from "./folders";
-import { openFolderStore } from "./folderStore";
+import { openFolderStore, type RootMigration } from "./folderStore";
 import { classifyDesignChange } from "./designChange";
 import { folderState, initOutcome, reconcileFolders, type FolderState, type InitOutcome } from "./folderState";
 import { startServer, type LocalServer } from "./serve/server";
@@ -46,6 +46,8 @@ export interface Shell {
   // The same for these stored roots only: a mode written for one root changes what its whole group shows.
   reread(paths: readonly string[]): void;
   dispose(): Promise<void>;
+  // FolderStore.spellings: another spelling of a listed root, read as the listed one (ui-state.json).
+  spellings(): ReadonlyMap<string, string>;
 }
 
 interface Folder {
@@ -97,17 +99,16 @@ function sameScope(a: readonly string[], b: readonly string[]): boolean {
 // Electron-free on purpose: the window, dialog and IPC live in index.ts.
 // `autoRemoved` runs when a vanished auto-registered root left the list on its own, before the list goes out, so main
 // clears what it keeps for that root as on Remove; `before` is the list before the removal.
-// `aliased` runs at most once, before any folder is read or listed, with the saved spellings the folder store read as another
-// real path (FolderStore.aliases), so stores keyed by root move that root's memory before anything prunes it.
+// `migrate` is the folder store's startup step (RootMigration): it runs before folders.json is rewritten and before any
+// folder is read, listed or pruned, so stores keyed by root move a symlink root's memory to its real path first.
 export interface ShellHooks {
   response?(record: ResponseRecord): void;
   autoRemoved?(paths: string[], before: FolderEntry[]): void;
-  aliased?(aliases: ReadonlyMap<string, string>): void;
+  migrate?: RootMigration;
 }
 
 export async function startShell(foldersFile: string, cli: string, onChange: (entries: FolderEntry[], focus?: FolderFocus) => void, hooks?: ShellHooks): Promise<Shell> {
-  const store = await openFolderStore(foldersFile);
-  if (store.aliases().size > 0) hooks?.aliased?.(store.aliases());
+  const store = await openFolderStore(foldersFile, hooks?.migrate);
   const server: LocalServer = await startServer(hooks?.response);
   // Insertion order is folders.json order, which is the order the human opened them.
   let nextEpoch = 0;
@@ -424,6 +425,7 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
         if (folder) reread(folder);
       }
     },
+    spellings: () => store.spellings(),
     async dispose() {
       for (const folder of folders.values()) folder.watch?.close();
       folders.clear();

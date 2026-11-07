@@ -1,10 +1,10 @@
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, afterEach, describe, expect, test, vi } from "vitest";
 import { parseUiState, UI_STATE_MAX_BYTES, type UiState } from "../restore/uiState";
-import { createUiStateStore, UI_STATE_DELAY_MS, type UiStateFs } from "./uiState";
+import { createUiStateStore, moveUiStateRoots, UI_STATE_DELAY_MS, type UiStateFs } from "./uiState";
 
 const tmp = mkdtempSync(join(tmpdir(), "doan-ui-state-"));
 let count = 0;
@@ -350,4 +350,25 @@ test("a read moves memory saved under an alias root to its real path", async () 
   writeFileSync(path, JSON.stringify({ screen: "workspace", root: "/alias/repo", expanded: { "/alias/repo": ["a"] }, lastByRoot: {} }));
   const store = createUiStateStore(path, () => ["/real/repo"], undefined, undefined, () => new Map([["/alias/repo", "/real/repo"]]));
   expect(await store.read()).toMatchObject({ screen: "workspace", root: "/real/repo", expanded: { "/real/repo": ["a"] } });
+});
+
+// defect-sweep C2: the folder store's startup step rewrites ui-state.json with the alias's memory under the real path.
+describe("moveUiStateRoots", () => {
+  const aliases = new Map([["/alias/repo", "/real/repo"]]);
+  test("moves the memory, reports nothing to move as done, and leaves the file as it was when it cannot write", async () => {
+    const path = file();
+    expect(await moveUiStateRoots(path, aliases)).toBe(true);
+    writeFileSync(path, JSON.stringify({ screen: "workspace", root: "/alias/repo", expanded: {}, lastByRoot: {} }));
+    expect(await moveUiStateRoots(path, aliases)).toBe(true);
+    expect(JSON.parse(readFileSync(path, "utf8"))).toEqual({ screen: "workspace", root: "/real/repo", expanded: {}, lastByRoot: {} });
+    const text = readFileSync(path, "utf8");
+    expect(await moveUiStateRoots(path, aliases)).toBe(true);
+    expect(readFileSync(path, "utf8")).toBe(text);
+    if (process.getuid?.() === 0) return;
+    const locked = file(), saved = JSON.stringify({ screen: "workspace", root: "/alias/repo", expanded: {}, lastByRoot: {} });
+    writeFileSync(locked, saved);
+    chmodSync(join(locked, ".."), 0o555);
+    try { expect(await moveUiStateRoots(locked, aliases)).toBe(false); } finally { chmodSync(join(locked, ".."), 0o755); }
+    expect(readFileSync(locked, "utf8")).toBe(saved);
+  });
 });

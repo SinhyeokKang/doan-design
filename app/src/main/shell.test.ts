@@ -558,15 +558,19 @@ async function uninitialized(root: string, cliPath = cli) {
   return started;
 }
 
-// defect-sweep C2 fix round 1: the stores keyed by root (canvas-seen.json, ui-state.json) learn which saved spelling
-// reads as which real path before the first list goes out, so they can move that root's memory instead of dropping it.
-test("hands the saved spellings read as another real path to the hook before the first list goes out", async () => {
+// defect-sweep C2: the stores keyed by root (canvas-seen.json, ui-state.json) move a symlink root's memory in the startup
+// step before any folder is listed; when that step fails the shell lists the saved spelling for the run.
+test("runs the startup step before the first list goes out, and lists the saved spelling when it fails", async () => {
   const real = realpathSync(writeRepo(dir())), link = join(dir(), "repo"); symlinkSync(real, link);
   const file = join(dir(), "folders.json"); writeFileSync(file, JSON.stringify([link]));
   const order: string[] = [];
-  const shell = await startShell(file, cli, () => order.push("change"), { aliased: aliases => { order.push(`aliased ${JSON.stringify([...aliases])}`); } }); shells.push(shell);
+  const shell = await startShell(file, cli, () => order.push("change"), { migrate: async aliases => { order.push(`migrate ${JSON.stringify([...aliases])}`); return true; } }); shells.push(shell);
   await vi.waitFor(() => expect(listed(shell.entries(), real)).toBeDefined(), until);
-  expect(order[0]).toBe(`aliased ${JSON.stringify([[link, real]])}`);
+  expect(order[0]).toBe(`migrate ${JSON.stringify([[link, real]])}`);
+  const kept = join(dir(), "folders.json"); writeFileSync(kept, JSON.stringify([link]));
+  const failed = await startShell(kept, cli, () => {}, { migrate: async () => false }); shells.push(failed);
+  await vi.waitFor(() => expect(listed(failed.entries(), link)).toBeDefined(), until);
+  expect([...failed.spellings()]).toEqual([[real, link]]);
 });
 
 describe("project setup and upward refresh", () => {
