@@ -112,7 +112,7 @@ func TestBrandCandidatesMatchSharedFixtures(t *testing.T) {
 	}
 }
 
-// Human-facing CLI text names the product Doan (doan-naming, 2026-10-30 user):
+// Human-facing CLI text names the product Doan (user decision 2026-10-30):
 // messages, nextSteps and --help are string literals in cli/.
 func TestCLIStringsNameTheProductDoan(t *testing.T) {
 	root := filepath.Join("..", "..")
