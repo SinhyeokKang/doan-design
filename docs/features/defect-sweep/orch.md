@@ -19,9 +19,9 @@
 
 | batch | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 gate | 상태 |
 |---|---|---|---|---|---|---|
-| C CLI | C-1, C-2 | `cli/internal/cli/active.go`·`export.go`와 그 테스트 | 없음 | Codex `gpt-6-astra` medium: 두 경계 수정이지만 D2 신호 처리는 경쟁 조건 판단이 필요하다 | `go test ./...`, `go vet ./...` | 대기 |
-| T 테스트·eval | T-1, T-2, T-3 | `app/src/main/conversation/service.test.ts`, `app/src/main/shell.test.ts`(와 그 fake), `eval/scenarios/D1/presets.ts`, `eval/lib/judge.ts`, `eval/lib/transcript.ts`와 그 테스트 | 없음 | Claude Sonnet high: 테스트·판정 수정, E3 shell 해석은 판단이 조금 필요하다 | `npm --prefix app test`, `node --test 'eval/**/*.test.ts'`, `node eval/run.ts --self-test` | 대기 |
-| F 포커스 | F-1–F-6 | `App.settings.test.tsx`, `CanvasTools.tsx`, `ConversationThread.tsx`, `ConversationStripView.tsx`·`conversationStrip.ts`, `components/ui/tooltip.tsx`, `SettingsMcpConnectors.tsx`, `styles.css`(A5) | 없음 | Claude Opus high: Radix 이벤트 순서와 focus 이동은 틀리면 키보드 사용이 깨진다 | `npm --prefix app test`, typecheck, `/runtime-test` | 대기 |
+| C CLI | C-1, C-2 | `cli/internal/cli/active.go`·`export.go`와 그 테스트 | 없음 | Codex `gpt-6-astra` medium: 두 경계 수정이지만 D2 신호 처리는 경쟁 조건 판단이 필요하다 | `go test ./...`, `go vet ./...` | 통합 `511793de`·`e5f3f23e` |
+| T 테스트·eval | T-1, T-2, T-3 | `app/src/main/conversation/service.test.ts`, `app/src/main/shell.test.ts`(와 그 fake), `eval/scenarios/D1/presets.ts`, `eval/lib/judge.ts`, `eval/lib/transcript.ts`와 그 테스트 | 없음 | Claude Sonnet high: 테스트·판정 수정, E3 shell 해석은 판단이 조금 필요하다 | `npm --prefix app test`, `node --test 'eval/**/*.test.ts'`, `node eval/run.ts --self-test` | 진행 |
+| F 포커스 | F-1–F-6 | `App.settings.test.tsx`, `CanvasTools.tsx`, `ConversationThread.tsx`, `ConversationStripView.tsx`·`conversationStrip.ts`, `components/ui/tooltip.tsx`, `SettingsMcpConnectors.tsx`, `styles.css`(A5) | 없음 | Claude Opus high: Radix 이벤트 순서와 focus 이동은 틀리면 키보드 사용이 깨진다 | `npm --prefix app test`, typecheck, `/runtime-test` | 진행 |
 | R 런타임 | R-1–R-6 | `threadItems.ts`, `runners.ts`, `transport.ts`·`types.ts`·`store.ts`, `ConversationThread.tsx`·`ConversationStripView.tsx`·`conversationStrip.ts`(B1), `ipc.ts`·`service.ts`, `newConversationSettings.ts`·`SettingsAgents.tsx` | F 통합 | Claude Opus high: 저장 형식(`turn.failed`)과 abort 경쟁, provider 분기 | `npm --prefix app test`, typecheck, `/runtime-test` | 대기 |
 | M 앱 기타 | M-1–M-4 | `quickOpen.ts`·`QuickOpenDialog.tsx`, 등록·`folders.json` 읽기(`app/src/main/` folders·shell 쪽), `openDecision.ts`·`App.tsx`(`openLink`)·`Toast.tsx`, `styles.css`(C1), `ProjectSetupDialog.tsx`·`Onboarding.tsx`(C3 toast 자리) | F 통합 | Claude Opus high: C2 저장 목록 정규화와 C3 modal 안 toast는 실제 사용자 상태와 접근성을 건드린다 | `npm --prefix app test`, typecheck, `/runtime-test` | 대기 |
 | Z 통합·승격 | Z-1, Z-2 | 지휘자 | 모든 batch | 지휘자 | `verify.mjs --eval`, Z-2 grep | 대기 |
@@ -32,10 +32,12 @@
 
 1. C, T, F를 함께 시작한다(C·T는 다른 batch와 겹치지 않는다).
 2. F가 통합되면 R과 M을 함께 시작한다.
+
+작업 중 결정(지휘자): F의 A2는 `CanvasController`의 공개 메서드 한 줄과 `App.tsx`의 `<CanvasTools>` prop 하나를 고친다(M은 아직 시작 전이라 겹치지 않는다). F-3·F-5의 jsdom 문구는 ARCHITECTURE §7 'Home tests without a DOM'에 맞게 DOM 없는 테스트와 F-6 probe로 고쳤다(`5dff3447`).
 3. 모두 통합되면 Z.
 
 tasks의 체크 항목 C-1–C-2, T-1–T-3, F-1–F-6, R-1–R-6, M-1–M-4, Z-1–Z-2는 모두 위 표의 한 batch에 속한다.
 
 ## 통합 기록
 
-(없음)
+- **C** (작업자 Codex `gpt-6-astra` medium, 리뷰 Claude Opus high, 1라운드): `dba13d0c`·`0357ce7c` → `511793de`·`e5f3f23e`. 리뷰 🔴 0·🟡 0·🟢 6(`.scratch/review-C.md`). 통합 HEAD에서 `go test ./cli/...`, `go vet ./...` 통과. 계획과 다른 점(지휘자 승인): D2 테스트를 위해 `writeExport` 본문을 `writeExportWith`로 빼냈다(동작 그대로). 기존 `TestActiveLineAtCapIsRead`는 줄바꿈을 빼고 65,536 byte를 채워서, 줄바꿈을 포함한 상한에 맞게 고쳤다. Z-2에 넘길 것: 앱의 export timeout(`app/src/main/cli.ts` `runExport`)은 SIGKILL이라 임시 파일이 남을 수 있다(결정 범위 안). 신호로 끝난 export의 exit code(128+signal)는 ARCHITECTURE §12 exit code 표에 사실로 적는다. 작업 worktree `ds-C`는 지웠고 branch `SinhyeokKang/ds-C`(`0357ce7c`)는 남겼다.
