@@ -1721,6 +1721,33 @@ it("does not enter a problem root's Overview after a newer navigation", () => {
   } finally { h.controller.dispose(); }
 });
 
+it.each(problemKinds)("an Overview open with an unavailable callback enters a %s root once its read settles", kind => {
+  const h = loadedController();
+  try {
+    const repo: FolderEntry = { kind: "list", path: "/repo", servedRev: 0, canvases: [h.row] };
+    h.controller.updateEntries([repo, { path: "/problem", kind: "loading" }]);
+    const entered = vi.fn(), unavailable = vi.fn();
+    h.controller.openWorkspace("/problem", entered, false, unavailable, true);
+    h.controller.updateEntries([repo, problemEntry("/problem", kind)]);
+    expect(entered).toHaveBeenCalledExactlyOnceWith("/problem");
+    expect(unavailable).not.toHaveBeenCalled();
+    expect(h.changed.mock.lastCall?.[0].open).toBeNull();
+  } finally { h.controller.dispose(); }
+});
+
+// A config error keeps the last rendered document (`errorLine`); entering its Overview still clears it.
+it("enters the Overview of an error root whose canvas is open", () => {
+  const h = loadedController();
+  try {
+    h.controller.updateEntries([problemEntry("/repo", "error")]);
+    expect(h.changed.mock.lastCall?.[0].open?.folder).toBe("/repo");
+    const entered = vi.fn();
+    h.controller.openWorkspace("/repo", entered, false, undefined, true);
+    expect(entered).toHaveBeenCalledExactlyOnceWith("/repo");
+    expect(h.changed.mock.lastCall?.[0]).toMatchObject({ open: null, hasFrame: false, error: "" });
+  } finally { h.controller.dispose(); }
+});
+
 it.each(problemKinds)("a workspace open that would open a canvas does not enter a %s root", kind => {
   const h = loadedController();
   try {
