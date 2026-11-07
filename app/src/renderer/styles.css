@@ -1405,7 +1405,7 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .doan-panel-handle:focus-visible { box-shadow: 0 0 0 2px var(--border-focus); }
 /* Over the whole window while dragging: the canvas iframe cannot take the pointer and the cursor stays col-resize. */
 .doan-resize-cover { position: fixed; inset: 0; z-index: 1000; cursor: col-resize; }
-/* shell-panel-layout: a hidden sidebar leaves every shell with its handle and the 8px gap behind it, so the main panel
+/* A hidden sidebar leaves every shell with its handle and the 8px gap behind it, so the main panel
    starts at the shell's 8px inner margin. Only a toggle animates (data-sidebar-motion), as folding the conversation
    panel does; a drag or a window resize must not. */
 :root[data-sidebar="hidden"] .workspace.app-shell { grid-template-columns: 0px minmax(0, 1fr) var(--doan-right-width); }
