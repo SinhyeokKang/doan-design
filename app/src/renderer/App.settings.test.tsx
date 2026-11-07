@@ -1,4 +1,5 @@
 import { readdirSync, readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
@@ -382,6 +383,27 @@ test("Escape that the open usage popover took keeps Settings, Add Projects and P
     escape();
     expect(onPage(), name).toBe(false);
   }
+});
+
+// defect-sweep A1: Escape on Settings > Agents' open Agent picker (a Radix DropdownMenu) closed the menu and also left
+// Settings. The menu's DismissableLayer answers Escape at the document's capture phase, prevents the default and
+// removes the menu, so by the window's keydown no menu is in the DOM; the page must stay because the event was
+// handled, and only an Escape with no menu leaves. The installed Radix order is pinned below the App check.
+test("Escape that closes the open Agent picker keeps Settings; with no menu open Escape leaves", () => {
+  openFromWorkspace();
+  expect(settings()!.props.section).toBe("agents");
+  // As the window sees it after Radix: handled, and the menu already gone from the DOM.
+  windowListeners.keydown!({ key: "Escape", target: { tagName: "DIV" }, isComposing: false, keyCode: 27, defaultPrevented: true, preventDefault: vi.fn() } as never); render();
+  expect(onSettings()).toBe(true);
+  escape();
+  expect(onSettings()).toBe(false);
+  const read = (name: string) => readFileSync(createRequire(import.meta.url).resolve(name), "utf8");
+  expect(read("@radix-ui/react-use-escape-keydown")).toMatch(/ownerDocument\.addEventListener\("keydown", handleKeyDown, \{ capture: true \}\)/);
+  expect(read("@radix-ui/react-dismissable-layer")).toMatch(/onEscapeKeyDown\?\.\(event\);\s*if \(!event\.defaultPrevented && onDismiss\) \{\s*event\.preventDefault\(\);\s*onDismiss\(\);/);
+  // The picker is a plain DropdownMenu: nothing of its own lets the Escape through unhandled.
+  const picker = readFileSync(new URL("./SettingsAgents.tsx", import.meta.url), "utf8");
+  expect(picker).toMatch(/<DropdownMenu\.Content /);
+  expect(picker).not.toMatch(/onEscapeKeyDown/);
 });
 
 test("a notification click: a known conversation goes where the permission toast's Open goes, an unknown one to its registered project's Overview, else nowhere", () => {
