@@ -247,7 +247,7 @@ describe("canvasConversationError", () => {
   });
 });
 
-// terminal-agent-activity design '표시' (canvas conversation panel): the terminal session choice waits while that
+// In the canvas conversation panel, the terminal session choice waits while that
 // session (provider:id) is in the working list. Identified sessions span roots; an anonymous one matches nothing.
 describe("resumeHeld", () => {
   const reply = { available: true as const, runtime: "codex" as const, session: "s1" };

@@ -9,7 +9,7 @@ import { initialCanvasState, type CanvasState } from "./CanvasController";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { CONVERSATION_PANEL_ID } from "./ConversationPanel";
 
-// buzz-canvas design §0 'default', 'no-frames', 'states' and §2 '프레임 서랍', '배율 컨트롤러', §5 copy.
+// PRODUCT §5 item 2 'Canvas header', 'Zoom controller' and item 3 'Frame drawer'.
 const row: CanvasRow = { path: ".doan/canvases/checkout.html", url: "doan://checkout", width: 1280 };
 const frames = ["Cart", "Shipping", "Payment"].map((title, index) => ({ id: title.toLowerCase(), title, x: 0, y: index * 900, width: 1280, height: 800 }));
 const layout = (over: Partial<LayoutMessage> = {}): LayoutMessage => ({ type: "layout", href: row.url, height: 2700, viewport: 2700, frames, truncated: false, ...over });
@@ -88,7 +88,7 @@ describe("CanvasHeader", () => {
     expect(button(markup, "Frame 3: Payment")).not.toContain("disabled");
   });
 
-  // design §2 '오른쪽 패널': the open button exists only while the conversation panel is folded, last in the header.
+  // The open button exists only while the conversation panel is folded, last in the header.
   it("shows the conversation panel's open button only while the panel is folded, after a divider", () => {
     expect(html(opened(), { open: true, show: vi.fn() })).not.toContain("Show conversation");
     const markup = html(opened(), { open: false, show: vi.fn() });

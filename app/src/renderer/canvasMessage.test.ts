@@ -471,7 +471,7 @@ test("validates Alt state messages separately from Escape", () => {
   }
 });
 
-// canvas-hand-tool design '키' 'iframe 경로': Space down/up and V/H forwarded from a focused canvas.
+// Space down/up and V/H forwarded from a focused canvas.
 describe("parseCanvasMessage: hand tool keys", () => {
   test("accepts Space down and up", () => {
     for (const down of [true, false]) {

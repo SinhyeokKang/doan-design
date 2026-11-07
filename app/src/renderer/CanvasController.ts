@@ -54,9 +54,9 @@ export interface CanvasState {
   // other changes, and whenever the view reaches or leaves a zoom limit.
   scale: number;
   activity: ActivityEvent[];
-  // The tool a person chose (canvas-hand-tool spec 결정 1); a pick runs ahead of it and leaves it as it was.
+  // The tool a person chose; a pick runs ahead of it and leaves it as it was.
   tool: CanvasTool;
-  // While the canvas waits for one click to name a chip's target (buzz-canvas-conversation design §2 'Picker').
+  // While the canvas waits for one click to name a chip's target.
   picking: boolean;
   // Capture mode: the board waits for a drag to name an area. Never with `picking`; like a
   // pick it runs ahead of `tool` and leaves it as it was.
@@ -192,7 +192,7 @@ export class CanvasController {
   // The Frames drawer's last pick-frame command in this document, to tell its reply from a click.
   private pickFrameCommand: { seq: number; id: string } | null = null;
   private locating: { anchor: Anchor; generation: number; request: number; settled: (result: LocateResult) => void; timer: ReturnType<typeof setTimeout> } | null = null;
-  // Hand tool (canvas-hand-tool design '방식', '도구 상태'). The controller lives as long as the app, so the tool
+  // Hand tool. The controller lives as long as the app, so the tool
   // outlives the Overview and empty states, which rebuild `state`. `toolChosen`: the person picked one, so a late
   // saved tool does not replace it. A tool chosen during a drag waits for its end (`pendingTool`): lowering the
   // layer first would drop the pointerup on the iframe, which selects.
@@ -1012,7 +1012,7 @@ export class CanvasController {
   }
 
   // The toolbar's Capture area. false: no board is drawn. A reload in progress keeps capture mode, and the drag too. A
-  // pick in progress ends; the selection stays (design §2 '선택').
+  // pick in progress ends; the selection stays.
   startCapture(): boolean {
     if (this.state.open === null || !this.boardShown()) return false;
     if (this.state.capturing) return true;
@@ -1089,8 +1089,8 @@ export class CanvasController {
   };
 
   // The layer comes down only here, after the release it took. A click, a small area, a dropped drag or a reload whose
-  // document has not laid out yet takes nothing and capture mode goes on (design 결정 6); an area ends capture mode at
-  // once (결정 2) and then goes to App.
+  // document has not laid out yet takes nothing and capture mode goes on; an area ends capture mode at
+  // once and then goes to App.
   private captureUp = (event: PointerEvent): void => {
     const drag = this.captureDrag;
     if (drag === null || event.pointerId !== drag.pointerId) return;
@@ -1134,7 +1134,7 @@ export class CanvasController {
   }
 
   // The root attribute hides the app's marks by opacity (styles.css), so nothing moves and focus stays. The first frame
-  // paints them hidden; the second lets that paint reach the window before main reads its pixels (design §2 '스냅숏').
+  // paints them hidden; the second lets that paint reach the window before main reads its pixels.
   private snapshot(rect: Rect): void {
     const take = this.captureListener?.(rect) ?? null;
     if (take === null) return;
@@ -1263,7 +1263,7 @@ export class CanvasController {
     this.tooltipEscape = mark;
   }
 
-  // Esc's next step (canvas-hand-tool design '키' 'Esc'); `editable`: it came from a text field. Returns the step.
+  // Esc's next step; `editable`: it came from a text field. Returns the step.
   private escape(editable: boolean): ReturnType<typeof escapeStep> {
     const step = escapeStep({ picking: this.state.picking, capturing: this.state.capturing, hand: this.canvasPage && (this.pendingTool ?? this.tool) === "hand", editable });
     if (step === "cancelPick") this.cancelPick();
@@ -1614,7 +1614,7 @@ export class CanvasController {
     this.applyView();
   }
 
-  // The first Fit of a freshly opened canvas, again at the board's present size (buzz-canvas design §2 '첫 Fit'). The
+  // The first Fit of a freshly opened canvas, again at the board's present size. The
   // canvas loads while the Overview still lays out the page (its right column is 280 wide), so the renderer calls this
   // once the canvas page's own column width is applied. Only once per load; later width changes keep the top-left.
   settleFit(): void {
@@ -1671,7 +1671,7 @@ export class CanvasController {
   }
   // The open canvas's work from the agent notice's pick. App calls it whenever that pick or the open canvas changes,
   // also with no work, so a change of canvas is seen as entering it: the frame worked on then counts as followed, and
-  // following waits for the next one (design §1 rule 9 '캔버스에 들어옴').
+  // following waits for the next one.
   setWork(target: CanvasWorkTarget | null): void {
     const key = target && canvasKey(target.root, target.path);
     const entered = key !== this.workCanvas;

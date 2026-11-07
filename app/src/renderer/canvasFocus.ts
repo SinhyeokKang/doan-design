@@ -1,4 +1,4 @@
-// Focus decisions for the canvas page's header menus and board controls (buzz-canvas design §2 'Esc와 포커스'). The
+// Focus decisions for the canvas page's header menus and board controls. The
 // components read the DOM and apply the answer; Radix still moves focus back to a usable trigger itself.
 
 // Whether an open header menu closes itself now. A trigger that turned disabled (the load failed, no width) closes its

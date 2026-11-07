@@ -4,7 +4,7 @@ import type { Canvas } from "../main/conversation/types";
 import type { FolderEntry } from "../main/view";
 import type { WorkItem } from "../main/workState";
 
-// terminal-agent-activity design '표시' (canvas conversation panel), run with hooks as plain state (the App tests' no-DOM
+// The canvas conversation panel, run with hooks as plain state (the App tests' no-DOM
 // style): a terminal session choice that was chosen falls back to a new conversation while that session works in a
 // terminal, and stays a new conversation once the session ends, so the choice never flips back under a draft.
 const hooks = vi.hoisted(() => ({

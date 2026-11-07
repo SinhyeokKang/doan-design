@@ -130,7 +130,7 @@ describe("CanvasAgent Stop", () => {
     expect(label(tree)).toBe("Stop");
   });
 
-  // terminal-agent-activity design '표시': the app turn ends while a terminal session still works on the canvas.
+  // The app turn ends while a terminal session still works on the canvas.
   test("after a Stop, the notice stays for a terminal session left on the canvas, without its button", async () => {
     const work = [{ touched: 0, turn: "none:t", session: "s1", provider: "claude" as const, root: "/w/a", path: canvas.path }];
     const withWork = (list: readonly ConversationSummary[]) => () => CanvasAgent({ list, canvas: { root: "/w/a", canvas }, running: true, work, entries: [], onOpen: vi.fn(), onOpenSibling: vi.fn(), onStopFailed });

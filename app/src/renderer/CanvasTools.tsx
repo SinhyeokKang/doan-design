@@ -16,7 +16,7 @@ const TOOLS: readonly { tool: CanvasTool; label: string; key: string; Icon: type
   { tool: "hand", label: "Hand", key: "H", Icon: Hand },
 ];
 
-// The bottom tools row (buzz-canvas design §2 '도구모음', canvas-hand-tool design '도구모음'). Select and Hand are
+// The bottom tools row (PRODUCT §5 item 2 'Toolbar'). Select and Hand are
 // pressed one at a time; pressing the pressed one keeps it. The pressed tool holds the toolbar's one Tab stop. In
 // Hand a canvas click does not select, so the pressed button is what tells the person why.
 // The Picker is not a tool that stays: it toggles the composer's one pick, and only it
@@ -27,7 +27,7 @@ const TOOLS: readonly { tool: CanvasTool; label: string; key: string; Icon: type
 // The unavailable Export's reason is also an sr-only sibling it names: Radix links the tooltip only while it is open, so
 // without it the reason is gone once the tooltip closes. One canvas area, so one id.
 // Capture area follows the Picker: a mode, pressed only during capture mode, with no
-// shortcut (결정 5), and Export's sr-only reason while unavailable. During capture mode it always ends the mode, even
+// shortcut, and Export's sr-only reason while unavailable. During capture mode it always ends the mode, even
 // once it could not start again (a paste filled the draft meanwhile), so a pressed button is never a dead one.
 const EXPORT_REASON_ID = "canvas-export-reason";
 const CAPTURE_REASON_ID = "canvas-capture-reason";

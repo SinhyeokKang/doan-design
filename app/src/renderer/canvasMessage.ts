@@ -94,7 +94,7 @@ export interface ClearMessage extends SelectionMessageBase {
   type: "clear";
 }
 
-// Space, V and H come from a canvas that has focus after an ⌥-click (canvas-hand-tool design '키' 'iframe 경로').
+// Space, V and H come from a canvas that has focus after an ⌥-click.
 export type KeyMessage = SelectionMessageBase & { type: "key" } & (
   { key: "Escape" } | { key: "Alt"; alt: boolean } | { key: "Space"; down: boolean } | { key: "V" | "H" }
 );

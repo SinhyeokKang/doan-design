@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test, vi } from "vitest";
 import { CanvasTrashDialog, trashDialogView } from "./CanvasTrashDialog";
 
-// canvas-row-menu design 'Alert Dialog' and '문구'.
+// PRODUCT §5 item 1 'Canvas row menu'.
 const PATH = ".doan/canvases/checkout.html";
 function all(node: ReactNode): ReactElement<Record<string, unknown>>[] {
   if (Array.isArray(node)) return node.flatMap(all);

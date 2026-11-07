@@ -126,12 +126,12 @@ it("does not notify React for repeated layouts or geometry-only changes", () => 
   } finally { controller.dispose(); }
 });
 
-// The drag layer App renders after the overlay (canvas-hand-tool design '방식').
+// The drag layer App renders after the overlay.
 function fakeLayer() {
   const captured = new Set<number>();
   return Object.assign(new EventTarget(), {
     hidden: false, dataset: {} as Record<string, string>, captured,
-    // Where the controller puts the capture layer: right after this one (canvas-capture design §2 '캡처 레이어').
+    // Where the controller puts the capture layer: right after this one.
     after: vi.fn(),
     setPointerCapture: (id: number) => { captured.add(id); },
     releasePointerCapture: (id: number) => { captured.delete(id); },
@@ -158,7 +158,7 @@ function selectionHarness() {
   const frames: (EventTarget & { contentWindow: { postMessage: ReturnType<typeof vi.fn> }; style: Record<string, string> })[] = [];
   const marks: FakeMark[] = [];
   // What the hand tool reads: which element has focus, and whether the app window has it.
-  // The document root carries the capture snapshot's attribute (canvas-capture design §2 '스냅숏').
+  // The document root carries the capture snapshot's attribute.
   const rootAttributes = new Map<string, string>();
   const doc = {
     activeElement: null as unknown,
@@ -510,9 +510,9 @@ describe("selection", () => {
   });
 });
 
-// design.md flow 7: each row is a pure decision (selection.test.ts); these pin
+// Each case of when the selection clears or is kept is a pure decision (selection.test.ts); these pin
 // that the controller actually applies it on the matching code path.
-describe("selection wiring (flow 7)", () => {
+describe("selection wiring", () => {
   afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
   const cleared = (h: ReturnType<typeof selectionHarness>) => {
@@ -1865,7 +1865,7 @@ it("opens another canvas of the open root at once, and only tells `opened` for t
   } finally { h.controller.dispose(); vi.unstubAllGlobals(); }
 });
 
-// buzz-canvas design §2 '첫 Fit': a canvas opened under the Overview is fitted to the board the canvas page lays out
+// A canvas opened under the Overview is fitted to the board the canvas page lays out
 // (its panel width, or none when folded), not to the Overview's layout; later width changes keep the view's top-left.
 describe("first Fit", () => {
   function opened(width: number) {
@@ -3544,7 +3544,7 @@ describe("hand tool", () => {
   });
 });
 
-// canvas-hand-tool design '방식' and '어두운 바탕의 키 표시': the layer sits over the board and under the canvas
+// The layer sits over the board and under the canvas
 // chrome, and the picking hint's Esc uses the shared key variant instead of its own rule.
 it("styles the drag layer between the board and the canvas chrome, and drops the picking hint's own key rule", async () => {
   const { readFileSync } = await import("node:fs");
@@ -4063,7 +4063,7 @@ describe("capture", () => {
       expect(captureShown(h)).toBe(true);
       pointer(h, "pointerup", { clientX: 640, clientY: 298 });
       expect(areas).toEqual([{ x: 340, y: 98, width: 300, height: 200 }]);
-      // App hears of the area after capture mode has ended and the layer is down (design 결정 2).
+      // App hears of the area after capture mode has ended and the layer is down.
       expect(seen).toEqual([{ capturing: false, layer: false }]);
       expect(h.state()).toMatchObject({ capturing: false, tool: "select" });
       expect(captureLayer(h).captured?.size).toBe(0);
