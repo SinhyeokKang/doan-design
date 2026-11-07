@@ -811,10 +811,10 @@ body:has(.shell-top) { background: transparent; }
 .strip-text b { font-weight: var(--type-weight-medium); }
 .strip-text span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .strip-actions { display: flex; align-items: center; gap: var(--space-2); }
-/* defect-sweep A5: a refused Skip or answer, on its own line under the strip's row, its alert mark under the provider
-   mark and in the danger ink like an error notice's; the row keeps the strip text's line gap. */
-.convo-strip:has(> .strip-error) { flex-wrap: wrap; row-gap: var(--space-1); }
-.convo-strip > .strip-error { flex-basis: 100%; display: flex; align-items: flex-start; gap: var(--space-1h); min-width: 0; color: var(--text-danger); }
+/* defect-sweep A5: the strip's text column, and under its text a refused Skip or answer on its own line with the alert
+   mark. Like every text in a notice it takes the strip's ink (the tone colours a notice), so the mark is what marks it. */
+.strip-main { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; flex: 1; }
+.strip-error { display: flex; align-items: flex-start; gap: var(--space-1h); }
 
 /* buzz-home: the sidebar row's status slot (design §7.2), at the right of the row before its menu, and an added project's flash (§6). */
 .row-slot { display: inline-grid; place-items: center; width: var(--size-icon); height: var(--size-icon); flex: none; margin-left: auto; }

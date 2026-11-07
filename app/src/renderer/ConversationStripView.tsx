@@ -61,7 +61,10 @@ export function ConversationStrip({ conversationId, provider, state, view, onEdi
   const tone = state.kind === "failed" ? " error" : state.kind === "done" ? " ok" : "";
   return <div className={`convo-strip doan-notice${tone}`} role="region" aria-label="Conversation">
     <span className="strip-agent doan-alert-icon">{mark}</span>
-    <span key={view.alertKey ?? "status"} className="strip-text" role={view.live}><b>{view.title}</b>{view.body && <span>{view.body}</span>}</span>
+    <span className="strip-main">
+      <span key={view.alertKey ?? "status"} className="strip-text" role={view.live}><b>{view.title}</b>{view.body && <span>{view.body}</span>}</span>
+      {errorText && <span className="strip-error" role="alert"><AlertIcon />{errorText}</span>}
+    </span>
     <span className="strip-actions">{view.actions.map(action => {
       // The draft (workspace-strip, states-strip) fills Allow; the other answers, Skip, Edit on Home and Open rest on the panel
       // white, since the strip's inset fill is subtle's own grey.
@@ -72,7 +75,6 @@ export function ConversationStrip({ conversationId, provider, state, view, onEdi
         {action.command === "stop" && <CircleStop aria-hidden="true" />}{action.label}
       </button>;
     })}</span>
-    {errorText && <span className="strip-error" role="alert"><AlertIcon />{errorText}</span>}
   </div>;
 }
 

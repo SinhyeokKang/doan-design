@@ -112,7 +112,7 @@ test("Stop calls interruptConversation; Edit on Home, Dismiss and Open call thei
 });
 
 test("failed and stopped offer Edit on Home (panel) and Dismiss; done offers Open (panel) and Dismiss", () => {
-  expect(render({ kind: "failed", code: "not_logged_in" })).toContain('<b>Claude Code’s sign-in expired</b><span>Edit your request on Home and choose another agent.</span></span><span class="strip-actions"><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel">Edit on Home</button><button type="button" class="doan-button" data-ui-size="sm">Dismiss</button></span>');
+  expect(render({ kind: "failed", code: "not_logged_in" })).toContain('<b>Claude Code’s sign-in expired</b><span>Edit your request on Home and choose another agent.</span></span></span><span class="strip-actions"><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel">Edit on Home</button><button type="button" class="doan-button" data-ui-size="sm">Dismiss</button></span>');
   expect(render({ kind: "interrupted", reason: "user" })).toContain("<b>Stopped</b><span>You stopped this conversation.</span>");
   expect(render({ kind: "done" }, { ...CTX, canvas: "design-system" })).toContain('<button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel">Open</button><button type="button" class="doan-button" data-ui-size="sm">Dismiss</button>');
 });
@@ -123,8 +123,9 @@ test("the alert line keeps its key across redraws of one request and changes it 
   hooks.mock = true;
   const line = (state: StripState) => {
     const tree = ConversationStrip({ conversationId: "c1", provider: "claude", state, view: stripView(state, CTX), onEditOnHome: noop, onDismiss: noop, onOpen: noop });
-    const children = Children.toArray((tree.props as { children: ReactNode }).children);
-    return children.find(child => isValidElement<{ className?: string; role?: string }>(child) && child.props.className === "strip-text") as { key: string | null; props: { role: string } };
+    // The text column (strip-main) holds the line, then the error line when there is one.
+    const main = Children.toArray((tree.props as { children: ReactNode }).children).find(child => isValidElement<{ className?: string }>(child) && child.props.className === "strip-main") as { props: { children: ReactNode } };
+    return Children.toArray(main.props.children).find(child => isValidElement<{ className?: string; role?: string }>(child) && child.props.className === "strip-text") as { key: string | null; props: { role: string } };
   };
   const first = line(ASK), redraw = line(ASK), next = line({ ...ASK, requestId: "r2" }), working = line({ kind: "working", activity: null });
   expect(first.props.role).toBe("alert");
