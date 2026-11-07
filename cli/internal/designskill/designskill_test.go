@@ -602,7 +602,7 @@ func TestDocumentPresetKeepsEvalConcepts(t *testing.T) {
 		t.Fatal(err)
 	}
 	// U-018: asked to update a design-system reference after a code change, no agent chose document;
-	// its description named only recording, not maintaining. A plain setup request still does not fit (D12).
+	// its description named only recording, not maintaining. A plain setup request still does not fit.
 	p, _ := c.Lookup("document")
 	desc := strings.ToLower(p.Description)
 	for _, s := range []string{"update", "code change", "not for plain doan setup"} {
