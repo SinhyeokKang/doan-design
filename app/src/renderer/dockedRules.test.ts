@@ -52,7 +52,7 @@ describe("dockedAvailability", () => {
     expect(dockedAvailability(input({ mode: { kind: "existing", conversationId: "c", provider: "codex" }, auth: auth() })).enabled).toBe(false);
     expect(dockedAvailability(input({ mode: { kind: "existing", conversationId: "c", provider: "codex" }, auth: auth(), external: true })).enabled).toBe(true);
   });
-  // buzz-project spec decision 12: an open Overview whose project turned into a problem keeps its thread readable,
+  // an open Overview whose project turned into a problem keeps its thread readable,
   // and Send says why it is held, as Home does.
   test("an unavailable project holds Send with its reason before anything else", () => {
     const text = "doan-design isn’t available. Fix it from its menu in the sidebar.";
@@ -162,7 +162,7 @@ describe("dockedPicker", () => {
     expect(picked.trigger).toEqual({ provider: "claude", label: "Opus 5.5", ariaLabel: "Model: Opus 5.5 (Claude Code)", placeholder: false, isDefault: false });
     expect(picked.groups.map(group => group.provider)).toEqual(["claude"]);
   });
-  // picker-default-labels spec 'Model': the default row says so; no model names the drawer.
+  // the default row says so; no model names the drawer.
   test("the default row's name ends with default; with no model the trigger names its drawer", () => {
     const shown = dockedPicker({ ...view, trigger: { ...view.trigger, ariaLabel: "Agent: Claude Code, model Opus 5.5, default", isDefault: true } }, EXISTING);
     expect(shown.trigger).toEqual({ provider: "claude", label: "Opus 5.5", ariaLabel: "Model: Opus 5.5, default (Claude Code)", placeholder: false, isDefault: true });
@@ -177,7 +177,7 @@ describe("dockedPicker", () => {
   });
 });
 
-// prompt-suggestion design 'renderer' 1, decisions 6 and 9: one rule for both hosts decides the drawn text and whether
+// one rule for both hosts decides the drawn text and whether
 // the suggestion is shown, so the →-key check can never disagree with what the field shows.
 describe("composerPlaceholder", () => {
   const preset: PresetSummary = { id: "polish", title: "Polish", description: "Final pass", scope: "canvas" };

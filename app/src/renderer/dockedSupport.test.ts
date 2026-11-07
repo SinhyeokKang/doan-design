@@ -4,7 +4,7 @@ import { DockedSupport, modelsKey } from "./dockedSupport";
 afterEach(() => vi.unstubAllGlobals());
 const flush = () => new Promise(resolve => setTimeout(resolve, 0));
 
-// permission-mode spec decision 7, orch decision 8: an existing conversation's pick is stored by main at once, shows
+// an existing conversation's pick is stored by main at once, shows
 // until the conversation's summary reports it, and a refused one falls back to the stored mode.
 test("an existing conversation's mode pick is stored at once and shows until the summary reports it", async () => {
   const set = vi.fn(async () => undefined);

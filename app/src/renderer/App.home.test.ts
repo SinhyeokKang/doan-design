@@ -2,7 +2,7 @@ import { expect, test } from "vitest";
 import { mergeConversationMemory, savedUiState, wizardCloseFocus } from "./App";
 import { removalConfirm, restoreRequest, type LastRequest } from "./homeConversations";
 
-// buzz-home tasks U5: App's own helpers; the send, move, binding, toast and removal wiring is in homeRun.test.ts.
+// App's own helpers; the send, move, binding, toast and removal wiring is in homeRun.test.ts.
 
 const base = { screen: "home" as const, loadedRoot: null, open: null, expanded: {}, shellProjects: {}, view: { scale: 1, x: 0, y: 0 }, memory: {} };
 
@@ -17,7 +17,7 @@ test("every main-window save carries Home's memory, and none is sent before that
   expect(savedUiState({ ...base, home: null })).toBeNull();
 });
 
-// buzz-project tasks T1: the conversation last shown in each root's Overview is saved top-level with every save.
+// the conversation last shown in each root's Overview is saved top-level with every save.
 test("every save carries the Overview conversation memory by root, and an empty one is left out", () => {
   const home = {};
   const conversationByRoot = { "/code/doan": "aaaaaaaa-0000-4000-8000-000000000001" };

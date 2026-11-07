@@ -39,7 +39,7 @@ test("a preset row is its title over its description", () => {
   expect(html).toContain('<div class="popover-list doan-scroll" role="listbox"');
 });
 
-// permission-mode spec decision 5: Full access shows its name, a warning icon and the warning ink (data-mode), never
+// Full access shows its name, a warning icon and the warning ink (data-mode), never
 // colour alone.
 test("the permission trigger shows the mode's icon and label; Full access warns", () => {
   const html = (mode: "default" | "bypass", size?: "xs") => renderToStaticMarkup(<TooltipProvider><PermissionPicker view={permissionPickerView("codex", undefined, mode)!} disabled={false} onPick={() => {}} {...(size ? { size } : {})} /></TooltipProvider>);
@@ -147,7 +147,7 @@ test("the canvas's press signal closes an open Presets popover without returning
   } finally { hooks.on = false; }
 });
 
-// fast-mode B2 (design §1, decisions 9–11): the Fast row under the Effort levels and the trigger's Fast icon.
+// the Fast row under the Effort levels and the trigger's Fast icon.
 type EffortView = NonNullable<ModelPickerView["effort"]>;
 const effortView = (fast: EffortView["fast"], ariaLabel = "Effort: High"): EffortView => ({
   label: "High", ariaLabel, placeholder: false, menuLabel: "Effort for GPT-6.1 Sol", title: "Effort · GPT-6.1 Sol",
@@ -208,7 +208,7 @@ test("an unavailable Fast row is disabled and says why; without Fast the menu st
   expect(none.filter(item => item.type === DropdownMenu.Separator)).toHaveLength(1);
 });
 
-// picker-default-labels B1 (spec 'Effort', design §1 ComposerParts): the menu opens with a Default row that goes back to
+// the menu opens with a Default row that goes back to
 // sending no level, checked while nothing is chosen.
 test("the effort menu opens with a Default row over its line; picking it passes an empty level", () => {
   const onPick = vi.fn();
@@ -249,7 +249,7 @@ function agentTree(p: { picker: ModelPickerView; onPick(provider: string, value:
   try { return propsOf(AgentPicker({ picker: p.picker, auth: undefined, disabled: false, onOpen: () => {}, onPick: p.onPick, onSettings: () => {}, ...(p.size ? { size: p.size } : {}) })); } finally { hooks.on = false; }
 }
 
-// picker-default-labels B1 (spec 'Model'): the default row carries a small Default after its name; a trigger with no
+// the default row carries a small Default after its name; a trigger with no
 // model names its drawer in the placeholder ink.
 const agentPicker = (trigger: ModelPickerView["trigger"]): ModelPickerView => ({
   trigger, effort: null,
@@ -302,7 +302,7 @@ test("the agent picker passes null for the pre-list Default row and a model row'
   expect(onPick).toHaveBeenLastCalledWith("codex", null);
 });
 
-// model-drawer-older task 3 (spec 3–8, design §2): a group's older models fold under an "Older models" line.
+// a group's older models fold under an "Older models" line.
 const OLDER_PICKER = (selected: string | null): ModelPickerView => ({
   trigger: { provider: "codex", label: "GPT-6.1-Sol", ariaLabel: "Agent: Codex, model GPT-6.1-Sol", placeholder: false, isDefault: true }, effort: null,
   groups: [

@@ -81,7 +81,7 @@ test("a prompt that arrives while no page shows the rows is kept: shown again, t
   expect(row.paste?.button.label).toBe("Paste its address");
 });
 
-// buzz-settings R2: codex login opens the default browser itself (its webbrowser crate), so a second open from Doan
+// codex login opens the default browser itself (its webbrowser crate), so a second open from Doan
 // showed the user two sign-in pages. Its prompt only lights Open again.
 test("a Codex sign-in opens nothing: the CLI opens its own browser page", async () => {
   const h = harness();

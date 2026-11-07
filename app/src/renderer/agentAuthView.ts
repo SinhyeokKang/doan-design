@@ -34,7 +34,7 @@ export interface ProviderView {
 // reply: its last refused call for this provider. failures: sign_in_failed results in a row.
 // busyWith: the provider whose sign-in or sign-out holds the lock. autoCheck: the consumer checks unverified
 // connections itself when its screen opens (the onboarding Agent step), so the row may say so.
-// settings: the row is on Settings > Agents rather than the first-run Agent step (buzz-settings design 'Agents').
+// settings: the row is on Settings > Agents rather than the first-run Agent step.
 // install: the latest Install or Update request's result on this row, set by the screen showing the rows.
 export interface ProviderContext { prompt?: string | null; reply?: AuthReason | null; failures?: number; busyWith?: Provider | null; autoCheck?: boolean; settings?: boolean; install?: InstallState | null }
 // checked: the window came back after it opened, and the return check ran.
@@ -51,7 +51,7 @@ function disable(view: ProviderView): ProviderView {
 }
 
 // Copilot's check spends one model request; a version cause only re-reads tool facts and spends nothing.
-// The cost is shown, not only announced (spec); the unverified row carries it in its detail line instead.
+// The cost is shown, not only announced; the unverified row carries it in its detail line instead.
 function check(provider: Provider, label: string, free: boolean): AuthButton {
   if (provider !== "copilot" || free) return button("check", label);
   return { ...button("check", label, "prominent", false, `Check ${PROVIDER_NAMES[provider]} again, uses one Copilot request`), note: "Uses one Copilot request" };
@@ -282,7 +282,7 @@ export function stopDialog(provider: Provider, intent: "signIn" | "signOut"): { 
   const name = PROVIDER_NAMES[provider];
   return {
     title: `Stop ${name} conversations?`,
-    // Signing out also logs the agent out of its MCP servers (mcp-connectors spec 8); only Claude Code and Codex have them.
+    // Signing out also logs the agent out of its MCP servers; only Claude Code and Codex have them.
     body: `${name} is running a conversation. ${intent === "signOut" ? "Signing out" : "Signing in again"} stops it. Your conversation history stays.${intent === "signOut" && (provider === "claude" || provider === "codex") ? " Its MCP connectors need connecting again." : ""}`,
     cancel: button("dismiss", "Cancel", "subtle"), confirm: button(intent, intent === "signOut" ? "Stop and sign out" : "Stop and sign in"),
   };

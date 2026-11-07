@@ -109,7 +109,7 @@ const setups = {
   "canvas panel": { setup: async (patch: object) => panel(patch), row: (patch: Partial<ConversationSummary> = {}) => summary({ canvas: CANVAS, ...patch }) },
 };
 
-// RV-B 🟡1, spec decision 4: a new conversation's mode pick is the picked provider's. Switching the provider drops it,
+// RV-B 🟡1: a new conversation's mode pick is the picked provider's. Switching the provider drops it,
 // so the new provider shows (and remembers) its own mode; Full access picked for Claude never carries to Codex.
 for (const [name, { setup }] of Object.entries(setups)) test(`${name}: a provider switch drops the picked mode`, async () => {
   const onRemember = vi.fn();

@@ -4,7 +4,7 @@ import type { CanvasRow, FolderEntry } from "../main/view";
 import type { PreferencesSnapshot } from "../main/preferences";
 import type { HandoffNotice } from "../main/conversation/handoff";
 
-// canvas-handoff U2 (design §6 'Move', decision 5): App's handling of conversation:handoff. Driven with hooks as plain
+// App's handling of conversation:handoff. Driven with hooks as plain
 // state and a stub controller, as App.replyChips.test.tsx is.
 const hooks = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],

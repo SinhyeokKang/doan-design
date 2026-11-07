@@ -306,7 +306,7 @@ function openDialog(closes: boolean) {
   vi.stubGlobal("document", { activeElement: null, body: {}, querySelector: () => null, querySelectorAll: (selector: string) => selector === "dialog[open]" && dialog.open ? [dialog] : [] });
   return dialog;
 }
-// The Set Up dialog stands for any dialog here (Project Settings is a page now, project-settings T4).
+// The Set Up dialog stands for any dialog here (Project Settings is a page now).
 function openSetUp() {
   folders([{ path: "/w/b", kind: "uninitialized" }]);
   (all(tree).find(element => element.type === ShellSidebar)!.props as unknown as { action(action: string, root: string): void }).action("setUp", "/w/b"); render();
@@ -336,7 +336,7 @@ test("a dialog that does not close for its cancel (busy) keeps the link from mov
   expect(harness.toast.show).not.toHaveBeenCalled();
 });
 
-// canvas-open-offer T5: a `doan open` request moves as a link does and answers main by its id once the move is decided.
+// a `doan open` request moves as a link does and answers main by its id once the move is decided.
 // A refusal answers with its reason and shows nothing: no toast, no move. The frame result comes from the listed frames.
 const opens = () => harness.controller!.openCanvas!.mockImplementation((...args: unknown[]) => { (args[3] as { opened?: () => void } | undefined)?.opened?.(); });
 const framed = () => { listeners.folders!([{ path: "/w/a", kind: "list", servedRev: 0, canvases: [{ ...rows()[0]!, frames: [{ id: "hero" }] }, rows()[1]!] }] as never); render(); };
@@ -495,7 +495,7 @@ test("leaving a project folded by its chevron drops the fold, so it unfolds when
   expect(projectExpanded({ ...sidebar().projects[key("/w/a")]!, roots: ["/w/a"] }, "/w/a")).toBe(true);
 });
 
-// work-update R2: app conversations' `doan work update` content, read like terminal work (subscribed first), and the
+// app conversations' `doan work update` content, read like terminal work (subscribed first), and the
 // open document's frames go to the canvas page; the indicator's work for the canvas goes to the controller.
 const conv = (path: string, root = "/w/a"): ConversationWork => ({ conversationId: "p1", root, path, frame: "hero", touched: 3, turnId: "u1" });
 

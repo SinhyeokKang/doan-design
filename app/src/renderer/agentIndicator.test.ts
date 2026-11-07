@@ -373,7 +373,7 @@ describe("DotFieldLoop", () => {
   });
 });
 
-// work-update A5 (design §1 rules 6–8, decisions 13, 15, 18): which work content the open canvas shows, the notice's
+// which work content the open canvas shows, the notice's
 // words for it, and the frame its marker goes on. Identity is root + path (POSTMORTEM 2026-11-01).
 describe("work content on the open canvas", () => {
   const target = { root: "/w/a", canvas: { path: row.path, id: "billing" } };
@@ -398,7 +398,7 @@ describe("work content on the open canvas", () => {
       expect(pickWork(target, null, [conv({ touched: 20, frame: "p" })], [term({ touched: 30, frame: "t" })])).toEqual({
         source: "terminal:claude:s1", key: "terminal:t1", touched: 30, frame: "t", waiting: false });
     });
-    test("a canvas conversation bound to another canvas that names this one counts like a project conversation (decision 13)", () => {
+    test("a canvas conversation bound to another canvas that names this one counts like a project conversation", () => {
       expect(pickWork(target, null, [conv({ conversationId: "c9", frame: "f" })], [])).toMatchObject({ source: "conversation:c9", frame: "f" });
     });
     test("another root's work on the same path never shows here, across switches between the two roots", () => {
@@ -415,7 +415,7 @@ describe("work content on the open canvas", () => {
   });
 
   describe("canvasAgent with conversation work", () => {
-    test("a project conversation naming this canvas shows the indicator without Stop (decision 15)", () => {
+    test("a project conversation naming this canvas shows the indicator without Stop", () => {
       expect(canvasAgent([], target, null, [], [conv()])).toEqual({ root: "/w/a", presence: null, terminal: true });
       expect(agentNoticeView(null, null, true)?.action).toBeNull();
     });
@@ -471,7 +471,7 @@ describe("work content on the open canvas", () => {
   });
 });
 
-// work-update R2: what App hands the controller for the marker and following, from the notice's own pick.
+// what App hands the controller for the marker and following, from the notice's own pick.
 describe("canvasWorkTarget", () => {
   const target = { root: "/w/a", canvas: { path: row.path, id: "billing" } };
   const term = (patch: Partial<WorkItem> = {}): WorkItem => ({ session: "s1", provider: "claude", root: "/w/a", path: row.path, touched: 10, turn: "claude:t1", ...patch });

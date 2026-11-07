@@ -20,7 +20,7 @@ import {
 } from "./homeComposer";
 import type { PermissionIcon, PermissionPickerView } from "./permissionPicker";
 
-// The composer's shared primitives (buzz-conversation design §3.1): Home's HeroComposer assembles them today and the
+// The composer's shared primitives: Home's HeroComposer assembles them today and the
 // docked composer will. Each draws the markup Home drew before the split, so Home's computed styles and DOM order stay.
 
 const GROUP_ICONS: Record<string, typeof Compass> = { "square-slash": SquareSlash, compass: Compass, "scan-eye": ScanEye, paintbrush: Paintbrush, "text-align-start": TextAlignStart, shapes: Shapes, "pencil-sparkles": PencilSparkles };
@@ -44,7 +44,7 @@ export function ComposerCard({ readonly, children }: { readonly: boolean; childr
   return <div className={`composer-card${readonly ? " readonly" : ""}`}>{children}</div>;
 }
 
-// Files dragged over the composer attach; the window's own drop handling never sees them (buzz-home design §4.8).
+// Files dragged over the composer attach; the window's own drop handling never sees them.
 export function useComposerDrop(options: { blocked: () => boolean; onFiles(files: File[]): void; onNotice(text: string | null): void }) {
   const [dropping, setDropping] = useState(false);
   const depth = useRef(0);
@@ -94,7 +94,7 @@ export function ComposerChips(props: {
   </div>;
 }
 
-// The text field: typed text and inline anchor chips (buzz-canvas-conversation design §2 'Chip field'), drawn by
+// The text field: typed text and inline anchor chips, drawn by
 // ChipField into one contenteditable element that both shapes keep (remounting would drop focus and IME composition).
 // The value is segments: {text, anchors} cannot tell a typed {{1}} from a chip's marker, so hosts convert at send time
 // (anchorField.ts toMessage). Enter sends unless an IME is composing; `onKey` sees every key first and returns true when
@@ -126,7 +126,7 @@ export const ComposerField = forwardRef<ComposerFieldHandle, {
   onPaste(event: ClipboardEvent<HTMLDivElement>): void; onInput?(): void; onAnnounce?(text: string): void;
   // A click on a chip in the field (the caret is already right after it).
   onChipClick?: ((anchor: Anchor, chip: HTMLElement) => void) | undefined;
-  // The reason line under the docked card also describes the field (design §3.1).
+  // The reason line under the docked card also describes the field.
   describedBy?: string | undefined;
 }>(function ComposerField(props, ref) {
   const { combobox } = props;
@@ -181,7 +181,7 @@ export function AttachButton({ disabled, onClick, tray = false }: { disabled: bo
   return <IconTip label="Attach files"><button type="button" className={tray ? "doan-icon-button composer-attach" : "doan-icon-button"} data-ui-size={tray ? "xs" : undefined} aria-label="Attach files" disabled={disabled} onClick={onClick}><Plus aria-hidden="true" /></button></IconTip>;
 }
 
-// Group tabs are one Tab stop; ←/→ move between them (buzz-home design §4.4).
+// Group tabs are one Tab stop; ←/→ move between them.
 export function tabKey(keys: readonly string[], current: string, key: string): string | null {
   const at = keys.indexOf(current);
   if (at === -1 || (key !== "ArrowLeft" && key !== "ArrowRight")) return null;
@@ -249,7 +249,7 @@ function SearchField({ value, slash, listId, onChange, label = "Search presets" 
 // message instead, and the canvas page hands it to the preset lists: subscribe with a listener, get the unsubscribe.
 export type CanvasPress = (listener: () => void) => () => void;
 
-// The Presets button and its popover (buzz-home design §4.4). Picking a preset closes the popover and hands focus to
+// The Presets button and its popover. Picking a preset closes the popover and hands focus to
 // the field through `onPicked`; a list that failed is read again when the popover opens. A press outside it in the
 // app's document closes it by Radix's own rule; a press in the canvas closes it through `canvasPress`.
 export function PresetsButton(props: {
@@ -323,7 +323,7 @@ export function usePresetListOutside(open: boolean, list: RefObject<HTMLElement 
 
 type Picker = ReturnType<typeof modelPickerView>;
 
-// The Older models fold of a model menu (model-drawer-older design §2), shared by the agent picker and Settings' Model
+// The Older models fold of a model menu, shared by the agent picker and Settings' Model
 // menu. Opening or closing the menu (onOpenChange) drops it, so a menu always opens folded but for a checked older model.
 export interface OlderFold {
   onOpenChange(open: boolean): void;
@@ -408,15 +408,14 @@ export function useOlderFold(groups: readonly { provider: string; rows: readonly
     },
   };
 }
-// A trigger with no value shows its drawer's name in the metadata ink, so it reads as a heading, not a choice
-// (picker-default-labels decision 9).
+// A trigger with no value shows its drawer's name in the metadata ink, so it reads as a heading, not a choice.
 export function TriggerLabel({ text, placeholder }: { text: string; placeholder: boolean }) {
   return <span className={placeholder ? "label placeholder" : "label"}>{text}</span>;
 }
 // The agent and model picker (buzz-settings design '홈 공급자 선택기'): a group per provider, its fix in Settings when it
 // cannot run. `onPick` gets the provider and a model id, or null for the Default row shown before the list is read:
 // Claude Code's own default model has the id "default", so that word cannot stand for the row.
-// `size`: Home's tools row uses sm; the docked row under the card steps down to xs (design §0).
+// `size`: Home's tools row uses sm; the docked row under the card steps down to xs.
 export function AgentPicker(props: {
   picker: Picker; auth: AuthSnapshot | null | undefined; disabled: boolean; size?: "sm" | "xs";
   onOpen(): void; onPick(provider: Provider, value: string | null): void; onSettings(target: SettingsTarget): void;
@@ -462,7 +461,7 @@ export function AgentPicker(props: {
 
 // The effort picker, shown only when the chosen model has effort steps.
 // In the docked tray (xs) the label can hide at a narrow width (styles.css container steps), so the trigger keeps
-// its name in a tooltip there. With a Fast row (fast-mode design §1) the tooltip shows at both sizes: the trigger's
+// its name in a tooltip there. With a Fast row the tooltip shows at both sizes: the trigger's
 // Fast icon is its only mark, and the name says whether Fast is on.
 export function EffortPicker({ view, effort, disabled, onPick, onPickFast, size = "sm" }: { view: NonNullable<Picker["effort"]>; effort: string | null; disabled: boolean; onPick(value: string): void; onPickFast?(on: boolean): void; size?: "sm" | "xs" }) {
   const { fast } = view;
@@ -516,7 +515,7 @@ export function PermissionMenuItems({ view, onPick }: { view: PermissionPickerVi
   </>;
 }
 
-// The permission mode picker (permission-mode spec decisions 1, 2, 5), after Effort. Full access keeps its name, its
+// The permission mode picker, after Effort. Full access keeps its name, its
 // warning icon and the danger ink (data-mode); in the docked tray its label may hide, so the tooltip and
 // aria-label keep the name.
 export function PermissionPicker({ view, disabled, onPick, size = "sm" }: { view: PermissionPickerView; disabled: boolean; onPick(mode: PermissionModeId): void; size?: "sm" | "xs" }) {

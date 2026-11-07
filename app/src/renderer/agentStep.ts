@@ -99,7 +99,7 @@ export class AgentStepSession {
 
   retryRead(): void { void this.signIn.read(); }
   // Returning from a browser or an install page: read everything; only install returns check. Copilot is checked only
-  // while its cause is the CLI or its version, when a check re-reads tool facts and spends no request (D21).
+  // while its cause is the CLI or its version, when a check re-reads tool facts and spends no request.
   windowFocused(): void {
     const installed = [...this.installs], request = this.installRequests;
     this.installs.clear();

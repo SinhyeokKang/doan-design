@@ -36,8 +36,8 @@ export interface PickedWork { source: string; key: string; touched: number; fram
 
 // The canvas's own working or waiting conversation decides alone, with its content on this canvas or none. Otherwise
 // the last update on this root and path wins among project conversations, conversations bound to another canvas
-// (decision 13) and terminal sessions. A twin path in another worktree never counts (POSTMORTEM 2026-11-01).
-// Work content comes from `doan work update` (work-update design §1 rules 4–6): a terminal session's items carry it with
+// and terminal sessions. A twin path in another worktree never counts (POSTMORTEM 2026-11-01).
+// Work content comes from `doan work update`: a terminal session's items carry it with
 // main's turn id; an app conversation's (`ConversationWork`) lives apart from them so it is never counted as terminal work.
 export function pickWork(target: WorkingCanvas | null, presence: AgentPresence | null, conversations: readonly ConversationWork[], terminal: readonly WorkItem[]): PickedWork | null {
   if (!target) return null;
@@ -82,7 +82,7 @@ export function workFrameTitle(cache: TitleCache | null, target: WorkingCanvas |
 
 // The working frame's rect in the current layout: the first frame with the id, as frame jumps take it. None without a
 // layout (loading, a canvas without doan:width), when the document has no such frame, or when the frame has no size:
-// a reload's first layout can report every frame as 0 × 0 at (0, 0) before the document is measured (R1), and following
+// a reload's first layout can report every frame as 0 × 0 at (0, 0) before the document is measured, and following
 // or marking that would place the board's origin, not the frame.
 export function workFrameRect(layout: Pick<LayoutMessage, "frames"> | null, id: string | undefined): CanvasFrameRect | null {
   if (!layout || id === undefined) return null;
@@ -91,7 +91,7 @@ export function workFrameRect(layout: Pick<LayoutMessage, "frames"> | null, id: 
 }
 
 // presence null: no app conversation of this canvas works on it; a terminal session, a project conversation or a
-// conversation bound to another canvas does (`doan work`), so there is nothing to Stop (decision 15).
+// conversation bound to another canvas does (`doan work`), so there is nothing to Stop.
 export type CanvasAgentState = { root: string; presence: AgentPresence; provider: string } | { root: string; presence: null; terminal: true };
 
 // agentPresence with the provider's display name, which the Stop failure toast names. A failed read keeps the previous
@@ -134,7 +134,7 @@ export function siblingWork(work: readonly WorkItem[], target: WorkingCanvas | n
 export interface AgentNoticeView {
   // The visible words; the tooltip shows them whole.
   text: string;
-  // The screen reader's words: with a note and a frame both, the frame's title too (decision 19).
+  // The screen reader's words: with a note and a frame both, the frame's title too.
   status: string;
   // The dot stops while the agent waits for an answer.
   steady: boolean;
@@ -143,9 +143,9 @@ export interface AgentNoticeView {
 }
 
 // `stopping` is the conversation whose Stop was pressed and whose turn has not ended yet. `terminal`: a terminal session
-// works on the canvas; it shows only without an app presence, with the same words and no button (user decision D1).
+// works on the canvas; it shows only without an app presence, with the same words and no button.
 // `content` is the picked work's frame and note, with the frame's title as last found (its id before a layout names it):
-// the note as written, else "Working on <title>" (decision 18), else the fixed words. Waiting overrides it: the person
+// the note as written, else "Working on <title>", else the fixed words. Waiting overrides it: the person
 // has to act.
 export function agentNoticeView(presence: AgentPresence | null, stopping: string | null, terminal: boolean, content: { frame?: string; title?: string; note?: string } | null = null): AgentNoticeView | null {
   if (!presence && !terminal) return null;
@@ -179,7 +179,7 @@ export async function stopTurn(conversationId: string, provider: string, interru
   }
 }
 
-// The dot field (design §2): malmoi's DotField (components/signin/dot-field.tsx, lib/signin/dot-field.ts at 6dcdd575)
+// The dot field: malmoi's DotField (components/signin/dot-field.tsx, lib/signin/dot-field.ts at 6dcdd575)
 // with doan's values. The alphas are twice malmoi's base (dogfooding #4): white dots at 0.08 barely showed on the
 // light board.
 export const DOT_FIELD = { gap: 12, baseRadius: 1.5, maxRadius: 2, baseAlpha: 0.16, maxAlpha: 0.5, radius: 320, speed: 320, rows: 5 } as const;
@@ -210,7 +210,7 @@ export function drawDotField(ctx: DotContext, width: number, height: number, dot
 
 // The field's animation frames. `draw` gets the time the cursor has travelled, or null for the still field of reduced
 // motion. Paused, it asks for no frame: a hidden workspace or window still runs requestAnimationFrame, so the field
-// must stop itself there (design §2). Resuming continues the sweep where it paused.
+// must stop itself there. Resuming continues the sweep where it paused.
 export class DotFieldLoop {
   private frame: number | null = null;
   private running = false;

@@ -1,7 +1,7 @@
 import { afterEach, expect, test, vi } from "vitest";
 import { copyText } from "./copyText";
 
-// buzz-project design §8: main denies every permission check, so the thread's Copy writes through the document's own
+// main denies every permission check, so the thread's Copy writes through the document's own
 // copy command. Review RM r1 ⚪(d): no element takes focus or selection for it, so the person's field (an IME
 // composition may be in it) is never blurred; the copy event's clipboard data carries the text instead.
 

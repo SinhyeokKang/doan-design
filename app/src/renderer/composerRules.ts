@@ -1,4 +1,4 @@
-// Rules shared by the Home (hero) and docked composers (buzz-conversation design §3.1, §3.2). Measurements and focus
+// Rules shared by the Home (hero) and docked composers. Measurements and focus
 // are the host's; these functions only decide.
 
 export type ComposerShape = "capsule" | "box";
@@ -21,7 +21,7 @@ export function composerShape(previous: ComposerShape, input: ShapeInput): Compo
 
 export type ComposerAction = "send" | "stop" | "queue";
 
-// The Send slot while a turn runs (spec decision 9): Stop while the field is empty, Queue once there is something to
+// The Send slot while a turn runs: Stop while the field is empty, Queue once there is something to
 // send. `request` is the composed request (homeComposer's composeRequest), so a chip alone counts as content. Queued
 // messages do not change the slot: an empty field still offers Stop.
 export function composerAction(running: boolean, request: string): ComposerAction {
@@ -45,7 +45,7 @@ export type FocusAction =
   | { kind: "sent" };
 export type FocusTarget = { kind: "option"; requestId: string } | { kind: "field"; caretAtEnd: boolean };
 
-// Where focus goes after each action (design §3.1). `pending` lists the permission requests still waiting, in the
+// Where focus goes after each action. `pending` lists the permission requests still waiting, in the
 // order they arrived; the answered one may still be in it until main's resolution arrives.
 export function focusAfter(action: FocusAction, state: { pending: readonly string[] }): FocusTarget {
   switch (action.kind) {

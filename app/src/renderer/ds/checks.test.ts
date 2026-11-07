@@ -39,7 +39,7 @@ const violetAllowed = [
   '.doan-icon-button[data-ui-variant="accent"]',
   '.doan-icon-button[data-ui-variant="accent"]:hover:not(:disabled)',
   '.doan-icon-button[data-ui-variant="accent"]:is(:active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled)',
-  // The rest of Home's accent places (buzz-home design §4.4, §4.4b, §4.8, §5, §7.2): Send's spinner ink, the chosen
+  // The rest of Home's accent places: Send's spinner ink, the chosen
   // preset chip, the suggested prompts' group icons, the Home-only glow around the composer (dogfooding moved it from a panel-wide ellipse), the drop outline and the sidebar status slot.
   ".composer-send .doan-spinner",
   ".preset-chip",
@@ -47,7 +47,7 @@ const violetAllowed = [
   // The suggested prompt's icon tile (suggested-prompt-variants C, confirmed 2026-11-03).
   ".suggestion-icon",
   // The project and canvas names inside a suggested sentence: the anchor chip's values as an inline highlight
-  // (small-ui-tweaks decision 7, confirmed draft 2026-11-06).
+  // (confirmed draft 2026-11-06).
   ".suggestion-value",
   ".skill-word",
   ".preset-item .suggestion-icon svg",
@@ -56,32 +56,27 @@ const violetAllowed = [
   ".drop-target",
   ".row-slot.permission",
   ".row-slot.unseen i",
-  // The Fast icon on the Effort trigger, the Effort menu's Fast row and the thread's Fast-not-used line (fast-mode
-  // decision 11, confirmed draft 2026-11-06).
+  // The Fast icon on the Effort trigger, the Effort menu's Fast row and the thread's Fast-not-used line (confirmed draft 2026-11-06).
   ".composer-effort .fast-icon",
   ".fast-slot",
   ".conversation-thread .activity-head.fast-note svg",
-  // The person's message in the conversation thread: a light accent bubble and its preset line (buzz-conversation
-  // design §0, confirmed draft 2026-10-31).
+  // The person's message in the conversation thread: a light accent bubble and its preset line (confirmed draft 2026-10-31).
   ".conversation-thread .bubble",
   ".conversation-thread .bubble-preset",
-  // The canvas conversation panel's resize bar, shown on hover, drag and focus (buzz-canvas design §2, malmoi's
+  // The canvas conversation panel's resize bar, shown on hover, drag and focus (malmoi's
   // resizer; confirmed draft 2026-11-01).
   ".doan-panel-handle::after",
-  // The agent indicator on the canvas: the edge glow (buzz-canvas design §2, the common decision 2 accent exception;
-  // confirmed draft 2026-11-01). The notice's accent dot is now Doany the artist, an image (doany-artist draft).
+  // The agent indicator on the canvas: the edge glow (confirmed draft 2026-11-01). The notice's accent dot is now Doany the artist, an image (doany-artist draft).
   ".doan-agent-glow",
-  // Inline anchor chips in the composer field: light accent fill, dark accent ink (buzz-canvas-conversation common
-  // decision 2, confirmed draft 2026-11-01).
+  // Inline anchor chips in the composer field: light accent fill, dark accent ink (confirmed draft 2026-11-01).
   ".anchor-chip",
-  // The dot on the folded conversation panel's open button, the sidebar slot's unseen dot (buzz-canvas-conversation
-  // design §2 'News dot', confirmed draft open-badge).
+  // The dot on the folded conversation panel's open button, the sidebar slot's unseen dot (confirmed draft open-badge).
   '.doan-icon-button[data-badge="true"]::after',
   // The canvas jump highlight (chip locate, Frames drawer, Quick Open, deep link): a 3px accent gradient line drawn
-  // by the masked ::before and an accent glow, readable over any canvas (canvas-selection-tools spec decision 2).
+  // by the masked ::before and an accent glow, readable over any canvas.
   ".mark.jump-highlight",
   ".mark.jump-highlight::before",
-  // Its working-frame variant (work-update decisions 16–17): the travelling gradient and the breathing glow.
+  // Its working-frame variant: the travelling gradient and the breathing glow.
   ".mark.jump-highlight.working::before",
   "@keyframes doan-work-glow",
 ];
@@ -337,8 +332,8 @@ describe("nestedRadius", () => {
   });
 });
 
-// These read the real renderer sources; they turn green as the tokens (A3),
-// the design system stylesheet (A4) and the accent mapping (A6) land.
+// These read the real renderer sources; they turn green as the tokens,
+// the design system stylesheet and the accent mapping land.
 describe("renderer sources", () => {
   test("legacyAliases: tokens.css keeps the 25 legacy names as role aliases", () => {
     expect(legacyAliases(tokensCss())).toEqual([]);

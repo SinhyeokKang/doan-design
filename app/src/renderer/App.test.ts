@@ -65,7 +65,7 @@ it("routes each menu command to its own handler, and an unknown or removed comma
   // buzz-project: File > New Conversation (⌘N).
   menuCommand("newConversation", to);
   expect(to.newConversation).toHaveBeenCalledOnce();
-  // canvas-composer-polish spec 3: Edit > Pick from Canvas (⌘L); the removed Add Selection command reaches nothing.
+  // Edit > Pick from Canvas (⌘L); the removed Add Selection command reaches nothing.
   menuCommand("addSelectionToConversation" as never, to);
   expect(to.pickFromCanvas).not.toHaveBeenCalled();
   menuCommand("pickFromCanvas", to);

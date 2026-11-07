@@ -238,7 +238,7 @@ test("the sidebar project menu is opaque while every other dropdown keeps the gl
   expect(read("./surfaces.css")).toContain(".doan-floating { background: var(--surface-elevated-glass); backdrop-filter: blur(var(--blur-sm)); }");
 });
 
-// canvas-capture design §2–§3 and POSTMORTEM 2026-11-02 'Every Overview menu opened under the Overview itself': the
+// POSTMORTEM 2026-11-02 'Every Overview menu opened under the Overview itself': the
 // capture layer takes the drag layer's place, under the canvas chrome and every portalled surface, so Stop, Open, the
 // tools and an open zoom menu stay over it. `[hidden]` must keep winning, so neither the layer nor the marquee sets
 // display; the area keeps clipping (POSTMORTEM 2026-11-02 'Tab walked into the draft').

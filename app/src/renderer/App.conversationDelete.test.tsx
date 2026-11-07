@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { PreferencesSnapshot } from "../main/preferences";
 
-// conversation-delete design §3.2–§3.4 wired in App: a title menu row's Delete asks in the alert, the store's deleting
+// a title menu row's Delete asks in the alert, the store's deleting
 // mark pairs with exactly one of deleted/cancelled, the runs are cleaned after main deletes (or no longer has it), a
 // refusal toasts and leaves focus on the menu's trigger, and deleting the shown conversation focuses that screen's
 // composer. Driven with hooks as plain state (App.conversationPanel.test.tsx).
@@ -270,7 +270,7 @@ test.each([
   expect(button.focus).toHaveBeenCalledOnce();
 });
 
-// orch decision 3: main no longer has it, so the screens are cleaned as for a deletion, with the toast.
+// main no longer has it, so the screens are cleaned as for a deletion, with the toast.
 test("not_found cleans up as a deletion and says it was already deleted", async () => {
   await openOverview();
   doan.deleteConversation = vi.fn(async () => ({ error: "not_found" }));
@@ -378,7 +378,7 @@ test.each([["a refusal", true], ["Cancel", false]])("canvas panel, %s: focus ret
   expect(harness.toast.show).toHaveBeenCalledTimes(confirm ? 1 : 0);
 });
 
-// canvas-composer-polish spec 6: a Canvas conversations row's Delete takes the title menu's confirmation and deletion;
+// a Canvas conversations row's Delete takes the title menu's confirmation and deletion;
 // focus goes to the target the list computed before the alert opened, and Cancel or Escape returns it to that Delete.
 type ListFocus = { kind: "row"; key: string } | { kind: "title" };
 type ListProps = { list: unknown; onDelete(item: { key: string; conversationId: string; title: string; provider: string }, button: unknown, after: ListFocus): void };

@@ -317,7 +317,7 @@ test("Export: a fast run shows no progress toast, a cancelled save panel no toas
   } finally { vi.useRealTimers(); }
 });
 
-// canvas-composer-polish spec 5: the canvas toolbar's Export runs the row menu's export on the open canvas, with the
+// the canvas toolbar's Export runs the row menu's export on the open canvas, with the
 // row menu's reasons.
 type Exporter = { reason: string | null; onExport(button: HTMLElement): void };
 const exporter = () => (all(tree).find(element => typeof element.type === "function" && element.type.name === "CanvasPane")!.props as { exporter: Exporter }).exporter;

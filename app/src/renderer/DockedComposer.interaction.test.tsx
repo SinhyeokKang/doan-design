@@ -160,7 +160,7 @@ test("while the turn runs, Enter on an empty field does nothing, Stop stops, and
   expect(store.current.get("conversation:a")).toEqual(EMPTY_DRAFT);
 });
 
-// canvas-composer-polish A2: a queued message's files are drawn in the thread once Send now moves it there.
+// a queued message's files are drawn in the thread once Send now moves it there.
 test("a queued message carries its files' names, sizes and kinds for the thread, apart from the ids main takes", async () => {
   const { queue, render, store, props } = setup({ turn: "running" });
   store.current = new Map([["conversation:a", { ...draft("With the notes"), attachments: [{ key: "k", id: "f", name: "notes.md", kind: "file", pasted: false, status: "ready", size: 4096 }] }]]); props.drafts = store.current;
@@ -309,7 +309,7 @@ test("the / list's closed state and highlight belong to the draft on screen", ()
   expect(field(render()).role).toBe("combobox");
 });
 
-// buzz-canvas-conversation R1: the field holds chips as segments; they leave as markers and anchors.
+// the field holds chips as segments; they leave as markers and anchors.
 test("a draft with chips sends numbered markers and its anchors, and Backspace at the start keeps the preset while chips remain", async () => {
   const payment = { frame: { id: "payment", title: "Payment" } };
   const preset = { id: "critique", title: "Critique the design", description: "", scope: "" };
@@ -338,7 +338,7 @@ test("the field gets the draft key, which changes with the conversation while th
   expect(cardChildren(draw()).find(([name]) => name === "ComposerField")?.[1]).toBe(".$field");
 });
 
-// buzz-canvas-conversation design §2 'Errors' and §0 'Model and effort': the canvas panel's composer states.
+// the canvas panel's composer states.
 const RESUME: DockedMode = { kind: "resume", root: "/w", canvas: { path: ".doan/canvases/a.html", id: "a" }, provider: "codex" };
 // Drawn text outside the agent menu, whose own note can read like a reason.
 const has = (tree: Record<string, unknown>[], text: string) => tree.some(item => item.children === text && item.className !== "menu-note");
@@ -451,7 +451,7 @@ test("a blocked refusal holds Send with its reason until the person edits the dr
   expect(has(render(), "No agent is ready to run.")).toBe(false);
 });
 
-// The shipped queue rule (design §2 'Errors' not_running): the turn ended before the queue took the message.
+// The shipped queue rule: the turn ended before the queue took the message.
 test("a queue refused as not_running goes out as a send of the same message", async () => {
   const { props, store, send, queue, render } = setup({}, [["conversation:a", draft("Also this")]]);
   props.turn = "running";
@@ -766,10 +766,10 @@ test.each(["idle", "running"] as const)("Control+Enter without a Send now handle
   expect(turn === "idle" ? queue : send).not.toHaveBeenCalled();
 });
 
-// prompt-suggestion design 'renderer' 1–4, decisions 4, 6–9. Keys go through ComposerField's own keydown (POSTMORTEM
+// Keys go through ComposerField's own keydown (POSTMORTEM
 // 2026-10-27 'typeahead'): the field element's onKeyDown calls the composer's onKey before Enter's send. The handle
 // stands in for ChipField, whose insertText hands the new value back through onChange as one undo step; that step,
-// the caret and real keys and IME are checked in the real app (tasks E1).
+// the caret and real keys and IME are checked in the real app.
 const SUGGESTION = "Make the header lighter";
 const HINT = "Press Right Arrow to use the suggestion.";
 const arrowRight = (patch: Record<string, unknown> = {}) => ({ key: "ArrowRight", shiftKey: false, altKey: false, metaKey: false, ctrlKey: false, keyCode: 39, nativeEvent: { isComposing: false }, preventDefault: vi.fn(), ...patch });
@@ -797,7 +797,7 @@ test("a suggestion shows in the placeholder's place and the field is described b
   expect(field(tree)["aria-placeholder"]).toBe(SUGGESTION);
   const ids = String(field(tree)["aria-describedby"]).split(" ");
   expect(ids.map(id => tree.find(item => item.id === id)?.children)).toContain(HINT);
-  // No → glyph or extra line: the hint is the field's description only (decision 6).
+  // No → glyph or extra line: the hint is the field's description only.
   expect(tree.some(item => typeof item.children === "string" && item.children.includes("→"))).toBe(false);
 });
 
@@ -819,7 +819,7 @@ test("Right Arrow on the empty field puts the suggestion in it, keeps focus ther
   expect(handle.focus).not.toHaveBeenCalled();
   expect(send).not.toHaveBeenCalled();
   expect(queue).not.toHaveBeenCalled();
-  // The suggestion stays the host's: emptying the field shows it again (decision 4).
+  // The suggestion stays the host's: emptying the field shows it again.
   type(render(), "");
   expect(field(render())["aria-placeholder"]).toBe(SUGGESTION);
 });
@@ -943,7 +943,7 @@ test("a suggestion is not announced on the first list read, a switch, a refill a
   expect(typed.said()).toBe("");
 });
 
-// R review ⚪4: a suggestion is plain text (decision 8), so one that starts with / does not open the preset list when
+// R review ⚪4: a suggestion is plain text, so one that starts with / does not open the preset list when
 // Right Arrow puts it in; the list opens again once the field is emptied and / is typed.
 test("a suggestion that starts with / goes in as text and leaves the preset list closed", () => {
   const { render, handle } = suggestionSetup({ suggestion: "/compact the thread" });

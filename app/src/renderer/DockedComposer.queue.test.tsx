@@ -69,7 +69,7 @@ test("Send now and Remove hand the row's id to the host; Send now is the subtle 
   expect(props.onRemove).toHaveBeenCalledWith("q2");
 });
 
-// canvas-composer-polish A2: the row leaves at the press, so focus moves then, before the agent reads it.
+// the row leaves at the press, so focus moves then, before the agent reads it.
 test("Send now moves focus to the next row's Send now once the row has left, without waiting for main's answer", async () => {
   const answer = (() => { let resolve!: () => void; const promise = new Promise<void>(r => { resolve = r; }); return { promise, resolve }; })();
   const { props, focused, draw, rows } = setup({ onSendNow: vi.fn(() => answer.promise) });

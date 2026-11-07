@@ -209,7 +209,7 @@ test("without a remembered selection (the worktree was restored at launch), the 
   expect(sidebar().loaded).toBe(MAIN);
 });
 
-test("the worktree selected before goes on the screen even in a problem state (orch decision 7)", async () => {
+test("the worktree selected before goes on the screen even in a problem state", async () => {
   await start();
   enter(OTHER); enter(W); show(W, A);
   folders([main(), { path: OTHER, kind: "uninitialized", lastCommon: KEY }, wt()]);
@@ -298,7 +298,7 @@ test("a Home restore keeps the group's selected auto-registered worktree while i
   expect(home()).toBeDefined();
 });
 
-// orch decision 10: a page opened from the vanished worktree's workspace leaves for the worktree that took its place,
+// a page opened from the vanished worktree's workspace leaves for the worktree that took its place,
 // as Locate moves the origin (POSTMORTEM 2026-10-25); Remove from Doan of the whole group still leaves for Home.
 const leave = () => { (all(tree).find(element => "forward" in element.props && "previous" in element.props)!.props as { previous(): void }).previous(); render(); };
 const pages = [

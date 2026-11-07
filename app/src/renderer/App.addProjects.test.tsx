@@ -2,7 +2,7 @@ import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { CanvasRow, FolderEntry } from "../main/view";
 
-// buzz-add-projects U1–U3 (and T1's App cases): App's own navigation functions, driven with hooks as plain state so the
+// App's own navigation functions, driven with hooks as plain state so the
 // page's entry, return, lock and completion run through the real App code (ShellSidebar.interaction.test.tsx style).
 const hooks = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],

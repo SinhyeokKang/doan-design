@@ -2,7 +2,7 @@ import { contextText, type ContextUsage } from "./contextWindow";
 import { ProgressRing, ringDanger } from "./ProgressRing";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 
-// The docked composer's context ring (context-window-ring design §3, draft frames ring-states and ring-tooltip): no
+// The docked composer's context ring (draft frames ring-states and ring-tooltip): no
 // text in it, a name and description for assistive tech, and the same two lines in the shared tooltip. Nothing opens
 // on a press and it takes no focus, so its trigger is a span (CanvasAgent's sibling notice is the precedent).
 export function ContextRing({ usage }: { usage: ContextUsage }) {
