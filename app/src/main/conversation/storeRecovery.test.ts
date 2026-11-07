@@ -298,3 +298,19 @@ describe("Fast unused history", () => {
     expect(() => new ConversationStore(f.root).read("c")).toThrow();
   });
 });
+
+// defect-sweep B1: the model a model_unavailable turn named is kept with that end, so a reopened thread reads the same
+// cause. It comes only with that code.
+describe("model unavailable history", () => {
+  const end = (fields: object) => ({ type: "turn.failed", ...fields, v: 1, conversationId: "c", turnId: "t", seq: 1, at: "2026-11-07T00:00:00Z" });
+  it.each([{ code: "model_unavailable", model: "gpt-6-astra" }, { code: "model_unavailable", model: "gpt-6-astra", detail: "The 'gpt-6-astra' model is not supported." }, { code: "unknown" }])("reads a turn end after reopening: %j", fields => {
+    const f = setup();
+    writeFileSync(f.path("c"), JSON.stringify(end(fields)) + "\n");
+    expect(new ConversationStore(f.root).read("c")).toEqual([end(fields)]);
+  });
+  it.each([{ code: "model_unavailable" }, { code: "model_unavailable", model: "" }, { code: "model_unavailable", model: 1 }, { code: "unknown", model: "gpt-6-astra" }])("rejects a corrupt model on a turn end: %j", fields => {
+    const f = setup();
+    writeFileSync(f.path("c"), JSON.stringify(end(fields)) + "\n");
+    expect(() => new ConversationStore(f.root).read("c")).toThrow();
+  });
+});

@@ -116,10 +116,13 @@ export function useLocateNote(scroller?: () => EventTarget | null): [shown: bool
 }
 const COPIED_MS = 2000;
 
-// The draft's copy (thread-states). Codes without a frame of their own read as an unexpected stop.
-export function endView(end: TurnEnd, provider: Provider): { title: string; body: string; tone: "error" | null; signIn: boolean } {
+// The draft's copy (thread-states). Codes without a frame of their own read as an unexpected stop. resend: false when
+// the turn never began, so there is no request worth resending as it was (body "" draws no second line).
+export function endView(end: TurnEnd, provider: Provider): { title: string; body: string; tone: "error" | null; signIn: boolean; resend?: false } {
   const p = PROVIDER_NAMES[provider];
   if (end.kind === "interrupted") return { title: "Stopped", body: end.reason === "user" ? "You stopped the agent." : "The agent stopped before it finished.", tone: null, signIn: false };
+  // defect-sweep B1: the provider had no such model for this account; the turn did no work, so no file warning.
+  if (end.code === "model_unavailable" && end.model) return { title: `${end.model} isn’t available for this account.`, body: "", tone: "error", signIn: false, resend: false };
   if (end.code === "not_logged_in") return { title: `${p}’s sign-in expired`, body: "Sign in again, then resend your request.", tone: "error", signIn: true };
   if (end.code === "rate_limited") return { title: `${p} is rate limited`, body: "Try again later.", tone: "error", signIn: false };
   // The session could not be taken up again, so the turn ended before it did any work; the strip says the same.
@@ -699,10 +702,10 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
         const view = endView(entry.end, provider);
         return <div className={`doan-notice${view.tone ? ` ${view.tone}` : ""} thread-notice`}>
           {view.tone ? <AlertIcon /> : <CircleStop className="doan-alert-icon" aria-hidden="true" />}
-          <span className="strip-text"><b>{view.title}</b><span>{view.body}</span></span>
-          {entry.key === last?.key && (view.signIn || last.resend) && <span className="strip-actions">
+          <span className="strip-text"><b>{view.title}</b>{view.body && <span>{view.body}</span>}</span>
+          {entry.key === last?.key && (view.signIn || (last.resend && view.resend !== false)) && <span className="strip-actions">
             {view.signIn && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={props.onSignIn}>Sign in again…</button>}
-            {last.resend && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={props.onEditAndResend}>Edit and resend</button>}
+            {last.resend && view.resend !== false && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={props.onEditAndResend}>Edit and resend</button>}
           </span>}
         </div>;
       }

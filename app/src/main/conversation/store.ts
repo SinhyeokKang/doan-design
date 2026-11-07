@@ -100,7 +100,8 @@ function payload(value: Record<string, unknown>): value is Record<string, unknow
       (value.turnedOff === undefined || (value.turnedOff === true && value.reason !== undefined && value.reason !== "cooldown"));
     case "context.usage": return Number.isSafeInteger(value.used) && (value.used as number) >= 0 && Number.isSafeInteger(value.size) && (value.size as number) >= 1;
     case "interrupted": return ["user", "appQuit", "crashed"].includes(String(value.reason));
-    case "turn.failed": return ["runtime_unsupported", "cli_missing", "not_logged_in", "session_unavailable", "session_in_use", "process_exited", "rate_limited", "unknown"].includes(String(value.code)) && (value.detail === undefined || str(value.detail));
+    case "turn.failed": return ["runtime_unsupported", "cli_missing", "not_logged_in", "session_unavailable", "session_in_use", "process_exited", "rate_limited", "model_unavailable", "unknown"].includes(String(value.code)) && (value.detail === undefined || str(value.detail)) &&
+      (value.code === "model_unavailable" ? str(value.model) && value.model !== "" : value.model === undefined);
     default: return false;
   }
 }

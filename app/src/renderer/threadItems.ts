@@ -10,7 +10,8 @@ import { PRESETS } from "../main/mcpConnectors/presets";
 export type MessagePart = { text: string } | { anchor: number };
 // sentence: a step whose text is a sentence and wraps instead of staying on one line (Codex's MCP startup lines).
 export interface ActivityStep { key: string; kind: "edit" | "read" | "command" | "other"; verb: string; path: string | null; sentence?: true }
-export type TurnEnd = { kind: "failed"; code: FailureCode } | { kind: "interrupted"; reason: "user" | "appQuit" | "crashed" };
+// model: the model a model_unavailable end named.
+export type TurnEnd = { kind: "failed"; code: FailureCode; model?: string } | { kind: "interrupted"; reason: "user" | "appQuit" | "crashed" };
 export type ThreadItem =
   // anchors: the message's own, which its `{{n}}` parts point at (1-based), drawn as chips. `sending`: Send now has it
   // in flight and the history has no event for it yet (seq null).
@@ -264,7 +265,7 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
         break;
       case "turn.failed":
         endTurn(event.turnId);
-        push({ kind: "end", key: `e${event.seq}`, seq: event.seq, end: { kind: "failed", code: event.code } });
+        push({ kind: "end", key: `e${event.seq}`, seq: event.seq, end: { kind: "failed", code: event.code, ...(event.model !== undefined ? { model: event.model } : {}) } });
         break;
       case "interrupted":
         endTurn(event.turnId);

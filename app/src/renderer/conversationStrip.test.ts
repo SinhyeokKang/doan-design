@@ -62,6 +62,13 @@ test("every turn.failed row has its draft wording and offers Edit on Home", () =
   for (const [code, title, body] of rows) expect(failure(code)).toEqual({ title, body, live: "status", alertKey: null, actions: recover });
 });
 
+// defect-sweep B1: the turn never started, so the strip says only the cause, with the model the error named.
+test("a model the account does not have reads as that cause, and still offers Edit on Home", () => {
+  const state = stripState(events(...started, { type: "turn.failed", code: "model_unavailable", model: "gpt-6-astra", detail: "The 'gpt-6-astra' model is not supported." }));
+  expect(state).toEqual({ kind: "failed", code: "model_unavailable", model: "gpt-6-astra" });
+  expect(stripView(state, { ...CTX, provider: "codex" })).toEqual({ title: "gpt-6-astra isn’t available for this account.", body: null, live: "status", alertKey: null, actions: recover });
+});
+
 test("failure codes without a row of their own read as an unexpected stop", () => {
   for (const code of ["runtime_unsupported", "cli_missing"] as const) expect(failure(code)).toMatchObject({ title: "Claude Code stopped unexpectedly", actions: recover });
 });

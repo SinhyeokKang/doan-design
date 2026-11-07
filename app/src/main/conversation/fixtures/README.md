@@ -149,3 +149,12 @@ recorded form) and outputs are synthetic, `rawOutput` is dropped, and the reply 
 resolved models and default flags of three real model lists read with a signed-in
 account: Claude Code 2.1.318 `supportedModels`, Codex 0.166.0 `model/list` and Cursor's
 ACP `session/new`. Each list is in the shape its parser reads; every other field was dropped.
+
+`codex-model-not-found.json` (2026-11-07, defect-sweep B1) is synthetic, not a
+recorded stream. Its shape follows the schema `codex app-server
+generate-json-schema` writes from the installed Codex 0.166.0: `TurnError`
+(`message`, optional `codexErrorInfo`, `additionalDetails`) carried by the `error`
+notification and by `turn/completed`'s failed `turn.error`, with `CodexErrorInfo`
+including `"modelNotFound"`. The message text is the one a 0.166.0 turn printed
+when the configured default model was not on the ChatGPT account (that turn's
+rollout recorded `codex_error_info: "model_not_found"`).

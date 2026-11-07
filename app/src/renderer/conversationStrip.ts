@@ -12,7 +12,8 @@ export type StripState =
   // An agent's question: its first sentence only; it is answered in the conversation, and here only skipped or stopped
   // (agent-questions design §6).
   | { kind: "question"; requestId: string; question: string }
-  | { kind: "failed"; code: string }
+  // model: the model a model_unavailable end named.
+  | { kind: "failed"; code: string; model?: string }
   | { kind: "interrupted"; reason: "user" | "appQuit" | "crashed" }
   | { kind: "done" };
 
@@ -42,7 +43,7 @@ export function stripState(events: readonly ConversationEvent[]): StripState {
         break;
       }
       case "turn.done": terminal = true; state = { kind: "done" }; break;
-      case "turn.failed": terminal = true; state = { kind: "failed", code: event.code }; break;
+      case "turn.failed": terminal = true; state = { kind: "failed", code: event.code, ...(event.model !== undefined ? { model: event.model } : {}) }; break;
       case "interrupted": terminal = true; state = { kind: "interrupted", reason: event.reason }; break;
     }
   }
@@ -110,6 +111,8 @@ export function stripView(state: StripState, ctx: StripContext): StripView {
     // No answer control: the strip only skips or stops (agent-questions decisions 8 and 10).
     case "question": return { title: `${p} needs your answer`, body: state.question, live: "alert", alertKey: state.requestId, actions: [{ command: "skip", label: "Skip" }, stop] };
     case "failed": {
+      // defect-sweep B1: the thread's own sentence; Edit on Home stays, to send the request with another model.
+      if (state.code === "model_unavailable" && state.model) return view(`${state.model} isn’t available for this account.`, null, recover);
       const copy = (Object.hasOwn(FAILURES, state.code) ? FAILURES[state.code]! : STOPPED)(p);
       return view(copy.title, copy.body, recover);
     }

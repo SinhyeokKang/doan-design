@@ -4,6 +4,7 @@ import claudeInterrupted from "./fixtures/claude-interrupted.json";
 import codex from "./fixtures/codex.json";
 import codexInterrupted from "./fixtures/codex-interrupted.json";
 import codexHome from "./fixtures/codex-home.json";
+import codexModelNotFound from "./fixtures/codex-model-not-found.json";
 import askFixture from "./fixtures/claude-ask-user-question.json";
 import { normalizeClaude, normalizeCodex, initialTransport, endTransport, claudePermission, claudePermissionSummary, codexPermission, permissionAnswer, transportError, claudeReportedMode, steerTransport, endSteerWait, claudeQuestion, claudeQuestionResult, claudeUnansweredSupport, storedAnswers, claudeFastOutcome } from "./transport";
 import type { EventPayload, TransportState } from "./types";
@@ -52,6 +53,22 @@ describe("transport normalization", () => {
     expect(transportError("rate limit exceeded")).toBe("rate_limited");
     expect(transportError("unfamiliar error")).toBe("unknown");
     expect(collect("claude", [{ type: "result", subtype: "error_during_execution", is_error: true, errors: ["Not logged in"] }]).events).toContainEqual({ type: "turn.failed", code: "not_logged_in", detail: "Not logged in" });
+  });
+});
+// defect-sweep B1: a model the account does not have ends the turn before it starts any work. The model ID is the one
+// the error names: Doan never sent it (ipc.ts takes only models on this run's model/list).
+describe("a model the account does not have", () => {
+  const detail = "The 'gpt-6-astra' model is not supported when using Codex with a ChatGPT account.";
+  it("reads Codex's modelNotFound turn error as model_unavailable with the model it names, once", () => {
+    expect(collect("codex", codexModelNotFound).events).toEqual([{ type: "turn.failed", code: "model_unavailable", model: "gpt-6-astra", detail }]);
+    // turn/completed alone carries the same error.
+    expect(collect("codex", codexModelNotFound.filter(m => m.method !== "error")).events).toEqual([{ type: "turn.failed", code: "model_unavailable", model: "gpt-6-astra", detail }]);
+  });
+  it("keeps any other turn error, or a modelNotFound naming no model, as before", () => {
+    const failing = (error: object) => [{ method: "turn/completed", params: { threadId: "session-1", turn: { id: "turn-1", status: "failed", error } } }];
+    expect(collect("codex", failing({ message: "boom", codexErrorInfo: "internalServerError" })).events).toEqual([{ type: "turn.failed", code: "unknown", detail: "boom" }]);
+    expect(collect("codex", failing({ message: "Model not found", codexErrorInfo: "modelNotFound" })).events).toEqual([{ type: "turn.failed", code: "unknown", detail: "Model not found" }]);
+    expect(collect("codex", failing({ message: detail })).events).toEqual([{ type: "turn.failed", code: "unknown", detail }]);
   });
 });
 describe("permission choices", () => {
