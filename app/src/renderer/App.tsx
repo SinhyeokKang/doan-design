@@ -149,7 +149,7 @@ export function mergeConversationMemory(saved: Readonly<Record<string, string>> 
 // First run's project handoff puts focus in the Home composer, ahead of the focus held before the wizard (§4.9).
 export function wizardCloseFocus(root: string | null): "composer" | "previous" { return root ? "composer" : "previous"; }
 
-// A reply chip whose canvas cannot be opened (agent-reply-chips design '초안 요청', draft frame `toasts`). The canvas is
+// A reply chip whose canvas cannot be opened (draft frame `toasts`). The canvas is
 // named by the link's id, since no row names it; the project by its sidebar name. A list still being read gets the
 // chip's own copy, which has no Open to try again; a project problem keeps Quick Open's.
 export function replyChipRefusal(target: "missing" | "duplicate" | "unavailable", canvas: string, project: string, entry: FolderEntry | undefined): string {
@@ -190,11 +190,11 @@ export function App() {
   // a file, to the export's reply. The progress toast waits a second from that event.
   const [exporting, setExporting] = useState<ReadonlySet<string>>(new Set());
   const exportTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
-  // The Add Projects page (buzz-add-projects design '화면과 이동'): where it returns to, the page's own report, and a
+  // The Add Projects page: where it returns to, the page's own report, and a
   // counter File > Add Project… raises to run its Choose folder. Mounted anew (`seq`) on each opening.
   const [page, setPage] = useState<{ origin: AddPageOrigin; seq: number; chooseSeq: number } & AddPageReport>({ origin: { screen: "home" }, seq: 0, chooseSeq: 0, locked: false, choose: true });
   const pageRef = useRef(page); pageRef.current = page;
-  // The Settings page (buzz-settings design '화면과 내비게이션'): its category, what it was asked to focus on arrival, and
+  // The Settings page: its category, what it was asked to focus on arrival, and
   // whether a category holds a confirmation or a write. It shares the Add Projects page's origin, so moving between
   // the two pages keeps where both return to.
   const [settings, setSettingsState] = useState<{ section: SettingsSection; arrival: SettingsArrival | null; locked: boolean }>({ section: "agents", arrival: null, locked: false });
@@ -202,7 +202,7 @@ export function App() {
   const setSettings = (next: typeof settings) => { settingsRef.current = next; setSettingsState(next); };
   const settingsQueue = useRef(new SettingsTargetQueue());
   const arrivals = useRef(0);
-  // The Project Settings page (project-settings design '이동과 잠금'): the worktree it shows, a key that changes only when
+  // The Project Settings page: the worktree it shows, a key that changes only when
   // another worktree is picked (a reroot is followed inside the page, which keeps its config session), its title-focus
   // arrival and whether it holds a picker, a confirmation or a write. It shares the other pages' origin.
   const [projectSettings, setProjectSettingsState] = useState<{ root: string; key: number; arrival: { seq: number } | null; locked: boolean }>({ root: "", key: 0, arrival: null, locked: false });
@@ -521,8 +521,8 @@ export function App() {
     focusCurrent(previous);
   }, [wizard]);
   // While the Add Projects page selects or clones, or a Settings category or the Project Settings page holds a picker, a
-  // confirmation or a write, every move away is ignored here, in one place (buzz-add-projects, buzz-settings and
-  // project-settings design '잠금'): marking the controls alone would leak through toasts and keyboard activation.
+  // confirmation or a write, every move away is ignored here, in one place:
+  // marking the controls alone would leak through toasts and keyboard activation.
   const locked = () => (currentScreen.current === "addProjects" && pageRef.current.locked) || (currentScreen.current === "settings" && settingsRef.current.locked)
     || (currentScreen.current === "projectSettings" && projectSettingsRef.current.locked);
   const home = () => {
@@ -804,7 +804,7 @@ export function App() {
   };
   const toggleProject = async (key: string, notice?: { root: string; path: string }) => {
     const group = cards.find(card => card.key === key); if (!group) return;
-    // A locked page ignores only the move to a workspace (design '잠금'): the row still unfolds another project, and
+    // A locked page ignores only the move to a workspace: the row still unfolds another project, and
     // never folds one, as unlocked; the chevron folds. The loaded project is already unfolded or folded by hand.
     if (locked()) {
       if (!loadedRoot || !group.rows.some(row => row.path === loadedRoot))
@@ -813,7 +813,7 @@ export function App() {
     }
     const loaded = loadedRoot !== null && group.rows.some(row => row.path === loadedRoot);
     // A terminal slot stands for the canvas its session works on: the row opens it before its own move, which would
-    // re-enter the loaded project's last canvas or fold an expanded project (terminal-agent-activity design '표시').
+    // re-enter the loaded project's last canvas or fold an expanded project.
     if (notice && shownSlots().get(canvasSlotKey(notice.root, notice.path))?.source === "terminal") {
       if (!loaded) { cancelRestore(); controller.current?.cancelWorkspaceOpen(); }
       openNotice(notice, loaded ? undefined : () => setShellProjects(previous => ({ ...previous, [key]: { ...(previous[key] ?? { expanded: false }), roots: group.rows.map(row => row.path), expanded: true } })));
@@ -884,7 +884,7 @@ export function App() {
 
   const modal = wizard !== null || setup !== null || quickOpen || homeRun.current.removing !== null || trashing !== null || deletingConversation !== null;
   // A locked Project Settings page holds the toast too: its Share confirmation makes the toast inert while the page
-  // itself is not modal (project-settings design '영향 범위' 토스트, POSTMORTEM 2026-10-25 'Native hiding bypassed
+  // itself is not modal (POSTMORTEM 2026-10-25 'Native hiding bypassed
   // renderer-only lifetime checks').
   const toastHeld = modal || (screen === "projectSettings" && projectSettings.locked);
   useLayoutEffect(() => { toast.setModal(toastHeld); }, [toastHeld]);
@@ -977,8 +977,8 @@ export function App() {
     pageRef.current = next; setPage(next);
     setScreen("addProjects");
   }
-  // Every way into Settings — the header tab, Settings… (⌘,), Home's agent picker, a sign-in toast — comes here
-  // (design '들어가는 길'). While a category holds a confirmation or a write, the latest target waits for it
+  // Every way into Settings — the header tab, Settings… (⌘,), Home's agent picker, a sign-in toast — comes here.
+  // While a category holds a confirmation or a write, the latest target waits for it
   // (POSTMORTEM 2026-10-25 'A forwarded Settings target discarded a pending setup confirmation').
   function openSettings(target: SettingsTarget) {
     if (live.current.modal) return;
@@ -1003,7 +1003,7 @@ export function App() {
     setSettingsAnnouncement(undefined);
     setSettings({ section, locked: false, arrival: { focus, seq: ++arrivals.current } });
   };
-  // A category picked in the sidebar keeps focus on its row, so it brings no arrival (design '포커스').
+  // A category picked in the sidebar keeps focus on its row, so it brings no arrival.
   const selectSection = (section: SettingsSection) => {
     if (currentScreen.current !== "settings" || locked()) return;
     sectionChosen.current = true;
@@ -1011,8 +1011,8 @@ export function App() {
     setSettings({ ...settingsRef.current, section, arrival: null });
   };
   // Project Settings from a project menu (the sidebar's or the Overview's recovery menu). On the page, picking another
-  // worktree switches to it with a new page and the same origin, and picking the same one focuses its title
-  // (project-settings design '같은 페이지에서 다시 들어오기'); a locked page takes neither.
+  // worktree switches to it with a new page and the same origin, and picking the same one focuses its title;
+  // a locked page takes neither.
   function openProjectSettings(root: string) {
     if (live.current.modal) return;
     const current = projectSettingsRef.current;
@@ -1055,7 +1055,7 @@ export function App() {
     const held = next ? null : settingsQueue.current.release();
     if (held) arrive(held);
   };
-  // A notification's click, after main has shown the window (design 'Notifications' 클릭 해석).
+  // A notification's click, after main has shown the window.
   function notificationClick(click: NotificationTarget) {
     const known = homeRun.current.knows(click.conversationId);
     const registered = entriesRef.current.some(entry => entry.path === click.root);
@@ -1118,7 +1118,7 @@ export function App() {
   useEffect(() => window.doan.onConversationHandoff(notice => live.current.conversationHandoff(notice)), []);
   useEffect(() => { live.current.handoffCheck(); });
   // Ready once the launch restore is applied (or cancelled) and the first folders are in, so a link's canvas opens over
-  // the restored screen (terminal-agent-activity design 'Deep link' '대기').
+  // the restored screen (ARCHITECTURE §7 'Deep links').
   const linksReady = useRef(false);
   useEffect(() => {
     if (linksReady.current || restore !== "done" || !foldersSeen) return;
@@ -1143,7 +1143,7 @@ export function App() {
     return () => { current = false; stop(); };
   }, []);
   // The renderer's one sign-in controller tells a sign-in that ended away from Agents in the shared toast, and hears
-  // when the window comes back to the front (design 'App 수준 로그인 컨트롤러').
+  // when the window comes back to the front.
   useEffect(() => agentSignIn().onToast(({ text, action }) => live.current.toast.show(text, action?.label, action ? () => live.current.openSettings(action.target) : undefined)), []);
   // Settings > MCP Connectors: one reader of main's snapshots for the whole window, since a connection attempt
   // outlives the page. It tells a failure elsewhere in the shared toast (spec 4) and follows running turns (spec 10).
@@ -1194,7 +1194,7 @@ export function App() {
     if (next) void savePreferences({ newConversation: next });
   };
   // A mode main moved a conversation to after a Claude plan approval: that provider's last mode and a fixed Settings
-  // default of the same provider follow it, but the last provider stays (permission-mode design '저장 규칙').
+  // default of the same provider follow it, but the last provider stays.
   function followMode(provider: Provider, mode: PermissionModeId) {
     setHomeMemory(previous => rememberPermission(previous, provider, mode));
     const next = preferenceAfterPick(preferences?.preferences.newConversation ?? null, { provider, model: null, effort: null, permissionMode: mode });
@@ -1264,7 +1264,7 @@ export function App() {
     window.doan.planCanvasTrash(root, row.path).then(answered, () => answered({ kind: "refused", reason: "failed" }));
   }
   function closeTrash() { changeTrashing(null); modalClosed(); }
-  // Confirmed: the dialog closes at once and the reply's toast is the only one (design '삭제 뒤 화면'). The mark set
+  // Confirmed: the dialog closes at once and the reply's toast is the only one. The mark set
   // before the request makes the open canvas's removal a trash, not a move to another canvas of the same id.
   function confirmTrash() {
     const current = trashingRef.current;
@@ -1337,7 +1337,7 @@ export function App() {
     const list = homeRun.current.listState(root);
     return trashBlock({ root, path: row.path, ...(row.id ? { id: row.id } : {}) }, Array.isArray(list) ? list : null, work, (at, canvas) => homeRun.current.drawing(at, canvas)) !== null;
   }
-  // canvas-row-menu design '앱 Export 흐름': main shows the save panel, runs the CLI and answers once; the item stays
+  // ARCHITECTURE §7 'Canvas row menu IPC': main shows the save panel, runs the CLI and answers once; the item stays
   // unavailable from main's running event to the reply. A refusal of a second request leaves the first one's state.
   function exportCanvas(root: string, row: CanvasRow) {
     if (locked()) return;
@@ -1706,7 +1706,7 @@ export function App() {
     if (picking) pressedCancel();
     instance.startCapture();
   } };
-  // V, H and Space switch tools only on the canvas page itself (canvas-hand-tool design '키').
+  // V, H and Space switch tools only on the canvas page itself.
   const toolPage = screen === "workspace" && shownOverview === null && !modal && !overlaid;
   useEffect(() => { controller.current?.setCanvasPage(toolPage); }, [toolPage]);
   // No key, Esc included, reaches the canvas under a problem's overlay (ARCHITECTURE §7 'Problem overlay').
@@ -1775,7 +1775,7 @@ export function App() {
     if (!composing) link.focus();
     link.insert(result.anchor);
   }
-  // A captured area (canvas-capture design §3 'composer에 넣기'). Availability was decided when capture mode started;
+  // A captured area. Availability was decided when capture mode started;
   // the composer may since have turned to a terminal session or another conversation, or its draft may have filled
   // (main refuses an eleventh file), and none of that ends capture mode. So the composer is checked again before any
   // chip or snapshot, with captureAvailability's order and copy; the limit keeps its left-out line. The checking
@@ -1810,7 +1810,7 @@ export function App() {
   });
   useEffect(() => {
     // The Project Settings page enables the menu as Settings does (no canvas items, no New Conversation), so main's
-    // menu state needs no screen of its own (project-settings design '영향 범위' 메뉴).
+    // menu state needs no screen of its own.
     // Under the overlay the workspace has no canvas or Overview items: they would act on what it covers (ARCHITECTURE §7 'Problem overlay').
     void window.doan.setMenuState({ screen: onPage ? "addProjects" : onSettings || onProjectSettings ? "settings" : screen === "home" ? "home" : state.open && !overlaid ? "canvas" : "workspace", modal,
       ...(onPage && page.choose ? { choose: true } : {}), ...(pageLocked ? { locked: true } : {}), ...(shownOverview !== null && !overlaid ? { overview: true } : {}),
@@ -1846,7 +1846,7 @@ export function App() {
     if (previousOverview.current !== null && previousOverview.current !== shownOverview) setOverviewNotice(null);
     previousOverview.current = shownOverview;
   }, [shownOverview]);
-  // The canvas page's right column (buzz-canvas design §2 '오른쪽 패널'): the conversation panel at its remembered width,
+  // The canvas page's right column: the conversation panel at its remembered width,
   // clamped to the window's bounds, or none while folded. The Overview's column has its own remembered width under the
   // same bounds: the canvas panel stays in the layout under the Overview, so the one measure serves both.
   const canvasPage = overview === null;
@@ -1918,7 +1918,7 @@ export function App() {
     main.style.setProperty("--doan-right-width", rightColumn);
   }, [rightColumn]);
   // A canvas opened under the Overview was fitted to the Overview's layout; fit it again once this commit has applied
-  // the canvas page's column (design §2 '첫 Fit'). The controller does it once per opened canvas.
+  // the canvas page's column. The controller does it once per opened canvas.
   useLayoutEffect(() => { if (panelSize && canvasPage) controller.current?.settleFit(); });
   const foldPanel = (open: boolean, focus: "panel" | "content" | null = null) => {
     panelFocus.current = focus ?? (open ? "hide" : "show");
@@ -2142,7 +2142,7 @@ export function App() {
   </TooltipProvider>;
 }
 
-// main refused the request or the call failed: the same notice as an empty capture (canvas-capture design 결정 11).
+// main refused the request or the call failed: the same notice as an empty capture.
 const CAPTURE_FAILED: AttachmentResult = { ok: false, name: "Canvas capture", error: "capture_failed" };
 
 // The dialog on top, the one Escape would answer.
@@ -2152,13 +2152,13 @@ function topDialog(): HTMLDialogElement | null {
 }
 
 // Add Projects, Projects and Settings are page tabs; on a page Back returns to where it was opened from. `locked` marks
-// the tabs and Back unavailable while App ignores them (buzz-add-projects and buzz-settings design '잠금').
+// the tabs and Back unavailable while App ignores them.
 function TopBar({ sidebar, back, forward, previous, next, page, locked, addProjects, projects, settings, usage }: { sidebar: { view: SidebarToggleView; controls: string | undefined; toggle(): void }; back: boolean; forward: boolean; previous(): void; next(): void; page: "addProjects" | "settings" | null; locked: boolean; addProjects(): void; projects(): void; settings(): void; usage: { openSettings(): boolean; canvasPress?: CanvasPress | undefined } }) {
   const unavailable = locked || undefined;
   const tab = (name: typeof page) => name === page ? { className: "current", "aria-current": "page" as const } : {};
   return <header className="top shell-top"><span className="traffic-space" aria-hidden="true" />
     <div className="shell-history">
-      {/* Left of Back, so Back and Forward move one button right (shell-panel-layout design §2.4 '헤더'). */}
+      {/* Left of Back, so Back and Forward move one button right. */}
       <Tooltip><TooltipTrigger asChild><button className="doan-icon-button shell-sidebar-toggle" data-ui-placement="chrome" aria-label={sidebar.view.label} aria-expanded={sidebar.view.icon === "hide"}
         aria-controls={sidebar.controls} data-badge={sidebar.view.badge ? "true" : undefined} onClick={sidebar.toggle}>{sidebar.view.icon === "hide" ? <PanelLeftClose aria-hidden="true" /> : <PanelLeftOpen aria-hidden="true" />}</button></TooltipTrigger>
         <TooltipContent className="has-key">{sidebar.view.icon === "hide" ? "Hide sidebar" : "Show sidebar"}<span className="doan-kbd" data-ui-variant="on-prominent" data-ui-size="sm">⌘B</span></TooltipContent></Tooltip>
@@ -2190,8 +2190,8 @@ function CanvasPane({ viewport, board, overlay, dragLayer, state, command, cover
     document.addEventListener("focusin", track);
     return () => document.removeEventListener("focusin", track);
   }, []);
-  // A canvas control that vanished or turned disabled under focus hands it to the canvas region, not the page
-  // (buzz-canvas design §2 'Esc와 포커스'). Checked a task later, after a closing Radix menu has tried its trigger.
+  // A canvas control that vanished or turned disabled under focus hands it to the canvas region, not the page.
+  // Checked a task later, after a closing Radix menu has tried its trigger.
   useEffect(() => {
     const timer = setTimeout(() => {
       const last = lastFocus.current, active = document.activeElement;
@@ -2209,9 +2209,9 @@ function CanvasPane({ viewport, board, overlay, dragLayer, state, command, cover
     <section className="area" role="region" aria-label="Canvas" tabIndex={-1} ref={viewport} data-picking={picking ? "" : undefined}>
     <div className="board" ref={board} hidden />
     <div className="overlay" ref={overlay} />
-    {/* The controller shows it for Hand and a held Space (canvas-hand-tool design '방식'); React never changes it. */}
+    {/* The controller shows it for Hand and a held Space; React never changes it. */}
     <div className="drag-layer" ref={dragLayer} hidden />
-    {/* The agent notice comes first, the canvas notices stack under it (design §2 '겹침 순서', 'Esc와 포커스'). */}
+    {/* The agent notice comes first, the canvas notices stack under it. */}
     <CanvasAgent {...agent}>
       {state.error && !overlaid && <div className="doan-notice doan-panel" role="status"><AlertIcon /><span className="grow-text">{state.error}</span></div>}
       {state.unlisted && <div className="doan-notice doan-panel" role="status"><AlertIcon /><span className="grow-text">This page is not a listed canvas. Choose a canvas from the Sidebar.</span></div>}
@@ -2228,7 +2228,7 @@ function CanvasPane({ viewport, board, overlay, dragLayer, state, command, cover
     <div className="doan-canvas-bottom">
       {picking && <div className="doan-agent doan-picking" role="status"><Crosshair className="doan-picking-icon" aria-hidden="true" /><span className="doan-agent-text">Click a frame or an element, or Shift-click a spot</span>
         <span className="doan-kbd" data-ui-variant="on-prominent" aria-hidden="true">Esc</span><span className="sr-only">Press Escape to cancel</span></div>}
-      {/* Capture mode's hint, in the picking hint's look with Capture area's glyph (canvas-capture design §2 '안내 줄'). */}
+      {/* Capture mode's hint, in the picking hint's look with Capture area's glyph. */}
       {capturing && <div className="doan-agent doan-picking" role="status"><Scan className="doan-picking-icon" aria-hidden="true" /><span className="doan-agent-text">Drag to capture an area</span>
         <span className="doan-kbd" data-ui-variant="on-prominent" aria-hidden="true">Esc</span><span className="sr-only">Press Escape to cancel</span></div>}
       <CanvasTools tool={tool} picking={picking} capturing={capturing} onTool={onTool} picker={picker} capture={capture} exporter={exporter} onEscape={onToolbarEscape} />

@@ -69,7 +69,7 @@ code, kbd { font-family: var(--type-family); }
 .board iframe { display: block; border: 0; }
 /* Keep the overlay's marks below canvas chrome. */
 .overlay { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
-/* Hand and a held Space (canvas-hand-tool design '방식'): over the board, the iframe and the marks, under the agent glow
+/* Hand and a held Space: over the board, the iframe and the marks, under the agent glow
    and the canvas chrome (z 1 and 3), so Stop, Open, Reload and the tools stay clickable. A child of the area, so its
    wheel still pans the board. */
 .drag-layer { position: absolute; inset: 0; z-index: 0; cursor: grab; }
@@ -79,7 +79,7 @@ code, kbd { font-family: var(--type-family); }
    selection mark's line over the backdrop-hover fill, in the area's screen px, with no size readout. */
 .capture-layer { position: absolute; inset: 0; z-index: 0; cursor: crosshair; }
 .capture-marquee { position: absolute; border: 1px solid var(--border-focus); box-shadow: 0 0 0 1px var(--surface-panel); background: var(--affordance-backdrop-hover); pointer-events: none; }
-/* The capture snapshot (design §2 '스냅숏'): while main reads the window's pixels, app marks, the canvas chrome, toasts
+/* The capture snapshot: while main reads the window's pixels, app marks, the canvas chrome, toasts
    and portalled surfaces turn transparent. Opacity only, so nothing moves and the focused tool keeps focus (POSTMORTEM
    2026-11-03, never visibility or display); !important beats the agent glow's opacity animation. Here, not inline:
    the renderer CSP blocks inline styles (PoC C1). */
@@ -176,7 +176,7 @@ code, kbd { font-family: var(--type-family); }
 .ob-welcome .ob-scene { max-width: 640px; padding: 0 var(--space-6); align-items: center; }
 .ob-welcome-scene { display: contents; }
 /* Welcome's group (Doany, wordmark, introduction, Get started) is centred 72px above the centre of the area under the
-   chrome, at any height (doan-mascot design '배치', stageInsets). The spacer after it takes at most twice the lift; on a
+   chrome, at any height (stageInsets). The spacer after it takes at most twice the lift; on a
    short window it shrinks before the 32px insets are left and the surface scrolls, so no empty scroll remains. */
 .ob-welcome-main { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: var(--space-8) 0; }
 .ob-welcome-main::after { content: ""; flex: 1 0 0; max-height: 144px; }
@@ -187,7 +187,7 @@ code, kbd { font-family: var(--type-family); }
 .ob-heading h2 { font-size: var(--type-title-size); line-height: var(--type-title-line-height); letter-spacing: var(--type-title-letter-spacing); font-weight: var(--type-weight-medium); outline: none; }
 .ob-heading p { margin-top: var(--space-3); color: var(--text-subtle); }
 .ob-list-notice { margin-bottom: var(--space-4); }
-/* Provider and project cards share one title/description style (design '승인된 디자인 기준'). */
+/* Provider and project cards share one title/description style. */
 .ob-provider-list { padding: 0 var(--space-4); }
 .ob-provider { display: flex; flex-direction: column; justify-content: center; min-height: var(--size-row); padding: var(--space-4) 0; }
 .ob-provider + .ob-provider { border-top: 1px solid var(--border-standard); }
@@ -546,7 +546,7 @@ body:has(.shell-top) { background: transparent; }
    14/20 body text and plain numerals (.ob-overlay); without them it inherits the app body's 13px/normal. */
 .add-panel { display: flex; flex-direction: column; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); font-variant-numeric: normal; }
 /* The ways out of a locked Add Projects page are aria-disabled, not disabled, so they keep their place in the focus
-   order; they take the disabled ink and no hover (design '잠금', draft frames cloning and selecting). */
+   order; they take the disabled ink and no hover (draft frames cloning and selecting). */
 .shell-modes button[aria-disabled="true"], .shell-search[aria-disabled="true"], .shell-side .row[aria-disabled="true"], .shell-side .row[aria-disabled="true"] :is(.shell-project-name, .shell-branch), .shell-top .shell-history .doan-icon-button[aria-disabled="true"], .doan-menu-item[aria-disabled="true"] { color: var(--text-disabled); cursor: default; }
 .shell-modes button[aria-disabled="true"]:not(.current):hover, .shell-search[aria-disabled="true"]:hover, .shell-side .row[aria-disabled="true"]:hover, .shell-top .shell-history .doan-icon-button[aria-disabled="true"]:hover { background: transparent; }
 /* Radix still highlights an aria-disabled menu item under the pointer and keyboard; the selected worktree keeps its
@@ -785,7 +785,7 @@ body:has(.shell-top) { background: transparent; }
 /* Suggested prompts: a prompt-only button, not the shared doan-button (.doan/canvases/suggested-prompt-variants.html
    variant C). Full-width rows; on Home they take the composer's width, 32px under it. */
 .home-suggestions { display: flex; flex-direction: column; gap: var(--space-1); width: min(680px, 100%); margin-top: var(--space-8); }
-/* Hidden while the draft is not empty but keeping its place, so the field above does not move (design '배치'). */
+/* Hidden while the draft is not empty but keeping its place, so the field above does not move. */
 .home-stage .home-suggestions[inert] { visibility: hidden; }
 .suggestion { position: relative; display: flex; align-items: center; width: 100%; min-width: 0; gap: var(--space-3); padding: var(--space-2) var(--space-3) var(--space-2) var(--space-2); border-radius: var(--radius-row); background: transparent; color: var(--text-standard); cursor: pointer; text-align: left; font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); transition: background-color var(--time-state) var(--ease-state); }
 @media (hover: hover) { .suggestion:hover { background: var(--affordance-subtle); } }
@@ -918,7 +918,7 @@ body:has(.shell-top) { background: transparent; }
 .settings-saved svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
 /* A confirmation over a page (Fix…, Share) is rendered inside the panel and would take its body-sm tracking. */
 .settings-panel .doan-dialog { letter-spacing: normal; }
-/* Project Settings page (project-settings design '화면'; draft frames alt-2-page and its states). It reuses the Settings
+/* Project Settings page (draft frames alt-2-page and its states). It reuses the Settings
    column and rows; these rules add only the header's thumbnail and branch, the token row, the one notice that replaces
    the sections of a problem worktree, and the lines under it. The sections' own gaps come from .settings-sections. */
 .project-settings-title { display: flex; align-items: center; gap: var(--space-3); }
@@ -1240,7 +1240,7 @@ body:has(.shell-top) { background: transparent; }
 
 /* buzz-canvas: the canvas page's right column, the canvas conversation panel shell (.doan/canvases/buzz-canvas.html
    'default', 'panel-collapsed', 'panel-resize'). Only folding and unfolding animate the column (data-panel-motion); a
-   drag must not, or the handle trails the pointer (malmoi DESIGN '접기'). */
+   drag must not, or the handle trails the pointer (malmoi DESIGN 'Fold'). */
 .workspace.app-shell[data-panel-motion] { transition: grid-template-columns var(--time-panel-enter) var(--ease-settle); }
 .workspace > .doan-conv-column { position: relative; display: flex; min-width: 0; min-height: 0; }
 .workspace.with-strip > .doan-conv-column { grid-row: -3 / -1; }
@@ -1391,7 +1391,7 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .doan-conv-panel .conversation-thread .q-folded { gap: var(--space-5); }
 /* The resize handle: an invisible 8px strip centred on the panel's 1px left border. The only visible part is a 4px bar
    fading at both ends, shown on hover, while dragging and on keyboard focus (malmoi components/ui/resizable.tsx and its
-   DESIGN.md resizer table, malmoi 6dcdd575). The accent is the parent's common decision 2 exception. */
+   DESIGN.md resizer table, malmoi 6dcdd575). The accent is one of docs/DESIGN.md 'Accent places'. */
 .doan-panel-handle { position: absolute; z-index: 4; top: 0; bottom: 0; left: calc(-1 * var(--space-1)); width: var(--space-2); background: transparent; touch-action: none; outline: none; cursor: col-resize; }
 .doan-panel-handle::after { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: var(--space-1); transform: translateX(-50%); background: linear-gradient(to bottom, transparent, var(--affordance-accent), transparent); opacity: 0; }
 .doan-panel-handle:is([data-ui-state="hover"], [data-ui-state="drag"], :focus-visible)::after { opacity: 0.7; }
@@ -1425,7 +1425,7 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 /* buzz-canvas: the agent indicator while this canvas's current conversation works or waits (.doan/canvases/buzz-canvas.html
    'agent-working', 'agent-waiting'). Reference: ego lite's agent tab as the user described it (2026-11-01); its values are
    compiled into a native view, and the one web token read is the task bar's #0009. doan uses its accent for
-   the edge instead of ego's blue, the parent's common decision 2 exception. Above the overlay, under the board's floating
+   the edge instead of ego's blue (docs/DESIGN.md 'Accent places'). Above the overlay, under the board's floating
    controls; nothing here takes pointer input. */
 .doan-agent-glow { position: absolute; inset: 0; z-index: 1; pointer-events: none; border-radius: 0 0 0 var(--radius-container); box-shadow: inset 0 0 calc(var(--space-3) * 3) color-mix(in srgb, var(--affordance-accent) 85%, transparent), inset 0 0 calc(var(--space-6) * 4.5) color-mix(in srgb, var(--affordance-accent) 50%, transparent); animation: doan-agent-glow 8s var(--ease-state) infinite; }
 .workspace[data-panel="collapsed"] .doan-agent-glow { border-radius: 0 0 var(--radius-container) var(--radius-container); }
