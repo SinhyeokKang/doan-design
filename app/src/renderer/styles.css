@@ -225,7 +225,7 @@ code, kbd { font-family: var(--type-family); }
 .ob-spaced { margin-top: var(--space-6); }
 .ob-url-action { display: flex; justify-content: flex-end; margin-top: var(--space-3); }
 .ob-recovery { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-3); width: 100%; margin-top: var(--space-4); }
-/* D29: mid-window the Agent/Project glass is about --affordance-subtle's own colour, so a subtle button standing on it
+/* Mid-window the Agent/Project glass is about --affordance-subtle's own colour, so a subtle button standing on it
    lost its fill. It takes the step capsule's fill on the same glass; panels, dialogs, the Welcome surface and the DS
    hover, pressed and disabled fills are left alone. */
 .ob-overlay:not(.ob-welcome) .ob-scene .doan-button[data-ui-variant="subtle"]:not(:hover, :active, :disabled, .doan-panel *, .doan-dialog *) { background: var(--affordance-backdrop-hover); }
@@ -1307,7 +1307,7 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 /* A reply chip's note under its reply block, 6 apart, as the note under a sent bubble. */
 .conversation-thread .thread-item > .msg-agent + .chip-missing { margin-top: var(--space-1h); }
 .mark.jump-highlight.jump-point { border-radius: 50%; }
-/* The working-frame marker (work-update decisions 16–17, draft frames marker-states, marker-moves): the jump highlight
+/* The working-frame marker (work-update draft frames marker-states, marker-moves): the jump highlight
    kept for the work turn, under the selection marks, with a travelling gradient and a breathing glow. It slides between
    frames only with .moving, which the controller sets for the 220 ms after the working frame changes: it is placed in
    screen px on every pan and zoom, which must not lag. 4.8 s is two periods of the notice dot's 2.4 s. .still: the
@@ -1458,7 +1458,7 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .doan-agent:has(> .doan-agent-artist) { padding-left: var(--space-2); }
 .doan-agent-artist { display: block; flex: none; width: var(--size-control-sm); height: var(--size-control-sm); }
 .doan-agent-artist img { display: block; width: 100%; height: 100%; }
-/* The working notice's line holds the text and its caret (work-update decisions 19–20, draft frame notice-typing): the
+/* The working notice's line holds the text and its caret (work-update draft frame notice-typing): the
    caret follows the last visible character, after the ellipsis when cut, and a width floor's extra room stays empty
    after it. The measuring node takes the text's type and no room. */
 .doan-agent-line { display: grid; grid-template-columns: minmax(0, max-content); min-width: 0; }

@@ -102,7 +102,7 @@ import type { PermissionModeId } from "../main/conversation/permissionMode";
 import type { PreferencesPatch, PreferencesSnapshot } from "../main/preferences";
 import { preferenceAfterPick, rememberChoice, rememberFast, rememberPermission, shouldTurnOffFast, withFastChanges, type ComposerChoice } from "./rememberChoice";
 
-// Each command names its handler; one App does not know does nothing (R-M ⚪5).
+// Each command names its handler; one App does not know does nothing.
 export function menuCommand(name: MenuCommand, to: { home: () => void; quickOpen: () => void; newConversation: () => void; pickFromCanvas: () => void; toggleSidebar: () => void }): void {
   if (name === "home") to.home();
   else if (name === "toggleSidebar") to.toggleSidebar();
@@ -1976,7 +1976,7 @@ export function App() {
   // Fast turned itself off: that provider's Last used follows, and the conversation's own switch
   // held in a composer goes, so the next turn is not asked for Fast again. Only here, as events arrive: this channel
   // never replays history, so a restart cannot undo a Fast the person turned on again (shouldTurnOffFast).
-  // A conversation the lists do not name yet waits in fastOffPending until one does (review R 🟡3).
+  // A conversation the lists do not name yet waits in fastOffPending until one does.
   const fastOffFor = (conversationId: string, seenAt: number): boolean => {
     const provider = [...homeRun.current.lists.values()].flat().find(c => c.conversationId === conversationId)?.provider
       ?? homeRun.current.conversations.find(c => c.conversationId === conversationId)?.provider;
