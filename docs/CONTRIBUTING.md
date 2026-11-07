@@ -28,7 +28,9 @@ Run the shared gate before you open a pull request:
 node .agents/skills/verify/scripts/verify.mjs
 ```
 
-It runs the Go tests and vet, the app's typecheck, lint, tests and build, and the runtime-support tests, stopping on the first failure; logs go to `.scratch/verify/`. Add `--eval` when you change the agent evaluation runner in `eval/`. There is no CI yet, so include the result in your pull request.
+It runs the Go tests and vet, the app's typecheck, lint, tests and build, and the runtime-support tests, stopping on the first failure; logs go to `.scratch/verify/`. Add `--eval` when you change the agent evaluation runner in `eval/`.
+
+CI runs the same gate (without `--eval`) as the `gate` check on every pull request to `develop` or `main`, and the maintainer merges a pull request only when it passes. If it fails, the job log shows the failing step's output. A pull request from a fork may need a maintainer to approve its first CI run before it starts.
 
 ## Commits
 
