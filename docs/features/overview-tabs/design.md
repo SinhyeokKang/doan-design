@@ -92,8 +92,8 @@ tablist의 Tab stop은 선택된 탭 하나다. ←/→가 탭 사이를 순환�
 - **머리 높이**는 지금처럼 `--size-chrome`(56)이다. 높이는 항상 그려지는 머리 컨테이너에 두고, 그 안의 tablist에 두지 않는다(§10의 2026-11-02 항목).
 - **tablist**는 Quick Open의 filter 탭과 같은 DS 부품을 쓴다(`.doan/ds/mode-tabs.html` frame `filters`, DESIGN 'Quick Open' 'Tabs'). 아이콘은 넣지 않는다(Q1). 머리 안 정렬과 여백은 초안이 정한다.
 - **tabpanel**: 두 tabpanel 요소를 항상 그린다. 선택되지 않은 것은 `hidden`이고 자식이 없다. 그래서 두 탭의 `aria-controls`가 늘 있는 요소를 가리키고, 내용만 mount·unmount된다.
-- 패널 폭과 그 기억(`overviewPanel.width`), handle(`.doan-overview-handle`, "Resize canvas conversations")은 바뀌지 않는다. handle 이름은 Conversations만 가리키게 되므로, 초안과 `clarify` preset으로 "Resize panel" 같은 이름을 다시 본다.
-- **region 이름**: 지금 `aside`의 region 이름 "Canvas conversations"는 패널 전체가 아니라 한 탭을 가리키게 된다. region 이름을 "Overview panel"로 바꾸는 것을 제안하고, 초안에서 `clarify`로 확정한다.
+- 패널 폭과 그 기억(`overviewPanel.width`), handle(`.doan-overview-handle`, "Resize canvas conversations")은 바뀌지 않는다. handle 이름만 "Resize Overview panel"로 바꾼다(초안 확정, region 이름과 같은 명사).
+- **region 이름**: 지금 `aside`의 region 이름 "Canvas conversations"는 패널 전체가 아니라 한 탭을 가리키게 된다. region 이름은 "Overview panel"이다(초안 확정).
 
 ### 4.2 Conversations 탭
 
@@ -130,20 +130,20 @@ Project 탭을 고르면 목록이 unmount된다. visibility observer cleanup이
 |---|---|
 | worktree 읽는 중(`loading`) | Path와 "Reading project". 동작 없음(`cardRow`의 `Reading`은 `actions: []`) |
 | 문제 worktree | Path, 문제 이름(`cardRow(entry, null, null).chip`), `problemLine`의 설명 줄, recovery 동작 묶음 |
-| config 처음 읽는 중 | Settings 구역의 config 줄만 비어 있고, 300 ms(`LOADING_DELAY_MS`와 같은 값)가 지나면 "Reading settings" |
+| config 처음 읽는 중 | Settings 구역의 config 줄만 비어 있고, 300 ms(`LOADING_DELAY_MS`와 같은 값)가 지나면 spinner와 "Reading settings"(Project Settings 페이지의 읽는 중 줄과 같은 꼴) |
 | config 다시 읽는 중 | 이전 값을 그대로 둔다 |
 | config 읽기 실패(`error`) | Settings 구역에 "Couldn’t read this worktree’s settings."(Project Settings와 같은 문장, `projectSettingsRules.ts` 89행) + 이유(`ConfigReply.message`) + Retry |
 | config `unavailable` | 이전 값이 있으면 그대로 두고, 없으면 실패와 같게 보인다 |
 
 **문제 worktree가 보이는 때**: PRODUCT §5 item 3 'Problem states'에 따르면 들어갈 때 문제인 프로젝트는 problem screen을 보인다. 그래서 Project 탭의 문제 상태는 열린 Overview의 프로젝트가 문제로 바뀐 때에만 생긴다(`App.tsx` 1509–1517행의 `keptOverview`).
 
-**설명 줄** `problemLine(entry, name, homeDirectory)`: band와 탭이 같이 쓴다. 지금 band의 두 문장은 그대로 두고, 나머지 둘을 더한다. 새 두 문장은 `clarify` preset 기준(무엇이 실패했는지, 알 때는 왜, 회복은 버튼이 말한다)으로 쓴 제안이고 초안에서 확정한다.
+**설명 줄** `problemLine(entry, name, homeDirectory)`: band와 탭이 같이 쓴다. 지금 band의 두 문장은 그대로 두고, 나머지 둘을 더한다. 새 두 문장은 `clarify` preset 기준(무엇이 실패했는지, 알 때는 왜, 회복은 버튼이 말한다)으로 썼고 초안에서 확정했다. 둘 다 Project Settings의 문제 문장처럼 "couldn’t"로 쓴다.
 
 | kind | 문장 |
 |---|---|
 | `notFound` | "`<path>` is gone or moved."(지금 그대로, path는 `displayPath`) |
 | `uninitialized` | "<name> is not set up."(지금 그대로) |
-| `error`(Config error) | "Doan can’t read <name>’s configuration." (새 문장) |
+| `error`(Config error) | "Doan couldn’t read <name>’s configuration." (새 문장) |
 | `cliError`(CLI error) | "Doan couldn’t read <name>." (새 문장) |
 | `loading`, `list` | `null` |
 
@@ -210,6 +210,20 @@ App이 이번 실행의 값 하나(`"conversations" | "project"`)를 갖고 `Can
 | `tabs-keyboard` | 선택된 탭의 focus ring, 다른 탭 hover, Project tabpanel focus, 빈 Conversations tabpanel focus, Project Settings 버튼과 recovery 버튼 focus | `app/src/renderer/RightPanel.tsx` |
 
 - **제약**: Overview 헤더, 스레드, 입력창, 사이드바, status band는 코드와 DESIGN 'Project Overview' 그대로 복사한다. 단 status band의 Config error·CLI error 설명 줄은 새 문장으로 그린다. recovery 버튼은 band의 버튼 모양(`ProblemActions`, sm `subtle`·`ghost`)을 기준으로 하되 280 패널 안 배치는 초안이 정한다. 패널 머리는 56px이고 탭은 `mode-tabs` `filters` 부품을 아이콘 없이 쓴다. 문구는 `clarify` preset으로 다시 보고, 바꾼 문구는 이 문서 §4.3·§4.4·§4.8에 되돌려 적는다. Doan files 값은 branch에서 빌드한 CLI(`go build -o <tmp>/doan ./cli/cmd/doan`)의 `doan ls --json` 결과에서 가져온다(설치된 `doan`이 `local-doan-files`보다 오래되었을 수 있다).
+
+### 5.1 초안에서 정한 것 (`/design-draft`, 2026-11-07)
+
+초안 `.doan/canvases/overview-tabs.html`이 정했고, 사용자 확인을 기다린다.
+
+- **280 패널 머리 측정**: 탭 capsule은 상태 표시가 있으면 216 px(Conversations 135, Project 70), 없으면 196 px다. 머리의 여유는 263 px(280에서 시작 쪽 1 px 선과 좌우 8 px 안쪽 여백을 뺀 값)이므로 Q1은 다시 열지 않는다.
+- **머리 배치**: 머리 컨테이너는 높이 `--size-chrome`, 좌우 안쪽 여백 `--space-2`이고, capsule은 탭 폭만큼만 차지한다(늘이지 않는다).
+- **이름**: region "Overview panel", handle "Resize Overview panel", 탭 "Conversations"·"Project", Project 탭 동작 묶음 "Fix this worktree". 제목 메뉴의 "Conversations in <project>"와 겹치지만 탭은 그대로 둔다. 탭의 행과 빈 상태 문구가 캔버스 대화임을 말하고, 메뉴는 자기 머리 아래에 프로젝트 대화를 나열한다(Q1).
+- **Project 탭 배치**: 구역은 Location, Canvases, Last change, Settings 순서이고 각 구역 제목은 label-sm이다. 짧은 값(Branch, Worktrees, 개수)은 줄 끝에 두고, 경로와 모드(Path, Token CSS, Shared with canvases, Doan files)는 이름 아래에 두어 줄여 쓰지 않고 줄을 바꾼다. 내용의 시작은 Conversations 행 내용과 같은 16 px다. Project Settings 버튼은 sm `subtle`로 Settings 구역 끝에 둔다.
+- **읽을 수 없는 캔버스 안내와 Doan files `Unknown`의 이유 문장**은 경고 inline 형식(16 px 아이콘과 `--text-warning`)이다.
+- **config 읽기 실패**는 inline 오류(아이콘과 `--text-danger`)로 "Couldn’t read this worktree’s settings."를 보이고, 그 아래에 이유(`--text-subtle`)와 sm `subtle` Retry를 둔다. 280 폭에서 notice 안의 inline 동작은 문장을 지나치게 좁히기 때문이다.
+- **문제 worktree**: Project 탭은 문제 이름 chip, 설명 줄, "Fix this worktree" 동작 묶음(band와 같은 sm `subtle`·`ghost`, 줄바꿈 허용), Details를 펼친 오류를 먼저 보이고, 그 아래에 Location의 Path를 둔다. 지금 고쳐야 할 사실이 먼저 오게 하려는 순서다.
+- **상태 표시 색**: 손 아이콘의 `--affordance-accent`는 새 accent 자리(`.ov-tab-mark.permission`)다. 구현 때 DESIGN 'Accent places'와 `accentPlaces` 목록에 더한다.
+- **tabpanel focus**: tabpanel은 몸을 채우고 스크롤하므로 안쪽 ring(−2 px, `--radius-row`)을 쓴다. 탭과 버튼은 공용 바깥 ring이다.
 
 ## 6. 순수 함수로 뺄 부분 (`/tdd` 대상)
 
