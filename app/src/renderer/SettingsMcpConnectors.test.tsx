@@ -1,4 +1,5 @@
 import { isValidElement, type ReactElement, type ReactNode } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { DropdownMenu } from "radix-ui";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
@@ -200,6 +201,7 @@ test("Add server by URL opens a compact dialog that locks the page; a bad URL is
   expect(words(all(tree).find(element => element.props.className === "doan-dialog-title")?.props.children)).toBe("Add server by URL");
   const input = () => all(tree).find(element => element.type === "input")!;
   expect(input().props).toMatchObject({ "aria-label": "Server URL", placeholder: "https://mcp.example.com/mcp" });
+  expect(renderToStaticMarkup(input())).toMatch(/<input[^>]*spellcheck="false"/);
   const submit = () => all(tree).find(element => element.props.type === "submit")!;
   expect(submit().props.disabled).toBe(true);
   (input().props.onChange as (event: { target: { value: string } }) => void)({ target: { value: "http://mcp.internal.example.com/mcp" } });
