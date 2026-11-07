@@ -12,7 +12,7 @@ import { skillWords, skillTextParts } from "./skillWords";
 import { PROVIDER_NAMES } from "./agentAuthView";
 import { AlertIcon } from "./AlertIcon";
 import { canvasLabel } from "./canvasTree";
-import { focusAfter } from "./composerRules";
+import { focusAfter, type FocusAction } from "./composerRules";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import { handoffCardHead, handoffLineText } from "./handoffView";
 import { formatSize, providerLogo } from "./homeComposer";
@@ -519,22 +519,25 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const [slow, setSlow] = useState(false);
   const [copied, setCopied] = useState(false);
+  // The card last answered, skipped or stopped here and the focusAfter rule for it: once that card folds, by any
+  // status, its button is gone and focus moves on by the rule (design §7, defect-sweep A3·A4).
+  const folding = useRef<{ requestId: string; action: FocusAction } | null>(null);
+  const stop = (requestId: string) => { folding.current = { requestId, action: { kind: "stopped" } }; props.onStop(); };
   // Requests whose last answer did not reach main (design §2 'Errors'): the person chooses again.
   const [unanswered, setUnanswered] = useState<ReadonlySet<string>>(new Set());
   const answer = (requestId: string, optionId: string) => {
+    folding.current = { requestId, action: { kind: "answered", requestId } };
     setUnanswered(current => { if (!current.has(requestId)) return current; const next = new Set(current); next.delete(requestId); return next; });
     void answerReached(() => props.onAnswer(requestId, optionId)).then(reached => { if (!reached) setUnanswered(current => new Set(current).add(requestId)); });
   };
   const draftOf = (requestId: string) => props.questionDraft?.(requestId) ?? EMPTY_QUESTION_DRAFT;
   const editQuestion = (requestId: string, action: QuestionDraftAction) => props.onQuestionDraft?.(requestId, action);
-  // The question last answered or skipped here: once it folds, focus moves on as after a permission answer (design §7).
-  const sentFrom = useRef<string | null>(null);
   const sendQuestion = (entry: Extract<ThreadItem, { kind: "question" }>, how: "answer" | "skip") => {
     const draft = draftOf(entry.requestId);
     if (draft.sending) return;
     const answer: QuestionAnswerInput = how === "skip" ? { outcome: "skipped" } : questionInput(entry.questions, draft);
     editQuestion(entry.requestId, { type: "sending", how });
-    sentFrom.current = entry.requestId;
+    folding.current = { requestId: entry.requestId, action: { kind: "answered", requestId: entry.requestId } };
     void settleQuestionSend(() => props.onAnswerQuestion ? props.onAnswerQuestion(entry.requestId, answer) : Promise.resolve({ error: "unknown" }), action => editQuestion(entry.requestId, action));
   };
   const focusIn = (key: string): boolean => {
@@ -578,16 +581,16 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     if (next === "bottom") { node.scrollTop = node.scrollHeight; distance.current = 0; setBehind(false); }
     else if (next === "behind") setBehind(true);
   }, [items]);
-  // A folded question took the focus that was on it to the page: the next waiting request takes it, else the composer.
-  // A person who moved focus elsewhere meanwhile keeps it.
+  // A folded card took the focus that was on it to the page: by its rule, the next waiting request or the composer
+  // takes it. A person who moved focus elsewhere meanwhile keeps it.
   useLayoutEffect(() => {
-    const from = sentFrom.current;
-    if (from === null || !Array.isArray(items)) return;
+    const fold = folding.current;
+    if (fold === null || !Array.isArray(items)) return;
     const asks = pendingAsks(items);
-    if (items.some(item => item.kind === "question" && item.requestId === from && item.status === "pending")) return;
-    sentFrom.current = null;
+    if (asks.some(ask => ask.requestId === fold.requestId)) return;
+    folding.current = null;
     if (document.activeElement && document.activeElement !== document.body) return;
-    const target = focusAfter({ kind: "answered", requestId: from }, { pending: asks.map(ask => ask.requestId) });
+    const target = focusAfter(fold.action, { pending: asks.map(ask => ask.requestId) });
     if (target.kind === "option") focusIn(asks.find(ask => ask.requestId === target.requestId)!.key);
     else props.onFocusComposer?.();
   }, [items]);
@@ -662,7 +665,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
           <span className="strip-actions">
             {entry.options.map(option => <button key={option.id} type="button" className="doan-button" data-ui-size="sm" data-ui-variant={option.kind === "allow" ? "prominent" : "panel"}
               data-request={entry.requestId} onClick={() => answer(entry.requestId, option.id)}>{option.label}</button>)}
-            <button type="button" className="doan-button" data-ui-size="sm" onClick={props.onStop}><CircleStop aria-hidden="true" />Stop</button>
+            <button type="button" className="doan-button" data-ui-size="sm" onClick={() => stop(entry.requestId)}><CircleStop aria-hidden="true" />Stop</button>
           </span>
           {unanswered.has(entry.requestId) && <span className="ask-error" role="alert">Couldn’t send your answer. Choose again.</span>}
         </div>;
@@ -671,7 +674,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
         if (entry.status !== "pending") return <div className="q-folded">{questionLines(entry).map((line, i) =>
           <div key={i} className="activity"><div className="activity-head ask-answered"><span title={line}>{line}</span></div></div>)}</div>;
         return <QuestionCard item={entry} provider={provider} live={entry.seq > props.liveAfter} base={base} draft={draftOf(entry.requestId)}
-          onDraft={action => editQuestion(entry.requestId, action)} onSend={() => sendQuestion(entry, "answer")} onSkip={() => sendQuestion(entry, "skip")} onStop={props.onStop} />;
+          onDraft={action => editQuestion(entry.requestId, action)} onSend={() => sendQuestion(entry, "answer")} onSkip={() => sendQuestion(entry, "skip")} onStop={() => stop(entry.requestId)} />;
       }
       case "end": {
         const view = endView(entry.end, provider);
