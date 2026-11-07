@@ -257,6 +257,7 @@ After shell `doan check` processes canvases, `cli/internal/cli/sessions.go` appe
 
 **Verification** follows AGENTS.md 'Workflow'. App tests build the CLI through a Vitest `globalSetup`, so `npm --prefix app test` stays one command.
 
+- **App lint**: the shared gate uses oxlint + oxlint-tsgolint because the app uses TypeScript 7 while typescript-eslint's TypeScript peer range is `<6.1.0`. oxlint-tsgolint's version prefix must match the app's `typescript` version; upgrade oxlint and oxlint-tsgolint together in the same commit, and update oxlint-tsgolint with TypeScript when that version changes. exhaustive-deps warns under an exact `--max-warnings` limit; the other enabled rules error. The rule set and ignore patterns live in [`app/.oxlintrc.json`](../app/.oxlintrc.json), the lint command and limit in [`app/package.json`](../app/package.json), and the shared-gate invocation in [`verify.mjs`](../.agents/skills/verify/scripts/verify.mjs). The warning ratchet follows the [verify skill](../.agents/skills/verify/SKILL.md).
 - Tests and probes read elements by role, accessible name and ARIA state only; product code carries no test-only attributes.
 - Inside the scaled canvas iframe, read geometry with `getBoundingClientRect()` in the frame; Playwright's `boundingBox()` ignores the board scale.
 

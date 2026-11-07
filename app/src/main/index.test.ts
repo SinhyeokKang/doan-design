@@ -1708,6 +1708,86 @@ test("main tells the renderer it is quitting before the conversations stop, and 
   expect(contents.send.mock.calls.filter(call => call[0] === "app:quitting")).toEqual([["app:quitting", true]]);
 });
 
+test.each([
+  ["mcp", "doan: MCP cleanup failed during quit"],
+  ["usage", "doan: usage cleanup failed during quit"],
+  ["auth", "doan: agent sign-in cleanup failed during quit"],
+] as const)("a failed %s teardown is logged and still runs the later steps before quitting", async (failed, message) => {
+  const { McpService } = await import("./mcpConnectors/service");
+  const { UsageService } = await import("./agentAuth/usageService");
+  const { AuthManager } = await import("./agentAuth/manager");
+  const { ConversationService } = await import("./conversation/service");
+  const { OnboardingService } = await import("./onboarding/service");
+  const { AddPageSession } = await import("./addPage");
+  const failure = new Error(`${failed} teardown failed`);
+  const conversations = vi.spyOn(ConversationService.prototype, "quit").mockResolvedValueOnce();
+  const mcp = vi.spyOn(McpService.prototype, "quit").mockResolvedValue();
+  const usage = vi.spyOn(UsageService.prototype, "quit").mockResolvedValue();
+  const auth = vi.spyOn(AuthManager.prototype, "quit").mockResolvedValue();
+  const onboarding = vi.spyOn(OnboardingService.prototype, "quit").mockResolvedValueOnce();
+  const addPage = vi.spyOn(AddPageSession.prototype, "quit").mockResolvedValueOnce();
+  ({ mcp, usage, auth })[failed].mockRejectedValueOnce(failure);
+  const log = vi.spyOn(console, "error").mockImplementation(() => {});
+  onTestFinished(() => { for (const spy of [conversations, mcp, usage, auth, onboarding, addPage, log]) spy.mockRestore(); });
+
+  mocks.app.emit("before-quit", { preventDefault: vi.fn() });
+  await new Promise<void>(resolve => setImmediate(resolve));
+
+  expect(conversations).toHaveBeenCalledOnce();
+  expect(mcp).toHaveBeenCalledOnce();
+  expect(usage).toHaveBeenCalledOnce();
+  expect(auth).toHaveBeenCalledOnce();
+  expect(onboarding).toHaveBeenCalledOnce();
+  expect(addPage).toHaveBeenCalledOnce();
+  expect(log).toHaveBeenCalledWith(message, failure);
+  expect(mocks.app.quit).toHaveBeenCalledOnce();
+  const order = [conversations, mcp, usage, auth, onboarding, addPage, mocks.app.quit].map(spy => spy.mock.invocationCallOrder[0]);
+  expect(order).toEqual([...order].sort((a = 0, b = 0) => a - b));
+});
+
+test.each([
+  { failed: "onboarding", kind: "rejection" }, { failed: "addPage", kind: "rejection" },
+  { failed: "onboarding", kind: "throw" }, { failed: "addPage", kind: "throw" },
+])("a failed $failed teardown ($kind) is logged and still waits for the other adder before quitting", async ({ failed, kind }) => {
+  const { OnboardingService } = await import("./onboarding/service");
+  const { AddPageSession } = await import("./addPage");
+  const failure = new Error(`${failed} teardown failed`);
+  let release = () => {};
+  const pending = new Promise<void>(resolve => { release = resolve; });
+  const fail = () => { if (kind === "throw") throw failure; return Promise.reject(failure); };
+  const onboarding = vi.spyOn(OnboardingService.prototype, "quit").mockImplementationOnce(() => failed === "onboarding" ? fail() : pending);
+  const addPage = vi.spyOn(AddPageSession.prototype, "quit").mockImplementationOnce(() => failed === "addPage" ? fail() : pending);
+  const log = vi.spyOn(console, "error").mockImplementation(() => {});
+  onTestFinished(() => { release(); for (const spy of [onboarding, addPage, log]) spy.mockRestore(); });
+
+  mocks.app.emit("before-quit", { preventDefault: vi.fn() });
+  await new Promise<void>(resolve => setImmediate(resolve));
+  expect(onboarding).toHaveBeenCalledOnce();
+  expect(addPage).toHaveBeenCalledOnce();
+  expect(mocks.app.quit).not.toHaveBeenCalled();
+  release();
+  await new Promise<void>(resolve => setImmediate(resolve));
+
+  expect(log).toHaveBeenCalledWith("doan: project cleanup failed during quit", failure);
+  expect(mocks.app.quit).toHaveBeenCalledOnce();
+});
+
+test("a failed final state flush is logged and still quits", async () => {
+  const failure = new Error("state flush failed");
+  mocks.uiState.flushSync.mockImplementationOnce(() => { throw failure; });
+  const log = vi.spyOn(console, "error").mockImplementation(() => {});
+  onTestFinished(() => { log.mockRestore(); });
+
+  mocks.app.emit("before-quit", { preventDefault: vi.fn() });
+  await new Promise<void>(resolve => setImmediate(resolve));
+
+  expect(log).toHaveBeenCalledWith("doan: final cleanup failed during quit", failure);
+  expect(mocks.app.quit).toHaveBeenCalledOnce();
+  const resumed = { preventDefault: vi.fn() };
+  mocks.app.emit("before-quit", resumed);
+  expect(resumed.preventDefault).not.toHaveBeenCalled();
+});
+
 test("repeated quit requests before deferred teardown schedule only one quit", async () => {
   const events = [{ preventDefault: vi.fn() }, { preventDefault: vi.fn() }];
   for (const event of events) mocks.app.emit("before-quit", event);

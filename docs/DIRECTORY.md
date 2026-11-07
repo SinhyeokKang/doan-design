@@ -32,7 +32,7 @@ Where things live, one entry per directory. File-level detail is in the code; ru
 
 ## App (Electron + TypeScript)
 
-- `app/`: the npm project, build and test configuration (`package.json` also carries the electron-builder settings), `components.json` (shadcn) and `.npmrc` (exact pins).
+- `app/`: the npm project, build and test configuration (`package.json` also carries the electron-builder settings), `components.json` (shadcn), `.npmrc` (exact pins) and `.oxlintrc.json` (lint configuration).
 - `app/scripts/`: packaging (`package.mjs`). `app/resources/`: the packaged app icon source, the installer disk background and the signing entitlements.
 - `app/src/main/`: the Electron main process (`index.ts` is the entry) — window, menus, IPC, local server wiring, folder lifecycle, CLI runner, persistence and notifications. Subdirectories:
   - `agentAuth/`: Doan-owned agent sign-in, vault and profiles.

@@ -13,6 +13,7 @@ export function plan(flags) {
     { name: "go-test", command: "go", args: ["test", "./..."] },
     { name: "go-vet", command: "go", args: ["vet", "./..."] },
     npm("typecheck", ["run", "typecheck"]),
+    npm("lint", ["run", "lint"]),
     npm("app-test", ["test"]),
     ...(flags.includes("--eval") ? [
       node("eval-tests", ["--test", "eval/**/*.test.ts"]),

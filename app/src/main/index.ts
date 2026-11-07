@@ -1227,7 +1227,7 @@ app.on("before-quit", (event) => {
   // before any teardown is awaited.
   onboarding?.closeForQuit();
   addPage?.closeForQuit();
-  setImmediate(async () => {
+  async function quitInOrder(): Promise<void> {
     // Stop the queue before Electron closes windows so it cannot reopen
     // the capture window and block will-quit. Persist state before teardown.
     try { await conversations?.quit(); } catch (error) {
@@ -1238,16 +1238,29 @@ app.on("before-quit", (event) => {
       return;
     }
     // MCP connector attempts are cancelled and write no result; their leases go before agent sign-in quits.
-    await mcp?.quit();
+    try { await mcp?.quit(); } catch (error) {
+      console.error("doan: MCP cleanup failed during quit", error);
+    }
     // Usage reads are stopped and their leases released before agent sign-in quits.
-    await usage?.quit();
+    try { await usage?.quit(); } catch (error) {
+      console.error("doan: usage cleanup failed during quit", error);
+    }
     // After conversations: their runs hold auth leases whose working credentials are written back here.
-    await agentAuth?.quit();
+    try { await agentAuth?.quit(); } catch (error) {
+      console.error("doan: agent sign-in cleanup failed during quit", error);
+    }
     // Each adder owns only its clones; stopping them removes their temporary directories.
-    await Promise.all([onboarding?.quit(), addPage?.quit()]);
-    quitting = true; cancelPendingHide(); uiState?.flushSync(); canvasSeen?.flushSync(); thumbnails?.dispose();
+    const projects = await Promise.allSettled([onboarding, addPage].map(async adder => { await adder?.quit(); }));
+    for (const result of projects) {
+      if (result.status === "rejected") console.error("doan: project cleanup failed during quit", result.reason);
+    }
+    quitting = true;
+    try { cancelPendingHide(); uiState?.flushSync(); canvasSeen?.flushSync(); thumbnails?.dispose(); } catch (error) {
+      console.error("doan: final cleanup failed during quit", error);
+    }
     app.quit();
-  });
+  }
+  setImmediate(() => { void quitInOrder(); });
 });
 app.on("activate", () => {
   if (win && !win.isDestroyed()) showWindow(win);

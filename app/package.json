@@ -8,6 +8,7 @@
     "dev": "electron-vite dev",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
+    "lint": "oxlint --type-aware --max-warnings 82 src runtime",
     "package": "node scripts/package.mjs"
   },
   "dependencies": {
@@ -33,6 +34,8 @@
     "electron": "45.0.0",
     "electron-builder": "26.18.0",
     "electron-vite": "6.0.0",
+    "oxlint": "1.92.0",
+    "oxlint-tsgolint": "7.0.2006",
     "playwright": "1.64.1",
     "shadcn": "4.22.1",
     "tailwindcss": "4.3.3",

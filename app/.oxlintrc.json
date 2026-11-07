@@ -1,0 +1,11 @@
+{
+  "plugins": ["react", "typescript"],
+  "categories": { "correctness": "off" },
+  "rules": {
+    "react/rules-of-hooks": "error",
+    "react/exhaustive-deps": "warn",
+    "typescript/no-floating-promises": "error",
+    "typescript/no-misused-promises": "error"
+  },
+  "ignorePatterns": ["**/*.test.ts", "**/*.test.tsx"]
+}
