@@ -6,7 +6,7 @@ import { initialTransport, normalizeClaude, normalizeCodex } from "./transport";
 import { acpPromptDone, initialAcp, normalizeAcp } from "./acp";
 import type { EventPayload, TransportState } from "./types";
 
-// turn-activity A1: each recorded turn's whole event list as the transports produce it before any stage output. Stage
+// Each recorded turn's whole event list as the transports produce it before any stage output. Stage
 // work must leave these lists exactly as they are (fixtures/README.md has the sources).
 function claudeEvents(frames: readonly unknown[]): EventPayload[] {
   let state: TransportState = initialTransport();

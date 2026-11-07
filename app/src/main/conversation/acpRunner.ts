@@ -119,7 +119,7 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
     // A session keeps its last mode (and Copilot its allow_all) across session/load, so the chosen mode is set after
     // every open, Default included; a value the session already has is not set again. A mode this provider cannot
     // take sets Default instead, since leaving the session alone could keep a wider mode from an earlier turn.
-    // Nothing when the server listed no mode the mapping table names (permission-mode design 'ACP').
+    // Nothing when the server listed no mode the mapping table names.
     const acpModes = parseAcpModes(current), chosen = acpModeFor(input.runtime, input.permissionMode ?? "default", acpModes);
     for (const setting of chosen.length ? chosen : acpModeFor(input.runtime, "default", acpModes)) {
       if (setting.value !== acpCurrent(current, setting.configId)) await acp.request("session/set_config_option", { sessionId, configId: setting.configId, value: setting.value }, OPEN_TIMEOUT_MS);

@@ -162,8 +162,8 @@ export class DraftStore {
     if (left.length) this.file.queued[id] = left; else delete this.file.queued[id];
     this.save();
   }
-  // A handoff's queue: the waiting messages go behind the conversation that took the work over, in one write
-  // (canvas-handoff design §2-4). Those on their way out stay with their send.
+  // A handoff's queue: the waiting messages go behind the conversation that took the work over, in one write.
+  // Those on their way out stay with their send.
   move(from: string, to: string): QueuedItem[] {
     const items = this.queued(from);
     if (!items.length) return [];

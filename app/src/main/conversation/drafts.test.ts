@@ -239,7 +239,7 @@ describe("DraftStore single-item sending", () => {
   });
 });
 
-// conversation-delete design §2.2: a deleted conversation's queue and returned draft go with it.
+// A deleted conversation's queue and returned draft go with it.
 describe("DraftStore discard", () => {
   const item = (itemId: string, text: string) => ({ itemId, text, anchors: [], attachments: [] });
   it("removes a conversation's queue, its items on their way out and its returned draft, and saves at once", () => {

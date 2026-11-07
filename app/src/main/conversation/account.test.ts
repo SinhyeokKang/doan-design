@@ -91,7 +91,7 @@ it("acquires a conversation start as a run and a model-list read as a listing", 
 it("passes Codex's dedicated credential-store and non-login shell arguments to the runner", async () => {
   const h = harness("codex");
   await start(h, "codex");
-  // mcp-connectors B2: the conversation app-server keeps MCP OAuth tokens in the keyring too.
+  // The conversation app-server keeps MCP OAuth tokens in the keyring too.
   expect(h.open.mock.calls[0]![0].args).toEqual(["-c", 'cli_auth_credentials_store="keyring"', "-c", 'mcp_oauth_credentials_store="keyring"', "-c", "allow_login_shell=false"]);
 });
 
@@ -250,7 +250,7 @@ function acpSession(profile: string, provider: Provider) {
   mkdirSync(join(profile, dir, ACP_SESSION), { recursive: true });
 }
 
-// prompt-suggestion decision 2: a doan-account Claude run turns suggestions on unless the login shell set its own
+// A doan-account Claude run turns suggestions on unless the login shell set its own
 // value, which the lease carries (agentAuth/manager.ts shellLocator). Codex and ACP runs never get the variable.
 it.each([[undefined, "true"], ["false", "false"], ["true", "true"]] as const)("gives a Claude run the login shell's prompt suggestion setting (%s) or true", async (shell, expected) => {
   const h = harness("claude");

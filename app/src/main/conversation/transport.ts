@@ -20,7 +20,7 @@ function finish(state: TransportState, event: EventPayload, judged = true): Tran
   const fast = judged && state.fastUnused && (terminal.type === "turn.done" || terminal.type === "turn.failed") ? [state.fastUnused] : [];
   return { state: { ...state, terminal: true, fileSummaries: {} }, events: [...fast, ...contextBefore(state, terminal), terminal] };
 }
-// Claude Code's reasons Fast cannot serve that hold on (fast-mode design §6): the turn turns Fast off. Any other reason
+// Claude Code's reasons Fast cannot serve that hold on: the turn turns Fast off. Any other reason
 // is recorded without one and leaves Fast on.
 const CONTINUING: Readonly<Record<string, FastUnusedReason>> = { free: "plan", extra_usage_disabled: "extra_usage", model_not_allowed: "model", preference: "policy" };
 // A Claude result of a turn that asked for Fast and ran without it; null when it did not ask, ran with Fast, or the
@@ -200,7 +200,7 @@ function claudeFrame(state: TransportState, raw: Record<string, unknown>, root: 
       return { state: { ...state, textBlock: event.index }, events: [] };
     }
     // Thinking lasts from its block's start to that block's stop. A tool block's stop says nothing: the activity its
-    // assistant frame brought already tells the tool (turn-activity design §2).
+    // assistant frame brought already tells the tool.
     if (event.type === "content_block_start" && object(event.content_block) && event.content_block.type === "thinking" && typeof event.index === "number") {
       return { state: { ...state, thinkingBlock: event.index }, events: [], stage: THINKING_STAGE };
     }

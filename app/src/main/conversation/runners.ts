@@ -31,7 +31,7 @@ export const openRunner: OpenRunner = (input, emit, exited, registerStop) =>
 // Opens the provider only to read its model list for this folder: no prompt, no model request.
 // The caller owns the lease and the stop (ConversationService.readListing).
 // A Claude read opens with Fast asked for, so initialize names an account-wide reason Fast cannot serve; without the flag
-// the reason is always sdk_opt_in_required (fast-mode P2). It reads the existing list, with no new lease or prompt.
+// the reason is always sdk_opt_in_required. It reads the existing list, with no new lease or prompt.
 export const listModels: ReadModels = async (input, exited, registerStop) => {
   const runner = await (input.runtime === "claude" ? openClaude : input.runtime === "codex" ? openCodexList : openAcp)(input.runtime === "claude" ? { ...input, fast: true } : input, () => {}, exited, registerStop);
   try { return await runner.models!(); } finally { await runner.close(); }
@@ -44,12 +44,12 @@ export const listSkills: ReadListing<SkillSummary[]> = async (input, exited, reg
   try { return await runner.skills!(); } finally { await runner.close(); }
 };
 // Fast for a Claude run: the flag-tier setting, since an SDK run is off with sdk_opt_in_required otherwise, even with
-// fastMode in the project's .claude/settings.json (fast-mode P2 b, b2). A run without Fast passes nothing.
+// fastMode in the project's .claude/settings.json. A run without Fast passes nothing.
 export function claudeFastSettings(fast: boolean | undefined): { settings?: { fastMode: true } } {
   return fast ? { settings: { fastMode: true } } : {};
 }
 // Fast for a Codex turn: a doan turn always names its tier, standard included, so a model whose catalog default is Fast
-// still runs standard when Fast is off; serviceTierForTurn holds for that turn only (fast-mode P1 a). A terminal
+// still runs standard when Fast is off; serviceTierForTurn holds for that turn only. A terminal
 // session's turn names none and keeps the person's own setting, as with permission modes.
 export function codexServiceTierForTurn(owner: "doan" | "legacy-external", fast: boolean): { serviceTierForTurn?: "priority" | "default" } {
   return owner === "doan" ? { serviceTierForTurn: fast ? "priority" : "default" } : {};
@@ -166,7 +166,7 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
     // Default is stated on every turn, since an override holds across turns and thread/resume (0.163.0, P2). Its values
     // depend on config and project trust and config/read leaves them null when unset, so an ephemeral thread/start
     // (no rollout, no model request) reads them. A failed or incomplete probe refuses the open: sending nothing would
-    // keep an earlier override (orch.md decision 6). A run on an external profile (a terminal session) takes no mode
+    // keep an earlier override. A run on an external profile (a terminal session) takes no mode
     // and states nothing, so an override its thread carries from the terminal stays.
     if (input.owner) {
       const probe = await dispatcher.request("thread/start", { cwd: input.cwd, ephemeral: true }).catch((error: unknown) => { if (error instanceof RpcError) throw new Error("session_unavailable"); throw error; });

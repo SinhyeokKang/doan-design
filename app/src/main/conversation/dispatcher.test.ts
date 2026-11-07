@@ -152,7 +152,7 @@ describe("Codex steer path", () => {
   });
 });
 
-// mcp-connectors C2 (POSTMORTEM 2026-10-27 'Codex ingress confused unowned requests and notification errors'): every
+// POSTMORTEM 2026-10-27 'Codex ingress confused unowned requests and notification errors': every
 // MCP elicitation is answered exactly once with an explicit disposition, and none of them fails the turn.
 describe("Codex MCP elicitation wiring", () => {
   const thread = elicitation.params.threadId, turn = elicitation.params.turnId;
@@ -230,7 +230,7 @@ describe("Codex MCP elicitation wiring", () => {
     expect(h.cleanup).toHaveBeenCalledOnce(); expect(h.writes).toEqual([{ id: 7, error: { code: -32601, message: "Unsupported request or unavailable owner." } }]);
   });
 });
-// agent-questions B2 (reduced by P2): every requestUserInput of this thread gets one empty answer at once and the turn
+// Every requestUserInput of this thread gets one empty answer at once and the turn
 // goes on; nothing is held, so Stop, the turn's end and close write nothing more for it.
 describe("Codex requestUserInput wiring", () => {
   const ask = (id: number | string, patch: Record<string, unknown> = {}) => ({ id, method: "item/tool/requestUserInput", params: { threadId: "s", turnId: "t", itemId: "i", isBlocking: true, questions: [{ id: "q", header: "H", question: "Which?", isOther: true, isSecret: false, options: null }], ...patch } });
@@ -264,7 +264,7 @@ describe("Codex requestUserInput wiring", () => {
     expect(h.writes).toEqual([{ id: 7, error: { code: -32601, message: "Unsupported request or unavailable owner." } }]);
   });
 });
-// provider-usage B1: a usage read on a conversation's live server must never fail the conversation's protocol.
+// A usage read on a conversation's live server must never fail the conversation's protocol.
 it("lets a side request time out or fail without failing the protocol of the running conversation", async () => {
   vi.useFakeTimers();
   try {

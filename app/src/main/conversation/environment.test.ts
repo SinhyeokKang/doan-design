@@ -13,7 +13,7 @@ test("an agent gets the launchd environment, not the launching terminal's", () =
       [runtime === "claude" ? "CLAUDE_CONFIG_DIR" : "CODEX_HOME"]: configDir, ...(runtime === "claude" ? { CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION: "true" } : {}) });
   }
 });
-// prompt-suggestion decision 2: Claude Code makes no suggestion near a usage limit unless this is true, so Doan turns
+// Claude Code makes no suggestion near a usage limit unless this is true, so Doan turns
 // it on; the login shell's own value wins, and nothing inherited from the launching terminal counts.
 test("a Claude run gets the login shell's CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION, or true", () => {
   const facts = { root: "/repo", cwd: "/repo", configDir: "/profile" };
@@ -25,7 +25,7 @@ test("a Claude run gets the login shell's CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION, 
   expect(promptSuggestionEnv("")).toEqual({ CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION: "true" });
   expect(promptSuggestionEnv("false")).toEqual({ CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION: "false" });
 });
-// work-update design §2 function 7: ConversationService.openRunner adds the conversation's own id; an inherited one
+// ConversationService.openRunner adds the conversation's own id; an inherited one
 // (an app launched from another app conversation) never reaches a run.
 test("an inherited DOAN_CONVERSATION_ID never reaches an agent", () => {
   for (const runtime of ["claude", "codex"] as const) {

@@ -7,7 +7,7 @@ describe("projectBusy", () => {
   it("counts a start still preparing and a running turn", () => {
     expect(projectBusy(live({ a: { project: "/repo", busy: true, terminal: false } }), "/repo", "b", now)).toBe("a");
   });
-  // canvas-composer-polish spec 4: a turn waiting for the person's answer does not keep another conversation out.
+  // A turn waiting for the person's answer does not keep another conversation out.
   it("does not count a turn while it waits for an answer, and counts it again once every request is answered", () => {
     expect(projectBusy(live({ a: { project: "/repo", busy: true, terminal: false, asking: new Set(["r1"]) } }), "/repo", "b", now)).toBeNull();
     expect(projectBusy(live({ a: { project: "/repo", busy: true, terminal: false, asking: new Set(["r1", "r2"]) } }), "/repo", "b", now)).toBeNull();
@@ -22,7 +22,7 @@ describe("projectBusy", () => {
       ["preparing", { project: "/repo", busy: true, terminal: false }, "a"],
       ["running", { project: "/repo", busy: true, terminal: false, asking: new Set() }, "a"],
       ["waiting for an answer", { project: "/repo", busy: true, terminal: false, asking: new Set(["r1"]) }, null],
-      // agent-questions orch decision 3: a question waits as a permission does (service.ts keys both by kind).
+      // A question waits as a permission does (service.ts keys both by kind).
       ["waiting for a question's answer", { project: "/repo", busy: true, terminal: false, asking: new Set(["question:q1"]) }, null],
       ["ended within the window", { project: "/repo", busy: false, terminal: true, endedAt: now - 1 }, "a"],
       ["queue about to go out", { project: "/repo", busy: false, terminal: true, endedAt: now - BIND_GRACE_MS - 1, holding: {} }, "a"],
@@ -101,7 +101,7 @@ describe("promotionTarget", () => {
     expect(promotionTarget(turn([".doan/canvases/a.html"], [".doan/canvases/a.html"]), [a], [a], canvas => canvas.id === "a")).toBeNull();
     expect(promotionTarget(turn([], []), [a, b], [a], canvas => canvas.id === "b")).toBeNull();
   });
-  // canvas-composer-polish design §4: turns of one root may overlap once a waiting turn gets its answer.
+  // Turns of one root may overlap once a waiting turn gets its answer.
   it("leaves out a canvas bound to another conversation after the snapshot, new or existing", () => {
     expect(promotionTarget(turn([], [], [b]), [a, b], [a], idle)).toBeNull();
     expect(promotionTarget(turn([], [], [b]), [a, b, c], [a], idle)).toEqual(c);

@@ -14,7 +14,7 @@ import { GENERIC_SUMMARY, initialTransport, normalizeClaude, normalizeCodex, typ
 import { acpPromptDone, initialAcp, normalizeAcp, type AcpTransport } from "./acp";
 import type { EventPayload, TransportState, TurnStage } from "./types";
 
-// turn-activity B1/B2: the stage each normalizer reports beside its events (design §2, §3). The stage goes out after
+// The stage each normalizer reports beside its events. The stage goes out after
 // the frame's events, so each step keeps the two together in frame order.
 interface Step { events: EventPayload[]; stage?: TurnStage }
 const TERMINALS = ["turn.done", "turn.failed", "interrupted"];
@@ -74,7 +74,7 @@ describe("Claude stages", () => {
     const frames = claudeThinking.thinking as Record<string, any>[], { steps } = claudeSteps(frames);
     const stop = (index: number) => frames.findIndex(f => f.type === "stream_event" && f.event.type === "content_block_stop" && f.event.index === index);
     expect(steps[stop(0)]!.stage).toEqual(GENERAL);
-    // The tool block's stop comes after the activity, which already tells the tool (design §2).
+    // The tool block's stop comes after the activity, which already tells the tool.
     expect(steps.findIndex(step => step.events.some(e => e.type === "activity"))).toBeLessThan(stop(1));
     expect(steps[stop(1)]!.stage).toBeUndefined();
   });

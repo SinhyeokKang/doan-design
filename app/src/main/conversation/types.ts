@@ -102,7 +102,7 @@ export interface TransportState {
   thinkingBlock?: number;
 }
 export type FastUnused = Extract<EventPayload, { type: "fast.unused" }>;
-// What a live turn is doing now, read from provider frames beside the events (turn-activity design §2). It is never
+// What a live turn is doing now, read from provider frames beside the events. It is never
 // stored: it only means something while the turn runs. A tool stage follows the activity rules: a path, a summary of at
 // most 512 characters, no shell command text and no Doan connector tool input.
 export type TurnStage =

@@ -20,7 +20,7 @@ function message(raw: Record<string, unknown>): { text: string; anchors: Anchor[
   if (!anchors.every(validAnchor) || anchorTokens(raw.text, anchors) === null) return null;
   return { text: raw.text, anchors };
 }
-// The shape and limits of an answer only (design §5); whether it fits its question is the runner's check (questionAnswer).
+// The shape and limits of an answer only; whether it fits its question is the runner's check (questionAnswer).
 // Only the answer's own fields go on.
 function questionInput(raw: Record<string, unknown>): QuestionAnswerInput | null {
   const L = QUESTION_LIMITS;

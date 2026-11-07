@@ -294,7 +294,7 @@ it.each(["quit", "stopRuns"] as const)("stops a real ACP model-list read hanging
   await vi.waitFor(() => expect(release).toHaveBeenCalledOnce());
 });
 
-// permission-mode S2: the chosen mode set after every open by the mapping table, Default included.
+// The chosen mode set after every open by the mapping table, Default included.
 const COPILOT_MODE = "https://agentclientprotocol.com/protocol/session-modes#";
 const cursorModes = (current: string) => ({ modes: { currentModeId: current, availableModes: [{ id: "agent", name: "Agent" }, { id: "plan", name: "Plan" }, { id: "ask", name: "Ask" }] } });
 const copilotModes = (mode: string, allowAll: string) => ({

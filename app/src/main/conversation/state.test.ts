@@ -167,7 +167,7 @@ describe("a turn with two user.message events (queue-send-now)", () => {
     expect(foldConversation([...events, event(5, { type: "turn.done" })], "a", false).turn).toBe("idle");
   });
 });
-// canvas-handoff B4 (design §5 'events'): a request lives in its turn, its resolution comes after the turn's end, and a
+// A request lives in its turn, its resolution comes after the turn's end, and a
 // request a restart finds unresolved reads as cancelled.
 describe("handoff fold", () => {
   const requested: EventPayload = { type: "handoff.requested", canvas: { path: ".doan/canvases/new.html" }, text: "Continue the checkout flow." };

@@ -8,8 +8,8 @@ export type HandoffRefusal = "root_mismatch" | "not_running" | "not_canvas_conve
 // Why a judged handoff did not start; a refused start adds its own code instead (resolved.reason).
 export type HandoffReason = "not_listed" | "not_new" | "has_conversation" | "same_canvas";
 // The conversation whose key asked, as main holds it now. permissionMode: the conversation's mode now, which a plan
-// approval may have changed during the turn (decision 1). running: its current turn is accepted and not over.
-// startedBy: that turn was a handoff's first (decision 8). requested: that turn's handoff was taken already.
+// approval may have changed during the turn. running: its current turn is accepted and not over.
+// startedBy: that turn was a handoff's first. requested: that turn's handoff was taken already.
 export interface HandoffAsker { root: string; canvas?: Canvas; permissionMode?: string; running: boolean; startedBy?: "handoff"; requested: boolean }
 // The root is compared as a string, as every app-socket request's is (POSTMORTEM 2026-10-22).
 export function handoffEligibility(ask: { root: string; path: string }, asker: HandoffAsker): HandoffRefusal | null {

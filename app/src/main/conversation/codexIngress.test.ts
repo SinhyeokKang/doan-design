@@ -68,7 +68,7 @@ describe("Codex reply and permission boundaries", () => {
   });
 });
 
-// mcp-connectors C2: Codex asks before an MCP tool without a read-only hint with mcpServer/elicitation/request. Every such
+// Codex asks before an MCP tool without a read-only hint with mcpServer/elicitation/request. Every such
 // request gets one explicit answer, and none of them ends the turn.
 describe("Codex MCP elicitation", () => {
   const mcp = { root: "/repo", sessionId: request.params.threadId, turnId: request.params.turnId, labels: { "doan-echo-poc": "Echo" } };
@@ -116,7 +116,7 @@ describe("Codex MCP elicitation", () => {
   });
 });
 
-// agent-questions A3 (reduced by P2, orch decision 6): Codex 0.166.0 sends item/tool/requestUserInput in no Doan mode, so
+// Codex 0.166.0 sends item/tool/requestUserInput in no Doan mode, so
 // every one of this thread is answered at once with no answers and the turn goes on; another owner's is routed as today.
 // Params from the generated 0.166.0 ToolRequestUserInputParams schema (synthetic values).
 describe("Codex requestUserInput", () => {

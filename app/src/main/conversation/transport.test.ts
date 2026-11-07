@@ -371,7 +371,7 @@ describe("steered message consumption", () => {
     expect(run("codex", [{ steer: STEERED }, { method: "turn/completed", params: { threadId: "session-1", turn: { id: "turn-1", status: "completed" } } }]).seen).toEqual([{ type: "turn.done" }]);
   });
 });
-// agent-questions A2: Claude's AskUserQuestion, as P1 recorded it (fixtures/claude-ask-user-question.json).
+// Claude's AskUserQuestion, as P1 recorded it (fixtures/claude-ask-user-question.json).
 describe("Claude AskUserQuestion", () => {
   const single = askFixture.canUseTool.single.input, multi = askFixture.canUseTool.multi.input;
   const color = "Which color do you prefer?";
@@ -455,7 +455,7 @@ describe("Claude AskUserQuestion", () => {
   });
 });
 
-// fast-mode A4: a Claude turn that asked for Fast and did not get it, judged from its result (Agent SDK 0.3.312
+// A Claude turn that asked for Fast and did not get it, judged from its result (Agent SDK 0.3.312
 // fast_mode_state, fast_mode_disabled_reason). Reasons that go on (plan, extra usage, model, policy) turn Fast off.
 describe("Fast outcome", () => {
   const result = (fast: Record<string, unknown> = {}, subtype = "success") => ({ type: "result", subtype, is_error: subtype !== "success", result: "", ...fast });

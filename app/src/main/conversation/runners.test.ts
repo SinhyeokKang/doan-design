@@ -327,7 +327,7 @@ it("lists Claude's models from the SDK without sending a prompt and reports the 
     expect(readFileSync(join(root, "seen"), "utf8")).not.toContain('"type":"user"');
   } finally { rmSync(root, { recursive: true, force: true }); }
 }, 15000);
-// project-skill-drawer C1: the project skill list comes from the same prompt-free provider read as the model list.
+// The project skill list comes from the same prompt-free provider read as the model list.
 it("lists Claude's project skills from initialize without sending a prompt and reports the process gone", async () => {
   const root = mkdtempSync(join(tmpdir(), "doan-claude-skills-")), command = listingClaude(root);
   const release = vi.fn();
@@ -444,7 +444,7 @@ it("lets a send change the Codex model and effort on the reused server for that 
   } finally { await runner.close(); rmSync(root, { recursive: true, force: true }); }
 });
 
-// permission-mode S2: the chosen mode on every Claude run and every Codex turn.
+// The chosen mode on every Claude run and every Codex turn.
 it("passes each mode to a doan-owned Claude run, with the dangerous skip only for Full access and nothing for Default", async () => {
   const root = mkdtempSync(join(tmpdir(), "doan-claude-mode-")), command = listingClaude(root);
   const owner = { kind: "doan" as const, provider: "claude" as const, connectionId: "c1", accountId: "a1", workspaceId: "org-uuid-1", profile: "claude" };
@@ -940,7 +940,7 @@ it("accepts a Claude send issued on turn.done, before the first CLI has exited",
   } finally { await service.quit(); rmSync(root, { recursive: true, force: true }); }
 }, 15000);
 
-// mcp-connectors C1/C2: a Codex app-server started a thread's MCP servers at thread/start; a turn waits until the
+// A Codex app-server started a thread's MCP servers at thread/start; a turn waits until the
 // profile's doan- servers settle, so their tools are there from the first turn. The fake records every line it reads and
 // marks when it sent a status, so the order of a status and turn/start is read from one file.
 // holdReload: the reload reply waits until the test writes <root>/release. reloadError: the first reload is refused.
@@ -1183,7 +1183,7 @@ it("a Stop of an unanswered turn/start interrupts nothing when the turn complete
     expect(exited).not.toHaveBeenCalled();
   } finally { await runner.close(); h.cleanup(); }
 }, 15000);
-// agent-questions B1: Claude's AskUserQuestion reaches canUseTool (P1, every mode); the runner holds it apart from
+// Claude's AskUserQuestion reaches canUseTool (P1, every mode); the runner holds it apart from
 // permissions and answers it exactly once. The fake CLI sends can_use_tool control requests the real SDK answers.
 function askClaude(root: string): string {
   const command = join(root, "claude");
@@ -1367,7 +1367,7 @@ describe("Claude runner questions", () => {
     });
   }, 15000);
 });
-// agent-questions B2: a requestUserInput in the same chunk as the turn/start reply waits in the queue like any server
+// A requestUserInput in the same chunk as the turn/start reply waits in the queue like any server
 // request (POSTMORTEM 2026-10-27 'Protocol readiness'), then gets its one empty answer, and the turn goes on.
 it("answers a Codex question arriving with the turn/start reply once with no answers, and the turn completes", async () => {
   const root = mkdtempSync(join(tmpdir(), "doan-codex-ask-")), command = join(root, "codex"), seen = join(root, "seen");
@@ -1392,7 +1392,7 @@ readline.createInterface({input:process.stdin}).on('line', line => {
     expect(events.filter(e => e.type === "turn.failed" || e.type.startsWith("question.") || e.type.startsWith("permission."))).toEqual([]);
   } finally { await runner.close(); rmSync(root, { recursive: true, force: true }); }
 });
-// provider-usage B1: a Doan-account turn's end reads usage on the run's own connection, never a new process.
+// A Doan-account turn's end reads usage on the run's own connection, never a new process.
 describe("usage at a turn's end", () => {
   const usageReply = { rate_limits_available: true, rate_limits: { five_hour: { utilization: 12, resets_at: null } } };
   function fakeClaude(root: string): string {
@@ -1444,7 +1444,7 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line 
     }
   }, 30000);
   // review-B 🟡1: the next send waits for this process (service.ts EXIT_WAIT_MS 10 s) while the read keeps its input
-  // open. A CLI that never answers, then takes the observed 2.1 s to exit (D1), must still leave a send right after
+  // open. A CLI that never answers, then takes the observed 2.1 s to exit, must still leave a send right after
   // turn.done and a queue flushed at turn.done going out, not refused as busy.
   describe("with a CLI that never answers the usage request", () => {
     function serviceOn(root: string) {
@@ -1508,7 +1508,7 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line 
     } finally { await runner.close(); await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce()); rmSync(root, { recursive: true, force: true }); }
   }, 15000);
 });
-// prompt-suggestion (design 'main' 1, 2, 6): every Claude run asks for suggestions; the first prompt_suggestion after a
+// Every Claude run asks for suggestions; the first prompt_suggestion after a
 // done turn's terminal reaches the run's suggested hook once. The fake sends it after its input closes, as Claude Code
 // 2.1.318 does (P1-a): FAKE_MODE "done" (one), "twice", "none", "early" (one before the result, none after), "failed"
 // and "hold" (no result); FAKE_SUGGEST_MS delays it.
@@ -1583,7 +1583,7 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line 
       expect(order).toEqual(["usage", "suggested"]);
     }, { usageAtTurnEnd, suggested: () => { order.push("suggested"); } });
   }, 15000);
-  // design 'main' 6: a done turn's process that only waits for its suggestion is ended by the conversation's next send.
+  // A done turn's process that only waits for its suggestion is ended by the conversation's next send.
   describe("ending a process that waits for its suggestion", () => {
     it("stops the group of a done turn whose input closed and whose suggestion has not come, and drops it", async () => {
       await run({ FAKE_MODE: "done", FAKE_SUGGEST_MS: "4000" }, async ({ runner, events, suggested, exited, root }) => {
@@ -1637,7 +1637,7 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line 
   });
 });
 
-// fast-mode A3: the run's Fast as each provider takes it. Claude opens a process per turn, so its flag-tier setting goes
+// The run's Fast as each provider takes it. Claude opens a process per turn, so its flag-tier setting goes
 // on every run with Fast; Codex names the tier on every doan turn (serviceTierForTurn holds for that turn only, P1).
 describe("fast arguments", () => {
   it("sets Claude's flag-tier fastMode only on a run with Fast", () => {
@@ -1653,7 +1653,7 @@ describe("fast arguments", () => {
   });
 });
 
-// fast-mode B1: Fast on the wire. The fakes record argv and stdin lines; the SDK carries Options.settings to the CLI.
+// Fast on the wire. The fakes record argv and stdin lines; the SDK carries Options.settings to the CLI.
 function fastClaude(root: string): string {
   const command = join(root, "claude");
   writeFileSync(command, `#!/usr/bin/env node

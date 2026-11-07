@@ -149,7 +149,7 @@ it("answers a model's default effort from the list delivered for that folder and
   expect(c.models.defaultEffort("/other", "codex", "gpt")).toBeUndefined();
 });
 
-// permission-mode S2: ACP mode lists come from the same session/new reply as the models, with no extra request.
+// ACP mode lists come from the same session/new reply as the models, with no extra request.
 const COPILOT = "https://agentclientprotocol.com/protocol/session-modes#";
 it("reads an ACP session/new mode list and whether Copilot offers allow_all", () => {
   expect(parseAcpModes({ sessionId: "s", modes: { currentModeId: "agent", availableModes: [{ id: "agent", name: "Agent" }, { id: "plan", name: "Plan" }, { id: "ask", name: "Ask" }, { id: "" }, "x"] } }))
@@ -219,7 +219,7 @@ it("accepts Fast only from an available model in this run's received root and pr
   expect(restarted.models.accepts("/repo", "claude", "fast", undefined, true)).toBe(false);
 });
 
-// fast-mode A3: whether a turn's model takes Fast now, the list's default row standing in for a conversation that has
+// Whether a turn's model takes Fast now, the list's default row standing in for a conversation that has
 // no stored model; nothing before this run read the list.
 it("answers whether a model takes Fast from this run's list, the default row standing in for no model", async () => {
   const c = catalog();

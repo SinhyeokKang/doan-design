@@ -10,7 +10,7 @@ import { DraftStore } from "./drafts";
 import type { HandoffNotice } from "./handoff";
 import type { Canvas, ConversationEvent } from "./types";
 
-// canvas-handoff C2 (design §2, §5): the conversation service's half of a handoff, with fake runners.
+// The conversation service's half of a handoff, with fake runners.
 const paths: string[] = [];
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); paths.splice(0).forEach(p => rmSync(p, { recursive: true, force: true })); });
 const a = { path: ".doan/canvases/a.html", id: "a" }, b = { path: ".doan/canvases/b.html", id: "b" }, c = { path: ".doan/canvases/c.html", id: "c" };
@@ -487,7 +487,7 @@ describe("Send now and the handoff guidance", () => {
   });
 });
 
-// fast-mode A3 (decision 6): the next conversation inherits the earlier one's Fast; its run takes Fast only when this
+// The next conversation inherits the earlier one's Fast; its run takes Fast only when this
 // run's list says the model takes it.
 describe("fast", () => {
   async function handOff(h: ReturnType<typeof fixture>, request: Partial<StartRequest>) {
