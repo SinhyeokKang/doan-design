@@ -54,7 +54,7 @@ C3 community-docs ─ C4 readme-features   (P0과 병렬, main에 커밋)
   - 공개 직전: public-cleanup T1과 같은 명령으로 모든 ref(`refs/pull/*` 포함)를 다시 스캔하고 결과를 이 줄 아래에 적는다(C2 PR 본문의 결과와 함께). D19대로 병합된 원격 브랜치와 worker 브랜치를 지운다(사용자 승인 아래 에이전트가 목록을 만들어 지울 수 있다). `git rev-list --count origin/develop..origin/main`이 0인지 본다(C1 뒤 `main`에 직접 들어간 커밋이 없다).
   - 공개 직전 결과(2026-11-07): gitleaks v8.30.1로 모든 ref(원격 브랜치·`refs/pull/*` 포함, 199 ref)를 다시 스캔했다. 발견 269건은 C2 PR #122와 같고(`schema/fixtures` 264, Go 테스트 상수 3, `example.invalid` curl 2) 실제 비밀은 0건이다. 병합·반영된 원격 브랜치 74개와 로컬 브랜치 109개를 지웠다(사용자 승인; 계획만 있던 `feat/export-viewer-chrome`의 commit은 89acf81f). `git rev-list --count origin/develop..origin/main` = 0.
   - 검증: `gh repo view --json visibility`가 `PUBLIC`(확인 명령 미정 — 사용자 확인 필요).
-- [ ] G3a. (사용자, G2 직후 같은 자리) D25: 비공개 취약점 신고를 켜고(2026-11-07 켬, API `enabled: true`), D6의 환경 `release`(필수 검토자 = 사용자, 배포 ref `v*` 태그·`develop`)와 비밀을 등록한다. 비밀 이름과 등록 절차는 release-ci design '비밀과 권한'에 있다.
+- [x] G3a. (사용자, G2 직후 같은 자리, 2026-11-07 완료: 환경 `release`(검토자 SinhyeokKang, 배포 ref `develop`·`v*`), 비밀 5개, 변수 `MAC_IDENTITY_NAME`; 값은 첫 서명 작업에서 확인한다) D25: 비공개 취약점 신고를 켜고(2026-11-07 켬, API `enabled: true`), D6의 환경 `release`(필수 검토자 = 사용자, 배포 ref `v*` 태그·`develop`)와 비밀을 등록한다. 비밀 이름과 등록 절차는 release-ci design '비밀과 권한'에 있다.
   - 검증: 확인 명령 미정 — 사용자 확인 필요(`gh api repos/SinhyeokKang/doan-design/environments/release`가 환경을 돌려주는지 본다).
 - [ ] G3b. (사용자, C5 뒤) D25: `develop` 보호. 필수 검사 = ci-gate의 작업 id `gate`, 관리자 우회 허용.
   - 검증: 확인 명령 미정 — 사용자 확인 필요(`gh api repos/SinhyeokKang/doan-design/branches/develop/protection`).
