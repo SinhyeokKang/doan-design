@@ -134,6 +134,15 @@ describe("threadItems", () => {
     expect(items[3]).toEqual({ kind: "end", key: "e6", seq: 6, end: { kind: "failed", code: "process_exited" } });
   });
 
+  // A Stop's expiry is main's `optionId: "expired"` record, not an answer (defect-sweep B4).
+  test("a permission request main expires folds as expired, not answered", () => {
+    seq = 0;
+    const options = [{ id: "a", label: "Allow once", kind: "allow" }, { id: "d", label: "Deny", kind: "deny" }];
+    const events = [...turn("t1"), ev("t1", { type: "permission.request", requestId: "r1", tool: "mcp", summary: "Run search on Linear", options }),
+      ev("t1", { type: "permission.resolved", requestId: "r1", optionId: "expired" }), ev("t1", { type: "interrupted", reason: "user" })];
+    expect(threadItems(events, ROOT, true)[1]).toMatchObject({ key: "pr1", status: "expired", answer: null });
+  });
+
   test("a finished turn without any reply says so; nothing after a turn's end counts", () => {
     seq = 0;
     const events = [...turn("t1"), ev("t1", { type: "activity", kind: "command", summary: "Running a command" }), ev("t1", { type: "turn.done" }),

@@ -232,7 +232,9 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
       }
       case "permission.resolved": {
         const ask = permissions.get(event.requestId);
-        if (ask) { ask.status = "answered"; ask.answer = ask.options.find(o => o.id === event.optionId) ?? null; }
+        // "expired" is main's record of a request that ended unanswered (a Stop, a turn's end), never a choice.
+        if (ask && event.optionId === "expired") { ask.status = "expired"; ask.answer = null; }
+        else if (ask) { ask.status = "answered"; ask.answer = ask.options.find(o => o.id === event.optionId) ?? null; }
         break;
       }
       case "question.request": {

@@ -140,6 +140,17 @@ describe("thread items", () => {
     expect(html([{ ...base, status: "expired", answer: null }])).toContain("<span>Expired without an answer · Run doan check</span>");
   });
 
+  // defect-sweep B4: a Stop's expiry record (`optionId: "expired"`) read back from the history.
+  test("a permission request a Stop expired reads as expired, never answered", () => {
+    const ev = (seq: number, payload: object) => ({ v: 1, conversationId: "c1", seq, turnId: "t1", at: "2026-11-07T00:00:00Z", ...payload }) as ConversationEvent;
+    const options = [{ id: "a", label: "Allow once", kind: "allow" as const }];
+    const out = html(threadItems([ev(1, { type: "user.message", text: "go", anchors: [] }), ev(2, { type: "turn.started" }),
+      ev(3, { type: "permission.request", requestId: "r1", tool: "mcp", summary: "Run search on Linear", options }),
+      ev(4, { type: "permission.resolved", requestId: "r1", optionId: "expired" }), ev(5, { type: "interrupted", reason: "user" })], "/r", true));
+    expect(out).toContain("<span>Expired without an answer · Run search on Linear</span>");
+    expect(out).not.toContain("Answered ·");
+  });
+
   test("turn ends: Edit and resend only on the last turn's end; sign-in expiry adds Sign in again…", () => {
     const failed: ThreadItem = { kind: "end", key: "e5", seq: 5, end: { kind: "failed", code: "not_logged_in" } };
     const out = html([failed]);
