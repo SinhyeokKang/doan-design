@@ -289,7 +289,7 @@ export async function answerReached(send: () => Promise<void | { error: string }
   return await answerRefusal(send) === null;
 }
 // A question's answer or skip: the card stays locked until question.resolved folds it. A stale refusal means main
-// settled the request already, or will by its own expiry, so it waits without an error line (batch G review); any
+// settled the request already, or will by its own expiry, so it waits without an error line; any
 // other refusal unlocks the card with its choices kept.
 export async function settleQuestionSend(send: () => Promise<void | { error: string }> | void, edit: (action: QuestionDraftAction) => void): Promise<void> {
   const refusal = await answerRefusal(send);

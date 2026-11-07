@@ -246,7 +246,7 @@ describe("the thread's question items", () => {
 });
 
 describe("settleQuestionSend", () => {
-  // Batch G review: main may keep a request pending after a stale reply until its own expiry resolves it, so the card
+  // main may keep a request pending after a stale reply until its own expiry resolves it, so the card
   // folds only on question.resolved and a stale reply leaves it locked without an error line.
   test("a stale reply keeps the card locked without an error; any other refusal unlocks it with the error", async () => {
     const edit = vi.fn();

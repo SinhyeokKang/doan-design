@@ -44,7 +44,7 @@ export function defaultPermission(options: readonly PermissionModeId[], picked: 
 export interface PermissionOptionView { id: PermissionModeId; label: string; description: string; icon: PermissionIcon; warning: boolean; selected: boolean }
 export interface PermissionPickerView { mode: PermissionModeId; trigger: PermissionTrigger; title: string; menuLabel: string; options: PermissionOptionView[] }
 
-// null: no picker. A provider with no mapped modes, or only Default, offers no choice (PM-B conductor decision).
+// null: no picker. A provider with no mapped modes, or only Default, offers no choice.
 export function permissionPickerView(provider: Provider | null, state: ModelsState, mode: PermissionModeId): PermissionPickerView | null {
   if (!provider) return null;
   const options = permissionChoices(provider, state);

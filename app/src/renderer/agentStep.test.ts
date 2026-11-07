@@ -648,7 +648,7 @@ test("the paste modal cannot be dismissed while its address is being submitted",
   expect(h.session.state.dialog).toBeNull();
 });
 
-test("fix 1: a prompt for an attempt this window did not start (the CLI) never opens a link here", async () => {
+test("a prompt for an attempt this window did not start (the CLI) never opens a link here", async () => {
   const h = harness();
   h.session.start(); h.session.enter();
   await flush();
@@ -658,7 +658,7 @@ test("fix 1: a prompt for an attempt this window did not start (the CLI) never o
   expect(h.session.state.contexts.claude?.prompt).toBe("cli-started");
 });
 
-test("fix 1: a prompt that arrives before this window's sign-in reply is opened once the reply names it", async () => {
+test("a prompt that arrives before this window's sign-in reply is opened once the reply names it", async () => {
   const h = harness();
   let reply: (r: AuthStartReply) => void = () => {};
   h.api.signInAgent.mockImplementationOnce(() => new Promise(resolve => { reply = resolve; }));
@@ -673,7 +673,7 @@ test("fix 1: a prompt that arrives before this window's sign-in reply is opened 
   expect(h.api.openAgentSignInLink.mock.calls).toEqual([["antigravity", "ag-early"]]);
 });
 
-test("fix 1: a held prompt for someone else's attempt is dropped when this window's reply names another", async () => {
+test("a held prompt for someone else's attempt is dropped when this window's reply names another", async () => {
   const h = harness();
   let reply: (r: AuthStartReply) => void = () => {};
   h.api.signInAgent.mockImplementationOnce(() => new Promise(resolve => { reply = resolve; }));
@@ -686,7 +686,7 @@ test("fix 1: a held prompt for someone else's attempt is dropped when this windo
   expect(h.api.openAgentSignInLink).not.toHaveBeenCalled();
 });
 
-test("fix 3: the paste modal closes when its attempt ends, and focus goes to the heading fallback", async () => {
+test("the paste modal closes when its attempt ends, and focus goes to the heading fallback", async () => {
   const h = harness();
   h.session.start(); h.session.enter();
   await flush();
@@ -700,7 +700,7 @@ test("fix 3: the paste modal closes when its attempt ends, and focus goes to the
   expect(h.api.submitAgentSignInCode).not.toHaveBeenCalled();
 });
 
-test("fix 3: an over-long address stays whole in the field and cannot be submitted", async () => {
+test("an over-long address stays whole in the field and cannot be submitted", async () => {
   const h = harness();
   h.session.start(); h.session.enter();
   await flush();

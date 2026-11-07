@@ -575,7 +575,7 @@ it("sends a bare workspaceWrite for Accept edits when config/read fails", async 
     expect(seenLines(root).find(r => r.method === "turn/start")!.params!.sandboxPolicy).toEqual({ type: "workspaceWrite" });
   } finally { await runner.close(); rmSync(root, { recursive: true, force: true }); }
 });
-// A failed or incomplete probe never falls back to sending nothing: an earlier override would stay (conductor decision).
+// A failed or incomplete probe never falls back to sending nothing: an earlier override would stay.
 it.each([["an error reply", "error"], ["a reply without the values", "bare"]])("refuses to open a Codex server whose Default probe gets %s, without recording the version", async (_label, probe) => {
   const root = mkdtempSync(join(tmpdir(), "doan-codex-probe-")), command = modeCodex(root);
   const incompatible = vi.fn(), compatible = vi.fn(), exited = vi.fn();
