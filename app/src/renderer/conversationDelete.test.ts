@@ -99,7 +99,7 @@ describe("deleteRefusalText", () => {
   });
 });
 
-// The row Delete's accessible name quotes the title as the alert and the toast do (review RC 🟡2).
+// The row Delete's accessible name quotes the title as the alert and the toast do.
 describe("deleteItemLabel", () => {
   test("names the conversation by its quoted title", () => {
     expect(deleteItemLabel("Ideas")).toBe("Delete “Ideas”");

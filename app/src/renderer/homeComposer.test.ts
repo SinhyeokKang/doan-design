@@ -170,7 +170,7 @@ test("a second Home send to a root with a running Home conversation says so and 
     .toEqual({ enabled: false, reason: { kind: "running", text: "Another conversation is still running in doan-design.", open: "conv-1" } });
 });
 
-// design-sync V2: the draft's home-toast and home-remove-running frames show an empty composer, with suggestions and
+// The draft's home-toast and home-remove-running frames show an empty composer, with suggestions and
 // no reason line, while a Home conversation runs in the chosen project; the line appears once something is typed.
 test("an empty composer has no reason line even while a Home conversation runs in its project", () => {
   expect(sendAvailability(base({ text: "", running: { conversationId: "conv-1" } }))).toEqual({ enabled: false, reason: null });
@@ -364,7 +364,7 @@ test("the effort capsule shows only for a model with levels; an unchosen level n
 const LUNA = { id: "gpt-6-luna", label: "GPT-6-Luna", default: true, efforts: ["low", "medium", "high", "xhigh"], defaultEffort: "medium" };
 const TERRA = { id: "gpt-5.6-terra", label: "GPT-5.6-Terra", default: false, efforts: ["low", "medium", "high"] };
 const CODEX_MODELS: ModelsState = { models: [LUNA, TERRA] };
-// The 2026-11-06 shape after main's pairing (A1): Claude Code's default row carries its model's name, the opus row is gone.
+// The 2026-11-06 shape after main's pairing: Claude Code's default row carries its model's name, the opus row is gone.
 const CLAUDE_DEFAULT = { id: "default", label: "Opus 5.5", default: true, efforts: ["low", "medium", "high", "max"] };
 const PAIRED: ModelsState = { models: [CLAUDE_DEFAULT, SONNET, HAIKU] };
 
@@ -457,7 +457,7 @@ test("suggested presets follow the project's canvases, skipping ids the CLI did 
   expect(suggestedPresets(null, PRESETS)).toEqual([]);
 });
 
-// Design Q5 and Q9: only .doan/canvases/ counts as screens, and only .doan/ds/ as a design system.
+// Only .doan/canvases/ counts as screens, and only .doan/ds/ as a design system.
 test("design-system canvases alone leave the project without canvases, minus document", () => {
   expect(suggestedPresets(list("/r/p", [canvas(".doan/ds/color.html"), canvas(".doan/ds/button.html")]), PRESETS).map(p => p.id)).toEqual(["context", "shape"]);
   expect(suggestedPrompts(list("/r/p", [canvas(".doan/ds/color.html")]), "p", PRESETS).map(p => p.label)).toEqual(["Get to know this project", "Plan the first screen"]);
@@ -827,7 +827,7 @@ test("a new conversation starts from its provider's Last used Fast, whatever the
   expect(defaultFast(memory, null)).toBe(false);
 });
 
-// review R 🟡1: an existing conversation's send stores an off whatever the model; an on only for a usable row; a terminal
+// An existing conversation's send stores an off whatever the model; an on only for a usable row; a terminal
 // session (provider null) and an ACP provider send neither.
 test("an existing conversation's send names an off always and an on only while it can be used", () => {
   expect(fastToSend(undefined, "claude", { on: true })).toEqual({});
@@ -839,7 +839,7 @@ test("an existing conversation's send names an off always and an on only while i
   expect(fastToSend(false, "cursor", null)).toEqual({});
 });
 
-// model-drawer-older: the menu folds a group's older models under one line; rows still hold every model.
+// The menu folds a group's older models under one line; rows still hold every model.
 const F_C55 = { id: "claude-opus-5-5", label: "Opus 5.5", default: true };
 const F_C48 = { id: "claude-opus-4-8", label: "Opus 4.8", default: false, older: true as const };
 const F_SOL = { id: "gpt-6.1-sol", label: "GPT-6.1-Sol", default: true };

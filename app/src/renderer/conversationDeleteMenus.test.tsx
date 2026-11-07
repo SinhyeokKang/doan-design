@@ -189,7 +189,7 @@ test.each([
   expect(html).not.toContain("conv-row");
 });
 
-// N1: on the new conversation state the header's New conversation keeps its tooltip and focus order but does nothing.
+// On the new conversation state the header's New conversation keeps its tooltip and focus order but does nothing.
 const newButton = () => triggers.find(props => props["aria-label"] === "New conversation")!;
 test("Overview: New conversation is unavailable on the new conversation state and does nothing", async () => {
   const { run } = overview(projectList(), null);
@@ -247,7 +247,7 @@ test.each([
   expect(event.preventDefault).not.toHaveBeenCalled();
 });
 
-// Review RC ⚪2: the Delete tooltip's Escape reaches each screen's title menu, which closes.
+// The Delete tooltip's Escape reaches each screen's title menu, which closes.
 test.each(screens)("%s: Escape on a Delete's tooltip closes the title menu", (_name, draw) => {
   draw();
   const root = menu.roots.find(props => "open" in props)!;

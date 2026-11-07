@@ -217,7 +217,7 @@ export function defaultProvider(auth: AuthSnapshot | null | undefined, last: Pro
 // older: an earlier generation the menus fold (main models.ts olderIds).
 export interface ModelOption { id: string; label: string; default: boolean; older?: true; efforts?: string[]; defaultEffort?: string; fast?: { description?: string; unavailable?: FastUnusedReason } }
 // undefined: not read in this run. Lists are never hard-coded, so only a received list offers models.
-// modes: what an ACP server listed with its models (permission-mode); absent for Claude and Codex.
+// modes: what an ACP server listed with its models; absent for Claude and Codex.
 export type ModelsState = undefined | "loading" | { models: ModelOption[]; modes?: AcpModes } | { error: string };
 
 function receivedModels(state: ModelsState): ModelOption[] | null {
@@ -297,7 +297,7 @@ export function modelPickerView(auth: AuthSnapshot | null | undefined, models: P
     const rows: ModelRow[] = [{ kind: "default", label: "Default", selected: mine }];
     if (state === "loading") return { ...group, note: "Loading models", rows };
     if (state !== undefined) return { ...group, note: "Models unavailable", rows };
-    // Every provider, Copilot included, lists its models without a model request (PoC P1), so all are read.
+    // Every provider, Copilot included, lists its models without a model request, so all are read.
     return { ...group, read: true, rows };
   });
   const trigger: ModelTrigger = !choice.provider ? { provider: null, label: "No agent ready", ariaLabel: "Agent: none ready", placeholder: false, isDefault: false }
@@ -307,7 +307,7 @@ export function modelPickerView(auth: AuthSnapshot | null | undefined, models: P
   return { trigger, groups, effort };
 }
 
-// Older models (model-drawer-older): a group's rows keep every model, and the menu folds the older ones under one line
+// Older models: a group's rows keep every model, and the menu folds the older ones under one line
 // only when drawing. Picking and finding the checked row read the full rows, so an older pick never falls back to Default.
 type FoldRow = { older?: true; selected: boolean };
 // Current and older rows each retain the provider's list order.

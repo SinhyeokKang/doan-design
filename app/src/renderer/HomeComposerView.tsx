@@ -47,7 +47,7 @@ export interface ComposerMemory {
   restoredModels?: Partial<Record<Provider, string>>;
   // Levels Edit on Home brought back into `efforts`, by the same key; a pick of a level clears its entry.
   restoredEfforts?: Partial<Record<string, string>>;
-  // Permission mode picks by provider (permission-mode), kept the same way as the model picks.
+  // Permission mode picks by provider, kept the same way as the model picks.
   permissions: Partial<Record<Provider, PermissionModeId>>;
   // Fast switched by provider; absent follows the provider's Last used.
   fast: Partial<Record<Provider, boolean>>;
@@ -59,11 +59,11 @@ export interface ComposerMemory {
   auth: AuthSnapshot | null | undefined;
   thumbnails: Record<string, string>;
   // Attachment keys and main's ids of each root's last sent request: Edit on Home shows their thumbnails again and
-  // main keeps the ids for its recheck until no last request or draft uses them (review BU3 r2 🟡4, 🟡5).
+  // main keeps the ids for its recheck until no last request or draft uses them.
   lastKeys: Record<string, string[]>;
   lastIds: Record<string, string[]>;
   // A start still waiting for main, kept here so a later visit stays locked and its reply clears only the draft it
-  // sent (review BU3 🟡2); and the refusal or attachment notice under the composer.
+  // sent; and the refusal or attachment notice under the composer.
   sending: { generation: number; text: string; preset: string | null; keys: string[] } | null;
   generation: number;
   notice: { text: string; retry: boolean } | null;

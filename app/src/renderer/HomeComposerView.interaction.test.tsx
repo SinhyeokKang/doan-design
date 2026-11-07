@@ -259,7 +259,6 @@ test("a dropped folder is recognised by its own item even when string items come
   expect(doan.addAttachmentFiles).toHaveBeenCalledWith([file]);
 });
 
-// Review BU3 fix round 1.
 const B: FolderEntry = { kind: "list", path: "/code/acme", servedRev: 0, canvases: [], git: { common: "/code/acme/.git", main: "/code/acme", branch: "main", worktrees: [] } };
 const runEffects = () => { for (const effect of hooks.effects) effect(); };
 const pending = () => { let resolve!: (value: { ok: true } | { error: string }) => void; const promise = new Promise<{ ok: true } | { error: string }>(r => { resolve = r; }); return { promise, resolve }; };
@@ -367,7 +366,6 @@ test("a request rebuilt after a reload brings its image thumbnails into the comp
   create.mockRestore();
 });
 
-// Review BU3 r2.
 // One mount's life: render, run its effects, and keep their cleanups to unmount it like React does.
 function mount(props: HeroComposerProps, redraw: () => void) {
   hooks.states = []; hooks.refs = []; hooks.redraw = redraw;

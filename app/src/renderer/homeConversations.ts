@@ -18,7 +18,7 @@ const RUNNING: readonly StripState["kind"][] = ["starting", "working", "permissi
 // One sidebar row: a canvas row when the conversation is bound, else its project row.
 export function slotKey(root: string, canvas?: string): string { return canvas === undefined ? root : `${root}\n${canvas}`; }
 
-// `source`: a terminal session's `doan work` (terminal-agent-activity); absent for an app conversation.
+// `source`: a terminal session's `doan work`; absent for an app conversation.
 export interface Slot { kind: "permission" | "working" | "unseen"; label: string; source?: "terminal" }
 
 // One Home conversation per root while the strip can show only one, so no permission request hides behind another.

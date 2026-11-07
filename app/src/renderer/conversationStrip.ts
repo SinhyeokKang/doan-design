@@ -107,7 +107,7 @@ export function stripView(state: StripState, ctx: StripContext): StripView {
     case "working": return view(`${p} is working`, state.activity, [stop]);
     // No option is the default: Allow gets no autofocus or prominence.
     case "permission": return { title: `${p} needs your answer`, body: state.summary, live: "alert", alertKey: state.requestId, actions: [...state.options.map(o => ({ command: "answer" as const, label: o.label, optionId: o.id, kind: o.kind })), stop] };
-    // No answer control: the strip only skips or stops (agent-questions decisions 8 and 10).
+    // No answer control: the strip only skips or stops.
     case "question": return { title: `${p} needs your answer`, body: state.question, live: "alert", alertKey: state.requestId, actions: [{ command: "skip", label: "Skip" }, stop] };
     case "failed": {
       // The thread's own sentence; Edit on Home stays, to send the request with another model.

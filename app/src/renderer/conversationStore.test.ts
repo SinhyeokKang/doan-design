@@ -173,7 +173,7 @@ test("deleting the conversation drops its sending messages", () => {
   expect(h.store.sending(A)).toEqual([]);
 });
 
-// Review Y1: main's count leaves out a message in flight, so a read taken then says none are queued; a refusal that
+// Main's count leaves out a message in flight, so a read taken then says none are queued; a refusal that
 // puts the row back must not be dropped by that read, only by one started after the refusal.
 test("a row refused back into the queue stays until a read started after the refusal says main sent it", async () => {
   const h = harness();
@@ -192,7 +192,7 @@ test("a row refused back into the queue stays until a read started after the ref
   expect(h.ids()).toEqual([]);
 });
 
-// Review Y1: the answer says whether the turn still runs as the store reads it then, so a turn.done that reached the
+// The answer says whether the turn still runs as the store reads it then, so a turn.done that reached the
 // store before the screen was drawn again decides it.
 test("a refusal says whether the turn still runs as the store reads it at the answer", async () => {
   const h = harness();
@@ -234,7 +234,7 @@ test("a question's chosen answer is kept by conversation and request until that 
   expect(h.store.questionDraft(A, "q1").choices).toEqual({});
 });
 
-// A refusal or an edit that lands after the question was settled must not bring its draft back (batch R review ⚪4).
+// A refusal or an edit that lands after the question was settled must not bring its draft back.
 test("a resolved or deleted question's draft is not made again by a late edit", () => {
   const h = harness();
   const question = { id: "0", header: "Layout", question: "Which layout?", options: [{ label: "Compact" }], multiSelect: false, other: true };

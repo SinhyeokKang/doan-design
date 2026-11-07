@@ -65,7 +65,7 @@ describe("question card", () => {
   });
 
   // VoiceOver reads a control's name, then its description: the name is the label line alone so the description is
-  // read once (batch R review ⚪2).
+  // read once.
   test("each option is named by its label line and described by its description", () => {
     const out = card({ item: item([layout, sections]) });
     expect(out).toMatch(/<input type="radio" aria-labelledby="b-q1-0-l0" aria-describedby="b-q1-0-d0" name="b-q1-0"\/>/);

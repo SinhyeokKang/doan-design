@@ -117,7 +117,7 @@ test("failed and stopped offer Edit on Home (panel) and Dismiss; done offers Ope
   expect(render({ kind: "done" }, { ...CTX, canvas: "design-system" })).toContain('<button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel">Open</button><button type="button" class="doan-button" data-ui-size="sm">Dismiss</button>');
 });
 
-// Review BU3 🟡6/🟡7: the alert line is keyed to its request, so React keeps the node (one announcement) while the
+// The alert line is keyed to its request, so React keeps the node (one announcement) while the
 // same request is redrawn and replaces it for a new one; Stop is marked for App's arrival focus.
 test("the alert line keeps its key across redraws of one request and changes it for the next; Stop carries its marker", () => {
   hooks.mock = true;
@@ -137,8 +137,8 @@ test("the alert line keeps its key across redraws of one request and changes it 
   expect(render(ASK).match(/data-strip-stop/g)).toHaveLength(1);
 });
 
-// BV1 defect (2026-10-30): a Copilot Deny ended the turn right after the answer; Stop went away with focus on it and
-// focus fell to the page. Review BV2 🟡1/🟡2: the move depends on Stop holding focus when it leaves, not on an answer
+// Defect (2026-10-30): a Copilot Deny ended the turn right after the answer; Stop went away with focus on it and
+// focus fell to the page. The move depends on Stop holding focus when it leaves, not on an answer
 // made earlier, and a strip is keyed by its conversation in App.
 function strip() {
   const dismissFocus = vi.fn();

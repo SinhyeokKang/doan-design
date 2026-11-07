@@ -206,7 +206,7 @@ describe("thread items", () => {
     const out = html(items, { turn: { turnId: "t1", status: { kind: "tool", activity: "read", text: "Reading x" }, at: "2026-11-06T10:00:00.000Z" } });
     expect(out).toContain('<div class="msg-agent"><p class="muted">No reply.</p></div>');
     expect(out).toContain('data-item="n4"');
-    // turn-activity: the status says the turn indicator's stage kind, without its path (it said "is working" before).
+    // The status says the turn indicator's stage kind, without its path (it said "is working" before).
     expect(out).toContain('<div class="sr-only" role="status">Claude Code is reading files</div>');
     expect(html(items)).toContain('<div class="sr-only" role="status"></div>');
   });
@@ -275,7 +275,7 @@ describe("sent message chips", () => {
   });
 
   // Only a target the canvas no longer has shows the note; a canvas that did not answer, or
-  // could not be asked, ends silently (orch decision: a timeout is not "missing").
+  // could not be asked, ends silently (a timeout is not "missing").
   test.each([["missing", 1], ["timeout", 0], ["unavailable", 0], ["shown", 0]] as const)("a locate that ends %s shows the note %i times", async (outcome, times) => {
     const shown: string[] = [];
     const chip = SentChip({ marker: 1, anchor: anchors[0]!, frames: undefined, disabled: false, onLocate: async () => outcome,
@@ -488,7 +488,7 @@ function findButton(node: unknown): ReactElement | null {
   return null;
 }
 
-// canvas-handoff fix round 1 (conductor's decision on review 🟡4): a turn the handoff card started was not the person's
+// A turn the handoff card started was not the person's
 // message, so its end never offers Edit and resend; Sign in again stays, and a later turn of the person's resends.
 describe("the end of a handoff card's turn", () => {
   const card: ThreadItem = { kind: "handoffCard", key: "u1", seq: 1, origin: { kind: "handoff", conversationId: "c0", canvas: { path: ".doan/canvases/drafts.html", id: "drafts" } }, text: "Continue." };

@@ -470,8 +470,7 @@ function lastEnd(items: readonly ThreadItem[]): { key: string; resend: boolean }
   }
   return null;
 }
-// The running turn reads as the indicator's settled stage kind, so it changes only when that kind does (turn-activity
-// spec condition 7).
+// The running turn reads as the indicator's settled stage kind, so it changes only when that kind does.
 function phaseText(items: readonly ThreadItem[], provider: Provider, shown: TurnStatus): string {
   const p = PROVIDER_NAMES[provider];
   if (items.some(waitsForPerson)) return `${p} needs your answer`;

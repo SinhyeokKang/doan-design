@@ -196,7 +196,7 @@ test("suggestion CSS: full-width rows with an accent icon tile, Home's group 32p
   expect(css).toMatch(/\.suggestion:is\(:hover, :focus-visible\) \.suggestion-go \{ visibility: visible; \}/);
 });
 
-// small-ui-tweaks decisions 3, 5, 6, 9: a sentence runs to three lines, rows stay centered with the 4px gap, and a
+// A sentence runs to three lines, rows stay centered with the 4px gap, and a
 // 1px line separates neighbors without touching the first or last row.
 test("suggestion CSS: the sentence clamps at three lines and a 1px divider separates rows", () => {
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
@@ -213,7 +213,7 @@ test("suggestion CSS: the sentence clamps at three lines and a 1px divider separ
   expect(css).toMatch(/\.ov-suggestions \{[^}]*gap: var\(--space-1\);/);
 });
 
-// small-ui-tweaks decisions 7, 8: the name highlight repeats .anchor-chip's values but is inline, so it can wrap and
+// The name highlight repeats .anchor-chip's values but is inline, so it can wrap and
 // is never truncated; the two rules are pinned together because .anchor-chip itself cannot be reused.
 test("suggestion CSS: the name highlight repeats the anchor chip's values and wraps with a clone per fragment", () => {
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");

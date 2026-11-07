@@ -82,7 +82,7 @@ export class HomeRun {
   private events = new Map<string, ConversationEvent[]>();
   private unclaimed: ConversationEvent[] = [];
   private extras = new Map<string, Extras>();
-  // Reads of the list: one in flight per root; a notice that arrives meanwhile asks for one more after it (RA1 N2).
+  // Reads of the list: one in flight per root; a notice that arrives meanwhile asks for one more after it.
   private reads = new Map<string, { again: boolean }>();
   private readCount = new Map<string, number>();
   // Conversations the person saw (Dismiss, a visit): hidden as seen until a list read that started after main took the

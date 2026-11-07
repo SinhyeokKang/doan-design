@@ -270,7 +270,6 @@ test("Edit on Home sends the last request back to Home", async () => {
   expect(h.run.restore).toEqual({ request: { ...LAST, conversationId: "c1" }, seq: 1 });
 });
 
-// Review BU3 r2 🟡2, 🟡3.
 test("a canvas that appears before the arrival opens once the arrival is accepted, before App's screen commit", async () => {
   const h = harness();
   const sending = h.run.start(REQUEST, LAST);
@@ -715,7 +714,6 @@ test("Edit on Home gives way to a move the person makes while the record is read
   expect(h.run.restore).toBeNull();
 });
 
-// Review RB2 🟡3, ⚪1, ⚪2.
 test("after a reload the strip picks the latest activity, whatever order the history reads finish in", async () => {
   for (const order of [["new", "old"], ["old", "new"]] as const) {
     lists({ [ROOT]: [summary({ conversationId: "old", unseen: true }), summary({ conversationId: "new", unseen: true, lastActivityAt: "2026-11-01T01:00:00.000Z" })] });
@@ -826,7 +824,7 @@ test("a refused send registers no turn", async () => {
   expect(h.run.knows("p")).toBe(false);
 });
 
-// Review RM r2 🟡2: a send's turn that starts and ends before main's reply keeps main's binding window for its canvas.
+// A send's turn that starts and ends before main's reply keeps main's binding window for its canvas.
 test("a send's new canvas opens within the binding window whether the reply, the events or an immediate end came first", async () => {
   for (const order of ["reply first", "events first", "untracked immediate end"] as const) {
     lists({ [ROOT]: [summary({ conversationId: "p" })] });
@@ -856,7 +854,7 @@ test("a send's new canvas opens within the binding window whether the reply, the
   }
 });
 
-// Review RM r3 🟡1: a permission request the send's turn raised before main's reply still gets the away toast once;
+// A permission request the send's turn raised before main's reply still gets the away toast once;
 // on its own project's screen none.
 test("a send's permission request toasts once away from its project, whether it came before or after the reply", async () => {
   for (const tracked of [false, true]) for (const before of [true, false]) for (const away of [true, false]) {
@@ -959,7 +957,7 @@ test("deleting one conversation leaves another's strip", async () => {
   expect(h.run.lastRequests.get(ROOT)?.conversationId).toBe("c1");
 });
 
-// Review RB 🟡1: a claim whose history read is in flight when the conversation is deleted must not put it back.
+// A claim whose history read is in flight when the conversation is deleted must not put it back.
 test("a claim whose history read lands after the delete registers nothing", async () => {
   lists({ [ROOT]: [summary({ conversationId: "c1", unseen: true })] });
   const read = deferred<unknown>();
@@ -976,7 +974,7 @@ test("a claim whose history read lands after the delete registers nothing", asyn
   expect(h.run.strip(ROOT)).toBeNull();
 });
 
-// Review RB ⚪3: late events of a deleted conversation are not buffered, so a burst of them cannot push another
+// Late events of a deleted conversation are not buffered, so a burst of them cannot push another
 // conversation's early events (those that came before its start reply) out of the bounded buffer.
 test("late events of a deleted conversation do not crowd out another conversation's buffered events", async () => {
   const h = harness();

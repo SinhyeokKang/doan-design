@@ -221,7 +221,7 @@ describe("settle and the screen reader's status", () => {
     expect(status(tree)).toBe(first);
   });
 
-  // Review RU-R1: the same conversation's next turn arrives in the render after the earlier one's stage, with no render
+  // The same conversation's next turn arrives in the render after the earlier one's stage, with no render
   // of its end between (a queue starting it at once).
   test("a next turn starts from nothing: the earlier turn's shown or pending stage never shows beside it", () => {
     let p = props([user, running], at({ kind: "tool", activity: "read", text: "Reading old.ts" }, "t1"));
