@@ -189,3 +189,46 @@ test("a restart held back by a conversation opens the reason quietly", () => {
   view.onOpenAutoFocus(focusEvent as unknown as Event);
   expect(focusEvent.preventDefault).toHaveBeenCalled();
 });
+
+// A restart this button started is the person's own: when it stops or is held, its popover takes focus so a
+// keyboard or screen reader user hears why. One started elsewhere (the menu, About) opens quietly.
+test("a restart pressed here that stops or is held opens with focus; one started elsewhere opens quietly", async () => {
+  render(); push(snap(READY)); let view = render();
+  view.onPress(); await flush();
+  push(snap({ kind: "restarting", version: "0.1.1" })); render();
+  push(snap({ kind: "restartAborted", version: "0.1.1" })); view = render();
+  expect(view.shown).toEqual(STOPPED);
+  const stopped = { preventDefault: vi.fn() };
+  view.onOpenAutoFocus(stopped as unknown as Event);
+  expect(stopped.preventDefault).not.toHaveBeenCalled();
+  view.onOpenChange(false); view = render();
+  view.onPress(); await flush();
+  push(snap({ kind: "restarting", version: "0.1.1" })); render();
+  push(snap(READY, { gate: { kind: "blocked", reason: "conversation" } })); view = render();
+  expect(view.shown).toEqual(BLOCKED);
+  const held = { preventDefault: vi.fn() };
+  view.onOpenAutoFocus(held as unknown as Event);
+  expect(held.preventDefault).not.toHaveBeenCalled();
+  // Started from the menu: this button was never pressed for it.
+  view.onOpenChange(false); view = render();
+  push(snap({ kind: "restarting", version: "0.1.1" })); render();
+  push(snap({ kind: "restartAborted", version: "0.1.1" })); view = render();
+  const quiet = { preventDefault: vi.fn() };
+  view.onOpenAutoFocus(quiet as unknown as Event);
+  expect(quiet.preventDefault).toHaveBeenCalled();
+});
+
+test("closing hands focus back to the button only when it would land on the body", () => {
+  render(); push(snap(READY)); const view = render();
+  const body = {};
+  vi.stubGlobal("document", { activeElement: body, body });
+  node.focus.mockClear();
+  const event = { preventDefault: vi.fn() };
+  view.onCloseAutoFocus(event as unknown as Event);
+  expect(event.preventDefault).toHaveBeenCalled();
+  expect(node.focus).toHaveBeenCalledOnce();
+  vi.stubGlobal("document", { activeElement: { tagName: "TEXTAREA" }, body });
+  node.focus.mockClear();
+  view.onCloseAutoFocus({ preventDefault: vi.fn() } as unknown as Event);
+  expect(node.focus).not.toHaveBeenCalled();
+});
