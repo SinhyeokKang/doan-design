@@ -493,6 +493,21 @@ test("a problem workspace keeps the conversation strip over the overlay without 
   expect(find(KeyedConversationStrip)).toHaveLength(0);
 });
 
+test("a re-read shorter than 300 ms does not flash the strip in; the reading panel brings it", () => {
+  vi.useFakeTimers();
+  render(); folders([listed("/w/a")]);
+  toOverview();
+  vi.spyOn(homeRun(), "strip").mockReturnValue({ conversation: { conversationId: "c1", root: "/w/a", provider: "codex", phase: "working" }, state: { kind: "working", activity: null } } as never);
+  folders([loading()]);
+  expect(find(KeyedConversationStrip)).toHaveLength(0);
+  folders([listed("/w/a")]);
+  expect(find(KeyedConversationStrip)).toHaveLength(0);
+  folders([loading()]);
+  vi.advanceTimersByTime(300); render();
+  expect(overlay()?.view.kind).toBe("reading");
+  expect(find(KeyedConversationStrip)).toHaveLength(1);
+});
+
 test("a launch whose saved root is a problem stays Home; the Overview composer's draft outlives the overlay", async () => {
   render();
   readUiState({ screen: "workspace", root: "/w/a", expanded: {}, lastByRoot: {}, home: {} }); await flush();

@@ -933,6 +933,9 @@ test("the Overview's panel replaces the conversation panel, and a problem root k
 });
 
 test("a problem or reading root shows the conversation strip, over its Overview too; a listed root's Overview hides it", () => {
+  // A reading root shows it with its reading panel, 300 ms into the read.
+  vi.useFakeTimers();
+  const settle = (entry: FolderEntry) => { if (entry.kind === "loading") { vi.advanceTimersByTime(300); render(); } };
   render(); folders([listed("/w/a")]);
   find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render();
   const run = hooks.refs.find(ref => ref.current instanceof HomeRun)!.current as InstanceType<typeof HomeRun>;
@@ -940,17 +943,18 @@ test("a problem or reading root shows the conversation strip, over its Overview 
   render();
   expect(find(KeyedConversationStrip)).toHaveLength(0);
   for (const entry of problemEntries) {
-    folders([entry]);
+    folders([entry]); settle(entry);
     expect(find(KeyedConversationStrip), entry.kind).toHaveLength(1);
   }
   listeners.menu!("home" as never); render();
   for (const entry of problemEntries) {
     folders([entry]);
-    find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render();
+    find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render(); settle(entry);
     expect(find(KeyedConversationStrip), entry.kind).toHaveLength(1);
   }
   folders([listed("/w/a")]);
   expect(find(KeyedConversationStrip)).toHaveLength(0);
+  vi.useRealTimers();
 });
 
 // buzz-project design §2.5: a worktree picked from the Overview's branch chip lands focus on the new Overview's chip;

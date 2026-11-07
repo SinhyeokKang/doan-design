@@ -2012,11 +2012,12 @@ export function App() {
   }, [screen, loadedRoot, state.open?.canvas, run.conversations, run.revision, overlaid]);
   const shown = run.strip(loadedRoot);
   // The canvas page has no conversation strip: the panel shows this canvas's conversation, and the sidebar slots and
-  // permission toasts the others (design §2 'Strip'). A problem or reading root keeps it, over its overlay, without the
-  // Open that would lead under it (problem-project-overlay design §4.3).
-  const stripShown = shown && stripView(shown.state, { provider: shown.conversation.provider, project: projectLabel(shown.conversation.root), branch: null, canvas: shown.conversation.canvas ? canvasLabel({ path: shown.conversation.canvas, url: "" }) : null });
-  const strip = entry && entry.kind !== "list" && shown && stripShown && <div className="strip-slot"><KeyedConversationStrip conversationId={shown.conversation.conversationId} provider={shown.conversation.provider} state={shown.state}
-    view={overlaid ? { ...stripShown, actions: stripShown.actions.filter(action => action.command !== "open") } : stripShown}
+  // permission toasts the others (design §2 'Strip'). A problem or reading root keeps it over its overlay, without the
+  // Open that would lead under it (problem-project-overlay design §4.3); it follows the overlay, so a re-read shorter
+  // than 300 ms does not flash it in.
+  const stripShown = overlaid && shown && stripView(shown.state, { provider: shown.conversation.provider, project: projectLabel(shown.conversation.root), branch: null, canvas: shown.conversation.canvas ? canvasLabel({ path: shown.conversation.canvas, url: "" }) : null });
+  const strip = shown && stripShown && <div className="strip-slot"><KeyedConversationStrip conversationId={shown.conversation.conversationId} provider={shown.conversation.provider} state={shown.state}
+    view={{ ...stripShown, actions: stripShown.actions.filter(action => action.command !== "open") }}
     onEditOnHome={() => void run.editOnHome(shown.conversation.conversationId)} onOpen={() => run.openConversation(shown.conversation.conversationId)}
     onDismiss={() => run.dismiss(shown.conversation.conversationId)} /></div>;
   const shellSlots = sidebarSlots(withTerminalSlots(run.slots(), work, entries), entries, shownCanvas);
