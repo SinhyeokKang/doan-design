@@ -6,7 +6,7 @@
 
 ## 사용자
 
-- **메인테이너**: `/release <version>`이나 `/release hotfix <slug>`를 부르고, 스킬이 멈추는 승인 지점에서만 답한다.
+- **메인테이너**: `/release <version>`이나 `/release hotfix <slug>`를 부르고, 그 호출이 `main` 병합, 환경 `release` 승인, 게시를 모두 허락한다(사용자, 2026-11-08). 스킬은 실패할 때만 멈추고 보고한다.
 - **에이전트**: 스킬을 따라 병합·태그·게시를 한다. 사용자가 부르지 않으면 `main`을 건드리지 않는다(git-flow가 AGENTS.md에 적은 규칙).
 - **앱 사용자**: 게시된 Release와 `latest-mac.yml`로 새 버전을 받는다(app-update).
 
