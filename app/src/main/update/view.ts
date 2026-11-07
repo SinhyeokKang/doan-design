@@ -117,8 +117,10 @@ function row(snapshot: UpdateSnapshot, now: number): UpdateRowView {
     case "downloading":
       return { ...EMPTY_ROW, description: `${version} · Downloading Doan ${state.version}`, progress: state.percent };
     case "ready":
+      // The announcement ignores the gate: a turn starting or ending is not news to read. The page reads the notice
+      // when a press is answered blocked.
       return blocked
-        ? { ...EMPTY_ROW, description: `${version} · Doan ${state.version} is ready.`, actions: [NOTES, RESTART], notice: BLOCKED, announcement: `${BLOCKED.title}. ${BLOCKED.text}` }
+        ? { ...EMPTY_ROW, description: `${version} · Doan ${state.version} is ready.`, actions: [NOTES, RESTART], notice: BLOCKED, announcement: `Doan ${state.version} is ready.` }
         : { ...EMPTY_ROW, description: `${version} · Doan ${state.version} is ready. Restart now, or Doan installs it when you quit.`, actions: [NOTES, RESTART], announcement: `Doan ${state.version} is ready.` };
     case "restarting":
       return { ...EMPTY_ROW, description: `${version} · Doan ${state.version} is ready.`, busy: "Restarting" };

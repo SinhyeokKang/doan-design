@@ -20,9 +20,18 @@ const systemError = (message: string, code: string) => Object.assign(new Error(m
 const squirrelError = (message: string, code: number, domain: string) => Object.assign(new Error(message), { code, domain });
 
 const REPO = "https://github.com/SinhyeokKang/doan-design";
-const NOT_FOUND = httpError(404, "", `method: GET url: ${REPO}/releases/download/v0.1.1/latest-mac.yml\n\nPlease double check that your authentication token is correct. Due to security reasons, actual status maybe not reported, but 404.\n`);
-const TOO_MANY = httpError(429, "Too Many Requests", `method: GET url: ${REPO}/releases.atom\n\n          Data:\n          <html>Too many requests</html>\n          `);
 const stack = (error: Error) => `${error.name}: ${error.message}\n    at SimpleURLLoaderWrapper.<anonymous> (node:electron/js2c/browser_init:2:114720)`;
+const NOT_FOUND_HINT = "\n\nPlease double check that your authentication token is correct. Due to security reasons, actual status maybe not reported, but 404.\n";
+const YML_NOT_FOUND = httpError(404, "", `method: GET url: ${REPO}/releases/download/v0.1.1/latest-mac.yml${NOT_FOUND_HINT}`);
+const LATEST_NOT_FOUND = httpError(404, "", `method: GET url: ${REPO}/releases/latest${NOT_FOUND_HINT}`);
+const data = (path: string, body: string) => `method: GET url: ${REPO}${path}\n\n          Data:\n          ${body}\n          `;
+// The releases feed is read first, outside any wrapper, so its HTTP errors arrive as they are.
+const FEED_TOO_MANY = httpError(429, "Too Many Requests", data("/releases.atom", "<html>Too many requests</html>"));
+// A stable copy then reads /releases/latest. GitHubProvider wraps that failure in ERR_UPDATER_LATEST_VERSION_NOT_FOUND,
+// and the feed parser around the call wraps it again in ERR_UPDATER_INVALID_RELEASE_FEED with the whole feed appended.
+const FEED_XML = '<?xml version="1.0" encoding="UTF-8"?>\n<feed xmlns="http://www.w3.org/2005/Atom"><entry><link rel="alternate" type="text/html" href="/SinhyeokKang/doan-design/releases/tag/v0.1.1"/><content type="html">&lt;p&gt;Fixes an update check that failed with net::ERR_INTERNET_DISCONNECTED, HttpError: 404 or HttpError: 429 and a rate limit message.&lt;/p&gt;</content></entry></feed>';
+const latest = (cause: string) => newError(`Unable to find latest version on GitHub (${REPO}/releases/latest), please ensure a production release exists: ${cause}`, "ERR_UPDATER_LATEST_VERSION_NOT_FOUND");
+const inFeed = (inner: Error) => newError(`Cannot parse releases feed: ${stack(inner)},\nXML:\n${FEED_XML}`, "ERR_UPDATER_INVALID_RELEASE_FEED");
 
 const FIXTURES: Record<string, [string, unknown][]> = {
   offline: [
@@ -33,20 +42,15 @@ const FIXTURES: Record<string, [string, unknown][]> = {
     ["Electron net, timed out", new Error("net::ERR_CONNECTION_TIMED_OUT")],
     ["builder-util-runtime socket timeout", new Error("Request timed out")],
     ["Node DNS", systemError("getaddrinfo ENOTFOUND github.com", "ENOTFOUND")],
-    // GitHubProvider wraps whatever failed while reading the latest release, network errors included.
-    ["wrapped in latest version not found", newError(`Unable to find latest version on GitHub (${REPO}/releases/latest), please ensure a production release exists: ${stack(new Error("net::ERR_INTERNET_DISCONNECTED"))}`, "ERR_UPDATER_LATEST_VERSION_NOT_FOUND")],
+    ["/releases/latest unreachable, wrapped twice", inFeed(latest(stack(new Error("net::ERR_INTERNET_DISCONNECTED"))))],
   ],
   feedMissing: [
-    ["latest-mac.yml missing from the release", newError(`Cannot find latest-mac.yml in the latest release artifacts (${REPO}/releases/download/v0.1.1/latest-mac.yml): ${stack(NOT_FOUND)}`, "ERR_UPDATER_CHANNEL_FILE_NOT_FOUND")],
-    ["no release at all", newError("No published versions on GitHub", "ERR_UPDATER_NO_PUBLISHED_VERSIONS")],
-    ["no latest release", newError(`Unable to find latest version on GitHub (${REPO}/releases/latest), please ensure a production release exists: ${stack(NOT_FOUND)}`, "ERR_UPDATER_LATEST_VERSION_NOT_FOUND")],
-    ["no zip in the update info", newError('ZIP file not provided: [{"url":"Doan-0.1.1-arm64.dmg"}]', "ERR_UPDATER_ZIP_FILE_NOT_FOUND")],
-    ["empty update info", newError(`Cannot parse update info from latest-mac.yml in the latest release artifacts (${REPO}/releases/download/v0.1.1/latest-mac.yml): rawData: null`, "ERR_UPDATER_INVALID_UPDATE_INFO")],
+    ["latest-mac.yml missing from the release", newError(`Cannot find latest-mac.yml in the latest release artifacts (${REPO}/releases/download/v0.1.1/latest-mac.yml): ${stack(YML_NOT_FOUND)}`, "ERR_UPDATER_CHANNEL_FILE_NOT_FOUND")],
   ],
   rateLimited: [
-    ["429 from the releases feed", TOO_MANY],
-    ["429 wrapped in latest version not found", newError(`Unable to find latest version on GitHub (${REPO}/releases/latest), please ensure a production release exists: ${stack(TOO_MANY)}`, "ERR_UPDATER_LATEST_VERSION_NOT_FOUND")],
-    ["403 with GitHub's rate limit body", httpError(403, "Forbidden", `method: GET url: https://api.github.com/repos/SinhyeokKang/doan-design/releases/latest\n\n          Data:\n          {"message":"API rate limit exceeded for 203.0.113.7."}\n          `)],
+    ["429 from /releases.atom", FEED_TOO_MANY],
+    ["429 from /releases/latest, wrapped twice", inFeed(latest(stack(httpError(429, "Too Many Requests", data("/releases/latest", "Too many requests")))))],
+    ["403 with a rate limit body from /releases.atom", httpError(403, "Forbidden", data("/releases.atom", "rate limit exceeded"))],
   ],
   signatureMismatch: [
     ["Squirrel's code signature check", squirrelError("Code signature at URL file:///Users/you/Library/Caches/design.doan.app.ShipIt/update.Xy12/Doan.app/ did not pass validation: code failed to satisfy specified code requirement(s)", -1, "SQRLCodeSignatureErrorDomain")],
@@ -63,13 +67,20 @@ const FIXTURES: Record<string, [string, unknown][]> = {
     ["a read-only volume", squirrelError("Cannot update while running on a read-only volume. The application is on a read-only volume. Please move the application and try again. If you're on macOS Sierra or later, you'll need to move the application out of the Downloads directory. See https://github.com/Squirrel/Squirrel.Mac/issues/182 for more information.", 8, "SQRLUpdaterErrorDomain")],
     ["quit and install without a staged update", new Error("No update available, can't quit and install")],
   ],
+  // The feedMissing line says the release lacks update information, so a missing release, an outage or a page in
+  // place of JSON is other: the copy must not assert a cause the code does not know.
   other: [
-    ["a server error", httpError(502, "Bad Gateway", `method: GET url: ${REPO}/releases.atom`)],
-    // Only a missing release (404) means the feed is missing; an outage or a page in place of JSON does not.
-    ["a server error wrapped in latest version not found", newError(`Unable to find latest version on GitHub (${REPO}/releases/latest), please ensure a production release exists: ${stack(httpError(502, "Bad Gateway", `method: GET url: ${REPO}/releases/latest`))}`, "ERR_UPDATER_LATEST_VERSION_NOT_FOUND")],
-    ["a page in place of the latest release", newError(`Unable to find latest version on GitHub (${REPO}/releases/latest), please ensure a production release exists: SyntaxError: Unexpected token '<', "<!DOCTYPE "... is not valid JSON`, "ERR_UPDATER_LATEST_VERSION_NOT_FOUND")],
-    ["a feed GitHub answered with a page", newError("Cannot parse releases feed: Error: Unexpected close tag,\nXML:\n<html></html>", "ERR_UPDATER_INVALID_RELEASE_FEED")],
-    ["a 403 that is not the rate limit", httpError(403, "Forbidden", `method: GET url: ${REPO}/releases.atom\n\n          Data:\n          denied\n          `)],
+    ["no stable release: /releases/latest is 404, wrapped twice", inFeed(latest(stack(LATEST_NOT_FOUND)))],
+    ["no release at all: the feed has no entry", newError("No published versions on GitHub", "ERR_XML_MISSED_ELEMENT")],
+    ["no release for this prerelease channel", newError("No published versions on GitHub", "ERR_UPDATER_NO_PUBLISHED_VERSIONS")],
+    ["no zip in the update info", newError('ZIP file not provided: [{"url":"Doan-0.1.1-arm64.dmg"}]', "ERR_UPDATER_ZIP_FILE_NOT_FOUND")],
+    ["empty update info", newError(`Cannot parse update info from latest-mac.yml in the latest release artifacts (${REPO}/releases/download/v0.1.1/latest-mac.yml): rawData: null`, "ERR_UPDATER_INVALID_UPDATE_INFO")],
+    ["a server error from /releases.atom", httpError(502, "Bad Gateway", data("/releases.atom", "<html>Bad gateway</html>"))],
+    ["a server error from /releases/latest, wrapped twice", inFeed(latest(stack(httpError(502, "Bad Gateway", data("/releases/latest", "<html>Bad gateway</html>")))))],
+    ["a page in place of /releases/latest, wrapped twice", inFeed(latest(`SyntaxError: Unexpected token '<', "<!DOCTYPE "... is not valid JSON`))],
+    // Release notes in the appended feed name errors too; only the message before the feed counts.
+    ["a feed that does not parse, whose notes name other errors", newError(`Cannot parse releases feed: Error: Unexpected close tag,\nXML:\n${FEED_XML}`, "ERR_UPDATER_INVALID_RELEASE_FEED")],
+    ["a 403 that is not the rate limit", httpError(403, "Forbidden", data("/releases.atom", "denied"))],
     ["Squirrel's other failures", squirrelError("Update check failed. The server sent an invalid response. Try again later.", 3, "SQRLUpdaterErrorDomain")],
     ["a thrown string", "boom"],
     ["nothing", undefined],

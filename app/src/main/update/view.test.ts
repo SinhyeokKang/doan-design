@@ -83,7 +83,8 @@ describe("download, ready and restart", () => {
   });
 
   test("ready but blocked by a conversation: the reason under the row, Restart to Update still pressable", () => {
-    expect(view(ready, { gate: blocked }).row).toEqual({ ...ROW, description: "0.1.0 · Doan 0.1.1 is ready.", actions: [NOTES, RESTART], notice: BLOCKED, announcement: `${BLOCKED.title}. ${BLOCKED.text}` });
+    // A conversation starting or ending is not news: the reason is read when a press is answered blocked.
+    expect(view(ready, { gate: blocked }).row).toEqual({ ...ROW, description: "0.1.0 · Doan 0.1.1 is ready.", actions: [NOTES, RESTART], notice: BLOCKED, announcement: "Doan 0.1.1 is ready." });
   });
 
   test("restarting: the spinner and nothing to press", () => {
