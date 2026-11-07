@@ -1425,7 +1425,7 @@ export function App() {
     const found = (ok: boolean) => { if (!ok) live.current.toast.show("This frame is not in the rendered canvas"); };
     controller.current?.openCanvas(result.root, row, frameId === undefined ? undefined : { frame: frameId }, { unavailable, ...(result.kind === "frame" ? { found, index: result.frameIndex } : {}), opened: () => completeNavigation(result.root) });
   }
-  // A doan:// link (terminal-agent-activity design 'Deep link'): Quick Open's move. A frame moves the view as Quick Open's
+  // A doan:// link (ARCHITECTURE §7 'Deep links'): Quick Open's move. A frame moves the view as Quick Open's
   // frame does, without selection; a frame not in the canvas leaves the canvas only, with no toast. A refused link
   // shows one toast. Main checked the root and the list; the renderer's list may still lag, as for any move. A link
   // landing on a locked page or first run goes nowhere. A link or a `doan open` comes only from a person (a click, or a
