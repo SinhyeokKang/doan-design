@@ -1,13 +1,11 @@
 # release-ci — tasks
 
-`/ship`으로 진행한다. 분기는 `develop`에서 `chore/release-ci`(git-flow 규칙). 커밋 타입은 브랜치 타입과 같은 `chore`다(테스트 커밋은 `/ship`대로 `test:`). 워크플로 실행 확인 명령(`gh workflow run`, `gh run watch`, `gh run download`, `gh run list`)은 T7이 AGENTS.md 'Commands'에 더하기 전까지 "확인 명령 미정 — 사용자 확인 필요"다. 부모 tasks.md는 체크하지 않는다(부모 '자식 진행 규칙' 1).
+`/ship`으로 진행한다. 분기는 `develop`에서 `chore/release-ci`(git-flow 규칙). 커밋 타입은 브랜치 타입과 같은 `chore`다(테스트 커밋은 `/ship`대로 `test:`). 워크플로 실행 확인 명령(태그 push, `gh run watch`, `gh run download`, `gh run list`)은 T7이 AGENTS.md 'Commands'에 더하기 전까지 "확인 명령 미정 — 사용자 확인 필요"다. 부모 tasks.md는 체크하지 않는다(부모 '자식 진행 규칙' 1).
 
-- [ ] T0. 부모 G3a에서 환경 `release`와 design.md '비밀과 권한'의 비밀·변수가 등록됐는지 사용자에게 확인받는다(값은 보지 않는다).
-  - 검증: 사용자 답으로 확인한다.
-- [ ] T1. 서명 없는 골격 워크플로(design.md 'PoC' 1)를 작은 PR로 `develop`에 넣는다(사용자 승인 아래 PR을 먼저 연다).
-  - 검증: 확인 명령 미정 — 사용자 확인 필요(`gh workflow run test-build.yml --ref develop`이 시작되고 `gate`가 통과한다).
-
-── commit(골격 PR): `chore(ci): add dispatch skeletons for test and release builds` ──
+- [x] T0. 부모 G3a에서 환경 `release`와 design.md '비밀과 권한'의 비밀·변수가 등록됐는지 사용자에게 확인받는다(값은 보지 않는다).
+  - 검증: 사용자 답으로 확인한다. (2026-11-08 인계: 환경 `release`, 비밀 5개, 변수 `MAC_IDENTITY_NAME` 등록 완료.)
+- [ ] T1. (사용자) 환경 `release`의 배포 ref에 태그 규칙 `tester-*`와 `release-dryrun-*`를 더한다(design.md 'PoC' 1). 시작 방식은 2026-11-08 사용자 결정으로 태그 push다(design.md '비밀과 권한').
+  - 검증: 사용자 답으로 확인한다. T5의 첫 실행이 `sign`에서 환경 거부 없이 검토 대기로 들어간다.
 
 - [ ] T2. `/tdd`: `checkReleaseVersion`, `parseCodesignDetails`, `compareEntitlements`, `parseSpctl`의 테스트를 먼저 쓴다(`/tester-build`에서 관찰한 실제 출력 예를 픽스처로, `draft_exists`와 rc 순서 사례 포함). 스크립트 이름을 정하고 design.md '/release와의 계약'과 release-skill design을 같이 고친다.
   - 검증: `npm --prefix app test`에서 새 테스트가 실패한다(red).
@@ -27,15 +25,15 @@
 
 ── commit: `chore(app): add zip, GitHub publish and notices to the package` ──
 
-- [ ] T5. `test-build.yml`을 완성하고 design.md 'PoC' 2·3대로 이 브랜치에서 한 번 돌린다.
+- [ ] T5. `test-build.yml`을 완성하고 design.md 'PoC' 2·3대로 이 브랜치의 커밋에 `tester-poc-<n>` 태그를 push해 한 번 돌린다.
   - 검증: 확인 명령 미정 — 사용자 확인 필요. 실행 로그에 서명 검증 스크립트의 통과 줄이 있고, 산출물 dmg가 보존 7일로 남는다. 비밀 하나를 빈 이름으로 바꾼 실행이 첫 단계에서 실패하는 것도 한 번 본다(값은 출력되지 않는다).
-- [ ] T6. `release.yml`을 완성하고 `dry_run`으로 이 브랜치에서 한 번 돌린다(실제 draft는 부모 R1에서).
-  - 검증: 확인 명령 미정 — 사용자 확인 필요. 산출물에 dmg·zip·zip.blockmap·`latest-mac.yml`이 있고, 산출물 dmg가 `xcrun stapler validate`를 통과하며, zip을 푼 앱이 서명 검증 스크립트를 통과한다. 공증 시간 초과 경로의 로그 문구(제출 id 출력)를 코드에서 확인한다. 끝나면 사용자가 환경 배포 ref에서 `chore/release-ci`를 지우고, test-build의 PoC 예외(design.md test-build 1단계)를 지운다.
+- [ ] T6. `release.yml`을 완성하고 이 브랜치의 커밋에 `release-dryrun-poc-<n>` 태그를 push해 한 번 돌린다(실제 draft는 부모 R1에서).
+  - 검증: 확인 명령 미정 — 사용자 확인 필요. 산출물에 dmg·zip·zip.blockmap·`latest-mac.yml`이 있고, 산출물 dmg가 `xcrun stapler validate`를 통과하며, zip을 푼 앱이 서명 검증 스크립트를 통과한다. 공증 시간 초과 경로의 로그 문구(제출 id 출력)를 코드에서 확인한다. 끝나면 PoC 태그를 지우고, 두 워크플로의 PoC 예외(`origin/chore/release-ci` 조상 허용)를 지운다.
 
 ── commit: `chore(ci): build signed tester and release packages` ──
 
-- [ ] T7. `/tester-build`를 D8대로 다시 쓴다(워크플로 시작 → 받기 → Desktop). AGENTS.md 'Commands'의 75행과 워크플로 실행·관찰 명령(`gh workflow run`, `gh run list`, `gh run watch`, `gh run download`, `codesign -dv`)을 더한다. 비밀을 처음 넣고 갱신하는 절차(인증서 `.p12` 내보내기, API 키, 환경과 비밀·변수 이름)를 [release-skill design](../release-skill/design.md) 'One-time setup'에 직접 쓴다.
-  - 검증: `grep -n 'login keychain' .agents/skills/tester-build/SKILL.md` 결과 없음(D8). `grep -n 'gh workflow run' AGENTS.md`가 한 줄을 낸다. `grep -n 'MAC_CERT_P12_BASE64' docs/features/release-skill/design.md`가 한 줄 이상.
+- [ ] T7. `/tester-build`를 D8대로 다시 쓴다(`tester-*` 태그 push → 받기 → Desktop → 태그 삭제). AGENTS.md 'Commands'의 75행과 워크플로 실행·관찰 명령(태그 push, `gh run list`, `gh run watch`, `gh run download`, `codesign -dv`)을 더한다. 비밀을 처음 넣고 갱신하는 절차(인증서 `.p12` 내보내기, API 키, 환경과 비밀·변수 이름)를 [release-skill design](../release-skill/design.md) 'One-time setup'에 직접 쓴다.
+  - 검증: `grep -n 'login keychain' .agents/skills/tester-build/SKILL.md` 결과 없음(D8). `grep -n 'tester-\*' AGENTS.md`가 한 줄 이상. `grep -n 'MAC_CERT_P12_BASE64' docs/features/release-skill/design.md`가 한 줄 이상.
 
 ── commit: `docs(skills): build tester packages in CI` / `docs(agents): add workflow commands` / `docs(feature): release-skill one-time setup` ──
 

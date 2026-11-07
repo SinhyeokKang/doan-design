@@ -21,7 +21,7 @@ Developer ID 서명과 공증을 로컬 keychain에서 GitHub Actions로 옮기�
 
 ## 완료 조건
 
-- 테스트 빌드 워크플로(D8: `workflow_dispatch`, 입력 없음, `develop` HEAD만)가 서명·공증·스테이플된 arm64 dmg를 산출물로 남기고, 서명 검증 스크립트를 통과한다. 테스트 빌드에는 업데이트 피드 설정이 없다(app-update와의 계약).
+- 테스트 빌드 워크플로(D8: `/tester-build`가 `origin/develop` HEAD에 push한 `tester-*` 태그로 시작, `develop`에 없는 커밋은 거부)가 서명·공증·스테이플된 arm64 dmg를 산출물로 남기고, 서명 검증 스크립트를 통과한다. 테스트 빌드에는 업데이트 피드 설정이 없다(app-update와의 계약).
 - 릴리스 워크플로(`on: push: tags: v*`)가 태그 커밋이 `origin/main`의 조상인지와 버전을 검사하고, 서명 작업이 `--publish never`로 만든 dmg를 공증·스테이플·검증한 뒤, 비밀이 없는 게시 작업이 그 태그의 draft Release(rc면 prerelease)에 dmg·zip·zip.blockmap·`latest-mac.yml`을 올린다. 이미 같은 버전의 draft나 게시본이 있으면 아무것도 만들지 않고 실패 코드로 끝난다.
 - 서명 작업만 D6의 환경을 쓰고, 게이트는 그 전에 ci-gate의 `workflow_call`로 비밀 없이 돈다. 포크 PR이나 `pull_request_target`에서 서명 작업이 돌 수 없다. 서명 작업은 첫 단계에서 비밀이 모두 있는지(값은 출력하지 않고) 확인한다.
 - 패키지된 앱의 `Contents/Resources/LICENSE`와 `Contents/Resources/notices/`(`cli/internal/designskill/notices/`의 내용)가 있다(D15).
