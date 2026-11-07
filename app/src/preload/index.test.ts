@@ -361,7 +361,7 @@ test("design skills read through two fixed channels and pass the id as data", as
   expect(Object.keys(api.designSkills).sort()).toEqual(["get", "list"]);
 });
 
-// buzz-add-projects: the page's project session mirrors the onboarding session's project calls on its own channels.
+// the page's project session mirrors the onboarding session's project calls on its own channels.
 test("Add Projects page calls use their own fixed channels and pass the request as data", async () => {
   const ids = { sessionId: "s", requestId: "r" };
   await api.readAddPage(); expect(mocks.invoke).toHaveBeenLastCalledWith("add-projects:read", {});
@@ -449,7 +449,7 @@ test("notification clicks and the open-Settings command are subscriptions that u
   expect(emitter.listenerCount("notifications:click") + emitter.listenerCount("settings-page:open")).toBe(0);
 });
 
-test("buzz-conversation: list, seen marker, list changes, extended send, links and re-issued attachments", async () => {
+test("list, seen marker, list changes, extended send, links and re-issued attachments", async () => {
   mocks.invoke.mockResolvedValue(undefined);
   await api.listConversations({ root: "/repo" });
   expect(mocks.invoke).toHaveBeenLastCalledWith("conversation:list", { root: "/repo" });

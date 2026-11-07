@@ -1,4 +1,4 @@
-// `<userData>/ui-state.json` (design-nav 'Restart restore'). Pure and shared:
+// `<userData>/ui-state.json`. Pure and shared:
 // main validates what the renderer saves, and the restore plan reads the result.
 
 import { validProvider, type Provider } from "../main/agentAuth/types";
@@ -28,7 +28,7 @@ export interface HomeModel {
   effort?: string;
 }
 
-// The Home composer's last choices on this device (buzz-home). Readiness and
+// The Home composer's last choices on this device. Readiness and
 // model lists are only known at run time, so their users ignore stale values.
 export interface HomeMemory {
   lastRoot?: string;

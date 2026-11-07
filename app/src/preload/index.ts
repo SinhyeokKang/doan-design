@@ -262,7 +262,7 @@ const api = {
     ipcRenderer.on("agent-auth:prompt", receive);
     return () => ipcRenderer.removeListener("agent-auth:prompt", receive);
   },
-  // Settings > MCP Connectors (mcp-connectors). Snapshots carry one revision, delivered newest only as onAgentAuth.
+  // Settings > MCP Connectors. Snapshots carry one revision, delivered newest only as onAgentAuth.
   // refresh re-reads the provider statuses (entering the page, Retry of a failed read); they are never polled. Links
   // stay in main: a Claude sign-in's link opens in the browser by itself and openMcpLink opens it again.
   readMcpConnectors: (options: { refresh?: boolean } = {}): Promise<McpSnapshot> => ipcRenderer.invoke("mcp-connectors:list", options.refresh ? { refresh: true } : undefined),
@@ -379,7 +379,7 @@ const api = {
   locateProject: (path: string): Promise<LocateResult> => ipcRenderer.invoke("folders:locate", { path }),
   revealProject: (path: string): Promise<void> => ipcRenderer.invoke("folders:reveal", { path }),
   setMenuState: (inputs: MenuInputs): Promise<void> => ipcRenderer.invoke("menu:state", inputs),
-  // canvas-row-menu: a listed canvas row by root and path; main checks it against its own list and the disk, and judges
+  // a listed canvas row by root and path; main checks it against its own list and the disk, and judges
   // busy again. Ask the plan when the Move to Trash dialog opens (does a comment file go too?), then move on confirm.
   planCanvasTrash: (root: string, path: string): Promise<TrashPlanReply> => ipcRenderer.invoke("canvas:trashPlan", { root, path }),
   trashCanvas: (root: string, path: string): Promise<TrashReply> => ipcRenderer.invoke("canvas:trash", { root, path }),
@@ -415,7 +415,7 @@ const api = {
     ipcRenderer.on("menu-command", receive);
     return () => ipcRenderer.removeListener("menu-command", receive);
   },
-  // Settings page (buzz-settings). Preferences: main validates the change, merges it and writes it; a refused or
+  // Settings page. Preferences: main validates the change, merges it and writes it; a refused or
   // failed write answers the choices still in effect. null only when main refused the caller.
   readPreferences: (): Promise<PreferencesSnapshot | null> => ipcRenderer.invoke("preferences:read"),
   savePreferences: (patch: PreferencesPatch): Promise<PreferencesWriteReply | null> => ipcRenderer.invoke("preferences:write", patch),
