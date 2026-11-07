@@ -152,7 +152,7 @@ design-draft·design-sync의 "on main"은 "출시됐다"가 아니라 "통합됐
 - 제약: `-latest` 라벨은 1–2개월에 걸쳐 조용히 바뀐다(runner-images README). 앱 테스트 일부가 darwin을 가정한다.
 
 ### D6. 서명 비밀의 보관과 실행 권한 — 결론(사용자, 2026-11-07)
-- 환경 `release`(필수 검토자 = 사용자, 배포 ref = 릴리스 워크플로를 시작하는 `v*` 태그와 테스트 빌드의 `develop`)에 비밀을 두고, 서명 작업만 그 환경을 쓴다. 공증은 기존 App Store Connect API Team 키(지금 `doan-notary`와 같은 키)로 한다. `APPLE_API_KEY`는 `.p8` 파일 경로라서 워크플로가 비밀 내용을 `$RUNNER_TEMP`의 파일로 쓰고 그 경로를 넘긴다('조사').
+- 환경 `release`(필수 검토자 = 사용자, 배포 ref = 릴리스 워크플로를 시작하는 `v*` 태그, 테스트 빌드의 `tester-*` 태그, 릴리스 dry run의 `release-dryrun-*` 태그)에 비밀을 두고, 서명 작업만 그 환경을 쓴다. 공증은 기존 App Store Connect API Team 키(지금 `doan-notary`와 같은 키)로 한다. `APPLE_API_KEY`는 `.p8` 파일 경로라서 워크플로가 비밀 내용을 `$RUNNER_TEMP`의 파일로 쓰고 그 경로를 넘긴다('조사').
 - 제약: 무료 계정은 공개 저장소에서만 환경을 쓸 수 있다(D21의 순서가 이것에 기댄다).
 
 ### D7. 릴리스 Release의 게시 방식 — 결론(사용자, 2026-11-07)
