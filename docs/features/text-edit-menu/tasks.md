@@ -14,6 +14,7 @@
 
 - `canvasFrame.ts`의 `isTopFrame`을 export한다.
 - `index.ts` `createWindow`에서 메인 창 `webContents`의 `context-menu`를 등록한다. 이벤트 때 `params.frame`을 읽어 `params.frame !== null && isTopFrame(params.frame)`으로 판정, `formControlType === "input-password"`를 `password`로, `ContextMenuParams` → T1 입력, T1 출력 → template(role, `replaceMisspelling`, `showDefinitionForSelection`, separator), `popup({ window })`(`frame` 없음, design §3). thumbnail 창에는 등록하지 않는다.
+- 편집 항목과 맞춤법 제안은 click 항목이고, 실행 직전 필드 확인(design §3)을 통과해야 한다.
 - 판정과 변환이 순수 함수 밖에 남으면 T1 테스트로 옮길 수 있는지 먼저 본다. `index.ts`에는 이벤트 등록과 Electron 호출만 남긴다.
 - `index.test.ts` 사례: main frame과 subframe(subframe은 popup 없음), role 매핑, suggestion → `replaceMisspelling`, lookUp → `showDefinitionForSelection`, `popup`에 `frame` 없음, thumbnail 창 미등록.
 - 검증: `npm --prefix app test` green, `npm --prefix app run typecheck` 통과, `npm --prefix app run build` 성공.
@@ -22,6 +23,7 @@
 ## T3. renderer: 앱 chrome 텍스트 선택 끄기, URL 필드 맞춤법 끄기
 
 - `styles.css`: `body { user-select: none; }`, 다시 켜는 `.conversation-thread .bubble`, `.conversation-thread .msg-agent`, `input`, `textarea`, `.composer-input`(design §4).
+- `input:disabled`, `textarea:disabled`에 `user-select: none`(design §4).
 - `spellCheck={false}`: MCP 서버 URL(`SettingsMcpConnectors.tsx`), GitHub 저장소 URL과 `PasteDialog`의 Antigravity 주소(`Onboarding.tsx`).
 - 테스트: CSS를 읽는 테스트(`ds/controls.test.ts` 방식)로 `body`의 `none`과 다시 켜는 다섯 선택자를 고정한다. 세 URL 필드의 static markup에 `spellcheck="false"`가 있는지 기존 component 테스트(`SettingsMcpConnectors.test.tsx`, `Onboarding.test.tsx`)에 더한다.
 - 검증: `npm --prefix app test` green, `npm --prefix app run typecheck` 통과, `npm --prefix app run build` 성공.

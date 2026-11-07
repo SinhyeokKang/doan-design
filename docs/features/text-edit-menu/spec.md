@@ -40,12 +40,12 @@
    - 메뉴 Paste 뒤 caret은 ⌘V 뒤와 같은 자리에 있다.
    - IME 조합 중에는 ⌘V처럼 아무것도 붙지 않는다(`chipField.ts` `paste`).
    - Cut, Paste 뒤 ⌘Z가 composer 자체 undo로 되돌린다.
-4. 쓸 수 없는 composer(읽기 전용)와 `readOnly` 필드에서는 선택이 있을 때 Look Up과 Copy만 있는 메뉴가 열리고, 선택이 없으면 아무 메뉴도 열리지 않는다. `disabled` 필드에서는 메뉴가 열리지 않는다.
+4. 쓸 수 없는 composer(읽기 전용)와 `readOnly` 필드에서는 선택이 있을 때 Look Up과 Copy만 있는 메뉴가 열리고, 선택이 없으면 아무 메뉴도 열리지 않는다. `disabled` 필드는 텍스트가 선택되지 않아 메뉴가 열리지 않는다. 비활성이 되기 전에 만든 선택이 남아 있으면 읽기 전용처럼 Look Up과 Copy만 열린다.
 5. 대화 thread의 본문 텍스트를 오른쪽 클릭하면 Look Up과 Copy만 있는 메뉴가 열린다. 선택 없이 단어를 오른쪽 클릭했을 때 macOS가 그 단어를 선택하는지는 runtime-test가 관찰한 대로 적는다. 사이드바 이름, 제목, 버튼, Settings·첫 실행 안내 문구는 선택되지 않고, 오른쪽 클릭해도 메뉴가 열리지 않는다.
 6. 맞춤법 검사가 틀렸다고 표시한 단어를 오른쪽 클릭하면 Electron이 준 제안이 메뉴 맨 위에 나오고, 고르면 그 단어가 바뀐다. composer에서도 바뀐 값이 draft에 남는다. 제안이 없는 단어에는 맞춤법 항목을 넣지 않는다("No Guesses Found"를 일부러 보이지 않는다).
 7. Look Up “…”은 선택한 텍스트로 macOS 사전 panel을 연다(`webContents.showDefinitionForSelection()`).
 8. 메뉴를 닫으면(Esc, 다른 곳 클릭) 필드의 focus와 선택이 그대로이고, 필드를 감싼 dialog가 닫히지 않는다.
-9. 메뉴가 열린 사이 필드가 사라지면, 고른 항목은 아무것도 하지 않는다. 맞춤법 제안이 다른 필드에 들어가지 않는다.
+9. 메뉴가 열린 사이 필드가 사라지거나 focus가 다른 필드로 옮겨지면, 고른 항목은 아무것도 하지 않는다. 맞춤법 제안과 Paste가 다른 필드에 들어가지 않는다.
 10. URL 필드(MCP 서버 URL, GitHub 저장소 URL, Antigravity 주소)에는 맞춤법 밑줄과 제안이 없다.
 11. 캔버스 iframe 안에서 오른쪽 클릭하면 지금처럼 아무 메뉴도 열리지 않는다. thumbnail 창에는 메뉴가 없다.
 12. 메뉴 막대의 Edit 메뉴와 그 단축키는 그대로다.

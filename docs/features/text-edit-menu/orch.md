@@ -44,3 +44,11 @@
 - B 1차 수정 `5a6a3bcc`(마지막 `user-select` 선언 고정).
 - 통합: B `f458f9be`·`25c5cf2f`·`f3cf33eb`, A `0042d694`·`29df52c1`·`91ddee13`. `91ddee13`에서 `verify.mjs` PASS.
 - C(Claude Opus high, `ctx_fd7cf5d73d99`, worktree `tem-C`)가 `91ddee13`에서 T4를 시작했다.
+- C(T4) 결과(`91ddee13`, 실제 오른쪽 클릭·native 메뉴 클릭·OS 스크린샷, 실제 상태 변화 없음):
+  - 조건 9 FAIL. 양성 대조군은 통과했다. 메뉴가 열린 사이 필드 A를 지우고 focus를 B로 옮긴 뒤 A의 제안을 고르면 B의 단어가 바뀌었고, Paste를 고르면 B에 붙었다.
+  - 조건 4 FAIL(대체 필드). disabled 입력의 텍스트가 더블클릭으로 선택되었고, 오른쪽 클릭에 Look Up·Copy가 열렸다.
+  - 나머지 확인 항목은 모두 PASS였다.
+  - 미검증: native IME 조합, 실제 busy `PasteDialog`, thumbnail 창.
+  - 환경에서 찾은 것: 시스템 언어가 ko-KR인 Mac에서는 `dictionarySuggestions`가 늘 비어 맞춤법 제안이 나오지 않는다. `app/runtime/clipboard.ts`는 빈 clipboard를 되돌리지 못하고 probe 텍스트를 남겼다(C가 직접 비웠다).
+- **사용자 결정(AskUserQuestion)**: 조건 9는 main에서 막는다. 편집 항목을 click 항목으로 바꾸고, 실행 직전 focus 확인을 `executeJavaScript`로 한다. disabled 입력은 CSS로 선택을 막는다. design §3·§4, 결정 11·12, spec 조건 4·9, tasks T2·T3에 반영했다.
+- ko-KR 제안 없음과 `clipboard.ts` 결함은 이 feature 범위 밖이다(spec 비목표 '언어 설정', runtime 지원 코드). T5에서 BACKLOG에 적는다.

@@ -40,10 +40,11 @@ main이 메인 창의 `context-menu` 이벤트를 받아 native 메뉴(`Menu.pop
 - 등록: `createWindow`에서 메인 창의 `webContents`에만 등록한다. thumbnail 창(`thumbnailWindow.ts`)에는 등록하지 않는다.
 - main frame 판정: 이벤트 때 `params.frame`을 읽고, `params.frame !== null && params.frame.parent === null`이면 main frame이다. `canvasFrame.ts`의 `isTopFrame`을 export해 쓴다. `window.webContents.mainFrame`과 같은 객체인지는 비교하지 않는다. 캔버스는 cross-site OOPIF라 `parent`가 있다.
 - template 변환:
-  - `role` 항목 → `{ role, enabled }`. Edit 메뉴와 같은 role이므로 메뉴 Paste와 ⌘V는 같은 편집 명령(Chromium의 Paste)을 실행한다. macOS에서 role 항목의 `enabled`는 참고값이다. 화면의 사용 가능 여부는 responder chain이 정하므로 T4가 화면으로 판정한다.
-  - `suggestion` → `{ label: word, click: () => contents.replaceMisspelling(word) }`.
+  - 편집 항목(cut, copy, paste, selectAll) → `{ label, enabled, click }`. role 항목이 아니라 click 항목이다. click은 아래 '필드 확인'을 통과한 뒤 `contents.cut()`·`copy()`·`paste()`·`selectAll()`을 부른다. 이 method는 Edit 메뉴 role과 같은 Chromium 편집 명령을 실행하므로, 메뉴 Paste와 ⌘V가 같은 DOM `paste` 이벤트를 일으킨다(T4에서 확인한다). `enabled`는 `editFlags`를 그대로 옮기고, 화면에도 그대로 보인다. label은 macOS 메뉴와 같은 `Cut`, `Copy`, `Paste`, `Select All`이다.
+  - `suggestion` → `{ label: word, click }`. 필드 확인 뒤 `contents.replaceMisspelling(word)`.
   - `lookUp` → `{ label, click: () => contents.showDefinitionForSelection() }`.
   - `separator` → `{ type: "separator" }`.
+- 필드 확인(완료 조건 9): role 항목과 `replaceMisspelling`은 고르는 순간 focus된 필드에 작용한다. 그래서 메뉴가 열린 사이 원래 필드가 사라지고 focus가 다른 필드로 옮겨지면, 그 필드의 단어가 바뀌거나 그 필드에 붙여넣어진다(T4가 실제 앱에서 재현했다). 편집 가능한 메뉴의 항목은 실행 직전에 main이 `contents.executeJavaScript`로 "지금 focus된 요소가 메뉴를 연 자리(`params.x`, `params.y`)의 요소이거나 그 요소를 담는가"를 확인하고, 아니면 아무것도 하지 않는다. Edit > Undo·Redo가 이미 같은 방식으로 focus된 chip field를 확인한다(`index.ts` `editHistory`). 확인 script는 고정 문자열이고 좌표만 숫자로 넣는다. renderer가 정한 문자열을 main이 실행하거나 쓰지 않는다. 편집할 수 없는 메뉴(thread 텍스트의 Look Up, Copy)는 아무것도 쓰지 않으므로 확인하지 않는다. 앱은 page zoom을 쓰지 않으므로 `params.x`·`y`를 그대로 CSS px로 쓴다.
 - 띄우기: `Menu.buildFromTemplate(template).popup({ window })`. `frame`은 넘기지 않는다. Electron 45 `PopupOptions`(`electron.d.ts`)는 `frame`을 "Writing Tools 같은 OS 기능"에 쓰라고 한다. 넘기지 않으면 메뉴는 정한 항목만 담는다(사용자 결정). macOS가 그래도 항목을 더하는지는 T4에서 본다.
 - 이벤트를 막지 않는다: renderer가 DOM `contextmenu`를 `preventDefault`하면 Chromium이 메뉴 요청을 보내지 않는다. 지금 `app/src`(renderer, main, 캔버스 script)에는 `contextmenu`나 `context-menu`를 다루는 코드가 없다(2026-11-07 grep, 테스트 제외). 새로 다루는 코드가 생기면 이 메뉴가 사라진다.
 - `index.test.ts` 사례: main frame과 subframe(subframe은 popup 없음), role 항목 → `{ role, enabled }`, suggestion → `replaceMisspelling(word)`, lookUp → `showDefinitionForSelection()`, `popup`에 `frame` 없음, thumbnail 창에 등록하지 않음.
@@ -60,6 +61,7 @@ main이 메인 창의 `context-menu` 이벤트를 받아 native 메뉴(`Menu.pop
   - `body { user-select: none; }` — 사이드바, 헤더, 제목, 버튼, Settings·첫 실행·Add Projects 안내 문구, dialog, toast, notice가 모두 여기서 꺼진다.
   - 다시 켜는 곳: `.conversation-thread .bubble`, `.conversation-thread .msg-agent`(이미 `user-select: text`), `input`, `textarea`, `.composer-input`(쓸 수 없는 composer의 draft도 선택돼야 한다, DESIGN 'Unavailable composer').
   - `user-select: none`은 상속되므로, 입력 필드가 다시 켜는 규칙 없이도 선택되는지에 기대지 않고 명시한다.
+  - `input:disabled`, `textarea:disabled`는 `user-select: none`이다(완료 조건 4). T4에서 disabled 입력의 텍스트가 더블클릭으로 선택되고 Look Up·Copy 메뉴가 열렸다. macOS의 비활성 텍스트 필드처럼 선택되지 않게 한다. 비활성이 되기 전에 만든 선택은 남을 수 있고, 이때는 읽기 전용처럼 Look Up·Copy가 열린다.
 - 캔버스 iframe은 다른 문서라 영향이 없다. thumbnail 창은 자기 data URL host page를 쓰고 `styles.css`를 읽지 않는다(`thumbnailWindow.ts` `hostPage`).
 - 테스트: `ds/controls.test.ts`처럼 CSS 규칙을 읽는 테스트로 `body`의 `none`과 다시 켜는 선택자 다섯 개를 고정한다. 실제 동작(사이드바 이름 오른쪽 클릭 → 메뉴 없음, thread 단어 오른쪽 클릭 → 선택과 Look Up·Copy)은 T4에서 본다.
 
@@ -109,10 +111,10 @@ main이 메인 창의 `context-menu` 이벤트를 받아 native 메뉴(`Menu.pop
 
 ## 결정할 점
 
-모두 정해졌다. 1~7은 추천대로 정했고, 2026-11-07 `/feature-review` 뒤 사용자가 세 가지를 더 정했다(8~10). 각 결정은 위 절과 spec에 반영했다.
+모두 정해졌다. 1~7은 추천대로 정했고, 2026-11-07 `/feature-review` 뒤 사용자가 세 가지를 더 정했다(8~10). T4 뒤 사용자가 두 가지를 더 정했다(11~12). 각 결정은 위 절과 spec에 반영했다.
 
 1. **native 메뉴인가, renderer가 그리는 메뉴인가** → **native**(`Menu.popup` + role).
-   - 이유: Edit 메뉴와 같은 role이라 composer의 clipboard 처리를 그대로 탄다. Look Up과 맞춤법은 native API로 된다. macOS가 그리므로 VoiceOver와 시스템 모양이 따라온다.
+   - 이유: Edit 메뉴 role과 같은 Chromium 편집 명령(`webContents.cut()` 등)을 쓰므로 composer의 clipboard 처리를 그대로 탄다. Look Up과 맞춤법은 native API로 된다. macOS가 그리므로 VoiceOver와 시스템 모양이 따라온다.
    - 버린 안: renderer가 그리는 메뉴(radix-ui `ContextMenu`). main은 모든 권한 요청을 거부해 async Clipboard API가 안 되고(ARCHITECTURE §7), 웹 페이지의 `execCommand("paste")`도 Chromium이 막는 것으로 알려져 있다(확인 안 함). 그래서 결국 main에 paste IPC가 필요하다. Look Up, Services는 그릴 수 없다.
 2. **어떤 항목을 넣나** → Cut · Copy · Paste · Select All, 해당될 때 맞춤법 제안과 Look Up “…”.
    - 이유: 이 Mac에서 `NSTextView.defaultMenu`를 출력해 보니(2026-11-07, Swift) 첫 묶음이 Cut, Copy, Paste, Paste and Match Style이고 Undo/Redo는 없었다. Undo/Redo는 `editFlags.canUndo`가 chip field의 자체 기록을 모른다. Paste and Match Style은 Doan의 모든 필드가 이미 plain text로 붙이므로 Paste와 같고, composer에 파일이 든 `paste` 이벤트를 주는지 확인하지 않았다. Services가 context menu에서 되는지는 `electron.d.ts`가 말하지 않는다. Select All은 NSTextView 기본 메뉴에 없지만 Edit 메뉴에 있고 비용이 없어 넣는다.
@@ -128,3 +130,5 @@ main이 메인 창의 `context-menu` 이벤트를 받아 native 메뉴(`Menu.pop
 8. **앱 chrome 텍스트를 선택할 수 있나** → 없다. 사이드바, 제목, 버튼, Settings·첫 실행 문구는 `user-select: none`이고, thread 본문과 텍스트 입력만 선택된다(§4).
 9. **macOS가 더하는 항목(Writing Tools 등)을 허용하나** → 막는다. `popup`에 `frame`을 넘기지 않고, 메뉴는 정한 항목만 담는다(§3).
 10. **Look Up의 자리** → macOS 순서를 따른다. 예상 순서는 [제안 · 구분선] · Look Up · 구분선 · Cut · Copy · Paste · 구분선 · Select All이고, 구현을 시작할 때 Swift probe로 확인해 맞춘다(§2). T4는 Look Up이나 Translate가 두 번 나오지 않는지 본다.
+11. **메뉴가 열린 사이 필드가 바뀌면** → main이 실행 직전에 focus된 요소를 확인하고, 다르면 아무것도 하지 않는다(§3 '필드 확인'). 그래서 편집 항목을 role 대신 click 항목으로 둔다. T4가 실제 앱에서 결함을 재현한 뒤 사용자가 정했다.
+12. **disabled 입력의 선택** → `input:disabled`, `textarea:disabled`를 `user-select: none`으로 둔다(§4). T4 결과를 보고 사용자가 정했다.
