@@ -12,7 +12,7 @@ vi.mock("./tooltip", async original => {
   const actual = await original<typeof import("./tooltip")>();
   return { ...actual, Tooltip: (props: ComponentProps<typeof actual.Tooltip>) => <actual.Tooltip {...props} open /> };
 });
-const { TooltipProvider } = await import("./tooltip");
+const { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } = await import("./tooltip");
 const { CanvasTools } = await import("../../CanvasTools");
 const { RowDelete } = await import("../../CanvasConversationList");
 const { ConversationDeleteItem } = await import("../../ConversationDeleteDialog");
@@ -50,4 +50,17 @@ test("an available control still gets the open tooltip's id, as Radix gives it",
   const tools = open(<CanvasTools tool="select" picking={false} capturing={false} onTool={noop} onEscape={noop}
     picker={{ enabled: true, reason: null, onToggle: noop }} capture={{ enabled: true, reason: null, onToggle: noop }} exporter={{ reason: null, onExport: noop }} />);
   for (const label of ["Select", "Capture area", "Export canvas"]) expect(describedBy(tools, `aria-label="${label}"`), label).toMatch(/^radix-\S+$/);
+});
+
+// Only an unavailable control keeps its description alone: an enabled one that names a description of its own (a queued
+// message's text, say) still gets the open tooltip's id after it, and aria-disabled="false" is not unavailable.
+test("an enabled control with its own aria-describedby still gets the open tooltip's id after its own", () => {
+  for (const disabled of [undefined, false, "false"] as const) {
+    const html = open(<><span id="own-text">Queued text</span><Tooltip><TooltipTrigger asChild>
+      <button type="button" aria-label="Send now" aria-describedby="own-text" {...(disabled === undefined ? {} : { "aria-disabled": disabled })}>Send now</button>
+    </TooltipTrigger><TooltipContent>Send it now</TooltipContent></Tooltip></>);
+    expect(describedBy(html, 'aria-label="Send now"'), String(disabled)).toMatch(/^own-text radix-\S+$/);
+  }
+  const html = open(<Tooltip><TooltipTrigger asChild><button type="button" aria-label="Unavailable" aria-disabled="true" aria-describedby="why">x</button></TooltipTrigger><TooltipContent>Why</TooltipContent></Tooltip>);
+  expect(describedBy(html, 'aria-label="Unavailable"')).toBe("why");
 });

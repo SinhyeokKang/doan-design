@@ -47,7 +47,8 @@ function TooltipTrigger({
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Trigger>) {
   const own = asChild && React.isValidElement<Record<string, unknown>>(children)
-    && !!children.props["aria-disabled"] && typeof children.props["aria-describedby"] === "string"
+    && (children.props["aria-disabled"] === true || children.props["aria-disabled"] === "true")
+    && typeof children.props["aria-describedby"] === "string"
   return (
     <TooltipPrimitive.Trigger data-slot="tooltip-trigger" asChild={asChild} {...props}>
       {own ? <OwnDescription control={children} /> : children}
