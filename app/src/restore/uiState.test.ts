@@ -210,7 +210,7 @@ test("drops home fields one by one and keeps the rest", () => {
   expect(parse({ screen: "home", home: { lastRoot: 1, lastProvider: null, models: [] } })).toEqual({ screen: "home", expanded: {}, lastByRoot: {}, home: {} });
 });
 
-// permission-mode T2 (design '잘못된 값 읽기'): each provider's last mode; an id this build does not know reads as Default
+// each provider's last mode; an id this build does not know reads as Default
 // for that entry only, and Default is the same as no entry.
 test("keeps each provider's last permission mode and reads an unknown one as Default", () => {
   const state = { screen: "home", expanded: {}, lastByRoot: {}, home: { ...home, permissions: { claude: "bypass", codex: "plan", cursor: "acceptEdits" } } };
@@ -240,7 +240,7 @@ test("a prototype-polluting provider key is not a provider", () => {
   expect(Object.getPrototypeOf(state?.home?.models)).toBe(Object.prototype);
 });
 
-// buzz-settings design '포맷 변경': the Settings category is a plain renderer field; the old main-composed tab is read once.
+// the Settings category is a plain renderer field; the old main-composed tab is read once.
 test("keeps a saved Settings section", () => {
   for (const settingsSection of ["agents", "notifications", "about"])
     expect(parse({ screen: "home", settingsSection })).toEqual({ screen: "home", expanded: {}, lastByRoot: {}, settingsSection });
@@ -391,7 +391,7 @@ test("reads the Overview panel's width apart from the canvas panel's; a malforme
   expect(parse(first)).toEqual(first);
 });
 
-// shell-panel-layout design §2.4 '상태와 저장': the sidebar field carries its width and a hidden flag, each on its own.
+// the sidebar field carries its width and a hidden flag, each on its own.
 test("reads the sidebar's hidden flag beside its width; only true is kept", () => {
   expect(parse({ screen: "home", sidebar: { width: 260, hidden: true } })?.sidebar).toEqual({ width: 260, hidden: true });
   expect(parse({ screen: "home", sidebar: { hidden: true } })?.sidebar).toEqual({ hidden: true });

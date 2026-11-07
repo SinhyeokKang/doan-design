@@ -34,8 +34,8 @@ export interface HomeMemory {
   lastRoot?: string;
   lastProvider?: Provider;
   models?: Partial<Record<Provider, HomeModel>>;
-  // Each provider's last permission mode, apart from `models`: a mode is kept even when no model was read
-  // (permission-mode design '저장 규칙'). Default is no entry.
+  // Each provider's last permission mode, apart from `models`: a mode is kept even when no model was read.
+  // Default is no entry.
   permissions?: Partial<Record<Provider, PermissionModeId>>;
   // Each provider's last Fast, apart from `models` like `permissions`. Off is no entry.
   fast?: Partial<Record<Provider, true>>;
@@ -66,7 +66,7 @@ export interface UiState {
   // The shell sidebar, one per device: its width (missing is the default; the renderer clamps a kept width) and whether
   // it is hidden (only `true` is stored). Each is read on its own; with neither the field is left out.
   sidebar?: { width?: number; hidden?: true };
-  // The canvas tool last chosen on this device (canvas-hand-tool design '기기 저장'). Only Hand is stored; a missing
+  // The canvas tool last chosen on this device. Only Hand is stored; a missing
   // field is Select.
   canvasTool?: "hand";
 }
