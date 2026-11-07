@@ -5,7 +5,7 @@
 ## 영향 범위
 
 - **앱 main**: 새 `app/src/main/update/`(서비스, 자격 판정, 상태 기계, 오류 분류), `index.ts` 연결(시작 시 확인, 종료 흐름의 설치 지점), 앱 메뉴 항목, IPC 채널(아래 'IPC 계약'), `senderAllowed.ts` 허용 목록.
-- **앱 renderer**: Settings > About의 업데이트 그룹(상태 행, "Check for updates automatically" 행), D24에서 고른 표시, 메뉴 명령. About의 업데이트 그룹은 About의 버전 읽기(`SettingsAbout.tsx`의 진입·focus 때 다시 읽기, 읽기 실패 때 페이지 전체를 바꾸는 분기)와 따로 main의 push로 갱신한다. 진행 라벨은 About의 "Checking"과 다른 "Checking for updates"다.
+- **앱 renderer**: Settings > About의 Doan 섹션에 있는 Version 행과 그 바로 아래의 "Check for updates automatically" 행, D24에서 고른 표시, 메뉴 명령. Version 행이 업데이트 행이다. 설명 문구에 지금 버전과 업데이트 상태를 보이고, 오른쪽 버튼 영역에 업데이트 버튼(Check for Updates, Restart to Update, Retry, Release Notes)이나 진행률을 둔다. 따로 업데이트 섹션을 두지 않는다. 두 행은 About의 버전 읽기(`SettingsAbout.tsx`의 진입·focus 때 다시 읽기, 읽기 실패 때 페이지 전체를 바꾸는 분기)와 따로 main의 push로 갱신한다. Version 행의 버전도 `UpdateSnapshot`에서 받으므로, 버전 읽기가 실패해도 Doan 섹션은 이 두 행과 함께 남고 doan command 행과 Agent tools만 사라진다. 진행 라벨은 About의 "Checking"과 다른 "Checking for updates"다. 지금은 `aboutView.ts`가 About 읽기로 Version 행의 값을 만들므로, 이 값을 업데이트 snapshot으로 옮긴다. 업데이트가 꺼진 사본에서는 자동 확인 행을 숨긴다. 헤더의 업데이트 버튼이 보이면 에이전트 사용량 링의 접힘 계산(`AgentUsageButton.tsx` `freeEnd`)이 그 버튼의 폭을 빼야 하고, 버튼이 나타나거나 사라질 때 다시 잰다. 지금 ResizeObserver는 헤더만 지켜보므로 버튼이 바뀌어도 다시 재지 않는다. 업데이트가 꺼진 사본에서 Version 행은 "This copy doesn’t update."만 말하고, 같은 이유를 보이는 About의 에이전트 설정 notice 제목을 "This copy doesn’t set up agents"에서 "This copy doesn’t set up agents or update"로 바꾼다(`app/src/main/agentSetup/notice.ts:96`).
 - **의존성**: `electron-updater`를 정확한 버전으로 `dependencies`에(AGENTS.md 'Commands'의 `--save-exact`). electron-builder 26.18.0과 맞는 판(npm `latest` 6.8.11 또는 `v26` 6.8.12)을 고른다. main은 의존성을 번들하므로(`externalizeDeps: false`, ARCHITECTURE §7 'Setup') 번들된 채로 import되는지 T4에서 빌드로 확인한다.
 - **설정 저장**: `<userData>/preferences.json`(`app/src/main/preferences.ts`)에 `updates.autoCheck`(기본 true) 키를 더한다. `parsePreferences`, `parsePreferencesPatch`(:77, 지금 `notifications`·`newConversation` 밖의 키를 거부한다), `mergePreferences`를 고친다. `v: 1`을 유지한다(모르는 필드는 무시하는 규칙, :59). 이 파일은 TS 전용이라 공유 JSON Schema와 Go 픽스처는 필요 없다. 읽기 실패·새 버전 파일·저장 실패 규칙은 ARCHITECTURE §7 'Settings IPC' 'Preferences'를 따른다.
 - **CLI·공유 형식(§11)·app-socket·`doan check`**: 영향 없음. `/agent-eval`도 필요 없다(가이드, CLI 출력, `doan check` 규칙, 스킬 stub을 바꾸지 않는다).
@@ -15,7 +15,7 @@
 
 - `updateEligibility({ isPackaged, hasFeedConfig, install })` → `enabled | disabled(reason)`. `install`은 agent setup의 `installEligibility` 결과(`app/src/main/agentSetup/plan.ts:35`, ARCHITECTURE §7 'Agent setup' 'Eligibility')다. reason은 `Ineligible`의 이유 코드(Applications 밖, translocation)를 그대로 쓰고 `dev`, `noFeed`를 더한다. 자동 확인 설정은 입력이 아니다(꺼도 수동 확인은 된다).
 - `shouldCheck({ autoCheck, lastCheckedAt, now })` — 실행 직후 한 번, 그 뒤 6시간 간격. `autoCheck`가 false면 자동 확인을 하지 않는다. `lastCheckedAt`은 메모리에만 있다.
-- `updateState(prev, event)` — `idle → checking → (upToDate | downloading(percent) → ready(version)) | failed(code, manual)`, `ready → restarting → (restartAborted)` 상태 기계. 같은 버전의 재확인, 받는 중 재확인, 실패 뒤 재시도, 수동 확인과 자동 확인의 겹침, `update-cancelled`를 다룬다. 입력은 electron-updater 이벤트(`checking-for-update`, `update-available`, `update-not-available`, `download-progress`, `update-downloaded`, `update-cancelled`, `error`)와 앱 이벤트(수동 확인, 설치 시작, 종료 취소)다.
+- `updateState(prev, event)` — `idle → checking → (upToDate | downloading(version, percent) → ready(version)) | failed(code, stage, version?)`, `ready → restarting → restartAborted → restarting` 상태 기계. `stage`는 `check | download | install`이고, 실패 행의 라벨이 이 단계를 말한다("Couldn’t check for updates", "Couldn’t download Doan <v>", "Couldn’t install Doan <v>"). `version`은 `update-available`로 버전을 안 뒤의 실패(받기, 설치)에만 있다. `offline`과 `other`는 확인과 받기 양쪽에서 난다. `restartAborted`에서 Restart to Update를 다시 누르면 `installGate`와 `quitInOrder`를 처음부터 다시 돈다. 같은 버전의 재확인, 받는 중 재확인, 실패 뒤 재시도, 수동 확인과 자동 확인의 겹침, `update-cancelled`를 다룬다. 입력은 electron-updater 이벤트(`checking-for-update`, `update-available`, `update-not-available`, `download-progress`, `update-downloaded`, `update-cancelled`, `error`)와 앱 이벤트(수동 확인, 설치 시작, 종료 취소)다.
 - `updateErrorCode(error)` → `offline | feedMissing | rateLimited | signatureMismatch | checksumMismatch | diskFull | installFailed | other`. electron-updater의 실제 오류 문구를 픽스처로 쓴다. `installFailed`는 사용자가 쓸 수 없는 `/Applications/Doan.app`에서 ShipIt이 실패한 경우를 포함한다.
 - `installGate({ liveTurns, pendingAnswers })` → `allowed | blocked(reason)` (D23). `pendingAnswers`는 권한 요청과 질문을 기다리는 대화다.
 - `updateView(state, eligibility, gate, autoCheck)` → About 행의 문구 키·버튼·이유 줄, 메뉴 항목 라벨과 활성, D24 표시의 보임 여부. `app/src/main/update/view.ts`에 두고 electron·Node를 import하지 않는다. renderer가 이 모듈을 import하므로 `app/src/renderer/rendererImports.test.ts` 경계 안에 있어야 한다(POSTMORTEM 2026-10-30 'A renderer import of a main module left the built app's window blank').
@@ -24,16 +24,16 @@
 
 문구는 T1 초안에서 clarify 프리셋으로 확정한다. 아래는 초안의 출발점이다.
 
-| 상태 | About 행 | 동작 | D24 표시·메뉴 |
+| 상태 | About Version 행 | 동작 | D24 표시·메뉴 |
 |---|---|---|---|
 | 확인 전 | 지금 버전 | Check for Updates | 메뉴 "Check for Updates…" |
 | 확인 중 | "Checking for updates" | — | 같음 |
 | 최신 | "Doan is up to date." + "Last checked <time>" | Check for Updates | 같음 |
 | 받는 중 | "Downloading Doan <v>… 42%" | — | 같음 |
 | 준비됨 | "Doan <v> is ready." + Release Notes 링크 | Restart to Update | 표시 보임, 메뉴 "Restart to Update" |
-| 막힘(D23) | 준비됨 + 이유 줄 "A conversation is running or waiting for your answer. Doan will update when you quit." | Restart to Update(누를 수 있고, 누르면 아무 일 없이 이유를 다시 알린다) | 같음 |
+| 막힘(D23) | 준비됨 + 이유 notice "Can’t restart yet" / "A conversation is running or waiting for your answer. Restart after it finishes, or Doan updates when you quit." | Restart to Update(누를 수 있고, 누르면 아무 일 없이 이유를 다시 알린다) | 헤더 버튼을 누르면 같은 제목과 문장의 popover가 열린다. 메뉴 "Restart to Update"를 누르면 창을 보이고 이 popover를 연다 |
 | 다시 시작 중 | "Restarting" | — | — |
-| 다시 시작 중단 | "Couldn’t restart Doan. Quit and open it again to finish the update." | — | 표시 유지 |
+| 다시 시작 중단 | 준비됨 + 오류 줄 "Couldn’t restart Doan. Try again, or quit and open it again." | Restart to Update(다시 누르면 `installGate`와 `quitInOrder`를 다시 돈다) | 표시 유지, 메뉴 "Restart to Update" |
 | 실패(수동 확인·받기) | 종류별 문구, 원인을 단정하지 않는다 | Retry | 메뉴 "Check for Updates…" |
 | 실패(자동 확인) | 최신과 같게 "Last checked <마지막 성공 시각>" | Check for Updates | 같음 |
 | 꺼진 사본 | "Updates work when Doan is in the Applications folder." | — | 메뉴 항목은 About을 연다 |
@@ -51,7 +51,7 @@ ARCHITECTURE §7 'Settings IPC'의 규칙(sender 검사, 검증한 값만)을 �
 
 | 채널 | 방향 | 값 |
 |---|---|---|
-| `update:get` | renderer → main (invoke) | 현재 `UpdateSnapshot`(상태, 자격, 게이트, `autoCheck`, 마지막 확인 시각). renderer가 다시 로드되거나 창이 숨은 동안의 변화도 이걸로 받는다 |
+| `update:get` | renderer → main (invoke) | 현재 `UpdateSnapshot`(지금 버전, 상태, 자격, 게이트, `autoCheck`, 마지막 확인 시각). renderer가 다시 로드되거나 창이 숨은 동안의 변화도 이걸로 받는다 |
 | `update:state` | main → renderer (event) | 바뀐 `UpdateSnapshot` |
 | `update:check` | invoke | 수동 확인 시작 |
 | `update:install` | invoke | `allowed`(다시 시작 시작) 또는 `blocked(reason)` |
@@ -79,7 +79,9 @@ ARCHITECTURE §7 'Settings IPC'의 규칙(sender 검사, 검증한 값만)을 �
 
 ## UI (D24)
 
-- `/design-draft`로 `.doan/canvases/app-update.html`을 그린다. 프레임: About 업데이트 그룹의 상태별 행(위 '상태' 표 전부), 자동 확인 행(켜짐·꺼짐), 표시 시안 (a) 앱 헤더 오른쪽 끝·에이전트 사용량 표시보다 오른쪽, (b) 사이드바 하단 오버레이(각각 준비됨·막힘), Doan 메뉴의 두 라벨. 사용자가 (a)와 (b) 중 하나를 고르고, 고른 결과를 이 문서에 적는다.
+- `.doan/canvases/app-update.html`에 초안이 있다. 사용자는 알림 표면으로 (a) 헤더 버튼을 골랐다. 헤더 오른쪽 끝, 에이전트 사용량 표시보다 오른쪽에 있는 회색 sm 버튼("Restart to Update")이고, 면은 헤더 탭 캡슐과 같은 `--affordance-backdrop-hover`, hover·눌림·popover가 열린 상태는 `--affordance-backdrop-pressed`, 안쪽 시작 패딩은 `--space-3`이다. (b) 사이드바 하단 오버레이는 그리지 않는다.
+- 초안은 사용자가 2026-11-08 앱에서 확인해 확정했다(독립 리뷰 두 번과 critique·audit·clarify·harden·polish 프리셋 감사를 거쳤다).
+- 프레임: `about-ready`, `about-narrow`, `about-read-failed`, `row-check`, `row-download`, `row-failed`, `row-off`, `auto-check`, `header-ready`, `header-blocked`, `header-restarting`, `header-stopped`, `header-narrow`, `header-locked`, `menu`.
 - 기존 공용 프리미티브를 쓴다. 문구는 clarify 프리셋을 먼저 읽고 쓰고, 실패·꺼짐 상태는 harden 프리셋을 본다. 디자인 프리셋은 `doan design-skill --json`으로 목록을 보고 필요한 것만 읽는다(AGENTS.md 'Design presets in development skills').
 
 ## 공통 함정
