@@ -18,7 +18,7 @@ export interface AvailabilityFacts extends DirectoryFacts {
 }
 export interface Anchor {
   frame?: { id: string; title?: string };
-  // selector is absent only on a reply chip (agent-reply-chips): it names the element by its doan id alone. A person's
+  // selector is absent only on a reply chip: it names the element by its doan id alone. A person's
   // anchor always has one, and validAnchor rejects one without.
   element?: { doanId?: string; selector?: string; text?: string; tag?: string };
   point?: { frameId?: string; dx: number; dy: number };

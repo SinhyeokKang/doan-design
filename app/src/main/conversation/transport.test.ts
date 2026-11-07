@@ -219,7 +219,7 @@ describe("readable activity and permission summaries", () => {
     expect(claudePermissionSummary(`mcp__doan-notion__${"t".repeat(2000)}`, {}, "/repo")).toHaveLength(512);
     expect(claudePermission("r1", "mcp__doan-notion__notion-fetch", input, [], "/repo").event.summary).toBe("Run notion-fetch on Notion");
     const tool = { type: "assistant", message: { id: "m", content: [{ type: "tool_use", id: "t1", name: "mcp__doan-notion__notion-fetch", input }] } };
-    // The activity is stored for every call, so the input's path stays out of it as well (C3).
+    // The activity is stored for every call, so the input's path stays out of it as well.
     expect(collect("claude", [tool]).events).toEqual([{ type: "activity", kind: "other", summary: "Run notion-fetch on Notion" }]);
     const added = { type: "assistant", message: { id: "m", content: [{ type: "tool_use", id: "t2", name: "mcp__doan-example-com__search", input: { file_path: "/repo/.doan/canvases/a.html" } }] } };
     expect(normalizeClaude(initialTransport(), added, "/repo", { "doan-example-com": "example.com" }).events).toEqual([{ type: "activity", kind: "other", summary: "Run search on example.com" }]);
@@ -248,7 +248,7 @@ it("forwards Codex additional-permission profiles without adding auto-review pol
   expect(permissionAnswer(request, "deny")?.response).toEqual({ id: 7, result: { permissions: {}, scope: "turn" } });
   expect(permissionAnswer(request, "always")?.response).toEqual({ id: 7, result: { permissions, scope: "session" } });
 });
-// permission-mode: Claude reports the mode it switched to after a plan approval in a status message (P1).
+// Claude reports the mode it switched to after a plan approval in a status message.
 it("reads the mode a Claude status message reports, and nothing from other messages", () => {
   expect(claudeReportedMode({ type: "system", subtype: "status", status: null, permissionMode: "default" })).toBe("default");
   expect(claudeReportedMode({ type: "system", subtype: "status", status: null, permissionMode: "acceptEdits" })).toBe("acceptEdits");

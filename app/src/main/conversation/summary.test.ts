@@ -140,7 +140,7 @@ describe("clampSeen", () => {
   });
 });
 
-describe("a turn with two user.message events (queue-send-now)", () => {
+describe("a turn with two user.message events", () => {
   const pushed: EventPayload = { type: "user.message", text: "pushed in", anchors: [] };
   it("keeps the title and shows the turn as running with its activity as the preview", () => {
     const s = conversationSummary(doan, { ok: true, events: history(...started, pushed, { type: "activity", kind: "read", summary: "Reading index.html" }) }, live);

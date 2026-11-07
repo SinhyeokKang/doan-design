@@ -174,7 +174,7 @@ describe("Codex stages", () => {
   it("shows a read path outside the root as written, and inside it relative", () => {
     expect(stagesOf(codexSteps([command([{ type: "read", command: "COMMAND_TEXT", name: "a", path: "/elsewhere/a.txt" }])]).steps)).toEqual([{ kind: "tool", activity: "read", path: "/elsewhere/a.txt", summary: "/elsewhere/a.txt" }]);
     expect(stagesOf(codexSteps([command([{ type: "read", command: "COMMAND_TEXT", name: "a", path: "src/a.ts" }])]).steps)).toEqual([{ kind: "tool", activity: "read", path: "src/a.ts", summary: "src/a.ts" }]);
-    // A file named like the generic phrase keeps its path, which is what the renderer goes by (review RU-R2).
+    // A file named like the generic phrase keeps its path, which is what the renderer goes by.
     expect(stagesOf(codexSteps([command([{ type: "read", command: "COMMAND_TEXT", name: "Reading files", path: "Reading files" }])]).steps)).toEqual([{ kind: "tool", activity: "read", path: "Reading files", summary: "Reading files" }]);
   });
   it.each([
@@ -324,7 +324,7 @@ describe("ACP stages", () => {
     expect(ended.terminal).toBe(true);
     expect(stagesOf(acpSteps(copilotThought.turn.filter(f => f.method), ended).steps)).toEqual([]);
   });
-  // R1: Copilot started a search, a glob and a 6 s command within 4 ms; the first two completed 72 ms later.
+  // Copilot started a search, a glob and a 6 s command within 4 ms; the first two completed 72 ms later.
   it("keeps the command that still runs as the stage when Copilot's parallel search and glob complete", () => {
     const { steps } = acpSteps(copilotParallel.turn);
     const SEARCH: TurnStage = { kind: "tool", activity: "other", path: "/repo", summary: "Searching for 'QUERY'" };
@@ -399,7 +399,7 @@ describe("ACP stages", () => {
   });
 });
 
-describe("ACP tool summary (B2)", () => {
+describe("ACP tool summary", () => {
   // In the recorded turns no completion changes a tool's kind, path or title after its last running update, so the stage
   // that tool showed while it ran is its completed activity's kind, path and summary.
   it.each([

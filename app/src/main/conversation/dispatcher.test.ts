@@ -97,7 +97,7 @@ it("does not tag an RPC timeout as an error reply", async () => {
     const error = await timedOut; expect((error as Error).message).toBe("RPC timeout"); expect(error).not.toBeInstanceOf(RpcError);
   } finally { vi.useRealTimers(); }
 });
-// queue-send-now: turn/steer goes through a request whose timeout refuses only that steer, and its echo is reported
+// turn/steer goes through a request whose timeout refuses only that steer, and its echo is reported
 // in line with the turn's events.
 describe("Codex steer path", () => {
   function steering() {
@@ -209,7 +209,7 @@ describe("Codex MCP elicitation wiring", () => {
     expect(h.events.slice(1)).toEqual([{ type: "turn.done" }, { type: "permission.resolved", requestId: "number:7", optionId: "expired" }]);
     expect(h.rpc.answer("number:7", "accept")).toBe(false); expect(h.writes).toHaveLength(1);
   });
-  // Review BC yellow 1: a stopped turn is no longer asked anything; Stop already answered what it was asking.
+  // A stopped turn is no longer asked anything; Stop already answered what it was asking.
   it("declines an approval that comes after Stop at once and never holds it", () => {
     const h = mcp(); h.rpc.stop("user"); h.rpc.receive(elicitation);
     expect(h.writes).toEqual([{ id: 7, result: { action: "decline" } }]);
@@ -278,7 +278,7 @@ it("lets a side request time out or fail without failing the protocol of the run
     const { id } = h.writes.at(-1) as { id: string };
     h.rpc.receive({ id, error: { code: -32601, message: "Method not found" } });
     expect(await refused).toBeInstanceOf(RpcError);
-    // review-B 🟢3: the code reaches usageNotSupported whatever the server's wording.
+    // The code reaches usageNotSupported whatever the server's wording.
     const reworded = h.rpc.query("account/rateLimits/read", undefined).catch((error: unknown) => error);
     h.rpc.receive({ id: (h.writes.at(-1) as { id: string }).id, error: { code: -32601, message: "unknown variant `account/rateLimits/read`" } });
     expect(await reworded).toMatchObject({ code: -32601 });

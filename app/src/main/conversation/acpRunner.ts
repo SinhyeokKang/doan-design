@@ -44,7 +44,7 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
   const acp = new AcpConnection(line => { if (dead || !child.stdin.writable) throw new Error("process_exited"); child.stdin.write(line); }, (params, rpc) => {
     const requestId = randomUUID();
     const live = prompting && !state.terminal && params.sessionId === sessionId;
-    // Only Antigravity asks this way (P5, P6); for Cursor and Copilot the same shape stays a permission request.
+    // Only Antigravity asks this way; for Cursor and Copilot the same shape stays a permission request.
     const question = live && input.runtime === "antigravity" ? acpQuestion(params, requestId) : null;
     const request = live && !question ? acpPermission(params, requestId) : null;
     // Outside a running turn, or with no option doan can offer, the request is answered as cancelled (ACP's reply for a
@@ -112,7 +112,7 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
       if (!object(created) || typeof created.sessionId !== "string" || !created.sessionId || created.sessionId.length > 512) throw new Error("session_unavailable");
       sessionId = created.sessionId; models = parseAcpModels(created); modes = parseAcpModes(created); current = created;
     }
-    // session/load comes back on the default model (Antigravity, P1), so the choice is set again after every open,
+    // session/load comes back on the default model (Antigravity), so the choice is set again after every open,
     // unless the session already runs it: the setter is unverified for Copilot's only model.
     const running = object(current) && object(current.models) ? current.models.currentModelId : undefined;
     if (input.model && input.model !== running) await acp.request("session/set_config_option", { sessionId, configId: "model", value: input.model }, OPEN_TIMEOUT_MS);
@@ -146,7 +146,7 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
       if (dead || prompting || finished) throw new Error("process_exited");
       state = initialAcp(turnId); prompting = true;
       try {
-        // Antigravity's view_file refuses paths outside the workspace (P2), so it also gets the images themselves.
+        // Antigravity's view_file refuses paths outside the workspace, so it also gets the images themselves.
         const blocks = input.runtime === "antigravity" && images ? (await Promise.all(attachments.map(imageBlock))).flat() : [];
         const result = await acp.request("session/prompt", { sessionId, prompt: [{ type: "text", text: prompt }, ...blocks] }, null);
         apply(acpPromptDone(state, result));

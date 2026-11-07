@@ -179,7 +179,7 @@ function codexActivities(item: Record<string, unknown>, root: string, labels: Re
   return { events: [activity("other", "", tool ? (server ? `${tool} (${serverLabel(server, labels)})` : tool) : GENERIC_SUMMARY.other, root)], files: "" };
 }
 // The mode a Claude status message reports ({type: "system", subtype: "status", permissionMode}, SDK 0.3.312), as a
-// common id; undefined for any other message. After a plan approval it names the mode the session now runs (P1).
+// common id; undefined for any other message. After a plan approval it names the mode the session now runs.
 export function claudeReportedMode(raw: unknown): PermissionModeId | undefined {
   if (!object(raw) || raw.type !== "system" || raw.subtype !== "status" || typeof raw.permissionMode !== "string") return undefined;
   return claudeModeAfterPlan(raw.permissionMode);
@@ -257,7 +257,7 @@ export const CLAUDE_QUESTION_TOOL = "AskUserQuestion";
 // A Claude question as the card shows it, and each ordinal id's question text: Claude keys its answers by that text.
 export interface ClaudeQuestion { questions: Question[]; textById: Record<string, string> }
 function bounded(value: unknown, max: number): value is string { return typeof value === "string" && value.length <= max; }
-// AskUserQuestion's input (sdk-tools.d.ts AskUserQuestionInput, P1); null for anything a card cannot show whole. A
+// AskUserQuestion's input (sdk-tools.d.ts AskUserQuestionInput); null for anything a card cannot show whole. A
 // question past a limit is refused, never cut, and so is a repeated question text, which would key two answers alike.
 export function claudeQuestion(input: unknown): ClaudeQuestion | null {
   const L = QUESTION_LIMITS;
@@ -279,9 +279,9 @@ export function claudeQuestion(input: unknown): ClaudeQuestion | null {
   return { questions, textById };
 }
 // The PermissionResult for a checked answer. Several choices and Other text go as one comma-joined string, as the CLI's
-// own card answers (P1). A skip sends no answer text, which the model would read as an answer, and marks each question
+// own card answers. A skip sends no answer text, which the model would read as an answer, and marks each question
 // unanswered only for a session that advertises it (system/init capabilities); an older CLI refuses the mark, so a
-// skip there is a denial (P1 Skip b).
+// skip there is a denial.
 export type ClaudeQuestionResult = { behavior: "allow"; updatedInput: Record<string, unknown> } | { behavior: "deny"; message: string };
 export function claudeQuestionResult(input: Record<string, unknown>, read: ClaudeQuestion, answer: QuestionAnswer, unanswered: boolean): ClaudeQuestionResult {
   if (answer.outcome === "skipped") {
@@ -315,7 +315,7 @@ export function storedAnswers(questions: readonly Question[], answer: Extract<Qu
 // labels: the connector names of the run (connectorLabels); the presets when absent.
 export interface CodexContext { root: string; sessionId: string; turnId: string; labels?: Readonly<Record<string, string>> }
 // decline: answered with response at once, and the turn goes on: an MCP elicitation doan does not ask about (a form, or a
-// tool approval with no turn to ask in), and every requestUserInput of this thread (P2: Codex 0.166.0 sends none in a
+// tool approval with no turn to ask in), and every requestUserInput of this thread (Codex 0.166.0 sends none in a
 // Doan mode, so no card exists for it). unsupported and route are answered with an error.
 export interface CodexTransportResult extends SteerResult {
   request?: { id: string | number; method: string; disposition: "permission" | "unsupported" | "route" } | { id: string | number; method: string; disposition: "decline"; response: unknown };
@@ -343,7 +343,7 @@ export function normalizeCodex(state: TransportState, raw: unknown, context: Cod
     const permission = asking ? codexPermission(raw, state.fileSummaries, context.labels) : null;
     // An elicitation this turn cannot ask about (a form, or one with no running turn to ask in) is declined, never failed: the
     // tool call fails and the turn goes on.
-    // No answers is a normal reply Codex reads as "no answer received" and goes on from (P2), whatever the question.
+    // No answers is a normal reply Codex reads as "no answer received" and goes on from, whatever the question.
     if (!otherOwner && raw.method === USER_INPUT) return { ...unchanged(state), request: { id: raw.id, method: raw.method, disposition: "decline", response: { id: raw.id, result: { answers: {} } } } };
     if (!otherOwner && !permission && raw.method === MCP_ELICITATION) return { ...unchanged(state), request: { id: raw.id, method: raw.method, disposition: "decline", response: { id: raw.id, result: { action: "decline" } } } };
     const disposition = otherOwner ? "route" : permission ? "permission" : "unsupported";

@@ -144,7 +144,7 @@ describe("conversation disk boundaries", () => {
     for (const version of ["2.1.283", "v2.1.400", "2.1.400 (Claude Code)", 2, null]) { write(13, "other", version); expect(await claudeOccupancy(config, "s", inspect)).toBe("unknown"); }
   });
   it("lets one doan Claude conversation resume while another runs in the same dedicated profile", async () => {
-    // The record shape a running doan SDK turn left in the dedicated profile (B45 live, CLI 2.1.312): interactive, sdk-ts.
+    // The record shape a running doan SDK turn left in the dedicated profile (live, CLI 2.1.312): interactive, sdk-ts.
     const config = temp(); const start = "Wed Oct 28 10:40:00 2026"; mkdirSync(join(config, "sessions"));
     const running = { pid: 55058, sessionId: "running-y", cwd: "/repo-y", kind: "interactive", entrypoint: "sdk-ts", version: "2.1.312", procStart: start };
     writeFileSync(join(config, "sessions", "55058.json"), JSON.stringify(running));
@@ -155,7 +155,7 @@ describe("conversation disk boundaries", () => {
     // A record left by a killed run of the same version is dead and does not block.
     expect(await claudeOccupancy(config, "running-y", async () => null)).toBe("free");
   });
-  // codex 0.166.0 live (batch E PoC): the thread's writer holds <CODEX_HOME>/thread-writer-locks/<id>.lock with an
+  // codex 0.166.0 live (PoC): the thread's writer holds <CODEX_HOME>/thread-writer-locks/<id>.lock with an
   // exclusive flock and deletes it on a clean exit; a SIGKILL leaves the file behind with nobody holding it.
   it("reads a Codex thread writer lock and fails closed on anything it cannot read", async () => {
     const config = realpathSync(temp()), id = "01a1a1f0-3466-7691-96f0-37f5415d3cb9", locks = join(config, "thread-writer-locks"), lock = join(locks, `${id}.lock`);

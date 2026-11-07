@@ -72,7 +72,7 @@ readline.createInterface({input:process.stdin}).on('line', line => {
 }, 15000);
 it("refuses an unpinned doan Claude run and names the pin's refusal of a repo-supplied credential", async () => {
   const root = mkdtempSync(join(tmpdir(), "doan-pin-claude-")), command = join(root, "claude");
-  // Claude Code 2.1.312's refusal when a repo's settings supply an API key under forceLoginOrgUUID (B3 live check).
+  // Claude Code 2.1.312's refusal when a repo's settings supply an API key under forceLoginOrgUUID (live check).
   writeFileSync(command, `#!/bin/sh
 echo started >> ${JSON.stringify(join(root, "seen"))}
 echo "This machine's managed settings require a first-party login: they pin Anthropic sign-ins to your organization (forceLoginOrgUUID), and this session is configured with an API key from ANTHROPIC_API_KEY, set in the env block of /repo/.claude/settings.json, which cannot be checked against that policy." >&2
@@ -298,7 +298,7 @@ it("never records on a Codex resume and clears once its initialize passes", asyn
   expect((await codexHandshake("", session)).order).toEqual(["cleared"]);
 });
 
-// buzz-home: model lists without a prompt, and the conversation's model and effort on every run.
+// Model lists without a prompt, and the conversation's model and effort on every run.
 function listingClaude(root: string): string {
   const command = join(root, "claude");
   // Answers initialize with the supportedModels rows the P1 PoC recorded; records argv and stdin lines.
@@ -392,7 +392,7 @@ it("lists Codex project skills with skills/list for the folder and starts no thr
     await vi.waitFor(() => expect(release).toHaveBeenCalledOnce());
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
-// Fix round 1 (RA 🟡2): a list request after initialize fails with the same codes as the handshake did.
+// A list request after initialize fails with the same codes as the handshake did.
 it.each([["authentication required", "not_logged_in"], ["rate limit exceeded", "rate_limited"], ["something odd", "unknown"]])("names a Codex list request's RPC error %s as %s", async (message, code) => {
   const root = mkdtempSync(join(tmpdir(), "doan-codex-list-error-")), command = listingCodex(root);
   try {
@@ -453,7 +453,7 @@ it("passes each mode to a doan-owned Claude run, with the dangerous skip only fo
       const runner = await openRunner({ command, runtime: "claude", cwd: root, configDir: root, env: { PATH: process.env.PATH, HOME: root, CLAUDE_CONFIG_DIR: root }, owner, ...(permissionMode ? { permissionMode } : {}) }, () => {}, () => {}, () => {});
       await runner.send("hello", "turn"); await runner.close();
     }
-    // A terminal session's run (no doan owner) keeps the person's own profile settings, as Codex does (RV-A ⚪ 2).
+    // A terminal session's run (no doan owner) keeps the person's own profile settings, as Codex does.
     const legacy = await openRunner({ command, runtime: "claude", cwd: root, configDir: root, env: { PATH: process.env.PATH, HOME: root, CLAUDE_CONFIG_DIR: root }, permissionMode: "bypass" }, () => {}, () => {}, () => {});
     await legacy.send("hello", "turn"); await legacy.close();
     const runs = readFileSync(join(root, "seen"), "utf8").split("\n").filter(line => line.startsWith("[")).map(line => JSON.parse(line) as string[]);
@@ -616,7 +616,7 @@ it("sends no probe and no approval or sandbox for a Codex run on an external pro
   } finally { await runner.close(); rmSync(root, { recursive: true, force: true }); }
 });
 
-// queue-send-now: steer on the Codex and Claude runners. The fakes follow the PoC's wire shapes (Claude Code 2.1.317, Codex 0.166.0).
+// Steer on the Codex and Claude runners. The fakes follow the PoC's wire shapes (Claude Code 2.1.317, Codex 0.166.0).
 // FAKE_STEER: "echo" accepts and echoes the clientUserMessageId in the same turn, then completes; "error" answers the
 // steer with the server's after-completion error and completes; "refused" answers with an error and then echoes it anyway;
 // "early" echoes the message before its steer reply and completes later; "silent" never answers the steer, echoes it
@@ -869,7 +869,7 @@ it("ends a Claude turn as done when its steered message stays unread 30 s after 
     } finally { vi.useRealTimers(); }
   });
 }, 15000);
-// prompt-suggestion: a done turn that leaves a steered message unread goes back to the queue; no suggestion of it counts.
+// A done turn that leaves a steered message unread goes back to the queue; no suggestion of it counts.
 it("passes on no suggestion of a Claude turn that ended done with a steered message unread", async () => {
   const root = mkdtempSync(join(tmpdir(), "doan-claude-steer-")), command = steerClaude(root), seq: unknown[] = [], exited = vi.fn(), suggested = vi.fn();
   const runner = await openRunner({ command, runtime: "claude", cwd: root, configDir: root, env: { PATH: process.env.PATH, HOME: root, CLAUDE_CONFIG_DIR: root, FAKE_STEER: "late", FAKE_SUGGEST: "1" }, suggested } as Parameters<typeof openRunner>[0], e => seq.push(e), exited, () => {});
@@ -1061,7 +1061,7 @@ it("asks before a Doan connector's MCP tool with the connector's name and sends 
   } finally { await runner.close(); h.cleanup(); }
 }, 15000);
 
-// Review BC yellow 2: a Stop before the native turn exists has nothing to interrupt on the server. The reload is owned
+// A Stop before the native turn exists has nothing to interrupt on the server. The reload is owned
 // until its reply, and no turn/start goes out after the Stop.
 it("a Stop while the reload is unanswered interrupts nothing, sends no turn/start and keeps the server", async () => {
   const h = mcpCodex({ readyMs: 0, holdReload: true }); const events: EventPayload[] = []; const exited = vi.fn();
@@ -1081,7 +1081,7 @@ it("a Stop while the reload is unanswered interrupts nothing, sends no turn/star
     expect(exited).not.toHaveBeenCalled();
   } finally { await runner.close(); h.cleanup(); }
 }, 15000);
-// Review BC white 4 (conductor's call): a refused reload is not applied, so the next turn on the runner reloads again.
+// A refused reload is not applied, so the next turn on the runner reloads again.
 it("retries a refused reload on the next turn and then stops reloading", async () => {
   const h = mcpCodex({ readyMs: 0, reloadError: true }); const events: EventPayload[] = [];
   const runner = await openRunner({ command: h.command, runtime: "codex", cwd: h.root, configDir: h.root, env: process.env, owner: h.owner, mcp: MCP_RUN }, e => events.push(e), () => {}, () => {});
@@ -1097,7 +1097,7 @@ it("retries a refused reload on the next turn and then stops reloading", async (
     expect(h.lines().filter(h.method("config/mcpServer/reload"))).toHaveLength(2);
   } finally { await runner.close(); h.cleanup(); }
 }, 15000);
-// Review BC yellow 1 at the service boundary: Stop expires the approval being asked (one answer), a late answer is
+// At the service boundary: Stop expires the approval being asked (one answer), a late answer is
 // stale, and an approval the stopped turn sends afterwards is declined at once and never shown.
 it("after a Stop, a late answer is stale and a new MCP tool approval is declined without being asked", async () => {
   const h = mcpCodex({ readyMs: 0, elicit: true, interruptElicit: true });
@@ -1131,7 +1131,7 @@ it("a Stop while turn/start is unanswered interrupts the native turn once it exi
     expect(exited).not.toHaveBeenCalled();
   } finally { await runner.close(); h.cleanup(); }
 }, 15000);
-// Review BC R2-1: a Stop while turn/start is unanswered belongs to that send. A send that follows waits until the stopped
+// A Stop while turn/start is unanswered belongs to that send. A send that follows waits until the stopped
 // start settled (its native turn interrupted once), so it neither erases that Stop nor lets the late reply become its
 // own turn's id.
 it("a send after a Stop of an unanswered turn/start waits for it to settle and never adopts its native id", async () => {
@@ -1183,7 +1183,7 @@ it("a Stop of an unanswered turn/start interrupts nothing when the turn complete
     expect(exited).not.toHaveBeenCalled();
   } finally { await runner.close(); h.cleanup(); }
 }, 15000);
-// Claude's AskUserQuestion reaches canUseTool (P1, every mode); the runner holds it apart from
+// Claude's AskUserQuestion reaches canUseTool (every mode); the runner holds it apart from
 // permissions and answers it exactly once. The fake CLI sends can_use_tool control requests the real SDK answers.
 function askClaude(root: string): string {
   const command = join(root, "claude");
@@ -1195,7 +1195,7 @@ const mode = process.env.FAKE_ASK; const open = new Set(), steered = []; let n =
 const color = { questions: [{ question: 'Which color do you prefer?', header: 'Color', multiSelect: false, options: [{ label: 'Red', description: 'Warm' }, { label: 'Blue', description: 'Cool' }] }] };
 const size = { questions: [{ question: 'Which size?', header: 'Size', multiSelect: true, options: [{ label: 'S', description: '' }, { label: 'M', description: '' }] }] };
 const ask = (tool, input) => { const id = 'req-' + (++n); open.add(id); send({ type: 'control_request', request_id: id, request: { subtype: 'can_use_tool', tool_name: tool, input, tool_use_id: 'tu-' + n } }); };
-// A message steered while the question waited is read after the answer (P1), echoed as the CLI does after a tool result.
+// A message steered while the question waited is read after the answer, echoed as the CLI does after a tool result.
 const finish = () => { if (finished) return; finished = true; if (steered.length) send({ type: 'system', subtype: 'status', session_id: session, user_message_uuids: steered }); send({ type: 'assistant', parent_tool_use_id: null, session_id: session, message: { id: 'm', role: 'assistant', content: [{ type: 'text', text: 'went on' }] } }); send({ type: 'result', subtype: 'success', is_error: false, result: 'went on', session_id: session }); if (mode === 'afterend') ask('AskUserQuestion', size); };
 const input = readline.createInterface({ input: process.stdin });
 input.on('line', line => {
@@ -1443,7 +1443,7 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line 
       } finally { await runner.close(); await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce()); rmSync(root, { recursive: true, force: true }); }
     }
   }, 30000);
-  // review-B 🟡1: the next send waits for this process (service.ts EXIT_WAIT_MS 10 s) while the read keeps its input
+  // The next send waits for this process (service.ts EXIT_WAIT_MS 10 s) while the read keeps its input
   // open. A CLI that never answers, then takes the observed 2.1 s to exit, must still leave a send right after
   // turn.done and a queue flushed at turn.done going out, not refused as busy.
   describe("with a CLI that never answers the usage request", () => {
@@ -1510,7 +1510,7 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line 
 });
 // Every Claude run asks for suggestions; the first prompt_suggestion after a
 // done turn's terminal reaches the run's suggested hook once. The fake sends it after its input closes, as Claude Code
-// 2.1.318 does (P1-a): FAKE_MODE "done" (one), "twice", "none", "early" (one before the result, none after), "failed"
+// 2.1.318 does: FAKE_MODE "done" (one), "twice", "none", "early" (one before the result, none after), "failed"
 // and "hold" (no result); FAKE_SUGGEST_MS delays it.
 describe("prompt suggestions", () => {
   const usageReply = { rate_limits_available: true, rate_limits: {} };
@@ -1638,7 +1638,7 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line 
 });
 
 // The run's Fast as each provider takes it. Claude opens a process per turn, so its flag-tier setting goes
-// on every run with Fast; Codex names the tier on every doan turn (serviceTierForTurn holds for that turn only, P1).
+// on every run with Fast; Codex names the tier on every doan turn (serviceTierForTurn holds for that turn only).
 describe("fast arguments", () => {
   it("sets Claude's flag-tier fastMode only on a run with Fast", () => {
     expect(claudeFastSettings(true)).toEqual({ settings: { fastMode: true } });
@@ -1726,7 +1726,7 @@ describe("fast on the wire", () => {
   });
 });
 
-// fast-mode M fix round 1: pins for paths that keep a run's Fast. The SDK hands Options.settings to the CLI as
+// Pins for paths that keep a run's Fast. The SDK hands Options.settings to the CLI as
 // `--settings <json>` (0.3.312), so the argv value is read, not only searched for.
 const settingsOf = (argv: string[]) => { const at = argv.indexOf("--settings"); return at < 0 ? undefined : JSON.parse(argv[at + 1]!) as unknown; };
 describe("fast kept", () => {

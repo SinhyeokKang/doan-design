@@ -318,7 +318,7 @@ it("sends the fixed preset guidance on a follow-up turn as on the first", async 
   for (const prompt of prompts) expect(prompt).toContain(PRESET_GUIDANCE);
 });
 
-// buzz-home: Home starts (newDesign), chosen models, attachments and binding by start-time lists.
+// Home starts (newDesign), chosen models, attachments and binding by start-time lists.
 // admit: resolve a canvas against the listed rows as main does (restore needs it); files: the queue's attachment hooks.
 function homeFixture(canvases: { path: string; id?: string }[] = [], options: { admit?: boolean; files?: QueueFiles; fast?: QueueOptions["fast"] } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "doan-service-")); paths.push(dir);
@@ -404,7 +404,7 @@ it("binds a new canvas at the first folder refresh after the turn ends, never wh
   // Judged: another project conversation may start at once, inside what used to be the window.
   await h.service.start(homeRequest);
 });
-// canvas-row-menu: Move to Trash reads an unjudged project turn's grounds.
+// Move to Trash reads an unjudged project turn's grounds.
 it("hands out a project turn's edits and changed paths while it runs and within the binding window, and none after its judgement", async () => {
   const h = homeFixture();
   const id = (await h.service.start(homeRequest)).conversationId;
@@ -476,7 +476,7 @@ it("binds nothing for conversations of a previous run", async () => {
   expect(h.store.list().find(m => m.conversationId === first)!.canvas).toBeUndefined();
 });
 
-// buzz-home fix round 1: model-list reads are owned runs (quit and sign-out stop them; the lease goes with the group).
+// Model-list reads are owned runs (quit and sign-out stop them; the lease goes with the group).
 function listingFixture() {
   const dir = mkdtempSync(join(tmpdir(), "doan-service-")); paths.push(dir);
   const release = vi.fn(async () => {});
@@ -567,7 +567,7 @@ it("prepares a project skill read as a listing that stopRuns stops, and a send a
   expect(stop).toHaveBeenCalledOnce();
 });
 
-// buzz-home fix round 1: Home's paragraph follows the conversation's origin, not its binding.
+// Home's paragraph follows the conversation's origin, not its binding.
 it("drops Home's paragraph once a Home conversation is promoted to a canvas, and keeps it before that", async () => {
   const h = homeFixture();
   const id = (await h.service.start(homeRequest)).conversationId;
@@ -901,7 +901,7 @@ describe("send extras", () => {
   }
   it("saves the new model and effort before the turn's events and opens the run with them", async () => {
     const h = homeFixture(); const id = await finished(h);
-    // The message goes out with its turn.started in one write (FX review).
+    // The message goes out with its turn.started in one write.
     const appendAll = h.store.appendAll.bind(h.store); const atMessage: unknown[] = [];
     vi.spyOn(h.store, "appendAll").mockImplementation((...args) => { if (args[2].some(body => body.type === "user.message")) atMessage.push(h.store.list()[0]!.model); return appendAll(...args); });
     await h.service.send(id, "again", [], { model: "opus", effort: "high" });
@@ -1096,7 +1096,7 @@ describe("promotion", () => {
     expect(entry(h, id).canvas).toEqual({ path: ".doan/canvases/made.html" });
     expect(h.store.read(id).filter(e => e.type === "user.message")).toHaveLength(2);
   });
-  it("never crosses one turn's refused edit with a change made during the next turn (RA2 Y1)", async () => {
+  it("never crosses one turn's refused edit with a change made during the next turn", async () => {
     const h = homeFixture([a]); const { current, project } = await withCurrent(h);
     // T1 asks to edit a.html; the edit is refused, so the file never changes.
     h.service.receive(project, edit(a.path));
@@ -1320,7 +1320,7 @@ describe("queue", () => {
   });
 });
 
-// buzz-conversation review fixes: pending judgements, refused sends with a queue, crashes and stops while holding.
+// Pending judgements, refused sends with a queue, crashes and stops while holding.
 describe("queue and judgement review fixes", () => {
   const a = { path: ".doan/canvases/a.html", id: "a" };
   const canvasStart = { ...homeRequest, mode: "new" as const, canvas: a };
@@ -1415,7 +1415,7 @@ describe("queue and judgement review fixes", () => {
   });
 });
 
-// buzz-conversation fix round 1 (RA2): queue limits, the list's working state, sign-out while held.
+// Queue limits, the list's working state, sign-out while held.
 describe("fix round 1", () => {
   const a = { path: ".doan/canvases/a.html", id: "a" };
   const canvasStart = { ...homeRequest, mode: "new" as const, canvas: a };
@@ -1454,7 +1454,7 @@ describe("fix round 1", () => {
     h.open.mock.calls[0]![2](); await sending;
     expect(working()).toBe(true);
   });
-  it("lists a held queue as working while it waits for the previous process, though nothing is queued any more (RA2 Y2)", async () => {
+  it("lists a held queue as working while it waits for the previous process, though nothing is queued any more", async () => {
     const h = homeFixture();
     const id = (await h.service.start(canvasStart)).conversationId;
     h.service.queue(id, { text: "next", anchors: [] });
@@ -1514,7 +1514,7 @@ describe("fix round 1", () => {
   });
 });
 
-// buzz-conversation fix round 2 (RA2b Y3): a cancelled waiting send hands back the queue accepted behind it.
+// A cancelled waiting send hands back the queue accepted behind it.
 describe("cancelled waits and their queues", () => {
   const a = { path: ".doan/canvases/a.html", id: "a" };
   const canvasStart = { ...homeRequest, mode: "new" as const, canvas: a };
@@ -2459,7 +2459,7 @@ describe("prompt suggestions", () => {
     h.service.connectionChanged("claude", "conn-2");
     expect(h.shown(id)).toBeUndefined();
   });
-  // Batch M review: a connection change must also refuse a suggestion the earlier run sends after it.
+  // A connection change must also refuse a suggestion the earlier run sends after it.
   it.each([["signs out", undefined], ["changes", "conn-2"]] as const)("ignores a suggestion that first arrives after the Claude connection %s", async (_name, next) => {
     const h = suggesting(); const id = await h.start();
     h.service.receive(id, { type: "turn.done" });
@@ -2553,7 +2553,7 @@ describe("conversation work", () => {
     expect(h.ended).toContain(id);
     expect(h.service.liveTurns().get(id)?.running).toBe(false);
   });
-  // V2 review: a quit whose appQuit write fails still clears every conversation's work, and still reports the failure.
+  // A quit whose appQuit write fails still clears every conversation's work, and still reports the failure.
   it("a quit whose first interrupted write fails still clears the work of every conversation", async () => {
     const h = fixture();
     const first = (await h.service.start(request)).conversationId;
@@ -2720,7 +2720,7 @@ describe("fast turned off", () => {
   });
 });
 
-// fast-mode M fix round 1: a turn-off whose index write fails takes the persistence-failure path. Nothing claims Fast
+// A turn-off whose index write fails takes the persistence-failure path. Nothing claims Fast
 // went off while the index still holds it, and nothing runs on as if it had.
 describe("fast turned off, index write failed", () => {
   const canvas = { path: ".doan/canvases/a.html", id: "a" };
@@ -2756,7 +2756,7 @@ describe("fast turned off, index write failed", () => {
   });
 });
 
-// fast-mode M fix round 1: pins for a run's Fast around Send now and a send right after a turn-off.
+// Pins for a run's Fast around Send now and a send right after a turn-off.
 describe("fast kept", () => {
   const canvas = { path: ".doan/canvases/a.html", id: "a" };
   it("puts a Send now message into the running Fast turn without opening or sending another run", async () => {

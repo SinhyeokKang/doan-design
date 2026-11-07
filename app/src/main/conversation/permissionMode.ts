@@ -91,7 +91,7 @@ export function codexWorkspace(reply: unknown): CodexWorkspace {
   };
 }
 // Every Codex turn states its values, Default included: an override holds for later turns and across thread/resume,
-// and null does not clear it (0.163.0, P2). A bare workspaceWrite would turn the user's network access off, so Accept
+// and null does not clear it (0.163.0). A bare workspaceWrite would turn the user's network access off, so Accept
 // edits carries the configured network access and roots.
 export function codexPermission(mode: PermissionModeId, defaults: CodexDefaults, workspace: CodexWorkspace): CodexTurnPermission {
   switch (mode) {

@@ -163,7 +163,7 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
     if (!object(result) || !object(result.thread) || typeof result.thread.id !== "string" || !result.thread.id) throw new Error("session_unavailable");
     sessionId = result.thread.id;
     if (input.sessionId && sessionId !== input.sessionId) throw new Error("session_unavailable");
-    // Default is stated on every turn, since an override holds across turns and thread/resume (0.163.0, P2). Its values
+    // Default is stated on every turn, since an override holds across turns and thread/resume (0.163.0). Its values
     // depend on config and project trust and config/read leaves them null when unset, so an ephemeral thread/start
     // (no rollout, no model request) reads them. A failed or incomplete probe refuses the open: sending nothing would
     // keep an earlier override. A run on an external profile (a terminal session) takes no mode
@@ -177,8 +177,8 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
     }
     if (dead) throw new Error("process_exited");
   } catch (error) { dispatcher.close(); void group?.stop(); throw new Error(dead ? "process_exited" : transportError(error instanceof Error ? error.message : "")); }
-  // A turn that starts before its servers are ready runs without their tools ("omitting pending optional MCP server",
-  // P2), so a doan run waits for the profile's doan- servers first. A reload restarts them: their earlier statuses are
+  // A turn that starts before its servers are ready runs without their tools ("omitting pending optional MCP server"),
+  // so a doan run waits for the profile's doan- servers first. A reload restarts them: their earlier statuses are
   // forgotten before it is sent, since the new ones can follow its reply at once. The reload is awaited to its answer
   // even after a Stop, so its outcome is known. False: a Stop ended the phase.
   const serversReady = async (phase: Start, reload: boolean, labels: Readonly<Record<string, string>>): Promise<boolean> => {
@@ -225,7 +225,7 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
         if (!await serversReady(own, choice?.reloadMcp === true || reloadOwed, labels)) { stopped(); return; }
         startingTurn = true;
         let result: unknown;
-        // Passed on every turn, as Claude and ACP must be, though Codex keeps a turn's model for the next (P1).
+        // Passed on every turn, as Claude and ACP must be, though Codex keeps a turn's model for the next.
         try { result = await dispatcher.request("turn/start", { threadId: sessionId, input: [{ type: "text", text: prompt }], ...(turn.model ? { model: turn.model } : {}), ...(turn.effort ? { effort: turn.effort } : {}), ...permission, ...tier }); } catch (error) { startingTurn = false; for (const raw of queued.splice(0)) dispatcher.receive(raw); throw error; }
         if (dead) throw new Error("process_exited");
         if (!object(result) || !object(result.turn) || typeof result.turn.id !== "string") { failProtocol(); throw new Error("session_unavailable"); }
@@ -288,8 +288,8 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
   let pulled = false, inputClosed = false, turn = "", wake: (() => void) | undefined;
   // Armed by a success result that leaves a steered uuid unread, disarmed by any read and on every terminal path.
   let readWait: ReturnType<typeof setTimeout> | undefined, readExpired = false;
-  // After a done turn's terminal (no steered message unread) the CLI may send one prompt_suggestion before it exits
-  // (P1-a). suggestionSeen: one came, whatever it said. suggestionEnded: the next send asked to end the process
+  // After a done turn's terminal (no steered message unread) the CLI may send one prompt_suggestion before it exits.
+  // suggestionSeen: one came, whatever it said. suggestionEnded: the next send asked to end the process
   // (endSuggestion), so a later suggestion belongs to no one.
   let doneTurn = false, suggestionSeen = false, suggestionEnded = false;
   const endReadWait = () => { clearTimeout(readWait); readWait = undefined; };
@@ -315,10 +315,10 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
     promptSuggestions: true,
     // A repo's .claude/settings*.json env API key or apiKeyHelper would otherwise replace the doan login. Pinning the
     // login's organization as a per-run parent policy (SDK managedSettings, honoured for forceLoginOrgUUID per
-    // code.claude.com/docs/en/managed-settings) makes Claude Code refuse such a run instead (B3 live check, 2.1.312).
+    // code.claude.com/docs/en/managed-settings) makes Claude Code refuse such a run instead (live check, 2.1.312).
     ...(organization ? { managedSettings: { forceLoginOrgUUID: organization } } : {}),
     abortController: controller, ...(input.sessionId ? { resume: input.sessionId } : { sessionId }),
-    // A resume without them starts on the default model (P1), so every run passes the conversation's choice.
+    // A resume without them starts on the default model, so every run passes the conversation's choice.
     ...(input.model ? { model: input.model } : {}), ...(input.effort ? { effort: input.effort as EffortLevel } : {}),
     // Every run with Fast asks for it, as each turn opens a new process; a run without it passes nothing.
     ...claudeFastSettings(input.fast),
@@ -467,7 +467,7 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
       return "ok";
     },
     // The next send of the conversation waits for this process (service.ts previousExit). A done turn's process that has
-    // nothing left but its suggestion is ended with the group stop: interrupt is refused once the input closed (P1-c),
+    // nothing left but its suggestion is ended with the group stop: interrupt is refused once the input closed,
     // and the CLI may take up to 30 s to settle a suggestion. Asked during the usage read, it ends once the input closes.
     // True when it ends this process; false for any other process, which the send waits for as before.
     endSuggestion() {

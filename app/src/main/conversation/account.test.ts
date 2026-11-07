@@ -244,7 +244,7 @@ it("keeps legacy external entries and resumed associations on the external profi
   expect(h.auth.runtime.acquire).not.toHaveBeenCalled();
 });
 
-// Where each ACP server keeps a stored session (B3 live check 2026-10-28).
+// Where each ACP server keeps a stored session (live check 2026-10-28).
 function acpSession(profile: string, provider: Provider) {
   const dir = { cursor: ".cursor/acp-sessions", copilot: ".copilot/session-state", antigravity: ".gemini/antigravity-acp/conversations" }[provider as "cursor"];
   mkdirSync(join(profile, dir, ACP_SESSION), { recursive: true });

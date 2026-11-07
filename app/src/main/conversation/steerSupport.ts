@@ -1,6 +1,6 @@
 import type { Provider } from "../agentAuth/types";
 
-// Which providers can take a message into a running turn (queue-send-now), and when a queued row offers Send now.
+// Which providers can take a message into a running turn, and when a queued row offers Send now.
 // A fixed table of what the PoC confirmed on each provider's minimum version; the provider is not asked at run time.
 // The renderer imports this module by value, so it must import nothing but types (rendererImports.test.ts,
 // POSTMORTEM 2026-10-30).

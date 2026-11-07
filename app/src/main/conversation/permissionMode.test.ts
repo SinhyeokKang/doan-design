@@ -48,7 +48,7 @@ it("reads the mode Claude reports after a plan approval as a common id", () => {
   expect(claudeModeAfterPlan("default")).toBe("default");
   expect(claudeModeAfterPlan("acceptEdits")).toBe("acceptEdits");
   expect(claudeModeAfterPlan("plan")).toBe("plan");
-  // Full access is only ever the person's pick, so a reported bypass is not followed (RV-A 🟡 2).
+  // Full access is only ever the person's pick, so a reported bypass is not followed.
   for (const other of ["bypassPermissions", "auto", "dontAsk", "bypass", undefined, 3]) expect(claudeModeAfterPlan(other)).toBe("default");
 });
 

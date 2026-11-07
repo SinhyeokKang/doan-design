@@ -99,7 +99,7 @@ function judgmentCode(judgment: Exclude<ConnectionJudgment, { decision: "resume"
 // PATH (live 2026-10-28); allow_login_shell=false (official config key) keeps the PATH prepared below.
 const RUN_ARGS: Record<"claude" | "codex", string[]> = { claude: [], codex: ["-c", "allow_login_shell=false"] };
 // A stored ACP session is a directory or <id>.<ext> file in the provider's sessions directory; session/load is the
-// final admission. Cursor .cursor/acp-sessions/<id>/, Copilot .copilot/session-state/<id>/ (B3 live check).
+// final admission. Cursor .cursor/acp-sessions/<id>/, Copilot .copilot/session-state/<id>/ (live check).
 export function acpSessionExists(profileDir: string, sessions: string, id: string): boolean {
   if (!/^[A-Za-z0-9_-]{1,128}$/.test(id)) return false;
   try {

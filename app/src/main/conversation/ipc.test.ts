@@ -41,7 +41,7 @@ function home(dir: string, models?: ModelOption[], canvases: { path: string }[] 
   const handle = conversationHandler(service, prepare, () => [{ path: "/repo", kind: "list", canvases }], { models: catalog, attachments: attachments as unknown as AttachmentStore });
   return { handle, start, prepare, catalog, attachments, service };
 }
-// terminal-agent-activity: the renderer holds the terminal session choice while that session (provider:id) works in a
+// The renderer holds the terminal session choice while that session (provider:id) works in a
 // terminal, so the resume target names its session.
 it("names the terminal session in the resume target", async () => {
   const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
@@ -426,7 +426,7 @@ describe("delete channel", () => {
   });
 });
 
-// buzz-conversation fix round 1 (RA2 Y4): a queued message is accepted only after main holds its attachments.
+// A queued message is accepted only after main holds its attachments.
 describe("queue acceptance", () => {
   function fixture(dir: string, markSent: () => void) {
     const owner = { kind: "doan" as const, provider: "claude" as const, connectionId: "c", accountId: "a", workspaceId: "o", profile: "p" };

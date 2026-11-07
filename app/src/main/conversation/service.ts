@@ -105,7 +105,7 @@ function freeLease(input: Prepared | undefined): void {
   void input?.release?.().catch(error => console.error("doan: account lease release failed", error));
 }
 // A Claude process ended about 0.75 s after turn.done, but its reservation held for 2.1-5.0 s after turn.done until the
-// group was gone (packaged app, D1 2026-10-28). The wait allows twice the slowest observed.
+// group was gone (packaged app, 2026-10-28). The wait allows twice the slowest observed.
 const EXIT_WAIT_MS = 10_000;
 // provider: set for a run on a doan account, whose lease a sign-out or replacement waits for (stopRuns).
 // since: the stopRuns count when this start or send began; a later stop of its provider stops it once it spawns.
@@ -568,7 +568,7 @@ export class ConversationService {
     });
     return { current: summaries.find(m => m.state === "current") ?? null, archived: summaries.filter(m => m.state === "archived") };
   }
-  // canvas-row-menu: the grounds of this root's project turns not judged yet (running, or ended within the binding
+  // The grounds of this root's project turns not judged yet (running, or ended within the binding
   // window), for Move to Trash's busy check (canvasTrash.ts trashBusy). Exactly this root, as copies.
   projectEvidence(root: string): { edits: string[]; changed: string[] }[] {
     const now = Date.now();

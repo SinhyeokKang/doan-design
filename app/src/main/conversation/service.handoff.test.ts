@@ -327,7 +327,7 @@ describe("a handoff beside the root's project turns", () => {
   });
 });
 
-// Fix round 1 (review RM 🟡1, 🟡2, ⚪2): a sign-out cancels a handoff it finds waiting, and the concurrency paths of
+// A sign-out cancels a handoff it finds waiting, and the concurrency paths of
 // ARCHITECTURE §7 'Handoff' each have a case.
 describe("a handoff a stop, an archive, a quit or a broken history meets", () => {
   // The successor's preparation, held until release.
