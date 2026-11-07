@@ -11,7 +11,7 @@
 ```
 P0 problem-project-overlay PR이 main에 병합 (지금의 main 기준 절차)
 C3 community-docs ─ C4 readme-features   (P0과 병렬, main에 커밋)
-  └─ (P0, C4 뒤) C1 git-flow (G1: develop 생성, 기본 브랜치)
+  └─ (P0, C4 뒤) C1 git-flow (G1: develop 생성)
         └─ C2 public-cleanup ─ G2 공개 ─ G3a 신고·환경·비밀
               └─ C5 ci-gate ─ G3b develop 보호 ─ C6 release-ci ─┬─ C7 app-update ───┐
                                                               └─ C8 release-skill ─ G3c main 보호 ┴─ R1 rc 검증(/release) ─ R2 0.1.0(/release) ─ Z1
@@ -43,8 +43,8 @@ C3 community-docs ─ C4 readme-features   (P0과 병렬, main에 커밋)
   - 검증: `git fetch origin` 뒤 `git ls-tree origin/main docs/features/readme-features` 결과 없음, `find docs/assets/readme -type f -size +500k` 결과 없음.
 - [ ] C1. [`git-flow`](../git-flow/tasks.md) — 하네스·문서, 대화 중. 선행: P0, C4. 후행: 나머지 전부.
   - 검증: `git fetch origin` 뒤 `git ls-tree origin/develop docs/features/git-flow` 결과 없음, `git ls-remote --heads origin develop`이 한 줄.
-- [ ] G1. (사용자) `develop`을 `main`에서 만드는 것(C1 T1, 에이전트가 사용자 승인 아래 push할 수 있다)과 D2대로 기본 브랜치를 바꾸는 것(사용자가 GitHub 설정에서, C1 T1 바로 뒤).
-  - 검증: `git ls-remote --heads origin develop`이 한 줄을 낸다. 기본 브랜치는 `gh repo view --json defaultBranchRef`(AGENTS.md 'Commands'에 없다 — 확인 명령 미정, 사용자 확인 필요).
+- [x] G1. `develop`을 `main`(1d09a76a)에서 만들어 push했다. 기본 브랜치는 D2대로 `main`을 유지한다.
+  - 검증: `git ls-remote --heads origin develop`이 한 줄을 낸다.
 - [ ] C2. [`public-cleanup`](../public-cleanup/tasks.md) — `/orchestrate`(D27). 선행: C1.
   - 검증: `develop`을 향한 `feat/public-cleanup` PR이 병합됐고(확인 명령 미정 — 사용자 확인 필요), `git ls-tree origin/develop docs/features/public-cleanup` 결과 없음.
 

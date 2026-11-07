@@ -135,8 +135,11 @@ design-draft·design-sync의 "on main"은 "출시됐다"가 아니라 "통합됐
 - 제약: 마지막 정식 태그에서 나오므로 `main`에 나가 있는 rc 내용이 hotfix에 섞이지 않는다.
 
 ### D2. GitHub 기본 브랜치 — 결론(사용자, 2026-11-07)
-- `develop`. 설정은 사용자가 한다(G1).
-- 제약: 예약(`schedule`) 실행은 기본 브랜치에서만 돈다. 나중에 `main`에서 야간 실행을 하려면 체크아웃 ref를 따로 준다. 첫 화면 README가 출시 전 내용일 수 있어 다운로드 링크는 `releases/latest`를 가리킨다.
+- `main`을 유지한다(git-flow 시작 때 사용자가 다시 정했다). 방문자와 `git clone`은 `main`을 본다. 설정 변경은 없다.
+- 제약:
+  - 새 PR의 기본 대상이 `main`이다. CONTRIBUTING·PR 템플릿은 `develop`을 대상으로 적고, 스킬은 `gh pr create --base develop`을 늘 명시하며, 외부 PR이 `main`으로 오면 메인테이너가 대상을 `develop`으로 바꾼다.
+  - Orca의 `worktree create`는 `--base-branch`가 없으면 저장소 기본 브랜치(`main`)에서 나온다. 스킬은 `--base-branch`를 늘 명시한다.
+  - `workflow_dispatch`와 예약(`schedule`) 실행은 워크플로 파일이 기본 브랜치(`main`)에 있어야 돈다. 그래서 첫 `/release`가 워크플로를 `main`에 넣기 전에는 dispatch로 테스트 빌드를 시작할 수 없다. D8의 시작 방식은 release-ci가 다시 정한다(예: 태그 push 트리거). 태그 push 트리거(D7의 릴리스)는 이 제약을 받지 않는다.
 
 ### D3. 하네스·문서 변경이 들어가는 브랜치 — 결론(사용자, 2026-11-07)
 - 지금 브랜치에 커밋하고, `develop`이면 바로 push한다. `main`에는 커밋하지 않는다(`main` 체크아웃이면 `develop`으로 바꾼 뒤 커밋한다). `hotfix/*` 체크아웃에는 그 수정만 커밋한다. 공개 뒤 `main` 보호 규칙(G3c)이 이것을 강제한다.
@@ -204,7 +207,7 @@ design-draft·design-sync의 "on main"은 "출시됐다"가 아니라 "통합됐
 
 ### D21. 공개 시점 — 결론(사용자, 2026-11-07)
 - git-flow, public-cleanup, community-docs, readme-features 뒤에 공개하고, ci-gate·release-ci·app-update·release-skill은 공개 뒤에 진행한다. 그동안 README는 "pre-release"라고 적는다.
-- 제약: 공개 시점의 `main`은 problem-project-overlay 병합과 C3·C4 커밋까지의 상태이고 정리(C2)는 `develop`에만 있다(사용자 결정 2). 첫 화면은 기본 브랜치 `develop`이지만 `main`의 옛 상태(개인 경로, 한국어 주석)와 전체 이력도 공개된다.
+- 제약: 공개 시점의 `main`은 problem-project-overlay 병합과 C3·C4 커밋까지의 상태이고 정리(C2)는 `develop`에만 있다(사용자 결정 2). 첫 화면은 기본 브랜치 `main`이라, 첫 `/release`까지 `main`의 정리 전 상태(개인 경로, 한국어 주석)가 보인다. README와 공동체 문서는 C3·C4로 이미 `main`에 있다.
 
 ### D22. 릴리스 절차를 어디에 적을까 — 결론(사용자, 2026-11-07)
 - 절차는 `/release` 스킬에 있다. 사람이 처음 한 번 하는 일(인증서 `.p12`와 API 키를 GitHub 환경 비밀로 넣기, 갱신)도 그 스킬의 'One-time setup'에 둔다. 이 부모에서는 `docs/OPERATIONS.md`를 만들지 않고, release-skill이 AGENTS.md 'Documents' 표의 OPERATIONS 행에서 릴리스 패키징 역할을 지운다.
