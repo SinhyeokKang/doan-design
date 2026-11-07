@@ -555,6 +555,11 @@ export class CanvasController {
 
   private onCanvasPage(): boolean { return this.workspaceActive && this.canvasPage; }
 
+  // A problem project's overlay covers the canvas (problem-project-overlay design §4.3): no key reaches it, Esc's
+  // clearing of the selection included, while focus sits in the overlay.
+  private covered = false;
+  setCovered(covered: boolean): void { this.covered = covered; }
+
   // The toolbar's Select and Hand. While picking they cancel the pick first (canvas-composer-polish spec 3); V and H
   // still change nothing then (shortcut).
   setTool(tool: CanvasTool): void {
@@ -1223,7 +1228,7 @@ export class CanvasController {
   }
 
   private keydown = (event: KeyboardEvent): void => {
-    if (!this.workspaceActive) return;
+    if (!this.workspaceActive || this.covered) return;
     if (event.key === "Alt") {
       // Focus may move into the canvas before keyup; fence off earlier snapshots.
       if (!this.altHeld) this.sendHoverCommand({ type: "hover-alt", alt: true });

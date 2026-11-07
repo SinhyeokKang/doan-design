@@ -918,8 +918,14 @@ export function App() {
     if (entry?.kind === "loading" || (entry?.kind === "list" && entry.canvases.some(row => row.path === trashing.row.path))) return;
     closeTrash();
   }, [entries, trashing]);
+  // The covered parts App does not draw itself are inert under the overlay; the folded conversation column keeps its own.
+  useLayoutEffect(() => {
+    for (const node of document.querySelectorAll<HTMLElement>(".workspace > :is(.ov-main, .doan-overview-handle, .doan-conv-column)"))
+      node.toggleAttribute("inert", overlaidRef.current || (node.matches(".doan-conv-column") && !rightPanelRef.current.open));
+  });
   // The overlay just went with focus in it (focus fell to the page): it goes to the uncovered body instead (design
-  // §4.4). Ahead of the recovery focus below, which would take it to the sidebar.
+  // §4.4). After the inert above comes off, or the composer still refuses focus; ahead of the recovery focus below,
+  // which would take it to the sidebar.
   useLayoutEffect(() => {
     const was = overlayCommitted.current;
     overlayCommitted.current = overlaidRef.current;
@@ -928,11 +934,6 @@ export function App() {
     if (active && active !== document.body && active.isConnected) return;
     recoveryFocus.current = null;
     focusResolved();
-  });
-  // The covered parts App does not draw itself are inert under the overlay; the folded conversation column keeps its own.
-  useLayoutEffect(() => {
-    for (const node of document.querySelectorAll<HTMLElement>(".workspace > :is(.ov-main, .doan-overview-handle, .doan-conv-column)"))
-      node.toggleAttribute("inert", overlaidRef.current || (node.matches(".doan-conv-column") && !rightPanelRef.current.open));
   });
   useLayoutEffect(() => {
     const lost = recoveryFocus.current;
@@ -1378,15 +1379,15 @@ export function App() {
     return () => { stop(); for (const timer of timers.values()) clearTimeout(timer); timers.clear(); };
   }, []);
   // notice: a caller that shows the action's own feedback itself (the Project Settings page, under its notice);
-  // otherwise the toast.
-  function action(name: RowAction, root: string, notice: (text: string) => void = text => toast.show(text)) {
+  // otherwise the toast. settled: once main has answered a Retry or a Locate (the problem overlay's busy press).
+  function action(name: RowAction, root: string, notice: (text: string) => void = text => toast.show(text), settled?: () => void) {
     cancelRestore();
     if ((name === "retry" || name === "locate") && document.activeElement instanceof HTMLElement) recoveryFocus.current = { element: document.activeElement, root };
     if (name === "details") { const entry = entriesRef.current.find(entry => entry.path === root); if (entry?.kind === "error") notice(entry.message); }
     else if (name === "setUp") { rememberFocus(); setupSeq.current = rerootSeq.current; setSetup(root); }
     else if (name === "remove") void remove([root]);
     else if (name === "showInFinder") void window.doan.revealProject(root).catch(console.error);
-    else if (name === "retry") void window.doan.reopenFolder(root).catch(console.error);
+    else if (name === "retry") void window.doan.reopenFolder(root).catch(console.error).finally(() => settled?.());
     else if (name === "locate") {
       const workspace = loadedRoot === root && currentScreen.current === "workspace";
       if (workspace) setLocating({ from: root, root: null });
@@ -1395,7 +1396,7 @@ export function App() {
         if (result.kind === "refused") notice(result.message);
         if (workspace && result.kind === "located") { setLoadedRoot(result.root); setLocating({ from: root, root: result.root }); }
         else if (workspace) setLocating(null);
-      }).catch(error => { if (workspace) setLocating(null); console.error(error); }).finally(() => { if (locateFrom.current === root) locateFrom.current = null; });
+      }).catch(error => { if (workspace) setLocating(null); console.error(error); }).finally(() => { if (locateFrom.current === root) locateFrom.current = null; settled?.(); });
     }
   }
   useEffect(() => window.doan.onMenuCommand(name => {
@@ -1606,11 +1607,19 @@ export function App() {
     if (pressed && (!sceneShown || pressed.root !== loadedRoot || (wasBusy.current && !busy))) setPressed(null);
     wasBusy.current = busy;
   }, [pressed, sceneShown, loadedRoot, busy]);
+  // Only Retry, Locate and Set Up can make the scene busy, so only they keep the press for the spinner. A press that
+  // ends without a read (main answered and the root is not being read; the Set Up form closed) lets it go, so a later
+  // read the person did not start shows no spinner.
+  const pressEnded = (root: string, name: RowAction) => {
+    if (entriesRef.current.find(entry => entry.path === root)?.kind === "loading") return;
+    setPressed(current => current?.root === root && current.name === name ? null : current);
+  };
   const overlayAction = (name: RowAction) => {
     if (!scene || scene.busy || loadedRoot === null) return;
     if (name === "details") { setDetails(detailsOpen ? null : { root: loadedRoot, kind: scene.entryKind }); return; }
-    setPressed({ root: loadedRoot, name });
-    action(name, loadedRoot);
+    const root = loadedRoot;
+    if (name === "retry" || name === "locate" || name === "setUp") setPressed({ root, name });
+    action(name, root, undefined, () => pressEnded(root, name));
   };
   // The polite live region's text: the heading, when a scene shows or comes back from a read without taking focus.
   // Alternating a trailing no-break space makes the same heading read again.
@@ -1700,6 +1709,8 @@ export function App() {
   // V, H and Space switch tools only on the canvas page itself (canvas-hand-tool design '키').
   const toolPage = screen === "workspace" && shownOverview === null && !modal && !overlaid;
   useEffect(() => { controller.current?.setCanvasPage(toolPage); }, [toolPage]);
+  // No key, Esc included, reaches the canvas under a problem's overlay (design §4.3).
+  useLayoutEffect(() => { controller.current?.setCovered(overlaid); }, [overlaid]);
   // Pick from canvas: the composer's Pick, the toolbar's Picker and ⌘L share one pick (canvas-composer-polish spec 3).
   // The pick's start keeps where focus was, so the end can tell whether focus still waits for the composer.
   // The pick's start: the composer field it will put the chip in, where focus was, and whether focus may go back.
@@ -2105,7 +2116,7 @@ export function App() {
     {problem && <ProblemOverlay key={`problem\n${loadedRoot}`} view={problem} details={detailsOpen} detail={detailText} pressed={pressed && pressed.root === loadedRoot ? pressed.name : null}
       announcement={announcement ? `${announcement.text}${announcement.seq % 2 ? "" : "\u00a0"}` : ""} onAction={overlayAction} />}
   </main>
-  {setup && <ProjectSetupDialog key={setup} root={setup} name={names.get(setup) ?? setup.split("/").at(-1) ?? setup} kept={projectKeepsLocal(allEntries, setup)} onClose={() => { setSetup(null); modalClosed(); }} onRerooted={(root, message) => { choose(root); setSetup(null); setHighlight([root]); toast.show(message); modalClosed(); }} />}
+  {setup && <ProjectSetupDialog key={setup} root={setup} name={names.get(setup) ?? setup.split("/").at(-1) ?? setup} kept={projectKeepsLocal(allEntries, setup)} onClose={() => { pressEnded(setup, "setUp"); setSetup(null); modalClosed(); }} onRerooted={(root, message) => { choose(root); setSetup(null); setHighlight([root]); toast.show(message); modalClosed(); }} />}
   {quickOpen && <QuickOpen entries={entries} currentRoot={screen === "workspace" ? loadedRoot : null} rendered={rendered} pick={pick} close={() => { setQuickOpen(false); if (document.activeElement === document.body || !document.activeElement?.isConnected || document.activeElement.closest("dialog.qo")) modalClosed(); }} />}
   {run.removing && <dialog className="doan-dialog" data-ui-size="compact" role="alertdialog" aria-labelledby="project-remove-title" aria-describedby="project-remove-body" ref={node => { if (node && !node.open) node.showModal(); }} onCancel={event => { event.preventDefault(); run.cancelRemove(); modalClosed(); }}>
     <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title" id="project-remove-title">{run.removing.title}</h3><p className="doan-dialog-description" id="project-remove-body">{run.removing.body}</p></div></div>
