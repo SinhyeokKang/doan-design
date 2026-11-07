@@ -140,7 +140,7 @@ describe("thread items", () => {
     expect(html([{ ...base, status: "expired", answer: null }])).toContain("<span>Expired without an answer · Run doan check</span>");
   });
 
-  // defect-sweep B4: a Stop's expiry record (`optionId: "expired"`) read back from the history.
+  // A Stop's expiry record (`optionId: "expired"`) read back from the history.
   test("a permission request a Stop expired reads as expired, never answered", () => {
     const ev = (seq: number, payload: object) => ({ v: 1, conversationId: "c1", seq, turnId: "t1", at: "2026-11-07T00:00:00Z", ...payload }) as ConversationEvent;
     const options = [{ id: "a", label: "Allow once", kind: "allow" as const }];
@@ -151,7 +151,7 @@ describe("thread items", () => {
     expect(out).not.toContain("Answered ·");
   });
 
-  // defect-sweep B1: the turn ended before it did any work, so no file warning and nothing to resend; a reopened
+  // The turn ended before it did any work, so no file warning and nothing to resend; a reopened
   // history reads the model from the stored end.
   test("a model the account does not have says only that, with no file warning or button", () => {
     const ev = (seq: number, payload: object) => ({ v: 1, conversationId: "c1", seq, turnId: "t1", at: "2026-11-07T00:00:00Z", ...payload }) as ConversationEvent;

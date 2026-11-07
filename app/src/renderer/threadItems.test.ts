@@ -134,7 +134,7 @@ describe("threadItems", () => {
     expect(items[3]).toEqual({ kind: "end", key: "e6", seq: 6, end: { kind: "failed", code: "process_exited" } });
   });
 
-  // A Stop's expiry is main's `optionId: "expired"` record, not an answer (defect-sweep B4).
+  // A Stop's expiry is main's `optionId: "expired"` record, not an answer.
   test("a permission request main expires folds as expired, not answered", () => {
     seq = 0;
     const options = [{ id: "a", label: "Allow once", kind: "allow" }, { id: "d", label: "Deny", kind: "deny" }];

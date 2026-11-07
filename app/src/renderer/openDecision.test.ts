@@ -44,7 +44,7 @@ test("a root the renderer does not list, or lists as not a list, is not found", 
   expect(decideOpen({ root: "/w/a", canvas: A }, page({ entries: () => [loading] }))).toEqual({ kind: "canvas_not_found", entry: loading });
 });
 
-// defect-sweep C3: a link that a lock or a busy dialog refuses says so, with the reason `doan open`'s busy answer gives
+// A link that a lock or a busy dialog refuses says so, with the reason `doan open`'s busy answer gives
 // (deepLinks.ts BLOCKED) minus "in Doan", since the person is in Doan.
 test("each block names its reason after the refusal", () => {
   expect(blockedLinkMessage("add_projects")).toBe("Couldn’t open the link. The Add Projects page is in the middle of a task. Finish or cancel it, then try again.");

@@ -150,7 +150,7 @@ resolved models and default flags of three real model lists read with a signed-i
 account: Claude Code 2.1.318 `supportedModels`, Codex 0.166.0 `model/list` and Cursor's
 ACP `session/new`. Each list is in the shape its parser reads; every other field was dropped.
 
-`codex-model-not-found.json` (2026-11-07, defect-sweep B1) is synthetic, not a
+`codex-model-not-found.json` (2026-11-07) is synthetic, not a
 recorded stream. Its shape follows the schema `codex app-server
 generate-json-schema` writes from the installed Codex 0.166.0: `TurnError`
 (`message`, optional `codexErrorInfo`, `additionalDetails`) carried by the `error`

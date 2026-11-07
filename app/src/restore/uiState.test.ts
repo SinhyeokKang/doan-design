@@ -408,7 +408,7 @@ test("reads the sidebar's hidden flag beside its width; only true is kept", () =
   expect(parse(first)).toEqual(first);
 });
 
-// defect-sweep C2 fix round 1: a root saved through a symlink is read as its real path, and the memory kept under the
+// A root saved through a symlink is read as its real path, and the memory kept under the
 // alias moves with it instead of being dropped as a removed project's. Per field the real path's value wins.
 test("memory kept under an alias root moves to its real path; the real path's own wins per field", () => {
   const alias = "/alias/repo", real = "/real/repo";

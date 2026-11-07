@@ -203,7 +203,7 @@ describe("CanvasTools", () => {
       expect(selectors.every(selector => selector === "button:not(:disabled)")).toBe(true);
     } finally { vi.unstubAllGlobals(); }
   });
-  // defect-sweep A2: a tooltip open on a tool takes the Escape before the window sees it, so each tooltip hands that
+  // A tooltip open on a tool takes the Escape before the window sees it, so each tooltip hands that
   // Escape to the canvas's next step and leaves it unprevented, so Radix still closes the tooltip on the same press.
   it("an Escape that closes any tool's tooltip also takes the canvas's next Escape step", () => {
     const onEscape = vi.fn();

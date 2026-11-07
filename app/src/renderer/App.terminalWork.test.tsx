@@ -331,7 +331,7 @@ test("a dialog that does not close for its cancel (busy) keeps the link from mov
   expect(dialog.events).toEqual([{ type: "cancel", cancelable: true }]);
   expect(harness.controller!.openCanvas!.mock.calls.length).toBe(before);
   expect(all(tree).some(element => element.type === ProjectSetupDialog)).toBe(true);
-  // defect-sweep C3: drawn in the open modal dialog, the only place that is not inert.
+  // Drawn in the open modal dialog, the only place that is not inert.
   expect(harness.toast.showIn).toHaveBeenCalledExactlyOnceWith(dialog, "Couldn’t open the link. A dialog is busy and did not close. Finish it, then try again.");
   expect(harness.toast.show).not.toHaveBeenCalled();
 });

@@ -1,5 +1,6 @@
-// defect-sweep C2 fix round 2: reading roots saved through a symlink as their real paths is one ordered startup step,
-// as index.ts wires it: canvas-seen.json, then ui-state.json, then folders.json, then auto-folders.json. Only a step
+// Reading roots saved through a symlink as their real paths is one ordered startup step,
+// as index.ts wires it: canvas-seen.json, then ui-state.json, then auto-folders.json without the marks a hand-added
+// spelling clears (when there are any), then folders.json, then the normalised auto-folders.json. Only a step
 // that completed lets the next run; a failure keeps the saved spellings for the run and the next launch retries.
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";

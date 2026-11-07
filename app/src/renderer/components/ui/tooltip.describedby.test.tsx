@@ -4,7 +4,7 @@ import { DropdownMenu } from "radix-ui";
 import { expect, test, vi } from "vitest";
 import type { CanvasConversationRow } from "../../canvasConversationRows";
 
-// defect-sweep A6: five unavailable controls name their reason with their own aria-describedby (an sr-only sibling, so
+// Five unavailable controls name their reason with their own aria-describedby (an sr-only sibling, so
 // it is read while the tooltip is closed too). While the tooltip was open, Radix added its content id to that
 // attribute, and the same reason was read twice. Every tooltip here is drawn open (no DOM: static markup), and each
 // unavailable control must keep its own id alone; an available one still gets the open tooltip's id from Radix.

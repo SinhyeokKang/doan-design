@@ -210,7 +210,7 @@ test("Codex with nothing fixed names its default model and level", async () => {
   expect(labelled("Effort for new conversations")[0]?.props["aria-label"]).toBe("Effort for new conversations: Default · Medium");
   expect(labelled("Permission for new conversations")[0]?.props["aria-label"]).toBe("Permission for new conversations: Ask first");
 });
-// defect-sweep B5 (POSTMORTEM 2026-11-06 'A menu's "nothing chosen" value shared its string with a real model id'): a
+// POSTMORTEM 2026-11-06 'A menu's "nothing chosen" value shared its string with a real model id': a
 // level a provider names "default" is a level of its own, apart from the Effort menu's Default row.
 test("an effort level named default stays apart from the Effort menu's Default row", async () => {
   auth = { revision: 1, providers: [dto("claude"), dto("codex")] };

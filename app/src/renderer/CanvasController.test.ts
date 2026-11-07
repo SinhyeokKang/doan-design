@@ -3682,9 +3682,9 @@ describe("capture", () => {
     } finally { h.controller.dispose(); }
   });
 
-  // defect-sweep A2: an open toolbar tooltip takes the Escape (Radix prevents it), so the window keydown skips it; the
+  // An open toolbar tooltip takes the Escape (Radix prevents it), so the window keydown skips it; the
   // tooltip's Escape hands the same next step to the controller, as from a control that is not a text field.
-  // defect-sweep A2: one Escape with a toolbar tooltip open, along the whole path. Radix's DismissableLayer calls the
+  // One Escape with a toolbar tooltip open, along the whole path. Radix's DismissableLayer calls the
   // tooltip content's onEscapeKeyDown at the document's capture phase and then prevents the event; the focused target
   // has it next (the composer's `/` list closes on it and prevents it); the window's keydown comes last. The canvas
   // must take the step the same Escape takes with no tooltip, and only that one step.

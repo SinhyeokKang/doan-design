@@ -820,7 +820,7 @@ body:has(.shell-top) { background: transparent; }
 .strip-text b { font-weight: var(--type-weight-medium); }
 .strip-text span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .strip-actions { display: flex; align-items: center; gap: var(--space-2); }
-/* defect-sweep A5: the strip's text column, and under its text a refused Skip or answer on its own line with the alert
+/* The strip's text column, and under its text a refused Skip or answer on its own line with the alert
    mark. Like every text in a notice it takes the strip's ink (the tone colours a notice), so the mark is what marks it. */
 .strip-main { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; flex: 1; }
 .strip-error { display: flex; align-items: flex-start; gap: var(--space-1h); }

@@ -1,4 +1,4 @@
-// defect-sweep C2 fix round 3: a hand-added alias and an auto-registered real spelling of one folder
+// A hand-added alias and an auto-registered real spelling of one folder
 // (`folders=[alias, real]`, `marks=[real]`) collapse to one hand-added project. Whichever of the startup step's five
 // writes fails, or wherever the app stops, the run that failed and the next launch both keep it hand-added, so a
 // missing folder is never pruned as an auto-registered one.

@@ -4,7 +4,7 @@ import type { Question } from "../main/conversation/question";
 import type { ConversationThreadProps } from "./ConversationThread";
 import type { ThreadItem } from "./threadItems";
 
-// defect-sweep A3·A4: once a card the person answered or stopped here folds, the focus that was on its button (now
+// Once a card the person answered or stopped here folds, the focus that was on its button (now
 // gone, so on the page body) moves by composerRules.focusAfter: an answer to the next waiting request or the composer,
 // Stop to the composer. There is no DOM in these tests (ARCHITECTURE §7 'Home tests without a DOM'): the thread body
 // runs with its hooks kept by call order and its layout effects run after each run, against a stubbed document and a
@@ -149,7 +149,7 @@ test("a question's Skip moves focus to the next waiting request once its card fo
   expect(focusedOption()).toEqual(["pb"]);
 });
 
-// defect-sweep B3: a card the agent's CLI cancels folds as expired with no press here. Focus that was in it, or its
+// A card the agent's CLI cancels folds as expired with no press here. Focus that was in it, or its
 // Other text not sent, moves on as after an answer; any other card folding leaves focus alone.
 const inCard = (key: string) => ({ item: key, closest: () => ({ getAttribute: () => key }) });
 const toBody = () => { active = body; };

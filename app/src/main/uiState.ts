@@ -112,10 +112,10 @@ export function createUiStateStore(file: string, savedRoots: () => readonly stri
   };
 }
 
-// FolderStore's startup step for ui-state.json (defect-sweep C2): rewrites the file with the memory kept under each
-// alias moved to its real path, before folders.json changes and before the renderer reads or saves it. A missing file
-// or one that would read as nothing (broken, over the limit) has nothing to move. False, with the file as it was, when
-// it cannot be read or written; the saved spellings then stay for this run.
+// FolderStore's startup step for ui-state.json (ARCHITECTURE §7 'Root spellings'): rewrites the file with the memory
+// kept under each alias moved to its real path, before folders.json changes and before the renderer reads or saves it.
+// A missing file or one that would read as nothing (broken, over the limit) has nothing to move. False, with the file
+// as it was, when it cannot be read or written; the saved spellings then stay for this run.
 export async function moveUiStateRoots(file: string, aliases: ReadonlyMap<string, string>): Promise<boolean> {
   let text: string;
   try {

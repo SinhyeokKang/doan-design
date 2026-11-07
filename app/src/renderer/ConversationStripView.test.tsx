@@ -186,8 +186,8 @@ test("the strip App draws is keyed by its conversation, so another conversation 
   expect(strip("c2").key).toBe("c2");
 });
 
-// defect-sweep A5: a Skip or a permission answer main refused showed nothing. The strip now says so on an error line
-// with the alert mark; the buttons stay, and the line goes on the next press, another request or the turn's end.
+// A Skip or a permission answer main refuses shows the strip's error line with the alert mark (PRODUCT §5 item 1);
+// the buttons stay, and the line goes on the next press, another request or the turn's end.
 test("a refused Skip or permission answer shows its error line until the next press, another request or the turn's end", async () => {
   const flush = async () => { for (let i = 0; i < 4; i++) await Promise.resolve(); };
   const draw = (state: StripState) => { hooks.mock = true; hooks.at = 0; hooks.stateAt = 0; const tree = ConversationStrip({ conversationId: "c1", provider: "claude", state, view: stripView(state, CTX), onEditOnHome: noop, onDismiss: noop, onOpen: noop }); hooks.reuse = true; return tree; };

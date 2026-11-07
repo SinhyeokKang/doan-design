@@ -30,7 +30,7 @@ function Tooltip({
 
 // An unavailable control that names its reason with its own aria-describedby (an sr-only sibling, so it is read while
 // the tooltip is closed too) keeps that description alone: Radix adds the open content's id, which holds the same
-// reason, so it would be read twice (defect-sweep A6). Between Radix's trigger and the control, the trigger's props
+// reason, so it would be read twice. Between Radix's trigger and the control, the trigger's props
 // are merged into the control again by Radix's Slot (handlers, ref, class) without the added id. Any other trigger
 // keeps Radix's description.
 function OwnDescription({

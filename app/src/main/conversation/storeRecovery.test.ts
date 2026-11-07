@@ -299,7 +299,7 @@ describe("Fast unused history", () => {
   });
 });
 
-// defect-sweep B1: the model a model_unavailable turn named is kept with that end, so a reopened thread reads the same
+// The model a model_unavailable turn named is kept with that end, so a reopened thread reads the same
 // cause. It comes only with that code.
 describe("model unavailable history", () => {
   const end = (fields: object) => ({ type: "turn.failed", ...fields, v: 1, conversationId: "c", turnId: "t", seq: 1, at: "2026-11-07T00:00:00Z" });

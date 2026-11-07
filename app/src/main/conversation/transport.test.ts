@@ -55,7 +55,7 @@ describe("transport normalization", () => {
     expect(collect("claude", [{ type: "result", subtype: "error_during_execution", is_error: true, errors: ["Not logged in"] }]).events).toContainEqual({ type: "turn.failed", code: "not_logged_in", detail: "Not logged in" });
   });
 });
-// defect-sweep B1: a model the account does not have ends the turn before it starts any work. The model ID is the one
+// A model the account does not have ends the turn before it starts any work. The model ID is the one
 // the error names: Doan never sent it (ipc.ts takes only models on this run's model/list).
 describe("a model the account does not have", () => {
   const detail = "The 'gpt-6-astra' model is not supported when using Codex with a ChatGPT account.";

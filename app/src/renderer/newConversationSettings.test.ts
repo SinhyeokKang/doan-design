@@ -119,7 +119,7 @@ test("the Settings Default row stays above the fold with the current models", ()
   expect(olderOpened(NO_OLDER, [{ provider: "codex", rows: menu.rows }])).toBe(NO_OLDER);
 });
 
-// defect-sweep B5: the Effort menu's values live apart by kind, so a level named "default" never reads as the Default row.
+// The Effort menu's values live apart by kind, so a level named "default" never reads as the Default row.
 test("the Effort menu keeps its Default row apart from a level named default", () => {
   const view = (selected: string | null): EffortView => ({ label: "", ariaLabel: "", placeholder: false, menuLabel: "", title: "", fast: null,
     unset: { label: "Default", description: "", selected: selected === null },

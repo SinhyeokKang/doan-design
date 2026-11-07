@@ -30,9 +30,9 @@ export function decideOpen(target: { root: string; canvas: string }, page: OpenP
   return row ? { kind: "opened", row } : { kind: "canvas_not_found", entry };
 }
 
-// A link a lock or a busy dialog refused (defect-sweep C3): `doan open`'s busy reason (deepLinks.ts BLOCKED) without
-// "in Doan", since the person reading it is in Doan. The link is still dropped (POSTMORTEM 2026-10-25 'A forwarded
-// Settings target discarded a pending setup confirmation'); the toast only says so.
+// A link a lock or a busy dialog refused (PRODUCT §5 item 3 'Deep links'): `doan open`'s busy reason (deepLinks.ts
+// BLOCKED) without "in Doan", since the person reading it is in Doan. The link is still dropped (POSTMORTEM
+// 2026-10-25 'A forwarded Settings target discarded a pending setup confirmation'); the toast only says so.
 const BLOCKED_LINK: Record<OpenBlock, string> = {
   add_projects: "The Add Projects page is in the middle of a task. Finish or cancel it, then try again.",
   settings: "Settings is in the middle of a change. Finish or cancel it, then try again.",

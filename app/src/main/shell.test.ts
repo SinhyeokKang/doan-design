@@ -558,7 +558,7 @@ async function uninitialized(root: string, cliPath = cli) {
   return started;
 }
 
-// defect-sweep C2: the stores keyed by root (canvas-seen.json, ui-state.json) move a symlink root's memory in the startup
+// The stores keyed by root (canvas-seen.json, ui-state.json) move a symlink root's memory in the startup
 // step before any folder is listed; when that step fails the shell lists the saved spelling for the run.
 test("runs the startup step before the first list goes out, and lists the saved spelling when it fails", async () => {
   const real = realpathSync(writeRepo(dir())), link = join(dir(), "repo"); symlinkSync(real, link);

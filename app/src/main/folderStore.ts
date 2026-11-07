@@ -104,10 +104,12 @@ function realMarks(list: readonly string[], marks: readonly string[], real: Read
   });
 }
 
-// One ordered startup step (defect-sweep C2): when a saved root or mark reads as another real path, `migrate` moves the
-// memory kept under the alias, then folders.json is written with the real paths, then auto-folders.json. A stop or a
-// failure at any point leaves files a later launch reads the same way and retries; after a failure this run keeps the
-// saved spellings, so nothing keyed by them is dropped. A list that could not be read is never rewritten.
+// One ordered startup step (ARCHITECTURE §7 'Root spellings'): when a saved root or mark reads as another real path,
+// `migrate` moves the memory kept under the alias, then auto-folders.json drops the marks a hand-added spelling clears
+// (only when there are any), then folders.json is written with the real paths, then the normalised auto-folders.json.
+// A stop or a failure at any point leaves files a later launch reads the same way and retries; after a failure this
+// run uses what the files on disk give, so nothing keyed by the saved spellings is dropped. A list that could not be
+// read is never rewritten.
 export async function openFolderStore(file: string, migrate: RootMigration = async () => true): Promise<FolderStore> {
   const autoFile = join(dirname(file), "auto-folders.json");
   const saved = await readSavedList(file);

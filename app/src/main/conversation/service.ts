@@ -863,7 +863,7 @@ export class ConversationService {
     const provider = m.owner.kind === "doan" ? m.owner.provider : undefined, since = this.stops;
     let resolution: HandoffResolution;
     try {
-      // The model's default level when it has no stored effort, as a queued turn's (defect-sweep B2).
+      // The model's default level when it has no stored effort, as a queued turn's.
       const defaultEffort = m.model && !m.effort ? this.queueOptions.defaultEffort?.(m.root, m.session.runtime, m.model) : undefined;
       const { conversationId } = await this.start({ root: m.root, mode: "new", runtime: m.session.runtime, canvas: target, text: request.text, anchors: [], ...choice(m), ...fastOf(m), ...mode(m.permissionMode), ...(defaultEffort ? { defaultEffort } : {}) },
         undefined, { origin, requireNoCurrent: true, handoffText: request.text });

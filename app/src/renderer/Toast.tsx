@@ -61,7 +61,7 @@ export function useToast(restoreFocus?: (previous: HTMLElement | null) => void) 
       dispatch({ type: "show", toast: { id, message, ...(label ? { action: label } : {}) } });
     },
     // An actionless toast drawn inside `dialog`, the open modal dialog, when there is one: outside it the toast would
-    // sit inert behind the modal, unseen and unread (defect-sweep C3). Without one it is an ordinary toast.
+    // sit inert behind the modal, unseen and unread (ARCHITECTURE §7 'Toasts'). Without one it is an ordinary toast.
     showIn(dialog: HTMLDialogElement | null, message: string) {
       timerAt.current = performance.now();
       dispatch({ type: "show", toast: { id: crypto.randomUUID(), message, ...(dialog ? { dialog } : {}) } });

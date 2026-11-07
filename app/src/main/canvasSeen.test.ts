@@ -212,7 +212,7 @@ describe("persistence", () => {
   });
 });
 
-// defect-sweep C2: a root saved through a symlink is read as its real path. That is the same project, not one leaving
+// A root saved through a symlink is read as its real path. That is the same project, not one leaving
 // Doan's list, so its record is copied to the real path before the first apply: the real path's record wins per canvas,
 // the alias's fills only canvases the real path lacks, and apply drops whichever spelling is not listed.
 describe("copyRoots", () => {

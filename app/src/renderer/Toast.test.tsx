@@ -104,7 +104,7 @@ function rerender() {
   for (const effect of hooks.effects.slice(ran + 1)) effect();
 }
 
-// defect-sweep C3: outside the open modal dialog the toast would be inert and hidden behind it, so a toast shown in a
+// Outside the open modal dialog the toast would be inert and hidden behind it, so a toast shown in a
 // dialog is portalled into it and keeps its clock; when that dialog is gone it is drawn in its usual place and held.
 test("a toast shown in an open modal dialog is drawn inside it and counts down while the modal is up", () => {
   const h = setup(); h.native(true); h.modal(true);
@@ -133,7 +133,7 @@ test("without an open dialog the toast is drawn in its usual place and held by t
   expect(h.remaining()).toBe(8000);
 });
 
-// defect-sweep C3 fix round 1: the pointer was on the toast inside the dialog when the dialog went. The element in the
+// The pointer was on the toast inside the dialog when the dialog went. The element in the
 // usual place is a new one, and the pointer is not over it, so the clock runs again.
 test.each([
   ["closes", (dialog: { open: boolean; isConnected: boolean }) => { dialog.open = false; }],

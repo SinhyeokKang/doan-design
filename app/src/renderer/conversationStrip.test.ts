@@ -62,7 +62,7 @@ test("every turn.failed row has its draft wording and offers Edit on Home", () =
   for (const [code, title, body] of rows) expect(failure(code)).toEqual({ title, body, live: "status", alertKey: null, actions: recover });
 });
 
-// defect-sweep B1: the turn never started, so the strip says only the cause, with the model the error named.
+// The turn never started, so the strip says only the cause, with the model the error named.
 test("a model the account does not have reads as that cause, and still offers Edit on Home", () => {
   const state = stripState(events(...started, { type: "turn.failed", code: "model_unavailable", model: "gpt-6-astra", detail: "The 'gpt-6-astra' model is not supported." }));
   expect(state).toEqual({ kind: "failed", code: "model_unavailable", model: "gpt-6-astra" });
@@ -147,7 +147,7 @@ test("asksPerson: a permission request and a question both wait for the person",
   expect(["permission", "question", "starting", "working", "done", "failed", "interrupted"].map(kind => asksPerson(kind as StripState["kind"]))).toEqual([true, true, false, false, false, false, false]);
 });
 
-// defect-sweep A5: a Skip or a permission answer main did not take shows its line only while that same request is shown.
+// A Skip or a permission answer main did not take shows its line only while that same request is shown.
 test("the strip's error line names the refused Skip or answer while its request is shown, and goes when the request changes or the turn ends", () => {
   const permission: StripState = { kind: "permission", requestId: "r1", summary: "Edit a", options: [] };
   const question: StripState = { kind: "question", requestId: "q1", question: "Which layout?" };

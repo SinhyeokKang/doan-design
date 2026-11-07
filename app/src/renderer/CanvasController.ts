@@ -1240,10 +1240,10 @@ export class CanvasController {
   };
 
   // An open toolbar tooltip takes the Escape at the document's capture phase and Radix prevents it right after this
-  // call, so keydown would skip it (defect-sweep A2). The step stays keydown's: this only marks the event, and keydown
-  // takes it as unhandled unless something after the tooltip (the composer's `/` list, a field) prevented it too, so one
-  // press closes the tooltip and takes the step the same Escape takes with no tooltip. Radix's own prevention is the
-  // first call it makes on the event; a later one is someone else's.
+  // call, so keydown would skip it (ARCHITECTURE §3 'Actions and focus'). The step stays keydown's: this only marks the
+  // event, and keydown takes it as unhandled unless something after the tooltip (the composer's `/` list, a field)
+  // prevented it too, so one press closes the tooltip and takes the step the same Escape takes with no tooltip. Radix's
+  // own prevention is the first call it makes on the event; a later one is someone else's.
   toolbarEscape(event: KeyboardEvent): void {
     if (event.defaultPrevented) return;
     const mark = { event, handledAfter: false };

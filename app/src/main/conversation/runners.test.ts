@@ -1332,7 +1332,7 @@ describe("Claude runner questions", () => {
       expect(events.at(-1)).toEqual({ type: "turn.done" });
     });
   }, 15000);
-  // defect-sweep B3: a request the CLI cancels (control_cancel_request aborts canUseTool's signal) expires at once with
+  // A request the CLI cancels (control_cancel_request aborts canUseTool's signal) expires at once with
   // Stop's record, instead of waiting answerable until the turn ends. A request already answered stays answered.
   it("expires a request the CLI cancels at once, and leaves an answered one alone", async () => {
     await claudeAskRun("cancel", async ({ runner, events }) => {

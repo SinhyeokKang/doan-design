@@ -518,7 +518,7 @@ describe("fast", () => {
   });
 });
 
-// defect-sweep B2: the next conversation's first turn names its model's default level when the model has no stored
+// The next conversation's first turn names its model's default level when the model has no stored
 // effort, as every later turn does, so the person's Codex model_reasoning_effort never runs it at another level.
 describe("effort", () => {
   async function handOff(h: ReturnType<typeof fixture>, omit: "effort"[]) {

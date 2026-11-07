@@ -121,7 +121,7 @@ const COPIED_MS = 2000;
 export function endView(end: TurnEnd, provider: Provider): { title: string; body: string; tone: "error" | null; signIn: boolean; resend?: false } {
   const p = PROVIDER_NAMES[provider];
   if (end.kind === "interrupted") return { title: "Stopped", body: end.reason === "user" ? "You stopped the agent." : "The agent stopped before it finished.", tone: null, signIn: false };
-  // defect-sweep B1: the provider had no such model for this account; the turn did no work, so no file warning.
+  // The provider had no such model for this account; the turn did no work, so no file warning.
   if (end.code === "model_unavailable" && end.model) return { title: `${end.model} isn’t available for this account.`, body: "", tone: "error", signIn: false, resend: false };
   if (end.code === "not_logged_in") return { title: `${p}’s sign-in expired`, body: "Sign in again, then resend your request.", tone: "error", signIn: true };
   if (end.code === "rate_limited") return { title: `${p} is rate limited`, body: "Try again later.", tone: "error", signIn: false };
@@ -530,9 +530,9 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   const [slow, setSlow] = useState(false);
   const [copied, setCopied] = useState(false);
   // The card last answered, skipped or stopped here and the focusAfter rule for it: once that card folds, by any
-  // status, its button is gone and focus moves on by the rule (design §7, defect-sweep A3·A4).
+  // status, its button is gone and focus moves on by the rule (ARCHITECTURE §7 'Renderer primitives' 'Thread focus').
   const folding = useRef<{ requestId: string; action: FocusAction } | null>(null);
-  // A card can also fold with no press here: the agent's CLI cancels it (defect-sweep B3) or the turn ends. When focus was
+  // A card can also fold with no press here: the agent's CLI cancels it or the turn ends. When focus was
   // in it, or its Other field held text not sent, it is the card folding, and focus moves on as after an answer. Focus is
   // read as this render begins, before its commit replaces the card's controls; the drafts are those of the last commit,
   // since the store drops a question's draft with the resolution that folds it.

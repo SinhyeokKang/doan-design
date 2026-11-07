@@ -300,7 +300,7 @@ describe("conversation list, seen marker and send extras", () => {
       expect(h.send.mock.calls[2]![3]).toEqual({ defaultEffort: "low" });
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
-  // defect-sweep B2: the first turn too, so the person's Codex model_reasoning_effort never runs it at another level.
+  // The first turn too, so the person's Codex model_reasoning_effort never runs it at another level.
   it("runs a start's first turn at its model's default effort when it names none, without storing it", async () => {
     const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
     try {

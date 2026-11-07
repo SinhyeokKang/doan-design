@@ -385,7 +385,7 @@ test("Escape that the open usage popover took keeps Settings, Add Projects and P
   }
 });
 
-// defect-sweep A1: Escape on Settings > Agents' open Agent picker (a Radix DropdownMenu) closed the menu and also left
+// Escape on Settings > Agents' open Agent picker (a Radix DropdownMenu) closed the menu and also left
 // Settings. The menu's DismissableLayer answers Escape at the document's capture phase, prevents the default and
 // removes the menu, so by the window's keydown no menu is in the DOM; the page must stay because the event was
 // handled, and only an Escape with no menu leaves. The installed Radix order is pinned below the App check.
