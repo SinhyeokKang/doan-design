@@ -23,8 +23,8 @@
 | batch | 항목 | 파일 소유 | 선행 | model·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
 | B1 | T2, T3 | 새 `app/src/main/update/`(eligibility, schedule, state, errorCode, gate, view, 타입 파일과 테스트), `app/src/main/preferences.ts`·`preferences.test.ts` | — | Opus high — 상태 기계의 겹침(수동·자동, 받는 중 재확인, 취소)과 view 매핑이 틀리면 UI 전체가 틀린다 | `npm --prefix app test`, `typecheck`, `rendererImports.test.ts` | 통합 `88304821` |
-| B2 | T4, Copy details 줄 | `app/package.json`·`package-lock.json`, `app/src/main/update/service.ts`(+테스트), `app/src/main/index.ts`·`index.test.ts`, `menuState.ts`(+테스트), `senderAllowed.ts`(+테스트), `app/src/preload/index.ts`(+테스트), `app/src/main/about.ts`(+테스트) | B1 통합 | Opus high — 종료 순서·flush·설치 시점은 상태를 잃을 수 있는 동시성 경로다 | `npm --prefix app test`, `npm --prefix app run build`, `verify.mjs` | 진행 |
-| B3 | T5 | `app/src/renderer/SettingsAbout.tsx`(+테스트), `App.tsx`·헤더 버튼과 popover, `AgentUsageButton.tsx`(+테스트), `app/src/main/aboutView.ts`, `app/src/main/agentSetup/notice.ts`, `styles.css`, `docs/DESIGN.md` | B2 통합 | Opus medium — 초안이 정해져 있어 판단보다 측정이 많지만 popover·focus·폭 계산이 섞인다 | `test`, `typecheck`, `lint`, `/design-sync` 차이 0 | 대기 |
+| B2 | T4, Copy details 줄 | `app/package.json`·`package-lock.json`, `app/src/main/update/service.ts`(+테스트), `app/src/main/index.ts`·`index.test.ts`, `menuState.ts`(+테스트), `senderAllowed.ts`(+테스트), `app/src/preload/index.ts`(+테스트), `app/src/main/about.ts`(+테스트) | B1 통합 | Opus high — 종료 순서·flush·설치 시점은 상태를 잃을 수 있는 동시성 경로다 | `npm --prefix app test`, `npm --prefix app run build`, `verify.mjs` | 통합 `b88ca29f` |
+| B3 | T5 | `app/src/renderer/SettingsAbout.tsx`(+테스트), `App.tsx`·헤더 버튼과 popover, `AgentUsageButton.tsx`(+테스트), `app/src/main/aboutView.ts`, `app/src/main/agentSetup/notice.ts`, `styles.css`, `docs/DESIGN.md` | B2 통합 | Opus medium — 초안이 정해져 있어 판단보다 측정이 많지만 popover·focus·폭 계산이 섞인다 | `test`, `typecheck`, `lint`, `/design-sync` 차이 0 | 진행 |
 | B4 | T6 | 코드 수정 없음(보고만), `.scratch/` | B3 통합 | Sonnet medium — 정해진 probe를 격리된 앱에서 돌리고 기록한다 | `/runtime-test` 보고서 각 항목 | 대기 |
 | conductor | T0, T7, 통합 `/verify` | `orch.md`, PRODUCT·ARCHITECTURE·BACKLOG·DIRECTORY 승격, 이 디렉터리 삭제 | B4 | — | tasks.md T7의 grep | T0 완료 |
 
@@ -63,3 +63,6 @@
   - `quitAndInstall` 뒤 10초 fallback은 `app.relaunch()`를 부른 뒤 종료한다. 사용자가 Restart를 눌렀으니 옛 버전으로라도 다시 열리고, 업데이트는 다음 종료 때 다시 시도된다.
 - B2 수정 1회차 보냄: dispatch `ctx_5615fdcff60f`.
 - B2 수정 1회차 완료: `1cfe6233`, `c03bb048`. worker 보고 `verify.mjs` PASS(9675). B1의 `types.ts`·`state.ts`에 `restart-held` 이벤트를 더했다. 🔴은 처음부터 0이라 재리뷰 없이 통합한다.
+- B2 통합: `61f1b887`..`b88ca29f`(커밋 5개 cherry-pick), push. B2 worker를 release하고 worktree `app-update-b2`를 지웠다. 브랜치 `SinhyeokKang/app-update-b2`(`c03bb048`)는 남아 있다.
+- B3 시작: dispatch `ctx_77bdcff883a5`, worktree `app-update-b3`(base `b88ca29f`), Opus medium.
+- 통합 HEAD `b88ca29f`에서 `verify.mjs` PASS(로그 `.scratch/orch/verify-B2.log`).
