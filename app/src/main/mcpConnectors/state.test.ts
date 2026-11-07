@@ -65,7 +65,7 @@ test("a sign-in or sign-out in progress does not disable Connect: pressing it fa
   expect(state({ readiness: busy })).toEqual({ status: "not_connected", action: "connect", disabled: null, blocked: false });
 });
 
-// spec 완료 조건 8 / design '상태 판정': while the previous account's logout is pending, the row offers Connect (which
+// While the previous account's logout is pending, the row offers Connect (which
 // retries that logout first) whatever the last read said (BA review 🟡2).
 test("a pending logout on a server that reads as connected shows Reconnect needed with Reconnect and its line", () => {
   // The token may still be the previous account's, so the row never claims Connected.

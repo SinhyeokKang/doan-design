@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { parseConnectorUrl } from "./names";
 import { EMPTY_CONNECTORS, EMPTY_PENDING, parseConnectorsFile, parsePendingLogouts, patchConnectors, patchPendingLogouts, type ConnectorsFile } from "./files";
 
-// `<userData>/mcp-connectors.json` and `<userData>/mcp-connectors-pending.json` (mcp-connectors design '포맷 변경'): only
+// `<userData>/mcp-connectors.json` and `<userData>/mcp-connectors-pending.json` (ARCHITECTURE §7 'MCP connectors'): only
 // TS reads and writes them, so these tests are their schema.
 
 const example = { name: "doan-example-com", url: "https://example.com/mcp" };

@@ -1,7 +1,7 @@
 import { CONNECTOR_NAME, parseConnectorUrl, storedConnectorUrl } from "./names";
 import { MCP_PROVIDERS, PRESETS, type ConnectorServer, type McpProvider } from "./presets";
 
-// `<userData>/mcp-connectors.json` and `<userData>/mcp-connectors-pending.json` (mcp-connectors design '포맷 변경').
+// `<userData>/mcp-connectors.json` and `<userData>/mcp-connectors-pending.json` (ARCHITECTURE §7 'MCP connectors').
 // Only TS reads and writes them, so, like preferences.json, their tests are their schema. Unlike preferences, an
 // unreadable connectors file is not read as defaults: the providers keep Doan's registrations, so an empty list
 // would drift from them (ARCHITECTURE §7 'MCP connectors'). Exact keys keep anything else from riding along.

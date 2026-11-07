@@ -14,7 +14,7 @@ import { connectorState, type CheckOutcome, type ConnectorView, type McpFacts } 
 import { codexMcpServers, parseClaudeMcpGet, parseClaudeMcpList, parseCodexMcpList, type ListedServer } from "./status";
 import type { ConnectorStore } from "./store";
 
-// Why an attempt failed, kept on its row until that row's next Connect, Retry or Cancel (spec 완료 조건 3).
+// Why an attempt failed, kept on its row until that row's next Connect, Retry or Cancel.
 // busy: the provider's sign-in or sign-out holds it. not_ready: the agent cannot run. pending_logout: the previous
 // account's logout still failed. no_link: Claude's BROWSER hook received no acceptable link (a Claude `browser`
 // setting). approval_timeout: the browser approval did not come in time. storage_failed: a plaintext token file.
@@ -66,7 +66,7 @@ const LIMITS = {
   // The hook link arrives about a second after the login starts (P4b); none this long after means the CLI will not
   // hand one over (a Claude `browser` setting overrides BROWSER).
   linkMs: 30_000,
-  // How long the browser approval may take after the link (spec 완료 조건 4); also Codex's hang guard.
+  // How long the browser approval may take after the link; also Codex's hang guard.
   approvalMs: 5 * 60_000,
 };
 const QUIT_WAIT_MS = 5000;
@@ -162,7 +162,7 @@ export class McpService implements McpConversationFacts {
   labels(): Record<string, string> { const read = this.options.store.connectors(); return connectorLabels(read.ok ? read.file.servers : []); }
 
   // Status commands use the network, so they run on entering the page, after an Add or an attempt, on Retry and when
-  // the provider's sign-in changes, never on a timer (design '상태 판정').
+  // the provider's sign-in changes, never on a timer (ARCHITECTURE §7 'MCP connectors').
   refresh(provider?: McpProvider): void {
     for (const each of provider ? [provider] : MCP_PROVIDERS) {
       if (this.closed || !this.options.readiness(each).ready) continue;
@@ -222,7 +222,7 @@ export class McpService implements McpConversationFacts {
     return { ok: true };
   }
 
-  // A cancelled Connect returns to its previous state without a failure (spec 완료 조건 4).
+  // A cancelled Connect returns to its previous state without a failure.
   cancel(provider: McpProvider, name: string): McpReply {
     const attempt = this.attempts.get(provider);
     if (!attempt || attempt.kind !== "connect" || attempt.name !== name) return { ok: false, reason: "stale" };
@@ -269,7 +269,7 @@ export class McpService implements McpConversationFacts {
     await Promise.allSettled(owners.map(owner => this.works.get(owner)));
   }
 
-  // Quit cancels every attempt and read, which then write nothing (design '프로세스 정리').
+  // Quit cancels every attempt and read, which then write nothing.
   async quit(): Promise<void> {
     this.closed = true;
     for (const attempt of new Set(this.attempts.values())) this.stop(attempt);
@@ -349,7 +349,7 @@ export class McpService implements McpConversationFacts {
 
   private async connectFlow(provider: McpProvider, server: ConnectorServer, attempt: Attempt): Promise<void> {
     try {
-      // Connect retries the previous account's logout first and connects only after it succeeded (spec 완료 조건 8).
+      // Connect retries the previous account's logout first and connects only after it succeeded.
       if (this.options.store.blocked(provider, server.name) && !await this.retryPending(provider, server.name, attempt, server.url)) throw new Failure("pending_logout");
       if (attempt.stopped) return;
       const hooked = provider === "claude" ? this.hookLinks(raw => this.linked(attempt, raw)) : null;
@@ -383,7 +383,7 @@ export class McpService implements McpConversationFacts {
     finally {
       clearTimeout(link); clearTimeout(approval); attempt.onLink = null;
       // After the login's group is gone, on every way out (success, failure, limit, cancel): Claude falls back to a
-      // plaintext file when the keychain fails, and none may stay behind (spec 완료 조건 5, BB review R3).
+      // plaintext file when the keychain fails, and none may stay behind.
       plaintext = this.scrubPlaintext(lease.profileDir);
     }
     if (attempt.stopped) return;
@@ -399,7 +399,7 @@ export class McpService implements McpConversationFacts {
 
   // `codex mcp add` starts the OAuth sign-in itself and opens the default browser; Doan opens nothing for Codex
   // (POSTMORTEM 2026-10-30 'Doan opened a second Codex sign-in page'). A registration left by a cancelled or failed
-  // first attempt signs in with `codex mcp login` (design '등록 정합').
+  // first attempt signs in with `codex mcp login` (ARCHITECTURE §7 'MCP connectors').
   private async codexConnect(attempt: Attempt, lease: Lease, server: ConnectorServer): Promise<void> {
     const listed = await this.codexList(attempt, lease);
     if (attempt.stopped) return;
@@ -485,8 +485,8 @@ export class McpService implements McpConversationFacts {
     return true;
   }
 
-  // Pending logouts first (app start retries them, design 'agentAuth'), then the doan- registrations neither a preset
-  // nor in the file (design '등록 정합' reconcile). Both quietly wait for the next ready moment on any failure.
+  // Pending logouts first (app start retries them), then the doan- registrations neither a preset
+  // nor in the file (ARCHITECTURE §7 'MCP connectors'). Both quietly wait for the next ready moment on any failure.
   private async prepare(provider: McpProvider, owner: Owner): Promise<void> {
     try { await this.retryPending(provider, null, owner); } catch (error) { console.error(`doan: ${provider} pending MCP logouts were not retried: ${message(error)}`); }
     if (owner.stopped || this.closed) return;

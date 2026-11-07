@@ -2,7 +2,7 @@ import type { PendingPermission, PermissionChoice } from "../conversation/types"
 import { serverLabel } from "./presets";
 
 // Codex asks before a tool without a read-only hint with mcpServer/elicitation/request, _meta.codex_approval_kind
-// "mcp_tool_call" (mcp-connectors design 'Codex MCP 도구 승인'). It becomes the conversation's permission request.
+// "mcp_tool_call" (ARCHITECTURE §7 'MCP connectors'). It becomes the conversation's permission request.
 // Any other elicitation (a form) has no screen yet and is declined, so the tool call fails and the turn goes on.
 export type CodexMcpApproval = { kind: "permission"; permission: PendingPermission } | { kind: "decline"; response: unknown };
 

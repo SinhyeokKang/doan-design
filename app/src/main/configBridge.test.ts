@@ -233,10 +233,10 @@ test("a request queued before Settings closed does not run after it", async () =
   expect(run).toHaveBeenCalledOnce();
 });
 
-// buzz-settings design 'Project Settings 다이얼로그': `config:session-start`/`config:session-end` (and a replaced main
+// `config:session-start`/`config:session-end` (and a replaced main
 // renderer) call clear(); whatever an earlier dialog asked for answers unavailable.
 describe("dialog session", () => {
-  test("다이얼로그를 닫은 뒤 늦게 온 읽기·선택 답은 버려진다", async () => {
+  test("a read or choose answer that arrives after the dialog closed is dropped", async () => {
     bridge.clear();
     const reading = deferred<CliRun>();
     run.mockReturnValueOnce(reading.promise);

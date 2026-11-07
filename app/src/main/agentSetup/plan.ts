@@ -2,7 +2,7 @@ import { posix } from "node:path";
 import { PROVIDERS, type Provider } from "../agentAuth/types";
 import type { Ineligible, SetupItem, SetupTarget } from "./notice";
 
-// What agent setup should look like on this machine (design '배치') and what to do about each target. Pure: the
+// What agent setup should look like on this machine and what to do about each target. Pure: the
 // runner reads the file system and writes; these only decide.
 
 export type Eligibility = "eligible" | Ineligible;

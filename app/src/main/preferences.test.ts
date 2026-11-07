@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { createPreferencesStore, DEFAULT_PREFERENCES, mergePreferences, parsePreferences, parsePreferencesPatch, type PreferencesFs } from "./preferences";
 
-// buzz-settings design '포맷 변경': `<userData>/preferences.json`, written and read by TS only, kept by these tests.
+// ARCHITECTURE §7 'Settings IPC': `<userData>/preferences.json`, written and read by TS only, kept by these tests.
 const FULL = { v: 1, notifications: { enabled: false, approval: true, finished: false, failed: true }, newConversation: { provider: "codex", model: "gpt-6", effort: "high" } };
 
 describe("parsePreferences", () => {

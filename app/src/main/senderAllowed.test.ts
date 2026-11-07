@@ -34,7 +34,7 @@ const mainOnly = [
 const setupAndAuth = ["setup:open-external", "setup:open-install",
   "agent-auth:read", "agent-auth:check", "agent-auth:sign-in", "agent-auth:cancel", "agent-auth:submit-code", "agent-auth:open-link", "agent-auth:sign-out",
   "config:read", "config:write", "config:choose"];
-// buzz-settings design '창 제거와 IPC': the Settings page's own requests, and the two events main sends it.
+// The Settings page's own requests, and the two events main sends it.
 const settingsPage = ["preferences:read", "preferences:write", "notifications:test", "notifications:open-settings", "about:read", "about:copy", "config:session-start", "config:session-end"];
 const settingsPageEvents = ["notifications:click", "settings-page:open"];
 test.each(mainOnly)("restricts %s to main", channel => {

@@ -5,7 +5,7 @@ import { OwnedGroup } from "../conversation/process";
 import { launchEnv } from "../launchEnv";
 import { findOnPath } from "./states";
 
-// The one git run onboarding makes: the clone the user approved (buzz-onboarding design 'GitHub 조회·clone 실행 계약').
+// The one git run onboarding makes: the clone the user approved.
 // Remotes are read from .git/config elsewhere; nothing here runs inside a repository that already exists.
 
 export interface CloneProcess {

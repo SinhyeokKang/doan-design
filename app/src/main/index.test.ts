@@ -885,7 +885,7 @@ describe("menus", () => {
     expect(menuEnabled("New Conversation")).toBe(false);
   });
 
-  // shell-panel-layout design §2.4 '단축키와 메뉴': View's first item hides and shows the sidebar; its name follows the
+  // View's first item hides and shows the sidebar; its name follows the
   // renderer's state, a page lock keeps it, a modal turns it off.
   test("View > Hide/Show Sidebar follows the validated sidebar state and tells the renderer", async () => {
     const contents = window().webContents;
@@ -1834,7 +1834,7 @@ test("canvas seen refuses foreign windows, subframes, unregistered roots and bad
   expect(await invoke("canvas:seen", contents, null, null)).toBe(false);
 });
 
-// buzz-add-projects: the page's own project instance, beside the onboarding session's (design 'main의 project 처리').
+// The page's own project instance, beside the onboarding session's.
 describe("Add Projects page session", () => {
   const PAGE = ["add-projects:read", "add-projects:inspect", "add-projects:select", "add-projects:clone", "add-projects:cancel"];
   const REFUSED = { v: 2, ok: false, error: { code: "bad_request", message: "Doan could not handle this request." } };
@@ -2117,7 +2117,7 @@ describe("settings page", () => {
   });
 
   describe("dialog session", () => {
-    test("다이얼로그를 닫은 뒤 늦게 온 읽기·선택 답은 버려진다", async () => {
+    test("a read or choose answer that arrives after the dialog closed is dropped", async () => {
       mocks.shell.entries.mockReturnValue([LIST]);
       const contents = window().webContents;
       await invoke("config:session-start", contents, null);
@@ -2130,7 +2130,7 @@ describe("settings page", () => {
       expect(await reading).toEqual({ kind: "unavailable" });
     });
 
-    test.each(["did-navigate", "render-process-gone"])("reload 뒤 대기 중인 config 읽기가 취소된다 (%s)", async event => {
+    test.each(["did-navigate", "render-process-gone"])("a config read pending across a reload is cancelled (%s)", async event => {
       mocks.shell.entries.mockReturnValue([LIST]);
       const contents = window().webContents;
       let finish!: (value: unknown) => void;
@@ -2277,7 +2277,7 @@ describe("agent setup on launch", () => {
     failed.catch(() => {});
     beforeAll(() => { launchSetup = HELD; });
     afterAll(() => { launchSetup = { home: "/Users/you", items: [], steps: [] }; });
-    // A crash must not read as "every agent was set up" (design 'About 알림').
+    // A crash must not read as "every agent was set up".
     test("the failure is logged and About answers with a crashed item, which Copy details names", async () => {
       const logged = vi.spyOn(console, "error").mockImplementation(() => {});
       mocks.runDesignSkill.mockResolvedValue(LISTED);

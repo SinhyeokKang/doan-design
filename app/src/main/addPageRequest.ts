@@ -2,7 +2,7 @@ import type { OnboardingRequest } from "../formats/types";
 import { parseGitHubUrl } from "./onboarding/repository";
 import { rendererRequest } from "./onboarding/service";
 
-// What the Add Projects page may ask main, one kind per channel (buzz-add-projects design 'main의 project 처리').
+// What the Add Projects page may ask main, one kind per channel.
 export type AddPageOp = "read" | "inspect" | "select" | "clone" | "cancel";
 // read without a session is the page's current state; the rest are the onboarding session's DTOs for these ops.
 export type AddPageRequest = { op: "read" } | Extract<OnboardingRequest, { op: "status" | "cancel" | "project_inspect" | "project_select" | "project_clone" }>;

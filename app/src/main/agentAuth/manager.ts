@@ -28,8 +28,8 @@ export type Started = { ok: true; attemptId: string; done: Promise<AuthState> } 
 // A check's own result once its write-back is done; "replaced": a sign-in or sign-out took its place before the result.
 export type CheckOutcome = "ok" | "replaced" | "network" | "check_failed" | "cli_install_failed" | "account_mismatch" | "storage_failed";
 export type CheckStarted = (Extract<Started, { ok: true }> & { outcome: Promise<CheckOutcome> }) | Extract<Started, { ok: false }>;
-// The MCP connector step of a sign-out or a committed replacement (mcp-connectors design 'sign-out·교체의 MCP 로그아웃
-// 경계'). agentAuth knows no connector file: the step decides from the provider's own list. run executes the provider
+// The MCP connector step of a sign-out or a committed replacement (ARCHITECTURE §7 'MCP connectors').
+// agentAuth knows no connector file: the step decides from the provider's own list. run executes the provider
 // CLI (with its base arguments) in the profile being left, the live one or a replaced one, and resolves after its
 // group is gone. staging: the new profile of a staged replacement (Codex), which takes the servers still valid.
 // profileDir: that profile's directory, whose own config names its servers when the provider's list cannot be read.

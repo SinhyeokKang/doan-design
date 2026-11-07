@@ -4,7 +4,7 @@ import { unlink, writeFile } from "node:fs/promises";
 import { validProvider, type Provider } from "./agentAuth/types";
 import { permissionModeId, type PermissionModeId } from "./conversation/permissionMode";
 
-// `<userData>/preferences.json` (buzz-settings design '포맷 변경'). Only TS writes and reads it, so, like ui-state,
+// `<userData>/preferences.json` (ARCHITECTURE §7 'Settings IPC'). Only TS writes and reads it, so, like ui-state,
 // its tests are its schema.
 
 export interface NotificationPreferences { enabled: boolean; approval: boolean; finished: boolean; failed: boolean }

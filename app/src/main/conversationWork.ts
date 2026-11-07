@@ -9,7 +9,7 @@ export interface LiveTurn { root: string; turnId: string; running: boolean }
 
 const FIELDS = ["conversationId", "root", "path", "frame", "note", "touched", "turnId"] as const;
 // The request names the conversation but no turn: a previous turn's update that arrives after the next turn was
-// accepted counts for the new turn (design §1 rule 5 '한계').
+// accepted counts for the new turn.
 export function applyConversationWork(state: readonly ConversationWork[], request: ConversationUpdate, live: ReadonlyMap<string, LiveTurn>, now: number): readonly ConversationWork[] {
   const turn = live.get(request.conversation);
   if (!turn?.running || turn.root !== request.root) return state;

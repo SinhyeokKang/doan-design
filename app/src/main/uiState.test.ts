@@ -285,7 +285,7 @@ describe("rightPanel", () => {
   });
 });
 
-// canvas-hand-tool design '기기 저장': only Hand is stored; a missing field is Select.
+// Only Hand is stored; a missing field is Select.
 describe("canvasTool", () => {
   test("keeps canvasTool hand through save and read", async () => {
     const path = file();

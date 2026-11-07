@@ -50,7 +50,7 @@ describe("applyConversationWork", () => {
     const between = applyConversationWork(state, update({ frame: "late" }), live({ c1: { root, turnId: "t1", running: false } }), 2);
     expect(between).toBe(state);
   });
-  // design §1 rule 5 '한계', accepted by the person: the request names no turn, so once the next turn is accepted the
+  // Accepted by the person: the request names no turn, so once the next turn is accepted the
   // previous turn's late update cannot be told apart and counts for the new turn.
   test("a previous turn's update arriving after the next turn was accepted counts for the new turn", () => {
     const state = endConversationWork(applyConversationWork(none, update({ frame: "a" }), live({ c1: running("t1") }), 1), "c1");

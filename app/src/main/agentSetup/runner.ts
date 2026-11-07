@@ -6,7 +6,7 @@ import { rcFileFor, type SetupItem, type SetupTarget } from "./notice";
 import { swapFile, swapLink, type SwapResult } from "./swap";
 import { classifyTarget, decide, installEligibility, mergeClaudeAllow, needsSystemLink, plannedTargets, record, writeFailure, type Observation, type Outcome, type PlannedTarget, type ProviderDir, type Step } from "./plan";
 
-// Agent setup's thin I/O shell (design '배치', '소유 판정'): reads each target right before deciding, writes only
+// Agent setup's thin I/O shell: reads each target right before deciding, writes only
 // Doan's own links and rule file plus its allow rules merged into ~/.claude/settings.json, and never creates a
 // provider folder.
 

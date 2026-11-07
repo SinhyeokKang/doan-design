@@ -522,7 +522,7 @@ function createWindow(): BrowserWindow {
   return window;
 }
 
-// The open-Settings command (buzz-settings design '들어가는 길'): a hidden window is shown first, then the renderer
+// The open-Settings command: a hidden window is shown first, then the renderer
 // moves to the page. Not while first run is open, like Settings….
 export function openSettingsPage(target: SettingsPageTarget = {}): boolean {
   const window = win;
@@ -730,7 +730,7 @@ async function start(): Promise<void> {
     handoff: request => conversations ? conversations.requestHandoff(request) : "not_app_conversation",
     async onboarding(request) {
       const service = await onboardingStarted;
-      // start keeps the session and its input (design '설치 직후 진입'); the window comes forward only when Doan is
+      // start keeps the session and its input; the window comes forward only when Doan is
       // already in front.
       if (request.op === "start" && win && !win.isDestroyed()) revealForStart(win);
       return service.answer(request);
@@ -753,7 +753,7 @@ async function start(): Promise<void> {
   try { await auth.load(); agentAuth = auth; } catch (error) { console.error("doan: agent sign-in storage is unreadable", error); }
   const executable = (path: string) => { try { accessSync(path, fsConstants.X_OK); return statSync(path).isFile(); } catch { return false; } };
   const shellForFacts = sharedShell(() => probeShell(process.env));
-  // Agent setup (zero-setup-agents design '언제, 어떤 복사본이 쓰는가'): once per launch, beside the window rather than
+  // Agent setup (ARCHITECTURE §7 'Agent setup'): once per launch, beside the window rather than
   // before it. About waits for this result, which stays pending while the administrator dialog is open; a run that
   // throws becomes a crashed item, so About never shows its failure as "every agent was set up".
   const agentSetup = shellForFacts().then(probe => runAgentSetup({
@@ -854,7 +854,7 @@ async function start(): Promise<void> {
   const realOrNull = (path: string) => { try { return realpathSync(path); } catch { return null; } };
   // The developer directory xcode-select would use, read without running it (see locateGit).
   const developerDir = () => { if (process.env.DEVELOPER_DIR) return process.env.DEVELOPER_DIR; try { return readlinkSync("/var/db/xcode_select_link"); } catch { return null; } };
-  // First run and the Add Projects page add projects with the same folder work and locks (design 'main의 project 처리').
+  // First run and the Add Projects page add projects with the same folder work and locks.
   const locks = projectLocks();
   const projectWork: AdderProjects = {
     folder: canonicalFolder, destination: path => cloneDestination(path, projectDeps),
