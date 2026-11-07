@@ -22,11 +22,11 @@
    - '재개와 중단' 표의 상태 중 하나에 해당하면 그 행의 행동으로 간다.
    - `docs/features/`에 완료됐는데 지우지 않은 feature 디렉터리가 없는지 보고만 한다(막지 않는다).
 2. **버전 올림**(D13): `app/package.json` `version`이 `<version>`과 다르면 `npm --prefix app version <version> --no-git-tag-version`(lock 포함)으로 바꾸고 `develop`에 `chore(release): <version>` 커밋을 push한다. 0.1.0 출시는 R1(rc.1, rc.2) 뒤라 올림 커밋이 생긴다.
-3. **릴리스 노트 초안**: 정식 버전이면 마지막 정식 태그 이후, rc면 마지막 태그 이후(없으면 처음부터) `develop`에 병합된 PR 제목을 Conventional Commit 타입별로 묶는다. PR 없이 `develop`에 들어간 커밋(D3)은 빠진다는 점을 함께 보인다. 사용자에게 보여 주고 고친 것을 받는다(승인 지점 1).
+3. **릴리스 노트 초안**: 정식 버전이면 마지막 정식 태그 이후, rc면 마지막 태그 이후(없으면 처음부터) `develop`에 병합된 PR 제목을 Conventional Commit 타입별로 묶는다. PR 없이 `develop`에 들어간 커밋(D3)은 빠진다. 노트는 사용자 승인 없이 스킬이 확정한다(사용자, 2026-11-08). 노트는 8단계 보고에 담는다.
 4. **`develop` → `main`**: `develop`에서 `main`으로 PR을 열고(`Release <version>`), 게이트가 통과하면 `gh pr merge --merge`로 병합 커밋을 만든다. 사용자가 `/release`를 부른 것이 이 병합의 허락이다(AGENTS.md 'Commit conventions'의 예외). G3c의 보호(PR 필수, 승인 0, 필수 검사)와 맞는다.
-5. **태그**: `git fetch` 뒤 `main`의 그 병합 커밋에 `git tag -a v<version> -m "Doan <version>"`을 만들어 push한다. 이 push가 릴리스 워크플로를 시작한다(D7). 환경 `release`의 승인을 사용자에게 요청한다(승인 지점 2, GitHub 화면). `gh run list --workflow release.yml --branch v<version>`으로 실행을 찾아 끝날 때까지 기다린다. 공증 대기 30분을 넘기면 실행 id를 보고하고 멈춘다.
+5. **태그**: `git fetch` 뒤 `main`의 그 병합 커밋에 `git tag -a v<version> -m "Doan <version>"`을 만들어 push한다. 이 push가 릴리스 워크플로를 시작한다(D7). 환경 `release`의 승인을 사용자에게 요청한다(승인 지점 1, GitHub 화면). `gh run list --workflow release.yml --branch v<version>`으로 실행을 찾아 끝날 때까지 기다린다. 공증 대기 30분을 넘기면 실행 id를 보고하고 멈춘다.
 6. **확인**: draft Release의 자산(dmg, zip, zip.blockmap, `latest-mac.yml`)을 받아 서명 검증 스크립트(release-ci 계약)로 dmg와 zip을 다시 검사하고, 태그 `v<version>`이 `main`의 병합 커밋을 가리키는지, rc면 draft가 prerelease인지 본다. draft를 태그로 찾지 못하면 `gh release list`의 release id로 찾는다.
-7. **게시**(D7): 검사 결과와 노트를 보여 주고 사용자의 게시 승인을 받은 뒤(승인 지점 3) `gh release edit v<version> --notes-file <노트> --draft=false`로 게시한다(rc는 prerelease 표시가 그대로다).
+7. **게시**(D7): 검사 결과를 보여 주고 사용자의 게시 승인을 받은 뒤(승인 지점 2) `gh release edit v<version> --notes-file <노트> --draft=false`로 게시한다(rc는 prerelease 표시가 그대로다).
 8. **보고**(한국어): 버전, 태그와 커밋, PR, 워크플로 실행, 자산과 검사 결과, 게시 URL, 하지 못한 것.
 
 ## hotfix 모드 (D1)
