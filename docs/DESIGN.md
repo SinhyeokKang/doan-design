@@ -98,7 +98,6 @@ A light, neutral system (Light only, below): black `prominent` actions and white
 
 - **Dimension label = tooltip capsule.** The canvas dimension label (`.dims`) is the same black prominent capsule as a tooltip.
 - **Below 3:1 on purpose.** The non-text 3:1 target applies to `border-prominent` and focus rings only. The decorative hairline (`border-standard` `#e8e8e8`, 1.23:1 on white) and fill-edged inputs (`surface-inset` `#f5f5f6`, 1.09:1 on white) follow the reference values.
-- **Subtle buttons on inset bands (interim).** `--affordance-subtle` and `--surface-inset` are both `--neutral-2`, so a subtle button on an inset band loses its resting fill and reads as plain text until hover. Affected: the status bands (`.ws-status`). Changing a band's surface is a screen-layout decision; `.ws-status` was assigned to `buzz-home`, which has shipped without changing it, so it has no owner now. A notice is not affected: its secondary button uses the `panel` variant.
 
 ### Shared components and surfaces
 
@@ -134,7 +133,6 @@ Further rules: an open disclosure (`aria-expanded` without `aria-haspopup`) is n
 - Only the Project Setup token path is one ellipsised line (`.value.token-path`); other field values wrap, because the wizard's Project value puts a name and a path in one value and must not hide either. The draft draws every value on one line.
 - `.meta` stays `nowrap` in a dialog action row.
 - `.doan-chip` uses the 12px/1.35/2px/6px values above instead of the inherited 13px top-bar or 14px draft sizing.
-- The subtle-button-on-inset-band pairing (Intended exceptions).
 
 **Context, not component.** Panel sizes (the panel is definition-only), the expanded dialog's height (the draft draws a 440px mock window), `min-height` of a draft `div` versus a native `<dialog>`, the scroll sample box, inherited type on text-less icon buttons and on the menu surface, Project Setup at 544px in the anatomy column versus 640px in the app, the toast at 298px in a narrow draft tile versus 384px, and every shared-element row whose width, card padding or `err` class comes from a real parent.
 
@@ -488,17 +486,25 @@ Reference: `.doan/canvases/buzz-add-projects.html`, 11 full-window frames at 123
 
 ## Projects home
 
-Reference: `.doan/canvases/buzz-project-settings.html`, the frames `workspace-status` (five strips: Missing, Not set up, Config error closed and open, CLI error), measured by `/design-sync` in the built app at 1238 × 780 beside the draft read in the app's canvas iframe, with the Project Settings page (see Project Settings page). Home itself has no project cards, checklist or banner (see Home); this section covers the project surfaces that remain: the removal confirmation and the workspace status line. Replaced: the Add Projects checklist (`.add-dialog`), its set-up confirmation and the window drop overlay are now the Add Projects page (see Add Projects page). Every strip was reached for real: a loaded workspace whose project then stopped listing (invalid `.doan/config.json`, `.doan/` removed, the folder removed, `doan ls` failing).
+Reference: `.doan/canvases/problem-project.html` (14 frames), measured by `/design-sync` in the built app at 1238 × 780 and 960 × 600 beside the draft read in the app's canvas iframe (script and table: `.scratch/design-sync/problem-project/`). Home itself has no project cards, checklist or banner (see Home); this section covers the project surfaces that remain: the removal confirmation, the problem overlay over a project's content and the sidebar row's problem icon. Replaced: the Add Projects checklist (`.add-dialog`), its set-up confirmation and the window drop overlay are now the Add Projects page (see Add Projects page). Every overlay state except the conversation strip's was reached for real in an isolated app: a loaded workspace whose `.doan/config.json` broke, whose `.doan/` was removed or whose folder was moved away, a `doan ls` that failed or was held (Retry busy, and reading past 300 ms), a canvas page whose project broke, and reduce transparency emulated through CDP.
 
 ### Measured contracts
 
 | Element | Measured contract | Reason |
 |---|---|---|
 | Removal confirmation | The same `doan-dialog` compact `alertdialog` as the 'Trash dialog' row ('Canvas row menu and export viewer'): Cancel subtle, Remove from Doan (or Stop and Remove) prominent, focus starting on Cancel. Not measured separately; seen in a real-app screenshot only | Reuses the existing dialog instead of a new component. |
-| Status line (`.ws-status`) | Padding 7px 12px; gap 10; 1px bottom divider (`--border-standard`) on `--surface-inset`; caption 12 type in `--text-subtle`; 47px high with the 32px buttons; the path in the message is a white code chip (4px corner, 0 / 4 padding) measured with it; actions in `.wt-actions` with a 10px gap, then Go Home (ghost) | Keeps recovery actions aligned with Go Home. |
-| Status pill (`.ob-chip`) | 20px, 0 / 8 padding, caption 12 / 16. Missing and CLI error: `warn` (rgb(255,247,194) with rgb(79,52,34) text); Config error: `err` (rgb(254,235,236), rgb(100,23,35)); Not set up: neutral (rgb(245,245,246), rgb(82,82,82)) | 'Status pill'. |
-| Strip actions | Missing: Locate, Remove from Doan; Not set up: Set Up, Remove from Doan; Config error: Show in Finder, Retry, Details ▸ (▾ open); CLI error: Retry, Remove from Doan; each strip ends with Go Home. All default-size buttons, 32px high (Show in Finder included) | |
-| Config error details | Expanded details sit below the status line in a separate `.ws-detail` surface: padding 8px 12px 10px, 1px bottom divider, the message an `.ob-msg` (14/20 danger ink, 16px icon, 6px gap). The nested action group centres its buttons | |
+| Problem overlay (`.workspace > .problem-overlay`) | Covers grid columns 2–3 of the content row (994 × 716 at 1238 × 780, 716 × 536 at 960 × 600), 8px left margin and 24px corners like the content panel; `color-mix(--surface-panel 60%, transparent)` with an 8px blur (`--blur-sm`); 24px block padding; z-index 5; scrolls vertically; body-sm 14 / 20. With reduce transparency, and always while reading, opaque `--surface-panel` with no blur. The header, sidebar and sidebar handle stay uncovered | Above the panel handles (4), under the toast (6) and portalled menus and tooltips (50); `.workspace` has no z-index, so these compare in the root stacking context. The scene's line takes the onboarding scene's body-sm type instead of the app body's 13px. |
+| Right column under the overlay | `.right-stack` and `.doan-conv-column` keep grid column 3 and the content row (`-2`; `-3 / -1` with the strip) | Placed by order alone, they were pushed into a new row under the sidebar while the overlay held their cell, shrinking the content row by 128px. |
+| Scene (`.problem-scene`) | Flex column, centred, max 560 wide with 24px inline padding; centred by auto margins while it fits, from the top when it does not | Every action stays reachable at the minimum window. |
+| Kind icon (`.problem-icon`) | 32 × 32, stroke 1.5, `--text-subtle`, 16px below. FolderX (Missing), FolderCog (Not set up), FileWarning (Config error), SquareTerminal (CLI error) | Screen constants: no icon token has 32 (`--size-control-sm` is a control size), and Lucide's 2 stroke in its 24 box would draw 2.67px at 32. |
+| Heading and line (`.ob-heading.problem-heading`) | Centred; heading 24 / 26.4, 500, −0.18px tracking (`--type-heading-*`, the Settings page title); line 12px below in `--text-subtle` 14 / 20 with the path or `.doan/config.json` as a code chip (`--surface-inset`, `--text-standard`, 0 / 4 padding, 4px corner); 24px below the heading block | |
+| Actions (`.problem-actions`) | sm buttons, 32 high, 8px gap, wrapping, centred. The first is prominent (black); Show in Finder subtle at rest on `--affordance-backdrop-hover` (rgba(0,0,0,.06)); the rest ghost. Missing: Locate, Remove from Doan; Not set up: Set Up, Remove from Doan; Config error: Retry, Show in Finder, Details ▸ (▾ open); CLI error: Retry, Remove from Doan | A subtle button on the glass keeps a visible rest fill, as on onboarding's overlay. |
+| Busy (recovery reading) | The scene stays; every action `aria-disabled` and focusable with the default cursor; the pressed prominent action keeps its fill and shows a 14px spinner (`currentColor`, 30% track); the others take `--text-disabled` (rgb(149,149,149)). Past 300 ms it does not turn into the reading panel | |
+| Details (`.problem-detail`) | Full scene width (512), 16px below the actions; 12 / 16 padding, 16px corner (`--radius-row`), `--surface-inset`, caption 12 / 16 in `--text-subtle`, `pre-wrap` with `overflow-wrap: anywhere` | Project Settings' details block. |
+| Reading (`.problem-reading`) | Shown only 300 ms after a read starts with no overlay before; a `role="status"` line, 16px spinner, 8px gap, body-sm 14 / 20 in `--text-subtle`, centred on the opaque panel | |
+| Focus | Entering the project focuses the heading (programmatic, no ring); Tab rings the actions with the shared 2px `--border-focus` outline at +2px | |
+| Sidebar problem icon (`.row-slot.problem`) | The kind's icon at 16 (the slot's svg size, stroke 2) in `--text-subtle`, `aria-hidden`; the row is described by the heading sentence (`aria-describedby`). Reading: the 14px spinner (`.row-slot.reading`), only after 300 ms, described as "Reading <name>". Problem and reading rows have no chevron, `aria-expanded` or group, and keep their thumbnail on hover | |
+| Sidebar icon tooltip | The shared tooltip with the heading sentence: black capsule, white caption 12 / 16, 4 / 8 padding, 12px corner | |
 
 ### Behaviour and copy
 
@@ -510,13 +516,17 @@ Reference: `.doan/canvases/buzz-project-settings.html`, the frames `workspace-st
 
 ### Documented differences from the draft
 
-- **Strip width and font.** The status line fills the workspace (1222px at this window; the draft's stage is 938px), so its flexible text and the end-aligned actions move by the 284px difference; its root and the detail wrapper inherit the app body's 13px / normal where the draft canvas body is 14 / 20 (every child sets its own size).
+- **Overlay placement values.** The overlay is placed with `grid-row: -2` (the draft: 2) so the strip rule (`-3 / -1`) shares the counting; the boxes measured equal. The draft keeps `align-items: center` from its first grid version; the scene's auto margins centre it either way.
+- **Sidebar board.** The draft's `sidebar-states` board stands alone 24px wider than the 220px shell column; each row's offsets from its right edge measured equal. Thumbnail hues follow the project name (`projectHue`) instead of the draft's hand-picked ones.
+- **Live region.** A polite live region (1px, clipped) is always mounted in the scene; the draft draws it only in the retrying frame.
+- **Tooltip wrapping.** The sidebar icon uses the shared tooltip, which wraps at its maximum width; the draft's static tooltip is `nowrap` only to stand beside the icon on the board.
+- **Details sample.** The draft's Details message is a sample; the app shows the CLI's message (for a broken config, "Cannot read config: <path>").
 
 ### Not verified and unpinned
 
-- Not verified: very long project/branch/canvas/selection values; minimum-window overflow; disabled problem entries in the worktree menu; long toast; absolute-time tooltip; hover and focus of the strip's buttons.
+- Not verified: the overlay with the conversation strip (`overlay-with-strip`; needs a live agent run: after a restart Home reads conversation lists only for listed roots); the sidebar rows where a permission request beats the problem icon or the problem icon beats working (both need a running agent); an overlay whose scene overflows (the draft's long frame fits at 960 × 600 in both); disabled problem entries in the worktree menu; long toast; absolute-time tooltip.
 - Known note: Locate into a non-list root can keep the previous missing-project message in the canvas area while the status line shows the new root state.
-- Unpinned: the toast's timer pause, native menu Undo, and the strip's measured values above.
+- Unpinned: the toast's timer pause and native menu Undo. The overlay's layer, placement, type and icon constants are pinned as CSS rules in `ProblemOverlay.test.tsx`; its measured boxes are not.
 
 ## Project Overview
 
