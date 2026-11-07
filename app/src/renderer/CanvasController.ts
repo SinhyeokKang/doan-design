@@ -158,6 +158,8 @@ export class CanvasController {
   private selectedRect: CanvasRect | null = null;
   private hoverRect: CanvasRect | null = null;
   private altHeld = false;
+  // The Escape a toolbar tooltip took, and whether anything after the tooltip handled it (toolbarEscape).
+  private tooltipEscape: { event: KeyboardEvent; handledAfter: boolean } | null = null;
   private markHidden = false;
   private reanchor: AnchorRequest | null = null;
   private marks: { hover: HTMLElement; selected: HTMLElement; size: HTMLElement } | null = null;
@@ -1228,20 +1230,27 @@ export class CanvasController {
     if (shortcut !== null) { if (this.shortcut(shortcut, false)) event.preventDefault(); return; }
     // A held Space's repeats keep its default (scrolling, pressing) off too.
     if (event.code === "Space" && event.repeat && this.spaceHeld) { event.preventDefault(); return; }
-    if (event.key !== "Escape" || event.isComposing || event.keyCode === 229 || event.defaultPrevented) return;
+    const tooltipOnly = this.tooltipEscape?.event === event && !this.tooltipEscape.handledAfter;
+    this.tooltipEscape = null;
+    if (event.key !== "Escape" || event.isComposing || event.keyCode === 229 || (event.defaultPrevented && !tooltipOnly)) return;
     // Esc while picking cancels only the pick, wherever focus is: the composer, the canvas or the panel. Menus and
     // the `/` list handle their Esc first and prevent it (design §2 'Esc and cancel').
     const step = this.escape(editableTarget(event.target));
     if (step === "cancelPick" || step === "cancelCapture" || step === "selectTool") event.preventDefault();
   };
 
-  // An open toolbar tooltip takes the Escape (Radix prevents it, so keydown skips it); its Escape takes the step the
-  // window's would, so one press closes the tooltip and ends capture or the pick (defect-sweep A2). The tooltip stays
-  // open on hover while focus is elsewhere, so the key keeps keydown's own rules: a composition is left alone and a
-  // text field keeps its Esc.
+  // An open toolbar tooltip takes the Escape at the document's capture phase and Radix prevents it right after this
+  // call, so keydown would skip it (defect-sweep A2). The step stays keydown's: this only marks the event, and keydown
+  // takes it as unhandled unless something after the tooltip (the composer's `/` list, a field) prevented it too, so one
+  // press closes the tooltip and takes the step the same Escape takes with no tooltip. Radix's own prevention is the
+  // first call it makes on the event; a later one is someone else's.
   toolbarEscape(event: KeyboardEvent): void {
-    if (!this.workspaceActive || event.isComposing || event.keyCode === 229) return;
-    this.escape(editableTarget(event.target));
+    if (event.defaultPrevented) return;
+    const mark = { event, handledAfter: false };
+    const prevent = event.preventDefault.bind(event);
+    let tooltip = true;
+    event.preventDefault = () => { if (tooltip) tooltip = false; else mark.handledAfter = true; prevent(); };
+    this.tooltipEscape = mark;
   }
 
   // Esc's next step (canvas-hand-tool design '키' 'Esc'); `editable`: it came from a text field. Returns the step.

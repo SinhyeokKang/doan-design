@@ -6,6 +6,8 @@ import { elementView, FIRST_LAYOUT_TIMEOUT_MS, FIT_INSET, fitFrame, fitWidth, sc
 import { unavailableCanvasMessage } from "./quickOpen";
 import { SELECTION_LOST } from "./selection";
 import { activityFor } from "./activity";
+import { CanvasTools } from "./CanvasTools";
+import { TooltipContent } from "./components/ui/tooltip";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -3680,47 +3682,74 @@ describe("capture", () => {
 
   // defect-sweep A2: an open toolbar tooltip takes the Escape (Radix prevents it), so the window keydown skips it; the
   // tooltip's Escape hands the same next step to the controller, as from a control that is not a text field.
-  it("the toolbar tooltip's Escape takes the step the window's Escape would: capture, then Hand, then the selection", () => {
-    const h = harness();
-    try {
-      // As the tooltip hands it on: already handled, from the focused toolbar button.
-      const tooltipEscape = (over: Record<string, unknown> = {}) => { const event = keyEvent("keydown", "Escape", { target: { tagName: "BUTTON", isContentEditable: false }, ...over }); event.preventDefault(); return event as unknown as KeyboardEvent; };
-      h.select(1);
-      h.controller.startCapture();
-      const handled = keyEvent("keydown", "Escape");
-      handled.preventDefault();
-      h.host.dispatchEvent(handled);
-      expect(h.state().capturing).toBe(true);
-      h.controller.toolbarEscape(tooltipEscape());
-      expect(h.state()).toMatchObject({ capturing: false, tool: "select" });
-      expect(h.state().selection).not.toBeNull();
-      press(h, "KeyH");
-      h.controller.toolbarEscape(tooltipEscape());
-      expect(h.state().tool).toBe("select");
-      h.select(1);
-      h.controller.toolbarEscape(tooltipEscape());
-      expect(h.state().selection).toBeNull();
-    } finally { h.controller.dispose(); }
+  // defect-sweep A2: one Escape with a toolbar tooltip open, along the whole path. Radix's DismissableLayer calls the
+  // tooltip content's onEscapeKeyDown at the document's capture phase and then prevents the event; the focused target
+  // has it next (the composer's `/` list closes on it and prevents it); the window's keydown comes last. The canvas
+  // must take the step the same Escape takes with no tooltip, and only that one step.
+  const BUTTON = { tagName: "BUTTON", isContentEditable: false }, FIELD = { tagName: "TEXTAREA", isContentEditable: false };
+  const walk = (node: unknown): { type: unknown; props: Record<string, unknown> }[] => {
+    if (Array.isArray(node)) return node.flatMap(walk);
+    if (!node || typeof node !== "object" || !("props" in node)) return [];
+    const element = node as { type: unknown; props: Record<string, unknown> };
+    return [element, ...walk(element.props.children)];
+  };
+  const escapeOnce = (h: H, { tooltip, target = BUTTON, targetCloses = false, over = {} }: { tooltip: boolean; target?: object; targetCloses?: boolean; over?: Record<string, unknown> }) => {
+    const event = keyEvent("keydown", "Escape", { target, ...over });
+    if (tooltip) {
+      const toolbar = CanvasTools({ tool: "select", picking: false, capturing: h.state().capturing, onTool: () => {}, picker: { enabled: true, reason: null, onToggle: () => {} },
+        capture: { enabled: true, reason: null, onToggle: () => {} }, exporter: { reason: null, onExport: () => {} }, onEscape: (escape: KeyboardEvent) => h.controller.toolbarEscape(escape) });
+      const content = walk(toolbar).find(element => element.type === TooltipContent)!;
+      (content.props.onEscapeKeyDown as ((event: Event) => void) | undefined)?.(event);
+      // Radix dismisses the tooltip.
+      if (!event.defaultPrevented) event.preventDefault();
+    }
+    if (targetCloses) event.preventDefault();
+    h.host.dispatchEvent(event);
+  };
+
+  it("with a toolbar tooltip open, one Escape ends capture mode as with no tooltip, and goes no further", () => {
+    for (const tooltip of [false, true]) {
+      const h = harness();
+      try {
+        h.select(1);
+        h.controller.startCapture();
+        escapeOnce(h, { tooltip });
+        // Capture ends; the selection is the next Escape's step, not this one's.
+        expect(h.state(), `tooltip ${tooltip}`).toMatchObject({ capturing: false, tool: "select" });
+        expect(h.state().selection, `tooltip ${tooltip}`).not.toBeNull();
+        escapeOnce(h, { tooltip });
+        expect(h.state().selection, `tooltip ${tooltip}`).toBeNull();
+        // Started from Hand: capture ends and Hand stays.
+        press(h, "KeyH");
+        h.controller.startCapture();
+        escapeOnce(h, { tooltip });
+        expect(h.state(), `tooltip ${tooltip}`).toMatchObject({ capturing: false, tool: "hand" });
+      } finally { h.controller.dispose(); }
+    }
   });
 
-  // The tooltip stays open on hover while focus is in a text field: its Escape keeps the field's rules.
-  it("the toolbar tooltip's Escape from a text field ends capture only, and a composing Escape does nothing", () => {
-    const h = harness();
-    try {
-      const fromField = (over: Record<string, unknown> = {}) => keyEvent("keydown", "Escape", { target: { tagName: "TEXTAREA", isContentEditable: false }, ...over }) as unknown as KeyboardEvent;
-      h.select(1);
-      h.controller.toolbarEscape(fromField());
-      expect(h.state().selection).not.toBeNull();
-      press(h, "KeyH");
-      h.controller.toolbarEscape(fromField());
-      expect(h.state().tool).toBe("hand");
-      h.controller.startCapture();
-      h.controller.toolbarEscape(fromField({ isComposing: true }));
-      h.controller.toolbarEscape(fromField({ keyCode: 229 }));
-      expect(h.state().capturing).toBe(true);
-      h.controller.toolbarEscape(fromField());
-      expect(h.state()).toMatchObject({ capturing: false, tool: "hand" });
-    } finally { h.controller.dispose(); }
+  it("with a toolbar tooltip open, an Escape from the composer takes the composer's rules: its `/` list keeps capture mode, a plain field ends it, a composition does nothing", () => {
+    for (const tooltip of [false, true]) {
+      const h = harness();
+      try {
+        h.select(1);
+        h.controller.startCapture();
+        // The `/` list closes on it, so capture mode stays, with or without the tooltip.
+        escapeOnce(h, { tooltip, target: FIELD, targetCloses: true });
+        expect(h.state().capturing, `tooltip ${tooltip}`).toBe(true);
+        escapeOnce(h, { tooltip, target: FIELD, over: { isComposing: true } });
+        escapeOnce(h, { tooltip, target: FIELD, over: { keyCode: 229 } });
+        expect(h.state().capturing, `tooltip ${tooltip}`).toBe(true);
+        escapeOnce(h, { tooltip, target: FIELD });
+        expect(h.state().capturing, `tooltip ${tooltip}`).toBe(false);
+        // Without capture, a field keeps its own Escape: the selection and Hand stay.
+        escapeOnce(h, { tooltip, target: FIELD });
+        expect(h.state().selection, `tooltip ${tooltip}`).not.toBeNull();
+        press(h, "KeyH");
+        escapeOnce(h, { tooltip, target: FIELD });
+        expect(h.state().tool, `tooltip ${tooltip}`).toBe("hand");
+      } finally { h.controller.dispose(); }
+    }
   });
 
   it("the toolbar's Select or Hand ends capture mode and switches to that tool", () => {
