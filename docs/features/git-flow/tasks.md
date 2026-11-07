@@ -4,8 +4,8 @@
 
 - [ ] T0. 부모 P0(problem-project-overlay PR이 `main`에 병합)과 C4(readme-features)가 끝났고, 다른 `/orchestrate`·체인이 진행 중이지 않은지 확인한다.
   - 검증: `git fetch origin` 뒤 `git ls-tree origin/main docs/features/problem-project-overlay docs/features/readme-features` 결과 없음, `git ls-tree origin/main docs/features | grep chain-` 결과 없음, `git worktree list`에 이 저장소의 진행 중 worktree가 없음. `gh pr list --state open --base main` 결과 없음(확인 명령 미정 — 사용자 확인 필요).
-- [ ] T1. (부모 G1) `main`을 최신으로 하고 `develop`을 만들어 push한다(사용자 승인). 바로 이어 사용자가 기본 브랜치를 `develop`으로 바꾸고 열린 PR의 대상을 옮긴다. 이 체크아웃에서 `git remote set-head origin --auto`를 하고 `develop`으로 옮긴다.
-  - 검증: `git ls-remote --heads origin develop`이 한 줄을 내고 그 SHA가 `git rev-parse origin/main`과 같다. `git symbolic-ref refs/remotes/origin/HEAD`가 `refs/remotes/origin/develop`. 기본 브랜치는 확인 명령 미정 — 사용자 확인 필요(`gh repo view --json defaultBranchRef`).
+- [ ] T1. (부모 G1) `main`을 최신으로 하고 `develop`을 만들어 push한다(사용자 승인). 이 체크아웃을 `develop`으로 옮긴다. 기본 브랜치는 `main`을 유지한다(D2).
+  - 검증: `git ls-remote --heads origin develop`이 한 줄을 내고 그 SHA가 `git rev-parse origin/main`과 같다. `git rev-parse --abbrev-ref HEAD`가 `develop`.
 - [ ] T2. AGENTS.md(75, 105, 106, 109–111, 131–134행)를 design.md '바꿀 줄'대로 고친다.
   - 검증: `git grep -n -w main AGENTS.md`의 결과가 design.md '허용 목록'의 AGENTS.md 줄뿐이다. `grep -n 'hotfix/' AGENTS.md`가 브랜치 목록에서 나온다. 현재 규칙 문서에 옛 기준이 없다: `git grep -n -E '\b(on|to|from|into) main\b' -- README.md docs ':!docs/features' ':!docs/POSTMORTEM.md' ':!docs/USABILITY-EVAL.md'` 결과 없음.
 

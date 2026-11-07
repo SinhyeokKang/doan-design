@@ -7,7 +7,7 @@
 ## 사용자
 
 - **에이전트**: `/ship`·`/orchestrate`·`/chain`·`/feature`·`/code-review`·`/design-draft`·`/design-sync`·`/tester-build`·`/audit`가 분기·PR 대상·병합 대상·빌드 원천으로 `develop`을 쓴다. `main`을 바꾸는 조작은 하지 않는다.
-- **메인테이너**: G1에서 기본 브랜치를 설정하고, 출시는 `/release`(release-skill)로만 한다.
+- **메인테이너**: 출시는 `/release`(release-skill)로만 한다.
 - **외부 기여자**: 직접 대상은 아니다. CONTRIBUTING(community-docs, 이 자식보다 먼저 `main`에 들어간다)이 이 규칙을 미리 적어 두었고, 이 자식이 끝나면 그 문장이 사실이 된다.
 
 ## 문제
@@ -19,7 +19,7 @@
 
 ## 완료 조건
 
-- `origin/develop`이 P0 병합과 C3·C4 뒤의 `main`에서 만들어져 있고, GitHub 기본 브랜치가 `develop`이며, 이 체크아웃의 `origin/HEAD`가 `origin/develop`을 가리킨다.
+- `origin/develop`이 P0 병합과 C3·C4 뒤의 `main`에서 만들어져 있다. GitHub 기본 브랜치는 `main`을 유지한다(D2).
 - AGENTS.md 'Commit conventions'가 사용자 결정 1·2와 D1·D3을 현재 규칙으로 적는다: 모든 코드·하네스·문서·체인 작업은 `develop`으로, `main`은 사용자가 부른 출시만 바꾼다. `main` 체크아웃에서는 커밋하지 않고 `develop`으로 바꾼다. `hotfix/*` 체크아웃에는 그 수정만 커밋한다. 브랜치 목록은 `main`, `develop`, `feat/*`·`fix/*`(와 `docs`·`chore`·`refactor`), `hotfix/*`다.
 - 부모 design.md '하네스 영향' 표의 줄이 모두 `develop` 기준으로 바뀌었다. `git grep -n -w main AGENTS.md .agents/skills`의 결과가 design.md '허용 목록'의 줄뿐이다.
 - Orca worktree를 만드는 문장(AGENTS.md:111, `.agents/skills/orchestrate/SKILL.md:31`, `.agents/skills/chain/SKILL.md:40`, `:49`)이 기준을 명시한다(`--base-branch feat/<slug>` 또는 `--base-branch origin/develop`).

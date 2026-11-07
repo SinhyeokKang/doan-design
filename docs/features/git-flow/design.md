@@ -1,6 +1,6 @@
 # git-flow — design
 
-규칙의 원천은 부모 [design.md](../release-0-1-0/design.md) '사용자 결정 (2026-11-07)' 1·2·3·5와 D1(hotfix 모드), D2(기본 브랜치 `develop`), D3(하네스·문서는 `develop`)다. hotfix 절차와 `/ship`의 hotfix 예외, AGENTS.md 'Workflow'의 `/release` 줄은 release-skill이 넣는다. 이 자식은 브랜치 목록과 "`main`은 사용자가 부른 출시만 바꾼다" 규칙만 적는다.
+규칙의 원천은 부모 [design.md](../release-0-1-0/design.md) '사용자 결정 (2026-11-07)' 1·2·3·5와 D1(hotfix 모드), D2(기본 브랜치는 `main` 유지), D3(하네스·문서는 `develop`)다. hotfix 절차와 `/ship`의 hotfix 예외, AGENTS.md 'Workflow'의 `/release` 줄은 release-skill이 넣는다. 이 자식은 브랜치 목록과 "`main`은 사용자가 부른 출시만 바꾼다" 규칙만 적는다.
 
 ## 영향 범위
 
@@ -15,7 +15,7 @@
 | 브랜치 | 나오는 곳 | 들어가는 곳 | 누가 |
 |---|---|---|---|
 | `main` | — | `/release`의 `develop` 병합, `/release` hotfix 모드의 `hotfix/<slug>` 병합 | 사용자가 `/release`를 부를 때만. 태그 `v<version>`도 `/release`가 단다(D7) |
-| `develop` | P0·C3·C4 뒤의 `main`(T1에서 한 번) | `<type>/<slug>` PR, 체인 링크 PR(링크 순서대로), 하네스·문서 직접 push | 기본 브랜치(D2) |
+| `develop` | P0·C3·C4 뒤의 `main`(T1에서 한 번) | `<type>/<slug>` PR, 체인 링크 PR(링크 순서대로), 하네스·문서 직접 push | 통합 브랜치. GitHub 기본 브랜치는 `main`(D2) |
 | `<type>/<slug>` (`feat`·`fix`·`docs`·`chore`·`refactor`) | `develop` | `develop` | `/ship`, `/orchestrate` |
 | `hotfix/<slug>` | 마지막 정식(rc가 아닌) 태그 | `main`, 이어서 `develop` | `/release hotfix <slug>`(D1). 수정은 그 브랜치에서 `/ship` |
 
@@ -60,11 +60,10 @@
 ## G1에 넘길 설정
 
 - T1: `git push origin main:develop`(P0·C4 뒤, 사용자 승인 아래 에이전트가 하거나 사용자가 한다).
-- T1 바로 뒤: Settings > General > Default branch를 `develop`으로(D2, 사용자). 그 뒤 이 체크아웃에서 `git remote set-head origin --auto`(로컬 `origin/HEAD`는 저절로 따라오지 않는다).
 - 열린 PR이 있으면 대상을 `develop`으로 바꾼다.
 
 ## 위험
 
-- 스킬을 먼저 바꾸고 `develop`이 없으면 `--base develop` PR이 없는 브랜치를 가리킨다. 순서는 T1(브랜치 생성과 기본 브랜치) → 스킬 커밋을 `develop`에 push다.
+- 스킬을 먼저 바꾸고 `develop`이 없으면 `--base develop` PR이 없는 브랜치를 가리킨다. 순서는 T1(브랜치 생성) → 스킬 커밋을 `develop`에 push다. 기본 브랜치가 `main`이므로 스킬의 `--base develop`과 `--base-branch origin/develop`은 생략할 수 없다(D2).
 - 바꾸는 커밋 자체가 하네스 변경이라, 바뀐 규칙에 따라 `develop`에 push한다. 이 커밋들은 `main`에 들어가지 않으므로 `main`에서 일하는 세션은 옛 규칙을 읽는다. T1 뒤 이 저장소의 체크아웃을 `develop`으로 옮긴다(`git switch develop`). 공개 뒤에는 G3c의 `main` 보호가 직접 push를 막는다.
 - 진행 중인 `/orchestrate`·체인이 있으면 그 통합 브랜치는 `main` 기준이다. 사용자 결정 3대로 P0을 기다리고, T0에서 다른 실행이 없는지도 확인한다.
