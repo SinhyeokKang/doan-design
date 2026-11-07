@@ -21,7 +21,7 @@ export function rememberFast(memory: HomeMemory | null, provider: Provider, on: 
 
 // Fast changed before the startup ui-state read landed, by provider (the last change counts), laid over the read map
 // one provider at a time. A whole-map merge would drop the read Fast of every other provider, and an off is a removal
-// a merge cannot carry (review R 🔴1, POSTMORTEM 2026-11-01).
+// a merge cannot carry (POSTMORTEM 2026-11-01).
 export function withFastChanges(fast: HomeMemory["fast"], changes: ReadonlyMap<Provider, boolean>): HomeMemory["fast"] {
   if (changes.size === 0) return fast;
   const next = { ...fast };

@@ -705,7 +705,6 @@ test("after Share, focus returns to Add File or Folder once the write has settle
   unmount();
 });
 
-// Fix round 1 (review RA1).
 test("a read in flight when the worktree turns into a config error leaves Retry usable", async () => {
   let answer: (value: unknown) => void = () => {};
   doan.readConfig!.mockImplementationOnce(() => new Promise(resolve => { answer = resolve; }));

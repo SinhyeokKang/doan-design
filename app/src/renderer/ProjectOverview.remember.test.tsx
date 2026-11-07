@@ -61,7 +61,7 @@ function render(list: ListView, patch: Partial<ProjectOverviewProps> = {}, setup
 }
 
 
-// code-review PM-B 🟡1: in an existing conversation a model pick alone does not remember the conversation's stored
+// In an existing conversation a model pick alone does not remember the conversation's stored
 // mode as the provider's last mode (Full access must only follow a pick of it); a mode pick does.
 test("a model pick in an existing conversation remembers no mode; a mode pick does", () => {
   const onRemember = vi.fn();

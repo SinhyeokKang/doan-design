@@ -205,7 +205,7 @@ test("fix 2: focus is recovered only when it was lost, never taken from where th
   expect(focusLost(node(true, false), node(false, false))).toBe("release");
 });
 
-// U2: the Project step.
+// The Project step.
 const on: ProjectScreenProps["on"] = new Proxy({} as ProjectScreenProps["on"], { get: () => noop });
 const base2: ProjectStepState = { phase: { kind: "choose" }, url: "", inspectedUrl: null, error: null, listChoice: null };
 const screen = (state: Partial<ProjectStepState>, props: Partial<ProjectScreenProps> = {}) => renderToStaticMarkup(<ProjectScreen state={{ ...base2, ...state }} busy={false} agentReady projects={[]} home="/Users/ada" urlValid={false} heading={noop} on={on} {...props} />);
@@ -225,7 +225,7 @@ test("U2 Choose your project: local folder card, divider, URL field and a disabl
 test("U2 Your projects lists registered projects with the sidebar thumbnail rule", () => {
   const html = screen({ listChoice: "/Users/ada/code/doan-design" }, { projects: ["/Users/ada/code/doan-design"] });
   expect(html).toContain('<div class="ob-field-label">Your projects</div>');
-  // D23 and the shared choice card: radio, thumbnail, then text; no check at the end.
+  // The shared choice card: radio, thumbnail, then text; no check at the end.
   expect(html).toContain('<div role="radiogroup" aria-label="Your projects" class="ob-choice-list"><label class="doan-panel ob-choice"><input type="radio" name="Your projects" checked=""/><span class="ob-radio" aria-hidden="true"></span><span class="shell-thumbnail onboarding-thumbnail hue-indigo" aria-hidden="true">D</span><span class="ob-choice-text"><strong>doan-design</strong><small>~/code/doan-design</small></span></label></div>');
   expect(html).not.toMatch(/ob-choice-list.*lucide-check/);
   expect(html).toContain('data-ui-size="sm">Use this folder</button>');
@@ -265,7 +265,7 @@ test("U2 an existing checkout: Already on your Mac, the chosen card and Use this
   expect(html).toMatch(/data-ui-variant="prominent" data-consent="">Use this folder<svg/);
 });
 
-test("D25: repositories inside a picked folder are radio cards; a URL never shows a checkout list or branch rows", () => {
+test("repositories inside a picked folder are radio cards; a URL never shows a checkout list or branch rows", () => {
   const html = screen({ phase: { kind: "candidates", inspectionId: "i", url: null, candidates: [{ path: "/a/s", changes: [] }, { path: "/b/t", changes: [] }], choice: "/b/t" } });
   expect(html.match(/type="radio"/g)).toHaveLength(2);
   expect(html).not.toContain("Choose a local folder for this repository.");
@@ -371,14 +371,14 @@ test("review 2: Cancel waits until main names the clone", () => {
   expect(screen({ phase: { kind: "cloning", ...clone, operationId: "o", cancelling: false } }, { busy: true })).toContain('data-ui-size="sm">Cancel</button>');
 });
 
-test("D20: a folder of another repository offers Edit repository URL and Choose another folder", () => {
+test("a folder of another repository offers Edit repository URL and Choose another folder", () => {
   const n = projectNotice("remote_mismatch", "x", null, true);
   expect([n.body, n.actions.map(a => `${a.variant}:${a.label}:${a.command}`)]).toEqual(["This folder belongs to a different repository.", ["subtle:Edit repository URL:edit", "prominent:Choose another folder:chooseExisting"]]);
   const plain = projectNotice("remote_mismatch", "x", null, false);
   expect(plain.actions.map(a => a.command)).toEqual(["chooseFolder"]);
 });
 
-test("D21: folder recoveries on a URL screen choose an existing folder of that repository", () => {
+test("folder recoveries on a URL screen choose an existing folder of that repository", () => {
   for (const code of ["project_unavailable", "path_unavailable", "init_failed", "config_invalid", "git_missing"] as const) {
     expect(projectNotice(code, "x", null, true).actions.filter(a => a.command === "chooseFolder")).toEqual([]);
     expect(projectNotice(code, "x", null, true).actions.some(a => a.command === "chooseExisting")).toBe(true);
@@ -394,7 +394,7 @@ test("V fix: a cancelled clone offers Edit repository URL under its Choose local
 });
 
 
-test("D23: a choice card keeps radio keys: Enter on the focused radio picks it", () => {
+test("a choice card keeps radio keys: Enter on the focused radio picks it", () => {
   const pick = vi.fn();
   const tree = ProjectChoice({ paths: ["/a/one", "/b/two"], choice: "/a/one", home: null, pick, name: "Local checkouts" }) as ReactElement<{ children: ReactElement<{ children: ReactElement<{ onKeyDown?: (e: unknown) => void; type?: string }>[] }>[] }>;
   const second = tree.props.children[1]!;
@@ -405,7 +405,7 @@ test("D23: a choice card keeps radio keys: Enter on the focused radio picks it",
   expect(event.preventDefault).toHaveBeenCalled();
 });
 
-test("D23: choice cards take the chosen card's box and show keyboard focus on the card", async () => {
+test("choice cards take the chosen card's box and show keyboard focus on the card", async () => {
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toMatch(/\.ob-chosen, \.ob-choice \{[^}]*min-height: var\(--size-row\);[^}]*padding: var\(--space-4\);/);
@@ -422,7 +422,7 @@ test("the choice card's radio is 16px, centred on the title's first line, and fi
   expect(css).toContain('.ob-choice:has(input:checked) .ob-radio::before { content: ""; width: var(--space-1h); height: var(--space-1h); border-radius: 50%; background: var(--text-on-prominent); }');
 });
 
-test("D24: buttons that write or consent are marked, so focus recovery skips them", () => {
+test("buttons that write or consent are marked, so focus recovery skips them", () => {
   const setup = screen({ phase: { kind: "setup", inspectionId: "i", url: null, path: "/p", changes: [".doan/config.json"] } });
   expect(setup).toMatch(/<button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="sm" data-consent="">Set up and continue<\/button>/);
   const clone = screen({ url: "https://github.com/acme/studio", phase: { kind: "clone", url: "https://github.com/acme/studio", inspectionId: "i", destination: "/Users/ada/code/studio" } });
@@ -435,7 +435,7 @@ test("D24: buttons that write or consent are marked, so focus recovery skips the
   expect(stop).not.toMatch(/data-consent="" autofocus|autofocus="" data-consent/);
 });
 
-test("D24: lost focus never lands on a consent button: it goes to the heading instead", () => {
+test("lost focus never lands on a consent button: it goes to the heading instead", () => {
   const node = (consent: boolean) => ({ matches: (selector: string) => selector === "[data-consent]" && consent });
   const plain = node(false);
   expect(recoveryControl(plain)).toBe(plain);
@@ -443,7 +443,7 @@ test("D24: lost focus never lands on a consent button: it goes to the heading in
   expect(recoveryControl(null)).toBeNull();
 });
 
-test("D24: an agent row's recovery skips Sign out, which signs out at once", async () => {
+test("an agent row's recovery skips Sign out, which signs out at once", async () => {
   const { authStatus } = await import("../main/agentAuth/state");
   const view = providerView(authStatus({ provider: "codex", generation: 1, verified: true, expired: true, phase: "reauthRequired", error: null, attempt: null,
     connection: { provider: "codex", connectionId: "c", profile: "codex", account: { id: "a", workspace: "w" } } }, { cli: "found", version: "supported", tools: "ready" }, 1));
@@ -476,7 +476,7 @@ test("UX: after Edit repository URL the URL field takes focus", () => {
   expect(projectFocusTarget(base2, true)).toBe("action");
 });
 
-test("D25 follow-up: a setup screen reached from a URL keeps the URL, Choose another folder and Edit repository URL", () => {
+test("a setup screen reached from a URL keeps the URL, Choose another folder and Edit repository URL", () => {
   const html = screen({ url: "https://github.com/acme/studio", phase: { kind: "setup", inspectionId: "i", url: "https://github.com/acme/studio", path: "/Users/ada/code/studio", changes: [".doan/config.json"] } });
   expect(html).toContain('<h2 tabindex="-1">Already on your Mac</h2>');
   expect(html).toMatch(/<input class="doan-input" id="ob-project-url"[^>]*readOnly=""[^>]*value="https:\/\/github.com\/acme\/studio"/);
@@ -497,7 +497,7 @@ test("spacing: a project notice keeps the step's 16px gap wherever it stacks, al
   expect(html).toMatch(/<div class="doan-panel ob-chosen">.*?<\/div><div class="doan-notice error ob-project-notice"/);
 });
 
-test("D28: a notice's recovery actions and the screen's own actions never repeat", () => {
+test("a notice's recovery actions and the screen's own actions never repeat", () => {
   const count = (html: string, label: string) => html.split(`>${label}</button>`).length - 1;
   const url = "https://github.com/acme/studio";
   const clone = { url, phase: { kind: "clone" as const, url, inspectionId: null, destination: "/Users/ada/code/studio" } };
@@ -541,7 +541,7 @@ test("D28: a notice's recovery actions and the screen's own actions never repeat
   expect(count(gone, "Choose another folder")).toBe(0);
 });
 
-test("D28: a mismatch names the chosen folder on both URL screens", () => {
+test("a mismatch names the chosen folder on both URL screens", () => {
   expect(projectNotice("remote_mismatch", "x", null, true, null, "/Users/ada/code/other").body).toBe("other belongs to a different repository.");
   expect(projectNotice("remote_mismatch", "x", null, true).body).toBe("This folder belongs to a different repository.");
   const url = "https://github.com/acme/studio";
@@ -551,14 +551,14 @@ test("D28: a mismatch names the chosen folder on both URL screens", () => {
   expect(found).toContain("other belongs to a different repository.");
 });
 
-test("D28: Cloning was cancelled is a status notice panel like the other states", () => {
+test("Cloning was cancelled is a status notice panel like the other states", () => {
   const url = "https://github.com/acme/studio";
   const cancelled = screen({ url, phase: { kind: "cloneCancelled", url, destination: "/Users/ada/code/studio" } });
   expect(cancelled).toMatch(/<div class="doan-notice doan-panel ob-project-notice" role="status" tabindex="-1"><svg[^>]*>.*?<\/svg><span>Cloning was cancelled\. Choose a folder or try again\.<\/span><\/div>/);
   expect(cancelled).not.toContain('<p class="ob-provider-help">Cloning was cancelled');
 });
 
-test("D29: a subtle button directly on the Agent/Project glass takes the step capsule's backdrop fill", async () => {
+test("a subtle button directly on the Agent/Project glass takes the step capsule's backdrop fill", async () => {
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   // --affordance-subtle is about the glass's own colour mid-window, so the fill vanished there (68 Cancel, 46 Choose
@@ -567,7 +567,7 @@ test("D29: a subtle button directly on the Agent/Project glass takes the step ca
 });
 
 // First run shares the page's improvements.
-test("U4: the steps scroll as one full-width surface around the 560px column, with the thin scroll bar", async () => {
+test("the steps scroll as one full-width surface around the 560px column, with the thin scroll bar", async () => {
   expect(renderToStaticMarkup(<SceneScroll><h2>Step</h2></SceneScroll>)).toBe('<div class="ob-scroll doan-scroll"><div class="ob-scene"><h2>Step</h2></div></div>');
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
@@ -579,7 +579,7 @@ test("U4: the steps scroll as one full-width surface around the 560px column, wi
   expect(css).toMatch(/\.ob-welcome-main \{ flex: 1;[^}]*justify-content: center;/);
 });
 
-test("U4: first run's cloning says why Back and the steps wait", () => {
+test("first run's cloning says why Back and the steps wait", () => {
   const clone = { url: "https://github.com/acme/studio", destination: "/Users/ada/code/studio" };
   const cloning = screen({ phase: { kind: "cloning", ...clone, operationId: "o", cancelling: false } }, { busy: true });
   expect(cloning).toMatch(/data-ui-size="sm">Cancel<\/button><\/div><p class="ob-fine">Stay on this page until the clone finishes, or cancel it\.<\/p><div class="ob-footer">/);

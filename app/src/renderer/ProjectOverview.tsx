@@ -75,7 +75,7 @@ export interface ProjectOverviewProps {
   onWorktree(root: string): void;
   // A promoted conversation's canvas, opened with that conversation in its panel.
   onOpenCanvas(canvas: Canvas, conversationId?: string): void;
-  // A chip in an agent's reply (agent-reply-chips): the host opens its canvas and moves to its target.
+  // A chip in an agent's reply: the host opens its canvas and moves to its target.
   onReplyChip?(link: ReplyAnchor): Promise<LocateOutcome | null>;
   onRetryList(): void;
   onStart(request: StartInput, last: LastRequest): Promise<StartOutcome>;

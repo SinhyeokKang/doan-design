@@ -110,7 +110,7 @@ function rowView(provider: McpProvider, server: McpServerDto, row: McpRowDto, bu
   if (view.status === "reconnect_needed" && !view.blocked) helper = `${agent} was connected to ${label} before, and that access has ended. Reconnect to use it again.`;
   if (view.blocked) helper = BLOCKED_LINE;
   // A failed Remove shows its own alert over an earlier Connect failure; while a Remove runs, an earlier failure's alert
-  // stays (it lasts until the row's next Connect, Retry or Cancel, spec 3) with its Retry disabled (BU review Y3).
+  // stays (it lasts until the row's next Connect, Retry or Cancel) with its Retry disabled.
   // A running attempt's own actions (Cancel, Open again) win over the Remove failure, which shows again once it ends.
   if (server.removeFailed && view.status !== "removing" && view.status !== "connecting") notice = alert(`Couldn’t remove ${label} from Doan’s agents. Try again.`, [button("remove", "Retry", "prominent", `Retry removing ${label} from ${BOTH}`)]);
   // A failed attempt keeps the row it returned to and puts the reason and Retry in place of the row's button.

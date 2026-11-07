@@ -58,7 +58,7 @@ describe("followDecision", () => {
     expect(followDecision({ ...base, rect: offscreen, stopped: true })).toEqual({ kind: "stay", followed: false });
   });
 
-  // R1: the first layout after a reload can report every frame as 0 × 0 at (0, 0) before the document is measured.
+  // The first layout after a reload can report every frame as 0 × 0 at (0, 0) before the document is measured.
   test("a zero-size rect is not a measurement: stay, uncounted, no retry", () => {
     expect(followDecision({ ...base, rect: { x: 0, y: 0, width: 0, height: 0 } })).toEqual({ kind: "stay", followed: false });
     expect(followDecision({ ...base, rect: { x: 0, y: 0, width: 0, height: 0 }, lastPersonMove: 10_000 - 1000 })).toEqual({ kind: "stay", followed: false });

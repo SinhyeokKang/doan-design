@@ -35,7 +35,7 @@ it("shows an unreadable canvas's sentence and Details under its row", () => {
   expect(html).toContain('aria-label="Details"');
 });
 
-// buzz-canvas-conversation: comment counts are no longer part of a canvas row's description.
+// Comment counts are no longer part of a canvas row's description.
 it("does not describe a canvas row by its open comments", () => {
   expect(render("/repo")).not.toContain("open comment");
 });
@@ -343,8 +343,7 @@ it("hands a removed canvas row's focus to the next row of its group, else the pr
   // A group left empty keeps its head.
   expect(recoveryKey(previous, without(d), d.key)).toBe(canvases.key);
   expect(recoveryKey(previous, without(a, b, c), b.key)).toBe(ds.key);
-  // Any other row keeps the earlier rule, the row now at its place: a project row, and a group head (RC2 ⚪5; tasks T6
-  // asks only for the canvas-row branches).
+  // Any other row keeps the earlier rule, the row now at its place: a project row, and a group head.
   const other = { key: "q" };
   expect(recoveryKey([project, other, ds], [project, ds], other.key)).toBe(ds.key);
   expect(recoveryKey([project, other], [project], other.key)).toBe(project.key);
@@ -368,7 +367,7 @@ it("judges an open canvas menu by its own row, so the project menu's rule never 
 it("shows a canvas row's button only under the pointer, with keyboard focus in the row or an open menu, in place of the status spot", async () => {
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
-  // RC2 🔴1: the idle button is hidden visually only. A display: none (or visibility: hidden) button cannot take the
+  // The idle button is hidden visually only. A display: none (or visibility: hidden) button cannot take the
   // focus Radix returns when its menu closes (Esc, Export…) or App when the Move to Trash dialog does: it fell to <body>.
   // A mouse click focuses the row (a treeitem), so :focus-within kept the button after the pointer left; only
   // focus-visible focus may show it (as the project row's chevron).
@@ -391,7 +390,7 @@ it("shows a canvas row's button only under the pointer, with keyboard focus in t
   expect(css).toContain(".shell-canvas-menu { width: 204px;");
 });
 
-// RC2 🟡1: a locked canvas button has the disabled ink and no hover or pressed fill (user-confirmed draft). The shared
+// A locked canvas button has the disabled ink and no hover or pressed fill (user-confirmed draft). The shared
 // button's hover rule weighs (0,4,0) and its pressed rule (0,5,0), so the reset must weigh more.
 it("gives a locked canvas row button no hover or pressed fill, outweighing the shared button rules", async () => {
   const { readFileSync } = await import("node:fs");

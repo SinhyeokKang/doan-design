@@ -7,7 +7,7 @@ import type { AuthStatusDto, Provider, Readiness } from "../main/agentAuth/types
 import type { McpSnapshot } from "../main/mcpConnectors/service";
 import type { McpProvider } from "../main/mcpConnectors/presets";
 
-// mcp-connectors task D2: Settings > MCP Connectors, driven with hooks as plain state so the component's own handlers
+// Settings > MCP Connectors, driven with hooks as plain state so the component's own handlers
 // and effects run (SettingsAgents.test.tsx style). The watch is the real one over a fake snapshot feed.
 const hooks = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],
@@ -326,7 +326,7 @@ const failing = (snapshot: McpSnapshot, provider: McpProvider, name: string, fai
 const live = () => all(tree).filter(element => element.props.className === "ob-live");
 const liveRoles = () => all(tree).filter(element => element.props.role === "status" || element.props.role === "alert" || element.props["aria-live"] !== undefined);
 
-// BU review Y1 (spec 2, conductor: the spec wins): the page live region is the only announcement channel.
+// The page live region is the only announcement channel.
 test("row notices, the running notice and the file notice keep their look but carry no live role", async () => {
   running.add("claude");
   feed(snap({ claude: { "doan-notion": "connecting" } }));
@@ -343,7 +343,7 @@ test("row notices, the running notice and the file notice keep their look but ca
   expect(liveRoles()).toEqual(live());
 });
 
-// BU review Y6: a repeated identical message changes the live region each time and is read once each time.
+// A repeated identical message changes the live region each time and is read once each time.
 test("two identical failures in a row each change the page live region once", async () => {
   await settle();
   feed(snap({ codex: { "doan-notion": "connecting" } }));
@@ -360,7 +360,7 @@ test("two identical failures in a row each change the page live region once", as
   for (const text of [first, second]) expect(text.replace(/​/g, "")).toBe("Codex couldn’t connect to Notion");
 });
 
-// BU review Y4: focus entered by keyboard is watched too; native and aria disabled are alike; focus moved away is kept.
+// Focus entered by keyboard is watched too; native and aria disabled are alike; focus moved away is kept.
 function focusable() {
   const state = { disabled: false, aria: false };
   const node = { state, isConnected: true, focus: vi.fn(), matches: (selector: string) => selector === ":disabled" && state.disabled, getAttribute: (name: string) => name === "aria-disabled" && state.aria ? "true" : null };
@@ -393,7 +393,6 @@ test("focus the person moved elsewhere is not taken back when the watched button
   expect(nodes.get('[data-mcp-row="codex:doan-notion"]')?.focus).toBeUndefined();
 });
 
-// review C1.
 test("a failure stays on its row when the page is opened again", async () => {
   feed(failing(snap(), "codex", "doan-notion", "approval_timeout"));
   await settle();
@@ -440,7 +439,7 @@ test("Escape on a server's menu closes only the menu", async () => {
   expect(event.preventDefault).not.toHaveBeenCalled();
 });
 
-// D3 /design-sync (custom-url, remove-alert): the dialogs' actions are default-size buttons (40px), as drawn.
+// /design-sync (custom-url, remove-alert): the dialogs' actions are default-size buttons (40px), as drawn.
 test("the URL dialog and the Remove alert use default-size actions", async () => {
   await settle();
   click(all(tree).find(element => element.props["data-mcp-add"] === ""));

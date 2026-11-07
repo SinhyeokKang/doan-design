@@ -81,7 +81,7 @@ beforeEach(() => {
   signIn.start();
   props = { signIn, arrival: null, onLock: vi.fn(), preferences: prefs(null), save: vi.fn(async () => null), project: { root: "/code/acme", name: "acme-web" } };
 });
-// review BU1 ⚪4: the Settings page shares the main window's preload, so nothing here may start or send a conversation.
+// The Settings page shares the main window's preload, so nothing here may start or send a conversation.
 afterEach(() => {
   expect(api.startConversation).not.toHaveBeenCalled();
   expect(api.sendConversation).not.toHaveBeenCalled();
@@ -143,7 +143,7 @@ test("a saved default whose agent is no longer signed in keeps its choice and sa
   expect(words(warning?.props.children)).toBe("Codex isn’t signed in, so Home starts with the agent you sent with last.");
 });
 
-// review BU1 ⚪1/⚪2: a fixed default that is connected but cannot run says why, and so does its Model row.
+// A fixed default that is connected but cannot run says why, and so does its Model row.
 test("a connected default that cannot run says the real cause, and Model says why it is off", async () => {
   auth = { revision: 1, providers: [dto("claude"), dto("codex", { facts: { version: "unsupported" } })] };
   await settle({ preferences: prefs({ provider: "codex" }) });
@@ -156,7 +156,7 @@ test("a connected default that cannot run says the real cause, and Model says wh
   expect(words(modelRow.props.children)).toContain("Codex can’t run right now, so its models can’t be listed.");
 });
 
-// review BU1 ❓2: Effort is offered with Model Default too, from the default model's efforts.
+// Effort is offered with Model Default too, from the default model's efforts.
 test("with Model Default, Effort lists the default model's efforts and saves without a model; a default without efforts hides it", async () => {
   await settle({ preferences: prefs({ provider: "claude" }) });
   await settle();
@@ -243,7 +243,7 @@ test("a new connection of the default agent reads its models again instead of ke
   expect(api.listConversationModels).toHaveBeenCalledTimes(2);
   expect(labelled("Model for new conversations")[0]?.props["aria-label"]).toBe("Model for new conversations: Default · GPT New");
 });
-// RV 🟡1: an ACP agent may list a real model whose id is "default". The top Default row must stay apart from it:
+// An ACP agent may list a real model whose id is "default". The top Default row must stay apart from it:
 // picking that model fixes it, the top row unfixes, and a stored value checks exactly one row.
 test("an ACP model whose id is default is fixed by its own row, never confused with the top Default row", async () => {
   auth = { revision: 1, providers: [dto("claude"), dto("copilot")] };
@@ -497,7 +497,7 @@ test("Settings: an update that ends in an unreadable version shows the version a
   expect(live()).toBeUndefined();
 });
 
-// model-drawer-older task 3 (spec 6): the Model menu folds older models under the same line; Default stays on top.
+// The Model menu folds older models under the same line; Default stays on top.
 const CODEX_OLDER = [
   { id: "gpt-6.1-sol", label: "GPT-6.1-Sol", default: true },
   { id: "gpt-6-sol", label: "GPT-6-Sol", default: false, older: true },

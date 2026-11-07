@@ -94,7 +94,7 @@ test("a promotion leaves the moved line with Open above the suggestions", () => 
     (run as unknown as { roots: Map<string, { current: unknown; moved: unknown }> }).roots.get(ROOT)!.current = { conversationId: null, listed: false };
     (run as unknown as { roots: Map<string, { moved: unknown }> }).roots.get(ROOT)!.moved = { conversationId: A, title: "Checkout copy", canvas: { path: ".doan/canvases/checkout.html", id: "checkout" } };
   });
-  // review DS r1: one line; only the title gives way, and the whole sentence stays in the text (and the tooltip).
+  // One line; only the title gives way, and the whole sentence stays in the text (and the tooltip).
   expect(html).toMatch(/<div class="doan-notice moved" role="status">.*<span class="grow-text moved-text" title="Checkout copy moved to checkout\."><span class="moved-title">Checkout copy<\/span><span class="moved-rest"> moved to checkout\.<\/span><\/span><button[^>]*>Open<\/button><\/div><div class="ov-suggestions"/);
 });
 
@@ -148,7 +148,7 @@ test("switching conversations draws each one's own draft and title at once", () 
   expect(second).not.toContain("for A");
 });
 
-// Review RM r1 🟡7: the chip's worktree rows behave as the sidebar's: a listed or reading worktree opens,
+// The chip's worktree rows behave as the sidebar's: a listed or reading worktree opens,
 // a problem one turns the menu to its repair actions.
 test("a problem worktree in the chip menu shows its repair actions instead of opening", () => {
   const missing = { kind: "notFound", path: "/code/gone" } as FolderEntry;
@@ -171,12 +171,12 @@ test("the Overview's surfaces take plain numerals, the open chip its pressed fil
   expect(css).toContain(".moved-text { display: flex; min-width: 0; white-space: nowrap; }");
   expect(css).toContain(".moved-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; }");
   expect(css).toContain(".moved-rest { flex: none; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }");
-  // The canvas panel's notices above its composer read the same (buzz-canvas-conversation).
+  // The canvas panel's notices above its composer read the same.
   expect(css).toContain(".conversation-thread .thread-notice > svg, .cp-scroll > .thread-notice > svg { width: var(--size-icon); height: var(--size-icon); }");
   expect(css).toMatch(/\.conversation-thread \.thread-notice \.strip-text span, \.cp-scroll > \.thread-notice \.strip-text span \{[^}]*overflow: visible; text-overflow: clip; \}/);
 });
 
-// runtime-test (buzz-project RT): at 960×600 the new-conversation placeholder wrapped to two lines in the empty capsule
+// runtime-test: at 960×600 the new-conversation placeholder wrapped to two lines in the empty capsule
 // (field 48px, docked 120px) and the first typed character dropped it to one (24/104). One line keeps both the same.
 test("the capsule's placeholder stays on one line and ends in an ellipsis", async () => {
   const { readFileSync } = await import("node:fs");

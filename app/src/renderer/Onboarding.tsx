@@ -152,7 +152,7 @@ export function firstUsable(view: ProviderView): AuthCommand | "notice" | null {
   return usable ? usable.command : view.notice ? "notice" : null;
 }
 interface FocusNode { isConnected: boolean; matches(selector: string): boolean }
-// D24: automatic focus never lands on a button that writes or consents (data-consent); the caller falls back to the
+// Automatic focus never lands on a button that writes or consents (data-consent); the caller falls back to the
 // heading. The user's own Tab still reaches it.
 export function recoveryControl<T extends Pick<FocusNode, "matches">>(first: T | null): T | null { return first && !first.matches("[data-consent]") ? first : null; }
 // active is null when focus fell to <body>. Focus the user moved elsewhere is theirs and is released.
@@ -244,7 +244,7 @@ export function ProjectThumbnail({ path }: { path: string }) {
 export function ChosenProject({ path, home }: { path: string; home: string | null }) {
   return <div className="doan-panel ob-chosen"><ProjectThumbnail path={path} /><div><strong>{nameOf(path)}</strong><p className="ob-path">{shown(path, home)}</p></div><Check aria-hidden="true" /></div>;
 }
-// D23 (2026-10-29 user): each choice is a card like the chosen project. A visible radio at the start shows the choice
+// Each choice is a card like the chosen project. A visible radio at the start shows the choice
 // (the shared choice card); the native radio under it keeps arrow keys and Space,
 // and Enter picks too.
 export function ProjectChoice({ paths, choice, home, pick, name }: {
@@ -278,7 +278,7 @@ export function projectNotice(error: ProjectError, message: string | undefined, 
     case "remote_mismatch": return { body: `${folder !== null ? nameOf(folder) : "This folder"} belongs to a different repository.`, actions: fromUrl
       ? [action("edit", "Edit repository URL", "subtle"), action("chooseExisting", "Choose another folder")] : [action("chooseFolder", "Choose another folder")] };
     case "project_unavailable": case "path_unavailable":
-      // D26 copy: the destination never existed, so "no longer available" would not explain it.
+      // Copy: the destination never existed, so "no longer available" would not explain it.
       if (insideProject !== null) return { body: `This location is inside the Doan project ${insideProject}. Choose a location outside it.`, actions: [action("changeLocation", "Change location")] };
       return { body: "This folder is no longer available. Choose it again or select another folder.", actions: [action(choose, "Choose folder")] };
     case "destination_exists": return { body: "A folder already exists at this destination. Choose another location or use the existing folder.", actions: [action("changeLocation", "Change location", "subtle"), action("useExisting", "Use existing folder")] };
@@ -472,7 +472,7 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
   const container = p.kind === "clone" && destination !== null ? projects.find(root => destination.startsWith(`${root.replace(/\/+$/, "")}/`)) ?? null : null;
   const code = projectNoticeCode(use, state, agentReady);
   const notice = code === null ? null : code === error?.code ? projectNotice(code, error.message, destination, fromUrl, container && nameOf(container), error.path ?? null) : projectNotice(code, undefined, null);
-  // D28: a notice's recovery actions and the screen's own never repeat; the notice keeps its copy. Use existing folder
+  // A notice's recovery actions and the screen's own never repeat; the notice keeps its copy. Use existing folder
   // already answers 'Already have this repository?'.
   const offered = new Set(notice?.actions.map(button => button.command) ?? []);
   const repeats = (command: ProjectAction) => offered.has(command) || (command === "chooseExisting" && offered.has("useExisting"));

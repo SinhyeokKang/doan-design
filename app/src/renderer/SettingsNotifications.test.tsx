@@ -66,7 +66,7 @@ beforeEach(() => {
   vi.stubGlobal("window", { doan });
   props = { preferences: snapshot(), save: vi.fn(async () => ({ ok: true as const, snapshot: snapshot() })) };
 });
-// review BU1 ⚪4: nothing on the Settings page may start or send a conversation.
+// Nothing on the Settings page may start or send a conversation.
 afterEach(() => { expect(doan.startConversation).not.toHaveBeenCalled(); expect(doan.sendConversation).not.toHaveBeenCalled(); });
 afterEach(() => vi.unstubAllGlobals());
 const render = (next: Partial<typeof props> = {}) => { props = { ...props, ...next }; return run(() => SettingsNotifications(props)); };

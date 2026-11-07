@@ -14,7 +14,7 @@ export interface McpConnectorsWatchDeps {
   openPage(): void;
 }
 
-// App's one reader of main's MCP connector snapshots (mcp-connectors task D2). Attempts outlive the page, so what
+// App's one reader of main's MCP connector snapshots. Attempts outlive the page, so what
 // follows them lives here: the latest snapshot, the page's announcements, a failure told by a toast while the page
 // isn't shown (spec 4) and the notice under the item changed while that agent runs a turn (spec 10).
 export class McpConnectorsWatch {

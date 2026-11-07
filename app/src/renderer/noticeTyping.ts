@@ -1,6 +1,6 @@
 // The working notice's erase-and-type change (draft frame notice-typing).
 
-// Tunable (tasks E2): per erased and per typed character, and the most one change may take.
+// Tunable: per erased and per typed character, and the most one change may take.
 export const ERASE_MS = 20;
 export const TYPE_MS = 35;
 export const TYPING_CAP_MS = 1000;

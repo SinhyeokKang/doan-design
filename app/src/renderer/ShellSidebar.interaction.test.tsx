@@ -492,7 +492,7 @@ it.each([
   const items = tree.items(), item = items[index]!, other = items[1 - index]!;
   // aria-disabled, not Radix `disabled`: a disabled item leaves the arrow order and its reason is never heard.
   expect(item).toMatchObject({ "aria-disabled": true, className: "doan-menu-item shell-menu-reasoned" });
-  // Its name is the label alone; the reason is read once, as its description (RC2 ⚪4).
+  // Its name is the label alone; the reason is read once, as its description.
   expect(item["aria-label"]).toBe(index === 0 ? "Export…" : "Move to Trash");
   expect(item.disabled).toBeUndefined();
   const line = tree.rendered().find(element => element.id === item["aria-describedby"])!;

@@ -79,7 +79,7 @@ test("the composer starts from the pick, then the fixed Settings default, then t
   expect(defaultPermission(all, undefined, undefined, null)).toBe("default");
 });
 
-// T1: switching the provider in a composer to one that cannot offer the picked mode reads as Default.
+// Switching the provider in a composer to one that cannot offer the picked mode reads as Default.
 test("a pick, default or remembered mode the provider cannot offer is Default", () => {
   const antigravity = ["default", "acceptEdits", "bypass"] as const;
   expect(defaultPermission(antigravity, "plan", undefined, null)).toBe("default");

@@ -5,7 +5,7 @@ import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import { authStatus } from "../main/agentAuth/state";
 import type { AuthState, Provider } from "../main/agentAuth/types";
 
-// The 2026-11-06 shape after main's pairing (A1): Claude Code's default row carries its model's name, the opus row is gone.
+// The 2026-11-06 shape after main's pairing: Claude Code's default row carries its model's name, the opus row is gone.
 const CLAUDE: ModelsState = { models: [
   { id: "default", label: "Opus 5.5", default: true, efforts: ["low", "medium", "high", "max"] },
   { id: "sonnet", label: "Sonnet 5.5", default: false, efforts: ["low", "high"] },
@@ -71,7 +71,7 @@ test("effort with nothing fixed reads Default and the level it stands for, or De
   expect(settingsEffortLabel(effort("claude", CLAUDE, "default", "max"))).toBe("Max");
 });
 
-// RV 🟡1: each row's menu value is its own, so an ACP model whose id is "default" never shares the top row's value.
+// Each row's menu value is its own, so an ACP model whose id is "default" never shares the top row's value.
 test("an ACP model whose id is default keeps its own row and value, apart from the top Default row", () => {
   const ACP: ModelsState = { models: [{ id: "default", label: "Auto", default: true }, { id: "gpt-5.6", label: "GPT-5.6", default: false }] };
   const values = (menu: ReturnType<typeof settingsModelMenu>) => menu.rows.map(row => row.value);
@@ -95,7 +95,7 @@ test("an ACP model whose id is default keeps its own row and value, apart from t
   expect(claude.rows.some(row => row.kind === "model" && row.id === "default")).toBe(false);
 });
 
-// model-drawer-older: the Settings Model menu folds the same way; its Default row never folds.
+// The Settings Model menu folds the same way; its Default row never folds.
 const CODEX_OLDER: ModelsState = { models: [
   { id: "gpt-6.1-sol", label: "GPT-6.1-Sol", default: true },
   { id: "gpt-6-sol", label: "GPT-6-Sol", default: false, older: true },

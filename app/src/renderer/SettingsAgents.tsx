@@ -217,7 +217,7 @@ function NewConversations({ auth, preferences, save, project }: Pick<SettingsAge
   const permission = provider ? permissionPickerView(provider, listState, readPermissionMode(pref?.permissionMode)) : null;
   const keepMode = pref?.permissionMode ? { permissionMode: pref.permissionMode } : {};
 
-  // folded: the Model menu, whose older models fold under a line (model-drawer-older).
+  // folded: the Model menu, whose older models fold under a line.
   const trigger = (label: string, aria: string, content: ReactNode, disabled: boolean, menu: ReactNode, folded?: typeof fold) => <DropdownMenu.Root {...(folded ? { onOpenChange: folded.onOpenChange } : {})}>
     <DropdownMenu.Trigger asChild disabled={disabled}><button type="button" className="doan-button settings-select" data-ui-variant="trigger" data-ui-size="sm" aria-label={`${aria}: ${label}`} disabled={disabled}>
       {content}<ChevronDown className="chev" aria-hidden="true" /></button></DropdownMenu.Trigger>

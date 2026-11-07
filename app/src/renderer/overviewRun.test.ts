@@ -153,7 +153,7 @@ test("a requested canvas conversation opens its canvas instead of the main threa
   expect(h.run.view(ROOT)).toEqual({ kind: "conversation", conversationId: A });
 });
 
-// Review RM r1 🟡6: reopening an Overview applies the pick again; only the drafts by root stay.
+// Reopening an Overview applies the pick again; only the drafts by root stay.
 test("reopening an Overview picks again, and each root keeps its new-conversation draft", () => {
   const h = harness();
   h.run.show(ROOT);
@@ -191,7 +191,7 @@ test("an entry request made while the root was hidden is what its reopened Overv
   expect(h.run.view(ROOT)).toEqual({ kind: "conversation", conversationId: B });
 });
 
-// Review RM r1 🟡1: a start or send reply that lands after the person chose something else changes neither.
+// A start or send reply that lands after the person chose something else changes neither.
 test("a late start reply does not replace a newer pick, whichever of the list and the reply comes first", () => {
   for (const listFirst of [true, false]) {
     const h = harness();
@@ -228,7 +228,7 @@ test("a late send reply does not bring back a conversation the person left for N
   expect(h.state.remembered).toEqual({ [ROOT]: B });
 });
 
-// Review RM r1 🟡2: queued messages main handed back come into the open conversation's draft without a switch.
+// Queued messages main handed back come into the open conversation's draft without a switch.
 test("a returned queue is taken into the open conversation's draft once, after what the person typed", async () => {
   const h = harness();
   histories.set(A, ended(A));
@@ -248,7 +248,7 @@ test("a returned queue is taken into the open conversation's draft once, after w
   expect(doan.takeConversationDraft).toHaveBeenCalledTimes(1);
 });
 
-// Review RM r1 🟡3: attachment results follow their chip, wherever the draft went.
+// Attachment results follow their chip, wherever the draft went.
 test("an attachment checked during a promotion lands in the moved draft, and a removed chip's file is released", async () => {
   const h = harness();
   doan.removeAttachment = vi.fn(async () => true);
@@ -274,7 +274,7 @@ test("an attachment checked during a promotion lands in the moved draft, and a r
   expect(h.run.drafts.get(`root:${ROOT}`)?.attachments.map(a => a.key)).toEqual(["k1"]);
 });
 
-// Review RM r1 🟡4: Edit and resend restores the last request only into an unchanged draft, and focuses only there.
+// Edit and resend restores the last request only into an unchanged draft, and focuses only there.
 test("Edit and resend restores the request unless the draft changed or the person moved on meanwhile", async () => {
   const h = harness();
   const message = event(A, { type: "user.message", text: "Draw it", anchors: [], attachments: [{ name: "a.png", size: 1, kind: "image", path: "/tmp/a.png" }] });
@@ -308,7 +308,7 @@ test("Edit and resend restores the request unless the draft changed or the perso
   expect(textOf(h.run.drafts.get(`conversation:${A}`))).toBe("Draw it");
 });
 
-// Review RM r1 🟡8: an entry for the conversation already open scrolls again; the request waits for its item.
+// An entry for the conversation already open scrolls again; the request waits for its item.
 test("each entry request scrolls anew, and the scroll waits until the permission item is drawn", () => {
   const h = harness();
   h.run.show(ROOT);
@@ -587,7 +587,7 @@ test("a removed root takes its state and drafts with it", () => {
   expect(h.run.drafts.has(`root:${ROOT}`)).toBe(false);
 });
 
-// Review RM r2 🟡1: an entry request still waiting for the list is a newer choice than a start or send sent before it.
+// An entry request still waiting for the list is a newer choice than a start or send sent before it.
 test("a late start or send reply does not cancel an entry request still waiting for the list, in either order", () => {
   for (const replyFirst of [true, false]) {
     const h = harness();
@@ -610,7 +610,7 @@ test("a late start or send reply does not cancel an entry request still waiting 
   expect(h.state.remembered).toEqual({ [ROOT]: C });
 });
 
-// Review RM r2 🟡3: what the list did while the Overview was away is no choice; reopening picks again.
+// What the list did while the Overview was away is no choice; reopening picks again.
 test("reopening after the shown conversation left the list while away picks the latest project conversation", () => {
   const h = harness();
   h.run.show(ROOT);
@@ -624,7 +624,7 @@ test("reopening after the shown conversation left the list while away picks the 
   expect(textOf(h.run.drafts.get(`root:${ROOT}`))).toBe("kept");
 });
 
-// Review RM r2 ⚪1: a discarded Edit and resend restore gives back the files it was issued.
+// A discarded Edit and resend restore gives back the files it was issued.
 test("an Edit and resend restore dropped for newer typing releases its issued attachments", async () => {
   const h = harness();
   doan.removeAttachment = vi.fn(async () => true);
@@ -808,7 +808,7 @@ test("a returned draft whose take was in flight is not put back after the delete
   expect(h.run.drafts.has(`conversation:${A}`)).toBe(false);
 });
 
-// Review RB ⚪1: until the list is read again, a pick from the list read before the delete must not choose it.
+// Until the list is read again, a pick from the list read before the delete must not choose it.
 test("leaving and returning before the next list read does not pick or remember the deleted conversation", () => {
   const h = deleteShown();
   confirmDelete(h, A);
@@ -818,7 +818,7 @@ test("leaving and returning before the next list read does not pick or remember 
   expect(h.state.remembered).toEqual({ [ROOT]: B });
 });
 
-// Review RB ⚪2: an Edit and resend that resolves after the delete does not put a draft back.
+// An Edit and resend that resolves after the delete does not put a draft back.
 test("an Edit and resend that resolves after the delete restores nothing and releases its files", async () => {
   const h = harness();
   const message = event(A, { type: "user.message", text: "Draw it", anchors: [], attachments: [{ name: "a.png", size: 1, kind: "image", path: "/tmp/a.png" }] });

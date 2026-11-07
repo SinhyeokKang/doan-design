@@ -16,18 +16,18 @@ const NODE = new Set(builtinModules.flatMap(name => [name, `node:${name}`]));
 // added now cannot wait for that screen to fail (POSTMORTEM 2026-10-30; buzz-project places the thread and the
 // docked composer).
 const EXTRA_ROOTS = [
-  // project-skill-drawer: fixed request lines are shared by main and renderer by value.
+  // Fixed request lines are shared by main and renderer by value.
   join(SRC, "main/conversation/requestLines.ts"),
   join(SRC, "renderer/ConversationThread.tsx"), join(SRC, "renderer/DockedComposer.tsx"),
-  // buzz-canvas-conversation: the chip field and the picker, which import the shared limits.
+  // The chip field and the picker, which import the shared limits.
   join(SRC, "renderer/anchorField.ts"), join(SRC, "renderer/canvasPicker.ts"),
-  // permission-mode: the common mode ids and rules the picker imports by value.
+  // The common mode ids and rules the picker imports by value.
   join(SRC, "main/conversation/permissionMode.ts"),
-  // queue-send-now: the provider table and the Send now rule the composer imports by value.
+  // The provider table and the Send now rule the composer imports by value.
   join(SRC, "main/conversation/steerSupport.ts"),
-  // mcp-connectors: the presets and connector types MCP Connectors settings will import by value.
+  // The presets and connector types MCP Connectors settings will import by value.
   join(SRC, "main/mcpConnectors/presets.ts"),
-  // agent-questions: the question types and limits and the shared answer check the question card imports by value.
+  // The question types and limits and the shared answer check the question card imports by value.
   join(SRC, "main/conversation/question.ts"), join(SRC, "main/conversation/questionAnswer.ts"),
   // Agent usage: the ring value, usage text and description the usage button imports by value.
   join(SRC, "renderer/agentUsage.ts"),

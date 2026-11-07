@@ -136,7 +136,7 @@ test("a pick that leaves the effort alone keeps a fixed effort; a picked effort 
   expect(preferenceAfterPick({ provider: "codex", model: "gpt-5.6-terra", effort: "xhigh" }, { provider: "codex", model: "gpt-5.6-terra", effort: "low", effortPicked: true })).toEqual({ provider: "codex", model: "gpt-5.6-terra", effort: "low" });
 });
 
-// RV2 🟡2: the model's and the level's provenance apply apart. Re-picking the fixed model keeps its fixed level unless a
+// The model's and the level's provenance apply apart. Re-picking the fixed model keeps its fixed level unless a
 // level was picked; a newly picked model takes no level that was only shown.
 test("a model pick keeps the fixed level unless a level was picked, and carries no shown level to another model", () => {
   const terra = { provider: "codex" as const, model: "gpt-5.6-terra", effort: "xhigh" };

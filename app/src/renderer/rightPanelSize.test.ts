@@ -2,7 +2,7 @@ import { expect, test } from "vitest";
 import { canvasPanelDefault, nudgePanel, OVERVIEW_PANEL_DEFAULT, panelBounds, panelWidth } from "./rightPanelSize";
 
 // The shell column is the window minus the sidebar (220) and the shell's side margins; 960 → 716 is what
-// leaves design buzz-canvas §2's max of 356 there. Wider windows are never limited by it.
+// leaves the max of 356 there. Wider windows are never limited by it.
 const W960 = { window: 960, shell: 716 };
 const W1238 = { window: 1238, shell: 994 };
 const W1440 = { window: 1440, shell: 1196 };

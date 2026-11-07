@@ -76,7 +76,7 @@ test("on a shown conversation the button moves to a new conversation and focuses
   expect(focused.calls).toEqual([FIELD]);
 });
 
-// N1 (conversation-delete orch decisions 1–2): on the new conversation state the button is unavailable and does nothing.
+// On the new conversation state the button is unavailable and does nothing.
 test("on the new conversation state the button does nothing, also while the list is read", async () => {
   for (const list of [[summary], "loading"] as ListView[]) {
     const { run, press } = setup(list, null);
