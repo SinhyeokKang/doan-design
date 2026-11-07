@@ -2,7 +2,7 @@ import { afterEach, expect, test, vi } from "vitest";
 import { copyText } from "./copyText";
 
 // main denies every permission check, so the thread's Copy writes through the document's own
-// copy command. no element takes focus or selection for it, so the person's field (an IME
+// copy command. No element takes focus or selection for it, so the person's field (an IME
 // composition may be in it) is never blurred; the copy event's clipboard data carries the text instead.
 
 type Listener = (event: { clipboardData: { setData(type: string, value: string): void } | null; preventDefault(): void }) => void;
