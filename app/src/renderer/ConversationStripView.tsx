@@ -33,9 +33,12 @@ export function ConversationStrip({ conversationId, provider, state, view, onEdi
     if (!stop.current && focusAfterStop(view.actions) === "dismiss" && (!active || active === document.body)) dismiss.current?.focus();
   });
   const [sendError, setSendError] = useState<StripSendError | null>(null);
+  // Only the latest press's reply speaks: an earlier one's late refusal must not bring the line back.
+  const lastSend = useRef(0);
   const send = (requestId: string, how: StripSendError["how"], call: () => Promise<void | { error: string }>) => {
+    const n = ++lastSend.current;
     setSendError(null);
-    void answerRefusal(call).then(refusal => { if (stripSendFailed(how, refusal)) setSendError({ requestId, how }); });
+    void answerRefusal(call).then(refusal => { if (n === lastSend.current && stripSendFailed(how, refusal)) setSendError({ requestId, how }); });
   };
   const errorText = stripErrorText(sendError, state);
   const run = (action: StripAction) => {

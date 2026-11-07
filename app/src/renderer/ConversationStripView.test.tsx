@@ -225,4 +225,12 @@ test("a refused Skip or permission answer shows its error line until the next pr
   expect(line(QUESTION)).toBeNull();
   press(QUESTION, "Skip"); await flush();
   expect(line({ kind: "done" })).toBeNull();
+  // A slow refusal of an earlier press does not bring the line back after a newer press went through.
+  let late: (reply: { error: string }) => void = () => {};
+  answer.mockImplementationOnce(() => new Promise(resolve => { late = resolve; }));
+  press(ASK, "Allow");
+  answer.mockImplementationOnce(async () => {});
+  press(ASK, "Deny"); await flush();
+  late({ error: "unknown" }); await flush();
+  expect(line(ASK)).toBeNull();
 });
