@@ -40,7 +40,7 @@ main이 메인 창의 `context-menu` 이벤트를 받아 native 메뉴(`Menu.pop
 - 등록: `createWindow`에서 메인 창의 `webContents`에만 등록한다. thumbnail 창(`thumbnailWindow.ts`)에는 등록하지 않는다.
 - main frame 판정: 이벤트 때 `params.frame`을 읽고, `params.frame !== null && params.frame.parent === null`이면 main frame이다. `canvasFrame.ts`의 `isTopFrame`을 export해 쓴다. `window.webContents.mainFrame`과 같은 객체인지는 비교하지 않는다. 캔버스는 cross-site OOPIF라 `parent`가 있다.
 - template 변환:
-  - 편집 항목(cut, copy, paste, selectAll) → `{ label, enabled, click }`. role 항목이 아니라 click 항목이다. click은 아래 '필드 확인'을 통과한 뒤 `contents.cut()`·`copy()`·`paste()`·`selectAll()`을 부른다. 이 method는 Edit 메뉴 role과 같은 Chromium 편집 명령을 실행하므로, 메뉴 Paste와 ⌘V가 같은 DOM `paste` 이벤트를 일으킨다(T4에서 확인한다). `enabled`는 `editFlags`를 그대로 옮기고, 화면에도 그대로 보인다. label은 macOS 메뉴와 같은 `Cut`, `Copy`, `Paste`, `Select All`이다.
+  - 편집 항목(cut, copy, paste, selectAll) → `{ label, enabled, click }`. role 항목이 아니라 click 항목이다. click은 아래 '필드 확인'을 통과한 뒤 `contents.cut()`·`copy()`·`paste()`·`selectAll()`을 부른다. 이 method는 Edit 메뉴 role과 같은 Chromium 편집 명령을 실행하므로, 메뉴 Paste와 ⌘V가 같은 DOM `paste` 이벤트를 일으킨다(T4에서 확인한다). `enabled`는 `editFlags`를 그대로 옮기고, 화면에도 그대로 보인다. label은 macOS 메뉴와 같은 `Cut`, `Copy`, `Paste`, `Select All`이다. 단축키 표시를 위해 `accelerator`(`CmdOrCtrl+X`·`C`·`V`·`A`)를 넣는다. role 항목에 macOS가 붙이던 아이콘은 click 항목에는 붙지 않는다(T4 관찰). 그래서 아이콘 없이 둔다.
   - `suggestion` → `{ label: word, click }`. 필드 확인 뒤 `contents.replaceMisspelling(word)`.
   - `lookUp` → `{ label, click: () => contents.showDefinitionForSelection() }`.
   - `separator` → `{ type: "separator" }`.
@@ -61,7 +61,7 @@ main이 메인 창의 `context-menu` 이벤트를 받아 native 메뉴(`Menu.pop
   - `body { user-select: none; }` — 사이드바, 헤더, 제목, 버튼, Settings·첫 실행·Add Projects 안내 문구, dialog, toast, notice가 모두 여기서 꺼진다.
   - 다시 켜는 곳: `.conversation-thread .bubble`, `.conversation-thread .msg-agent`(이미 `user-select: text`), `input`, `textarea`, `.composer-input`(쓸 수 없는 composer의 draft도 선택돼야 한다, DESIGN 'Unavailable composer').
   - `user-select: none`은 상속되므로, 입력 필드가 다시 켜는 규칙 없이도 선택되는지에 기대지 않고 명시한다.
-  - `input:disabled`, `textarea:disabled`는 `user-select: none`이다(완료 조건 4). T4에서 disabled 입력의 텍스트가 더블클릭으로 선택되고 Look Up·Copy 메뉴가 열렸다. macOS의 비활성 텍스트 필드처럼 선택되지 않게 한다. 비활성이 되기 전에 만든 선택은 남을 수 있고, 이때는 읽기 전용처럼 Look Up·Copy가 열린다.
+  - disabled 입력은 읽기 전용과 같게 둔다(완료 조건 4). T4에서 disabled 입력의 텍스트가 더블클릭으로 선택되었고, 오른쪽 클릭에 Look Up·Copy가 열렸다. `input:disabled { user-select: none }`을 줘도 입력 안쪽(shadow) 텍스트는 그대로 선택되었다. 그래서 CSS 규칙을 두지 않는다.
 - 캔버스 iframe은 다른 문서라 영향이 없다. thumbnail 창은 자기 data URL host page를 쓰고 `styles.css`를 읽지 않는다(`thumbnailWindow.ts` `hostPage`).
 - 테스트: `ds/controls.test.ts`처럼 CSS 규칙을 읽는 테스트로 `body`의 `none`과 다시 켜는 선택자 다섯 개를 고정한다. 실제 동작(사이드바 이름 오른쪽 클릭 → 메뉴 없음, thread 단어 오른쪽 클릭 → 선택과 Look Up·Copy)은 T4에서 본다.
 
@@ -111,7 +111,7 @@ main이 메인 창의 `context-menu` 이벤트를 받아 native 메뉴(`Menu.pop
 
 ## 결정할 점
 
-모두 정해졌다. 1~7은 추천대로 정했고, 2026-11-07 `/feature-review` 뒤 사용자가 세 가지를 더 정했다(8~10). T4 뒤 사용자가 두 가지를 더 정했다(11~12). 각 결정은 위 절과 spec에 반영했다.
+모두 정해졌다. 1~7은 추천대로 정했고, 2026-11-07 `/feature-review` 뒤 사용자가 세 가지를 더 정했다(8~10). T4 뒤 사용자가 세 가지를 더 정했다(11~13). 각 결정은 위 절과 spec에 반영했다.
 
 1. **native 메뉴인가, renderer가 그리는 메뉴인가** → **native**(`Menu.popup` + role).
    - 이유: Edit 메뉴 role과 같은 Chromium 편집 명령(`webContents.cut()` 등)을 쓰므로 composer의 clipboard 처리를 그대로 탄다. Look Up과 맞춤법은 native API로 된다. macOS가 그리므로 VoiceOver와 시스템 모양이 따라온다.
@@ -131,4 +131,5 @@ main이 메인 창의 `context-menu` 이벤트를 받아 native 메뉴(`Menu.pop
 9. **macOS가 더하는 항목(Writing Tools 등)을 허용하나** → 막는다. `popup`에 `frame`을 넘기지 않고, 메뉴는 정한 항목만 담는다(§3).
 10. **Look Up의 자리** → macOS 순서를 따른다. 예상 순서는 [제안 · 구분선] · Look Up · 구분선 · Cut · Copy · Paste · 구분선 · Select All이고, 구현을 시작할 때 Swift probe로 확인해 맞춘다(§2). T4는 Look Up이나 Translate가 두 번 나오지 않는지 본다.
 11. **메뉴가 열린 사이 필드가 바뀌면** → main이 실행 직전에 focus된 요소를 확인하고, 다르면 아무것도 하지 않는다(§3 '필드 확인'). 그래서 편집 항목을 role 대신 click 항목으로 둔다. T4가 실제 앱에서 결함을 재현한 뒤 사용자가 정했다.
-12. **disabled 입력의 선택** → `input:disabled`, `textarea:disabled`를 `user-select: none`으로 둔다(§4). T4 결과를 보고 사용자가 정했다.
+12. **disabled 입력** → 읽기 전용과 같다(선택이 있으면 Look Up·Copy). CSS로 선택을 막으려 했으나 입력 안쪽 텍스트가 그대로 선택되어(T4) 사용자가 이렇게 정했다.
+13. **click 항목의 모양** → 단축키 표시(`accelerator`)만 넣고 아이콘은 없다(§3). T4에서 role을 click 항목으로 바꾸자 아이콘과 단축키 표시가 사라졌고, 사용자가 단축키 표시만 되살리기로 정했다.

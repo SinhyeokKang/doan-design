@@ -55,3 +55,9 @@
 - 2차 수정: B `132f9124` → `51284baf`(disabled 입력 선택 막기), A `41162902` → `3680fc48`(click 항목과 필드 확인). design 테스트 목록을 고쳤다(`504ec69c`). `504ec69c`에서 `verify.mjs` PASS.
 - A 2차 리뷰: Codex Astra(`ctx_26434711c867`). 이전 리뷰 dispatch를 다시 열다 `agent-update-prompt`로 실패해서 새로 띄웠다(`ctx_0214df4c97b6`은 정리했다).
 - C 재확인(`ctx_3be255fb1287`): 바뀐 동작만 다시 본다. 조건 9의 양성 대조군과 두 재현, 메뉴 편집 항목과 ⌘ 단축키 비교, 화면에 보이는 사용 가능 여부, disabled 입력이다.
+- A 2차 리뷰(Astra): 🔴 0, 🟡 0, ⚪ 3. ⚪1은 좌표 확인의 한계다. 원래 필드가 사라진 자리를 다른 필드가 차지하고 focus를 받으면 확인을 통과한다. 이 한계는 T5에서 ARCHITECTURE에 적는다.
+- C 2차(`504ec69c`, run 3, `PROBE_EXIT=0`, 실제 상태 변화 없음):
+  - 조건 9 PASS. 두 재현에서 B가 그대로였고, 기록 값으로도 확인했다. 양성 대조군(focus가 없던 필드, chip 옆, password Paste, composer 여백·가장자리)과 편집 항목의 ⌘ 단축키 비교, 화면에 보이는 사용 가능 여부도 모두 PASS다.
+  - 조건 4는 아직 FAIL이다. disabled 입력에 `user-select: none`을 줘도 입력 안쪽 텍스트가 더블클릭으로 선택되었다.
+  - click 항목으로 바꾸자 메뉴의 아이콘과 단축키 표시가 사라졌다.
+- **사용자 결정(AskUserQuestion)**: disabled는 읽기 전용처럼 둔다. 효과 없는 CSS 규칙은 되돌린다. 메뉴에는 단축키 표시(`accelerator`)만 되살린다. spec 조건 4, design §3·§4, 결정 12·13에 반영했다.

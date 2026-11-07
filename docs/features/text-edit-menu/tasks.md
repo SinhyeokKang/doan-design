@@ -23,7 +23,6 @@
 ## T3. renderer: 앱 chrome 텍스트 선택 끄기, URL 필드 맞춤법 끄기
 
 - `styles.css`: `body { user-select: none; }`, 다시 켜는 `.conversation-thread .bubble`, `.conversation-thread .msg-agent`, `input`, `textarea`, `.composer-input`(design §4).
-- `input:disabled`, `textarea:disabled`에 `user-select: none`(design §4).
 - `spellCheck={false}`: MCP 서버 URL(`SettingsMcpConnectors.tsx`), GitHub 저장소 URL과 `PasteDialog`의 Antigravity 주소(`Onboarding.tsx`).
 - 테스트: CSS를 읽는 테스트(`ds/controls.test.ts` 방식)로 `body`의 `none`과 다시 켜는 다섯 선택자를 고정한다. 세 URL 필드의 static markup에 `spellcheck="false"`가 있는지 기존 component 테스트(`SettingsMcpConnectors.test.tsx`, `Onboarding.test.tsx`)에 더한다.
 - 검증: `npm --prefix app test` green, `npm --prefix app run typecheck` 통과, `npm --prefix app run build` 성공.
