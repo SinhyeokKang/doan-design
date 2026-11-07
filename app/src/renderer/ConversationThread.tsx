@@ -506,6 +506,13 @@ export function TurnIndicator({ text, at, provider }: { text: string; at: string
 }
 const NO_TURN: TurnStatus = { kind: "none" };
 
+// The thread item (its data-item key) holding focus, if focus is inside the thread.
+function focusedItem(scroller: HTMLElement | null): string | null {
+  const active = typeof document === "undefined" ? null : document.activeElement;
+  if (!scroller || !active || !scroller.contains(active)) return null;
+  return active.closest("[data-item]")?.getAttribute("data-item") ?? null;
+}
+
 export const ConversationThread = forwardRef<ConversationThreadHandle, ConversationThreadProps>(function ConversationThread(props, ref) {
   return <ThreadBody key={props.conversationId} {...props} handle={ref} />;
 });
@@ -522,6 +529,12 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   // The card last answered, skipped or stopped here and the focusAfter rule for it: once that card folds, by any
   // status, its button is gone and focus moves on by the rule (design §7, defect-sweep A3·A4).
   const folding = useRef<{ requestId: string; action: FocusAction } | null>(null);
+  // A card can also fold with no press here: the agent's CLI cancels it (defect-sweep B3) or the turn ends. When focus was
+  // in it, or its Other field held text not sent, it is the card folding, and focus moves on as after an answer. Focus is
+  // read as this render begins, before its commit replaces the card's controls; the drafts are those of the last commit,
+  // since the store drops a question's draft with the resolution that folds it.
+  const focusedKey = focusedItem(scroller.current);
+  const shown = useRef<readonly { requestId: string; key: string; unsent: boolean }[]>([]);
   const stop = (requestId: string) => { folding.current = { requestId, action: { kind: "stopped" } }; props.onStop(); };
   // Requests whose last answer did not reach main (design §2 'Errors'): the person chooses again.
   const [unanswered, setUnanswered] = useState<ReadonlySet<string>>(new Set());
@@ -584,9 +597,12 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   // A folded card took the focus that was on it to the page: by its rule, the next waiting request or the composer
   // takes it. A person who moved focus elsewhere meanwhile keeps it.
   useLayoutEffect(() => {
-    const fold = folding.current;
-    if (fold === null || !Array.isArray(items)) return;
+    if (!Array.isArray(items)) return;
     const asks = pendingAsks(items);
+    const gone = folding.current === null && shown.current.find(ask => !asks.some(a => a.requestId === ask.requestId) && (ask.key === focusedKey || ask.unsent));
+    if (gone) folding.current = { requestId: gone.requestId, action: { kind: "answered", requestId: gone.requestId } };
+    const fold = folding.current;
+    if (fold === null) return;
     if (asks.some(ask => ask.requestId === fold.requestId)) return;
     folding.current = null;
     if (document.activeElement && document.activeElement !== document.body) return;
@@ -594,6 +610,9 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     if (target.kind === "option") focusIn(asks.find(ask => ask.requestId === target.requestId)!.key);
     else props.onFocusComposer?.();
   }, [items]);
+  useLayoutEffect(() => {
+    shown.current = Array.isArray(items) ? pendingAsks(items).map(ask => ({ ...ask, unsent: Object.values(draftOf(ask.requestId).choices).some(choice => choice.text.trim() !== "") })) : [];
+  });
   const onScroll = () => {
     const node = scroller.current;
     if (!node) return;

@@ -72,20 +72,23 @@ function all(node: ReactNode): ReactElement<Record<string, unknown>>[] {
   return [node, ...[node.props.children].flat().flatMap(child => all(child as ReactNode))];
 }
 // One render of the thread with these items, then its layout effects, as React commits.
-function draw(items: ThreadItem[]): void {
+// commit: what happens to focus as React commits this render, before its layout effects (a folded card's control leaving
+// the page takes focus to the body).
+function draw(items: ThreadItem[], commit?: () => void): void {
   hooks.cursor = 0; hooks.layoutCursor = 0; hooks.pending = [];
   props = { ...props, items };
   const outer = (ConversationThread as unknown as { render(props: ConversationThreadProps, ref: null): ReactElement<ConversationThreadProps> }).render(props, null);
   tree = all((outer.type as (props: ConversationThreadProps) => ReactNode)(outer.props));
   const scroller = tree.find(element => element.props.className === "thread-scroll")!.props.ref as { current: unknown };
   scroller.current = {
-    scrollHeight: 100, scrollTop: 0, clientHeight: 100,
+    scrollHeight: 100, scrollTop: 0, clientHeight: 100, contains: (node: unknown) => typeof node === "object" && node !== null && "item" in node,
     querySelector: (selector: string) => {
       const key = /data-item="([^"]+)"/.exec(selector)?.[1] ?? "";
       if (!controls.has(key)) controls.set(key, { focus: vi.fn(() => { active = { key }; }) });
       return controls.get(key);
     },
   };
+  commit?.();
   for (const run of hooks.pending) run();
 }
 const permissionButton = (requestId: string, label: string) => tree.find(element => element.type === "button" && element.props["data-request"] === requestId && element.props.children === label)!;
@@ -144,4 +147,35 @@ test("a question's Skip moves focus to the next waiting request once its card fo
   press(card.props.onSkip as () => void);
   draw([asked("q", "skipped"), permission("b")]);
   expect(focusedOption()).toEqual(["pb"]);
+});
+
+// defect-sweep B3: a card the agent's CLI cancels folds as expired with no press here. Focus that was in it, or its
+// Other text not sent, moves on as after an answer; any other card folding leaves focus alone.
+const inCard = (key: string) => ({ item: key, closest: () => ({ getAttribute: () => key }) });
+const toBody = () => { active = body; };
+test("a cancelled card that held focus hands it to the next waiting request, or to the composer after the last", () => {
+  draw([asked("q"), permission("b")]);
+  active = inCard("qq");
+  draw([asked("q", "expired"), permission("b")], toBody);
+  expect(focusedOption()).toEqual(["pb"]);
+  active = inCard("pb");
+  draw([asked("q", "expired"), permission("b", "expired")], toBody);
+  expect(composer).toHaveBeenCalledOnce();
+});
+
+test("a cancelled question whose Other field held unsent text moves focus from the page to the composer", () => {
+  props = { ...props, questionDraft: () => ({ choices: { "0": { selected: [], other: true, text: "Grid" } }, sending: null, failed: false }) };
+  draw([asked("q")]);
+  draw([asked("q", "expired")]);
+  expect(composer).toHaveBeenCalledOnce();
+});
+
+test("a cancelled card focus was not in, with nothing typed, moves no focus", () => {
+  draw([asked("q"), permission("b")]);
+  draw([asked("q", "expired"), permission("b")]);
+  active = inCard("pb");
+  draw([asked("q", "expired"), permission("b"), permission("c")]);
+  draw([asked("q", "expired"), permission("b"), permission("c", "expired")]);
+  expect(composer).not.toHaveBeenCalled();
+  expect(focusedOption()).toEqual([]);
 });
