@@ -156,7 +156,7 @@ design-draft·design-sync의 "on main"은 "출시됐다"가 아니라 "통합됐
 - 제약: 무료 계정은 공개 저장소에서만 환경을 쓸 수 있다(D21의 순서가 이것에 기댄다).
 
 ### D7. 릴리스 Release의 게시 방식 — 결론(사용자, 2026-11-07)
-- 사용자가 부른 `/release`가 `main`의 병합 커밋에 `v<version>` 태그를 만들어 push하고, 그 태그 push가 CI의 릴리스 워크플로(`on: push: tags: v*`)를 시작한다(2026-11-07 `/feature-review`). 워크플로는 태그 커밋이 `origin/main`의 조상인지 확인한 뒤 빌드하고, 비밀이 없는 게시 작업이 그 태그의 draft Release를 만든다(rc는 prerelease). `/release`가 draft의 자산을 `spctl` 등으로 검사해 보고하고, 사용자가 승인하면 스킬이 게시한다.
+- 사용자가 부른 `/release`가 `main`의 병합 커밋에 `v<version>` 태그를 만들어 push하고, 그 태그 push가 CI의 릴리스 워크플로(`on: push: tags: v*`)를 시작한다(2026-11-07 `/feature-review`). 워크플로는 태그 커밋이 `origin/main`의 조상인지 확인한 뒤 빌드하고, 비밀이 없는 게시 작업이 그 태그의 draft Release를 만든다(rc는 prerelease). `/release`가 draft의 자산을 `spctl` 등으로 검사하고, 통과하면 스킬이 게시한다. `/release` 호출이 환경 `release` 승인과 게시를 함께 허락하므로 스킬이 둘 다 직접 한다(사용자, 2026-11-08).
 - 제약: electron-builder는 태그를 만들지 않으므로('조사') 태그는 스킬이 먼저 만든다.
 
 ### D8. 테스트 빌드 — 결론(사용자, 2026-11-07)
