@@ -34,32 +34,34 @@ const CAPTURE_REASON_ID = "canvas-capture-reason";
 export interface PickerTool { enabled: boolean; reason: string | null; onToggle(): void }
 export interface CaptureTool { enabled: boolean; reason: string | null; onToggle(): void }
 export interface ExportTool { reason: string | null; onExport(button: HTMLElement): void }
-export function CanvasTools({ tool, picking, capturing, onTool, picker, capture, exporter }: { tool: CanvasTool; picking: boolean; capturing: boolean; onTool(tool: CanvasTool): void; picker: PickerTool; capture: CaptureTool; exporter: ExportTool }) {
+// An open tooltip takes the Escape first (Radix prevents it), so each tooltip's Escape also runs `onEscape`, the
+// canvas's next Escape step; the tooltip still closes on that press (defect-sweep A2).
+export function CanvasTools({ tool, picking, capturing, onTool, picker, capture, exporter, onEscape }: { tool: CanvasTool; picking: boolean; capturing: boolean; onTool(tool: CanvasTool): void; picker: PickerTool; capture: CaptureTool; exporter: ExportTool; onEscape(): void }) {
   const pressed = (own: CanvasTool) => !picking && !capturing && tool === own;
   const captureOff = !capturing && !capture.enabled;
   return <div className="doan-floating doan-canvas-tools" role="toolbar" aria-label="Canvas tools" onKeyDown={moveBetweenTools}>
     {TOOLS.map(({ tool: own, label, key, Icon }) => <Tooltip key={own}><TooltipTrigger asChild>
       <button type="button" className="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed={pressed(own)} aria-label={label} aria-keyshortcuts={key}
         tabIndex={pressed(own) ? 0 : -1} onClick={() => onTool(own)}><Icon aria-hidden="true" /></button>
-    </TooltipTrigger><TooltipContent className="has-key">{label}<span className="doan-kbd" data-ui-variant="on-prominent" data-ui-size="sm">{key}</span></TooltipContent></Tooltip>)}
+    </TooltipTrigger><TooltipContent className="has-key" onEscapeKeyDown={onEscape}>{label}<span className="doan-kbd" data-ui-variant="on-prominent" data-ui-size="sm">{key}</span></TooltipContent></Tooltip>)}
     <Tooltip><TooltipTrigger asChild>
       <button type="button" className="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed={picking} aria-label="Pick from canvas" aria-keyshortcuts="Meta+L"
         aria-disabled={!picker.enabled || undefined} tabIndex={picking ? 0 : -1} onClick={() => { if (picker.enabled) picker.onToggle(); }}><Crosshair aria-hidden="true" /></button>
     </TooltipTrigger>{picker.enabled
-      ? <TooltipContent className="has-key">Pick from canvas<span className="doan-kbd" data-ui-variant="on-prominent" data-ui-size="sm">⌘L</span></TooltipContent>
-      : <TooltipContent>{picker.reason ?? "Pick from canvas"}</TooltipContent>}</Tooltip>
+      ? <TooltipContent className="has-key" onEscapeKeyDown={onEscape}>Pick from canvas<span className="doan-kbd" data-ui-variant="on-prominent" data-ui-size="sm">⌘L</span></TooltipContent>
+      : <TooltipContent onEscapeKeyDown={onEscape}>{picker.reason ?? "Pick from canvas"}</TooltipContent>}</Tooltip>
     <Tooltip><TooltipTrigger asChild>
       <button type="button" className="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed={capturing} aria-label="Capture area" tabIndex={capturing ? 0 : -1}
         {...(captureOff ? { "aria-disabled": true, "aria-describedby": CAPTURE_REASON_ID } : {})}
         onClick={() => { if (!captureOff) capture.onToggle(); }}><Scan aria-hidden="true" /></button>
-    </TooltipTrigger><TooltipContent>{captureOff ? capture.reason ?? "Capture area" : "Capture area"}</TooltipContent></Tooltip>
+    </TooltipTrigger><TooltipContent onEscapeKeyDown={onEscape}>{captureOff ? capture.reason ?? "Capture area" : "Capture area"}</TooltipContent></Tooltip>
     {captureOff && <span className="sr-only" id={CAPTURE_REASON_ID}>{capture.reason ?? "Capture area"}</span>}
     <span className="doan-canvas-tools-sep" role="separator" aria-orientation="vertical" />
     <Tooltip><TooltipTrigger asChild>
       <button type="button" className="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-label="Export canvas" tabIndex={-1}
         {...(exporter.reason !== null ? { "aria-disabled": true, "aria-describedby": EXPORT_REASON_ID } : {})}
         onClick={event => { if (exporter.reason === null) exporter.onExport(event.currentTarget); }}><Download aria-hidden="true" /></button>
-    </TooltipTrigger><TooltipContent>{exporter.reason ?? "Export canvas"}</TooltipContent></Tooltip>
+    </TooltipTrigger><TooltipContent onEscapeKeyDown={onEscape}>{exporter.reason ?? "Export canvas"}</TooltipContent></Tooltip>
     {exporter.reason !== null && <span className="sr-only" id={EXPORT_REASON_ID}>{exporter.reason}</span>}
   </div>;
 }

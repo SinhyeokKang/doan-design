@@ -11,7 +11,7 @@ import type { CanvasTool } from "./canvasTool";
 const PICKER = { enabled: true, reason: null, onToggle: () => {} };
 const CAPTURE = { enabled: true, reason: null, onToggle: () => {} };
 type Props = Parameters<typeof CanvasTools>[0];
-const props = (over: Partial<Props> = {}): Props => ({ tool: "select", picking: false, capturing: false, onTool: () => {}, picker: PICKER, capture: CAPTURE, exporter: { reason: null, onExport: () => {} }, ...over });
+const props = (over: Partial<Props> = {}): Props => ({ tool: "select", picking: false, capturing: false, onTool: () => {}, picker: PICKER, capture: CAPTURE, exporter: { reason: null, onExport: () => {} }, onEscape: () => {}, ...over });
 const markup = (over: Partial<Props> = {}) => renderToStaticMarkup(<TooltipProvider><CanvasTools {...props(over)} /></TooltipProvider>);
 const UNAVAILABLE = "Pick from canvas isn’t available while the canvas can’t be shown.";
 
@@ -202,5 +202,21 @@ describe("CanvasTools", () => {
       expect(focused).toEqual(["Picker", "Capture", "Export"]);
       expect(selectors.every(selector => selector === "button:not(:disabled)")).toBe(true);
     } finally { vi.unstubAllGlobals(); }
+  });
+  // defect-sweep A2: a tooltip open on a tool takes the Escape before the window sees it, so each tooltip hands that
+  // Escape to the canvas's next step and leaves it unprevented, so Radix still closes the tooltip on the same press.
+  it("an Escape that closes any tool's tooltip also takes the canvas's next Escape step", () => {
+    const onEscape = vi.fn();
+    for (const over of [{}, { picking: true }, { capturing: true }, { picker: { ...PICKER, enabled: false, reason: UNAVAILABLE } }, { exporter: { reason: "No canvas", onExport: () => {} } }] as Partial<Props>[]) {
+      const contents = all(CanvasTools(props({ ...over, onEscape }))).filter(element => element.type === TooltipContent);
+      expect(contents).toHaveLength(5);
+      for (const content of contents) {
+        onEscape.mockClear();
+        const event = { defaultPrevented: false, preventDefault: vi.fn() };
+        (content.props.onEscapeKeyDown as (event: unknown) => void)(event);
+        expect(onEscape).toHaveBeenCalledOnce();
+        expect(event.preventDefault).not.toHaveBeenCalled();
+      }
+    }
   });
 });

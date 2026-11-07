@@ -1235,6 +1235,10 @@ export class CanvasController {
     if (step === "cancelPick" || step === "cancelCapture" || step === "selectTool") event.preventDefault();
   };
 
+  // An open toolbar tooltip takes the Escape (Radix prevents it, so keydown skips it); its Escape takes the step the
+  // window's would from a toolbar button, so one press closes the tooltip and ends capture or the pick (defect-sweep A2).
+  toolbarEscape(): void { if (this.workspaceActive) this.escape(false); }
+
   // Esc's next step (canvas-hand-tool design '키' 'Esc'); `editable`: it came from a text field. Returns the step.
   private escape(editable: boolean): ReturnType<typeof escapeStep> {
     const step = escapeStep({ picking: this.state.picking, capturing: this.state.capturing, hand: this.canvasPage && (this.pendingTool ?? this.tool) === "hand", editable });

@@ -3678,6 +3678,29 @@ describe("capture", () => {
     } finally { h.controller.dispose(); }
   });
 
+  // defect-sweep A2: an open toolbar tooltip takes the Escape (Radix prevents it), so the window keydown skips it; the
+  // tooltip's Escape hands the same next step to the controller, as from a control that is not a text field.
+  it("the toolbar tooltip's Escape takes the step the window's Escape would: capture, then Hand, then the selection", () => {
+    const h = harness();
+    try {
+      h.select(1);
+      h.controller.startCapture();
+      const handled = keyEvent("keydown", "Escape");
+      handled.preventDefault();
+      h.host.dispatchEvent(handled);
+      expect(h.state().capturing).toBe(true);
+      h.controller.toolbarEscape();
+      expect(h.state()).toMatchObject({ capturing: false, tool: "select" });
+      expect(h.state().selection).not.toBeNull();
+      press(h, "KeyH");
+      h.controller.toolbarEscape();
+      expect(h.state().tool).toBe("select");
+      h.select(1);
+      h.controller.toolbarEscape();
+      expect(h.state().selection).toBeNull();
+    } finally { h.controller.dispose(); }
+  });
+
   it("the toolbar's Select or Hand ends capture mode and switches to that tool", () => {
     const h = harness();
     try {
