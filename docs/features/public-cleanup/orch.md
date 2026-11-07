@@ -34,6 +34,15 @@
 
 11. B2c 리뷰의 🟡(① 커밋 안에 참조 삭제를 넘는 문장 재작성 3곳)은 고치지 않고 받아들였다(지휘자 판단 — 근거: 리뷰어가 세 곳을 원문과 대조해 의미 변화가 없다고 확인했다. ①·②·③ 분리는 리뷰 깊이를 정하려는 것이고, 이 줄들은 이미 깊게 리뷰됐다. 커밋을 다시 나누는 것은 이력만 바뀐다). B2a의 ⚪(① 커밋 안 문장 첫 글자 대문자화)도 같다.
 
+12. 사용자 결정(2026-11-07): 고정 패턴 밖의 feature 문서 인용(slug만 쓴 꼴, 결정·task·리뷰 id)도 이번 PR에서 지운다. 보조 스캔 `.scratch/public-cleanup/scan2.mjs`(주석·테스트 제목 줄만 본다)의 결과가 허용 목록뿐인 것을 완료 조건에 더한다. 2차 라운드 브리프는 `.scratch/public-cleanup/round2-*.md`.
+
+## 진행 상태 (2026-11-07 21:25, 사용량 한도로 중단)
+
+- 통합 완료: B2a(`3f574c13`..`4fe70096`), B2b(`f7c257d0` `ebccf264` `7be7ee46`), B2c(`1f939e47` `6117860c`).
+- 1차 완료·리뷰 끝, 통합 대기: B1a(🔴0 🟡0), B1b(🟡1, 2차에 포함), B2d(🟡1, 2차에 포함), B2e(🟡3, 2차에 포함). B3는 1차 완료, 리뷰는 2차 뒤에 한다.
+- 2차 라운드 dispatch: B1a `ctx_5907f6198d8e`, B1b `ctx_21ca7c4e9e21`, B2d `ctx_6b8e7fcbf9f2`, B2e `ctx_7ee8c8bcc49d`, B3 `ctx_7aeb7cffeb41`, B2a `ctx_51c785ebc5a7`, B2b `ctx_000f194803e8`, B2c `ctx_534b41d114ab`. Claude worker는 사용량 한도로 멈췄고 22:10에 자동으로 이어간다.
+- 남은 일: 2차 결과 확인 → 2차 리뷰(Codex Astra) → B1a·B1b·B2d·B2e·B3 통합 → 허용 목록 모으기 → T3(전체 scan·scan2, `verify.mjs --eval`) → T5 → PR 본문(기준·처리 뒤 수치, gitleaks 결과) → T7 → push·PR(`--base develop`) → worktree 정리.
+
 ## batch
 
 모든 batch는 `feat/public-cleanup`에서 만든 Orca child worktree에서 돈다. 파일 소유가 겹치지 않아 모두 병렬이다.
@@ -42,9 +51,9 @@
 |---|---|---|---|---|---|
 | B1a | `app/src/main/conversation/**` | 175줄, 57파일 | Claude Opus high — 결정 id 인용이 가장 촘촘하고, 대화 전송 불변식의 이유를 이력에서 옮겨야 한다 | 커밋마다 typecheck·lint, 끝에 app test, 범위 scan | 대기 |
 | B1b | `app/src/main/**`(conversation 밖) | 172줄, 83파일 | Claude Sonnet high — 이유 판단이 섞인 다수 파일 | 같음 | 완료(`4a57f7cc` `93a70eb8` `8df79b9f` fixup `b976db53`, 남은 ref 9·ko 9), 리뷰 중 |
-| B2a | `app/src/renderer/App.tsx`, `styles.css` | 105줄, 2파일 | Claude Sonnet high — JSX·CSS 주석 문법, 큰 파일 둘 | 같음 | 완료(`4a695b7e` `1429d9b9` `e2495403`, scan 0/0), 리뷰 중 |
+| B2a | `app/src/renderer/App.tsx`, `styles.css` | 105줄, 2파일 | Claude Sonnet high — JSX·CSS 주석 문법, 큰 파일 둘 | 같음 | 완료, 리뷰 🔴0 🟡1 → fixup `e48c8cc2`, 통합(`3f574c13`..`4fe70096`) |
 | B2b | `app/src/renderer/{canvas,Canvas}*`(최상위) | 154줄, 37파일 | Claude Sonnet high | 같음 | 완료(`eeb3ff5d` `4e265103` `8476bb3b`, 남은 ko 7은 테스트 데이터), 리뷰 중 |
-| B2c | `app/src/renderer/{home,Home,conversation,Conversation}*`(최상위) | 175줄, 33파일 | Claude Sonnet high | 같음 | 완료(`347f4c30` `9a340f59`, ② 없음, 남은 scan은 테스트 데이터 ref 2·ko 3), 리뷰 🔴0 🟡1(결정 11로 수용), 통합 |
+| B2c | `app/src/renderer/{home,Home,conversation,Conversation}*`(최상위) | 175줄, 33파일 | Claude Sonnet high | 같음 | 완료(`347f4c30` `9a340f59`, ② 없음, 남은 scan은 테스트 데이터 ref 2·ko 3), 리뷰 🔴0 🟡1(결정 11로 수용), 통합(`1f939e47` `6117860c`) |
 | B2d | renderer 나머지 중 a–d로 시작(`components/`, `ds/` 포함) | 201줄, 54파일 | Codex Sol high — 기계적 처리가 다수이고 단계가 많다(교차 허용) | 같음 | 완료(`d4385d56` `d668be51` `bd0294c4` fixup, 남은 ko 3은 테스트 데이터), 리뷰 중 |
 | B2e | renderer 나머지 중 e–z로 시작(`public/` 포함) | 248줄, 77파일 | Claude Sonnet high | 같음 | 완료(`975af7dd` `14ccf8f7` `35bd52c3` `5461abaa` fixup, 남은 ref 5·ko 22는 테스트 데이터·날짜 문장), 리뷰 중 |
 | B3 | `app/src/restore`, `app/src/preload`, `app/runtime`, `app/scripts`, `cli`, `eval`, 초안 세 파일(T4) | 72줄, 36파일 + 초안 5줄 | Codex Sol high — 작고 허용 목록 판단이 대부분, Go·TS·초안이 섞여 단계가 많다(교차 허용) | 커밋마다 typecheck·lint 또는 `go vet ./...`, 끝에 app test·`go test ./...`·eval unit test, `doan check` 전후 diff | 대기 |
