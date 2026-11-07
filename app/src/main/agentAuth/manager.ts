@@ -230,7 +230,7 @@ export class AuthManager {
         }
         const previous = this.state(provider).connection;
         // A login that logs the profile out first would destroy the stored login before the user approves anything,
-        // so its replacement signs in to a fresh profile that becomes the connection's only on success (D22).
+        // so its replacement signs in to a fresh profile that becomes the connection's only on success.
         const staged = this.adapters[provider].loginClears && previous ? `${provider}-${this.newId()}` : null;
         const touch = { live: false };
         let outcome: SignInResult | null, recorded = false;

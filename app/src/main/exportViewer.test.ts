@@ -728,7 +728,7 @@ describe("without JavaScript", () => {
   });
 });
 
-// ── The content panel and the toolbar (export-viewer-chrome B1) ───────────────
+// ── The content panel and the toolbar ───────────────
 
 const appCss = (path: string): string => readFileSync(new URL(`../renderer/${path}`, import.meta.url), "utf8");
 const tokensCss = appCss("tokens.css");
@@ -893,7 +893,7 @@ describe("the toolbar", () => {
   });
 });
 
-// ── Tool wiring in the page and in the canvas (export-viewer-chrome B2) ───────
+// ── Tool wiring in the page and in the canvas ───────
 
 describe("tool wiring", () => {
   const code = (source: string) => source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");

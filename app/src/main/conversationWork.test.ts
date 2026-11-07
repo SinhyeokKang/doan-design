@@ -33,7 +33,7 @@ describe("applyConversationWork", () => {
     expect(applyConversationWork(state, update({ frame: "hero" }), turns, 10)).not.toBe(state);
     expect(applyConversationWork(state, update({ frame: "hero", note: "n" }), live({ c1: running("t2") }), 10)).not.toBe(state);
   });
-  // design §1 rule 5: an unknown id, an ended turn or another root is answered ok and dropped, with no change.
+  // An unknown id, an ended turn or another root is answered ok and dropped, with no change.
   test.each<[string, ReadonlyMap<string, LiveTurn>]>([
     ["an unknown conversation", live({ other: running() })],
     ["a turn that ended", live({ c1: { root, turnId: "t1", running: false } })],

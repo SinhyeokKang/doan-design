@@ -8,7 +8,7 @@ const mainOnly = new Set([
   "folders:remove", "folders:locate", "folders:reveal", "folders:open", "folders:reopen",
   "selection:set", "inspect:get", "thumbnails:get", "thumbnails:visible", "menu:state", "shell:activity", "ui-state:get", "ui-state:save",
   "onboarding:choose-folder", "folders:get",
-  // canvas-viewport-units D9: the canvas page marks a canvas seen.
+  // The canvas page marks a canvas seen.
   "canvas:seen",
   "window:visible",
   // shell-panel-layout §2.5: the header drops the traffic-light space in fullscreen.

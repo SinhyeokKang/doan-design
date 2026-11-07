@@ -144,7 +144,7 @@ export async function runClone(request: CloneRequest): Promise<CloneResult> {
   if (request.signal.aborted) { const released = await release(); return cleanup(cancelled, temp, released.left); }
   try { await rename(temp, request.destination); }
   catch { const released = await release(); return cleanup({ kind: "failed", code: "destination_exists" }, temp, released.left); }
-  // The cutoff (D19): only a cancel accepted before this point can still remove the destination.
+  // The cutoff: only a cancel accepted before this point can still remove the destination.
   if (request.signal.aborted || (request.commit && !request.commit())) return cleanup(cancelled, request.destination);
   return { kind: "cloned", destination: request.destination };
 }

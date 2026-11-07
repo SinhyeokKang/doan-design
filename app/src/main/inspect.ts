@@ -510,7 +510,7 @@ export function collapseBox(values: readonly string[]): string {
   return `${top} ${right} ${bottom} ${left}`;
 }
 
-// design.md 'length caps': one inspector value or token name is at most 500
+// One inspector value or token name is at most 500
 // UTF-16 units. Values come straight from the canvas's CSS through CDP, so
 // main cuts them before they cross IPC.
 const VALUE_LIMIT = 500;

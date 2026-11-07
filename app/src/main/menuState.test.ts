@@ -93,7 +93,7 @@ describe("settings page", () => {
 });
 
 
-// canvas-composer-polish spec 3: Pick from Canvas (⌘L) starts a pick, so it needs no selection, only the canvas page
+// Pick from Canvas (⌘L) starts a pick, so it needs no selection, only the canvas page
 // and an available picker.
 test("Pick from Canvas is enabled on the canvas page with an available picker, without a selection", () => {
   const ready = { wizardOpen: false, pickerAvailable: true };
@@ -105,7 +105,7 @@ test("Pick from Canvas is enabled on the canvas page with an available picker, w
   expect(menuState("canvas", true, ready).pickFromCanvas).toBe(false);
 });
 
-// shell-panel-layout design §3-3: Hide/Show Sidebar never leaves the screen, so a page lock keeps it; a modal or first
+// Hide/Show Sidebar never leaves the screen, so a page lock keeps it; a modal or first
 // run turns it off like every other main-window item.
 test("Hide/Show Sidebar is off behind a modal and in first run, and on under a page lock", () => {
   for (const screen of ["home", "workspace", "canvas", "addProjects", "settings"] as const) {

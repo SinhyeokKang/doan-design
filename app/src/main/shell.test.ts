@@ -946,7 +946,7 @@ exit 2
     await vi.waitFor(() => expect(listed(shell.entries(), w)).toMatchObject({ autoRegistered: true }), until);
   });
 
-  // POSTMORTEM 2026-10-27 and design §2.3: no Missing row ever shows for a vanished auto-registered root, from the
+  // POSTMORTEM 2026-10-27: no Missing row ever shows for a vanished auto-registered root, from the
   // watcher or a re-read alike, and the same clean-up as Remove runs.
   test("a vanished worktree leaves the list without ever being missing", async () => {
     const { shell, changes, removed, main, w, file, checkpoint } = await adopted();
@@ -1006,7 +1006,7 @@ exit 2
     expect(removed).not.toHaveBeenCalled();
   });
 
-  // design §2.4 and POSTMORTEM 2026-11-03: an uninitialized auto-registered root never takes the upward re-root, so a
+  // POSTMORTEM 2026-11-03: an uninitialized auto-registered root never takes the upward re-root, so a
   // parent the person never added does not become hand-added and no focus moves to it.
   test("an uninitialized worktree is not re-rooted upward", async () => {
     const { shell, changes, removed, main, w, file, git, checkpoint } = await adopted();

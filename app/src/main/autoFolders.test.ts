@@ -67,7 +67,7 @@ describe("pruneAuto", () => {
     expect(pruneAuto([MAIN, W], [W], new Map([[W, "ENOTDIR"]]))).toEqual([MAIN]);
   });
 
-  // The folder may still be there: an unreadable root is hidden, never removed (spec decision 2).
+  // The folder may still be there: an unreadable root is hidden, never removed.
   test.each(["EACCES", "EIO", undefined])("a root that could not be checked stays: %s", (code) => {
     expect(pruneAuto([MAIN, W], [W], new Map([[W, code]]))).toEqual([MAIN, W]);
   });

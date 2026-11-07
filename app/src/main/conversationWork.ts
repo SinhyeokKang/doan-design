@@ -1,6 +1,6 @@
 import type { WorkRequest } from "../formats/types";
 
-// An app conversation's last `doan work update` (design decision 10), in main's memory only: one per conversation,
+// An app conversation's last `doan work update`, in main's memory only: one per conversation,
 // cleared when its turn ends. turnId: the turn it was accepted in, the renderer's follow key with conversationId.
 export interface ConversationWork { conversationId: string; root: string; path: string; frame?: string; note?: string; touched: number; turnId: string }
 export type ConversationUpdate = Extract<WorkRequest, { conversation: string }>;

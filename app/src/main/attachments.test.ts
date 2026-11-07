@@ -178,7 +178,7 @@ it("decodes the thumbnail from the bytes it checked, never by opening the path a
   expect(opened.filter(p => p === image)).toHaveLength(1);
 });
 
-// buzz-home design §7.4 (2026-10-29 user): Edit on Home brings the last request's attachments back and checks them
+// 2026-10-29 user: Edit on Home brings the last request's attachments back and checks them
 // again at once, with the acceptance checks, on the paths main recorded for those ids only.
 it("rechecks restored ids, including ones an accepted start consumed, and names the moved ones", () => {
   const f = fixture();

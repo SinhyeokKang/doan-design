@@ -226,7 +226,7 @@ describe("reconcileFolders", () => {
   });
 });
 
-// project-feedback design §1–§2: `doan ls` keeps a row it could not read and
+// `doan ls` keeps a row it could not read and
 // adds the comment files no canvas uses.
 describe("folderState partial failure and orphans", () => {
   const orphan = { id: "checkout-v1", file: ".doan/comments/checkout-v1.jsonl", comments: { open: 2, resolved: 1 }, uncertain: false };

@@ -6,7 +6,7 @@ export type ExternalTarget = "claude" | "codex" | "cursor" | "copilot";
 export type SettingsSection = "agents" | "notifications" | "about";
 export interface SettingsPageTarget { section?: SettingsSection; provider?: Provider }
 
-// macOS's Notifications pane; Open System Settings opens this and nothing else (buzz-settings P1, 2026-10-30:
+// macOS's Notifications pane; Open System Settings opens this and nothing else (2026-10-30:
 // `openExternal` resolved and opened the pane).
 export const NOTIFICATION_SETTINGS_URL = "x-apple.systempreferences:com.apple.Notifications-Settings.extension";
 

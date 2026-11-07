@@ -94,7 +94,7 @@ test("the next deadline uses the earliest session expiry and an injectable limit
   expect(nextWorkExpiry(state, changed, 100)).toBe(150);
 });
 
-// work-update design §1 rule 4: an update counts as a start and replaces that entry's content; a start renews only touched.
+// An update counts as a start and replaces that entry's content; a start renews only touched.
 const update = (extra: Partial<{ root: string; path: string; session: string; provider: "claude" | "codex"; frame: string; note: string }> = {}): WorkRequest => ({ v: 3, token: "t", root, action: "update", path, ...extra });
 const done = (extra: Partial<{ root: string; session: string; provider: "claude" | "codex" }> = {}): WorkRequest => ({ v: 3, token: "t", root, action: "done", ...extra });
 const identity = { session: "one", provider: "codex" } as const;
@@ -149,7 +149,7 @@ describe("update", () => {
   test("an update an unregistered root sends is discarded", () => {
     expect(applyWork(empty(), update({ root: "/unknown", frame: "a" }), 0)).toEqual(empty());
   });
-  // design decision 9: an app conversation's update is never terminal work.
+  // An app conversation's update is never terminal work.
   test("an update that names a conversation never becomes terminal work", () => {
     const state = empty();
     expect(applyWork(state, { v: 3, token: "t", root, action: "update", path, conversation: "c1", frame: "a" } as WorkRequest, 0)).toBe(state);
@@ -182,7 +182,7 @@ describe("work turn", () => {
     expect(turns[1]?.startsWith("claude:")).toBe(true);
   });
 });
-// design §2 function 5: work:changed must also see content, or an update reaches main and never the renderer.
+// work:changed must also see content, or an update reaches main and never the renderer.
 describe("workItemsChanged", () => {
   const item = { root, path, session: "one", provider: "codex" as const, touched: 1, turn: "codex:t" };
   test("the same items, in new objects, are unchanged", () => {

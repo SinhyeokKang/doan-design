@@ -264,7 +264,7 @@ export function canvasScript(lib: CanvasLib): void {
   // When the last pointer activity was posted (performance.now()).
   let activityAt = -Infinity;
   let lastHover = JSON.stringify([0, null]);
-  // Picking (buzz-canvas-conversation design §4): the app's pick-start and pick-cancel commands carry their own seq,
+  // Picking: the app's pick-start and pick-cancel commands carry their own seq,
   // which neither clicks nor selection or hover commands move, and name this document's token, so a command meant for
   // the document this one replaced changes nothing here. `picking` is the seq of the pick-start in force. A pick-start
   // is acknowledged with `pick-started`: until then the app keeps clicks away from this document, because a click

@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { WorkRequest } from "../formats/types";
 
 // frame/note: the content of the entry's last update (absent parts cleared). touched: its last start or update.
-// turn: the session's work turn (design §1 rule 9), made once by main so the renderer's follow state is keyed the same
+// turn: the session's work turn, made once by main so the renderer's follow state is keyed the same
 // whenever and wherever it subscribes.
 export interface WorkItem { session: string | null; provider: "claude" | "codex" | null; root: string; path: string; frame?: string; note?: string; touched: number; turn: string }
 interface WorkTarget { root: string; path: string; frame?: string; note?: string; touched: number }

@@ -1671,7 +1671,7 @@ describe("nextHeight after a first measurement of 0", () => {
   });
 });
 
-// buzz-canvas-conversation design §4 'Structure': picking is the canvas script's internal command. Start and cancel
+// Picking is the canvas script's internal command. Start and cancel
 // use their own seq, a pick click answers `picked` and leaves the selection, its anchor and the hover as they were.
 describe("canvasScript picking", () => {
   const at = (x: number, y: number) => ({ clientX: x, clientY: y }) as Partial<FakeEvent>;
@@ -1881,7 +1881,7 @@ describe("canvasScript picking", () => {
       expect.objectContaining({ point: { x: 5, y: 45 } }),
     ]);
   });
-  // The board's crosshair while picking (design §2 'Picker'). The cursor over the canvas is the canvas document's own,
+  // The board's crosshair while picking. The cursor over the canvas is the canvas document's own,
   // so the script adopts a constructed sheet: it changes no DOM node, so no MutationObserver or layout runs for it.
   test("adopts a crosshair sheet while picking and removes only its own when picking ends", () => {
     const { canvas, span } = heroCanvas();
@@ -1928,7 +1928,7 @@ describe("anchors-query reply", () => {
     expect(ofType(canvas, "anchors")).toEqual([expect.objectContaining({ generation: 1, request: 1, results: [{ id: "f", candidates: { frame: [expect.any(String)] } }] })]);
   });
 
-  // agent-reply-chips T0: a reply chip carries a doan id and no selector.
+  // A reply chip carries a doan id and no selector.
   const ask = (canvas: ReturnType<typeof heroCanvas>["canvas"], targets: Record<string, unknown>[]) => {
     canvas.context.innerWidth = 600;
     canvas.fromParent({ type: "measure" });

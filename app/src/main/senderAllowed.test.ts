@@ -10,7 +10,7 @@ const mainOnly = [
   "folders:remove", "folders:locate", "folders:reveal", "folders:open", "folders:reopen",
   "selection:set", "inspect:get", "thumbnails:get", "thumbnails:visible", "menu:state", "shell:activity", "ui-state:get", "ui-state:save",
   "onboarding:choose-folder", "folders:get",
-  // canvas-viewport-units D9: the canvas page marks a canvas seen.
+  // The canvas page marks a canvas seen.
   "canvas:seen",
   // Toasts need native visibility.
   "window:visible",
@@ -90,7 +90,7 @@ describe("settings page channels", () => {
     for (const kind of ["main", "settings"]) expect(senderAllowed(channel, kind)).toBe(false);
   });
 });
-// mcp-connectors B4: the Settings > MCP Connectors requests; :changed is an event main sends, never a request.
+// The Settings > MCP Connectors requests; :changed is an event main sends, never a request.
 test("restricts every MCP Connectors request channel to main and refuses its event", async () => {
   const { MCP_CHANNELS } = await import("./mcpConnectors/ipc");
   const requests = Object.values(MCP_CHANNELS).filter(channel => channel !== MCP_CHANNELS.changed);
@@ -101,7 +101,7 @@ test("restricts every MCP Connectors request channel to main and refuses its eve
   }
   for (const kind of ["main", "settings"]) for (const channel of [MCP_CHANNELS.changed, "mcp-connectors:delete", "mcp-connectors:"]) expect(senderAllowed(channel, kind)).toBe(false);
 });
-// provider-usage B2: the usage read is a main-window request; :changed is an event main sends, never a request.
+// The usage read is a main-window request; :changed is an event main sends, never a request.
 test("restricts the agent usage read to main and refuses its event", async () => {
   const { USAGE_CHANNELS } = await import("./agentAuth/usageIpc");
   expect(USAGE_CHANNELS).toEqual({ read: "agent-usage:read", changed: "agent-usage:changed" });

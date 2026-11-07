@@ -23,7 +23,7 @@ const SWITCH: Record<NotificationKind, keyof NotificationPreferences> = { approv
 
 // A turn the person stopped is `interrupted`, never `turn.failed`, so it never notifies. The permission summary is
 // left out until PRODUCT §6 settles its format, and so is a question's sentence. A question follows the Approval
-// requests switch but says it needs an answer, as the thread and the sidebar do (agent-questions design §6).
+// requests switch but says it needs an answer, as the thread and the sidebar do.
 export function notificationFor(event: ConversationEvent, preferences: NotificationPreferences, visibility: WindowVisibility, names: ConversationNames | null): PlannedNotification | null {
   const asks = event.type === "permission.request" || event.type === "question.request";
   const kind: NotificationKind | null = asks ? "approval" : event.type === "turn.done" ? "finished" : event.type === "turn.failed" ? "failed" : null;

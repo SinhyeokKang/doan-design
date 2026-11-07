@@ -138,7 +138,7 @@ vi.mock("./runtime", () => ({ startRuntime: mocks.startRuntime }));
 vi.mock("./addProjects", async (importOriginal) => ({ ...await importOriginal<typeof import("./addProjects")>(), createAddFlow: mocks.createAddFlow }));
 vi.mock("./inspector", async (importOriginal) => ({ ...await importOriginal<typeof import("./inspector")>(), createInspector: mocks.createInspector }));
 vi.mock("./uiState", () => ({ createUiStateStore: mocks.createUiStateStore }));
-// provider-usage R3: the first tool-facts probe and the usage service's triggers, observed where index.ts wires them.
+// The first tool-facts probe and the usage service's triggers, observed where index.ts wires them.
 const usageProbe = vi.hoisted(() => ({ read: undefined as undefined | (() => Promise<unknown>), triggers: [] as unknown[] }));
 vi.mock("./agentAuth/ipc", async (importOriginal) => {
   const original = await importOriginal<typeof import("./agentAuth/ipc")>();
@@ -820,7 +820,7 @@ describe("menus", () => {
     expect(() => item("Undo Remove")).toThrow();
   });
 
-  // buzz-canvas-conversation R1: the chip field refuses Chromium's undo, so the role items could not redo it.
+  // The chip field refuses Chromium's undo, so the role items could not redo it.
   test("Edit > Undo and Redo hand a focused chip field its history step, and run the WebContents undo or redo otherwise", async () => {
     const contents = window().webContents;
     const run = async (label: string) => { Reflect.apply(item(label).click!, undefined, [{}, window(), {}]); await new Promise(resolve => setTimeout(resolve, 0)); };
@@ -1251,7 +1251,7 @@ describe("thumbnails", () => {
     return hidden;
   }
 
-  // turn-activity C1: the stage goes to the main window only, never to the capture window main also owns.
+  // The stage goes to the main window only, never to the capture window main also owns.
   test("a conversation stage reaches the main window and not the capture window", async () => {
     const hidden = await captureWindow();
     window().webContents.send.mockClear(); hidden.webContents.send.mockClear();
@@ -1684,7 +1684,7 @@ test("an approved quit prevents native window teardown until the next event-loop
   expect(resumed.preventDefault).not.toHaveBeenCalled();
 });
 
-// conversation-delete orch decision 5: conversation:delete answers busy while quitting as while working, so the
+// conversation:delete answers busy while quitting as while working, so the
 // renderer learns of the quit from main and its refusal toast can stay quiet. An aborted quit leaves the conversations
 // stopped (the service stays quitting), so main never takes it back (review RA Y3, D2).
 test("main tells the renderer it is quitting before the conversations stop, and never takes it back after an aborted quit", async () => {
@@ -2011,7 +2011,7 @@ describe("Add Projects page session", () => {
   });
 });
 
-// buzz-settings S2–S4: the Settings page's main-window IPC, notifications and the dialog session.
+// The Settings page's main-window IPC, notifications and the dialog session.
 describe("settings page", () => {
   const LIST = { path: ROOT, kind: "list", canvases: [], servedRev: 0, git: { common: `${ROOT}/.git`, main: ROOT, branch: "main", worktrees: [ROOT] } };
   const configRun = (serve: string[]) => ({ exitCode: 0, timedOut: false, stderr: "", stdout: JSON.stringify({ v: 1, ok: true, result: { repo: ROOT, serve, changed: false } }) });
@@ -2338,7 +2338,7 @@ test("unchanged work does not publish during startup or folder refreshes", () =>
   expect(publications()).toHaveLength(2);
 });
 
-// work-update design §2 function 5: an update's content and a renewed start reach the renderer.
+// An update's content and a renewed start reach the renderer.
 test("work content and a later start publish work:changed", () => {
   vi.useFakeTimers();
   onTestFinished(() => { vi.useRealTimers(); });
@@ -2382,7 +2382,7 @@ test("an identical conversation update publishes again only when its time change
   expect(publications()[1]?.[0]?.touched).toBe((publications()[0]?.[0]?.touched ?? 0) + 5);
 });
 
-// work-update design decision 9 and §1 rule 5: an app conversation's update is its own state and channel, never
+// An app conversation's update is its own state and channel, never
 // terminal work, and its turn's end clears it.
 test("conversation work has its own channel, only for a running turn, and a turn's end clears it", () => {
   const state = mocks.startRuntime.mock.calls[0]?.[1] as { conversationWork(request: unknown): void } | undefined;
@@ -2768,7 +2768,7 @@ describe("background onboarding launch and start", () => {
   });
 });
 
-// provider-usage B2: the usage read answers the window's entries; a frame that is not the window gets an empty list.
+// The usage read answers the window's entries; a frame that is not the window gets an empty list.
 test("answers agent-usage:read with entries for the window and an empty list for anyone else", async () => {
   const contents = window().webContents;
   const entries = await invoke("agent-usage:read", contents, null, undefined);

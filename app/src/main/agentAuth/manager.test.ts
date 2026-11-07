@@ -1138,13 +1138,13 @@ describe("check", () => {
     await signedInCursor(m, "u1");
     vi.spyOn(cipher, "decrypt").mockImplementation(async () => { throw new Error("key changed"); });
     const check = started(await m.check("cursor"));
-    // A failed check keeps the verified connection and shows the error beside it (batch A decision 2).
+    // A failed check keeps the verified connection and shows the error beside it.
     expect(await check.done).toMatchObject({ phase: "connected", error: { code: "check_failed" }, connection: { account: { id: "u1" } } });
     expect(existsSync(join(root, "vault", "cursor.bin"))).toBe(true);
   });
 });
 
-// prompt-suggestion decision 2: the login shell's CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION reaches the run through its
+// The login shell's CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION reaches the run through its
 // lease; a Claude run's preparation applies it (conversation/prepare.ts).
 describe("the login shell's prompt suggestion setting", () => {
   it.each([["set", "false"], ["unset", undefined]] as const)("rides on the lease when the shell %s it", async (_name, value) => {
@@ -1250,7 +1250,7 @@ describe("stopping runs for sign-out and replacement", () => {
     const out = started(await m.signOut("cursor", { stop: true }));
     expect(await out.done).toMatchObject({ phase: "error", error: { code: "sign_out_failed" }, connection: { account: { id: "u1" } } });
   }, 2000);
-  // buzz-settings R2: Home lists models right after a sign-in. A list read holds a lease but is not a conversation, so
+  // Home lists models right after a sign-in. A list read holds a lease but is not a conversation, so
   // a sign-out must not ask the person to stop conversations; it stops the read itself and waits for its group.
   it("a model list read does not need stop: sign-out stops the read, waits for its lease, then signs out", async () => {
     let stopRuns!: ReturnType<typeof runs>["stopRuns"];
@@ -1976,7 +1976,7 @@ describe("account identity lookup", () => {
   });
 });
 
-// mcp-connectors B2/B3: MCP leases, and the MCP logout step a sign-out or a committed replacement runs.
+// MCP leases, and the MCP logout step a sign-out or a committed replacement runs.
 describe("MCP connector steps", () => {
   const account = (id: string | null): CheckResult => ({ status: "connected", account: { id, workspace: null } });
   async function signedInClaude(m: AuthManager, id: string | null) {
@@ -2134,7 +2134,7 @@ describe("MCP connector steps", () => {
   });
 });
 
-// provider-usage B1 (POSTMORTEM 2026-10-30): a usage read is not a conversation the person would be asked to stop.
+// POSTMORTEM 2026-10-30: a usage read is not a conversation the person would be asked to stop.
 describe("usage leases", () => {
   it("lets a sign-out stop a usage read without stop_required, waiting for its lease", async () => {
     const leases: Awaited<ReturnType<AuthManager["acquire"]>>[] = [];

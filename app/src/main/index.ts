@@ -92,7 +92,7 @@ export type TokenCssChoice = { kind: "selected"; choiceId: string; path: string 
 export type ViewCommand = "zoomIn" | "zoomOut" | "actualSize" | "fit" | "reload";
 // Menu items whose work belongs to the renderer's screen state.
 export type MenuCommand = "home" | "quickOpen" | "newConversation" | "pickFromCanvas" | "toggleSidebar";
-// What the renderer reports so main can enable menu items (design 'Menus').
+// What the renderer reports so main can enable menu items.
 // `choose`, `locked`: the Add Projects page shows its choose phase, or a phase nothing may leave (menuState).
 // `overview`: a project Overview shows (File > New Conversation).
 // `pickerAvailable`: the composer takes input and the canvas is loaded, so the menu follows the canvas toolbar's Picker.
@@ -150,7 +150,7 @@ function updateWork(next: WorkState): void {
   armWorkTimer();
   if (workItemsChanged(previous, items)) send("work:changed", items);
 }
-// App conversations' work updates, kept apart from terminal work so they never count as a terminal (design decision 9).
+// App conversations' work updates, kept apart from terminal work so they never count as a terminal.
 let conversationWork: readonly ConversationWork[] = [];
 function updateConversationWork(next: readonly ConversationWork[]): void {
   if (next === conversationWork) return;
@@ -205,7 +205,7 @@ const onboardingStarted = new Promise<OnboardingService>(resolve => { onboarding
 // Each listed folder's canvas rows as last handed to the conversation service (conversation/refreshes.ts).
 let conversationLists = new Map<string, readonly { path: string; rev?: number }[]>();
 let inspector: Inspector | undefined;
-// One selection app-wide (select-inspect R1); the socket answers it only for
+// One selection app-wide; the socket answers it only for
 // its own project. Memory only, never written to disk.
 let selection: Selection | null = null;
 const documents = new DocumentBindings();
@@ -221,7 +221,7 @@ let addFlow: AddFlow | undefined;
 let uiState: UiStateStore | undefined;
 let canvasSeen: CanvasSeenStore | undefined;
 let thumbnails: Thumbnails | undefined;
-// The app always starts on Home (design 'Memory model').
+// The app always starts on Home.
 const HOME: MenuInputs = { screen: "home", modal: false };
 let menuInputs: MenuInputs = HOME;
 const FULLSCREEN_EXIT_WAIT_MS = 2000;
@@ -425,7 +425,7 @@ function denyPermissions(): void {
   session.defaultSession.setPermissionCheckHandler(() => false);
   session.defaultSession.setDevicePermissionHandler(() => false);
   // Chromium turns an ⌥-clicked canvas link into a download, and the iframe
-  // sandbox without `allow-downloads` does not stop it (select-inspect P6).
+  // sandbox without `allow-downloads` does not stop it.
   session.defaultSession.on("will-download", (event) => event.preventDefault());
 }
 
@@ -484,7 +484,7 @@ function createWindow(): BrowserWindow {
   const owner = window.webContents.id;
   // A sign-in belongs to the renderer that started it; a lost renderer cannot cancel it any more.
   window.webContents.on("render-process-gone", () => { configBridge?.clear(); void agentAuth?.ownerClosed(owner); });
-  // A reloaded renderer has no Project Settings page left to answer (buzz-settings S4).
+  // A reloaded renderer has no Project Settings page left to answer.
   window.webContents.on("did-navigate", () => { configBridge?.clear(); });
   // `.git/HEAD` is not watched, so a branch switched elsewhere shows when the
   // human comes back to the window.
@@ -901,7 +901,7 @@ async function start(): Promise<void> {
     });
   }
   // The legacy external prepare gets no records: its runs use the user's own profile and readiness does not cover them.
-  // Runs read the MCP connectors' generation and names when they ask (mcp-connectors C1/C2).
+  // Runs read the MCP connectors' generation and names when they ask.
   const accountPrepare = createAccountPrepare(auth, cli, provider => void authIpc?.refreshTools(provider), authIpc, connectorFacts(() => mcp));
   // Without readable account storage a doan-account run is refused; it never falls back to the external profile.
   const prepareConversation = routePrepare(createPrepare(userData, join(userData, "runtime.json"), process.env),

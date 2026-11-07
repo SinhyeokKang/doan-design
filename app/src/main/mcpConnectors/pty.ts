@@ -8,8 +8,8 @@ type PtyModule = typeof import("node-pty");
 const OUTPUT_GRACE_MS = 2000;
 
 // node-pty's spawn-helper must be executable. npm's darwin prebuild ships it 0644, so a dev tree (npm run dev, Vitest)
-// fails with "posix_spawnp failed"; electron-builder's rebuild for the packaged app makes it 0755 (mcp-connectors
-// design 'pty: node-pty'). Only a dev tree is fixed here: a packaged app never changes files inside its signed bundle,
+// fails with "posix_spawnp failed"; electron-builder's rebuild for the packaged app makes it 0755.
+// Only a dev tree is fixed here: a packaged app never changes files inside its signed bundle,
 // and a Connect fails with this reason instead.
 export function ensureSpawnHelper(path: string, packaged: boolean): void {
   try { accessSync(path, constants.X_OK); return; } catch { /* Not executable. */ }

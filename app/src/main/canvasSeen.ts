@@ -2,8 +2,8 @@ import { randomBytes } from "node:crypto";
 import { readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import type { FolderEntry } from "./view";
 
-// `<userData>/canvas-seen.json`: per root, each canvas's mtime when the person last had it on the canvas page
-// (canvas-viewport-units D9). Only TS reads and writes it, so its tests are its schema.
+// `<userData>/canvas-seen.json`: per root, each canvas's mtime when the person last had it on the canvas page.
+// Only TS reads and writes it, so its tests are its schema.
 //
 // A root gets a record the first time it is listed without one, holding every canvas present: a project added, or the
 // first run after this file existed, lights nothing up. Paths are never pruned from a listing, because an editor's
