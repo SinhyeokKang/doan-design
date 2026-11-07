@@ -1,7 +1,7 @@
 import type { ConversationEvent } from "./conversation/types";
 import type { NotificationPreferences } from "./preferences";
 
-// macOS notification rules (buzz-settings design 'Notifications'). Main decides whether and what to show; the
+// macOS notification rules (PRODUCT §5 item 0 'Notifications'). Main decides whether and what to show; the
 // renderer interprets a click with notificationTarget, the one function buzz-conversation replaces for its panel.
 // No Electron here: the renderer imports this file.
 

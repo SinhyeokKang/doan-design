@@ -26,7 +26,7 @@ describe("provider auth adapters", () => {
   });
   it("forces Codex onto the OS keyring and Cursor onto its official file store", () => {
     // Every Codex process gets both, conversation app-servers included: a token refresh during a conversation also
-    // stores MCP OAuth tokens, and "auto" could silently write a file (mcp-connectors design 'providers').
+    // stores MCP OAuth tokens, and "auto" could silently write a file (ARCHITECTURE §7 'MCP connectors').
     expect(PROVIDER_AUTH.codex.args).toEqual(["-c", 'cli_auth_credentials_store="keyring"', "-c", 'mcp_oauth_credentials_store="keyring"']);
     expect(PROVIDER_AUTH.codex.plaintext).toEqual(["auth.json"]);
     expect(PROVIDER_AUTH.cursor.env).toEqual({ AGENT_CLI_CREDENTIAL_STORE: "file" });
@@ -110,7 +110,7 @@ describe("provider auth adapters", () => {
     expect(Object.keys(PROVIDER_AUTH.codex.settings).sort()).toEqual(["rules/doan-handoff.rules", "rules/doan.rules", "skills/doan/SKILL.md"]);
     for (const provider of ["claude", "codex"] as const) expect(PROVIDER_AUTH[provider].settings["skills/doan/SKILL.md"]).toBe(stub);
   });
-  // canvas-handoff C4 (design §4): Codex applies the strictest matching rule, so `doan handoff` asks in the asking modes
+  // ARCHITECTURE §7 'Agent authentication': Codex applies the strictest matching rule, so `doan handoff` asks in the asking modes
   // although the profile allows every other `doan` command; the terminal rule and the other providers stay as they were.
   it("gives only the Codex profile a prompt rule for doan handoff beside its doan allowance", () => {
     expect(PROVIDER_AUTH.codex.settings["rules/doan-handoff.rules"]).toMatch(/^prefix_rule\(pattern=\["doan", "handoff"\], decision="prompt"\)$/m);

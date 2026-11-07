@@ -7,7 +7,7 @@ import { closesNotification, notificationFor, TEST_NOTIFICATION, type Conversati
 import type { NotificationPreferences } from "./preferences";
 import type { FolderEntry } from "./view";
 
-// Sends the notifications notificationFor allows (buzz-settings design 'Notifications'). Electron stays in index.ts,
+// Sends the notifications notificationFor allows (PRODUCT §5 item 0 'Notifications'). Electron stays in index.ts,
 // which hands in a factory for its Notification.
 
 export interface NotificationHandle {

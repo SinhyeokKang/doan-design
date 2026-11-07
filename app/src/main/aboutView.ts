@@ -3,7 +3,7 @@ import { PROVIDERS, type Provider, type ToolFacts } from "./agentAuth/types";
 import type { SetupItem } from "./agentSetup/notice";
 import { MINIMUM_VERSIONS } from "./conversation/minimumVersions";
 
-// Settings > About's shapes and rows (buzz-settings design 'About'). The renderer imports this module, so it must not
+// Settings > About's shapes and rows (PRODUCT §5 item 0 'About'). The renderer imports this module, so it must not
 // import main readers: they reach the ajv validators, whose eval the renderer's CSP forbids (rendererImports.test.ts).
 
 // `version` null: the CLI's version could not be read. A development build may report `dev` and a bare `doan`.

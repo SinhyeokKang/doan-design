@@ -20,7 +20,7 @@ describe("mcp-connectors.json", () => {
   });
 
   // An unreadable file is not read as defaults: provider registrations stay behind, so an empty list would drift
-  // from them (design 'store').
+  // from them (ARCHITECTURE §7 'MCP connectors').
   test.each([
     ["an empty file", ""],
     ["not JSON", "{"],

@@ -4,7 +4,7 @@ import { MCP_PROVIDERS, PRESETS, type ConnectorServer, type McpProvider } from "
 // `<userData>/mcp-connectors.json` and `<userData>/mcp-connectors-pending.json` (mcp-connectors design '포맷 변경').
 // Only TS reads and writes them, so, like preferences.json, their tests are their schema. Unlike preferences, an
 // unreadable connectors file is not read as defaults: the providers keep Doan's registrations, so an empty list
-// would drift from them (design 'store'). Exact keys keep anything else from riding along.
+// would drift from them (ARCHITECTURE §7 'MCP connectors'). Exact keys keep anything else from riding along.
 
 // everConnected: per server, presets included, the providers it ever connected under; Reconnect needed derives from it.
 export interface ConnectorsFile { v: 1; servers: ConnectorServer[]; everConnected: Record<string, McpProvider[]> }

@@ -6,7 +6,7 @@ import { aboutNotice } from "./agentSetup/notice";
 
 export * from "./aboutView";
 
-// Settings > About (buzz-settings design 'About'): what main reads and the text Copy details puts on the clipboard; the
+// Settings > About (PRODUCT §5 item 0 'About'): what main reads and the text Copy details puts on the clipboard; the
 // rows the page shows are in aboutView.ts. Main builds that text so the renderer never names a clipboard string.
 
 const UNREAD = "Couldn’t read the version";

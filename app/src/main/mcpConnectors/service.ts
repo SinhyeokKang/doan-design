@@ -94,7 +94,7 @@ const COMMANDS = {
   },
 } as const;
 
-// Settings > MCP Connectors in main (mcp-connectors design 'service'): Doan keeps the server list; each provider CLI
+// Settings > MCP Connectors in main (ARCHITECTURE §7 'MCP connectors'): Doan keeps the server list; each provider CLI
 // registers, signs in and stores tokens in the provider's Doan profile. One attempt per provider at a time, and every
 // command chain on a profile runs in that provider's queue, so two CLI processes never rewrite one profile's config.
 export class McpService implements McpConversationFacts {
@@ -246,7 +246,7 @@ export class McpService implements McpConversationFacts {
     // A Claude without a Doan connection signed out with `claude auth logout`, which clears its MCP tokens (P4).
     if (provider === "claude" && !state.connection) this.options.store.clearProvider("claude");
     // Codex keys MCP tokens by server name and URL only, so its pending logouts are retried at start whether or not
-    // Codex is signed in (design 'agentAuth').
+    // Codex is signed in (ARCHITECTURE §7 'MCP connectors').
     if (!this.started.has(provider)) {
       this.started.add(provider);
       if (provider === "codex" && !this.closed) this.chore(provider, owner => this.retryPending(provider, null, owner).then(() => {}));
@@ -507,7 +507,7 @@ export class McpService implements McpConversationFacts {
 
   // Whether every pending logout asked for (one server, or all of the provider's) is gone. Claude's token sits in the
   // live profile's keychain item; Codex's keychain key is the name and URL hash only, so its logout runs in a
-  // temporary CODEX_HOME holding just that server: the profile it was registered in may be gone (design 'agentAuth').
+  // temporary CODEX_HOME holding just that server: the profile it was registered in may be gone (ARCHITECTURE §7 'MCP connectors').
   // url: the server's URL, for a block the store holds without a record (an unreadable pending file).
   private async retryPending(provider: McpProvider, only: string | null, owner: Owner, url?: string): Promise<boolean> {
     let entries = this.options.store.pending(provider).filter(entry => only === null || entry.name === only);
