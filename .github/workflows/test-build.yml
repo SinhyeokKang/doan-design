@@ -1,0 +1,140 @@
+name: Test build
+
+# /tester-build pushes a tester-<date>-<sha> tag at origin/develop. A tag push
+# runs the workflow file of the tagged commit; workflow_dispatch would need the
+# file on the default branch (main), which changes only at a release.
+on:
+  push:
+    tags: ['tester-*']
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    # An explicit bash adds pipefail, so a failing build is not hidden by tee.
+    shell: bash
+
+jobs:
+  # The release environment opens its secrets to any tester-* tag, and a tag
+  # can point at any commit, so only commits already on develop are signed.
+  source:
+    runs-on: macos-26
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Check the tag commit is on develop
+        run: |
+          # chore/release-ci is accepted only while its signing PoC runs.
+          for branch in develop chore/release-ci; do
+            if git merge-base --is-ancestor "$GITHUB_SHA" "origin/$branch"; then
+              echo "$GITHUB_REF_NAME ($GITHUB_SHA) is on $branch"
+              exit 0
+            fi
+          done
+          echo "::error::$GITHUB_REF_NAME ($GITHUB_SHA) is not on develop"
+          exit 1
+
+  gate:
+    needs: source
+    uses: ./.github/workflows/ci.yml
+
+  sign:
+    needs: gate
+    runs-on: macos-26
+    environment: release
+    # Packaging twice plus app notarization (no time limit inside
+    # electron-builder) plus up to 30 minutes of dmg notarization.
+    timeout-minutes: 90
+    steps:
+      - name: Check signing secrets are set
+        env:
+          MAC_CERT_P12_BASE64: ${{ secrets.MAC_CERT_P12_BASE64 }}
+          MAC_CERT_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          MAC_IDENTITY_NAME: ${{ vars.MAC_IDENTITY_NAME }}
+        run: |
+          missing=""
+          for name in MAC_CERT_P12_BASE64 MAC_CERT_PASSWORD APPLE_API_KEY_P8 APPLE_API_KEY_ID APPLE_API_ISSUER MAC_IDENTITY_NAME; do
+            [ -n "${!name}" ] || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::not set in the release environment:$missing"
+            exit 1
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - run: npm --prefix app ci
+      # Builds the versioned CLI and out/, which the signed build re-bundles.
+      - run: npm --prefix app run package
+      - name: Build, sign and notarize the app
+        working-directory: app
+        env:
+          CSC_LINK: ${{ secrets.MAC_CERT_P12_BASE64 }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          MAC_IDENTITY_NAME: ${{ vars.MAC_IDENTITY_NAME }}
+        run: |
+          # electron-builder takes APPLE_API_KEY as a path to the .p8 file.
+          export APPLE_API_KEY="$RUNNER_TEMP/AuthKey_$APPLE_API_KEY_ID.p8"
+          printf '%s\n' "$APPLE_API_KEY_P8" > "$APPLE_API_KEY"
+          # Test builds carry no update feed. -c.publish=null does not work
+          # (the CLI passes the string "null"), and without a publish setting
+          # electron-builder derives a GitHub feed from the repository, so the
+          # build gets a config with publish: null.
+          node -e 'const fs = require("fs"); const build = JSON.parse(fs.readFileSync("package.json", "utf8")).build; build.publish = null; fs.writeFileSync(process.argv[1], JSON.stringify(build));' "$RUNNER_TEMP/tester-builder.json"
+          npx electron-builder --mac dmg --arm64 --publish never --config "$RUNNER_TEMP/tester-builder.json" \
+            -c.mac.identity="$MAC_IDENTITY_NAME" -c.dmg.sign=true -c.directories.output="$RUNNER_TEMP/out" \
+            2>&1 | tee "$RUNNER_TEMP/builder.log"
+          # Without notarization credentials electron-builder only warns, so
+          # a successful build alone does not prove the app was notarized.
+          grep -q "notarization successful" "$RUNNER_TEMP/builder.log" || { echo "::error::app notarization did not run"; exit 1; }
+          test ! -e "$RUNNER_TEMP/out/mac-arm64/Doan.app/Contents/Resources/app-update.yml" || { echo "::error::test build has an update feed"; exit 1; }
+      - name: Notarize and staple the dmg
+        env:
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          dmg="$RUNNER_TEMP/out/Doan-macos-arm64.dmg"
+          xcrun notarytool submit "$dmg" --key "$RUNNER_TEMP/AuthKey_$APPLE_API_KEY_ID.p8" --key-id "$APPLE_API_KEY_ID" --issuer "$APPLE_API_ISSUER" \
+            --wait --timeout 30m 2>&1 | tee "$RUNNER_TEMP/notary.log" || true
+          id=$(sed -n 's/^ *id: //p' "$RUNNER_TEMP/notary.log" | head -n 1)
+          if ! grep -q "status: Accepted" "$RUNNER_TEMP/notary.log"; then
+            echo "::error::dmg notarization not accepted (submission id: ${id:-none}); a timed-out submission continues with notarytool wait $id"
+            [ -z "$id" ] || xcrun notarytool log "$id" --key "$RUNNER_TEMP/AuthKey_$APPLE_API_KEY_ID.p8" --key-id "$APPLE_API_KEY_ID" --issuer "$APPLE_API_ISSUER" || true
+            exit 1
+          fi
+          for attempt in 1 2 3; do
+            xcrun stapler staple "$dmg" && exit 0
+            sleep 30
+          done
+          echo "::error::stapling the dmg failed three times"
+          exit 1
+      - name: Remove the API key file
+        if: always()
+        run: rm -f "$RUNNER_TEMP"/AuthKey_*.p8
+      - name: Verify the signed dmg
+        run: node app/scripts/verifySignedPackage.mjs "$RUNNER_TEMP/out/Doan-macos-arm64.dmg"
+      - name: Name the dmg after the tag
+        run: mv "$RUNNER_TEMP/out/Doan-macos-arm64.dmg" "$RUNNER_TEMP/out/Doan-$GITHUB_REF_NAME.dmg"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: Doan-${{ github.ref_name }}
+          path: ${{ runner.temp }}/out/Doan-${{ github.ref_name }}.dmg
+          if-no-files-found: error
+          retention-days: 7
+          # The dmg is already compressed.
+          compression-level: 0
