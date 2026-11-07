@@ -239,7 +239,7 @@ Reference: `.doan/canvases/provider-usage.html` (frames `place-header`, `ring-st
 |---|---|---|
 | Button | `.usage` at the header's right end, 8 from its edge: x1106, y12, 116 × 32 with four rings at 1238 (x828 at 960), the same on all four screens. Pill (`--radius-pill`), 4 padding, 4 gap, `-webkit-app-region: no-drag`. Hover the chrome 6 % fill (rgba(0,0,0,.06)), open the 10 % pressed fill, keyboard focus the 2 px `--border-focus` ring at offset 2 | The tabs stay absolutely centred, so adding the button or a ring moves nothing else. |
 | Rings | 24 × 24 (`--size-control-xs`), SVG turned −90°, circles r 11 with a 2 px stroke; track `--border-track`, value `--affordance-prominent` with `stroke-dasharray` "<n> 100" on `pathLength` 100, `--border-danger` (rgb(229,72,77)) at 70 % or a reported limit. Logo 14 × 14 (`--size-icon-sm`) in every ring. An empty state draws the track alone | |
-| Folding | One ring (a reported limit first, then the highest value) and "+n" (caption 12/16, medium, subtle ink, min-width 24), 60 wide with three folded. It folds when fewer than 8 px would stay between the button and the tabs; at 960 × 600 there are 278 px, so four rings never fold at the minimum window | The draft draws the folded button but not where it folds. |
+| Folding | One ring (a reported limit first, then the highest value) and "+n" (caption 12/16, medium, subtle ink, min-width 24), 60 wide with three folded. It folds when fewer than 8 px would stay between the button and the tabs, measured to the update button's start (with its 8 px gap) while that button shows ('App updates'); at 960 × 600 four rings fold to one and +3 with the update button and never without it (278 px free) | The draft draws the folded button but not where it folds. The header keeps its size when the update button comes or goes, so the update anchor is observed too. |
 | Popover | The shared floating popover (`doan-floating doan-popover doan-scroll`), 320 wide, 12 padding, 24 corners, rgba(255,255,255,.9). Radix popper below the button, aligned to its end, 4 away, 8 from the window: x902, y48 at 1238 (16 from the right edge). Height from Radix's available height (544 at 960 × 600, the draft's `100% − 56`); taller content scrolls inside | |
 | Title row | Title 13,13, 228 × 20 (label-sm, medium). Agent settings (`Settings`) at 245,7 and Refresh usage (`RotateCw`, or the spinner while any row reads) at 281,7: 32 px ghost icon buttons, 16 px icons, −6 block margins (and −6 end on Refresh). Both follow the list in the DOM, so Tab goes list → Agent settings → Refresh usage | |
 | Rows | One per provider in the fixed order, 12 block padding (none at the ends), 1 px `--border-standard` between rows. Head: 16 px logo, name (label-sm medium, ellipsis), read time (caption, metadata ink). Body indented 24; each window a caption line (label subtle, text right, medium when limited) over a 4 px pill bar on `--border-standard`, filled `--affordance-prominent` or `--border-danger` | |
@@ -1152,6 +1152,45 @@ Reference: `.doan/canvases/zero-setup-agents.html`, the windows `about-skipped`,
 ### Regression pointers
 
 `ds/controls.test.ts` (switch, group, row), `SettingsPage.test.tsx` (sidebar ink, dialog type, group-level line), `agentAuthView.test.ts` (Settings' Check), `rendererImports.test.ts` (the renderer never loads the ajv validators: a blank window under the CSP otherwise). Probes: `.scratch/design-sync/buzz-settings/measure.mjs`, `.scratch/runtime-test/buzz-settings/r2.mjs`.
+
+## App updates
+
+Reference: `.doan/canvases/app-update.html`, frames 01–14 (`about-ready`, `about-narrow`, `about-read-failed`, `row-check`, `row-download`, `row-failed`, `row-off`, `auto-check`, `header-ready`, `header-blocked`, `header-restarting`, `header-stopped`, `header-narrow`, `header-locked`); frame 15 (`menu`) is the native menu and is not measured. Measured by `/design-sync` with computed style in one Electron build (`.scratch/design-sync/app-update/measure.mjs`): the draft in the app's canvas iframe, and a development launch with isolated HOME, SHELL, userData, agent config directories, CLI and DOAN_RUNTIME. A development launch never enables updates, so every state was driven by the probe: a fixed `UpdateSnapshot` sent to the window as `update:state` from main, `update:popover` likewise, and main's `about:read`, `preferences:write` and `agent-usage:read` handlers replaced in that process for the read failure, the save failure and the header's usage rings. The Version row and the automatic-check row of all 31 About tiles and the header button, its popover, its tooltip and its place in six header states match the draft element by element; the rows below are what they rely on.
+
+### Measured contracts
+
+| Element | Measured contract | Reason |
+|---|---|---|
+| Version row | The shipped preference row. Description "<running version> · <state>" (body-sm, subtle). On the right: a lone Check for Updates as the row's single control; Retry, or Release Notes ↗ with Retry or Restart to Update, in `.update-msg-actions` (flex, 8 gap): Release Notes ↗ subtle sm, Restart to Update the page's one prominent sm button (black fill, white ink); the spinner line ("Checking for updates", "Restarting") without a live role; the percent while downloading (settings value, `aria-hidden`). A copy that doesn't update has no right column and no automatic-check row | The row shows main's update push, not About's read: a failed or slow read leaves it and the automatic-check row in the Doan section (`about-read-failed`); only the doan command row and Agent tools go. |
+| Download bar | `.usage-bar.update-bar` under the description, 6 below it (`--space-1h`): 4 high, pill, `--border-standard` track, `--affordance-prominent` fill at the percent; `role=progressbar` 0–100 named by the state text (CDP: "0.1.0 · Downloading Doan 0.1.1") | Progress is never announced. |
+| Lines under the row | Blocked: the shared notice (`doan-notice`, alert mark) with `.update-reason-body` (column, 4 gap): title medium, body regular. A failure or a stopped restart: the shared error line. Neither has a live role | The page's one live region (`.ob-live`) reads a result once: never the first push, never progress, and a gate change is not news; a Restart to Update press answered blocked reads "Can’t restart yet. A conversation is running…". A result repeated word for word is read again. |
+| Automatic-check row | Directly under the Version row: the shared switch, disabled until preferences are read and on a newer preferences file. A failed save keeps the switch at the saved value and adds the error line with Retry (`aria-label` "Save the automatic-check choice again") in `.update-msg-actions`; the live region reads the line | Notifications' save rule. |
+| Header button | `.update-anchor` after Agent usage, 8 from it (`margin-left: var(--space-2)`) and at the header's padding end: grey sm `doan-button`, 168.9 × 32 at 12 from the header top, `--affordance-backdrop-hover` fill (rgba(0,0,0,.06)), 12 start padding with the 16 px `CircleFadingArrowUp`, 16 end; hover, press and an open popover `--affordance-backdrop-pressed` (rgba(0,0,0,.1)); disabled (a locked page, a modal, first run, or Restarting with the spinner) keeps the fill with `--text-disabled` ink (rgb(149,149,149)). Without an update the anchor stays empty and `display: none` | The tab capsule's fill reads on the translucent chrome. Agent usage's fold watches the anchor. |
+| Header popover | The shared floating popover, 320 wide, below the button aligned to its end, 4 away; title label-sm medium, text body-sm subtle, 4 apart; `role=dialog` named by its title. It opens on a press answered blocked (focus moves in), on the Doan menu's blocked Restart to Update, and by itself when a restart stops or main holds a restart back because a conversation started while it waited to install (focus stays). The button claims `aria-haspopup` only while the gate is blocked or the popover is shown | A press always asks main, which reads the gate at the press; a stopped restart's press restarts. |
+| Tooltip | The shared tooltip below the button, 4 away and centred: "Doan <v> is ready", also the button's description | |
+
+### Behaviour beyond the measured draft
+
+- Only the shown screen's header opens a popover nobody pressed for. Every screen keeps its header mounted (the hidden ones under `[inert]`); with both open, each one's focus was outside the other and Radix closed both (measured in the real app).
+- The popover closes on Escape, an outside press, a press in the canvas, and when the update leaves the header or starts restarting. While it is open the header takes presses (inline `-webkit-app-region: no-drag`), as Agent usage's popover does.
+- About's live region reads the blocked reason, not "ready" again, when main holds a restart back.
+- Release Notes ↗ that main could not open shows nothing.
+- Known gaps, not fixed: the popover keeps the text it opened with while the gate changes under it; the automatic-check switch has no pending state, so a second press before main's push saves the same value again; Agent usage's popover and a stopped restart's popover open together share the header's inline no-drag, and closing either one removes it.
+
+### Documented differences from the draft
+
+- **Read failure line.** The page-level "Couldn’t read the versions." keeps the shipped `role=alert`; the draft redraws it without a role. It is not an update result.
+- **Not checked yet tile.** The draft draws the switch on; that description appears only with automatic checks off, so the app's switch is off there.
+- **Inherited text.** The header anchor and the portalled popover and tooltip inherit the app body's 13 px / normal with tabular figures where the canvas gives 14 / 20; every text part sets its own type and matches. The shared tooltip is wider by its tabular figures and does not set `nowrap`; it is centred in both.
+
+### Not verified
+
+- A real feed, download, Squirrel staging and restart: states were sent by the probe (parent feature's rc check).
+- Dark mode, reduced transparency, forced colours.
+
+### Regression pointers
+
+`SettingsAbout.test.tsx` (rows per state, actions, live region, blocked press, switch and save failure, read failure), `UpdateHeaderButton.test.tsx` (markup), `UpdateHeaderButton.interaction.test.tsx` (press, menu popover, stopped restart, closing, only the shown header), `AgentUsageButton.interaction.test.tsx` (fold leaves room for the update button and re-measures), `App.settings.test.tsx` (header order, unavailable rule). Unpinned: the rendered geometry and colours above.
 
 ## Settings › MCP Connectors
 
