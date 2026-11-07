@@ -27,15 +27,7 @@ jobs:
           fetch-depth: 0
       - name: Check the tag commit is on develop
         run: |
-          # chore/release-ci is accepted only while its signing PoC runs.
-          for branch in develop chore/release-ci; do
-            if git merge-base --is-ancestor "$GITHUB_SHA" "origin/$branch"; then
-              echo "$GITHUB_REF_NAME ($GITHUB_SHA) is on $branch"
-              exit 0
-            fi
-          done
-          echo "::error::$GITHUB_REF_NAME ($GITHUB_SHA) is not on develop"
-          exit 1
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/develop || { echo "::error::$GITHUB_REF_NAME ($GITHUB_SHA) is not on develop"; exit 1; }
 
   gate:
     needs: source

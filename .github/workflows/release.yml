@@ -29,23 +29,15 @@ jobs:
       - id: kind
         name: Check the tag commit
         run: |
-          # A release is cut only from main. Dry runs sign develop commits;
-          # chore/release-ci is accepted only while its signing PoC runs.
+          # A release is cut only from main; dry runs sign develop commits.
           if [[ "$GITHUB_REF_NAME" == release-dryrun-* ]]; then
             echo "dry_run=true" >> "$GITHUB_OUTPUT"
-            branches="develop chore/release-ci"
+            branch=develop
           else
             echo "dry_run=false" >> "$GITHUB_OUTPUT"
-            branches="main"
+            branch=main
           fi
-          for branch in $branches; do
-            if git merge-base --is-ancestor "$GITHUB_SHA" "origin/$branch"; then
-              echo "$GITHUB_REF_NAME ($GITHUB_SHA) is on $branch"
-              exit 0
-            fi
-          done
-          echo "::error::$GITHUB_REF_NAME ($GITHUB_SHA) is not on $branches"
-          exit 1
+          git merge-base --is-ancestor "$GITHUB_SHA" "origin/$branch" || { echo "::error::$GITHUB_REF_NAME ($GITHUB_SHA) is not on $branch"; exit 1; }
       - name: Check the version
         if: steps.kind.outputs.dry_run == 'false'
         env:
