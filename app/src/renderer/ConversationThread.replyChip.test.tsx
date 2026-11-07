@@ -5,7 +5,7 @@ import type { ReplyAnchor } from "../main/conversation/replyAnchor";
 import type { CanvasRow } from "../main/view";
 import type { ThreadItem } from "./threadItems";
 
-// agent-reply-chips T3 (design 'Rendering'): pressing a reply chip, and the "No longer in the canvas" note under the
+// Pressing a reply chip, and the "No longer in the canvas" note under the
 // reply. No DOM here: `context` stands in for every context the chip reads (useContext), and `note` sets what the
 // reply's note state holds (useLocateNote's count and the chip it is shown for), so one render draws a shown note.
 const stub = vi.hoisted(() => ({

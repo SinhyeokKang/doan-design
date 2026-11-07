@@ -15,7 +15,7 @@ test("one running Home conversation per root: starting, working and asking count
   for (const phase of ["done", "failed", "interrupted"] as const) expect(runningInRoot([conv({ phase })], "/r/doan")).toBeNull();
 });
 
-// canvas-composer-polish spec 4: only a running conversation blocks, so the reason line has one sentence.
+// Only a running conversation blocks, so the reason line has one sentence.
 test("Home's reason line names only a running conversation", () => {
   expect(anotherConversation("doan-design")).toBe("Another conversation is still running in doan-design.");
 });
@@ -28,7 +28,7 @@ test("removing a project with a running conversation asks first and names the co
     body: "A conversation is still running in doan-design. Doan stops it, then removes the project from the list. Files and Git worktrees stay on disk.",
     cancel: "Cancel", confirm: "Stop and Remove",
   });
-  // Every one waiting for an answer: the confirmation says so (spec decision 18).
+  // Every one waiting for an answer: the confirmation says so.
   expect(removalConfirm([{ conversationId: "c2", waiting: true }], "doan-design", 1).body)
     .toBe("A conversation in doan-design needs your answer. Doan stops it, then removes the project from the list. Files and Git worktrees stay on disk.");
 });
@@ -79,7 +79,7 @@ test("the last request is kept per root, and a newer send replaces it", () => {
 });
 
 // The renderer has no check-by-path call; main checks every attachment again when the start is accepted and refuses
-// a moved one with attachment_missing (design §4.8), so the chips come back as they were sent.
+// a moved one with attachment_missing, so the chips come back as they were sent.
 test("Edit on Home fills an empty composer without asking; main checks the attachments again on send", () => {
   const result = restoreRequest({ text: "  ", preset: null, attachments: [] }, LAST, "doan-design");
   expect(result.confirm).toBeNull();
@@ -94,7 +94,7 @@ test("a different draft asks before it is replaced; the same request does not", 
   expect(restoreRequest({ text: LAST.text, preset: CRITIQUE, attachments: [file("a.png")] }, LAST, "doan-design").confirm).toBeNull();
 });
 
-// App wiring rules (buzz-home design §4.5, §4.9, §7, §7.3), pure so App's event handlers stay thin.
+// App wiring rules, pure so App's event handlers stay thin.
 test("new canvas candidates are the rows absent when the request was sent and not checked yet", () => {
   const rows = [{ path: ".doan/canvases/a.html" }, { path: ".doan/canvases/b.html" }, { path: ".doan/canvases/c.html" }];
   expect(newCanvasCandidates(rows, [".doan/canvases/a.html"], [".doan/canvases/c.html"]).map(r => r.path)).toEqual([".doan/canvases/b.html"]);

@@ -7,7 +7,7 @@ import { TooltipProvider } from "./components/ui/tooltip";
 import { EMPTY_QUESTION_DRAFT, questionDraft, type QuestionDraft, type QuestionDraftAction } from "./questionDraft";
 import type { ThreadItem } from "./threadItems";
 
-// agent-questions design §7 and the draft frames question-card, keyboard, send-states and folded. There is no DOM in
+// The draft frames question-card, keyboard, send-states and folded. There is no DOM in
 // these tests: the card is drawn to markup, and its handlers are called from the element tree it returns.
 
 const layout: Question = { id: "0", header: "Layout", question: "Which layout should the settings header use?", options: [{ label: "Compact", description: "Title and actions on one line" }, { label: "Two rows" }], multiSelect: false, other: true };

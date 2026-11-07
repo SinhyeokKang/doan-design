@@ -443,7 +443,7 @@ test("removing a restored chip that no last request uses releases its sent id", 
   await vi.waitFor(() => expect(doan.releaseAttachments).toHaveBeenCalledWith(["id-k"]));
 });
 
-// buzz-settings U3: a group that cannot run sends the person to its Agents row; the fixed new-conversation default
+// A group that cannot run sends the person to its Agents row; the fixed new-conversation default
 // starts each input, and a pick lasts until the input is sent (design '홈 공급자 선택기', 'New conversations').
 function status(provider: Provider, patch: { expired?: boolean; facts?: Partial<ToolFacts> } = {}): AuthStatusDto {
   const state: AuthState = { provider, generation: 1, verified: true, expired: patch.expired ?? false, connection: { provider, connectionId: "c", profile: provider, account: ACCOUNT }, attempt: null, error: null, phase: patch.expired ? "reauthRequired" : "connected" };
@@ -597,7 +597,7 @@ test("while a start is pending, Send, the submit key and the notice's Retry neit
   expect(doany.hop).toHaveBeenCalledTimes(1);
 });
 
-// permission-mode U1: the picker sits in Home's tool row, starts from the provider's last mode, is remembered on the
+// The picker sits in Home's tool row, starts from the provider's last mode, is remembered on the
 // pick alone, and the send carries it; after a send the next input starts from the remembered mode again.
 test("the permission pick is remembered at once and sent with the start", async () => {
   const onRemember = vi.fn();

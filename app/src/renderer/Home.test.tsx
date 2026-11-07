@@ -47,7 +47,7 @@ test("Home is the shell with the sidebar and a composer body: no project cards, 
   expect(html).not.toContain("Connection problem");
   expect(html).toContain('<main class="app-shell home-shell"><header class="top shell-top"></header><aside class="side shell-side"');
   expect(html).toContain('<section class="home-panel" aria-label="Home"><div class="home-stage"><button type="button" class="doany" aria-label="Make Doany hop" style="width:114px;height:114px"><img src="doany/doany.png" alt=""/><canvas hidden="" aria-hidden="true"></canvas></button><h1 class="home-greeting">');
-  // The sidebar marks no current project or canvas on Home (design §3).
+  // The sidebar marks no current project or canvas on Home.
   expect(html).not.toContain("aria-current=\"location\"");
 });
 
@@ -67,7 +67,7 @@ test("an empty composer for a project with canvases: project above, tray below, 
   // suggested-prompt-variants C: a prompt-only row (icon tile, sentence, hover arrow), not the shared doan-button.
   expect(html.match(/<button type="button" class="suggestion"[^>]*><span class="suggestion-icon"><svg[^>]*aria-hidden="true"/g)).toHaveLength(3);
   expect(html).not.toContain("suggestion doan-button");
-  // small-ui-tweaks decision 7: the canvas name is a highlighted inline value; the button keeps the full sentence as its text.
+  // The canvas name is a highlighted inline value; the button keeps the full sentence as its text.
   expect(html).toContain('<span class="suggestion-label">Review the <span class="suggestion-value">buzz-onboarding</span> canvas</span>');
   expect(html).toContain('<span class="suggestion-value">doan-design</span>');
   expect(html.match(/class="suggestion-value"/g)).toHaveLength(3);
@@ -108,7 +108,7 @@ test("a preset chip and attachments sit above the request; Send is enabled; the 
   expect(html).toContain('<div class="home-suggestions" role="group" aria-label="Suggested prompts" inert="">');
 });
 
-test("Tab order is project, chip ×, field, toolbar, Send, worktree, suggestions, then the reason line's Open (design §4.9)", () => {
+test("Tab order is project, chip ×, field, toolbar, Send, worktree, suggestions, then the reason line's Open", () => {
   const worktrees: FolderEntry[] = ["/code/doan-design", "/code/doan-wt"].map((path, i) => ({ ...project(path), git: { common: "/code/doan-design/.git", main: "/code/doan-design", branch: i ? "feat" : "main", worktrees: [] } }));
   const html = render(worktrees, { preset: PRESETS[3]!, text: "" }, { running: new Map([["/code/doan-design", { conversationId: "c1", waiting: false }]]) });
   const order = [...html.matchAll(/<(button|div class="composer-input")[^>]*?(aria-label="([^"]*)"|>([^<]*))/g)].map(m => m[3] ?? m[4] ?? "");
@@ -152,7 +152,7 @@ test("Home CSS keeps the draft's measured icon sizes, popover status type, chip 
   expect(css).not.toMatch(/\.composer-send[^{]*\{[^}]*background/);
 });
 
-// buzz-conversation R1: the composer's focused border and the disabled ink of its tools.
+// The composer's focused border and the disabled ink of its tools.
 test("Home CSS: the focused composer uses the field-focus border with shadow-sm; disabled Attach and Presets take the disabled ink", () => {
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toContain(".composer-card:focus-within { box-shadow: var(--shadow-sm), 0 0 0 1px var(--border-field-focus); }");

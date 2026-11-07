@@ -11,7 +11,7 @@ import {
   type AttachmentDraft, type ModelsState, type PresetListReply, type PresetSummary, type SendInput,
 } from "./homeComposer";
 
-// The catalog's order and groups (design §4.4a); titles and scopes are the CLI's, abbreviated here.
+// The catalog's order and groups; titles and scopes are the CLI's, abbreviated here.
 const CATALOG: [string, string, string][] = [
   ["context", "Gather design context", "start"], ["shape", "Shape a first screen", "start"], ["document", "Document the design system", "start"], ["extract", "Extract components", "start"],
   ["critique", "Critique the design", "review"], ["audit", "Audit quality", "review"],
@@ -338,14 +338,14 @@ test("a provider without a list yet has a Default row and asks to be read when i
   for (const state of [{ error: "unavailable" }, { models: [] }] as ModelsState[]) {
     expect(modelPickerView(auth, { codex: state }, choice).groups[1]).toMatchObject({ read: false, note: "Models unavailable", rows: [{ kind: "default", label: "Default", selected: true }] });
   }
-  // picker-default-labels spec 'Model': with no model chosen the trigger names its drawer; the group head names the provider.
+  // With no model chosen the trigger names its drawer; the group head names the provider.
   for (const state of [undefined, "loading", { error: "unavailable" }] as ModelsState[]) {
     expect(modelPickerView(auth, { codex: state }, choice).trigger).toEqual({ provider: "codex", label: "Model", ariaLabel: "Agent: Codex, model not chosen", placeholder: true, isDefault: false });
   }
   expect(modelPickerView(auth, {}, choice).effort).toBeNull();
 });
 
-// PoC P1 (design §4.7, 2026-10-29 user): Copilot lists its models without a request, so it is read like the others.
+// Copilot lists its models without a request (2026-10-29 user), so it is read like the others.
 test("Copilot's list is read automatically like every other provider's, with no lazy-read row", () => {
   const group = modelPickerView(snapshot(dto("copilot")), {}, { provider: "copilot", model: null, effort: null }).groups[0]!;
   expect(group).toMatchObject({ read: true, rows: [{ kind: "default", label: "Default", selected: true }] });
@@ -361,7 +361,6 @@ test("the effort capsule shows only for a model with levels; an unchosen level n
   expect(modelPickerView(auth, { claude: CLAUDE_MODELS }, { provider: "claude", model: "retired", effort: "high" })).toMatchObject({ trigger: { label: "Model", placeholder: true }, effort: null });
 });
 
-// picker-default-labels A2 (spec 'Model', 'Effort'; design §2 2, 3).
 const LUNA = { id: "gpt-6-luna", label: "GPT-6-Luna", default: true, efforts: ["low", "medium", "high", "xhigh"], defaultEffort: "medium" };
 const TERRA = { id: "gpt-5.6-terra", label: "GPT-5.6-Terra", default: false, efforts: ["low", "medium", "high"] };
 const CODEX_MODELS: ModelsState = { models: [LUNA, TERRA] };
@@ -726,7 +725,7 @@ test("group keys map to their names and icons; an unknown key keeps its name and
   ]);
 });
 
-// buzz-settings design 'New conversations': the fixed preference from Settings comes first, then today's rules.
+// The fixed preference from Settings comes first, then today's rules.
 test("new conversation default: the fixed agent wins over the last one sent while it can run", () => {
   const auth = snapshot(dto("claude"), dto("codex"), dto("copilot", { verified: false }));
   expect(defaultProvider(auth, "claude", { provider: "codex" })).toBe("codex");
@@ -773,7 +772,7 @@ test("steerKey accepts only Control+Enter outside IME composition", () => {
   }
 });
 
-// prompt-suggestion design 'Pure functions' 4: only a plain → on an empty field outside IME composition takes the
+// Only a plain → on an empty field outside IME composition takes the
 // suggestion shown; every modifier keeps its own meaning (selection, word and line moves).
 test("takesSuggestion accepts only a plain Right Arrow on an empty field while a suggestion shows", () => {
   const event = { key: "ArrowRight", shiftKey: false, altKey: false, metaKey: false, ctrlKey: false, isComposing: false, keyCode: 39 };
@@ -787,7 +786,7 @@ test("takesSuggestion accepts only a plain Right Arrow on an empty field while a
   }
 });
 
-// fast-mode A5 (design §2 8, decision 12): the Fast switch row under the Effort levels, and its trigger name.
+// The Fast switch row under the Effort levels, and its trigger name.
 const FAST_OPUS = { ...OPUS, fast: {} };
 const SOL = { id: "gpt-6.1-sol", label: "GPT-6.1 Sol", default: true, efforts: ["low", "high"], fast: { description: "2x speed, increased usage" } };
 test("the switch row shows only for a Claude or Codex model with Fast and effort levels, and never in Settings", () => {

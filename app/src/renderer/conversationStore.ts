@@ -12,7 +12,7 @@ import { splitRequest, type AttachmentDraft } from "./homeComposer";
 import type { SendingMessage, SentFile } from "./threadItems";
 import { newerStage } from "./turnStatus";
 
-// What the Overview's main conversation and the canvas panel share (buzz-canvas-conversation design §1): the threads
+// What the Overview's main conversation and the canvas panel share: the threads
 // read and merged with live events, the composer drafts by draftKey, queued messages, returned drafts and the
 // providers of conversations started here. One store serves both screens, so a conversation's thread and draft are
 // the same wherever it shows. Which conversation shows, seen marks and navigation stay with each screen's run.
@@ -63,14 +63,14 @@ export class ConversationStore {
   // "event" for each live event merged into it.
   private listeners = new Set<(conversationId: string, change: "read" | "event") => void>();
   // Between conversation:delete and its reply: the reply and main's list notice come in either order (POSTMORTEM
-  // 2026-10-26), so a list without the conversation is not read as it having gone (conversation-delete design §3.2).
+  // 2026-10-26), so a list without the conversation is not read as it having gone.
   private deletingIds = new Set<string>();
   // Deleted in this run: an event that arrives late is dropped rather than kept for a read that would bring it back.
   private deletedIds = new Set<string>();
-  // The answers being chosen on question cards, by conversation and request (agent-questions design §7): kept across
+  // The answers being chosen on question cards, by conversation and request: kept across
   // the thread's redraw for another conversation or canvas, gone once the question is resolved; not across a reload.
   private questions = new Map<string, Map<string, QuestionDraft>>();
-  // Each conversation's latest stage signal (turn-activity design §2), pushed or on a read's reply. Kept for a
+  // Each conversation's latest stage signal, pushed or on a read's reply. Kept for a
   // conversation not read yet as its events are; the indicator uses it only for the turn and seq it names.
   private stages = new Map<string, StageSignal>();
 
@@ -83,7 +83,7 @@ export class ConversationStore {
   thread(conversationId: string): Thread | null { return this.threads.get(conversationId) ?? null; }
   providerOf(conversationId: string): Provider | null { return this.providers.get(conversationId) ?? null; }
   started(conversationId: string, provider: Provider): void { this.providers.set(conversationId, provider); }
-  // The rows: what Send now has in flight shows in the thread instead (canvas-composer-polish design §2).
+  // The rows: what Send now has in flight shows in the thread instead.
   queue(conversationId: string): readonly QueuedMessage[] {
     return (this.queues.get(conversationId)?.items ?? []).flatMap(({ pressed, ...item }) => pressed === undefined ? [item] : []);
   }
@@ -173,7 +173,7 @@ export class ConversationStore {
   withoutDeleted(list: readonly ConversationSummary[]): readonly ConversationSummary[] {
     return list.filter(c => !this.deletedIds.has(c.conversationId));
   }
-  // main deleted it: its thread, draft, returned draft and queue go. The new conversation's draft stays (spec decision 5).
+  // main deleted it: its thread, draft, returned draft and queue go. The new conversation's draft stays.
   deleted(conversationId: string): void {
     this.deletingIds.delete(conversationId);
     this.deletedIds.add(conversationId);
@@ -342,7 +342,7 @@ export class ConversationStore {
   }
 }
 
-// The phase Send now reads (queue-send-now design §2.1), with turnOf's order: a turn that runs or waits for a
+// The phase Send now reads, with turnOf's order: a turn that runs or waits for a
 // permission answer has something to take the message; a judged turn with work left (a queue about to go out) and an
 // ended one do not. The merged events' end wins over a list that has not caught up.
 export function steerPhaseOf(events: readonly ConversationEvent[] | null, summary: ConversationSummary | undefined, live: boolean): SteerPhase {

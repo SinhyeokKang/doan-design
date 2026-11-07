@@ -7,7 +7,7 @@ import { BIND_GRACE_MS, blocksStart, HomeRun, type HomeRunHost } from "./homeRun
 import type { StartInput } from "./HomeComposerView";
 import type { LastRequest } from "./homeConversations";
 
-// buzz-home tasks U5 and review BU3 🟡2–🟡7: App's Home wiring runs through HomeRun; these drive it end to end with a
+// App's Home wiring runs through HomeRun; these drive it end to end with a
 // fake window.doan and a fake navigation that behaves like App's (arrival callback, draft guard, person moves).
 
 const ROOT = "/code/doan", OTHER = "/code/acme";
@@ -143,7 +143,7 @@ test("a canvas that appeared before the start reply arrived is still taken and o
   expect(h.host.toast).not.toHaveBeenCalledWith("New canvas in doan", "Open", expect.any(Function));
 });
 
-// buzz-canvas-conversation design §2 'Conversation panel': until main judges the promotion, the canvas the project
+// Until main judges the promotion, the canvas the project
 // conversation's turn drew names it as drawing there; once main binds it, or after the binding window, it does not.
 test("a project conversation drawing a canvas is named for that canvas until main binds it", async () => {
   const h = harness();
@@ -309,7 +309,7 @@ test("a move the person makes while the project is still being read cancels the 
   expect(h.run.takeFocus()).toBeNull();
 });
 
-// canvas-composer-polish spec 4: a conversation waiting for an answer does not keep Home from starting another.
+// A conversation waiting for an answer does not keep Home from starting another.
 test("Home's running map names the running conversation and leaves out one waiting for an answer", async () => {
   const h = harness();
   const sending = h.run.start(REQUEST, LAST);
@@ -323,7 +323,7 @@ test("Home's running map names the running conversation and leaves out one waiti
   expect(h.run.running()).toEqual(new Map([[ROOT, { conversationId: "c1" }]]));
 });
 
-// agent-questions spec 7 (tasks C1): a question waits like a permission request, so it leaves the root free too, and
+// A question waits like a permission request, so it leaves the root free too, and
 // the slot, rank and toast read it as waiting.
 test("a project conversation waiting for a question's answer does not keep Home from starting another", async () => {
   const h = harness();
@@ -373,7 +373,7 @@ test("a new canvas in a root with two live project turns neither opens nor toast
   expect(h.host.openCanvas).not.toHaveBeenCalled();
 });
 
-// buzz-conversation R4: what survives a reload comes from main's list.
+// What survives a reload comes from main's list.
 // working follows the phase unless a test sets it: main also works after a turn ended (judgement, exit wait).
 const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
   conversationId: "c1", title: "Draw it", state: "current", owner: "doan", provider: "claude", fromHome: true,
@@ -506,7 +506,7 @@ test("a failed seen marker brings the slot back", async () => {
   expect(h.run.slots().get(ROOT)?.kind).toBe("unseen");
 });
 
-// buzz-canvas-conversation design §2 'Seen': a canvas conversation is seen only in its canvas's open panel, which marks
+// A canvas conversation is seen only in its canvas's open panel, which marks
 // it through markSeenThrough; visiting its canvas row or its project marks nothing.
 test("visiting the bound canvas or its project leaves a canvas conversation's ending unseen", async () => {
   lists({ [ROOT]: [summary({ conversationId: "u", unseen: true, canvas: { path: ".doan/canvases/a.html", id: "a" } })] });
@@ -541,7 +541,7 @@ test("an ending that arrives while the person is on its canvas row stays unseen 
   expect(doan.markConversationSeen).toHaveBeenCalledWith({ conversationId: "u", seq: 4 });
 });
 
-// buzz-project spec decision 11: a project conversation is seen only while it shows in the Overview's main column with
+// A project conversation is seen only while it shows in the Overview's main column with
 // the window focused (the Overview marks it); opening the workspace or the Overview alone marks none.
 test("visiting the project row leaves project conversations unseen and marks only canvas ones whose canvas left", async () => {
   lists({ [ROOT]: [
@@ -775,7 +775,7 @@ test("a project row's slot names the project conversation the Overview should op
   expect(h.run.slotConversation(OTHER)).toBeNull();
 });
 
-// Review RM r1 🟡5, spec decision 6 last bullet: a turn sent in an existing project conversation that makes a new
+// A turn sent in an existing project conversation that makes a new
 // canvas opens it during the turn, from a baseline taken before the send and only while the person opened none.
 test("a send in an existing project conversation opens the new canvas its turn makes, after one existing at the send", async () => {
   lists({ [ROOT]: [summary({ conversationId: "p" })] });
@@ -914,7 +914,7 @@ test("a conversation that leaves Plan in main's list tells App the mode it moved
   expect(h.host.followedMode).toHaveBeenLastCalledWith("claude", "default");
 });
 
-// conversation-delete tasks T3, design §3.2: a deleted conversation leaves the strip, Edit on Home and the run's
+// A deleted conversation leaves the strip, Edit on Home and the run's
 // records, and late events or a list read started before the delete do not bring it back.
 test("a deleted conversation leaves the strip and Edit on Home", async () => {
   const h = harness();
@@ -988,7 +988,7 @@ test("late events of a deleted conversation do not crowd out another conversatio
   expect(h.run.strip(ROOT)?.state.kind).toBe("permission");
 });
 
-// mcp-connectors spec 10: Settings > MCP Connectors asks which agents have a Doan turn running anywhere.
+// Settings > MCP Connectors asks which agents have a Doan turn running anywhere.
 test("running providers are the agents with a Doan conversation running or waiting in any project; terminal ones and ended ones don't count", async () => {
   lists({
     [ROOT]: [summary({ conversationId: "a", provider: "codex", phase: "waiting" }), summary({ conversationId: "b", provider: "cursor", phase: "ended" })],
@@ -1000,7 +1000,7 @@ test("running providers are the agents with a Doan conversation running or waiti
   expect([...h.run.runningProviders()].sort()).toEqual(["codex", "copilot"]);
 });
 
-// prompt-suggestion design 'renderer' 5 (POSTMORTEM 2026-11-05 'Send now'): main drops a conversation's suggestion when
+// POSTMORTEM 2026-11-05 'Send now': main drops a conversation's suggestion when
 // its next turn is accepted. A list read that started before that may still carry it and lands after the composer
 // emptied, so only reads started after the accepted message say whether a suggestion stands.
 test("a stale list read does not bring back a cleared suggestion", async () => {

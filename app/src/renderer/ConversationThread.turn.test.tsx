@@ -6,7 +6,7 @@ import type { ConversationThreadProps } from "./ConversationThread";
 import type { ThreadItem } from "./threadItems";
 import type { ThreadTurn, TurnStatus } from "./turnStatus";
 
-// turn-activity U1: the thread's turn indicator. There is no DOM in these tests (the App tests' no-DOM style): hooks
+// The thread's turn indicator. There is no DOM in these tests (the App tests' no-DOM style): hooks
 // run as plain state with their effects and cleanups, so the settle wait and the indicator's own timer run on fake
 // timers; static markup checks what is drawn.
 const hooks = vi.hoisted(() => ({
@@ -139,7 +139,7 @@ describe("the turn indicator in the thread", () => {
     expect(out.indexOf("Also keep the margin")).toBeLessThan(out.indexOf("ti-reply"));
   });
 
-  test("shows with a spinning activity row, both progress marks at once (decision 4)", () => {
+  test("shows with a spinning activity row, both progress marks at once", () => {
     const out = html([user, running], at({ kind: "general" }));
     expect(out).toContain('<span class="doan-spinner" aria-hidden="true"></span><span>Running a command</span>');
     expect(out).toContain('<span class="ti-text ti-shimmer">Claude Code is working</span>');

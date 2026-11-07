@@ -5,9 +5,8 @@ import type { ConversationSummary } from "../main/conversation/summary";
 import type { Canvas } from "../main/conversation/types";
 import type { FolderEntry } from "../main/view";
 
-// conversation-delete spec 1–3 and design §3.3 in both title menus (the Overview's Conversation menu, the canvas
-// panel's Title menu), and N1 (orch decisions 1–2): the header's New conversation is unavailable on the new
-// conversation state. Radix menus render nothing closed under static markup, so the menu parts are drawn inline here
+// Both title menus (the Overview's Conversation menu, the canvas panel's Title menu): the row Delete, and the
+// header's New conversation, unavailable on the new conversation state. Radix menus render nothing closed under static markup, so the menu parts are drawn inline here
 // and record their props for the test to press; Tooltip stays real.
 const menu = vi.hoisted(() => ({ items: [] as Record<string, unknown>[], roots: [] as Record<string, unknown>[], contents: [] as Record<string, unknown>[] }));
 vi.mock("radix-ui", async original => {

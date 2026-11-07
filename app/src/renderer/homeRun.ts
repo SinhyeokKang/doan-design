@@ -14,7 +14,7 @@ import {
 } from "./homeConversations";
 import type { StartInput, StartOutcome } from "./HomeComposerView";
 
-// Home conversations (buzz-home design §4.5, §7; buzz-conversation design §3.4): the send and the move to the project,
+// Home conversations: the send and the move to the project,
 // the strip, sidebar slots, the new canvas a turn makes, toasts and the running-removal guard. What survives a reload
 // comes from main's conversation list (conversation:list); this run's events keep the strip live between list reads.
 // App owns one and wires it to its navigation; everything is decided here so it can be driven without a DOM.
@@ -25,7 +25,7 @@ export interface HomeRunHost {
   label(root: string): string;
   // The move after a send goes through the draft guard and waits for the project's read; it is not the person's move.
   // `arrived` says whether the run still wants it: App commits the screen only when it returns true. `conversationId`
-  // is the project conversation the Overview should show (buzz-project design §2.4).
+  // is the project conversation the Overview should show.
   openOverview(root: string, arrived: () => boolean, unavailable: () => void, conversationId: string): void;
   // The person moved first: a move still waiting for the project's read must not land later.
   cancelMove(): void;
@@ -35,7 +35,7 @@ export interface HomeRunHost {
   goHome(): void;
   removeNow(paths: string[]): Promise<void>;
   toast(message: string, action?: string, run?: () => void): void;
-  // ui-state's Home memory after a send (design §8).
+  // ui-state's Home memory after a send.
   sent(request: StartInput): void;
   // A conversation main moved out of Plan (a Claude plan approval): its provider's last mode follows, as after a pick
   // (permission-mode design '저장 규칙'). Any other change of a stored mode is a pick the composer already remembered.
@@ -56,7 +56,7 @@ const RANK_SLOT: Record<Slot["kind"], number> = { permission: 3, working: 2, uns
 // Text deltas only tell the strip the agent started answering; one per turn is kept.
 function isText(event: ConversationEvent) { return event.type === "message.delta" || event.type === "message.done"; }
 // A project conversation main still works on in its root: Home's reason line and the removal guard count it, as main's
-// project limit does (orch decision 21). working also covers what the history cannot show: a turn waiting for its
+// project limit does. working also covers what the history cannot show: a turn waiting for its
 // judgement, a queue about to go out, a send waiting for the previous process. Main binds a canvas only after a turn
 // ends, so a working conversation with a canvas is a canvas one.
 const holdsRoot = (c: ConversationSummary) => c.state === "current" && c.working && !c.canvas;
@@ -102,7 +102,7 @@ export class HomeRun {
   private claimed = new Set<string>();
   private claiming = new Set<string>();
   private histories = new Map<string, Promise<{ events: ConversationEvent[] } | null>>();
-  // The person's own navigations and canvas opens, counted from the start of the run (design §4.5, §7).
+  // The person's own navigations and canvas opens, counted from the start of the run.
   private moves = 0;
   private canvasOpens = 0;
   private ownOpen: { root: string; canvas: string } | null = null;
@@ -116,7 +116,7 @@ export class HomeRun {
   private deletedIds = new Set<string>();
   // Conversations whose next turn main accepted (its user.message arrived), with the list read last asked for then.
   // main dropped the suggestion on accepting, so a read asked for before may still carry it; only a later read says
-  // whether one stands (prompt-suggestion design 'renderer' 5, POSTMORTEM 2026-11-05 'Send now').
+  // whether one stands (POSTMORTEM 2026-11-05 'Send now').
   private suggestionsDropped = new Map<string, { root: string; after: number }>();
 
   constructor(private host: HomeRunHost) {}
@@ -200,8 +200,7 @@ export class HomeRun {
         if (this.arrival?.conversationId !== conversationId || this.moves !== moves) return false;
         this.arrival = null;
         this.destination = request.root;
-        // The composer under the conversation, never a permission answer that came in before the reply
-        // (buzz-project design §2.5).
+        // The composer under the conversation, never a permission answer that came in before the reply.
         this.focus = "composer";
         this.afterMove();
         this.host.changed();
@@ -214,7 +213,7 @@ export class HomeRun {
     return { ok: true, conversationId };
   }
 
-  // A send in an existing project conversation from the Overview (buzz-project spec decision 6): the new canvas its
+  // A send in an existing project conversation from the Overview: the new canvas its
   // turn makes opens as a start's does, from the canvases listed before main accepted the send and only while the
   // person opened no canvas since. An edit of a canvas already listed is not new; main's promotion handles it.
   async send(root: string, provider: Provider, request: Parameters<Window["doan"]["sendConversation"]>[0]): Promise<void | { error: string; missing?: string[] }> {
@@ -271,7 +270,7 @@ export class HomeRun {
     else this.host.openOverview(root, () => true, () => {}, conversationId);
   }
 
-  // main deleted it (conversation-delete design §3.2). This run keeps its own conversations whatever the list says, so
+  // main deleted it. This run keeps its own conversations whatever the list says, so
   // the strip, its Open and Edit on Home would go on naming it; slots and rows follow main's next list read.
   deleted(conversationId: string): void {
     this.deletedIds.add(conversationId);
@@ -286,7 +285,7 @@ export class HomeRun {
     this.host.changed();
   }
 
-  // Edit on Home (design §3.4): this run's own last request when it is still the root's, otherwise rebuilt from the
+  // Edit on Home: this run's own last request when it is still the root's, otherwise rebuilt from the
   // conversation's last user.message and main's index; attachments are issued again from their paths, and a file that
   // moved comes back as a missing chip. A move the person makes meanwhile wins.
   async editOnHome(conversationId: string): Promise<void> {
@@ -306,7 +305,7 @@ export class HomeRun {
   }
 
   // A turn of a Home conversation that makes a new canvas opens it where the person looks, without waiting for main's
-  // binding, which is decided after the turn ends (decision 17, design §2.4); slots follow main's list once it binds.
+  // binding, which is decided after the turn ends; slots follow main's list once it binds.
   entriesChanged(): void {
     this.syncRoots();
     const merged = this.merged();
@@ -319,7 +318,7 @@ export class HomeRun {
       const rows = newCanvasCandidates(listed.canvases, extras.atStart, extras.checked);
       extras.checked.push(...rows.map(row => row.path));
       // With two or more live turns in the root (one went on after its answer), the canvas may be the other's: nothing
-      // opens and none is recorded as drawn (canvas-composer-polish design §4). All of the root's project
+      // opens and none is recorded as drawn. All of the root's project
       // conversations count, not only Home's.
       if ((merged.get(conversation.root) ?? []).filter(holdsRoot).length >= 2) continue;
       if (rows[0]) { extras.opened = true; extras.drew = rows[0].path; this.canvasAppeared(conversation.conversationId, rows[0]); }
@@ -332,7 +331,7 @@ export class HomeRun {
     if (this.arrival?.conversationId === conversationId) { this.openedDuringMove = { conversationId, row }; return; }
     const current = this.host.view().entries.find(entry => entry.path === conversation.root);
     const fresh = current?.kind === "list" ? current.canvases.find(item => item.path === row.path) ?? row : row;
-    // Opens by itself only on its project's screen when the person opened no canvas since sending (design §7).
+    // Opens by itself only on its project's screen when the person opened no canvas since sending.
     if (this.viewing(conversation.root) && this.canvasOpens === extras.canvasOpens) {
       this.ownOpen = { root: conversation.root, canvas: fresh.path };
       this.host.openCanvas(conversation.root, fresh);
@@ -342,8 +341,8 @@ export class HomeRun {
 
   // A project row's screen on view marks the unseen endings of canvas conversations whose canvas left the project:
   // their slot moved to the project row and no canvas panel can show them (App calls this again when the list
-  // changes). A project conversation is seen only in the Overview's main column (buzz-project spec decision 11), and a
-  // canvas conversation only in its canvas's open panel (buzz-canvas-conversation design §2), both through
+  // changes). A project conversation is seen only in the Overview's main column, and a
+  // canvas conversation only in its canvas's open panel, both through
   // markSeenThrough.
   visit(keys: readonly string[]): void {
     for (const [root, list] of this.lists) {
@@ -355,7 +354,7 @@ export class HomeRun {
     }
   }
   // A project conversation whose turn drew this canvas and whose promotion main has not judged yet: still working, or
-  // within the binding window after its turn ended (design §2 'Conversation panel').
+  // within the binding window after its turn ended.
   drawing(root: string, canvas: { path: string; id?: string }): string | null {
     for (const conversation of this.conversations) {
       const extras = this.extras.get(conversation.conversationId);
@@ -385,7 +384,7 @@ export class HomeRun {
   retryList(root: string): void { this.readList(root); }
   readsStarted(root: string): number { return this.readCount.get(root) ?? 0; }
   readsApplied(root: string): number { return this.applied.get(root) ?? 0; }
-  // The project conversation behind a project row's slot (buzz-project design §2.4): opening the row's Overview asks
+  // The project conversation behind a project row's slot: opening the row's Overview asks
   // for it. The strongest state first, then the latest activity; null when the slot is a canvas conversation's or none.
   slotConversation(root: string): { conversationId: string; waiting: boolean } | null {
     const seen = new Set(this.seen.keys());
@@ -402,13 +401,13 @@ export class HomeRun {
     return slotsFromList(this.merged(), new Set(this.seen.keys()), root => this.rows(root));
   }
   // Agents with a Doan conversation turn running or waiting for an answer, in any project: Settings > MCP Connectors
-  // says a change applies from such an agent's next turn (mcp-connectors spec 10).
+  // says a change applies from such an agent's next turn.
   runningProviders(): Set<Provider> {
     const providers = new Set<Provider>();
     for (const list of this.merged().values()) for (const c of list) if (c.owner === "doan" && c.phase !== "ended") providers.add(c.provider);
     return providers;
   }
-  // Home's reason line by root (spec decision 18): the conversation that keeps another from starting there (blocksStart).
+  // Home's reason line by root: the conversation that keeps another from starting there (blocksStart).
   // After a late project_busy with no such conversation listed yet, the line names none.
   running(): Map<string, { conversationId: string }> {
     const running = new Map<string, { conversationId: string }>();
@@ -434,8 +433,7 @@ export class HomeRun {
     return best && { conversation: best.conversation, state: best.state };
   }
 
-  // Nothing is removed before the person agrees; a running conversation is stopped first (design §7.5,
-  // project-remove-confirm design §2).
+  // Nothing is removed before the person agrees; a running conversation is stopped first.
   remove(paths: string[], project: string): Promise<void> {
     const merged = this.merged();
     const running = paths.flatMap(root => (merged.get(root) ?? []).filter(holdsRoot)).map(c => ({ conversationId: c.conversationId, waiting: c.phase === "waiting" }));

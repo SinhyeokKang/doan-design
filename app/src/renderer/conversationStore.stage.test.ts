@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { ConversationEvent, StageSignal, TurnStage } from "../main/conversation/types";
 import { ConversationStore } from "./conversationStore";
 
-// turn-activity U1: the store keeps each conversation's latest stage signal (design §2), whether it came pushed
+// The store keeps each conversation's latest stage signal, whether it came pushed
 // (conversation:stage) or on a read's reply, by the rev rule; a deleted conversation's goes and later ones are dropped.
 
 const A = "aaaaaaaa-0000-4000-8000-000000000001", B = "bbbbbbbb-0000-4000-8000-000000000002";

@@ -14,7 +14,7 @@ export function dragPanel(start: number, startX: number, x: number, bounds: Pane
 
 // The canvas page's right column (buzz-canvas design §2 '오른쪽 패널'): the canvas conversation panel shell, its title row
 // reused from the Overview's right panel, and the resize handle on its left edge. The canvas conversation fills it:
-// `title` is its conversation menu, `children` its thread and composer (buzz-canvas-conversation design §2); with no
+// `title` is its conversation menu, `children` its thread and composer; with no
 // canvas shown the shell keeps its own title and empty line. While folded the column stays in the DOM, out of the Tab
 // order, so the open button's aria-controls resolves.
 // `width` is the width shown; `onResize` commits a width (undefined: the window-relative default) and `preview` shows
@@ -39,7 +39,7 @@ function IconTip({ label, children }: { label: string; children: ReactElement })
   return <Tooltip><TooltipTrigger asChild>{children}</TooltipTrigger><TooltipContent>{label}</TooltipContent></Tooltip>;
 }
 
-// Written by hand, not react-resizable-panels (design §1): its state attribute, keyboard step, Home/End direction and
+// Written by hand, not react-resizable-panels: its state attribute, keyboard step, Home/End direction and
 // percentage units differ from the design, and it needs the shell grid rebuilt as its Group. The look follows malmoi
 // components/ui/resizable.tsx (malmoi 6dcdd575): a 4px bar shown only on hover, drag and keyboard focus. The sidebar
 // uses the same handle on its end edge.

@@ -2,15 +2,14 @@ import type { Provider } from "../main/agentAuth/types";
 import type { ConversationEvent, PermissionOption, PermissionRequest, QuestionRequest } from "../main/conversation/types";
 import { PROVIDER_NAMES } from "./agentAuthView";
 
-// The temporary workspace strip for a Home conversation (buzz-home design §7), until buzz-conversation's panel
+// The temporary workspace strip for a Home conversation, until buzz-conversation's panel
 // replaces it. Copy follows the draft's 'States · Conversation strip' board.
 
 export type StripState =
   | { kind: "starting" }
   | { kind: "working"; activity: string | null }
   | { kind: "permission"; requestId: string; summary: string; options: PermissionOption[] }
-  // An agent's question: its first sentence only; it is answered in the conversation, and here only skipped or stopped
-  // (agent-questions design §6).
+  // An agent's question: its first sentence only; it is answered in the conversation, and here only skipped or stopped.
   | { kind: "question"; requestId: string; question: string }
   // model: the model a model_unavailable end named.
   | { kind: "failed"; code: string; model?: string }
@@ -91,7 +90,7 @@ export function stripSendFailed(how: StripSendError["how"], refusal: string | nu
   return refusal !== null && !(how === "skip" && refusal === "stale");
 }
 
-// Where focus goes when Stop, holding focus, leaves the strip (design §7): a turn that ends at once after an answer (a
+// Where focus goes when Stop, holding focus, leaves the strip: a turn that ends at once after an answer (a
 // Deny can finish it in ~300 ms) or a stop takes Stop away; focus moves on to Dismiss instead of falling to the page.
 // While Stop is still drawn it keeps focus.
 export function focusAfterStop(actions: readonly StripAction[]): "stop" | "dismiss" | null {
@@ -106,7 +105,7 @@ export function stripView(state: StripState, ctx: StripContext): StripView {
   switch (state.kind) {
     case "starting": return view(`Starting ${p}`, ctx.branch ? `${ctx.project} · ${ctx.branch}` : ctx.project, [stop]);
     case "working": return view(`${p} is working`, state.activity, [stop]);
-    // No option is the default: Allow gets no autofocus or prominence (design §7).
+    // No option is the default: Allow gets no autofocus or prominence.
     case "permission": return { title: `${p} needs your answer`, body: state.summary, live: "alert", alertKey: state.requestId, actions: [...state.options.map(o => ({ command: "answer" as const, label: o.label, optionId: o.id, kind: o.kind })), stop] };
     // No answer control: the strip only skips or stops (agent-questions decisions 8 and 10).
     case "question": return { title: `${p} needs your answer`, body: state.question, live: "alert", alertKey: state.requestId, actions: [{ command: "skip", label: "Skip" }, stop] };

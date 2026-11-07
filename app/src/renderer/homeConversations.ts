@@ -4,7 +4,7 @@ import type { HomeCard } from "./homeCards";
 import type { AttachmentDraft, PresetSummary } from "./homeComposer";
 
 // Home conversations the renderer follows in this run: those it started and, after a reload, those main's list names
-// for the strip (buzz-home design §7; buzz-conversation design §3.4).
+// for the strip.
 
 export interface HomeConversation {
   conversationId: string; root: string; provider: Provider;
@@ -26,10 +26,10 @@ export function runningInRoot(conversations: readonly HomeConversation[], root: 
   return conversations.find(c => c.root === root && RUNNING.includes(c.phase))?.conversationId ?? null;
 }
 
-// Home's reason line and the removal confirmation (spec decision 18): project conversations started outside Home count
+// Home's reason line and the removal confirmation: project conversations started outside Home count
 // too, so the sentence no longer says where the conversation came from. The removal dialog has no conversation of its
-// own to compare with, so it says "A" where the reason line says "Another". Only a running conversation blocks a start
-// (canvas-composer-polish spec 4); the removal also stops one waiting for an answer and says so.
+// own to compare with, so it says "A" where the reason line says "Another". Only a running conversation blocks a start;
+// the removal also stops one waiting for an answer and says so.
 export function anotherConversation(project: string): string {
   return `Another conversation is still running in ${project}.`;
 }
@@ -37,7 +37,7 @@ function aConversation(project: string, waiting: boolean): string {
   return waiting ? `A conversation in ${project} needs your answer.` : `A conversation is still running in ${project}.`;
 }
 
-// Every removal asks first (project-remove-confirm design §2): one confirmation, the running-conversation one when a
+// Every removal asks first: one confirmation, the running-conversation one when a
 // conversation holds a root, since it already asks before removing. `label` names the project (removalQuestionLabel),
 // `count` the worktrees removed. Only the list changes, which the body says.
 // `running`: the conversations that hold the project's roots (HomeRun reads them from main's list).
@@ -98,7 +98,7 @@ export function newCanvasCandidates<T extends { path: string }>(rows: readonly T
   return rows.filter(row => !atStart.includes(row.path) && !checked.includes(row.path));
 }
 
-// The toast is secondary to the slot (design §7): once per request, and only when that project is not on screen.
+// The toast is secondary to the slot: once per request, and only when that project is not on screen.
 export function permissionToastKey(next: StripState, previous: StripState | undefined, viewing: boolean): string | null {
   if ((next.kind !== "permission" && next.kind !== "question") || viewing) return null;
   return (previous?.kind === "permission" || previous?.kind === "question") && previous.requestId === next.requestId ? null : next.requestId;

@@ -8,12 +8,12 @@ import type { DockedDraft } from "./dockedRules";
 
 // What a Delete hands the host: the conversation, and where it came from. From a title menu, the shown conversation's
 // deletion moves focus to that screen's composer. From the Overview's Canvas conversations list (`canvasList`), focus
-// goes to `after`, which the list computed before the alert took focus from it (canvas-composer-polish spec 6).
+// goes to `after`, which the list computed before the alert took focus from it.
 export type ListFocus = { kind: "row"; key: string } | { kind: "title" };
 export type DeleteTarget = { conversationId: string; root: string; title: string; provider: Provider }
   & ({ from: "overview" | "canvas" } | { from: "canvasList"; after: ListFocus });
 
-// A title menu row's Delete (conversation-delete design §3.3, draft frames row-button, row-unavailable): a menu item
+// A title menu row's Delete (draft frames row-button, row-unavailable): a menu item
 // beside the row's radio item, not inside it, so pressing it never picks the row and the arrow keys reach it after its
 // row. An unavailable one stays in the arrow order with `aria-disabled` and reads its reason, which its tooltip shows.
 // `onEscape` closes the menu: the highlighted button's tooltip is the top dismissable layer, so without it the first
@@ -41,7 +41,7 @@ export function unsentDraft(draft: DockedDraft | undefined): boolean {
   return !!draft && (draft.segments.length > 0 || draft.preset !== null || draft.attachments.length > 0);
 }
 
-// The confirmation (design §3.4, draft frame delete-dialog): the compact alert dialog of Move to Trash (CanvasTrashDialog),
+// The confirmation (draft frame delete-dialog): the compact alert dialog of Move to Trash (CanvasTrashDialog),
 // found by `dialog[open]` and its role (POSTMORTEM 2026-10-30). Focus starts on Cancel; Escape cancels. `reason`: the
 // conversation started working while the alert was open (main judges again on confirm); `pending`: the request is out.
 // Either keeps Delete `aria-disabled`, in the focus order. While the request is out the alert is busy and refuses its
