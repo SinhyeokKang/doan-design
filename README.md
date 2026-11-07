@@ -1,6 +1,8 @@
-<h1 align="center">
-  <img src="app/resources/icon.png" alt="" width="64" valign="middle" /> Doan
-</h1>
+<p align="center">
+  <img src="app/resources/icon-rounded.png" alt="" width="64" />
+</p>
+
+<h1 align="center">Doan</h1>
 
 <p align="center">
   <img src="https://img.shields.io/badge/license-Apache--2.0-7c3aed?style=flat" alt="License: Apache-2.0" />
