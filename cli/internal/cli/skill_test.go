@@ -95,7 +95,7 @@ func TestSkillGuideHandoff(t *testing.T) {
 }
 
 // `doan init --json` never prompts, so the guide must make the agent ask first when the user names it.
-// The onboarding fallback runs it without asking, and it never registers the project in the app (setup-via-onboarding decisions 3, 4).
+// The onboarding fallback runs it without asking, and it never registers the project in the app.
 func TestSkillInitRequiresHumanRequestAndTokenPath(t *testing.T) {
 	for _, l := range strings.Split(skillBody, "\n") {
 		if strings.HasPrefix(l, "- `doan init ") {
@@ -114,7 +114,7 @@ func TestSkillInitRequiresHumanRequestAndTokenPath(t *testing.T) {
 }
 
 // A request to set up a repository goes through onboarding, which registers it in the app; init is only the fallback
-// when Doan cannot be reached, so unattended runs do not stop (setup-via-onboarding decisions 1, 2, 3, 5).
+// when Doan cannot be reached, so unattended runs do not stop.
 func TestSkillGuideSetupGoesThroughOnboarding(t *testing.T) {
 	var first, step1 string
 	for _, l := range strings.Split(skillBody, "\n") {
