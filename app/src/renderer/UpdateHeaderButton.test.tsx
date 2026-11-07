@@ -51,3 +51,11 @@ describe("UpdateHeaderButtonView", () => {
     expect(tag(html(<UpdateHeaderButtonView {...props({ disabled: true })} />))).toContain("disabled");
   });
 });
+
+describe("UpdateHeaderButtonView popup state", () => {
+  it("a stopped restart whose press restarts does not claim a popup until one is shown", () => {
+    const stopped = { label: "Restart to Update", busy: false, tooltip: "Doan 0.1.1 is ready", popover: { title: "Couldn’t restart Doan.", text: "Try again, or quit and open it again." } };
+    expect(tag(html(<UpdateHeaderButtonView {...props({ header: stopped })} />))).not.toContain("aria-haspopup");
+    expect(tag(html(<UpdateHeaderButtonView {...props({ header: stopped, open: true, shown: stopped.popover })} />))).toMatch(/aria-haspopup="dialog" aria-expanded="true"/);
+  });
+});

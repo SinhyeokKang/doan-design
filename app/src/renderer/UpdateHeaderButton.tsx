@@ -18,8 +18,8 @@ export interface UpdateHeaderButtonViewProps {
 export function UpdateHeaderButtonView(props: UpdateHeaderButtonViewProps) {
   const { header, disabled, open, shown, descriptionId, titleId } = props;
   if (header === null) return <span className="update-anchor" />;
-  // Only a state whose press can answer with a popover says it has one.
-  const popup = header.popover !== null || shown !== null ? { "aria-haspopup": "dialog" as const, "aria-expanded": open } : {};
+  // Only a press that can answer with a popover (a blocked gate) says it has one; a stopped restart's press restarts.
+  const popup = header.popover?.title === UPDATE_BLOCKED.title || shown !== null ? { "aria-haspopup": "dialog" as const, "aria-expanded": open } : {};
   return <span className="update-anchor"><Popover.Root open={open && shown !== null} onOpenChange={props.onOpenChange}>
     <Tooltip><TooltipTrigger asChild><Popover.Anchor asChild><button ref={props.buttonRef} type="button" className="doan-button update-indicator" data-ui-variant="subtle" data-ui-size="sm"
         disabled={disabled || header.busy} {...popup} aria-describedby={descriptionId} onClick={props.onPress}>
@@ -54,8 +54,9 @@ export function UpdateHeaderButton({ disabled, canvasPress }: { disabled: boolea
   useEffect(() => {
     let previous: UpdateSnapshot["state"]["kind"] | null = null;
     return window.doan.onUpdate(next => {
-      // Only a restart seen stopping opens on its own; a renderer that loads into the stopped state does not.
-      if (previous === "restarting" && next.state.kind === "restartAborted") {
+      // Only a restart seen stopping, or held back by a conversation that started while main waited to install,
+      // opens on its own; a renderer that loads into either state does not.
+      if (previous === "restarting" && (next.state.kind === "restartAborted" || next.state.kind === "ready" && next.gate.kind === "blocked")) {
         const popover = updateView(next, Date.now()).header?.popover;
         if (popover && shownHeader()) open(popover, false);
       }

@@ -373,3 +373,10 @@ test("the switch waits for preferences and stays off a newer preferences file, w
   expect(toggle().props.disabled).toBe(true);
   expect(text()).toContain("These settings were saved by a newer version of Doan");
 });
+
+test("a restart main holds back for a conversation reads the reason, not ready again", () => {
+  render(); push(snap(READY)); render();
+  push(snap({ kind: "restarting", version: "0.1.1" })); render();
+  push(snap(READY, { gate: { kind: "blocked", reason: "conversation" } })); render();
+  expect(live()).toBe(BLOCKED_READ);
+});

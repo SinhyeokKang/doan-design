@@ -177,3 +177,15 @@ test("only the shown header opens a popover nobody pressed for", () => {
   push(snap({ kind: "restartAborted", version: "0.1.1" }));
   expect(render().open).toBe(false);
 });
+
+// Main holds a restart a conversation started during the staging wait: the state goes back to ready, blocked.
+test("a restart held back by a conversation opens the reason quietly", () => {
+  render(); push(snap({ kind: "restarting", version: "0.1.1" })); render();
+  push(snap(READY, { gate: { kind: "blocked", reason: "conversation" } }));
+  const view = render();
+  expect(view.open).toBe(true);
+  expect(view.shown).toEqual(BLOCKED);
+  const focusEvent = { preventDefault: vi.fn() };
+  view.onOpenAutoFocus(focusEvent as unknown as Event);
+  expect(focusEvent.preventDefault).toHaveBeenCalled();
+});

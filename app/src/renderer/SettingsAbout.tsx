@@ -101,12 +101,19 @@ export function SettingsAbout({ actions, preferences, save }: {
     window.addEventListener("focus", focused);
     return () => { reads.current++; window.removeEventListener("focus", focused); };
   }, []);
-  useEffect(() => window.doan.onUpdate(snapshot => {
-    const said = updateView(snapshot, Date.now()).row.announcement;
-    if (heard.current !== undefined && said !== null && said !== heard.current) announce(said);
-    heard.current = said;
-    setUpdate(snapshot);
-  }), []);
+  useEffect(() => {
+    let previous: UpdateSnapshot["state"]["kind"] | null = null;
+    return window.doan.onUpdate(snapshot => {
+      const said = updateView(snapshot, Date.now()).row.announcement;
+      // A restart main held back because a conversation started while it waited: the reason, not "ready" again.
+      const held = previous === "restarting" && snapshot.state.kind === "ready" && snapshot.gate.kind === "blocked";
+      if (held) announce(BLOCKED_READ);
+      else if (heard.current !== undefined && said !== null && said !== heard.current) announce(said);
+      heard.current = said;
+      previous = snapshot.state.kind;
+      setUpdate(snapshot);
+    });
+  }, []);
   useEffect(() => {
     if (copy !== "copied") return;
     const timer = setTimeout(() => setCopy("idle"), 2000);
