@@ -17,44 +17,44 @@
 - 통합 브랜치는 `main` 하나다. `/ship`·`/orchestrate`는 main에서 분기해 `--base main` PR을 연다(`.agents/skills/ship/SKILL.md:18`, `:35`, `.agents/skills/orchestrate/SKILL.md:6`, `:76`). 하네스·문서 변경은 main에 바로 push한다(AGENTS.md:134). 체인 파일도 main에 커밋한다(`.agents/skills/chain/SKILL.md:8`, `:33`).
 - CI가 없다(`.github/` 없음). 게이트는 로컬의 `node .agents/skills/verify/scripts/verify.mjs`뿐이다(AGENTS.md 'Commands').
 - 서명·공증은 로컬 `/tester-build`만 한다. 빌드하는 기계의 login keychain에 있는 Developer ID 정체성과 notarytool 프로필 `doan-notary`를 쓰고, 항상 `origin/main`에서 빌드한다(`.agents/skills/tester-build/SKILL.md:8`, `:48`, `:52`). ARCHITECTURE §9는 "CI and its secrets come with release packaging"이라고 미뤄 뒀다(docs/ARCHITECTURE.md:718–719).
-- 앱에는 업데이트 경로가 없다. `app/package.json`에 `electron-updater`도 `publish` 설정도 없고(`app/package.json:48–89`), 로컬 패키지는 `--mac dir`만 만든다(`app/scripts/package.mjs:20`). README는 "in development, not released"다(README.md:9).
+- 앱에는 업데이트 경로가 없다. `app/package.json`에 `electron-updater`도 `publish` 설정도 없고(`app/package.json:48–87`), 로컬 패키지는 `--mac dir`만 만든다(`app/scripts/package.mjs:19`). README는 "in development, not released"다(README.md:9).
 - BACKLOG의 'Release packaging (#9 `dist`)'은 착수 전이고(docs/BACKLOG.md:7), 디자인 프리셋 고지 파일을 앱 패키지에 어떻게 싣는지도 열려 있다(docs/BACKLOG.md:17).
 - 공개 전 문서(CONTRIBUTING, CODE_OF_CONDUCT, SECURITY)가 없다. AGENTS.md의 문서 표는 이것들을 "공개 직전에 만든다"고 적어 뒀다(AGENTS.md:126).
 - 비공개 + 무료 계정이라 브랜치 보호를 켤 수 없다(`gh api …/branches/main/protection` → 403 "Upgrade to GitHub Pro or make this repository public").
-- 이미 정해진 것: 라이선스는 Apache-2.0이다(docs/ARCHITECTURE.md:724, 루트 `LICENSE`). 버전은 `app/package.json`의 `"version": "0.1.0"`(`app/package.json:46`)이고, 패키징이 같은 값을 Go CLI의 `cli.Version`에 찍는다(`app/scripts/package.mjs:7`, `:18`, `cli/internal/cli/run.go:71`).
+- 이미 정해진 것: 라이선스는 Apache-2.0이다(docs/ARCHITECTURE.md:724, 루트 `LICENSE`). 버전은 `app/package.json`의 `"version": "0.1.0"`(`app/package.json:46`)이고, 패키징이 같은 값을 Go CLI의 `cli.Version`에 찍는다(`app/scripts/package.mjs:7`, `:17`, `cli/internal/cli/run.go:71`).
 
 ## 범위 게이트
 
 - PRODUCT §2는 설치·온보딩·문서를 제품 범위에 넣는다(docs/PRODUCT.md:21). 배포와 업데이트는 범위 안이다.
 - PRODUCT §3 Out of scope 5는 "the web only serves as the download path"라고 한다(docs/PRODUCT.md:57). GitHub Releases를 다운로드 경로로 쓰는 것은 이와 맞는다. 다만 앱이 스스로 GitHub에 업데이트를 묻는 요청은 PRODUCT가 정하지 않은 새 네트워크 동작이다. D10이 자동 확인과 끄는 설정을 정했고, app-update가 PRODUCT §3에 그 문장을 더한다.
 - 웹사이트(doan.design)는 PRODUCT §5 'Deferred'다(docs/PRODUCT.md:346). Homebrew 설치는 BACKLOG가 "wanted at commercial launch, not before"로 적었다(docs/BACKLOG.md:7). 둘 다 이번 비목표다.
-- BACKLOG는 release packaging을 "deferred until after the whole-app cycle quality work"로 적었다(docs/BACKLOG.md:7). 이번 요청은 사용자가 그 순서를 바꾼 것으로 보고, 승격 task에서 BACKLOG 항목을 지운다.
-- 결과: 통과. 단, D10(업데이트 확인의 네트워크 동작)은 PRODUCT 갱신이 필요하다(app-update T8).
+- BACKLOG는 release packaging을 "deferred until after the whole-app cycle quality work"로 적었다(docs/BACKLOG.md:7). 사용자가 이 미룸을 풀었다([design.md](./design.md) '사용자 결정' 4). 승격 task에서 BACKLOG 항목을 지운다.
+- 결과: 통과. 단, D10(업데이트 확인의 네트워크 동작)은 PRODUCT 갱신이 필요하다(app-update T8). D28(Malmoi 근거를 PRODUCT §1로)도 PRODUCT를 고친다(readme-features).
 
 ## 자식 feature
 
-실행 순서와 병렬 가능 여부는 [tasks.md](./tasks.md)가 정본이다. 결정 id는 [design.md](./design.md) '결정'을, '사용자 결정'은 같은 문서의 '사용자 결정 (2026-11-07)'을 가리킨다. 첫 전제: 진행 중인 problem-project-overlay `/orchestrate` 실행은 지금의 main 기준 절차로 끝내고, git-flow는 그 PR이 `main`에 병합된 뒤에 시작한다.
+실행 순서와 병렬 가능 여부는 [tasks.md](./tasks.md)가 정본이다. 결정 id는 [design.md](./design.md) '결정'을, '사용자 결정'은 같은 문서의 '사용자 결정 (2026-11-07)'을 가리킨다. 첫 전제: 진행 중인 problem-project-overlay `/orchestrate` 실행은 지금의 main 기준 절차로 끝내고, git-flow는 그 PR이 `main`에 병합되고 C4가 끝난 뒤에 시작한다. C3·C4는 P0과 나란히 지금 `main`에서 진행한다('사용자 결정' 5).
 
 | # | slug | 범위 | 진행 경로 | 선행 | 관련 결정 |
 |---|---|---|---|---|---|
-| 1 | [git-flow](../git-flow/spec.md) | `develop` 만들기, AGENTS.md·스킬의 기준 브랜치를 `develop`으로, 브랜치 목록(`hotfix/*` 포함)과 "`main`은 `/release`로만" 규칙 | 하네스·문서(대화 중) + 사용자의 GitHub 설정 | problem-project-overlay 병합 | 사용자 결정 1·2, D1 D2 D3 |
-| 2 | [public-cleanup](../public-cleanup/spec.md) | 공개 전 정리: 코드 주석의 한국어와 지운 feature 문서 참조, 초안의 개인 경로, 이력 비밀 스캔 | `/ship` | git-flow | D19 D20 |
-| 3 | [community-docs](../community-docs/spec.md) | CONTRIBUTING, CODE_OF_CONDUCT, SECURITY, 이슈·PR 템플릿 | 하네스·문서(대화 중) | git-flow | D17 |
-| 4 | [readme-features](../readme-features/spec.md) | 기능 중심 README 재작성 | 하네스·문서(대화 중) | git-flow | D16 |
+| 3 | [community-docs](../community-docs/spec.md) | CONTRIBUTING, CODE_OF_CONDUCT, SECURITY, 이슈·PR 템플릿 | 하네스·문서(대화 중, `main`) | 없음(P0과 병렬) | D17 D30 |
+| 4 | [readme-features](../readme-features/spec.md) | 기능 중심 README 재작성, 이미지 캔버스, Malmoi 근거를 PRODUCT §1로 | 하네스·문서(대화 중, `main`) | community-docs | D16 D28 D29 |
+| 1 | [git-flow](../git-flow/spec.md) | `develop` 만들기, AGENTS.md·스킬의 기준 브랜치를 `develop`으로, 브랜치 목록(`hotfix/*` 포함)과 "`main`은 `/release`로만" 규칙 | 하네스·문서(대화 중) + 사용자의 GitHub 설정 | problem-project-overlay 병합, readme-features | 사용자 결정 1·2, D1 D2 D3 |
+| 2 | [public-cleanup](../public-cleanup/spec.md) | 공개 전 정리: 코드 주석·테스트 제목의 한국어와 지운 feature 문서 참조, 초안의 개인 경로, 이력 비밀 스캔, 주석 인용 금지 규칙 | `/orchestrate`(D27) | git-flow | D19 D20 D26 D27 |
 | 5 | [ci-gate](../ci-gate/spec.md) | GitHub Actions에서 공유 게이트(`verify.mjs`) 실행, 필수 상태 검사 | `/ship` | git-flow, 공개(D21) | D4 D5 |
-| 6 | [release-ci](../release-ci/spec.md) | CI 서명·공증, 테스트 빌드 워크플로와 릴리스 빌드 워크플로, 고지 파일 동봉, `/tester-build` 교체 | `/ship` | ci-gate | D5 D6 D7 D8 D13 D14 D15 D18 |
-| 7 | [app-update](../app-update/spec.md) | 앱 안 업데이트 알림·확인·설치 | `/orchestrate`(UI 포함, `/design-draft` 필요) | release-ci | D9 D10 D11 D12 D23 |
-| 8 | [release-skill](../release-skill/spec.md) | 새 `/release` 스킬: 버전 올림, `develop`→`main`, `main`의 태그, 릴리스 노트, 릴리스 워크플로 시작, GitHub Release 게시, hotfix 모드(D1) | 하네스·문서(대화 중) | release-ci (app-update와 병렬) | 사용자 결정 2, D1 D7 D12 D13 D22 |
+| 6 | [release-ci](../release-ci/spec.md) | CI 서명·공증, 테스트 빌드 워크플로와 태그로 시작하는 릴리스 워크플로, 고지 파일 동봉, `/tester-build` 교체 | `/ship` | ci-gate, G3a | D5 D6 D7 D8 D13 D14 D15 D18 |
+| 7 | [app-update](../app-update/spec.md) | 앱 안 업데이트 알림·확인·설치 | `/orchestrate`(UI 포함, `/design-draft` 필요) | release-ci | D9 D10 D11 D12 D23 D24 |
+| 8 | [release-skill](../release-skill/spec.md) | 새 `/release` 스킬: 버전 올림, `develop`→`main`, `main`의 태그 push, 릴리스 노트, GitHub Release 게시, hotfix 모드(D1) | 하네스·문서(대화 중) | release-ci (app-update와 병렬) | 사용자 결정 2, D1 D7 D12 D13 D22 D25 |
 
-자식이 아닌 부모 task: 저장소 공개와 공개 뒤 설정(사용자만 한다), 0.1.0 릴리스, 부모 정리. [tasks.md](./tasks.md)의 G·R·Z다.
+표는 실행 순서다(# 열은 처음 정한 번호라 순서와 다르다). 자식이 아닌 부모 task: 저장소 공개와 공개 뒤 설정 G3a·G3b·G3c(사용자만 한다, D25), 0.1.0 릴리스, 부모 정리. [tasks.md](./tasks.md)의 G·R·Z다.
 
 ## 완료 조건
 
 - 사용자가 부른 `/release`가 `main`에 `v0.1.0` 태그를 달고 그 GitHub Release를 게시했다. 자산은 공증·스테이플된 arm64 dmg, zip, `latest-mac.yml`이다(D14).
-- Release에서 받은 dmg를 격리 속성과 함께 열 때 `spctl`이 `source=Notarized Developer ID`로 받아들인다(`/tester-build` 6단계의 검사 목록과 같다).
-- 설치한 앱이 D12에서 정한 방법으로 다음 버전을 알리고, 클릭 한 번으로 바꿔 설치한 뒤 다시 열린다. 다시 열린 뒤 `~/.local/bin/doan`이 새 번들의 CLI를 가리킨다.
-- 저장소가 공개돼 있고, `develop`이 D2대로 설정돼 있으며, CI의 게이트 작업이 D4의 이벤트에서 돌고 필수 검사로 걸려 있다.
-- `docs/CONTRIBUTING.md`, `docs/CODE_OF_CONDUCT.md`, `docs/SECURITY.md`와 D17에서 정한 템플릿이 있고, README가 기능 중심으로 바뀌었다.
+- Release에서 받은 dmg와 zip 안의 앱을 release-ci의 검증 스크립트가 통과시키고, `spctl`이 `source=Notarized Developer ID`로 받아들인다.
+- 설치한 앱이 D12(R1)대로 다음 버전을 알리고(D24), 클릭 한 번으로 바꿔 설치한 뒤 다시 열린다. 다시 열린 뒤 `~/.local/bin/doan`이 새 번들의 CLI를 가리킨다.
+- 저장소가 공개돼 있고, `develop`이 D2대로 설정돼 있으며, CI의 게이트 작업이 D4의 이벤트에서 돌고 D25대로 `develop`·`main`의 필수 검사로 걸려 있다.
+- `docs/CONTRIBUTING.md`, `docs/CODE_OF_CONDUCT.md`, `docs/SECURITY.md`와 D17에서 정한 템플릿이 있고, README가 기능 중심으로 바뀌었으며 그 이미지는 캔버스에서 내보낸 것이다(D29). AGENTS.md에 코드 주석의 문서 인용 금지 규칙이 있다(D26).
 - AGENTS.md와 스킬에서 "main에서 분기", "`--base main`", "`origin/main`에서 빌드", "main에 바로 push" 같은 옛 기준이 `develop`으로 바뀌었고, `main`을 바꾸는 길은 `/release` 하나다(출시와 hotfix 모드, D1). `.agents/skills/release/SKILL.md`와 `.claude/skills/release` 링크가 있다.
 - 각 자식의 결론이 PRODUCT·ARCHITECTURE(필요하면 DESIGN·BACKLOG·DIRECTORY)에 현재 규칙으로 승격됐고, BACKLOG 'Release packaging' 항목과 고지 파일 항목이 지워졌다.
 
