@@ -4,6 +4,7 @@
   "serve": [
     "app/src/renderer/ds",
     "app/src/renderer/public/fonts/geist/Geist.woff2",
-    "app/resources/icon.png"
+    "app/resources/icon.png",
+    "app/src/renderer/public/doany"
   ]
 }
