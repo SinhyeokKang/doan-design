@@ -23,13 +23,20 @@ export function useToast(restoreFocus?: (previous: HTMLElement | null) => void) 
     handlers.current.delete(state.ended.id);
     if (state.ended.reason === "action") handler?.run?.(); else handler?.expire?.();
   }, [state.ended]);
-  useEffect(() => { if (document.querySelector(".toast")?.matches(":hover")) dispatch({ type: "hover", on: true }); }, [state.toast?.id]);
   // Re-checked on every render, and the clock's tick renders every 100ms: a dialog that closed or was removed drops the
   // toast back to its usual place, where an App modal holds it again.
   const host = state.toast?.dialog;
   const dialog = host?.isConnected && host.open ? host : null;
   const leftDialog = host !== undefined && dialog === null;
   useEffect(() => { if (leftDialog) dispatch({ type: "leftDialog" }); }, [leftDialog]);
+  // A new toast, or the same one drawn again outside its dialog, is a new element under a pointer or focus that may
+  // already be there: no mouseenter or focus event comes for that, so both are read from it.
+  const placed = state.toast !== null && !leftDialog && dialog === null;
+  useEffect(() => {
+    const node = document.querySelector(".toast");
+    if (node?.matches(":hover")) dispatch({ type: "hover", on: true });
+    if (node?.contains(document.activeElement)) dispatch({ type: "focus", on: true });
+  }, [state.toast?.id, placed]);
   const action = () => dispatch({ type: "action" });
   const element = state.toast && <div key={state.toast.id} className="toast doan-floating doan-toast" role="status" {...(dialog ? { "data-placement": "dialog" } : {})}
     ref={node => {

@@ -102,3 +102,15 @@ test("a toast inside the modal dialog keeps its clock while the modal is up, and
   state = toastState(state, { type: "tick", elapsedMs: 3000 });
   expect(state.remainingMs).toBe(TOAST_MS);
 });
+
+// defect-sweep C3 fix round 1: leaving the dialog unmounts the hovered or focused element without a mouseleave or
+// blur, so those pauses go with it; Toast re-reads them from the new element.
+test("leaving the dialog drops the hover and focus pauses of the element that unmounted", () => {
+  let state = toastState(initialToastState, { type: "show", toast: { id: "one", message: "Couldn’t open the link.", dialog: {} as HTMLDialogElement } });
+  state = toastState(state, { type: "hover", on: true });
+  state = toastState(state, { type: "focus", on: true });
+  state = toastState(state, { type: "leftDialog" });
+  expect(state).toMatchObject({ hovered: false, focused: false });
+  state = toastState(state, { type: "tick", elapsedMs: 9000 });
+  expect(state.ended).toEqual({ id: "one", reason: "expired" });
+});

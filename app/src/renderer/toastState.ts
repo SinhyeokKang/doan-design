@@ -31,7 +31,8 @@ export type ToastEvent =
   | { type: "tick"; elapsedMs: number }
   | { type: "hover" | "focus" | "hidden" | "modal"; on: boolean }
   | { type: "action" }
-  // The dialog it was drawn in has gone; the toast is drawn in its usual place from now on.
+  // The dialog it was drawn in has gone; the toast is drawn in its usual place from now on. That is a new element, and
+  // the old one unmounted without a mouseleave or blur, so the hover and focus pauses go; Toast re-reads them.
   | { type: "leftDialog" };
 
 export const initialToastState: ToastState = { toast: null, remainingMs: 0, hovered: false, focused: false, hidden: false, modal: false };
@@ -70,7 +71,7 @@ export function toastState(state: ToastState, event: ToastEvent): ToastState {
     case "leftDialog": {
       if (!state.toast?.dialog) return base;
       const { dialog: _dialog, ...toast } = state.toast;
-      return { ...base, toast };
+      return { ...base, toast, hovered: false, focused: false };
     }
   }
 }
