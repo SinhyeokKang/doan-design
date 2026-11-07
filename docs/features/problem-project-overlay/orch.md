@@ -20,6 +20,9 @@
   - Locate 뒤 새 root가 아직 문제면 `overview = true`로 들어가 오버레이를 보인다. 근거: design §9 2026-11-03 Locate 항목.
   - busy 동안 Details 글은 오버레이가 마지막 `detail`을 들고 있는다. `problemView`의 형태(§6)는 바꾸지 않는다.
   - `problemMessage`를 지운 뒤 notFound·uninitialized의 빈 `.canvas-status`가 그려지지 않는지 B4가 테스트로 고정한다.
+- B3 handoff에서 conductor가 정한 것:
+  - 메뉴의 Overview 항목은 `loading` root에서도 켜진다. 근거: 행 누르기가 이미 `loading` root를 연다(design §4.5 '행 누르기와 같은 곳').
+  - 사이드바 hover 때 thumbnail을 숨기는 기존 규칙(`.shell-project-row:is(:hover, …) .shell-lead > .shell-thumbnail`)이 chevron 없는 문제·읽는 중 행에서 빈 자리를 남긴다. `styles.css`와 그 selector를 고정한 `ShellSidebar.test.tsx`를 함께 고쳐야 하므로 통합 뒤 B5가 맡는다.
 - worker는 `/ship` 9단계(docs freshness)와 11단계(push)를 하지 않는다 — conductor 판단, 근거: 승격은 T9이고 conductor가 한다(orchestrate SKILL §4·§5).
 
 ## 초안 검토(conductor)
@@ -35,7 +38,7 @@
 |---|---|---|---|---|---|---|
 | B1 | T2 | `app/src/renderer/problemView.ts`, `problemView.test.ts` | — | Sonnet high: 순수 함수지만 사례가 많고 `cardRow` 동작 집합을 맞춰야 한다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 통합 `7cb87da8`·`953de0b8`·`3392bca3`(R1 보강 test), 완료 |
 | B2 | T3 | `app/src/renderer/CanvasController.ts`, `CanvasController.test.ts` | — | Opus medium: `openWorkspace`의 `loading` 대기와 상태 비우기가 다른 진입 경로를 깨기 쉽다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 통합 `7d401638`·`634158b0`·`70135265`(R1 보강 test), 완료 |
-| B3 | T4 | `app/src/renderer/ShellSidebar.tsx`, `ShellSidebar.test.tsx` | B1, 초안 확정 | Sonnet high: slot 우선순위·tooltip·aria는 단계가 많지만 판단은 design에 있다 | test, typecheck, lint | 진행 |
+| B3 | T4 | `app/src/renderer/ShellSidebar.tsx`, `ShellSidebar.test.tsx` | B1, 초안 확정 | Sonnet high: slot 우선순위·tooltip·aria는 단계가 많지만 판단은 design에 있다 | test, typecheck, lint | 통합 `6ddf05a0`·`8c521593`, review는 R2 |
 | B4 | T5 | `App.tsx`, `ProblemOverlay.tsx`(새), `Home.tsx`, `styles.css`(모두 `app/src/renderer/`, `CanvasPane`은 `App.tsx` 안), `App.*.test.ts(x)`, `Home.test.tsx`, CSS 테스트, 새 `ProblemOverlay` 테스트 | B1, B2, 초안 확정 | Opus high: 포커스·inert·메뉴 상태·seen이 얽히고 틀리면 접근성과 데이터 표시가 깨진다 | test, typecheck, lint, build | 진행 |
 | B5 | T6 | B3·B4가 고친 파일, `docs/DESIGN.md` | B3·B4 통합 | Opus medium: computed style 측정과 수정 | `/design-sync` 프레임별 일치, `npm --prefix app test` | 대기 |
 | R1 | B1·B2 review | 보고만 | B1·B2 통합 | Sonnet high: 작은 순수 함수와 controller diff다 | `/code-review` 보고 | 완료: 🔴 0, 🟡 3(B4 지시로 넘김), ⚪ 5(test 보강 2건 반영, 주석 경로는 T9) |
