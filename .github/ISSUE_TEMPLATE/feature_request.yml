@@ -1,0 +1,23 @@
+name: Feature request
+description: Suggest a change to what Doan does.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What you are trying to do and what gets in the way today.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What you would like Doan to do.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: How this relates to the product scope in docs/PRODUCT.md §3, if you know. Requests outside 'Out of scope' need a product decision first.

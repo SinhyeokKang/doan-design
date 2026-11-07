@@ -1,0 +1,40 @@
+name: Bug report
+description: Something in Doan does not work as described.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open …
+        2. …
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Doan details
+      description: In the app, open Settings > About and press Copy details, then paste here. It lists the Doan version, the doan command and the agent tools. Paths may include your username; redact if you like.
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      placeholder: e.g. macOS 26.1
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Screenshots, logs, or the canvas involved (remove anything private).
