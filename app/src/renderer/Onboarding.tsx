@@ -244,7 +244,7 @@ export function ProjectThumbnail({ path }: { path: string }) {
 export function ChosenProject({ path, home }: { path: string; home: string | null }) {
   return <div className="doan-panel ob-chosen"><ProjectThumbnail path={path} /><div><strong>{nameOf(path)}</strong><p className="ob-path">{shown(path, home)}</p></div><Check aria-hidden="true" /></div>;
 }
-// Each choice is a card like the chosen project. A visible radio at the start shows the choice
+// (2026-10-29 user): each choice is a card like the chosen project. A visible radio at the start shows the choice
 // (the shared choice card); the native radio under it keeps arrow keys and Space,
 // and Enter picks too.
 export function ProjectChoice({ paths, choice, home, pick, name }: {
@@ -261,7 +261,7 @@ export function ProjectChoice({ paths, choice, home, pick, name }: {
 type ProjectAction = "chooseFolder" | "chooseExisting" | "edit" | "retry" | "changeLocation" | "useExisting" | "backToAgents";
 interface ProjectNotice { title?: string; body: string; detail?: string; note?: string; actions: Button<ProjectAction>[] }
 const action = (command: ProjectAction, label: string, variant: Button["variant"] = "prominent"): Button<ProjectAction> => ({ command, label, variant, disabled: false });
-// Copy from the approved draft's Project states tiles, also for the newer marker version.
+// Copy from the approved draft's Project states tiles; the newer-version marker's notice is not in the draft: it offers no Retry and says to open the project with that version or update Doan.
 // fromUrl: the screen belongs to a GitHub URL, so a folder chosen there must be that repository's.
 // insideProject: the name of the doan project a clone destination sits in (main refuses it as path_unavailable).
 // folder: the chosen folder a mismatch is about; on the clone screen "This folder" would read as the destination.

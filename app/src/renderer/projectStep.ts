@@ -272,7 +272,7 @@ export class ProjectStepSession {
   }
   // The inspection each candidate list came from, so a stale one is inspected again rather than retried.
   private source: Inspect | null = null;
-  // A URL with several local checkouts is not a choice. One is taken: a checkout that needs
+  // (2026-10-29 user): a URL with several local checkouts is not a choice. One is taken: a checkout that needs
   // no setup, then the main checkout, then the most recently registered; worktrees are switched later from the shell.
   private pickCheckout(candidates: ProjectCandidate[]): ProjectCandidate {
     const order = this.deps.projects();
