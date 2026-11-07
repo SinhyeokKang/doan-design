@@ -51,8 +51,8 @@
 
 | 링크 | 세션·worktree | 시작 | PR·병합 | 상태 |
 |---|---|---|---|---|
-| 1 defect-sweep | — | — | — | 대기 |
-| 2 text-edit-menu | — | — | — | 대기 |
+| 1 defect-sweep | Claude Code, `defect-sweep-orch` | 2026-11-07 `e9e92711` | PR #118 · `470bc3dd` | 병합 |
+| 2 text-edit-menu | Claude Code, `text-edit-menu-orch` | 인계 중 | — | 시작 |
 | 3 ts-lint-gate | — | — | — | 대기 |
 
 ## 인계 기록
@@ -64,3 +64,9 @@
   3. ts-lint-gate의 새 명령 `npm --prefix app run lint`를 검증에 쓰는 것: 승인.
   4. 체인 끝 로그인 정리: "전부 승인"은 지우는 쪽을 고른 말이 아니므로, 되돌릴 수 없는 삭제를 하지 않고 공용 프로필 userData와 그 Keychain 항목을 남긴다. 마지막 링크는 남은 것을 보고만 한다.
   5. Codex 작업자 허용(상시 권한).
+- 2026-11-07 **링크 1 defect-sweep 끝**(지휘자 `defect-sweep-orch`): PR #118을 병합했다(`470bc3dd`). batch는 C·T·F·R·M 다섯 개다. 작업자는 C만 Codex `gpt-6-astra`였고 나머지는 Claude였다. 리뷰는 C만 Claude Opus였고 T·F·R·M은 Codex `gpt-6-astra`였다. 링크 끝의 Codex 주간 사용량은 48%였다(`window_minutes` 10080). 통합 gate는 최종 HEAD에서 돌렸다: `verify --eval` PASS, 통합 앱 probe(F 24/24, M probe·probe2 PASS, 실제 상태 변화 없음). R의 공용 프로필 probe는 R batch에서 한 번 돌렸다. 실제 `/agent-eval`은 돌리지 않았다(guide·CLI 메시지·`doan check` 규칙·skill stub이 바뀌지 않았다).
+  - 미검증(BACKLOG 'Not verified in the real app'에 적었다): 실제 Codex `model_not_found`, 실제 Claude CLI 취소, strip·thread focus의 실제 provider 경로, 새 status 행과 dialog 안 toast의 스크린 리더 낭독, first run 안의 toast 자리, 실제로 끊긴 시작 마이그레이션 쓰기.
+  - 공용 프로필: 로그인은 그대로 두었다. R-6·M-4가 실제 Codex 턴을 한 번씩 돌렸다. 최상위 파일과 대화 파일은 byte 단위로 되돌렸고, `agent-auth/profiles/` 아래 provider 내부 파일(sqlite·로그·모델 cache)만 바뀌었다.
+  - 링크 2가 알아야 할 것: `SettingsMcpConnectors.tsx`의 `RowButton`이 테스트용으로 export되었다. `components/ui/tooltip.tsx`는 `aria-disabled`(`true`/`"true"`)이고 자기 `aria-describedby`가 있는 trigger에서 Radix id를 합치지 않는다. `styles.css`에 `.strip-main`·`.strip-error`·`.qo-reading`·`.toast[data-placement="dialog"]`가 더해졌다. `CanvasController.toolbarEscape`는 Radix DismissableLayer 순서에 기대고, `CanvasController.test.ts`가 설치본으로 그 순서를 고정한다. 새 known defect: canvas iframe에 focus가 있을 때 Esc가 열린 툴바 툴팁을 닫지 않는다(BACKLOG).
+  - 링크 3이 알아야 할 것: 링크 1이 renderer 파일을 많이 바꿨다(`ConversationThread.tsx`·`conversationStrip.ts`·`App.tsx`·`Toast.tsx`·`QuickOpenDialog.tsx` 등). exhaustive-deps 경고 수 N은 링크 2가 병합된 뒤 다시 센다.
+  - 남긴 branch: `feat/defect-sweep`, `SinhyeokKang/ds-{C,T,F,R,M}`. batch worktree는 모두 지웠다.
