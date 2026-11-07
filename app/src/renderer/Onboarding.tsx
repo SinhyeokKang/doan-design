@@ -205,7 +205,7 @@ export function AgentStep({ session, heading, back, next }: { session: AgentStep
   const run = (provider: Provider) => (command: AuthCommand) => {
     // The paste modal returns focus itself (its button, else the heading).
     watch.current = command === "pasteAddress" || !(document.activeElement instanceof HTMLElement) ? null : { provider, node: document.activeElement };
-    return session.command(provider, command);
+    void session.command(provider, command);
   };
   const stop = session.stopView(), paste = session.pasteView();
   return <>

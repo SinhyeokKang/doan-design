@@ -101,7 +101,7 @@ export function SettingsAgents({ signIn, arrival, onLock, preferences, save, pro
   const run = (provider: Provider) => (command: AuthCommand) => {
     // The paste modal returns focus itself.
     watch.current = command === "pasteAddress" || !(document.activeElement instanceof HTMLElement) ? null : { provider, node: document.activeElement };
-    return session.command(provider, command);
+    void session.command(provider, command);
   };
 
   // An arrival from Home's picker or a toast focuses the provider's row group once its row is drawn, and flashes it

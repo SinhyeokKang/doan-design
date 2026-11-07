@@ -395,8 +395,7 @@ test("an arrival with a provider focuses its row group and flashes it for 2.4 s"
   expect(focus).toHaveBeenCalledTimes(1);
 });
 
-// agent-cli-terminal T4: the row's install states on Settings, with the click handler's own promise awaited (POSTMORTEM
-// 2026-10-25 UX K: a fixed pause let an unconsumed stale error pass).
+// Click handlers return void; settle the session updates before checking install results, including stale failures.
 // Row notices and their buttons are components (NoticeView, ActionButton); drawn here as React would.
 const NOTICE_PARTS = new Set(["NoticeView", "ActionButton"]);
 const drawn = (node: ReactNode): ReactElement<Record<string, unknown>>[] => all(node).flatMap(element =>
@@ -404,7 +403,7 @@ const drawn = (node: ReactNode): ReactElement<Record<string, unknown>>[] => all(
 const click = (provider: Provider, command: string) => {
   const button = drawn(row(provider)).find(element => element.props["data-command"] === command && element.type === "button");
   if (!button) throw new Error(`no ${command} on ${provider}`);
-  return (button.props.onClick as () => Promise<void> | undefined)();
+  (button.props.onClick as () => void)();
 };
 const alerts = () => drawn(tree).filter(element => element.props.role === "alert").map(element => words(element.props.children));
 
@@ -412,15 +411,16 @@ test("Install opens Terminal: the row says to press Return there, and after the 
   auth = { revision: 1, providers: [dto("claude"), dto("codex", { account: false, facts: { cli: "missing" } })] };
   api.openInstall = vi.fn(async () => "terminal");
   await settle();
-  await click("codex", "install");
-  render();
+  click("codex", "install");
+  await settle();
   expect(api.openInstall).toHaveBeenCalledWith("codex");
   expect(words(all(row("codex")).find(element => String(element.props.className).includes("settings-help"))?.props.children)).toBe("Terminal is open with the install command. Press Return there, then come back to Doan.");
   const focus = vi.mocked(window.addEventListener).mock.calls.find(call => call[0] === "focus")![1] as () => void;
   focus();
   await settle();
   expect(api.checkAgentAuth).toHaveBeenCalledWith("codex");
-  await click("codex", "check");
+  click("codex", "check");
+  await settle();
   expect(api.checkAgentAuth).toHaveBeenCalledTimes(2);
   auth = { revision: 2, providers: [dto("claude", {}, 2), dto("codex", { account: false }, 2)] };
   authListener(auth); render();
@@ -433,13 +433,13 @@ test("a Terminal that would not open puts the alert on its row with Open install
   api.openInstall = vi.fn(async () => "failed");
   api.openInstallPage = vi.fn(async () => false);
   await settle();
-  await click("codex", "install");
-  render();
+  click("codex", "install");
+  await settle();
   expect(alerts()).toEqual(["Couldn’t open Terminal to install Codex. Open the install page to install it yourself."]);
   const notice = all(row("codex")).find(element => element.type === NoticeView);
   expect(notice).toBeDefined();
-  await click("codex", "installPage");
-  render();
+  click("codex", "installPage");
+  await settle();
   expect(api.openInstallPage).toHaveBeenCalledWith("codex");
   const failed = drawn(row("codex")).find(element => element.props.role === "alert")!;
   expect(words(failed.props.children)).toBe("Couldn’t open the Codex install page.");
@@ -455,19 +455,16 @@ test("Settings: an older Install result never replaces the newer one, in either 
   api.openInstall = vi.fn(() => new Promise<string>(resolve => { held.push(resolve); }));
   await settle();
   // Newer first: the older failure lands after the newer Terminal opened.
-  const older = click("codex", "install"), newer = click("cursor", "install");
-  held[1]!("terminal"); await newer;
-  held[0]!("failed"); await older;
-  render();
+  click("codex", "install"); click("cursor", "install");
+  held[1]!("terminal"); await settle();
+  held[0]!("failed"); await settle();
   expect(alerts()).toEqual([]);
   expect(all(row("cursor")).some(element => words(element.props.children) === "Terminal is open with the install command. Press Return there, then come back to Doan.")).toBe(true);
   // Older first: the older failure lands while the newer is pending, then the newer one shows.
-  const third = click("codex", "install"), fourth = click("cursor", "install");
-  held[2]!("failed"); await third;
-  render();
+  click("codex", "install"); click("cursor", "install");
+  held[2]!("failed"); await settle();
   expect(alerts()).toEqual([]);
-  held[3]!("failed"); await fourth;
-  render();
+  held[3]!("failed"); await settle();
   expect(alerts()).toEqual(["Couldn’t open Terminal to install Cursor. Open the install page to install it yourself."]);
 });
 
@@ -475,7 +472,8 @@ test("Settings: an update that ends in an unreadable version shows the version a
   auth = { revision: 1, providers: [dto("claude"), dto("codex", { account: false, facts: { version: "unsupported", installed: "0.150.0" } })] };
   api.openInstall = vi.fn(async () => "terminal");
   await settle();
-  await click("codex", "update");
+  click("codex", "update");
+  await settle();
   auth = { revision: 2, providers: [dto("claude", {}, 2), dto("codex", { account: false, facts: { version: "unknown" } }, 2)] };
   authListener(auth); render();
   const live = () => all(tree).find(element => element.props.role === "status" && element.props.className === "ob-live")?.props.children;
