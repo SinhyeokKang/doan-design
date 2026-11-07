@@ -138,7 +138,7 @@ describe("UsagePanel", () => {
   });
 
   // real app: Tab to Agent settings or Refresh usage shows its tooltip, the top dismissable layer, so the first
-  // Escape closed only the tooltip and a second one the popover.
+  // Escape closed only the tooltip and a second one the popover (as the conversation Delete dialog's tooltip did).
   it("closes the popover with the Escape a title-row tooltip takes", () => {
     const view = props(four, { open: true });
     const tips = all(UsagePanel(view)).filter(element => typeof element.type === "function" && element.type.name === "IconTip");
