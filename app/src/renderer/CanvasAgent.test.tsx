@@ -84,7 +84,7 @@ describe("CanvasAgent", () => {
     expect(markup("error")).toBe(COLUMN);
   });
 
-  // terminal-agent-activity (draft terminal-notice, user decision D1): a terminal session shows the glow, the dot field
+  // Draft terminal-notice: a terminal session shows the glow, the dot field
   // and the app notice's text with no button; the text is the status itself.
   test("a terminal session: the glow and the notice with Doany painting and text, and no button", () => {
     const work = [{ touched: 0, turn: "none:t", session: "s1", provider: "codex" as const, root: "/w/a", path: canvas.path }];
@@ -193,7 +193,7 @@ test("the tools are larger and both overlays sit further from the board's edges"
   expect(css).toMatch(/\.doan-agent-text \{[^}]*font-size: var\(--type-body-sm-size\);/);
 });
 
-// terminal-agent-activity user decision D2 (draft terminal-notice): every capsule in the column, the button-less terminal
+// Draft terminal-notice: every capsule in the column, the button-less terminal
 // notice and the picking hint included, takes the app notice's 40px height; the terminal notice has an even inline inset.
 test("the agent notices and the picking hint are 40px tall; the terminal notice's inset is even", () => {
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");

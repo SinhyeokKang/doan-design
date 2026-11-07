@@ -74,7 +74,7 @@ test("a canvas with a terminal session offers it first, with the time doan check
   expect(out).toContain('aria-placeholder="Reply, / for presets"');
 });
 
-// terminal-agent-activity (draft resume-disabled): while the linked session works in a terminal, its choice is disabled
+// Draft resume-disabled: while the linked session works in a terminal, its choice is disabled
 // with the reason as its described line, and a new conversation is the mode, even over a resume chosen before.
 test("a terminal session still working holds its choice with the reason; the composer starts a new conversation", async () => {
   resume = { available: true, runtime: "codex", lastCheckAt: "2026-11-01T14:02:00", session: "s1" };
@@ -258,7 +258,7 @@ test("the panel header offers New conversation next to the title menu", () => {
   expect(html).toMatch(/<button type="button" class="doan-icon-button doan-conv-new" aria-label="New conversation"[^>]*><svg[^>]*lucide-square-pen/);
 });
 
-// N1 (conversation-delete orch decisions 1–2): on the new conversation state it does nothing.
+// On the new conversation state it does nothing.
 test("New conversation selects a new conversation and focuses the composer, does nothing when already new, and only focuses while nothing shows", () => {
   const select = vi.fn(), focus = vi.fn();
   startNewConversation("c1", false, select, focus);

@@ -809,7 +809,7 @@ it("resets both channels on reload and rejects old-window, href and viewport hov
   } finally { h.controller.dispose(); }
 });
 
-// buzz-canvas-conversation keeps the anchors query and reply for chip locate: the controller asks for plain targets,
+// The anchors query and reply for chip locate: the controller asks for plain targets,
 // takes only the newest reply for its own request in the current document, and moves to the node it names.
 describe("anchors channel", () => {
   const queries = (h: ReturnType<typeof selectionHarness>) => h.current().contentWindow.postMessage.mock.calls.map(c => c[0]).filter(c => c.type === "anchors-query");
