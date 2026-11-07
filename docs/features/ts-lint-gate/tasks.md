@@ -56,7 +56,7 @@ lint 명령(`npm --prefix app run lint`)은 T0에서 생기고 T3에서 AGENTS.m
 
 ## T4. 최신 main rebase 뒤 N 확정과 정리
 
-- 최신 main 위로 rebase한다. defect-sweep과 overview-tabs가 경고가 있는 파일을 고치므로, conductor가 이 rebase에서 다시 센다.
+- 최신 main 위로 rebase한다. defect-sweep이 경고가 있는 파일을 고치므로, conductor가 이 rebase에서 다시 센다.
 - lint 명령을 다시 돌려 N을 정확한 수로 고친다. `--max-warnings N`이 exit 0, `--max-warnings N-1`이 exit 1인지 다시 본다. 오류가 새로 나오면(rebase로 들어온 코드의 misused·floating·hooks) 고치고 보고한다.
 - `docs/features/ts-lint-gate/`를 지운다.
 - 검증: `node .agents/skills/verify/scripts/verify.mjs` exit 0과 `verify: PASS`. lint 명령의 N / N-1 확인 — 이 시점에는 T3에서 AGENTS.md 'Commands'에 올라간 `npm --prefix app run lint`를 쓴다.

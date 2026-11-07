@@ -75,7 +75,7 @@ BACKLOG의 2026-11-05 측정(ESLint 9.39.1, typescript-eslint 8.46.4)은 misused
 ### N 정하기 (ratchet)
 
 - N은 exhaustive-deps 경고의 정확한 수다. 여유를 두지 않는다. 확인은 언제나 두 번이다: `--max-warnings N`이 exit 0, `--max-warnings N-1`이 exit 1. 오류 규칙의 위반이 남아 있는 동안(T0)은 둘 다 exit 1이 되므로 `-A typescript/no-misused-promises`로 그 규칙만 끄고 확인한다. scratch에서 이 방법으로 82는 exit 0, 81은 exit 1이었다.
-- 정하는 때: T0(설치 직후), T2(gate에 넣을 때), 그리고 마지막 단계인 최신 main rebase 뒤. defect-sweep과 overview-tabs가 경고가 있는 파일을 고치므로, conductor가 그 rebase에서 다시 센다.
+- 정하는 때: T0(설치 직후), T2(gate에 넣을 때), 그리고 마지막 단계인 최신 main rebase 뒤. defect-sweep이 경고가 있는 파일을 고치므로, conductor가 그 rebase에서 다시 센다.
 - 지키는 규칙(T3에서 verify 스킬에 적는다):
   - 통과하려고 N을 올리지 않는다.
   - 새 exhaustive-deps 경고는 고치거나, 왜 뺐는지 적은 주석과 함께 disable한다.
