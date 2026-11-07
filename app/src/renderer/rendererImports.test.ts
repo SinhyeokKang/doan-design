@@ -13,7 +13,7 @@ const SRC = join(APP, "src");
 const FORBIDDEN_FILES = [join(SRC, "formats/validate.ts")];
 const NODE = new Set(builtinModules.flatMap(name => [name, `node:${name}`]));
 // Modules the app does not import yet but a later screen will: the walk starts from them too, so a value import
-// added now cannot wait for that screen to fail (POSTMORTEM 2026-10-30; buzz-project places the thread and the
+// added now cannot wait for that screen to fail (POSTMORTEM 2026-10-30; the project Overview places the thread and the
 // docked composer).
 const EXTRA_ROOTS = [
   // Fixed request lines are shared by main and renderer by value.

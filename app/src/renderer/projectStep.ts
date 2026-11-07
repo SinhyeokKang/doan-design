@@ -145,7 +145,7 @@ export class ProjectStepSession {
   restart(): void { this.fence(); this.acting = null; this.again = null; this.source = null; this.consent = null; this.set({ phase: { kind: "choose" }, error: null }); }
   // A cancelled or failed clone is left through its URL: Back returns there rather than to the Agent step, where
   // Continue would bring the same clone screen back.
-  // A setup screen reached from a URL (D25 picked a checkout that needs setup) is left the same way.
+  // A setup screen reached from a URL (a checkout that needs setup was picked) is left the same way.
   backToUrl(): boolean { const p = this.state.phase; return p.kind === "cloneCancelled" || (p.kind === "clone" && this.state.error !== null) || (p.kind === "setup" && p.url !== null); }
   // Looking for a repository can be left at once: the inspection is read-only, so its late result is dropped.
   cancelInspect(): void { if (this.state.phase.kind === "inspecting") this.restart(); }
@@ -462,7 +462,7 @@ export class ProjectStepSession {
   }
 }
 
-// The Project step serves first run and the Add Projects page; only the differences between the two (heading, the 'Your projects' list, the footer) depend
+// The Project step serves first run and the Add Projects page; what the Project step varies between the two (heading, the 'Your projects' list, notices, actions, surface) depends
 // on the use.
 export type ProjectUse = "onboarding" | "addPage";
 export interface ProjectFooter {

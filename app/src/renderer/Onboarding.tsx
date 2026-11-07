@@ -261,7 +261,7 @@ export function ProjectChoice({ paths, choice, home, pick, name }: {
 type ProjectAction = "chooseFolder" | "chooseExisting" | "edit" | "retry" | "changeLocation" | "useExisting" | "backToAgents";
 interface ProjectNotice { title?: string; body: string; detail?: string; note?: string; actions: Button<ProjectAction>[] }
 const action = (command: ProjectAction, label: string, variant: Button["variant"] = "prominent"): Button<ProjectAction> => ({ command, label, variant, disabled: false });
-// Copy from the approved draft's Project states tiles; D13 for the newer marker version.
+// Copy from the approved draft's Project states tiles, also for the newer marker version.
 // fromUrl: the screen belongs to a GitHub URL, so a folder chosen there must be that repository's.
 // insideProject: the name of the doan project a clone destination sits in (main refuses it as path_unavailable).
 // folder: the chosen folder a mismatch is about; on the clone screen "This folder" would read as the destination.
@@ -441,7 +441,7 @@ const HEADINGS = {
 export interface ProjectScreenProps {
   state: ProjectStepState; busy: boolean; agentReady: boolean; projects: readonly string[]; home: string | null; urlValid: boolean;
   heading: (node: HTMLHeadingElement | null) => void;
-  // First run by default; the Add Projects page differs only in its heading, the 'Your projects' list, the footer and a few actions.
+  // First run by default; the Add Projects page varies the heading, the 'Your projects' list, the notices, the actions and the surface.
   use?: ProjectUse;
   // The heading's id, when a landmark is named by it (the page's panel).
   headingId?: string;

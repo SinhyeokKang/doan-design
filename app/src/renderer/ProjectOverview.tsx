@@ -313,7 +313,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
   const repairChoice = repairRow ? worktreeChoice(repairRow) : null;
   const chipLabel = branch ?? root.split("/").at(-1) ?? root;
 
-  // The column shows the new conversation state.
+  // The column shows the new conversation state; a failed first read is one too.
   const showsNew = conversationId === null && !waiting;
   const moved = view.kind === "new" ? view.moved : null;
   const movedCanvas = moved && canvasLabel({ path: moved.canvas.path, url: "" });
