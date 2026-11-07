@@ -1,4 +1,4 @@
-import type { UpdateErrorCode } from "./types";
+import type { UpdateErrorCode, UpdateErrorSource } from "./types";
 
 // Sorts an error electron-updater emitted into the fixed codes the renderer may show. The shapes come from
 // electron-updater 6.8.11 and builder-util-runtime 9.7.0 (string `code`, HttpError's `statusCode`) and from Electron's
@@ -17,6 +17,11 @@ const INSTALL_DOMAINS = new Set(["SQRLInstallerErrorDomain", "NSOSStatusErrorDom
 const SQRL_UPDATER_READ_ONLY_VOLUME = 8;
 
 const record = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null;
+
+// Electron's autoUpdater gives Squirrel's errors the NSError domain; electron-updater's own errors have none.
+export function updateErrorSource(error: unknown): UpdateErrorSource {
+  return record(error) && typeof error.domain === "string" ? "native" : "js";
+}
 
 export function updateErrorCode(error: unknown): UpdateErrorCode {
   if (!record(error)) return "other";

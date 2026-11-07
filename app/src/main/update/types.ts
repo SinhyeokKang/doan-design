@@ -6,6 +6,7 @@ import type { Ineligible } from "../agentSetup/notice";
 // The only failure detail the renderer gets; the updater's own message stays in the main log.
 export const UPDATE_ERROR_CODES = ["offline", "feedMissing", "rateLimited", "signatureMismatch", "checksumMismatch", "diskFull", "installFailed", "other"] as const;
 export type UpdateErrorCode = typeof UPDATE_ERROR_CODES[number];
+export type UpdateErrorSource = "native" | "js";
 
 // Agent setup's reasons, plus noFeed: a build without `app-update.yml` (a tester or local package).
 export type UpdateDisabledReason = Ineligible | "noFeed";
@@ -27,7 +28,9 @@ export type UpdateState =
   | { kind: "restartAborted"; version: string };
 
 // electron-updater's events, and the app's: a check starting (`manual` when a person asked), the restart the gate
-// allowed, and the quit a conversation's save cancelled.
+// allowed, and the quit a conversation's save cancelled. An error's `source` is `native` when Electron's autoUpdater
+// (Squirrel.Mac) raised it, which after the download means staging or installing failed, and `js` when
+// electron-updater did (updateErrorSource).
 export type UpdateEvent =
   | { type: "check"; manual: boolean }
   | { type: "checking-for-update" }
@@ -36,7 +39,7 @@ export type UpdateEvent =
   | { type: "download-progress"; percent: number }
   | { type: "update-downloaded"; version: string }
   | { type: "update-cancelled" }
-  | { type: "error"; code: UpdateErrorCode }
+  | { type: "error"; code: UpdateErrorCode; source: UpdateErrorSource }
   | { type: "install" }
   | { type: "quit-cancelled" };
 

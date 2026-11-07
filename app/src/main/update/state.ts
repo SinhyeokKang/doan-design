@@ -1,8 +1,4 @@
-import type { SettledUpdateState, UpdateErrorCode, UpdateEvent, UpdateState } from "./types";
-
-// Squirrel.Mac fetches and verifies the update after electron-updater reports it downloaded, so these failures can
-// arrive while ready. Any other error then comes from a later check and must not take a working update away.
-const STAGED_DOWNLOAD_FAILURES: readonly UpdateErrorCode[] = ["signatureMismatch", "checksumMismatch", "diskFull"];
+import type { SettledUpdateState, UpdateErrorCode, UpdateErrorSource, UpdateEvent, UpdateState } from "./types";
 
 const settled = (state: UpdateState): state is SettledUpdateState => state.kind === "idle" || state.kind === "upToDate" || state.kind === "failed";
 // The states that hold a downloaded update Restart to Update can install.
@@ -36,7 +32,7 @@ export function updateState(prev: UpdateState, event: UpdateEvent): UpdateState 
     case "update-cancelled":
       return prev.kind === "downloading" ? { kind: "idle" } : prev;
     case "error":
-      return failed(prev, event.code);
+      return failed(prev, event.code, event.source);
     case "install":
       if (installable(prev)) return { kind: "restarting", version: prev.version };
       // An automatic check after a failed install still shows that install's Restart to Update.
@@ -46,17 +42,20 @@ export function updateState(prev: UpdateState, event: UpdateEvent): UpdateState 
   }
 }
 
-function failed(prev: UpdateState, code: UpdateErrorCode): UpdateState {
+function failed(prev: UpdateState, code: UpdateErrorCode, source: UpdateErrorSource): UpdateState {
   switch (prev.kind) {
     // Automatic checks fail quietly: the row keeps what it showed.
     case "checking": return prev.manual ? { kind: "failed", code, stage: "check" } : prev.last;
     // A download is shown however it started.
     case "downloading": return { kind: "failed", code, stage: "download", version: prev.version };
-    case "restarting": return { kind: "failed", code, stage: "install", version: prev.version };
+    // Squirrel.Mac stages the update after electron-updater reports it downloaded, and quitAndInstall waits for that,
+    // so a native error here means nothing is staged: download again, unless the install itself failed. An
+    // electron-updater error here comes from a later check and must not take the update away.
     case "ready":
     case "restartAborted":
-      if (code === "installFailed") return { kind: "failed", code, stage: "install", version: prev.version };
-      return STAGED_DOWNLOAD_FAILURES.includes(code) ? { kind: "failed", code, stage: "download", version: prev.version } : prev;
+    case "restarting":
+      if (source === "js") return prev;
+      return { kind: "failed", code, stage: code === "installFailed" ? "install" : "download", version: prev.version };
     default: return prev;
   }
 }

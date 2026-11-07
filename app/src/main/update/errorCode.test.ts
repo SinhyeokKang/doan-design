@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { updateErrorCode } from "./errorCode";
+import { updateErrorCode, updateErrorSource } from "./errorCode";
 import { UPDATE_ERROR_CODES } from "./types";
 
 // The fixtures are the errors electron-updater 6.8.11 (builder-util-runtime 9.7.0) and Electron 45's Squirrel.Mac
@@ -100,4 +100,15 @@ describe("updateErrorCode", () => {
       expect(updateErrorCode(error)).toBe(code);
     });
   }
+});
+
+// Electron's autoUpdater adds Squirrel's NSError domain; electron-updater's own errors have none.
+describe("updateErrorSource", () => {
+  test("an error with a domain is native, anything else js", () => {
+    expect(updateErrorSource(squirrelError("Code signature at URL file:///x did not pass validation", -1, "SQRLCodeSignatureErrorDomain"))).toBe("native");
+    expect(updateErrorSource(squirrelError("The operation couldn’t be completed. (OSStatus error -60006.)", -60006, "NSOSStatusErrorDomain"))).toBe("native");
+    for (const error of [new Error("net::ERR_INTERNET_DISCONNECTED"), newError("sha512 checksum mismatch", "ERR_CHECKSUM_MISMATCH"), systemError("ENOSPC: no space left on device, write", "ENOSPC"), "boom", null, undefined, { domain: 3 }]) {
+      expect(updateErrorSource(error)).toBe("js");
+    }
+  });
 });

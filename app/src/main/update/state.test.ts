@@ -18,7 +18,9 @@ const restartAborted: UpdateState = { kind: "restartAborted", version: "0.1.1" }
 const ALL: UpdateState[] = [idle, upToDate, failedCheck, failedDownload, failedInstall, { kind: "checking", manual: false, last: idle }, { kind: "checking", manual: true, last: upToDate }, downloading, ready, restarting, restartAborted];
 
 const run = (state: UpdateState, ...events: UpdateEvent[]) => events.reduce(updateState, state);
-const error = (code: UpdateErrorCode): UpdateEvent => ({ type: "error", code });
+// `native`: Electron's autoUpdater (Squirrel.Mac) raised it; `js`: electron-updater itself.
+const error = (code: UpdateErrorCode, source: "native" | "js" = "js"): UpdateEvent => ({ type: "error", code, source });
+const native = (code: UpdateErrorCode) => error(code, "native");
 
 describe("checking", () => {
   test("a check starts from a settled state and keeps it to show meanwhile", () => {
@@ -94,6 +96,7 @@ describe("downloading", () => {
   test("a failed download always shows, automatic or not, with its version", () => {
     for (const code of ["offline", "other", "checksumMismatch", "diskFull", "signatureMismatch"] as const) {
       expect(run(downloading, error(code))).toEqual({ kind: "failed", code, stage: "download", version: "0.1.1" });
+      expect(run(downloading, native(code))).toEqual({ kind: "failed", code, stage: "download", version: "0.1.1" });
     }
     expect(run(upToDate, { type: "check", manual: false }, { type: "update-available", version: "0.1.1" }, error("offline"))).toEqual(failedDownload);
   });
@@ -123,12 +126,28 @@ describe("ready", () => {
     expect(run(ready, { type: "update-available", version: "0.1.2" })).toEqual({ kind: "downloading", version: "0.1.2", percent: 0 });
   });
 
-  // Squirrel.Mac fetches and verifies the update after electron-updater reports it downloaded, so its errors arrive
-  // while ready. A later check that fails must not take a working update away.
-  test("a check that fails while ready changes nothing; Squirrel's own failures show", () => {
-    for (const code of ["offline", "rateLimited", "feedMissing", "other"] as const) expect(run(ready, error(code))).toBe(ready);
-    for (const code of ["signatureMismatch", "checksumMismatch", "diskFull"] as const) expect(run(ready, error(code))).toEqual({ kind: "failed", code, stage: "download", version: "0.1.1" });
-    expect(run(ready, error("installFailed"))).toEqual(failedInstall);
+  // Squirrel.Mac fetches and stages the update after electron-updater reports it downloaded, so every native error
+  // while ready is a staging failure, whatever its code: nothing is staged, and only downloading again can fix it.
+  test("a later check that fails while ready changes nothing", () => {
+    for (const code of ["offline", "rateLimited", "feedMissing", "other", "signatureMismatch", "installFailed"] as const) expect(run(ready, error(code)), code).toBe(ready);
+  });
+
+  test("a Squirrel failure while ready is a failed download, so Retry downloads again", () => {
+    for (const code of ["other", "offline", "signatureMismatch", "checksumMismatch", "diskFull"] as const) {
+      expect(run(ready, native(code)), code).toEqual({ kind: "failed", code, stage: "download", version: "0.1.1" });
+    }
+  });
+
+  // Squirrel refusing a read-only volume while staging: Restart to Update is the draft's action for an install failure.
+  test("a Squirrel install failure while ready is a failed install", () => {
+    expect(run(ready, native("installFailed"))).toEqual(failedInstall);
+  });
+
+  // MacUpdater reports a staging error twice: from its native error listener and from the download promise.
+  test("the second report of the same Squirrel failure changes nothing", () => {
+    const once = run(ready, native("signatureMismatch"));
+    expect(run(once, native("signatureMismatch"))).toBe(once);
+    expect(run(once, error("signatureMismatch"))).toBe(once);
   });
 });
 
@@ -156,9 +175,16 @@ describe("restarting", () => {
     for (const state of ALL.filter(state => state.kind !== "restarting")) expect(run(state, { type: "quit-cancelled" })).toBe(state);
   });
 
-  test("an error while restarting is an install failure", () => {
-    expect(run(restarting, error("installFailed"))).toEqual(failedInstall);
-    expect(run(restarting, error("other"))).toEqual({ kind: "failed", code: "other", stage: "install", version: "0.1.1" });
+  // quitAndInstall waits for Squirrel to finish staging, so a native error then is a failed download, unless it is
+  // the install itself failing (ShipIt, the administrator prompt cancelled).
+  test("a Squirrel error while restarting: an install failure stays one, anything else is a failed download", () => {
+    expect(run(restarting, native("installFailed"))).toEqual(failedInstall);
+    expect(run(restarting, native("signatureMismatch"))).toEqual({ kind: "failed", code: "signatureMismatch", stage: "download", version: "0.1.1" });
+    expect(run(restarting, native("other"))).toEqual({ kind: "failed", code: "other", stage: "download", version: "0.1.1" });
+  });
+
+  test("a later check that fails while restarting changes nothing", () => {
+    for (const code of ["offline", "other"] as const) expect(run(restarting, error(code)), code).toBe(restarting);
   });
 
   test("while restarting, checks and updater news change nothing", () => {
@@ -172,7 +198,9 @@ describe("restarting", () => {
     expect(run(restartAborted, { type: "check", manual: false })).toBe(restartAborted);
     expect(run(restartAborted, { type: "update-downloaded", version: "0.1.1" })).toBe(restartAborted);
     expect(run(restartAborted, error("offline"))).toBe(restartAborted);
-    expect(run(restartAborted, error("installFailed"))).toEqual(failedInstall);
+    expect(run(restartAborted, error("installFailed"))).toBe(restartAborted);
+    expect(run(restartAborted, native("installFailed"))).toEqual(failedInstall);
+    expect(run(restartAborted, native("diskFull"))).toEqual({ kind: "failed", code: "diskFull", stage: "download", version: "0.1.1" });
     expect(run(restartAborted, { type: "update-available", version: "0.1.2" })).toEqual({ kind: "downloading", version: "0.1.2", percent: 0 });
   });
 });
