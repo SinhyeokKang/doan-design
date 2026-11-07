@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { allowFrameNavigation, childOfTopFrame, frameNavigationAllowed, fromAppFrame, isCanvasFrame, navigationGate, startedByApp, type FrameLike } from "./canvasFrame";
+import { allowFrameNavigation, childOfTopFrame, frameNavigationAllowed, fromAppFrame, isCanvasFrame, isTopFrame, navigationGate, startedByApp, type FrameLike } from "./canvasFrame";
 
 const base = "http://127.0.0.1:4000/t/tok/";
 const current = `${base}key/.doan/canvases/a.html`;
@@ -157,6 +157,13 @@ describe("allowFrameNavigation", () => {
     const loose = "http://127.0.0.1:4000/t/tok";
     expect(allowFrameNavigation("about:blank", "http://127.0.0.1:4000/t/tokx/key/a.html", loose, true)).toBe(false);
     expect(allowFrameNavigation("about:blank", `${base}key/a.html`, loose, true)).toBe(true);
+  });
+});
+
+describe("isTopFrame", () => {
+  test("is true only for a frame whose parent is exactly null", () => {
+    expect(isTopFrame({ parent: null })).toBe(true);
+    for (const frame of [{ parent: { parent: null } }, { parent: undefined }, {}, null, undefined]) expect(isTopFrame(frame), JSON.stringify(frame)).toBe(false);
   });
 });
 

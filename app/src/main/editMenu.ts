@@ -1,6 +1,8 @@
 // Which items the right-click text edit menu holds. Kept free of Electron so the rules are tested without a window;
 // index.ts turns the result into a native menu.
 
+import { isTopFrame } from "./canvasFrame";
+
 export interface EditMenuInput {
   mainFrame: boolean;
   editable: boolean;
@@ -45,4 +47,52 @@ export function editMenuItems(input: EditMenuInput): EditMenuItem[] {
     ? [suggestions, lookUp, [role("cut", input.flags.canCut), role("copy", input.flags.canCopy), role("paste", input.flags.canPaste)], [role("selectAll", input.flags.canSelectAll)]]
     : [lookUp, [role("copy", input.flags.canCopy)]];
   return sections.filter(section => section.length > 0).flatMap((section, index) => index === 0 ? section : [{ kind: "separator" as const }, ...section]);
+}
+
+// The slice of Electron's ContextMenuParams the menu reads, structural so this file needs no Electron import.
+export interface ContextMenuParamsLike {
+  frame: { parent?: unknown } | null;
+  isEditable: boolean;
+  formControlType: string;
+  selectionText: string;
+  editFlags: EditMenuInput["flags"];
+  misspelledWord: string;
+  dictionarySuggestions: readonly string[];
+}
+
+export function editMenuInput(params: ContextMenuParamsLike): EditMenuInput {
+  let mainFrame: boolean;
+  // A WebFrameMain disposed since the event was raised throws on property access; such a frame gets no menu.
+  try {
+    mainFrame = isTopFrame(params.frame);
+  } catch {
+    mainFrame = false;
+  }
+  const { canCut, canCopy, canPaste, canSelectAll } = params.editFlags;
+  return {
+    mainFrame, editable: params.isEditable, password: params.formControlType === "input-password", selection: params.selectionText,
+    flags: { canCut, canCopy, canPaste, canSelectAll }, misspelled: params.misspelledWord, suggestions: params.dictionarySuggestions,
+  };
+}
+
+export interface EditMenuContents {
+  replaceMisspelling(word: string): void;
+  showDefinitionForSelection(): void;
+  isDestroyed(): boolean;
+}
+
+export type EditMenuTemplateItem = { role: EditRole; enabled: boolean } | { label: string; click: () => void } | { type: "separator" };
+
+// Roles, not click handlers, for Cut/Copy/Paste/Select All: they run the same editing command as the Edit menu and its
+// keys, so the composer's chip field gets the same DOM copy/cut/paste events it already handles for ⌘C/⌘X/⌘V.
+export function editMenuTemplate(items: readonly EditMenuItem[], contents: EditMenuContents): EditMenuTemplateItem[] {
+  const live = (run: () => void) => () => { if (!contents.isDestroyed()) run(); };
+  return items.map((item): EditMenuTemplateItem => {
+    switch (item.kind) {
+      case "role": return { role: item.role, enabled: item.enabled };
+      case "suggestion": return { label: item.word, click: live(() => contents.replaceMisspelling(item.word)) };
+      case "lookUp": return { label: item.label, click: live(() => contents.showDefinitionForSelection()) };
+      case "separator": return { type: "separator" };
+    }
+  });
 }

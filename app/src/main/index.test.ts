@@ -15,7 +15,7 @@ const mocks = await vi.hoisted(async () => {
     destroyed = false;
     contentsDestroyed = false;
     webContents = Object.assign(new EventEmitter(), { id: ++Window.ids, send: vi.fn(), isDestroyed: () => this.contentsDestroyed, debugger: { name: "debugger" },
-      executeJavaScript: vi.fn(async (_script?: string): Promise<unknown> => ({ x: 0, y: 0, width: 800, height: 500 })), undo: vi.fn(), redo: vi.fn(), getZoomFactor: vi.fn(() => 1),
+      executeJavaScript: vi.fn(async (_script?: string): Promise<unknown> => ({ x: 0, y: 0, width: 800, height: 500 })), undo: vi.fn(), redo: vi.fn(), replaceMisspelling: vi.fn(), showDefinitionForSelection: vi.fn(), getZoomFactor: vi.fn(() => 1),
       capturePage: vi.fn(async () => ({ isEmpty: () => false, resize: () => ({ toPNG: () => Buffer.from("png") }) })) });
     show = vi.fn();
     hide = vi.fn();
@@ -1170,6 +1170,59 @@ describe("ui state", () => {
     expect(mocks.uiState.flushSync.mock.invocationCallOrder[0]).toBeLessThan(mocks.thumbnails.dispose.mock.invocationCallOrder[0] ?? 0);
     expect(mocks.canvasSeenFlushSync).toHaveBeenCalledOnce();
     expect(mocks.canvasSeenFlushSync.mock.invocationCallOrder[0]).toBeLessThan(mocks.thumbnails.dispose.mock.invocationCallOrder[0] ?? 0);
+  });
+});
+
+describe("text edit menu", () => {
+  const FLAGS = { canUndo: true, canRedo: true, canCut: true, canCopy: true, canPaste: true, canDelete: true, canSelectAll: true, canEditRichly: true };
+  function params(overrides: Record<string, unknown> = {}) {
+    return { frame: { parent: null }, isEditable: true, formControlType: "input-text", selectionText: "teh", editFlags: FLAGS, misspelledWord: "teh", dictionarySuggestions: ["the"], ...overrides };
+  }
+  // The context menu is the Menu built after the app menu; each test gives it a popup to observe.
+  function rightClick(overrides: Record<string, unknown> = {}) {
+    const popup = vi.fn();
+    const builds = mocks.menu.mock.calls.length;
+    mocks.menu.mockReturnValueOnce({ popup });
+    window().webContents.emit("context-menu", { preventDefault: vi.fn() }, params(overrides));
+    return { popup, template: mocks.menu.mock.calls.length > builds ? mocks.menu.mock.calls.at(-1)?.[0] ?? [] : null };
+  }
+
+  test("a main-frame field pops the planned items on the main window, without a frame", () => {
+    const { popup, template } = rightClick();
+    expect(template?.map(entry => entry.role ?? entry.label ?? entry.type)).toEqual(["the", "separator", "Look Up “teh”", "separator", "cut", "copy", "paste", "separator", "selectAll"]);
+    expect(popup).toHaveBeenCalledExactlyOnceWith({ window: window() });
+    expect(popup.mock.calls[0]?.[0]).not.toHaveProperty("frame");
+  });
+
+  test("role items carry Chromium's enablement", () => {
+    const { template } = rightClick({ selectionText: "", misspelledWord: "", editFlags: { ...FLAGS, canCut: false, canCopy: false } });
+    expect(template).toEqual([{ role: "cut", enabled: false }, { role: "copy", enabled: false }, { role: "paste", enabled: true }, { type: "separator" }, { role: "selectAll", enabled: true }]);
+  });
+
+  test("a suggestion replaces the misspelling and Look Up shows the definition, in the clicked page", () => {
+    const { template } = rightClick();
+    const run = (label: string) => Reflect.apply(template?.find(entry => entry.label === label)?.click ?? (() => { throw new Error(`no ${label}`); }), undefined, []);
+    run("the");
+    run("Look Up “teh”");
+    expect(window().webContents.replaceMisspelling).toHaveBeenCalledExactlyOnceWith("the");
+    expect(window().webContents.showDefinitionForSelection).toHaveBeenCalledOnce();
+  });
+
+  test("a subframe (the canvas iframe) and non-editable text with no selection pop nothing", () => {
+    for (const overrides of [{ frame: { parent: { parent: null } } }, { frame: null }, { isEditable: false, selectionText: "" }]) {
+      const { popup, template } = rightClick(overrides);
+      expect(template, JSON.stringify(overrides)).toBeNull();
+      expect(popup).not.toHaveBeenCalled();
+    }
+  });
+
+  test("the thumbnail capture window gets no menu", async () => {
+    const deps = mocks.createThumbnails.mock.calls[0]?.[0] as import("./thumbnails").ThumbnailDeps | undefined;
+    await deps?.capturer.capture("http://127.0.0.1:1/t/tok/k/.doan/canvases/a.html", 800);
+    const hidden = mocks.Window.instances[1];
+    if (!hidden) throw new Error("no capture window");
+    expect(window().webContents.listenerCount("context-menu")).toBe(1);
+    expect(hidden.webContents.listenerCount("context-menu")).toBe(0);
   });
 });
 

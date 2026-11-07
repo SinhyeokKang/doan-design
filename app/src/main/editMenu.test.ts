@@ -1,5 +1,5 @@
-import { describe, expect, test } from "vitest";
-import { editMenuItems, lookUpLabel, type EditMenuInput, type EditMenuItem } from "./editMenu";
+import { describe, expect, test, vi } from "vitest";
+import { editMenuInput, editMenuItems, editMenuTemplate, lookUpLabel, type ContextMenuParamsLike, type EditMenuInput, type EditMenuItem } from "./editMenu";
 
 const ALL = { canCut: true, canCopy: true, canPaste: true, canSelectAll: true };
 
@@ -117,5 +117,60 @@ describe("lookUpLabel", () => {
 
   test("folds before cutting", () => {
     expect(lookUpLabel(`${"a ".repeat(15)}\n\n\nb`)).toBe(`Look Up “${"a ".repeat(15)}…”`);
+  });
+});
+
+describe("editMenuInput", () => {
+  function params(overrides: Partial<ContextMenuParamsLike> = {}): ContextMenuParamsLike {
+    return { frame: { parent: null }, isEditable: true, formControlType: "input-text", selectionText: "teh", editFlags: ALL, misspelledWord: "teh", dictionarySuggestions: ["the"], ...overrides };
+  }
+
+  test("copies Chromium's report into the rule input", () => {
+    expect(editMenuInput(params())).toEqual({ mainFrame: true, editable: true, password: false, selection: "teh", flags: ALL, misspelled: "teh", suggestions: ["the"] });
+  });
+
+  test("only a password input counts as a password", () => {
+    expect(editMenuInput(params({ formControlType: "input-password" })).password).toBe(true);
+    for (const type of ["none", "text-area", "input-text", "input-url"]) expect(editMenuInput(params({ formControlType: type })).password, type).toBe(false);
+  });
+
+  // The canvas is a cross-site iframe: its frame has a parent.
+  test("the main frame is the parentless frame; a subframe or a gone frame is not", () => {
+    expect(editMenuInput(params({ frame: { parent: {} } })).mainFrame).toBe(false);
+    expect(editMenuInput(params({ frame: null })).mainFrame).toBe(false);
+    const disposed = { get parent(): unknown { throw new Error("Render frame was disposed before WebFrameMain could be accessed"); } };
+    expect(editMenuInput(params({ frame: disposed })).mainFrame).toBe(false);
+  });
+
+  test("keeps only the four edit flags", () => {
+    const flags = { ...ALL, canCut: false, canUndo: true, canRedo: true, canDelete: true, canEditRichly: true } as ContextMenuParamsLike["editFlags"];
+    expect(editMenuInput(params({ editFlags: flags })).flags).toEqual({ ...ALL, canCut: false });
+  });
+});
+
+describe("editMenuTemplate", () => {
+  function contents(destroyed = false) {
+    return { replaceMisspelling: vi.fn(), showDefinitionForSelection: vi.fn(), isDestroyed: () => destroyed };
+  }
+
+  test("roles stay roles with their enablement, separators stay separators", () => {
+    const template = editMenuTemplate([{ kind: "role", role: "cut", enabled: false }, { kind: "separator" }, { kind: "role", role: "selectAll", enabled: true }], contents());
+    expect(template).toEqual([{ role: "cut", enabled: false }, { type: "separator" }, { role: "selectAll", enabled: true }]);
+  });
+
+  test("a suggestion replaces the misspelling, Look Up shows the definition", () => {
+    const target = contents();
+    const template = editMenuTemplate([{ kind: "suggestion", word: "the" }, { kind: "lookUp", label: "Look Up “teh”" }], target);
+    expect(template.map(item => "label" in item ? item.label : undefined)).toEqual(["the", "Look Up “teh”"]);
+    for (const item of template) if ("click" in item) item.click();
+    expect(target.replaceMisspelling).toHaveBeenCalledExactlyOnceWith("the");
+    expect(target.showDefinitionForSelection).toHaveBeenCalledOnce();
+  });
+
+  test("a click after the page is gone does nothing", () => {
+    const target = contents(true);
+    for (const item of editMenuTemplate([{ kind: "suggestion", word: "the" }, { kind: "lookUp", label: "Look Up “teh”" }], target)) if ("click" in item) item.click();
+    expect(target.replaceMisspelling).not.toHaveBeenCalled();
+    expect(target.showDefinitionForSelection).not.toHaveBeenCalled();
   });
 });
