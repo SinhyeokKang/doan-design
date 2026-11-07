@@ -179,7 +179,7 @@ design-draft·design-sync의 "on main"은 "출시됐다"가 아니라 "통합됐
 - R1이 app-update의 실제 업데이트 PoC다. 서명되고 피드가 켜진 PoC 빌드를 따로 만들지 않는다. 실패하면 `develop`에서 고친 뒤 rc.3으로 다시 본다(태그는 옮기거나 지우지 않는다). 코드로 답이 나온 가정은 '조사'에 적었다(2026-11-07 `/feature-review`).
 
 ### D13. 버전과 태그 — 결론(사용자, 2026-11-07)
-- `/release`가 `chore(release): <version>` 올림 커밋(`npm --prefix app version <v> --no-git-tag-version`, lock 포함)을 `develop`에 push하고, `develop`→`main` 병합 커밋에 `v<version>` 태그를 만들어 push한다(D7). rc 식별자는 `x.y.z-rc.N`. 릴리스 노트 초안은 정식 버전이면 마지막 정식 태그 이후, rc면 마지막 태그 이후 병합된 PR 제목으로 만들고 사용자가 고친다. PR 없이 `develop`에 들어간 커밋(D3)은 노트 초안에 빠진다.
+- `/release`가 `chore(release): <version>` 올림 커밋(`npm --prefix app version <v> --no-git-tag-version`, lock 포함)을 `develop`에 push하고, `develop`→`main` 병합 커밋에 `v<version>` 태그를 만들어 push한다(D7). rc 식별자는 `x.y.z-rc.N`. 릴리스 노트 초안은 정식 버전이면 마지막 정식 태그 이후, rc면 마지막 태그 이후 병합된 PR 제목으로 만들고, 사용자 승인 없이 스킬이 확정한다(사용자, 2026-11-08). PR 없이 `develop`에 들어간 커밋(D3)은 노트 초안에 빠진다.
 - 제약: R1이 먼저이므로 올림 커밋은 0.1.0 → 0.1.0-rc.1 → 0.1.0-rc.2 → 0.1.0으로 세 번 생긴다. SemVer로 rc.1은 0.1.0보다 낮으므로 버전 검사는 지금 `package.json` 값이 아니라 기존 태그·게시본과 비교한다. 지금까지 나간 테스터 dmg도 0.1.0으로 찍혀 있지만 피드가 없어(D8) 업데이트에는 영향이 없다.
 
 ### D14. 아키텍처 — 결론(사용자, 2026-11-07)
