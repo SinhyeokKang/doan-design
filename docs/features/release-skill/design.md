@@ -58,7 +58,47 @@
 
 ## One-time setup (사람)
 
-release-ci T7이 이 절을 채운다: 비밀·변수 이름 목록(`MAC_CERT_P12_BASE64`, `MAC_CERT_PASSWORD`, `APPLE_API_KEY_P8`, `APPLE_API_KEY_ID`, `APPLE_API_ISSUER`, 변수 `MAC_IDENTITY_NAME`), 인증서 `.p12`를 내보내 base64로 넣는 법, App Store Connect API Team 키를 만들고 넣는 법, 환경 `release`(필수 검토자, 배포 ref `v*` 태그·`develop`), 갱신 절차. 지금 `/tester-build`의 관찰(G2 중간 인증서, Xcode 라이선스, Team 키 Request Access) 가운데 로컬 keychain에만 해당하는 것은 빼고 옮긴다. 스킬 T1이 이 절을 SKILL.md로 옮긴다.
+스킬 T1이 이 절을 SKILL.md로 옮긴다. 비밀은 사람만 넣고 갱신한다. 에이전트는 값을 읽거나 출력하지 않는다.
+
+**환경**: 저장소 Settings → Environments의 `release`. 필수 검토자 = 메인테이너, 배포 ref = 태그 `v*`(릴리스)·`tester-*`(테스트 빌드)·`release-dryrun-*`(릴리스 dry run). 서명 작업만 이 환경을 쓰고, 실행마다 메인테이너가 Review deployments에서 승인한다. 무료 계정은 공개 저장소에서만 환경을 쓸 수 있다.
+
+**비밀과 변수** (환경 `release`에 둔다)
+
+| 이름 | 종류 | 값 |
+|---|---|---|
+| `MAC_CERT_P12_BASE64` | 비밀 | Developer ID Application 인증서와 개인 키를 내보낸 `.p12`의 base64 |
+| `MAC_CERT_PASSWORD` | 비밀 | 그 `.p12`의 암호 |
+| `APPLE_API_KEY_P8` | 비밀 | App Store Connect API Team 키 `.p8` 파일의 내용 |
+| `APPLE_API_KEY_ID` | 비밀 | 그 키의 Key ID |
+| `APPLE_API_ISSUER` | 비밀 | Issuer ID |
+| `MAC_IDENTITY_NAME` | 변수 | `<Name> (<Team ID>)`. `security find-identity -v -p codesigning`의 `Developer ID Application: ` 뒤 부분이다. 접두어를 넣으면 electron-builder가 `InvalidConfigurationError`로 멈춘다 |
+
+**처음 넣기**
+
+1. 인증서: Account Holder가 Xcode > Settings > Accounts > Manage Certificates(`+`)에서 Developer ID Application 인증서를 만들거나, Keychain Access의 CSR을 developer.apple.com에 올린다. 개인 키는 CSR을 만든 기기의 login keychain에 생긴다.
+2. Keychain Access에서 인증서를 개인 키와 함께 `.p12`로 내보낸다(강한 암호). `.p12`는 백업으로, 암호는 비밀번호 관리자에 둔다.
+3. API 키: 처음이면 Account Holder가 App Store Connect > Users and Access > Integrations에서 Request Access를 누른다(누르기 전에는 Team 키를 만들 수 없다). Account Holder나 Admin이 역할 Developer로 Team 키를 만든다. `.p8`은 한 번만 내려받을 수 있다.
+4. 등록(값이 화면과 셸 기록에 남지 않게 표준 입력으로 넘긴다):
+   ```
+   base64 -i <cert.p12> | gh secret set MAC_CERT_P12_BASE64 --env release
+   gh secret set MAC_CERT_PASSWORD --env release        # 프롬프트에 암호 입력
+   gh secret set APPLE_API_KEY_P8 --env release < <AuthKey_XXXX.p8>
+   gh secret set APPLE_API_KEY_ID --env release
+   gh secret set APPLE_API_ISSUER --env release
+   gh variable set MAC_IDENTITY_NAME --env release --body '<Name> (<Team ID>)'
+   ```
+5. `.p8` 내용을 비밀번호 관리자로 옮기고 파일을 지운다.
+6. 확인: `/tester-build`를 한 번 돌린다. 서명 작업의 첫 단계가 빠진 이름을 알려 주고, 값이 틀리면 서명이나 공증 단계에서 실패한다.
+
+**갱신**
+
+- 인증서는 5년간 유효하다. 갱신하면 새 `.p12`를 내보내 `MAC_CERT_P12_BASE64`·`MAC_CERT_PASSWORD`를 바꾼다. 이름과 Team ID가 같으면 `MAC_IDENTITY_NAME`은 그대로다. Team ID가 같아야 설치된 앱의 지정 요구 사항(`certificate leaf[subject.OU]`)이 이어진다.
+- API 키를 폐기하거나 바꾸면 `APPLE_API_KEY_P8`·`APPLE_API_KEY_ID`를 바꾼다(Issuer ID는 팀 단위라 그대로다).
+- 갱신 뒤에도 `/tester-build` 한 번으로 확인한다.
+
+**관찰**
+
+- 로컬 keychain에서는 웹에서 받은 `.cer`만으로는 정체성이 무효였고 Apple의 G2 중간 인증서 `DeveloperIDG2CA.cer`를 더해야 했다. CI는 electron-builder가 `.p12`를 임시 keychain에 넣어 서명한다. 중간 인증서가 필요했는지는 release-ci PoC 결과(ARCHITECTURE §9)를 따른다.
 
 ## 금지
 
