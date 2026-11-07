@@ -550,11 +550,14 @@ export class ConversationService {
     return turns;
   }
   // What holds Restart to Update back (update installGate): turns running as liveTurns counts them, and the permission
-  // requests and questions they wait on. Memory only, since main asks on every conversation event.
+  // requests and questions they wait on. Memory only, since main asks on every conversation event. An archive or a
+  // history that stopped taking writes ends a turn without clearing `asking`, so only a turn still open counts its
+  // requests.
   restartHolds(): { liveTurns: number; pendingAnswers: number } {
     let liveTurns = 0, pendingAnswers = 0;
     for (const live of this.live.values()) {
-      if (!this.quitting && live.accepted && live.busy && !live.terminal && !live.closed && !live.failedPersistence) liveTurns++;
+      if (live.terminal || live.closed || live.failedPersistence) continue;
+      if (!this.quitting && live.accepted && live.busy) liveTurns++;
       pendingAnswers += live.asking?.size ?? 0;
     }
     return { liveTurns, pendingAnswers };
