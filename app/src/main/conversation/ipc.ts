@@ -158,6 +158,9 @@ export function conversationHandler(service: ConversationService, prepare: Prepa
           if (extras.fast !== undefined) request.fast = extras.fast;
           if (extras.permissionMode !== undefined) request.permissionMode = extras.permissionMode;
           if (extras.attachments) request.attachments = extras.attachments;
+          // The first turn names the model's default level as a send's does (models.ts defaultEffort, defect-sweep B2).
+          const defaultEffort = request.model !== undefined && request.effort === undefined ? home.models?.defaultEffort(raw.root, request.runtime, request.model) : undefined;
+          if (defaultEffort) request.defaultEffort = defaultEffort;
           attachments = extras.ids;
         } else if (raw.model !== undefined || raw.effort !== undefined || raw.fast !== undefined || raw.permissionMode !== undefined || raw.attachments !== undefined) throw new Error("bad_request");
         const store = home.attachments;
