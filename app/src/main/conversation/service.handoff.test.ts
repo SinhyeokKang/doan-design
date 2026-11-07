@@ -15,7 +15,7 @@ const paths: string[] = [];
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); paths.splice(0).forEach(p => rmSync(p, { recursive: true, force: true })); });
 const a = { path: ".doan/canvases/a.html", id: "a" }, b = { path: ".doan/canvases/b.html", id: "b" }, c = { path: ".doan/canvases/c.html", id: "c" };
 type Steering = Runner & { steer: NonNullable<Runner["steer"]> };
-function fixture(options: { provider?: "claude" | "codex"; listed?: Canvas[]; legacy?: boolean; files?: QueueFiles; fast?: QueueOptions["fast"] } = {}) {
+function fixture(options: { provider?: "claude" | "codex"; listed?: Canvas[]; legacy?: boolean; files?: QueueFiles; fast?: QueueOptions["fast"]; defaultEffort?: QueueOptions["defaultEffort"] } = {}) {
   const provider = options.provider ?? "codex";
   const dir = mkdtempSync(join(tmpdir(), "doan-handoff-")); paths.push(dir);
   const store = new ConversationStore(dir); const runners: Steering[] = []; let session = 0;
@@ -31,7 +31,7 @@ function fixture(options: { provider?: "claude" | "codex"; listed?: Canvas[]; le
   const notices: HandoffNotice[] = [];
   const published: ConversationEvent[] = [];
   const admit = (_root: string, canvas?: Canvas) => canvas ? resolveListedCanvas(canvas, listed) : undefined;
-  const service = new ConversationService(store, prepare, open, e => published.push(e), admit, 10_000, () => listed, () => {}, { drafts, ...(options.files ? { files: options.files } : {}), ...(options.fast ? { fast: options.fast } : {}) }, undefined, undefined, notice => notices.push(notice));
+  const service = new ConversationService(store, prepare, open, e => published.push(e), admit, 10_000, () => listed, () => {}, { drafts, ...(options.files ? { files: options.files } : {}), ...(options.fast ? { fast: options.fast } : {}), ...(options.defaultEffort ? { defaultEffort: options.defaultEffort } : {}) }, undefined, undefined, notice => notices.push(notice));
   const sourceRequest: StartRequest = { root: "/repo", mode: "new", runtime: provider, canvas: a, text: "Make a checkout page", anchors: [], model: "gpt-x", effort: "high", permissionMode: "acceptEdits" };
   const key = (runner: number) => open.mock.calls[runner]![0].env.DOAN_HANDOFF;
   const ask = (handoff: string | undefined, path: string, root = "/repo", text = "The person wants a checkout flow; the cart is next.") =>
@@ -42,7 +42,7 @@ function fixture(options: { provider?: "claude" | "codex"; listed?: Canvas[]; le
   const last = (id: string) => store.read(id).at(-1)!;
   const turnOf = (id: string) => store.read(id).filter(e => e.type === "turn.started").at(-1)!.turnId;
   // omit: fields of the canvas request a project or legacy start leaves out.
-  const start = async (request: Partial<StartRequest> = {}, omit: ("canvas" | "runtime")[] = []) => {
+  const start = async (request: Partial<StartRequest> = {}, omit: ("canvas" | "runtime" | "effort")[] = []) => {
     const full: Partial<StartRequest> = { ...sourceRequest, ...request };
     for (const field of omit) delete full[field];
     return (await service.start(full as StartRequest)).conversationId;
@@ -515,5 +515,31 @@ describe("fast", () => {
     const target = await handOff(h, {});
     expect(target).not.toHaveProperty("fast");
     expect(h.open.mock.calls[1]![0]).not.toHaveProperty("fast");
+  });
+});
+
+// The next conversation's first turn names its model's default level when the model has no stored
+// effort, as every later turn does, so the person's Codex model_reasoning_effort never runs it at another level.
+describe("effort", () => {
+  async function handOff(h: ReturnType<typeof fixture>, omit: "effort"[]) {
+    const id = await h.start({}, omit);
+    expect(h.ask(h.key(0), b.path)).toBeNull();
+    h.listed.push(b);
+    h.service.receive(id, { type: "turn.done" });
+    await h.settled();
+    return h.on(b)!;
+  }
+  it("runs the first turn at the model's default level without storing it", async () => {
+    const h = fixture({ defaultEffort: (_root, _provider, model) => model === "gpt-x" ? "medium" : undefined });
+    const target = await handOff(h, ["effort"]);
+    expect(target).toMatchObject({ model: "gpt-x" });
+    expect(target).not.toHaveProperty("effort");
+    expect(h.open.mock.calls[1]![0]).toMatchObject({ model: "gpt-x", effort: "medium" });
+  });
+  it("keeps a stored effort", async () => {
+    const h = fixture({ defaultEffort: () => "medium" });
+    const target = await handOff(h, []);
+    expect(target).toMatchObject({ model: "gpt-x", effort: "high" });
+    expect(h.open.mock.calls[1]![0]).toMatchObject({ effort: "high" });
   });
 });

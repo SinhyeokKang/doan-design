@@ -182,10 +182,49 @@ test("no match shows the spec's sentence instead of options", () => {
 test("empty query distinguishes no available canvases from no search matches", () => {
   const empty = renderToStaticMarkup(<QuickOpen entries={[]} currentRoot={null} pick={() => {}} close={() => {}} />);
   expect(empty).toContain("No canvases to show");
-  const reading = renderToStaticMarkup(<QuickOpen entries={[{ kind: "loading", path: "/repo" }]} currentRoot="/repo" pick={() => {}} close={() => {}} />);
-  expect(reading).toContain("Project is still being read");
   const problem = renderToStaticMarkup(<QuickOpen entries={[{ kind: "notFound", path: "/repo" }]} currentRoot="/repo" pick={() => {}} close={() => {}} />);
   expect(problem).toContain("Project is unavailable. Fix it from its menu in the sidebar.");
+});
+
+// The reading row is a polite status after the listbox, never an option inside it.
+const readingRow = (html: string) => html.match(/<\/div><div role="status" class="qo-live">(.*?)<\/div><\/div>(?:<\/dialog>)?$/)?.[1];
+const listbox = (html: string) => html.match(/role="listbox"[\s\S]*?(?=<div role="status" class="qo-live">)/)?.[0] ?? "";
+
+test("a reading project adds the reading row after the results on Home and in a workspace, with or without a query", () => {
+  const row = '<p class="qo-reading"><span class="doan-spinner" aria-hidden="true"></span>Still reading 1 project…</p>';
+  // Home: the listed projects' canvases and the reading row.
+  const home = render(null);
+  expect(options(home).length).toBeGreaterThan(0);
+  expect(readingRow(home)).toBe(row);
+  expect(listbox(home)).not.toContain("Still reading");
+  // A workspace without a query searches only its own project, which is listed.
+  expect(readingRow(render("/code/acme-web"))).toBe("");
+  // The reading workspace itself: the row and no empty sentence beside it.
+  const own = render("/code/reading");
+  expect(readingRow(own)).toBe(row);
+  expect(own).not.toContain("qo-none");
+  expect(own).not.toContain("Project is still being read");
+  expect(own).not.toContain("No canvases to show");
+  const two = renderToStaticMarkup(<QuickOpen entries={[...entries, { kind: "loading", path: "/code/other" }]} currentRoot={null} pick={() => {}} close={() => {}} />);
+  expect(readingRow(two)).toContain("Still reading 2 projects…");
+});
+
+test("a query that matches nothing shows its sentence and the reading row together", () => {
+  const html = renderToStaticMarkup(<QuickOpenList emptyText="No canvases match" id="r" query="zzz" groups={[]} active={0} pick={() => {}} activate={() => {}} reading={3} />);
+  expect(html).toContain('<p class="qo-none" role="status">No canvases match</p>');
+  expect(readingRow(html)).toBe('<p class="qo-reading"><span class="doan-spinner" aria-hidden="true"></span>Still reading 3 projects…</p>');
+  // Nothing to say and nothing reading: no sentence, and the status stays in place, empty.
+  const quiet = renderToStaticMarkup(<QuickOpenList emptyText={null} id="r" query="" groups={[]} active={0} pick={() => {}} activate={() => {}} reading={0} />);
+  expect(quiet).not.toContain("qo-none");
+  expect(readingRow(quiet)).toBe("");
+});
+
+test("the reading row takes its height from the list, so the dialog keeps its size", () => {
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toMatch(/\.qo-height:has\(\.qo-reading\) \{ --qo-reading-row: var\(--size-control-sm\); \}/);
+  expect(css).toMatch(/:root \{ --qo-reading-row: 0px; \}/);
+  expect(css).toMatch(/\.qo-list \{[^}]*height: calc\(min\([^;]*\) - var\(--qo-reading-row\)\);/);
+  expect(css).toMatch(/\.qo-list \{[^}]*min-height: calc\(min\([^;]*\) - var\(--qo-reading-row\)\);/);
 });
 
 test("a row click that already closed the dialog does not dismiss it again on the way up", () => {

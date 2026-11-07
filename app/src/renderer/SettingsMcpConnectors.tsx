@@ -192,7 +192,7 @@ export function SettingsMcpConnectors({ watch, signIn, onLock, openAgents, actio
   </>;
 }
 
-function RowButton({ button, run, describedBy }: { button: McpButton; run: (command: McpCommand) => void; describedBy: string }) {
+export function RowButton({ button, run, describedBy }: { button: McpButton; run: (command: McpCommand) => void; describedBy: string }) {
   const element = <button type="button" className="doan-button" data-ui-variant={button.variant} data-ui-size="sm" data-command={button.command} aria-label={button.ariaLabel}
     disabled={button.disabled && !button.tooltip}
     // A busy section's button keeps focus and hover so its tooltip can say why it waits (ConversationDeleteItem's rule).

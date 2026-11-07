@@ -407,3 +407,38 @@ test("reads the sidebar's hidden flag beside its width; only true is kept", () =
   const first = parse({ screen: "home", sidebar: { width: 300, hidden: true, extra: 1 } });
   expect(parse(first)).toEqual(first);
 });
+
+// A root saved through a symlink is read as its real path, and the memory kept under the
+// alias moves with it instead of being dropped as a removed project's. Per field the real path's value wins.
+test("memory kept under an alias root moves to its real path; the real path's own wins per field", () => {
+  const alias = "/alias/repo", real = "/real/repo";
+  const view = { scale: 1, x: 0, y: 0 };
+  const text = JSON.stringify({
+    screen: "workspace", root: alias, canvas: ".doan/canvases/a.html", view,
+    expanded: { [alias]: ["settings"] },
+    lastByRoot: { [alias]: { canvas: ".doan/canvases/a.html", view }, [real]: { canvas: ".doan/canvases/b.html", view } },
+    shellProjects: { [alias]: { roots: [alias], selectedRoot: alias, expanded: true, groups: { ds: false } } },
+    conversationByRoot: { [alias]: "0aa9df81-cc51-48df-97ff-24e4debb82ec" },
+    home: { lastRoot: alias },
+  });
+  const state = parseUiState(text, [real], new Map([[alias, real]]));
+  expect(state).toMatchObject({
+    screen: "workspace", root: real, canvas: ".doan/canvases/a.html",
+    expanded: { [real]: ["settings"] },
+    lastByRoot: { [real]: { canvas: ".doan/canvases/b.html", view } },
+    shellProjects: { [real]: { roots: [real], selectedRoot: real, expanded: true, groups: { ds: false } } },
+    conversationByRoot: { [real]: "0aa9df81-cc51-48df-97ff-24e4debb82ec" },
+    home: { lastRoot: real },
+  });
+  // Without the mapping the alias is a removed project's memory, as before.
+  expect(parseUiState(text, [real])).toMatchObject({ screen: "home", expanded: {}, lastByRoot: { [real]: { canvas: ".doan/canvases/b.html" } }, shellProjects: {} });
+});
+
+test("a project kept under both spellings keeps the real path's entry and gains only the alias's missing fields", () => {
+  const alias = "/alias/repo", real = "/real/repo";
+  const text = JSON.stringify({
+    screen: "home", expanded: {}, lastByRoot: {},
+    shellProjects: { [alias]: { roots: [alias], expanded: false, groups: { canvases: false } }, [real]: { roots: [real], expanded: true } },
+  });
+  expect(parseUiState(text, [real], new Map([[alias, real]]))?.shellProjects).toEqual({ [real]: { roots: [real], expanded: true, groups: { canvases: false } } });
+});

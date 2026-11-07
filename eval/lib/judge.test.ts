@@ -170,6 +170,22 @@ test("preset shell lookups retain IDs and distinguish executed commands from quo
   assert.deepEqual(quoted.doanDesignSkill, { shellInvoked: false, shellIds: [] });
 });
 
+test("preset lookups run through a shell loop keep their IDs, and an echoed loop does not", () => {
+  const bash = (command: string) => JSON.stringify({ type: "assistant", message: { content: [{ type: "tool_use", name: "Bash", input: { command } }] } });
+  const looped = invocationSummary(bash("for p in harden clarify; do doan design-skill $p --json; done")).summary;
+  assert.deepEqual(looped.doanDesignSkill, { shellInvoked: true, shellIds: ["harden", "clarify"] });
+  const unclosed = invocationSummary(bash("for p in harden clarify; do doan design-skill $p --json")).summary;
+  assert.deepEqual(unclosed.doanDesignSkill, { shellInvoked: false, shellIds: [], incompleteCommands: true });
+  const unresolved = invocationSummary(bash("doan design-skill context; doan design-skill $p")).summary;
+  assert.deepEqual(unresolved.doanDesignSkill, { shellInvoked: true, shellIds: ["context"], incompleteCommands: true });
+  const branched = invocationSummary(bash("if true; then doan design-skill polish; fi")).summary;
+  assert.deepEqual(branched.doanDesignSkill, { shellInvoked: false, shellIds: [], incompleteCommands: true });
+  assert.equal(branched.doanActive.shellInvoked, false);
+  assert.equal(invocationSummary(bash("while false; do echo waiting; doan active; done")).summary.doanActive.shellInvoked, false);
+  const echoed = invocationSummary(bash("for p in harden clarify; do echo doan design-skill $p; done")).summary;
+  assert.deepEqual(echoed.doanDesignSkill, { shellInvoked: false, shellIds: [] });
+});
+
 // Any MCP call stays visible to the judge as a tool name; only the shell path counts as a doan lookup.
 test("MCP calls named like doan tools are listed but are not doan lookups", () => {
   const transcript = [

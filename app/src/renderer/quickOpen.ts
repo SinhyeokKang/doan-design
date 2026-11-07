@@ -182,7 +182,20 @@ export function countMatches(index: readonly SearchEntry[], query: string, kind:
   return count;
 }
 
-export function emptyText(kind: SearchKind, query: string, scope: readonly FolderEntry[], otherCount: number): string {
+// A reading project stays out of the index until it is read, so its canvases may still arrive: the projects searched
+// are every project with a query, and without one the workspace's own (searchMatch's scope).
+export function readingCount(entries: readonly FolderEntry[], currentRoot: string | null, query: string): number {
+  const searched = query.trim() || currentRoot === null ? entries : entries.filter(entry => entry.path === currentRoot);
+  return searched.filter(entry => entry.kind === "loading").length;
+}
+
+export function readingText(count: number): string {
+  return `Still reading ${count} ${count === 1 ? "project" : "projects"}…`;
+}
+
+// Null while a reading project may still fill the list: the reading row says so, and "No canvases to show" would be
+// premature.
+export function emptyText(kind: SearchKind, query: string, scope: readonly FolderEntry[], otherCount: number): string | null {
   if (query.trim()) {
     if (kind === "all") return "No canvases or frames match";
     const text = kind === "canvas" ? "No canvases match" : "No frames match";
@@ -191,8 +204,8 @@ export function emptyText(kind: SearchKind, query: string, scope: readonly Folde
     const other = kind === "canvas" ? (otherCount === 1 ? "frame matches" : "frames match") : (otherCount === 1 ? "canvas matches" : "canvases match");
     return `${text}. ${count} ${other} in All.`;
   }
-  if (scope.some(entry => entry.kind === "loading")) return "Project is still being read. Try again shortly.";
-  if (scope.some(entry => entry.kind !== "list")) return "Project is unavailable. Fix it from its menu in the sidebar.";
+  if (scope.some(entry => entry.kind !== "list" && entry.kind !== "loading")) return "Project is unavailable. Fix it from its menu in the sidebar.";
+  if (scope.some(entry => entry.kind === "loading")) return null;
   return kind === "frame" ? "No frames to show" : "No canvases to show";
 }
 

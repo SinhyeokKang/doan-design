@@ -12,7 +12,7 @@ import { skillWords, skillTextParts } from "./skillWords";
 import { PROVIDER_NAMES } from "./agentAuthView";
 import { AlertIcon } from "./AlertIcon";
 import { canvasLabel } from "./canvasTree";
-import { focusAfter } from "./composerRules";
+import { focusAfter, type FocusAction } from "./composerRules";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import { handoffCardHead, handoffLineText } from "./handoffView";
 import { formatSize, providerLogo } from "./homeComposer";
@@ -116,10 +116,13 @@ export function useLocateNote(scroller?: () => EventTarget | null): [shown: bool
 }
 const COPIED_MS = 2000;
 
-// The draft's copy (thread-states). Codes without a frame of their own read as an unexpected stop.
-export function endView(end: TurnEnd, provider: Provider): { title: string; body: string; tone: "error" | null; signIn: boolean } {
+// The draft's copy (thread-states). Codes without a frame of their own read as an unexpected stop. resend: false when
+// the turn never began, so there is no request worth resending as it was (body "" draws no second line).
+export function endView(end: TurnEnd, provider: Provider): { title: string; body: string; tone: "error" | null; signIn: boolean; resend?: false } {
   const p = PROVIDER_NAMES[provider];
   if (end.kind === "interrupted") return { title: "Stopped", body: end.reason === "user" ? "You stopped the agent." : "The agent stopped before it finished.", tone: null, signIn: false };
+  // The provider had no such model for this account; the turn did no work, so no file warning.
+  if (end.code === "model_unavailable" && end.model) return { title: `${end.model} isn’t available for this account.`, body: "", tone: "error", signIn: false, resend: false };
   if (end.code === "not_logged_in") return { title: `${p}’s sign-in expired`, body: "Sign in again, then resend your request.", tone: "error", signIn: true };
   if (end.code === "rate_limited") return { title: `${p} is rate limited`, body: "Try again later.", tone: "error", signIn: false };
   // The session could not be taken up again, so the turn ended before it did any work; the strip says the same.
@@ -506,6 +509,13 @@ export function TurnIndicator({ text, at, provider }: { text: string; at: string
 }
 const NO_TURN: TurnStatus = { kind: "none" };
 
+// The thread item (its data-item key) holding focus, if focus is inside the thread.
+function focusedItem(scroller: HTMLElement | null): string | null {
+  const active = typeof document === "undefined" ? null : document.activeElement;
+  if (!scroller || !active || !scroller.contains(active)) return null;
+  return active.closest("[data-item]")?.getAttribute("data-item") ?? null;
+}
+
 export const ConversationThread = forwardRef<ConversationThreadHandle, ConversationThreadProps>(function ConversationThread(props, ref) {
   return <ThreadBody key={props.conversationId} {...props} handle={ref} />;
 });
@@ -519,22 +529,31 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const [slow, setSlow] = useState(false);
   const [copied, setCopied] = useState(false);
+  // The card last answered, skipped or stopped here and the focusAfter rule for it: once that card folds, by any
+  // status, its button is gone and focus moves on by the rule (ARCHITECTURE §7 'Renderer primitives' 'Thread focus').
+  const folding = useRef<{ requestId: string; action: FocusAction } | null>(null);
+  // A card can also fold with no press here: the agent's CLI cancels it or the turn ends. When focus was
+  // in it, or its Other field held text not sent, it is the card folding, and focus moves on as after an answer. Focus is
+  // read as this render begins, before its commit replaces the card's controls; the drafts are those of the last commit,
+  // since the store drops a question's draft with the resolution that folds it.
+  const focusedKey = focusedItem(scroller.current);
+  const shown = useRef<readonly { requestId: string; key: string; unsent: boolean }[]>([]);
+  const stop = (requestId: string) => { folding.current = { requestId, action: { kind: "stopped" } }; props.onStop(); };
   // Requests whose last answer did not reach main (design §2 'Errors'): the person chooses again.
   const [unanswered, setUnanswered] = useState<ReadonlySet<string>>(new Set());
   const answer = (requestId: string, optionId: string) => {
+    folding.current = { requestId, action: { kind: "answered", requestId } };
     setUnanswered(current => { if (!current.has(requestId)) return current; const next = new Set(current); next.delete(requestId); return next; });
     void answerReached(() => props.onAnswer(requestId, optionId)).then(reached => { if (!reached) setUnanswered(current => new Set(current).add(requestId)); });
   };
   const draftOf = (requestId: string) => props.questionDraft?.(requestId) ?? EMPTY_QUESTION_DRAFT;
   const editQuestion = (requestId: string, action: QuestionDraftAction) => props.onQuestionDraft?.(requestId, action);
-  // The question last answered or skipped here: once it folds, focus moves on as after a permission answer (design §7).
-  const sentFrom = useRef<string | null>(null);
   const sendQuestion = (entry: Extract<ThreadItem, { kind: "question" }>, how: "answer" | "skip") => {
     const draft = draftOf(entry.requestId);
     if (draft.sending) return;
     const answer: QuestionAnswerInput = how === "skip" ? { outcome: "skipped" } : questionInput(entry.questions, draft);
     editQuestion(entry.requestId, { type: "sending", how });
-    sentFrom.current = entry.requestId;
+    folding.current = { requestId: entry.requestId, action: { kind: "answered", requestId: entry.requestId } };
     void settleQuestionSend(() => props.onAnswerQuestion ? props.onAnswerQuestion(entry.requestId, answer) : Promise.resolve({ error: "unknown" }), action => editQuestion(entry.requestId, action));
   };
   const focusIn = (key: string): boolean => {
@@ -578,19 +597,25 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     if (next === "bottom") { node.scrollTop = node.scrollHeight; distance.current = 0; setBehind(false); }
     else if (next === "behind") setBehind(true);
   }, [items]);
-  // A folded question took the focus that was on it to the page: the next waiting request takes it, else the composer.
-  // A person who moved focus elsewhere meanwhile keeps it.
+  // A folded card took the focus that was on it to the page: by its rule, the next waiting request or the composer
+  // takes it. A person who moved focus elsewhere meanwhile keeps it.
   useLayoutEffect(() => {
-    const from = sentFrom.current;
-    if (from === null || !Array.isArray(items)) return;
+    if (!Array.isArray(items)) return;
     const asks = pendingAsks(items);
-    if (items.some(item => item.kind === "question" && item.requestId === from && item.status === "pending")) return;
-    sentFrom.current = null;
+    const gone = folding.current === null && shown.current.find(ask => !asks.some(a => a.requestId === ask.requestId) && (ask.key === focusedKey || ask.unsent));
+    if (gone) folding.current = { requestId: gone.requestId, action: { kind: "answered", requestId: gone.requestId } };
+    const fold = folding.current;
+    if (fold === null) return;
+    if (asks.some(ask => ask.requestId === fold.requestId)) return;
+    folding.current = null;
     if (document.activeElement && document.activeElement !== document.body) return;
-    const target = focusAfter({ kind: "answered", requestId: from }, { pending: asks.map(ask => ask.requestId) });
+    const target = focusAfter(fold.action, { pending: asks.map(ask => ask.requestId) });
     if (target.kind === "option") focusIn(asks.find(ask => ask.requestId === target.requestId)!.key);
     else props.onFocusComposer?.();
   }, [items]);
+  useLayoutEffect(() => {
+    shown.current = Array.isArray(items) ? pendingAsks(items).map(ask => ({ ...ask, unsent: Object.values(draftOf(ask.requestId).choices).some(choice => choice.text.trim() !== "") })) : [];
+  });
   const onScroll = () => {
     const node = scroller.current;
     if (!node) return;
@@ -662,7 +687,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
           <span className="strip-actions">
             {entry.options.map(option => <button key={option.id} type="button" className="doan-button" data-ui-size="sm" data-ui-variant={option.kind === "allow" ? "prominent" : "panel"}
               data-request={entry.requestId} onClick={() => answer(entry.requestId, option.id)}>{option.label}</button>)}
-            <button type="button" className="doan-button" data-ui-size="sm" onClick={props.onStop}><CircleStop aria-hidden="true" />Stop</button>
+            <button type="button" className="doan-button" data-ui-size="sm" onClick={() => stop(entry.requestId)}><CircleStop aria-hidden="true" />Stop</button>
           </span>
           {unanswered.has(entry.requestId) && <span className="ask-error" role="alert">Couldn’t send your answer. Choose again.</span>}
         </div>;
@@ -671,16 +696,16 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
         if (entry.status !== "pending") return <div className="q-folded">{questionLines(entry).map((line, i) =>
           <div key={i} className="activity"><div className="activity-head ask-answered"><span title={line}>{line}</span></div></div>)}</div>;
         return <QuestionCard item={entry} provider={provider} live={entry.seq > props.liveAfter} base={base} draft={draftOf(entry.requestId)}
-          onDraft={action => editQuestion(entry.requestId, action)} onSend={() => sendQuestion(entry, "answer")} onSkip={() => sendQuestion(entry, "skip")} onStop={props.onStop} />;
+          onDraft={action => editQuestion(entry.requestId, action)} onSend={() => sendQuestion(entry, "answer")} onSkip={() => sendQuestion(entry, "skip")} onStop={() => stop(entry.requestId)} />;
       }
       case "end": {
         const view = endView(entry.end, provider);
         return <div className={`doan-notice${view.tone ? ` ${view.tone}` : ""} thread-notice`}>
           {view.tone ? <AlertIcon /> : <CircleStop className="doan-alert-icon" aria-hidden="true" />}
-          <span className="strip-text"><b>{view.title}</b><span>{view.body}</span></span>
-          {entry.key === last?.key && (view.signIn || last.resend) && <span className="strip-actions">
+          <span className="strip-text"><b>{view.title}</b>{view.body && <span>{view.body}</span>}</span>
+          {entry.key === last?.key && (view.signIn || (last.resend && view.resend !== false)) && <span className="strip-actions">
             {view.signIn && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={props.onSignIn}>Sign in again…</button>}
-            {last.resend && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={props.onEditAndResend}>Edit and resend</button>}
+            {last.resend && view.resend !== false && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={props.onEditAndResend}>Edit and resend</button>}
           </span>}
         </div>;
       }

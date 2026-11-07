@@ -140,6 +140,29 @@ describe("thread items", () => {
     expect(html([{ ...base, status: "expired", answer: null }])).toContain("<span>Expired without an answer · Run doan check</span>");
   });
 
+  // A Stop's expiry record (`optionId: "expired"`) read back from the history.
+  test("a permission request a Stop expired reads as expired, never answered", () => {
+    const ev = (seq: number, payload: object) => ({ v: 1, conversationId: "c1", seq, turnId: "t1", at: "2026-11-07T00:00:00Z", ...payload }) as ConversationEvent;
+    const options = [{ id: "a", label: "Allow once", kind: "allow" as const }];
+    const out = html(threadItems([ev(1, { type: "user.message", text: "go", anchors: [] }), ev(2, { type: "turn.started" }),
+      ev(3, { type: "permission.request", requestId: "r1", tool: "mcp", summary: "Run search on Linear", options }),
+      ev(4, { type: "permission.resolved", requestId: "r1", optionId: "expired" }), ev(5, { type: "interrupted", reason: "user" })], "/r", true));
+    expect(out).toContain("<span>Expired without an answer · Run search on Linear</span>");
+    expect(out).not.toContain("Answered ·");
+  });
+
+  // The turn ended before it did any work, so no file warning and nothing to resend; a reopened
+  // history reads the model from the stored end.
+  test("a model the account does not have says only that, with no file warning or button", () => {
+    const ev = (seq: number, payload: object) => ({ v: 1, conversationId: "c1", seq, turnId: "t1", at: "2026-11-07T00:00:00Z", ...payload }) as ConversationEvent;
+    const out = html(threadItems([ev(1, { type: "user.message", text: "go", anchors: [] }), ev(2, { type: "turn.started" }),
+      ev(3, { type: "turn.failed", code: "model_unavailable", model: "gpt-6-astra", detail: "The 'gpt-6-astra' model is not supported." })], "/r", true), { provider: "codex" });
+    expect(out).toContain('<span class="strip-text"><b>gpt-6-astra isn’t available for this account.</b></span>');
+    expect(out).not.toContain("changed files");
+    expect(out).not.toContain("Edit and resend");
+    expect(out).not.toContain("<button");
+  });
+
   test("turn ends: Edit and resend only on the last turn's end; sign-in expiry adds Sign in again…", () => {
     const failed: ThreadItem = { kind: "end", key: "e5", seq: 5, end: { kind: "failed", code: "not_logged_in" } };
     const out = html([failed]);

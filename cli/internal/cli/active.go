@@ -123,11 +123,11 @@ func readRuntimeBytes(path string) ([]byte, bool) {
 
 func readLine(conn net.Conn) ([]byte, *Error) {
 	line, e := bufio.NewReader(io.LimitReader(conn, maxResponseLine+1)).ReadBytes('\n')
-	if e == nil {
-		return line, nil
-	}
 	if len(line) > maxResponseLine {
 		return nil, internal(errors.New("Doan sent a response longer than 64 KiB"))
+	}
+	if e == nil {
+		return line, nil
 	}
 	var ne net.Error
 	if len(line) == 0 || (errors.As(e, &ne) && ne.Timeout()) {

@@ -1,0 +1,38 @@
+[
+ {
+  "method": "turn/started",
+  "params": {
+   "threadId": "session-1",
+   "turn": { "id": "turn-1", "items": [], "status": "inProgress", "error": null }
+  }
+ },
+ {
+  "method": "error",
+  "params": {
+   "threadId": "session-1",
+   "turnId": "turn-1",
+   "willRetry": false,
+   "error": {
+    "message": "The 'gpt-6-astra' model is not supported when using Codex with a ChatGPT account.",
+    "codexErrorInfo": "modelNotFound",
+    "additionalDetails": null
+   }
+  }
+ },
+ {
+  "method": "turn/completed",
+  "params": {
+   "threadId": "session-1",
+   "turn": {
+    "id": "turn-1",
+    "items": [],
+    "status": "failed",
+    "error": {
+     "message": "The 'gpt-6-astra' model is not supported when using Codex with a ChatGPT account.",
+     "codexErrorInfo": "modelNotFound",
+     "additionalDetails": null
+    }
+   }
+  }
+ }
+]

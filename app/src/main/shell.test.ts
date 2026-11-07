@@ -7,6 +7,7 @@ import {
   realpathSync,
   renameSync,
   rmSync,
+  symlinkSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
@@ -236,6 +237,27 @@ exec '${cli}' "$@"
   chmodSync(path, 0o755);
   const reads = () => (existsSync(log) ? readFileSync(log, "utf8").split("\n").length - 1 : 0);
   return { path, hold, reads };
+}
+
+// Holds every `doan ls` of one folder until `release()`, so the test decides when that folder's first list lands.
+function holdingCli(held: string): { path: string; release: () => void } {
+  const base = dir();
+  const hold = join(base, "hold");
+  const path = join(base, "doan");
+  writeFileSync(hold, "");
+  writeFileSync(
+    path,
+    `#!/bin/sh
+for arg in "$@"; do
+  if [ "$arg" = '${held}' ]; then
+    while [ -e '${hold}' ]; do sleep 0.02; done
+  fi
+done
+exec '${cli}' "$@"
+`,
+  );
+  chmodSync(path, 0o755);
+  return { path, release: () => rmSync(hold, { force: true }) };
 }
 
 function servedRepo(config: object): string {
@@ -536,6 +558,21 @@ async function uninitialized(root: string, cliPath = cli) {
   return started;
 }
 
+// The stores keyed by root (canvas-seen.json, ui-state.json) move a symlink root's memory in the startup
+// step before any folder is listed; when that step fails the shell lists the saved spelling for the run.
+test("runs the startup step before the first list goes out, and lists the saved spelling when it fails", async () => {
+  const real = realpathSync(writeRepo(dir())), link = join(dir(), "repo"); symlinkSync(real, link);
+  const file = join(dir(), "folders.json"); writeFileSync(file, JSON.stringify([link]));
+  const order: string[] = [];
+  const shell = await startShell(file, cli, () => order.push("change"), { migrate: async aliases => { order.push(`migrate ${JSON.stringify([...aliases])}`); return true; } }); shells.push(shell);
+  await vi.waitFor(() => expect(listed(shell.entries(), real)).toBeDefined(), until);
+  expect(order[0]).toBe(`migrate ${JSON.stringify([[link, real]])}`);
+  const kept = join(dir(), "folders.json"); writeFileSync(kept, JSON.stringify([link]));
+  const failed = await startShell(kept, cli, () => {}, { migrate: async () => false }); shells.push(failed);
+  await vi.waitFor(() => expect(listed(failed.entries(), link)).toBeDefined(), until);
+  expect([...failed.spellings()]).toEqual([[real, link]]);
+});
+
 describe("project setup and upward refresh", () => {
   test("re-roots in place, saves order, forwards focus and serves and watches the parent", async () => {
     const root = dir(); const sub = join(root, "web"); mkdirSync(sub);
@@ -757,21 +794,30 @@ describe("storing, removing and restoring", () => {
   test("replace reports the move as a re-root focus, and only a real move", async () => {
     const [a, b, moved] = [writeRepo(dir()), writeRepo(dir()), writeRepo(dir())];
     const file = join(dir(), "folders.json");
+    // The second root's first list is held until the focus event has gone out and is awaited before the asserts, so the
+    // last call is a focus-less list by the order of these steps, as it can be on a loaded machine, not by timing.
+    const held = holdingCli(b);
     const changes = vi.fn();
-    const shell = await startShell(file, cli, changes); shells.push(shell);
+    const shell = await startShell(file, held.path, changes); shells.push(shell);
     await shell.store([a, b]);
     changes.mockClear();
+    // Lists published around a replace carry no focus and may come in any order, so only the focus calls are compared.
+    const focuses = () => changes.mock.calls.flatMap(([, focus]) => (focus ? [focus] : []));
     await shell.replace(a, a);
-    expect(changes).not.toHaveBeenCalledWith(expect.anything(), expect.anything());
-    await shell.replace(a, moved);
-    expect(changes).toHaveBeenLastCalledWith(expect.any(Array), { from: a, root: moved });
+    expect(focuses()).toEqual([]);
+    const replacing = shell.replace(a, moved);
+    expect(focuses()).toEqual([{ from: a, root: moved }]);
+    held.release();
+    await vi.waitFor(() => expect(listed(shell.entries(), b)).toBeDefined(), until);
+    await replacing;
+    expect(changes.mock.lastCall?.[1]).toBeUndefined();
     // Locate to a root already in the list drops the old row and still reports the move.
     await shell.replace(moved, b);
     expect(shell.entries().map(entry => entry.path)).toEqual([b]);
-    expect(changes).toHaveBeenLastCalledWith(expect.any(Array), { from: moved, root: b });
+    expect(focuses()).toEqual([{ from: a, root: moved }, { from: moved, root: b }]);
     changes.mockClear();
     await shell.replace("/not/stored", moved);
-    expect(changes).not.toHaveBeenCalled();
+    expect(focuses()).toEqual([]);
   });
 
   test("rereadAll reads every folder again without a loading state", async () => {

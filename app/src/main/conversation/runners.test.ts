@@ -1201,7 +1201,12 @@ const input = readline.createInterface({ input: process.stdin });
 input.on('line', line => {
   const r = JSON.parse(line);
   if (r.type === 'control_request') { send({ type: 'control_response', response: { subtype: 'success', request_id: r.request_id, response: { commands: [], models: [], account: {} } } }); return; }
-  if (r.type === 'control_response') { log({ answered: r.response.request_id, response: r.response.response }); open.delete(r.response.request_id); if (!open.size && mode !== 'hold') finish(); return; }
+  if (r.type === 'control_response') {
+    log({ answered: r.response.request_id, response: r.response.response }); open.delete(r.response.request_id);
+    // The CLI cancels its open requests, and one already answered, once the person answers the permission.
+    if (mode === 'cancel' && r.response.request_id === 'req-2') { for (const id of ['req-1', 'req-2']) send({ type: 'control_cancel_request', request_id: id }); setTimeout(finish, 100); return; }
+    if (!open.size && mode !== 'hold' && mode !== 'cancel') finish(); return;
+  }
   if (r.type !== 'user') return;
   log({ user: r.message.content });
   if (n) { if (r.uuid) steered.push(r.uuid); return; }
@@ -1209,6 +1214,7 @@ input.on('line', line => {
   send({ type: 'system', subtype: 'init', session_id: session, capabilities: mode === 'nocap' ? ['interrupt_receipt_v1'] : ['ask_user_question_unanswered_v1'], tools: ['AskUserQuestion'] });
   if (mode === 'bad') ask('AskUserQuestion', { questions: [] });
   else if (mode === 'both') { ask('AskUserQuestion', color); ask('AskUserQuestion', size); ask('Write', { file_path: '/repo/a.html' }); }
+  else if (mode === 'cancel') { ask('AskUserQuestion', color); ask('Write', { file_path: '/repo/a.html' }); }
   else ask('AskUserQuestion', color);
 });
 // A question sent while the runner stops: whatever answer comes back is recorded.
@@ -1323,6 +1329,25 @@ describe("Claude runner questions", () => {
       await new Promise(resolve => setTimeout(resolve, 200));
       expect(asked(events)).toHaveLength(1);
       for (const reply of answers().slice(1)) expect(reply).toEqual({ answered: "req-2", response: expect.objectContaining({ behavior: "deny", message: "Request expired." }) });
+      expect(events.at(-1)).toEqual({ type: "turn.done" });
+    });
+  }, 15000);
+  // A request the CLI cancels (control_cancel_request aborts canUseTool's signal) expires at once with
+  // Stop's record, instead of waiting answerable until the turn ends. A request already answered stays answered.
+  it("expires a request the CLI cancels at once, and leaves an answered one alone", async () => {
+    await claudeAskRun("cancel", async ({ runner, events }) => {
+      const sending = runner.send("hello", "turn-1");
+      await vi.waitFor(() => expect(asked(events)).toHaveLength(1));
+      await vi.waitFor(() => expect(events.some(e => e.type === "permission.request")).toBe(true));
+      const question = asked(events)[0]!.requestId, permission = (events.find(e => e.type === "permission.request") as Extract<EventPayload, { type: "permission.request" }>).requestId;
+      expect(runner.answer(permission, "allow")).toBe(true);
+      await vi.waitFor(() => expect(events).toContainEqual({ type: "question.resolved", requestId: question, outcome: "expired" }));
+      // Before the turn ends: the turn's own end would expire it too.
+      expect(events.some(e => e.type === "message.done" || e.type === "turn.done")).toBe(false);
+      expect(runner.answerQuestion!(question, { outcome: "skipped" })).toBe("stale");
+      await sending;
+      expect(events.filter(e => e.type === "question.resolved" || e.type === "permission.resolved")).toEqual([
+        { type: "permission.resolved", requestId: permission, optionId: "allow" }, { type: "question.resolved", requestId: question, outcome: "expired" }]);
       expect(events.at(-1)).toEqual({ type: "turn.done" });
     });
   }, 15000);

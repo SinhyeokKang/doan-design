@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { conversationHandler, conversationMethods, validateSendExtras } from "./ipc";
-import { ConversationService, type OpenRunner, type Prepare } from "./service";
+import { ConversationService, type OpenRunner, type Prepare, type Prepared } from "./service";
 import { ModelCatalog, parseCodexModels, type ModelOption } from "./models";
 import { SkillCatalog } from "./skills";
 import { AttachmentStore } from "../attachments";
@@ -212,7 +212,7 @@ describe("conversation list, seen marker and send extras", () => {
   function sendFixture(dir: string, list: ModelOption[] = MODELS) {
     const owner = { kind: "doan" as const, provider: "claude" as const, connectionId: "c", accountId: "a", workspaceId: "o", profile: "p" };
     const prepare = vi.fn<Prepare>(async (_request, stored) => ({ runtime: "claude", configDir: "/profile", cwd: "/repo", command: "/fake", env: {}, owner, ...(stored ? { sessionId: stored.session.sessionId } : {}) }));
-    const open = vi.fn(async () => ({ sessionId: "s1", send: vi.fn(async () => {}), answer: () => false, stop: vi.fn(async () => {}), close: vi.fn(async () => {}) }));
+    const open = vi.fn(async (_input: Prepared) => ({ sessionId: "s1", send: vi.fn(async () => {}), answer: () => false, stop: vi.fn(async () => {}), close: vi.fn(async () => {}) }));
     const store = new ConversationStore(dir);
     const service = new ConversationService(store, prepare, open, () => {});
     const catalog = new ModelCatalog((root, runtime) => prepare({ root, mode: "new", runtime, text: "", anchors: [] }), async () => ({ models: list }));
@@ -220,7 +220,7 @@ describe("conversation list, seen marker and send extras", () => {
     const attachments = { resolve: vi.fn((value: unknown[]) => value.some(v => (v as { id: string }).id === "gone") ? { ok: false, error: "attachment_missing", missing: ["gone"] } : { ok: true, records }), markSent: vi.fn(), consume: vi.fn() };
     const handle = conversationHandler(service, prepare, () => [{ path: "/repo", kind: "list", canvases: [] }], { models: catalog, attachments: attachments as unknown as AttachmentStore });
     const send = vi.spyOn(service, "send").mockResolvedValue(undefined);
-    return { handle, service, store, send, attachments, records };
+    return { handle, service, store, send, attachments, records, open };
   }
   it("lists a registered root and refuses others, wrong senders and malformed requests", async () => {
     const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
@@ -300,6 +300,19 @@ describe("conversation list, seen marker and send extras", () => {
       expect(h.send.mock.calls[2]![3]).toEqual({ defaultEffort: "low" });
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
+  // The first turn too, so the person's Codex model_reasoning_effort never runs it at another level.
+  it("runs a start's first turn at its model's default effort when it names none, without storing it", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
+    try {
+      for (const [extras, effort] of [[{ model: "sonnet" }, "low"], [{ model: "sonnet", effort: "high" }, "high"], [{}, undefined]] as const) {
+        const h = sendFixture(mkdtempSync(join(dir, "case-")), [{ id: "sonnet", label: "Sonnet", default: true, efforts: ["low", "high"], defaultEffort: "low" }]);
+        await h.handle(true, "models", { root: "/repo", runtime: "claude" });
+        const id = (await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", text: "x", ...extras }) as { conversationId: string }).conversationId;
+        expect(h.open.mock.calls[0]![0].effort, JSON.stringify(extras)).toBe(effort);
+        expect(h.store.list().find(m => m.conversationId === id)?.effort, JSON.stringify(extras)).toBe("effort" in extras ? extras.effort : undefined);
+      }
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
   it("refuses extras on a legacy external conversation and passes project_busy through", async () => {
     const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
     try {
@@ -318,7 +331,7 @@ describe("queue channels", () => {
   function queueFixture(dir: string) {
     const owner = { kind: "doan" as const, provider: "claude" as const, connectionId: "c", accountId: "a", workspaceId: "o", profile: "p" };
     const prepare = vi.fn<Prepare>(async (_request, stored) => ({ runtime: "claude", configDir: "/profile", cwd: "/repo", command: "/fake", env: {}, owner, ...(stored ? { sessionId: stored.session.sessionId } : {}) }));
-    const open = vi.fn(async () => ({ sessionId: "s1", send: vi.fn(async () => {}), answer: () => false, stop: vi.fn(async () => {}), close: vi.fn(async () => {}) }));
+    const open = vi.fn(async (_input: Prepared) => ({ sessionId: "s1", send: vi.fn(async () => {}), answer: () => false, stop: vi.fn(async () => {}), close: vi.fn(async () => {}) }));
     const store = new ConversationStore(dir);
     const service = new ConversationService(store, prepare, open, () => {});
     const records = [{ name: "a.png", size: 3, kind: "image", path: "/Users/me/a.png" }];
@@ -418,7 +431,7 @@ describe("queue acceptance", () => {
   function fixture(dir: string, markSent: () => void) {
     const owner = { kind: "doan" as const, provider: "claude" as const, connectionId: "c", accountId: "a", workspaceId: "o", profile: "p" };
     const prepare = vi.fn<Prepare>(async (_request, stored) => ({ runtime: "claude", configDir: "/profile", cwd: "/repo", command: "/fake", env: {}, owner, ...(stored ? { sessionId: stored.session.sessionId } : {}) }));
-    const open = vi.fn(async () => ({ sessionId: "s1", send: vi.fn(async () => {}), answer: () => false, stop: vi.fn(async () => {}), close: vi.fn(async () => {}) }));
+    const open = vi.fn(async (_input: Prepared) => ({ sessionId: "s1", send: vi.fn(async () => {}), answer: () => false, stop: vi.fn(async () => {}), close: vi.fn(async () => {}) }));
     const service = new ConversationService(new ConversationStore(dir), prepare, open, () => {});
     const records = [{ name: "a.png", size: 3, kind: "image", path: "/Users/me/a.png" }];
     const attachments = { resolve: vi.fn(() => ({ ok: true, records })), markSent: vi.fn(markSent), consume: vi.fn() };
@@ -513,7 +526,7 @@ describe("send queued now channel", () => {
 describe("answerQuestion", () => {
   function questions(result: "ok" | "stale" | "bad_request" = "ok") {
     const dir = mkdtempSync(join(tmpdir(), "doan-ipc-")); const answerQuestion = vi.fn(() => result);
-    const open = vi.fn(async () => ({ sessionId: "s1", send: vi.fn(async () => {}), answer: () => false, answerQuestion, stop: vi.fn(async () => {}), close: vi.fn(async () => {}) }));
+    const open = vi.fn(async (_input: Prepared) => ({ sessionId: "s1", send: vi.fn(async () => {}), answer: () => false, answerQuestion, stop: vi.fn(async () => {}), close: vi.fn(async () => {}) }));
     const prepare = vi.fn<Prepare>(async () => ({ runtime: "claude" as const, configDir: "/profile", cwd: "/repo", command: "/fake", env: {} }));
     const service = new ConversationService(new ConversationStore(dir), prepare, open, () => {});
     const handle = conversationHandler(service, prepare, () => [{ path: "/repo", kind: "list", canvases: [{ path: ".doan/canvases/a.html" }] }]);

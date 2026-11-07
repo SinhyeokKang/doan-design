@@ -305,6 +305,9 @@ code, kbd { font-family: var(--type-family); }
 
 /* Bottom-right on every screen, 16px from the window's edges; the canvas tools row sits at the board's bottom centre. */
 .toast { position: absolute; right: var(--space-4); bottom: var(--space-4); z-index: 6; }
+/* Inside an open modal dialog (Toast.tsx `showIn`) the toast keeps the window's corner rather than the dialog's: an open
+   dialog has no transform, so fixed positioning is relative to the window. */
+.toast[data-placement="dialog"] { position: fixed; }
 .toast .msg { min-width: 0; overflow-wrap: anywhere; }
 
 .back { flex: none; }
@@ -378,8 +381,8 @@ code, kbd { font-family: var(--type-family); }
   flex-direction: column;
   gap: 1px;
   box-sizing: border-box;
-  height: min(55dvh, 576px, calc(100dvh - 128px - var(--space-4) - 2 * var(--size-control) - 2 * var(--space-2) - 2 * var(--space-3) - 2px));
-  min-height: min(400px, calc(100dvh - 128px - var(--space-4) - 2 * var(--size-control) - 2 * var(--space-2) - 2 * var(--space-3) - 2px));
+  height: calc(min(55dvh, 576px, calc(100dvh - 128px - var(--space-4) - 2 * var(--size-control) - 2 * var(--space-2) - 2 * var(--space-3) - 2px)) - var(--qo-reading-row));
+  min-height: calc(min(400px, calc(100dvh - 128px - var(--space-4) - 2 * var(--size-control) - 2 * var(--space-2) - 2 * var(--space-3) - 2px)) - var(--qo-reading-row));
   overflow-y: auto;
   overscroll-behavior: contain;
   margin-inline: calc(-1 * var(--space-1));
@@ -400,6 +403,12 @@ code, kbd { font-family: var(--type-family); }
 .qo-match { background: none; color: inherit; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: var(--space-half); }
 /* An empty or waiting list: the message fills the fixed-height list and sits in its centre. */
 .qo-none { flex: 1; display: flex; align-items: center; justify-content: center; margin: 0; padding-inline: var(--space-control-inset); text-align: center; color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
+/* Projects still being read: a 32px row under the results, the list giving up that height so the dialog keeps its
+   size. Subtle ink like the empty message, the inline-sentence spinner at 14px. */
+:root { --qo-reading-row: 0px; }
+.qo-height:has(.qo-reading) { --qo-reading-row: var(--size-control-sm); }
+.qo-reading { display: flex; align-items: center; gap: var(--space-2); box-sizing: border-box; min-height: var(--size-control-sm); margin: 0; padding-inline: var(--space-3); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
+.qo-reading .doan-spinner { width: var(--size-icon-sm); height: var(--size-icon-sm); }
 
 /* The native sidebar material continues behind the shell; content stays opaque. */
 body:has(.shell-top) { background: transparent; }
@@ -811,6 +820,10 @@ body:has(.shell-top) { background: transparent; }
 .strip-text b { font-weight: var(--type-weight-medium); }
 .strip-text span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .strip-actions { display: flex; align-items: center; gap: var(--space-2); }
+/* The strip's text column, and under its text a refused Skip or answer on its own line with the alert
+   mark. Like every text in a notice it takes the strip's ink (the tone colours a notice), so the mark is what marks it. */
+.strip-main { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; flex: 1; }
+.strip-error { display: flex; align-items: flex-start; gap: var(--space-1h); }
 
 /* buzz-home: the sidebar row's status slot (design §7.2), at the right of the row before its menu, and an added project's flash (§6). */
 .row-slot { display: inline-grid; place-items: center; width: var(--size-icon); height: var(--size-icon); flex: none; margin-left: auto; }

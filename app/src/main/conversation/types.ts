@@ -23,7 +23,8 @@ export interface Anchor {
   element?: { doanId?: string; selector?: string; text?: string; tag?: string };
   point?: { frameId?: string; dx: number; dy: number };
 }
-export type FailureCode = "runtime_unsupported" | "cli_missing" | "not_logged_in" | "session_unavailable" | "session_in_use" | "process_exited" | "rate_limited" | "unknown";
+// model_unavailable: the provider has no such model for this account, so the turn ended before it did any work.
+export type FailureCode = "runtime_unsupported" | "cli_missing" | "not_logged_in" | "session_unavailable" | "session_in_use" | "process_exited" | "rate_limited" | "model_unavailable" | "unknown";
 export interface PermissionOption { id: string; label: string; kind: "allow" | "allowAlways" | "deny" }
 export interface PermissionRequest {
   type: "permission.request"; requestId: string; tool: string; summary: string; options: PermissionOption[];
@@ -57,7 +58,9 @@ export type EventPayload =
   | { type: "fast.unused"; reason?: FastUnusedReason; turnedOff?: true }
   | { type: "context.usage"; used: number; size: number }
   | { type: "turn.done" }
-  | { type: "turn.failed"; code: FailureCode; detail?: string }
+  // model: the model ID the provider's error named, kept so the thread reads the same cause once loaded again; only and
+  // always with model_unavailable.
+  | { type: "turn.failed"; code: FailureCode; detail?: string; model?: string }
   | { type: "interrupted"; reason: "user" | "appQuit" | "crashed" }
   | { type: "conversation.archived" }
   // A project conversation became this canvas's current conversation; restored undoes an earlier archive.

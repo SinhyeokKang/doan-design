@@ -86,6 +86,15 @@ export function transportError(detail: string): FailureCode {
 function failed(state: TransportState, detail: string): TransportResult {
   return finish(state, { type: "turn.failed", code: transportError(detail), ...(detail ? { detail: detail.slice(0, 4096) } : {}) });
 }
+// A Codex TurnError (the error notification's, or a failed turn/completed's). modelNotFound names the model only in
+// its message; the model ID comes from there, since a model the account lacks is one Doan never sent (ipc.ts takes
+// only models on the run's model/list). Without a readable ID the turn fails as any other error does.
+function codexFailed(state: TransportState, error: unknown): TransportResult {
+  const detail = object(error) ? text(error.message) : "";
+  const model = object(error) && error.codexErrorInfo === "modelNotFound" ? /'([^'\s]+)' model\b/.exec(detail)?.[1] : undefined;
+  if (!model) return failed(state, detail);
+  return finish(state, { type: "turn.failed", code: "model_unavailable", model, detail: detail.slice(0, 4096) });
+}
 function text(value: unknown): string { return typeof value === "string" ? value : ""; }
 // Fallbacks when an item carries nothing readable: provider item types (commandExecution, fileChange, Bash) are wire
 // vocabulary, not words for the strip.
@@ -386,9 +395,9 @@ export function normalizeCodex(state: TransportState, raw: unknown, context: Cod
   if (raw.method === "turn/completed" && object(params.turn)) {
     if (params.turn.status === "interrupted") return aborted(state);
     if (params.turn.status === "completed") return finish(state, { type: "turn.done" });
-    return failed(state, object(params.turn.error) ? text(params.turn.error.message) : "");
+    return codexFailed(state, params.turn.error);
   }
-  if (raw.method === "error" && params.willRetry !== true) return failed(state, object(params.error) ? text(params.error.message) : "");
+  if (raw.method === "error" && params.willRetry !== true) return codexFailed(state, params.error);
   return unchanged(state);
 }
 function choice(id: string, label: string, kind: "allow" | "allowAlways" | "deny", response: unknown): PermissionChoice {

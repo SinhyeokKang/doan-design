@@ -337,29 +337,39 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
       return child;
     },
     canUseTool(tool, toolInput, options) {
-      if (tool === CLAUDE_QUESTION_TOOL) return ask(toolInput);
+      if (tool === CLAUDE_QUESTION_TOOL) return ask(toolInput, options.signal);
+      if (options.signal.aborted) return Promise.resolve({ behavior: "deny", message: "Request expired." });
       const requestId = randomUUID(); const suggestions = options.suggestions ?? [];
       return new Promise<PermissionResult>(resolve => {
         pending.set(requestId, { input: toolInput, suggestions, resolve });
+        expireOnAbort(options.signal, () => pending.delete(requestId) && resolveExpired(resolve, { type: "permission.resolved", requestId, optionId: "expired" }));
         emit({ type: "permission.request", requestId, tool, summary: claudePermissionSummary(tool, toolInput, input.cwd, labels), options: [{ id: "allow", label: "Allow", kind: "allow" }, { id: "deny", label: "Deny", kind: "deny" }, ...(suggestions.length ? [{ id: "always", label: "Allow with suggested permissions", kind: "allowAlways" as const }] : [])] });
       });
     },
   } });
   // A stopped or ended turn asks nothing more: nobody would see the card, and the service drops its events. A question
   // no card can show whole is denied with the way to ask instead, never sent as a permission whose Allow has no answer.
-  function ask(toolInput: Record<string, unknown>): Promise<PermissionResult> {
-    if (finished || state.stop || state.terminal) return Promise.resolve({ behavior: "deny", message: "Request expired." });
+  function ask(toolInput: Record<string, unknown>, signal: AbortSignal): Promise<PermissionResult> {
+    if (finished || state.stop || state.terminal || signal.aborted) return Promise.resolve({ behavior: "deny", message: "Request expired." });
     const read = claudeQuestion(toolInput);
     if (!read) return Promise.resolve({ behavior: "deny", message: "Doan could not show this question to the person. Ask it in your reply text instead, then end your turn so they can answer." });
     const requestId = randomUUID();
     return new Promise<PermissionResult>(resolve => {
       questions.set(requestId, { input: toolInput, read, resolve });
+      expireOnAbort(signal, () => questions.delete(requestId) && resolveExpired(resolve, { type: "question.resolved", requestId, outcome: "expired" }));
       emit({ type: "question.request", requestId, questions: read.questions });
     });
   }
+  // The CLI cancels a request it no longer waits for (control_cancel_request aborts canUseTool's signal; the SDK also
+  // aborts every open one as it cleans up). It expires then with Stop's record, rather than staying answerable until the
+  // turn ends. A request already answered or expired is out of its map, so nothing is recorded twice.
+  function expireOnAbort(signal: AbortSignal, expireOne: () => void) { signal.addEventListener("abort", expireOne, { once: true }); }
+  function resolveExpired(resolve: (result: PermissionResult) => void, record: EventPayload) {
+    resolve({ behavior: "deny", message: "Request expired." }); emit(record);
+  }
   const expire = () => {
-    for (const [requestId, request] of pending) { pending.delete(requestId); request.resolve({ behavior: "deny", message: "Request expired." }); emit({ type: "permission.resolved", requestId, optionId: "expired" }); }
-    for (const [requestId, request] of questions) { questions.delete(requestId); request.resolve({ behavior: "deny", message: "Request expired." }); emit({ type: "question.resolved", requestId, outcome: "expired" }); }
+    for (const [requestId, request] of pending) { pending.delete(requestId); resolveExpired(request.resolve, { type: "permission.resolved", requestId, optionId: "expired" }); }
+    for (const [requestId, request] of questions) { questions.delete(requestId); resolveExpired(request.resolve, { type: "question.resolved", requestId, outcome: "expired" }); }
   };
   let initialized: unknown;
   try { initialized = await timeout(q.initializationResult()); } catch (error) {

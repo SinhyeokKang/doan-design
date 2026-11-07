@@ -12,7 +12,8 @@ export type StripState =
   // An agent's question: its first sentence only; it is answered in the conversation, and here only skipped or stopped
   // (agent-questions design §6).
   | { kind: "question"; requestId: string; question: string }
-  | { kind: "failed"; code: string }
+  // model: the model a model_unavailable end named.
+  | { kind: "failed"; code: string; model?: string }
   | { kind: "interrupted"; reason: "user" | "appQuit" | "crashed" }
   | { kind: "done" };
 
@@ -42,7 +43,7 @@ export function stripState(events: readonly ConversationEvent[]): StripState {
         break;
       }
       case "turn.done": terminal = true; state = { kind: "done" }; break;
-      case "turn.failed": terminal = true; state = { kind: "failed", code: event.code }; break;
+      case "turn.failed": terminal = true; state = { kind: "failed", code: event.code, ...(event.model !== undefined ? { model: event.model } : {}) }; break;
       case "interrupted": terminal = true; state = { kind: "interrupted", reason: event.reason }; break;
     }
   }
@@ -77,6 +78,19 @@ const FAILURES: Record<string, (p: string) => { title: string; body: string }> =
 // process_exited, unknown and codes without a row of their own.
 const STOPPED = (p: string) => ({ title: `${p} stopped unexpectedly`, body: "Edit your request on Home and send it again." });
 
+// A Skip or a permission answer main did not take (PRODUCT §5 item 1). Its line shows only while that same request is
+// the one shown, so another request or the turn's end takes it away; the next press clears it.
+export interface StripSendError { requestId: string; how: "skip" | "answer" }
+export function stripErrorText(error: StripSendError | null, state: StripState): string | null {
+  if (error === null || (state.kind !== "permission" && state.kind !== "question") || state.requestId !== error.requestId) return null;
+  return error.how === "skip" ? "Couldn’t skip the question. Try again." : "Couldn’t send your answer. Choose again.";
+}
+// The thread's rules (ConversationThread answerReached, settleQuestionSend): any refusal or rejection of an answer
+// fails; a stale Skip means main settled the question already and it folds by itself.
+export function stripSendFailed(how: StripSendError["how"], refusal: string | null): boolean {
+  return refusal !== null && !(how === "skip" && refusal === "stale");
+}
+
 // Where focus goes when Stop, holding focus, leaves the strip (design §7): a turn that ends at once after an answer (a
 // Deny can finish it in ~300 ms) or a stop takes Stop away; focus moves on to Dismiss instead of falling to the page.
 // While Stop is still drawn it keeps focus.
@@ -97,6 +111,8 @@ export function stripView(state: StripState, ctx: StripContext): StripView {
     // No answer control: the strip only skips or stops (agent-questions decisions 8 and 10).
     case "question": return { title: `${p} needs your answer`, body: state.question, live: "alert", alertKey: state.requestId, actions: [{ command: "skip", label: "Skip" }, stop] };
     case "failed": {
+      // The thread's own sentence; Edit on Home stays, to send the request with another model.
+      if (state.code === "model_unavailable" && state.model) return view(`${state.model} isn’t available for this account.`, null, recover);
       const copy = (Object.hasOwn(FAILURES, state.code) ? FAILURES[state.code]! : STOPPED)(p);
       return view(copy.title, copy.body, recover);
     }

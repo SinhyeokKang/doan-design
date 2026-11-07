@@ -72,7 +72,7 @@ import { createThrottle } from "./throttle";
 import { createThumbnails, type ThumbnailReply, type Thumbnails } from "./thumbnails";
 import { createWindowCapturer } from "./thumbnailWindow";
 import { launchedInBackground, revealFor } from "./backgroundReveal";
-import { createUiStateStore, type UiStateStore } from "./uiState";
+import { createUiStateStore, moveUiStateRoots, type UiStateStore } from "./uiState";
 import { linkTarget } from "./openLink";
 import { openLinkQueue, openRequests, resolveOpenLink } from "./deepLinks";
 import { applyWork, expireWork, nextWorkExpiry, retainWorkRoots, workItems, workItemsChanged, type WorkState } from "./workState";
@@ -645,6 +645,9 @@ async function start(): Promise<void> {
       if (selection && paths.includes(selection.root)) selection = null;
       void thumbnails?.removed(paths, before);
     },
+    // A root saved through a symlink is read as its real path once its seen canvases and UI memory have moved to it,
+    // in this order and before the renderer reads ui-state.json (folderStore RootMigration).
+    migrate: async aliases => seenStore.copyRoots(aliases) && await moveUiStateRoots(join(userData, "ui-state.json"), aliases),
   });
   shell = ready;
   updateWork(retainWorkRoots(workState, ready.entries().map(entry => entry.path)));
@@ -1056,7 +1059,7 @@ async function start(): Promise<void> {
     if (fromWindow(event) && path !== null) electronShell.showItemInFolder(path);
   });
   // Validated against the saved roots in main; the renderer's copy is not trusted.
-  const store = createUiStateStore(join(userData, "ui-state.json"), () => ready.entries().map((entry) => entry.path));
+  const store = createUiStateStore(join(userData, "ui-state.json"), () => ready.entries().map((entry) => entry.path), undefined, undefined, () => ready.spellings());
   uiState = store;
   handle("shell:activity", null, (event, value: unknown) => {
     if (!fromWindow(event)) return null;

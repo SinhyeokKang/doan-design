@@ -1,6 +1,6 @@
 import * as React from "react"
 import { cn } from "cn"
-import { Tooltip as TooltipPrimitive } from "radix-ui"
+import { Slot as SlotPrimitive, Tooltip as TooltipPrimitive } from "radix-ui"
 
 // The first tooltip waits so passing over controls does not flash labels; within the skip window the next one opens
 // at once (Radix's own defaults, which shadcn's template had set to 0). Content is not hoverable: a tooltip is a label,
@@ -28,10 +28,32 @@ function Tooltip({
   return <TooltipPrimitive.Root data-slot="tooltip" {...props} />
 }
 
+// An unavailable control that names its reason with its own aria-describedby (an sr-only sibling, so it is read while
+// the tooltip is closed too) keeps that description alone: Radix adds the open content's id, which holds the same
+// reason, so it would be read twice. Between Radix's trigger and the control, the trigger's props
+// are merged into the control again by Radix's Slot (handlers, ref, class) without the added id. Any other trigger
+// keeps Radix's description.
+function OwnDescription({
+  "aria-describedby": _added,
+  control,
+  ...props
+}: { "aria-describedby"?: string; control: React.ReactElement } & Record<string, unknown>) {
+  return <SlotPrimitive.Slot {...props}>{control}</SlotPrimitive.Slot>
+}
+
 function TooltipTrigger({
+  asChild,
+  children,
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Trigger>) {
-  return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />
+  const own = asChild && React.isValidElement<Record<string, unknown>>(children)
+    && (children.props["aria-disabled"] === true || children.props["aria-disabled"] === "true")
+    && typeof children.props["aria-describedby"] === "string"
+  return (
+    <TooltipPrimitive.Trigger data-slot="tooltip-trigger" asChild={asChild} {...props}>
+      {own ? <OwnDescription control={children} /> : children}
+    </TooltipPrimitive.Trigger>
+  )
 }
 
 function TooltipContent({

@@ -85,3 +85,32 @@ test("modal pause composes with native, hover and focus pauses without renewing 
   state = toastState(state, { type: "tick", elapsedMs: 1 });
   expect(state.ended).toEqual({ id: "one", reason: "expired" });
 });
+
+// A toast drawn inside the open modal dialog is visible and read there, so the modal does not hold its
+// clock; once that dialog has gone it is held like any other toast.
+test("a toast inside the modal dialog keeps its clock while the modal is up, and is held once it leaves the dialog", () => {
+  let state = toastState(initialToastState, { type: "modal", on: true });
+  state = toastState(state, { type: "show", toast: { id: "one", message: "Couldn’t open the link.", dialog: {} as HTMLDialogElement } });
+  state = toastState(state, { type: "tick", elapsedMs: 3000 });
+  expect(state.remainingMs).toBe(TOAST_MS - 3000);
+  state = toastState(state, { type: "leftDialog" });
+  expect(state.toast).toEqual({ id: "one", message: "Couldn’t open the link." });
+  state = toastState(state, { type: "tick", elapsedMs: 20000 });
+  expect(state.remainingMs).toBe(TOAST_MS - 3000);
+  // A later toast outside the dialog is held by the same modal.
+  state = toastState(state, { type: "show", toast: { id: "two", message: "Removed" } });
+  state = toastState(state, { type: "tick", elapsedMs: 3000 });
+  expect(state.remainingMs).toBe(TOAST_MS);
+});
+
+// Leaving the dialog unmounts the hovered or focused element without a mouseleave or
+// blur, so those pauses go with it; Toast re-reads them from the new element.
+test("leaving the dialog drops the hover and focus pauses of the element that unmounted", () => {
+  let state = toastState(initialToastState, { type: "show", toast: { id: "one", message: "Couldn’t open the link.", dialog: {} as HTMLDialogElement } });
+  state = toastState(state, { type: "hover", on: true });
+  state = toastState(state, { type: "focus", on: true });
+  state = toastState(state, { type: "leftDialog" });
+  expect(state).toMatchObject({ hovered: false, focused: false });
+  state = toastState(state, { type: "tick", elapsedMs: 9000 });
+  expect(state.ended).toEqual({ id: "one", reason: "expired" });
+});

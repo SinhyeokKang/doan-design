@@ -95,3 +95,60 @@ test("the action sits to the right of the message as a prominent small button", 
   expect(message.props.className).toBe("msg");
   expect(action.props).toMatchObject({ "data-ui-variant": "prominent", "data-ui-size": "sm", children: "Undo" });
 });
+
+// Renders again and runs that render's effects as React would: the mock ignores deps, so the mount effect (the first,
+// with [] deps) is skipped rather than subscribing and pausing a second time.
+function rerender() {
+  const ran = hooks.effects.length;
+  useToast();
+  for (const effect of hooks.effects.slice(ran + 1)) effect();
+}
+
+// Outside the open modal dialog the toast would be inert and hidden behind it, so a toast shown in a
+// dialog is portalled into it and keeps its clock; when that dialog is gone it is drawn in its usual place and held.
+test("a toast shown in an open modal dialog is drawn inside it and counts down while the modal is up", () => {
+  const h = setup(); h.native(true); h.modal(true);
+  const dialog = { nodeType: 1, open: true, isConnected: true };
+  useToast().showIn(dialog as unknown as HTMLDialogElement, "Couldn’t open the link. Finish Doan’s first run, then try again.");
+  const inside = useToast().element as unknown as { $$typeof: symbol; containerInfo: unknown; children: { props: { className: string; children: unknown[] } } };
+  expect(inside.$$typeof).toBe(Symbol.for("react.portal"));
+  expect(inside.containerInfo).toBe(dialog);
+  expect(inside.children.props.className).toContain("doan-toast");
+  h.tick(3000);
+  expect(h.remaining()).toBe(5000);
+  // The dialog closed: the next render draws the toast in its place and the modal holds it again.
+  dialog.open = false;
+  const outside = useToast().element!;
+  expect(outside.props.className).toContain("doan-toast");
+  rerender();
+  h.tick(3000);
+  expect(h.remaining()).toBe(5000);
+});
+
+test("without an open dialog the toast is drawn in its usual place and held by the modal like any other", () => {
+  const h = setup(); h.native(true); h.modal(true);
+  useToast().showIn(null, "Couldn’t open the link. Settings is in the middle of a change. Finish or cancel it, then try again.");
+  expect(useToast().element!.props.className).toContain("doan-toast");
+  h.tick(3000);
+  expect(h.remaining()).toBe(8000);
+});
+
+// The pointer was on the toast inside the dialog when the dialog went. The element in the
+// usual place is a new one, and the pointer is not over it, so the clock runs again.
+test.each([
+  ["closes", (dialog: { open: boolean; isConnected: boolean }) => { dialog.open = false; }],
+  ["is removed", (dialog: { open: boolean; isConnected: boolean }) => { dialog.isConnected = false; }],
+])("a hovered toast whose dialog %s counts down again in its usual place", (_name, gone) => {
+  const h = setup(); h.native(true);
+  const dialog = { nodeType: 1, open: true, isConnected: true };
+  useToast().showIn(dialog as unknown as HTMLDialogElement, "Couldn’t open the link. A dialog is busy and did not close. Finish it, then try again.");
+  const inside = useToast().element as unknown as { children: { props: { onMouseEnter(): void } } };
+  inside.children.props.onMouseEnter();
+  h.tick(3000);
+  expect(h.remaining()).toBe(8000);
+  gone(dialog);
+  rerender();
+  useToast();
+  h.tick(3000);
+  expect(h.remaining()).toBe(5000);
+});

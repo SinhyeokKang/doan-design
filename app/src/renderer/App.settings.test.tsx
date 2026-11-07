@@ -1,4 +1,5 @@
 import { readdirSync, readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
@@ -38,7 +39,7 @@ vi.mock("react", async original => {
 });
 const harness = vi.hoisted(() => ({
   controller: null as null | Record<string, ReturnType<typeof vi.fn>>,
-  toast: { toast: null, element: null, show: vi.fn(), action: vi.fn(), setModal: vi.fn() },
+  toast: { toast: null, element: null, show: vi.fn(), showIn: vi.fn(), action: vi.fn(), setModal: vi.fn() },
   signIn: { onToast: null as null | ((toast: { text: string; action: { label: string; target: unknown } | null }) => void), windowFocused: vi.fn(),
     state: { auth: undefined as unknown }, listener: null as null | (() => void) },
 }));
@@ -91,7 +92,7 @@ let tree: ReactNode;
 function reset() {
   hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.pending = [];
   listeners = {}; windowListeners = {};
-  harness.toast.show.mockClear(); harness.signIn.windowFocused.mockClear(); harness.signIn.state.auth = undefined;
+  harness.toast.show.mockClear(); harness.toast.showIn.mockClear(); harness.signIn.windowFocused.mockClear(); harness.signIn.state.auth = undefined;
   const on = (name: string) => vi.fn((listener: (...args: never[]) => void) => { listeners[name] = listener; return () => {}; });
   doan = {
     onFolders: on("folders"), onViewCommand: on("view"), onMenuCommand: on("menu"), onConversationEvent: on("conversation"), onConversationStage: on("stage"), onConversationListChanged: on("conversationList"), listConversations: vi.fn(async () => []), onOpenAddProjects: on("openAddProjects"),
@@ -384,6 +385,27 @@ test("Escape that the open usage popover took keeps Settings, Add Projects and P
   }
 });
 
+// Escape on Settings > Agents' open Agent picker (a Radix DropdownMenu) closed the menu and also left
+// Settings. The menu's DismissableLayer answers Escape at the document's capture phase, prevents the default and
+// removes the menu, so by the window's keydown no menu is in the DOM; the page must stay because the event was
+// handled, and only an Escape with no menu leaves. The installed Radix order is pinned below the App check.
+test("Escape that closes the open Agent picker keeps Settings; with no menu open Escape leaves", () => {
+  openFromWorkspace();
+  expect(settings()!.props.section).toBe("agents");
+  // As the window sees it after Radix: handled, and the menu already gone from the DOM.
+  windowListeners.keydown!({ key: "Escape", target: { tagName: "DIV" }, isComposing: false, keyCode: 27, defaultPrevented: true, preventDefault: vi.fn() } as never); render();
+  expect(onSettings()).toBe(true);
+  escape();
+  expect(onSettings()).toBe(false);
+  const read = (name: string) => readFileSync(createRequire(import.meta.url).resolve(name), "utf8");
+  expect(read("@radix-ui/react-use-escape-keydown")).toMatch(/ownerDocument\.addEventListener\("keydown", handleKeyDown, \{ capture: true \}\)/);
+  expect(read("@radix-ui/react-dismissable-layer")).toMatch(/onEscapeKeyDown\?\.\(event\);\s*if \(!event\.defaultPrevented && onDismiss\) \{\s*event\.preventDefault\(\);\s*onDismiss\(\);/);
+  // The picker is a plain DropdownMenu: nothing of its own lets the Escape through unhandled.
+  const picker = readFileSync(new URL("./SettingsAgents.tsx", import.meta.url), "utf8");
+  expect(picker).toMatch(/<DropdownMenu\.Content /);
+  expect(picker).not.toMatch(/onEscapeKeyDown/);
+});
+
 test("a notification click: a known conversation goes where the permission toast's Open goes, an unknown one to its registered project's Overview, else nowhere", () => {
   const click = (target: { conversationId: string; root: string }) => { listeners.notificationClick!(target as never); render(); };
   // Known: the run's own conversation in /w/b opens its project, like the toast's Open.
@@ -617,14 +639,17 @@ test("while the page holds a picker, a confirmation or a write, every way out an
   expect(projectPage()).toBeUndefined();
 });
 
-test("a doan:// link leaves an unlocked page for its canvas and is dropped on a locked one", () => {
+test("a doan:// link leaves an unlocked page for its canvas and is dropped on a locked one with a toast saying why", () => {
   projectSettingsFromWorkspace();
   lockPage();
   listeners.openLink!({ kind: "navigate", root: "/w/b", canvas: rowA.path } as never); render();
   expect(harness.controller!.openCanvas).not.toHaveBeenCalled();
   expect(projectPage()).toBeDefined();
+  // No modal dialog is open on the locked page, so the toast takes its usual place.
+  expect(harness.toast.showIn).toHaveBeenCalledExactlyOnceWith(null, "Couldn’t open the link. Project Settings is in the middle of a change. Finish or cancel it, then try again.");
   lockPage(false);
   listeners.openLink!({ kind: "navigate", root: "/w/b", canvas: rowA.path } as never); render();
+  expect(harness.toast.showIn).toHaveBeenCalledOnce();
   const call = harness.controller!.openCanvas!.mock.lastCall!;
   expect(call.slice(0, 2)).toEqual(["/w/b", rowA]);
   (call[3] as { opened(): void }).opened(); render();

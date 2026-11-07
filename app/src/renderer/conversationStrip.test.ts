@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import type { ConversationEvent, EventPayload, FailureCode } from "../main/conversation/types";
-import { asksPerson, focusAfterStop, mergeConversationEvents, stripState, stripView, type StripContext, type StripState } from "./conversationStrip";
+import { asksPerson, focusAfterStop, mergeConversationEvents, stripErrorText, stripSendFailed, stripState, stripView, type StripContext, type StripState } from "./conversationStrip";
 
 function events(...payloads: (EventPayload & { turnId?: string })[]): ConversationEvent[] {
   return payloads.map(({ turnId, ...payload }, i) => ({ ...payload, v: 1, conversationId: "c1", seq: i + 1, turnId: turnId ?? "t1", at: "2026-10-29T00:00:00Z" }) as ConversationEvent);
@@ -60,6 +60,13 @@ test("every turn.failed row has its draft wording and offers Edit on Home", () =
     ["session_in_use", "Claude Code couldn’t continue", "Edit your request on Home and send it again."],
   ];
   for (const [code, title, body] of rows) expect(failure(code)).toEqual({ title, body, live: "status", alertKey: null, actions: recover });
+});
+
+// The turn never started, so the strip says only the cause, with the model the error named.
+test("a model the account does not have reads as that cause, and still offers Edit on Home", () => {
+  const state = stripState(events(...started, { type: "turn.failed", code: "model_unavailable", model: "gpt-6-astra", detail: "The 'gpt-6-astra' model is not supported." }));
+  expect(state).toEqual({ kind: "failed", code: "model_unavailable", model: "gpt-6-astra" });
+  expect(stripView(state, { ...CTX, provider: "codex" })).toEqual({ title: "gpt-6-astra isn’t available for this account.", body: null, live: "status", alertKey: null, actions: recover });
 });
 
 test("failure codes without a row of their own read as an unexpected stop", () => {
@@ -138,4 +145,30 @@ test("questions and permission requests wait in one line: the oldest shows; each
 
 test("asksPerson: a permission request and a question both wait for the person", () => {
   expect(["permission", "question", "starting", "working", "done", "failed", "interrupted"].map(kind => asksPerson(kind as StripState["kind"]))).toEqual([true, true, false, false, false, false, false]);
+});
+
+// A Skip or a permission answer main did not take shows its line only while that same request is shown.
+test("the strip's error line names the refused Skip or answer while its request is shown, and goes when the request changes or the turn ends", () => {
+  const permission: StripState = { kind: "permission", requestId: "r1", summary: "Edit a", options: [] };
+  const question: StripState = { kind: "question", requestId: "q1", question: "Which layout?" };
+  expect(stripErrorText({ requestId: "q1", how: "skip" }, question)).toBe("Couldn’t skip the question. Try again.");
+  expect(stripErrorText({ requestId: "r1", how: "answer" }, permission)).toBe("Couldn’t send your answer. Choose again.");
+  expect(stripErrorText(null, permission)).toBeNull();
+  // Another request is shown, or the turn moved on or ended.
+  expect(stripErrorText({ requestId: "r1", how: "answer" }, { ...permission, requestId: "r2" })).toBeNull();
+  expect(stripErrorText({ requestId: "q1", how: "skip" }, { ...question, requestId: "q2" })).toBeNull();
+  for (const state of [{ kind: "working", activity: null }, { kind: "done" }, { kind: "failed", code: "unknown" }, { kind: "interrupted", reason: "user" }] as StripState[]) {
+    expect(stripErrorText({ requestId: "r1", how: "answer" }, state)).toBeNull();
+  }
+});
+
+// The thread's rules: any refusal or rejection of a permission answer; a stale Skip means main settled the question
+// already (it folds by itself), so it is no failure.
+test("a refusal fails the send, except a stale Skip", () => {
+  expect(stripSendFailed("answer", null)).toBe(false);
+  expect(stripSendFailed("skip", null)).toBe(false);
+  expect(stripSendFailed("answer", "unknown")).toBe(true);
+  expect(stripSendFailed("answer", "stale")).toBe(true);
+  expect(stripSendFailed("skip", "unknown")).toBe(true);
+  expect(stripSendFailed("skip", "stale")).toBe(false);
 });

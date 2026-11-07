@@ -4,7 +4,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 const mocks = vi.hoisted(() => ({ probe: vi.fn(), run: vi.fn() }));
 vi.mock("../onboarding/machine", () => ({ probeShell: mocks.probe, runProcess: mocks.run }));
-import { BUNDLED_CLAUDE_SDK, createPrepare, routePrepare } from "./prepare";
+import { BUNDLED_CLAUDE_SDK, createAccountPrepare, createPrepare, routePrepare, type AccountRuntime } from "./prepare";
+import { openFolderStore } from "../folderStore";
+import { initialAuthState } from "../agentAuth/state";
+import type { Lease } from "../agentAuth/manager";
+import type { AccountConnection, AuthState } from "../agentAuth/types";
 import { CLAUDE_REGISTRY_FLOOR, CODEX_ROLLOUT_FLOOR, MINIMUM_VERSIONS, storedVersionAtLeast } from "./sessions";
 import { conversationHandler } from "./ipc";
 import { processStart } from "./io";
@@ -163,4 +167,44 @@ it("pins the manifest and installed Claude Agent SDK to the bundled version", ()
   expect(manifest.dependencies["@anthropic-ai/claude-agent-sdk"]).toBe(BUNDLED_CLAUDE_SDK);
   const installed = JSON.parse(readFileSync(join(__dirname, "../../../node_modules/@anthropic-ai/claude-agent-sdk/package.json"), "utf8"));
   expect(installed.version).toBe(BUNDLED_CLAUDE_SDK);
+});
+
+// BACKLOG 'A project registered through a symlinked path': prepare compares the canonical root with the request's
+// string and fails closed (ARCHITECTURE §7 'Identity and admission'), so the folder store hands out the real path for a
+// root saved through a symlink. These start from the root the store lists, as a Home start does.
+async function storedRoot(): Promise<{ real: string; root: string }> {
+  const real = temp(), links = temp(), data = temp();
+  const linked = join(links, "repo"); symlinkSync(real, linked);
+  writeFileSync(join(data, "folders.json"), JSON.stringify([linked]));
+  const root = (await openFolderStore(join(data, "folders.json"))).list()[0]!;
+  return { real, root };
+}
+it.each([
+  ["claude", "2.1.312 (Claude Code)"],
+  ["codex", "codex-cli 0.164.0"],
+] as const)("starts a %s run on the doan account for a project saved through a symlinked path", async (provider, stdout) => {
+  const { real, root } = await storedRoot();
+  const profile = temp();
+  const connection: AccountConnection = { provider, connectionId: "conn-1", profile: provider, account: { id: "acct-1", workspace: null, email: "ada@example.com" } };
+  const state: AuthState = { ...initialAuthState(provider, connection), verified: true, generation: 1 };
+  mocks.run.mockResolvedValue({ exitCode: 0, timedOut: false, stdout });
+  const runtime: AccountRuntime = {
+    state: () => state, check: vi.fn(), checked: vi.fn(async () => {}), confirm: vi.fn(),
+    acquire: vi.fn(async (): Promise<Lease> => ({ command: `/bin/${provider}`, env: { PATH: "/shell/bin" }, profileDir: profile, release: async () => {} })),
+  };
+  const ready = await createAccountPrepare(runtime, "/Applications/doan.app/Contents/Resources/bin/doan")({ root, mode: "new", runtime: provider, text: "hello", anchors: [] });
+  expect(ready.cwd).toBe(real);
+});
+// The terminal-profile path also canonicalizes the selected configuration directory, so a linked CLAUDE_CONFIG_DIR or
+// CODEX_HOME starts on its real directory.
+it.each([
+  ["claude", "2.1.312 (Claude Code)", "claudeConfigDir", "CLAUDE_CONFIG_DIR"],
+  ["codex", "codex-cli 0.164.0", "codexHome", "CODEX_HOME"],
+] as const)("starts a %s run on the terminal profile for a symlinked root and a symlinked configuration directory", async (runtime, stdout, probeKey, envKey) => {
+  const { real, root } = await storedRoot();
+  const bin = temp(), config = temp(), linkedConfig = join(temp(), "profile"); symlinkSync(config, linkedConfig);
+  writeFileSync(join(bin, runtime), "fake", { mode: 0o700 });
+  mocks.probe.mockResolvedValue({ ok: true, path: bin, [probeKey]: linkedConfig }); mocks.run.mockResolvedValue({ exitCode: 0, stdout });
+  const ready = await createPrepare(bin, join(bin, "runtime.json"), { HOME: bin })({ root, mode: "new", runtime, text: "hello", anchors: [] });
+  expect(ready.cwd).toBe(real); expect(ready.configDir).toBe(config); expect(ready.env[envKey]).toBe(config);
 });

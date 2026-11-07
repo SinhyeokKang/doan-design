@@ -1,7 +1,8 @@
-import { chmodSync, linkSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, linkSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, test } from "vitest";
+import { pruneAuto } from "./autoFolders";
 import { openFolderStore, readFoldersFile, readFoldersFileForPruning, writeFoldersFile } from "./folderStore";
 
 const tmp = mkdtempSync(join(tmpdir(), "doan-folders-"));
@@ -107,6 +108,82 @@ describe("openFolderStore", () => {
     } finally {
       chmodSync(parent, 0o755);
     }
+  });
+});
+
+// BACKLOG 'A project registered through a symlinked path': a run starts only on a root that is its own real path, so
+// a root saved through a symlink is read as its real path.
+describe("roots saved through a symlink", () => {
+  const linked = () => {
+    const real = realpathSync(dir()), parent = dir(), link = join(parent, "repo");
+    symlinkSync(real, link);
+    return { real, link };
+  };
+
+  test("read as their real path, and folders.json rewritten with it once the startup step moved their memory", async () => {
+    const { real, link } = linked();
+    const file = join(dir(), "folders.json");
+    writeFileSync(file, JSON.stringify(["/gone", link]));
+    expect(await readFoldersFileForPruning(file)).toEqual(["/gone", real]);
+    const store = await openFolderStore(file);
+    expect(store.list()).toEqual(["/gone", real]);
+    expect(JSON.parse(readFileSync(file, "utf8"))).toEqual(["/gone", real]);
+    // A second launch reads the same list: the normalization is idempotent.
+    expect((await openFolderStore(file)).list()).toEqual(["/gone", real]);
+    await store.add("/other");
+    expect(JSON.parse(readFileSync(file, "utf8"))).toEqual(["/gone", real, "/other"]);
+  });
+
+  test("two spellings of one folder become one entry in the first one's place; unresolvable roots stay as saved", async () => {
+    const { real, link } = linked();
+    const file = join(dir(), "folders.json");
+    writeFileSync(file, JSON.stringify([link, "/missing/one", real, "/missing/two"]));
+    expect((await openFolderStore(file)).list()).toEqual([real, "/missing/one", "/missing/two"]);
+  });
+
+  test("hands the startup step each saved spelling that reads as another real path, and keeps the mapping for ui-state", async () => {
+    const { real, link } = linked();
+    const file = join(dir(), "folders.json");
+    writeFileSync(file, JSON.stringify(["/gone", link, real]));
+    let handed: unknown;
+    const store = await openFolderStore(file, async aliases => { handed = [...aliases]; return true; });
+    expect(handed).toEqual([[link, real]]);
+    expect([...store.spellings()]).toEqual([[link, real]]);
+  });
+
+  test("a startup step that fails keeps the saved spellings, the files and the marks for this run", async () => {
+    const { real, link } = linked();
+    const file = join(dir(), "folders.json"), auto = join(file, "..", "auto-folders.json");
+    writeFileSync(file, JSON.stringify(["/main", link]));
+    writeFileSync(auto, JSON.stringify([link]));
+    const store = await openFolderStore(file, async () => false);
+    expect(store.list()).toEqual(["/main", link]);
+    expect(store.auto()).toEqual([link]);
+    expect([...store.spellings()]).toEqual([[real, link]]);
+    expect(JSON.parse(readFileSync(file, "utf8"))).toEqual(["/main", link]);
+    expect(JSON.parse(readFileSync(auto, "utf8"))).toEqual([link]);
+  });
+
+  test("two spellings of one folder stay hand-added when either was added by hand, so a missing one is not pruned", async () => {
+    const { real, link } = linked();
+    const file = join(dir(), "folders.json");
+    writeFileSync(file, JSON.stringify([link, real]));
+    writeFileSync(join(file, "..", "auto-folders.json"), JSON.stringify([real]));
+    const store = await openFolderStore(file);
+    expect(store.list()).toEqual([real]);
+    expect(store.auto()).toEqual([]);
+    expect(pruneAuto(store.list(), store.auto(), new Map([[real, "ENOENT"]]))).toEqual([real]);
+  });
+
+  test("an auto-registered mark saved through a symlink still marks its root, and is saved as the real path after the list", async () => {
+    const { real, link } = linked();
+    const file = join(dir(), "folders.json"), auto = join(file, "..", "auto-folders.json");
+    writeFileSync(file, JSON.stringify(["/main", link]));
+    writeFileSync(auto, JSON.stringify([link]));
+    const store = await openFolderStore(file);
+    expect(store.auto()).toEqual([real]);
+    expect(JSON.parse(readFileSync(auto, "utf8"))).toEqual([real]);
+    expect((await openFolderStore(file)).auto()).toEqual([real]);
   });
 });
 

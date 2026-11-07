@@ -85,15 +85,18 @@ const CONVERSATION_ID = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/;
 // entry does not cost the rest. Roots outside `savedRoots` are dropped
 // everywhere: a removed project must not keep memory. The scale is kept as
 // saved; the restore plan clamps it.
-export function parseUiState(text: string, savedRoots: readonly string[]): UiState | null {
+// `spellings` (FolderStore.spellings) map another spelling of a listed root to the listed one: memory kept under it is
+// read under the listed root before the filter, so the same project is not dropped as a removed one.
+export function parseUiState(text: string, savedRoots: readonly string[], spellings: ReadonlyMap<string, string> = new Map()): UiState | null {
   if (new TextEncoder().encode(text).length > UI_STATE_MAX_BYTES) return null;
-  let value: unknown;
+  let parsed: unknown;
   try {
-    value = JSON.parse(text);
+    parsed = JSON.parse(text);
   } catch {
     return null;
   }
-  if (!isRecord(value)) return null;
+  if (!isRecord(parsed)) return null;
+  const value = spellings.size > 0 ? renameUiRoots(parsed, spellings) : parsed;
   const screen = value["screen"];
   if (screen !== "home" && screen !== "workspace") return null;
   const saved = new Set(savedRoots);
@@ -148,6 +151,38 @@ export function parseUiState(text: string, savedRoots: readonly string[]): UiSta
   if (canvasId !== undefined) state.canvasId = canvasId;
   if (view !== undefined) state.view = view;
   return state;
+}
+
+// Rewrites every root this file keys or names (the open place, `expanded`, `lastByRoot`, `shellProjects` keys, roots
+// and selection, `conversationByRoot`, `home.lastRoot`) from each spelling in `aliases` to the one it maps to, on the
+// raw value so parseUiState still validates the result. Where both spellings hold a value the target's wins, per map
+// key and per `shellProjects` field; the other fills only what the target lacks.
+export function renameUiRoots(value: Record<string, unknown>, aliases: ReadonlyMap<string, string>): Record<string, unknown> {
+  const real = (root: unknown) => typeof root === "string" ? aliases.get(root) ?? root : root;
+  const rekey = (map: unknown, merge: (kept: unknown, alias: unknown) => unknown = kept => kept): unknown => {
+    if (!isRecord(map)) return map;
+    const next: Record<string, unknown> = Object.fromEntries(Object.entries(map).filter(([key]) => !aliases.has(key)));
+    for (const [key, item] of Object.entries(map)) {
+      const to = aliases.get(key);
+      if (to === undefined) continue;
+      next[to] = Object.hasOwn(next, to) ? merge(next[to], item) : item;
+    }
+    return next;
+  };
+  const project = (item: unknown): unknown => !isRecord(item) ? item : {
+    ...item,
+    ...(Array.isArray(item.roots) ? { roots: item.roots.map(real) } : {}),
+    ...("selectedRoot" in item ? { selectedRoot: real(item.selectedRoot) } : {}),
+  };
+  const next: Record<string, unknown> = { ...value, root: real(value["root"]) };
+  if (!("root" in value)) delete next["root"];
+  for (const key of ["expanded", "lastByRoot", "conversationByRoot"]) if (key in value) next[key] = rekey(value[key]);
+  if (isRecord(value["shellProjects"])) {
+    const projects = Object.fromEntries(Object.entries(value["shellProjects"]).map(([key, item]) => [key, project(item)]));
+    next["shellProjects"] = rekey(projects, (kept, alias) => isRecord(kept) && isRecord(alias) ? { ...alias, ...kept } : kept);
+  }
+  if (isRecord(value["home"])) next["home"] = { ...value["home"], ...("lastRoot" in value["home"] ? { lastRoot: real(value["home"]["lastRoot"]) } : {}) };
+  return next;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

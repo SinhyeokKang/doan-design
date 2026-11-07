@@ -1748,6 +1748,9 @@ describe("send now", () => {
   const sending = (h: ReturnType<typeof homeFixture>, id: string) =>
     (JSON.parse(readFileSync(join(h.dir, "conversations", "drafts.json"), "utf8")).queued[id] ?? []).filter((item: { sending?: true }) => item.sending).map((item: { text: string }) => item.text);
 
+  const queued = (h: ReturnType<typeof homeFixture>, id: string) =>
+    (JSON.parse(readFileSync(join(h.dir, "conversations", "drafts.json"), "utf8")).queued[id] ?? []).map((item: { text: string }) => item.text);
+
   it("puts the message into the running turn and answers once the agent read it, which appends it to that turn there", async () => {
     const h = homeFixture();
     const { id, calls, read, turnOf } = await running(h);
@@ -1829,6 +1832,36 @@ describe("send now", () => {
     await h.service.stopRuns("claude");
     expect(await answer(sent)).toBe("not_running");
     expect(h.service.takeDraft(id)).toMatchObject({ text: "one", reason: "interrupted" });
+  });
+  it("puts the steered message back in the queue when the app quits meanwhile, and ignores its late read", async () => {
+    const h = homeFixture();
+    const { id, calls, read } = await running(h);
+    const item = h.service.queue(id, { text: "one", anchors: [] });
+    const sent = h.service.sendNow(id, item.itemId);
+    calls[0]!.accept();
+    expect(sending(h, id)).toEqual(["one"]);
+    await h.service.quit();
+    expect(await answer(sent)).toBe("not_running");
+    expect(sending(h, id)).toEqual([]);
+    read(calls[0]!.messageId);
+    expect(userMessages(h, id)).toHaveLength(1);
+    expect(queued(h, id)).toEqual(["one"]);
+  });
+  it("puts the steered message back in the queue when the history stops taking writes meanwhile, and ignores its late read", async () => {
+    const h = homeFixture();
+    const { id, calls, read } = await running(h);
+    const item = h.service.queue(id, { text: "one", anchors: [] });
+    const sent = h.service.sendNow(id, item.itemId);
+    calls[0]!.accept();
+    expect(sending(h, id)).toEqual(["one"]);
+    vi.spyOn(h.store, "append").mockImplementationOnce(() => { throw new Error("File exceeds limit"); });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    h.service.receive(id, { type: "permission.request", requestId: "r1", tool: "Bash", summary: "ls", options: [{ id: "allow", label: "Allow", kind: "allow" }] });
+    expect(await answer(sent)).toBe("not_running");
+    expect(sending(h, id)).toEqual([]);
+    read(calls[0]!.messageId);
+    expect(userMessages(h, id)).toHaveLength(1);
+    expect(queued(h, id)).toEqual(["one"]);
   });
   it("hands the steered message back when another start archives the conversation meanwhile, and ignores its late read", async () => {
     const h = homeFixture();

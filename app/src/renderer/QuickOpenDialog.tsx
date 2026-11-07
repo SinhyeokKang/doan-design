@@ -4,7 +4,7 @@ import { canvasDir } from "../formats/canvasPath";
 import type { FolderEntry } from "../main/view";
 import { tabKey } from "./ComposerParts";
 import { cardRow, groupProjects } from "./homeCards";
-import { countMatches, emptyText, groupResults, markRuns, matchPositions, outsideDialog, resultKey, resultParts, searchIndex, searchMatch, type RenderedSearchFrames, type ResultGroup, type SearchFolder, type SearchKind, type SearchResult } from "./quickOpen";
+import { countMatches, emptyText, groupResults, readingCount, readingText, markRuns, matchPositions, outsideDialog, resultKey, resultParts, searchIndex, searchMatch, type RenderedSearchFrames, type ResultGroup, type SearchFolder, type SearchKind, type SearchResult } from "./quickOpen";
 import { projectHue, projectInitial } from "./shellNavigation";
 
 // The repository name, which picks the thumbnail as in the sidebar, and the title
@@ -179,15 +179,15 @@ export function QuickOpen({ entries, currentRoot, rendered, pick, close }: Quick
           requestAnimationFrame(focusTab);
         }}><tab.Icon aria-hidden="true" />{tab.label}</button>)}
     </div>
-    <QuickOpenList emptyText={emptyText(kind, query, scope, otherCount)} id={id} listRef={list} query={query} groups={groups} active={current} pick={choose} activate={activate} />
+    <QuickOpenList emptyText={emptyText(kind, query, scope, otherCount)} id={id} listRef={list} query={query} groups={groups} active={current} pick={choose} activate={activate} reading={readingCount(entries, currentRoot, query)} />
   </dialog>;
 }
 
-export function QuickOpenList({ emptyText = "No canvases or frames match", id, listRef, query, groups, active, pick, activate }: { emptyText?: string; id: string; listRef?: Ref<HTMLDivElement>; query: string; groups: readonly ResultGroup[]; active: number; pick: (result: SearchResult) => void; activate: (index: number) => void }) {
+export function QuickOpenList({ emptyText = "No canvases or frames match", id, listRef, query, groups, active, pick, activate, reading = 0 }: { emptyText?: string | null; id: string; listRef?: Ref<HTMLDivElement>; query: string; groups: readonly ResultGroup[]; active: number; pick: (result: SearchResult) => void; activate: (index: number) => void; reading?: number }) {
   let at = 0;
   return <div className="qo-height">
     <div className="qo-list doan-scroll" role="listbox" id={id} aria-label="Results" tabIndex={-1} ref={listRef}>
-      {groups.length === 0 ? <p className="qo-none" role="status">{emptyText}</p> : groups.map(group => {
+      {groups.length === 0 ? emptyText === null ? null : <p className="qo-none" role="status">{emptyText}</p> : groups.map(group => {
         const titleId = `${id}-g-${hash(group.root)}`;
         return <div className="qo-group" role="group" aria-labelledby={titleId} key={group.root}>
           <div className="qo-group-title" id={titleId}><span className={`shell-thumbnail hue-${projectHue(group.name)}`} aria-hidden="true">{projectInitial(group.name)}</span><span className="qo-group-name">{group.title}</span></div>
@@ -207,5 +207,7 @@ export function QuickOpenList({ emptyText = "No canvases or frames match", id, l
         </div>;
       })}
     </div>
+    {/* Outside the listbox, which holds only options. The status stays mounted so a changed count is announced. */}
+    <div role="status" className="qo-live">{reading > 0 ? <p className="qo-reading"><span className="doan-spinner" aria-hidden="true" />{readingText(reading)}</p> : null}</div>
   </div>;
 }

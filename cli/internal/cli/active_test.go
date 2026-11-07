@@ -273,7 +273,7 @@ func TestActiveAppErrors(t *testing.T) {
 func TestActiveLineAtCapIsRead(t *testing.T) {
 	root := realPath(t, initialized(t))
 	line := `{"v":1,"ok":true,"result":{}}`
-	line += strings.Repeat(" ", 64<<10-len(line))
+	line += strings.Repeat(" ", maxResponseLine-len(line)-1)
 	app := &fakeApp{requests: make(chan map[string]any, 1), respond: reply(line)}
 	if _, failure := Active(activeContext(t, root, app.dial(t)), Flags{Repo: root}, nil); failure != nil {
 		t.Fatal(failure)

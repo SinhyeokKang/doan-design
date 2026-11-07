@@ -1,7 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CircleAlert, CircleCheck, CircleStop } from "lucide-react";
 import type { Provider } from "../main/agentAuth/types";
-import { focusAfterStop, type StripAction, type StripState, type StripView } from "./conversationStrip";
+import { AlertIcon } from "./AlertIcon";
+import { answerRefusal } from "./ConversationThread";
+import { focusAfterStop, stripErrorText, stripSendFailed, type StripAction, type StripSendError, type StripState, type StripView } from "./conversationStrip";
 import { providerLogo } from "./homeComposer";
 
 interface Props {
@@ -30,16 +32,30 @@ export function ConversationStrip({ conversationId, provider, state, view, onEdi
     const active = document.activeElement;
     if (!stop.current && focusAfterStop(view.actions) === "dismiss" && (!active || active === document.body)) dismiss.current?.focus();
   });
+  const [sendError, setSendError] = useState<StripSendError | null>(null);
+  // Only the latest press's reply speaks: an earlier one's late refusal must not bring the line back.
+  const lastSend = useRef(0);
+  const send = (requestId: string, how: StripSendError["how"], call: () => Promise<void | { error: string }>) => {
+    const n = ++lastSend.current;
+    setSendError(null);
+    void answerRefusal(call).then(refusal => { if (n === lastSend.current && stripSendFailed(how, refusal)) setSendError({ requestId, how }); });
+  };
+  const errorText = stripErrorText(sendError, state);
   const run = (action: StripAction) => {
     if (action.command === "answer") {
-      void window.doan.answerConversationPermission({ conversationId, requestId: state.kind === "permission" ? state.requestId : "", optionId: action.optionId }).catch(console.error);
+      if (state.kind === "permission") send(state.requestId, "answer", () => window.doan.answerConversationPermission({ conversationId, requestId: state.requestId, optionId: action.optionId }));
       // The answered choices go away; Stop is the one control left while the turn runs (design §7).
       stop.current?.focus();
     } else if (action.command === "skip") {
-      if (state.kind === "question") void window.doan.answerConversationQuestion({ conversationId, requestId: state.requestId, outcome: "skipped" }).catch(console.error);
+      if (state.kind === "question") send(state.requestId, "skip", () => window.doan.answerConversationQuestion({ conversationId, requestId: state.requestId, outcome: "skipped" }));
       // As after a permission answer: Stop is the one control left while the turn runs.
       stop.current?.focus();
-    } else if (action.command === "stop") void window.doan.interruptConversation({ conversationId }).catch(console.error);
+    } else if (action.command === "stop") {
+      // Stop is the next press too: the line goes, and no earlier press's reply can bring it back.
+      lastSend.current++;
+      setSendError(null);
+      void window.doan.interruptConversation({ conversationId }).catch(console.error);
+    }
     else if (action.command === "editOnHome") onEditOnHome();
     else if (action.command === "open") onOpen();
     else onDismiss();
@@ -53,7 +69,10 @@ export function ConversationStrip({ conversationId, provider, state, view, onEdi
   const tone = state.kind === "failed" ? " error" : state.kind === "done" ? " ok" : "";
   return <div className={`convo-strip doan-notice${tone}`} role="region" aria-label="Conversation">
     <span className="strip-agent doan-alert-icon">{mark}</span>
-    <span key={view.alertKey ?? "status"} className="strip-text" role={view.live}><b>{view.title}</b>{view.body && <span>{view.body}</span>}</span>
+    <span className="strip-main">
+      <span key={view.alertKey ?? "status"} className="strip-text" role={view.live}><b>{view.title}</b>{view.body && <span>{view.body}</span>}</span>
+      {errorText && <span className="strip-error" role="alert"><AlertIcon />{errorText}</span>}
+    </span>
     <span className="strip-actions">{view.actions.map(action => {
       // The draft (workspace-strip, states-strip) fills Allow; the other answers, Skip, Edit on Home and Open rest on the panel
       // white, since the strip's inset fill is subtle's own grey.

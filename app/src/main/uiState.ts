@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { renameSync, rmSync, writeFileSync } from "node:fs";
 import { readFile, unlink, writeFile } from "node:fs/promises";
-import { parseUiState, type UiState } from "../restore/uiState";
+import { parseUiState, renameUiRoots, type UiState } from "../restore/uiState";
 
 export const UI_STATE_DELAY_MS = 500;
 
@@ -35,7 +35,8 @@ const defaultFs: UiStateFs = {
 
 const tempName = (file: string) => `${file}.${randomBytes(6).toString("hex")}.tmp`;
 
-export function createUiStateStore(file: string, savedRoots: () => readonly string[], delayMs = UI_STATE_DELAY_MS, fs: UiStateFs = defaultFs): UiStateStore {
+// `spellings` (FolderStore.spellings): another spelling of a listed root, read as the listed one.
+export function createUiStateStore(file: string, savedRoots: () => readonly string[], delayMs = UI_STATE_DELAY_MS, fs: UiStateFs = defaultFs, spellings: () => ReadonlyMap<string, string> = () => new Map()): UiStateStore {
   // The newest accepted value that is not on disk yet, whether its write is
   // waiting for the debounce or already running; a quit flush writes it.
   let unsaved: string | null = null;
@@ -65,7 +66,7 @@ export function createUiStateStore(file: string, savedRoots: () => readonly stri
   return {
     async read() {
       try {
-        return parseUiState(await readFile(file, "utf8"), savedRoots());
+        return parseUiState(await readFile(file, "utf8"), savedRoots(), spellings());
       } catch {
         return null;
       }
@@ -109,4 +110,33 @@ export function createUiStateStore(file: string, savedRoots: () => readonly stri
     },
     idle: () => writing,
   };
+}
+
+// FolderStore's startup step for ui-state.json (ARCHITECTURE §7 'Root spellings'): rewrites the file with the memory
+// kept under each alias moved to its real path, before folders.json changes and before the renderer reads or saves it.
+// A missing file or one that would read as nothing (broken, over the limit) has nothing to move. False, with the file
+// as it was, when it cannot be read or written; the saved spellings then stay for this run.
+export async function moveUiStateRoots(file: string, aliases: ReadonlyMap<string, string>): Promise<boolean> {
+  let text: string;
+  try {
+    text = await readFile(file, "utf8");
+  } catch (error) {
+    return error instanceof Error && "code" in error && error.code === "ENOENT";
+  }
+  let value: unknown;
+  try { value = JSON.parse(text); } catch { return true; }
+  if (typeof value !== "object" || value === null || Array.isArray(value) || parseUiState(text, []) === null) return true;
+  const moved = JSON.stringify(renameUiRoots(value as Record<string, unknown>, aliases));
+  if (moved === JSON.stringify(value)) return true;
+  const next = `${moved}\n`;
+  const temp = tempName(file);
+  try {
+    await writeFile(temp, next, { flag: "wx" });
+    renameSync(temp, file);
+    return true;
+  } catch (error) {
+    await unlink(temp).catch(() => {});
+    console.error("doan: cannot move ui-state.json to real paths", error);
+    return false;
+  }
 }
