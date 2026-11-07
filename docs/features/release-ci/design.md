@@ -77,7 +77,7 @@ release-skill은 이 절의 이름만 쓴다. 바뀌면 두 문서를 같이 고
 
 ## PoC (T1·T5·T6)
 
-`workflow_dispatch`는 워크플로 파일이 기본 브랜치(`develop`)에 있어야 시작되고, 환경 `release`는 배포 ref(`v*` 태그, `develop`)에서만 비밀을 연다. 그래서:
+`workflow_dispatch`는 워크플로 파일이 기본 브랜치(`main`, D2)에 있어야 시작된다. `main`에는 첫 `/release` 전까지 아무것도 들어가지 않으므로, 이 PoC 절차와 D8의 dispatch 시작은 그대로는 돌지 않는다. T1 전에 테스트 빌드·PoC의 시작 방식을 다시 정한다(예: `tester-*` 태그 push 트리거). 아래는 dispatch를 전제로 쓴 원안이다. 또 환경 `release`는 배포 ref(`v*` 태그, `develop`)에서만 비밀을 연다. 그래서:
 
 1. T1: 서명 없는 골격(`test-build.yml`과 `release.yml`, `workflow_dispatch`와 `gate`·패키징만)을 작은 PR로 먼저 `develop`에 넣는다.
 2. 사용자가 PoC 동안 환경 `release`의 배포 ref에 `chore/release-ci`를 잠시 더한다(T5·T6이 끝나면 지운다).

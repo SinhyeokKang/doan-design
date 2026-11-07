@@ -16,7 +16,7 @@ Developer ID 서명과 공증을 로컬 keychain에서 GitHub Actions로 옮기�
 - 서명·공증은 빌드하는 기계의 login keychain에서만 한다(docs/ARCHITECTURE.md:718–719, `.agents/skills/tester-build/SKILL.md:8`). 다른 기계는 `.p12`와 API 키를 손으로 설치해야 하고, 그 과정은 검증되지 않았다(docs/BACKLOG.md 'Not verified for tester dmgs').
 - 테스트 dmg는 dmg만 만든다(`--mac dmg`). 앱 업데이트에 필요한 zip과 `latest-mac.yml`이 없다(부모 design.md '조사' electron-builder).
 - `app/package.json`에 `publish` 설정이 없고, 루트 `LICENSE`와 디자인 프리셋 고지가 앱 패키지에 없다(docs/BACKLOG.md:17).
-- electron-builder는 태그를 만들지 않는다. draft를 그대로 게시하면 GitHub가 기본 브랜치 `develop`에 태그를 단다(부모 '조사').
+- electron-builder는 태그를 만들지 않는다. draft를 그대로 게시하면 GitHub가 기본 브랜치(`main`, D2)의 HEAD에 태그를 단다(부모 '조사'). 그래서 `/release`가 태그를 먼저 만든다(D7).
 - 릴리스 빌드를 만드는 곳이 없다. 절차는 release-skill이 스킬로 만들고, 이 자식은 그 스킬이 부를 워크플로와 스크립트를 만든다.
 
 ## 완료 조건
