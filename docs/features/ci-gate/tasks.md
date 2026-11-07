@@ -11,6 +11,10 @@
 
 - [ ] T2. PoC: design.md의 골격으로 워크플로를 만들고, 사용자 승인 아래 `develop`을 향한 draft PR을 열어 한 번 돌린다. 통과 여부와 시간을 기록한다. 실패하면 design.md 'PoC'대로 멈춘다.
   - 검증: `gh pr checks <PR 번호>`에서 `gate`가 pass(T4에서 이 명령을 AGENTS.md 'Commands'에 더하기 전까지는 확인 명령 미정 — 사용자 확인 필요). 시간은 실행 로그에서 읽는다.
+  - 1차 실행(2026-11-07, draft PR #123, run 42387644873, `macos-26` arm64): **실패**. 작업 7분 13초 — 준비 단계(checkout·setup-node·setup-go·`npm ci`) 54초, `verify.mjs` 6분 10초(app-test 5분 21초). app-test 전에 있는 단계(verify-tests, runtime-support, Go test·vet, typecheck, lint)는 모두 통과했다. Electron 바이너리 내려받기 없이도 app-test까지 돌았다. PATH의 `doan`에 기대서 실패한 단계는 없었다.
+    - 실패: `app/src/main/shell.test.ts:1011` 'an uninitialized worktree is not re-rooted upward'. `[main, w]`를 기대했는데 main이 `/private/var/folders/h5`로 위쪽 재루팅됐다. `git.mode("up")` 전에 시작된 main의 읽기가 늦게 끝나면서 위쪽 재루팅을 탄 것으로 추정한다(재현은 하지 않았다).
+    - 같은 날 이 기기의 로컬 `/verify` 3회 중 2회가 `shell.test.ts:656` 'initializes a folder stored a moment ago, while its first read is still loading'에서 실패했다(`unavailable`). 이 파일만 돌렸을 때도 3회 중 1회 실패했다. `initialize`의 첫 `refresh`(`shell.ts:341`)가 추월당해 `false`를 받으면 곧바로 `unavailable`을 돌려주는 것으로 추정한다. 다른 1회는 `watch.test.ts:352`에서 실패했는데, 이 파일만 돌린 3회는 모두 통과했다.
+    - design.md 'PoC'에 따라 멈춘다. 두 `shell.test.ts` 경쟁은 `develop`을 향한 별도 `fix/` 작업이 고치고, 그 PR이 병합된 뒤 이 브랜치를 갱신해 T2를 다시 돌린다.
 - [ ] T3. 워크플로를 확정한다(액션 SHA 고정, `permissions`, `concurrency`, `timeout-minutes`, `workflow_call`). 실패 확인은 별도 임시 브랜치에서 `develop`을 향한 draft PR을 열어 일부러 깨뜨린 커밋(예: 타입 오류)으로 한 번 보고, 그 PR은 병합하지 않고 닫는다.
   - 검증:
     - `gh pr checks`에서 이 PR의 `gate`가 pass, 임시 PR의 `gate`가 fail이고 실행 로그에 실패한 단계의 출력이 있다.
