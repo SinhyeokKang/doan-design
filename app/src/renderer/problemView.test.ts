@@ -2,6 +2,7 @@ import { FileWarning, FolderCog, FolderX, SquareTerminal } from "lucide-react";
 import { describe, expect, test } from "vitest";
 import type { FolderEntry } from "../main/view";
 import { cardRow } from "./homeCards";
+import type { SidebarSlot } from "./canvasNotice";
 import type { Slot } from "./homeConversations";
 import { problemView, resolvedFocus, sidebarSlot, workspaceBody } from "./problemView";
 
@@ -106,6 +107,8 @@ describe("problemView state (design 4.1, 4.4)", () => {
       for (const delayed of [false, true]) {
         const busy = problemView(loading, "acme", home, { slow: delayed, shown: { kind: "problem", entryKind } });
         expect(busy).toMatchObject({ kind: "problem", entryKind, icon: idle.icon, heading: idle.heading, line: idle.line, actions: idle.actions, busy: true });
+        // The entry is `loading`, so the message is gone; the shell keeps the last detail it saw.
+        expect(busy).not.toHaveProperty("detail");
       }
     }
   });
@@ -167,6 +170,15 @@ describe("sidebarSlot", () => {
     expect(sidebarSlot(loading, "acme", working, true)).toEqual({ kind: "reading", label: "Reading acme" });
     expect(sidebarSlot(loading, "acme", working, false)).toBe(working);
     expect(sidebarSlot(loading, "acme", null, false)).toBeNull();
+  });
+
+  test("a permission request beats the reading spinner", () => {
+    expect(sidebarSlot(loading, "acme", permission, true)).toBe(permission);
+  });
+
+  test("a problem beats a canvas notice", () => {
+    const notice: SidebarSlot = { kind: "canvas", label: "a is new" };
+    expect(sidebarSlot(problems.notFound, "acme", notice, false)).toEqual({ kind: "problem", icon: FolderX, label: "acme is missing" });
   });
 
   test("a list row keeps its conversation slot, or has none", () => {
