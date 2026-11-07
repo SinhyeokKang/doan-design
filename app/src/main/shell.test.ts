@@ -238,6 +238,27 @@ exec '${cli}' "$@"
   return { path, hold, reads };
 }
 
+// Holds every `doan ls` of one folder until `release()`, so the test decides when that folder's first list lands.
+function holdingCli(held: string): { path: string; release: () => void } {
+  const base = dir();
+  const hold = join(base, "hold");
+  const path = join(base, "doan");
+  writeFileSync(hold, "");
+  writeFileSync(
+    path,
+    `#!/bin/sh
+for arg in "$@"; do
+  if [ "$arg" = '${held}' ]; then
+    while [ -e '${hold}' ]; do sleep 0.02; done
+  fi
+done
+exec '${cli}' "$@"
+`,
+  );
+  chmodSync(path, 0o755);
+  return { path, release: () => rmSync(hold, { force: true }) };
+}
+
 function servedRepo(config: object): string {
   const root = writeRepo(dir(), JSON.stringify({ v: 1, ...config }));
   mkdirSync(join(root, ".doan", "comments"), { recursive: true });
@@ -757,21 +778,30 @@ describe("storing, removing and restoring", () => {
   test("replace reports the move as a re-root focus, and only a real move", async () => {
     const [a, b, moved] = [writeRepo(dir()), writeRepo(dir()), writeRepo(dir())];
     const file = join(dir(), "folders.json");
-    const changes = vi.fn();
-    const shell = await startShell(file, cli, changes); shells.push(shell);
+    // The second root's first list is still on its way when store() answers; it lands while the first replace is
+    // being saved (the block lets the CLI finish before the save does), as it does on a loaded machine.
+    const held = holdingCli(b);
+    const changes = vi.fn((_entries: FolderEntry[], focus?: FolderFocus) => {
+      if (!focus) return;
+      held.release();
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 500);
+    });
+    const shell = await startShell(file, held.path, changes); shells.push(shell);
     await shell.store([a, b]);
     changes.mockClear();
+    // Lists published around a replace carry no focus and may come in any order, so only the focus calls are compared.
+    const focuses = () => changes.mock.calls.flatMap(([, focus]) => (focus ? [focus] : []));
     await shell.replace(a, a);
-    expect(changes).not.toHaveBeenCalledWith(expect.anything(), expect.anything());
+    expect(focuses()).toEqual([]);
     await shell.replace(a, moved);
-    expect(changes).toHaveBeenLastCalledWith(expect.any(Array), { from: a, root: moved });
+    expect(focuses()).toEqual([{ from: a, root: moved }]);
     // Locate to a root already in the list drops the old row and still reports the move.
     await shell.replace(moved, b);
     expect(shell.entries().map(entry => entry.path)).toEqual([b]);
-    expect(changes).toHaveBeenLastCalledWith(expect.any(Array), { from: moved, root: b });
+    expect(focuses()).toEqual([{ from: a, root: moved }, { from: moved, root: b }]);
     changes.mockClear();
     await shell.replace("/not/stored", moved);
-    expect(changes).not.toHaveBeenCalled();
+    expect(focuses()).toEqual([]);
   });
 
   test("rereadAll reads every folder again without a loading state", async () => {
