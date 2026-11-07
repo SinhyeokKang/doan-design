@@ -14,7 +14,13 @@ The design drafts that coding agents make live outside the code, in external des
 5. **A draft cannot be shown to someone outside the repo.** A canvas reads the repo's token CSS, shared CSS and assets by relative paths, so sending the HTML file alone does not open it, and a reviewer without the repo or Doan cannot see it. → Export
 6. **Agents in Doan cannot read the spec.** A canvas follows one spec or ticket (§4 'Unit of review'), and specs and tickets often live in Notion or Jira. A Doan conversation runs on Doan's own agent profile, which does not see the MCP servers the person set up for a terminal, so the person has to paste the spec into the message. → MCP connectors
 
-Source: the Malmoi case in the README background.
+Source: the Malmoi case. These problems were hit while running a Claude Design handoff → `/design-sync` loop during malmoi development (2026-09 to 10):
+
+- **Conversation and tools were split.** Design conversations piled up in Claude Design and implementation conversations in code sessions. Codex could not use Claude Design or DesignSync at all, so the workflow split by runtime.
+- **Agents could not read drafts properly.** Large drafts were truncated at 256 KiB, review was possible only through DOM text, and canvas notes outside frames had to be tracked separately.
+- **Drafts lived apart from the code.** They did not know the project's real tokens and primitives, so implementations diverged even when every value matched (a modal pinned to the pixel diverged in 29 places with all tests green), and drafts showed commands and images that did not exist.
+- **The source of truth wavered.** An old canvas was lost, the rule for when the draft stops being the source of truth was revised three times, and which board had been approved was recorded nowhere on the draft side.
+- **Multiple machines and agents.** Access to drafts differed per machine, session and runtime; in orchestrations only some workers could read them.
 
 ## 2. Users
 
