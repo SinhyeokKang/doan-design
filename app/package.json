@@ -69,7 +69,7 @@
       }
     ],
     "mac": {
-      "icon": "resources/icon.png",
+      "icon": "resources/icon-rounded.png",
       "identity": null,
       "entitlements": "resources/entitlements.mac.plist",
       "entitlementsInherit": "resources/entitlements.mac.plist"

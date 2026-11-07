@@ -4,7 +4,7 @@ The current mascot is V2, the selected Pebble: its artwork, motion prototype,
 white logo and flat logo are in `v2/` (see `v2/README.md`). The app ships copies
 of the V2 still image and textures (`app/src/renderer/public/doany/`), a port of
 the motion (`app/src/renderer/doanyMotion.ts`, `doanyRig.ts`, `Doany.tsx`) and the
-icon resized from `v2/white.png` (`app/resources/icon.png`); the files here are
+icon resized from `v2/white.png` (`app/resources/icon.png`, with a 128 px corner-rounded copy `icon-rounded.png` that the packaged app and the README use); the files here are
 the sources, not loaded by the app. `shape-study/` holds the shape explorations
 that led to V2. Everything else in this directory is the V1 six-lobed mascot,
 kept as a record; the sections below describe V1.
