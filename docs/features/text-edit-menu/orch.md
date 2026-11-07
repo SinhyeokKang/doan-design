@@ -36,3 +36,7 @@
 
 ## 기록
 
+- Run `run_77d30dd1b854`. A: `ctx_6acf09492716`(worktree `tem-A`), B: `ctx_eab938c2ba1b`(worktree `tem-B`).
+- B: 새 worktree에 의존성이 없어 `npm --prefix app ci`를 허락했다(AGENTS 'Commands' App setup, lockfile 그대로). static markup 기대값은 React가 내는 `spellCheck="false"`로 맞췄다. branch에서 공용 verify는 A의 verify와 겹쳐 건너뛰고, 통합 HEAD에서 지휘자가 돌린다. 커밋 `ff098faa`, `805e4e0c`.
+- B 리뷰(Claude Sonnet medium, `ctx_29ab776b27f6`): 🔴 0, 🟡 2. 🟡1(CSS 테스트가 마지막 cascade 값을 고정하지 않음)은 B에게 고치도록 보냈다(`ctx_4423db30ad17`). 🟡2(thread notice·오류 줄·toast가 선택되지 않음)는 고치지 않는다. design §4와 결정 8이 notice와 toast를 선택되지 않는 앱 chrome에 넣었다.
+- A: 커밋 `587ba7ce`(T1), `7765c7eb`(T2). verify PASS. Swift probe(macOS 26.6.2)에서 순서는 맞춤법 · Look Up(뒤에 Translate) · Cut/Copy/Paste로, design §2와 같았다. 조건 9는 webContents가 사라진 경우만 테스트되었다. 필드가 사라지고 focus가 다른 필드로 옮겨진 뒤의 `replaceMisspelling`은 C(T4)가 확인한다. A 리뷰는 Codex `gpt-6-astra` medium에 맡겼다(`ctx_463896f92961`).
