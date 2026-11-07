@@ -6,7 +6,7 @@ import { stripView, type StripContext, type StripState } from "./conversationStr
 
 // With `mock`, hooks run outside React: refs are plain objects (kept across calls while `reuse` is set, so a second
 // call is the same strip redrawn) and effects are collected to be run by the test.
-const hooks = vi.hoisted(() => ({ mock: false, reuse: false, at: 0, refs: [] as { current: unknown }[], effects: [] as (() => void)[] }));
+const hooks = vi.hoisted(() => ({ mock: false, reuse: false, at: 0, refs: [] as { current: unknown }[], effects: [] as (() => void)[], states: [] as unknown[], stateAt: 0 }));
 vi.mock("react", async original => {
   const actual = await original<typeof import("react")>();
   return {
@@ -17,9 +17,15 @@ vi.mock("react", async original => {
       const ref = { current: value }; hooks.refs.push(ref); hooks.at++; return ref;
     },
     useEffect: (effect: () => void, deps?: unknown[]) => { if (!hooks.mock) return actual.useEffect(effect, deps); hooks.effects.push(effect); },
+    useState: (initial: unknown) => {
+      if (!hooks.mock) return actual.useState(initial);
+      const index = hooks.stateAt++;
+      if (!(index in hooks.states)) hooks.states[index] = initial;
+      return [hooks.states[index], (next: unknown) => { hooks.states[index] = typeof next === "function" ? (next as (value: unknown) => unknown)(hooks.states[index]) : next; }];
+    },
   };
 });
-beforeEach(() => { hooks.refs = []; hooks.effects = []; hooks.at = 0; hooks.reuse = false; });
+beforeEach(() => { hooks.refs = []; hooks.effects = []; hooks.at = 0; hooks.reuse = false; hooks.states = []; hooks.stateAt = 0; });
 afterEach(() => { hooks.mock = false; vi.unstubAllGlobals(); });
 
 const CTX: StripContext = { provider: "claude", project: "doan-design", branch: "main", canvas: null };
@@ -177,4 +183,45 @@ test("the strip App draws is keyed by its conversation, so another conversation 
   expect(strip("c1").type).toBe(ConversationStrip);
   expect(strip("c1").key).toBe("c1");
   expect(strip("c2").key).toBe("c2");
+});
+
+// defect-sweep A5: a Skip or a permission answer main refused showed nothing. The strip now says so on an error line
+// with the alert mark; the buttons stay, and the line goes on the next press, another request or the turn's end.
+test("a refused Skip or permission answer shows its error line until the next press, another request or the turn's end", async () => {
+  const flush = async () => { for (let i = 0; i < 4; i++) await Promise.resolve(); };
+  const draw = (state: StripState) => { hooks.mock = true; hooks.at = 0; hooks.stateAt = 0; const tree = ConversationStrip({ conversationId: "c1", provider: "claude", state, view: stripView(state, CTX), onEditOnHome: noop, onDismiss: noop, onOpen: noop }); hooks.reuse = true; return tree; };
+  const press = (state: StripState, label: string) => (elements(draw(state)).find(props => typeof props.onClick === "function" && text(props) === label)!.onClick as () => void)();
+  const line = (state: StripState) => /<span class="strip-error" role="alert"><svg[^>]*class="lucide[^"]*doan-alert-icon"[^>]*>.*?<\/svg>([^<]*)<\/span>/.exec(renderToStaticMarkup(draw(state)))?.[1] ?? null;
+  const refused = async (): Promise<void | { error: string }> => ({ error: "unknown" });
+  const answer = vi.fn(refused), skip = vi.fn(refused);
+  vi.stubGlobal("window", { doan: { answerConversationPermission: answer, answerConversationQuestion: skip, interruptConversation: vi.fn() } });
+
+  expect(line(ASK)).toBeNull();
+  press(ASK, "Allow"); await flush();
+  expect(line(ASK)).toBe("Couldn’t send your answer. Choose again.");
+  // The choices stay pressable; the next press clears the line at once, before main answers.
+  answer.mockImplementationOnce(() => new Promise(() => {}));
+  press(ASK, "Deny");
+  expect(answer).toHaveBeenLastCalledWith({ conversationId: "c1", requestId: "r1", optionId: "d" });
+  expect(line(ASK)).toBeNull();
+  // Another request, or the turn moving on, takes the line away.
+  press(ASK, "Allow"); await flush();
+  expect(line({ ...ASK, requestId: "r2" })).toBeNull();
+  press(ASK, "Allow"); await flush();
+  expect(line({ kind: "working", activity: null })).toBeNull();
+
+  press(QUESTION, "Skip"); await flush();
+  expect(line(QUESTION)).toBe("Couldn’t skip the question. Try again.");
+  skip.mockImplementationOnce(async () => {});
+  press(QUESTION, "Skip"); await flush();
+  expect(line(QUESTION)).toBeNull();
+  // A rejected call fails the same way; a stale Skip (main settled it already) does not.
+  skip.mockImplementationOnce(() => Promise.reject(new Error("ipc")));
+  press(QUESTION, "Skip"); await flush();
+  expect(line(QUESTION)).toBe("Couldn’t skip the question. Try again.");
+  skip.mockImplementationOnce(async () => ({ error: "stale" }));
+  press(QUESTION, "Skip"); await flush();
+  expect(line(QUESTION)).toBeNull();
+  press(QUESTION, "Skip"); await flush();
+  expect(line({ kind: "done" })).toBeNull();
 });

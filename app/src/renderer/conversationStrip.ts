@@ -77,6 +77,19 @@ const FAILURES: Record<string, (p: string) => { title: string; body: string }> =
 // process_exited, unknown and codes without a row of their own.
 const STOPPED = (p: string) => ({ title: `${p} stopped unexpectedly`, body: "Edit your request on Home and send it again." });
 
+// A Skip or a permission answer main did not take (defect-sweep A5). Its line shows only while that same request is the
+// one shown, so another request or the turn's end takes it away; the next press clears it.
+export interface StripSendError { requestId: string; how: "skip" | "answer" }
+export function stripErrorText(error: StripSendError | null, state: StripState): string | null {
+  if (error === null || (state.kind !== "permission" && state.kind !== "question") || state.requestId !== error.requestId) return null;
+  return error.how === "skip" ? "Couldn’t skip the question. Try again." : "Couldn’t send your answer. Choose again.";
+}
+// The thread's rules (ConversationThread answerReached, settleQuestionSend): any refusal or rejection of an answer
+// fails; a stale Skip means main settled the question already and it folds by itself.
+export function stripSendFailed(how: StripSendError["how"], refusal: string | null): boolean {
+  return refusal !== null && !(how === "skip" && refusal === "stale");
+}
+
 // Where focus goes when Stop, holding focus, leaves the strip (design §7): a turn that ends at once after an answer (a
 // Deny can finish it in ~300 ms) or a stop takes Stop away; focus moves on to Dismiss instead of falling to the page.
 // While Stop is still drawn it keeps focus.
