@@ -1250,11 +1250,14 @@ app.on("before-quit", (event) => {
       console.error("doan: agent sign-in cleanup failed during quit", error);
     }
     // Each adder owns only its clones; stopping them removes their temporary directories.
-    const projects = await Promise.allSettled([onboarding?.quit(), addPage?.quit()]);
+    const projects = await Promise.allSettled([onboarding, addPage].map(async adder => { await adder?.quit(); }));
     for (const result of projects) {
       if (result.status === "rejected") console.error("doan: project cleanup failed during quit", result.reason);
     }
-    quitting = true; cancelPendingHide(); uiState?.flushSync(); canvasSeen?.flushSync(); thumbnails?.dispose();
+    quitting = true;
+    try { cancelPendingHide(); uiState?.flushSync(); canvasSeen?.flushSync(); thumbnails?.dispose(); } catch (error) {
+      console.error("doan: final cleanup failed during quit", error);
+    }
     app.quit();
   }
   setImmediate(() => { void quitInOrder(); });
