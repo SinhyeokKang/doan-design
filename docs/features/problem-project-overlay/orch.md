@@ -14,6 +14,12 @@
   - 확인할 점 (c): `sidebar-states`의 읽는 중 spinner와 working 표시가 거의 같다(design §4.5가 사용자 확인으로 남긴 점).
   - 사용자 답: (a) 그대로 확정, (b) chevron 없음으로 확정, (c) 그대로 둔다. design §5에 적었다.
 - worker가 `/runtime-test`를 따로 돌리지 않는다 — conductor 판단, 근거: B1·B2만으로는 화면이 바뀌지 않고, 화면 동작은 통합 뒤 T7에서 한 번 본다(AGENTS 'Verification policy').
+- R1 review가 남긴 세 가지는 conductor가 정했다. 근거는 design이다. B4에 보냈다.
+  - Home 전송 도착이나 Home 대화 열기의 root가 문제면 그 Overview + 오버레이로 간다. 근거: Q2, Q12, Q14. B2가 바꾼 `openWorkspace` 동작을 그대로 쓴다.
+  - Back/Forward가 `uninitialized`·`error`·`cliError` root로 가면 toast 대신 Overview + 오버레이를 보인다. `notFound` visit은 지금처럼 건너뛴다. 근거: Q20, PRODUCT §5 'skipping deleted targets'.
+  - Locate 뒤 새 root가 아직 문제면 `overview = true`로 들어가 오버레이를 보인다. 근거: design §9 2026-11-03 Locate 항목.
+  - busy 동안 Details 글은 오버레이가 마지막 `detail`을 들고 있는다. `problemView`의 형태(§6)는 바꾸지 않는다.
+  - `problemMessage`를 지운 뒤 notFound·uninitialized의 빈 `.canvas-status`가 그려지지 않는지 B4가 테스트로 고정한다.
 - worker는 `/ship` 9단계(docs freshness)와 11단계(push)를 하지 않는다 — conductor 판단, 근거: 승격은 T9이고 conductor가 한다(orchestrate SKILL §4·§5).
 
 ## 초안 검토(conductor)
@@ -27,12 +33,12 @@
 
 | batch | task | 파일 소유 | 선행 | model·effort와 이유 | 검증 gate | 상태 |
 |---|---|---|---|---|---|---|
-| B1 | T2 | `app/src/renderer/problemView.ts`, `problemView.test.ts` | — | Sonnet high: 순수 함수지만 사례가 많고 `cardRow` 동작 집합을 맞춰야 한다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 통합 `7cb87da8`·`953de0b8`, review 대기 |
-| B2 | T3 | `app/src/renderer/CanvasController.ts`, `CanvasController.test.ts` | — | Opus medium: `openWorkspace`의 `loading` 대기와 상태 비우기가 다른 진입 경로를 깨기 쉽다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 통합 `7d401638`·`634158b0`, review 대기 |
-| B3 | T4 | `app/src/renderer/ShellSidebar.tsx`, `ShellSidebar.test.tsx` | B1, 초안 확정 | Sonnet high: slot 우선순위·tooltip·aria는 단계가 많지만 판단은 design에 있다 | test, typecheck, lint | 대기 |
-| B4 | T5 | `App.tsx`, `ProblemOverlay.tsx`(새), `Home.tsx`, `styles.css`(모두 `app/src/renderer/`, `CanvasPane`은 `App.tsx` 안), `App.*.test.ts(x)`, `Home.test.tsx`, CSS 테스트, 새 `ProblemOverlay` 테스트 | B1, B2, 초안 확정 | Opus high: 포커스·inert·메뉴 상태·seen이 얽히고 틀리면 접근성과 데이터 표시가 깨진다 | test, typecheck, lint, build | 대기 |
+| B1 | T2 | `app/src/renderer/problemView.ts`, `problemView.test.ts` | — | Sonnet high: 순수 함수지만 사례가 많고 `cardRow` 동작 집합을 맞춰야 한다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 통합 `7cb87da8`·`953de0b8`·`3392bca3`(R1 보강 test), 완료 |
+| B2 | T3 | `app/src/renderer/CanvasController.ts`, `CanvasController.test.ts` | — | Opus medium: `openWorkspace`의 `loading` 대기와 상태 비우기가 다른 진입 경로를 깨기 쉽다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 통합 `7d401638`·`634158b0`·`70135265`(R1 보강 test), 완료 |
+| B3 | T4 | `app/src/renderer/ShellSidebar.tsx`, `ShellSidebar.test.tsx` | B1, 초안 확정 | Sonnet high: slot 우선순위·tooltip·aria는 단계가 많지만 판단은 design에 있다 | test, typecheck, lint | 진행 |
+| B4 | T5 | `App.tsx`, `ProblemOverlay.tsx`(새), `Home.tsx`, `styles.css`(모두 `app/src/renderer/`, `CanvasPane`은 `App.tsx` 안), `App.*.test.ts(x)`, `Home.test.tsx`, CSS 테스트, 새 `ProblemOverlay` 테스트 | B1, B2, 초안 확정 | Opus high: 포커스·inert·메뉴 상태·seen이 얽히고 틀리면 접근성과 데이터 표시가 깨진다 | test, typecheck, lint, build | 진행 |
 | B5 | T6 | B3·B4가 고친 파일, `docs/DESIGN.md` | B3·B4 통합 | Opus medium: computed style 측정과 수정 | `/design-sync` 프레임별 일치, `npm --prefix app test` | 대기 |
-| R1 | B1·B2 review | 보고만 | B1·B2 통합 | Sonnet high: 작은 순수 함수와 controller diff다 | `/code-review` 보고 | 진행 |
+| R1 | B1·B2 review | 보고만 | B1·B2 통합 | Sonnet high: 작은 순수 함수와 controller diff다 | `/code-review` 보고 | 완료: 🔴 0, 🟡 3(B4 지시로 넘김), ⚪ 5(test 보강 2건 반영, 주석 경로는 T9) |
 | R2 | B3·B4 review | 보고만 | B3·B4 통합 | B4 diff를 보고 정한다 | `/code-review` 보고 | 대기 |
 | — | T7 | 없음(`.scratch/`) | B5 | conductor | `/runtime-test` 보고 | 대기 |
 | — | T8 verify, T9 승격 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/DESIGN.md`, `docs/BACKLOG.md`, 이 디렉터리 | 전부 | conductor | `verify.mjs` exit 0, T9 문구 검색 | 대기 |
