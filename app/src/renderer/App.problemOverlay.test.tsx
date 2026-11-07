@@ -180,6 +180,18 @@ test("an open Overview whose project goes missing stays, under the overlay, with
   expect(overlay()).toBeUndefined();
 });
 
+// The overlay and the Overview it covers are siblings in the workspace grid. With the same key React cannot tell them
+// apart: entering a problem project from Home remounted the Overview on every render until the renderer stopped with
+// "Maximum update depth exceeded" (found by /design-sync in the real app).
+test("the overlay and the Overview under it never share a key", () => {
+  render(); folders([notFound()]);
+  toOverview();
+  const main = all(tree).find(element => element.type === "main")!;
+  const keys = all(main.props.children as ReactNode).filter(element => element.key !== null && (element.type === ProjectOverview || element.type === ProblemOverlay)).map(element => element.key);
+  expect(keys).toHaveLength(2);
+  expect(new Set(keys).size).toBe(2);
+});
+
 test("an open canvas whose project gets a config error keeps the canvas page under the overlay; Missing closes it to the Overview", () => {
   render(); folders([listed("/w/a")]);
   canvasOpen();

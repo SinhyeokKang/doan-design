@@ -91,6 +91,14 @@ test("overlay CSS: above the panel handles (4), under the toast (6); blur with a
   expect(block(".problem-scene .problem-icon")).toMatch(/width: 32px;[^}]*height: 32px;[^}]*stroke-width: 1\.5;/);
 });
 
+// The overlay takes the right column's cell in the content row, so the right column, which has no placement of its
+// own, was auto-placed into a new row under the sidebar and the content row shrank by its height (found by /design-sync).
+test("overlay CSS: the right column (Overview list or canvas conversations) keeps its cell under the overlay; the scene reads in the onboarding scene's body type", () => {
+  expect(block(".workspace.overlaid > :is(.right-stack, .doan-conv-column)")).toMatch(/grid-column: 3;/);
+  expect(block(".workspace.overlaid:not(.with-strip) > :is(.right-stack, .doan-conv-column)")).toMatch(/grid-row: -2;/);
+  expect(block(".workspace > .problem-overlay")).toMatch(/font-size: var\(--type-body-sm-size\);[^}]*line-height: var\(--type-body-sm-line-height\);/);
+});
+
 test("the old status band's rules are gone; the hidden sidebar's margin and motion rules cover the overlay; the sidebar's problem icon is subtle", () => {
   expect(css).not.toMatch(/\.ws-(recovery|status|detail)|with-status/);
   expect(css).toMatch(/:root\[data-sidebar="hidden"\] :is\([^)]*\.workspace > \.problem-overlay[^)]*\) \{ margin-left: 0; \}/);

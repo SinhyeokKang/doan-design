@@ -452,7 +452,9 @@ body:has(.shell-top) { background: transparent; }
 .shell-disclosure svg { width: var(--size-icon); height: var(--size-icon); transition: transform var(--time-state) var(--ease-state); }
 .shell-project-row[aria-expanded="false"] .shell-disclosure svg { transform: rotate(-90deg); }
 .shell-project-row:is(:hover, :focus-visible, :has(:focus-visible)) .shell-disclosure { visibility: visible; }
-.shell-project-row:is(:hover, :focus-visible, :has(:focus-visible)) .shell-lead > .shell-thumbnail { visibility: hidden; }
+/* Only a row with a chevron hands its thumbnail's place to it; a row without one (a project that has no list) keeps the
+   thumbnail, or its lead would go empty on hover. */
+.shell-project-row:is(:hover, :focus-visible, :has(:focus-visible)) .shell-lead:has(> .shell-disclosure) > .shell-thumbnail { visibility: hidden; }
 @media (hover: hover) and (pointer: fine) { .shell-disclosure:hover { background: var(--affordance-backdrop-pressed); color: var(--text-standard); } }
 /* A light tint with dark ink (buzz-onboarding approved draft), shared with onboarding project cards. */
 .hue-rose { background: color-mix(in srgb, var(--identity-project-rose) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-rose) 65%, var(--text-standard)); }
@@ -1595,10 +1597,14 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
    its recovery actions. It covers the main and right columns inside the content panel's corners; the header, the
    sidebar and its resize handle stay usable. Layer: above the panel handles (4), under the toast (6) and the portalled
    menus and tooltips (50); .workspace has no z-index, so these compare in the root stacking context. */
-.workspace > .problem-overlay { position: relative; z-index: 5; grid-column: 2 / 4; grid-row: -2; min-height: 0; display: flex; overflow-y: auto; margin-left: var(--space-2); padding-block: var(--space-6); border-radius: var(--radius-container); background: color-mix(in srgb, var(--surface-panel) 60%, transparent); -webkit-backdrop-filter: blur(var(--blur-sm)); backdrop-filter: blur(var(--blur-sm)); }
+.workspace > .problem-overlay { z-index: 5; grid-column: 2 / 4; grid-row: -2; min-height: 0; display: flex; overflow-y: auto; margin-left: var(--space-2); padding-block: var(--space-6); border-radius: var(--radius-container); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); background: color-mix(in srgb, var(--surface-panel) 60%, transparent); -webkit-backdrop-filter: blur(var(--blur-sm)); backdrop-filter: blur(var(--blur-sm)); }
 @media (prefers-reduced-transparency: reduce) { .workspace > .problem-overlay { background: var(--surface-panel); -webkit-backdrop-filter: none; backdrop-filter: none; } }
 /* Reading: no blur and no scene, the opaque panel with its status line. */
 .workspace > .problem-overlay.reading { background: var(--surface-panel); -webkit-backdrop-filter: none; backdrop-filter: none; }
+/* The overlay takes the right column's cell, so the right column (the Overview's list or the canvas page's
+   conversation column, placed by order alone) needs its own cell or it is pushed into a new row under the sidebar. */
+.workspace.overlaid > :is(.right-stack, .doan-conv-column) { grid-column: 3; }
+.workspace.overlaid:not(.with-strip) > :is(.right-stack, .doan-conv-column) { grid-row: -2; }
 /* With the conversation strip the overlay covers both content rows and the strip sits above it, still answerable. */
 .workspace.with-strip > .problem-overlay { grid-row: -3 / -1; }
 .workspace.overlaid > .strip-slot { z-index: 6; }

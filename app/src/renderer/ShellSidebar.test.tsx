@@ -59,7 +59,10 @@ it("shows the project row's chevron on hover or keyboard focus, not on focus lef
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toContain(".shell-project-row:is(:hover, :focus-visible, :has(:focus-visible)) .shell-disclosure { visibility: visible; }");
-  expect(css).toContain(".shell-project-row:is(:hover, :focus-visible, :has(:focus-visible)) .shell-lead > .shell-thumbnail { visibility: hidden; }");
+  // Only a row with a chevron gives its thumbnail's place to it; a problem or reading row has none and keeps its
+  // thumbnail, or its lead would go empty on hover.
+  expect(css).toContain(".shell-project-row:is(:hover, :focus-visible, :has(:focus-visible)) .shell-lead:has(> .shell-disclosure) > .shell-thumbnail { visibility: hidden; }");
+  expect(css).not.toMatch(/\.shell-project-row:[^{]*\.shell-lead > \.shell-thumbnail \{ visibility: hidden/);
   expect(css).not.toMatch(/\.shell-project-row:[^{]*focus-within/);
 });
 
