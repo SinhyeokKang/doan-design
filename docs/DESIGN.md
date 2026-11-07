@@ -1175,7 +1175,7 @@ Reference: `.doan/canvases/app-update.html`, frames 01–14 (`about-ready`, `abo
 - The popover closes on Escape, an outside press, a press in the canvas, and when the update leaves the header or starts restarting. While it is open the header takes presses (inline `-webkit-app-region: no-drag`), as Agent usage's popover does.
 - About's live region reads the blocked reason, not "ready" again, when main holds a restart back.
 - Release Notes ↗ that main could not open shows nothing.
-- Known gaps, not fixed: the popover keeps the text it opened with while the gate changes under it; the automatic-check switch has no pending state, so a second press before main's push saves the same value again; Agent usage's popover and a stopped restart's popover open together share the header's inline no-drag, and closing either one removes it.
+- Known gaps are in `docs/BACKLOG.md` 'Known defects' (the header update popover's text, the automatic-check switch's second press, two header popovers' no-drag).
 
 ### Documented differences from the draft
 
