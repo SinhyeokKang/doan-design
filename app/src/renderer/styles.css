@@ -1240,7 +1240,7 @@ body:has(.shell-top) { background: transparent; }
 
 /* buzz-canvas: the canvas page's right column, the canvas conversation panel shell (.doan/canvases/buzz-canvas.html
    'default', 'panel-collapsed', 'panel-resize'). Only folding and unfolding animate the column (data-panel-motion); a
-   drag must not, or the handle trails the pointer (malmoi DESIGN 'Fold'). */
+   drag must not, or the handle trails the pointer (malmoi DESIGN '접기'). */
 .workspace.app-shell[data-panel-motion] { transition: grid-template-columns var(--time-panel-enter) var(--ease-settle); }
 .workspace > .doan-conv-column { position: relative; display: flex; min-width: 0; min-height: 0; }
 .workspace.with-strip > .doan-conv-column { grid-row: -3 / -1; }
