@@ -13,7 +13,7 @@
 
 ## 순수 함수 (`/tdd` 대상)
 
-- `checkReleaseVersion({ version, packageVersion, tags, releases })` — `x.y.z` 또는 `x.y.z-rc.N` 형식인지, `packageVersion`을 주면 그것과 같은지, 최신 정식 게시본보다 큰지(rc는 같은 base의 이전 rc 태그보다 큰지), 같은 버전의 draft·게시본이 이미 있는지. 같은 버전의 태그만 있는 것은 통과한다(태그 push 뒤 실패한 실행의 재실행). 실패 이유를 코드로 돌려준다(`bad_semver`, `tag_mismatch`, `published_exists`, `draft_exists`, `not_newer`). `releases`는 `gh release list --json tagName,isDraft,isPrerelease` 꼴이다. draft는 쓰기 권한이 있는 토큰에만 보이므로 CI에서 이 검사를 부르는 작업의 권한을 PoC(T6)에서 확인한다.
+- `checkReleaseVersion({ version, packageVersion, tags, releases })` — `x.y.z` 또는 `x.y.z-rc.N` 형식인지, `packageVersion`을 주면 그것과 같은지, 최신 정식 게시본보다 큰지(rc는 같은 base의 이전 rc 태그보다 큰지), 같은 버전의 draft·게시본이 이미 있는지. 같은 버전의 태그만 있는 것은 통과한다(태그 push 뒤 실패한 실행의 재실행). 실패 이유를 코드로 돌려준다(`bad_semver`, `tag_mismatch`, `published_exists`, `draft_exists`, `not_newer`). `releases`는 `gh release list --json tagName,isDraft,isPrerelease` 꼴이다. draft는 쓰기 권한이 있는 토큰에만 보일 수 있으므로, 릴리스 워크플로는 `source` 작업(읽기 토큰)에 더해 `publish` 작업(`contents: write`)에서 draft를 만들기 직전에 한 번 더 검사한다.
 - `parseCodesignDetails(text)` → authority 목록, `runtime` 플래그, `Timestamp` 유무, Team ID. `/tester-build` 6단계의 "Developer ID Application authority, runtime flag, Timestamp" 검사를 데이터로 바꾼다.
 - `compareEntitlements(committedPlist, signedXml)` → 커밋된 `app/resources/entitlements.mac.plist`에 없는 키(특히 `disable-library-validation`)를 찾는다.
 - `parseSpctl(text)` → `accepted`와 `source=Notarized Developer ID` 여부.
