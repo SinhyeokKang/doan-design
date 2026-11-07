@@ -36,6 +36,8 @@
 
 12. 사용자 결정(2026-11-07): 고정 패턴 밖의 feature 문서 인용(slug만 쓴 꼴, 결정·task·리뷰 id)도 이번 PR에서 지운다. 보조 스캔 `.scratch/public-cleanup/scan2.mjs`(주석·테스트 제목 줄만 본다)의 결과가 허용 목록뿐인 것을 완료 조건에 더한다. 2차 라운드 브리프는 `.scratch/public-cleanup/round2-*.md`.
 
+13. scan2가 `review 2:`·`V fix:`·`fix round 1`·`Batch G review` 같은 접두어를 놓쳐 패턴을 넓혔다. batch별 3차 라운드를 돌리지 않고, 모든 batch를 통합한 뒤 넓힌 scan2로 한 번 훑어 남은 줄을 worker 하나에 맡긴다(지휘자 판단 — 근거: 남은 줄이 여러 batch에 흩어져 있고, 통합 뒤에는 파일 소유가 겹칠 일이 없다).
+
 ## 진행 상태 (2026-11-07 21:25, 사용량 한도로 중단)
 
 - 통합 완료: B2a(`3f574c13`..`4fe70096`), B2b(`f7c257d0` `ebccf264` `7be7ee46`), B2c(`1f939e47` `6117860c`).
