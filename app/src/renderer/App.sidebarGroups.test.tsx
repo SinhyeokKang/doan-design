@@ -68,7 +68,7 @@ const { ShellSidebar } = await import("./ShellSidebar");
 
 const ds: CanvasRow = { path: ".doan/ds/color.html", id: "color", url: "u-color" };
 const screen: CanvasRow = { path: ".doan/canvases/checkout.html", id: "checkout", url: "u-checkout" };
-const PREFS: PreferencesSnapshot = { preferences: { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: { provider: "codex" } }, notice: null };
+const PREFS: PreferencesSnapshot = { preferences: { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: { provider: "codex" }, updates: { autoCheck: true } }, notice: null };
 let listeners: Record<string, (...args: never[]) => void>;
 let windowListeners: Record<string, (event: never) => void>;
 let readUiState: (state: unknown) => void;

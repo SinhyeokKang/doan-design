@@ -137,6 +137,10 @@ describe("restarting", () => {
     for (const state of [ready, restartAborted, failedInstall]) expect(run(state, { type: "install" })).toEqual(restarting);
   });
 
+  test("an automatic check after a failed install still restarts from it", () => {
+    expect(run(failedInstall, { type: "check", manual: false }, { type: "install" })).toEqual(restarting);
+  });
+
   test("the restart starts only with a downloaded update", () => {
     for (const state of [idle, upToDate, failedCheck, failedDownload, downloading, { kind: "checking", manual: true, last: idle } as UpdateState, restarting]) {
       expect(run(state, { type: "install" })).toBe(state);

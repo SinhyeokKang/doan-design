@@ -82,7 +82,7 @@ const { ProblemOverlay } = await import("./ProblemOverlay");
 
 const rowA: CanvasRow = { path: ".doan/canvases/a.html", id: "a", url: "u-a" };
 const listed = (path: string): FolderEntry => ({ path, kind: "list", servedRev: 0, canvases: [rowA] });
-const PREFS: PreferencesSnapshot = { preferences: { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: { provider: "codex" } }, notice: null };
+const PREFS: PreferencesSnapshot = { preferences: { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: { provider: "codex" }, updates: { autoCheck: true } }, notice: null };
 let listeners: Record<string, (...args: never[]) => void>;
 let windowListeners: Record<string, (event: never) => void>;
 let readUiState: (state: unknown) => void;

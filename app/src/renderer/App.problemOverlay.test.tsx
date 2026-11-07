@@ -81,7 +81,7 @@ const uninitialized = (path = "/w/a"): FolderEntry => ({ path, kind: "uninitiali
 const configError = (path = "/w/a", message = "unexpected end of JSON input"): FolderEntry => ({ path, kind: "error", message });
 const cliError = (path = "/w/a"): FolderEntry => ({ path, kind: "cliError", reason: "Unavailable" });
 const loading = (path = "/w/a"): FolderEntry => ({ path, kind: "loading" });
-const PREFS: PreferencesSnapshot = { preferences: { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: { provider: "codex" } }, notice: null };
+const PREFS: PreferencesSnapshot = { preferences: { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: { provider: "codex" }, updates: { autoCheck: true } }, notice: null };
 const HEADING = ".workspace .problem-overlay h2", COMPOSER = ".workspace .ov-main .composer-input", AREA = ".workspace .doan-canvas-panel .area";
 let listeners: Record<string, (...args: never[]) => void>;
 let readUiState: (state: unknown) => void;

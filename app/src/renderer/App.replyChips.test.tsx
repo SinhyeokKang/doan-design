@@ -71,7 +71,7 @@ const { unavailableCanvasMessage } = await import("./quickOpen");
 const { SettingsPage } = await import("./SettingsPage");
 const { initialCanvasState } = await import("./CanvasController");
 
-const PREFS: PreferencesSnapshot = { preferences: { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: { provider: "codex" } }, notice: null };
+const PREFS: PreferencesSnapshot = { preferences: { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: { provider: "codex" }, updates: { autoCheck: true } }, notice: null };
 let listeners: Record<string, (...args: never[]) => void>;
 let windowListeners: Record<string, (event: never) => void>;
 let readUiState: (state: unknown) => void;

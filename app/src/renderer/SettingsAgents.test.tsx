@@ -51,7 +51,7 @@ function dto(provider: Provider, f: { account?: boolean; attempt?: Pick<AuthAtte
   };
   return authStatus(state, { ...FACTS, ...f.facts }, revision);
 }
-const prefs = (newConversation: Preferences["newConversation"]): PreferencesSnapshot => ({ preferences: { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation }, notice: null });
+const prefs = (newConversation: Preferences["newConversation"]): PreferencesSnapshot => ({ preferences: { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation, updates: { autoCheck: true } }, notice: null });
 
 let auth: AuthSnapshot;
 let api: Record<string, ReturnType<typeof vi.fn>>;
