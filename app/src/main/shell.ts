@@ -338,7 +338,10 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
       if (folder.entry.kind !== "uninitialized" && folder.entry.kind !== "loading") return Promise.resolve(unavailable);
       const epoch = folder.epoch;
       const task = (async (): Promise<ProjectInitResult> => {
-        const root = await refresh(folder, { reread: true, served: false });
+        // A newer read of the same folder (its watcher, a re-read on focus) drops this one as stale, which says nothing
+        // about the folder; the read is repeated up to three times, as after init below, before setup is refused.
+        let root = await refresh(folder, { reread: true, served: false });
+        for (let tries = 0; tries < 3 && root === false && folders.get(path) === folder; tries++) root = await refresh(folder, { reread: true, served: false });
         if (root) return { kind: "rerooted", root: root.root, message: rerootMessage(root.root, root) };
         if (root === false || folders.get(path) !== folder || folder.epoch !== epoch || folder.entry.kind !== "uninitialized") return unavailable;
         const outcome = initOutcome(await runInit(cli, path, tokenCss, storage), { tokenCss: tokenCss !== null });
