@@ -603,22 +603,13 @@ describe("selection wiring (flow 7)", () => {
     } finally { h.controller.dispose(); }
   });
 
-  // project-settings design '영향 범위' 복구 라벨: the canvas points at the status line's recovery action above it.
-  it("points an open canvas of an uninitialized project at Set Up above", () => {
+  // problem-project-overlay spec 3: the overlay names the problem, so the cleared canvas carries no sentence of its own.
+  it.each(["uninitialized", "notFound"] as const)("clears an open canvas of a %s project without a problem sentence", kind => {
     const h = selectionHarness();
     try {
       h.select(1);
-      h.controller.updateEntries([{ path: "/repo", kind: "uninitialized" }]);
-      expect(h.state()).toMatchObject({ status: "missing", message: "The project repo is not set up. Use Set Up above." });
-    } finally { h.controller.dispose(); }
-  });
-
-  it("points a missing project at Locate above", () => {
-    const h = selectionHarness();
-    try {
-      h.select(1);
-      h.controller.updateEntries([{ path: "/repo", kind: "notFound" }]);
-      expect(h.state().message).toBe("The project repo is missing. Use Locate above.");
+      h.controller.updateEntries([{ path: "/repo", kind }]);
+      expect(h.state()).toMatchObject({ open: null, status: "missing", message: "" });
     } finally { h.controller.dispose(); }
   });
 
@@ -1681,6 +1672,68 @@ it("opens an explicit Overview in one workspace transition", () => {
     expect(entered).toHaveBeenCalledOnce();
     expect(changed.mock.calls.at(-1)?.[0].open).toBeNull();
   } finally { controller.dispose(); }
+});
+
+// problem-project-overlay design §1: the Overview is where a problem root shows its overlay.
+const problemKinds = ["notFound", "uninitialized", "error", "cliError"] as const;
+const problemEntry = (path: string, kind: typeof problemKinds[number]): FolderEntry =>
+  kind === "error" ? { path, kind, message: "bad config" } : kind === "cliError" ? { path, kind, reason: "cli failed" } : { path, kind };
+
+it.each(problemKinds)("enters the Overview of a %s root and clears the canvas", kind => {
+  const h = loadedController();
+  try {
+    const repo: FolderEntry = { kind: "list", path: "/repo", servedRev: 0, canvases: [h.row] };
+    h.controller.updateEntries([repo, problemEntry("/problem", kind)]);
+    const entered = vi.fn(), unavailable = vi.fn();
+    h.controller.openWorkspace("/problem", entered, false, unavailable, true);
+    expect(entered).toHaveBeenCalledExactlyOnceWith("/problem");
+    expect(unavailable).not.toHaveBeenCalled();
+    expect(h.changed.mock.lastCall?.[0].open).toBeNull();
+    expect(h.controller.memory()["/repo"]?.canvas).toBe(h.row.path);
+  } finally { h.controller.dispose(); }
+});
+
+it.each(problemKinds)("enters the Overview of a %s root once its read settles", kind => {
+  const h = loadedController();
+  try {
+    const repo: FolderEntry = { kind: "list", path: "/repo", servedRev: 0, canvases: [h.row] };
+    h.controller.updateEntries([repo, { path: "/problem", kind: "loading" }]);
+    const entered = vi.fn();
+    h.controller.openWorkspace("/problem", entered, false, undefined, true);
+    expect(entered).not.toHaveBeenCalled();
+    h.controller.updateEntries([repo, problemEntry("/problem", kind)]);
+    expect(entered).toHaveBeenCalledExactlyOnceWith("/problem");
+    expect(h.changed.mock.lastCall?.[0].open).toBeNull();
+  } finally { h.controller.dispose(); }
+});
+
+it("does not enter a problem root's Overview after a newer navigation", () => {
+  const h = loadedController();
+  try {
+    const repo: FolderEntry = { kind: "list", path: "/repo", servedRev: 0, canvases: [h.row] };
+    h.controller.updateEntries([repo, { path: "/problem", kind: "loading" }]);
+    const entered = vi.fn();
+    h.controller.openWorkspace("/problem", entered, false, undefined, true);
+    h.controller.openCanvas("/repo", h.row);
+    h.controller.updateEntries([repo, { path: "/problem", kind: "notFound" }]);
+    expect(entered).not.toHaveBeenCalled();
+    expect(h.changed.mock.lastCall?.[0].open?.folder).toBe("/repo");
+  } finally { h.controller.dispose(); }
+});
+
+it.each(problemKinds)("a workspace open that would open a canvas does not enter a %s root", kind => {
+  const h = loadedController();
+  try {
+    const repo: FolderEntry = { kind: "list", path: "/repo", servedRev: 0, canvases: [h.row] };
+    h.controller.updateEntries([repo, problemEntry("/problem", kind)]);
+    const entered = vi.fn();
+    h.controller.openWorkspace("/problem", entered);
+    h.controller.updateEntries([repo, { path: "/problem", kind: "loading" }]);
+    h.controller.openWorkspace("/problem", entered);
+    h.controller.updateEntries([repo, problemEntry("/problem", kind)]);
+    expect(entered).not.toHaveBeenCalled();
+    expect(h.changed.mock.lastCall?.[0].open?.folder).toBe("/repo");
+  } finally { h.controller.dispose(); }
 });
 
 it("remembers the source view when an explicit canvas opens in another workspace", () => {
