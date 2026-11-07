@@ -26,6 +26,7 @@
 - **main 병합과 인계**(체인 기본): 각 링크가 통합 gate(최신 `origin/main` 위로 rebase한 HEAD에서 `/verify`, 영향받은 앱 동작 `/runtime-test`, 해당하면 `/agent-eval`)와 문서 승격·feature 디렉터리 삭제를 마친 뒤 자기 PR을 main에 병합하고 다음 링크에 인계한다.
 - **지휘자 런타임**: Claude Code. 주 작업자도 Claude다.
 - **Codex 작업자 허용**(사용자, 2026-11-07, "코덱스 허가"): 범위는 세 링크 모두이고, 쓸지와 얼마나 쓸지는 각 링크 지휘자가 정한다. 지휘자는 링크를 시작할 때와 batch를 나눌 때 Codex 주간 한도를 직접 확인한다. 가장 최근 Codex rollout의 `rate_limits` 가운데 `"window_minutes":10080` 항목을 읽는다. 남은 양이 적으면 쓰지 않는다. 쓴 범위는 각 링크의 `orch.md`에 적는다.
+- **링크 3은 Codex가 주 작업자**(사용자, 2026-11-07, 링크 2 진행 중, "클로드 써도 되는데 린터 링크는 코덱스를 메인으로 가라고 전달해. astra effort high 풀어주겠음"): 링크 3(ts-lint-gate)의 구현 작업자는 Codex를 주로 쓰고, Claude는 필요한 곳에만 쓴다. 링크 3에서는 `gpt-6-astra`를 effort `high`까지 쓸 수 있다(`/orchestrate` §0의 Astra `medium` 상한을 이 링크에서만 푼다). 지휘자 런타임은 그대로 Claude Code다. 링크 2 진행 중 Claude 7일 사용량이 92%였다.
 
 ## 로그인
 
@@ -52,7 +53,7 @@
 | 링크 | 세션·worktree | 시작 | PR·병합 | 상태 |
 |---|---|---|---|---|
 | 1 defect-sweep | Claude Code, `defect-sweep-orch` | 2026-11-07 `e9e92711` | PR #118 · `470bc3dd` | 병합 |
-| 2 text-edit-menu | Claude Code, `text-edit-menu-orch` | 인계 중 | — | 시작 |
+| 2 text-edit-menu | Claude Code, `text-edit-menu-orch` | 2026-11-07 `5c5aad3e` | — | 진행 |
 | 3 ts-lint-gate | — | — | — | 대기 |
 
 ## 인계 기록

@@ -35,7 +35,7 @@ function parseUnder(url: string, prefix: TokenBase): URL | null {
 
 // Structural on purpose: `WebFrameMain` identity can be unstable across frame
 // swaps, so the window's main frame is recognized by having no parent.
-function isTopFrame(frame: { parent?: unknown } | null | undefined): boolean {
+export function isTopFrame(frame: { parent?: unknown } | null | undefined): boolean {
   return frame !== null && frame !== undefined && frame.parent === null;
 }
 
