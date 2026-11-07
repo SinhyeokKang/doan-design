@@ -22,7 +22,9 @@ node .agents/skills/verify/scripts/verify.mjs --eval
 - Changes covered by AGENTS' `/agent-eval` rule still require that separate skill. `--eval` does not substitute for real-agent evaluation.
 - Pure prose/link edits may skip the heavy command, with a stated reason and targeted reference/skill checks. Changes to this runner require its regression tests and an actual shared-gate run. Do not treat executable scripts as docs-only.
 
-App lint uses oxlint and oxlint-tsgolint, with an exhaustive-deps warning limit in `app/package.json` (`--max-warnings`). Do not raise the limit to make a change pass. Fix each new exhaustive-deps warning or disable it with a comment explaining why the dependency is omitted; put `// eslint-disable-next-line react-hooks/exhaustive-deps` immediately before the dependency-array line.
+App lint uses oxlint and oxlint-tsgolint, with an exhaustive-deps warning limit in `app/package.json` (`--max-warnings`). Do not raise the limit to make a change pass. Fix each new exhaustive-deps warning or disable it with a comment explaining the reason.
+
+Use `// eslint-disable-next-line react-hooks/exhaustive-deps`. For a missing-dependency warning on an array literal, place it immediately before the line containing the opening `[`, even when the diagnostic points inside the effect callback. For a complex-expression warning in a multi-line array, place it immediately before the offending expression's line. These locations suppress separate warnings; rerun lint to confirm the intended warnings are gone.
 
 Whoever observes fewer warnings than the limit lowers it in the same commit. When upgrading oxlint or oxlint-tsgolint, recount the warnings in the same commit. Check the exact count: `--max-warnings N` must exit 0 and `--max-warnings N-1` must exit 1.
 
