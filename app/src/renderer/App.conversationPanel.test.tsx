@@ -139,13 +139,16 @@ const panel = () => find<Panel>(ConversationPanel)[0]?.props;
 const pane = () => all(tree).find(element => typeof element.type === "function" && element.type.name === "CanvasPane")?.props as Pane | undefined;
 const saved = () => doan.saveUiState!.mock.lastCall?.[0] as { rightPanel?: unknown } | undefined;
 
-// A workspace on /w/a without an Overview: the canvas page, here showing the project's problem screen.
+// A workspace on /w/a without an Overview: the canvas page of its open canvas, here under a config error's overlay
+// (a problem root's canvas page; problem-project-overlay design §4.1).
 async function canvasPage(state: unknown = null) {
   render();
   readUiState(state); await Promise.resolve(); await Promise.resolve(); render();
   folders([listed("/w/a")]);
-  folders([{ path: "/w/a", kind: "notFound" }]);
   find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render();
+  harness.setState!({ ...initialCanvasState(), open: { folder: "/w/a", canvas: rowA.path, row: rowA }, shown: rowA.path, status: null, message: "", layout: { frames: [], width: 800 } });
+  render();
+  folders([{ path: "/w/a", kind: "error", message: "bad" }]);
   expect(find(ProjectOverview)).toHaveLength(0);
 }
 
@@ -194,8 +197,9 @@ test("closing and reopening keeps the width; resizing saves the new width and a 
 test("a change made before ui-state was read wins over the read value", async () => {
   render();
   folders([listed("/w/a")]);
-  folders([{ path: "/w/a", kind: "notFound" }]);
   find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render();
+  harness.setState!({ ...initialCanvasState(), open: { folder: "/w/a", canvas: rowA.path, row: rowA }, shown: rowA.path, status: null, message: "", layout: { frames: [], width: 800 } });
+  render();
   panel()!.onHide(); render();
   readUiState({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, rightPanel: { open: true, width: 500 } }); await Promise.resolve(); await Promise.resolve(); render();
   expect(panel()?.open).toBe(false);
@@ -373,9 +377,11 @@ test("switching to Hand or Select saves the merged state; Select saves no field"
 
 test("tells the controller whether the canvas page is the one shown", async () => {
   await canvasPage();
+  // Under a problem's overlay the canvas page takes no tool keys (problem-project-overlay design §4.3).
+  expect(harness.controller!.setCanvasPage).toHaveBeenLastCalledWith(false);
+  folders([listed("/w/a")]);
   expect(harness.controller!.setCanvasPage).toHaveBeenLastCalledWith(true);
-  render(); folders([listed("/w/a")]);
-  find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render();
+  harness.setState!(initialCanvasState()); render();
   expect(find(ProjectOverview)).toHaveLength(1);
   expect(harness.controller!.setCanvasPage).toHaveBeenLastCalledWith(false);
 });
@@ -421,8 +427,7 @@ test("a project problem gives the indicator no canvas; the canvas page runs it, 
   await canvasPage();
   expect(agent()?.canvas).toBeNull();
   expect(agent()?.running).toBe(true);
-  render(); folders([listed("/w/a")]);
-  find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render();
+  harness.setState!(initialCanvasState()); render();
   expect(find(ProjectOverview)).toHaveLength(1);
   expect(agent()?.running).toBe(false);
 });

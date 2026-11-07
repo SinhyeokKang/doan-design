@@ -69,7 +69,9 @@ vi.mock("./thumbnails", () => ({ useThumbnails: () => ({ thumbnails: new Map(), 
 
 const { App } = await import("./App");
 const { ShellSidebar } = await import("./ShellSidebar");
-const { Home, ProblemActions } = await import("./Home");
+const { Home } = await import("./Home");
+const { ProblemOverlay } = await import("./ProblemOverlay");
+const { ProjectOverview } = await import("./ProjectOverview");
 const { ProjectSettingsPage } = await import("./ProjectSettingsPage");
 
 const PREFS: PreferencesSnapshot = { preferences: { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: { provider: "codex" } }, notice: null };
@@ -125,7 +127,8 @@ const sidebar = () => (all(tree).find(element => element.type === ShellSidebar)!
 const topBar = () => all(tree).find(element => "forward" in element.props && "previous" in element.props)!.props as { back: boolean; forward: boolean };
 const home = () => all(tree).find(element => element.type === Home)?.props as { entries: FolderEntry[] } | undefined;
 const projectPage = () => all(tree).find(element => element.type === ProjectSettingsPage)?.props as { root: string; entries: FolderEntry[] } | undefined;
-const problem = () => all(tree).find(element => element.type === ProblemActions)?.props as { entry: FolderEntry } | undefined;
+const problem = () => all(tree).find(element => element.type === ProblemOverlay)?.props as { view: { entryKind?: string } } | undefined;
+const overviewRoot = () => (all(tree).find(element => element.type === ProjectOverview)?.props as { root: string } | undefined)?.root;
 const controller = () => harness.controller!;
 
 const A = ".doan/canvases/a.html", B = ".doan/canvases/b.html", C = ".doan/canvases/c.html";
@@ -214,7 +217,8 @@ test("the worktree selected before goes on the screen even in a problem state (o
   folders([main(), { path: OTHER, kind: "uninitialized", lastCommon: KEY }]);
   expect(sidebar().loaded).toBe(OTHER);
   expect(home()).toBeUndefined();
-  expect(problem()?.entry.path).toBe(OTHER);
+  expect(overviewRoot()).toBe(OTHER);
+  expect(problem()?.view.entryKind).toBe("uninitialized");
   expect(controller().openWorkspace!.mock.calls.length).toBe(workspaces);
 });
 

@@ -78,7 +78,7 @@ const { RightPanel } = await import("./RightPanel");
 const { ConversationPanel } = await import("./ConversationPanel");
 const { KeyedConversationStrip } = await import("./ConversationStripView");
 const { ProjectOverview } = await import("./ProjectOverview");
-const { ProblemActions } = await import("./Home");
+const { ProblemOverlay } = await import("./ProblemOverlay");
 
 const rowA: CanvasRow = { path: ".doan/canvases/a.html", id: "a", url: "u-a" };
 const listed = (path: string): FolderEntry => ({ path, kind: "list", servedRev: 0, canvases: [rowA] });
@@ -844,10 +844,10 @@ test("Remove from Doan on the page asks first for the page's whole group; Cancel
   expect(homeEl()).toBeDefined();
 });
 
-test("the sidebar menu and the status line ask first too; Escape removes nothing and returns focus", () => {
+test("the sidebar menu and the problem overlay ask first too; Escape removes nothing and returns focus", () => {
   const entrances: [string, () => void, string][] = [
     ["sidebar menu", () => { find<{ remove(roots: string[]): void }>(ShellSidebar)[0]!.props.remove(["/w/a"]); render(); }, "Remove a from Doan?"],
-    ["status line", () => { sidebarOf().worktree("/w/b"); render(); find<{ action(name: string, root: string): void }>(ProblemActions)[0]!.props.action("remove", "/w/b"); render(); }, "Remove b from Doan?"],
+    ["problem overlay", () => { sidebarOf().worktree("/w/b"); render(); find<{ onAction(name: string): void }>(ProblemOverlay)[0]!.props.onAction("remove"); render(); }, "Remove b from Doan?"],
   ];
   for (const [name, open, title] of entrances) {
     reset();
@@ -913,10 +913,9 @@ const problemEntries: FolderEntry[] = [
   { path: "/w/a", kind: "error", message: "Invalid config" },
 ];
 
-// buzz-project spec decision 12: an Overview that turns into a problem stays (thread readable, Send held) with its own
-// panel; a project entered as a problem shows the problem screen with the canvas page's conversation panel
-// (buzz-canvas R4: no Canvas info on the canvas page).
-test("the Overview's panel replaces the conversation panel, and stays while the open Overview's project is a problem", () => {
+// problem-project-overlay design §4.1: a problem or reading root shows its Overview, whether it was open when the problem
+// came or is entered while it lasts; the overlay replaces the composer's reason line (buzz-canvas R4: no Canvas info).
+test("the Overview's panel replaces the conversation panel, and a problem root keeps or enters its Overview", () => {
   render(); folders([listed("/w/a")]);
   find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render();
   expect(find(RightPanel)).toHaveLength(0);
@@ -924,26 +923,25 @@ test("the Overview's panel replaces the conversation panel, and stays while the 
   for (const entry of problemEntries) {
     folders([entry]);
     expect(find(RightPanel), entry.kind).toHaveLength(0);
-    expect(find<{ unavailable: string | null }>(ProjectOverview)[0]?.props.unavailable, entry.kind).toBe("a isn’t available. Fix it from its menu in the sidebar.");
+    expect(find<{ unavailable: string | null }>(ProjectOverview)[0]?.props.unavailable, entry.kind).toBeNull();
   }
   listeners.menu!("home" as never); render();
   find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render();
-  expect(find(ProjectOverview)).toHaveLength(0);
+  expect(find(ProjectOverview)).toHaveLength(1);
   expect(find(RightPanel)).toHaveLength(0);
-  expect(find(ConversationPanel)).toHaveLength(1);
+  expect(find(ConversationPanel)).toHaveLength(0);
 });
 
-test("only Overview hides a conversation strip when no canvas is open", () => {
+test("a problem or reading root shows the conversation strip, over its Overview too; a listed root's Overview hides it", () => {
   render(); folders([listed("/w/a")]);
   find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render();
   const run = hooks.refs.find(ref => ref.current instanceof HomeRun)!.current as InstanceType<typeof HomeRun>;
   vi.spyOn(run, "strip").mockReturnValue({ conversation: { conversationId: "c1", root: "/w/a", provider: "codex", phase: "working" }, state: { kind: "working", activity: null } });
   render();
   expect(find(KeyedConversationStrip)).toHaveLength(0);
-  // The open Overview stays through a problem, so the strip stays hidden; a problem screen entered anew shows it.
   for (const entry of problemEntries) {
     folders([entry]);
-    expect(find(KeyedConversationStrip), entry.kind).toHaveLength(0);
+    expect(find(KeyedConversationStrip), entry.kind).toHaveLength(1);
   }
   listeners.menu!("home" as never); render();
   for (const entry of problemEntries) {
@@ -965,21 +963,6 @@ test("a worktree picked from the branch chip focuses the new Overview's chip, no
   find<{ onWorktree(root: string): void }>(ProjectOverview)[0]!.props.onWorktree("/w/b"); render();
   expect(find<{ root: string }>(ProjectOverview)[0]!.props.root).toBe("/w/b");
   expect(focused).toEqual([".workspace .ov-main .wt-chip"]);
-});
-
-// project-settings design '영향 범위' 복구 라벨: a problem workspace with no canvas open points at the status line's
-// recovery action above the canvas, by its label without the ellipsis.
-test("the canvas area of a missing or not set up workspace points at Locate or Set Up above", () => {
-  const text = (node: unknown): string => Array.isArray(node) ? node.map(text).join("") : typeof node === "string" ? node : isValidElement<Record<string, unknown>>(node) ? text(node.props.children) : "";
-  for (const [entry, sentence] of [[{ path: "/w/a", kind: "notFound" }, "The project a is missing. Use Locate above."], [{ path: "/w/a", kind: "uninitialized" }, "The project a is not set up. Use Set Up above."]] as [FolderEntry, string][]) {
-    reset();
-    render();
-    folders([entry]);
-    sidebarOf().worktree("/w/a"); render();
-    const pane = all(tree).find(element => "viewport" in (element.props as object))!;
-    const status = all((pane.type as (props: unknown) => ReactNode)(pane.props)).find(element => element.props.className === "canvas-status")!;
-    expect(text(status), entry.kind).toBe(sentence);
-  }
 });
 
 // Fix round 1 (review RA2 ⚪3): what the sidebar does around the page, as Home does.
