@@ -73,6 +73,7 @@ const { Home } = await import("./Home");
 const { HomeRun } = await import("./homeRun");
 const { ProjectSettingsPage } = await import("./ProjectSettingsPage");
 const { AgentUsageButton } = await import("./AgentUsageButton");
+const { UpdateHeaderButton } = await import("./UpdateHeaderButton");
 const { ProjectSetupDialog } = await import("./ProjectSetupDialog");
 const { RightPanel } = await import("./RightPanel");
 const { ConversationPanel } = await import("./ConversationPanel");
@@ -337,13 +338,15 @@ test("while the page is locked a click on the Settings tab is ignored, not queue
   expect(settings()!.props.arrival).toBe(before);
 });
 
-// The Agent usage button sits at the header's right end, after the tabs, on every screen.
+// The Agent usage button sits after the tabs on every screen, and the update button at the header's right end.
 type UsageProps = { openSettings(): boolean; canvasPress?: unknown };
 function usageOf(header: ReactElement) {
   const bar = (header.type as (props: unknown) => ReactElement<{ children: ReactNode[] }>)(header.props);
   const children = [bar.props.children].flat(3).filter(isValidElement) as ReactElement<Record<string, unknown>>[];
   const at = children.findIndex(child => child.type === AgentUsageButton);
-  return { usage: children[at] as unknown as ReactElement<UsageProps> | undefined, afterTabs: at > 0 && children[at - 1]!.props.className === "shell-modes" && at === children.length - 1 };
+  const update = children[children.length - 1]!;
+  return { usage: children[at] as unknown as ReactElement<UsageProps> | undefined, update: update.type === UpdateHeaderButton ? update as unknown as ReactElement<{ disabled: boolean; canvasPress?: unknown }> : undefined,
+    afterTabs: at > 0 && children[at - 1]!.props.className === "shell-modes" && at === children.length - 2 };
 }
 test("every screen's header ends with Agent usage; its Agent settings opens Settings > Agents, and not while a page is locked", () => {
   render();
@@ -362,6 +365,21 @@ test("every screen's header ends with Agent usage; its Agent settings opens Sett
   expect(afterTabs).toBe(true);
   expect(usage!.props.openSettings()).toBe(true); render();
   expect(settings()!.props).toMatchObject({ section: "agents", arrival: { focus: { kind: "heading" } } });
+});
+
+// Unavailable by the Settings menu item's rule: a locked page, an open modal or first run.
+test("the header's update button is unavailable while a page is locked or a modal is open", () => {
+  openFromWorkspace();
+  expect(usageOf(homeEl()!.props.header).update!.props.disabled).toBe(false);
+  click(topBar(homeEl()!.props.header).settings);
+  expect(usageOf(settings()!.props.header).update!.props.disabled).toBe(false);
+  lock();
+  expect(usageOf(settings()!.props.header).update!.props.disabled).toBe(true);
+  lock(false);
+  expect(usageOf(settings()!.props.header).update!.props.disabled).toBe(false);
+  click(topBar(settings()!.props.header).projects);
+  listeners.menu!("quickOpen" as never); render();
+  expect(usageOf(homeEl()!.props.header).update!.props.disabled).toBe(true);
 });
 
 // The open usage popover is a Radix Popover, which closes on Escape at the document's

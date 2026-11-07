@@ -135,7 +135,7 @@ describe("aboutText", () => {
   test("a copy that doesn’t set up agents says so, without an agents prefix", () => {
     const text = aboutText({ ...READ, setup: { home: "/Users/you", items: [{ target: "copy", path: "/Users/you/Downloads/Doan.app", providers: [], reason: "not-eligible", eligibility: "outside-applications" }] } }, UPDATE);
     expect(text.split("\n").slice(3, 5)).toEqual([
-      "This copy doesn’t set up agents",
+      "This copy doesn’t set up agents or update",
       "It isn’t directly in the Applications folder. Open the Doan in Applications so your agents can use it.",
     ]);
   });
