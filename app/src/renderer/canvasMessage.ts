@@ -9,7 +9,7 @@ export const MAX_FRAMES = 1000;
 export const MAX_STRING = 200;
 // UTF-16 code units, as `String.length` counts them.
 export const MAX_HREF = 8192;
-// Selection caps (design 'length caps'). Over a cap the whole message is
+// Selection caps. Over a cap the whole message is
 // dropped: the script clips before sending, so only a forged message is over.
 export const MAX_SELECTOR = 1000;
 export const MAX_VALUE = 500;
@@ -127,7 +127,7 @@ export interface AnchorsMessage {
   rects: (PinGeometry & { node: string })[];
 }
 
-// The canvas's answer to the app's pick (buzz-canvas-conversation design §4). `pick` is the seq of the pick-start
+// The canvas's answer to the app's pick. `pick` is the seq of the pick-start
 // command it answers, on the pick channel's own seq that neither clicks nor selection or hover commands move; the
 // message type is the reply marker, so no selection reply can complete a pick. Exactly one of: the element or frame
 // under the click; a Shift-clicked spot, in the canvas document's coordinates; Esc pressed inside the canvas.

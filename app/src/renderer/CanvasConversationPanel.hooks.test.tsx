@@ -192,7 +192,7 @@ test("the panel hands the page's canvas press signal to its composer", async () 
   expect(composer(tree)?.canvasPress).toBe(canvasPress);
 });
 
-// canvas-handoff design §6 (runtime finding in /design-sync): the move's arrival comes with the render that still
+// A runtime finding in /design-sync: the move's arrival comes with the render that still
 // shows the canvas left behind, whose thread has no card. It waits for the receiving conversation and focuses its
 // card there instead of sending focus to the old composer.
 test("a handoff arrival waits for the receiving canvas and conversation, then is applied once", async () => {
@@ -242,7 +242,7 @@ function dockedProps(node: ReactNode): Record<string, unknown> | null {
   return dockedProps(element.props.children);
 }
 
-// fast-mode B2 (POSTMORTEM 2026-11-02): the panel's own start sends the Fast its switch shows, and its remembered
+// POSTMORTEM 2026-11-02: the panel's own start sends the Fast its switch shows, and its remembered
 // choice carries no Fast, which only a switch records.
 test("a new conversation started from the panel sends the Fast it shows and remembers none", async () => {
   const { authStatus } = await import("../main/agentAuth/state");

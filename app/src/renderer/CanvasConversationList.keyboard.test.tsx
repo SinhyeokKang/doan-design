@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { CanvasRow } from "../main/view";
 
-// Review TOOL ⚪4 (canvas-composer-polish spec 6): ↑/↓, Home and End from a focused row Delete move between rows only.
+// ↑/↓, Home and End from a focused row Delete move between rows only.
 // The list's hooks run as plain state (App.conversationPanel.test.tsx), so its own key handling runs without a DOM.
 const hooks = vi.hoisted(() => ({ states: [] as unknown[], refs: [] as { current: unknown }[], cursor: 0, refCursor: 0 }));
 vi.mock("react", async original => {

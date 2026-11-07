@@ -12,12 +12,12 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip
 import { CONVERSATION_PANEL_ID } from "./ConversationPanel";
 import type { OpenBadge } from "./rightPanelOpen";
 
-// The canvas page's header above the board (buzz-canvas design §0 'default', §2): canvas / frame drawer on the left,
+// The canvas page's header above the board: canvas / frame drawer on the left,
 // the zoom controller and Reload on the right. It reuses the Overview header box (.ov-head), so the two headers line up.
 // `canvasKey` names the open canvas: an open menu closes when it changes. `fallbackFocus` takes focus a closing menu
 // cannot hand back to its trigger (the canvas region). `panel`: the conversation panel, whose open button sits last in
 // the header only while it is folded (design §2 '오른쪽 패널'), with a dot and a longer name while this canvas's
-// conversation needs an answer or has an unseen ending (buzz-canvas-conversation design §2 'News dot').
+// conversation needs an answer or has an unseen ending.
 export function CanvasHeader({ state, canvasKey = null, command, zoomTo, selectFrame, fallbackFocus = () => {}, panel }: {
   state: CanvasState; canvasKey?: string | null; command(name: ViewCommand): void; zoomTo(scale: number): void; selectFrame(index: number, id: string): void;
   fallbackFocus?: () => void; panel?: { open: boolean; show(): void; badge?: OpenBadge | null };

@@ -34,7 +34,7 @@ describe("canvasConversationRows", () => {
       key: "b", conversationId: "b", name: "billing", canvas: { path: billing.path, id: "billing" }, row: billing,
       provider: "codex", status: { kind: "working", label: "Working" }, time: { text: "3m", label: "3 minutes ago" },
       preview: "Editing the header", problem: null, openable: true,
-      // canvas-composer-polish spec 6: the row's Delete names the conversation and follows the title menu's rule.
+      // The row's Delete names the conversation and follows the title menu's rule.
       title: "Edit the header", deletable: { available: false, reason: "The agent is working on this conversation." },
     });
   });

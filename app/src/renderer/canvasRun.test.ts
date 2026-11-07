@@ -5,7 +5,7 @@ import { CanvasRun, canvasKey, type CanvasRunHost } from "./canvasRun";
 import { DRAWING_TEXT, PROMOTED_TEXT } from "./canvasConversation";
 import { ConversationStore, type ListView } from "./conversationStore";
 
-// buzz-canvas-conversation tasks R2: the canvas panel's conversation, driven without a DOM. The host stands in for App
+// The canvas panel's conversation, driven without a DOM. The host stands in for App
 // and HomeRun (list reads and their counts, seen marks, focus and the drawing project conversation).
 
 const ROOT = "/code/doan";
@@ -455,7 +455,7 @@ test("New chosen while the list loads holds Send until the list answers; a faile
   expect(failed.run.view()).toMatchObject({ kind: "new", listError: true, start: { pending: false } });
 });
 
-// conversation-delete tasks T3, design §3.2: the state after a conversation is deleted. App marks the conversation
+// The state after a conversation is deleted. App marks the conversation
 // deleting before conversation:delete, then on success calls each run's deleted and the store's.
 const confirmDelete = (h: ReturnType<typeof harness>, id: string) => { h.run.deleted(id); h.store.deleted(id); };
 

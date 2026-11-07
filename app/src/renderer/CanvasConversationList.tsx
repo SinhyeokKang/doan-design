@@ -8,13 +8,13 @@ import type { ListFocus } from "./ConversationDeleteDialog";
 import { focusAfterLeave, listKeyTarget } from "./listKeyboard";
 import { applyVisibility, thumbnailView, type ThumbnailState, type ThumbnailView } from "./thumbnails";
 
-// The Overview's right panel body (buzz-project design §2.3, §2.5): canvases with a current conversation.
+// The Overview's right panel body: canvases with a current conversation.
 
 export type CanvasList = readonly CanvasConversationRow[] | "loading" | "error";
 
 const LOADING_DELAY_MS = 300;
 
-// The row that holds focus, for handing focus on when it leaves the list (design §2.3). A blur to nowhere (window
+// The row that holds focus, for handing focus on when it leaves the list. A blur to nowhere (window
 // blur, the row's removal) keeps it; focus on another element or pointer input outside the rows ends it, so a row
 // removed after the person moved on takes no focus, which would pull them back to a list they had left.
 export class RowFocusMemory {
@@ -145,7 +145,7 @@ function Row({ item, project, thumbnail, tabbable, open, focus, blur, children }
   </li>;
 }
 
-// A row's Delete (canvas-composer-polish spec 6, draft frames cv-delete, cv-special): the title menu's row Delete as a
+// A row's Delete (draft frames cv-delete, cv-special): the title menu's row Delete as a
 // sibling of the row button, which cannot hold a button. It shares the row's Tab stop, so Tab moves between the two
 // while ↑/↓, Home and End move between rows. An unavailable one stays focusable with `aria-disabled` and reads its
 // reason. The focus target after the delete is computed now: the alert takes focus, so the list forgets the row.

@@ -6,7 +6,7 @@ import type { ConversationStore, ListView } from "./conversationStore";
 import { draftKey, type DockedMode } from "./dockedRules";
 import { endSeq, type ScrollTo } from "./overviewRun";
 
-// The canvas page's conversation panel (buzz-canvas-conversation design §2 'Conversation panel', §6 late replies): which
+// The canvas page's conversation panel: which
 // of the open canvas's conversations shows, the new conversation's start mode with its terminal session, entry
 // requests, promotions, seen marks and the revision late replies are checked against. Threads, drafts and queues are
 // the ConversationStore's, shared with the Overview. Like OverviewRun it decides without a DOM; the list reads, seen
@@ -188,7 +188,7 @@ export class CanvasRun {
     this.host.changed();
   }
 
-  // main deleted it (conversation-delete design §3.2), on whichever canvas. Every canvas state that shows it shows the
+  // main deleted it, on whichever canvas. Every canvas state that shows it shows the
   // new conversation state with a newer revision, so a start or send reply sent before cannot replace that; a canvas
   // with no current conversation left picks none, never an archived one. A request still waiting for it is dropped,
   // and the list kept for the promotion comparison leaves it out, so neither brings it back.
@@ -293,7 +293,7 @@ export class CanvasRun {
     return { kind: "new", listError, notice: s.notice, start, resume, mode: docked };
   }
   // Called once when the new conversation state first shows on a canvas; reused until the canvas changes. Send waits
-  // for the answer so a choice that appears late never changes the mode of a send already made (design §2).
+  // for the answer so a choice that appears late never changes the mode of a send already made.
   private askResume(s: CanvasState): void {
     const ask = s.ask = ++this.resumeAsks;
     const { root, canvas } = s.target;
@@ -303,7 +303,7 @@ export class CanvasRun {
       this.host.changed();
     });
   }
-  // Seen only while the panel is open, the window has focus and the conversation shows (design §2 'Seen').
+  // Seen only while the panel is open, the window has focus and the conversation shows.
   private checkSeen(): void {
     const s = this.shownState();
     const id = s?.shown;

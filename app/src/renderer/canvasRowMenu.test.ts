@@ -64,7 +64,7 @@ describe("trashBlock", () => {
   });
 });
 
-// canvas-composer-polish spec 5: the row menu's Export… and the toolbar's Export share their reasons.
+// The row menu's Export… and the toolbar's Export share their reasons.
 describe("canvasExportReason", () => {
   const row = { path: ".doan/canvases/a.html", url: "u-a" };
   test("a readable, listed canvas that is not exporting can export, also while another canvas exports", () => {

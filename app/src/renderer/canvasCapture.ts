@@ -2,7 +2,7 @@ import type { CanvasLoad, Rect } from "./canvasPicker";
 import { MAX_ATTACHMENTS } from "./homeComposer";
 import type { Point } from "./viewport";
 
-// Capture area (canvas-capture design §2–§3): a dragged area of the board becomes one image in the canvas
+// Capture area: a dragged area of the board becomes one image in the canvas
 // conversation composer.
 
 // Main checks the same minimum on `attachments:capture`, so a smaller area never leaves the renderer.

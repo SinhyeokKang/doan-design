@@ -294,7 +294,7 @@ describe("DotField lifecycle", () => {
   });
 });
 
-// work-update R2: the indicator tells App the open canvas's work for the controller once per change, not per render.
+// The indicator tells App the open canvas's work for the controller once per change, not per render.
 describe("CanvasAgent work for the controller", () => {
   const term = { touched: 5, turn: "claude:t1", session: "s1", provider: "claude" as const, root: "/w/a", path: canvas.path, frame: "plans" };
   test("tells the picked work and its turn keys when they change, and the canvas with no work", () => {

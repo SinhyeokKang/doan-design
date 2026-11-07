@@ -14,7 +14,7 @@ import { crossesBoundary, NoticeTyping, typesOn, type NoticeMoment, type TypedTe
 // The agent indicator on the board while this canvas's current conversation works or waits (buzz-canvas design §2
 // '에이전트 작업 표시', .doan/canvases/buzz-canvas.html 'agent-working', 'agent-waiting'). The glow and the dot field take
 // no pointer input; the notice floats at the board's top centre with one button. Reference: ego lite's agent tab as the
-// user described it (2026-11-01); its values live in a native view and were not read (design §2).
+// user described it (2026-11-01); its values live in a native view and were not read.
 // `list` is HomeRun's list state for the canvas's project; `running` is false while the workspace is hidden or the
 // Overview covers the canvas, which pauses the dot field. `children` are the canvas notices: they stack in the same
 // top-centre column under the agent notice (design §0 '확정 값'), so the column stays when no agent shows.
@@ -102,7 +102,7 @@ export function CanvasAgent({ list, canvas, running, work, conversationWork = []
 // The notice's words (work-update decisions 19–20): the visible line is aria-hidden, the text with its caret right after
 // the last visible character; the live region beside it holds the final words from the first moment. A long text
 // ellipsizes and its tooltip shows it whole. While a change erases and types, the line keeps a floor of the shorter
-// text's width plus the caret, in px (a percentage resolves to 0 in the content-sized card, design §9) and capped by
+// text's width plus the caret, in px (a percentage resolves to 0 in the content-sized card) and capped by
 // the width the card can give the line.
 function WorkWords({ view, moment }: { view: AgentNoticeView; moment: NoticeMoment }) {
   const [typed, setTyped] = useState<TypedText>({ text: view.text, minWidth: null, typing: false });
@@ -164,7 +164,7 @@ function DoanyArtist({ still }: { still: boolean }) {
   </picture></span>;
 }
 
-// The board-wide dot field (design §2): canvas 2D, two virtual spots sweeping the board (the second walks the first's
+// The board-wide dot field: canvas 2D, two virtual spots sweeping the board (the second walks the first's
 // path backwards, `opposingCursor`), the colour read from the element's computed `color` so the theme's role decides it.
 export function DotField({ running }: { running: boolean }) {
   const canvas = useRef<HTMLCanvasElement>(null);

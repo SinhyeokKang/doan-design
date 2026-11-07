@@ -376,7 +376,7 @@ describe("parseCanvasMessage: select", () => {
     expect(parseCanvasMessage(select({}, { element }))).toHaveProperty("target.element", element);
   });
 
-  test("drops the message when a string is over its cap (design 'length caps')", () => {
+  test("drops the message when a string is over its cap", () => {
     const over: Record<string, unknown>[] = [
       { tag: "t".repeat(201) },
       { frame: { id: "f".repeat(201) } },
@@ -504,7 +504,7 @@ test("drops a transition-intent message", () => {
   expect(parseCanvasMessage({ type: "transition-intent", document: "d1", href: "http://x/a.html", viewport: 150, intent: 1, kind: "selection" })).toBeNull();
 });
 
-// buzz-canvas-conversation design §4: the canvas answers the app's pick with `picked`, bound to the pick command by
+// The canvas answers the app's pick with `picked`, bound to the pick command by
 // its own `pick` seq and its own type, never by the selection seq.
 describe("parseCanvasMessage: picked", () => {
   const picked = (over: Record<string, unknown>) => ({ type: "picked", href: HREF, document: "doc", pick: 2, ...over });

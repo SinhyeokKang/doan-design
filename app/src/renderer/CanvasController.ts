@@ -58,7 +58,7 @@ export interface CanvasState {
   tool: CanvasTool;
   // While the canvas waits for one click to name a chip's target (buzz-canvas-conversation design §2 'Picker').
   picking: boolean;
-  // Capture mode: the board waits for a drag to name an area (canvas-capture design §2). Never with `picking`; like a
+  // Capture mode: the board waits for a drag to name an area. Never with `picking`; like a
   // pick it runs ahead of `tool` and leaves it as it was.
   capturing: boolean;
 }
@@ -74,19 +74,19 @@ export type PickResult = { kind: "picked"; anchor: Anchor; frames: readonly Canv
 // the target, so the caller ends the locate without claiming the target is gone.
 export type LocateResult = "shown" | "missing" | "timeout";
 
-// The work the open canvas shows (work-update design §1 rules 6–9), from the agent notice's pick (`pickWork`): `source`
+// The work the open canvas shows, from the agent notice's pick (`pickWork`): `source`
 // is the terminal session or conversation, `key` its work turn. `keys` are every work turn on the canvas.
 export interface CanvasWork { source: string; key: string; frame?: string; waiting: boolean }
 export interface CanvasWorkTarget { root: string; path: string; work: CanvasWork | null; keys: readonly string[] }
 // The working-frame marker's slide to another frame (--time-settle).
 const WORK_SLIDE_MS = 220;
-// Who changed the view (work-update design §1 rule 9). The default is the person, so a new route that moves the view
+// Who changed the view. The default is the person, so a new route that moves the view
 // stops following without anyone remembering to say so; the app's own are a follow move, the open fit, settleFit, a
 // restored view and a viewport resize, which only re-places the view it has.
 type ViewOrigin = "person" | "app";
 const canvasKey = (root: string, path: string) => `${root}\0${path}`;
 
-// A point's ring on the board, in screen px (design §2 'Chip locate').
+// A point's ring on the board, in screen px.
 const POINT_RING = 12;
 const LOCATE_ID = "locate";
 
@@ -132,7 +132,7 @@ export class CanvasController {
   // ends the wait without a refit.
   private firstFit: View | null = null;
   private pendingFrame: { id: string; index?: number; found?: (found: boolean) => void } | null = null;
-  // A reply chip's element, located after the first layout (agent-reply-chips design 'Pressing'). It lives as
+  // A reply chip's element, located after the first layout. It lives as
   // pendingFrame does and also carries the root and canvas it was asked for: worktrees share canvas ids and paths
   // (POSTMORTEM 2026-11-01), so only that canvas's first layout takes it. A missing target ends silently.
   private pendingLocate: { folder: string; path: string; doanId: string } | null = null;
@@ -175,7 +175,7 @@ export class CanvasController {
   // The ids last asked for in this document, and the newest reply for them.
   private anchorTargets: ReadonlySet<string> = new Set();
   private anchors: { generation: number; candidates: ReadonlyMap<string, TargetCandidates>; rects: ReadonlyMap<string, PinGeometry> } | null = null;
-  // Picking (design §4 'Structure'). The pick channel has its own seq, apart from selection and hover, and lives as
+  // Picking. The pick channel has its own seq, apart from selection and hover, and lives as
   // long as one canvas document (its token, `pickDocument`): a reload, a same-ID move or the canvas replacing its
   // own document at the same URL restarts it. Not `anchorDocument`: the iframe's load event clears that to re-ask for
   // anchors, also when it comes late for the same document, and a channel restarted then would resend seq 1, which
@@ -202,7 +202,7 @@ export class CanvasController {
   private spaceHeld = false;
   private drag: { pointerId: number; x: number; y: number } | null = null;
   private layerShown = false;
-  // Capture mode (canvas-capture design §2). The layer and its marquee are made on the first start, right after the
+  // Capture mode. The layer and its marquee are made on the first start, right after the
   // drag layer, and only the controller shows them. A drag that capture mode leaves early (Esc, a cancel) stays as
   // `dropped`: the layer stays up until that pointer's release, which would otherwise land on the iframe as a
   // selecting click (ARCHITECTURE §3 'Input'). A drag ends at once only with its board.
@@ -275,7 +275,7 @@ export class CanvasController {
     }
   }
 
-  // Chip locate (design §2 'Chip locate'): finds the anchor in the shown document, moves the view to it (settleLocate)
+  // Chip locate: finds the anchor in the shown document, moves the view to it (settleLocate)
   // and highlights it for 1.2 s; a point gets a 12 px ring at its offset in its frame. `settled` hears "missing" when
   // the canvas has no unique match, "timeout" when it does not answer within MEASURE_ANSWER_MS. A newer locate or a
   // new document drops one in flight without an answer. false: no shown document to ask, so locate is unavailable.
@@ -305,7 +305,7 @@ export class CanvasController {
   }
 
   // Frames move as picking one in the drawer does (fitFrame); elements and points keep the scale and are centred,
-  // an element larger than the view zoomed out to fit (design §2 'Chip locate', 2026-11-02 user).
+  // an element larger than the view zoomed out to fit (2026-11-02 user).
   private settleLocate(locating: NonNullable<CanvasController["locating"]>, target: ReturnType<typeof resolveChipTarget>): void {
     if (this.frame === null || (target.kind !== "node" && target.kind !== "point")) { locating.settled("missing"); return; }
     const size = this.viewportSize();
@@ -545,7 +545,7 @@ export class CanvasController {
   }
 
   // The canvas page is on screen: not Home, the Overview or a modal. V, H and Space act only there; capture mode ends
-  // when it goes (canvas-capture spec 7).
+  // when it goes.
   setCanvasPage(shown: boolean): void {
     const before = this.onCanvasPage();
     this.canvasPage = shown;
@@ -560,7 +560,7 @@ export class CanvasController {
   private covered = false;
   setCovered(covered: boolean): void { this.covered = covered; }
 
-  // The toolbar's Select and Hand. While picking they cancel the pick first (canvas-composer-polish spec 3); V and H
+  // The toolbar's Select and Hand. While picking they cancel the pick first; V and H
   // still change nothing then (shortcut).
   setTool(tool: CanvasTool): void {
     this.cancelPick();
@@ -582,7 +582,7 @@ export class CanvasController {
     this.publish();
   }
 
-  // Switching to Hand drops the selection (canvas-selection-tools spec 1). A held Space and a pick leave `tool`
+  // Switching to Hand drops the selection. A held Space and a pick leave `tool`
   // alone, so they keep it. Does not publish: callers do.
   private enterTool(tool: CanvasTool): void {
     const toHand = this.tool === "select" && tool === "hand";
@@ -1244,7 +1244,7 @@ export class CanvasController {
     this.tooltipEscape = null;
     if (event.key !== "Escape" || event.isComposing || event.keyCode === 229 || (event.defaultPrevented && !tooltipOnly)) return;
     // Esc while picking cancels only the pick, wherever focus is: the composer, the canvas or the panel. Menus and
-    // the `/` list handle their Esc first and prevent it (design §2 'Esc and cancel').
+    // the `/` list handle their Esc first and prevent it.
     const step = this.escape(editableTarget(event.target));
     if (step === "cancelPick" || step === "cancelCapture" || step === "selectTool") event.preventDefault();
   };
@@ -1374,7 +1374,7 @@ export class CanvasController {
   private captureHeld(): boolean { return this.state.capturing || this.captureDrag !== null; }
 
   private syncLayer(): void {
-    // Capture mode ends with the board it was on (canvas-capture spec 7).
+    // Capture mode ends with the board it was on.
     if (!this.boardShown()) this.endCaptureWithBoard();
     const capture = this.captureHeld();
     const board = this.boardDrawn();
@@ -1748,7 +1748,7 @@ export class CanvasController {
     return open && target && !this.state.unlisted && target.root === open.folder && target.path === open.canvas ? target.work : null;
   }
 
-  // The working-frame marker (design §1 rule 8): the jump highlight kept for the work turn, on the first frame with the
+  // The working-frame marker: the jump highlight kept for the work turn, on the first frame with the
   // id, gone while the document reloads or failed and back on the same id once the new one lays out. It is placed in
   // screen px on every view change, so it slides only when the working frame changes (`slide`); any other redraw puts
   // it on its frame at once, ending a slide.

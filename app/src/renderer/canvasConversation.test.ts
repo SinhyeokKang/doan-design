@@ -108,7 +108,7 @@ describe("canvasConversationMenu", () => {
     expect(canvasConversationMenu([summary({ unseen: true })], billing, null, NOW, new Set(["c1"]))[0]!.status).toBeNull();
   });
 
-  // conversation-delete design §3.1: both menus build their rows with menuItem, so Delete reads the same in each.
+  // Both menus build their rows with menuItem, so Delete reads the same in each.
   test("each row says whether it can be deleted, as the Overview's menu does", () => {
     const list = [
       summary({ conversationId: "w", phase: "waiting", working: true, lastActivityAt: at(1) }),

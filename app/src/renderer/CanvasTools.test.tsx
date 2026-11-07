@@ -115,7 +115,7 @@ describe("CanvasTools", () => {
     expect(markup({ picker: { enabled: false, reason: UNAVAILABLE, onToggle: () => {} } })).toMatch(/aria-label="Pick from canvas"[^>]*aria-disabled="true"/);
   });
 
-  // canvas-capture spec 1 and design §3: aria-disabled like the Picker, with Export's sr-only reason.
+  // aria-disabled like the Picker, with Export's sr-only reason.
   it("Capture area toggles capture mode when it can, and otherwise stays focusable, does nothing and says why", () => {
     let toggled = 0;
     const capture = (over: Partial<Props>) => buttons(CanvasTools(props(over)))[3]!;
@@ -149,7 +149,7 @@ describe("CanvasTools", () => {
     expect(toggled).toBe(1);
   });
 
-  // canvas-composer-polish spec 5: Export is an action, not a tool, and stays focusable while unavailable.
+  // Export is an action, not a tool, and stays focusable while unavailable.
   it("Export is a named action without a pressed state that hands its button to the export", () => {
     const pressed: unknown[] = [];
     const exporter = buttons(CanvasTools(props({ exporter: { reason: null, onExport: button => pressed.push(button) } })))[4]!;

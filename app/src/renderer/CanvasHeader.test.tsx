@@ -129,7 +129,7 @@ describe("CanvasHeader", () => {
     expect(button(html({ ...initialCanvasState(), status: "missing", message: "gone" }), "Reload canvas")).toMatch(/^<button[^>]*disabled/);
   });
 
-  // buzz-canvas-conversation design §2 'News dot': the folded panel's open button carries the dot and says why.
+  // The folded panel's open button carries the dot and says why.
   it("puts the news dot and its longer name on the folded panel's open button", () => {
     const waiting = button(html(opened(), { open: false, show: vi.fn(), badge: { kind: "permission", label: "Show conversation, needs your answer" } }), "Show conversation, needs your answer");
     expect(waiting).toContain('data-badge="true"');
