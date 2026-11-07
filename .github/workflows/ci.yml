@@ -17,11 +17,12 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # No `name:` on this job: the branch protection required check is the job id
-  # `gate`, and a display name would change it.
+  # No display name on this job: the branch protection required check is the
+  # job id `gate`, and a display name would replace it.
   gate:
     runs-on: macos-26
-    timeout-minutes: 30
+    # About twice the measured job time (7 min on macos-26).
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
