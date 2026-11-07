@@ -8,9 +8,12 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"os/signal"
 	"path"
 	"path/filepath"
 	"strings"
+	"sync"
+	"syscall"
 	"unicode/utf8"
 
 	"github.com/SinhyeokKang/doan-design/cli/internal/canvas"
@@ -149,6 +152,10 @@ func tooLarge(assets []export.Asset) *Error {
 // writeExport puts data at output through a temporary file in the same directory, so a failure or a competing
 // reader never sees a partial page. An existing symbolic link is replaced, not followed.
 func writeExport(ctx Context, output string, force bool, data []byte) *Error {
+	return writeExportWith(ctx, output, force, data, (*os.File).Write)
+}
+
+func writeExportWith(ctx Context, output string, force bool, data []byte, write func(*os.File, []byte) (int, error)) *Error {
 	dir := filepath.Dir(output)
 	if info, err := os.Stat(dir); err != nil {
 		if os.IsNotExist(err) {
@@ -179,21 +186,53 @@ func writeExport(ctx Context, output string, force bool, data []byte) *Error {
 	// O_EXCL and O_NOFOLLOW: never write through something already at the temporary name. The mode goes
 	// through the umask, which is the 0644 a plain redirect would give.
 	temp := filepath.Join(dir, exportTempPrefix(filepath.Base(output))+hex.EncodeToString(suffix[:]))
+	// Subscribe before creation so a signal cannot land between owning the file and watching it.
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(signals)
 	file, err := os.OpenFile(temp, os.O_WRONLY|os.O_CREATE|os.O_EXCL|syscallNoFollow, 0o644)
 	if err != nil {
 		return exportInternal(err)
 	}
-	_, err = file.Write(data)
+	var mu sync.Mutex
+	owned := true
+	done, stopped := make(chan struct{}), make(chan struct{})
+	go func() {
+		defer close(stopped)
+		select {
+		case sig := <-signals:
+			mu.Lock()
+			if owned {
+				if err := os.Remove(temp); err != nil && !os.IsNotExist(err) {
+					fmt.Fprintln(os.Stderr, exportInternal(err).Message)
+				}
+			}
+			os.Exit(128 + int(sig.(syscall.Signal)))
+		case <-done:
+		}
+	}()
+	defer func() {
+		signal.Stop(signals)
+		close(done)
+		<-stopped
+	}()
+	_, err = write(file, data)
 	if closeErr := file.Close(); err == nil {
 		err = closeErr
 	}
+	// Publication and releasing ownership must be atomic to the signal cleanup: after rename,
+	// another export may already own the same temporary name.
+	mu.Lock()
+	defer mu.Unlock()
 	if err == nil {
 		err = os.Rename(temp, output)
 	}
 	if err != nil {
 		os.Remove(temp)
+		owned = false
 		return exportInternal(err)
 	}
+	owned = false
 	return nil
 }
 
