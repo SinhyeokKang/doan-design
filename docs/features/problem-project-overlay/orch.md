@@ -47,9 +47,10 @@
 | B4 | T5 | `App.tsx`, `ProblemOverlay.tsx`(새), `Home.tsx`, `styles.css`(모두 `app/src/renderer/`, `CanvasPane`은 `App.tsx` 안), `App.*.test.ts(x)`, `Home.test.tsx`, CSS 테스트, 새 `ProblemOverlay` 테스트 | B1, B2, 초안 확정 | Opus high: 포커스·inert·메뉴 상태·seen이 얽히고 틀리면 접근성과 데이터 표시가 깨진다 | test, typecheck, lint, build | 통합 `52ab3032`·`f118cbdc`·`85e248db`, lint cap 81로 낮춤 `81d5ba9e`, review는 R2 |
 | B5 | T6 | B3·B4가 고친 파일, `docs/DESIGN.md` | B3·B4 통합 | Opus medium: computed style 측정과 수정 | `/design-sync` 프레임별 일치, `npm --prefix app test` | 통합 `410e5102`·`0132bccc`. 프레임 14개 중 13개 측정, 남은 차이 0(모두 문서화). 측정에서 renderer crash를 찾아 고쳤다 |
 | R1 | B1·B2 review | 보고만 | B1·B2 통합 | Sonnet high: 작은 순수 함수와 controller diff다 | `/code-review` 보고 | 완료: 🔴 0, 🟡 3(B4 지시로 넘김), ⚪ 5(test 보강 2건 반영, 주석 경로는 T9) |
-| R2 | B3·B4 review | 보고만 | B3·B4 통합 | Opus high: B4 diff가 포커스·inert·입력 막기·seen을 함께 바꾼다 | `/code-review` 보고 | 완료: 🔴 0, 🟡 2(B4), ⚪ 5. 수정은 B4에 보냈다(진행) |
-| — | T7 | 없음(`.scratch/`) | B5 | conductor | `/runtime-test` 보고 | 대기 |
-| — | T8 verify, T9 승격 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/DESIGN.md`, `docs/BACKLOG.md`, 이 디렉터리 | 전부 | conductor | `verify.mjs` exit 0, T9 문구 검색 | 대기 |
+| R2 | B3·B4 review | 보고만 | B3·B4 통합 | Opus high: B4 diff가 포커스·inert·입력 막기·seen을 함께 바꾼다 | `/code-review` 보고 | 완료: 🔴 0, 🟡 2(B4), ⚪ 5. 수정 `606d4892`·`24be3ba4`(B4) 통합 |
+| T7 | T7 | 없음(`.scratch/`) | B5, R2 수정 | Opus medium: 격리된 실제 앱 probe, 보고만 | `/runtime-test` 보고 | 진행 |
+| C1 | T9 보조 | feature 문서를 가리키는 코드·테스트 주석 | T9 문서 | Sonnet medium: 주석만 바꾸는 기계적 작업 | typecheck, lint, 고친 test | 진행 |
+| — | T8 verify, T9 승격 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/DESIGN.md`, `docs/BACKLOG.md`, 이 디렉터리 | 전부 | conductor | `verify.mjs` exit 0, T9 문구 검색 | T9 문서 commit `64d1a74f`(PRODUCT)·`3c9f043e`(ARCHITECTURE)·`250bfabd`(DESIGN)·`c0ad5e5e`(BACKLOG). verify는 T7 뒤 |
 
 - T0·T1(초안 그리기)은 시작 전에 끝났다. T1의 확정 기록 commit은 conductor가 한다.
 - 사이드바 아이콘 CSS는 `styles.css`에 있으므로 B4가 가진다. B3은 클래스 이름을 정해 handoff에 적는다.
