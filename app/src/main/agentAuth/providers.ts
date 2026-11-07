@@ -9,7 +9,7 @@ import type { AccountIdentity, CheckResult, Provider } from "./types";
 export interface StatusRun { code: number | null; stdout: string; stderr: string; profileDir: string }
 export interface ProviderAuth {
   command: string;
-  // Prepended to every invocation, including B2/B3 runs, so no path can fall back to another store.
+  // Prepended to every invocation, so no path can fall back to another store.
   args: string[]; env: Record<string, string>;
   login: string[]; status: string[];
   // Sign-in, status and sign-out are calls on the provider's ACP server (Antigravity) instead of CLI subcommands.
@@ -25,7 +25,7 @@ export interface ProviderAuth {
   // hook received is shown when this returns it. Null for providers whose printed link is the sign-in.
   hookLink: ((raw: string) => string | null) | null;
   // Keychain providers only: vault providers sign out by deleting doan's copy, because a provider logout
-  // cannot reach the vault and Copilot's /logout left its token behind in PoC 10.
+  // cannot reach the vault and Copilot's /logout left its token behind in the PoC.
   logout: string[] | null;
   // Profile-relative credential files kept in the encrypted vault, or null when the OS keychain holds them.
   vault: string[] | null;
@@ -132,7 +132,7 @@ const HOME_STUB = (dir: string) => ({ [`${dir}/skills/doan/SKILL.md`]: stub });
 const CODEX_HANDOFF_RULE = '# Written by Doan so Codex asks before `doan handoff` starts another conversation.\nprefix_rule(pattern=["doan", "handoff"], decision="prompt")\n';
 const CLI_RUN = { acpAuth: null, acp: null, verifyByRun: false, hookLink: null, loginClears: false, identity: null };
 export const PROVIDER_AUTH: Record<Provider, ProviderAuth> = {
-  // PoC 10: a non-default CLAUDE_CONFIG_DIR gets its own Keychain item; .credentials.json would be the plaintext fallback.
+  // PoC: a non-default CLAUDE_CONFIG_DIR gets its own Keychain item; .credentials.json would be the plaintext fallback.
   claude: { command: "claude", args: [], env: {}, login: ["auth", "login"], status: ["auth", "status", "--json"], logout: ["auth", "logout"],
     vault: null, plaintext: [".credentials.json"], settings: { ...SKILL_STUB, "settings.json": CLAUDE_PROFILE_ALLOW }, ...CLI_RUN, hookLink: claudeLink, parseStatus: claudeStatus },
   // The keyring entry is keyed by the canonical CODEX_HOME; "auto" could silently write auth.json instead. MCP OAuth

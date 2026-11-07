@@ -681,7 +681,7 @@ describe("viewer files", () => {
 });
 
 // design-sync: the draft's header was measured against this page in Chromium, and three rules were missing or lost
-// a cascade tie. The values are the app's; the computed-style probe is `.scratch/design-sync/canvas-row-menu/viewer.mjs`.
+// a cascade tie. The values are the app's.
 describe("header rules the draft's measurement pinned", () => {
   const rule = (selector: string): string => new RegExp(`^${selector.replace(/[.[\]()]/g, "\\$&")} \\{([^}]*)\\}$`, "m").exec(shellCss)?.[1] ?? "";
 

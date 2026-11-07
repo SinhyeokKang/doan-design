@@ -3,9 +3,9 @@ import { collapseBox, colorHex, inspectRows, longhandSource, type CdpProperty, t
 import fixture from "./inspect.fixture.json";
 
 // inspect.fixture.json is real CDP output (Electron 45, Chrome 156) for the
-// PoC 2 cases page (`.scratch/poc2-inspect/repo/.doan/canvases/cases.html` and
+// PoC cases page (`cases.html` and
 // `cases.css`), trimmed to the inspected properties. The expected states below
-// are PoC 2's hand-written ground truth (`cases.mjs` EXPECT); "#c9:hover" and
+// are the PoC's hand-written ground truth (`cases.mjs` EXPECT); "#c9:hover" and
 // "#c9c:hover" were captured with the pointer over the element.
 const cases = fixture as unknown as Record<string, InspectInput>;
 const source = (id: string, prop: string) => {
@@ -42,7 +42,7 @@ const EXPECT: Record<string, Record<string, string>> = {
   "#c9c:hover": { color: "token:--brand" },
 };
 
-test.each(Object.entries(EXPECT))("PoC 2 ground truth %s", (id, props) => {
+test.each(Object.entries(EXPECT))("PoC ground truth %s", (id, props) => {
   for (const [prop, expected] of Object.entries(props)) expect(source(id, prop), `${id} ${prop}`).toBe(expected);
 });
 

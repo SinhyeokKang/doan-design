@@ -627,7 +627,6 @@ describe("sign-out and replacement logout", () => {
   });
 });
 
-// BB review fix round 1.
 describe("review fixes", () => {
   it("waits for a committed replacement's MCP step before reconciling or reading", async () => {
     cli.registered.claude.set("doan-gone-example", { url: "https://gone.example.com/mcp", auth: true });
@@ -762,13 +761,13 @@ describe("review fixes", () => {
     await s.idle();
   });
 
-  // BB review round 3: a parser miss (a config it reads wrongly as empty, or one it cannot decode) never drops a known
+  // A parser miss (a config it reads wrongly as empty, or one it cannot decode) never drops a known
   // server. The reviewer's three fallback inputs, each with a URL server in the connectors file.
   it.each([
     ["not valid TOML outside the servers", "not = [ valid toml\n"],
     ["an unclosed multi-line string before the servers", 'instructions = """\n[mcp_servers.doan-notion]\nurl = "https://mcp.notion.com/mcp"\n'],
     ["an invalid unicode escape in a URL", '[mcp_servers.doan-notion]\nurl = "https://mcp.notion.com/\\UFFFFFFFF"\n'],
-  ])("Round 3: an unreadable list with %s leaves every known server pending", async (_case, config) => {
+  ])("an unreadable list with %s leaves every known server pending", async (_case, config) => {
     store.patch({ add: { name: "doan-mcp-example-com", url: "https://mcp.example.com/mcp" } });
     writeFileSync(join(profile("codex"), "config.toml"), config);
     cli.failing.add("codex list");
@@ -832,7 +831,7 @@ describe("review fixes", () => {
   });
 });
 
-describe("settled publish (BU)", () => {
+describe("settled publish", () => {
   // The snapshot that ends an attempt: the first one after a snapshot showing it.
   const settled = (provider: McpProvider, name: string, during: string) => {
     const rows = published.map(snapshot => ({ snapshot, row: snapshot.providers.find(p => p.provider === provider)!.rows.find(r => r.name === name) }));

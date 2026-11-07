@@ -329,7 +329,7 @@ export class McpService implements McpConversationFacts {
 
   // Without the provider's list, the targets are the union of the profile config's doan- servers (when that read
   // succeeds; it also finds servers the connectors file does not know) and every server Doan knows (presets, and the
-  // file's servers when it can be read), so a config parser miss can never drop a known server (BB review round 3).
+  // file's servers when it can be read), so a config parser miss can never drop a known server.
   // Each is logged out; a failure is recorded and blocks Connect until a retry succeeds. The config is read before
   // the provider logout, which may change the profile.
   private async listForAuth(provider: McpProvider, request: McpLogoutRequest): Promise<{ servers: ListedServer[] }> {

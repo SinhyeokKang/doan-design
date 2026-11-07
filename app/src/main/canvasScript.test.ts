@@ -1605,7 +1605,7 @@ describe("comment anchors", () => {
   });
 });
 
-test("Y2 same-size replacement recovers selected anchor token without another event", () => {
+test("same-size replacement recovers selected anchor token without another event", () => {
   const { canvas, button, form } = heroCanvas();
   canvas.context.innerWidth = 600;
   canvas.fromParent({ type: "measure" });

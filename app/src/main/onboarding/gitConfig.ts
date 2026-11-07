@@ -7,7 +7,7 @@ import { dirname, isAbsolute, join, resolve } from "node:path";
 // urls are raw config values and may carry a user or token: main-only, never copied into a DTO or message.
 export type RemoteRead = { ok: true; urls: readonly string[]; uncertain: boolean } | { ok: false; reason: "not_repository" | "unreadable" };
 // unsupported: a setting that can change or add remotes in ways this reader does not resolve (config.worktree,
-// URL rewrites). Its presence makes the read uncertain rather than complete (conductor decision, fix round 1).
+// URL rewrites). Its presence makes the read uncertain rather than complete.
 type Item = { kind: "remote"; name: string; url: string } | { kind: "include"; path: string; conditional: boolean } | { kind: "unsupported" };
 const GIT_FALSE = ["false", "no", "off", "0", ""];
 // git's own include depth limit.

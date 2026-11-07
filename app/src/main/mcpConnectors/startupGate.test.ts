@@ -2,7 +2,7 @@ import { expect, test } from "vitest";
 import events from "../conversation/fixtures/codex-mcp-startup-status.json";
 import { codexStartupGate } from "./startupGate";
 
-// One thread's mcpServer/startupStatus/updated notifications from the P2 probe (Codex 0.166.0): four servers start,
+// One thread's mcpServer/startupStatus/updated notifications from the probe (Codex 0.166.0): four servers start,
 // the signed-out doan-notion fails about 45 ms later, the remote servers are ready after 1-1.6 s. The committed log had
 // the server names redacted; they are put back from the probe notes.
 const params = events.map(event => event.params);

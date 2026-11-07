@@ -4,7 +4,7 @@
 // shorthand part behind each longhand, var() and token chains, inheritance,
 // and the display form. Electron-free so it is tested with recorded output.
 //
-// Known gaps, shared with the script method PoC 2 measured: the `inherit`
+// Known gaps, shared with the script method the PoC measured: the `inherit`
 // keyword (reported as unknown), variables invalid at computed-value time
 // (unknown), var() resolved with the selected element's custom properties
 // even for an inherited declaration, logical properties read as horizontal-tb

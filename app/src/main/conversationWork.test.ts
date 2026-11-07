@@ -24,7 +24,7 @@ describe("applyConversationWork", () => {
       { conversationId: "c2", root, path, frame: "b", touched: 2, turnId: "u1" },
     ]);
   });
-  // V2 review: an identical update in the same ms is no change, so main publishes nothing; touched alone is a change.
+  // An identical update in the same ms is no change, so main publishes nothing; touched alone is a change.
   test("an identical update at the same time keeps the state, and one at a later time does not", () => {
     const turns = live({ c1: running() });
     const state = applyConversationWork(none, update({ frame: "hero", note: "n" }), turns, 10);

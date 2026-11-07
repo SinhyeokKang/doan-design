@@ -242,7 +242,7 @@ describe("toolFacts", () => {
   });
 });
 
-// BB review round 2: a committed replacement still running its MCP step admits nothing, and readers see it busy.
+// A committed replacement still running its MCP step admits nothing, and readers see it busy.
 it("reports a provider whose replacement is settling as busy", async () => {
   const t = ipc();
   let settling = true;

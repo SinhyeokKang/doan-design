@@ -6,7 +6,7 @@ import type { CliRun } from "../folderState";
 import { launchEnv } from "../launchEnv";
 import { parseShellProbe, type ShellProbe } from "./states";
 
-// PoC 7a: 83 ms. Leave room for cold startup.
+// PoC: 83 ms. Leave room for cold startup.
 export const SHELL_TIMEOUT_MS = 5000;
 const OUTPUT_LIMIT = 1024 * 1024;
 

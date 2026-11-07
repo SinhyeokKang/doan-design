@@ -700,7 +700,7 @@ describe("a replacement that does not finish", () => {
     expect(state).toMatchObject({ connection: first.connection, verified: true, error: { code: "storage_failed" } });
     expect(await storage.loadVault("cursor")).toEqual(vaultU1);
   });
-  // Fix round 1, R-A-1: nothing that can fail runs after the vault and metadata name the new login.
+  // Nothing that can fail runs after the vault and metadata name the new login.
   it("keeps the previous connection, vault and metadata when the working copy cannot be removed before the commit", async () => {
     const m = manager(); await m.load();
     const first = await signedInCursor(m, "u1");
@@ -817,7 +817,7 @@ describe("a replacement that does not finish", () => {
       expect((await again.done).connection!.profile).toBe(next2.cwd.split("/").at(-1));
       expect(profiles()).toEqual([next2.cwd.split("/").at(-1)]);
     });
-    // Fix round 1, R-A-2/R-A-3: a staged or replaced profile goes only after its logout succeeded, and a record of it
+    // A staged or replaced profile goes only after its logout succeeded, and a record of it
     // outlives a crash or a failed logout until a later start finishes the cleanup.
     it("records the staging profile before its login and keeps it with its record when the cleanup logout fails", async () => {
       const m = codex(); await m.load();
@@ -888,7 +888,7 @@ describe("a replacement that does not finish", () => {
       expect(processes.filter(p => p.step === "logout")).toEqual([]);
       expect(storage.pendingCleanup()).toEqual([{ provider: "codex", profile: "codex" }]);
     });
-    // Fix round 2, R-A2-1: only a profile a stored connection references is live; a signed-out provider's own name is not.
+    // Only a profile a stored connection references is live; a signed-out provider's own name is not.
     it("cleans a replaced base profile at the next start after the connection that replaced it signed out", async () => {
       const m = codex(); await m.load();
       await connectedCodex(m);
@@ -902,7 +902,7 @@ describe("a replacement that does not finish", () => {
       await vi.waitFor(() => expect(storage.pendingCleanup()).toEqual([]));
       expect(existsSync(join(root, "profiles", "codex"))).toBe(false);
     });
-    // Fix round 2, R-A2-2: a staging profile that could not be recorded is never created.
+    // A staging profile that could not be recorded is never created.
     it("fails the replacement without a staging profile or any process when its cleanup record cannot be written", async () => {
       const m = codex(); await m.load();
       const connection = await connectedCodex(m);

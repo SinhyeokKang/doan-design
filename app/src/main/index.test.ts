@@ -2362,7 +2362,7 @@ test("work content and a later start publish work:changed", () => {
   expect(new Set(published.map(items => items[0]?.turn)).size).toBe(1);
 });
 
-// V2 review: the same conversation update in the same ms publishes once; a later one renews touched and publishes.
+// The same conversation update in the same ms publishes once; a later one renews touched and publishes.
 test("an identical conversation update publishes again only when its time changed", () => {
   vi.useFakeTimers();
   onTestFinished(() => { vi.useRealTimers(); });
