@@ -83,7 +83,7 @@ const mocks = await vi.hoisted(async () => {
     conversationService: undefined as { list(root: string): unknown[]; projectEvidence(root: string): unknown[] } | undefined,
     preferences: { read: vi.fn(), current: vi.fn(), update: vi.fn() },
     createPreferencesStore: vi.fn(),
-    app: Object.assign(new EventEmitter(), { setName: vi.fn(), whenReady: vi.fn<() => Promise<void>>(), isPackaged: true, getPath: () => "/tmp/doan-index-test", getVersion: () => "9.8.7", exit: vi.fn(), quit: vi.fn(), show: vi.fn(), requestSingleInstanceLock: vi.fn(() => true),
+    app: Object.assign(new EventEmitter(), { setName: vi.fn(), whenReady: vi.fn<() => Promise<void>>(), isPackaged: true, getPath: () => "/tmp/doan-index-test", getVersion: () => "9.8.7", exit: vi.fn(), quit: vi.fn(), relaunch: vi.fn(), show: vi.fn(), requestSingleInstanceLock: vi.fn(() => true),
       isActive: vi.fn(() => true), dock: { bounce: vi.fn(() => 7) } }),
     ipc: new Map<string, (...args: unknown[]) => unknown>(),
     shell: { tokenBase: "http://127.0.0.1:1/t/tok/", entries: vi.fn<() => { path: string; kind?: string }[]>(() => []), open: vi.fn<() => Promise<{ root: string } | { refused: string }>>(), reopen: vi.fn(), initialize: vi.fn(), epoch: vi.fn(), dispose: vi.fn(),
@@ -2954,7 +2954,8 @@ describe("app updates", () => {
       expect(updater().quitAndInstall).not.toHaveBeenCalled();
     });
 
-    // D23: only a conversation holds the restart back, asked again at the press.
+    // Only a conversation holds the restart back (quitting would stop its turn or drop the answer it waits for), and
+    // main asks again at the press.
     test("a running turn or an answer it waits for blocks the press; nothing quits", async () => {
       readyUpdate();
       const service = mocks.conversationService as unknown as { restartHolds(): { liveTurns: number; pendingAnswers: number } };
@@ -2966,12 +2967,16 @@ describe("app updates", () => {
       expect((await snapshot()).state).toEqual({ kind: "ready", version: "0.2.0" });
     });
 
-    test("a conversation event reads the gate again and publishes it when it changed", () => {
+    // The conversation service calls both before it finishes applying the change, so main reads the gate after.
+    test.each(["a conversation event", "the end of a turn's work"])("%s reads the gate again once the change is applied, and publishes it when it changed", async which => {
       readyUpdate();
       const service = mocks.conversationService as unknown as { restartHolds(): { liveTurns: number; pendingAnswers: number } };
       vi.spyOn(service, "restartHolds").mockReturnValue({ liveTurns: 1, pendingAnswers: 0 });
       window().webContents.send.mockClear();
-      mocks.publishConversation?.({ v: 1, conversationId: "c1", seq: 1, turnId: "t1", at: "2026-11-08T10:00:00.000Z", type: "turn.started" });
+      if (which === "a conversation event") mocks.publishConversation?.({ v: 1, conversationId: "c1", seq: 1, turnId: "t1", at: "2026-11-08T10:00:00.000Z", type: "turn.started" });
+      else mocks.workEnded?.("c1");
+      expect(window().webContents.send).not.toHaveBeenCalledWith("update:state", expect.anything());
+      await Promise.resolve();
       expect(window().webContents.send).toHaveBeenCalledWith("update:state", expect.objectContaining({ gate: { kind: "blocked", reason: "conversation" } }));
     });
 

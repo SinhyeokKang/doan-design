@@ -2,7 +2,7 @@ import { EventEmitter } from "node:events";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, onTestFinished, test, vi } from "vitest";
 import type { InstallGate, UpdateEligibility, UpdateSnapshot } from "./types";
 import { CHECK_INTERVAL_MS } from "./schedule";
 
@@ -23,7 +23,7 @@ class FakeUpdater extends EventEmitter {
   autoInstallOnAppQuit = false;
   allowPrerelease = false;
   logger: { info(message: unknown): void; warn(message: unknown): void; error(message: unknown): void } | null = null;
-  checkForUpdates = vi.fn(async (): Promise<unknown> => null);
+  checkForUpdates = vi.fn(async (): Promise<{ downloadPromise?: Promise<unknown> | null } | null> => null);
   downloadUpdate = vi.fn(async (): Promise<unknown> => []);
   quitAndInstall = vi.fn();
 }
@@ -48,6 +48,7 @@ function fixture(options: { version?: string; eligibility?: UpdateEligibility; a
     gate: () => gate,
     publish: vi.fn((snapshot: UpdateSnapshot) => { published.push(snapshot); }),
     quit: vi.fn(),
+    relaunch: vi.fn(),
     log: vi.fn(),
     now: () => Date.now(),
   };
@@ -209,6 +210,22 @@ describe("checking", () => {
     expect(h.updater().checkForUpdates).toHaveBeenCalledTimes(2);
   });
 
+  // With autoDownload, checkForUpdates' result carries the download, which rejects on its own when the download or
+  // Squirrel's staging fails; the failure reaches the state as an error event.
+  test("an automatic download that fails is never left as an unhandled rejection", async () => {
+    const unhandled = vi.fn();
+    process.on("unhandledRejection", unhandled);
+    try {
+      const h = fixture();
+      h.service.start();
+      h.updater().emit("update-not-available", { version: "0.1.0" });
+      h.updater().checkForUpdates.mockImplementationOnce(async () => ({ downloadPromise: Promise.reject(new Error("net::ERR_CONNECTION_RESET")) }));
+      h.service.check();
+      for (let i = 0; i < 5; i++) await new Promise<void>(resolve => { process.nextTick(resolve); });
+      expect(unhandled).not.toHaveBeenCalled();
+    } finally { process.off("unhandledRejection", unhandled); }
+  });
+
   test("publishes a change once and nothing for an event that changes nothing", () => {
     const h = fixture();
     h.service.start();
@@ -315,6 +332,37 @@ describe("Restart to Update", () => {
     expect(h.deps.quit).toHaveBeenCalledOnce();
   });
 
+  // The press asked the gate, but a conversation can start during the staging wait; quitting then would stop it.
+  test("a conversation that starts while Squirrel stages holds the restart: nothing quits and the update waits ready", () => {
+    const h = fixture();
+    ready(h, "0.2.0", { staged: false });
+    expect(h.service.install()).toEqual(ALLOWED);
+    h.setGate(BLOCKED);
+    h.stage();
+    expect(h.deps.quit).not.toHaveBeenCalled();
+    expect(h.service.installPending).toBe(false);
+    expect(h.state()).toEqual({ kind: "ready", version: "0.2.0" });
+    expect(h.published.at(-1)?.gate).toEqual(BLOCKED);
+    vi.advanceTimersByTime(RESTART_STAGE_WAIT_MS);
+    expect(h.state()).toEqual({ kind: "ready", version: "0.2.0" });
+    // Once it ends, a press restarts at once: the download is staged.
+    h.setGate(ALLOWED);
+    expect(h.service.install()).toEqual(ALLOWED);
+    expect(h.deps.quit).toHaveBeenCalledOnce();
+  });
+
+  test("a conversation that starts while the cached download is staged again holds the restart too", () => {
+    const h = fixture();
+    ready(h, "0.2.0", { staged: false });
+    h.updater().emit("error", native("SQRLUpdaterErrorDomain", 8));
+    expect(h.service.install()).toEqual(ALLOWED);
+    h.setGate(BLOCKED);
+    h.updater().emit("update-downloaded", { version: "0.2.0" });
+    h.stage();
+    expect(h.deps.quit).not.toHaveBeenCalled();
+    expect(h.state()).toEqual({ kind: "ready", version: "0.2.0" });
+  });
+
   test("a press while Squirrel is still staging does not start another download", () => {
     const h = fixture();
     ready(h, "0.2.0", { staged: false });
@@ -330,15 +378,20 @@ describe("Restart to Update", () => {
     expect(h.updater().quitAndInstall).toHaveBeenCalledOnce();
   });
 
-  test("an install that does not quit falls back to a plain quit after a wait", () => {
+  // Restart still reopens Doan, on the old version; autoInstallOnAppQuit tries the update again on the next quit.
+  test("an install that does not quit falls back after a wait to relaunching this version and quitting", () => {
     const h = fixture();
     ready(h);
     h.service.install();
     h.service.quitAndInstall();
     vi.advanceTimersByTime(INSTALL_QUIT_WAIT_MS - 1);
     expect(h.deps.quit).toHaveBeenCalledOnce();
+    expect(h.deps.relaunch).not.toHaveBeenCalled();
     vi.advanceTimersByTime(1);
+    expect(h.deps.relaunch).toHaveBeenCalledOnce();
     expect(h.deps.quit).toHaveBeenCalledTimes(2);
+    expect(h.deps.relaunch.mock.invocationCallOrder[0]).toBeLessThan(h.deps.quit.mock.invocationCallOrder[1]!);
+    expect(h.deps.log).toHaveBeenCalledWith(expect.stringContaining("relaunch"));
   });
 
   test("a native error after quitAndInstall quits at once, since main has already torn down", () => {
@@ -347,6 +400,7 @@ describe("Restart to Update", () => {
     h.service.install();
     h.service.quitAndInstall();
     h.updater().emit("error", native("SQRLUpdaterErrorDomain", 3, "No update available, can't quit and install"));
+    expect(h.deps.relaunch).toHaveBeenCalledOnce();
     expect(h.deps.quit).toHaveBeenCalledTimes(2);
     vi.advanceTimersByTime(INSTALL_QUIT_WAIT_MS);
     expect(h.deps.quit).toHaveBeenCalledTimes(2);
@@ -372,14 +426,20 @@ describe("Restart to Update", () => {
 });
 
 describe("the gate in the snapshot", () => {
-  test("is read again when main says conversations changed, and published only when it changes", () => {
+  test("is read again once the current change is done when main says conversations changed, once per burst, and published only when it changes", async () => {
     const h = fixture();
     h.service.start();
     const count = h.published.length;
-    h.service.refreshGate();
+    h.service.conversationsChanged();
+    await Promise.resolve();
     expect(h.published).toHaveLength(count);
     h.setGate(BLOCKED);
-    h.service.refreshGate();
+    const gate = vi.spyOn(h.deps, "gate");
+    h.service.conversationsChanged();
+    h.service.conversationsChanged();
+    expect(h.service.snapshot().gate).toEqual(ALLOWED);
+    await Promise.resolve();
+    expect(gate).toHaveBeenCalledOnce();
     expect(h.published).toHaveLength(count + 1);
     expect(h.service.snapshot().gate).toEqual(BLOCKED);
   });
@@ -419,5 +479,68 @@ describe("Electron wiring", () => {
       expect(hasFeedConfig(dir)).toBe(true);
       expect(hasFeedConfig(undefined)).toBe(false);
     } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+});
+
+// Main tells the service on every conversation event and every end of a turn's work. The conversation service calls
+// those before it has finished applying the change (a turn's end is published before the turn is marked ended; a send
+// publishes turn.started before it is accepted), so the gate must be read after, from the real service.
+describe("the gate follows the real conversation service", () => {
+  beforeEach(() => { vi.useRealTimers(); });
+  const prepared = { runtime: "codex" as const, configDir: "/profile", cwd: "/repo", sessionId: "same-session", command: "/fake", env: {} };
+  const request = { root: "/repo", mode: "resume" as const, canvas: { path: ".doan/canvases/a.html" }, text: "hello", anchors: [] };
+  const ask = { type: "permission.request" as const, requestId: "r1", tool: "Bash", summary: "ls", options: [{ id: "allow", label: "Allow", kind: "allow" as const }] };
+
+  async function wired() {
+    const { ConversationService } = await import("../conversation/service");
+    const { ConversationStore } = await import("../conversation/store");
+    const { installGate } = await import("./gate");
+    const dir = mkdtempSync(join(tmpdir(), "doan-update-gate-"));
+    onTestFinished(() => { rmSync(dir, { recursive: true, force: true }); });
+    const open = vi.fn(async (input: { sessionId?: string }) => ({ sessionId: input.sessionId ?? "s", send: vi.fn(async () => {}), answer: () => false, stop: vi.fn(async () => {}), close: vi.fn(async () => {}) }));
+    const reads: { liveTurns: number; pendingAnswers: number }[] = [];
+    let updates: InstanceType<typeof UpdateService> | undefined;
+    const store = new ConversationStore(dir);
+    const conversations = new ConversationService(store, vi.fn(async () => prepared), open as never, () => { updates?.conversationsChanged(); },
+      undefined, undefined, undefined, undefined, undefined, undefined, () => { updates?.conversationsChanged(); });
+    updates = new UpdateService({
+      version: "0.1.0", eligibility: ENABLED, autoCheck: false, createUpdater: () => new FakeUpdater(), onStaged: () => {},
+      gate: () => { const holds = conversations.restartHolds(); reads.push(holds); return installGate(holds); },
+      publish: () => {}, quit: vi.fn(), relaunch: vi.fn(), log: vi.fn(), now: () => Date.now(),
+    });
+    const service = updates;
+    const settle = async () => { for (let i = 0; i < 3; i++) await Promise.resolve(); };
+    return { conversations, store, reads, gate: () => service.snapshot().gate, settle };
+  }
+
+  test("a turn's end allows the restart, a follow-up send blocks it, and an answered request drops from the count", async () => {
+    const w = await wired();
+    const id = (await w.conversations.start(request)).conversationId;
+    await w.settle();
+    expect(w.gate()).toEqual(BLOCKED);
+    w.conversations.receive(id, { type: "turn.done" });
+    await w.settle();
+    expect(w.gate()).toEqual(ALLOWED);
+    await w.conversations.send(id, "again", []);
+    await w.settle();
+    expect(w.gate()).toEqual(BLOCKED);
+    w.conversations.receive(id, ask);
+    await w.settle();
+    expect(w.reads.at(-1)).toEqual({ liveTurns: 1, pendingAnswers: 1 });
+    w.conversations.receive(id, { type: "permission.resolved", requestId: "r1", optionId: "allow" });
+    await w.settle();
+    expect(w.reads.at(-1)).toEqual({ liveTurns: 1, pendingAnswers: 0 });
+  });
+
+  test("a turn whose history stopped taking writes allows the restart, though it publishes no event", async () => {
+    const w = await wired();
+    const id = (await w.conversations.start(request)).conversationId;
+    await w.settle();
+    expect(w.gate()).toEqual(BLOCKED);
+    vi.spyOn(w.store, "append").mockImplementationOnce(() => { throw new Error("File exceeds limit"); });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    w.conversations.receive(id, { type: "activity", kind: "read", summary: "Read a.html" } as never);
+    await w.settle();
+    expect(w.gate()).toEqual(ALLOWED);
   });
 });

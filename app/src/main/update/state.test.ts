@@ -171,6 +171,12 @@ describe("restarting", () => {
     expect(run(restartAborted, { type: "install" }, { type: "quit-cancelled" }, { type: "install" })).toEqual(restarting);
   });
 
+  // A conversation started while Squirrel.Mac staged the download: a hold, not a failure, so the update waits ready.
+  test("a restart a conversation held back returns to ready; outside a restart it changes nothing", () => {
+    expect(run(restarting, { type: "restart-held" })).toEqual(ready);
+    for (const state of ALL.filter(state => state.kind !== "restarting")) expect(run(state, { type: "restart-held" })).toBe(state);
+  });
+
   test("a cancelled quit outside a restart changes nothing", () => {
     for (const state of ALL.filter(state => state.kind !== "restarting")) expect(run(state, { type: "quit-cancelled" })).toBe(state);
   });
