@@ -87,7 +87,7 @@ describe("Claude stages", () => {
     const nested = frames.flatMap((frame, i) => frame.parent_tool_use_id ? [i] : []);
     expect(nested.length).toBeGreaterThan(0);
     for (const i of nested) expect(steps[i]).toEqual({ events: [] });
-    // While the subagent runs the Agent activity is the newest event, so the indicator is in the 도구(event) state: no
+    // While the subagent runs the Agent activity is the newest event, so the indicator is in the tool state that event gives: no
     // general follows it, not even at the Agent tool block's stop, until the Agent's own tool result.
     const agent = steps.findIndex(step => step.events.some(e => e.type === "activity"));
     const result = frames.findIndex(f => f.type === "user" && !f.parent_tool_use_id && f.message.content.some((c: { type: string }) => c.type === "tool_result"));
@@ -151,7 +151,7 @@ describe("Codex stages", () => {
       { kind: "tool", activity: "read", path: "/repo/notes.txt", summary: "notes.txt" },
       GENERAL,
     ]);
-    // The stage goes out with its item's activity event, which stays a command (design 결정 6).
+    // The stage goes out with its item's activity event, which stays a command.
     const started = steps.filter(step => step.stage?.kind === "tool");
     for (const step of started) expect(step.events).toEqual([{ type: "activity", kind: "command", summary: GENERIC_SUMMARY.command }]);
     expectNoStageAfterTerminal(steps);

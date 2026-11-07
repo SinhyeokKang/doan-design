@@ -49,8 +49,8 @@ it("tells prepare when a send reuses the conversation's live Codex server", asyn
   await h.service.send(id, "after exit", []);
   expect(h.prepare.mock.calls[2]?.[3]).toBeFalsy();
 });
-// mcp-connectors C1: a reused Codex server reloads its MCP servers before the next turn when a Connect, Disconnect,
-// Remove or replacement changed the provider's connectors since it opened (design 'reload 배선').
+// A reused Codex server reloads its MCP servers before the next turn when a Connect, Disconnect,
+// Remove or replacement changed the provider's connectors since it opened.
 describe("Codex MCP reload", () => {
   function connectors() {
     let generation = 4; const fake = fixture();

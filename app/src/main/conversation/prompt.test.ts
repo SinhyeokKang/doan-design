@@ -103,7 +103,7 @@ it("lists up to ten attachments as untrusted data with name, kind and path only"
   expect(turnPrompt([], "x", { root: "/repo" }, { attachments: [...attachments, attachments[0]!] })).toBeNull();
   expect(JSON.parse(turnPrompt([], "x", { root: "/repo" })!.split("\n\n")[1]!)).not.toHaveProperty("attachments");
 });
-// canvas-handoff B3 (design §5 'prompt'): the use is taught only on a turn that may hand off, and the next agent reads
+// The handoff command is taught only on a turn that may hand off, and the next agent reads
 // the handoff as data in its own field, never through the anchor markers.
 describe("handoff", () => {
   const scope = { root: "/repo", canvas: { path: ".doan/canvases/a.html", id: "a" } };

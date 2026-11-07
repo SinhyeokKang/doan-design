@@ -6,7 +6,7 @@ const context = { root: "/repo", sessionId: "s", turnId: "t" };
 const elicitation = { threadId: "s", serverName: "synthetic", mode: "form", message: "Synthetic question", requestedSchema: { type: "object", properties: {} } };
 
 describe("Codex ingress ownership", () => {
-  // A form elicitation has no screen, so it is declined (mcp-connectors spec 완료 조건 6) rather than refused as unsupported.
+  // A form elicitation has no screen, so it is declined rather than refused as unsupported.
   it.each([null, undefined])("disposes of schema-valid elicitation with turnId %s without attributing it", turnId => {
     const raw = { id: 0, method: "mcpServer/elicitation/request", params: { ...elicitation, ...(turnId === undefined ? {} : { turnId }) } };
     const result = normalizeCodex(initialTransport(), raw, context);

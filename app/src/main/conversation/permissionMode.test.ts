@@ -2,7 +2,7 @@ import { expect, it } from "vitest";
 import { acpModeFor, claudeModeAfterPlan, claudePermission, codexDefaults, codexPermission, codexWorkspace, permissionModeId, permissionOptions, PERMISSION_MODES, readPermissionMode, type AcpModes } from "./permissionMode";
 
 const COPILOT = "https://agentclientprotocol.com/protocol/session-modes#";
-// session/new modes as P3 recorded them (design.md 'PoC 결과').
+// session/new modes as a PoC recorded them on 2026-11-02.
 const CURSOR: AcpModes = { available: ["agent", "plan", "ask"], allowAll: false };
 const ANTIGRAVITY: AcpModes = { available: ["default", "auto_edit", "yolo"], allowAll: false };
 const COPILOT_MODES: AcpModes = { available: [`${COPILOT}agent`, `${COPILOT}plan`, `${COPILOT}autopilot`], allowAll: true };

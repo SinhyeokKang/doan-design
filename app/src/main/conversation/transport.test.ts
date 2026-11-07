@@ -205,7 +205,7 @@ describe("readable activity and permission summaries", () => {
     expect(claudePermissionSummary("Bash", { command: "npm test" }, "/repo")).toBe("npm test");
     expect(claudePermissionSummary("WebFetch", {}, "/repo")).toBe("Using a tool");
   });
-  // mcp-connectors spec 완료 조건 6: a Doan connector's tool is named with the connector, and its input (page ids,
+  // A Doan connector's tool is named with the connector, and its input (page ids,
   // queries, bodies) never reaches the summary or the stored activity.
   it("names a Doan MCP connector's tool and its connector, never its input or internal doan- name", () => {
     const input = { description: "Read the spec page", path: "/repo/secret.md", pattern: "token", id: "page-123" };

@@ -138,7 +138,7 @@ function claudeKind(tool: string): ActivityKind {
 }
 function claudePath(input: Record<string, unknown>): string { return text(input.file_path) || text(input.path); }
 // A Doan connector's tool (`mcp__doan-<slug>__<tool>`) is named with its connector, and its input never reaches the
-// summary: it can hold page ids, queries and bodies (mcp-connectors spec 완료 조건 6). labels maps doan- names to
+// summary: it can hold page ids, queries and bodies. labels maps doan- names to
 // connector names; the presets are always known.
 const DOAN_MCP_TOOL = /^mcp__(doan-[a-z0-9][a-z0-9-]{0,15})__(.+)$/s;
 const PRESET_LABELS = connectorLabels([]);
@@ -156,7 +156,7 @@ function claudeActivity(tool: string, input: Record<string, unknown>, root: stri
   return activity(kind, DOAN_MCP_TOOL.test(tool) ? "" : claudePath(input), kind === "command" ? GENERIC_SUMMARY.command : claudePermissionSummary(tool, input, root, labels), root);
 }
 // A command Codex parsed into one read-only action reads files; the turn indicator says so, while its activity stays a
-// command (turn-activity 결정 6). Anything else (unknown, several actions, none) gives no stage. The command text never
+// command. Anything else (unknown, several actions, none) gives no stage. The command text never
 // goes in, only a read's file path. A listFiles or search names a folder the indicator does not show ("Reading files"),
 // so its stage carries no path: the renderer shows "Reading <path>" exactly when a path is there.
 function codexReadStage(item: Record<string, unknown>, root: string): TurnStage | null {
@@ -342,7 +342,7 @@ export function normalizeCodex(state: TransportState, raw: unknown, context: Cod
     const asking = matched && !state.terminal && !(state.stop && raw.method === MCP_ELICITATION);
     const permission = asking ? codexPermission(raw, state.fileSummaries, context.labels) : null;
     // An elicitation this turn cannot ask about (a form, or one with no running turn to ask in) is declined, never failed: the
-    // tool call fails and the turn goes on (mcp-connectors spec 완료 조건 6).
+    // tool call fails and the turn goes on.
     // No answers is a normal reply Codex reads as "no answer received" and goes on from (P2), whatever the question.
     if (!otherOwner && raw.method === USER_INPUT) return { ...unchanged(state), request: { id: raw.id, method: raw.method, disposition: "decline", response: { id: raw.id, result: { answers: {} } } } };
     if (!otherOwner && !permission && raw.method === MCP_ELICITATION) return { ...unchanged(state), request: { id: raw.id, method: raw.method, disposition: "decline", response: { id: raw.id, result: { action: "decline" } } } };

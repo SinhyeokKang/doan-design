@@ -1,7 +1,7 @@
 import type { Provider } from "../agentAuth/types";
 
 // The permission modes a person can pick for a conversation, the same for every provider, and how each provider
-// receives them (permission-mode design '모드 대응'). The renderer imports this module by value, so it must import
+// receives them (ARCHITECTURE §7 'Permission modes'). The renderer imports this module by value, so it must import
 // nothing but types: a value import of the validators or a Node module leaves the built app's window blank
 // (rendererImports.test.ts, POSTMORTEM 2026-10-30).
 
