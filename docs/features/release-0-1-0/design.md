@@ -223,7 +223,7 @@ design-draft·design-sync의 "on main"은 "출시됐다"가 아니라 "통합됐
 ### D25. 공개 뒤 GitHub 설정의 나눔 — 결론(사용자, 2026-11-07 `/feature-review`)
 - G3a(G2 직후 같은 자리): 비공개 취약점 신고 켜기, 환경 `release`(D6)와 비밀 등록.
 - G3b(C5 뒤): `develop` 보호. 필수 검사는 ci-gate의 작업 id(`gate`). 관리자 우회를 허용한다.
-- G3c(C8 뒤, R1 전): `main` 보호. PR 필수, 승인 0, 필수 검사, "Require branches to be up to date" 끔, force push·삭제 금지.
+- G3c(R1 전): `main` 보호. PR 필수, 승인 0, 필수 검사, "Require branches to be up to date" 끔, force push·삭제 금지, 관리자 우회 금지(`enforce_admins`). `/release`는 PR로 병합하므로 우회가 필요 없다.
 - 제약: `develop`에서 우회를 막으면 D3의 직접 push와 D13의 올림 커밋이 거부된다. `main`에 승인 1을 두면 메인테이너 혼자서는 병합할 수 없다. `main`의 병합 커밋은 `develop`에 들어가지 않으므로 최신화를 요구하면 매 릴리스 PR이 "behind"가 된다.
 
 ### D26. 코드 주석의 문서 인용 금지 — 결론(사용자, 2026-11-07 `/feature-review`)

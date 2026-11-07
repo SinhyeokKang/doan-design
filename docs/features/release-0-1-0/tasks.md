@@ -58,7 +58,7 @@ C3 community-docs ─ C4 readme-features   (P0과 병렬, main에 커밋)
   - 검증: 확인 명령 미정 — 사용자 확인 필요(`gh api repos/SinhyeokKang/doan-design/environments/release`가 환경을 돌려주는지 본다).
 - [x] G3b. (사용자, C5 뒤) D25: `develop` 보호. 필수 검사 = ci-gate의 작업 id `gate`, 관리자 우회 허용. 2026-11-08 적용: 필수 검사 `gate`, strict 끔, 관리자 우회 허용(enforce_admins false), 승인 요구 없음, force push·삭제 금지.
   - 검증: 확인 명령 미정 — 사용자 확인 필요(`gh api repos/SinhyeokKang/doan-design/branches/develop/protection`).
-- [ ] G3c. (사용자, C8 뒤, R1 전) D25: `main` 보호. PR 필수, 승인 0, 필수 검사 `gate`, 최신화 요구 끔, force push·삭제 금지.
+- [x] G3c. (사용자, R1 전) D25: `main` 보호. PR 필수, 승인 0, 필수 검사 `gate`, 최신화 요구 끔, force push·삭제 금지, 관리자 우회 금지. 2026-11-08 C8보다 앞당겨 적용했다(main에는 첫 `/release` 전까지 아무것도 들어가지 않는다).
   - 검증: 확인 명령 미정 — 사용자 확인 필요(`gh api repos/SinhyeokKang/doan-design/branches/main/protection`).
 
 ## C (계속)
