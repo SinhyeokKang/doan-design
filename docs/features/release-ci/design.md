@@ -5,7 +5,7 @@
 ## 영향 범위
 
 - `app/package.json` `build`: `mac.target`에 dmg와 zip(arm64), `publish: { provider: "github", owner: "SinhyeokKang", repo: "doan-design", releaseType: "draft" }`(D18), dmg `artifactName`을 버전 없는 `Doan-macos-arm64.dmg`로(README의 `releases/latest/download/…` 링크용, Orca의 `orca-macos-${arch}.${ext}` 방식), `extraResources`에 `{ from: "../LICENSE", to: "LICENSE" }`와 `{ from: "../cli/internal/designskill/notices", to: "notices" }`(D15). `mac.identity: null`은 그대로 두고 CI가 명령줄로 덮는다(docs/ARCHITECTURE.md:720).
-- `app/scripts/package.mjs`: 로컬 패키지는 `--mac dir`로 남는다(`:19`). `publish` 설정을 더한 뒤 로컬 패키지에 `app-update.yml`이 생기면 `-c.publish=null`을 더한다(T4).
+- `app/scripts/package.mjs`: 바꾸지 않는다. 로컬 패키지는 `--mac dir`이고, electron-builder는 darwin에서 dmg나 zip 타깃이 있을 때만 `app-update.yml`을 쓴다(`app-builder-lib/out/publish/PublishManager.js:75–90`). T4에서 `publish`를 더한 뒤 `npm --prefix app run package`의 앱에 파일이 없음을 확인했다.
 - 새 `.github/workflows/test-build.yml`, `.github/workflows/release.yml`. 게이트는 ci-gate의 `ci.yml`을 `workflow_call`로 부른다.
 - 새 검사 스크립트(서명 검증, 버전 검사)와 그 테스트. 위치는 `app/scripts/`(패키징 스크립트 옆).
 - `.agents/skills/tester-build/SKILL.md` 재작성, AGENTS.md 'Commands'(75행)와 'Workflow', [release-skill design](../release-skill/design.md) 'One-time setup'.
@@ -39,7 +39,7 @@
 
 1. `on: push: tags: tester-*`. `/tester-build`가 `origin/develop` HEAD에 `tester-<date>-<sha>` 태그를 push한다. 첫 단계에서 태그 커밋이 `origin/develop`의 조상인지 확인하고, 아니면 실패한다. PoC 동안만 `origin/chore/release-ci`의 조상도 받고, T6 커밋에서 그 예외를 지운다. `/tester-build`는 산출물을 받은 뒤 태그를 지운다.
 2. `gate`(workflow_call).
-3. `sign`: `npm --prefix app run package`로 CLI와 `out/`을 만들고(`.agents/skills/tester-build/SKILL.md` 3단계와 같다), electron-builder로 `--mac dmg --arm64 --publish never`, `-c.mac.identity=$MAC_IDENTITY_NAME`, `-c.dmg.sign=true`, `-c.publish=null`(업데이트 피드 없음)로 서명·공증한다.
+3. `sign`: `npm --prefix app run package`로 CLI와 `out/`을 만들고(`.agents/skills/tester-build/SKILL.md` 3단계와 같다), `app/package.json`의 `build`에 `publish: null`만 바꾼 설정 파일을 `$RUNNER_TEMP`에 만들어 `--config <파일>`로 넘기고(업데이트 피드 없음), `--mac dmg --arm64 --publish never`, `-c.mac.identity=$MAC_IDENTITY_NAME`, `-c.dmg.sign=true`로 서명·공증한다.
 4. dmg를 `notarytool submit --wait --timeout 30m`으로 공증하고 스테이플한다(`/tester-build` 5단계). 시간 초과면 제출 id를 출력하고 실패한다(dmg 공증은 `notarytool wait`로 이어 갈 수 있다).
 5. 서명 검증 스크립트로 dmg와 앱을 검사한다.
 6. 산출물 `Doan-tester-<date>-<sha>.dmg`, 보존 7일.
@@ -74,7 +74,11 @@ release-skill은 이 절의 이름만 쓴다. 바뀌면 두 문서를 같이 고
 
 ## app-update와의 계약
 
-- **업데이트 피드는 릴리스 빌드에만 있다.** electron-builder는 `publish` 설정이 있을 때 앱 안에 `app-update.yml`을 쓴다(Orca 번들의 `Contents/Resources/app-update.yml`에서 확인). 테스트 빌드와 로컬 패키지는 `-c.publish=null`로 파일을 빼고, app-update는 파일이 없으면 업데이트를 끈다. `--publish never`만으로는 파일이 빠지지 않는다는 점과 `-c.publish=null`이 파일을 빼는지는 PoC에서 확인한다.
+- **업데이트 피드는 릴리스 빌드에만 있다.** 테스트 빌드와 로컬 패키지에는 `Contents/Resources/app-update.yml`이 없고, app-update는 파일이 없으면 업데이트를 끈다. 2026-11-08 서명 없는 로컬 빌드(electron-builder 26.18.0)로 확인한 동작:
+  - darwin에서 dmg나 zip 타깃이 있으면 `--publish never`여도 `app-update.yml`을 쓴다(`--mac dmg zip`에서 `owner`·`repo`·`provider: github`·`releaseType: draft`·`updaterCacheDirName: doan-app-updater`). `--mac dir`(로컬 패키지)은 쓰지 않는다.
+  - `publish` 설정이 없어도 저장소 정보로 GitHub 피드를 만든다(`PublishManager.js` `getPublishConfigsForUpdateInfo`). 명시한 `publish: null`만 파일을 막는다.
+  - `-c.publish=null`은 문자열 `"null"`로 들어가 `Cannot find module for publisher "null"`로 실패한다. CLI가 `null`로 바꾸는 값은 `mac.identity`뿐이다(`electron-builder/out/builder.js:127–130`). 그래서 테스트 빌드는 `publish: null`을 넣은 설정 파일을 `--config`로 넘긴다. 이 방식으로 `app-update.yml`이 빠지고 LICENSE·notices·`bin/doan`·skills·아이콘은 그대로 들어감을 확인했다.
+  - 자산 이름은 `Doan-macos-arm64.dmg`, `Doan-0.1.0-arm64-mac.zip`, `.zip.blockmap`, `latest-mac.yml`이다(`Doan-macos-arm64.dmg.blockmap`도 생기지만 올리지 않는다). `latest-mac.yml`의 `files`에는 zip과 dmg가 모두 있다.
 - zip 안의 앱은 스테이플된 앱이다(부모 '조사', 코드로 확인). PoC에서는 `stapler validate` 한 줄로 확인만 한다.
 - rc도 `latest-mac.yml`을 쓴다(부모 '조사').
 

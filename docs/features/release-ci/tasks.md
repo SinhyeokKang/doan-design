@@ -7,17 +7,17 @@
 - [ ] T1. (사용자) 환경 `release`의 배포 ref에 태그 규칙 `tester-*`와 `release-dryrun-*`를 더한다(design.md 'PoC' 1). 시작 방식은 2026-11-08 사용자 결정으로 태그 push다(design.md '비밀과 권한').
   - 검증: 사용자 답으로 확인한다. T5의 첫 실행이 `sign`에서 환경 거부 없이 검토 대기로 들어간다.
 
-- [ ] T2. `/tdd`: `checkReleaseVersion`, `parseCodesignDetails`, `compareEntitlements`, `parseSpctl`의 테스트를 먼저 쓴다(`/tester-build`에서 관찰한 실제 출력 예를 픽스처로, `draft_exists`와 rc 순서 사례 포함). 스크립트 이름을 정하고 design.md '/release와의 계약'과 release-skill design을 같이 고친다.
+- [x] T2. `/tdd`: `checkReleaseVersion`, `parseCodesignDetails`, `compareEntitlements`, `parseSpctl`의 테스트를 먼저 쓴다(`/tester-build`에서 관찰한 실제 출력 예를 픽스처로, `draft_exists`와 rc 순서 사례 포함). 스크립트 이름을 정하고 design.md '/release와의 계약'과 release-skill design을 같이 고친다.
   - 검증: `npm --prefix app test`에서 새 테스트가 실패한다(red).
 
 ── commit: `test(release): pin version and signature checks` ──
 
-- [ ] T3. 순수 함수와 얇은 검증 스크립트를 구현한다.
+- [x] T3. 순수 함수와 얇은 검증 스크립트를 구현한다.
   - 검증: `npm --prefix app test` 통과, `node .agents/skills/verify/scripts/verify.mjs` 통과.
 
 ── commit: `chore(release): check versions and signatures in scripts` ──
 
-- [ ] T4. `app/package.json` `build`: zip 타깃, `publish`, dmg 이름, 고지 `extraResources`. 로컬 패키지가 바뀌지 않았는지 확인하고, `app-update.yml`이 생기면 `app/scripts/package.mjs`에 `-c.publish=null`을 더한다.
+- [x] T4. `app/package.json` `build`: zip 타깃, `publish`, dmg 이름, 고지 `extraResources`. 로컬 패키지가 바뀌지 않았는지 확인한다(`--mac dir`이라 `app-update.yml`이 생기지 않아 `package.mjs`는 그대로다, design.md 'app-update와의 계약').
   - 검증: `npm --prefix app run package` 뒤
     - `test -e app/dist/mac-arm64/Doan.app/Contents/Resources/LICENSE`, `test -d app/dist/mac-arm64/Doan.app/Contents/Resources/notices`
     - `test ! -e app/dist/mac-arm64/Doan.app/Contents/Resources/app-update.yml`
