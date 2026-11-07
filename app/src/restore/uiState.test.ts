@@ -220,7 +220,7 @@ test("keeps each provider's last permission mode and reads an unknown one as Def
   for (const bad of [null, [], "plan", 1]) expect(parse({ screen: "home", home: { ...home, permissions: bad } })?.home).toEqual(home);
 });
 
-// fast-mode A5 (design §3): each provider's Last used Fast. Read back like permissions, so a save does not drop it
+// each provider's Last used Fast. Read back like permissions, so a save does not drop it
 // (POSTMORTEM 2026-11-01); a damaged entry is dropped alone.
 test("keeps each provider's Fast and drops a damaged entry alone", () => {
   const state = { screen: "home", expanded: {}, lastByRoot: {}, home: { ...home, fast: { claude: true, codex: true } } };
@@ -375,7 +375,7 @@ test("a parsed rightPanel survives a second parse unchanged", () => {
   expect(parse(first)).toEqual(first);
 });
 
-// shell-panel-layout design §2.3: the Overview's canvas conversations panel keeps its own width, checked like the
+// the Overview's canvas conversations panel keeps its own width, checked like the
 // canvas panel's.
 test("reads the Overview panel's width apart from the canvas panel's; a malformed one is dropped", () => {
   expect(parse({ screen: "home", overviewPanel: { width: 420 }, rightPanel: { open: true, width: 300 } })).toMatchObject({ overviewPanel: { width: 420 }, rightPanel: { open: true, width: 300 } });
