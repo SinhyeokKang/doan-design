@@ -191,7 +191,7 @@ function withSignOut(status: AuthStatusDto, ctx: ProviderContext, view: Provider
 }
 
 // Home's agent picker lists connected providers only and has no recovery buttons (2026-10-29 user), so a row
-// that can't run gets a short status without action words; buzz-settings later puts the action in the same place.
+// that can't run gets a short status without action words; Settings later puts the action in the same place.
 // null: ready, or not connected (Home doesn't list it). Unverified stays selectable because main checks it on send.
 export function providerShortStatus(status: AuthStatusDto): string | null {
   const r = status.readiness;
