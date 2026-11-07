@@ -16,7 +16,7 @@ test("a healthy worktree shows its settings, a problem one its problem, and a lo
   expect(projectSettingsView(entry("/w/a", "loading"))).toBeNull();
 });
 
-// ── The page (project-settings design '순수 함수로 뺄 부분' 3–7) ────────────────────────────────────────────────────
+// ── The page ────────────────────────────────────────────────────
 
 const home: AddPageOrigin = { screen: "home" };
 const wsA: AddPageOrigin = { screen: "workspace", root: "/w/a" };

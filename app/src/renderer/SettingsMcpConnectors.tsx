@@ -53,7 +53,7 @@ export function SettingsMcpConnectors({ watch, signIn, onLock, openAgents, actio
   if (since.current === null) since.current = watch.announcementSeq();
   useEffect(() => {
     const offWatch = watch.subscribe(redraw), offAuth = signIn.subscribe(redraw);
-    // Status commands use the network, so they run on entering the page, never on a timer (design '상태 판정').
+    // Status commands use the network, so they run on entering the page, never on a timer.
     void window.doan.readMcpConnectors({ refresh: true }).then(reply => { if (snapshotReply(reply)) watch.receive(reply); }, () => {});
     return () => {
       offWatch(); offAuth();

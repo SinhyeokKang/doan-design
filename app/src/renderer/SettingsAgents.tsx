@@ -18,11 +18,11 @@ import { permissionPickerView } from "./permissionPicker";
 import { preferencesNotice } from "./SettingsNotifications";
 
 export interface SettingsAgentsProps {
-  // The renderer's sign-in controller: a sign-in outlives this page (design 'App 수준 로그인 컨트롤러').
+  // The renderer's sign-in controller: a sign-in outlives this page.
   signIn: AgentSignIn;
   // A provider to focus and flash once; seq makes a repeated arrival distinct.
   arrival: { provider: Provider; seq: number } | null;
-  // The stop dialog owns the page until it is answered (design '잠금').
+  // The stop dialog owns the page until it is answered.
   onLock(locked: boolean): void;
   // null until App has read preferences.json.
   preferences: PreferencesSnapshot | null;

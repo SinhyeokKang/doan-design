@@ -1,4 +1,4 @@
-// A drop on the 'Open a local folder' card (buzz-add-projects design '폴더 드롭'). path is what preload's
+// A drop on the 'Open a local folder' card. path is what preload's
 // webUtils.getPathForFile read; an item not backed by a file has none ("").
 export type FolderDrop = { kind: "folder"; index: number } | { kind: "notice"; text: string };
 

@@ -41,7 +41,7 @@ describe("handoffArrival: the wait for the target's list read", () => {
   });
 });
 
-describe("handoff copy (design §6 '확정 문구')", () => {
+describe("handoff copy", () => {
   const ctx = { project: "acme-web", provider: "claude" as const, listed: () => true };
   const line = (item: Parameters<typeof handoffLineText>[0], over: Partial<typeof ctx> = {}) => handoffLineText(item, { ...ctx, ...over });
   const base = { kind: "handoff" as const, key: "ht1", canvas: { path: CHECKOUT.path } };

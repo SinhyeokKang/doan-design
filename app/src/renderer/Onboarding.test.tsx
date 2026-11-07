@@ -20,7 +20,7 @@ test("Welcome: Doany (142.5px), wordmark, two-line heading and the lg Get starte
   expect(html).not.toMatch(/…|\.\.\./);
 });
 
-// doan-mascot design '배치': the group's centre sits 72px above .ob-scroll's centre; the offset shrinks before the
+// The group's centre sits 72px above .ob-scroll's centre; the offset shrinks before the
 // window scrolls and leaves no empty scroll. The spacer after the group grows to at most twice the offset (stageInsets).
 test("Welcome centres its group 72px high in the area under the chrome", async () => {
   const { readFileSync } = await import("node:fs");
@@ -412,7 +412,7 @@ test("D23: choice cards take the chosen card's box and show keyboard focus on th
   expect(css).toMatch(/\.ob-choice:has\(input:focus-visible\) \{[^}]*outline:/);
 });
 
-// buzz-canvas-conversation R2a: the visible radio replaces the end check (design §0 '선택 카드 라디오').
+// The visible radio replaces the end check.
 test("the choice card's radio is 16px, centred on the title's first line, and filled with a 6px dot when on", async () => {
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
@@ -566,7 +566,7 @@ test("D29: a subtle button directly on the Agent/Project glass takes the step ca
   expect(css).toContain('.ob-overlay:not(.ob-welcome) .ob-scene .doan-button[data-ui-variant="subtle"]:not(:hover, :active, :disabled, .doan-panel *, .doan-dialog *) { background: var(--affordance-backdrop-hover); }');
 });
 
-// buzz-add-projects U4: first run shares the page's improvements (design '온보딩과의 공유' 2, 3).
+// First run shares the page's improvements.
 test("U4: the steps scroll as one full-width surface around the 560px column, with the thin scroll bar", async () => {
   expect(renderToStaticMarkup(<SceneScroll><h2>Step</h2></SceneScroll>)).toBe('<div class="ob-scroll doan-scroll"><div class="ob-scene"><h2>Step</h2></div></div>');
   const { readFileSync } = await import("node:fs");

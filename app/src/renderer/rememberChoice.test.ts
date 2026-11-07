@@ -30,7 +30,7 @@ test("Last used in Settings stays Last used; a fixed default takes the pick", ()
   expect(preferenceAfterPick({ provider: "claude", model: "opus" }, { provider: "claude", model: null, effort: null })).toBeUndefined();
 });
 
-// permission-mode T1 (design '저장 규칙'): the mode is remembered apart from the model, and a mode picked while the
+// The mode is remembered apart from the model, and a mode picked while the
 // model list is not read still counts.
 test("a picked mode is the provider's last mode; Default is stored as none", () => {
   const memory = { lastProvider: "claude" as const, models: { claude: { model: "opus" } } };

@@ -35,7 +35,7 @@ export function shouldTurnOffFast(event: ConversationEvent, live: boolean): bool
   return live && event.type === "fast.unused" && event.turnedOff === true;
 }
 
-// The provider's last mode, judged apart from its model (permission-mode design '저장 규칙'). Default is no entry.
+// The provider's last mode, judged apart from its model. Default is no entry.
 // The same memory comes back when nothing changes. Used alone for a mode the composer followed rather than picked
 // (a Claude plan approval), which is not a provider choice.
 export function rememberPermission(memory: HomeMemory | null, provider: Provider, mode: PermissionModeId): HomeMemory {

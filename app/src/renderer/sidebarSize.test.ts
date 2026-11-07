@@ -17,7 +17,7 @@ test("a saved width shows clamped; a missing or unusable one is the default", ()
 });
 
 // The header's sidebar button. Hidden, it carries the most urgent signal the sidebar's
-// slots would show; canvas notices are left out (spec '결정' 2).
+// slots would show; canvas notices are left out.
 describe("sidebarToggleView", () => {
   const slots = (...kinds: SidebarSlot["kind"][]) => new Map<string, SidebarSlot>(kinds.map((kind, i) => [`k${i}`, kind === "canvas" ? { kind, label: "c" } : { kind, label: "l" }]));
   test("shown: Hide sidebar, never a badge", () => {

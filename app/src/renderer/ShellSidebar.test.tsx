@@ -308,7 +308,7 @@ test("CSS: the sidebar column is the resizable width and its handle sits in the 
   expect(css).toContain('.doan-panel-handle:is([data-ui-state="hover"], [data-ui-state="drag"], :focus-visible)::after { opacity: 0.7; }');
 });
 
-// canvas-row-menu design '행 버튼과 메뉴' (draft row-button, confirmed by the user).
+// A canvas row's button and menu (draft row-button, confirmed by the user).
 function canvasMarkup(extra: Record<string, unknown> = {}, slot?: Slot) {
   const slots = slot ? { slots: new Map([[`/repo\n${row.path}`, slot]]) } : {};
   return renderToStaticMarkup(<ShellSidebar cards={[{ key: "common", name: "demo", rows: [entry] }]} projects={{ common: { roots: ["/repo"], expanded: true } }} loaded={null} canvas={undefined} homeDirectory={null}
@@ -329,7 +329,7 @@ it("marks a locked canvas row's button aria-disabled, never the project row's", 
   expect(html).not.toMatch(/aria-label="canvas menu"[^>]* disabled=""/);
 });
 
-// The ownedFocus recovery's new branches (tasks T6, design '삭제 뒤 화면'): a removed canvas row's focus stays in its group.
+// The ownedFocus recovery's new branches: a removed canvas row's focus stays in its group.
 it("hands a removed canvas row's focus to the next row of its group, else the previous one, else the group head", () => {
   const project = { key: "p" }, ds = { key: "p\n#ds", parent: "p" }, canvases = { key: "p\n#canvases", parent: "p" };
   const canvas = (key: string, parent: string) => ({ key, parent, canvas: true });
@@ -355,7 +355,7 @@ it("judges an open canvas menu by its own row, so the project menu's rule never 
   const cards = [{ key: "common", name: "demo", rows: [entry] }];
   const rows = [{ key: "common" }, { key: `/repo\n${row.path}`, parent: "/repo\n#canvases" }];
   expect(staleMenu(null, cards, null, rows, false)).toBe(false);
-  // The project rule: no card has this key, so it would close the menu at once (design '함정').
+  // The project rule: no card has this key, so it would close the menu at once.
   expect(staleMenu({ kind: "project", key: `/repo\n${row.path}` }, cards, "/repo", rows, false)).toBe(true);
   expect(staleMenu({ kind: "canvas", key: `/repo\n${row.path}` }, cards, null, rows, false)).toBe(false);
   expect(staleMenu({ kind: "canvas", key: `/repo\n${row.path}` }, cards, null, rows.slice(0, 1), false)).toBe(true);

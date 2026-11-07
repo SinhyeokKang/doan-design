@@ -153,7 +153,7 @@ test("a requested canvas conversation opens its canvas instead of the main threa
   expect(h.run.view(ROOT)).toEqual({ kind: "conversation", conversationId: A });
 });
 
-// Review RM r1 🟡6: reopening an Overview applies spec decision 5 again; only the drafts by root stay.
+// Review RM r1 🟡6: reopening an Overview applies the pick again; only the drafts by root stay.
 test("reopening an Overview picks again, and each root keeps its new-conversation draft", () => {
   const h = harness();
   h.run.show(ROOT);
@@ -610,7 +610,7 @@ test("a late start or send reply does not cancel an entry request still waiting 
   expect(h.state.remembered).toEqual({ [ROOT]: C });
 });
 
-// Review RM r2 🟡3: what the list did while the Overview was away is no choice; reopening picks by decision 5.
+// Review RM r2 🟡3: what the list did while the Overview was away is no choice; reopening picks again.
 test("reopening after the shown conversation left the list while away picks the latest project conversation", () => {
   const h = harness();
   h.run.show(ROOT);

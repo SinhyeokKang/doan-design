@@ -54,7 +54,7 @@ const click = (label: string) => (button(label).props.onClick as () => void)();
 const text = () => words(all(tree).filter(element => typeof element.type === "string").map(element => element.props.children));
 function resetHooks() { hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.pending = []; }
 
-// project-settings T3: the Project Settings page (design '화면', '이동과 잠금', '포커스'), not yet wired into App.
+// The Project Settings page, not yet wired into App.
 const { ProjectSettingsPage } = await import("./ProjectSettingsPage");
 const { SettingsDialog } = await import("./SettingsDialog");
 import type { FolderEntry } from "../main/view";
@@ -632,7 +632,7 @@ test("Retry or Locate that removes the focused button moves focus to the title",
   unmount();
 });
 
-// Focus after a write (design '포커스'): the pressed button, else the section's main button.
+// Focus after a write: the pressed button, else the section's main button.
 test("after Change the pressed button gets focus back", async () => {
   await open();
   const change = node(); focusOn(change);

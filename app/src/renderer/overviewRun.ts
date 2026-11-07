@@ -134,7 +134,7 @@ export class OverviewRun {
     this.visible = root;
     if (root) {
       const s = this.state(root);
-      // Reopened with nothing asked for it meanwhile: spec decision 5 picks again; the drafts by key stay.
+      // Reopened with nothing asked for it meanwhile: the conversation is picked again; the drafts by key stay.
       if (s.leftAt !== undefined && s.leftAt === s.intent && !s.request) { delete s.current; s.moved = null; }
       this.resolve(root, s);
     }
@@ -268,7 +268,7 @@ export class OverviewRun {
     if (this.store.track(conversationId)) this.store.takeDraft(root, conversationId);
     this.checkSeen();
   }
-  // Spec decision 5 through pickOverviewConversation. Only the first pick of a root reads the memory: after it the
+  // The pick goes through pickOverviewConversation. Only the first pick of a root reads the memory: after it the
   // person's choices hold, so a list read that lands later never replaces one (POSTMORTEM 2026-10-25).
   private resolve(root: string, s: RootState): void {
     const list = this.host.list(root);

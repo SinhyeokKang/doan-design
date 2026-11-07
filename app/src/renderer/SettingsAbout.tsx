@@ -11,7 +11,7 @@ const CHECKING = "Checking";
 const TONES: Record<AboutRow["tone"], string> = { neutral: "ob-chip", ok: "ob-chip ok", warning: "ob-chip warn", error: "ob-chip err" };
 const PROVIDER_ROWS = new Set<string>(["claude", "codex", "cursor", "antigravity", "copilot"]);
 
-// This launch's agent setup result (zero-setup-agents design 'About 알림'). Static text, not a live region: it reports
+// This launch's agent setup result. Static text, not a live region: it reports
 // what happened when Doan opened and does not change while the page is shown. Copy details carries the same lines.
 function setupNotice(notice: AboutNotice) {
   const parts = (line: NoticeLine) => line.parts.map((part, i) => "code" in part ? <code key={i}>{part.code}</code> : part.text);

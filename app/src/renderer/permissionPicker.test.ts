@@ -64,7 +64,7 @@ test("Ask first names the Default mode, with a line per provider", () => {
   expect(permissionPickerView("cursor", { models: [], modes: { available: ["agent", "ask"], allowAll: false } }, "default")).toBeNull();
 });
 
-// spec decision 7, design '저장 규칙': a mode the provider cannot offer reads as Default, without a notice.
+// A mode the provider cannot offer reads as Default, without a notice.
 test("a mode the provider cannot offer shows as Default", () => {
   expect(permissionPickerView("antigravity", { models: [], modes: { available: ["default", "auto_edit"], allowAll: false } }, "plan")?.mode).toBe("default");
 });

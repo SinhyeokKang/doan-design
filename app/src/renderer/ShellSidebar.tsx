@@ -46,7 +46,7 @@ interface Props {
   action(action: RowAction, root: string): void;
   remove(roots: string[]): Promise<void>;
   // The project menu's Project Settings: the page for the worktree the menu shows. It is a move, so a locked page shows
-  // it unavailable (project-settings design '이동과 잠금').
+  // it unavailable.
   projectSettings(root: string): void;
   // On Home and the pages the sidebar marks no current project or canvas.
   home?: boolean;
@@ -58,7 +58,7 @@ interface Props {
   slots?: ReadonlyMap<string, Slot>;
   highlight?: readonly string[];
   // A page holds work (Add Projects selecting or cloning; Settings or Project Settings a confirmation or a write): moves
-  // away are shown unavailable and App ignores them (buzz-add-projects design '잠금'). aria-disabled keeps them in the
+  // away are shown unavailable and App ignores them. aria-disabled keeps them in the
   // focus order.
   locked?: boolean;
   // The Settings page: the project tree gives way to its categories, a plain list of buttons.
@@ -67,7 +67,7 @@ interface Props {
   settings?: { section: SettingsSection; select(section: SettingsSection): void; mcp?: boolean };
   canvasMenu: CanvasMenu;
 }
-// A canvas row's menu (canvas-row-menu design '행 버튼과 메뉴'). `blocked`: an agent works on the canvas (trashBlock),
+// A canvas row's menu. `blocked`: an agent works on the canvas (trashBlock),
 // so Move to Trash is unavailable; `exporting`: that canvas's export is running. `trash` gets the row's button, where
 // focus goes back when the dialog closes.
 export interface CanvasMenu {
@@ -88,8 +88,8 @@ export function staleMenu(menu: OpenMenu | null, cards: readonly HomeCard[], men
   return false;
 }
 // Where focus goes when the focused row leaves the tree. A canvas row hands it to the next row of its group, else the
-// previous one, else the group's head, so a removed canvas row's focus stays in its group (canvas-row-menu design
-// '삭제 뒤 화면'). Any other row: the row now at its place.
+// previous one, else the group's head, so a removed canvas row's focus stays in its group.
+// Any other row: the row now at its place.
 export function recoveryKey(previous: readonly TreeRow[], current: readonly TreeRow[], lost: string): string | undefined {
   const index = previous.findIndex(row => row.key === lost);
   const parent = previous[index]?.parent;
@@ -160,7 +160,7 @@ interface RowMenu {
   // Focus for a menu whose row left the tree while it was open.
   lostFocus(): void;
 }
-// A canvas row's button and menu (canvas-row-menu design '행 버튼과 메뉴'), drawn inline so the row's own tree holds
+// A canvas row's button and menu, drawn inline so the row's own tree holds
 // it. Unavailable items keep `aria-disabled`, not Radix `disabled`, so arrows still reach them and their reason line
 // is read through `aria-describedby` (DESIGN 'Locked Back'); their name is the label alone, so the reason is read once. While the page is locked the button is unavailable too:
 // unlike the project menu, nothing in this one works then.

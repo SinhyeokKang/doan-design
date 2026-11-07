@@ -38,7 +38,7 @@ export function parseSettingsTarget(value: unknown): SettingsTarget | null {
 }
 
 // Arriving puts focus on the section heading, or on the named provider's row group, which follows the provider
-// between the Connected and Not connected sections (design '포커스').
+// between the Connected and Not connected sections.
 export function settingsArrival(target: SettingsTarget, last: SettingsSection): { section: SettingsSection; focus: { kind: "heading" } | { kind: "provider"; provider: Provider } } {
   const section = target.section ?? last;
   return { section, focus: target.provider ? { kind: "provider", provider: target.provider } : { kind: "heading" } };

@@ -15,7 +15,7 @@ const LEADS: Record<SettingsSection, string> = {
   about: "Versions on this Mac, for checking an update or reporting a problem.",
 };
 
-// The Settings page (buzz-settings design '본문'): the shell's header and sidebar around Home's white panel, which
+// The Settings page: the shell's header and sidebar around Home's white panel, which
 // scrolls a 48rem column of the category's title, lead and sections. App owns navigation, the lock and the queue;
 // a category only reports whether it holds a confirmation or a write.
 export function SettingsPage({ header, sidebar, section, arrival, onState, agents, mcp, announcement }: {
@@ -32,7 +32,7 @@ export function SettingsPage({ header, sidebar, section, arrival, onState, agent
   const [actions, setActions] = useState<HTMLDivElement | null>(null);
   const onLock = (locked: boolean) => onState({ locked });
   // Arrival and ⌘, on the page focus the title; a category picked in the sidebar brings no arrival, so focus stays on
-  // its row (design '포커스'). A frame later, after the menu or picker that led here has returned its own focus.
+  // its row. A frame later, after the menu or picker that led here has returned its own focus.
   const arrived = useRef(0);
   useEffect(() => {
     if (!arrival || arrival.seq === arrived.current) return;

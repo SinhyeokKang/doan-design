@@ -102,7 +102,7 @@ it("routes explicit worktree selection and removes every currently registered pr
   expect(props.worktree).toHaveBeenCalledWith("/b");
   expect(props.remove).toHaveBeenCalledWith(["/a", "/b"]);
 });
-// project-settings design '들어가기': the menu's Project Settings opens the page for the worktree the menu shows.
+// The menu's Project Settings opens the page for the worktree the menu shows.
 it("Project Settings asks App for the page of the worktree the menu shows", () => {
   const { props, menuItems } = fixture();
   const item = menuItems[4]!;
@@ -262,9 +262,9 @@ it("keeps the focused row on the same canvas when an mtime change reorders the l
   } finally { now.mockRestore(); }
 });
 
-// buzz-add-projects design '잠금': while the Add Projects page selects or clones, the moves are shown as unavailable
+// While the Add Projects page selects or clones, the moves are shown as unavailable
 // (aria-disabled keeps them in the focus order); App ignores their activation. Project Settings opens a page now, so it
-// is a move too (project-settings design '이동과 잠금').
+// is a move too.
 it("marks Search, project and canvas rows, Overview, Project Settings and worktree items aria-disabled while the page is locked", () => {
   const { props } = fixture();
   hooks.cursor = 0;
@@ -275,7 +275,7 @@ it("marks Search, project and canvas rows, Overview, Project Settings and worktr
   expect(menu.filter(item => String(item.className).includes("shell-worktree")).map(item => item["aria-disabled"])).toEqual([true, true]);
   // Overview, then Show in Finder, which stays allowed, and Project Settings.
   expect(menu.slice(2, 5).map(item => item["aria-disabled"])).toEqual([true, undefined, true]);
-  // Remove from Doan stays allowed (design '잠금').
+  // Remove from Doan stays allowed.
   expect(menu.at(-1)?.["aria-disabled"]).toBeUndefined();
   hooks.cursor = 0;
   const open = elements(ShellSidebar(props));
@@ -407,7 +407,7 @@ it("passes the project row's canvas notice to toggle on click and Enter", () => 
   expect(working.toggle).toHaveBeenLastCalledWith("common");
   expect(working.toggle.mock.lastCall).toHaveLength(1);
 });
-// terminal-agent-activity design '표시': a terminal session's slot on the project row opens its canvas, as a notice does.
+// A terminal session's slot on the project row opens its canvas, as a notice does.
 it("passes the project row's terminal slot to toggle as the canvas to open", () => {
   const row = { path: ".doan/canvases/a.html", url: "u" };
   const entries: FolderEntry[] = ["/a", "/b"].map(path => ({ path, kind: "list", servedRev: 0, canvases: [row] }));
@@ -421,7 +421,7 @@ it("passes the project row's terminal slot to toggle as the canvas to open", () 
   expect(props.toggle).toHaveBeenLastCalledWith("common", { root: "/b", path: row.path });
 });
 
-// canvas-row-menu design '행 버튼과 메뉴': every canvas row gets the project row's menu button and a menu of Export… and
+// Every canvas row gets the project row's menu button and a menu of Export… and
 // Move to Trash.
 const CANVAS = ".doan/canvases/a.html", CANVAS_KEY = `/a\n${CANVAS}`;
 function canvasMenuFixture(menu: Partial<CanvasMenu> = {}, extra: Record<string, unknown> = {}, row: Record<string, unknown> = { path: CANVAS, url: "u" }) {

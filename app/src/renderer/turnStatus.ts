@@ -15,7 +15,7 @@ export type TurnStatus =
 
 // Main appends a turn's opening user.message and its turn.started one after the other and pushes each (a save and a
 // list notice lie between), so a render can hold the message alone; that message already opens its turn, or the
-// indicator would miss the render the message enters (turn-activity R1: 10–14 ms on an existing conversation). A
+// indicator would miss the render the message enters (measured 10–14 ms on an existing conversation). A
 // steered message carries the running turn's id and opens nothing.
 export function turnOf(events: readonly ConversationEvent[], live: boolean): TurnInfo | null {
   let last = events.length - 1;

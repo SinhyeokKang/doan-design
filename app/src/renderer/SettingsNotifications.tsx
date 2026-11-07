@@ -15,7 +15,7 @@ const PERMISSION = {
 } as const;
 const SAVE_FAILED = "Couldn’t save your notification choices. Your last saved choices still apply.";
 
-// The read-stage notice over the categories that save preferences.json (buzz-settings design '포맷 변경'): an
+// The read-stage notice over the categories that save preferences.json: an
 // unreadable file applies defaults until the next change moves it aside; a newer one is kept and nothing is saved.
 export function preferencesNotice(notice: PreferencesSnapshot["notice"] | undefined): ReactNode {
   if (notice === "broken") return <div className="doan-notice error settings-notice" role="alert"><AlertIcon /><span>Doan couldn’t read its saved settings, so defaults apply.</span></div>;

@@ -22,7 +22,7 @@ const FOCUSABLE = 'button:not(:disabled), input:not(:disabled), [href], [tabinde
 // file:// renderer resolves them next to index.html.
 const LOGOS: Record<Provider, string> = { claude: "claude.png", codex: "codex.png", cursor: "cursor.svg", antigravity: "antigravity.svg", copilot: "copilot.svg" };
 
-// Antigravity has no install command or page: Doan downloads its sign-in server itself (design 'Install·Update 안내 URL').
+// Antigravity has no install command or page: Doan downloads its sign-in server itself.
 function openInstall(provider: Provider): ReturnType<DoanApi["openInstall"]> {
   return provider === "antigravity" ? Promise.resolve("failed") : window.doan.openInstall(provider);
 }
@@ -144,7 +144,7 @@ export function StopDialog({ view, busy, confirm, close }: { view: ReturnType<ty
   </dialog>;
 }
 
-// Where focus goes when the control the user just used is removed or disabled (design '이동·취소·포커스 계약'): the
+// Where focus goes when the control the user just used is removed or disabled: the
 // row's first usable control in DOM order (row button, notice actions, paste), else its notice, else the step heading.
 // Sign out acts at once, so recovery never lands on it.
 export function firstUsable(view: ProviderView): AuthCommand | "notice" | null {
@@ -326,8 +326,8 @@ export interface ProjectDrop {
   started(): void;
   dropped(items: { isDirectory: boolean; path: string }[]): void;
 }
-// The 'Open a local folder' card takes a dropped folder on the page and in first run (buzz-add-projects design '폴더
-// 드롭'). A drop elsewhere is the window's, which only refuses it.
+// The 'Open a local folder' card takes a dropped folder on the page and in first run.
+// A drop elsewhere is the window's, which only refuses it.
 export function LocalFolderCard({ busy, choose, drop }: { busy: boolean; choose: () => void; drop?: ProjectDrop }) {
   const [dropping, setDropping] = useState(false);
   const depth = useRef(0);
@@ -372,7 +372,7 @@ export function LocalFolderCard({ busy, choose, drop }: { busy: boolean; choose:
   </div>;
 }
 
-// Where the Project step puts focus that its own change removed or disabled (design '이동·취소·포커스 계약'): the error,
+// Where the Project step puts focus that its own change removed or disabled: the error,
 // else the progress, else the first usable action. Focus the user still holds is never moved.
 // urlRequested: the user just chose Edit repository URL (or left a clone for its URL), so the field is where they go.
 export function projectFocusTarget(state: ProjectStepState, agentReady: boolean, urlRequested = false): "url" | "alert" | "status" | "action" {
@@ -383,7 +383,7 @@ export function projectFocusTarget(state: ProjectStepState, agentReady: boolean,
 
 type FocusTarget = FocusNode & { focus(): void };
 interface ScopeNode { querySelector(selector: string): FocusTarget | null }
-// The node the Project step's focus goes to after a change (design '포커스'): the button that opened a folder sheet
+// The node the Project step's focus goes to after a change: the button that opened a folder sheet
 // that closed on the same screen, the URL field when it was asked for, else projectFocusTarget's, else the heading.
 // null: the person holds focus somewhere usable, which is never moved.
 export function projectFocusNode(input: {
@@ -441,7 +441,7 @@ const HEADINGS = {
 export interface ProjectScreenProps {
   state: ProjectStepState; busy: boolean; agentReady: boolean; projects: readonly string[]; home: string | null; urlValid: boolean;
   heading: (node: HTMLHeadingElement | null) => void;
-  // First run by default; the Add Projects page differs only by design '온보딩과의 공유'.
+  // First run by default; the Add Projects page differs only in its heading, the 'Your projects' list, the footer and a few actions.
   use?: ProjectUse;
   // The heading's id, when a landmark is named by it (the page's panel).
   headingId?: string;
@@ -611,8 +611,7 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
 }
 
 // First run's steps scroll as one surface under the step capsule, so the thin scroll bar sits at the window's right
-// edge, not beside the 560px column; the Add Projects page's panel plays the same part (buzz-add-projects design
-// '온보딩과의 공유' 2).
+// edge, not beside the 560px column; the Add Projects page's panel plays the same part.
 export function SceneScroll({ children }: { children: React.ReactNode }) {
   return <div className="ob-scroll doan-scroll"><div className="ob-scene">{children}</div></div>;
 }
@@ -653,7 +652,7 @@ export function Wizard({ session, projects, homeDirectory, onClose, mainCheckout
     void window.doan.readOnboardingSession({ sessionId: session }).then(reply => { if (reply.ok && "sessionId" in reply.result) done(reply.result); }, () => {});
     return () => { window.removeEventListener("focus", focused); stop(); agents.dispose(); project.dispose(); };
   }, []);
-  // A scene change moves focus to its heading; Tab then enters the controls (design '이동·취소·포커스 계약').
+  // A scene change moves focus to its heading; Tab then enters the controls.
   useEffect(() => { requestAnimationFrame(() => heading.current?.focus()); }, [scene.generation]);
   const overlay = useRef<HTMLDialogElement | null>(null);
   const { toUrl, openPicker } = useProjectFocus(project, overlay, heading, () => canAdvance(agents.state.auth ?? null), scene.scene === "project");

@@ -9,7 +9,7 @@ import { dropFolder } from "./folderDrop";
 import { keptLocal } from "./storageRules";
 
 // The session's calls, named after first run's; the Add Projects page passes `addPageApi`, whose replies are the same
-// project DTOs over its own main instance (buzz-add-projects design 'main의 project 처리').
+// project DTOs over its own main instance.
 type Request<K extends keyof DoanApi> = DoanApi[K] extends (request: infer R) => unknown ? R : never;
 interface Api {
   readOnboardingSession(request: { sessionId: string; operationId?: string }): Promise<OnboardingResponse | AddPageResponse>;
@@ -114,7 +114,7 @@ export class ProjectStepSession {
   private again: (() => Promise<void>) | null = null;
   // The native folder sheet is open: the step is busy, but focus belongs to the button that opened it.
   private choosing = false;
-  // A refused card drop's notice; the next drag or Choose folder clears it (design '폴더 드롭').
+  // A refused card drop's notice; the next drag or Choose folder clears it.
   dropNotice: string | null = null;
   constructor(private readonly deps: ProjectStepDeps) {}
 
@@ -127,7 +127,7 @@ export class ProjectStepSession {
     for (const stop of this.stops.splice(0)) stop();
     this.waiting.clear();
   }
-  // Long work (clone, setup, saving) holds Back and the stepper (design '이동·취소·포커스 계약').
+  // Long work (clone, setup, saving) holds Back and the stepper.
   busy(): boolean { return this.acting !== null || ["inspecting", "checking", "selecting", "cloning", "completing"].includes(this.state.phase.kind); }
   picking(): boolean { return this.choosing; }
   urlValid(): boolean { return parseGitHubUrl(this.state.url) !== null; }
@@ -315,7 +315,7 @@ export class ProjectStepSession {
       ({ inspectionId, url } = p); candidate = { path: p.path, changes: p.changes, ...(p.storage ? { storage: p.storage } : {}) };
     } else return;
     const { path, changes } = candidate;
-    // Setup writes files in the user's folder, so it needs this explicit step (design '고정 명령·도구').
+    // Setup writes files in the user's folder, so it needs this explicit step.
     const initialize = changes.length > 0 && this.consent?.inspectionId === inspectionId && this.consent.path === path;
     if (changes.length > 0 && !initialize) { this.set({ phase: { kind: "setup", inspectionId, url, path, changes, ...(candidate.storage ? { storage: candidate.storage } : {}) }, error: null }); return; }
     // The consent covers the mode on screen: a plan made for the other one is made again first, and the consent moves to
@@ -462,7 +462,7 @@ export class ProjectStepSession {
   }
 }
 
-// The Project step serves first run and the Add Projects page; only the differences in design '온보딩과의 공유' depend
+// The Project step serves first run and the Add Projects page; only the differences between the two (heading, the 'Your projects' list, the footer) depend
 // on the use.
 export type ProjectUse = "onboarding" | "addPage";
 export interface ProjectFooter {
