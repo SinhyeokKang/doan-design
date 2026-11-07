@@ -17,7 +17,7 @@ Doan runs on macOS with Apple silicon. Build steps are in the README's 'Build fr
 ## Branches
 
 - `develop` is the integration branch. Branch from `develop` as `<type>/<slug>`, where `<type>` is the Conventional Commit type of your main commit (`feat`, `fix`, `docs`, `chore`, `refactor`), and open your pull request against `develop`.
-- `main` is the release record. It changes only when the maintainer cuts a release; never open a pull request against `main`.
+- `main` is the release record. It changes only when the maintainer cuts a release with the `/release` skill; never open a pull request against `main`.
 - GitHub's default branch is `main`, so new pull requests start out against it: switch the base to `develop` before you open one.
 
 ## Checks
