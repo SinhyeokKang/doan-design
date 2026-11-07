@@ -16,11 +16,15 @@ node .agents/skills/verify/scripts/verify.mjs
 node .agents/skills/verify/scripts/verify.mjs --eval
 ```
 
-- Default: runner and runtime-support regression tests, `go test ./...`, `go vet ./...`, app typecheck, app tests, and app build, sequentially.
+- Default: runner and runtime-support regression tests, `go test ./...`, `go vet ./...`, app typecheck, app lint, app tests, and app build, sequentially.
 - No full e2e gate and no `--runtime` flag. App changes use a short affected-behavior check under [/runtime-test](../runtime-test/SKILL.md), separately from this static/unit/build runner. The screen-specific e2e scripts were removed; do not recreate them during feature work. Reuse unaffected runtime evidence; report the scope actually checked.
 - Add `--eval` when `eval/` changed or runner validation is requested. It runs the runner unit tests and `node eval/run.ts --self-test` with fake agents; it never calls real models.
 - Changes covered by AGENTS' `/agent-eval` rule still require that separate skill. `--eval` does not substitute for real-agent evaluation.
 - Pure prose/link edits may skip the heavy command, with a stated reason and targeted reference/skill checks. Changes to this runner require its regression tests and an actual shared-gate run. Do not treat executable scripts as docs-only.
+
+App lint uses oxlint and oxlint-tsgolint, with an exhaustive-deps warning limit in `app/package.json` (`--max-warnings`). Do not raise the limit to make a change pass. Fix each new exhaustive-deps warning or disable it with a comment explaining why the dependency is omitted; put `// eslint-disable-next-line react-hooks/exhaustive-deps` immediately before the dependency-array line.
+
+Whoever observes fewer warnings than the limit lowers it in the same commit. When upgrading oxlint or oxlint-tsgolint, recount the warnings in the same commit. Check the exact count: `--max-warnings N` must exit 0 and `--max-warnings N-1` must exit 1.
 
 ## Execute
 
