@@ -39,7 +39,7 @@ C3 community-docs ─ C4 readme-features   (P0과 병렬, main에 커밋)
 
 - [x] C3. `community-docs`(d9d909ae에서 지움) — 하네스·문서, 대화 중, `main`에 커밋. 선행: 없음(P0과 병렬). 후행: C4.
   - 검증: `git fetch origin` 뒤 `git ls-tree origin/main docs/features/community-docs` 결과 없음, `ls docs/CONTRIBUTING.md docs/CODE_OF_CONDUCT.md docs/SECURITY.md`가 세 파일을 낸다.
-- [ ] C4. [`readme-features`](../readme-features/tasks.md) — 하네스·문서, 대화 중, `main`에 커밋. 선행: C3. 다운로드 링크와 릴리스 배지는 R2에서 채운다.
+- [x] C4. `readme-features`(bf670e2e에서 지움) — 하네스·문서, 대화 중, `main`에 커밋. 선행: C3. 다운로드 링크와 릴리스 배지는 R2에서 채운다.
   - 검증: `git fetch origin` 뒤 `git ls-tree origin/main docs/features/readme-features` 결과 없음, `find docs/assets/readme -type f -size +500k` 결과 없음.
 - [ ] C1. [`git-flow`](../git-flow/tasks.md) — 하네스·문서, 대화 중. 선행: P0, C4. 후행: 나머지 전부.
   - 검증: `git fetch origin` 뒤 `git ls-tree origin/develop docs/features/git-flow` 결과 없음, `git ls-remote --heads origin develop`이 한 줄.
