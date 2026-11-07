@@ -13,10 +13,12 @@
 
 ## 순수 함수 (`/tdd` 대상)
 
-- `checkReleaseVersion(packageVersion, tag, existingTags, latestPublished, existingDraft)` — 태그가 `v<packageVersion>`인지, SemVer 형식, 최신 정식 게시본보다 큰지(rc는 같은 base의 이전 rc보다 큰지, 정식은 그 rc들보다 큰지), 같은 버전의 draft·게시본이 이미 있는지. 실패 이유를 코드로 돌려준다(`tag_mismatch`, `bad_semver`, `not_newer`, `draft_exists`, `published_exists`).
+- `checkReleaseVersion({ version, packageVersion, tags, releases })` — `x.y.z` 또는 `x.y.z-rc.N` 형식인지, `packageVersion`을 주면 그것과 같은지, 최신 정식 게시본보다 큰지(rc는 같은 base의 이전 rc 태그보다 큰지), 같은 버전의 draft·게시본이 이미 있는지. 같은 버전의 태그만 있는 것은 통과한다(태그 push 뒤 실패한 실행의 재실행). 실패 이유를 코드로 돌려준다(`bad_semver`, `tag_mismatch`, `published_exists`, `draft_exists`, `not_newer`). `releases`는 `gh release list --json tagName,isDraft,isPrerelease` 꼴이다. draft는 쓰기 권한이 있는 토큰에만 보이므로 CI에서 이 검사를 부르는 작업의 권한을 PoC(T6)에서 확인한다.
 - `parseCodesignDetails(text)` → authority 목록, `runtime` 플래그, `Timestamp` 유무, Team ID. `/tester-build` 6단계의 "Developer ID Application authority, runtime flag, Timestamp" 검사를 데이터로 바꾼다.
 - `compareEntitlements(committedPlist, signedXml)` → 커밋된 `app/resources/entitlements.mac.plist`에 없는 키(특히 `disable-library-validation`)를 찾는다.
 - `parseSpctl(text)` → `accepted`와 `source=Notarized Developer ID` 여부.
+- `checkLatestMacYml(ymlText, { version, zipName, zipSha512 })` — 피드의 `version`과 zip 항목의 sha512가 맞는지(`yml_version_mismatch`, `yml_missing_zip`, `yml_sha512_mismatch`). dmg 항목은 보지 않는다(피드의 dmg 해시는 스테이플 전 값이고, 맥 업데이트는 zip만 쓴다).
+- 다섯 함수는 `app/scripts/releaseChecks.mjs`에 있고 테스트는 `app/scripts/releaseChecks.test.mjs`(Vitest)다.
 - 셸 부분(실행, 마운트, zip 풀기, 파일 찾기)은 이 함수들을 부르는 얇은 스크립트로 둔다.
 
 ## 비밀과 권한 (D6)
@@ -62,13 +64,13 @@ release-skill은 이 절의 이름만 쓴다. 바뀌면 두 문서를 같이 고
 |---|---|
 | 릴리스 워크플로 | `.github/workflows/release.yml`, 트리거 `push: tags: v*`. `/release`는 태그를 push하고 `gh run list --workflow release.yml --branch v<version>`으로 실행을 찾는다 |
 | 테스트 빌드 워크플로 | `.github/workflows/test-build.yml`, 트리거 `push: tags: tester-*`. `/tester-build`가 `origin/develop` HEAD에 `tester-<date>-<sha>`를 push하고 `gh run list --workflow test-build.yml --branch <tag>`로 실행을 찾는다 |
-| 버전 검사 | `node app/scripts/checkReleaseVersion.mjs <version>` — 종료 코드 0이면 통과, 아니면 표준 오류에 실패 코드(위 '순수 함수') |
-| 서명 검증 | `node app/scripts/verifySignedPackage.mjs <dmg> [<zip>]` — 0이면 통과, 아니면 실패한 검사 이름 |
+| 버전 검사 | `/release`: `node app/scripts/checkReleaseVersion.mjs <version>`. 릴리스 워크플로: `node app/scripts/checkReleaseVersion.mjs --tag v<version>`(`app/package.json` 버전과 같은지도 본다). 종료 코드 0이면 통과, 아니면 표준 오류에 실패 코드(위 '순수 함수') |
+| 서명 검증 | `node app/scripts/verifySignedPackage.mjs <dmg> [<zip>]` — zip을 주면 같은 디렉터리의 `latest-mac.yml`도 검사한다. 0이면 통과, 아니면 표준 오류에 실패한 검사 이름 |
 | 자산 | `Doan-macos-arm64.dmg`, `Doan-<version>-arm64-mac.zip`, 그 `.blockmap`, `latest-mac.yml` |
 | 노트 | draft는 노트 없이 만든다. `/release`가 `gh release edit v<version> --notes-file …`로 넣는다 |
 | 재실행 | 실패한 실행은 `gh run rerun`. 게시 전 draft가 있으면 `draft_exists`로 실패하므로 `/release`가 그 draft를 지운 뒤 재실행한다 |
 
-스크립트 이름은 T2에서 확정하고 이 표와 release-skill design을 같이 고친다.
+스크립트 이름은 T2에서 확정했다. release-skill design은 이 절을 이름 없이 가리킨다.
 
 ## app-update와의 계약
 
