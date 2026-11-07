@@ -37,6 +37,17 @@ const setupAndAuth = ["setup:open-external", "setup:open-install",
 // The Settings page's own requests, and the two events main sends it.
 const settingsPage = ["preferences:read", "preferences:write", "notifications:test", "notifications:open-settings", "about:read", "about:copy", "config:session-start", "config:session-end"];
 const settingsPageEvents = ["notifications:click", "settings-page:open"];
+// Settings > About's update row, the header button and the Doan menu item; update:state and update:popover are events
+// main sends, not requests.
+const updates = ["update:get", "update:check", "update:install", "update:openNotes"];
+test.each(updates)("restricts %s to main", channel => {
+  expect(senderAllowed(channel, "main")).toBe(true);
+  expect(senderAllowed(channel, "settings")).toBe(false);
+  for (const kind of [undefined, null, "thumbnail", ""]) expect(senderAllowed(channel, kind)).toBe(false);
+});
+test("the update events are not requests", () => {
+  for (const channel of ["update:state", "update:popover", "update:"]) expect(senderAllowed(channel, "main")).toBe(false);
+});
 test.each(mainOnly)("restricts %s to main", channel => {
   expect(senderAllowed(channel, "main")).toBe(true);
   expect(senderAllowed(channel, "settings")).toBe(false);

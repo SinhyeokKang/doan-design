@@ -2524,6 +2524,22 @@ describe("conversation work", () => {
     expect(second).toMatchObject({ root: "/repo", running: true });
     expect(second?.turnId).not.toBe(first?.turnId);
   });
+  // Restart to Update asks on every conversation event, so this reads memory only.
+  it("restartHolds counts running turns and the answers they wait for, from acceptance to the end", async () => {
+    const h = fixture();
+    expect(h.service.restartHolds()).toEqual({ liveTurns: 0, pendingAnswers: 0 });
+    const id = (await h.service.start(request)).conversationId;
+    expect(h.service.restartHolds()).toEqual({ liveTurns: 1, pendingAnswers: 0 });
+    h.service.receive(id, { type: "permission.request", requestId: "r1", tool: "Bash", summary: "ls", options: [{ id: "allow", label: "Allow", kind: "allow" }] });
+    expect(h.service.restartHolds()).toEqual({ liveTurns: 1, pendingAnswers: 1 });
+    h.service.receive(id, { type: "permission.resolved", requestId: "r1", optionId: "allow" });
+    expect(h.service.restartHolds()).toEqual({ liveTurns: 1, pendingAnswers: 0 });
+    h.service.receive(id, { type: "turn.done" });
+    expect(h.service.restartHolds()).toEqual({ liveTurns: 0, pendingAnswers: 0 });
+    const read = vi.spyOn(h.store, "list");
+    h.service.restartHolds();
+    expect(read).not.toHaveBeenCalled();
+  });
   it.each<[string, (h: ReturnType<typeof fixture>, id: string) => Promise<unknown> | unknown]>([
     ["turn.done", (h, id) => h.service.receive(id, { type: "turn.done" })],
     ["turn.failed", (h, id) => h.service.receive(id, { type: "turn.failed", code: "unknown" })],

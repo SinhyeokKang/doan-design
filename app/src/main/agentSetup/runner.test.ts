@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CLAUDE_ALLOW_RULES, codexRuleText } from "./plan";
-import { adminCommand, runAgentSetup, type AdminResult, type AgentSetupOptions } from "./runner";
+import { adminCommand, runAgentSetup, setupEligibility, type AdminResult, type AgentSetupOptions } from "./runner";
 
 // The race test swaps one symlink call; everything else is the real file system.
 vi.mock("node:fs", async importOriginal => {
@@ -195,6 +195,24 @@ describe("runAgentSetup", () => {
     const result = await runAgentSetup(options({ ...overrides, resources: res }));
     expect(result.items).toEqual([{ target: "copy", path: dirname(dirname(res)), providers: ALL, reason: "not-eligible", eligibility }]);
     expect(tree()).toEqual(before);
+  });
+
+  // The updater asks the same question at launch without waiting for setup's login-shell probe.
+  it.each([
+    ["a copy in ~/Applications", {}, "eligible"],
+    ["a development build", { isPackaged: false }, "dev"],
+    ["a copy outside Applications", { resources: "" }, "outside-applications"],
+    ["a translocated copy", { resources: "" }, "translocated"],
+  ] as const)("setupEligibility answers what setup decides for %s", (_, overrides, eligibility) => {
+    const res = eligibility === "outside-applications" ? bundle(join(temp, "app/dist/mac-arm64/Doan.app"))
+      : eligibility === "translocated" ? bundle(join(temp, "AppTranslocation/1234/d/Doan.app")) : resources;
+    expect(setupEligibility({ home, isPackaged: true, ...overrides, resources: res })).toBe(eligibility);
+  });
+
+  it("setupEligibility reads real paths, as setup does: a HOME reached through a link still counts", () => {
+    const alias = join(temp, "home-link");
+    symlinkSync(home, alias);
+    expect(setupEligibility({ home: alias, resources: join(alias, "Applications/Doan.app/Contents/Resources"), isPackaged: true })).toBe("eligible");
   });
 });
 
