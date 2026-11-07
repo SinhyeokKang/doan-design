@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { readFile, rename, unlink, writeFile } from "node:fs/promises";
+import { readFile, realpath, rename, unlink, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { autoAfterAdd, storedAuto } from "./autoFolders";
 import { add, load, remove } from "./folders";
@@ -24,6 +24,15 @@ export async function readFoldersFile(file: string): Promise<string[]> {
   return await readFoldersFileForPruning(file) ?? [];
 }
 
+// A run starts only on a root that is its own real path (prepare.ts, ARCHITECTURE §7 'Identity and admission'), and
+// registration already stores real paths, so a root saved through a symlink (by hand, a script or an older app) is
+// read as its real path; two spellings of one folder become one entry in the first one's place. A root that cannot be
+// resolved now (missing, unreadable) keeps its saved spelling, so it still shows as missing instead of leaving the
+// list. The file itself changes only with the next write. The promise realpath returns the on-disk spelling.
+async function realRoots(list: readonly string[]): Promise<string[]> {
+  return [...new Set(await Promise.all(list.map(path => realpath(path).catch(() => path))))];
+}
+
 // An empty fallback can start the app, but cannot authorize deleting local
 // review markers. Only a valid list (or first-use ENOENT) is safe to prune by.
 export async function readFoldersFileForPruning(file: string): Promise<string[] | null> {
@@ -31,7 +40,7 @@ export async function readFoldersFileForPruning(file: string): Promise<string[] 
     const text = await readFile(file, "utf8");
     const value: unknown = JSON.parse(text);
     if (!Array.isArray(value) || !value.every(entry => typeof entry === "string")) return null;
-    return load(text);
+    return await realRoots(load(text));
   } catch (error) {
     return error instanceof Error && "code" in error && error.code === "ENOENT" ? [] : null;
   }
@@ -70,8 +79,11 @@ export async function openFolderStore(file: string): Promise<FolderStore> {
   // fallback list would erase them.
   const prunable = read !== null;
   let folders = read ?? [];
-  let marks = await readMarks(autoFile);
-  let writtenMarks: string | undefined = JSON.stringify(marks);
+  const savedMarks = await readMarks(autoFile);
+  // Resolved as the list is, so a mark saved through a symlink still marks its root; the saved text stays the
+  // baseline, so the next save writes the resolved marks.
+  let marks = await realRoots(savedMarks);
+  let writtenMarks: string | undefined = JSON.stringify(savedMarks);
   // Writes run one after another so a slow earlier write cannot rename an
   // older list over a newer one.
   let writing: Promise<unknown> = Promise.resolve();
