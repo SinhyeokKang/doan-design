@@ -41,7 +41,7 @@ function openInstallPage(provider: Provider): Promise<boolean> {
 const groupSelector = (provider: Provider) => `.doan-preference-row[role="group"][data-provider="${provider}"]`;
 const LAST_USED = "last";
 
-// Settings > Agents (buzz-settings design 'Agents'): the provider rows over the renderer's sign-in controller, and the
+// Settings > Agents (PRODUCT §5 item 0 'Agents'): the provider rows over the renderer's sign-in controller, and the
 // new-conversation defaults. The rows reuse the first-run Agent step's session and copy; agentAuthView's Settings
 // context is the only difference. It never starts or sends a conversation; models are read with conversation:models.
 export function SettingsAgents({ signIn, arrival, onLock, preferences, save, project }: SettingsAgentsProps) {
@@ -173,7 +173,7 @@ function unavailable(name: string, status: AuthStatusDto | undefined): string {
 
 const SAVE_FAILED = "Couldn’t save your new conversation choices. Your last saved choices still apply.";
 
-// The defaults Home starts a new input with (design 'New conversations'). Last used hides Model and Effort, which then
+// The defaults Home starts a new input with (PRODUCT §5 item 0 'New conversations'). Last used hides Model and Effort, which then
 // follow the conversation sent last. The pickers are menus like Home's (role=menu): a listbox Select would let the
 // Escape that closes it reach the page and leave Settings.
 function NewConversations({ auth, preferences, save, project }: Pick<SettingsAgentsProps, "preferences" | "save" | "project"> & { auth: AgentSignIn["state"]["auth"] }) {

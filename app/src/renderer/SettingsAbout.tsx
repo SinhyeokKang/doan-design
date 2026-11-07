@@ -27,7 +27,7 @@ function setupNotice(notice: AboutNotice) {
   </div>;
 }
 
-// Settings > About (design 'About'): main reads the versions (aboutView decides every row's words); this page reads
+// Settings > About (PRODUCT §5 item 0 'About'): main reads the versions (aboutView decides every row's words); this page reads
 // on entry and again when the window comes back, which covers returning from an install page. Copy details asks main
 // to write the clipboard from its own read.
 export function SettingsAbout({ actions }: { actions: HTMLElement | null }) {

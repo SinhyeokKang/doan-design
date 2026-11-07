@@ -52,7 +52,7 @@ const click = (label: string) => (button(label).props.onClick as () => void)();
 const text = () => words(all(tree).filter(element => typeof element.type === "string").map(element => element.props.children));
 function resetHooks() { hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.pending = []; }
 
-// buzz-settings U4: Settings > About (design 'About'), over BM's aboutView rows.
+// Settings > About (PRODUCT §5 item 0 'About'), over BM's aboutView rows.
 const { SettingsAbout } = await import("./SettingsAbout");
 const { AlertIcon } = await import("./AlertIcon");
 import type { AboutRead } from "../main/about";

@@ -52,7 +52,7 @@ const click = (label: string) => (button(label).props.onClick as () => void)();
 const text = () => words(all(tree).filter(element => typeof element.type === "string").map(element => element.props.children));
 function resetHooks() { hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.pending = []; }
 
-// buzz-settings U4: Settings > Notifications (design 'Notifications'), with hooks as plain state.
+// Settings > Notifications (PRODUCT §5 item 0 'Notifications'), with hooks as plain state.
 const { SettingsNotifications } = await import("./SettingsNotifications");
 import type { PreferencesSnapshot } from "../main/preferences";
 

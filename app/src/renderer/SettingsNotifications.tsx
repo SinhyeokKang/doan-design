@@ -24,7 +24,7 @@ export function preferencesNotice(notice: PreferencesSnapshot["notice"] | undefi
   return null;
 }
 
-// Settings > Notifications (design 'Notifications'). Main decides when to notify; this page only saves the choices and
+// Settings > Notifications (PRODUCT §5 item 0 'Notifications'). Main decides when to notify; this page only saves the choices and
 // asks main for a test notification or its fixed System Settings URL. A switch shows the saved choice, so a failed save
 // leaves it where it was.
 export function SettingsNotifications({ preferences, save }: { preferences: PreferencesSnapshot | null; save(patch: PreferencesPatch): Promise<PreferencesWriteReply | null> }) {
