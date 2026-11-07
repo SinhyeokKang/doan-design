@@ -7,6 +7,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/license-Apache--2.0-7c3aed?style=flat" alt="License: Apache-2.0" />
   <img src="https://img.shields.io/badge/macOS-Apple%20silicon-7c3aed?style=flat-square" alt="Supported platform: macOS on Apple silicon" />
+  <img src="https://img.shields.io/badge/Claude%20Code%20%C2%B7%20Codex%20%C2%B7%20Cursor%20%C2%B7%20Antigravity%20%C2%B7%20Copilot-supported-7c3aed?style=flat-square" alt="Supported agent CLIs: Claude Code, Codex, Cursor, Antigravity and GitHub Copilot" />
 </p>
 
 <p align="center">
