@@ -201,7 +201,7 @@ export class ProjectAdder {
           if (remaining.length > 0) { leftovers.set(parent, remaining); return { state: "failed", code: "cleanup_failed", message: leftoverMessage(remaining) }; }
           leftovers.delete(parent);
         }
-        // D19 (2026-10-29): the rename into the destination publishes the clone. After this commit a cancel returns the
+        // 2026-10-29: the rename into the destination publishes the clone. After this commit a cancel returns the
         // running operation unchanged and registration and setup continue: cancelling would delete a folder already in
         // its final place.
         const commit = () => { if (abort.signal.aborted) return false; tracked.committed = true; return true; };

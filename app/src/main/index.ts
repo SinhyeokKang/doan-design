@@ -170,7 +170,7 @@ function openLinksReady(): boolean {
 function readyOpenLinks(): void {
   if (openLinksReady()) openLinks.ready();
 }
-// `doan open` (canvas-open-offer): not queued like a link; each request is answered on its own (deepLinks.ts).
+// `doan open`: not queued like a link; each request is answered on its own (deepLinks.ts).
 const openCanvasRequests = openRequests({
   ready: openLinksReady,
   entries: () => shell?.entries() ?? [],
@@ -385,7 +385,7 @@ function setMenu(): void {
         ],
       },
       // Finder's place for Home. Quick Open is a menu item so ⌘K is never only
-      // a hidden key (design-nav draft, after Sorcerer's "Go to…").
+      // a hidden key (after Sorcerer's "Go to…").
       { label: "Go", submenu: [
         { label: "Home", accelerator: "Shift+CmdOrCtrl+H", enabled: enabled.home, click: command("home") },
         { label: "Quick Open…", accelerator: "CmdOrCtrl+K", enabled: enabled.quickOpen, click: command("quickOpen") },
@@ -511,7 +511,7 @@ function createWindow(): BrowserWindow {
       window.setFullScreen(false);
     } else hideWindow(window);
   });
-  // The traffic lights are gone in fullscreen, so the header gives back their space (shell-panel-layout §2.5).
+  // The traffic lights are gone in fullscreen, so the header gives back their space.
   window.on("enter-full-screen", () => send("window:fullscreen", { fullScreen: true }));
   window.on("leave-full-screen", () => send("window:fullscreen", { fullScreen: false }));
   window.on("closed", () => {
@@ -689,7 +689,7 @@ async function start(): Promise<void> {
     const id = designSkillGetRequest(value);
     return id === null ? DESIGN_SKILL_REFUSED : interpretGet(await runDesignSkill(cli, id), id);
   });
-  // canvas-row-menu: Move to Trash and Export act only on rows of main's own list. Busy is judged on main's grounds:
+  // Move to Trash and Export act only on rows of main's own list. Busy is judged on main's grounds:
   // this root's conversations, its unjudged project turns and terminal work.
   const canvasTrash = createCanvasTrash({
     entries: () => ready.entries(),
@@ -793,7 +793,7 @@ async function start(): Promise<void> {
     });
   }
   handle(USAGE_CHANNELS.read, [], (_event, value) => usage ? usageRequest(usage, value) : []);
-  // MCP Connectors (mcp-connectors): provider CLIs register, sign in and keep the tokens in the Doan profiles; Doan
+  // MCP Connectors: provider CLIs register, sign in and keep the tokens in the Doan profiles; Doan
   // keeps the server list. It needs agent sign-in storage: without it every MCP call is refused like a forged one.
   if (agentAuth) {
     const auth = agentAuth;
@@ -1083,7 +1083,7 @@ async function start(): Promise<void> {
   });
   handle("ui-state:get", null, (event) => (fromWindow(event) ? store.read() : null));
   handle("ui-state:save", false, (event, value: unknown) => fromWindow(event) && store.save(value));
-  // buzz-settings: the Settings page's preferences, notifications and About. Main fixes the URL, the notification
+  // The Settings page's preferences, notifications and About. Main fixes the URL, the notification
   // and the clipboard text; the renderer sends a change or nothing.
   handle("preferences:read", null, () => preferences.read());
   handle("preferences:write", null, (_event, value: unknown) => preferences.update(value));

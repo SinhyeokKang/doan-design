@@ -4,7 +4,7 @@ import { AUTH_CHANNELS } from "./agentAuth/ipc";
 import { ONBOARDING_CHANNELS } from "./onboarding/service";
 const mainOnly = [
   "app:home", "work:get", "deep-link:ready", "doan-open:answer",
-  // work-update: an app conversation's work content; conversation-work:changed is an event main sends, not a request.
+  // An app conversation's work content; conversation-work:changed is an event main sends, not a request.
   "conversation-work:get",
   "project:choose-token-css", "project:init",
   "folders:remove", "folders:locate", "folders:reveal", "folders:open", "folders:reopen",
@@ -14,21 +14,21 @@ const mainOnly = [
   "canvas:seen",
   // Toasts need native visibility.
   "window:visible",
-  // shell-panel-layout §2.5: the header drops the traffic-light space in fullscreen.
+  // The header drops the traffic-light space in fullscreen.
   "window:fullscreen",
-  // buzz-onboarding: the session the CLI shares; Settings never drives first-run.
+  // The session the CLI shares; Settings never drives first-run.
   "onboarding:start", "onboarding:status", "onboarding:check", "onboarding:cancel", "onboarding:inspect", "onboarding:select", "onboarding:clone", "onboarding:complete",
-  // doan-design-skills: preset reads for the home; Settings has no preset UI.
+  // Preset reads for the home; Settings has no preset UI.
   "design-skills:list", "design-skills:get",
-  // buzz-home: Home attachments.
+  // Home attachments.
   "attachments:choose", "attachments:add-paths", "attachments:add-pasted", "attachments:remove", "attachments:recheck", "attachments:release",
-  // buzz-conversation: re-issued attachments from recorded paths, and https links from agent replies.
+  // Re-issued attachments from recorded paths, and https links from agent replies.
   "attachments:fromPaths", "shell:openLink",
-  // canvas-capture: the canvas page captures an area of the board.
+  // The canvas page captures an area of the board.
   "attachments:capture",
-  // canvas-hand-tool: where the OS cursor is, for a canvas click's focus.
+  // Where the OS cursor is, for a canvas click's focus.
   "pointer:get",
-  // canvas-row-menu: Move to Trash and Export from the sidebar's canvas row menu.
+  // Move to Trash and Export from the sidebar's canvas row menu.
   "canvas:trashPlan", "canvas:trash", "canvas:export", "canvas:revealExport",
 ];
 const setupAndAuth = ["setup:open-external", "setup:open-install",
@@ -70,7 +70,7 @@ test("restricts every onboarding session request channel to main", () => {
   expect(requests.filter(channel => !mainOnly.includes(channel))).toEqual([]);
   for (const channel of requests) expect(senderAllowed(channel, "settings")).toBe(false);
 });
-// buzz-add-projects: the Add Projects page's session is the main window's; Settings has no Add Projects page.
+// The Add Projects page's session is the main window's; Settings has no Add Projects page.
 test("restricts every Add Projects page request channel to main", async () => {
   const { ADD_PAGE_CHANNELS } = await import("./addPage");
   const requests = Object.values(ADD_PAGE_CHANNELS).filter(channel => channel !== ADD_PAGE_CHANNELS.changed && channel !== ADD_PAGE_CHANNELS.open);

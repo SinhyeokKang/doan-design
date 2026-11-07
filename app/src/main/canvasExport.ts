@@ -4,7 +4,7 @@ import type { CliRun } from "./folderState";
 import { trashRequest, trashTarget } from "./canvasTrash";
 import type { FolderEntry } from "./view";
 
-// Export (canvas-row-menu, `canvas:export`): the save panel, then `doan export` through the bundled CLI. The renderer
+// Export (`canvas:export`): the save panel, then `doan export` through the bundled CLI. The renderer
 // names a listed row only; main picks the file through the panel and keeps the path it wrote.
 
 // What the renderer needs for its toasts, nothing more (the CLI's absolute output path stays in main):

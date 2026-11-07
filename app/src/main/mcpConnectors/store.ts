@@ -32,7 +32,7 @@ const missing = (error: unknown) => typeof error === "object" && error !== null 
 // providers keep Doan's registrations and tokens, which an empty file would lose track of. An unreadable connectors
 // file is left in place and refuses writes; an unreadable pending file is moved aside (as preferences.ts does) and its
 // records count as unknown: every doan- server stays blocked for both providers until one logout of it succeeds in
-// this run (BB review Y3). A pending file from a newer Doan is unknown too, and is kept.
+// this run. A pending file from a newer Doan is unknown too, and is kept.
 export class ConnectorStore {
   private readonly fs: StoreFs;
   // Pending logouts that could not be written, or whose removal could not be: they block Connect for this run.

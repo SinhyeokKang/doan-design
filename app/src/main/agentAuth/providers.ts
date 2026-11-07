@@ -146,7 +146,7 @@ export const PROVIDER_AUTH: Record<Provider, ProviderAuth> = {
     vault: [".cursor/auth.json"], plaintext: [], settings: HOME_STUB(".cursor"), acpAuth: null,
     acp: { args: ["acp"], authenticate: "cursor_login", sessions: ".cursor/acp-sessions" }, verifyByRun: false, hookLink: null, loginClears: false, identity: null, parseStatus: cursorStatus },
   // Google's ACP server (antigravity.ts) replaces the agy CLI, whose dedicated-HOME keyring save raised a macOS
-  // Keychain dialog (B1). AGY_ACP_FORCE_FILE_STORAGE=1 selects its file backend, <GEMINI_HOME>/antigravity-acp/acp_token.json
+  // Keychain dialog. AGY_ACP_FORCE_FILE_STORAGE=1 selects its file backend, <GEMINI_HOME>/antigravity-acp/acp_token.json
   // (credential_store.py in 1.3.0; undocumented, user-approved 2026-10-28); GEMINI_HOME is set by providerEnv.
   antigravity: { command: ANTIGRAVITY_COMMAND, args: [], env: { AGY_ACP_FORCE_FILE_STORAGE: "1", PYTHONUNBUFFERED: "1" }, login: [], status: [], logout: null,
     vault: [".gemini/antigravity-acp/acp_token.json"], plaintext: [], settings: HOME_STUB(".gemini/config"), acpAuth: { method: "oauth-personal", agent: "antigravity-acp", version: ANTIGRAVITY_SERVER.version },

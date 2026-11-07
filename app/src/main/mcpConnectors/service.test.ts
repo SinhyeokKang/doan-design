@@ -551,7 +551,7 @@ const runner = (provider: McpProvider) => async (args: string[]) => {
   return { code: await p.exit, stdout, stderr };
 };
 
-// B3: the MCP step agentAuth runs in a sign-out or a committed replacement, with its own process runner.
+// The MCP step agentAuth runs in a sign-out or a committed replacement, with its own process runner.
 describe("sign-out and replacement logout", () => {
   const request = (provider: McpProvider, over: Partial<McpLogoutRequest> = {}): McpLogoutRequest =>
     ({ kind: "signOut", previousAccountId: null, nextAccountId: null, staging: null, profileDir: profile(provider), run: runner(provider), ...over });
@@ -629,7 +629,7 @@ describe("sign-out and replacement logout", () => {
 
 // BB review fix round 1.
 describe("review fixes", () => {
-  it("R1: waits for a committed replacement's MCP step before reconciling or reading", async () => {
+  it("waits for a committed replacement's MCP step before reconciling or reading", async () => {
     cli.registered.claude.set("doan-gone-example", { url: "https://gone.example.com/mcp", auth: true });
     settling.claude = true;
     const s = service();
@@ -642,7 +642,7 @@ describe("review fixes", () => {
     expect(cli.registered.claude.has("doan-gone-example")).toBe(false);
   });
 
-  it("R2: quit stops a startup reconcile command and returns with no live child", async () => {
+  it("quit stops a startup reconcile command and returns with no live child", async () => {
     vi.useFakeTimers();
     cli.hanging.add("codex list");
     const s = service();
@@ -655,7 +655,7 @@ describe("review fixes", () => {
     expect(held.codex).toBe(0);
   });
 
-  it("R2: stopProvider stops a startup pending logout and returns with its lease released", async () => {
+  it("stopProvider stops a startup pending logout and returns with its lease released", async () => {
     store.record([{ provider: "claude", name: "doan-notion", url: "https://mcp.notion.com/mcp" }]);
     cli.registered.claude.set("doan-notion", { url: "https://mcp.notion.com/mcp", auth: true });
     cli.hanging.add("claude logout doan-notion");
@@ -669,7 +669,7 @@ describe("review fixes", () => {
     expect(store.blocked("claude", "doan-notion")).toBe(true);
   });
 
-  it("R2: a pending logout that succeeds after quit does not edit the pending file", async () => {
+  it("a pending logout that succeeds after quit does not edit the pending file", async () => {
     vi.useFakeTimers();
     store.record([{ provider: "codex", name: "doan-notion", url: "https://mcp.notion.com/mcp" }]);
     const before = readFileSync(join(dir, "mcp-connectors-pending.json"), "utf8");
@@ -685,7 +685,7 @@ describe("review fixes", () => {
     expect(readFileSync(join(dir, "mcp-connectors-pending.json"), "utf8")).toBe(before);
   });
 
-  it("R3: a failed Claude login's plaintext file is deleted, and the failure keeps its own reason", async () => {
+  it("a failed Claude login's plaintext file is deleted, and the failure keeps its own reason", async () => {
     const s = service();
     s.connect("claude", "doan-notion");
     const p = await login("claude");
@@ -696,7 +696,7 @@ describe("review fixes", () => {
     expect(row(s, "claude", "doan-notion")?.failure).toBe("failed");
   });
 
-  it("R3: a cancelled Claude login's plaintext file is deleted, and the cancel stays silent", async () => {
+  it("a cancelled Claude login's plaintext file is deleted, and the cancel stays silent", async () => {
     const s = service();
     s.connect("claude", "doan-notion");
     await login("claude");
@@ -707,7 +707,7 @@ describe("review fixes", () => {
     expect(row(s, "claude", "doan-notion")?.failure).toBeNull();
   });
 
-  it("Y2: app start retries a Codex pending logout without a Doan Codex connection, in a temporary CODEX_HOME", async () => {
+  it("app start retries a Codex pending logout without a Doan Codex connection, in a temporary CODEX_HOME", async () => {
     store.record([{ provider: "codex", name: "doan-notion", url: "https://mcp.notion.com/mcp" }]);
     states.codex = { ...connected("codex"), connection: null, phase: "disconnected", verified: false };
     readiness.codex = { ready: false, cause: "not_connected", action: "signIn" };
@@ -723,7 +723,7 @@ describe("review fixes", () => {
     expect(store.blocked("codex", "doan-notion")).toBe(false);
   });
 
-  it("Y2: a Claude without a Doan connection clears its pending entries (its sign-out cleared the MCP tokens)", async () => {
+  it("a Claude without a Doan connection clears its pending entries (its sign-out cleared the MCP tokens)", async () => {
     store.record([{ provider: "claude", name: "doan-notion", url: "https://mcp.notion.com/mcp" }, { provider: "codex", name: "doan-figma", url: "https://mcp.figma.com/mcp" }]);
     states.claude = { ...connected("claude"), connection: null, phase: "disconnected", verified: false };
     cli.hanging.add("codex logout doan-figma");
@@ -734,7 +734,7 @@ describe("review fixes", () => {
     await s.quit();
   });
 
-  it("Y3: an unreadable Codex list logs out the profile config's servers and every known server", async () => {
+  it("an unreadable Codex list logs out the profile config's servers and every known server", async () => {
     writeFileSync(join(dir, "mcp-connectors.json"), "{broken");
     writeFileSync(join(profile("codex"), "config.toml"), 'model = "x"\n\n[mcp_servers.doan-custom]\nurl = "https://custom.example/mcp"\n\n[mcp_servers."doan-quoted"]\nurl = \'https://quoted.example/mcp\'\n\n[mcp_servers.notion]\nurl = "https://mcp.notion.com/mcp"\n');
     cli.registered.codex.set("doan-custom", { url: "https://custom.example/mcp", auth: true });
@@ -752,7 +752,7 @@ describe("review fixes", () => {
     await s.idle();
   });
 
-  it("Round 2 Y2: an unreadable list and a profile config it cannot read fall back to every known server", async () => {
+  it("an unreadable list and a profile config it cannot read fall back to every known server", async () => {
     writeFileSync(join(profile("codex"), "config.toml"), "[mcp_servers.doan-custom]\nurl = [ broken\n");
     cli.failing.add("codex list");
     const s = service();
@@ -780,7 +780,7 @@ describe("review fixes", () => {
     await s.idle();
   });
 
-  it("Y3: an unreadable Claude list logs out the profile's .claude.json servers and every known server", async () => {
+  it("an unreadable Claude list logs out the profile's .claude.json servers and every known server", async () => {
     writeFileSync(join(profile("claude"), ".claude.json"), JSON.stringify({ mcpServers: { "doan-custom": { type: "http", url: "https://custom.example/mcp" }, notion: { type: "http", url: "https://mcp.notion.com/mcp" } } }));
     cli.failing.add("claude list");
     const s = service();
@@ -789,7 +789,7 @@ describe("review fixes", () => {
     await s.idle();
   });
 
-  it("Round 2 Y1: an unknown pending state shows the blocked line and Reconnect on read or unread rows", async () => {
+  it("an unknown pending state shows the blocked line and Reconnect on read or unread rows", async () => {
     writeFileSync(join(dir, "mcp-connectors-pending.json"), "{broken");
     cli.registered.codex.set("doan-notion", { url: "https://mcp.notion.com/mcp", auth: true });
     cli.failing.add("claude get doan-figma");
@@ -801,7 +801,7 @@ describe("review fixes", () => {
     expect(row(s, "claude", "doan-figma")?.view).toMatchObject({ status: "check_failed", action: "connect", blocked: true });
   });
 
-  it("Y3: an unknown pending state blocks every doan- server for both providers until one logout of it succeeds", async () => {
+  it("an unknown pending state blocks every doan- server for both providers until one logout of it succeeds", async () => {
     writeFileSync(join(dir, "mcp-connectors-pending.json"), "{broken");
     cli.registered.codex.set("doan-notion", { url: "https://mcp.notion.com/mcp", auth: true });
     const s = service();
@@ -818,7 +818,7 @@ describe("review fixes", () => {
     await s.idle();
   });
 
-  it("Y4: a pending retry registers the provider's URL string as it was recorded", async () => {
+  it("a pending retry registers the provider's URL string as it was recorded", async () => {
     store.record([{ provider: "codex", name: "doan-example-com", url: "https://example.com" }]);
     let config = "";
     const spawn = cli.spawn;
@@ -874,7 +874,7 @@ describe("settled publish (BU)", () => {
     expect(s.snapshot().providers.map(p => p.generation)).toEqual([0, 0]);
   });
 
-  // BU review Y2 (.scratch/review-bu/race.test.ts): a status read that started before a success must not overwrite it.
+  // A status read that started before a success must not overwrite it.
   it("a read that started before a Connect succeeded is discarded, with no Reconnect needed published meanwhile", async () => {
     const s = service();
     s.connect("codex", "doan-notion");

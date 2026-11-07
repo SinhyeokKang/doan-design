@@ -1,5 +1,5 @@
 // Pure inspector logic over CDP `CSS.getMatchedStylesForNode` and
-// `CSS.getComputedStyleForNode` output (select-inspect, PoC 2). CDP finds the
+// `CSS.getComputedStyleForNode` output (PoC). CDP finds the
 // matched rules and orders them; what it leaves to us is importance, the
 // shorthand part behind each longhand, var() and token chains, inheritance,
 // and the display form. Electron-free so it is tested with recorded output.

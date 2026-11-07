@@ -16,7 +16,7 @@ export const NOTIFICATION_SETTINGS_URL = "x-apple.systempreferences:com.apple.No
 export const INSTALL_URLS: Record<ExternalTarget, string> = {
   claude: "https://code.claude.com/docs/en/setup",
   codex: "https://learn.chatgpt.com/docs/codex/cli",
-  // The providers' install pages also explain updating, so Install and Update share them (buzz-onboarding, 2026-10-29 user).
+  // The providers' install pages also explain updating, so Install and Update share them (2026-10-29 user).
   cursor: "https://cursor.com/docs/cli/installation",
   copilot: "https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/install-copilot-cli",
 };

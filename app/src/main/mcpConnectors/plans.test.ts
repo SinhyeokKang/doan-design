@@ -77,7 +77,7 @@ describe("mcpLogoutPlan and mcpLogoutOutcome", () => {
 
 describe("codexServerToml", () => {
   // Codex derives the keychain key from the registered URL string, so the string the provider registered is written
-  // as it is (BB review Y4), never re-serialized.
+  // as it is, never re-serialized.
   test("writes one [mcp_servers.<name>] block with the URL string verbatim", () => {
     expect(codexServerToml("doan-notion", "https://mcp.notion.com/mcp")).toBe('[mcp_servers.doan-notion]\nurl = "https://mcp.notion.com/mcp"\n');
     expect(codexServerToml("doan-example-com", "https://example.com")).toBe('[mcp_servers.doan-example-com]\nurl = "https://example.com"\n');

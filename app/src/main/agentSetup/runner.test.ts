@@ -523,7 +523,7 @@ describe("the /usr/local/bin link", () => {
   });
 });
 
-// The final mutation boundaries of a replacement (review R1): a competitor arrives right before Doan moves the old link
+// The final mutation boundaries of a replacement: a competitor arrives right before Doan moves the old link
 // aside, right before it creates the new one, or the parent folder is swapped in between.
 describe("replacing a link", () => {
   const cli = () => join(home, ".local/bin/doan");

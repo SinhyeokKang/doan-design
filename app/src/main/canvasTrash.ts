@@ -7,7 +7,7 @@ import type { Canvas } from "./conversation/types";
 import type { FolderEntry } from "./view";
 import type { WorkItem } from "./workState";
 
-// Move to Trash (canvas-row-menu): `canvas:trashPlan` and `canvas:trash`. The renderer's root and path are only keys
+// Move to Trash: `canvas:trashPlan` and `canvas:trash`. The renderer's root and path are only keys
 // into main's own folder list, as for thumbnails (ARCHITECTURE §7 'Main boundary'); every file touched is the listed
 // row's path under the registered root.
 

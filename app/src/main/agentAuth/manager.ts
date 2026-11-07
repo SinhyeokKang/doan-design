@@ -60,7 +60,7 @@ const OUTPUT_LIMIT = 1024 * 1024;
 const QUIT_WAIT_MS = 5000;
 const ACP_OPEN_MS = 60_000;
 const LINK_POLL_MS = 100;
-// The CLI launches the browser right after printing its link (D1: the hook ran within the same second), so a printed
+// The CLI launches the browser right after printing its link (the hook ran within the same second), so a printed
 // link with no accepted hook link this long after it means the CLI no longer behaves as `claudeLink` expects.
 const HOOK_LINK_MS = 10_000;
 const LINK_DIR_PREFIX = "doan-auth-link-";
@@ -333,8 +333,8 @@ export class AuthManager {
     return { ok: true, attemptId, done };
   }
 
-  // listing: a model list read; mcp: an MCP connector command (mcp-connectors); usage: an account usage read
-  // (provider-usage). Each holds the profile like a run, but none is a conversation the person would be asked to stop:
+  // listing: a model list read; mcp: an MCP connector command; usage: an account usage read.
+  // Each holds the profile like a run, but none is a conversation the person would be asked to stop:
   // a sign-out or replacement stops it (stopRuns) and waits for it without stop_required. added: extra environment,
   // such as the MCP sign-in's link file.
   async acquire(provider: Provider, use: "run" | "listing" | "mcp" | "usage" = "run", added: Record<string, string> = {}): Promise<Lease> {
@@ -513,7 +513,7 @@ export class AuthManager {
 
   private async signOutFlow(provider: Provider, attemptId: string): Promise<void> {
     const auth = this.adapters[provider], storage = this.options.storage;
-    // Before the provider logout: Codex keeps MCP tokens in keychain entries its logout does not clear (P1).
+    // Before the provider logout: Codex keeps MCP tokens in keychain entries its logout does not clear.
     const connection = this.state(provider).connection;
     if (connection) await this.mcpStep(provider, attemptId, connection.profile, { kind: "signOut", previousAccountId: connection.account.id, nextAccountId: null, staging: null });
     // The server's own logout clears its stored token (logout.py, 1.3.0; no remote revocation is documented). doan's

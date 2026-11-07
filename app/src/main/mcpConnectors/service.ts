@@ -43,7 +43,7 @@ export interface McpAuth {
   state(provider: McpProvider): AuthState;
   // A command in a Doan-owned directory outside the profiles (a pending Codex logout's temporary CODEX_HOME).
   environment(provider: McpProvider, profileDir: string): Promise<{ command: string; env: Record<string, string> }>;
-  // A committed replacement still running its MCP step: the new connection is not ready yet (BB review R1).
+  // A committed replacement still running its MCP step: the new connection is not ready yet.
   settling(provider: McpProvider): boolean;
 }
 export interface McpServiceOptions {
@@ -63,7 +63,7 @@ export interface McpServiceOptions {
 const LIMITS = {
   // A status, list, add, logout or remove command; status commands health-check servers over the network.
   commandMs: 20_000,
-  // The hook link arrives about a second after the login starts (P4b); none this long after means the CLI will not
+  // The hook link arrives about a second after the login starts; none this long after means the CLI will not
   // hand one over (a Claude `browser` setting overrides BROWSER).
   linkMs: 30_000,
   // How long the browser approval may take after the link; also Codex's hang guard.
@@ -243,7 +243,7 @@ export class McpService implements McpConversationFacts {
   authChanged(provider: Provider): void {
     if (!mcpProvider(provider)) return;
     const state = this.options.auth.state(provider);
-    // A Claude without a Doan connection signed out with `claude auth logout`, which clears its MCP tokens (P4).
+    // A Claude without a Doan connection signed out with `claude auth logout`, which clears its MCP tokens.
     if (provider === "claude" && !state.connection) this.options.store.clearProvider("claude");
     // Codex keys MCP tokens by server name and URL only, so its pending logouts are retried at start whether or not
     // Codex is signed in (ARCHITECTURE §7 'MCP connectors').
@@ -554,7 +554,7 @@ export class McpService implements McpConversationFacts {
   private async read(provider: McpProvider, owner: Owner): Promise<void> {
     // A Connect, Disconnect or Remove that succeeds meanwhile records what it established; a read that began before it
     // may have run its commands before the change, so its result is dropped and the read that end() asked for (again)
-    // reads afresh (BU review Y2).
+    // reads afresh.
     const started = this.generation(provider);
     this.changed();
     try {

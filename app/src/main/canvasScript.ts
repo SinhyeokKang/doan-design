@@ -728,7 +728,7 @@ export function canvasScript(lib: CanvasLib): void {
     (event: PointerEvent) => {
       if (!event.isTrusted) return;
       // The app never sees pointer moves in this frame and hover is posted only when its rect changes, so the app's
-      // follow rest (work-update) hears the person move here: at most once a second, and without an animation frame,
+      // follow rest hears the person move here: at most once a second, and without an animation frame,
       // which an off-screen frame never gets.
       const now = performance.now();
       if (now - activityAt >= 1000) { activityAt = now; post({ type: "activity" }); }

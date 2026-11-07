@@ -13,7 +13,7 @@ import { PROJECT_WORK, ProjectAdder, projectLocks, type AdderProjects, type Proj
 import type { ProjectOutcome } from "./projects";
 
 
-// The first-run session the window and a local CLI share (buzz-onboarding).
+// The first-run session the window and a local CLI share.
 // Electron-free: index.ts supplies the main window, the auth IPC and completion, and carries the socket and IPC.
 
 // The old wizard's onboarding:read|run|answer|close|get-open are different channels and go away with it.

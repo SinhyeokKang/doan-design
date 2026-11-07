@@ -41,7 +41,7 @@ export function conversationNames(conversations: readonly ConversationMetadata[]
 }
 
 export function createNotifyService(deps: NotifyDeps) {
-  // One per conversation: macOS drops the click of a notification whose object was collected (P1).
+  // One per conversation: macOS drops the click of a notification whose object was collected.
   const held = new Map<string, { notification: NotificationHandle; kind: NotificationKind; requestId?: string }>();
   let test: NotificationHandle | null = null;
 
@@ -61,7 +61,7 @@ export function createNotifyService(deps: NotifyDeps) {
       const notification = deps.create({ title: planned.title, body: planned.body });
       notification.on("click", () => { release(event.conversationId, notification); deps.clicked(planned.target); });
       notification.on("close", () => release(event.conversationId, notification));
-      // Not allowed by macOS (a development build always is not, P1): logged only, the person is not asked again.
+      // Not allowed by macOS (a development build always is not): logged only, the person is not asked again.
       notification.on("failed", (_event: unknown, error: unknown) => { release(event.conversationId, notification); deps.log("doan: macOS refused a notification", error); });
       // The newer one says what happened last; the older one would only lead to the same conversation.
       held.get(event.conversationId)?.notification.close();

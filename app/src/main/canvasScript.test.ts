@@ -1294,7 +1294,7 @@ describe("canvasScript hover", () => {
     expect(ofType(canvas, "hover")).toHaveLength(1);
   });
 
-  // work-update (V3 review 🟡2): the app never sees pointer moves inside the canvas frame and hover is sent only when
+  // The app never sees pointer moves inside the canvas frame and hover is sent only when
   // its rect changes, so trusted moves also post an activity message, at most once a second and without an animation
   // frame, which an off-screen frame never gets.
   test("trusted moves post activity at most once a second, over the same element too", () => {

@@ -44,7 +44,7 @@ export function cloneArgs(url: string, target: string): string[] {
 }
 
 // Login-shell PATH so the user's credential helpers (gh among them) are found, and the user's own SSH setup
-// (core.sshCommand, GIT_SSH_COMMAND, ~/.ssh/config) applies unchanged (D17, 2026-10-29 user). Otherwise the launchd
+// (core.sshCommand, GIT_SSH_COMMAND, ~/.ssh/config) applies unchanged (2026-10-29 user). Otherwise the launchd
 // environment only (launchEnv): the launching terminal's other GIT_* and askpass settings are not the user's git
 // setup. DEVELOPER_DIR stays too: locateGit judged the /usr/bin/git shim with it. Nothing can wait for input: the
 // clone runs in its own process group with no controlling terminal and stdin closed, git's terminal prompt is off and
@@ -101,7 +101,7 @@ export interface CloneRequest {
 // Clones into a directory this run creates exclusively beside the destination, then claims the destination with an
 // exclusive mkdir and renames over that empty directory: a folder made there meanwhile is never replaced. Cleanup
 // removes only what this run created, and only after the whole process group is gone. Publication is the rename into
-// the destination (D19, 2026-10-29): a cancel accepted before it is honoured at every step, and one accepted while the
+// the destination (2026-10-29): a cancel accepted before it is honoured at every step, and one accepted while the
 // rename was in flight removes the moved destination, which is this run's own directory. The commit right after the
 // rename ends cancellation; from then on the clone is the user's folder in its final place and is never deleted.
 export async function runClone(request: CloneRequest): Promise<CloneResult> {

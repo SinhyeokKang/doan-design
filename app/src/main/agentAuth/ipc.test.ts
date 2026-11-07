@@ -226,7 +226,7 @@ describe("run-time version incompatibility records", () => {
   });
 });
 
-// buzz-settings About: tool versions come from this cache, never from a CLI run of their own.
+// Tool versions come from this cache, never from a CLI run of their own.
 describe("toolFacts", () => {
   it("answers the cached facts with a recorded incompatible version applied, without probing", async () => {
     const t = ipc(async provider => provider === "codex" ? { cli: "found", version: "supported", installed: "0.170.0", tools: "ready" } : ready);

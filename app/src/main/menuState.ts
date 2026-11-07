@@ -6,7 +6,7 @@ export interface MenuEnabled {
   home: boolean;
   // Zoom In/Out, Actual Size, Fit, Reload Canvas.
   canvasView: boolean;
-  // Go > Quick Open… (design-nav): every screen, since it searches all projects.
+  // Go > Quick Open…: every screen, since it searches all projects.
   quickOpen: boolean;
   // File > New Conversation: a project Overview or canvas.
   newConversation: boolean;

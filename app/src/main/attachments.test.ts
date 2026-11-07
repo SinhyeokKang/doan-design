@@ -220,7 +220,7 @@ it("keeps the recheck channel to the main window", () => {
   expect(senderAllowed("attachments:recheck", "settings")).toBe(false);
 });
 
-// Review BU3 r2 🟡4: sent ids live as long as the renderer's last requests use them, not by a count.
+// Sent ids live as long as the renderer's last requests use them, not by a count.
 it("keeps a root's last-request ids through any number of other sends, until the renderer releases them", () => {
   const f = fixture();
   const a = join(f.files, "a.txt"); writeFileSync(a, "a");
@@ -249,7 +249,7 @@ it("releases only sent ids and never deletes a sent paste's file", () => {
   expect(senderAllowed("attachments:release", "main")).toBe(true);
   expect(senderAllowed("attachments:release", "settings")).toBe(false);
 });
-// buzz-conversation: Edit on Home after a reload or restart issues ids again from the paths a conversation recorded.
+// Edit on Home after a reload or restart issues ids again from the paths a conversation recorded.
 it("re-issues recorded paths with the same checks, naming a moved file missing", () => {
   const f = fixture();
   const kept = join(f.files, "kept.txt"), moved = join(f.files, "moved.txt"); writeFileSync(kept, "k"); writeFileSync(moved, "m");
@@ -269,7 +269,7 @@ it("re-issues a sent pasted image from its userData path without ever deleting i
   expect(f.store.remove({ id: again.id })).toBe(true);
   expect(existsSync(pasted.path)).toBe(true);
 });
-// buzz-conversation review: a queued message removed before it went out takes its pasted image with it.
+// A queued message removed before it went out takes its pasted image with it.
 it("discards a queued paste that main held and only forgets a queued local file", () => {
   const f = fixture();
   const local = join(f.files, "a.txt"); writeFileSync(local, "a");

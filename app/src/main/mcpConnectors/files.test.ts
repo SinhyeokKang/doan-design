@@ -91,7 +91,7 @@ describe("mcp-connectors.json", () => {
   });
 
   // Normalization drops one trailing slash, so a URL typed with two is stored with one; storing must not normalize it
-  // again (BA review 🟡1).
+  // again.
   test("every URL parseConnectorUrl returns can be added and read back, including one that keeps a trailing slash", () => {
     for (const text of ["https://example.com/mcp//", "https://example.com", "HTTPS://Example.COM:443/a/?b=1", "https://example.com/a%20b"]) {
       const read = parseConnectorUrl(text);

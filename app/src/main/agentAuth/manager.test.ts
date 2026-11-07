@@ -754,7 +754,7 @@ describe("a replacement that does not finish", () => {
     // The live login is never logged out for a replacement.
     expect(processes.filter(p => p.step === "logout")).toEqual([]);
   });
-  describe("a provider whose login clears the profile first (Codex, D22)", () => {
+  describe("a provider whose login clears the profile first (Codex)", () => {
     const codex = () => manager({ adapters: { ...withAcp(), codex: { ...keychainProvider(() => keychain), settings: { "skills/doan/SKILL.md": "stub" }, loginClears: true } } });
     const profiles = () => readdirSync(join(root, "profiles")).filter(name => name.startsWith("codex")).sort();
     async function connectedCodex(m: AuthManager) {
@@ -2072,7 +2072,7 @@ describe("MCP connector steps", () => {
     expect(retired.cwd).toBe(storage.profileDir("codex"));
     expect((await run.done).connection!.profile).toBe(login.cwd.split("/").at(-1));
   });
-  // BB review R1: the new connection must not run (a conversation or another MCP command) while the previous
+  // The new connection must not run (a conversation or another MCP command) while the previous
   // account's MCP tokens are being logged out or the staging profile is being registered.
   it("keeps the provider closed until a committed replacement's MCP step finished, then publishes again", async () => {
     let entered!: () => void, release!: () => void;
@@ -2085,7 +2085,7 @@ describe("MCP connector steps", () => {
     await inStep;
     expect(m.state("claude").connection?.account.id).toBe("a2");
     expect(m.settling("claude")).toBe(true);
-    // Round 2 W1: readers see the provider busy, and nothing announced the new connection yet.
+    // Readers see the provider busy, and nothing announced the new connection yet.
     expect(m.status("claude", { cli: "found", version: "supported", tools: "ready" }).readiness).toEqual({ ready: false, cause: "busy", action: "wait" });
     expect(published.some(state => state.connection?.account.id === "a2")).toBe(false);
     await expect(m.acquire("claude", "run")).rejects.toThrow("busy");

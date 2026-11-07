@@ -148,7 +148,7 @@ vi.mock("./agentAuth/usageService", async (importOriginal) => {
   const original = await importOriginal<typeof import("./agentAuth/usageService")>();
   return { ...original, UsageService: class extends original.UsageService { override trigger(event: Parameters<InstanceType<typeof original.UsageService>["trigger"]>[0]) { usageProbe.triggers.push(event); return super.trigger(event); } } };
 });
-// agent-cli-terminal: what main hands the Install/Update opener; its file writes are covered in installCommand.test.ts.
+// What main hands the Install/Update opener; its file writes are covered in installCommand.test.ts.
 const installOpener = vi.hoisted(() => ({ open: vi.fn<(provider: string, facts: unknown) => Promise<string>>(), deps: [] as { dir: string }[] }));
 vi.mock("./installCommand", async (importOriginal) => ({
   ...await importOriginal<typeof import("./installCommand")>(),
@@ -951,7 +951,7 @@ describe("menus", () => {
     expect(window().webContents.send).toHaveBeenCalledWith("menu-command", "home");
   });
 
-  // buzz-add-projects: the page opens in the renderer; no native picker, and none with multiSelections, opens here.
+  // The page opens in the renderer; no native picker, and none with multiSelections, opens here.
   test("Add Project… shows a hidden window first, then tells the renderer to open the Add Projects page", async () => {
     window().emit("close", { preventDefault: vi.fn() });
     expect(window().hide).toHaveBeenCalledOnce();
@@ -986,7 +986,7 @@ describe("menus", () => {
     expect(menuEnabled("Add Project…")).toBe(true);
   });
 
-  // buzz-settings: the Settings page is a screen; its lock (and the Add Projects page's) disables Settings… too.
+  // The Settings page is a screen; its lock (and the Add Projects page's) disables Settings… too.
   test("the Settings page keeps Add Project…, Home and Quick Open; a lock on either page disables Settings…", async () => {
     const contents = window().webContents;
     await completeFirstRun();
@@ -1113,7 +1113,7 @@ describe("locate and reveal", () => {
   });
 });
 
-// canvas-hand-tool: a canvas click is the canvas's message, so the renderer asks where the OS cursor is.
+// A canvas click is the canvas's message, so the renderer asks where the OS cursor is.
 describe("pointer", () => {
   test("answers the window's main frame with the OS cursor in content coordinates at the page zoom", async () => {
     const contents = window().webContents;
@@ -1444,7 +1444,7 @@ test("home path is available only to the application main frame", async () => {
   expect(await invoke("app:home", window().webContents, {})).toBeNull();
 });
 
-// canvas-row-menu: Move to Trash and Export from the sidebar's canvas row menu.
+// Move to Trash and Export from the sidebar's canvas row menu.
 describe("canvas trash and export", () => {
   const row = { path: ".doan/canvases/a.html", id: "a", url: "http://127.0.0.1:1/t/tok/k/.doan/canvases/a.html" };
   const listed = { path: "/repo", kind: "list", servedRev: 1, canvases: [row] };
@@ -1498,7 +1498,7 @@ describe("canvas trash and export", () => {
   });
 });
 
-// canvas-row-menu: main's own busy grounds and trashItem wiring, on a registered root that passes the disk checks
+// Main's own busy grounds and trashItem wiring, on a registered root that passes the disk checks
 // (POSTMORTEM 2026-11-01: the root is part of the identity; 2026-11-03: pin in main what the renderer relies on).
 describe("canvas trash on main's grounds", () => {
   const tmp = realpathSync(mkdtempSync(join(tmpdir(), "doan-index-trash-")));
@@ -1686,7 +1686,7 @@ test("an approved quit prevents native window teardown until the next event-loop
 
 // conversation:delete answers busy while quitting as while working, so the
 // renderer learns of the quit from main and its refusal toast can stay quiet. An aborted quit leaves the conversations
-// stopped (the service stays quitting), so main never takes it back (review RA Y3, D2).
+// stopped (the service stays quitting), so main never takes it back.
 test("main tells the renderer it is quitting before the conversations stop, and never takes it back after an aborted quit", async () => {
   const contents = window().webContents;
   const service = mocks.conversationService as unknown as { quit(): Promise<void> };
@@ -1944,7 +1944,7 @@ describe("Add Projects page session", () => {
     expect(selected).toMatchObject({ ok: true, result: { operation: { kind: "project_select", state: "succeeded", project: { root: "/plain" } } } });
   });
 
-  // review-BS ⚪3: a confirmation answered "added" counts only once the registry holds the path.
+  // A confirmation answered "added" counts only once the registry holds the path.
   test("a confirmed folder the registry does not list is not registered", async () => {
     const contents = window().webContents, sessionId = await pageSession();
     mocks.projects.canonicalFolder.mockResolvedValue("/plain");
@@ -2227,7 +2227,7 @@ describe("settings page", () => {
   });
 });
 
-// zero-setup-agents: agent setup runs once per launch, beside the window, and About waits for its result.
+// Agent setup runs once per launch, beside the window, and About waits for its result.
 describe("agent setup on launch", () => {
   const LISTED = { exitCode: 0, timedOut: false, stderr: "", stdout: JSON.stringify({ v: 1, ok: true, result: { version: "1.2.3", presets: [] } }) };
   const ALL = ["claude", "codex", "cursor", "antigravity", "copilot"];
@@ -2527,7 +2527,7 @@ test("work deadlines use one timeout and file changes stay within their root", (
   } finally { timeout.mockRestore(); interval.mockRestore(); vi.useRealTimers(); }
 });
 
-// onboarding-background-open: `onboarding start` keeps Doan behind the app in use and shows the window on activation.
+// `onboarding start` keeps Doan behind the app in use and shows the window on activation.
 describe("background onboarding launch and start", () => {
   // Relaunches main with the CLI's background flag in argv (or without it) and the given activation at window creation.
   async function launch({ background, active }: { background: boolean; active: boolean }) {
