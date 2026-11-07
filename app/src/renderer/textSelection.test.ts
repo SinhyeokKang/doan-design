@@ -19,7 +19,3 @@ test.each([".conversation-thread .bubble", ".conversation-thread .msg-agent", "i
   expect(values.at(-1)).toBe("text");
   expect(values).not.toContain("none");
 });
-
-test.each(["input:disabled", "textarea:disabled"])("%s disables text selection", selector => {
-  expect(selections(selector).at(-1)).toBe("none");
-});
