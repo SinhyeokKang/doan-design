@@ -45,7 +45,7 @@ C3 community-docs ─ C4 readme-features   (P0과 병렬, main에 커밋)
   - 검증: `git fetch origin` 뒤 `git ls-tree origin/develop docs/features/git-flow` 결과 없음, `git ls-remote --heads origin develop`이 한 줄.
 - [x] G1. `develop`을 `main`(1d09a76a)에서 만들어 push했다. 기본 브랜치는 D2대로 `main`을 유지한다.
   - 검증: `git ls-remote --heads origin develop`이 한 줄을 낸다.
-- [ ] C2. [`public-cleanup`](../public-cleanup/tasks.md) — `/orchestrate`(D27). 선행: C1.
+- [x] C2. `public-cleanup`(PR #122, 0f52ddc1) — `/orchestrate`(D27). 선행: C1.
   - 검증: `develop`을 향한 `feat/public-cleanup` PR이 병합됐고(확인 명령 미정 — 사용자 확인 필요), `git ls-tree origin/develop docs/features/public-cleanup` 결과 없음.
 
 ## G. 공개 (사용자만 한다)
