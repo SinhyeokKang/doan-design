@@ -123,19 +123,36 @@ export async function openFolderStore(file: string, migrate: RootMigration = asy
   const aliases: ReadonlyMap<string, string> = new Map([...real].filter(([path, to]) => path !== to));
   if (saved !== null && aliases.size > 0) {
     const nextFolders = resolved(saved, real), nextMarks = realMarks(saved, savedMarks, real);
-    const moved = await migrate(aliases).catch((error: unknown) => { console.error("doan: cannot move root memory to real paths", error); return false; });
-    const listed = moved && await writeFoldersFile(file, nextFolders).then(() => true, (error: unknown) => { console.error("doan: cannot save folders.json", error); return false; });
-    if (listed) {
+    // The marks a hand-added spelling clears when the folder's spellings collapse, removed in their saved spelling
+    // before folders.json collapses them: a stop after any later write still reads the project as hand-added.
+    const kept = savedMarks.filter(path => nextMarks.includes(real.get(path) ?? path));
+    const saving = (name: string, write: () => Promise<void>) => write().then(() => true, (error: unknown) => { console.error(`doan: cannot save ${name}`, error); return false; });
+    const done = await migrate(aliases).catch((error: unknown) => { console.error("doan: cannot move root memory to real paths", error); return false; })
+      && (kept.length === savedMarks.length || await saving("auto-folders.json", () => writeFoldersFile(autoFile, kept)))
+      && await saving("folders.json", () => writeFoldersFile(file, nextFolders))
+      && await saving("auto-folders.json", () => writeFoldersFile(autoFile, nextMarks));
+    if (done) {
       folders = nextFolders;
       marks = nextMarks;
+      writtenMarks = JSON.stringify(nextMarks);
       spellings = aliases;
-      // After folders.json: a stop before this write leaves marks that still resolve to the listed real paths.
-      await writeFoldersFile(autoFile, nextMarks).then(() => { writtenMarks = JSON.stringify(nextMarks); }, (error: unknown) => console.error("doan: cannot save auto-folders.json", error));
     } else {
-      // Memory an earlier run already moved to a real path is read under the alias this run lists.
-      const reverse = new Map<string, string>();
-      for (const [alias, to] of aliases) if (saved.includes(alias) && !saved.includes(to) && !reverse.has(to)) reverse.set(to, alias);
-      spellings = reverse;
+      // This run takes what reading the files now on disk gives, as the next launch will before it retries.
+      const list = await readSavedList(file) ?? saved, onDisk = await readMarks(autoFile);
+      writtenMarks = JSON.stringify(onDisk);
+      if (list.some(path => (real.get(path) ?? path) !== path)) {
+        folders = list;
+        marks = onDisk;
+        // Memory an earlier run already moved to a real path is read under the alias this run lists.
+        const reverse = new Map<string, string>();
+        for (const [alias, to] of aliases) if (list.includes(alias) && !list.includes(to) && !reverse.has(to)) reverse.set(to, alias);
+        spellings = reverse;
+      } else {
+        // folders.json was written; only the marks keep a saved spelling, which resolves as on the next launch.
+        folders = list;
+        marks = realMarks(list, onDisk, real);
+        spellings = aliases;
+      }
     }
   }
   // Writes run one after another so a slow earlier write cannot rename an
