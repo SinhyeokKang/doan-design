@@ -10,6 +10,7 @@ Where things live, one entry per directory. File-level detail is in the code; ru
 - `.claude/settings.json`: Claude Code settings, including the response-style `UserPromptSubmit` hook.
 - `.github/`: issue forms (`ISSUE_TEMPLATE/`) and the pull request template; no workflows yet.
 - `docs/`: product, architecture and working documents; `docs/features/<slug>/` holds active feature plans, audit reports and chain files.
+- `docs/assets/readme/`: the README's feature images, exported from the frames of `.doan/canvases/readme-features.html`.
 - `.scratch/`: ignored experiments, probe scripts and evidence.
 
 ## CLI (Go)
