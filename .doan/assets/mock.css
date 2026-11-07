@@ -31,3 +31,47 @@
   --mock-project-indigo: oklch(51.1% 0.262 276.966);
   --mock-project-fuchsia: oklch(59.1% 0.293 322.896);
 }
+
+/* README artwork (readme-features.html): macOS window controls drawn on the product shots. They are the system's
+   colours, not Doan's, so they stay out of the app tokens. */
+:root {
+  --mock-light-close: #ff5f57;
+  --mock-light-minimize: #febc2e;
+  --mock-light-zoom: #28c840;
+  /* The darker 0.5px rim each control has. */
+  --mock-light-rim: rgba(0, 0, 0, 0.12);
+}
+
+
+/* README artwork: "Relay", the dummy dark-theme mobile app (an AI agent you hand tasks to) whose drafts the README
+   boards show. Its own palette, far from Doan's violet: graphite surfaces and an electric lime accent. */
+:root {
+  --relay-paper: #ffffff;
+  --relay-paper-ink: #121314;
+  --relay-paper-ink-2: #5d6063;
+  --relay-paper-line: #dedcd5;
+  --relay-bezel: #050506;
+  --relay-bg: #0b0c0e;
+  --relay-surface: #15171a;
+  --relay-raised: #1f2226;
+  --relay-line: #2b2f34;
+  --relay-ink: #f2f4ef;
+  --relay-ink-2: #a7aca4;
+  --relay-ink-3: #6e736d;
+  --relay-lime: #c6f25c;
+  --relay-lime-ink: #11150a;
+  --relay-lime-soft: #c6f25c24;
+  --relay-lime-dim: #8fb53a;
+  --relay-coral: #ff7a63;
+  --relay-coral-soft: #ff7a6326;
+  --relay-amber: #f6c04b;
+  --relay-amber-soft: #f6c04b26;
+  --relay-mint: #6fe0b0;
+  --relay-sky: #7cc6ff;
+  --relay-scrim: #000000a6;
+}
+:root {
+  /* Relay boards: the phone's drop shadow and hairline. */
+  --relay-phone-shadow: #0000008c;
+  --relay-phone-ring: #00000014;
+}
