@@ -54,7 +54,7 @@
 |---|---|---|---|---|
 | 1 defect-sweep | Claude Code, `defect-sweep-orch` | 2026-11-07 `e9e92711` | PR #118 · `470bc3dd` | 병합 |
 | 2 text-edit-menu | Claude Code, `text-edit-menu-orch` | 2026-11-07 `5c5aad3e` | PR #119 · `9470b29f` | 병합 |
-| 3 ts-lint-gate | Claude Code, `ts-lint-gate-orch` | 인계 중 | — | 시작 |
+| 3 ts-lint-gate | Claude Code, `ts-lint-gate-orch` | 2026-11-07 `9b89a9d7` | PR #120 · `c2d132c6` | 병합 |
 
 ## 인계 기록
 
@@ -77,3 +77,8 @@
   - 새 known defect(BACKLOG): 시스템 언어가 한국어인 Mac에서는 맞춤법 제안이 비어 있다(이 Mac이 그렇다), chip이 든 선택의 Look Up label에 화면 낭독용 텍스트가 들어간다, `app/runtime/clipboard.ts`는 빈 clipboard를 되돌리지 못한다(probe마다 직접 비웠다).
   - 링크 3이 알아야 할 것: 사용자가 링크 3의 주 작업자를 Codex로 정했다('상시 권한' 참고, `gpt-6-astra` effort `high`까지). 지휘는 Claude Code다. 링크 2가 바꾼 파일은 `app/src/main/editMenu.ts`(새 파일)·`index.ts`·`canvasFrame.ts`, `app/src/renderer/styles.css`·`SettingsMcpConnectors.tsx`·`Onboarding.tsx`와 그 테스트, 새 `textSelection.test.ts`다. exhaustive-deps 경고 수 N은 이 병합 뒤의 main에서 센다. 새 Codex worktree는 처음 띄울 때 `npm --prefix app ci`가 필요하다(B가 그 때문에 한 번 멈췄다). 끝난 Codex dispatch에 `send`로 다시 열면 `agent-update-prompt`로 실패할 수 있다. 새 `worker-start`로 띄우면 된다.
   - 남긴 branch: `feat/text-edit-menu`, `SinhyeokKang/tem-{A,B,C}`. batch worktree는 모두 지웠다.
+- 2026-11-07 **링크 3 ts-lint-gate 끝, 체인 끝**(지휘자 `ts-lint-gate-orch`): PR #120을 병합했다(`c2d132c6`). batch는 A(T0·T2·T3, Codex `gpt-6.1-sol` high)와 B(T1, Codex `gpt-6-astra` high)다. 리뷰는 둘 다 Claude Sonnet medium이 했고, 🔴 0건이었다. 🟡는 A 1건, B 3건이었고 모두 고쳤다. 링크 시작 때 Codex 주간 사용량은 53%였다(`window_minutes` 10080). N은 시작 때(`9b89a9d7`)와 rebase 뒤(`bbfb0aae`) 모두 82였다. 통합 gate는 최종 HEAD `dc6db6ac`에서 돌렸다: `verify.mjs` PASS(lint 단계 포함), lint 오류 0, `--max-warnings 82`는 exit 0, `81`은 exit 1이다. `/runtime-test`는 B가 격리 환경에서 돌렸다(보통 Quit은 exit 0, Settings > Agents Retry 확인). A는 앱 동작을 바꾸지 않아 그 증거를 그대로 썼다. 실제 `/agent-eval`은 돌리지 않았다(guide·CLI 메시지·`doan check` 규칙·skill stub이 바뀌지 않았다).
+  - 새 known defect(BACKLOG): `shell.test.ts`의 "initializes a folder stored a moment ago…"가 여러 worktree가 전체 suite를 함께 돌릴 때 실패한다(바뀌지 않은 main에서도 재현). 따로 돌리거나 조용한 상태에서 전체를 돌리면 통과한다. 같은 조건에서 QuickOpen 50 ms 테스트도 한 번 실패했다.
+  - B probe 첫 시도에서 실제 `ui-state.json` 지문이 바뀌었다. 원인은 실행 중이던 `/Applications/Doan.app`이 그 파일을 직접 쓴 것이다. 마지막 probe에서는 바뀌지 않았다.
+  - 체인 끝 로그인 정리(시작 점검 승인 4): 지우지 않았다. 공용 프로필 `/Users/sinhyeok/code/doan-design/.scratch/provider-profile/userData`(약 1.1 GB, `agent-auth/profiles/` 아래 antigravity·claude·codex·copilot·cursor)와 그 Keychain 항목이 남아 있다.
+  - 남긴 branch: `feat/ts-lint-gate`, `SinhyeokKang/tlg-{A,B}`(로컬과 원격). batch worktree는 모두 지웠다.
