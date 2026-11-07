@@ -183,8 +183,9 @@ function withoutHeredocBodies(command: string): string {
 
 const ASSIGNMENT = /^[A-Za-z_][A-Za-z_0-9]*=/;
 const VARIABLE = /\$(?:(\w+)|\{(\w+)\})/g;
-// Loops longer than this are cut, so a transcript cannot make the reader expand without bound.
-const LOOP_LIMIT = 64;
+// Loop iterations one command may expand in total, nested loops included, so a transcript cannot make the reader
+// work without bound. A loop that would pass it is not followed: its body is read once with the variable unresolved.
+const LOOP_BUDGET = 256;
 
 // One raw token (quotes still on) to the words the shell makes of it. Single quotes keep `$name`, an escaped `\$` in
 // double quotes stays literal, and a variable that is not known here stays as written. A bare `$name` holding
@@ -202,27 +203,38 @@ function expandToken(raw: string, env: ReadonlyMap<string, string>): string[] {
 }
 
 // Executes the words of raw token groups the way the shell would, for what a transcript can show: `NAME=value`
-// assignments on their own, and `for NAME in words; do …; done` with its body run once per word. Anything else
-// (`while`, `if`, command substitution) is read as written.
-function runGroups(groups: string[][], env: ReadonlyMap<string, string>): string[][] {
+// assignments on their own, and a closed `for NAME in words; do …; done` with its body run once per word. The
+// variables are one shell state: a loop variable and an assignment in a body stay set after the loop, as in POSIX
+// sh. A loop with no `done`, or too long to follow, is never taken as run; a word that cannot be resolved stays as
+// written. Anything else (`while`, `if`, command substitution) is read as written.
+function runGroups(groups: string[][], vars: Map<string, string>, budget: { left: number }): string[][] {
   const out: string[][] = [];
-  const vars = new Map(env);
+  const append = (words: string[][]) => { for (const entry of words) out.push(entry); };
   for (let i = 0; i < groups.length; i++) {
     const group = groups[i]!;
     const head = groups[i + 1];
     if (group[0] === "for" && /^[A-Za-z_]\w*$/.test(group[1] ?? "") && group[2] === "in" && head?.[0] === "do") {
       const rest = head.length > 1 ? [head.slice(1)] : [];
       const body = [...rest, ...groups.slice(i + 2)];
-      let depth = 1, done = body.length;
-      for (let j = 0; j < body.length; j++) {
-        if (["for", "while", "until", "select"].includes(body[j]![0]!)) depth++;
-        if (body[j]![0] === "done" && --depth === 0) { done = j; break; }
+      let depth = 1, done = -1;
+      for (let j = 0; j < body.length && done < 0; j++) {
+        // A nested loop can open right after its parent's `do`.
+        if (["for", "while", "until", "select"].includes((body[j]![0] === "do" ? body[j]![1] : body[j]![0]) ?? "")) depth++;
+        if (body[j]![0] === "done" && --depth === 0) done = j;
       }
-      const values = group.slice(3).flatMap(token => expandToken(token, vars)).slice(0, LOOP_LIMIT);
-      for (const value of values) out.push(...runGroups(body.slice(0, done), new Map(vars).set(group[1]!, value)));
-      // Continue after the loop's `done`, or at the end when it never closes.
-      i = done < body.length ? i + 2 + done - rest.length : groups.length;
-      continue;
+      if (done >= 0) {
+        const values = group.slice(3).flatMap(token => expandToken(token, vars));
+        if (values.length <= budget.left) {
+          budget.left -= values.length;
+          for (const value of values) { vars.set(group[1]!, value); append(runGroups(body.slice(0, done), vars, budget)); }
+        } else {
+          vars.delete(group[1]!);
+          append(runGroups(body.slice(0, done), vars, budget));
+        }
+        // Continue after the loop's `done`.
+        i += 2 + done - rest.length;
+        continue;
+      }
     }
     let skipped = 0;
     while (ASSIGNMENT.test(group[skipped] ?? "")) skipped++;
@@ -235,21 +247,25 @@ function runGroups(groups: string[][], env: ReadonlyMap<string, string>): string
       while (/^-[pvV]+$/.test(words[k] ?? "")) k++;
       if (!/[vV]/.test(words.slice(1, k).join(""))) words = words.slice(words[k] === "--" ? k + 1 : k);
     }
-    if (/^(?:.*\/)?(?:ba|z|da)?sh$/.test(words[0] ?? "") && /^-[a-z]*c$/.test(words[1] ?? "") && words[2]) out.push(...commandWords(words[2]));
+    if (/^(?:.*\/)?(?:ba|z|da)?sh$/.test(words[0] ?? "") && /^-[a-z]*c$/.test(words[1] ?? "") && words[2]) append(wordsOf(words[2], budget));
     else if (words.length) out.push(words);
   }
   return out;
 }
 
-// Preserve quoted arguments so echoing a command cannot count as invoking it.
-export function commandWords(command: string): string[][] {
+function wordsOf(command: string, budget: { left: number }): string[][] {
   const groups: string[][] = [[]];
   for (const token of withoutHeredocBodies(command).matchAll(/[;&|\n]+|(?:"(?:\\.|[^"\\])*"|'[^']*'|[^\s;&|"'])+/g)) {
     const value = token[0];
     if (/^[;&|\n]+$/.test(value)) groups.push([]);
     else groups.at(-1)!.push(value);
   }
-  return runGroups(groups.filter(g => g.length), new Map());
+  return runGroups(groups.filter(g => g.length), new Map(), budget);
+}
+
+// Preserve quoted arguments so echoing a command cannot count as invoking it.
+export function commandWords(command: string): string[][] {
+  return wordsOf(command, { left: LOOP_BUDGET });
 }
 
 export interface InvocationOutput {

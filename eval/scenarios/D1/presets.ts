@@ -18,6 +18,8 @@ export function presetLookups(ctx: CheckContext) {
     shellIds,
     // An id outside the catalog returns usage_error, so it is never a body read.
     ids: shellIds.filter(id => CATALOG.includes(id)),
+    // An id still written as a variable ran, but the reader could not follow what it held (a loop too long to expand).
+    unresolved: shellIds.filter(id => id.includes("$")),
   };
 }
 
@@ -32,9 +34,10 @@ export function presetChecks(ctx: CheckContext, o: { required: (string | string[
     return { id: `read_${any.join("_or_")}`, pass: any.some(id => l.ids.includes(id)), detail: `requires a read of ${any.join(" or ")}; ${detail}` };
   });
   const extra = l.ids.filter(id => !o.allowed.includes(id));
+  const unresolved = l.unresolved.length ? `; unresolved: ${l.unresolved.join(", ")}` : "";
   checks.push(o.allowed.length
-    ? { id: "preset_reads_allowed", pass: extra.length === 0, detail: `allowed ${o.allowed.join(", ")}; outside: ${extra.join(", ") || "(none)"}; ${detail}` }
-    : { id: "no_preset_body_read", pass: l.ids.length === 0, detail });
+    ? { id: "preset_reads_allowed", pass: extra.length === 0 && l.unresolved.length === 0, detail: `allowed ${o.allowed.join(", ")}; outside: ${extra.join(", ") || "(none)"}${unresolved}; ${detail}` }
+    : { id: "no_preset_body_read", pass: l.ids.length === 0 && l.unresolved.length === 0, detail: detail + unresolved });
   return checks;
 }
 

@@ -778,14 +778,10 @@ describe("storing, removing and restoring", () => {
   test("replace reports the move as a re-root focus, and only a real move", async () => {
     const [a, b, moved] = [writeRepo(dir()), writeRepo(dir()), writeRepo(dir())];
     const file = join(dir(), "folders.json");
-    // The second root's first list is still on its way when store() answers; it lands while the first replace is
-    // being saved (the block lets the CLI finish before the save does), as it does on a loaded machine.
+    // The second root's first list is held until the focus event has gone out and is awaited before the asserts, so the
+    // last call is a focus-less list by the order of these steps, as it can be on a loaded machine, not by timing.
     const held = holdingCli(b);
-    const changes = vi.fn((_entries: FolderEntry[], focus?: FolderFocus) => {
-      if (!focus) return;
-      held.release();
-      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 500);
-    });
+    const changes = vi.fn();
     const shell = await startShell(file, held.path, changes); shells.push(shell);
     await shell.store([a, b]);
     changes.mockClear();
@@ -793,8 +789,12 @@ describe("storing, removing and restoring", () => {
     const focuses = () => changes.mock.calls.flatMap(([, focus]) => (focus ? [focus] : []));
     await shell.replace(a, a);
     expect(focuses()).toEqual([]);
-    await shell.replace(a, moved);
+    const replacing = shell.replace(a, moved);
     expect(focuses()).toEqual([{ from: a, root: moved }]);
+    held.release();
+    await vi.waitFor(() => expect(listed(shell.entries(), b)).toBeDefined(), until);
+    await replacing;
+    expect(changes.mock.lastCall?.[1]).toBeUndefined();
     // Locate to a root already in the list drops the old row and still reports the move.
     await shell.replace(moved, b);
     expect(shell.entries().map(entry => entry.path)).toEqual([b]);
