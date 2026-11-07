@@ -1,6 +1,6 @@
 import type { ToolCalls } from "./transcript.ts";
 
-// The contract scenario checks are written against (design.md 'Check contract').
+// The contract scenario checks are written against.
 // Checks read and run only through the context, so the same checks score a
 // real agent run and a self-test fixture.
 

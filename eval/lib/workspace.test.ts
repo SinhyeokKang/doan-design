@@ -103,7 +103,7 @@ test("without worktree the agent works in the instruction's root", async () => {
   }
 });
 
-// Codex reaches the app socket through this rule (design.md Q2); a Claude run gets the same baseline,
+// Codex reaches the app socket through this rule; a Claude run gets the same baseline,
 // so neither agent's diff or judge sees it as the agent's work.
 test("every agent's baseline commits the project Codex rule Doan's agent setup writes", async () => {
   assert.equal(CODEX_RULE, ".codex/rules/doan.rules");
