@@ -22,8 +22,8 @@
 
 | batch | 항목 | 파일 소유 | 선행 | model·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
-| B1 | T2, T3 | 새 `app/src/main/update/`(eligibility, schedule, state, errorCode, gate, view, 타입 파일과 테스트), `app/src/main/preferences.ts`·`preferences.test.ts` | — | Opus high — 상태 기계의 겹침(수동·자동, 받는 중 재확인, 취소)과 view 매핑이 틀리면 UI 전체가 틀린다 | `npm --prefix app test`, `typecheck`, `rendererImports.test.ts` | 대기 |
-| B2 | T4, Copy details 줄 | `app/package.json`·`package-lock.json`, `app/src/main/update/service.ts`(+테스트), `app/src/main/index.ts`·`index.test.ts`, `menuState.ts`(+테스트), `senderAllowed.ts`(+테스트), `app/src/preload/index.ts`(+테스트), `app/src/main/about.ts`(+테스트) | B1 통합 | Opus high — 종료 순서·flush·설치 시점은 상태를 잃을 수 있는 동시성 경로다 | `npm --prefix app test`, `npm --prefix app run build`, `verify.mjs` | 대기 |
+| B1 | T2, T3 | 새 `app/src/main/update/`(eligibility, schedule, state, errorCode, gate, view, 타입 파일과 테스트), `app/src/main/preferences.ts`·`preferences.test.ts` | — | Opus high — 상태 기계의 겹침(수동·자동, 받는 중 재확인, 취소)과 view 매핑이 틀리면 UI 전체가 틀린다 | `npm --prefix app test`, `typecheck`, `rendererImports.test.ts` | 통합 `88304821` |
+| B2 | T4, Copy details 줄 | `app/package.json`·`package-lock.json`, `app/src/main/update/service.ts`(+테스트), `app/src/main/index.ts`·`index.test.ts`, `menuState.ts`(+테스트), `senderAllowed.ts`(+테스트), `app/src/preload/index.ts`(+테스트), `app/src/main/about.ts`(+테스트) | B1 통합 | Opus high — 종료 순서·flush·설치 시점은 상태를 잃을 수 있는 동시성 경로다 | `npm --prefix app test`, `npm --prefix app run build`, `verify.mjs` | 진행 |
 | B3 | T5 | `app/src/renderer/SettingsAbout.tsx`(+테스트), `App.tsx`·헤더 버튼과 popover, `AgentUsageButton.tsx`(+테스트), `app/src/main/aboutView.ts`, `app/src/main/agentSetup/notice.ts`, `styles.css`, `docs/DESIGN.md` | B2 통합 | Opus medium — 초안이 정해져 있어 판단보다 측정이 많지만 popover·focus·폭 계산이 섞인다 | `test`, `typecheck`, `lint`, `/design-sync` 차이 0 | 대기 |
 | B4 | T6 | 코드 수정 없음(보고만), `.scratch/` | B3 통합 | Sonnet medium — 정해진 probe를 격리된 앱에서 돌리고 기록한다 | `/runtime-test` 보고서 각 항목 | 대기 |
 | conductor | T0, T7, 통합 `/verify` | `orch.md`, PRODUCT·ARCHITECTURE·BACKLOG·DIRECTORY 승격, 이 디렉터리 삭제 | B4 | — | tasks.md T7의 grep | T0 완료 |
@@ -52,3 +52,5 @@
 - B1 수정 1회차 보냄: dispatch `ctx_757dcb464f16`.
 - B1 질문(수정 1회차): native `installFailed`는 설치 단계 실패(About에 Restart to Update)로, 나머지 native 오류는 받기 실패(Retry)로 둔다고 답했다(초안 row-failed 프레임과 같다). staging 중 설치 실패 뒤 Restart가 `quitAndInstall`에서 영원히 기다리지 않게 하는 처리는 B2 brief에 넣는다.
 - B1 수정 1회차 완료: `f623af6a`, `120f556f`, `3702db7c`. worker 보고 `verify.mjs` PASS(9583). 🔴은 처음부터 0이라 재리뷰 없이 통합한다. 상태 기계와 서비스의 맞물림은 B2 리뷰가 본다.
+- B1 통합: `b17f7a7a`..`88304821`(커밋 6개 cherry-pick). 통합 HEAD `88304821`에서 `verify.mjs` PASS(앱 테스트 9583개, 로그 `.scratch/orch/verify-B1.log`). B1 worker를 release하고 worktree `app-update-b1`을 Orca로 지웠다. 브랜치 `SinhyeokKang/app-update-b1`(`3702db7c`)은 남아 있다. handoff와 리뷰 사본은 `.scratch/orch/`에 있다.
+- B2 시작: dispatch `ctx_6d3858b9458d`, worktree `app-update-b2`(base `88304821`), Opus high.
