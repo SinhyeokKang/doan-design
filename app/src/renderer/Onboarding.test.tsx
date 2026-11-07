@@ -108,7 +108,7 @@ test("the paste modal: one bounded input, Cancel and Submit; Escape closes only 
   const html = renderToStaticMarkup(<PasteDialog view={pasteDialog()} value="" submittable={false} tooLong={false} busy={false} change={noop} submit={noop} close={close} />);
   expect(html).not.toContain("maxLength");
   expect(html).not.toContain("too long");
-  expect(html).toContain('<input class="doan-input" aria-label="Page address" placeholder="Page address from your browser" spellcheck="false" autofocus="" value=""/>');
+  expect(html).toContain('<input class="doan-input" aria-label="Page address" placeholder="Page address from your browser" spellCheck="false" autofocus="" value=""/>');
   expect(html).toContain('<div class="doan-dialog-actions"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Cancel</button><button type="submit" class="doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled="">Submit</button></div>');
   const element = PasteDialog({ view: pasteDialog(), value: "", submittable: false, tooLong: false, busy: false, change: noop, submit: noop, close }) as ReactElement<DialogProps>;
   const escape = keyEvent("Escape");
@@ -212,7 +212,7 @@ const screen = (state: Partial<ProjectStepState>, props: Partial<ProjectScreenPr
 
 test("U2 Choose your project: local folder card, divider, URL field and a disabled Open doan", () => {
   const html = screen({});
-  expect(html).toMatch(/<input[^>]*aria-label="GitHub repository URL"[^>]*spellcheck="false"/);
+  expect(html).toMatch(/<input[^>]*aria-label="GitHub repository URL"[^>]*spellCheck="false"/);
   expect(html).toContain('<h2 tabindex="-1">Choose your project</h2><p>Start with a folder on your Mac, or a GitHub repository.</p>');
   expect(html).toMatch(/<div class="doan-panel ob-local-option"><span class="ob-folder-icon"><svg[^>]*lucide-folder[^>]*>.*?<\/svg><\/span><div><strong>Open a local folder<\/strong><p>Use a project that’s already on your Mac.<\/p><\/div><button type="button" class="doan-button" data-ui-variant="subtle">Choose folder<\/button><\/div>/);
   expect(html).toContain('<div class="ob-divider"><span>or use GitHub</span></div><label class="ob-field-label" for="ob-project-url">Repository URL</label>');

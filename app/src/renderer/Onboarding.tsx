@@ -123,7 +123,7 @@ export function PasteDialog({ view, value, submittable, tooLong, busy, change, s
     onCancel={event => { event.preventDefault(); close(); }} onKeyDown={dialogKeys(close)}>
     <form className="ob-dialog-form" onSubmit={event => { event.preventDefault(); if (submittable) submit(); }}>
       <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title" id="ob-paste-title">{view.title}</h3><p className="doan-dialog-description">{view.body}</p></div></div>
-      <input className="doan-input" aria-label={view.inputLabel} placeholder={view.placeholder} value={value} autoFocus disabled={busy} onChange={event => change(event.target.value)} />
+      <input className="doan-input" aria-label={view.inputLabel} placeholder={view.placeholder} spellCheck={false} value={value} autoFocus disabled={busy} onChange={event => change(event.target.value)} />
       {tooLong && <p className="ob-field-error" role="alert">This address is too long to submit.</p>}
       <div className="doan-dialog-actions">
         <button type="button" className="doan-button" data-ui-variant={view.cancel.variant} data-ui-size="sm" disabled={busy} onClick={close}>{view.cancel.label}</button>
@@ -481,7 +481,7 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
     : (p.kind === "candidates" || p.kind === "setup") && p.url !== null ? HEADINGS.found : use === "addPage" ? HEADINGS.add : HEADINGS.choose;
   const urlField = (readOnly: boolean) => <>
     <label className="ob-field-label" htmlFor="ob-project-url">Repository URL</label>
-    <input className="doan-input" id="ob-project-url" aria-label="GitHub repository URL" placeholder="https://github.com/owner/repository" value={state.url} readOnly={readOnly}
+    <input className="doan-input" id="ob-project-url" aria-label="GitHub repository URL" placeholder="https://github.com/owner/repository" spellCheck={false} value={state.url} readOnly={readOnly}
       aria-invalid={error?.code === "invalid_url" || undefined} aria-describedby={error && (error.code === "invalid_url" || error.code === "access_failed") ? "ob-project-error" : undefined}
       onChange={event => on.setUrl(event.target.value)} onKeyDown={event => { if (event.key === "Enter" && !readOnly && !event.nativeEvent.isComposing) on.find(); }} />
   </>;
