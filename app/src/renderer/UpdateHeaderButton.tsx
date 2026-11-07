@@ -41,8 +41,11 @@ export function UpdateHeaderButton({ disabled, canvasPress }: { disabled: boolea
   const [snapshot, setSnapshot] = useState<UpdateSnapshot | null>(null);
   const [shown, setShown] = useState<UpdateNotice | null>(null);
   const button = useRef<HTMLButtonElement | null>(null);
-  // A popover the person did not open by pressing (a stopped restart) leaves focus where it is.
+  // A popover the person did not open by pressing leaves focus where it is.
   const quiet = useRef(false);
+  // The running restart was started by a press on this button (answered allowed): its stop or hold is the answer to
+  // that press, so the popover takes focus. One started from the menu or About opens quietly.
+  const pressedRestart = useRef(false);
   const descriptionId = useId(), titleId = useId();
   // The menu's popover can come right after a push, before the render that push asked for.
   const latest = useRef<UpdateSnapshot | null>(null);
@@ -58,8 +61,9 @@ export function UpdateHeaderButton({ disabled, canvasPress }: { disabled: boolea
       // opens on its own; a renderer that loads into either state does not.
       if (previous === "restarting" && (next.state.kind === "restartAborted" || next.state.kind === "ready" && next.gate.kind === "blocked")) {
         const popover = updateView(next, Date.now()).header?.popover;
-        if (popover && shownHeader()) open(popover, false);
+        if (popover && shownHeader()) open(popover, pressedRestart.current);
       }
+      if (next.state.kind !== "restarting") pressedRestart.current = false;
       previous = next.state.kind;
       latest.current = next;
       setSnapshot(next);
@@ -89,7 +93,10 @@ export function UpdateHeaderButton({ disabled, canvasPress }: { disabled: boolea
   }, [isOpen, canvasPress]);
   const press = () => {
     if (disabled || header === null || header.busy) return;
-    void window.doan.installUpdate().catch(() => null).then(reply => { if (reply?.kind === "blocked") open(UPDATE_BLOCKED, true); });
+    void window.doan.installUpdate().catch(() => null).then(reply => {
+      if (reply?.kind === "blocked") open(UPDATE_BLOCKED, true);
+      else if (reply?.kind === "allowed") pressedRestart.current = true;
+    });
   };
   return <UpdateHeaderButtonView header={header} disabled={disabled} open={isOpen} shown={isOpen ? shown : null} descriptionId={descriptionId} titleId={titleId}
     buttonRef={node => { button.current = node; }}

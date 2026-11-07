@@ -21,7 +21,7 @@ const BLOCKED_READ = `${UPDATE_BLOCKED.title}. ${UPDATE_BLOCKED.text}`;
 // on the right. No part has a live role; the page's one live region reads results.
 function versionRow(row: UpdateRowView | null, stateId: string, press: (button: UpdateButton) => void) {
   let trailing: ReactNode = null;
-  if (row === null) trailing = <span className="settings-loading" role="status"><span className="doan-spinner" aria-hidden="true" />{CHECKING}</span>;
+  if (row === null) trailing = <span className="settings-loading"><span className="doan-spinner" aria-hidden="true" />{CHECKING}</span>;
   else if (row.busy !== null) trailing = <span className="settings-loading"><span className="doan-spinner" aria-hidden="true" />{row.busy}</span>;
   else if (row.progress !== null) trailing = <span className="settings-value" aria-hidden="true">{`${row.progress}%`}</span>;
   else if (row.actions.length > 0) {

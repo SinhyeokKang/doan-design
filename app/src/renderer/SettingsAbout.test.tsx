@@ -213,6 +213,8 @@ const BLOCKED_READ = "Can’t restart yet. A conversation is running or waiting 
 test("the Version row shows the pushed update state and its actions; the About read never changes it", async () => {
   render();
   expect(doan.onUpdate).toHaveBeenCalledOnce();
+  // Before the first push the row waits without a live role: the page's live region reads results only.
+  expect(all(row("version").props.children as ReactNode).find(element => element.props.className === "settings-loading")!.props.role).toBeUndefined();
   push(snap(READY)); render();
   reply({ ...READ, version: "9.9.9" }); await flush(); render();
   expect(words(row("version").props.children)).toContain("Version");
