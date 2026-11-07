@@ -106,9 +106,9 @@ test("focus: a closed folder sheet hands focus back to its button, else the aler
   }
 });
 
-// U5: the page's CSS lives in styles.css (POSTMORTEM 2026-10-25 'Production CSS extraction concealed missing
+// the page's CSS lives in styles.css (POSTMORTEM 2026-10-25 'Production CSS extraction concealed missing
 // development styles'), from the draft's add-panel, card drop and lock rules.
-test("U5: the panel scrolls whole, the card holds its drop target, and the lock takes the disabled ink", async () => {
+test("the panel scrolls whole, the card holds its drop target, and the lock takes the disabled ink", async () => {
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toMatch(/\.add-panel \{ display: flex; flex-direction: column; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain;/);
@@ -119,10 +119,10 @@ test("U5: the panel scrolls whole, the card holds its drop target, and the lock 
   for (const source of ["./AddProjectsPage.tsx", "./Onboarding.tsx"]) expect(readFileSync(new URL(source, import.meta.url), "utf8")).not.toMatch(/import .*\.css/);
 });
 
-// S1 (design-sync): the page's shared Project screen is drawn in first run's 14/20 body text with plain numerals,
+// the page's shared Project screen is drawn in first run's 14/20 body text with plain numerals,
 // like the onboarding overlay; the panel otherwise passes on the app body's 13px/normal and tabular numerals. The
 // panel scrolls only vertically, as drawn.
-test("S1: the page panel sets first run's body text and clips sideways", async () => {
+test("the page panel sets first run's body text and clips sideways", async () => {
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   const rule = /\.add-panel \{([^}]*)\}/.exec(css)?.[1] ?? "";
@@ -132,14 +132,14 @@ test("S1: the page panel sets first run's body text and clips sideways", async (
 
 // review-BU2 🟡1: a locked menu item shows no highlight fill, and its icon and path take the disabled ink; the selected
 // worktree keeps its own fill and check.
-test("U5: locked project-menu items get no highlight fill and disabled ink on their icon and path", async () => {
+test("locked project-menu items get no highlight fill and disabled ink on their icon and path", async () => {
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toContain('.doan-menu-item[aria-disabled="true"]:not([aria-current="true"]):is([data-highlighted], [data-state="open"]) { background: transparent; }');
   expect(css).toContain('.shell-project-menu .doan-menu-item[aria-disabled="true"] > svg:first-child, .shell-worktree[aria-disabled="true"] small { color: var(--text-disabled); }');
 });
 
-// Conductor decision ⚪1: a drop notice never takes focus, so an error that follows it is the one announced.
+// a drop notice never takes focus, so an error that follows it is the one announced.
 test("focus: the drop notice is never the alert focus goes to", () => {
   const dropNotice = node(), error = node(), heading = node();
   const scene = { querySelector: (selector: string) => !selector.includes('role="alert"') ? null : selector.includes(":not(.ob-drop-notice)") ? error : dropNotice };

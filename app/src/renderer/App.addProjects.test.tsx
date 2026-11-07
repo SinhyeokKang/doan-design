@@ -377,7 +377,7 @@ test("text and link drags are left to the window's fields", () => {
   }
 });
 
-// Conductor decision ⚪3: a focused radio (the candidates list) is not editing; an open tooltip closes first.
+// a focused radio (the candidates list) is not editing; an open tooltip closes first.
 test("Escape on a focused radio leaves the page, and an open tooltip takes the Escape first", () => {
   openFromWorkspace();
   windowListeners.keydown!({ key: "Escape", target: { tagName: "INPUT", type: "radio" }, isComposing: false, keyCode: 27, preventDefault: vi.fn() } as never); render();

@@ -257,7 +257,7 @@ test("the capture layer sits in the drag layer's place, under the canvas chrome 
 
 // POSTMORTEM 2026-11-03 'A canvas row menu closed by Esc dropped focus to the
 // page body': the snapshot hides app marks with opacity only, so layout holds and the focused tool keeps focus.
-// !important beats the agent glow's opacity animation. PoC C1 found the renderer CSP blocks inline <style>.
+// !important beats the agent glow's opacity animation. PoC found the renderer CSP blocks inline <style>.
 test("the capture snapshot hides app marks with opacity alone", () => {
   const styles = read("../styles.css");
   const hide = /\[data-capture-snapshot\] :is\(([^)]*(?:\([^)]*\)[^)]*)*)\) \{([^}]*)\}/.exec(styles);

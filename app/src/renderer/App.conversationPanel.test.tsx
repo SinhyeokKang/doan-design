@@ -550,7 +550,7 @@ test("a sidebar canvas row without a mark keeps a folded panel folded", async ()
   expect(conversation()?.arrival).toBeNull();
 });
 
-// Review BR2 R1: each entry is a new arrival, also after the panel consumed the previous one.
+// each entry is a new arrival, also after the panel consumed the previous one.
 test("a second entry after the first was consumed is a new arrival the panel applies", async () => {
   await openCanvas();
   listeners.menu!("newConversation" as never); render();

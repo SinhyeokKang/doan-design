@@ -228,7 +228,7 @@ describe("legacyAliases", () => {
   });
 
   test("reports missing names, literal values, undefined targets and alias chains", () => {
-    // Built with ref() so the spec's legacy-alias grep over the renderer stays empty.
+    // Built with ref() so the legacy-alias grep over the renderer stays empty.
     const ref = (name: string) => `var(${name})`;
     const css = `${roles}\n${aliases(["bg", "panel", "text", "ok"])}\n:root { --panel: #171717; --text: ${ref("--undefined-role")}; --ok: ${ref("--panel")}; }`;
     expect(legacyAliases(css)).toEqual([

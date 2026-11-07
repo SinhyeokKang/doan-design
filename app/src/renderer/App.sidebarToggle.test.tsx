@@ -223,7 +223,7 @@ test("⌘B in the composer toggles the sidebar instead of Bold, once; other keys
   expect(sidebars().length).toBeGreaterThan(0);
 });
 
-// T11 runtime probe: the page panels and the workspace's right column are auto-placed after the sidebar, so with it
+// Runtime probe: the page panels and the workspace's right column are auto-placed after the sidebar, so with it
 // unmounted they fell into the empty first column (0px wide). Hidden, they are placed explicitly.
 test("a hidden sidebar places the auto-placed panels in their own columns", async () => {
   const { readFileSync } = await import("node:fs");
@@ -252,6 +252,6 @@ test("fullscreen marks the root element so the header drops the traffic-light sp
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toContain(":root[data-fullscreen] .shell-top .traffic-space { width: 0; }");
-  // The header sits inside the shell's 8px margin, so its padding would put the first button at x16.
+  // The header sits inside the shell's 8px margin, so its padding would put the first button at x16 (probe).
   expect(css).toContain(":root[data-fullscreen] .shell-top.top { padding-left: 0; }");
 });

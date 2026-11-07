@@ -271,7 +271,7 @@ test("a launch restore on an auto-registered worktree waits while it is read, th
   expect(sidebar().loaded).toBe(W);
 });
 
-// R2 review 🟡1·🟡2: at a restart the auto-registered worktree is `loading`, hidden but not gone. Its remembered canvas
+// at a restart the auto-registered worktree is `loading`, hidden but not gone. Its remembered canvas
 // and the group's saved selection stay until it is read, even when another root is read first.
 const loading = (root: string): FolderEntry => ({ path: root, kind: "loading", lastCommon: KEY });
 const VIEW = { scale: 0.5, x: 12, y: -40 };

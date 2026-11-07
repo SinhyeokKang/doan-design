@@ -143,7 +143,7 @@ test("a refusal while the turn still runs shows the status line under the row; o
   // The status line is drawn again with the row, so the composer's lasting live region says it too.
   expect(running.props.announce).toHaveBeenCalledWith(SEND_NOW_REFUSED_TEXT);
 
-  // Review Y1: turn.done reached the store but the rows were not drawn again before main's refusal, so the last draw
+  // turn.done reached the store but the rows were not drawn again before main's refusal, so the last draw
   // still offers Send now. The answer's own reading of the turn decides: no line, no announcement.
   const ended = setup({ onSendNow: vi.fn(async () => ({ error: "not_running", turnRuns: false })) });
   (ended.rows(ended.draw(), "Send queued message now")[1]!.onClick as () => void)();
@@ -153,7 +153,7 @@ test("a refusal while the turn still runs shows the status line under the row; o
   expect(ended.props.announce).not.toHaveBeenCalled();
 });
 
-// Review W2: two presses before the row is drawn out of the queue ask main once and say nothing about the second.
+// two presses before the row is drawn out of the queue ask main once and say nothing about the second.
 test("a second Send now on a row already in flight is ignored", async () => {
   const answer = (() => { let resolve!: (value: { error: string; turnRuns: boolean }) => void; const promise = new Promise<{ error: string; turnRuns: boolean }>(r => { resolve = r; }); return { promise, resolve }; })();
   const { props, draw, rows } = setup({ onSendNow: vi.fn(() => answer.promise) });

@@ -451,7 +451,7 @@ test("a blocked refusal holds Send with its reason until the person edits the dr
   expect(has(render(), "No agent is ready to run.")).toBe(false);
 });
 
-// The shipped queue rule: the turn ended before the queue took the message.
+// The shipped queue rule (not_running): the turn ended before the queue took the message.
 test("a queue refused as not_running goes out as a send of the same message", async () => {
   const { props, store, send, queue, render } = setup({}, [["conversation:a", draft("Also this")]]);
   props.turn = "running";
@@ -479,7 +479,7 @@ test("a chosen agent that cannot run still shows its line", () => {
   expect(has(render(), "Claude Code can’t run right now. Choose another agent.")).toBe(true);
 });
 
-// Review W1: a refusal goes to the composer's lasting live region; the same refusal again changes its text, so it is
+// a refusal goes to the composer's lasting live region; the same refusal again changes its text, so it is
 // read again.
 test("a repeated Send now refusal changes the composer's status text each time", () => {
   const { render } = setup({ turn: "running", sendNow: true, onSendQueuedNow: async () => {}, queued: [{ id: "q1", text: "Also this" }] });

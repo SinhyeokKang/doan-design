@@ -331,7 +331,7 @@ test("during first run another canvas's chip moves nowhere and shows nothing", a
   expect(harness.toast.show).not.toHaveBeenCalled();
 });
 
-// Conductor decision: the waiting element goes when the person picks what the panel shows before the first
+// the waiting element goes when the person picks what the panel shows before the first
 // layout; the panel's own switch to the opened canvas's conversation keeps it.
 test("a person's conversation choice drops the waiting element; the panel following the opened canvas does not", async () => {
   await onDrafts();

@@ -294,7 +294,7 @@ test("a refused link shows one toast with its reason and no action, and moves no
   expect(harness.controller!.openCanvas!.mock.calls.length).toBe(before);
 });
 
-// User decision D7: a link only ever comes from a person's click, so an open dialog is dismissed as Escape or Cancel
+// a link only ever comes from a person's click, so an open dialog is dismissed as Escape or Cancel
 // would (its own cancel event), and the link then moves as usual. A dialog that refuses to close keeps the link from
 // moving under it.
 function openDialog(closes: boolean) {

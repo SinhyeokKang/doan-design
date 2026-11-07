@@ -463,7 +463,7 @@ describe("work content on the open canvas", () => {
       expect(workFrameRect(null, "a")).toBeNull();
       expect(workFrameRect({ frames }, undefined)).toBeNull();
     });
-    // R1: a reload's first layout can carry every frame as 0 × 0 before the document is measured; no marker goes there.
+    // a reload's first layout can carry every frame as 0 × 0 before the document is measured; no marker goes there.
     test("a frame with no size is not placed", () => {
       expect(workFrameRect({ frames: [{ id: "a", x: 0, y: 0, width: 0, height: 0 }] }, "a")).toBeNull();
       expect(workFrameRect({ frames: [{ id: "a", x: 0, y: 0, width: 10, height: 0 }] }, "a")).toBeNull();
@@ -492,7 +492,7 @@ describe("canvasWorkTarget", () => {
   });
 });
 
-// V3 review 🟡6: the frame title kept across a reload belongs to its root, canvas path and work turn.
+// the frame title kept across a reload belongs to its root, canvas path and work turn.
 describe("workFrameTitle", () => {
   const a = { root: "/w/a", canvas: { path: ".doan/canvases/a.html" } };
   const picked = { source: "terminal:claude:s1", key: "terminal:claude:t1", touched: 1, frame: "plans", waiting: false };
