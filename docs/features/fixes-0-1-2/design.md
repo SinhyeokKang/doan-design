@@ -1,6 +1,18 @@
 # fixes-0-1-2 — design
 
-여섯 건을 배치로 나눈다. UI가 바뀌는 1·2·3은 `/design-draft`로 초안을 그린다(`.doan/canvases/fixes-0-1-2.html`). 근거: 2026-11-08 `/feature-review`(product·tech·QA·UX/UI).
+여섯 건을 배치로 나눈다. UI가 바뀌는 1·2·3은 `/design-draft`로 초안을 그린다. 근거: 2026-11-08 `/feature-review`(product·tech·QA·UX/UI).
+
+## 초안 요청
+
+- 경로·id: `.doan/canvases/fixes-0-1-2.html`, `doan:canvas` `fixes-0-1-2`. 기존 화면은 코드와 DESIGN대로 베끼고, 바뀌는 줄·문구·버튼만 새로 그린다(새것 표시).
+- 프레임:
+  - `about-notes-failed` — Settings > About, ready 상태 Version 행 아래 Release Notes 실패 줄.
+  - `about-notes-failed-stacked` — 같은 자리에 행 오류(설치 실패나 멈춘 재시작)와 실패 줄이 함께 있을 때의 순서(1의 '순서').
+  - `popover-unblocked` — 헤더 팝오버: 막힘("Can’t restart yet") → 열린 채 풀림("Ready to restart") 두 타일.
+  - `popover-stopped-blocked` — 멈춘 재시작 팝오버가 막힘 이유로 바뀌는 두 타일.
+  - `overlay-cli-error` — 문제 화면 CLI error: Details 접힘, 펼침(짧은 메시지), 펼침(긴 여러 줄 메시지), Retry 중(펼친 채 busy).
+  - `cli-error-elsewhere` — Home 카드와 Project Settings 알림의 CLI error Details.
+- 문구는 spec 완료 조건과 위 1–3의 초안 문구를 쓴다. Doan clarify 프리셋으로 다듬은 결과가 다르면 초안 머리말에 적는다.
 
 ## 1. Release Notes 실패 줄 (B1, renderer)
 
