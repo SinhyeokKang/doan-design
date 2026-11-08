@@ -47,3 +47,6 @@
 - RT는 AP 통합 HEAD `f5654238`에서 AP-R과 함께 시작했다. AP 수정은 retire된 operation의 `detail` 수명만 바꾸므로 RT의 probe 항목에는 영향이 없다. conductor 재량.
 - RT worker가 다른 세션의 권한 prompt(`rm -f shots/*`)에 걸렸다. 승인하지 않았고, glob 삭제 없이 실행별 새 디렉터리를 쓰라고 지시했다.
 - RT(`f5654238`): 항목 1–4와 init 경로 변형이 모두 통과했다(probe 두 run, 18 PASS, 실제 상태 지문 불변). Show in Finder는 main에서 `shell.showItemInFolder`를 기록 함수로 바꿔 받은 경로를 비교했다: overlay와 사이드바 menu 모두 부모의 `.doan/config.json`, 자기 config 회귀도 맞다. 미검증: Finder 화면 캡처, Overview recovery menu 경로, 네이티브 폴더 sheet(main에서 바꿈). 첫 실행 Agent 단계는 renderer에 가는 readiness만 stub했다. 관찰: candidates 화면의 notice 옆 footer "Use this folder"는 켜져 있다. 출하 코드(`projectStep.ts`)와 초안이 같으므로 이번 변경의 결함이 아니다. 근거는 `.scratch/runtime-test/config-error-source/`와 `.scratch/orch/handoff-RT.md`. RT worktree는 지웠고 branch는 남겼다.
+- AP 수정 round 1(`4a9c3be9` → 통합 `9014c88a`): `prune()`이 retire하는 operation의 `detail`도 지운다. 회귀 테스트는 red를 본 뒤 green이고, app test 9718 통과. 수정이 두 줄이고 리뷰어가 제안한 방향 그대로라 재리뷰 없이 conductor가 diff를 읽고 통합했다. conductor 재량 — Codex 사용량.
+- 통합 HEAD `9014c88a`에서 conductor가 `/verify`를 돌렸다: PASS(verify-tests, runtime-support, go-test, go-vet, typecheck, lint, app-test, build). T4 grep은 `index.ts`에서 비었다.
+- T8: PRODUCT(`7300ff85`), ARCHITECTURE(`71a632d0`), BACKLOG(`bfc09764`)를 문서별로 commit했다. DESIGN.md는 새 측정값이 없어 바꾸지 않았다(초안에 새 token 없음, `/design-sync` 범위 밖).
