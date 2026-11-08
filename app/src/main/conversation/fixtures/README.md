@@ -158,3 +158,5 @@ notification and by `turn/completed`'s failed `turn.error`, with `CodexErrorInfo
 including `"modelNotFound"`. The message text is the one a 0.166.0 turn printed
 when the configured default model was not on the ChatGPT account (that turn's
 rollout recorded `codex_error_info: "model_not_found"`).
+
+`skills-claude-2.1.284.json`, `skills-claude-2.1.318.json`, `skills-codex-0.158.0.json` and `skills-codex-0.166.0.json` (2026-11-07) are recorded project-skill listings: Claude Code's `initializationResult().commands` and Codex app-server `skills/list`, at the minimum and the then-current version of each. The person's own rows were replaced by generic rows of the same shape; `skills.test.ts` reads them.

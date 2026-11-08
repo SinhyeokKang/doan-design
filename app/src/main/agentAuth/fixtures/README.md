@@ -1,4 +1,4 @@
-# Usage fixtures
+# Agent auth fixtures
 
 Real responses from the provider-usage PoC (2026-11-05, macOS 26.3.1 arm64), read through a Doan connection. Account IDs, emails, user IDs and tokens are removed; only the shape and plan names are kept.
 
@@ -8,3 +8,5 @@ Real responses from the provider-usage PoC (2026-11-05, macOS 26.3.1 arm64), rea
 | `codex-usage.json` | Codex app-server `account/rateLimits/read` result, `accountId` removed | 0.166.0 (0.158.0 answered the same shape) | free |
 | `copilot-usage.json` | Copilot CLI `--headless --stdio` JSON-RPC `account.getQuota` result | 1.0.105 | free |
 | `cursor-usage.json` | Body of `GET https://cursor.com/api/usage-summary` (status 200) | cursor-agent 2026.10.22-27dcf5f | free |
+
+`metadata-v1.json` and `metadata-v1-sign-out-failed.json` are synthetic v1 account metadata documents (the second with a `signOutFailed` provider), not runtime observations. `cipher.ts` is a test-only fake `Cipher` that is reversible but not plaintext, so a test can tell an encrypted vault from a leaked copy.
