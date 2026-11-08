@@ -236,7 +236,7 @@ To run the CLI directly: `go run ./cli/cmd/doan <command> --repo <path> [--json]
 
 ## Background
 
-Doan comes from running a Claude Design handoff loop while building malmoi in 2026. Design drafts lived in an external service: some agents could not read them, they drifted from the code's real tokens, and their history was tied to a service that is shutting down. The problems Doan answers, and the evidence behind them, are in [docs/PRODUCT.md §1](./docs/PRODUCT.md#1-problem).
+Doan comes from building [malmoi](https://github.com/SinhyeokKang/malmoi) and [BugShot](https://github.com/SinhyeokKang/bugshot-2) with coding agents in 2026. Design drafts lived in an external service: some agents could not read them, they drifted from the code's real tokens, and their history was tied to a service that is shutting down. The problems Doan answers, and the evidence behind them, are in [docs/PRODUCT.md §1](./docs/PRODUCT.md#1-problem).
 
 ## License
 
