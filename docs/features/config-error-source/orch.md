@@ -41,3 +41,4 @@
 - GO: `go test ./...`, `go vet ./...`, `npm --prefix app test`(9694 통과)가 worker 보고다. 리뷰(GO-R)와 AP를 함께 돌린다. GO-R 수정은 `cli/`·`schema/` 안에 머물러 AP 파일과 겹치지 않는다. conductor 재량.
 - GO-R(Codex `gpt-6-astra` medium): 🔴·🟡·⚪ 0건. `go test ./...`, `go vet ./...`, 권한 사례를 포함한 캐시 없는 Go 테스트, TS 형식 테스트 1086개를 리뷰어가 다시 돌려 통과했다. 보고서는 `.scratch/orch/review-GO.md`. GO worktree는 지웠고 branch는 남겼다.
 - AP: DR 리뷰가 먼저 통과해서 T5를 처음부터 AP에 넣었다. conductor 재량 — 새 Task 한 번을 줄인다.
+- AP 질문: 창 전용 `detail`을 화면에 보이려면 `projectStep.ts`가 `error.detail`을 상태로 옮겨야 한다. AP에게 `projectStep.ts`와 그 테스트 수정을 허락했다. Add Projects 페이지도 같은 Project 단계를 쓰므로 `AddPageSession`의 창 IPC에도 `detail`을 붙였다는 보고를 받아들였다. conductor 재량 — design §2.5의 "창 전용, 소켓 답에는 없음"과 같은 규칙이고, 같은 화면이 두 곳에서 다르게 보이지 않게 한다.
