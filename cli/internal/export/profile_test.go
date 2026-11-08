@@ -29,6 +29,9 @@ const profileEnv = "DOAN_EXPORT_PROFILE"
 const (
 	largeRepoDigest = "2a3cfcf21069ac06c0aecac9d04b5bd444ab5addf8f6a63beb39959eb877a741"
 	largeCSSDigest  = "b85ec1ecd2db1e6ca0be71f006695b177039a6d4d875fa20308a53bfec4e3857"
+	// largePageDigest is the page `doan export` wrote for this repository
+	// before the export copies were cut; the page must stay byte for byte.
+	largePageDigest = "d2106e691515825b1dc4d45cfb7a7494af22c1f030cab8e3c0a3c0c426ea733e"
 )
 
 const largeCanvas = ".doan/canvases/big-css.html"
@@ -36,11 +39,17 @@ const largeCanvas = ".doan/canvases/big-css.html"
 // largeStylesheetRepo returns the files of a canvas that links one minified
 // stylesheet of exactly 24 MiB with 1,000 url()s to ten 1,024-byte SVGs. Its
 // bytes need no percent-encoding in a data: URI, so the export stays near
-// 24 MiB, under MaxBytes. Rule i is `.r<7 digits>{color:rgb(1,2,3);padding:1px}`
-// or, every 600th rule until 1,000, `.r<7 digits>{background:url(../big/i<2 digits>.svg)}`;
-// one /*xxx…*/ comment fills the rest.
+// 24 MiB, under MaxBytes.
 func largeStylesheetRepo() map[string]string {
-	const cssBytes, urlCount, stride, assets = 24 << 20, 1000, 600, 10
+	return stylesheetRepo(24<<20, 1000, 600)
+}
+
+// stylesheetRepo is the large-stylesheet rule at another size: a stylesheet
+// of exactly cssBytes whose rule i is `.r<7 digits>{color:rgb(1,2,3);padding:1px}`
+// or, every stride-th rule until urlCount, `.r<7 digits>{background:url(../big/i<2 digits>.svg)}`;
+// one /*xxx…*/ comment fills the rest.
+func stylesheetRepo(cssBytes, urlCount, stride int) map[string]string {
+	const assets = 10
 	files := map[string]string{".doan/config.json": "{\"v\":1}\n"}
 	for i := range assets {
 		files[fmt.Sprintf(".doan/assets/big/i%02d.svg", i)] = profileSVG(i)
@@ -149,6 +158,9 @@ func TestProfileLargeStylesheet(t *testing.T) {
 	stop()
 	var after runtime.MemStats
 	runtime.ReadMemStats(&after)
+	if got := pageDigest(page); got != largePageDigest {
+		t.Errorf("page sha256 = %s, want %s", got, largePageDigest)
+	}
 	t.Logf("input %d bytes (stylesheet %d), inlined %d bytes, page %d bytes", input, 24<<20, len(res.HTML), len(page))
 	t.Logf("TotalAlloc +%d bytes, Mallocs +%d, NumGC +%d, peak live heap %d bytes, Sys %d bytes",
 		after.TotalAlloc-before.TotalAlloc, after.Mallocs-before.Mallocs, after.NumGC-before.NumGC, *peak, after.Sys)
