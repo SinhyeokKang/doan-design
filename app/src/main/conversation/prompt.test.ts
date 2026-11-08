@@ -115,6 +115,11 @@ describe("handoff", () => {
     expect(turnPrompt([], "Make a checkout page", scope, { handoff: false })).not.toContain(HANDOFF_GUIDANCE);
     expect(HANDOFF_GUIDANCE).toContain("doan handoff");
     expect(HANDOFF_GUIDANCE).toContain(".doan/canvases/");
+    // Codex's `doan` prefix rule does not match a heredoc, pipe or redirection, so the message goes in as an argument.
+    expect(HANDOFF_GUIDANCE).toContain("`doan handoff <path> --message '<message>'`");
+    expect(HANDOFF_GUIDANCE).toContain("no heredoc, pipe or redirection");
+    expect(HANDOFF_GUIDANCE).not.toContain("--message -");
+    expect(HANDOFF_GUIDANCE).not.toContain("standard input");
   });
   it("puts the handoff in handoffText and the earlier canvas in context.from, never as user text", () => {
     const from = { path: ".doan/canvases/a.html", id: "a" };
