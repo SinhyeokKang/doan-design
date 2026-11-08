@@ -66,3 +66,10 @@
 - B2 통합: `61f1b887`..`b88ca29f`(커밋 5개 cherry-pick), push. B2 worker를 release하고 worktree `app-update-b2`를 지웠다. 브랜치 `SinhyeokKang/app-update-b2`(`c03bb048`)는 남아 있다.
 - B3 시작: dispatch `ctx_77bdcff883a5`, worktree `app-update-b3`(base `b88ca29f`), Opus medium.
 - 통합 HEAD `b88ca29f`에서 `verify.mjs` PASS(로그 `.scratch/orch/verify-B2.log`).
+- B3 완료(worker_done): `c1aadab5`..`37c5fd2c`(커밋 9개; DESIGN·BACKLOG·POSTMORTEM 커밋 포함). worker 보고 `verify.mjs` PASS(앱 테스트 9706개), `/design-sync`에서 분류하지 않은 차이 0(분류된 차이 109행, `.scratch/design-sync/app-update/table.md`). design-sync에서 찾은 결함(밀어 넣은 popover가 마운트된 모든 헤더에서 열림)은 고쳤고 POSTMORTEM에 적었다. Release Notes 열기 실패에는 문구가 없다(초안에 없음).
+- conductor가 스크린샷 두 장(`impl-blocked`, `impl-hb`)을 직접 봤다. 막힘 notice, 헤더 버튼 위치, popover 문구가 초안과 같다.
+- R3(B3 리뷰) 시작: dispatch `ctx_d466fb21e482`, Opus medium, 보고만.
+- R3 결과: 🔴 0, 🟡 1, ⚪ 4(`.scratch/orch/review-B3.md`). conductor 판단: 🟡1 이 헤더 버튼 누름으로 시작한 restart가 멈추거나 막히면 popover를 focus와 함께 연다. ⚪1·2·4는 고친다. ⚪3 초안 08 `auto-check`의 "Not checked yet" 타일이 스위치를 켠 채 그려져 자기 캡션과 어긋나므로, 그 타일만 B3가 고친다(차이 기록 대신 초안을 고친다).
+- 사용자 결정(2026-11-08): Release Notes를 열지 못하면 표시 없이 두고 BACKLOG에 기록한다.
+- B3 수정 1회차 보냄: dispatch `ctx_a1f2498d6c56`.
+- B3 수정 1회차 완료: `87763c42`..`97dd47b4`(커밋 5개, 초안 타일 수정 `2658e098` 포함). worker 보고 `verify.mjs` PASS, 분류하지 않은 차이 0. 🔴은 처음부터 0이라 재리뷰 없이 통합한다.
