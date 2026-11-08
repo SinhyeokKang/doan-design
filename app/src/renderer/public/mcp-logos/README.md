@@ -1,6 +1,6 @@
 # MCP server marks
 
-Copied 2026-11-04 from the approved draft's `.doan/assets/mcp-logos/` for the preset MCP servers in Settings > MCP Connectors; the notes below are that directory's. Retrieved 2026-11-04 from official sources. These local assets were draft references; inclusion is not a claim of trademark ownership or endorsement. App packaging and brand-use requirements remain implementation work.
+Copied 2026-11-04 from the approved draft's `.doan/assets/mcp-logos/` for the preset MCP servers in Settings > MCP Connectors; the notes below are that directory's. Retrieved 2026-11-04 from official sources. These local assets were draft references; inclusion is not a claim of trademark ownership or endorsement. The app bundles these copies; brand-use requirements remain implementation work.
 
 - `notion.png`: https://www.notion.com/front-static/logo-ios.png — the app icon linked by notion.com (`apple-touch-icon`), 512 × 512.
 - `atlassian.svg`: the Atlassian icon path from Atlassian's own logo package `@atlaskit/logo` 23.3.1 (https://registry.npmjs.org/@atlaskit/logo/-/logo-23.3.1.tgz, `dist/esm/legacy-logos/atlassian/icon.js`; Apache-2.0, repository https://bitbucket.org/atlassian/atlassian-frontend-mirror), filled with that package's light-mode `brand` icon colour `#1868DB` (`legacy-logos/get-colors-from-appearance.js`). It matches the mark on https://www.atlassian.com/favicon.ico.
