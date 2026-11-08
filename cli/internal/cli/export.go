@@ -53,7 +53,7 @@ func Export(ctx Context, f Flags, args []string) (Outcome, *Error) {
 	}
 	canvasPath, ok := export.MatchListed(r.Root, listed, args[0])
 	if !ok {
-		return Outcome{}, &Error{Code: "canvas_not_found", Message: "Canvas not found: " + args[0], NextSteps: []string{"Run `doan ls --json` and pass a path it lists"}}
+		return Outcome{}, &Error{Code: "canvas_not_found", Message: "Canvas not found: " + canvasArgLabel(r.Root, args[0]), NextSteps: []string{"Run `doan ls --json` and pass a path it lists"}}
 	}
 	stored, err := os.Stat(filepath.Join(r.Root, filepath.FromSlash(canvasPath)))
 	if err != nil {
@@ -102,6 +102,18 @@ func Export(ctx Context, f Flags, args []string) (Outcome, *Error) {
 		Result: map[string]any{"path": canvasPath, "output": output, "bytes": len(page), "frames": len(model.Frames), "external": inlined.External, "links": inlined.Links},
 		Text:   fmt.Sprintf("Exported %s to %s (%d bytes)", canvasPath, output, len(page)),
 	}, nil
+}
+
+// canvasArgLabel names the canvas argument without an absolute path, which an export message must not hold:
+// repo-relative when its directory is in the repository, also through a link, otherwise only the file name.
+func canvasArgLabel(root, arg string) string {
+	if !filepath.IsAbs(arg) {
+		return arg
+	}
+	if state, rel, err := repo.InsideRelative(root, filepath.Dir(arg)); err == nil && state == repo.Inside {
+		return path.Join(rel, filepath.Base(arg))
+	}
+	return filepath.Base(arg)
 }
 
 func exportReadFailure(err error) *Error {
