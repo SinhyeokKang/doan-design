@@ -42,7 +42,7 @@ Throughout, `R` is `gh repo view --json nameWithOwner --jq .nameWithOwner`, and 
    - `gh run watch <id> --exit-status`. On failure report the failing job and step (`gh run view <id> --log-failed`; do not quote anything that looks like a credential) and stop ('Resume'). If the run is still going 60 minutes after the approval, report its id and stop.
 6. **Check the draft.** Find the draft: `gh release view v<version> --json isDraft,isPrerelease,tagName,assets`, or, when that does not find it, the entry for the tag in `gh release list --json tagName,isDraft,name` and its id.
    - The assets are exactly `Doan-macos-arm64.dmg`, `Doan-<version>-arm64-mac.zip`, its `.blockmap` and `latest-mac.yml`.
-   - `gh release download v<version> --dir .scratch/release/<version>/assets` (or by the release id), then `node app/scripts/verifySignedPackage.mjs <dmg> <zip>` with `latest-mac.yml` next to the zip. Every line must be `ok`.
+   - `gh release download v<version> --dir .scratch/release/<version>/assets` (or by the release id), then `node app/scripts/verifySignedPackage.mjs <dmg> <zip>` with `latest-mac.yml` next to the zip. Every check line must be `ok` and the last line `all checks passed`.
    - `git rev-parse v<version>^{commit}` is the merge sha. An rc draft is a prerelease; a stable one is not.
    - Any failure: do not publish; follow the 'Draft fails its checks' row.
 7. **Publish.** When every check in 6 passed, `gh release edit v<version> --notes-file notes.md --draft=false`. An rc stays a prerelease.
