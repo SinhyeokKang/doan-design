@@ -138,12 +138,13 @@ Pick a design preset — shape, critique, harden, clarify and more — and the a
 
 | Command | What it does |
 |---|---|
-| `doan init` · `doan config` | Set up a repo for Doan: the token CSS canvases use and extra paths canvases may load |
+| `doan init` · `doan config` | Set up a repo for Doan: the token CSS canvases use, extra paths canvases may load, and whether Doan's files go in Git |
 | `doan ls` | List the repo's canvases and design-system canvases with their frames |
 | `doan check` | Check canvases for Doan's conventions, undefined tokens and external resources |
 | `doan active` | Read what you selected in the app: canvas, frame and element |
 | `doan work start` · `update` · `done` | Show in the app that an agent is working on a canvas, and on which frame |
 | `doan open <canvas> --frame <id>` | Open a canvas in the app, at a frame |
+| `doan handoff <canvas> --message <text>` | From a Doan canvas conversation, hand the work to a new conversation on the new canvas the turn created |
 | `doan export <canvas> -o <file>` | Save a canvas as one HTML file that opens in any browser |
 | `doan skill` · `doan design-skill [<id>]` | Print the guide agents follow, and the design presets |
 | `doan onboarding` | Let an agent run first-time setup for you |
@@ -180,7 +181,7 @@ Twenty design briefs, adapted from [Impeccable](https://github.com/pbakaus/impec
 | Antigravity | ✓ | ✓ | — |
 | GitHub Copilot | ✓ | ✓ | — |
 
-Each agent's CLI must be installed; first run offers to install or update it and to sign in.
+Claude Code, Codex, Cursor and GitHub Copilot run through their installed CLI, which first run offers to install or update; Doan downloads Antigravity's agent server itself. First run then signs in to each.
 
 ## Install
 
@@ -208,7 +209,7 @@ See [docs/CONTRIBUTING.md](./docs/CONTRIBUTING.md). Please read the [Code of Con
 
 ### Build from source
 
-Requirements: macOS on Apple silicon, Node.js with npm, Go (see `go.mod`).
+Requirements: macOS on Apple silicon, Node.js with npm (see `.node-version`), Go (see `go.mod`).
 
 ```sh
 npm --prefix app ci
