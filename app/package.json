@@ -44,10 +44,17 @@
     "vite": "8.3.4",
     "vitest": "5.0.5"
   },
-  "version": "0.1.0",
+  "version": "0.1.0-rc.1",
   "productName": "Doan",
   "build": {
-    "protocols": [{ "name": "Doan canvas", "schemes": ["doan"] }],
+    "protocols": [
+      {
+        "name": "Doan canvas",
+        "schemes": [
+          "doan"
+        ]
+      }
+    ],
     "appId": "design.doan.app",
     "productName": "Doan",
     "directories": {
@@ -58,7 +65,9 @@
       "package.json",
       "!node_modules/@anthropic-ai/claude-agent-sdk-*/**"
     ],
-    "asarUnpack": ["node_modules/node-pty/**"],
+    "asarUnpack": [
+      "node_modules/node-pty/**"
+    ],
     "extraResources": [
       {
         "from": "build/bin/doan",
@@ -81,8 +90,18 @@
       "icon": "resources/icon-rounded.png",
       "identity": null,
       "target": [
-        { "target": "dmg", "arch": ["arm64"] },
-        { "target": "zip", "arch": ["arm64"] }
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64"
+          ]
+        }
       ],
       "entitlements": "resources/entitlements.mac.plist",
       "entitlementsInherit": "resources/entitlements.mac.plist"
@@ -100,8 +119,17 @@
       "iconSize": 88,
       "iconTextSize": 13,
       "contents": [
-        { "x": 320, "y": 180, "type": "file" },
-        { "x": 320, "y": 380, "type": "link", "path": "/Applications" }
+        {
+          "x": 320,
+          "y": 180,
+          "type": "file"
+        },
+        {
+          "x": 320,
+          "y": 380,
+          "type": "link",
+          "path": "/Applications"
+        }
       ]
     }
   }
