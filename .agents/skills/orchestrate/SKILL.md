@@ -3,7 +3,7 @@ name: orchestrate
 description: Use to split one batch plan document across several worker sessions running in parallel, with this session conducting decision gathering, review, integration, and push. A larger unit than /ship.
 ---
 
-Split a batch plan (usually `docs/features/<slug>/tasks.md`) **across several worker sessions**, and this session **only conducts**. Workers implement with `/ship bypass`. Like `/ship`, start from develop (`git switch develop && git pull`, then `git switch -c feat/<slug>`); the end is a push of that branch + PR against develop. Do not merge.
+Split a batch plan (usually `docs/features/<slug>/tasks.md`) **across several worker sessions**, and this session **only conducts**. Workers implement with `/ship bypass`. Like `/ship`, start from develop (`git switch develop && git pull`, then `git switch -c feat/<slug>`); the end is a push of that branch + PR against develop. Do not merge, unless a chain file grants it for the current link (§6, `/chain`).
 
 > The conductor does not edit batch code. The only things the conductor writes are `orch.md`, integration commits, and docs-freshness commits. Defects go back to the worker that owns the batch.
 
@@ -34,16 +34,10 @@ Split a batch plan (usually `docs/features/<slug>/tasks.md`) **across several wo
 
 ## 2. Monitoring
 
-- Do not rely only on completion notifications. Run a background loop that checks status periodically (ending on the first change).
+- Do not rely only on completion notifications, and do not consume mail in a script: Orca wakes the conductor for `worker_done`, `question` and `escalation` (an `escalation` with `stopReason` means the worker stopped without `worker_done`). A consuming `orca orchestration check` marks the batch it returns as handled and needs no `--ack`, so run it only as the conductor's own read; in a script it takes mail the conductor never sees and leaves Orca nothing to wake it with.
 - Heartbeats, idle waits, and timeouts are not completion. Check the handoff document against the actual commits.
-- **Handle heartbeats silently**. The background loop acknowledges deliveries that hold only heartbeats and keeps waiting; it wakes the conductor only for `worker_done`, `question` or `escalation`. Do not report heartbeats to the user. When an "orchestration message" notice turns out to be only heartbeats, acknowledge it and reply with exactly one line per worker, `<batch> heartbeat` (e.g. `BR heartbeat`), and nothing else. Read a heartbeat's `phase` only when judging whether a quiet worker is stuck. In Orca, a loop like this works:
-  ```bash
-  while true; do
-    out=$(orca orchestration check --run <run> --wait --types "worker_done,escalation,question" --timeout-ms 1800000 --json | grep -v _keepalive)
-    # if every message in $out is a heartbeat: ack its deliveryId and continue; otherwise print and exit
-  done
-  ```
-- **Detect stalled workers in the same loop.** A worker can stop without `worker_done`, a question or an escalation: Codex on a capacity error, or any agent whose turn simply ends early. Heartbeats do not reveal this, because a worker's own background heartbeat script keeps sending the same `phase`, and Orca's `activity` can stay `working`. On each loop pass, for every in-progress dispatch, also wake the conductor when either check holds on two consecutive passes: `worker-list` `projection.stage.activity` is not `working`, or the tail of its `agentTerminalHandle` (`orca terminal read --terminal <handle> --json`) shows an idle prompt with no busy indicator (no spinner line such as `Brewing… (`, no `esc to interrupt`, no `Working (`). Then read the terminal. If the agent stopped mid-batch, send it a follow-up (`orchestration send --to dispatch:<id>`) naming the remaining steps and confirm it started. If a Codex session cannot continue, tell the user, because resuming it is the user's action.
+- **Handle heartbeats silently**. Do not report heartbeats to the user. When an "orchestration message" notice turns out to be only heartbeats, reply with exactly one line per worker, `<batch> heartbeat` (e.g. `BR heartbeat`), and nothing else. Read a heartbeat's `phase` only when judging whether a quiet worker is stuck.
+- **Detect stalled workers with a background watch loop.** A worker can stop without `worker_done`, a question or an escalation: Codex on a capacity error, or any agent whose turn simply ends early. Heartbeats do not reveal this, because a worker's own background heartbeat script keeps sending the same `phase`, and Orca's `activity` can stay `working`. The loop never consumes mail: when it reads the inbox it uses `orca orchestration check --run <run> --peek` and never `--ack`. On each pass, for every in-progress dispatch, wake the conductor when either check holds on two consecutive passes: `worker-list` `projection.stage.activity` is not `working`, or the tail of its `agentTerminalHandle` (`orca terminal read --terminal <handle> --json`) shows an idle prompt with no busy indicator (no spinner line such as `Brewing… (`, no `esc to interrupt`, no `Working (`). Then read the terminal. If the agent stopped mid-batch, send it a follow-up (`orchestration send --to dispatch:<id>`) naming the remaining steps and confirm it started. If a Codex session cannot continue, tell the user, because resuming it is the user's action.
 - An instruction sent to a worker does not count as delivered until you confirm **signs the worker started on it**. Do not queue the next job for a worker mid-turn. Send it as a new Task after completion.
 
 ## 3. Review → fix rounds
@@ -54,7 +48,7 @@ When the run includes `/design-draft`, the conductor owns and performs the draft
 
 - Compare the draft against the feature spec and design: every required state must map to a frame or labelled tile, with no unapproved product behavior.
 - Check that shipped UI, tokens, English copy, and canvas conventions are preserved, and verify the `doan ls` / `doan check` evidence.
-- Inspect the draft rendered in the real app, including long content, errors, focus, overlapping pins, and dialogs when applicable. Record findings and verification evidence in `orch.md`.
+- Inspect the draft rendered in the real app, including long content, errors, focus, and dialogs when applicable. Record findings and verification evidence in `orch.md`.
 - Route fixes to the draft worker, then personally verify the revised result. The conductor does not edit the draft code.
 - Only after this review passes, present the concrete draft for user confirmation. Conductor review does not replace the user's draft confirmation gate.
 
@@ -73,13 +67,13 @@ When the run includes `/design-draft`, the conductor owns and performs the draft
 
 ## 5. Push and cleanup
 
-- When all batches are integrated, push `feat/<slug>` as in `/ship` step 11 and `gh pr create --base develop`. Do not merge.
+- When all batches are integrated, push `feat/<slug>` as in `/ship` step 11 and `gh pr create --base develop`. Do not merge unless a chain file grants it (§6).
 - If the feature is finished, promote the conclusions to PRODUCT (product judgments) and ARCHITECTURE (structure, formats, conventions) as current rules (rationale in the commit message) and delete `docs/features/<slug>/`. Delete `orch.md` along with it.
 - Clean up each finished worker as soon as it has no follow-up work; do not wait until the entire run ends. **Releasing a worker terminal does not remove its Orca child worktree or sidebar card**. Finish both cleanup layers:
   1. Confirm accepted Dispatch settlement, then use `orca orchestration worker-release --dispatch <dispatch_id> --json`. Verify the release receipt; follow its recovery instructions if uncertain. Never substitute `terminal close` for supervised release or release a live worker.
   2. Before deleting a batch worktree, confirm no active worker or pending task needs it, `git -C <path> status --porcelain` is empty, and no commit remains unintegrated. For cherry-picked batches, `git -C <path> cherry <integration_branch> HEAD` must have no `+` entries; differing commit hashes alone do not mean work is missing. Preserve unresolved differences instead of forcing deletion.
   3. Promote needed conclusions to the source of truth. Copy handoffs and any still-needed measurement, review, or verification evidence into the conductor checkout's `.scratch/` and verify the copies before removal. A worktree needed by a running reviewer or an unfinished design-sync remains until that dependency is satisfied.
-  4. Load the version-matched `orca-cli` guide, resolve the exact full worktree id, and run `orca worktree rm --worktree id:<repo-id>::<path> --json`. Use Orca rather than raw `git worktree remove` or `rm -rf`, so its managed card and lineage are removed too. Note the batch branch's tip first: Orca also deletes the checked-out branch when it is merged, and implementation branches stay until the user says otherwise (AGENTS.md 'Commit conventions'), so recreate it at that tip if the receipt shows it deleted. Do not use `--force` to bypass dirty files, unintegrated work, or an archive-hook failure.
+  4. Load the version-matched `orca-cli` guide, resolve the exact full worktree id, and run `orca worktree rm --worktree id:<repo-id>::<path> --json`. Use Orca rather than raw `git worktree remove` or `rm -rf`, so its managed card and lineage are removed too. Note the batch branch's tip first and do not pass `--delete-branch`: older Orca hosts delete a merged checked-out branch, and implementation branches stay until the user says otherwise (AGENTS.md 'Commit conventions'), so recreate it at that tip if the receipt shows it deleted. Do not use `--force` to bypass dirty files, unintegrated work, or an archive-hook failure.
   5. Verify the removal receipt and `orca worktree list --repo id:<repo-id> --json`: the removed child id must be absent. Record any intentionally remaining worktree and its dependency in `orch.md` and the report. Terminal release alone is not completed cleanup.
 
 ## 6. Linked runs (chains)

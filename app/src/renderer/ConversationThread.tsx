@@ -203,8 +203,9 @@ export function ReplyChip({ link }: { link: ReplyAnchor }) {
     onClick={() => { if (!disabled) void replyChip(link)?.then(outcome => { if (view.same && outcome === "missing") note.show(key); }); }}>{body}</button>;
 }
 
-// Agent output is untrusted (ARCHITECTURE §2's rule for comment bodies): no raw HTML (react-markdown escapes it; no
-// rehype-raw), no images (their alt text stays), https links only; a `doan:` link is a reply chip or text.
+// Agent output is untrusted, as the selection's `html`/`text` are (ARCHITECTURE §3 'Selection and inspector'): no raw
+// HTML (react-markdown escapes it; no rehype-raw), no images (their alt text stays), https links only; a `doan:` link
+// is a reply chip or text.
 const COMPONENTS: Components = {
   a: ({ href, children }) => href?.startsWith("doan:") ? <ReplyLink href={href}>{children}</ReplyLink> : <Link href={href}>{children}</Link>,
   img: ({ alt }) => alt ? <span>{alt}</span> : null,

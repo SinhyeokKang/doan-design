@@ -6,16 +6,16 @@ Use it when the project has real tokens or components but no rules document or d
 
 ## Scope
 
-- Reuse an existing design system when it is sufficient. Do not regenerate a rules document or canvases that already describe the shipped system; report that it matches and what you checked.
+- Reuse an existing design system when it is sufficient. When an existing rules document and canvases match the shipped code, change nothing: report "No changes" with the files you checked. A policy the reference states but the CSS does not enforce is not drift, and a missing policy for future screens is not a gap (such policies are judgment, Step 3); mention them only in the report, as optional suggestions.
 - A plain request to set up Doan (`doan init`, `doan config`) is not approval to write a design system. Write the documents only when the user asked or agreed.
 - If the user asked for a review only, report drift, gaps, and proposed changes without editing files.
 - When updating an existing rules document or canvases, change only what the request covers. Keep sections, canvases, frames, and ids outside the request unchanged.
 
 ## Before you start
 
-- Find the target. For pointing words like "this canvas" or "this frame", use `doan active` and read the open comments attached to that target (`doan comments --canvas <id>`).
+- Find the target. For pointing words like "this canvas" or "this frame", use `doan active`.
 - Read the configured token CSS (`doan config --json` shows `tokenCss`), the component code, and the global stylesheet.
-- Look for an existing design document (such as `DESIGN.md`, a style guide, or a design section in the docs) and for design-system canvases: `.doan/ds/`, then a legacy `.doan/canvases/design-system.html`. `doan ls --json` lists canvases with their comment counts.
+- Look for an existing design document (such as `DESIGN.md`, a style guide, or a design section in the docs) and for design-system canvases: `.doan/ds/`, then a legacy `.doan/canvases/design-system.html`. `doan ls --json` lists canvases.
 - Read the `context` preset (`doan design-skill context --json`) before writing either artifact, even when the request already names the deliverable, unless you read it in this conversation or the project has a product context document (who the product is for, brand commitments). Ask only what would change the documents.
 
 ## Document what shipped
@@ -82,7 +82,7 @@ Location:
 
 - If the project already has a design document, update that document.
 - Otherwise ask where it should go; if there is no answer, propose a root `DESIGN.md` and wait for agreement before writing it.
-- Never put it under `.doan/`, which holds Doan's configuration, canvases, assets, and comments.
+- Never put it under `.doan/`, which holds Doan's configuration, canvases, and assets.
 - Never silently overwrite an existing file. Show what would change and let the user choose to refresh, merge into, or replace it.
 
 Structure: follow the existing document's structure when there is one. For a new document, use this order, omitting sections that do not apply rather than filling them with invented rules:
@@ -137,7 +137,7 @@ Each canvas:
 - Generic process notes, such as how the canvases were made, go once in the rules document, not on canvases.
 - Use the fonts the code loads. Put canvas-only assets in `.doan/assets/` and link them relatively.
 
-When updating existing design-system canvases, change only the canvases and frames that drifted from the code or that the request names, and add a new shared component as a new canvas. Check the open comments attached to a frame before substantially changing it.
+When updating existing design-system canvases, change only the canvases and frames that drifted from the code or that the request names, and add a new shared component as a new canvas.
 
 ## Keep the two in agreement
 
@@ -146,7 +146,7 @@ The rules document and the canvases use the same token names and component list,
 ## Finish in Doan
 
 - Before finishing, look at each canvas rendered (in Doan or a browser) and fix overlapping or overflowing content, broken links, and missing fonts. Say which canvases you could not render.
-- After editing the canvases, make `doan check` pass. Resolve only the comments you actually applied.
+- After editing the canvases, make `doan check` pass.
 - Report the paths you wrote, or "No changes" with the files you checked.
 - Give a short system summary: palette, type ramp, and named rules.
 - Name the defects and drift you did not record as rules or did not repair, and why.

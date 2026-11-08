@@ -13,7 +13,7 @@ import (
 func TestInitPublicationFailureThenRetry(t *testing.T) {
 	root := t.TempDir()
 	const foreign = "*.txt text\r\n"
-	const union = ".doan/comments/*.jsonl merge=union\r\n.doan/** linguist-documentation\r\n"
+	const linguist = ".doan/** linguist-documentation\r\n"
 	putFile(t, root, ".gitattributes", foreign)
 	injected := &os.LinkError{Op: "rename", Err: syscall.EIO}
 	calls := 0
@@ -22,7 +22,7 @@ func TestInitPublicationFailureThenRetry(t *testing.T) {
 		if filepath.Dir(from) != filepath.Dir(to) || filepath.Base(to) != "config.json" {
 			t.Fatalf("publication must use a sibling temp: %s -> %s", from, to)
 		}
-		if got := readFile(t, root, ".gitattributes"); got != foreign+union {
+		if got := readFile(t, root, ".gitattributes"); got != foreign+linguist {
 			t.Fatalf("attributes not complete before publication: %q", got)
 		}
 		if got := readFile(t, filepath.Dir(from), filepath.Base(from)); got != "{\n  \"v\": 1\n}\n" {
@@ -47,14 +47,14 @@ func TestInitPublicationFailureThenRetry(t *testing.T) {
 	if e != nil || len(entries) != 1 || entries[0].Name() != "canvases" {
 		t.Fatalf("staged file leaked: %v %v", entries, e)
 	}
-	if got := readFile(t, root, ".gitattributes"); got != foreign+union {
+	if got := readFile(t, root, ".gitattributes"); got != foreign+linguist {
 		t.Fatalf("partial-operation attributes: %q", got)
 	}
 	got := result(t, root, 0, "init")
 	if got["initialized"] != true || !reflect.DeepEqual(got["created"], []any{".doan/config.json"}) {
 		t.Fatal(got)
 	}
-	if attrs := readFile(t, root, ".gitattributes"); attrs != foreign+union || strings.Count(attrs, union) != 1 {
+	if attrs := readFile(t, root, ".gitattributes"); attrs != foreign+linguist || strings.Count(attrs, linguist) != 1 {
 		t.Fatalf("retry changed attributes: %q", attrs)
 	}
 	entries, e = os.ReadDir(filepath.Join(root, ".doan"))

@@ -8,42 +8,6 @@ import (
 	"testing"
 )
 
-func TestCommentsSortByCanvasPreservingFoldOrder(t *testing.T) {
-	root := initialized(t)
-	for _, id := range []string{"foo", "foo-bar"} {
-		putFile(t, root, ".doan/canvases/"+id+".html", strings.Replace(validCanvas, `content="foo"`, `content="`+id+`"`, 1))
-		putFile(t, root, ".doan/comments/"+id+".jsonl", createLine(cmt2, "2", validCanvas)+"\n"+createLine(cmt1, "1", validCanvas)+"\nbroken")
-	}
-	got := result(t, root, 0, "comments")
-	items := got["comments"].([]any)
-	if len(items) != 4 {
-		t.Fatal(got)
-	}
-	for i, want := range []string{"foo", "foo", "foo-bar", "foo-bar"} {
-		item := items[i].(map[string]any)
-		if item["canvas"] != want || item["comment"] != []string{cmt1, cmt2}[i%2] {
-			t.Fatal(items)
-		}
-	}
-	warnings := got["warnings"].([]any)
-	if len(warnings) != 2 || warnings[0].(map[string]any)["file"] != ".doan/comments/foo-bar.jsonl" || warnings[1].(map[string]any)["file"] != ".doan/comments/foo.jsonl" {
-		t.Fatal(warnings)
-	}
-}
-func TestResolvePreparesAllFilesBeforeAppending(t *testing.T) {
-	root := initialized(t)
-	a := createLine(cmt1, "1", validCanvas)
-	b := strings.Replace(createLine(cmt2, "2", validCanvas), "2090-01-01", "2090-02-30", 1)
-	putFile(t, root, ".doan/comments/a.jsonl", a)
-	putFile(t, root, ".doan/comments/b.jsonl", b)
-	got := runJSON(t, root, 1, "comment", "resolve", cmt1, cmt2, "--agent", "codex")
-	if got["error"].(map[string]any)["code"] != "internal_error" {
-		t.Fatal(got)
-	}
-	if readFile(t, root, ".doan/comments/a.jsonl") != a || readFile(t, root, ".doan/comments/b.jsonl") != b {
-		t.Fatal("preparation failure changed comment files")
-	}
-}
 func TestInitReportsConflictingPathsWithoutWrites(t *testing.T) {
 	for _, path := range []string{".doan", ".gitattributes"} {
 		t.Run(path, func(t *testing.T) {

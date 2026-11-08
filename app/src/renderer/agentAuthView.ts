@@ -4,7 +4,7 @@ import type { InstallResult } from "../main/installCommand";
 import type { SettingsTarget } from "./settingsSections";
 
 // Shared by onboarding, Settings, Home and conversations (2026-10-28 user). Copy follows the approved
-// buzz-onboarding draft's Authentication states tiles; states come from agent-auth DTOs only, never re-judged here.
+// doan-onboarding draft's Authentication states tiles; states come from agent-auth DTOs only, never re-judged here.
 export const PROVIDER_NAMES: Record<Provider, string> = { claude: "Claude Code", codex: "Codex", cursor: "Cursor", antigravity: "Antigravity", copilot: "GitHub Copilot" };
 const VENDORS: Record<Provider, string> = { claude: "Anthropic", codex: "OpenAI", cursor: "Cursor", antigravity: "Google", copilot: "GitHub" };
 // These sign-in CLIs open the default browser themselves: Cursor and Copilot (accepted limit, 2026-10-28 user) and

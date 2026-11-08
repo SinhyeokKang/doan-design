@@ -11,4 +11,4 @@ These helpers support short checks of changed behavior in the real Electron app.
 
 Build the app and a temporary CLI before launching. Use Playwright `_electron.launch` with `--user-data-dir=<temp>`, the isolated environment, temporary repositories and explicit `DOAN_RUNTIME` for CLI calls. Capture screenshots, inspect the relevant state, require exit 0 plus an explicit completion marker, and report the behavior actually checked. Never treat successful cleanup as proof of a passed assertion. Avoid concurrent GUI probes.
 
-`node --test 'app/runtime/*.test.ts'` checks this foundation without launching the real app. The shared verify command includes these tests, Go checks, app typecheck/unit tests and build. Real-app probes remain separate and scoped to the change; unaffected observations can be reused.
+`node --test 'app/runtime/*.test.ts'` checks this foundation without launching the real app. The shared verify command includes these tests, Go checks, app typecheck, lint, unit tests and build. Real-app probes remain separate and scoped to the change; unaffected observations can be reused.

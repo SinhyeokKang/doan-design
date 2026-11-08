@@ -6,7 +6,7 @@ Use this preset when the user asks for mobile, tablet, desktop, print, or email 
 
 ## Before you start
 
-- Find the target. For pointing words like "this screen", use `doan active` and read the open comments attached to that target. Otherwise work on the canvas, frame, or code the user named.
+- Find the target. For pointing words like "this screen", use `doan active`. Otherwise work on the canvas, frame, or code the user named.
 - Confirm the target contexts: which widths, devices, orientations, input methods, and situations (on the go or at a desk, quick glance or focused reading). Ask when the request does not say and it would change the result; do not adapt to every size by default.
 - Read the design system: token CSS (`doan config --json` shows `tokenCss`), existing components and their responsive variants, a design rules document if the project has one, and the design-system canvases in `.doan/ds/` (or a legacy `.doan/canvases/design-system.html`) if present. Reuse existing breakpoints and navigation patterns before inventing new ones.
 - Read the code the frame implements (`data-doan-implements`): existing breakpoints, container queries, and responsive components show what the product already does.
@@ -82,7 +82,7 @@ A canvas is one HTML document with one viewport, so viewport media queries respo
 - Reference token CSS variables for color and spacing; do not copy raw hex or rgb values.
 - When a layout, breakpoint, or component you draw is not in code yet, say so on the canvas, as the Doan guide requires.
 - If the user asked for a review only, report what breaks in each target context and the proposed changes without editing files.
-- After editing a canvas, make `doan check` pass. Resolve only the comments you actually applied.
+- After editing a canvas, make `doan check` pass.
 - In your answer, list the contexts you adapted, what changed structurally in each, and what you left unchanged on purpose.
 
 ## Verify

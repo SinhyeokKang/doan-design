@@ -62,7 +62,7 @@ describe("nextHeight after web fonts load", () => {
   };
   const rounds = (applyAt: number, eventAt: number, count = 7) =>
     Array.from({ length: count }, (_, n) => ({ applied: n >= applyAt, fonts: n >= eventAt ? 1 : 0 }));
-  // buzz-project-settings: 7,832 px in the fallback font, 7,932 px once Geist applies.
+  // doan-project-settings: 7,832 px in the fallback font, 7,932 px once Geist applies.
   const swap = (_inner: number, applied: boolean) => (applied ? 7932 : 7832);
 
   test("grows from the fallback height to the web font height when the event comes with it", () => {
@@ -1569,7 +1569,7 @@ describe("canvasScript messages from the renderer", () => {
 });
 
 
-describe("comment anchors", () => {
+describe("chip anchors", () => {
   test("returns shared node tokens, exact candidates and separate sequence state", () => {
     const child = node("span", { "data-doan-id": "child" });
     const frame = node("section", { "data-doan-frame": "hero", "data-doan-id": "hero" }, [child]);

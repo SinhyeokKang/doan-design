@@ -5,6 +5,7 @@
 <h1 align="center">Doan</h1>
 
 <p align="center">
+  <a href="https://github.com/SinhyeokKang/doan-design/releases/latest"><img src="https://img.shields.io/github/v/release/SinhyeokKang/doan-design?style=flat-square&color=7c3aed&label=release" alt="Latest release" /></a>
   <img src="https://img.shields.io/badge/license-Apache--2.0-7c3aed?style=flat" alt="License: Apache-2.0" />
   <img src="https://img.shields.io/badge/macOS-Apple%20silicon-7c3aed?style=flat-square" alt="Supported platform: macOS on Apple silicon" />
   <img src="https://img.shields.io/badge/Claude%20Code%20%C2%B7%20Codex%20%C2%B7%20Cursor%20%C2%B7%20Antigravity%20%C2%B7%20Copilot-supported-7c3aed?style=flat-square" alt="Supported agent CLIs: Claude Code, Codex, Cursor, Antigravity and GitHub Copilot" />
@@ -15,18 +16,16 @@
   A Mac app and CLI where Claude Code, Codex, Cursor, Antigravity or GitHub Copilot writes design drafts as HTML canvases inside your code repo, and you talk to the agent about them, pointing at frames and elements.
 </p>
 
-<h3 align="center"><a href="#build-from-source"><ins>Pre-release: build from source</ins></a></h3>
+<h3 align="center"><a href="https://github.com/SinhyeokKang/doan-design/releases/latest/download/Doan-macos-arm64.dmg"><ins>Download for macOS (Apple silicon)</ins></a></h3>
 
 <p align="center">
   <img src="docs/assets/readme/hero.png" alt="Doan: a canvas in the repo, open beside its conversation" width="960" />
 </p>
 
-> **Status: pre-release.** macOS on Apple silicon only. There is no release yet; build from source to try it.
-
 ## Why Doan
 
 - **Design first, then let the agent build.** Doan is a design app made for vibe coding with agents. Settle the screens on a canvas before any code, and the agent implements a design you already agreed on: results become predictable, revision rounds shrink, and fewer tokens go to rework.
-- **Drafts live in your repo.** A canvas is an HTML file next to the code, versioned with it, not a page in someone else's service that can shut down.
+- **Drafts live in your repo.** A canvas is an HTML file next to the code, versioned with it unless you keep Doan's files out of Git, not a page in someone else's service that can shut down.
 - **Every agent can read it.** Claude Code, Codex, Cursor, Antigravity and GitHub Copilot read the same file through the same `doan` skill, with no upload step.
 - **It knows your code.** Canvases use the repo's real token CSS, frames name the files that implement them, and `doan check` flags convention, token and external-resource problems.
 - **Point instead of describing.** Put the exact frame, element or spot into your message, and the agent gets it as an anchor.
@@ -40,7 +39,7 @@
 
 ### Canvases in your repo
 
-The agent writes `.doan/canvases/<spec>.html` next to your code with the repo's real tokens, checks it with `doan check`, and Doan reloads it as the file changes.
+The agent writes each canvas as an HTML file in your repo, next to the code, with the repo's real tokens, checks it with `doan check`, and Doan reloads it as the file changes.
 
 </td>
 <td width="50%">
@@ -76,7 +75,7 @@ Start from Home with a project, an agent, a model and a permission mode. Queue m
 
 ### Your agents, your accounts
 
-Sign in to Claude Code, Codex, Cursor, Antigravity and GitHub Copilot with their official logins, separate from your terminal's, and see each account's usage.
+Sign in to Claude Code, Codex, Cursor, Antigravity and GitHub Copilot with their official logins, separate from your terminal's, and see each account's usage (all but Antigravity).
 
 </td>
 <td width="50%">
@@ -100,7 +99,7 @@ Doan sets up the `doan` command and skill for all five agents. A terminal agent 
 
 ### Export
 
-Save a canvas as one HTML file that opens in any browser without Doan, the repo or a network, and send it to a reviewer.
+Save a canvas as one HTML file that opens in any browser without Doan, the repo or a network, and send it to a reviewer. External URLs a canvas links still load from the internet.
 
 </td>
 <td width="50%">
@@ -128,24 +127,24 @@ Pick a design preset — shape, critique, harden, clarify and more — and the a
 
 </td>
 <td width="50%">
-  <a href="docs/assets/readme/presets.png"><img src="docs/assets/readme/presets.png" alt="The design presets drawer above the Overview composer" width="100%" /></a>
+  <a href="docs/assets/readme/presets.png"><img src="docs/assets/readme/presets.png" alt="The design presets list above the Overview composer" width="100%" /></a>
 </td>
 </tr>
 </table>
 
 ## The `doan` CLI
 
-`doan` is what your agent uses to work with canvases. Doan links it into your agents' sessions when you open the app from Applications, and it ships inside the app. Every command takes `--repo <path>` and `--json`, and everything except `active`, `onboarding` and `open` works without the app running.
+`doan` is what your agent uses to work with canvases. Doan links it into your agents' sessions when you open the app from Applications, and it ships inside the app. Every command takes `--json`, and every command except `onboarding` takes `--repo <path>`; everything except `active`, `onboarding`, `open` and `handoff` works without the app running.
 
 | Command | What it does |
 |---|---|
-| `doan init` · `doan config` | Set up a repo for Doan: the token CSS canvases use and extra paths canvases may load |
+| `doan init` · `doan config` | Set up a repo for Doan: the token CSS canvases use, extra paths canvases may load, and whether Doan's files go in Git |
 | `doan ls` | List the repo's canvases and design-system canvases with their frames |
 | `doan check` | Check canvases for Doan's conventions, undefined tokens and external resources |
 | `doan active` | Read what you selected in the app: canvas, frame and element |
 | `doan work start` · `update` · `done` | Show in the app that an agent is working on a canvas, and on which frame |
 | `doan open <canvas> --frame <id>` | Open a canvas in the app, at a frame |
-| `doan comments` · `doan comment resolve` | Read the comments in `.doan/comments/` and resolve the ones applied |
+| `doan handoff <canvas> --message <text>` | From a Doan canvas conversation, hand the work to a new conversation on the new canvas the turn created |
 | `doan export <canvas> -o <file>` | Save a canvas as one HTML file that opens in any browser |
 | `doan skill` · `doan design-skill [<id>]` | Print the guide agents follow, and the design presets |
 | `doan onboarding` | Let an agent run first-time setup for you |
@@ -162,7 +161,7 @@ doan open .doan/canvases/tasks.html --frame approval --json
 
 ## Design presets
 
-Twenty design briefs, adapted from [Impeccable](https://github.com/pbakaus/impeccable), that the agent follows for a focused pass. Pick one from the composer's Presets drawer or type `/` and its name; agents in a terminal read them with `doan design-skill <id>`.
+Twenty design briefs, adapted from [Impeccable](https://github.com/pbakaus/impeccable), that the agent follows for a focused pass. Pick one from the composer's Presets list or type `/` and its name; agents in a terminal read them with `doan design-skill <id>`.
 
 | Group | Presets |
 |---|---|
@@ -182,13 +181,14 @@ Twenty design briefs, adapted from [Impeccable](https://github.com/pbakaus/impec
 | Antigravity | ✓ | ✓ | — |
 | GitHub Copilot | ✓ | ✓ | — |
 
-Each agent's CLI must be installed; first run offers to install or update it and to sign in.
+Claude Code, Codex, Cursor and GitHub Copilot run through their installed CLI, which first run offers to install or update; Doan downloads Antigravity's agent server itself. First run then signs in to each.
 
 ## Install
 
 - macOS on Apple silicon.
-- Move Doan to Applications and open it. Each launch from Applications links the `doan` command and the skill for the five agents, with no setup screen; Settings > About shows what was set up.
+- Download [`Doan-macos-arm64.dmg`](https://github.com/SinhyeokKang/doan-design/releases/latest/download/Doan-macos-arm64.dmg) from the [latest release](https://github.com/SinhyeokKang/doan-design/releases/latest), move Doan to Applications and open it. Each launch from Applications links the `doan` command and the skill for the five agents, with no setup screen; Settings > About shows anything that could not be set up.
 - First run signs in to your agents and adds a project: a local folder or a GitHub repository URL.
+- Doan updates itself. A copy in Applications checks GitHub Releases at launch and every 6 hours, downloads a new version in the background, and installs it when you press Restart to Update or quit Doan. Settings > About shows the version, checks on demand and can turn automatic checks off.
 
 ## Example prompts
 
@@ -197,7 +197,6 @@ Ask your agent, in Doan or in a terminal:
 - *"Draw the checkout flow as a Doan canvas: the default form, the card error and the receipt."*
 - *"Use our tokens in `src/styles/tokens.css` for the canvas and run `doan check` before you finish."*
 - *"Turn this Notion spec into a canvas, one frame per state."* (with the Notion MCP connector)
-- *"Apply the comments on the onboarding canvas and resolve the ones you applied."*
 - *"Export the checkout canvas so I can send it to a reviewer."*
 
 For the best drafts, **give the agent design context**: the repo's tokens and components, a screenshot of the screen as it is, or the spec behind it.
@@ -210,7 +209,7 @@ See [docs/CONTRIBUTING.md](./docs/CONTRIBUTING.md). Please read the [Code of Con
 
 ### Build from source
 
-Requirements: macOS on Apple silicon, Node.js with npm, Go (see `go.mod`).
+Requirements: macOS on Apple silicon, Node.js with npm (see `.node-version`), Go (see `go.mod`).
 
 ```sh
 npm --prefix app ci
@@ -236,7 +235,7 @@ To run the CLI directly: `go run ./cli/cmd/doan <command> --repo <path> [--json]
 
 ## Background
 
-Doan comes from building [malmoi](https://github.com/SinhyeokKang/malmoi) and [BugShot](https://github.com/SinhyeokKang/bugshot-2) with coding agents in 2026, where the design process itself kept getting in the way. The problems Doan answers, and the evidence behind them, are in [docs/PRODUCT.md §1](./docs/PRODUCT.md#1-problem).
+Doan comes from building [malmoi](https://github.com/SinhyeokKang/malmoi) and [BugShot](https://github.com/SinhyeokKang/bugshot-2) with coding agents in 2026, where the design process itself kept getting in the way. Doan is built the same way: every screen of the app was drafted as a Doan canvas by Claude Code and Codex and reviewed in Doan before it was implemented, and those canvases are in this repo under [`.doan/canvases/`](./.doan/canvases/). The problems Doan answers, and the evidence behind them, are in [docs/PRODUCT.md §1](./docs/PRODUCT.md#1-problem).
 
 ## License
 

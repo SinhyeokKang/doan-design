@@ -35,7 +35,7 @@ const violetAllowed = [
   // (onboarding-welcome-variants frame welcome-horizon).
   ".ob-atmosphere",
   ".ob-atmosphere::before",
-  // Home's Send, the shared accent icon button (buzz-home approved draft, 2026-10-29 user).
+  // Home's Send, the shared accent icon button (doan-home approved draft, 2026-10-29 user).
   '.doan-icon-button[data-ui-variant="accent"]',
   '.doan-icon-button[data-ui-variant="accent"]:hover:not(:disabled)',
   '.doan-icon-button[data-ui-variant="accent"]:is(:active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled)',

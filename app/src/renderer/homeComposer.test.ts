@@ -203,14 +203,14 @@ test("every start refusal has the draft's wording and Retry only where retrying 
 // defaultProject and rootForProject
 
 const DOAN = list("/r/doan-design", [], { common: "/r/doan-design/.git", main: "/r/doan-design", branch: "main" });
-const DOAN_WT = list("/r/wt/buzz-home", [], { common: "/r/doan-design/.git", main: "/r/doan-design", branch: "feat-buzz-home" });
+const DOAN_WT = list("/r/wt/doan-home", [], { common: "/r/doan-design/.git", main: "/r/doan-design", branch: "feat-doan-home" });
 const MALMOI = list("/r/malmoi");
 const OLD = missing("/r/old-site");
 
 test("the first-run handoff root wins, then the loaded workspace, then the last Home send, then the first healthy root", () => {
   const entries = [OLD, MALMOI, DOAN, DOAN_WT];
   const none = new Map<string, string>();
-  expect(defaultProject(entries, none, { handoff: "/r/wt/buzz-home", loaded: "/r/malmoi", lastRoot: "/r/doan-design" }).root).toBe("/r/wt/buzz-home");
+  expect(defaultProject(entries, none, { handoff: "/r/wt/doan-home", loaded: "/r/malmoi", lastRoot: "/r/doan-design" }).root).toBe("/r/wt/doan-home");
   expect(defaultProject(entries, none, { loaded: "/r/malmoi", lastRoot: "/r/doan-design" }).root).toBe("/r/malmoi");
   expect(defaultProject(entries, none, { lastRoot: "/r/doan-design" }).root).toBe("/r/doan-design");
   expect(defaultProject(entries, none, {}).root).toBe("/r/malmoi");
@@ -241,8 +241,8 @@ test("with every root unhealthy the first root is chosen so its reason shows; wi
 test("switching project picks the sidebar's remembered worktree, else the first healthy root", () => {
   const rows = [missing("/r/doan-design"), DOAN_WT, list("/r/wt/review")];
   expect(rootForProject(rows, "/r/wt/review")).toBe("/r/wt/review");
-  expect(rootForProject(rows, "/r/elsewhere")).toBe("/r/wt/buzz-home");
-  expect(rootForProject(rows, undefined)).toBe("/r/wt/buzz-home");
+  expect(rootForProject(rows, "/r/elsewhere")).toBe("/r/wt/doan-home");
+  expect(rootForProject(rows, undefined)).toBe("/r/wt/doan-home");
   expect(rootForProject([missing("/r/a"), missing("/r/b")], undefined)).toBe("/r/a");
 });
 
@@ -473,12 +473,12 @@ test("a legacy .doan/canvases/design-system.html counts as a screen", () => {
 test("suggested prompts name the target canvas by recency and fill a sentence with its path", () => {
   const entry = list("/r/doan-design", [
     canvas(".doan/canvases/app-shell.html", { mtimeMs: 10 }),
-    canvas(".doan/canvases/buzz-onboarding.html", { mtimeMs: 30 }),
+    canvas(".doan/canvases/doan-onboarding.html", { mtimeMs: 30 }),
     canvas(".doan/canvases/projects-home.html", { mtimeMs: 20 }),
   ]);
   expect(suggestedPrompts(entry, "doan-design", PRESETS)).toEqual([
     { label: "Document the design system of doan-design", parts: [{ text: "Document the design system of ", value: false }, { text: "doan-design", value: true }], preset: preset("document"), text: "Document the design system of doan-design." },
-    { label: "Review the buzz-onboarding canvas", parts: [{ text: "Review the ", value: false }, { text: "buzz-onboarding", value: true }, { text: " canvas", value: false }], preset: preset("critique"), text: "Review the buzz-onboarding canvas (.doan/canvases/buzz-onboarding.html)." },
+    { label: "Review the doan-onboarding canvas", parts: [{ text: "Review the ", value: false }, { text: "doan-onboarding", value: true }, { text: " canvas", value: false }], preset: preset("critique"), text: "Review the doan-onboarding canvas (.doan/canvases/doan-onboarding.html)." },
     { label: "Polish the projects-home canvas", parts: [{ text: "Polish the ", value: false }, { text: "projects-home", value: true }, { text: " canvas", value: false }], preset: preset("polish"), text: "Polish the projects-home canvas (.doan/canvases/projects-home.html)." },
   ]);
 });

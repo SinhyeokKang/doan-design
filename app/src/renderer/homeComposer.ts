@@ -16,7 +16,7 @@ import { anotherConversation } from "./homeConversations";
 import { displayPath } from "./projectDisplay";
 
 // Pure parts of the Home composer. Copy follows the confirmed draft
-// `.doan/canvases/buzz-home.html`.
+// `.doan/canvases/doan-home.html`.
 
 // `group` is optional: an older CLI on PATH lists presets without it.
 export type PresetSummary = DesignPresetSummary & { group?: string };

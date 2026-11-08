@@ -11,8 +11,8 @@
 | 캔버스 나열·`doan ls` | `.doan/canvases`, `.doan/ds` | `cli/internal/repo/files.go` `Canvases`(호출처 `cli/internal/cli/read.go` `scanCanvases`, `export.go`) | §2.3 |
 | 서빙 범위·export 경계 | 기본 디렉터리 세 개, `MetadataPath` | `cli/internal/repo/scope.go` `defaultServeDirs`·`MetadataPath`; export는 `repo.Scope`를 그대로 씀 | §2.4 |
 | `doan check`의 token 판단 | 최상위 `tokenCss` | `cli/internal/check/`의 `hardcoded_color`·`token_css_not_found`, 새 경고 | §2.5 |
-| 댓글 경로 | `.doan/comments/<id>.jsonl` | 바꾸지 않음. 고아 판단이 서비스 캔버스를 보게 함 | §2.6 |
-| watcher | 고정 watcher(`.doan/canvases`·`ds` 재귀, `.doan/assets` 재귀, `.doan`, `.doan/comments`) | `app/src/main/watch.ts`, `designChange.ts` | §4.5 |
+| 캔버스 id 유일성 | 공유 캔버스 | `duplicate_canvas_id`가 서비스 캔버스까지 봄 | §2.6 |
+| watcher | 고정 watcher(`.doan/canvases`·`ds` 재귀, `.doan/assets` 재귀, `.doan`) | `app/src/main/watch.ts`, `designChange.ts` | §4.5 |
 | 사이드바 group 닫힘 저장 | `ds`·`canvases` 두 id | `app/src/restore/uiState.ts` `parseGroups`, `app/src/renderer/shellNavigation.ts` `reconcileProjects` | §4.3 |
 | 경로 분류 | `canvasPath.ts` `CANVAS_DIRS` | `canvasPath.ts`와 사용처 11곳(§4.6) | §4.6 |
 | work·open·링크 경로 | `^\.doan/(canvases|ds)/[^/]+\.html$` | `work_rules.go`·`open_rules.go`, `runtime.ts`, `deepLinks.ts`, app-socket v3·v4 schema | §2.7 |
@@ -29,7 +29,7 @@
 | app renderer | 셋업 패널 서비스 목록, Project Settings Services 구역, 사이드바 서비스 group, Quick Open·composer 제안의 경로 판단 |
 | ui-state | `app/src/restore/uiState.ts` `parseGroups`(닫힘 id `ds`·`canvases`만 남김), `app/src/renderer/shellNavigation.ts` `reconcileProjects`(`["ds", "canvases"]` 고정)가 서비스 group id를 받게 |
 
-바뀌지 않는 것: Doan root 탐색(`find.go`), `doan init`, 댓글 파일 위치와 `.gitattributes` 두 줄, app-socket v2, project group, 자동 등록.
+바뀌지 않는 것: Doan root 탐색(`find.go`), `doan init`, `.gitattributes` 한 줄(`.doan/** linguist-documentation`), app-socket v2, project group, 자동 등록.
 
 ## 2. 디렉터리·형식·CLI 규칙
 
@@ -42,7 +42,6 @@
   services/<id>/canvases/      서비스의 화면·기능 캔버스 (하위 폴더 허용)
   services/<id>/ds/            서비스의 design-system 캔버스
   services/<id>/assets/        서비스의 캔버스 전용 assets
-  comments/<canvas id>.jsonl   지금 그대로, 서비스 캔버스 포함
 ```
 
 - 서비스는 config가 정한다. `.doan/services/` 아래 config에 없는 디렉터리는 서비스가 아니다(나열·서빙 안 함, §2.5 경고). 이렇게 하면 서비스 캔버스가 있는 저장소의 config는 항상 v2이고, 이전 CLI는 서비스 캔버스를 조용히 빠뜨리는 대신 프로젝트 전체를 거절한다(§2.8).
@@ -69,7 +68,7 @@
 
 - `repo.Canvases(root)`는 config를 받도록 시그니처가 바뀐다(호출처: `cli/internal/cli/read.go`의 `scanCanvases`, `cli/internal/cli/export.go`). 지금의 두 디렉터리에 더해 config의 서비스마다 `.doan/services/<id>/canvases`와 `.doan/services/<id>/ds`를 같은 `canvasesIn`으로 걷는다. `.doan/services`, `.doan/services/<id>`, 각 하위 디렉터리가 링크면 건너뛴다(지금 `.doan`·기본 디렉터리와 같은 lstat 규칙). 결과는 지금처럼 path byte 순.
 - `doan ls` 결과에 `services: [{id, path, tokenCss?}]`(config 순서)를 더한다. 캔버스 행에는 필드를 더하지 않는다. 서비스와 종류는 경로가 정한다(ARCHITECTURE §1 "The directory is the only type marker"와 같은 방식).
-- 다른 명령은 나열을 그대로 쓰므로 함께 따라온다: `doan check`의 대상, `doan comments`의 `canvasPath`, `doan export`의 "listed canvas" 검사, `doan open`의 목록 확인.
+- 다른 명령은 나열을 그대로 쓰므로 함께 따라온다: `doan check`의 대상, `doan export`의 "listed canvas" 검사, `doan open`의 목록 확인.
 
 ### 2.4 서빙 범위와 export 경계
 
@@ -86,11 +85,9 @@
 - 새 경고 `service_not_configured`: `.doan/services/<x>/` 아래 `.html`이 있는데 `<x>`가 config에 없을 때(디스크 이름과 config id가 대소문자만 다른 경우 포함, §2.2), 그 디렉터리에 하나. 에이전트가 config에 없는 서비스 폴더에 쓰고 캔버스가 보이지 않는 상황을 잡는다. 메시지는 "config에 서비스를 더하려면 사람에게 묻거나 Project Settings를 쓰라"는 안내이며, 폴더를 지우라고 하지 않는다.
 - `no_canvases`, `css_not_served`, `path_outside_repo`, `undefined_token`: 규칙은 그대로이고 나열·scope가 넓어진 결과를 쓴다.
 
-### 2.6 댓글
+### 2.6 캔버스 id
 
-- `.doan/comments/<canvas id>.jsonl` 그대로다. 캔버스 id가 저장소 전체에서 유일하므로(`duplicate_canvas_id`) 서비스 캔버스도 같은 디렉터리에 둔다. `.gitattributes`의 `.doan/comments/*.jsonl merge=union`도 그대로라 기존 저장소에 새 줄이 필요 없다.
-- `repo.OrphanFiles`와 `ls` `orphans`는 서비스 캔버스까지 포함한 나열로 판단한다. 이전 CLI는 v2를 거절하므로 서비스 캔버스의 댓글을 고아로 잘못 보고하지 않는다(§2.8).
-- Move to Trash가 댓글 파일을 함께 옮기는 조건(PRODUCT §5 item 1)은 그대로다.
+- 캔버스 id는 서비스를 넘어 저장소 전체에서 유일하다. `doan check`의 `duplicate_canvas_id`는 서비스 캔버스까지 포함한 나열로 판단한다. 대화 칩(`doan:<canvas-id>/…`)이 캔버스 id로 대상을 찾기 때문이다(guide 규칙 C).
 
 ### 2.7 work·open·링크 경로
 
@@ -192,7 +189,7 @@ TOML·YAML은 필요한 모양만 읽는 작은 파서로 한다(새 의존성 �
 
 ### 4.4 그 밖의 화면
 
-- Quick Open(`quickOpen.ts` `listedIn`)은 서비스 캔버스의 위치를 `.doan/services/<id>/canvases/`처럼 지금(`.doan/ds/`, `.doan/canvases/`)과 같은 모양으로 보인다.
+- Quick Open(`quickOpen.ts`: 누락·삭제 안내는 `listedIn`, 검색 결과의 위치 줄은 `resultParts`)은 서비스 캔버스의 위치를 `.doan/services/<id>/canvases/`처럼 지금(`.doan/ds/`, `.doan/canvases/`)과 같은 모양으로 보인다.
 - composer 제안(`homeComposer.ts`): 화면 초안은 공유와 서비스의 `canvases/` 전부, `document` 조건의 "`.doan/ds/`가 비어 있음"은 공유와 서비스의 `ds/` 전부가 비어 있음으로 읽는다.
 - Overview는 바꾸지 않는다.
 
@@ -240,12 +237,12 @@ TOML·YAML은 필요한 모양만 읽는 작은 파서로 한다(새 의존성 �
 - 지금 `schema/fixtures/config/invalid/unknown-version.json`은 `{"v": 2}`이고 `cli/internal/repo/config_test.go`가 이 파일에 `unsupported_version`을 기대한다. `TestParseConfigBoundaries`의 `{"v":2,"x":1}`도 같다. v2를 받으면 둘 다 `invalid_config`가 되므로, 이 fixture와 경계 사례를 v3으로 바꾼다.
 - app-socket v3·v4 `path` pattern을 넓히고(§2.7) fixture를 더한다. `v`는 그대로.
 - `ls`·`config`·`detect-services` 결과 모양은 Go deep-compare와 TS reader 테스트로 고정하고 ARCHITECTURE §12에 적는다(envelope `result`는 schema가 정하지 않음).
-- app-socket v2, `runtime.json`, comment event, `sessions.v1`(캔버스 path에 디렉터리 제한 없음)은 그대로다.
+- app-socket v2, `runtime.json`, `sessions.v1`(캔버스 path에 디렉터리 제한 없음)은 그대로다.
 
 ## 8. Conventions·결정 영향
 
 - **ARCHITECTURE §1 'Project directory'·convention 1·7**: 서비스 폴더와 그 상대 링크 규칙. "The directory is the only type marker"는 그대로이고 서비스도 경로로 정해지되, 서비스가 있는지는 config가 정한다. `doan check`에 `service_not_configured` 경고가 더해지고 `hardcoded_color`·`token_css_not_found`의 대상이 넓어진다.
-- **서빙 범위(ARCHITECTURE §3)**: 기본 디렉터리가 config의 서비스만큼 늘어난다. 설정과 댓글은 여전히 서빙하지 않고, 서비스 `path`도 서빙하지 않는다. export 경계는 같은 scope다.
+- **서빙 범위(ARCHITECTURE §3)**: 기본 디렉터리가 config의 서비스만큼 늘어난다. 설정과 `.doan/` 안의 다른 이름(이전 빌드가 남긴 `.doan/comments/` 포함)은 여전히 서빙하지 않고, 서비스 `path`도 서빙하지 않는다. export 경계는 같은 scope다.
 - **PRODUCT §3 Out of scope 2(캔버스 형식 강제 안 함)**: 서비스 폴더는 놓는 위치이고, 서비스가 없으면 아무 규칙도 없다.
 - **git 명령 없음(Out of scope 6)**, **셋업은 사람이 고를 때만**, **앱은 캔버스 내용을 쓰지 않음(Out of scope 7)**: 지킨다. 앱은 `doan config`로 config와 빈 폴더만 만든다.
 - **"Discovery stays in Go only"(ARCHITECTURE §13)**: 후보 찾기와 서비스 디렉터리 목록은 Go가 낸다. TS의 `canvasPath.ts`는 경로 모양만 본다.
@@ -253,10 +250,10 @@ TOML·YAML은 필요한 모양만 읽는 작은 파서로 한다(새 의존성 �
 
 ## 8.1 다른 feature와의 순서
 
-사람이 정했다: `local-doan-files`와 `canvas-handoff`가 먼저 병합하고, 이 feature는 그 뒤에 병합한 모양에 맞춘다. `/tdd`는 두 feature가 main에 병합된 뒤 시작하고, 시작할 때 병합된 모양을 다시 읽어 이 문서의 해당 절을 고친다.
+사람이 정했다: `local-doan-files`와 `canvas-handoff`가 먼저 병합하고, 이 feature는 그 뒤에 병합한 모양에 맞춘다. 두 feature는 develop에 병합됐다. `/tdd`를 시작할 때 병합된 모양을 다시 읽어 이 문서의 해당 절을 고친다(그 사이 `doan config` 결과에 `storageReason`과 `--storage`의 `written`·`guidance`가 더해졌고, `--storage`는 다른 쓰기 플래그와 함께 쓸 수 없으며, Project Settings 순서는 Token CSS, Shared with canvases, Doan files, Remove다).
 
-- **`local-doan-files`**: 같은 셋업 패널(`Onboarding.tsx`)과 Project Settings 구역(`ProjectSettingsPage.tsx`, `projectSettingsRules.ts`)을 고치고, `doan config` 결과에 `storage`를 더한다(`docs/features/local-doan-files/design.md` §1·§2.3). 이 feature는 `config` 결과에서 `services`를 `storage` 옆에 두고(§2.9), 셋업 패널의 모드 선택과 서비스 목록, Project Settings의 모드 구역과 Services 구역을 함께 배치한다.
-- **`canvas-handoff`**: `doan handoff`가 `workTarget`을 지나고, 새 app-socket v5의 `path` pattern은 `^\.doan/canvases/[^/]+\.html$`이다(ARCHITECTURE §4 'Handoff over app-socket v5'). 이 feature는 v3·v4와 함께 v5 `path` pattern과 `schema/fixtures/app-socket-v5/`도 공유·서비스 `canvases/`와 그 하위 폴더까지 넓힌다(§2.7, 결정 14·16). v5가 `.doan/ds/`를 받지 않는 것은 그 feature의 결정이므로 서비스 `ds/`도 받지 않는다.
+- **`local-doan-files`**: 같은 셋업 패널(`Onboarding.tsx`)과 Project Settings 구역(`ProjectSettingsPage.tsx`, `projectSettingsRules.ts`)을 고치고, `doan config` 결과에 `storage`를 더한다(ARCHITECTURE §12 'Storage'·`doan config` 결과, §7 'Settings IPC' 'Storage writes', PRODUCT §5 item 0 'Doan files'). 이 feature는 `config` 결과에서 `services`를 `storage` 옆에 두고(§2.9), 셋업 패널의 모드 선택과 서비스 목록, Project Settings의 모드 구역과 Services 구역을 함께 배치한다.
+- **`canvas-handoff`**: `doan handoff`가 `workTarget`을 지난 뒤 `cli/internal/cli/handoff_rules.go`의 `handoffCanvasPath`로 다시 검사하고(앱의 `conversation/prompt.ts` `HANDOFF_GUIDANCE`도 `.doan/canvases/`만 안내한다), 새 app-socket v5의 `path` pattern은 `^\.doan/canvases/[^/]+\.html$`이다(ARCHITECTURE §4 'Handoff over app-socket v5'). 이 feature는 v3·v4와 함께 v5 `path` pattern과 `schema/fixtures/app-socket-v5/`, `handoffCanvasPath`, `HANDOFF_GUIDANCE`도 공유·서비스 `canvases/`와 그 하위 폴더까지 넓힌다(§2.7, 결정 14·16). v5가 `.doan/ds/`를 받지 않는 것은 그 feature의 결정이므로 서비스 `ds/`도 받지 않는다.
 
 ## 9. PoC 의존
 

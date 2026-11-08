@@ -3,7 +3,6 @@ import { describe, expect, test } from "vitest";
 import appSocketV2Schema from "../../../schema/app-socket.v2.schema.json";
 import appSocketV5Schema from "../../../schema/app-socket.v5.schema.json";
 import {
-  validateCommentEvent,
   validateConfig,
   validateEnvelope,
   validateHandoffRequest,
@@ -30,7 +29,6 @@ const fixtureFiles = (name: string, validity: string) =>
   readdirSync(fixtureDirectory(name, validity)).filter((file) => file.endsWith(".json")).sort();
 
 const groups: { name: string; validate: Validate }[] = [
-  { name: "comment-event", validate: validateCommentEvent },
   { name: "config", validate: validateConfig },
   { name: "cli-envelope", validate: validateEnvelope },
   { name: "runtime", validate: validateRuntimeFile },

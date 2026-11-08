@@ -24,7 +24,7 @@ func CheckInput(r repo.Repository) (check.Input, error) {
 }
 
 func checkInput(r repo.Repository, inspected func([]canvasFile)) (check.Input, error) {
-	in := check.Input{Canvases: []canvas.Canvas{}, Unparsable: map[string]string{}, Reach: map[string][]check.CSSRef{}, CSS: map[string]canvas.Scan{}, Implements: map[string]check.State{}, CommentFiles: []repo.CommentFile{}}
+	in := check.Input{Canvases: []canvas.Canvas{}, Unparsable: map[string]string{}, Reach: map[string][]check.CSSRef{}, CSS: map[string]canvas.Scan{}, Implements: map[string]check.State{}}
 	files, e := scanCanvases(r.Root)
 	if e != nil {
 		return in, e
@@ -42,10 +42,6 @@ func checkInput(r repo.Repository, inspected func([]canvasFile)) (check.Input, e
 		if file.ReadError != nil {
 			return in, file.ReadError
 		}
-	}
-	in.CommentFiles, e = repo.CommentFiles(r.Root)
-	if e != nil {
-		return in, e
 	}
 	if r.Config.TokenCSS != "" {
 		state, p, e := repo.Resolve(r.Root, r.Root, r.Config.TokenCSS)

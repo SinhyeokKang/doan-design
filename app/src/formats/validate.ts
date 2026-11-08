@@ -4,17 +4,16 @@ import appSocketV2Schema from "../../../schema/app-socket.v2.schema.json";
 import appSocketV3Schema from "../../../schema/app-socket.v3.schema.json";
 import appSocketV4Schema from "../../../schema/app-socket.v4.schema.json";
 import appSocketV5Schema from "../../../schema/app-socket.v5.schema.json";
-import commentEventSchema from "../../../schema/comment-event.v1.schema.json";
 import configSchema from "../../../schema/config.v1.schema.json";
 import envelopeSchema from "../../../schema/cli-envelope.v1.schema.json";
 import runtimeSchema from "../../../schema/runtime.v1.schema.json";
 import sessionsSchema from "../../../schema/sessions.v1.schema.json";
-import type { HandoffRequest, HandoffResponse, OpenRequest, OpenResponse, WorkRequest, WorkResponse, CommentEvent, OnboardingRequest, OnboardingResponse, RuntimeFile, Selection, SocketRequest, SocketResponse } from "./types";
+import type { HandoffRequest, HandoffResponse, OpenRequest, OpenResponse, WorkRequest, WorkResponse, OnboardingRequest, OnboardingResponse, RuntimeFile, Selection, SocketRequest, SocketResponse } from "./types";
 
 const ajv = new Ajv2020();
 
-// addSchema every file before the first getSchema: app-socket $refs comment-event by its absolute $id.
-for (const schema of [commentEventSchema, configSchema, envelopeSchema, runtimeSchema, appSocketSchema, appSocketV2Schema, appSocketV3Schema, appSocketV4Schema, appSocketV5Schema, sessionsSchema]) {
+// addSchema every file before the first getSchema: app-socket v3 $refs v4 by its absolute $id.
+for (const schema of [configSchema, envelopeSchema, runtimeSchema, appSocketSchema, appSocketV2Schema, appSocketV3Schema, appSocketV4Schema, appSocketV5Schema, sessionsSchema]) {
   ajv.addSchema(schema);
 }
 
@@ -26,7 +25,6 @@ function load<T>(ref: string): ValidateFunction<T> {
 
 const idOf = (schema: { $id: string }) => schema.$id;
 
-export const validateCommentEvent = load<CommentEvent>(idOf(commentEventSchema));
 export const validateConfig = load(idOf(configSchema));
 export const validateEnvelope = load(idOf(envelopeSchema));
 export const validateRuntimeFile = load<RuntimeFile>(idOf(runtimeSchema));

@@ -12,10 +12,8 @@ const REFUSED: Record<Extract<TrashReply, { kind: "refused" }>["reason"], string
   failed: "Try again, or move the file in Finder.",
 };
 
-// `trashed` with comments `trashed`, `none` or `kept` is plain success: a comment file left on purpose is not news.
 export function trashToast(stem: string, reply: TrashReply): string {
   if (reply.kind === "refused") return `Couldn’t move “${stem}” to Trash. ${REFUSED[reply.reason]}`;
-  if (reply.comments === "failed") return `Moved “${stem}” to Trash, but its comments couldn’t be moved. They stay at ${reply.file}.`;
   return `Moved “${stem}” to Trash.`;
 }
 

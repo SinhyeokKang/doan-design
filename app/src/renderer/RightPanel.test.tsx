@@ -122,7 +122,7 @@ describe("Canvas info", () => {
   test("puts the one-sentence hint above Activity and shows no comment counts", () => {
     const row = { path: ".doan/canvases/a.html", id: "a", url: "u", width: 600 };
     const html = renderToStaticMarkup(<RightPanel state={{ ...initialCanvasState(), open: { folder: "/repo", canvas: row.path, row } }} selectPath={() => {}} />);
-    expect(html).toContain('<dd>—</dd></dl></div><p class="pempty">Click an element or frame to inspect or comment on it.</p><section class="isec activity" aria-label="Activity">');
+    expect(html).toContain('<dd>—</dd></dl></div><p class="pempty">Click an element or frame to inspect it.</p><section class="isec activity" aria-label="Activity">');
     expect(html).toMatch(/<\/section><\/aside>$/);
     expect(html).not.toContain("Frames are also listed");
     expect(html).not.toContain("Comments");

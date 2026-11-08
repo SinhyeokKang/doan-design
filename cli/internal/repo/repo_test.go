@@ -161,43 +161,19 @@ func TestCanvasesIncludesDesignSystem(t *testing.T) {
 		t.Fatalf("both: %v %v", got, err)
 	}
 }
-func TestCommentFiles(t *testing.T) {
-	root := t.TempDir()
-	got, err := CommentFiles(root)
-	if err != nil || !reflect.DeepEqual(got, []CommentFile{}) {
-		t.Fatalf("empty: %v %v", got, err)
-	}
-	for _, p := range []string{".doan/comments/z.jsonl", ".doan/comments/FOO.jsonl", ".doan/comments/sub/x.jsonl", ".doan/comments/x.JSONL", ".doan/comments/a.txt"} {
-		put(t, root, p, "")
-	}
-	link(t, filepath.Join(root, ".doan/comments/z.jsonl"), filepath.Join(root, ".doan/comments/link.jsonl"))
-	got, err = CommentFiles(root)
-	want := []CommentFile{{ID: "FOO", Path: ".doan/comments/FOO.jsonl"}, {ID: "z", Path: ".doan/comments/z.jsonl"}}
-	if err != nil || !reflect.DeepEqual(got, want) {
-		t.Fatalf("%v %v", got, err)
-	}
-}
 func TestEnumerationSkipsSymlinkRoots(t *testing.T) {
-	for _, path := range []string{".doan/canvases", ".doan/ds", ".doan/comments"} {
+	for _, path := range []string{".doan/canvases", ".doan/ds"} {
 		t.Run(path, func(t *testing.T) {
 			root := t.TempDir()
 			outside := t.TempDir()
 			put(t, outside, "x.html", "")
-			put(t, outside, "x.jsonl", "")
 			if err := os.MkdirAll(filepath.Dir(filepath.Join(root, path)), 0755); err != nil {
 				t.Fatal(err)
 			}
 			link(t, outside, filepath.Join(root, path))
-			if path != ".doan/comments" {
-				got, err := Canvases(root)
-				if err != nil || len(got) != 0 {
-					t.Fatalf("%v %v", got, err)
-				}
-			} else {
-				got, err := CommentFiles(root)
-				if err != nil || len(got) != 0 {
-					t.Fatalf("%v %v", got, err)
-				}
+			got, err := Canvases(root)
+			if err != nil || len(got) != 0 {
+				t.Fatalf("%v %v", got, err)
 			}
 		})
 	}
@@ -240,17 +216,6 @@ func TestResolveUsesDiskSpelling(t *testing.T) {
 		if err != nil || state != Inside || rel != ".doan/canvases/a.css" {
 			t.Errorf("%s: %s %q %v", p, state, rel, err)
 		}
-	}
-}
-
-func TestCommentFilesSkipsSymlinkedDoan(t *testing.T) {
-	root := t.TempDir()
-	target := t.TempDir()
-	put(t, target, "comments/foo.jsonl", "")
-	link(t, target, filepath.Join(root, ".doan"))
-	files, err := CommentFiles(root)
-	if err != nil || !reflect.DeepEqual(files, []CommentFile{}) {
-		t.Fatalf("%v %v", files, err)
 	}
 }
 

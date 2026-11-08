@@ -6,7 +6,7 @@ Use this preset when the user asks for a welcome or setup flow, first-use or emp
 
 ## Before you start
 
-- Find the target. For pointing words like "this screen" or "this empty state", use `doan active` and read the open comments attached to that target. Otherwise work on the canvas, frame, or code the user named.
+- Find the target. For pointing words like "this screen" or "this empty state", use `doan active`. Otherwise work on the canvas, frame, or code the user named.
 - Read the design system: token CSS (`doan config --json` shows `tokenCss`), existing components, a design rules document if the project has one, and the design-system canvases in `.doan/ds/` (or a legacy `.doan/canvases/design-system.html`) if present. Onboarding uses the product's own components, not a separate visual language.
 - Read the code the frame implements (`data-doan-implements`) and the surrounding flow: what a new user sees before and after the target, and which actions really exist.
 - Onboarding depends on two facts: the first real result users should reach, and their experience level. When the repository and the request do not show them, ask. When broader product context is missing and it would change the result, suggest the `context` preset (`doan design-skill context --json`).
@@ -109,7 +109,7 @@ Design for the returning user: onboarding appears once, completion is remembered
 - When the user asks for flows or states on the canvas, draw each step or empty state as its own frame next to the screen it belongs to, with a stable id (for example `projects-empty-first-use` and `projects-empty-no-results` for `projects`) and a `data-doan-title` that names it. Reuse the product's components and reference token CSS variables instead of raw hex or rgb values.
 - When a step, message, hint, or component you draw is not in code yet, say so on the canvas, as the Doan guide requires.
 - If the user asked for a review only, report the gaps and proposals without editing files.
-- After editing a canvas, make `doan check` pass. Resolve only the comments you actually applied.
+- After editing a canvas, make `doan check` pass.
 - In your answer, list what you added or changed, the placeholders and unconfirmed facts that need the user's input, and what you left unchanged on purpose.
 
 ## Verify

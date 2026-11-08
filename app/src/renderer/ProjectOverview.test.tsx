@@ -159,7 +159,7 @@ test("a problem worktree in the chip menu shows its repair actions instead of op
   expect(worktreeChoice(unset)).toEqual({ kind: "repair", actions: ["setUp"] });
 });
 
-// design-sync (buzz-project.html, buzz-conversation.html), measured in the built app: the app body's tabular figures
+// design-sync (doan-project.html, doan-conversation.html), measured in the built app: the app body's tabular figures
 // widened the short times ("12m" by 2.5px), button.doan-chip's open fill replaced the open worktree chip's pressed
 // fill, and two bare lucide glyphs (the moved line's, the Stopped notice's) rendered at 24px instead of 16.
 test("the Overview's surfaces take plain numerals, the open chip its pressed fill, and notice glyphs the icon size", async () => {

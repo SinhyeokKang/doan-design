@@ -178,7 +178,7 @@ interface CanvasLib {
   ancestorPath: typeof ancestorPath;
   clipHtml: typeof clipHtml;
   textQuote: typeof textQuote;
-  commentAnchors: typeof commentAnchors;
+  chipAnchors: typeof chipAnchors;
 }
 
 export function canvasScript(lib: CanvasLib): void {
@@ -379,7 +379,7 @@ export function canvasScript(lib: CanvasLib): void {
     return { el, anchor: next, target };
   };
 
-  const anchors = lib.commentAnchors(documentToken, () => {
+  const anchors = lib.chipAnchors(documentToken, () => {
     // Anchor measurement can precede layout's recovery in the same frame.
     // Leave a missing node for layout to report as a lost selection.
     if (selected && !selected.isConnected && anchor) selected = resolve(anchor) ?? selected;
@@ -812,13 +812,13 @@ export function canvasScript(lib: CanvasLib): void {
 }
 
 export function canvasScriptSource(): string {
-  const lib = { nextHeight, documentHeight, frameBottom, canScrollAxis, clipText, elementSelector, ancestorPath, clipHtml, textQuote, commentAnchors };
+  const lib = { nextHeight, documentHeight, frameBottom, canScrollAxis, clipText, elementSelector, ancestorPath, clipHtml, textQuote, chipAnchors };
   return `(${canvasScript.toString()})({${Object.entries(lib).map(([name, fn]) => `${name}: ${fn.toString()}`).join(", ")}}); void 0;`;
 }
 
 
 // Kept self-contained because this function is serialized into the sandbox.
-export function commentAnchors(documentToken: string, selected: () => { element: Element | null; seq: number }) {
+export function chipAnchors(documentToken: string, selected: () => { element: Element | null; seq: number }) {
   type Query = { id: string; doanId?: string; selector?: string; frame?: string };
   let query: { generation: number; request: number; targets: Query[] } | null = null;
   let revision = 0;

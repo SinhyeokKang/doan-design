@@ -29,11 +29,11 @@ Three files under `docs/features/<slug>/`. The slug is kebab-case.
 - **Non-goals**: what this round does not do (including what is deferred).
 
 ### `design.md` — how
-- **Affected components**: app (Electron + TS) / CLI (Go) / skills / formats (comment events, `.doan/config.json`, CLI responses, `runtime.json`, app socket messages).
+- **Affected components**: app (Electron + TS) / CLI (Go) / skills / formats (`.doan/config.json`, CLI responses, `runtime.json`, app socket messages).
 - **Parts to split out as pure functions**: these become `/tdd` targets. If this is empty, revisit the design.
 - **Format changes**: does it change the JSON Schema source (ARCHITECTURE §11 'Shared formats')? If so, whether the format version `v` goes up, and which fixtures TS and Go will both read.
 - **Conventions impact**: does it change ARCHITECTURE §1 'Conventions' (canvas conventions, agent rules) or add a `doan check` rule?
-- **Decision impact**: does it touch ARCHITECTURE's structural decisions (serving scope, sandbox iframe, append-only events, no token handling, no git operations, etc.)? If so, why, and how they are preserved.
+- **Decision impact**: does it touch ARCHITECTURE's structural decisions (serving scope, sandbox iframe, no GitHub token beyond Copilot's sign-in (§7 'GitHub token exception'), no git command beyond onboarding's clone, etc.)? If so, why, and how they are preserved.
 - **PoC dependency**: does it lean on an assumption no PoC has established yet (`docs/BACKLOG.md` or the feature's own unknowns)? If so, put the PoC first as a task.
 
 ### `tasks.md` — order

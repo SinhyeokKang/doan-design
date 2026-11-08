@@ -6,7 +6,7 @@ import { test } from "node:test";
 import { fakeAuthStatus, validOnboardingRequest, validOnboardingResponse, type FakeAuth } from "./socket.ts";
 
 // The fake app mirrors app code it cannot import at runtime; these tests load
-// that app code (as H6 does) so a change there fails here. app/src imports omit
+// that app code so a change there fails here. app/src imports omit
 // extensions, ajv's subpath has none, and JSON is imported without attributes.
 registerHooks({
   resolve(specifier, context, next) {

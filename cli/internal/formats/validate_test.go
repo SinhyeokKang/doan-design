@@ -42,7 +42,6 @@ func TestValidationFixtures(t *testing.T) {
 		name     string
 		validate func(any) error
 	}{
-		{"comment-event", ValidateCommentEvent},
 		{"config", ValidateConfig},
 		{"cli-envelope", ValidateEnvelope},
 		{"runtime", ValidateRuntimeFile},

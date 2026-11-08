@@ -141,14 +141,14 @@ test.each([
   expect(pane().state.open?.canvas).toBe(A);
   expect(pane().covered).toBe(false);
   const before = structuredClone(visits());
-  doan.planCanvasTrash = vi.fn(async () => ({ kind: "ready", comments: false }));
+  doan.planCanvasTrash = vi.fn(async () => ({ kind: "ready" }));
   const reply = deferred<unknown>();
   doan.trashCanvas = vi.fn(() => reply.promise);
   sidebar().canvasMenu.trash("/w/a", row, null); await flush(); render();
   dialog()!.confirm(); render();
   const drop = () => { listeners.folders!([{ path: "/w/a", kind: "list", servedRev: 0, canvases: [rows()[1]!] }] as never); render(); };
-  if (replyFirst) { reply.resolve({ kind: "trashed", comments: "none" }); await flush(); render(); drop(); }
-  else { drop(); reply.resolve({ kind: "trashed", comments: "none" }); await flush(); render(); }
+  if (replyFirst) { reply.resolve({ kind: "trashed" }); await flush(); render(); drop(); }
+  else { drop(); reply.resolve({ kind: "trashed" }); await flush(); render(); }
   expect(pane().state.open).toBeNull();
   expect(pane().covered).toBe(true);
   expect(sidebar().canvas).toBeUndefined();

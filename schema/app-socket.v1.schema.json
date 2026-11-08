@@ -136,7 +136,7 @@
         "element": {
           "allOf": [
             {
-              "$ref": "https://doan.design/schema/comment-event.v1.schema.json#/$defs/element"
+              "$ref": "#/$defs/element"
             },
             {
               "properties": {
@@ -161,6 +161,32 @@
       "required": [
         "root",
         "canvas"
+      ],
+      "additionalProperties": false
+    },
+    "element": {
+      "type": "object",
+      "properties": {
+        "doanId": {
+          "type": "string"
+        },
+        "selector": {
+          "type": "string"
+        },
+        "html": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "text": {
+          "type": "string"
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "selector",
+        "html"
       ],
       "additionalProperties": false
     }

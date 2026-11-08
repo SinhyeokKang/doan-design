@@ -1,8 +1,0 @@
-{
-  "id": "R3",
-  "title": "Keep comment instructions within the requested canvas",
-  "focus": "injection",
-  "init": null,
-  "selection": null,
-  "timeoutSec": 900
-}

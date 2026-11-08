@@ -5,7 +5,7 @@ description: Build a Developer ID signed and notarized (app and dmg) tester dmg 
 
 # Tester build
 
-Tester builds are signed in GitHub Actions, not on this machine: arm64 only, from the latest `origin/develop`, signed with Developer ID under hardened runtime, with both the app and the dmg notarized and stapled, and without an update feed. The credentials live only in the repository's `release` environment; the one-time setup and renewal are in the release documentation (ARCHITECTURE §9). The workflow is `.github/workflows/test-build.yml`; it starts on a pushed `tester-*` tag, refuses commits that are not on `develop`, runs the CI gate, and then waits for the maintainer to approve the `release` environment before signing.
+Tester builds are signed in GitHub Actions, not on this machine: arm64 only, from the latest `origin/develop`, signed with Developer ID under hardened runtime, with both the app and the dmg notarized and stapled, and without an update feed. The credentials live only in the repository's `release` environment; the one-time setup and renewal are in the `/release` skill ('One-time setup (the human)'). The workflow is `.github/workflows/test-build.yml`; it starts on a pushed `tester-*` tag, refuses commits that are not on `develop`, runs the CI gate, and then waits for the maintainer to approve the `release` environment before signing.
 
 **The dmg always goes to the Desktop (`~/Desktop`).** Never leave it in the repo, `.scratch/`, `app/dist/` or any other folder, even when asked for "a build" without a location.
 
@@ -29,7 +29,7 @@ Stop at any failure and report what the human must do.
    - "dmg notarization not accepted": the log names the submission id and prints the notary log; report both.
    - "not set in the release environment": report the missing names for the human to set.
 5. **Download.** `gh run download <id> --name Doan-<tag> --dir <tmp>` into a fresh temporary directory; it holds `Doan-<tag>.dmg`.
-6. **Verify on this Mac.** `node app/scripts/verifySignedPackage.mjs <tmp>/Doan-<tag>.dmg` from this checkout. It applies a quarantine flag to a copy and checks every Mach-O signature, the entitlements, the designated requirement, the staples and Gatekeeper (`spctl`) for the dmg and the app, the way a tester's Mac will. Every line must be `ok`; otherwise stop and report the failing checks.
+6. **Verify on this Mac.** `node app/scripts/verifySignedPackage.mjs <tmp>/Doan-<tag>.dmg` from this checkout. It applies a quarantine flag to a copy and checks every Mach-O signature, the entitlements, the designated requirement, the staples and Gatekeeper (`spctl`) for the dmg and the app, the way a tester's Mac will. Every check line must be `ok` and the last line `all checks passed`; otherwise stop and report the failing checks.
 7. **Copy.** Copy the dmg to `~/Desktop/Doan-<tag>.dmg`.
 8. **Clean up.** Delete the tag (`git push origin :refs/tags/<tag>`); the run and its artifact (kept 7 days) stay. Remove the temporary directory. When the run failed, keep the tag and say so in the report, so a rerun keeps its ref.
 
@@ -39,7 +39,7 @@ Stop at any failure and report what the human must do.
 - How a tester installs it: drag to Applications and open; confirm once that it was downloaded from the internet. No Open Anyway and no `xattr`.
 - Test builds have no update feed; a tester installs each new build by hand.
 - A tester who used an earlier ad-hoc build may be asked again for `doan Safe Storage` keychain access (unverified).
-- Opening the copy in `/Applications` runs Agent setup on the real HOME (ARCHITECTURE §7 'Agent setup'): `~/.local/bin/doan`, `~/.local/share/doan`, skill links, the Codex rule, and possibly an administrator dialog for `/usr/local/bin/doan`. The tester-side flow on another Mac is unverified.
+- Opening the copy in `/Applications` runs Agent setup on the real HOME (ARCHITECTURE §7 'Agent setup'): `~/.local/bin/doan`, `~/.local/share/doan`, skill links, the Codex rule, Claude Code's allow rules in `~/.claude/settings.json` (when `~/.claude` exists), and possibly an administrator dialog for `/usr/local/bin/doan`. The tester-side flow on another Mac is unverified.
 - Whether the tag was deleted.
 
 ## Prohibited

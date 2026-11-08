@@ -60,7 +60,7 @@ The canvas reuses V1 screen CSS. V2 fallback padding is 16.5%; shader scale is
 Both textures use the same UV coordinates with no extra hat scaling. Eye centers
 are (.421,.550) and (.619,.550), radii (.035,.056). The app uses the same
 anchors; `doanyRender.test.ts` checks them against the shipped artwork (padding,
-eyes, hop headroom). See the feature design for handoff.
+eyes, hop headroom). The app's port is described in ARCHITECTURE §7 'Doany (mascot)'.
 
 ## Motion contract
 

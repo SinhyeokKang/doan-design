@@ -1,6 +1,6 @@
 ---
 name: design-draft
-description: Use to draw a feature's UI draft canvas in this repo's .doan/canvases/ from its feature documents, following doan's canvas conventions, and to check it with the doan CLI. Writes only the draft canvas; does not touch app code or push.
+description: Use to draw a feature's UI draft canvas in this repo's .doan/canvases/ from its feature documents, following doan's canvas conventions, and to check it with the doan CLI. Writes the draft canvas, its assets and any new token with its DESIGN.md line; touches no other app code and pushes only from develop.
 ---
 
 Dogfooding loop (PRODUCT §5 'Dogfooding'): doan's own UI drafts are canvases in this repo's `.doan/canvases/`, viewed in the doan app, and `/design-sync` later compares the first implementation with them. This skill is the drawing half. Either runtime may draw, and the other runtime may implement from the files alone, so the draft must stand on its own: everything the implementer needs is in the canvas, the token CSS and the feature documents, not in a conversation.
@@ -46,7 +46,7 @@ If spec and design leave a visible choice open (a state, a label, a placement), 
 
 Write the canvas at the path the request names (one HTML file, ARCHITECTURE §1 convention 1).
 
-- **Work signal** (guide rules I and J, as any agent editing a canvas): run `doan work start <canvas path> --json` before the first edit, and `doan work update <canvas path> --frame <id> --note "<what you are drawing, one short line in the person's language>" --json` each time you start editing a frame. When you stop drawing (handing over, or stopping to ask), run `doan work done <canvas path> --json`. `delivered: false` is expected when the checkout is not a project registered in the app (for example an unregistered worktree); do not retry it, and note it in the report.
+- **Work signal** (guide rules D and E, as any agent editing a canvas): run `doan work start <canvas path> --json` before the first edit, and `doan work update <canvas path> --frame <id> --note "<what you are drawing, one short line in the person's language>" --json` each time you start editing a frame. When you stop drawing (handing over, or stopping to ask), run `doan work done <canvas path> --json`. `delivered: false` is expected when the checkout is not a project the app has open and `start` cannot register it (an unregistered worktree of a saved repository usually registers itself on `start`); do not retry it. Unlike rule E, which keeps it out of the person's answer, note it in this skill's report, which goes to the maintainer.
 
 - **Conventions** (ARCHITECTURE §1): `<meta name="doan:canvas">` with the requested id and `<meta name="doan:width">` in `<head>`; every requested frame as `data-doan-frame` with a `data-doan-title`; `data-doan-id` on elements the implementation will be paired with or a message will point at.
 - **`data-doan-implements` points only to files that exist now.** A path to a file the feature will create is an `implements_not_found` error.
@@ -54,7 +54,7 @@ Write the canvas at the path the request names (one HTML file, ARCHITECTURE §1 
 - **No coloured edge stripes**: never mark a message, notice, card or row with a coloured or thick left/start border. Errors use an icon plus danger text or a status block; notices use an inset fill. A 1px neutral divider between panes is fine.
 - **Shipped screens are copied, not redesigned** — except the screen a redesign child is redesigning, which is drawn as its feature documents ask. Any other screen already on develop (header, sidebar, Home, Settings) is drawn as the code and `docs/DESIGN.md` have it; put any change you would make into the report as a change request instead of drawing it.
 - **Every requested state gets a frame or a labelled tile**, with the real English copy from the design document (no placeholder text). Long values, empty values and error states are drawn, not described.
-- **Mark what is not in code** (agent rule G) the way existing drafts do, and say in the header which frames are new.
+- **Mark what is not in code** (agent rule B) the way existing drafts do, and say in the header which frames are new.
 - **Header**: one intro block — scope, which frames `/design-sync` will compare, what is copied from shipped screens, and references with their source and whether they were checked or recalled from memory (AGENTS.md 'Leave evidence for references').
 - **Canvas assets**: put new canvas-only images, icons and shared CSS/scripts in `.doan/assets/`. Reference existing repository fonts, tokens and primitives in place; do not copy them merely to fill the assets directory.
 - **No external resources** (CDN fonts, scripts, images). Prefer static HTML and CSS; a script only when a state cannot be drawn otherwise, because `/design-sync` pairs elements by selector.
@@ -79,8 +79,8 @@ then add this repo through the Add Projects page (File > Add Project…, ⌘O) a
 
 - Only the canvas, plus any new file under `.doan/assets/` it needs and any token added under 'Tokens first' with its `docs/DESIGN.md` line: `docs(design): <slug> draft`. A revision is `docs(design): <slug> draft revision`.
 - Trailer: a Codex session ends the message with `Co-Authored-By: Codex <noreply@openai.com>` (AGENTS.md 'Commit conventions'); a Claude Code session uses its own attribution.
-- Commit on whichever branch is checked out; do not switch or create a branch for the draft.
-- No push. The draft reaches develop with that branch (`/ship` or `/orchestrate` pushes a feature branch).
+- Commit on whichever branch is checked out; do not switch or create a branch for the draft, but never commit on `main` (switch to develop first).
+- On develop, push straight to develop, so chain links and workers that start from `origin/develop` see the draft. On a `<type>/<slug>` branch do not push; the draft reaches develop with that branch (`/ship` or `/orchestrate` pushes it).
 
 ## Report
 
@@ -100,7 +100,7 @@ Next: user review in the app → --revise or confirmed
 ## Prohibited
 
 - Do not edit app code, tests or other features' documents, except adding a rule-following token to `tokens.css` (see 'Tokens first').
-- Do not edit the draft of a screen already on develop (e.g. `.doan/canvases/buzz-canvas.html`); that is a change request. A redesign child writes a new file instead.
+- Do not edit the draft of a screen already on develop (e.g. `.doan/canvases/doan-canvas.html`); that is a change request. A redesign child writes a new file instead.
 - Do not add canvas conventions or test-only attributes.
 - Do not draw a decision that is not in the feature documents, PRODUCT or ARCHITECTURE; ask instead.
-- Do not push or merge.
+- Do not merge, and do not push a `<type>/<slug>` branch ('Commit').

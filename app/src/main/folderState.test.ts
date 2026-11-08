@@ -226,56 +226,20 @@ describe("reconcileFolders", () => {
   });
 });
 
-// `doan ls` keeps a row it could not read and
-// adds the comment files no canvas uses.
-describe("folderState partial failure and orphans", () => {
-  const orphan = { id: "checkout-v1", file: ".doan/comments/checkout-v1.jsonl", comments: { open: 2, resolved: 1 }, uncertain: false };
-
+// `doan ls` keeps a row it could not read. An older doan also sent comment counts, `commentsError` and `orphans`; the app
+// shows none of them, so they are ignored, never a reason to fail the listing.
+describe("folderState partial failure and an older doan's comment fields", () => {
   test("a listing with unreadable rows stays a list and keeps the rows as sent", () => {
-    const rows = [
-      { path: ".doan/canvases/a.html", id: "a", frames: [], commentsError: { code: "unreadable_comments", message: ".doan/canvases/a.html: .doan/comments/a.jsonl: permission denied" } },
-      { path: ".doan/canvases/b.html", frames: [], error: { code: "unreadable_canvas", message: ".doan/canvases/b.html: permission denied" } },
-    ];
-    const state = folderState(run({ stdout: envelope({ v: 1, ok: true, result: { ...listResult, canvases: rows, orphans: [] } }) }));
-    expect(state).toEqual({ kind: "list", root: "/repo", scope: [".doan/canvases", "tokens.css"], canvases: rows, orphans: [] });
+    const rows = [{ path: ".doan/canvases/b.html", frames: [], error: { code: "unreadable_canvas", message: ".doan/canvases/b.html: permission denied" } }];
+    const state = folderState(run({ stdout: envelope({ v: 1, ok: true, result: { ...listResult, canvases: rows } }) }));
+    expect(state).toEqual({ kind: "list", root: "/repo", scope: [".doan/canvases", "tokens.css"], canvases: rows });
   });
 
-  test("passes well-formed orphans through in CLI order", () => {
-    const unreadable = { id: "promo", file: ".doan/comments/promo.jsonl", error: { code: "unreadable_comments", message: ".doan/comments/promo.jsonl: permission denied" }, uncertain: true };
-    const foreign = { id: "Foo", file: ".doan/comments/Foo.jsonl", comments: { open: 0, resolved: 0 }, uncertain: false };
-    const state = folderState(run({ stdout: envelope({ v: 1, ok: true, result: { ...listResult, orphans: [orphan, unreadable, foreign] } }) }));
-    expect(state).toEqual({ kind: "list", root: "/repo", scope: [".doan/canvases", "tokens.css"], canvases, orphans: [orphan, unreadable, foreign] });
-    const extra = folderState(run({ stdout: envelope({ v: 1, ok: true, result: { ...listResult, orphans: [{ ...orphan, size: 3, comments: { ...orphan.comments, deleted: 1 } }] } }) }));
-    expect(extra).toEqual({ kind: "list", root: "/repo", scope: [".doan/canvases", "tokens.css"], canvases, orphans: [orphan] });
-  });
-
-  // A file named `.jsonl` has the empty stem as its id; doan check warns about
-  // it; the app preserves the CLI entry as it does other orphan IDs.
-  test("keeps an orphan whose id is empty", () => {
-    const empty = { id: "", file: ".doan/comments/.jsonl", comments: { open: 1, resolved: 0 }, uncertain: false };
-    const state = folderState(run({ stdout: envelope({ v: 1, ok: true, result: { ...listResult, orphans: [empty] } }) }));
-    expect(state).toEqual({ kind: "list", root: "/repo", scope: [".doan/canvases", "tokens.css"], canvases, orphans: [empty] });
-  });
-
-  // Orphan counts support the ID-change notice; malformed entries are dropped rather
-  // than failing the listing, and an absent field is no orphans at all.
-  test("drops malformed orphan entries and keeps the listing", () => {
-    const bad = [
-      null,
-      "x",
-      { ...orphan, id: 1 },
-      { ...orphan, file: undefined },
-      { ...orphan, uncertain: "no" },
-      { id: "x", file: ".doan/comments/x.jsonl", comments: { open: 2, resolved: 1 } },
-      { ...orphan, comments: { open: -1, resolved: 0 } },
-      { ...orphan, comments: { open: 1.5, resolved: 0 } },
-      { ...orphan, comments: { open: 1 } },
-      { ...orphan, error: { code: "unreadable_comments" } },
-      { ...orphan, error: "boom" },
-    ];
-    const state = folderState(run({ stdout: envelope({ v: 1, ok: true, result: { ...listResult, orphans: [...bad, orphan] } }) }));
-    expect(state).toEqual({ kind: "list", root: "/repo", scope: [".doan/canvases", "tokens.css"], canvases, orphans: [orphan] });
-    const notList = folderState(run({ stdout: envelope({ v: 1, ok: true, result: { ...listResult, orphans: { id: "x" } } }) }));
-    expect(notList).toEqual({ kind: "list", root: "/repo", scope: [".doan/canvases", "tokens.css"], canvases });
+  test("ignores an older doan's orphans, well-formed or not", () => {
+    const orphan = { id: "checkout-v1", file: ".doan/comments/checkout-v1.jsonl", comments: { open: 2, resolved: 1 }, uncertain: false };
+    for (const orphans of [[orphan], [], [null, "x"], { id: "x" }]) {
+      const state = folderState(run({ stdout: envelope({ v: 1, ok: true, result: { ...listResult, orphans } }) }));
+      expect(state).toEqual({ kind: "list", root: "/repo", scope: [".doan/canvases", "tokens.css"], canvases });
+    }
   });
 });

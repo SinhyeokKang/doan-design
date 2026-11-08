@@ -34,8 +34,8 @@ export interface Candidate { path: string; changes: OnboardingChange[]; storage?
 // message: this failure's own account in place of the code's fixed message (a clone that stayed and was added).
 export type ProjectOutcome = { ok: true; root: string } | { ok: false; code: OnboardingOperationErrorCode; leftovers?: string[]; message?: string };
 
-// The lines `doan init` adds to .gitattributes (cli/internal/cli/init.go); it writes the file while either is missing.
-const ATTRIBUTE_LINES = [".doan/comments/*.jsonl merge=union", ".doan/** linguist-documentation"];
+// The line `doan init` adds to .gitattributes (cli/internal/cli/storage.go); it writes the file while it is missing.
+const ATTRIBUTE_LINES = [".doan/** linguist-documentation"];
 const failed = (code: OnboardingOperationErrorCode): ProjectOutcome => ({ ok: false, code });
 // The clone is in place and added either way. Only the two storage codes say the write did not happen; anything else
 // (a timeout, an unexpected reply) may have written, so the mode is not stated.

@@ -53,7 +53,7 @@ minimums themselves rest on the real-app check that lowered them
 (cli-minimum-versions, 2026-11-05), and any version the fixtures do not record is
 judged only by the new-session handshake shape at run time.
 
-`index-v2-home.json` (2026-10-29, buzz-home) is a synthetic v2 index whose
+`index-v2-home.json` (2026-10-29, doan-home) is a synthetic v2 index whose
 `newDesign` entry carries the optional `model`, `effort` and `canvasesAtStart`
 fields; the version stays 2.
 
@@ -62,14 +62,14 @@ exploration probe on 2026-10-28 (each file's `source` field).
 `fake-acp-server.cjs` replays one of them for `acpRunner.test.ts`; its header
 lists the test-only `FAKE_ACP` modes.
 
-On 2026-10-29 (buzz-home) `fake-acp-server.cjs` gained `FAKE_ACP_MODELS`, a
+On 2026-10-29 (doan-home) `fake-acp-server.cjs` gained `FAKE_ACP_MODELS`, a
 `models` member for session/new and session/load in the shape the P1 PoC
 recorded (`{currentModelId, availableModels: [{modelId, name}]}`), an answer to
 `session/set_config_option`, `FAKE_ACP_LOG` to record client requests and
 `FAKE_ACP_NO_IMAGE` for a server without `promptCapabilities.image`. The
 model IDs the tests pass are synthetic; the recorded turns are unchanged.
 
-`codex-home.json` (2026-10-30, buzz-home BF1) is trimmed from the BV1 real-app
+`codex-home.json` (2026-10-30, doan-home BF1) is trimmed from the BV1 real-app
 run with Codex app-server 0.164.0: the raw records come from the redacted spawn
 tap `.scratch/runtime-test/buzz-home/ev/real/tap/007-codex.jsonl`, and the doan
 events that run produced are in `ev/real/events-d.json` (raw item types as
@@ -158,3 +158,5 @@ notification and by `turn/completed`'s failed `turn.error`, with `CodexErrorInfo
 including `"modelNotFound"`. The message text is the one a 0.166.0 turn printed
 when the configured default model was not on the ChatGPT account (that turn's
 rollout recorded `codex_error_info: "model_not_found"`).
+
+`skills-claude-2.1.284.json`, `skills-claude-2.1.318.json`, `skills-codex-0.158.0.json` and `skills-codex-0.166.0.json` (2026-11-07) are recorded project-skill listings: Claude Code's `initializationResult().commands` and Codex app-server `skills/list`, at the minimum and the then-current version of each. The person's own rows were replaced by generic rows of the same shape; `skills.test.ts` reads them.

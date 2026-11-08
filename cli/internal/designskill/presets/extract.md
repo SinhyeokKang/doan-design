@@ -6,7 +6,7 @@ Use this preset when the user asks to consolidate hard-coded values, repeated co
 
 ## Before you start
 
-- Find the target. For pointing words like "this canvas" or "these cards", use `doan active` and read the open comments attached to that target (`doan comments --canvas <id>`). Otherwise work on the canvases, frames, or code area the user named.
+- Find the target. For pointing words like "this canvas" or "these cards", use `doan active`. Otherwise work on the canvases, frames, or code area the user named.
 - Read the design system already in use: the configured token CSS (`doan config --json` shows `tokenCss`), the component library or shared UI directory, the design rules document, and the design-system canvases in `.doan/ds/` (or a legacy `.doan/canvases/design-system.html`) if present. Learn its organization, naming conventions, token structure (primitive and semantic layers), and import and export conventions.
 - Read the code the canvases implement (`data-doan-implements`), so canvas patterns are compared with what already exists in code.
 - If no design system exists, do not create one as a side effect. Ask the user where it should live and how it should be structured; recording a new system is the `document` preset's job.
@@ -52,8 +52,8 @@ Choose the outcome from the request:
 
 In every case:
 
-- Leave frames, elements, and ids outside the request unchanged, and check attached open comments before substantially changing a frame or element.
-- After editing a canvas, make `doan check` pass. Resolve only the comments you actually applied.
+- Leave frames, elements, and ids outside the request unchanged.
+- After editing a canvas, make `doan check` pass.
 - In your answer, list what you extracted or changed, what you left duplicated on purpose, and the uses you did not migrate.
 
 ## Avoid
@@ -76,6 +76,6 @@ Visual parity after a code refactor needs the screens rendered. If you could not
 
 ---
 
-Source: adapted by Doan from pbakaus/impeccable at commit d34c87e1a00989ae8dbdd7f6b30b70f23319e860, file `skill/reference/extract.md`, under the Apache License 2.0. Doan modified it: made a proposal the default outcome and app code refactoring depend on a separate request; included canvases as a source of patterns and a place to apply tokens; replaced the documentation step with the `document` preset and Doan's canvas rules; removed the template placeholder; and added target selection, scope, comment, and verification rules for Doan.
+Source: adapted by Doan from pbakaus/impeccable at commit d34c87e1a00989ae8dbdd7f6b30b70f23319e860, file `skill/reference/extract.md`, under the Apache License 2.0. Doan modified it: made a proposal the default outcome and app code refactoring depend on a separate request; included canvases as a source of patterns and a place to apply tokens; replaced the documentation step with the `document` preset and Doan's canvas rules; removed the template placeholder; and added target selection, scope, and verification rules for Doan.
 
 [doan:design-skill] end of preset extract

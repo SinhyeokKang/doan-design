@@ -2,7 +2,6 @@ package cli
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -80,23 +79,12 @@ func initialized(t *testing.T) string {
 }
 
 const validCanvas = `<head><meta name="doan:canvas" content="foo"><meta name="doan:width" content="800"><title>Example</title></head><body><div data-doan-frame="main" data-doan-title="Main"></div></body>`
-const cmt1 = "cmt_00000000-0000-4000-8000-000000000001"
-const cmt2 = "cmt_00000000-0000-4000-8000-000000000002"
+const linguistLine = ".doan/** linguist-documentation"
 
-func createLine(id, n, html string) string {
-	hash := fmt.Sprintf("sha256:%x", sha256.Sum256([]byte(html)))
-	return fmt.Sprintf(`{"v":1,"id":"evt_00000000-0000-4000-8000-%012s","at":"2090-01-01T00:00:00.000Z","type":"create","comment":%q,"by":{"kind":"human","name":"Human"},"body":"change this","canvasHash":%q,"target":{}}`, n, id, hash)
-}
-
-const (
-	mergeLine    = ".doan/comments/*.jsonl merge=union"
-	linguistLine = ".doan/** linguist-documentation"
-)
-
-func TestInitFreshRepoWritesBothAttributeLines(t *testing.T) {
+func TestInitFreshRepoWritesTheAttributeLine(t *testing.T) {
 	r := t.TempDir()
 	got := result(t, r, 0, "init")
-	if readFile(t, r, ".gitattributes") != mergeLine+"\n"+linguistLine+"\n" || !reflect.DeepEqual(got["created"], []any{".doan/canvases/", ".doan/config.json", ".gitattributes"}) {
+	if readFile(t, r, ".gitattributes") != linguistLine+"\n" || !reflect.DeepEqual(got["created"], []any{".doan/canvases/", ".doan/config.json", ".gitattributes"}) {
 		t.Fatal(got, readFile(t, r, ".gitattributes"))
 	}
 }
@@ -109,9 +97,9 @@ func TestInitAndEmptyCommands(t *testing.T) {
 	if got["initialized"] != false || len(got["created"].([]any)) != 0 || readFile(t, root, ".doan/config.json") != config || readFile(t, root, ".gitattributes") != attrs {
 		t.Fatal(got)
 	}
-	for _, cmd := range []string{"ls", "comments", "check"} {
+	for _, cmd := range []string{"ls", "check"} {
 		got := result(t, root, 0, cmd)
-		key := map[string]string{"ls": "canvases", "comments": "comments", "check": "findings"}[cmd]
+		key := map[string]string{"ls": "canvases", "check": "findings"}[cmd]
 		want := 0
 		if cmd == "check" {
 			want = 1
@@ -120,7 +108,6 @@ func TestInitAndEmptyCommands(t *testing.T) {
 			t.Fatal(got)
 		}
 	}
-	failure(t, root, "comment_not_found", "comment", "resolve", cmt1, "--agent", "codex")
 	for _, p := range []string{"missing", ".doan/canvases", "/abs", "../x"} {
 		r := t.TempDir()
 		putFile(t, r, ".doan/canvases/file", "")
@@ -140,16 +127,17 @@ func TestInitAndEmptyCommands(t *testing.T) {
 	if _, e := os.Stat(missingRepo); !os.IsNotExist(e) {
 		t.Fatal("missing repo created", e)
 	}
+	// An older Doan also wrote this line; init leaves it in place.
+	const unionLine = ".doan/comments/*.jsonl merge=union"
 	for _, tt := range []struct {
 		before, after string
 		changed       bool
 	}{
-		{"x", "x\n" + mergeLine + "\n" + linguistLine + "\n", true},
-		{"x\r\n", "x\r\n" + mergeLine + "\r\n" + linguistLine + "\r\n", true},
-		// A repo set up before the linguist line gets only the missing line.
-		{mergeLine + "\r\n", mergeLine + "\r\n" + linguistLine + "\r\n", true},
-		{linguistLine + "\n", linguistLine + "\n" + mergeLine + "\n", true},
-		{mergeLine + "\r\n" + linguistLine + "\r\n", mergeLine + "\r\n" + linguistLine + "\r\n", false},
+		{"x", "x\n" + linguistLine + "\n", true},
+		{"x\r\n", "x\r\n" + linguistLine + "\r\n", true},
+		{unionLine + "\r\n", unionLine + "\r\n" + linguistLine + "\r\n", true},
+		{linguistLine + "\n", linguistLine + "\n", false},
+		{unionLine + "\r\n" + linguistLine + "\r\n", unionLine + "\r\n" + linguistLine + "\r\n", false},
 	} {
 		r := t.TempDir()
 		putFile(t, r, ".gitattributes", tt.before)
@@ -194,101 +182,6 @@ func TestInitPromptAndToken(t *testing.T) {
 	failure(t, r, "usage_error", "init", "--token-css", "link.css")
 	if _, e := os.Stat(filepath.Join(r, ".doan/config.json")); !os.IsNotExist(e) {
 		t.Fatal("outside token wrote config", e)
-	}
-}
-func TestCommentsAndResolve(t *testing.T) {
-	root := initialized(t)
-	putFile(t, root, ".doan/canvases/a.html", validCanvas)
-	log := createLine(cmt1, "1", validCanvas) + "\n" + createLine(cmt2, "2", validCanvas)
-	putFile(t, root, ".doan/comments/foo.jsonl", log)
-	got := result(t, root, 0, "comments")
-	cs := got["comments"].([]any)
-	if len(cs) != 2 || cs[0].(map[string]any)["outdated"] != false {
-		t.Fatal(got)
-	}
-	ls := result(t, root, 0, "ls")["canvases"].([]any)[0].(map[string]any)
-	if ls["id"] != "foo" || ls["comments"].(map[string]any)["open"] != float64(2) {
-		t.Fatal(ls)
-	}
-	putFile(t, root, ".doan/canvases/a.html", validCanvas+"changed")
-	if result(t, root, 0, "comments")["comments"].([]any)[0].(map[string]any)["outdated"] != true {
-		t.Fatal("not outdated")
-	}
-	putFile(t, root, ".doan/canvases/b.html", validCanvas)
-	for _, c := range result(t, root, 0, "comments")["comments"].([]any) {
-		if _, ok := c.(map[string]any)["canvasPath"]; ok {
-			t.Fatal(c)
-		}
-	}
-	missing := runJSON(t, root, 2, "comment", "resolve", cmt1, "missing-a", "missing-b", "--agent", "codex")["error"].(map[string]any)
-	if missing["code"] != "comment_not_found" || !strings.Contains(missing["message"].(string), "missing-a") || !strings.Contains(missing["message"].(string), "missing-b") {
-		t.Fatal(missing)
-	}
-	if readFile(t, root, ".doan/comments/foo.jsonl") != log {
-		t.Fatal("partial write")
-	}
-	for _, args := range [][]string{{"comment", "resolve", "--agent", "codex"}, {"comment", "resolve", cmt1}, {"comment", "resolve", cmt1, "--agent", "Claude"}, {"comment", "resolve", cmt1, "--agent", ""}} {
-		failure(t, root, "usage_error", args...)
-		if readFile(t, root, ".doan/comments/foo.jsonl") != log {
-			t.Fatal("invalid agent or missing ids changed log")
-		}
-	}
-	got = result(t, root, 0, "comment", "resolve", cmt1, cmt2, cmt1, "--agent", "codex")
-	if len(got["resolved"].([]any)) != 2 {
-		t.Fatal(got)
-	}
-	text := readFile(t, root, ".doan/comments/foo.jsonl")
-	fold := formats.FoldText(text)
-	if len(fold.Warnings) != 0 || fold.Comments[0].Status != "resolved" {
-		t.Fatal(fold)
-	}
-	parsed := formats.ParseLines(text)
-	if len(parsed.Events) != 4 {
-		t.Fatal(parsed)
-	}
-	a, _ := time.Parse(time.RFC3339Nano, parsed.Events[2].Event.At)
-	b, _ := time.Parse(time.RFC3339Nano, parsed.Events[3].Event.At)
-	if b.Sub(a) < time.Millisecond || parsed.Events[2].Event.At <= "2090-01-01T00:00:00.000Z" {
-		t.Fatal(parsed)
-	}
-	got = result(t, root, 0, "comment", "resolve", cmt1, "--agent", "codex")
-	if len(got["alreadyResolved"].([]any)) != 1 || text != readFile(t, root, ".doan/comments/foo.jsonl") {
-		t.Fatal(got)
-	}
-}
-func TestCommentMatchingAndWarnings(t *testing.T) {
-	root := initialized(t)
-	putFile(t, root, ".doan/canvases/a.html", validCanvas)
-	if got := result(t, root, 0, "comments", "--canvas", "foo"); len(got["comments"].([]any)) != 0 {
-		t.Fatal(got)
-	}
-	for _, id := range []string{"../x", "Foo"} {
-		failure(t, root, "canvas_not_found", "comments", "--canvas", id)
-	}
-	putFile(t, root, ".doan/comments/FOO.jsonl", createLine(cmt1, "1", validCanvas)+"\nbroken\n{\"v\":2}\n")
-	got := result(t, root, 0, "comments")
-	if len(got["warnings"].([]any)) != 2 {
-		t.Fatal(got)
-	}
-	c := got["comments"].([]any)[0].(map[string]any)
-	if _, ok := c["canvasPath"]; ok {
-		t.Fatal(c)
-	}
-	for _, w := range got["warnings"].([]any) {
-		if w.(map[string]any)["file"] != ".doan/comments/FOO.jsonl" {
-			t.Fatal(w)
-		}
-	}
-	check := result(t, root, 0, "check")
-	if check["summary"].(map[string]any)["warnings"] != float64(1) || check["findings"].([]any)[0].(map[string]any)["code"] != "orphan_comment_file" {
-		t.Fatal(check)
-	}
-	putFile(t, root, ".doan/comments/other.jsonl", createLine(cmt1, "1", validCanvas))
-	result(t, root, 0, "comment", "resolve", cmt1, "--agent", "codex")
-	for _, p := range []string{"FOO", "other"} {
-		if formats.FoldText(readFile(t, root, ".doan/comments/"+p+".jsonl")).Comments[0].Status != "resolved" {
-			t.Fatal(p)
-		}
 	}
 }
 func TestCheckReachAndMetadata(t *testing.T) {

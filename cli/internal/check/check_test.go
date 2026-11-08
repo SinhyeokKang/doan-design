@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/SinhyeokKang/doan-design/cli/internal/canvas"
-	"github.com/SinhyeokKang/doan-design/cli/internal/repo"
 )
 
 func parse(path, head, body string) canvas.Canvas {
@@ -21,13 +20,6 @@ const metadata = `<meta name="doan:canvas" content="one"><meta name="doan:width"
 
 func base() Input {
 	return Input{Canvases: []canvas.Canvas{parse(".doan/canvases/a.html", metadata, "")}, Reach: map[string][]CSSRef{}, CSS: map[string]canvas.Scan{}, Implements: map[string]State{}, Served: func(string) bool { return true }}
-}
-func commentFiles(ids ...string) []repo.CommentFile {
-	files := []repo.CommentFile{}
-	for _, id := range ids {
-		files = append(files, repo.CommentFile{ID: id, Path: ".doan/comments/" + id + ".jsonl"})
-	}
-	return files
 }
 func codes(fs []Finding, code string) []Finding {
 	out := []Finding{}
@@ -77,7 +69,6 @@ func TestRules(t *testing.T) {
 		{"viewport_height_unit", func(i *Input) {
 			i.Canvases[0].Styles = canvas.ScanCSS(`a{height:calc(100dvh - 8px)}`, canvas.Stylesheet)
 		}},
-		{"orphan_comment_file", func(i *Input) { i.CommentFiles = commentFiles("absent") }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.code, func(t *testing.T) {
@@ -95,7 +86,7 @@ func TestRules(t *testing.T) {
 				t.Fatalf("got %+v", Run(in))
 			}
 			severity := "error"
-			if tt.code == "external_url" || tt.code == "hardcoded_color" || tt.code == "viewport_height_unit" || tt.code == "orphan_comment_file" {
+			if tt.code == "external_url" || tt.code == "hardcoded_color" || tt.code == "viewport_height_unit" {
 				severity = "warning"
 			}
 			for _, f := range fs {
@@ -125,7 +116,6 @@ func TestIdentityEdges(t *testing.T) {
 	}
 	in := base()
 	in.Canvases[0] = parse("a", metadata, `<div data-doan-frame="same" data-doan-id="same"></div>`)
-	in.CommentFiles = commentFiles("one")
 	if fs := Run(in); len(fs) != 0 {
 		t.Fatal(fs)
 	}
@@ -209,11 +199,10 @@ func TestPathEdges(t *testing.T) {
 }
 func TestSortAndSummary(t *testing.T) {
 	in := base()
-	in.CommentFiles = commentFiles("z", "a")
 	in.Canvases[0].Styles = canvas.ScanCSS(`a{color:var(--z);background:var(--a)}`, canvas.Stylesheet)
 	in.Canvases[0].ExternalURLs = []string{"https://z", "https://a"}
 	fs := Run(in)
-	want := []string{"undefined_token", "undefined_token", "external_url", "external_url", "orphan_comment_file", "orphan_comment_file"}
+	want := []string{"undefined_token", "undefined_token", "external_url", "external_url"}
 	got := []string{}
 	for _, f := range fs {
 		got = append(got, f.Code)
@@ -221,7 +210,7 @@ func TestSortAndSummary(t *testing.T) {
 	if !reflect.DeepEqual(got, want) || fs[0].Token != "--a" || fs[2].URL != "https://a" {
 		t.Fatal(fs)
 	}
-	if s := Summarize(fs, len(in.Canvases)+len(in.Unparsable)); s.Errors != 2 || s.Warnings != 4 {
+	if s := Summarize(fs, len(in.Canvases)+len(in.Unparsable)); s.Errors != 2 || s.Warnings != 2 {
 		t.Fatal(s)
 	}
 }
@@ -232,13 +221,9 @@ func TestUnparsableCanvas(t *testing.T) {
 		".doan/canvases/z.html": "parse .doan/canvases/z.html: open stack exceeds 512 nodes",
 		".doan/canvases/b.html": "parse .doan/canvases/b.html: parser failure",
 	}
-	in.CommentFiles = commentFiles("one", "unknown")
 	fs := Run(in)
-	if len(fs) != 3 {
-		t.Fatalf("expected only two parse findings and one orphan: %+v", fs)
-	}
-	if fs[2].Code != "orphan_comment_file" || fs[2].Canvas != "unknown" {
-		t.Fatalf("orphan: %+v", fs[0])
+	if len(fs) != 2 {
+		t.Fatalf("expected only two parse findings: %+v", fs)
 	}
 	for j, path := range []string{".doan/canvases/b.html", ".doan/canvases/z.html"} {
 		f := fs[j]
@@ -246,7 +231,7 @@ func TestUnparsableCanvas(t *testing.T) {
 			t.Fatalf("parse finding: %+v", f)
 		}
 	}
-	if s := Summarize(fs, len(in.Canvases)+len(in.Unparsable)); s.Errors != 2 || s.Warnings != 1 {
+	if s := Summarize(fs, len(in.Canvases)+len(in.Unparsable)); s.Errors != 2 || s.Warnings != 0 {
 		t.Fatalf("summary: %+v", s)
 	}
 	in.Unparsable = map[string]string{}
@@ -266,28 +251,6 @@ func TestIndirectImportDefinesToken(t *testing.T) {
 	}
 	if fs := Run(in); len(fs) != 0 {
 		t.Fatal(fs)
-	}
-}
-func TestInvalidCanvasIDsStillOwnComments(t *testing.T) {
-	for _, tt := range []struct{ name, head, id string }{
-		{"uppercase", `<meta name="doan:canvas" content="Foo">`, "Foo"},
-		{"duplicate metas", `<meta name="doan:canvas" content="a"><meta name="doan:canvas" content="a">`, "a"},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			in := base()
-			in.Canvases[0] = parse(".doan/canvases/a.html", tt.head+`<meta name="doan:width" content="1">`, "")
-			in.CommentFiles = commentFiles(tt.id)
-			fs := Run(in)
-			if len(codes(fs, "invalid_canvas_id")) != 1 {
-				t.Fatalf("missing invalid id: %+v", fs)
-			}
-			if len(codes(fs, "orphan_comment_file")) != 0 {
-				t.Fatalf("false orphan: %+v", fs)
-			}
-			if len(codes(fs, "duplicate_canvas_id")) != 0 {
-				t.Fatalf("false duplicate: %+v", fs)
-			}
-		})
 	}
 }
 func TestIndirectCSSPathFindingsBelongToImporter(t *testing.T) {
@@ -346,16 +309,6 @@ func TestNoCanvasesWarning(t *testing.T) {
 		})
 	}
 }
-func TestOrphanCommentFileMessage(t *testing.T) {
-	in := base()
-	in.CommentFiles = commentFiles("gone")
-	fs := codes(Run(in), "orphan_comment_file")
-	want := Finding{Severity: "warning", Code: "orphan_comment_file", Message: "No canvas uses this comment file's id. Restore the canvas id, or ask the user. Do not delete or rewrite the comment file.", Path: ".doan/comments/gone.jsonl", Canvas: "gone"}
-	if len(fs) != 1 || fs[0] != want {
-		t.Fatalf("%+v", fs)
-	}
-}
-
 func TestViewportHeightUnit(t *testing.T) {
 	in := base()
 	in.Canvases[0].Styles = canvas.ScanCSS(`a{height:100dvh;min-height:50dvh;max-height:100dvh}`, canvas.Stylesheet)

@@ -106,8 +106,8 @@ interface Target {
 
 // Watches what `doan ls` reads: the root (non-recursive, to see
 // `.doan` come and go), the canvas directories `.doan/canvases/` and `.doan/ds/`
-// (recursive), `.doan/` (config.json and the `comments` directory) and
-// `.doan/comments/`; plus the served paths outside `.doan` from the latest scope.
+// (recursive) and `.doan/` (config.json); plus the served paths outside `.doan`
+// from the latest scope.
 // A watcher on a deleted directory stays on the old inode, so the sub-watchers are
 // re-armed whenever their parent changes.
 export function watchFolder(root: string, refresh: (change: Change) => Promise<void>): FolderWatch {
@@ -120,7 +120,6 @@ export function watchFolder(root: string, refresh: (change: Change) => Promise<v
     ...canvasDirs,
     { path: join(root, ".doan/assets"), recursive: true, change: SERVED },
     { path: join(root, ".doan"), recursive: false, change: REREAD },
-    { path: join(root, ".doan", "comments"), recursive: false, change: REREAD },
   ];
   let served: Target[] = [];
   // Served files directly in the root go through the root watcher.
@@ -178,9 +177,8 @@ export function watchFolder(root: string, refresh: (change: Change) => Promise<v
     for (const target of wanted) {
       const { path, recursive } = target;
       let ino: number | undefined;
-      // lstat: `doan ls` does not follow a symlinked canvas or comments
-      // directory, and a recursive watch through `doan -> .` would cover the
-      // whole repo.
+      // lstat: `doan ls` does not follow a symlinked canvas directory, and a
+      // recursive watch through `doan -> .` would cover the whole repo.
       try {
         const stat = path.startsWith(join(root, ".doan") + "/") && !lstatSync(join(root, ".doan")).isDirectory() ? undefined : lstatSync(path);
         if (stat?.isDirectory()) ino = stat.ino;
@@ -229,9 +227,10 @@ function inside(path: string, dir: string): boolean {
 }
 
 // Scope entries are real repo-relative paths, so aliased assets are watched
-// at their resolved location. The fixed watchers already cover .doan;
-// only canvas and asset events may reload, never settings or comments. A served file is watched through its directory because an
-// atomic save replaces the file and ends a watcher on the file itself.
+// at their resolved location. The fixed watchers already cover .doan; only
+// canvas and asset events may reload, never settings. A served file is
+// watched through its directory because an atomic save replaces the file and
+// ends a watcher on the file itself.
 function servedTargets(root: string, scope: readonly string[]): { targets: Target[]; rootNames: Set<string> } {
   const dirs: string[] = [];
   const files: string[] = [];

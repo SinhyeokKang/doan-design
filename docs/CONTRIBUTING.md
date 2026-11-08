@@ -28,7 +28,7 @@ Run the shared gate before you open a pull request:
 node .agents/skills/verify/scripts/verify.mjs
 ```
 
-It runs the Go tests and vet, the app's typecheck, lint, tests and build, and the runtime-support tests, stopping on the first failure; logs go to `.scratch/verify/`. Add `--eval` when you change the agent evaluation runner in `eval/`.
+It runs its own runner tests, the runtime-support tests, the Go tests and vet, and the app's typecheck, lint, tests and build, stopping on the first failure; logs go to `.scratch/verify/`. Add `--eval` when you change the agent evaluation runner in `eval/`.
 
 CI runs the same gate (without `--eval`) as the `gate` check on every pull request to `develop` or `main`, and the maintainer merges a pull request only when it passes. If it fails, the job log shows the failing step's output. A pull request from a fork may need a maintainer to approve its first CI run before it starts.
 
@@ -42,7 +42,7 @@ CI runs the same gate (without `--eval`) as the `gate` check on every pull reque
 - [AGENTS.md](../AGENTS.md) holds the working rules that Claude Code and Codex both read. It also carries maintainer preferences, such as the language agents reply in.
 - `.claude/settings.json` has a `UserPromptSubmit` hook that re-injects that preference (Korean replies) on every Claude Code turn. To turn it off for yourself, add `.claude/settings.local.json` with `{ "disableAllHooks": true }`; that file is not committed.
 - `docs/features/<slug>/` holds the maintainer's plans for features in progress. They are written in Korean, and when a feature is done its conclusions move into the English PRODUCT and ARCHITECTURE documents and the directory is deleted.
-- Some development skills cannot run outside the maintainer's setup: `/tester-build` (pushes a tag to this repository and needs the maintainer to approve the signing environment), `/agent-eval` (signs in to and changes real agent state), and `/orchestrate` and `/chain` (need Orca). The other skills under `.agents/skills/` work in any clone.
+- Some development skills cannot run outside the maintainer's setup: `/release` (merges into `main`, pushes a release tag, and approves and publishes the release), `/tester-build` (pushes a tag to this repository and needs the maintainer to approve the signing environment), `/agent-eval` (signs in to and changes real agent state), and `/orchestrate` and `/chain` (need Orca). The other skills under `.agents/skills/` work in any clone.
 
 ## License
 

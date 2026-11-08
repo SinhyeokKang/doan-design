@@ -156,7 +156,7 @@ test("while the page is locked the other categories and Search show as unavailab
   expect(side.find(element => element.props.className === "shell-search")!.props["aria-disabled"]).toBe(true);
 });
 
-// design-sync against .doan/canvases/buzz-settings.html: values a jsdom render cannot show.
+// design-sync against .doan/canvases/doan-settings.html: values a jsdom render cannot show.
 test("the current category takes the pressed fill with standard ink, and a locked category's icon dims with its label", () => {
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toContain('.shell-side .shell-settings-row[aria-current="page"] { background: var(--affordance-backdrop-pressed); color: var(--text-standard); }');

@@ -7,10 +7,8 @@ test("a canvas's name is its file stem, from any subdirectory", () => {
   expect(canvasStem(".doan/ds/flows/checkout.html")).toBe("checkout");
 });
 
-test("Move to Trash says one toast per reply: success, comments left behind, or main's refusal", () => {
-  for (const comments of ["trashed", "none", "kept"] as const) expect(trashToast("checkout", { kind: "trashed", comments })).toBe("Moved “checkout” to Trash.");
-  expect(trashToast("checkout", { kind: "trashed", comments: "failed", file: ".doan/comments/checkout.jsonl" }))
-    .toBe("Moved “checkout” to Trash, but its comments couldn’t be moved. They stay at .doan/comments/checkout.jsonl.");
+test("Move to Trash says one toast per reply: success or main's refusal", () => {
+  expect(trashToast("checkout", { kind: "trashed" })).toBe("Moved “checkout” to Trash.");
   expect(trashToast("checkout", { kind: "refused", reason: "busy" })).toBe("Couldn’t move “checkout” to Trash. An agent started working on it.");
   expect(trashToast("checkout", { kind: "refused", reason: "notListed" })).toBe("Couldn’t move “checkout” to Trash. It’s no longer in this project.");
   expect(trashToast("checkout", { kind: "refused", reason: "notFile" })).toBe("Couldn’t move “checkout” to Trash. It isn’t a regular file.");

@@ -20,7 +20,7 @@
 }
 
 /* Project fallback palette preview, copied from Malmoi hue roles (Tailwind 600).
-   Promote to app identity roles when implementing buzz-shell. */
+   Promote to app identity roles when implementing doan-shell. */
 :root {
   --mock-project-rose: oklch(58.6% 0.253 17.585);
   --mock-project-orange: oklch(64.6% 0.222 41.116);

@@ -40,7 +40,7 @@ export function canvasConversationRows(list: readonly ConversationSummary[], can
     const base = { ...line, key: c.conversationId, canvas: c.canvas, title: c.title, deletable: deleteAvailability(c) };
     if (matches.length === 1) {
       const row = matches[0]!;
-      // Only the canvas file's error: a comment file error does not stop the canvas from reading.
+      // Only the canvas file's own read error makes the row unreadable.
       const problem = row.error ? { kind: "unreadable" as const, sentence: rowProblem(row)!.sentence } : null;
       rows.push({ ...base, name: canvasLabel(row), row, problem, openable: true });
     } else if (matches.length > 1) {
