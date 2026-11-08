@@ -84,6 +84,9 @@ export function SettingsAbout({ actions, preferences, save }: {
   const stateId = useId();
   const [update, setUpdate] = useState<UpdateSnapshot | null>(null);
   const [autoFailed, setAutoFailed] = useState<PreferencesPatch | null>(null);
+  // The switch shows main's push, which comes only with the save's answer, so a press before it would save the same
+  // value again; presses wait for the answer instead.
+  const autoSaving = useRef(false);
   // The live region's text; seq makes a result repeated word for word a change the region reads again.
   const [announced, setAnnounced] = useState({ text: "", seq: 0 });
   // The last push's announcement; undefined until the first push, which is never read.
@@ -172,8 +175,13 @@ export function SettingsAbout({ actions, preferences, save }: {
     else void window.doan.installUpdate().catch(() => null).then(reply => { if (reply?.kind === "blocked") announce(BLOCKED_READ); });
   };
   const saveAuto = (patch: PreferencesPatch) => {
+    if (autoSaving.current) return;
+    autoSaving.current = true;
     setAutoFailed(null);
-    void save(patch).catch(() => null).then(reply => { if (!reply || (!reply.ok && reply.reason !== "newer")) { setAutoFailed(patch); announce(AUTO_SAVE_FAILED); } });
+    void save(patch).catch(() => null).then(reply => {
+      autoSaving.current = false;
+      if (!reply || (!reply.ok && reply.reason !== "newer")) { setAutoFailed(patch); announce(AUTO_SAVE_FAILED); }
+    });
   };
   const auto = shown?.autoCheck ?? null;
   const autoRow = auto !== null && <div className="doan-preference-row">

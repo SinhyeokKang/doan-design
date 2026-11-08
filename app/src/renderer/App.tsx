@@ -464,6 +464,13 @@ export function App() {
       if (focus) {
         const located = locateFrom.current === focus.from;
         if (!located) setLoadedRoot(root => root === focus.from ? focus.root : root);
+        // A page's origin on the moved root follows it, also when the page's sidebar moved a root other than the page's
+        // own, or leaving would find the origin gone and go Home (PRODUCT §5 item 0: leaving returns to where it came from).
+        const origin = pageRef.current.origin;
+        if (origin.screen === "workspace" && origin.root === focus.from) {
+          const next = { ...pageRef.current, origin: { screen: "workspace" as const, root: focus.root } };
+          pageRef.current = next; setPage(next);
+        }
         rerootSeq.current += 1;
         setReroot({ ...focus, seq: rerootSeq.current });
       }

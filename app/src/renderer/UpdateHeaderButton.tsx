@@ -10,9 +10,11 @@ import { useHeaderNoDrag } from "./headerNoDrag";
 
 export interface UpdateHeaderButtonViewProps {
   header: UpdateHeaderView | null; disabled: boolean; open: boolean; shown: UpdateNotice | null; descriptionId: string; titleId: string;
-  buttonRef(node: HTMLButtonElement | null): void;
+  buttonRef(node: HTMLButtonElement | null): void; contentRef(node: HTMLDivElement | null): void;
   onPress(): void; onOpenChange(open: boolean): void; onOpenAutoFocus(event: Event): void; onCloseAutoFocus(event: Event): void;
+  onFocusOutside(event: FocusOutsideEvent): void;
 }
+type FocusOutsideEvent = Parameters<NonNullable<Popover.PopoverContentProps["onFocusOutside"]>>[0];
 
 // The anchor stays in the header while there is no update, empty and not displayed, so Agent usage's fold can watch
 // its size and re-measure when the button appears or goes.
@@ -27,8 +29,8 @@ export function UpdateHeaderButtonView(props: UpdateHeaderButtonViewProps) {
         {header.busy ? <span className="doan-spinner" aria-hidden="true" /> : <CircleFadingArrowUp aria-hidden="true" />}{header.label}</button></Popover.Anchor></TooltipTrigger>
       <TooltipContent side="bottom">{header.tooltip}</TooltipContent></Tooltip>
     <span className="sr-only" id={descriptionId}>{header.tooltip}</span>
-    {shown !== null && <Popover.Portal><Popover.Content className="doan-floating doan-popover update-pop" role="dialog" aria-labelledby={titleId} side="bottom" align="end" sideOffset={4} collisionPadding={8}
-      onOpenAutoFocus={props.onOpenAutoFocus} onCloseAutoFocus={props.onCloseAutoFocus}>
+    {shown !== null && <Popover.Portal><Popover.Content ref={props.contentRef} className="doan-floating doan-popover update-pop" role="dialog" aria-labelledby={titleId} side="bottom" align="end" sideOffset={4} collisionPadding={8}
+      onOpenAutoFocus={props.onOpenAutoFocus} onCloseAutoFocus={props.onCloseAutoFocus} onFocusOutside={props.onFocusOutside}>
       {/* The words follow each push while open; one polite region reads a change once without moving focus. */}
       <div className="update-pop-live" aria-live="polite">
         <p className="update-pop-title" id={titleId}>{shown.title}</p>
@@ -45,6 +47,7 @@ export function UpdateHeaderButton({ disabled, canvasPress }: { disabled: boolea
   const [snapshot, setSnapshot] = useState<UpdateSnapshot | null>(null);
   const [shown, setShown] = useState<UpdateNotice | null>(null);
   const button = useRef<HTMLButtonElement | null>(null);
+  const content = useRef<HTMLDivElement | null>(null);
   // A popover the person did not open by pressing leaves focus where it is.
   const quiet = useRef(false);
   // The running restart was started by a press on this button (answered allowed): its stop or hold is the answer to
@@ -101,9 +104,18 @@ export function UpdateHeaderButton({ disabled, canvasPress }: { disabled: boolea
   };
   return <UpdateHeaderButtonView header={header} disabled={disabled} open={isOpen} shown={isOpen ? shown : null} descriptionId={descriptionId} titleId={titleId}
     buttonRef={node => { button.current = node; }}
+    contentRef={node => { content.current = node; }}
     onPress={press}
     onOpenChange={next => { if (!next) setShown(null); }}
     onOpenAutoFocus={event => { if (quiet.current) event.preventDefault(); }}
+    // Radix closes on any focus outside, also one that moved between two places outside a popover opened quietly.
+    // Agent usage's popover, open beside it, moves focus to the page tab when its last provider leaves (PRODUCT §5 item 0
+    // 'Agent usage'); this one stays (§5 item 0 'Updates': closing one keeps the other usable). Focus leaving it closes it.
+    onFocusOutside={event => {
+      // focusin's relatedTarget: the element that lost focus, null from nowhere (a removed element, the body).
+      const from = event.detail.originalEvent.relatedTarget as Node | null;
+      if (from === null || content.current?.contains(from) !== true) event.preventDefault();
+    }}
     onCloseAutoFocus={event => {
       // A popover anchored rather than triggered has no trigger to return focus to, so a press on a blank part of
       // the window would leave it on <body>.

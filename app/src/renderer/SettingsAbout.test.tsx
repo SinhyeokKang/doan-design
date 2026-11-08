@@ -370,6 +370,31 @@ test("the automatic-check switch shows the pushed choice and saves a change; a f
   expect(all(autoRow()!.props.children as ReactNode).some(element => String(element.props.className) === "settings-msg error selectable")).toBe(false);
 });
 
+// The switch shows main's push, which comes only after the save; a second press before it would save the same value.
+test("a press while the automatic-check save is pending saves nothing more; after main answers, a press saves again", async () => {
+  render(); push(snap({ kind: "upToDate", manual: false })); render();
+  let answer: (reply: unknown) => void = () => {};
+  save.mockImplementationOnce(() => new Promise(resolve => { answer = resolve; }));
+  (toggle().props.onClick as () => void)(); render();
+  (toggle().props.onClick as () => void)(); render();
+  expect(save).toHaveBeenCalledOnce();
+  expect(save).toHaveBeenLastCalledWith({ updates: { autoCheck: false } });
+  push(snap({ kind: "upToDate", manual: false }, { autoCheck: false }));
+  answer({ ok: true, snapshot: { preferences: { ...DEFAULT_PREFERENCES, updates: { autoCheck: false } }, notice: null } }); await flush(); render();
+  (toggle().props.onClick as () => void)();
+  expect(save).toHaveBeenCalledTimes(2);
+  expect(save).toHaveBeenLastCalledWith({ updates: { autoCheck: true } });
+  // A failed save's Retry is pending the same way: the switch waits for its answer.
+  await flush(); render();
+  save.mockResolvedValueOnce(null);
+  (toggle().props.onClick as () => void)(); await flush(); render();
+  save.mockClear();
+  save.mockImplementationOnce(() => new Promise(resolve => { answer = resolve; }));
+  click("Save the automatic-check choice again"); render();
+  (toggle().props.onClick as () => void)();
+  expect(save).toHaveBeenCalledOnce();
+});
+
 test("the switch waits for preferences and stays off a newer preferences file, whose notice the page shows", () => {
   preferences = null;
   render(); push(snap({ kind: "idle" })); render();
