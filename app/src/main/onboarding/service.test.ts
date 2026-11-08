@@ -572,6 +572,40 @@ describe("project selection", () => {
     expect(operation(await t.service.answerWindow(rendererRequest("project_select", { sessionId: id, requestId: "s1", inspectionId, path: "/Users/ada/studio" })!)).error).toEqual(windowError);
     expect(t.published.at(-1)!.operations.find(o => o.operationId === failed.operationId)?.error).toEqual(windowError);
   });
+
+  // Status keeps the latest 20 finished operations; an older one is retired to a small record that still answers its id
+  // and its requestId. Its detail goes with it, so a long session does not keep every CLI message it ever got.
+  it("forgets a retired operation's detail and keeps the latest ones", async () => {
+    const t = setup();
+    const { id, inspectionId } = await inspected(t);
+    const reason = (n: number) => `open /Users/ada/studio-${n}/.doan/canvases/sub: permission denied`;
+    const failed: string[] = [];
+    for (let n = 1; n <= 21; n += 1) {
+      t.projects.select.mockResolvedValueOnce({ ok: false, code: "project_unreadable", detail: reason(n) });
+      failed.push(operation(await t.ask({ op: "project_select", sessionId: id, requestId: `s${n}`, inspectionId, path: "/Users/ada/studio" })).operationId);
+    }
+    const first = failed[0]!, latest = failed.at(-1)!;
+    const windowAsk = ({ op, ...value }: Record<string, unknown>) => t.service.answerWindow(rendererRequest(op as never, value)!);
+    const listed = state(await windowAsk({ op: "status", sessionId: id })).operations;
+    expect(listed.map(o => o.operationId)).not.toContain(first);
+    // The latest keep their detail in the window's answers and pushes.
+    expect(listed.find(o => o.operationId === latest)?.error).toMatchObject({ detail: reason(21) });
+    expect(t.published.at(-1)!.operations.find(o => o.operationId === latest)?.error).toMatchObject({ detail: reason(21) });
+    // The retired one still answers by id and by its requestId, without its detail.
+    const retired = state(await windowAsk({ op: "status", sessionId: id, operationId: first })).operations[0]!;
+    expect(retired).toMatchObject({ operationId: first, state: "failed", error: { code: "project_unreadable", message: "The project folder cannot be read." } });
+    expect(retired.error).not.toHaveProperty("detail");
+    const resent = operation(await windowAsk({ op: "project_select", sessionId: id, requestId: "s1", inspectionId, path: "/Users/ada/studio" }));
+    expect(resent.operationId).toBe(first);
+    expect(resent.error).not.toHaveProperty("detail");
+    // Socket answers never carry any of them.
+    for (const request of [{ op: "status", sessionId: id }, { op: "status", sessionId: id, operationId: first }, { op: "status", sessionId: id, operationId: latest }]) {
+      expect(JSON.stringify(await t.ask(request))).not.toContain("permission denied");
+    }
+    // The book holds a detail only for an operation it still lists.
+    const details = Reflect.get(Reflect.get(t.service, "book") as object, "details") as Map<string, string>;
+    expect([...details.keys()].every(key => listed.some(o => o.operationId === key))).toBe(true);
+  });
 });
 
 // ARCHITECTURE §4 'Storage in onboarding': the inspection plans for the requested storage, a reply speaks of storage

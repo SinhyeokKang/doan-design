@@ -119,6 +119,8 @@ export class OperationBook {
     const finished = [...this.operations.values()].filter(t => TERMINAL.has(t.operation.state));
     for (const tracked of finished.slice(0, Math.max(0, finished.length - KEPT_FINISHED))) {
       this.operations.delete(tracked.operation.operationId);
+      // The retired record still answers its id and requestId; the detail is not kept for it.
+      this.details.delete(tracked.operation.operationId);
       retire(tracked);
       this.retired.set(tracked.operation.operationId, tracked.operation);
     }
