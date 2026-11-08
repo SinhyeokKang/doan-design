@@ -1,3 +1,4 @@
+import { Info, RotateCw, type LucideIcon } from "lucide-react";
 import type { FolderEntry } from "../main/view";
 import { frameLabel } from "./canvasTree";
 import type { SelectionView } from "./selection";
@@ -34,6 +35,8 @@ export type RowAction = "setUp" | "locate" | "remove" | "showInFinder" | "retry"
 // One label per recovery action for the workspace status line, the sidebar's project menu, the Overview's recovery
 // menu and the Project Settings page: no trailing ellipsis, since each acts or opens its own surface at once.
 export const ROW_ACTION_LABELS: Record<RowAction, string> = { setUp: "Set Up", locate: "Locate", remove: "Remove from Doan", showInFinder: "Show in Finder", retry: "Retry", details: "Details" };
+// The icons the project menus (sidebar, Overview recovery menu) draw before those labels; Set Up and Locate have none.
+export const ROW_ACTION_ICONS: Partial<Record<RowAction, LucideIcon>> = { retry: RotateCw, details: Info };
 
 export interface CardRow {
   chip?: "Not set up" | "Missing" | "Config error" | "CLI error" | "Reading";
@@ -45,7 +48,7 @@ export interface CardRow {
   current: boolean;
   // "Selected for your agent: <selected>" while `current`.
   selected?: string;
-  // Config error text behind Details.
+  // Config error or CLI error text behind Details.
   detail?: string;
 }
 
@@ -66,7 +69,7 @@ export function cardRow(entry: FolderEntry, loaded: string | null, selection: Se
     case "error":
       return { ...row, chip: "Config error", actions: ["showInFinder", "retry", "details"], detail: entry.message };
     case "cliError":
-      return { ...row, chip: "CLI error", actions: ["retry", "remove"] };
+      return { ...row, chip: "CLI error", actions: ["retry", "details", "remove"], detail: entry.reason };
     case "list": {
       const branch = entry.git?.branch ?? (entry.git?.detached === undefined ? undefined : `detached ${entry.git.detached.slice(0, 7)}`);
       const summary = {

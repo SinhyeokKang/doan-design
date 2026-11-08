@@ -5,7 +5,7 @@ const canvases = [{ path: ".doan/canvases/a.html", id: "a", frames: [], comments
 const listResult = { root: "/repo", scope: [".doan/canvases", "tokens.css"], canvases };
 
 // exit 0 with an answer that cannot be read and nothing on stderr (draft frame overlay-cli-error).
-const UNREADABLE = "doan answered, but Doan couldn’t read the answer.";
+const UNREADABLE = "The doan command answered, but Doan couldn’t read the answer.";
 
 function run(overrides: Partial<CliRun>): CliRun {
   return { exitCode: 0, stdout: "", stderr: "", timedOut: false, ...overrides };
@@ -61,7 +61,7 @@ describe("folderState", () => {
 
   test("ok true with a non-zero exit code is a CLI error", () => {
     const stdout = envelope({ v: 1, ok: true, result: listResult });
-    expect(folderState(run({ exitCode: 1, stdout }))).toEqual({ kind: "cliError", reason: "doan exited with code 1 without a message." });
+    expect(folderState(run({ exitCode: 1, stdout }))).toEqual({ kind: "cliError", reason: "The doan command exited with code 1 without a message." });
   });
 
   test("a result without root or scope (older doan) is a CLI error", () => {
@@ -96,19 +96,19 @@ describe("folderState", () => {
 
   test("a spawn failure is a CLI error carrying the spawn error", () => {
     const spawnError = "spawn /nonexistent/doan ENOENT";
-    expect(folderState(run({ exitCode: -2, spawnError }))).toEqual({ kind: "cliError", reason: `Couldn’t start doan: ${spawnError}` });
-    expect(folderState(run({ exitCode: null, spawnError }))).toEqual({ kind: "cliError", reason: `Couldn’t start doan: ${spawnError}` });
+    expect(folderState(run({ exitCode: -2, spawnError }))).toEqual({ kind: "cliError", reason: `Couldn’t start the doan command: ${spawnError}` });
+    expect(folderState(run({ exitCode: null, spawnError }))).toEqual({ kind: "cliError", reason: `Couldn’t start the doan command: ${spawnError}` });
   });
 
   test("a spawn error wins over stderr and a valid envelope", () => {
     const stdout = envelope({ v: 1, ok: true, result: listResult });
     const state = folderState(run({ stdout, stderr: "other\n", spawnError: "spawn doan EACCES" }));
-    expect(state).toEqual({ kind: "cliError", reason: "Couldn’t start doan: spawn doan EACCES" });
+    expect(state).toEqual({ kind: "cliError", reason: "Couldn’t start the doan command: spawn doan EACCES" });
   });
 
   test("a missing exit code is a CLI error", () => {
     const stdout = envelope({ v: 1, ok: true, result: listResult });
-    expect(folderState(run({ exitCode: null, stdout }))).toEqual({ kind: "cliError", reason: "doan stopped without a message." });
+    expect(folderState(run({ exitCode: null, stdout }))).toEqual({ kind: "cliError", reason: "The doan command stopped without a message." });
   });
 
   test("stdout that is not JSON is a CLI error", () => {
@@ -162,10 +162,10 @@ describe("folderState", () => {
 
   test("a timeout is a CLI error even with a valid envelope", () => {
     const stdout = envelope({ v: 1, ok: true, result: listResult });
-    expect(folderState(run({ exitCode: null, stdout, timedOut: true }))).toEqual({ kind: "cliError", reason: "doan didn’t answer within 10 seconds." });
-    expect(folderState(run({ stdout, timedOut: true, stderr: "slow\n" }))).toEqual({ kind: "cliError", reason: "doan didn’t answer within 10 seconds." });
+    expect(folderState(run({ exitCode: null, stdout, timedOut: true }))).toEqual({ kind: "cliError", reason: "The doan command didn’t answer within 10 seconds." });
+    expect(folderState(run({ stdout, timedOut: true, stderr: "slow\n" }))).toEqual({ kind: "cliError", reason: "The doan command didn’t answer within 10 seconds." });
     expect(folderState(run({ exitCode: null, timedOut: true, spawnError: "spawn doan EACCES" })))
-      .toEqual({ kind: "cliError", reason: "Couldn’t start doan: spawn doan EACCES" });
+      .toEqual({ kind: "cliError", reason: "Couldn’t start the doan command: spawn doan EACCES" });
   });
 
   // PRODUCT §5 item 3 'Problem states': Details shows this reason, so it is never empty.
@@ -180,12 +180,12 @@ describe("folderState", () => {
       [{ exitCode: 0, stdout: "not json", stderr: "only stderr" }, "only stderr"],
       // The first line that says something, not a blank one before it.
       [{ exitCode: 3, stderr: "\n  \r\nreal line\nnext" }, "real line"],
-      [{ exitCode: 3, stderr: "\n\n" }, "doan exited with code 3 without a message."],
-      [{ exitCode: 3 }, "doan exited with code 3 without a message."],
-      [{ exitCode: null }, "doan stopped without a message."],
-      [{ exitCode: null, timedOut: true }, "doan didn’t answer within 10 seconds."],
-      [{ exitCode: null, spawnError: "" }, "Couldn’t start doan."],
-      [{ exitCode: 1, stdout: listed }, "doan exited with code 1 without a message."],
+      [{ exitCode: 3, stderr: "\n\n" }, "The doan command exited with code 3 without a message."],
+      [{ exitCode: 3 }, "The doan command exited with code 3 without a message."],
+      [{ exitCode: null }, "The doan command stopped without a message."],
+      [{ exitCode: null, timedOut: true }, "The doan command didn’t answer within 10 seconds."],
+      [{ exitCode: null, spawnError: "" }, "Couldn’t start the doan command."],
+      [{ exitCode: 1, stdout: listed }, "The doan command exited with code 1 without a message."],
     ];
     for (const [overrides, reason] of cases) expect(folderState(run(overrides)), JSON.stringify(overrides)).toEqual({ kind: "cliError", reason });
   });

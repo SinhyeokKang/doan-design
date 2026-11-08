@@ -22,8 +22,8 @@ export type ProblemOverlayView =
     line: { path?: string; text: string };
     // The first action is the one prominent action.
     actions: ProblemAction[];
-    // `error` only, from the entry; absent while `busy` since the entry is `loading` then. The shell keeps the
-    // text it last saw so an open Details block stays filled.
+    // `error` and `cliError`, from the entry; absent while `busy` since the entry is `loading` then. The shell keeps
+    // the text it last saw so an open Details block stays filled.
     detail?: string;
     busy: boolean;
   };
@@ -48,7 +48,7 @@ function scene(kind: ProblemKind, name: string, path: string, home: string | nul
     case "error":
       return { icon: FileWarning, heading: `Doan couldn’t read ${name}’s configuration`, line: { text: ".doan/config.json has an error. Fix it, then retry." }, actions: [prominent("retry"), { name: "showInFinder", variant: "subtle" }, ghost("details")] };
     case "cliError":
-      return { icon: SquareTerminal, heading: `Doan couldn’t read ${name}`, line: { text: "The doan command failed while reading it. Try again." }, actions: [prominent("retry"), ghost("remove")] };
+      return { icon: SquareTerminal, heading: `Doan couldn’t read ${name}`, line: { text: "The doan command failed while reading it. Try again." }, actions: [prominent("retry"), ghost("details"), ghost("remove")] };
   }
 }
 
@@ -63,7 +63,7 @@ export function problemView(entry: FolderEntry, name: string, homeDirectory: str
   }
   return {
     kind: "problem", entryKind: entry.kind, ...scene(entry.kind, name, entry.path, homeDirectory),
-    ...(entry.kind === "error" ? { detail: entry.message } : {}), busy: false,
+    ...(entry.kind === "error" ? { detail: entry.message } : entry.kind === "cliError" ? { detail: entry.reason } : {}), busy: false,
   };
 }
 
