@@ -236,7 +236,7 @@ To run the CLI directly: `go run ./cli/cmd/doan <command> --repo <path> [--json]
 
 ## Background
 
-Doan comes from building [malmoi](https://github.com/SinhyeokKang/malmoi) and [BugShot](https://github.com/SinhyeokKang/bugshot-2) with coding agents in 2026, where the design process itself kept getting in the way. The problems Doan answers, and the evidence behind them, are in [docs/PRODUCT.md §1](./docs/PRODUCT.md#1-problem).
+Doan comes from building [malmoi](https://github.com/SinhyeokKang/malmoi) and [BugShot](https://github.com/SinhyeokKang/bugshot-2) with coding agents in 2026, where the design process itself kept getting in the way. Doan is built the same way: every screen of the app was drafted as a Doan canvas by Claude Code and Codex and reviewed in Doan before it was implemented, and those canvases are in this repo under [`.doan/canvases/`](./.doan/canvases/). The problems Doan answers, and the evidence behind them, are in [docs/PRODUCT.md §1](./docs/PRODUCT.md#1-problem).
 
 ## License
 
