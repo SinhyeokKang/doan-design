@@ -20,4 +20,4 @@ body:
     id: scope
     attributes:
       label: Scope
-      description: How this relates to the product scope in docs/PRODUCT.md §3, if you know. Requests outside 'Out of scope' need a product decision first.
+      description: How this relates to the product scope in docs/PRODUCT.md §3, if you know. Requests outside that scope, 'Out of scope' in particular, need a product decision first.
