@@ -26,7 +26,7 @@ Throughout, `R` is `gh repo view --json nameWithOwner --jq .nameWithOwner`, and 
 1. **Preflight.** Stop and report at the first failure.
    - The checkout is `develop`, the working tree is clean, and `HEAD` equals `origin/develop` after `git fetch origin`.
    - No chain is running: no `docs/features/chain-*/chain.md`. List open pull requests against `develop` in the report; they are not blockers.
-   - `git rev-list --count origin/develop..origin/main` is 0 (nothing reached `main` outside a release).
+   - `git rev-list --count --no-merges origin/develop..origin/main` is 0 (nothing reached `main` outside a release; each release's merge commit stays only on `main`, so merges are not counted).
    - The `gate` check on `origin/develop`'s HEAD passed (`gh run list --workflow ci.yml --branch develop --limit 1 --json headSha,conclusion`, with that `headSha`).
    - `node app/scripts/checkReleaseVersion.mjs <version>` exits 0. On failure report its code (`bad_semver`, `published_exists`, `draft_exists`, `not_newer`).
    - If the state matches a row of 'Resume', continue from that row instead.
@@ -54,7 +54,7 @@ Two invocations; never run `/ship` inside one, because a broken session could no
 1. **`/release hotfix <slug>`.** Step 0, then find the last stable tag (as in step 3; rc tags never count, so a released rc does not leak into the hotfix). `git push origin <tag>^{commit}:refs/heads/hotfix/<slug>`, check it out, and stop. The report says: fix it on this branch with `/ship`, then call `/release <next patch>` from it.
 2. **The user fixes it with `/ship` on `hotfix/<slug>`.** `/ship` keeps that branch and opens its PR against `main` (its 'Branch' rule). A regression fix also gets `/postmortem`.
 3. **`/release <version>` from the `hotfix/<slug>` checkout.** `<version>` is the next patch after that tag.
-   - Preflight as in step 1, against `origin/hotfix/<slug>` instead of `develop`: clean tree equal to the remote branch, the PR's `gate` passed, the version check passes. The `origin/develop..origin/main` check still applies.
+   - Preflight as in step 1, against `origin/hotfix/<slug>` instead of `develop`: clean tree equal to the remote branch, the PR's `gate` passed, the version check passes. The `--no-merges origin/develop..origin/main` check still applies.
    - Bump on the hotfix branch (step 2) and push it.
    - The notes are the titles of the PRs from `hotfix/<slug>` into `main`.
    - Merge the `/ship` PR from `hotfix/<slug>` into `main` (`gh pr merge --merge` after its gate), then steps 5–7.
