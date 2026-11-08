@@ -1,6 +1,6 @@
 import { validateEnvelope } from "../formats/validate";
 import { storageFacts, type StorageFacts } from "./storage";
-import { isRowError, type GitInfo, type OrphanFile } from "./view";
+import type { GitInfo } from "./view";
 
 export interface CliRun {
   exitCode: number | null;
@@ -13,7 +13,7 @@ export interface CliRun {
 }
 
 export type FolderState =
-  | ({ kind: "list"; root: string; scope: string[]; canvases: unknown[]; git?: GitInfo; orphans?: OrphanFile[] } & StorageFacts)
+  | ({ kind: "list"; root: string; scope: string[]; canvases: unknown[]; git?: GitInfo } & StorageFacts)
   | { kind: "uninitialized" }
   | { kind: "error"; message: string }
   | { kind: "cliError"; reason: string };
@@ -49,35 +49,7 @@ export function folderState(run: CliRun): FolderState {
   if (run.exitCode !== 0 || !isListResult(value.result)) return cliError;
   const { root, scope, canvases } = value.result;
   const git: unknown = Reflect.get(value.result, "git");
-  const orphans: unknown = Reflect.get(value.result, "orphans");
-  return { kind: "list", root, scope, canvases, ...(isGitInfo(git) ? { git } : {}), ...(Array.isArray(orphans) ? { orphans: orphans.flatMap(orphanFile) } : {}), ...storageFacts(value.result) };
-}
-
-// CLI orphan counts support the Comments notice after a canvas ID changes.
-// Keep only whole entries; a malformed one does not fail an otherwise good listing.
-// Preserve empty IDs from the CLI too, matching the `.jsonl` filename.
-function orphanFile(value: unknown): OrphanFile[] {
-  if (typeof value !== "object" || value === null) return [];
-  const id: unknown = Reflect.get(value, "id");
-  const file: unknown = Reflect.get(value, "file");
-  const uncertain: unknown = Reflect.get(value, "uncertain");
-  const comments: unknown = Reflect.get(value, "comments");
-  const error: unknown = Reflect.get(value, "error");
-  if (typeof id !== "string" || typeof file !== "string" || typeof uncertain !== "boolean") return [];
-  if (error !== undefined && !isRowError(error)) return [];
-  let counts: OrphanFile["comments"];
-  if (comments !== undefined) {
-    const open = count(comments, "open");
-    const resolved = count(comments, "resolved");
-    if (open === null || resolved === null) return [];
-    counts = { open, resolved };
-  }
-  return [{ id, file, ...(counts ? { comments: counts } : {}), ...(error === undefined ? {} : { error: { code: error.code, message: error.message } }), uncertain }];
-}
-
-function count(comments: unknown, key: string): number | null {
-  const n: unknown = typeof comments === "object" && comments !== null ? Reflect.get(comments, key) : undefined;
-  return typeof n === "number" && Number.isSafeInteger(n) && n >= 0 ? n : null;
+  return { kind: "list", root, scope, canvases, ...(isGitInfo(git) ? { git } : {}), ...storageFacts(value.result) };
 }
 
 // `git` is optional and only shown, so a malformed one is dropped rather than

@@ -19,7 +19,7 @@ import type { AttachmentResult, RecheckResult } from "../main/attachments";
 import type { DesignSkillList, DesignSkillPreset, DesignSkillReply } from "../main/designSkills";
 import type { Anchor, Canvas, ConversationEvent, Runtime, SkillSummary, StageSignal, UnavailableReason } from "../main/conversation/types";
 import type {
-  Author, OnboardingCancelRequest, OnboardingCheckRequest, OnboardingCompleteRequest, OnboardingProjectCloneRequest,
+  OnboardingCancelRequest, OnboardingCheckRequest, OnboardingCompleteRequest, OnboardingProjectCloneRequest,
   OnboardingProjectInspectRequest, OnboardingProjectSelectRequest, OnboardingResponse, OnboardingState, OnboardingStatusRequest,
 } from "../formats/types";
 import { contextBridge, ipcRenderer, webUtils } from "electron";
@@ -382,7 +382,7 @@ const api = {
   revealProject: (path: string): Promise<void> => ipcRenderer.invoke("folders:reveal", { path }),
   setMenuState: (inputs: MenuInputs): Promise<void> => ipcRenderer.invoke("menu:state", inputs),
   // a listed canvas row by root and path; main checks it against its own list and the disk, and judges
-  // busy again. Ask the plan when the Move to Trash dialog opens (does a comment file go too?), then move on confirm.
+  // busy again. Ask the plan when the Move to Trash dialog opens, then move on confirm.
   planCanvasTrash: (root: string, path: string): Promise<TrashPlanReply> => ipcRenderer.invoke("canvas:trashPlan", { root, path }),
   trashCanvas: (root: string, path: string): Promise<TrashReply> => ipcRenderer.invoke("canvas:trash", { root, path }),
   // Opens the save panel and runs `doan export`; resolves once the file is written or the export failed or was cancelled.

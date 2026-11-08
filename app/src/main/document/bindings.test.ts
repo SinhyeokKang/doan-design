@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { DocumentBindings } from "./document";
+import { DocumentBindings } from "./bindings";
 const record = { marker: "response-1", root: "/repo", path: ".doan/canvases/a.html", hash: "sha256:" + "a".repeat(64), complete: true, stable: true };
 test("joins parent Network response and child frame commit and ignores fetch/HEAD and late loaders", () => {
   const bindings = new DocumentBindings();

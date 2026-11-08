@@ -3,7 +3,7 @@ import { constants } from "node:fs";
 import { open, realpath, type FileHandle } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { extname } from "node:path";
-import type { ResponseRecord } from "../comments/document";
+import type { ResponseRecord } from "../document/bindings";
 import { inScope, parseServePath, relInside } from "./path";
 
 export interface ServedFolder {

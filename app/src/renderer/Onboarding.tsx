@@ -690,7 +690,7 @@ export function Wizard({ session, projects, homeDirectory, onClose, mainCheckout
   const welcome = scene.scene === "welcome";
   const setHeading = (node: HTMLElement | null) => { heading.current = node; };
   const p = project;
-  // A modal <dialog> sits above any app dialog already open (setup, comments),
+  // A modal <dialog> sits above any app dialog already open (such as setup),
   // which would otherwise stay on top and leave both unclickable.
   return <dialog className={welcome ? "ob-overlay ob-welcome" : "ob-overlay"} aria-label="Set up Doan"
     ref={node => { overlay.current = node; openOverlay(node, heading.current); }}

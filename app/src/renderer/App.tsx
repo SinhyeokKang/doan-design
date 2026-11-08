@@ -1248,7 +1248,7 @@ export function App() {
       historyRef.current = nextHistory; setHistory(nextHistory);
     }
   }
-  // The dialog asks main whether a comment file goes too before it can be
+  // The dialog asks main for its plan before it can be
   // confirmed. A busy plan keeps it open with its working line; any other refusal closes it with that refusal's toast.
   // Closing returns focus to the row's menu button through `beforeModal`.
   function openTrash(root: string, row: CanvasRow, button: HTMLElement | null) {

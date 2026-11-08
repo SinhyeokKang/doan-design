@@ -82,7 +82,7 @@ export function mainSelection(open: { folder: string; canvas: string; row: Pick<
   return selection;
 }
 
-// Who the selection is, for keeping a person's Comments scope across a reload
+// Who the selection is, across a reload
 // or a move: the path is left out, and an element is its doanId when it has
 // one, so a selector rewritten by the agent is still the same element.
 export function selectionIdentity(selection: Selection | null): string | null {
@@ -122,7 +122,7 @@ export function sizeLabel(rect: CanvasRect): string {
   return `${px(rect.width)} × ${px(rect.height)}`;
 }
 
-// Esc in a text field belongs to the field (#7 comment drafts).
+// Esc in a text field belongs to the field.
 export function editableTarget(target: unknown): boolean {
   if (typeof target !== "object" || target === null || !("tagName" in target)) return false;
   const { tagName } = target;

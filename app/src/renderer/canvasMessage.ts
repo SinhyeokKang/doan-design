@@ -2,8 +2,18 @@
 // canvas's own scripts share that window and can post anything, so every field
 // is checked and copied into a fresh object; nothing is trusted by shape.
 
-import type { TargetCandidates, PinGeometry } from "../comments/projection";
 import type { SelectionElement } from "../formats/types";
+
+// The nodes an anchors answer found for one reply chip target, from exact DOM lookups; html/text never identify a node.
+export interface TargetCandidates {
+  doanId?: readonly string[];
+  selector?: readonly string[] | null;
+  frame?: readonly string[];
+}
+
+// Board coordinates after inner scrolling; `clip` is the nearest clipping ancestors' visible box.
+export interface PinRect { x: number; y: number; width: number; height: number }
+export interface PinGeometry extends PinRect { clip?: PinRect }
 
 export const MAX_FRAMES = 1000;
 export const MAX_STRING = 200;

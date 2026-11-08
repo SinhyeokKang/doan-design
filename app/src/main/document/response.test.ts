@@ -6,7 +6,7 @@ import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { startServer, type LocalServer } from "../serve/server";
-import type { ResponseRecord } from "./document";
+import type { ResponseRecord } from "./bindings";
 vi.mock("node:fs/promises", async original => ({ ...await original<typeof import("node:fs/promises")>() }));
 const roots: string[] = [];
 const servers: LocalServer[] = [];

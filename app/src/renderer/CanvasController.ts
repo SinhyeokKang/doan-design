@@ -1,5 +1,4 @@
-import type { PinGeometry, TargetCandidates } from "../comments/projection";
-import type { AnchorsMessage, CanvasFrameRect, PickedMessage, PickStartedMessage } from "./canvasMessage";
+import type { AnchorsMessage, PinGeometry, TargetCandidates, CanvasFrameRect, PickedMessage, PickStartedMessage } from "./canvasMessage";
 import type { Anchor } from "../main/conversation/types";
 import type { Selection } from "../formats/types";
 import type { ViewCommand } from "../main/index";

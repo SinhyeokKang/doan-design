@@ -1,37 +1,9 @@
-export type Author =
-  | { kind: "human"; name: string; email?: string }
-  | { kind: "agent"; name: string };
-
 export interface SelectionElement {
   doanId?: string;
   selector: string;
   html: string;
   text?: string;
   truncated?: boolean;
-}
-
-export interface Target {
-  frame?: string;
-  element?: SelectionElement;
-}
-
-export interface Comment {
-  comment: string;
-  status: "open" | "resolved";
-  body: string;
-  target: Target;
-  canvasHash: string;
-  createdBy: Author;
-  createdAt: string;
-  updatedAt: string;
-  resolvedBy?: Author;
-  resolvedAt?: string;
-  lastResolution?: {
-    by: Author;
-    at: string;
-    reopenedBy: Author;
-    reopenedAt: string;
-  };
 }
 
 export interface RuntimeFile {

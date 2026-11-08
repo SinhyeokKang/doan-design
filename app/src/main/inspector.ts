@@ -1,5 +1,5 @@
-import type { DocumentBindings } from "./comments/document";
-import { object } from "./comments/identity";
+import type { DocumentBindings } from "./document/bindings";
+import { object } from "./document/identity";
 import { isCanvasFrame } from "./canvasFrame";
 import { inspectRows, type InspectResult, type MatchedStyles } from "./inspect";
 
