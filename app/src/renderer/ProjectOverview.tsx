@@ -409,7 +409,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         onCopy={text => Promise.resolve(copyText(text))}
         {...(props.onReplyChip ? { onReplyChip: props.onReplyChip } : {})} openCanvasId={null} canvasRows={props.entry.kind === "list" ? props.entry.canvases : NO_ROWS} />
         : waiting || conversationId ? <Waiting /> : <div className="ov-col ov-new">
-          {moved && <div className="doan-notice moved" role="status"><ArrowUpRight className="doan-alert-icon" aria-hidden="true" /><span className="grow-text moved-text" title={`${moved.title} moved to ${movedCanvas}.`}>
+          {moved && <div className="doan-notice moved" role="status"><ArrowUpRight className="doan-alert-icon" aria-hidden="true" /><span className="grow-text moved-text selectable" title={`${moved.title} moved to ${movedCanvas}.`}>
             <span className="moved-title">{moved.title}</span><span className="moved-rest">{` moved to ${movedCanvas}.`}</span></span>
             <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => props.onOpenCanvas(moved.canvas, moved.conversationId)}>Open</button></div>}
           {prompts.length > 0 && !started && <div className="ov-suggestions" role="group" aria-label="Suggested prompts">{prompts.map(prompt =>

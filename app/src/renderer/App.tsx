@@ -2221,7 +2221,7 @@ function CanvasPane({ viewport, board, overlay, dragLayer, state, command, cover
     {/* The agent notice comes first, the canvas notices stack under it. */}
     <CanvasAgent {...agent}>
       {state.error && !overlaid && <div className="doan-notice doan-panel" role="status"><AlertIcon /><span className="grow-text selectable">{state.error}</span></div>}
-      {state.unlisted && <div className="doan-notice doan-panel" role="status"><AlertIcon /><span className="grow-text">This page is not a listed canvas. Choose a canvas from the Sidebar.</span></div>}
+      {state.unlisted && <div className="doan-notice doan-panel" role="status"><AlertIcon /><span className="grow-text selectable">This page is not a listed canvas. Choose a canvas from the Sidebar.</span></div>}
     </CanvasAgent>
     {/* A canvas closed for a missing or not set up root leaves no message: the overlay names the problem. */}
     {state.status && (state.status !== "missing" || state.message) && <div className="canvas-status" role="status">

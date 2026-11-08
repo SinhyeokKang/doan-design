@@ -95,7 +95,7 @@ test("a promotion leaves the moved line with Open above the suggestions", () => 
     (run as unknown as { roots: Map<string, { moved: unknown }> }).roots.get(ROOT)!.moved = { conversationId: A, title: "Checkout copy", canvas: { path: ".doan/canvases/checkout.html", id: "checkout" } };
   });
   // One line; only the title gives way, and the whole sentence stays in the text (and the tooltip).
-  expect(html).toMatch(/<div class="doan-notice moved" role="status">.*<span class="grow-text moved-text" title="Checkout copy moved to checkout\."><span class="moved-title">Checkout copy<\/span><span class="moved-rest"> moved to checkout\.<\/span><\/span><button[^>]*>Open<\/button><\/div><div class="ov-suggestions"/);
+  expect(html).toMatch(/<div class="doan-notice moved" role="status">.*<span class="grow-text moved-text selectable" title="Checkout copy moved to checkout\."><span class="moved-title">Checkout copy<\/span><span class="moved-rest"> moved to checkout\.<\/span><\/span><button[^>]*>Open<\/button><\/div><div class="ov-suggestions"/);
 });
 
 test("selectable: the notice text, not the notice's moved line", () => {

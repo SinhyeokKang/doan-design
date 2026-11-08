@@ -216,8 +216,8 @@ export function presetBody(view: PresetView, slash: boolean, options: PresetBody
   if (view.kind === "loading") return <div className="popover-state" role="status"><span className="doan-spinner" aria-hidden="true" />{view.text}</div>;
   if (view.kind === "empty") return <div className="popover-state" role="status">{view.text}</div>;
   // The popover is 90% glass over Home's gradient, not plain opaque white, so its notices take the panel surface.
-  if (view.kind === "olderCli") return <div className="doan-notice doan-panel" role="status"><AlertIcon /><span className="grow-text">{view.text}</span></div>;
-  if (view.kind === "error") return <><div className="doan-notice error doan-panel" role="alert"><AlertIcon /><span className="grow-text">{view.text}</span></div>{view.retry && <div className="popover-actions"><button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="subtle" onClick={options.onRetry}>Retry</button></div>}</>;
+  if (view.kind === "olderCli") return <div className="doan-notice doan-panel" role="status"><AlertIcon /><span className="grow-text selectable">{view.text}</span></div>;
+  if (view.kind === "error") return <><div className="doan-notice error doan-panel" role="alert"><AlertIcon /><span className="grow-text selectable">{view.text}</span></div>{view.retry && <div className="popover-actions"><button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="subtle" onClick={options.onRetry}>Retry</button></div>}</>;
   const rows = view.sections.reduce((n, section) => n + section.rows.length, 0);
   let index = 0;
   return <>

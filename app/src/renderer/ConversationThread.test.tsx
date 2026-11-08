@@ -244,7 +244,7 @@ describe("loading and read errors", () => {
   test("a read error replaces the thread with a notice and Retry", () => {
     const out = html("error");
     expect(out).toContain('<div class="doan-notice error thread-notice" role="alert">');
-    expect(out).toContain("<b>Doan couldn’t read this conversation</b><span>Try again. If it keeps failing, start a new conversation.</span>");
+    expect(out).toContain("<span class=\"strip-text selectable\"><b>Doan couldn’t read this conversation</b><span>Try again. If it keeps failing, start a new conversation.</span>");
     expect(out).toContain(">Retry</button>");
   });
 });

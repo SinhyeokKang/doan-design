@@ -554,7 +554,7 @@ test("a mismatch names the chosen folder on both URL screens", () => {
 test("Cloning was cancelled is a status notice panel like the other states", () => {
   const url = "https://github.com/acme/studio";
   const cancelled = screen({ url, phase: { kind: "cloneCancelled", url, destination: "/Users/ada/code/studio" } });
-  expect(cancelled).toMatch(/<div class="doan-notice doan-panel ob-project-notice" role="status" tabindex="-1"><svg[^>]*>.*?<\/svg><span>Cloning was cancelled\. Choose a folder or try again\.<\/span><\/div>/);
+  expect(cancelled).toMatch(/<div class="doan-notice doan-panel ob-project-notice" role="status" tabindex="-1"><svg[^>]*>.*?<\/svg><span class="selectable">Cloning was cancelled\. Choose a folder or try again\.<\/span><\/div>/);
   expect(cancelled).not.toContain('<p class="ob-provider-help">Cloning was cancelled');
 });
 

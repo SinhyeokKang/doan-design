@@ -502,7 +502,7 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
         <div className="ob-state-actions submit-only"><button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled={busy || state.listChoice === null} onClick={on.useListed}>Use this folder</button></div>
       </div>}
       <LocalFolderCard busy={busy} choose={on.chooseFolder} {...(drop ? { drop } : {})} />
-      {drop?.notice && <div className={panel ? "doan-notice error doan-panel ob-project-notice ob-drop-notice" : "doan-notice error ob-project-notice ob-drop-notice"} role="alert" tabIndex={-1}><AlertIcon /><span>{drop.notice}</span></div>}
+      {drop?.notice && <div className={panel ? "doan-notice error doan-panel ob-project-notice ob-drop-notice" : "doan-notice error ob-project-notice ob-drop-notice"} role="alert" tabIndex={-1}><AlertIcon /><span className="selectable">{drop.notice}</span></div>}
       <div className="ob-divider"><span>or use GitHub</span></div>
       </>}
       {urlField(p.kind === "inspecting")}
@@ -582,7 +582,7 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
         {/* The page's locked header and sidebar, and first run's disabled Back and steps, do not say why by themselves. */}
         <p className="ob-fine">Stay on this page until the clone finishes, or cancel it.</p>
       </> : p.kind === "cloneCancelled" ? <>
-        <div className={panel ? "doan-notice doan-panel ob-project-notice" : "doan-notice ob-project-notice"} role="status" tabIndex={-1}><AlertIcon /><span>Cloning was cancelled. Choose a folder or try again.</span></div>
+        <div className={panel ? "doan-notice doan-panel ob-project-notice" : "doan-notice ob-project-notice"} role="status" tabIndex={-1}><AlertIcon /><span className="selectable">Cloning was cancelled. Choose a folder or try again.</span></div>
         <div className="ob-state-actions"><button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={on.chooseExisting}>Choose local folder</button>
           <button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" data-consent="" onClick={on.retry}>Retry</button></div>
         {smallActions(["Edit repository URL", "edit"])}
