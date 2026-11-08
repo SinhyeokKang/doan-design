@@ -7,12 +7,12 @@
 - [ ] **T1. 메모리 프로파일** (결정 Q5)
   - 테스트 안에서 24 MiB CSS 하나를 `<link>`하는 캔버스를 만들고(minify한 것과 아닌 것 두 가지, `url()` 수 기록) `export.Inline` + `export.Assemble`의 할당 상위를 잰다. 빌드한 CLI로 같은 입력의 최대 RSS도 잰다.
   - design.md §2에 측정값, 상위 할당 함수, 고칠 곳과 고른 이유를 적는다. 가설(lex token slice, `string(b)` 사본, `dataURI` 사본, `Assemble` 사본)마다 맞았는지 적는다.
-  - 검증: `go test ./cli/internal/export/ -run <프로파일 테스트> -memprofile <tmp>/mem.out`(AGENTS.md 'Commands'의 `go test`에 플래그를 더한 것)으로 프로파일을 만든다. 프로파일을 읽는 `go tool pprof`와 RSS를 재는 `/usr/bin/time -l <tmp>/doan export …`(CLI는 `go build -o <tmp>/doan ./cli/cmd/doan`)는 'Commands'에 없다 — 명령 미정, 사용자 확인 필요.
+  - 검증: `go test ./cli/internal/export/ -run <프로파일 테스트> -memprofile <tmp>/mem.out`(AGENTS.md 'Commands'의 `go test`에 플래그를 더한 것)으로 프로파일을 만든다. 프로파일을 읽는 `go tool pprof`와 RSS를 재는 `/usr/bin/time -l <tmp>/doan export …`(CLI는 `go build -o <tmp>/doan ./cli/cmd/doan`)는 'Commands'에 없지만 PoC·측정 task에만 쓰도록 허용됐다. 프로파일 파일과 측정 스크립트는 `.scratch/export-hardening/`에 두고, 결과는 design.md §2에 적는다.
 
 - [ ] **T2. SVG sprite `<style>` PoC** (결정 Q4)
   - 경우마다 페이지 하나씩(POSTMORTEM 2026-11-03): (1) 앱처럼 외부 `file.svg#id`를 `<use>`, (2) 숨긴 같은 문서 sprite + `:where([data-doan-sprite="N"])`로 좁힌 규칙 + `<use href="#id">`, (3) (2)에서 sprite 밖 캔버스 요소. Electron 45 Chromium과 Playwright WebKit에서 복사본과 캔버스 요소의 computed `fill`·`stroke`·`opacity`를 비교한다.
   - design.md §4에 결과와 판정(구현 / 비목표)을 적는다. 비목표면 spec Done when의 해당 항목을 Non-goals로 옮기고 T10·T11을 지운다.
-  - 검증: `.scratch/export-hardening/` 아래 측정 스크립트를 node로 실행(Playwright `_electron`과 WebKit) — 명령 미정, 사용자 확인 필요. 결과 표가 design.md에 있다.
+  - 검증: `.scratch/export-hardening/` 아래 측정 스크립트를 node로 실행(Playwright `_electron`과 WebKit). 'Commands'에 없지만 PoC·측정 task에만 쓰도록 허용됐다. 스크립트는 `.scratch/`에 두고 결과 표를 design.md §4에 적는다.
 
 - **커밋 경계 C1**: `docs(feature): export-hardening PoC results` — `docs/features/export-hardening/`만.
 
@@ -58,7 +58,7 @@
 
 - [ ] **T9. RSS 다시 재기**
   - T1과 같은 입력으로 최대 RSS를 재서 입력 × 10 이하인지 확인하고 design.md §2에 적는다.
-  - 검증: `/usr/bin/time -l` — 명령 미정, 사용자 확인 필요.
+  - 검증: `/usr/bin/time -l <tmp>/doan export …`(측정 task에만 허용, 입력은 `.scratch/export-hardening/`). 측정값이 design.md §2에 있다.
 
 - **커밋 경계 C4**: `test(export): …`, `fix(export): …`(고친 곳에 맞춘 제목).
 
@@ -71,7 +71,7 @@
 - [ ] **T11. sprite 복사에 적용**
   - sprite root에 표식 속성을 달고, 좁힌 `<style>`의 `url()`을 SVG 파일 폴더 기준으로 다시 쓴다. false면 지금처럼 `ReasonUseStyle`. `fix2_test.go`의 `<style>` 거절 기대를 새 규칙에 맞게 고친다(지원하는 style은 export, 지원하지 않는 style은 거절).
   - 결과 파일을 Chromium과 WebKit에서 열어 T2와 같은 값을 다시 잰다.
-  - 검증: `go test ./...`; 브라우저 확인은 T2의 측정 스크립트 — 명령 미정, 사용자 확인 필요.
+  - 검증: `go test ./...`; 브라우저 확인은 `.scratch/export-hardening/`의 T2 측정 스크립트(측정에만 허용)로 하고 결과를 design.md §4에 적는다.
 
 - **커밋 경계 C5**: `test(export): …`, `feat(export): include sprites whose style can be scoped`.
 
