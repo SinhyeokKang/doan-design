@@ -6,7 +6,7 @@ Use this preset when the user asks to tone down, soften, calm, or make quieter a
 
 ## Before you start
 
-- Find the target. For pointing words like "this screen" or "this banner", use `doan active` and read the open comments attached to that target (`doan comments --canvas <id>`). Otherwise work on the canvas, frame, or code the user named.
+- Find the target. For pointing words like "this screen" or "this banner", use `doan active`. Otherwise work on the canvas, frame, or code the user named.
 - Read the design system: the token CSS (`doan config --json` shows `tokenCss`), existing components, any design rules document, and the design-system canvases in `.doan/ds/` (or a legacy `.doan/canvases/design-system.html`) if present.
 - Read the code the canvas implements (`data-doan-implements`) so the calmer version keeps its states and behavior.
 - Understand the context: the surface's purpose (marketing, tool, or reading), its audience (some contexts need energy), what already works, and the core message to preserve. If these are unclear from the repository, do not guess: ask. When product context is missing and it would change the result, suggest the `context` preset (`doan design-skill context --json`).
@@ -100,7 +100,7 @@ Reading surfaces follow the type and consistency rules above; their prose measur
 - Reference token CSS variables; do not copy raw hex or rgb values.
 - When something on the canvas, such as a new muted token or a changed motion, is not in code yet, say so on the canvas, as the Doan guide requires.
 - If the user asked for a review only, report the intensity sources and proposed changes without editing files.
-- After editing a canvas, make `doan check` pass. Resolve only the comments you actually applied.
+- After editing a canvas, make `doan check` pass.
 - In your answer, list what changed and what you left unchanged on purpose, including token changes you proposed instead of making.
 
 ## Verify

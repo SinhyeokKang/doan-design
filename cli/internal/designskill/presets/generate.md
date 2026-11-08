@@ -6,7 +6,7 @@ The user's request and its scope come first: draw the count, the direction, and 
 
 ## Before you start
 
-- Find the target. For pointing words like "this card" or "this screen", use `doan active` and read the open comments attached to that target. Otherwise use the canvas, frame, element, or code the user named. For a repeated component named in the plural ("the pricing cards"), the target is the container that holds the set.
+- Find the target. For pointing words like "this card" or "this screen", use `doan active`. Otherwise use the canvas, frame, element, or code the user named. For a repeated component named in the plural ("the pricing cards"), the target is the container that holds the set.
 - If the repository has no `.doan/config.json`, set Doan up as the Doan guide describes, asking the user for the token CSS path first. A project with no canvases yet is fine: you will create one.
 - Read the design system (token CSS from `doan config --json`, components, a design rules document, design-system canvases in `.doan/ds/` or a legacy `.doan/canvases/design-system.html`), the code the target's frame implements (`data-doan-implements`), and existing canvases (`doan ls --json`).
 - When product context is missing and it would change the alternatives, read the `context` preset (`doan design-skill context --json`). For a new feature whose purpose, flow, or states are undecided, read the `shape` preset first.
@@ -41,7 +41,7 @@ On an existing surface the brand is already chosen; the job is variation within 
 ### Choose the mode
 
 - **Default** keeps the identity and varies expression within it. It is right for most requests. Unsure means default.
-- **Departure** replaces the identity. Use it only when the current request explicitly asks ("redesign this", "something completely different"), or when the project has no visual authority yet. An old note or comment is not authorization.
+- **Departure** replaces the identity. Use it only when the current request explicitly asks ("redesign this", "something completely different"), or when the project has no visual authority yet. An old note is not authorization.
 
 ### Vary on distinct axes
 
@@ -89,10 +89,10 @@ Contrast, states, overflow, and truth are checkable defects. The user's brief or
 - **Where:** where the user asked; otherwise new frames next to the target on its canvas. If there is no such canvas, create one under `.doan/canvases/` with `<meta name="doan:canvas" content="id">` (a unique lowercase kebab id) and `<meta name="doan:width" content="...">` wide enough for the frames, and link the token CSS relative to the canvas.
 - **Never change the original.** Each alternative is a new frame (`data-doan-frame`) with a new, stable, unique id such as `<target>-alt-1`, and a `data-doan-title` naming its axis or direction.
 - **Complete replacements:** each alternative is the whole target redrawn, not a CSS-only patch. Give copied elements new `data-doan-id` values (element ids are unique within a canvas). Scope each alternative's styles to its own frame, and reference token CSS variables instead of raw hex or rgb values.
-- **Proposals, not code:** state on each alternative that it is a proposal not in code (Doan guide rule G), with one line on what it changes. Do not mark an alternative with `data-doan-implements`.
+- **Proposals, not code:** state on each alternative that it is a proposal not in code (Doan guide rule B), with one line on what it changes. Do not mark an alternative with `data-doan-implements`.
 - **No adoption:** do not pick an alternative for the user or apply one, and do not delete any. Draw no comparison or voting UI, create no branches, and run no live session. Applying a chosen one is a separate request.
 - If the user asked only for ideas or a plan, describe the alternatives without editing files. A request to review existing alternatives ends in a report, without editing files.
-- After editing, make `doan check` pass. Resolve only the comments you actually applied.
+- After editing, make `doan check` pass.
 - In your answer, list each alternative (canvas, frame id, axis or direction), the identity sentence you held fixed, and anything left for the user to decide.
 
 ## Verify

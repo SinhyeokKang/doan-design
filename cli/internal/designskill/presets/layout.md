@@ -6,7 +6,7 @@ Use this preset when the user asks to improve arrangement, spacing, alignment, g
 
 ## Before you start
 
-- Find the target. For pointing words like "this screen" or "this section", use `doan active` and read the open comments attached to that target. Otherwise work on the canvas, frame, or code the user named.
+- Find the target. For pointing words like "this screen" or "this section", use `doan active`. Otherwise work on the canvas, frame, or code the user named.
 - Read the design system: token CSS (`doan config --json` shows `tokenCss`), especially spacing, size, and breakpoint variables; existing layout components; any design rules document; and the design-system canvases in `.doan/ds/` (or a legacy `.doan/canvases/design-system.html`) if present.
 - Read the code the canvas implements (`data-doan-implements`) so the proposed structure fits the real component tree and its states.
 - If the product's users and tasks are unknown and that would change the priority order, suggest gathering them first with the `context` preset (`doan design-skill context --json`). Ask only what would change the result.
@@ -71,12 +71,11 @@ Variation is not a goal by itself. Repetition supports recognition; break it onl
 
 ## Apply the change in Doan
 
-- Change only the structure in the requested scope. Keep canvas, frame, and element ids unchanged; when you move or regroup an element, keep its `data-doan-id` so its comments follow it. Leave frames and elements outside the request as they are.
-- Check the open comments attached to an element or frame before substantially restructuring it.
+- Change only the structure in the requested scope. Keep canvas, frame, and element ids unchanged; when you move or regroup an element, keep its `data-doan-id`. Leave frames and elements outside the request as they are.
 - A frame shows one width. Draw additional frames for other widths or states only when the request covers them; otherwise describe the intended adaptation in your answer.
 - When a structure drawn on the canvas is not in code yet, such as a new region, component, or breakpoint behavior, say so on the canvas, as the Doan guide requires.
 - If the user asked for a review only, report the assessment, the spatial thesis, and proposed changes without editing files.
-- After editing a canvas, make `doan check` pass. Resolve only the comments you actually applied.
+- After editing a canvas, make `doan check` pass.
 - In your answer, list what changed and what you left unchanged on purpose, and any spacing token you proposed rather than added.
 
 ## Verify

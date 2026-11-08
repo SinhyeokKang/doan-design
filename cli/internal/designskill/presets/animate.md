@@ -6,7 +6,7 @@ Use this preset when the user asks for transitions, micro-interactions, entrance
 
 ## Before you start
 
-- Find the target. For pointing words like "this screen" or "this button", use `doan active` and read the open comments attached to that target. Otherwise work on the canvas, frame, element, or code the user named.
+- Find the target. For pointing words like "this screen" or "this button", use `doan active`. Otherwise work on the canvas, frame, element, or code the user named.
 - Read the design system: token CSS variables (`doan config --json` shows `tokenCss`), especially any duration, easing, or motion tokens; existing components and their states; a design rules document; and the design-system canvases in `.doan/ds/` (or a legacy `.doan/canvases/design-system.html`) if present.
 - Read the code the frame implements (`data-doan-implements`) for its existing motion language: transitions, keyframes, a motion library, reduced-motion handling. Extend that language instead of starting a second one.
 - Infer the performance budget and target devices from the product and code. Ask only when a material constraint cannot be inferred and would change the result. When the product's purpose or audience is unknown and that would change the motion, suggest the `context` preset (`doan design-skill context --json`).
@@ -108,7 +108,7 @@ States and contrast below are checkable defects. The other items are review defa
 - Use token CSS variables for colors and motion values; do not copy raw hex or rgb values.
 - When motion drawn on a canvas is not in code yet, say so on the canvas, as the Doan guide requires for anything drawn that is not in code. Edit implementation code only when the user asked for it.
 - If the user asked for a review only, report the findings and the proposed motion plan without editing files.
-- After editing a canvas, make `doan check` pass. Resolve only the comments you actually applied.
+- After editing a canvas, make `doan check` pass.
 - In your answer, list what changed, the motion thesis you used, and what you left unchanged on purpose.
 
 ## Verify

@@ -6,7 +6,7 @@ Use this preset when the user asks to simplify, declutter, reduce, or strip back
 
 ## Before you start
 
-- Find the target. For pointing words like "this screen" or "this panel", use `doan active` and read the open comments attached to that target (`doan comments --canvas <id>`). Otherwise work on the canvas, frame, or code the user named.
+- Find the target. For pointing words like "this screen" or "this panel", use `doan active`. Otherwise work on the canvas, frame, or code the user named.
 - Read the design system: the token CSS (`doan config --json` shows `tokenCss`), existing components, any design rules document, and the design-system canvases in `.doan/ds/` (or a legacy `.doan/canvases/design-system.html`) if present.
 - Read the code the canvas implements (`data-doan-implements`) to learn which elements carry real function, data, or states.
 - Find the primary user goal for this surface. If the goal, the audience, or what is essential is unclear from the repository, do not guess: ask. When product context is missing and it would change what to cut, suggest the `context` preset (`doan design-skill context --json`).
@@ -95,11 +95,10 @@ When the request covers the implementation, remove unused styles and components,
 ## Apply the change in Doan
 
 - Change only the requested scope. Keep canvas, frame, and element ids unchanged for everything that stays, and leave frames and elements outside the request as they are.
-- Check open comments attached to an element or frame before deleting it.
 - Reference token CSS variables; do not copy raw hex or rgb values.
 - When the simplified canvas no longer matches the code it implements, or shows something not in code yet, say so on the canvas, as the Doan guide requires.
 - If the user asked for a review only, report the findings and the proposed cuts without editing files.
-- After editing a canvas, make `doan check` pass. Resolve only the comments you actually applied.
+- After editing a canvas, make `doan check` pass.
 - In your answer, list what you removed, hid, or merged and why, whether removed options need another access point, and what you left unchanged on purpose because it needs the user's decision.
 
 ## Verify

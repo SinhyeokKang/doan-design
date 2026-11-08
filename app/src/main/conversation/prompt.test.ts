@@ -70,7 +70,7 @@ it("teaches the reply link form next to the open rule, outside the data, and say
   expect(JSON.stringify(JSON.parse(sections[1]!))).not.toContain("doan:");
   expect(turnPrompt([], "hello", { root: "/other" }, { home: true })).toContain(LINK_GUIDANCE);
   for (const text of ["[name](doan:<canvas-id>/frame/<frame-id>)", "[name](doan:<canvas-id>/element/<doan-id>)", "percent-encod"]) expect(LINK_GUIDANCE).toContain(text);
-  // The line must not read as the open offer or the doan:// link that OPEN_GUIDANCE and the guide's rule J rule out.
+  // The line must not read as the open offer or the doan:// link that OPEN_GUIDANCE and the guide's rule E rule out.
   for (const text of ["not an offer to open", "`doan://`"]) expect(LINK_GUIDANCE).toContain(text);
   expect(LINK_GUIDANCE).not.toContain("\n");
 });

@@ -6,7 +6,7 @@ Use this preset when the user asks to add personality, charm, warmth, celebratio
 
 ## Before you start
 
-- Find the target. For pointing words like "this screen" or "this state", use `doan active` and read the open comments attached to that target. Otherwise work on the canvas, frame, element, or code the user named.
+- Find the target. For pointing words like "this screen" or "this state", use `doan active`. Otherwise work on the canvas, frame, element, or code the user named.
 - Read the design system: token CSS variables (`doan config --json` shows `tokenCss`), existing components, illustrations and icon sets, a design rules document, and the design-system canvases in `.doan/ds/` (or a legacy `.doan/canvases/design-system.html`) if present.
 - Read the product voice in existing copy and documents, and the code the frame implements (`data-doan-implements`).
 - Judge how often the moment repeats and what is at stake for the person there.
@@ -82,7 +82,7 @@ When the delight is mainly authored motion (timing, easing, reduced-motion behav
 - A canvas is a still board. Draw the moment's states side by side or implement it in canvas CSS with a visible trigger, and annotate what a still drawing cannot show: trigger, duration, sound or haptic behavior, frequency limits, and the reduced-motion or muted alternative.
 - When new copy, illustration, sound, or interaction drawn on a canvas is not in code yet, say so on the canvas, as the Doan guide requires for anything drawn that is not in code. Edit implementation code only when the user asked for it.
 - If the user asked for a review only, report the opportunities and the proposed thesis without editing files.
-- After editing a canvas, make `doan check` pass. Resolve only the comments you actually applied.
+- After editing a canvas, make `doan check` pass.
 - In your answer, list what changed, the delight thesis, and what you left unchanged on purpose, especially serious moments you kept plain.
 
 ## Verify
