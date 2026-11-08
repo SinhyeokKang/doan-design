@@ -24,20 +24,55 @@
 
 ## 2. 메모리
 
-원인은 측정하지 않았다. PoC(tasks T1)가 먼저다.
+T1에서 쟀다. 기계 Apple M1(16 GiB), go1.27.3 darwin/arm64, 커밋 `e88b05ce`. 기준 CLI `doan-before`도 같은 커밋에서 빌드했다. pprof 수치의 MB는 pprof 표기 그대로(2^20 B)다.
 
-- **입력**: `.scratch/export-hardening/`의 결정적(deterministic) 생성기 하나가 T1·T5·T9의 입력을 만든다. CSS는 minify 여부, `url()` 수, 참조 자산 크기를 고정하고, 자산 5,000개 캔버스는 1 KiB 이하 `<img>` 5,000개(합계는 `MaxBytes` 50 MiB 미만)로 만든다. T8의 커밋되는 Go 테스트는 같은 생성 규칙을 테스트 안에 옮겨 쓰고, T1에서 두 생성 결과의 sha256이 같은지 확인한다.
-- **측정**: 24 MiB CSS 하나를 `<link>`하는 캔버스로 `export.Inline`과 `Assemble`을 돌리고 `-memprofile`로 할당 상위를 본다. 최대 RSS는 빌드한 CLI를 `/usr/bin/time -l`로 세 번 돌려 가장 큰 값을 쓴다. 기계, Go 버전, 커밋 sha를 함께 적는다. RSS의 기준은 CSS 크기다(24 MiB → 240 MiB 이하). 입력 전체 바이트도 기록한다.
-- **후보**(코드를 읽고 세운 가설, 측정 전):
-  1. `canvas.lex`가 공백 아닌 글자마다 `token{kind, text, start, end}`(약 40 B)를 slice에 쌓는다. minify한 CSS는 글자 3~4개마다 token 하나라서 24 MiB에서 수백 MB가 되고, append 확장으로 순간 두 배가 된다. 한 stylesheet를 `collectText`의 `CustomUses`·`CSSRefs`, `inlineFile`의 `CSSRefs`로 세 번 lex한다.
-  2. `string(b)` 변환(`collectSheet`, `inlineFile`)과 `dataURI([]byte(text))`가 각각 입력 크기의 사본을 만든다. `inliner.files`가 읽은 바이트를 export 끝까지 들고 있다.
-  3. `rewriteCSSRefs`의 `strings.Builder`가 `Grow` 없이 늘어난다.
-  4. `Assemble`이 `attributeEscaper.Replace` 세 번, 문자열 연결, `strings.NewReplacer`, `[]byte` 변환으로 결과 크기의 사본을 여러 번 만든다. 결과는 `export.go`에서 다시 `page`로 남는다.
-  5. Go GC는 기본 `GOGC=100`이라 heap이 살아 있는 양의 두 배까지 자란 뒤 회수한다.
-- **고치는 방식 후보**: lex를 한 번만 하고 token을 세 호출이 나눠 쓰기, token을 줄이기(`int32` offset, `text`는 원문에서 잘라 쓰기), slice 대신 token을 하나씩 내기, `inliner.files`가 다 쓴 바이트를 놓기, 사본 줄이기. 프로파일 수치로 고르고 고른 이유를 이 문서에 적는다.
+- **입력**: `.scratch/export-hardening/gen-inputs.mjs <out>`이 두 repo를 만든다. 두 번 돌린 결과의 sha256이 같다. digest는 repo 파일마다 `<sha256>  <경로>` 줄을 경로 순으로 이은 것의 sha256이다(`shasum -a 256` 형식).
+  - (a) `many-assets`: `.doan/assets/many/` 한 디렉터리에 1,024 B SVG 5,000개, `<img>` 5,000개. digest `9b1e66157c5d0054af172ed2bc937e60a04eb1fbfd07460ae2fb073ce4ccc7f7`.
+  - (b) `big-css`: minify한 `.doan/assets/css/big.css` 정확히 24 MiB(25,165,824 B). `url()` 1,000개가 1,024 B SVG 10개를 가리킨다. data URI가 percent-encode하는 바이트를 쓰지 않아 export 결과가 26,392,286 B로 `MaxBytes` 아래에 머문다. 입력 전체 25,176,407 B. digest `2a3cfcf21069ac06c0aecac9d04b5bd444ab5addf8f6a63beb39959eb877a741`, `big.css` sha256 `b85ec1ecd2db1e6ca0be71f006695b177039a6d4d875fa20308a53bfec4e3857`.
+  - `cli/internal/export/profile_test.go`의 `TestProfileLargeStylesheet`(`DOAN_EXPORT_PROFILE=1`일 때만 돈다)가 (b) 규칙을 옮겨 쓰고, 위 두 sha256을 상수로 고정한다. 생성기 출력과 같은 값이다.
+  - 대조 입력(측정 전용, `.scratch/export-hardening/control/gen-comment-css.mjs`): (b)와 CSS 크기, `url()` 1,000개, 자산이 같고 나머지 바이트가 주석 하나다. token이 거의 없어(lex 할당 4.4 MB) lex를 뺀 export 비용을 보여 준다.
+- **측정값**: RSS는 `/usr/bin/time -l doan-before export … --json`을 세 번 돌린 값이고, 할당과 heap은 Inline+Assemble 구간만 잰 값이다. heap 점유는 runtime/metrics `/memory/classes/heap/objects:bytes`를 1 ms마다 읽은 최댓값이고, 아직 회수하지 않은 죽은 객체를 포함한다.
+
+  | | (b) big-css | 대조 |
+  |---|---|---|
+  | 최대 RSS(세 번 중 최대) | 2,205,253,632 B(2,103 MiB; 세 번 2,205,253,632·1,932,541,952·1,880,702,976) | 299,794,432 B(285.9 MiB; 세 번 299,794,432·273,481,728·271,433,728) |
+  | 시간(real) | 1.98–2.66 s | 0.34–0.36 s |
+  | TotalAlloc 증가 | 8,110,556,128 B | 436,773,568 B |
+  | heap 점유 최대 | 1,646,699,624 B | 243,200,352 B(Inline 동안 163,997,768 B) |
+  | GC 횟수 | 21 | 6 |
+
+  목표는 CSS 크기 × 10 = 240 MiB(251,658,240 B)다. (b)는 목표의 8.8배이고, 대조도 목표를 넘는다(1.19배).
+- **할당 상위**(`go tool pprof -sample_index=alloc_space`, (b), 전체 7,875 MB):
+  1. `canvas.lex` 7,226 MB(91.8%). `CSSRefs`를 거친 것이 4,818 MB(`collectText`의 수집용과 `inlineFile`→`rewriteCSSRefs`의 다시 쓰기용이 각각 약 2.41 GB), `CustomUses`를 거친 것이 2,409 MB다.
+  2. `Assemble` 누계 176 MB. srcdoc 줄(`string(canvas[at:])` 변환, `attributeEscaper.Replace` 세 번, 문자열 연결)이 100 MB, `replacer.WriteString`이 `Grow` 없는 `bytes.Buffer`를 늘리며 75 MB.
+  3. `rewriteCSSRefs`의 `strings.Builder` 130 MB. `Grow`가 없어 url() 사이 조각을 쓸 때마다 1.25배씩 늘어난다(대조처럼 마지막에 한 번에 쓰면 한 번만 할당한다).
+  4. `dataURI` 56 MB(`Grow(len(b))` 25 MB, percent-encode로 넘쳐 다시 늘리며 31 MB).
+  5. `string(b)` 사본: `collectSheet` 24 MB, `inlineFile` 24 MB. 파일 읽기(`readFile`) 24 MB는 한 번이고 필요하다.
+  6. HTML 다시 쓰기 출력: `rewriteMarkup`의 `bytes.Buffer` 25 MB, `rewriteTag` 25 MB.
+- **가설 판정**
+  1. lex token slice와 세 번 lex — **맞다, 주원인이다.** token은 40 B(`unsafe.Sizeof`)이고, (b)를 한 번 lex하면 token 11,603,068개, 최종 slice cap 12,634,112개(505,364,480 B)가 된다. append가 큰 slice를 1.25배씩 늘리므로 lex 한 번에 약 2.4 GB를 할당한다. 세 번의 lex는 동시에 살지 않는다(호출이 끝나면 slice가 죽는다). heap 점유 최대 1.65 GB는 확장하는 순간의 이전·새 backing array(약 0.9 GB)와 GC가 아직 회수하지 않은 앞선 slice다.
+  2. `string(b)` 사본 — 맞다, 작다(24 MB씩 두 번). `dataURI([]byte(text))`는 할당이 없다(pprof에서 그 줄의 flat이 0이다. 컴파일러가 사본을 생략했다).
+  3. `inliner.files` — 맞다, 작다. 읽은 24 MiB를 Inline 끝까지 들고, `in.sheets`의 data URI(약 25 MB)도 Inline 끝까지 산다. 새 할당이 아니라 보유라서 점유에 약 50 MB를 더한다.
+  4. `dataURI` 사본 — 맞다, 작다(56 MB).
+  5. `Assemble` 사본 — 맞다. 할당은 176 MB이고, 대조에서 Inline 뒤 heap 점유를 164 MB에서 243 MB로 올린다. lex를 고친 뒤 최대 사용량을 정하는 쪽은 이 단계다.
+  6. GC — 원인이 아니라 배수다. GOGC=100이라 점유가 표시된 live의 약 2배까지 자란다. 대조에서 heap 점유 최대 243 MB, `Sys` 317 MB(302.8 MiB), RSS 300 MB다.
+  - `rewriteCSSRefs`의 `Grow` 없는 builder(후보 3) — 맞다, (b)에서 130 MB.
+- **고칠 곳과 고른 이유**
+  1. **lexer(`cli/internal/canvas/css.go`)**: 할당의 91.8%다. 대조로 lex를 빼면 TotalAlloc이 8.11 GB에서 0.44 GB로, RSS가 2.21 GB에서 0.30 GB로 준다. 방식은 token을 slice에 다 모으지 않고 하나씩 내는 쪽이다. 아래 계산(측정 아님) 때문에 다른 두 후보로는 목표에 닿지 않는다.
+     - token을 세 호출이 나눠 쓰기: slice 하나(505 MB)가 그대로 남아 그것만으로 240 MiB를 넘는다.
+     - token 줄이기(16 B로): cap 12.6 M × 16 B ≈ 202 MB에 확장 순간의 이전 array ≈ 162 MB가 더해져, slice만으로 약 364 MB가 된다.
+     - 하나씩 내기: `CSSRefs`는 `@import` 판정에 뒤 token 두 개를, custom property 이름에 선언의 앞 token 두 개를 본다. `CustomUses`와 `ScanCSS`는 선언 하나의 token 목록을 쓴다. 그래서 선언 단위 buffer면 되고, 메모리는 stylesheet 전체가 아니라 가장 긴 선언에 비례한다. 공개 함수의 결과는 그대로라 호출부(export·check)는 바꾸지 않는다.
+  2. **export 사본**: lexer만 고쳐서는 목표에 못 미친다. lex 비용이 거의 없는 대조가 이미 RSS 285.9 MiB다. 대조의 할당 437 MB 중 줄일 수 있는 것은 다음과 같다.
+     - `assemble.go`: srcdoc 중간 문자열과 `Grow` 없는 출력 buffer(176 MB, Inline 뒤 점유 +79 MB). 결과 크기를 먼저 세고, 한 buffer에 escape하며 쓴다.
+     - `inline.go`: `inlineFile`의 `string(b)` 사본(24 MB), 다 쓴 `in.files` 바이트와 `in.sheets` uri 보유.
+     - `customurl.go`: `collectSheet`의 `string(b)` 사본(24 MB).
+     - `rewrite.go`: `rewriteCSSRefs` builder의 `Grow`(130 MB, (b)), `rewriteMarkup` 출력 buffer.
+     - `datauri.go`: percent-encode 뒤 크기를 먼저 세어 한 번만 할당(31 MB).
+     어디까지 줄여야 하는지는 T9의 RSS로 정한다. 사본을 줄여도 240 MiB를 넘으면 결정 D대로 `doan export`에만 메모리 한도를 건다.
+- **fix batch가 고칠 파일**: `cli/internal/canvas/css.go`(와 canvas 테스트), `cli/internal/export/`의 `assemble.go`·`inline.go`·`customurl.go`·`rewrite.go`·`datauri.go`(와 export 테스트). 메모리 한도를 쓰게 되면 `cli/internal/cli/export.go`도 고친다. B batch가 `inline.go`·`customurl.go`·`assemble.go`를 고칠 수 있으므로, fix batch는 B를 통합한 뒤 시작한다.
 - **고치는 원칙**: 결과 바이트는 바꾸지 않는다(기존 export 테스트와, 고치기 전 결과의 sha256을 넣어 둔 비교 테스트). lexer를 바꾸면 한 입력 묶음에 대해 `ScanCSS`, `CSSRefs`, `CustomUses`(그리고 `viewportHeights`를 쓰는 쪽)의 결과를 바꾸기 전과 비교해 `doan check` 결과가 그대로인지 확인하고, `cli/internal/canvas/css_refs_test.go`의 `TestCSSRefsMatchesScanCSS`를 깨지 않는다. 쓰기 경로를 건드리면 `export_signal_test.go`, `TestExportTemporaryCollisionPreservesOtherWriter`, `TestExportTooLarge*` 순서 테스트가 그대로 통과해야 한다.
 - **GC 한도(결정 D)**: 원인을 먼저 고친다. 그래도 목표에 못 미치면 `GOMEMLIMIT`/`debug.SetMemoryLimit`를 보조로 쓸 수 있다. 쓰게 되면 한도 없이 고친 값, 한도를 둔 값, 고치기 전 값을 함께 기록하고, 한도는 `doan export` 명령에만 건다. `debug.SetGCPercent`만으로 줄이는 방법은 쓰지 않는다.
-- **회귀 감지**: `runtime.GC()` 뒤 `runtime.ReadMemStats`로 export 전후의 `TotalAlloc` 증가분에 상한을 두는 테스트(`t.Parallel` 없음). 할당 총량은 최대 사용량의 상한이고 GC 시점에 덜 흔들린다. RSS 자체는 T9에서 잰다. 상한 값은 수정 뒤 측정값에 여유를 두어 정한다. 24 MiB 프로파일 테스트는 Go internal 규칙 때문에 `cli/internal/export`에 두고, 환경 변수가 있을 때만 돈다(없으면 `t.Skip`).
+- **회귀 감지**: `runtime.GC()` 뒤 `runtime.ReadMemStats`로 export 전후의 `TotalAlloc` 증가분에 상한을 두는 테스트(`t.Parallel` 없음). 할당 총량은 최대 사용량의 상한이고 GC 시점에 덜 흔들린다. RSS 자체는 T9에서 잰다. 상한 값은 수정 뒤 측정값에 여유를 두어 정한다. 24 MiB 프로파일 테스트(`TestProfileLargeStylesheet`)는 Go internal 규칙 때문에 `cli/internal/export`에 있고, `DOAN_EXPORT_PROFILE`이 있을 때만 돈다(없으면 `t.Skip`).
 
 ## 3. `<base href>`
 
