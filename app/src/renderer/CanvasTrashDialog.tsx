@@ -4,8 +4,9 @@ import { AlertIcon } from "./AlertIcon";
 export interface TrashDialogView { title: string; body: string; reason: string | null; confirmable: boolean }
 
 // What the Move to Trash confirmation says and allows (PRODUCT §5 item 1 'Canvas row menu'). `plan` is main's
-// `canvas:trashPlan` answer, null until it comes: only a ready plan can be confirmed. `working` is the live trashBlock: an agent that starts on the canvas while the dialog is open
-// holds the confirm, as main's `busy` plan does. Main judges again on confirm; this is the display.
+// `canvas:trashPlan` answer, null until it comes: only a ready plan can be confirmed. `working` is the live trashBlock:
+// an agent that starts on the canvas while the dialog is open holds the confirm, as main's `busy` plan does. Main
+// judges again on confirm; this is the display.
 export function trashDialogView(stem: string, path: string, plan: TrashPlanReply | null, working: boolean): TrashDialogView {
   const busy = working || (plan?.kind === "refused" && plan.reason === "busy");
   return {
