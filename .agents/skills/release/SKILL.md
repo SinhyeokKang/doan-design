@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # Release
 
-`/release` is the only way `main` changes (AGENTS.md 'Commit conventions'). The maintainer's invocation approves everything the release needs: the `develop` → `main` merge, the `release` environment deployment of the release run, and publishing. The skill stops only on a failure and reports it.
+`/release` is the only way code reaches `main` (AGENTS.md 'Commit conventions'); `/publish` brings public-facing documentation there between releases and merges `main` back into `develop`, so a release still starts from a `main` that `develop` contains. The maintainer's invocation approves everything the release needs: the `develop` → `main` merge, the `release` environment deployment of the release run, and publishing. The skill stops only on a failure and reports it.
 
 The workflow, its checks and the asset names are in ARCHITECTURE §9 'Signing in CI' and 'Release builds'. This skill calls only the names given there; the logic stays in the workflow and in `app/scripts/`.
 
