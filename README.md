@@ -25,6 +25,7 @@
 
 ## Why Doan
 
+- **Design first, then let the agent build.** Doan is a design app made for vibe coding with agents. Settle the screens on a canvas before any code, and the agent implements a design you already agreed on: results become predictable, revision rounds shrink, and fewer tokens go to rework.
 - **Drafts live in your repo.** A canvas is an HTML file next to the code, versioned with it, not a page in someone else's service that can shut down.
 - **Every agent can read it.** Claude Code, Codex, Cursor, Antigravity and GitHub Copilot read the same file through the same `doan` skill, with no upload step.
 - **It knows your code.** Canvases use the repo's real token CSS, frames name the files that implement them, and `doan check` flags convention, token and external-resource problems.
