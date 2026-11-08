@@ -1,11 +1,11 @@
 ---
 name: chain
-description: Use to link several features into a chain of /orchestrate runs, serial unless they share no code — write the chain file, settle its order and standing permissions with the user, and start the first conductor. Also the rules every conductor in a chain follows to finish, hand off and retire.
+description: Use to link several features into a chain of /orchestrate runs, serial unless they share no code — the lead writes the chain file, settles its order and standing permissions with the user, starts each link's conductor, and reviews and merges each link's PR. Also the rules a link's conductor follows.
 ---
 
-A **chain** runs several `/orchestrate` runs, each feature merged to develop by its own link. Links run one after another, each starting after the one before has merged, except links whose code does not overlap, which run in parallel (§1 step 2). This skill has two parts: §1–§2 are for the session that sets the chain up (it writes no code and conducts no link), §3 is for every conductor running a link.
+A **chain** runs several `/orchestrate` runs, one feature per link. Links run one after another, each starting after the one before has merged, except links whose code does not overlap, which run in parallel (§1 step 2). The **lead** (the develop-checkout session, AGENTS.md 'Workflow' Lead and conductors) sets the chain up, starts every link's conductor, and reviews and merges every link's PR; it writes no feature code and conducts no link. §1–§2 and §3 'Lead' are for the lead, §3 'Conductor' for each link's conductor.
 
-The chain file `docs/features/chain-<YYMMDD>/chain.md` is the single source for the chain: order, the user's standing permissions, the start check, the status of each link and the handoff log. It is written in Korean (AGENTS.md 'Korean writing rules') and committed and pushed on develop. A conductor reads it at intake; it overrides `/orchestrate`'s defaults only where it says so.
+The chain file `docs/features/chain-<YYMMDD>/chain.md` is the single source for the chain: order, the user's standing permissions, the start check, the status of each link and the handoff log. It is written in Korean (AGENTS.md 'Korean writing rules'), and only the lead writes it, committed and pushed on develop; a conductor never edits it on its branch. A conductor reads it at intake; it overrides `/orchestrate`'s defaults only where it says so.
 
 ## Usage
 
@@ -16,44 +16,39 @@ The chain file `docs/features/chain-<YYMMDD>/chain.md` is the single source for 
 
 1. **Check each feature.** `docs/features/<slug>/{spec,design,tasks}.md` exist. Note for each: whether `/feature-review` ran or the user waived it, whether a draft still needs the user's confirmation, any open point left in its documents ('확인 필요' or similar), any task whose verification command is "needs user confirmation", and whether its `/runtime-test` needs a provider login. Do not settle these yourself; they go into the start check.
 2. **Order by file overlap.** Read each design's affected files. A link that removes or restructures code another link extends goes first, so the later link starts on top of it; a known bug fix goes early; the largest link usually goes last. Write one line of reasoning per link.
-   - **Parallel when nothing overlaps.** Compare the files each design says it changes: code and tests (`app/`, `cli/`, `eval/`), schemas and fixtures, skills, and drafts (`.doan/canvases/`). The shared documents every link promotes into (PRODUCT, ARCHITECTURE, DESIGN, BACKLOG, POSTMORTEM, USABILITY-EVAL, DIRECTORY, README) do not count. Adjacent links with no overlapping file form a parallel group: they start together, each from the latest `origin/develop`, and each merges its own PR. A link that overlaps any link of a group waits until that group has fully merged. When unsure whether two links overlap, run them in series.
-3. **Standing permissions.** Every link merges its own PR into develop, in link order, once its integration gate passes, then hands off to the next link (an exception to `/orchestrate`'s 'Do not merge PRs'). This is the chain default: write it into `상시 권한` without asking. Other grants come only from the user; anything not granted is asked as usual.
+   - **Parallel when nothing overlaps.** Compare the files each design says it changes: code and tests (`app/`, `cli/`, `eval/`), schemas and fixtures, skills, and drafts (`.doan/canvases/`). The shared documents every link promotes into (PRODUCT, ARCHITECTURE, DESIGN, BACKLOG, POSTMORTEM, USABILITY-EVAL, DIRECTORY, README) do not count. Adjacent links with no overlapping file form a parallel group: the lead starts them together, each from the latest `origin/develop`, and merges their PRs in link order. A link that overlaps any link of a group waits until that group has fully merged. When unsure whether two links overlap, run them in series.
+3. **Standing permissions.** The lead merges each link's PR into develop, in link order, once its review and gate pass, then starts the next link. This is the chain default: write it into `상시 권한` without asking. Other grants come only from the user; anything not granted is asked as usual.
    - **Model boundary**: the same rule as `/orchestrate` and AGENTS.md 'Runtime differences'. Nothing crosses it until the user explicitly allows it. Do not ask or offer; record a crossing only when the user states it, with the scope they give (every link, or named links) and any limit they mention. "Same as before" does not carry a previous chain's crossing over unless the user says so.
 4. **Facts from the machine, not memory.** The date comes from `date '+%Y-%m-%d'` (it names the directory and the log entries). Absolute paths, such as the shared login profile, come from `git rev-parse --show-toplevel` of the main checkout. A chain directory name may repeat one deleted earlier; refer to that earlier chain by commit.
 5. **Write the file** with these sections:
    - `규칙`: a link to this skill and AGENTS.md 'Workflow' Chains.
    - `순서`: each link with links to its spec·design·tasks, its review/draft state and the ordering reason, and which links form a parallel group with the overlap check behind it (or that the chain is serial and why).
-   - `시작 점검`: what the first conductor must settle with the user before link 1 — everything step 1 left open — and that it asks them in one batch and records the approval in `인계 기록`. After that approval, conductors decide routine matters themselves and ask only for new product or scope decisions or decisions that touch real user state.
-   - `상시 권한`: step 3's grants, and the conductor runtime (the setup session's model family unless the user allowed another). When the user allowed a crossing: its scope, that the conductor checks the other family's remaining usage at link start and when splitting batches, and that each link's `orch.md` records the scope used.
-   - `로그인` (only when a link needs one): probes use the real HOME's provider login; the first conductor creates every login the chain needs in the start check; the logged-in userData lives in the main checkout's `.scratch/provider-profile/userData` (absolute path), because each link has its own worktree; links reuse it, copy it for destructive probes, check it before asking for a new login, and do not sign out per link; the last link signs out, confirms the Keychain item is gone and deletes the userData before its merge.
-   - `인계와 물러나기`: a pointer to §3 of this skill.
+   - `시작 점검`: what the lead must settle with the user before link 1 — everything step 1 left open — and that it asks them in one batch and records the approval in `인계 기록`. After that approval, conductors decide routine matters themselves and ask only for new product or scope decisions or decisions that touch real user state.
+   - `상시 권한`: step 3's grants, and the conductor runtime (the lead's model family unless the user allowed another). When the user allowed a crossing: its scope, that the conductor checks the other family's remaining usage at link start and when splitting batches, and that each link's `orch.md` records the scope used.
+   - `로그인` (only when a link needs one): probes use the real HOME's provider login; the lead creates every login the chain needs in the start check; the logged-in userData lives in the main checkout's `.scratch/provider-profile/userData` (absolute path), because each link has its own worktree; links reuse it, copy it for destructive probes, check it before asking for a new login, and do not sign out per link; once the last link's PR has arrived, the lead signs out, confirms the Keychain item is gone and deletes the userData before merging it.
+   - `진행 규칙`: a pointer to §3 of this skill.
    - `운영 메모`: worker-wait loop notes and whether `/agent-eval` applies to any link.
    - `링크 상태`: a table (link · session·worktree · start · PR·merge · status), all 대기.
    - `인계 기록`: one entry for this session.
 6. **Commit and push to develop**: `docs(chain): link <slug>, <slug> and <slug> runs`, staging only the chain file. This is a docs change, so it is committed on develop and pushed straight to develop (AGENTS.md 'Commit conventions').
 
-## 2. Start the first conductor
+## 2. Start the chain
 
-Only when the user asks to start. Load the version-matched `orca-cli` guide, fetch `origin`, then create link 1's top-level worktree with the conductor in it:
+Only when the user asks to start. Run the start check with the user in one batch and record the approval in `인계 기록`, then start link 1 (or link 1's parallel group) as §3 'Lead' describes.
 
-```
-orca worktree create --name <slug>-orch --no-parent --base-branch origin/develop --agent <runtime> --prompt "<brief>" --json
-```
+## 3. Running the links
 
-`<runtime>` is the conductor runtime the chain file names: this session's own model family (`claude` from Claude Code, `codex` from Codex) unless the user allowed another.
+### Lead
 
-The brief points to the chain file and link 1's feature directory, says this conductor is the first and starts with the chain file's start check, lists what the start check must settle, and says to run `/orchestrate docs/features/<slug>/` after the approval. Confirm the session started on it (the receipt's outcome, then the terminal's title or first output via `orca terminal list --worktree <id> --json`) before reporting. This session then stays out of the chain; it does not conduct links.
+- **Start a link.** Follow `/ship` 'Lead' step 1 with `feat/<slug>` from the freshly fetched `origin/develop`: `orca worktree create --name <slug>-orch --no-parent --base-branch origin/develop --branch feat/<slug> --agent <runtime> --prompt "<brief>" --json`, `<runtime>` being the conductor runtime the chain file names. The brief points to the chain file, the link's feature directory and anything not yet written down (decisions or unverified items from earlier links the link must know), and says to run `/orchestrate docs/features/<slug>/`. One session per link; a session never conducts two links. Record the session and worktree in `링크 상태` and push it.
+- **Parallel groups.** Start every link of a group together, each in its own worktree. Merge their PRs in link order; contention between them follows `/ship` 'Lead' step 4.
+- **Merge a link.** Review and merge as in `/ship` 'Lead' steps 3–5. Then record the result in the chain file (merge commit, PR, unverified items and decisions the next link must know, from the PR body and the conductor), push it, and start the next link once every link it waits on has merged.
+- **After the last merge,** delete the chain directory (`docs(chain): remove chain-<YYMMDD>`), with the login cleanup done before that merge if the chain had one.
 
-## 3. Rules for conductors in a chain
+### Conductor
 
-- **One session per link.** Each link starts in a new session of the chain file's conductor runtime, in its own Orca top-level worktree created from the freshly pulled `origin/develop` (`orca worktree create --name <slug>-orch --no-parent --base-branch origin/develop --agent <runtime> ...`; the repo default branch is main, so name develop explicitly). The conductor creates `feat/<slug>` from the fetched `origin/develop` inside that worktree (`git fetch origin && git switch -c feat/<slug> origin/develop`); `git switch develop` fails there while another checkout has develop. A session never conducts two links.
 - **Permissions come from the chain file.** Use only what it grants for its listed links; anything else is asked as usual.
-- **The first conductor runs the start check** before link 1 and gets the user's one-time approval.
-- **Parallel links.** The conductor that starts a parallel group (the first conductor after its start check, or the conductor handing off to the group) starts every link session of the group, each in its own worktree. Before merging, a link rebases onto the latest `origin/develop` and runs its integration gate on that HEAD; a conflict in a shared document is resolved by keeping develop's text and adding the link's own. Of a group, the link that merges last hands off to the next link; the others record their result in the chain file and retire without a handoff.
-- **Finish before handing off.** The outgoing conductor completes its link: all batches integrated, final `/verify`, docs promoted and the feature directory deleted, PR pushed and merged, `origin/develop` fetched, its batch worktrees cleaned up (`/orchestrate` §5). It then records the result in the chain file (merge commit, PR, unverified items, decisions the next link must know) and pushes that to develop.
-- **Responsible handoff.** The outgoing conductor starts the next link's session with a brief that points to the chain file, the next feature's documents and anything not yet written down, and lists what the next session must do first. It waits until the new session has visibly started on the brief (the receipt's prompt outcome, then a first message or a chain-file acknowledgement), and answers its questions about the previous link. A handoff that only launched a terminal is not complete.
-- **Retire.** After the handoff is acknowledged, the outgoing conductor stops: it releases or closes nothing that belongs to the new session, confirms its own worktree is clean and fully on develop (`git cherry origin/develop` with no `+`), removes that worktree through Orca when it is not the session's own running checkout, or asks the user to close the session, and reports.
-- **The last link to merge** deletes the chain directory after its merge (`docs(chain): remove chain-<YYMMDD>`), with the login cleanup if the chain had one.
+- **Finish the link** as `/orchestrate` §5 does: all batches integrated, final `/verify`, docs promoted and the feature directory deleted, batch worktrees cleaned up, PR pushed against develop. Put what the next link must know (unverified items, decisions made during the link) in the PR body, not in the chain file. Then stay available for the lead's findings and its request to merge `origin/develop` in, until the lead merges; the lead removes the conductor's worktree.
 
 ## Report
 
@@ -61,15 +56,15 @@ The report is delivered to the user in Korean.
 
 ```
 ⛓ chain: docs/features/chain-<YYMMDD>/chain.md
-Open (first): <start-check items left for the first conductor · anything not verified>
+Open (first): <start-check items still open · anything not verified>
 Order: <link — one-line reason>
 Standing permissions: <merge · model crossing · source (asked / copied from <commit>)>
 Commit: <hash>
-First conductor: not started / <worktree> started on the brief
+Links: <link — not started / conductor <worktree> / PR <url> / merged <hash>>
 ```
 
 ## Prohibited
 
-- The setup session does not edit feature documents, settle a feature's open points itself, or conduct a link.
+- The lead does not edit feature documents, settle a feature's open points without the user, or conduct a link. A conductor does not merge or edit the chain file.
 - Do not grant a permission the user did not give, or carry over a previous chain's terms without the user saying so. Never cross the model boundary, for conductors or workers, without the user's explicit permission.
-- Do not start the first conductor before the user asks.
+- Do not start the chain before the user asks.
