@@ -1,6 +1,6 @@
 # monorepo-services — tasks
 
-선행 조건: `local-doan-files`와 `canvas-handoff`가 main에 병합된 뒤 `/tdd`(T1)를 시작한다. 시작할 때 두 feature의 병합된 모양(`doan config` 결과의 `storage`, 셋업 패널·Project Settings 구역, app-socket v5와 `workTarget`)을 다시 읽고 design §8.1과 해당 절을 고친다.
+선행 조건: `local-doan-files`와 `canvas-handoff`는 develop에 병합됐다. `/tdd`(T1)를 시작할 때 두 feature의 병합된 모양(`doan config` 결과의 `storage`, 셋업 패널·Project Settings 구역, app-socket v5와 `workTarget`)을 다시 읽고 design §8.1과 해당 절을 고친다.
 
 순서: 초안 → 형식 → Go 순수 함수 → CLI 저장소 규칙(나열·scope·check·댓글·경로) → CLI 후보 찾기 → guide·preset·eval scenario → app main 경로·watcher → app main 셋업·Settings → app UI → 실제 앱 확인 → agent eval → 승격.
 
