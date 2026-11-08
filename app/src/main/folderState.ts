@@ -2,6 +2,9 @@ import { validateEnvelope } from "../formats/validate";
 import { storageFacts, type StorageFacts } from "./storage";
 import type { GitInfo } from "./view";
 
+// How long the runner (cli.ts) lets a CLI call run before killing it. Here so a timeout's reason says the same number.
+export const CLI_TIMEOUT_MS = 10_000;
+
 export interface CliRun {
   exitCode: number | null;
   stdout: string;
@@ -33,8 +36,7 @@ interface ListResult {
 // crashed process usually leaves no stderr.
 function cliReason(run: CliRun, message = ""): string {
   if (run.spawnError !== undefined) return run.spawnError ? `Couldn’t start the doan command: ${run.spawnError}` : "Couldn’t start the doan command.";
-  // The runner kills a hung CLI after 10 s (cli.ts).
-  if (run.timedOut) return "The doan command didn’t answer within 10 seconds.";
+  if (run.timedOut) return `The doan command didn’t answer within ${CLI_TIMEOUT_MS / 1000} seconds.`;
   const said = message.trim() || run.stderr.split(/\r?\n/).map(line => line.trim()).find(Boolean);
   if (said) return said;
   if (run.exitCode === null) return "The doan command stopped without a message.";

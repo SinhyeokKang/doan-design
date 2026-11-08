@@ -1,10 +1,8 @@
 import { initArgs } from "./onboarding/states";
 import { spawn } from "node:child_process";
 import { stat } from "node:fs/promises";
-import { folderState, type CliRun, type FolderState } from "./folderState";
+import { CLI_TIMEOUT_MS, folderState, type CliRun, type FolderState } from "./folderState";
 import { launchEnv } from "./launchEnv";
-
-const CLI_TIMEOUT_MS = 10_000;
 
 export type LsTarget = { repo: string } | { cwd: string };
 
