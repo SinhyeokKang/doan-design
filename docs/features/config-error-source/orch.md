@@ -22,7 +22,7 @@
 |---|---|---|---|---|---|---|
 | DR | T0 초안 | 새 `.doan/canvases/config-error-source.html`, 필요하면 `docs/DESIGN.md`의 새 token 줄 | 없음 | Claude Opus medium — 기존 첫 실행 장면의 규약을 따라야 하는 판단, 결과가 작다 | `doan check --json` 오류 0, `doan ls --json`, 독립 reviewer | 통합 `f8a47220`, `b126c6fc` |
 | GO | T1, T2 | `schema/`, `schema/fixtures/`, `cli/`, `app/src/formats/types.ts` | 없음 | Claude Opus medium — `Find`의 다섯 갈래와 부모 탐색 경계, 권한 테스트. 범위가 명확하다 | `go test ./...`, `go vet ./...`, `npm --prefix app test` | 통합 `85f20b4b`, `13305767` |
-| GO-R | GO 리뷰 | 없음(보고만) | GO | Codex `gpt-6-astra` medium — 다른 family의 독립 리뷰 | `/code-review` 보고 | 진행 |
+| GO-R | GO 리뷰 | 없음(보고만) | GO | Codex `gpt-6-astra` medium — 다른 family의 독립 리뷰 | `/code-review` 보고 | 지적 0(🔴·🟡·⚪ 없음) |
 | AP | T3, T4, T5 | `app/src/main/`, `app/src/renderer/`(T5의 `Onboarding.tsx`와 `kind: "error"` 테스트 fixture) | GO 통합, T5는 DR 리뷰 통과 | Claude Opus high — 상태 분류가 add·locate·첫 실행·reveal에 퍼지고, 소켓 답과 창 IPC의 `detail` 분리가 틀리면 CLI가 답을 거절한다 | `npm --prefix app test`, typecheck, lint, T4 grep, `/verify` | 진행 |
 | AP-R | AP 리뷰 | 없음(보고만) | AP | Codex `gpt-6-astra` medium — 다른 family의 독립 리뷰 | `/code-review` 보고 | 대기 |
 | RT | T6 | 없음(`.scratch/runtime-test/config-error-source/`) | AP 통합 | Claude Opus medium — 격리 앱 probe, 관찰 판단 | 관찰과 스크린샷, 잠긴 화면이면 미검증 기록 | 대기 |
@@ -39,4 +39,5 @@
 
 - DR: 초안 `.doan/canvases/config-error-source.html`. 1차 독립 reviewer(Claude subagent) 판정은 PASS with minor notes였다. 🟡 두 건: 설정된 폴더의 흔한 경로는 setup 패널이 아니라 candidates 화면이고(`projectStep.ts` 270행, 341행, `Onboarding.tsx` 537–543행, conductor가 코드로 확인했다), detail이 2줄뿐이었다. DR worker가 고쳤다(`946b7faa`): 주 frame `project-unreadable`은 candidates 화면, 보조 frame `project-unreadable-setup`은 init 경로, `config_invalid` 비교 tile도 candidates 화면, detail은 3줄. 2차 판정은 PASS였다. conductor가 렌더 스크린샷을 보았다. `doan check`는 이 canvas에 지적이 없고, 기존 error 1건(`select-inspect.html`)과 `mock.css` warning 40건만 있다. 근거는 `.scratch/draft-review/`에 있다. DR worktree는 지웠고 branch는 남겼다.
 - GO: `go test ./...`, `go vet ./...`, `npm --prefix app test`(9694 통과)가 worker 보고다. 리뷰(GO-R)와 AP를 함께 돌린다. GO-R 수정은 `cli/`·`schema/` 안에 머물러 AP 파일과 겹치지 않는다. conductor 재량.
+- GO-R(Codex `gpt-6-astra` medium): 🔴·🟡·⚪ 0건. `go test ./...`, `go vet ./...`, 권한 사례를 포함한 캐시 없는 Go 테스트, TS 형식 테스트 1086개를 리뷰어가 다시 돌려 통과했다. 보고서는 `.scratch/orch/review-GO.md`. GO worktree는 지웠고 branch는 남겼다.
 - AP: DR 리뷰가 먼저 통과해서 T5를 처음부터 AP에 넣었다. conductor 재량 — 새 Task 한 번을 줄인다.
