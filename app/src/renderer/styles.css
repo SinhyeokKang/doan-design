@@ -1546,6 +1546,8 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .shell-top .update-anchor .update-indicator[data-ui-variant="subtle"]:is(:active, [aria-haspopup][aria-expanded="true"]):not(:disabled) { background: var(--affordance-backdrop-pressed); }
 .shell-top .update-anchor .update-indicator[data-ui-variant="subtle"]:disabled { color: var(--text-disabled); cursor: default; }
 .update-pop { display: grid; gap: var(--space-1); -webkit-app-region: no-drag; }
+/* The words follow each push while open in one polite live region; it keeps the title-to-text gap. */
+.update-pop-live { display: grid; gap: var(--space-1); }
 .update-pop-title { font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); font-weight: var(--type-weight-medium); }
 .update-pop-text { color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
 
