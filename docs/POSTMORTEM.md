@@ -1,6 +1,6 @@
 # Postmortem
 
-> Canvas paths in historical entries retain `design/`; the current canvas directory is `.doan/canvases/` as of 2026-10-28. File moves preserve canvas/frame/element IDs.
+> Canvas paths in historical entries retain `design/`; the current canvas directories are `.doan/canvases/` (since 2026-10-28) and `.doan/ds/` for design-system canvases. File moves preserve canvas/frame/element IDs.
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 > Historical `app/e2e/` paths refer to the suite retired on 2026-10-27. Current runtime safety helpers live in `app/runtime/`; use focused probes under `.scratch/`, as specified in AGENTS.md.
@@ -155,6 +155,7 @@
 - **Root cause**: the "no choice" state was encoded as a string from the same space as the values it sits beside. Provider model ids are opaque strings Doan does not control (Claude Code's default row is literally `default`; an ACP agent may use any id), so any fixed string can collide. It stayed harmless only while no listed model happened to carry that id.
 - **Net**: (1) caught by the batch worker's own `/code-review` after the parser change made the collision reachable; (2) caught by an independent cross-family review (Codex) that built a fixture with a `default` id. Missed by the unit tests, whose fixtures never listed a model whose id equals the sentinel.
 - **Prevention**: represent "nothing chosen" as `null` or a kind-tagged value (`unset` / `model:<id>`), never as a bare string in a provider id space; when a menu mixes an unset row with provider rows, test a provider row whose id equals the unset row's former value. Search: `rg -n '"default"|DEFAULT' app/src/renderer --glob '!*.test.*'` and check each hit compares a closed set (permission mode ids) rather than provider model or effort ids. Remaining: the Settings Effort menu still uses `DEFAULT` beside effort level ids (`SettingsAgents.tsx:261`), safe only while no provider reports a level named `default`.
+- **Follow-up (d534ffd6)**: the remaining Settings Effort case is fixed. The Effort menu keeps its rows apart by kind (`unset` / `effort:<id>`, `settingsEffortMenu` and `settingsEffortPick` in `newConversationSettings.ts`), and `newConversationSettings.test.ts` covers a level named `default`.
 - **Same pattern** (2026-11-06, turn-activity, caught by an independent review): the turn indicator told a Codex listing from a file read by `summary === "Reading files"`, so a file literally named `Reading files` lost its path. Fixed in `f9751e52`: a listing stage carries no `path`, and the renderer decides the form by `path`. `rg -n 'summary === ' app/src/renderer --glob '!*.test.*'` finds none now.
 
 ### 2026-11-06 — A pick of anything else fixed the composer's resolved model and effort in Settings
