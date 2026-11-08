@@ -5,9 +5,9 @@ import { RotateCw, Settings } from "lucide-react";
 import type { UsageEntry } from "../main/agentAuth/usageTypes";
 import { AlertIcon } from "./AlertIcon";
 import { usageDescription } from "./agentUsage";
-import { useHeaderNoDrag } from "./headerNoDrag";
 import { foldedRing, ringViews, rowView, shownUsage, usageBusy, usageFolds, type RingView, type RowView } from "./agentUsageView";
 import type { CanvasPress } from "./ComposerParts";
+import { useHeaderNoDrag } from "./headerNoDrag";
 import { ProgressRing } from "./ProgressRing";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 
