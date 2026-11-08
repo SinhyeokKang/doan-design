@@ -50,7 +50,7 @@
 
 | 링크 | session·worktree | 시작 | PR·merge | 상태 |
 |---|---|---|---|---|
-| config-error-source | — | — | — | 대기 |
+| config-error-source | Claude Code · `~/orca/workspaces/doan-design/config-error-source-orch` (`feat/config-error-source`) | 2026-11-09 | — | 진행 중 |
 | export-hardening | — | — | — | 대기 |
 
 ## 인계 기록
