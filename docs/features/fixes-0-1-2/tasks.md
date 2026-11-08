@@ -4,7 +4,7 @@
 
 ## 0. 초안
 
-- [ ] T0. `/design-draft`: 1(About 실패 줄과 다른 줄이 함께 있을 때의 순서), 2(팝오버: 막힘 → 풀림 "Ready to restart", 멈춤 → 막힘), 3(CLI error Details 접힘·펼침, 긴 메시지, Retry 중; 사이드바 메뉴와 Project Settings의 Details)을 그린다. 독립 리뷰를 거친 뒤 사용자가 앱에서 확정한다.
+- [x] T0. `/design-draft`: 1(About 실패 줄과 다른 줄이 함께 있을 때의 순서), 2(팝오버: 막힘 → 풀림 "Ready to restart", 멈춤 → 막힘), 3(CLI error Details 접힘·펼침, 긴 메시지, Retry 중; 사이드바 메뉴와 Project Settings의 Details)을 그린다. 독립 리뷰를 거친 뒤 사용자가 앱에서 확정한다.
   - 검증: `doan check --json`의 finding이 그리기 전과 같다(새 오류 없음).
 
 ── commit: `docs(design): fixes-0-1-2 draft` ──

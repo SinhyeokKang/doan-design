@@ -12,6 +12,7 @@
   - `popover-stopped-blocked` — 멈춘 재시작 팝오버가 막힘 이유로 바뀌는 두 타일.
   - `overlay-cli-error` — 문제 화면 CLI error: Details 접힘, 펼침(짧은 메시지), 펼침(긴 여러 줄 메시지), Retry 중(펼친 채 busy).
   - `cli-error-elsewhere` — 사이드바 프로젝트 메뉴의 Details와 그 토스트, Project Settings 알림의 CLI error Details. Overview 브랜치 칩 복구 메뉴는 사이드바 메뉴와 같은 목록이라 캡션으로만 적는다. Home에는 프로젝트 카드가 없다(DESIGN 'Projects home'); `homeCards.ts`의 `cardRow`가 이 세 곳의 행을 만든다.
+- 확정: 초안 `bbb43f94`(독립 리뷰 반영, 메뉴 아이콘 포함)을 사용자가 2026-11-08 앱에서 확정했다.
 - 문구는 spec 완료 조건과 위 1–3의 초안 문구를 쓴다. Doan clarify 프리셋으로 다듬은 결과가 다르면 초안 머리말에 적는다.
 
 ## 1. Release Notes 실패 줄 (B1, renderer)
