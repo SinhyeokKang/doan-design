@@ -41,3 +41,4 @@
 
 ## 진행 기록
 
+- 2026-11-09 1단계 시작: Run `run_ded526f160b4`. R `ctx_becd15eb3466`(worktree `eh-r`), MP `ctx_0b0d1ba3e054`(`eh-mp`), SP `ctx_c502466fab4d`(`eh-sp`). 셋 다 Claude Opus high, `launch.effective` 확인. 기준 CLI `doan-before`는 `e88b05ce`에서 빌드했다(Apple M1, 16 GiB, go1.27.3 darwin/arm64).
