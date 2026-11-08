@@ -47,6 +47,7 @@
 - PoC 순서: (b) 칩의 kind 접두어(`app/src/renderer/chipField.ts`)를 `user-select: none` 등으로 선택에서 빼서 `selectionText`에 들어가지 않게 한다. main은 바뀌지 않는다. (a) 안 되면 main이 메뉴를 만들 때 이미 돌리는 고정 `executeJavaScript`(`editMenu.ts`의 `fieldCheckScript`와 같은 방식)로 `.sr-only`를 뺀 선택 글을 읽어 이름에만 쓴다.
 - 사전 창이 찾는 글이 이름과 다른지 함께 확인한다. (b)는 둘 다 맞추고, (a)는 이름만 맞춘다.
 - 순수 함수: DOM 조각 → 보이는 글((a)일 때), `lookUpLabel`.
+- PoC 결과(T5): (b)를 쓴다. 격리 앱에서 `.anchor-chip .sr-only`에 `user-select: none`을 주면 `selectionText`에서 kind 접두어가 빠져 메뉴 이름이 `Look Up “Look at Frame Second frame”`에서 `Look Up “Look at Second frame”`이 됐다(칩만 선택하면 `Look Up “Second frame”`). 사전 창이 찾는 글은 macOS의 첫 찾아보기 안내가 결과를 가려 확인하지 못했다. 안내를 넘기면 실제 사용자 설정이 바뀌므로 넘기지 않았다. `showDefinitionForSelection`이 같은 선택 글을 쓰므로 같을 것으로 본다.
 
 ## 5. 테스트 두 개 (B4)
 
