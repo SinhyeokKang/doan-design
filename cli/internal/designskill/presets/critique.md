@@ -142,7 +142,7 @@ No numeric score is required unless the user asks. Be direct and specific ("the 
 
 ## Work in Doan
 
-- By default the critique is review-only: do not edit canvases, code, or configuration. Explain in the conversation.
+- By default the critique is review-only: do not edit canvases, code, or configuration. Give the critique in the conversation.
 - If the user then asks for fixes, change only what they selected; keep ids unchanged and leave everything outside the request as it is. Reference token CSS variables instead of raw colors. When something drawn on a canvas is not in code yet, say so on the canvas (Doan guide rule B). If a fix needs a dedicated preset, read it then (`doan design-skill <id> --json`).
 - After editing a canvas, make `doan check` pass. List what changed and what you left unchanged on purpose.
 

@@ -71,7 +71,7 @@ Variation is not a goal by itself. Repetition supports recognition; break it onl
 
 ## Apply the change in Doan
 
-- Change only the structure in the requested scope. Keep canvas, frame, and element ids unchanged; when you move or regroup an element, keep its `data-doan-id`. Leave frames and elements outside the request as they are.
+- Change only the structure in the requested scope. Keep canvas, frame, and element ids unchanged; when you move or regroup an element, keep its `data-doan-id`, because conversation chips (`doan:<canvas-id>/element/<doan-id>`) find the element by it. Leave frames and elements outside the request as they are.
 - A frame shows one width. Draw additional frames for other widths or states only when the request covers them; otherwise describe the intended adaptation in your answer.
 - When a structure drawn on the canvas is not in code yet, such as a new region, component, or breakpoint behavior, say so on the canvas, as the Doan guide requires.
 - If the user asked for a review only, report the assessment, the spatial thesis, and proposed changes without editing files.
