@@ -19,6 +19,7 @@ D1–D8은 feature 문서에서 사용자가 승인했다. 아래는 실행 중 
 - **O6. H2·H3·R4·W2는 새 id(`H2b`·`H3b`·`R4b`·`W2b`)를 받는다.** 코멘트 시드가 빠지고 R4·W2는 프롬프트, W2는 check도 바뀌었다. ARCHITECTURE §14 "task, seed, intent가 바뀌면 새 id" 규칙을 따른다. 새 id는 이전 라운드 기준선이 없으므로 T10의 "나빠짐" 비교 대상에서 빠지고, 첫 라운드가 기준선이 된다. — conductor's call: 문서에 적힌 규칙이고 D5와 어긋나지 않는다(D5는 무엇을 재는지만 정했다).
 - **O7. `ToolCalls.patches`와 focus `"injection"`을 지운다.** R3 은퇴로 소비자가 없어졌고 D5는 대체 시나리오를 만들지 않는다. — conductor's call: AGENTS "내 변경이 만든 고아만 제거", 확장 대비 금지.
 - **O8. B2 전부터 고아였던 `selectionIdentity`와 `ErrorDetails`의 `variant`는 남긴다.** — conductor's call: AGENTS "내 변경이 만든 고아만 제거". 범위 밖 초안 두 곳(`doan-canvas.html`의 "Comments는 이후 feature에서" 문장, `.doan/ds/error-details.html`의 `.doan/comments` 예시 오류)은 D7(초안도 결정을 따른다)에 따라 고친다.
+- **U1. T10 라운드의 fail은 가능한 한 고친다**(사용자 지시, 라운드 진행 중). 이 feature가 만든 회귀가 아니어도 대상이다. 프리셋·가이드 수정은 B1 worker가 맡고, 고친 시나리오를 다시 잰다. 지금 보이는 fail은 기존 이슈 U-016(D2b, `distill`의 "옵션 제거 전 확인"이 완전히 같은 토글 병합까지 막는다)과 U-013(D11d, 기존 레퍼런스가 코드와 맞는데 `document`가 DESIGN.md를 고친다)이다.
 
 ## 배치
 
