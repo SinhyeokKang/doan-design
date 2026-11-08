@@ -53,3 +53,4 @@
 - SP 후속 완료·통합(`5c66dd97`): 격리한 실제 앱(빌드 앱, `app/runtime` 격리, real-state 변화 없음)에서 외부 `<use>`가 그려지지 않는다(rgb(255,255,255), 콘솔 `Unsafe attempt to load URL … Domains, protocols and ports must match.`; inline 대조는 그려진다). spec·design·tasks를 비목표 판정과 결정 A 이유 정정에 맞췄고 T10·T11·C5를 지웠다. 증거는 conductor `.scratch/export-hardening/sp/`로 복사했다.
 - R 리뷰(Codex Astra medium) 완료: 🔴 0 / 🟡 0 / ⚪ 1(읽기 오류 재시도와 snapshot 수명을 고정하는 테스트 없음). 독립 mutation 세 가지도 빨개졌다. ⚪를 R worker에 테스트 추가로 보냈다(`ctx_f32eb8f664ff`). reviewer 해제, worktree 삭제.
 - R 리뷰 메모 반영(`8609f360`): 읽기 오류 재시도와 snapshot 수명 테스트를 더했고 mutation으로 빨개짐을 확인했다.
+- MF1 리뷰(Claude Opus high) 완료: 🔴 0 / 🟡 0 / ⚪ 3. 차등 실험 5M 입력과 fuzz에서 결과가 같았다. ⚪1·⚪2(golden이 놓치는 두 모양)는 MF1 worker에 테스트 보강으로 보냈다(`ctx_1a779a9738e6`). ⚪3(메모리 한계는 "paren 밖 `;`" 기준)은 T14 문서 올리기에 반영한다. reviewer 해제, worktree 삭제.
