@@ -20,6 +20,9 @@ func TestFirstBaseHref(t *testing.T) {
 		{"first of two", `<base href="a/"><base href="b/">`, "a/", true},
 		{"inside template ignored", `<template><base href="a/"></template><base href="b/">`, "b/", true},
 		{"nested template ignored", `<template><template></template><base href="a/"></template><base href="b/">`, "b/", true},
+		// The parser ignores the self-closing flag on <template>: it opens one.
+		{"self-closing template opens", `<template/><base href="a/"></template><base href="b/">`, "b/", true},
+		{"nested self-closing template opens", `<template><template/></template><base href="a/"></template><base href="b/">`, "b/", true},
 		{"inside comment ignored", `<!-- <base href="a/"> --><base href="b/">`, "b/", true},
 		{"inside script text ignored", `<script>"<base href='a/'>"</script><base href="b/">`, "b/", true},
 		{"target only skipped", `<base target="_top"><base href="b/">`, "b/", true},
@@ -196,5 +199,23 @@ func TestInlineRefuseBaseSeed(t *testing.T) {
 	res := inlineSeed(t, root, exporttest.RefuseBase)
 	if want := []Refusal{{exporttest.RefuseBase, "images/hero.png", ReasonBase}}; !reflect.DeepEqual(res.Refused, want) {
 		t.Fatalf("refused %+v, want %+v", res.Refused, want)
+	}
+}
+
+// A <base> inside a <template/> must not hide the real base after it.
+func TestInlineMovingBaseAfterASelfClosingTemplate(t *testing.T) {
+	for _, present := range []bool{true, false} {
+		root := exporttest.Seed(t)
+		if present {
+			exporttest.Put(t, root, ".doan/canvases/images/hero.png", "wrong-file")
+		}
+		exporttest.Put(t, root, movedCanvas, `<!doctype html><html><head><meta name="doan:width" content="800"><template/><base href="./"></template><base href="../assets/"></head><body><img src="images/hero.png"></body></html>`)
+		res := inlineSeed(t, root, movedCanvas)
+		if want := []Refusal{{movedCanvas, "images/hero.png", ReasonBase}}; !reflect.DeepEqual(res.Refused, want) {
+			t.Errorf("file present %v: refused %+v, want %+v", present, res.Refused, want)
+		}
+		if len(res.Assets) != 0 {
+			t.Errorf("file present %v: assets read %+v", present, res.Assets)
+		}
 	}
 }
