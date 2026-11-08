@@ -18,7 +18,7 @@ Where things live, one entry per directory. File-level detail is in the code; ru
 - `cli/cmd/doan/`: the `doan` binary; `main` only calls `cli.Run`.
 - `cli/internal/cli/`: command dispatch, flags, envelopes and exit codes, command bodies, the embedded `doan skill` guide (`skill.md`), the app socket clients (`active`, `work`, `open`, `handoff`, `onboarding`) and shell check session records.
 - `cli/internal/designskill/`: the embedded design presets — `catalog.json`, `presets/`, `notices/` — and their loader; `SOURCES.md` maps upstream sources to presets and is not embedded.
-- `cli/internal/repo/`: repo discovery, config, path resolution, canvas listing, the serving scope and read-only Git metadata.
+- `cli/internal/repo/`: repo discovery, config, storage mode, path resolution, canvas listing, the serving scope and read-only Git metadata.
 - `cli/internal/canvas/`: the pure HTML canvas model and CSS scanner.
 - `cli/internal/check/`: the pure `doan check` rules.
 - `cli/internal/export/`: the `doan export` pipeline — local references resolved against the serving scope, HTML and CSS rewritten into data, the size cap and the viewer page assembly (`ARCHITECTURE.md` §3 'Exported canvas and viewer').
@@ -45,7 +45,7 @@ Where things live, one entry per directory. File-level detail is in the code; ru
   - `serve/`: the local canvas server.
   - `update/`: in-app updates — pure eligibility, schedule, state, error and view rules the renderer shares, and the electron-updater service (only `app/src/main/update/service.ts` drives the updater).
 - `app/src/preload/`: the `window.doan` API.
-- `app/src/renderer/`: the React renderer (`main.ts` is the entry, `App.tsx` the root) — screens, the canvas controller, the conversation UI, pure view rules with their tests; `ds/` the design-system CSS and checks, `components/ui/` shadcn components, `public/` static assets (fonts, provider marks, MCP preset marks, Doany).
+- `app/src/renderer/`: the React renderer (`main.ts` is the entry, `App.tsx` the root) — screens, the canvas controller, the conversation UI, pure view rules with their tests; `ds/` the design-system CSS and checks, `components/ui/` shadcn components, `public/` static assets (fonts, provider marks, MCP preset marks, Doany, the onboarding grain).
 - `app/src/formats/`, `app/src/restore/`: pure modules shared by main and renderer (TypeScript format validation, UI-state restore planning).
 - `app/src/brand/`: test-only product-name checks (Go counterpart in `cli/internal/cli/brand_test.go`).
 - `app/runtime/`: reusable support for focused real-Electron probes (isolation, cleanup, real-state fingerprints, native helpers), with Node tests in the shared gate.
