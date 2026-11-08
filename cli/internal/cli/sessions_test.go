@@ -363,11 +363,7 @@ func TestSessionInternalCheckFailureAndNoInspectedCanvases(t *testing.T) {
 			// A stylesheet behind an unreadable directory fails check after the canvas itself was read.
 			putFile(t, root, ".doan/canvases/a.html", strings.Replace(validCanvas, "<title>", `<link rel="stylesheet" href="../../locked/a.css"><title>`, 1))
 			putFile(t, root, "locked/a.css", "a{}")
-			locked := filepath.Join(root, "locked")
-			if e := os.Chmod(locked, 0); e != nil {
-				t.Fatal(e)
-			}
-			t.Cleanup(func() { os.Chmod(locked, 0755) })
+			unreadable(t, root, "locked")
 			code, out, err := checkOutput(root, jsonMode)
 			if code != 1 {
 				t.Fatal(code, out, err)

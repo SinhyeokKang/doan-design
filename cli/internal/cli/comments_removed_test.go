@@ -89,11 +89,7 @@ var leftoverComments = []struct {
 	}},
 	{"unreadable directory", func(t *testing.T, root string) {
 		putFile(t, root, ".doan/comments/gone.jsonl", leftoverEvent)
-		dir := filepath.Join(root, ".doan/comments")
-		if err := os.Chmod(dir, 0); err != nil {
-			t.Fatal(err)
-		}
-		t.Cleanup(func() { os.Chmod(dir, 0755) })
+		unreadable(t, root, ".doan/comments")
 	}},
 }
 
