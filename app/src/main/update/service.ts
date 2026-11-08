@@ -86,14 +86,18 @@ class StableAwareMacUpdater extends MacUpdater {
     // The provider reads allowPrerelease after its first request, so the two reads run one after the other.
     let prerelease: UpdateInfoAndProvider | undefined;
     let prereleaseError: unknown;
-    try { prerelease = await super.getUpdateInfoAndProvider(); } catch (error) { prereleaseError = error; }
+    try { prerelease = await super.getUpdateInfoAndProvider(); } catch (error) {
+      // Only a feed with no tag of this copy's channel left among its newest entries falls to the stable release. Any
+      // other failure stands as before, such as a tag pushed before its release is published.
+      if ((error as { code?: unknown } | null)?.code !== "ERR_UPDATER_NO_PUBLISHED_VERSIONS") throw error;
+      prereleaseError = error;
+    }
     this.allowPrerelease = false;
     let stable: UpdateInfoAndProvider | undefined;
-    // A feed with no stable release yet, or with no release of this copy's channel, still has the other one.
+    // A feed with no stable release yet still has the prerelease.
     try { stable = await super.getUpdateInfoAndProvider(); } catch (error) { this.logger?.warn(`the stable release could not be read: ${String(error)}`); } finally { this.allowPrerelease = true; }
     if (prerelease === undefined) {
       if (stable === undefined) throw prereleaseError;
-      this.logger?.warn(`the prerelease could not be read: ${String(prereleaseError)}`);
       return stable;
     }
     return stable !== undefined && stableIsNewer(stable.info.version, prerelease.info.version) ? stable : prerelease;

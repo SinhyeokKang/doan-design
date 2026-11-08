@@ -18,6 +18,8 @@ const electron = vi.hoisted(() => ({
   // Each request path the fake GitHub answered or refused.
   requests: [] as string[],
   offline: false,
+  // Releases whose tag is in the feed but whose latest-mac.yml is not published yet.
+  missing: [] as string[],
 }));
 vi.mock("electron", async () => {
   const { EventEmitter } = await import("node:events");
@@ -26,6 +28,8 @@ vi.mock("electron", async () => {
 });
 vi.mock("electron-updater", async () => {
   const { GitHubProvider } = await import("electron-updater/out/providers/GitHubProvider");
+  // electron-updater's own HTTP error, so a missing file reads as GitHub's 404 does.
+  const { HttpError } = await import("builder-util-runtime");
   const BASE = "/SinhyeokKang/doan-design/releases";
   const respond = (path: string): string => {
     electron.requests.push(path);
@@ -36,12 +40,12 @@ vi.mock("electron-updater", async () => {
     }
     if (path === `${BASE}/latest`) {
       const stable = electron.releases.find(version => !version.includes("-"));
-      if (stable === undefined) throw new Error("404 Not Found");
+      if (stable === undefined) throw new HttpError(404);
       return JSON.stringify({ tag_name: `v${stable}` });
     }
     // The release workflow publishes latest-mac.yml in every release, a release candidate's included.
     const yml = new RegExp(`^${BASE}/download/v([^/]+)/latest-mac\\.yml$`).exec(path)?.[1];
-    if (yml === undefined || !electron.releases.includes(yml)) throw new Error("404 Not Found");
+    if (yml === undefined || !electron.releases.includes(yml) || electron.missing.includes(yml)) throw new HttpError(404);
     return `version: ${yml}\nfiles:\n  - url: Doan-${yml}-arm64-mac.zip\n    sha512: x\n    size: 1\npath: Doan-${yml}-arm64-mac.zip\nsha512: x\nreleaseDate: '2026-11-08T00:00:00.000Z'\n`;
   };
   const executor = { request: async (options: { path?: string | null }) => respond(options.path ?? "") };
@@ -530,7 +534,7 @@ describe("Electron wiring", () => {
 // electron-updater only follows a prerelease copy's own channel ("rc" takes only rc tags), so the wiring also asks
 // for the newest stable release and takes whichever is newer. A stable copy never asks for a prerelease.
 describe("which release the feed offers", () => {
-  beforeEach(() => { vi.useRealTimers(); electron.requests = []; electron.offline = false; });
+  beforeEach(() => { vi.useRealTimers(); electron.requests = []; electron.offline = false; electron.missing = []; });
 
   async function offered(version: string, releases: string[]) {
     electron.releases = releases;
@@ -565,6 +569,16 @@ describe("which release the feed offers", () => {
   test("a release candidate's failed check fails with electron-updater's error", async () => {
     electron.offline = true;
     await expect(offered("0.1.1-rc.1", ["0.1.1"])).rejects.toThrow(/INTERNET_DISCONNECTED/);
+  });
+
+  test("a release candidate's tag pushed before its release is published still fails the check", async () => {
+    electron.releases = ["0.1.1-rc.2", "0.1.1-rc.1", "0.1.0"];
+    // The feed lists the new tag, but its latest-mac.yml does not exist yet.
+    const updater = electronUpdater().createUpdater() as unknown as Updater & { currentVersion: string };
+    updater.currentVersion = "0.1.1-rc.1";
+    updater.allowPrerelease = true;
+    electron.missing = ["0.1.1-rc.2"];
+    await expect(updater.checkForUpdates()).rejects.toThrow(/Cannot find latest-mac\.yml/);
   });
 
   test("a stable copy never takes a prerelease and asks only for the stable release", async () => {
