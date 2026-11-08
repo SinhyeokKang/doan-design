@@ -1,0 +1,43 @@
+# export-hardening — orch
+
+- 계획 출처: [spec](spec.md) · [design](design.md) · [tasks](tasks.md)
+- 체인: [chain-261109](../chain-261109/chain.md) 링크 2(마지막). 시작 점검·상시 권한은 체인 파일을 따른다.
+- 시작 hash: `fba51f47`(develop, 링크 1 config-error-source 병합 뒤)
+- 통합 브랜치: `feat/export-hardening`
+- conductor: Claude Code(Opus), worktree `~/orca/workspaces/doan-design/export-hardening-orch`
+
+## 결정 기록
+
+모든 제품 결정은 spec '결정'(Q1–Q7, A–D)과 체인 시작 점검 3에 있다. 아래는 conductor 재량이다.
+
+- **Codex 범위**(체인 상시 권한): 시작 때 Codex 주간 사용량 86% 사용(남은 14%, reset 2026-11-13, `$CODEX_HOME` rollout `window_minutes: 10080`). 구현 batch는 모두 Claude로 하고, Codex는 R 리뷰(Astra medium, 경로·scope 보안 판단) 한 건에만 쓴다. 남은 양이 허락하면 B 리뷰에도 쓰고 여기 적는다. conductor's call — 사용량 근거, worker-model-mix 관례(구현은 Claude, 교차 리뷰는 Codex).
+- **기준 빌드**: `doan-before`는 이 orch.md 커밋에서 conductor가 한 번 빌드해 `.scratch/export-hardening/bin/doan-before`(conductor checkout)에 두고, 측정 batch는 그 절대 경로를 쓴다. T3 전 커밋이라는 T0 조건과 같고, batch마다 따로 빌드하면 기준이 갈릴 수 있다. conductor's call.
+- **생성기 공유**: T0 생성기는 MP가 만든다. `.scratch/`는 커밋되지 않으므로 conductor가 MP worktree에서 conductor checkout의 `.scratch/export-hardening/`로 복사해 절대 경로로 R(T5)·MF(T9)에 넘긴다. R의 T5는 그때까지 deferred item이다. conductor's call.
+- **design.md 공유**: MP는 §2, SP는 §4만 고친다. 같은 파일이지만 다른 절이고 문서뿐이라 병렬로 두고, 통합은 하나씩 cherry-pick한다. 충돌이 나면 conductor가 통합 커밋에서 푼다. conductor's call.
+- **T12·T14**: `/verify` 전체 gate와 문서 올리기(PRODUCT·ARCHITECTURE·BACKLOG, feature 디렉터리 삭제)는 conductor가 한다(docs-freshness 커밋). T13 `/agent-eval`은 worker가 돈다.
+- **`/runtime-test`**: tasks T12대로 앱 동작이 바뀌지 않아 하지 않는다. T2의 Electron 측정은 PoC다(체인 시작 점검 4: 화면이 잠겨 렌더링·캡처가 막히면 미검증으로 적고 headless 엔진으로 sprite 갈래를 정한다).
+
+## Batch
+
+| batch | 항목 | 파일 소유 | 선행 | 모델·effort(이유) | 검증 gate | 상태 |
+|---|---|---|---|---|---|---|
+| R | T3, T4, T5 | `cli/internal/repo/resolve.go`와 새 repo 테스트, `cli/internal/export/resolve.go`·`inline.go`의 Resolver 전달, `cli/internal/cli/check.go`·`export.go` | 없음(T5는 MP 생성기) | Claude Opus high(경로 해석·scope·symlink 보안 경계, 잘못되면 serving scope가 샌다) | `go test ./...`, `go vet ./...`, mutation 확인, T5 ≤ 2 s | 대기 |
+| MP | T0, T1 | `.scratch/export-hardening/` 생성기, `cli/internal/export/`의 새 opt-in 프로파일 테스트 파일, design.md §2 | 없음 | Claude Opus high(프로파일 해석과 가설 판정이 MF의 수정 대상을 정한다) | 생성기 sha256 두 번 같음, pprof 결과가 §2에 있음 | 대기 |
+| SP | T2 | `.scratch/export-hardening/` 측정 스크립트, design.md §4 | 없음 | Claude Opus high(두 엔진·Electron 측정 설계, 판정이 SF 유무를 정한다) | 측정 스크립트 실행, 결과 표·판정이 §4에 있음 | 대기 |
+| B | T6, T7 | `cli/internal/export/`의 새 base 파일, `inline.go`·`classify.go`·`customurl.go`·`assemble.go` 중 필요한 곳, `exporttest/seed.go`, `cli/internal/cli/export_test.go` | R 통합 | Claude Opus high(거절 순서·custom property 사용처·결과 바이트 고정) | `go test ./...` | 대기 |
+| MF | T8, T9 | T1이 가리킨 곳(`cli/internal/canvas/css.go` 또는 `cli/internal/export/` 파일) | R 통합, MP 통합. B와 파일이 겹치면 B 뒤 | Claude Opus high(lexer 결과 동등·결과 바이트 고정) | `go test ./...`, `go vet ./...`, RSS ≤ 240 MiB | 대기 |
+| SF | T10, T11 | `cli/internal/export/` sprite 코드, `fix2_test.go` | SP 판정 (i)/(ii), B·MF 통합 | Claude Opus high(foreign `<style>` 파싱, 범위 좁히기의 누출) | `go test ./...`, T2 스크립트 재측정 | 대기 |
+| EV | T13 | `docs/USABILITY-EVAL.md`, `.scratch/agent-eval/` | 모든 코드 통합 | Claude Sonnet high(정해진 명령 실행과 결과 비교, 판단은 적다) | X1 두 에이전트 모두 직전 라운드보다 나빠지지 않음 | 대기 |
+| conductor | T12, T14 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/BACKLOG.md`, feature 디렉터리 삭제 | EV | — | `verify.mjs` 통과, T14 grep | 대기 |
+
+리뷰: 각 구현 batch는 독립 리뷰 worker가 `/code-review`한다. R → Codex Astra medium, B·MF·SF → Claude Opus high(Codex 사용량 때문에).
+
+## 겹침과 순서
+
+- 1단계 병렬: R, MP, SP. R은 `repo`와 export·check의 호출부, MP는 새 테스트 파일과 design §2, SP는 `.scratch/`와 design §4만 고친다.
+- 2단계: R 통합 뒤 B. MF는 MP 판정을 보고 B와 파일이 겹치지 않으면 병렬, 겹치면 B 뒤.
+- 3단계: SF(SP 판정이 (iii)이면 SF를 지우고 spec·BACKLOG를 판정대로 고친다).
+- 4단계: T12 → EV → T14 → push·PR.
+
+## 진행 기록
+
