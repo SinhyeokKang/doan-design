@@ -20,8 +20,8 @@
 ## 완료 조건
 
 1. Release Notes ↗가 실패하면 About 업데이트 행 아래에 실패 줄이 나타나고 화면 낭독기가 한 번 읽는다. 포커스는 Release Notes ↗에 남는다. 다음 시도가 성공하거나 업데이트 상태 종류·버전이 바뀌면 사라진다. 별도 버튼은 없다. 초안 문구: "Couldn’t open the release notes in your browser. Try again, or find Doan <version> on GitHub Releases."
-2. 헤더 팝오버가 열린 동안 막힘 상태가 바뀌면 문구가 따른다. 막힘이 풀리면 팝오버는 열린 채 다시 시작할 수 있다는 문구(초안: "Ready to restart" / "The conversation finished. Restart now, or Doan updates when you quit.")를 보이고, 멈춘 재시작이 막히면 막힘 이유를 보인다. 바뀐 문구는 화면 낭독기가 한 번 읽고 포커스는 옮기지 않는다. 열린 팝오버가 하나라도 있으면 헤더의 no-drag가 유지된다(닫는 순서, 열린 채 버튼이 사라지는 경우 포함).
-3. CLI error는 Config error가 Details를 보여 주는 모든 곳(문제 화면, Home 카드, 사이드바 프로젝트 메뉴, Overview 복구 메뉴, Project Settings)에서 Details로 CLI 메시지를 보여 준다. 메시지는 비지 않는다. CLI가 메시지를 내지 않으면 실행 실패의 짧은 설명이 들어간다. Config error인 프로젝트의 Show in Finder는 어디서 누르든 `.doan/config.json`을 Finder에서 선택해 보여 주고, 파일이 없으면 지금처럼 프로젝트 폴더를 연다(숨김 파일 표시를 끈 Finder에서 확인한다).
+2. 헤더 팝오버가 열린 동안 막힘 상태가 바뀌면 문구가 따른다. 막힘이 풀리면 팝오버는 열린 채 다시 시작할 수 있다는 문구(초안: "Ready to restart" / "No conversation is running or waiting anymore. Restart now, or Doan updates when you quit.")를 보이고, 멈춘 재시작이 막히면 막힘 이유를 보인다. 바뀐 문구는 화면 낭독기가 한 번 읽고 포커스는 옮기지 않는다. 열린 팝오버가 하나라도 있으면 헤더의 no-drag가 유지된다(닫는 순서, 열린 채 버튼이 사라지는 경우 포함).
+3. CLI error는 Config error가 Details를 보여 주는 모든 곳(문제 화면, 사이드바 프로젝트 메뉴, Overview 브랜치 칩 복구 메뉴, Project Settings)에서 Details로 CLI 메시지를 보여 준다. 메시지는 비지 않는다. CLI가 메시지를 내지 않으면 실행 실패의 짧은 설명이 들어간다. Config error인 프로젝트의 Show in Finder는 어디서 누르든 `.doan/config.json`을 Finder에서 선택해 보여 주고, 파일이 없으면 지금처럼 프로젝트 폴더를 연다(숨김 파일 표시를 끈 Finder에서 확인한다).
 4. Look Up 항목 이름에는 화면에 보이는 글만 들어간다(칩은 보이는 이름). 사전 창이 찾는 글도 같은지 PoC에서 확인하고, 다르면 그것도 맞춘다.
 5. 두 테스트가 같은 것을 재면서 부하에 흔들리지 않는다. 고치기 전에 부하 실패를 재현하고, 같은 부하에서 고친 뒤 연속 3번 통과한다(tasks T7).
 6. 네 프리셋이 위 셋업 규칙을 따르고 `audit`가 `doan check`의 규칙 범주를 빠짐없이 말한다. `/agent-eval`(D1, D8, D9, D11d, D12, Claude Code·Codex)에서 직전 라운드보다 나빠진 시나리오가 없다(tasks T10의 정의).

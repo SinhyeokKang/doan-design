@@ -11,7 +11,7 @@
   - `popover-unblocked` — 헤더 팝오버: 막힘("Can’t restart yet") → 열린 채 풀림("Ready to restart") 두 타일.
   - `popover-stopped-blocked` — 멈춘 재시작 팝오버가 막힘 이유로 바뀌는 두 타일.
   - `overlay-cli-error` — 문제 화면 CLI error: Details 접힘, 펼침(짧은 메시지), 펼침(긴 여러 줄 메시지), Retry 중(펼친 채 busy).
-  - `cli-error-elsewhere` — Home 카드와 Project Settings 알림의 CLI error Details.
+  - `cli-error-elsewhere` — 사이드바 프로젝트 메뉴의 Details와 그 토스트, Project Settings 알림의 CLI error Details. Overview 브랜치 칩 복구 메뉴는 사이드바 메뉴와 같은 목록이라 캡션으로만 적는다. Home에는 프로젝트 카드가 없다(DESIGN 'Projects home'); `homeCards.ts`의 `cardRow`가 이 세 곳의 행을 만든다.
 - 문구는 spec 완료 조건과 위 1–3의 초안 문구를 쓴다. Doan clarify 프리셋으로 다듬은 결과가 다르면 초안 머리말에 적는다.
 
 ## 1. Release Notes 실패 줄 (B1, renderer)
@@ -24,16 +24,16 @@
 ## 2. 헤더 업데이트 팝오버 (B1, renderer)
 
 - 문구 계산은 이미 순수 함수 `header()`(`app/src/main/update/view.ts`)에 있다. 바꿀 것은 `UpdateHeaderButton.tsx`가 연 순간의 `shown`을 고정하지 말고 스냅샷마다 `header.popover`를 읽는 것이다.
-- `header()`는 ready이고 막히지 않은 상태에서 `popover: null`을 돌려준다. 팝오버가 열린 동안 막힘이 풀린 경우를 위한 문구("Ready to restart" 제목과 ready 설명, 초안에서 확정)를 `header()`에 더한다. 팝오버는 열린 채 이 문구를 보인다.
+- `header()`는 ready이고 막히지 않은 상태에서 `popover: null`을 돌려준다. 팝오버가 열린 동안 막힘이 풀린 경우를 위한 문구("Ready to restart" 제목과 "No conversation is running or waiting anymore. Restart now, or Doan updates when you quit." — clarify로 정했다: 게이트는 여러 대화와 답을 기다리는 질문을 포함하고, 멈춘 턴은 끝난 것이 아니다)를 `header()`에 더한다. 팝오버는 열린 채 이 문구를 보인다.
 - 팝오버 본문을 polite live region으로 감싸 문구가 바뀔 때 한 번 읽게 한다. 포커스는 옮기지 않는다. 업데이트 상태가 사라져(failed, none) 버튼이 없어지면 팝오버도 닫힌다.
 - no-drag: 헤더 요소마다(헤더는 화면마다 하나씩 mount된다, `App.tsx`) 열린 팝오버 수를 세는 카운터(WeakMap)를 공용 훅으로 두고 `AgentUsageButton.tsx`와 `UpdateHeaderButton.tsx`가 함께 쓴다. 마지막 팝오버가 닫히거나 열린 채 unmount될 때만 지운다. 같은 팝오버의 open이 겹쳐도 한 번만 센다.
 
 ## 3. 문제 상태 (B2, main + renderer)
 
 - `cliError`는 이미 `reason`을 renderer까지 가져간다(`app/src/main/folderState.ts:34`, `app/src/main/view.ts`). 오류 봉투(`ok:false`)는 exit 0일 때만 `cliError`가 되고 그 밖은 `error` 종류다. 따라서:
-  - main: `reason`이 빈 문자열이 되는 경우(JSON 파싱 실패이고 stderr가 없을 때, `stderr.split(...)[0] ?? ""`)를 막는다. spawn 오류, 시간 초과, 종료 코드마다 짧은 설명을 채운다(초안 문구: "Couldn’t start doan: <error>", "doan didn’t answer within <n> seconds.", "doan exited with code <n> without a message."). `initOutcome`의 기존 기본 문구와 같은 방식이다.
+  - main: `reason`이 빈 문자열이 되는 경우(JSON 파싱 실패이고 stderr가 없을 때, `stderr.split(...)[0] ?? ""`)를 막는다. spawn 오류, 시간 초과, 종료 코드마다 짧은 설명을 채운다(초안 문구: "Couldn’t start doan: <error>", "doan didn’t answer within <n> seconds.", "doan exited with code <n> without a message.", 그리고 exit 0인데 답을 읽을 수 없고 stderr도 없을 때 "doan answered, but Doan couldn’t read the answer."). main은 stderr의 첫 줄만 넘기므로 긴 메시지는 한 줄이 감겨 보이는 경우다.. `initOutcome`의 기존 기본 문구와 같은 방식이다.
   - renderer: `problemView.ts`의 `cliError` 장면에 `details` 동작(Retry, Details, Remove 순서)과 `detail: entry.reason`을 더한다. App의 Details 처리(`App.tsx`의 `action("details")`와 `lastDetail`)가 `error`와 `cliError`를 모두 다루게 한다. Retry 중에는 Details가 열린 채 마지막 메시지를 유지하고, 결과가 다른 종류가 되면 기존 규칙대로 닫힌다.
-  - 같은 Details를 Config error가 이미 Details를 보여 주는 곳에 똑같이 더한다: Home 카드(`homeCards.ts`), 사이드바 프로젝트 메뉴(토스트, PRODUCT "the row's project menu keeps the same recovery"), Overview 복구 메뉴(`ProjectOverview.tsx`), Project Settings(`projectSettingsRules.ts`).
+  - 같은 Details를 Config error가 이미 Details를 보여 주는 곳에 똑같이 더한다: 사이드바 프로젝트 메뉴(토스트, PRODUCT "the row's project menu keeps the same recovery"), Overview 브랜치 칩 복구 메뉴(`ProjectOverview.tsx`), Project Settings(`projectSettingsRules.ts`). 세 곳의 행은 `homeCards.ts`의 `cardRow`가 만든다.
   - 메시지는 데이터로만 다루고 HTML로 그리지 않는다(ARCHITECTURE §3 'Untrusted text'). 기존 `<pre>` 패턴(`ProblemOverlay.tsx`)을 쓴다.
 - Show in Finder: 새 IPC를 만들지 않는다. 기존 `folders:reveal` 핸들러(`app/src/main/index.ts`)가 main이 아는 그 root의 항목 종류를 보고, `error`이면 `<root>/.doan/config.json`을 `shell.showItemInFolder`로 선택해 보여 주고, 파일이 없으면 지금처럼 폴더를 연다. renderer는 지금처럼 root만 넘긴다. 그래서 문제 화면, Home 카드, Overview 복구 메뉴, Project Settings 어디서 눌러도 같다.
   - 규약: `main/index.ts`의 "TS does not build `.doan/` paths" 주석과 POSTMORTEM 2026-10-22 'Guessing the repo root in TS'는 TS가 저장소 루트를 추측하지 말라는 규칙이다. `error` 항목은 `--repo <root>`가 위로 찾아 올라가지 않은 상태에서 나온 결과이므로(ARCHITECTURE §13 'Discovery') `<root>/.doan/config.json`이 그 오류의 파일이다. 앱은 파일을 읽지 않고 Finder에 위치만 넘기므로 "the app never reads config itself"(ARCHITECTURE §13)도 지킨다. 이 근거를 승격 때 ARCHITECTURE와 그 주석에 적는다.

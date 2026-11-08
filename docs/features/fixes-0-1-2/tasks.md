@@ -4,7 +4,7 @@
 
 ## 0. 초안
 
-- [ ] T0. `/design-draft`: 1(About 실패 줄과 다른 줄이 함께 있을 때의 순서), 2(팝오버: 막힘 → 풀림 "Ready to restart", 멈춤 → 막힘), 3(CLI error Details 접힘·펼침, 긴 메시지, Retry 중; Home 카드와 Project Settings의 Details)을 그린다. 독립 리뷰를 거친 뒤 사용자가 앱에서 확정한다.
+- [ ] T0. `/design-draft`: 1(About 실패 줄과 다른 줄이 함께 있을 때의 순서), 2(팝오버: 막힘 → 풀림 "Ready to restart", 멈춤 → 막힘), 3(CLI error Details 접힘·펼침, 긴 메시지, Retry 중; 사이드바 메뉴와 Project Settings의 Details)을 그린다. 독립 리뷰를 거친 뒤 사용자가 앱에서 확정한다.
   - 검증: `doan check --json`의 finding이 그리기 전과 같다(새 오류 없음).
 
 ── commit: `docs(design): fixes-0-1-2 draft` ──
@@ -23,7 +23,7 @@
 
 - [ ] T3. `/tdd`:
   - CLI 실행 결과 → `reason`: 봉투에 메시지 없음, JSON이 아닌 stdout, stderr만 있음, stderr도 없음, spawn 오류, 시간 초과, 종료 코드 — 모두 비지 않은 문장.
-  - `problemView`의 `cliError`에 `details`와 `detail`. Home 카드·Overview 복구 메뉴·Project Settings·사이드바 메뉴의 `cliError` Details.
+  - `problemView`의 `cliError`에 `details`와 `detail`. 사이드바 메뉴·Overview 브랜치 칩 복구 메뉴·Project Settings의 `cliError` Details.
   - 긴 메시지, 여러 줄, 제어 문자·ANSI·HTML이 글자로만 그려진다.
   - `folders:reveal`: `error` 항목이면 `.doan/config.json` 선택, 파일이 없으면 폴더, `.doan/`이 없으면 폴더, 다른 종류면 폴더, renderer는 root만 넘김(경로를 받지 않음).
   - 검증: `npm --prefix app test`가 새 사례에서만 실패한다.
@@ -54,7 +54,7 @@
 - [ ] T9. `/runtime-test`(격리된 앱):
   - Release Notes 실패 줄: main의 `update:openNotes`가 false를 돌려주는 probe 패치로 확인한다. 스크린샷과 낭독 텍스트.
   - 팝오버 문구 변화(막힘 → 풀림)와 no-drag: 두 팝오버를 연 뒤 하나를 닫고 헤더의 computed `-webkit-app-region`을 읽는다.
-  - CLI error Details(문제 화면과 Home 카드), Config error Show in Finder: `shell.showItemInFolder`에 넘어간 경로와, 숨김 파일 표시를 끈 Finder 스크린샷.
+  - CLI error Details(문제 화면과 사이드바 메뉴), Config error Show in Finder: `shell.showItemInFolder`에 넘어간 경로와, 숨김 파일 표시를 끈 Finder 스크린샷.
   - 칩 필드 Look Up: 메뉴 template의 label.
   - 검증: 위 기록.
 - [ ] T10. `/postmortem`: 여섯 건 가운데 회귀·함정으로 남길 것(특히 테스트 두 개의 원인, no-drag 공유)을 기록한다.
