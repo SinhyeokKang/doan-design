@@ -385,6 +385,34 @@ test("recovery: Retry keeps the scene busy through loading, past 300 ms; the sam
   expect(focused).toEqual(["heading"]);
 });
 
+test("CLI error: Details shows the CLI's reason and stays open with the last one through a Retry of the same kind", () => {
+  render(); folders([{ path: "/w/a", kind: "cliError", reason: "first reason" }]);
+  toOverview();
+  expect(overlay()).toMatchObject({ details: false, detail: "first reason" });
+  overlay()!.onAction("details"); render();
+  expect(overlay()).toMatchObject({ details: true, detail: "first reason" });
+  overlay()!.onAction("retry"); render();
+  folders([loading()]);
+  expect(overlay()).toMatchObject({ view: { entryKind: "cliError", busy: true }, details: true, detail: "first reason" });
+  folders([{ path: "/w/a", kind: "cliError", reason: "second reason" }]);
+  expect(overlay()).toMatchObject({ view: { entryKind: "cliError", busy: false }, details: true, detail: "second reason" });
+  folders([configError("/w/a", "config message")]);
+  expect(overlay()).toMatchObject({ view: { entryKind: "error" }, details: false });
+});
+
+// The sidebar's project menu and the Overview's repair menu reach App's `action`, which shows Details in the toast.
+test("menu Details shows a Config error's message or a CLI error's reason in the toast", () => {
+  render(); folders([configError("/w/a", "config message"), { path: "/w/b", kind: "cliError", reason: "doan exited with code 2 without a message." }, listed("/w/c")]);
+  const action = find<{ action(name: string, root: string): void }>(ShellSidebar)[0]!.props.action;
+  action("details", "/w/a");
+  expect(harness.toast.show).toHaveBeenLastCalledWith("config message");
+  action("details", "/w/b");
+  expect(harness.toast.show).toHaveBeenLastCalledWith("doan exited with code 2 without a message.");
+  harness.toast.show.mockClear();
+  action("details", "/w/c");
+  expect(harness.toast.show).not.toHaveBeenCalled();
+});
+
 test("reading: a list read within 300 ms shows nothing and moves no focus; past 300 ms the reading panel shows; a problem read shows at once", () => {
   vi.useFakeTimers();
   render(); folders([listed("/w/a")]);

@@ -36,6 +36,19 @@ test("Config error: the config file as a code chip, Show in Finder subtle, Detai
   expect(open).toContain('</div><pre class="problem-detail">unexpected end of JSON input</pre></div></div>');
 });
 
+test("CLI error: Details toggles the CLI's message, drawn as text only: markup, control characters and long lines stay characters", () => {
+  const reason = "doan: <img src=x onerror=alert(1)> \u001b[31mfailed\u001b[0m & a very-long-path/".padEnd(400, "x");
+  const cli = view({ path: "/Users/ada/code/acme-web", kind: "cliError", reason });
+  expect(cli.kind === "problem" && cli.actions.map(action => action.name)).toEqual(["retry", "details", "remove"]);
+  const closed = draw(cli);
+  expect(closed).toContain('<button type="button" class="doan-button ghost" data-ui-size="sm" aria-expanded="false">Details ▸</button>');
+  expect(closed).not.toContain("problem-detail");
+  const open = draw(cli, { details: true, detail: reason });
+  expect(open).toContain('aria-expanded="true">Details ▾</button>');
+  expect(open).toContain(`<pre class="problem-detail">doan: &lt;img src=x onerror=alert(1)&gt; \u001b[31mfailed\u001b[0m &amp; a very-long-path/${"x".repeat(400 - "doan: <img src=x onerror=alert(1)> \u001b[31mfailed\u001b[0m & a very-long-path/".length)}</pre>`);
+  expect(open).not.toContain("<img");
+});
+
 test("busy: every action is aria-disabled and stays focusable; the pressed one shows a spinner; the live region reads what it is given", () => {
   const busy = view({ path: "/Users/ada/code/acme-web", kind: "loading" }, { kind: "problem", entryKind: "error" });
   const html = draw(busy, { pressed: "retry", announcement: "Doan couldn’t read acme-web’s configuration" });
