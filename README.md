@@ -39,7 +39,7 @@
 
 ### Canvases in your repo
 
-The agent writes `.doan/canvases/<spec>.html` next to your code with the repo's real tokens, checks it with `doan check`, and Doan reloads it as the file changes.
+The agent writes each canvas as an HTML file in your repo, next to the code, with the repo's real tokens, checks it with `doan check`, and Doan reloads it as the file changes.
 
 </td>
 <td width="50%">
