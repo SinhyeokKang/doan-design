@@ -3,7 +3,12 @@
   "declarations": {
    "Scan": {
     "Defs": {},
-    "Refs": null,
+    "Refs": [
+     {
+      "Name": "--p",
+      "HasFallback": false
+     }
+    ],
     "Colors": null,
     "Imports": null,
     "URLs": [
@@ -21,7 +26,9 @@
     }
    ],
    "Uses": {
-    "Used": {},
+    "Used": {
+     "--p": true
+    },
     "Hops": {},
     "URLSyntax": {}
    }
@@ -29,7 +36,12 @@
   "stylesheet": {
    "Scan": {
     "Defs": {},
-    "Refs": null,
+    "Refs": [
+     {
+      "Name": "--p",
+      "HasFallback": false
+     }
+    ],
     "Colors": null,
     "Imports": null,
     "URLs": [
@@ -47,7 +59,9 @@
     }
    ],
    "Uses": {
-    "Used": {},
+    "Used": {
+     "--p": true
+    },
     "Hops": {},
     "URLSyntax": {}
    }
@@ -166,6 +180,7 @@
      "--a": true,
      "--b": true,
      "--c": true,
+     "--icon": true,
      "--url": true
     },
     "Refs": [
@@ -199,7 +214,8 @@
     "URLs": [
      "x.png",
      "y.png",
-     "i.png"
+     "i.png",
+     "n.svg"
     ],
     "ViewportHeights": null
    },
@@ -224,6 +240,13 @@
      "Start": 200,
      "End": 210,
      "Custom": ""
+    },
+    {
+     "Value": "n.svg",
+     "Import": false,
+     "Start": 306,
+     "End": 316,
+     "Custom": "--icon"
     }
    ],
    "Uses": {
@@ -252,6 +275,7 @@
      "--a": true,
      "--b": true,
      "--c": true,
+     "--icon": true,
      "--url": true
     },
     "Refs": [
@@ -285,7 +309,8 @@
     "URLs": [
      "x.png",
      "y.png",
-     "i.png"
+     "i.png",
+     "n.svg"
     ],
     "ViewportHeights": null
    },
@@ -310,6 +335,13 @@
      "Start": 200,
      "End": 210,
      "Custom": ""
+    },
+    {
+     "Value": "n.svg",
+     "Import": false,
+     "Start": 306,
+     "End": 316,
+     "Custom": "--icon"
     }
    ],
    "Uses": {
