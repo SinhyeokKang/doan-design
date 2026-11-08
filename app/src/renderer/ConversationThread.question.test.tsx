@@ -239,6 +239,11 @@ describe("the thread's question items", () => {
     expect(out).toContain('<div class="sr-only" role="status"></div>');
   });
 
+  test("every folded question line is selectable", () => {
+    const answered = item([layout], { status: "answered", answers: { "0": { selected: ["Two rows"] } } });
+    expect(html([answered, item([layout], { key: "Qq2", requestId: "q2", status: "skipped" })]).match(/<span class="selectable" title="[^"]+">/g)).toHaveLength(2);
+  });
+
   test("a header-less question (Antigravity) folds with its sentence", () => {
     const bare: Question = { id: "0", header: "", question: "Which colour?", options: [{ label: "Red" }, { label: "Blue" }], multiSelect: false, other: false };
     expect(html([item([bare], { status: "answered", answers: { "0": { selected: ["Red"] } } })])).toContain('<span title="Answered · Which colour?: Red">Answered · Which colour?: Red</span>');

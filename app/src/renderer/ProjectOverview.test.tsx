@@ -98,6 +98,13 @@ test("a promotion leaves the moved line with Open above the suggestions", () => 
   expect(html).toMatch(/<div class="doan-notice moved" role="status">.*<span class="grow-text moved-text" title="Checkout copy moved to checkout\."><span class="moved-title">Checkout copy<\/span><span class="moved-rest"> moved to checkout\.<\/span><\/span><button[^>]*>Open<\/button><\/div><div class="ov-suggestions"/);
 });
 
+test("selectable: the notice text, not the notice's moved line", () => {
+  const notice = "Checkout moved, but 2 canvases now use the ID checkout. Run doan check in a terminal.";
+  const html = render([summary()], { notice });
+  expect(html).toContain(`<span class="grow-text selectable">${notice}</span>`);
+  expect(html).not.toMatch(/<(h1|button)[^>]*selectable/);
+});
+
 test("the duplicate-ID notice shows under the header", () => {
   const notice = "Checkout moved, but 2 canvases now use the ID checkout. Run doan check in a terminal.";
   const html = render([summary()], { notice });

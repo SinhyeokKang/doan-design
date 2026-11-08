@@ -51,6 +51,14 @@ test("Home is the shell with the sidebar and a composer body: no project cards, 
   expect(html).not.toContain("aria-current=\"location\"");
 });
 
+// A tray value is copyable; the worktree dropdown (several worktrees) is a menu and stays unselectable.
+test("selectable: the tray's branch name and path", () => {
+  const html = render([project("/code/doan-design")]);
+  expect(html).toMatch(/<span class="tray-branch"><svg.*?<\/svg><span class="selectable">main<\/span><\/span>/);
+  expect(html).toContain('<span class="tray-path selectable">/code/doan-design</span>');
+  expect(html).not.toMatch(/<button[^>]*selectable/);
+});
+
 test("the greeting is one of the five questions, with the chosen project's name", () => {
   const html = render([project("/code/doan-design")], { greeting: "Where should we start?" });
   expect(html).toMatch(/<h1 class="home-greeting">(What should we design today\?|What are we making next\?|What would you like to change\?|What’s next for doan-design\?|Where should we start\?)<\/h1>/);

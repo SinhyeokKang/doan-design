@@ -55,6 +55,16 @@ test("CLI error: a reason over several lines keeps its line breaks in the Detail
   expect(html).toContain(`<pre class="problem-detail">${reason}</pre>`);
 });
 
+// The line and the Details block carry text worth copying; the heading and buttons do not.
+test("selectable: the problem line and the Details block, not the heading or the Details toggle", () => {
+  const reason = "doan: config error";
+  const html = draw(view({ path: "/Users/ada/code/acme-web", kind: "cliError", reason }), { details: true, detail: reason });
+  expect(html).toMatch(/<p id="[^"]+" class="selectable">/);
+  expect(html).toContain(`<pre class="problem-detail selectable">${reason}</pre>`);
+  expect(html).toMatch(/<h2 id="[^"]+" tabindex="-1" aria-describedby="[^"]+">/);
+  expect(html).not.toMatch(/<(h2|button)[^>]*selectable/);
+});
+
 test("busy: every action is aria-disabled and stays focusable; the pressed one shows a spinner; the live region reads what it is given", () => {
   const busy = view({ path: "/Users/ada/code/acme-web", kind: "loading" }, { kind: "problem", entryKind: "error" });
   const html = draw(busy, { pressed: "retry", announcement: "Doan couldn’t read acme-web’s configuration" });

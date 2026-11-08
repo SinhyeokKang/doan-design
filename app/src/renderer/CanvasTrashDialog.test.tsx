@@ -73,3 +73,12 @@ test("static markup: title, body, the working line and the actions in order", ()
   expect(html.indexOf(">Cancel<")).toBeLessThan(html.indexOf(">Move to Trash<"));
   expect(html.indexOf('id="canvas-trash-body"')).toBeLessThan(html.indexOf('id="canvas-trash-reason"'));
 });
+
+// Read-only text is selectable (the `selectable` class); the title and buttons are not.
+test("selectable: the description and the reason text, but not the title or the buttons", () => {
+  const html = renderToStaticMarkup(<CanvasTrashDialog view={trashDialogView("checkout", PATH, { kind: "ready" }, true)} cancel={() => {}} confirm={() => {}} />);
+  expect(html).toContain('<p class="doan-dialog-description selectable" id="canvas-trash-body">');
+  expect(html).toContain('<span class="selectable">An agent started working on this canvas. Try again when it finishes.</span>');
+  expect(html).not.toMatch(/<h3[^>]*selectable/);
+  expect(html).not.toMatch(/<button[^>]*selectable/);
+});

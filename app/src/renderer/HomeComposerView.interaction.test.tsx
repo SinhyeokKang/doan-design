@@ -299,6 +299,16 @@ test("a pending start keeps Home locked on a later visit, and a late reply clear
   expect(first.box.current.text).toBe("A newer idea");
 });
 
+// The refusal reason is text a user may copy; its Retry is a button and stays unselectable.
+test("selectable: the composer notice's text, not its Retry button", () => {
+  const { render } = setup({ text: "Draw a pricing page.", notice: { text: "Claude Code is finishing a previous run. Try again in a moment.", retry: true } });
+  const tree = render();
+  const text = find(tree, props => props.className === "grow-text selectable" || props.className === "grow-text");
+  expect(text.className).toBe("grow-text selectable");
+  expect(text.children).toBe("Claude Code is finishing a previous run. Try again in a moment.");
+  expect(tree.some(props => props.children === "Retry" && String(props.className ?? "").includes("selectable"))).toBe(false);
+});
+
 test("a late refusal after leaving Home is shown on the next visit and keeps the draft", async () => {
   const { box, start, render } = setup({ text: "Draw a pricing page." });
   const reply = pending();

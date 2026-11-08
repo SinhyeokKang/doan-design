@@ -161,6 +161,18 @@ describe("the turn indicator in the thread", () => {
   });
 });
 
+// Steps draw only once the activity line is opened; the opened tree is drawn to markup because Steps is a function component.
+describe("an opened activity's steps", () => {
+  test("are selectable", () => {
+    const p = props([running], null);
+    let tree = render(body(p));
+    const head = all(tree).find(element => element.type === "button" && element.props["aria-expanded"] === false)!;
+    (head.props.onClick as () => void)();
+    tree = render(body(p));
+    expect(renderToStaticMarkup(tree)).toMatch(/<ul class="activity-steps selectable"/);
+  });
+});
+
 describe("settle and the screen reader's status", () => {
   test("a new stage shows after 300 ms; replying shows at once", () => {
     let p = props([user], at({ kind: "general" }));

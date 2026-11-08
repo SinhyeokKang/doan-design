@@ -585,3 +585,35 @@ test("first run's cloning says why Back and the steps wait", () => {
   expect(cloning).toMatch(/data-ui-size="sm">Cancel<\/button><\/div><p class="ob-fine">Stay on this page until the clone finishes, or cancel it\.<\/p><div class="ob-footer">/);
   expect(screen({ phase: { kind: "clone", ...clone, inspectionId: "i" } })).not.toContain("Stay on this page");
 });
+
+// Read-only text is selectable (the `selectable` class); buttons and titles are not.
+const noSelectableButton = (html: string) => expect(html).not.toMatch(/<button[^>]*selectable/);
+
+test("selectable: a provider row's detail line, a notice's text, and no button", () => {
+  const html = renderToStaticMarkup(<ProviderRow view={{ ...base, detail: "ada@example.com", button: { command: "signIn", label: "Sign in", variant: "prominent", disabled: false, ariaLabel: "Sign in to Claude Code" } }} run={noop} />);
+  expect(html).toContain('<span class="selectable">ada@example.com</span>');
+  noSelectableButton(html);
+  const notice: Notice = { role: "alert", spinner: false, title: "Sign-in failed", body: "Sign-in didn’t finish. Try again.", actions: [{ command: "signIn", label: "Sign in", variant: "prominent", disabled: false }] };
+  const view = renderToStaticMarkup(<NoticeView notice={notice} run={noop} />);
+  expect(view).toContain('<span class="selectable"><strong class="ob-notice-title">Sign-in failed</strong>');
+  noSelectableButton(view);
+});
+
+test("selectable: a project notice's text and detail path, a clone's progress text, and no button", () => {
+  const url = "https://github.com/acme/studio";
+  const failed = screen({ url, phase: { kind: "clone", url, inspectionId: null, destination: "/Users/ada/code/studio" }, error: { code: "clone_failed" } });
+  expect(failed).toMatch(/<span class="selectable">(<strong class="ob-notice-title">[^<]*<\/strong><span class="ob-notice-body">)?Couldn’t clone this repository/);
+  expect(failed).toContain('<p class="ob-path ob-notice-detail selectable">');
+  noSelectableButton(failed);
+  const cloning = screen({ phase: { kind: "cloning", url, destination: "/Users/ada/code/studio", operationId: "o", cancelling: false } }, { busy: true });
+  expect(cloning).toContain('<span class="selectable"><strong class="ob-notice-title">Cloning studio</strong>');
+  noSelectableButton(cloning);
+});
+
+test("selectable: the chosen project's path and the clone destination's path", () => {
+  const chosen = screen({ url: "https://github.com/acme/doan-design", phase: { kind: "candidates", inspectionId: "i", url: "https://github.com/acme/doan-design", candidates: [{ path: "/Users/ada/code/doan-design", changes: [] }], choice: "/Users/ada/code/doan-design" } });
+  expect(chosen).toContain('<strong>doan-design</strong><p class="ob-path selectable">~/code/doan-design</p>');
+  const plan = screen({ url: "https://github.com/acme/studio", phase: { kind: "clone", url: "https://github.com/acme/studio", destination: "/Users/ada/code/studio", inspectionId: "i" } });
+  expect(plan).toContain('<strong>studio</strong><p class="ob-path selectable">~/code/studio</p>');
+  noSelectableButton(plan);
+});

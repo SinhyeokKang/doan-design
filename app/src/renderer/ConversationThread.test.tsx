@@ -140,6 +140,21 @@ describe("thread items", () => {
     expect(html([{ ...base, status: "expired", answer: null }])).toContain("<span>Expired without an answer · Run doan check</span>");
   });
 
+  // The thread body is unselectable by default; secondary text opts in with `selectable` while the answer buttons stay out of it.
+  test("a pending permission request's text is selectable and its buttons are not", () => {
+    const out = html([{ kind: "permission", key: "pr1", seq: 5, requestId: "r1", summary: "Run doan check", options: [{ id: "a", label: "Allow once", kind: "allow" }, { id: "d", label: "Deny", kind: "deny" }], status: "pending", answer: null }]);
+    expect(out).toContain('<span class="strip-text selectable"><b>Claude Code needs your answer</b>');
+    expect(out).toMatch(/<span class="strip-actions">(?:(?!<\/span>).)*Allow once/);
+    expect(out).not.toMatch(/<button[^>]*class="[^"]*selectable/);
+    expect(out).not.toMatch(/<span class="strip-actions[^"]*selectable/);
+  });
+
+  test("an answered or expired permission line is selectable", () => {
+    const base = { kind: "permission" as const, key: "pr1", seq: 5, requestId: "r1", summary: "Run doan check", options: [] };
+    expect(html([{ ...base, status: "answered", answer: { id: "a", label: "Allow once", kind: "allow" } }])).toMatch(/<div class="activity-head ask-answered"><span class="selectable">Allowed once · Run doan check<\/span>/);
+    expect(html([{ ...base, status: "expired", answer: null }])).toMatch(/<div class="activity-head ask-answered"><span class="selectable">Expired without an answer · Run doan check<\/span>/);
+  });
+
   // A Stop's expiry record (`optionId: "expired"`) read back from the history.
   test("a permission request a Stop expired reads as expired, never answered", () => {
     const ev = (seq: number, payload: object) => ({ v: 1, conversationId: "c1", seq, turnId: "t1", at: "2026-11-07T00:00:00Z", ...payload }) as ConversationEvent;
@@ -153,6 +168,16 @@ describe("thread items", () => {
 
   // The turn ended before it did any work, so no file warning and nothing to resend; a reopened
   // history reads the model from the stored end.
+  test("a turn end's text is selectable and its end-action buttons are not", () => {
+    const failed: ThreadItem = { kind: "end", key: "e3", seq: 3, end: { kind: "failed", code: "not_logged_in" } };
+    const user: ThreadItem = { kind: "user", key: "u1", seq: 1, anchors: [], preset: null, parts: [{ text: "go" }], attachments: [] };
+    const out = html([user, failed]);
+    expect(out).toMatch(/<span class="strip-text selectable"><b>/);
+    expect(out).toContain(">Sign in again…</button>");
+    expect(out).not.toMatch(/<button[^>]*class="[^"]*selectable/);
+    expect(out).not.toMatch(/<span class="strip-actions[^"]*selectable/);
+  });
+
   test("a model the account does not have says only that, with no file warning or button", () => {
     const ev = (seq: number, payload: object) => ({ v: 1, conversationId: "c1", seq, turnId: "t1", at: "2026-11-07T00:00:00Z", ...payload }) as ConversationEvent;
     const out = html(threadItems([ev(1, { type: "user.message", text: "go", anchors: [] }), ev(2, { type: "turn.started" }),
@@ -470,6 +495,10 @@ describe("handoff lines and the handoff card", () => {
     expect(out).toMatch(/<div class="handoff-card" role="group" aria-labelledby="([^"]+)" tabindex="-1"><div class="handoff-head"><svg[^>]*lucide-forward[^>]*>.*?<\/svg><span id="\1">Handed off from drafts.html<\/span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="trigger">Open<\/button><\/div><div class="md"><p>Pick up <strong>Payment<\/strong>.<\/p>\s*<p>The person wrote “\{\{1\}\}”.<\/p><\/div><\/div>/);
     expect(out).not.toContain("bubble");
     expect(html([card], { canvasListed: () => false })).toMatch(/<span id="[^"]+">Handed off from drafts.html · No longer in doan-design<\/span><\/div>/);
+  });
+  test("the card's text is selectable like the reply it stands for", () => {
+    const card: ThreadItem = { kind: "handoffCard", key: "u1", seq: 1, origin: { kind: "handoff", conversationId: "c0", canvas: DRAFTS }, text: "Pick up **Payment**." };
+    expect(html([card])).toContain('<div class="md selectable">');
   });
   test("Open on the line opens the target conversation, Open on the card the source conversation", () => {
     const opened: unknown[] = [];

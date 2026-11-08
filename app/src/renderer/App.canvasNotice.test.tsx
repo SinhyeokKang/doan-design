@@ -168,3 +168,31 @@ test("a collapsed project's notice opens its canvas instead of the project's wor
   expect(harness.controller!.openCanvas).toHaveBeenLastCalledWith("/w/b", expect.objectContaining({ path: B }), undefined, expect.anything());
   expect(harness.controller!.openWorkspace).not.toHaveBeenCalledWith("/w/b", expect.anything());
 });
+
+// Text a user may need to copy (an error reason, the reason a canvas could not load) is selectable; the buttons around it are not.
+const classOf = (element: ReactElement<Record<string, unknown>>) => String(element.props.className ?? "").split(" ");
+const words = (node: unknown): string => Array.isArray(node) ? node.map(words).join("") : typeof node === "string" ? node : isValidElement<Record<string, unknown>>(node) ? words(node.props.children) : "";
+// The canvas page is its own component, so it is expanded by hand after App's render.
+const canvasPane = () => {
+  const pane = all(tree).find(element => "viewport" in element.props)!;
+  return all((pane.type as (props: unknown) => ReactNode)(pane.props));
+};
+const showState = (extra: Record<string, unknown>) => { harness.setState!({ ...initialCanvasState(), ...extra }); render(); };
+
+test("the canvas error notice's text is selectable", async () => {
+  await start(rows({}), [], workspace);
+  showState({ error: "Couldn’t export: permission denied" });
+  const notice = canvasPane().find(element => element.type === "span" && classOf(element).includes("grow-text") && words(element.props.children).includes("permission denied"))!;
+  expect(classOf(notice)).toContain("selectable");
+});
+
+test.each([
+  ["noWidth", "Could not read a valid board width. Set a width on the board."],
+  ["plain message", "Open timed out."],
+])("the canvas status paragraph for %s is selectable, its Reload button and heading are not", async (name, message) => {
+  await start(rows({}), [], workspace);
+  showState({ status: name === "noWidth" ? "noWidth" : "empty", message });
+  const paragraph = canvasPane().find(element => element.type === "p" && words(element.props.children).includes(message.slice(-10)))!;
+  expect(classOf(paragraph)).toContain("selectable");
+  expect(canvasPane().filter(element => element.type === "b" || element.type === "button").some(element => classOf(element).includes("selectable"))).toBe(false);
+});

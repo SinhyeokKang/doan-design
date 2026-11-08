@@ -559,3 +559,32 @@ test("a list without older models draws no line", async () => {
   await openModelMenu();
   expect(olderLines()).toHaveLength(0);
 });
+
+// Read-only text is selectable (the `selectable` class); buttons are not.
+const selectableClass = (element: ReactElement<Record<string, unknown>>) => String(element.props.className ?? "").split(" ").includes("selectable");
+const isErrorLine = (element: ReactElement<Record<string, unknown>>) => element.type === "p" && String(element.props.className).startsWith("settings-msg error");
+
+test("selectable: a provider row's account detail, but not its buttons", async () => {
+  await settle();
+  const descriptions = all(row("claude")).filter(element => String(element.props.className).includes("doan-preference-row-description"));
+  expect(words(descriptions[0]!.props.children)).toContain("ada@example.com");
+  for (const description of descriptions) expect(selectableClass(description)).toBe(true);
+  const buttons = all(row("claude")).filter(element => element.type === "button");
+  expect(buttons.length).toBeGreaterThan(0);
+  for (const button of buttons) expect(selectableClass(button)).toBe(false);
+});
+
+test("selectable: the save-failed and models-load-failed messages", async () => {
+  api.listConversationModels!.mockResolvedValue({ error: "unknown" });
+  await settle({ preferences: prefs({ provider: "claude", model: "opus" }) });
+  await settle();
+  const load = all(tree).find(isErrorLine)!;
+  expect(words(load.props.children)).toContain("Couldn’t load the models for acme-web.");
+  expect(selectableClass(load)).toBe(true);
+  // props.save resolves null, which reads as a failed save.
+  (all(tree).filter(element => element.type === DropdownMenu.RadioGroup)[0]!.props.onValueChange as (value: string) => void)("last");
+  await settle();
+  const lines = all(tree).filter(isErrorLine);
+  expect(lines.map(line => words(line.props.children))).toContain("Couldn’t save your new conversation choices. Your last saved choices still apply.");
+  for (const line of lines) expect(selectableClass(line)).toBe(true);
+});
