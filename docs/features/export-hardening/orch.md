@@ -24,7 +24,7 @@
 
 | batch | 항목 | 파일 소유 | 선행 | 모델·effort(이유) | 검증 gate | 상태 |
 |---|---|---|---|---|---|---|
-| R | T3, T4, T5 | `cli/internal/repo/resolve.go`와 새 repo 테스트, `cli/internal/export/resolve.go`·`inline.go`의 Resolver 전달, `cli/internal/cli/check.go`·`export.go` | 없음(T5는 MP 생성기) | Claude Opus high(경로 해석·scope·symlink 보안 경계, 잘못되면 serving scope가 샌다) | `go test ./...`, `go vet ./...`, mutation 확인, T5 ≤ 2 s | 통합 `1b517946`, `637b353f`, 리뷰 진행 |
+| R | T3, T4, T5 | `cli/internal/repo/resolve.go`와 새 repo 테스트, `cli/internal/export/resolve.go`·`inline.go`의 Resolver 전달, `cli/internal/cli/check.go`·`export.go` | 없음(T5는 MP 생성기) | Claude Opus high(경로 해석·scope·symlink 보안 경계, 잘못되면 serving scope가 샌다) | `go test ./...`, `go vet ./...`, mutation 확인, T5 ≤ 2 s | 통합 `1b517946`, `637b353f`, `8609f360`. 리뷰 🔴 0. worker 해제, worktree 삭제(branch 남김) |
 | MP | T0, T1 | `.scratch/export-hardening/` 생성기, `cli/internal/export/`의 새 opt-in 프로파일 테스트 파일, design.md §2 | 없음 | Claude Opus high(프로파일 해석과 가설 판정이 MF의 수정 대상을 정한다) | 생성기 sha256 두 번 같음, pprof 결과가 §2에 있음 | 통합 `55afdb85`, `a05638b1` |
 | SP | T2 | `.scratch/export-hardening/` 측정 스크립트, design.md §4 | 없음 | Claude Opus high(두 엔진·Electron 측정 설계, 판정이 SF 유무를 정한다) | 측정 스크립트 실행, 결과 표·판정이 §4에 있음 | 통합 `168faac8`, `5c66dd97`. worker 해제, worktree 삭제(branch `SinhyeokKang/eh-sp` 남김) |
 | B | T6, T7 | `cli/internal/export/`의 새 base 파일, `inline.go`·`classify.go`·`customurl.go`·`assemble.go` 중 필요한 곳, `exporttest/seed.go`, `cli/internal/cli/export_test.go` | R 통합 | Claude Opus high(거절 순서·custom property 사용처·결과 바이트 고정) | `go test ./...` | 진행 |
@@ -52,3 +52,4 @@
 - MF1 완료·통합(`de9d5f03`): 프로파일 테스트 TotalAlloc 8,110,556,128 B → 535,513,000 B, `doan export` big-css 최대 RSS 2,205,253,632 B → 296,157,184 B(결과 바이트 같음). 240 MiB까지는 MF2가 export 사본을 줄인다. 리뷰는 Claude Opus high(`ctx_60d789e857ba`, `eh-rv-mf1`).
 - SP 후속 완료·통합(`5c66dd97`): 격리한 실제 앱(빌드 앱, `app/runtime` 격리, real-state 변화 없음)에서 외부 `<use>`가 그려지지 않는다(rgb(255,255,255), 콘솔 `Unsafe attempt to load URL … Domains, protocols and ports must match.`; inline 대조는 그려진다). spec·design·tasks를 비목표 판정과 결정 A 이유 정정에 맞췄고 T10·T11·C5를 지웠다. 증거는 conductor `.scratch/export-hardening/sp/`로 복사했다.
 - R 리뷰(Codex Astra medium) 완료: 🔴 0 / 🟡 0 / ⚪ 1(읽기 오류 재시도와 snapshot 수명을 고정하는 테스트 없음). 독립 mutation 세 가지도 빨개졌다. ⚪를 R worker에 테스트 추가로 보냈다(`ctx_f32eb8f664ff`). reviewer 해제, worktree 삭제.
+- R 리뷰 메모 반영(`8609f360`): 읽기 오류 재시도와 snapshot 수명 테스트를 더했고 mutation으로 빨개짐을 확인했다.
