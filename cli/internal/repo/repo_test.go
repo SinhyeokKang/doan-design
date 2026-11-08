@@ -253,3 +253,85 @@ func TestFindUnicodeDiskSpelling(t *testing.T) {
 		t.Fatalf("%q %v", r.Root, err)
 	}
 }
+
+// locked drops every permission bit of p for the rest of the test.
+func locked(t *testing.T, p string) {
+	t.Helper()
+	if os.Geteuid() == 0 {
+		t.Skip("root ignores permission bits")
+	}
+	info, err := os.Stat(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(p, 0); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(p, info.Mode().Perm()) })
+}
+
+func expectConfig(t *testing.T, err error, code, config string) {
+	t.Helper()
+	var e *Error
+	if !errors.As(err, &e) || e.Code != code || e.Config != config {
+		t.Fatalf("error = %#v; want %s with config %q", err, code, config)
+	}
+}
+
+// Every failure while examining .doan/config.json names that file, so the app
+// can tell a config problem from any other read failure without guessing.
+func TestFindNamesTheConfigItFailedOn(t *testing.T) {
+	for _, tt := range []struct {
+		name, code string
+		setup      func(t *testing.T, root string)
+	}{
+		{"broken", "invalid_config", func(t *testing.T, root string) { put(t, root, ".doan/config.json", `{`) }},
+		{"unsupported version", "unsupported_version", func(t *testing.T, root string) { put(t, root, ".doan/config.json", `{"v":2}`) }},
+		{"directory", "invalid_config", func(t *testing.T, root string) {
+			if err := os.MkdirAll(filepath.Join(root, ".doan/config.json"), 0755); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{"unreadable file", "internal_error", func(t *testing.T, root string) {
+			put(t, root, ".doan/config.json", `{"v":1}`)
+			locked(t, filepath.Join(root, ".doan/config.json"))
+		}},
+		{"unsearchable .doan", "internal_error", func(t *testing.T, root string) {
+			put(t, root, ".doan/config.json", `{"v":1}`)
+			locked(t, filepath.Join(root, ".doan"))
+		}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			root := real(t, t.TempDir())
+			if err := os.MkdirAll(filepath.Join(root, "sub"), 0755); err != nil {
+				t.Fatal(err)
+			}
+			tt.setup(t, root)
+			want := filepath.Join(root, ".doan", "config.json")
+			_, err := Find(t.TempDir(), root)
+			expectConfig(t, err, tt.code, want)
+			_, err = Find(root, "")
+			expectConfig(t, err, tt.code, want)
+			// Discovery from a configless subfolder stops at the parent's config.
+			_, err = Find(filepath.Join(root, "sub"), "")
+			expectConfig(t, err, tt.code, want)
+		})
+	}
+}
+
+func TestFindNamesNoConfigForOtherFailures(t *testing.T) {
+	root := real(t, t.TempDir())
+	put(t, root, "file", "")
+	_, err := Find(root, "absent")
+	expectConfig(t, err, "repo_not_found", "")
+	_, err = Find(root, "file")
+	expectConfig(t, err, "repo_not_found", "")
+	_, err = Find(root, "")
+	expectConfig(t, err, "repo_not_found", "")
+	put(t, root, "locked/sub/x", "")
+	locked(t, filepath.Join(root, "locked"))
+	_, err = Find(filepath.Join(root, "locked/sub"), "")
+	expectConfig(t, err, "internal_error", "")
+	_, err = Find(root, filepath.Join(root, "locked/sub"))
+	expectConfig(t, err, "internal_error", "")
+}

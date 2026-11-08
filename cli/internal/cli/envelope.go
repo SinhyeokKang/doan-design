@@ -4,6 +4,9 @@ type Error struct {
 	Code      string   `json:"code"`
 	Message   string   `json:"message"`
 	NextSteps []string `json:"nextSteps"`
+	// Config names the config file a failure is about, absolute because a
+	// discovered parent config lies outside any --repo; JSON output only.
+	Config string `json:"config,omitempty"`
 }
 
 func (e *Error) Error() string { return e.Message }
