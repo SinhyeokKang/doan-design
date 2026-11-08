@@ -266,6 +266,28 @@ func TestExportCanvasNotFound(t *testing.T) {
 	failure(t, t.TempDir(), "repo_not_found", "export", exporttest.Empty, "-o", out)
 }
 
+// The message names what was asked for without an absolute path: repo-relative inside the repository, also
+// through a link to the root, and only the file name outside it.
+func TestExportCanvasNotFoundNamesNoAbsolutePath(t *testing.T) {
+	root := exporttest.Seed(t)
+	other := exporttest.SeedLinkedAssets(t)
+	alias := exportLinkTo(t, root)
+	out := filepath.Join(exportOutput(t), "x.html")
+	for name, c := range map[string]struct{ arg, want string }{
+		"absolute inside":       {filepath.Join(root, ".doan/canvases/zz.html"), "Canvas not found: .doan/canvases/zz.html"},
+		"absolute through link": {filepath.Join(alias, ".doan/canvases/zz.html"), "Canvas not found: .doan/canvases/zz.html"},
+		"absolute outside":      {filepath.Join(other, exporttest.Linked), "Canvas not found: " + filepath.Base(exporttest.Linked)},
+		"relative":              {".doan/canvases/zz.html", "Canvas not found: .doan/canvases/zz.html"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			e := exportFailure(t, root, "canvas_not_found", c.arg, "-o", out)
+			if e.Message != c.want {
+				t.Fatalf("message %q, want %q", e.Message, c.want)
+			}
+		})
+	}
+}
+
 func TestExportCanvasBehindALinkedDoanIsNotListed(t *testing.T) {
 	root := exporttest.Seed(t)
 	moved := filepath.Join(filepath.Dir(root), "real-doan")
