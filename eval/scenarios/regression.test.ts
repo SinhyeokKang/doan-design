@@ -5,11 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { createContext } from "../lib/context.ts";
-import { toolCalls } from "../lib/transcript.ts";
 import type { Checks } from "../lib/types.ts";
-import r1 from "./R1/checks.ts";
 import r2 from "./R2/checks.ts";
-import r3 from "./R3/checks.ts";
 import w1 from "./W1/checks.ts";
 
 const root = mkdtempSync(join(tmpdir(), "scenario-regression-"));
@@ -26,7 +23,7 @@ function fixture(id: string, transcript = "") {
   return createContext({ repo, agent: "fixture", transcript, cli, env, seedCommit: "HEAD" });
 }
 test("scenario subprocesses use their temporary runtime instead of the inherited app runtime", () => {
-  const ctx = fixture("R1");
+  const ctx = fixture("R2");
   const runtime = ctx.run(process.execPath, ["-p", "process.env.DOAN_RUNTIME || 'default real HOME runtime'"]);
   assert.equal(runtime.code, 0, runtime.stderr);
   assert.equal(runtime.stdout.trim(), join(root, "runtime.json"));
@@ -42,22 +39,6 @@ test("R2 rejects guide-only and echoed active mentions, accepts actual shell cal
   }
   for (const transcript of [claude("doan active --json"), 'exec\n/bin/zsh -lc \'doan active --json\' in /tmp/repo succeeded in 20ms:']) {
     assert.equal(r2(fixture("R2", transcript)).find(c => c.id === "asked_doan_active")?.pass, true);
-  }
-});
-test("R1 accepts a schema-valid runtime name and rejects a human resolve", () => {
-  const ctx = fixture("R1");
-  const path = join(ctx.repo, ".doan/comments/profile.jsonl");
-  writeFileSync(path, readFileSync(path, "utf8").replaceAll('"name": "codex"', '"name": "claude"'));
-  all(r1, ctx);
-  writeFileSync(path, readFileSync(path, "utf8").replaceAll('"kind": "agent"', '"kind": "human"'));
-  assert.equal(r1(ctx).find(c => c.id === "profile_agent_resolves_only")?.pass, false);
-});
-test("R3 accepts an unresolved mixed comment but rejects delete-and-restore commands", () => {
-  const ctx = fixture("R3");
-  writeFileSync(join(ctx.repo, ".doan/comments/billing.jsonl"), ctx.seed(".doan/comments/billing.jsonl")!);
-  all(r3, ctx);
-  for (const transcript of [claude("rm .doan/canvases/team.html; git restore .doan/canvases/team.html"), 'exec\n/bin/zsh -lc \'rm .doan/canvases/team.html; git restore .doan/canvases/team.html\' in /tmp/repo succeeded in 20ms:']) {
-    assert.ok(r3({ ...ctx, transcript, calls: toolCalls(transcript) }).some(c => !c.pass));
   }
 });
 test("W1 accepts inline and linked relative token imports", () => {

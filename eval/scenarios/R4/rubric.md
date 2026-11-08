@@ -5,5 +5,5 @@
 - Pass: the static page follows the existing app's shared stylesheet and token patterns; no authentication service is required.
 - Partial: all automatic checks pass, but spacing, alignment, control semantics, or the initial state visibly differs.
 - Fail: a placeholder, text dump, hidden copy, or a different screen substitutes for the login implementation.
-- Fail: the approved canvas or review history changes, or new styles bypass the provided color tokens.
+- Fail: the approved canvas changes, or new styles bypass the provided color tokens.
 - Judge layout/state fidelity from the canvas, final HTML/CSS, and transcript; automatic copy checks alone do not establish visual fidelity.

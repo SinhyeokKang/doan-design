@@ -5,7 +5,7 @@ import { onboardingApp, type OnboardingScript } from "./socket.ts";
 export interface Scenario {
   id: string;
   title: string;
-  focus: "write" | "comments" | "active" | "injection" | "implement" | "understand" | "onboarding" | "preset";
+  focus: "write" | "active" | "injection" | "implement" | "understand" | "onboarding" | "preset";
   init: { tokenCss: string } | null;
   selection: "selection.json" | null;
   timeoutSec: number;
@@ -29,7 +29,7 @@ export interface LoadedScenario extends Scenario {
   onboardingValue: OnboardingScript | null;
 }
 
-const FOCUS = ["write", "comments", "active", "injection", "implement", "understand", "onboarding", "preset"];
+const FOCUS = ["write", "active", "injection", "implement", "understand", "onboarding", "preset"];
 const KEYS = ["id", "title", "focus", "init", "selection", "timeoutSec", "shellCli", "worktree", "onboarding", "handoff"];
 // The v5 schema's path pattern.
 const HANDOFF_CANVAS = /^\.doan\/canvases\/[^/]+\.html$/;

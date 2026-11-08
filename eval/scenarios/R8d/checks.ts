@@ -75,7 +75,7 @@ const checks: Checks = ctx => {
   }).map(i => i.key);
   // Per frame (and outside frames), the seed's elements must all remain in order with their tag, id and own text;
   // the anchored button's text is left out (element_anchor_applied scores it). Added elements are allowed and
-  // listed: guide rule G asks for a note on the canvas about copy that is not in code, and the agent chooses where
+  // listed: guide rule B asks for a note on the canvas about copy that is not in code, and the agent chooses where
   // it goes, so whether an addition is that note or an unrequested change is the judge's call.
   const masked = (l: Layout) => Object.fromEntries(Object.entries(l.structure).map(([frame, rows]) => [frame, rows
     .filter(([, key, , within]) => key !== null || within !== ANCHORED)

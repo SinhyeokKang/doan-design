@@ -115,6 +115,37 @@ test("only a whole standalone literal patch batch qualifies as code-mode invocat
   assert.equal(calls(invalidString).patches, undefined);
   assert.deepEqual(calls(invalidString).patchCandidates, [patch]);
 });
+test("literal apply_patch calls from Claude-style and Codex events are patches, while prose, comments and results are not", () => {
+  const patch = '*** Begin Patch\n*** Delete File: .doan/canvases/team.html\n*** End Patch';
+  const event = (payload: object) => JSON.stringify({ type: "response_item", payload });
+  for (const transcript of [
+    event({ type: "custom_tool_call", name: "apply_patch", input: patch }),
+    event({ type: "custom_tool_call", name: "functions.exec", input: `await tools.apply_patch(${JSON.stringify(patch)});` }),
+    event({ type: "custom_tool_call", name: "exec", input: "await tools.apply_patch(`" + patch + "`);" }),
+    event({ type: "function_call", name: "functions.apply_patch", arguments: JSON.stringify({ patch }) }),
+  ]) assert.deepEqual(toolCalls(transcript).patches, [patch], transcript);
+  for (const transcript of [
+    patch,
+    event({ type: "custom_tool_call", name: "exec", input: `/* tools.apply_patch(${JSON.stringify(patch)}); */` }),
+    event({ type: "custom_tool_call", name: "exec", input: "await tools.apply_patch(computedPatch);" }),
+    event({ type: "custom_tool_call_output", output: patch }),
+    event({ type: "custom_tool_call", name: "exec", input: `const example = ${JSON.stringify(`tools.apply_patch(${JSON.stringify(patch)})`)};` }),
+  ]) assert.equal(toolCalls(transcript).patches, undefined, transcript);
+});
+test("a patch inside conditional, deferred or repeated code-mode source stays a candidate, not a patch", () => {
+  const patch = '*** Begin Patch\n*** Delete File: .doan/canvases/team.html\n*** End Patch';
+  const call = `await tools.apply_patch(${JSON.stringify(patch)});`;
+  for (const source of [
+    `if (false) { ${call} }`, `async function example() { ${call} }`,
+    `throw new Error('before patch'); ${call}`, `await mightReject(); ${call}`,
+    `const deferred = async () => { ${call} };`, `${call} ${call}`,
+    `text(${JSON.stringify('example')}); ${call}`, `${call} invalid syntax !`,
+  ]) {
+    const calls = toolCalls(JSON.stringify({ type: "response_item", payload: { type: "custom_tool_call", name: "functions.exec", input: source } }));
+    assert.equal(calls.patches, undefined, source);
+    assert.ok(calls.patchCandidates?.includes(patch), source);
+  }
+});
 test("doan export flags are read as flags, so the canvas stays the second positional", () => {
   const words = ["doan", "export", ".doan/canvases/profile.html", "-o", "/tmp/out.html", "--force", "--json"];
   assert.equal(doanCommand(words), "export");

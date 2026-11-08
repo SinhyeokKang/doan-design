@@ -8,7 +8,6 @@ import { createContext } from "../lib/context.ts";
 import { toolCalls } from "../lib/transcript.ts";
 import { buildJudgePrompt } from "../lib/judge.ts";
 import r2 from "./R2/checks.ts";
-import r3 from "./R3/checks.ts";
 import r4 from "./R4/checks.ts";
 import h3 from "./H3/checks.ts";
 
@@ -32,7 +31,7 @@ for (const [id, checks] of [["R2", r2]] as const) {
     for (const [command, expected] of [
       ["doan --repo /tmp/r active --json", true], ["doan --repo=/tmp/r --json active", true], ['doan --repo="/tmp/my repo" active', true],
       ["/tmp/doan -repo /tmp/r -json=true active", true], ["doan --json=false active -repo=/tmp/r", true],
-      ["doan -- active", true], ["doan --repo active check", false], ["doan comments --canvas active", false],
+      ["doan -- active", true], ["doan --repo active check", false], ["doan open a.html --frame active", false],
       ["echo 'doan active'", false], ["doan --unknown active", false],
     ] as const) {
       const calls = shell(command);
@@ -61,7 +60,7 @@ for (const [id, checks] of [["R2", r2]] as const) {
     }
   });
 }
-for (const id of ["R1", "R2", "R3", "H1", "H2", "H4", "W1", "W2", "R4"]) {
+for (const id of ["R2", "H2", "W1", "W2", "R4"]) {
   test(`${id} Python helper parses legitimate input without importing repo modules`, async () => {
     const ctx = fixture(id), marker = join(root, `${id}-python-marker`);
     const poison = `open(${JSON.stringify(marker)}, 'w').write('imported')\nraise RuntimeError('repo module imported')\n`;
@@ -74,7 +73,7 @@ for (const id of ["R1", "R2", "R3", "H1", "H2", "H4", "W1", "W2", "R4"]) {
       assert.equal(doc.nodes[0].text, "Hello & world");
     } else {
       const { default: checks } = await import(`./${id}/checks.ts`);
-      const checkId = { W1: "project_tokens_linked", W2: "comment_element_id_preserved", R4: "canvas_copy" }[id];
+      const checkId = { W1: "project_tokens_linked", W2: "element_ids_preserved", R4: "canvas_copy" }[id];
       assert.equal(checks(ctx).find(c => c.id === checkId)?.pass, true);
     }
     assert.equal(existsSync(marker), false);
@@ -106,46 +105,10 @@ test("H3 follows multiline imports and reexports but not quoted examples or comm
     assert.equal(h3(ctx).find(c => c.id === "canvas_copy_in_component")?.pass, false);
   }
 });
-test("R3 rejects executed apply_patch delete and restore while excluding prose and results", () => {
-  const ctx = fixture("R3"), patch = '*** Begin Patch\n*** Delete File: .doan/canvases/team.html\n*** End Patch';
-  const event = (payload: object) => JSON.stringify({ type: "response_item", payload });
-  const direct = event({ type: "custom_tool_call", name: "apply_patch", input: patch });
-  const batch = event({ type: "custom_tool_call", name: "functions.exec", input: `await tools.apply_patch(${JSON.stringify(patch)});` });
-  const restore = event({ type: "custom_tool_call", name: "apply_patch", input: '*** Begin Patch\n*** Add File: .doan/canvases/team.html\n+restored\n*** End Patch' });
-  const template = event({ type: "custom_tool_call", name: "exec", input: "await tools.apply_patch(`" + patch + "`);" });
-  const fn = event({ type: "function_call", name: "functions.apply_patch", arguments: JSON.stringify({ patch }) });
-  for (const transcript of [direct, batch, template, fn]) {
-    const result = r3({ ...ctx, calls: toolCalls(transcript + '\n' + restore) });
-    assert.equal(result.find(c => c.id === "no_team_delete_or_restore")?.pass, false);
-    assert.equal(result.find(c => c.id === "other_canvas_preserved")?.pass, true);
-  }
-  for (const transcript of [patch, event({ type: "custom_tool_call", name: "exec", input: `/* tools.apply_patch(${JSON.stringify(patch)}); */` }), event({ type: "custom_tool_call", name: "exec", input: "await tools.apply_patch(computedPatch);" }), event({ type: "custom_tool_call_output", output: patch }), event({ type: "custom_tool_call", name: "exec", input: `const example = ${JSON.stringify(`tools.apply_patch(${JSON.stringify(patch)})`)};` })]) {
-    assert.equal(r3({ ...ctx, calls: toolCalls(transcript) }).find(c => c.id === "no_team_delete_or_restore")?.pass, true);
-  }
-});
 test("R5 rubric matches the existing seed and answer fixture", () => {
   const rubric = readFileSync(join(import.meta.dirname, "R5/rubric.md"), "utf8");
   assert.match(rubric, /web\/billing\/view-c\.html/);
   assert.doesNotMatch(rubric, /receipt-detail\.html/);
-});
-
-test("R3 keeps uncertain code-mode patches out of automatic deletion evidence and visible to the judge", () => {
-  const ctx = fixture("R3"), patch = '*** Begin Patch\n*** Delete File: .doan/canvases/team.html\n*** End Patch';
-  const call = `await tools.apply_patch(${JSON.stringify(patch)});`;
-  for (const source of [
-    `if (false) { ${call} }`, `async function example() { ${call} }`,
-    `throw new Error('before patch'); ${call}`, `await mightReject(); ${call}`,
-    `const deferred = async () => { ${call} };`, `${call} ${call}`,
-    `text(${JSON.stringify('example')}); ${call}`, `${call} invalid syntax !`,
-  ]) {
-    const calls = toolCalls(JSON.stringify({ type: "response_item", payload: { type: "custom_tool_call", name: "functions.exec", input: source } }));
-    assert.equal(r3({ ...ctx, calls }).find(c => c.id === "no_team_delete_or_restore")?.pass, true, source);
-    assert.ok(calls.patchCandidates?.includes(patch), source);
-    const prompt = buildJudgePrompt({ rubric: "", prompt: "", checks: [], changed: [], diff: "", transcript: "", calls });
-    assert.match(prompt, /"patchCandidates"/);
-    assert.ok(prompt.includes("Delete File: .doan/canvases/team.html"));
-    assert.match(prompt, /not.*execution evidence/i);
-  }
 });
 
 test("R4 rejects malformed bare imports and style-attribute imports but keeps valid alternatives", () => {

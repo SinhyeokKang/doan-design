@@ -8,7 +8,8 @@ const checks: Checks = ctx => {
   const frames = (canvas?.frames ?? []).map((f: any) => f.id);
   const originalFrames = ["projects-list", "project-details"];
   const addedFrames = frames.filter((id: string) => !originalFrames.includes(id));
-  const parsed = ctx.run("python3.12", ["-I", "-c", `
+  const elementIds = (html: string): string[] | null => {
+    const parsed = ctx.run("python3.12", ["-I", "-c", `
 import json, sys
 from html.parser import HTMLParser
 class Elements(HTMLParser):
@@ -21,17 +22,19 @@ class Elements(HTMLParser):
     def handle_endtag(self, tag):
         if tag == 'template': self.templates = max(0, self.templates - 1)
 parser = Elements(); parser.feed(sys.argv[1]); print(json.dumps(parser.ids))
-`, canvas ? ctx.read(canvas.path) ?? "" : ""]);
-  const ids = parsed.code === 0 ? JSON.parse(parsed.stdout) : [];
-  const commentPath = ".doan/comments/projects.jsonl";
-  const changedComments = ctx.changedFiles().filter(path => path.startsWith(".doan/comments/"));
+`, html]);
+    return parsed.code === 0 ? JSON.parse(parsed.stdout) : null;
+  };
+  // Measured through the canvas file: every element id the seed carried must survive the edit.
+  const before = elementIds(canvas ? ctx.seed(canvas.path) ?? "" : "");
+  const after = canvas ? elementIds(ctx.read(canvas.path) ?? "") : null;
+  const missing = (before ?? []).filter(id => !(after ?? []).includes(id));
   return [
     { id: "doan_check_clean", pass: check.code === 0 && check.json?.result?.summary?.errors === 0, detail: `exit ${check.code}, ${JSON.stringify(check.json?.result?.summary)}` },
     { id: "canvas_id_preserved", pass: listing.code === 0 && canvases.filter((c: any) => c.id === "projects").length === 1, detail: `Projects canvas: ${canvas?.path ?? "missing"}` },
     { id: "existing_frame_ids_preserved", pass: originalFrames.every(id => frames.includes(id)), detail: `frame ids: ${frames.join(", ")}` },
-    { id: "comment_element_id_preserved", pass: parsed.code === 0 && ids.includes("project-owner"), detail: `comment anchor project-owner ${ids.includes("project-owner") ? "present" : "missing"}` },
+    { id: "element_ids_preserved", pass: !!before?.length && !!after && missing.length === 0, detail: `seed element ids missing after the edit: ${missing.join(", ") || "(none)"}` },
     { id: "two_frames_added", pass: new Set(addedFrames).size >= 2, detail: `new frame ids: ${addedFrames.join(", ") || "(none)"}` },
-    { id: "comments_unchanged", pass: ctx.read(commentPath) === ctx.seed(commentPath) && changedComments.length === 0, detail: `changed comment files: ${changedComments.join(", ") || "(none)"}` },
   ];
 };
 export default checks;

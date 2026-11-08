@@ -150,6 +150,14 @@ test("unresolved patch candidates are labelled and cannot evict invocation summa
   assert.ok(prompt.length < 10_000);
 });
 
+test("patch candidates reach the judge as unresolved mentions, not execution evidence", () => {
+  const patch = '*** Begin Patch\n*** Delete File: .doan/canvases/team.html\n*** End Patch';
+  const prompt = buildJudgePrompt({ rubric: "", prompt: "", checks: [], changed: [], diff: "", transcript: "", calls: { commands: [], mcpTools: [], patchCandidates: [patch] } });
+  assert.match(prompt, /"patchCandidates"/);
+  assert.ok(prompt.includes("Delete File: .doan/canvases/team.html"));
+  assert.match(prompt, /not.*execution evidence/i);
+});
+
 function invocationSummary(transcript: string) {
   const prompt = buildJudgePrompt({ rubric: "", prompt: "", checks: [], changed: [], diff: "", transcript });
   const summary = JSON.parse(prompt.split("## Invoked commands and MCP tools")[1].split("<<<\n")[1].split("\n>>>")[0]);
