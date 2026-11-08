@@ -12,7 +12,7 @@ export interface TargetCandidates {
 }
 
 // Board coordinates after inner scrolling; `clip` is the nearest clipping ancestors' visible box.
-export interface PinRect { x: number; y: number; width: number; height: number }
+interface PinRect { x: number; y: number; width: number; height: number }
 export interface PinGeometry extends PinRect { clip?: PinRect }
 
 export const MAX_FRAMES = 1000;

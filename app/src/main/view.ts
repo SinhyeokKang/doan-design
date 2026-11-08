@@ -96,7 +96,7 @@ function staticFrames(frames: unknown): StaticFrame[] | undefined {
   return kept;
 }
 
-export function isRowError(value: unknown): value is RowError {
+function isRowError(value: unknown): value is RowError {
   return typeof value === "object" && value !== null &&
     typeof Reflect.get(value, "code") === "string" && typeof Reflect.get(value, "message") === "string";
 }
