@@ -387,6 +387,10 @@ test("the served files are read once per served revision, not per get", async ()
   expect(await thumbnails.get(f.root, ".doan/canvases/a.html", true)).toEqual({ kind: "pending" });
 });
 
+// Walking 2001 entries can outlast waitFor's default 1 s under load. Each test waits at most twice,
+// so two waits stay inside the 20 s testTimeout.
+const WALK_WAIT = { timeout: 8_000 };
+
 test("past the walk limit every served revision counts as changed", async () => {
   const f = fixture([".doan/canvases/a.html"]);
   mkdirSync(join(f.root, "styles", "many"));
@@ -395,15 +399,12 @@ test("past the walk limit every served revision counts as changed", async () => 
   const thumbnails = make(f.deps);
   thumbnails.entriesChanged(f.entries);
   await thumbnails.get(f.root, ".doan/canvases/a.html", true);
-  await vi.waitFor(() => expect(f.changed).toHaveLength(1));
+  await vi.waitFor(() => expect(f.changed).toHaveLength(1), WALK_WAIT);
   expect((await thumbnails.get(f.root, ".doan/canvases/a.html", true)).kind).toBe("ready");
   thumbnails.entriesChanged(bump(f));
-  await vi.waitFor(() => expect(f.changed).toHaveLength(2));
+  await vi.waitFor(() => expect(f.changed).toHaveLength(2), WALK_WAIT);
   expect(await thumbnails.get(f.root, ".doan/canvases/a.html", true)).toEqual({ kind: "pending" });
 });
-
-// Walking 2001 entries can outlast waitFor's default 1 s under load.
-const WALK_WAIT = { timeout: 15_000 };
 
 const countsAsChangedPastLimit = async (f: ReturnType<typeof fixture>) => {
   const thumbnails = make(f.deps);
