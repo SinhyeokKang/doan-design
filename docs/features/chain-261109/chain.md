@@ -50,9 +50,13 @@
 
 | 링크 | session·worktree | 시작 | PR·merge | 상태 |
 |---|---|---|---|---|
-| config-error-source | Claude Code · `~/orca/workspaces/doan-design/config-error-source-orch` (`feat/config-error-source`) | 2026-11-09 | — | 진행 중 |
+| config-error-source | Claude Code · `~/orca/workspaces/doan-design/config-error-source-orch` (`feat/config-error-source`) | 2026-11-09 | PR #142 · `da406dae` | 병합 |
 | export-hardening | — | — | — | 대기 |
 
 ## 인계 기록
 
 - 2026-11-09 lead(develop checkout): 체인 파일을 썼다. 사용자가 두 링크의 체인 진행, Codex worker, 모든 승인을 한 번에 허가했고, config-error-source 초안 확인은 독립 reviewer로 대신하기로 했다. 링크 1을 시작한다.
+- 2026-11-09 lead: 링크 1 config-error-source를 PR #142로 병합했다(`da406dae`). 다음 링크가 알아야 할 것:
+  - `cli/internal/repo/find.go`의 config 단계가 `repo.Error.Config`를 채우고 `cli.Error`가 `config`(omitempty)로 내보낸다. `resolve.go`는 바꾸지 않았다. `Find` 밖에서 config 파일 때문에 나는 새 실패는 같은 필드를 채워야 Config error로 보인다.
+  - 미검증: Finder 화면의 실제 선택(probe가 `shell.showItemInFolder`를 대신해 경로만 기록), Overview recovery menu의 Show in Finder, Add Projects 페이지의 새 notice(단위 테스트만). `/agent-eval`의 어떤 scenario도 config 실패나 `project_unreadable`에 닿지 않았다.
+  - 초안: `.doan/canvases/config-error-source.html`(frame `project-unreadable`, `project-unreadable-setup`). 사용자 확인이 남아 있다.
