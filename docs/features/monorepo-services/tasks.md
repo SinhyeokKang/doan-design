@@ -1,6 +1,6 @@
 # monorepo-services — tasks
 
-선행 조건: `local-doan-files`와 `canvas-handoff`는 develop에 병합됐다. `/tdd`(T1)를 시작할 때 두 feature의 병합된 모양(`doan config` 결과의 `storage`, 셋업 패널·Project Settings 구역, app-socket v5와 `workTarget`)을 다시 읽고 design §8.1과 해당 절을 고친다.
+선행 조건: `local-doan-files`와 `canvas-handoff`는 develop에 병합됐다. `config-error-source`가 이 feature보다 먼저 병합한다(design §8.1). `/tdd`(T1)를 시작할 때 두 feature의 병합된 모양(`doan config` 결과의 `storage`, 셋업 패널·Project Settings 구역, app-socket v5와 `workTarget`)을 다시 읽고 design §8.1과 해당 절을 고친다.
 
 순서: 초안 → 형식 → Go 순수 함수 → CLI 저장소 규칙(나열·scope·check·경로) → CLI 후보 찾기 → guide·preset·eval scenario → app main 경로·watcher → app main 셋업·Settings → app UI → 실제 앱 확인 → agent eval → 승격.
 
@@ -19,13 +19,15 @@
 ## T2. Go 순수 함수
 
 - config v1·v2 parse와 런타임 검사, `serviceDirs`, `MetadataPath(p, serviceIDs)`, token 파일 예외(경로로 판단), 서비스 쓰기 계획, `tokenFor`, `service_not_configured` 판단, 캔버스 경로 규칙, adapter 7개, `classifyPattern`·`filterMembers`·`proposeIDs`(design §6 Go 행).
-- 테스트: design §6 표의 Go 사례 전부. config에 서비스가 있고 폴더가 없는 사례(design §9). 두 branch 병합으로 생긴 중복 id → 프로젝트 전체 `invalid_config`. 디스크 폴더 이름이 id와 대소문자만 다름(`web` vs `Web`) → 폴더 없음(POSTMORTEM 2026-10-21).
+- 테스트: design §6 표의 Go 사례 전부. config에 서비스가 있고 폴더가 없는 사례(design §9). 두 branch 병합으로 생긴 중복 id → 프로젝트 전체 `invalid_config`. 이 `invalid_config`가 `repo.Find` 밖에서 나면 `error.config`(config-error-source)가 붙는다(design §8.1). 디스크 폴더 이름이 id와 대소문자만 다름(`web` vs `Web`) → 폴더 없음(POSTMORTEM 2026-10-21).
 - 검증: `go test ./...`, `go vet ./...` 통과.
 - **commit 경계**: `feat(cli): rules for service folders and workspace members`
 
 ## T3. CLI 저장소 규칙
 
 결정 1의 비용(design §0)을 CLI 쪽에서 모두 다룬다.
+
+- **config-error-source 병합 뒤**: 서비스 런타임 검사에서 나는 `invalid_config`도 `error.config`를 갖는지 `ls`·`check` 결과로 단언한다(design §8.1).
 
 - **나열·`doan ls`**: `repo.Canvases`가 config를 받아 서비스 `canvases/`·`ds/`를 걷고(호출처 `read.go` `scanCanvases`, `export.go`), `ls` 결과에 `services`(design §2.3).
   - 테스트: `ls` deep-compare(공유·서비스·하위 폴더 캔버스의 byte 순, `services`), config에 없는 `.doan/services/x/`는 나열 안 됨, 링크된 `.doan/services`·서비스 폴더·`canvases` 각각 건너뜀, 폴더 없는 서비스, config `web`·디스크 `Web`은 나열도 서빙도 안 되고 `doan check` 경고.
