@@ -1095,9 +1095,10 @@ async function start(): Promise<void> {
     return { kind: "located", root: judged.root };
   });
   // The renderer names the root only. TS does not build `.doan/` paths (POSTMORTEM "Guessing the repo root in TS"),
-  // with one exception: a Config error (`error`) comes from `ls --repo <root>`, which never searches upward, so
-  // `<root>/.doan/config.json` is the file that failed and Finder selects it (macOS hides `.doan/`). The app only
-  // passes the location to Finder and never reads the file. Without a file there, the root shows as before.
+  // with one exception: when the root has its own `.doan/config.json`, `ls --repo <root>` (which never searches
+  // upward) read that file, so a Config error (`error`) is that file's and Finder selects it (macOS hides `.doan/`).
+  // A root without one got its error from a parent's config through the upward re-read, and shows as the root. The
+  // app only passes the location to Finder and never reads the file.
   handle("folders:reveal", undefined, (event, value: unknown) => {
     const path = storedPath(value);
     if (!fromWindow(event) || path === null) return;
