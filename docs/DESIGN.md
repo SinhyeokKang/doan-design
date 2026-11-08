@@ -1275,7 +1275,6 @@ The page is Settings' column (see Settings: panel, column, header, sections, gro
 
 ### Not verified
 
-- Native menu clicks and OS focus (the desktop was locked, so native input was unavailable): the application menu's enabled state was read from Electron's `Menu`, not clicked.
 - Hover, pressed and keyboard-focus rings of the page's buttons; widths below 960px; very long paths, branches and error messages; dark mode and reduced transparency.
 - Roles and names were read from DOM attributes, not the accessibility tree.
 
