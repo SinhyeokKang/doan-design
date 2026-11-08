@@ -46,6 +46,8 @@ describe("trashTarget", () => {
     expect(take([row(a.path, { id: "Bad_Id" })])).toEqual({ root: "/repo", path: a.path, id: "Bad_Id" });
     expect(take([a, row(".doan/canvases/twin.html", { id: "a" })])).toEqual({ root: "/repo", path: a.path, id: "a" });
     expect(take([a, row(".doan/canvases/broken.html", { error: { code: "read_failed", message: "x" } })])).toEqual({ root: "/repo", path: a.path, id: "a" });
+    // The target itself unreadable: its listed id is still the one trashBusy matches conversations by.
+    expect(take([row(a.path, { id: "a", error: { code: "read_failed", message: "x" } })])).toEqual({ root: "/repo", path: a.path, id: "a" });
   });
 });
 
