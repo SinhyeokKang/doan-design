@@ -18,6 +18,7 @@ D1–D8은 feature 문서에서 사용자가 승인했다. 아래는 실행 중 
 - **O5. `app/src/formats/canvasPath.test.ts:30`은 T9 `rg` 예외다.** `.doan/comments/…`가 캔버스 경로가 아님을 재는 남은 메타데이터 예시이고, D1(남은 파일 무시)을 지킨다. — conductor's call.
 - **O6. H2·H3·R4·W2는 새 id(`H2b`·`H3b`·`R4b`·`W2b`)를 받는다.** 코멘트 시드가 빠지고 R4·W2는 프롬프트, W2는 check도 바뀌었다. ARCHITECTURE §14 "task, seed, intent가 바뀌면 새 id" 규칙을 따른다. 새 id는 이전 라운드 기준선이 없으므로 T10의 "나빠짐" 비교 대상에서 빠지고, 첫 라운드가 기준선이 된다. — conductor's call: 문서에 적힌 규칙이고 D5와 어긋나지 않는다(D5는 무엇을 재는지만 정했다).
 - **O7. `ToolCalls.patches`와 focus `"injection"`을 지운다.** R3 은퇴로 소비자가 없어졌고 D5는 대체 시나리오를 만들지 않는다. — conductor's call: AGENTS "내 변경이 만든 고아만 제거", 확장 대비 금지.
+- **O8. B2 전부터 고아였던 `selectionIdentity`와 `ErrorDetails`의 `variant`는 남긴다.** — conductor's call: AGENTS "내 변경이 만든 고아만 제거". 범위 밖 초안 두 곳(`doan-canvas.html`의 "Comments는 이후 feature에서" 문장, `.doan/ds/error-details.html`의 `.doan/comments` 예시 오류)은 D7(초안도 결정을 따른다)에 따라 고친다.
 
 ## 배치
 
@@ -49,3 +50,4 @@ D1–D8은 feature 문서에서 사용자가 승인했다. 아래는 실행 중 
 - B2: worker `ctx_46a1c3ae4804`의 6커밋을 `b3eef297`까지 통합했다. worker 검증은 typecheck·lint·app test 9600건·`verify.mjs`(--eval 없이)·격리 앱 probe 13/13이다. conductor는 runtime 스크린샷(Trash 확인 창, Set Up "`.gitattributes` — one line, if missing")을 직접 봤다. 계획과 다른 점: design이 빠뜨린 `ProjectSetupDialog.tsx`의 "two lines" 문구를 test-first로 고쳤다. D4 결과는 `main/comments/` → `main/document/bindings.ts`, 앵커 타입 → `renderer/canvasMessage.ts`, `commentAnchors` → `chipAnchors`다. 검증하지 못한 것: 실제 앱에서 캔버스 대화 실행 중 busy(로그인한 provider 필요, 단위 테스트로만 확인), 초안 세 개의 렌더 모습. 리뷰 worker `ctx_7ccb7c2299c7`(Opus medium).
 - T9 `rg` 결과 남은 것: 무시 동작을 재는 테스트(Go `comments_removed_test.go`·`run_test.go`·`repo/layout_test.go`·`scope_test.go`, 앱 `canvasTrash`·`index`·`watch`·`view`·`folderState`·`projects` 테스트, O5의 `canvasPath.test.ts`), export 시드, PRODUCT §5 item 5와 ARCHITECTURE §1의 옛 경로 문장. 범위 밖이라 고치지 않은 것: `docs/features/monorepo-services/`(진행 중인 다른 feature 문서)가 `doan comments`·`orphan_comment_file`·union 줄을 계획에 담고 있다. `.doan/ds/error-details.html:18`의 예시 오류 문구가 `.doan/comments/home.jsonl`을 쓴다(B2 리뷰 수정과 함께 보낸다).
 - T11: Go `storage.go`, 앱 `onboarding/projects.ts`, eval `socket.ts`의 `.gitattributes` 줄이 모두 `.doan/** linguist-documentation` 하나다.
+- B2 리뷰(`ctx_7ccb7c2299c7`, Opus medium): 🔴 0, 🟡 0, ⚪ 5. 후속 1차를 B2 worker에 보냈다(`ctx_f6e2088bf6bc`): 초안 두 곳(O8), `trashTarget` 오류 행 id 테스트, 긴 주석 줄바꿈. 리뷰 worker는 release하고 `rc-r-b2`를 지웠다.
