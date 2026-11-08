@@ -223,6 +223,26 @@ test("a restart pressed here that stops or is held opens with focus; one started
   expect(quiet.preventDefault).toHaveBeenCalled();
 });
 
+// A quiet popover can open beside Agent usage's open one (PRODUCT §5 item 0: closing one keeps the other usable). When
+// Agent usage's last provider leaves, its popover closes and moves focus to the page tab: that focus never left this
+// popover, so it stays open. Focus that leaves this popover still closes it.
+test("only focus leaving the popover closes it; a focus move elsewhere keeps a quiet popover open", () => {
+  render(); push(snap({ kind: "restarting", version: "0.1.1" })); render();
+  push(snap({ kind: "restartAborted", version: "0.1.1" })); const view = render();
+  expect(view.shown).toEqual(STOPPED);
+  const inside = { name: "popover text" }, usage = { name: "Agent usage's list" };
+  view.contentRef({ contains: (node: unknown) => node === inside } as unknown as HTMLDivElement);
+  const moved = (from: unknown) => ({ detail: { originalEvent: { relatedTarget: from } }, preventDefault: vi.fn() });
+  for (const from of [usage, null]) {
+    const event = moved(from);
+    view.onFocusOutside(event as unknown as Parameters<ViewProps["onFocusOutside"]>[0]);
+    expect(event.preventDefault, `from ${String((from as { name?: string } | null)?.name)}`).toHaveBeenCalled();
+  }
+  const left = moved(inside);
+  view.onFocusOutside(left as unknown as Parameters<ViewProps["onFocusOutside"]>[0]);
+  expect(left.preventDefault).not.toHaveBeenCalled();
+});
+
 test("closing hands focus back to the button only when it would land on the body", () => {
   render(); push(snap(READY)); const view = render();
   const body = {};

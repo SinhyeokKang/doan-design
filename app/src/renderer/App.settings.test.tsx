@@ -766,6 +766,29 @@ test("Locate of the loaded root from the Project Settings page does not move the
   expect(harness.controller!.openWorkspace).not.toHaveBeenCalled();
 });
 
+// The origin is the workspace the page was entered from. A Locate of that workspace's root from the page's sidebar
+// moves it, so leaving enters the moved workspace rather than finding the origin gone and going Home.
+test("a Locate of the origin's root from a page's sidebar moves the origin: leaving enters the moved workspace", async () => {
+  for (const page of ["projectSettings", "addProjects"] as const) {
+    reset();
+    render();
+    folders([listed("/w/a"), listed("/w/b")]);
+    sidebarOf().worktree("/w/a"); render();
+    if (page === "projectSettings") openProjectSettings("/w/b");
+    else click(topBar(workspaceHeader()).add);
+    const shown = () => page === "projectSettings" ? projectPage()!.props : addPage()!.props as unknown as { header: ReactElement; sidebar: ReactElement };
+    clearController();
+    const answer = locating();
+    (shown().sidebar.props as { action(name: string, root: string): void }).action("locate", "/w/a"); render();
+    listeners.folders!([listed("/w/moved"), listed("/w/b")] as never, { from: "/w/a", root: "/w/moved" } as never); render();
+    answer({ kind: "located", root: "/w/moved" }); await settleLocate();
+    if (page === "projectSettings") expect(projectPage()!.props.origin, page).toEqual({ screen: "workspace", root: "/w/moved" });
+    click(topBar(shown().header).back);
+    expect(homeEl(), page).toBeUndefined();
+    expect(harness.controller!.openWorkspace, page).toHaveBeenCalledWith("/w/moved", expect.any(Function), false);
+  }
+});
+
 test("Locate from the workspace still opens the located root", async () => {
   render();
   folders([listed("/w/a"), listed("/w/b")]);
