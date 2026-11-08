@@ -23,7 +23,8 @@
   - (2a) `:where([data-doan-sprite="N"])` prefix, (2b) `@scope ([data-doan-sprite="N"])`, 각각 root 속성과 `<g data-doan-sprite>` wrapper. (3) sprite 밖 캔버스 요소. (2)(3)은 `Assemble` 결과를 viewer `srcdoc`에서 연다.
   - selector 모양: `path`, `.st0`, `g path`, `#id`, `symbol`과 `g`를 겨냥한 규칙, 두 sprite 파일이 `.st0`에 다른 색을 주는 경우.
   - 같은 `srcdoc`에서 결과에 `<base href>`를 남기면 `<use href="#id">`·`url(#grad)`가 깨지는지 한 번 본다(결정 A).
-  - design.md §4에 결과 표와 판정을 적는다: (i) 앱이 외부 sprite `<style>`을 적용하지 않음 → `<style>` 없이 복사, (ii) 적용하고 (2a) 또는 (2b)가 모든 경우 통과 → 범위 좁히기, (iii) 실패가 하나라도 있음 → 비목표(spec Done when의 해당 항목을 Non-goals로 옮기고 T10·T11을 지운다).
+  - design.md §4에 결과 표와 판정을 적는다: (i) 앱이 외부 sprite `<style>`을 적용하지 않음 → `<style>` 없이 복사, (ii) 적용하고 (2a) 또는 (2b)가 모든 경우 통과 → 범위 좁히기, (iii) 실패가 하나라도 있음 → 비목표(spec Done when의 해당 항목을 Non-goals로 옮기고 구현 task를 지운다).
+  - 결과(design §4 판정): 비목표. `ReasonUseStyle` 거절을 유지하고 sprite 구현 task와 커밋 경계를 지웠다. 앱이 외부 `<use>`를 그리지 않는 것은 T14에서 BACKLOG에 올린다.
   - 검증: `.scratch/export-hardening/`의 측정 스크립트를 node로 실행(Playwright `_electron`과 WebKit). 결과 표가 design.md §4에 있다.
 
 - **커밋 경계 C1**: `docs(feature): export-hardening PoC results` — `docs/features/export-hardening/`만.
@@ -81,22 +82,6 @@
 
 - **커밋 경계 C4**: `test(export): …`(T1 프로파일 테스트 포함), `fix(export): …`(고친 곳에 맞춘 제목, 본문에 T1·T9 측정값).
 
-## SVG sprite `<style>` (T2 판정이 (i) 또는 (ii)일 때만, 결정 Q4, C)
-
-- [ ] **T10. 순수 함수 (test 먼저)**
-  - 공통 — foreign `<style>` 내용 읽기: CDATA, `&gt;` 같은 entity, text가 나뉜 경우, `<style>` 여러 개, element 자식(거절), `<style media>`(거절), `type="text/foo"`(복사본에서 뺀다).
-  - (ii)일 때만 — `scopeSpriteStyle`: 단순 selector, selector 목록, 주석과 문자열 안 `{`·`,`, `:is()` 안 쉼표에 범위가 붙는다. 모든 at-rule(`@media`·`@supports`·모르는 at-rule 포함), nesting `&`, `:root`·`html`·`body`·`:host`, 나눌 수 없는 구문은 false(허용 목록). 결과를 CDATA로 쓸 때 `]]>`가 있으면 거절.
-  - 검증: `go test ./cli/internal/export/`.
-
-- [ ] **T11. sprite 복사에 적용**
-  - (i): 복사본에서 `<style>`을 뺀다. (ii): 표식을 달고 범위를 붙인 `<style>`을 CDATA 하나로 쓴다. 범위를 붙일 수 없으면 지금처럼 `ReasonUseStyle`.
-  - 같은 sprite 파일을 두 fragment로 참조하면 복사본과 표식이 하나다. 표식 번호는 문서 순서다. `<style>` 안 `url()`과 custom property `url()`은 선언한 SVG 파일 기준으로 다시 쓴다(ARCHITECTURE §3).
-  - `fix2_test.go`의 `<style>` 거절 기대를 새 규칙에 맞게 고친다.
-  - 결과 파일을 Chromium과 WebKit에서 열어 T2와 같은 pixel 값을 다시 잰다.
-  - 검증: `go test ./...`; 브라우저 확인은 `.scratch/export-hardening/`의 T2 측정 스크립트로 하고 결과를 design.md §4에 적는다.
-
-- **커밋 경계 C5**: `test(export): …`, `feat(export): …`((i)이면 "copy sprites without the style the app ignores", (ii)이면 "include sprites whose style can be scoped").
-
 ## 마무리
 
 - [ ] **T12. 전체 gate**
@@ -107,14 +92,15 @@
   - 검증: 두 에이전트 모두 X1 결과가 직전 라운드보다 나빠지지 않고, 라운드가 `docs/USABILITY-EVAL.md`에 기록된다. BACKLOG의 "X1 measures only the successful export" 줄(91행)은 그대로 남는다.
 
 - [ ] **T14. 문서 올리기와 feature 디렉터리 삭제** (문서마다 커밋을 나눈다)
-  - `docs/PRODUCT.md` §5 item 3 'Export and viewer': base에 기대는 참조의 거절과 결과에서 base 제거, sprite `<style>` 처리(T2 판정에 따라). frame 안 로컬 문서와 JavaScript 문장은 그대로.
-  - `docs/ARCHITECTURE.md` §3 'Exported canvas and viewer': 'The serving scope is the export boundary'의 "through `repo.Resolve`"를 `repo.Resolver`로 고친다. base 판정·거절·제거. 'SVG `<use>`' 항목의 "holds a `<style>`" 규칙을 T2 판정에 맞게 고친다. 'Rewriting'의 `canvas_test.go` 인용을 `cli/internal/canvas/css_refs_test.go`(`TestCSSRefsMatchesScanCSS`)로 고친다. 메모리에서 남길 만한 제약(결과 바이트 고정, 고른 방식, 메모리 한도를 썼다면 그 이유). §12 `doan export`의 거절 목록에 base. §13 'Paths inside the repo': 명령 한 번 동안 real 디렉터리마다 index를 한 번 만드는 snapshot 의미.
-  - `docs/BACKLOG.md` 'Known defects': 고친 줄(경로 해석, 메모리, base, sprite `<style>`)을 지운다. sprite가 비목표가 됐으면 그 줄에 PoC 결과를 더한다. frame·JavaScript 줄, custom property 줄, X1 줄은 남긴다.
+  - `docs/PRODUCT.md` §5 item 3 'Export and viewer': base에 기대는 참조의 거절과 결과에서 base 제거. sprite `<style>` 거절(비목표, T2), frame 안 로컬 문서와 JavaScript 문장은 그대로.
+  - `docs/ARCHITECTURE.md` §3 'Exported canvas and viewer': 'The serving scope is the export boundary'의 "through `repo.Resolve`"를 `repo.Resolver`로 고친다. base 판정·거절·제거. 'SVG `<use>`' 항목의 "holds a `<style>`" 거절 규칙은 그대로 둔다(T2 비목표). 'Rewriting'의 `canvas_test.go` 인용을 `cli/internal/canvas/css_refs_test.go`(`TestCSSRefsMatchesScanCSS`)로 고친다. 메모리에서 남길 만한 제약(결과 바이트 고정, 고른 방식, 메모리 한도를 썼다면 그 이유). §12 `doan export`의 거절 목록에 base. §13 'Paths inside the repo': 명령 한 번 동안 real 디렉터리마다 index를 한 번 만드는 snapshot 의미.
+  - `docs/BACKLOG.md` 'Known defects': 고친 줄(경로 해석, 메모리, base)을 지운다. sprite `<style>` 줄은 남기고 T2 PoC 결과를 더한다: `:where()`·`@scope` 범위 좁히기는 WebKit에서만 통과하고 Chromium·Electron 45에서는 `<use>` 복제본에 걸리지 않으며, 앱은 외부 `<use>`를 그리지 않는다. 'Known defects'에 새 줄을 더한다: 앱은 외부 `<use href="file.svg#id">`를 그리지 않는데(`sandbox="allow-scripts"` iframe의 opaque origin, 콘솔 `Unsafe attempt to load URL … Domains, protocols and ports must match.`) export는 sprite를 복사해 아이콘을 보인다. frame·JavaScript 줄, custom property 줄, X1 줄은 남긴다.
   - `docs/features/export-hardening/` 삭제.
   - 검증:
     - `grep -n "diskSpelling\|1.36 GB\|ignores \`<base href>\`" docs/BACKLOG.md` → 0줄.
-    - `grep -c "SVG sprite that contains a \`<style>\`" docs/BACKLOG.md` → 구현했으면 0, 비목표면 1(PoC 결과 포함).
-    - `grep -n "holds a \`<style>\`" docs/ARCHITECTURE.md` → T2 판정과 맞는 문장만 남는다.
+    - `grep -c "SVG sprite that contains a \`<style>\`" docs/BACKLOG.md` → 1(PoC 결과 포함).
+    - `grep -n "Unsafe attempt to load URL" docs/BACKLOG.md` → 외부 `<use>` 결함 줄 1줄.
+    - `grep -n "holds a \`<style>\`" docs/ARCHITECTURE.md` → 거절 규칙 문장이 그대로 있다.
     - `grep -n "base" docs/PRODUCT.md docs/ARCHITECTURE.md` → §5 item 3, §3, §12에 base 규칙이 있다.
     - `grep -n "through \`repo.Resolve\`\|canvas_test.go\` pins" docs/ARCHITECTURE.md` → 0줄.
     - `docs/features/export-hardening/`가 없다.

@@ -2,7 +2,7 @@
 
 ## Affected components
 
-- **CLI (Go)**: `cli/internal/repo/resolve.go`(디렉터리 index, `Resolver`), `cli/internal/export/`(`resolve.go`, `inline.go`, `customurl.go`, `rewrite.go`, `datauri.go`, `assemble.go` 중 프로파일이 가리키는 곳, base 판정과 제거, sprite), `cli/internal/canvas/css.go`(프로파일이 lexer를 가리킬 때), `cli/internal/cli/check.go`(같은 `Resolver` 사용), `cli/internal/cli/export.go`(메모리 한도를 쓰게 될 때), 테스트 fixture `cli/internal/export/exporttest/seed.go`.
+- **CLI (Go)**: `cli/internal/repo/resolve.go`(디렉터리 index, `Resolver`), `cli/internal/export/`(`resolve.go`, `inline.go`, `customurl.go`, `rewrite.go`, `datauri.go`, `assemble.go` 중 프로파일이 가리키는 곳, base 판정과 제거), `cli/internal/canvas/css.go`(프로파일이 lexer를 가리킬 때), `cli/internal/cli/check.go`(같은 `Resolver` 사용), `cli/internal/cli/export.go`(메모리 한도를 쓰게 될 때), 테스트 fixture `cli/internal/export/exporttest/seed.go`.
 - **App (Electron + TS)**: 없음(결정 B). 앱의 `listed`(`app/src/main/canvasExport.ts`)는 `- <item>: <detail>` 줄에서 detail을 버리고, 토스트는 첫 참조와 개수만 보인다(`app/src/renderer/canvasRowMessages.ts`). base 거절도 같은 문구로 보인다. 이유는 에이전트가 `doan export` 메시지에서 읽는다.
 - **Skills**: 없음. 가이드(`cli/internal/cli/skill.md`)는 거절 이유를 나열하지 않는다.
 - **Formats**: 없음(아래 'Format changes').
@@ -82,7 +82,7 @@ T1에서 쟀다. 기계 Apple M1(16 GiB), go1.27.3 darwin/arm64, 커밋 `e88b05c
 - **"폴더를 옮기는가"의 판정**: 순수 함수 `baseMoves(href string) bool`. 먼저 값 안의 ASCII tab·LF·CR을 모두 지우고(WHATWG URL parser가 하는 대로) 앞뒤 C0·공백을 자른다(`trimURL`). `%2E`(대소문자 무관)는 `.`로 읽는다. query와 fragment는 뗀다. 남은 값이 빈 값, `.`, `./`, 또는 같은 폴더의 파일 이름 한 segment(앞의 `./`는 허용)일 때만 false다. 한 segment는 `/`·`\`(URL parser가 `/`로 읽는다)·`:`(scheme)를 포함하지 않고 `..`가 아니어야 한다. 나머지(`..`, `.%2e`, 다른 폴더, 앞 `/`, `//host/`, `http:`·`file:`·`data:` 같은 scheme)는 모두 true다. `../canvases/`처럼 결국 같은 폴더를 가리키는 값도 true로 본다. 판정을 단순하게 두고, 그런 캔버스는 base를 지우면 된다.
 - **거절 대상**: base가 폴더를 옮기면, 캔버스 문서 수준의 상대 참조 중 export가 포함하려던 것(`classInline`과 `kindUse`의 로컬 참조, `<style>`과 `style` 속성 안 `url()`·`@import`)을 해석하지 않고 새 이유 `ReasonBase`로 거절한다. 이유 글자는 `": "`를 포함하지 않는다(예: `relative to a base element`). 그래서 base 아래의 scope 밖·없는 참조도 `ReasonBase` 하나로 나온다. custom property의 사용처가 캔버스 자신인 경우도 같은 이유로 거절한다: 사용처 기록에 캔버스 폴더 대신 "base로 옮겨진 문서"라는 표식을 넣고 `replaceCustom`이 그 표식을 만나면 거절한다. 아무도 쓰지 않는 캔버스 안 custom property `url()`은 거절하지 않고 쓴 그대로 둔다(앱도 읽지 않는다).
 - **거절 순서**: parse 거절(`doan:width` 없음·중복)이 먼저이고 지금과 같다. 로컬 `iframe`·`frame`·`object`·`embed`는 base와 관계없이 `ReasonFrame`이다(분류가 해석보다 먼저다). 거절 목록은 문서 순서다(`TestExportCollectsAllRefusalsInDocumentOrder`). 참조가 하나도 없는 캔버스는 base가 있어도 export된다.
-- **결과에서 base 지우기**: `<template>` 밖의 모든 `<base>`에서 `href` 속성을 지우고, 남은 속성이 없으면 element째 지운다. `href` 없는 `<base target>`은 그대로 둔다. 모든 참조가 data URI가 되므로 base는 쓸모가 없고, 남기면 viewer `srcdoc` 안에서 `<use href="#id">`·`url(#grad)` 같은 fragment 참조가 다른 문서를 가리키게 된다(T2 PoC에서 한 번 확인한다).
+- **결과에서 base 지우기**: `<template>` 밖의 모든 `<base>`에서 `href` 속성을 지우고, 남은 속성이 없으면 element째 지운다. `href` 없는 `<base target>`은 그대로 둔다. 모든 참조가 data URI가 되므로 base는 결과에서 할 일이 없다. 남겨도 viewer `srcdoc` 안 `<use href="#id">`·`url(#grad)` 같은 fragment 참조는 측정한 세 엔진에서 깨지지 않았다(§4 PoC 결과, 관찰 4). 지우는 이유는 쓸모없는 base를 남기지 않는 것이다.
 - **영향 없음**: CSS 파일 안 참조(그 파일 URL 기준), sprite 안 참조(SVG 파일 기준), 절대 URL, `data:`, fragment만 있는 참조, `<a href>`·`<form action>`(지금처럼 `links`).
 - `doan check`는 바꾸지 않는다. `<base>`를 무시하는 check와 결과가 어긋나지 않도록 export는 거절만 하고 다르게 풀지 않는다.
 
@@ -90,9 +90,9 @@ T1에서 쟀다. 기계 Apple M1(16 GiB), go1.27.3 darwin/arm64, 커밋 `e88b05c
 
 ## 4. SVG sprite `<style>`
 
-PoC가 먼저다(tasks T2). 결과에 따라 세 갈래 중 하나로 가거나 비목표로 옮긴다(결정 Q4, C).
+T2 PoC 결과 이 항목은 비목표다. `ReasonUseStyle` 거절을 그대로 두고 아래 구현안(구현, foreign `<style>` 읽기, 복사본)은 쓰지 않는다(아래 'PoC 결과 (T2)'의 판정). 구현안은 PoC가 주입한 복사본 모양의 기준으로만 남긴다.
 
-- **앱의 기준**: 앱은 `<use href="file.svg#id">`로 외부 SVG 문서를 참조한다. 그 문서의 `<style>`이 복사본에 어떻게 걸리는지는 확인되지 않았다. export는 sprite를 캔버스 문서 안으로 복사하므로, 그대로 두면 `<style>`이 캔버스 전체에 걸린다.
+- **앱의 기준**: 앱은 `<use href="file.svg#id">`로 외부 SVG 문서를 참조한다. 그 문서의 `<style>`이 복사본에 어떻게 걸리는지는 PoC 전에는 확인되지 않았다(PoC 결과: 앱은 외부 `<use>` 자체를 그리지 않는다). export는 sprite를 캔버스 문서 안으로 복사하므로, 그대로 두면 `<style>`이 캔버스 전체에 걸린다.
 - **PoC 측정 방식**: 규칙마다 서로 다른 불투명 색을 주고 고정 좌표의 pixel을 읽는다(두 엔진 모두). Chromium은 CDP pierce와 `getComputedStyleForNode`로 보조 확인을 더할 수 있다. 경우마다 페이지를 나눈다(POSTMORTEM 2026-11-03).
   - (1) 앱 구조: local HTTP server + `sandbox="allow-scripts"` iframe, Electron 45를 `--user-data-dir=<tmp>`로 띄운다. POSTMORTEM이 가리킨 `.scratch/export-var-url/main.cjs`는 남아 있지 않으므로 새로 쓴다.
   - (2a) `:where([data-doan-sprite="N"]) <selector>` prefix, (2b) `@scope ([data-doan-sprite="N"]) { … }`. 표식은 sprite root `<svg>`의 속성으로 다는 경우와 `<g data-doan-sprite>` wrapper로 감싸는 경우를 둘 다 본다.
@@ -183,19 +183,22 @@ PoC가 먼저다(tasks T2). 결과에 따라 세 갈래 중 하나로 가거나 
 1. 앱 구조에서는 세 엔진 모두 외부 `<use href="file.svg#id">`를 그리지 않는다(white). 콘솔은 Chromium·Electron이 `Unsafe attempt to load URL http://127.0.0.1:<port>/….svg from frame with URL http://127.0.0.1:<port>/….html. Domains, protocols and ports must match.`, WebKit이 `… from origin null. Domains, protocols and ports must match.`이다. `allow-same-origin` 없는 sandbox는 출처가 opaque라 같은 server의 SVG도 다른 출처가 된다. 같은 캔버스를 sandbox 없는 iframe에 열면 Chromium·Electron은 sprite의 `<style>`을 적용하고(green), WebKit은 아이콘을 그리지만 적용하지 않는다(black).
 2. 범위를 붙인 네 변형((2a)·(2b) × root 속성·`<g>` wrapper)은 WebKit에서 모든 selector 모양을 통과한다(아이콘 색이 맞고 leak 없음). Chromium 148과 Electron 45에서는 모든 경우 아이콘이 black이다. 원본 `#p0`에는 규칙이 걸리므로 규칙 자체는 유효하다. Chromium은 `<use>` shadow tree의 복제본에 selector를 맞추는데, 복제본의 조상에는 표식이 없기 때문으로 보인다(측정에서 나온 해석이고 엔진 소스는 확인하지 않았다).
 3. 범위 없는 대조에서는 `path`·`.st0`·`g path`·`g`가 sprite 밖 캔버스 요소로 샌다. 파일 둘이 `.st0`에 다른 색을 주면 뒤 규칙(lime)이 두 아이콘과 캔버스를 모두 칠한다. leak 좌표가 새는 경우를 잡는다는 대조다.
-4. `<base href>`가 남은 `srcdoc`에서도 세 엔진 모두 `<use href="#i0">`와 `url(#grad)`가 그려졌다(상대 `../assets/`, 절대 `https://cdn.example.invalid/x/`). §3과 결정 A가 base를 지우는 이유로 든 "남기면 fragment 참조가 깨진다"는 측정한 엔진에서 재현되지 않았다. base를 지워도 모든 참조가 data URI라 결과는 달라지지 않는다.
+4. `<base href>`가 남은 `srcdoc`에서도 세 엔진 모두 `<use href="#i0">`와 `url(#grad)`가 그려졌다(상대 `../assets/`, 절대 `https://cdn.example.invalid/x/`). 계획할 때의 추정과 달리 남은 base가 fragment 참조에 영향을 주지 않았다. 그래서 §3과 결정 A의 base 제거 이유는 "모든 참조가 data URI라 base가 할 일이 없다"로 고쳤다(동작은 그대로).
+
+**실제 앱 확인**: 2026-11-09, 같은 기계, 커밋 b6679660에서 빌드한 앱(`npm --prefix app run build`, Electron 45.0.0 / Chromium 156.0.8078.48)과 CLI를 Playwright `_electron`으로 띄웠다. `app/runtime/`의 `isolatedEnv`(임시 HOME·fake SHELL·임시 `CLAUDE_CONFIG_DIR`/`CODEX_HOME`·`DOAN_RUNTIME`)와 임시 `--user-data-dir`을 쓰고, 임시 repo를 `folders.json`에 넣고 `doan open`으로 캔버스를 열었다. 캔버스에는 외부 `<use href="../assets/sprite.svg#i0">`(`<style>` 없는 sprite, path fill green)와 inline 대조 `<use href="#c0">`(blue)가 있다. pixel은 외부 아이콘 `rgb(255,255,255)`(그리지 않음), inline 대조 `rgb(0,130,200)`(그림)이었다. 캔버스 iframe은 `sandbox="allow-scripts"`, `src`는 `http://127.0.0.1:<port>/t/<token>/<key>/.doan/canvases/sprite-probe.html`이다. 콘솔은 `[error] Unsafe attempt to load URL http://127.0.0.1:<port>/t/<token>/<key>/.doan/assets/sprite.svg from frame with URL http://127.0.0.1:<port>/t/<token>/<key>/.doan/canvases/sprite-probe.html. Domains, protocols and ports must match.`였다. 같은 sprite URL을 main 프로세스에서 받으면 200 `image/svg+xml`이므로 serving 문제가 아니다. 화면이 잠긴 상태에서도 렌더링과 캡처가 됐고, `real-state` 확인은 바뀐 것 없이 통과했다. screenshot: `.scratch/export-hardening/sp/real/out/sprite-real-app.png`(캔버스), `sprite-real-app-window.png`(창 전체).
 
 **판정**
-- 판정 규칙대로면 (i)이다. 앱(Electron 45, sandbox iframe)은 외부 sprite의 `<style>`을 `<use>` 복사본에 적용하지 않는다. (ii)는 Chromium·Electron에서 모든 경우가 실패하므로 어느 변형으로도 성립하지 않는다.
-- **결정 필요(전제 불일치)**: 앱은 `<style>`만 무시하는 것이 아니라 외부 `<use>` 아이콘 자체를 그리지 않는다. 그래서 (i)로 `<style>` 없이 복사하면 export는 앱에 없는 아이콘을 기본 fill로 보인다. 결정 C의 이유("앱과 같은 결과")와 spec Problem 4의 "앱에서는 보이는 아이콘이 export만 막힌다"가 성립하지 않는다. 지금 `<style>` 없는 sprite의 복사(ARCHITECTURE §3 'SVG `<use>`')도 같은 차이를 이미 갖고 있다. 추천: (iii)처럼 item 4를 비목표로 옮기고 `ReasonUseStyle` 거절을 유지한다. 앱이 외부 `<use>`를 그리지 않는 것은 `<style>` 유무와 상관없는 결함이라 BACKLOG에 따로 올린다. (i)을 고르면 export와 앱의 차이가 넓어진다.
+- **비목표.** item 4(sprite `<style>`)는 비목표로 옮기고 `ReasonUseStyle` 거절을 그대로 둔다. 결정 Q4("PoC 뒤 범위를 좁혀 포함하고, PoC가 실패하면 거절을 유지한다")에 따른 것이다.
+- (ii) 범위 좁히기는 Chromium 148과 Electron 45에서 모든 경우가 실패해 어느 변형으로도 성립하지 않는다.
+- (i) `<style>` 없이 복사하는 방법도 쓰지 않는다. 앱은 `<style>`만 무시하는 것이 아니라 외부 `<use>` 아이콘 자체를 그리지 않으므로(관찰 1, 아래 실제 앱 확인), 결정 C의 이유("앱과 같은 결과")가 성립하지 않는다. (i)로 가면 export만 앱에 없는 아이콘을 기본 fill로 보여 차이가 넓어진다.
+- 앱이 외부 `<use>`를 그리지 않는 것은 `<style>` 유무와 관계없는 결함이다. 지금 `<style>` 없는 sprite의 복사(ARCHITECTURE §3 'SVG `<use>`')도 같은 차이를 갖는다. BACKLOG 'Known defects'에 따로 올린다(tasks T14).
 
-**다시 재기**(T11): `node .scratch/export-hardening/sp/build.mjs [--doan <CLI 경로>]`로 fixture를 만들고 `node .scratch/export-hardening/sp/measure.mjs [--engines chromium,webkit,electron]`로 잰다. 결과는 `.scratch/export-hardening/sp/work/results.{md,json}`에 남는다. 구현 뒤에는 `build.mjs`의 주입 단계 대신 고친 CLI의 결과를 그대로 열어야 한다.
+**다시 재기**: `node .scratch/export-hardening/sp/build.mjs [--doan <CLI 경로>]`로 fixture를 만들고 `node .scratch/export-hardening/sp/measure.mjs [--engines chromium,webkit,electron]`로 잰다. 결과는 `.scratch/export-hardening/sp/work/results.{md,json}`에 남는다. 실제 앱 확인은 `npm --prefix app run build`와 `go build -o .scratch/export-hardening/sp/real/bin/doan ./cli/cmd/doan` 뒤 `node .scratch/export-hardening/sp/real/probe.mjs`로 다시 잰다.
 
 ## Parts to split out as pure functions (`/tdd` 대상)
 
 - `repo`: 디렉터리 이름 목록 → index 만들기, index 조회(정확한 이름, 접은 key 후보). 지금 `diskSpelling`의 선형 탐색과 같은 후보·순서를 내는지 표 테스트.
 - `export`: `firstBaseHref(src []byte) (string, bool)`, `baseMoves(href string) bool`, 결과에서 base `href`를 지우는 다시 쓰기.
-- `export`: `scopeSpriteStyle(css, marker string) (string, bool)`, foreign `<style>` 내용 읽기(범위 좁히기로 갈 때).
 - 메모리: 프로파일이 가리키는 함수(예: `canvas.lex`의 대체, `dataURI` 쓰기 경로)를 바꾸면 그 함수의 결과가 바꾸기 전과 같은지 비교 테스트.
 
 ## Format changes
@@ -208,15 +211,15 @@ ARCHITECTURE §1 'Conventions'와 `doan check` 규칙은 바뀌지 않는다. ch
 
 ## Decision impact
 
-- **serving scope가 export 경계다**(ARCHITECTURE §3 'Exported canvas and viewer'): Resolver는 같은 해석 순서를 cache할 뿐 새 경로를 만들지 않는다. "Never widen this with a path of its own"을 지킨다. base 처리는 거절만 더하고, sprite 처리는 새 파일을 읽지 않는다.
-- **PRODUCT §5 item 3 'Export and viewer'**: frame 안 로컬 문서 거절과 "JavaScript is not read"는 그대로다(결정 Q1). sprite `<style>` 거절은 제품 결정이 아니라 구현 한계였다(item 3은 SVG sprite를 이미 포함 대상으로 적는다). base 거절·제거와 sprite `<style>` 처리는 완료 후 이 항목에 현재 규칙으로 올린다.
+- **serving scope가 export 경계다**(ARCHITECTURE §3 'Exported canvas and viewer'): Resolver는 같은 해석 순서를 cache할 뿐 새 경로를 만들지 않는다. "Never widen this with a path of its own"을 지킨다. base 처리는 거절만 더한다.
+- **PRODUCT §5 item 3 'Export and viewer'**: frame 안 로컬 문서 거절과 "JavaScript is not read"는 그대로다(결정 Q1). sprite `<style>` 거절은 제품 결정이 아니라 구현 한계였다(item 3은 SVG sprite를 이미 포함 대상으로 적는다). base 거절·제거는 완료 후 이 항목에 현재 규칙으로 올린다. sprite `<style>` 거절은 PoC 결과 그대로 둔다(§4).
 - **CLI는 앱 없이 동작한다**(PRODUCT §5 item 12): 렌더링에 기대는 해법(custom property cascade)은 쓰지 않는다.
 - sandbox iframe, CSP 없음, `O_NOFOLLOW` 읽기는 손대지 않는다.
 
 ## PoC dependency
 
 - **메모리 원인**(T1): 프로파일 전에는 어디를 고칠지 정할 수 없다.
-- **sprite `<style>`**(T2): 앱이 외부 sprite의 `<style>`을 `<use>` 복사본에 적용하는지, 범위를 좁힌 규칙이 Chromium(Electron 45)과 WebKit의 `<use>` shadow tree에서 어떻게 매칭되는지 확인되지 않았다. 결과에 남은 `<base>`가 `srcdoc` 안 fragment 참조를 깨는지도 여기서 확인한다.
+- **sprite `<style>`**(T2, 확인함): 앱은 외부 `<use>`를 그리지 않고, 범위를 좁힌 규칙은 WebKit에서만 `<use>` 복제본에 걸리고 Chromium(Electron 45)에서는 걸리지 않는다. 결과에 남은 `<base>`는 `srcdoc` 안 fragment 참조를 깨지 않았다(§4).
 - 경로 해석(결정 Q6)은 PoC가 필요 없다.
 
 ## POSTMORTEM
