@@ -867,7 +867,7 @@ export class CanvasController {
     if (verdict === "drop") return;
     if (message.type === "key") {
       // An Escape the canvas sent before its pick-start arrived still meant the pick.
-      if (message.key === "Escape") this.escape(false);
+      if (message.key === "Escape") { this.escape(false); this.closeToolbarTooltip(); }
       // Space, V and H come only from a canvas focused by an ⌥-click. A Space down is believed only while the iframe
       // has focus, so a canvas cannot raise the layer over a person's clicks by itself; its release always counts.
       else if (message.key === "Space") this.shortcut({ kind: "space", down: message.down }, !this.onCanvasPage() || document.activeElement !== this.frame);
@@ -1260,6 +1260,15 @@ export class CanvasController {
     let tooltip = true;
     event.preventDefault = () => { if (tooltip) tooltip = false; else mark.handledAfter = true; prevent(); };
     this.tooltipEscape = mark;
+  }
+
+  // An Escape forwarded from a focused canvas never reaches the app's document, where Radix's tooltip listens for it, so
+  // an open toolbar tooltip gets an Escape of its own there. It does not bubble, so keydown (window, bubble) never takes
+  // a second step for it; the mark its onEscapeKeyDown leaves (toolbarEscape) is dropped with it.
+  private closeToolbarTooltip(): void {
+    if (document.querySelector('.doan-canvas-tools [data-state="delayed-open"], .doan-canvas-tools [data-state="instant-open"]') === null) return;
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    this.tooltipEscape = null;
   }
 
   // Esc's next step; `editable`: it came from a text field. Returns the step.
