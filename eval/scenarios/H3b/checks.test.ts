@@ -7,7 +7,7 @@ import { execFileSync } from "node:child_process";
 import { createContext } from "../../lib/context.ts";
 import checks from "./checks.ts";
 
-const root = mkdtempSync(join(tmpdir(), "doan-H3-checks-"));
+const root = mkdtempSync(join(tmpdir(), "doan-H3b-checks-"));
 const cli = join(root, "doan");
 const env = { ...process.env, DOAN_RUNTIME: join(root, "runtime.json") };
 before(() => execFileSync("go", ["build", "-o", cli, "./cli/cmd/doan"]));
@@ -21,7 +21,7 @@ function setup(pass = false, transcript = "") {
 }
 const failures = (ctx: ReturnType<typeof setup>) => checks(ctx).filter(c => !c.pass).map(c => c.id);
 
-test("H3 accepts Notice string props but rejects comment-only cutoff copy", () => {
+test("H3b accepts Notice string props but rejects comment-only cutoff copy", () => {
   const ctx = setup(true), target = "web/src/components/DispatchQueue.tsx";
   const good = 'import { Notice } from "./Notice";\n' + ctx.read(target)!.replace(
     '<p>Pickup closes at 16:30.</p>', '<Notice message="Pickup closes at 16:30." />');
@@ -31,14 +31,14 @@ test("H3 accepts Notice string props but rejects comment-only cutoff copy", () =
   assert.ok(failures(ctx).includes("canvas_copy_in_component"));
 });
 
-test("H3 rejects an untouched target and comment-only copy", () => {
+test("H3b rejects an untouched target and comment-only copy", () => {
   const ctx = setup();
   assert.ok(failures(ctx).includes("target_function_implemented"));
   assert.ok(failures(ctx).includes("canvas_copy_in_component"));
   writeFileSync(join(ctx.repo, "web/src/components/DispatchQueue.tsx"), ctx.seed("web/src/components/DispatchQueue.tsx")! + "\n/* Ready for dispatch; Print packing slips */\n");
   assert.ok(failures(ctx).includes("canvas_copy_in_component"));
 });
-test("H3 accepts tokenized CSS and inline styles, rejects direct color and protected changes", () => {
+test("H3b accepts tokenized CSS and inline styles, rejects direct color and protected changes", () => {
   const ctx = setup(true);
   assert.deepEqual(failures(ctx), []);
   const target = "web/src/components/DispatchQueue.tsx";
@@ -51,7 +51,7 @@ test("H3 accepts tokenized CSS and inline styles, rejects direct color and prote
   writeFileSync(join(ctx.repo, ".doan/canvases/dispatch.html"), ctx.seed(".doan/canvases/dispatch.html")! + "\n");
   assert.ok(failures(ctx).includes("design_and_review_unchanged"));
 });
-test("H3 accepts semantic text and data-driven package rows", () => {
+test("H3b accepts semantic text and data-driven package rows", () => {
   const ctx = setup(true), target = "web/src/components/DispatchQueue.tsx", good = ctx.read(target)!;
   writeFileSync(join(ctx.repo, target), good.replace('Pickup closes at 16:30.', 'Pickup closes at <time dateTime="16:30">16:30</time>.'));
   assert.deepEqual(failures(ctx), []);

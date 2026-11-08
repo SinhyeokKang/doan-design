@@ -8,7 +8,7 @@ export function scriptTokens(source: string): string[] {
 // Mirror the CLI's known flag arities; a flag value is never command evidence.
 export function doanPositionals(words: string[]): string[] | undefined {
   if (!/^(?:.*\/)?doan$/.test(words[0] ?? "")) return undefined;
-  const values = ["repo", "token-css", "add-serve", "remove-serve", "agent", "frame", "message", "o"];
+  const values = ["repo", "token-css", "add-serve", "remove-serve", "frame", "message", "o"];
   const booleans = ["json", "clear-token-css", "force"];
   const positionals: string[] = [];
   for (let i = 1; i < words.length; i++) {
@@ -28,7 +28,7 @@ export function doanCommand(words: string[]): string | undefined {
   return doanPositionals(words)?.[0];
 }
 
-interface ExtractedCall { name: string; command?: string; patch?: string; patchCandidate?: string }
+interface ExtractedCall { name: string; command?: string; patchCandidate?: string }
 
 function execCalls(source: string): ExtractedCall[] {
   const tokens = scriptTokens(source);
@@ -51,14 +51,15 @@ function execCalls(source: string): ExtractedCall[] {
       const patch = literal(tokens[i + 4]);
       if (patch !== undefined && tokens[i + 5] === ")") {
         // A whole batch consisting of one literal call has no earlier statement
-        // that can skip it or throw. Everything else stays lexical evidence only.
+        // that can skip it or throw, so it is a real call and not a candidate.
+        // Everything else stays lexical evidence only, which the judge sees labelled.
         const argument = tokens[i + 4]!;
         const simpleLiteral = argument[0] === '"' || (!/\\(?![\\'"`nrtbfv0]|u[\da-fA-F]{4}|x[\da-fA-F]{2}|\r?\n)/.test(argument) &&
           !/\\0[0-9]/.test(argument) && (argument[0] === "`" || !/[\r\n]/.test(argument)));
         const start = tokens[0] === "await" ? 1 : 0;
         const end = tokens.at(-1) === ";" ? tokens.length - 1 : tokens.length;
         const standalone = simpleLiteral && i === start && end === i + 6;
-        calls.push(standalone ? { name, patch } : { name, patchCandidate: patch });
+        if (!standalone) calls.push({ name, patchCandidate: patch });
       }
       continue;
     }
@@ -81,16 +82,8 @@ function execCalls(source: string): ExtractedCall[] {
 function rolloutCalls(event: { type?: string; payload?: { type?: string; name?: string; input?: string; arguments?: string } }): ExtractedCall[] {
   if (event.type !== "response_item") return [];
   const p = event.payload;
-  if (p?.type === "custom_tool_call" && /^(?:functions\.)?apply_patch$/.test(p.name ?? "") && typeof p.input === "string") return [{ name: "apply_patch", patch: p.input }];
   if (p?.type === "custom_tool_call" && /^(?:functions\.)?exec$/.test(p.name ?? "") && typeof p.input === "string") return execCalls(p.input);
   if (p?.type !== "function_call" || typeof p.name !== "string") return [];
-  if (/^(?:functions\.)?apply_patch$/.test(p.name)) {
-    try {
-      const args = JSON.parse(p.arguments ?? "");
-      const patch = typeof args === "string" ? args : args.patch ?? args.input;
-      return typeof patch === "string" ? [{ name: "apply_patch", patch }] : [];
-    } catch { return []; }
-  }
   if (p.name === "exec_command" || p.name === "functions.exec_command") {
     try {
       const args = JSON.parse(p.arguments ?? "");
@@ -407,7 +400,7 @@ function toolSearches(transcript: string): ToolSearch[] {
   });
 }
 
-export interface ToolCalls { commands: string[]; mcpTools: string[]; patches?: string[]; patchCandidates?: string[]; outputs?: InvocationOutput[]; toolSearches?: ToolSearch[] }
+export interface ToolCalls { commands: string[]; mcpTools: string[]; patchCandidates?: string[]; outputs?: InvocationOutput[]; toolSearches?: ToolSearch[] }
 
 export function toolCalls(transcript: string): ToolCalls {
   const outputs = invocationOutputs(transcript);
@@ -416,7 +409,6 @@ export function toolCalls(transcript: string): ToolCalls {
     try { return rolloutCalls(JSON.parse(line)); }
     catch { return []; }
   });
-  const patches = patchCalls.flatMap(call => call.patch === undefined ? [] : [call.patch]);
   const patchCandidates = patchCalls.flatMap(call => call.patchCandidate === undefined ? [] : [call.patchCandidate]);
-  return { commands: [...new Set(shellCommands(transcript))], mcpTools: [...new Set(mcpTools(transcript))], ...(patches.length ? { patches } : {}), ...(patchCandidates.length ? { patchCandidates } : {}), ...(outputs.length ? { outputs } : {}), ...(searches.length ? { toolSearches: searches } : {}) };
+  return { commands: [...new Set(shellCommands(transcript))], mcpTools: [...new Set(mcpTools(transcript))], ...(patchCandidates.length ? { patchCandidates } : {}), ...(outputs.length ? { outputs } : {}), ...(searches.length ? { toolSearches: searches } : {}) };
 }

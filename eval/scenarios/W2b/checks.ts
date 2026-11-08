@@ -26,7 +26,8 @@ parser = Elements(); parser.feed(sys.argv[1]); print(json.dumps(parser.ids))
     return parsed.code === 0 ? JSON.parse(parsed.stdout) : null;
   };
   // Measured through the canvas file: every element id the seed carried must survive the edit.
-  const before = elementIds(canvas ? ctx.seed(canvas.path) ?? "" : "");
+  // The seed lives at its fixed path; the edited canvas is found by id, so a moved file still counts.
+  const before = elementIds(ctx.seed(".doan/canvases/projects.html") ?? "");
   const after = canvas ? elementIds(ctx.read(canvas.path) ?? "") : null;
   const missing = (before ?? []).filter(id => !(after ?? []).includes(id));
   return [

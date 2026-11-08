@@ -1,6 +1,6 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { cpSync, mkdtempSync, readFileSync, writeFileSync, rmSync, readdirSync } from "node:fs";
+import { cpSync, mkdtempSync, readFileSync, writeFileSync, rmSync, readdirSync, renameSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
@@ -8,6 +8,7 @@ import { createContext } from "../lib/context.ts";
 import type { Checks } from "../lib/types.ts";
 import r2 from "./R2/checks.ts";
 import w1 from "./W1/checks.ts";
+import w2 from "./W2b/checks.ts";
 
 const root = mkdtempSync(join(tmpdir(), "scenario-regression-"));
 const cli = join(root, "doan");
@@ -40,6 +41,16 @@ test("R2 rejects guide-only and echoed active mentions, accepts actual shell cal
   for (const transcript of [claude("doan active --json"), 'exec\n/bin/zsh -lc \'doan active --json\' in /tmp/repo succeeded in 20ms:']) {
     assert.equal(r2(fixture("R2", transcript)).find(c => c.id === "asked_doan_active")?.pass, true);
   }
+});
+test("W2b element ids are read from the canvas wherever the file moved, and a missing id still fails", () => {
+  const ctx = fixture("W2b"), from = ".doan/canvases/projects.html", to = ".doan/canvases/projects-v2.html";
+  all(w2, ctx);
+  renameSync(join(ctx.repo, from), join(ctx.repo, to));
+  const moved = w2(ctx);
+  assert.equal(moved.find(c => c.id === "canvas_id_preserved")?.pass, true);
+  assert.equal(moved.find(c => c.id === "element_ids_preserved")?.pass, true);
+  writeFileSync(join(ctx.repo, to), readFileSync(join(ctx.repo, to), "utf8").replace('data-doan-id="project-owner"', 'data-doan-id="owner-renamed"'));
+  assert.equal(w2(ctx).find(c => c.id === "element_ids_preserved")?.pass, false);
 });
 test("W1 accepts inline and linked relative token imports", () => {
   for (const linked of [false, true]) {

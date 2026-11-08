@@ -8,8 +8,8 @@ import { createContext } from "../lib/context.ts";
 import { toolCalls } from "../lib/transcript.ts";
 import { buildJudgePrompt } from "../lib/judge.ts";
 import r2 from "./R2/checks.ts";
-import r4 from "./R4/checks.ts";
-import h3 from "./H3/checks.ts";
+import r4 from "./R4b/checks.ts";
+import h3 from "./H3b/checks.ts";
 
 const root = mkdtempSync(join(tmpdir(), "doan-audit-eval-"));
 const cli = join(root, "doan");
@@ -60,27 +60,27 @@ for (const [id, checks] of [["R2", r2]] as const) {
     }
   });
 }
-for (const id of ["R2", "H2", "W1", "W2", "R4"]) {
+for (const id of ["R2", "H2b", "W1", "W2b", "R4b"]) {
   test(`${id} Python helper parses legitimate input without importing repo modules`, async () => {
     const ctx = fixture(id), marker = join(root, `${id}-python-marker`);
     const poison = `open(${JSON.stringify(marker)}, 'w').write('imported')\nraise RuntimeError('repo module imported')\n`;
     writeFileSync(join(ctx.repo, "json.py"), poison);
     mkdirSync(join(ctx.repo, "html"));
     writeFileSync(join(ctx.repo, "html/__init__.py"), poison);
-    if (!["W1", "W2", "R4"].includes(id)) {
+    if (!["W1", "W2b", "R4b"].includes(id)) {
       const { inspect } = await import(`./${id}/inspect.ts`);
       const doc = inspect(ctx, '<button data-doan-id="test">Hello &amp; world</button>');
       assert.equal(doc.nodes[0].text, "Hello & world");
     } else {
       const { default: checks } = await import(`./${id}/checks.ts`);
-      const checkId = { W1: "project_tokens_linked", W2: "element_ids_preserved", R4: "canvas_copy" }[id];
+      const checkId = { W1: "project_tokens_linked", W2b: "element_ids_preserved", R4b: "canvas_copy" }[id];
       assert.equal(checks(ctx).find(c => c.id === checkId)?.pass, true);
     }
     assert.equal(existsSync(marker), false);
   });
 }
-test("R4 follows inline and unquoted imports, stops cycles and repo escapes", () => {
-  const ctx = fixture("R4"), target = "web/login.html", good = ctx.read(target)!;
+test("R4b follows inline and unquoted imports, stops cycles and repo escapes", () => {
+  const ctx = fixture("R4b"), target = "web/login.html", good = ctx.read(target)!;
   for (const start of ['<style>@import url(app.css);</style>', '<link rel="stylesheet" href="app.css">']) {
     writeFileSync(join(ctx.repo, target), good.replace(/<link\b[^>]*rel="stylesheet"[^>]*>/g, "") + start);
     writeFileSync(join(ctx.repo, "web/app.css"), '@import url(tokens.css); @import "cycle.css"; .x {color:var(--color-text)}');
@@ -90,8 +90,8 @@ test("R4 follows inline and unquoted imports, stops cycles and repo escapes", ()
     assert.equal(r4(ctx).find(c => c.id === "uses_shared_tokens")?.pass, false);
   }
 });
-test("H3 follows multiline imports and reexports but not quoted examples or comments", () => {
-  const ctx = fixture("H3"), target = "web/src/components/DispatchQueue.tsx", good = ctx.read(target)!;
+test("H3b follows multiline imports and reexports but not quoted examples or comments", () => {
+  const ctx = fixture("H3b"), target = "web/src/components/DispatchQueue.tsx", good = ctx.read(target)!;
   const rows = good.match(/<tbody>([\s\S]*?)<\/tbody>/)![1];
   const component = good.replace(/<tbody>[\s\S]*?<\/tbody>/, '<tbody><Rows /></tbody>');
   writeFileSync(join(ctx.repo, "web/src/components/Rows.tsx"), `export function Rows() { return <>${rows}</>; }`);
@@ -111,8 +111,8 @@ test("R5 rubric matches the existing seed and answer fixture", () => {
   assert.doesNotMatch(rubric, /receipt-detail\.html/);
 });
 
-test("R4 rejects malformed bare imports and style-attribute imports but keeps valid alternatives", () => {
-  const ctx = fixture("R4"), path = "web/login.html";
+test("R4b rejects malformed bare imports and style-attribute imports but keeps valid alternatives", () => {
+  const ctx = fixture("R4b"), path = "web/login.html";
   const base = ctx.read(path)!.replace(/<link\b[^>]*rel="stylesheet"[^>]*>/g, "");
   for (const [extra, expected] of [
     ['<style>@import tokens.css; .x {color:var(--color-text)}</style>', false],

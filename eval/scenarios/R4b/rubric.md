@@ -1,4 +1,4 @@
-# R4 — Implement the confirmed login screen
+# R4b — Implement the confirmed login screen
 - Pass: the login page reproduces the approved frame's hierarchy, centered card, spacing, typography, and token colors.
 - Pass: visible copy, labeled email/password fields, remember-me checkbox, recovery link, and primary sign-in action match the design.
 - Pass: the password remains masked and the initial fields are empty, with the email placeholder and unchecked checkbox shown in the canvas.
