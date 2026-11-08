@@ -81,7 +81,7 @@ describe("opening a picked folder", () => {
   test("a subfolder with only .doan/ inside a broken repo is refused", async () => {
     const root = writeRepo(dir(), "{");
     const sub = join(root, "sub");
-    mkdirSync(join(sub, ".doan", "comments"), { recursive: true });
+    mkdirSync(join(sub, ".doan"), { recursive: true });
     const { shell } = await start();
     expect(await shell.open(sub)).toEqual({ refused: expect.stringContaining("Cannot read config") });
     expect(shell.entries()).toEqual([]);
@@ -262,7 +262,6 @@ exec '${cli}' "$@"
 
 function servedRepo(config: object): string {
   const root = writeRepo(dir(), JSON.stringify({ v: 1, ...config }));
-  mkdirSync(join(root, ".doan", "comments"), { recursive: true });
   mkdirSync(join(root, "styles"));
   writeFileSync(join(root, "styles", "tokens.css"), "a{}");
   mkdirSync(join(root, "assets"));
@@ -361,7 +360,7 @@ describe("served revision", () => {
     const { changes, rev0 } = await opened(root, counting.path);
     const reads = counting.reads();
     const published = changes.length;
-    writeFileSync(join(root, ".doan", "comments", "x.jsonl"), "{}\n");
+    writeFileSync(join(root, ".doan", "notes.txt"), "");
     await vi.waitFor(() => expect(changes.length).toBeGreaterThan(published), until);
     await sleep(500);
     expect(counting.reads()).toBeGreaterThan(reads);

@@ -147,7 +147,7 @@ function button(focused: string[], connected = true) {
     closest: (selector: string) => selector === ".workspace" ? {} : null,
   }) as unknown as HTMLElement;
 }
-type Plan = { kind: "ready"; comments: boolean } | { kind: "refused"; reason: string };
+type Plan = { kind: "ready" } | { kind: "refused"; reason: string };
 function deferred<T>() { let resolve!: (value: T) => void, reject!: (error: unknown) => void; const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; }
 async function openDialog(focused: string[] = []) {
   await start();
@@ -163,13 +163,13 @@ test("Move to Trash opens a modal confirmation that waits for main's plan; Cance
   const plan = await openDialog(focused);
   expect(doan.planCanvasTrash).toHaveBeenCalledWith("/w/a", A);
   expect(dialog()!.view).toMatchObject({ title: "Move “a” to Trash?", confirmable: false });
-  expect(dialog()!.view.body).not.toContain("comments");
+  const body = "This removes .doan/canvases/a.html from the repository. You can restore it from the Trash. Doan doesn’t commit this change.";
+  expect(dialog()!.view.body).toBe(body);
   // App's modal: the toast timer holds and the native menus see it.
   expect(harness.toast.setModal).toHaveBeenLastCalledWith(true);
   expect(doan.setMenuState).toHaveBeenLastCalledWith(expect.objectContaining({ modal: true }));
-  plan.resolve({ kind: "ready", comments: true }); await flush(); render();
-  expect(dialog()!.view).toMatchObject({ confirmable: true });
-  expect(dialog()!.view.body).toContain("and its comments");
+  plan.resolve({ kind: "ready" }); await flush(); render();
+  expect(dialog()!.view).toMatchObject({ confirmable: true, body });
   dialog()!.cancel(); render();
   expect(dialog()).toBeUndefined();
   expect(focused).toEqual(["a menu"]);
@@ -188,14 +188,13 @@ test("a plan that lands after its dialog closed opens nothing", async () => {
 });
 
 test.each([
-  [{ kind: "trashed", comments: "trashed" }, "Moved “a” to Trash.", "trashed"],
-  [{ kind: "trashed", comments: "failed", file: ".doan/comments/a.jsonl" }, "Moved “a” to Trash, but its comments couldn’t be moved. They stay at .doan/comments/a.jsonl.", "trashed"],
+  [{ kind: "trashed" }, "Moved “a” to Trash.", "trashed"],
   [{ kind: "refused", reason: "busy" }, "Couldn’t move “a” to Trash. An agent started working on it.", "refused"],
   [{ kind: "refused", reason: "notFile" }, "Couldn’t move “a” to Trash. It isn’t a regular file.", "refused"],
 ] as const)("confirming closes the dialog at once, marks the trash before the request and shows the reply's one toast: %j", async (reply, toast, settled) => {
   const focused: string[] = [];
   const plan = await openDialog(focused);
-  plan.resolve({ kind: "ready", comments: false }); await flush(); render();
+  plan.resolve({ kind: "ready" }); await flush(); render();
   const answer = deferred<unknown>();
   doan.trashCanvas = vi.fn(() => { calls.push("trashCanvas"); return answer.promise; });
   harness.trash.begin.mockImplementation((folder: string, path: string) => { calls.push("begin"); return { folder, path }; });
@@ -213,7 +212,7 @@ test.each([
 
 test("a move whose request fails lifts the mark and says to try again", async () => {
   const plan = await openDialog();
-  plan.resolve({ kind: "ready", comments: false }); await flush(); render();
+  plan.resolve({ kind: "ready" }); await flush(); render();
   doan.trashCanvas = vi.fn(async () => { throw new Error("ipc"); });
   dialog()!.confirm(); await flush(); render();
   expect(harness.trash.settle).toHaveBeenCalledWith({ folder: "/w/a", path: A }, "refused");
@@ -248,7 +247,7 @@ test("a busy plan keeps the dialog with its working line; any other refusal clos
 
 test("the dialog follows the canvas live: an agent starting holds Move to Trash, the row leaving the list closes it", async () => {
   const plan = await openDialog();
-  plan.resolve({ kind: "ready", comments: false }); await flush(); render();
+  plan.resolve({ kind: "ready" }); await flush(); render();
   expect(sidebar().canvasMenu.blocked("/w/a", row())).toBe(false);
   listeners.work!([item(A)] as never); render();
   expect(dialog()!.view).toMatchObject({ confirmable: false, reason: "An agent started working on this canvas. Try again when it finishes." });

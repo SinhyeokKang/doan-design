@@ -1,9 +1,9 @@
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync, existsSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, test, vi } from "vitest";
 import type { ConversationSummary } from "./conversation/summary";
-import { checkCanvasFile, createCanvasTrash, findComments, trashBusy, trashTarget, type TrashTarget } from "./canvasTrash";
+import { checkCanvasFile, createCanvasTrash, trashBusy, trashTarget, type TrashTarget } from "./canvasTrash";
 import type { CanvasRow, FolderEntry } from "./view";
 import type { WorkItem } from "./workState";
 
@@ -28,9 +28,9 @@ describe("trashTarget", () => {
   });
 
   test("allows both canvas kinds and subdirectories", () => {
-    expect(trashTarget(entries, { root: "/repo", path: a.path })).toEqual({ root: "/repo", path: a.path, id: "a", commentsId: "a" });
+    expect(trashTarget(entries, { root: "/repo", path: a.path })).toEqual({ root: "/repo", path: a.path, id: "a" });
     expect(trashTarget(entries, { root: "/repo", path: ".doan/ds/tokens.html" })).toMatchObject({ path: ".doan/ds/tokens.html" });
-    expect(trashTarget(entries, { root: "/repo", path: ".doan/canvases/sub/deep.html" })).toMatchObject({ path: ".doan/canvases/sub/deep.html", commentsId: "deep" });
+    expect(trashTarget(entries, { root: "/repo", path: ".doan/canvases/sub/deep.html" })).toEqual({ root: "/repo", path: ".doan/canvases/sub/deep.html", id: "deep" });
   });
 
   test("refuses a listed row that is not a canvas file", () => {
@@ -39,17 +39,13 @@ describe("trashTarget", () => {
     expect(trashTarget(odd, { root: "/repo", path: ".doan/config.json" })).toEqual({ kind: "refused", reason: "notListed" });
   });
 
-  test("takes the comment file only for a valid id no other row uses, with every row readable", () => {
+  test("carries the listed row's id as is, with nothing about comment files", () => {
     const take = (rows: CanvasRow[], path = a.path) => trashTarget([list("/repo", rows)], { root: "/repo", path });
     expect(take([row(a.path)])).toEqual({ root: "/repo", path: a.path });
     expect(take([row(a.path, { id: "" })])).toEqual({ root: "/repo", path: a.path });
     expect(take([row(a.path, { id: "Bad_Id" })])).toEqual({ root: "/repo", path: a.path, id: "Bad_Id" });
-    expect(take([row(a.path, { id: "a-" })])).not.toHaveProperty("commentsId");
-    expect(take([a, row(".doan/canvases/twin.html", { id: "a" })])).not.toHaveProperty("commentsId");
-    expect(take([a, row(".doan/canvases/broken.html", { error: { code: "read_failed", message: "x" } })])).not.toHaveProperty("commentsId");
-    // The target itself unreadable: no id to trust either.
-    expect(take([row(a.path, { id: "a", error: { code: "read_failed", message: "x" } })])).not.toHaveProperty("commentsId");
-    expect(take([a, row(".doan/canvases/b.html", { id: "b" })])).toMatchObject({ commentsId: "a" });
+    expect(take([a, row(".doan/canvases/twin.html", { id: "a" })])).toEqual({ root: "/repo", path: a.path, id: "a" });
+    expect(take([a, row(".doan/canvases/broken.html", { error: { code: "read_failed", message: "x" } })])).toEqual({ root: "/repo", path: a.path, id: "a" });
   });
 });
 
@@ -98,15 +94,17 @@ const tmp = realpathSync(mkdtempSync(join(tmpdir(), "doan-trash-test-")));
 let count = 0;
 afterAll(() => rmSync(tmp, { recursive: true, force: true }));
 
-// A repo with `.doan/canvases/a.html` and, unless left out, its comment file.
-function repo(options: { comments?: boolean } = {}): string {
+// A repo with `.doan/canvases/a.html` and a leftover `.doan/comments/a.jsonl` from before comments were removed, named
+// after the canvas id: Move to Trash must leave it byte for byte.
+const LEFTOVER = '{"v":1,"comment":"c1"}\n';
+function repo(): string {
   const root = join(tmp, `r${count++}`);
   mkdirSync(join(root, ".doan/canvases/sub"), { recursive: true });
   mkdirSync(join(root, ".doan/comments"), { recursive: true });
   writeFileSync(join(root, ".doan/config.json"), '{"v":1}');
   writeFileSync(join(root, ".doan/canvases/a.html"), "<!doctype html>");
   writeFileSync(join(root, ".doan/canvases/sub/deep.html"), "<!doctype html>");
-  if (options.comments !== false) writeFileSync(join(root, ".doan/comments/a.jsonl"), "{}\n");
+  writeFileSync(join(root, ".doan/comments/a.jsonl"), LEFTOVER);
   return root;
 }
 
@@ -141,37 +139,6 @@ describe("checkCanvasFile", () => {
   });
 });
 
-describe("findComments", () => {
-  test("finds the file whose name equals <id>.jsonl byte for byte", async () => {
-    const root = repo();
-    expect(await findComments(root, "a")).toEqual({ kind: "found", path: join(root, ".doan/comments/a.jsonl") });
-  });
-
-  test("never takes another case of the name (case-insensitive macOS would open it)", async () => {
-    const root = repo({ comments: false });
-    writeFileSync(join(root, ".doan/comments/A.jsonl"), "{}\n");
-    expect(await findComments(root, "a")).toEqual({ kind: "none" });
-  });
-
-  test("no comments directory or no file is nothing to move", async () => {
-    const root = repo({ comments: false });
-    expect(await findComments(root, "a")).toEqual({ kind: "none" });
-    rmSync(join(root, ".doan/comments"), { recursive: true });
-    expect(await findComments(root, "a")).toEqual({ kind: "none" });
-  });
-
-  test("keeps a linked comments directory or a comment file that is a link", async () => {
-    const other = repo();
-    const linkedDir = repo({ comments: false });
-    rmSync(join(linkedDir, ".doan/comments"), { recursive: true });
-    symlinkSync(join(other, ".doan/comments"), join(linkedDir, ".doan/comments"));
-    expect(await findComments(linkedDir, "a")).toEqual({ kind: "kept" });
-    const linkedFile = repo({ comments: false });
-    symlinkSync(join(other, ".doan/comments/a.jsonl"), join(linkedFile, ".doan/comments/a.jsonl"));
-    expect(await findComments(linkedFile, "a")).toEqual({ kind: "kept" });
-  });
-});
-
 describe("createCanvasTrash", () => {
   function harness(root: string, rows: CanvasRow[] = [row(".doan/canvases/a.html", { id: "a" }), row(".doan/canvases/sub/deep.html", { id: "deep" })]) {
     const entries = vi.fn(() => [list(root, rows)]);
@@ -181,14 +148,12 @@ describe("createCanvasTrash", () => {
   }
   const canvas = ".doan/canvases/a.html";
 
-  test("plans with the comment file only when it will go with the canvas", async () => {
+  test("plans ready whether or not a file of the canvas id sits in .doan/comments", async () => {
     const root = repo();
-    expect(await harness(root).trash.plan({ root, path: canvas })).toEqual({ kind: "ready", comments: true });
-    const bare = repo({ comments: false });
-    expect(await harness(bare).trash.plan({ root: bare, path: canvas })).toEqual({ kind: "ready", comments: false });
-    // A shared id keeps the file, so the dialog does not name it.
-    const shared = harness(root, [row(canvas, { id: "a" }), row(".doan/canvases/twin.html", { id: "a" })]);
-    expect(await shared.trash.plan({ root, path: canvas })).toEqual({ kind: "ready", comments: false });
+    expect(await harness(root).trash.plan({ root, path: canvas })).toEqual({ kind: "ready" });
+    const bare = repo();
+    rmSync(join(bare, ".doan/comments"), { recursive: true });
+    expect(await harness(bare).trash.plan({ root: bare, path: canvas })).toEqual({ kind: "ready" });
   });
 
   test.each(["plan", "trash"] as const)("%s refuses an unregistered root, an unlisted path and a malformed request without touching files", async method => {
@@ -216,43 +181,36 @@ describe("createCanvasTrash", () => {
     const h = harness(root);
     h.busy.mockReturnValue(true);
     expect(await h.trash[method]({ root, path: canvas })).toEqual({ kind: "refused", reason: "busy" });
-    expect(h.busy).toHaveBeenCalledWith({ root, path: canvas, id: "a", commentsId: "a" });
+    expect(h.busy).toHaveBeenCalledWith({ root, path: canvas, id: "a" });
     expect(h.trashItem).not.toHaveBeenCalled();
     h.busy.mockImplementation(() => { throw new Error("index unreadable"); });
     expect(await h.trash[method]({ root, path: canvas })).toEqual({ kind: "refused", reason: "failed" });
   });
 
-  test("moves the canvas, then its comment file, by main's own paths", async () => {
+  test("moves only the canvas, by main's own path, and leaves a same-id comment file byte for byte", async () => {
     const root = repo();
     const h = harness(root);
-    expect(await h.trash.trash({ root, path: canvas })).toEqual({ kind: "trashed", comments: "trashed" });
-    expect(h.trashItem.mock.calls).toEqual([[join(root, canvas)], [join(root, ".doan/comments/a.jsonl")]]);
+    expect(await h.trash.trash({ root, path: canvas })).toEqual({ kind: "trashed" });
+    expect(h.trashItem.mock.calls).toEqual([[join(root, canvas)]]);
+    expect(readFileSync(join(root, ".doan/comments/a.jsonl"), "utf8")).toBe(LEFTOVER);
   });
 
-  test("a failed canvas move refuses as failed and leaves the comments alone", async () => {
+  test("a failed canvas move refuses as failed", async () => {
     const root = repo();
     const h = harness(root);
     h.trashItem.mockRejectedValueOnce(new Error("trash failed"));
     expect(await h.trash.trash({ root, path: canvas })).toEqual({ kind: "refused", reason: "failed" });
     expect(h.trashItem).toHaveBeenCalledOnce();
-    expect(existsSync(join(root, ".doan/comments/a.jsonl"))).toBe(true);
   });
 
-  test("a failed comment move reports the file that stays, repo-relative", async () => {
-    const root = repo();
-    const h = harness(root);
-    h.trashItem.mockResolvedValueOnce().mockRejectedValueOnce(new Error("trash failed"));
-    expect(await h.trash.trash({ root, path: canvas })).toEqual({ kind: "trashed", comments: "failed", file: ".doan/comments/a.jsonl" });
-  });
-
-  test("reports none without a comment file or an id, and kept when the list cannot prove the file is this canvas's", async () => {
-    const root = repo({ comments: false });
-    expect(await harness(root).trash.trash({ root, path: canvas })).toEqual({ kind: "trashed", comments: "none" });
+  test("moves a canvas without an id or with a shared id the same way", async () => {
     const noId = repo();
-    expect(await harness(noId, [row(canvas)]).trash.trash({ root: noId, path: canvas })).toEqual({ kind: "trashed", comments: "none" });
+    const bare = harness(noId, [row(canvas)]);
+    expect(await bare.trash.trash({ root: noId, path: canvas })).toEqual({ kind: "trashed" });
+    expect(bare.trashItem).toHaveBeenCalledExactlyOnceWith(join(noId, canvas));
     const shared = repo();
     const h = harness(shared, [row(canvas, { id: "a" }), row(".doan/canvases/twin.html", { id: "a" })]);
-    expect(await h.trash.trash({ root: shared, path: canvas })).toEqual({ kind: "trashed", comments: "kept" });
+    expect(await h.trash.trash({ root: shared, path: canvas })).toEqual({ kind: "trashed" });
     expect(h.trashItem).toHaveBeenCalledExactlyOnceWith(join(shared, canvas));
   });
 
@@ -265,7 +223,7 @@ describe("createCanvasTrash", () => {
     expect(await h.trash.trash({ root, path: canvas })).toEqual({ kind: "refused", reason: "failed" });
     await vi.waitFor(() => expect(release).toBeDefined());
     release();
-    expect(await first).toEqual({ kind: "trashed", comments: "trashed" });
+    expect(await first).toEqual({ kind: "trashed" });
     h.trashItem.mockClear();
     await h.trash.trash({ root, path: canvas });
     expect(h.trashItem).toHaveBeenCalled();

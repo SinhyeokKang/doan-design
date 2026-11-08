@@ -822,7 +822,8 @@ test("a press writes at once and locks the page while Saving; Saved then says wh
   await flush(); render(); await flush(); render();
   expect(onState()).toEqual([true, false]);
   expect(text()).toContain("Saved");
-  expect(text()).toContain("’s two lines stay in .gitattributes.");
+  expect(text()).toContain("’s lines stay in .gitattributes.");
+  expect(text()).not.toContain("two lines");
   expect(text()).toContain("git rm -r --cached .doan");
   expect(byClass("storage-result")[0]!.props.role).toBe("status");
   void input;

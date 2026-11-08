@@ -1539,6 +1539,7 @@ describe("canvas trash on main's grounds", () => {
     mkdirSync(join(dir, ".doan/canvases"), { recursive: true });
     mkdirSync(join(dir, ".doan/comments"));
     writeFileSync(join(dir, path), "<!doctype html>");
+    // Left from before comments were removed, named after the canvas id: Move to Trash leaves it.
     writeFileSync(join(dir, ".doan/comments/a.jsonl"), "{}\n");
     return dir;
   };
@@ -1566,15 +1567,15 @@ describe("canvas trash on main's grounds", () => {
   });
   const trash = () => invoke("canvas:trash", window().webContents, null, { root, path });
 
-  test("moves the listed canvas, then its comment file, asking main's grounds for exactly this root", async () => {
+  test("moves only the listed canvas, asking main's grounds for exactly this root", async () => {
     const asked = service();
-    expect(await invoke("canvas:trashPlan", window().webContents, null, { root, path })).toEqual({ kind: "ready", comments: true });
-    expect(await trash()).toEqual({ kind: "trashed", comments: "trashed" });
+    expect(await invoke("canvas:trashPlan", window().webContents, null, { root, path })).toEqual({ kind: "ready" });
+    expect(await trash()).toEqual({ kind: "trashed" });
     expect(asked.list.mock.calls.every(([at]) => at === root)).toBe(true);
     expect(asked.evidence.mock.calls.every(([at]) => at === root)).toBe(true);
     expect(asked.list).toHaveBeenCalled();
     expect(asked.evidence).toHaveBeenCalled();
-    expect(mocks.electronShell.trashItem.mock.calls).toEqual([[join(root, path)], [join(root, ".doan/comments/a.jsonl")]]);
+    expect(mocks.electronShell.trashItem.mock.calls).toEqual([[join(root, path)]]);
   });
 
   test.each([
@@ -1606,11 +1607,11 @@ describe("canvas trash on main's grounds", () => {
     asked.list.mockImplementation(at => at === other ? [summary({ phase: "running" })] : []);
     asked.evidence.mockImplementation(at => at === other ? [{ edits: [join(other, path)], changed: [path] }] : []);
     work()(other);
-    expect(await trash()).toEqual({ kind: "trashed", comments: "trashed" });
+    expect(await trash()).toEqual({ kind: "trashed" });
     expect(mocks.electronShell.trashItem).toHaveBeenNthCalledWith(1, join(root, path));
   });
 
-  test("a failed canvas move refuses as failed and leaves the comment file alone", async () => {
+  test("a failed canvas move refuses as failed", async () => {
     service();
     mocks.electronShell.trashItem.mockRejectedValueOnce(new Error("trash failed"));
     expect(await trash()).toEqual({ kind: "refused", reason: "failed" });
