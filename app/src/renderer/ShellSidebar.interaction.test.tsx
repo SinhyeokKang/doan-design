@@ -509,6 +509,16 @@ it.each([
   expect(tree.canvasMenu.trash).not.toHaveBeenCalled();
 });
 
+// ErrorDetails is a component the shallow tree never expands, so its render prop is called with the open state by hand.
+it("an unreadable canvas's open Details block is selectable, its Details button is not", () => {
+  const tree = canvasMenuFixture({}, {}, { path: CANVAS, url: "u", error: { code: "bad", message: "Unreadable" } });
+  const details = tree.rendered().find(item => typeof item.children === "function" && item.detail === "bad: Unreadable")!;
+  const open = (details.children as (button: ReactNode, detail: string | null) => ReactNode)(null, "bad: Unreadable");
+  const block = elements(open).find(item => item.children === "bad: Unreadable")!;
+  expect(block.className).toBe("selectable");
+  expect(details.className).toBe("btn ghost");
+});
+
 it("keeps a locked row's button in the focus order as aria-disabled, and it opens nothing", () => {
   const tree = canvasMenuFixture({}, { locked: true });
   expect(tree.button()).toMatchObject({ "aria-disabled": true, tabIndex: -1 });

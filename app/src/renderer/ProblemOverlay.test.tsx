@@ -18,9 +18,9 @@ test("the scene: icon, a focusable heading described by its line, the path as a 
   const heading = html.match(/<h2 id="([^"]+)" tabindex="-1" aria-describedby="([^"]+)">acme-web is missing<\/h2>/)!;
   expect(heading).not.toBeNull();
   expect(html).toContain(`aria-labelledby="${heading[1]}"`);
-  expect(html).toContain(`<p id="${heading[2]}"><code>~/code/acme-web</code> was moved or deleted.</p>`);
+  expect(html).toContain(`<p id="${heading[2]}" class="selectable"><code>~/code/acme-web</code> was moved or deleted.</p>`);
   // The live region is always there, and nothing focusable sits between the heading and the primary action.
-  expect(html).toMatch(/<\/h2><p id="[^"]+">.*?<\/p><\/div><p class="sr-only" role="status" aria-live="polite"><\/p><div class="problem-actions"><button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="sm">Locate<\/button><button type="button" class="doan-button ghost" data-ui-size="sm">Remove from Doan<\/button><\/div>/);
+  expect(html).toMatch(/<\/h2><p id="[^"]+" class="selectable">.*?<\/p><\/div><p class="sr-only" role="status" aria-live="polite"><\/p><div class="problem-actions"><button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="sm">Locate<\/button><button type="button" class="doan-button ghost" data-ui-size="sm">Remove from Doan<\/button><\/div>/);
   expect(html).not.toContain("Go Home");
 });
 
@@ -33,7 +33,7 @@ test("Config error: the config file as a code chip, Show in Finder subtle, Detai
   expect(closed).not.toContain("problem-detail");
   const open = draw(error, { details: true, detail: "unexpected end of JSON input" });
   expect(open).toContain('aria-expanded="true">Details ▾</button>');
-  expect(open).toContain('</div><pre class="problem-detail">unexpected end of JSON input</pre></div></div>');
+  expect(open).toContain('</div><pre class="problem-detail selectable">unexpected end of JSON input</pre></div></div>');
 });
 
 test("CLI error: Details toggles the CLI's message, drawn as text only: markup, control characters and long lines stay characters", () => {
@@ -45,14 +45,24 @@ test("CLI error: Details toggles the CLI's message, drawn as text only: markup, 
   expect(closed).not.toContain("problem-detail");
   const open = draw(cli, { details: true, detail: reason });
   expect(open).toContain('aria-expanded="true">Details ▾</button>');
-  expect(open).toContain(`<pre class="problem-detail">doan: &lt;img src=x onerror=alert(1)&gt; \u001b[31mfailed\u001b[0m &amp; a very-long-path/${"x".repeat(400 - "doan: <img src=x onerror=alert(1)> \u001b[31mfailed\u001b[0m & a very-long-path/".length)}</pre>`);
+  expect(open).toContain(`<pre class="problem-detail selectable">doan: &lt;img src=x onerror=alert(1)&gt; \u001b[31mfailed\u001b[0m &amp; a very-long-path/${"x".repeat(400 - "doan: <img src=x onerror=alert(1)> \u001b[31mfailed\u001b[0m & a very-long-path/".length)}</pre>`);
   expect(open).not.toContain("<img");
 });
 
 test("CLI error: a reason over several lines keeps its line breaks in the Details block", () => {
   const reason = "doan: config error\n  at line 3\r\n\tcolumn 7";
   const html = draw(view({ path: "/Users/ada/code/acme-web", kind: "cliError", reason }), { details: true, detail: reason });
-  expect(html).toContain(`<pre class="problem-detail">${reason}</pre>`);
+  expect(html).toContain(`<pre class="problem-detail selectable">${reason}</pre>`);
+});
+
+// The line and the Details block carry text worth copying; the heading and buttons do not.
+test("selectable: the problem line and the Details block, not the heading or the Details toggle", () => {
+  const reason = "doan: config error";
+  const html = draw(view({ path: "/Users/ada/code/acme-web", kind: "cliError", reason }), { details: true, detail: reason });
+  expect(html).toMatch(/<p id="[^"]+" class="selectable">/);
+  expect(html).toContain(`<pre class="problem-detail selectable">${reason}</pre>`);
+  expect(html).toMatch(/<h2 id="[^"]+" tabindex="-1" aria-describedby="[^"]+">/);
+  expect(html).not.toMatch(/<(h2|button)[^>]*selectable/);
 });
 
 test("busy: every action is aria-disabled and stays focusable; the pressed one shows a spinner; the live region reads what it is given", () => {

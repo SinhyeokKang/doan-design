@@ -452,3 +452,33 @@ test("the URL dialog and the Remove alert use default-size actions", async () =>
   render();
   expect(actions().map(button => [words(button.props.children), button.props["data-ui-size"]])).toEqual([["Cancel", undefined], ["Remove", undefined]]);
 });
+
+// Read-only text is selectable (the `selectable` class); buttons are not.
+const hasSelectable = (element: ReactElement<Record<string, unknown>>) => String(element.props.className ?? "").split(" ").includes("selectable");
+
+test("selectable: a row's status and URL lines, but not its buttons", async () => {
+  await settle();
+  const group = all(byLabel("mcp.example.com for Codex")!);
+  const lines = group.filter(element => String(element.props.className).includes("doan-preference-row-description"));
+  expect(lines.some(element => String(element.props.className).includes("mcp-url"))).toBe(true);
+  expect(lines.length).toBeGreaterThanOrEqual(2);
+  for (const line of lines) expect(hasSelectable(line)).toBe(true);
+  const buttons = group.filter(element => element.type === "button");
+  expect(buttons.length).toBeGreaterThan(0);
+  for (const button of buttons) expect(hasSelectable(button)).toBe(false);
+});
+
+test("selectable: the Add server dialog's field error, but not its buttons", async () => {
+  await settle();
+  click(all(tree).find(element => words(element.props.children).endsWith("Add server by URL") && element.type === "button"));
+  render();
+  const input = all(tree).find(element => element.type === "input")!;
+  (input.props.onChange as (event: { target: { value: string } }) => void)({ target: { value: "http://mcp.internal.example.com/mcp" } });
+  render();
+  api.addMcpServer!.mockResolvedValueOnce({ ok: false, reason: "not_https" });
+  (all(tree).find(element => element.type === "form")!.props.onSubmit as (event: { preventDefault(): void }) => void)({ preventDefault: () => {} });
+  await settle();
+  const error = all(tree).find(element => element.props.role === "alert" && words(element.props.children) === "Enter a URL that starts with https://.")!;
+  expect(hasSelectable(error)).toBe(true);
+  for (const button of all(tree).filter(element => element.type === "dialog").flatMap(dialog => all(dialog)).filter(element => element.type === "button")) expect(hasSelectable(button)).toBe(false);
+});

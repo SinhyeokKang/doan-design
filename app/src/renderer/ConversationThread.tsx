@@ -430,7 +430,7 @@ function UserMessage({ entry, frames, disabled, onLocate }: { entry: Extract<Thr
 
 const STEP_ICONS = { read: Eye, edit: Pencil, command: Terminal, other: Terminal } as const;
 function Steps({ id, steps }: { id: string; steps: readonly ActivityStep[] }) {
-  return <ul className="activity-steps" id={id}>{steps.map(step => {
+  return <ul className="activity-steps selectable" id={id}>{steps.map(step => {
     const Icon = STEP_ICONS[step.kind];
     return <li key={step.key}><Icon aria-hidden="true" /><span className={step.sentence ? "verb mcp-step" : "verb"}>{step.verb}</span>{step.path && <span className="path">{step.path}</span>}</li>;
   })}</ul>;
@@ -452,7 +452,7 @@ export function HandoffCard({ entry, headId, project, canvasListed, onOpen }: { 
   return <div className="handoff-card" role="group" aria-labelledby={headId} tabIndex={-1}>
     <div className="handoff-head"><Forward aria-hidden="true" /><span id={headId}>{handoffCardHead(source, project, listed)}</span>
       {listed && onOpen && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="trigger" onClick={() => onOpen(source, entry.origin.conversationId)}>Open</button>}</div>
-    <AgentMessage text={entry.text} streaming={false} className="md" />
+    <AgentMessage text={entry.text} streaming={false} className="md selectable" />
   </div>;
 }
 
@@ -655,7 +655,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     [openCanvasId, props.frames, props.canvasRows, disabled, pressable]);
 
   if (items === "error") return <div className="conversation-thread">
-    <div className="doan-notice error thread-notice" role="alert"><AlertIcon /><span className="strip-text"><b>Doan couldn’t read this conversation</b><span>Try again. If it keeps failing, start a new conversation.</span></span>
+    <div className="doan-notice error thread-notice" role="alert"><AlertIcon /><span className="strip-text selectable"><b>Doan couldn’t read this conversation</b><span>Try again. If it keeps failing, start a new conversation.</span></span>
       <span className="strip-actions"><button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={props.onRetry}>Retry</button></span></div>
   </div>;
   if (items === null) return <div className="conversation-thread">{slow && <div className="thread-loading" role="status"><span className="doan-spinner" aria-hidden="true" /><span>Loading conversation</span></div>}</div>;
@@ -678,12 +678,12 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
         </div>;
       }
       case "permission": {
-        if (entry.status !== "pending") return <div className="activity"><div className="activity-head ask-answered"><span>
+        if (entry.status !== "pending") return <div className="activity"><div className="activity-head ask-answered"><span className="selectable">
           {entry.status === "answered" ? `${entry.answer ? ANSWERED[entry.answer.kind] : "Answered"} · ${entry.summary}` : `Expired without an answer · ${entry.summary}`}</span></div></div>;
         const live = entry.seq > props.liveAfter;
         return <div className="doan-notice thread-notice" role={live ? "alert" : undefined}>
           <span className="strip-agent doan-alert-icon"><img className="logo" src={providerLogo(provider)} alt="" /></span>
-          <span className="strip-text"><b>{`${p} needs your answer`}</b><span>{entry.summary}</span></span>
+          <span className="strip-text selectable"><b>{`${p} needs your answer`}</b><span>{entry.summary}</span></span>
           <span className="strip-actions">
             {entry.options.map(option => <button key={option.id} type="button" className="doan-button" data-ui-size="sm" data-ui-variant={option.kind === "allow" ? "prominent" : "panel"}
               data-request={entry.requestId} onClick={() => answer(entry.requestId, option.id)}>{option.label}</button>)}
@@ -694,7 +694,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
       }
       case "question": {
         if (entry.status !== "pending") return <div className="q-folded">{questionLines(entry).map((line, i) =>
-          <div key={i} className="activity"><div className="activity-head ask-answered"><span title={line}>{line}</span></div></div>)}</div>;
+          <div key={i} className="activity"><div className="activity-head ask-answered"><span className="selectable" title={line}>{line}</span></div></div>)}</div>;
         return <QuestionCard item={entry} provider={provider} live={entry.seq > props.liveAfter} base={base} draft={draftOf(entry.requestId)}
           onDraft={action => editQuestion(entry.requestId, action)} onSend={() => sendQuestion(entry, "answer")} onSkip={() => sendQuestion(entry, "skip")} onStop={() => stop(entry.requestId)} />;
       }
@@ -702,7 +702,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
         const view = endView(entry.end, provider);
         return <div className={`doan-notice${view.tone ? ` ${view.tone}` : ""} thread-notice`}>
           {view.tone ? <AlertIcon /> : <CircleStop className="doan-alert-icon" aria-hidden="true" />}
-          <span className="strip-text"><b>{view.title}</b>{view.body && <span>{view.body}</span>}</span>
+          <span className="strip-text selectable"><b>{view.title}</b>{view.body && <span>{view.body}</span>}</span>
           {entry.key === last?.key && (view.signIn || (last.resend && view.resend !== false)) && <span className="strip-actions">
             {view.signIn && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={props.onSignIn}>Sign in again…</button>}
             {last.resend && view.resend !== false && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={props.onEditAndResend}>Edit and resend</button>}

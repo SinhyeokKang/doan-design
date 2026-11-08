@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test } from "vitest";
 import type { ProjectForm } from "./onboardingView";
-import { ProjectFields, type StorageInput } from "./ProjectSetupDialog";
+import { ProjectFields, ProjectSetupDialog, type StorageInput } from "./ProjectSetupDialog";
 
 // Draft canvas local-doan-files frame setup-dialog: a "Doan files" field between Token CSS and Will add; the list
 // follows it.
@@ -50,4 +50,20 @@ test("the refusal's git init is a code chip", () => {
 test("the exclude failure's path is a code chip", () => {
   const html = fields({ value: "local" }, { error: "Couldn’t add Doan’s lines to .git/info/exclude, so nothing was set up. Make sure the repository’s Git metadata and its exclude file can be read and written, then try again." });
   expect(html).toContain("<span>Couldn’t add Doan’s lines to <code>.git/info/exclude</code>, so nothing was set up. Make sure the repository’s Git metadata and its exclude file can be read and written, then try again.</span>");
+});
+
+// Read-only text is selectable (the `selectable` class); buttons and the title are not.
+test("selectable: the refusal message and the token path, but not the None placeholder or the Choose button", () => {
+  const html = fields({ value: "local" }, { error: "This folder isn’t a Git repository, so Doan can’t keep its files out of Git. Choose Include in Git, or run git init here first.", token: "/w/tokens.css" });
+  expect(html).toMatch(/<span class="ob-msg error ob-wide selectable" role="alert">/);
+  expect(html).toMatch(/<span class="value token-path selectable"/);
+  expect(html).not.toMatch(/<button[^>]*selectable/);
+  expect(fields({})).toContain('<span class="value none">None</span>');
+});
+
+test("selectable: the dialog's project path, but not its title or buttons", () => {
+  const html = renderToStaticMarkup(<ProjectSetupDialog root="/Users/ada/code/studio" name="studio" onClose={() => {}} onRerooted={() => {}} />);
+  expect(html).toMatch(/<p class="doan-dialog-description ob-project-path selectable"[^>]*>\/Users\/ada\/code\/studio<\/p>/);
+  expect(html).not.toMatch(/<h3[^>]*selectable/);
+  expect(html).not.toMatch(/<button[^>]*selectable/);
 });

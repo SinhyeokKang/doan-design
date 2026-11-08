@@ -51,6 +51,14 @@ test("Home is the shell with the sidebar and a composer body: no project cards, 
   expect(html).not.toContain("aria-current=\"location\"");
 });
 
+// A tray value is copyable; the worktree dropdown (several worktrees) is a menu and stays unselectable.
+test("selectable: the tray's branch name and path", () => {
+  const html = render([project("/code/doan-design")]);
+  expect(html).toMatch(/<span class="tray-branch"><svg.*?<\/svg><span class="selectable">main<\/span><\/span>/);
+  expect(html).toContain('<span class="tray-path selectable">/code/doan-design</span>');
+  expect(html).not.toMatch(/<button[^>]*selectable/);
+});
+
 test("the greeting is one of the five questions, with the chosen project's name", () => {
   const html = render([project("/code/doan-design")], { greeting: "Where should we start?" });
   expect(html).toMatch(/<h1 class="home-greeting">(What should we design today\?|What are we making next\?|What would you like to change\?|What’s next for doan-design\?|Where should we start\?)<\/h1>/);
@@ -62,7 +70,7 @@ test("an empty composer for a project with canvases: project above, tray below, 
   expect(html).toContain('<div class="composer-input" aria-label="Message" tabindex="0" contentEditable="true" aria-placeholder="Describe what to design, / for presets" role="textbox" aria-multiline="true"></div>');
   expect(html).toMatch(/<button type="button" class="composer-send doan-icon-button" data-ui-variant="accent" aria-label="Send" disabled=""/);
   expect(html).toContain('<div class="composer-tray"><span class="tray-branch">');
-  expect(html).toContain('<span class="tray-path">/code/doan-design</span>');
+  expect(html).toContain('<span class="tray-path selectable">/code/doan-design</span>');
   expect(html).toContain('<div class="home-suggestions" role="group" aria-label="Suggested prompts">');
   // suggested-prompt-variants C: a prompt-only row (icon tile, sentence, hover arrow), not the shared doan-button.
   expect(html.match(/<button type="button" class="suggestion"[^>]*><span class="suggestion-icon"><svg[^>]*aria-hidden="true"/g)).toHaveLength(3);

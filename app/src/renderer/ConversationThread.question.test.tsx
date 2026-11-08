@@ -232,16 +232,21 @@ describe("the thread's question items", () => {
   test("a finished question folds to its lines, each ellipsized with its full text as the tooltip", () => {
     const answered = item([layout, sections], { status: "answered", answers: { "0": { selected: ["Two rows"] }, "1": { selected: ["Agents"], other: "Keyboard shortcuts" } } });
     const out = html([answered, item([layout], { key: "Qq2", requestId: "q2", status: "skipped" }), item([layout], { key: "Qq3", requestId: "q3", status: "expired" })]);
-    expect(out).toContain('<div class="thread-item" data-item="Qq1"><div class="q-folded"><div class="activity"><div class="activity-head ask-answered"><span title="Answered · Layout: Two rows">Answered · Layout: Two rows</span></div></div><div class="activity"><div class="activity-head ask-answered"><span title="Answered · Sections: Agents, Keyboard shortcuts">Answered · Sections: Agents, Keyboard shortcuts</span></div></div></div></div>');
-    expect(out).toContain('<span title="Skipped · Layout">Skipped · Layout</span>');
-    expect(out).toContain('<span title="Expired without an answer · Layout">Expired without an answer · Layout</span>');
+    expect(out).toContain('<div class="thread-item" data-item="Qq1"><div class="q-folded"><div class="activity"><div class="activity-head ask-answered"><span class="selectable" title="Answered · Layout: Two rows">Answered · Layout: Two rows</span></div></div><div class="activity"><div class="activity-head ask-answered"><span class="selectable" title="Answered · Sections: Agents, Keyboard shortcuts">Answered · Sections: Agents, Keyboard shortcuts</span></div></div></div></div>');
+    expect(out).toContain('<span class="selectable" title="Skipped · Layout">Skipped · Layout</span>');
+    expect(out).toContain('<span class="selectable" title="Expired without an answer · Layout">Expired without an answer · Layout</span>');
     expect(out).not.toContain("q-card");
     expect(out).toContain('<div class="sr-only" role="status"></div>');
   });
 
+  test("every folded question line is selectable", () => {
+    const answered = item([layout], { status: "answered", answers: { "0": { selected: ["Two rows"] } } });
+    expect(html([answered, item([layout], { key: "Qq2", requestId: "q2", status: "skipped" })]).match(/<span class="selectable" title="[^"]+">/g)).toHaveLength(2);
+  });
+
   test("a header-less question (Antigravity) folds with its sentence", () => {
     const bare: Question = { id: "0", header: "", question: "Which colour?", options: [{ label: "Red" }, { label: "Blue" }], multiSelect: false, other: false };
-    expect(html([item([bare], { status: "answered", answers: { "0": { selected: ["Red"] } } })])).toContain('<span title="Answered · Which colour?: Red">Answered · Which colour?: Red</span>');
+    expect(html([item([bare], { status: "answered", answers: { "0": { selected: ["Red"] } } })])).toContain('<span class="selectable" title="Answered · Which colour?: Red">Answered · Which colour?: Red</span>');
   });
 });
 

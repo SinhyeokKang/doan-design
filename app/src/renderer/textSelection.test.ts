@@ -14,7 +14,7 @@ test("app chrome text is not selectable", () => {
   expect(selections("body").at(-1)).toBe("none");
 });
 
-test.each([".conversation-thread .bubble", ".conversation-thread .msg-agent", "input", "textarea", ".composer-input"])("%s explicitly enables text selection", selector => {
+test.each([".conversation-thread .bubble", ".conversation-thread .msg-agent", "input", "textarea", ".composer-input", ".selectable"])("%s explicitly enables text selection", selector => {
   const values = selections(selector);
   expect(values.at(-1)).toBe("text");
   expect(values).not.toContain("none");

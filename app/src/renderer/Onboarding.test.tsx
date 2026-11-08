@@ -60,7 +60,7 @@ test("the setup steps are the shell capsule drawn with sm buttons: current is ar
 test("a provider row: mark, name, account line and its sm button; Connected is disabled with its accessible name", () => {
   const html = renderToStaticMarkup(<ProviderRow view={{ ...base, detail: "ada@example.com", button: { command: "signIn", label: "Connected", variant: "prominent", disabled: true, ariaLabel: "Connected to Claude Code" } }} run={noop} />);
   expect(html).toContain('<span class="ob-provider-mark" aria-hidden="true"><img src="provider-logos/claude.png" alt=""/></span>');
-  expect(html).toContain('<div class="ob-provider-label"><strong>Claude Code</strong><span>ada@example.com</span></div>');
+  expect(html).toContain('<div class="ob-provider-label"><strong>Claude Code</strong><span class="selectable">ada@example.com</span></div>');
   expect(html).toContain('<button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="sm" data-command="signIn" aria-label="Connected to Claude Code" disabled="">Connected</button>');
   expect(renderToStaticMarkup(<ProviderRow view={{ ...base, provider: "codex", name: "Codex", detail: null }} run={noop} />)).toContain('<div class="ob-provider-label"><strong>Codex</strong></div>');
 });
@@ -72,7 +72,7 @@ test("a button note is shown next to its button, not only in the accessible name
 
 test("a busy or not_owner detail line is a status", () => {
   const html = renderToStaticMarkup(<ProviderRow view={{ ...base, detail: "Finish this sign-in in the window that started it.", detailRole: "status" }} run={noop} />);
-  expect(html).toContain('<span role="status">Finish this sign-in in the window that started it.</span>');
+  expect(html).toContain('<span class="selectable" role="status">Finish this sign-in in the window that started it.</span>');
 });
 
 test("a progress notice puts the spinner in the icon slot and is a status; an error leads with the alert icon; only the overlay's notice takes the panel", () => {
@@ -80,11 +80,11 @@ test("a progress notice puts the spinner in the icon slot and is a status; an er
     { command: "cancel", label: "Cancel", variant: "subtle", disabled: false }, { command: "openLink", label: "Open again", variant: "subtle", disabled: false }] };
   const html = renderToStaticMarkup(<NoticeView notice={progress} run={noop} />);
   expect(renderToStaticMarkup(<NoticeView panel notice={progress} run={noop} />)).toMatch(/^<div class="doan-notice doan-panel" role="status"/);
-  expect(html).toContain('<div class="doan-notice" role="status" tabindex="-1"><span class="doan-spinner doan-alert-icon" aria-hidden="true"></span><span><strong class="ob-notice-title">Finish signing in to Claude Code</strong><span class="ob-notice-body">Complete sign-in in your browser, then return here.</span></span></div>');
+  expect(html).toContain('<div class="doan-notice" role="status" tabindex="-1"><span class="doan-spinner doan-alert-icon" aria-hidden="true"></span><span class="selectable"><strong class="ob-notice-title">Finish signing in to Claude Code</strong><span class="ob-notice-body">Complete sign-in in your browser, then return here.</span></span></div>');
   expect(html).toContain('<div class="ob-state-actions"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm" data-command="cancel">Cancel</button><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm" data-command="openLink">Open again</button></div>');
   const error = renderToStaticMarkup(<NoticeView notice={{ role: "alert", spinner: false, body: "Sign-in didn’t finish. Try again.", actions: [{ command: "signIn", label: "Sign in", variant: "prominent", disabled: false }] }} run={noop} />);
   expect(error).toMatch(/^<div class="doan-notice error" role="alert" tabindex="-1"><svg[^>]*class="lucide lucide-circle-alert[^"]* doan-alert-icon" aria-hidden="true">/);
-  expect(error).toContain('<span><span class="ob-notice-body">Sign-in didn’t finish. Try again.</span></span>');
+  expect(error).toContain('<span class="selectable"><span class="ob-notice-body">Sign-in didn’t finish. Try again.</span></span>');
   expect(error).toContain('<div class="ob-state-actions submit-only">');
 });
 
@@ -246,7 +246,7 @@ test("an invalid URL marks the field and keeps Find repository disabled; an acce
 
 test("looking for a repository shows a status with Cancel", () => {
   const html = screen({ url: "https://github.com/acme/studio", phase: { kind: "inspecting", url: "https://github.com/acme/studio" } });
-  expect(html).toContain('<div class="doan-notice doan-panel ob-project-notice" role="status" tabindex="-1"><span class="doan-spinner doan-alert-icon" aria-hidden="true"></span><span><strong class="ob-notice-title">Checking repository</strong><span class="ob-notice-body">https://github.com/acme/studio</span></span></div>');
+  expect(html).toContain('<div class="doan-notice doan-panel ob-project-notice" role="status" tabindex="-1"><span class="doan-spinner doan-alert-icon" aria-hidden="true"></span><span class="selectable"><strong class="ob-notice-title">Checking repository</strong><span class="ob-notice-body">https://github.com/acme/studio</span></span></div>');
   expect(html).toContain('readOnly=""');
   expect(html).toContain('data-ui-size="sm">Cancel</button>');
 });
@@ -259,7 +259,7 @@ test("an edited URL asks to be checked again", () => {
 test("an existing checkout: Already on your Mac, the chosen card and Use this folder", () => {
   const html = screen({ url: "https://github.com/acme/doan-design", phase: { kind: "candidates", inspectionId: "i", url: "https://github.com/acme/doan-design", candidates: [{ path: "/Users/ada/code/doan-design", changes: [] }], choice: "/Users/ada/code/doan-design" } });
   expect(html).toContain('<h2 tabindex="-1">Already on your Mac</h2><p>This GitHub repository matches a local project.</p>');
-  expect(html).toMatch(/<div class="doan-panel ob-chosen"><span class="shell-thumbnail onboarding-thumbnail hue-indigo" aria-hidden="true">D<\/span><div><strong>doan-design<\/strong><p class="ob-path">~\/code\/doan-design<\/p><\/div><svg/);
+  expect(html).toMatch(/<div class="doan-panel ob-chosen"><span class="shell-thumbnail onboarding-thumbnail hue-indigo" aria-hidden="true">D<\/span><div><strong>doan-design<\/strong><p class="ob-path selectable">~\/code\/doan-design<\/p><\/div><svg/);
   expect(html).toContain('<p class="ob-fine">Use your existing files and current branch.</p>');
   expect(html).toContain('>Choose another folder</button><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Edit repository URL</button>');
   expect(html).toMatch(/data-ui-variant="prominent" data-consent="">Use this folder<svg/);
@@ -287,7 +287,7 @@ test("clone: Save to with Change, progress with Cancel, cleanup with everything 
   const plan = screen({ url: clone.url, phase: { kind: "clone", ...clone, inspectionId: "i" } });
   expect(plan).toContain('<h2 tabindex="-1">Clone repository</h2><p>Bring this project onto your Mac.</p>');
   expect(plan).toContain('<div class="ob-field-label ob-spaced">Save to</div><div class="doan-panel ob-destination"><span class="shell-thumbnail onboarding-thumbnail hue-');
-  expect(plan).toContain('<div class="ob-destination-name"><strong>studio</strong><p class="ob-path">~/code/studio</p></div><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Change</button>');
+  expect(plan).toContain('<div class="ob-destination-name"><strong>studio</strong><p class="ob-path selectable">~/code/studio</p></div><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Change</button>');
   expect(plan).toMatch(/data-ui-variant="prominent" data-consent="">Clone and continue<svg/);
   const cloning = screen({ phase: { kind: "cloning", ...clone, operationId: "o", cancelling: false } }, { busy: true });
   expect(cloning).toContain('<strong class="ob-notice-title">Cloning studio</strong><span class="ob-notice-body">~/code/studio</span>');
@@ -465,7 +465,7 @@ test("UX: a clone destination inside a doan project names it and offers Change l
 
 test("UX: checking a folder shows its own status, not 'Setting up your project'", () => {
   const html = screen({ phase: { kind: "checking", path: "/Users/ada/code/app" } }, { busy: true });
-  expect(html).toContain('role="status" tabindex="-1"><span class="doan-spinner doan-alert-icon" aria-hidden="true"></span><span><strong class="ob-notice-title">Checking this folder</strong><span class="ob-notice-body">~/code/app</span>');
+  expect(html).toContain('role="status" tabindex="-1"><span class="doan-spinner doan-alert-icon" aria-hidden="true"></span><span class="selectable"><strong class="ob-notice-title">Checking this folder</strong><span class="ob-notice-body">~/code/app</span>');
   expect(html).not.toContain("Setting up your project");
   expect(projectFocusTarget({ ...base2, phase: { kind: "checking", path: "/p" } }, true)).toBe("status");
 });
@@ -554,7 +554,7 @@ test("a mismatch names the chosen folder on both URL screens", () => {
 test("Cloning was cancelled is a status notice panel like the other states", () => {
   const url = "https://github.com/acme/studio";
   const cancelled = screen({ url, phase: { kind: "cloneCancelled", url, destination: "/Users/ada/code/studio" } });
-  expect(cancelled).toMatch(/<div class="doan-notice doan-panel ob-project-notice" role="status" tabindex="-1"><svg[^>]*>.*?<\/svg><span>Cloning was cancelled\. Choose a folder or try again\.<\/span><\/div>/);
+  expect(cancelled).toMatch(/<div class="doan-notice doan-panel ob-project-notice" role="status" tabindex="-1"><svg[^>]*>.*?<\/svg><span class="selectable">Cloning was cancelled\. Choose a folder or try again\.<\/span><\/div>/);
   expect(cancelled).not.toContain('<p class="ob-provider-help">Cloning was cancelled');
 });
 
@@ -584,4 +584,36 @@ test("first run's cloning says why Back and the steps wait", () => {
   const cloning = screen({ phase: { kind: "cloning", ...clone, operationId: "o", cancelling: false } }, { busy: true });
   expect(cloning).toMatch(/data-ui-size="sm">Cancel<\/button><\/div><p class="ob-fine">Stay on this page until the clone finishes, or cancel it\.<\/p><div class="ob-footer">/);
   expect(screen({ phase: { kind: "clone", ...clone, inspectionId: "i" } })).not.toContain("Stay on this page");
+});
+
+// Read-only text is selectable (the `selectable` class); buttons and titles are not.
+const noSelectableButton = (html: string) => expect(html).not.toMatch(/<button[^>]*selectable/);
+
+test("selectable: a provider row's detail line, a notice's text, and no button", () => {
+  const html = renderToStaticMarkup(<ProviderRow view={{ ...base, detail: "ada@example.com", button: { command: "signIn", label: "Sign in", variant: "prominent", disabled: false, ariaLabel: "Sign in to Claude Code" } }} run={noop} />);
+  expect(html).toContain('<span class="selectable">ada@example.com</span>');
+  noSelectableButton(html);
+  const notice: Notice = { role: "alert", spinner: false, title: "Sign-in failed", body: "Sign-in didn’t finish. Try again.", actions: [{ command: "signIn", label: "Sign in", variant: "prominent", disabled: false }] };
+  const view = renderToStaticMarkup(<NoticeView notice={notice} run={noop} />);
+  expect(view).toContain('<span class="selectable"><strong class="ob-notice-title">Sign-in failed</strong>');
+  noSelectableButton(view);
+});
+
+test("selectable: a project notice's text and detail path, a clone's progress text, and no button", () => {
+  const url = "https://github.com/acme/studio";
+  const failed = screen({ url, phase: { kind: "clone", url, inspectionId: null, destination: "/Users/ada/code/studio" }, error: { code: "clone_failed" } });
+  expect(failed).toMatch(/<span class="selectable">(<strong class="ob-notice-title">[^<]*<\/strong><span class="ob-notice-body">)?Couldn’t clone this repository/);
+  expect(failed).toContain('<p class="ob-path ob-notice-detail selectable">');
+  noSelectableButton(failed);
+  const cloning = screen({ phase: { kind: "cloning", url, destination: "/Users/ada/code/studio", operationId: "o", cancelling: false } }, { busy: true });
+  expect(cloning).toContain('<span class="selectable"><strong class="ob-notice-title">Cloning studio</strong>');
+  noSelectableButton(cloning);
+});
+
+test("selectable: the chosen project's path and the clone destination's path", () => {
+  const chosen = screen({ url: "https://github.com/acme/doan-design", phase: { kind: "candidates", inspectionId: "i", url: "https://github.com/acme/doan-design", candidates: [{ path: "/Users/ada/code/doan-design", changes: [] }], choice: "/Users/ada/code/doan-design" } });
+  expect(chosen).toContain('<strong>doan-design</strong><p class="ob-path selectable">~/code/doan-design</p>');
+  const plan = screen({ url: "https://github.com/acme/studio", phase: { kind: "clone", url: "https://github.com/acme/studio", destination: "/Users/ada/code/studio", inspectionId: "i" } });
+  expect(plan).toContain('<strong>studio</strong><p class="ob-path selectable">~/code/studio</p>');
+  noSelectableButton(plan);
 });

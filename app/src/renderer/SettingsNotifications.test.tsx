@@ -135,3 +135,15 @@ test("Settings notices sit on the white page, so they keep the inset notice inst
   render({ preferences: snapshot({}, "newer") });
   expect(notices()).toEqual(["doan-notice settings-notice", "doan-notice"]);
 });
+
+// Read-only text is selectable (the `selectable` class); buttons are not.
+test("selectable: the save-failed message, but not its Retry button", async () => {
+  props.save = vi.fn(async () => ({ ok: false as const, reason: "write_failed" as const, snapshot: snapshot() }));
+  render();
+  toggle("Desktop notifications");
+  await flush(); render();
+  const line = all(tree).find(element => element.type === "p" && String(element.props.className).startsWith("settings-msg error"))!;
+  expect(words(line.props.children)).toContain("Couldn’t save your notification choices.");
+  expect(String(line.props.className).split(" ")).toContain("selectable");
+  expect(String(button("Retry").props.className).split(" ")).not.toContain("selectable");
+});

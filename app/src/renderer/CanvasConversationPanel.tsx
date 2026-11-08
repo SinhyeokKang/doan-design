@@ -459,7 +459,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
         onLocate={props.onLocate} locateDisabled={props.locateDisabled} frames={props.frames}
         {...(props.onReplyChip ? { onReplyChip: props.onReplyChip } : {})} openCanvasId={target.canvas.id ?? null} canvasRows={props.entry.kind === "list" ? props.entry.canvases : NO_ROWS} />
         : view.kind === "wait" || conversationId ? <Waiting /> : <>
-          {newView?.listError && <div className="doan-notice error thread-notice" role="alert"><AlertIcon /><span className="strip-text"><b>Couldn’t read conversations</b><span>Try again. You can still start a new conversation.</span></span>
+          {newView?.listError && <div className="doan-notice error thread-notice" role="alert"><AlertIcon /><span className="strip-text selectable"><b>Couldn’t read conversations</b><span>Try again. You can still start a new conversation.</span></span>
             <span className="strip-actions"><button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => run.retryList()}>Retry</button></span></div>}
           {resume && <ResumeChoice offer={offer!} reply={resume.resume} now={props.now} mode={held ? "new" : resume.start.mode} held={held} onChoose={choice => { run.choose(choice); focusField(); }} />}
           {prompts.length > 0 && !started && !resume && <div className="ov-suggestions" role="group" aria-label="Suggested prompts">{prompts.map(prompt =>
@@ -467,7 +467,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
               onClick={() => { store.setDrafts(drafts => new Map(drafts).set(key, { ...(drafts.get(key) ?? EMPTY_DRAFT), preset: prompt.preset, segments: textSegments(prompt.text) })); focusField(); }}>
               <span className="suggestion-icon"><GroupIcon name={groupIcon(prompt.preset.group)} /></span><SuggestionLabel parts={prompt.parts} /><ArrowUpRight className="suggestion-go" aria-hidden="true" /></button>)}</div>}
         </>}
-      {notice && <div className="doan-notice thread-notice canvas-notice" role="status"><Info className="doan-alert-icon" aria-hidden="true" /><span className="strip-text"><span>{notice.text}</span></span>
+      {notice && <div className="doan-notice thread-notice canvas-notice" role="status"><Info className="doan-alert-icon" aria-hidden="true" /><span className="strip-text selectable"><span>{notice.text}</span></span>
         <span className="strip-actions"><button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel"
           aria-label={notice.kind === "drawing" ? "Open the project conversation" : "Open the current conversation"}
           onClick={() => notice.kind === "drawing" ? props.onOpenProjectConversation(notice.open) : openConversation(notice.open)}>Open</button></span></div>}

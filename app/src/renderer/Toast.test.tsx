@@ -92,8 +92,16 @@ test("an App modal pauses the hook clock and resumes only the remaining time", (
 test("the action sits to the right of the message as a prominent small button", () => {
   setup();
   const [message, action] = useToast().element!.props.children;
-  expect(message.props.className).toBe("msg");
+  expect(message.props.className).toBe("msg selectable");
   expect(action.props).toMatchObject({ "data-ui-variant": "prominent", "data-ui-size": "sm", children: "Undo" });
+});
+
+// The message is the only text a user may need to copy (an error reason); the action is a button and stays unselectable.
+test("the toast message is selectable and its action button is not", () => {
+  setup();
+  const [message, action] = useToast().element!.props.children;
+  expect(message.props.className.split(" ")).toContain("selectable");
+  expect(String(action.props.className).split(" ")).not.toContain("selectable");
 });
 
 // Renders again and runs that render's effects as React would: the mock ignores deps, so the mount effect (the first,
