@@ -192,7 +192,7 @@ TOML·YAML은 필요한 모양만 읽는 작은 파서로 한다(새 의존성 �
 
 ### 4.4 그 밖의 화면
 
-- Quick Open(`quickOpen.ts` `listedIn`)은 서비스 캔버스의 위치를 `.doan/services/<id>/canvases/`처럼 지금(`.doan/ds/`, `.doan/canvases/`)과 같은 모양으로 보인다.
+- Quick Open(`quickOpen.ts`: 누락·삭제 안내는 `listedIn`, 검색 결과의 위치 줄은 `resultParts`)은 서비스 캔버스의 위치를 `.doan/services/<id>/canvases/`처럼 지금(`.doan/ds/`, `.doan/canvases/`)과 같은 모양으로 보인다.
 - composer 제안(`homeComposer.ts`): 화면 초안은 공유와 서비스의 `canvases/` 전부, `document` 조건의 "`.doan/ds/`가 비어 있음"은 공유와 서비스의 `ds/` 전부가 비어 있음으로 읽는다.
 - Overview는 바꾸지 않는다.
 
@@ -256,7 +256,7 @@ TOML·YAML은 필요한 모양만 읽는 작은 파서로 한다(새 의존성 �
 사람이 정했다: `local-doan-files`와 `canvas-handoff`가 먼저 병합하고, 이 feature는 그 뒤에 병합한 모양에 맞춘다. 두 feature는 develop에 병합됐다. `/tdd`를 시작할 때 병합된 모양을 다시 읽어 이 문서의 해당 절을 고친다(그 사이 `doan config` 결과에 `storageReason`과 `--storage`의 `written`·`guidance`가 더해졌고, `--storage`는 다른 쓰기 플래그와 함께 쓸 수 없으며, Project Settings 순서는 Token CSS, Shared with canvases, Doan files, Remove다).
 
 - **`local-doan-files`**: 같은 셋업 패널(`Onboarding.tsx`)과 Project Settings 구역(`ProjectSettingsPage.tsx`, `projectSettingsRules.ts`)을 고치고, `doan config` 결과에 `storage`를 더한다(ARCHITECTURE §12 'Storage'·`doan config` 결과, §7 'Settings IPC' 'Storage writes', PRODUCT §5 item 0 'Doan files'). 이 feature는 `config` 결과에서 `services`를 `storage` 옆에 두고(§2.9), 셋업 패널의 모드 선택과 서비스 목록, Project Settings의 모드 구역과 Services 구역을 함께 배치한다.
-- **`canvas-handoff`**: `doan handoff`가 `workTarget`을 지나고, 새 app-socket v5의 `path` pattern은 `^\.doan/canvases/[^/]+\.html$`이다(ARCHITECTURE §4 'Handoff over app-socket v5'). 이 feature는 v3·v4와 함께 v5 `path` pattern과 `schema/fixtures/app-socket-v5/`도 공유·서비스 `canvases/`와 그 하위 폴더까지 넓힌다(§2.7, 결정 14·16). v5가 `.doan/ds/`를 받지 않는 것은 그 feature의 결정이므로 서비스 `ds/`도 받지 않는다.
+- **`canvas-handoff`**: `doan handoff`가 `workTarget`을 지난 뒤 `cli/internal/cli/handoff_rules.go`의 `handoffCanvasPath`로 다시 검사하고(앱의 `conversation/prompt.ts` `HANDOFF_GUIDANCE`도 `.doan/canvases/`만 안내한다), 새 app-socket v5의 `path` pattern은 `^\.doan/canvases/[^/]+\.html$`이다(ARCHITECTURE §4 'Handoff over app-socket v5'). 이 feature는 v3·v4와 함께 v5 `path` pattern과 `schema/fixtures/app-socket-v5/`, `handoffCanvasPath`, `HANDOFF_GUIDANCE`도 공유·서비스 `canvases/`와 그 하위 폴더까지 넓힌다(§2.7, 결정 14·16). v5가 `.doan/ds/`를 받지 않는 것은 그 feature의 결정이므로 서비스 `ds/`도 받지 않는다.
 
 ## 9. PoC 의존
 
