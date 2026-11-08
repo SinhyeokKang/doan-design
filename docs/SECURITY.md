@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-Only the latest release receives security fixes. Before the first release (0.1.0), report against the `develop` branch.
+Only the latest release receives security fixes. Before the first stable release (0.1.0), report against the `develop` branch.
 
 ## Reporting a vulnerability
 
@@ -21,4 +21,5 @@ Doan is a macOS app and a command-line tool that run coding agents on your machi
 - the agent credentials Doan stores and passes to agent processes (sign-in, profiles, keychain items);
 - the local server and app socket the app and the `doan` command use;
 - the sandboxed canvas page and anything that lets a canvas reach files or processes outside it;
-- the links and files Doan installs for agents outside the app (`~/.local/bin/doan`, skill links, the Codex rule).
+- the links, files and settings Doan installs for agents outside the app (`~/.local/bin/doan`, `/usr/local/bin/doan` when created, skill links, the Codex rule, the `doan` rules in Claude Code's `~/.claude/settings.json`);
+- in-app updates: the update feed and downloads from GitHub Releases.
