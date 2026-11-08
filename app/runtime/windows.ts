@@ -74,7 +74,9 @@ export async function hideMain(app: ElectronApplication, page: Page, kind: "clos
   } else if (!await app.evaluate(({ app }) => app.isHidden())) throw new Error("Application Hide did not hide app");
 }
 
+// Main's `activate` shows the window only while Doan is active, and a probe cannot activate Doan while another app
+// is in front (app.focus({ steal: true }) does not), so this goes through a second launch, which shows it either way.
 export async function showMain(app: ElectronApplication, page: Page): Promise<void> {
-  await app.evaluate(({ app }, window) => { app.show(); app.emit("activate"); window.focus(); }, await appWindow(app, page));
+  await app.evaluate(({ app }, window) => { app.show(); app.emit("second-instance"); window.focus(); }, await appWindow(app, page));
   await page.waitForFunction(() => Reflect.get(window, "nativeVisible") === true);
 }
