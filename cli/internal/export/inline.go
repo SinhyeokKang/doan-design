@@ -88,6 +88,9 @@ func inline(resolver *repo.Resolver, root string, config repo.Config, canvasPath
 		return Result{}, nil, err
 	}
 	in := &inliner{resolver: resolver, root: root, scope: scope, limit: limit, files: map[string][]byte{}, sizes: map[string]int64{}, sheets: map[string][]sheet{}, external: map[string]bool{}, links: map[string]bool{}, refusedSeen: map[Refusal]bool{}, ids: documentIDs(src), spriteIDs: map[string]map[string]bool{}, spriteStyled: map[string]bool{}}
+	if href, ok := firstBaseHref(src); ok && baseMoves(href) {
+		in.based = canvasPath
+	}
 	in.collectUses(canvasPath, src)
 	if in.err != nil {
 		return Result{}, nil, in.err
@@ -157,6 +160,7 @@ type inliner struct {
 	err          error
 	built        int64 // bytes of data URIs built, so tests can see the stop is early
 	uses         uses
+	based        string // the canvas, when its <base href> moves the folder; "" otherwise
 }
 
 // sheet is one inlined stylesheet. Its text depends on the @import chain
@@ -213,9 +217,17 @@ func (in *inliner) replace(from string, direct bool, ancestors []string, reached
 			if dirs := in.uses.consumers(custom); len(dirs) > 0 {
 				return in.replaceCustom(from, direct, h, href, dirs)
 			}
+			if from == in.based {
+				// Nothing uses it and the base would move it: it stays as written.
+				return "", false
+			}
 			// Nothing uses it, so the app loads nothing: resolve it where it
 			// is declared, as before, but a missing file blocks nothing.
 			direct = false
+		}
+		if from == in.based {
+			in.refuse(from, h, ReasonBase)
+			return "", false
 		}
 		r, err := resolveAsset(in.resolver, in.root, in.scope, path.Dir(from), href)
 		if err != nil {

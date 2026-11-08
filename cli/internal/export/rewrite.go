@@ -260,6 +260,19 @@ func rewriteMarkup(src []byte, url func(kind refKind, href string) (string, bool
 			}
 			// The parser ignores the self-closing flag: <style/> starts raw text too.
 			style = tok.Data == "style" && !foreign
+			if tok.Data == "base" && !foreign {
+				if kept, ok := dropBaseHref(tok); ok {
+					if len(kept.Attr) == 0 {
+						continue
+					}
+					if tag, ok := rewriteTag(kept, url, css); ok {
+						out.WriteString(tag)
+					} else {
+						out.WriteString(writeTag(kept, kept.Attr))
+					}
+					continue
+				}
+			}
 			if tag, ok := rewriteTag(tok, url, css); ok {
 				out.WriteString(tag)
 			} else {
@@ -312,6 +325,11 @@ func rewriteTag(tok html.Token, url func(refKind, string) (string, bool), css fu
 	if !changed {
 		return "", false
 	}
+	return writeTag(tok, attrs), true
+}
+
+// writeTag writes tok's start tag with attrs in place of its own.
+func writeTag(tok html.Token, attrs []html.Attribute) string {
 	var b strings.Builder
 	b.WriteByte('<')
 	b.WriteString(tok.Data)
@@ -326,7 +344,7 @@ func rewriteTag(tok html.Token, url func(refKind, string) (string, bool), css fu
 		b.WriteByte('/')
 	}
 	b.WriteByte('>')
-	return b.String(), true
+	return b.String()
 }
 
 func newTokenizer(src []byte, foreign bool) *html.Tokenizer {

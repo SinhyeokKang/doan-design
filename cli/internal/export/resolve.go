@@ -31,6 +31,9 @@ const (
 	// it, and these name different existing files: which one shows depends
 	// on the element, so the export cannot pick one.
 	ReasonAmbiguous = "names different files from the stylesheets that use it"
+	// A <base href> moves the folder relative references resolve from, and
+	// export does not follow it.
+	ReasonBase = "relative to a base element"
 )
 
 type assetState int

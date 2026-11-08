@@ -69,6 +69,9 @@ func (u *uses) consumers(name string) []string {
 func (in *inliner) collectUses(canvasPath string, src []byte) {
 	in.uses = uses{dirs: map[string]map[string]bool{}, users: map[string]map[string]bool{}, urlSyntax: map[string]bool{}, seen: map[string]bool{}}
 	dir := path.Dir(canvasPath)
+	if in.based != "" {
+		dir = movedBase
+	}
 	rewriteHTMLBody(src, func(kind refKind, href string) (string, bool) {
 		if kind == kindStylesheet {
 			in.collectSheet(dir, href)
@@ -92,7 +95,8 @@ func (in *inliner) collectText(dir, text string, mode canvas.Mode) {
 // collectSheet follows a stylesheet reference as inlineFile would, reading
 // only what the app would serve as CSS.
 func (in *inliner) collectSheet(base, href string) {
-	if in.stopped() || classifyRef(kindStylesheet, href) != classInline {
+	// Under a moving base the canvas's stylesheets are refused, not read.
+	if in.stopped() || base == movedBase || classifyRef(kindStylesheet, href) != classInline {
 		return
 	}
 	r, err := resolveAsset(in.resolver, in.root, in.scope, base, href)
@@ -121,6 +125,10 @@ func (in *inliner) replaceCustom(from string, direct bool, h, href string, dirs 
 	found := map[string]bool{}
 	refusal := ""
 	for _, d := range dirs {
+		if d == movedBase {
+			in.refuse(from, h, ReasonBase)
+			return "", false
+		}
 		r, err := resolveAsset(in.resolver, in.root, in.scope, d, href)
 		if err != nil {
 			in.err = err
