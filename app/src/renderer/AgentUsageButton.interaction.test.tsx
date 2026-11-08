@@ -322,6 +322,23 @@ test("the header is no-drag inline while the popover is open, and drags again on
   expect(region()).toBe("");
 });
 
+// The last provider signing out under the open popover takes the button away while open; Restart to Update's popover
+// still holds the header, so it stays no-drag until that one lets go.
+test("Agent usage going away while open keeps the header no-drag while the update popover holds it", () => {
+  render(); deliver([ok("claude")]);
+  let view = render()!;
+  const { header } = mountButton(view);
+  const region = () => header.style.getPropertyValue("-webkit-app-region");
+  const update = holdHeaderNoDrag(header as unknown as HTMLElement, {});
+  view.onOpenChange(true); view = render()!;
+  expect(region()).toBe("no-drag");
+  deliver([]);
+  expect(render()).toBeNull();
+  expect(region()).toBe("no-drag");
+  update();
+  expect(region()).toBe("");
+});
+
 // Restart to Update's popover open under the same header keeps it no-drag after this one closes; unmounting while
 // open lets it drag again.
 test("closing this popover while the update popover is open keeps the header no-drag", () => {
