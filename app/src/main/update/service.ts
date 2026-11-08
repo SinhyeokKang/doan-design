@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { autoUpdater as nativeUpdater } from "electron";
 import { MacUpdater } from "electron-updater";
+import type { UpdateInfoAndProvider } from "electron-updater/out/AppUpdater";
 import { updateErrorCode, updateErrorSource } from "./errorCode";
 import { shouldCheck } from "./schedule";
 import { updateState } from "./state";
@@ -66,10 +67,43 @@ export function hasFeedConfig(resources: string | undefined): boolean {
   return typeof resources === "string" && existsSync(join(resources, "app-update.yml"));
 }
 
+const core = (version: string) => (version.split(/[-+]/)[0] ?? "").split(".").map(Number);
+
+// Whether the stable release is at least as new as the prerelease: equal cores mean the stable release is the one that
+// prerelease led to.
+function stableIsNewer(stable: string, prerelease: string): boolean {
+  const [a, b] = [core(stable), core(prerelease)];
+  for (let i = 0; i < 3; i++) if ((a[i] ?? 0) !== (b[i] ?? 0)) return (a[i] ?? 0) > (b[i] ?? 0);
+  return true;
+}
+
+// electron-updater's GitHub provider shows a prerelease copy only releases of its own channel ("rc" takes rc tags; only
+// "alpha" and "beta" may move to a stable release), so a release candidate never sees the stable release it led to.
+// A prerelease copy therefore also reads the feed as a stable copy does, and takes the newer of the two releases.
+class StableAwareMacUpdater extends MacUpdater {
+  protected override async getUpdateInfoAndProvider() {
+    if (!this.allowPrerelease) return super.getUpdateInfoAndProvider();
+    // The provider reads allowPrerelease after its first request, so the two reads run one after the other.
+    let prerelease: UpdateInfoAndProvider | undefined;
+    let prereleaseError: unknown;
+    try { prerelease = await super.getUpdateInfoAndProvider(); } catch (error) { prereleaseError = error; }
+    this.allowPrerelease = false;
+    let stable: UpdateInfoAndProvider | undefined;
+    // A feed with no stable release yet, or with no release of this copy's channel, still has the other one.
+    try { stable = await super.getUpdateInfoAndProvider(); } catch (error) { this.logger?.warn(`the stable release could not be read: ${String(error)}`); } finally { this.allowPrerelease = true; }
+    if (prerelease === undefined) {
+      if (stable === undefined) throw prereleaseError;
+      this.logger?.warn(`the prerelease could not be read: ${String(prereleaseError)}`);
+      return stable;
+    }
+    return stable !== undefined && stableIsNewer(stable.info.version, prerelease.info.version) ? stable : prerelease;
+  }
+}
+
 // MacUpdater directly rather than electron-updater's autoUpdater getter, so nothing is made until the service asks.
 export function electronUpdater(): Pick<UpdateServiceDeps, "createUpdater" | "onStaged"> {
   return {
-    createUpdater: () => new MacUpdater(),
+    createUpdater: () => new StableAwareMacUpdater(),
     onStaged: listener => { nativeUpdater.on("update-downloaded", listener); },
   };
 }
@@ -112,8 +146,8 @@ export class UpdateService {
     this.updater = updater;
     updater.autoDownload = true;
     updater.autoInstallOnAppQuit = true;
-    // A prerelease copy follows prereleases, so a release candidate updates to the next one; a stable copy never takes
-    // a prerelease.
+    // A prerelease copy follows prereleases, so a release candidate updates to the next one or to a newer stable release
+    // (StableAwareMacUpdater); a stable copy never takes a prerelease.
     updater.allowPrerelease = prerelease(this.deps.version);
     const log = (level: string) => (message?: unknown) => { this.deps.log(`doan: update: ${level}: ${String(message)}`); };
     updater.logger = { info: log("info"), warn: log("warn"), error: log("error") };
