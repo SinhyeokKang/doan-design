@@ -70,3 +70,17 @@ func TestListEnumerationFailuresStayWhole(t *testing.T) {
 	unreadable(t, root, ".doan/canvases/sub")
 	failure(t, root, "internal_error", "ls")
 }
+
+// An id doan check rejects is not listed: agents would build chips and --frame targets from it.
+func TestListOmitsInvalidCanvasIDs(t *testing.T) {
+	for _, tt := range []struct{ name, html string }{
+		{"uppercase", strings.Replace(validCanvas, `content="foo"`, `content="FOO"`, 1)},
+		{"duplicate metas", strings.Replace(validCanvas, "</head>", `<meta name="doan:canvas" content="foo"></head>`, 1)},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			root := initialized(t)
+			putFile(t, root, ".doan/canvases/a.html", tt.html)
+			expectJSON(t, "canvases", result(t, root, 0, "ls")["canvases"], `[{"path":".doan/canvases/a.html","width":800,"title":"Example","frames":[{"id":"main","title":"Main"}]}]`)
+		})
+	}
+}
