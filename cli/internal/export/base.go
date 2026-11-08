@@ -13,6 +13,26 @@ import (
 // a NUL byte.
 const movedBase = "\x00base"
 
+// templateTag follows <template> nesting the way the HTML parser does and
+// reports whether the tag named name is a template tag. A start tag opens a
+// template at any depth, self-closing included (the parser ignores the flag
+// on <template>), and an end tag closes one only while one is open. Every
+// walk that skips template content uses it, so they agree on what is inert.
+func templateTag(depth *int, tt html.TokenType, name string) bool {
+	if name != "template" {
+		return false
+	}
+	switch tt {
+	case html.StartTagToken, html.SelfClosingTagToken:
+		*depth++
+	case html.EndTagToken:
+		if *depth > 0 {
+			*depth--
+		}
+	}
+	return true
+}
+
 // firstBaseHref returns the href of the first <base> outside <template>
 // that has one, decoded as the parser decodes attribute values. A <base>
 // inside inline <svg> or <math> counts too, though the browser ignores it
@@ -31,16 +51,7 @@ func firstBaseHref(src []byte) (string, bool) {
 			continue
 		}
 		tok := z.Token()
-		if tok.Data == "template" {
-			// The parser ignores the self-closing flag on <template>, at any
-			// depth: <template/> opens one too.
-			if tt == html.EndTagToken {
-				if template > 0 {
-					template--
-				}
-			} else {
-				template++
-			}
+		if templateTag(&template, tt, tok.Data) {
 			continue
 		}
 		if template > 0 || tt == html.EndTagToken || tok.Data != "base" {

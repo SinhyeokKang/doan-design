@@ -261,12 +261,8 @@ func rewriteMarkup(src []byte, url func(kind refKind, href string) (string, bool
 			out.Write(raw)
 			return out.Bytes(), bodyEnd
 		case template > 0:
-			tok := z.Token()
-			if tok.Data == "template" && tt == html.StartTagToken {
-				template++
-			}
-			if tok.Data == "template" && tt == html.EndTagToken {
-				template--
+			if tt == html.StartTagToken || tt == html.SelfClosingTagToken || tt == html.EndTagToken {
+				templateTag(&template, tt, z.Token().Data)
 			}
 			out.Write(raw)
 		case tt == html.TextToken && inStyle:
@@ -276,8 +272,7 @@ func rewriteMarkup(src []byte, url func(kind refKind, href string) (string, bool
 			out.Write(raw)
 		case tt == html.StartTagToken || tt == html.SelfClosingTagToken:
 			tok := z.Token()
-			if tok.Data == "template" {
-				template++
+			if templateTag(&template, tt, tok.Data) {
 				out.Write(raw)
 				continue
 			}

@@ -386,12 +386,7 @@ func documentIDs(src []byte) map[string]bool {
 			continue
 		}
 		tok := z.Token()
-		if tok.Data == "template" {
-			if tt == html.StartTagToken {
-				template++
-			} else if tt == html.EndTagToken && template > 0 {
-				template--
-			}
+		if templateTag(&template, tt, tok.Data) {
 			continue
 		}
 		if template > 0 || tt == html.EndTagToken {
