@@ -51,7 +51,7 @@
 | 링크 | session·worktree | 시작 | PR·merge | 상태 |
 |---|---|---|---|---|
 | config-error-source | Claude Code · `~/orca/workspaces/doan-design/config-error-source-orch` (`feat/config-error-source`) | 2026-11-09 | PR #142 · `da406dae` | 병합 |
-| export-hardening | — | — | — | 대기 |
+| export-hardening | Claude Code · `~/orca/workspaces/doan-design/export-hardening-orch` (`feat/export-hardening`) | 2026-11-09 | — | 진행 중 |
 
 ## 인계 기록
 
