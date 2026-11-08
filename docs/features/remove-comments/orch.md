@@ -19,8 +19,8 @@ D1–D8은 feature 문서에서 사용자가 승인했다. 아래는 실행 중 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
 | B1 | T1–T3 | `cli/`, `schema/`, `app/src/formats/`(fold·validate·고아 타입), `app/src/brand/candidates.ts`, `app/src/main/conversation/prompt*.ts`, `eval/lib/socket.ts`, `eval/lib/workspace.test.ts`, `eval/scenarios/H6`·`H7`·`H8` | 없음 | Opus high — 스키마·CLI의 깨지는 변경과 에이전트가 읽는 가이드를 출력 예산 안에서 다시 쓴다 | `go test ./...`, `go vet ./...`, `npm --prefix app test`, `node --test 'eval/lib/*.test.ts'`, `verify.mjs`(--eval 없이) | 대기 |
-| B2 | T4–T7 | `app/src/`(B1 소유 제외), `.doan/canvases/canvas-row-menu.html`·`doan-shell.html`·`local-doan-files.html` | B1 통합 | Opus high — 공용 앵커·문서 바인딩 모듈 이동(D4), Trash IPC 변경, 격리 앱 runtime-test | typecheck·lint·`npm --prefix app test`, `doan check`, T7 runtime-test 증거 | 대기 |
-| B3 | T8 | `eval/`(B1 소유 제외) | B1 통합 | Sonnet high — 시나리오 은퇴와 시드 정리가 대부분 기계적이지만 단계가 많고 self-test를 통과해야 한다 | `node --test 'eval/**/*.test.ts'`, `node eval/run.ts --self-test` | 대기 |
+| B2 | T4–T7 | `app/src/`(B1 소유 제외), `.doan/canvases/canvas-row-menu.html`·`doan-shell.html`·`local-doan-files.html` | B1 통합 | Opus high — 공용 앵커·문서 바인딩 모듈 이동(D4), Trash IPC 변경, 격리 앱 runtime-test | typecheck·lint·`npm --prefix app test`, `doan check`, T7 runtime-test 증거 | 진행 중 |
+| B3 | T8 | `eval/`(B1 소유 제외) | B1 통합 | Sonnet high — 시나리오 은퇴와 시드 정리가 대부분 기계적이지만 단계가 많고 self-test를 통과해야 한다 | `node --test 'eval/**/*.test.ts'`, `node eval/run.ts --self-test` | 진행 중 |
 | B4 | T9–T12 | `docs/`, `README.md`, `AGENTS.md`, `.agents/skills/`, 루트 `.gitattributes`, `docs/features/remove-comments/` 삭제 | B2·B3 통합 | conductor | T9 `rg`, T10 agent-eval 라운드, T11 `verify.mjs --eval` | 대기 |
 
 리뷰: B1·B2 diff는 Opus medium, B3 diff는 Sonnet high 독립 리뷰 worker가 `/code-review`로 본다.
@@ -33,4 +33,6 @@ D1–D8은 feature 문서에서 사용자가 승인했다. 아래는 실행 중 
 
 ## 진행 기록
 
-(통합 해시, 리뷰 라운드, runtime-test 증거를 여기에 적는다.)
+- B1: worker `ctx_04722172bf54`(worktree `rc-b1`) 커밋 4개를 `44432c82..1fef906b`로 cherry-pick했다. 통합 HEAD 트리가 worker가 `verify.mjs`(--eval 없이)를 통과시킨 `e3bddb2a`와 같아서 그 증거를 쓴다. 가이드 20,492 B → 18,463 B. eval 시나리오 테스트 23건(H1·H2·H4·R1·R3·R6b·R7b)은 B3 대상이라 실패한 채로 넘어간다. 리뷰 worker `ctx_315d6341f96c`(Opus medium)를 B2·B3과 병렬로 띄웠다. 리뷰 수정은 B1 소유 파일에만 생기므로 B2·B3을 막지 않는다.
+- B2: worker `ctx_46a1c3ae4804`(Opus high, `rc-b2`). B3: worker `ctx_d0cd2f322c80`(Sonnet high, `rc-b3`).
+- B1 handoff가 남긴 다른 배치 항목: 앱 `ATTRIBUTE_LINES`(B2), R8d 규칙 글자와 "as H6 does" 주석(B3), `eval/lib/work.ts:9`·design-draft 스킬·ARCHITECTURE의 규칙 글자, `prompt.ts`의 "output budget" 주석과 ARCHITECTURE §7 같은 문장(B4). `app/src/formats/canvasPath.test.ts:30`은 남은 메타데이터 예시라 T9 `rg` 예외로 본다.
