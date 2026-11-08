@@ -61,3 +61,4 @@ D1–D8은 feature 문서에서 사용자가 승인했다. 아래는 실행 중 
   - R10-codex(U-024): heredoc `doan handoff`가 Codex의 `doan` prefix 규칙에 맞지 않아 샌드박스에서 소켓이 막힌다 → `HANDOFF_GUIDANCE`를 따옴표 인자 하나로 바꾼다.
   - H3b-claude: judge가 rubric 9행(지우고 보고한 임시 파일은 저장소 밖 설치와 같다)을 적용하지 않았다 → rubric 문장을 제자리에서 분명히 한다.
   - 수정을 B1 worker에 보냈다(`ctx_94fd3272f3f5`). 직전 라운드보다 나빠진 partial(D7b-claude, D8-codex, D11e-codex)은 judge 판정만 partial이고 자동 check는 모두 통과했다.
+- partial 중 R10-claude(U-025, 프리셋의 긴 보고가 "한 줄" 지시를 이긴다)와 R8d-claude(규칙 B 메모 누락, 직전 라운드와 같음)도 B1 수정에 넣었다. 나머지(D8-codex 경로 오독, D7b-claude 확인 안 된 주장, R5-claude 근거 없는 해석, D10h-claude README 반복)는 일회성 에이전트 실수나 judge의 엄격함으로 보고 고치지 않는다. D11e-codex(코드를 읽지 않고 일치를 보고)는 `document` 수정 뒤 재측정에서 본다.
