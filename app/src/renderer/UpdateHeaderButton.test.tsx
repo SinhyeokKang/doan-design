@@ -1,5 +1,5 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import type { ReactElement } from "react";
+import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { UpdateHeaderButtonView, type UpdateHeaderButtonViewProps } from "./UpdateHeaderButton";
 import { TooltipProvider } from "./components/ui/tooltip";
@@ -11,7 +11,7 @@ import { UPDATE_BLOCKED } from "../main/update/view";
 const BLOCKED = UPDATE_BLOCKED;
 function props(over: Partial<UpdateHeaderButtonViewProps> = {}): UpdateHeaderButtonViewProps {
   return {
-    header: { label: "Restart to Update", busy: false, tooltip: "Doan 0.1.1 is ready", popover: null }, disabled: false, open: false, shown: null,
+    header: { label: "Restart to Update", busy: false, tooltip: "Doan 0.1.1 is ready", popover: null, opened: null }, disabled: false, open: false, shown: null,
     descriptionId: "hd", titleId: "ht", buttonRef: vi.fn(), onPress: vi.fn(), onOpenChange: vi.fn(), onOpenAutoFocus: vi.fn(), onCloseAutoFocus: vi.fn(), ...over,
   };
 }
@@ -39,12 +39,12 @@ describe("UpdateHeaderButtonView", () => {
   });
 
   it("a state whose press may open the popover carries aria-haspopup and aria-expanded", () => {
-    expect(tag(html(<UpdateHeaderButtonView {...props({ header: { label: "Restart to Update", busy: false, tooltip: "Doan 0.1.1 is ready", popover: BLOCKED } })} />)))
+    expect(tag(html(<UpdateHeaderButtonView {...props({ header: { label: "Restart to Update", busy: false, tooltip: "Doan 0.1.1 is ready", popover: BLOCKED, opened: BLOCKED } })} />)))
       .toMatch(/aria-haspopup="dialog" aria-expanded="false"/);
   });
 
   it("restarting: disabled with the spinner and Restarting", () => {
-    const markup = html(<UpdateHeaderButtonView {...props({ header: { label: "Restarting", busy: true, tooltip: "Doan 0.1.1 is ready", popover: null } })} />);
+    const markup = html(<UpdateHeaderButtonView {...props({ header: { label: "Restarting", busy: true, tooltip: "Doan 0.1.1 is ready", popover: null, opened: null } })} />);
     expect(tag(markup)).toContain("disabled");
     expect(markup).toContain('<span class="doan-spinner" aria-hidden="true"></span>Restarting</button>');
   });
@@ -56,8 +56,29 @@ describe("UpdateHeaderButtonView", () => {
 
 describe("UpdateHeaderButtonView popup state", () => {
   it("a stopped restart whose press restarts does not claim a popup until one is shown", () => {
-    const stopped = { label: "Restart to Update", busy: false, tooltip: "Doan 0.1.1 is ready", popover: { title: "Couldn’t restart Doan.", text: "Try again, or quit and open it again." } };
+    const stopped = { label: "Restart to Update", busy: false, tooltip: "Doan 0.1.1 is ready", popover: { title: "Couldn’t restart Doan.", text: "Try again, or quit and open it again." }, opened: null };
     expect(tag(html(<UpdateHeaderButtonView {...props({ header: stopped })} />))).not.toContain("aria-haspopup");
     expect(tag(html(<UpdateHeaderButtonView {...props({ header: stopped, open: true, shown: stopped.popover })} />))).toMatch(/aria-haspopup="dialog" aria-expanded="true"/);
+  });
+});
+
+// The portal does not render to static markup, so this walks the element tree the view returns.
+function all(node: ReactNode): ReactElement<Record<string, unknown>>[] {
+  if (Array.isArray(node)) return node.flatMap(all);
+  if (!isValidElement<Record<string, unknown>>(node)) return [];
+  return [node, ...Object.values(node.props).flatMap(value => Array.isArray(value) || isValidElement(value) ? all(value as ReactNode) : [])];
+}
+
+describe("UpdateHeaderButtonView popover words", () => {
+  // Draft frames popover-unblocked and popover-stopped-blocked: the words are one polite live region, so a change
+  // while open is read once without moving focus.
+  it("the title and text sit in one polite live region inside the dialog", () => {
+    const tree = all(UpdateHeaderButtonView(props({ open: true, shown: BLOCKED })));
+    const region = tree.find(element => element.props.className === "update-pop-live")!;
+    expect(region.props["aria-live"]).toBe("polite");
+    const inside = all(region.props.children as ReactNode);
+    expect(inside.find(element => element.props.className === "update-pop-title")?.props).toMatchObject({ id: "ht", children: BLOCKED.title });
+    expect(inside.find(element => element.props.className === "update-pop-text")?.props.children).toBe(BLOCKED.text);
+    expect(tree.find(element => element.props.role === "dialog")?.props["aria-labelledby"]).toBe("ht");
   });
 });
