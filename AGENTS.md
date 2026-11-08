@@ -38,7 +38,7 @@ These apply to conversation replies and reports to the user, and to feature docu
 - **Make sentences read as if written in Korean from the start.** Undo unnecessary nominalization, double passives, and strings of abstract nouns, and use verbs to say who does what. Reduce `~에 대해` and `~를 통해` only when a more direct particle or verb conveys the same meaning.
 - **Write concrete content instead of empty words.** Remove unsupported praise or exaggeration, introductions and conclusions that add no content, and coinages or metaphors whose meaning is hard to grasp. Do not invent facts or examples to make content more concrete.
 - **Keep the relations between sentences.** Split long sentences along condition, action, and result, but keep needed connectives and commas. Do not mix registers to vary the rhythm.
-- **Fix terms.** Do not swap a term for a synonym just to avoid repetition (for canvas, frame, comment, inspector, and so on, use the words in docs/PRODUCT.md and docs/ARCHITECTURE.md).
+- **Fix terms.** Do not swap a term for a synonym just to avoid repetition (for canvas, frame, chip, inspector, and so on, use the words in docs/PRODUCT.md and docs/ARCHITECTURE.md).
 - **Finally, compare against the original.** Check that shortened or rewritten parts did not change information, conditions, or certainty. Leave sentences that already read naturally as they are.
 
 | 다듬기 전 | 다듬은 뒤 | 판단 |
