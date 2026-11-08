@@ -79,8 +79,8 @@ then add this repo through the Add Projects page (File > Add Project…, ⌘O) a
 
 - Only the canvas, plus any new file under `.doan/assets/` it needs and any token added under 'Tokens first' with its `docs/DESIGN.md` line: `docs(design): <slug> draft`. A revision is `docs(design): <slug> draft revision`.
 - Trailer: a Codex session ends the message with `Co-Authored-By: Codex <noreply@openai.com>` (AGENTS.md 'Commit conventions'); a Claude Code session uses its own attribution.
-- Commit on whichever branch is checked out; do not switch or create a branch for the draft.
-- No push. The draft reaches develop with that branch (`/ship` or `/orchestrate` pushes a feature branch).
+- Commit on whichever branch is checked out; do not switch or create a branch for the draft, but never commit on `main` (switch to develop first).
+- On develop, push straight to develop, so chain links and workers that start from `origin/develop` see the draft. On a `<type>/<slug>` branch do not push; the draft reaches develop with that branch (`/ship` or `/orchestrate` pushes it).
 
 ## Report
 
@@ -103,4 +103,4 @@ Next: user review in the app → --revise or confirmed
 - Do not edit the draft of a screen already on develop (e.g. `.doan/canvases/buzz-canvas.html`); that is a change request. A redesign child writes a new file instead.
 - Do not add canvas conventions or test-only attributes.
 - Do not draw a decision that is not in the feature documents, PRODUCT or ARCHITECTURE; ask instead.
-- Do not push or merge.
+- Do not merge, and do not push a `<type>/<slug>` branch ('Commit').

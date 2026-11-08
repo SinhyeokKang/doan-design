@@ -33,7 +33,7 @@ Reviewer agents for four perspectives each look separately at `spec.md`, `design
    - Get permission for obvious correctness errors (nonexistent paths, missing "Verify:" lines) in one batch.
    - Ask separately about items that need promoting something out of scope or changing a PRODUCT decision. If approved, leave the PRODUCT update as a task in `tasks.md`.
 5. **Apply** — apply only the agreed fixes to `docs/features/<slug>/` and summarize the changes per file. These documents stay in Korean, following AGENTS.md 'Korean writing rules'.
-6. **Commit** — only the edited documents. `docs(feature): <slug> apply review feedback`. Since only documents change, commit on the checked-out branch without switching (AGENTS.md 'Commit conventions'). Trailers follow `/ship`'s commit rules.
+6. **Commit** — only the edited documents. `docs(feature): <slug> apply review feedback`. Since only documents change, commit on the checked-out branch without switching, and on develop push straight to develop; never commit on main (AGENTS.md 'Commit conventions'). Trailers follow `/ship`'s commit rules.
 
 ## Report
 

@@ -27,7 +27,7 @@ Throughout, `R` is `gh repo view --json nameWithOwner --jq .nameWithOwner`, and 
    - The checkout is `develop`, the working tree is clean, and `HEAD` equals `origin/develop` after `git fetch origin`.
    - No chain is running: no `docs/features/chain-*/chain.md`. List open pull requests against `develop` in the report; they are not blockers.
    - `git rev-list --count --no-merges origin/develop..origin/main` is 0 (nothing reached `main` outside a release; each release's merge commit stays only on `main`, so merges are not counted).
-   - The `gate` check on `origin/develop`'s HEAD passed (`gh run list --workflow ci.yml --branch develop --limit 1 --json headSha,conclusion`, with that `headSha`).
+   - The `gate` check on `origin/develop`'s HEAD passed (`gh run list --workflow ci.yml --branch develop --event push --limit 1 --json headSha,conclusion`, with that `headSha`; `--event push` skips a release PR's own run, which can end cancelled).
    - `node app/scripts/checkReleaseVersion.mjs <version>` exits 0. On failure report its code (`bad_semver`, `published_exists`, `draft_exists`, `not_newer`).
    - If the state matches a row of 'Resume', continue from that row instead.
    - Report, without stopping, any `docs/features/<slug>/` whose tasks are all checked but which was not deleted.

@@ -3,7 +3,7 @@ name: orchestrate
 description: Use to split one batch plan document across several worker sessions running in parallel, with this session conducting decision gathering, review, integration, and push. A larger unit than /ship.
 ---
 
-Split a batch plan (usually `docs/features/<slug>/tasks.md`) **across several worker sessions**, and this session **only conducts**. Workers implement with `/ship bypass`. Like `/ship`, start from develop (`git switch develop && git pull`, then `git switch -c feat/<slug>`); the end is a push of that branch + PR against develop. Do not merge.
+Split a batch plan (usually `docs/features/<slug>/tasks.md`) **across several worker sessions**, and this session **only conducts**. Workers implement with `/ship bypass`. Like `/ship`, start from develop (`git switch develop && git pull`, then `git switch -c feat/<slug>`); the end is a push of that branch + PR against develop. Do not merge, unless a chain file grants it for the current link (§6, `/chain`).
 
 > The conductor does not edit batch code. The only things the conductor writes are `orch.md`, integration commits, and docs-freshness commits. Defects go back to the worker that owns the batch.
 
@@ -73,7 +73,7 @@ When the run includes `/design-draft`, the conductor owns and performs the draft
 
 ## 5. Push and cleanup
 
-- When all batches are integrated, push `feat/<slug>` as in `/ship` step 11 and `gh pr create --base develop`. Do not merge.
+- When all batches are integrated, push `feat/<slug>` as in `/ship` step 11 and `gh pr create --base develop`. Do not merge unless a chain file grants it (§6).
 - If the feature is finished, promote the conclusions to PRODUCT (product judgments) and ARCHITECTURE (structure, formats, conventions) as current rules (rationale in the commit message) and delete `docs/features/<slug>/`. Delete `orch.md` along with it.
 - Clean up each finished worker as soon as it has no follow-up work; do not wait until the entire run ends. **Releasing a worker terminal does not remove its Orca child worktree or sidebar card**. Finish both cleanup layers:
   1. Confirm accepted Dispatch settlement, then use `orca orchestration worker-release --dispatch <dispatch_id> --json`. Verify the release receipt; follow its recovery instructions if uncertain. Never substitute `terminal close` for supervised release or release a live worker.

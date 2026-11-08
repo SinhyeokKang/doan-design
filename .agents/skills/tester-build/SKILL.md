@@ -5,7 +5,7 @@ description: Build a Developer ID signed and notarized (app and dmg) tester dmg 
 
 # Tester build
 
-Tester builds are signed in GitHub Actions, not on this machine: arm64 only, from the latest `origin/develop`, signed with Developer ID under hardened runtime, with both the app and the dmg notarized and stapled, and without an update feed. The credentials live only in the repository's `release` environment; the one-time setup and renewal are in the release documentation (ARCHITECTURE §9). The workflow is `.github/workflows/test-build.yml`; it starts on a pushed `tester-*` tag, refuses commits that are not on `develop`, runs the CI gate, and then waits for the maintainer to approve the `release` environment before signing.
+Tester builds are signed in GitHub Actions, not on this machine: arm64 only, from the latest `origin/develop`, signed with Developer ID under hardened runtime, with both the app and the dmg notarized and stapled, and without an update feed. The credentials live only in the repository's `release` environment; the one-time setup and renewal are in the `/release` skill ('One-time setup (the human)'). The workflow is `.github/workflows/test-build.yml`; it starts on a pushed `tester-*` tag, refuses commits that are not on `develop`, runs the CI gate, and then waits for the maintainer to approve the `release` environment before signing.
 
 **The dmg always goes to the Desktop (`~/Desktop`).** Never leave it in the repo, `.scratch/`, `app/dist/` or any other folder, even when asked for "a build" without a location.
 
