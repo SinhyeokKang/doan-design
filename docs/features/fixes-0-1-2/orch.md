@@ -17,7 +17,7 @@
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort (이유) | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
-| B1 업데이트 화면 | T1, T2 | `SettingsAbout.tsx`, `UpdateHeaderButton.tsx`, `AgentUsageButton.tsx`, 새 공용 훅, `app/src/main/update/view.ts`와 각 테스트 | 없음 | Opus high (요청 번호 경합, 공유 no-drag 카운터, live region; 틀리면 창이 끌린다) | typecheck, lint, test, design-sync | 진행 중 (`ctx_38778b4ec995`) |
+| B1 업데이트 화면 | T1, T2 | `SettingsAbout.tsx`, `UpdateHeaderButton.tsx`, `AgentUsageButton.tsx`, 새 공용 훅, `app/src/main/update/view.ts`와 각 테스트, `styles.css`의 `.update-pop-live` 한 줄(conductor 승인) | 없음 | Opus high (요청 번호 경합, 공유 no-drag 카운터, live region; 틀리면 창이 끌린다) | typecheck, lint, test, design-sync | 리뷰 🔴0, 후속 테스트 1건 (`ctx_38778b4ec995` → `ctx_fe565445cb7c`) |
 | B2 문제 상태 | T3, T4 | `folderState.ts`, `app/src/main/index.ts`(reveal), `problemView.ts`, `ProblemOverlay.tsx`, `App.tsx`, `homeCards.ts`, `ProjectOverview.tsx`, `ShellSidebar.tsx`, `projectSettingsRules.ts`와 각 테스트 | 없음 | Opus high (main·renderer 여러 곳, 신뢰할 수 없는 텍스트, `.doan/` 경로 예외) | typecheck, lint, test, design-sync | 진행 중 (`ctx_9db7ec500246`) |
 | B3 Look Up | T5, T6, T7a | (b) `chipField.ts`, `styles.css`, `editMenu.ts`(`lookUpLabel`의 U+200B, conductor 승인); (a) `editMenu.ts`, `app/src/main/index.ts` | (a)면 B2 통합 | Opus medium (실제 앱 PoC 판단, 구현은 작다) | design 4 결과 줄, typecheck, lint, test | 진행 중 (`ctx_44894e5d7158`) |
 | B4 테스트 | T7 | `thumbnails.test.ts`, `quickOpen.test.ts` | 없음 | Sonnet medium (테스트 두 개, 측정 절차가 정해져 있다) | 부하 재현 기록, 같은 부하 3번 통과 | 진행 중 (`ctx_90a6e3e65daa`) |
@@ -34,3 +34,8 @@
 
 - B3 PoC(T5): (b)로 메뉴 이름이 맞는다. 사전 창 글은 macOS의 1회성 찾아보기 안내가 가려 확인하지 못했다. '계속'을 누르면 실제 macOS 사용자 설정이 바뀌므로 누르지 않았다(conductor 판단). 미검증으로 남기고 보고 때 사용자 확인 항목으로 올린다.
 - B5: handoff와 diff가 design 6 문안과 같다. `go test`, `go vet`, `designSkills` 통과(워커 보고).
+- B1 리뷰(`ctx_4c6182933dd6`, Opus high): 🔴 0, 🟡 2, ⚪ 3.
+  - 🟡1(멈춘 재시작에서 막힘이 풀리면 "Couldn’t restart Doan."으로 돌아감): 사용자가 확정한 초안 04 캡션("When that conversation ends, the popover goes back to the stopped line")과 같다. 그대로 둔다(conductor 판단 — 확정 초안이 spec보다 구체적이다).
+  - 🟡2(마지막 팝오버를 닫은 뒤 native drag 미확인): T9에서 conductor가 native drag로 확인한다.
+  - ⚪1(Agent usage가 열린 채 사라질 때 no-drag 단위 테스트): B1에 테스트 추가를 보냈다. ⚪2·⚪3은 두기로 했다.
+  - finding C(Agent usage의 마지막 provider가 로그아웃하면 업데이트 팝오버도 닫힘): B1 이전부터 있던 동작이다. T12에서 BACKLOG 'Known defects'에 한 줄 남긴다.
