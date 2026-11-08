@@ -199,6 +199,8 @@ test("while About is read (setup may still be running), the row shows Checking a
 
 // The Version row and the automatic-check row come from main's update push (UpdateSnapshot), not from the About read.
 const NOON = new Date(2026, 10, 8, 14, 41).getTime();
+// "today" is judged against the clock, so a test that reads it pins the clock to later that same day.
+const onNoonDay = () => { vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(NOON + 30 * 60_000); };
 const snap = (state: UpdateState, over: Partial<UpdateSnapshot> = {}): UpdateSnapshot =>
   ({ version: "0.1.0", state, eligibility: { kind: "enabled" }, gate: { kind: "allowed" }, autoCheck: true, lastCheckedAt: NOON, ...over });
 const READY: UpdateState = { kind: "ready", version: "0.1.1" };
@@ -230,6 +232,7 @@ test("the Version row shows the pushed update state and its actions; the About r
 });
 
 test("a failed About read keeps the Version and automatic-check rows; only the doan command and Agent tools go", async () => {
+  onNoonDay();
   render(); push(snap({ kind: "upToDate", manual: false })); render();
   reply(null); await flush(); render();
   expect(text()).toContain("Couldn’t read the versions.");
@@ -256,6 +259,7 @@ test("the row's actions ask main: Check for Updates, Retry, Release Notes and Re
 });
 
 test("checking shows the spinner label on the right without a live role; the description keeps the last result", () => {
+  onNoonDay();
   render(); push(snap({ kind: "checking", manual: true, last: { kind: "upToDate", manual: true } })); render();
   const loading = all(row("version").props.children as ReactNode).find(element => element.props.className === "settings-loading")!;
   expect(words(loading.props.children)).toBe("Checking for updates");

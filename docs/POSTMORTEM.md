@@ -14,6 +14,14 @@
 - **Net**: caught by an audit comparing messages with ARCHITECTURE. Missed because the export tests checked "no absolute path" only for `export_refused`, with relative or other-repo arguments, and the config tests' missing case was inside the root.
 - **Prevention**: before resolving links, compare the cleaned path with the root lexically; keep root-alias tolerance by resolving only the existing ancestor of a lexically outside path. Test a missing `../x` alongside every "missing" path case. For any message that interpolates a CLI argument, test it with an absolute argument. Grep: `grep -rnE 'Message: *"[^"]*" *\+ *(args|arg|path)|usageError\("[^"]*" *\+' cli --include='*.go'` and `grep -rn EvalSymlinks cli --include='*.go'` (check each call has a lexical check before it when the input can be missing).
 
+### 2026-11-09 — Two Settings > About tests failed from the day after their fixed timestamp, breaking the gate everywhere
+
+- **Area**: `app/src/renderer/SettingsAbout.test.tsx` (Version-row tests "a failed About read keeps…" and "checking shows the spinner label…"); fixed in fbecb6cd.
+- **Symptom**: from 2026-11-09 both tests got "Up to date, last checked Nov 8 at 2:41 PM" instead of "…today at 2:41 PM", so the CI `gate` job failed on develop and on every open PR, whatever they changed.
+- **Root cause**: the snapshot's `lastCheckedAt` was a fixed local time (2026-11-08 14:41), but `SettingsAbout` passes the real `Date.now()` to `updateView`, which writes "today" only when both fall on the same local day. The test passed on the day it was written and on no later day; nothing in the test showed that it depended on the run date.
+- **Net**: caught by CI the next day, on every branch at once. Missed by the review and gate of the change that added the tests, which ran on the same day. A full app suite run with `Date` shifted 400 days and 3 years ahead (a `setupFiles` module that subclasses `Date`) found no other test that depends on the real date; `UpdateHeaderButton` also passes `Date.now()` to `updateView`, but its tests assert no dated text.
+- **Prevention**: a test that asserts text derived from "now" (today, yesterday, "x ago", a countdown) either passes `now` explicitly or pins the clock with `vi.useFakeTimers({ toFake: ["Date"] })` + `vi.setSystemTime(...)`, leaving timers and promises real. When adding such a test, find the code under test reading the clock: `rg -n 'Date\.now\(\)|new Date\(\)' app/src --glob '!*.test.*'`. To check the whole suite, run it once with the clock shifted (a temporary `setupFiles` entry that subclasses `Date` with an offset); any new failure depends on the run date.
+
 ### 2026-11-08 — Closing one of two header popovers let the window drag under the other
 
 - **Area**: `app/src/renderer/headerNoDrag.ts` (new), `AgentUsageButton.tsx`, `UpdateHeaderButton.tsx`; tests `headerNoDrag.test.ts`, `AgentUsageButton.interaction.test.tsx`, `UpdateHeaderButton.interaction.test.tsx`.
