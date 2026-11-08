@@ -30,7 +30,7 @@ Statically review the changes. **Report only**; `/refactor` does the fixing.
 - **Corrupting the comment log**: deleting or rewriting lines (it must be append-only), sorting by line order (must be by `at`), not folding the same `id`, silently accepting an unknown `v`.
 - **Widening agent permissions**: the CLI edits or deletes comment bodies (only resolve is allowed).
 - **Changing ids**: changing canvas or frame ids on file moves or title changes, which cuts off comments.
-- **Handling secrets**: reading or storing GitHub tokens, exposing secrets in logs or error messages.
+- **Handling secrets**: reading or storing GitHub tokens outside Copilot's sign-in exception (ARCHITECTURE §7 'GitHub token exception'), exposing secrets in logs or error messages.
 - **Doan performing git operations**: any git command other than the first-run / Add Projects clone (PRODUCT §3 Out of scope 6) — commits, branches, push, pull, fetch — or Git configuration other than the two `.gitattributes` lines and, for a project kept out of Git, the one marked pattern pair in `.git/info/exclude` (PRODUCT §3 Out of scope 6).
 - **TS/Go format divergence**: one side changes a format with a hand-written definition instead of the schema source.
 
