@@ -1141,20 +1141,29 @@ describe("locate and reveal", () => {
     expect(mocks.electronShell.showItemInFolder).toHaveBeenCalledExactlyOnceWith(APP);
   });
 
-  // PRODUCT §5 item 3 'Problem states': a Config error's Show in Finder selects the file to fix, which Finder would
-  // otherwise hide inside `.doan/`. The renderer still passes the root only; main picks the target by the entry's kind.
-  test("reveal selects .doan/config.json for a Config error project, else the root", async () => {
+  // PRODUCT §5 item 3 'Problem states': a Config error's Show in Finder selects the file the CLI named as the one to
+  // fix, which Finder would otherwise hide inside `.doan/`, and which may be a parent folder's. The renderer still
+  // passes the root only; main picks the target from the entry it holds.
+  test("reveal selects the config the CLI named for a Config error project, else the root", async () => {
     const contents = window().webContents;
     const base = mkdtempSync(join(tmpdir(), "doan-reveal-"));
     try {
-      const withConfig = join(base, "with-config"), noFile = join(base, "no-file"), noDoan = join(base, "no-doan"), dirConfig = join(base, "dir-config"), healthy = join(base, "healthy");
-      for (const dir of [withConfig, noFile, dirConfig, healthy]) mkdirSync(join(dir, ".doan"), { recursive: true });
-      mkdirSync(noDoan);
+      const own = join(base, "own"), parent = join(base, "parent"), sub = join(parent, "web"), gone = join(base, "gone"), dirConfig = join(base, "dir-config"), healthy = join(base, "healthy");
+      for (const dir of [own, parent, gone, dirConfig, healthy]) mkdirSync(join(dir, ".doan"), { recursive: true });
+      mkdirSync(sub);
       mkdirSync(join(dirConfig, ".doan", "config.json"));
-      writeFileSync(join(withConfig, ".doan", "config.json"), "{");
+      writeFileSync(join(own, ".doan", "config.json"), "{");
+      writeFileSync(join(parent, ".doan", "config.json"), "{");
       writeFileSync(join(healthy, ".doan", "config.json"), "{}");
+      const named = (root: string, config: string) => ({ path: root, kind: "error", message: "bad", config });
       mocks.shell.entries.mockReturnValue([
-        { path: withConfig, kind: "error" }, { path: noFile, kind: "error" }, { path: noDoan, kind: "error" }, { path: dirConfig, kind: "error" },
+        named(own, join(own, ".doan", "config.json")),
+        // A subfolder whose upward re-read stopped at its parent's broken config.
+        named(sub, join(parent, ".doan", "config.json")),
+        // The named file is gone by the time Show in Finder is pressed.
+        named(gone, join(gone, ".doan", "config.json")),
+        // A directory where the config should be: still the thing the CLI named.
+        named(dirConfig, join(dirConfig, ".doan", "config.json")),
         { path: healthy, kind: "cliError" },
       ]);
       const revealed = async (root: string) => {
@@ -1162,13 +1171,13 @@ describe("locate and reveal", () => {
         await invoke("folders:reveal", contents, null, { path: root });
         return mocks.electronShell.showItemInFolder.mock.calls;
       };
-      expect(await revealed(withConfig)).toEqual([[join(withConfig, ".doan", "config.json")]]);
-      expect(await revealed(noFile)).toEqual([[noFile]]);
-      expect(await revealed(noDoan)).toEqual([[noDoan]]);
-      expect(await revealed(dirConfig)).toEqual([[dirConfig]]);
+      expect(await revealed(own)).toEqual([[join(own, ".doan", "config.json")]]);
+      expect(await revealed(sub)).toEqual([[join(parent, ".doan", "config.json")]]);
+      expect(await revealed(gone)).toEqual([[gone]]);
+      expect(await revealed(dirConfig)).toEqual([[join(dirConfig, ".doan", "config.json")]]);
       expect(await revealed(healthy)).toEqual([[healthy]]);
       // A path, not a root, is still refused: the renderer cannot name the file.
-      expect(await revealed(join(withConfig, ".doan", "config.json"))).toEqual([]);
+      expect(await revealed(join(own, ".doan", "config.json"))).toEqual([]);
     } finally {
       rmSync(base, { recursive: true, force: true });
     }

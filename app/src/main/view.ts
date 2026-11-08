@@ -130,6 +130,14 @@ export function folderEntry(path: string, view: FolderView, baseUrl: string, ser
   }
 }
 
+// What Show in Finder selects for a stored root (PRODUCT §5 item 3 'Problem states'): for a Config error, the config
+// file the CLI named (macOS hides it inside `.doan/`), which may be a parent folder's; when nothing is there any more,
+// or for any other state, the root. Any kind of entry at that path counts: the CLI named it as the thing to fix.
+// `exists` only checks the path; the app never reads it.
+export function revealTarget(entry: FolderEntry, exists: (path: string) => boolean): string {
+  return entry.kind === "error" && exists(entry.config) ? entry.config : entry.path;
+}
+
 export type OpenDecision = { store: string } | { refuse: string };
 
 // A picked subfolder of a repo is stored as the repo root the CLI found, so the

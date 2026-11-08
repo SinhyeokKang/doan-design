@@ -1,7 +1,7 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { parseServePath } from "./serve/path";
 import type { FolderState } from "./folderState";
-import { canvasRows, folderEntry, openDecision, servingUrl } from "./view";
+import { canvasRows, folderEntry, openDecision, revealTarget, servingUrl, type FolderEntry } from "./view";
 
 const base = "http://127.0.0.1:4000/t/tok/key/";
 
@@ -204,6 +204,21 @@ describe("folderEntry", () => {
     expect(folderEntry("/r", { kind: "cliError", reason: "spawn doan ENOENT" }, base, 3))
       .toEqual({ path: "/r", kind: "cliError", reason: "spawn doan ENOENT" });
     expect(folderEntry("/r", { kind: "notFound" }, base, 3)).toEqual({ path: "/r", kind: "notFound" });
+  });
+});
+
+describe("revealTarget", () => {
+  const config = "/code/acme/.doan/config.json";
+  const error: FolderEntry = { path: "/code/acme/web", kind: "error", message: "bad", config };
+  test("a Config error selects the config the CLI named while something is there, else the root", () => {
+    expect(revealTarget(error, path => path === config)).toBe(config);
+    expect(revealTarget(error, () => false)).toBe("/code/acme/web");
+  });
+  test("every other state selects the root without looking", () => {
+    const exists = vi.fn(() => true);
+    for (const entry of [{ path: "/r", kind: "cliError", reason: "x" }, { path: "/r", kind: "uninitialized" }, { path: "/r", kind: "notFound" }, { path: "/r", kind: "loading" },
+      { path: "/r", kind: "list", canvases: [], servedRev: 0 }] as FolderEntry[]) expect(revealTarget(entry, exists)).toBe("/r");
+    expect(exists).not.toHaveBeenCalled();
   });
 });
 
