@@ -13,7 +13,7 @@ test("Include in Git is the default and Will add lists .gitattributes", () => {
   const html = fields({});
   expect(html).toContain('<div class="ob-field storage-field"><span class="ob-label" id="setup-storage-label">Doan files</span><div class="storage-options" role="radiogroup" aria-labelledby="setup-storage-label">');
   expect(html).toContain('<label class="storage-option"><input type="radio" name="setup-storage" checked=""/><span class="ob-radio" aria-hidden="true"></span><strong>Include in Git</strong><small>Git tracks these files. Commit them so your team gets your canvases and settings.</small></label>');
-  expect(html).toContain("<span><code>.gitattributes</code> — two lines, if missing</span>");
+  expect(html).toContain("<span><code>.gitattributes</code> — one line, if missing</span>");
   expect(html.indexOf("Token CSS")).toBeLessThan(html.indexOf("Doan files"));
   expect(html.indexOf("Doan files")).toBeLessThan(html.indexOf("Will add"));
 });
