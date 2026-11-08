@@ -193,7 +193,14 @@ describe("folderEntry", () => {
   // Only a list is served, so only a list has a revision to reload on.
   test("passes the other states through without a served revision", () => {
     expect(folderEntry("/r", { kind: "uninitialized" }, base, 3)).toEqual({ path: "/r", kind: "uninitialized" });
-    expect(folderEntry("/r", { kind: "error", message: "bad config" }, base, 3)).toEqual({ path: "/r", kind: "error", message: "bad config" });
+    expect(folderEntry("/r", { kind: "error", message: "bad config", config: "/r/.doan/config.json" }, base, 3))
+      .toEqual({ path: "/r", kind: "error", message: "bad config", config: "/r/.doan/config.json" });
+    // A parent's config named through the upward re-read is carried as the CLI named it.
+    expect(folderEntry("/r/sub", { kind: "error", message: "bad config", config: "/r/.doan/config.json" }, base, 3))
+      .toEqual({ path: "/r/sub", kind: "error", message: "bad config", config: "/r/.doan/config.json" });
+    // The code tells main the CLI answered; the entry the renderer gets keeps its shape.
+    expect(folderEntry("/r", { kind: "cliError", reason: "permission denied", code: "internal_error" }, base, 3))
+      .toEqual({ path: "/r", kind: "cliError", reason: "permission denied" });
     expect(folderEntry("/r", { kind: "cliError", reason: "spawn doan ENOENT" }, base, 3))
       .toEqual({ path: "/r", kind: "cliError", reason: "spawn doan ENOENT" });
     expect(folderEntry("/r", { kind: "notFound" }, base, 3)).toEqual({ path: "/r", kind: "notFound" });
@@ -202,9 +209,11 @@ describe("folderEntry", () => {
 
 describe("openDecision", () => {
   const listed: FolderState = { kind: "list", root: "/broken", scope: [], canvases: [] };
-  const broken: FolderState = { kind: "error", message: "bad config" };
+  const broken: FolderState = { kind: "error", message: "bad config", config: "/broken/.doan/config.json" };
   const noRepo: FolderState = { kind: "uninitialized" };
   const noCli: FolderState = { kind: "cliError", reason: "spawn doan ENOENT" };
+  // A failure that is not about a config file: Go read the folder as a root but could not finish.
+  const unreadable: FolderState = { kind: "cliError", reason: "open /repo/.doan/canvases/sub: permission denied", code: "internal_error" };
 
   test("a listed repo is stored by its root, even when a subfolder was picked", () => {
     expect(openDecision({ kind: "list", root: "/repo", scope: [], canvases: [] }, "/repo/.doan/canvases/sub", null)).toEqual({ store: "/repo" });
@@ -220,6 +229,14 @@ describe("openDecision", () => {
     expect(openDecision(broken, "/broken", broken)).toEqual({ store: "/broken" });
     expect(openDecision(broken, "/broken", listed)).toEqual({ store: "/broken" });
     expect(openDecision(noCli, "/repo", broken)).toEqual({ store: "/repo" });
+    expect(openDecision(unreadable, "/repo", unreadable)).toEqual({ store: "/repo" });
+    expect(openDecision(noCli, "/repo", unreadable)).toEqual({ store: "/repo" });
+  });
+
+  // The refusal follows the first run's kind, so a failure that is not about a config file is a CLI error.
+  test("a non-config failure that is not a repo root is refused as a CLI error", () => {
+    expect(openDecision(unreadable, "/repo/doan", noRepo)).toEqual({ refuse: "doan CLI error: open /repo/.doan/canvases/sub: permission denied" });
+    expect(openDecision(unreadable, "/repo/doan", noCli)).toEqual({ refuse: "doan CLI error: open /repo/.doan/canvases/sub: permission denied" });
   });
 
   // Without a root the picked folder may be a subfolder; stored as is, it would

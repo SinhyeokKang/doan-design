@@ -36,7 +36,7 @@ test("notices come newest-changed first across roots, so a project row picks the
 });
 
 test("rows of a root that is not a list show nothing", () => {
-  expect(sidebarSlots(new Map(), [{ path: "/r", kind: "loading" }, { path: "/s", kind: "error", message: "x" }], null).size).toBe(0);
+  expect(sidebarSlots(new Map(), [{ path: "/r", kind: "loading" }, { path: "/s", kind: "error", message: "x", config: "/s/.doan/config.json" }], null).size).toBe(0);
 });
 
 test("the labels name the canvas", () => {

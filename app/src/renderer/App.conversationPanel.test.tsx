@@ -148,7 +148,7 @@ async function canvasPage(state: unknown = null) {
   find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render();
   harness.setState!({ ...initialCanvasState(), open: { folder: "/w/a", canvas: rowA.path, row: rowA }, shown: rowA.path, status: null, message: "", layout: { frames: [], width: 800 } });
   render();
-  folders([{ path: "/w/a", kind: "error", message: "bad" }]);
+  folders([{ path: "/w/a", kind: "error", message: "bad", config: "/w/a/.doan/config.json" }]);
   expect(find(ProjectOverview)).toHaveLength(0);
 }
 

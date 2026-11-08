@@ -311,7 +311,7 @@ test("a toast's Open on a project that can no longer be read answers at once", a
   await overview(listA([drafts]));
   handoff();
   const open = harness.toast.show.mock.lastCall![2] as () => void;
-  folders([{ path: "/w/a", kind: "error", message: "unreadable" }]);
+  folders([{ path: "/w/a", kind: "error", message: "unreadable", config: "/w/a/.doan/config.json" }]);
   clearController(); harness.toast.show.mockClear();
   open(); render();
   expect(harness.controller!.openCanvas).not.toHaveBeenCalled();

@@ -550,6 +550,28 @@ describe("project selection", () => {
     expect(operation(await t.ask({ op: "project_select", sessionId: id, requestId: "s2", inspectionId, path: "/Users/ada/studio" }))).toMatchObject({ state: "failed", error: { code: "remote_mismatch", message: expect.any(String) } });
     expect(state(await t.ask({ op: "status", sessionId: id })).project).toEqual({ root: "/Users/ada/studio" });
   });
+
+  // The CLI's message may name paths and OS text. The socket answer keeps the fixed message and has no detail: the v2
+  // schema refuses the field (`ask` validates every answer), so a leak would make the CLI refuse the answer. The
+  // window's answers and published states carry it as detail.
+  it("a project_unreadable failure gives the CLI's message to the window only", async () => {
+    const t = setup();
+    const { id, inspectionId } = await inspected(t);
+    const reason = "open /Users/ada/studio/.doan/canvases/sub: permission denied";
+    t.projects.select.mockResolvedValueOnce({ ok: false, code: "project_unreadable", detail: reason });
+    const failed = operation(await t.ask({ op: "project_select", sessionId: id, requestId: "s1", inspectionId, path: "/Users/ada/studio" }));
+    expect(failed).toMatchObject({ state: "failed", error: { code: "project_unreadable", message: "The project folder cannot be read." } });
+    expect(failed.error).not.toHaveProperty("detail");
+    for (const request of [{ op: "status", sessionId: id }, { op: "status", sessionId: id, operationId: failed.operationId }, { op: "start" }]) {
+      expect(JSON.stringify(await t.ask(request))).not.toContain(reason);
+    }
+    // A resend of the same request answers from the record, still without it.
+    expect(JSON.stringify(await t.ask({ op: "project_select", sessionId: id, requestId: "s1", inspectionId, path: "/Users/ada/studio" }))).not.toContain(reason);
+    const windowError = { code: "project_unreadable", message: "The project folder cannot be read.", detail: reason };
+    expect(state(await t.service.answerWindow(rendererRequest("status", { sessionId: id, operationId: failed.operationId })!)).operations[0]?.error).toEqual(windowError);
+    expect(operation(await t.service.answerWindow(rendererRequest("project_select", { sessionId: id, requestId: "s1", inspectionId, path: "/Users/ada/studio" })!)).error).toEqual(windowError);
+    expect(t.published.at(-1)!.operations.find(o => o.operationId === failed.operationId)?.error).toEqual(windowError);
+  });
 });
 
 // ARCHITECTURE §4 'Storage in onboarding': the inspection plans for the requested storage, a reply speaks of storage
@@ -913,6 +935,19 @@ describe("complete", () => {
     expect(t.projects.select).toHaveBeenCalledTimes(1);
     expect(t.projects.confirm).toHaveBeenCalledTimes(2);
     expect(t.projects.saveCompletion).toHaveBeenCalledWith("/Users/ada/studio");
+  });
+
+  it("a completion whose project can no longer be read keeps the CLI's message for the window", async () => {
+    const t = setup();
+    const id = await selected(t);
+    t.ready();
+    const reason = "open /Users/ada/studio/.doan/canvases/sub: permission denied";
+    t.projects.confirm.mockResolvedValueOnce({ ok: false, code: "project_unreadable", detail: reason });
+    const failed = operation(await t.ask({ op: "complete", sessionId: id, requestId: "d1" }));
+    expect(failed).toMatchObject({ state: "failed", error: { code: "project_unreadable", message: "The project folder cannot be read." } });
+    expect(JSON.stringify(failed)).not.toContain(reason);
+    expect(t.published.at(-1)!.operations.find(o => o.operationId === failed.operationId)?.error).toMatchObject({ detail: reason });
+    expect(t.projects.saveCompletion).not.toHaveBeenCalled();
   });
 
   it("does not repeat a save a newer app refused, and stops if the agent stopped being ready", async () => {

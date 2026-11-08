@@ -32,11 +32,19 @@ export interface ProjectDeps {
 export interface Candidate { path: string; changes: OnboardingChange[]; storage?: "local" }
 // leftovers: directories the clone made and could not remove (cleanup_failed only).
 // message: this failure's own account in place of the code's fixed message (a clone that stayed and was added).
-export type ProjectOutcome = { ok: true; root: string } | { ok: false; code: OnboardingOperationErrorCode; leftovers?: string[]; message?: string };
+// detail: the CLI's own message for project_unreadable; it may hold paths and OS text, so it reaches the window only,
+// never a socket reply (operations.ts).
+export type ProjectOutcome = { ok: true; root: string } | { ok: false; code: OnboardingOperationErrorCode; leftovers?: string[]; message?: string; detail?: string };
 
 // The line `doan init` adds to .gitattributes (cli/internal/cli/storage.go); it writes the file while it is missing.
 const ATTRIBUTE_LINES = [".doan/** linguist-documentation"];
 const failed = (code: OnboardingOperationErrorCode): ProjectOutcome => ({ ok: false, code });
+// A read of a chosen root that did not list it: its config named (Config error), the CLI failing for another reason
+// (`code`: it answered with an envelope), or no proper answer at all.
+function unread(state: Extract<FolderState, { kind: "error" | "cliError" }>): ProjectOutcome {
+  if (state.kind === "error") return failed("config_invalid");
+  return state.code === undefined ? failed("project_unavailable") : { ok: false, code: "project_unreadable", detail: state.reason };
+}
 // The clone is in place and added either way. Only the two storage codes say the write did not happen; anything else
 // (a timeout, an unexpected reply) may have written, so the mode is not stated.
 const CLONE_NOT_KEPT = "The repository was cloned and added, but Doan could not keep its files out of Git, so they stay in Git for now. Choose Keep out of Git in its Project Settings to try again.";
@@ -95,7 +103,8 @@ const listed = (state: Extract<FolderState, { kind: "list" }>): Candidate => ({ 
 async function candidate(path: string, deps: ProjectDeps, storage: OnboardingStorage): Promise<Candidate | null> {
   const state = await deps.ls({ repo: path });
   if (state.kind === "list") return listed(state);
-  if (state.kind === "cliError") return null;
+  // A CLI that gave no proper answer says nothing about the folder; one that failed with an envelope read it as a root.
+  if (state.kind === "cliError" && state.code === undefined) return null;
   return planned(path, state, storage, deps);
 }
 
@@ -164,8 +173,7 @@ async function register(path: string, initialize: boolean, deps: ProjectDeps, st
   const stored = await deps.add(path);
   if (stored === null) return failed("project_unavailable");
   const state = await deps.ls({ repo: stored });
-  if (state.kind === "error") return failed("config_invalid");
-  if (state.kind === "cliError") return failed("project_unavailable");
+  if (state.kind === "error" || state.kind === "cliError") return unread(state);
   if (state.kind === "list") {
     if (keepChosen && storage === "local" && state.storage !== "local") {
       const kept = await deps.keepLocal(state.root);
@@ -219,7 +227,7 @@ export async function cloneProject(url: string, destination: string, signal: Abo
 export async function confirmProject(root: string, deps: ProjectDeps): Promise<ProjectOutcome> {
   if (await canonicalFolder(root) !== root) return failed("project_unavailable");
   const state = await deps.ls({ repo: root });
-  if (state.kind === "error") return failed("config_invalid");
+  if (state.kind === "error" || state.kind === "cliError") return unread(state);
   if (state.kind !== "list" || state.root !== root || !deps.registered().includes(root)) return failed("project_unavailable");
   return { ok: true, root };
 }

@@ -608,7 +608,8 @@ describe("project setup and upward refresh", () => {
     const { shell, foldersFile } = await uninitialized(sub);
     writeRepo(root, "{");
     expect(await shell.initialize(sub, null)).toMatchObject({ kind: "unavailable" });
-    expect(shell.entries()).toEqual([{ path: sub, kind: "error", message: expect.stringContaining("Cannot read config") }]);
+    // The CLI names the parent's config, the file to fix; the row stays the subfolder.
+    expect(shell.entries()).toEqual([{ path: sub, kind: "error", message: expect.stringContaining("Cannot read config"), config: join(root, ".doan/config.json") }]);
     expect(saved(foldersFile)).toEqual([sub]);
     expect(existsSync(join(sub, ".doan"))).toBe(false);
   });
@@ -739,7 +740,8 @@ describe("canvas mtimes", () => {
 });
 
 // Answers every `--repo` read from a mode file: `git` lists the folder with a
-// git field, anything else fails with a config error.
+// git field, `unreadable` fails for a reason other than a config file (no `config`), anything else fails with a
+// config error naming the folder's config.
 function gitCli(): { path: string; mode: (value: string) => void } {
   const base = dir();
   const modeFile = join(base, "mode");
@@ -750,7 +752,11 @@ if [ "$(cat '${modeFile}')" = git ]; then
   printf '{"v":1,"ok":true,"result":{"root":"%s","scope":[".doan/canvases"],"canvases":[],"git":{"common":"/c/.git","branch":"main","worktrees":["%s"]}}}\\n' "$4" "$4"
   exit 0
 fi
-echo '{"v":1,"ok":false,"error":{"code":"invalid_config","message":"bad config","nextSteps":[]}}'
+if [ "$(cat '${modeFile}')" = unreadable ]; then
+  echo '{"v":1,"ok":false,"error":{"code":"internal_error","message":"canvases unreadable","nextSteps":[]}}'
+  exit 1
+fi
+printf '{"v":1,"ok":false,"error":{"code":"invalid_config","message":"bad config","nextSteps":[],"config":"%s/.doan/config.json"}}\\n' "$4"
 exit 2
 `);
   chmodSync(path, 0o755);
@@ -868,7 +874,19 @@ describe("storing, removing and restoring", () => {
     await vi.waitFor(() => expect(shell.entries()[0]).toMatchObject({ kind: "list", git: { common: "/c/.git", branch: "main" }, lastCommon: "/c/.git" }), until);
     git.mode("error");
     shell.rereadAll();
-    await vi.waitFor(() => expect(shell.entries()[0]).toEqual({ path: root, kind: "error", message: "bad config", lastCommon: "/c/.git" }), until);
+    await vi.waitFor(() => expect(shell.entries()[0]).toEqual({ path: root, kind: "error", message: "bad config", config: join(root, ".doan/config.json"), lastCommon: "/c/.git" }), until);
+  });
+
+  // A failure that names no config file is a CLI error, not a Config error.
+  test("a folder that fails for another reason is a CLI error and keeps its last git common dir", async () => {
+    const git = gitCli();
+    const root = dir();
+    const { shell } = await start(git.path);
+    await shell.store([root]);
+    await vi.waitFor(() => expect(shell.entries()[0]).toMatchObject({ kind: "list", lastCommon: "/c/.git" }), until);
+    git.mode("unreadable");
+    shell.rereadAll();
+    await vi.waitFor(() => expect(shell.entries()[0]).toEqual({ path: root, kind: "cliError", reason: "canvases unreadable", lastCommon: "/c/.git" }), until);
   });
 });
 
@@ -903,7 +921,11 @@ if [ "$mode" = uninit ] || [ "$mode" = up ]; then
   echo '{"v":1,"ok":false,"error":{"code":"repo_not_found","message":"not found","nextSteps":[]}}'
   exit 3
 fi
-echo '{"v":1,"ok":false,"error":{"code":"invalid_config","message":"bad config","nextSteps":[]}}'
+if [ "$mode" = unreadable ]; then
+  echo '{"v":1,"ok":false,"error":{"code":"internal_error","message":"canvases unreadable","nextSteps":[]}}'
+  exit 1
+fi
+printf '{"v":1,"ok":false,"error":{"code":"invalid_config","message":"bad config","nextSteps":[],"config":"%s/.doan/config.json"}}\\n' "$root"
 exit 2
 `);
     chmodSync(path, 0o755);
@@ -1011,9 +1033,18 @@ exit 2
 
   test("a worktree whose listing fails stays registered", async () => {
     const { shell, removed, w, git } = await adopted();
-    git.mode("error");
+    git.mode("error", w);
     shell.rereadAll();
-    await vi.waitFor(() => expect(shell.entries()[1]).toMatchObject({ path: w, kind: "error", autoRegistered: true }), until);
+    await vi.waitFor(() => expect(shell.entries()[1]).toMatchObject({ path: w, kind: "error", config: join(w, ".doan/config.json"), autoRegistered: true }), until);
+    expect(removed).not.toHaveBeenCalled();
+  });
+
+  test("a worktree whose listing fails for a reason other than its config stays registered as a CLI error", async () => {
+    const { shell, removed, main, w, git } = await adopted();
+    git.mode("unreadable", w);
+    shell.rereadAll();
+    await vi.waitFor(() => expect(shell.entries()[1]).toMatchObject({ path: w, kind: "cliError", reason: "canvases unreadable", autoRegistered: true }), until);
+    expect(shell.entries()[0]).toMatchObject({ path: main, kind: "list" });
     expect(removed).not.toHaveBeenCalled();
   });
 

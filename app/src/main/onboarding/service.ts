@@ -110,6 +110,12 @@ export class OnboardingService {
     return this.book.once(request, () => this.write(request));
   }
 
+  // The app's own window (main's onboarding IPC): the same answers, with a failure's window-only detail. `answer` is
+  // the socket's, whose replies must never carry it (app-socket v2 refuses the field; OperationBook.forWindow).
+  async answerWindow(request: OnboardingRequest): Promise<OnboardingResponse> {
+    return this.book.windowReply(await this.answer(request));
+  }
+
   // Every agent-auth publish: sign-ins and checks of this session follow their attempts.
   authChanged(snapshot: AuthSnapshot): void {
     if (this.sync(snapshot)) this.touch(snapshot);
@@ -157,7 +163,7 @@ export class OnboardingService {
     if (this.adder.busy(PROJECT_WORK)) return refuse("busy");
     return this.adder.launch("complete", requestId, async () => {
       const confirmed = await this.options.projects.confirm(project.root);
-      if (!confirmed.ok) return { state: "failed", code: confirmed.code };
+      if (!confirmed.ok) return { state: "failed", code: confirmed.code, ...(confirmed.detail ? { detail: confirmed.detail } : {}) };
       // Checked right before the atomic write, which is the moment onboarding completes.
       if (this.adder.closed) return { state: "cancelled" };
       if (!this.options.auth?.latest().providers.some(p => p.readiness.ready)) return { state: "failed", code: "no_ready_agent" };
@@ -252,7 +258,9 @@ export class OnboardingService {
   private touch(snapshot: AuthSnapshot | null): void {
     this.book.prune(tracked => { if (tracked.attemptId !== null) this.attempts.delete(tracked.attemptId); });
     this.revision += 1;
-    this.options.publish(this.build(snapshot));
+    // Published to the window only (onboarding:changed).
+    const state = this.build(snapshot);
+    this.options.publish({ ...state, operations: state.operations.map(o => this.book.forWindow(o)) });
   }
 
   private async agents(): Promise<AuthSnapshot | null> {

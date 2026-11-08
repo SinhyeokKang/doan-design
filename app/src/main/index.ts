@@ -921,7 +921,7 @@ async function start(): Promise<void> {
   for (const [name, op] of Object.entries(sessionOps) as [keyof typeof sessionOps, (typeof sessionOps)[keyof typeof sessionOps]][]) {
     handle(ONBOARDING_CHANNELS[name], sessionRefused, (event, value: unknown) => {
       const request = rendererRequest(op, value);
-      return fromWindow(event) && request !== null ? onboardingService.answer(request) : sessionRefused;
+      return fromWindow(event) && request !== null ? onboardingService.answerWindow(request) : sessionRefused;
     });
   }
   const page = new AddPageSession({ projects: projectWork, locks, publish: state => send(ADD_PAGE_CHANNELS.changed, state) });

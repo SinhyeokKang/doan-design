@@ -122,7 +122,8 @@ export interface OnboardingOperation {
   state: OnboardingOperationState;
   cancelling?: true;
   provider?: OnboardingProvider;
-  error?: { code: OnboardingOperationErrorCode; message: string };
+  // detail: in the app's own window only (main's onboarding IPC), never in a socket reply, whose schema refuses it.
+  error?: { code: OnboardingOperationErrorCode; message: string; detail?: string };
   inspection?: OnboardingInspection;
   project?: OnboardingProject;
 }

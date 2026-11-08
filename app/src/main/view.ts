@@ -50,7 +50,8 @@ export type FolderEntry = { path: string; lastCommon?: string; autoRegistered?: 
   // `storage`/`storageReason` are `doan ls`'s, absent from an older doan.
   | ({ kind: "list"; canvases: CanvasRow[]; servedRev: number; git?: GitInfo; changedAt?: number } & StorageFacts)
   | { kind: "uninitialized" }
-  | { kind: "error"; message: string }
+  // `config`: the file the CLI named (folderState); main's Show in Finder selects it, the renderer does not use it.
+  | { kind: "error"; message: string; config: string }
   | { kind: "cliError"; reason: string }
   | { kind: "notFound" }
 );
@@ -121,7 +122,7 @@ export function folderEntry(path: string, view: FolderView, baseUrl: string, ser
         ...(view.storage ? { storage: view.storage } : {}), ...(view.storageReason ? { storageReason: view.storageReason } : {}) };
     }
     case "error":
-      return { path, kind: "error", message: view.message };
+      return { path, kind: "error", message: view.message, config: view.config };
     case "cliError":
       return { path, kind: "cliError", reason: view.reason };
     default:
@@ -134,7 +135,7 @@ export type OpenDecision = { store: string } | { refuse: string };
 // A picked subfolder of a repo is stored as the repo root the CLI found, so the
 // same repo opens once. A failing run (broken config, no CLI) has no root, so
 // `asRepo` is a second run, `doan ls --repo <picked>`: the pick is stored only
-// when Go reads it as a repo root (listed, or failing on its own config). A
+// when Go reads it as a repo root (listed, or answered with an envelope). A
 // subfolder stored instead would later read as "not initialized" and invite a
 // nested `doan init`. Root detection stays in Go (POSTMORTEM "TS and Go ...
 // diverged"); `null` means no second run was made.
@@ -146,7 +147,7 @@ export function openDecision(state: FolderState, realPicked: string, asRepo: Fol
       return { store: realPicked };
     case "error":
     case "cliError": {
-      if (asRepo?.kind === "list" || asRepo?.kind === "error") return { store: realPicked };
+      if (asRepo?.kind === "list" || asRepo?.kind === "error" || (asRepo?.kind === "cliError" && asRepo.code !== undefined)) return { store: realPicked };
       if (state.kind === "error") return { refuse: state.message };
       return { refuse: state.reason ? `doan CLI error: ${state.reason}` : "doan CLI error" };
     }

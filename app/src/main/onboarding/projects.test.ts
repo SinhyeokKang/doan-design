@@ -15,22 +15,26 @@ const dirs: string[] = [];
 afterEach(() => { for (const dir of dirs.splice(0)) { try { chmodSync(dir, 0o755); } catch { /* gone */ } rmSync(dir, { recursive: true, force: true }); } });
 function temp(): string { const dir = realpathSync(mkdtempSync(join(tmpdir(), "doan-projects-test-"))); dirs.push(dir); return dir; }
 const root = process.getuid?.() === 0;
-function repo(dir: string, options: { remote?: string; config?: string; canvases?: boolean; attributes?: string } = {}): string {
+function repo(dir: string, options: { remote?: string; config?: string; canvases?: boolean; attributes?: string; unreadable?: boolean } = {}): string {
   mkdirSync(join(dir, ".git"), { recursive: true });
   writeFileSync(join(dir, ".git/config"), options.remote ? `[remote "origin"]\n\turl = ${options.remote}\n` : "[core]\n");
   if (options.config !== undefined) { mkdirSync(join(dir, ".doan"), { recursive: true }); writeFileSync(join(dir, ".doan/config.json"), options.config); }
   if (options.canvases) mkdirSync(join(dir, ".doan/canvases"), { recursive: true });
   if (options.attributes !== undefined) writeFileSync(join(dir, ".gitattributes"), options.attributes);
+  if (options.unreadable) writeFileSync(join(dir, ".doan/unreadable"), "");
   return dir;
 }
 
 // The CLI's answers, read from the disk the way `doan ls` reads it: a valid config lists, a broken one errors,
-// `{cwd}` walks up to a set-up repo.
+// `{cwd}` walks up to a set-up repo. A `.doan/unreadable` marker stands for a failure that is not about the config
+// (an unreadable canvas folder): the CLI answers with an envelope that names no config file.
+const unreadableReason = (dir: string) => `open ${dir}/.doan/canvases/sub: permission denied`;
 function cliLs(target: LsTarget): FolderState {
   const read = (dir: string): FolderState | null => {
     if (!existsSync(join(dir, ".doan/config.json"))) return null;
+    if (existsSync(join(dir, ".doan/unreadable"))) return { kind: "cliError", reason: unreadableReason(dir), code: "internal_error" };
     try { JSON.parse(readFileSync(join(dir, ".doan/config.json"), "utf8")); return { kind: "list", root: dir, scope: [], canvases: [] }; }
-    catch { return { kind: "error", message: "Cannot read config" }; }
+    catch { return { kind: "error", message: "Cannot read config", config: join(dir, ".doan/config.json") }; }
   };
   if ("repo" in target) return existsSync(target.repo) ? read(target.repo) ?? { kind: "uninitialized" } : { kind: "cliError", reason: "missing" };
   for (let dir = target.cwd; ; dir = dirname(dir)) { const found = read(dir); if (found) return found; if (dir === "/") return { kind: "uninitialized" }; }
@@ -137,6 +141,24 @@ describe("inspectPath", () => {
     expect(await inspectPath(broken, deps().deps)).toEqual({ ok: true, candidates: [{ path: broken, changes: [] }] });
   });
 
+  // `ls --repo` answered with an envelope, so Go read the folder as a root: it is offered as it is, nothing planned.
+  it("keeps a configured folder the CLI cannot finish reading as a candidate with nothing planned", async () => {
+    const unreadable = repo(temp(), { config: "{\"v\":1}", unreadable: true });
+    expect(await inspectPath(unreadable, deps().deps)).toEqual({ ok: true, candidates: [{ path: unreadable, changes: [] }] });
+    const parent = temp();
+    const inside = repo(join(parent, "a"), { config: "{\"v\":1}", unreadable: true });
+    expect(await inspectPath(parent, deps().deps)).toEqual({ ok: true, candidates: [{ path: inside, changes: [] }] });
+  });
+
+  // No proper answer says nothing about the folder, so it is no candidate.
+  it("offers no candidate the CLI gave no answer for", async () => {
+    const parent = temp();
+    const a = repo(join(parent, "a"), { config: "{}" }), b = repo(join(parent, "b"), { config: "{}" });
+    const d = deps();
+    d.deps.ls.mockImplementation(async (target: LsTarget) => "repo" in target && target.repo === a ? { kind: "cliError", reason: "spawn doan ENOENT" } : cliLs(target));
+    expect(await inspectPath(parent, d.deps)).toEqual({ ok: true, candidates: [{ path: b, changes: [] }] });
+  });
+
   test.skipIf(root)("does not guess about a folder it cannot read", async () => {
     const parent = temp();
     chmodSync(parent, 0o000);
@@ -175,6 +197,14 @@ describe("inspectPath for a GitHub URL", () => {
 });
 
 describe("inspectUrl", () => {
+  it("keeps a registered checkout the CLI cannot finish reading, and drops one it gave no answer for", async () => {
+    const unreadable = repo(temp(), { remote: "git@github.com:acme/studio.git", config: "{}", unreadable: true });
+    const silent = repo(temp(), { remote: "git@github.com:acme/studio.git", config: "{}" });
+    const d = deps([unreadable, silent]);
+    d.deps.ls.mockImplementation(async (target: LsTarget) => "repo" in target && target.repo === silent ? { kind: "cliError", reason: "spawn doan ENOENT" } : cliLs(target));
+    expect(await inspectUrl({ owner: "acme", repository: "studio" }, d.deps)).toEqual([{ path: unreadable, changes: [] }]);
+  });
+
   it("finds registered checkouts by their configured remotes, without running git", async () => {
     const https = repo(temp(), { remote: "https://x-token@github.com/Acme/Studio.git", config: "{}" });
     const ssh = repo(temp(), { remote: "git@github.com:acme/studio" });
@@ -214,6 +244,23 @@ describe("selectProject", () => {
     expect(await selectProject(broken, true, null, d.deps)).toEqual({ ok: false, code: "config_invalid" });
     expect(d.deps.initialize).not.toHaveBeenCalled();
     expect(readFileSync(join(broken, ".doan/config.json"), "utf8")).toBe("{broken");
+  });
+
+  // The CLI's message goes in detail (window only); the code's fixed message stays for the socket.
+  it("fails a folder the CLI cannot finish reading as project_unreadable with the CLI's message, never setting it up", async () => {
+    const unreadable = repo(temp(), { config: "{\"v\":1}", unreadable: true });
+    const d = deps();
+    expect(await selectProject(unreadable, true, null, d.deps)).toEqual({ ok: false, code: "project_unreadable", detail: unreadableReason(unreadable) });
+    expect(d.deps.initialize).not.toHaveBeenCalled();
+    expect(d.registered).toEqual([unreadable]);
+  });
+
+  it("fails as project_unavailable when the CLI gave no answer", async () => {
+    const ready = repo(temp(), { config: "{}" });
+    const d = deps();
+    d.deps.ls.mockResolvedValue({ kind: "cliError", reason: "The doan command didn’t answer within 10 seconds." });
+    expect(await selectProject(ready, true, null, d.deps)).toEqual({ ok: false, code: "project_unavailable" });
+    expect(d.deps.initialize).not.toHaveBeenCalled();
   });
 
   it("refuses a folder that disappeared or now belongs to another repository", async () => {
@@ -303,6 +350,17 @@ describe("confirmProject", () => {
     expect(await confirmProject(ready, deps([]).deps)).toEqual({ ok: false, code: "project_unavailable" });
     expect(d.deps.add).not.toHaveBeenCalled();
     expect(d.deps.initialize).not.toHaveBeenCalled();
+  });
+
+  it("tells a broken config, a folder the CLI cannot finish reading and no answer apart", async () => {
+    const broken = repo(temp(), { config: "{broken" });
+    expect(await confirmProject(broken, deps([broken]).deps)).toEqual({ ok: false, code: "config_invalid" });
+    const unreadable = repo(temp(), { config: "{}", unreadable: true });
+    expect(await confirmProject(unreadable, deps([unreadable]).deps)).toEqual({ ok: false, code: "project_unreadable", detail: unreadableReason(unreadable) });
+    const ready = repo(temp(), { config: "{}" });
+    const silent = deps([ready]);
+    silent.deps.ls.mockResolvedValue({ kind: "cliError", reason: "spawn doan ENOENT" });
+    expect(await confirmProject(ready, silent.deps)).toEqual({ ok: false, code: "project_unavailable" });
   });
 });
 

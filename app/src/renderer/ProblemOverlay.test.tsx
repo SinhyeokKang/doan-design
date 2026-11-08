@@ -25,7 +25,7 @@ test("the scene: icon, a focusable heading described by its line, the path as a 
 });
 
 test("Config error: the config file as a code chip, Show in Finder subtle, Details a toggle with its arrow and the message block", () => {
-  const error = view({ path: "/Users/ada/code/acme-web", kind: "error", message: "unexpected end of JSON input" });
+  const error = view({ path: "/Users/ada/code/acme-web", kind: "error", message: "unexpected end of JSON input", config: "/Users/ada/code/acme-web/.doan/config.json" });
   const closed = draw(error);
   expect(closed).toContain("<code>.doan/config.json</code> has an error. Fix it, then retry.</p>");
   expect(closed).toContain('data-ui-variant="subtle" data-ui-size="sm">Show in Finder</button>');

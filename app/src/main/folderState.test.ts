@@ -1,5 +1,9 @@
 import { describe, expect, test } from "vitest";
+import { readFileSync } from "node:fs";
 import { CLI_TIMEOUT_MS, folderState, initOutcome, reconcileFolders, type CliRun } from "./folderState";
+
+// The fixtures Go and TS both validate (schema/fixtures/cli-envelope).
+const fixture = (name: string): string => readFileSync(new URL(`../../../schema/fixtures/cli-envelope/${name}`, import.meta.url), "utf8");
 
 const canvases = [{ path: ".doan/canvases/a.html", id: "a", frames: [], comments: { open: 1, resolved: 0 } }];
 const listResult = { root: "/repo", scope: [".doan/canvases", "tokens.css"], canvases };
@@ -36,13 +40,44 @@ describe("folderState", () => {
     expect(state).toEqual({ kind: "uninitialized" });
   });
 
-  test("other failure envelopes show their message", () => {
+  // Only a failure that names a config file is a Config error; the code does not decide it.
+  test("a failure envelope naming a config file is a Config error carrying that path", () => {
+    const named = (code: string, message: string, config: string) => envelope({ v: 1, ok: false, error: { code, message, nextSteps: [], config } });
+    expect(folderState(run({ exitCode: 2, stdout: named("invalid_config", "config is broken", "/repo/.doan/config.json") })))
+      .toEqual({ kind: "error", message: "config is broken", config: "/repo/.doan/config.json" });
+    expect(folderState(run({ exitCode: 2, stdout: named("unsupported_version", "v 9 is not supported", "/repo/.doan/config.json") })))
+      .toEqual({ kind: "error", message: "v 9 is not supported", config: "/repo/.doan/config.json" });
+    // An unreadable config is an internal_error, and still a Config error because the CLI named the file.
+    expect(folderState(run({ exitCode: 1, stdout: named("internal_error", "open /repo/.doan/config.json: permission denied", "/repo/.doan/config.json") })))
+      .toEqual({ kind: "error", message: "open /repo/.doan/config.json: permission denied", config: "/repo/.doan/config.json" });
+  });
+
+  test("the shared fixture of a failure naming its config reads as a Config error", () => {
+    const stdout = fixture("valid/invalid-config-with-config.json");
+    expect(folderState(run({ exitCode: 2, stdout }))).toEqual({ kind: "error", message: "Cannot read config: /tmp/repo/.doan/config.json", config: "/tmp/repo/.doan/config.json" });
+  });
+
+  // Go read the folder but failed for another reason (an unreadable canvas folder): a CLI error showing the CLI's
+  // message, with the code main reads to know the CLI answered.
+  test("a failure envelope naming no config file is a CLI error with its code", () => {
+    expect(folderState(run({ exitCode: 1, stdout: failure("internal_error", "open /repo/.doan/canvases/sub: permission denied") })))
+      .toEqual({ kind: "cliError", reason: "open /repo/.doan/canvases/sub: permission denied", code: "internal_error" });
+    // invalid_config without the field is not a Config error either.
     expect(folderState(run({ exitCode: 2, stdout: failure("invalid_config", "config is broken") })))
-      .toEqual({ kind: "error", message: "config is broken" });
-    expect(folderState(run({ exitCode: 2, stdout: failure("unsupported_version", "v 9 is not supported") })))
-      .toEqual({ kind: "error", message: "v 9 is not supported" });
-    expect(folderState(run({ exitCode: 1, stdout: failure("internal_error", "boom") })))
-      .toEqual({ kind: "error", message: "boom" });
+      .toEqual({ kind: "cliError", reason: "config is broken", code: "invalid_config" });
+    // An empty message falls back to the usual account of the run.
+    expect(folderState(run({ exitCode: 1, stdout: failure("internal_error", "") })))
+      .toEqual({ kind: "cliError", reason: "The doan command exited with code 1 without a message.", code: "internal_error" });
+  });
+
+  test("a failure envelope with exit code 0 is a CLI error without a code, even naming a config", () => {
+    const stdout = envelope({ v: 1, ok: false, error: { code: "invalid_config", message: "bad", nextSteps: [], config: "/repo/.doan/config.json" } });
+    expect(folderState(run({ exitCode: 0, stdout }))).toEqual({ kind: "cliError", reason: "bad" });
+  });
+
+  test("a failure envelope with a relative config fails validation and is a CLI error without a code", () => {
+    const stdout = envelope({ v: 1, ok: false, error: { code: "invalid_config", message: "bad", nextSteps: [], config: ".doan/config.json" } });
+    expect(folderState(run({ exitCode: 2, stdout }))).toEqual({ kind: "cliError", reason: "The doan command exited with code 2 without a message." });
   });
 
   test("an envelope that fails validation is a CLI error", () => {
@@ -251,7 +286,7 @@ describe("reconcileFolders", () => {
   });
   test("leaves paths unchanged on broken config, CLI failure, absence, and stale completion", () => {
     const stored = ["/repo/web"];
-    for (const state of [{ kind: "error", message: "bad config" }, { kind: "cliError", reason: "timeout" }, { kind: "uninitialized" }] as const) expect(reconcileFolders(stored, "/repo/web", state)).toEqual({ folders: stored, focus: "/repo/web" });
+    for (const state of [{ kind: "error", message: "bad config", config: "/repo/.doan/config.json" }, { kind: "cliError", reason: "permission denied", code: "internal_error" }, { kind: "cliError", reason: "timeout" }, { kind: "uninitialized" }] as const) expect(reconcileFolders(stored, "/repo/web", state)).toEqual({ folders: stored, focus: "/repo/web" });
     expect(reconcileFolders(["/a"], "/closed", upward("/repo"))).toEqual({ folders: ["/a"], focus: null });
     expect(stored).toEqual(["/repo/web"]);
   });

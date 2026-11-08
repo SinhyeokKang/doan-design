@@ -17,7 +17,7 @@ describe("trashTarget", () => {
   test("refuses a root that is not registered or not a list", () => {
     expect(trashTarget(entries, { root: "/other", path: a.path })).toEqual({ kind: "refused", reason: "notListed" });
     expect(trashTarget(entries, { root: "/repo/", path: a.path })).toEqual({ kind: "refused", reason: "notListed" });
-    expect(trashTarget([{ path: "/repo", kind: "error", message: "x" }], { root: "/repo", path: a.path })).toEqual({ kind: "refused", reason: "notListed" });
+    expect(trashTarget([{ path: "/repo", kind: "error", message: "x", config: "/repo/.doan/config.json" }], { root: "/repo", path: a.path })).toEqual({ kind: "refused", reason: "notListed" });
     expect(trashTarget([{ path: "/repo", kind: "loading" }], { root: "/repo", path: a.path })).toEqual({ kind: "refused", reason: "notListed" });
   });
 

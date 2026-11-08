@@ -232,7 +232,7 @@ export class ProjectAdder {
   }
 
   private selected(outcome: ProjectOutcome): Finished {
-    if (!outcome.ok) return { state: "failed", code: outcome.code, ...(outcome.message ? { message: outcome.message } : {}) };
+    if (!outcome.ok) return { state: "failed", code: outcome.code, ...(outcome.message ? { message: outcome.message } : {}), ...(outcome.detail ? { detail: outcome.detail } : {}) };
     this.project = { root: outcome.root };
     return { state: "succeeded", project: { root: outcome.root } };
   }

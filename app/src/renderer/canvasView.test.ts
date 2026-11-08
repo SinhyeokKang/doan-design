@@ -78,7 +78,7 @@ describe("canvasViewUpdate", () => {
   });
 
   test("shows an error line and keeps the view on error", () => {
-    expect(canvasViewUpdate(before, [{ path: "/repo", kind: "error", message: "Cannot read config" }], open))
+    expect(canvasViewUpdate(before, [{ path: "/repo", kind: "error", message: "Cannot read config", config: "/repo/.doan/config.json" }], open))
       .toEqual({ kind: "errorLine", message: "Cannot read config" });
   });
 
@@ -92,7 +92,7 @@ describe("canvasViewUpdate", () => {
   // Served files may have changed while the folder failed, and the shell
   // stops serving a failed folder, so recovery reloads.
   test("reloads when the folder recovers from an error", () => {
-    const prev: FolderEntry[] = [{ path: "/repo", kind: "error", message: "Cannot read config" }];
+    const prev: FolderEntry[] = [{ path: "/repo", kind: "error", message: "Cannot read config", config: "/repo/.doan/config.json" }];
     expect(canvasViewUpdate(prev, before, open)).toEqual({ kind: "reload", canvas: row(".doan/canvases/a.html") });
   });
 
@@ -137,7 +137,7 @@ describe("canvasViewUpdate: row revisions and canvas ids", () => {
 
   test("follows a move after a folder read that failed", () => {
     const moved = row(".doan/canvases/a2.html", { id: "home" });
-    const failed: FolderEntry[] = [{ path: "/repo", kind: "error", message: "Cannot read config" }];
+    const failed: FolderEntry[] = [{ path: "/repo", kind: "error", message: "Cannot read config", config: "/repo/.doan/config.json" }];
     expect(canvasViewUpdate(failed, [list("/repo", 1, [moved])], home)).toEqual({ kind: "moved", canvas: moved, from: ".doan/canvases/a.html" });
   });
 
@@ -166,7 +166,7 @@ describe("canvasViewUpdate: row revisions and canvas ids", () => {
 
   test("an id change wins over a served bump or a previous non-list entry in the same update", () => {
     expect(canvasViewUpdate(prev, [list("/repo", 2, [a({ id: "renamed" }), b()])], home)).toEqual({ kind: "reload", canvas: a({ id: "renamed" }), idChanged: true });
-    const failed: FolderEntry[] = [{ path: "/repo", kind: "error", message: "Cannot read config" }];
+    const failed: FolderEntry[] = [{ path: "/repo", kind: "error", message: "Cannot read config", config: "/repo/.doan/config.json" }];
     expect(canvasViewUpdate(failed, [list("/repo", 1, [a({ id: "renamed" }), b()])], home)).toEqual({ kind: "reload", canvas: a({ id: "renamed" }), idChanged: true });
   });
 
@@ -235,7 +235,7 @@ describe("canvasViewUpdate: Move to Trash", () => {
     const marks = new TrashMarks();
     marks.begin("/repo", ".doan/canvases/a.html");
     marks.sweep([{ path: "/repo", kind: "loading" }]);
-    marks.sweep([{ path: "/repo", kind: "error", message: "Cannot read config" }]);
+    marks.sweep([{ path: "/repo", kind: "error", message: "Cannot read config", config: "/repo/.doan/config.json" }]);
     expect(marks.has("/repo", ".doan/canvases/a.html")).toBe(true);
   });
 

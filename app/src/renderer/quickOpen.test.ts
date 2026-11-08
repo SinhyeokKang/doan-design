@@ -46,7 +46,7 @@ describe("quick open index", () => {
   it("excludes loading and every problem state", () => {
     const entries: SearchFolder[] = [
       { path: "/loading", kind: "loading" }, { path: "/missing", kind: "notFound" },
-      { path: "/empty", kind: "uninitialized" }, { path: "/error", kind: "error", message: "bad" },
+      { path: "/empty", kind: "uninitialized" }, { path: "/error", kind: "error", message: "bad", config: "/error/.doan/config.json" },
       { path: "/cli", kind: "cliError", reason: "bad" }, folder("/repo", [canvas(".doan/canvases/a.html")]),
     ];
     expect(searchIndex(entries).map((entry) => entry.root)).toEqual(["/repo"]);

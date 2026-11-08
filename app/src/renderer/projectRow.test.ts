@@ -11,7 +11,7 @@ describe("projectRow", () => {
 
   test("matches the draft's initialization and error copy", () => {
     expect(projectRow({ path: "/repo", kind: "uninitialized" })).toEqual({ status: "Not initialized", detail: ["Set up this project to add .doan/canvases/ and .doan/."], actions: ["setup", "close"] });
-    expect(projectRow({ path: "/repo", kind: "error", message: "Cannot read config" })).toEqual({ status: "Error", detail: ["Cannot read config"], actions: ["close"] });
+    expect(projectRow({ path: "/repo", kind: "error", message: "Cannot read config", config: "/repo/.doan/config.json" })).toEqual({ status: "Error", detail: ["Cannot read config"], actions: ["close"] });
   });
 
   test("offers reopen only for missing projects and CLI errors", () => {
@@ -21,7 +21,7 @@ describe("projectRow", () => {
     expect(projectRow({ path: "/repo", kind: "cliError", reason: "" })).toEqual({ status: "CLI error", actions: ["reopen", "close"] });
     const entries: FolderEntry[] = [
       { path: "/repo", kind: "loading" }, { path: "/repo", kind: "uninitialized" },
-      { path: "/repo", kind: "error", message: "bad" }, { path: "/repo", kind: "list", servedRev: 0, canvases: [] },
+      { path: "/repo", kind: "error", message: "bad", config: "/repo/.doan/config.json" }, { path: "/repo", kind: "list", servedRev: 0, canvases: [] },
     ];
     for (const entry of entries) expect(projectRow(entry).actions).not.toContain("reopen");
   });

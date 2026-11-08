@@ -78,7 +78,7 @@ const rowA: CanvasRow = { path: ".doan/canvases/a.html", id: "a", url: "u-a" };
 const listed = (path: string): FolderEntry => ({ path, kind: "list", servedRev: 0, canvases: [rowA] });
 const notFound = (path = "/w/a"): FolderEntry => ({ path, kind: "notFound" });
 const uninitialized = (path = "/w/a"): FolderEntry => ({ path, kind: "uninitialized" });
-const configError = (path = "/w/a", message = "unexpected end of JSON input"): FolderEntry => ({ path, kind: "error", message });
+const configError = (path = "/w/a", message = "unexpected end of JSON input"): FolderEntry => ({ path, kind: "error", message, config: `${path}/.doan/config.json` });
 const cliError = (path = "/w/a"): FolderEntry => ({ path, kind: "cliError", reason: "Unavailable" });
 const loading = (path = "/w/a"): FolderEntry => ({ path, kind: "loading" });
 const PREFS: PreferencesSnapshot = { preferences: { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: { provider: "codex" }, updates: { autoCheck: true } }, notice: null };
