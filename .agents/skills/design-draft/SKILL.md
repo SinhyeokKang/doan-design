@@ -1,6 +1,6 @@
 ---
 name: design-draft
-description: Use to draw a feature's UI draft canvas in this repo's .doan/canvases/ from its feature documents, following doan's canvas conventions, and to check it with the doan CLI. Writes only the draft canvas; does not touch app code or push.
+description: Use to draw a feature's UI draft canvas in this repo's .doan/canvases/ from its feature documents, following doan's canvas conventions, and to check it with the doan CLI. Writes the draft canvas, its assets and any new token with its DESIGN.md line; touches no other app code and pushes only from develop.
 ---
 
 Dogfooding loop (PRODUCT §5 'Dogfooding'): doan's own UI drafts are canvases in this repo's `.doan/canvases/`, viewed in the doan app, and `/design-sync` later compares the first implementation with them. This skill is the drawing half. Either runtime may draw, and the other runtime may implement from the files alone, so the draft must stand on its own: everything the implementer needs is in the canvas, the token CSS and the feature documents, not in a conversation.
@@ -46,7 +46,7 @@ If spec and design leave a visible choice open (a state, a label, a placement), 
 
 Write the canvas at the path the request names (one HTML file, ARCHITECTURE §1 convention 1).
 
-- **Work signal** (guide rules I and J, as any agent editing a canvas): run `doan work start <canvas path> --json` before the first edit, and `doan work update <canvas path> --frame <id> --note "<what you are drawing, one short line in the person's language>" --json` each time you start editing a frame. When you stop drawing (handing over, or stopping to ask), run `doan work done <canvas path> --json`. `delivered: false` is expected when the checkout is not a project registered in the app (for example an unregistered worktree); do not retry it, and note it in the report.
+- **Work signal** (guide rules I and J, as any agent editing a canvas): run `doan work start <canvas path> --json` before the first edit, and `doan work update <canvas path> --frame <id> --note "<what you are drawing, one short line in the person's language>" --json` each time you start editing a frame. When you stop drawing (handing over, or stopping to ask), run `doan work done <canvas path> --json`. `delivered: false` is expected when the checkout is not a project the app has open and `start` cannot register it (an unregistered worktree of a saved repository usually registers itself on `start`); do not retry it, and note it in the report.
 
 - **Conventions** (ARCHITECTURE §1): `<meta name="doan:canvas">` with the requested id and `<meta name="doan:width">` in `<head>`; every requested frame as `data-doan-frame` with a `data-doan-title`; `data-doan-id` on elements the implementation will be paired with or a message will point at.
 - **`data-doan-implements` points only to files that exist now.** A path to a file the feature will create is an `implements_not_found` error.
