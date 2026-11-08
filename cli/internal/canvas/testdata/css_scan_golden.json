@@ -1,0 +1,1586 @@
+{
+ "braces-and-parens": {
+  "declarations": {
+   "Scan": {
+    "Defs": {},
+    "Refs": null,
+    "Colors": null,
+    "Imports": null,
+    "URLs": [
+     "x.png"
+    ],
+    "ViewportHeights": null
+   },
+   "Refs": [
+    {
+     "Value": "x.png",
+     "Import": false,
+     "Start": 39,
+     "End": 49,
+     "Custom": ""
+    }
+   ],
+   "Uses": {
+    "Used": {},
+    "Hops": {},
+    "URLSyntax": {}
+   }
+  },
+  "stylesheet": {
+   "Scan": {
+    "Defs": {},
+    "Refs": null,
+    "Colors": null,
+    "Imports": null,
+    "URLs": [
+     "x.png"
+    ],
+    "ViewportHeights": null
+   },
+   "Refs": [
+    {
+     "Value": "x.png",
+     "Import": false,
+     "Start": 39,
+     "End": 49,
+     "Custom": ""
+    }
+   ],
+   "Uses": {
+    "Used": {},
+    "Hops": {},
+    "URLSyntax": {}
+   }
+  }
+ },
+ "colors": {
+  "declarations": {
+   "Scan": {
+    "Defs": {},
+    "Refs": null,
+    "Colors": [
+     "#abc",
+     "#abcd",
+     "#aabbcc",
+     "#aabbccdd",
+     "rgb(1,2,3)",
+     "RGBA(1,2,3,.5)",
+     "rgb(calc(1 + 2),2,3)",
+     "rgb(1,2;n:# abc"
+    ],
+    "Imports": null,
+    "URLs": null,
+    "ViewportHeights": null
+   },
+   "Refs": null,
+   "Uses": {
+    "Used": {},
+    "Hops": {},
+    "URLSyntax": {}
+   }
+  },
+  "stylesheet": {
+   "Scan": {
+    "Defs": {},
+    "Refs": null,
+    "Colors": [
+     "#abc",
+     "#abcd",
+     "#aabbcc",
+     "#aabbccdd",
+     "rgb(1,2,3)",
+     "RGBA(1,2,3,.5)",
+     "rgb(calc(1 + 2),2,3)",
+     "rgb(1,2;n:# abc"
+    ],
+    "Imports": null,
+    "URLs": null,
+    "ViewportHeights": null
+   },
+   "Refs": null,
+   "Uses": {
+    "Used": {},
+    "Hops": {},
+    "URLSyntax": {}
+   }
+  }
+ },
+ "comments": {
+  "declarations": {
+   "Scan": {
+    "Defs": {},
+    "Refs": null,
+    "Colors": null,
+    "Imports": null,
+    "URLs": [
+     "c.png"
+    ],
+    "ViewportHeights": null
+   },
+   "Refs": [
+    {
+     "Value": "c.png",
+     "Import": false,
+     "Start": 57,
+     "End": 67,
+     "Custom": ""
+    }
+   ],
+   "Uses": {
+    "Used": {},
+    "Hops": {},
+    "URLSyntax": {}
+   }
+  },
+  "stylesheet": {
+   "Scan": {
+    "Defs": {},
+    "Refs": null,
+    "Colors": null,
+    "Imports": null,
+    "URLs": [
+     "c.png"
+    ],
+    "ViewportHeights": null
+   },
+   "Refs": [
+    {
+     "Value": "c.png",
+     "Import": false,
+     "Start": 57,
+     "End": 67,
+     "Custom": ""
+    }
+   ],
+   "Uses": {
+    "Used": {},
+    "Hops": {},
+    "URLSyntax": {}
+   }
+  }
+ },
+ "custom-properties": {
+  "declarations": {
+   "Scan": {
+    "Defs": {
+     "--a": true,
+     "--b": true,
+     "--c": true,
+     "--url": true
+    },
+    "Refs": [
+     {
+      "Name": "--a",
+      "HasFallback": false
+     },
+     {
+      "Name": "--b",
+      "HasFallback": true
+     },
+     {
+      "Name": "--d",
+      "HasFallback": false
+     },
+     {
+      "Name": "--b",
+      "HasFallback": true
+     },
+     {
+      "Name": "--c",
+      "HasFallback": false
+     },
+     {
+      "Name": "--e",
+      "HasFallback": false
+     }
+    ],
+    "Colors": null,
+    "Imports": null,
+    "URLs": [
+     "x.png",
+     "y.png",
+     "i.png"
+    ],
+    "ViewportHeights": null
+   },
+   "Refs": [
+    {
+     "Value": "x.png",
+     "Import": false,
+     "Start": 10,
+     "End": 20,
+     "Custom": "--a"
+    },
+    {
+     "Value": "y.png",
+     "Import": false,
+     "Start": 62,
+     "End": 74,
+     "Custom": "--url"
+    },
+    {
+     "Value": "i.png",
+     "Import": false,
+     "Start": 200,
+     "End": 210,
+     "Custom": ""
+    }
+   ],
+   "Uses": {
+    "Used": {
+     "--b": true,
+     "--c": true,
+     "--e": true
+    },
+    "Hops": {
+     "--b": {
+      "--a": true
+     },
+     "--c": {
+      "--b": true,
+      "--d": true
+     }
+    },
+    "URLSyntax": {
+     "--reg": true
+    }
+   }
+  },
+  "stylesheet": {
+   "Scan": {
+    "Defs": {
+     "--a": true,
+     "--b": true,
+     "--c": true,
+     "--url": true
+    },
+    "Refs": [
+     {
+      "Name": "--a",
+      "HasFallback": false
+     },
+     {
+      "Name": "--b",
+      "HasFallback": true
+     },
+     {
+      "Name": "--d",
+      "HasFallback": false
+     },
+     {
+      "Name": "--b",
+      "HasFallback": true
+     },
+     {
+      "Name": "--c",
+      "HasFallback": false
+     },
+     {
+      "Name": "--e",
+      "HasFallback": false
+     }
+    ],
+    "Colors": null,
+    "Imports": null,
+    "URLs": [
+     "x.png",
+     "y.png",
+     "i.png"
+    ],
+    "ViewportHeights": null
+   },
+   "Refs": [
+    {
+     "Value": "x.png",
+     "Import": false,
+     "Start": 10,
+     "End": 20,
+     "Custom": "--a"
+    },
+    {
+     "Value": "y.png",
+     "Import": false,
+     "Start": 62,
+     "End": 74,
+     "Custom": "--url"
+    },
+    {
+     "Value": "i.png",
+     "Import": false,
+     "Start": 200,
+     "End": 210,
+     "Custom": ""
+    }
+   ],
+   "Uses": {
+    "Used": {
+     "--b": true,
+     "--c": true,
+     "--e": true
+    },
+    "Hops": {
+     "--b": {
+      "--a": true
+     },
+     "--c": {
+      "--b": true,
+      "--d": true
+     }
+    },
+    "URLSyntax": {
+     "--reg": true
+    }
+   }
+  }
+ },
+ "declarations": {
+  "declarations": {
+   "Scan": {
+    "Defs": {
+     "--x": true
+    },
+    "Refs": [
+     {
+      "Name": "--x",
+      "HasFallback": true
+     }
+    ],
+    "Colors": null,
+    "Imports": null,
+    "URLs": [
+     "a.png",
+     "b.png"
+    ],
+    "ViewportHeights": [
+     "100vh"
+    ]
+   },
+   "Refs": [
+    {
+     "Value": "a.png",
+     "Import": false,
+     "Start": 24,
+     "End": 34,
+     "Custom": ""
+    },
+    {
+     "Value": "b.png",
+     "Import": false,
+     "Start": 41,
+     "End": 51,
+     "Custom": "--x"
+    }
+   ],
+   "Uses": {
+    "Used": {
+     "--x": true
+    },
+    "Hops": {},
+    "URLSyntax": {}
+   }
+  },
+  "stylesheet": {
+   "Scan": {
+    "Defs": {},
+    "Refs": null,
+    "Colors": null,
+    "Imports": null,
+    "URLs": [
+     "a.png",
+     "b.png"
+    ],
+    "ViewportHeights": null
+   },
+   "Refs": [
+    {
+     "Value": "a.png",
+     "Import": false,
+     "Start": 24,
+     "End": 34,
+     "Custom": ""
+    },
+    {
+     "Value": "b.png",
+     "Import": false,
+     "Start": 41,
+     "End": 51,
+     "Custom": ""
+    }
+   ],
+   "Uses": {
+    "Used": {},
+    "Hops": {},
+    "URLSyntax": {}
+   }
+  }
+ },
+ "empty": {
+  "declarations": {
+   "Scan": {
+    "Defs": {},
+    "Refs": null,
+    "Colors": null,
+    "Imports": null,
+    "URLs": null,
+    "ViewportHeights": null
+   },
+   "Refs": null,
+   "Uses": {
+    "Used": {},
+    "Hops": {},
+    "URLSyntax": {}
+   }
+  },
+  "stylesheet": {
+   "Scan": {
+    "Defs": {},
+    "Refs": null,
+    "Colors": null,
+    "Imports": null,
+    "URLs": null,
+    "ViewportHeights": null
+   },
+   "Refs": null,
+   "Uses": {
+    "Used": {},
+    "Hops": {},
+    "URLSyntax": {}
+   }
+  }
+ },
+ "escapes": {
+  "declarations": {
+   "Scan": {
+    "Defs": {},
+    "Refs": null,
+    "Colors": null,
+    "Imports": null,
+    "URLs": [
+     "\\61.png"
+    ],
+    "ViewportHeights": null
+   },
+   "Refs": [
+    {
+     "Value": "a.png",
+     "Import": false,
+     "Start": 25,
+     "End": 37,
+     "Custom": ""
+    }
+   ],
+   "Uses": {
+    "Used": {},
+    "Hops": {},
+    "URLSyntax": {}
+   }
+  },
+  "stylesheet": {
+   "Scan": {
+    "Defs": {},
+    "Refs": null,
+    "Colors": null,
+    "Imports": null,
+    "URLs": [
+     "\\61.png"
+    ],
+    "ViewportHeights": null
+   },
+   "Refs": [
+    {
+     "Value": "a.png",
+     "Import": false,
+     "Start": 25,
+     "End": 37,
+     "Custom": ""
+    }
+   ],
+   "Uses": {
+    "Used": {},
+    "Hops": {},
+    "URLSyntax": {}
+   }
+  }
+ },
+ "imports": {
+  "declarations": {
+   "Scan": {
+    "Defs": {},
+    "Refs": null,
+    "Colors": null,
+    "Imports": null,
+    "URLs": [
+     "b.css",
+     "z.png"
+    ],
+    "ViewportHeights": null
+   },
+   "Refs": [
+    {
+     "Value": "b.css",
+     "Import": false,
+     "Start": 24,
+     "End": 34,
+     "Custom": ""
+    },
+    {
+     "Value": "z.png",
+     "Import": false,
+     "Start": 186,
+     "End": 196,
+     "Custom": ""
+    }
+   ],
+   "Uses": {
+    "Used": {},
+    "Hops": {},
+    "URLSyntax": {}
+   }
+  },
+  "stylesheet": {
+   "Scan": {
+    "Defs": {},
+    "Refs": null,
+    "Colors": null,
+    "Imports": [
+     "a.css",
+     "b.css",
+     "c.css",
+     "d.css",
+     "g.css",
+     "late.css"
+    ],
+    "URLs": [
+     "b.css",
+     "z.png"
+    ],
+    "ViewportHeights": null
+   },
+   "Refs": [
+    {
+     "Value": "a.css",
+     "Import": true,
+     "Start": 8,
+     "End": 15,
+     "Custom": ""
+    },
+    {
+     "Value": "b.css",
+     "Import": true,
+     "Start": 24,
+     "End": 34,
+     "Custom": ""
+    },
+    {
+     "Value": "c.css",
+     "Import": true,
+     "Start": 58,
+     "End": 65,
+     "Custom": ""
+    },
+    {
+     "Value": "d.css",
+     "Import": true,
+     "Start": 74,
+     "End": 81,
+     "Custom": ""
+    },
+    {
+     "Value": "g.css",
+     "Import": true,
+     "Start": 129,
+     "End": 136,
+     "Custom": ""
+    },
+    {
+     "Value": "z.png",
+     "Import": false,
+     "Start": 186,
+     "End": 196,
+     "Custom": ""
+    },
+    {
+     "Value": "late.css",
+     "Import": true,
+     "Start": 205,
+     "End": 215,
+     "Custom": ""
+    }
+   ],
+   "Uses": {
+    "Used": {},
+    "Hops": {},
+    "URLSyntax": {}
+   }
+  }
+ },
+ "large-minified": {
+  "declarations": {
+   "Scan": {
+    "Defs": {},
+    "Refs": null,
+    "Colors": [
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)"
+    ],
+    "Imports": null,
+    "URLs": [
+     "../big/i00.svg",
+     "../big/i06.svg",
+     "../big/i02.svg",
+     "../big/i08.svg",
+     "../big/i04.svg",
+     "../big/i00.svg",
+     "../big/i06.svg"
+    ],
+    "ViewportHeights": null
+   },
+   "Refs": [
+    {
+     "Value": "../big/i00.svg",
+     "Import": false,
+     "Start": 21,
+     "End": 40,
+     "Custom": ""
+    },
+    {
+     "Value": "../big/i06.svg",
+     "Import": false,
+     "Start": 257,
+     "End": 276,
+     "Custom": ""
+    },
+    {
+     "Value": "../big/i02.svg",
+     "Import": false,
+     "Start": 493,
+     "End": 512,
+     "Custom": ""
+    },
+    {
+     "Value": "../big/i08.svg",
+     "Import": false,
+     "Start": 729,
+     "End": 748,
+     "Custom": ""
+    },
+    {
+     "Value": "../big/i04.svg",
+     "Import": false,
+     "Start": 965,
+     "End": 984,
+     "Custom": ""
+    },
+    {
+     "Value": "../big/i00.svg",
+     "Import": false,
+     "Start": 1201,
+     "End": 1220,
+     "Custom": ""
+    },
+    {
+     "Value": "../big/i06.svg",
+     "Import": false,
+     "Start": 1437,
+     "End": 1456,
+     "Custom": ""
+    }
+   ],
+   "Uses": {
+    "Used": {},
+    "Hops": {},
+    "URLSyntax": {}
+   }
+  },
+  "stylesheet": {
+   "Scan": {
+    "Defs": {},
+    "Refs": null,
+    "Colors": [
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)",
+     "rgb(1,2,3)"
+    ],
+    "Imports": null,
+    "URLs": [
+     "../big/i00.svg",
+     "../big/i06.svg",
+     "../big/i02.svg",
+     "../big/i08.svg",
+     "../big/i04.svg",
+     "../big/i00.svg",
+     "../big/i06.svg"
+    ],
+    "ViewportHeights": null
+   },
+   "Refs": [
+    {
+     "Value": "../big/i00.svg",
+     "Import": false,
+     "Start": 21,
+     "End": 40,
+     "Custom": ""
+    },
+    {
+     "Value": "../big/i06.svg",
+     "Import": false,
+     "Start": 257,
+     "End": 276,
+     "Custom": ""
+    },
+    {
+     "Value": "../big/i02.svg",
+     "Import": false,
+     "Start": 493,
+     "End": 512,
+     "Custom": ""
+    },
+    {
+     "Value": "../big/i08.svg",
+     "Import": false,
+     "Start": 729,
+     "End": 748,
+     "Custom": ""
+    },
+    {
+     "Value": "../big/i04.svg",
+     "Import": false,
+     "Start": 965,
+     "End": 984,
+     "Custom": ""
+    },
+    {
+     "Value": "../big/i00.svg",
+     "Import": false,
+     "Start": 1201,
+     "End": 1220,
+     "Custom": ""
+    },
+    {
+     "Value": "../big/i06.svg",
+     "Import": false,
+     "Start": 1437,
+     "End": 1456,
+     "Custom": ""
+    }
+   ],
+   "Uses": {
+    "Used": {},
+    "Hops": {},
+    "URLSyntax": {}
+   }
+  }
+ },
+ "large-pretty": {
+  "declarations": {
+   "Scan": {
+    "Defs": {},
+    "Refs": null,
+    "Colors": [
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)"
+    ],
+    "Imports": null,
+    "URLs": [
+     "../big/i00.svg",
+     "../big/i06.svg",
+     "../big/i02.svg",
+     "../big/i08.svg",
+     "../big/i04.svg",
+     "../big/i00.svg",
+     "../big/i06.svg"
+    ],
+    "ViewportHeights": null
+   },
+   "Refs": [
+    {
+     "Value": "../big/i00.svg",
+     "Import": false,
+     "Start": 26,
+     "End": 47,
+     "Custom": ""
+    },
+    {
+     "Value": "../big/i06.svg",
+     "Import": false,
+     "Start": 342,
+     "End": 363,
+     "Custom": ""
+    },
+    {
+     "Value": "../big/i02.svg",
+     "Import": false,
+     "Start": 658,
+     "End": 679,
+     "Custom": ""
+    },
+    {
+     "Value": "../big/i08.svg",
+     "Import": false,
+     "Start": 974,
+     "End": 995,
+     "Custom": ""
+    },
+    {
+     "Value": "../big/i04.svg",
+     "Import": false,
+     "Start": 1290,
+     "End": 1311,
+     "Custom": ""
+    },
+    {
+     "Value": "../big/i00.svg",
+     "Import": false,
+     "Start": 1606,
+     "End": 1627,
+     "Custom": ""
+    },
+    {
+     "Value": "../big/i06.svg",
+     "Import": false,
+     "Start": 1922,
+     "End": 1943,
+     "Custom": ""
+    }
+   ],
+   "Uses": {
+    "Used": {},
+    "Hops": {},
+    "URLSyntax": {}
+   }
+  },
+  "stylesheet": {
+   "Scan": {
+    "Defs": {},
+    "Refs": null,
+    "Colors": [
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)",
+     "rgb(1, 2, 3)"
+    ],
+    "Imports": null,
+    "URLs": [
+     "../big/i00.svg",
+     "../big/i06.svg",
+     "../big/i02.svg",
+     "../big/i08.svg",
+     "../big/i04.svg",
+     "../big/i00.svg",
+     "../big/i06.svg"
+    ],
+    "ViewportHeights": null
+   },
+   "Refs": [
+    {
+     "Value": "../big/i00.svg",
+     "Import": false,
+     "Start": 26,
+     "End": 47,
+     "Custom": ""
+    },
+    {
+     "Value": "../big/i06.svg",
+     "Import": false,
+     "Start": 342,
+     "End": 363,
+     "Custom": ""
+    },
+    {
+     "Value": "../big/i02.svg",
+     "Import": false,
+     "Start": 658,
+     "End": 679,
+     "Custom": ""
+    },
+    {
+     "Value": "../big/i08.svg",
+     "Import": false,
+     "Start": 974,
+     "End": 995,
+     "Custom": ""
+    },
+    {
+     "Value": "../big/i04.svg",
+     "Import": false,
+     "Start": 1290,
+     "End": 1311,
+     "Custom": ""
+    },
+    {
+     "Value": "../big/i00.svg",
+     "Import": false,
+     "Start": 1606,
+     "End": 1627,
+     "Custom": ""
+    },
+    {
+     "Value": "../big/i06.svg",
+     "Import": false,
+     "Start": 1922,
+     "End": 1943,
+     "Custom": ""
+    }
+   ],
+   "Uses": {
+    "Used": {},
+    "Hops": {},
+    "URLSyntax": {}
+   }
+  }
+ },
+ "non-ascii": {
+  "declarations": {
+   "Scan": {
+    "Defs": {
+     "--변수": true
+    },
+    "Refs": [
+     {
+      "Name": "--변수",
+      "HasFallback": false
+     }
+    ],
+    "Colors": [
+     "#fff"
+    ],
+    "Imports": null,
+    "URLs": [
+     "그림.png"
+    ],
+    "ViewportHeights": null
+   },
+   "Refs": [
+    {
+     "Value": "그림.png",
+     "Import": false,
+     "Start": 26,
+     "End": 41,
+     "Custom": "--변수"
+    }
+   ],
+   "Uses": {
+    "Used": {
+     "--변수": true
+    },
+    "Hops": {},
+    "URLSyntax": {}
+   }
+  },
+  "stylesheet": {
+   "Scan": {
+    "Defs": {
+     "--변수": true
+    },
+    "Refs": [
+     {
+      "Name": "--변수",
+      "HasFallback": false
+     }
+    ],
+    "Colors": [
+     "#fff"
+    ],
+    "Imports": null,
+    "URLs": [
+     "그림.png"
+    ],
+    "ViewportHeights": null
+   },
+   "Refs": [
+    {
+     "Value": "그림.png",
+     "Import": false,
+     "Start": 26,
+     "End": 41,
+     "Custom": "--변수"
+    }
+   ],
+   "Uses": {
+    "Used": {
+     "--변수": true
+    },
+    "Hops": {},
+    "URLSyntax": {}
+   }
+  }
+ },
+ "strings": {
+  "declarations": {
+   "Scan": {
+    "Defs": {},
+    "Refs": null,
+    "Colors": null,
+    "Imports": null,
+    "URLs": null,
+    "ViewportHeights": null
+   },
+   "Refs": null,
+   "Uses": {
+    "Used": {},
+    "Hops": {},
+    "URLSyntax": {}
+   }
+  },
+  "stylesheet": {
+   "Scan": {
+    "Defs": {},
+    "Refs": null,
+    "Colors": null,
+    "Imports": null,
+    "URLs": null,
+    "ViewportHeights": null
+   },
+   "Refs": null,
+   "Uses": {
+    "Used": {},
+    "Hops": {},
+    "URLSyntax": {}
+   }
+  }
+ },
+ "tokens-seed": {
+  "declarations": {
+   "Scan": {
+    "Defs": {
+     "--brand": true,
+     "--cdn": true,
+     "--gone": true,
+     "--hero": true
+    },
+    "Refs": null,
+    "Colors": [
+     "#3366ff"
+    ],
+    "Imports": null,
+    "URLs": [
+     "b.css",
+     "https://fonts.example.com/css2?family=Inter",
+     "../.doan/assets/fonts/brand.woff2",
+     "../.doan/assets/images/hero.png",
+     "gone.png",
+     "//cdn.example.com/bg.png"
+    ],
+    "ViewportHeights": null
+   },
+   "Refs": [
+    {
+     "Value": "b.css",
+     "Import": false,
+     "Start": 25,
+     "End": 35,
+     "Custom": ""
+    },
+    {
+     "Value": "https://fonts.example.com/css2?family=Inter",
+     "Import": false,
+     "Start": 64,
+     "End": 114,
+     "Custom": ""
+    },
+    {
+     "Value": "../.doan/assets/fonts/brand.woff2",
+     "Import": false,
+     "Start": 221,
+     "End": 261,
+     "Custom": ""
+    },
+    {
+     "Value": "../.doan/assets/images/hero.png",
+     "Import": false,
+     "Start": 315,
+     "End": 351,
+     "Custom": "--hero"
+    },
+    {
+     "Value": "gone.png",
+     "Import": false,
+     "Start": 361,
+     "End": 374,
+     "Custom": "--gone"
+    },
+    {
+     "Value": "//cdn.example.com/bg.png",
+     "Import": false,
+     "Start": 383,
+     "End": 412,
+     "Custom": "--cdn"
+    }
+   ],
+   "Uses": {
+    "Used": {},
+    "Hops": {},
+    "URLSyntax": {}
+   }
+  },
+  "stylesheet": {
+   "Scan": {
+    "Defs": {
+     "--brand": true,
+     "--cdn": true,
+     "--gone": true,
+     "--hero": true
+    },
+    "Refs": null,
+    "Colors": [
+     "#3366ff"
+    ],
+    "Imports": [
+     "a.css",
+     "b.css",
+     "https://fonts.example.com/css2?family=Inter",
+     "missing.css"
+    ],
+    "URLs": [
+     "b.css",
+     "https://fonts.example.com/css2?family=Inter",
+     "../.doan/assets/fonts/brand.woff2",
+     "../.doan/assets/images/hero.png",
+     "gone.png",
+     "//cdn.example.com/bg.png"
+    ],
+    "ViewportHeights": null
+   },
+   "Refs": [
+    {
+     "Value": "a.css",
+     "Import": true,
+     "Start": 8,
+     "End": 15,
+     "Custom": ""
+    },
+    {
+     "Value": "b.css",
+     "Import": true,
+     "Start": 25,
+     "End": 35,
+     "Custom": ""
+    },
+    {
+     "Value": "https://fonts.example.com/css2?family=Inter",
+     "Import": true,
+     "Start": 64,
+     "End": 114,
+     "Custom": ""
+    },
+    {
+     "Value": "missing.css",
+     "Import": true,
+     "Start": 124,
+     "End": 137,
+     "Custom": ""
+    },
+    {
+     "Value": "../.doan/assets/fonts/brand.woff2",
+     "Import": false,
+     "Start": 221,
+     "End": 261,
+     "Custom": ""
+    },
+    {
+     "Value": "../.doan/assets/images/hero.png",
+     "Import": false,
+     "Start": 315,
+     "End": 351,
+     "Custom": "--hero"
+    },
+    {
+     "Value": "gone.png",
+     "Import": false,
+     "Start": 361,
+     "End": 374,
+     "Custom": "--gone"
+    },
+    {
+     "Value": "//cdn.example.com/bg.png",
+     "Import": false,
+     "Start": 383,
+     "End": 412,
+     "Custom": "--cdn"
+    }
+   ],
+   "Uses": {
+    "Used": {},
+    "Hops": {},
+    "URLSyntax": {}
+   }
+  }
+ },
+ "url-forms": {
+  "declarations": {
+   "Scan": {
+    "Defs": {},
+    "Refs": null,
+    "Colors": null,
+    "Imports": null,
+    "URLs": [
+     "a.png",
+     "b c.png",
+     "C.png",
+     "d.png",
+     "e\\).png",
+     "f.png",
+     "g",
+     "h.png",
+     "i.png"
+    ],
+    "ViewportHeights": null
+   },
+   "Refs": [
+    {
+     "Value": "a.png",
+     "Import": false,
+     "Start": 5,
+     "End": 15,
+     "Custom": ""
+    },
+    {
+     "Value": "b c.png",
+     "Import": false,
+     "Start": 18,
+     "End": 34,
+     "Custom": ""
+    },
+    {
+     "Value": "C.png",
+     "Import": false,
+     "Start": 37,
+     "End": 47,
+     "Custom": ""
+    },
+    {
+     "Value": "d.png",
+     "Import": false,
+     "Start": 50,
+     "End": 63,
+     "Custom": ""
+    },
+    {
+     "Value": "e).png",
+     "Import": false,
+     "Start": 67,
+     "End": 79,
+     "Custom": ""
+    },
+    {
+     "Value": "f.png",
+     "Import": false,
+     "Start": 82,
+     "End": 96,
+     "Custom": ""
+    },
+    {
+     "Value": "g",
+     "Import": false,
+     "Start": 99,
+     "End": 109,
+     "Custom": ""
+    },
+    {
+     "Value": "h.png",
+     "Import": false,
+     "Start": 112,
+     "End": 122,
+     "Custom": ""
+    },
+    {
+     "Value": "i.png",
+     "Import": false,
+     "Start": 128,
+     "End": 137,
+     "Custom": ""
+    }
+   ],
+   "Uses": {
+    "Used": {},
+    "Hops": {},
+    "URLSyntax": {}
+   }
+  },
+  "stylesheet": {
+   "Scan": {
+    "Defs": {},
+    "Refs": null,
+    "Colors": null,
+    "Imports": null,
+    "URLs": [
+     "a.png",
+     "b c.png",
+     "C.png",
+     "d.png",
+     "e\\).png",
+     "f.png",
+     "g",
+     "h.png",
+     "i.png"
+    ],
+    "ViewportHeights": null
+   },
+   "Refs": [
+    {
+     "Value": "a.png",
+     "Import": false,
+     "Start": 5,
+     "End": 15,
+     "Custom": ""
+    },
+    {
+     "Value": "b c.png",
+     "Import": false,
+     "Start": 18,
+     "End": 34,
+     "Custom": ""
+    },
+    {
+     "Value": "C.png",
+     "Import": false,
+     "Start": 37,
+     "End": 47,
+     "Custom": ""
+    },
+    {
+     "Value": "d.png",
+     "Import": false,
+     "Start": 50,
+     "End": 63,
+     "Custom": ""
+    },
+    {
+     "Value": "e).png",
+     "Import": false,
+     "Start": 67,
+     "End": 79,
+     "Custom": ""
+    },
+    {
+     "Value": "f.png",
+     "Import": false,
+     "Start": 82,
+     "End": 96,
+     "Custom": ""
+    },
+    {
+     "Value": "g",
+     "Import": false,
+     "Start": 99,
+     "End": 109,
+     "Custom": ""
+    },
+    {
+     "Value": "h.png",
+     "Import": false,
+     "Start": 112,
+     "End": 122,
+     "Custom": ""
+    },
+    {
+     "Value": "i.png",
+     "Import": false,
+     "Start": 128,
+     "End": 137,
+     "Custom": ""
+    }
+   ],
+   "Uses": {
+    "Used": {},
+    "Hops": {},
+    "URLSyntax": {}
+   }
+  }
+ },
+ "viewport-units": {
+  "declarations": {
+   "Scan": {
+    "Defs": {},
+    "Refs": null,
+    "Colors": null,
+    "Imports": null,
+    "URLs": [
+     "100vh"
+    ],
+    "ViewportHeights": [
+     "100vh",
+     "100DVH",
+     "100svh",
+     "1.5lvh",
+     "1e2vb",
+     "100v\\68",
+     "-.5dvb",
+     "+3SVB",
+     ".5e-1lvb"
+    ]
+   },
+   "Refs": [
+    {
+     "Value": "100vh",
+     "Import": false,
+     "Start": 112,
+     "End": 122,
+     "Custom": ""
+    }
+   ],
+   "Uses": {
+    "Used": {},
+    "Hops": {},
+    "URLSyntax": {}
+   }
+  },
+  "stylesheet": {
+   "Scan": {
+    "Defs": {},
+    "Refs": null,
+    "Colors": null,
+    "Imports": null,
+    "URLs": [
+     "100vh"
+    ],
+    "ViewportHeights": [
+     "100vh",
+     "100DVH",
+     "100svh",
+     "1.5lvh",
+     "1e2vb",
+     "100v\\68",
+     "-.5dvb",
+     "+3SVB",
+     ".5e-1lvb"
+    ]
+   },
+   "Refs": [
+    {
+     "Value": "100vh",
+     "Import": false,
+     "Start": 112,
+     "End": 122,
+     "Custom": ""
+    }
+   ],
+   "Uses": {
+    "Used": {},
+    "Hops": {},
+    "URLSyntax": {}
+   }
+  }
+ }
+}
