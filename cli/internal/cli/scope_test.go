@@ -105,7 +105,6 @@ func TestListRootAndScope(t *testing.T) {
 	putFile(t, root, "tokens.css", "")
 	putFile(t, root, "design-x/a.css", "")
 	putFile(t, root, ".doan/canvases/a.html", validCanvas)
-	putFile(t, root, ".doan/comments/foo.jsonl", createLine(cmt1, "1", validCanvas)+"\n")
 	got := result(t, root, 0, "ls")
 	if got["root"] != realPath(t, root) || !filepath.IsAbs(got["root"].(string)) {
 		t.Fatal(got)
@@ -114,10 +113,10 @@ func TestListRootAndScope(t *testing.T) {
 		t.Fatal(got["scope"])
 	}
 	var want any
-	if e := json.Unmarshal([]byte(`[{"path":".doan/canvases/a.html","id":"foo","width":800,"title":"Example","frames":[{"id":"main","title":"Main"}],"comments":{"open":1,"resolved":0}}]`), &want); e != nil {
+	if e := json.Unmarshal([]byte(`[{"path":".doan/canvases/a.html","id":"foo","width":800,"title":"Example","frames":[{"id":"main","title":"Main"}]}]`), &want); e != nil {
 		t.Fatal(e)
 	}
-	if !reflect.DeepEqual(got["canvases"], want) || !reflect.DeepEqual(got["orphans"], []any{}) || len(got) != 6 || got["storage"] != "repo" || got["storageReason"] != "not_git" {
+	if !reflect.DeepEqual(got["canvases"], want) || len(got) != 5 || got["storage"] != "repo" || got["storageReason"] != "not_git" {
 		t.Fatal(got)
 	}
 	bare := t.TempDir()

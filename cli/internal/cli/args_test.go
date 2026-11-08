@@ -12,18 +12,18 @@ func TestSplitArgs(t *testing.T) {
 	for _, tt := range []struct {
 		name       string
 		args, want []string
-		canvas     string
+		frame      string
 		json       bool
 		fail       bool
 	}{
 		{"before command", []string{"--json", "ls"}, []string{"ls"}, "", true, false},
-		{"interspersed", []string{"comment", "--canvas", "foo", "resolve", "--json", "cmt_x"}, []string{"comment", "resolve", "cmt_x"}, "foo", true, false},
-		{"after", []string{"ls", "--canvas=foo", "-json"}, []string{"ls"}, "foo", true, false},
-		{"last wins", []string{"--canvas=a", "ls", "--canvas", "b"}, []string{"ls"}, "b", false, false},
-		{"terminator", []string{"ls", "--", "--json", "--canvas"}, []string{"ls", "--json", "--canvas"}, "", false, false},
+		{"interspersed", []string{"work", "--frame", "foo", "update", "--json", "a.html"}, []string{"work", "update", "a.html"}, "foo", true, false},
+		{"after", []string{"ls", "--frame=foo", "-json"}, []string{"ls"}, "foo", true, false},
+		{"last wins", []string{"--frame=a", "ls", "--frame", "b"}, []string{"ls"}, "b", false, false},
+		{"terminator", []string{"ls", "--", "--json", "--frame"}, []string{"ls", "--json", "--frame"}, "", false, false},
 		{"terminator first", []string{"--", "--json"}, []string{"--json"}, "", false, false},
-		{"terminator after flag", []string{"--canvas=x", "--", "--json"}, []string{"--json"}, "x", false, false},
-		{"missing value", []string{"--json", "ls", "--canvas"}, nil, "", true, true},
+		{"terminator after flag", []string{"--frame=x", "--", "--json"}, []string{"--json"}, "x", false, false},
+		{"missing value", []string{"--json", "ls", "--frame"}, nil, "", true, true},
 		{"unknown before json", []string{"ls", "--unknown", "--json"}, nil, "", true, true},
 		{"empty", []string{}, []string{}, "", false, false},
 	} {
@@ -32,7 +32,7 @@ func TestSplitArgs(t *testing.T) {
 			var output bytes.Buffer
 			fs.SetOutput(&output)
 			j := fs.Bool("json", false, "")
-			c := fs.String("canvas", "", "")
+			c := fs.String("frame", "", "")
 			got, err := SplitArgs(tt.args, fs)
 			if tt.fail {
 				var e *Error
@@ -42,7 +42,7 @@ func TestSplitArgs(t *testing.T) {
 			} else if err != nil || !reflect.DeepEqual(got, tt.want) {
 				t.Fatalf("got %v, %v; want %v", got, err, tt.want)
 			}
-			if *j != tt.json || *c != tt.canvas {
+			if *j != tt.json || *c != tt.frame {
 				t.Fatalf("flags = %v, %q", *j, *c)
 			}
 			if output.Len() != 0 {

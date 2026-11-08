@@ -124,13 +124,13 @@ func TestStorageReviewLinkedAttributes(t *testing.T) {
 	os.WriteFile(filepath.Join(root, "shared-attrs"), []byte("*.txt text\n"), 0644)
 	os.Symlink("shared-attrs", filepath.Join(root, ".gitattributes"))
 	got := storageOK(t, root, "init", "--storage", "repo")
-	if got["storage"] != "repo" || !strings.Contains(readFile(t, root, "shared-attrs"), "merge=union") {
+	if got["storage"] != "repo" || !strings.Contains(readFile(t, root, "shared-attrs"), "linguist-documentation") {
 		t.Fatal(got)
 	}
 	storageOK(t, root, "config", "--storage", "local")
 	os.WriteFile(filepath.Join(root, "shared-attrs"), []byte("*.txt text\n"), 0644)
 	storageOK(t, root, "config", "--storage", "repo")
-	if !strings.Contains(readFile(t, root, "shared-attrs"), "merge=union") {
+	if !strings.Contains(readFile(t, root, "shared-attrs"), "linguist-documentation") {
 		t.Fatal("attributes missing")
 	}
 }

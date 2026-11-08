@@ -48,12 +48,12 @@ type Outcome struct {
 	Text string
 }
 type Flags struct {
-	Storage                       string
-	JSON                          bool
-	Repo, TokenCSS, Canvas, Agent string
-	TokenCSSSet, CanvasSet        bool
-	ClearTokenCSS                 bool
-	AddServe, RemoveServe         []string
+	Storage               string
+	JSON                  bool
+	Repo, TokenCSS        string
+	TokenCSSSet           bool
+	ClearTokenCSS         bool
+	AddServe, RemoveServe []string
 	// Frames keeps every --frame so a repeated one is an error rather than the last one winning.
 	Frames []string
 	Note   string
@@ -70,14 +70,11 @@ type Flags struct {
 
 var Version = "dev"
 var kebabID = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
-var agentName = regexp.MustCompile(`^[a-z0-9-]+$`)
 
 const usage = `Usage: doan <command> [--repo <path>] [--json]
   init [--token-css <path>] [--storage local|repo]
   config [--storage local|repo] [--token-css <path> | --clear-token-css] [--add-serve <path>]... [--remove-serve <path>]...
   ls
-  comments [--canvas <id>]
-  comment resolve <cmt_id>... --agent <name>
   check
   active
   work start <canvas path>
@@ -152,8 +149,6 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	fs.BoolVar(&f.ClearTokenCSS, "clear-token-css", false, "")
 	fs.Func("add-serve", "", func(s string) error { f.AddServe = append(f.AddServe, s); return nil })
 	fs.Func("remove-serve", "", func(s string) error { f.RemoveServe = append(f.RemoveServe, s); return nil })
-	fs.StringVar(&f.Canvas, "canvas", "", "")
-	fs.StringVar(&f.Agent, "agent", "", "")
 	fs.Func("frame", "", func(s string) error { f.Frames = append(f.Frames, s); return nil })
 	fs.StringVar(&f.Note, "note", "", "")
 	fs.StringVar(&f.Message, "message", "", "")
@@ -189,10 +184,6 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		case "init":
 			allowed["storage"] = true
 			allowed["token-css"] = true
-		case "comments":
-			allowed["canvas"] = true
-		case "comment":
-			allowed["agent"] = true
 		case "open":
 			allowed["frame"] = true
 		case "handoff":
@@ -216,9 +207,6 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			f.Given[v.Name] = true
 			if v.Name == "token-css" {
 				f.TokenCSSSet = true
-			}
-			if v.Name == "canvas" {
-				f.CanvasSet = true
 			}
 			if !allowed[v.Name] {
 				failure = usageError("Flag --" + v.Name + " is not supported by " + cmd)
@@ -259,8 +247,6 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 						o, failure = Config(ctx, f, pos[1:])
 					case "ls":
 						o, failure = List(ctx, f, pos[1:])
-					case "comments":
-						o, failure = Comments(ctx, f, pos[1:])
 					case "skill":
 						o, failure = Skill(ctx, pos[1:])
 					case "design-skill":
@@ -295,12 +281,6 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 						}
 					case "export":
 						o, failure = Export(ctx, f, pos[1:])
-					case "comment":
-						if len(pos) < 2 || pos[1] != "resolve" {
-							failure = usageError("Expected comment resolve")
-						} else {
-							o, failure = Resolve(ctx, f, pos[2:])
-						}
 					default:
 						failure = usageError("Unknown command: " + cmd)
 					}

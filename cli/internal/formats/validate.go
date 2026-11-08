@@ -21,8 +21,8 @@ func (refusingLoader) Load(url string) (any, error) {
 var validators = sync.OnceValues(func() (map[string]*jsonschema.Schema, error) {
 	compiler := jsonschema.NewCompiler()
 	compiler.UseLoader(refusingLoader{})
-	files := []string{"comment-event.v1", "config.v1", "cli-envelope.v1", "runtime.v1", "app-socket.v1", "app-socket.v2", "app-socket.v3", "app-socket.v4", "app-socket.v5", "sessions.v1"}
-	// Register every file before compiling any: app-socket $refs comment-event by its absolute $id.
+	files := []string{"config.v1", "cli-envelope.v1", "runtime.v1", "app-socket.v1", "app-socket.v2", "app-socket.v3", "app-socket.v4", "app-socket.v5", "sessions.v1"}
+	// Register every file before compiling any: app-socket v3 $refs v4 by its absolute $id.
 	for _, name := range files {
 		filename := name + ".schema.json"
 		data, err := schema.Files.ReadFile(filename)
@@ -38,7 +38,6 @@ var validators = sync.OnceValues(func() (map[string]*jsonschema.Schema, error) {
 		}
 	}
 	targets := map[string]string{
-		"comment-event":       schemaBase + "comment-event.v1.schema.json",
 		"config":              schemaBase + "config.v1.schema.json",
 		"cli-envelope":        schemaBase + "cli-envelope.v1.schema.json",
 		"runtime":             schemaBase + "runtime.v1.schema.json",
@@ -74,7 +73,6 @@ func validate(name string, value any) error {
 	return compiled[name].Validate(value)
 }
 
-func ValidateCommentEvent(value any) error   { return validate("comment-event", value) }
 func ValidateConfig(value any) error         { return validate("config", value) }
 func ValidateEnvelope(value any) error       { return validate("cli-envelope", value) }
 func ValidateRuntimeFile(value any) error    { return validate("runtime", value) }

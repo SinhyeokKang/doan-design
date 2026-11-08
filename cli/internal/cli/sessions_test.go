@@ -360,7 +360,14 @@ func TestSessionInternalCheckFailureAndNoInspectedCanvases(t *testing.T) {
 	for _, jsonMode := range []bool{false, true} {
 		t.Run(fmt.Sprint(jsonMode), func(t *testing.T) {
 			root, log := sessionFixture(t)
-			putFile(t, root, ".doan/comments", "not a directory")
+			// A stylesheet behind an unreadable directory fails check after the canvas itself was read.
+			putFile(t, root, ".doan/canvases/a.html", strings.Replace(validCanvas, "<title>", `<link rel="stylesheet" href="../../locked/a.css"><title>`, 1))
+			putFile(t, root, "locked/a.css", "a{}")
+			locked := filepath.Join(root, "locked")
+			if e := os.Chmod(locked, 0); e != nil {
+				t.Fatal(e)
+			}
+			t.Cleanup(func() { os.Chmod(locked, 0755) })
 			code, out, err := checkOutput(root, jsonMode)
 			if code != 1 {
 				t.Fatal(code, out, err)

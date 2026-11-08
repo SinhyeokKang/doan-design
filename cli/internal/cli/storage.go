@@ -75,7 +75,7 @@ func configStorage(ctx Context, root, storage string) (Outcome, *Error) {
 }
 func missingAttributes(data []byte) []string {
 	missing := []string{}
-	for _, line := range []string{".doan/comments/*.jsonl merge=union", ".doan/** linguist-documentation"} {
+	for _, line := range []string{".doan/** linguist-documentation"} {
 		found := false
 		for _, s := range strings.Split(string(data), "\n") {
 			if strings.TrimSuffix(s, "\r") == line {
