@@ -34,8 +34,9 @@ func TestResolveAsset(t *testing.T) {
 		{".doan/canvases", "../assets/images", resolved{assetMissing, "", ""}},
 		{"styles", "gone.png", resolved{assetMissing, "", ""}},
 	}
+	resolver := repo.NewResolver(root)
 	for _, c := range cases {
-		got, err := resolveAsset(root, scope, c.base, c.href)
+		got, err := resolveAsset(resolver, root, scope, c.base, c.href)
 		if err != nil || got != c.want {
 			t.Errorf("resolveAsset(%q, %q) = %+v, %v; want %+v", c.base, c.href, got, err, c.want)
 		}
@@ -50,7 +51,7 @@ func TestResolveAssetInLinkedDefaultDirectory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := resolveAsset(root, scope, ".doan/canvases", "../assets/logo.png")
+	got, err := resolveAsset(repo.NewResolver(root), root, scope, ".doan/canvases", "../assets/logo.png")
 	if err != nil || got != (resolved{assetRefused, "", ReasonNotServed}) {
 		t.Fatalf("default scope: %+v, %v", got, err)
 	}
@@ -58,7 +59,7 @@ func TestResolveAssetInLinkedDefaultDirectory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err = resolveAsset(root, scope, ".doan/canvases", "../assets/logo.png")
+	got, err = resolveAsset(repo.NewResolver(root), root, scope, ".doan/canvases", "../assets/logo.png")
 	if err != nil || got != (resolved{assetInside, "media/logo.png", ""}) {
 		t.Fatalf("configured scope: %+v, %v", got, err)
 	}

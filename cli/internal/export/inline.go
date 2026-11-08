@@ -78,16 +78,16 @@ func Inline(root string, config repo.Config, canvasPath string, src []byte) (Res
 // canvas count the bytes they gain while being rewritten, so repeated
 // @import expansion stops early. The error is for file-system failures only.
 func InlineLimit(root string, config repo.Config, canvasPath string, src []byte, limit int64) (Result, error) {
-	res, _, err := inline(root, config, canvasPath, src, limit)
+	res, _, err := inline(repo.NewResolver(root), root, config, canvasPath, src, limit)
 	return res, err
 }
 
-func inline(root string, config repo.Config, canvasPath string, src []byte, limit int64) (Result, *inliner, error) {
+func inline(resolver *repo.Resolver, root string, config repo.Config, canvasPath string, src []byte, limit int64) (Result, *inliner, error) {
 	scope, err := repo.Scope(root, config)
 	if err != nil {
 		return Result{}, nil, err
 	}
-	in := &inliner{root: root, scope: scope, limit: limit, files: map[string][]byte{}, sizes: map[string]int64{}, sheets: map[string][]sheet{}, external: map[string]bool{}, links: map[string]bool{}, refusedSeen: map[Refusal]bool{}, ids: documentIDs(src), spriteIDs: map[string]map[string]bool{}, spriteStyled: map[string]bool{}}
+	in := &inliner{resolver: resolver, root: root, scope: scope, limit: limit, files: map[string][]byte{}, sizes: map[string]int64{}, sheets: map[string][]sheet{}, external: map[string]bool{}, links: map[string]bool{}, refusedSeen: map[Refusal]bool{}, ids: documentIDs(src), spriteIDs: map[string]map[string]bool{}, spriteStyled: map[string]bool{}}
 	in.collectUses(canvasPath, src)
 	if in.err != nil {
 		return Result{}, nil, in.err
@@ -137,6 +137,7 @@ func inline(root string, config repo.Config, canvasPath string, src []byte, limi
 }
 
 type inliner struct {
+	resolver     *repo.Resolver // shared by every reference of one export
 	root         string
 	scope        []string
 	limit        int64
@@ -216,7 +217,7 @@ func (in *inliner) replace(from string, direct bool, ancestors []string, reached
 			// is declared, as before, but a missing file blocks nothing.
 			direct = false
 		}
-		r, err := resolveAsset(in.root, in.scope, path.Dir(from), href)
+		r, err := resolveAsset(in.resolver, in.root, in.scope, path.Dir(from), href)
 		if err != nil {
 			in.err = err
 			return "", false

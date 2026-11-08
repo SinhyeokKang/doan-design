@@ -95,7 +95,7 @@ func (in *inliner) collectSheet(base, href string) {
 	if in.stopped() || classifyRef(kindStylesheet, href) != classInline {
 		return
 	}
-	r, err := resolveAsset(in.root, in.scope, base, href)
+	r, err := resolveAsset(in.resolver, in.root, in.scope, base, href)
 	if err != nil {
 		in.err = err
 		return
@@ -121,7 +121,7 @@ func (in *inliner) replaceCustom(from string, direct bool, h, href string, dirs 
 	found := map[string]bool{}
 	refusal := ""
 	for _, d := range dirs {
-		r, err := resolveAsset(in.root, in.scope, d, href)
+		r, err := resolveAsset(in.resolver, in.root, in.scope, d, href)
 		if err != nil {
 			in.err = err
 			return "", false
