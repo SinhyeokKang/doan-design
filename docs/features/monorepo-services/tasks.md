@@ -2,7 +2,7 @@
 
 선행 조건: `local-doan-files`와 `canvas-handoff`는 develop에 병합됐다. `/tdd`(T1)를 시작할 때 두 feature의 병합된 모양(`doan config` 결과의 `storage`, 셋업 패널·Project Settings 구역, app-socket v5와 `workTarget`)을 다시 읽고 design §8.1과 해당 절을 고친다.
 
-순서: 초안 → 형식 → Go 순수 함수 → CLI 저장소 규칙(나열·scope·check·댓글·경로) → CLI 후보 찾기 → guide·preset·eval scenario → app main 경로·watcher → app main 셋업·Settings → app UI → 실제 앱 확인 → agent eval → 승격.
+순서: 초안 → 형식 → Go 순수 함수 → CLI 저장소 규칙(나열·scope·check·경로) → CLI 후보 찾기 → guide·preset·eval scenario → app main 경로·watcher → app main 셋업·Settings → app UI → 실제 앱 확인 → agent eval → 승격.
 
 ## T0. 초안
 
@@ -34,8 +34,8 @@
   - export: 서비스 캔버스가 서비스 assets와 공유 token CSS를 담아 나감, `.doan/services/web/assets` 밖의 서비스 폴더 파일은 거절, `-o`가 `.doan/services/...` 안이면 `usage_error`(`cli/internal/export/exporttest` seed에 서비스 캔버스 추가).
 - **`doan check` token 판단**: `hardcoded_color`의 서비스 token, `token_css_not_found`의 서비스 token, `service_not_configured` 경고(design §2.5).
   - 테스트(`cli/internal/check/check_test.go`): 서비스 token 예외, 최상위·서비스 token 파일이 `undefined_token`·`hardcoded_color`에서 빠지고 캔버스 순서를 바꿔도 결과가 같음(`cssSeen`), 서비스 token 없음 → 최상위, 여러 서비스가 닿는 CSS 파일의 finding 한 번, 공유 token CSS를 저장소 상대로 링크한 서비스 캔버스에 `path_outside_repo`·`css_not_served` 없음, 없는 서비스 token → `.doan/config.json`의 finding.
-- **댓글**: `OrphanFiles`·`ls` `orphans`·`doan comments`의 `canvasPath`가 서비스 캔버스를 봄(design §2.6).
-  - 테스트: 서비스 캔버스의 댓글 파일이 고아가 아님, 서비스 캔버스 id가 공유 캔버스와 겹치면 `duplicate_canvas_id`, `comment resolve`가 서비스 캔버스 댓글에 동작.
+- **캔버스 id 유일성**: `duplicate_canvas_id`가 서비스 캔버스까지 봄(design §2.6).
+  - 테스트: 서비스 캔버스 id가 공유 캔버스나 다른 서비스 캔버스와 겹치면 `duplicate_canvas_id`.
 - **`doan config` 서비스 쓰기**(design §2.9).
   - 테스트: 결과 deep-compare(`storage`와 함께, design §8.1), 서비스 없는 config 바이트·mtime 그대로, v1 → v2, 마지막 서비스 빼면 v1, 캔버스 있는 서비스 빼기 거절, 경로에 링크가 있으면 거절, `--add-service`의 `<path>`가 없거나 디렉터리가 아니면 `usage_error`, `<path>`가 on-disk spelling으로 저장됨, 폴더 만들기 실패 → config 그대로, 재시도.
 - **work·open 경로**: `workCanvasPath`·`canvasLink`·`open_rules.go`의 넓힌 규칙(design §2.7).
@@ -60,7 +60,7 @@
 
 결정 1의 비용(design §0)을 앱 쪽에서 다룬다.
 
-- **`canvasPath.ts`와 사용처**: `canvasDir`·`canvasKind`·`canvasService`와 사용처 11곳(design §4.6). 각 사용처 테스트에 서비스 경로 사례: Move to Trash 경계와 댓글 동반(`canvasTrash.test.ts`), 썸네일, 대화 activity의 `insideDesign`, `conversation/store.ts` `validCanvas`(서비스 캔버스에 묶인 대화 기록)와 새 앱이 서비스 캔버스 대화가 든 index를 읽는 사례, Quick Open, composer 제안.
+- **`canvasPath.ts`와 사용처**: `canvasDir`·`canvasKind`·`canvasService`와 사용처 11곳(design §4.6). 각 사용처 테스트에 서비스 경로 사례: Move to Trash 경계(`canvasTrash.test.ts`), 썸네일, 대화 activity의 `insideDesign`, `conversation/store.ts` `validCanvas`(서비스 캔버스에 묶인 대화 기록)와 새 앱이 서비스 캔버스 대화가 든 index를 읽는 사례, Quick Open, composer 제안.
 - **work·open·링크**: `runtime.ts`의 `start` 검사, `deepLinks.ts`의 `canvas` 검사를 T1 fixture로(design §2.7).
 - **watcher**: config 없이 `.doan/services`를 늘 재귀로 보는 watcher(없으면 걸지 않음), `doanDirs`에 `services`, 경로 모양으로 행 `rev`·`servedRev`·다시 읽기 분류, 링크 무시(design §4.5). 테스트: 서비스 캔버스 저장 → 그 행 `rev`만, 서비스 assets 저장 → `servedRev`, 서비스 assets 디렉터리를 지웠다 다시 만듦(POSTMORTEM 2026-10-22 'A served directory wiped…'), `.doan/services` 자체 삭제(POSTMORTEM 2026-10-22 'Filtering root `fs.watch` events…'), 서비스 추가 뒤 config 변경으로 다시 읽기.
 - 검증: `npm --prefix app test`, `npm --prefix app run typecheck` 통과.
@@ -90,7 +90,7 @@
 
 ## T9. 실제 앱 확인
 
-- `/runtime-test`: 격리된 앱에서 임시 모노레포(pnpm workspace 서비스 둘과 라이브러리 하나, `packages/ui/tokens.css`)를 Add Projects로 추가해 서비스 둘을 셋업한다. 확인: `.doan/services/<id>/{canvases,ds,assets}`와 config v2, 사이드바 서비스 group, 서비스 캔버스가 공유 token CSS와 서비스 assets로 렌더됨, 서비스 캔버스 저장과 서비스 assets 변경의 live reload, `doan work start`·`doan open`·`doan://` 링크가 서비스 캔버스에 닿음, 서비스 캔버스의 Export와 Move to Trash(댓글 동반), Project Settings에서 서비스 더하기·서비스 token CSS·Remove 비활성과 빈 서비스 Remove, 서비스 쓰기 실패와 Retry, 200줄 목록의 스크롤 끝 Set Up과 실행 중 focus. 첫 실행 경로도 한 번. 서비스 없는 기존 프로젝트의 사이드바와 config 바이트가 그대로인지.
+- `/runtime-test`: 격리된 앱에서 임시 모노레포(pnpm workspace 서비스 둘과 라이브러리 하나, `packages/ui/tokens.css`)를 Add Projects로 추가해 서비스 둘을 셋업한다. 확인: `.doan/services/<id>/{canvases,ds,assets}`와 config v2, 사이드바 서비스 group, 서비스 캔버스가 공유 token CSS와 서비스 assets로 렌더됨, 서비스 캔버스 저장과 서비스 assets 변경의 live reload, `doan work start`·`doan open`·`doan://` 링크가 서비스 캔버스에 닿음, 서비스 캔버스의 Export와 Move to Trash, Project Settings에서 서비스 더하기·서비스 token CSS·Remove 비활성과 빈 서비스 Remove, 서비스 쓰기 실패와 Retry, 200줄 목록의 스크롤 끝 Set Up과 실행 중 focus. 첫 실행 경로도 한 번. 서비스 없는 기존 프로젝트의 사이드바와 config 바이트가 그대로인지.
 - 이전 CLI 동작(design §2.8): 이 기능 이전에 빌드한 CLI(설치된 `doan` 또는 main에서 `go build -o <tmp>/doan ./cli/cmd/doan`)로 v2 프로젝트에 `ls`·`check`·`init`을 돌려 `unsupported_version`과 config가 그대로인 것을 기록한다.
 - 이전 앱 동작(design §2.8, 결정 6): 사람이 받아들인 비용으로 기록한다. 같은 기기에서 앱을 내리면 서비스 캔버스에 묶인 대화가 있는 동안 대화 index 전체가 `invalid`로 읽히고, 앱을 다시 올리면 돌아온다.
 - `/design-sync`: 세 화면을 T0 초안과 computed style로 맞추고 DESIGN.md에 적는다.
