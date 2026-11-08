@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-Only the latest release receives security fixes. Before the first stable release (0.1.0), report against the `develop` branch.
+Only the latest release receives security fixes.
 
 ## Reporting a vulnerability
 
