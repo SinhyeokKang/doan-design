@@ -23,9 +23,9 @@
 | DR | T0 초안 | 새 `.doan/canvases/config-error-source.html`, 필요하면 `docs/DESIGN.md`의 새 token 줄 | 없음 | Claude Opus medium — 기존 첫 실행 장면의 규약을 따라야 하는 판단, 결과가 작다 | `doan check --json` 오류 0, `doan ls --json`, 독립 reviewer | 통합 `f8a47220`, `b126c6fc` |
 | GO | T1, T2 | `schema/`, `schema/fixtures/`, `cli/`, `app/src/formats/types.ts` | 없음 | Claude Opus medium — `Find`의 다섯 갈래와 부모 탐색 경계, 권한 테스트. 범위가 명확하다 | `go test ./...`, `go vet ./...`, `npm --prefix app test` | 통합 `85f20b4b`, `13305767` |
 | GO-R | GO 리뷰 | 없음(보고만) | GO | Codex `gpt-6-astra` medium — 다른 family의 독립 리뷰 | `/code-review` 보고 | 지적 0(🔴·🟡·⚪ 없음) |
-| AP | T3, T4, T5 | `app/src/main/`, `app/src/renderer/`(T5의 `Onboarding.tsx`와 `kind: "error"` 테스트 fixture) | GO 통합, T5는 DR 리뷰 통과 | Claude Opus high — 상태 분류가 add·locate·첫 실행·reveal에 퍼지고, 소켓 답과 창 IPC의 `detail` 분리가 틀리면 CLI가 답을 거절한다 | `npm --prefix app test`, typecheck, lint, T4 grep, `/verify` | 진행 |
-| AP-R | AP 리뷰 | 없음(보고만) | AP | Codex `gpt-6-astra` medium — 다른 family의 독립 리뷰 | `/code-review` 보고 | 대기 |
-| RT | T6 | 없음(`.scratch/runtime-test/config-error-source/`) | AP 통합 | Claude Opus medium — 격리 앱 probe, 관찰 판단 | 관찰과 스크린샷, 잠긴 화면이면 미검증 기록 | 대기 |
+| AP | T3, T4, T5 | `app/src/main/`, `app/src/renderer/`(T5의 `Onboarding.tsx`와 `kind: "error"` 테스트 fixture) | GO 통합, T5는 DR 리뷰 통과 | Claude Opus high — 상태 분류가 add·locate·첫 실행·reveal에 퍼지고, 소켓 답과 창 IPC의 `detail` 분리가 틀리면 CLI가 답을 거절한다 | `npm --prefix app test`, typecheck, lint, T4 grep, `/verify` | 통합 `6ae0b681`, `8a63394e`, `f5654238`, 수정 round 1 진행 |
+| AP-R | AP 리뷰 | 없음(보고만) | AP | Codex `gpt-6-astra` medium — 다른 family의 독립 리뷰 | `/code-review` 보고 | 1차 🟡 1건 → AP 수정 중 |
+| RT | T6 | 없음(`.scratch/runtime-test/config-error-source/`) | AP 통합 | Claude Opus medium — 격리 앱 probe, 관찰 판단 | 관찰과 스크린샷, 잠긴 화면이면 미검증 기록 | 진행(`f5654238`에서) |
 | EV | T7 | `docs/USABILITY-EVAL.md` | RT | Claude Opus medium — eval 실행과 결과 판정 | `node eval/run.ts` round, 기록 | 대기 |
 | — | T8 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/BACKLOG.md`, `docs/DESIGN.md`, feature 디렉터리 삭제 | 전부 | conductor | 고친 절을 코드와 대조, T4 grep, `/verify` | 대기 |
 
@@ -42,3 +42,7 @@
 - GO-R(Codex `gpt-6-astra` medium): 🔴·🟡·⚪ 0건. `go test ./...`, `go vet ./...`, 권한 사례를 포함한 캐시 없는 Go 테스트, TS 형식 테스트 1086개를 리뷰어가 다시 돌려 통과했다. 보고서는 `.scratch/orch/review-GO.md`. GO worktree는 지웠고 branch는 남겼다.
 - AP: DR 리뷰가 먼저 통과해서 T5를 처음부터 AP에 넣었다. conductor 재량 — 새 Task 한 번을 줄인다.
 - AP 질문: 창 전용 `detail`을 화면에 보이려면 `projectStep.ts`가 `error.detail`을 상태로 옮겨야 한다. AP에게 `projectStep.ts`와 그 테스트 수정을 허락했다. Add Projects 페이지도 같은 Project 단계를 쓰므로 `AddPageSession`의 창 IPC에도 `detail`을 붙였다는 보고를 받아들였다. conductor 재량 — design §2.5의 "창 전용, 소켓 답에는 없음"과 같은 규칙이고, 같은 화면이 두 곳에서 다르게 보이지 않게 한다.
+- AP 보고: `npm --prefix app test` 9717 통과, typecheck, lint, 공유 verify gate 통과. T4 grep은 `index.ts`의 두 줄만 빠졌다(`.scratch/orch/handoff-AP.md`).
+- AP-R(Codex `gpt-6-astra` medium): 🔴 0, 🟡 1, ⚪ 0. 🟡: `OperationBook.details`가 operation이 retire될 때 지워지지 않아, 21번째 실패 뒤에도 retire된 operation의 창 답에 예전 `detail`이 붙는다(리뷰어가 재현했다). 소켓 유출은 없다. AP worker에게 회귀 테스트와 수정을 보냈다. 보고서는 `.scratch/orch/review-AP.md`.
+- RT는 AP 통합 HEAD `f5654238`에서 AP-R과 함께 시작했다. AP 수정은 retire된 operation의 `detail` 수명만 바꾸므로 RT의 probe 항목에는 영향이 없다. conductor 재량.
+- RT worker가 다른 세션의 권한 prompt(`rm -f shots/*`)에 걸렸다. 승인하지 않았고, glob 삭제 없이 실행별 새 디렉터리를 쓰라고 지시했다.
