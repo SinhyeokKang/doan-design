@@ -312,6 +312,7 @@ func TestExportRefusalsListEveryReferenceAndNameNoAbsolutePath(t *testing.T) {
 		{exporttest.RefuseMissing, []string{"../assets/images/none.png"}, "not found"},
 		{exporttest.RefuseFrame, nil, "local document in a frame"},
 		{exporttest.RefuseLink, []string{"../assets/escape.png"}, ""},
+		{exporttest.RefuseBase, []string{"images/hero.png"}, "relative to a base element"},
 	} {
 		t.Run(c.canvas, func(t *testing.T) {
 			root := exporttest.Seed(t)
@@ -377,7 +378,9 @@ func TestExportRefusalLinesSurviveOddReferences(t *testing.T) {
 func TestExportRefusesACanvasItCannotReadWithoutReferenceLines(t *testing.T) {
 	root := exporttest.Seed(t)
 	exporttest.Put(t, root, ".doan/canvases/deep.html", validCanvas+strings.Repeat("<div>", 600))
-	for _, canvasPath := range []string{exporttest.NoWidth, exporttest.BadWidth, ".doan/canvases/deep.html"} {
+	// The width is checked before any reference, so a moving base adds no lines.
+	exporttest.Put(t, root, ".doan/canvases/base-no-width.html", `<!doctype html><html><head><base href="../assets/"></head><body><img src="images/hero.png"></body></html>`)
+	for _, canvasPath := range []string{exporttest.NoWidth, exporttest.BadWidth, ".doan/canvases/deep.html", ".doan/canvases/base-no-width.html"} {
 		t.Run(canvasPath, func(t *testing.T) {
 			dir := exportOutput(t)
 			e := exportFailure(t, root, "export_refused", canvasPath, "-o", filepath.Join(dir, "x.html"))

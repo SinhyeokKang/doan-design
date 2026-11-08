@@ -31,6 +31,9 @@ const (
 	// it, and these name different existing files: which one shows depends
 	// on the element, so the export cannot pick one.
 	ReasonAmbiguous = "names different files from the stylesheets that use it"
+	// A <base href> moves the folder relative references resolve from, and
+	// export does not follow it.
+	ReasonBase = "relative to a base element"
 )
 
 type assetState int
@@ -51,12 +54,12 @@ type resolved struct {
 // repository, inside the serving scope, then a regular file. base is the
 // repo-relative directory of the referencing file. A missing target is not a
 // refusal here because CSS files may name files that do not exist.
-func resolveAsset(root string, scope []string, base, href string) (resolved, error) {
+func resolveAsset(resolver *repo.Resolver, root string, scope []string, base, href string) (resolved, error) {
 	p, ok := canvas.LocalPath(href)
 	if !ok {
 		return resolved{State: assetMissing}, nil
 	}
-	state, real, err := repo.Resolve(root, filepath.Join(root, filepath.FromSlash(base)), p)
+	state, real, err := resolver.Resolve(filepath.Join(root, filepath.FromSlash(base)), p)
 	if err != nil {
 		return resolved{}, err
 	}

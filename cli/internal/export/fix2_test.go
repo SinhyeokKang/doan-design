@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/SinhyeokKang/doan-design/cli/internal/export/exporttest"
+	"github.com/SinhyeokKang/doan-design/cli/internal/repo"
 )
 
 func inlineInternal(t *testing.T, root, canvasPath string, limit int64) (Result, *inliner) {
@@ -14,7 +15,7 @@ func inlineInternal(t *testing.T, root, canvasPath string, limit int64) (Result,
 	if err != nil {
 		t.Fatal(err)
 	}
-	res, in, err := inline(root, seedConfig(t, root), canvasPath, src, limit)
+	res, in, err := inline(repo.NewResolver(root), root, seedConfig(t, root), canvasPath, src, limit)
 	if err != nil {
 		t.Fatal(err)
 	}

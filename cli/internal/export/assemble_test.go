@@ -256,3 +256,28 @@ func viewerFile(t *testing.T, name string) string {
 	}
 	return string(b)
 }
+
+// fillShell replaced a strings.Replacer over the placeholders; it must agree
+// with one on any shell, including braces next to a placeholder.
+func TestFillShellMatchesAReplacer(t *testing.T) {
+	var pairs []string
+	for i, p := range placeholders {
+		pairs = append(pairs, p, strings.Repeat("v", i+1)+"{{NAME}}")
+	}
+	replacer := strings.NewReplacer(pairs...)
+	for _, shell := range []string{
+		"", "{{", "{", "}}", "{{{NAME}}", "{{{{SRCDOC}}}}", "{{NAME", "a{{NAME}}b{{SRCDOC}}{{X}}c", "{{WIDTH}}{{WIDTH}}", "{{nAME}}{{META}}",
+	} {
+		var got strings.Builder
+		fillShell(shell, func(s string) { got.WriteString(s) }, func(key string) {
+			for i, p := range placeholders {
+				if p == key {
+					got.WriteString(pairs[2*i+1])
+				}
+			}
+		})
+		if want := replacer.Replace(shell); got.String() != want {
+			t.Errorf("%q: got %q, want %q", shell, got.String(), want)
+		}
+	}
+}

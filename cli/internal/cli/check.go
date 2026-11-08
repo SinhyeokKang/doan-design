@@ -20,10 +20,11 @@ func checkState(s repo.State) check.State {
 	}
 }
 func CheckInput(r repo.Repository) (check.Input, error) {
-	return checkInput(r, nil)
+	return checkInput(r, repo.NewResolver(r.Root), nil)
 }
 
-func checkInput(r repo.Repository, inspected func([]canvasFile)) (check.Input, error) {
+// resolver is shared by every canvas, stylesheet and implements path of one check.
+func checkInput(r repo.Repository, resolver *repo.Resolver, inspected func([]canvasFile)) (check.Input, error) {
 	in := check.Input{Canvases: []canvas.Canvas{}, Unparsable: map[string]string{}, Reach: map[string][]check.CSSRef{}, CSS: map[string]canvas.Scan{}, Implements: map[string]check.State{}}
 	files, e := scanCanvases(r.Root)
 	if e != nil {
@@ -87,7 +88,7 @@ func checkInput(r repo.Repository, inspected func([]canvasFile)) (check.Input, e
 				in.Implements[p] = check.Missing
 				continue
 			}
-			s, _, e := repo.Resolve(r.Root, r.Root, p)
+			s, _, e := resolver.Resolve(r.Root, p)
 			if e != nil {
 				return in, e
 			}
@@ -100,7 +101,7 @@ func checkInput(r repo.Repository, inspected func([]canvasFile)) (check.Input, e
 			if !ok {
 				return nil
 			}
-			state, real, e := repo.Resolve(r.Root, filepath.Join(r.Root, filepath.Dir(from)), p)
+			state, real, e := resolver.Resolve(filepath.Join(r.Root, filepath.Dir(from)), p)
 			if e != nil {
 				return e
 			}
@@ -155,7 +156,7 @@ func Check(ctx Context, f Flags, args []string) (Outcome, *Error) {
 	}
 	var inspected []canvasFile
 	defer func() { recordSessions(ctx, r.Root, inspected) }()
-	in, e := checkInput(r, func(files []canvasFile) { inspected = files })
+	in, e := checkInput(r, repo.NewResolver(r.Root), func(files []canvasFile) { inspected = files })
 	if e != nil {
 		return Outcome{}, internal(e)
 	}
