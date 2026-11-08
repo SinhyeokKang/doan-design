@@ -22,10 +22,11 @@
 | batch | 항목 | 파일 소유 | 선행 | 모델·effort(이유) | 검증 gate | 상태 |
 |---|---|---|---|---|---|---|
 | R | T3, T4, T5 | `cli/internal/repo/resolve.go`와 새 repo 테스트, `cli/internal/export/resolve.go`·`inline.go`의 Resolver 전달, `cli/internal/cli/check.go`·`export.go` | 없음(T5는 MP 생성기) | Claude Opus high(경로 해석·scope·symlink 보안 경계, 잘못되면 serving scope가 샌다) | `go test ./...`, `go vet ./...`, mutation 확인, T5 ≤ 2 s | 대기 |
-| MP | T0, T1 | `.scratch/export-hardening/` 생성기, `cli/internal/export/`의 새 opt-in 프로파일 테스트 파일, design.md §2 | 없음 | Claude Opus high(프로파일 해석과 가설 판정이 MF의 수정 대상을 정한다) | 생성기 sha256 두 번 같음, pprof 결과가 §2에 있음 | 대기 |
+| MP | T0, T1 | `.scratch/export-hardening/` 생성기, `cli/internal/export/`의 새 opt-in 프로파일 테스트 파일, design.md §2 | 없음 | Claude Opus high(프로파일 해석과 가설 판정이 MF의 수정 대상을 정한다) | 생성기 sha256 두 번 같음, pprof 결과가 §2에 있음 | 통합 `55afdb85`, `a05638b1` |
 | SP | T2 | `.scratch/export-hardening/` 측정 스크립트, design.md §4 | 없음 | Claude Opus high(두 엔진·Electron 측정 설계, 판정이 SF 유무를 정한다) | 측정 스크립트 실행, 결과 표·판정이 §4에 있음 | 대기 |
 | B | T6, T7 | `cli/internal/export/`의 새 base 파일, `inline.go`·`classify.go`·`customurl.go`·`assemble.go` 중 필요한 곳, `exporttest/seed.go`, `cli/internal/cli/export_test.go` | R 통합 | Claude Opus high(거절 순서·custom property 사용처·결과 바이트 고정) | `go test ./...` | 대기 |
-| MF | T8, T9 | T1이 가리킨 곳(`cli/internal/canvas/css.go` 또는 `cli/internal/export/` 파일) | R 통합, MP 통합. B와 파일이 겹치면 B 뒤 | Claude Opus high(lexer 결과 동등·결과 바이트 고정) | `go test ./...`, `go vet ./...`, RSS ≤ 240 MiB | 대기 |
+| MF1 | T8의 lexer 부분 | `cli/internal/canvas/css.go`와 canvas 테스트(export API 그대로) | MP | Claude Opus high(같은 worker가 프로파일 맥락을 이어받는다. scanner 결과 동등성) | `go test ./...`, 동등성 테스트, `TestCSSRefsMatchesScanCSS` | 진행 |
+| MF2 | T8의 export 사본 부분, T9 | `cli/internal/export/` `assemble.go`·`inline.go`·`customurl.go`·`rewrite.go`·`datauri.go`, 필요하면 `cli/internal/cli/export.go` | B·MF1 통합 | Claude Opus high(결과 바이트 고정, 쓰기 경로) | `go test ./...`, `go vet ./...`, RSS ≤ 240 MiB | 대기 |
 | SF | T10, T11 | `cli/internal/export/` sprite 코드, `fix2_test.go` | SP 판정 (i)/(ii), B·MF 통합 | Claude Opus high(foreign `<style>` 파싱, 범위 좁히기의 누출) | `go test ./...`, T2 스크립트 재측정 | 대기 |
 | EV | T13 | `docs/USABILITY-EVAL.md`, `.scratch/agent-eval/` | 모든 코드 통합 | Claude Sonnet high(정해진 명령 실행과 결과 비교, 판단은 적다) | X1 두 에이전트 모두 직전 라운드보다 나빠지지 않음 | 대기 |
 | conductor | T12, T14 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/BACKLOG.md`, feature 디렉터리 삭제 | EV | — | `verify.mjs` 통과, T14 grep | 대기 |
@@ -42,3 +43,4 @@
 ## 진행 기록
 
 - 2026-11-09 1단계 시작: Run `run_ded526f160b4`. R `ctx_becd15eb3466`(worktree `eh-r`), MP `ctx_0b0d1ba3e054`(`eh-mp`), SP `ctx_c502466fab4d`(`eh-sp`). 셋 다 Claude Opus high, `launch.effective` 확인. 기준 CLI `doan-before`는 `e88b05ce`에서 빌드했다(Apple M1, 16 GiB, go1.27.3 darwin/arm64).
+- MP 완료: 24 MiB 입력의 doan-before 최대 RSS 2,205,253,632 B, `canvas.lex`가 할당의 91.8%. lex가 거의 없는 대조 입력도 299,794,432 B라 export 사본도 고쳐야 한다(design §2). 수정 범위가 B와 `inline.go`·`customurl.go`·`assemble.go`에서 겹치므로 MF를 둘로 나눴다: MF1(canvas lexer만, 지금 병렬)과 MF2(export 사본·T8 회귀 테스트·T9, B 뒤). conductor's call — 겹치지 않는 부분을 먼저 돌려 대기 시간을 줄인다. 생성기는 conductor checkout `.scratch/export-hardening/`로 복사했고 digest가 같다. R에 T5 경로를 보냈다.
