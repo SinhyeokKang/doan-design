@@ -5,6 +5,8 @@
 
 ## 1. Problem
 
+Doan is a design app for coding with agents. When the screens are settled on a canvas before the code, the agent implements a design the person already agreed on: its result is predictable, and fewer revision rounds spend fewer tokens on rework.
+
 The design drafts that coding agents make live outside the code, in external design services. This causes the first five problems below; the sixth comes from running agents inside Doan. The arrow after each names the §3 'In scope' item that addresses it.
 
 1. **Conversations split.** Design-draft and implementation conversations pile up separately in two tools, and some runtimes cannot reach the draft at all (Codex could not use Claude Design or DesignSync). → Deliver
