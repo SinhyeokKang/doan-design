@@ -74,8 +74,8 @@ test.each(["", "Restored draft"])("a host replacement %j after compositionend is
   } finally { vi.useRealTimers(); }
 });
 
-// Electron's context-menu selectionText (the Look Up item's name and the dictionary's query) takes the selected DOM
-// text, and the chip's screen-reader kind prefix is text; only user-select keeps it out.
+// Electron's context-menu selectionText, which names the Look Up item, takes the selected DOM text, and the chip's
+// screen-reader kind prefix is text; only user-select keeps it out.
 test("the composer chip's kind prefix cannot be selected", () => {
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toMatch(/\.anchor-chip \.sr-only \{[^}]*\buser-select: none;/);
