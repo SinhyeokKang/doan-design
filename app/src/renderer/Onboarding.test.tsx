@@ -332,6 +332,11 @@ test("every project error has the draft's copy and actions", () => {
   expect(view("config_invalid")).toEqual(["This folder’s Doan configuration couldn’t be read. Fix it and retry, or choose another folder.", ["subtle:Choose another folder", "prominent:Retry"]]);
   expect(view("clone_failed")).toEqual(["Couldn’t clone this repository. Check your connection and folder access, then retry.", ["subtle:Change location", "prominent:Retry"]]);
   expect(projectNotice("clone_failed", undefined, "~/code/studio").detail).toBe("~/code/studio");
+  expect(view("project_unreadable")).toEqual(["Doan couldn’t read this folder. Fix the problem shown below and retry, or choose another folder.", ["subtle:Choose another folder", "prominent:Retry"]]);
+  const reason = "open /Users/ada/code/studio/.doan/canvases/sub: permission denied";
+  expect(projectNotice("project_unreadable", "The project folder cannot be read.", null, false, null, null, reason).detail).toBe(reason);
+  // The socket's fixed message is never shown in its place.
+  expect(projectNotice("project_unreadable", "The project folder cannot be read.", null)).not.toHaveProperty("detail");
   expect(view("git_missing")).toEqual(["Install Git to clone a repository, or choose a local folder.", ["subtle:Choose local folder", "prominent:Check again"]]);
   expect(view("cleanup_failed")).toEqual(["main message", ["prominent:Retry"]]);
 });
@@ -379,7 +384,7 @@ test("a folder of another repository offers Edit repository URL and Choose anoth
 });
 
 test("folder recoveries on a URL screen choose an existing folder of that repository", () => {
-  for (const code of ["project_unavailable", "path_unavailable", "init_failed", "config_invalid", "git_missing"] as const) {
+  for (const code of ["project_unavailable", "path_unavailable", "init_failed", "config_invalid", "project_unreadable", "git_missing"] as const) {
     expect(projectNotice(code, "x", null, true).actions.filter(a => a.command === "chooseFolder")).toEqual([]);
     expect(projectNotice(code, "x", null, true).actions.some(a => a.command === "chooseExisting")).toBe(true);
     expect(projectNotice(code, "x", null, false).actions.some(a => a.command === "chooseFolder")).toBe(true);
@@ -597,6 +602,22 @@ test("selectable: a provider row's detail line, a notice's text, and no button",
   const view = renderToStaticMarkup(<NoticeView notice={notice} run={noop} />);
   expect(view).toContain('<span class="selectable"><strong class="ob-notice-title">Sign-in failed</strong>');
   noSelectableButton(view);
+});
+
+// Drafts project-unreadable (candidates) and project-unreadable-setup (setup panel) in config-error-source.html.
+test("a folder Doan couldn’t read shows the CLI's message as the selectable detail under the notice, on both screens", () => {
+  const reason = "open /Users/ada/code/studio/.doan/canvases/sub: permission denied";
+  const error = { code: "project_unreadable" as const, message: "The project folder cannot be read.", detail: reason };
+  const notice = '<span class="selectable">Doan couldn’t read this folder. Fix the problem shown below and retry, or choose another folder.</span></div>'
+    + `<p class="ob-path ob-notice-detail selectable">${reason}</p>`
+    + '<div class="ob-state-actions"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Choose another folder</button><button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="sm" data-consent="">Retry</button></div>';
+  const candidates = screen({ phase: { kind: "candidates", inspectionId: "i", url: null, candidates: [{ path: "/Users/ada/code/studio", changes: [] }], choice: "/Users/ada/code/studio" }, error });
+  expect(candidates).toContain(notice);
+  expect(candidates).not.toContain("The project folder cannot be read.");
+  noSelectableButton(candidates);
+  const setup = screen({ phase: { kind: "setup", inspectionId: "i", url: null, path: "/Users/ada/code/studio", changes: [".doan/config.json"] }, error });
+  expect(setup).toContain(notice);
+  expect(setup).toContain('<div class="doan-notice error ob-project-notice" role="alert"');
 });
 
 test("selectable: a project notice's text and detail path, a clone's progress text, and no button", () => {
