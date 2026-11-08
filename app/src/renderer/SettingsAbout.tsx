@@ -34,14 +34,14 @@ function versionRow(row: UpdateRowView | null, notesFailed: string | null, state
   }
   return <div className="doan-preference-row" data-about="version">
     <div className="doan-preference-row-content"><span className="doan-preference-row-label">Version</span>
-      {row !== null && <span className="doan-preference-row-description"><span id={stateId}>{row.description}</span>
+      {row !== null && <span className="doan-preference-row-description"><span id={stateId} className="selectable">{row.description}</span>
         {row.progress !== null && <span className="usage-bar update-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={row.progress} aria-labelledby={stateId}>
           <i style={{ width: `${row.progress}%` }} /></span>}</span>}</div>
     {trailing !== null && <div className="doan-preference-row-trailing">{trailing}</div>}
     {row !== null && (row.notice !== null || row.error !== null || notesFailed !== null) && <div className="doan-preference-row-extra">
-      {row.notice !== null && <div className="doan-notice"><AlertIcon /><div className="update-reason-body"><span className="ob-notice-title">{row.notice.title}</span><span className="ob-notice-body">{row.notice.text}</span></div></div>}
-      {row.error !== null && <p className="settings-msg error"><AlertIcon /><span>{row.error}</span></p>}
-      {notesFailed !== null && <p className="settings-msg error"><AlertIcon /><span>{notesFailed}</span></p>}
+      {row.notice !== null && <div className="doan-notice"><AlertIcon /><div className="update-reason-body selectable"><span className="ob-notice-title">{row.notice.title}</span><span className="ob-notice-body">{row.notice.text}</span></div></div>}
+      {row.error !== null && <p className="settings-msg error selectable"><AlertIcon /><span>{row.error}</span></p>}
+      {notesFailed !== null && <p className="settings-msg error selectable"><AlertIcon /><span>{notesFailed}</span></p>}
     </div>}
   </div>;
 }
@@ -57,7 +57,7 @@ function setupNotice(notice: AboutNotice) {
   const parts = (line: NoticeLine) => line.parts.map((part, i) => "code" in part ? <code key={i}>{part.code}</code> : part.text);
   return <div className={notice.tone === "warning" ? "doan-notice warning setup-notice" : "doan-notice setup-notice"}>
     <AlertIcon />
-    <div className="setup-notice-body"><span className="ob-notice-title">{notice.title}</span>
+    <div className="setup-notice-body selectable"><span className="ob-notice-title">{notice.title}</span>
       {notice.tone === "warning"
         ? <ul className="setup-notice-list">{notice.lines.map((line, i) => <li key={i} className="setup-notice-item">
           {line.agents !== null && <><span className="setup-notice-agents">{line.agents}</span> — </>}{parts(line)}
@@ -142,13 +142,13 @@ export function SettingsAbout({ actions, preferences, save }: {
     return <div key={item.id} className="doan-preference-row" data-about={item.id} data-has-icon={icon ? "" : undefined}>
       {icon && <span className="doan-preference-row-icon" aria-hidden="true"><img className="logo" src={providerLogo(item.id as Provider)} alt="" /></span>}
       <div className="doan-preference-row-content"><span className="doan-preference-row-label">{item.label}</span>
-        {item.description !== null && <span className="doan-preference-row-description">{item.id === "cli" ? <code>{item.description}</code> : item.description}</span>}</div>
+        {item.description !== null && <span className="doan-preference-row-description selectable">{item.id === "cli" ? <code>{item.description}</code> : item.description}</span>}</div>
       {item.error === null && <div className="doan-preference-row-trailing">
         {item.value === CHECKING ? <span className="settings-loading" role="status"><span className="doan-spinner" aria-hidden="true" />{CHECKING}</span>
-          : item.value !== null && <span className="settings-value">{item.value}</span>}
+          : item.value !== null && <span className="settings-value selectable">{item.value}</span>}
         {item.status !== null && <span className={TONES[item.tone]}>{item.status}</span>}
       </div>}
-      {item.error !== null && <div className="doan-preference-row-extra settings-msg-row"><p className="settings-msg error" role="alert"><AlertIcon /><span>{item.error}</span></p>
+      {item.error !== null && <div className="doan-preference-row-extra settings-msg-row"><p className="settings-msg error selectable" role="alert"><AlertIcon /><span>{item.error}</span></p>
         <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={() => load(true)}>Retry</button></div>}
       {item.id === "cli" && notice !== null && <div className="doan-preference-row-extra">{setupNotice(notice)}</div>}
     </div>;
@@ -180,16 +180,16 @@ export function SettingsAbout({ actions, preferences, save }: {
     <div className="doan-preference-row-content"><span className="doan-preference-row-label">{auto.label}</span><span className="doan-preference-row-description">{auto.description}</span></div>
     <div className="doan-preference-row-trailing"><button type="button" className="doan-switch" role="switch" aria-checked={auto.checked} aria-label={auto.label}
       disabled={preferences === null || preferences.notice === "newer"} onClick={() => saveAuto({ updates: { autoCheck: !auto.checked } })} /></div>
-    {autoFailed !== null && <div className="doan-preference-row-extra settings-msg-row"><p className="settings-msg error"><AlertIcon /><span>{AUTO_SAVE_FAILED}</span></p>
+    {autoFailed !== null && <div className="doan-preference-row-extra settings-msg-row"><p className="settings-msg error selectable"><AlertIcon /><span>{AUTO_SAVE_FAILED}</span></p>
       <span className="update-msg-actions"><button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" aria-label="Save the automatic-check choice again" onClick={() => saveAuto(autoFailed)}>Retry</button></span></div>}
   </div>;
   const copyDetails = () => { void window.doan.copyAbout().catch(() => ({ kind: "error" as const })).then(reply => setCopy(reply.kind === "success" ? "copied" : "failed")); };
   return <>
     {actions && createPortal(<button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" aria-live="polite" onClick={copyDetails}>
       {copy === "copied" ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}{copy === "copied" ? "Copied" : "Copy details"}</button>, actions)}
-    {copy === "failed" && <p className="settings-msg error" role="alert"><AlertIcon /><span>Couldn’t copy the details. Try again.</span></p>}
+    {copy === "failed" && <p className="settings-msg error selectable" role="alert"><AlertIcon /><span>Couldn’t copy the details. Try again.</span></p>}
     {auto !== null && preferencesNotice(preferences?.notice)}
-    {failed && <div className="settings-msg-row"><p className="settings-msg error" role="alert"><AlertIcon /><span>Couldn’t read the versions.</span></p>
+    {failed && <div className="settings-msg-row"><p className="settings-msg error selectable" role="alert"><AlertIcon /><span>Couldn’t read the versions.</span></p>
       <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={() => load(true)}>Retry</button></div>}
     <section className="settings-section" aria-labelledby="settings-about-doan">
       <div className="settings-section-header"><div className="settings-header-copy"><h2 className="settings-section-title" id="settings-about-doan">Doan</h2></div></div>

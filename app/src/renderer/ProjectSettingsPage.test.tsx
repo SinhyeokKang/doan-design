@@ -278,7 +278,7 @@ test("CLI error: Details opens the CLI's message under the notice as text and cl
   expect(text()).toContain(reason);
   // The block holds the reason itself, line breaks included, as one text child.
   const block = all(tree).find(element => element.type === "pre");
-  expect(block?.props.className).toBe("project-settings-details");
+  expect(block?.props.className).toBe("project-settings-details selectable");
   expect(block?.props.children).toBe(reason);
   expect(props.onAction).not.toHaveBeenCalled();
   click("Details"); render();

@@ -136,8 +136,8 @@ describe("thread items", () => {
 
   test("answered and expired requests shrink to one line", () => {
     const base = { kind: "permission" as const, key: "pr1", seq: 5, requestId: "r1", summary: "Run doan check", options: [] };
-    expect(html([{ ...base, status: "answered", answer: { id: "a", label: "Allow once", kind: "allow" } }])).toContain('<div class="activity-head ask-answered"><span>Allowed once · Run doan check</span></div>');
-    expect(html([{ ...base, status: "expired", answer: null }])).toContain("<span>Expired without an answer · Run doan check</span>");
+    expect(html([{ ...base, status: "answered", answer: { id: "a", label: "Allow once", kind: "allow" } }])).toContain('<div class="activity-head ask-answered"><span class="selectable">Allowed once · Run doan check</span></div>');
+    expect(html([{ ...base, status: "expired", answer: null }])).toContain("<span class=\"selectable\">Expired without an answer · Run doan check</span>");
   });
 
   // The thread body is unselectable by default; secondary text opts in with `selectable` while the answer buttons stay out of it.
@@ -162,7 +162,7 @@ describe("thread items", () => {
     const out = html(threadItems([ev(1, { type: "user.message", text: "go", anchors: [] }), ev(2, { type: "turn.started" }),
       ev(3, { type: "permission.request", requestId: "r1", tool: "mcp", summary: "Run search on Linear", options }),
       ev(4, { type: "permission.resolved", requestId: "r1", optionId: "expired" }), ev(5, { type: "interrupted", reason: "user" })], "/r", true));
-    expect(out).toContain("<span>Expired without an answer · Run search on Linear</span>");
+    expect(out).toContain("<span class=\"selectable\">Expired without an answer · Run search on Linear</span>");
     expect(out).not.toContain("Answered ·");
   });
 
@@ -182,7 +182,7 @@ describe("thread items", () => {
     const ev = (seq: number, payload: object) => ({ v: 1, conversationId: "c1", seq, turnId: "t1", at: "2026-11-07T00:00:00Z", ...payload }) as ConversationEvent;
     const out = html(threadItems([ev(1, { type: "user.message", text: "go", anchors: [] }), ev(2, { type: "turn.started" }),
       ev(3, { type: "turn.failed", code: "model_unavailable", model: "gpt-6-astra", detail: "The 'gpt-6-astra' model is not supported." })], "/r", true), { provider: "codex" });
-    expect(out).toContain('<span class="strip-text"><b>gpt-6-astra isn’t available for this account.</b></span>');
+    expect(out).toContain('<span class="strip-text selectable"><b>gpt-6-astra isn’t available for this account.</b></span>');
     expect(out).not.toContain("changed files");
     expect(out).not.toContain("Edit and resend");
     expect(out).not.toContain("<button");
@@ -492,7 +492,7 @@ describe("handoff lines and the handoff card", () => {
   test("the card: a labelled group with its head, Open and the text as agent Markdown, a {{1}} kept as typed", () => {
     const card: ThreadItem = { kind: "handoffCard", key: "u1", seq: 1, origin: { kind: "handoff", conversationId: "c0", canvas: DRAFTS }, text: "Pick up **Payment**.\n\nThe person wrote “{{1}}”." };
     const out = html([card]);
-    expect(out).toMatch(/<div class="handoff-card" role="group" aria-labelledby="([^"]+)" tabindex="-1"><div class="handoff-head"><svg[^>]*lucide-forward[^>]*>.*?<\/svg><span id="\1">Handed off from drafts.html<\/span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="trigger">Open<\/button><\/div><div class="md"><p>Pick up <strong>Payment<\/strong>.<\/p>\s*<p>The person wrote “\{\{1\}\}”.<\/p><\/div><\/div>/);
+    expect(out).toMatch(/<div class="handoff-card" role="group" aria-labelledby="([^"]+)" tabindex="-1"><div class="handoff-head"><svg[^>]*lucide-forward[^>]*>.*?<\/svg><span id="\1">Handed off from drafts.html<\/span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="trigger">Open<\/button><\/div><div class="md selectable"><p>Pick up <strong>Payment<\/strong>.<\/p>\s*<p>The person wrote “\{\{1\}\}”.<\/p><\/div><\/div>/);
     expect(out).not.toContain("bubble");
     expect(html([card], { canvasListed: () => false })).toMatch(/<span id="[^"]+">Handed off from drafts.html · No longer in doan-design<\/span><\/div>/);
   });

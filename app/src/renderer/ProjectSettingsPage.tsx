@@ -285,7 +285,7 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
   const branch = entry ? cardRow(entry, null, null).summary?.branch : undefined;
   const status = (section: Section) => busy === section ? <span className="settings-saved pending" role="status">Saving</span>
     : saved === section ? <span className="settings-saved" role="status"><Check aria-hidden="true" />Saved</span> : null;
-  const message = (section: Section) => error?.section === section && <div className="doan-preference-row-extra settings-msg-row project-settings-msg"><p className="settings-msg error" role="alert"><AlertIcon /><span>{error.message}</span></p></div>;
+  const message = (section: Section) => error?.section === section && <div className="doan-preference-row-extra settings-msg-row project-settings-msg"><p className="settings-msg error selectable" role="alert"><AlertIcon /><span>{error.message}</span></p></div>;
   const shared = choice && sharedPathLabel(root, choice.path);
   const storage = config && storageSectionView(config, writingStorage);
   // The thread's settings radio rows outside the thread (draft frames settings-modes, settings-changes, settings-disabled).
@@ -315,10 +315,10 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
       {storage.guidance && <div className="doan-preference-row-extra"><div className="doan-notice storage-guidance" role="status"><AlertIcon />
         <div className="storage-guidance-body">
           <span>If <code>.doan/</code> was committed before, Git keeps tracking those files. To stop, run this in this project folder, then commit:</span>
-          <div className="storage-command"><code>{UNTRACK_COMMAND}</code>
+          <div className="storage-command"><code className="selectable">{UNTRACK_COMMAND}</code>
             <button type="button" className="doan-button" data-ui-variant="panel" data-ui-size="sm" aria-label="Copy command" aria-live="polite" onClick={copyCommand}>
               {copied === "copied" ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}{copied === "copied" ? "Copied" : "Copy"}</button></div>
-          {copied === "failed" && <span role="alert">Couldn’t copy the command. Select it and copy it yourself.</span>}
+          {copied === "failed" && <span role="alert" className="selectable">Couldn’t copy the command. Select it and copy it yourself.</span>}
           <span>When teammates pull that commit, Git deletes <code>.doan/</code> from their checkouts too.</span>
         </div>
       </div></div>}
@@ -340,9 +340,9 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
           <div className="settings-header-copy">
             <h1 className="settings-title project-settings-title" id="project-settings-title" tabIndex={-1} ref={node => { heading.current = node; }}>
               <span className={`shell-thumbnail project-settings-thumbnail hue-${projectHue(title)}`} aria-hidden="true">{projectInitial(title)}</span>{title}
-              {branch && <span className="doan-chip shell-branch" data-ui-variant="translucent"><GitBranch aria-hidden="true" /><span>{branch}</span></span>}
+              {branch && <span className="doan-chip shell-branch" data-ui-variant="translucent"><GitBranch aria-hidden="true" /><span className="selectable">{branch}</span></span>}
             </h1>
-            {entry && <p className="settings-lead">{displayPath(entry.path, homeDirectory)}{page?.storedNote && STORED_NOTES[storedNote(config?.storage)]}</p>}
+            {entry && <p className="settings-lead selectable">{displayPath(entry.path, homeDirectory)}{page?.storedNote && STORED_NOTES[storedNote(config?.storage)]}</p>}
           </div>
           <div className="settings-header-actions">
             {page?.showInFinder && <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={() => void window.doan.revealProject(root).catch(console.error)}>Show in Finder</button>}
@@ -352,13 +352,13 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
         {page?.notice && <>
           <div className={`doan-notice ${page.notice.tone}`} role="status">
             <AlertIcon />
-            <span className="project-settings-grow">{page.notice.text}{page.notice.reason && <span className="project-settings-notice-reason">{page.notice.reason}</span>}</span>
+            <span className="project-settings-grow selectable">{page.notice.text}{page.notice.reason && <span className="project-settings-notice-reason">{page.notice.reason}</span>}</span>
             <div className="project-settings-notice-actions">{page.notice.actions.map(action => <button key={action} type="button" className="doan-button"
               data-ui-variant={action === "details" ? "ghost" : "panel"} data-ui-size="sm" aria-expanded={action === "details" ? details : undefined}
               disabled={disabled && action === "retry"} onClick={() => recover(action)}>{LABELS[action]}</button>)}</div>
           </div>
-          {details && page.notice.detail && <pre className="project-settings-details">{page.notice.detail}</pre>}
-          {notice && <p className="settings-msg error project-settings-msg" role="alert"><AlertIcon /><span>{notice}</span></p>}
+          {details && page.notice.detail && <pre className="project-settings-details selectable">{page.notice.detail}</pre>}
+          {notice && <p className="settings-msg error project-settings-msg selectable" role="alert"><AlertIcon /><span>{notice}</span></p>}
         </>}
         {page && page.body !== "reading" && <div className="settings-sections">
           {page.body === "sections" && config && <>
@@ -370,7 +370,7 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
               <div className="doan-settings-group" data-layout="rows">
                 <div className="project-settings-token">
                   {config.tokenCss ? <>
-                    <FileIcon aria-hidden="true" /><span className="project-settings-token-name">{config.tokenCss}</span><span className="project-settings-grow" />
+                    <FileIcon aria-hidden="true" /><span className="project-settings-token-name selectable">{config.tokenCss}</span><span className="project-settings-grow" />
                     {status("tokenCss")}
                     <button ref={tokenButton} type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={disabled} onClick={() => void choose("tokenCss")}>Change</button>
                     <button type="button" className="doan-button" data-ui-variant="ghost" data-ui-size="sm" disabled={disabled} onClick={() => { if (!choice) void write({ root, op: "clearTokenCss" }, "tokenCss"); }}>Clear</button>
@@ -390,7 +390,7 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
               </div></div>
               <div className="doan-settings-group" data-layout="rows">
                 {config.serve.map(path => <div className="doan-preference-row" key={path}>
-                  <div className="doan-preference-row-content"><span className="doan-preference-row-label project-settings-path"><FolderIcon aria-hidden="true" />{path}</span></div>
+                  <div className="doan-preference-row-content"><span className="doan-preference-row-label project-settings-path selectable"><FolderIcon aria-hidden="true" />{path}</span></div>
                   <div className="doan-preference-row-trailing"><button type="button" className="doan-button" data-ui-variant="ghost" data-ui-size="sm" aria-label={`Remove ${path} from Shared with canvases`}
                     ref={node => { if (node) removeButtons.current.set(path, node); else removeButtons.current.delete(path); }}
                     disabled={disabled} onClick={() => { if (!choice) void write({ root, op: "removeServe", path }, "serve", path); }}>Remove</button></div>
@@ -407,7 +407,7 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
           </>}
           {removeSection}
         </div>}
-        {choice && <SettingsDialog title={<>Share <code>{shared}</code> with canvases?</>} label={`Share ${shared} with canvases?`} verb="Share" description={<>Canvases in this worktree will be able to read <code>{shared}</code>.</>}
+        {choice && <SettingsDialog title={<>Share <code>{shared}</code> with canvases?</>} label={`Share ${shared} with canvases?`} verb="Share" description={<>Canvases in this worktree will be able to read <code className="selectable">{shared}</code>.</>}
           answer={allow => { const selected = choice; setChoice(null); if (allow) void write({ root, op: "addServe", choiceId: selected.choiceId }, "serve"); }} />}
       </div>
     </main>

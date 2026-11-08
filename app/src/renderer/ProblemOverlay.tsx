@@ -30,7 +30,7 @@ export function ProblemOverlay({ view, details, detail, pressed, announcement, o
       <Icon className="problem-icon" aria-hidden="true" />
       <div className="ob-heading problem-heading">
         <h2 id={HEADING_ID} tabIndex={-1} aria-describedby={LINE_ID}>{view.heading}</h2>
-        <p id={LINE_ID}>{line}</p>
+        <p id={LINE_ID} className="selectable">{line}</p>
       </div>
       <p className="sr-only" role="status" aria-live="polite">{announcement}</p>
       <div className="problem-actions">{view.actions.map(({ name, variant }) => {
@@ -42,7 +42,7 @@ export function ProblemOverlay({ view, details, detail, pressed, announcement, o
           {spinning && <span className="doan-spinner" aria-hidden="true" />}{ROW_ACTION_LABELS[name]}{name === "details" && (details ? " ▾" : " ▸")}
         </button>;
       })}</div>
-      {details && detail !== undefined && <pre className="problem-detail">{detail}</pre>}
+      {details && detail !== undefined && <pre className="problem-detail selectable">{detail}</pre>}
     </div>
   </div>;
 }

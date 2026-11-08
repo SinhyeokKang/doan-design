@@ -392,7 +392,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         onClick={() => startNewConversation(conversationId, showsNew, id => run.select(root, id), focusField)}><SquarePen aria-hidden="true" /></button></TooltipTrigger>
         <TooltipContent>New conversation</TooltipContent></Tooltip>
     </header>
-    {props.notice && <div className="doan-notice ov-notice" role="status"><AlertIcon /><span className="grow-text">{props.notice}</span></div>}
+    {props.notice && <div className="doan-notice ov-notice" role="status"><AlertIcon /><span className="grow-text selectable">{props.notice}</span></div>}
     <div className="ov-scroll">
       {conversationId && provider ? <ConversationThread ref={handle} conversationId={conversationId} items={items} provider={provider} project={project}
         liveAfter={thread?.liveAfter ?? Number.MAX_SAFE_INTEGER} turn={thread && Array.isArray(items) ? threadTurn(thread.events, items, live, run.store.stageOf(conversationId), root) : null} canvasListed={canvasListed}

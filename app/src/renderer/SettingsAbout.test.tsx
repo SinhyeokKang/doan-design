@@ -277,7 +277,7 @@ test("downloading draws a progressbar named by the state text, with the percent 
 test("a failure puts its line under the row, without a live role", () => {
   render(); push(snap({ kind: "failed", code: "offline", stage: "download", version: "0.1.1" })); render();
   expect(description()).toBe("0.1.0 · Couldn’t download Doan 0.1.1.");
-  const line = all(row("version").props.children as ReactNode).find(element => String(element.props.className) === "settings-msg error")!;
+  const line = all(row("version").props.children as ReactNode).find(element => String(element.props.className) === "settings-msg error selectable")!;
   expect(words(line.props.children)).toBe("Couldn’t reach GitHub. Check your internet connection, then try again.");
   expect(line.props.role).toBeUndefined();
   expect(button("Download Doan 0.1.1 again")).toBeDefined();
@@ -293,7 +293,7 @@ test("blocked: the reason is a notice under the row with a title, and stopped ad
   expect(words(inside.find(element => element.props.className === "ob-notice-body")!.props.children)).toBe("A conversation is running or waiting for your answer. Restart after it finishes, or Doan updates when you quit.");
   expect(box.props.role).toBeUndefined();
   push(snap({ kind: "restartAborted", version: "0.1.1" })); render();
-  expect(words(all(row("version").props.children as ReactNode).find(element => String(element.props.className) === "settings-msg error")!.props.children)).toBe("Couldn’t restart Doan. Try again, or quit and open it again.");
+  expect(words(all(row("version").props.children as ReactNode).find(element => String(element.props.className) === "settings-msg error selectable")!.props.children)).toBe("Couldn’t restart Doan. Try again, or quit and open it again.");
 });
 
 test("a copy that doesn’t update: the row says so with no action, and there is no automatic-check row", () => {
@@ -356,14 +356,14 @@ test("the automatic-check switch shows the pushed choice and saves a change; a f
   save.mockResolvedValueOnce({ ok: false, reason: "write_failed", snapshot: { preferences: { ...DEFAULT_PREFERENCES, updates: { autoCheck: false } }, notice: null } });
   (toggle().props.onClick as () => void)(); await flush(); render();
   expect(toggle().props["aria-checked"]).toBe(false);
-  const line = all(autoRow()!.props.children as ReactNode).find(element => String(element.props.className) === "settings-msg error")!;
+  const line = all(autoRow()!.props.children as ReactNode).find(element => String(element.props.className) === "settings-msg error selectable")!;
   expect(words(line.props.children)).toBe("Couldn’t save your automatic-check choice. Your last saved choice still applies.");
   expect(line.props.role).toBeUndefined();
   expect(live()).toBe("Couldn’t save your automatic-check choice. Your last saved choice still applies.");
   click("Save the automatic-check choice again");
   expect(save).toHaveBeenLastCalledWith({ updates: { autoCheck: true } });
   await flush(); render();
-  expect(all(autoRow()!.props.children as ReactNode).some(element => String(element.props.className) === "settings-msg error")).toBe(false);
+  expect(all(autoRow()!.props.children as ReactNode).some(element => String(element.props.className) === "settings-msg error selectable")).toBe(false);
 });
 
 test("the switch waits for preferences and stays off a newer preferences file, whose notice the page shows", () => {
@@ -386,7 +386,7 @@ test("a restart main holds back for a conversation reads the reason, not ready a
 // Draft frames about-notes-failed and about-notes-failed-stacked: Release Notes ↗ that main could not open puts the
 // shared error line under the row (no role) and the page's live region reads it once. Release Notes ↗ is the retry.
 const NOTES_FAILED = "Couldn’t open the release notes in your browser. Try again, or find Doan 0.1.1 on GitHub Releases.";
-const errorLines = () => all(row("version").props.children as ReactNode).filter(element => String(element.props.className) === "settings-msg error");
+const errorLines = () => all(row("version").props.children as ReactNode).filter(element => String(element.props.className) === "settings-msg error selectable");
 const notesLine = () => errorLines().find(element => words(element.props.children).startsWith("Couldn’t open the release notes"));
 
 test("Release Notes ↗ answered false or refused shows the line under the row and reads it; the same failure reads again", async () => {
@@ -472,7 +472,7 @@ test("under the row: the notice, then the row's error, then the Release Notes li
   doan.openReleaseNotes!.mockResolvedValueOnce(false);
   click("Release Notes ↗"); await flush(); render();
   const extra = all(row("version").props.children as ReactNode).find(element => element.props.className === "doan-preference-row-extra")!;
-  const order = all(extra.props.children as ReactNode).filter(element => element.props.className === "doan-notice" || String(element.props.className) === "settings-msg error")
+  const order = all(extra.props.children as ReactNode).filter(element => element.props.className === "doan-notice" || String(element.props.className) === "settings-msg error selectable")
     .map(element => element.props.className === "doan-notice" ? "notice" : words(element.props.children));
   expect(order).toEqual(["notice", "Couldn’t restart Doan. Try again, or quit and open it again.", NOTES_FAILED]);
   // A failed install has no notice: its error, then the line.

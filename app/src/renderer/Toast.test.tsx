@@ -92,7 +92,7 @@ test("an App modal pauses the hook clock and resumes only the remaining time", (
 test("the action sits to the right of the message as a prominent small button", () => {
   setup();
   const [message, action] = useToast().element!.props.children;
-  expect(message.props.className).toBe("msg");
+  expect(message.props.className).toBe("msg selectable");
   expect(action.props).toMatchObject({ "data-ui-variant": "prominent", "data-ui-size": "sm", children: "Undo" });
 });
 

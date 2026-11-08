@@ -42,7 +42,7 @@ export function SettingsNotifications({ preferences, save }: { preferences: Pref
   const sw = (key: keyof NotificationPreferences, label: string, disabled: boolean) => <button type="button" className="doan-switch" role="switch" aria-checked={notifications?.[key] ?? true} aria-label={label}
     disabled={disabled} onClick={() => write(key, !(notifications?.[key] ?? true))} />;
   const error = (key: keyof NotificationPreferences) => failed?.key === key && <div className="doan-preference-row-extra settings-msg-row">
-    <p className="settings-msg error" role="alert"><AlertIcon /><span>{SAVE_FAILED}</span></p>
+    <p className="settings-msg error selectable" role="alert"><AlertIcon /><span>{SAVE_FAILED}</span></p>
     <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={retry}>Retry</button></div>;
   const enabled = notifications?.enabled ?? true, hint = PERMISSION[test];
   return <>

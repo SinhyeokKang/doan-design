@@ -108,7 +108,7 @@ test("selectable: the notice text, not the notice's moved line", () => {
 test("the duplicate-ID notice shows under the header", () => {
   const notice = "Checkout moved, but 2 canvases now use the ID checkout. Run doan check in a terminal.";
   const html = render([summary()], { notice });
-  expect(html).toMatch(new RegExp(`</header><div class="doan-notice ov-notice" role="status">.*<span class="grow-text">${notice.replace(/\./g, "\\.")}</span></div>`));
+  expect(html).toMatch(new RegExp(`</header><div class="doan-notice ov-notice" role="status">.*<span class="grow-text selectable">${notice.replace(/\./g, "\\.")}</span></div>`));
 });
 
 test("while the list is read the title is unavailable and the composer is a new conversation; a failed read says so", () => {

@@ -23,8 +23,8 @@ export function trashDialogView(stem: string, path: string, plan: TrashPlanReply
 export function CanvasTrashDialog({ view, cancel, confirm }: { view: TrashDialogView; cancel(): void; confirm(): void }) {
   return <dialog className="doan-dialog" data-ui-size="compact" role="alertdialog" aria-labelledby="canvas-trash-title" aria-describedby="canvas-trash-body"
     ref={node => { if (node && !node.open) node.showModal(); }} onCancel={event => { event.preventDefault(); cancel(); }}>
-    <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title" id="canvas-trash-title">{view.title}</h3><p className="doan-dialog-description" id="canvas-trash-body">{view.body}</p></div></div>
-    {view.reason && <p className="doan-notice" id="canvas-trash-reason"><AlertIcon /><span>{view.reason}</span></p>}
+    <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title" id="canvas-trash-title">{view.title}</h3><p className="doan-dialog-description selectable" id="canvas-trash-body">{view.body}</p></div></div>
+    {view.reason && <p className="doan-notice" id="canvas-trash-reason"><AlertIcon /><span className="selectable">{view.reason}</span></p>}
     <div className="doan-dialog-actions">
       <button type="button" className="doan-button" data-ui-variant="subtle" autoFocus onClick={cancel}>Cancel</button>
       <button type="button" className="doan-button" data-ui-variant="prominent" aria-disabled={view.confirmable ? undefined : true} data-disabled={view.confirmable ? undefined : ""}

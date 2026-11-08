@@ -69,7 +69,7 @@ test("static markup: title, body, the working line and the actions in order", ()
   expect(html).toContain('<dialog class="doan-dialog" data-ui-size="compact" role="alertdialog" aria-labelledby="canvas-trash-title" aria-describedby="canvas-trash-body">');
   expect(html).toContain('<h3 class="doan-dialog-title" id="canvas-trash-title">Move “checkout” to Trash?</h3>');
   expect(html).toContain('<p class="doan-notice" id="canvas-trash-reason"><svg');
-  expect(html).toContain("<span>An agent started working on this canvas. Try again when it finishes.</span>");
+  expect(html).toContain("<span class=\"selectable\">An agent started working on this canvas. Try again when it finishes.</span>");
   expect(html.indexOf(">Cancel<")).toBeLessThan(html.indexOf(">Move to Trash<"));
   expect(html.indexOf('id="canvas-trash-body"')).toBeLessThan(html.indexOf('id="canvas-trash-reason"'));
 });

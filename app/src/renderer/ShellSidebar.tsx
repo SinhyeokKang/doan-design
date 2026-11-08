@@ -387,7 +387,7 @@ export function ShellSidebar(props: Props) {
                     {canvasRowMenu({ menu: props.canvasMenu, root: entry.path, row, name, reasonId: descriptionId, open: menu?.kind === "canvas" && menu.key === key, locked: !!locked, tabIndex: active === key ? 0 : -1,
                       setOpen: open => setMenu(open ? { kind: "canvas", key } : null), rowNode: () => elements.current.get(key),
                       current: () => { const listed = live.current.cards.flatMap(item => item.rows).find(item => item.path === entry.path); return listed?.kind === "list" ? listed.canvases.find(item => item.path === row.path) : undefined; },
-                      lostFocus: () => focus(canvasMenuFocus.current) })}</div>{problem && <div id={descriptionId} className="shell-canvas-error">{problem.sentence}<ErrorDetails className="btn ghost" detail={problem.detail}>{(button, detail) => <>{button}{detail && <pre>{detail}</pre>}</>}</ErrorDetails></div>}</div>;
+                      lostFocus: () => focus(canvasMenuFocus.current) })}</div>{problem && <div id={descriptionId} className="shell-canvas-error">{problem.sentence}<ErrorDetails className="btn ghost" detail={problem.detail}>{(button, detail) => <>{button}{detail && <pre className="selectable">{detail}</pre>}</>}</ErrorDetails></div>}</div>;
                 }) : <p className="shell-empty">{group.empty}</p>}</div>}
               </div>;
             })}
