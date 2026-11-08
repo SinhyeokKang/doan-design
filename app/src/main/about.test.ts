@@ -5,7 +5,7 @@ import type { UpdateSnapshot } from "./update/types";
 
 const listed = (version: string): CliRun => ({ exitCode: 0, timedOut: false, stderr: "", stdout: JSON.stringify({ v: 1, ok: true, result: { version, presets: [] } }) });
 const PATH = "/Applications/Doan.app/Contents/Resources/bin/doan";
-// The draft's About window (buzz-settings `about`).
+// The draft's About window (doan-settings `about`).
 const READ: AboutRead = {
   version: "0.1.0",
   cli: { path: PATH, version: "0.1.0" },

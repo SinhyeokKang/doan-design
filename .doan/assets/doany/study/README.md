@@ -22,7 +22,7 @@ not a 3D model.
 
 ## Provenance
 
-- UI fixture: first frame of `.doan/canvases/buzz-home.html`; dimensions and
+- UI fixture: first frame of `.doan/canvases/doan-home.html`; dimensions and
   roles checked against `docs/DESIGN.md`, Home. Navigation remains a fixture.
 - Motion design: Doan `animate` preset, read via the repository CLI.
 - `../transparent/doany.png`: user-selected six-lobed GPT Image mascot, with transparent

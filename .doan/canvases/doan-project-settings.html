@@ -1,4 +1,4 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="doan:canvas" content="buzz-project-settings"><meta name="doan:width" content="2560"><title>buzz-project-settings — Project Settings page</title><link rel="stylesheet" href="../../app/src/renderer/tokens.css"><link rel="stylesheet" href="../../app/src/renderer/ds/index.css"><link rel="stylesheet" href="../assets/mock.css"><style>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="doan:canvas" content="doan-project-settings"><meta name="doan:width" content="2560"><title>doan-project-settings — Project Settings page</title><link rel="stylesheet" href="../../app/src/renderer/tokens.css"><link rel="stylesheet" href="../../app/src/renderer/ds/index.css"><link rel="stylesheet" href="../assets/mock.css"><style>
 @font-face{font-family:Geist;src:url('../../app/src/renderer/public/fonts/geist/Geist.woff2') format('woff2');font-style:normal;font-weight:100 900;font-display:swap}
 @layer base{*,::before,::after{box-sizing:border-box;border:0 solid;margin:0;padding:0}h1,h2,h3{font-size:inherit;font-weight:inherit}img,svg{display:block;vertical-align:middle}button,input{font:inherit;letter-spacing:inherit;color:inherit;background-color:transparent;border-radius:0}ul{list-style:none}}
 :root{--radix-popper-available-height:384px;--radix-tooltip-content-transform-origin:center;--radix-dropdown-menu-content-available-height:384px}
@@ -109,7 +109,7 @@ code, kbd { font-family: var(--type-family); }
 
 .right-stack > .right:only-child { flex: 1; border-bottom: 0; }
 
-/* Onboarding (.doan/canvases/buzz-onboarding.html). The first run covers the window as a modal dialog; its text is
+/* Onboarding (.doan/canvases/doan-onboarding.html). The first run covers the window as a modal dialog; its text is
    set without the shell's tabular figures, which widened the stepper's "1" by 3px against the draft. The app
    behind it is hidden, so on Agent and Project the window's native sidebar material shows through as it does
    behind AppShell; Welcome is an opaque panel with its own atmosphere. */
@@ -209,7 +209,7 @@ code, kbd { font-family: var(--type-family); }
 .ob-projects { margin-bottom: var(--space-6); }
 .ob-choice-list { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-4); }
 .ob-choice { position: relative; align-items: flex-start; cursor: pointer; }
-/* The shared choice card's radio (buzz-canvas-conversation design §0): 16px, centred on the title's first line, so it
+/* The shared choice card's radio (doan-canvas-conversation design §0): 16px, centred on the title's first line, so it
    stays there when the title wraps; on, it takes the checkbox's fill and a 6px dot. */
 .ob-radio { display: grid; place-content: center; flex: none; width: var(--size-icon); height: var(--size-icon); margin-top: calc((var(--type-label-sm-line-height) - var(--size-icon)) / 2); border: 1px solid var(--border-prominent); border-radius: 50%; background: var(--surface-panel); }
 .ob-choice:has(input:checked) .ob-radio { border-color: var(--affordance-prominent); background: var(--affordance-prominent); }
@@ -310,7 +310,7 @@ code, kbd { font-family: var(--type-family); }
 .ov { min-height: 0; overflow: auto; padding: 4px 24px 24px; position: relative; z-index: 1; background: var(--bg-app); }
 .thumb { aspect-ratio: 16 / 10; background: var(--surface-inset); border-bottom: 1px solid var(--border-standard); position: relative; overflow: hidden; display: grid; place-items: center; }
 .thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top; }
-/* Quick Open (confirmed .doan/canvases/buzz-search.html). The surface is the shared dialog's search presentation in
+/* Quick Open (confirmed .doan/canvases/doan-search.html). The surface is the shared dialog's search presentation in
    ds/surfaces.css; these rules lay out its content. */
 /* Field: the shared input with the magnifier placed as in Home's preset search. */
 .qo-search { position: relative; display: block; }
@@ -384,7 +384,7 @@ body:has(.shell-top) { background: transparent; }
 .shell-side .shell-project-row { gap: 4px; padding: 0 0 0 10px; margin-bottom: 4px; }
 .shell-project-name { margin-left: 4px; letter-spacing: var(--type-body-sm-letter-spacing); color: var(--text-standard); font-weight: 500; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .shell-thumbnail { display: flex; align-items: center; justify-content: center; flex: none; width: 16px; height: 16px; border-radius: 4px; font-size: 10px; font-weight: var(--type-weight-semibold); line-height: 16px; }
-/* A light tint with dark ink (buzz-onboarding approved draft), shared with onboarding project cards. */
+/* A light tint with dark ink (doan-onboarding approved draft), shared with onboarding project cards. */
 .hue-rose { background: color-mix(in srgb, var(--identity-project-rose) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-rose) 65%, var(--text-standard)); }
 .hue-orange { background: color-mix(in srgb, var(--identity-project-orange) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-orange) 65%, var(--text-standard)); }
 .hue-amber { background: color-mix(in srgb, var(--identity-project-amber) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-amber) 65%, var(--text-standard)); }
@@ -432,12 +432,12 @@ body:has(.shell-top) { background: transparent; }
 }
 
 
-/* buzz-home: Home is the workspace's shell with the conversation composer as its body (.doan/canvases/buzz-home.html,
+/* doan-home: Home is the workspace's shell with the conversation composer as its body (.doan/canvases/doan-home.html,
    confirmed 2026-10-29). Shared buttons keep their own padding and fills; this only lays them out. */
 .home-shell { position: absolute; inset: 0; display: grid; grid-template-columns: 220px minmax(0, 1fr); grid-template-rows: var(--size-chrome) minmax(0, 1fr); padding: 0 var(--space-2) var(--space-2); background: transparent; overflow: hidden; }
 @media (prefers-reduced-transparency: reduce) { .home-shell { background: var(--bg-app); } }
 .home-panel { position: relative; margin-left: var(--space-2); min-width: 0; min-height: 0; overflow: auto; border-radius: var(--radius-container); background: var(--surface-panel); box-shadow: var(--shadow-panel); isolation: isolate; }
-/* Add Projects page: the white panel is the scroll container and the 560px column grows with it (buzz-add-projects
+/* Add Projects page: the white panel is the scroll container and the 560px column grows with it (doan-add-projects
    draft round 3); the page scrolls whole, its footer included. The shared Project screen is sized for first run's
    14/20 body text and plain numerals (.ob-overlay); without them it inherits the app body's 13px/normal. */
 .add-panel { display: flex; flex-direction: column; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); font-variant-numeric: normal; }
@@ -467,7 +467,7 @@ body:has(.shell-top) { background: transparent; }
 .composer { position: relative; border-radius: var(--radius-container); background: var(--surface-inset); box-shadow: var(--shadow-panel); }
 .composer-card { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-4) var(--space-3) var(--space-3) var(--space-4); border-radius: var(--radius-container); background: var(--surface-panel); box-shadow: var(--shadow-xs), 0 0 0 1px var(--border-standard); }
 /* A text field shows focus with its own border (DESIGN 'Focus'); the composer's is the quieter field-focus border with
-   a slightly higher shadow (buzz-conversation, 2026-10-31 user). The border alone stays under 3:1, so the caret and the
+   a slightly higher shadow (doan-conversation, 2026-10-31 user). The border alone stays under 3:1, so the caret and the
    shadow carry the focus with it. */
 .composer-card:focus-within { box-shadow: var(--shadow-sm), 0 0 0 1px var(--border-field-focus); }
 .composer-chips { display: flex; flex-wrap: wrap; gap: var(--space-1h); }
@@ -476,7 +476,7 @@ body:has(.shell-top) { background: transparent; }
 /* A contenteditable has no placeholder: ChipField marks an empty field and its aria-placeholder is drawn over it, inset
    by the field's padding. */
 .composer-input[data-empty]::before { content: attr(aria-placeholder); position: absolute; inset-inline: 0 var(--space-1); color: var(--text-metadata); pointer-events: none; }
-/* Inline anchor chips (buzz-canvas-conversation design §0, confirmed draft; 180px and 6px are component constants with no
+/* Inline anchor chips (doan-canvas-conversation design §0, confirmed draft; 180px and 6px are component constants with no
    token). contenteditable=false keeps the caret before or after a chip, never inside. */
 .anchor-chip { display: inline-flex; align-items: center; gap: var(--space-1); max-width: 180px; margin: 0 var(--space-half); padding: 0 var(--space-1h); border: 0; border-radius: 6px; background: var(--surface-accent-subtle); color: var(--text-accent-subtle); font: inherit; font-weight: var(--type-weight-medium); vertical-align: bottom; white-space: nowrap; }
 .anchor-chip svg { width: var(--size-icon-sm); height: var(--size-icon-sm); flex: none; }
@@ -597,7 +597,7 @@ body:has(.shell-top) { background: transparent; }
 /* The suggestion's group icon carries the accent; its sentence stays standard ink (2026-10-29 user). */
 .suggestion svg { width: var(--size-icon-sm); height: var(--size-icon-sm); color: var(--affordance-accent); }
 
-/* buzz-home: the temporary Home-conversation strip at the top of the workspace body (design §7), on the same white panel. */
+/* doan-home: the temporary Home-conversation strip at the top of the workspace body (design §7), on the same white panel. */
 .workspace.with-strip { grid-template-rows: var(--size-chrome) auto minmax(0, 1fr); }
 .workspace.with-status.with-strip { grid-template-rows: var(--size-chrome) auto auto minmax(0, 1fr); }
 .workspace.with-strip > :is(.side, .right-stack) { grid-row: -3 / -1; }
@@ -610,7 +610,7 @@ body:has(.shell-top) { background: transparent; }
 .strip-text span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .strip-actions { display: flex; align-items: center; gap: var(--space-2); }
 
-/* buzz-home: the sidebar row's status slot (design §7.2), at the right of the row before its menu, and an added project's flash (§6). */
+/* doan-home: the sidebar row's status slot (design §7.2), at the right of the row before its menu, and an added project's flash (§6). */
 .row-slot { display: inline-grid; place-items: center; width: var(--size-icon); height: var(--size-icon); flex: none; margin-left: auto; }
 .shell-project-row .row-slot { margin-left: 0; }
 .row-slot.permission { color: var(--affordance-accent); }
@@ -619,7 +619,7 @@ body:has(.shell-top) { background: transparent; }
 .row-slot.unseen i { width: var(--space-2); height: var(--space-2); border-radius: 50%; background: var(--affordance-accent); }
 .shell-side .shell-project-row.flash { box-shadow: inset 0 0 0 2px var(--border-focus); }
 
-/* buzz-settings: the Settings page (.doan/canvases/buzz-settings.html, confirmed 2026-10-30). The sidebar lists the four
+/* doan-settings: the Settings page (.doan/canvases/doan-settings.html, confirmed 2026-10-30). The sidebar lists the four
    categories with the canvas-row geometry; Home's white panel scrolls a 48rem reading
    column. Its body text is 14/20 with plain numerals, like the Add Projects panel. */
 .shell-settings-nav { display: flex; flex-direction: column; gap: var(--space-half); }
@@ -667,7 +667,7 @@ body:has(.shell-top) { background: transparent; }
 /* Home's agent picker: the link to Settings at the bottom of the menu. */
 .settings-menu-link { display: flex; gap: var(--space-2); align-items: center; }
 .settings-menu-link svg { width: var(--size-icon); height: var(--size-icon); color: var(--text-subtle); }
-/* buzz-settings U4/U5: the header's action slot (Check Again, Copy details), the category bodies and the Project
+/* doan-settings U4/U5: the header's action slot (Check Again, Copy details), the category bodies and the Project
    Settings dialog, from the same draft. An empty slot takes no room beside the lead. */
 :is(.settings-page, .settings-dialog) code { color: var(--text-standard); background: var(--surface-inset); border-radius: var(--space-1); padding: 0 var(--space-1); }
 .settings-header-actions { display: flex; flex: none; flex-wrap: wrap; gap: var(--space-2); }
@@ -699,8 +699,8 @@ body:has(.shell-top) { background: transparent; }
 .settings-serve li { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
 .settings-serve li + li { border-top: 1px solid var(--border-standard); }
 .settings-serve code { background: transparent; padding: 0; }
-/* buzz-conversation: the conversation thread (.doan/canvases/buzz-conversation.html, frames thread-*). Scoped to the
-   thread so its short names (.activity, .marker, .md) never reach other screens. buzz-project places it. */
+/* doan-conversation: the conversation thread (.doan/canvases/doan-conversation.html, frames thread-*). Scoped to the
+   thread so its short names (.activity, .marker, .md) never reach other screens. doan-project places it. */
 .conversation-thread { position: relative; display: flex; flex-direction: column; min-height: 0; height: 100%; }
 .conversation-thread .thread-scroll { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb-quiet) transparent; }
 .conversation-thread .thread { display: flex; flex-direction: column; gap: var(--space-4); }
@@ -782,7 +782,7 @@ body:has(.shell-top) { background: transparent; }
   .conversation-thread .activity-head .chev { transition: none; }
 }
 
-/* buzz-project: the Overview as the project conversation screen (.doan/canvases/buzz-project.html, confirmed 2026-10-31).
+/* doan-project: the Overview as the project conversation screen (.doan/canvases/doan-project.html, confirmed 2026-10-31).
    The main panel keeps the workspace's white .ov surface; the thread scrolls inside it to the panel's edge while its
    column stays 720px wide, and the composer sits under it. No mascot, greeting or gradient: that is Home's. */
 .workspace > .ov.ov-main { display: flex; flex-direction: column; padding: 0; overflow: hidden; }
@@ -867,7 +867,7 @@ body:has(.shell-top) { background: transparent; }
 .rp-loading { padding: var(--space-4); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
 .rp-error { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-2) var(--space-4); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
 
-/* buzz-canvas: the canvas panel, an opaque white header above the board (.doan/canvases/buzz-canvas.html, confirmed
+/* doan-canvas: the canvas panel, an opaque white header above the board (.doan/canvases/doan-canvas.html, confirmed
    2026-11-01). The header does not cover the board: the board starts under it. Isolation keeps the board's floating
    controls under the Overview, which covers the same grid cell. */
 .workspace > .doan-canvas-panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; isolation: isolate; }
@@ -908,7 +908,7 @@ body:has(.shell-top) { background: transparent; }
 /* The conversation panel's open button closes the header row after a divider, only while the panel is folded. */
 .doan-canvas-head-sep { flex: none; width: 1px; height: var(--space-5); margin-inline: var(--space-1); background: var(--border-standard); }
 
-/* buzz-canvas: the canvas page's right column, the canvas conversation panel shell (.doan/canvases/buzz-canvas.html
+/* doan-canvas: the canvas page's right column, the canvas conversation panel shell (.doan/canvases/doan-canvas.html
    'default', 'panel-collapsed', 'panel-resize'). Only folding and unfolding animate the column (data-panel-motion); a
    drag must not, or the handle trails the pointer (malmoi DESIGN '접기'). */
 .workspace.app-shell[data-panel-motion] { transition: grid-template-columns var(--time-panel-enter) var(--ease-settle); }
@@ -926,7 +926,7 @@ body:has(.shell-top) { background: transparent; }
 .doan-conv-head .doan-icon-button { color: var(--text-standard); }
 .doan-conv-body { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: var(--space-4); }
 .doan-conv-empty { max-width: 240px; margin: 0; text-align: center; color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
-/* buzz-canvas-conversation: the panel's content (.doan/canvases/buzz-canvas-conversation.html panel-*). The title is the
+/* doan-canvas-conversation: the panel's content (.doan/canvases/doan-canvas-conversation.html panel-*). The title is the
    conversation menu with the close button at its end; the thread scrolls under it and the composer stays at the bottom. */
 .doan-conv-title { flex: 1; min-width: 0; padding: var(--space-2) 0 var(--space-2) var(--space-2); }
 .doan-conv-title .ov-title.doan-button { max-width: 100%; }
@@ -957,7 +957,7 @@ body:has(.shell-top) { background: transparent; }
 .bubble .anchor-chip { background: var(--surface-panel); }
 button.anchor-chip { cursor: pointer; }
 button.anchor-chip[aria-disabled="true"] { cursor: default; }
-/* Chip locate (buzz-canvas-conversation design §2): a chip in the composer's field locates too, so it points as a
+/* Chip locate (doan-canvas-conversation design §2): a chip in the composer's field locates too, so it points as a
    thread chip does; a target that is gone gets the metadata line under its message or composer. */
 .composer-input .anchor-chip { cursor: pointer; }
 .chip-missing { color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
@@ -994,7 +994,7 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
   .workspace.app-shell[data-panel-motion], .workspace[data-panel-motion] > .doan-conv-column[data-collapsed] { transition: none; }
 }
 
-/* buzz-canvas: the agent indicator while this canvas's current conversation works or waits (.doan/canvases/buzz-canvas.html
+/* doan-canvas: the agent indicator while this canvas's current conversation works or waits (.doan/canvases/doan-canvas.html
    'agent-working', 'agent-waiting'). Reference: ego lite's agent tab as the user described it (2026-11-01); its values are
    compiled into a native view, and the one web token read is the task bar's #0009 (design §2). doan uses its accent for
    the edge instead of ego's blue, the parent's common decision 2 exception. Above the overlay, under the board's floating
@@ -1065,7 +1065,7 @@ body{padding:var(--space-8);width:2560px;background:var(--surface-inset);color:v
 .caption p{grid-column:2;color:var(--text-subtle)}
 .traffic{position:absolute;left:var(--space-6);top:22px;z-index:1;display:flex;gap:var(--space-2)}
 .traffic i{width:var(--space-3);height:var(--space-3);border-radius:50%;background:var(--border-prominent);opacity:.5}
-/* Native sidebar vibrancy approximated over a wallpaper fixture (as in buzz-settings.html); not a measurement. */
+/* Native sidebar vibrancy approximated over a wallpaper fixture (as in doan-settings.html); not a measurement. */
 .material-stage{width:max-content;border-radius:var(--radius-chip);overflow:hidden;position:relative;background:radial-gradient(ellipse at 10% 0%,var(--affordance-warning),transparent 65%),radial-gradient(ellipse at 90% 90%,var(--affordance-success),transparent 60%),var(--bg-app)}
 .material-stage>.window{background:color-mix(in srgb,var(--surface-panel) 55%,transparent);backdrop-filter:blur(var(--blur-lg)) saturate(.8);-webkit-backdrop-filter:blur(var(--blur-lg)) saturate(.8)}
 .shell-window{width:1238px;height:780px;display:grid;grid-template-columns:260px minmax(0,1fr);grid-template-rows:var(--size-chrome) minmax(0,1fr);padding:0 var(--space-2) var(--space-2);position:relative;border-radius:var(--radius-chip);box-shadow:var(--shadow-panel);overflow:hidden;isolation:isolate}

@@ -37,7 +37,7 @@ const PRESETS: PresetSummary[] = [["context", "Gather design context", "start"],
   .map(([id, title, group]) => ({ id: id!, title: title!, description: `About ${id}.`, scope: `${id} scope`, group: group! }));
 const LISTED: PresetListReply = { v: 1, ok: true, result: { version: "1", presets: PRESETS } };
 const row = (name: string): CanvasRow => ({ path: `.doan/canvases/${name}.html`, id: name, url: "u" });
-const ENTRY: FolderEntry = { kind: "list", path: "/code/doan-design", servedRev: 0, canvases: [row("buzz-onboarding")], git: { common: "/code/doan-design/.git", main: "/code/doan-design", branch: "main", worktrees: [] } };
+const ENTRY: FolderEntry = { kind: "list", path: "/code/doan-design", servedRev: 0, canvases: [row("doan-onboarding")], git: { common: "/code/doan-design/.git", main: "/code/doan-design", branch: "main", worktrees: [] } };
 
 let doan: Record<string, ReturnType<typeof vi.fn>>;
 beforeEach(() => {
@@ -219,13 +219,13 @@ test("dragging files over the composer shows the drop target and stops the windo
 
 test("Send starts the composed request; a refusal keeps the draft and shows the code's wording; a moved file marks its chip", async () => {
   const attachments = [{ key: "a", id: "id-a", name: "a.pdf", kind: "file" as const, pasted: false, status: "ready" as const, size: 10, path: "/u/a.pdf" }];
-  const { box, start, render } = setup({ text: "Critique the buzz-onboarding canvas.", preset: PRESETS[2]!, attachments });
+  const { box, start, render } = setup({ text: "Critique the doan-onboarding canvas.", preset: PRESETS[2]!, attachments });
   start.mockResolvedValueOnce({ error: "not_logged_in" } as never);
   call(field(render()), "onKeyDown", key("Enter"));
   await vi.waitFor(() => expect(start).toHaveBeenCalledTimes(1));
-  expect(start.mock.calls[0]![0]).toEqual({ root: "/code/doan-design", mode: "newDesign", runtime: "claude", text: "Use the Doan design preset `critique` (Critique the design).\n\nCritique the buzz-onboarding canvas.", attachments: [{ id: "id-a" }] });
+  expect(start.mock.calls[0]![0]).toEqual({ root: "/code/doan-design", mode: "newDesign", runtime: "claude", text: "Use the Doan design preset `critique` (Critique the design).\n\nCritique the doan-onboarding canvas.", attachments: [{ id: "id-a" }] });
   await vi.waitFor(() => expect(box.current.notice?.text).toBe("Couldn’t start with Claude Code: its sign-in has expired. Choose another agent."));
-  expect(box.current.text).toBe("Critique the buzz-onboarding canvas.");
+  expect(box.current.text).toBe("Critique the doan-onboarding canvas.");
   start.mockResolvedValueOnce({ error: "attachment_missing", missing: ["id-a"] } as never);
   call(field(render()), "onKeyDown", key("Enter"));
   await vi.waitFor(() => expect(box.current.attachments[0]?.status).toBe("missing"));

@@ -100,7 +100,7 @@ Next: user review in the app → --revise or confirmed
 ## Prohibited
 
 - Do not edit app code, tests or other features' documents, except adding a rule-following token to `tokens.css` (see 'Tokens first').
-- Do not edit the draft of a screen already on develop (e.g. `.doan/canvases/buzz-canvas.html`); that is a change request. A redesign child writes a new file instead.
+- Do not edit the draft of a screen already on develop (e.g. `.doan/canvases/doan-canvas.html`); that is a change request. A redesign child writes a new file instead.
 - Do not add canvas conventions or test-only attributes.
 - Do not draw a decision that is not in the feature documents, PRODUCT or ARCHITECTURE; ask instead.
 - Do not merge, and do not push a `<type>/<slug>` branch ('Commit').

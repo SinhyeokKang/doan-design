@@ -12,7 +12,7 @@ import { autoCursor, dotGrid, opposingCursor, type Dot } from "./dotField";
 import { crossesBoundary, NoticeTyping, typesOn, type NoticeMoment, type TypedText } from "./noticeTyping";
 
 // The agent indicator on the board while this canvas's current conversation works or waits (PRODUCT §5 item 2 'Agent indicator',
-// .doan/canvases/buzz-canvas.html 'agent-working', 'agent-waiting'). The glow and the dot field take
+// .doan/canvases/doan-canvas.html 'agent-working', 'agent-waiting'). The glow and the dot field take
 // no pointer input; the notice floats at the board's top centre with one button. Reference: ego lite's agent tab as the
 // user described it (2026-11-01); its values live in a native view and were not read.
 // `list` is HomeRun's list state for the canvas's project; `running` is false while the workspace is hidden or the

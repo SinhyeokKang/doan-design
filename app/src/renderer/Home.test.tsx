@@ -30,7 +30,7 @@ const PRESETS: PresetSummary[] = [["context", "Gather design context", "start"],
   .map(([id, title, group]) => ({ id: id!, title: title!, description: `About ${id}.`, scope: `${id} scope`, group: group! }));
 const LISTED: PresetListReply = { v: 1, ok: true, result: { version: "1", presets: PRESETS } };
 const row = (name: string): CanvasRow => ({ path: `.doan/canvases/${name}.html`, id: name, url: "u" });
-const project = (path: string, canvases: CanvasRow[] = [row("buzz-onboarding")]): FolderEntry => ({ kind: "list", path, servedRev: 0, canvases, git: { common: `${path}/.git`, main: path, branch: "main", worktrees: [] } });
+const project = (path: string, canvases: CanvasRow[] = [row("doan-onboarding")]): FolderEntry => ({ kind: "list", path, servedRev: 0, canvases, git: { common: `${path}/.git`, main: path, branch: "main", worktrees: [] } });
 
 function render(entries: FolderEntry[], memory: Partial<ComposerMemory> = {}, props: Partial<HeroComposerProps> = {}) {
   const cards = groupProjects(entries, new Map());
@@ -68,10 +68,10 @@ test("an empty composer for a project with canvases: project above, tray below, 
   expect(html.match(/<button type="button" class="suggestion"[^>]*><span class="suggestion-icon"><svg[^>]*aria-hidden="true"/g)).toHaveLength(3);
   expect(html).not.toContain("suggestion doan-button");
   // The canvas name is a highlighted inline value; the button keeps the full sentence as its text.
-  expect(html).toContain('<span class="suggestion-label">Review the <span class="suggestion-value">buzz-onboarding</span> canvas</span>');
+  expect(html).toContain('<span class="suggestion-label">Review the <span class="suggestion-value">doan-onboarding</span> canvas</span>');
   expect(html).toContain('<span class="suggestion-value">doan-design</span>');
   expect(html.match(/class="suggestion-value"/g)).toHaveLength(3);
-  expect(html.replace(/<[^>]+>/g, "")).toContain("Review the buzz-onboarding canvas");
+  expect(html.replace(/<[^>]+>/g, "")).toContain("Review the doan-onboarding canvas");
   expect(html.match(/suggestion-go/g)).toHaveLength(3);
   expect(html).not.toContain("composer-reason");
 });

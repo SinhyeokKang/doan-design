@@ -7,7 +7,7 @@ import { CanvasAgent } from "./CanvasAgent";
 import { crossesBoundary, NoticeTyping, typesOn, type TypedText } from "./noticeTyping";
 import { TooltipProvider } from "./components/ui/tooltip";
 
-// The board's agent indicator (.doan/canvases/buzz-canvas.html 'agent-working', 'agent-waiting'), drawn
+// The board's agent indicator (.doan/canvases/doan-canvas.html 'agent-working', 'agent-waiting'), drawn
 // from main's conversation list for the open canvas.
 const canvas = { path: ".doan/canvases/billing.html", id: "billing" };
 const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
