@@ -270,14 +270,43 @@ func TestResolverChecksLexicallyFirst(t *testing.T) {
 	}
 }
 
+// A failed read is returned, not cached: once the directory reads again, the
+// same Resolver resolves normally.
 func TestResolverKeepsReadErrors(t *testing.T) {
 	root := real(t, t.TempDir())
 	put(t, root, "a/b.png", "")
+	calls := 0
 	resolver := NewResolverWith(root, func(dir string) ([]os.DirEntry, error) {
-		return nil, &os.PathError{Op: "open", Path: dir, Err: syscall.EACCES}
+		calls++
+		if calls == 1 {
+			return nil, &os.PathError{Op: "open", Path: dir, Err: syscall.EACCES}
+		}
+		return os.ReadDir(dir)
 	})
 	state, rel, err := resolver.Resolve(root, "a/b.png")
 	if !errors.Is(err, syscall.EACCES) {
 		t.Fatalf("%s %q %v; want EACCES", state, rel, err)
+	}
+	state, rel, err = resolver.Resolve(root, "a/b.png")
+	if err != nil || state != Inside || rel != "a/b.png" {
+		t.Fatalf("after the error: %s %q %v; want inside a/b.png", state, rel, err)
+	}
+}
+
+// A Resolver keeps what it read for its one command: a file created after its
+// directory was read is Missing to that Resolver and Inside to a new one.
+func TestResolverSnapshotLifetime(t *testing.T) {
+	root := real(t, t.TempDir())
+	put(t, root, "assets/old.png", "")
+	resolver := NewResolver(root)
+	if state, rel, err := resolver.Resolve(root, "assets/old.png"); err != nil || state != Inside || rel != "assets/old.png" {
+		t.Fatalf("old: %s %q %v", state, rel, err)
+	}
+	put(t, root, "assets/new.png", "")
+	if state, rel, err := resolver.Resolve(root, "assets/new.png"); err != nil || state != Missing || rel != "" {
+		t.Fatalf("same Resolver: %s %q %v; want missing", state, rel, err)
+	}
+	if state, rel, err := NewResolver(root).Resolve(root, "assets/new.png"); err != nil || state != Inside || rel != "assets/new.png" {
+		t.Fatalf("new Resolver: %s %q %v; want inside assets/new.png", state, rel, err)
 	}
 }
