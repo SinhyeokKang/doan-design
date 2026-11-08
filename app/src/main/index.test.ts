@@ -2737,7 +2737,7 @@ describe("background onboarding launch and start", () => {
   });
 
   test.each([
-    ["activate", () => mocks.app.emit("activate")],
+    ["activate", () => { mocks.app.isActive.mockReturnValue(true); mocks.app.emit("activate"); }],
     ["second-instance", () => mocks.app.emit("second-instance")],
     ["Add Project…", () => Reflect.apply(item("Add Project…").click ?? (() => { throw new Error("no click handler"); }), undefined, [])],
   ])("showing the window through %s ends the wait, so a later activation does not show it again", async (_name, reveal) => {
@@ -2766,6 +2766,29 @@ describe("background onboarding launch and start", () => {
     expect(mocks.app.dock.bounce).toHaveBeenCalledOnce();
     mocks.app.isActive.mockReturnValue(true);
     mocks.app.emit("did-become-active");
+    expect(window().show).toHaveBeenCalledOnce();
+  });
+
+  // `open -g` to a running app sends a reopen, which Electron delivers as `activate` without activating Doan.
+  test("an activate while another app is in front keeps the wait and leaves the window hidden", async () => {
+    await launch({ background: true, active: false });
+    mocks.app.emit("activate");
+    expect(window().show).not.toHaveBeenCalled();
+    expect(mocks.app.show).not.toHaveBeenCalled();
+    expect(await invoke("window:visible", window().webContents, null)).toEqual({ visible: false });
+    mocks.app.isActive.mockReturnValue(true);
+    mocks.app.emit("did-become-active");
+    expect(window().show).toHaveBeenCalledOnce();
+  });
+
+  test("an activate while another app is in front leaves a closed window closed; an active one shows it", async () => {
+    await launch({ background: false, active: true });
+    window().emit("close", { preventDefault: vi.fn() });
+    mocks.app.isActive.mockReturnValue(false);
+    mocks.app.emit("activate");
+    expect(window().show).not.toHaveBeenCalled();
+    mocks.app.isActive.mockReturnValue(true);
+    mocks.app.emit("activate");
     expect(window().show).toHaveBeenCalledOnce();
   });
 
