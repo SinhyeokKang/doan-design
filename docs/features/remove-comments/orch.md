@@ -16,6 +16,8 @@ D1–D8은 feature 문서에서 사용자가 승인했다. 아래는 실행 중 
 
 - **O4. 옛 규칙 C·E의 코멘트와 무관한 절반을 살린다.** D3대로 C·E를 지우면서 "가리키는 말은 `doan active`로 대상을 찾는다"와 "편집 뒤 `doan check`를 통과시킨다"가 함께 빠졌다(B1 리뷰 🔴). 새 규칙을 늘리지 않고 A와 E 안에 넣고 테스트로 고정한다. — conductor's call: PRODUCT 'Loop' 5와 spec '사용자'가 이미 이 동작을 말하므로 새 결정이 아니고, D3의 A–E 개수도 지킨다.
 - **O5. `app/src/formats/canvasPath.test.ts:30`은 T9 `rg` 예외다.** `.doan/comments/…`가 캔버스 경로가 아님을 재는 남은 메타데이터 예시이고, D1(남은 파일 무시)을 지킨다. — conductor's call.
+- **O6. H2·H3·R4·W2는 새 id(`H2b`·`H3b`·`R4b`·`W2b`)를 받는다.** 코멘트 시드가 빠지고 R4·W2는 프롬프트, W2는 check도 바뀌었다. ARCHITECTURE §14 "task, seed, intent가 바뀌면 새 id" 규칙을 따른다. 새 id는 이전 라운드 기준선이 없으므로 T10의 "나빠짐" 비교 대상에서 빠지고, 첫 라운드가 기준선이 된다. — conductor's call: 문서에 적힌 규칙이고 D5와 어긋나지 않는다(D5는 무엇을 재는지만 정했다).
+- **O7. `ToolCalls.patches`와 focus `"injection"`을 지운다.** R3 은퇴로 소비자가 없어졌고 D5는 대체 시나리오를 만들지 않는다. — conductor's call: AGENTS "내 변경이 만든 고아만 제거", 확장 대비 금지.
 
 ## 배치
 
@@ -41,3 +43,5 @@ D1–D8은 feature 문서에서 사용자가 승인했다. 아래는 실행 중 
 - B1 handoff가 남긴 다른 배치 항목: 앱 `ATTRIBUTE_LINES`(B2), R8d 규칙 글자와 "as H6 does" 주석(B3), `eval/lib/work.ts:9`·design-draft 스킬·ARCHITECTURE의 규칙 글자, `prompt.ts`의 "output budget" 주석과 ARCHITECTURE §7 같은 문장(B4). `app/src/formats/canvasPath.test.ts:30`은 남은 메타데이터 예시라 T9 `rg` 예외로 본다.
 - B3: worker `ctx_d0cd2f322c80`의 `e43443a0`을 `9778ee45`로 통합했다. worker는 `verify.mjs --eval`을 통과시켰다. 통합 HEAD(B1 수정 포함)에서 conductor가 `node --test 'eval/**/*.test.ts'`(272 pass)와 `node eval/run.ts --self-test`(`self-test PASS (35 scenarios)`, exit 0)를 다시 돌렸다. 계획과 다른 점: B1 소유 `eval/lib/workspace.test.ts`가 은퇴한 R6b 시드를 읽어서 B3이 D2b 시드로 바꿨다(단언은 그대로). 시드 `.gitattributes` 17개는 union 줄만 있어서 파일째 지웠다. W2는 `element_ids_preserved`(시드의 모든 `data-doan-id`가 남는지)로 바꿨다. 리뷰 worker `ctx_72ef30634825`(Sonnet high).
 - B4 T9(진행 중): PRODUCT, ARCHITECTURE, README, AGENTS, BACKLOG, 개발 스킬, 루트 `.gitattributes`를 고쳤다. PRODUCT §5 item 5는 번호를 지키려고 "No comments" 항목으로 바꿔 D1(남은 `.doan/comments/` 무시)을 현재 규칙으로 적었다. ARCHITECTURE §2는 비웠고, `.gitattributes` 규칙은 §12 'Storage'로, 데이터 규칙은 §3 'Selection and inspector' Untrusted text로 옮겼다. B2에 걸린 부분(§3 Document origin 경로, §7 Canvas row menu IPC의 Trash, DIRECTORY, DESIGN, audit 스킬의 `app/src/comments`)은 B2 통합 뒤에 고친다. 코드 주석 두 곳(`prompt.ts:48`의 출력 예산 문장, `eval/lib/work.ts:9`의 규칙 글자)은 B1 worker에 보냈다(`ctx_876be7376da3`).
+- B3 리뷰(`ctx_72ef30634825`, Sonnet high): 🔴 0, 🟡 2(W2가 옮긴 캔버스에서 seed를 못 읽는 거짓 실패, `patches` 고아), ⚪ 7. 수정 1차를 B3 worker에 보냈다(`ctx_7e7737a1ccb8`): 🟡 2건, ⚪ 3건(H3 rubric "approval", value-flag `agent`, focus `injection`), O6 id 변경. 리뷰 worker는 release하고 `rc-r-b3`을 지웠다. 리뷰가 본 self-test 1회차 실패는 B2 worker의 셸 `doan check`가 같은 순간 실제 `sessions.jsonl`에 쓴 탓이었고 2회차는 통과했다.
+- B1 후속(`ctx_876be7376da3`): 코드 주석 2곳을 `21bd74b4`로 통합했다.
