@@ -18,8 +18,16 @@ func rewriteCSS(text string, mode canvas.Mode, replace func(ref string, kind ref
 // rewriteCSSRefs is rewriteCSS whose callback also gets the custom property
 // holding each url() (canvas.CSSRef.Custom).
 func rewriteCSSRefs(text string, mode canvas.Mode, replace func(kind refKind, ref, custom string) (string, bool)) string {
-	var b strings.Builder
-	last := 0
+	// The replacements are gathered first so the output is allocated once at
+	// its final size: a builder grown piece by piece copies a large
+	// stylesheet several times over.
+	type edit struct {
+		start, end int
+		space      bool
+		value      string
+	}
+	var edits []edit
+	size := len(text)
 	for _, r := range canvas.CSSRefs(text, mode) {
 		kind := kindAsset
 		if r.Import {
@@ -29,18 +37,29 @@ func rewriteCSSRefs(text string, mode canvas.Mode, replace func(kind refKind, re
 		if !ok {
 			continue
 		}
-		b.WriteString(text[last:r.Start])
 		// `@import"a.css"` would otherwise become the identifier `importurl`.
-		if r.Start > 0 && identByte(text[r.Start-1]) {
+		e := edit{r.Start, r.End, r.Start > 0 && identByte(text[r.Start-1]), cssEscape(v)}
+		size += len(`url("")`) + len(e.value) - (e.end - e.start)
+		if e.space {
+			size++
+		}
+		edits = append(edits, e)
+	}
+	if len(edits) == 0 {
+		return text
+	}
+	var b strings.Builder
+	b.Grow(size)
+	last := 0
+	for _, e := range edits {
+		b.WriteString(text[last:e.start])
+		if e.space {
 			b.WriteByte(' ')
 		}
 		b.WriteString(`url("`)
-		b.WriteString(cssEscape(v))
+		b.WriteString(e.value)
 		b.WriteString(`")`)
-		last = r.End
-	}
-	if last == 0 {
-		return text
+		last = e.end
 	}
 	b.WriteString(text[last:])
 	return b.String()
@@ -50,10 +69,12 @@ func identByte(c byte) bool {
 	return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '-' || c == '_' || c >= 128
 }
 
+// "<" is escaped so a value written into <style> text cannot close the
+// element ("</style>") however it was spelled in the source.
+var cssEscaper = strings.NewReplacer(`\`, `\\`, `"`, `\"`, "\n", `\a `, "\r", `\d `, "\f", `\c `, "<", `\3c `)
+
 func cssEscape(s string) string {
-	// "<" is escaped so a value written into <style> text cannot
-	// close the element ("</style>") however it was spelled in the source.
-	return strings.NewReplacer(`\`, `\\`, `"`, `\"`, "\n", `\a `, "\r", `\d `, "\f", `\c `, "<", `\3c `).Replace(s)
+	return cssEscaper.Replace(s)
 }
 
 // srcsetSpans returns the URL spans of a srcset value, following the HTML
@@ -227,10 +248,12 @@ func rewriteMarkup(src []byte, url func(kind refKind, href string) (string, bool
 	out.Grow(len(src))
 	template := 0
 	style := false
+	consumed := 0 // source bytes read so far
 	for {
 		tt := nextToken(z, foreign)
 		// Token() lowercases and unescapes inside the buffer Raw() shares.
 		raw := append([]byte(nil), z.Raw()...)
+		consumed += len(raw)
 		inStyle := style
 		style = false
 		switch {
@@ -265,16 +288,16 @@ func rewriteMarkup(src []byte, url func(kind refKind, href string) (string, bool
 					if len(kept.Attr) == 0 {
 						continue
 					}
-					if tag, ok := rewriteTag(kept, url, css); ok {
-						out.WriteString(tag)
-					} else {
-						out.WriteString(writeTag(kept, kept.Attr))
+					attrs, ok := rewriteTag(kept, url, css)
+					if !ok {
+						attrs = kept.Attr
 					}
+					writeTag(&out, kept, attrs, len(src)-consumed)
 					continue
 				}
 			}
-			if tag, ok := rewriteTag(tok, url, css); ok {
-				out.WriteString(tag)
+			if attrs, ok := rewriteTag(tok, url, css); ok {
+				writeTag(&out, tok, attrs, len(src)-consumed)
 			} else {
 				out.Write(raw)
 			}
@@ -284,7 +307,9 @@ func rewriteMarkup(src []byte, url func(kind refKind, href string) (string, bool
 	}
 }
 
-func rewriteTag(tok html.Token, url func(refKind, string) (string, bool), css func(string, canvas.Mode) string) (string, bool) {
+// rewriteTag returns tok's attributes with their references replaced, and
+// whether any changed.
+func rewriteTag(tok html.Token, url func(refKind, string) (string, bool), css func(string, canvas.Mode) string) ([]html.Attribute, bool) {
 	// The browser keeps the first of duplicate attributes, so later ones are
 	// neither resolved nor written back.
 	var attrs []html.Attribute
@@ -322,29 +347,37 @@ func rewriteTag(tok html.Token, url func(refKind, string) (string, bool), css fu
 			changed = true
 		}
 	}
-	if !changed {
-		return "", false
-	}
-	return writeTag(tok, attrs), true
+	return attrs, changed
 }
 
-// writeTag writes tok's start tag with attrs in place of its own.
-func writeTag(tok html.Token, attrs []html.Attribute) string {
-	var b strings.Builder
-	b.WriteByte('<')
-	b.WriteString(tok.Data)
+// writeTag writes tok's start tag with attrs in place of its own. When the
+// tag does not fit, the buffer grows by the tag and the rest source bytes
+// still to be copied, so a tag holding a large data URI is not copied again
+// when the rest of the document follows it.
+func writeTag(out *bytes.Buffer, tok html.Token, attrs []html.Attribute, rest int) {
+	size := len("<>") + len(tok.Data)
 	for _, a := range attrs {
-		b.WriteByte(' ')
-		b.WriteString(a.Key)
-		b.WriteString(`="`)
-		b.WriteString(strings.NewReplacer("&", "&amp;", `"`, "&quot;").Replace(a.Val))
-		b.WriteByte('"')
+		size += len(` =""`) + len(a.Key) + len(a.Val) + 4*strings.Count(a.Val, "&") + 5*strings.Count(a.Val, `"`)
 	}
 	if tok.Type == html.SelfClosingTagToken {
-		b.WriteByte('/')
+		size++
 	}
-	b.WriteByte('>')
-	return b.String()
+	if out.Available() < size {
+		out.Grow(size + rest)
+	}
+	out.WriteByte('<')
+	out.WriteString(tok.Data)
+	for _, a := range attrs {
+		out.WriteByte(' ')
+		out.WriteString(a.Key)
+		out.WriteString(`="`)
+		attributeEscaper.WriteString(out, a.Val)
+		out.WriteByte('"')
+	}
+	if tok.Type == html.SelfClosingTagToken {
+		out.WriteByte('/')
+	}
+	out.WriteByte('>')
 }
 
 func newTokenizer(src []byte, foreign bool) *html.Tokenizer {

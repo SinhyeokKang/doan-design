@@ -87,7 +87,7 @@ func inline(resolver *repo.Resolver, root string, config repo.Config, canvasPath
 	if err != nil {
 		return Result{}, nil, err
 	}
-	in := &inliner{resolver: resolver, root: root, scope: scope, limit: limit, files: map[string][]byte{}, sizes: map[string]int64{}, sheets: map[string][]sheet{}, external: map[string]bool{}, links: map[string]bool{}, refusedSeen: map[Refusal]bool{}, ids: documentIDs(src), spriteIDs: map[string]map[string]bool{}, spriteStyled: map[string]bool{}}
+	in := &inliner{resolver: resolver, root: root, scope: scope, limit: limit, files: map[string]string{}, sizes: map[string]int64{}, sheets: map[string][]sheet{}, external: map[string]bool{}, links: map[string]bool{}, refusedSeen: map[Refusal]bool{}, ids: documentIDs(src), spriteIDs: map[string]map[string]bool{}, spriteStyled: map[string]bool{}}
 	if href, ok := firstBaseHref(src); ok && baseMoves(href) {
 		in.based = canvasPath
 	}
@@ -144,7 +144,7 @@ type inliner struct {
 	root         string
 	scope        []string
 	limit        int64
-	files        map[string][]byte
+	files        map[string]string  // read once, as text: every use but a sprite wants a string
 	sizes        map[string]int64   // every file sized, read or not
 	total        int64              // sum of distinct file sizes
 	sheets       map[string][]sheet // inlined CSS by real path
@@ -280,7 +280,7 @@ func (in *inliner) sprite(from, h, real string, grown *int64) (string, bool) {
 			in.err = err
 			return "", false
 		}
-		content, fileIDs, styled := spriteContent(b)
+		content, fileIDs, styled := spriteContent([]byte(b))
 		if styled {
 			in.spriteIDs[real] = nil
 			in.spriteStyled[real] = true
@@ -438,7 +438,7 @@ func escapeControls(s string) string {
 // read returns a file's bytes. A file bigger than what is left of the limit
 // is sized but not read: every file read appears in the output at least
 // once, so the export is already too large.
-func (in *inliner) read(real string) ([]byte, error) {
+func (in *inliner) read(real string) (string, error) {
 	if b, ok := in.files[real]; ok {
 		return b, nil
 	}
@@ -446,15 +446,15 @@ func (in *inliner) read(real string) ([]byte, error) {
 	if err == errOverLimit {
 		in.sizes[real] = size
 		in.tooLarge = true
-		return nil, nil
+		return "", nil
 	}
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	in.sizes[real] = size
 	in.total += size
-	in.files[real] = b
-	return b, nil
+	in.files[real] = string(b)
+	return in.files[real], nil
 }
 
 // inlineFile returns the data URI for a resolved file and the stylesheets
@@ -468,7 +468,7 @@ func (in *inliner) inlineFile(real string, kind refKind, ancestors []string) (st
 		if err != nil || in.stopped() {
 			return "", nil, err
 		}
-		uri := dataURI(mime, b)
+		uri := dataURI(mime, []byte(b))
 		in.built += int64(len(uri))
 		return uri, nil, nil
 	}
@@ -500,7 +500,7 @@ func (in *inliner) inlineFile(real string, kind refKind, ancestors []string) (st
 	chain := append(ancestors[:len(ancestors):len(ancestors)], real)
 	reached := map[string]bool{real: true}
 	var grown int64
-	text := rewriteCSSRefs(string(b), canvas.Stylesheet, in.ref(real, false, chain, reached, &grown))
+	text := rewriteCSSRefs(b, canvas.Stylesheet, in.ref(real, false, chain, reached, &grown))
 	if in.stopped() {
 		return "", nil, nil
 	}

@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/SinhyeokKang/doan-design/cli/internal/canvas"
@@ -123,15 +124,21 @@ func TestAssembleOutputIsPinned(t *testing.T) {
 // cost of the viewer files, small enough to keep `go test` fast.
 const allocCSSBytes = 4 << 20
 
-// allocLimit caps what one export of that stylesheet allocates: about 115 MB
-// (27.4 times the stylesheet) when it was set, with headroom. TotalAlloc
-// bounds the peak heap from above and moves less with GC timing than the
-// peak does; the process's RSS is measured on the 24 MiB input instead.
-const allocLimit = 32 * allocCSSBytes
+// allocLimit caps what one export of that stylesheet allocates: about 40 MB
+// (9.5 times the stylesheet) when it was set, with 10% headroom. Each
+// full-size copy of the stylesheet or the page that comes back adds about one
+// stylesheet and crosses it. TotalAlloc bounds the peak heap from above and
+// moves less with GC timing than the peak does; the process's RSS is measured
+// on the 24 MiB input instead.
+const allocLimit = 21 * allocCSSBytes / 2
 
 // No t.Parallel: TotalAlloc counts every goroutine's allocations.
 func TestExportAllocationIsBounded(t *testing.T) {
-	root := putFiles(t, stylesheetRepo(allocCSSBytes, 1000, 100))
+	files := stylesheetRepo(allocCSSBytes, 1000, 100)
+	// A body after the inlined <link>, so the output buffer must make room
+	// for more than the tag.
+	files[largeCanvas] = strings.Replace(files[largeCanvas], "</body>", strings.Repeat("<p>body text</p>", 8000)+"</body>", 1)
+	root := putFiles(t, files)
 	src, err := ReadFile(root, largeCanvas)
 	if err != nil {
 		t.Fatal(err)

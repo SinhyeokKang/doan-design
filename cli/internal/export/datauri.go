@@ -19,13 +19,20 @@ func dataURI(mime string, b []byte) string {
 	if !textual(mime) || !utf8.Valid(b) {
 		return "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(b)
 	}
+	// Sized first: growing a builder past a large file copies it again.
+	size := len("data:") + len(mime) + 1 + len(b)
+	for i, c := range b {
+		if escapedByte(b, i, c) {
+			size += 2
+		}
+	}
 	var s strings.Builder
-	s.Grow(len(mime) + 6 + len(b))
+	s.Grow(size)
 	s.WriteString("data:")
 	s.WriteString(mime)
 	s.WriteByte(',')
 	for i, c := range b {
-		if unsafeByte(c) || c == ',' && i == len(b)-1 {
+		if escapedByte(b, i, c) {
 			s.WriteByte('%')
 			s.WriteByte(hexDigits[c>>4])
 			s.WriteByte(hexDigits[c&15])
@@ -34,6 +41,10 @@ func dataURI(mime string, b []byte) string {
 		s.WriteByte(c)
 	}
 	return s.String()
+}
+
+func escapedByte(b []byte, i int, c byte) bool {
+	return unsafeByte(c) || c == ',' && i == len(b)-1
 }
 
 func unsafeByte(c byte) bool {

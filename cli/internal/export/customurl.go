@@ -116,7 +116,7 @@ func (in *inliner) collectSheet(base, href string) {
 	if in.stopped() {
 		return
 	}
-	in.collectText(path.Dir(r.Real), string(b), canvas.Stylesheet)
+	in.collectText(path.Dir(r.Real), b, canvas.Stylesheet)
 }
 
 // replaceCustom resolves a url() held in a custom property from dirs, the
