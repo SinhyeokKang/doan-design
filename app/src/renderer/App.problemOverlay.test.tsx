@@ -413,6 +413,14 @@ test("menu Details shows a Config error's message or a CLI error's reason in the
   expect(harness.toast.show).not.toHaveBeenCalled();
 });
 
+// The toast draws its message as a text node, so markup and line breaks reach it as the reason's own characters.
+test("menu Details passes a CLI error's markup or multi-line reason to the toast unchanged", () => {
+  const reason = "doan: <img src=x onerror=alert(1)>\nsecond line & more";
+  render(); folders([{ path: "/w/a", kind: "cliError", reason }, listed("/w/c")]);
+  find<{ action(name: string, root: string): void }>(ShellSidebar)[0]!.props.action("details", "/w/a");
+  expect(harness.toast.show).toHaveBeenCalledExactlyOnceWith(reason);
+});
+
 test("reading: a list read within 300 ms shows nothing and moves no focus; past 300 ms the reading panel shows; a problem read shows at once", () => {
   vi.useFakeTimers();
   render(); folders([listed("/w/a")]);

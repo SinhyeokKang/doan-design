@@ -49,6 +49,12 @@ test("CLI error: Details toggles the CLI's message, drawn as text only: markup, 
   expect(open).not.toContain("<img");
 });
 
+test("CLI error: a reason over several lines keeps its line breaks in the Details block", () => {
+  const reason = "doan: config error\n  at line 3\r\n\tcolumn 7";
+  const html = draw(view({ path: "/Users/ada/code/acme-web", kind: "cliError", reason }), { details: true, detail: reason });
+  expect(html).toContain(`<pre class="problem-detail">${reason}</pre>`);
+});
+
 test("busy: every action is aria-disabled and stays focusable; the pressed one shows a spinner; the live region reads what it is given", () => {
   const busy = view({ path: "/Users/ada/code/acme-web", kind: "loading" }, { kind: "problem", entryKind: "error" });
   const html = draw(busy, { pressed: "retry", announcement: "Doan couldn’t read acme-web’s configuration" });

@@ -78,7 +78,7 @@ describe("cardRow", () => {
     expect(row({ path: "/p", kind: "loading" })).toMatchObject({ chip: "Reading", actions: [] });
   });
 
-  // The project menus draw Retry and Details with icons like their other items (draft frame cli-error-elsewhere).
+  // The project menus draw Retry and Details with icons like their other items (draft .doan/canvases/fixes-0-1-2.html, frame cli-error-elsewhere).
   test("Retry and Details have menu icons", () => {
     expect(ROW_ACTION_ICONS).toEqual({ retry: RotateCw, details: Info });
   });

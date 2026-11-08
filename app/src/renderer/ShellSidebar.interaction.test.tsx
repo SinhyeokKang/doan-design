@@ -149,7 +149,7 @@ it.each([
   for (const [label, action] of actions) {
     const repair = rendered.find(item => typeof item.onSelect === "function" && [item.children].flat().includes(label))!;
     expect(repair).toBeDefined();
-    // Retry and Details carry icons like the menu's other items (draft frame cli-error-elsewhere).
+    // Retry and Details carry icons like the menu's other items (draft .doan/canvases/fixes-0-1-2.html, frame cli-error-elsewhere).
     const icon = { Retry: RotateCw, Details: Info }[label];
     if (icon) expect([repair.children].flat().some(child => isValidElement(child) && child.type === icon), label).toBe(true);
     (repair.onSelect as () => void)();

@@ -1,10 +1,10 @@
 import { describe, expect, test } from "vitest";
-import { folderState, initOutcome, reconcileFolders, type CliRun } from "./folderState";
+import { CLI_TIMEOUT_MS, folderState, initOutcome, reconcileFolders, type CliRun } from "./folderState";
 
 const canvases = [{ path: ".doan/canvases/a.html", id: "a", frames: [], comments: { open: 1, resolved: 0 } }];
 const listResult = { root: "/repo", scope: [".doan/canvases", "tokens.css"], canvases };
 
-// exit 0 with an answer that cannot be read and nothing on stderr (draft frame overlay-cli-error).
+// exit 0 with an answer that cannot be read and nothing on stderr (draft .doan/canvases/fixes-0-1-2.html, frame overlay-cli-error).
 const UNREADABLE = "The doan command answered, but Doan couldn’t read the answer.";
 
 function run(overrides: Partial<CliRun>): CliRun {
@@ -166,6 +166,12 @@ describe("folderState", () => {
     expect(folderState(run({ stdout, timedOut: true, stderr: "slow\n" }))).toEqual({ kind: "cliError", reason: "The doan command didn’t answer within 10 seconds." });
     expect(folderState(run({ exitCode: null, timedOut: true, spawnError: "spawn doan EACCES" })))
       .toEqual({ kind: "cliError", reason: "Couldn’t start the doan command: spawn doan EACCES" });
+  });
+
+  // The runner's kill and the sentence that reports it come from one constant, so they cannot drift apart.
+  test("a timeout's reason names the runner's timeout", () => {
+    expect(CLI_TIMEOUT_MS).toBe(10_000);
+    expect(folderState(run({ exitCode: null, timedOut: true }))).toEqual({ kind: "cliError", reason: `The doan command didn’t answer within ${CLI_TIMEOUT_MS / 1000} seconds.` });
   });
 
   // PRODUCT §5 item 3 'Problem states': Details shows this reason, so it is never empty.

@@ -269,13 +269,17 @@ test("Config error: Details opens the error under the notice and closes it again
 });
 
 test("CLI error: Details opens the CLI's message under the notice as text and closes it again", async () => {
-  const reason = "doan: <b>read</b> \u001b[31mfailed\u001b[0m";
+  const reason = "doan: <b>read</b> \u001b[31mfailed\u001b[0m\n  second line\r\nthird";
   await open({ entries: [{ path: ROOT, kind: "cliError", reason }] });
   expect(button("Details").props["aria-expanded"]).toBe(false);
   expect(text()).not.toContain("failed");
   click("Details"); render();
   expect(button("Details").props["aria-expanded"]).toBe(true);
   expect(text()).toContain(reason);
+  // The block holds the reason itself, line breaks included, as one text child.
+  const block = all(tree).find(element => element.type === "pre");
+  expect(block?.props.className).toBe("project-settings-details");
+  expect(block?.props.children).toBe(reason);
   expect(props.onAction).not.toHaveBeenCalled();
   click("Details"); render();
   expect(text()).not.toContain("failed");
