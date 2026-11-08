@@ -13,7 +13,7 @@
 ## T1. 형식
 
 - `schema/config.v2.schema.json`과 `schema/fixtures/config/{valid,invalid}`의 v2 사례. `schema/fixtures/config/invalid/unknown-version.json`(`{"v": 2}`)과 `cli/internal/repo/config_test.go` `TestParseConfigBoundaries`의 `{"v":2,"x":1}`을 v3으로 바꾼다(design §7). app-socket v3·v4·v5 `path` pattern(공유·서비스·하위 폴더; v5는 design §8.1)과 `schema/fixtures/app-socket-v3`·`app-socket-v4`·`app-socket-v5`·`open-link/cases.json` 사례(design §2.2·§2.7·§7).
-- 검증: `go test ./...`, `npm --prefix app test` green(두 쪽이 같은 fixture를 읽음). 기존 v1·v3·v4·v5 fixture는 그대로 통과하고, 바뀐 것은 v3으로 옮긴 `unknown-version` 사례뿐이다.
+- 검증: `go test ./...`, `npm --prefix app test` green(두 쪽이 같은 fixture를 읽음). 기존 v1·v3·v4·v5 fixture는 그대로 통과한다. 바뀌는 것은 v3으로 옮긴 `unknown-version` 사례와, 하위 폴더를 받게 되어 허용 사례로 옮기는 app-socket v3·v4·v5의 `request/invalid/path-nested.json`, `open-link/cases.json`의 `canvas-nested`뿐이다.
 - **commit 경계**: `feat(formats): config v2 services and service canvas paths`
 
 ## T2. Go 순수 함수
