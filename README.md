@@ -5,6 +5,7 @@
 <h1 align="center">Doan</h1>
 
 <p align="center">
+  <a href="https://github.com/SinhyeokKang/doan-design/releases/latest"><img src="https://img.shields.io/github/v/release/SinhyeokKang/doan-design?style=flat-square&color=7c3aed&label=release" alt="Latest release" /></a>
   <img src="https://img.shields.io/badge/license-Apache--2.0-7c3aed?style=flat" alt="License: Apache-2.0" />
   <img src="https://img.shields.io/badge/macOS-Apple%20silicon-7c3aed?style=flat-square" alt="Supported platform: macOS on Apple silicon" />
   <img src="https://img.shields.io/badge/Claude%20Code%20%C2%B7%20Codex%20%C2%B7%20Cursor%20%C2%B7%20Antigravity%20%C2%B7%20Copilot-supported-7c3aed?style=flat-square" alt="Supported agent CLIs: Claude Code, Codex, Cursor, Antigravity and GitHub Copilot" />
@@ -15,13 +16,11 @@
   A Mac app and CLI where Claude Code, Codex, Cursor, Antigravity or GitHub Copilot writes design drafts as HTML canvases inside your code repo, and you talk to the agent about them, pointing at frames and elements.
 </p>
 
-<h3 align="center"><a href="#build-from-source"><ins>Pre-release: build from source</ins></a></h3>
+<h3 align="center"><a href="https://github.com/SinhyeokKang/doan-design/releases/latest/download/Doan-macos-arm64.dmg"><ins>Download for macOS (Apple silicon)</ins></a></h3>
 
 <p align="center">
   <img src="docs/assets/readme/hero.png" alt="Doan: a canvas in the repo, open beside its conversation" width="960" />
 </p>
-
-> **Status: pre-release.** macOS on Apple silicon only. There is no release yet; build from source to try it.
 
 ## Why Doan
 
@@ -187,8 +186,9 @@ Each agent's CLI must be installed; first run offers to install or update it and
 ## Install
 
 - macOS on Apple silicon.
-- Move Doan to Applications and open it. Each launch from Applications links the `doan` command and the skill for the five agents, with no setup screen; Settings > About shows what was set up.
+- Download [`Doan-macos-arm64.dmg`](https://github.com/SinhyeokKang/doan-design/releases/latest/download/Doan-macos-arm64.dmg) from the [latest release](https://github.com/SinhyeokKang/doan-design/releases/latest), move Doan to Applications and open it. Each launch from Applications links the `doan` command and the skill for the five agents, with no setup screen; Settings > About shows what was set up.
 - First run signs in to your agents and adds a project: a local folder or a GitHub repository URL.
+- Doan updates itself. A copy in Applications checks GitHub Releases at launch and every 6 hours, downloads a new version in the background, and installs it when you press Restart to Update or quit Doan. Settings > About shows the version, checks on demand and can turn automatic checks off.
 
 ## Example prompts
 
