@@ -115,6 +115,21 @@ describe("lookUpLabel", () => {
     expect(lookUpLabel(`${"a".repeat(29)}${emoji}${emoji}`)).toBe(`Look Up “${"a".repeat(29)}${emoji}…”`);
   });
 
+  // Selections as Electron reports them from a composer once the chip's kind prefix is unselectable (styles.css).
+  test("a composer chip reads as its visible name, alone or after text", () => {
+    expect(lookUpLabel("Look at \nSecond frame\n")).toBe("Look Up “Look at Second frame”");
+    expect(lookUpLabel("\nSecond frame\n")).toBe("Look Up “Second frame”");
+  });
+
+  test("drops a line-start chip's zero-width filler across lines", () => {
+    expect(lookUpLabel("First line\n\u200b\nSecond frame\n\nthird")).toBe("Look Up “First line Second frame third”");
+    expect(editMenuItems(input({ selection: "\u200b" })).some(item => item.kind === "lookUp")).toBe(false);
+  });
+
+  test("a selection outside a chip field is quoted as Electron reports it", () => {
+    expect(lookUpLabel("Look at the header")).toBe("Look Up “Look at the header”");
+  });
+
   test("folds before cutting", () => {
     expect(lookUpLabel(`${"a ".repeat(15)}\n\n\nb`)).toBe(`Look Up “${"a ".repeat(15)}…”`);
   });
