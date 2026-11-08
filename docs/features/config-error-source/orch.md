@@ -25,7 +25,7 @@
 | GO-R | GO 리뷰 | 없음(보고만) | GO | Codex `gpt-6-astra` medium — 다른 family의 독립 리뷰 | `/code-review` 보고 | 지적 0(🔴·🟡·⚪ 없음) |
 | AP | T3, T4, T5 | `app/src/main/`, `app/src/renderer/`(T5의 `Onboarding.tsx`와 `kind: "error"` 테스트 fixture) | GO 통합, T5는 DR 리뷰 통과 | Claude Opus high — 상태 분류가 add·locate·첫 실행·reveal에 퍼지고, 소켓 답과 창 IPC의 `detail` 분리가 틀리면 CLI가 답을 거절한다 | `npm --prefix app test`, typecheck, lint, T4 grep, `/verify` | 통합 `6ae0b681`, `8a63394e`, `f5654238`, 수정 round 1 진행 |
 | AP-R | AP 리뷰 | 없음(보고만) | AP | Codex `gpt-6-astra` medium — 다른 family의 독립 리뷰 | `/code-review` 보고 | 1차 🟡 1건 → AP 수정 중 |
-| RT | T6 | 없음(`.scratch/runtime-test/config-error-source/`) | AP 통합 | Claude Opus medium — 격리 앱 probe, 관찰 판단 | 관찰과 스크린샷, 잠긴 화면이면 미검증 기록 | 진행(`f5654238`에서) |
+| RT | T6 | 없음(`.scratch/runtime-test/config-error-source/`) | AP 통합 | Claude Opus medium — 격리 앱 probe, 관찰 판단 | 관찰과 스크린샷, 잠긴 화면이면 미검증 기록 | 통과(`f5654238`, 18 PASS) |
 | EV | T7 | `docs/USABILITY-EVAL.md` | RT | Claude Opus medium — eval 실행과 결과 판정 | `node eval/run.ts` round, 기록 | 대기 |
 | — | T8 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/BACKLOG.md`, `docs/DESIGN.md`, feature 디렉터리 삭제 | 전부 | conductor | 고친 절을 코드와 대조, T4 grep, `/verify` | 대기 |
 
@@ -46,3 +46,4 @@
 - AP-R(Codex `gpt-6-astra` medium): 🔴 0, 🟡 1, ⚪ 0. 🟡: `OperationBook.details`가 operation이 retire될 때 지워지지 않아, 21번째 실패 뒤에도 retire된 operation의 창 답에 예전 `detail`이 붙는다(리뷰어가 재현했다). 소켓 유출은 없다. AP worker에게 회귀 테스트와 수정을 보냈다. 보고서는 `.scratch/orch/review-AP.md`.
 - RT는 AP 통합 HEAD `f5654238`에서 AP-R과 함께 시작했다. AP 수정은 retire된 operation의 `detail` 수명만 바꾸므로 RT의 probe 항목에는 영향이 없다. conductor 재량.
 - RT worker가 다른 세션의 권한 prompt(`rm -f shots/*`)에 걸렸다. 승인하지 않았고, glob 삭제 없이 실행별 새 디렉터리를 쓰라고 지시했다.
+- RT(`f5654238`): 항목 1–4와 init 경로 변형이 모두 통과했다(probe 두 run, 18 PASS, 실제 상태 지문 불변). Show in Finder는 main에서 `shell.showItemInFolder`를 기록 함수로 바꿔 받은 경로를 비교했다: overlay와 사이드바 menu 모두 부모의 `.doan/config.json`, 자기 config 회귀도 맞다. 미검증: Finder 화면 캡처, Overview recovery menu 경로, 네이티브 폴더 sheet(main에서 바꿈). 첫 실행 Agent 단계는 renderer에 가는 readiness만 stub했다. 관찰: candidates 화면의 notice 옆 footer "Use this folder"는 켜져 있다. 출하 코드(`projectStep.ts`)와 초안이 같으므로 이번 변경의 결함이 아니다. 근거는 `.scratch/runtime-test/config-error-source/`와 `.scratch/orch/handoff-RT.md`. RT worktree는 지웠고 branch는 남겼다.
