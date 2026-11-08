@@ -6,7 +6,7 @@ import { aboutNotice, type AboutNotice, type NoticeLine } from "../main/agentSet
 import type { Provider } from "../main/agentAuth/types";
 import type { PreferencesPatch, PreferencesSnapshot, PreferencesWriteReply } from "../main/preferences";
 import type { UpdateSnapshot } from "../main/update/types";
-import { UPDATE_BLOCKED, updateView, type UpdateButton, type UpdateRowView } from "../main/update/view";
+import { releaseNotesFailedLine, UPDATE_BLOCKED, updateView, type UpdateButton, type UpdateRowView } from "../main/update/view";
 import { AlertIcon } from "./AlertIcon";
 import { providerLogo } from "./homeComposer";
 import { preferencesNotice } from "./SettingsNotifications";
@@ -18,8 +18,9 @@ const AUTO_SAVE_FAILED = "Couldn’t save your automatic-check choice. Your last
 const BLOCKED_READ = `${UPDATE_BLOCKED.title}. ${UPDATE_BLOCKED.text}`;
 
 // The Version row: the running version and the update state from main's push, with the update's actions or progress
-// on the right. No part has a live role; the page's one live region reads results.
-function versionRow(row: UpdateRowView | null, stateId: string, press: (button: UpdateButton) => void) {
+// on the right. No part has a live role; the page's one live region reads results. `notesFailed` is the line for a
+// Release Notes ↗ main could not open; it comes last under the row because it answers the latest press.
+function versionRow(row: UpdateRowView | null, notesFailed: string | null, stateId: string, press: (button: UpdateButton) => void) {
   let trailing: ReactNode = null;
   if (row === null) trailing = <span className="settings-loading"><span className="doan-spinner" aria-hidden="true" />{CHECKING}</span>;
   else if (row.busy !== null) trailing = <span className="settings-loading"><span className="doan-spinner" aria-hidden="true" />{row.busy}</span>;
@@ -37,11 +38,17 @@ function versionRow(row: UpdateRowView | null, stateId: string, press: (button: 
         {row.progress !== null && <span className="usage-bar update-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={row.progress} aria-labelledby={stateId}>
           <i style={{ width: `${row.progress}%` }} /></span>}</span>}</div>
     {trailing !== null && <div className="doan-preference-row-trailing">{trailing}</div>}
-    {row !== null && (row.notice !== null || row.error !== null) && <div className="doan-preference-row-extra">
+    {row !== null && (row.notice !== null || row.error !== null || notesFailed !== null) && <div className="doan-preference-row-extra">
       {row.notice !== null && <div className="doan-notice"><AlertIcon /><div className="update-reason-body"><span className="ob-notice-title">{row.notice.title}</span><span className="ob-notice-body">{row.notice.text}</span></div></div>}
       {row.error !== null && <p className="settings-msg error"><AlertIcon /><span>{row.error}</span></p>}
+      {notesFailed !== null && <p className="settings-msg error"><AlertIcon /><span>{notesFailed}</span></p>}
     </div>}
   </div>;
+}
+
+// The update's version, which Release Notes ↗ opens; null for a state without one.
+function updateVersion(snapshot: UpdateSnapshot): string | null {
+  return "version" in snapshot.state ? snapshot.state.version : null;
 }
 
 // This launch's agent setup result. Static text, not a live region: it reports
@@ -81,6 +88,10 @@ export function SettingsAbout({ actions, preferences, save }: {
   const [announced, setAnnounced] = useState({ text: "", seq: 0 });
   // The last push's announcement; undefined until the first push, which is never read.
   const heard = useRef<string | null | undefined>(undefined);
+  // Release Notes ↗ that main could not open. Each press and each change of the update's kind or version takes a new
+  // number, so an answer that comes back after either shows nothing.
+  const [notesFailed, setNotesFailed] = useState<string | null>(null);
+  const notesRequest = useRef(0);
   const announce = (text: string) => setAnnounced(previous => ({ text, seq: previous.seq + 1 }));
   // Entry and Retry say Checking; a re-read on focus keeps the shown versions until the new ones arrive, and a read
   // already running (a CLI run in main) is not started again.
@@ -103,6 +114,7 @@ export function SettingsAbout({ actions, preferences, save }: {
   }, []);
   useEffect(() => {
     let previous: UpdateSnapshot["state"]["kind"] | null = null;
+    let previousVersion: string | null = null;
     return window.doan.onUpdate(snapshot => {
       const said = updateView(snapshot, Date.now()).row.announcement;
       // A restart main held back because a conversation started while it waited: the reason, not "ready" again.
@@ -110,7 +122,11 @@ export function SettingsAbout({ actions, preferences, save }: {
       if (held) announce(BLOCKED_READ);
       else if (heard.current !== undefined && said !== null && said !== heard.current) announce(said);
       heard.current = said;
+      // A gate change or progress keeps the Release Notes line; another state or version is not what it failed on.
+      const version = updateVersion(snapshot);
+      if (snapshot.state.kind !== previous || version !== previousVersion) { notesRequest.current++; setNotesFailed(null); }
       previous = snapshot.state.kind;
+      previousVersion = version;
       setUpdate(snapshot);
     });
   }, []);
@@ -140,7 +156,18 @@ export function SettingsAbout({ actions, preferences, save }: {
   const shown = update === null ? null : updateView(update, Date.now());
   const press = (button: UpdateButton) => {
     if (button.action === "check") void window.doan.checkForUpdates().catch(() => {});
-    else if (button.action === "notes") void window.doan.openReleaseNotes().catch(() => false);
+    else if (button.action === "notes") {
+      const request = ++notesRequest.current;
+      const version = update === null ? null : updateVersion(update);
+      void window.doan.openReleaseNotes().catch(() => false).then(opened => {
+        if (request !== notesRequest.current) return;
+        if (opened || version === null) { setNotesFailed(null); return; }
+        // Focus stays on Release Notes ↗, which is the retry; the live region reads the line, again on a repeat.
+        const line = releaseNotesFailedLine(version);
+        setNotesFailed(line);
+        announce(line);
+      });
+    }
     // The gate is asked at the press; a blocked answer is the one time the reason is read.
     else void window.doan.installUpdate().catch(() => null).then(reply => { if (reply?.kind === "blocked") announce(BLOCKED_READ); });
   };
@@ -166,7 +193,7 @@ export function SettingsAbout({ actions, preferences, save }: {
       <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={() => load(true)}>Retry</button></div>}
     <section className="settings-section" aria-labelledby="settings-about-doan">
       <div className="settings-section-header"><div className="settings-header-copy"><h2 className="settings-section-title" id="settings-about-doan">Doan</h2></div></div>
-      <div className="doan-settings-group" data-layout="rows">{versionRow(shown?.row ?? null, stateId, press)}{autoRow}{!failed && view.app.map(row)}</div>
+      <div className="doan-settings-group" data-layout="rows">{versionRow(shown?.row ?? null, notesFailed, stateId, press)}{autoRow}{!failed && view.app.map(row)}</div>
     </section>
     {!failed && <section className="settings-section" aria-labelledby="settings-about-tools">
       <div className="settings-section-header"><div className="settings-header-copy"><h2 className="settings-section-title" id="settings-about-tools">Agent tools</h2>

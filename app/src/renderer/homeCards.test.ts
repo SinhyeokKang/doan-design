@@ -1,6 +1,7 @@
+import { Info, RotateCw } from "lucide-react";
 import { describe, expect, test } from "vitest";
 import type { CanvasRow, FolderEntry, GitInfo } from "../main/view";
-import { cardRow, groupProjects, measureNarrow, ROW_ACTION_LABELS } from "./homeCards";
+import { cardRow, groupProjects, measureNarrow, ROW_ACTION_ICONS, ROW_ACTION_LABELS } from "./homeCards";
 import type { SelectionView } from "./selection";
 
 const canvas = (): CanvasRow => ({ path: ".doan/canvases/a.html", url: "u" });
@@ -73,8 +74,13 @@ describe("cardRow", () => {
     expect(row({ path: "/p", kind: "uninitialized" })).toMatchObject({ chip: "Not set up", actions: ["setUp", "remove"] });
     expect(row({ path: "/p", kind: "notFound" })).toMatchObject({ chip: "Missing", actions: ["locate", "remove"] });
     expect(row({ path: "/p", kind: "error", message: "bad config" })).toMatchObject({ chip: "Config error", actions: ["showInFinder", "retry", "details"], detail: "bad config" });
-    expect(row({ path: "/p", kind: "cliError", reason: "x" })).toMatchObject({ chip: "CLI error", actions: ["retry", "remove"] });
+    expect(row({ path: "/p", kind: "cliError", reason: "x" })).toMatchObject({ chip: "CLI error", actions: ["retry", "details", "remove"], detail: "x" });
     expect(row({ path: "/p", kind: "loading" })).toMatchObject({ chip: "Reading", actions: [] });
+  });
+
+  // The project menus draw Retry and Details with icons like their other items (draft .doan/canvases/fixes-0-1-2.html, frame cli-error-elsewhere).
+  test("Retry and Details have menu icons", () => {
+    expect(ROW_ACTION_ICONS).toEqual({ retry: RotateCw, details: Info });
   });
 
   test("a list row has no chip and summarizes branch and change; the counts are homeSummary's", () => {

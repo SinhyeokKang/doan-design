@@ -630,6 +630,10 @@ function openAddProjects(): void {
   send(ADD_PAGE_CHANNELS.open);
 }
 
+function isFile(path: string): boolean {
+  try { return statSync(path).isFile(); } catch { return false; }
+}
+
 function storedPath(value: unknown): string | null {
   if (typeof value !== "object" || value === null || Object.keys(value).length !== 1 || !("path" in value) || typeof value.path !== "string") return null;
   const path = value.path;
@@ -1090,11 +1094,17 @@ async function start(): Promise<void> {
     await ready.replace(from, judged.root);
     return { kind: "located", root: judged.root };
   });
-  // The root only: the config may live elsewhere after a re-root, and TS does
-  // not build `.doan/` paths (POSTMORTEM "Guessing the repo root in TS").
+  // The renderer names the root only. TS does not build `.doan/` paths (POSTMORTEM "Guessing the repo root in TS"),
+  // with one exception: an `error` entry read with `ls --repo <root>` (which never searches upward), which the app
+  // presents as a Config error, selects `<root>/.doan/config.json` in Finder when that file exists (macOS hides
+  // `.doan/`). A root without the file shows as the root, as an error from a parent's config through the upward
+  // re-read does. The app only checks that the file exists and passes its location to Finder; it never reads it.
   handle("folders:reveal", undefined, (event, value: unknown) => {
     const path = storedPath(value);
-    if (fromWindow(event) && path !== null) electronShell.showItemInFolder(path);
+    if (!fromWindow(event) || path === null) return;
+    const config = join(path, ".doan", "config.json");
+    const broken = shell?.entries().some(entry => entry.path === path && entry.kind === "error") === true;
+    electronShell.showItemInFolder(broken && isFile(config) ? config : path);
   });
   // Validated against the saved roots in main; the renderer's copy is not trusted.
   const store = createUiStateStore(join(userData, "ui-state.json"), () => ready.entries().map((entry) => entry.path), undefined, undefined, () => ready.spellings());

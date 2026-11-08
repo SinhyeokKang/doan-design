@@ -61,17 +61,19 @@ describe("problemView content (PRODUCT 'Problem states')", () => {
     });
   });
 
-  test("cliError: SquareTerminal, Retry then Remove", () => {
+  test("cliError: SquareTerminal, Retry, Details with the CLI's reason, then Remove", () => {
     expect(problem(problems.cliError)).toEqual({
       kind: "problem", entryKind: "cliError", icon: SquareTerminal, heading: "Doan couldn’t read acme",
       line: { text: "The doan command failed while reading it. Try again." },
-      actions: [{ name: "retry", variant: "prominent" }, { name: "remove", variant: "ghost" }],
+      actions: [{ name: "retry", variant: "prominent" }, { name: "details", variant: "ghost" }, { name: "remove", variant: "ghost" }],
+      detail: "spawn ENOENT",
       busy: false,
     });
   });
 
-  test("only error carries a detail", () => {
-    for (const kind of ["notFound", "uninitialized", "cliError"] as const) expect(problem(problems[kind])).not.toHaveProperty("detail");
+  test("only error and cliError carry a detail, and not while busy", () => {
+    for (const kind of ["notFound", "uninitialized"] as const) expect(problem(problems[kind])).not.toHaveProperty("detail");
+    expect(problemView({ path: root, kind: "loading" }, "acme", home, { slow: false, shown: { kind: "problem", entryKind: "cliError" } })).not.toHaveProperty("detail");
   });
 
   test("the action set equals cardRow's for every kind, with one prominent action first and no Go Home", () => {

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { InstallGate, UpdateEligibility, UpdateSnapshot, UpdateState } from "./types";
-import { updateView } from "./view";
+import { releaseNotesFailedLine, updateView } from "./view";
 
 // What Settings > About's Version row, the automatic-check row, the header button and the Doan menu item show for
 // each update state. The copy is the confirmed draft's (.doan/canvases/app-update.html).
@@ -24,6 +24,8 @@ const RETRY_CHECK = { action: "check", label: "Retry", ariaLabel: "Check for upd
 const RETRY_DOWNLOAD = { action: "check", label: "Retry", ariaLabel: "Download Doan 0.1.1 again", prominent: false };
 const BLOCKED = { title: "Can’t restart yet", text: "A conversation is running or waiting for your answer. Restart after it finishes, or Doan updates when you quit." };
 const STOPPED = "Couldn’t restart Doan. Try again, or quit and open it again.";
+const STOPPED_POPOVER = { title: "Couldn’t restart Doan.", text: "Try again, or quit and open it again." };
+const READY_TO_RESTART = { title: "Ready to restart", text: "No conversation is running or waiting anymore. Restart now, or Doan updates when you quit." };
 const ROW = { description: "", actions: [], busy: null, progress: null, notice: null, error: null, announcement: null };
 const MENU_CHECK = { label: "Check for Updates…", action: "check", enabled: true };
 const MENU_RESTART = { label: "Restart to Update", action: "restart", enabled: true };
@@ -167,30 +169,50 @@ describe("the header button and the Doan menu", () => {
   });
 
   test("ready: the button restarts and the menu item reads Restart to Update", () => {
-    expect(view(ready).header).toEqual({ label: "Restart to Update", busy: false, tooltip: "Doan 0.1.1 is ready", popover: null });
+    expect(view(ready).header).toEqual({ label: "Restart to Update", busy: false, tooltip: "Doan 0.1.1 is ready", popover: null, opened: READY_TO_RESTART });
     expect(view(ready).menu).toEqual(MENU_RESTART);
   });
 
   test("blocked: the button and the menu item open the reason", () => {
-    expect(view(ready, { gate: blocked }).header).toEqual({ label: "Restart to Update", busy: false, tooltip: "Doan 0.1.1 is ready", popover: BLOCKED });
+    expect(view(ready, { gate: blocked }).header).toEqual({ label: "Restart to Update", busy: false, tooltip: "Doan 0.1.1 is ready", popover: BLOCKED, opened: BLOCKED });
     expect(view(ready, { gate: blocked }).menu).toEqual(MENU_RESTART);
   });
 
   test("restarting: the disabled spinner button and a disabled menu item", () => {
-    expect(view({ kind: "restarting", version: "0.1.1" }).header).toEqual({ label: "Restarting", busy: true, tooltip: "Doan 0.1.1 is ready", popover: null });
+    expect(view({ kind: "restarting", version: "0.1.1" }).header).toEqual({ label: "Restarting", busy: true, tooltip: "Doan 0.1.1 is ready", popover: null, opened: null });
     expect(view({ kind: "restarting", version: "0.1.1" }).menu).toEqual({ ...MENU_RESTART, enabled: false });
   });
 
   test("a stopped restart: the popover says so and the button restarts again", () => {
-    expect(view({ kind: "restartAborted", version: "0.1.1" }).header).toEqual({ label: "Restart to Update", busy: false, tooltip: "Doan 0.1.1 is ready", popover: { title: "Couldn’t restart Doan.", text: "Try again, or quit and open it again." } });
+    expect(view({ kind: "restartAborted", version: "0.1.1" }).header).toEqual({ label: "Restart to Update", busy: false, tooltip: "Doan 0.1.1 is ready", popover: STOPPED_POPOVER, opened: STOPPED_POPOVER });
     expect(view({ kind: "restartAborted", version: "0.1.1" }).menu).toEqual(MENU_RESTART);
     // A conversation still running is the reason a press would fail now.
     expect(view({ kind: "restartAborted", version: "0.1.1" }, { gate: blocked }).header?.popover).toEqual(BLOCKED);
+  });
+
+  // A popover already open follows each push (the draft's popover-unblocked and popover-stopped-blocked frames):
+  // `opened` is what it shows now, while `popover` stays what a press opens instead of restarting.
+  test("an open popover follows the gate: unblocked says it can restart, a stopped restart takes the blocking reason", () => {
+    expect(view(ready).header?.opened).toEqual(READY_TO_RESTART);
+    expect(view(ready).header?.popover).toBeNull();
+    expect(view(ready, { gate: blocked }).header?.opened).toEqual(BLOCKED);
+    expect(view({ kind: "restartAborted", version: "0.1.1" }, { gate: blocked }).header?.opened).toEqual(BLOCKED);
+    expect(view({ kind: "restartAborted", version: "0.1.1" }).header?.opened).toEqual(STOPPED_POPOVER);
+    for (const state of [{ kind: "idle" }, { kind: "failed", code: "installFailed", stage: "install", version: "0.1.1" }] as UpdateState[]) {
+      expect(view(state).header, state.kind).toBeNull();
+    }
   });
 
   test("a release candidate reads its full version", () => {
     const rc = view({ kind: "ready", version: "0.1.0-rc.2" }, { version: "0.1.0-rc.1" });
     expect(rc.row.description).toBe("0.1.0-rc.1 · Doan 0.1.0-rc.2 is ready. Restart now, or Doan installs it when you quit.");
     expect(rc.header?.tooltip).toBe("Doan 0.1.0-rc.2 is ready");
+  });
+});
+
+describe("Release Notes that couldn’t open", () => {
+  test("the line names the update’s version", () => {
+    expect(releaseNotesFailedLine("0.1.1")).toBe("Couldn’t open the release notes in your browser. Try again, or find Doan 0.1.1 on GitHub Releases.");
+    expect(releaseNotesFailedLine("0.1.0-rc.2")).toBe("Couldn’t open the release notes in your browser. Try again, or find Doan 0.1.0-rc.2 on GitHub Releases.");
   });
 });

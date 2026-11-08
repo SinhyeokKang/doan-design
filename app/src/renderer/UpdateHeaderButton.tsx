@@ -6,6 +6,7 @@ import type { UpdateSnapshot } from "../main/update/types";
 import { UPDATE_BLOCKED, updateView, type UpdateHeaderView, type UpdateNotice } from "../main/update/view";
 import type { CanvasPress } from "./ComposerParts";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
+import { useHeaderNoDrag } from "./headerNoDrag";
 
 export interface UpdateHeaderButtonViewProps {
   header: UpdateHeaderView | null; disabled: boolean; open: boolean; shown: UpdateNotice | null; descriptionId: string; titleId: string;
@@ -28,8 +29,11 @@ export function UpdateHeaderButtonView(props: UpdateHeaderButtonViewProps) {
     <span className="sr-only" id={descriptionId}>{header.tooltip}</span>
     {shown !== null && <Popover.Portal><Popover.Content className="doan-floating doan-popover update-pop" role="dialog" aria-labelledby={titleId} side="bottom" align="end" sideOffset={4} collisionPadding={8}
       onOpenAutoFocus={props.onOpenAutoFocus} onCloseAutoFocus={props.onCloseAutoFocus}>
-      <p className="update-pop-title" id={titleId}>{shown.title}</p>
-      <p className="update-pop-text">{shown.text}</p>
+      {/* The words follow each push while open; one polite region reads a change once without moving focus. */}
+      <div className="update-pop-live" aria-live="polite">
+        <p className="update-pop-title" id={titleId}>{shown.title}</p>
+        <p className="update-pop-text">{shown.text}</p>
+      </div>
     </Popover.Content></Popover.Portal>}
   </Popover.Root></span>;
 }
@@ -57,11 +61,14 @@ export function UpdateHeaderButton({ disabled, canvasPress }: { disabled: boolea
   useEffect(() => {
     let previous: UpdateSnapshot["state"]["kind"] | null = null;
     return window.doan.onUpdate(next => {
+      // An open popover says what the gate says now. Only a push moves it: a press answered blocked can arrive before
+      // the push that carries the gate, and its words hold until then.
+      const view = updateView(next, Date.now()).header;
+      setShown(current => current === null ? null : view?.opened ?? null);
       // Only a restart seen stopping, or held back by a conversation that started while main waited to install,
       // opens on its own; a renderer that loads into either state does not.
       if (previous === "restarting" && (next.state.kind === "restartAborted" || next.state.kind === "ready" && next.gate.kind === "blocked")) {
-        const popover = updateView(next, Date.now()).header?.popover;
-        if (popover && shownHeader()) open(popover, pressedRestart.current);
+        if (view?.popover && shownHeader()) open(view.popover, pressedRestart.current);
       }
       if (next.state.kind !== "restarting") pressedRestart.current = false;
       previous = next.state.kind;
@@ -78,14 +85,8 @@ export function UpdateHeaderButton({ disabled, canvasPress }: { disabled: boolea
   const closed = header === null || header.busy;
   useEffect(() => { if (closed) setShown(null); }, [closed]);
   const isOpen = shown !== null && !closed;
-  // The header is a window drag region, whose presses never reach the page: while open it takes them, so a press in
-  // its empty part closes the popover (the same inline rule as Agent usage's popover).
-  useEffect(() => {
-    const bar = button.current?.closest("header");
-    if (!isOpen || !bar) return;
-    bar.style.setProperty("-webkit-app-region", "no-drag");
-    return () => { bar.style.removeProperty("-webkit-app-region"); };
-  }, [isOpen]);
+  // While open the header takes presses, so a press in its empty part closes the popover.
+  useHeaderNoDrag(isOpen, button);
   // A press in the canvas iframe never reaches the app's document, so Radix cannot see it as an outside press.
   useEffect(() => {
     if (!isOpen || !canvasPress) return;

@@ -585,6 +585,9 @@ body:has(.shell-top) { background: transparent; }
 .anchor-chip { display: inline-flex; align-items: center; gap: var(--space-1); max-width: 180px; margin: 0 var(--space-half); padding: 0 var(--space-1h); border: 0; border-radius: 6px; background: var(--surface-accent-subtle); color: var(--text-accent-subtle); font: inherit; font-weight: var(--type-weight-medium); vertical-align: bottom; white-space: nowrap; }
 .anchor-chip svg { width: var(--size-icon-sm); height: var(--size-icon-sm); flex: none; }
 .anchor-chip span:not(.sr-only) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The composer chip's kind prefix is read by screen readers but never selected, so Electron's selectionText, which names
+   the text edit menu's Look Up item, holds only the chip's visible name. */
+.anchor-chip .sr-only { user-select: none; }
 .composer-card.readonly .composer-input { color: var(--text-subtle); }
 .composer-count { align-self: flex-end; font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-metadata); }
 .composer-count.over { color: var(--text-danger); }
@@ -1546,6 +1549,8 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .shell-top .update-anchor .update-indicator[data-ui-variant="subtle"]:is(:active, [aria-haspopup][aria-expanded="true"]):not(:disabled) { background: var(--affordance-backdrop-pressed); }
 .shell-top .update-anchor .update-indicator[data-ui-variant="subtle"]:disabled { color: var(--text-disabled); cursor: default; }
 .update-pop { display: grid; gap: var(--space-1); -webkit-app-region: no-drag; }
+/* The words follow each push while open in one polite live region; it keeps the title-to-text gap. */
+.update-pop-live { display: grid; gap: var(--space-1); }
 .update-pop-title { font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); font-weight: var(--type-weight-medium); }
 .update-pop-text { color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
 

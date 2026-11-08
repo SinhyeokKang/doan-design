@@ -1140,6 +1140,39 @@ describe("locate and reveal", () => {
     await invoke("folders:reveal", contents, null, { path: APP });
     expect(mocks.electronShell.showItemInFolder).toHaveBeenCalledExactlyOnceWith(APP);
   });
+
+  // PRODUCT §5 item 3 'Problem states': a Config error's Show in Finder selects the file to fix, which Finder would
+  // otherwise hide inside `.doan/`. The renderer still passes the root only; main picks the target by the entry's kind.
+  test("reveal selects .doan/config.json for a Config error project, else the root", async () => {
+    const contents = window().webContents;
+    const base = mkdtempSync(join(tmpdir(), "doan-reveal-"));
+    try {
+      const withConfig = join(base, "with-config"), noFile = join(base, "no-file"), noDoan = join(base, "no-doan"), dirConfig = join(base, "dir-config"), healthy = join(base, "healthy");
+      for (const dir of [withConfig, noFile, dirConfig, healthy]) mkdirSync(join(dir, ".doan"), { recursive: true });
+      mkdirSync(noDoan);
+      mkdirSync(join(dirConfig, ".doan", "config.json"));
+      writeFileSync(join(withConfig, ".doan", "config.json"), "{");
+      writeFileSync(join(healthy, ".doan", "config.json"), "{}");
+      mocks.shell.entries.mockReturnValue([
+        { path: withConfig, kind: "error" }, { path: noFile, kind: "error" }, { path: noDoan, kind: "error" }, { path: dirConfig, kind: "error" },
+        { path: healthy, kind: "cliError" },
+      ]);
+      const revealed = async (root: string) => {
+        mocks.electronShell.showItemInFolder.mockClear();
+        await invoke("folders:reveal", contents, null, { path: root });
+        return mocks.electronShell.showItemInFolder.mock.calls;
+      };
+      expect(await revealed(withConfig)).toEqual([[join(withConfig, ".doan", "config.json")]]);
+      expect(await revealed(noFile)).toEqual([[noFile]]);
+      expect(await revealed(noDoan)).toEqual([[noDoan]]);
+      expect(await revealed(dirConfig)).toEqual([[dirConfig]]);
+      expect(await revealed(healthy)).toEqual([[healthy]]);
+      // A path, not a root, is still refused: the renderer cannot name the file.
+      expect(await revealed(join(withConfig, ".doan", "config.json"))).toEqual([]);
+    } finally {
+      rmSync(base, { recursive: true, force: true });
+    }
+  });
 });
 
 // A canvas click is the canvas's message, so the renderer asks where the OS cursor is.
