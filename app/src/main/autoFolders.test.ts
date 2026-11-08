@@ -33,7 +33,8 @@ describe("autoRegisterRoot", () => {
 
   test.each<FolderState>([
     { kind: "uninitialized" },
-    { kind: "error", message: "Cannot read config" },
+    { kind: "error", message: "Cannot read config", config: `${W}/.doan/config.json` },
+    { kind: "cliError", reason: "open .doan/canvases/sub: permission denied", code: "internal_error" },
     { kind: "cliError", reason: "timed out after 10 s" },
   ])("a root that is not a list is refused: $kind", (view) => {
     expect(autoRegisterRoot(view, { root: W }, [MAIN])).toBe(false);

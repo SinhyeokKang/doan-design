@@ -63,7 +63,7 @@ const ROOT = "/Users/alex/code/acme-web";
 const listed = (path = ROOT): FolderEntry => ({ path, kind: "list", servedRev: 0, canvases: [], git: { common: `${ROOT}/.git`, main: ROOT, branch: "main", worktrees: [] } });
 const missing = (path = ROOT): FolderEntry => ({ path, kind: "notFound" });
 const uninitialized = (path = ROOT): FolderEntry => ({ path, kind: "uninitialized" });
-const configError = (message = "unexpected token } at line 4"): FolderEntry => ({ path: ROOT, kind: "error", message });
+const configError = (message = "unexpected token } at line 4"): FolderEntry => ({ path: ROOT, kind: "error", message, config: `${ROOT}/.doan/config.json` });
 const cliError = (): FolderEntry => ({ path: ROOT, kind: "cliError", reason: "timeout" });
 const loading = (): FolderEntry => ({ path: ROOT, kind: "loading" });
 const CONFIG = { kind: "config", root: ROOT, tokenCss: "src/styles/tokens.css", serve: ["src/components/ui", "public/fonts"], changed: false };

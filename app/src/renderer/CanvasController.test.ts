@@ -583,7 +583,7 @@ describe("selection wiring", () => {
     const h = selectionHarness();
     try {
       h.select(1);
-      h.controller.updateEntries([{ path: "/repo", kind: "error", message: "busy" }]);
+      h.controller.updateEntries([{ path: "/repo", kind: "error", message: "busy", config: "/repo/.doan/config.json" }]);
       expect(h.state()).toMatchObject({ error: "busy", selection: { tag: "span" } });
       expect(h.markOf("selected")?.hidden).toBe(false);
       expect(h.send).toHaveBeenCalledTimes(1);
@@ -998,7 +998,7 @@ it("drops a waiting workspace open when a later navigation, a failed read or lea
     const entered = vi.fn();
     const supersede = [
       () => controller.openCanvas("/repo", { ...row, path: ".doan/canvases/b.html", url: "http://localhost/b.html" }),
-      () => controller.updateEntries([repo, { path: "/added", kind: "error", message: "bad config" }]),
+      () => controller.updateEntries([repo, { path: "/added", kind: "error", message: "bad config", config: "/added/.doan/config.json" }]),
       () => controller.setWorkspaceActive(false),
     ];
     for (const later of supersede) {
@@ -1691,7 +1691,7 @@ it("opens an explicit Overview in one workspace transition", () => {
 // ARCHITECTURE §7 'Memory': the Overview is where a problem root shows its overlay.
 const problemKinds = ["notFound", "uninitialized", "error", "cliError"] as const;
 const problemEntry = (path: string, kind: typeof problemKinds[number]): FolderEntry =>
-  kind === "error" ? { path, kind, message: "bad config" } : kind === "cliError" ? { path, kind, reason: "cli failed" } : { path, kind };
+  kind === "error" ? { path, kind, message: "bad config", config: `${path}/.doan/config.json` } : kind === "cliError" ? { path, kind, reason: "cli failed" } : { path, kind };
 
 it.each(problemKinds)("enters the Overview of a %s root and clears the canvas", kind => {
   const h = loadedController();

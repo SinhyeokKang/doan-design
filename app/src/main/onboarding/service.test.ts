@@ -550,6 +550,62 @@ describe("project selection", () => {
     expect(operation(await t.ask({ op: "project_select", sessionId: id, requestId: "s2", inspectionId, path: "/Users/ada/studio" }))).toMatchObject({ state: "failed", error: { code: "remote_mismatch", message: expect.any(String) } });
     expect(state(await t.ask({ op: "status", sessionId: id })).project).toEqual({ root: "/Users/ada/studio" });
   });
+
+  // The CLI's message may name paths and OS text. The socket answer keeps the fixed message and has no detail: the v2
+  // schema refuses the field (`ask` validates every answer), so a leak would make the CLI refuse the answer. The
+  // window's answers and published states carry it as detail.
+  it("a project_unreadable failure gives the CLI's message to the window only", async () => {
+    const t = setup();
+    const { id, inspectionId } = await inspected(t);
+    const reason = "open /Users/ada/studio/.doan/canvases/sub: permission denied";
+    t.projects.select.mockResolvedValueOnce({ ok: false, code: "project_unreadable", detail: reason });
+    const failed = operation(await t.ask({ op: "project_select", sessionId: id, requestId: "s1", inspectionId, path: "/Users/ada/studio" }));
+    expect(failed).toMatchObject({ state: "failed", error: { code: "project_unreadable", message: "The project folder cannot be read." } });
+    expect(failed.error).not.toHaveProperty("detail");
+    for (const request of [{ op: "status", sessionId: id }, { op: "status", sessionId: id, operationId: failed.operationId }, { op: "start" }]) {
+      expect(JSON.stringify(await t.ask(request))).not.toContain(reason);
+    }
+    // A resend of the same request answers from the record, still without it.
+    expect(JSON.stringify(await t.ask({ op: "project_select", sessionId: id, requestId: "s1", inspectionId, path: "/Users/ada/studio" }))).not.toContain(reason);
+    const windowError = { code: "project_unreadable", message: "The project folder cannot be read.", detail: reason };
+    expect(state(await t.service.answerWindow(rendererRequest("status", { sessionId: id, operationId: failed.operationId })!)).operations[0]?.error).toEqual(windowError);
+    expect(operation(await t.service.answerWindow(rendererRequest("project_select", { sessionId: id, requestId: "s1", inspectionId, path: "/Users/ada/studio" })!)).error).toEqual(windowError);
+    expect(t.published.at(-1)!.operations.find(o => o.operationId === failed.operationId)?.error).toEqual(windowError);
+  });
+
+  // Status keeps the latest 20 finished operations; an older one is retired to a small record that still answers its id
+  // and its requestId. Its detail goes with it, so a long session does not keep every CLI message it ever got.
+  it("forgets a retired operation's detail and keeps the latest ones", async () => {
+    const t = setup();
+    const { id, inspectionId } = await inspected(t);
+    const reason = (n: number) => `open /Users/ada/studio-${n}/.doan/canvases/sub: permission denied`;
+    const failed: string[] = [];
+    for (let n = 1; n <= 21; n += 1) {
+      t.projects.select.mockResolvedValueOnce({ ok: false, code: "project_unreadable", detail: reason(n) });
+      failed.push(operation(await t.ask({ op: "project_select", sessionId: id, requestId: `s${n}`, inspectionId, path: "/Users/ada/studio" })).operationId);
+    }
+    const first = failed[0]!, latest = failed.at(-1)!;
+    const windowAsk = ({ op, ...value }: Record<string, unknown>) => t.service.answerWindow(rendererRequest(op as never, value)!);
+    const listed = state(await windowAsk({ op: "status", sessionId: id })).operations;
+    expect(listed.map(o => o.operationId)).not.toContain(first);
+    // The latest keep their detail in the window's answers and pushes.
+    expect(listed.find(o => o.operationId === latest)?.error).toMatchObject({ detail: reason(21) });
+    expect(t.published.at(-1)!.operations.find(o => o.operationId === latest)?.error).toMatchObject({ detail: reason(21) });
+    // The retired one still answers by id and by its requestId, without its detail.
+    const retired = state(await windowAsk({ op: "status", sessionId: id, operationId: first })).operations[0]!;
+    expect(retired).toMatchObject({ operationId: first, state: "failed", error: { code: "project_unreadable", message: "The project folder cannot be read." } });
+    expect(retired.error).not.toHaveProperty("detail");
+    const resent = operation(await windowAsk({ op: "project_select", sessionId: id, requestId: "s1", inspectionId, path: "/Users/ada/studio" }));
+    expect(resent.operationId).toBe(first);
+    expect(resent.error).not.toHaveProperty("detail");
+    // Socket answers never carry any of them.
+    for (const request of [{ op: "status", sessionId: id }, { op: "status", sessionId: id, operationId: first }, { op: "status", sessionId: id, operationId: latest }]) {
+      expect(JSON.stringify(await t.ask(request))).not.toContain("permission denied");
+    }
+    // The book holds a detail only for an operation it still lists.
+    const details = Reflect.get(Reflect.get(t.service, "book") as object, "details") as Map<string, string>;
+    expect([...details.keys()].every(key => listed.some(o => o.operationId === key))).toBe(true);
+  });
 });
 
 // ARCHITECTURE §4 'Storage in onboarding': the inspection plans for the requested storage, a reply speaks of storage
@@ -913,6 +969,19 @@ describe("complete", () => {
     expect(t.projects.select).toHaveBeenCalledTimes(1);
     expect(t.projects.confirm).toHaveBeenCalledTimes(2);
     expect(t.projects.saveCompletion).toHaveBeenCalledWith("/Users/ada/studio");
+  });
+
+  it("a completion whose project can no longer be read keeps the CLI's message for the window", async () => {
+    const t = setup();
+    const id = await selected(t);
+    t.ready();
+    const reason = "open /Users/ada/studio/.doan/canvases/sub: permission denied";
+    t.projects.confirm.mockResolvedValueOnce({ ok: false, code: "project_unreadable", detail: reason });
+    const failed = operation(await t.ask({ op: "complete", sessionId: id, requestId: "d1" }));
+    expect(failed).toMatchObject({ state: "failed", error: { code: "project_unreadable", message: "The project folder cannot be read." } });
+    expect(JSON.stringify(failed)).not.toContain(reason);
+    expect(t.published.at(-1)!.operations.find(o => o.operationId === failed.operationId)?.error).toMatchObject({ detail: reason });
+    expect(t.projects.saveCompletion).not.toHaveBeenCalled();
   });
 
   it("does not repeat a save a newer app refused, and stops if the agent stopped being ready", async () => {

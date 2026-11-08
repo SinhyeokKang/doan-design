@@ -67,7 +67,21 @@ describe("readFolder with the real CLI", () => {
     const root = repo();
     writeFileSync(join(root, ".doan", "config.json"), "[]");
     const view = await readFolder(cli, root);
-    expect(view.kind).toBe("error");
+    // The CLI names the config it failed on, which makes this a Config error.
+    expect(view).toEqual({ kind: "error", message: expect.any(String), config: join(realpathSync(root), ".doan", "config.json") });
+  });
+
+  // A failure that is not about the config file (an unreadable canvas folder) is a CLI error with the CLI's message.
+  test.skipIf(process.getuid?.() === 0)("an unreadable canvas folder is a CLI error, not a Config error", async () => {
+    const root = repo();
+    const sub = join(root, ".doan", "canvases", "sub");
+    mkdirSync(sub);
+    chmodSync(sub, 0o000);
+    try {
+      const view = await readFolder(cli, root);
+      expect(view).toMatchObject({ kind: "cliError", code: "internal_error", reason: expect.stringContaining("permission denied") });
+      expect(view).not.toHaveProperty("config");
+    } finally { chmodSync(sub, 0o755); }
   });
 
   test("collects stdout past 1 MiB", async () => {

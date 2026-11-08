@@ -172,7 +172,7 @@ test("a closed group hides its rows and turns its chevron; the other group stays
 const PROBLEMS: [FolderEntry, string, string][] = [
   [{ path: "/a", kind: "notFound" }, "lucide-folder-x", "demo is missing"],
   [{ path: "/a", kind: "uninitialized" }, "lucide-folder-cog", "demo isn’t set up"],
-  [{ path: "/a", kind: "error", message: "bad config" }, "lucide-file-", "Doan couldn’t read demo’s configuration"],
+  [{ path: "/a", kind: "error", message: "bad config", config: "/a/.doan/config.json" }, "lucide-file-", "Doan couldn’t read demo’s configuration"],
   [{ path: "/a", kind: "cliError", reason: "offline" }, "lucide-square-terminal", "Doan couldn’t read demo"],
 ];
 // The row's own tag: the project menu's trigger inside it carries its own aria-expanded.

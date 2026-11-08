@@ -27,7 +27,7 @@ describe("groupProjects", () => {
   });
 
   test("a row that is not a list stays in the card it was last seen in", () => {
-    const entries: FolderEntry[] = [listRow("/code/acme", acme("", "main")), { path: "/code/acme-feat", kind: "notFound" }, { path: "/x/bad", kind: "error", message: "bad" }];
+    const entries: FolderEntry[] = [listRow("/code/acme", acme("", "main")), { path: "/code/acme-feat", kind: "notFound" }, { path: "/x/bad", kind: "error", message: "bad", config: "/x/bad/.doan/config.json" }];
     const cards = groupProjects(entries, new Map([["/code/acme-feat", common]]));
     expect(cards.map((card) => card.rows.map((row) => row.path))).toEqual([["/code/acme", "/code/acme-feat"], ["/x/bad"]]);
   });
@@ -41,7 +41,7 @@ describe("groupProjects", () => {
   test("every problem state stays in the card it was last seen in", () => {
     const problems: FolderEntry[] = [
       { path: "/w/missing", kind: "notFound" },
-      { path: "/w/bad", kind: "error", message: "bad" },
+      { path: "/w/bad", kind: "error", message: "bad", config: "/w/bad/.doan/config.json" },
       { path: "/w/cli", kind: "cliError", reason: "x" },
     ];
     const memory = new Map(problems.map((entry) => [entry.path, common]));
@@ -73,7 +73,7 @@ describe("cardRow", () => {
     const row = (entry: FolderEntry) => cardRow(entry, null, null);
     expect(row({ path: "/p", kind: "uninitialized" })).toMatchObject({ chip: "Not set up", actions: ["setUp", "remove"] });
     expect(row({ path: "/p", kind: "notFound" })).toMatchObject({ chip: "Missing", actions: ["locate", "remove"] });
-    expect(row({ path: "/p", kind: "error", message: "bad config" })).toMatchObject({ chip: "Config error", actions: ["showInFinder", "retry", "details"], detail: "bad config" });
+    expect(row({ path: "/p", kind: "error", message: "bad config", config: "/p/.doan/config.json" })).toMatchObject({ chip: "Config error", actions: ["showInFinder", "retry", "details"], detail: "bad config" });
     expect(row({ path: "/p", kind: "cliError", reason: "x" })).toMatchObject({ chip: "CLI error", actions: ["retry", "details", "remove"], detail: "x" });
     expect(row({ path: "/p", kind: "loading" })).toMatchObject({ chip: "Reading", actions: [] });
   });

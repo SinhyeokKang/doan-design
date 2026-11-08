@@ -64,7 +64,7 @@ describe("apply", () => {
   test("a root in an error kind keeps its record; a removed root loses it and is baselined again", () => {
     const store = createCanvasSeenStore(file());
     store.apply([list("/r", [row(A, 10)])]);
-    store.apply([{ path: "/r", kind: "error", message: "x" }]);
+    store.apply([{ path: "/r", kind: "error", message: "x", config: "/r/.doan/config.json" }]);
     expect(unseen(store.apply([list("/r", [row(A, 10), row(B, 1)])]))).toEqual(["/r:" + B]);
     store.apply([]);
     expect(unseen(store.apply([list("/r", [row(A, 10), row(B, 1)])]))).toEqual([]);
@@ -122,7 +122,7 @@ describe("mark", () => {
 
   test("refuses an unregistered root, an unlisted path and a bad value", () => {
     const store = createCanvasSeenStore(file());
-    const entries = [list("/r", [row(A, 10)]), { path: "/e", kind: "error", message: "x" } as FolderEntry];
+    const entries = [list("/r", [row(A, 10)]), { path: "/e", kind: "error", message: "x", config: "/e/.doan/config.json" } as FolderEntry];
     store.apply(entries);
     for (const value of [
       { root: "/other", path: A, mtimeMs: 20 }, { root: "/r", path: B, mtimeMs: 20 }, { root: "/e", path: A, mtimeMs: 20 },

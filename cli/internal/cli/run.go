@@ -109,7 +109,7 @@ func repository(ctx Context, f Flags) (repo.Repository, *Error) {
 	if e != nil {
 		var re *repo.Error
 		if errors.As(e, &re) {
-			return r, &Error{Code: re.Code, Message: re.Message, NextSteps: []string{"Check --repo and .doan/config.json; run `doan init` to initialize a directory"}}
+			return r, &Error{Code: re.Code, Message: re.Message, Config: re.Config, NextSteps: []string{"Check --repo and .doan/config.json; run `doan init` to initialize a directory"}}
 		}
 		return r, internal(e)
 	}

@@ -95,7 +95,7 @@ test("a loaded root past the wait still opens", () => {
 
 test.each<FolderEntry>([
   { path: "/repo/a", kind: "uninitialized" },
-  { path: "/repo/a", kind: "error", message: "bad config" },
+  { path: "/repo/a", kind: "error", message: "bad config", config: "/repo/a/.doan/config.json" },
   { path: "/repo/a", kind: "cliError", reason: "timed out" },
   { path: "/repo/a", kind: "notFound" },
 ])("a problem state goes home: problem rows never enter a workspace: $kind", (entry) => {

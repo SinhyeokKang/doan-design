@@ -42,7 +42,7 @@ describe("replyChipTarget", () => {
     const state = (entry: FolderEntry | undefined) => replyChipTarget(link("drafts"), { root: ROOT, openCanvasId: null, entry });
     expect(state({ path: ROOT, kind: "loading" })).toBe("unavailable");
     expect(state({ path: ROOT, kind: "uninitialized" })).toBe("unavailable");
-    expect(state({ path: ROOT, kind: "error", message: "bad config" })).toBe("unavailable");
+    expect(state({ path: ROOT, kind: "error", message: "bad config", config: `${ROOT}/.doan/config.json` })).toBe("unavailable");
     expect(state({ path: ROOT, kind: "cliError", reason: "missing" })).toBe("unavailable");
     expect(state({ path: ROOT, kind: "notFound" })).toBe("unavailable");
     expect(state(undefined)).toBe("unavailable");

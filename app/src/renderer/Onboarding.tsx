@@ -265,7 +265,8 @@ const action = (command: ProjectAction, label: string, variant: Button["variant"
 // fromUrl: the screen belongs to a GitHub URL, so a folder chosen there must be that repository's.
 // insideProject: the name of the doan project a clone destination sits in (main refuses it as path_unavailable).
 // folder: the chosen folder a mismatch is about; on the clone screen "This folder" would read as the destination.
-export function projectNotice(error: ProjectError, message: string | undefined, destination: string | null, fromUrl = false, insideProject: string | null = null, folder: string | null = null): ProjectNotice {
+// detail: main's window-only account of the failure (the CLI's message for project_unreadable).
+export function projectNotice(error: ProjectError, message: string | undefined, destination: string | null, fromUrl = false, insideProject: string | null = null, folder: string | null = null, detail: string | null = null): ProjectNotice {
   // Every folder chosen from a URL screen is checked against that repository.
   const choose: ProjectAction = fromUrl ? "chooseExisting" : "chooseFolder";
   // A clone that landed and whose setup or storage then failed is told in main's own words (they say the clone stayed),
@@ -287,6 +288,8 @@ export function projectNotice(error: ProjectError, message: string | undefined, 
     case "local_not_git": return { body: "This folder isn’t a Git repository, so Doan can’t keep its files out of Git. Choose Include in Git, or run git init here first.", actions: [action(choose, "Choose another folder", "subtle"), action("retry", "Retry")] };
     case "local_exclude_failed": return { body: "Couldn’t add Doan’s lines to .git/info/exclude, so nothing was set up. Make sure the repository’s Git metadata and its exclude file can be read and written, then retry.", actions: [action(choose, "Choose another folder", "subtle"), action("retry", "Retry")] };
     case "config_invalid": return { body: "This folder’s Doan configuration couldn’t be read. Fix it and retry, or choose another folder.", actions: [action(choose, "Choose another folder", "subtle"), action("retry", "Retry")] };
+    // The CLI read the folder but failed for a reason other than its configuration; its message says why.
+    case "project_unreadable": return { body: "Doan couldn’t read this folder. Fix the problem shown below and retry, or choose another folder.", ...(detail ? { detail } : {}), actions: [action(choose, "Choose another folder", "subtle"), action("retry", "Retry")] };
     case "clone_failed": return { body: "Couldn’t clone this repository. Check your connection and folder access, then retry.", ...(destination ? { detail: destination } : {}), actions: [action("changeLocation", "Change location", "subtle"), action("retry", "Retry")] };
     case "git_missing": return { body: "Install Git to clone a repository, or choose a local folder.", actions: [action(choose, "Choose local folder", "subtle"), action("retry", "Check again")] };
     case "completion_save_failed": return { body: "Your project is ready, but setup completion couldn’t be saved. Retry to finish.", actions: [] };
@@ -471,7 +474,7 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
   // A clone destination under a registered project is what main refuses as path_unavailable on the clone screen.
   const container = p.kind === "clone" && destination !== null ? projects.find(root => destination.startsWith(`${root.replace(/\/+$/, "")}/`)) ?? null : null;
   const code = projectNoticeCode(use, state, agentReady);
-  const notice = code === null ? null : code === error?.code ? projectNotice(code, error.message, destination, fromUrl, container && nameOf(container), error.path ?? null) : projectNotice(code, undefined, null);
+  const notice = code === null ? null : code === error?.code ? projectNotice(code, error.message, destination, fromUrl, container && nameOf(container), error.path ?? null, error.detail ?? null) : projectNotice(code, undefined, null);
   // A notice's recovery actions and the screen's own never repeat; the notice keeps its copy. Use existing folder
   // already answers 'Already have this repository?'.
   const offered = new Set(notice?.actions.map(button => button.command) ?? []);

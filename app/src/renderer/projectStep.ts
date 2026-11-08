@@ -83,7 +83,8 @@ export interface ProjectStepState {
   // The URL of the last inspection, so an edited URL says it must be checked again.
   inspectedUrl: string | null;
   // path: the folder whose inspection failed, so a mismatch can name it.
-  error: { code: ProjectError; message?: string; path?: string } | null;
+  // detail: the failure's own account main gives the window only (the CLI's message for project_unreadable).
+  error: { code: ProjectError; message?: string; path?: string; detail?: string } | null;
   // The registered project picked in 'Your projects', before it is inspected.
   listChoice: string | null;
   // Where the Doan files of a setup or clone go (absent: Include in Git, the default). It outlives a refused or failed
@@ -96,7 +97,7 @@ const basename = (path: string) => path.replace(/\/+$/, "").split("/").at(-1) ??
 const parent = (path: string) => path.replace(/\/+$/, "").split("/").slice(0, -1).join("/") || "/";
 // url on a path inspection: a folder chosen for that repository, so main checks its remote.
 type Inspect = { path: string; url?: string } | { url: string; destination?: string };
-type Reply = { ok: true; operation: OnboardingOperation } | { ok: false; code: ProjectError; message?: string };
+type Reply = { ok: true; operation: OnboardingOperation } | { ok: false; code: ProjectError; message?: string; detail?: string };
 
 // The onboarding Project step over the main session (app-socket v2 DTOs): folder or GitHub URL → inspect → select or
 // clone → complete. Main owns every check and write; this keeps only what the screen shows.
@@ -409,7 +410,7 @@ export class ProjectStepSession {
     return this.error(done, "project_unavailable");
   }
   private error(done: OnboardingOperation, fallback: ProjectError): Reply & { ok: false } {
-    return { ok: false, code: done.error?.code ?? fallback, ...(done.error?.message ? { message: done.error.message } : {}) };
+    return { ok: false, code: done.error?.code ?? fallback, ...(done.error?.message ? { message: done.error.message } : {}), ...(done.error?.detail ? { detail: done.error.detail } : {}) };
   }
   private async call(request: Promise<OnboardingResponse | AddPageResponse>): Promise<Reply> {
     let reply: OnboardingResponse | AddPageResponse;
@@ -452,7 +453,7 @@ export class ProjectStepSession {
     this.again = again;
     // A repository Git could not reach is shown on the first screen with the URL kept (draft 'repository-error').
     if (reply.code === "repository_unreachable") { this.set({ phase: { kind: "choose" }, error: { code: "access_failed" } }); return; }
-    this.set({ phase, error: { code: reply.code, ...(reply.message ? { message: reply.message } : {}), ...(path ? { path } : {}) } });
+    this.set({ phase, error: { code: reply.code, ...(reply.message ? { message: reply.message } : {}), ...(path ? { path } : {}), ...(reply.detail ? { detail: reply.detail } : {}) } });
   }
   private fence(): number { return ++this.generation; }
   private current(at: number): boolean { return this.live && at === this.generation; }

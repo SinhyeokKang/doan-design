@@ -220,7 +220,7 @@ describe("adding picked folders", () => {
     const broken = dir(dir(), ".doan/canvases");
     const { deps, saved } = fake({});
     // Run inside a broken repo's subfolder: `ls` fails, and `--repo` says it is no root.
-    deps.ls = async (target) => ("cwd" in target ? { kind: "error", message: "bad config" } : notSetUp);
+    deps.ls = async (target) => ("cwd" in target ? { kind: "error", message: "bad config", config: join(broken, "..", ".doan/config.json") } : notSetUp);
     expect(await createAddFlow(deps).add(broken)).toMatchObject({ added: [], messages: ["bad config"] });
     expect(saved).toEqual([]);
   });
@@ -270,7 +270,7 @@ describe("judging a located folder", () => {
     const plain = dir();
     gitDir(plain, "child");
     const { deps } = fake({});
-    deps.ls = async (target) => ("cwd" in target && target.cwd === join(tmp, "broken") ? { kind: "error", message: "bad config" } : notSetUp);
+    deps.ls = async (target) => ("cwd" in target && target.cwd === join(tmp, "broken") ? { kind: "error", message: "bad config", config: join(tmp, ".doan/config.json") } : notSetUp);
     const flow = createAddFlow(deps);
     expect(await flow.judge(file)).toEqual({ refused: "Only folders can be added." });
     expect(await flow.judge(join(tmp, "gone"))).toEqual({ refused: "Only folders can be added." });

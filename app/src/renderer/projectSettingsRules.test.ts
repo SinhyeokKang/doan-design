@@ -11,7 +11,7 @@ test("a healthy worktree shows its settings, a problem one its problem, and a lo
   expect(projectSettingsView(list("/w/a"))).toBe("settings");
   expect(projectSettingsView(entry("/w/a", "notFound"))).toBe("problem");
   expect(projectSettingsView(entry("/w/a", "uninitialized"))).toBe("problem");
-  expect(projectSettingsView({ path: "/w/a", kind: "error", message: "bad config" })).toBe("problem");
+  expect(projectSettingsView({ path: "/w/a", kind: "error", message: "bad config", config: "/w/a/.doan/config.json" })).toBe("problem");
   expect(projectSettingsView({ path: "/w/a", kind: "cliError", reason: "timeout" })).toBe("problem");
   expect(projectSettingsView(entry("/w/a", "loading"))).toBeNull();
 });
@@ -30,7 +30,7 @@ test("page follow: a worktree that leaves the list leaves the page", () => {
 
 test("page follow: a healthy worktree that turns into a problem switches the view and cancels an open confirmation", () => {
   expect(followProjectSettings(settings, [entry("/w/a", "notFound")], home)).toEqual({ kind: "show", root: "/w/a", view: "problem", reread: false, cancelConfirm: true, origin: home });
-  expect(followProjectSettings(settings, [{ path: "/w/a", kind: "error", message: "bad" }], home)).toMatchObject({ view: "problem", cancelConfirm: true });
+  expect(followProjectSettings(settings, [{ path: "/w/a", kind: "error", message: "bad", config: "/w/a/.doan/config.json" }], home)).toMatchObject({ view: "problem", cancelConfirm: true });
 });
 
 test("page follow: back to healthy reads again and has no confirmation to cancel", () => {
@@ -82,7 +82,7 @@ const PAGE_VIEW: [string, FolderEntry, ReadState, ProjectSettingsPageView][] = [
     notice: { tone: "warning", text: NOT_FOUND, actions: ["locate"] } }],
   ["not set up", entry("/w/a", "uninitialized"), ready, { storedNote: false, showInFinder: true, body: "notice", removeSection: true,
     notice: { tone: "warning", text: NOT_SET_UP, actions: ["setUp"] } }],
-  ["config error", { path: "/w/a", kind: "error", message: "unexpected token }" }, ready, { storedNote: false, showInFinder: true, body: "notice", removeSection: true,
+  ["config error", { path: "/w/a", kind: "error", message: "unexpected token }", config: "/w/a/.doan/config.json" }, ready, { storedNote: false, showInFinder: true, body: "notice", removeSection: true,
     notice: { tone: "error", text: CONFIG_ERROR, detail: "unexpected token }", actions: ["retry", "details"] } }],
   ["CLI error", { path: "/w/a", kind: "cliError", reason: "timeout" }, ready, { storedNote: false, showInFinder: true, body: "notice", removeSection: true,
     notice: { tone: "error", text: CLI_ERROR, detail: "timeout", actions: ["retry", "details"] } }],
@@ -100,8 +100,8 @@ test("page view: a problem entry ignores the read state, since its settings are 
 test("page view: the read-failed reason shows inline and the config error's detail waits behind Details", () => {
   expect(projectSettingsPageView(list("/w/a"), { kind: "failed", message: "m" }).notice).toMatchObject({ reason: "m" });
   expect(projectSettingsPageView(list("/w/a"), { kind: "failed", message: "m" }).notice).not.toHaveProperty("detail");
-  expect(projectSettingsPageView({ path: "/w/a", kind: "error", message: "m" }, ready).notice).toMatchObject({ detail: "m" });
-  expect(projectSettingsPageView({ path: "/w/a", kind: "error", message: "m" }, ready).notice).not.toHaveProperty("reason");
+  expect(projectSettingsPageView({ path: "/w/a", kind: "error", message: "m", config: "/w/a/.doan/config.json" }, ready).notice).toMatchObject({ detail: "m" });
+  expect(projectSettingsPageView({ path: "/w/a", kind: "error", message: "m", config: "/w/a/.doan/config.json" }, ready).notice).not.toHaveProperty("reason");
 });
 
 test("write errors: a path outside the worktree is told where to choose, per section", () => {

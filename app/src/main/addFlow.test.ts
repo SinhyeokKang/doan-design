@@ -44,10 +44,20 @@ describe("classifyPick", () => {
   });
 
   test("a failing CLI follows the existing open rules", () => {
-    const broken: FolderState = { kind: "error", message: "bad config" };
+    const broken: FolderState = { kind: "error", message: "bad config", config: "/code/picked/.doan/config.json" };
     expect(classifyPick(facts({ ls: broken, asRepo: broken }))).toEqual({ kind: "store", path: "/code/picked" });
     expect(classifyPick(facts({ ls: broken, asRepo: { kind: "uninitialized" } }))).toEqual({ kind: "refuse", message: "bad config" });
     expect(classifyPick(facts({ ls: { kind: "cliError", reason: "" } }))).toEqual({ kind: "refuse", message: "doan CLI error" });
     expect(classifyPick(facts({ ls: broken, asRepo: broken, saved: ["/code/picked"] }))).toEqual({ kind: "duplicate", path: "/code/picked" });
+  });
+
+  // `asRepo` is `doan ls --repo <picked>`: a Config error, a CLI failure answered with an envelope, or no proper answer.
+  test("a failure that is not about a config file is stored when the CLI answered for the folder, else refused as a CLI error", () => {
+    const unreadable: FolderState = { kind: "cliError", reason: "open /code/picked/.doan/canvases/sub: permission denied", code: "internal_error" };
+    const noCli: FolderState = { kind: "cliError", reason: "spawn doan ENOENT" };
+    const broken: FolderState = { kind: "error", message: "bad config", config: "/code/picked/.doan/config.json" };
+    expect(classifyPick(facts({ ls: unreadable, asRepo: broken }))).toEqual({ kind: "store", path: "/code/picked" });
+    expect(classifyPick(facts({ ls: unreadable, asRepo: unreadable }))).toEqual({ kind: "store", path: "/code/picked" });
+    expect(classifyPick(facts({ ls: unreadable, asRepo: noCli }))).toEqual({ kind: "refuse", message: "doan CLI error: open /code/picked/.doan/canvases/sub: permission denied" });
   });
 });

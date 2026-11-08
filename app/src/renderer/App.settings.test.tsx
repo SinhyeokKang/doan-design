@@ -953,7 +953,7 @@ const problemEntries: FolderEntry[] = [
   { path: "/w/a", kind: "notFound" },
   { path: "/w/a", kind: "uninitialized" },
   { path: "/w/a", kind: "cliError", reason: "Unavailable" },
-  { path: "/w/a", kind: "error", message: "Invalid config" },
+  { path: "/w/a", kind: "error", message: "Invalid config", config: "/w/a/.doan/config.json" },
 ];
 
 // PRODUCT §5 item 3 'Problem states': a problem or reading root shows its Overview, whether it was open when the problem

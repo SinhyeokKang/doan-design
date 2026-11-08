@@ -1,0 +1,17 @@
+{
+  "v": 2,
+  "ok": true,
+  "op": "project_select",
+  "result": {
+    "operation": {
+      "operationId": "op_9",
+      "requestId": "req-1",
+      "kind": "project_select",
+      "state": "failed",
+      "error": {
+        "code": "project_unreadable",
+        "message": "The project folder cannot be read."
+      }
+    }
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "v": 1,
+  "ok": false,
+  "error": {
+    "code": "invalid_config",
+    "message": "Cannot read config",
+    "nextSteps": [],
+    "config": 1
+  }
+}

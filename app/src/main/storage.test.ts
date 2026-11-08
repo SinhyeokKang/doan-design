@@ -40,7 +40,7 @@ describe("group roots", () => {
     // Not set up: not a list, so no git of its own; another root names it.
     { path: "/code/studio-y", kind: "uninitialized" },
     // Seen before as part of the group, now failing.
-    { path: "/code/studio-z", kind: "error", message: "m", lastCommon: git.common },
+    { path: "/code/studio-z", kind: "error", message: "m", config: "/code/studio-z/.doan/config.json", lastCommon: git.common },
     list("/code/other", { common: "/code/other/.git", worktrees: ["/code/other"] }, "repo"),
     list("/notes", null, "repo"),
   ];
