@@ -18,9 +18,9 @@
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort (이유) | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
 | B1 업데이트 화면 | T1, T2 | `SettingsAbout.tsx`, `UpdateHeaderButton.tsx`, `AgentUsageButton.tsx`, 새 공용 훅, `app/src/main/update/view.ts`와 각 테스트, `styles.css`의 `.update-pop-live` 한 줄(conductor 승인) | 없음 | Opus high (요청 번호 경합, 공유 no-drag 카운터, live region; 틀리면 창이 끌린다) | typecheck, lint, test, design-sync | 리뷰 🔴0, 후속 테스트 1건 (`ctx_38778b4ec995` → `ctx_fe565445cb7c`) |
-| B2 문제 상태 | T3, T4 | `folderState.ts`, `app/src/main/index.ts`(reveal), `problemView.ts`, `ProblemOverlay.tsx`, `App.tsx`, `homeCards.ts`, `ProjectOverview.tsx`, `ShellSidebar.tsx`, `projectSettingsRules.ts`와 각 테스트 | 없음 | Opus high (main·renderer 여러 곳, 신뢰할 수 없는 텍스트, `.doan/` 경로 예외) | typecheck, lint, test, design-sync | 진행 중 (`ctx_9db7ec500246`) |
+| B2 문제 상태 | T3, T4 | `folderState.ts`, `app/src/main/index.ts`(reveal), `problemView.ts`, `ProblemOverlay.tsx`, `App.tsx`, `homeCards.ts`, `ProjectOverview.tsx`, `ShellSidebar.tsx`, `projectSettingsRules.ts`와 각 테스트 | 없음 | Opus high (main·renderer 여러 곳, 신뢰할 수 없는 텍스트, `.doan/` 경로 예외) | typecheck, lint, test, design-sync | 리뷰 🔴0, 수정 라운드 (`ctx_9db7ec500246` → `ctx_043bdc943e96`) |
 | B3 Look Up | T5, T6, T7a | (b) `chipField.ts`, `styles.css`, `editMenu.ts`(`lookUpLabel`의 U+200B, conductor 승인); (a) `editMenu.ts`, `app/src/main/index.ts` | (a)면 B2 통합 | Opus medium (실제 앱 PoC 판단, 구현은 작다) | design 4 결과 줄, typecheck, lint, test | 통합, 리뷰 🔴0 (`ctx_44894e5d7158`) |
-| B4 테스트 | T7 | `thumbnails.test.ts`, `quickOpen.test.ts` | 없음 | Sonnet medium (테스트 두 개, 측정 절차가 정해져 있다) | 부하 재현 기록, 같은 부하 3번 통과 | 진행 중 (`ctx_90a6e3e65daa`) |
+| B4 테스트 | T7 | `thumbnails.test.ts`, `quickOpen.test.ts` | 없음 | Sonnet medium (테스트 두 개, 측정 절차가 정해져 있다) | 부하 재현 기록, 같은 부하 3번 통과 | 완료, 리뷰 중 (`ctx_90a6e3e65daa`) |
 | B5 프리셋 | T8 | `cli/internal/designskill/` 아래만 | 없음 | Sonnet medium (정해진 문안 교체) | `go test ./...`, `designSkills.test.ts` | 완료 `2cc71d8f`, 리뷰 대기 (`ctx_ed0308e2853b`) |
 | 리뷰 | 배치마다 `/code-review` | 읽기만 | 각 배치 완료 | Sonnet high(B4·B5 묶음), Opus high(B1, B2), Sonnet high(B3: diff가 작다) | 🔴 0 | 대기 |
 | 마무리 (conductor) | T9–T13 | `docs/`, `orch.md`, 통합 커밋 | 모든 배치 통합 | — | tasks T9–T13 검증 | 대기 |
@@ -42,3 +42,5 @@
 - B3 리뷰(`ctx_bf51a96aa85e`, Sonnet high): 🔴 0, 🟡 2, ⚪ 4.
   - 🟡1(사전 창은 U+200B가 든 원래 선택 글을 받는다; 줄 맨 앞 칩 사례): 사전 창 확인은 macOS 안내를 넘겨야 해서 사용자 수동 확인으로 넘긴다. 달라도 이번 범위에서는 고치지 않고 BACKLOG 미검증 목록에 그 사례를 적는다(conductor 판단 — filler 처리는 `chipField.ts` 입력 모델을 건드린다).
   - 🟡2(마지막 전체 테스트 통과가 주석 커밋 이전): 통합 `/verify`에서 확인한다. ⚪는 두기로 했다.
+- B2 리뷰(`ctx_d45537a72887`, Opus high): 🔴 0, 🟡 1, ⚪ 7. B2에 🟡1(여러 줄 사례 테스트)과 ⚪1·2·4·5를 보냈다. ⚪3(ARCHITECTURE §13에 reveal 예외 기록)은 T12에서 한다. ⚪6·7은 두기로 했다.
+  - 결정 항목 두 개(설정과 무관한 `ls` 실패도 Config error로 보임, 상위 config 오류는 하위 폴더를 엶)는 이번 변경 전부터 있던 동작이다. T12에서 BACKLOG 'Known defects'에 적는다(conductor 판단 — 동작을 바꾸지 않고 기록만 한다).
