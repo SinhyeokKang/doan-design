@@ -105,6 +105,92 @@ PoC가 먼저다(tasks T2). 결과에 따라 세 갈래 중 하나로 가거나 
 - **복사본**: 같은 sprite 파일을 두 fragment로 참조해도 복사본과 표식은 하나다. 표식 번호는 문서 순서로 매긴다. 범위를 붙인 `<style>`의 `url()`과 그 안 custom property `url()`은 선언한 파일(SVG 파일) 기준으로 다시 쓴다(ARCHITECTURE §3: sprite 복사본 안 custom property는 선언한 파일이 기준).
 - **이미 있는 한계**: 캔버스 자신의 규칙(예: `path { fill: red }`)이 sprite 복사본에 걸리는 것은 `<style>` 없는 sprite에서도 지금 그대로이고 이번에 다루지 않는다.
 
+### PoC 결과 (T2)
+
+**측정 조건**: 2026-11-09, Apple M1 16 GiB, macOS 26.6.2, 커밋 e88b05ce, 입력은 기준 CLI `doan-before`(e88b05ce, go1.27.3 darwin/arm64)로 만들었다. 엔진은 Playwright 1.64.1로 띄운 Chromium 148.0.7778.96(Chrome for Testing, 캐시의 chromium-1223. Playwright 1.64.1이 기본으로 찾는 1248이 없어 `executablePath`로 지정), WebKit 27.2(webkit-2370), Electron 45.0.0(Chromium 156.0.8078.48, `_electron`, 임시 `--user-data-dir`·HOME)이다. 화면이 잠긴 상태였지만 Electron 창도 렌더링되고 캡처됐다.
+
+**방법**
+- 규칙마다 다른 불투명 색을 주고, 경우마다 페이지를 하나씩 연다(Chromium·WebKit은 새 context, Electron은 같은 창에서 새 문서로 이동). 캔버스 좌표 (40,40) 아이콘, (100,40) 두 번째 아이콘, (40,100) sprite 밖 캔버스 요소 `<svg><g><path class="st0">`(leak), (100,100) gradient 사각형을 iframe 상자와 scale로 페이지 좌표로 바꿔 1×1 screenshot pixel을 읽는다. 규칙이 안 걸리면 black(기본 fill), 아이콘이 안 그려지면 white(배경)다.
+- sprite 구조는 모든 경우 `<svg><symbol id="i0"><g><path class="st0" id="p0">`이고, 경우마다 규칙 하나만 둔다.
+- (1): node HTTP server(앱 server와 같은 `Content-Type: image/svg+xml`, `Cache-Control: no-store`, `Access-Control-Allow-Origin: null`)와 file:// host 페이지의 `sandbox="allow-scripts"` iframe. 앱의 캔버스 URL도 같은 `http://127.0.0.1:<port>/…` 출처라 sprite와 캔버스의 URL 출처가 같다. sprite 파일에는 작성자가 쓴 범위 없는 `<style>`이 있다.
+- (2)(3): 캔버스와 `<style>` 없는 sprite를 `doan-before export`로 내보내고(실제 Inline + Assemble), viewer `srcdoc` 안 sprite 복사본에 표식과 `<style><![CDATA[…]]></style>`만 넣었다. 표식 번호는 문서 순서로 1부터다. 복사본 모양은 위 '복사본'·'foreign `<style>` 읽기'와 같다.
+- 보조 확인: 숨긴 복사본 안 원본 `#p0`의 computed `fill`.
+
+**(1) 앱 구조** — cell은 아이콘 색 · leak 색
+
+| 경우 | 변형 | 기대 | Chromium 148 | WebKit 27.2 | Electron 45 |
+|---|---|---|---|---|---|
+| `path` | 외부 `<use>` (sandbox) | red | white · black | white · black | white · black |
+| `.st0` | 외부 `<use>` (sandbox) | green | white · black | white · black | white · black |
+| `g path` | 외부 `<use>` (sandbox) | blue | white · black | white · black | white · black |
+| `#p0` | 외부 `<use>` (sandbox) | orange | white · black | white · black | white · black |
+| `symbol` | 외부 `<use>` (sandbox) | purple | white · black | white · black | white · black |
+| `g` | 외부 `<use>` (sandbox) | cyan | white · black | white · black | white · black |
+| `.st0` 파일 둘 | 외부 `<use>` (sandbox) | magenta/lime | white/white · black | white/white · black | white/white · black |
+| `.st0` | 대조: sandbox 없는 iframe | green | green · black | black · black | green · black |
+
+**(2)(3) viewer `srcdoc` 안 Assemble 결과** — cell은 아이콘 색 · leak 색
+
+| 경우 | 변형 | 기대 | Chromium 148 | WebKit 27.2 | Electron 45 |
+|---|---|---|---|---|---|
+| `path` | 범위 없음(대조) | red | red · red | red · red | red · red |
+| `path` | (2a) root 속성 | red | black · black | red · black | black · black |
+| `path` | (2a) `<g>` wrapper | red | black · black | red · black | black · black |
+| `path` | (2b) root 속성 | red | black · black | red · black | black · black |
+| `path` | (2b) `<g>` wrapper | red | black · black | red · black | black · black |
+| `.st0` | 범위 없음(대조) | green | green · green | green · green | green · green |
+| `.st0` | (2a) root 속성 | green | black · black | green · black | black · black |
+| `.st0` | (2a) `<g>` wrapper | green | black · black | green · black | black · black |
+| `.st0` | (2b) root 속성 | green | black · black | green · black | black · black |
+| `.st0` | (2b) `<g>` wrapper | green | black · black | green · black | black · black |
+| `g path` | 범위 없음(대조) | blue | blue · blue | blue · blue | blue · blue |
+| `g path` | (2a) root 속성 | blue | black · black | blue · black | black · black |
+| `g path` | (2a) `<g>` wrapper | blue | black · black | blue · black | black · black |
+| `g path` | (2b) root 속성 | blue | black · black | blue · black | black · black |
+| `g path` | (2b) `<g>` wrapper | blue | black · black | blue · black | black · black |
+| `#p0` | 범위 없음(대조) | orange | orange · black | orange · black | orange · black |
+| `#p0` | (2a) root 속성 | orange | black · black | orange · black | black · black |
+| `#p0` | (2a) `<g>` wrapper | orange | black · black | orange · black | black · black |
+| `#p0` | (2b) root 속성 | orange | black · black | orange · black | black · black |
+| `#p0` | (2b) `<g>` wrapper | orange | black · black | orange · black | black · black |
+| `symbol` | 범위 없음(대조) | purple | purple · black | purple · black | purple · black |
+| `symbol` | (2a) root 속성 | purple | black · black | purple · black | black · black |
+| `symbol` | (2a) `<g>` wrapper | purple | black · black | purple · black | black · black |
+| `symbol` | (2b) root 속성 | purple | black · black | purple · black | black · black |
+| `symbol` | (2b) `<g>` wrapper | purple | black · black | purple · black | black · black |
+| `g` | 범위 없음(대조) | cyan | cyan · cyan | cyan · cyan | cyan · cyan |
+| `g` | (2a) root 속성 | cyan | black · black | cyan · black | black · black |
+| `g` | (2a) `<g>` wrapper | cyan | black · black | cyan · black | black · black |
+| `g` | (2b) root 속성 | cyan | black · black | cyan · black | black · black |
+| `g` | (2b) `<g>` wrapper | cyan | black · black | cyan · black | black · black |
+| `.st0` 파일 둘 | 범위 없음(대조) | magenta/lime | lime/lime · lime | lime/lime · lime | lime/lime · lime |
+| `.st0` 파일 둘 | (2a) root 속성 | magenta/lime | black/black · black | magenta/lime · black | black/black · black |
+| `.st0` 파일 둘 | (2a) `<g>` wrapper | magenta/lime | black/black · black | magenta/lime · black | black/black · black |
+| `.st0` 파일 둘 | (2b) root 속성 | magenta/lime | black/black · black | magenta/lime · black | black/black · black |
+| `.st0` 파일 둘 | (2b) `<g>` wrapper | magenta/lime | black/black · black | magenta/lime · black | black/black · black |
+
+보조 확인: 105칸 모두에서 숨긴 원본 `#p0`의 computed `fill`이 그 규칙의 색이었다(범위 없는 파일 둘 `.st0`는 뒤 규칙의 lime).
+
+**결정 A: 결과에 남은 `<base href>`** — cell은 `<use href="#i0">` 색 · `url(#grad)` 색
+
+| 경우 | 변형 | 기대 | Chromium 148 | WebKit 27.2 | Electron 45 |
+|---|---|---|---|---|---|
+| base-none | base 없음 | green · blue | green · blue | green · blue | green · blue |
+| base-relative | ../assets/ | green · blue | green · blue | green · blue | green · blue |
+| base-absolute | https://cdn.example.invalid/x/ | green · blue | green · blue | green · blue | green · blue |
+
+**관찰**
+1. 앱 구조에서는 세 엔진 모두 외부 `<use href="file.svg#id">`를 그리지 않는다(white). 콘솔은 Chromium·Electron이 `Unsafe attempt to load URL http://127.0.0.1:<port>/….svg from frame with URL http://127.0.0.1:<port>/….html. Domains, protocols and ports must match.`, WebKit이 `… from origin null. Domains, protocols and ports must match.`이다. `allow-same-origin` 없는 sandbox는 출처가 opaque라 같은 server의 SVG도 다른 출처가 된다. 같은 캔버스를 sandbox 없는 iframe에 열면 Chromium·Electron은 sprite의 `<style>`을 적용하고(green), WebKit은 아이콘을 그리지만 적용하지 않는다(black).
+2. 범위를 붙인 네 변형((2a)·(2b) × root 속성·`<g>` wrapper)은 WebKit에서 모든 selector 모양을 통과한다(아이콘 색이 맞고 leak 없음). Chromium 148과 Electron 45에서는 모든 경우 아이콘이 black이다. 원본 `#p0`에는 규칙이 걸리므로 규칙 자체는 유효하다. Chromium은 `<use>` shadow tree의 복제본에 selector를 맞추는데, 복제본의 조상에는 표식이 없기 때문으로 보인다(측정에서 나온 해석이고 엔진 소스는 확인하지 않았다).
+3. 범위 없는 대조에서는 `path`·`.st0`·`g path`·`g`가 sprite 밖 캔버스 요소로 샌다. 파일 둘이 `.st0`에 다른 색을 주면 뒤 규칙(lime)이 두 아이콘과 캔버스를 모두 칠한다. leak 좌표가 새는 경우를 잡는다는 대조다.
+4. `<base href>`가 남은 `srcdoc`에서도 세 엔진 모두 `<use href="#i0">`와 `url(#grad)`가 그려졌다(상대 `../assets/`, 절대 `https://cdn.example.invalid/x/`). §3과 결정 A가 base를 지우는 이유로 든 "남기면 fragment 참조가 깨진다"는 측정한 엔진에서 재현되지 않았다. base를 지워도 모든 참조가 data URI라 결과는 달라지지 않는다.
+
+**판정**
+- 판정 규칙대로면 (i)이다. 앱(Electron 45, sandbox iframe)은 외부 sprite의 `<style>`을 `<use>` 복사본에 적용하지 않는다. (ii)는 Chromium·Electron에서 모든 경우가 실패하므로 어느 변형으로도 성립하지 않는다.
+- **결정 필요(전제 불일치)**: 앱은 `<style>`만 무시하는 것이 아니라 외부 `<use>` 아이콘 자체를 그리지 않는다. 그래서 (i)로 `<style>` 없이 복사하면 export는 앱에 없는 아이콘을 기본 fill로 보인다. 결정 C의 이유("앱과 같은 결과")와 spec Problem 4의 "앱에서는 보이는 아이콘이 export만 막힌다"가 성립하지 않는다. 지금 `<style>` 없는 sprite의 복사(ARCHITECTURE §3 'SVG `<use>`')도 같은 차이를 이미 갖고 있다. 추천: (iii)처럼 item 4를 비목표로 옮기고 `ReasonUseStyle` 거절을 유지한다. 앱이 외부 `<use>`를 그리지 않는 것은 `<style>` 유무와 상관없는 결함이라 BACKLOG에 따로 올린다. (i)을 고르면 export와 앱의 차이가 넓어진다.
+
+**다시 재기**(T11): `node .scratch/export-hardening/sp/build.mjs [--doan <CLI 경로>]`로 fixture를 만들고 `node .scratch/export-hardening/sp/measure.mjs [--engines chromium,webkit,electron]`로 잰다. 결과는 `.scratch/export-hardening/sp/work/results.{md,json}`에 남는다. 구현 뒤에는 `build.mjs`의 주입 단계 대신 고친 CLI의 결과를 그대로 열어야 한다.
+
 ## Parts to split out as pure functions (`/tdd` 대상)
 
 - `repo`: 디렉터리 이름 목록 → index 만들기, index 조회(정확한 이름, 접은 key 후보). 지금 `diskSpelling`의 선형 탐색과 같은 후보·순서를 내는지 표 테스트.
