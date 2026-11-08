@@ -1342,8 +1342,11 @@ app.on("before-quit", (event) => {
   }
   setImmediate(() => { void quitInOrder(); });
 });
+// `open -g` to a running app (as `onboarding start` sends while it is still starting) arrives as a reopen, which
+// Electron emits as `activate` without activating Doan; showing then would activate it over the app in use. A Dock
+// click activates Doan before this event.
 app.on("activate", () => {
-  if (win && !win.isDestroyed()) showWindow(win);
+  if (app.isActive() && win && !win.isDestroyed()) showWindow(win);
 });
 
 app.on("will-quit", () => {
