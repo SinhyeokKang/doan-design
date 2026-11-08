@@ -52,3 +52,5 @@ D1–D8은 feature 문서에서 사용자가 승인했다. 아래는 실행 중 
 - 통합 HEAD(코드 트리 `b3eef297`)에서 `verify.mjs --eval` PASS(verify-tests, runtime-support, go-test, go-vet, typecheck, lint, app-test, eval-tests, eval-self-test, build). 로그는 conductor `.scratch/orch/verify-eval.log`.
 - T11: Go `storage.go`, 앱 `onboarding/projects.ts`, eval `socket.ts`의 `.gitattributes` 줄이 모두 `.doan/** linguist-documentation` 하나다.
 - B2 리뷰(`ctx_7ccb7c2299c7`, Opus medium): 🔴 0, 🟡 0, ⚪ 5. 후속 1차를 B2 worker에 보냈다(`ctx_f6e2088bf6bc`): 초안 두 곳(O8), `trashTarget` 오류 행 id 테스트, 긴 주석 줄바꿈. 리뷰 worker는 release하고 `rc-r-b2`를 지웠다.
+- B2 후속 1차(`60caf4f5`·`ee3c7532`·`5c66d8e8`)를 `5480839a`까지 통합했다(worker: typecheck·lint·app test 9600건, `doan check` findings 변화 없음). B2 worker를 release하고 `rc-b2` worktree를 지웠다. 브랜치 `SinhyeokKang/rc-b2`(`5c66d8e8`)는 남아 있다.
+- T10: `npm --prefix app run package`가 GitHub 릴리스 다운로드의 504(`SHASUMS256.txt`)로 세 번 실패했다. GitHub API로 받은 `SHASUMS256.txt`의 해시가 로컬 캐시의 `electron-v45.0.0-darwin-arm64.zip`(`896c3a50…`)과 같음을 확인했다. 두 파일을 127.0.0.1의 임시 mirror로 띄우고 `ELECTRON_MIRROR`로 패키징했다(빌드 설정은 바꾸지 않았다). 패키지 HEAD는 `0269891d`(코드 트리 `5480839a`)다. 라운드 `rc-full-261108`(Claude Code 2.1.319, Codex 0.166.0, 전체 시나리오)을 시작했다.
