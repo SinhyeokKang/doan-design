@@ -32,10 +32,14 @@ func firstBaseHref(src []byte) (string, bool) {
 		}
 		tok := z.Token()
 		if tok.Data == "template" {
-			if tt == html.StartTagToken {
+			// The parser ignores the self-closing flag on <template>, at any
+			// depth: <template/> opens one too.
+			if tt == html.EndTagToken {
+				if template > 0 {
+					template--
+				}
+			} else {
 				template++
-			} else if tt == html.EndTagToken && template > 0 {
-				template--
 			}
 			continue
 		}
