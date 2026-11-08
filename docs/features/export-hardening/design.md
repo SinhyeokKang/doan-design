@@ -74,6 +74,33 @@ T1에서 쟀다. 기계 Apple M1(16 GiB), go1.27.3 darwin/arm64, 커밋 `e88b05c
 - **GC 한도(결정 D)**: 원인을 먼저 고친다. 그래도 목표에 못 미치면 `GOMEMLIMIT`/`debug.SetMemoryLimit`를 보조로 쓸 수 있다. 쓰게 되면 한도 없이 고친 값, 한도를 둔 값, 고치기 전 값을 함께 기록하고, 한도는 `doan export` 명령에만 건다. `debug.SetGCPercent`만으로 줄이는 방법은 쓰지 않는다.
 - **회귀 감지**: `runtime.GC()` 뒤 `runtime.ReadMemStats`로 export 전후의 `TotalAlloc` 증가분에 상한을 두는 테스트(`t.Parallel` 없음). 할당 총량은 최대 사용량의 상한이고 GC 시점에 덜 흔들린다. RSS 자체는 T9에서 잰다. 상한 값은 수정 뒤 측정값에 여유를 두어 정한다. 24 MiB 프로파일 테스트(`TestProfileLargeStylesheet`)는 Go internal 규칙 때문에 `cli/internal/export`에 있고, `DOAN_EXPORT_PROFILE`이 있을 때만 돈다(없으면 `t.Skip`).
 
+### 수정 결과
+
+T8·T9에서 고치고 쟀다. 기계 Apple M1(16 GiB), go1.27.3 darwin/arm64. RSS는 `rss.sh`로 `/usr/bin/time -l`을 세 번 돌린 최댓값이다. 입력은 (b) big-css, 전체 25,176,407 B(stylesheet 25,165,824 B)이고 목표는 251,658,240 B(240 MiB)다.
+
+| | 최대 RSS(세 번) | 결과 |
+|---|---|---|
+| 고치기 전 `doan-before`(`e88b05ce`) | 2,140,110,848 B(1,889,550,336·2,140,110,848·1,958,576,128). T1 값은 2,205,253,632 B | 목표의 8.5배 |
+| lexer만 고친 뒤(`cba28242`) | 291,618,816 B(291,618,816·265,519,104·227,786,752) | 목표 초과 |
+| export 사본까지 고친 뒤(`558d5d3e`) | **172,900,352 B(164.9 MiB)**(172,900,352·171,278,336·170,917,888), real 0.81–1.34 s | 목표 이하 |
+
+- 세 빌드의 big-css 결과 sha256이 모두 `d2106e69…`로 같다. many-assets는 최대 RSS가 74,268,672 B에서 50,987,008 B로 줄었고 결과는 `cmp`로 같다.
+- 프로파일 테스트(Inline+Assemble, 24 MiB): TotalAlloc 525,301,584 B → 164,276,744 B, heap 점유 최대 190,550,232 B → 105,144,296 B, GC 8회 → 4회. 앞 값은 lexer만 고친 뒤다.
+- **고친 곳**(`558d5d3e`). 모두 큰 출력을 최종 크기로 한 번만 할당하게 한다.
+  1. **lexer**(`de9d5f03`, MF1): token을 하나씩 낸다. 할당의 91.8%였다.
+  2. `rewriteCSSRefs`: 치환 값을 먼저 모으고 builder를 최종 크기로 한 번 늘린다. 조각마다 늘리던 builder가 T1에서 130 MB였다.
+  3. `dataURI`: percent-encode 뒤 크기를 먼저 센다. 모자란 `Grow` 때문에 다시 늘던 31 MB가 없어진다.
+  4. `rewriteMarkup`/`writeTag`: 고친 태그를 문자열로 만들지 않고 출력 buffer에 바로 쓴다. 태그가 들어가지 않으면 태그와 남은 원본 바이트만큼 한 번 늘린다. 남은 원본을 함께 잡지 않으면 큰 `<link>` 뒤 본문을 쓸 때 buffer가 두 배로 다시 늘어난다(본문 128 KiB 입력에서 10.4 MB 차이). `writeTag`와 `cssEscape`는 호출마다 Replacer를 만들지 않는다.
+  5. `Assemble`: 페이지 크기를 먼저 세고, 캔버스를 escape하며 그 크기의 buffer 하나에 바로 쓴다. 이전에는 escape한 사본, 문자열 연결, 늘어나는 buffer가 각각 페이지 하나만큼 할당했다. 자리표시자 치환은 `fillShell`이 shell을 한 번 훑으며 하고, `strings.Replacer`와 결과가 같은지 테스트로 고정했다.
+  6. `inliner.files`를 문자열로 들고 있어 stylesheet를 모을 때와 inline할 때 `string(b)` 사본(24 MB씩 두 번)이 없다. 읽을 때 한 번 바꾼다.
+- **하지 않은 것과 이유**
+  - `inliner.files`·`in.sheets` 바이트 해제: 목표를 75 MiB 남기고 맞췄다. 해제하면 같은 파일이 다시 쓰일 때(다른 `@import` 경로, 다른 종류의 참조) 디스크에서 다시 읽어야 하거나 중복 제거를 잃는다. 둘 다 Inline이 끝나면 바로 풀린다.
+  - base64 data URI의 사본: (b) 입력에 없어 측정이 가리키지 않았다.
+  - 메모리 한도(결정 D): 원인을 고친 값이 목표 아래라 쓰지 않았다. `cli/internal/cli/export.go`는 바꾸지 않았다.
+- **고정한 테스트**(`77e57ffe`, 고치기 전에 커밋)
+  - `TestExportOutputIsPinned`: seed 캔버스(full·empty·nested·linked), srcdoc escape·움직이지 않는 base·빈 파일·percent-encode·`@import` 앞 식별자를 담은 캔버스, (b) 규칙으로 만든 256 KiB stylesheet의 페이지 sha256. `TestAssembleOutputIsPinned`: BOM, `<head>`·`<html>` 없는 캔버스. 프로파일 테스트는 24 MiB 페이지 sha256이 `doan-before` 결과와 같은지도 본다.
+  - `TestExportAllocationIsBounded`: 4 MiB stylesheet(`url()` 1,000개)와 본문 128 KiB 캔버스의 Inline+Assemble TotalAlloc. 고치기 전 127.7 MB, 고친 뒤 40.0 MB(stylesheet의 9.5배)이고 상한은 10% 여유를 둔 10.5배(44.0 MB)다. 2–6의 사본을 하나만 되돌려도 상한을 넘는 것을 mutation으로 확인했다(11.5–14.6배). 4 MiB는 사본이 viewer 파일 같은 고정 비용보다 충분히 크고, 테스트가 0.2 s에 끝나는 크기다.
+
 ## 3. `<base href>`
 
 결정(Q2, A): base가 캔버스 폴더를 바꾸면 그 base에 기대는 참조를 거절한다. base를 따라 푸는 것은 하지 않는다. 결과에서는 `href`가 있는 `<base>`를 지운다.
