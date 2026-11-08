@@ -24,8 +24,8 @@
 |---|---|---|---|---|---|---|
 | B1 | T2, T3 | 새 `app/src/main/update/`(eligibility, schedule, state, errorCode, gate, view, 타입 파일과 테스트), `app/src/main/preferences.ts`·`preferences.test.ts` | — | Opus high — 상태 기계의 겹침(수동·자동, 받는 중 재확인, 취소)과 view 매핑이 틀리면 UI 전체가 틀린다 | `npm --prefix app test`, `typecheck`, `rendererImports.test.ts` | 통합 `88304821` |
 | B2 | T4, Copy details 줄 | `app/package.json`·`package-lock.json`, `app/src/main/update/service.ts`(+테스트), `app/src/main/index.ts`·`index.test.ts`, `menuState.ts`(+테스트), `senderAllowed.ts`(+테스트), `app/src/preload/index.ts`(+테스트), `app/src/main/about.ts`(+테스트) | B1 통합 | Opus high — 종료 순서·flush·설치 시점은 상태를 잃을 수 있는 동시성 경로다 | `npm --prefix app test`, `npm --prefix app run build`, `verify.mjs` | 통합 `b88ca29f` |
-| B3 | T5 | `app/src/renderer/SettingsAbout.tsx`(+테스트), `App.tsx`·헤더 버튼과 popover, `AgentUsageButton.tsx`(+테스트), `app/src/main/aboutView.ts`, `app/src/main/agentSetup/notice.ts`, `styles.css`, `docs/DESIGN.md` | B2 통합 | Opus medium — 초안이 정해져 있어 판단보다 측정이 많지만 popover·focus·폭 계산이 섞인다 | `test`, `typecheck`, `lint`, `/design-sync` 차이 0 | 진행 |
-| B4 | T6 | 코드 수정 없음(보고만), `.scratch/` | B3 통합 | Sonnet medium — 정해진 probe를 격리된 앱에서 돌리고 기록한다 | `/runtime-test` 보고서 각 항목 | 대기 |
+| B3 | T5 | `app/src/renderer/SettingsAbout.tsx`(+테스트), `App.tsx`·헤더 버튼과 popover, `AgentUsageButton.tsx`(+테스트), `app/src/main/aboutView.ts`, `app/src/main/agentSetup/notice.ts`, `styles.css`, `docs/DESIGN.md` | B2 통합 | Opus medium — 초안이 정해져 있어 판단보다 측정이 많지만 popover·focus·폭 계산이 섞인다 | `test`, `typecheck`, `lint`, `/design-sync` 차이 0 | 통합 `c40243fd` |
+| B4 | T6 | 코드 수정 없음(보고만), `.scratch/` | B3 통합 | Sonnet medium — 정해진 probe를 격리된 앱에서 돌리고 기록한다 | `/runtime-test` 보고서 각 항목 | 진행 |
 | conductor | T0, T7, 통합 `/verify` | `orch.md`, PRODUCT·ARCHITECTURE·BACKLOG·DIRECTORY 승격, 이 디렉터리 삭제 | B4 | — | tasks.md T7의 grep | T0 완료 |
 
 - 리뷰: 각 구현 batch 뒤 독립 리뷰 worker가 `/code-review`(B1·B2 Opus high, B3 Opus medium, 보고만).
@@ -73,3 +73,8 @@
 - 사용자 결정(2026-11-08): Release Notes를 열지 못하면 표시 없이 두고 BACKLOG에 기록한다.
 - B3 수정 1회차 보냄: dispatch `ctx_a1f2498d6c56`.
 - B3 수정 1회차 완료: `87763c42`..`97dd47b4`(커밋 5개, 초안 타일 수정 `2658e098` 포함). worker 보고 `verify.mjs` PASS, 분류하지 않은 차이 0. 🔴은 처음부터 0이라 재리뷰 없이 통합한다.
+- B3 통합: 커밋 14개 cherry-pick, HEAD `c40243fd`, push. B3 worker를 release하고 worktree `app-update-b3`를 지웠다. 브랜치 `SinhyeokKang/app-update-b3`(`97dd47b4`)는 남아 있다. handoff·리뷰·design-sync 측정 사본은 `.scratch/orch/`에 있다.
+- B4 시작: dispatch `ctx_79600ee468de`, worktree `app-update-b4`(base `c40243fd`), Sonnet medium.
+- 통합 HEAD `c40243fd`에서 `verify.mjs` PASS(앱 테스트 9708개, 로그 `.scratch/orch/verify-B3.log`).
+- B4 완료(worker_done, 보고만): probe 1–4 통과(로컬 패키지·개발 실행은 업데이트 요청 없음, 메뉴가 About을 엶, 자동 확인 설정이 재실행 뒤에도 유지). real-state 전후 같음. 데스크톱이 잠겨 native 입력은 확인하지 못했고, 자동 확인 행은 probe 전용 자격 patch로 보였다. 증거 사본 `.scratch/orch/runtime-test/app-update/`. B4 worker를 release하고 worktree를 지웠다.
+- T7: PRODUCT §3·§5 항목 0, ARCHITECTURE §7 'App updates'·§9, BACKLOG, DIRECTORY에 승격했다. DESIGN은 B3가 기록했다. 이 디렉터리를 지운다.
