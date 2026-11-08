@@ -23,7 +23,7 @@ Runner commands (ARCHITECTURE §14): full round `node eval/run.ts --round <name>
 
 ## Model boundary
 
-This skill runs Claude Code and Codex for real in every round and has the other family's model judge each run. That crossing is permanently allowed for this skill only (AGENTS.md 'Runtime differences'); record the agents and versions used in every round.
+A full round runs Claude Code and Codex for real and has the other family's model judge each run (`--agents` narrows a round to one agent; `--no-judge` skips judging). That crossing is permanently allowed for this skill only (AGENTS.md 'Runtime differences'); record the agents and versions used in every round.
 
 ## Requirements
 
