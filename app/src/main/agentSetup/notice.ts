@@ -93,7 +93,7 @@ export function aboutNotice(items: SetupItem[], home: string): AboutNotice | nul
   if (items.length === 0) return null;
   const tilde = (path: string) => path === home ? "~" : path.startsWith(`${home}/`) ? `~${path.slice(home.length)}` : path;
   const copy = items.find(item => item.reason === "not-eligible");
-  if (copy) return { tone: "neutral", title: "This copy doesn’t set up agents", lines: [{ agents: null, parts: [{ text: NOT_ELIGIBLE[copy.eligibility] }] }] };
+  if (copy) return { tone: "neutral", title: "This copy doesn’t set up agents or update", lines: [{ agents: null, parts: [{ text: NOT_ELIGIBLE[copy.eligibility] }] }] };
   const sorted = items.filter((item): item is Skipped => item.reason !== "not-eligible").sort((a, b) => ORDER.indexOf(a.target) - ORDER.indexOf(b.target));
   return { tone: "warning", title: "Doan couldn’t set up every agent", lines: sorted.map(item => ({ agents: agents(item.providers), ...parts(item, tilde) })) };
 }

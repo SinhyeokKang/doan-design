@@ -57,7 +57,7 @@ const { SettingsNotifications } = await import("./SettingsNotifications");
 import type { PreferencesSnapshot } from "../main/preferences";
 
 const snapshot = (notifications: Partial<PreferencesSnapshot["preferences"]["notifications"]> = {}, notice: PreferencesSnapshot["notice"] = null): PreferencesSnapshot =>
-  ({ preferences: { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true, ...notifications }, newConversation: null }, notice });
+  ({ preferences: { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true, ...notifications }, newConversation: null, updates: { autoCheck: true } }, notice });
 let doan: Record<string, ReturnType<typeof vi.fn>>;
 let props: Parameters<typeof SettingsNotifications>[0];
 beforeEach(() => {

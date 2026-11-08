@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { menuState } from "./menuState";
+import { menuState, updateMenu } from "./menuState";
 
 describe("menuState", () => {
   test("home: add project only; no Home, no canvas items", () => {
@@ -115,4 +115,21 @@ test("Hide/Show Sidebar is off behind a modal and in first run, and on under a p
     expect(menuState(screen, false, { wizardOpen: true }).toggleSidebar, screen).toBe(false);
     expect(menuState(screen, true, { wizardOpen: false, locked: true }).toggleSidebar, screen).toBe(false);
   }
+});
+
+// Doan > Check for Updates… / Restart to Update: its label and action come from the update view, and it is enabled
+// like Settings…, since both open a page of the main window.
+describe("the update item", () => {
+  const CHECK = { label: "Check for Updates…", action: "check", enabled: true } as const;
+  const RESTARTING = { label: "Restart to Update", action: "restart", enabled: false } as const;
+  test("follows the update view where Settings… is enabled", () => {
+    expect(updateMenu(CHECK, menuState("home", false))).toEqual(CHECK);
+    expect(updateMenu({ ...CHECK, action: "openAbout" }, menuState("canvas", false))).toEqual({ ...CHECK, action: "openAbout" });
+    expect(updateMenu(RESTARTING, menuState("home", false))).toEqual(RESTARTING);
+  });
+  test("is disabled during first run, behind a modal and on a locked page", () => {
+    for (const enabled of [menuState("home", false, { wizardOpen: true }), menuState("home", true), menuState("settings", false, { wizardOpen: false, locked: true })]) {
+      expect(updateMenu(CHECK, enabled)).toEqual({ ...CHECK, enabled: false });
+    }
+  });
 });

@@ -54,7 +54,7 @@ export function SettingsPage({ header, sidebar, section, arrival, onState, agent
           {section === "agents" && <SettingsAgents key="agents" {...agents} arrival={provider} onLock={onLock} />}
           {section === "mcp" && mcp && <SettingsMcpConnectors key="mcp" watch={mcp.watch} openAgents={mcp.openAgents} signIn={agents.signIn} onLock={onLock} actions={actions} />}
           {section === "notifications" && <SettingsNotifications key="notifications" preferences={agents.preferences} save={agents.save} />}
-          {section === "about" && <SettingsAbout key="about" actions={actions} />}
+          {section === "about" && <SettingsAbout key="about" actions={actions} preferences={agents.preferences} save={agents.save} />}
         </div>
         {announcement !== undefined && <p className="ob-live" role="status">{announcement}</p>}
       </div>

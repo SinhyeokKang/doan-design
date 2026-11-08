@@ -1,3 +1,5 @@
+import type { UpdateMenuView } from "./update/view";
+
 export type Screen = "home" | "workspace" | "canvas" | "addProjects" | "settings";
 
 export interface MenuEnabled {
@@ -34,4 +36,10 @@ export function menuState(screen: Screen, modalOpen: boolean, context: { wizardO
   return { settings, toggleSidebar, addProject: screen !== "addProjects" || context.choose === true, home: screen !== "home", canvasView: screen === "canvas", quickOpen: true,
     newConversation: screen === "canvas" || (screen === "workspace" && context.overview === true),
     pickFromCanvas: screen === "canvas" && context.pickerAvailable === true };
+}
+
+// Doan > Check for Updates… / Restart to Update. Its label and action are the update view's; like Settings… it opens
+// a page of the main window (About, or the header popover), so it is off wherever Settings… is.
+export function updateMenu(view: UpdateMenuView, enabled: MenuEnabled): UpdateMenuView {
+  return { ...view, enabled: view.enabled && enabled.settings };
 }

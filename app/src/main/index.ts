@@ -20,7 +20,7 @@ import { readUsage } from "./agentAuth/usageRead";
 import { UsageService, withTurnUsage } from "./agentAuth/usageService";
 import { USAGE_CHANNELS, usageRequest } from "./agentAuth/usageIpc";
 import { probeShell, runProcess } from "./onboarding/machine";
-import { osascriptAdmin, runAgentSetup } from "./agentSetup/runner";
+import { osascriptAdmin, runAgentSetup, setupEligibility } from "./agentSetup/runner";
 import type { SetupItem } from "./agentSetup/notice";
 import { ONBOARDING_CHANNELS, OnboardingService, rendererRequest } from "./onboarding/service";
 import { projectLocks, type AdderProjects } from "./onboarding/projectAdder";
@@ -64,7 +64,11 @@ import { folderState } from "./folderState";
 import type { InspectResult } from "./inspect";
 import { createInspector, parseInspectRequest, type Inspector } from "./inspector";
 import { startRuntime, type Runtime } from "./runtime";
-import { menuState, type Screen } from "./menuState";
+import { menuState, updateMenu, type Screen } from "./menuState";
+import { electronUpdater, hasFeedConfig, releaseNotesUrl, UpdateService } from "./update/service";
+import { updateEligibility } from "./update/eligibility";
+import { installGate } from "./update/gate";
+import { updateView, type UpdateMenuView } from "./update/view";
 import { senderAllowed, type WindowKind } from "./senderAllowed";
 import { INSTALL_URLS, NOTIFICATION_SETTINGS_URL, parseExternalTarget, type SettingsPageTarget } from "./settings";
 import { createInstallOpener } from "./installCommand";
@@ -193,6 +197,9 @@ app.on("did-become-active", () => {
   if (revealPending && win && !win.isDestroyed()) bringForward(win);
 });
 let conversations: ConversationService | undefined;
+let updates: UpdateService | undefined;
+// The menu item's view as last built, so a snapshot that leaves it alone does not rebuild the menu.
+let updateMenuKey = "";
 let agentAuth: AuthManager | undefined;
 let authIpc: AuthIpc | undefined;
 let usage: UsageService | undefined;
@@ -330,15 +337,23 @@ function editHistory(kind: "undo" | "redo"): NonNullable<MenuItemConstructorOpti
 // Page zoom and reload roles would act on the whole window; the view commands
 // go to the renderer, which zooms the board and reloads only the canvas.
 // The menu is rebuilt whenever its enablement changes.
+function menuEnabledNow() {
+  return menuState(menuInputs.screen, menuInputs.modal, { wizardOpen: onboardingOpen, choose: menuInputs.choose === true, locked: menuInputs.locked === true, overview: menuInputs.overview === true, pickerAvailable: menuInputs.pickerAvailable === true });
+}
+
 function setMenu(): void {
   const view = (command: ViewCommand) => () => send("view-command", command);
   const command = (name: MenuCommand) => () => send("menu-command", name);
-  const enabled = menuState(menuInputs.screen, menuInputs.modal, { wizardOpen: onboardingOpen, choose: menuInputs.choose === true, locked: menuInputs.locked === true, overview: menuInputs.overview === true, pickerAvailable: menuInputs.pickerAvailable === true });
+  const enabled = menuEnabledNow();
+  // Before the service exists the item can only open About.
+  const updateItem = updateMenu(updates ? updateView(updates.snapshot(), Date.now()).menu : { label: "Check for Updates…", action: "openAbout", enabled: true }, enabled);
+  updateMenuKey = JSON.stringify(updateItem);
   Menu.setApplicationMenu(
     Menu.buildFromTemplate([
       // Role labels would read "About doan" from app.name, which stays "doan" for userData.
       { label: "Doan", submenu: [
         { role: "about", label: "About Doan" },
+        { label: updateItem.label, enabled: updateItem.enabled, click: () => updateMenuClick(updateItem.action) },
         { label: "Settings…", accelerator: "CmdOrCtrl+,", enabled: enabled.settings, click: () => openSettingsPage() },
         { type: "separator" }, { role: "services" }, { type: "separator" },
         { role: "hide", label: "Hide Doan" }, { role: "hideOthers" }, { role: "unhide" },
@@ -393,6 +408,19 @@ function setMenu(): void {
       { role: "windowMenu" },
     ]),
   );
+}
+
+// Check for Updates… opens About (and checks, where the copy updates). A blocked Restart to Update does not quit: the
+// window comes forward and the renderer opens the header button's popover with the reason.
+function updateMenuClick(action: UpdateMenuView["action"]): void {
+  if (action !== "restart") {
+    openSettingsPage({ section: "about" });
+    if (action === "check") updates?.check();
+    return;
+  }
+  if (updates?.install()?.kind !== "blocked" || !win || win.isDestroyed()) return;
+  bringForward(win);
+  send("update:popover");
 }
 
 // What Home shortens project paths against; Settings rows get the result.
@@ -935,7 +963,9 @@ async function start(): Promise<void> {
     reencode: bytes => { const image = nativeImage.createFromBuffer(Buffer.from(bytes)); return image.isEmpty() ? null : new Uint8Array(image.toPNG()); },
   });
   let modelCatalog: ModelCatalog | undefined;
-  const conversationService = new ConversationService(conversationStore, prepareConversation, openRunner, event => { send("conversation:event", event); notify.event(event); }, (root, canvas) => {
+  // Every conversation event, and every end of a turn's work (a history that stopped taking writes publishes no event),
+  // may start or end a turn or a question, which Restart to Update waits for.
+  const conversationService = new ConversationService(conversationStore, prepareConversation, openRunner, event => { send("conversation:event", event); notify.event(event); updates?.conversationsChanged(); }, (root, canvas) => {
     const project = ready.entries().find(entry => entry.path === root);
     if (!project) throw new Error("project_not_open");
     if (canvas) {
@@ -947,7 +977,7 @@ async function start(): Promise<void> {
     return project?.kind === "list" ? project.canvases : [];
   }, root => send("conversation:listChanged", { root }), { drafts: conversationDrafts, files: queueFiles(attachments), defaultEffort: (root, provider, model) => modelCatalog?.defaultEffort(root, provider, model), fast: (root, provider, model) => modelCatalog?.fast(root, provider, model) === true }, id => notify.close(id),
   // A stage is a live signal beside the events, never one of them: its own channel, to the main window only as events go.
-  id => updateConversationWork(endConversationWork(conversationWork, id)), notice => send("conversation:handoff", notice), signal => send("conversation:stage", signal));
+  id => { updateConversationWork(endConversationWork(conversationWork, id)); updates?.conversationsChanged(); }, notice => send("conversation:handoff", notice), signal => send("conversation:stage", signal));
   conversations = conversationService;
   attachments.cleanup();
   modelCatalog = new ModelCatalog((root, runtime) => conversationService.prepareListing(root, runtime), input => conversationService.readListing(input, listModels));
@@ -1086,7 +1116,12 @@ async function start(): Promise<void> {
   // The Settings page's preferences, notifications and About. Main fixes the URL, the notification
   // and the clipboard text; the renderer sends a change or nothing.
   handle("preferences:read", null, () => preferences.read());
-  handle("preferences:write", null, (_event, value: unknown) => preferences.update(value));
+  handle("preferences:write", null, async (_event, value: unknown) => {
+    const reply = await preferences.update(value);
+    // The choice in effect, which a refused or failed write leaves as it was.
+    updates?.setAutoCheck(reply.snapshot.preferences.updates.autoCheck);
+    return reply;
+  });
   handle("notifications:test", null, (_event, value: unknown) => value === undefined ? notify.test() : null);
   handle("notifications:open-settings", false, async (_event, value: unknown) => {
     if (value !== undefined) return false;
@@ -1159,8 +1194,38 @@ async function start(): Promise<void> {
     return lastAbout;
   };
   handle("about:read", null, (_event, value: unknown) => value === undefined ? readAbout() : null);
+  // App updates (ARCHITECTURE §7). Eligibility is agent setup's for this bundle, asked without waiting for setup's
+  // login-shell probe, plus the release feed file; a copy that doesn't update never makes an updater.
+  const updateService = new UpdateService({
+    version: app.getVersion(),
+    eligibility: updateEligibility({
+      isPackaged: app.isPackaged, hasFeedConfig: hasFeedConfig(process.resourcesPath),
+      install: setupEligibility({ home: homeDirectory(), resources: process.resourcesPath, isPackaged: app.isPackaged }),
+    }),
+    autoCheck: preferences.current().updates.autoCheck,
+    ...electronUpdater(),
+    gate: () => installGate(conversationService.restartHolds()),
+    publish: snapshot => {
+      send("update:state", snapshot);
+      if (JSON.stringify(updateMenu(updateView(snapshot, Date.now()).menu, menuEnabledNow())) !== updateMenuKey) setMenu();
+    },
+    quit: () => app.quit(),
+    relaunch: () => app.relaunch(),
+    log: (message, detail) => { if (detail === undefined) console.log(message); else console.error(message, detail); },
+    now: () => Date.now(),
+  });
+  updates = updateService;
+  handle("update:get", null, (_event, value: unknown) => value === undefined ? updateService.snapshot() : null);
+  handle("update:check", undefined, (_event, value: unknown) => { if (value === undefined) updateService.check(); });
+  handle("update:install", null, (_event, value: unknown) => value === undefined ? updateService.install() : null);
+  // Main builds the URL from the version it holds; the renderer names nothing.
+  handle("update:openNotes", false, async (_event, value: unknown) => {
+    const url = value === undefined ? releaseNotesUrl(updateService.snapshot()) : null;
+    if (url === null) return false;
+    try { await electronShell.openExternal(url); return true; } catch { return false; }
+  });
   // Copies what About last showed, so the text matches the page.
-  handle("about:copy", { kind: "stale" }, async (_event, value: unknown) => value === undefined ? copy(aboutText(lastAbout ?? await readAbout())) : { kind: "stale" });
+  handle("about:copy", { kind: "stale" }, async (_event, value: unknown) => value === undefined ? copy(aboutText(lastAbout ?? await readAbout(), updateService.snapshot())) : { kind: "stale" });
   handle("onboarding:choose-folder", null, (event, value: unknown) => fromWindow(event) ? chooseFolder(value) : null);
 
   const bridge = createConfigBridge({
@@ -1196,6 +1261,7 @@ async function start(): Promise<void> {
   setMenu();
   win = createWindow();
   onboardingReady(onboardingService);
+  updateService.start();
 }
 
 // A second launch only brings the first window back, so two apps never
@@ -1232,6 +1298,7 @@ app.on("before-quit", (event) => {
     // the capture window and block will-quit. Persist state before teardown.
     try { await conversations?.quit(); } catch (error) {
       quitScheduled = false;
+      updates?.quitCancelled();
       onboarding?.reopenAfterAbortedQuit();
       addPage?.reopenAfterAbortedQuit();
       console.error("doan: conversation persistence failed during quit", error);
@@ -1258,7 +1325,10 @@ app.on("before-quit", (event) => {
     try { cancelPendingHide(); uiState?.flushSync(); canvasSeen?.flushSync(); thumbnails?.dispose(); } catch (error) {
       console.error("doan: final cleanup failed during quit", error);
     }
-    app.quit();
+    // Restart to Update installs only here, after the save and the flush; quitting is set, so the windows the install
+    // closes are not turned into hides.
+    if (updates?.installPending) updates.quitAndInstall();
+    else app.quit();
   }
   setImmediate(() => { void quitInOrder(); });
 });

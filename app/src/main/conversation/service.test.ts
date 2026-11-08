@@ -2524,6 +2524,43 @@ describe("conversation work", () => {
     expect(second).toMatchObject({ root: "/repo", running: true });
     expect(second?.turnId).not.toBe(first?.turnId);
   });
+  // Restart to Update asks on every conversation event, so this reads memory only.
+  it("restartHolds counts running turns and the answers they wait for, from acceptance to the end", async () => {
+    const h = fixture();
+    expect(h.service.restartHolds()).toEqual({ liveTurns: 0, pendingAnswers: 0 });
+    const id = (await h.service.start(request)).conversationId;
+    expect(h.service.restartHolds()).toEqual({ liveTurns: 1, pendingAnswers: 0 });
+    h.service.receive(id, { type: "permission.request", requestId: "r1", tool: "Bash", summary: "ls", options: [{ id: "allow", label: "Allow", kind: "allow" }] });
+    expect(h.service.restartHolds()).toEqual({ liveTurns: 1, pendingAnswers: 1 });
+    h.service.receive(id, { type: "permission.resolved", requestId: "r1", optionId: "allow" });
+    expect(h.service.restartHolds()).toEqual({ liveTurns: 1, pendingAnswers: 0 });
+    h.service.receive(id, { type: "turn.done" });
+    expect(h.service.restartHolds()).toEqual({ liveTurns: 0, pendingAnswers: 0 });
+    const read = vi.spyOn(h.store, "list");
+    h.service.restartHolds();
+    expect(read).not.toHaveBeenCalled();
+  });
+  // A turn that ends without its terminal event keeps its unanswered requests in memory; they must not hold the
+  // restart back for the rest of the session.
+  it.each<[string, (h: ReturnType<typeof fixture>, id: string) => Promise<unknown> | unknown]>([
+    ["an archive by a replacing start", async h => {
+      h.prepare.mockResolvedValueOnce({ ...prepared(), sessionId: "replacement" });
+      await h.service.start(request);
+    }],
+    ["a history that stopped taking writes", (h, id) => {
+      vi.spyOn(h.store, "append").mockImplementationOnce(() => { throw new Error("File exceeds limit"); });
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      h.service.receive(id, { type: "activity", kind: "read", title: "Read" } as never);
+    }],
+  ])("restartHolds no longer counts the answers of a turn ended by %s", async (_label, end) => {
+    const h = fixture();
+    const id = (await h.service.start(request)).conversationId;
+    h.service.receive(id, { type: "permission.request", requestId: "r1", tool: "Bash", summary: "ls", options: [{ id: "allow", label: "Allow", kind: "allow" }] });
+    expect(h.service.restartHolds().pendingAnswers).toBe(1);
+    await end(h, id);
+    expect(h.service.restartHolds()).toMatchObject({ pendingAnswers: 0 });
+    expect(h.service.liveTurns().get(id)?.running ?? false).toBe(false);
+  });
   it.each<[string, (h: ReturnType<typeof fixture>, id: string) => Promise<unknown> | unknown]>([
     ["turn.done", (h, id) => h.service.receive(id, { type: "turn.done" })],
     ["turn.failed", (h, id) => h.service.receive(id, { type: "turn.failed", code: "unknown" })],

@@ -89,7 +89,7 @@ describe("aboutNotice", () => {
     ["translocated", "macOS is running it from a temporary location. Move Doan to the Applications folder, then open it again."],
   ] as const)("says this %s copy sets up nothing, without an icon tone", (eligibility, sentence) => {
     const notice = aboutNotice([{ target: "copy", path: "/tmp/Doan.app", providers: [...ALL], reason: "not-eligible", eligibility }], HOME);
-    expect(notice).toMatchObject({ tone: "neutral", title: "This copy doesn’t set up agents" });
+    expect(notice).toMatchObject({ tone: "neutral", title: "This copy doesn’t set up agents or update" });
     expect(lines(notice)).toEqual([sentence]);
   });
 });

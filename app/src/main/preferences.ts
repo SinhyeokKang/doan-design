@@ -11,15 +11,17 @@ export interface NotificationPreferences { enabled: boolean; approval: boolean; 
 // null is Last used: Home starts from the conversation sent last, as before this file existed.
 // permissionMode: Default is stored as no key.
 export interface NewConversationPreference { provider: Provider; model?: string; effort?: string; permissionMode?: Exclude<PermissionModeId, "default"> }
-export interface Preferences { v: 1; notifications: NotificationPreferences; newConversation: NewConversationPreference | null }
+// autoCheck off stops only the automatic update checks; a manual check and the install at quit still run.
+export interface UpdatePreferences { autoCheck: boolean }
+export interface Preferences { v: 1; notifications: NotificationPreferences; newConversation: NewConversationPreference | null; updates: UpdatePreferences }
 // broken: unreadable, so defaults apply until a change moves it aside. newer: a later Doan wrote it; never touched.
 export type PreferencesNotice = "broken" | "newer" | null;
 export interface PreferencesSnapshot { preferences: Preferences; notice: PreferencesNotice }
-export interface PreferencesPatch { notifications?: Partial<NotificationPreferences>; newConversation?: NewConversationPreference | null }
+export interface PreferencesPatch { notifications?: Partial<NotificationPreferences>; newConversation?: NewConversationPreference | null; updates?: UpdatePreferences }
 // The snapshot is what applies after the reply: on a refusal or failure, the last saved choices.
 export type PreferencesWriteReply = { ok: true; snapshot: PreferencesSnapshot } | { ok: false; reason: "invalid" | "newer" | "write_failed"; snapshot: PreferencesSnapshot };
 
-export const DEFAULT_PREFERENCES: Preferences = { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: null };
+export const DEFAULT_PREFERENCES: Preferences = { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: null, updates: { autoCheck: true } };
 
 const SWITCHES = ["enabled", "approval", "finished", "failed"] as const;
 // Model and effort ids come from a provider's model list; the bound only keeps a hostile file small.
@@ -40,6 +42,15 @@ function notifications(value: unknown, base: NotificationPreferences, partial: b
     read[key] = set;
   }
   return read;
+}
+
+// `exact` takes only `{ autoCheck: boolean }`, as a renderer request must; read from the file, unknown fields are
+// ignored and a missing switch is on.
+function updates(value: unknown, exact: boolean): UpdatePreferences | null {
+  if (!record(value)) return null;
+  if (exact && (Object.keys(value).length !== 1 || typeof value.autoCheck !== "boolean")) return null;
+  if (value.autoCheck !== undefined && typeof value.autoCheck !== "boolean") return null;
+  return { autoCheck: value.autoCheck ?? DEFAULT_PREFERENCES.updates.autoCheck };
 }
 
 const CHOICE_KEYS = ["provider", "model", "effort", "permissionMode"];
@@ -68,14 +79,15 @@ export function parsePreferences(text: string | null): PreferencesSnapshot {
   if (value.v > 1) return { preferences: DEFAULT_PREFERENCES, notice: "newer" };
   const switches = value.notifications === undefined ? DEFAULT_PREFERENCES.notifications : notifications(value.notifications, DEFAULT_PREFERENCES.notifications, false);
   const choice = value.newConversation === undefined ? null : newConversation(value.newConversation, false);
-  if (switches === null || choice === undefined) return broken;
-  return { preferences: { v: 1, notifications: switches as NotificationPreferences, newConversation: choice }, notice: null };
+  const update = value.updates === undefined ? DEFAULT_PREFERENCES.updates : updates(value.updates, false);
+  if (switches === null || choice === undefined || update === null) return broken;
+  return { preferences: { v: 1, notifications: switches as NotificationPreferences, newConversation: choice, updates: update }, notice: null };
 }
 
 export function parsePreferencesPatch(value: unknown): PreferencesPatch | null {
   if (!record(value)) return null;
   const keys = Object.keys(value);
-  if (keys.length === 0 || keys.some(key => key !== "notifications" && key !== "newConversation")) return null;
+  if (keys.length === 0 || keys.some(key => key !== "notifications" && key !== "newConversation" && key !== "updates")) return null;
   const patch: PreferencesPatch = {};
   if ("notifications" in value) {
     const switches = notifications(value.notifications, DEFAULT_PREFERENCES.notifications, true);
@@ -87,6 +99,11 @@ export function parsePreferencesPatch(value: unknown): PreferencesPatch | null {
     if (choice === undefined) return null;
     patch.newConversation = choice;
   }
+  if ("updates" in value) {
+    const update = updates(value.updates, true);
+    if (update === null) return null;
+    patch.updates = update;
+  }
   return patch;
 }
 
@@ -95,6 +112,7 @@ export function mergePreferences(current: Preferences, patch: PreferencesPatch):
     v: 1,
     notifications: { ...current.notifications, ...patch.notifications },
     newConversation: patch.newConversation === undefined ? current.newConversation : patch.newConversation,
+    updates: patch.updates ?? current.updates,
   };
 }
 

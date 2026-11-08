@@ -65,6 +65,7 @@ import { SIDEBAR_BOUNDS, sidebarToggleView, sidebarWidth, type SidebarToggleView
 import { duplicateIdText } from "./canvasView";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./components/ui/tooltip";
 import { AgentUsageButton } from "./AgentUsageButton";
+import { UpdateHeaderButton } from "./UpdateHeaderButton";
 import type { CanvasPress } from "./ComposerParts";
 import { Wizard } from "./Onboarding";
 import { isMainCheckout } from "./projectStep";
@@ -2041,7 +2042,7 @@ export function App() {
   // The Project Settings page sits under the Projects tab (page null) but leaves like the other pages.
   const anyPage = onPage || onSettings || onProjectSettings;
   const sidebarToggle = sidebarToggleView(sidebarHidden, shellSlots);
-  const topBar = (overPage: boolean) => <TopBar sidebar={{ view: sidebarToggle, controls: sidebarHidden ? undefined : sidebarId(overPage), toggle: toggleSidebar }} back={anyPage || back !== null} forward={!anyPage && forward !== null} page={onPage ? "addProjects" : onSettings ? "settings" : null} locked={pageLocked}
+  const topBar = (overPage: boolean) => <TopBar sidebar={{ view: sidebarToggle, controls: sidebarHidden ? undefined : sidebarId(overPage), toggle: toggleSidebar }} back={anyPage || back !== null} forward={!anyPage && forward !== null} page={onPage ? "addProjects" : onSettings ? "settings" : null} locked={pageLocked} updateDisabled={pageLocked || modal || wizard !== null}
     previous={() => anyPage ? leavePage({ kind: "back" }) : travel(back)} next={() => travel(forward)}
     addProjects={openAddProjects} projects={() => { const move = projectsTab(currentScreen.current); if (move === "leavePage") leavePage({ kind: "projectsTab" }); else if (move === "home") home(); }} settings={() => { if (!locked()) openSettings({}); }}
     usage={{ openSettings: () => { if (locked()) return false; openSettings({ section: "agents" }); return true; }, canvasPress: controller.current?.canvasPress }} />;
@@ -2153,7 +2154,8 @@ function topDialog(): HTMLDialogElement | null {
 
 // Add Projects, Projects and Settings are page tabs; on a page Back returns to where it was opened from. `locked` marks
 // the tabs and Back unavailable while App ignores them.
-function TopBar({ sidebar, back, forward, previous, next, page, locked, addProjects, projects, settings, usage }: { sidebar: { view: SidebarToggleView; controls: string | undefined; toggle(): void }; back: boolean; forward: boolean; previous(): void; next(): void; page: "addProjects" | "settings" | null; locked: boolean; addProjects(): void; projects(): void; settings(): void; usage: { openSettings(): boolean; canvasPress?: CanvasPress | undefined } }) {
+// `updateDisabled` is the Settings menu item's rule (a locked page, a modal, first run), which the update button follows.
+function TopBar({ sidebar, back, forward, previous, next, page, locked, updateDisabled, addProjects, projects, settings, usage }: { sidebar: { view: SidebarToggleView; controls: string | undefined; toggle(): void }; back: boolean; forward: boolean; previous(): void; next(): void; page: "addProjects" | "settings" | null; locked: boolean; updateDisabled: boolean; addProjects(): void; projects(): void; settings(): void; usage: { openSettings(): boolean; canvasPress?: CanvasPress | undefined } }) {
   const unavailable = locked || undefined;
   const tab = (name: typeof page) => name === page ? { className: "current", "aria-current": "page" as const } : {};
   return <header className="top shell-top"><span className="traffic-space" aria-hidden="true" />
@@ -2164,8 +2166,9 @@ function TopBar({ sidebar, back, forward, previous, next, page, locked, addProje
         <TooltipContent className="has-key">{sidebar.view.icon === "hide" ? "Hide sidebar" : "Show sidebar"}<span className="doan-kbd" data-ui-variant="on-prominent" data-ui-size="sm">⌘B</span></TooltipContent></Tooltip>
       <button className="doan-icon-button" data-ui-placement="chrome" aria-label="Back" disabled={!back} aria-disabled={unavailable} onClick={previous}><ArrowLeft /></button><button className="doan-icon-button" data-ui-placement="chrome" aria-label="Forward" disabled={!forward} onClick={next}><ArrowRight /></button></div>
     <div className="shell-modes"><button {...tab("addProjects")} aria-disabled={unavailable} onClick={addProjects}><Plus />Add Projects</button><button {...tab(null)} aria-disabled={unavailable} onClick={projects}><LayoutGrid />Projects</button><button {...tab("settings")} aria-disabled={unavailable} onClick={settings}><Settings />Settings</button></div>
-    {/* The header's right end, beside the tabs (docs/DESIGN.md 'Agent usage'). */}
+    {/* Beside the tabs (docs/DESIGN.md 'Agent usage'), then the update button at the right end. */}
     <AgentUsageButton openSettings={usage.openSettings} canvasPress={usage.canvasPress} />
+    <UpdateHeaderButton disabled={updateDisabled} canvasPress={usage.canvasPress} />
   </header>;
 }
 

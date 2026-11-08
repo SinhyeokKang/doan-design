@@ -73,7 +73,7 @@ const { ShellSidebar } = await import("./ShellSidebar");
 const { ProjectSetupDialog } = await import("./ProjectSetupDialog");
 
 const A = ".doan/canvases/a.html", B = ".doan/canvases/b.html";
-const PREFS: PreferencesSnapshot = { preferences: { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: { provider: "codex" } }, notice: null };
+const PREFS: PreferencesSnapshot = { preferences: { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: { provider: "codex" }, updates: { autoCheck: true } }, notice: null };
 let listeners: Record<string, (...args: never[]) => void>;
 let readUiState: (state: unknown) => void;
 let getWork: (items: WorkItem[]) => void;

@@ -1527,6 +1527,28 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .usage-note[data-kind="error"] { color: var(--text-danger); }
 .usage-note[data-kind="warn"] { color: var(--text-warning); }
 
+/* App updates (PRODUCT §5 item 0 'About'), from the confirmed draft .doan/canvases/app-update.html. About's Version row
+   is the update row: the download bar is .usage-bar under its description, and its actions sit side by side on the
+   right. The blocked reason is the shared notice with a title over its body. */
+.update-bar { margin-top: var(--space-1h); }
+.update-msg-actions { display: flex; flex: none; gap: var(--space-2); }
+.update-reason-body { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+/* The header's right end, 8 after Agent usage. Without an update the anchor stays, undisplayed, for Agent usage's
+   fold to watch. */
+.shell-top .update-anchor { position: relative; display: flex; flex: none; margin-left: var(--space-2); }
+.shell-top .update-anchor:empty { display: none; }
+/* Grey: the header tab capsule's fill, which reads on the translucent chrome where subtle's opaque grey would not;
+   hover, press and an open popover step up to the pressed backdrop, as Search does. The leading icon sits 12 from the
+   start edge instead of sm's 16 (there is no 10px spacing token). Disabled keeps the fill and takes the disabled ink,
+   as the tabs do while a page is locked. The selectors outweigh the shared subtle rules. */
+.shell-top .update-anchor .update-indicator[data-ui-variant="subtle"] { padding-inline-start: var(--space-3); background: var(--affordance-backdrop-hover); }
+@media (hover: hover) and (pointer: fine) { .shell-top .update-anchor .update-indicator[data-ui-variant="subtle"]:hover:not(:disabled) { background: var(--affordance-backdrop-pressed); } }
+.shell-top .update-anchor .update-indicator[data-ui-variant="subtle"]:is(:active, [aria-haspopup][aria-expanded="true"]):not(:disabled) { background: var(--affordance-backdrop-pressed); }
+.shell-top .update-anchor .update-indicator[data-ui-variant="subtle"]:disabled { color: var(--text-disabled); cursor: default; }
+.update-pop { display: grid; gap: var(--space-1); -webkit-app-region: no-drag; }
+.update-pop-title { font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); font-weight: var(--type-weight-medium); }
+.update-pop-text { color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
+
 .skill-word { padding: 0 var(--space-1h); border-radius: 6px; background: var(--surface-accent-subtle); color: var(--text-accent-subtle); font-weight: var(--type-weight-medium); -webkit-box-decoration-break: clone; box-decoration-break: clone; }
 .bubble .skill-word { background: var(--surface-panel); }
 

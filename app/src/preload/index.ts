@@ -33,6 +33,7 @@ import type { Preferences, PreferencesPatch, PreferencesSnapshot, PreferencesWri
 import type { NotificationTarget } from "../main/notifications";
 import type { TestNotificationReply } from "../main/notifyService";
 import type { AboutRead } from "../main/about";
+import type { InstallGate, UpdateSnapshot } from "../main/update/types";
 import type { InspectResult } from "../main/inspect";
 import type { FolderEntry } from "../main/view";
 import type { TrashPlanReply, TrashReply } from "../main/canvasTrash";
@@ -43,6 +44,7 @@ import type { AddPageResponse, AddPageState } from "../main/addPage";
 
 export type { AddPageResponse, AddPageState, WorkItem, OpenLinkResult, TrashPlanReply, TrashReply, ExportReply };
 export type { McpAddReply, McpReply, McpSnapshot };
+export type { InstallGate, UpdateSnapshot };
 export type {
   AboutRead, ConfigChoice, ConfigKind, ConfigReply, NotificationTarget, Preferences, PreferencesPatch, PreferencesSnapshot, PreferencesWriteReply,
   SettingsPageTarget, SettingsSection, TestNotificationReply,
@@ -427,6 +429,31 @@ const api = {
   readAbout: (): Promise<AboutRead | null> => ipcRenderer.invoke("about:read"),
   // Main writes what About last read; resolves after the clipboard write settled.
   copyAbout: (): Promise<CopyResult> => ipcRenderer.invoke("about:copy"),
+  // App updates: Settings > About's update row, the header button and the Doan menu item. Requests carry no data; main
+  // decides from its own state. null: main refused the caller.
+  readUpdate: (): Promise<UpdateSnapshot | null> => ipcRenderer.invoke("update:get"),
+  // Snapshots carry no revision, so the first read is delivered only if no change event came before it.
+  onUpdate(listener: (snapshot: UpdateSnapshot) => void): () => void {
+    let active = true, changed = false;
+    const receive = (_event: Electron.IpcRendererEvent, snapshot: UpdateSnapshot) => { if (!active) return; changed = true; listener(snapshot); };
+    ipcRenderer.on("update:state", receive);
+    // A refused read leaves the listener on change events; it never becomes an unhandled rejection in the page.
+    ipcRenderer.invoke("update:get").then((snapshot: UpdateSnapshot | null) => { if (active && !changed && snapshot !== null) listener(snapshot); }, () => {});
+    return () => { active = false; ipcRenderer.removeListener("update:state", receive); };
+  },
+  // A manual check (Check for Updates, Retry); the result arrives as a snapshot.
+  checkForUpdates: (): Promise<void> => ipcRenderer.invoke("update:check"),
+  // Restart to Update. allowed: the restart has started; blocked: a conversation holds it back, read the reason; null:
+  // nothing to install.
+  installUpdate: (): Promise<InstallGate | null> => ipcRenderer.invoke("update:install"),
+  // The ready version's GitHub release page in the browser; false when there is none or it could not open.
+  openReleaseNotes: (): Promise<boolean> => ipcRenderer.invoke("update:openNotes"),
+  // The menu's Restart to Update was blocked: main has shown the window; open the header button's popover.
+  onUpdatePopover(listener: () => void): () => void {
+    const receive = () => listener();
+    ipcRenderer.on("update:popover", receive);
+    return () => ipcRenderer.removeListener("update:popover", receive);
+  },
   // Project Settings page: start a session when it mounts and end it when it unmounts; replies to calls of an ended
   // session answer unavailable.
   // root: the worktree the page opens; main reads its project group again.

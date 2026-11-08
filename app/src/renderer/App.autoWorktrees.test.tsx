@@ -74,7 +74,7 @@ const { ProblemOverlay } = await import("./ProblemOverlay");
 const { ProjectOverview } = await import("./ProjectOverview");
 const { ProjectSettingsPage } = await import("./ProjectSettingsPage");
 
-const PREFS: PreferencesSnapshot = { preferences: { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: { provider: "codex" } }, notice: null };
+const PREFS: PreferencesSnapshot = { preferences: { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: { provider: "codex" }, updates: { autoCheck: true } }, notice: null };
 let listeners: Record<string, (...args: never[]) => void>;
 let readUiState: (state: unknown) => void;
 let getWork: (items: WorkItem[]) => void;

@@ -6,6 +6,14 @@
 > Historical `app/e2e/` paths refer to the suite retired on 2026-10-27. Current runtime safety helpers live in `app/runtime/`; use focused probes under `.scratch/`, as specified in AGENTS.md.
 > Some entries name app code removed later: the app's comment UI (`useComments.tsx`, `CommentsSession.ts`, `CommentsPanel.tsx`, `CommentPins.ts` and most of `app/src/comments/` and `app/src/main/comments/`, with their tests) on 2026-11-01; the separate Settings window (`settingsWindow.tsx`) and the `Sidebar.tsx` component on 2026-10-30; Settings > Connections (`ConnectionRows.tsx`, `connectionRowView.ts`, `setupBroker.ts`) on 2026-10-31. Their search commands and test pointers apply only to code that still exists; the comment files, the CLI comment commands and `app/src/comments/projection.ts` remain.
 
+### 2026-11-08 — The header's update popover opened by the menu closed at once because a hidden header opened it too
+
+- **Area**: `app/src/renderer/UpdateHeaderButton.tsx` (the `update:popover` listener and the stopped-restart opening); test `UpdateHeaderButton.interaction.test.tsx` "only the shown header opens a popover nobody pressed for".
+- **Symptom**: in the real app, `update:popover` (the Doan menu's blocked Restart to Update) left the header button with `aria-expanded="false"` and no popover; a renderer log showed Radix's `onOpenChange(false)` right after the open, twice.
+- **Root cause**: every screen draws its own header and the hidden ones stay mounted under `[inert]`, so a push-driven open ran in two `UpdateHeaderButton`s. Each Radix popover moved focus into its content, which was outside the other's, and each closed the other. A press never hit this: only the shown header gets the click.
+- **Net**: caught by `/design-sync`'s real-app measurement before integration. Missed by the unit tests, whose hooks harness renders one instance; the Agent usage popover, the pattern copied, only ever opens from a press.
+- **Prevention**: a popover, dialog or focus move that opens from an event rather than a press must act only in the instance outside `[inert]` (`button.closest("[inert]") === null`). Before wiring an IPC event to UI that lives in the header or another per-screen part, search `rg -n 'topBar\(|TopBar ' app/src/renderer/App.tsx` to count the mounted copies.
+
 ### 2026-11-08 — A fake CLI mode meant for one root re-rooted another root its watcher re-read
 
 - **Area**: `app/src/main/shell.test.ts` (`autoCli` in 'auto-registered worktrees', 'an uninitialized worktree is not re-rooted upward').

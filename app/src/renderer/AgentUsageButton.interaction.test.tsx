@@ -72,14 +72,14 @@ function render(): ViewProps | null {
   return view?.props ?? null;
 }
 // The trigger the view would mount, inside a header whose tabs end `modesRight` and whose own right edge is 952.
-function mountButton(view: ViewProps, modesRight = 660) {
+function mountButton(view: ViewProps, modesRight = 660, anchor: unknown = null) {
   const tab = { focus: vi.fn() };
   const declared = new Map<string, string>();
   const style = { setProperty: (name: string, value: string) => { declared.set(name, value); }, removeProperty: (name: string) => { declared.delete(name); }, getPropertyValue: (name: string) => declared.get(name) ?? "" };
   const header = {
     style,
     getBoundingClientRect: () => ({ right: 952 }),
-    querySelector: (selector: string) => selector === ".shell-modes" ? { getBoundingClientRect: () => ({ right: modesRight }) } : selector === '.shell-modes [aria-current="page"]' ? tab : null,
+    querySelector: (selector: string) => selector === ".shell-modes" ? { getBoundingClientRect: () => ({ right: modesRight }) } : selector === '.shell-modes [aria-current="page"]' ? tab : selector === ".update-anchor" ? anchor : null,
   };
   const button = { closest: (selector: string) => selector === "header" ? header : null, isConnected: true, focus: vi.fn() };
   (view.buttonRef as (node: unknown) => void)(button);
@@ -277,6 +277,31 @@ test("folds when the header's free end is too narrow for every ring", () => {
   expect(observed).not.toBeNull();
   (view.buttonRef as (node: unknown) => void)(null);
   expect(observed).toBeNull();
+});
+
+// The update button sits after Agent usage at the header's end (8 from it), so the fold measures up to the button's
+// start, and re-measures when the button appears, changes or goes: the header itself keeps its size then.
+test("the fold leaves room for the header's update button and re-measures when it changes", () => {
+  const targets: unknown[] = [];
+  vi.stubGlobal("ResizeObserver", class { constructor(run: () => void) { observed = run; } observe(target: unknown) { targets.push(target); } disconnect() { observed = null; } });
+  vi.stubGlobal("getComputedStyle", (element: { margin?: string }) => ({ paddingRight: "8px", marginLeft: element.margin ?? "0px" }));
+  render(); deliver([ok("claude"), ok("codex"), ok("cursor"), ok("copilot")]);
+  let view = render()!;
+  // Four rings need 8 + 4·24 + 3·4 + 8 = 124 beside the tabs; the header's end leaves 952 − 8 − 800 = 144. An empty
+  // anchor (no update) takes no room.
+  let shown = false;
+  const anchor = { margin: "8px", getBoundingClientRect: () => shown ? { left: 952 - 8 - 120, right: 952 - 8, width: 120 } : { left: 0, right: 0, width: 0 } };
+  mountButton(view, 800, anchor);
+  expect(targets).toContain(anchor);
+  view = render()!;
+  expect(view.folded).toBe(false);
+  // The button appears, 120 wide: the rings end at 952 − 8 − 120 − 8.
+  shown = true; observed!();
+  view = render()!;
+  expect(view.folded).toBe(true);
+  shown = false; observed!();
+  view = render()!;
+  expect(view.folded).toBe(false);
 });
 
 // (real app, 2026-11-06): a .top:has() rule left the header a drag region for native presses, so the

@@ -17,6 +17,7 @@ export type AboutTone = "neutral" | "ok" | "warning" | "error";
 // `value` and `status` are the right-hand column; `error` (a failed read, on the doan command or a tool row) replaces
 // them with a sentence and a Retry.
 export interface AboutRow { id: string; label: string; description: string | null; value: string | null; status: string | null; tone: AboutTone; error: string | null }
+// The Version row is not here: it shows the update push (update/view.ts), so a failed or slow read leaves it alone.
 export interface AboutView { app: AboutRow[]; tools: AboutRow[] }
 
 const CHECKING = "Checking";
@@ -46,7 +47,7 @@ export function aboutView(read: AboutRead | null): AboutView {
   const row = (id: string, label: string, description: string | null, value: string | null): AboutRow => ({ id, label, description, value, status: null, tone: "neutral", error: null });
   if (read === null) {
     return {
-      app: [row("version", "Version", null, CHECKING), row("cli", "doan command", null, CHECKING)],
+      app: [row("cli", "doan command", null, CHECKING)],
       tools: PROVIDERS.map(provider => row(provider, PROVIDER_NAMES[provider], needs(provider), CHECKING)),
     };
   }
@@ -59,5 +60,5 @@ export function aboutView(read: AboutRead | null): AboutView {
     const value = tool && tool.provider !== "antigravity" && tool.cli === "found" ? tool.installed : null;
     return { ...row(provider, PROVIDER_NAMES[provider], needs(provider), value), ...shown };
   });
-  return { app: [row("version", "Version", null, read.version), cli], tools };
+  return { app: [cli], tools };
 }

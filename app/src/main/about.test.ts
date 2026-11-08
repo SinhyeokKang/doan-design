@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { aboutCli, aboutText, aboutTool, aboutView, type AboutRead } from "./about";
 import type { CliRun } from "./folderState";
+import type { UpdateSnapshot } from "./update/types";
 
 const listed = (version: string): CliRun => ({ exitCode: 0, timedOut: false, stderr: "", stdout: JSON.stringify({ v: 1, ok: true, result: { version, presets: [] } }) });
 const PATH = "/Applications/Doan.app/Contents/Resources/bin/doan";
@@ -17,6 +18,10 @@ const READ: AboutRead = {
     { provider: "copilot", cli: "found", installed: "1.0.110", support: "supported" },
   ],
 };
+
+// Checked at 14:41 UTC on 8 Nov 2026 and up to date.
+const CHECKED = Date.UTC(2026, 10, 8, 14, 41);
+const UPDATE: UpdateSnapshot = { version: "0.1.0", state: { kind: "upToDate", manual: false }, eligibility: { kind: "enabled" }, gate: { kind: "allowed" }, autoCheck: true, lastCheckedAt: CHECKED };
 
 describe("reading", () => {
   test("the CLI version comes from the design-skill list reply; a failed run has no version", () => {
@@ -39,10 +44,10 @@ describe("reading", () => {
 });
 
 describe("aboutView", () => {
-  test("the draft's rows: version, doan command, and each agent tool with the version Doan needs", () => {
+  // The Version row shows the update push (update/view.ts), not this read.
+  test("the draft's rows: doan command, and each agent tool with the version Doan needs", () => {
     const view = aboutView(READ);
     expect(view.app).toEqual([
-      { id: "version", label: "Version", description: null, value: "0.1.0", status: null, tone: "neutral", error: null },
       { id: "cli", label: "doan command", description: PATH, value: "0.1.0", status: null, tone: "neutral", error: null },
     ]);
     expect(view.tools).toEqual([
@@ -55,13 +60,12 @@ describe("aboutView", () => {
   });
 
   test("a development build shows the CLI as it was found: version dev, a bare doan", () => {
-    expect(aboutView({ ...READ, cli: { path: "doan", version: "dev" } }).app[1]).toMatchObject({ description: "doan", value: "dev", error: null });
+    expect(aboutView({ ...READ, cli: { path: "doan", version: "dev" } }).app[0]).toMatchObject({ description: "doan", value: "dev", error: null });
   });
 
   test("a version that could not be read says so on its own row only", () => {
     const view = aboutView({ ...READ, cli: { path: PATH, version: null }, tools: [{ provider: "claude", cli: "found", installed: null, support: "unknown" }, { provider: "cursor", cli: "found", installed: "2026.11.03", support: "incompatible" }] });
-    expect(view.app[1]).toEqual({ id: "cli", label: "doan command", description: PATH, value: null, status: null, tone: "error", error: "Couldn’t read the doan command’s version." });
-    expect(view.app[0]).toMatchObject({ value: "0.1.0", error: null });
+    expect(view.app).toEqual([{ id: "cli", label: "doan command", description: PATH, value: null, status: null, tone: "error", error: "Couldn’t read the doan command’s version." }]);
     // The same contract as the doan command row: `error` replaces value and status, and the page offers Retry.
     expect(view.tools.find(row => row.id === "claude")).toEqual({ id: "claude", label: "Claude Code", description: "Doan needs 2.1.284 or later.", value: null, status: null, tone: "error", error: "Couldn’t read the version." });
     expect(view.tools.find(row => row.id === "cursor")).toMatchObject({ value: "2026.11.03", status: "Doan can’t run this version", tone: "error" });
@@ -80,7 +84,7 @@ describe("aboutView", () => {
 
   test("while reading, every value is Checking and the descriptions stay", () => {
     const view = aboutView(null);
-    expect(view.app.map(row => [row.label, row.value])).toEqual([["Version", "Checking"], ["doan command", "Checking"]]);
+    expect(view.app.map(row => [row.label, row.value])).toEqual([["doan command", "Checking"]]);
     expect(view.tools.map(row => row.id)).toEqual(["claude", "codex", "cursor", "antigravity", "copilot"]);
     for (const row of view.tools) expect(row).toMatchObject({ value: "Checking", status: null, error: null });
     expect(view.tools[1]?.description).toBe("Doan needs 0.158.0 or later.");
@@ -94,8 +98,9 @@ describe("aboutView", () => {
 
 describe("aboutText", () => {
   test("Copy details is one plain-text block with every row", () => {
-    expect(aboutText(READ)).toBe([
+    expect(aboutText(READ, UPDATE)).toBe([
       "Doan 0.1.0",
+      "Updates: up to date, last checked 2026-11-08T14:41:00.000Z",
       `doan command 0.1.0 (${PATH})`,
       "Claude Code 2.1.330: Supported (Doan needs 2.1.284 or later)",
       "Codex 0.157.0: Update needed (Doan needs 0.158.0 or later)",
@@ -112,9 +117,10 @@ describe("aboutText", () => {
       { target: "codex-rule", path: "/Users/you/.codex/rules/doan.rules", providers: ["codex"], reason: "write-failed", cause: "permission", at: "/Users/you/.codex/rules", code: "EACCES" },
       { target: "claude-skill", path: "/Users/you/.claude/skills/doan", providers: ["claude"], reason: "foreign", found: "folder" },
       { target: "system-cli", path: "/usr/local/bin/doan", providers: [...all], reason: "admin-cancelled", rcFile: "~/.zshrc" },
-    ] } });
-    expect(text.split("\n").slice(0, 8)).toEqual([
+    ] } }, UPDATE);
+    expect(text.split("\n").slice(0, 9)).toEqual([
       "Doan 0.1.0",
+      "Updates: up to date, last checked 2026-11-08T14:41:00.000Z",
       `doan command 0.1.0 (${PATH})`,
       "Doan couldn’t set up every agent",
       "All agents — ~/.local/bin isn’t on your shell’s PATH, and adding doan to /usr/local/bin was cancelled. Add this line to ~/.zshrc, then open a new terminal:",
@@ -126,15 +132,37 @@ describe("aboutText", () => {
   });
 
   test("a copy that doesn’t set up agents says so, without an agents prefix", () => {
-    const text = aboutText({ ...READ, setup: { home: "/Users/you", items: [{ target: "copy", path: "/Users/you/Downloads/Doan.app", providers: [], reason: "not-eligible", eligibility: "outside-applications" }] } });
-    expect(text.split("\n").slice(2, 4)).toEqual([
-      "This copy doesn’t set up agents",
+    const text = aboutText({ ...READ, setup: { home: "/Users/you", items: [{ target: "copy", path: "/Users/you/Downloads/Doan.app", providers: [], reason: "not-eligible", eligibility: "outside-applications" }] } }, UPDATE);
+    expect(text.split("\n").slice(3, 5)).toEqual([
+      "This copy doesn’t set up agents or update",
       "It isn’t directly in the Applications folder. Open the Doan in Applications so your agents can use it.",
     ]);
   });
 
   test("unread values are named as such", () => {
-    const text = aboutText({ ...READ, cli: { path: "doan", version: null }, tools: null });
-    expect(text.split("\n").slice(0, 3)).toEqual(["Doan 0.1.0", "doan command: Couldn’t read the version (doan)", "Claude Code: Couldn’t read the version (Doan needs 2.1.284 or later)"]);
+    const text = aboutText({ ...READ, cli: { path: "doan", version: null }, tools: null }, UPDATE);
+    expect(text.split("\n").slice(0, 4)).toEqual(["Doan 0.1.0", "Updates: up to date, last checked 2026-11-08T14:41:00.000Z", "doan command: Couldn’t read the version (doan)", "Claude Code: Couldn’t read the version (Doan needs 2.1.284 or later)"]);
+  });
+});
+
+// One line after the version, for reports: the state and its fixed error code, and the last answered check in UTC.
+describe("the Copy details update line", () => {
+  const line = (update: Partial<UpdateSnapshot>) => aboutText(READ, { ...UPDATE, ...update }).split("\n")[1];
+  test.each<[string, Partial<UpdateSnapshot>, string]>([
+    ["not checked yet", { state: { kind: "idle" }, lastCheckedAt: null }, "Updates: not checked, last checked never"],
+    ["checking", { state: { kind: "checking", manual: true, last: { kind: "idle" } } }, "Updates: checking, last checked 2026-11-08T14:41:00.000Z"],
+    ["up to date", {}, "Updates: up to date, last checked 2026-11-08T14:41:00.000Z"],
+    ["downloading", { state: { kind: "downloading", version: "0.2.0", percent: 42 } }, "Updates: downloading 0.2.0 (42%), last checked 2026-11-08T14:41:00.000Z"],
+    ["ready", { state: { kind: "ready", version: "0.2.0" } }, "Updates: 0.2.0 ready, last checked 2026-11-08T14:41:00.000Z"],
+    ["blocked", { state: { kind: "ready", version: "0.2.0" }, gate: { kind: "blocked", reason: "conversation" } }, "Updates: 0.2.0 ready, restart blocked by a conversation, last checked 2026-11-08T14:41:00.000Z"],
+    ["restarting", { state: { kind: "restarting", version: "0.2.0" } }, "Updates: restarting to 0.2.0, last checked 2026-11-08T14:41:00.000Z"],
+    ["restart stopped", { state: { kind: "restartAborted", version: "0.2.0" } }, "Updates: 0.2.0 ready, restart stopped, last checked 2026-11-08T14:41:00.000Z"],
+    ["check failed", { state: { kind: "failed", code: "offline", stage: "check" } }, "Updates: check failed (offline), last checked 2026-11-08T14:41:00.000Z"],
+    ["download failed", { state: { kind: "failed", code: "checksumMismatch", stage: "download", version: "0.2.0" } }, "Updates: download of 0.2.0 failed (checksumMismatch), last checked 2026-11-08T14:41:00.000Z"],
+    ["install failed", { state: { kind: "failed", code: "installFailed", stage: "install", version: "0.2.0" } }, "Updates: install of 0.2.0 failed (installFailed), last checked 2026-11-08T14:41:00.000Z"],
+    ["a copy that doesn't update", { eligibility: { kind: "disabled", reason: "outside-applications" }, state: { kind: "idle" }, lastCheckedAt: null }, "Updates: off (outside-applications), last checked never"],
+    ["a build without a feed", { eligibility: { kind: "disabled", reason: "noFeed" }, state: { kind: "idle" }, lastCheckedAt: null }, "Updates: off (noFeed), last checked never"],
+  ])("%s", (_label, update, expected) => {
+    expect(line(update)).toBe(expected);
   });
 });

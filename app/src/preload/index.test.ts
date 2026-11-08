@@ -422,6 +422,61 @@ test("settings page calls use fixed channels and pass their requests as data", a
   }
 });
 
+// Settings > About's update row, the header button and the Doan menu item. Requests carry no data: main decides from
+// its own state what a check, a restart or Release Notes does.
+test("update calls use fixed channels and send no data", async () => {
+  const calls: [() => Promise<unknown>, unknown[]][] = [
+    [() => api.readUpdate(), ["update:get"]],
+    [() => api.checkForUpdates(), ["update:check"]],
+    [() => api.installUpdate(), ["update:install"]],
+    [() => api.openReleaseNotes(), ["update:openNotes"]],
+  ];
+  for (const [call, args] of calls) {
+    await call();
+    expect(mocks.invoke).toHaveBeenLastCalledWith(...args);
+  }
+});
+
+test("update snapshots come from one read, then change events, and the read never overwrites a newer event", async () => {
+  const heard = vi.fn();
+  let answer: (value: unknown) => void = () => {};
+  mocks.invoke.mockReturnValueOnce(new Promise(resolve => { answer = resolve; }));
+  const stop = api.onUpdate(heard);
+  expect(mocks.invoke).toHaveBeenCalledWith("update:get");
+  emitter.emit("update:state", {}, { state: { kind: "ready", version: "0.2.0" } });
+  answer({ state: { kind: "idle" } });
+  await Promise.resolve(); await Promise.resolve();
+  expect(heard.mock.calls).toEqual([[{ state: { kind: "ready", version: "0.2.0" } }]]);
+  stop();
+  emitter.emit("update:state", {}, { state: { kind: "idle" } });
+  expect(heard).toHaveBeenCalledOnce();
+  expect(emitter.listenerCount("update:state")).toBe(0);
+});
+
+test("the first update read reaches the listener, and a refused read stays quiet", async () => {
+  const heard = vi.fn();
+  mocks.invoke.mockResolvedValueOnce({ state: { kind: "idle" } });
+  const stop = api.onUpdate(heard);
+  await vi.waitFor(() => expect(heard).toHaveBeenCalledExactlyOnceWith({ state: { kind: "idle" } }));
+  stop();
+  mocks.invoke.mockRejectedValueOnce(new Error("No handler registered for 'update:get'"));
+  const quiet = vi.fn();
+  const stopQuiet = api.onUpdate(quiet);
+  await Promise.resolve(); await Promise.resolve();
+  expect(quiet).not.toHaveBeenCalled();
+  stopQuiet();
+});
+
+test("the menu's blocked Restart to Update asks for the header popover through a subscription that unsubscribes", () => {
+  const opened = vi.fn();
+  const stop = api.onUpdatePopover(opened);
+  emitter.emit("update:popover", {});
+  stop();
+  emitter.emit("update:popover", {});
+  expect(opened).toHaveBeenCalledOnce();
+  expect(emitter.listenerCount("update:popover")).toBe(0);
+});
+
 test("the quitting push is a subscription that unsubscribes", () => {
   const heard = vi.fn();
   const stop = api.onQuitting(heard);
