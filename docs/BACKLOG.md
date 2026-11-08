@@ -4,7 +4,6 @@ What Doan has not settled or not shown yet: product questions without a decision
 
 ## Undecided
 
-- Selecting and copying the CLI message shown in Details (the problem overlay, Project Settings, the project menu's toast) is not offered; whether it should be is undecided.
 - Homebrew cask and x64/universal builds: releases ship an arm64 dmg and zip from GitHub Releases only (ARCHITECTURE §9). `brew install --cask` is wanted at commercial launch, not before; x64 and universal builds and a download from doan.design are not planned yet, nor is `docs/OPERATIONS.md`. Reference: Orca ships a dmg for arm64 and x64 and a Homebrew cask (verified in its local bundle 1.4.230).
 - Notifications of a Developer ID build on a Mac that earlier ran differently signed copies (no decision to act on it): a signed, notarized build launched through LaunchServices got `failed: Notifications are not allowed for this application` at once, with no permission prompt, while System Settings > Notifications listed an allowed "Doan" with Electron's default icon and `/Applications/Doan.app` was an ad-hoc copy. It looks like the earlier record for `design.doan.app` is tied to the old signature, as when an unsigned local package was refused while an ad-hoc copy held the permission (DESIGN.md 'Settings'); the cause and a way to clear it are unconfirmed, and a Mac with no earlier record was not tried.
 - `/release` hotfix mode (`/release hotfix <slug>`, then `/release <patch>` from that branch) has not been run for real yet; check it at the first hotfix.
