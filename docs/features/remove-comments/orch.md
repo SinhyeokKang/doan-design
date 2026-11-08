@@ -55,3 +55,9 @@ D1–D8은 feature 문서에서 사용자가 승인했다. 아래는 실행 중 
 - B2 리뷰(`ctx_7ccb7c2299c7`, Opus medium): 🔴 0, 🟡 0, ⚪ 5. 후속 1차를 B2 worker에 보냈다(`ctx_f6e2088bf6bc`): 초안 두 곳(O8), `trashTarget` 오류 행 id 테스트, 긴 주석 줄바꿈. 리뷰 worker는 release하고 `rc-r-b2`를 지웠다.
 - B2 후속 1차(`60caf4f5`·`ee3c7532`·`5c66d8e8`)를 `5480839a`까지 통합했다(worker: typecheck·lint·app test 9600건, `doan check` findings 변화 없음). B2 worker를 release하고 `rc-b2` worktree를 지웠다. 브랜치 `SinhyeokKang/rc-b2`(`5c66d8e8`)는 남아 있다.
 - T10: `npm --prefix app run package`가 GitHub 릴리스 다운로드의 504(`SHASUMS256.txt`)로 세 번 실패했다. GitHub API로 받은 `SHASUMS256.txt`의 해시가 로컬 캐시의 `electron-v45.0.0-darwin-arm64.zip`(`896c3a50…`)과 같음을 확인했다. 두 파일을 127.0.0.1의 임시 mirror로 띄우고 `ELECTRON_MIRROR`로 패키징했다(빌드 설정은 바꾸지 않았다). 패키지 HEAD는 `0269891d`(코드 트리 `5480839a`)다. 라운드 `rc-full-261108`(Claude Code 2.1.319, Codex 0.166.0, 전체 시나리오)을 시작했다.
+- T10 라운드 `rc-full-261108` 완료(guide `131252c30cf4`, CLI `0.1.0-rc.2`): 70회 중 pass 58, partial 8, fail 4. runner exit 1은 real-state 검사에서 `keychain:provider-items`만 바뀐 탓이다(이전 라운드들과 같은 패턴). fail 4건과 조치:
+  - D2b-claude(U-016, `distill`): 완전히 같은 토글 병합까지 확인 대상으로 읽는다 → 프리셋 수정.
+  - D11d-claude(U-013, `document`): 코드와 맞는 DESIGN.md를 "빈틈"이라며 고친다 → 프리셋 수정.
+  - R10-codex(U-024): heredoc `doan handoff`가 Codex의 `doan` prefix 규칙에 맞지 않아 샌드박스에서 소켓이 막힌다 → `HANDOFF_GUIDANCE`를 따옴표 인자 하나로 바꾼다.
+  - H3b-claude: judge가 rubric 9행(지우고 보고한 임시 파일은 저장소 밖 설치와 같다)을 적용하지 않았다 → rubric 문장을 제자리에서 분명히 한다.
+  - 수정을 B1 worker에 보냈다(`ctx_94fd3272f3f5`). 직전 라운드보다 나빠진 partial(D7b-claude, D8-codex, D11e-codex)은 judge 판정만 partial이고 자동 check는 모두 통과했다.
