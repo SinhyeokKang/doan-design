@@ -25,7 +25,7 @@
 ## Why Doan
 
 - **Design first, then let the agent build.** Doan is a design app made for vibe coding with agents. Settle the screens on a canvas before any code, and the agent implements a design you already agreed on: results become predictable, revision rounds shrink, and fewer tokens go to rework.
-- **Drafts live in your repo.** A canvas is an HTML file next to the code, versioned with it, not a page in someone else's service that can shut down.
+- **Drafts live in your repo.** A canvas is an HTML file next to the code, versioned with it unless you keep Doan's files out of Git, not a page in someone else's service that can shut down.
 - **Every agent can read it.** Claude Code, Codex, Cursor, Antigravity and GitHub Copilot read the same file through the same `doan` skill, with no upload step.
 - **It knows your code.** Canvases use the repo's real token CSS, frames name the files that implement them, and `doan check` flags convention, token and external-resource problems.
 - **Point instead of describing.** Put the exact frame, element or spot into your message, and the agent gets it as an anchor.
@@ -75,7 +75,7 @@ Start from Home with a project, an agent, a model and a permission mode. Queue m
 
 ### Your agents, your accounts
 
-Sign in to Claude Code, Codex, Cursor, Antigravity and GitHub Copilot with their official logins, separate from your terminal's, and see each account's usage.
+Sign in to Claude Code, Codex, Cursor, Antigravity and GitHub Copilot with their official logins, separate from your terminal's, and see each account's usage (all but Antigravity).
 
 </td>
 <td width="50%">
@@ -99,7 +99,7 @@ Doan sets up the `doan` command and skill for all five agents. A terminal agent 
 
 ### Export
 
-Save a canvas as one HTML file that opens in any browser without Doan, the repo or a network, and send it to a reviewer.
+Save a canvas as one HTML file that opens in any browser without Doan, the repo or a network, and send it to a reviewer. External URLs a canvas links still load from the internet.
 
 </td>
 <td width="50%">
@@ -134,7 +134,7 @@ Pick a design preset — shape, critique, harden, clarify and more — and the a
 
 ## The `doan` CLI
 
-`doan` is what your agent uses to work with canvases. Doan links it into your agents' sessions when you open the app from Applications, and it ships inside the app. Every command takes `--json`, and every command except `onboarding` takes `--repo <path>`; everything except `active`, `onboarding` and `open` works without the app running.
+`doan` is what your agent uses to work with canvases. Doan links it into your agents' sessions when you open the app from Applications, and it ships inside the app. Every command takes `--json`, and every command except `onboarding` takes `--repo <path>`; everything except `active`, `onboarding`, `open` and `handoff` works without the app running.
 
 | Command | What it does |
 |---|---|
@@ -186,7 +186,7 @@ Each agent's CLI must be installed; first run offers to install or update it and
 ## Install
 
 - macOS on Apple silicon.
-- Download [`Doan-macos-arm64.dmg`](https://github.com/SinhyeokKang/doan-design/releases/latest/download/Doan-macos-arm64.dmg) from the [latest release](https://github.com/SinhyeokKang/doan-design/releases/latest), move Doan to Applications and open it. Each launch from Applications links the `doan` command and the skill for the five agents, with no setup screen; Settings > About shows what was set up.
+- Download [`Doan-macos-arm64.dmg`](https://github.com/SinhyeokKang/doan-design/releases/latest/download/Doan-macos-arm64.dmg) from the [latest release](https://github.com/SinhyeokKang/doan-design/releases/latest), move Doan to Applications and open it. Each launch from Applications links the `doan` command and the skill for the five agents, with no setup screen; Settings > About shows anything that could not be set up.
 - First run signs in to your agents and adds a project: a local folder or a GitHub repository URL.
 - Doan updates itself. A copy in Applications checks GitHub Releases at launch and every 6 hours, downloads a new version in the background, and installs it when you press Restart to Update or quit Doan. Settings > About shows the version, checks on demand and can turn automatic checks off.
 
