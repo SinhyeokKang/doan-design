@@ -6,7 +6,7 @@ Use it when the project has real tokens or components but no rules document or d
 
 ## Scope
 
-- Reuse an existing design system when it is sufficient. Do not regenerate a rules document or canvases that already describe the shipped system; report that it matches and what you checked.
+- Reuse an existing design system when it is sufficient. When an existing rules document and canvases match the shipped code, change nothing: report "No changes" with the files you checked. A policy the reference states but the CSS does not enforce is not drift, and a missing policy for future screens is not a gap (such policies are judgment, Step 3); mention them only in the report, as optional suggestions.
 - A plain request to set up Doan (`doan init`, `doan config`) is not approval to write a design system. Write the documents only when the user asked or agreed.
 - If the user asked for a review only, report drift, gaps, and proposed changes without editing files.
 - When updating an existing rules document or canvases, change only what the request covers. Keep sections, canvases, frames, and ids outside the request unchanged.
