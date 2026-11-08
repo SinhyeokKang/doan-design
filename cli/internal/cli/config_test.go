@@ -198,13 +198,19 @@ func TestConfigPathErrorsExplainMissingAndOutside(t *testing.T) {
 	root := initialized(t)
 	outside := t.TempDir()
 	putFile(t, outside, "tokens.css", "")
-	for _, tt := range []struct{ path, message string }{
-		{filepath.Join(root, "missing"), "Config path does not exist"},
-		{filepath.Join(outside, "tokens.css"), "Config path is outside the repository"},
-	} {
-		got := runJSON(t, root, 2, "config", "--token-css", tt.path)["error"].(map[string]any)
-		if got["code"] != "usage_error" || got["message"] != tt.message {
-			t.Fatal(got)
+	for _, flag := range []string{"--token-css", "--add-serve"} {
+		for _, tt := range []struct{ path, message string }{
+			{filepath.Join(root, "missing"), "Config path does not exist"},
+			{"missing", "Config path does not exist"},
+			{filepath.Join(outside, "tokens.css"), "Config path is outside the repository"},
+			// The lexical check comes first: a missing path above the root is outside, not missing.
+			{"../nothere", "Config path is outside the repository"},
+			{filepath.Join(root, "../nothere"), "Config path is outside the repository"},
+		} {
+			got := runJSON(t, root, 2, "config", flag, tt.path)["error"].(map[string]any)
+			if got["code"] != "usage_error" || got["message"] != tt.message {
+				t.Fatal(flag, tt.path, got)
+			}
 		}
 	}
 }
