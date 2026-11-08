@@ -28,7 +28,7 @@
 | MP | T0, T1 | `.scratch/export-hardening/` 생성기, `cli/internal/export/`의 새 opt-in 프로파일 테스트 파일, design.md §2 | 없음 | Claude Opus high(프로파일 해석과 가설 판정이 MF의 수정 대상을 정한다) | 생성기 sha256 두 번 같음, pprof 결과가 §2에 있음 | 통합 `55afdb85`, `a05638b1` |
 | SP | T2 | `.scratch/export-hardening/` 측정 스크립트, design.md §4 | 없음 | Claude Opus high(두 엔진·Electron 측정 설계, 판정이 SF 유무를 정한다) | 측정 스크립트 실행, 결과 표·판정이 §4에 있음 | 통합 `168faac8`, `5c66dd97`. worker 해제, worktree 삭제(branch `SinhyeokKang/eh-sp` 남김) |
 | B | T6, T7 | `cli/internal/export/`의 새 base 파일, `inline.go`·`classify.go`·`customurl.go`·`assemble.go` 중 필요한 곳, `exporttest/seed.go`, `cli/internal/cli/export_test.go` | R 통합 | Claude Opus high(거절 순서·custom property 사용처·결과 바이트 고정) | `go test ./...` | 진행 |
-| MF1 | T8의 lexer 부분 | `cli/internal/canvas/css.go`와 canvas 테스트(export API 그대로) | MP | Claude Opus high(같은 worker가 프로파일 맥락을 이어받는다. scanner 결과 동등성) | `go test ./...`, 동등성 테스트, `TestCSSRefsMatchesScanCSS` | 통합 `04b52537`, `de9d5f03`, 리뷰 진행 |
+| MF1 | T8의 lexer 부분 | `cli/internal/canvas/css.go`와 canvas 테스트(export API 그대로) | MP | Claude Opus high(같은 worker가 프로파일 맥락을 이어받는다. scanner 결과 동등성) | `go test ./...`, 동등성 테스트, `TestCSSRefsMatchesScanCSS` | 통합 `04b52537`, `de9d5f03`, `b155fec8`. 리뷰 🔴 0. worker 해제, worktree 삭제(branch 남김) |
 | MF2 | T8의 export 사본 부분, T9 | `cli/internal/export/` `assemble.go`·`inline.go`·`customurl.go`·`rewrite.go`·`datauri.go`, 필요하면 `cli/internal/cli/export.go` | B·MF1 통합 | Claude Opus high(결과 바이트 고정, 쓰기 경로) | `go test ./...`, `go vet ./...`, RSS ≤ 240 MiB | 대기 |
 | SF | T10, T11 | `cli/internal/export/` sprite 코드, `fix2_test.go` | SP 판정 (i)/(ii), B·MF 통합 | Claude Opus high(foreign `<style>` 파싱, 범위 좁히기의 누출) | `go test ./...`, T2 스크립트 재측정 | 취소(sprite `<style>` 비목표) |
 | EV | T13 | `docs/USABILITY-EVAL.md`, `.scratch/agent-eval/` | 모든 코드 통합 | Claude Sonnet high(정해진 명령 실행과 결과 비교, 판단은 적다) | X1 두 에이전트 모두 직전 라운드보다 나빠지지 않음 | 대기 |
@@ -54,3 +54,4 @@
 - R 리뷰(Codex Astra medium) 완료: 🔴 0 / 🟡 0 / ⚪ 1(읽기 오류 재시도와 snapshot 수명을 고정하는 테스트 없음). 독립 mutation 세 가지도 빨개졌다. ⚪를 R worker에 테스트 추가로 보냈다(`ctx_f32eb8f664ff`). reviewer 해제, worktree 삭제.
 - R 리뷰 메모 반영(`8609f360`): 읽기 오류 재시도와 snapshot 수명 테스트를 더했고 mutation으로 빨개짐을 확인했다.
 - MF1 리뷰(Claude Opus high) 완료: 🔴 0 / 🟡 0 / ⚪ 3. 차등 실험 5M 입력과 fuzz에서 결과가 같았다. ⚪1·⚪2(golden이 놓치는 두 모양)는 MF1 worker에 테스트 보강으로 보냈다(`ctx_1a779a9738e6`). ⚪3(메모리 한계는 "paren 밖 `;`" 기준)은 T14 문서 올리기에 반영한다. reviewer 해제, worktree 삭제.
+- MF1 리뷰 메모 반영(`b155fec8`): golden이 리뷰의 두 mutation을 잡는다. MP·MF1 worker 해제, `eh-mp` 삭제. MF2는 B 통합 뒤 새 worker로 시작한다(handoff-MP·MF1은 conductor `.scratch/`에 복사).
