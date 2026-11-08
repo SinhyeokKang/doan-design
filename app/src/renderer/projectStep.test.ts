@@ -241,6 +241,19 @@ test("select failures map to their screens: remote mismatch, setup failed, unrea
   }
 });
 
+// A configured folder is selected at once after its inspection; a failure that is not about its configuration keeps the
+// CLI's message (window-only detail) for the notice, beside the code's fixed message.
+test("a folder Doan couldn’t read keeps main's detail for the notice", async () => {
+  const h = harness();
+  const reason = "open /code/app/.doan/canvases/sub: permission denied";
+  h.api.chooseOnboardingFolder.mockResolvedValueOnce("/code/app");
+  h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([["/code/app"]]) })));
+  h.queue.select!.push(ok(op("project_select", { state: "failed", error: { code: "project_unreadable", message: "The project folder cannot be read.", detail: reason } })));
+  await h.session.chooseFolder();
+  expect(h.session.state.error).toEqual({ code: "project_unreadable", message: "The project folder cannot be read.", detail: reason });
+  expect(phase(h)).toMatchObject({ kind: "candidates" });
+});
+
 async function ready(h: ReturnType<typeof harness>) {
   h.api.chooseOnboardingFolder.mockResolvedValueOnce("/code/app");
   h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([["/code/app"]]) })));

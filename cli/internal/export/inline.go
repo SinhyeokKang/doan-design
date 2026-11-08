@@ -78,16 +78,19 @@ func Inline(root string, config repo.Config, canvasPath string, src []byte) (Res
 // canvas count the bytes they gain while being rewritten, so repeated
 // @import expansion stops early. The error is for file-system failures only.
 func InlineLimit(root string, config repo.Config, canvasPath string, src []byte, limit int64) (Result, error) {
-	res, _, err := inline(root, config, canvasPath, src, limit)
+	res, _, err := inline(repo.NewResolver(root), root, config, canvasPath, src, limit)
 	return res, err
 }
 
-func inline(root string, config repo.Config, canvasPath string, src []byte, limit int64) (Result, *inliner, error) {
+func inline(resolver *repo.Resolver, root string, config repo.Config, canvasPath string, src []byte, limit int64) (Result, *inliner, error) {
 	scope, err := repo.Scope(root, config)
 	if err != nil {
 		return Result{}, nil, err
 	}
-	in := &inliner{root: root, scope: scope, limit: limit, files: map[string][]byte{}, sizes: map[string]int64{}, sheets: map[string][]sheet{}, external: map[string]bool{}, links: map[string]bool{}, refusedSeen: map[Refusal]bool{}, ids: documentIDs(src), spriteIDs: map[string]map[string]bool{}, spriteStyled: map[string]bool{}}
+	in := &inliner{resolver: resolver, root: root, scope: scope, limit: limit, files: map[string]string{}, sizes: map[string]int64{}, sheets: map[string][]sheet{}, external: map[string]bool{}, links: map[string]bool{}, refusedSeen: map[Refusal]bool{}, ids: documentIDs(src), spriteIDs: map[string]map[string]bool{}, spriteStyled: map[string]bool{}}
+	if href, ok := firstBaseHref(src); ok && baseMoves(href) {
+		in.based = canvasPath
+	}
 	in.collectUses(canvasPath, src)
 	if in.err != nil {
 		return Result{}, nil, in.err
@@ -137,10 +140,11 @@ func inline(root string, config repo.Config, canvasPath string, src []byte, limi
 }
 
 type inliner struct {
+	resolver     *repo.Resolver // shared by every reference of one export
 	root         string
 	scope        []string
 	limit        int64
-	files        map[string][]byte
+	files        map[string]string  // read once, as text: every use but a sprite wants a string
 	sizes        map[string]int64   // every file sized, read or not
 	total        int64              // sum of distinct file sizes
 	sheets       map[string][]sheet // inlined CSS by real path
@@ -156,6 +160,7 @@ type inliner struct {
 	err          error
 	built        int64 // bytes of data URIs built, so tests can see the stop is early
 	uses         uses
+	based        string // the canvas, when its <base href> moves the folder; "" otherwise
 }
 
 // sheet is one inlined stylesheet. Its text depends on the @import chain
@@ -212,11 +217,19 @@ func (in *inliner) replace(from string, direct bool, ancestors []string, reached
 			if dirs := in.uses.consumers(custom); len(dirs) > 0 {
 				return in.replaceCustom(from, direct, h, href, dirs)
 			}
+			if from == in.based {
+				// Nothing uses it and the base would move it: it stays as written.
+				return "", false
+			}
 			// Nothing uses it, so the app loads nothing: resolve it where it
 			// is declared, as before, but a missing file blocks nothing.
 			direct = false
 		}
-		r, err := resolveAsset(in.root, in.scope, path.Dir(from), href)
+		if from == in.based {
+			in.refuse(from, h, ReasonBase)
+			return "", false
+		}
+		r, err := resolveAsset(in.resolver, in.root, in.scope, path.Dir(from), href)
 		if err != nil {
 			in.err = err
 			return "", false
@@ -267,7 +280,7 @@ func (in *inliner) sprite(from, h, real string, grown *int64) (string, bool) {
 			in.err = err
 			return "", false
 		}
-		content, fileIDs, styled := spriteContent(b)
+		content, fileIDs, styled := spriteContent([]byte(b))
 		if styled {
 			in.spriteIDs[real] = nil
 			in.spriteStyled[real] = true
@@ -373,12 +386,7 @@ func documentIDs(src []byte) map[string]bool {
 			continue
 		}
 		tok := z.Token()
-		if tok.Data == "template" {
-			if tt == html.StartTagToken {
-				template++
-			} else if tt == html.EndTagToken && template > 0 {
-				template--
-			}
+		if templateTag(&template, tt, tok.Data) {
 			continue
 		}
 		if template > 0 || tt == html.EndTagToken {
@@ -425,7 +433,7 @@ func escapeControls(s string) string {
 // read returns a file's bytes. A file bigger than what is left of the limit
 // is sized but not read: every file read appears in the output at least
 // once, so the export is already too large.
-func (in *inliner) read(real string) ([]byte, error) {
+func (in *inliner) read(real string) (string, error) {
 	if b, ok := in.files[real]; ok {
 		return b, nil
 	}
@@ -433,15 +441,15 @@ func (in *inliner) read(real string) ([]byte, error) {
 	if err == errOverLimit {
 		in.sizes[real] = size
 		in.tooLarge = true
-		return nil, nil
+		return "", nil
 	}
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	in.sizes[real] = size
 	in.total += size
-	in.files[real] = b
-	return b, nil
+	in.files[real] = string(b)
+	return in.files[real], nil
 }
 
 // inlineFile returns the data URI for a resolved file and the stylesheets
@@ -455,7 +463,7 @@ func (in *inliner) inlineFile(real string, kind refKind, ancestors []string) (st
 		if err != nil || in.stopped() {
 			return "", nil, err
 		}
-		uri := dataURI(mime, b)
+		uri := dataURI(mime, []byte(b))
 		in.built += int64(len(uri))
 		return uri, nil, nil
 	}
@@ -487,7 +495,7 @@ func (in *inliner) inlineFile(real string, kind refKind, ancestors []string) (st
 	chain := append(ancestors[:len(ancestors):len(ancestors)], real)
 	reached := map[string]bool{real: true}
 	var grown int64
-	text := rewriteCSSRefs(string(b), canvas.Stylesheet, in.ref(real, false, chain, reached, &grown))
+	text := rewriteCSSRefs(b, canvas.Stylesheet, in.ref(real, false, chain, reached, &grown))
 	if in.stopped() {
 		return "", nil, nil
 	}

@@ -59,7 +59,7 @@ async function panel(list: ListView, setup: (run: CanvasRun) => void = () => {},
 
 test("a list that can't be read says so with Retry, and the composer stays a new conversation", async () => {
   const out = await panel("error");
-  expect(out).toContain("<b>Couldn’t read conversations</b><span>Try again. You can still start a new conversation.</span>");
+  expect(out).toContain("<span class=\"strip-text selectable\"><b>Couldn’t read conversations</b><span>Try again. You can still start a new conversation.</span>");
   expect(out).toContain(">Retry</button>");
   expect(out).toContain('aria-placeholder="Ask, / for presets"');
 });

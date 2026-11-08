@@ -583,7 +583,7 @@ describe("selection wiring", () => {
     const h = selectionHarness();
     try {
       h.select(1);
-      h.controller.updateEntries([{ path: "/repo", kind: "error", message: "busy" }]);
+      h.controller.updateEntries([{ path: "/repo", kind: "error", message: "busy", config: "/repo/.doan/config.json" }]);
       expect(h.state()).toMatchObject({ error: "busy", selection: { tag: "span" } });
       expect(h.markOf("selected")?.hidden).toBe(false);
       expect(h.send).toHaveBeenCalledTimes(1);
@@ -998,7 +998,7 @@ it("drops a waiting workspace open when a later navigation, a failed read or lea
     const entered = vi.fn();
     const supersede = [
       () => controller.openCanvas("/repo", { ...row, path: ".doan/canvases/b.html", url: "http://localhost/b.html" }),
-      () => controller.updateEntries([repo, { path: "/added", kind: "error", message: "bad config" }]),
+      () => controller.updateEntries([repo, { path: "/added", kind: "error", message: "bad config", config: "/added/.doan/config.json" }]),
       () => controller.setWorkspaceActive(false),
     ];
     for (const later of supersede) {
@@ -1691,7 +1691,7 @@ it("opens an explicit Overview in one workspace transition", () => {
 // ARCHITECTURE §7 'Memory': the Overview is where a problem root shows its overlay.
 const problemKinds = ["notFound", "uninitialized", "error", "cliError"] as const;
 const problemEntry = (path: string, kind: typeof problemKinds[number]): FolderEntry =>
-  kind === "error" ? { path, kind, message: "bad config" } : kind === "cliError" ? { path, kind, reason: "cli failed" } : { path, kind };
+  kind === "error" ? { path, kind, message: "bad config", config: `${path}/.doan/config.json` } : kind === "cliError" ? { path, kind, reason: "cli failed" } : { path, kind };
 
 it.each(problemKinds)("enters the Overview of a %s root and clears the canvas", kind => {
   const h = loadedController();
@@ -3855,6 +3855,49 @@ describe("capture", () => {
         expect(h.state().tool, `tooltip ${tooltip}`).toBe("hand");
       } finally { h.controller.dispose(); }
     }
+  });
+
+  // With focus in the canvas (after an ⌥-click) the app's document never sees the Escape: the canvas forwards it. Radix
+  // listens on the app's document only, so the controller hands an open toolbar tooltip an Escape of its own there.
+  // It does not bubble, so the window's keydown (the canvas's step) never sees it: the step is taken once, from the message.
+  it("an Escape forwarded from the canvas closes an open toolbar tooltip and takes the canvas's step once", () => {
+    class FakeKeyboardEvent extends Event { key: string; constructor(type: string, init: KeyboardEventInit = {}) { super(type, init); this.key = init.key ?? ""; } }
+    vi.stubGlobal("KeyboardEvent", FakeKeyboardEvent);
+    const h = harness();
+    try {
+      const sent: Event[] = [];
+      const tooltipOpen = { value: true };
+      Object.assign(h.doc, {
+        querySelector: (selector: string) => tooltipOpen.value && selector.includes(".doan-canvas-tools") ? {} : null,
+        dispatchEvent: (event: Event) => {
+          sent.push(event);
+          // Radix's layer at the document's capture phase: the tooltip's onEscapeKeyDown, then its own prevention.
+          h.controller.toolbarEscape(event as KeyboardEvent);
+          event.preventDefault();
+          return false;
+        },
+      });
+      h.controller.startCapture();
+      canvasKey(h, "Escape");
+      expect(sent).toHaveLength(1);
+      expect(sent[0]).toMatchObject({ type: "keydown", key: "Escape", bubbles: false });
+      // Capture ends; the selection is the next Escape's step, not this one's.
+      expect(h.state()).toMatchObject({ capturing: false, tool: "select" });
+      h.select(10);
+      canvasKey(h, "Escape");
+      expect(h.state().selection).toBeNull();
+      expect(sent).toHaveLength(2);
+      // With no toolbar tooltip open, nothing is sent to the app's document.
+      tooltipOpen.value = false;
+      h.select(20);
+      canvasKey(h, "Escape");
+      expect(h.state().selection).toBeNull();
+      expect(sent).toHaveLength(2);
+      // The next Escape on the app's document is not taken for the tooltip's.
+      h.select(30);
+      press(h, "Escape");
+      expect(h.state().selection).toBeNull();
+    } finally { h.controller.dispose(); }
   });
 
   it("the toolbar's Select or Hand ends capture mode and switches to that tool", () => {

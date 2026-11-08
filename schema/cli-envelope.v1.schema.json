@@ -44,6 +44,11 @@
               "items": {
                 "type": "string"
               }
+            },
+            "config": {
+              "$comment": "Absolute path of the config file that caused the failure; absent when the failure is not about a config file.",
+              "type": "string",
+              "pattern": "^/"
             }
           },
           "required": [

@@ -63,7 +63,7 @@ const ROOT = "/Users/alex/code/acme-web";
 const listed = (path = ROOT): FolderEntry => ({ path, kind: "list", servedRev: 0, canvases: [], git: { common: `${ROOT}/.git`, main: ROOT, branch: "main", worktrees: [] } });
 const missing = (path = ROOT): FolderEntry => ({ path, kind: "notFound" });
 const uninitialized = (path = ROOT): FolderEntry => ({ path, kind: "uninitialized" });
-const configError = (message = "unexpected token } at line 4"): FolderEntry => ({ path: ROOT, kind: "error", message });
+const configError = (message = "unexpected token } at line 4"): FolderEntry => ({ path: ROOT, kind: "error", message, config: `${ROOT}/.doan/config.json` });
 const cliError = (): FolderEntry => ({ path: ROOT, kind: "cliError", reason: "timeout" });
 const loading = (): FolderEntry => ({ path: ROOT, kind: "loading" });
 const CONFIG = { kind: "config", root: ROOT, tokenCss: "src/styles/tokens.css", serve: ["src/components/ui", "public/fonts"], changed: false };
@@ -278,7 +278,7 @@ test("CLI error: Details opens the CLI's message under the notice as text and cl
   expect(text()).toContain(reason);
   // The block holds the reason itself, line breaks included, as one text child.
   const block = all(tree).find(element => element.type === "pre");
-  expect(block?.props.className).toBe("project-settings-details");
+  expect(block?.props.className).toBe("project-settings-details selectable");
   expect(block?.props.children).toBe(reason);
   expect(props.onAction).not.toHaveBeenCalled();
   click("Details"); render();
@@ -985,4 +985,83 @@ test("a listed mode change refreshes the settings without disabling the controls
   finish({ ...CONFIG, root: ROOT, storage: "local" });
   await flush(); render();
   expect(chosen()).toEqual([false, true]);
+});
+
+// Read-only text a user may need to copy (paths, branch, reasons, commands) takes the `selectable` class; buttons and the
+// title stay unselectable.
+const selectable = (element: ReactElement<Record<string, unknown>>) => classes(element).includes("selectable");
+
+test("selectable: the branch name, path line, token name and shared path of a healthy page, not the title or buttons", async () => {
+  await open();
+  const branchChip = byClass("shell-branch")[0]!;
+  expect(selectable(all(branchChip.props.children as ReactNode).find(element => element.type === "span")!)).toBe(true);
+  expect(byClass("settings-lead").every(selectable)).toBe(true);
+  expect(byClass("project-settings-token-name").length).toBeGreaterThan(0);
+  expect(byClass("project-settings-token-name").every(selectable)).toBe(true);
+  expect(byClass("project-settings-path").length).toBeGreaterThan(0);
+  expect(byClass("project-settings-path").every(selectable)).toBe(true);
+  expect(selectable(heading())).toBe(false);
+  expect(all(tree).filter(element => element.type === "button").some(selectable)).toBe(false);
+  unmount();
+});
+
+test("selectable: the notice text with its reason, not the notice's buttons", async () => {
+  doan.readConfig!.mockResolvedValue({ kind: "error", message: "open ~/code/acme-web/.doan/config.json: permission denied" });
+  await open();
+  const grow = byClass("project-settings-grow").filter(element => classes(element).includes("selectable"));
+  expect(grow).toHaveLength(1);
+  expect(words(grow[0]!.props.children)).toContain("Couldn’t read this worktree’s settings.");
+  expect(all(tree).filter(element => element.type === "button").some(selectable)).toBe(false);
+  unmount();
+});
+
+test("selectable: the Details block", async () => {
+  await open({ entries: [{ path: ROOT, kind: "cliError", reason: "doan: failed" }] });
+  click("Details"); render();
+  expect(classes(all(tree).find(element => element.type === "pre")!)).toEqual(["project-settings-details", "selectable"]);
+  unmount();
+});
+
+test("selectable: a refused Locate's alert under the notice", async () => {
+  await open({ entries: [missing()] });
+  click("Locate");
+  const [, , feedback] = (props.onAction as ReturnType<typeof vi.fn>).mock.lastCall!;
+  (feedback as (text: string) => void)("That folder belongs to another repository."); render();
+  const alert = all(tree).find(element => element.props.role === "alert")!;
+  expect(classes(alert)).toEqual(expect.arrayContaining(["settings-msg", "error", "project-settings-msg", "selectable"]));
+  unmount();
+});
+
+test("selectable: a save error under a section", async () => {
+  doan.writeConfig!.mockResolvedValue({ kind: "error", message: "src/vendor/theme.css is outside this worktree" });
+  await open();
+  click("Change"); await flush(); render();
+  const alert = all(tree).find(element => element.props.role === "alert")!;
+  expect(classes(alert)).toEqual(expect.arrayContaining(["settings-msg", "error", "selectable"]));
+  unmount();
+});
+
+test("selectable: the Share confirmation's description path, not its title", async () => {
+  await open();
+  click("Add File or Folder"); await flush(); render();
+  const dialog = confirmation()!;
+  const code = (node: unknown) => all(node as ReactNode).find(element => element.type === "code")!;
+  expect(code(dialog.props.description).props.className).toBe("selectable");
+  expect(code(dialog.props.title).props.className).toBeUndefined();
+  (dialog.props.answer as (allow: boolean) => void)(false); render();
+  unmount();
+});
+
+test("selectable: the untrack command and the copy-failed alert, not the Copy button", async () => {
+  doan.readConfig!.mockImplementation(withStorage({ storage: "local" }));
+  copied.text = []; copied.ok = false;
+  await open();
+  const command = all(tree).find(element => element.type === "code" && element.props.children === "git rm -r --cached .doan")!;
+  expect(command.props.className).toBe("selectable");
+  click("Copy command"); render();
+  const failed = all(tree).find(element => element.type === "span" && element.props.role === "alert")!;
+  expect(classes(failed)).toContain("selectable");
+  expect(selectable(button("Copy command"))).toBe(false);
+  copied.ok = true;
+  unmount();
 });

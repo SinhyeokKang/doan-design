@@ -9,8 +9,9 @@ export async function saveClipboard({ clipboard, ClipboardItem }: ClipboardDepen
   try {
     const saved: Electron.ClipboardItem[] = [];
     for (const item of await clipboard.read()) {
-      // Electron can expose a native item with no payload types, including an empty clipboard.
-      if (!item.types.length) continue;
+      // Electron 45 reads an empty general pasteboard as an item with no types or with only the find pasteboard's text;
+      // writing that back would leave the probe's text on the general pasteboard.
+      if (item.types.every(type => type === "electron application/findtext")) continue;
       const data = Object.fromEntries(await Promise.all(item.types.map(async type => [type, await item.getType(type)])));
       saved.push(new ClipboardItem(data));
     }

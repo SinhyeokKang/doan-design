@@ -38,8 +38,11 @@ test("captures every payload eagerly and reconstructs separate ordered items", a
   assert.equal(f.clears(), 0);
 });
 
-for (const empty of [[], [{ types: [], getType: async () => { throw new Error("must not read"); } }]]) {
-  test(`restores an empty clipboard without constructing an empty item (${empty.length} native items)`, async () => {
+// Electron 45 reads an empty general pasteboard as one item holding only the find pasteboard's text; writing that
+// item back leaves whatever the probe put on the general pasteboard.
+const findTextOnly = { types: ["electron application/findtext"], getType: async () => "probe text" };
+for (const empty of [[], [{ types: [], getType: async () => { throw new Error("must not read"); } }], [findTextOnly]]) {
+  test(`restores an empty clipboard without constructing an empty item (${empty.map(item => item.types.join("+") || "no types").join(", ") || "no native items"})`, async () => {
     const f = fixture(empty);
     await saveClipboard(f.deps);
     await restoreClipboard(f.deps);

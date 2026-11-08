@@ -4,6 +4,9 @@ type Error struct {
 	Code      string   `json:"code"`
 	Message   string   `json:"message"`
 	NextSteps []string `json:"nextSteps"`
+	// Config names the config file a failure is about, absolute because a
+	// discovered parent config lies outside any --repo; JSON output only.
+	Config string `json:"config,omitempty"`
 }
 
 func (e *Error) Error() string { return e.Message }
@@ -30,7 +33,7 @@ func ExitCode(code string) int {
 	// Onboarding refusals and failed operations that the user or the app must resolve.
 	case "busy", "stop_required", "not_owner", "not_connected", "sign_out_failed", "auth_unavailable", "no_ready_agent", "no_project", "cancelled",
 		"sign_in_failed", "network", "storage_failed", "check_failed", "account_mismatch", "cli_install_failed", "repository_unreachable", "git_missing",
-		"remote_mismatch", "clone_failed", "cleanup_failed", "config_invalid", "init_failed", "local_not_git", "local_exclude_failed", "project_unavailable", "completion_save_failed", "completion_unsupported_version",
+		"remote_mismatch", "clone_failed", "cleanup_failed", "config_invalid", "init_failed", "local_not_git", "local_exclude_failed", "project_unavailable", "project_unreadable", "completion_save_failed", "completion_unsupported_version",
 		// Handoff refusals the conversation's state decides.
 		"not_running", "not_canvas_conversation", "plan_mode", "handoff_turn", "already_requested", "same_canvas":
 		return 5

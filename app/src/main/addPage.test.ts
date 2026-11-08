@@ -149,6 +149,22 @@ describe("the page's session", () => {
     expect(p.session.state().project).toEqual({ root: "/work/studio" });
   });
 
+  // The page is the app's own window, so a project_unreadable failure carries the CLI's message as detail, as first
+  // run's window does; without it the notice's "shown below" would point at nothing.
+  test("a folder the CLI cannot finish reading fails with the CLI's message as detail", async () => {
+    const { projects } = fakeProjects();
+    projects.inspectPath.mockResolvedValue({ ok: true, candidates: [{ path: "/work/studio", changes: [] }] });
+    const reason = "open /work/studio/.doan/canvases/sub: permission denied";
+    projects.select.mockResolvedValueOnce({ ok: false, code: "project_unreadable", detail: reason } as never);
+    const p = page(projects);
+    const id = inspectionId(await p.ask("inspect", { path: "/work/studio" }));
+    const request = addPageRequest("select", { sessionId: p.session.sessionId, requestId: "s1", inspectionId: id, path: "/work/studio" })!;
+    const error = { code: "project_unreadable", message: "The project folder cannot be read.", detail: reason };
+    expect(operation(await p.session.answer(request)).error).toEqual(error);
+    expect(p.published.at(-1)!.operations.at(-1)?.error).toEqual(error);
+    expect(p.session.state().operations.at(-1)?.error).toEqual(error);
+  });
+
   test("an invalid destination and a busy clone are refused like onboarding", async () => {
     const { projects, held } = fakeProjects();
     const p = page(projects);
@@ -368,7 +384,7 @@ function cliLs(target: LsTarget): FolderState {
   const read = (dir: string): FolderState | null => {
     if (!existsSync(join(dir, ".doan/config.json"))) return null;
     try { JSON.parse(readFileSync(join(dir, ".doan/config.json"), "utf8")); return { kind: "list", root: dir, scope: [], canvases: [] }; }
-    catch { return { kind: "error", message: "Cannot read config" }; }
+    catch { return { kind: "error", message: "Cannot read config", config: join(dir, ".doan/config.json") }; }
   };
   if ("repo" in target) return existsSync(target.repo) ? read(target.repo) ?? { kind: "uninitialized" } : { kind: "cliError", reason: "missing" };
   for (let dir = target.cwd; ; dir = dirname(dir)) { const found = read(dir); if (found) return found; if (dir === "/") return { kind: "uninitialized" }; }

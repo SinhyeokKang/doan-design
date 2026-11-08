@@ -1,0 +1,10 @@
+{
+  "v": 1,
+  "ok": false,
+  "error": {
+    "code": "invalid_config",
+    "message": "Cannot read config: .doan/config.json",
+    "nextSteps": [],
+    "config": ".doan/config.json"
+  }
+}

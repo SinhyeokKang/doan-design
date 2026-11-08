@@ -157,7 +157,7 @@ describe("CanvasAgent", () => {
     const notices = column.match(/<div className="doan-notice[^"]*"[^>]*>.*?<\/div>/g) ?? [];
     // The selection-lost notice left the column for a toast (dogfooding); the error and unlisted notices stay.
     expect(notices).toHaveLength(2);
-    for (const notice of notices) expect(notice).toMatch(/^<div className="doan-notice doan-panel" role="status"><AlertIcon \/><span className="grow-text">.*<\/span><\/div>$/);
+    for (const notice of notices) expect(notice).toMatch(/^<div className="doan-notice doan-panel" role="status"><AlertIcon \/><span className="grow-text( selectable)?">.*<\/span><\/div>$/);
   });
 
   test("the canvas notices come after the agent notice in the column, and alone when no indicator shows", () => {

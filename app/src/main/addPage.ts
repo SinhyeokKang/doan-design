@@ -55,10 +55,11 @@ export class AddPageSession {
       if (!operation) return refuse("operation_not_found") as AddPageResponse;
       return { v: 2, ok: true, op: "status", result: this.state([operation]) };
     }
-    return await this.book.once(request, () => this.write(request)) as AddPageResponse;
+    // Every answer goes to the window, so a failure's detail joins it (OperationBook.forWindow).
+    return this.book.windowReply(await this.book.once(request, () => this.write(request))) as AddPageResponse;
   }
   state(operations: OnboardingOperation[] = this.book.list()): AddPageState {
-    return { sessionId: this.sessionId, revision: this.revision, project: this.adder.project, operations };
+    return { sessionId: this.sessionId, revision: this.revision, project: this.adder.project, operations: operations.map(o => this.book.forWindow(o)) };
   }
 
   // A reloaded or crashed renderer can no longer show or cancel its clone, so the clone stops and cleans up as Cancel

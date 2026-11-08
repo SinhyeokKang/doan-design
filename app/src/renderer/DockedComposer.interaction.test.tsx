@@ -433,6 +433,8 @@ test("a notice with Retry sends the same draft again", async () => {
   const { render } = setup({ mode: { kind: "new", root: "/w", canvas: RESUME.canvas }, refuse, onSend: send }, [[draftKey({ kind: "new", root: "/w", canvas: RESUME.canvas }), draft("Fix")]]);
   (button(render(), "Send").onClick as () => void)();
   await flush();
+  // The notice's text can be selected and copied, as the Home composer's can; Retry stays a plain button.
+  expect(find(render(), item => item.children === "Couldn’t start with Codex: it is rate limited.").className).toBe("grow-text selectable");
   (find(render(), item => item.children === "Retry").onClick as () => void)();
   await flush();
   expect(send).toHaveBeenCalledTimes(2);

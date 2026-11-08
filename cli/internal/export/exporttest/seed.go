@@ -28,6 +28,7 @@ const (
 	RefuseMissing  = ".doan/canvases/refuse-missing.html"   // a direct reference to no file
 	RefuseFrame    = ".doan/canvases/refuse-frame.html"     // a local iframe
 	RefuseLink     = ".doan/canvases/refuse-link.html"      // a served path that links outside the repository
+	RefuseBase     = ".doan/canvases/refuse-base.html"      // a reference relative to a <base href> that moves the folder
 	NoWidth        = ".doan/canvases/no-width.html"
 	BadWidth       = ".doan/canvases/bad-width.html"
 
@@ -112,6 +113,7 @@ var seedFiles = map[string]string{
 	RefuseMissing: page("refuse-missing", "", `<section data-doan-frame="a"><img src="../assets/images/none.png"></section>`),
 	RefuseFrame:   page("refuse-frame", "", `<section data-doan-frame="a"><iframe src="full.html"></iframe></section>`),
 	RefuseLink:    page("refuse-link", "", `<section data-doan-frame="a"><img src="../assets/escape.png"></section>`),
+	RefuseBase:    page("refuse-base", "<base href=\"../assets/\">\n", `<section data-doan-frame="a"><img src="images/hero.png"></section>`),
 	NoWidth:       "<!doctype html>\n<html><head><meta name=\"doan:canvas\" content=\"no-width\"></head><body><section data-doan-frame=\"a\"></section></body></html>\n",
 	BadWidth:      "<!doctype html>\n<html><head><meta name=\"doan:canvas\" content=\"bad-width\"><meta name=\"doan:width\" content=\"wide\"></head><body><section data-doan-frame=\"a\"></section></body></html>\n",
 }

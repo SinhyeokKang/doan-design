@@ -211,8 +211,8 @@ function McpRow({ row, run, askRemove, focused, runningNotice }: { row: McpRowVi
   // provider row): icon, content (name, status and URL lines), trailing actions, and the lines under the row.
   return <div className="doan-preference-row" data-has-icon="" role="group" tabIndex={-1} aria-label={row.group} data-mcp-row={key} onFocus={event => focused(event.target)}>
     <span className="doan-preference-row-icon" aria-hidden="true">{row.logo ? <img className="logo" src={row.logo} alt="" /> : <Server />}</span>
-    <div className="doan-preference-row-content"><span className="doan-preference-row-label">{row.label}</span><span className="doan-preference-row-description">{row.status}</span>
-      {row.url && <span className="doan-preference-row-description mcp-url">{row.url}</span>}</div>
+    <div className="doan-preference-row-content"><span className="doan-preference-row-label">{row.label}</span><span className="doan-preference-row-description selectable">{row.status}</span>
+      {row.url && <span className="doan-preference-row-description mcp-url selectable">{row.url}</span>}</div>
     {(row.button || row.menu) && <div className="doan-preference-row-trailing">
       {row.button && <RowButton button={row.button} run={run} describedBy={`mcp-busy-${row.provider}-${row.name}`} />}
       {row.menu && <DropdownMenu.Root>
@@ -242,7 +242,7 @@ function AddServerDialog({ dialog, change, submit, close }: { dialog: Extract<Di
         <p className="doan-dialog-description">Enter the address of a remote MCP server. It must start with https://.</p></div></div>
       <input className="doan-input" aria-label="Server URL" placeholder="https://mcp.example.com/mcp" spellCheck={false} value={dialog.value} autoFocus
         aria-invalid={dialog.error ? true : undefined} aria-describedby={dialog.error ? "mcp-add-error" : undefined} onChange={event => change(event.target.value)} />
-      {dialog.error && <p className="settings-msg error mcp-field-error" role="alert" id="mcp-add-error"><AlertIcon /><span>{dialog.error}</span></p>}
+      {dialog.error && <p className="settings-msg error mcp-field-error selectable" role="alert" id="mcp-add-error"><AlertIcon /><span>{dialog.error}</span></p>}
       <div className="doan-dialog-actions">
         {/* Default-size actions, as the compact dialogs are drawn (40px); Settings' row buttons stay sm. */}
         <button type="button" className="doan-button" data-ui-variant="subtle" onClick={close}>Cancel</button>

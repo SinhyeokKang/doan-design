@@ -112,7 +112,7 @@ export type OnboardingOperationState = "pending" | "running" | "awaiting_user" |
 export type OnboardingOperationErrorCode =
   | "sign_in_failed" | "network" | "storage_failed" | "check_failed" | "account_mismatch" | "cli_install_failed"
   | "repository_unreachable" | "git_missing" | "remote_mismatch" | "destination_exists" | "clone_failed" | "cleanup_failed"
-  | "config_invalid" | "init_failed" | "local_not_git" | "local_exclude_failed" | "project_unavailable" | "no_ready_agent" | "completion_save_failed"
+  | "config_invalid" | "init_failed" | "local_not_git" | "local_exclude_failed" | "project_unavailable" | "project_unreadable" | "no_ready_agent" | "completion_save_failed"
   | "completion_unsupported_version";
 
 export interface OnboardingOperation {
@@ -122,7 +122,8 @@ export interface OnboardingOperation {
   state: OnboardingOperationState;
   cancelling?: true;
   provider?: OnboardingProvider;
-  error?: { code: OnboardingOperationErrorCode; message: string };
+  // detail: in the app's own window only (main's onboarding IPC), never in a socket reply, whose schema refuses it.
+  error?: { code: OnboardingOperationErrorCode; message: string; detail?: string };
   inspection?: OnboardingInspection;
   project?: OnboardingProject;
 }

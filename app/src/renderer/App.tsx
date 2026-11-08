@@ -464,6 +464,13 @@ export function App() {
       if (focus) {
         const located = locateFrom.current === focus.from;
         if (!located) setLoadedRoot(root => root === focus.from ? focus.root : root);
+        // A page's origin on the moved root follows it, also when the page's sidebar moved a root other than the page's
+        // own, or leaving would find the origin gone and go Home (PRODUCT §5 item 0: leaving returns to where it came from).
+        const origin = pageRef.current.origin;
+        if (origin.screen === "workspace" && origin.root === focus.from) {
+          const next = { ...pageRef.current, origin: { screen: "workspace" as const, root: focus.root } };
+          pageRef.current = next; setPage(next);
+        }
         rerootSeq.current += 1;
         setReroot({ ...focus, seq: rerootSeq.current });
       }
@@ -2220,15 +2227,15 @@ function CanvasPane({ viewport, board, overlay, dragLayer, state, command, cover
     <div className="drag-layer" ref={dragLayer} hidden />
     {/* The agent notice comes first, the canvas notices stack under it. */}
     <CanvasAgent {...agent}>
-      {state.error && !overlaid && <div className="doan-notice doan-panel" role="status"><AlertIcon /><span className="grow-text">{state.error}</span></div>}
-      {state.unlisted && <div className="doan-notice doan-panel" role="status"><AlertIcon /><span className="grow-text">This page is not a listed canvas. Choose a canvas from the Sidebar.</span></div>}
+      {state.error && !overlaid && <div className="doan-notice doan-panel" role="status"><AlertIcon /><span className="grow-text selectable">{state.error}</span></div>}
+      {state.unlisted && <div className="doan-notice doan-panel" role="status"><AlertIcon /><span className="grow-text selectable">This page is not a listed canvas. Choose a canvas from the Sidebar.</span></div>}
     </CanvasAgent>
     {/* A canvas closed for a missing or not set up root leaves no message: the overlay names the problem. */}
     {state.status && (state.status !== "missing" || state.message) && <div className="canvas-status" role="status">
       {state.status === "loading" ? <p><span className="doan-spinner" aria-hidden="true" />Loading</p>
         : state.status === "failed" ? <div><b>Couldn’t load the canvas</b><br />Run doan check in a terminal<br /><br /><button className="doan-button" data-ui-variant="panel" data-ui-size="sm" onClick={() => command("reload")}>Reload</button></div>
-        : state.status === "noWidth" ? <p><b>Could not read a valid board width.</b>{state.message.slice("Could not read a valid board width.".length)}</p>
-        : <p>{state.message}</p>}
+        : state.status === "noWidth" ? <p className="selectable"><b>Could not read a valid board width.</b>{state.message.slice("Could not read a valid board width.".length)}</p>
+        : <p className="selectable">{state.message}</p>}
     </div>}
     {/* Picking is a mode the person turned on, so its hint sits by the tools, out of the agent notices' column: their
         coming and going never moves it (DESIGN 'Terminal work in another worktree'). The composer pick button's glyph leads it. */}

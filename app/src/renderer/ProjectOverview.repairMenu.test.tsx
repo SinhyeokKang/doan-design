@@ -33,7 +33,7 @@ const entry = (path: string): FolderEntry => ({ kind: "list", path, servedRev: 0
 
 test.each([
   ["CLI error", { kind: "cliError", path: "/code/doan-cli", reason: "The doan command exited with code 2 without a message." }],
-  ["Config error", { kind: "error", path: "/code/doan-cli", message: "unexpected end of JSON input" }],
+  ["Config error", { kind: "error", path: "/code/doan-cli", message: "unexpected end of JSON input", config: "/code/doan-cli/.doan/config.json" }],
 ] as [string, FolderEntry][])("%s: the repair menu's Retry and Details show RotateCw and Info", (_name, problem) => {
   vi.stubGlobal("window", { doan: { readConversation: vi.fn(() => new Promise(() => {})), takeConversationDraft: vi.fn(async () => null), listConversationSkills: vi.fn(() => new Promise(() => {})) } });
   hooks.states = [];

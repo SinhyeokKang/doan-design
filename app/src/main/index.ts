@@ -34,7 +34,7 @@ import { groupRoots, projectKeepsLocal } from "./storage";
 import { DocumentBindings } from "./document/bindings";
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, nativeTheme, Notification, screen, session, shell as electronShell, systemPreferences, webContents, webFrameMain, type BaseWindow, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from "electron";
 import { randomUUID } from "node:crypto";
-import { accessSync, constants as fsConstants, readlinkSync, realpathSync, statSync } from "node:fs";
+import { accessSync, constants as fsConstants, lstatSync, readlinkSync, realpathSync, statSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -61,6 +61,7 @@ import { createPreferencesStore } from "./preferences";
 import { createCanvasSeenStore, type CanvasSeenStore } from "./canvasSeen";
 import { DESIGN_SKILL_CHANNELS, DESIGN_SKILL_REFUSED, designSkillGetRequest, interpretGet, interpretList } from "./designSkills";
 import { folderState } from "./folderState";
+import { revealTarget } from "./view";
 import type { InspectResult } from "./inspect";
 import { createInspector, parseInspectRequest, type Inspector } from "./inspector";
 import { startRuntime, type Runtime } from "./runtime";
@@ -630,8 +631,9 @@ function openAddProjects(): void {
   send(ADD_PAGE_CHANNELS.open);
 }
 
-function isFile(path: string): boolean {
-  try { return statSync(path).isFile(); } catch { return false; }
+// Whether anything is at the path, a link included; nothing is read.
+function exists(path: string): boolean {
+  try { lstatSync(path); return true; } catch { return false; }
 }
 
 function storedPath(value: unknown): string | null {
@@ -921,7 +923,7 @@ async function start(): Promise<void> {
   for (const [name, op] of Object.entries(sessionOps) as [keyof typeof sessionOps, (typeof sessionOps)[keyof typeof sessionOps]][]) {
     handle(ONBOARDING_CHANNELS[name], sessionRefused, (event, value: unknown) => {
       const request = rendererRequest(op, value);
-      return fromWindow(event) && request !== null ? onboardingService.answer(request) : sessionRefused;
+      return fromWindow(event) && request !== null ? onboardingService.answerWindow(request) : sessionRefused;
     });
   }
   const page = new AddPageSession({ projects: projectWork, locks, publish: state => send(ADD_PAGE_CHANNELS.changed, state) });
@@ -1094,17 +1096,13 @@ async function start(): Promise<void> {
     await ready.replace(from, judged.root);
     return { kind: "located", root: judged.root };
   });
-  // The renderer names the root only. TS does not build `.doan/` paths (POSTMORTEM "Guessing the repo root in TS"),
-  // with one exception: an `error` entry read with `ls --repo <root>` (which never searches upward), which the app
-  // presents as a Config error, selects `<root>/.doan/config.json` in Finder when that file exists (macOS hides
-  // `.doan/`). A root without the file shows as the root, as an error from a parent's config through the upward
-  // re-read does. The app only checks that the file exists and passes its location to Finder; it never reads it.
+  // The renderer names the root only; the file a Config error selects is the one the CLI named (revealTarget), never
+  // a path TS builds (POSTMORTEM "Guessing the repo root in TS").
   handle("folders:reveal", undefined, (event, value: unknown) => {
     const path = storedPath(value);
     if (!fromWindow(event) || path === null) return;
-    const config = join(path, ".doan", "config.json");
-    const broken = shell?.entries().some(entry => entry.path === path && entry.kind === "error") === true;
-    electronShell.showItemInFolder(broken && isFile(config) ? config : path);
+    const entry = shell?.entries().find(item => item.path === path);
+    electronShell.showItemInFolder(entry ? revealTarget(entry, exists) : path);
   });
   // Validated against the saved roots in main; the renderer's copy is not trusted.
   const store = createUiStateStore(join(userData, "ui-state.json"), () => ready.entries().map((entry) => entry.path), undefined, undefined, () => ready.spellings());
@@ -1342,8 +1340,11 @@ app.on("before-quit", (event) => {
   }
   setImmediate(() => { void quitInOrder(); });
 });
+// `open -g` to a running app (as `onboarding start` sends while it is still starting) arrives as a reopen, which
+// Electron emits as `activate` without activating Doan; showing then would activate it over the app in use. A Dock
+// click has already made Doan active when this event arrives, though `did-become-active` can come before or after it.
 app.on("activate", () => {
-  if (win && !win.isDestroyed()) showWindow(win);
+  if (app.isActive() && win && !win.isDestroyed()) showWindow(win);
 });
 
 app.on("will-quit", () => {

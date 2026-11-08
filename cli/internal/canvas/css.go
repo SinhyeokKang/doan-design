@@ -74,27 +74,38 @@ func quoted(s string, i int) (string, int) {
 	}
 	return b.String(), i
 }
-func lex(s string) []token {
-	var out []token
-	for i := 0; i < len(s); {
+
+// lexer yields CSS tokens one at a time. The scanners keep only the tokens
+// of the statement they are in: a slice of every token costs about 40 bytes
+// per punctuation mark, which for a minified 24 MiB stylesheet is half a
+// gigabyte per scan and several gigabytes allocated while it grows.
+type lexer struct {
+	s string
+	i int
+}
+
+func (l *lexer) next() (token, bool) {
+	s := l.s
+	for l.i < len(s) {
+		i := l.i
 		if asciiSpace(s[i]) {
-			i++
+			l.i++
 			continue
 		}
 		if strings.HasPrefix(s[i:], "/*") {
 			j := strings.Index(s[i+2:], "*/")
 			if j < 0 {
-				break
+				l.i = len(s)
+				return token{}, false
 			}
-			i += j + 4
+			l.i = i + j + 4
 			continue
 		}
 		start := i
 		if s[i] == '\'' || s[i] == '"' {
 			v, end := quoted(s, i)
-			out = append(out, token{'s', v, start, end})
-			i = end
-			continue
+			l.i = end
+			return token{'s', v, start, end}, true
 		}
 		if ident(s[i]) {
 			i++
@@ -126,16 +137,22 @@ func lex(s string) []token {
 				if i < len(s) {
 					i++
 				}
-				out = append(out, token{'u', v, start, i})
-				continue
+				l.i = i
+				return token{'u', v, start, i}, true
 			}
-			out = append(out, token{'i', name, start, i})
-			continue
+			l.i = i
+			return token{'i', name, start, i}, true
 		}
-		out = append(out, token{s[i], s[i : i+1], i, i + 1})
-		i++
+		l.i = i + 1
+		return token{s[i], s[i : i+1], i, i + 1}, true
 	}
-	return out
+	return token{}, false
+}
+
+// importTarget reports whether t is the target of an @import written as the
+// two tokens before it, p2 and p1.
+func importTarget(p2, p1, t token) bool {
+	return p2.kind == '@' && p1.start == p2.end && lower(p1.text) == "import" && (t.kind == 's' || t.kind == 'u')
 }
 
 var viewportHeightUnits = map[string]bool{"vh": true, "dvh": true, "svh": true, "lvh": true, "vb": true, "dvb": true, "svb": true, "lvb": true}
@@ -283,20 +300,28 @@ func viewportHeights(text string, ts []token) []string {
 func custom(s string) bool { return strings.HasPrefix(s, "--") && len(s) > 2 }
 func ScanCSS(text string, mode Mode) Scan {
 	s := Scan{Defs: map[string]bool{}}
-	ts := lex(text)
+	l := lexer{s: text}
 	depth := 0
 	if mode == Declarations {
 		depth = 1
 	}
-	start := 0
 	paren := 0
-	for i, t := range ts {
+	// decl holds the tokens since the last statement boundary; p2 and p1 are
+	// the two tokens before t.
+	var decl []token
+	var p2, p1 token
+	for {
+		t, ok := l.next()
+		if !ok {
+			break
+		}
 		if t.kind == 'u' {
 			s.URLs = append(s.URLs, t.text)
 		}
-		if depth == 0 && t.kind == '@' && i+2 < len(ts) && ts[i+1].start == t.end && lower(ts[i+1].text) == "import" && (ts[i+2].kind == 's' || ts[i+2].kind == 'u') {
-			s.Imports = append(s.Imports, ts[i+2].text)
+		if depth == 0 && importTarget(p2, p1, t) {
+			s.Imports = append(s.Imports, t.text)
 		}
+		p2, p1 = p1, t
 		if t.kind == '(' {
 			paren++
 		}
@@ -305,13 +330,13 @@ func ScanCSS(text string, mode Mode) Scan {
 		}
 		if t.kind == '{' {
 			depth++
-			start = i + 1
+			decl = decl[:0]
 			paren = 0
 			continue
 		}
 		if t.kind == '}' || t.kind == ';' && paren == 0 {
 			if depth > 0 {
-				s.declaration(text, ts[start:i])
+				s.declaration(text, decl)
 			}
 			if t.kind == '}' {
 				depth--
@@ -319,12 +344,14 @@ func ScanCSS(text string, mode Mode) Scan {
 					depth = 0
 				}
 			}
-			start = i + 1
+			decl = decl[:0]
 			paren = 0
+			continue
 		}
+		decl = append(decl, t)
 	}
-	if depth > 0 && start < len(ts) {
-		s.declaration(text, ts[start:])
+	if depth > 0 && len(decl) > 0 {
+		s.declaration(text, decl)
 	}
 	return s
 }
@@ -404,22 +431,26 @@ type CSSRef struct {
 // CSSRefs walks the same tokens and @import rule as ScanCSS, so export
 // rewrites exactly what check reaches.
 func CSSRefs(text string, mode Mode) []CSSRef {
-	ts := lex(text)
+	l := lexer{s: text}
 	depth := 0
 	if mode == Declarations {
 		depth = 1
 	}
 	var out []CSSRef
-	target := -1
-	start, paren := 0, 0
-	for i, t := range ts {
-		if depth == 0 && t.kind == '@' && i+2 < len(ts) && ts[i+1].start == t.end && lower(ts[i+1].text) == "import" && (ts[i+2].kind == 's' || ts[i+2].kind == 'u') {
-			target = i + 2
+	var decl []token
+	var p2, p1 token
+	paren := 0
+	for {
+		t, ok := l.next()
+		if !ok {
+			break
 		}
-		if t.kind == 'u' || i == target {
-			r := CSSRef{Value: refValue(text[t.start:t.end]), Import: i == target, Start: t.start, End: t.end}
+		target := depth == 0 && importTarget(p2, p1, t)
+		p2, p1 = p1, t
+		if t.kind == 'u' || target {
+			r := CSSRef{Value: refValue(text[t.start:t.end]), Import: target, Start: t.start, End: t.end}
 			if depth > 0 && t.kind == 'u' {
-				r.Custom = customName(ts[start:i])
+				r.Custom = customName(decl)
 			}
 			out = append(out, r)
 		}
@@ -431,15 +462,19 @@ func CSSRefs(text string, mode Mode) []CSSRef {
 			paren--
 		case t.kind == '{':
 			depth++
-			start, paren = i+1, 0
+			decl, paren = decl[:0], 0
+			continue
 		case t.kind == '}':
 			if depth > 0 {
 				depth--
 			}
-			start, paren = i+1, 0
+			decl, paren = decl[:0], 0
+			continue
 		case t.kind == ';' && paren == 0:
-			start = i + 1
+			decl = decl[:0]
+			continue
 		}
+		decl = append(decl, t)
 	}
 	return out
 }
@@ -467,12 +502,13 @@ type CustomUse struct {
 // CustomUses walks the declarations ScanCSS walks.
 func CustomUses(text string, mode Mode) CustomUse {
 	u := CustomUse{Used: map[string]bool{}, Hops: map[string]map[string]bool{}, URLSyntax: map[string]bool{}}
-	ts := lex(text)
+	l := lexer{s: text}
 	depth := 0
 	if mode == Declarations {
 		depth = 1
 	}
-	start, paren := 0, 0
+	paren := 0
+	var decl []token
 	// registering is the @property block being read, or "".
 	registering := ""
 	declaration := func(d []token) {
@@ -496,22 +532,27 @@ func CustomUses(text string, mode Mode) CustomUse {
 			}
 		}
 	}
-	for i, t := range ts {
+	for {
+		t, ok := l.next()
+		if !ok {
+			break
+		}
 		switch {
 		case t.kind == '(':
 			paren++
 		case t.kind == ')' && paren > 0:
 			paren--
 		case t.kind == '{':
-			p := ts[start:i]
+			p := decl
 			if len(p) == 3 && p[0].kind == '@' && p[1].start == p[0].end && lower(p[1].text) == "property" && p[2].kind == 'i' && custom(p[2].text) {
 				registering = p[2].text
 			}
 			depth++
-			start, paren = i+1, 0
+			decl, paren = decl[:0], 0
+			continue
 		case t.kind == '}' || t.kind == ';' && paren == 0:
 			if depth > 0 {
-				declaration(ts[start:i])
+				declaration(decl)
 			}
 			if t.kind == '}' {
 				if depth > 0 {
@@ -519,11 +560,13 @@ func CustomUses(text string, mode Mode) CustomUse {
 				}
 				registering = ""
 			}
-			start, paren = i+1, 0
+			decl, paren = decl[:0], 0
+			continue
 		}
+		decl = append(decl, t)
 	}
-	if depth > 0 && start < len(ts) {
-		declaration(ts[start:])
+	if depth > 0 && len(decl) > 0 {
+		declaration(decl)
 	}
 	return u
 }

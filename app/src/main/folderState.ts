@@ -18,12 +18,17 @@ export interface CliRun {
 export type FolderState =
   | ({ kind: "list"; root: string; scope: string[]; canvases: unknown[]; git?: GitInfo } & StorageFacts)
   | { kind: "uninitialized" }
-  | { kind: "error"; message: string }
-  | { kind: "cliError"; reason: string };
+  // A Config error: the CLI named the config file it failed on (`error.config`, an absolute path that may be a parent
+  // folder's). Only this is a Config error; the code alone does not decide it.
+  | { kind: "error"; message: string; config: string }
+  // `code`: the CLI answered with a failure envelope and a non-zero exit, for a reason other than a config file (an
+  // unreadable canvas folder, say). Absent when the command did not answer that way. With `--repo` (never searching
+  // upward) it means Go read the folder as a repository root. Main reads it to decide; screens never show it.
+  | { kind: "cliError"; reason: string; code?: string };
 
 type Envelope =
   | { v: 1; ok: true; result: unknown }
-  | { v: 1; ok: false; error: { code: string; message: string; nextSteps: string[] } };
+  | { v: 1; ok: false; error: { code: string; message: string; nextSteps: string[]; config?: string } };
 
 interface ListResult {
   root: string;
@@ -57,7 +62,9 @@ export function folderState(run: CliRun): FolderState {
   if (!value.ok) {
     if (run.exitCode === 0) return cliError(value.error.message);
     if (value.error.code === "repo_not_found") return { kind: "uninitialized" };
-    return { kind: "error", message: value.error.message };
+    const { code, message, config } = value.error;
+    if (config !== undefined) return { kind: "error", message, config };
+    return { kind: "cliError", reason: cliReason(run, message), code };
   }
   if (run.exitCode !== 0 || !isListResult(value.result)) return cliError();
   const { root, scope, canvases } = value.result;

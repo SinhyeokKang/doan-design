@@ -392,7 +392,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         onClick={() => startNewConversation(conversationId, showsNew, id => run.select(root, id), focusField)}><SquarePen aria-hidden="true" /></button></TooltipTrigger>
         <TooltipContent>New conversation</TooltipContent></Tooltip>
     </header>
-    {props.notice && <div className="doan-notice ov-notice" role="status"><AlertIcon /><span className="grow-text">{props.notice}</span></div>}
+    {props.notice && <div className="doan-notice ov-notice" role="status"><AlertIcon /><span className="grow-text selectable">{props.notice}</span></div>}
     <div className="ov-scroll">
       {conversationId && provider ? <ConversationThread ref={handle} conversationId={conversationId} items={items} provider={provider} project={project}
         liveAfter={thread?.liveAfter ?? Number.MAX_SAFE_INTEGER} turn={thread && Array.isArray(items) ? threadTurn(thread.events, items, live, run.store.stageOf(conversationId), root) : null} canvasListed={canvasListed}
@@ -409,7 +409,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         onCopy={text => Promise.resolve(copyText(text))}
         {...(props.onReplyChip ? { onReplyChip: props.onReplyChip } : {})} openCanvasId={null} canvasRows={props.entry.kind === "list" ? props.entry.canvases : NO_ROWS} />
         : waiting || conversationId ? <Waiting /> : <div className="ov-col ov-new">
-          {moved && <div className="doan-notice moved" role="status"><ArrowUpRight className="doan-alert-icon" aria-hidden="true" /><span className="grow-text moved-text" title={`${moved.title} moved to ${movedCanvas}.`}>
+          {moved && <div className="doan-notice moved" role="status"><ArrowUpRight className="doan-alert-icon" aria-hidden="true" /><span className="grow-text moved-text selectable" title={`${moved.title} moved to ${movedCanvas}.`}>
             <span className="moved-title">{moved.title}</span><span className="moved-rest">{` moved to ${movedCanvas}.`}</span></span>
             <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => props.onOpenCanvas(moved.canvas, moved.conversationId)}>Open</button></div>}
           {prompts.length > 0 && !started && <div className="ov-suggestions" role="group" aria-label="Suggested prompts">{prompts.map(prompt =>

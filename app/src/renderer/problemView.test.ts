@@ -12,7 +12,7 @@ const list: FolderEntry = { path: root, kind: "list", canvases: [], servedRev: 0
 const problems: Record<"notFound" | "uninitialized" | "error" | "cliError", FolderEntry> = {
   notFound: { path: root, kind: "notFound" },
   uninitialized: { path: root, kind: "uninitialized" },
-  error: { path: root, kind: "error", message: "Unexpected token } at line 3" },
+  error: { path: root, kind: "error", message: "Unexpected token } at line 3", config: `${root}/.doan/config.json` },
   cliError: { path: root, kind: "cliError", reason: "spawn ENOENT" },
 };
 const loading: FolderEntry = { path: root, kind: "loading" };

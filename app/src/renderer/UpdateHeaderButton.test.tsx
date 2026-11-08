@@ -12,7 +12,7 @@ const BLOCKED = UPDATE_BLOCKED;
 function props(over: Partial<UpdateHeaderButtonViewProps> = {}): UpdateHeaderButtonViewProps {
   return {
     header: { label: "Restart to Update", busy: false, tooltip: "Doan 0.1.1 is ready", popover: null, opened: null }, disabled: false, open: false, shown: null,
-    descriptionId: "hd", titleId: "ht", buttonRef: vi.fn(), onPress: vi.fn(), onOpenChange: vi.fn(), onOpenAutoFocus: vi.fn(), onCloseAutoFocus: vi.fn(), ...over,
+    descriptionId: "hd", titleId: "ht", buttonRef: vi.fn(), contentRef: vi.fn(), onPress: vi.fn(), onOpenChange: vi.fn(), onOpenAutoFocus: vi.fn(), onCloseAutoFocus: vi.fn(), onFocusOutside: vi.fn(), ...over,
   };
 }
 const html = (node: ReactElement) => renderToStaticMarkup(<TooltipProvider>{node}</TooltipProvider>);

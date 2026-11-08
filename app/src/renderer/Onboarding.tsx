@@ -70,7 +70,7 @@ export function NoticeView<C extends string = AuthCommand>({ notice, run, panel 
   return <>
     <div className={`doan-notice${notice.role === "alert" ? " error" : ""}${panel ? " doan-panel" : ""}`} role={live ? notice.role : undefined} tabIndex={-1}>
       {notice.spinner ? <span className="doan-spinner doan-alert-icon" aria-hidden="true" /> : <AlertIcon />}
-      <span>{notice.title && <strong className="ob-notice-title">{notice.title}</strong>}{notice.body && <span className="ob-notice-body">{notice.body}</span>}</span>
+      <span className="selectable">{notice.title && <strong className="ob-notice-title">{notice.title}</strong>}{notice.body && <span className="ob-notice-body">{notice.body}</span>}</span>
     </div>
     {notice.note && <p className="ob-provider-help">{notice.note}</p>}
     {notice.actions.length > 0 && <div className={notice.actions.length === 1 ? "ob-state-actions submit-only" : "ob-state-actions"}>
@@ -83,7 +83,7 @@ export function ProviderRow({ view, run }: { view: ProviderView; run: (command: 
   return <div className="ob-provider" data-provider={view.provider}>
     <div className="ob-provider-row">
       <span className="ob-provider-mark" aria-hidden="true"><img src={`provider-logos/${LOGOS[view.provider]}`} alt="" /></span>
-      <div className="ob-provider-label"><strong>{view.name}</strong>{view.detail !== null && <span role={view.detailRole ?? undefined}>{view.detail}</span>}</div>
+      <div className="ob-provider-label"><strong>{view.name}</strong>{view.detail !== null && <span className="selectable" role={view.detailRole ?? undefined}>{view.detail}</span>}</div>
       {view.button && <ActionButton button={view.button} run={run} />}
     </div>
     {view.helper && <p className="ob-provider-help">{view.helper}</p>}
@@ -242,7 +242,7 @@ export function ProjectThumbnail({ path }: { path: string }) {
   return <span className={`shell-thumbnail onboarding-thumbnail hue-${projectHue(name)}`} aria-hidden="true">{projectInitial(name)}</span>;
 }
 export function ChosenProject({ path, home }: { path: string; home: string | null }) {
-  return <div className="doan-panel ob-chosen"><ProjectThumbnail path={path} /><div><strong>{nameOf(path)}</strong><p className="ob-path">{shown(path, home)}</p></div><Check aria-hidden="true" /></div>;
+  return <div className="doan-panel ob-chosen"><ProjectThumbnail path={path} /><div><strong>{nameOf(path)}</strong><p className="ob-path selectable">{shown(path, home)}</p></div><Check aria-hidden="true" /></div>;
 }
 // (2026-10-29 user): each choice is a card like the chosen project. A visible radio at the start shows the choice
 // (the shared choice card); the native radio under it keeps arrow keys and Space,
@@ -265,7 +265,8 @@ const action = (command: ProjectAction, label: string, variant: Button["variant"
 // fromUrl: the screen belongs to a GitHub URL, so a folder chosen there must be that repository's.
 // insideProject: the name of the doan project a clone destination sits in (main refuses it as path_unavailable).
 // folder: the chosen folder a mismatch is about; on the clone screen "This folder" would read as the destination.
-export function projectNotice(error: ProjectError, message: string | undefined, destination: string | null, fromUrl = false, insideProject: string | null = null, folder: string | null = null): ProjectNotice {
+// detail: main's window-only account of the failure (the CLI's message for project_unreadable).
+export function projectNotice(error: ProjectError, message: string | undefined, destination: string | null, fromUrl = false, insideProject: string | null = null, folder: string | null = null, detail: string | null = null): ProjectNotice {
   // Every folder chosen from a URL screen is checked against that repository.
   const choose: ProjectAction = fromUrl ? "chooseExisting" : "chooseFolder";
   // A clone that landed and whose setup or storage then failed is told in main's own words (they say the clone stayed),
@@ -287,6 +288,8 @@ export function projectNotice(error: ProjectError, message: string | undefined, 
     case "local_not_git": return { body: "This folder isn’t a Git repository, so Doan can’t keep its files out of Git. Choose Include in Git, or run git init here first.", actions: [action(choose, "Choose another folder", "subtle"), action("retry", "Retry")] };
     case "local_exclude_failed": return { body: "Couldn’t add Doan’s lines to .git/info/exclude, so nothing was set up. Make sure the repository’s Git metadata and its exclude file can be read and written, then retry.", actions: [action(choose, "Choose another folder", "subtle"), action("retry", "Retry")] };
     case "config_invalid": return { body: "This folder’s Doan configuration couldn’t be read. Fix it and retry, or choose another folder.", actions: [action(choose, "Choose another folder", "subtle"), action("retry", "Retry")] };
+    // The CLI read the folder but failed for a reason other than its configuration; its message says why.
+    case "project_unreadable": return { body: "Doan couldn’t read this folder. Fix the problem shown below and retry, or choose another folder.", ...(detail ? { detail } : {}), actions: [action(choose, "Choose another folder", "subtle"), action("retry", "Retry")] };
     case "clone_failed": return { body: "Couldn’t clone this repository. Check your connection and folder access, then retry.", ...(destination ? { detail: destination } : {}), actions: [action("changeLocation", "Change location", "subtle"), action("retry", "Retry")] };
     case "git_missing": return { body: "Install Git to clone a repository, or choose a local folder.", actions: [action(choose, "Choose local folder", "subtle"), action("retry", "Check again")] };
     case "completion_save_failed": return { body: "Your project is ready, but setup completion couldn’t be saved. Retry to finish.", actions: [] };
@@ -300,8 +303,8 @@ export function projectNotice(error: ProjectError, message: string | undefined, 
 function ProjectNoticeView({ notice, run, id, panel = false }: { notice: ProjectNotice; run: (command: ProjectAction) => void; id?: string; panel?: boolean }) {
   return <>
     <div className={panel ? "doan-notice error doan-panel ob-project-notice" : "doan-notice error ob-project-notice"} role="alert" tabIndex={-1} id={id}><AlertIcon />
-      <span>{notice.title ? <><strong className="ob-notice-title">{notice.title}</strong><span className="ob-notice-body">{notice.body}</span></> : notice.body}</span></div>
-    {notice.detail && <p className="ob-path ob-notice-detail">{notice.detail}</p>}
+      <span className="selectable">{notice.title ? <><strong className="ob-notice-title">{notice.title}</strong><span className="ob-notice-body">{notice.body}</span></> : notice.body}</span></div>
+    {notice.detail && <p className="ob-path ob-notice-detail selectable">{notice.detail}</p>}
     {notice.note && <p className="ob-provider-help">{notice.note}</p>}
     {notice.actions.length > 0 && <div className={notice.actions.length === 1 ? "ob-state-actions submit-only" : "ob-state-actions"}>
       {notice.actions.map(button => <button key={button.command} type="button" className="doan-button" data-ui-variant={button.variant} data-ui-size="sm" data-consent={button.command === "retry" ? "" : undefined} onClick={() => run(button.command)}>{button.label}</button>)}
@@ -309,7 +312,7 @@ function ProjectNoticeView({ notice, run, id, panel = false }: { notice: Project
   </>;
 }
 function Progress({ title, body, panel = false }: { title: string; body?: string; panel?: boolean }) {
-  return <div className={panel ? "doan-notice doan-panel ob-project-notice" : "doan-notice ob-project-notice"} role="status" tabIndex={-1}><span className="doan-spinner doan-alert-icon" aria-hidden="true" /><span><strong className="ob-notice-title">{title}</strong>{body && <span className="ob-notice-body">{body}</span>}</span></div>;
+  return <div className={panel ? "doan-notice doan-panel ob-project-notice" : "doan-notice ob-project-notice"} role="status" tabIndex={-1}><span className="doan-spinner doan-alert-icon" aria-hidden="true" /><span className="selectable"><strong className="ob-notice-title">{title}</strong>{body && <span className="ob-notice-body">{body}</span>}</span></div>;
 }
 // First run's Back carries its arrow; the page's Cancel leaves the page and has none (draft footers).
 function Footer({ use, footer, back, next }: { use: ProjectUse; footer: NonNullable<ReturnType<typeof projectFooter>>; back: () => void; next: () => void }) {
@@ -471,7 +474,7 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
   // A clone destination under a registered project is what main refuses as path_unavailable on the clone screen.
   const container = p.kind === "clone" && destination !== null ? projects.find(root => destination.startsWith(`${root.replace(/\/+$/, "")}/`)) ?? null : null;
   const code = projectNoticeCode(use, state, agentReady);
-  const notice = code === null ? null : code === error?.code ? projectNotice(code, error.message, destination, fromUrl, container && nameOf(container), error.path ?? null) : projectNotice(code, undefined, null);
+  const notice = code === null ? null : code === error?.code ? projectNotice(code, error.message, destination, fromUrl, container && nameOf(container), error.path ?? null, error.detail ?? null) : projectNotice(code, undefined, null);
   // A notice's recovery actions and the screen's own never repeat; the notice keeps its copy. Use existing folder
   // already answers 'Already have this repository?'.
   const offered = new Set(notice?.actions.map(button => button.command) ?? []);
@@ -502,7 +505,7 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
         <div className="ob-state-actions submit-only"><button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled={busy || state.listChoice === null} onClick={on.useListed}>Use this folder</button></div>
       </div>}
       <LocalFolderCard busy={busy} choose={on.chooseFolder} {...(drop ? { drop } : {})} />
-      {drop?.notice && <div className={panel ? "doan-notice error doan-panel ob-project-notice ob-drop-notice" : "doan-notice error ob-project-notice ob-drop-notice"} role="alert" tabIndex={-1}><AlertIcon /><span>{drop.notice}</span></div>}
+      {drop?.notice && <div className={panel ? "doan-notice error doan-panel ob-project-notice ob-drop-notice" : "doan-notice error ob-project-notice ob-drop-notice"} role="alert" tabIndex={-1}><AlertIcon /><span className="selectable">{drop.notice}</span></div>}
       <div className="ob-divider"><span>or use GitHub</span></div>
       </>}
       {urlField(p.kind === "inspecting")}
@@ -568,7 +571,7 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
       {urlField(true)}
       <div className="ob-field-label ob-spaced">Save to</div>
       <div className="doan-panel ob-destination"><ProjectThumbnail path={p.destination} />
-        <div className="ob-destination-name"><strong>{nameOf(p.destination)}</strong><p className="ob-path">{shown(p.destination, home)}</p></div>
+        <div className="ob-destination-name"><strong>{nameOf(p.destination)}</strong><p className="ob-path selectable">{shown(p.destination, home)}</p></div>
         {!offered.has("changeLocation") && <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={busy} onClick={on.changeDestination}>Change</button>}</div>
       {/* A clone is a new repository, so it always offers the choice; while it runs the choice keeps its value, disabled. */}
       <StorageCard id="ob-clone-storage" value={state.storage ?? "repo"} kept={false} disabled={busy || p.kind === "cloning"} change={on.setStorage} spaced />
@@ -582,7 +585,7 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
         {/* The page's locked header and sidebar, and first run's disabled Back and steps, do not say why by themselves. */}
         <p className="ob-fine">Stay on this page until the clone finishes, or cancel it.</p>
       </> : p.kind === "cloneCancelled" ? <>
-        <div className={panel ? "doan-notice doan-panel ob-project-notice" : "doan-notice ob-project-notice"} role="status" tabIndex={-1}><AlertIcon /><span>Cloning was cancelled. Choose a folder or try again.</span></div>
+        <div className={panel ? "doan-notice doan-panel ob-project-notice" : "doan-notice ob-project-notice"} role="status" tabIndex={-1}><AlertIcon /><span className="selectable">Cloning was cancelled. Choose a folder or try again.</span></div>
         <div className="ob-state-actions"><button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={on.chooseExisting}>Choose local folder</button>
           <button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" data-consent="" onClick={on.retry}>Retry</button></div>
         {smallActions(["Edit repository URL", "edit"])}

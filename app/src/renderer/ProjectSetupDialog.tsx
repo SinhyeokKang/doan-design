@@ -54,7 +54,7 @@ export function ProjectFields({ form, choose, chooseRef, storage }: { form: Proj
   return <>
     <div className="ob-field">
       <span className="ob-label">Token CSS</span>
-      <span className={view.token === null ? "value none" : "value token-path"} title={view.token ?? undefined}>{view.token ?? "None"}</span>
+      <span className={view.token === null ? "value none" : "value token-path selectable"} title={view.token ?? undefined}>{view.token ?? "None"}</span>
       <button type="button" className="btn doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={view.choose.disabled} ref={chooseRef} onClick={choose}>Choose…</button>
       {view.helper && <span className="ob-helper">{view.helper}</span>}
     </div>
@@ -64,7 +64,7 @@ export function ProjectFields({ form, choose, chooseRef, storage }: { form: Proj
       <span className="ob-changes"><span><code>.doan/canvases/</code></span><span><code>.doan/config.json</code></span><span><code>{local ? ".git/info/exclude" : ".gitattributes"}</code> — {local ? "two lines" : "one line"}, if missing</span></span>
       <span />
     </div>
-    {view.error && <div className="ob-field"><span className="ob-msg error ob-wide" role="alert"><AlertIcon /><span>{withCommand(view.error)}</span></span></div>}
+    {view.error && <div className="ob-field"><span className="ob-msg error ob-wide selectable" role="alert"><AlertIcon /><span>{withCommand(view.error)}</span></span></div>}
   </>;
 }
 
@@ -87,7 +87,7 @@ export function ProjectSetupDialog({ root, name, kept = false, onClose, onReroot
       event.preventDefault(); event.stopPropagation();
       if (!event.nativeEvent.isComposing) close();
     }}>
-    <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title">Set up {name}</h3><p className="doan-dialog-description ob-project-path" title={root}>{root}</p></div></div>
+    <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title">Set up {name}</h3><p className="doan-dialog-description ob-project-path selectable" title={root}>{root}</p></div></div>
     <div className="ob-card">
       <ProjectFields form={form} choose={() => void choose()} chooseRef={node => { chooseButton.current = node; }} storage={storage} />
     </div>

@@ -61,26 +61,97 @@ func Assemble(m Meta, canvasHTML []byte) ([]byte, error) {
 	// put the canvas into quirks mode.
 	canvas := bytes.TrimPrefix(canvasHTML, byteOrderMark)
 	at := measureOffset(canvas)
-	srcdoc := attributeEscaper.Replace(string(canvas[:at])) + attributeEscaper.Replace(measureScript) + attributeEscaper.Replace(string(canvas[at:]))
+	srcdoc := [][]byte{canvas[:at], []byte(measureScript), canvas[at:]}
 
-	var out bytes.Buffer
-	replacer := strings.NewReplacer(
-		"{{NAME}}", html.EscapeString(m.Name),
-		"{{WIDTH}}", strconv.Itoa(m.Width),
+	values := map[string]string{
+		"{{NAME}}":  html.EscapeString(m.Name),
+		"{{WIDTH}}": strconv.Itoa(m.Width),
 		// json.Marshal writes every "<" as <, so the value can neither end the
 		// script element nor open an HTML comment.
-		"{{META}}", string(meta),
-		"{{STYLE}}", style,
-		"{{SCRIPT}}", shellScript,
-		"{{SRCDOC}}", srcdoc,
-	)
-	if _, err := replacer.WriteString(&out, shell); err != nil {
-		return nil, err
+		"{{META}}":   string(meta),
+		"{{STYLE}}":  style,
+		"{{SCRIPT}}": shellScript,
 	}
+	// The page is written into one buffer of its final size, with the canvas
+	// escaped straight into it: an escaped copy of the canvas and a growing
+	// buffer would each hold the whole page again.
+	size := 0
+	fillShell(shell, func(s string) { size += len(s) }, func(key string) {
+		if key != srcdocKey {
+			size += len(values[key])
+			return
+		}
+		for _, part := range srcdoc {
+			size += len(part) + 4*bytes.Count(part, []byte("&")) + 5*bytes.Count(part, []byte(`"`))
+		}
+	})
+	out := bytes.NewBuffer(make([]byte, 0, size))
+	fillShell(shell, func(s string) { out.WriteString(s) }, func(key string) {
+		if key != srcdocKey {
+			out.WriteString(values[key])
+			return
+		}
+		for _, part := range srcdoc {
+			writeEscaped(out, part)
+		}
+	})
 	return out.Bytes(), nil
 }
 
+const srcdocKey = "{{SRCDOC}}"
+
+var placeholders = []string{"{{NAME}}", "{{WIDTH}}", "{{META}}", "{{STYLE}}", "{{SCRIPT}}", srcdocKey}
+
+// fillShell walks shell once, passing the text between placeholders to text
+// and each placeholder to value. Like a strings.Replacer, it never looks at
+// what replaces a placeholder, so a canvas (or a name) that contains one is
+// not expanded.
+func fillShell(shell string, text func(string), value func(key string)) {
+	for {
+		i := strings.Index(shell, "{{")
+		if i < 0 {
+			text(shell)
+			return
+		}
+		key := ""
+		for _, p := range placeholders {
+			if strings.HasPrefix(shell[i:], p) {
+				key = p
+				break
+			}
+		}
+		if key == "" {
+			// One byte on: "{{{NAME}}" holds a placeholder at its second brace.
+			text(shell[:i+1])
+			shell = shell[i+1:]
+			continue
+		}
+		text(shell[:i])
+		value(key)
+		shell = shell[i+len(key):]
+	}
+}
+
 var attributeEscaper = strings.NewReplacer("&", "&amp;", `"`, "&quot;")
+
+// writeEscaped is attributeEscaper for bytes, which it would first copy into
+// a string.
+func writeEscaped(out *bytes.Buffer, b []byte) {
+	for {
+		i := bytes.IndexAny(b, `&"`)
+		if i < 0 {
+			out.Write(b)
+			return
+		}
+		out.Write(b[:i])
+		if b[i] == '&' {
+			out.WriteString("&amp;")
+		} else {
+			out.WriteString("&quot;")
+		}
+		b = b[i+1:]
+	}
+}
 
 // measureOffset is where the measure script goes: the first thing in the head
 // the parser would build, so its font listener is in place before anything

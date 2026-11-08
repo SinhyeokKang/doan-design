@@ -95,13 +95,20 @@ test("a promotion leaves the moved line with Open above the suggestions", () => 
     (run as unknown as { roots: Map<string, { moved: unknown }> }).roots.get(ROOT)!.moved = { conversationId: A, title: "Checkout copy", canvas: { path: ".doan/canvases/checkout.html", id: "checkout" } };
   });
   // One line; only the title gives way, and the whole sentence stays in the text (and the tooltip).
-  expect(html).toMatch(/<div class="doan-notice moved" role="status">.*<span class="grow-text moved-text" title="Checkout copy moved to checkout\."><span class="moved-title">Checkout copy<\/span><span class="moved-rest"> moved to checkout\.<\/span><\/span><button[^>]*>Open<\/button><\/div><div class="ov-suggestions"/);
+  expect(html).toMatch(/<div class="doan-notice moved" role="status">.*<span class="grow-text moved-text selectable" title="Checkout copy moved to checkout\."><span class="moved-title">Checkout copy<\/span><span class="moved-rest"> moved to checkout\.<\/span><\/span><button[^>]*>Open<\/button><\/div><div class="ov-suggestions"/);
+});
+
+test("selectable: the notice text, not the notice's moved line", () => {
+  const notice = "Checkout moved, but 2 canvases now use the ID checkout. Run doan check in a terminal.";
+  const html = render([summary()], { notice });
+  expect(html).toContain(`<span class="grow-text selectable">${notice}</span>`);
+  expect(html).not.toMatch(/<(h1|button)[^>]*selectable/);
 });
 
 test("the duplicate-ID notice shows under the header", () => {
   const notice = "Checkout moved, but 2 canvases now use the ID checkout. Run doan check in a terminal.";
   const html = render([summary()], { notice });
-  expect(html).toMatch(new RegExp(`</header><div class="doan-notice ov-notice" role="status">.*<span class="grow-text">${notice.replace(/\./g, "\\.")}</span></div>`));
+  expect(html).toMatch(new RegExp(`</header><div class="doan-notice ov-notice" role="status">.*<span class="grow-text selectable">${notice.replace(/\./g, "\\.")}</span></div>`));
 });
 
 test("while the list is read the title is unavailable and the composer is a new conversation; a failed read says so", () => {
@@ -157,7 +164,7 @@ test("a problem worktree in the chip menu shows its repair actions instead of op
   expect(worktreeChoice({ kind: "loading", path: WT } as FolderEntry)).toEqual({ kind: "open" });
   expect(worktreeChoice(missing)).toEqual({ kind: "repair", actions: ["locate"] });
   expect(worktreeChoice(unset)).toEqual({ kind: "repair", actions: ["setUp"] });
-  expect(worktreeChoice({ kind: "error", path: "/code/bad", message: "m" } as FolderEntry)).toEqual({ kind: "repair", actions: ["retry", "details"] });
+  expect(worktreeChoice({ kind: "error", path: "/code/bad", message: "m", config: "/code/bad/.doan/config.json" } as FolderEntry)).toEqual({ kind: "repair", actions: ["retry", "details"] });
   expect(worktreeChoice({ kind: "cliError", path: "/code/cli", reason: "r" } as FolderEntry)).toEqual({ kind: "repair", actions: ["retry", "details"] });
 });
 

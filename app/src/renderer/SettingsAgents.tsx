@@ -130,7 +130,7 @@ export function SettingsAgents({ signIn, arrival, onLock, preferences, save, pro
     data-provider={view.provider} data-flash={flash === view.provider ? "" : undefined}>
     <span className="doan-preference-row-icon" aria-hidden="true"><img className="logo" src={providerLogo(view.provider)} alt="" /></span>
     <div className="doan-preference-row-content"><span className="doan-preference-row-label">{view.name}</span>
-      {view.detail !== null && <span className="doan-preference-row-description" role={view.detailRole ?? undefined}>{view.detail}</span>}</div>
+      {view.detail !== null && <span className="doan-preference-row-description selectable" role={view.detailRole ?? undefined}>{view.detail}</span>}</div>
     {(view.button || view.signOut) && <div className="doan-preference-row-trailing">{view.button && action(view.provider, view.button)}{view.signOut && action(view.provider, view.signOut)}</div>}
     {view.helper && <p className="doan-preference-row-extra settings-help">{view.helper}</p>}
     {view.notice && <div className="doan-preference-row-extra"><NoticeView notice={view.notice} run={run(view.provider)} /></div>}
@@ -259,7 +259,7 @@ function NewConversations({ auth, preferences, save, project }: Pick<SettingsAge
               {modelRows!.older.length > 0 && olderOrder<ReactNode>(fold.line(provider, name, modelRows!.older.length),
                 fold.isOpen(provider) ? modelRows!.older.map(item => item.kind === "model" && radio(item.value, <span className="model-name">{item.label}</span>, item.selected, fold.olderKeyDown(provider))) : [], fold.placement.side)}
             </DropdownMenu.RadioGroup>, fold)}</div>}
-        {project && loadFailed && <div className="doan-preference-row-extra settings-msg-row"><p className="settings-msg error" role="alert"><AlertIcon /><span>Couldn’t load the models for {project.name}.</span></p>
+        {project && loadFailed && <div className="doan-preference-row-extra settings-msg-row"><p className="settings-msg error selectable" role="alert"><AlertIcon /><span>Couldn’t load the models for {project.name}.</span></p>
           <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={() => setLists(current => { const next = { ...current }; delete next[key!]; return next; })}>Retry</button></div>}
       </div>}
       {provider && effortMenu && <div className="doan-preference-row">
@@ -281,7 +281,7 @@ function NewConversations({ auth, preferences, save, project }: Pick<SettingsAge
         </DropdownMenu.Root></div>
       </div>}
     </div>
-    {failed && <div className="settings-msg-row settings-save-error"><p className="settings-msg error" role="alert"><AlertIcon /><span>{SAVE_FAILED}</span></p>
+    {failed && <div className="settings-msg-row settings-save-error"><p className="settings-msg error selectable" role="alert"><AlertIcon /><span>{SAVE_FAILED}</span></p>
       <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={() => write(failed)}>Retry</button></div>}
   </section>;
 }

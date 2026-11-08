@@ -1,0 +1,12 @@
+{
+  "v": 1,
+  "ok": false,
+  "error": {
+    "code": "invalid_config",
+    "message": "Cannot read config: /tmp/repo/.doan/config.json",
+    "nextSteps": [
+      "Check --repo and .doan/config.json; run `doan init` to initialize a directory"
+    ],
+    "config": "/tmp/repo/.doan/config.json"
+  }
+}

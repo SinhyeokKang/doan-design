@@ -43,6 +43,7 @@ export const OPERATION_MESSAGES: Record<OnboardingOperationErrorCode, string> = 
   local_not_git: "That folder is not a Git repository, so Doan cannot keep its files out of Git. Set it up with storage repo, or run git init there first.",
   local_exclude_failed: "Doan could not add its lines to the repository's .git/info/exclude, so nothing was set up. Check that file, then try again.",
   project_unavailable: "The project folder cannot be opened.",
+  project_unreadable: "The project folder cannot be read.",
   no_ready_agent: "No agent is ready. Sign in to one first.",
   completion_save_failed: "Doan could not save that setup is complete.",
   completion_unsupported_version: "Setup was saved by a newer version of Doan. Open this project with that version, or update Doan.",
@@ -65,11 +66,15 @@ export interface Tracked {
   // Folder work: a clone's cancel, the moment it no longer takes one, and the end of its work for quit.
   abort?: AbortController; committed?: boolean; done?: Promise<void>;
 }
-export type Finished = { state: "succeeded"; inspection?: OnboardingInspection; project?: OnboardingProject } | { state: "failed"; code: OnboardingOperationErrorCode; message?: string } | { state: "cancelled" };
+// detail: the failure's own account for the window only (the CLI's message for project_unreadable); see forWindow.
+export type Finished = { state: "succeeded"; inspection?: OnboardingInspection; project?: OnboardingProject } | { state: "failed"; code: OnboardingOperationErrorCode; message?: string; detail?: string } | { state: "cancelled" };
 
 export class OperationBook {
   private operations = new Map<string, Tracked>();
   private retired = new Map<string, OnboardingOperation>();
+  // Kept beside the operations, never in them: an operation is what a socket reply carries, and its error there allows
+  // no other field (app-socket v2), while a detail may hold paths and tool output (the rule above MESSAGES).
+  private details = new Map<string, string>();
   // Every request of the session, refused ones too: a resend gets the original answer, never fresh work.
   private requests = new Map<string, { key: string; reply: Promise<OnboardingResponse>; operationId: string | null }>();
   constructor(private readonly newId: () => string) {}
@@ -103,6 +108,7 @@ export class OperationBook {
     const operation: OnboardingOperation = { operationId, requestId, kind, state: finished.state };
     if (provider) operation.provider = provider;
     if (finished.state === "failed") operation.error = { code: finished.code, message: finished.message ?? OPERATION_MESSAGES[finished.code] };
+    if (finished.state === "failed" && finished.detail) this.details.set(operationId, finished.detail);
     if (finished.state === "succeeded" && finished.inspection) operation.inspection = finished.inspection;
     if (finished.state === "succeeded" && finished.project) operation.project = finished.project;
     tracked.operation = operation;
@@ -113,9 +119,24 @@ export class OperationBook {
     const finished = [...this.operations.values()].filter(t => TERMINAL.has(t.operation.state));
     for (const tracked of finished.slice(0, Math.max(0, finished.length - KEPT_FINISHED))) {
       this.operations.delete(tracked.operation.operationId);
+      // The retired record still answers its id and requestId; the detail is not kept for it.
+      this.details.delete(tracked.operation.operationId);
       retire(tracked);
       this.retired.set(tracked.operation.operationId, tracked.operation);
     }
+  }
+
+  // The operation as the app's own window sees it: a failure's detail joins its error. Never for a socket reply.
+  forWindow(operation: OnboardingOperation): OnboardingOperation {
+    const detail = this.details.get(operation.operationId);
+    return detail === undefined || operation.error === undefined ? operation : { ...operation, error: { ...operation.error, detail } };
+  }
+
+  // A reply for the window, its operations as forWindow shows them.
+  windowReply(reply: OnboardingResponse): OnboardingResponse {
+    if (!reply.ok) return reply;
+    if ("operation" in reply.result) return { ...reply, result: { ...reply.result, operation: this.forWindow(reply.result.operation) } } as OnboardingResponse;
+    return { ...reply, result: { ...reply.result, operations: reply.result.operations.map(o => this.forWindow(o)) } } as OnboardingResponse;
   }
 
   get(operationId: string): Tracked | undefined { return this.operations.get(operationId); }

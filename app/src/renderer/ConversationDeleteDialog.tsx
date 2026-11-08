@@ -58,7 +58,7 @@ export function ConversationDeleteDialog({ view, reason, pending, cancel, confir
     // keydown itself cancels, and preventing its default keeps the native cancel from cancelling a second time.
     onKeyDown={event => { if (event.key !== "Escape" || event.nativeEvent.isComposing) return; event.preventDefault(); dismiss(); }}>
     <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title" id="conversation-delete-title">{view.title}</h3><p className="doan-dialog-description" id="conversation-delete-body">{view.body}</p></div></div>
-    {reason && <p className="doan-notice" id="conversation-delete-reason"><AlertIcon /><span>{reason}</span></p>}
+    {reason && <p className="doan-notice" id="conversation-delete-reason"><AlertIcon /><span className="selectable">{reason}</span></p>}
     <div className="doan-dialog-actions">
       <button type="button" className="doan-button" data-ui-variant="subtle" autoFocus aria-disabled={pending || undefined} data-disabled={pending ? "" : undefined} onClick={dismiss}>Cancel</button>
       <button type="button" className="doan-button" data-ui-variant="prominent" aria-disabled={confirmable ? undefined : true} data-disabled={confirmable ? undefined : ""}

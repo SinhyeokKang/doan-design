@@ -125,7 +125,7 @@ it("rejects menu actions after the project disappears", () => {
 
 it.each([
   [{ path: "/b", kind: "notFound" }, ["Locate", "locate"]],
-  [{ path: "/b", kind: "error", message: "bad config" }, ["Retry", "retry"], ["Details", "details"]],
+  [{ path: "/b", kind: "error", message: "bad config", config: "/b/.doan/config.json" }, ["Retry", "retry"], ["Details", "details"]],
   [{ path: "/b", kind: "uninitialized" }, ["Set Up", "setUp"]],
   [{ path: "/b", kind: "cliError", reason: "offline" }, ["Retry", "retry"], ["Details", "details"]],
 ] as [FolderEntry, ...[string, string][]][]) ("targets repair actions without navigating from the current canvas: %j", (problem, ...actions) => {
@@ -509,6 +509,16 @@ it.each([
   expect(tree.canvasMenu.trash).not.toHaveBeenCalled();
 });
 
+// ErrorDetails is a component the shallow tree never expands, so its render prop is called with the open state by hand.
+it("an unreadable canvas's open Details block is selectable, its Details button is not", () => {
+  const tree = canvasMenuFixture({}, {}, { path: CANVAS, url: "u", error: { code: "bad", message: "Unreadable" } });
+  const details = tree.rendered().find(item => typeof item.children === "function" && item.detail === "bad: Unreadable")!;
+  const open = (details.children as (button: ReactNode, detail: string | null) => ReactNode)(null, "bad: Unreadable");
+  const block = elements(open).find(item => item.children === "bad: Unreadable")!;
+  expect(block.className).toBe("selectable");
+  expect(details.className).toBe("btn ghost");
+});
+
 it("keeps a locked row's button in the focus order as aria-disabled, and it opens nothing", () => {
   const tree = canvasMenuFixture({}, { locked: true });
   expect(tree.button()).toMatchObject({ "aria-disabled": true, tabIndex: -1 });
@@ -553,7 +563,7 @@ it("on close, focus returns to the button unless a dialog the menu opened or ano
 const problemRows: [FolderEntry, string][] = [
   [{ path: "/a", kind: "notFound" }, "demo is missing"],
   [{ path: "/a", kind: "uninitialized" }, "demo isn’t set up"],
-  [{ path: "/a", kind: "error", message: "bad config" }, "Doan couldn’t read demo’s configuration"],
+  [{ path: "/a", kind: "error", message: "bad config", config: "/a/.doan/config.json" }, "Doan couldn’t read demo’s configuration"],
   [{ path: "/a", kind: "cliError", reason: "offline" }, "Doan couldn’t read demo"],
 ];
 function problemFixture(problem: FolderEntry, extra: Record<string, unknown> = {}) {

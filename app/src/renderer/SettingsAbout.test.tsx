@@ -199,6 +199,8 @@ test("while About is read (setup may still be running), the row shows Checking a
 
 // The Version row and the automatic-check row come from main's update push (UpdateSnapshot), not from the About read.
 const NOON = new Date(2026, 10, 8, 14, 41).getTime();
+// "today" is judged against the clock, so a test that reads it pins the clock to later that same day.
+const onNoonDay = () => { vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(NOON + 30 * 60_000); };
 const snap = (state: UpdateState, over: Partial<UpdateSnapshot> = {}): UpdateSnapshot =>
   ({ version: "0.1.0", state, eligibility: { kind: "enabled" }, gate: { kind: "allowed" }, autoCheck: true, lastCheckedAt: NOON, ...over });
 const READY: UpdateState = { kind: "ready", version: "0.1.1" };
@@ -230,6 +232,7 @@ test("the Version row shows the pushed update state and its actions; the About r
 });
 
 test("a failed About read keeps the Version and automatic-check rows; only the doan command and Agent tools go", async () => {
+  onNoonDay();
   render(); push(snap({ kind: "upToDate", manual: false })); render();
   reply(null); await flush(); render();
   expect(text()).toContain("Couldn’t read the versions.");
@@ -256,6 +259,7 @@ test("the row's actions ask main: Check for Updates, Retry, Release Notes and Re
 });
 
 test("checking shows the spinner label on the right without a live role; the description keeps the last result", () => {
+  onNoonDay();
   render(); push(snap({ kind: "checking", manual: true, last: { kind: "upToDate", manual: true } })); render();
   const loading = all(row("version").props.children as ReactNode).find(element => element.props.className === "settings-loading")!;
   expect(words(loading.props.children)).toBe("Checking for updates");
@@ -277,7 +281,7 @@ test("downloading draws a progressbar named by the state text, with the percent 
 test("a failure puts its line under the row, without a live role", () => {
   render(); push(snap({ kind: "failed", code: "offline", stage: "download", version: "0.1.1" })); render();
   expect(description()).toBe("0.1.0 · Couldn’t download Doan 0.1.1.");
-  const line = all(row("version").props.children as ReactNode).find(element => String(element.props.className) === "settings-msg error")!;
+  const line = all(row("version").props.children as ReactNode).find(element => String(element.props.className) === "settings-msg error selectable")!;
   expect(words(line.props.children)).toBe("Couldn’t reach GitHub. Check your internet connection, then try again.");
   expect(line.props.role).toBeUndefined();
   expect(button("Download Doan 0.1.1 again")).toBeDefined();
@@ -293,7 +297,7 @@ test("blocked: the reason is a notice under the row with a title, and stopped ad
   expect(words(inside.find(element => element.props.className === "ob-notice-body")!.props.children)).toBe("A conversation is running or waiting for your answer. Restart after it finishes, or Doan updates when you quit.");
   expect(box.props.role).toBeUndefined();
   push(snap({ kind: "restartAborted", version: "0.1.1" })); render();
-  expect(words(all(row("version").props.children as ReactNode).find(element => String(element.props.className) === "settings-msg error")!.props.children)).toBe("Couldn’t restart Doan. Try again, or quit and open it again.");
+  expect(words(all(row("version").props.children as ReactNode).find(element => String(element.props.className) === "settings-msg error selectable")!.props.children)).toBe("Couldn’t restart Doan. Try again, or quit and open it again.");
 });
 
 test("a copy that doesn’t update: the row says so with no action, and there is no automatic-check row", () => {
@@ -356,14 +360,39 @@ test("the automatic-check switch shows the pushed choice and saves a change; a f
   save.mockResolvedValueOnce({ ok: false, reason: "write_failed", snapshot: { preferences: { ...DEFAULT_PREFERENCES, updates: { autoCheck: false } }, notice: null } });
   (toggle().props.onClick as () => void)(); await flush(); render();
   expect(toggle().props["aria-checked"]).toBe(false);
-  const line = all(autoRow()!.props.children as ReactNode).find(element => String(element.props.className) === "settings-msg error")!;
+  const line = all(autoRow()!.props.children as ReactNode).find(element => String(element.props.className) === "settings-msg error selectable")!;
   expect(words(line.props.children)).toBe("Couldn’t save your automatic-check choice. Your last saved choice still applies.");
   expect(line.props.role).toBeUndefined();
   expect(live()).toBe("Couldn’t save your automatic-check choice. Your last saved choice still applies.");
   click("Save the automatic-check choice again");
   expect(save).toHaveBeenLastCalledWith({ updates: { autoCheck: true } });
   await flush(); render();
-  expect(all(autoRow()!.props.children as ReactNode).some(element => String(element.props.className) === "settings-msg error")).toBe(false);
+  expect(all(autoRow()!.props.children as ReactNode).some(element => String(element.props.className) === "settings-msg error selectable")).toBe(false);
+});
+
+// The switch shows main's push, which comes only after the save; a second press before it would save the same value.
+test("a press while the automatic-check save is pending saves nothing more; after main answers, a press saves again", async () => {
+  render(); push(snap({ kind: "upToDate", manual: false })); render();
+  let answer: (reply: unknown) => void = () => {};
+  save.mockImplementationOnce(() => new Promise(resolve => { answer = resolve; }));
+  (toggle().props.onClick as () => void)(); render();
+  (toggle().props.onClick as () => void)(); render();
+  expect(save).toHaveBeenCalledOnce();
+  expect(save).toHaveBeenLastCalledWith({ updates: { autoCheck: false } });
+  push(snap({ kind: "upToDate", manual: false }, { autoCheck: false }));
+  answer({ ok: true, snapshot: { preferences: { ...DEFAULT_PREFERENCES, updates: { autoCheck: false } }, notice: null } }); await flush(); render();
+  (toggle().props.onClick as () => void)();
+  expect(save).toHaveBeenCalledTimes(2);
+  expect(save).toHaveBeenLastCalledWith({ updates: { autoCheck: true } });
+  // A failed save's Retry is pending the same way: the switch waits for its answer.
+  await flush(); render();
+  save.mockResolvedValueOnce(null);
+  (toggle().props.onClick as () => void)(); await flush(); render();
+  save.mockClear();
+  save.mockImplementationOnce(() => new Promise(resolve => { answer = resolve; }));
+  click("Save the automatic-check choice again"); render();
+  (toggle().props.onClick as () => void)();
+  expect(save).toHaveBeenCalledOnce();
 });
 
 test("the switch waits for preferences and stays off a newer preferences file, whose notice the page shows", () => {
@@ -386,7 +415,7 @@ test("a restart main holds back for a conversation reads the reason, not ready a
 // Draft frames about-notes-failed and about-notes-failed-stacked: Release Notes ↗ that main could not open puts the
 // shared error line under the row (no role) and the page's live region reads it once. Release Notes ↗ is the retry.
 const NOTES_FAILED = "Couldn’t open the release notes in your browser. Try again, or find Doan 0.1.1 on GitHub Releases.";
-const errorLines = () => all(row("version").props.children as ReactNode).filter(element => String(element.props.className) === "settings-msg error");
+const errorLines = () => all(row("version").props.children as ReactNode).filter(element => String(element.props.className) === "settings-msg error selectable");
 const notesLine = () => errorLines().find(element => words(element.props.children).startsWith("Couldn’t open the release notes"));
 
 test("Release Notes ↗ answered false or refused shows the line under the row and reads it; the same failure reads again", async () => {
@@ -472,7 +501,7 @@ test("under the row: the notice, then the row's error, then the Release Notes li
   doan.openReleaseNotes!.mockResolvedValueOnce(false);
   click("Release Notes ↗"); await flush(); render();
   const extra = all(row("version").props.children as ReactNode).find(element => element.props.className === "doan-preference-row-extra")!;
-  const order = all(extra.props.children as ReactNode).filter(element => element.props.className === "doan-notice" || String(element.props.className) === "settings-msg error")
+  const order = all(extra.props.children as ReactNode).filter(element => element.props.className === "doan-notice" || String(element.props.className) === "settings-msg error selectable")
     .map(element => element.props.className === "doan-notice" ? "notice" : words(element.props.children));
   expect(order).toEqual(["notice", "Couldn’t restart Doan. Try again, or quit and open it again.", NOTES_FAILED]);
   // A failed install has no notice: its error, then the line.
@@ -481,4 +510,54 @@ test("under the row: the notice, then the row's error, then the Release Notes li
   click("Release Notes ↗"); await flush(); render();
   expect(errorLines().map(element => words(element.props.children))).toEqual([
     "Doan couldn’t replace the app in the Applications folder. Try again, or ask an administrator if your account can’t change apps there.", NOTES_FAILED]);
+});
+
+// Read-only text is selectable (the `selectable` class); buttons and headings are not.
+const classes = (element: ReactElement<Record<string, unknown>> | undefined) => String(element?.props.className ?? "").split(" ");
+const selectableIn = (node: ReactNode, match: (element: ReactElement<Record<string, unknown>>) => boolean) => {
+  const found = all(node).filter(match);
+  expect(found.length).toBeGreaterThan(0);
+  for (const element of found) expect(classes(element)).toContain("selectable");
+};
+const errorTexts = () => all(tree).filter(element => element.type === "p" && classes(element).includes("settings-msg") && classes(element).includes("error"));
+
+test("selectable: the Version state text, the update notice body and the row's error and Release Notes lines", async () => {
+  render(); push(snap({ kind: "restartAborted", version: "0.1.1" }, { gate: { kind: "blocked", reason: "conversation" } })); render();
+  doan.openReleaseNotes!.mockResolvedValueOnce(false);
+  click("Release Notes ↗"); await flush(); render();
+  const version = row("version").props.children as ReactNode;
+  selectableIn(version, element => element.props.id === "id");
+  selectableIn(version, element => classes(element).includes("update-reason-body"));
+  selectableIn(version, element => element.type === "p" && classes(element).includes("error"));
+  expect(errorLines()).toHaveLength(2);
+  for (const button of all(version).filter(element => element.type === "button")) expect(classes(button)).not.toContain("selectable");
+});
+
+test("selectable: the doan command path, the agent tool values, and the setup notice body", async () => {
+  render();
+  reply({ ...READ, setup: { home: "/Users/you", items: [{ target: "copy", path: "/Users/you/Downloads/Doan.app", providers: [...ALL], reason: "not-eligible", eligibility: "outside-applications" }] } });
+  await flush(); render();
+  selectableIn(row("cli").props.children as ReactNode, element => classes(element).includes("doan-preference-row-description"));
+  selectableIn(row("claude").props.children as ReactNode, element => classes(element).includes("settings-value"));
+  selectableIn(row("cli").props.children as ReactNode, element => classes(element).includes("setup-notice-body"));
+  for (const heading of all(tree).filter(element => element.type === "h2")) expect(classes(heading)).not.toContain("selectable");
+});
+
+test("selectable: a version read error row, a failed read, a failed copy and a failed auto-check save", async () => {
+  render(); push(snap({ kind: "upToDate", manual: false })); render();
+  reply({ ...READ, cli: { ...READ.cli, version: null } }); await flush(); render();
+  selectableIn(row("cli").props.children as ReactNode, element => element.type === "p" && classes(element).includes("error"));
+  for (const retry of all(row("cli").props.children as ReactNode).filter(element => element.type === "button")) expect(classes(retry)).not.toContain("selectable");
+
+  doan.copyAbout!.mockResolvedValueOnce({ kind: "error", message: "The clipboard is busy." });
+  click("Copy details"); await flush(); render();
+  save.mockResolvedValueOnce({ ok: false, reason: "write_failed", snapshot: { preferences: DEFAULT_PREFERENCES, notice: null } });
+  (toggle().props.onClick as () => void)(); await flush(); render();
+  selectableIn(autoRow()!.props.children as ReactNode, element => element.type === "p" && classes(element).includes("error"));
+  // Copy failed and auto-check failed lines are every error line on the page except the row error above.
+  for (const line of errorTexts()) expect(classes(line)).toContain("selectable");
+  expect(errorTexts().length).toBeGreaterThanOrEqual(3);
+
+  resetHooks(); render(); reply(null); await flush(); render();
+  selectableIn(tree, element => element.type === "p" && words(element.props.children) === "Couldn’t read the versions.");
 });
