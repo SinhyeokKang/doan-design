@@ -127,14 +127,14 @@ Pick a design preset — shape, critique, harden, clarify and more — and the a
 
 </td>
 <td width="50%">
-  <a href="docs/assets/readme/presets.png"><img src="docs/assets/readme/presets.png" alt="The design presets drawer above the Overview composer" width="100%" /></a>
+  <a href="docs/assets/readme/presets.png"><img src="docs/assets/readme/presets.png" alt="The design presets list above the Overview composer" width="100%" /></a>
 </td>
 </tr>
 </table>
 
 ## The `doan` CLI
 
-`doan` is what your agent uses to work with canvases. Doan links it into your agents' sessions when you open the app from Applications, and it ships inside the app. Every command takes `--repo <path>` and `--json`, and everything except `active`, `onboarding` and `open` works without the app running.
+`doan` is what your agent uses to work with canvases. Doan links it into your agents' sessions when you open the app from Applications, and it ships inside the app. Every command takes `--json`, and every command except `onboarding` takes `--repo <path>`; everything except `active`, `onboarding` and `open` works without the app running.
 
 | Command | What it does |
 |---|---|
@@ -161,7 +161,7 @@ doan open .doan/canvases/tasks.html --frame approval --json
 
 ## Design presets
 
-Twenty design briefs, adapted from [Impeccable](https://github.com/pbakaus/impeccable), that the agent follows for a focused pass. Pick one from the composer's Presets drawer or type `/` and its name; agents in a terminal read them with `doan design-skill <id>`.
+Twenty design briefs, adapted from [Impeccable](https://github.com/pbakaus/impeccable), that the agent follows for a focused pass. Pick one from the composer's Presets list or type `/` and its name; agents in a terminal read them with `doan design-skill <id>`.
 
 | Group | Presets |
 |---|---|
