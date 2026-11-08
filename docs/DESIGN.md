@@ -1184,7 +1184,7 @@ Reference: `.doan/canvases/app-update.html`, frames 01–14 (`about-ready`, `abo
 
 ### Not verified
 
-- A real feed, download, Squirrel staging and restart: states were sent by the probe (parent feature's rc check).
+- Blocked, stopped and failed states with a real update: they were sent by the probe. A real update from 0.1.0-rc.1 to 0.1.0-rc.2 reached checking, downloading, ready, the header button and the restart into the new version (BACKLOG.md 'App updates').
 - Dark mode, reduced transparency, forced colours.
 
 ### Regression pointers
