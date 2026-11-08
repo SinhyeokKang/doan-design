@@ -15,12 +15,12 @@ const root = mkdtempSync(join(tmpdir(), "doan-workspace-"));
 const cli = join(root, "doan");
 before(() => execFileSync("go", ["build", "-o", cli, "./cli/cmd/doan"]));
 after(() => rmSync(root, { recursive: true, force: true }));
-// R6b has a seed with comments and no selection; only `worktree` differs between the cases.
-const r6 = () => loadScenario(join(import.meta.dirname, "../scenarios"), "R6b");
+// D2b has a seed canvas and no selection; only `worktree` differs between the cases.
+const seeded = () => loadScenario(join(import.meta.dirname, "../scenarios"), "D2b");
 const git = (dir: string, args: string[]) => execFileSync("git", ["-C", dir, ...args], { encoding: "utf8" }).trim();
 
 test("isolated Claude project settings allow work signals without changing the real config", async () => {
-  const ws = await prepareWorkspace({ scenario: r6(), agent: "claude", cli, stub: "stub\n" });
+  const ws = await prepareWorkspace({ scenario: seeded(), agent: "claude", cli, stub: "stub\n" });
   try {
     const settings = JSON.parse(readFileSync(join(ws.repo, ".claude/settings.json"), "utf8"));
     assert.deepEqual(settings.permissions.allow, CLAUDE_ALLOW_RULES);
@@ -34,7 +34,7 @@ test("real agents and fixture commands never inherit the runner's session identi
   try {
     for (const key of keys) process.env[key] = `runner-${key}`;
     for (const agent of ["claude", "codex", "fixture"] as const) {
-      const ws = await prepareWorkspace({ scenario: r6(), agent, cli, stub: "stub\n" });
+      const ws = await prepareWorkspace({ scenario: seeded(), agent, cli, stub: "stub\n" });
       try {
         const child = sh(process.execPath, ["-e", `process.stdout.write(JSON.stringify(Object.fromEntries(${JSON.stringify(keys)}.map(key => [key, process.env[key] ?? null]))))`], ws.repo, ws.env);
         assert.equal(child.code, 0, child.stderr);
@@ -70,7 +70,7 @@ test("a handoff scenario gives the agent the conversation key the fake app accep
   const saved = process.env.DOAN_HANDOFF;
   try {
     process.env.DOAN_HANDOFF = "f".repeat(64);
-    const plain = await prepareWorkspace({ scenario: r6(), agent: "claude", cli, stub: "stub\n" });
+    const plain = await prepareWorkspace({ scenario: seeded(), agent: "claude", cli, stub: "stub\n" });
     try { assert.equal(plain.env.DOAN_HANDOFF, undefined); } finally { await plain.dispose(); }
     const ws = await prepareWorkspace({ scenario: loadScenario(join(import.meta.dirname, "../scenarios"), "R10"), agent: "fixture", cli, stub: "stub\n" });
     try {
@@ -94,7 +94,7 @@ test("a handoff scenario gives the agent the conversation key the fake app accep
 });
 
 test("without worktree the agent works in the instruction's root", async () => {
-  const ws = await prepareWorkspace({ scenario: r6(), agent: "fixture", cli, stub: "stub\n" });
+  const ws = await prepareWorkspace({ scenario: seeded(), agent: "fixture", cli, stub: "stub\n" });
   try {
     assert.equal(ws.cwd, ws.repo);
     assert.equal(ws.app, null);
@@ -108,7 +108,7 @@ test("without worktree the agent works in the instruction's root", async () => {
 test("every agent's baseline commits the project Codex rule Doan's agent setup writes", async () => {
   assert.equal(CODEX_RULE, ".codex/rules/doan.rules");
   for (const agent of ["claude", "codex"] as const) {
-    const ws = await prepareWorkspace({ scenario: r6(), agent, cli, stub: "stub\n" });
+    const ws = await prepareWorkspace({ scenario: seeded(), agent, cli, stub: "stub\n" });
     try {
       assert.equal(execFileSync("git", ["-C", ws.repo, "show", `${ws.seedCommit}:${CODEX_RULE}`], { encoding: "utf8" }), codexRuleText(), agent);
       assert.equal(git(ws.repo, ["status", "--porcelain"]), "", agent);
@@ -120,7 +120,7 @@ test("every agent's baseline commits the project Codex rule Doan's agent setup w
 
 test("an onboarding script starts the fake app, and checks read its v2 exchanges", async () => {
   const onboardingValue = { providers: [{ provider: "claude", connected: true, verified: true }], changes: [], readyAfterCheck: [] };
-  const ws = await prepareWorkspace({ scenario: { ...r6(), onboarding: "onboarding.json", onboardingValue }, agent: "fixture", cli, stub: "stub\n" });
+  const ws = await prepareWorkspace({ scenario: { ...seeded(), onboarding: "onboarding.json", onboardingValue }, agent: "fixture", cli, stub: "stub\n" });
   try {
     assert.notEqual(ws.app, null);
     const ctx = createContext({ repo: ws.repo, agent: "fixture", transcript: "", cli, env: ws.env, seedCommit: ws.seedCommit, onboardingLog: ws.onboardingLog });
@@ -160,7 +160,7 @@ test("a successful initialize writes what doan init writes, and only the agent's
     onboarding("status", "--session", "s_eval");
     assert.ok(statSync(join(ws.repo, ".doan/canvases")).isDirectory());
     assert.deepEqual(JSON.parse(readFileSync(join(ws.repo, ".doan/config.json"), "utf8")), { v: 1 });
-    assert.equal(readFileSync(join(ws.repo, ".gitattributes"), "utf8"), ".doan/comments/*.jsonl merge=union\n.doan/** linguist-documentation\n");
+    assert.equal(readFileSync(join(ws.repo, ".gitattributes"), "utf8"), ".doan/** linguist-documentation\n");
     const ls = sh(cli, ["ls", "--json", "--repo", ws.repo], ws.repo, ws.env);
     assert.equal(ls.code, 0, ls.stdout);
     assert.deepEqual(ctx.changedFiles(), []);
@@ -176,7 +176,7 @@ test("a successful initialize writes what doan init writes, and only the agent's
 });
 
 test("a run without onboarding exchanges keeps no log", async () => {
-  const ws = await prepareWorkspace({ scenario: r6(), agent: "fixture", cli, stub: "stub\n" });
+  const ws = await prepareWorkspace({ scenario: seeded(), agent: "fixture", cli, stub: "stub\n" });
   try {
     const out = mkdtempSync(join(root, "run-"));
     keepOnboardingLog(ws, out);
@@ -187,14 +187,14 @@ test("a run without onboarding exchanges keeps no log", async () => {
 });
 
 test("worktree runs the agent in a second worktree of the seed commit while the app has the first open", async () => {
-  const ws = await prepareWorkspace({ scenario: { ...r6(), worktree: { branch: "feat-plan-copy" } }, agent: "fixture", cli, stub: "stub\n" });
+  const ws = await prepareWorkspace({ scenario: { ...seeded(), worktree: { branch: "feat-plan-copy" } }, agent: "fixture", cli, stub: "stub\n" });
   try {
     assert.equal(ws.cwd, join(ws.base, "worktree"));
     assert.equal(git(ws.repo, ["rev-parse", "--abbrev-ref", "HEAD"]), "main");
     assert.equal(git(ws.cwd, ["rev-parse", "--abbrev-ref", "HEAD"]), "feat-plan-copy");
     assert.equal(git(ws.cwd, ["rev-parse", "HEAD"]), ws.seedCommit);
     assert.equal(git(ws.cwd, ["status", "--porcelain"]), "");
-    assert.ok(existsSync(join(ws.cwd, ".doan/canvases/profile.html")));
+    assert.ok(existsSync(join(ws.cwd, ".doan/canvases/settings.html")));
     assert.ok(existsSync(join(ws.cwd, ".claude/skills/doan/SKILL.md")));
     // The fake app compares root literally, so only the first worktree is open in it.
     const active = (repo: string) => sh(cli, ["active", "--json", "--repo", repo], repo, ws.env);
@@ -211,18 +211,18 @@ test("worktree runs the agent in a second worktree of the seed commit while the 
 });
 
 test("checks and the judge see changes in each worktree separately", async () => {
-  const ws = await prepareWorkspace({ scenario: { ...r6(), worktree: { branch: "feat-plan-copy" } }, agent: "fixture", cli, stub: "stub\n" });
+  const ws = await prepareWorkspace({ scenario: { ...seeded(), worktree: { branch: "feat-plan-copy" } }, agent: "fixture", cli, stub: "stub\n" });
   try {
     const ctx = createContext({ repo: ws.repo, cwd: ws.cwd, agent: "fixture", transcript: "", cli, env: ws.env, seedCommit: ws.seedCommit });
     assert.equal(ctx.cwd, ws.cwd);
-    writeFileSync(join(ws.cwd, ".doan/canvases/profile.html"), "changed in the agent's worktree\n");
+    writeFileSync(join(ws.cwd, ".doan/canvases/settings.html"), "changed in the agent's worktree\n");
     assert.deepEqual(ctx.changedFiles(), []);
-    assert.deepEqual(ctx.cwdChangedFiles(), [".doan/canvases/profile.html"]);
+    assert.deepEqual(ctx.cwdChangedFiles(), [".doan/canvases/settings.html"]);
     writeFileSync(join(ws.repo, "notes.md"), "changed in the root\n");
     assert.deepEqual(ctx.changedFiles(), ["notes.md"]);
-    assert.deepEqual(ctx.cwdChangedFiles(), [".doan/canvases/profile.html"]);
+    assert.deepEqual(ctx.cwdChangedFiles(), [".doan/canvases/settings.html"]);
     const { changed, diff } = judgeMaterial(ws, ctx);
-    assert.deepEqual(changed, ["notes.md", "(working directory) .doan/canvases/profile.html"]);
+    assert.deepEqual(changed, ["notes.md", "(working directory) .doan/canvases/settings.html"]);
     assert.match(diff, /changed in the root/);
     assert.match(diff, /changed in the agent's worktree/);
     // Without a second worktree both views are the repo.

@@ -1,0 +1,16 @@
+{
+  "root": "/Users/sam/code/app",
+  "canvas": {
+    "path": ".doan/canvases/settings.html",
+    "id": "settings"
+  },
+  "frame": {
+    "id": "main",
+    "title": "Main"
+  },
+  "element": {
+    "selector": "p",
+    "html": "",
+    "unknown": true
+  }
+}

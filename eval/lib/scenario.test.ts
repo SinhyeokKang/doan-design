@@ -30,9 +30,9 @@ test("the prompt gets the repo path and allows no other placeholder", () => {
 });
 
 test("real rounds leave out underscore ids; self-test keeps them", () => {
-  const all = ["R1", "W1", "_example"];
-  assert.deepEqual(selectIds(all, null, false), ["R1", "W1"]);
-  assert.deepEqual(selectIds(all, null, true), ["R1", "W1", "_example"]);
+  const all = ["R2", "W1", "_example"];
+  assert.deepEqual(selectIds(all, null, false), ["R2", "W1"]);
+  assert.deepEqual(selectIds(all, null, true), ["R2", "W1", "_example"]);
   assert.deepEqual(selectIds(all, ["W1"], false), ["W1"]);
   assert.throws(() => selectIds(all, ["_example"], false));
   assert.throws(() => selectIds(all, ["W9"], true));
@@ -54,12 +54,12 @@ test("onboarding is null or the scenario's app-socket v2 script", () => {
 });
 
 test("worktree is null or one branch name for the agent's second worktree", () => {
-  const value = { id: "H7", title: "Worktree mismatch", focus: "comments" };
-  assert.equal(parseScenarioJson(value, "H7").worktree, null);
-  assert.equal(parseScenarioJson({ ...value, worktree: null }, "H7").worktree, null);
-  assert.deepEqual(parseScenarioJson({ ...value, worktree: { branch: "feat-plan-copy" } }, "H7").worktree, { branch: "feat-plan-copy" });
+  const value = { id: "R8", title: "Worktree mismatch", focus: "write" };
+  assert.equal(parseScenarioJson(value, "R8").worktree, null);
+  assert.equal(parseScenarioJson({ ...value, worktree: null }, "R8").worktree, null);
+  assert.deepEqual(parseScenarioJson({ ...value, worktree: { branch: "feat-plan-copy" } }, "R8").worktree, { branch: "feat-plan-copy" });
   for (const worktree of ["feat", {}, { branch: "" }, { branch: "main" }, { branch: "Feat" }, { branch: "a/b" }, { branch: "-x" }, { branch: "x", path: "y" }, [{ branch: "x" }]])
-    assert.throws(() => parseScenarioJson({ ...value, worktree }, "H7"), Error, JSON.stringify(worktree));
+    assert.throws(() => parseScenarioJson({ ...value, worktree }, "R8"), Error, JSON.stringify(worktree));
 });
 
 test("handoff is null or the canvas the conversation works on", () => {

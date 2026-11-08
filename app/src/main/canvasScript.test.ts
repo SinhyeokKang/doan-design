@@ -1569,7 +1569,7 @@ describe("canvasScript messages from the renderer", () => {
 });
 
 
-describe("comment anchors", () => {
+describe("chip anchors", () => {
   test("returns shared node tokens, exact candidates and separate sequence state", () => {
     const child = node("span", { "data-doan-id": "child" });
     const frame = node("section", { "data-doan-frame": "hero", "data-doan-id": "hero" }, [child]);

@@ -49,7 +49,7 @@ function withCommand(text: string) {
 export interface StorageInput { value: StorageChoice; kept: boolean; change: (value: StorageChoice) => void }
 export function ProjectFields({ form, choose, chooseRef, storage }: { form: ProjectForm; choose: () => void; chooseRef?: (node: HTMLButtonElement | null) => void; storage: StorageInput }) {
   const view = formView(form);
-  // Kept out of Git, the exclude entry takes the place of the .gitattributes lines; the label is fixed, not the path.
+  // Kept out of Git, the exclude entry takes the place of the .gitattributes line; the label is fixed, not the path.
   const local = storage.kept || storage.value === "local";
   return <>
     <div className="ob-field">
@@ -61,7 +61,7 @@ export function ProjectFields({ form, choose, chooseRef, storage }: { form: Proj
     <StorageField id="setup-storage" value={storage.value} kept={storage.kept} disabled={form.running} change={storage.change} />
     <div className="ob-field">
       <span className="ob-label">Will add</span>
-      <span className="ob-changes"><span><code>.doan/canvases/</code></span><span><code>.doan/config.json</code></span><span><code>{local ? ".git/info/exclude" : ".gitattributes"}</code> — two lines, if missing</span></span>
+      <span className="ob-changes"><span><code>.doan/canvases/</code></span><span><code>.doan/config.json</code></span><span><code>{local ? ".git/info/exclude" : ".gitattributes"}</code> — {local ? "two lines" : "one line"}, if missing</span></span>
       <span />
     </div>
     {view.error && <div className="ob-field"><span className="ob-msg error ob-wide" role="alert"><AlertIcon /><span>{withCommand(view.error)}</span></span></div>}

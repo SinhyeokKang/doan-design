@@ -6,7 +6,7 @@ Use this preset when the user asks to improve labels, button text, form guidance
 
 ## Before you start
 
-- Find the target. For pointing words like "this screen" or "this button", use `doan active` and read the open comments attached to that target. Otherwise work on the canvas, frame, or code the user named.
+- Find the target. For pointing words like "this screen" or "this button", use `doan active`. Otherwise work on the canvas, frame, or code the user named.
 - Read the surrounding product: existing copy, terminology, design or product documents the project already has, and the code the canvas implements (`data-doan-implements`). Infer the audience and their situation from that evidence; ask when it is missing and it would change the words.
 - Ask before changing factual claims, legal meaning, prices, or a term that may be domain-specific.
 - Do not add claims about outcomes or guarantees the product or repository does not confirm, such as whether a charge, save, delivery, or refund happened. When the copy needs such a fact and none is confirmed, ask or mark it as an open question.
@@ -89,7 +89,7 @@ When inconsistency spans the product, propose a short terminology glossary inste
 - Change only the copy in the requested scope. Keep canvas, frame, and element ids unchanged, and leave frames and elements outside the request as they are.
 - When new copy on a canvas is not yet in code, say so on the canvas, as the Doan guide requires for anything drawn that is not in code.
 - If the user asked for a review only, report the findings and proposed wording without editing files.
-- After editing a canvas, make `doan check` pass. Resolve only the comments you actually applied.
+- After editing a canvas, make `doan check` pass.
 - In your answer, list what changed and what you left unchanged on purpose, such as factual or legal wording that needs the user's decision.
 
 ## Verify

@@ -312,11 +312,11 @@ test("the fake app answers v2 only with a script and logs onboarding exchanges w
 test("the fake initialize adds only the missing .gitattributes lines, like doan init", () => {
   const dir = mkdtempSync(join(tmpdir(), "doan-fake-init-"));
   try {
-    writeFileSync(join(dir, ".gitattributes"), "*.png binary\r\n.doan/comments/*.jsonl merge=union\r\n");
+    writeFileSync(join(dir, ".gitattributes"), "*.png binary\r\n*.lock -diff\r\n");
     initializeRepo(dir, [".doan/canvases/", ".doan/config.json"], join(dir, "writes.json"));
-    assert.equal(readFileSync(join(dir, ".gitattributes"), "utf8"), "*.png binary\r\n.doan/comments/*.jsonl merge=union\r\n.doan/** linguist-documentation\r\n");
+    assert.equal(readFileSync(join(dir, ".gitattributes"), "utf8"), "*.png binary\r\n*.lock -diff\r\n.doan/** linguist-documentation\r\n");
     initializeRepo(dir, [".doan/config.json"], join(dir, "writes.json"));
-    assert.equal(readFileSync(join(dir, ".gitattributes"), "utf8"), "*.png binary\r\n.doan/comments/*.jsonl merge=union\r\n.doan/** linguist-documentation\r\n");
+    assert.equal(readFileSync(join(dir, ".gitattributes"), "utf8"), "*.png binary\r\n*.lock -diff\r\n.doan/** linguist-documentation\r\n");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

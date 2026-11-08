@@ -6,7 +6,7 @@ Use this preset when the user asks to add or rebalance color, fix contrast, clar
 
 ## Before you start
 
-- Find the target. For pointing words like "this screen" or "this card", use `doan active` and read the open comments attached to that target. Otherwise work on the canvas, frame, or code the user named.
+- Find the target. For pointing words like "this screen" or "this card", use `doan active`. Otherwise work on the canvas, frame, or code the user named.
 - Find the existing brand colors first. Read token CSS (`doan config --json` shows `tokenCss`), current themes, assets such as logos, any design rules document, and the design-system canvases in `.doan/ds/` (or a legacy `.doan/canvases/design-system.html`) if present.
 - Read the code the canvas implements (`data-doan-implements`) and its representative states.
 - If the product's purpose and brand commitments are unknown and that would change the palette, suggest the `context` preset (`doan design-skill context --json`). Ask only when a binding brand decision cannot be inferred.
@@ -82,7 +82,7 @@ When deriving OKLCH ramps, vary lightness and reduce chroma near white and black
 - Change only the color in the requested scope. Keep canvas, frame, and element ids unchanged, and leave frames and elements outside the request as they are.
 - When a color role or token drawn on the canvas is not in code yet, say so on the canvas, as the Doan guide requires for anything drawn that is not in code.
 - If the user asked for a review only, report the audit, the proposed strategy and roles, and any proposed tokens without editing files.
-- After editing a canvas, make `doan check` pass and review its warnings. Resolve only the comments you actually applied.
+- After editing a canvas, make `doan check` pass and review its warnings.
 - In your answer, list what changed, the tokens you proposed rather than added, the contrast pairs you computed and those left unverified, and what you left unchanged on purpose.
 
 ## Verify

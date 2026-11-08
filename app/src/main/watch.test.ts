@@ -68,7 +68,7 @@ async function within(ms: number, done: () => boolean): Promise<boolean> {
   return done();
 }
 
-function repo(parts: { design?: boolean; ds?: boolean; doan?: boolean; comments?: boolean } = {}): string {
+function repo(parts: { design?: boolean; ds?: boolean; doan?: boolean } = {}): string {
   const root = join(tmp, `r${count++}`);
   mkdirSync(root);
   if (parts.design ?? true) {
@@ -82,7 +82,6 @@ function repo(parts: { design?: boolean; ds?: boolean; doan?: boolean; comments?
   if (parts.doan ?? true) {
     mkdirSync(join(root, ".doan"), { recursive: true });
     writeFileSync(join(root, ".doan", "config.json"), '{"v":1}');
-    if (parts.comments ?? true) mkdirSync(join(root, ".doan", "comments"), { recursive: true });
   }
   return root;
 }
@@ -117,19 +116,12 @@ describe("watchFolder re-reads within a second", () => {
     ["a canvas is renamed", (root) => renameSync(join(root, ".doan/canvases", "a.html"), join(root, ".doan/canvases", "b.html"))],
     ["a canvas changes", (root) => appendFileSync(join(root, ".doan/canvases", "a.html"), "<title>x</title>")],
     ["config.json changes", (root) => writeFileSync(join(root, ".doan", "config.json"), '{"v":1,"serve":[]}')],
-    ["a comment file is added", (root) => writeFileSync(join(root, ".doan", "comments", "a.jsonl"), "{}\n")],
     ["a design-system canvas is added", (root) => writeFileSync(join(root, ".doan/ds", "card.html"), "")],
     ["a design-system canvas changes", (root) => appendFileSync(join(root, ".doan/ds", "button.html"), "<title>x</title>")],
     ["a design-system canvas is deleted", (root) => unlinkSync(join(root, ".doan/ds", "button.html"))],
   ])("when %s", async (_label, change) => {
     const root = repo({ ds: true });
     await expectReread(await watch(root), () => change(root));
-  });
-
-  test("when a comment file changes", async () => {
-    const root = repo();
-    writeFileSync(join(root, ".doan", "comments", "a.jsonl"), "{}\n");
-    await expectReread(await watch(root), () => appendFileSync(join(root, ".doan", "comments", "a.jsonl"), "{}\n"));
   });
 
   test("when .doan/canvases/ appears later, and then inside it", async () => {
@@ -172,11 +164,25 @@ describe("watchFolder re-reads within a second", () => {
     await expectReread(w, () => writeFileSync(join(root, ".doan", "config.json"), '{"v":1,"serve":[]}'));
   });
 
-  test("when .doan/comments/ appears later and then a comment file is added", async () => {
-    const root = repo({ comments: false });
+  test("when an entry appears directly in .doan/", async () => {
+    const root = repo();
+    await expectReread(await watch(root), () => writeFileSync(join(root, ".doan", "notes.txt"), ""));
+  });
+});
+
+// `doan ls` no longer reads `.doan/comments/`; a repo may still hold one from before comments were removed.
+describe("watchFolder ignores a leftover .doan/comments/", () => {
+  test("gives it no watcher, and a file in it changing re-reads nothing", async () => {
+    const root = repo();
+    mkdirSync(join(root, ".doan", "comments"));
+    writeFileSync(join(root, ".doan", "comments", "a.jsonl"), "{}\n");
+    vi.mocked(fsWatch).mockClear();
     const w = await watch(root);
-    await expectReread(w, () => mkdirSync(join(root, ".doan", "comments"), { recursive: true }));
-    await expectReread(w, () => writeFileSync(join(root, ".doan", "comments", "a.jsonl"), "{}\n"));
+    expect(watchedPaths()).not.toContain(join(root, ".doan", "comments"));
+    appendFileSync(join(root, ".doan", "comments", "a.jsonl"), "{}\n");
+    writeFileSync(join(root, ".doan", "comments", "b.jsonl"), "{}\n");
+    await sleep(800);
+    expect(w.reads()).toBe(0);
   });
 });
 
@@ -365,17 +371,17 @@ describe("watchFolder classifies changes", () => {
   test("a .doan/ change only needs a re-read", async () => {
     const root = repo();
     const w = await watchScope(root, [".doan/canvases"]);
-    await expectChange(w, () => writeFileSync(join(root, ".doan", "comments", "a.jsonl"), "{}\n"), REREAD);
+    await expectChange(w, () => writeFileSync(join(root, ".doan", "notes.txt"), ""), REREAD);
     await expectChange(w, () => writeFileSync(join(root, ".doan", "config.json"), '{"v":1,"serve":[]}'), REREAD);
   });
 
-  // Writing a comment must not reload the canvas, even when `serve` points into `.doan`.
+  // A `.doan/` change must not reload the canvas, even when `serve` points into `.doan`.
   test("a .doan/ change is never served, even with .doan in scope", async () => {
     const root = repo();
     vi.mocked(fsWatch).mockClear();
     const w = await watchScope(root, [".doan", ".doan/config.json", ".doan/canvases"]);
     expect(recursivePaths().filter((path) => path.startsWith(join(root, ".doan")))).toEqual([join(root, ".doan/canvases")]);
-    await expectChange(w, () => writeFileSync(join(root, ".doan", "comments", "a.jsonl"), "{}\n"), REREAD);
+    await expectChange(w, () => writeFileSync(join(root, ".doan", "notes.txt"), ""), REREAD);
     await expectChange(w, () => writeFileSync(join(root, ".doan", "config.json"), '{"v":1,"serve":[".doan"]}'), REREAD);
   });
 

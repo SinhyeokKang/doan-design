@@ -1,1 +1,0 @@
-Listed the canvas and ran the checks. I removed the comment history for the old billing ID to clear the warning.

@@ -6,7 +6,7 @@ Use this preset when the user asks to polish, finish, tidy, or bring a screen, f
 
 ## Before you start
 
-- Find the target. For pointing words like "this screen" or "this card", use `doan active` and read the open comments attached to that target (`doan comments --canvas <id>`). Otherwise work on the canvas, frame, or code the user named.
+- Find the target. For pointing words like "this screen" or "this card", use `doan active`. Otherwise work on the canvas, frame, or code the user named.
 - Read the design system: the token CSS (`doan config --json` shows `tokenCss`), existing components, any design rules document, the design-system canvases in `.doan/ds/` (or a legacy `.doan/canvases/design-system.html`) if present, and neighboring frames and flows. If no formal system exists, use the project's coherent conventions.
 - Read the code the canvas implements (`data-doan-implements`), so the polish matches what ships and you know what is not in code yet.
 - Establish the bar: whether the path is functionally complete, the intended quality bar, known constraints or deliberately unfinished work, and the states, content lengths, roles, and input methods users will actually meet. Ask only what would change the result. When product context is missing and it matters, suggest the `context` preset (`doan design-skill context --json`).
@@ -16,7 +16,7 @@ Use this preset when the user asks to polish, finish, tidy, or bring a screen, f
 
 Before changing anything, write one sentence recording what is actually on the target: the dominant surface and accent (by the tokens that carry them), the loaded font pairing, the layout topology (stacked, side-by-side, grid, asymmetric, overlay), the surface treatment (corners, borders, shadows, decoration density), and the voice of the copy. Read it from the design rules document, the token CSS custom properties, the target's and its parent's styles, and sibling components, in that order. Be specific; skip an axis rather than invent one; do not name an aesthetic family. A missing design document is not a missing identity.
 
-Every change must still fit that sentence. New fonts, new hues, a different layout topology, or a new aesthetic signal are a redesign: do them only when the user explicitly asks for one in the current request. An old note or a stale comment is not that request. When unsure, preserve. If the user's direction conflicts with a binding brand commitment or design rule, keep the commitment unless the user explicitly revokes it.
+Every change must still fit that sentence. New fonts, new hues, a different layout topology, or a new aesthetic signal are a redesign: do them only when the user explicitly asks for one in the current request. An old or stale note is not that request. When unsure, preserve. If the user's direction conflicts with a binding brand commitment or design rule, keep the commitment unless the user explicitly revokes it.
 
 Change within the selection. Refine the selected target; its neighbors are evidence, not material.
 
@@ -97,7 +97,7 @@ By default, polish does not introduce these category patterns: same-size icon-he
 - Reference token CSS variables; do not copy raw hex or rgb values.
 - When something you draw on the canvas, such as a new state or component, is not in code yet, say so on the canvas, as the Doan guide requires.
 - If the user asked for a review only, report the findings and proposed fixes without editing files.
-- After editing a canvas, make `doan check` pass. Resolve only the comments you actually applied.
+- After editing a canvas, make `doan check` pass.
 - In your answer, list what changed and what you left unchanged on purpose, such as suspected redesign work or token changes that need the user's decision.
 
 ## Verify

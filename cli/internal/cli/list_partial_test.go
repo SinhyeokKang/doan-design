@@ -41,8 +41,6 @@ func expectJSON(t *testing.T, name string, got any, want string) {
 	}
 }
 
-const fooRow = `{"path":".doan/canvases/a.html","id":"foo","width":800,"title":"Example","frames":[{"id":"main","title":"Main"}]`
-
 // Commands that read the unreadable file keep failing as a whole.
 func expectWholeFailures(t *testing.T, root string, commands ...[]string) {
 	t.Helper()
@@ -51,109 +49,38 @@ func expectWholeFailures(t *testing.T, root string, commands ...[]string) {
 	}
 }
 
-var (
-	commentsCommand = []string{"comments"}
-	checkCommand    = []string{"check"}
-	resolveCommand  = []string{"comment", "resolve", cmt1, "--agent", "codex"}
-)
+var checkCommand = []string{"check"}
 
-func TestListUnreadableCommentFile(t *testing.T) {
-	root := initialized(t)
-	putFile(t, root, ".doan/canvases/a.html", validCanvas)
-	putFile(t, root, ".doan/comments/foo.jsonl", createLine(cmt1, "1", validCanvas)+"\n")
-	unreadable(t, root, ".doan/comments/foo.jsonl")
-	got := result(t, root, 0, "ls")
-	expectJSON(t, "canvases", got["canvases"], `[`+fooRow+`,"commentsError":{"code":"unreadable_comments","message":"Cannot read .doan/comments/foo.jsonl: permission denied"}}]`)
-	expectJSON(t, "orphans", got["orphans"], `[]`)
-	expectWholeFailures(t, root, commentsCommand, resolveCommand)
-}
 func TestListUnreadableCanvas(t *testing.T) {
 	root := initialized(t)
 	putFile(t, root, ".doan/canvases/a.html", validCanvas)
 	bee := strings.Replace(validCanvas, `content="foo"`, `content="bee"`, 1)
 	putFile(t, root, ".doan/canvases/b.html", bee)
-	putFile(t, root, ".doan/comments/bee.jsonl", createLine(cmt2, "2", bee)+"\n")
-	putFile(t, root, ".doan/comments/foo.jsonl", createLine(cmt1, "1", validCanvas)+"\n")
 	unreadable(t, root, ".doan/canvases/a.html")
 	got := result(t, root, 0, "ls")
 	expectJSON(t, "canvases", got["canvases"], `[
 		{"path":".doan/canvases/a.html","frames":[],"error":{"code":"unreadable_canvas","message":"Cannot read .doan/canvases/a.html: permission denied"}},
-		{"path":".doan/canvases/b.html","id":"bee","width":800,"title":"Example","frames":[{"id":"main","title":"Main"}],"comments":{"open":1,"resolved":0}}]`)
-	// The unreadable canvas may own foo.jsonl, so the orphan is uncertain.
-	expectJSON(t, "orphans", got["orphans"], `[{"id":"foo","file":".doan/comments/foo.jsonl","comments":{"open":1,"resolved":0},"uncertain":true}]`)
-	expectWholeFailures(t, root, commentsCommand, checkCommand)
-}
-func TestListUnreadableCanvasAndCommentFile(t *testing.T) {
-	root := initialized(t)
-	putFile(t, root, ".doan/canvases/a.html", validCanvas)
-	putFile(t, root, ".doan/comments/foo.jsonl", createLine(cmt1, "1", validCanvas)+"\n")
-	unreadable(t, root, ".doan/canvases/a.html")
-	unreadable(t, root, ".doan/comments/foo.jsonl")
-	got := result(t, root, 0, "ls")
-	expectJSON(t, "canvases", got["canvases"], `[{"path":".doan/canvases/a.html","frames":[],"error":{"code":"unreadable_canvas","message":"Cannot read .doan/canvases/a.html: permission denied"}}]`)
-	expectJSON(t, "orphans", got["orphans"], `[{"id":"foo","file":".doan/comments/foo.jsonl","error":{"code":"unreadable_comments","message":"Cannot read .doan/comments/foo.jsonl: permission denied"},"uncertain":true}]`)
-}
-func TestListUnreadableOrphan(t *testing.T) {
-	root := initialized(t)
-	putFile(t, root, ".doan/canvases/a.html", validCanvas)
-	putFile(t, root, ".doan/comments/foo.jsonl", createLine(cmt1, "1", validCanvas)+"\n")
-	putFile(t, root, ".doan/comments/gone.jsonl", createLine(cmt2, "2", validCanvas)+"\n")
-	unreadable(t, root, ".doan/comments/gone.jsonl")
-	got := result(t, root, 0, "ls")
-	expectJSON(t, "canvases", got["canvases"], `[`+fooRow+`,"comments":{"open":1,"resolved":0}}]`)
-	expectJSON(t, "orphans", got["orphans"], `[{"id":"gone","file":".doan/comments/gone.jsonl","error":{"code":"unreadable_comments","message":"Cannot read .doan/comments/gone.jsonl: permission denied"},"uncertain":false}]`)
-}
-func TestListOrphans(t *testing.T) {
-	root := initialized(t)
-	upper := strings.Replace(validCanvas, `content="foo"`, `content="Upper"`, 1)
-	dup := strings.Replace(validCanvas, "</head>", `<meta name="doan:canvas" content="other"></head>`, 1)
-	dup = strings.Replace(dup, `content="foo"`, `content="dup"`, 1)
-	putFile(t, root, ".doan/canvases/a.html", validCanvas)
-	putFile(t, root, ".doan/canvases/dup.html", dup)
-	putFile(t, root, ".doan/canvases/upper.html", upper)
-	putFile(t, root, ".doan/comments/foo.jsonl", createLine(cmt1, "1", validCanvas)+"\n")
-	putFile(t, root, ".doan/comments/Upper.jsonl", createLine(cmt1, "1", upper)+"\n")
-	putFile(t, root, ".doan/comments/dup.jsonl", createLine(cmt1, "1", dup)+"\n")
-	// Not a kebab id: listed like any other file, by its file name.
-	putFile(t, root, ".doan/comments/Gone.jsonl", createLine(cmt1, "1", validCanvas)+"\n"+createLine(cmt2, "2", validCanvas)+"\n")
-	// Only malformed and unknown-version lines: still an orphan, with zero counts.
-	putFile(t, root, ".doan/comments/junk.jsonl", "broken\n{\"v\":2}\n")
-	if e := os.Symlink(filepath.Join(root, ".doan/comments/Gone.jsonl"), filepath.Join(root, ".doan/comments/link.jsonl")); e != nil {
-		t.Fatal(e)
-	}
-	got := result(t, root, 0, "ls")
-	if len(got["canvases"].([]any)) != 3 {
-		t.Fatal(got)
-	}
-	orphans := `[
-		{"id":"Gone","file":".doan/comments/Gone.jsonl","comments":{"open":2,"resolved":0},"uncertain":%s},
-		{"id":"junk","file":".doan/comments/junk.jsonl","comments":{"open":0,"resolved":0},"uncertain":%s}]`
-	expectJSON(t, "orphans", got["orphans"], strings.ReplaceAll(orphans, "%s", "false"))
-	// A canvas that does not parse has an unknown id, so every orphan becomes uncertain.
-	putFile(t, root, ".doan/canvases/z.html", validCanvas+strings.Repeat("<div>", 600))
-	got = result(t, root, 0, "ls")
-	expectJSON(t, "unparsable row", got["canvases"].([]any)[3], `{"path":".doan/canvases/z.html","frames":[],"comments":{"open":0,"resolved":0}}`)
-	expectJSON(t, "orphans", got["orphans"], strings.ReplaceAll(orphans, "%s", "true"))
-}
-func TestListOrphansWithoutCommentDirectory(t *testing.T) {
-	root := initialized(t)
-	putFile(t, root, ".doan/canvases/a.html", validCanvas)
-	expectJSON(t, "orphans", result(t, root, 0, "ls")["orphans"], `[]`)
-	outside := t.TempDir()
-	putFile(t, outside, "gone.jsonl", createLine(cmt1, "1", validCanvas)+"\n")
-	if e := os.Symlink(outside, filepath.Join(root, ".doan/comments")); e != nil {
-		t.Fatal(e)
-	}
-	expectJSON(t, "linked directory", result(t, root, 0, "ls")["orphans"], `[]`)
+		{"path":".doan/canvases/b.html","id":"bee","width":800,"title":"Example","frames":[{"id":"main","title":"Main"}]}]`)
+	expectWholeFailures(t, root, checkCommand)
 }
 func TestListEnumerationFailuresStayWhole(t *testing.T) {
-	for _, dir := range []string{".doan/comments", ".doan/canvases/sub"} {
-		t.Run(dir, func(t *testing.T) {
+	root := initialized(t)
+	putFile(t, root, ".doan/canvases/a.html", validCanvas)
+	putFile(t, root, ".doan/canvases/sub/x.html", validCanvas)
+	unreadable(t, root, ".doan/canvases/sub")
+	failure(t, root, "internal_error", "ls")
+}
+
+// An id doan check rejects is not listed: agents would build chips and --frame targets from it.
+func TestListOmitsInvalidCanvasIDs(t *testing.T) {
+	for _, tt := range []struct{ name, html string }{
+		{"uppercase", strings.Replace(validCanvas, `content="foo"`, `content="FOO"`, 1)},
+		{"duplicate metas", strings.Replace(validCanvas, "</head>", `<meta name="doan:canvas" content="foo"></head>`, 1)},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
 			root := initialized(t)
-			putFile(t, root, ".doan/canvases/a.html", validCanvas)
-			putFile(t, root, dir+"/x.html", validCanvas)
-			unreadable(t, root, dir)
-			failure(t, root, "internal_error", "ls")
+			putFile(t, root, ".doan/canvases/a.html", tt.html)
+			expectJSON(t, "canvases", result(t, root, 0, "ls")["canvases"], `[{"path":".doan/canvases/a.html","width":800,"title":"Example","frames":[{"id":"main","title":"Main"}]}]`)
 		})
 	}
 }

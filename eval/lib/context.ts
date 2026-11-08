@@ -33,31 +33,6 @@ export function repoPath(repo: string, path: string): string {
   return relative(repo, resolveInside(repo, path));
 }
 
-function lines(text: string | null): string[] {
-  return (text ?? "").split("\n").filter(line => line.trim() !== "");
-}
-
-// A multiset difference rather than "lines after the seed's last line", so an
-// agent that rewrites the file instead of appending still shows only what it added.
-export function addedLines(seed: string | null, current: string | null): string[] {
-  const left = new Map<string, number>();
-  for (const line of lines(seed)) left.set(line, (left.get(line) ?? 0) + 1);
-  return lines(current).filter(line => {
-    const n = left.get(line) ?? 0;
-    if (n === 0) return true;
-    left.set(line, n - 1);
-    return false;
-  });
-}
-
-export function parseEvents(added: string[]): any[] {
-  return added.map(line => {
-    try { return JSON.parse(line); } catch { return { invalid: line }; }
-  });
-}
-
-const CANVAS_ID = /^[a-z0-9]+(-[a-z0-9]+)*$/;
-
 export interface ContextOptions {
   repo: string;
   // Defaults to `repo`.
@@ -161,11 +136,6 @@ export function createContext(o: ContextOptions): CheckContext {
     seed,
     changedFiles: () => changedFiles(o.repo),
     cwdChangedFiles: () => changedFiles(cwd),
-    commentEvents(canvasId) {
-      if (!CANVAS_ID.test(canvasId)) throw new Error(`not a canvas id: ${canvasId}`);
-      const path = `.doan/comments/${canvasId}.jsonl`;
-      return parseEvents(addedLines(seed(path), read(path)));
-    },
     onboarding() {
       if (!o.onboardingLog || !existsSync(o.onboardingLog)) return [];
       return readFileSync(o.onboardingLog, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line));

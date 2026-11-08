@@ -31,7 +31,7 @@ import { cloneEnv, locateGit } from "./onboarding/clone";
 import { readGitRemotes } from "./onboarding/gitConfig";
 import { canonicalFolder, cloneDestination, cloneProject, confirmProject, inspectPath, leftoverPresent, inspectUrl, selectProject, type ProjectDeps } from "./onboarding/projects";
 import { groupRoots, projectKeepsLocal } from "./storage";
-import { DocumentBindings } from "./comments/document";
+import { DocumentBindings } from "./document/bindings";
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, nativeTheme, Notification, screen, session, shell as electronShell, systemPreferences, webContents, webFrameMain, type BaseWindow, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from "electron";
 import { randomUUID } from "node:crypto";
 import { accessSync, constants as fsConstants, readlinkSync, realpathSync, statSync } from "node:fs";

@@ -325,7 +325,7 @@ export function onboardingApp(script: OnboardingScript, root: string, initialize
 }
 
 // What the app's initialize writes: `doan init` without token CSS (cli/internal/cli/init.go).
-const ATTRIBUTE_LINES = [".doan/comments/*.jsonl merge=union", ".doan/** linguist-documentation"];
+const ATTRIBUTE_LINES = [".doan/** linguist-documentation"];
 const INIT_CONFIG = JSON.stringify({ v: 1 }, null, 2) + "\n";
 
 // Sets `root` up as the real app would for the planned changes, so an agent

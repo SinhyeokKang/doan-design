@@ -6,7 +6,7 @@ Use this preset when the user asks to simplify, declutter, reduce, or strip back
 
 ## Before you start
 
-- Find the target. For pointing words like "this screen" or "this panel", use `doan active` and read the open comments attached to that target (`doan comments --canvas <id>`). Otherwise work on the canvas, frame, or code the user named.
+- Find the target. For pointing words like "this screen" or "this panel", use `doan active`. Otherwise work on the canvas, frame, or code the user named.
 - Read the design system: the token CSS (`doan config --json` shows `tokenCss`), existing components, any design rules document, and the design-system canvases in `.doan/ds/` (or a legacy `.doan/canvases/design-system.html`) if present.
 - Read the code the canvas implements (`data-doan-implements`) to learn which elements carry real function, data, or states.
 - Find the primary user goal for this surface. If the goal, the audience, or what is essential is unclear from the repository, do not guess: ask. When product context is missing and it would change what to cut, suggest the `context` preset (`doan design-skill context --json`).
@@ -37,7 +37,7 @@ Write a short editing plan before changing anything:
 - **Essential elements:** what that purpose truly needs.
 - **Progressive disclosure:** what can wait behind a clear entry point.
 - **Consolidation:** what can be merged or integrated.
-- **Needs approval:** every cut that removes a function, an option, or content carrying product facts. Ask about these before applying them.
+- **Needs approval:** every cut that removes a function, an option, or content carrying product facts. Ask about these before applying them. Merging exact duplicates (two controls with the same effect, or two texts with the same meaning) keeps the function, so it needs no approval; say which ones you merged. Options that differ in any effect, however small, still need approval.
 
 Expect to say no to good ideas to make room for clear execution.
 
@@ -95,11 +95,10 @@ When the request covers the implementation, remove unused styles and components,
 ## Apply the change in Doan
 
 - Change only the requested scope. Keep canvas, frame, and element ids unchanged for everything that stays, and leave frames and elements outside the request as they are.
-- Check open comments attached to an element or frame before deleting it.
 - Reference token CSS variables; do not copy raw hex or rgb values.
 - When the simplified canvas no longer matches the code it implements, or shows something not in code yet, say so on the canvas, as the Doan guide requires.
 - If the user asked for a review only, report the findings and the proposed cuts without editing files.
-- After editing a canvas, make `doan check` pass. Resolve only the comments you actually applied.
+- After editing a canvas, make `doan check` pass.
 - In your answer, list what you removed, hid, or merged and why, whether removed options need another access point, and what you left unchanged on purpose because it needs the user's decision.
 
 ## Verify
@@ -116,6 +115,6 @@ Report anything you could not check, such as task timing with real users or load
 
 ---
 
-Source: adapted by Doan from pbakaus/impeccable at commit d34c87e1a00989ae8dbdd7f6b30b70f23319e860, file `skill/reference/distill.md`, under the Apache License 2.0. Doan modified it: replaced the ask placeholder with a "Before you start" section, required the user's agreement before removing function or content that carries product facts, limited code simplification to requests that cover the implementation, turned "Document Removed Complexity" into the final answer, removed the closing hand-off to the upstream `polish` command and its template placeholder, and added target selection, review-only, canvas, and verification rules for Doan. Doan also turned the upstream ban on cards inside cards into a default the established system can justify.
+Source: adapted by Doan from pbakaus/impeccable at commit d34c87e1a00989ae8dbdd7f6b30b70f23319e860, file `skill/reference/distill.md`, under the Apache License 2.0. Doan modified it: replaced the ask placeholder with a "Before you start" section, required the user's agreement before removing function or content that carries product facts (merging exact duplicates needs none), limited code simplification to requests that cover the implementation, turned "Document Removed Complexity" into the final answer, removed the closing hand-off to the upstream `polish` command and its template placeholder, and added target selection, review-only, canvas, and verification rules for Doan. Doan also turned the upstream ban on cards inside cards into a default the established system can justify.
 
 [doan:design-skill] end of preset distill

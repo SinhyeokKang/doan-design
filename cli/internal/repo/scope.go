@@ -100,7 +100,7 @@ func defaultServeDirs(root string) ([]string, error) {
 	return dirs, nil
 }
 
-// MetadataPath keeps project settings and comment logs out of the serving scope.
+// MetadataPath keeps project settings and other .doan/ metadata out of the serving scope.
 func MetadataPath(p string) bool {
 	return (p == ".doan" || strings.HasPrefix(p, ".doan/")) &&
 		!(p == ".doan/canvases" || strings.HasPrefix(p, ".doan/canvases/") ||

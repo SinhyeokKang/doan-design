@@ -1,4 +1,4 @@
-import type { ResponseRecord } from "./comments/document";
+import type { ResponseRecord } from "./document/bindings";
 import { realpath, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { pruneAuto } from "./autoFolders";

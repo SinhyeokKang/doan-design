@@ -6,7 +6,7 @@
 // wide and as tall as the canvas reports (lib.js height rules); the window only changes the
 // zoom; zoom and the frame jump use the app's constants and Fit rules; the Select and Hand tools,
 // Space and V/H/Esc use the app's key rules (lib.js toolShortcut). The canvas reports only Space,
-// V, H and Escape pressed while it has focus. What it leaves out: selection, comments,
+// V, H and Escape pressed while it has focus. What it leaves out: selection,
 // conversation and Reload.
 
 document.documentElement.classList.add("js");

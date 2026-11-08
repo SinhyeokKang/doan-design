@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/SinhyeokKang/doan-design/cli/internal/canvas"
-	"github.com/SinhyeokKang/doan-design/cli/internal/repo"
 )
 
 type State string
@@ -28,14 +27,13 @@ type TokenCSS struct {
 	State          State
 }
 type Input struct {
-	Canvases     []canvas.Canvas
-	Unparsable   map[string]string
-	Reach        map[string][]CSSRef
-	CSS          map[string]canvas.Scan
-	TokenCSS     TokenCSS
-	Served       func(string) bool
-	Implements   map[string]State
-	CommentFiles []repo.CommentFile
+	Canvases   []canvas.Canvas
+	Unparsable map[string]string
+	Reach      map[string][]CSSRef
+	CSS        map[string]canvas.Scan
+	TokenCSS   TokenCSS
+	Served     func(string) bool
+	Implements map[string]State
 }
 type Finding struct {
 	Severity string `json:"severity"`
@@ -282,9 +280,6 @@ func Run(in Input) []Finding {
 				}
 			}
 		}
-	}
-	for _, f := range repo.OrphanFiles(canvases, in.CommentFiles) {
-		add(Finding{Severity: "warning", Code: "orphan_comment_file", Path: f.Path, Canvas: f.ID, Message: "No canvas uses this comment file's id. Restore the canvas id, or ask the user. Do not delete or rewrite the comment file."})
 	}
 	sort.Slice(findings, func(i, j int) bool {
 		a, b := findings[i], findings[j]

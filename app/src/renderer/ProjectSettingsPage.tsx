@@ -31,7 +31,7 @@ const STORAGE_REASONS = {
   exclude_unwritable: <>Doan can’t write <code>.git/info/exclude</code> in this repository, so this setting can’t change here.</>,
 };
 const SWITCH_NOTES: Record<SwitchNote, ReactNode> = {
-  attributesStay: <>Doan’s two lines stay in <code>.gitattributes</code>.</>,
+  attributesStay: <>Doan’s lines stay in <code>.gitattributes</code>.</>,
   nowTracked: <><code>.doan/</code> now shows in <code>git status</code>. When you commit it, your team gets it.</>,
 };
 const STORED_NOTES = { commit: <> · Stored in <code>.doan/config.json</code> in this worktree. Commit it so your team gets these settings.</>,

@@ -75,7 +75,7 @@ test("R8d seed_structure_kept fails on reordered seed elements and allows added 
     return swap(title + body, body + title)(html);
   };
   assert.deepEqual(failed(setup(reorder)), ["seed_structure_kept"]);
-  // Guide rule G notes, outside the frames (as Claude placed one) or inside the point's frame (as Codex did).
+  // Guide rule B notes, outside the frames (as Claude placed one) or inside the point's frame (as Codex did).
   assert.deepEqual(failed(setup(swap("</body>", '  <p data-doan-id="design-note">Not in code yet: the "Save draft" copy and the Draft badge.</p>\n</body>'))), []);
   assert.deepEqual(failed(setup(swap('data-doan-id="draft-badge">Draft</span>\n', 'data-doan-id="draft-badge">Draft</span>\n    <small data-doan-id="design-note">Design only: "Save draft" copy and Draft badge.</small>\n'))), []);
   const detail = checks(setup(swap("</body>", "  <p>Note</p>\n</body>"))).find(c => c.id === "seed_structure_kept")!.detail;

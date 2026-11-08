@@ -1,4 +1,4 @@
-import { lstat, readdir, realpath } from "node:fs/promises";
+import { lstat, realpath } from "node:fs/promises";
 import { join, posix, relative, isAbsolute } from "node:path";
 import { canvasKind } from "../formats/canvasPath";
 import type { ConversationSummary } from "./conversation/summary";
@@ -12,26 +12,14 @@ import type { WorkItem } from "./workState";
 // row's path under the registered root.
 
 export interface TrashRequest { root: string; path: string }
-// `commentsId`: the id whose `.doan/comments/<id>.jsonl` goes with the canvas, when the list proves no other canvas
-// can own that file.
-export interface TrashTarget { root: string; path: string; id?: string; commentsId?: string }
+export interface TrashTarget { root: string; path: string; id?: string }
 export type TrashRefusal = "busy" | "notListed" | "notFile" | "failed";
 export interface TrashRefused { kind: "refused"; reason: TrashRefusal }
-// `comments: true` only when a comment file will go with the canvas; the dialog then names it.
-export type TrashPlanReply = { kind: "ready"; comments: boolean } | TrashRefused;
-// `none`: no comment file to move. `kept`: the comment file stays, because the canvas id may not be the only owner (a
-// shared id, an unreadable row) or the file or its directory is not a plain one. `failed`: the canvas is in the Trash but
-// its comment file could not be moved; `file` is where it stays, repo-relative.
-export type TrashReply =
-  | { kind: "trashed"; comments: "trashed" | "none" | "kept" }
-  | { kind: "trashed"; comments: "failed"; file: string }
-  | TrashRefused;
+export type TrashPlanReply = { kind: "ready" } | TrashRefused;
+export type TrashReply = { kind: "trashed" } | TrashRefused;
 
 const refused = (reason: TrashRefusal): TrashRefused => ({ kind: "refused", reason });
 export const TRASH_REFUSED: TrashRefused = refused("notListed");
-
-// ARCHITECTURE §1 convention 2.
-const CANVAS_ID = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 export function trashRequest(value: unknown): TrashRequest | null {
   if (typeof value !== "object" || value === null) return null;
@@ -39,20 +27,15 @@ export function trashRequest(value: unknown): TrashRequest | null {
   return typeof root === "string" && typeof path === "string" ? { root, path } : null;
 }
 
-// Checks 1 and 2: a registered root whose list holds this exact path as a canvas. The comment file goes only when the
-// row has a valid id that no other row of the list uses and no row failed to read: an unreadable row may use that id
-// (the reason `doan ls` marks orphans `uncertain`, ARCHITECTURE §12).
+// Checks 1 and 2: a registered root whose list holds this exact path as a canvas. Only the canvas file moves; no other
+// file under `.doan/` goes with it, even one named after the canvas id.
 export function trashTarget(entries: readonly FolderEntry[], request: TrashRequest): TrashTarget | TrashRefused {
   const entry = entries.find(candidate => candidate.path === request.root);
   if (entry?.kind !== "list") return refused("notListed");
   const row = entry.canvases.find(candidate => candidate.path === request.path);
   if (row === undefined || canvasKind(row.path) === null) return refused("notListed");
   const id = row.id || undefined;
-  const target: TrashTarget = { root: entry.path, path: row.path, ...(id ? { id } : {}) };
-  const owned = id !== undefined && CANVAS_ID.test(id)
-    && !entry.canvases.some(other => other !== row && other.id === id)
-    && !entry.canvases.some(other => other.error !== undefined);
-  return owned ? { ...target, commentsId: id } : target;
+  return { root: entry.path, path: row.path, ...(id ? { id } : {}) };
 }
 
 // An agent-reported edit path as a path of `root`, or null outside it: the rule of `conversation/project.ts` `inside`,
@@ -109,26 +92,6 @@ export async function checkCanvasFile(root: string, path: string): Promise<"ok" 
   }
 }
 
-export type CommentsFile = { kind: "none" } | { kind: "kept" } | { kind: "found"; path: string } | { kind: "failed" };
-
-// The comment file of `id`, never built from the id: on case-insensitive macOS `FOO.jsonl` would open for `foo`
-// (ARCHITECTURE §13 'Listing'). The directory entry must equal `<id>.jsonl` byte for byte, and neither it nor
-// `.doan/comments` may be a link; `.doan` itself was checked with the canvas.
-export async function findComments(root: string, id: string): Promise<CommentsFile> {
-  const dir = join(root, ".doan", "comments");
-  try {
-    const info = await lstat(dir);
-    if (!info.isDirectory()) return { kind: "kept" };
-    const want = Buffer.from(`${id}.jsonl`);
-    const name = (await readdir(dir, { encoding: "buffer" })).find(entry => entry.equals(want));
-    if (name === undefined) return { kind: "none" };
-    const path = join(dir, name.toString());
-    return (await lstat(path)).isFile() ? { kind: "found", path } : { kind: "kept" };
-  } catch (error) {
-    return code(error) === "ENOENT" ? { kind: "none" } : { kind: "failed" };
-  }
-}
-
 export interface CanvasTrashDeps {
   entries(): readonly FolderEntry[];
   // Check 5 for the listed row; it may throw (an unreadable conversation index), which refuses as failed.
@@ -165,9 +128,7 @@ export function createCanvasTrash(deps: CanvasTrashDeps): CanvasTrash {
   return {
     async plan(value) {
       const target = await checked(value);
-      if ("kind" in target) return target;
-      const comments = target.commentsId === undefined ? null : await findComments(target.root, target.commentsId);
-      return { kind: "ready", comments: comments?.kind === "found" };
+      return "kind" in target ? target : { kind: "ready" };
     },
     async trash(value) {
       const request = trashRequest(value);
@@ -178,25 +139,12 @@ export function createCanvasTrash(deps: CanvasTrashDeps): CanvasTrash {
       try {
         const target = await checked(request);
         if ("kind" in target) return target;
-        // The canvas first: when it cannot move, its comments stay untouched.
         try {
           await deps.trashItem(join(target.root, target.path));
         } catch {
           return refused("failed");
         }
-        // Comment files are keyed by canvas id: a canvas without one has none.
-        if (target.commentsId === undefined) return { kind: "trashed", comments: target.id === undefined ? "none" : "kept" };
-        const comments = await findComments(target.root, target.commentsId);
-        if (comments.kind === "none" || comments.kind === "kept") return { kind: "trashed", comments: comments.kind };
-        const file = `.doan/comments/${target.commentsId}.jsonl`;
-        if (comments.kind === "failed") return { kind: "trashed", comments: "failed", file };
-        try {
-          await deps.trashItem(comments.path);
-          return { kind: "trashed", comments: "trashed" };
-        } catch {
-          // The canvas is already in the Trash; `doan check` reports the file as orphan_comment_file.
-          return { kind: "trashed", comments: "failed", file };
-        }
+        return { kind: "trashed" };
       } finally {
         moving.delete(key);
       }

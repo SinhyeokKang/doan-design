@@ -12,28 +12,26 @@ function all(node: ReactNode): ReactElement<Record<string, unknown>>[] {
 }
 const buttons = (tree: ReactNode) => all(tree).filter(element => element.type === "button");
 
-test("names the canvas and its path; the comments only once main said they go too", () => {
+test("names the canvas and its path, with the same body before and after main's plan", () => {
   const pending = trashDialogView("checkout", PATH, null, false);
   expect(pending.title).toBe("Move “checkout” to Trash?");
   expect(pending.body).toBe("This removes .doan/canvases/checkout.html from the repository. You can restore it from the Trash. Doan doesn’t commit this change.");
-  expect(trashDialogView("checkout", PATH, { kind: "ready", comments: false }, false).body).toBe(pending.body);
-  expect(trashDialogView("checkout", PATH, { kind: "ready", comments: false }, false).body).not.toContain("comments");
-  expect(trashDialogView("checkout", PATH, { kind: "ready", comments: true }, false).body)
-    .toBe("This removes .doan/canvases/checkout.html and its comments from the repository. You can restore them from the Trash. Doan doesn’t commit this change.");
+  expect(trashDialogView("checkout", PATH, { kind: "ready" }, false).body).toBe(pending.body);
+  expect(trashDialogView("checkout", PATH, { kind: "refused", reason: "busy" }, false).body).toBe(pending.body);
 });
 
 test("Move to Trash waits for main's plan and holds while an agent works, with the reason under the body", () => {
   expect(trashDialogView("checkout", PATH, null, false)).toMatchObject({ confirmable: false, reason: null });
-  expect(trashDialogView("checkout", PATH, { kind: "ready", comments: true }, false)).toMatchObject({ confirmable: true, reason: null });
+  expect(trashDialogView("checkout", PATH, { kind: "ready" }, false)).toMatchObject({ confirmable: true, reason: null });
   const working = "An agent started working on this canvas. Try again when it finishes.";
-  expect(trashDialogView("checkout", PATH, { kind: "ready", comments: true }, true)).toMatchObject({ confirmable: false, reason: working });
+  expect(trashDialogView("checkout", PATH, { kind: "ready" }, true)).toMatchObject({ confirmable: false, reason: working });
   // Main's own busy plan reads the same way.
   expect(trashDialogView("checkout", PATH, { kind: "refused", reason: "busy" }, false)).toMatchObject({ confirmable: false, reason: working });
 });
 
 test("the compact alert dialog starts on Cancel; Escape and Cancel only cancel", () => {
   const cancel = vi.fn(), confirm = vi.fn();
-  const tree = CanvasTrashDialog({ view: trashDialogView("checkout", PATH, { kind: "ready", comments: false }, false), cancel, confirm });
+  const tree = CanvasTrashDialog({ view: trashDialogView("checkout", PATH, { kind: "ready" }, false), cancel, confirm });
   expect(tree.props).toMatchObject({ className: "doan-dialog", "data-ui-size": "compact", role: "alertdialog", "aria-labelledby": "canvas-trash-title", "aria-describedby": "canvas-trash-body" });
   const [cancelButton, trashButton] = buttons(tree);
   expect(cancelButton!.props).toMatchObject({ children: "Cancel", autoFocus: true, "data-ui-variant": "subtle" });
@@ -52,7 +50,7 @@ test("the compact alert dialog starts on Cancel; Escape and Cancel only cancel",
 
 test("an unavailable Move to Trash is aria-disabled, reads its reason and does nothing", () => {
   const cancel = vi.fn(), confirm = vi.fn();
-  const tree = CanvasTrashDialog({ view: trashDialogView("checkout", PATH, { kind: "ready", comments: true }, true), cancel, confirm });
+  const tree = CanvasTrashDialog({ view: trashDialogView("checkout", PATH, { kind: "ready" }, true), cancel, confirm });
   const trash = buttons(tree)[1]!;
   expect(trash.props).toMatchObject({ "aria-disabled": true, "data-disabled": "", "aria-describedby": "canvas-trash-reason" });
   expect(trash.props.disabled).toBeUndefined();
@@ -67,7 +65,7 @@ test("an unavailable Move to Trash is aria-disabled, reads its reason and does n
 });
 
 test("static markup: title, body, the working line and the actions in order", () => {
-  const html = renderToStaticMarkup(<CanvasTrashDialog view={trashDialogView("checkout", PATH, { kind: "ready", comments: true }, true)} cancel={() => {}} confirm={() => {}} />);
+  const html = renderToStaticMarkup(<CanvasTrashDialog view={trashDialogView("checkout", PATH, { kind: "ready" }, true)} cancel={() => {}} confirm={() => {}} />);
   expect(html).toContain('<dialog class="doan-dialog" data-ui-size="compact" role="alertdialog" aria-labelledby="canvas-trash-title" aria-describedby="canvas-trash-body">');
   expect(html).toContain('<h3 class="doan-dialog-title" id="canvas-trash-title">Move “checkout” to Trash?</h3>');
   expect(html).toContain('<p class="doan-notice" id="canvas-trash-reason"><svg');

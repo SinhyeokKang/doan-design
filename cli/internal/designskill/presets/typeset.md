@@ -6,7 +6,7 @@ Use this preset when the user asks to fix type sizes, weights, families, line he
 
 ## Before you start
 
-- Find the target. For pointing words like "this screen" or "this heading", use `doan active` and read the open comments attached to that target. Otherwise work on the canvas, frame, or code the user named.
+- Find the target. For pointing words like "this screen" or "this heading", use `doan active`. Otherwise work on the canvas, frame, or code the user named.
 - Read the design system: token CSS (`doan config --json` shows `tokenCss`), especially font family, size, weight, and line height variables; existing text components; any design rules document; and the design-system canvases in `.doan/ds/` (or a legacy `.doan/canvases/design-system.html`) if present. Confirmed families and weights are authoritative; improve how they are used.
 - Read the code the canvas implements (`data-doan-implements`) and the fonts it actually loads.
 - If the product's users and reading situation are unknown and that would change the result, suggest the `context` preset (`doan design-skill context --json`). Ask only what would change the result.
@@ -83,7 +83,7 @@ After Matthew Butterick's *Practical Typography*, paraphrased; where his numbers
 - Change only the typography in the requested scope. Keep canvas, frame, and element ids unchanged, and leave frames and elements outside the request as they are.
 - When the canvas uses a type token, family, or text style that is not in code yet, including a proposed token, say so on the canvas, as the Doan guide requires for anything drawn that is not in code.
 - If the user asked for a review only, report the assessment, the proposed role system, and the changes without editing files.
-- After editing a canvas, make `doan check` pass. Resolve only the comments you actually applied.
+- After editing a canvas, make `doan check` pass.
 - In your answer, list what changed, any type tokens you proposed rather than added, and what you left unchanged on purpose.
 
 ## Verify

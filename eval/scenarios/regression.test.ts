@@ -1,16 +1,14 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { cpSync, mkdtempSync, readFileSync, writeFileSync, rmSync, readdirSync } from "node:fs";
+import { cpSync, mkdtempSync, readFileSync, writeFileSync, rmSync, readdirSync, renameSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { createContext } from "../lib/context.ts";
-import { toolCalls } from "../lib/transcript.ts";
 import type { Checks } from "../lib/types.ts";
-import r1 from "./R1/checks.ts";
 import r2 from "./R2/checks.ts";
-import r3 from "./R3/checks.ts";
 import w1 from "./W1/checks.ts";
+import w2 from "./W2b/checks.ts";
 
 const root = mkdtempSync(join(tmpdir(), "scenario-regression-"));
 const cli = join(root, "doan");
@@ -26,7 +24,7 @@ function fixture(id: string, transcript = "") {
   return createContext({ repo, agent: "fixture", transcript, cli, env, seedCommit: "HEAD" });
 }
 test("scenario subprocesses use their temporary runtime instead of the inherited app runtime", () => {
-  const ctx = fixture("R1");
+  const ctx = fixture("R2");
   const runtime = ctx.run(process.execPath, ["-p", "process.env.DOAN_RUNTIME || 'default real HOME runtime'"]);
   assert.equal(runtime.code, 0, runtime.stderr);
   assert.equal(runtime.stdout.trim(), join(root, "runtime.json"));
@@ -44,21 +42,15 @@ test("R2 rejects guide-only and echoed active mentions, accepts actual shell cal
     assert.equal(r2(fixture("R2", transcript)).find(c => c.id === "asked_doan_active")?.pass, true);
   }
 });
-test("R1 accepts a schema-valid runtime name and rejects a human resolve", () => {
-  const ctx = fixture("R1");
-  const path = join(ctx.repo, ".doan/comments/profile.jsonl");
-  writeFileSync(path, readFileSync(path, "utf8").replaceAll('"name": "codex"', '"name": "claude"'));
-  all(r1, ctx);
-  writeFileSync(path, readFileSync(path, "utf8").replaceAll('"kind": "agent"', '"kind": "human"'));
-  assert.equal(r1(ctx).find(c => c.id === "profile_agent_resolves_only")?.pass, false);
-});
-test("R3 accepts an unresolved mixed comment but rejects delete-and-restore commands", () => {
-  const ctx = fixture("R3");
-  writeFileSync(join(ctx.repo, ".doan/comments/billing.jsonl"), ctx.seed(".doan/comments/billing.jsonl")!);
-  all(r3, ctx);
-  for (const transcript of [claude("rm .doan/canvases/team.html; git restore .doan/canvases/team.html"), 'exec\n/bin/zsh -lc \'rm .doan/canvases/team.html; git restore .doan/canvases/team.html\' in /tmp/repo succeeded in 20ms:']) {
-    assert.ok(r3({ ...ctx, transcript, calls: toolCalls(transcript) }).some(c => !c.pass));
-  }
+test("W2b element ids are read from the canvas wherever the file moved, and a missing id still fails", () => {
+  const ctx = fixture("W2b"), from = ".doan/canvases/projects.html", to = ".doan/canvases/projects-v2.html";
+  all(w2, ctx);
+  renameSync(join(ctx.repo, from), join(ctx.repo, to));
+  const moved = w2(ctx);
+  assert.equal(moved.find(c => c.id === "canvas_id_preserved")?.pass, true);
+  assert.equal(moved.find(c => c.id === "element_ids_preserved")?.pass, true);
+  writeFileSync(join(ctx.repo, to), readFileSync(join(ctx.repo, to), "utf8").replace('data-doan-id="project-owner"', 'data-doan-id="owner-renamed"'));
+  assert.equal(w2(ctx).find(c => c.id === "element_ids_preserved")?.pass, false);
 });
 test("W1 accepts inline and linked relative token imports", () => {
   for (const linked of [false, true]) {

@@ -183,11 +183,11 @@ describe("folderEntry", () => {
     expect(unread).not.toHaveProperty("changedAt");
   });
 
-  test("passes orphans through, and leaves them out when ls sent none", () => {
+  test("leaves out an older doan's orphans", () => {
     const orphans = [{ id: "old", file: ".doan/comments/old.jsonl", comments: { open: 1, resolved: 0 }, uncertain: false }];
-    const entry = folderEntry("/repo", { kind: "list", root: "/repo", scope: [], canvases: [], orphans }, base, 0);
-    expect(entry).toEqual({ path: "/repo", kind: "list", servedRev: 0, canvases: [], orphans });
-    expect(folderEntry("/repo", { kind: "list", root: "/repo", scope: [], canvases: [] }, base, 0)).not.toHaveProperty("orphans");
+    // The value an older CLI sends, cast past FolderState's shape on purpose.
+    const state = { kind: "list", root: "/repo", scope: [], canvases: [], orphans } as FolderState;
+    expect(folderEntry("/repo", state, base, 0)).toEqual({ path: "/repo", kind: "list", servedRev: 0, canvases: [] });
   });
 
   // Only a list is served, so only a list has a revision to reload on.

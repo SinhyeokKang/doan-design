@@ -144,7 +144,6 @@ Pick a design preset — shape, critique, harden, clarify and more — and the a
 | `doan active` | Read what you selected in the app: canvas, frame and element |
 | `doan work start` · `update` · `done` | Show in the app that an agent is working on a canvas, and on which frame |
 | `doan open <canvas> --frame <id>` | Open a canvas in the app, at a frame |
-| `doan comments` · `doan comment resolve` | Read the comments in `.doan/comments/` and resolve the ones applied |
 | `doan export <canvas> -o <file>` | Save a canvas as one HTML file that opens in any browser |
 | `doan skill` · `doan design-skill [<id>]` | Print the guide agents follow, and the design presets |
 | `doan onboarding` | Let an agent run first-time setup for you |
@@ -197,7 +196,6 @@ Ask your agent, in Doan or in a terminal:
 - *"Draw the checkout flow as a Doan canvas: the default form, the card error and the receipt."*
 - *"Use our tokens in `src/styles/tokens.css` for the canvas and run `doan check` before you finish."*
 - *"Turn this Notion spec into a canvas, one frame per state."* (with the Notion MCP connector)
-- *"Apply the comments on the onboarding canvas and resolve the ones you applied."*
 - *"Export the checkout canvas so I can send it to a reviewer."*
 
 For the best drafts, **give the agent design context**: the repo's tokens and components, a screenshot of the screen as it is, or the spec behind it.

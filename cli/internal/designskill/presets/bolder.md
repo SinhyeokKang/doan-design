@@ -6,7 +6,7 @@ Use this preset when the user asks to make a section, frame, component, or eleme
 
 ## Before you start
 
-- Find the target. For pointing words like "this section" or "this button", use `doan active` and read the open comments attached to that target (`doan comments --canvas <id>`). Otherwise work on the canvas, frame, or element the user named. If the target or what must stay untouched is unclear, ask.
+- Find the target. For pointing words like "this section" or "this button", use `doan active`. Otherwise work on the canvas, frame, or element the user named. If the target or what must stay untouched is unclear, ask.
 - Read the design system: the token CSS (`doan config --json` shows `tokenCss`), existing components, any design rules document, and the design-system canvases in `.doan/ds/` (or a legacy `.doan/canvases/design-system.html`) if present.
 - Read the code the canvas implements (`data-doan-implements`) so the bolder version keeps its behavior.
 - When product context is missing and it would change the result, suggest the `context` preset (`doan design-skill context --json`).
@@ -38,7 +38,7 @@ Strip the copy out of the planned target and study the bare structure. Does the 
 - Reference token CSS variables; do not copy raw hex or rgb values or introduce new ones.
 - When something you draw on the canvas, such as a new structural device or a new asset, is not in code yet, say so on the canvas, as the Doan guide requires.
 - If the user asked for a review only, report why the target reads flat and the proposed moves without editing files.
-- After editing a canvas, make `doan check` pass. Resolve only the comments you actually applied.
+- After editing a canvas, make `doan check` pass.
 - In your answer, list what changed and what you left unchanged on purpose, including any system addition you proposed instead of making.
 
 ## Verify

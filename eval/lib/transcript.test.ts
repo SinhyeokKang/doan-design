@@ -101,19 +101,38 @@ test("shell words keep quoted flag assignments together", () => {
   assert.deepEqual(commandWords('echo "doan active"'), [["echo", "doan active"]]);
 });
 
-test("only a whole standalone literal patch batch qualifies as code-mode invocation evidence", () => {
+test("only a lexical code-mode patch mention that is not a whole standalone literal call becomes a candidate", () => {
   const patch = '*** Begin Patch\n*** Delete File: .doan/canvases/team.html\n*** End Patch';
-  const calls = (input: string) => toolCalls(JSON.stringify({ type: "response_item", payload: { type: "custom_tool_call", name: "exec", input } }));
+  const event = (payload: object) => JSON.stringify({ type: "response_item", payload });
+  const calls = (input: string) => toolCalls(event({ type: "custom_tool_call", name: "exec", input }));
   for (const source of [
     `tools.apply_patch(${JSON.stringify(patch)})`, `/* call */ await tools.apply_patch(${JSON.stringify(patch)}); // end`,
     `await tools.apply_patch('${patch.replaceAll("\n", "\\n")}');`, 'await tools.apply_patch(`' + patch + '`);',
-  ]) {
-    assert.deepEqual(calls(source).patches, [patch], source);
-    assert.equal(calls(source).patchCandidates, undefined);
-  }
+  ]) assert.equal(calls(source).patchCandidates, undefined, source);
   const invalidString = `await tools.apply_patch('${patch}');`;
-  assert.equal(calls(invalidString).patches, undefined);
   assert.deepEqual(calls(invalidString).patchCandidates, [patch]);
+  for (const transcript of [
+    patch,
+    event({ type: "custom_tool_call", name: "apply_patch", input: patch }),
+    event({ type: "function_call", name: "functions.apply_patch", arguments: JSON.stringify({ patch }) }),
+    event({ type: "custom_tool_call", name: "exec", input: `/* tools.apply_patch(${JSON.stringify(patch)}); */` }),
+    event({ type: "custom_tool_call", name: "exec", input: "await tools.apply_patch(computedPatch);" }),
+    event({ type: "custom_tool_call_output", output: patch }),
+    event({ type: "custom_tool_call", name: "exec", input: `const example = ${JSON.stringify(`tools.apply_patch(${JSON.stringify(patch)})`)};` }),
+  ]) assert.equal(toolCalls(transcript).patchCandidates, undefined, transcript);
+});
+test("a patch inside conditional, deferred or repeated code-mode source stays a candidate", () => {
+  const patch = '*** Begin Patch\n*** Delete File: .doan/canvases/team.html\n*** End Patch';
+  const call = `await tools.apply_patch(${JSON.stringify(patch)});`;
+  for (const source of [
+    `if (false) { ${call} }`, `async function example() { ${call} }`,
+    `throw new Error('before patch'); ${call}`, `await mightReject(); ${call}`,
+    `const deferred = async () => { ${call} };`, `${call} ${call}`,
+    `text(${JSON.stringify('example')}); ${call}`, `${call} invalid syntax !`,
+  ]) {
+    const calls = toolCalls(JSON.stringify({ type: "response_item", payload: { type: "custom_tool_call", name: "functions.exec", input: source } }));
+    assert.ok(calls.patchCandidates?.includes(patch), source);
+  }
 });
 test("doan export flags are read as flags, so the canvas stays the second positional", () => {
   const words = ["doan", "export", ".doan/canvases/profile.html", "-o", "/tmp/out.html", "--force", "--json"];

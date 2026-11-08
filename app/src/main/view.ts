@@ -22,25 +22,12 @@ export interface CanvasRow {
   // Set by `canvasSeen.ts` when the canvas appeared or changed since the person last had it on the canvas page.
   unseen?: "new" | "changed";
   // `doan ls` could not read the canvas file.
-  // The listing's comment counts and `commentsError` are not kept: nothing in
-  // the app shows comments.
   error?: RowError;
   url: string;
 }
 
 // The message holds a repo-relative path and the cause, never an absolute path.
 export interface RowError { code: string; message: string }
-
-// A comment file no canvas uses, from `doan ls` `orphans` as is. `comments` is
-// absent when ls could not read the file (`error`); `uncertain` is true when
-// some canvas could not be read, so the file may still be that canvas's.
-export interface OrphanFile {
-  id: string;
-  file: string;
-  comments?: { open: number; resolved: number };
-  error?: RowError;
-  uncertain: boolean;
-}
 
 // `git` is the CLI's optional `result.git`, passed through unchanged.
 export interface GitInfo {
@@ -60,9 +47,8 @@ export type FolderEntry = { path: string; lastCommon?: string; autoRegistered?: 
   // Bumped by the shell whenever a served file of the folder changed; the
   // renderer reloads an open canvas on a new value. Only a list is served.
   // `changedAt` is the newest canvas mtime; absent with no canvases.
-  // `orphans` is absent only when the CLI sent none (an older doan).
   // `storage`/`storageReason` are `doan ls`'s, absent from an older doan.
-  | ({ kind: "list"; canvases: CanvasRow[]; servedRev: number; git?: GitInfo; changedAt?: number; orphans?: OrphanFile[] } & StorageFacts)
+  | ({ kind: "list"; canvases: CanvasRow[]; servedRev: number; git?: GitInfo; changedAt?: number } & StorageFacts)
   | { kind: "uninitialized" }
   | { kind: "error"; message: string }
   | { kind: "cliError"; reason: string }
@@ -110,7 +96,7 @@ function staticFrames(frames: unknown): StaticFrame[] | undefined {
   return kept;
 }
 
-export function isRowError(value: unknown): value is RowError {
+function isRowError(value: unknown): value is RowError {
   return typeof value === "object" && value !== null &&
     typeof Reflect.get(value, "code") === "string" && typeof Reflect.get(value, "message") === "string";
 }
@@ -131,7 +117,7 @@ export function folderEntry(path: string, view: FolderView, baseUrl: string, ser
         if (mtime !== undefined) row.mtimeMs = mtime;
       }
       const changedAt = latestChange(canvases.map((row) => row.mtimeMs));
-      return { path, kind: "list", canvases, servedRev, ...(view.git ? { git: view.git } : {}), ...(changedAt === undefined ? {} : { changedAt }), ...(view.orphans ? { orphans: view.orphans } : {}),
+      return { path, kind: "list", canvases, servedRev, ...(view.git ? { git: view.git } : {}), ...(changedAt === undefined ? {} : { changedAt }),
         ...(view.storage ? { storage: view.storage } : {}), ...(view.storageReason ? { storageReason: view.storageReason } : {}) };
     }
     case "error":

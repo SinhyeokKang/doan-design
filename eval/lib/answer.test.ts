@@ -3,12 +3,12 @@ import { test } from "node:test";
 import { finalAnswer, withoutCode } from "./answer.ts";
 
 test("finalAnswer retains unfenced JSON entries between Codex prose lines", () => {
-  const answer = 'Status: one canvas, billing-v2. ls reports an orphan:\n{"id":"billing","file":".doan/comments/billing.jsonl","uncertain":false}\nI left it unchanged; how should I handle it?';
+  const answer = 'Status: one canvas, billing-v2. ls reports one entry:\n{"id":"billing","file":".doan/canvases/billing.html","uncertain":false}\nI left it unchanged; how should I handle it?';
   assert.equal(finalAnswer(answer + "\nOpenAI Codex v0.1\nbanner"), answer);
 });
 
 test("finalAnswer retains brace-leading prose and domain JSON without treating them as events", () => {
-  for (const line of ['{billing} still has comments.', '{"type":"billing","id":"billing"}', "null"]) {
+  for (const line of ['{billing} still has open items.', '{"type":"billing","id":"billing"}', "null"]) {
     const answer = `The listing contains:\n${line}\nPlease specify how to handle it.`;
     assert.equal(finalAnswer(answer), answer);
   }

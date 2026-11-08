@@ -70,7 +70,7 @@ it("teaches the reply link form next to the open rule, outside the data, and say
   expect(JSON.stringify(JSON.parse(sections[1]!))).not.toContain("doan:");
   expect(turnPrompt([], "hello", { root: "/other" }, { home: true })).toContain(LINK_GUIDANCE);
   for (const text of ["[name](doan:<canvas-id>/frame/<frame-id>)", "[name](doan:<canvas-id>/element/<doan-id>)", "percent-encod"]) expect(LINK_GUIDANCE).toContain(text);
-  // The line must not read as the open offer or the doan:// link that OPEN_GUIDANCE and the guide's rule J rule out.
+  // The line must not read as the open offer or the doan:// link that OPEN_GUIDANCE and the guide's rule E rule out.
   for (const text of ["not an offer to open", "`doan://`"]) expect(LINK_GUIDANCE).toContain(text);
   expect(LINK_GUIDANCE).not.toContain("\n");
 });
@@ -115,6 +115,13 @@ describe("handoff", () => {
     expect(turnPrompt([], "Make a checkout page", scope, { handoff: false })).not.toContain(HANDOFF_GUIDANCE);
     expect(HANDOFF_GUIDANCE).toContain("doan handoff");
     expect(HANDOFF_GUIDANCE).toContain(".doan/canvases/");
+    // Codex's `doan` prefix rule does not match a heredoc, pipe or redirection, so the message goes in as an argument.
+    expect(HANDOFF_GUIDANCE).toContain("`doan handoff <path> --message '<message>'`");
+    expect(HANDOFF_GUIDANCE).toContain("no heredoc, pipe or redirection");
+    expect(HANDOFF_GUIDANCE).not.toContain("--message -");
+    expect(HANDOFF_GUIDANCE).not.toContain("standard input");
+    // A preset's reporting steps must not stretch the reply after a handoff.
+    expect(HANDOFF_GUIDANCE).toContain("reply with the result in one line, even if a design preset asks for a fuller report");
   });
   it("puts the handoff in handoffText and the earlier canvas in context.from, never as user text", () => {
     const from = { path: ".doan/canvases/a.html", id: "a" };

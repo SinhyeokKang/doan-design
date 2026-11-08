@@ -55,9 +55,6 @@ export interface CheckContext {
   changedFiles(): string[];
   // changedFiles() for `cwd`.
   cwdChangedFiles(): string[];
-  // Parsed lines of `.doan/comments/<canvasId>.jsonl` added since the seed commit.
-  // A line that is not JSON comes back as `{ invalid: "<line>" }`.
-  commentEvents(canvasId: string): any[];
   // The fake app's app-socket v2 exchanges in order, token removed: `request` is
   // the parsed request, `response` the reply. Empty when there were none.
   onboarding(): { request: any; response: any }[];

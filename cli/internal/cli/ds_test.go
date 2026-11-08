@@ -38,7 +38,6 @@ func TestDesignSystemOnlyRepo(t *testing.T) {
 	root := initialized(t)
 	putFile(t, root, ".doan/ds/button.html", dsCanvas("button"))
 	putFile(t, root, ".doan/ds/x.css", "a{}")
-	putFile(t, root, ".doan/comments/button.jsonl", "")
 
 	got := result(t, root, 0, "ls")
 	paths := []string{}
@@ -50,9 +49,6 @@ func TestDesignSystemOnlyRepo(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got["scope"], []any{".doan/canvases", ".doan/ds"}) {
 		t.Fatalf("scope: %v", got["scope"])
-	}
-	if orphans := got["orphans"].([]any); len(orphans) != 0 {
-		t.Fatalf("orphans: %v", orphans)
 	}
 	if findings := checkResult(t, root)["findings"].([]any); len(findings) != 0 {
 		t.Fatalf("findings: %v", findings)

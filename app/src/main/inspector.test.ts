@@ -243,8 +243,8 @@ test("a failed attach is retried on the next request", async () => {
   expect(await inspector.inspect("#c3")).toMatchObject({ ok: true });
 });
 
-test("comment observer enables parent and child domains, joins cross-session events, and resumes after setup failure", async () => {
-  const { DocumentBindings } = await import("./comments/document");
+test("document observer enables parent and child domains, joins cross-session events, and resumes after setup failure", async () => {
+  const { DocumentBindings } = await import("./document/bindings");
   const docs = new DocumentBindings();
   const dbg = new FakeDebugger();
   createInspector(dbg, () => BASE, docs);
@@ -268,7 +268,7 @@ test("comment observer enables parent and child domains, joins cross-session eve
 });
 
 test("OOPIF process swap preserves the committed document, but actual removal retires it", async () => {
-  const { DocumentBindings } = await import("./comments/document");
+  const { DocumentBindings } = await import("./document/bindings");
   const docs = new DocumentBindings();
   const dbg = new FakeDebugger();
   createInspector(dbg, () => BASE, docs);
@@ -285,7 +285,7 @@ test("OOPIF process swap preserves the committed document, but actual removal re
 
 for (const replacementLoader of ["loader", "replacement"]) {
   test(`former session detach preserves the current owner with ${replacementLoader}`, async () => {
-    const { DocumentBindings } = await import("./comments/document");
+    const { DocumentBindings } = await import("./document/bindings");
     const docs = new DocumentBindings();
     const dbg = new FakeDebugger();
     createInspector(dbg, () => BASE, docs);
@@ -317,7 +317,7 @@ for (const replacementLoader of ["loader", "replacement"]) {
 for (const detached of [false, true]) {
   for (const late of ["navigation", "start", "remove", "response", "failure", "finish"]) {
     test(`former session ${late} is ignored ${detached ? "after" : "before"} target detach`, async () => {
-      const { DocumentBindings } = await import("./comments/document");
+      const { DocumentBindings } = await import("./document/bindings");
       const docs = new DocumentBindings();
       const dbg = new FakeDebugger();
       createInspector(dbg, () => BASE, docs);
@@ -349,7 +349,7 @@ for (const detached of [false, true]) {
 
 for (const invalidation of ["remove", "unspecified detach", "debugger loss", "network failure"]) {
   test(`current session still invalidates on ${invalidation}`, async () => {
-    const { DocumentBindings } = await import("./comments/document");
+    const { DocumentBindings } = await import("./document/bindings");
     const docs = new DocumentBindings();
     const dbg = new FakeDebugger();
     createInspector(dbg, () => BASE, docs);
