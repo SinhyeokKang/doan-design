@@ -4,16 +4,65 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, onTestFinished, test, vi } from "vitest";
 import type { InstallGate, UpdateEligibility, UpdateSnapshot } from "./types";
+import type { Updater } from "./service";
 import { CHECK_INTERVAL_MS } from "./schedule";
 
-// electron-updater's MacUpdater and Electron's native autoUpdater, as electronUpdater wires them.
-const electron = vi.hoisted(() => ({ native: undefined as unknown as import("node:events").EventEmitter, created: 0 }));
+// electron-updater's MacUpdater and Electron's native autoUpdater, as electronUpdater wires them. The MacUpdater
+// stand-in asks electron-updater's real GitHubProvider, over a fake GitHub, which release the feed offers, the way
+// AppUpdater's checkForUpdates does through getUpdateInfoAndProvider.
+const electron = vi.hoisted(() => ({
+  native: undefined as unknown as import("node:events").EventEmitter,
+  created: 0,
+  // Newest first, as GitHub's releases.atom lists them; the stable ones are the releases a stable copy may take.
+  releases: [] as string[],
+  // Each request path the fake GitHub answered or refused.
+  requests: [] as string[],
+  offline: false,
+  // Releases whose tag is in the feed but whose latest-mac.yml is not published yet.
+  missing: [] as string[],
+}));
 vi.mock("electron", async () => {
   const { EventEmitter } = await import("node:events");
   electron.native = new EventEmitter();
   return { autoUpdater: electron.native };
 });
-vi.mock("electron-updater", () => ({ MacUpdater: class { constructor() { electron.created++; } } }));
+vi.mock("electron-updater", async () => {
+  const { GitHubProvider } = await import("electron-updater/out/providers/GitHubProvider");
+  // electron-updater's own HTTP error, so a missing file reads as GitHub's 404 does.
+  const { HttpError } = await import("builder-util-runtime");
+  const BASE = "/SinhyeokKang/doan-design/releases";
+  const respond = (path: string): string => {
+    electron.requests.push(path);
+    if (electron.offline) throw new Error("net::ERR_INTERNET_DISCONNECTED");
+    if (path === `${BASE}.atom`) {
+      const entries = electron.releases.map(version => `<entry><id>${version}</id><link rel="alternate" type="text/html" href="https://github.com${BASE}/tag/v${version}"/><title>${version}</title><content>No content.</content></entry>`);
+      return `<?xml version="1.0" encoding="UTF-8"?><feed xmlns="http://www.w3.org/2005/Atom">${entries.join("")}</feed>`;
+    }
+    if (path === `${BASE}/latest`) {
+      const stable = electron.releases.find(version => !version.includes("-"));
+      if (stable === undefined) throw new HttpError(404);
+      return JSON.stringify({ tag_name: `v${stable}` });
+    }
+    // The release workflow publishes latest-mac.yml in every release, a release candidate's included.
+    const yml = new RegExp(`^${BASE}/download/v([^/]+)/latest-mac\\.yml$`).exec(path)?.[1];
+    if (yml === undefined || !electron.releases.includes(yml) || electron.missing.includes(yml)) throw new HttpError(404);
+    return `version: ${yml}\nfiles:\n  - url: Doan-${yml}-arm64-mac.zip\n    sha512: x\n    size: 1\npath: Doan-${yml}-arm64-mac.zip\nsha512: x\nreleaseDate: '2026-11-08T00:00:00.000Z'\n`;
+  };
+  const executor = { request: async (options: { path?: string | null }) => respond(options.path ?? "") };
+  class MacUpdater {
+    allowPrerelease = false;
+    channel: string | null = null;
+    fullChangelog = false;
+    currentVersion = "0.1.0";
+    constructor() { electron.created++; }
+    protected async getUpdateInfoAndProvider() {
+      const provider = new GitHubProvider({ provider: "github", owner: "SinhyeokKang", repo: "doan-design" }, this as never, { executor: executor as never, platform: "darwin", isUseMultipleRangeRequest: false });
+      return { info: await provider.getLatestVersion(), provider };
+    }
+    async checkForUpdates() { return { updateInfo: (await this.getUpdateInfoAndProvider()).info }; }
+  }
+  return { MacUpdater };
+});
 
 const { INSTALL_QUIT_WAIT_MS, RESTART_STAGE_WAIT_MS, UpdateService, electronUpdater, hasFeedConfig, releaseNotesUrl } = await import("./service");
 
@@ -479,6 +528,62 @@ describe("Electron wiring", () => {
       expect(hasFeedConfig(dir)).toBe(true);
       expect(hasFeedConfig(undefined)).toBe(false);
     } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+});
+
+// electron-updater only follows a prerelease copy's own channel ("rc" takes only rc tags), so the wiring also asks
+// for the newest stable release and takes whichever is newer. A stable copy never asks for a prerelease.
+describe("which release the feed offers", () => {
+  beforeEach(() => { vi.useRealTimers(); electron.requests = []; electron.offline = false; electron.missing = []; });
+
+  async function offered(version: string, releases: string[]) {
+    electron.releases = releases;
+    const updater = electronUpdater().createUpdater() as unknown as Updater & { currentVersion: string };
+    updater.currentVersion = version;
+    // As UpdateService.start sets it from the running version.
+    updater.allowPrerelease = version.includes("-");
+    const before = updater.allowPrerelease;
+    const result = await updater.checkForUpdates() as unknown as { updateInfo: { version: string; tag: string } };
+    expect(updater.allowPrerelease).toBe(before);
+    return result.updateInfo;
+  }
+
+  test("a release candidate takes the stable release it led to", async () => {
+    expect(await offered("0.1.0-rc.2", ["0.1.0", "0.1.0-rc.2", "0.1.0-rc.1"])).toMatchObject({ version: "0.1.0", tag: "v0.1.0" });
+  });
+
+  test("a release candidate takes the next release candidate", async () => {
+    expect(await offered("0.1.1-rc.1", ["0.1.1-rc.2", "0.1.1-rc.1", "0.1.0"])).toMatchObject({ version: "0.1.1-rc.2", tag: "v0.1.1-rc.2" });
+  });
+
+  test("a release candidate takes the newer of a stable release and a release candidate", async () => {
+    expect(await offered("0.1.1-rc.1", ["0.1.2-rc.1", "0.1.1", "0.1.1-rc.1"])).toMatchObject({ version: "0.1.2-rc.1" });
+    expect(await offered("0.1.1-rc.1", ["0.1.1", "0.1.1-rc.2", "0.1.1-rc.1"])).toMatchObject({ version: "0.1.1" });
+  });
+
+  test("a release candidate still updates when the feed has no stable release, or no release candidate of its channel", async () => {
+    expect(await offered("0.1.0-rc.1", ["0.1.0-rc.2", "0.1.0-rc.1"])).toMatchObject({ version: "0.1.0-rc.2" });
+    expect(await offered("0.1.0-rc.2", ["0.1.1", "0.1.0"])).toMatchObject({ version: "0.1.1" });
+  });
+
+  test("a release candidate's failed check fails with electron-updater's error", async () => {
+    electron.offline = true;
+    await expect(offered("0.1.1-rc.1", ["0.1.1"])).rejects.toThrow(/INTERNET_DISCONNECTED/);
+  });
+
+  test("a release candidate's tag pushed before its release is published still fails the check", async () => {
+    electron.releases = ["0.1.1-rc.2", "0.1.1-rc.1", "0.1.0"];
+    // The feed lists the new tag, but its latest-mac.yml does not exist yet.
+    const updater = electronUpdater().createUpdater() as unknown as Updater & { currentVersion: string };
+    updater.currentVersion = "0.1.1-rc.1";
+    updater.allowPrerelease = true;
+    electron.missing = ["0.1.1-rc.2"];
+    await expect(updater.checkForUpdates()).rejects.toThrow(/Cannot find latest-mac\.yml/);
+  });
+
+  test("a stable copy never takes a prerelease and asks only for the stable release", async () => {
+    expect(await offered("0.1.0", ["0.1.1-rc.1", "0.1.0"])).toMatchObject({ version: "0.1.0" });
+    expect(electron.requests.filter(path => path.endsWith("/latest"))).toHaveLength(1);
   });
 });
 
