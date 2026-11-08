@@ -1384,7 +1384,11 @@ export function App() {
   function action(name: RowAction, root: string, notice: (text: string) => void = text => toast.show(text), settled?: () => void) {
     cancelRestore();
     if ((name === "retry" || name === "locate") && document.activeElement instanceof HTMLElement) recoveryFocus.current = { element: document.activeElement, root };
-    if (name === "details") { const entry = entriesRef.current.find(entry => entry.path === root); if (entry?.kind === "error") notice(entry.message); }
+    if (name === "details") {
+      const entry = entriesRef.current.find(entry => entry.path === root);
+      if (entry?.kind === "error") notice(entry.message);
+      else if (entry?.kind === "cliError") notice(entry.reason);
+    }
     else if (name === "setUp") { rememberFocus(); setupSeq.current = rerootSeq.current; setSetup(root); }
     else if (name === "remove") void remove([root]);
     else if (name === "showInFinder") void window.doan.revealProject(root).catch(console.error);

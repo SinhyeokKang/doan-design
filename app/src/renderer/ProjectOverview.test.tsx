@@ -157,6 +157,8 @@ test("a problem worktree in the chip menu shows its repair actions instead of op
   expect(worktreeChoice({ kind: "loading", path: WT } as FolderEntry)).toEqual({ kind: "open" });
   expect(worktreeChoice(missing)).toEqual({ kind: "repair", actions: ["locate"] });
   expect(worktreeChoice(unset)).toEqual({ kind: "repair", actions: ["setUp"] });
+  expect(worktreeChoice({ kind: "error", path: "/code/bad", message: "m" } as FolderEntry)).toEqual({ kind: "repair", actions: ["retry", "details"] });
+  expect(worktreeChoice({ kind: "cliError", path: "/code/cli", reason: "r" } as FolderEntry)).toEqual({ kind: "repair", actions: ["retry", "details"] });
 });
 
 // design-sync (doan-project.html, doan-conversation.html), measured in the built app: the app body's tabular figures

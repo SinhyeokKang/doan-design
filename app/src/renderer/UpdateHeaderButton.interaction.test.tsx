@@ -31,6 +31,7 @@ vi.mock("react", async original => {
 });
 vi.mock("react-dom", async original => ({ ...await original<typeof import("react-dom")>(), flushSync: (run: () => void) => run() }));
 const { UpdateHeaderButton } = await import("./UpdateHeaderButton");
+const { holdHeaderNoDrag } = await import("./headerNoDrag");
 type ViewProps = import("./UpdateHeaderButton").UpdateHeaderButtonViewProps;
 
 const snap = (state: UpdateState, over: Partial<UpdateSnapshot> = {}): UpdateSnapshot =>
@@ -38,6 +39,8 @@ const snap = (state: UpdateState, over: Partial<UpdateSnapshot> = {}): UpdateSna
 const READY: UpdateState = { kind: "ready", version: "0.1.1" };
 const BLOCKED = { title: "Can’t restart yet", text: "A conversation is running or waiting for your answer. Restart after it finishes, or Doan updates when you quit." };
 const STOPPED = { title: "Couldn’t restart Doan.", text: "Try again, or quit and open it again." };
+const READY_TO_RESTART = { title: "Ready to restart", text: "No conversation is running or waiting anymore. Restart now, or Doan updates when you quit." };
+const GATE_BLOCKED = { gate: { kind: "blocked", reason: "conversation" } } as const;
 
 let doan: Record<string, ReturnType<typeof vi.fn>>;
 let push: (snapshot: UpdateSnapshot) => void;
@@ -61,7 +64,9 @@ let pressListener: (() => void) | null = null;
 const canvasPress = vi.fn((listener: () => void) => { pressListener = listener; return () => { pressListener = null; }; });
 // The button as mounted: in the shown header, or in a hidden screen's header under [inert].
 let inert = false;
-const node = { closest: (selector: string) => selector === "[inert]" && inert ? {} : selector === "header" ? null : null, focus: vi.fn() };
+// The header the button sits in; null for the tests that don't look at its drag region.
+let bar: HTMLElement | null = null;
+const node = { closest: (selector: string) => selector === "[inert]" && inert ? {} : selector === "header" ? bar : null, focus: vi.fn() };
 function render(): ViewProps {
   let view: ReactElement<ViewProps> | null = null;
   for (let pass = 0; pass < 5; pass++) {
@@ -74,7 +79,7 @@ function render(): ViewProps {
   return view!.props;
 }
 const flush = async () => { for (let i = 0; i < 6; i++) await Promise.resolve(); };
-beforeEach(() => { disabled = false; pressListener = null; inert = false; });
+beforeEach(() => { disabled = false; pressListener = null; inert = false; bar = null; });
 
 test("subscribes to the update push and the menu's popover once, shows nothing until ready, and unsubscribes", () => {
   expect(render().header).toBeNull();
@@ -231,4 +236,106 @@ test("closing hands focus back to the button only when it would land on the body
   node.focus.mockClear();
   view.onCloseAutoFocus({ preventDefault: vi.fn() } as unknown as Event);
   expect(node.focus).not.toHaveBeenCalled();
+});
+
+// The popover follows each push while open instead of keeping the words it opened with (draft frame popover-unblocked).
+test("a popover open on a blocked press says it can restart once nothing blocks it, and stays open", async () => {
+  render(); push(snap(READY, GATE_BLOCKED)); let view = render();
+  doan.installUpdate!.mockResolvedValueOnce({ kind: "blocked", reason: "conversation" });
+  view.onPress(); await flush(); view = render();
+  expect(view.shown).toEqual(BLOCKED);
+  push(snap(READY)); view = render();
+  expect(view.open).toBe(true);
+  expect(view.shown).toEqual(READY_TO_RESTART);
+  // A press now restarts.
+  view.onPress(); await flush();
+  expect(doan.installUpdate).toHaveBeenCalledTimes(2);
+  // Blocked again while still open: the reason comes back.
+  push(snap(READY, GATE_BLOCKED)); view = render();
+  expect(view.shown).toEqual(BLOCKED);
+});
+
+// Draft frame popover-stopped-blocked: the gate is why a press would fail now, so it ranks first, as header() gives it.
+test("a stopped restart's popover takes the blocking reason while open, and goes back when it ends", () => {
+  render(); push(snap({ kind: "restarting", version: "0.1.1" })); render();
+  push(snap({ kind: "restartAborted", version: "0.1.1" })); let view = render();
+  expect(view.shown).toEqual(STOPPED);
+  push(snap({ kind: "restartAborted", version: "0.1.1" }, GATE_BLOCKED)); view = render();
+  expect(view.open).toBe(true);
+  expect(view.shown).toEqual(BLOCKED);
+  push(snap({ kind: "restartAborted", version: "0.1.1" })); view = render();
+  expect(view.shown).toEqual(STOPPED);
+});
+
+// A blocked answer can arrive before the push that carries the gate; the opening words hold until the next push.
+test("the words a press opened with hold until the next push", async () => {
+  render(); push(snap(READY)); let view = render();
+  doan.installUpdate!.mockResolvedValueOnce({ kind: "blocked", reason: "conversation" });
+  view.onPress(); await flush(); view = render(); view = render();
+  expect(view.shown).toEqual(BLOCKED);
+});
+
+test("a closed popover stays closed through pushes, and goes when the update leaves the header", () => {
+  render(); push(snap(READY, GATE_BLOCKED)); render();
+  push(snap(READY)); expect(render().open).toBe(false);
+  push(snap(READY, GATE_BLOCKED)); expect(render().open).toBe(false);
+  menuPopover(); expect(render().open).toBe(true);
+  push(snap({ kind: "failed", code: "installFailed", stage: "install", version: "0.1.1" }));
+  let view = render();
+  expect(view.open).toBe(false);
+  expect(view.header).toBeNull();
+  push(snap(READY, GATE_BLOCKED)); view = render();
+  expect(view.open).toBe(false);
+  menuPopover(); expect(render().open).toBe(true);
+  push(snap({ kind: "idle" }));
+  expect(render().open).toBe(false);
+});
+
+// The header the popover opens under, with the inline drag region it sets (POSTMORTEM 2026-11-06).
+function header() {
+  const declared = new Map<string, string>();
+  const style = { setProperty: (name: string, value: string) => { declared.set(name, value); }, removeProperty: (name: string) => { declared.delete(name); } };
+  bar = { style } as unknown as HTMLElement;
+  return () => declared.get("-webkit-app-region") ?? "";
+}
+
+test("the header is no-drag while the popover is open, and drags again once it closes", () => {
+  const region = header();
+  render(); push(snap(READY, GATE_BLOCKED)); render();
+  expect(region()).toBe("");
+  menuPopover(); render();
+  expect(region()).toBe("no-drag");
+  render().onOpenChange(false); render();
+  expect(region()).toBe("");
+});
+
+// Agent usage's popover open under the same header keeps it no-drag after this one closes, in either order.
+test("closing this popover while Agent usage's is open keeps the header no-drag", () => {
+  const region = header();
+  render(); push(snap(READY, GATE_BLOCKED)); render();
+  menuPopover(); render();
+  const usage = holdHeaderNoDrag(bar!, {});
+  render().onOpenChange(false); render();
+  expect(region()).toBe("no-drag");
+  usage();
+  expect(region()).toBe("");
+  const again = holdHeaderNoDrag(bar!, {});
+  menuPopover(); render();
+  again();
+  expect(region()).toBe("no-drag");
+  render().onOpenChange(false); render();
+  expect(region()).toBe("");
+});
+
+test("the popover closing because its button went, or the header unmounting while open, lets the header drag", () => {
+  const region = header();
+  render(); push(snap(READY, GATE_BLOCKED)); render();
+  menuPopover(); render();
+  push(snap({ kind: "idle" })); render();
+  expect(region()).toBe("");
+  push(snap(READY, GATE_BLOCKED)); render();
+  menuPopover(); render();
+  expect(region()).toBe("no-drag");
+  for (const effect of hooks.effects) effect?.cleanup?.();
+  expect(region()).toBe("");
 });

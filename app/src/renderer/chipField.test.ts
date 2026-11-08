@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { expect, test, vi } from "vitest";
 import { ChipField } from "./chipField";
 import { textSegments } from "./anchorField";
@@ -71,4 +72,11 @@ test.each(["", "Restored draft"])("a host replacement %j after compositionend is
     vi.runAllTimers();
     expect(value.segments).toEqual(textSegments(text));
   } finally { vi.useRealTimers(); }
+});
+
+// Electron's context-menu selectionText, which names the Look Up item, takes the selected DOM text, and the chip's
+// screen-reader kind prefix is text; only user-select keeps it out.
+test("the composer chip's kind prefix cannot be selected", () => {
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toMatch(/\.anchor-chip \.sr-only \{[^}]*\buser-select: none;/);
 });

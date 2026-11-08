@@ -12,6 +12,8 @@ function folder(path: string, canvases: SearchCanvas[], common?: string): Search
 }
 
 const commonOf = (root: string) => root === "/other" ? "/other/.git" : "/repo/.git";
+const RATIO_LIMIT = 30;
+const SAMPLE_RUNS = 5;
 
 describe("quick open index", () => {
   it("indexes canvas names, filenames, paths and ids and frame titles and ids", () => {
@@ -147,35 +149,37 @@ describe("quick open matching", () => {
     expect(searchMatch([], "", null, commonOf)).toEqual([]);
   });
 
-  it("searches 1000 canvases with 50 frames each within 50ms", () => {
-    // The fastest of three runs: a wall-clock budget must not fail because another process held the
-    // CPU for one run, while a slower algorithm still exceeds it every time.
-    const fastest = <T>(run: () => T): { value: T; elapsed: number } => {
-      let best = Infinity, value!: T;
-      for (let i = 0; i < 3; i++) { const started = performance.now(); value = run(); best = Math.min(best, performance.now() - started); }
-      return { value, elapsed: best };
-    };
+  it("searches 1000 canvases with 50 frames each within a small multiple of a linear scan", () => {
+    // Load hits the baseline and the measured call alike, so the judgment is a ratio of the fastest
+    // of several interleaved samples, not an absolute time. Each sample repeats its work SAMPLE_RUNS
+    // times so both take a few ms, long enough for a load spike to hit both alike. The baseline visits
+    // the same entries and fields but does not do the same work (no scoring or sorting). RATIO_LIMIT
+    // was calibrated on one machine: worst case 8.3x unloaded and 11.5x under 4 concurrent test runs.
     const index = searchIndex([folder("/repo", Array.from({ length: 1000 }, (_, i) => canvas(`.doan/canvases/card-${i}.html`, {
       frames: Array.from({ length: 50 }, (_, j) => ({ id: `card-${j}`, title: `Card payment ${j}` })),
     })))]);
     expect(index).toHaveLength(51000);
+    const scan = (query: string) => { let n = 0; for (const entry of index) if (entry.fields.some((field) => field.includes(query))) n++; return n; };
+    const measure = <T>(label: string, query: string, run: () => T): T => {
+      let base = Infinity, best = Infinity, value!: T;
+      for (let i = 0; i < 21; i++) {
+        let started = performance.now(); for (let k = 0; k < SAMPLE_RUNS; k++) scan(query); base = Math.min(base, performance.now() - started);
+        started = performance.now(); for (let k = 0; k < SAMPLE_RUNS; k++) value = run(); best = Math.min(best, performance.now() - started);
+      }
+      const ratio = best / base;
+      console.info(`Quick open: 51000 entries ${label} for ${query} in ${(best / SAMPLE_RUNS).toFixed(2)}ms (${ratio.toFixed(2)}x a linear scan)`);
+      expect(ratio).toBeLessThanOrEqual(RATIO_LIMIT);
+      return value;
+    };
     for (const query of ["card", "ard"]) {
-      const { value: results, elapsed } = fastest(() => searchMatch(index, query, "/repo", commonOf));
-      console.info(`Quick open: 51000 entries searched for ${query} in ${elapsed.toFixed(2)}ms`);
-      expect(results).toHaveLength(50);
-      expect(elapsed).toBeLessThanOrEqual(50);
+      expect(measure("searched", query, () => searchMatch(index, query, "/repo", commonOf))).toHaveLength(50);
     }
     for (const kind of ["canvas", "frame"] as const) {
       for (const query of ["card", "ard"]) {
-        const { value: results, elapsed } = fastest(() => searchMatch(index, query, "/repo", commonOf, kind));
-        console.info(`Quick open: 51000 entries searched for ${query} as ${kind} in ${elapsed.toFixed(2)}ms`);
+        const results = measure(`searched as ${kind}`, query, () => searchMatch(index, query, "/repo", commonOf, kind));
         expect(results).toHaveLength(50);
         expect(results.every(result => result.kind === kind)).toBe(true);
-        expect(elapsed).toBeLessThanOrEqual(50);
-        const counted = fastest(() => countMatches(index, query, kind));
-        console.info(`Quick open: 51000 entries counted for ${query} as ${kind} in ${counted.elapsed.toFixed(2)}ms`);
-        expect(counted.value).toBe(kind === "canvas" ? 1000 : 50000);
-        expect(counted.elapsed).toBeLessThanOrEqual(50);
+        expect(measure(`counted as ${kind}`, query, () => countMatches(index, query, kind))).toBe(kind === "canvas" ? 1000 : 50000);
       }
     }
   });

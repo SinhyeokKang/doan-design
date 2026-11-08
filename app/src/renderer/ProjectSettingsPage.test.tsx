@@ -188,7 +188,7 @@ const PROBLEM_TILES: [string, () => FolderEntry, string, string[], boolean][] = 
   ["Missing", missing, "Doan can’t find this folder, so its settings can’t be read or changed.", ["Locate"], false],
   ["Not set up", uninitialized, "This folder isn’t set up for Doan yet, so it has no settings to change.", ["Set Up"], true],
   ["Config error", configError, "Doan couldn’t read this folder’s configuration, so its settings can’t be changed.", ["Retry", "Details"], true],
-  ["CLI error", cliError, "Doan couldn’t read this folder, so its settings can’t be read or changed.", ["Retry"], true],
+  ["CLI error", cliError, "Doan couldn’t read this folder, so its settings can’t be read or changed.", ["Retry", "Details"], true],
 ];
 test.each(PROBLEM_TILES)("%s: one notice with its recovery, Remove from Doan below, Show in Finder only when the folder is there", async (_name, make, sentence, actions, finder) => {
   await open({ entries: [make()] });
@@ -265,6 +265,24 @@ test("Config error: Details opens the error under the notice and closes it again
   expect(props.onAction).not.toHaveBeenCalled();
   click("Details"); render();
   expect(text()).not.toContain("unexpected token");
+  unmount();
+});
+
+test("CLI error: Details opens the CLI's message under the notice as text and closes it again", async () => {
+  const reason = "doan: <b>read</b> \u001b[31mfailed\u001b[0m\n  second line\r\nthird";
+  await open({ entries: [{ path: ROOT, kind: "cliError", reason }] });
+  expect(button("Details").props["aria-expanded"]).toBe(false);
+  expect(text()).not.toContain("failed");
+  click("Details"); render();
+  expect(button("Details").props["aria-expanded"]).toBe(true);
+  expect(text()).toContain(reason);
+  // The block holds the reason itself, line breaks included, as one text child.
+  const block = all(tree).find(element => element.type === "pre");
+  expect(block?.props.className).toBe("project-settings-details");
+  expect(block?.props.children).toBe(reason);
+  expect(props.onAction).not.toHaveBeenCalled();
+  click("Details"); render();
+  expect(text()).not.toContain("failed");
   unmount();
 });
 

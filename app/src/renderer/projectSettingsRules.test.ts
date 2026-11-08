@@ -85,7 +85,7 @@ const PAGE_VIEW: [string, FolderEntry, ReadState, ProjectSettingsPageView][] = [
   ["config error", { path: "/w/a", kind: "error", message: "unexpected token }" }, ready, { storedNote: false, showInFinder: true, body: "notice", removeSection: true,
     notice: { tone: "error", text: CONFIG_ERROR, detail: "unexpected token }", actions: ["retry", "details"] } }],
   ["CLI error", { path: "/w/a", kind: "cliError", reason: "timeout" }, ready, { storedNote: false, showInFinder: true, body: "notice", removeSection: true,
-    notice: { tone: "error", text: CLI_ERROR, actions: ["retry"] } }],
+    notice: { tone: "error", text: CLI_ERROR, detail: "timeout", actions: ["retry", "details"] } }],
   ["still reading", entry("/w/a", "loading"), ready, { storedNote: false, showInFinder: false, body: "reading", notice: null, removeSection: false }],
 ];
 test.each(PAGE_VIEW)("page view: %s", (_name, item, read, expected) => {

@@ -22,8 +22,9 @@ export interface UpdateRowView {
 }
 export interface UpdateAutoCheckView { label: string; description: string; checked: boolean }
 // The header button, shown while a downloaded update waits for Restart to Update. `popover` is what a press opens
-// instead of restarting; null when a press restarts.
-export interface UpdateHeaderView { label: string; busy: boolean; tooltip: string; popover: UpdateNotice | null }
+// instead of restarting; null when a press restarts. `opened` is what a popover already open says now, so it follows
+// the gate instead of keeping the words it opened with; null while restarting, when it closes.
+export interface UpdateHeaderView { label: string; busy: boolean; tooltip: string; popover: UpdateNotice | null; opened: UpdateNotice | null }
 // openAbout: a copy that doesn't update, where the item only opens About. check: opens About and checks.
 export interface UpdateMenuView { label: string; action: "check" | "openAbout" | "restart"; enabled: boolean }
 export interface UpdateView { row: UpdateRowView; autoCheck: UpdateAutoCheckView | null; header: UpdateHeaderView | null; menu: UpdateMenuView }
@@ -34,6 +35,9 @@ const AUTO_CHECK_DESCRIPTION = "Checks GitHub when Doan opens and every 6 hours,
 // Exported for a press answered blocked, which can arrive before the push that carries the gate.
 export const UPDATE_BLOCKED: UpdateNotice = { title: "Can’t restart yet", text: "A conversation is running or waiting for your answer. Restart after it finishes, or Doan updates when you quit." };
 const STOPPED: UpdateNotice = { title: "Couldn’t restart Doan.", text: "Try again, or quit and open it again." };
+// The gate covers every conversation and any question waiting for an answer, and a stopped turn counts too, so this
+// does not say a conversation finished.
+const UNBLOCKED: UpdateNotice = { title: "Ready to restart", text: "No conversation is running or waiting anymore. Restart now, or Doan updates when you quit." };
 const STOPPED_LINE = `${STOPPED.title} ${STOPPED.text}`;
 // The line under a failed row says why only as far as the code knows, and how to recover.
 const ERROR_LINES: Record<UpdateErrorCode, string> = {
@@ -134,10 +138,15 @@ function header(snapshot: UpdateSnapshot): UpdateHeaderView | null {
   const { state } = snapshot;
   if (state.kind !== "ready" && state.kind !== "restarting" && state.kind !== "restartAborted") return null;
   const tooltip = `Doan ${state.version} is ready`;
-  if (state.kind === "restarting") return { label: "Restarting", busy: true, tooltip, popover: null };
+  if (state.kind === "restarting") return { label: "Restarting", busy: true, tooltip, popover: null, opened: null };
   // A conversation still running is why a press would fail now, so its reason wins over the stopped restart.
   const popover = snapshot.gate.kind === "blocked" ? UPDATE_BLOCKED : state.kind === "restartAborted" ? STOPPED : null;
-  return { label: "Restart to Update", busy: false, tooltip, popover };
+  return { label: "Restart to Update", busy: false, tooltip, popover, opened: popover ?? UNBLOCKED };
+}
+
+// About's line when main could not open the release page. `version` is the update's, the one Release Notes ↗ opens.
+export function releaseNotesFailedLine(version: string): string {
+  return `Couldn’t open the release notes in your browser. Try again, or find Doan ${version} on GitHub Releases.`;
 }
 
 function menu(state: UpdateState): UpdateMenuView {

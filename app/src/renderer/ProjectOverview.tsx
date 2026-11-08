@@ -28,7 +28,7 @@ import { contextRing } from "./contextWindow";
 import { DockedComposer, type DockedOutcome, type DockedRequest } from "./DockedComposer";
 import { draftKey, EMPTY_DRAFT, type DockedBusy, type DockedMode } from "./dockedRules";
 import { generationOf, modelsKey, type DockedSupport } from "./dockedSupport";
-import { cardRow, ROW_ACTION_LABELS, type RowAction } from "./homeCards";
+import { cardRow, ROW_ACTION_ICONS, ROW_ACTION_LABELS, type RowAction } from "./homeCards";
 import {
   attachmentLimit, defaultEffort, defaultFast, defaultModel, fastToSend, defaultProvider, fixedPreference, groupIcon, modelOption, modelPickerView,
   selectableProvider, suggestedPresets, suggestedPrompts, type AttachmentDraft, type ModelsState, type NewConversationDefault,
@@ -348,7 +348,10 @@ export function ProjectOverview(props: ProjectOverviewProps) {
               <DropdownMenu.Separator className="doan-menu-sep" />
               <DropdownMenu.Item className="doan-menu-item" onSelect={() => props.onAction("showInFinder", repairRow.path)}><FolderOpen aria-hidden="true" />{ROW_ACTION_LABELS.showInFinder}</DropdownMenu.Item>
               <DropdownMenu.Item className="doan-menu-item" onSelect={() => props.onProjectSettings(repairRow.path)}><Settings aria-hidden="true" />Project Settings</DropdownMenu.Item>
-              {repairChoice.actions.map(action => <DropdownMenu.Item key={action} className="doan-menu-item" onSelect={() => props.onAction(action, repairRow.path)}>{ROW_ACTION_LABELS[action]}</DropdownMenu.Item>)}
+              {repairChoice.actions.map(action => {
+                const Icon = ROW_ACTION_ICONS[action];
+                return <DropdownMenu.Item key={action} className="doan-menu-item" onSelect={() => props.onAction(action, repairRow.path)}>{Icon && <Icon aria-hidden="true" />}{ROW_ACTION_LABELS[action]}</DropdownMenu.Item>;
+              })}
             </>}
           </DropdownMenu.Content></DropdownMenu.Portal>
         </DropdownMenu.Root>

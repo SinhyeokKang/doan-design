@@ -86,7 +86,7 @@ export function projectSettingsPageView(entry: FolderEntry, read: ReadState, kep
     case "notFound": return notice({ tone: "warning", text: PROBLEMS.notFound, actions: ["locate"] }, false);
     case "uninitialized": return notice({ tone: "warning", text: keptLocal ? PROBLEMS.uninitializedLocal : PROBLEMS.uninitialized, actions: ["setUp"] }, true);
     case "error": return notice({ tone: "error", text: PROBLEMS.error, detail: entry.message, actions: ["retry", "details"] }, true);
-    case "cliError": return notice({ tone: "error", text: PROBLEMS.cliError, actions: ["retry"] }, true);
+    case "cliError": return notice({ tone: "error", text: PROBLEMS.cliError, detail: entry.reason, actions: ["retry", "details"] }, true);
     case "list":
       if (read.kind === "reading") return { storedNote: false, showInFinder: true, body: "reading", notice: null, removeSection: false };
       if (read.kind === "failed") return notice({ tone: "error", text: "Couldn’t read this worktree’s settings.", reason: read.message, actions: ["retry"] }, true);

@@ -3,7 +3,7 @@ import { DropdownMenu } from "radix-ui";
 import { Bell, Bot, Check, ChevronDown, CircleMinus, Download, Ellipsis, FolderOpen, GitBranch, Hand, House, Info, LayoutGrid, PanelsTopLeft, Plug, Search, Settings, SwatchBook, Trash2 } from "lucide-react";
 import type { CanvasRow } from "../main/view";
 import type { ShellProject } from "../restore/uiState";
-import { cardRow, ROW_ACTION_LABELS as labels, type HomeCard, type RowAction } from "./homeCards";
+import { cardRow, ROW_ACTION_ICONS as icons, ROW_ACTION_LABELS as labels, type HomeCard, type RowAction } from "./homeCards";
 import { projectExpanded, projectHue, projectInitial } from "./shellNavigation";
 import { sortedCanvases } from "./canvasOrder";
 import { rowProblem, typeaheadNext } from "./canvasTree";
@@ -363,7 +363,10 @@ export function ShellSidebar(props: Props) {
                 <DropdownMenu.Item className="doan-menu-item" aria-disabled={locked} onSelect={() => run(() => props.overview(menuEntry.path))}><LayoutGrid />Overview</DropdownMenu.Item>
                 <DropdownMenu.Item className="doan-menu-item" onSelect={() => run(() => props.action("showInFinder", menuEntry.path))}><FolderOpen />Show in Finder</DropdownMenu.Item>
                 <DropdownMenu.Item className="doan-menu-item" aria-disabled={locked} onSelect={() => run(() => props.projectSettings(menuEntry.path))}><Settings />Project Settings</DropdownMenu.Item>
-                {menuInfo.actions.filter(action => action !== "remove" && action !== "showInFinder").map(action => <DropdownMenu.Item className="doan-menu-item" key={action} onSelect={() => run(() => props.action(action, menuEntry.path))}>{labels[action]}</DropdownMenu.Item>)}
+                {menuInfo.actions.filter(action => action !== "remove" && action !== "showInFinder").map(action => {
+                  const Icon = icons[action];
+                  return <DropdownMenu.Item className="doan-menu-item" key={action} onSelect={() => run(() => props.action(action, menuEntry.path))}>{Icon && <Icon />}{labels[action]}</DropdownMenu.Item>;
+                })}
                 <DropdownMenu.Item className="doan-menu-item" onSelect={() => {
                   const current = live.current.cards.find(item => item.key === card.key);
                   if (current) void props.remove(current.rows.map(row => row.path));

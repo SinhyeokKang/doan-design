@@ -382,3 +382,103 @@ test("a restart main holds back for a conversation reads the reason, not ready a
   push(snap(READY, { gate: { kind: "blocked", reason: "conversation" } })); render();
   expect(live()).toBe(BLOCKED_READ);
 });
+
+// Draft frames about-notes-failed and about-notes-failed-stacked: Release Notes ↗ that main could not open puts the
+// shared error line under the row (no role) and the page's live region reads it once. Release Notes ↗ is the retry.
+const NOTES_FAILED = "Couldn’t open the release notes in your browser. Try again, or find Doan 0.1.1 on GitHub Releases.";
+const errorLines = () => all(row("version").props.children as ReactNode).filter(element => String(element.props.className) === "settings-msg error");
+const notesLine = () => errorLines().find(element => words(element.props.children).startsWith("Couldn’t open the release notes"));
+
+test("Release Notes ↗ answered false or refused shows the line under the row and reads it; the same failure reads again", async () => {
+  render(); push(snap(READY)); render();
+  doan.openReleaseNotes!.mockResolvedValueOnce(false);
+  click("Release Notes ↗"); await flush(); render();
+  const line = notesLine()!;
+  expect(words(line.props.children)).toBe(NOTES_FAILED);
+  expect(line.props.role).toBeUndefined();
+  expect(all(line.props.children as ReactNode).some(element => element.type === AlertIcon)).toBe(true);
+  expect(live()).toBe(NOTES_FAILED);
+  const once = liveRaw();
+  doan.openReleaseNotes!.mockRejectedValueOnce(new Error("no handler"));
+  click("Release Notes ↗"); await flush(); render();
+  expect(words(notesLine()!.props.children)).toBe(NOTES_FAILED);
+  expect(live()).toBe(NOTES_FAILED);
+  expect(liveRaw()).not.toBe(once);
+  // No other button: the row keeps its two.
+  expect(rowButtons().map(element => words(element.props.children))).toEqual(["Release Notes ↗", "Restart to Update"]);
+});
+
+test("the line goes when the next press succeeds", async () => {
+  render(); push(snap(READY)); render();
+  doan.openReleaseNotes!.mockResolvedValueOnce(false);
+  click("Release Notes ↗"); await flush(); render();
+  expect(notesLine()).toBeDefined();
+  click("Release Notes ↗"); await flush(); render();
+  expect(notesLine()).toBeUndefined();
+});
+
+test("the line goes when the update's kind or version changes, and stays through a gate change or the same state", async () => {
+  render(); push(snap(READY)); render();
+  const fail = async () => { doan.openReleaseNotes!.mockResolvedValueOnce(false); click("Release Notes ↗"); await flush(); render(); };
+  await fail();
+  push(snap(READY, { gate: { kind: "blocked", reason: "conversation" } })); render();
+  expect(notesLine()).toBeDefined();
+  push(snap(READY)); render();
+  expect(notesLine()).toBeDefined();
+  push(snap({ kind: "ready", version: "0.1.2" })); render();
+  expect(notesLine()).toBeUndefined();
+  await fail();
+  expect(words(notesLine()!.props.children)).toBe("Couldn’t open the release notes in your browser. Try again, or find Doan 0.1.2 on GitHub Releases.");
+  push(snap({ kind: "restartAborted", version: "0.1.2" })); render();
+  expect(notesLine()).toBeUndefined();
+  // A failed download names its version too; progress after Retry is a new kind.
+  push(snap({ kind: "failed", code: "offline", stage: "download", version: "0.1.1" })); render();
+  await fail();
+  expect(words(notesLine()!.props.children)).toBe(NOTES_FAILED);
+  push(snap({ kind: "downloading", version: "0.1.1", percent: 3 })); render();
+  push(snap({ kind: "failed", code: "offline", stage: "download", version: "0.1.1" })); render();
+  expect(notesLine()).toBeUndefined();
+});
+
+test("an earlier press that answers late does not replace a later press's result", async () => {
+  render(); push(snap(READY)); render();
+  const answers: ((opened: boolean) => void)[] = [];
+  doan.openReleaseNotes!.mockImplementation(() => new Promise<boolean>(resolve => { answers.push(resolve); }));
+  click("Release Notes ↗"); click("Release Notes ↗");
+  answers[1]!(false); await flush(); render();
+  answers[0]!(true); await flush(); render();
+  expect(words(notesLine()!.props.children)).toBe(NOTES_FAILED);
+  click("Release Notes ↗"); click("Release Notes ↗");
+  answers[3]!(true); await flush(); render();
+  answers[2]!(false); await flush(); render();
+  expect(notesLine()).toBeUndefined();
+});
+
+test("a press whose state changed before main answered shows nothing", async () => {
+  render(); push(snap(READY)); render();
+  let answer: (opened: boolean) => void = () => {};
+  doan.openReleaseNotes!.mockImplementationOnce(() => new Promise<boolean>(resolve => { answer = resolve; }));
+  click("Release Notes ↗");
+  push(snap({ kind: "ready", version: "0.1.2" })); render();
+  answer(false); await flush(); render();
+  expect(notesLine()).toBeUndefined();
+  expect(live()).not.toContain("release notes");
+});
+
+// The slot can already hold the blocked notice and a row error; the Release Notes line, the answer to the latest
+// press, comes last.
+test("under the row: the notice, then the row's error, then the Release Notes line", async () => {
+  render(); push(snap({ kind: "restartAborted", version: "0.1.1" }, { gate: { kind: "blocked", reason: "conversation" } })); render();
+  doan.openReleaseNotes!.mockResolvedValueOnce(false);
+  click("Release Notes ↗"); await flush(); render();
+  const extra = all(row("version").props.children as ReactNode).find(element => element.props.className === "doan-preference-row-extra")!;
+  const order = all(extra.props.children as ReactNode).filter(element => element.props.className === "doan-notice" || String(element.props.className) === "settings-msg error")
+    .map(element => element.props.className === "doan-notice" ? "notice" : words(element.props.children));
+  expect(order).toEqual(["notice", "Couldn’t restart Doan. Try again, or quit and open it again.", NOTES_FAILED]);
+  // A failed install has no notice: its error, then the line.
+  push(snap({ kind: "failed", code: "installFailed", stage: "install", version: "0.1.1" })); render();
+  doan.openReleaseNotes!.mockResolvedValueOnce(false);
+  click("Release Notes ↗"); await flush(); render();
+  expect(errorLines().map(element => words(element.props.children))).toEqual([
+    "Doan couldn’t replace the app in the Applications folder. Try again, or ask an administrator if your account can’t change apps there.", NOTES_FAILED]);
+});

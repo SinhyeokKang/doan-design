@@ -77,7 +77,7 @@ Present the brief for explicit confirmation or one correction round, then stop. 
 
 - The brief lives in your answer. Write it to a file only when the user asks, in the project's existing feature or design documents or a location the user chooses, never under `.doan/`.
 - Draw a canvas sketch only when the user asks for one. Keep it to structure, flow, and states, not a finished visual. Add new frames with new, stable, unique ids; leave existing frames and elements unchanged. A new canvas needs `<meta name="doan:canvas" content="id">` and `<meta name="doan:width" content="...">` in `<head>`, and links the token CSS relative to the canvas; reference token CSS variables instead of raw colors.
-- If the repository has no `.doan/config.json` and the user asked for a sketch, set Doan up as the Doan guide describes, asking for the token CSS path first.
+- If the repository has no `.doan/config.json` and the user asked for a sketch, set Doan up as the Doan guide's Onboarding section describes.
 - State on the canvas that the sketched feature is not in code yet (Doan guide rule B).
 - If the user asked for a review of an existing plan only, report findings and proposals without editing files.
 - After editing a canvas, make `doan check` pass.

@@ -2,6 +2,9 @@ import { validateEnvelope } from "../formats/validate";
 import { storageFacts, type StorageFacts } from "./storage";
 import type { GitInfo } from "./view";
 
+// How long the runner (cli.ts) lets a CLI call run before killing it. Here so a timeout's reason says the same number.
+export const CLI_TIMEOUT_MS = 10_000;
+
 export interface CliRun {
   exitCode: number | null;
   stdout: string;
@@ -28,25 +31,35 @@ interface ListResult {
   canvases: unknown[];
 }
 
+// Details shows this reason (PRODUCT §5 item 3 'Problem states'), so it is never empty: the command's own message
+// when it gave one (`message`: an error envelope's), else a short account of how the run ended. A killed or
+// crashed process usually leaves no stderr.
+function cliReason(run: CliRun, message = ""): string {
+  if (run.spawnError !== undefined) return run.spawnError ? `Couldn’t start the doan command: ${run.spawnError}` : "Couldn’t start the doan command.";
+  if (run.timedOut) return `The doan command didn’t answer within ${CLI_TIMEOUT_MS / 1000} seconds.`;
+  const said = message.trim() || run.stderr.split(/\r?\n/).map(line => line.trim()).find(Boolean);
+  if (said) return said;
+  if (run.exitCode === null) return "The doan command stopped without a message.";
+  if (run.exitCode !== 0) return `The doan command exited with code ${run.exitCode} without a message.`;
+  return "The doan command answered, but Doan couldn’t read the answer.";
+}
+
 export function folderState(run: CliRun): FolderState {
-  // The runner kills a hung CLI after 10 s (cli.ts), and a killed process
-  // usually leaves no stderr, so say why rather than show an empty reason.
-  const reason = run.spawnError ?? (run.timedOut ? "timed out after 10 s" : run.stderr.split(/\r?\n/, 1)[0] ?? "");
-  const cliError: FolderState = { kind: "cliError", reason };
-  if (run.spawnError !== undefined || run.timedOut || run.exitCode === null) return cliError;
+  const cliError = (message?: string): FolderState => ({ kind: "cliError", reason: cliReason(run, message) });
+  if (run.spawnError !== undefined || run.timedOut || run.exitCode === null) return cliError();
   let value: unknown;
   try {
     value = JSON.parse(run.stdout);
   } catch {
-    return cliError;
+    return cliError();
   }
-  if (!isEnvelope(value)) return cliError;
+  if (!isEnvelope(value)) return cliError();
   if (!value.ok) {
-    if (run.exitCode === 0) return cliError;
+    if (run.exitCode === 0) return cliError(value.error.message);
     if (value.error.code === "repo_not_found") return { kind: "uninitialized" };
     return { kind: "error", message: value.error.message };
   }
-  if (run.exitCode !== 0 || !isListResult(value.result)) return cliError;
+  if (run.exitCode !== 0 || !isListResult(value.result)) return cliError();
   const { root, scope, canvases } = value.result;
   const git: unknown = Reflect.get(value.result, "git");
   return { kind: "list", root, scope, canvases, ...(isGitInfo(git) ? { git } : {}), ...storageFacts(value.result) };

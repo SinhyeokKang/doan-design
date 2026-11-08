@@ -26,8 +26,12 @@ export type EditMenuItem =
 // Doan's own cut-off, not a measured macOS rule.
 const LOOK_UP_MAX = 30;
 
+// A composer line that starts with a chip holds an invisible U+200B filler before it, and Chromium's selection text
+// includes it; JS \s does not cover it, so it is dropped before folding.
+const visibleText = (selection: string) => selection.replace(/\u200b/g, "").replace(/\s+/g, " ").trim();
+
 export function lookUpLabel(selection: string): string {
-  const folded = selection.replace(/\s+/g, " ").trim();
+  const folded = visibleText(selection);
   // Array.from walks code points, so an emoji at the boundary is kept or dropped whole.
   const points = Array.from(folded);
   const text = points.length > LOOK_UP_MAX ? `${points.slice(0, LOOK_UP_MAX).join("")}…` : folded;
@@ -44,7 +48,7 @@ export function editMenuItems(input: EditMenuInput): EditMenuItem[] {
   const suggestions: EditMenuItem[] = input.editable && !input.password && input.misspelled !== ""
     ? input.suggestions.map(word => ({ kind: "suggestion", word }))
     : [];
-  const lookUp: EditMenuItem[] = !input.password && input.selection.trim() !== "" ? [{ kind: "lookUp", label: lookUpLabel(input.selection) }] : [];
+  const lookUp: EditMenuItem[] = !input.password && visibleText(input.selection) !== "" ? [{ kind: "lookUp", label: lookUpLabel(input.selection) }] : [];
   const sections: EditMenuItem[][] = input.editable
     ? [suggestions, lookUp, [role("cut", input.flags.canCut), role("copy", input.flags.canCopy), role("paste", input.flags.canPaste)], [role("selectAll", input.flags.canSelectAll)]]
     : [lookUp, [role("copy", input.flags.canCopy)]];

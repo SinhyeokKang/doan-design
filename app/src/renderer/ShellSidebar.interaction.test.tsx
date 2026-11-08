@@ -1,4 +1,5 @@
 import { Children, isValidElement, type ReactNode } from "react";
+import { Info, RotateCw } from "lucide-react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RowSlotMark, ShellSidebar } from "./ShellSidebar";
 import type { FolderEntry } from "../main/view";
@@ -126,7 +127,7 @@ it.each([
   [{ path: "/b", kind: "notFound" }, ["Locate", "locate"]],
   [{ path: "/b", kind: "error", message: "bad config" }, ["Retry", "retry"], ["Details", "details"]],
   [{ path: "/b", kind: "uninitialized" }, ["Set Up", "setUp"]],
-  [{ path: "/b", kind: "cliError", reason: "offline" }, ["Retry", "retry"]],
+  [{ path: "/b", kind: "cliError", reason: "offline" }, ["Retry", "retry"], ["Details", "details"]],
 ] as [FolderEntry, ...[string, string][]][]) ("targets repair actions without navigating from the current canvas: %j", (problem, ...actions) => {
   const { props } = fixture();
   props.cards[0]!.rows[1] = problem;
@@ -146,15 +147,18 @@ it.each([
   expect(props.overview).not.toHaveBeenCalled();
   expect(props.open).not.toHaveBeenCalled();
   for (const [label, action] of actions) {
-    const repair = rendered.find(item => item.children === label)!;
+    const repair = rendered.find(item => typeof item.onSelect === "function" && [item.children].flat().includes(label))!;
     expect(repair).toBeDefined();
+    // Retry and Details carry icons like the menu's other items (draft .doan/canvases/fixes-0-1-2.html, frame cli-error-elsewhere).
+    const icon = { Retry: RotateCw, Details: Info }[label];
+    if (icon) expect([repair.children].flat().some(child => isValidElement(child) && child.type === icon), label).toBe(true);
     (repair.onSelect as () => void)();
     expect(props.action).toHaveBeenLastCalledWith(action, "/b");
   }
   const live = [...hooks.refs].reverse().find(ref => ref.current === props)!;
   live.current = { ...props, cards: [] };
   props.action.mockClear();
-  for (const [label] of actions) (rendered.find(item => item.children === label)!.onSelect as () => void)();
+  for (const [label] of actions) (rendered.find(item => typeof item.onSelect === "function" && [item.children].flat().includes(label))!.onSelect as () => void)();
   expect(props.action).not.toHaveBeenCalled();
 });
 

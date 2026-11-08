@@ -7,6 +7,7 @@ import { AlertIcon } from "./AlertIcon";
 import { usageDescription } from "./agentUsage";
 import { foldedRing, ringViews, rowView, shownUsage, usageBusy, usageFolds, type RingView, type RowView } from "./agentUsageView";
 import type { CanvasPress } from "./ComposerParts";
+import { useHeaderNoDrag } from "./headerNoDrag";
 import { ProgressRing } from "./ProgressRing";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 
@@ -143,16 +144,7 @@ export function AgentUsageButton({ openSettings, canvasPress }: { openSettings()
     setOpen(false);
     header.current?.querySelector<HTMLElement>('.shell-modes [aria-current="page"]')?.focus();
   }, [gone, open]);
-  // The header is a window drag region, whose presses never reach the page, so Radix could not close the popover on a
-  // press in its empty part. While open, the header takes presses; closed, it drags again. Set inline because Electron
-  // kept the draggable region when the same change came from a .top:has() rule (computed style changed, native presses
-  // still dragged; observed 2026-11-06, Electron 45).
-  useEffect(() => {
-    const bar = header.current;
-    if (!open || !bar) return;
-    bar.style.setProperty("-webkit-app-region", "no-drag");
-    return () => { bar.style.removeProperty("-webkit-app-region"); };
-  }, [open]);
+  useHeaderNoDrag(open, button);
   // A press in the canvas iframe never reaches the app's document, so Radix cannot see it as an outside press.
   useEffect(() => {
     if (!open || !canvasPress) return;
