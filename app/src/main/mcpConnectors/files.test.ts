@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { parseConnectorUrl } from "./names";
 import { EMPTY_CONNECTORS, EMPTY_PENDING, parseConnectorsFile, parsePendingLogouts, patchConnectors, patchPendingLogouts, type ConnectorsFile } from "./files";
 
-// `<userData>/mcp-connectors.json` and `<userData>/mcp-connectors-pending.json` (mcp-connectors design '포맷 변경'): only
+// `<userData>/mcp-connectors.json` and `<userData>/mcp-connectors-pending.json` (ARCHITECTURE §7 'MCP connectors'): only
 // TS reads and writes them, so these tests are their schema.
 
 const example = { name: "doan-example-com", url: "https://example.com/mcp" };
@@ -20,7 +20,7 @@ describe("mcp-connectors.json", () => {
   });
 
   // An unreadable file is not read as defaults: provider registrations stay behind, so an empty list would drift
-  // from them (design 'store').
+  // from them (ARCHITECTURE §7 'MCP connectors').
   test.each([
     ["an empty file", ""],
     ["not JSON", "{"],
@@ -91,7 +91,7 @@ describe("mcp-connectors.json", () => {
   });
 
   // Normalization drops one trailing slash, so a URL typed with two is stored with one; storing must not normalize it
-  // again (BA review 🟡1).
+  // again.
   test("every URL parseConnectorUrl returns can be added and read back, including one that keeps a trailing slash", () => {
     for (const text of ["https://example.com/mcp//", "https://example.com", "HTTPS://Example.COM:443/a/?b=1", "https://example.com/a%20b"]) {
       const read = parseConnectorUrl(text);

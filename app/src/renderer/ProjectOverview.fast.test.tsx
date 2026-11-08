@@ -17,7 +17,7 @@ import { OverviewRun, type ListView, type OverviewRunHost } from "./overviewRun"
 import { ProjectOverview, type ProjectOverviewProps } from "./ProjectOverview";
 import { TooltipProvider } from "./components/ui/tooltip";
 
-// fast-mode B2 (design §1 renderer): the Overview's composer shows the conversation's stored Fast, a new start sends the
+// The Overview's composer shows the conversation's stored Fast, a new start sends the
 // Fast it shows, an existing conversation's send names Fast only once the person switched it, and only a switch is
 // remembered. The canvas panel's composer follows the same lines (CanvasConversationPanel.tsx).
 
@@ -106,7 +106,7 @@ test("a new conversation's switch belongs to its provider: picking another provi
   expect(support.picks[`root:${ROOT}`]).toEqual({ provider: "codex", model: "gpt-6.1-sol" });
 });
 
-// review R 🟡2 (decision 3): a switch held from earlier is never sent to Last used again on a mount or another pick;
+// A switch held from earlier is never sent to Last used again on a mount or another pick;
 // only the toggle itself records Fast.
 test("only the Fast toggle itself is remembered as Last used Fast", () => {
   const onRemember = vi.fn();
@@ -121,7 +121,7 @@ test("only the Fast toggle itself is remembered as Last used Fast", () => {
   expect(onRemember.mock.calls[0]![0]).toMatchObject({ provider: "claude", model: "opus", fast: true });
 });
 
-// review R 🟡1: an off is stored whatever the model; only an on waits for a model that can use it.
+// An off is stored whatever the model; only an on waits for a model that can use it.
 test("a switch off is sent even after a model without Fast is chosen; a terminal session sends neither", async () => {
   const sent = vi.fn(async (_provider: Provider, _request: unknown) => {});
   await render([summary({ fast: true })], A, { onSendConversation: sent }, support => support.pick(KEY, { fast: false, model: "sonnet" })).composer.onSend(REQUEST);
@@ -136,7 +136,7 @@ test("Fast turned off in a conversation drops the switch its composer still held
   expect(support.picks[KEY]).toEqual({ model: "opus" });
 });
 
-// picker-default-labels review 🔴1: Claude Code's default row has the id "default", the same word the pre-list Default
+// Claude Code's default row has the id "default", the same word the pre-list Default
 // row used to pass. Picking it must choose that model, not fall back to the conversation's stored one.
 test("an existing conversation on another model can pick Claude Code's default row", async () => {
   const paired = (support: DockedSupport) => { support.models = { [modelsKey(ROOT, "claude", 1)]: { models: [{ id: "default", label: "Opus 5.5", default: true, efforts: ["high"] }, SONNET] } }; };
@@ -150,7 +150,7 @@ test("an existing conversation on another model can pick Claude Code's default r
   expect(sent.mock.calls.at(-1)![1]).toMatchObject({ model: "default" });
 });
 
-// RV ⚪2: the effort menu's Default row, picked in a conversation that stored a level, sends the model with no effort,
+// The effort menu's Default row, picked in a conversation that stored a level, sends the model with no effort,
 // so main clears the stored level (Codex then sends its model's defaultEffort for that turn, unchanged here).
 test("an existing conversation that picks the effort Default row sends its model and no effort", async () => {
   const { support, composer } = render([summary({ effort: "high" })], A);

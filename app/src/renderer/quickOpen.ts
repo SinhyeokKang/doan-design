@@ -278,7 +278,7 @@ export function unavailableCanvasMessage(entry: FolderEntry | undefined, path: s
   return "Project is unavailable. Fix it from its menu in the sidebar, then try again.";
 }
 
-// A doan:// link main refused (terminal-agent-activity design 'Deep link' '거절'): one toast without an action, since a
+// A doan:// link main refused (ARCHITECTURE §7 'Deep links'): one toast without an action, since a
 // link only moves. `project` is the sidebar's project name, which main sends.
 export function openLinkRefusal(result: Exclude<OpenLinkResult, { kind: "navigate" }>): string {
   if (result.kind === "malformed") return "Couldn’t open the link. It isn’t a Doan canvas link.";

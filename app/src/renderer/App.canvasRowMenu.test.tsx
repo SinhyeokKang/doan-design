@@ -7,7 +7,7 @@ import { initialCanvasState } from "./CanvasController";
 import type { CanvasMenu } from "./ShellSidebar";
 import type { TrashDialogView } from "./CanvasTrashDialog";
 
-// canvas-row-menu design 'Alert Dialog', '삭제 뒤 화면' and '앱 Export 흐름': App owns the Move to Trash dialog and the
+// App owns the Move to Trash dialog and the
 // Export flow the sidebar's canvas row menu starts. Hooks run as plain state so App's own wiring runs
 // (App.terminalWork.test.tsx).
 const hooks = vi.hoisted(() => ({
@@ -74,7 +74,7 @@ const { ShellSidebar } = await import("./ShellSidebar");
 const { CanvasTrashDialog } = await import("./CanvasTrashDialog");
 
 const A = ".doan/canvases/a.html", B = ".doan/canvases/b.html";
-const PREFS: PreferencesSnapshot = { preferences: { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: { provider: "codex" } }, notice: null };
+const PREFS: PreferencesSnapshot = { preferences: { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: { provider: "codex" }, updates: { autoCheck: true } }, notice: null };
 let listeners: Record<string, (...args: never[]) => void>;
 let readUiState: (state: unknown) => void;
 let getWork: (items: WorkItem[]) => void;
@@ -317,7 +317,7 @@ test("Export: a fast run shows no progress toast, a cancelled save panel no toas
   } finally { vi.useRealTimers(); }
 });
 
-// canvas-composer-polish spec 5: the canvas toolbar's Export runs the row menu's export on the open canvas, with the
+// the canvas toolbar's Export runs the row menu's export on the open canvas, with the
 // row menu's reasons.
 type Exporter = { reason: string | null; onExport(button: HTMLElement): void };
 const exporter = () => (all(tree).find(element => typeof element.type === "function" && element.type.name === "CanvasPane")!.props as { exporter: Exporter }).exporter;

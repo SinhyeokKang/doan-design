@@ -7,7 +7,7 @@ export type StartupGate =
   | { kind: "start" }
   | { kind: "start_without"; names: string[] };
 
-// Remote servers were ready 1-1.6 s after thread/start in the PoC (design 'conversation (Codex)').
+// Remote servers were ready 1-1.6 s after thread/start in the PoC.
 export const STARTUP_NOTICE_MS = 1000;
 export const STARTUP_LIMIT_MS = 10_000;
 const STATUSES = new Set(["starting", "ready", "failed", "cancelled"]);

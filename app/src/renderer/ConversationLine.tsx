@@ -3,8 +3,8 @@ import { PROVIDER_NAMES } from "./agentAuthView";
 import { providerLogo } from "./homeComposer";
 import type { ConversationLine, ConversationStatus } from "./overviewConversation";
 
-// The first line shared by the Overview's dropdown items and its right panel's canvas rows (buzz-project design §2.1,
-// §2.3): provider logo (its name as alt text), the name, the status mark the sidebar slot draws, the short time flush
+// The first line shared by the Overview's dropdown items and its right panel's canvas rows:
+// provider logo (its name as alt text), the name, the status mark the sidebar slot draws, the short time flush
 // right, spelled out for screen readers.
 
 export function StatusMark({ status }: { status: ConversationStatus }) {

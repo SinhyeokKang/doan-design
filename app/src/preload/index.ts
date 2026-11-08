@@ -33,6 +33,7 @@ import type { Preferences, PreferencesPatch, PreferencesSnapshot, PreferencesWri
 import type { NotificationTarget } from "../main/notifications";
 import type { TestNotificationReply } from "../main/notifyService";
 import type { AboutRead } from "../main/about";
+import type { InstallGate, UpdateSnapshot } from "../main/update/types";
 import type { InspectResult } from "../main/inspect";
 import type { FolderEntry } from "../main/view";
 import type { TrashPlanReply, TrashReply } from "../main/canvasTrash";
@@ -43,6 +44,7 @@ import type { AddPageResponse, AddPageState } from "../main/addPage";
 
 export type { AddPageResponse, AddPageState, WorkItem, OpenLinkResult, TrashPlanReply, TrashReply, ExportReply };
 export type { McpAddReply, McpReply, McpSnapshot };
+export type { InstallGate, UpdateSnapshot };
 export type {
   AboutRead, ConfigChoice, ConfigKind, ConfigReply, NotificationTarget, Preferences, PreferencesPatch, PreferencesSnapshot, PreferencesWriteReply,
   SettingsPageTarget, SettingsSection, TestNotificationReply,
@@ -81,7 +83,7 @@ const api = {
     ipcRenderer.on("work:changed", receive);
     return () => ipcRenderer.removeListener("work:changed", receive);
   },
-  // An app conversation's last work update, while its turn runs (work-update design decision 10). Subscribe first, as
+  // An app conversation's last work update, while its turn runs. Subscribe first, as
   // for getWork.
   getConversationWork: (): Promise<ConversationWork[]> => ipcRenderer.invoke("conversation-work:get"),
   onConversationWorkChanged(listener: (items: ConversationWork[]) => void): () => void {
@@ -155,7 +157,7 @@ const api = {
     ipcRenderer.on("conversation:listChanged", receive);
     return () => ipcRenderer.removeListener("conversation:listChanged", receive);
   },
-  // A handoff started a conversation on another canvas (canvas-handoff design §5): its root, the earlier conversation
+  // A handoff started a conversation on another canvas: its root, the earlier conversation
   // and its canvas, and the new one and its canvas. The renderer decides whether to move there or show a toast.
   onConversationHandoff(listener: (notice: HandoffNotice) => void): () => void {
     const receive = (_event: Electron.IpcRendererEvent, notice: HandoffNotice) => listener(notice);
@@ -208,7 +210,7 @@ const api = {
     ipcRenderer.on("conversation:event", receive);
     return () => ipcRenderer.removeListener("conversation:event", receive);
   },
-  // A running turn's stage (turn-activity design §2), never stored. seq is the conversation's last event seq when it was
+  // A running turn's stage, never stored. seq is the conversation's last event seq when it was
   // sent, rev orders stages within a turn: keep the highest rev per turnId, since neither this event nor a
   // readConversation reply (whose stage is the turn's last one) is ordered against the other.
   onConversationStage(listener: (signal: StageSignal) => void): () => void {
@@ -262,7 +264,7 @@ const api = {
     ipcRenderer.on("agent-auth:prompt", receive);
     return () => ipcRenderer.removeListener("agent-auth:prompt", receive);
   },
-  // Settings > MCP Connectors (mcp-connectors). Snapshots carry one revision, delivered newest only as onAgentAuth.
+  // Settings > MCP Connectors. Snapshots carry one revision, delivered newest only as onAgentAuth.
   // refresh re-reads the provider statuses (entering the page, Retry of a failed read); they are never polled. Links
   // stay in main: a Claude sign-in's link opens in the browser by itself and openMcpLink opens it again.
   readMcpConnectors: (options: { refresh?: boolean } = {}): Promise<McpSnapshot> => ipcRenderer.invoke("mcp-connectors:list", options.refresh ? { refresh: true } : undefined),
@@ -379,7 +381,7 @@ const api = {
   locateProject: (path: string): Promise<LocateResult> => ipcRenderer.invoke("folders:locate", { path }),
   revealProject: (path: string): Promise<void> => ipcRenderer.invoke("folders:reveal", { path }),
   setMenuState: (inputs: MenuInputs): Promise<void> => ipcRenderer.invoke("menu:state", inputs),
-  // canvas-row-menu: a listed canvas row by root and path; main checks it against its own list and the disk, and judges
+  // a listed canvas row by root and path; main checks it against its own list and the disk, and judges
   // busy again. Ask the plan when the Move to Trash dialog opens (does a comment file go too?), then move on confirm.
   planCanvasTrash: (root: string, path: string): Promise<TrashPlanReply> => ipcRenderer.invoke("canvas:trashPlan", { root, path }),
   trashCanvas: (root: string, path: string): Promise<TrashReply> => ipcRenderer.invoke("canvas:trash", { root, path }),
@@ -405,7 +407,7 @@ const api = {
   },
   // `ui-state.json` as main validated it against the saved roots; null starts at home.
   readShellActivity: (request: { roots: string[] }): Promise<ShellActivity[] | null> => ipcRenderer.invoke("shell:activity", request),
-  // The canvas page shows an unseen canvas (canvas-viewport-units D9); main records its mtime and sends the list again.
+  // The canvas page shows an unseen canvas; main records its mtime and sends the list again.
   markCanvasSeen: (request: { root: string; path: string; mtimeMs: number }): Promise<boolean> => ipcRenderer.invoke("canvas:seen", request),
   readUiState: (): Promise<UiState | null> => ipcRenderer.invoke("ui-state:get"),
   // Main validates again and writes the last value after 500 ms; false when refused.
@@ -415,7 +417,7 @@ const api = {
     ipcRenderer.on("menu-command", receive);
     return () => ipcRenderer.removeListener("menu-command", receive);
   },
-  // Settings page (buzz-settings). Preferences: main validates the change, merges it and writes it; a refused or
+  // Settings page. Preferences: main validates the change, merges it and writes it; a refused or
   // failed write answers the choices still in effect. null only when main refused the caller.
   readPreferences: (): Promise<PreferencesSnapshot | null> => ipcRenderer.invoke("preferences:read"),
   savePreferences: (patch: PreferencesPatch): Promise<PreferencesWriteReply | null> => ipcRenderer.invoke("preferences:write", patch),
@@ -427,6 +429,31 @@ const api = {
   readAbout: (): Promise<AboutRead | null> => ipcRenderer.invoke("about:read"),
   // Main writes what About last read; resolves after the clipboard write settled.
   copyAbout: (): Promise<CopyResult> => ipcRenderer.invoke("about:copy"),
+  // App updates: Settings > About's update row, the header button and the Doan menu item. Requests carry no data; main
+  // decides from its own state. null: main refused the caller.
+  readUpdate: (): Promise<UpdateSnapshot | null> => ipcRenderer.invoke("update:get"),
+  // Snapshots carry no revision, so the first read is delivered only if no change event came before it.
+  onUpdate(listener: (snapshot: UpdateSnapshot) => void): () => void {
+    let active = true, changed = false;
+    const receive = (_event: Electron.IpcRendererEvent, snapshot: UpdateSnapshot) => { if (!active) return; changed = true; listener(snapshot); };
+    ipcRenderer.on("update:state", receive);
+    // A refused read leaves the listener on change events; it never becomes an unhandled rejection in the page.
+    ipcRenderer.invoke("update:get").then((snapshot: UpdateSnapshot | null) => { if (active && !changed && snapshot !== null) listener(snapshot); }, () => {});
+    return () => { active = false; ipcRenderer.removeListener("update:state", receive); };
+  },
+  // A manual check (Check for Updates, Retry); the result arrives as a snapshot.
+  checkForUpdates: (): Promise<void> => ipcRenderer.invoke("update:check"),
+  // Restart to Update. allowed: the restart has started; blocked: a conversation holds it back, read the reason; null:
+  // nothing to install.
+  installUpdate: (): Promise<InstallGate | null> => ipcRenderer.invoke("update:install"),
+  // The ready version's GitHub release page in the browser; false when there is none or it could not open.
+  openReleaseNotes: (): Promise<boolean> => ipcRenderer.invoke("update:openNotes"),
+  // The menu's Restart to Update was blocked: main has shown the window; open the header button's popover.
+  onUpdatePopover(listener: () => void): () => void {
+    const receive = () => listener();
+    ipcRenderer.on("update:popover", receive);
+    return () => ipcRenderer.removeListener("update:popover", receive);
+  },
   // Project Settings page: start a session when it mounts and end it when it unmounts; replies to calls of an ended
   // session answer unavailable.
   // root: the worktree the page opens; main reads its project group again.

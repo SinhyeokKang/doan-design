@@ -3,7 +3,7 @@ name: orchestrate
 description: Use to split one batch plan document across several worker sessions running in parallel, with this session conducting decision gathering, review, integration, and push. A larger unit than /ship.
 ---
 
-Split a batch plan (usually `docs/features/<slug>/tasks.md`) **across several worker sessions**, and this session **only conducts**. Workers implement with `/ship bypass`. Like `/ship`, start from main with `git switch -c feat/<slug>`; the end is a push of that branch + PR. Do not merge.
+Split a batch plan (usually `docs/features/<slug>/tasks.md`) **across several worker sessions**, and this session **only conducts**. Workers implement with `/ship bypass`. Like `/ship`, start from develop (`git switch develop && git pull`, then `git switch -c feat/<slug>`); the end is a push of that branch + PR against develop. Do not merge.
 
 > The conductor does not edit batch code. The only things the conductor writes are `orch.md`, integration commits, and docs-freshness commits. Defects go back to the worker that owns the batch.
 
@@ -28,7 +28,7 @@ Split a batch plan (usually `docs/features/<slug>/tasks.md`) **across several wo
 ## 1. Launching workers
 
 - In an Orca environment, read the `orchestration` skill and manage Run, Task, and Dispatch with its procedure.
-- Batches with non-overlapping file ownership each run in their own worktree. In Orca, start each with `--worktree new-child --base-branch feat/<slug>`; without `--base-branch` the child branches from main, not from the conductor's checkout (AGENTS.md 'Workflow').
+- Batches with non-overlapping file ownership each run in their own worktree. In Orca, start each with `--worktree new-child --base-branch feat/<slug>`; without `--base-branch`, the child worktree uses Orca's repo default base (main), not the conductor's checkout (AGENTS.md 'Workflow').
 - **Write the brief to a file and send it as one line.** Include: the plan source and assigned items, files not to touch, allowed model, the batch branch (the child worktree's checked-out branch, based on `feat/<slug>`; the worker does not create or switch branches), the `/ship` override (**stop before the push step** — no `git push` or `gh pr create`), gate commands (only from AGENTS.md 'Commands'; if none, the worker stops and reports), handoff protocol (write commits, verification results, and incomplete items to `.scratch/handoff-<batch>.md` and send the completion signal once).
 - Respect the sessions' permission settings. Do not add permission-bypass flags or click another session's approval prompts on its behalf.
 
@@ -66,14 +66,14 @@ When the run includes `/design-draft`, the conductor owns and performs the draft
 
 ## 4. Integration
 
-- Integration target: this run's single `feat/<slug>` branch (branched from main and recorded in `orch.md`).
+- Integration target: this run's single `feat/<slug>` branch (branched from develop and recorded in `orch.md`).
 - Check that `git status --porcelain` is empty, then cherry-pick the batch commits. Run [/verify](../verify/SKILL.md) at the integration HEAD, selecting `--eval` when applicable and checking affected app behavior with a short `/runtime-test` probe. Coordinate with workers so static gates and GUI probes do not overlap. Worker passes do not verify the combined result; the separate AGENTS `/agent-eval` requirement still applies.
 - Like `/ship` step 9, check docs freshness and add PRODUCT and `orch.md` updates as per-document commits.
 - Tell workers with deferred items that the prerequisite has landed, and confirm they started.
 
 ## 5. Push and cleanup
 
-- When all batches are integrated, push `feat/<slug>` as in `/ship` step 11 and `gh pr create --base main`. Do not merge.
+- When all batches are integrated, push `feat/<slug>` as in `/ship` step 11 and `gh pr create --base develop`. Do not merge.
 - If the feature is finished, promote the conclusions to PRODUCT (product judgments) and ARCHITECTURE (structure, formats, conventions) as current rules (rationale in the commit message) and delete `docs/features/<slug>/`. Delete `orch.md` along with it.
 - Clean up each finished worker as soon as it has no follow-up work; do not wait until the entire run ends. **Releasing a worker terminal does not remove its Orca child worktree or sidebar card**. Finish both cleanup layers:
   1. Confirm accepted Dispatch settlement, then use `orca orchestration worker-release --dispatch <dispatch_id> --json`. Verify the release receipt; follow its recovery instructions if uncertain. Never substitute `terminal close` for supervised release or release a live worker.

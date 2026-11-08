@@ -52,12 +52,12 @@ const click = (label: string) => (button(label).props.onClick as () => void)();
 const text = () => words(all(tree).filter(element => typeof element.type === "string").map(element => element.props.children));
 function resetHooks() { hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.pending = []; }
 
-// buzz-settings U4: Settings > Notifications (design 'Notifications'), with hooks as plain state.
+// Settings > Notifications (PRODUCT §5 item 0 'Notifications'), with hooks as plain state.
 const { SettingsNotifications } = await import("./SettingsNotifications");
 import type { PreferencesSnapshot } from "../main/preferences";
 
 const snapshot = (notifications: Partial<PreferencesSnapshot["preferences"]["notifications"]> = {}, notice: PreferencesSnapshot["notice"] = null): PreferencesSnapshot =>
-  ({ preferences: { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true, ...notifications }, newConversation: null }, notice });
+  ({ preferences: { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true, ...notifications }, newConversation: null, updates: { autoCheck: true } }, notice });
 let doan: Record<string, ReturnType<typeof vi.fn>>;
 let props: Parameters<typeof SettingsNotifications>[0];
 beforeEach(() => {
@@ -66,7 +66,7 @@ beforeEach(() => {
   vi.stubGlobal("window", { doan });
   props = { preferences: snapshot(), save: vi.fn(async () => ({ ok: true as const, snapshot: snapshot() })) };
 });
-// review BU1 ⚪4: nothing on the Settings page may start or send a conversation.
+// Nothing on the Settings page may start or send a conversation.
 afterEach(() => { expect(doan.startConversation).not.toHaveBeenCalled(); expect(doan.sendConversation).not.toHaveBeenCalled(); });
 afterEach(() => vi.unstubAllGlobals());
 const render = (next: Partial<typeof props> = {}) => { props = { ...props, ...next }; return run(() => SettingsNotifications(props)); };

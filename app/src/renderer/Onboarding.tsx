@@ -22,7 +22,7 @@ const FOCUSABLE = 'button:not(:disabled), input:not(:disabled), [href], [tabinde
 // file:// renderer resolves them next to index.html.
 const LOGOS: Record<Provider, string> = { claude: "claude.png", codex: "codex.png", cursor: "cursor.svg", antigravity: "antigravity.svg", copilot: "copilot.svg" };
 
-// Antigravity has no install command or page: Doan downloads its sign-in server itself (design 'Install·Update 안내 URL').
+// Antigravity has no install command or page: Doan downloads its sign-in server itself.
 function openInstall(provider: Provider): ReturnType<DoanApi["openInstall"]> {
   return provider === "antigravity" ? Promise.resolve("failed") : window.doan.openInstall(provider);
 }
@@ -65,7 +65,7 @@ function ActionButton<C extends string>({ button, run, data }: { button: Button<
 // A notice takes the white panel surface only where the backdrop is first run's transparent overlay; on a white surface
 // (a card, the provider list, Settings) the panel fill would vanish, so it keeps the inset notice.
 // live: false keeps the notice's look without its live role, for a page whose one live region announces changes
-// (Settings > MCP Connectors, mcp-connectors spec 2).
+// (Settings > MCP Connectors).
 export function NoticeView<C extends string = AuthCommand>({ notice, run, panel = false, live = true }: { notice: Notice<C>; run: (command: C) => void; panel?: boolean; live?: boolean }) {
   return <>
     <div className={`doan-notice${notice.role === "alert" ? " error" : ""}${panel ? " doan-panel" : ""}`} role={live ? notice.role : undefined} tabIndex={-1}>
@@ -144,15 +144,15 @@ export function StopDialog({ view, busy, confirm, close }: { view: ReturnType<ty
   </dialog>;
 }
 
-// Where focus goes when the control the user just used is removed or disabled (design '이동·취소·포커스 계약'): the
+// Where focus goes when the control the user just used is removed or disabled: the
 // row's first usable control in DOM order (row button, notice actions, paste), else its notice, else the step heading.
-// Sign out acts at once, so recovery never lands on it (D24).
+// Sign out acts at once, so recovery never lands on it.
 export function firstUsable(view: ProviderView): AuthCommand | "notice" | null {
   const usable = [view.button, ...(view.notice?.actions ?? []), view.paste?.button].find(button => button && !button.disabled && button.command !== "signOut");
   return usable ? usable.command : view.notice ? "notice" : null;
 }
 interface FocusNode { isConnected: boolean; matches(selector: string): boolean }
-// D24: automatic focus never lands on a button that writes or consents (data-consent); the caller falls back to the
+// Automatic focus never lands on a button that writes or consents (data-consent); the caller falls back to the
 // heading. The user's own Tab still reaches it.
 export function recoveryControl<T extends Pick<FocusNode, "matches">>(first: T | null): T | null { return first && !first.matches("[data-consent]") ? first : null; }
 // active is null when focus fell to <body>. Focus the user moved elsewhere is theirs and is released.
@@ -244,8 +244,8 @@ export function ProjectThumbnail({ path }: { path: string }) {
 export function ChosenProject({ path, home }: { path: string; home: string | null }) {
   return <div className="doan-panel ob-chosen"><ProjectThumbnail path={path} /><div><strong>{nameOf(path)}</strong><p className="ob-path">{shown(path, home)}</p></div><Check aria-hidden="true" /></div>;
 }
-// D23 (2026-10-29 user): each choice is a card like the chosen project. A visible radio at the start shows the choice
-// (buzz-canvas-conversation design §0, the shared choice card); the native radio under it keeps arrow keys and Space,
+// (2026-10-29 user): each choice is a card like the chosen project. A visible radio at the start shows the choice
+// (the shared choice card); the native radio under it keeps arrow keys and Space,
 // and Enter picks too.
 export function ProjectChoice({ paths, choice, home, pick, name }: {
   paths: readonly string[]; choice: string | null; home: string | null; pick: (path: string) => void; name: string;
@@ -261,12 +261,12 @@ export function ProjectChoice({ paths, choice, home, pick, name }: {
 type ProjectAction = "chooseFolder" | "chooseExisting" | "edit" | "retry" | "changeLocation" | "useExisting" | "backToAgents";
 interface ProjectNotice { title?: string; body: string; detail?: string; note?: string; actions: Button<ProjectAction>[] }
 const action = (command: ProjectAction, label: string, variant: Button["variant"] = "prominent"): Button<ProjectAction> => ({ command, label, variant, disabled: false });
-// Copy from the approved draft's Project states tiles; D13 for the newer marker version.
-// fromUrl: the screen belongs to a GitHub URL, so a folder chosen there must be that repository's (D20).
+// Copy from the approved draft's Project states tiles; the newer-version marker's notice is not in the draft: it offers no Retry and says to open the project with that version or update Doan.
+// fromUrl: the screen belongs to a GitHub URL, so a folder chosen there must be that repository's.
 // insideProject: the name of the doan project a clone destination sits in (main refuses it as path_unavailable).
-// folder: the chosen folder a mismatch is about; on the clone screen "This folder" would read as the destination (D28).
+// folder: the chosen folder a mismatch is about; on the clone screen "This folder" would read as the destination.
 export function projectNotice(error: ProjectError, message: string | undefined, destination: string | null, fromUrl = false, insideProject: string | null = null, folder: string | null = null): ProjectNotice {
-  // Every folder chosen from a URL screen is checked against that repository (D21).
+  // Every folder chosen from a URL screen is checked against that repository.
   const choose: ProjectAction = fromUrl ? "chooseExisting" : "chooseFolder";
   // A clone that landed and whose setup or storage then failed is told in main's own words (they say the clone stayed),
   // which differ from the code's fixed message.
@@ -278,7 +278,7 @@ export function projectNotice(error: ProjectError, message: string | undefined, 
     case "remote_mismatch": return { body: `${folder !== null ? nameOf(folder) : "This folder"} belongs to a different repository.`, actions: fromUrl
       ? [action("edit", "Edit repository URL", "subtle"), action("chooseExisting", "Choose another folder")] : [action("chooseFolder", "Choose another folder")] };
     case "project_unavailable": case "path_unavailable":
-      // D26 copy: the destination never existed, so "no longer available" would not explain it.
+      // Copy: the destination never existed, so "no longer available" would not explain it.
       if (insideProject !== null) return { body: `This location is inside the Doan project ${insideProject}. Choose a location outside it.`, actions: [action("changeLocation", "Change location")] };
       return { body: "This folder is no longer available. Choose it again or select another folder.", actions: [action(choose, "Choose folder")] };
     case "destination_exists": return { body: "A folder already exists at this destination. Choose another location or use the existing folder.", actions: [action("changeLocation", "Change location", "subtle"), action("useExisting", "Use existing folder")] };
@@ -326,8 +326,8 @@ export interface ProjectDrop {
   started(): void;
   dropped(items: { isDirectory: boolean; path: string }[]): void;
 }
-// The 'Open a local folder' card takes a dropped folder on the page and in first run (buzz-add-projects design '폴더
-// 드롭'). A drop elsewhere is the window's, which only refuses it.
+// The 'Open a local folder' card takes a dropped folder on the page and in first run.
+// A drop elsewhere is the window's, which only refuses it.
 export function LocalFolderCard({ busy, choose, drop }: { busy: boolean; choose: () => void; drop?: ProjectDrop }) {
   const [dropping, setDropping] = useState(false);
   const depth = useRef(0);
@@ -372,7 +372,7 @@ export function LocalFolderCard({ busy, choose, drop }: { busy: boolean; choose:
   </div>;
 }
 
-// Where the Project step puts focus that its own change removed or disabled (design '이동·취소·포커스 계약'): the error,
+// Where the Project step puts focus that its own change removed or disabled: the error,
 // else the progress, else the first usable action. Focus the user still holds is never moved.
 // urlRequested: the user just chose Edit repository URL (or left a clone for its URL), so the field is where they go.
 export function projectFocusTarget(state: ProjectStepState, agentReady: boolean, urlRequested = false): "url" | "alert" | "status" | "action" {
@@ -383,7 +383,7 @@ export function projectFocusTarget(state: ProjectStepState, agentReady: boolean,
 
 type FocusTarget = FocusNode & { focus(): void };
 interface ScopeNode { querySelector(selector: string): FocusTarget | null }
-// The node the Project step's focus goes to after a change (design '포커스'): the button that opened a folder sheet
+// The node the Project step's focus goes to after a change: the button that opened a folder sheet
 // that closed on the same screen, the URL field when it was asked for, else projectFocusTarget's, else the heading.
 // null: the person holds focus somewhere usable, which is never moved.
 export function projectFocusNode(input: {
@@ -441,7 +441,7 @@ const HEADINGS = {
 export interface ProjectScreenProps {
   state: ProjectStepState; busy: boolean; agentReady: boolean; projects: readonly string[]; home: string | null; urlValid: boolean;
   heading: (node: HTMLHeadingElement | null) => void;
-  // First run by default; the Add Projects page differs only by design '온보딩과의 공유'.
+  // First run by default; the Add Projects page varies the heading, the 'Your projects' list, the notices, the actions and the surface.
   use?: ProjectUse;
   // The heading's id, when a landmark is named by it (the page's panel).
   headingId?: string;
@@ -472,7 +472,7 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
   const container = p.kind === "clone" && destination !== null ? projects.find(root => destination.startsWith(`${root.replace(/\/+$/, "")}/`)) ?? null : null;
   const code = projectNoticeCode(use, state, agentReady);
   const notice = code === null ? null : code === error?.code ? projectNotice(code, error.message, destination, fromUrl, container && nameOf(container), error.path ?? null) : projectNotice(code, undefined, null);
-  // D28: a notice's recovery actions and the screen's own never repeat; the notice keeps its copy. Use existing folder
+  // A notice's recovery actions and the screen's own never repeat; the notice keeps its copy. Use existing folder
   // already answers 'Already have this repository?'.
   const offered = new Set(notice?.actions.map(button => button.command) ?? []);
   const repeats = (command: ProjectAction) => offered.has(command) || (command === "chooseExisting" && offered.has("useExisting"));
@@ -548,7 +548,7 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
     body = <Progress panel={panel} title="Checking this folder" body={shown(p.path, home)} />;
   } else if (p.kind === "setup" || p.kind === "selecting") {
     body = <>
-      {/* From a URL the screen keeps that repository: its URL, another folder of it, or a different URL (D25). */}
+      {/* From a URL the screen keeps that repository: its URL, another folder of it, or a different URL. */}
       {p.kind === "setup" && p.url !== null && urlField(true)}
       {p.kind === "setup" && <section className="doan-panel ob-setup">
         <strong>Set up this folder for Doan</strong>
@@ -611,8 +611,7 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
 }
 
 // First run's steps scroll as one surface under the step capsule, so the thin scroll bar sits at the window's right
-// edge, not beside the 560px column; the Add Projects page's panel plays the same part (buzz-add-projects design
-// '온보딩과의 공유' 2).
+// edge, not beside the 560px column; the Add Projects page's panel plays the same part.
 export function SceneScroll({ children }: { children: React.ReactNode }) {
   return <div className="ob-scroll doan-scroll"><div className="ob-scene">{children}</div></div>;
 }
@@ -653,7 +652,7 @@ export function Wizard({ session, projects, homeDirectory, onClose, mainCheckout
     void window.doan.readOnboardingSession({ sessionId: session }).then(reply => { if (reply.ok && "sessionId" in reply.result) done(reply.result); }, () => {});
     return () => { window.removeEventListener("focus", focused); stop(); agents.dispose(); project.dispose(); };
   }, []);
-  // A scene change moves focus to its heading; Tab then enters the controls (design '이동·취소·포커스 계약').
+  // A scene change moves focus to its heading; Tab then enters the controls.
   useEffect(() => { requestAnimationFrame(() => heading.current?.focus()); }, [scene.generation]);
   const overlay = useRef<HTMLDialogElement | null>(null);
   const { toUrl, openPicker } = useProjectFocus(project, overlay, heading, () => canAdvance(agents.state.auth ?? null), scene.scene === "project");

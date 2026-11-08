@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { FolderEntry } from "../main/view";
 
-// RBR5 🟡1: the indicator's wiring, run with hooks as plain state (the App tests' no-DOM style): the Stop callback's
+// The indicator's wiring, run with hooks as plain state (the App tests' no-DOM style): the Stop callback's
 // failure recovery, and the dot field's pauses and cleanup.
 const hooks = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],
@@ -130,7 +130,7 @@ describe("CanvasAgent Stop", () => {
     expect(label(tree)).toBe("Stop");
   });
 
-  // terminal-agent-activity design '표시': the app turn ends while a terminal session still works on the canvas.
+  // The app turn ends while a terminal session still works on the canvas.
   test("after a Stop, the notice stays for a terminal session left on the canvas, without its button", async () => {
     const work = [{ touched: 0, turn: "none:t", session: "s1", provider: "claude" as const, root: "/w/a", path: canvas.path }];
     const withWork = (list: readonly ConversationSummary[]) => () => CanvasAgent({ list, canvas: { root: "/w/a", canvas }, running: true, work, entries: [], onOpen: vi.fn(), onOpenSibling: vi.fn(), onStopFailed });
@@ -294,7 +294,7 @@ describe("DotField lifecycle", () => {
   });
 });
 
-// work-update R2: the indicator tells App the open canvas's work for the controller once per change, not per render.
+// The indicator tells App the open canvas's work for the controller once per change, not per render.
 describe("CanvasAgent work for the controller", () => {
   const term = { touched: 5, turn: "claude:t1", session: "s1", provider: "claude" as const, root: "/w/a", path: canvas.path, frame: "plans" };
   test("tells the picked work and its turn keys when they change, and the canvas with no work", () => {

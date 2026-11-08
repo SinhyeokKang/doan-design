@@ -5,7 +5,7 @@ import { inspectRows, type InspectResult, type MatchedStyles } from "./inspect";
 
 // Inspector values come from CDP on the window's debugger, not from the canvas
 // script: CDP also sees sheets a canvas CSP or a CDN without CORS hides from
-// the page (select-inspect PoC 2).
+// the page (PoC).
 
 const BUDGET_MS = 2000;
 const SELECTOR_LIMIT = 1000;
@@ -182,7 +182,7 @@ export function createInspector(dbg: DebuggerLike, tokenBase: () => string, docu
     } finally {
       // Left on, the whole tree known from `getDocument` turns every later DOM
       // mutation of the canvas into an event to main: about 6,300 a second on
-      // a canvas with a 60 fps counter and a rebuilt list (select-inspect M fix 2).
+      // a canvas with a 60 fps counter and a rebuilt list.
       if (session !== null) {
         await send("CSS.disable").catch(() => undefined);
         await send("DOM.disable").catch(() => undefined);

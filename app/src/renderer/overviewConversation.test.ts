@@ -22,7 +22,7 @@ describe("shortAgo", () => {
     [HOUR, "1h", "1 hour ago"],
     [23 * HOUR + 59 * MIN, "23h", "23 hours ago"],
     [DAY, "1d", "1 day ago"],
-    // design §0 and the draft: "1d" for the first day only, then the date (review DS r1).
+    // The draft: "1d" for the first day only, then the date.
     [2 * DAY - MIN, "1d", "1 day ago"],
     [2 * DAY, "Oct 30", "Oct 30"],
     [4 * DAY, "Oct 28", "Oct 28"],
@@ -149,7 +149,7 @@ describe("projectConversationMenu", () => {
     expect(menu[1]).toMatchObject({ title: "Lost thread", preview: "Can’t read this conversation", time: null, status: null, readError: true });
   });
 
-  // conversation-delete design §3.1: a working or waiting conversation's Delete is unavailable, with the reason.
+  // A working or waiting conversation's Delete is unavailable, with the reason.
   test("each item says whether it can be deleted", () => {
     const menu = projectConversationMenu([
       summary({ conversationId: "w", phase: "waiting", working: true, lastActivityAt: ago(1 * MIN) }),

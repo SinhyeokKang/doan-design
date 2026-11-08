@@ -12,7 +12,7 @@ function all(node: ReactNode): ReactElement<Record<string, unknown>>[] {
   return [node, ...[node.props.children].flat().flatMap(child => all(child as ReactNode))];
 }
 
-// runtime-test (buzz-project RT): a real mouse press on Copy code moved focus off the composer, ending its selection
+// Runtime test: a real mouse press on Copy code moved focus off the composer, ending its selection
 // and IME composition; a DOM click() did not, so the button's mousedown took focus.
 test("Copy code keeps focus where it is on a pointer press and still copies on click", () => {
   const node = { type: "element", children: [{ type: "text", value: "$ doan check\n" }] };

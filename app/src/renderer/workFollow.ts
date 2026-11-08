@@ -1,9 +1,9 @@
 import { boardRectToScreen, elementView, FIT_INSET, fitFrame, safeArea, type Rect, type Size, type View } from "./viewport";
 
-// Following the working frame (work-update design §1 rule 9): the board moves to the frame an agent starts on only while
+// Following the working frame: the board moves to the frame an agent starts on only while
 // the person rests, once per frame and work turn, and never again in a turn after the person moved the view.
 
-// Tunable (tasks E2): the rest before the board follows.
+// Tunable: the rest before the board follows.
 export const FOLLOW_IDLE_MS = 5000;
 
 export interface FollowInput {

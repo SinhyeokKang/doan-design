@@ -44,7 +44,7 @@ describe("provider child environment", () => {
       expect(providerEnv(input("copilot", { extra }))).toEqual({ ok: false, code: "invalid_extra" });
     }
   });
-  // work-update design §2 function 7: the conversation id is added only by ConversationService.openRunner.
+  // The conversation id is added only by ConversationService.openRunner.
   it("never carries an inherited DOAN_CONVERSATION_ID", () => {
     for (const provider of ["claude", "codex", "cursor", "antigravity", "copilot"] as const) {
       const result = providerEnv(input(provider, { inherited: { ...inherited, DOAN_CONVERSATION_ID: "other" } }));

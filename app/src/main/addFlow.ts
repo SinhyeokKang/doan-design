@@ -13,7 +13,7 @@ export interface PickFacts {
   path: string;
   isDir: boolean;
   // `doan ls --json` run in the picked folder, which does not search ancestors
-  // for a repo it was not asked about (R1): only Go decides what is a doan repo.
+  // for a repo it was not asked about: only Go decides what is a doan repo.
   ls: FolderState;
   // `ls --repo <picked>`, run only when `ls` failed (see `openDecision`).
   asRepo: FolderState | null;
@@ -24,7 +24,7 @@ export interface PickFacts {
   saved: readonly string[];
 }
 
-// A parent of several repos must not become a project of its own (P4).
+// A parent of several repos must not become a project of its own.
 export function classifyPick({ path, isDir, ls, asRepo, hasGit, children, saved }: PickFacts): PickDecision {
   if (!isDir) return { kind: "drop" };
   const stored = (target: string): PickDecision => (saved.includes(target) ? { kind: "duplicate", path: target } : { kind: "store", path: target });

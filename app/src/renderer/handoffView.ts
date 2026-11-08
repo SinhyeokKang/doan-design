@@ -5,7 +5,7 @@ import { sameCanvas } from "./canvasConversationRows";
 import { startErrorView } from "./homeComposer";
 import type { ThreadItem } from "./threadItems";
 
-// canvas-handoff design §6: the handoff lines' and the card's copy, and whether a started handoff moves the screen.
+// The handoff lines' and the card's copy, and whether a started handoff moves the screen.
 
 // main's BIND_GRACE_MS: how long a move waits for the renderer's list to name the target before it turns into the toast.
 export const HANDOFF_WAIT_MS = 10_000;

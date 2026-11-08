@@ -126,7 +126,7 @@ it("accepts only a model, and an effort of that model, from the list delivered f
   expect(c.models.accepts("/repo", "codex", "sonnet", undefined)).toBe(false);
 });
 
-// buzz-conversation fix 1: Codex's turn/start effort overrides "this turn and subsequent turns" (0.164.0 TurnStartParams),
+// Codex's turn/start effort overrides "this turn and subsequent turns" (0.164.0 TurnStartParams),
 // so a model sent without effort needs the model's default said out loud.
 it("keeps a Codex model's default effort only when it is one of its levels", () => {
   expect(parseCodexModels({ data: [
@@ -149,7 +149,7 @@ it("answers a model's default effort from the list delivered for that folder and
   expect(c.models.defaultEffort("/other", "codex", "gpt")).toBeUndefined();
 });
 
-// permission-mode S2: ACP mode lists come from the same session/new reply as the models, with no extra request.
+// ACP mode lists come from the same session/new reply as the models, with no extra request.
 const COPILOT = "https://agentclientprotocol.com/protocol/session-modes#";
 it("reads an ACP session/new mode list and whether Copilot offers allow_all", () => {
   expect(parseAcpModes({ sessionId: "s", modes: { currentModeId: "agent", availableModes: [{ id: "agent", name: "Agent" }, { id: "plan", name: "Plan" }, { id: "ask", name: "Ask" }, { id: "" }, "x"] } }))
@@ -219,7 +219,7 @@ it("accepts Fast only from an available model in this run's received root and pr
   expect(restarted.models.accepts("/repo", "claude", "fast", undefined, true)).toBe(false);
 });
 
-// fast-mode A3: whether a turn's model takes Fast now, the list's default row standing in for a conversation that has
+// Whether a turn's model takes Fast now, the list's default row standing in for a conversation that has
 // no stored model; nothing before this run read the list.
 it("answers whether a model takes Fast from this run's list, the default row standing in for no model", async () => {
   const c = catalog();
@@ -242,7 +242,7 @@ it("answers whether a model takes Fast from this run's list, the default row sta
   expect(c.models.fast("/repo", "cursor", undefined)).toBe(false);
 });
 
-// model-drawer-older: a provider's earlier generations are marked `older`, the menu folds them.
+// A provider's earlier generations are marked `older`, the menu folds them.
 const measured = JSON.parse(readFileSync(join(__dirname, "fixtures", "models-older.json"), "utf8"));
 const split = (models: ModelOption[]): [string[], string[]] => [models.filter(m => !m.older).map(m => m.id), models.filter(m => m.older).map(m => m.id)];
 const row = (id: string, isDefault = false) => ({ id, name: id, isDefault });
@@ -302,7 +302,7 @@ it("marks Codex and ACP rows older only after duplicates are removed, and keeps 
     { id: "m-2", label: "m-2", default: false },
   ]);
 });
-// Review RA 🟡: a duplicate Claude row that unique drops must not lend its resolvedModel to the row kept.
+// A duplicate Claude row that unique drops must not lend its resolvedModel to the row kept.
 it("classifies a kept Claude row by its own resolvedModel, never a dropped duplicate's", () => {
   expect(parseClaudeModels([{ value: "alias", displayName: "First alias" }, { value: "alias", resolvedModel: "m-1" }, { value: "m-2" }])).toEqual([
     { id: "alias", label: "First alias", default: false },

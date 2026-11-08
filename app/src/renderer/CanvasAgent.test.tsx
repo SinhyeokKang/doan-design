@@ -7,7 +7,7 @@ import { CanvasAgent } from "./CanvasAgent";
 import { crossesBoundary, NoticeTyping, typesOn, type TypedText } from "./noticeTyping";
 import { TooltipProvider } from "./components/ui/tooltip";
 
-// buzz-canvas R5: the board's agent indicator (.doan/canvases/buzz-canvas.html 'agent-working', 'agent-waiting'), drawn
+// The board's agent indicator (.doan/canvases/buzz-canvas.html 'agent-working', 'agent-waiting'), drawn
 // from main's conversation list for the open canvas.
 const canvas = { path: ".doan/canvases/billing.html", id: "billing" };
 const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
@@ -17,7 +17,7 @@ const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
 });
 const markup = (list: readonly ConversationSummary[] | "loading" | "error" | undefined, over: Partial<Parameters<typeof CanvasAgent>[0]> = {}) =>
   renderToStaticMarkup(<TooltipProvider><CanvasAgent list={list} canvas={{ root: "/w/a", canvas }} running={true} work={[]} entries={[]} onOpen={vi.fn()} onOpenSibling={vi.fn()} onStopFailed={vi.fn()} {...over} /></TooltipProvider>);
-// The working notice's visible line (aria-hidden, the text and its caret) and its measuring node (work-update U1).
+// The working notice's visible line (aria-hidden, the text and its caret) and its measuring node.
 const LINE = (text: string, caret = '<span class="doan-agent-caret"></span>') => `<span class="doan-agent-line" aria-hidden="true" data-state="closed" data-slot="tooltip-trigger"><span class="doan-agent-row"><span class="doan-agent-text">${text}</span>${caret}</span></span>`;
 const MEASURE = '<span class="doan-agent-measure" aria-hidden="true"></span>';
 // Without an indicator the column stays, empty, for the canvas notices.
@@ -84,7 +84,7 @@ describe("CanvasAgent", () => {
     expect(markup("error")).toBe(COLUMN);
   });
 
-  // terminal-agent-activity (draft terminal-notice, user decision D1): a terminal session shows the glow, the dot field
+  // Draft terminal-notice: a terminal session shows the glow, the dot field
   // and the app notice's text with no button; the text is the status itself.
   test("a terminal session: the glow and the notice with Doany painting and text, and no button", () => {
     const work = [{ touched: 0, turn: "none:t", session: "s1", provider: "codex" as const, root: "/w/a", path: canvas.path }];
@@ -148,7 +148,7 @@ describe("CanvasAgent", () => {
     });
   });
 
-  // buzz-canvas R6: the canvas notices stack in the same top-centre column, the agent notice first.
+  // The canvas notices stack in the same top-centre column, the agent notice first.
   test("the canvas notices App puts in the column lead with the alert icon, like every shared notice", () => {
     // App's CanvasPane is not rendered without a DOM; its markup is read from the source (DESIGN 'Notices': every
     // notice has the 16px icon on its first line).
@@ -193,7 +193,7 @@ test("the tools are larger and both overlays sit further from the board's edges"
   expect(css).toMatch(/\.doan-agent-text \{[^}]*font-size: var\(--type-body-sm-size\);/);
 });
 
-// terminal-agent-activity user decision D2 (draft terminal-notice): every capsule in the column, the button-less terminal
+// Draft terminal-notice: every capsule in the column, the button-less terminal
 // notice and the picking hint included, takes the app notice's 40px height; the terminal notice has an even inline inset.
 test("the agent notices and the picking hint are 40px tall; the terminal notice's inset is even", () => {
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
@@ -224,7 +224,7 @@ test("the picking hint sits in the bottom column before the Canvas tools, led by
   expect(css).toMatch(/\.doan-picking-icon \{ flex: none; width: var\(--size-icon-sm\); height: var\(--size-icon-sm\); \}/);
 });
 
-// work-update U1 (design decisions 15, 18–20, draft frames notice-states and notice-typing): the working notice's words
+// Draft frames notice-states and notice-typing: the working notice's words
 // from `doan work update`, its caret, its live region and its erase-and-type change.
 describe("the working notice's words", () => {
   const term = (patch: Record<string, unknown> = {}) => [{ session: "s1", provider: "claude" as const, root: "/w/a", path: canvas.path, touched: 10, turn: "t1", ...patch }];
@@ -356,8 +356,8 @@ describe("NoticeTyping", () => {
   });
 });
 
-// work-update U1: the caret's look (design decision 19) and the marker's (decisions 16–17); the draft's always-on slide
-// is only on a frame change (design §1 rule 8).
+// The caret's look and the marker's; the draft's always-on slide
+// is only on a frame change.
 test("the caret blinks in two steps once a second, not while typing or under reduced motion, and is CanvasText in forced colours", () => {
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toMatch(/\.doan-agent-caret \{[^}]*width: calc\(var\(--space-1\) \/ 2\); height: var\(--type-body-sm-size\); background: currentColor; animation: doan-agent-blink 1s step-end infinite;/);
@@ -367,7 +367,7 @@ test("the caret blinks in two steps once a second, not while typing or under red
   expect(css).toMatch(/@media \(forced-colors: active\) \{ \.doan-agent-caret \{ forced-color-adjust: none; background: CanvasText; \} \}/);
 });
 
-// V3 review 🟡5: moving to another canvas or out of view ends a running change at once, even toward the same words;
+// Moving to another canvas or out of view ends a running change at once, even toward the same words;
 // ordinary re-renders while it runs do not.
 describe("typing across a canvas or visibility boundary", () => {
   afterEach(() => vi.useRealTimers());

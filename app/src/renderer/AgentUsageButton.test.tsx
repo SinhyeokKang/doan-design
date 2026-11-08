@@ -126,7 +126,7 @@ describe("UsagePanel", () => {
     expect(rest[1]).toMatch(/^<svg/);
   });
 
-  // E1 measurement: the shared tooltip opens above by default, which put Agent settings' and Refresh usage's over the
+  // measurement: the shared tooltip opens above by default, which put Agent settings' and Refresh usage's over the
   // header button the popover hangs from; the confirmed draft draws every Agent usage tooltip below its button.
   it("opens every tooltip below its button", () => {
     const tips = [...all(UsageView(props(four))), ...all(UsagePanel(props(four)))].filter(element => typeof element.type === "function" && element.type.name === "IconTip");
@@ -137,8 +137,8 @@ describe("UsagePanel", () => {
     }
   });
 
-  // E1 real app: Tab to Agent settings or Refresh usage shows its tooltip, the top dismissable layer, so the first
-  // Escape closed only the tooltip and a second one the popover (as conversation-delete's Delete tooltip did).
+  // real app: Tab to Agent settings or Refresh usage shows its tooltip, the top dismissable layer, so the first
+  // Escape closed only the tooltip and a second one the popover (as the conversation Delete dialog's tooltip did).
   it("closes the popover with the Escape a title-row tooltip takes", () => {
     const view = props(four, { open: true });
     const tips = all(UsagePanel(view)).filter(element => typeof element.type === "function" && element.type.name === "IconTip");
@@ -167,7 +167,7 @@ describe("UsagePanel", () => {
     expect(css).not.toContain(".top:has(");
   });
 
-  // E1 measurement: the app body's tabular figures widened every "1" in the relative times ("Updated 1m ago" by 2.6px,
+  // measurement: the app body's tabular figures widened every "1" in the relative times ("Updated 1m ago" by 2.6px,
   // "12d 4h") against the confirmed draft; the popover is portalled to <body>, so it sets its own.
   it("draws plain numerals in the popover", () => {
     const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");

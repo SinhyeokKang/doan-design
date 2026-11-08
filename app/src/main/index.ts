@@ -20,7 +20,7 @@ import { readUsage } from "./agentAuth/usageRead";
 import { UsageService, withTurnUsage } from "./agentAuth/usageService";
 import { USAGE_CHANNELS, usageRequest } from "./agentAuth/usageIpc";
 import { probeShell, runProcess } from "./onboarding/machine";
-import { osascriptAdmin, runAgentSetup } from "./agentSetup/runner";
+import { osascriptAdmin, runAgentSetup, setupEligibility } from "./agentSetup/runner";
 import type { SetupItem } from "./agentSetup/notice";
 import { ONBOARDING_CHANNELS, OnboardingService, rendererRequest } from "./onboarding/service";
 import { projectLocks, type AdderProjects } from "./onboarding/projectAdder";
@@ -64,7 +64,11 @@ import { folderState } from "./folderState";
 import type { InspectResult } from "./inspect";
 import { createInspector, parseInspectRequest, type Inspector } from "./inspector";
 import { startRuntime, type Runtime } from "./runtime";
-import { menuState, type Screen } from "./menuState";
+import { menuState, updateMenu, type Screen } from "./menuState";
+import { electronUpdater, hasFeedConfig, releaseNotesUrl, UpdateService } from "./update/service";
+import { updateEligibility } from "./update/eligibility";
+import { installGate } from "./update/gate";
+import { updateView, type UpdateMenuView } from "./update/view";
 import { senderAllowed, type WindowKind } from "./senderAllowed";
 import { INSTALL_URLS, NOTIFICATION_SETTINGS_URL, parseExternalTarget, type SettingsPageTarget } from "./settings";
 import { createInstallOpener } from "./installCommand";
@@ -92,7 +96,7 @@ export type TokenCssChoice = { kind: "selected"; choiceId: string; path: string 
 export type ViewCommand = "zoomIn" | "zoomOut" | "actualSize" | "fit" | "reload";
 // Menu items whose work belongs to the renderer's screen state.
 export type MenuCommand = "home" | "quickOpen" | "newConversation" | "pickFromCanvas" | "toggleSidebar";
-// What the renderer reports so main can enable menu items (design 'Menus').
+// What the renderer reports so main can enable menu items.
 // `choose`, `locked`: the Add Projects page shows its choose phase, or a phase nothing may leave (menuState).
 // `overview`: a project Overview shows (File > New Conversation).
 // `pickerAvailable`: the composer takes input and the canvas is loaded, so the menu follows the canvas toolbar's Picker.
@@ -150,7 +154,7 @@ function updateWork(next: WorkState): void {
   armWorkTimer();
   if (workItemsChanged(previous, items)) send("work:changed", items);
 }
-// App conversations' work updates, kept apart from terminal work so they never count as a terminal (design decision 9).
+// App conversations' work updates, kept apart from terminal work so they never count as a terminal.
 let conversationWork: readonly ConversationWork[] = [];
 function updateConversationWork(next: readonly ConversationWork[]): void {
   if (next === conversationWork) return;
@@ -170,7 +174,7 @@ function openLinksReady(): boolean {
 function readyOpenLinks(): void {
   if (openLinksReady()) openLinks.ready();
 }
-// `doan open` (canvas-open-offer): not queued like a link; each request is answered on its own (deepLinks.ts).
+// `doan open`: not queued like a link; each request is answered on its own (deepLinks.ts).
 const openCanvasRequests = openRequests({
   ready: openLinksReady,
   entries: () => shell?.entries() ?? [],
@@ -193,6 +197,9 @@ app.on("did-become-active", () => {
   if (revealPending && win && !win.isDestroyed()) bringForward(win);
 });
 let conversations: ConversationService | undefined;
+let updates: UpdateService | undefined;
+// The menu item's view as last built, so a snapshot that leaves it alone does not rebuild the menu.
+let updateMenuKey = "";
 let agentAuth: AuthManager | undefined;
 let authIpc: AuthIpc | undefined;
 let usage: UsageService | undefined;
@@ -205,7 +212,7 @@ const onboardingStarted = new Promise<OnboardingService>(resolve => { onboarding
 // Each listed folder's canvas rows as last handed to the conversation service (conversation/refreshes.ts).
 let conversationLists = new Map<string, readonly { path: string; rev?: number }[]>();
 let inspector: Inspector | undefined;
-// One selection app-wide (select-inspect R1); the socket answers it only for
+// One selection app-wide; the socket answers it only for
 // its own project. Memory only, never written to disk.
 let selection: Selection | null = null;
 const documents = new DocumentBindings();
@@ -221,7 +228,7 @@ let addFlow: AddFlow | undefined;
 let uiState: UiStateStore | undefined;
 let canvasSeen: CanvasSeenStore | undefined;
 let thumbnails: Thumbnails | undefined;
-// The app always starts on Home (design 'Memory model').
+// The app always starts on Home.
 const HOME: MenuInputs = { screen: "home", modal: false };
 let menuInputs: MenuInputs = HOME;
 const FULLSCREEN_EXIT_WAIT_MS = 2000;
@@ -330,15 +337,23 @@ function editHistory(kind: "undo" | "redo"): NonNullable<MenuItemConstructorOpti
 // Page zoom and reload roles would act on the whole window; the view commands
 // go to the renderer, which zooms the board and reloads only the canvas.
 // The menu is rebuilt whenever its enablement changes.
+function menuEnabledNow() {
+  return menuState(menuInputs.screen, menuInputs.modal, { wizardOpen: onboardingOpen, choose: menuInputs.choose === true, locked: menuInputs.locked === true, overview: menuInputs.overview === true, pickerAvailable: menuInputs.pickerAvailable === true });
+}
+
 function setMenu(): void {
   const view = (command: ViewCommand) => () => send("view-command", command);
   const command = (name: MenuCommand) => () => send("menu-command", name);
-  const enabled = menuState(menuInputs.screen, menuInputs.modal, { wizardOpen: onboardingOpen, choose: menuInputs.choose === true, locked: menuInputs.locked === true, overview: menuInputs.overview === true, pickerAvailable: menuInputs.pickerAvailable === true });
+  const enabled = menuEnabledNow();
+  // Before the service exists the item can only open About.
+  const updateItem = updateMenu(updates ? updateView(updates.snapshot(), Date.now()).menu : { label: "Check for Updates…", action: "openAbout", enabled: true }, enabled);
+  updateMenuKey = JSON.stringify(updateItem);
   Menu.setApplicationMenu(
     Menu.buildFromTemplate([
       // Role labels would read "About doan" from app.name, which stays "doan" for userData.
       { label: "Doan", submenu: [
         { role: "about", label: "About Doan" },
+        { label: updateItem.label, enabled: updateItem.enabled, click: () => updateMenuClick(updateItem.action) },
         { label: "Settings…", accelerator: "CmdOrCtrl+,", enabled: enabled.settings, click: () => openSettingsPage() },
         { type: "separator" }, { role: "services" }, { type: "separator" },
         { role: "hide", label: "Hide Doan" }, { role: "hideOthers" }, { role: "unhide" },
@@ -385,7 +400,7 @@ function setMenu(): void {
         ],
       },
       // Finder's place for Home. Quick Open is a menu item so ⌘K is never only
-      // a hidden key (design-nav draft, after Sorcerer's "Go to…").
+      // a hidden key (after Sorcerer's "Go to…").
       { label: "Go", submenu: [
         { label: "Home", accelerator: "Shift+CmdOrCtrl+H", enabled: enabled.home, click: command("home") },
         { label: "Quick Open…", accelerator: "CmdOrCtrl+K", enabled: enabled.quickOpen, click: command("quickOpen") },
@@ -393,6 +408,19 @@ function setMenu(): void {
       { role: "windowMenu" },
     ]),
   );
+}
+
+// Check for Updates… opens About (and checks, where the copy updates). A blocked Restart to Update does not quit: the
+// window comes forward and the renderer opens the header button's popover with the reason.
+function updateMenuClick(action: UpdateMenuView["action"]): void {
+  if (action !== "restart") {
+    openSettingsPage({ section: "about" });
+    if (action === "check") updates?.check();
+    return;
+  }
+  if (updates?.install()?.kind !== "blocked" || !win || win.isDestroyed()) return;
+  bringForward(win);
+  send("update:popover");
 }
 
 // What Home shortens project paths against; Settings rows get the result.
@@ -425,7 +453,7 @@ function denyPermissions(): void {
   session.defaultSession.setPermissionCheckHandler(() => false);
   session.defaultSession.setDevicePermissionHandler(() => false);
   // Chromium turns an ⌥-clicked canvas link into a download, and the iframe
-  // sandbox without `allow-downloads` does not stop it (select-inspect P6).
+  // sandbox without `allow-downloads` does not stop it.
   session.defaultSession.on("will-download", (event) => event.preventDefault());
 }
 
@@ -484,7 +512,7 @@ function createWindow(): BrowserWindow {
   const owner = window.webContents.id;
   // A sign-in belongs to the renderer that started it; a lost renderer cannot cancel it any more.
   window.webContents.on("render-process-gone", () => { configBridge?.clear(); void agentAuth?.ownerClosed(owner); });
-  // A reloaded renderer has no Project Settings page left to answer (buzz-settings S4).
+  // A reloaded renderer has no Project Settings page left to answer.
   window.webContents.on("did-navigate", () => { configBridge?.clear(); });
   // `.git/HEAD` is not watched, so a branch switched elsewhere shows when the
   // human comes back to the window.
@@ -511,7 +539,7 @@ function createWindow(): BrowserWindow {
       window.setFullScreen(false);
     } else hideWindow(window);
   });
-  // The traffic lights are gone in fullscreen, so the header gives back their space (shell-panel-layout §2.5).
+  // The traffic lights are gone in fullscreen, so the header gives back their space.
   window.on("enter-full-screen", () => send("window:fullscreen", { fullScreen: true }));
   window.on("leave-full-screen", () => send("window:fullscreen", { fullScreen: false }));
   window.on("closed", () => {
@@ -522,7 +550,7 @@ function createWindow(): BrowserWindow {
   return window;
 }
 
-// The open-Settings command (buzz-settings design '들어가는 길'): a hidden window is shown first, then the renderer
+// The open-Settings command: a hidden window is shown first, then the renderer
 // moves to the page. Not while first run is open, like Settings….
 export function openSettingsPage(target: SettingsPageTarget = {}): boolean {
   const window = win;
@@ -689,7 +717,7 @@ async function start(): Promise<void> {
     const id = designSkillGetRequest(value);
     return id === null ? DESIGN_SKILL_REFUSED : interpretGet(await runDesignSkill(cli, id), id);
   });
-  // canvas-row-menu: Move to Trash and Export act only on rows of main's own list. Busy is judged on main's grounds:
+  // Move to Trash and Export act only on rows of main's own list. Busy is judged on main's grounds:
   // this root's conversations, its unjudged project turns and terminal work.
   const canvasTrash = createCanvasTrash({
     entries: () => ready.entries(),
@@ -730,7 +758,7 @@ async function start(): Promise<void> {
     handoff: request => conversations ? conversations.requestHandoff(request) : "not_app_conversation",
     async onboarding(request) {
       const service = await onboardingStarted;
-      // start keeps the session and its input (design '설치 직후 진입'); the window comes forward only when Doan is
+      // start keeps the session and its input; the window comes forward only when Doan is
       // already in front.
       if (request.op === "start" && win && !win.isDestroyed()) revealForStart(win);
       return service.answer(request);
@@ -753,7 +781,7 @@ async function start(): Promise<void> {
   try { await auth.load(); agentAuth = auth; } catch (error) { console.error("doan: agent sign-in storage is unreadable", error); }
   const executable = (path: string) => { try { accessSync(path, fsConstants.X_OK); return statSync(path).isFile(); } catch { return false; } };
   const shellForFacts = sharedShell(() => probeShell(process.env));
-  // Agent setup (zero-setup-agents design '언제, 어떤 복사본이 쓰는가'): once per launch, beside the window rather than
+  // Agent setup (ARCHITECTURE §7 'Agent setup'): once per launch, beside the window rather than
   // before it. About waits for this result, which stays pending while the administrator dialog is open; a run that
   // throws becomes a crashed item, so About never shows its failure as "every agent was set up".
   const agentSetup = shellForFacts().then(probe => runAgentSetup({
@@ -793,7 +821,7 @@ async function start(): Promise<void> {
     });
   }
   handle(USAGE_CHANNELS.read, [], (_event, value) => usage ? usageRequest(usage, value) : []);
-  // MCP Connectors (mcp-connectors): provider CLIs register, sign in and keep the tokens in the Doan profiles; Doan
+  // MCP Connectors: provider CLIs register, sign in and keep the tokens in the Doan profiles; Doan
   // keeps the server list. It needs agent sign-in storage: without it every MCP call is refused like a forged one.
   if (agentAuth) {
     const auth = agentAuth;
@@ -854,7 +882,7 @@ async function start(): Promise<void> {
   const realOrNull = (path: string) => { try { return realpathSync(path); } catch { return null; } };
   // The developer directory xcode-select would use, read without running it (see locateGit).
   const developerDir = () => { if (process.env.DEVELOPER_DIR) return process.env.DEVELOPER_DIR; try { return readlinkSync("/var/db/xcode_select_link"); } catch { return null; } };
-  // First run and the Add Projects page add projects with the same folder work and locks (design 'main의 project 처리').
+  // First run and the Add Projects page add projects with the same folder work and locks.
   const locks = projectLocks();
   const projectWork: AdderProjects = {
     folder: canonicalFolder, destination: path => cloneDestination(path, projectDeps),
@@ -901,7 +929,7 @@ async function start(): Promise<void> {
     });
   }
   // The legacy external prepare gets no records: its runs use the user's own profile and readiness does not cover them.
-  // Runs read the MCP connectors' generation and names when they ask (mcp-connectors C1/C2).
+  // Runs read the MCP connectors' generation and names when they ask.
   const accountPrepare = createAccountPrepare(auth, cli, provider => void authIpc?.refreshTools(provider), authIpc, connectorFacts(() => mcp));
   // Without readable account storage a doan-account run is refused; it never falls back to the external profile.
   const prepareConversation = routePrepare(createPrepare(userData, join(userData, "runtime.json"), process.env),
@@ -935,7 +963,9 @@ async function start(): Promise<void> {
     reencode: bytes => { const image = nativeImage.createFromBuffer(Buffer.from(bytes)); return image.isEmpty() ? null : new Uint8Array(image.toPNG()); },
   });
   let modelCatalog: ModelCatalog | undefined;
-  const conversationService = new ConversationService(conversationStore, prepareConversation, openRunner, event => { send("conversation:event", event); notify.event(event); }, (root, canvas) => {
+  // Every conversation event, and every end of a turn's work (a history that stopped taking writes publishes no event),
+  // may start or end a turn or a question, which Restart to Update waits for.
+  const conversationService = new ConversationService(conversationStore, prepareConversation, openRunner, event => { send("conversation:event", event); notify.event(event); updates?.conversationsChanged(); }, (root, canvas) => {
     const project = ready.entries().find(entry => entry.path === root);
     if (!project) throw new Error("project_not_open");
     if (canvas) {
@@ -947,7 +977,7 @@ async function start(): Promise<void> {
     return project?.kind === "list" ? project.canvases : [];
   }, root => send("conversation:listChanged", { root }), { drafts: conversationDrafts, files: queueFiles(attachments), defaultEffort: (root, provider, model) => modelCatalog?.defaultEffort(root, provider, model), fast: (root, provider, model) => modelCatalog?.fast(root, provider, model) === true }, id => notify.close(id),
   // A stage is a live signal beside the events, never one of them: its own channel, to the main window only as events go.
-  id => updateConversationWork(endConversationWork(conversationWork, id)), notice => send("conversation:handoff", notice), signal => send("conversation:stage", signal));
+  id => { updateConversationWork(endConversationWork(conversationWork, id)); updates?.conversationsChanged(); }, notice => send("conversation:handoff", notice), signal => send("conversation:stage", signal));
   conversations = conversationService;
   attachments.cleanup();
   modelCatalog = new ModelCatalog((root, runtime) => conversationService.prepareListing(root, runtime), input => conversationService.readListing(input, listModels));
@@ -1083,10 +1113,15 @@ async function start(): Promise<void> {
   });
   handle("ui-state:get", null, (event) => (fromWindow(event) ? store.read() : null));
   handle("ui-state:save", false, (event, value: unknown) => fromWindow(event) && store.save(value));
-  // buzz-settings: the Settings page's preferences, notifications and About. Main fixes the URL, the notification
+  // The Settings page's preferences, notifications and About. Main fixes the URL, the notification
   // and the clipboard text; the renderer sends a change or nothing.
   handle("preferences:read", null, () => preferences.read());
-  handle("preferences:write", null, (_event, value: unknown) => preferences.update(value));
+  handle("preferences:write", null, async (_event, value: unknown) => {
+    const reply = await preferences.update(value);
+    // The choice in effect, which a refused or failed write leaves as it was.
+    updates?.setAutoCheck(reply.snapshot.preferences.updates.autoCheck);
+    return reply;
+  });
   handle("notifications:test", null, (_event, value: unknown) => value === undefined ? notify.test() : null);
   handle("notifications:open-settings", false, async (_event, value: unknown) => {
     if (value !== undefined) return false;
@@ -1159,8 +1194,38 @@ async function start(): Promise<void> {
     return lastAbout;
   };
   handle("about:read", null, (_event, value: unknown) => value === undefined ? readAbout() : null);
+  // App updates (ARCHITECTURE §7). Eligibility is agent setup's for this bundle, asked without waiting for setup's
+  // login-shell probe, plus the release feed file; a copy that doesn't update never makes an updater.
+  const updateService = new UpdateService({
+    version: app.getVersion(),
+    eligibility: updateEligibility({
+      isPackaged: app.isPackaged, hasFeedConfig: hasFeedConfig(process.resourcesPath),
+      install: setupEligibility({ home: homeDirectory(), resources: process.resourcesPath, isPackaged: app.isPackaged }),
+    }),
+    autoCheck: preferences.current().updates.autoCheck,
+    ...electronUpdater(),
+    gate: () => installGate(conversationService.restartHolds()),
+    publish: snapshot => {
+      send("update:state", snapshot);
+      if (JSON.stringify(updateMenu(updateView(snapshot, Date.now()).menu, menuEnabledNow())) !== updateMenuKey) setMenu();
+    },
+    quit: () => app.quit(),
+    relaunch: () => app.relaunch(),
+    log: (message, detail) => { if (detail === undefined) console.log(message); else console.error(message, detail); },
+    now: () => Date.now(),
+  });
+  updates = updateService;
+  handle("update:get", null, (_event, value: unknown) => value === undefined ? updateService.snapshot() : null);
+  handle("update:check", undefined, (_event, value: unknown) => { if (value === undefined) updateService.check(); });
+  handle("update:install", null, (_event, value: unknown) => value === undefined ? updateService.install() : null);
+  // Main builds the URL from the version it holds; the renderer names nothing.
+  handle("update:openNotes", false, async (_event, value: unknown) => {
+    const url = value === undefined ? releaseNotesUrl(updateService.snapshot()) : null;
+    if (url === null) return false;
+    try { await electronShell.openExternal(url); return true; } catch { return false; }
+  });
   // Copies what About last showed, so the text matches the page.
-  handle("about:copy", { kind: "stale" }, async (_event, value: unknown) => value === undefined ? copy(aboutText(lastAbout ?? await readAbout())) : { kind: "stale" });
+  handle("about:copy", { kind: "stale" }, async (_event, value: unknown) => value === undefined ? copy(aboutText(lastAbout ?? await readAbout(), updateService.snapshot())) : { kind: "stale" });
   handle("onboarding:choose-folder", null, (event, value: unknown) => fromWindow(event) ? chooseFolder(value) : null);
 
   const bridge = createConfigBridge({
@@ -1196,6 +1261,7 @@ async function start(): Promise<void> {
   setMenu();
   win = createWindow();
   onboardingReady(onboardingService);
+  updateService.start();
 }
 
 // A second launch only brings the first window back, so two apps never
@@ -1232,6 +1298,7 @@ app.on("before-quit", (event) => {
     // the capture window and block will-quit. Persist state before teardown.
     try { await conversations?.quit(); } catch (error) {
       quitScheduled = false;
+      updates?.quitCancelled();
       onboarding?.reopenAfterAbortedQuit();
       addPage?.reopenAfterAbortedQuit();
       console.error("doan: conversation persistence failed during quit", error);
@@ -1258,7 +1325,10 @@ app.on("before-quit", (event) => {
     try { cancelPendingHide(); uiState?.flushSync(); canvasSeen?.flushSync(); thumbnails?.dispose(); } catch (error) {
       console.error("doan: final cleanup failed during quit", error);
     }
-    app.quit();
+    // Restart to Update installs only here, after the save and the flush; quitting is set, so the windows the install
+    // closes are not turned into hides.
+    if (updates?.installPending) updates.quitAndInstall();
+    else app.quit();
   }
   setImmediate(() => { void quitInOrder(); });
 });

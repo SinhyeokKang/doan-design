@@ -81,7 +81,7 @@ test("a prompt that arrives while no page shows the rows is kept: shown again, t
   expect(row.paste?.button.label).toBe("Paste its address");
 });
 
-// buzz-settings R2: codex login opens the default browser itself (its webbrowser crate), so a second open from Doan
+// codex login opens the default browser itself (its webbrowser crate), so a second open from Doan
 // showed the user two sign-in pages. Its prompt only lights Open again.
 test("a Codex sign-in opens nothing: the CLI opens its own browser page", async () => {
   const h = harness();
@@ -214,7 +214,7 @@ test("cancelOwned cancels only the sign-ins this renderer started", async () => 
   expect(h.api.cancelAgentSignIn.mock.calls).toEqual([["claude", "sign-1"]]);
 });
 
-// review-BP 🟡1: a queued row announcement keeps where it came from, so a check is never told as a sign-in.
+// a queued row announcement keeps where it came from, so a check is never told as a sign-in.
 test("a check that turned ready in the background is not a toast once the page that would announce it is gone", async () => {
   const h = harness(false);
   h.controller.start();
@@ -242,7 +242,7 @@ test("a sign-in that finished in the background is one toast once the page that 
   expect(h.announced).toEqual([]);
 });
 
-// review-BP ⚪1: the controller's own lifetime.
+// the controller's own lifetime.
 test("start after dispose subscribes again, and each snapshot and prompt is handled once", async () => {
   const h = harness();
   const changed = vi.fn();

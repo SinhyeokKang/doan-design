@@ -1,6 +1,6 @@
 import { editableTarget } from "./selection";
 
-// The canvas tools a person switches between (canvas-hand-tool spec 결정 1). A pick is not one: it runs ahead of the
+// The canvas tools a person switches between. A pick is not one: it runs ahead of the
 // tool for a moment and leaves it as it was.
 export type CanvasTool = "select" | "hand";
 

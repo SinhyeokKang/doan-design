@@ -31,7 +31,7 @@ describe("parseClaudeSkills", () => {
       { name: "kept", description: "Kept. (project)", argumentHint: "" },
     ])).toEqual([{ name: "kept", description: "Kept." }]);
   });
-  // A project skill named doan is hidden too: the name alone tells the stub apart (spec 'non-goals', accepted).
+  // A project skill named doan is hidden too: the name alone tells the stub apart, and hiding such a skill is accepted.
   it("leaves out a project row named doan", () => {
     expect(parseClaudeSkills([{ name: "doan", description: "Repo skill. (project)" }])).toEqual([]);
   });

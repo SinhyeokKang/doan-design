@@ -1,6 +1,6 @@
-// The working notice's erase-and-type change (work-update design decisions 19–20, draft frame notice-typing).
+// The working notice's erase-and-type change (draft frame notice-typing).
 
-// Tunable (tasks E2): per erased and per typed character, and the most one change may take.
+// Tunable: per erased and per typed character, and the most one change may take.
 export const ERASE_MS = 20;
 export const TYPE_MS = 35;
 export const TYPING_CAP_MS = 1000;
@@ -20,7 +20,7 @@ function graphemes(text: string): string[] {
 
 // The common start stays; the rest of `from` is erased one character at a time, then the rest of `to` typed. A change
 // longer than `capMs` has both intervals scaled by the same ratio, so a long note never runs into the next update.
-// The floor is the shorter text's width: the card never shrinks below it while the text changes (decision 20).
+// The floor is the shorter text's width: the card never shrinks below it while the text changes.
 export function typingSteps(from: string, to: string, options: { eraseMs?: number; typeMs?: number; capMs?: number; fromWidth: number; toWidth: number }): TypingStep[] {
   if (from === to) return [];
   const { eraseMs = ERASE_MS, typeMs = TYPE_MS, capMs = TYPING_CAP_MS, fromWidth, toWidth } = options;

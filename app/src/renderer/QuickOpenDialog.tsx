@@ -58,7 +58,7 @@ export function quickOpenKey(key: string, active: number, count: number): { kind
 
 const TABS: readonly { kind: SearchKind; label: string; Icon: typeof Layers }[] = [
   { kind: "all", label: "All", Icon: Layers },
-  // The tab holds both kinds of canvas, so it takes the plain canvas icon (design-system-canvases Q8).
+  // The tab holds both kinds of canvas, so it takes the plain canvas icon.
   { kind: "canvas", label: "Canvases", Icon: PanelsTopLeft },
   { kind: "frame", label: "Frames", Icon: Hash },
 ];

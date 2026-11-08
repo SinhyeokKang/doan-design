@@ -33,7 +33,7 @@ export function splitMarkers(text: string, count: number): MessagePart[] {
 export interface FrameName { id: string; title?: string }
 export interface ChipLabel { kind: "frame" | "element" | "point"; label: string; title: string }
 
-// People read roles, not tags; a class-derived name is never used (design §2 'Chip field').
+// People read roles, not tags; a class-derived name is never used.
 const ELEMENT_NAMES: Record<string, string> = {
   h1: "heading", h2: "heading", h3: "heading", h4: "heading", h5: "heading", h6: "heading",
   a: "link", img: "image", input: "field", textarea: "field", select: "field", button: "button",

@@ -2,7 +2,7 @@
 // wrapped in a function. Anything that can be decided without the DOM lives in lib.js (and is
 // tested there); this file only reads and writes the page.
 //
-// What it takes from the app's canvas view (design 'viewer shell'): the iframe is `doan:width`
+// What it takes from the app's canvas view: the iframe is `doan:width`
 // wide and as tall as the canvas reports (lib.js height rules); the window only changes the
 // zoom; zoom and the frame jump use the app's constants and Fit rules; the Select and Hand tools,
 // Space and V/H/Esc use the app's key rules (lib.js toolShortcut). The canvas reports only Space,

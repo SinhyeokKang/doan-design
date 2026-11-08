@@ -3,7 +3,7 @@ import { expect, test, vi } from "vitest";
 import { ProjectScreen, projectFocusNode, projectNotice, type ProjectScreenProps } from "./Onboarding";
 import type { ProjectStepState } from "./projectStep";
 
-// buzz-add-projects U2: the page renders the onboarding Project screen with the differences in design '온보딩과의 공유'.
+// The page shares onboarding's Project screen, with its own heading and footer because it adds a project without wizard steps.
 const noop = () => {};
 const on: ProjectScreenProps["on"] = { back: noop, backToAgents: noop, chooseFolder: noop, chooseExisting: noop, setUrl: noop, find: noop, cancelInspect: noop, edit: noop,
   pickListed: noop, useListed: noop, pickCandidate: noop, select: noop, setUp: noop, changeDestination: noop, useExisting: noop, clone: noop, cancelClone: noop, complete: noop, retry: noop, setStorage: noop };
@@ -27,8 +27,8 @@ test("the page footer is Cancel, plus the step's primary only for candidates and
   expect(page({ phase: { kind: "setup", inspectionId: "i", url: null, path: "/w/a", changes: [] } })).toContain(">Set up and add</button>");
 });
 
-// S1 (design-sync, conductor decision B): the page's footer only leaves, so a local folder's setup offers Choose
-// another folder under its panel, as drawn; first run keeps its shipped setup panel (spec 완료 조건 12·13).
+// the page's footer only leaves, so a local folder's setup offers Choose
+// another folder under its panel, as drawn; first run keeps its shipped setup panel.
 test("a local folder's setup offers Choose another folder on the page only", () => {
   const setup: Partial<ProjectStepState> = { phase: { kind: "setup", inspectionId: "i", url: null, path: "/w/a", changes: [] } };
   const other = '<div class="ob-small-action"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Choose another folder</button></div>';
@@ -38,7 +38,7 @@ test("a local folder's setup offers Choose another folder on the page only", () 
   expect(firstRun).not.toContain("Choose another folder");
 });
 
-// review-BS ⚪4: a setup error whose recovery already offers Choose another folder does not repeat it underneath.
+// a setup error whose recovery already offers Choose another folder does not repeat it underneath.
 test("a failed local setup shows Choose another folder once, in its recovery", () => {
   for (const code of ["init_failed", "config_invalid"] as const) {
     const html = page({ phase: { kind: "setup", inspectionId: "i", url: null, path: "/w/a", changes: [] }, error: { code } });
@@ -83,7 +83,7 @@ test("first run's Project step takes the same card drop", () => {
   expect(html).toMatch(/Choose folder<\/button><\/div><div class="doan-notice error doan-panel ob-project-notice ob-drop-notice" role="alert" tabindex="-1">.*?<span>Only folders can be added\.<\/span>/);
 });
 
-// The shared focus hook's decision (design '포커스'); the page and first run pass their own scene root.
+// The shared focus hook's decision; the page and first run pass their own scene root.
 interface Fake { isConnected: boolean; disabled: boolean; matches(selector: string): boolean; focus(): void; closest?(): null; dataset?: Record<string, string> }
 const node = (over: Partial<Fake> = {}): Fake => { const n: Fake = { isConnected: true, disabled: false, matches: s => s === ":disabled" ? n.disabled : false, focus: vi.fn(), dataset: {}, ...over }; return n; };
 function root(found: Record<string, Fake | null>) { return { querySelector: (selector: string) => Object.entries(found).find(([key]) => selector.includes(key))?.[1] ?? null }; }
@@ -106,9 +106,9 @@ test("focus: a closed folder sheet hands focus back to its button, else the aler
   }
 });
 
-// U5: the page's CSS lives in styles.css (POSTMORTEM 2026-10-25 'Production CSS extraction concealed missing
+// the page's CSS lives in styles.css (POSTMORTEM 2026-10-25 'Production CSS extraction concealed missing
 // development styles'), from the draft's add-panel, card drop and lock rules.
-test("U5: the panel scrolls whole, the card holds its drop target, and the lock takes the disabled ink", async () => {
+test("the panel scrolls whole, the card holds its drop target, and the lock takes the disabled ink", async () => {
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toMatch(/\.add-panel \{ display: flex; flex-direction: column; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain;/);
@@ -119,10 +119,10 @@ test("U5: the panel scrolls whole, the card holds its drop target, and the lock 
   for (const source of ["./AddProjectsPage.tsx", "./Onboarding.tsx"]) expect(readFileSync(new URL(source, import.meta.url), "utf8")).not.toMatch(/import .*\.css/);
 });
 
-// S1 (design-sync): the page's shared Project screen is drawn in first run's 14/20 body text with plain numerals,
+// the page's shared Project screen is drawn in first run's 14/20 body text with plain numerals,
 // like the onboarding overlay; the panel otherwise passes on the app body's 13px/normal and tabular numerals. The
 // panel scrolls only vertically, as drawn.
-test("S1: the page panel sets first run's body text and clips sideways", async () => {
+test("the page panel sets first run's body text and clips sideways", async () => {
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   const rule = /\.add-panel \{([^}]*)\}/.exec(css)?.[1] ?? "";
@@ -130,16 +130,16 @@ test("S1: the page panel sets first run's body text and clips sideways", async (
     expect(rule).toContain(declaration);
 });
 
-// review-BU2 🟡1: a locked menu item shows no highlight fill, and its icon and path take the disabled ink; the selected
+// a locked menu item shows no highlight fill, and its icon and path take the disabled ink; the selected
 // worktree keeps its own fill and check.
-test("U5: locked project-menu items get no highlight fill and disabled ink on their icon and path", async () => {
+test("locked project-menu items get no highlight fill and disabled ink on their icon and path", async () => {
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toContain('.doan-menu-item[aria-disabled="true"]:not([aria-current="true"]):is([data-highlighted], [data-state="open"]) { background: transparent; }');
   expect(css).toContain('.shell-project-menu .doan-menu-item[aria-disabled="true"] > svg:first-child, .shell-worktree[aria-disabled="true"] small { color: var(--text-disabled); }');
 });
 
-// Conductor decision ⚪1: a drop notice never takes focus, so an error that follows it is the one announced.
+// a drop notice never takes focus, so an error that follows it is the one announced.
 test("focus: the drop notice is never the alert focus goes to", () => {
   const dropNotice = node(), error = node(), heading = node();
   const scene = { querySelector: (selector: string) => !selector.includes('role="alert"') ? null : selector.includes(":not(.ob-drop-notice)") ? error : dropNotice };

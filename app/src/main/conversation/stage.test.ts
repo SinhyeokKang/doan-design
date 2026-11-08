@@ -14,7 +14,7 @@ import { GENERIC_SUMMARY, initialTransport, normalizeClaude, normalizeCodex, typ
 import { acpPromptDone, initialAcp, normalizeAcp, type AcpTransport } from "./acp";
 import type { EventPayload, TransportState, TurnStage } from "./types";
 
-// turn-activity B1/B2: the stage each normalizer reports beside its events (design §2, §3). The stage goes out after
+// The stage each normalizer reports beside its events. The stage goes out after
 // the frame's events, so each step keeps the two together in frame order.
 interface Step { events: EventPayload[]; stage?: TurnStage }
 const TERMINALS = ["turn.done", "turn.failed", "interrupted"];
@@ -23,7 +23,7 @@ const THINKING: TurnStage = { kind: "thinking" };
 const COMMAND: TurnStage = { kind: "tool", activity: "command", summary: GENERIC_SUMMARY.command };
 const stagesOf = (steps: Step[]) => steps.flatMap(step => step.stage ? [step.stage] : []);
 const eventsOf = (steps: Step[]) => steps.flatMap(step => step.events);
-// The stages with each repeat folded, as main sends them (C1 drops a stage equal to the last one).
+// The stages with each repeat folded, as main sends them (it drops a stage equal to the last one).
 const folded = (stages: TurnStage[]) => stages.filter((stage, i) => i === 0 || JSON.stringify(stage) !== JSON.stringify(stages[i - 1]));
 // After the turn's terminal, no step reports a stage.
 function expectNoStageAfterTerminal(steps: Step[]) {
@@ -74,7 +74,7 @@ describe("Claude stages", () => {
     const frames = claudeThinking.thinking as Record<string, any>[], { steps } = claudeSteps(frames);
     const stop = (index: number) => frames.findIndex(f => f.type === "stream_event" && f.event.type === "content_block_stop" && f.event.index === index);
     expect(steps[stop(0)]!.stage).toEqual(GENERAL);
-    // The tool block's stop comes after the activity, which already tells the tool (design §2).
+    // The tool block's stop comes after the activity, which already tells the tool.
     expect(steps.findIndex(step => step.events.some(e => e.type === "activity"))).toBeLessThan(stop(1));
     expect(steps[stop(1)]!.stage).toBeUndefined();
   });
@@ -87,7 +87,7 @@ describe("Claude stages", () => {
     const nested = frames.flatMap((frame, i) => frame.parent_tool_use_id ? [i] : []);
     expect(nested.length).toBeGreaterThan(0);
     for (const i of nested) expect(steps[i]).toEqual({ events: [] });
-    // While the subagent runs the Agent activity is the newest event, so the indicator is in the 도구(event) state: no
+    // While the subagent runs the Agent activity is the newest event, so the indicator is in the tool state that event gives: no
     // general follows it, not even at the Agent tool block's stop, until the Agent's own tool result.
     const agent = steps.findIndex(step => step.events.some(e => e.type === "activity"));
     const result = frames.findIndex(f => f.type === "user" && !f.parent_tool_use_id && f.message.content.some((c: { type: string }) => c.type === "tool_result"));
@@ -151,7 +151,7 @@ describe("Codex stages", () => {
       { kind: "tool", activity: "read", path: "/repo/notes.txt", summary: "notes.txt" },
       GENERAL,
     ]);
-    // The stage goes out with its item's activity event, which stays a command (design 결정 6).
+    // The stage goes out with its item's activity event, which stays a command.
     const started = steps.filter(step => step.stage?.kind === "tool");
     for (const step of started) expect(step.events).toEqual([{ type: "activity", kind: "command", summary: GENERIC_SUMMARY.command }]);
     expectNoStageAfterTerminal(steps);
@@ -174,7 +174,7 @@ describe("Codex stages", () => {
   it("shows a read path outside the root as written, and inside it relative", () => {
     expect(stagesOf(codexSteps([command([{ type: "read", command: "COMMAND_TEXT", name: "a", path: "/elsewhere/a.txt" }])]).steps)).toEqual([{ kind: "tool", activity: "read", path: "/elsewhere/a.txt", summary: "/elsewhere/a.txt" }]);
     expect(stagesOf(codexSteps([command([{ type: "read", command: "COMMAND_TEXT", name: "a", path: "src/a.ts" }])]).steps)).toEqual([{ kind: "tool", activity: "read", path: "src/a.ts", summary: "src/a.ts" }]);
-    // A file named like the generic phrase keeps its path, which is what the renderer goes by (review RU-R2).
+    // A file named like the generic phrase keeps its path, which is what the renderer goes by.
     expect(stagesOf(codexSteps([command([{ type: "read", command: "COMMAND_TEXT", name: "Reading files", path: "Reading files" }])]).steps)).toEqual([{ kind: "tool", activity: "read", path: "Reading files", summary: "Reading files" }]);
   });
   it.each([
@@ -324,7 +324,7 @@ describe("ACP stages", () => {
     expect(ended.terminal).toBe(true);
     expect(stagesOf(acpSteps(copilotThought.turn.filter(f => f.method), ended).steps)).toEqual([]);
   });
-  // R1: Copilot started a search, a glob and a 6 s command within 4 ms; the first two completed 72 ms later.
+  // Copilot started a search, a glob and a 6 s command within 4 ms; the first two completed 72 ms later.
   it("keeps the command that still runs as the stage when Copilot's parallel search and glob complete", () => {
     const { steps } = acpSteps(copilotParallel.turn);
     const SEARCH: TurnStage = { kind: "tool", activity: "other", path: "/repo", summary: "Searching for 'QUERY'" };
@@ -399,7 +399,7 @@ describe("ACP stages", () => {
   });
 });
 
-describe("ACP tool summary (B2)", () => {
+describe("ACP tool summary", () => {
   // In the recorded turns no completion changes a tool's kind, path or title after its last running update, so the stage
   // that tool showed while it ran is its completed activity's kind, path and summary.
   it.each([
@@ -434,7 +434,7 @@ describe("ACP tool summary (B2)", () => {
     expect(running).toEqual({ kind: "tool", activity: "edit", path: "/repo/a.txt", summary: "Edit `/repo/a.txt`" });
   });
   it("keeps the recorded ACP turns' activities as they were", () => {
-    // The A1 turns are pinned whole in turnActivityFixtures.test.ts.
+    // The recorded turns are pinned whole in turnActivityFixtures.test.ts.
     const activities = (frames: readonly unknown[]) => eventsOf(acpSteps(frames as Record<string, any>[]).steps).filter(e => e.type === "activity");
     expect(activities(cursorFixture.turn)).toEqual([
       { type: "activity", kind: "edit", path: "/repo/hello.txt", insideDesign: false, summary: "Edit `/repo/hello.txt`" },

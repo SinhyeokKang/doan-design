@@ -107,7 +107,7 @@ describe("canvasRows", () => {
     expect(rows[0]).not.toHaveProperty("title");
   });
 
-  // project-feedback design §1: a row ls could not read stays in the tree
+  // A row ls could not read stays in the tree
   // with its error.
   test("keeps unreadable rows with their error, and ignores a comments error", () => {
     const rows = canvasRows([

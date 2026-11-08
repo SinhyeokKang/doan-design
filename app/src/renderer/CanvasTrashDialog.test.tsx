@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test, vi } from "vitest";
 import { CanvasTrashDialog, trashDialogView } from "./CanvasTrashDialog";
 
-// canvas-row-menu design 'Alert Dialog' and '문구'.
+// PRODUCT §5 item 1 'Canvas row menu'.
 const PATH = ".doan/canvases/checkout.html";
 function all(node: ReactNode): ReactElement<Record<string, unknown>>[] {
   if (Array.isArray(node)) return node.flatMap(all);
@@ -27,7 +27,7 @@ test("Move to Trash waits for main's plan and holds while an agent works, with t
   expect(trashDialogView("checkout", PATH, { kind: "ready", comments: true }, false)).toMatchObject({ confirmable: true, reason: null });
   const working = "An agent started working on this canvas. Try again when it finishes.";
   expect(trashDialogView("checkout", PATH, { kind: "ready", comments: true }, true)).toMatchObject({ confirmable: false, reason: working });
-  // Main's own busy plan reads the same way (conductor decision for C2).
+  // Main's own busy plan reads the same way.
   expect(trashDialogView("checkout", PATH, { kind: "refused", reason: "busy" }, false)).toMatchObject({ confirmable: false, reason: working });
 });
 

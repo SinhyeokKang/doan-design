@@ -135,8 +135,11 @@ design-draft·design-sync의 "on main"은 "출시됐다"가 아니라 "통합됐
 - 제약: 마지막 정식 태그에서 나오므로 `main`에 나가 있는 rc 내용이 hotfix에 섞이지 않는다.
 
 ### D2. GitHub 기본 브랜치 — 결론(사용자, 2026-11-07)
-- `develop`. 설정은 사용자가 한다(G1).
-- 제약: 예약(`schedule`) 실행은 기본 브랜치에서만 돈다. 나중에 `main`에서 야간 실행을 하려면 체크아웃 ref를 따로 준다. 첫 화면 README가 출시 전 내용일 수 있어 다운로드 링크는 `releases/latest`를 가리킨다.
+- `main`을 유지한다(git-flow 시작 때 사용자가 다시 정했다). 방문자와 `git clone`은 `main`을 본다. 설정 변경은 없다.
+- 제약:
+  - 새 PR의 기본 대상이 `main`이다. CONTRIBUTING·PR 템플릿은 `develop`을 대상으로 적고, 스킬은 `gh pr create --base develop`을 늘 명시하며, 외부 PR이 `main`으로 오면 메인테이너가 대상을 `develop`으로 바꾼다.
+  - Orca의 `worktree create`는 `--base-branch`가 없으면 저장소 기본 브랜치(`main`)에서 나온다. 스킬은 `--base-branch`를 늘 명시한다.
+  - `workflow_dispatch`와 예약(`schedule`) 실행은 워크플로 파일이 기본 브랜치(`main`)에 있어야 돈다. 그래서 첫 `/release`가 워크플로를 `main`에 넣기 전에는 dispatch로 테스트 빌드를 시작할 수 없다. 태그 push 트리거는 이 제약을 받지 않으므로 D8의 테스트 빌드는 `tester-*` 태그 push로 시작한다(사용자, 2026-11-08, release-ci).
 
 ### D3. 하네스·문서 변경이 들어가는 브랜치 — 결론(사용자, 2026-11-07)
 - 지금 브랜치에 커밋하고, `develop`이면 바로 push한다. `main`에는 커밋하지 않는다(`main` 체크아웃이면 `develop`으로 바꾼 뒤 커밋한다). `hotfix/*` 체크아웃에는 그 수정만 커밋한다. 공개 뒤 `main` 보호 규칙(G3c)이 이것을 강제한다.
@@ -149,15 +152,15 @@ design-draft·design-sync의 "on main"은 "출시됐다"가 아니라 "통합됐
 - 제약: `-latest` 라벨은 1–2개월에 걸쳐 조용히 바뀐다(runner-images README). 앱 테스트 일부가 darwin을 가정한다.
 
 ### D6. 서명 비밀의 보관과 실행 권한 — 결론(사용자, 2026-11-07)
-- 환경 `release`(필수 검토자 = 사용자, 배포 ref = 릴리스 워크플로를 시작하는 `v*` 태그와 테스트 빌드의 `develop`)에 비밀을 두고, 서명 작업만 그 환경을 쓴다. 공증은 기존 App Store Connect API Team 키(지금 `doan-notary`와 같은 키)로 한다. `APPLE_API_KEY`는 `.p8` 파일 경로라서 워크플로가 비밀 내용을 `$RUNNER_TEMP`의 파일로 쓰고 그 경로를 넘긴다('조사').
+- 환경 `release`(필수 검토자 = 사용자, 배포 ref = 릴리스 워크플로를 시작하는 `v*` 태그, 테스트 빌드의 `tester-*` 태그, 릴리스 dry run의 `release-dryrun-*` 태그)에 비밀을 두고, 서명 작업만 그 환경을 쓴다. 공증은 기존 App Store Connect API Team 키(지금 `doan-notary`와 같은 키)로 한다. `APPLE_API_KEY`는 `.p8` 파일 경로라서 워크플로가 비밀 내용을 `$RUNNER_TEMP`의 파일로 쓰고 그 경로를 넘긴다('조사').
 - 제약: 무료 계정은 공개 저장소에서만 환경을 쓸 수 있다(D21의 순서가 이것에 기댄다).
 
 ### D7. 릴리스 Release의 게시 방식 — 결론(사용자, 2026-11-07)
-- 사용자가 부른 `/release`가 `main`의 병합 커밋에 `v<version>` 태그를 만들어 push하고, 그 태그 push가 CI의 릴리스 워크플로(`on: push: tags: v*`)를 시작한다(2026-11-07 `/feature-review`). 워크플로는 태그 커밋이 `origin/main`의 조상인지 확인한 뒤 빌드하고, 비밀이 없는 게시 작업이 그 태그의 draft Release를 만든다(rc는 prerelease). `/release`가 draft의 자산을 `spctl` 등으로 검사해 보고하고, 사용자가 승인하면 스킬이 게시한다.
+- 사용자가 부른 `/release`가 `main`의 병합 커밋에 `v<version>` 태그를 만들어 push하고, 그 태그 push가 CI의 릴리스 워크플로(`on: push: tags: v*`)를 시작한다(2026-11-07 `/feature-review`). 워크플로는 태그 커밋이 `origin/main`의 조상인지 확인한 뒤 빌드하고, 비밀이 없는 게시 작업이 그 태그의 draft Release를 만든다(rc는 prerelease). `/release`가 draft의 자산을 `spctl` 등으로 검사하고, 통과하면 스킬이 게시한다. `/release` 호출이 환경 `release` 승인과 게시를 함께 허락하므로 스킬이 둘 다 직접 한다(사용자, 2026-11-08).
 - 제약: electron-builder는 태그를 만들지 않으므로('조사') 태그는 스킬이 먼저 만든다.
 
 ### D8. 테스트 빌드 — 결론(사용자, 2026-11-07)
-- CI의 `workflow_dispatch`가 `develop` HEAD를 서명·공증한 dmg를 Actions 산출물로 남긴다. ref 입력은 두지 않는다(2026-11-07 `/feature-review`: 환경 규칙은 워크플로가 도는 브랜치만 보므로 입력 ref가 있으면 임의 커밋을 서명할 수 있다). `/tester-build`는 그 워크플로를 시작해 받은 dmg를 Desktop에 두는 스킬로 바뀐다. 테스트 빌드는 업데이트 확인을 끈다.
+- `/tester-build`가 `origin/develop` HEAD에 `tester-*` 태그를 push하면 CI가 그 커밋을 서명·공증한 dmg를 Actions 산출물로 남긴다. 워크플로는 태그 커밋이 `develop`에 있는지 검사한다(2026-11-07 `/feature-review`: 환경 규칙은 ref 이름만 보므로 검사가 없으면 임의 커밋을 서명할 수 있다). `workflow_dispatch`는 기본 브랜치 `main`에 파일이 있어야 돌아 쓰지 않는다(D2, 사용자 2026-11-08). `/tester-build`는 태그를 push해 받은 dmg를 Desktop에 두는 스킬로 바뀐다. 테스트 빌드는 업데이트 확인을 끈다.
 
 ### D9. 업데이트 방식 — 결론(사용자, 2026-11-07)
 - `electron-updater` + GitHub 공급자.
@@ -176,7 +179,7 @@ design-draft·design-sync의 "on main"은 "출시됐다"가 아니라 "통합됐
 - R1이 app-update의 실제 업데이트 PoC다. 서명되고 피드가 켜진 PoC 빌드를 따로 만들지 않는다. 실패하면 `develop`에서 고친 뒤 rc.3으로 다시 본다(태그는 옮기거나 지우지 않는다). 코드로 답이 나온 가정은 '조사'에 적었다(2026-11-07 `/feature-review`).
 
 ### D13. 버전과 태그 — 결론(사용자, 2026-11-07)
-- `/release`가 `chore(release): <version>` 올림 커밋(`npm --prefix app version <v> --no-git-tag-version`, lock 포함)을 `develop`에 push하고, `develop`→`main` 병합 커밋에 `v<version>` 태그를 만들어 push한다(D7). rc 식별자는 `x.y.z-rc.N`. 릴리스 노트 초안은 정식 버전이면 마지막 정식 태그 이후, rc면 마지막 태그 이후 병합된 PR 제목으로 만들고 사용자가 고친다. PR 없이 `develop`에 들어간 커밋(D3)은 노트 초안에 빠진다.
+- `/release`가 `chore(release): <version>` 올림 커밋(`npm --prefix app version <v> --no-git-tag-version`, lock 포함)을 `develop`에 push하고, `develop`→`main` 병합 커밋에 `v<version>` 태그를 만들어 push한다(D7). rc 식별자는 `x.y.z-rc.N`. 릴리스 노트 초안은 정식 버전이면 마지막 정식 태그 이후, rc면 마지막 태그 이후 병합된 PR 제목으로 만들고, 사용자 승인 없이 스킬이 확정한다(사용자, 2026-11-08). PR 없이 `develop`에 들어간 커밋(D3)은 노트 초안에 빠진다.
 - 제약: R1이 먼저이므로 올림 커밋은 0.1.0 → 0.1.0-rc.1 → 0.1.0-rc.2 → 0.1.0으로 세 번 생긴다. SemVer로 rc.1은 0.1.0보다 낮으므로 버전 검사는 지금 `package.json` 값이 아니라 기존 태그·게시본과 비교한다. 지금까지 나간 테스터 dmg도 0.1.0으로 찍혀 있지만 피드가 없어(D8) 업데이트에는 영향이 없다.
 
 ### D14. 아키텍처 — 결론(사용자, 2026-11-07)
@@ -204,7 +207,7 @@ design-draft·design-sync의 "on main"은 "출시됐다"가 아니라 "통합됐
 
 ### D21. 공개 시점 — 결론(사용자, 2026-11-07)
 - git-flow, public-cleanup, community-docs, readme-features 뒤에 공개하고, ci-gate·release-ci·app-update·release-skill은 공개 뒤에 진행한다. 그동안 README는 "pre-release"라고 적는다.
-- 제약: 공개 시점의 `main`은 problem-project-overlay 병합과 C3·C4 커밋까지의 상태이고 정리(C2)는 `develop`에만 있다(사용자 결정 2). 첫 화면은 기본 브랜치 `develop`이지만 `main`의 옛 상태(개인 경로, 한국어 주석)와 전체 이력도 공개된다.
+- 제약: 공개 시점의 `main`은 problem-project-overlay 병합과 C3·C4 커밋까지의 상태이고 정리(C2)는 `develop`에만 있다(사용자 결정 2). 첫 화면은 기본 브랜치 `main`이라, 첫 `/release`까지 `main`의 정리 전 상태(개인 경로, 한국어 주석)가 보인다. README와 공동체 문서는 C3·C4로 이미 `main`에 있다.
 
 ### D22. 릴리스 절차를 어디에 적을까 — 결론(사용자, 2026-11-07)
 - 절차는 `/release` 스킬에 있다. 사람이 처음 한 번 하는 일(인증서 `.p12`와 API 키를 GitHub 환경 비밀로 넣기, 갱신)도 그 스킬의 'One-time setup'에 둔다. 이 부모에서는 `docs/OPERATIONS.md`를 만들지 않고, release-skill이 AGENTS.md 'Documents' 표의 OPERATIONS 행에서 릴리스 패키징 역할을 지운다.
@@ -220,7 +223,7 @@ design-draft·design-sync의 "on main"은 "출시됐다"가 아니라 "통합됐
 ### D25. 공개 뒤 GitHub 설정의 나눔 — 결론(사용자, 2026-11-07 `/feature-review`)
 - G3a(G2 직후 같은 자리): 비공개 취약점 신고 켜기, 환경 `release`(D6)와 비밀 등록.
 - G3b(C5 뒤): `develop` 보호. 필수 검사는 ci-gate의 작업 id(`gate`). 관리자 우회를 허용한다.
-- G3c(C8 뒤, R1 전): `main` 보호. PR 필수, 승인 0, 필수 검사, "Require branches to be up to date" 끔, force push·삭제 금지.
+- G3c(R1 전): `main` 보호. PR 필수, 승인 0, 필수 검사, "Require branches to be up to date" 끔, force push·삭제 금지, 관리자 우회 금지(`enforce_admins`). `/release`는 PR로 병합하므로 우회가 필요 없다.
 - 제약: `develop`에서 우회를 막으면 D3의 직접 push와 D13의 올림 커밋이 거부된다. `main`에 승인 1을 두면 메인테이너 혼자서는 병합할 수 없다. `main`의 병합 커밋은 `develop`에 들어가지 않으므로 최신화를 요구하면 매 릴리스 PR이 "behind"가 된다.
 
 ### D26. 코드 주석의 문서 인용 금지 — 결론(사용자, 2026-11-07 `/feature-review`)

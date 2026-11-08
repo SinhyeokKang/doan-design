@@ -35,7 +35,7 @@ export function notReadyLine(names: readonly string[], labels: Readonly<Record<s
 const THREADS = 8, SERVERS = 256;
 
 // The mcpServer/startupStatus/updated notifications one Codex runner received, by thread and server, and the turn's
-// wait for them (mcp-connectors design 'conversation (Codex)'). The notification has a threadId and no turnId, so the
+// wait for them. The notification has a threadId and no turnId, so the
 // runner takes it here instead of handing it to the turn's transport.
 export class CodexStartupWatch {
   private threads = new Map<string, Map<string, unknown>>();

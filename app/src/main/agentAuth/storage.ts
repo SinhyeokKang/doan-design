@@ -17,7 +17,7 @@ const message = (error: unknown) => error instanceof Error ? error.message : Str
 function absent(error: unknown): boolean { return typeof error === "object" && error !== null && (error as NodeJS.ErrnoException).code === "ENOENT"; }
 
 // Layout under <userData>/agent-auth: metadata.json, cleanup.json, vault/<provider>.bin, profiles/<profile>/. A profile
-// is the provider's name, or <provider>-<id> for a replacement staged apart from the stored login (Codex, D22).
+// is the provider's name, or <provider>-<id> for a replacement staged apart from the stored login (Codex).
 export interface CleanupRecord { provider: Provider; profile: string }
 export class AuthStorage {
   constructor(readonly root: string, private readonly cipher: Cipher) {}

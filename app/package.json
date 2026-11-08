@@ -17,6 +17,7 @@
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
     "cn": "0.5.0",
+    "electron-updater": "6.8.11",
     "lucide-react": "1.61.0",
     "node-pty": "1.1.0",
     "radix-ui": "1.8.1",
@@ -43,7 +44,7 @@
     "vite": "8.3.4",
     "vitest": "5.0.5"
   },
-  "version": "0.1.0",
+  "version": "0.1.0-rc.1",
   "productName": "Doan",
   "build": {
     "protocols": [{ "name": "Doan canvas", "schemes": ["doan"] }],
@@ -66,15 +67,34 @@
       {
         "from": "src/main/onboarding/SKILL.md",
         "to": "skills/doan/SKILL.md"
+      },
+      {
+        "from": "../LICENSE",
+        "to": "LICENSE"
+      },
+      {
+        "from": "../cli/internal/designskill/notices",
+        "to": "notices"
       }
     ],
     "mac": {
       "icon": "resources/icon-rounded.png",
       "identity": null,
+      "target": [
+        { "target": "dmg", "arch": ["arm64"] },
+        { "target": "zip", "arch": ["arm64"] }
+      ],
       "entitlements": "resources/entitlements.mac.plist",
       "entitlementsInherit": "resources/entitlements.mac.plist"
     },
+    "publish": {
+      "provider": "github",
+      "owner": "SinhyeokKang",
+      "repo": "doan-design",
+      "releaseType": "draft"
+    },
     "dmg": {
+      "artifactName": "Doan-macos-arm64.${ext}",
       "title": "${productName}",
       "background": "resources/installer-background.png",
       "iconSize": 88,

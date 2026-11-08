@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { folderRefreshes } from "./refreshes";
 
-// buzz-conversation fix round 1 (RA2 ⚪1): which folder listings main hands to ConversationService.refreshed.
+// Which folder listings main hands to ConversationService.refreshed.
 describe("folderRefreshes", () => {
   const a = { path: ".doan/canvases/a.html", id: "a" }, b = { path: ".doan/canvases/b.html", id: "b" };
   it("hands a first-seen folder over with no changed rows and skips other kinds", () => {

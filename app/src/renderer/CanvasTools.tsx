@@ -16,18 +16,18 @@ const TOOLS: readonly { tool: CanvasTool; label: string; key: string; Icon: type
   { tool: "hand", label: "Hand", key: "H", Icon: Hand },
 ];
 
-// The bottom tools row (buzz-canvas design §2 '도구모음', canvas-hand-tool design '도구모음'). Select and Hand are
+// The bottom tools row (PRODUCT §5 item 2 'Toolbar'). Select and Hand are
 // pressed one at a time; pressing the pressed one keeps it. The pressed tool holds the toolbar's one Tab stop. In
 // Hand a canvas click does not select, so the pressed button is what tells the person why.
-// The Picker (canvas-composer-polish spec 3) is not a tool that stays: it toggles the composer's one pick, and only it
+// The Picker is not a tool that stays: it toggles the composer's one pick, and only it
 // shows pressed while picking. aria-disabled, not disabled, so its reason shows as a tooltip and ←/→ still reach it.
 // Export (spec 5) closes the row after a divider: an action on the open canvas, so it has no pressed state. `reason`
 // null: it can export; otherwise it stays aria-disabled, so it keeps focus through the save panel and the export.
 // `onExport` gets the button, where focus goes back when the save panel closes.
 // The unavailable Export's reason is also an sr-only sibling it names: Radix links the tooltip only while it is open, so
 // without it the reason is gone once the tooltip closes. One canvas area, so one id.
-// Capture area (canvas-capture design §3) follows the Picker: a mode, pressed only during capture mode, with no
-// shortcut (결정 5), and Export's sr-only reason while unavailable. During capture mode it always ends the mode, even
+// Capture area follows the Picker: a mode, pressed only during capture mode, with no
+// shortcut, and Export's sr-only reason while unavailable. During capture mode it always ends the mode, even
 // once it could not start again (a paste filled the draft meanwhile), so a pressed button is never a dead one.
 const EXPORT_REASON_ID = "canvas-export-reason";
 const CAPTURE_REASON_ID = "canvas-capture-reason";

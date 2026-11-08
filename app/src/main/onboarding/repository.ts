@@ -22,7 +22,7 @@ function repositoryPath(path: string): { repo: GitHubRepository; path: string } 
   return { repo: { owner, repository }, path: trimmed };
 }
 
-// Accepts only https://github.com/…, git@github.com:… and ssh://git@github.com/… (design 'GitHub 조회·clone 실행 계약').
+// Accepts only https://github.com/…, git@github.com:… and ssh://git@github.com/….
 // Credentials, ports and other hosts fall out because the authority must be exactly github.com.
 const FORMS: [RegExp, GitHubUrl["transport"]][] = [
   [/^https:\/\/([^/]*)\/(.*)$/i, "https"],

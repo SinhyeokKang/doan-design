@@ -34,12 +34,12 @@ import type { ComposerChoice } from "./rememberChoice";
 import { defaultPermission, permissionChoices, permissionPickerView } from "./permissionPicker";
 import { stageInsets } from "./stageInsets";
 
-// Everything the composer keeps between Home visits for this run (design §4.1: a draft survives leaving Home, not a
+// Everything the composer keeps between Home visits for this run (a draft survives leaving Home, not a
 // restart). App owns the object so a visit's unmount does not lose it; reads finishing after an unmount still land.
 export interface ComposerMemory {
   text: string; preset: PresetSummary | null; attachments: AttachmentDraft[];
-  // Choices the person made; absent ones follow the defaults (design §4.2, §4.3, §4.7). The agent, model and effort
-  // picks last until the input is sent (buzz-settings design 'New conversations'); the project stays.
+  // Choices the person made; absent ones follow the defaults. The agent, model and effort
+  // picks last until the input is sent; the project stays.
   root: string | null; provider: Provider | null;
   models: Partial<Record<Provider, string>>; efforts: Record<string, string>;
   // Models that Edit on Home brought back into `models`: shown as chosen, but not picked here, so a fixed Settings
@@ -47,23 +47,23 @@ export interface ComposerMemory {
   restoredModels?: Partial<Record<Provider, string>>;
   // Levels Edit on Home brought back into `efforts`, by the same key; a pick of a level clears its entry.
   restoredEfforts?: Partial<Record<string, string>>;
-  // Permission mode picks by provider (permission-mode), kept the same way as the model picks.
+  // Permission mode picks by provider, kept the same way as the model picks.
   permissions: Partial<Record<Provider, PermissionModeId>>;
-  // Fast switched by provider (fast-mode design §1); absent follows the provider's Last used.
+  // Fast switched by provider; absent follows the provider's Last used.
   fast: Partial<Record<Provider, boolean>>;
-  // The Settings default this input started with: a change in Settings applies from the next new input
-  // (buzz-settings design 'New conversations'). undefined: not taken yet.
+  // The Settings default this input started with: a change in Settings applies from the next new input.
+  // undefined: not taken yet.
   defaults?: NewConversationDefault | null;
   // Model lists by root and provider, and the preset list, as read in this run.
   lists: Record<string, ModelsState>; presets: PresetListReply | undefined;
   auth: AuthSnapshot | null | undefined;
   thumbnails: Record<string, string>;
   // Attachment keys and main's ids of each root's last sent request: Edit on Home shows their thumbnails again and
-  // main keeps the ids for its recheck until no last request or draft uses them (review BU3 r2 🟡4, 🟡5).
+  // main keeps the ids for its recheck until no last request or draft uses them.
   lastKeys: Record<string, string[]>;
   lastIds: Record<string, string[]>;
   // A start still waiting for main, kept here so a later visit stays locked and its reply clears only the draft it
-  // sent (review BU3 🟡2); and the refusal or attachment notice under the composer.
+  // sent; and the refusal or attachment notice under the composer.
   sending: { generation: number; text: string; preset: string | null; keys: string[] } | null;
   generation: number;
   notice: { text: string; retry: boolean } | null;
@@ -90,13 +90,13 @@ export interface HeroComposerProps {
   entries: readonly FolderEntry[]; homeDirectory: string | null;
   shellProjects: Readonly<Record<string, ShellProject>>;
   loaded: string | null;
-  // A project to choose once: first run's handoff, or one the person just added (design §4.2, §6). The person's later
+  // A project to choose once: first run's handoff, or one the person just added. The person's later
   // choice wins over it.
   select: { root: string; seq: number } | null;
   // ui-state's Home memory; null until the saved state is read.
   prefs: HomeMemory | null;
   memory: { current: ComposerMemory };
-  // Running Home conversations by root (one per root, design §4.5).
+  // Running Home conversations by root (one per root).
   running: ReadonlyMap<string, { conversationId: string }>;
   restore: { request: LastRequest; seq: number } | null;
   greeting: string;
@@ -106,13 +106,13 @@ export interface HeroComposerProps {
   addProjects(): void;
   // Settings > Agents' New conversations; null is Last used, undefined not read yet.
   defaults?: NewConversationDefault | null | undefined;
-  // The agent picker's way into Settings > Agents (buzz-settings design '홈 공급자 선택기').
+  // The agent picker's way into Settings > Agents.
   openSettings(target: SettingsTarget): void;
   // A model or effort pick is remembered as Last used before any send (dogfooding #6).
   onRemember?(choice: ComposerChoice): void;
 }
 
-// The group sits 64px above the panel's centre with at least --space-8 around it (doan-mascot design '배치').
+// The group sits 64px above the panel's centre with at least --space-8 around it.
 const STAGE_LIFT = 64, STAGE_MIN = 32;
 // The group's height in its reference state: an empty two-line field with the suggestions shown (their place is kept
 // while hidden). What a draft adds inside the card (chips, extra lines, the counter) and the reason line or notice
@@ -150,7 +150,7 @@ const effortKey = (provider: Provider, model: string) => `${provider}\n${model}`
 
 export { slashKey } from "./homeComposer";
 
-// Cmd+V (design §4.8): text pastes as text; Finder files attach by their local path; an image alone attaches as a
+// Cmd+V: text pastes as text; Finder files attach by their local path; an image alone attaches as a
 // pasted image. Finder puts the file names on the clipboard as text too, so text that names the copied files is
 // not a text paste.
 export function pasteAction(text: string, files: readonly { name: string; type: string }[]): "text" | "files" | "none" {
@@ -171,7 +171,7 @@ function chipClass(chip: string | undefined): string {
   return `ob-chip${chip === "Config error" ? " err" : chip === "Missing" || chip === "CLI error" ? " warn" : ""}`;
 }
 
-// Home's composer (buzz-conversation design §3.1 'HeroComposer'): the shared primitives with Home's own project picker,
+// Home's composer: the shared primitives with Home's own project picker,
 // worktree tray, suggestions and stage. Always a box.
 export function HeroComposer(props: HeroComposerProps) {
   const { memory } = props;
@@ -211,7 +211,7 @@ export function HeroComposer(props: HeroComposerProps) {
   const entry = props.entries.find(item => item.path === root) ?? null;
   const card = cards.find(item => item.rows.some(row => row.path === root)) ?? null;
   const project = card?.name ?? "";
-  // A chosen root that left the list falls back, and is not chosen again when it comes back (design §4.2).
+  // A chosen root that left the list falls back, and is not chosen again when it comes back.
   useEffect(() => {
     if (!picked.announcement) return;
     update({ root: picked.root });
@@ -221,7 +221,7 @@ export function HeroComposer(props: HeroComposerProps) {
     if (props.select && props.select.seq !== memory.current.seen.select) update(current => ({ root: props.select!.root, seen: { ...current.seen, select: props.select!.seq } }));
   }, [props.select?.seq]);
 
-  // Providers: the person's choice stays even when it stops being ready (design §4.3); until then the default.
+  // Providers: the person's choice stays even when it stops being ready; until then the default.
   const auth = m.auth;
   useEffect(() => window.doan.onAgentAuth(snapshot => update({ auth: snapshot })), []);
   // An empty composer takes the current default; once something is typed, attached or picked as a preset, the input
@@ -247,7 +247,7 @@ export function HeroComposer(props: HeroComposerProps) {
   // memory's provider is null until the person picks one (emptyComposer), never undefined.
   const choiceTouched = m.provider !== null || explicitModel !== undefined || pickedEffort !== undefined || pickedPermission !== undefined || pickedFast !== undefined;
   // Fast is not in this effect: it goes to Last used only from the toggle itself (onPickFast), never from a switch
-  // held since then when the composer mounts again or another pick changes (fast-mode decision 3, review R 🟡2).
+  // held since then when the composer mounts again or another pick changes.
   const isModelPicked = explicitModel !== undefined && explicitModel === model && m.restoredModels?.[provider!] !== explicitModel;
   const isEffortPicked = pickedEffort !== undefined && m.restoredEfforts?.[effortKey(provider!, model!)] !== pickedEffort;
   const modelPicked = { ...(isModelPicked ? { modelPicked: true as const } : {}), ...(isEffortPicked ? { effortPicked: true as const } : {}) };
@@ -315,7 +315,7 @@ export function HeroComposer(props: HeroComposerProps) {
     field.current?.insertSkill(id, fromSlash);
     if (fromSlash) queueMicrotask(focusEnd);
   };
-  // Either way of picking puts the caret at the end of the field (design §4.9); the popover does it once it closes.
+  // Either way of picking puts the caret at the end of the field; the popover does it once it closes.
   const choosePreset = (id: string, fromSlash: boolean) => {
     const chosen = presets.find(p => p.id === id);
     if (!chosen) return;
@@ -363,7 +363,7 @@ export function HeroComposer(props: HeroComposerProps) {
     update(current => ({ attachments: [...current.attachments, ...accepted.map((file, i): AttachmentDraft => ({ key: keys[i]!, name: file.name, kind: file.type.startsWith("image/") ? "image" : "file", pasted: false, status: "checking", size: file.size }))] }));
     void window.doan.addAttachmentFiles(accepted).catch(() => null).then(async results => {
       if (!results) { settle(keys, keys.map(() => null)); return; }
-      // A copied screenshot has no path on disk; it attaches as a pasted image instead (design §4.8).
+      // A copied screenshot has no path on disk; it attaches as a pasted image instead.
       const final = await Promise.all(results.map(async (result, i) => {
         const file = accepted[i]!;
         if (!pastedImages || result.ok || result.error !== "not_found" || !file.type.startsWith("image/")) return result;
@@ -427,7 +427,7 @@ export function HeroComposer(props: HeroComposerProps) {
   // Send
   const send = async () => {
     if (!availability.enabled || !root || !provider) return;
-    // A send that starts hops; one that cannot start does nothing (doan-mascot spec 'Home 전송').
+    // A send that starts hops; one that cannot start does nothing.
     doany.current?.hop();
     const request: StartInput = {
       root, mode: "newDesign", runtime: provider, text: composed,
@@ -461,13 +461,13 @@ export function HeroComposer(props: HeroComposerProps) {
     if (outcome.error === "attachment_missing") {
       const missing = new Set(outcome.missing ?? []);
       update(current => ({ sending: null, attachments: current.attachments.map(a => a.id && missing.has(a.id) ? { ...a, status: "missing" } : a) }));
-    // A late project_busy is shown by the reason line, which the run's list now carries (design §3.4).
+    // A late project_busy is shown by the reason line, which the run's list now carries.
     } else if (outcome.error === "project_busy") update({ sending: null });
     else update({ sending: null, notice: startErrorView(outcome.error, provider, project) });
     queueMicrotask(() => field.current?.focus());
   };
 
-  // Edit on Home: a different draft is never replaced without asking (design §7.4).
+  // Edit on Home: a different draft is never replaced without asking.
   useEffect(() => {
     if (!props.restore || props.restore.seq === memory.current.seen.restore) return;
     const seq = props.restore.seq;
@@ -478,7 +478,7 @@ export function HeroComposer(props: HeroComposerProps) {
   }, [props.restore?.seq]);
   const apply = (request: LastRequest) => {
     setConfirm(null);
-    // The files are checked again at once (design §7.4, 2026-10-29 user): each chip shows checking, then ready or moved.
+    // The files are checked again at once (2026-10-29 user): each chip shows checking, then ready or moved.
     const ids = request.attachments.flatMap(a => a.id ? [a.id] : []);
     if (ids.length) void window.doan.recheckAttachments(ids).catch(() => null).then(results => update(current => ({
       attachments: current.attachments.map(a => {
@@ -530,7 +530,7 @@ export function HeroComposer(props: HeroComposerProps) {
         <DropdownMenu.Portal><DropdownMenu.Content className="doan-floating doan-menu project-popover" aria-label="Projects" side="bottom" align="start" sideOffset={4} collisionPadding={8}>
           <DropdownMenu.RadioGroup value={card?.key ?? ""} onValueChange={key => { const chosen = cards.find(item => item.key === key); if (chosen) edit({ root: rootForProject(chosen.rows, props.shellProjects[chosen.key]?.selectedRoot) }); }}>
             {cards.map(item => {
-              // Every root that is not a list, reading included, is disabled with its status chip (design §4.2).
+              // Every root that is not a list, reading included, is disabled with its status chip.
               const down = item.rows.every(row => row.kind !== "list");
               const chip = down ? cardRow(item.rows[0]!, null, null).chip : undefined;
               return <Fragment key={item.key}>

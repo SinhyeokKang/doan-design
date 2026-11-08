@@ -4,14 +4,14 @@ import type { CliRun } from "./folderState";
 import { trashRequest, trashTarget } from "./canvasTrash";
 import type { FolderEntry } from "./view";
 
-// Export (canvas-row-menu, `canvas:export`): the save panel, then `doan export` through the bundled CLI. The renderer
+// Export (`canvas:export`): the save panel, then `doan export` through the bundled CLI. The renderer
 // names a listed row only; main picks the file through the panel and keeps the path it wrote.
 
 // What the renderer needs for its toasts, nothing more (the CLI's absolute output path stays in main):
 // - `exported`: `external` is how many internet URLs the file still loads; `reveal` is an opaque id for
 //   `canvas:revealExport` (Show in Finder), valid only for a file main itself just wrote.
 // - `failed` `refused`: `count` references Doan can't include, `first` the first one as the CLI wrote it (no absolute
-//   path, design 'CLI 명령' 5). `unreadable`: refused with no reference (the canvas doesn't parse or has no valid
+//   path). `unreadable`: refused with no reference (the canvas doesn't parse or has no valid
 //   `doan:width`). `tooLarge`: over 50 MiB, `largest` the biggest asset's repo-relative path when the CLI named one.
 //   `insideDoan`: the chosen folder is inside a `.doan` directory. `failed`: anything else (no CLI, a crash, a timeout,
 //   output that is not an envelope, a write failure).

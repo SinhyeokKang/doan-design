@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { basename, extname, isAbsolute, join } from "node:path";
 import type { AttachmentRecord } from "./conversation/types";
 
-// Attachments are local paths the agent reads with its own tools (design §4.8; Orca 1.4.243
+// Attachments are local paths the agent reads with its own tools (Orca 1.4.243
 // `out/shared/agent-session-attachments.js`: "agents receive only host paths"). Only a pasted image, which has no path,
 // is written by doan, under <userData>/attachments/<id>/. A canvas capture is the other image main writes.
 export const MAX_ATTACHMENTS = 10;
@@ -214,7 +214,7 @@ export class AttachmentStore {
       if (entry.dir) rmSync(entry.dir, { recursive: true, force: true });
     }
   }
-  // Edit on Home (design §7.4): the acceptance checks again, on the canonical paths main recorded for these ids only.
+  // Edit on Home: the acceptance checks again, on the canonical paths main recorded for these ids only.
   // A passing consumed id becomes a draft attachment again; null for a malformed request.
   recheck(value: unknown): RecheckResult[] | null {
     if (typeof value !== "object" || value === null || Object.keys(value).length !== 1 || !("ids" in value) || !Array.isArray(value.ids)) return null;

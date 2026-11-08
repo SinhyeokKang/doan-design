@@ -6,8 +6,8 @@ import { conversationWork } from "./conversationList";
 import { draftKey } from "./dockedRules";
 import type { Slot } from "./homeConversations";
 
-// Which conversation the project Overview shows and how its dropdown and canvas rows read (buzz-project design §2.4,
-// §3). The Overview host owns the list reads and every call to main; these functions only decide.
+// Which conversation the project Overview shows and how its dropdown and canvas rows read.
+// The Overview host owns the list reads and every call to main; these functions only decide.
 
 export interface ShortTime { text: string; label: string }
 
@@ -22,7 +22,7 @@ export function shortAgo(at: string, now: number): ShortTime | null {
   if (elapsed < MINUTE) return { text: "now", label: "Just now" };
   if (elapsed < HOUR) { const n = Math.floor(elapsed / MINUTE); return { text: `${n}m`, label: plural(n, "minute") }; }
   if (elapsed < DAY) { const n = Math.floor(elapsed / HOUR); return { text: `${n}h`, label: plural(n, "hour") }; }
-  // The first day only (design §0); older times read as their date.
+  // The first day only; older times read as their date.
   if (elapsed < 2 * DAY) return { text: "1d", label: plural(1, "day") };
   const date = new Date(time);
   const year = date.getFullYear() === new Date(now).getFullYear() ? undefined : "numeric";
@@ -40,7 +40,7 @@ export function conversationStatus(c: ConversationSummary, seen: ReadonlySet<str
   return slot ? { kind: slot.kind, label: STATUS_LABELS[slot.kind] } : null;
 }
 
-// One dropdown item or canvas row line: the same component draws both (design §2.1).
+// One dropdown item or canvas row line: the same component draws both.
 export interface ConversationLine {
   conversationId: string; provider: Provider; status: ConversationStatus | null; time: ShortTime | null; preview: string;
 }
@@ -85,7 +85,7 @@ export type OverviewPick =
   | { kind: "canvas"; conversationId: string; canvas: Canvas }
   | { kind: "new"; forget: boolean };
 
-// Spec decision 5: the requested conversation, the one last shown on this device, the latest project conversation,
+// The requested conversation, the one last shown on this device, the latest project conversation,
 // else a new one. A remembered conversation that is gone is skipped; an unreadable one is not the latest, but a
 // requested or remembered one still opens so its thread can say it cannot be read.
 export function pickOverviewConversation(list: readonly ConversationSummary[] | null, remembered: string | undefined, request: string | null): OverviewPick {
@@ -113,7 +113,7 @@ export type OverviewChange =
   | { kind: "promoted"; conversationId: string; title: string; canvas: Canvas; draft: DraftMove }
   | { kind: "gone"; draft: DraftMove };
 
-// After a list read for `root` (spec decision 6). The draft moves to the root's new conversation key so the typed text,
+// After a list read for `root`. The draft moves to the root's new conversation key so the typed text,
 // composition included, stays in the same field.
 export function overviewAfterListChange(current: OverviewCurrent, change: { root: string; list: readonly ConversationSummary[] }): OverviewChange {
   const id = current.conversationId;

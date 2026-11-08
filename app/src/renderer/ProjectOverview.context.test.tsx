@@ -9,7 +9,7 @@ import { OverviewRun, type ListView, type OverviewRunHost } from "./overviewRun"
 import { ProjectOverview, type ProjectOverviewProps } from "./ProjectOverview";
 import { TooltipProvider } from "./components/ui/tooltip";
 
-// context-window-ring spec 1–4, design §3 on the Overview: the composer gets the shown conversation's last recorded
+// On the Overview: the composer gets the shown conversation's last recorded
 // context value, a live one as it arrives, and none in the new conversation state or before the thread exists.
 const composer = vi.hoisted(() => ({ props: null as DockedComposerProps | null }));
 vi.mock("./DockedComposer", async original => ({
@@ -76,7 +76,7 @@ test("the shown conversation's last value, a live one, another conversation's ow
   expect(render()).toBeNull();
 });
 
-// turn-activity U1: the Overview passes its thread the same turn indicator the canvas panel does (CanvasConversationPanel
+// The Overview passes its thread the same turn indicator the canvas panel does (CanvasConversationPanel
 // test of the same name): the store's stage for the live turn, the event rule without one, nothing once it ended.
 test("the thread shows the live turn's indicator from the store's stage, and none once the turn ended", async () => {
   reads[A] = [at(A, 1, { type: "user.message", text: "Draw the checkout", anchors: [] }), at(A, 2, { type: "turn.started" })];

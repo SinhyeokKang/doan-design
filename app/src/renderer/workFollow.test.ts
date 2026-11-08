@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { EMPTY_FOLLOW, FOLLOW_IDLE_MS, followDecision, followedFrames, followStopped, followTurnKey, markFollowed } from "./workFollow";
 import { elementView, FIT_INSET, fitFrame, type View } from "./viewport";
 
-// work-update A6 (design §1 rule 9, §2 11–12): when the board follows the working frame, and how the person's moves stop it.
+// When the board follows the working frame, and how the person's moves stop it.
 const viewport = { width: 800, height: 600 };
 // The safe area is x 32–768, y 80–520 (FIT_INSET).
 const view: View = { x: 0, y: 0, scale: 1 };
@@ -58,7 +58,7 @@ describe("followDecision", () => {
     expect(followDecision({ ...base, rect: offscreen, stopped: true })).toEqual({ kind: "stay", followed: false });
   });
 
-  // R1: the first layout after a reload can report every frame as 0 × 0 at (0, 0) before the document is measured.
+  // The first layout after a reload can report every frame as 0 × 0 at (0, 0) before the document is measured.
   test("a zero-size rect is not a measurement: stay, uncounted, no retry", () => {
     expect(followDecision({ ...base, rect: { x: 0, y: 0, width: 0, height: 0 } })).toEqual({ kind: "stay", followed: false });
     expect(followDecision({ ...base, rect: { x: 0, y: 0, width: 0, height: 0 }, lastPersonMove: 10_000 - 1000 })).toEqual({ kind: "stay", followed: false });

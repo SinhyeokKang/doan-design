@@ -6,7 +6,7 @@ import type { AgentPresence } from "./agentPresence";
 import { agentNoticeView, canvasAgent, DOT_FIELD, DotFieldLoop, drawDotField, listForPresence, canvasWorkTarget, pickWork, workFrameTitle, settleStopping, siblingWork, stopFailedText, stopTurn, workFrameRect, workingCanvas } from "./agentIndicator";
 import type { ConversationWork } from "../main/conversationWork";
 
-// buzz-canvas R5 (design §2 '에이전트 작업 표시', §5 copy): which canvas the indicator reads, the notice's button, Stop's
+// which canvas the indicator reads, the notice's button, Stop's
 // lifecycle and the dot field's loop.
 const row: CanvasRow = { path: ".doan/canvases/billing.html", id: "billing", url: "u" };
 const opened = { folder: "/w/a", canvas: row.path, row };
@@ -76,7 +76,7 @@ describe("canvasAgent", () => {
     expect(canvasAgent([summary({})], null, previous, [])).toBeNull();
     expect(canvasAgent(null, null, previous, [])).toBeNull();
   });
-  // RBR5 🔴1: worktrees of one repository share canvas ids and paths, so a kept presence must not cross roots. Opening
+  // worktrees of one repository share canvas ids and paths, so a kept presence must not cross roots. Opening
   // B's twin canvas while B's list is still loading or failed must not offer A's Stop.
   describe("a kept presence stays in its project", () => {
     const b = { root: "/w/b", canvas: target.canvas };
@@ -108,7 +108,7 @@ describe("canvasAgent", () => {
   });
 });
 
-// terminal-agent-activity design '표시' (canvas page): a terminal session's `doan work` on the open canvas shows the same
+// a terminal session's `doan work` on the open canvas shows the same
 // indicator without Stop; an app conversation on the canvas wins. Identity is root + path (POSTMORTEM 2026-11-01).
 describe("canvasAgent with terminal sessions", () => {
   const target = { root: "/w/a", canvas: { path: row.path, id: "billing" } };
@@ -373,7 +373,7 @@ describe("DotFieldLoop", () => {
   });
 });
 
-// work-update A5 (design §1 rules 6–8, decisions 13, 15, 18): which work content the open canvas shows, the notice's
+// which work content the open canvas shows, the notice's
 // words for it, and the frame its marker goes on. Identity is root + path (POSTMORTEM 2026-11-01).
 describe("work content on the open canvas", () => {
   const target = { root: "/w/a", canvas: { path: row.path, id: "billing" } };
@@ -398,7 +398,7 @@ describe("work content on the open canvas", () => {
       expect(pickWork(target, null, [conv({ touched: 20, frame: "p" })], [term({ touched: 30, frame: "t" })])).toEqual({
         source: "terminal:claude:s1", key: "terminal:t1", touched: 30, frame: "t", waiting: false });
     });
-    test("a canvas conversation bound to another canvas that names this one counts like a project conversation (decision 13)", () => {
+    test("a canvas conversation bound to another canvas that names this one counts like a project conversation", () => {
       expect(pickWork(target, null, [conv({ conversationId: "c9", frame: "f" })], [])).toMatchObject({ source: "conversation:c9", frame: "f" });
     });
     test("another root's work on the same path never shows here, across switches between the two roots", () => {
@@ -415,7 +415,7 @@ describe("work content on the open canvas", () => {
   });
 
   describe("canvasAgent with conversation work", () => {
-    test("a project conversation naming this canvas shows the indicator without Stop (decision 15)", () => {
+    test("a project conversation naming this canvas shows the indicator without Stop", () => {
       expect(canvasAgent([], target, null, [], [conv()])).toEqual({ root: "/w/a", presence: null, terminal: true });
       expect(agentNoticeView(null, null, true)?.action).toBeNull();
     });
@@ -463,7 +463,7 @@ describe("work content on the open canvas", () => {
       expect(workFrameRect(null, "a")).toBeNull();
       expect(workFrameRect({ frames }, undefined)).toBeNull();
     });
-    // R1: a reload's first layout can carry every frame as 0 × 0 before the document is measured; no marker goes there.
+    // a reload's first layout can carry every frame as 0 × 0 before the document is measured; no marker goes there.
     test("a frame with no size is not placed", () => {
       expect(workFrameRect({ frames: [{ id: "a", x: 0, y: 0, width: 0, height: 0 }] }, "a")).toBeNull();
       expect(workFrameRect({ frames: [{ id: "a", x: 0, y: 0, width: 10, height: 0 }] }, "a")).toBeNull();
@@ -471,7 +471,7 @@ describe("work content on the open canvas", () => {
   });
 });
 
-// work-update R2: what App hands the controller for the marker and following, from the notice's own pick.
+// what App hands the controller for the marker and following, from the notice's own pick.
 describe("canvasWorkTarget", () => {
   const target = { root: "/w/a", canvas: { path: row.path, id: "billing" } };
   const term = (patch: Partial<WorkItem> = {}): WorkItem => ({ session: "s1", provider: "claude", root: "/w/a", path: row.path, touched: 10, turn: "claude:t1", ...patch });
@@ -492,7 +492,7 @@ describe("canvasWorkTarget", () => {
   });
 });
 
-// V3 review 🟡6: the frame title kept across a reload belongs to its root, canvas path and work turn.
+// the frame title kept across a reload belongs to its root, canvas path and work turn.
 describe("workFrameTitle", () => {
   const a = { root: "/w/a", canvas: { path: ".doan/canvases/a.html" } };
   const picked = { source: "terminal:claude:s1", key: "terminal:claude:t1", touched: 1, frame: "plans", waiting: false };

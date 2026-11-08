@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { PreferencesSnapshot } from "../main/preferences";
 
-// buzz-canvas R4: the canvas page's right column is the conversation panel shell, not Inspector or Comments, and its
+// the canvas page's right column is the conversation panel shell, not Inspector or Comments, and its
 // open state and width are remembered once ui-state was read. Driven with hooks as plain state (App.settings.test.tsx).
 const hooks = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],
@@ -79,7 +79,7 @@ const { initialCanvasState } = await import("./CanvasController");
 
 const rowA: CanvasRow = { path: ".doan/canvases/a.html", id: "a", url: "u-a" };
 const listed = (path: string): FolderEntry => ({ path, kind: "list", servedRev: 0, canvases: [rowA] });
-const PREFS: PreferencesSnapshot = { preferences: { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: { provider: "codex" } }, notice: null };
+const PREFS: PreferencesSnapshot = { preferences: { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: { provider: "codex" }, updates: { autoCheck: true } }, notice: null };
 let listeners: Record<string, (...args: never[]) => void>;
 let windowListeners: Record<string, (event: never) => void>;
 let readUiState: (state: unknown) => void;
@@ -206,7 +206,7 @@ test("a change made before ui-state was read wins over the read value", async ()
   expect(saved()?.rightPanel).toMatchObject({ open: false });
 });
 
-// RBR4 🟡1: main replaces the whole ui-state file on each save, so leaving a field out does not keep it. Nothing is
+// main replaces the whole ui-state file on each save, so leaving a field out does not keep it. Nothing is
 // saved until the initial read settles; the first save after it carries the saved panel and the early changes.
 test("no save is sent before the initial ui-state read, even after an early send and navigation", async () => {
   render(); folders([listed("/w/a")]);
@@ -219,7 +219,7 @@ test("no save is sent before the initial ui-state read, even after an early send
   expect(saved()).toMatchObject({ screen: "workspace", root: "/w/a", home: { lastRoot: "/w/a", lastProvider: "codex" }, rightPanel: { open: false, width: 400 } });
 });
 
-// fast-mode B2 (POSTMORTEM 2026-11-01): a Fast switch and a Fast turned off are Home memory like any pick, so neither
+// POSTMORTEM 2026-11-01: a Fast switch and a Fast turned off are Home memory like any pick, so neither
 // sends a save while the startup read is held; the first save after it carries them.
 test("no save is sent before the initial ui-state read after a Fast switch or a Fast turned off", async () => {
   doan.listConversations!.mockImplementation(async () => [{ conversationId: "c1", title: "", state: "current", owner: "doan", provider: "codex", fromHome: false, phase: "ended", unseen: false, queued: 0, lastActivityAt: "2026-11-06T00:00:00Z", preview: "", working: false }]);
@@ -234,7 +234,7 @@ test("no save is sent before the initial ui-state read after a Fast switch or a 
   expect((saved() as { home?: { fast?: unknown } }).home?.fast).toEqual({ claude: true });
 });
 
-// fast-mode R fix round 1 (review 🔴1, 🟡3): Fast changed before the startup read lands only for the provider it
+// Fast changed before the startup read lands only for the provider it
 // changed; the read keeps every other provider's Fast, an auto-off seen first still holds, and a later switch on wins.
 const summaryOf = (conversationId: string, provider: string) => ({ conversationId, title: "", state: "current", owner: "doan", provider, fromHome: false, phase: "ended", unseen: false, queued: 0, lastActivityAt: "2026-11-06T00:00:00Z", preview: "", working: false });
 const fastOff = (conversationId: string) => listeners.conversation!({ v: 1, conversationId, seq: 4, turnId: "t1", at: "2026-11-06T00:00:00Z", type: "fast.unused", reason: "plan", turnedOff: true } as never);
@@ -263,7 +263,7 @@ test("a switch on after an auto-off, both before the startup read, wins", async 
   expect(savedFast()).toEqual({ codex: true, claude: true });
 });
 
-// review 🟡3: a live auto-off for a conversation the lists do not name yet waits for its provider.
+// a live auto-off for a conversation the lists do not name yet waits for its provider.
 test("a live auto-off waits until a list names the conversation's provider", async () => {
   render(); folders([listed("/w/a")]); await Promise.resolve(); await Promise.resolve(); render();
   readUiState({ screen: "home", expanded: {}, lastByRoot: {}, home: { fast: { claude: true, codex: true } } }); await Promise.resolve(); await Promise.resolve(); render();
@@ -291,7 +291,7 @@ test("a read that fails still lets saves through, with the panel's own state", a
   expect(saved()).toMatchObject({ screen: "workspace", root: "/w/a", rightPanel: { open: true } });
 });
 
-// shell-panel-layout design §2.3: the Overview's canvas conversations panel has its own handle and its own remembered
+// the Overview's canvas conversations panel has its own handle and its own remembered
 // width; changing one panel's width leaves the other's alone.
 type Handle = { label?: string; onResize(width: number | undefined): void };
 const overviewHandle = () => find<Handle>(ResizeHandle).find(element => element.props.label === "Resize canvas conversations")?.props;
@@ -329,7 +329,7 @@ test("the read Overview width is kept; one changed before the read wins, and not
   expect(savedPanels()?.overviewPanel).toEqual({ width: 600 });
 });
 
-// canvas-hand-tool design '기기 저장' and '시작 복원': the last canvas tool is saved with the rest of ui-state, only
+// the last canvas tool is saved with the rest of ui-state, only
 // after the startup read, and the read's tool goes to the controller, which keeps a tool the person chose before it.
 const publishTool = (tool: "select" | "hand") => { harness.setState!({ ...initialCanvasState(), tool }); render(); };
 const savedTool = () => doan.saveUiState!.mock.lastCall?.[0] as { canvasTool?: unknown; rightPanel?: unknown } | undefined;
@@ -386,7 +386,7 @@ test("tells the controller whether the canvas page is the one shown", async () =
   expect(harness.controller!.setCanvasPage).toHaveBeenLastCalledWith(false);
 });
 
-// buzz-canvas R5 (design §2 '에이전트 작업 표시'): the agent notice's Open unfolds the panel and moves focus into it; a Stop
+// the agent notice's Open unfolds the panel and moves focus into it; a Stop
 // failure is the shared toast; a page without a listed canvas gives the indicator no canvas.
 type Agent = { canvas: unknown; running: boolean; list: unknown; onOpen(): void; onStopFailed(text: string): void };
 const agent = () => (pane() as unknown as { agent: Agent } | undefined)?.agent;
@@ -432,7 +432,7 @@ test("a project problem gives the indicator no canvas; the canvas page runs it, 
   expect(agent()?.running).toBe(false);
 });
 
-// buzz-canvas-conversation R2/R3: the canvas page's panel holds the open canvas's conversation; entries unfold it.
+// the canvas page's panel holds the open canvas's conversation; entries unfold it.
 const rowSummary = (patch: Record<string, unknown> = {}) => ({ conversationId: "c1", canvas: { path: rowA.path, id: "a" }, title: "Payment copy", state: "current", owner: "doan", provider: "claude",
   fromHome: false, phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: "2026-11-01T00:00:00.000Z", preview: "", ...patch });
 type Conversation = { target: { root: string; canvas: { path: string; id?: string } }; arrival: { focus: string; seq: number } | null; blocked: string | null };
@@ -472,7 +472,7 @@ test("⌘N on the canvas page unfolds a folded panel in the new conversation sta
   expect(conversation()?.arrival).toMatchObject({ focus: "composer" });
 });
 
-// canvas-composer-polish spec 3: Pick from Canvas (⌘L) follows the picker alone; a selection is not a menu input.
+// Pick from Canvas (⌘L) follows the picker alone; a selection is not a menu input.
 test("Pick from Canvas's menu flag follows the canvas page and the picker, not the selection", async () => {
   await openCanvas(undefined, { selection: { frame: { id: "f" } } });
   expect(menuState()).toMatchObject({ screen: "canvas", pickerAvailable: true });
@@ -529,7 +529,7 @@ test("a sidebar canvas row unfolds the panel only when its slot needs an answer 
   expect(conversation()?.arrival).toMatchObject({ focus: "composer" });
 });
 
-// RD3: the row shows the terminal spinner over the app's unseen ending (withTerminalSlots), so its click decides with
+// the row shows the terminal spinner over the app's unseen ending (withTerminalSlots), so its click decides with
 // that working slot and keeps the panel as it was.
 test("a sidebar canvas row whose terminal spinner covers an unseen ending keeps a folded panel folded", async () => {
   doan.listConversations!.mockResolvedValue([rowSummary({ fromHome: true, unseen: true })]);
@@ -550,7 +550,7 @@ test("a sidebar canvas row without a mark keeps a folded panel folded", async ()
   expect(conversation()?.arrival).toBeNull();
 });
 
-// Review BR2 R1: each entry is a new arrival, also after the panel consumed the previous one.
+// each entry is a new arrival, also after the panel consumed the previous one.
 test("a second entry after the first was consumed is a new arrival the panel applies", async () => {
   await openCanvas();
   listeners.menu!("newConversation" as never); render();
@@ -563,7 +563,7 @@ test("a second entry after the first was consumed is a new arrival the panel app
   expect(second.seq).toBeGreaterThan(first.seq);
 });
 
-// buzz-canvas-conversation R4 (design §2 'Focus return', POSTMORTEM 2026-10-23 R-L): the picker's waiting
+// POSTMORTEM 2026-10-23 R-L: the picker's waiting
 // focus moves carry the intent they started with; focus that went elsewhere meanwhile is never pulled back, and a
 // composing field gets its chip later but no focus or caret call.
 type Link = { insert: ReturnType<typeof vi.fn>; focus: ReturnType<typeof vi.fn>; composing: ReturnType<typeof vi.fn>; element: ReturnType<typeof vi.fn> };
@@ -600,7 +600,7 @@ test("a pick ends with focus back in the composer while focus stayed with the pi
   expect(link.focus.mock.invocationCallOrder[0]).toBeLessThan(link.insert.mock.invocationCallOrder[0]!);
 });
 
-// A chip a pick inserts always lands focus in the field (spec 3), even after focus went elsewhere meanwhile, such as
+// A chip a pick inserts always lands focus in the field, even after focus went elsewhere meanwhile, such as
 // into the Presets popover the canvas click then closed; only the cancels keep focus the person moved.
 test("a pick that inserts a chip takes focus to the field even after focus went elsewhere; a cancel then leaves focus alone", async () => {
   const { link, conversation } = await canvasWithComposer();
@@ -628,7 +628,7 @@ test("a pick that ends while the field composes keeps the chip waiting and makes
   expect(link.focus).not.toHaveBeenCalled();
 });
 
-// canvas-composer-polish spec 3: the toolbar's Picker and ⌘L run the composer's own pick.
+// the toolbar's Picker and ⌘L run the composer's own pick.
 type ToolsProps = { picking: boolean; picker: { enabled: boolean; reason: string | null; onToggle(): void }; onTool(tool: string): void };
 const toolbar = () => pane() as unknown as ToolsProps;
 const ended = () => harness.controller!.onPicked!.mock.calls[0]![0] as (result: unknown) => void;
@@ -720,7 +720,7 @@ test("a pick cancelled by Esc returns focus to where it was before the pick, nev
   expect(second.link.focus).toHaveBeenCalledOnce();
 });
 
-// Review TOOL 🟡1: going back to where focus was is for focus the pick left behind (the page, the canvas, the element
+// going back to where focus was is for focus the pick left behind (the page, the canvas, the element
 // before it), never for focus the person moved meanwhile, such as into the field they type in.
 test("Esc pressed in the field after a pick started from the toolbar's Picker keeps focus in the field", async () => {
   const { link, field } = await canvasWithComposer();
@@ -757,7 +757,7 @@ test("the canvas page hands the controller's press subscription to the panel's c
   expect((conversation() as unknown as { canvasPress?: unknown }).canvasPress).toBe(press);
 });
 
-// canvas-capture spec 1, 5, 7, 8 and design §3: Capture area's availability, its chip in the panel's composer, and when
+// Capture area's availability, its chip in the panel's composer, and when
 // the panel unfolds. The controller hands each captured area to App's listener; the listener's snapshot calls main.
 type CaptureProps = { capturing: boolean; capture: { enabled: boolean; reason: string | null; onToggle(): void } };
 type Store = { drafts: ReadonlyMap<string, { attachments: readonly { key: string; name: string; pasted: boolean; status: string; id?: string }[] }>; setDrafts(change: (drafts: Map<string, unknown>) => Map<string, unknown>): void };
@@ -830,7 +830,7 @@ test("Capture area is unavailable once the composer's draft holds 10 files", asy
   expect(captureTool()).toMatchObject({ enabled: false, reason: CAPTURE_LIMIT });
 });
 
-// Export's rule (canvas-composer-polish spec 5): a press that lands while a page is locked does nothing. The pane is
+// Export's rule: a press that lands while a page is locked does nothing. The pane is
 // not shown on a page, so the press is the handler taken before the page opened, as the reply chip test does.
 test("a Capture area press that lands while a page is locked does nothing", async () => {
   await canvasWithComposer();
@@ -859,7 +859,7 @@ test("a captured area lands as a checking Canvas capture chip at once, and main'
   expect(harness.toast.show).not.toHaveBeenCalled();
 });
 
-// Conductor decision (orch.md '접힌 패널을 펼치는 때'): unfolding narrows the canvas area, so it waits for main's answer,
+// unfolding narrows the canvas area, so it waits for main's answer,
 // which comes after main has read the pixels; the checking chip goes in at once.
 test("a folded panel unfolds, with focus for the composer, only once main answers the capture", async () => {
   for (const reply of [captured(), { ok: false, name: "Canvas capture", error: "capture_failed" }]) {
@@ -906,7 +906,7 @@ test("a draft that reached 10 files after the render takes no snapshot and says 
   expect(harness.toast.show).toHaveBeenCalledExactlyOnceWith("Only 10 files can be attached. 1 was left out.");
 });
 
-// canvas-capture spec 2 and design §2 '안내 줄': a role=status line above the tools, in the picking hint's look.
+// a role=status line above the tools, in the picking hint's look.
 test("capture mode shows its hint line above the tools, with Esc and a spoken cancel", async () => {
   await canvasWithComposer();
   const paneTree = () => {
@@ -925,7 +925,7 @@ test("capture mode shows its hint line above the tools, with Esc and a spoken ca
   expect(order[0]).toBe(line);
 });
 
-// Review U-1: capture mode does not end when the composer turns to one that refuses files, so the release checks the
+// capture mode does not end when the composer turns to one that refuses files, so the release checks the
 // composer again, with captureAvailability's order and copy, before any chip or snapshot.
 test("a release after the composer turned to a terminal session takes no snapshot and gives Attach's reason", async () => {
   doan.conversationResumeTarget!.mockResolvedValue({ available: true, runtime: "codex", lastCheckAt: "2026-11-01T14:02:00", session: "s1" });
@@ -972,7 +972,7 @@ test("a release after another canvas took the same ID takes no snapshot and give
   expect(harness.toast.show).toHaveBeenCalledExactlyOnceWith(DUPLICATE_CANVAS_TEXT);
 });
 
-// Review U-1 note: an answer that lands after the composer changed settles on its chip but moves no panel or focus.
+// an answer that lands after the composer changed settles on its chip but moves no panel or focus.
 test("a late answer after the panel switched conversation or the canvas page left settles its chip without unfolding", async () => {
   for (const leave of ["conversation", "home"] as const) {
     reset();

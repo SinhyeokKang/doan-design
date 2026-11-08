@@ -5,7 +5,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, onTestFinished, test
 import type { BrowserWindowConstructorOptions, MenuItemConstructorOptions } from "electron";
 
 const OUTCOME = { added: ["/repo"], duplicate: null, messages: [], confirm: null };
-const DEFAULTS = { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: null };
+const DEFAULTS = { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: null, updates: { autoCheck: true } };
 
 const mocks = await vi.hoisted(async () => {
   const { EventEmitter } = await import("node:events");
@@ -38,6 +38,21 @@ const mocks = await vi.hoisted(async () => {
       Window.instances.push(this);
     }
   }
+  // electron-updater's MacUpdater as the update service drives it.
+  class Updater extends EventEmitter {
+    static instances: Updater[] = [];
+    autoDownload = false;
+    autoInstallOnAppQuit = false;
+    allowPrerelease = false;
+    logger: unknown = null;
+    checkForUpdates = vi.fn(async (): Promise<unknown> => null);
+    downloadUpdate = vi.fn(async (): Promise<unknown> => []);
+    quitAndInstall = vi.fn();
+    constructor() {
+      super();
+      Updater.instances.push(this);
+    }
+  }
   // Electron's Notification as main uses it: shown, closed, clicked, refused.
   class Notification extends EventEmitter {
     static instances: Notification[] = [];
@@ -51,6 +66,10 @@ const mocks = await vi.hoisted(async () => {
   return {
     Window,
     Notification,
+    Updater,
+    // Electron's native autoUpdater: Squirrel.Mac's staging reaches main as its update-downloaded.
+    nativeUpdater: new EventEmitter(),
+    setupEligibility: vi.fn(), hasFeedConfig: vi.fn(),
     // Conversation metadata the mocked store lists, and the service's event publisher main passed it.
     conversations: [] as unknown[],
     publishConversation: undefined as ((event: unknown) => void) | undefined,
@@ -64,7 +83,7 @@ const mocks = await vi.hoisted(async () => {
     conversationService: undefined as { list(root: string): unknown[]; projectEvidence(root: string): unknown[] } | undefined,
     preferences: { read: vi.fn(), current: vi.fn(), update: vi.fn() },
     createPreferencesStore: vi.fn(),
-    app: Object.assign(new EventEmitter(), { setName: vi.fn(), whenReady: vi.fn<() => Promise<void>>(), isPackaged: true, getPath: () => "/tmp/doan-index-test", getVersion: () => "9.8.7", exit: vi.fn(), quit: vi.fn(), show: vi.fn(), requestSingleInstanceLock: vi.fn(() => true),
+    app: Object.assign(new EventEmitter(), { setName: vi.fn(), whenReady: vi.fn<() => Promise<void>>(), isPackaged: true, getPath: () => "/tmp/doan-index-test", getVersion: () => "9.8.7", exit: vi.fn(), quit: vi.fn(), relaunch: vi.fn(), show: vi.fn(), requestSingleInstanceLock: vi.fn(() => true),
       isActive: vi.fn(() => true), dock: { bounce: vi.fn(() => 7) } }),
     ipc: new Map<string, (...args: unknown[]) => unknown>(),
     shell: { tokenBase: "http://127.0.0.1:1/t/tok/", entries: vi.fn<() => { path: string; kind?: string }[]>(() => []), open: vi.fn<() => Promise<{ root: string } | { refused: string }>>(), reopen: vi.fn(), initialize: vi.fn(), epoch: vi.fn(), dispose: vi.fn(),
@@ -112,6 +131,7 @@ vi.mock("electron", () => ({
   webFrameMain: { fromId: vi.fn() },
   webContents: { getFocusedWebContents: () => null },
   nativeTheme: mocks.nativeTheme,
+  autoUpdater: mocks.nativeUpdater,
   systemPreferences: { subscribeLocalNotification: (name: string, callback: () => void) => { mocks.notifications.set(name, callback); return mocks.notifications.size; } },
 }));
 vi.mock("./conversation/store", async (importOriginal) => ({ ...await importOriginal<typeof import("./conversation/store")>(), ConversationStore: class { list() { return mocks.conversations; } finishDeletions() {} } }));
@@ -131,14 +151,16 @@ vi.mock("node:fs/promises", async (importOriginal) => {
 });
 vi.mock("./onboarding/completion", async (importOriginal) => ({ ...await importOriginal<typeof import("./onboarding/completion")>(), readCompletion: mocks.readCompletion }));
 vi.mock("./onboarding/machine", () => ({ runProcess: vi.fn(async () => ({ code: 1, stdout: "", stderr: "" })), probeShell: mocks.probeShell }));
-vi.mock("./agentSetup/runner", () => ({ runAgentSetup: mocks.runAgentSetup, osascriptAdmin: mocks.osascriptAdmin }));
+vi.mock("./agentSetup/runner", () => ({ runAgentSetup: mocks.runAgentSetup, osascriptAdmin: mocks.osascriptAdmin, setupEligibility: mocks.setupEligibility }));
+vi.mock("electron-updater", () => ({ MacUpdater: mocks.Updater }));
+vi.mock("./update/service", async (importOriginal) => ({ ...await importOriginal<typeof import("./update/service")>(), hasFeedConfig: mocks.hasFeedConfig }));
 vi.mock("./cli", () => ({ cliCommand: mocks.cliCommand, runConfig: mocks.runConfig, readFolder: mocks.readFolder, runDesignSkill: mocks.runDesignSkill, runExport: mocks.runExport }));
 vi.mock("./shell", () => ({ startShell: mocks.startShell }));
 vi.mock("./runtime", () => ({ startRuntime: mocks.startRuntime }));
 vi.mock("./addProjects", async (importOriginal) => ({ ...await importOriginal<typeof import("./addProjects")>(), createAddFlow: mocks.createAddFlow }));
 vi.mock("./inspector", async (importOriginal) => ({ ...await importOriginal<typeof import("./inspector")>(), createInspector: mocks.createInspector }));
 vi.mock("./uiState", () => ({ createUiStateStore: mocks.createUiStateStore }));
-// provider-usage R3: the first tool-facts probe and the usage service's triggers, observed where index.ts wires them.
+// The first tool-facts probe and the usage service's triggers, observed where index.ts wires them.
 const usageProbe = vi.hoisted(() => ({ read: undefined as undefined | (() => Promise<unknown>), triggers: [] as unknown[] }));
 vi.mock("./agentAuth/ipc", async (importOriginal) => {
   const original = await importOriginal<typeof import("./agentAuth/ipc")>();
@@ -148,7 +170,7 @@ vi.mock("./agentAuth/usageService", async (importOriginal) => {
   const original = await importOriginal<typeof import("./agentAuth/usageService")>();
   return { ...original, UsageService: class extends original.UsageService { override trigger(event: Parameters<InstanceType<typeof original.UsageService>["trigger"]>[0]) { usageProbe.triggers.push(event); return super.trigger(event); } } };
 });
-// agent-cli-terminal: what main hands the Install/Update opener; its file writes are covered in installCommand.test.ts.
+// What main hands the Install/Update opener; its file writes are covered in installCommand.test.ts.
 const installOpener = vi.hoisted(() => ({ open: vi.fn<(provider: string, facts: unknown) => Promise<string>>(), deps: [] as { dir: string }[] }));
 vi.mock("./installCommand", async (importOriginal) => ({
   ...await importOriginal<typeof import("./installCommand")>(),
@@ -172,6 +194,9 @@ const COMPLETE = { kind: "complete", projectRoot: "/repo" };
 // A held setup stays pending until the test settles it, as while the administrator dialog is open.
 let launchProbe: unknown = { ok: false, reason: "Login shell failed." };
 let launchSetup: unknown = { home: "/Users/you", items: [], steps: [] };
+// Whether this launch's copy updates: agent setup's eligibility for its bundle, and whether it ships a feed file.
+let launchEligibility = "dev";
+let launchFeed = false;
 const HELD = Symbol("held");
 let settleSetup: (value: unknown) => void = () => {};
 beforeEach(async () => {
@@ -183,6 +208,10 @@ beforeEach(async () => {
   mocks.Window.instances.length = 0;
   mocks.ipc.clear();
   mocks.readCompletion.mockReturnValue(launchCompletion);
+  mocks.Updater.instances.length = 0;
+  mocks.nativeUpdater.removeAllListeners();
+  mocks.setupEligibility.mockReturnValue(launchEligibility);
+  mocks.hasFeedConfig.mockReturnValue(launchFeed);
   mocks.probeShell.mockResolvedValue(launchProbe);
   mocks.runAgentSetup.mockReturnValue(launchSetup === HELD ? new Promise(resolve => { settleSetup = resolve; }) : Promise.resolve(launchSetup));
   mocks.app.whenReady.mockResolvedValue();
@@ -781,7 +810,7 @@ describe("menus", () => {
   test("pins the item names and accelerators", () => {
     expect(template().map((menu) => menu.label ?? menu.role)).toEqual(["Doan", "File", "Edit", "View", "Go", "windowMenu"]);
     // Settings… replaces Set Up doan… right after About (orch.md decision).
-    expect(submenu("Doan").map((entry) => entry.label ?? entry.role ?? entry.type)).toEqual(["About Doan", "Settings…", "separator", "services", "separator", "Hide Doan", "hideOthers", "unhide", "separator", "Quit Doan"]);
+    expect(submenu("Doan").map((entry) => entry.label ?? entry.role ?? entry.type)).toEqual(["About Doan", "Check for Updates…", "Settings…", "separator", "services", "separator", "Hide Doan", "hideOthers", "unhide", "separator", "Quit Doan"]);
     expect(item("Settings…").accelerator).toBe("CmdOrCtrl+,");
     expect(submenu("File").map((entry) => entry.label ?? entry.type)).toEqual(["New Conversation", "Add Project…", "separator", "Close Window"]);
     expect(item("New Conversation").accelerator).toBe("CmdOrCtrl+N");
@@ -820,7 +849,7 @@ describe("menus", () => {
     expect(() => item("Undo Remove")).toThrow();
   });
 
-  // buzz-canvas-conversation R1: the chip field refuses Chromium's undo, so the role items could not redo it.
+  // The chip field refuses Chromium's undo, so the role items could not redo it.
   test("Edit > Undo and Redo hand a focused chip field its history step, and run the WebContents undo or redo otherwise", async () => {
     const contents = window().webContents;
     const run = async (label: string) => { Reflect.apply(item(label).click!, undefined, [{}, window(), {}]); await new Promise(resolve => setTimeout(resolve, 0)); };
@@ -885,7 +914,7 @@ describe("menus", () => {
     expect(menuEnabled("New Conversation")).toBe(false);
   });
 
-  // shell-panel-layout design §2.4 '단축키와 메뉴': View's first item hides and shows the sidebar; its name follows the
+  // View's first item hides and shows the sidebar; its name follows the
   // renderer's state, a page lock keeps it, a modal turns it off.
   test("View > Hide/Show Sidebar follows the validated sidebar state and tells the renderer", async () => {
     const contents = window().webContents;
@@ -951,7 +980,7 @@ describe("menus", () => {
     expect(window().webContents.send).toHaveBeenCalledWith("menu-command", "home");
   });
 
-  // buzz-add-projects: the page opens in the renderer; no native picker, and none with multiSelections, opens here.
+  // The page opens in the renderer; no native picker, and none with multiSelections, opens here.
   test("Add Project… shows a hidden window first, then tells the renderer to open the Add Projects page", async () => {
     window().emit("close", { preventDefault: vi.fn() });
     expect(window().hide).toHaveBeenCalledOnce();
@@ -986,7 +1015,7 @@ describe("menus", () => {
     expect(menuEnabled("Add Project…")).toBe(true);
   });
 
-  // buzz-settings: the Settings page is a screen; its lock (and the Add Projects page's) disables Settings… too.
+  // The Settings page is a screen; its lock (and the Add Projects page's) disables Settings… too.
   test("the Settings page keeps Add Project…, Home and Quick Open; a lock on either page disables Settings…", async () => {
     const contents = window().webContents;
     await completeFirstRun();
@@ -1113,7 +1142,7 @@ describe("locate and reveal", () => {
   });
 });
 
-// canvas-hand-tool: a canvas click is the canvas's message, so the renderer asks where the OS cursor is.
+// A canvas click is the canvas's message, so the renderer asks where the OS cursor is.
 describe("pointer", () => {
   test("answers the window's main frame with the OS cursor in content coordinates at the page zoom", async () => {
     const contents = window().webContents;
@@ -1251,7 +1280,7 @@ describe("thumbnails", () => {
     return hidden;
   }
 
-  // turn-activity C1: the stage goes to the main window only, never to the capture window main also owns.
+  // The stage goes to the main window only, never to the capture window main also owns.
   test("a conversation stage reaches the main window and not the capture window", async () => {
     const hidden = await captureWindow();
     window().webContents.send.mockClear(); hidden.webContents.send.mockClear();
@@ -1444,7 +1473,7 @@ test("home path is available only to the application main frame", async () => {
   expect(await invoke("app:home", window().webContents, {})).toBeNull();
 });
 
-// canvas-row-menu: Move to Trash and Export from the sidebar's canvas row menu.
+// Move to Trash and Export from the sidebar's canvas row menu.
 describe("canvas trash and export", () => {
   const row = { path: ".doan/canvases/a.html", id: "a", url: "http://127.0.0.1:1/t/tok/k/.doan/canvases/a.html" };
   const listed = { path: "/repo", kind: "list", servedRev: 1, canvases: [row] };
@@ -1498,7 +1527,7 @@ describe("canvas trash and export", () => {
   });
 });
 
-// canvas-row-menu: main's own busy grounds and trashItem wiring, on a registered root that passes the disk checks
+// Main's own busy grounds and trashItem wiring, on a registered root that passes the disk checks
 // (POSTMORTEM 2026-11-01: the root is part of the identity; 2026-11-03: pin in main what the renderer relies on).
 describe("canvas trash on main's grounds", () => {
   const tmp = realpathSync(mkdtempSync(join(tmpdir(), "doan-index-trash-")));
@@ -1684,9 +1713,9 @@ test("an approved quit prevents native window teardown until the next event-loop
   expect(resumed.preventDefault).not.toHaveBeenCalled();
 });
 
-// conversation-delete orch decision 5: conversation:delete answers busy while quitting as while working, so the
+// conversation:delete answers busy while quitting as while working, so the
 // renderer learns of the quit from main and its refusal toast can stay quiet. An aborted quit leaves the conversations
-// stopped (the service stays quitting), so main never takes it back (review RA Y3, D2).
+// stopped (the service stays quitting), so main never takes it back.
 test("main tells the renderer it is quitting before the conversations stop, and never takes it back after an aborted quit", async () => {
   const contents = window().webContents;
   const service = mocks.conversationService as unknown as { quit(): Promise<void> };
@@ -1834,7 +1863,7 @@ test("canvas seen refuses foreign windows, subframes, unregistered roots and bad
   expect(await invoke("canvas:seen", contents, null, null)).toBe(false);
 });
 
-// buzz-add-projects: the page's own project instance, beside the onboarding session's (design 'main의 project 처리').
+// The page's own project instance, beside the onboarding session's.
 describe("Add Projects page session", () => {
   const PAGE = ["add-projects:read", "add-projects:inspect", "add-projects:select", "add-projects:clone", "add-projects:cancel"];
   const REFUSED = { v: 2, ok: false, error: { code: "bad_request", message: "Doan could not handle this request." } };
@@ -1944,7 +1973,7 @@ describe("Add Projects page session", () => {
     expect(selected).toMatchObject({ ok: true, result: { operation: { kind: "project_select", state: "succeeded", project: { root: "/plain" } } } });
   });
 
-  // review-BS ⚪3: a confirmation answered "added" counts only once the registry holds the path.
+  // A confirmation answered "added" counts only once the registry holds the path.
   test("a confirmed folder the registry does not list is not registered", async () => {
     const contents = window().webContents, sessionId = await pageSession();
     mocks.projects.canonicalFolder.mockResolvedValue("/plain");
@@ -2011,7 +2040,7 @@ describe("Add Projects page session", () => {
   });
 });
 
-// buzz-settings S2–S4: the Settings page's main-window IPC, notifications and the dialog session.
+// The Settings page's main-window IPC, notifications and the dialog session.
 describe("settings page", () => {
   const LIST = { path: ROOT, kind: "list", canvases: [], servedRev: 0, git: { common: `${ROOT}/.git`, main: ROOT, branch: "main", worktrees: [ROOT] } };
   const configRun = (serve: string[]) => ({ exitCode: 0, timedOut: false, stderr: "", stdout: JSON.stringify({ v: 1, ok: true, result: { repo: ROOT, serve, changed: false } }) });
@@ -2065,14 +2094,14 @@ describe("settings page", () => {
     expect(await invoke("about:copy", window().webContents, null, "forged text")).toEqual({ kind: "stale" });
     expect(mocks.clipboard.writeText).not.toHaveBeenCalled();
     expect(await invoke("about:copy", window().webContents, null)).toEqual({ kind: "success" });
-    expect(mocks.clipboard.writeText).toHaveBeenCalledExactlyOnceWith(expect.stringMatching(/^Doan 9\.8\.7\ndoan command 1\.2\.3 \(\/bundled\/doan\)\n/));
+    expect(mocks.clipboard.writeText).toHaveBeenCalledExactlyOnceWith(expect.stringMatching(/^Doan 9\.8\.7\nUpdates: off \(dev\), last checked never\ndoan command 1\.2\.3 \(\/bundled\/doan\)\n/));
   });
 
   test("Copy details before any About read reads in main first; a later copy reads nothing more", async () => {
     mocks.runDesignSkill.mockResolvedValue({ exitCode: 0, timedOut: false, stderr: "", stdout: JSON.stringify({ v: 1, ok: true, result: { version: "1.2.3", presets: [] } }) });
     expect(await invoke("about:copy", window().webContents, null)).toEqual({ kind: "success" });
     expect(mocks.runDesignSkill).toHaveBeenCalledOnce();
-    expect(mocks.clipboard.writeText).toHaveBeenLastCalledWith(expect.stringMatching(/^Doan 9\.8\.7\ndoan command 1\.2\.3 \(\/bundled\/doan\)\n/));
+    expect(mocks.clipboard.writeText).toHaveBeenLastCalledWith(expect.stringMatching(/^Doan 9\.8\.7\nUpdates: off \(dev\), last checked never\ndoan command 1\.2\.3 \(\/bundled\/doan\)\n/));
     const first = mocks.clipboard.writeText.mock.calls.at(-1)?.[0];
     expect(await invoke("about:copy", window().webContents, null)).toEqual({ kind: "success" });
     expect(mocks.runDesignSkill).toHaveBeenCalledOnce();
@@ -2117,7 +2146,7 @@ describe("settings page", () => {
   });
 
   describe("dialog session", () => {
-    test("다이얼로그를 닫은 뒤 늦게 온 읽기·선택 답은 버려진다", async () => {
+    test("a read or choose answer that arrives after the dialog closed is dropped", async () => {
       mocks.shell.entries.mockReturnValue([LIST]);
       const contents = window().webContents;
       await invoke("config:session-start", contents, null);
@@ -2130,7 +2159,7 @@ describe("settings page", () => {
       expect(await reading).toEqual({ kind: "unavailable" });
     });
 
-    test.each(["did-navigate", "render-process-gone"])("reload 뒤 대기 중인 config 읽기가 취소된다 (%s)", async event => {
+    test.each(["did-navigate", "render-process-gone"])("a config read pending across a reload is cancelled (%s)", async event => {
       mocks.shell.entries.mockReturnValue([LIST]);
       const contents = window().webContents;
       let finish!: (value: unknown) => void;
@@ -2227,7 +2256,7 @@ describe("settings page", () => {
   });
 });
 
-// zero-setup-agents: agent setup runs once per launch, beside the window, and About waits for its result.
+// Agent setup runs once per launch, beside the window, and About waits for its result.
 describe("agent setup on launch", () => {
   const LISTED = { exitCode: 0, timedOut: false, stderr: "", stdout: JSON.stringify({ v: 1, ok: true, result: { version: "1.2.3", presets: [] } }) };
   const ALL = ["claude", "codex", "cursor", "antigravity", "copilot"];
@@ -2277,7 +2306,7 @@ describe("agent setup on launch", () => {
     failed.catch(() => {});
     beforeAll(() => { launchSetup = HELD; });
     afterAll(() => { launchSetup = { home: "/Users/you", items: [], steps: [] }; });
-    // A crash must not read as "every agent was set up" (design 'About 알림').
+    // A crash must not read as "every agent was set up".
     test("the failure is logged and About answers with a crashed item, which Copy details names", async () => {
       const logged = vi.spyOn(console, "error").mockImplementation(() => {});
       mocks.runDesignSkill.mockResolvedValue(LISTED);
@@ -2338,7 +2367,7 @@ test("unchanged work does not publish during startup or folder refreshes", () =>
   expect(publications()).toHaveLength(2);
 });
 
-// work-update design §2 function 5: an update's content and a renewed start reach the renderer.
+// An update's content and a renewed start reach the renderer.
 test("work content and a later start publish work:changed", () => {
   vi.useFakeTimers();
   onTestFinished(() => { vi.useRealTimers(); });
@@ -2362,7 +2391,7 @@ test("work content and a later start publish work:changed", () => {
   expect(new Set(published.map(items => items[0]?.turn)).size).toBe(1);
 });
 
-// V2 review: the same conversation update in the same ms publishes once; a later one renews touched and publishes.
+// The same conversation update in the same ms publishes once; a later one renews touched and publishes.
 test("an identical conversation update publishes again only when its time changed", () => {
   vi.useFakeTimers();
   onTestFinished(() => { vi.useRealTimers(); });
@@ -2382,7 +2411,7 @@ test("an identical conversation update publishes again only when its time change
   expect(publications()[1]?.[0]?.touched).toBe((publications()[0]?.[0]?.touched ?? 0) + 5);
 });
 
-// work-update design decision 9 and §1 rule 5: an app conversation's update is its own state and channel, never
+// An app conversation's update is its own state and channel, never
 // terminal work, and its turn's end clears it.
 test("conversation work has its own channel, only for a running turn, and a turn's end clears it", () => {
   const state = mocks.startRuntime.mock.calls[0]?.[1] as { conversationWork(request: unknown): void } | undefined;
@@ -2527,7 +2556,7 @@ test("work deadlines use one timeout and file changes stay within their root", (
   } finally { timeout.mockRestore(); interval.mockRestore(); vi.useRealTimers(); }
 });
 
-// onboarding-background-open: `onboarding start` keeps Doan behind the app in use and shows the window on activation.
+// `onboarding start` keeps Doan behind the app in use and shows the window on activation.
 describe("background onboarding launch and start", () => {
   // Relaunches main with the CLI's background flag in argv (or without it) and the given activation at window creation.
   async function launch({ background, active }: { background: boolean; active: boolean }) {
@@ -2768,7 +2797,7 @@ describe("background onboarding launch and start", () => {
   });
 });
 
-// provider-usage B2: the usage read answers the window's entries; a frame that is not the window gets an empty list.
+// The usage read answers the window's entries; a frame that is not the window gets an empty list.
 test("answers agent-usage:read with entries for the window and an empty list for anyone else", async () => {
   const contents = window().webContents;
   const entries = await invoke("agent-usage:read", contents, null, undefined);
@@ -2795,5 +2824,214 @@ describe("the usage start trigger", () => {
     await import("./index");
     await vi.waitFor(() => expect(started()).toHaveLength(1));
     error.mockRestore();
+  });
+});
+
+test("Check for Updates… sits under About Doan and waits for first run like Settings…", () => {
+  expect(item("Check for Updates…").enabled).toBe(false);
+});
+
+// The update service (ARCHITECTURE §7): eligibility from agent setup and the bundle's feed file; checks, the menu item,
+// the IPC channels and Restart to Update, which installs only after main's own quit has saved and flushed.
+describe("app updates", () => {
+  const SNAPSHOT_GATE = { kind: "allowed" };
+  const updater = () => { const found = mocks.Updater.instances[0]; if (!found) throw new Error("no updater"); return found; };
+  const snapshot = async () => await invoke("update:get", window().webContents, null) as { state: unknown; gate: unknown; autoCheck: boolean; eligibility: unknown; version: string };
+  // The launch check finds 0.2.0, downloads it and Squirrel.Mac stages it.
+  function readyUpdate() {
+    updater().emit("update-available", { version: "0.2.0" });
+    updater().emit("update-downloaded", { version: "0.2.0" });
+    mocks.nativeUpdater.emit("update-downloaded");
+  }
+  const quitTurn = () => new Promise<void>(resolve => setImmediate(resolve));
+
+  describe("in a copy that updates", () => {
+    beforeAll(() => { launchCompletion = COMPLETE; launchEligibility = "eligible"; launchFeed = true; });
+    afterAll(() => { launchCompletion = { kind: "missing" }; launchEligibility = "dev"; launchFeed = false; });
+    beforeEach(async () => { await vi.waitFor(() => expect(mocks.Updater.instances).toHaveLength(1)); });
+
+    test("the updater starts after the window from agent setup's eligibility and the bundle's feed, and checks at launch", async () => {
+      expect(mocks.setupEligibility).toHaveBeenCalledWith({ home: process.env.HOME, resources: process.resourcesPath, isPackaged: true });
+      expect(mocks.hasFeedConfig).toHaveBeenCalledWith(process.resourcesPath);
+      expect(updater()).toMatchObject({ autoDownload: true, autoInstallOnAppQuit: true, allowPrerelease: false });
+      expect(updater().checkForUpdates).toHaveBeenCalledOnce();
+      expect(await snapshot()).toEqual({ version: "9.8.7", state: { kind: "checking", manual: false, last: { kind: "idle" } }, eligibility: { kind: "enabled" }, gate: SNAPSHOT_GATE, autoCheck: true, lastCheckedAt: null });
+    });
+
+    test("each change reaches the renderer as update:state", async () => {
+      updater().emit("update-available", { version: "0.2.0" });
+      expect(window().webContents.send).toHaveBeenLastCalledWith("update:state", expect.objectContaining({ state: { kind: "downloading", version: "0.2.0", percent: 0 } }));
+      expect((await snapshot()).state).toEqual({ kind: "downloading", version: "0.2.0", percent: 0 });
+    });
+
+    test("update channels answer the main window's main frame only", async () => {
+      const other = new mocks.Window({ show: false }).webContents;
+      readyUpdate();
+      for (const channel of ["update:get", "update:check", "update:install", "update:openNotes"]) {
+        const refused = await invoke(channel, {}, null);
+        expect(await invoke(channel, other, null), channel).toEqual(refused);
+        expect(await invoke(channel, window().webContents, {}), channel).toEqual(refused);
+        expect(await invoke(channel, window().webContents, null, "forged"), channel).toEqual(refused);
+      }
+      expect(mocks.app.quit).not.toHaveBeenCalled();
+      expect(mocks.electronShell.openExternal).not.toHaveBeenCalled();
+      expect(updater().checkForUpdates).toHaveBeenCalledOnce();
+    });
+
+    test("update:check is a manual check", async () => {
+      updater().emit("update-not-available", { version: "9.8.7" });
+      await invoke("update:check", window().webContents, null);
+      expect(updater().checkForUpdates).toHaveBeenCalledTimes(2);
+      expect((await snapshot()).state).toMatchObject({ kind: "checking", manual: true });
+    });
+
+    test("Release Notes opens the ready version's release page and nothing without one", async () => {
+      expect(await invoke("update:openNotes", window().webContents, null)).toBe(false);
+      readyUpdate();
+      expect(await invoke("update:openNotes", window().webContents, null)).toBe(true);
+      expect(mocks.electronShell.openExternal).toHaveBeenCalledExactlyOnceWith("https://github.com/SinhyeokKang/doan-design/releases/tag/v0.2.0");
+      mocks.electronShell.openExternal.mockRejectedValueOnce(new Error("no handler"));
+      expect(await invoke("update:openNotes", window().webContents, null)).toBe(false);
+    });
+
+    test("turning automatic checks off in Settings reaches the service", async () => {
+      const off = { ...DEFAULTS, updates: { autoCheck: false } };
+      mocks.preferences.update.mockResolvedValueOnce({ ok: true, snapshot: { preferences: off, notice: null } });
+      mocks.preferences.current.mockReturnValue(off);
+      await invoke("preferences:write", window().webContents, null, { updates: { autoCheck: false } });
+      expect((await snapshot()).autoCheck).toBe(false);
+    });
+
+    test("Copy details carries the update line", async () => {
+      mocks.runDesignSkill.mockResolvedValue({ exitCode: 0, timedOut: false, stderr: "", stdout: JSON.stringify({ v: 1, ok: true, result: { version: "1.2.3", presets: [] } }) });
+      readyUpdate();
+      expect(await invoke("about:copy", window().webContents, null)).toEqual({ kind: "success" });
+      expect(mocks.clipboard.writeText.mock.calls.at(-1)?.[0]).toMatch(/^Doan 9\.8\.7\nUpdates: 0\.2\.0 ready, last checked \d{4}-\d\d-\d\dT[\d:.]+Z\n/);
+    });
+
+    // Install happens only after the conversations are saved and the debounced state is flushed (POSTMORTEM
+    // 2026-10-25 'A crash during quit teardown lost the debounced ui-state').
+    test("Restart to Update quits through main's own quit and installs only after the flush", async () => {
+      readyUpdate();
+      expect(await invoke("update:install", window().webContents, null)).toEqual({ kind: "allowed" });
+      expect(mocks.app.quit).toHaveBeenCalledOnce();
+      expect(updater().quitAndInstall).not.toHaveBeenCalled();
+      mocks.app.emit("before-quit", { preventDefault: vi.fn() });
+      await quitTurn();
+      await vi.waitFor(() => expect(updater().quitAndInstall).toHaveBeenCalledOnce());
+      const install = updater().quitAndInstall.mock.invocationCallOrder[0]!;
+      for (const step of [mocks.uiState.flushSync, mocks.canvasSeenFlushSync, mocks.thumbnails.dispose]) expect(step.mock.invocationCallOrder[0]).toBeLessThan(install);
+      // The quit that installs is the updater's, not a second plain one.
+      expect(mocks.app.quit).toHaveBeenCalledOnce();
+      // quitting is set, so the window closing for the install is not turned into a hide.
+      const close = { preventDefault: vi.fn() };
+      window().emit("close", close);
+      expect(close.preventDefault).not.toHaveBeenCalled();
+    });
+
+    test("a quit a conversation's save cancelled installs nothing and stops the restart", async () => {
+      readyUpdate();
+      const service = mocks.conversationService as unknown as { quit(): Promise<void> };
+      vi.spyOn(service, "quit").mockRejectedValueOnce(new Error("EIO"));
+      const log = vi.spyOn(console, "error").mockImplementation(() => {});
+      onTestFinished(() => { log.mockRestore(); });
+      await invoke("update:install", window().webContents, null);
+      mocks.app.emit("before-quit", { preventDefault: vi.fn() });
+      await quitTurn();
+      await vi.waitFor(() => expect(log).toHaveBeenCalledWith("doan: conversation persistence failed during quit", expect.any(Error)));
+      expect(updater().quitAndInstall).not.toHaveBeenCalled();
+      expect(mocks.uiState.flushSync).not.toHaveBeenCalled();
+      expect((await snapshot()).state).toEqual({ kind: "restartAborted", version: "0.2.0" });
+      expect(mocks.app.quit).toHaveBeenCalledOnce();
+    });
+
+    // A downloaded update installs on any quit (autoInstallOnAppQuit), so a plain quit stays a plain quit.
+    test("a plain quit with an update ready quits as before", async () => {
+      readyUpdate();
+      mocks.app.emit("before-quit", { preventDefault: vi.fn() });
+      await quitTurn();
+      await vi.waitFor(() => expect(mocks.app.quit).toHaveBeenCalledOnce());
+      expect(updater().quitAndInstall).not.toHaveBeenCalled();
+    });
+
+    // Only a conversation holds the restart back (quitting would stop its turn or drop the answer it waits for), and
+    // main asks again at the press.
+    test("a running turn or an answer it waits for blocks the press; nothing quits", async () => {
+      readyUpdate();
+      const service = mocks.conversationService as unknown as { restartHolds(): { liveTurns: number; pendingAnswers: number } };
+      const holds = vi.spyOn(service, "restartHolds").mockReturnValue({ liveTurns: 0, pendingAnswers: 1 });
+      expect(await invoke("update:install", window().webContents, null)).toEqual({ kind: "blocked", reason: "conversation" });
+      holds.mockReturnValue({ liveTurns: 1, pendingAnswers: 0 });
+      expect(await invoke("update:install", window().webContents, null)).toEqual({ kind: "blocked", reason: "conversation" });
+      expect(mocks.app.quit).not.toHaveBeenCalled();
+      expect((await snapshot()).state).toEqual({ kind: "ready", version: "0.2.0" });
+    });
+
+    // The conversation service calls both before it finishes applying the change, so main reads the gate after.
+    test.each(["a conversation event", "the end of a turn's work"])("%s reads the gate again once the change is applied, and publishes it when it changed", async which => {
+      readyUpdate();
+      const service = mocks.conversationService as unknown as { restartHolds(): { liveTurns: number; pendingAnswers: number } };
+      vi.spyOn(service, "restartHolds").mockReturnValue({ liveTurns: 1, pendingAnswers: 0 });
+      window().webContents.send.mockClear();
+      if (which === "a conversation event") mocks.publishConversation?.({ v: 1, conversationId: "c1", seq: 1, turnId: "t1", at: "2026-11-08T10:00:00.000Z", type: "turn.started" });
+      else mocks.workEnded?.("c1");
+      expect(window().webContents.send).not.toHaveBeenCalledWith("update:state", expect.anything());
+      await Promise.resolve();
+      expect(window().webContents.send).toHaveBeenCalledWith("update:state", expect.objectContaining({ gate: { kind: "blocked", reason: "conversation" } }));
+    });
+
+    describe("the Doan menu item", () => {
+      test("Check for Updates… opens About and checks", async () => {
+        updater().emit("update-not-available", { version: "9.8.7" });
+        click("Check for Updates…");
+        expect(window().show).toHaveBeenCalled();
+        expect(window().webContents.send).toHaveBeenCalledWith("settings-page:open", { section: "about" });
+        expect(updater().checkForUpdates).toHaveBeenCalledTimes(2);
+        expect((await snapshot()).state).toMatchObject({ kind: "checking", manual: true });
+      });
+
+      test("reads Restart to Update once an update is ready, and restarts", () => {
+        readyUpdate();
+        expect(() => item("Check for Updates…")).toThrow();
+        expect(item("Restart to Update").enabled).toBe(true);
+        click("Restart to Update");
+        expect(mocks.app.quit).toHaveBeenCalledOnce();
+        expect(item("Restart to Update").enabled).toBe(false);
+      });
+
+      test("a blocked press shows the window and asks the renderer for the header popover", () => {
+        readyUpdate();
+        const service = mocks.conversationService as unknown as { restartHolds(): { liveTurns: number; pendingAnswers: number } };
+        vi.spyOn(service, "restartHolds").mockReturnValue({ liveTurns: 1, pendingAnswers: 0 });
+        window().emit("close", { preventDefault: vi.fn() });
+        click("Restart to Update");
+        expect(mocks.app.quit).not.toHaveBeenCalled();
+        expect(window().show).toHaveBeenCalled();
+        expect(window().webContents.send).toHaveBeenLastCalledWith("update:popover");
+      });
+
+      test("is disabled behind a modal and on a locked page", async () => {
+        await invoke("menu:state", window().webContents, null, { screen: "home", modal: true });
+        expect(item("Check for Updates…").enabled).toBe(false);
+        await invoke("menu:state", window().webContents, null, { screen: "settings", modal: false, locked: true });
+        expect(item("Check for Updates…").enabled).toBe(false);
+      });
+    });
+  });
+
+  describe("in a copy that doesn't update", () => {
+    beforeAll(() => { launchCompletion = COMPLETE; launchEligibility = "outside-applications"; launchFeed = true; });
+    afterAll(() => { launchCompletion = { kind: "missing" }; launchEligibility = "dev"; launchFeed = false; });
+
+    test("no updater is made, nothing checks, and the menu item only opens About", async () => {
+      await vi.waitFor(() => expect(mocks.setupEligibility).toHaveBeenCalled());
+      expect(mocks.Updater.instances).toHaveLength(0);
+      expect(await snapshot()).toMatchObject({ eligibility: { kind: "disabled", reason: "outside-applications" }, state: { kind: "idle" } });
+      click("Check for Updates…");
+      expect(window().webContents.send).toHaveBeenCalledWith("settings-page:open", { section: "about" });
+      expect(mocks.Updater.instances).toHaveLength(0);
+      expect(await invoke("update:install", window().webContents, null)).toBeNull();
+      expect(mocks.app.quit).not.toHaveBeenCalled();
+    });
   });
 });

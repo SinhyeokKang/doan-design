@@ -1,7 +1,7 @@
 import { CONNECTOR_NAME } from "./names";
 import type { ListedServer } from "./status";
 
-// The registrations a provider profile's own config holds, read when the provider's list cannot be (BB review Y3):
+// The registrations a provider profile's own config holds, read when the provider's list cannot be:
 // a sign-out or replacement must still know which doan- servers to log out. Only server names and URLs are taken;
 // tokens are not in these files (they are in the OS keychain), and nothing else in them is used. null: the config
 // could not be read for certain, which is never "no servers": the caller then falls back to every server Doan knows.

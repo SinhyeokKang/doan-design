@@ -4,7 +4,7 @@ import type { Canvas } from "../main/conversation/types";
 import type { FolderEntry } from "../main/view";
 import type { WorkItem } from "../main/workState";
 
-// terminal-agent-activity design '표시' (canvas conversation panel), run with hooks as plain state (the App tests' no-DOM
+// The canvas conversation panel, run with hooks as plain state (the App tests' no-DOM
 // style): a terminal session choice that was chosen falls back to a new conversation while that session works in a
 // terminal, and stays a new conversation once the session ends, so the choice never flips back under a draft.
 const hooks = vi.hoisted(() => ({
@@ -100,7 +100,7 @@ function resumeChoice(node: ReactNode): { offer: string; held: boolean } | null 
   return resumeChoice(element.props.children);
 }
 
-// RD1: on the first entry the linked Claude session works in a terminal, so its process holds it (session_in_use) and
+// On the first entry the linked Claude session works in a terminal, so its process holds it (session_in_use) and
 // the choice waits. The target is read again when the work list changes and when the window comes back, since nothing
 // tells the run when that process exits; the choice returns once the session can run.
 test("a Claude session a terminal process holds waits on first entry and returns once it can run", async () => {
@@ -141,7 +141,7 @@ test("a Claude session a terminal process holds waits on first entry and returns
   expect(target).toHaveBeenCalledTimes(asked);
 });
 
-// RD1: the work ending with the process gone (the read after the change answers) brings the choice back at once.
+// The work ending with the process gone (the read after the change answers) brings the choice back at once.
 test("a held Claude session returns when its work ends and the process is free", async () => {
   const target = vi.fn(async () => ({ available: false, reason: "session_in_use", runtime: "claude", session: "s1" }) as unknown);
   (window as unknown as { doan: { conversationResumeTarget: unknown } }).doan.conversationResumeTarget = target;
@@ -192,7 +192,7 @@ test("the panel hands the page's canvas press signal to its composer", async () 
   expect(composer(tree)?.canvasPress).toBe(canvasPress);
 });
 
-// canvas-handoff design §6 (runtime finding in /design-sync): the move's arrival comes with the render that still
+// A runtime finding in /design-sync: the move's arrival comes with the render that still
 // shows the canvas left behind, whose thread has no card. It waits for the receiving conversation and focuses its
 // card there instead of sending focus to the old composer.
 test("a handoff arrival waits for the receiving canvas and conversation, then is applied once", async () => {
@@ -242,7 +242,7 @@ function dockedProps(node: ReactNode): Record<string, unknown> | null {
   return dockedProps(element.props.children);
 }
 
-// fast-mode B2 (POSTMORTEM 2026-11-02): the panel's own start sends the Fast its switch shows, and its remembered
+// POSTMORTEM 2026-11-02: the panel's own start sends the Fast its switch shows, and its remembered
 // choice carries no Fast, which only a switch records.
 test("a new conversation started from the panel sends the Fast it shows and remembers none", async () => {
   const { authStatus } = await import("../main/agentAuth/state");

@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { CONVERSATION_PANEL_ID, ConversationPanel, dragPanel, ResizeHandle } from "./ConversationPanel";
 import { TooltipProvider } from "./components/ui/tooltip";
 
-// buzz-canvas design §0 'default', 'panel-collapsed', 'panel-resize', §2 '오른쪽 패널', §5 copy.
+// Draft buzz-canvas frames default, panel-collapsed and panel-resize, and its copy.
 const bounds = { min: 347, max: 619 };
 const props = (over: Partial<Parameters<typeof ConversationPanel>[0]> = {}) => ({ open: true, width: 400, bounds, onHide: vi.fn(), onResize: vi.fn(), preview: vi.fn(), ...over });
 const markup = (over: Partial<Parameters<typeof ConversationPanel>[0]> = {}) => renderToStaticMarkup(<TooltipProvider><ConversationPanel {...props(over)} /></TooltipProvider>);

@@ -14,7 +14,7 @@ import { connectorState, type CheckOutcome, type ConnectorView, type McpFacts } 
 import { codexMcpServers, parseClaudeMcpGet, parseClaudeMcpList, parseCodexMcpList, type ListedServer } from "./status";
 import type { ConnectorStore } from "./store";
 
-// Why an attempt failed, kept on its row until that row's next Connect, Retry or Cancel (spec 완료 조건 3).
+// Why an attempt failed, kept on its row until that row's next Connect, Retry or Cancel.
 // busy: the provider's sign-in or sign-out holds it. not_ready: the agent cannot run. pending_logout: the previous
 // account's logout still failed. no_link: Claude's BROWSER hook received no acceptable link (a Claude `browser`
 // setting). approval_timeout: the browser approval did not come in time. storage_failed: a plaintext token file.
@@ -43,7 +43,7 @@ export interface McpAuth {
   state(provider: McpProvider): AuthState;
   // A command in a Doan-owned directory outside the profiles (a pending Codex logout's temporary CODEX_HOME).
   environment(provider: McpProvider, profileDir: string): Promise<{ command: string; env: Record<string, string> }>;
-  // A committed replacement still running its MCP step: the new connection is not ready yet (BB review R1).
+  // A committed replacement still running its MCP step: the new connection is not ready yet.
   settling(provider: McpProvider): boolean;
 }
 export interface McpServiceOptions {
@@ -63,10 +63,10 @@ export interface McpServiceOptions {
 const LIMITS = {
   // A status, list, add, logout or remove command; status commands health-check servers over the network.
   commandMs: 20_000,
-  // The hook link arrives about a second after the login starts (P4b); none this long after means the CLI will not
+  // The hook link arrives about a second after the login starts; none this long after means the CLI will not
   // hand one over (a Claude `browser` setting overrides BROWSER).
   linkMs: 30_000,
-  // How long the browser approval may take after the link (spec 완료 조건 4); also Codex's hang guard.
+  // How long the browser approval may take after the link; also Codex's hang guard.
   approvalMs: 5 * 60_000,
 };
 const QUIT_WAIT_MS = 5000;
@@ -94,7 +94,7 @@ const COMMANDS = {
   },
 } as const;
 
-// Settings > MCP Connectors in main (mcp-connectors design 'service'): Doan keeps the server list; each provider CLI
+// Settings > MCP Connectors in main (ARCHITECTURE §7 'MCP connectors'): Doan keeps the server list; each provider CLI
 // registers, signs in and stores tokens in the provider's Doan profile. One attempt per provider at a time, and every
 // command chain on a profile runs in that provider's queue, so two CLI processes never rewrite one profile's config.
 export class McpService implements McpConversationFacts {
@@ -162,7 +162,7 @@ export class McpService implements McpConversationFacts {
   labels(): Record<string, string> { const read = this.options.store.connectors(); return connectorLabels(read.ok ? read.file.servers : []); }
 
   // Status commands use the network, so they run on entering the page, after an Add or an attempt, on Retry and when
-  // the provider's sign-in changes, never on a timer (design '상태 판정').
+  // the provider's sign-in changes, never on a timer (ARCHITECTURE §7 'MCP connectors').
   refresh(provider?: McpProvider): void {
     for (const each of provider ? [provider] : MCP_PROVIDERS) {
       if (this.closed || !this.options.readiness(each).ready) continue;
@@ -222,7 +222,7 @@ export class McpService implements McpConversationFacts {
     return { ok: true };
   }
 
-  // A cancelled Connect returns to its previous state without a failure (spec 완료 조건 4).
+  // A cancelled Connect returns to its previous state without a failure.
   cancel(provider: McpProvider, name: string): McpReply {
     const attempt = this.attempts.get(provider);
     if (!attempt || attempt.kind !== "connect" || attempt.name !== name) return { ok: false, reason: "stale" };
@@ -243,10 +243,10 @@ export class McpService implements McpConversationFacts {
   authChanged(provider: Provider): void {
     if (!mcpProvider(provider)) return;
     const state = this.options.auth.state(provider);
-    // A Claude without a Doan connection signed out with `claude auth logout`, which clears its MCP tokens (P4).
+    // A Claude without a Doan connection signed out with `claude auth logout`, which clears its MCP tokens.
     if (provider === "claude" && !state.connection) this.options.store.clearProvider("claude");
     // Codex keys MCP tokens by server name and URL only, so its pending logouts are retried at start whether or not
-    // Codex is signed in (design 'agentAuth').
+    // Codex is signed in (ARCHITECTURE §7 'MCP connectors').
     if (!this.started.has(provider)) {
       this.started.add(provider);
       if (provider === "codex" && !this.closed) this.chore(provider, owner => this.retryPending(provider, null, owner).then(() => {}));
@@ -269,7 +269,7 @@ export class McpService implements McpConversationFacts {
     await Promise.allSettled(owners.map(owner => this.works.get(owner)));
   }
 
-  // Quit cancels every attempt and read, which then write nothing (design '프로세스 정리').
+  // Quit cancels every attempt and read, which then write nothing.
   async quit(): Promise<void> {
     this.closed = true;
     for (const attempt of new Set(this.attempts.values())) this.stop(attempt);
@@ -329,7 +329,7 @@ export class McpService implements McpConversationFacts {
 
   // Without the provider's list, the targets are the union of the profile config's doan- servers (when that read
   // succeeds; it also finds servers the connectors file does not know) and every server Doan knows (presets, and the
-  // file's servers when it can be read), so a config parser miss can never drop a known server (BB review round 3).
+  // file's servers when it can be read), so a config parser miss can never drop a known server.
   // Each is logged out; a failure is recorded and blocks Connect until a retry succeeds. The config is read before
   // the provider logout, which may change the profile.
   private async listForAuth(provider: McpProvider, request: McpLogoutRequest): Promise<{ servers: ListedServer[] }> {
@@ -349,7 +349,7 @@ export class McpService implements McpConversationFacts {
 
   private async connectFlow(provider: McpProvider, server: ConnectorServer, attempt: Attempt): Promise<void> {
     try {
-      // Connect retries the previous account's logout first and connects only after it succeeded (spec 완료 조건 8).
+      // Connect retries the previous account's logout first and connects only after it succeeded.
       if (this.options.store.blocked(provider, server.name) && !await this.retryPending(provider, server.name, attempt, server.url)) throw new Failure("pending_logout");
       if (attempt.stopped) return;
       const hooked = provider === "claude" ? this.hookLinks(raw => this.linked(attempt, raw)) : null;
@@ -383,7 +383,7 @@ export class McpService implements McpConversationFacts {
     finally {
       clearTimeout(link); clearTimeout(approval); attempt.onLink = null;
       // After the login's group is gone, on every way out (success, failure, limit, cancel): Claude falls back to a
-      // plaintext file when the keychain fails, and none may stay behind (spec 완료 조건 5, BB review R3).
+      // plaintext file when the keychain fails, and none may stay behind.
       plaintext = this.scrubPlaintext(lease.profileDir);
     }
     if (attempt.stopped) return;
@@ -399,7 +399,7 @@ export class McpService implements McpConversationFacts {
 
   // `codex mcp add` starts the OAuth sign-in itself and opens the default browser; Doan opens nothing for Codex
   // (POSTMORTEM 2026-10-30 'Doan opened a second Codex sign-in page'). A registration left by a cancelled or failed
-  // first attempt signs in with `codex mcp login` (design '등록 정합').
+  // first attempt signs in with `codex mcp login` (ARCHITECTURE §7 'MCP connectors').
   private async codexConnect(attempt: Attempt, lease: Lease, server: ConnectorServer): Promise<void> {
     const listed = await this.codexList(attempt, lease);
     if (attempt.stopped) return;
@@ -485,8 +485,8 @@ export class McpService implements McpConversationFacts {
     return true;
   }
 
-  // Pending logouts first (app start retries them, design 'agentAuth'), then the doan- registrations neither a preset
-  // nor in the file (design '등록 정합' reconcile). Both quietly wait for the next ready moment on any failure.
+  // Pending logouts first (app start retries them), then the doan- registrations neither a preset
+  // nor in the file (ARCHITECTURE §7 'MCP connectors'). Both quietly wait for the next ready moment on any failure.
   private async prepare(provider: McpProvider, owner: Owner): Promise<void> {
     try { await this.retryPending(provider, null, owner); } catch (error) { console.error(`doan: ${provider} pending MCP logouts were not retried: ${message(error)}`); }
     if (owner.stopped || this.closed) return;
@@ -507,7 +507,7 @@ export class McpService implements McpConversationFacts {
 
   // Whether every pending logout asked for (one server, or all of the provider's) is gone. Claude's token sits in the
   // live profile's keychain item; Codex's keychain key is the name and URL hash only, so its logout runs in a
-  // temporary CODEX_HOME holding just that server: the profile it was registered in may be gone (design 'agentAuth').
+  // temporary CODEX_HOME holding just that server: the profile it was registered in may be gone (ARCHITECTURE §7 'MCP connectors').
   // url: the server's URL, for a block the store holds without a record (an unreadable pending file).
   private async retryPending(provider: McpProvider, only: string | null, owner: Owner, url?: string): Promise<boolean> {
     let entries = this.options.store.pending(provider).filter(entry => only === null || entry.name === only);
@@ -554,7 +554,7 @@ export class McpService implements McpConversationFacts {
   private async read(provider: McpProvider, owner: Owner): Promise<void> {
     // A Connect, Disconnect or Remove that succeeds meanwhile records what it established; a read that began before it
     // may have run its commands before the change, so its result is dropped and the read that end() asked for (again)
-    // reads afresh (BU review Y2).
+    // reads afresh.
     const started = this.generation(provider);
     this.changed();
     try {

@@ -99,7 +99,7 @@ function judgmentCode(judgment: Exclude<ConnectionJudgment, { decision: "resume"
 // PATH (live 2026-10-28); allow_login_shell=false (official config key) keeps the PATH prepared below.
 const RUN_ARGS: Record<"claude" | "codex", string[]> = { claude: [], codex: ["-c", "allow_login_shell=false"] };
 // A stored ACP session is a directory or <id>.<ext> file in the provider's sessions directory; session/load is the
-// final admission. Cursor .cursor/acp-sessions/<id>/, Copilot .copilot/session-state/<id>/ (B3 live check).
+// final admission. Cursor .cursor/acp-sessions/<id>/, Copilot .copilot/session-state/<id>/ (live check).
 export function acpSessionExists(profileDir: string, sessions: string, id: string): boolean {
   if (!/^[A-Za-z0-9_-]{1,128}$/.test(id)) return false;
   try {
@@ -118,7 +118,7 @@ export interface VersionRecords {
 // the minimum or unreadable, so the readiness facts read at launch may be stale (an install, removal or downgrade since).
 // The Antigravity server has no version run: it is the sha-pinned download (agentAuth/antigravity.ts) and its
 // initialize reply names its version.
-// What a Claude or Codex run needs from the MCP connectors (mcp-connectors design 'conversation (Codex)'): the
+// What a Claude or Codex run needs from the MCP connectors: the
 // provider's connector generation, which a successful Connect, Disconnect or Remove raises, and the connector names by
 // doan- name. Both are read when the run asks, so a reused Codex server sees later changes. A replacement sign-in does
 // not raise the generation: a Codex replacement moves to a new staging profile, so its runners are new, and Claude

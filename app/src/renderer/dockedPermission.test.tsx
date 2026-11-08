@@ -21,7 +21,7 @@ import { DockedSupport, modelsKey } from "./dockedSupport";
 import { OverviewRun, type ListView } from "./overviewRun";
 import { ProjectOverview, type ProjectOverviewProps } from "./ProjectOverview";
 
-// RV-B (permission-mode PM-B review): the docked composers' permission mode across a provider switch, a start, a pending
+// the docked composers' permission mode across a provider switch, a start, a pending
 // pick and a terminal session, in the Overview and the canvas panel.
 
 const ROOT = "/w/acme";
@@ -109,7 +109,7 @@ const setups = {
   "canvas panel": { setup: async (patch: object) => panel(patch), row: (patch: Partial<ConversationSummary> = {}) => summary({ canvas: CANVAS, ...patch }) },
 };
 
-// RV-B 🟡1, spec decision 4: a new conversation's mode pick is the picked provider's. Switching the provider drops it,
+// a new conversation's mode pick is the picked provider's. Switching the provider drops it,
 // so the new provider shows (and remembers) its own mode; Full access picked for Claude never carries to Codex.
 for (const [name, { setup }] of Object.entries(setups)) test(`${name}: a provider switch drops the picked mode`, async () => {
   const onRemember = vi.fn();
@@ -124,7 +124,7 @@ for (const [name, { setup }] of Object.entries(setups)) test(`${name}: a provide
   for (const choice of codex) expect(choice.permissionMode).toBe("plan");
 });
 
-// RV-B 🟡2: a just-started conversation shows the mode it was started in until its summary arrives, then the summary's.
+// a just-started conversation shows the mode it was started in until its summary arrives, then the summary's.
 // A send before the summary names no mode (main's stored one runs).
 test("overview: a start carries its mode, which shows until the summary arrives and is not sent", async () => {
   const onStart = vi.fn(async (_start: unknown, _last: unknown) => ({ ok: true as const, conversationId: A }));
@@ -142,7 +142,7 @@ test("overview: a start carries its mode, which shows until the summary arrives 
   expect(render().permission?.mode).toBe("acceptEdits");
 });
 
-// ⚪6: the canvas panel's start, pre-summary send and display, as the Overview's.
+// the canvas panel's start, pre-summary send and display, as the Overview's.
 test("canvas panel: a start carries its mode, which shows until the summary arrives and is not sent", async () => {
   const onRemember = vi.fn();
   const { render, setList, support } = await panel({ onRemember, prefs: { permissions: { claude: "bypass" } } });
@@ -159,7 +159,7 @@ test("canvas panel: a start carries its mode, which shows until the summary arri
   expect(render().permission?.mode).toBe("acceptEdits");
 });
 
-// RV-B 🟡3: a pick main has not reported yet gives way when the stored mode moves off the one it was made from.
+// a pick main has not reported yet gives way when the stored mode moves off the one it was made from.
 for (const [name, { setup, row }] of Object.entries(setups)) test(`${name}: a pending pick gives way to a changed stored mode`, async () => {
   const { render, setList, open } = await setup({});
   setList([row({ permissionMode: "plan" })]);
@@ -173,7 +173,7 @@ for (const [name, { setup, row }] of Object.entries(setups)) test(`${name}: a pe
   expect(render().permission?.mode).toBe("default");
 });
 
-// ⚪6: a terminal session keeps its own mode: no picker, and its start names none.
+// a terminal session keeps its own mode: no picker, and its start names none.
 test("canvas panel: a terminal session has no picker and starts without a mode", async () => {
   doan.conversationResumeTarget!.mockImplementation(async () => ({ available: true, runtime: "claude", lastCheckAt: "2026-11-01T14:02:00" }));
   const { render } = await panel({ prefs: { permissions: { claude: "bypass" } } });
@@ -183,7 +183,7 @@ test("canvas panel: a terminal session has no picker and starts without a mode",
   expect(doan.startConversation!.mock.calls[0]![0]).not.toHaveProperty("permissionMode");
 });
 
-// RV2 🟡3: a docked effort pick belongs to the model it was picked for. Switching the provider or the model drops it,
+// a docked effort pick belongs to the model it was picked for. Switching the provider or the model drops it,
 // even when the new model lists the same level, so it is neither shown nor remembered as picked for the new model.
 for (const [name, { setup }] of Object.entries(setups)) test(`${name}: a provider or model switch drops the picked effort`, async () => {
   const onRemember = vi.fn();

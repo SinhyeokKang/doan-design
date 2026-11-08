@@ -9,7 +9,7 @@ import {
 } from "./homeComposer";
 import { anotherConversation } from "./homeConversations";
 
-// Rules of the docked composer (buzz-conversation design §3.1): the composer under a conversation in Overview and in
+// Rules of the docked composer: the composer under a conversation in Overview and in
 // the canvas panel. Its host owns the conversation, the lists and every call to main; these functions only decide.
 
 // existing: the conversation's provider is fixed, so only its model and effort are chosen. archived: the same, and a
@@ -55,7 +55,7 @@ export interface DockedInput {
   turn: "idle" | "running" | "waiting";
   busy: DockedBusy | null;
   sending: boolean;
-  // The host's project turned into a problem while it was open (buzz-project spec decision 12): Send waits with
+  // The host's project turned into a problem while it was open: Send waits with
   // Home's reason, whatever the draft holds.
   unavailable?: string | null;
   // The conversation runs on a terminal's own sign-in (a legacy external one), so Doan's accounts do not decide.
@@ -110,7 +110,7 @@ export function dockedMessage(draft: DockedDraft, skills: readonly string[] = []
 // A send or start main refused. The limits become the busy line until the host reports the busy conversation and it
 // clears, or the person edits the draft; a canvas that is
 // gone replaces the composer; the rest is a notice under the card.
-// A canvas panel's refusals add two (design §2 'Errors'): blocked keeps the draft in a field that takes no input, with
+// A canvas panel's refusals add two: blocked keeps the draft in a field that takes no input, with
 // the reason line; a notice may offer Retry or, for a terminal session, "Start a new conversation".
 export type DockedRefusal = { kind: "busy"; busy: DockedBusy } | { kind: "gone" } | { kind: "notice"; text: string; retry?: boolean; startNew?: boolean }
   | { kind: "blocked"; text: string; action?: SettingsAction };
@@ -126,14 +126,14 @@ export function dockedRefusal(code: string, mode: DockedMode, provider: Provider
 }
 const SEND_ERRORS: Record<string, (p: string) => string> = {
   busy: p => `${p} is finishing a previous run. Try again in a moment.`,
-  // The code alone does not tell an expired sign-in from none (decision 18).
+  // The code alone does not tell an expired sign-in from none.
   not_logged_in: p => `Sign in to ${p} in Settings > Agents, then send again.`,
   rate_limited: p => `${p} is rate limited. Try again later.`,
   session_in_use: p => `${p} is using this session in another terminal. Try again when it finishes there.`,
 };
 
 // Every refusal of a terminal session reads the same way and never says "Choose another agent": its provider is the
-// terminal's, and the notice's own button starts a new conversation instead (design §2 'Errors').
+// terminal's, and the notice's own button starts a new conversation instead.
 export function resumeRefusalText(code: string, provider: Provider): string {
   const reason = Object.hasOwn(RESUME_REASONS, code) ? RESUME_REASONS[code]!(PROVIDER_NAMES[provider]) : null;
   return reason ? `Couldn’t continue the terminal session: ${reason}.` : "Couldn’t continue the terminal session.";
@@ -142,7 +142,7 @@ const RESUME_REASONS: Record<string, (p: string) => string> = {
   no_session: () => "it’s no longer available",
   session_unavailable: () => "it isn’t available right now",
   session_in_use: () => "it’s in use in another terminal",
-  // The code alone does not tell an expired sign-in from none (decision 18).
+  // The code alone does not tell an expired sign-in from none.
   not_logged_in: p => `sign in to ${p} in Settings > Agents, then send again`,
   cli_missing: p => `${p} isn’t installed on this Mac`,
   runtime_unsupported: p => `Doan doesn’t support this version of ${p}`,
@@ -151,7 +151,7 @@ const RESUME_REASONS: Record<string, (p: string) => string> = {
   busy: p => `${p} is finishing a previous run`,
 };
 
-// The field's placeholder, and the next-input suggestion it shows (prompt-suggestion design 'renderer' 1). One rule for
+// The field's placeholder, and the next-input suggestion it shows. One rule for
 // both hosts, so the → key (takesSuggestion) reads the same answer the field draws. `text` is the host's own line;
 // `empty`: the field holds no text and no chip (attachments may be there). A suggestion stands in only for an existing
 // conversation's empty, editable field without a preset, whose line already asks for the target.
@@ -165,7 +165,7 @@ export function composerPlaceholder(input: PlaceholderInput): { text: string; su
   return { text: input.suggestion, suggestion: input.suggestion };
 }
 
-// Shown instead of the composer when an archived conversation's canvas left the project (design §3.1).
+// Shown instead of the composer when an archived conversation's canvas left the project.
 export function canvasGoneText(project: string): string {
   return `This conversation’s canvas is no longer in ${project}, so it can’t continue.`;
 }

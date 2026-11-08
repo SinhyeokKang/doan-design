@@ -26,13 +26,13 @@ export type StoreWrite = { ok: true; file: ConnectorsFile } | { ok: false; code:
 const key = (provider: McpProvider, name: string) => `${provider}\0${name}`;
 const missing = (error: unknown) => typeof error === "object" && error !== null && (error as { code?: unknown }).code === "ENOENT";
 
-// `<userData>/mcp-connectors.json` and `<userData>/mcp-connectors-pending.json` (mcp-connectors design 'store',
-// 'pending'). Both are read from disk at every use and replaced whole (temporary file, then rename); writes are
+// `<userData>/mcp-connectors.json` and `<userData>/mcp-connectors-pending.json` (ARCHITECTURE §7 'MCP connectors').
+// Both are read from disk at every use and replaced whole (temporary file, then rename); writes are
 // synchronous, so two patches never interleave. Neither file is ever read as defaults when it cannot be read: the
 // providers keep Doan's registrations and tokens, which an empty file would lose track of. An unreadable connectors
 // file is left in place and refuses writes; an unreadable pending file is moved aside (as preferences.ts does) and its
 // records count as unknown: every doan- server stays blocked for both providers until one logout of it succeeds in
-// this run (BB review Y3). A pending file from a newer Doan is unknown too, and is kept.
+// this run. A pending file from a newer Doan is unknown too, and is kept.
 export class ConnectorStore {
   private readonly fs: StoreFs;
   // Pending logouts that could not be written, or whose removal could not be: they block Connect for this run.

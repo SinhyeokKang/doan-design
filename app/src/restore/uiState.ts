@@ -1,4 +1,4 @@
-// `<userData>/ui-state.json` (design-nav 'Restart restore'). Pure and shared:
+// `<userData>/ui-state.json`. Pure and shared:
 // main validates what the renderer saves, and the restore plan reads the result.
 
 import { validProvider, type Provider } from "../main/agentAuth/types";
@@ -19,7 +19,7 @@ export interface ShellProject {
   // The loaded project folded by its chevron (project-row-disclosure). Saved with the rest but not read back, so a
   // relaunch shows it unfolded.
   collapsed?: boolean;
-  // The sidebar groups the person closed, by fixed id; a missing one is open (design-system-canvases design 'sidebar').
+  // The sidebar groups the person closed, by fixed id; a missing one is open.
   groups?: { ds?: false; canvases?: false };
 }
 
@@ -28,16 +28,16 @@ export interface HomeModel {
   effort?: string;
 }
 
-// The Home composer's last choices on this device (buzz-home). Readiness and
+// The Home composer's last choices on this device. Readiness and
 // model lists are only known at run time, so their users ignore stale values.
 export interface HomeMemory {
   lastRoot?: string;
   lastProvider?: Provider;
   models?: Partial<Record<Provider, HomeModel>>;
-  // Each provider's last permission mode, apart from `models`: a mode is kept even when no model was read
-  // (permission-mode design '저장 규칙'). Default is no entry.
+  // Each provider's last permission mode, apart from `models`: a mode is kept even when no model was read.
+  // Default is no entry.
   permissions?: Partial<Record<Provider, PermissionModeId>>;
-  // Each provider's last Fast (fast-mode design §3), apart from `models` like `permissions`. Off is no entry.
+  // Each provider's last Fast, apart from `models` like `permissions`. Off is no entry.
   fast?: Partial<Record<Provider, true>>;
 }
 
@@ -54,19 +54,19 @@ export interface UiState {
   home?: HomeMemory;
   // The Settings page's last category. The page itself is not restored; only where it opens next.
   settingsSection?: SettingsSection;
-  // The project conversation last shown in each root's Overview (buzz-project design §2.4). Top-level, not in
+  // The project conversation last shown in each root's Overview. Top-level, not in
   // `shellProjects`: those entries are rebuilt per group on every save and would drop it.
   conversationByRoot?: Record<string, string>;
-  // The canvas page's conversation panel (buzz-canvas design §2), one per device. A missing `width` is the
+  // The canvas page's conversation panel, one per device. A missing `width` is the
   // window-relative default, which only the renderer can compute.
   rightPanel?: { open: boolean; width?: number };
-  // The Overview's canvas conversations panel, apart from the canvas panel's (shell-panel-layout spec 3). Missing is
+  // The Overview's canvas conversations panel, apart from the canvas panel's. Missing is
   // its default.
   overviewPanel?: { width: number };
   // The shell sidebar, one per device: its width (missing is the default; the renderer clamps a kept width) and whether
   // it is hidden (only `true` is stored). Each is read on its own; with neither the field is left out.
   sidebar?: { width?: number; hidden?: true };
-  // The canvas tool last chosen on this device (canvas-hand-tool design '기기 저장'). Only Hand is stored; a missing
+  // The canvas tool last chosen on this device. Only Hand is stored; a missing
   // field is Select.
   canvasTool?: "hand";
 }

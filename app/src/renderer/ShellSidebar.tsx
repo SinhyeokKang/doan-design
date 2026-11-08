@@ -33,8 +33,8 @@ interface Props {
   unlisted?: boolean;
   homeDirectory: string | null;
   search(): void;
-  // `notice`: the canvas the project row's canvas notice or terminal session stands for, which the activation opens
-  // (canvas-viewport-units D10, terminal-agent-activity); passed only when the row shows one.
+  // `notice`: the canvas the project row's canvas notice or terminal session stands for, which the activation opens;
+  // passed only when the row shows one.
   toggle(key: string, notice?: { root: string; path: string }): void;
   // The project row's chevron and ←/→: fold or unfold without moving (project-row-disclosure draft).
   disclose(key: string): void;
@@ -46,28 +46,28 @@ interface Props {
   action(action: RowAction, root: string): void;
   remove(roots: string[]): Promise<void>;
   // The project menu's Project Settings: the page for the worktree the menu shows. It is a move, so a locked page shows
-  // it unavailable (project-settings design '이동과 잠금').
+  // it unavailable.
   projectSettings(root: string): void;
-  // On Home and the pages the sidebar marks no current project or canvas (buzz-home design §3).
+  // On Home and the pages the sidebar marks no current project or canvas.
   home?: boolean;
   // The Home row is current only on Home itself, not on a page that shows Home's sidebar (PRODUCT §5 item 3).
   homeCurrent?: boolean;
   // The Home row above the projects (dogfooding #2: Home had no visible way back).
   goHome?(): void;
-  // Home-conversation states by slotKey (design §7.2) and roots to flash after an add (design §6).
+  // Home-conversation states by slotKey and roots to flash after an add.
   slots?: ReadonlyMap<string, Slot>;
   highlight?: readonly string[];
   // A page holds work (Add Projects selecting or cloning; Settings or Project Settings a confirmation or a write): moves
-  // away are shown unavailable and App ignores them (buzz-add-projects design '잠금'). aria-disabled keeps them in the
+  // away are shown unavailable and App ignores them. aria-disabled keeps them in the
   // focus order.
   locked?: boolean;
-  // The Settings page: the project tree gives way to its categories, a plain list of buttons (buzz-settings design
-  // 'LNB'). Choosing one leaves focus on its row.
-  // mcp: MCP Connectors is listed only while Claude Code or Codex is signed in (mcp-connectors spec 1).
+  // The Settings page: the project tree gives way to its categories, a plain list of buttons.
+  // Choosing one leaves focus on its row.
+  // mcp: MCP Connectors is listed only while Claude Code or Codex is signed in.
   settings?: { section: SettingsSection; select(section: SettingsSection): void; mcp?: boolean };
   canvasMenu: CanvasMenu;
 }
-// A canvas row's menu (canvas-row-menu design '행 버튼과 메뉴'). `blocked`: an agent works on the canvas (trashBlock),
+// A canvas row's menu. `blocked`: an agent works on the canvas (trashBlock),
 // so Move to Trash is unavailable; `exporting`: that canvas's export is running. `trash` gets the row's button, where
 // focus goes back when the dialog closes.
 export interface CanvasMenu {
@@ -88,8 +88,8 @@ export function staleMenu(menu: OpenMenu | null, cards: readonly HomeCard[], men
   return false;
 }
 // Where focus goes when the focused row leaves the tree. A canvas row hands it to the next row of its group, else the
-// previous one, else the group's head, so a removed canvas row's focus stays in its group (canvas-row-menu design
-// '삭제 뒤 화면'). Any other row: the row now at its place.
+// previous one, else the group's head, so a removed canvas row's focus stays in its group.
+// Any other row: the row now at its place.
 export function recoveryKey(previous: readonly TreeRow[], current: readonly TreeRow[], lost: string): string | undefined {
   const index = previous.findIndex(row => row.key === lost);
   const parent = previous[index]?.parent;
@@ -122,7 +122,7 @@ function noticeTarget(entry: { key: string; slot: Slot } | undefined): { root: s
 }
 function SlotMark({ slot }: { slot: Slot | undefined }) {
   if (!slot) return null;
-  // A canvas notice is the unseen dot itself (canvas-viewport-units D9); only its label differs.
+  // A canvas notice is the unseen dot itself; only its label differs.
   return <span className={`row-slot ${slot.kind === "canvas" ? "unseen" : slot.kind}`} role="img" aria-label={slot.label}>{slot.kind === "permission" ? <Hand aria-hidden="true" /> : slot.kind === "working" ? <span className="doan-spinner" aria-hidden="true" /> : <i />}</span>;
 }
 // A project row's slot: a problem icon or the reading spinner, which are hidden from assistive technology and named by
@@ -160,7 +160,7 @@ interface RowMenu {
   // Focus for a menu whose row left the tree while it was open.
   lostFocus(): void;
 }
-// A canvas row's button and menu (canvas-row-menu design '행 버튼과 메뉴'), drawn inline so the row's own tree holds
+// A canvas row's button and menu, drawn inline so the row's own tree holds
 // it. Unavailable items keep `aria-disabled`, not Radix `disabled`, so arrows still reach them and their reason line
 // is read through `aria-describedby` (DESIGN 'Locked Back'); their name is the label alone, so the reason is read once. While the page is locked the button is unavailable too:
 // unlike the project menu, nothing in this one works then.

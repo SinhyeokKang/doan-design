@@ -72,14 +72,14 @@ function render(): ViewProps | null {
   return view?.props ?? null;
 }
 // The trigger the view would mount, inside a header whose tabs end `modesRight` and whose own right edge is 952.
-function mountButton(view: ViewProps, modesRight = 660) {
+function mountButton(view: ViewProps, modesRight = 660, anchor: unknown = null) {
   const tab = { focus: vi.fn() };
   const declared = new Map<string, string>();
   const style = { setProperty: (name: string, value: string) => { declared.set(name, value); }, removeProperty: (name: string) => { declared.delete(name); }, getPropertyValue: (name: string) => declared.get(name) ?? "" };
   const header = {
     style,
     getBoundingClientRect: () => ({ right: 952 }),
-    querySelector: (selector: string) => selector === ".shell-modes" ? { getBoundingClientRect: () => ({ right: modesRight }) } : selector === '.shell-modes [aria-current="page"]' ? tab : null,
+    querySelector: (selector: string) => selector === ".shell-modes" ? { getBoundingClientRect: () => ({ right: modesRight }) } : selector === '.shell-modes [aria-current="page"]' ? tab : selector === ".update-anchor" ? anchor : null,
   };
   const button = { closest: (selector: string) => selector === "header" ? header : null, isConnected: true, focus: vi.fn() };
   (view.buttonRef as (node: unknown) => void)(button);
@@ -159,7 +159,7 @@ test("redraws when a window's reset time passes while closed, with the delay kep
 });
 
 // Radix's non-modal popover hands focus back only when nothing was pressed outside; a press on a blank area of the
-// window left focus on <body> in the real app (E1). Its close focus runs a tick after the press, so the press's own
+// window left focus on <body> in the real app. Its close focus runs a tick after the press, so the press's own
 // focus is already in place when it is decided.
 test("Escape or an outside press on a blank area returns focus to the button", () => {
   const body = {};
@@ -172,7 +172,7 @@ test("Escape or an outside press on a blank area returns focus to the button", (
   expect(button.focus).toHaveBeenCalledOnce();
 });
 
-// Focus handed back after a pointer press opened the button's "Agent usage" tooltip under it, and it stayed (E1 review).
+// Focus handed back after a pointer press opened the button's "Agent usage" tooltip under it, and it stayed.
 // Escape keeps it: a tooltip on a keyboard return is the shared tooltip's own behaviour.
 test("focus handed back after an outside press does not open the button's tooltip; after Escape it may", () => {
   const body = {};
@@ -279,7 +279,32 @@ test("folds when the header's free end is too narrow for every ring", () => {
   expect(observed).toBeNull();
 });
 
-// U fix round 1 (real app, 2026-11-06): a .top:has() rule left the header a drag region for native presses, so the
+// The update button sits after Agent usage at the header's end (8 from it), so the fold measures up to the button's
+// start, and re-measures when the button appears, changes or goes: the header itself keeps its size then.
+test("the fold leaves room for the header's update button and re-measures when it changes", () => {
+  const targets: unknown[] = [];
+  vi.stubGlobal("ResizeObserver", class { constructor(run: () => void) { observed = run; } observe(target: unknown) { targets.push(target); } disconnect() { observed = null; } });
+  vi.stubGlobal("getComputedStyle", (element: { margin?: string }) => ({ paddingRight: "8px", marginLeft: element.margin ?? "0px" }));
+  render(); deliver([ok("claude"), ok("codex"), ok("cursor"), ok("copilot")]);
+  let view = render()!;
+  // Four rings need 8 + 4·24 + 3·4 + 8 = 124 beside the tabs; the header's end leaves 952 − 8 − 800 = 144. An empty
+  // anchor (no update) takes no room.
+  let shown = false;
+  const anchor = { margin: "8px", getBoundingClientRect: () => shown ? { left: 952 - 8 - 120, right: 952 - 8, width: 120 } : { left: 0, right: 0, width: 0 } };
+  mountButton(view, 800, anchor);
+  expect(targets).toContain(anchor);
+  view = render()!;
+  expect(view.folded).toBe(false);
+  // The button appears, 120 wide: the rings end at 952 − 8 − 120 − 8.
+  shown = true; observed!();
+  view = render()!;
+  expect(view.folded).toBe(true);
+  shown = false; observed!();
+  view = render()!;
+  expect(view.folded).toBe(false);
+});
+
+// (real app, 2026-11-06): a .top:has() rule left the header a drag region for native presses, so the
 // open popover did not close on a press in its empty part; an inline app-region on the header did. The open popover
 // sets it on the header element and takes it off when it closes, so a closed header still drags the window.
 test("the header is no-drag inline while the popover is open, and drags again once it closes", () => {

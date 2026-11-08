@@ -73,7 +73,7 @@ export async function startServer(onResponse: (record: ResponseRecord) => void =
     if (!parsed || !folder) return notFound(res);
 
     // `fs.promises.realpath` returns the on-disk spelling (letter case and
-    // NFC/NFD, PoC 4), so the scope comparison needs no separate step. The JS
+    // NFC/NFD, per the PoC), so the scope comparison needs no separate step. The JS
     // `fs.realpath`/`realpathSync` keep the request's spelling and must not be used.
     let realRoot: string;
     let realFile: string;

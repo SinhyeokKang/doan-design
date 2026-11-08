@@ -2,7 +2,7 @@ import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { OnboardingOperation } from "../formats/types";
 
-// Conductor decisions ⚪2 and ⚪4 (review-BU1): the page body's wiring to App and to its session, with hooks as plain
+// the page body's wiring to App and to its session, with hooks as plain
 // state so its effects and the session's own callbacks run (LocalFolderCard.interaction.test.tsx style).
 const hooks = vi.hoisted(() => ({ states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as ({ deps?: unknown[] | undefined } | undefined)[], pending: [] as (() => void)[], cursor: 0, refCursor: 0, effectCursor: 0 }));
 vi.mock("react", async original => ({

@@ -88,7 +88,7 @@ describe("DraftStore", () => {
   });
 });
 
-// buzz-conversation fix round 1 (RA2 R1): the writer keeps to the limits the reader checks.
+// The writer keeps to the limits the reader checks.
 describe("DraftStore limits", () => {
   const item = (itemId: string, text: string, more: Partial<{ anchors: typeof anchor[]; attachments: typeof file[] }> = {}) => ({ itemId, text, anchors: more.anchors ?? [], attachments: more.attachments ?? [] });
   it("refuses, before accepting it, an item that would make the queue and the returned draft larger than one message", () => {
@@ -147,7 +147,7 @@ describe("DraftStore limits", () => {
   });
 });
 
-// buzz-conversation fix round 2 (RA2b R1): what was accepted still fits the reader's limit in every later form.
+// What was accepted still fits the reader's limit in every later form.
 describe("DraftStore byte budget", () => {
   const item = (itemId: string, text: string) => ({ itemId, text, anchors: [], attachments: [] });
   // The smallest file limit at which a fresh store accepts these items, one after the other.
@@ -178,7 +178,7 @@ describe("DraftStore byte budget", () => {
   });
 });
 
-// buzz-conversation fix round 3 (RA2c ⚪1): an emptied queue reserves nothing.
+// An emptied queue reserves nothing.
 describe("DraftStore emptied queues", () => {
   it("frees the budget of a conversation whose last queued item was removed", () => {
     const item = { itemId: "q1", text: "one", anchors: [], attachments: [] };
@@ -239,7 +239,7 @@ describe("DraftStore single-item sending", () => {
   });
 });
 
-// conversation-delete design §2.2: a deleted conversation's queue and returned draft go with it.
+// A deleted conversation's queue and returned draft go with it.
 describe("DraftStore discard", () => {
   const item = (itemId: string, text: string) => ({ itemId, text, anchors: [], attachments: [] });
   it("removes a conversation's queue, its items on their way out and its returned draft, and saves at once", () => {

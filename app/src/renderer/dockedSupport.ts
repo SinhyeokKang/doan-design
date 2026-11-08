@@ -4,15 +4,14 @@ import type { PermissionModeId } from "../main/conversation/permissionMode";
 import { draftKey } from "./dockedRules";
 import type { ModelsState, PresetListReply } from "./homeComposer";
 
-// What the Overview's docked composer reads from main besides the conversation (buzz-conversation design §8, buzz-project
-// design §2.2): accounts, design presets and model lists, read once for the run as Home's are, and the person's model
+// What the Overview's docked composer reads from main besides the conversation: accounts, design presets and model lists, read once for the run as Home's are, and the person's model
 // picks per draft key. App owns one, so leaving and coming back does not read them again or lose a pick.
 
 // provider: a new conversation's agent; model and effort: what the person changed, sent only then. permissionMode: a
-// new conversation's pick for its provider (a provider switch drops it: modes are remembered per provider, spec
-// decision 4, and Full access never carries to another; fast likewise); in an existing one, a pick main has not yet reported back in
+// new conversation's pick for its provider (a provider switch drops it: modes are remembered per provider,
+// and Full access never carries to another; fast likewise); in an existing one, a pick main has not yet reported back in
 // the conversation's summary, with permissionFrom, the stored mode it was picked over (when the summary was known).
-// fast: the Fast switch the person changed, sent with the next turn as model and effort are (fast-mode design §1).
+// fast: the Fast switch the person changed, sent with the next turn as model and effort are.
 export interface DockedPick { provider?: Provider; model?: string; effort?: string; fast?: boolean; permissionMode?: PermissionModeId; permissionFrom?: PermissionModeId }
 
 // A list belongs to the provider's connection it was read under (its auth generation): main lists a new connection
@@ -36,7 +35,7 @@ export class DockedSupport {
   constructor(private changed: () => void) {}
 
   setAuth(snapshot: AuthSnapshot): void { this.auth = snapshot; this.changed(); }
-  // A failure is read again when the presets popover opens (buzz-home design §4.4).
+  // A failure is read again when the presets popover opens.
   readPresets(): void {
     this.presets = undefined;
     this.changed();
@@ -62,7 +61,7 @@ export class DockedSupport {
     this.picks = { ...this.picks, [key]: next as DockedPick };
     this.changed();
   }
-  // An existing conversation's mode is stored by main at once (permission-mode spec decision 7, orch decision 8), so
+  // An existing conversation's mode is stored by main at once, so
   // a running turn's queue goes out in it. The pick shows until the conversation's summary reports it
   // (settlePermission), or until the stored mode moves off the one it was picked over (`from`): main changed it
   // (a plan approval) and the list read may have skipped the pick. A refused one is dropped, back to the stored mode.
@@ -73,7 +72,7 @@ export class DockedSupport {
       if (reply && "error" in reply && this.picks[key]?.permissionMode === mode) this.pick(key, { permissionMode: undefined, permissionFrom: undefined });
     });
   }
-  // Fast turned itself off in this conversation (fast-mode decision 4): a switch still held here would send it again.
+  // Fast turned itself off in this conversation: a switch still held here would send it again.
   fastTurnedOff(conversationId: string): void {
     // An existing conversation's draft key is its id alone; the provider does not enter it.
     const key = draftKey({ kind: "existing", conversationId, provider: "claude" });

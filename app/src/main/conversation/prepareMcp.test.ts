@@ -29,7 +29,7 @@ function account(provider: Provider): { runtime: AccountRuntime; root: string } 
   return { runtime, root };
 }
 
-// mcp-connectors C1/C2: a Claude or Codex doan-account run carries its provider's connector generation and the
+// A Claude or Codex doan-account run carries its provider's connector generation and the
 // connector names, read when asked; without the connectors service they are generation 0 and the presets.
 it("hands Claude and Codex runs their provider's connector facts, read when asked", async () => {
   const generations = { claude: 3, codex: 7 }; let labels: Record<string, string> = { "doan-example-com": "example.com" };

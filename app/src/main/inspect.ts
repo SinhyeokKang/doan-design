@@ -1,10 +1,10 @@
 // Pure inspector logic over CDP `CSS.getMatchedStylesForNode` and
-// `CSS.getComputedStyleForNode` output (select-inspect, PoC 2). CDP finds the
+// `CSS.getComputedStyleForNode` output (PoC). CDP finds the
 // matched rules and orders them; what it leaves to us is importance, the
 // shorthand part behind each longhand, var() and token chains, inheritance,
 // and the display form. Electron-free so it is tested with recorded output.
 //
-// Known gaps, shared with the script method PoC 2 measured: the `inherit`
+// Known gaps, shared with the script method the PoC measured: the `inherit`
 // keyword (reported as unknown), variables invalid at computed-value time
 // (unknown), var() resolved with the selected element's custom properties
 // even for an inherited declaration, logical properties read as horizontal-tb
@@ -510,7 +510,7 @@ export function collapseBox(values: readonly string[]): string {
   return `${top} ${right} ${bottom} ${left}`;
 }
 
-// design.md 'length caps': one inspector value or token name is at most 500
+// One inspector value or token name is at most 500
 // UTF-16 units. Values come straight from the canvas's CSS through CDP, so
 // main cuts them before they cross IPC.
 const VALUE_LIMIT = 500;

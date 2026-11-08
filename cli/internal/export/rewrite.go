@@ -132,7 +132,7 @@ const (
 	formStyle
 )
 
-// attrRef says how export treats one attribute (design.md '다시 쓰기').
+// attrRef says how export treats one attribute.
 func attrRef(tag, key string, get func(string) string) (refKind, attrForm) {
 	if key == "style" {
 		return kindAsset, formStyle

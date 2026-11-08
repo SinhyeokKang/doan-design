@@ -5,7 +5,7 @@ import { plainText, textSegments } from "./anchorField";
 import { EMPTY_DRAFT, type DockedDraft } from "./dockedRules";
 import { OverviewRun, scrollTarget, type ListView, type OverviewRunHost } from "./overviewRun";
 
-// buzz-project tasks R1, R3, R4: the Overview's main conversation, driven without a DOM. The host stands in for App
+// The Overview's main conversation, driven without a DOM. The host stands in for App
 // and HomeRun (list reads and their counts, ui-state memory, seen marks, focus, navigation, toasts).
 
 const ROOT = "/code/doan", OTHER = "/code/doan-wt";
@@ -153,8 +153,8 @@ test("a requested canvas conversation opens its canvas instead of the main threa
   expect(h.run.view(ROOT)).toEqual({ kind: "conversation", conversationId: A });
 });
 
-// Review RM r1 🟡6: reopening an Overview applies spec decision 5 again; only the drafts by root stay.
-test("reopening an Overview picks again by decision 5, and each root keeps its new-conversation draft", () => {
+// Reopening an Overview applies the pick again; only the drafts by root stay.
+test("reopening an Overview picks again, and each root keeps its new-conversation draft", () => {
   const h = harness();
   h.run.show(ROOT);
   h.answer(ROOT, [summary(A)]);
@@ -191,7 +191,7 @@ test("an entry request made while the root was hidden is what its reopened Overv
   expect(h.run.view(ROOT)).toEqual({ kind: "conversation", conversationId: B });
 });
 
-// Review RM r1 🟡1: a start or send reply that lands after the person chose something else changes neither.
+// A start or send reply that lands after the person chose something else changes neither.
 test("a late start reply does not replace a newer pick, whichever of the list and the reply comes first", () => {
   for (const listFirst of [true, false]) {
     const h = harness();
@@ -228,7 +228,7 @@ test("a late send reply does not bring back a conversation the person left for N
   expect(h.state.remembered).toEqual({ [ROOT]: B });
 });
 
-// Review RM r1 🟡2: queued messages main handed back come into the open conversation's draft without a switch.
+// Queued messages main handed back come into the open conversation's draft without a switch.
 test("a returned queue is taken into the open conversation's draft once, after what the person typed", async () => {
   const h = harness();
   histories.set(A, ended(A));
@@ -248,7 +248,7 @@ test("a returned queue is taken into the open conversation's draft once, after w
   expect(doan.takeConversationDraft).toHaveBeenCalledTimes(1);
 });
 
-// Review RM r1 🟡3: attachment results follow their chip, wherever the draft went.
+// Attachment results follow their chip, wherever the draft went.
 test("an attachment checked during a promotion lands in the moved draft, and a removed chip's file is released", async () => {
   const h = harness();
   doan.removeAttachment = vi.fn(async () => true);
@@ -274,7 +274,7 @@ test("an attachment checked during a promotion lands in the moved draft, and a r
   expect(h.run.drafts.get(`root:${ROOT}`)?.attachments.map(a => a.key)).toEqual(["k1"]);
 });
 
-// Review RM r1 🟡4: Edit and resend restores the last request only into an unchanged draft, and focuses only there.
+// Edit and resend restores the last request only into an unchanged draft, and focuses only there.
 test("Edit and resend restores the request unless the draft changed or the person moved on meanwhile", async () => {
   const h = harness();
   const message = event(A, { type: "user.message", text: "Draw it", anchors: [], attachments: [{ name: "a.png", size: 1, kind: "image", path: "/tmp/a.png" }] });
@@ -308,7 +308,7 @@ test("Edit and resend restores the request unless the draft changed or the perso
   expect(textOf(h.run.drafts.get(`conversation:${A}`))).toBe("Draw it");
 });
 
-// Review RM r1 🟡8: an entry for the conversation already open scrolls again; the request waits for its item.
+// An entry for the conversation already open scrolls again; the request waits for its item.
 test("each entry request scrolls anew, and the scroll waits until the permission item is drawn", () => {
   const h = harness();
   h.run.show(ROOT);
@@ -370,7 +370,7 @@ test("the main conversation is seen only while it shows with the window focused,
   h.run.show(ROOT);
   h.answer(ROOT, [summary(A, { unseen: true })]);
   await flush();
-  // Opening the Overview alone does not mark it (spec decision 11).
+  // Opening the Overview alone does not mark it.
   expect(h.host.markSeen).not.toHaveBeenCalled();
   h.state.focused = true;
   h.run.focusChanged();
@@ -391,7 +391,7 @@ test("the main conversation is seen only while it shows with the window focused,
   expect(h.host.markSeen).toHaveBeenCalledTimes(2);
 });
 
-// spec decision 6, design §2.5: promotion resets the main column and the host owns the seen rule.
+// Promotion resets the main column and the host owns the seen rule.
 function promotedSetup(focused: boolean) {
   const h = harness();
   histories.set(A, ended(A));
@@ -516,7 +516,7 @@ test("queued messages stay until a list read started after the queue says none a
   expect(h.run.queue(A)).toEqual([]);
 });
 
-// canvas-composer-polish A2: the row leaves the queue at the press and shows in the thread on either screen until main
+// The row leaves the queue at the press and shows in the thread on either screen until main
 // answers; read, it goes; refused, it is back in the queue.
 test("Send now moves the queued message to sending until main answers, then drops it or puts it back", async () => {
   const h = harness();
@@ -587,7 +587,7 @@ test("a removed root takes its state and drafts with it", () => {
   expect(h.run.drafts.has(`root:${ROOT}`)).toBe(false);
 });
 
-// Review RM r2 🟡1: an entry request still waiting for the list is a newer choice than a start or send sent before it.
+// An entry request still waiting for the list is a newer choice than a start or send sent before it.
 test("a late start or send reply does not cancel an entry request still waiting for the list, in either order", () => {
   for (const replyFirst of [true, false]) {
     const h = harness();
@@ -610,7 +610,7 @@ test("a late start or send reply does not cancel an entry request still waiting 
   expect(h.state.remembered).toEqual({ [ROOT]: C });
 });
 
-// Review RM r2 🟡3: what the list did while the Overview was away is no choice; reopening picks by decision 5.
+// What the list did while the Overview was away is no choice; reopening picks again.
 test("reopening after the shown conversation left the list while away picks the latest project conversation", () => {
   const h = harness();
   h.run.show(ROOT);
@@ -624,7 +624,7 @@ test("reopening after the shown conversation left the list while away picks the 
   expect(textOf(h.run.drafts.get(`root:${ROOT}`))).toBe("kept");
 });
 
-// Review RM r2 ⚪1: a discarded Edit and resend restore gives back the files it was issued.
+// A discarded Edit and resend restore gives back the files it was issued.
 test("an Edit and resend restore dropped for newer typing releases its issued attachments", async () => {
   const h = harness();
   doan.removeAttachment = vi.fn(async () => true);
@@ -643,7 +643,7 @@ test("an Edit and resend restore dropped for newer typing releases its issued at
   expect(textOf(h.run.drafts.get(`conversation:${A}`))).toBe("newer");
 });
 
-// conversation-delete tasks T3, design §3.2: the state after a conversation is deleted. App marks the conversation
+// The state after a conversation is deleted. App marks the conversation
 // deleting before conversation:delete, then on success calls each run's deleted and the store's.
 function deleteShown() {
   const h = harness();
@@ -666,7 +666,7 @@ test("deleting the shown conversation shows the new conversation state, keeps th
   expect(h.run.view(ROOT)).toEqual({ kind: "new", moved: null });
   expect(h.run.revision(ROOT)).toBeGreaterThan(revision);
   expect(h.state.remembered).toEqual({});
-  // Spec decision 5: the deleted conversation's draft goes; the new conversation's stays as it was.
+  // The deleted conversation's draft goes; the new conversation's stays as it was.
   expect(h.run.drafts.has(`conversation:${A}`)).toBe(false);
   expect(textOf(h.run.drafts.get(`root:${ROOT}`))).toBe("separate new words");
   expect(h.run.thread(A)).toBeNull();
@@ -808,7 +808,7 @@ test("a returned draft whose take was in flight is not put back after the delete
   expect(h.run.drafts.has(`conversation:${A}`)).toBe(false);
 });
 
-// Review RB ⚪1: until the list is read again, a pick from the list read before the delete must not choose it.
+// Until the list is read again, a pick from the list read before the delete must not choose it.
 test("leaving and returning before the next list read does not pick or remember the deleted conversation", () => {
   const h = deleteShown();
   confirmDelete(h, A);
@@ -818,7 +818,7 @@ test("leaving and returning before the next list read does not pick or remember 
   expect(h.state.remembered).toEqual({ [ROOT]: B });
 });
 
-// Review RB ⚪2: an Edit and resend that resolves after the delete does not put a draft back.
+// An Edit and resend that resolves after the delete does not put a draft back.
 test("an Edit and resend that resolves after the delete restores nothing and releases its files", async () => {
   const h = harness();
   const message = event(A, { type: "user.message", text: "Draw it", anchors: [], attachments: [{ name: "a.png", size: 1, kind: "image", path: "/tmp/a.png" }] });

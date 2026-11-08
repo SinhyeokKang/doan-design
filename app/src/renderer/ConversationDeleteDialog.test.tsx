@@ -8,8 +8,7 @@ import { TooltipContent } from "./components/ui/tooltip";
 import { ConversationDeleteDialog, ConversationDeleteItem, unsentDraft } from "./ConversationDeleteDialog";
 import { EMPTY_DRAFT } from "./dockedRules";
 
-// conversation-delete design §3.3 (row Delete) and §3.4 (confirmation), draft frames row-button, row-unavailable,
-// delete-dialog.
+// Row Delete (draft frames row-button, row-unavailable) and its confirmation (draft frame delete-dialog).
 function all(node: ReactNode): ReactElement<Record<string, unknown>>[] {
   if (Array.isArray(node)) return node.flatMap(all);
   if (!isValidElement<Record<string, unknown>>(node)) return [];
@@ -155,7 +154,7 @@ test("an unsent draft is text or chips, a preset or an attachment", () => {
   expect(unsentDraft({ ...EMPTY_DRAFT, attachments: [{ key: "k" }] } as never)).toBe(true);
 });
 
-// design §3.3 'Hidden', 'Row highlight', 'Hairline' and the draft's CSS; POSTMORTEM 2026-11-03 (display: none dropped
+// The draft's CSS for the hidden Delete button, the row highlight and the hairline; POSTMORTEM 2026-11-03 (display: none dropped
 // Radix's focus return).
 const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
 test("the hidden row Delete is clipped to 1px, never display: none", () => {

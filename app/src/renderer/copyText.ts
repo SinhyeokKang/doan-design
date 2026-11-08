@@ -1,4 +1,4 @@
-// Plain text to the clipboard from the renderer (buzz-project design §8). Main denies every permission check, so the
+// Plain text to the clipboard from the renderer. Main denies every permission check, so the
 // async Clipboard API is always refused here, and main never writes a string the renderer names. The document's own
 // copy command fires a copy event whose clipboard data takes the text; nothing takes focus or selection for it, so
 // the field the person is in (an IME composition may be in it) is never blurred.

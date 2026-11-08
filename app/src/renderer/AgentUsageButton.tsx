@@ -57,7 +57,7 @@ export function UsagePanel({ titleId, rows, busy, listRef, onRefresh, onSettings
   </>;
 }
 
-// The header button and its non-modal popover, drawn from state (design §4, draft frames place-header and ring-states).
+// The header button and its non-modal popover, drawn from state (draft frames place-header and ring-states).
 export function UsageView(props: UsageViewProps) {
   const { rings, folded, description, descriptionId, open } = props;
   const fold = folded ? foldedRing(rings) : null;
@@ -73,11 +73,16 @@ export function UsageView(props: UsageViewProps) {
   </Popover.Root>;
 }
 
-// The free width between the centred tabs and the header's right padding, where the button sits.
+// The free width between the centred tabs and what ends the header: the update button with its gap when shown, or
+// the header's right padding. The update anchor stays in the header empty and undisplayed (zero width) without one.
 function freeEnd(header: HTMLElement): number {
   const modes = header.querySelector(".shell-modes");
   if (!modes) return Infinity;
-  return header.getBoundingClientRect().right - parseFloat(getComputedStyle(header).paddingRight) - modes.getBoundingClientRect().right;
+  const update = header.querySelector(".update-anchor");
+  const box = update?.getBoundingClientRect();
+  const end = update && box && box.width > 0 ? box.left - parseFloat(getComputedStyle(update).marginLeft)
+    : header.getBoundingClientRect().right - parseFloat(getComputedStyle(header).paddingRight);
+  return end - modes.getBoundingClientRect().right;
 }
 
 // Agent usage at the header's right end on every screen. Each header holds its own button; main is the source of
@@ -109,6 +114,9 @@ export function AgentUsageButton({ openSettings, canvasPress }: { openSettings()
     measure();
     observer.current = new ResizeObserver(measure);
     observer.current.observe(bar);
+    // The header keeps its size when the update button appears, changes its label or goes; its anchor does not.
+    const update = bar.querySelector(".update-anchor");
+    if (update) observer.current.observe(update);
   }).current;
   const listRef = useRef((node: HTMLUListElement | null) => { list.current = node; }).current;
   const descriptionId = useId(), titleId = useId();

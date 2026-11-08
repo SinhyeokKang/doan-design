@@ -7,7 +7,7 @@ import type { CanvasRow, FolderEntry } from "../main/view";
 import type { PreferencesSnapshot } from "../main/preferences";
 import type { ProjectOverviewProps } from "./ProjectOverview";
 
-// turn-activity follow-up 1: App subscribes to conversation:stage and hands each signal to the store both screens share,
+// App subscribes to conversation:stage and hands each signal to the store both screens share,
 // so a pushed stage reaches the Overview thread's turn indicator. App runs with hooks as plain state
 // (App.conversationPanel.test.tsx); the Overview it shows is then drawn as static markup with React's own hooks.
 const hooks = vi.hoisted(() => ({
@@ -76,7 +76,7 @@ const { TooltipProvider } = await import("./components/ui/tooltip");
 
 const rowA: CanvasRow = { path: ".doan/canvases/a.html", id: "a", url: "u-a" };
 const listed = (path: string): FolderEntry => ({ path, kind: "list", servedRev: 0, canvases: [rowA] });
-const PREFS: PreferencesSnapshot = { preferences: { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: { provider: "codex" } }, notice: null };
+const PREFS: PreferencesSnapshot = { preferences: { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: { provider: "codex" }, updates: { autoCheck: true } }, notice: null };
 let listeners: Record<string, (...args: never[]) => void>;
 let windowListeners: Record<string, (event: never) => void>;
 let readUiState: (state: unknown) => void;

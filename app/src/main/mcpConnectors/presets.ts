@@ -3,7 +3,7 @@ import type { Provider } from "../agentAuth/types";
 // The renderer imports this module by value, so it must stay free of Node modules and main-only imports
 // (POSTMORTEM 2026-10-30 'A renderer import of a main module left the built app's window blank').
 
-// Cursor, Copilot and Antigravity failed the PoC for reasons of their own (mcp-connectors spec '비목표').
+// Cursor, Copilot and Antigravity failed the PoC for reasons of their own.
 export type McpProvider = Extract<Provider, "claude" | "codex">;
 export const MCP_PROVIDERS: readonly McpProvider[] = ["claude", "codex"];
 
@@ -12,7 +12,7 @@ export const MCP_PROVIDERS: readonly McpProvider[] = ["claude", "codex"];
 export interface ConnectorServer { name: string; url: string }
 export interface McpPreset extends ConnectorServer { label: string }
 
-// All three passed connect and one tool call under Claude Code and Codex in the PoC (design 'PRESETS').
+// All three passed connect and one tool call under Claude Code and Codex in the PoC.
 export const PRESETS: readonly McpPreset[] = [
   { name: "doan-notion", label: "Notion", url: "https://mcp.notion.com/mcp" },
   { name: "doan-atlassian", label: "Atlassian", url: "https://mcp.atlassian.com/v1/mcp" },

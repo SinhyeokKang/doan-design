@@ -4,7 +4,7 @@ import type { CanvasRow, FolderEntry } from "../main/view";
 import type { PreferencesSnapshot } from "../main/preferences";
 import { initialCanvasState } from "./CanvasController";
 
-// design-system-canvases design 'sidebar' (Q12): App keeps a project's closed groups in ui-state and opens the group of
+// App keeps a project's closed groups in ui-state and opens the group of
 // each newly shown canvas, driven with hooks as plain state so App's own wiring runs (App.settings.test.tsx).
 const hooks = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],
@@ -68,7 +68,7 @@ const { ShellSidebar } = await import("./ShellSidebar");
 
 const ds: CanvasRow = { path: ".doan/ds/color.html", id: "color", url: "u-color" };
 const screen: CanvasRow = { path: ".doan/canvases/checkout.html", id: "checkout", url: "u-checkout" };
-const PREFS: PreferencesSnapshot = { preferences: { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: { provider: "codex" } }, notice: null };
+const PREFS: PreferencesSnapshot = { preferences: { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: { provider: "codex" }, updates: { autoCheck: true } }, notice: null };
 let listeners: Record<string, (...args: never[]) => void>;
 let windowListeners: Record<string, (event: never) => void>;
 let readUiState: (state: unknown) => void;

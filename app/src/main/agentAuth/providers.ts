@@ -9,7 +9,7 @@ import type { AccountIdentity, CheckResult, Provider } from "./types";
 export interface StatusRun { code: number | null; stdout: string; stderr: string; profileDir: string }
 export interface ProviderAuth {
   command: string;
-  // Prepended to every invocation, including B2/B3 runs, so no path can fall back to another store.
+  // Prepended to every invocation, so no path can fall back to another store.
   args: string[]; env: Record<string, string>;
   login: string[]; status: string[];
   // Sign-in, status and sign-out are calls on the provider's ACP server (Antigravity) instead of CLI subcommands.
@@ -25,7 +25,7 @@ export interface ProviderAuth {
   // hook received is shown when this returns it. Null for providers whose printed link is the sign-in.
   hookLink: ((raw: string) => string | null) | null;
   // Keychain providers only: vault providers sign out by deleting doan's copy, because a provider logout
-  // cannot reach the vault and Copilot's /logout left its token behind in PoC 10.
+  // cannot reach the vault and Copilot's /logout left its token behind in the PoC.
   logout: string[] | null;
   // Profile-relative credential files kept in the encrypted vault, or null when the OS keychain holds them.
   vault: string[] | null;
@@ -132,7 +132,7 @@ const HOME_STUB = (dir: string) => ({ [`${dir}/skills/doan/SKILL.md`]: stub });
 const CODEX_HANDOFF_RULE = '# Written by Doan so Codex asks before `doan handoff` starts another conversation.\nprefix_rule(pattern=["doan", "handoff"], decision="prompt")\n';
 const CLI_RUN = { acpAuth: null, acp: null, verifyByRun: false, hookLink: null, loginClears: false, identity: null };
 export const PROVIDER_AUTH: Record<Provider, ProviderAuth> = {
-  // PoC 10: a non-default CLAUDE_CONFIG_DIR gets its own Keychain item; .credentials.json would be the plaintext fallback.
+  // PoC: a non-default CLAUDE_CONFIG_DIR gets its own Keychain item; .credentials.json would be the plaintext fallback.
   claude: { command: "claude", args: [], env: {}, login: ["auth", "login"], status: ["auth", "status", "--json"], logout: ["auth", "logout"],
     vault: null, plaintext: [".credentials.json"], settings: { ...SKILL_STUB, "settings.json": CLAUDE_PROFILE_ALLOW }, ...CLI_RUN, hookLink: claudeLink, parseStatus: claudeStatus },
   // The keyring entry is keyed by the canonical CODEX_HOME; "auto" could silently write auth.json instead. MCP OAuth
@@ -146,7 +146,7 @@ export const PROVIDER_AUTH: Record<Provider, ProviderAuth> = {
     vault: [".cursor/auth.json"], plaintext: [], settings: HOME_STUB(".cursor"), acpAuth: null,
     acp: { args: ["acp"], authenticate: "cursor_login", sessions: ".cursor/acp-sessions" }, verifyByRun: false, hookLink: null, loginClears: false, identity: null, parseStatus: cursorStatus },
   // Google's ACP server (antigravity.ts) replaces the agy CLI, whose dedicated-HOME keyring save raised a macOS
-  // Keychain dialog (B1). AGY_ACP_FORCE_FILE_STORAGE=1 selects its file backend, <GEMINI_HOME>/antigravity-acp/acp_token.json
+  // Keychain dialog. AGY_ACP_FORCE_FILE_STORAGE=1 selects its file backend, <GEMINI_HOME>/antigravity-acp/acp_token.json
   // (credential_store.py in 1.3.0; undocumented, user-approved 2026-10-28); GEMINI_HOME is set by providerEnv.
   antigravity: { command: ANTIGRAVITY_COMMAND, args: [], env: { AGY_ACP_FORCE_FILE_STORAGE: "1", PYTHONUNBUFFERED: "1" }, login: [], status: [], logout: null,
     vault: [".gemini/antigravity-acp/acp_token.json"], plaintext: [], settings: HOME_STUB(".gemini/config"), acpAuth: { method: "oauth-personal", agent: "antigravity-acp", version: ANTIGRAVITY_SERVER.version },

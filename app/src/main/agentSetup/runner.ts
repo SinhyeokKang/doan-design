@@ -4,9 +4,9 @@ import { accessSync, chmodSync, constants, linkSync, lstatSync, mkdirSync, readF
 import { basename, dirname, join, relative } from "node:path";
 import { rcFileFor, type SetupItem, type SetupTarget } from "./notice";
 import { swapFile, swapLink, type SwapResult } from "./swap";
-import { classifyTarget, decide, installEligibility, mergeClaudeAllow, needsSystemLink, plannedTargets, record, writeFailure, type Observation, type Outcome, type PlannedTarget, type ProviderDir, type Step } from "./plan";
+import { classifyTarget, decide, installEligibility, mergeClaudeAllow, needsSystemLink, plannedTargets, record, writeFailure, type Eligibility, type Observation, type Outcome, type PlannedTarget, type ProviderDir, type Step } from "./plan";
 
-// Agent setup's thin I/O shell (design '배치', '소유 판정'): reads each target right before deciding, writes only
+// Agent setup's thin I/O shell: reads each target right before deciding, writes only
 // Doan's own links and rule file plus its allow rules merged into ~/.claude/settings.json, and never creates a
 // provider folder.
 
@@ -199,12 +199,22 @@ async function writeSystem(target: PlannedTarget, before: Seen, options: AgentSe
   return now.stamp !== before.stamp ? changed(target, home) : { ok: false, item: writeFailure(target, "administrator command failed") };
 }
 
-export async function runAgentSetup(options: AgentSetupOptions): Promise<AgentSetupResult> {
-  const log = options.log ?? ((message: string) => console.log(`doan: agent setup: ${message}`));
+// Whether this copy is one agent setup and updates act on. The updater asks at launch without waiting for setup's
+// login-shell probe, and must get the answer setup gets.
+export function setupEligibility(options: Pick<AgentSetupOptions, "home" | "resources" | "isPackaged">): Eligibility {
+  return eligibilityOf(options).eligibility;
+}
+
+function eligibilityOf(options: Pick<AgentSetupOptions, "home" | "resources" | "isPackaged">) {
   // Links are built from the canonical HOME, as the eligibility check compares real paths.
   const home = canonical(options.home) ?? options.home, resources = canonical(options.resources) ?? options.resources;
   const bundle = dirname(dirname(resources));
-  const eligibility = installEligibility(bundle, home, options.isPackaged);
+  return { home, resources, bundle, eligibility: installEligibility(bundle, home, options.isPackaged) };
+}
+
+export async function runAgentSetup(options: AgentSetupOptions): Promise<AgentSetupResult> {
+  const log = options.log ?? ((message: string) => console.log(`doan: agent setup: ${message}`));
+  const { home, resources, bundle, eligibility } = eligibilityOf(options);
   if (eligibility !== "eligible") {
     log(`not set up: ${eligibility} (${bundle})`);
     return { home, items: [{ target: "copy", path: bundle, providers: ["claude", "codex", "cursor", "antigravity", "copilot"], reason: "not-eligible", eligibility }], steps: [] };

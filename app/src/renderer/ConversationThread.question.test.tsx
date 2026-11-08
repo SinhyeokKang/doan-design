@@ -7,7 +7,7 @@ import { TooltipProvider } from "./components/ui/tooltip";
 import { EMPTY_QUESTION_DRAFT, questionDraft, type QuestionDraft, type QuestionDraftAction } from "./questionDraft";
 import type { ThreadItem } from "./threadItems";
 
-// agent-questions design §7 and the draft frames question-card, keyboard, send-states and folded. There is no DOM in
+// The draft frames question-card, keyboard, send-states and folded. There is no DOM in
 // these tests: the card is drawn to markup, and its handlers are called from the element tree it returns.
 
 const layout: Question = { id: "0", header: "Layout", question: "Which layout should the settings header use?", options: [{ label: "Compact", description: "Title and actions on one line" }, { label: "Two rows" }], multiSelect: false, other: true };
@@ -65,7 +65,7 @@ describe("question card", () => {
   });
 
   // VoiceOver reads a control's name, then its description: the name is the label line alone so the description is
-  // read once (batch R review ⚪2).
+  // read once.
   test("each option is named by its label line and described by its description", () => {
     const out = card({ item: item([layout, sections]) });
     expect(out).toMatch(/<input type="radio" aria-labelledby="b-q1-0-l0" aria-describedby="b-q1-0-d0" name="b-q1-0"\/>/);
@@ -246,7 +246,7 @@ describe("the thread's question items", () => {
 });
 
 describe("settleQuestionSend", () => {
-  // Batch G review: main may keep a request pending after a stale reply until its own expiry resolves it, so the card
+  // main may keep a request pending after a stale reply until its own expiry resolves it, so the card
   // folds only on question.resolved and a stale reply leaves it locked without an error line.
   test("a stale reply keeps the card locked without an error; any other refusal unlocks it with the error", async () => {
     const edit = vi.fn();

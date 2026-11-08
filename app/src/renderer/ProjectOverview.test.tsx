@@ -12,7 +12,7 @@ import { OverviewRun, type ListView, type OverviewRunHost } from "./overviewRun"
 import { ProjectOverview, worktreeChoice, type ProjectOverviewProps } from "./ProjectOverview";
 import { TooltipProvider } from "./components/ui/tooltip";
 
-// buzz-project design §2.1, §2.2, §2.5: the Overview's header and main column as static markup.
+// The Overview's header and main column as static markup.
 
 const ROOT = "/code/doan", WT = "/code/doan-checkout";
 const A = "aaaaaaaa-0000-4000-8000-000000000001";
@@ -84,7 +84,7 @@ test("canvases but no conversations: a new conversation with suggestions naming 
   const html = render([]);
   expect(html).toContain("Review the checkout canvas");
   expect(html).toContain('class="suggestion" title="Review the checkout canvas"><span class="suggestion-icon">');
-  // small-ui-tweaks decision 7: the name is highlighted; title and the sentence's text are unchanged.
+  // The name is highlighted; title and the sentence's text are unchanged.
   expect(html).toContain('<span class="suggestion-label">Review the <span class="suggestion-value">checkout</span> canvas</span>');
 });
 
@@ -94,7 +94,7 @@ test("a promotion leaves the moved line with Open above the suggestions", () => 
     (run as unknown as { roots: Map<string, { current: unknown; moved: unknown }> }).roots.get(ROOT)!.current = { conversationId: null, listed: false };
     (run as unknown as { roots: Map<string, { moved: unknown }> }).roots.get(ROOT)!.moved = { conversationId: A, title: "Checkout copy", canvas: { path: ".doan/canvases/checkout.html", id: "checkout" } };
   });
-  // review DS r1: one line; only the title gives way, and the whole sentence stays in the text (and the tooltip).
+  // One line; only the title gives way, and the whole sentence stays in the text (and the tooltip).
   expect(html).toMatch(/<div class="doan-notice moved" role="status">.*<span class="grow-text moved-text" title="Checkout copy moved to checkout\."><span class="moved-title">Checkout copy<\/span><span class="moved-rest"> moved to checkout\.<\/span><\/span><button[^>]*>Open<\/button><\/div><div class="ov-suggestions"/);
 });
 
@@ -148,7 +148,7 @@ test("switching conversations draws each one's own draft and title at once", () 
   expect(second).not.toContain("for A");
 });
 
-// Review RM r1 🟡7, design §2.1: the chip's worktree rows behave as the sidebar's: a listed or reading worktree opens,
+// The chip's worktree rows behave as the sidebar's: a listed or reading worktree opens,
 // a problem one turns the menu to its repair actions.
 test("a problem worktree in the chip menu shows its repair actions instead of opening", () => {
   const missing = { kind: "notFound", path: "/code/gone" } as FolderEntry;
@@ -171,12 +171,12 @@ test("the Overview's surfaces take plain numerals, the open chip its pressed fil
   expect(css).toContain(".moved-text { display: flex; min-width: 0; white-space: nowrap; }");
   expect(css).toContain(".moved-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; }");
   expect(css).toContain(".moved-rest { flex: none; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }");
-  // The canvas panel's notices above its composer read the same (buzz-canvas-conversation).
+  // The canvas panel's notices above its composer read the same.
   expect(css).toContain(".conversation-thread .thread-notice > svg, .cp-scroll > .thread-notice > svg { width: var(--size-icon); height: var(--size-icon); }");
   expect(css).toMatch(/\.conversation-thread \.thread-notice \.strip-text span, \.cp-scroll > \.thread-notice \.strip-text span \{[^}]*overflow: visible; text-overflow: clip; \}/);
 });
 
-// runtime-test (buzz-project RT): at 960×600 the new-conversation placeholder wrapped to two lines in the empty capsule
+// runtime-test: at 960×600 the new-conversation placeholder wrapped to two lines in the empty capsule
 // (field 48px, docked 120px) and the first typed character dropped it to one (24/104). One line keeps both the same.
 test("the capsule's placeholder stays on one line and ends in an ellipsis", async () => {
   const { readFileSync } = await import("node:fs");
@@ -184,7 +184,7 @@ test("the capsule's placeholder stays on one line and ends in an ellipsis", asyn
   expect(css).toContain('.docked[data-shape="capsule"] .composer-input[data-empty]::before { inset-inline: var(--space-2) var(--space-1); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }');
 });
 
-// permission-mode spec decision 7 (U1): an existing conversation's picker shows that conversation's stored mode; a new
+// An existing conversation's picker shows that conversation's stored mode; a new
 // one starts from the fixed Settings default, else the provider's last mode.
 test("the picker shows the conversation's own mode, and a new conversation's default", () => {
   expect(render([summary({ permissionMode: "plan" })], { prefs: { permissions: { claude: "bypass" } } })).toContain('data-mode="plan" aria-label="Permission: Plan (read-only)"');
@@ -206,7 +206,7 @@ test("thread spacing, and the suggestion rows right above the composer on the Ov
   expect(css).not.toMatch(/\.ov-new \{/);
 });
 
-// prompt-suggestion design 'renderer' 1: the shown conversation's suggestion from the Overview's list reaches its composer.
+// The shown conversation's suggestion from the Overview's list reaches its composer.
 test("the shown conversation's suggestion stands in for the reply placeholder, with the Right Arrow hint", () => {
   const html = render([summary({ suggestion: "Add an expired-cart illustration" })]);
   expect(html).toContain('aria-placeholder="Add an expired-cart illustration"');

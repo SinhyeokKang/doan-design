@@ -66,7 +66,7 @@ it("refuses a Codex resume preview with a record but no verifiable stored sessio
   expect(await handler(true, "resumeTarget", { root, canvas })).toEqual({ available: false, reason: "session_unavailable" });
 });
 
-// terminal-agent-activity RD1: a live Claude process on the linked session refuses the run, but the resume target
+// A live Claude process on the linked session refuses the run, but the resume target
 // still names the session, so the panel can show its choice as waiting. Start keeps the bare refusal.
 it("names a linked Claude session that a live terminal process holds, and still refuses to run it", async () => {
   const root = temp(); const config = join(root, "profile"); mkdirSync(join(config, "sessions"), { recursive: true }); writeFileSync(join(root, "claude"), "fake", { mode: 0o700 });
@@ -113,7 +113,7 @@ it("names a linked Codex session whose writer lock a live process holds, and ref
   expect(await handler(true, "resumeTarget", { root, canvas })).toEqual({ available: false, reason: "session_unavailable" });
 });
 
-// review-E 🔴1: the reused Codex server Doan opened holds the thread's lock, and the next send must not read it as a
+// The reused Codex server Doan opened holds the thread's lock, and the next send must not read it as a
 // terminal. This test process holds the lock open, so only skipping the check for a reused server lets the send through.
 it("sends again on the Codex server Doan reused although the thread's lock is held", async () => {
   const root = temp(); writeFileSync(join(root, "codex"), "fake", { mode: 0o700 });

@@ -74,7 +74,7 @@ describe("fromMessage", () => {
   });
 });
 
-// buzz-canvas-conversation R1: the unit model ChipField edits through (a chip is one unit).
+// the unit model ChipField edits through (a chip is one unit).
 describe("field units", () => {
   const field = [text("ab"), chip(frame), text("c\nde"), chip(point)];
   test("normalize joins neighbouring text and drops empty text", () => {
@@ -111,13 +111,12 @@ describe("field units", () => {
   });
 });
 
-// BR1 fix round 1.
 describe("line-start chips and the chip clipboard", () => {
   test("isLineStart: the field's start and the place after a line break", () => {
     const field = [chip(frame), text("a\n"), chip(point)];
     expect([0, 1, 2, 3, 4].map(unit => isLineStart(field, unit))).toEqual([true, false, false, true, false]);
   });
-  test("a U+200B in the person's text is text: it survives the clipboard and the message (fix round 2)", () => {
+  test("a U+200B in the person's text is text: it survives the clipboard and the message", () => {
     const fragment = [text(`a${FILLER}b `), chip(frame)];
     expect(readFieldClipboard(writeFieldClipboard("canvas:a", fragment), "canvas:a")).toEqual(fragment);
     expect(toMessage(fragment)).toEqual({ text: `a${FILLER}b {{1}}`, anchors: [frame] });
@@ -136,7 +135,7 @@ describe("line-start chips and the chip clipboard", () => {
     expect(readFieldClipboard(JSON.stringify({ v: 1, scope: "canvas:a", segments: [{ kind: "chip", anchor: "x" }] }), "canvas:a")).toBeNull();
     expect(readFieldClipboard(JSON.stringify({ v: 2, scope: "canvas:a", segments: [] }), "canvas:a")).toBeNull();
   });
-  test("an anchor field of the wrong type makes the whole payload not-chips (the review's title: 123), so the paste falls back to text", () => {
+  test("an anchor field of the wrong type makes the whole payload not-chips (title: 123), so the paste falls back to text", () => {
     const read = (anchor: unknown) => readFieldClipboard(JSON.stringify({ v: 1, scope: "canvas:a", segments: [{ kind: "chip", anchor }] }), "canvas:a");
     expect(read({ frame: { id: "x", title: 123 } })).toBeNull();
     expect(read({ frame: { id: 7 } })).toBeNull();

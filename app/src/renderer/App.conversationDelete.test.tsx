@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { PreferencesSnapshot } from "../main/preferences";
 
-// conversation-delete design §3.2–§3.4 wired in App: a title menu row's Delete asks in the alert, the store's deleting
+// a title menu row's Delete asks in the alert, the store's deleting
 // mark pairs with exactly one of deleted/cancelled, the runs are cleaned after main deletes (or no longer has it), a
 // refusal toasts and leaves focus on the menu's trigger, and deleting the shown conversation focuses that screen's
 // composer. Driven with hooks as plain state (App.conversationPanel.test.tsx).
@@ -80,7 +80,7 @@ const { initialCanvasState } = await import("./CanvasController");
 
 const rowA: CanvasRow = { path: ".doan/canvases/a.html", id: "a", url: "u-a" };
 const listed = (path: string): FolderEntry => ({ path, kind: "list", servedRev: 0, canvases: [rowA] });
-const PREFS: PreferencesSnapshot = { preferences: { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: { provider: "codex" } }, notice: null };
+const PREFS: PreferencesSnapshot = { preferences: { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: { provider: "codex" }, updates: { autoCheck: true } }, notice: null };
 let listeners: Record<string, (...args: never[]) => void>;
 let readUiState: (state: unknown) => void;
 let doan: Record<string, ReturnType<typeof vi.fn>>;
@@ -270,7 +270,7 @@ test.each([
   expect(button.focus).toHaveBeenCalledOnce();
 });
 
-// orch decision 3: main no longer has it, so the screens are cleaned as for a deletion, with the toast.
+// main no longer has it, so the screens are cleaned as for a deletion, with the toast.
 test("not_found cleans up as a deletion and says it was already deleted", async () => {
   await openOverview();
   doan.deleteConversation = vi.fn(async () => ({ error: "not_found" }));
@@ -298,7 +298,7 @@ test("deleting the canvas's current conversation from its Title menu shows the n
 });
 
 // PRODUCT item 3 'Deep links': a busy dialog refuses its cancel. Cancelling here would stop nothing, and a second
-// request for the same conversation would share the store's one deleting mark with the first (review 🟡1).
+// request for the same conversation would share the store's one deleting mark with the first.
 test("while its request is out the alert refuses Cancel and Escape, and stays until main answers", async () => {
   await openOverview();
   const reply = deferred<undefined>();
@@ -334,7 +334,7 @@ test("a refusal after main said the app is quitting shows no toast", async () =>
   expect(harness.toast.show).not.toHaveBeenCalled();
 });
 
-// Review RC (conductor) 🟡1: a throw in any cleanup must still end the deleting mark and close the alert, which refuses
+// a throw in any cleanup must still end the deleting mark and close the alert, which refuses
 // its cancel while busy and would otherwise hold the window until a reload.
 test("a cleanup that throws after a deletion still ends the mark and closes the alert", async () => {
   await openOverview();
@@ -365,7 +365,7 @@ test("a re-read that throws after a refusal still ends the mark, closes the aler
   expect(error).toHaveBeenCalled();
 });
 
-// Review RC ⚪3: the canvas panel's refusal and Cancel return focus to the panel's title trigger.
+// the canvas panel's refusal and Cancel return focus to the panel's title trigger.
 test.each([["a refusal", true], ["Cancel", false]])("canvas panel, %s: focus returns to the panel's title trigger", async (_name, confirm) => {
   await openCanvasPanel();
   doan.deleteConversation = vi.fn(async () => ({ error: "busy" }));
@@ -378,7 +378,7 @@ test.each([["a refusal", true], ["Cancel", false]])("canvas panel, %s: focus ret
   expect(harness.toast.show).toHaveBeenCalledTimes(confirm ? 1 : 0);
 });
 
-// canvas-composer-polish spec 6: a Canvas conversations row's Delete takes the title menu's confirmation and deletion;
+// a Canvas conversations row's Delete takes the title menu's confirmation and deletion;
 // focus goes to the target the list computed before the alert opened, and Cancel or Escape returns it to that Delete.
 type ListFocus = { kind: "row"; key: string } | { kind: "title" };
 type ListProps = { list: unknown; onDelete(item: { key: string; conversationId: string; title: string; provider: string }, button: unknown, after: ListFocus): void };
@@ -446,7 +446,7 @@ test.each([["a refusal", true], ["Cancel", false]])("Canvas conversations, %s: t
   } finally { delete FIELDS['.ov-right .cv-row[data-key="c3"]']; delete FIELDS[".ov-right .rp-head"]; }
 });
 
-// Review TOOL ⚪4: the row the list chose left too before focus moved (another deletion, a re-read): focus goes to the
+// the row the list chose left too before focus moved (another deletion, a re-read): focus goes to the
 // panel title, not to the deleted row's Delete, which leaves with its row and would drop focus to the page.
 test("a Canvas conversations deletion whose next row also left sends focus to the panel title", async () => {
   const { row, head } = listTargets();

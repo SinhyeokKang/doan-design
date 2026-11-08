@@ -10,7 +10,7 @@ import { OPEN_ANSWER_TIMEOUT_MS, openRequests, type OpenAsk, type OpenRequestsHo
 import { answerLine, LINE_WAIT_MS, startRuntime, type Runtime } from "./runtime";
 import type { FolderState } from "./folderState";
 
-// canvas-open-offer T5: app-socket v4 (`doan open`), main's half. answerLine checks schema, token and registered root
+// App-socket v4 (`doan open`), main's half. answerLine checks schema, token and registered root
 // in the v3 order; openRequests (deepLinks.ts) then answers readiness and the list itself and asks the renderer, by id,
 // for everything else.
 const token = "secret", root = "/repo", path = ".doan/canvases/a.html";

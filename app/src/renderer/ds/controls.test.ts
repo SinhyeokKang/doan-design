@@ -180,7 +180,7 @@ test("a settings group is a bordered container of rows split by lines, and each 
   expect(row).toContain("padding: var(--space-3) 0;");
   expect(rule(css, ".doan-preference-row-content")).toContain("gap: var(--space-half);");
   expect(rule(css, ".doan-preference-row-label")).toContain("font-size: var(--type-body-sm-size);");
-  // A row's label is medium weight in every Settings page (user decision with MCP Connectors).
+  // A row's label is medium weight in every Settings page.
   expect(rule(css, ".doan-preference-row-label")).toContain("font-weight: var(--type-weight-medium);");
   expect(rule(css, ".doan-preference-row-description")).toContain("font-size: var(--type-caption-size);");
   expect(rule(css, ".doan-preference-row-description")).toContain("color: var(--text-subtle);");
@@ -238,7 +238,7 @@ test("the sidebar project menu is opaque while every other dropdown keeps the gl
   expect(read("./surfaces.css")).toContain(".doan-floating { background: var(--surface-elevated-glass); backdrop-filter: blur(var(--blur-sm)); }");
 });
 
-// canvas-capture design §2–§3 and POSTMORTEM 2026-11-02 'Every Overview menu opened under the Overview itself': the
+// POSTMORTEM 2026-11-02 'Every Overview menu opened under the Overview itself': the
 // capture layer takes the drag layer's place, under the canvas chrome and every portalled surface, so Stop, Open, the
 // tools and an open zoom menu stay over it. `[hidden]` must keep winning, so neither the layer nor the marquee sets
 // display; the area keeps clipping (POSTMORTEM 2026-11-02 'Tab walked into the draft').
@@ -255,9 +255,9 @@ test("the capture layer sits in the drag layer's place, under the canvas chrome 
   expect(rule(styles, ".doan-canvas-panel > .area")).toContain("overflow: clip;");
 });
 
-// canvas-capture design §2 '스냅숏' and POSTMORTEM 2026-11-03 'A canvas row menu closed by Esc dropped focus to the
+// POSTMORTEM 2026-11-03 'A canvas row menu closed by Esc dropped focus to the
 // page body': the snapshot hides app marks with opacity only, so layout holds and the focused tool keeps focus.
-// !important beats the agent glow's opacity animation. PoC C1 found the renderer CSP blocks inline <style>.
+// !important beats the agent glow's opacity animation. PoC found the renderer CSP blocks inline <style>.
 test("the capture snapshot hides app marks with opacity alone", () => {
   const styles = read("../styles.css");
   const hide = /\[data-capture-snapshot\] :is\(([^)]*(?:\([^)]*\)[^)]*)*)\) \{([^}]*)\}/.exec(styles);

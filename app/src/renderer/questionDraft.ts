@@ -1,7 +1,7 @@
 import type { Question, QuestionAnswerInput } from "../main/conversation/question";
 import { questionAnswer } from "../main/conversation/questionAnswer";
 
-// The answer a person is choosing on a question card (agent-questions design §7). The store keeps it by request so it
+// The answer a person is choosing on a question card. The store keeps it by request so it
 // outlives the thread's redraw for another conversation; Send's rule is main's own check (questionAnswer).
 
 // selected: option indexes. other: Other is chosen (a question without options is always answered by its text).

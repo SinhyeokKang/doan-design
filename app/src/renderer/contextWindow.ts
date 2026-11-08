@@ -1,6 +1,6 @@
 import type { ConversationEvent } from "../main/conversation/types";
 
-// The ring's reading of a conversation (context-window-ring design §3): the last context.usage recorded before a turn's
+// The ring's reading of a conversation: the last context.usage recorded before a turn's
 // end. value fills the ring and stops at 100; percent is the real ratio the name and tooltip give.
 export interface ContextUsage { value: number; percent: number; used: number; size: number }
 

@@ -4,14 +4,14 @@ import { conversationWork } from "./conversationList";
 import type { Slot } from "./homeConversations";
 
 // When the canvas page's conversation panel opens, where focus goes, the Show conversation dot and the work capsule's
-// action (buzz-canvas-conversation design §2 'Opening the panel').
+// action.
 
 // notification: a system notification or a toast; permission when it is about a permission request.
 // agent: the agent's own turn start, permission request or turn end, which never open the panel.
 export type PanelTrigger =
   | { kind: "overviewRow" } | { kind: "notification"; permission: boolean } | { kind: "promotion" } | { kind: "capsule" }
   | { kind: "sidebarRow" } | { kind: "picker" } | { kind: "newConversation" } | { kind: "agent" }
-  // A started handoff's move (canvas-handoff design §6): focus goes to the receiving thread's handoff card.
+  // A started handoff's move: focus goes to the receiving thread's handoff card.
   | { kind: "handoff" };
 
 // keep: the panel stays as it was. Opening focuses the first choice of the waiting request, else the composer.
@@ -50,7 +50,7 @@ export function openButtonBadge(current: ConversationSummary | undefined, panelO
 }
 
 // The work capsule stops a working turn; while the agent waits for an answer it offers Open, and stopping is the
-// permission card's Stop (design §2).
+// permission card's Stop.
 export function capsuleAction(phase: "running" | "waiting"): "stop" | "open" {
   return phase === "waiting" ? "open" : "stop";
 }

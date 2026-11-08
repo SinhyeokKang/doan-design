@@ -2,7 +2,7 @@ import type { CanvasLoad, Rect } from "./canvasPicker";
 import { MAX_ATTACHMENTS } from "./homeComposer";
 import type { Point } from "./viewport";
 
-// Capture area (canvas-capture design §2–§3): a dragged area of the board becomes one image in the canvas
+// Capture area: a dragged area of the board becomes one image in the canvas
 // conversation composer.
 
 // Main checks the same minimum on `attachments:capture`, so a smaller area never leaves the renderer.
@@ -14,7 +14,7 @@ export const CAPTURE_TERMINAL = "Files can’t be attached to a terminal session
 export const CAPTURE_LIMIT = `Only ${MAX_ATTACHMENTS} files can be attached. Remove one to add another.`;
 
 // The drag from `start` to `end` in the canvas area's px, clipped to the area and rounded to whole px. null for a
-// click or an area under MIN_CAPTURE on either side once clipped (design 결정 6).
+// click or an area under MIN_CAPTURE on either side once clipped.
 export function captureRect(start: Point, end: Point, bounds: { width: number; height: number }): Rect | null {
   if (![start.x, start.y, end.x, end.y].every(Number.isFinite)) return null;
   const clip = (value: number, size: number) => Math.round(Math.min(Math.max(value, 0), size));

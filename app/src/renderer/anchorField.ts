@@ -1,7 +1,7 @@
 import { chipLabel, LIMITS, splitMarkers } from "../main/conversation/messageText";
 import type { Anchor } from "../main/conversation/types";
 
-// The chip field's value (buzz-canvas-conversation design §2 'Chip field'): typed text and inline chips in order. The
+// The chip field's value: typed text and inline chips in order. The
 // composer and main exchange it as {text, anchors}, where each chip is a {{n}} marker.
 export type FieldSegment = { kind: "text"; text: string } | { kind: "chip"; anchor: Anchor };
 

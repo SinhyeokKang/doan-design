@@ -17,7 +17,7 @@ export interface OpenPage {
   entries(): readonly FolderEntry[];
 }
 
-// The renderer's half of a move to a canvas main already checked (terminal-agent-activity design 'Deep link', canvas-open-offer).
+// The renderer's half of a move to a canvas main already checked (ARCHITECTURE §7 'Deep links').
 // Both callers came from a person (a click, or a `doan open` they asked an agent for), so a dialog that agrees to close
 // is closed. First run is checked before any dialog, so a move that cannot happen leaves the wizard's own dialogs as
 // they are. The list is checked again because the renderer's copy may lag main's, as for any move.

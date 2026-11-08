@@ -11,7 +11,7 @@
 ```
 P0 problem-project-overlay PR이 main에 병합 (지금의 main 기준 절차)
 C3 community-docs ─ C4 readme-features   (P0과 병렬, main에 커밋)
-  └─ (P0, C4 뒤) C1 git-flow (G1: develop 생성, 기본 브랜치)
+  └─ (P0, C4 뒤) C1 git-flow (G1: develop 생성)
         └─ C2 public-cleanup ─ G2 공개 ─ G3a 신고·환경·비밀
               └─ C5 ci-gate ─ G3b develop 보호 ─ C6 release-ci ─┬─ C7 app-update ───┐
                                                               └─ C8 release-skill ─ G3c main 보호 ┴─ R1 rc 검증(/release) ─ R2 0.1.0(/release) ─ Z1
@@ -41,34 +41,35 @@ C3 community-docs ─ C4 readme-features   (P0과 병렬, main에 커밋)
   - 검증: `git fetch origin` 뒤 `git ls-tree origin/main docs/features/community-docs` 결과 없음, `ls docs/CONTRIBUTING.md docs/CODE_OF_CONDUCT.md docs/SECURITY.md`가 세 파일을 낸다.
 - [x] C4. `readme-features`(bf670e2e에서 지움) — 하네스·문서, 대화 중, `main`에 커밋. 선행: C3. 다운로드 링크와 릴리스 배지는 R2에서 채운다.
   - 검증: `git fetch origin` 뒤 `git ls-tree origin/main docs/features/readme-features` 결과 없음, `find docs/assets/readme -type f -size +500k` 결과 없음.
-- [ ] C1. [`git-flow`](../git-flow/tasks.md) — 하네스·문서, 대화 중. 선행: P0, C4. 후행: 나머지 전부.
+- [x] C1. `git-flow`(913bb2eb에서 지움) — 하네스·문서, 대화 중. 선행: P0, C4. 후행: 나머지 전부.
   - 검증: `git fetch origin` 뒤 `git ls-tree origin/develop docs/features/git-flow` 결과 없음, `git ls-remote --heads origin develop`이 한 줄.
-- [ ] G1. (사용자) `develop`을 `main`에서 만드는 것(C1 T1, 에이전트가 사용자 승인 아래 push할 수 있다)과 D2대로 기본 브랜치를 바꾸는 것(사용자가 GitHub 설정에서, C1 T1 바로 뒤).
-  - 검증: `git ls-remote --heads origin develop`이 한 줄을 낸다. 기본 브랜치는 `gh repo view --json defaultBranchRef`(AGENTS.md 'Commands'에 없다 — 확인 명령 미정, 사용자 확인 필요).
-- [ ] C2. [`public-cleanup`](../public-cleanup/tasks.md) — `/orchestrate`(D27). 선행: C1.
+- [x] G1. `develop`을 `main`(1d09a76a)에서 만들어 push했다. 기본 브랜치는 D2대로 `main`을 유지한다.
+  - 검증: `git ls-remote --heads origin develop`이 한 줄을 낸다.
+- [x] C2. `public-cleanup`(PR #122, 0f52ddc1) — `/orchestrate`(D27). 선행: C1.
   - 검증: `develop`을 향한 `feat/public-cleanup` PR이 병합됐고(확인 명령 미정 — 사용자 확인 필요), `git ls-tree origin/develop docs/features/public-cleanup` 결과 없음.
 
 ## G. 공개 (사용자만 한다)
 
-- [ ] G2. (사용자) 저장소를 공개한다. 선행: C2가 `develop`에 병합, C3·C4가 `main`과 `develop`에 있음, D18(위치)·D19(이력·브랜치) 적용 완료. 이때 `main`은 P0 병합 뒤 C3·C4까지의 상태다(D21에 적은 노출).
+- [x] G2. (사용자) 저장소를 공개한다(2026-11-07, `gh repo view` visibility PUBLIC). 선행: C2가 `develop`에 병합, C3·C4가 `main`과 `develop`에 있음, D18(위치)·D19(이력·브랜치) 적용 완료. 이때 `main`은 P0 병합 뒤 C3·C4까지의 상태다(D21에 적은 노출).
   - 공개 직전: public-cleanup T1과 같은 명령으로 모든 ref(`refs/pull/*` 포함)를 다시 스캔하고 결과를 이 줄 아래에 적는다(C2 PR 본문의 결과와 함께). D19대로 병합된 원격 브랜치와 worker 브랜치를 지운다(사용자 승인 아래 에이전트가 목록을 만들어 지울 수 있다). `git rev-list --count origin/develop..origin/main`이 0인지 본다(C1 뒤 `main`에 직접 들어간 커밋이 없다).
+  - 공개 직전 결과(2026-11-07): gitleaks v8.30.1로 모든 ref(원격 브랜치·`refs/pull/*` 포함, 199 ref)를 다시 스캔했다. 발견 269건은 C2 PR #122와 같고(`schema/fixtures` 264, Go 테스트 상수 3, `example.invalid` curl 2) 실제 비밀은 0건이다. 병합·반영된 원격 브랜치 74개와 로컬 브랜치 109개를 지웠다(사용자 승인; 계획만 있던 `feat/export-viewer-chrome`의 commit은 89acf81f). `git rev-list --count origin/develop..origin/main` = 0.
   - 검증: `gh repo view --json visibility`가 `PUBLIC`(확인 명령 미정 — 사용자 확인 필요).
-- [ ] G3a. (사용자, G2 직후 같은 자리) D25: 비공개 취약점 신고를 켜고, D6의 환경 `release`(필수 검토자 = 사용자, 배포 ref `v*` 태그·`develop`)와 비밀을 등록한다. 비밀 이름과 등록 절차는 release-ci design '비밀과 권한'에 있다.
+- [x] G3a. (사용자, G2 직후 같은 자리, 2026-11-07 완료: 환경 `release`(검토자 SinhyeokKang, 배포 ref는 C6 PoC 뒤 태그 `v*`·`tester-*`·`release-dryrun-*`로 바꿨다), 비밀 5개, 변수 `MAC_IDENTITY_NAME`; 값은 첫 서명 작업에서 확인한다) D25: 비공개 취약점 신고를 켜고(2026-11-07 켬, API `enabled: true`), D6의 환경 `release`(필수 검토자 = 사용자, 배포 ref `v*` 태그·`develop`)와 비밀을 등록한다. 비밀 이름과 등록 절차는 ARCHITECTURE §9에 있다. 값은 C6 PoC에서 확인했다(`APPLE_API_ISSUER`·`APPLE_API_KEY_ID`를 다시 넣은 뒤 tester-poc-2·release-dryrun-poc-2 서명·공증 성공, 2026-11-08).
   - 검증: 확인 명령 미정 — 사용자 확인 필요(`gh api repos/SinhyeokKang/doan-design/environments/release`가 환경을 돌려주는지 본다).
-- [ ] G3b. (사용자, C5 뒤) D25: `develop` 보호. 필수 검사 = ci-gate의 작업 id `gate`, 관리자 우회 허용.
+- [x] G3b. (사용자, C5 뒤) D25: `develop` 보호. 필수 검사 = ci-gate의 작업 id `gate`, 관리자 우회 허용. 2026-11-08 적용: 필수 검사 `gate`, strict 끔, 관리자 우회 허용(enforce_admins false), 승인 요구 없음, force push·삭제 금지.
   - 검증: 확인 명령 미정 — 사용자 확인 필요(`gh api repos/SinhyeokKang/doan-design/branches/develop/protection`).
-- [ ] G3c. (사용자, C8 뒤, R1 전) D25: `main` 보호. PR 필수, 승인 0, 필수 검사 `gate`, 최신화 요구 끔, force push·삭제 금지.
+- [x] G3c. (사용자, R1 전) D25: `main` 보호. PR 필수, 승인 0, 필수 검사 `gate`, 최신화 요구 끔, force push·삭제 금지, 관리자 우회 금지. 2026-11-08 C8보다 앞당겨 적용했다(main에는 첫 `/release` 전까지 아무것도 들어가지 않는다).
   - 검증: 확인 명령 미정 — 사용자 확인 필요(`gh api repos/SinhyeokKang/doan-design/branches/main/protection`).
 
 ## C (계속)
 
-- [ ] C5. [`ci-gate`](../ci-gate/tasks.md) — `/ship`. 선행: G2(D21). 후행: G3b, C6.
+- [x] C5. `ci-gate`(PR #123, c5fc57a2; 선행 경쟁 수정 PR #124) — `/ship`. 선행: G2(D21). 후행: G3b, C6.
   - 검증: `develop`을 향한 `chore/ci-gate` PR이 병합됐고(확인 명령 미정 — 사용자 확인 필요), `git ls-tree origin/develop docs/features/ci-gate` 결과 없음.
-- [ ] C6. [`release-ci`](../release-ci/tasks.md) — `/ship`. 선행: C5, G3a(환경·비밀).
+- [x] C6. `release-ci`(PR #126, 6e8d73bd) — `/ship`. 선행: C5, G3a(환경·비밀).
   - 검증: `develop`을 향한 `chore/release-ci` PR이 병합됐고(확인 명령 미정 — 사용자 확인 필요), `git ls-tree origin/develop docs/features/release-ci` 결과 없음.
-- [ ] C7. [`app-update`](../app-update/tasks.md) — `/orchestrate`. 선행: C6(구현). 문서·초안 단계는 C6과 병렬. C8과 병렬.
+- [x] C7. `app-update`(PR #127, bc169161) — `/orchestrate`. 선행: C6(구현). 문서·초안 단계는 C6과 병렬. C8과 병렬.
   - 검증: `develop`을 향한 `feat/app-update` PR이 병합됐고(확인 명령 미정 — 사용자 확인 필요), `git ls-tree origin/develop docs/features/app-update` 결과 없음.
-- [ ] C8. [`release-skill`](../release-skill/tasks.md) — 하네스·문서, 대화 중. 선행: C6. C7과 병렬. 후행: G3c.
+- [x] C8. `release-skill`(b6be671b에서 지움) — 하네스·문서, 대화 중. 선행: C6. C7과 병렬. 후행: G3c.
   - 검증: `git ls-tree origin/develop docs/features/release-skill` 결과 없음, `ls -l .claude/skills/release`가 `../../.agents/skills/release`를 가리킨다.
 
 ## R. 0.1.0 출시 (사용자가 `/release`를 부른다)

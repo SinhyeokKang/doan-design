@@ -39,7 +39,7 @@ it("checks serialized UTF-8 bytes before append, allowing the exact read boundar
   hooks.limit++; f.store.append("old", "t", body);
   expect(statSync(f.path("old")).size).toBe(hooks.limit); expect(f.store.read("old")).toHaveLength(2);
 });
-// FX review: a turn's opening events go in one write, so validation, the size limit and an open or read failure leave
+// A turn's opening events go in one write, so validation, the size limit and an open or read failure leave
 // neither of them. A short write is not rolled back, as before; only journaled starts and restores recover a prefix.
 it("appends several events in one write, or none when they cross the bound together", () => {
   vi.useFakeTimers(); vi.setSystemTime(new Date("2026-11-06T00:00:00Z"));
@@ -60,7 +60,7 @@ it("appends several events in one write, or none when they cross the bound toget
   expect(() => f.store.appendAll("old", "t3", [message, { type: "activity", kind: "nope" } as never])).toThrow("Invalid conversation event");
   expect(readFileSync(f.path("old"))).toEqual(saved);
 });
-// FX review: an existing conversation's send whose turn.started cannot be saved leaves no user.message either, so the
+// An existing conversation's send whose turn.started cannot be saved leaves no user.message either, so the
 // renderer has no message alone to open a live turn from.
 it("rejects a next send whose turn.started cannot be saved without saving or publishing its message", async () => {
   const f = setup(), published: ConversationEvent[] = []; let session = 0;

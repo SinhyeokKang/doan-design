@@ -23,7 +23,7 @@ const URL = "https://github.com/acme/studio";
 const OTHER = "https://github.com/acme/other";
 
 // A clone that holds until released, so cancel, quit and the shared locks can be seen while it runs. commit: the
-// clone publishes itself (D19) before it waits.
+// clone publishes itself before it waits.
 interface Held { url: string; destination: string; signal: AbortSignal; release(): void }
 function fakeProjects(options: { commit?: boolean } = {}) {
   const held: Held[] = [];
@@ -340,7 +340,7 @@ describe("two instances: onboarding and the page", () => {
     expect(operation(await p.ask("inspect", { path: "/work/a" }))).toMatchObject({ state: "succeeded" });
   });
 
-  test("a clone already published is not cancelled by a replaced renderer (D19)", async () => {
+  test("a clone already published is not cancelled by a replaced renderer", async () => {
     const { projects, held } = fakeProjects({ commit: true });
     const p = page(projects);
     const cloning = operation(await p.ask("clone", { inspectionId: inspectionId(await p.ask("inspect", { url: URL, destination: "/work/studio" })), destination: "/work/studio" }));

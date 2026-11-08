@@ -1,8 +1,8 @@
 import type { ConversationEvent } from "./conversation/types";
 import type { NotificationPreferences } from "./preferences";
 
-// macOS notification rules (buzz-settings design 'Notifications'). Main decides whether and what to show; the
-// renderer interprets a click with notificationTarget, the one function buzz-conversation replaces for its panel.
+// macOS notification rules (PRODUCT §5 item 0 'Notifications'). Main decides whether and what to show; the
+// renderer interprets a click with notificationTarget, the one function the conversation panel replaces.
 // No Electron here: the renderer imports this file.
 
 export type NotificationKind = "approval" | "finished" | "failed";
@@ -23,7 +23,7 @@ const SWITCH: Record<NotificationKind, keyof NotificationPreferences> = { approv
 
 // A turn the person stopped is `interrupted`, never `turn.failed`, so it never notifies. The permission summary is
 // left out until PRODUCT §6 settles its format, and so is a question's sentence. A question follows the Approval
-// requests switch but says it needs an answer, as the thread and the sidebar do (agent-questions design §6).
+// requests switch but says it needs an answer, as the thread and the sidebar do.
 export function notificationFor(event: ConversationEvent, preferences: NotificationPreferences, visibility: WindowVisibility, names: ConversationNames | null): PlannedNotification | null {
   const asks = event.type === "permission.request" || event.type === "question.request";
   const kind: NotificationKind | null = asks ? "approval" : event.type === "turn.done" ? "finished" : event.type === "turn.failed" ? "failed" : null;

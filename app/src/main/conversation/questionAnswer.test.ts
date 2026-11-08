@@ -27,7 +27,7 @@ describe("questionAnswer", () => {
     expect(questionAnswer([closed], { outcome: "answered", answers: { closed: { selected: [], other: "Green" } } })).toBeNull();
     expect(questionAnswer([textOnly], { outcome: "answered", answers: { free: { selected: [], other: "Doan" } } })).toEqual({ outcome: "answered", answers: { free: { selected: [], other: "Doan" } } });
   });
-  // design §7: Other chosen with no text is no answer, whatever else a multi-select question has checked.
+  // Other chosen with no text is no answer, whatever else a multi-select question has checked.
   it("counts Other text that is empty or only spaces as unanswered, even beside a choice", () => {
     expect(questionAnswer([single], { outcome: "answered", answers: { "0": { selected: [], other: " \n\t" } } })).toBeNull();
     expect(questionAnswer([textOnly], { outcome: "answered", answers: { free: { selected: [] , other: "   " } } })).toBeNull();

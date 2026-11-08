@@ -8,7 +8,7 @@ import { shouldRead } from "./usageSchedule";
 import { UsageStore } from "./usageStore";
 import type { UsageBlock, UsageEntry, UsageReading, UsageTrigger } from "./usageTypes";
 
-// Antigravity has no usage read Doan can use (PoC U4, U7) and is never shown.
+// Antigravity has no usage read Doan can use (PoC) and is never shown.
 export const USAGE_PROVIDERS = PROVIDERS.filter((provider): provider is UsageProvider => provider !== "antigravity");
 const shown = (provider: Provider): provider is UsageProvider => provider !== "antigravity";
 // What the service needs of AuthManager. A usage lease is not a conversation: a sign-out stops it (stopRuns) without

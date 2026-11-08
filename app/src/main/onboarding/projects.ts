@@ -11,7 +11,7 @@ import { runClone, type CloneRequest, type CloneResult } from "./clone";
 import type { RemoteRead } from "./gitConfig";
 import { findCandidates, folderMatch, type GitHubRepository } from "./repository";
 
-// Project inspection, selection and confirmation for onboarding (buzz-onboarding design '로컬 선택·초기화 연결').
+// Project inspection, selection and confirmation for onboarding.
 // Only the CLI decides what a doan repo is; remotes come from .git/config, never from running git.
 
 export interface ProjectDeps {

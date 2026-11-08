@@ -11,8 +11,8 @@ interface Props {
   onEditOnHome(): void; onDismiss(): void; onOpen(): void;
 }
 
-// The temporary Home-conversation strip at the top of the workspace body (buzz-home design §7), the shared panel
-// notice with actions, until buzz-conversation's panel replaces it.
+// The temporary Home-conversation strip at the top of the workspace body, the shared panel
+// notice with actions, until the conversation panel replaces it.
 export function ConversationStrip({ conversationId, provider, state, view, onEditOnHome, onDismiss, onOpen }: Props) {
   const stop = useRef<HTMLButtonElement | null>(null);
   const dismiss = useRef<HTMLButtonElement | null>(null);
@@ -25,7 +25,7 @@ export function ConversationStrip({ conversationId, provider, state, view, onEdi
     return () => { stopLeftFocused.current = document.activeElement === node; stop.current = null; };
   }).current;
   // A turn that ends while Stop has focus (an answer that finishes it at once, Stop itself, a send's arrival focus)
-  // takes Stop away; focus moves on to Dismiss instead of falling to the page (design §7).
+  // takes Stop away; focus moves on to Dismiss instead of falling to the page.
   useEffect(() => {
     if (!stopLeftFocused.current) return;
     stopLeftFocused.current = false;
@@ -44,7 +44,7 @@ export function ConversationStrip({ conversationId, provider, state, view, onEdi
   const run = (action: StripAction) => {
     if (action.command === "answer") {
       if (state.kind === "permission") send(state.requestId, "answer", () => window.doan.answerConversationPermission({ conversationId, requestId: state.requestId, optionId: action.optionId }));
-      // The answered choices go away; Stop is the one control left while the turn runs (design §7).
+      // The answered choices go away; Stop is the one control left while the turn runs.
       stop.current?.focus();
     } else if (action.command === "skip") {
       if (state.kind === "question") send(state.requestId, "skip", () => window.doan.answerConversationQuestion({ conversationId, requestId: state.requestId, outcome: "skipped" }));
@@ -78,7 +78,7 @@ export function ConversationStrip({ conversationId, provider, state, view, onEdi
       // white, since the strip's inset fill is subtle's own grey.
       const variant = action.command === "answer" ? (action.kind === "allow" ? "prominent" : "panel") : action.command === "editOnHome" || action.command === "open" || action.command === "skip" ? "panel" : undefined;
       const key = action.command === "answer" ? `answer-${action.optionId}` : action.command;
-      // data-strip-stop: App focuses Stop after a Home send's move, never a permission answer (design §4.9, §7).
+      // data-strip-stop: App focuses Stop after a Home send's move, never a permission answer.
       return <button key={key} ref={action.command === "stop" ? stopRef : action.command === "dismiss" ? dismiss : undefined} data-strip-stop={action.command === "stop" ? "" : undefined} type="button" className="doan-button" data-ui-size="sm" data-ui-variant={variant} onClick={() => run(action)}>
         {action.command === "stop" && <CircleStop aria-hidden="true" />}{action.label}
       </button>;
@@ -87,7 +87,7 @@ export function ConversationStrip({ conversationId, provider, state, view, onEdi
 }
 
 // One strip instance per conversation: its Stop-focus memory must not carry over when the project's strip switches to
-// another conversation (review BV2 🟡2).
+// another conversation.
 export function KeyedConversationStrip(props: Props) {
   return <ConversationStrip key={props.conversationId} {...props} />;
 }

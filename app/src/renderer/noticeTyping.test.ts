@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { ERASE_MS, TYPE_MS, TYPING_CAP_MS, typingSteps } from "./noticeTyping";
 
-// work-update A5b (design decisions 19–20): the notice's erase-and-type steps, by grapheme, keeping the common start.
+// The notice's erase-and-type steps, by grapheme, keeping the common start.
 const widths = { fromWidth: 200, toWidth: 120 };
 const texts = (steps: ReturnType<typeof typingSteps>) => steps.map(step => step.text);
 

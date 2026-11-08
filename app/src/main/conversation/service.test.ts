@@ -49,8 +49,8 @@ it("tells prepare when a send reuses the conversation's live Codex server", asyn
   await h.service.send(id, "after exit", []);
   expect(h.prepare.mock.calls[2]?.[3]).toBeFalsy();
 });
-// mcp-connectors C1: a reused Codex server reloads its MCP servers before the next turn when a Connect, Disconnect,
-// Remove or replacement changed the provider's connectors since it opened (design 'reload 배선').
+// A reused Codex server reloads its MCP servers before the next turn when a Connect, Disconnect,
+// Remove or replacement changed the provider's connectors since it opened.
 describe("Codex MCP reload", () => {
   function connectors() {
     let generation = 4; const fake = fixture();
@@ -318,7 +318,7 @@ it("sends the fixed preset guidance on a follow-up turn as on the first", async 
   for (const prompt of prompts) expect(prompt).toContain(PRESET_GUIDANCE);
 });
 
-// buzz-home: Home starts (newDesign), chosen models, attachments and binding by start-time lists.
+// Home starts (newDesign), chosen models, attachments and binding by start-time lists.
 // admit: resolve a canvas against the listed rows as main does (restore needs it); files: the queue's attachment hooks.
 function homeFixture(canvases: { path: string; id?: string }[] = [], options: { admit?: boolean; files?: QueueFiles; fast?: QueueOptions["fast"] } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "doan-service-")); paths.push(dir);
@@ -386,7 +386,7 @@ it("does not mark attachments sent for a start refused before acceptance", async
   await expect(h.service.start({ ...homeRequest, attachments: [{ name: "a", size: 1, kind: "file", path: "/a" }] }, attached)).rejects.toThrow("not_logged_in");
   expect(attached.recheck).not.toHaveBeenCalled(); expect(attached.sent).not.toHaveBeenCalled();
 });
-// buzz-conversation M4: a project turn is judged once it ended, at the first folder refresh or the window's end.
+// A project turn is judged once it ended, at the first folder refresh or the window's end.
 it("binds a new canvas at the first folder refresh after the turn ends, never while it runs, and frees the root", async () => {
   const h = homeFixture([{ path: ".doan/canvases/old.html", id: "old" }]);
   const id = (await h.service.start(homeRequest)).conversationId;
@@ -404,7 +404,7 @@ it("binds a new canvas at the first folder refresh after the turn ends, never wh
   // Judged: another project conversation may start at once, inside what used to be the window.
   await h.service.start(homeRequest);
 });
-// canvas-row-menu: Move to Trash reads an unjudged project turn's grounds.
+// Move to Trash reads an unjudged project turn's grounds.
 it("hands out a project turn's edits and changed paths while it runs and within the binding window, and none after its judgement", async () => {
   const h = homeFixture();
   const id = (await h.service.start(homeRequest)).conversationId;
@@ -476,7 +476,7 @@ it("binds nothing for conversations of a previous run", async () => {
   expect(h.store.list().find(m => m.conversationId === first)!.canvas).toBeUndefined();
 });
 
-// buzz-home fix round 1: model-list reads are owned runs (quit and sign-out stop them; the lease goes with the group).
+// Model-list reads are owned runs (quit and sign-out stop them; the lease goes with the group).
 function listingFixture() {
   const dir = mkdtempSync(join(tmpdir(), "doan-service-")); paths.push(dir);
   const release = vi.fn(async () => {});
@@ -550,7 +550,7 @@ it("frees the lease at once when a model-list read fails before anything spawned
   await vi.waitFor(() => expect(h.release).toHaveBeenCalledOnce());
 });
 
-// project-skill-drawer C1: a project skill read takes the model list's lease path (POSTMORTEM 2026-10-28, 2026-10-30).
+// A project skill read takes the model list's lease path (POSTMORTEM 2026-10-28, 2026-10-30).
 it("prepares a project skill read as a listing that stopRuns stops, and a send after the previous run's exit is not refused while it reads", async () => {
   const h = homeFixture();
   const id = (await h.service.start(homeRequest)).conversationId;
@@ -567,7 +567,7 @@ it("prepares a project skill read as a listing that stopRuns stops, and a send a
   expect(stop).toHaveBeenCalledOnce();
 });
 
-// buzz-home fix round 1: Home's paragraph follows the conversation's origin, not its binding.
+// Home's paragraph follows the conversation's origin, not its binding.
 it("drops Home's paragraph once a Home conversation is promoted to a canvas, and keeps it before that", async () => {
   const h = homeFixture();
   const id = (await h.service.start(homeRequest)).conversationId;
@@ -600,7 +600,7 @@ it("never adds Home's paragraph to an entry without the Home mark", async () => 
   expect(vi.mocked(h.runners.at(-1)!.send).mock.calls[0]![0]).not.toContain(HOME_GUIDANCE);
 });
 
-// buzz-conversation M1: the project's conversation list and the seen marker.
+// The project's conversation list and the seen marker.
 describe("conversation list", () => {
   const legacyEntry = (id: string) => ({ conversationId: id, root: "/repo", canvas: { path: ".doan/canvases/a.html" }, title: id, state: "current" as const, owner: { kind: "legacy-external" as const },
     session: { runtime: "codex" as const, origin: "resumed" as const, sessionId: id, configDir: "/home/.codex", cwd: "/repo" } });
@@ -685,7 +685,7 @@ describe("conversation list", () => {
   });
 });
 
-// buzz-conversation M2: one working project conversation per root.
+// One working project conversation per root.
 describe("project conversation limit", () => {
   const canvasRequest = { ...homeRequest, mode: "new" as const, canvas: { path: ".doan/canvases/a.html" } };
   it("refuses another project start while one is still preparing, though it is not in the index yet", async () => {
@@ -703,7 +703,7 @@ describe("project conversation limit", () => {
   });
   const ask = (requestId: string) => ({ type: "permission.request" as const, requestId, tool: "Write", summary: "Write a.html", options: [{ id: "allow", label: "Allow", kind: "allow" as const }] });
   const answered = (requestId: string) => ({ type: "permission.resolved" as const, requestId, optionId: "allow" });
-  // canvas-composer-polish spec 4: a turn waiting for the person's answer does not keep the root.
+  // A turn waiting for the person's answer does not keep the root.
   it("refuses another project send while a project turn runs or just ended, and takes one while it waits for an answer", async () => {
     const h = homeFixture();
     const a = (await h.service.start(homeRequest)).conversationId;
@@ -770,7 +770,7 @@ describe("project conversation limit", () => {
     await expect(h.service.start(homeRequest)).rejects.toThrow("project_busy");
     expect(h.store.list().find(m => m.conversationId === b)).toBeDefined();
   });
-  // canvas-composer-polish design §4 'promotion': turns of one root overlap once a waiting turn has its answer.
+  // Turns of one root overlap once a waiting turn has its answer.
   describe("promotion of overlapping turns", () => {
     const x = { path: ".doan/canvases/x.html", id: "x" }, existing = { path: ".doan/canvases/a.html", id: "a" };
     const canvasOf = (h: ReturnType<typeof homeFixture>, id: string) => h.store.list().find(m => m.conversationId === id)!;
@@ -890,7 +890,7 @@ describe("project conversation limit", () => {
   });
 });
 
-// buzz-conversation M3: a send carries attachments, model and effort.
+// A send carries attachments, model and effort.
 describe("send extras", () => {
   const attachments = [{ name: "a.png", size: 3, kind: "image" as const, path: "/Users/me/a.png" }];
   async function finished(h: ReturnType<typeof homeFixture>, request: Parameters<ConversationService["start"]>[0] = { ...homeRequest, model: "sonnet", effort: "low" }) {
@@ -901,7 +901,7 @@ describe("send extras", () => {
   }
   it("saves the new model and effort before the turn's events and opens the run with them", async () => {
     const h = homeFixture(); const id = await finished(h);
-    // The message goes out with its turn.started in one write (FX review).
+    // The message goes out with its turn.started in one write.
     const appendAll = h.store.appendAll.bind(h.store); const atMessage: unknown[] = [];
     vi.spyOn(h.store, "appendAll").mockImplementation((...args) => { if (args[2].some(body => body.type === "user.message")) atMessage.push(h.store.list()[0]!.model); return appendAll(...args); });
     await h.service.send(id, "again", [], { model: "opus", effort: "high" });
@@ -985,7 +985,7 @@ describe("send extras", () => {
   });
 });
 
-// buzz-conversation M4: a project turn moves its conversation to the canvas it made or edited.
+// A project turn moves its conversation to the canvas it made or edited.
 describe("promotion", () => {
   const a = { path: ".doan/canvases/a.html", id: "a" }, b = { path: ".doan/canvases/b.html", id: "b" };
   const canvasStart = { ...homeRequest, mode: "new" as const, canvas: a };
@@ -1096,7 +1096,7 @@ describe("promotion", () => {
     expect(entry(h, id).canvas).toEqual({ path: ".doan/canvases/made.html" });
     expect(h.store.read(id).filter(e => e.type === "user.message")).toHaveLength(2);
   });
-  it("never crosses one turn's refused edit with a change made during the next turn (RA2 Y1)", async () => {
+  it("never crosses one turn's refused edit with a change made during the next turn", async () => {
     const h = homeFixture([a]); const { current, project } = await withCurrent(h);
     // T1 asks to edit a.html; the edit is refused, so the file never changes.
     h.service.receive(project, edit(a.path));
@@ -1113,7 +1113,7 @@ describe("promotion", () => {
   });
 });
 
-// buzz-conversation M5: a send to an archived conversation makes it current again.
+// A send to an archived conversation makes it current again.
 describe("restore", () => {
   const a = { path: ".doan/canvases/a.html", id: "a" };
   const canvasStart = { ...homeRequest, mode: "new" as const, canvas: a };
@@ -1194,7 +1194,7 @@ describe("restore", () => {
   });
 });
 
-// buzz-conversation M6: messages sent while a turn works wait in main and go out together after it.
+// Messages sent while a turn works wait in main and go out together after it.
 describe("queue", () => {
   const a = { path: ".doan/canvases/a.html", id: "a" };
   const canvasStart = { ...homeRequest, mode: "new" as const, canvas: a };
@@ -1259,7 +1259,7 @@ describe("queue", () => {
     await h.service.stopRuns("claude");
     expect(h.service.takeDraft(id)).toMatchObject({ text: "one", reason: "interrupted" });
   });
-  it("refuses, when it is queued, a message that would take the queue past ten attachments (fix round 1, decision 22)", async () => {
+  it("refuses, when it is queued, a message that would take the queue past ten attachments", async () => {
     const h = homeFixture();
     const id = (await h.service.start(canvasStart)).conversationId;
     const six = (from: number) => Array.from({ length: 6 }, (_, i) => file(from + i));
@@ -1320,7 +1320,7 @@ describe("queue", () => {
   });
 });
 
-// buzz-conversation review fixes: pending judgements, refused sends with a queue, crashes and stops while holding.
+// Pending judgements, refused sends with a queue, crashes and stops while holding.
 describe("queue and judgement review fixes", () => {
   const a = { path: ".doan/canvases/a.html", id: "a" };
   const canvasStart = { ...homeRequest, mode: "new" as const, canvas: a };
@@ -1415,8 +1415,8 @@ describe("queue and judgement review fixes", () => {
   });
 });
 
-// buzz-conversation fix round 1 (RA2): queue limits, the list's working state, sign-out while held.
-describe("fix round 1", () => {
+// Queue limits, the list's working state, sign-out while held.
+describe("queue limits, working state and sign-out while held", () => {
   const a = { path: ".doan/canvases/a.html", id: "a" };
   const canvasStart = { ...homeRequest, mode: "new" as const, canvas: a };
   const userMessages = (h: ReturnType<typeof homeFixture>, id: string) => h.store.read(id).filter(e => e.type === "user.message");
@@ -1454,7 +1454,7 @@ describe("fix round 1", () => {
     h.open.mock.calls[0]![2](); await sending;
     expect(working()).toBe(true);
   });
-  it("lists a held queue as working while it waits for the previous process, though nothing is queued any more (RA2 Y2)", async () => {
+  it("lists a held queue as working while it waits for the previous process, though nothing is queued any more", async () => {
     const h = homeFixture();
     const id = (await h.service.start(canvasStart)).conversationId;
     h.service.queue(id, { text: "next", anchors: [] });
@@ -1514,7 +1514,7 @@ describe("fix round 1", () => {
   });
 });
 
-// buzz-conversation fix round 2 (RA2b Y3): a cancelled waiting send hands back the queue accepted behind it.
+// A cancelled waiting send hands back the queue accepted behind it.
 describe("cancelled waits and their queues", () => {
   const a = { path: ".doan/canvases/a.html", id: "a" };
   const canvasStart = { ...homeRequest, mode: "new" as const, canvas: a };
@@ -1559,7 +1559,7 @@ describe("cancelled waits and their queues", () => {
 });
 
 
-// project-skill-drawer A2 (decisions 18, 28): the title leaves out the fixed request lines; the message keeps them.
+// The title leaves out the fixed request lines; the message keeps them.
 it.each([
   ["skill lines and text", "Use the project skill `deploy`.\nUse the project skill `db-migrate`.\n\nrun /db-migrate first, then /deploy to staging", "run /db-migrate first, then /deploy to staging"],
   ["a preset line, a skill line and text", "Use the Doan design preset `polish` (Polish).\nUse the project skill `deploy`.\n\n/deploy the hero", "/deploy the hero"],
@@ -1580,7 +1580,7 @@ it.each(["new", "newDesign", "resume"] as const)("stores a one-line chip title w
   expect(h.store.read(id)[0]).toMatchObject({ type: "user.message", text, anchors });
 });
 
-// permission-mode S1: the chosen mode is stored apart from the model, follows a Claude plan approval and reaches every turn.
+// The chosen mode is stored apart from the model, follows a Claude plan approval and reaches every turn.
 describe("permission mode", () => {
   const canvas = { path: ".doan/canvases/a.html", id: "a" };
   // A Claude canvas conversation whose first turn ended and whose process is gone.
@@ -1630,7 +1630,7 @@ describe("permission mode", () => {
     expect(h.open).toHaveBeenCalledOnce();
     expect(vi.mocked(h.runners[0]!.send).mock.calls[1]![3]).toEqual({ permissionMode: "default" });
   });
-  // permission-mode spec decisions 7 and 8: a picker change without a send is stored at once, and a queue goes out in
+  // A picker change without a send is stored at once, and a queue goes out in
   // the mode stored when it is flushed, not the one its messages were queued under.
   it("stores a picker change without a send, deletes the key for Default and announces only a change", async () => {
     const h = homeFixture();
@@ -1698,7 +1698,7 @@ describe("permission mode", () => {
     h.changes.length = 0; report("default");
     expect(h.changes).toEqual([]);
   });
-  // permission-mode spec decision 8, RV-B ⚪1: a mode the person picked during the Plan turn is theirs; the plan
+  // A mode the person picked during the Plan turn is theirs; the plan
   // approval follows the SDK only while the conversation is still in Plan.
   it("keeps a mode the person picked during the Plan turn when the plan is approved", async () => {
     const h = homeFixture();
@@ -1721,7 +1721,7 @@ describe("permission mode", () => {
   });
 });
 
-// queue-send-now T4: Send now puts one queued message into the running turn; it joins the turn when the agent reads it.
+// Send now puts one queued message into the running turn; it joins the turn when the agent reads it.
 describe("send now", () => {
   const a = { path: ".doan/canvases/a.html", id: "a" };
   const canvasStart = { ...homeRequest, mode: "new" as const, canvas: a };
@@ -2035,7 +2035,7 @@ describe("send now", () => {
   });
 });
 
-// conversation-delete design §2.3: Doan's own record of a conversation on this device goes; the agent's files stay.
+// Doan's own record of a conversation on this device goes; the agent's files stay.
 describe("delete", () => {
   const a = { path: ".doan/canvases/a.html", id: "a" };
   const canvasStart = { ...homeRequest, mode: "new" as const, canvas: a };
@@ -2213,7 +2213,7 @@ describe("delete", () => {
     expect(h.store.list().map(m => m.conversationId)).toEqual([id]);
   });
 });
-// agent-questions B3 and orch decision 3: a question waits in the turn as a permission request does.
+// A question waits in the turn as a permission request does.
 describe("agent questions", () => {
   const question = (requestId: string) => ({ type: "question.request" as const, requestId, questions: [{ id: "0", header: "Color", question: "Which color?", options: [{ label: "Red" }], multiSelect: false, other: true }] });
   const resolved = (requestId: string) => ({ type: "question.resolved" as const, requestId, outcome: "skipped" as const });
@@ -2311,7 +2311,7 @@ describe("agent questions", () => {
   });
 });
 
-// prompt-suggestion design 'main' 3-6: a done turn's suggestion is kept in memory per conversation, fenced by the run and
+// A done turn's suggestion is kept in memory per conversation, fenced by the run and
 // turn it belongs to, cleared when it no longer applies, and the next send ends a process that only waits for one.
 describe("prompt suggestions", () => {
   type SuggestingRunner = Runner & { endSuggestion: ReturnType<typeof vi.fn<() => boolean>> };
@@ -2459,7 +2459,7 @@ describe("prompt suggestions", () => {
     h.service.connectionChanged("claude", "conn-2");
     expect(h.shown(id)).toBeUndefined();
   });
-  // Batch M review: a connection change must also refuse a suggestion the earlier run sends after it.
+  // A connection change must also refuse a suggestion the earlier run sends after it.
   it.each([["signs out", undefined], ["changes", "conn-2"]] as const)("ignores a suggestion that first arrives after the Claude connection %s", async (_name, next) => {
     const h = suggesting(); const id = await h.start();
     h.service.receive(id, { type: "turn.done" });
@@ -2493,7 +2493,7 @@ describe("prompt suggestions", () => {
   });
 });
 
-// work-update B3 (design §1 rules 5 and 10, §8): runs carry their conversation's id, main reads which turn may take an
+// Runs carry their conversation's id, main reads which turn may take an
 // update, and every end of a turn clears that conversation's work.
 describe("conversation work", () => {
   const prepared = (env: NodeJS.ProcessEnv = {}) => ({ runtime: "codex" as const, configDir: "/profile", cwd: "/repo", sessionId: "same-session", command: "/fake", env });
@@ -2524,6 +2524,43 @@ describe("conversation work", () => {
     expect(second).toMatchObject({ root: "/repo", running: true });
     expect(second?.turnId).not.toBe(first?.turnId);
   });
+  // Restart to Update asks on every conversation event, so this reads memory only.
+  it("restartHolds counts running turns and the answers they wait for, from acceptance to the end", async () => {
+    const h = fixture();
+    expect(h.service.restartHolds()).toEqual({ liveTurns: 0, pendingAnswers: 0 });
+    const id = (await h.service.start(request)).conversationId;
+    expect(h.service.restartHolds()).toEqual({ liveTurns: 1, pendingAnswers: 0 });
+    h.service.receive(id, { type: "permission.request", requestId: "r1", tool: "Bash", summary: "ls", options: [{ id: "allow", label: "Allow", kind: "allow" }] });
+    expect(h.service.restartHolds()).toEqual({ liveTurns: 1, pendingAnswers: 1 });
+    h.service.receive(id, { type: "permission.resolved", requestId: "r1", optionId: "allow" });
+    expect(h.service.restartHolds()).toEqual({ liveTurns: 1, pendingAnswers: 0 });
+    h.service.receive(id, { type: "turn.done" });
+    expect(h.service.restartHolds()).toEqual({ liveTurns: 0, pendingAnswers: 0 });
+    const read = vi.spyOn(h.store, "list");
+    h.service.restartHolds();
+    expect(read).not.toHaveBeenCalled();
+  });
+  // A turn that ends without its terminal event keeps its unanswered requests in memory; they must not hold the
+  // restart back for the rest of the session.
+  it.each<[string, (h: ReturnType<typeof fixture>, id: string) => Promise<unknown> | unknown]>([
+    ["an archive by a replacing start", async h => {
+      h.prepare.mockResolvedValueOnce({ ...prepared(), sessionId: "replacement" });
+      await h.service.start(request);
+    }],
+    ["a history that stopped taking writes", (h, id) => {
+      vi.spyOn(h.store, "append").mockImplementationOnce(() => { throw new Error("File exceeds limit"); });
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      h.service.receive(id, { type: "activity", kind: "read", title: "Read" } as never);
+    }],
+  ])("restartHolds no longer counts the answers of a turn ended by %s", async (_label, end) => {
+    const h = fixture();
+    const id = (await h.service.start(request)).conversationId;
+    h.service.receive(id, { type: "permission.request", requestId: "r1", tool: "Bash", summary: "ls", options: [{ id: "allow", label: "Allow", kind: "allow" }] });
+    expect(h.service.restartHolds().pendingAnswers).toBe(1);
+    await end(h, id);
+    expect(h.service.restartHolds()).toMatchObject({ pendingAnswers: 0 });
+    expect(h.service.liveTurns().get(id)?.running ?? false).toBe(false);
+  });
   it.each<[string, (h: ReturnType<typeof fixture>, id: string) => Promise<unknown> | unknown]>([
     ["turn.done", (h, id) => h.service.receive(id, { type: "turn.done" })],
     ["turn.failed", (h, id) => h.service.receive(id, { type: "turn.failed", code: "unknown" })],
@@ -2553,7 +2590,7 @@ describe("conversation work", () => {
     expect(h.ended).toContain(id);
     expect(h.service.liveTurns().get(id)?.running).toBe(false);
   });
-  // V2 review: a quit whose appQuit write fails still clears every conversation's work, and still reports the failure.
+  // A quit whose appQuit write fails still clears every conversation's work, and still reports the failure.
   it("a quit whose first interrupted write fails still clears the work of every conversation", async () => {
     const h = fixture();
     const first = (await h.service.start(request)).conversationId;
@@ -2582,7 +2619,7 @@ describe("conversation work", () => {
   });
 });
 
-// fast-mode A3: the conversation stores the person's Fast; the runner gets the turn's effective Fast, which ipc judges
+// The conversation stores the person's Fast; the runner gets the turn's effective Fast, which ipc judges
 // for a send and the QueueOptions callback for a start, a handoff and a queue flush.
 describe("fast", () => {
   const canvas = { path: ".doan/canvases/a.html", id: "a" };
@@ -2673,7 +2710,7 @@ describe("fast", () => {
   });
 });
 
-// fast-mode A4: a reason that goes on turns the conversation's Fast off in the flow that records the event.
+// A reason that goes on turns the conversation's Fast off in the flow that records the event.
 describe("fast turned off", () => {
   const canvas = { path: ".doan/canvases/a.html", id: "a" };
   it("clears the stored Fast when the turn records a fast.unused that turned it off, and keeps it otherwise", async () => {
@@ -2720,7 +2757,7 @@ describe("fast turned off", () => {
   });
 });
 
-// fast-mode M fix round 1: a turn-off whose index write fails takes the persistence-failure path. Nothing claims Fast
+// A turn-off whose index write fails takes the persistence-failure path. Nothing claims Fast
 // went off while the index still holds it, and nothing runs on as if it had.
 describe("fast turned off, index write failed", () => {
   const canvas = { path: ".doan/canvases/a.html", id: "a" };
@@ -2756,7 +2793,7 @@ describe("fast turned off, index write failed", () => {
   });
 });
 
-// fast-mode M fix round 1: pins for a run's Fast around Send now and a send right after a turn-off.
+// Pins for a run's Fast around Send now and a send right after a turn-off.
 describe("fast kept", () => {
   const canvas = { path: ".doan/canvases/a.html", id: "a" };
   it("puts a Send now message into the running Fast turn without opening or sending another run", async () => {

@@ -35,7 +35,7 @@ it("shows an unreadable canvas's sentence and Details under its row", () => {
   expect(html).toContain('aria-label="Details"');
 });
 
-// buzz-canvas-conversation: comment counts are no longer part of a canvas row's description.
+// Comment counts are no longer part of a canvas row's description.
 it("does not describe a canvas row by its open comments", () => {
   expect(render("/repo")).not.toContain("open comment");
 });
@@ -88,7 +88,7 @@ it("keeps every thumbnail letter readable on its tint, for the sidebar's 10px le
   expect(results.filter(r => !r.ok).map(r => `${r.fg} ${r.wcag.toFixed(2)} Lc ${r.apca.toFixed(0)}`)).toEqual([]);
 });
 
-// buzz-home design §3, §6, §7.2: Home shows the sidebar without a current row, the status slot sits at the right of
+// Home shows the sidebar without a current row, the status slot sits at the right of
 // a row (before a project's menu), and an added project's row flashes.
 test("on Home no row is current; the slot shows a permission hand, a spinner or an unseen Dot with its label", () => {
   const Sidebar = ShellSidebar;
@@ -114,7 +114,7 @@ test("a project row carries a bound canvas's slot only while that canvas row is 
   expect(projectSlot(new Map([["/a\n.doan/canvases/x.html", { kind: "permission" as const, label: "p" }]]), ["/a"], ["/a\n.doan/canvases/x.html"])).toBeUndefined();
 });
 
-// design-system-canvases design 'sidebar' (Q6–Q8): two groups under an expanded, listed project.
+// Two groups under an expanded, listed project.
 function groups(canvases: string[], closed?: { ds?: false; canvases?: false }, extra: { slots?: Map<string, Slot>; entry?: FolderEntry } = {}) {
   const listed: FolderEntry = extra.entry ?? { path: "/a", kind: "list", servedRev: 0, canvases: canvases.map(name => ({ path: `.doan/${name}.html`, url: name })) };
   return renderToStaticMarkup(<TooltipProvider><ShellSidebar cards={[{ key: "common", name: "demo", rows: [listed] }]} projects={{ common: { roots: ["/a"], expanded: true, ...(closed ? { groups: closed } : {}) } }} loaded={null} canvas={undefined} homeDirectory={null} {...(extra.slots ? { slots: extra.slots } : {})}
@@ -266,7 +266,7 @@ it("scrolls the project list and the Settings categories with the shared thin sc
   expect(settings).toContain('<div class="shell-projects doan-scroll">');
 });
 
-// canvas-viewport-units D9/D10: a canvas notice is the same violet dot, under every conversation state.
+// A canvas notice is the same violet dot, under every conversation state.
 test("a canvas notice is the unseen dot on its row, and on the project row while that row is off screen", () => {
   const notice = { kind: "canvas" as const, label: "button changed since you last opened it" };
   const slots = new Map([["/a\n.doan/ds/button.html", notice]]);
@@ -292,7 +292,7 @@ test("an empty group's line is a dashed box", async () => {
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toMatch(/\.shell-group \.shell-empty \{[^}]*border: 1px dashed var\(--border-standard\);[^}]*border-radius: var\(--radius-chip\);/);
   expect(css).not.toMatch(/(^|\n)\.shell-empty[^{]*\{[^}]*dashed/);
-  // small-ui-tweaks decision 4: the box grows by its own vertical padding (8 -> 12px); margins and side padding stay.
+  // The box grows by its own vertical padding (8 -> 12px); margins and side padding stay.
   expect(css).toMatch(/\.shell-group \.shell-empty \{[^}]*margin: var\(--space-half\) 10px var\(--space-2\) 34px;[^}]*padding: var\(--space-3\);/);
 });
 
@@ -308,7 +308,7 @@ test("CSS: the sidebar column is the resizable width and its handle sits in the 
   expect(css).toContain('.doan-panel-handle:is([data-ui-state="hover"], [data-ui-state="drag"], :focus-visible)::after { opacity: 0.7; }');
 });
 
-// canvas-row-menu design '행 버튼과 메뉴' (draft row-button, confirmed by the user).
+// A canvas row's button and menu (draft row-button, confirmed by the user).
 function canvasMarkup(extra: Record<string, unknown> = {}, slot?: Slot) {
   const slots = slot ? { slots: new Map([[`/repo\n${row.path}`, slot]]) } : {};
   return renderToStaticMarkup(<ShellSidebar cards={[{ key: "common", name: "demo", rows: [entry] }]} projects={{ common: { roots: ["/repo"], expanded: true } }} loaded={null} canvas={undefined} homeDirectory={null}
@@ -329,7 +329,7 @@ it("marks a locked canvas row's button aria-disabled, never the project row's", 
   expect(html).not.toMatch(/aria-label="canvas menu"[^>]* disabled=""/);
 });
 
-// The ownedFocus recovery's new branches (tasks T6, design '삭제 뒤 화면'): a removed canvas row's focus stays in its group.
+// The ownedFocus recovery's new branches: a removed canvas row's focus stays in its group.
 it("hands a removed canvas row's focus to the next row of its group, else the previous one, else the group head", () => {
   const project = { key: "p" }, ds = { key: "p\n#ds", parent: "p" }, canvases = { key: "p\n#canvases", parent: "p" };
   const canvas = (key: string, parent: string) => ({ key, parent, canvas: true });
@@ -343,8 +343,7 @@ it("hands a removed canvas row's focus to the next row of its group, else the pr
   // A group left empty keeps its head.
   expect(recoveryKey(previous, without(d), d.key)).toBe(canvases.key);
   expect(recoveryKey(previous, without(a, b, c), b.key)).toBe(ds.key);
-  // Any other row keeps the earlier rule, the row now at its place: a project row, and a group head (RC2 ⚪5; tasks T6
-  // asks only for the canvas-row branches).
+  // Any other row keeps the earlier rule, the row now at its place: a project row, and a group head.
   const other = { key: "q" };
   expect(recoveryKey([project, other, ds], [project, ds], other.key)).toBe(ds.key);
   expect(recoveryKey([project, other], [project], other.key)).toBe(project.key);
@@ -355,7 +354,7 @@ it("judges an open canvas menu by its own row, so the project menu's rule never 
   const cards = [{ key: "common", name: "demo", rows: [entry] }];
   const rows = [{ key: "common" }, { key: `/repo\n${row.path}`, parent: "/repo\n#canvases" }];
   expect(staleMenu(null, cards, null, rows, false)).toBe(false);
-  // The project rule: no card has this key, so it would close the menu at once (design '함정').
+  // The project rule: no card has this key, so it would close the menu at once.
   expect(staleMenu({ kind: "project", key: `/repo\n${row.path}` }, cards, "/repo", rows, false)).toBe(true);
   expect(staleMenu({ kind: "canvas", key: `/repo\n${row.path}` }, cards, null, rows, false)).toBe(false);
   expect(staleMenu({ kind: "canvas", key: `/repo\n${row.path}` }, cards, null, rows.slice(0, 1), false)).toBe(true);
@@ -368,7 +367,7 @@ it("judges an open canvas menu by its own row, so the project menu's rule never 
 it("shows a canvas row's button only under the pointer, with keyboard focus in the row or an open menu, in place of the status spot", async () => {
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
-  // RC2 🔴1: the idle button is hidden visually only. A display: none (or visibility: hidden) button cannot take the
+  // The idle button is hidden visually only. A display: none (or visibility: hidden) button cannot take the
   // focus Radix returns when its menu closes (Esc, Export…) or App when the Move to Trash dialog does: it fell to <body>.
   // A mouse click focuses the row (a treeitem), so :focus-within kept the button after the pointer left; only
   // focus-visible focus may show it (as the project row's chevron).
@@ -391,7 +390,7 @@ it("shows a canvas row's button only under the pointer, with keyboard focus in t
   expect(css).toContain(".shell-canvas-menu { width: 204px;");
 });
 
-// RC2 🟡1: a locked canvas button has the disabled ink and no hover or pressed fill (user-confirmed draft). The shared
+// A locked canvas button has the disabled ink and no hover or pressed fill (user-confirmed draft). The shared
 // button's hover rule weighs (0,4,0) and its pressed rule (0,5,0), so the reset must weigh more.
 it("gives a locked canvas row button no hover or pressed fill, outweighing the shared button rules", async () => {
   const { readFileSync } = await import("node:fs");

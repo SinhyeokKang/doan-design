@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { escapeStep, toolShortcut, type ShortcutEvent } from "./canvasTool";
 
-// canvas-hand-tool design '키': V, H and Space by key position, filtered before the canvas takes them.
+// V, H and Space by key position, filtered before the canvas takes them.
 const press = (code: string, over: Partial<ShortcutEvent> = {}): ShortcutEvent => ({ type: "keydown", code, key: "", repeat: false, isComposing: false, keyCode: 0, defaultPrevented: false, metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, target: null, ...over });
 const release = (code: string, over: Partial<ShortcutEvent> = {}) => press(code, { type: "keyup", ...over });
 const onPage = { canvasPage: true };
@@ -79,7 +79,7 @@ describe("escapeStep", () => {
     expect(escapeStep({ picking: false, capturing: false, hand: false, editable: true })).toBeNull();
   });
 
-  // canvas-capture design '순수 함수' 3: capture mode ends at the pick's step, ahead of Hand and the selection.
+  // Capture mode ends at the pick's step, ahead of Hand and the selection.
   test("ends capture mode before Hand and the selection, wherever focus is", () => {
     for (const hand of [true, false]) {
       for (const editable of [true, false]) expect(escapeStep({ picking: false, capturing: true, hand, editable })).toBe("cancelCapture");

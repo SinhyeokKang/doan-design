@@ -84,7 +84,7 @@ test("a record whose removal cannot be written stays blocking, so a later Connec
   expect(failing.blocked("codex", "doan-notion")).toBe(true);
 });
 
-// BB review Y3: an unreadable record is not "no pending logout". Every doan- server stays blocked for both providers
+// An unreadable record is not "no pending logout". Every doan- server stays blocked for both providers
 // until one logout of it succeeds in this run.
 test("an unreadable pending file is moved aside and every doan- server is blocked until its logout succeeds", () => {
   writeFileSync(pendingFile(), "[]");

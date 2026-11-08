@@ -5,7 +5,7 @@ const HOME = { offset: 64, min: 32 }, WELCOME = { offset: 72, min: 32 };
 // The group's centre relative to the reference area's centre; negative is above.
 const centre = (available: number, group: number, top: number) => top + group / 2 - available / 2;
 
-describe("stageInsets (design '배치')", () => {
+describe("stageInsets", () => {
   test("where the offset fits, the group's centre sits 64px (Home) or 72px (Welcome) above the area's centre", () => {
     for (const available of [780, 900]) {
       expect(centre(available, 420, stageInsets({ available, group: 420, ...HOME }).top)).toBe(-64);

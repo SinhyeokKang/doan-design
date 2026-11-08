@@ -2,7 +2,7 @@ import { expect, test } from "vitest";
 import { mergeConversationMemory, savedUiState, wizardCloseFocus } from "./App";
 import { removalConfirm, restoreRequest, type LastRequest } from "./homeConversations";
 
-// buzz-home tasks U5: App's own helpers; the send, move, binding, toast and removal wiring is in homeRun.test.ts.
+// App's own helpers; the send, move, binding, toast and removal wiring is in homeRun.test.ts.
 
 const base = { screen: "home" as const, loadedRoot: null, open: null, expanded: {}, shellProjects: {}, view: { scale: 1, x: 0, y: 0 }, memory: {} };
 
@@ -17,7 +17,7 @@ test("every main-window save carries Home's memory, and none is sent before that
   expect(savedUiState({ ...base, home: null })).toBeNull();
 });
 
-// buzz-project tasks T1: the conversation last shown in each root's Overview is saved top-level with every save.
+// the conversation last shown in each root's Overview is saved top-level with every save.
 test("every save carries the Overview conversation memory by root, and an empty one is left out", () => {
   const home = {};
   const conversationByRoot = { "/code/doan": "aaaaaaaa-0000-4000-8000-000000000001" };
@@ -40,7 +40,7 @@ test("Edit on Home asks before replacing a different draft", () => {
   expect(restoreRequest({ text: "Another idea", preset: null, attachments: [] }, last, "doan").confirm?.title).toBe("Replace your draft?");
 });
 
-// Review RM r1 🟡9: the start's ui-state read merges under what the run wrote, deletions included.
+// the start's ui-state read merges under what the run wrote, deletions included.
 test("a late ui-state read never brings back memory cleared by New or a removed root", () => {
   const saved = { "/a": "aaaaaaaa-0000-4000-8000-000000000001", "/b": "aaaaaaaa-0000-4000-8000-000000000002", "/c": "aaaaaaaa-0000-4000-8000-000000000003" };
   const now = { "/c": "aaaaaaaa-0000-4000-8000-000000000004" };
@@ -50,7 +50,7 @@ test("a late ui-state read never brings back memory cleared by New or a removed 
   expect(mergeConversationMemory(undefined, now, new Set(["/c"]))).toEqual(now);
 });
 
-// buzz-canvas design §2 '기억': the canvas page's conversation panel is saved with every save. App sends no save before
+// the canvas page's conversation panel is saved with every save. App sends no save before
 // the initial ui-state read (App.conversationPanel.test.tsx), so the value saved is the read one or the person's.
 test("every save carries the conversation panel's state", () => {
   const home = {};

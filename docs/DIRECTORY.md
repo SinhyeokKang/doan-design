@@ -4,11 +4,11 @@ Where things live, one entry per directory. File-level detail is in the code; ru
 
 ## Root
 
-- `go.mod`, `go.sum`: the root Go module.
+- `go.mod`, `go.sum`: the root Go module. `.node-version`: the Node version for local runs and CI.
 - `LICENSE`, `README.md`, `AGENTS.md`; `.gitattributes`: union merge for `.doan/comments/*.jsonl` and `.doan/**` as linguist documentation.
 - `.agents/skills/<name>/`: development skills (source); `.claude/skills/<name>` are symlinks to them. `verify/scripts/` holds the shared gate (`verify.mjs`) and its tests.
 - `.claude/settings.json`: Claude Code settings, including the response-style `UserPromptSubmit` hook.
-- `.github/`: issue forms (`ISSUE_TEMPLATE/`) and the pull request template; no workflows yet.
+- `.github/`: issue forms (`ISSUE_TEMPLATE/`), the pull request template and `workflows/` (the CI gate `ci.yml`, and the signing workflows `test-build.yml` and `release.yml`).
 - `docs/`: product, architecture and working documents; `docs/features/<slug>/` holds active feature plans, audit reports and chain files.
 - `docs/assets/readme/`: the README's feature images, exported from the frames of `.doan/canvases/readme-features.html`.
 - `.scratch/`: ignored experiments, probe scripts and evidence.
@@ -35,7 +35,7 @@ Where things live, one entry per directory. File-level detail is in the code; ru
 ## App (Electron + TypeScript)
 
 - `app/`: the npm project, build and test configuration (`package.json` also carries the electron-builder settings), `components.json` (shadcn), `.npmrc` (exact pins) and `.oxlintrc.json` (lint configuration).
-- `app/scripts/`: packaging (`package.mjs`). `app/resources/`: the packaged app icon source, the installer disk background and the signing entitlements.
+- `app/scripts/`: packaging (`package.mjs`) and the release checks the signing workflows, `/tester-build` and `/release` run (`checkReleaseVersion.mjs`, `verifySignedPackage.mjs`). `app/resources/`: the packaged app icon source, the installer disk background and the signing entitlements.
 - `app/src/main/`: the Electron main process (`index.ts` is the entry) — window, menus, IPC, local server wiring, folder lifecycle, CLI runner, persistence and notifications. Subdirectories:
   - `agentAuth/`: Doan-owned agent sign-in, vault and profiles.
   - `agentSetup/`: launch-time agent setup for sessions outside Doan.
@@ -44,6 +44,7 @@ Where things live, one entry per directory. File-level detail is in the code; ru
   - `mcpConnectors/`: MCP connectors for Claude Code and Codex — the server list and pending-logout files, the provider MCP commands (Claude's sign-in in a pty), status and logout rules, the Codex startup and approval rules, IPC, and provider-output `fixtures/`.
   - `onboarding/`: first run and the session shared with the Add Projects page, clone, the skill stub `SKILL.md`.
   - `serve/`: the local canvas server.
+  - `update/`: in-app updates — pure eligibility, schedule, state, error and view rules the renderer shares, and the electron-updater service (only `app/src/main/update/service.ts` drives the updater).
 - `app/src/preload/`: the `window.doan` API.
 - `app/src/renderer/`: the React renderer (`main.ts` is the entry, `App.tsx` the root) — screens, the canvas controller, the conversation UI, pure view rules with their tests; `ds/` the design-system CSS and checks, `components/ui/` shadcn components, `public/` static assets (fonts, provider marks, MCP preset marks, Doany).
 - `app/src/formats/`, `app/src/restore/`, `app/src/comments/`: pure modules shared by main and renderer (TypeScript format validation and folding, UI-state restore planning, comment projection used by eval H6/H7).

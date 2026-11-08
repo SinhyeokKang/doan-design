@@ -19,7 +19,7 @@ function connected(provider: Provider) {
   return authStatus(state, { cli: "found", version: "supported", tools: "ready" }, 1);
 }
 
-// buzz-canvas-conversation R2 (draft panel-states, panel-resume): what the panel draws for each state of its run.
+// Draft panel-states, panel-resume: what the panel draws for each state of its run.
 
 const ROOT = "/w/acme";
 const CANVAS: Canvas = { path: ".doan/canvases/checkout.html", id: "checkout" };
@@ -74,7 +74,7 @@ test("a canvas with a terminal session offers it first, with the time doan check
   expect(out).toContain('aria-placeholder="Reply, / for presets"');
 });
 
-// terminal-agent-activity (draft resume-disabled): while the linked session works in a terminal, its choice is disabled
+// Draft resume-disabled: while the linked session works in a terminal, its choice is disabled
 // with the reason as its described line, and a new conversation is the mode, even over a resume chosen before.
 test("a terminal session still working holds its choice with the reason; the composer starts a new conversation", async () => {
   resume = { available: true, runtime: "codex", lastCheckAt: "2026-11-01T14:02:00", session: "s1" };
@@ -95,7 +95,7 @@ test("a terminal session still working holds its choice with the reason; the com
   expect(out).toContain('aria-placeholder="Ask, / for presets"');
 });
 
-// RD1: a Claude session that a live terminal process holds cannot run now (session_in_use), yet main still names it,
+// A Claude session that a live terminal process holds cannot run now (session_in_use), yet main still names it,
 // so while it works its choice shows waiting with the reason. Not working, it is not offered.
 test("a Claude session a terminal process holds shows its choice waiting while it works", async () => {
   resume = { available: false, reason: "session_in_use", runtime: "claude", session: "s1" };
@@ -120,7 +120,7 @@ test("another session, or an anonymous one, working in a terminal leaves the cho
   expect(out).toContain('aria-label="Model: set by the terminal session (Codex)"');
 });
 
-// small-ui-tweaks decision 7: the new conversation's suggestion rows highlight the canvas name inside the same sentence.
+// The new conversation's suggestion rows highlight the canvas name inside the same sentence.
 test("a new conversation's suggestion rows highlight the canvas name and keep the sentence as the title", async () => {
   const presets = (["critique", "polish"] as const).map(id => ({ id, title: id, description: `About ${id}.`, scope: `${id} scope`, group: "review" }));
   const support = Object.assign(new DockedSupport(() => {}), { auth: { revision: 1, providers: [connected("claude")] }, presets: { v: 1 as const, ok: true as const, result: { version: "1", presets } } });
@@ -130,7 +130,7 @@ test("a new conversation's suggestion rows highlight the canvas name and keep th
   expect(out).toContain('<span class="suggestion-label">Polish the <span class="suggestion-value">checkout</span> canvas</span>');
 });
 
-// permission-mode U1, RV-B ⚪6: a terminal session's mode is its own; the tray shows the fixed trigger, never the picker.
+// A terminal session's mode is its own; the tray shows the fixed trigger, never the picker.
 test("a terminal session shows the fixed Permission trigger and no picker", async () => {
   resume = { available: true, runtime: "claude", lastCheckAt: "2026-11-01T14:02:00" };
   const support = () => Object.assign(new DockedSupport(() => {}), { auth: { revision: 1, providers: [connected("claude")] } });
@@ -166,7 +166,7 @@ test("the shown time of a terminal link reads as the time of day, with the date 
   expect(linkedAt("not a time", now)).toBeNull();
 });
 
-// Review BR2 R4: before the list answers, the panel does not know the busy line or the terminal session yet.
+// Before the list answers, the panel does not know the busy line or the terminal session yet.
 test("while the list is read, Send waits even with a draft and a signed-in agent", async () => {
   const support = new DockedSupport(() => {});
   support.setAuth({ revision: 1, providers: [connected("claude")] });
@@ -176,7 +176,7 @@ test("while the list is read, Send waits even with a draft and a signed-in agent
   expect(await panel("loading", draft, { support })).toMatch(/aria-label="Send"[^>]*disabled=""/);
 });
 
-// Review BR2 Y1: one-line places name chips; the wire text keeps its markers.
+// One-line places name chips; the wire text keeps its markers.
 test("a queued message and the title before the list names the conversation show chip names", async () => {
   expect(queuedText({ text: "Change {{1}}", anchors: [{ frame: { id: "cart", title: "Cart" } }], attachments: [] })).toBe("Change Cart");
   const doan = (window as unknown as { doan: Record<string, ReturnType<typeof vi.fn>> }).doan;
@@ -189,7 +189,7 @@ test("a queued message and the title before the list names the conversation show
   expect(canvasConversationTitle(run, []).title).toBe("Make Cart quieter");
 });
 
-// canvas-composer-polish A2: the queue row shows the line; Send now shows the request itself, chips and files, in the thread.
+// The queue row shows the line; Send now shows the request itself, chips and files, in the thread.
 test("a queued message keeps its request for the thread", () => {
   const anchors = [{ frame: { id: "cart", title: "Cart" } }];
   expect(queuedMessage("q1", { text: "Change {{1}}", anchors, attachments: [{ id: "f1" }], files: [{ name: "notes.pdf", size: 10, kind: "file" }] }))
@@ -197,7 +197,7 @@ test("a queued message keeps its request for the thread", () => {
   expect(queuedMessage("q2", { text: "Again", anchors: [], attachments: [] })).toEqual({ id: "q2", text: "Again", message: { text: "Again", anchors: [], attachments: [] } });
 });
 
-// Re-review BR2 R4: ⌘N while the first list read is still loading, with the terminal session answering first, must
+// ⌘N while the first list read is still loading, with the terminal session answering first, must
 // not open Send before the list says whether the canvas's current conversation runs.
 test("New while the list loads holds Send after the session answers, until the list shows the running current", async () => {
   resume = { available: false, reason: "no_record" };
@@ -258,7 +258,7 @@ test("the panel header offers New conversation next to the title menu", () => {
   expect(html).toMatch(/<button type="button" class="doan-icon-button doan-conv-new" aria-label="New conversation"[^>]*><svg[^>]*lucide-square-pen/);
 });
 
-// N1 (conversation-delete orch decisions 1–2): on the new conversation state it does nothing.
+// On the new conversation state it does nothing.
 test("New conversation selects a new conversation and focuses the composer, does nothing when already new, and only focuses while nothing shows", () => {
   const select = vi.fn(), focus = vi.fn();
   startNewConversation("c1", false, select, focus);
@@ -273,7 +273,7 @@ test("New conversation selects a new conversation and focuses the composer, does
   expect(focus).toHaveBeenCalledTimes(1);
 });
 
-// queue-send-now design §2.1: Send now shows only while a turn runs or waits for a permission answer.
+// Send now shows only while a turn runs or waits for a permission answer.
 test("steerPhaseOf reads the merged events first and the list after, as the composer's turn does", () => {
   const at = (type: string, extra: Record<string, unknown> = {}) => ({ type, turnId: "t1", ...extra }) as unknown as ConversationEvent;
   const started = at("turn.started"), working = at("activity", { summary: "Editing" });
@@ -281,7 +281,7 @@ test("steerPhaseOf reads the merged events first and the list after, as the comp
   const list = (patch: Partial<ConversationSummary>) => ({ phase: "ended", working: false, ...patch }) as ConversationSummary;
   expect(steerPhaseOf([started, working], undefined, true)).toBe("running");
   expect(steerPhaseOf([started, asking], undefined, true)).toBe("waiting");
-  // A question waits for the person like a permission request: Send now stays (agent-questions decision 4).
+  // A question waits for the person like a permission request: Send now stays.
   const question = at("question.request", { requestId: "q", questions: [{ id: "0", header: "H", question: "Which?", options: [], multiSelect: false, other: true }] });
   expect(steerPhaseOf([started, question], undefined, true)).toBe("waiting");
   expect(steerPhaseOf([started, question, at("question.resolved", { requestId: "q", outcome: "skipped" })], undefined, true)).toBe("running");
@@ -297,7 +297,7 @@ test("steerPhaseOf reads the merged events first and the list after, as the comp
 });
 
 
-// prompt-suggestion design 'renderer' 1: the shown conversation's suggestion from the panel's list reaches its composer.
+// The shown conversation's suggestion from the panel's list reaches its composer.
 test("the shown conversation's suggestion stands in for the reply placeholder, with the Right Arrow hint", async () => {
   const out = await panel([summary("now", { suggestion: "Tighten the payment copy" })]);
   expect(out).toContain('aria-placeholder="Tighten the payment copy"');
@@ -307,7 +307,7 @@ test("the shown conversation's suggestion stands in for the reply placeholder, w
   expect(plain).not.toContain("Press Right Arrow");
 });
 
-// context-window-ring spec 1–4, design §3: the panel reads the shown conversation's last context.usage from its thread.
+// The panel reads the shown conversation's last context.usage from its thread.
 test("the shown conversation's last recorded context value reaches the composer's ring; archived ones keep theirs", async () => {
   const doan = (window as unknown as { doan: Record<string, ReturnType<typeof vi.fn>> }).doan;
   const at = (conversationId: string, seq: number, payload: Record<string, unknown>) => ({ v: 1, conversationId, seq, turnId: "t", at: "2026-11-01T00:00:00Z", ...payload }) as ConversationEvent;
@@ -329,7 +329,7 @@ test("the shown conversation's last recorded context value reaches the composer'
   expect(await panel([])).not.toContain("context-ring");
 });
 
-// turn-activity U1: the panel passes its thread the same turn indicator the Overview does (ProjectOverview.context test
+// The panel passes its thread the same turn indicator the Overview does (ProjectOverview.context test
 // of the same name).
 test("the thread shows the live turn's indicator from the store's stage, and none once the turn ended", async () => {
   const doan = (window as unknown as { doan: Record<string, ReturnType<typeof vi.fn>> }).doan;

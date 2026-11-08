@@ -1,4 +1,4 @@
-// Capture queue for the hidden thumbnail window (design-nav 'Thumbnail'). One
+// Capture queue for the hidden thumbnail window. One
 // job runs at a time; a new job starts when `active` goes from null to a key.
 // The caller reports each capture with `done` or `fail`.
 

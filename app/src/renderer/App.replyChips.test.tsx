@@ -4,7 +4,7 @@ import type { CanvasRow, FolderEntry } from "../main/view";
 import type { PreferencesSnapshot } from "../main/preferences";
 import type { ReplyAnchor } from "../main/conversation/replyAnchor";
 
-// agent-reply-chips T4 (design 'Pressing'): a chip in an agent's reply, pressed in the canvas panel or the Overview.
+// a chip in an agent's reply, pressed in the canvas panel or the Overview.
 // Driven with hooks as plain state and a stub controller, as App.conversationPanel.test.tsx is.
 const hooks = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],
@@ -71,7 +71,7 @@ const { unavailableCanvasMessage } = await import("./quickOpen");
 const { SettingsPage } = await import("./SettingsPage");
 const { initialCanvasState } = await import("./CanvasController");
 
-const PREFS: PreferencesSnapshot = { preferences: { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: { provider: "codex" } }, notice: null };
+const PREFS: PreferencesSnapshot = { preferences: { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: { provider: "codex" }, updates: { autoCheck: true } }, notice: null };
 let listeners: Record<string, (...args: never[]) => void>;
 let windowListeners: Record<string, (event: never) => void>;
 let readUiState: (state: unknown) => void;
@@ -211,7 +211,7 @@ test("a canvas that cannot load after the chip opened it says so as Quick Open d
   expect(harness.toast.show).toHaveBeenCalledExactlyOnceWith(unavailableCanvasMessage(listA(), C));
 });
 
-// Review RA2: the Overview covers the canvas it came from, so a chip into that canvas opens it again instead of
+// the Overview covers the canvas it came from, so a chip into that canvas opens it again instead of
 // locating in a canvas nobody sees.
 test("the Overview's chips open their canvas, the one it last showed included", async () => {
   await onDrafts();
@@ -266,7 +266,7 @@ test("a chip's canvas the project does not have, or has twice, or whose list is 
   };
   await toasts({ canvas: "billing", kind: "frame", id: "a" }, `Couldn’t open billing. The canvas isn’t in ${name}.`);
   await toasts({ canvas: "dup", kind: "element", id: "a" }, `Couldn’t open dup. More than one canvas in ${name} uses this ID. Run doan check in a terminal to find them.`);
-  // The Overview stays while its project is read again or turns into a problem (buzz-project spec decision 12).
+  // The Overview stays while its project is read again or turns into a problem.
   folders([{ path: "/w/a", kind: "loading" }]);
   await toasts({ canvas: "drafts", kind: "frame", id: "editor" }, "Project is still being read. Try again shortly.");
   folders([{ path: "/w/a", kind: "notFound" }]);
@@ -331,7 +331,7 @@ test("during first run another canvas's chip moves nowhere and shows nothing", a
   expect(harness.toast.show).not.toHaveBeenCalled();
 });
 
-// Conductor decision (A2): the waiting element goes when the person picks what the panel shows before the first
+// the waiting element goes when the person picks what the panel shows before the first
 // layout; the panel's own switch to the opened canvas's conversation keeps it.
 test("a person's conversation choice drops the waiting element; the panel following the opened canvas does not", async () => {
   await onDrafts();

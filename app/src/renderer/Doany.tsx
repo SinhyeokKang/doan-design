@@ -103,7 +103,7 @@ function surface(canvas: HTMLCanvasElement): { target: DoanyTarget; textures: Pr
     const texture = (name: string) =>
       new Promise<WebGLTexture>((resolve, reject) => {
         const img = new Image();
-        // Kept from the draft: textures load with and without it from file:// and asar paths (doan-mascot P0).
+        // Kept from the draft: textures load with and without it from file:// and asar paths.
         img.crossOrigin = "anonymous";
         img.onload = () => {
           try {

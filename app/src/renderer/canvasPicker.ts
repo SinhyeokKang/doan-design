@@ -2,7 +2,7 @@ import { LIMITS } from "../main/conversation/messageText";
 import type { Anchor } from "../main/conversation/types";
 import type { SelectTarget } from "./canvasMessage";
 
-// Pick from canvas and chip locate (buzz-canvas-conversation design §2 'Picker', 'Chip locate').
+// Pick from canvas and chip locate.
 
 export const PICKER_UNAVAILABLE = "Pick from canvas isn’t available while the canvas can’t be shown.";
 export const ANCHOR_LIMIT_TEXT = `A message can point at up to ${LIMITS.anchors} places. Remove one to add another.`;

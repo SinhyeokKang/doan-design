@@ -7,7 +7,7 @@ test("the LNB lists Agents, MCP Connectors, Notifications and About in that orde
   ]);
 });
 
-// mcp-connectors spec 1: the category exists only while Claude Code or Codex is signed in to Doan.
+// The category exists only while Claude Code or Codex is signed in to Doan.
 test("MCP Connectors is left out of the LNB while neither Claude Code nor Codex is signed in", () => {
   expect(settingsSectionsShown(true).map(section => section.id)).toEqual(["agents", "mcp", "notifications", "about"]);
   expect(settingsSectionsShown(false).map(section => section.id)).toEqual(["agents", "notifications", "about"]);

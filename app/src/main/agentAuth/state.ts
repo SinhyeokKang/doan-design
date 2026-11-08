@@ -105,7 +105,7 @@ export function checkVerdict(state: AuthState, result: CheckResult): "ok" | "net
   const stored = state.connection.account;
   return stored.id !== result.account.id || stored.workspace !== result.account.workspace ? "account_mismatch" : "ok";
 }
-// A doan Claude run is pinned to its login's organization and refuses without one (user decision 2026-10-28, R-B3).
+// A doan Claude run is pinned to its login's organization and refuses without one (user decision 2026-10-28).
 function unpinned(state: AuthState): boolean { return state.provider === "claude" && !!state.connection && state.connection.account.workspace === null; }
 export function readiness(state: AuthState, facts: ToolFacts): Readiness {
   if (facts.cli === "missing") return { ready: false, cause: "cli_missing", action: "install" };

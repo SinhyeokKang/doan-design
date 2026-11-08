@@ -1,7 +1,7 @@
 import { validateEnvelope } from "../formats/validate";
 import type { CliRun } from "./folderState";
 
-// `doan design-skill [id] --json` as the app reads it (design §2 '앱용 API').
+// `doan design-skill [id] --json` as the app reads it (ARCHITECTURE §7 'Design preset reads').
 // Successes and the CLI's own failures pass through as the CLI's v1 envelope;
 // a run that produced neither becomes an app failure in the same envelope.
 

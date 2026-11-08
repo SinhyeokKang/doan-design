@@ -67,7 +67,7 @@ test("W5 accepts reformatted labels and rejects missing or unrelated edits", () 
   assert.equal(labels(final.replace("$12 per month", "$10 per month")), false);
 });
 
-// Free is edited, then Pro, then Free again before Team (review V4). The snapshot each update arrived at shows
+// Free is edited, then Pro, then Free again before Team. The snapshot each update arrived at shows
 // what changed since the previous signal.
 const freeDraft = seed.replace(">Get started</button>", ">Try it free</button>");
 const proDone = freeDraft.replace(">Upgrade</button>", ">Start Pro trial</button>");

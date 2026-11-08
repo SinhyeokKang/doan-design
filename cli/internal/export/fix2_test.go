@@ -21,7 +21,7 @@ func inlineInternal(t *testing.T, root, canvasPath string, limit int64) (Result,
 	return res, in
 }
 
-// RA1-fix1 ⚪3: the stop happens while building, not after. Without the
+// the stop happens while building, not after. Without the
 // growth check the ladder builds about 131 MB of data URIs before the final
 // length check.
 func TestInlineStopsBeforeBuildingTheLadder(t *testing.T) {
@@ -49,7 +49,7 @@ func TestInlineStopsBeforeTheLastRepeat(t *testing.T) {
 	}
 }
 
-// RA1-fix1 ⚪1: a sprite's own references go through the same resolution,
+// a sprite's own references go through the same resolution,
 // with the sprite file's directory as base.
 func TestInlineSpriteResolvesItsReferences(t *testing.T) {
 	root := exporttest.Seed(t)
@@ -82,7 +82,7 @@ func TestInlineSpriteReferenceRefusals(t *testing.T) {
 	}
 }
 
-// RA1-fix1 ⚪1: a sprite stylesheet would apply to the whole canvas.
+// a sprite stylesheet would apply to the whole canvas.
 func TestInlineRefusesSpriteStyle(t *testing.T) {
 	root := exporttest.Seed(t)
 	exporttest.Put(t, root, ".doan/assets/styled.svg", `<svg><style>.cls-1{fill:#fff}</style><symbol id="a" style="fill:red"/></svg>`)
@@ -100,7 +100,7 @@ func TestInlineRefusesSpriteStyle(t *testing.T) {
 	}
 }
 
-// RA1-fix1 ⚪2: the fragment is compared after percent-decoding, and ids in
+// the fragment is compared after percent-decoding, and ids in
 // <template> are not in the document <use> searches.
 func TestInlineSpriteFragmentAndTemplateIDs(t *testing.T) {
 	root := exporttest.Seed(t)
@@ -116,7 +116,7 @@ func TestInlineSpriteFragmentAndTemplateIDs(t *testing.T) {
 	}
 }
 
-// RA1-fix1 ⚪7: inside the SVG container <title/>, <script/> and <title>
+// inside the SVG container <title/>, <script/> and <title>
 // are foreign content, not raw text, so the elements after them count.
 func TestInlineSpriteScanIsForeignContent(t *testing.T) {
 	root := exporttest.Seed(t)

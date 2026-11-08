@@ -188,7 +188,7 @@ describe("scrollFollow", () => {
   });
 });
 
-// agent-questions design §6: an entry scrolled a tall question card to its top, and the thread's re-renders (about every
+// An entry scrolled a tall question card to its top, and the thread's re-renders (about every
 // 100 ms in the real app) pulled it back to the bottom before the scroll could report a distance.
 describe("threadScroll", () => {
   test("a re-render that drew nothing new leaves the scroll where it is", () => {
@@ -200,7 +200,7 @@ describe("threadScroll", () => {
   });
 });
 
-describe("threadItems with a message pushed into a running turn (queue-send-now)", () => {
+describe("threadItems with a message pushed into a running turn", () => {
   test("shows both user messages in order inside the one turn, without a crash fold", () => {
     seq = 0;
     const events = [...turn("t1", "first"), ev("t1", { type: "message.delta", messageId: "m1", text: "Working" }), ev("t1", { type: "user.message", text: "pushed in", anchors: [] }), ev("t1", { type: "message.done", messageId: "m1", text: "Both." }), ev("t1", { type: "turn.done" })];
@@ -217,7 +217,7 @@ describe("threadItems with a message pushed into a running turn (queue-send-now)
   });
 });
 
-// mcp-connectors spec 6 and draft frame 11: main writes "Waiting for <X>" and then "<X> wasn’t ready…" as two
+// Draft frame 11: main writes "Waiting for <X>" and then "<X> wasn’t ready…" as two
 // activities (history is append-only, mcpStartup.ts), and the thread shows one step that changed its text.
 describe("threadItems with a Codex MCP server that was not ready", () => {
   const waiting = (text: string) => ev("t1", { type: "activity", kind: "other", summary: text });
@@ -255,7 +255,7 @@ describe("threadItems with a Codex MCP server that was not ready", () => {
       ["Waiting for Notion", true], ["Read", false], ["Waiting for the review", false], ["Searching the web", false]]);
   });
 
-  // BU review Y7 (.scratch/review-bu/fold.test.ts): only the Waiting line for the same MCP servers is replaced.
+  // Only the Waiting line for the same MCP servers is replaced.
   test("an unrelated Waiting line and a Waiting line for other servers stay beside the not-ready line", () => {
     const steps = (first: string) => { seq = 0; return (threadItems([...turn("t1"), waiting(first), waiting("Notion wasn’t ready, so this turn started without it.")], ROOT, true)[1] as { steps: { verb: string }[] }).steps.map(step => step.verb); };
     expect(steps("Waiting for review")).toEqual(["Waiting for review", "Notion wasn’t ready, so this turn started without it."]);
@@ -263,7 +263,7 @@ describe("threadItems with a Codex MCP server that was not ready", () => {
     expect(steps("Waiting for mcp.example.com and Notion")).toEqual(["Notion wasn’t ready, so this turn started without it."]);
   });
 
-  // BU review R3-Y1 (.scratch/review-bu/round3-truncation.test.ts): main bounds both lines at 512 characters, cutting the
+  // Main bounds both lines at 512 characters, cutting the
   // server list; the cut item still matches the server it begins, every complete item must match exactly.
   const longHosts = (letters: string[]) => letters.map(c => `${c.repeat(60)}.${c.repeat(60)}.${c.repeat(60)}.example.com`);
   const bounded = (hosts: string[], offset = 0) => {
@@ -296,7 +296,7 @@ describe("threadItems with a Codex MCP server that was not ready", () => {
     expect((threadItems([...turn("t1"), waiting(own)], ROOT, true)[1] as { steps: { sentence?: true }[] }).steps[0]!.sentence).toBeUndefined();
   });
 
-  // BU review R2-Y2 (.scratch/review-bu/round2-host.test.ts): servers are named by main's label contract, so every URL
+  // Servers are named by main's label contract, so every URL
   // Doan accepts folds its own startup lines, written by main's own functions.
   test.each(["https://localhost/mcp", "https://[2001:db8::1]/mcp", "https://mcp.example.com./mcp", "https://mcp.example.com:8443/mcp", "https://intranet/mcp"])("a server added as %s folds its own lines", url => {
     expect(parseConnectorUrl(url).ok).toBe(true);
@@ -313,7 +313,7 @@ describe("threadItems with a Codex MCP server that was not ready", () => {
   });
 });
 
-// canvas-composer-polish A2: messages Send now has in flight, as the person's messages at the thread's end.
+// Messages Send now has in flight, as the person's messages at the thread's end.
 describe("withSending", () => {
   const CTA = { element: { doanId: "hero-cta", selector: "[data-doan-id=\"hero-cta\"]" } };
   const sending = [
@@ -351,7 +351,7 @@ describe("questions", () => {
   const layout = { id: "0", header: "Layout", question: "Which layout should the settings header use?", options: [{ label: "Compact", description: "One line" }, { label: "Two rows" }], multiSelect: false, other: true };
   const sections = { id: "1", header: "Sections", question: "Which sections should the Settings page keep?", options: [{ label: "Agents" }, { label: "Notifications" }], multiSelect: true, other: true };
   const token = { id: "t", header: "Staging token", question: "Paste the token", options: [], multiSelect: false, other: true, secret: true };
-  // Antigravity's questions have no header (agent-questions design §4).
+  // Antigravity's questions have no header.
   const bare = { id: "0", header: "", question: "Which colour?", options: [{ label: "Red" }, { label: "Blue" }], multiSelect: false, other: false };
   const sending = [{ id: "q1", text: "Also this", anchors: [], attachments: [] }, { id: "q2", text: "And this", anchors: [], attachments: [] }];
 
@@ -420,7 +420,7 @@ describe("questions", () => {
   });
 });
 
-// canvas-handoff B5: the requested line sits where the request happened and its resolution replaces it there; the
+// The requested line sits where the request happened and its resolution replaces it there; the
 // receiving conversation's first message is the handoff card, its text never read for {{n}} markers.
 describe("threadItems handoff", () => {
   const CHECKOUT = ".doan/canvases/checkout-flow.html";
@@ -474,7 +474,7 @@ describe("threadItems handoff", () => {
   });
 });
 
-// fast-mode A4 (design §6): the line a Claude turn leaves when it did not run Fast, inside that turn, kept on reread.
+// The line a Claude turn leaves when it did not run Fast, inside that turn, kept on reread.
 describe("Fast not used", () => {
   const unused = (payload: Record<string, unknown> = {}) => ({ type: "fast.unused", ...payload }) as Extract<ConversationEvent, { type: "fast.unused" }>;
   test("a lasting reason says Fast was turned off, then why", () => {

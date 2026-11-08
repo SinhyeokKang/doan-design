@@ -9,7 +9,7 @@ import { MAX_ATTACHMENTS, startErrorView } from "./homeComposer";
 import { byActivity, menuItem, type MenuItem } from "./overviewConversation";
 
 // Which conversation the canvas panel shows, its dropdown, seen marks, the new conversation's start mode and its
-// refusals (buzz-canvas-conversation design §2, §3). The canvas host owns the reads and every call to main; these
+// refusals. The canvas host owns the reads and every call to main; these
 // functions only decide.
 
 export const DRAWING_TEXT = "A project conversation is drawing this canvas. Sending here starts a separate conversation.";
@@ -68,7 +68,7 @@ export function pickCanvasConversation(list: readonly ConversationSummary[] | "l
 
 export interface CanvasMenuItem extends MenuItem { archived: boolean; selected: boolean }
 
-// This canvas's conversations: the current one first, then by latest activity (design §2 'Conversation panel').
+// This canvas's conversations: the current one first, then by latest activity.
 export function canvasConversationMenu(list: readonly ConversationSummary[], canvas: Canvas, shown: string | null, now: number, seen: ReadonlySet<string> = new Set()): CanvasMenuItem[] {
   const mine = list.filter(c => onCanvas(c, canvas));
   const ordered = [...mine.filter(c => c.state === "current").sort(byActivity), ...mine.filter(c => c.state !== "current").sort(byActivity)];
@@ -87,7 +87,7 @@ export function shouldMarkSeen(panelOpen: boolean, focused: boolean, shown: stri
 export type ResumeTarget = { available: true; runtime: Runtime; session?: string } | { available: false; reason: string; runtime?: Runtime; session?: string } | { error: string };
 
 // The terminal session choice waits while that session (provider:id) still works in a terminal, in any project
-// (terminal-agent-activity design '표시'). An anonymous session cannot be matched with the link, so it holds nothing.
+// An anonymous session cannot be matched with the link, so it holds nothing.
 export function resumeHeld(target: ResumeTarget | undefined, work: readonly WorkItem[]): boolean {
   if (!target || !("available" in target) || !target.session || !target.runtime || (!target.available && target.reason !== "session_in_use")) return false;
   return work.some(item => item.session === target.session && item.provider === target.runtime);
@@ -98,7 +98,7 @@ export interface NewConversationView {
   offer: Runtime | null;
   // pending: the resume target has not answered, so Send waits rather than sending in a mode a late choice would change.
   pending: boolean;
-  // The canvas's current conversation is still working; starting another would end its turn (design §2).
+  // The canvas's current conversation is still working; starting another would end its turn.
   busy: DockedBusy | null;
 }
 
@@ -128,7 +128,7 @@ export type CanvasConversationError =
   | { kind: "blocked"; text: string; action?: SettingsAction }
   | { kind: "notice"; text: string; retry: boolean; startNew: boolean };
 
-// A refused start or send in the canvas panel (design §2 'Errors'). Codes the Overview also meets read the same
+// A refused start or send in the canvas panel. Codes the Overview also meets read the same
 // (startErrorView, dockedRefusal); canvas_duplicate is the host's own code for a canvas whose id another one shares.
 // `missing` is attachment_missing's list of attachment ids.
 export function canvasConversationError(code: string, mode: DockedMode, provider: Provider, project: string, missing: readonly string[] = []): CanvasConversationError {

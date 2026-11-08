@@ -95,7 +95,7 @@ test("a version-cause Retry checks without a cost; it still waits for the click"
   expect(checked(h)).toEqual(["copilot"]);
 });
 
-test("returning from an install page reads, then checks each installed provider once (D21: Copilot too while its CLI is missing)", async () => {
+test("returning from an install page reads, then checks each installed provider once (Copilot too while its CLI is missing)", async () => {
   const h = harness(snap(1, { cursor: { facts: { cli: "missing" } }, copilot: { facts: { cli: "missing" } } }));
   h.session.start(); h.session.enter();
   await flush();
@@ -577,7 +577,7 @@ test("a resolved update says so, and moves focus to Continue when the step can a
   expect(h.session.state.focus).toMatchObject({ target: "continue" });
 });
 
-// review C-1: a version that could not be read is not proof of an install or update; only the next state (Sign in,
+// a version that could not be read is not proof of an install or update; only the next state (Sign in,
 // Connected) is announced, and a cleared state cannot announce later.
 test.each([
   ["install", { cli: "missing" }, { version: "unknown" }],
@@ -648,7 +648,7 @@ test("the paste modal cannot be dismissed while its address is being submitted",
   expect(h.session.state.dialog).toBeNull();
 });
 
-test("fix 1: a prompt for an attempt this window did not start (the CLI) never opens a link here", async () => {
+test("a prompt for an attempt this window did not start (the CLI) never opens a link here", async () => {
   const h = harness();
   h.session.start(); h.session.enter();
   await flush();
@@ -658,7 +658,7 @@ test("fix 1: a prompt for an attempt this window did not start (the CLI) never o
   expect(h.session.state.contexts.claude?.prompt).toBe("cli-started");
 });
 
-test("fix 1: a prompt that arrives before this window's sign-in reply is opened once the reply names it", async () => {
+test("a prompt that arrives before this window's sign-in reply is opened once the reply names it", async () => {
   const h = harness();
   let reply: (r: AuthStartReply) => void = () => {};
   h.api.signInAgent.mockImplementationOnce(() => new Promise(resolve => { reply = resolve; }));
@@ -673,7 +673,7 @@ test("fix 1: a prompt that arrives before this window's sign-in reply is opened 
   expect(h.api.openAgentSignInLink.mock.calls).toEqual([["antigravity", "ag-early"]]);
 });
 
-test("fix 1: a held prompt for someone else's attempt is dropped when this window's reply names another", async () => {
+test("a held prompt for someone else's attempt is dropped when this window's reply names another", async () => {
   const h = harness();
   let reply: (r: AuthStartReply) => void = () => {};
   h.api.signInAgent.mockImplementationOnce(() => new Promise(resolve => { reply = resolve; }));
@@ -686,7 +686,7 @@ test("fix 1: a held prompt for someone else's attempt is dropped when this windo
   expect(h.api.openAgentSignInLink).not.toHaveBeenCalled();
 });
 
-test("fix 3: the paste modal closes when its attempt ends, and focus goes to the heading fallback", async () => {
+test("the paste modal closes when its attempt ends, and focus goes to the heading fallback", async () => {
   const h = harness();
   h.session.start(); h.session.enter();
   await flush();
@@ -700,7 +700,7 @@ test("fix 3: the paste modal closes when its attempt ends, and focus goes to the
   expect(h.api.submitAgentSignInCode).not.toHaveBeenCalled();
 });
 
-test("fix 3: an over-long address stays whole in the field and cannot be submitted", async () => {
+test("an over-long address stays whole in the field and cannot be submitted", async () => {
   const h = harness();
   h.session.start(); h.session.enter();
   await flush();
@@ -753,7 +753,7 @@ test("a rejected read keeps the list already shown", async () => {
   expect(h.session.view().notice).toBeNull();
 });
 
-test("U2: the install notice is on the row of the provider whose Terminal did not open", async () => {
+test("the install notice is on the row of the provider whose Terminal did not open", async () => {
   const h = harness(snap(1, { cursor: { facts: { cli: "missing" } }, codex: { facts: { cli: "missing" } } }));
   vi.mocked(h.deps.openInstall).mockResolvedValueOnce("failed");
   h.session.start(); h.session.enter();
@@ -763,7 +763,7 @@ test("U2: the install notice is on the row of the provider whose Terminal did no
   expect(row(h, "codex").notice).toBeNull();
 });
 
-test("U2: a reloaded window still cancels the sign-ins it started before the reload", async () => {
+test("a reloaded window still cancels the sign-ins it started before the reload", async () => {
   const stored: string[][] = [];
   const first = harness();
   first.deps.remember = ids => { stored.push([...ids]); };
@@ -784,7 +784,7 @@ test("U2: a reloaded window still cancels the sign-ins it started before the rel
   expect(reloaded.api.cancelAgentSignIn.mock.calls).toEqual([["codex", "sign-1"]]);
 });
 
-test("D21: returning from Copilot's install page checks Copilot while its cause is the CLI or its version (no request is spent)", async () => {
+test("returning from Copilot's install page checks Copilot while its cause is the CLI or its version (no request is spent)", async () => {
   const h = harness(snap(1, { copilot: { facts: { cli: "missing" } } }));
   h.session.start(); h.session.enter();
   await flush();
@@ -795,7 +795,7 @@ test("D21: returning from Copilot's install page checks Copilot while its cause 
   expect(checked(h)).toEqual(["copilot"]);
 });
 
-test("D21: Copilot connected but unverified is not checked on return; it stays Retry-only", async () => {
+test("Copilot connected but unverified is not checked on return; it stays Retry-only", async () => {
   const h = harness(snap(1, { copilot: unverified }));
   h.session.start(); h.session.enter();
   await flush();

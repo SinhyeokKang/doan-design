@@ -1,6 +1,6 @@
 import type { McpFacts } from "./state";
 
-// Status outputs as of Claude Code 2.1.318 and Codex 0.166.0 (mcp-connectors design 'PoC 결과' P1). null: unreadable,
+// Status outputs as of Claude Code 2.1.318 and Codex 0.166.0. null: unreadable,
 // shown as Couldn’t check rather than guessed.
 
 // `claude mcp get <name>` has no JSON option. An unknown name exits 1; a registered one prints a block headed

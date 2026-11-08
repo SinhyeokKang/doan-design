@@ -43,7 +43,7 @@ export interface AgentStepState {
 type OwnState = Omit<AgentStepState, "auth" | "contexts">;
 
 // Providers whose check is free and whose state a check can settle: re-checked on step entry and on return from
-// an install page (design '이동·취소·포커스 계약'). Copilot's check spends a model request, so only its Retry checks.
+// an install page. Copilot's check spends a model request, so only its Retry checks.
 const AUTO_CHECK = new Set(["unverified", "tools_missing", "tools_failed"]);
 
 // The onboarding Agent step's state over the renderer's sign-in controller. It never judges readiness itself
@@ -99,7 +99,7 @@ export class AgentStepSession {
 
   retryRead(): void { void this.signIn.read(); }
   // Returning from a browser or an install page: read everything; only install returns check. Copilot is checked only
-  // while its cause is the CLI or its version, when a check re-reads tool facts and spends no request (D21).
+  // while its cause is the CLI or its version, when a check re-reads tool facts and spends no request.
   windowFocused(): void {
     const installed = [...this.installs], request = this.installRequests;
     this.installs.clear();
@@ -216,7 +216,7 @@ export class AgentStepSession {
   }
   // The row's cause changed: its install state ends. Only the next state (Sign in, Connected) is announced, once. A
   // version Doan could not read (a failed probe reads as unknown even for a missing CLI), one it cannot run, or a CLI
-  // that went missing after an update is not news of an install or update (review C-1).
+  // that went missing after an update is not news of an install or update.
   private followInstall(): void {
     const shown = this.own.install, r = shown && this.status(shown.provider)?.readiness;
     if (!shown || !r || this.actionOf(shown.provider) === shown.action) return;

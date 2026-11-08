@@ -42,7 +42,7 @@ it("adds the fixed preset guidance outside the untrusted data and keeps user tex
 });
 it("guides preset lookup through the bundled CLI only and lists no presets", () => {
   for (const text of ["doan skill", "doan design-skill <id>", "shell", "not applied", "approval", "named"]) expect(PRESET_GUIDANCE).toContain(text);
-  // design §3: a self-chosen preset's failure is one line, then the request continues; a named one is never faked.
+  // A self-chosen preset's failure is one line, then the request continues; a named one is never faked.
   for (const text of ["do not repeat the command or change settings", "chose the preset yourself", "in one line", "continue the request", "never claim it was applied or substitute another preset"]) expect(PRESET_GUIDANCE).toContain(text);
   expect(PRESET_GUIDANCE).toContain("approve the doan command, or ask again once Doan runs");
   expect(PRESET_GUIDANCE).not.toMatch(/Applications|Settings/);
@@ -103,7 +103,7 @@ it("lists up to ten attachments as untrusted data with name, kind and path only"
   expect(turnPrompt([], "x", { root: "/repo" }, { attachments: [...attachments, attachments[0]!] })).toBeNull();
   expect(JSON.parse(turnPrompt([], "x", { root: "/repo" })!.split("\n\n")[1]!)).not.toHaveProperty("attachments");
 });
-// canvas-handoff B3 (design §5 'prompt'): the use is taught only on a turn that may hand off, and the next agent reads
+// The handoff command is taught only on a turn that may hand off, and the next agent reads
 // the handoff as data in its own field, never through the anchor markers.
 describe("handoff", () => {
   const scope = { root: "/repo", canvas: { path: ".doan/canvases/a.html", id: "a" } };

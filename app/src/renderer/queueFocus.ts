@@ -1,5 +1,5 @@
 // Where focus goes when a queue row leaves (Send now pressed, or Remove): the next row's Send now, else its Remove,
-// else the input (queue-send-now spec decision 11). A row without Send now (unsupported provider, wrong phase) falls to
+// else the input. A row without Send now (unsupported provider, wrong phase) falls to
 // its Remove. Pure so the rule is tested without a DOM; the host applies it.
 // sendNow: this row renders a Send now button. A message Send now has in flight is no row: it shows in the thread.
 export type QueueFocus = { kind: "sendNow" | "remove"; itemId: string } | { kind: "input" };

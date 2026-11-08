@@ -6,7 +6,7 @@ import type { WorkItem } from "../main/workState";
 import type { CanvasMenu } from "./ShellSidebar";
 import type { TrashDialogView } from "./CanvasTrashDialog";
 
-// canvas-row-menu spec '완료 조건' Move to Trash, design '삭제 뒤 화면' (review RC2 🟡2): trashing the open canvas shows
+// trashing the open canvas shows
 // its project's Overview with the trash reply's one toast and records no visit. The real CanvasController runs its
 // `clear {trashed}` path here, with fake elements for its board (CanvasController.test.ts), so the App-connected
 // derivation is what is tested (POSTMORTEM 2026-10-27: "Test the App-connected predicate, not just an injected
@@ -55,7 +55,7 @@ const { ShellSidebar } = await import("./ShellSidebar");
 const { CanvasTrashDialog } = await import("./CanvasTrashDialog");
 
 const A = ".doan/canvases/a.html", B = ".doan/canvases/b.html";
-const PREFS: PreferencesSnapshot = { preferences: { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: { provider: "codex" } }, notice: null };
+const PREFS: PreferencesSnapshot = { preferences: { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: { provider: "codex" }, updates: { autoCheck: true } }, notice: null };
 let listeners: Record<string, (...args: never[]) => void>;
 let readUiState: (state: unknown) => void;
 let getWork: (items: WorkItem[]) => void;

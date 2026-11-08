@@ -7,6 +7,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/license-Apache--2.0-7c3aed?style=flat" alt="License: Apache-2.0" />
   <img src="https://img.shields.io/badge/macOS-Apple%20silicon-7c3aed?style=flat-square" alt="Supported platform: macOS on Apple silicon" />
+  <img src="https://img.shields.io/badge/Claude%20Code%20%C2%B7%20Codex%20%C2%B7%20Cursor%20%C2%B7%20Antigravity%20%C2%B7%20Copilot-supported-7c3aed?style=flat-square" alt="Supported agent CLIs: Claude Code, Codex, Cursor, Antigravity and GitHub Copilot" />
 </p>
 
 <p align="center">
@@ -24,6 +25,7 @@
 
 ## Why Doan
 
+- **Design first, then let the agent build.** Doan is a design app made for vibe coding with agents. Settle the screens on a canvas before any code, and the agent implements a design you already agreed on: results become predictable, revision rounds shrink, and fewer tokens go to rework.
 - **Drafts live in your repo.** A canvas is an HTML file next to the code, versioned with it, not a page in someone else's service that can shut down.
 - **Every agent can read it.** Claude Code, Codex, Cursor, Antigravity and GitHub Copilot read the same file through the same `doan` skill, with no upload step.
 - **It knows your code.** Canvases use the repo's real token CSS, frames name the files that implement them, and `doan check` flags convention, token and external-resource problems.
@@ -234,7 +236,7 @@ To run the CLI directly: `go run ./cli/cmd/doan <command> --repo <path> [--json]
 
 ## Background
 
-Doan comes from running a Claude Design handoff loop while building malmoi in 2026. Design drafts lived in an external service: some agents could not read them, they drifted from the code's real tokens, and their history was tied to a service that is shutting down. The problems Doan answers, and the evidence behind them, are in [docs/PRODUCT.md §1](./docs/PRODUCT.md#1-problem).
+Doan comes from building [malmoi](https://github.com/SinhyeokKang/malmoi) and [BugShot](https://github.com/SinhyeokKang/bugshot-2) with coding agents in 2026, where the design process itself kept getting in the way. The problems Doan answers, and the evidence behind them, are in [docs/PRODUCT.md §1](./docs/PRODUCT.md#1-problem).
 
 ## License
 

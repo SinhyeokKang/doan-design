@@ -10,7 +10,7 @@ import { waitsForPerson, type SendingMessage, type ThreadItem } from "./threadIt
 
 export { draftFrom, type ListView, type QueuedMessage, type Thread } from "./conversationStore";
 
-// The project Overview's main conversation (buzz-project design §2.4, §2.5; spec decisions 5, 6, 10, 11). App owns one
+// The project Overview's main conversation. App owns one
 // for the run, so each root keeps what it showed, its new-conversation draft and its threads across worktree switches
 // and visits. Everything is decided here so it can be driven without a DOM; the list reads, seen marks, memory and
 // navigation are the host's (HomeRun and App). Threads, drafts and queues live in the ConversationStore it shares with
@@ -27,7 +27,7 @@ export interface OverviewRunHost {
   remember(root: string, conversationId: string | null): void;
   markSeen(conversationId: string, seq: number): void;
   focused(): boolean;
-  // A requested conversation bound to a canvas opens that canvas with its conversation in the panel (spec decision 4).
+  // A requested conversation bound to a canvas opens that canvas with its conversation in the panel.
   openCanvas(root: string, canvas: Canvas, conversationId: string, scroll: ScrollTo | null): void;
   toast(message: string, action: string, run: () => void): void;
   // A notice without an action (a returned draft's), shown as the Overview's attachment notices are.
@@ -134,7 +134,7 @@ export class OverviewRun {
     this.visible = root;
     if (root) {
       const s = this.state(root);
-      // Reopened with nothing asked for it meanwhile: spec decision 5 picks again; the drafts by key stay.
+      // Reopened with nothing asked for it meanwhile: the conversation is picked again; the drafts by key stay.
       if (s.leftAt !== undefined && s.leftAt === s.intent && !s.request) { delete s.current; s.moved = null; }
       this.resolve(root, s);
     }
@@ -206,7 +206,7 @@ export class OverviewRun {
     return this.visible === root && s?.revision === revision && s.current?.conversationId === conversationId;
   }
   live(root: string, conversationId: string): boolean { return this.store.live(root, conversationId); }
-  // main deleted it (conversation-delete design §3.2), in whichever root. A root that showed it shows the new
+  // main deleted it, in whichever root. A root that showed it shows the new
   // conversation state with a newer revision, so a start or send reply sent before cannot replace that; a request
   // still waiting for it is dropped, so the list is not read again for it. The memory and the moved line go too. The
   // store's records go through its own deleted, which App calls as well.
@@ -268,7 +268,7 @@ export class OverviewRun {
     if (this.store.track(conversationId)) this.store.takeDraft(root, conversationId);
     this.checkSeen();
   }
-  // Spec decision 5 through pickOverviewConversation. Only the first pick of a root reads the memory: after it the
+  // The pick goes through pickOverviewConversation. Only the first pick of a root reads the memory: after it the
   // person's choices hold, so a list read that lands later never replaces one (POSTMORTEM 2026-10-25).
   private resolve(root: string, s: RootState): void {
     const list = this.host.list(root);
@@ -304,13 +304,13 @@ export class OverviewRun {
       if (pick.forget) this.host.remember(root, null);
     }
   }
-  // Spec decision 6: a promoted or gone main conversation leaves the root in the new conversation state.
+  // A promoted or gone main conversation leaves the root in the new conversation state.
   private afterList(root: string, s: RootState, list: readonly ConversationSummary[]): void {
     const current = s.current;
     if (!current || current.conversationId === null) return;
     const id = current.conversationId;
     // Deleting: deleted() resets the root once main answers. Read as gone now, its draft would move over the new
-    // conversation's (conversation-delete spec decision 5).
+    // conversation's.
     if (this.store.deleting(id)) return;
     const change = overviewAfterListChange({ root, conversationId: id, listed: current.listed }, { root, list });
     if (change.kind === "keep") {
@@ -323,7 +323,7 @@ export class OverviewRun {
     this.host.remember(root, null);
     if (change.kind !== "promoted") return;
     s.moved = { conversationId: id, title: change.title, canvas: change.canvas };
-    // Marked through the promotion marker only when the person had seen the turn's end (spec decision 11); the list
+    // Marked through the promotion marker only when the person had seen the turn's end; the list
     // notice and the marker event come in either order (POSTMORTEM 2026-10-26).
     const thread = this.store.thread(id), seen = this.seenEnd.get(id);
     const end = thread ? lastTurnSeq(thread.events) : null;
@@ -338,7 +338,7 @@ export class OverviewRun {
     this.host.markSeen(conversationId, marker.seq);
   }
   private moveDraft({ from, to }: DraftMove): void { this.store.moveDraft(from, to); }
-  // Spec decision 10: another project conversation of the shown root waits while the main column shows something else.
+  // Another project conversation of the shown root waits while the main column shows something else.
   private toastWaiting(root: string, s: RootState, list: readonly ConversationSummary[]): void {
     const shown = s.current?.conversationId ?? null;
     for (const c of list) {
@@ -348,7 +348,7 @@ export class OverviewRun {
       this.host.toast(`${PROVIDER_NAMES[c.provider]} needs your answer in ${this.host.label(root)}.`, "Open", () => this.request(root, c.conversationId, "permission"));
     }
   }
-  // Spec decision 11: seen only while it shows in the main column with the window focused; scrolled up or not.
+  // Seen only while it shows in the main column with the window focused; scrolled up or not.
   private checkSeen(): void {
     const root = this.visible;
     const id = root ? this.roots.get(root)?.current?.conversationId : null;

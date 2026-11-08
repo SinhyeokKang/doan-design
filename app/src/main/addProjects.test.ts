@@ -94,7 +94,7 @@ describe.skipIf(process.getuid?.() === 0)("adding a folder that cannot be read",
   };
 
   // A failed read says nothing about what the folder holds, so it must not
-  // lead to the "isn't a repository, set it up?" confirmation (P4).
+  // lead to the "isn't a repository, set it up?" confirmation.
   test.each([
     ["can be searched but not listed", 0o111],
     ["can be listed but not searched", 0o444],

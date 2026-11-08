@@ -7,7 +7,7 @@ import type { McpProvider } from "../main/mcpConnectors/presets";
 import { addError, mcpAvailable, mcpChanges, mcpChangeText, mcpFailureText, mcpPageView, removeFocus, type McpRowView } from "./mcpConnectorsView";
 import { McpConnectorsWatch } from "./mcpConnectorsWatch";
 
-// mcp-connectors task D2: the page's pure view over main's snapshot (service.ts McpSnapshot) and agent-auth, and the
+// The page's pure view over main's snapshot (service.ts McpSnapshot) and agent-auth, and the
 // App-level watch that tells changes, failures elsewhere and the running-turn notice.
 
 const URL_SERVER: McpServerDto = { name: "doan-mcp-example-com", label: "mcp.example.com", url: "https://mcp.example.com/v2/mcp", preset: false, removable: true, removeFailed: false };
@@ -263,7 +263,7 @@ test("announcements carry a sequence so a page opened later reads only newer one
   h.stop();
 });
 
-// BU review Y3 (.scratch/review-bu/view.test.ts): the Remove in progress and its own failure win over an earlier Connect failure.
+// The Remove in progress and its own failure win over an earlier Connect failure.
 test("Removing disables the Retry an earlier Connect failure left, which stays until the next Connect, Retry or Cancel", () => {
   const view = mcpPageView(snapshot({ codex: { [URL_SERVER.name]: ["removing", { failure: "failed" }] }, claude: { [URL_SERVER.name]: "removing" } }), AUTH, () => "connect");
   const codex = find(view, "codex", URL_SERVER.name), claude = find(view, "claude", URL_SERVER.name);
@@ -278,7 +278,7 @@ test("a Remove failure shows its own alert and Retry Remove in every section, ov
     body: "Couldn’t remove mcp.example.com from Doan’s agents. Try again.", actions: [{ command: "remove", label: "Retry", disabled: false }] });
 });
 
-// BU review Y5: later changes are read, a first Checking result and a cancel are not.
+// Later changes are read, a first Checking result and a cancel are not.
 test("a later change to Connected or Not connected is read, also without an attempt; the first Checking result is not", () => {
   const text = (before: Parameters<typeof snapshot>[0], after: Parameters<typeof snapshot>[0]) => mcpChanges(snapshot(before), snapshot(after)).map(mcpChangeText).filter(Boolean);
   expect(text({ codex: { "doan-notion": "check_failed" } }, { codex: { "doan-notion": "connected" } })).toEqual(["Notion connected for Codex"]);
@@ -290,7 +290,7 @@ test("a later change to Connected or Not connected is read, also without an atte
   expect(text({ codex: { "doan-notion": "removing" } }, { codex: { "doan-notion": "not_connected" } })).toEqual([]);
 });
 
-// review C1: the unverified cause gets its own header.
+// The unverified cause gets its own header.
 test("an agent whose connection Doan hasn't checked yet says so in its header", () => {
   const view = mcpPageView(snapshot({}), auth(true, true, { codex: status("codex", true, { ready: false, cause: "unverified", action: "retry" }) }));
   expect(view.sections[1]!.header?.reason).toBe("Doan hasn’t checked Codex’s connection yet. Check it in Agents to connect or disconnect its servers.");
@@ -305,7 +305,7 @@ test("the watch reads two identical messages as two announcements", () => {
   expect(h.watch.announcement).toEqual({ seq: 2, text: "Codex couldn’t connect to Notion" });
 });
 
-// BU review R2-Y1 (.scratch/review-bu/round2-view.test.ts): an earlier Remove failure must not hide a running Connect's actions.
+// An earlier Remove failure must not hide a running Connect's actions.
 test("a Connect started after a failed Remove keeps Cancel, and Claude Code's Open again", () => {
   const view = mcpPageView(snapshot({ codex: { [URL_SERVER.name]: "connecting" }, claude: { [URL_SERVER.name]: ["connecting", { link: true }] } }, { servers: [...PRESET_SERVERS, { ...URL_SERVER, removeFailed: true }] }), AUTH);
   expect(find(view, "codex", URL_SERVER.name).notice?.actions.map(action => action.command)).toEqual(["cancel"]);

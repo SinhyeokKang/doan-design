@@ -6,8 +6,8 @@ import {
 } from "./anchorField";
 import { fieldSkillRuns, insertSkillText, replaceSlashSkill, sameSkillNames, sameSkillRanges, skillAnnouncements, skillTextParts } from "./skillWords";
 
-// The composer field's DOM, selection, clipboard, undo and IME handling over a contenteditable element
-// (buzz-canvas-conversation design §2 'Chip field', §5 P1). ComposerField (ComposerParts.tsx) owns one per element.
+// The composer field's DOM, selection, clipboard, undo and IME handling over a contenteditable element.
+// ComposerField (ComposerParts.tsx) owns one per element.
 //
 // The browser edits plain text natively (typing, IME composition, deletions that touch no chip) and the field reads
 // the DOM back into segments after each `input`. Everything that involves a chip — insertion, any deletion whose range
@@ -39,7 +39,7 @@ interface Step { segments: FieldSegment[]; before: Selection; after: Selection; 
 // Chromium adds its own when an edit leaves a line holding nothing but a chip; neither is read.
 interface Unit { node: Node; kind: "text" | "chip" | "filler"; at: number; length: number }
 
-// Icons of the chips: lucide Frame, SquareMousePointer and MapPin (design §2 'Chip field').
+// Icons of the chips: lucide Frame, SquareMousePointer and MapPin.
 const SVG = "http://www.w3.org/2000/svg";
 const ICONS: Record<"frame" | "element" | "point", [string, Record<string, string>][]> = {
   frame: [["line", { x1: "22", x2: "2", y1: "6", y2: "6" }], ["line", { x1: "22", x2: "2", y1: "18", y2: "18" }], ["line", { x1: "6", x2: "6", y1: "2", y2: "22" }], ["line", { x1: "18", x2: "18", y1: "2", y2: "22" }]],
@@ -103,8 +103,7 @@ export class ChipField {
 
   composing(): boolean { return this.composingNow; }
 
-  // A chip is one unit the caret cannot enter, so a click on it puts the caret right after it (design §2 'Chip
-  // locate'), focus included, and tells the host which chip it was. The DOM never changes here.
+  // A chip is one unit the caret cannot enter, so a click on it puts the caret right after it, focus included, and tells the host which chip it was. The DOM never changes here.
   private onChipClick(event: MouseEvent): void {
     let chip: Node | null = event.target instanceof Node ? event.target : null;
     while (chip && chip !== this.el && !this.chips.has(chip)) chip = chip.parentNode;
