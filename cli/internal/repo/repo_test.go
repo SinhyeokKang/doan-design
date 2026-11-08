@@ -93,22 +93,31 @@ func expectCode(t *testing.T, err error, code string) {
 		t.Fatalf("error = %v; want %s", err, code)
 	}
 }
-func TestResolve(t *testing.T) {
-	parent := real(t, t.TempDir())
-	root := filepath.Join(parent, "repo")
+
+type resolveCase struct {
+	base, p string
+	state   State
+	rel     string
+}
+
+func resolveFixture(t *testing.T) (parent, root string, cases []resolveCase) {
+	t.Helper()
+	parent = real(t, t.TempDir())
+	root = filepath.Join(parent, "repo")
 	put(t, root, ".doan/canvases/a.css", "")
 	put(t, parent, "repo2/out.css", "")
 	link(t, filepath.Join(parent, "repo2"), filepath.Join(root, "outside"))
 	link(t, "absent", filepath.Join(root, "broken"))
 	link(t, ".doan/canvases/a.css", filepath.Join(root, "alias.css"))
-	for _, tt := range []struct {
-		base, p string
-		state   State
-		rel     string
-	}{
+	return parent, root, []resolveCase{
 		{root, ".doan/canvases/a.css", Inside, ".doan/canvases/a.css"}, {filepath.Join(root, ".doan/canvases"), "../../alias.css", Inside, ".doan/canvases/a.css"},
 		{root, "../x", Outside, ""}, {root, filepath.Join(root, ".doan/canvases/a.css"), Outside, ""}, {root, "outside/out.css", Outside, ""}, {root, "broken", Missing, ""}, {root, "absent", Missing, ""}, {root, "../repo2/out.css", Outside, ""}, {root, ".doan/canvases", Inside, ".doan/canvases"},
-	} {
+	}
+}
+
+func TestResolve(t *testing.T) {
+	parent, root, cases := resolveFixture(t)
+	for _, tt := range cases {
 		state, rel, err := Resolve(root, tt.base, tt.p)
 		if err != nil || state != tt.state || rel != tt.rel {
 			t.Errorf("%s: %s %s %v", tt.p, state, rel, err)
