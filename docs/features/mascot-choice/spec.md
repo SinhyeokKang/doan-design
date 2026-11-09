@@ -36,7 +36,7 @@
 
 5. 마스코트마다 12단계 accent 램프가 있고, 고른 마스코트가 바뀌면 지금 violet을 읽는 모든 곳(DESIGN.md 'Accent places')이 그 램프로 바뀐다. 앱을 다시 시작하지 않아도 바뀐다.
 6. 글로우, 그라데이션, 채움은 램프의 9단계를 쓴다. 흰 패널 위 accent 아이콘, 점, 외곽선은 마스코트별 아이콘 색을 쓰며 `--surface-panel` 대비 3:1 이상이다. Doany는 지금처럼 9단계다.
-7. Home Send는 accent로 채운다. 아이콘과 스피너는 흰색이 3:1 이상이면 흰색(Doany, Dori), 아니면 중립 잉크(Saemi, Dungdung, Popo)다.
+7. Home Send는 accent로 채운다. 아이콘과 스피너는 흰색이 3:1 이상이면 흰색(Doany, Popo, Dori), 아니면 중립 잉크(Saemi, Dungdung)다.
 8. accent 칩(프리셋 칩, 추천 프롬프트의 이름 강조, 앵커 칩)의 글자는 모든 램프에서 4.5:1 이상이다.
 9. 앱을 시작할 때 저장된 마스코트의 accent로 첫 화면을 그린다. violet이 잠깐 보였다가 바뀌지 않는다.
 
