@@ -26,8 +26,8 @@ batch는 모두 직렬이다. T0와 T1은 둘 다 실제 Antigravity와 `~/.gemi
 | W1 PoC-A | P0, T0(P1·P3) | `.scratch/provider-profile-isolation/`, design.md §8 P0·P1·P3 | 없음 | Opus high — 바이너리 archive 해석과 실제 Keychain을 건드리는 판단, 틀리면 사람의 `agy` 로그인을 망친다 | tasks P0·T0 검증, 실제 상태 전후 비교 | 통합 |
 | W2 PoC-B | T1(P2) | `.scratch/provider-profile-isolation/`, design.md §8 P2 | W1, T2의 P0 분기 | Opus high — Seatbelt 정책 평가와 다섯 provider × 모드 판단 | tasks T1 검증, provider × 모드 표 | 통합 |
 | conductor | T2 결정 확인, (조건부) T2a 초안 | spec·design·tasks | W2 | — | design §10 남은 확인 필요가 결정으로 바뀜 | 대기 |
-| W3 구현 | T3, T4 | `app/src/main/agentAuth/`(새 fence 모듈, `environment.ts`, `manager.ts`), `app/src/main/conversation/`(`prepare.ts`, `service.ts`, `runners.ts`, `acpRunner.ts`)와 각 테스트 | T2 | Opus high — process spawn·fail closed·보안 경계, 링크 1 거절 경로 보존 | `npm --prefix app test`·typecheck·lint, `verify.mjs` | 대기 |
-| W4 실제 앱 | T5 | `.scratch/provider-profile-isolation/` | W3 | Opus high — 다섯 provider 실제 턴과 실제 HOME 확인 | `/runtime-test` 보고서, 실제 상태 전후 비교 | 대기 |
+| W3 구현 | T3, T4 | `app/src/main/agentAuth/`(새 fence 모듈, `environment.ts`, `manager.ts`), `app/src/main/conversation/`(`prepare.ts`, `service.ts`, `runners.ts`, `acpRunner.ts`)와 각 테스트 | T2 | Opus high — process spawn·fail closed·보안 경계, 링크 1 거절 경로 보존 | `npm --prefix app test`·typecheck·lint, `verify.mjs` | 통합 |
+| W4 실제 앱 | T5 | `.scratch/provider-profile-isolation/` | W3 | Opus high — 다섯 provider 실제 턴과 실제 HOME 확인 | `/runtime-test` 보고서, 실제 상태 전후 비교 | 진행 |
 | W5 리뷰 | T6 `/code-review` | 없음(보고만) | W4 | Opus high — 독립 리뷰, 보안 경계 diff | 보고서 | 대기 |
 | W3 수정 | T6 `/refactor`, `/postmortem` | W3과 같음, `docs/POSTMORTEM.md` | W5 | Opus high(W3 재사용) | 🔴 0, `verify.mjs` | 대기 |
 | conductor | T7 승격과 정리 | ARCHITECTURE·PRODUCT·BACKLOG·(DESIGN), feature 디렉터리 삭제 | 전부 | — | tasks T7 grep 두 개 | 대기 |
@@ -38,3 +38,5 @@ batch는 모두 직렬이다. T0와 T1은 둘 다 실제 Antigravity와 `~/.gemi
 
 - W1(P0·T0): `aa042e53`을 통합했다. P0 실패(위 결정). P1: 지금의 env로 실제 상태 변화 0, 실제 `antigravity-cli/` 쓰기는 Orca.app이 주기적으로 실행하는 사람의 `agy`가 만든다 → 추천 경로 1(코드 변경 없음). 사람의 `agy` 로그인 유지. P3: (i). 남은 것: dev 앱 + Keychains 링크 조건은 T5에서 본다.
 - W2(T1): `1f699b73`을 `a1984624`로 통합했다. 통과 정책 문장은 design §8 P2에 있다. Copilot·Antigravity·Claude(sandbox 꺼짐)·Codex(profile deny, Full access 바깥 fence)가 실제 턴에서 미끼를 막았다. 미검증: Cursor 도구 호출, Copilot minimum 1.0.89, 첨부·MCP·사용량·질문 카드·`doan handoff` 실제 확인(T5로 넘긴다). Antigravity harness 도구 명령이 Stop 뒤 남는 것은 fence와 무관한 기존 동작이다(BACKLOG 후보).
+- W3(T2 문서, T3, T4): 6개 commit을 `83cb8bf9..328a1c6f`로 통합했다. tree가 W3의 `4a1d2a04`와 같고, W3가 그 tree에서 `verify.mjs` 통과(354 files / 9869 tests)를 확인했다. conductor 판단: W3의 세부 A(Claude 설정 출처를 직접 읽음), C(첨부 매개변수), D(Codex profile 구성)를 승인했다. B는 userData 전체 deny 대신 턴마다 나열한 형제 항목만 deny하도록 바꿨다(붙여넣은 이미지를 Read 도구로 읽어야 하므로). W3 worker는 수정 라운드를 위해 retain했다.
+- W4(T5): `ppi-w4-runtime`에서 시작했다.
