@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
-import { afterEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { FolderEntry } from "../main/view";
 import { CanvasAgent } from "./CanvasAgent";
@@ -22,10 +22,21 @@ const LINE = (text: string, caret = '<span class="doan-agent-caret"></span>') =>
 const MEASURE = '<span class="doan-agent-measure" aria-hidden="true"></span>';
 // Without an indicator the column stays, empty, for the canvas notices.
 const COLUMN = '<div class="doan-canvas-top"></div>';
-// Doany the artist in the notice's mark slot (.doan/canvases/doany-artist.html): the painting GIF while the agent
-// works, its first frame when still (waiting, a hidden workspace) and, through the picture source, under reduced motion.
-const ARTIST = '<span class="doan-agent-artist" aria-hidden="true"><picture><source srcSet="doany/artist-rest.png" media="(prefers-reduced-motion: reduce)"/><img src="doany/artist-painting.gif" alt=""/></picture></span>';
-const ARTIST_STILL = '<span class="doan-agent-artist" aria-hidden="true"><picture><source srcSet="doany/artist-rest.png" media="(prefers-reduced-motion: reduce)"/><img src="doany/artist-rest.png" alt=""/></picture></span>';
+// Doany in the notice's mark slot (.doan/canvases/doany-family.html): one of three variants, picked when the notice
+// mounts. Its GIF while the agent works, its first frame when still (waiting, a hidden workspace) and, through the
+// picture source, under reduced motion. Math.random is pinned to the painter unless a test picks another.
+const VARIANTS = { painting: ["artist-painting.gif", "artist-rest.png"], typing: ["artist-typing.gif", "artist-typing-rest.png"], reading: ["artist-reading.gif", "artist-reading-rest.png"] } as const;
+type Variant = keyof typeof VARIANTS;
+// Math.random values that land on each variant with equal thirds.
+const PICK: Record<Variant, number> = { painting: 0, typing: 0.34, reading: 0.99 };
+const artist = (variant: Variant, still: boolean) => {
+  const [gif, rest] = VARIANTS[variant];
+  return `<span class="doan-agent-artist" aria-hidden="true"><picture><source srcSet="doany/${rest}" media="(prefers-reduced-motion: reduce)"/><img src="doany/${still ? rest : gif}" alt=""/></picture></span>`;
+};
+const ARTIST = artist("painting", false);
+const ARTIST_STILL = artist("painting", true);
+beforeEach(() => { vi.spyOn(Math, "random").mockReturnValue(PICK.painting); });
+afterEach(() => { vi.restoreAllMocks(); });
 const tag = (html: string, pattern: string) => html.match(new RegExp(`<[a-z0-9]+[^>]*${pattern}[^>]*>`))?.[0] ?? "";
 
 describe("CanvasAgent", () => {
@@ -401,7 +412,8 @@ describe("typing across a canvas or visibility boundary", () => {
   });
 });
 
-// .doan/canvases/doany-artist.html: a 32px window in the 40px card, the card's start inset 8px beside it.
+// .doan/canvases/doany-artist.html: a 32px window in the 40px card, the card's start inset 8px beside it;
+// .doan/canvases/doany-family.html: the three variants in that window.
 describe("Doany the artist", () => {
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   test("the artist window is 32px, the notice starts 8px from it, and no dot rule is left", () => {
@@ -412,11 +424,30 @@ describe("Doany the artist", () => {
     expect(css).toMatch(/\[data-capture-snapshot\] :is\([^)]*\.doan-agent-artist/);
   });
 
-  test("the artwork is 128 x 128, four times the window", () => {
-    const png = readFileSync(new URL("./public/doany/artist-rest.png", import.meta.url));
-    expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([128, 128]);
-    const gif = readFileSync(new URL("./public/doany/artist-painting.gif", import.meta.url));
-    expect(gif.subarray(0, 6).toString("ascii")).toBe("GIF89a");
-    expect([gif.readUInt16LE(6), gif.readUInt16LE(8)]).toEqual([128, 128]);
+  test("each variant shows its own GIF while working and its own first frame while waiting or under reduced motion", () => {
+    for (const variant of Object.keys(VARIANTS) as Variant[]) {
+      vi.spyOn(Math, "random").mockReturnValue(PICK[variant]);
+      expect(markup([summary({})])).toContain('<div class="doan-agent">' + artist(variant, false));
+      expect(markup([summary({ phase: "waiting" })])).toContain('<div class="doan-agent">' + artist(variant, true));
+      const work = [{ touched: 0, turn: "none:t", session: "s1", provider: "codex" as const, root: "/w/a", path: canvas.path }];
+      expect(markup([], { work, running: false })).toContain('<div class="doan-agent doan-agent-terminal">' + artist(variant, true));
+    }
+  });
+
+  test("a notice that mounts again picks again", () => {
+    const random = vi.spyOn(Math, "random").mockReturnValue(PICK.typing);
+    expect(markup([summary({})])).toContain(artist("typing", false));
+    random.mockReturnValue(PICK.reading);
+    expect(markup([summary({})])).toContain(artist("reading", false));
+  });
+
+  test("the artwork is 128 x 128, four times the window, for every variant", () => {
+    for (const [gifName, pngName] of Object.values(VARIANTS)) {
+      const png = readFileSync(new URL(`./public/doany/${pngName}`, import.meta.url));
+      expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([128, 128]);
+      const gif = readFileSync(new URL(`./public/doany/${gifName}`, import.meta.url));
+      expect(gif.subarray(0, 6).toString("ascii")).toBe("GIF89a");
+      expect([gif.readUInt16LE(6), gif.readUInt16LE(8)]).toEqual([128, 128]);
+    }
   });
 });

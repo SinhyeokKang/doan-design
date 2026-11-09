@@ -9,4 +9,12 @@ The artwork was made with the built-in image_gen tool from the earlier six-lobed
 
 ## Doany the artist (canvas notices)
 
-- `artist-painting.gif`, `artist-rest.png`: from `.doan/assets/doany/artist/painting.gif` and `rest.png` (canvas `.doan/canvases/doany-artist.html`), cropped to the draft's 32px window (source box 10,75 460 × 460; the draft draws the picture at 111.3 % and moves it 2.2 % left and 16.3 % up) and scaled to 128 × 128, four times the window. The GIF keeps the source's 8 frames and timings with a 255-colour palette and 1-bit transparency; `artist-rest.png` is its first frame.
+Three variants (canvas `.doan/canvases/doany-family.html`; the notice picks one at random), each from `.doan/assets/doany/artist/`:
+
+| Variant | App files | Source GIF · first frame | Source box (x, y, size) | Frames · loop |
+|---|---|---|---|---|
+| painting | `artist-painting.gif`, `artist-rest.png` | `painting.gif` · `rest.png` | 17, 75, 460 | 8 · 2.2 s |
+| typing | `artist-typing.gif`, `artist-typing-rest.png` | `typing.gif` · `typing-rest.png` | −16, −18, 590 | 24 · 2.4 s |
+| reading | `artist-reading.gif`, `artist-reading-rest.png` | `reading.gif` · `reading-rest.png` | −16, −16, 590 | 8 · 1.76 s |
+
+The boxes give Doany the same size, eye line (52 % of the window height) and optical centre in all three; the canvas explains how they were derived. Each GIF frame is cropped to its box (transparent where the box leaves the source), scaled to 128 × 128 (four times the 32px window) with Lanczos, and quantized to a 255-colour palette of its own with 1-bit transparency (alpha below 128 is transparent) in the last index; every frame and its timing is kept, frames dispose to background and the GIF loops forever. The PNG is the first frame cropped and scaled the same way, alpha kept. The typing source's laptop lid carries a Doany silhouette in place of the generated Apple logo.
