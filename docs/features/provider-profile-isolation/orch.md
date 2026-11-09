@@ -20,6 +20,8 @@
 - **sandbox 켜진 Claude 턴의 저장소 hook·`.mcp.json` 서버(사용자 결정)**: Known limit에 적는다. 중첩 Seatbelt가 거절되므로 Doan이 감쌀 수 없다.
 - 리뷰 🟡1–🟡4와 ⚪1·⚪3·⚪6은 리뷰 제안대로 고친다. ⚪5(Codex profile 방식에서 userData 항목 이름이 보임)는 Known limit에 적는다 — conductor 판단, 근거: 결정 A·D의 범위 안이고 내용은 막힌다.
 - **D2(사용자 결정)**: Codex profile에서는 승인된 escalated 명령도 네트워크가 없어 `doan` 앱 명령이 앱에 닿지 못했다. Codex는 `network.enabled=true`일 때만 unix socket을 연다. 결정: 두 Doan Codex profile에 `network={enabled=true, unix_sockets={<Doan socket 디렉터리>=allow}}`를 넣는다. 대가: Codex Ask first·Plan·Accept edits의 sandbox 안 명령도 승인 없이 네트워크를 얻는다. 이것을 Known limit에 적고, T7에서 PRODUCT §3 문장을 맞춘다.
+- **agent가 심은 저장소 설정(사용자 결정)**: Full access Claude가 저장소 `.claude/` 설정에 sandbox 켜기와 hook을 심으면 다음 턴은 바깥 fence 없이 뜬다. 결정: 이 경우도 저장소 hook의 Known limit에 넣는다. 그 문장은 저장소 `.claude/` 아래 settings·skills·agents·plugin, `.mcp.json`, `enableAllProjectMcpServers`까지 넓힌다.
+- 재리뷰 🔴1(profile의 `skills/`·`agents/`·`plugins/`에 hook을 심는 경로): 바깥 fence와 Claude flag 설정에서 이 디렉터리들에 쓰지 못하게 막는다 — conductor 판단, 근거: 사용자가 정한 '🔴1을 고친다'를 지키는 가장 작은 변경이다. D1의 profile 쓰기는 나머지 경로에 남는다.
 
 ## batch
 
@@ -49,3 +51,4 @@ batch는 모두 직렬이다. T0와 T1은 둘 다 실제 Antigravity와 `~/.gemi
 - W4 재확인: D1은 고쳐졌다. D2는 남았다. escalated 명령이 `runtime.json`은 읽지만 permission profile 아래에서 unix socket 연결이 EPERM이라 "Cannot connect to Doan"으로 끝난다. Claude sandbox 꺼짐과 Codex Full access 회귀는 통과했다.
 - W5 리뷰(`ppi-w5-review/.scratch/review-W5.md`): 🔴1, 🟡4, ⚪6. 정책 문장, fail closed 경로 검사, Codex 재시작과 resume, 링크 1 경로, legacy와 목록 읽기 run은 문제 없다고 봤다.
 - W3 fix round 2: 🔴1, D2, 🟡1–4, ⚪1·3·5·6. W4와 W5는 재확인과 재리뷰를 위해 retain했다.
+- W3 fix round 2: `8f410ed7..e86d22db`를 `ec84d25a`까지 통합했다. W5 재리뷰(`review-W5-2.md`)는 🟡1·🟡3·🟡4와 ⚪1–3·⚪6이 해결됐다고 봤다. 남은 것: 🔴1(profile의 skills/agents/plugins), 🟡(`index.ts`가 `reusing`을 넘기지 않음, Known limit 문장이 좁음), ⚪ 3개. W3 fix round 3로 보냈다. W4는 fix round 2 트리를 재확인하는 중이다.
