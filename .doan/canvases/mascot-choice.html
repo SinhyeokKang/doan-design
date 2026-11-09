@@ -1,0 +1,305 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="doan:canvas" content="mascot-choice"><meta name="doan:width" content="2560"><title>mascot-choice — choosing a mascot in first run and Settings</title><link rel="stylesheet" href="../../app/src/renderer/tokens.css"><link rel="stylesheet" href="../../app/src/renderer/ds/index.css"><style>
+@font-face{font-family:Geist;src:url('../../app/src/renderer/public/fonts/geist/Geist.woff2') format('woff2');font-style:normal;font-weight:100 900;font-display:swap}
+/* The Tailwind preflight subset the shipped renderer relies on, layered like Tailwind's base so every DS rule wins. */
+@layer base{*,::before,::after{box-sizing:border-box;border:0 solid;margin:0;padding:0}h1,h2,h3{font-size:inherit;font-weight:inherit}img,svg{display:block;vertical-align:middle}button,input{font:inherit;letter-spacing:inherit;color:inherit;background-color:transparent;border-radius:0}}
+/* Radix sets these at runtime on popovers; ds/surfaces.css reads them, so the canvas defines them for doan check. */
+:root{--radix-popper-available-height:384px;--radix-tooltip-content-transform-origin:center}
+/* ── Canvas page (not app UI) ── */
+body{padding:var(--space-8);width:2560px;background:var(--surface-inset);color:var(--text-standard);font-family:var(--type-family);font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);-webkit-font-smoothing:antialiased}
+.intro{max-width:1500px;padding:var(--space-4) 0 var(--space-10)}
+.intro h1{font-size:var(--type-title-size);line-height:var(--type-title-line-height);letter-spacing:var(--type-title-letter-spacing);font-weight:var(--type-weight-medium)}
+.intro h2{margin-top:var(--space-8);font-size:var(--type-body-lg-size);line-height:var(--type-body-lg-line-height);font-weight:var(--type-weight-medium)}
+.intro>p,.intro li{margin-top:var(--space-3);color:var(--text-subtle)}
+.intro ol{padding-left:var(--space-6);list-style:decimal}
+.intro li strong{color:var(--text-standard);font-weight:var(--type-weight-medium)}
+code{font-family:var(--type-family-mono);font-size:.92em}
+.grid{display:grid;grid-template-columns:1238px 1238px;gap:var(--space-10) var(--space-5)}
+.caption{min-height:var(--size-row);display:grid;grid-template-columns:var(--space-10) 1fr;gap:var(--space-1) var(--space-2);align-content:start;margin-bottom:var(--space-4)}
+.caption>span{color:var(--text-metadata);padding-top:var(--space-1)}
+.caption h2{font-size:var(--type-body-lg-size);line-height:var(--type-body-lg-line-height);font-weight:var(--type-weight-medium)}
+.caption p{grid-column:2;color:var(--text-subtle)}
+.caption .doan-chip{margin-left:var(--space-2);vertical-align:2px;font-weight:var(--type-weight-regular)}
+.wide{grid-column:1/-1}
+/* The window: the shipped .ob-overlay as a 1238 × 780 box instead of the fixed full-window dialog (as doan-onboarding.html). */
+.ob-overlay.window{position:relative;inset:auto;width:1238px;height:780px;border-radius:var(--radius-chip);box-shadow:var(--shadow-panel);contain:layout;isolation:isolate}
+.traffic{position:absolute;left:var(--space-6);top:var(--space-6);display:flex;gap:var(--space-2);z-index:2}
+.traffic i{width:var(--space-3);height:var(--space-3);border-radius:50%;background:var(--border-prominent);opacity:.5}
+.material-stage{width:max-content;border-radius:var(--radius-chip);overflow:hidden;position:relative;background:radial-gradient(ellipse at 10% 0%,var(--affordance-warning),transparent 65%),radial-gradient(ellipse at 90% 90%,var(--affordance-success),transparent 65%),linear-gradient(135deg,var(--text-metadata),var(--surface-inset) 40%,var(--text-subtle))}
+.material-stage>.window{background:color-mix(in srgb,var(--surface-panel) 55%,transparent);backdrop-filter:blur(32px) saturate(.8);-webkit-backdrop-filter:blur(32px) saturate(.8)}
+/* Settings: a schematic of the shipped shell (header and sidebar are unchanged; DESIGN.md 'App shell'). Only the General row is new. */
+.shell-window{position:relative;width:1238px;height:780px;display:grid;grid-template-columns:228px 1fr;grid-template-rows:var(--size-chrome) 1fr;padding:0 var(--space-2) var(--space-2) 0;border-radius:var(--radius-chip);box-shadow:var(--shadow-panel);overflow:hidden}
+.shell-window>.top{grid-column:1/-1}
+.shell-side{padding:var(--space-2) var(--space-2) 0 var(--space-4)}
+.shell-side h2{padding:var(--space-2) 10px;font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);color:var(--text-metadata)}
+.shell-side .row{display:flex;align-items:center;gap:var(--space-2);height:var(--size-control-sm);border-radius:8px}
+.shell-side .row svg{width:var(--size-icon);height:var(--size-icon);flex:none;color:var(--text-subtle)}
+.shell-side .row[aria-current] svg{color:var(--text-standard)}
+.shell-panel{background:var(--surface-panel);border-radius:var(--radius-container);box-shadow:var(--shadow-panel);overflow:hidden}
+.shell-tabs{position:absolute;left:50%;top:var(--space-2);transform:translateX(-50%);display:flex;gap:var(--space-1);height:var(--size-control);padding:var(--space-1);border-radius:var(--radius-container);background:var(--affordance-backdrop-hover)}
+.shell-tabs span{display:flex;align-items:center;padding:0 var(--space-4);border-radius:var(--radius-control);color:var(--text-subtle)}
+.shell-tabs span.current{background:var(--surface-panel);color:var(--text-standard);box-shadow:var(--shadow-panel)}
+/* Each frame stands in for :root[data-mascot] by overriding the roles it reads (the switch layer is not in code). */
+.m-doany{--affordance-accent:var(--violet-9);--affordance-accent-hover:var(--violet-10);--affordance-accent-pressed:var(--violet-pressed);--surface-accent-subtle:var(--violet-3);--text-accent-subtle:var(--violet-11);--text-accent:var(--violet-9);--text-on-accent:var(--text-standard);--accent-5:var(--violet-5)}
+.m-saemi{--affordance-accent:var(--saemi-9);--affordance-accent-hover:var(--saemi-10);--affordance-accent-pressed:var(--saemi-pressed);--surface-accent-subtle:var(--saemi-3);--text-accent-subtle:var(--saemi-11);--text-accent:var(--saemi-icon);--text-on-accent:var(--text-standard);--accent-5:var(--saemi-5)}
+.m-dungdung{--affordance-accent:var(--dungdung-9);--affordance-accent-hover:var(--dungdung-10);--affordance-accent-pressed:var(--dungdung-pressed);--surface-accent-subtle:var(--dungdung-3);--text-accent-subtle:var(--dungdung-11);--text-accent:var(--dungdung-icon);--text-on-accent:var(--text-standard);--accent-5:var(--dungdung-5)}
+.m-popo{--affordance-accent:var(--popo-9);--affordance-accent-hover:var(--popo-10);--affordance-accent-pressed:var(--popo-pressed);--surface-accent-subtle:var(--popo-3);--text-accent-subtle:var(--popo-11);--text-accent:var(--popo-icon);--text-on-accent:var(--text-standard);--accent-5:var(--popo-5)}
+.m-dori{--affordance-accent:var(--dori-9);--affordance-accent-hover:var(--dori-10);--affordance-accent-pressed:var(--dori-pressed);--surface-accent-subtle:var(--dori-3);--text-accent-subtle:var(--dori-11);--text-accent:var(--dori-icon);--text-on-accent:var(--text-standard);--accent-5:var(--dori-5)}
+
+/* ── Copied from app/src/renderer/styles.css (develop) ── */
+button { cursor: pointer; font: inherit; color: inherit; }
+button:disabled { color: var(--text-disabled); cursor: default; }
+button:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+.ob-overlay { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; overflow: hidden; background: transparent; color: var(--text-standard); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); font-variant-numeric: normal; }
+.ob-overlay::backdrop { background: transparent; }
+.ob-overlay.ob-welcome { background: var(--surface-panel); }
+@media (prefers-reduced-transparency: reduce) { .ob-overlay { background: var(--bg-app); } }
+/* Pigment horizon: broad accent, indigo and apricot colour along the lower edge, a blurred violet glow under it and a
+   static grain on top; nothing moves. Fixed, so it fills the window behind the chrome rather than only the scrolling
+   scene; z-index -1 keeps it under the in-flow text in the overlay's own stacking context. */
+.ob-atmosphere { position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; background: radial-gradient(ellipse 75% 65% at 50% 108%, var(--affordance-accent) 0%, transparent 72%), radial-gradient(ellipse 65% 45% at 5% 100%, color-mix(in srgb, var(--indigo-600) 75%, white), transparent 80%), radial-gradient(ellipse 60% 45% at 100% 100%, color-mix(in srgb, var(--orange-600) 65%, white), transparent 80%), var(--surface-panel); }
+.ob-atmosphere::before { content: ""; position: absolute; left: -10%; right: -10%; bottom: -70px; height: 150px; border-radius: 50%; background: var(--violet-5); filter: blur(44px); }
+.ob-atmosphere::after { content: ""; position: absolute; inset: 0; background: url("../../app/src/renderer/public/onboarding-grain.svg"); opacity: .14; mix-blend-mode: multiply; }
+@media (forced-colors: active) { .ob-atmosphere { display: none; } }
+.ob-chrome { position: relative; flex: none; height: var(--size-chrome); display: flex; align-items: center; justify-content: center; -webkit-app-region: drag; }
+/* The AppShell mode capsule drawn with the shared buttons (draft), so it does not inherit .shell-modes button. */
+.ob-steps { position: absolute; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: var(--space-1); height: var(--size-control); padding: var(--space-1); border-radius: var(--radius-container); background: var(--affordance-backdrop-hover); backdrop-filter: blur(24px); -webkit-app-region: no-drag; }
+.ob-steps .doan-button { height: var(--size-control-sm); font-weight: var(--type-weight-regular); }
+.ob-steps .doan-button.current { background: var(--surface-panel); color: var(--text-standard); box-shadow: var(--shadow-panel); cursor: default; }
+@media (prefers-reduced-transparency: reduce) { .ob-steps { background: var(--surface-inset); backdrop-filter: none; } }
+@media (forced-colors: active) { .ob-steps { backdrop-filter: none; } }
+/* First run's steps scroll as one surface under the step capsule (and the Add Projects page as its white panel), so
+   the thin scroll bar (ds .doan-scroll) sits at the right edge, not beside the column. The column is at least the
+   surface's height, which keeps Welcome's vertical centring and puts a short step's footer at the bottom. */
+.ob-scroll { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; }
+.ob-scene { position: relative; flex: 1 0 auto; width: 100%; max-width: 560px; margin: 0 auto; padding: var(--space-10) var(--space-6) var(--space-12); display: flex; flex-direction: column; }
+/* The surface scrolls the scene as a whole; a panel with overflow hidden must not shrink and clip its last rows. */
+.ob-scene > * { flex-shrink: 0; }
+.ob-welcome .ob-scene { max-width: 640px; padding: 0 var(--space-6); align-items: center; }
+.ob-welcome-scene { display: contents; }
+/* Welcome's group (Doany, wordmark, introduction, Get started) is centred 72px above the centre of the area under the
+   chrome, at any height (stageInsets). The spacer after it takes at most twice the lift; on a
+   short window it shrinks before the 32px insets are left and the surface scrolls, so no empty scroll remains. */
+.ob-welcome-main { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: var(--space-8) 0; }
+.ob-welcome-main::after { content: ""; flex: 1 0 0; max-height: 144px; }
+.ob-wordmark { margin-bottom: var(--space-6); font-size: 104px; line-height: 1; font-weight: var(--type-weight-medium); letter-spacing: -8px; }
+.ob-welcome-main h1 { font-size: var(--type-heading-size); line-height: var(--type-heading-line-height); letter-spacing: var(--type-heading-letter-spacing); font-weight: var(--type-weight-regular); text-align: center; outline: none; }
+.ob-welcome-action { margin-top: var(--space-10); text-align: center; }
+.ob-heading { margin-bottom: var(--space-8); text-align: center; }
+.ob-heading h2 { font-size: var(--type-title-size); line-height: var(--type-title-line-height); letter-spacing: var(--type-title-letter-spacing); font-weight: var(--type-weight-medium); outline: none; }
+.ob-heading p { margin-top: var(--space-3); color: var(--text-subtle); }
+.ob-list-notice { margin-bottom: var(--space-4); }
+/* Provider and project cards share one title/description style. */
+.ob-provider-list { padding: 0 var(--space-4); }
+.ob-provider { display: flex; flex-direction: column; justify-content: center; min-height: var(--size-row); padding: var(--space-4) 0; }
+.ob-provider + .ob-provider { border-top: 1px solid var(--border-standard); }
+.ob-provider-row { display: flex; align-items: center; gap: var(--space-3); }
+.ob-provider-mark { flex: none; width: 32px; display: grid; place-items: center; }
+.ob-provider-mark img { display: block; width: 24px; height: 24px; object-fit: contain; }
+.ob-provider-label { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-half); }
+.ob-provider-label strong { font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); font-weight: var(--type-weight-medium); }
+.ob-provider-label span, .ob-fine, .ob-page-help, .ob-button-note { font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-metadata); overflow-wrap: anywhere; }
+.ob-provider-help { margin-top: var(--space-3); color: var(--text-subtle); }
+.ob-provider > .doan-notice { margin-top: var(--space-3); }
+.ob-notice-title, .ob-notice-body { display: block; }
+.ob-notice-title { font-weight: var(--type-weight-medium); }
+/* Only under a title: a body alone is the first line, which the notice icon is centred on. */
+.ob-notice-title + .ob-notice-body { margin-top: var(--space-1); }
+.ob-state-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); margin-top: var(--space-4); }
+.ob-state-actions.submit-only { justify-content: flex-end; }
+.ob-page-help { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-1); margin-top: var(--space-3); color: var(--text-subtle); }
+.ob-fine { margin-top: var(--space-5); }
+.ob-footer { display: flex; align-items: center; justify-content: space-between; margin-top: auto; padding-top: var(--space-8); }
+.ob-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.ob-dialog-form { display: flex; flex-direction: column; gap: var(--space-4); }
+.ob-field-error { margin-top: calc(-1 * var(--space-2)); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-danger); }
+.ob-overlay .ob-card { width: auto; }
+/* Project step (draft frames project, project-local, repository-found, repository-clone, repository-error). */
+.ob-scene svg { width: var(--size-icon); height: var(--size-icon); }
+.ob-local-option { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-4); padding: var(--space-6); }
+.ob-local-option p { margin-top: var(--space-1); color: var(--text-subtle); }
+.ob-local-option strong, .ob-setup > strong { font-weight: var(--type-weight-medium); }
+.ob-folder-icon { width: var(--size-control); height: var(--size-control); display: grid; place-items: center; border-radius: var(--radius-chip); background: var(--surface-inset); }
+.ob-folder-icon svg { width: 20px; height: 20px; }
+.ob-divider { display: flex; align-items: center; gap: var(--space-3); margin: var(--space-6) 0; font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-metadata); }
+.ob-divider::before, .ob-divider::after { content: ""; flex: 1; height: 1px; background: var(--border-standard); }
+.ob-field-label { display: block; margin-bottom: var(--space-2); font-weight: var(--type-weight-medium); }
+.ob-spaced { margin-top: var(--space-6); }
+.ob-url-action { display: flex; justify-content: flex-end; margin-top: var(--space-3); }
+.ob-recovery { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-3); width: 100%; margin-top: var(--space-4); }
+/* Mid-window the Agent/Project glass is about --affordance-subtle's own colour, so a subtle button standing on it
+   lost its fill. It takes the step capsule's fill on the same glass; panels, dialogs, the Welcome surface and the DS
+   hover, pressed and disabled fills are left alone. */
+.ob-overlay:not(.ob-welcome) .ob-scene .doan-button[data-ui-variant="subtle"]:not(:hover, :active, :disabled, .doan-panel *, .doan-dialog *) { background: var(--affordance-backdrop-hover); }
+.ob-scene > .doan-notice { margin-top: var(--space-4); }
+/* Inside the setup panel the notice follows the chosen card, where the rule above does not reach; it keeps the same
+   16px the panel uses between the card and its actions. */
+.ob-project-notice { margin-top: var(--space-4); }
+/* Choice cards take the chosen card's box, so a picked project reads the same before and after it is chosen. */
+.ob-chosen, .ob-choice { display: flex; align-items: center; gap: var(--space-3); min-height: var(--size-row); padding: var(--space-4); }
+.ob-chosen { margin-top: var(--space-6); }
+.ob-chosen > div, .ob-destination-name, .ob-choice-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-half); }
+.ob-chosen strong, .ob-destination-name strong, .ob-choice strong { font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); font-weight: var(--type-weight-medium); }
+.ob-path, .ob-choice small { font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-metadata); overflow-wrap: anywhere; }
+.ob-notice-detail { margin-top: var(--space-3); }
+.ob-small-action { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-4); }
+.ob-destination { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); min-height: var(--size-row); padding: var(--space-4); }
+.ob-projects { margin-bottom: var(--space-6); }
+.ob-choice-list { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-4); }
+.ob-choice { position: relative; align-items: flex-start; cursor: pointer; }
+/* The shared choice card's radio: 16px, centred on the title's first line, so it
+   stays there when the title wraps; on, it takes the checkbox's fill and a 6px dot. */
+.ob-radio { display: grid; place-content: center; flex: none; width: var(--size-icon); height: var(--size-icon); margin-top: calc((var(--type-label-sm-line-height) - var(--size-icon)) / 2); border: 1px solid var(--border-prominent); border-radius: 50%; background: var(--surface-panel); }
+.ob-choice:has(input:checked) .ob-radio { border-color: var(--affordance-prominent); background: var(--affordance-prominent); }
+.ob-choice:has(input:checked) .ob-radio::before { content: ""; width: var(--space-1h); height: var(--space-1h); border-radius: 50%; background: var(--text-on-prominent); }
+/* The radio stays in the tab order for arrows and Space; the card shows its state and focus instead. */
+.ob-choice input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.ob-choice:has(input:focus-visible) { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+/* A disabled card (terminal-agent-activity draft resume-disabled): the title and radio dimmed, the reason line in the
+   subtle ink so it stays readable. */
+.ob-choice[data-disabled], .ob-choice[data-disabled] input { cursor: default; }
+.ob-choice[data-disabled] strong { color: var(--text-disabled); }
+.ob-choice[data-disabled] small { color: var(--text-subtle); }
+.ob-choice[data-disabled] .ob-radio { border-color: var(--border-standard); background: var(--surface-inset); }
+.ob-setup { margin-top: var(--space-4); padding: var(--space-6); }
+.ob-setup > p { margin: var(--space-3) 0; color: var(--text-subtle); }
+/* The sidebar thumbnail at card size: 28px in a 32px slot (draft component constants). */
+.shell-thumbnail.onboarding-thumbnail { width: 28px; height: 28px; margin-inline: 2px; border-radius: 7px; font-size: 17px; line-height: 28px; }
+/* Shared settings-style group: a hairline container whose rows are split by hairlines. */
+.ob-card { width: 640px; padding: 0 var(--space-4); border: 1px solid var(--border-standard); border-radius: var(--radius-container); background: var(--surface-panel); }
+.ob-card > :first-child { border-top: 0; }
+.ob-card + .ob-card { margin-top: 14px; }
+.shell-settings-nav { display: flex; flex-direction: column; gap: var(--space-half); }
+.shell-side .shell-settings-row { width: 100%; padding-inline: 10px; letter-spacing: var(--type-body-sm-letter-spacing); color: var(--text-standard); text-align: left; }
+.shell-side .shell-settings-row svg { width: var(--size-icon); height: var(--size-icon); flex: none; color: var(--text-subtle); }
+.shell-side .shell-settings-row:focus-visible { outline-offset: -2px; }
+.shell-side .shell-settings-row[aria-current="page"] { background: var(--affordance-backdrop-pressed); color: var(--text-standard); }
+.shell-side .shell-settings-row[aria-current="page"] svg { color: var(--text-standard); }
+/* The Home row sits between Search and the projects (dogfooding #2) and reads as a Settings category row. */
+.shell-side .shell-home-row { flex: none; width: 100%; padding-inline: 10px; letter-spacing: var(--type-body-sm-letter-spacing); color: var(--text-standard); text-align: left; }
+.shell-side .shell-home-row svg { width: var(--size-icon); height: var(--size-icon); flex: none; color: var(--text-subtle); }
+.shell-side .shell-home-row:focus-visible { outline-offset: -2px; }
+.shell-side .shell-home-row[aria-current="page"] { background: var(--affordance-backdrop-pressed); }
+.shell-side .shell-home-row[aria-current="page"] svg { color: var(--text-standard); }
+.shell-side .shell-settings-row[aria-disabled="true"] svg { color: var(--text-disabled); }
+.settings-panel { overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); font-variant-numeric: normal; }
+.settings-page { max-width: 48rem; margin: 0 auto; padding: var(--space-8) var(--space-6) var(--space-6); }
+.settings-header, .settings-section-header { display: flex; align-items: start; gap: var(--space-3); padding-inline: calc(var(--space-4) + 1px); }
+.settings-header { margin-bottom: var(--space-8); }
+.settings-section-header { margin-bottom: var(--space-3); }
+.settings-header-copy { flex: 1; min-width: 0; }
+.settings-title { font-size: var(--type-heading-size); line-height: var(--type-heading-line-height); letter-spacing: var(--type-heading-letter-spacing); font-weight: var(--type-weight-medium); outline: none; }
+.settings-lead, .settings-section-description { margin-top: var(--space-2); color: var(--text-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+/* A section description sits as close to its title as a row's description to its label. */
+.settings-section-description { margin-top: var(--space-half); }
+.settings-section-title { font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); font-weight: var(--type-weight-medium); }
+.settings-sections { display: grid; gap: var(--space-section-gap); }
+.settings-notice { margin-bottom: var(--space-3); }
+.settings-msg { display: flex; align-items: flex-start; gap: var(--space-1h); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); overflow-wrap: anywhere; }
+.settings-msg.error { color: var(--text-danger); }
+.settings-msg.warn { color: var(--text-warning); }
+.settings-msg-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-3); }
+.doan-settings-group > .doan-preference-row-extra { margin-top: 0; padding: var(--space-3) 0; }
+.doan-agent-glow { position: absolute; inset: 0; z-index: 1; pointer-events: none; border-radius: 0 0 0 var(--radius-container); box-shadow: inset 0 0 calc(var(--space-3) * 3) color-mix(in srgb, var(--affordance-accent) 85%, transparent), inset 0 0 calc(var(--space-6) * 4.5) color-mix(in srgb, var(--affordance-accent) 50%, transparent); animation: doan-agent-glow 8s var(--ease-state) infinite; }
+@keyframes doan-agent-glow { 0%, 100% { opacity: .7; } 50% { opacity: 1; } }
+.doan-agent { display: flex; align-items: center; gap: var(--space-2); max-width: 100%; min-width: 0; min-height: var(--size-control); padding: var(--space-1) var(--space-1) var(--space-1) var(--space-4); border-radius: var(--radius-pill); background: color-mix(in srgb, var(--affordance-prominent) 60%, transparent); -webkit-backdrop-filter: blur(var(--blur-md)); backdrop-filter: blur(var(--blur-md)); box-shadow: var(--shadow-sm); color: var(--text-on-prominent); pointer-events: auto; }
+.doan-agent-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
+.doan-agent .doan-button.doan-agent-action { flex: none; background: color-mix(in srgb, var(--text-on-prominent) 16%, transparent); color: var(--text-on-prominent); }
+.doan-agent-action svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+.doan-agent:has(> .doan-agent-artist) { padding-left: var(--space-2); }
+.doan-agent-artist { display: block; flex: none; width: var(--size-control-sm); height: var(--size-control-sm); }
+.doan-agent-artist img { display: block; width: 100%; height: 100%; }
+/* ── Copied from app/src/renderer/doany.css ── */
+/* SPDX-License-Identifier: MIT */
+/* Doany's host, from the draft's .doan/assets/doany/motion/mascot.css (MIT, Doan contributors).
+   The slot size is set by the component; the focus ring is the shared one with the container radius. */
+.doany { display: block; position: relative; flex: none; padding: 0; border: 0; background: transparent; cursor: pointer; isolation: isolate; box-sizing: border-box; }
+.doany img, .doany canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; box-sizing: border-box; }
+.doany img { padding: 16.5%; }
+.doany [hidden] { display: none; }
+.doany:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; border-radius: var(--radius-container); }
+
+
+/* ── Proposed (not in code): mascot cards, shared by the Mascot step and Settings > General ── */
+.ob-scene.ob-mascot-scene{max-width:640px}
+.mascot-cards{display:grid;grid-template-columns:repeat(5,112px);justify-content:center;gap:var(--space-2)}
+.mascot-card{position:relative;display:flex;flex-direction:column;align-items:center;gap:var(--space-2);padding:var(--space-2) var(--space-2) var(--space-3);cursor:pointer}
+.mascot-card img{width:96px;height:96px;border-radius:var(--radius-chip);object-fit:cover}
+.mascot-card strong{font-size:var(--type-label-sm-size);line-height:var(--type-label-sm-line-height);font-weight:var(--type-weight-medium)}
+.mascot-card input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
+.mascot-card:has(input:focus-visible){outline:2px solid var(--border-focus);outline-offset:2px}
+/* The chosen card: a 2px ring in the mascot's icon colour and the Home composer's accent glow (a new accent place). */
+.mascot-card:has(input:checked){box-shadow:0 0 0 2px var(--text-accent),0 0 var(--space-6) 2px color-mix(in srgb,var(--affordance-accent) 27%,transparent),0 0 calc(var(--space-8) * 2) var(--space-2) color-mix(in srgb,var(--affordance-accent) 7%,transparent)}
+@media (prefers-reduced-transparency: reduce){.mascot-card:has(input:checked){box-shadow:0 0 0 2px var(--text-accent),0 0 var(--space-6) 2px color-mix(in srgb,var(--affordance-accent) 15%,transparent)}}
+.mascot-line{margin-top:var(--space-5);text-align:center;color:var(--text-subtle)}
+.mascot-line strong{color:var(--text-standard);font-weight:var(--type-weight-medium)}
+.settings-group-mascot{padding:var(--space-4) var(--space-4) 0}
+.settings-group-mascot>.mascot-pick{padding-bottom:var(--space-4)}
+/* Until still.png exists, the card stands in for the transparent still: multiply drops its white. */
+.doany.card-stand-in img{mix-blend-mode:multiply}
+/* Proposed: the Welcome glow under the horizon reads the accent ramp (--accent-5), not violet 5. */
+.ob-atmosphere::before{background:var(--accent-5)}
+/* Canvas-only: the painter crop (the app draws pre-cropped 128 px exports at 100 %). */
+.doan-agent-artist{position:relative;overflow:hidden}
+.doan-agent-artist img{position:absolute;width:var(--s);height:var(--s);max-width:none;left:var(--x);top:var(--y)}
+[data-artist="doany"]{--s:111.304%;--x:-3.696%;--y:-16.304%}
+[data-artist="saemi"]{--s:111.304%;--x:-5.870%;--y:-21.957%}
+[data-artist="dungdung"]{--s:111.304%;--x:-7.174%;--y:-14.565%}
+[data-artist="popo"]{--s:111.304%;--x:-2.826%;--y:-11.304%}
+[data-artist="dori"]{--s:111.304%;--x:-4.130%;--y:-2.174%}
+.stages{display:flex;flex-wrap:wrap;gap:var(--space-4)}
+.stage-tile{display:grid;gap:var(--space-2)}
+.stage-tile>figcaption{color:var(--text-metadata)}
+.stage{position:relative;width:372px;height:120px;border-radius:var(--radius-container);background:var(--surface-panel);box-shadow:var(--shadow-panel);overflow:hidden;display:flex;align-items:center;justify-content:center}
+.stage .doan-agent{position:relative;z-index:2}
+.stage .doan-agent-glow{border-radius:inherit}
+
+</style></head><body>
+<header class="intro">
+<h1>mascot-choice — choosing a mascot in first run and Settings</h1>
+<p>A person chooses one of five mascots in a new first step of first run, and can change it anytime in Settings &gt; General. The mascot shows on Welcome, Home and the canvas working notice, and sets the accent (ramps: <code>mascot-accent.html</code>). Plan: <code>docs/features/mascot-choice/</code>. Every frame is new and none is in code. <code>/design-sync</code> will compare <code>mascot-step</code>, <code>mascot-step-picked</code>, <code>settings-general</code>, <code>settings-general-failed</code>, <code>welcome</code> and <code>notice</code>.</p>
+<h2>Implementation spec</h2>
+<ol>
+<li><strong>Mascot step.</strong> First run becomes Welcome → Mascot → Agent → Project. The stepper is the shipped capsule with three steps; Get started opens Mascot, Back returns to Welcome, Continue goes to Agent and is always enabled (Doany is chosen by default). Picking a card saves it at once and the accent follows at once.</li>
+<li><strong>Mascot cards</strong> (one component, here and in Settings): a five-column radio group of <code>doan-panel</code> cards inside the 640 px scene (Welcome's width; Agent and Project keep 560), each the mascot's <code>card.png</code> at 96 × 96 px in a 112 px card, and its name; the app copy of <code>card.png</code> is 288 × 288 (3×). The cards keep that size in Settings, centred in the group. The chosen card carries a 2 px ring in the accent icon colour and the Home composer's glow (a new accent place); arrows move the choice, as in a radio group; the group is described by the line under it, which is announced when it changes. Under the cards: the chosen mascot's name and one line.</li>
+<li><strong>Settings &gt; General</strong> is a new first category (General, Agents, MCP Connectors, Notifications, About); Settings still opens on Agents the first time. Its one section, Mascot, holds the same cards in a settings group. A failed save shows the shared settings message with Retry, and the cards return to the last saved mascot.</li>
+<li><strong>Welcome and Home</strong> show the chosen mascot in the shipped Doany slot (142.5 px on Welcome, 114 px on Home) with the same motion. Until a friend's transparent <code>still.png</code> exists, this canvas draws its card with <code>mix-blend-mode: multiply</code>, so its shadow still shows; the app uses the still.</li>
+<li><strong>Working notice</strong>: the chosen mascot's painter. Doany keeps picking one of its three variants; a friend has one. Crop boxes: <code>.doan/assets/mascots/README.md</code>. The glow is the mascot's accent.</li>
+</ol>
+<p>Copied from shipped code: onboarding, settings page and notice CSS from <code>app/src/renderer/styles.css</code> and <code>doany.css</code> on develop, checked against the files; the settings shell (header tabs, sidebar) is a schematic, since only its General row changes. Cards and painter GIFs: <code>.doan/assets/mascots/</code>. Copy follows Doan's clarify preset; Doany's one line is new and needs confirmation.</p>
+</header>
+<div class="grid">
+<section><div class="caption"><span>01</span><h2>First run · Mascot<span class="doan-chip">Not in code</span></h2><p>The first visit: Doany is chosen. Continue is enabled.</p></div><div class="material-stage"><div class="ob-overlay window m-doany" data-doan-frame="mascot-step" data-doan-title="First run · Mascot" data-doan-implements="app/src/renderer/Onboarding.tsx" role="dialog" aria-label="Set up Doan"><div class="traffic" aria-hidden="true"><i></i><i></i><i></i></div>
+<div class="ob-chrome"><nav class="ob-steps" aria-label="Setup steps" data-doan-id="mascot-step-steps"><button type="button" class="doan-button current" data-ui-size="sm" data-ui-variant="subtle" aria-current="step">1 <span>Mascot</span></button><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="ghost">2 <span>Agent</span></button><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="ghost" disabled>3 <span>Project</span></button></nav></div>
+<div class="ob-scroll"><div class="ob-scene ob-mascot-scene"><div class="ob-heading" data-doan-id="mascot-step-heading"><h2 tabindex="-1">Choose your mascot</h2><p>It keeps you company in Doan and sets the app’s accent color. You can change it anytime in Settings.</p></div>
+<div role="radiogroup" aria-label="Mascot" aria-describedby="mascot-step-line" class="mascot-cards" data-doan-id="mascot-step-cards"><label class="doan-panel mascot-card" data-doan-id="mascot-step-card-doany"><input type="radio" name="mascot-step-mascot" value="doany" checked/><img src="../assets/mascots/doany/card.png" alt=""/><strong>Doany</strong></label><label class="doan-panel mascot-card" data-doan-id="mascot-step-card-saemi"><input type="radio" name="mascot-step-mascot" value="saemi"/><img src="../assets/mascots/saemi/card.png" alt=""/><strong>Saemi</strong></label><label class="doan-panel mascot-card" data-doan-id="mascot-step-card-dungdung"><input type="radio" name="mascot-step-mascot" value="dungdung"/><img src="../assets/mascots/dungdung/card.png" alt=""/><strong>Dungdung</strong></label><label class="doan-panel mascot-card" data-doan-id="mascot-step-card-popo"><input type="radio" name="mascot-step-mascot" value="popo"/><img src="../assets/mascots/popo/card.png" alt=""/><strong>Popo</strong></label><label class="doan-panel mascot-card" data-doan-id="mascot-step-card-dori"><input type="radio" name="mascot-step-mascot" value="dori"/><img src="../assets/mascots/dori/card.png" alt=""/><strong>Dori</strong></label></div><p class="mascot-line" id="mascot-step-line" aria-live="polite" data-doan-id="mascot-step-line"><strong>Doany</strong> · A painter in a beret who turns your ideas into pictures.</p>
+<div class="ob-footer" data-doan-id="mascot-step-footer"><button type="button" class="doan-button" data-ui-variant="subtle"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>Back</button><button type="button" class="doan-button" data-ui-variant="prominent" data-continue="">Continue<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></button></div></div></div></div></div></section>
+<section><div class="caption"><span>02</span><h2>First run · Mascot · Dungdung picked<span class="doan-chip">Not in code</span></h2><p>Picking a card saves it and moves the accent: the chosen ring and glow take Dungdung’s colours.</p></div><div class="material-stage"><div class="ob-overlay window m-dungdung" data-doan-frame="mascot-step-picked" data-doan-title="First run · Mascot · Dungdung picked" data-doan-implements="app/src/renderer/Onboarding.tsx" role="dialog" aria-label="Set up Doan"><div class="traffic" aria-hidden="true"><i></i><i></i><i></i></div>
+<div class="ob-chrome"><nav class="ob-steps" aria-label="Setup steps" data-doan-id="mascot-step-picked-steps"><button type="button" class="doan-button current" data-ui-size="sm" data-ui-variant="subtle" aria-current="step">1 <span>Mascot</span></button><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="ghost">2 <span>Agent</span></button><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="ghost" disabled>3 <span>Project</span></button></nav></div>
+<div class="ob-scroll"><div class="ob-scene ob-mascot-scene"><div class="ob-heading" data-doan-id="mascot-step-picked-heading"><h2 tabindex="-1">Choose your mascot</h2><p>It keeps you company in Doan and sets the app’s accent color. You can change it anytime in Settings.</p></div>
+<div role="radiogroup" aria-label="Mascot" aria-describedby="mascot-step-picked-line" class="mascot-cards" data-doan-id="mascot-step-picked-cards"><label class="doan-panel mascot-card" data-doan-id="mascot-step-picked-card-doany"><input type="radio" name="mascot-step-picked-mascot" value="doany"/><img src="../assets/mascots/doany/card.png" alt=""/><strong>Doany</strong></label><label class="doan-panel mascot-card" data-doan-id="mascot-step-picked-card-saemi"><input type="radio" name="mascot-step-picked-mascot" value="saemi"/><img src="../assets/mascots/saemi/card.png" alt=""/><strong>Saemi</strong></label><label class="doan-panel mascot-card" data-doan-id="mascot-step-picked-card-dungdung"><input type="radio" name="mascot-step-picked-mascot" value="dungdung" checked/><img src="../assets/mascots/dungdung/card.png" alt=""/><strong>Dungdung</strong></label><label class="doan-panel mascot-card" data-doan-id="mascot-step-picked-card-popo"><input type="radio" name="mascot-step-picked-mascot" value="popo"/><img src="../assets/mascots/popo/card.png" alt=""/><strong>Popo</strong></label><label class="doan-panel mascot-card" data-doan-id="mascot-step-picked-card-dori"><input type="radio" name="mascot-step-picked-mascot" value="dori"/><img src="../assets/mascots/dori/card.png" alt=""/><strong>Dori</strong></label></div><p class="mascot-line" id="mascot-step-picked-line" aria-live="polite" data-doan-id="mascot-step-picked-line"><strong>Dungdung</strong> · A music-loving mood maker. It picks songs that fit how its friends feel.</p>
+<div class="ob-footer" data-doan-id="mascot-step-picked-footer"><button type="button" class="doan-button" data-ui-variant="subtle"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>Back</button><button type="button" class="doan-button" data-ui-variant="prominent" data-continue="">Continue<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></button></div></div></div></div></div></section>
+<section><div class="caption"><span>03</span><h2>Welcome · saved mascot<span class="doan-chip">Not in code</span></h2><p>First run restarted after Saemi was picked: Welcome shows Saemi, and the pigment horizon takes Saemi’s accent.</p></div><div class="ob-overlay ob-welcome window m-saemi" data-doan-frame="welcome" data-doan-title="Welcome · saved mascot" data-doan-implements="app/src/renderer/Onboarding.tsx" role="dialog" aria-label="Set up Doan"><div class="traffic" aria-hidden="true"><i></i><i></i><i></i></div><div class="ob-chrome"></div>
+<div class="ob-scroll"><div class="ob-scene"><div class="ob-welcome-main"><div class="ob-atmosphere" aria-hidden="true"></div>
+<button type="button" class="doany card-stand-in" aria-label="Make Saemi hop" style="width:142.5px;height:142.5px" data-doan-id="welcome-mascot"><img src="../assets/mascots/saemi/card.png" alt=""/></button>
+<div class="ob-wordmark">Doan</div><h1 tabindex="-1">A place for your next idea.<br/>Bring it to life on canvas.</h1>
+<div class="ob-welcome-action"><button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="lg">Get started<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></button></div></div></div></div></div></section>
+<section><div class="caption"><span>04</span><h2>Settings · General<span class="doan-chip">Not in code</span></h2><p>Popo chosen. The same cards; a pick saves at once.</p></div><div class="material-stage"><div class="shell-window window m-popo" data-doan-frame="settings-general" data-doan-title="Settings · General" data-doan-implements="app/src/renderer/SettingsPage.tsx"><div class="traffic" aria-hidden="true"><i></i><i></i><i></i></div>
+<header class="top"><div class="shell-tabs" aria-hidden="true"><span>Add Projects</span><span>Projects</span><span class="current">Settings</span></div></header>
+<aside class="shell-side" aria-label="Settings"><h2>Settings</h2><nav class="shell-settings-nav" aria-label="Settings"><div class="row shell-settings-row" aria-current="page" data-doan-id="settings-general-nav-general"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 5H3"/><path d="M12 19H3"/><path d="M14 3v4"/><path d="M16 17v4"/><path d="M21 12h-9"/><path d="M21 19h-5"/><path d="M21 5h-7"/><path d="M8 10v4"/><path d="M8 12H3"/></svg><span>General</span></div><div class="row shell-settings-row" data-doan-id="settings-general-nav-agents"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg><span>Agents</span></div><div class="row shell-settings-row" data-doan-id="settings-general-nav-mcp-connectors"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22v-5"/><path d="M15 8V2"/><path d="M17 8a1 1 0 0 1 1 1v4a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1z"/><path d="M9 8V2"/></svg><span>MCP Connectors</span></div><div class="row shell-settings-row" data-doan-id="settings-general-nav-notifications"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></svg><span>Notifications</span></div><div class="row shell-settings-row" data-doan-id="settings-general-nav-about"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg><span>About</span></div></nav></aside>
+<main class="shell-panel settings-panel"><div class="settings-page"><div class="settings-header"><div class="settings-header-copy"><h1 class="settings-title" tabindex="-1">General</h1><p class="settings-lead">Choices that apply across Doan on this Mac.</p></div></div>
+<div class="settings-sections"><section class="settings-section" aria-labelledby="settings-general-mascot-title" data-doan-id="settings-general-mascot"><div class="settings-section-header"><div class="settings-header-copy"><h2 class="settings-section-title" id="settings-general-mascot-title">Mascot</h2><p class="settings-section-description">Shown on Home and while an agent works. It also sets the accent color.</p></div></div>
+<div class="doan-settings-group settings-group-mascot"><div class="mascot-pick"><div role="radiogroup" aria-label="Mascot" aria-describedby="settings-general-line" class="mascot-cards" data-doan-id="settings-general-cards"><label class="doan-panel mascot-card" data-doan-id="settings-general-card-doany"><input type="radio" name="settings-general-mascot" value="doany"/><img src="../assets/mascots/doany/card.png" alt=""/><strong>Doany</strong></label><label class="doan-panel mascot-card" data-doan-id="settings-general-card-saemi"><input type="radio" name="settings-general-mascot" value="saemi"/><img src="../assets/mascots/saemi/card.png" alt=""/><strong>Saemi</strong></label><label class="doan-panel mascot-card" data-doan-id="settings-general-card-dungdung"><input type="radio" name="settings-general-mascot" value="dungdung"/><img src="../assets/mascots/dungdung/card.png" alt=""/><strong>Dungdung</strong></label><label class="doan-panel mascot-card" data-doan-id="settings-general-card-popo"><input type="radio" name="settings-general-mascot" value="popo" checked/><img src="../assets/mascots/popo/card.png" alt=""/><strong>Popo</strong></label><label class="doan-panel mascot-card" data-doan-id="settings-general-card-dori"><input type="radio" name="settings-general-mascot" value="dori"/><img src="../assets/mascots/dori/card.png" alt=""/><strong>Dori</strong></label></div><p class="mascot-line" id="settings-general-line" aria-live="polite" data-doan-id="settings-general-line"><strong>Popo</strong> · A whimsical bookworm. It dreams up new games with you.</p></div></div></section></div></div></main></div></div></section>
+<section><div class="caption"><span>05</span><h2>Settings · General · couldn’t save<span class="doan-chip">Not in code</span></h2><p>A failed save: the shared settings message and Retry; the cards show the last saved mascot (Dori).</p></div><div class="material-stage"><div class="shell-window window m-dori" data-doan-frame="settings-general-failed" data-doan-title="Settings · General · couldn’t save" data-doan-implements="app/src/renderer/SettingsPage.tsx"><div class="traffic" aria-hidden="true"><i></i><i></i><i></i></div>
+<header class="top"><div class="shell-tabs" aria-hidden="true"><span>Add Projects</span><span>Projects</span><span class="current">Settings</span></div></header>
+<aside class="shell-side" aria-label="Settings"><h2>Settings</h2><nav class="shell-settings-nav" aria-label="Settings"><div class="row shell-settings-row" aria-current="page" data-doan-id="settings-general-failed-nav-general"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 5H3"/><path d="M12 19H3"/><path d="M14 3v4"/><path d="M16 17v4"/><path d="M21 12h-9"/><path d="M21 19h-5"/><path d="M21 5h-7"/><path d="M8 10v4"/><path d="M8 12H3"/></svg><span>General</span></div><div class="row shell-settings-row" data-doan-id="settings-general-failed-nav-agents"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg><span>Agents</span></div><div class="row shell-settings-row" data-doan-id="settings-general-failed-nav-mcp-connectors"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22v-5"/><path d="M15 8V2"/><path d="M17 8a1 1 0 0 1 1 1v4a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1z"/><path d="M9 8V2"/></svg><span>MCP Connectors</span></div><div class="row shell-settings-row" data-doan-id="settings-general-failed-nav-notifications"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></svg><span>Notifications</span></div><div class="row shell-settings-row" data-doan-id="settings-general-failed-nav-about"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg><span>About</span></div></nav></aside>
+<main class="shell-panel settings-panel"><div class="settings-page"><div class="settings-header"><div class="settings-header-copy"><h1 class="settings-title" tabindex="-1">General</h1><p class="settings-lead">Choices that apply across Doan on this Mac.</p></div></div>
+<div class="settings-sections"><section class="settings-section" aria-labelledby="settings-general-failed-mascot-title" data-doan-id="settings-general-failed-mascot"><div class="settings-section-header"><div class="settings-header-copy"><h2 class="settings-section-title" id="settings-general-failed-mascot-title">Mascot</h2><p class="settings-section-description">Shown on Home and while an agent works. It also sets the accent color.</p></div></div>
+<div class="doan-settings-group settings-group-mascot"><div class="mascot-pick"><div role="radiogroup" aria-label="Mascot" aria-describedby="settings-general-failed-line" class="mascot-cards" data-doan-id="settings-general-failed-cards"><label class="doan-panel mascot-card" data-doan-id="settings-general-failed-card-doany"><input type="radio" name="settings-general-failed-mascot" value="doany"/><img src="../assets/mascots/doany/card.png" alt=""/><strong>Doany</strong></label><label class="doan-panel mascot-card" data-doan-id="settings-general-failed-card-saemi"><input type="radio" name="settings-general-failed-mascot" value="saemi"/><img src="../assets/mascots/saemi/card.png" alt=""/><strong>Saemi</strong></label><label class="doan-panel mascot-card" data-doan-id="settings-general-failed-card-dungdung"><input type="radio" name="settings-general-failed-mascot" value="dungdung"/><img src="../assets/mascots/dungdung/card.png" alt=""/><strong>Dungdung</strong></label><label class="doan-panel mascot-card" data-doan-id="settings-general-failed-card-popo"><input type="radio" name="settings-general-failed-mascot" value="popo"/><img src="../assets/mascots/popo/card.png" alt=""/><strong>Popo</strong></label><label class="doan-panel mascot-card" data-doan-id="settings-general-failed-card-dori"><input type="radio" name="settings-general-failed-mascot" value="dori" checked/><img src="../assets/mascots/dori/card.png" alt=""/><strong>Dori</strong></label></div><p class="mascot-line" id="settings-general-failed-line" aria-live="polite" data-doan-id="settings-general-failed-line"><strong>Dori</strong> · A quiet, caring friend. On tiring days, you can lean on it and rest.</p></div><div class="doan-preference-row-extra settings-msg-row" data-doan-id="settings-general-failed-error"><p class="settings-msg error" role="alert"><svg class="doan-alert-icon" width="16" height="16" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg><span>Couldn’t save your mascot. Your last saved mascot still applies.</span></p><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Retry</button></div></div></section></div></div></main></div></div></section>
+<section class="wide"><div class="caption"><span>06</span><h2>Working notice · each mascot<span class="doan-chip">Not in code</span></h2><p>The shipped notice card on a canvas, once per mascot: its painter in the 32 px window and its accent glow.</p></div><div class="stages" data-doan-frame="notice" data-doan-title="Working notice · each mascot" data-doan-implements="app/src/renderer/CanvasAgent.tsx"><figure class="stage-tile m-doany"><div class="stage"><div class="doan-agent-glow" aria-hidden="true"></div>
+<div class="doan-agent" data-doan-id="notice-doany"><span class="doan-agent-artist" data-artist="doany" aria-hidden="true"><picture><source srcset="../assets/doany/artist/rest.png" media="(prefers-reduced-motion: reduce)"><img src="../assets/doany/artist/painting.gif" alt=""></picture></span><span class="doan-agent-text">Drawing the empty state for Plans</span><button type="button" class="doan-button doan-agent-action" data-ui-size="sm"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/></svg>Stop</button></div></div><figcaption>Doany · painting (one of three, random)</figcaption></figure><figure class="stage-tile m-saemi"><div class="stage"><div class="doan-agent-glow" aria-hidden="true"></div>
+<div class="doan-agent" data-doan-id="notice-saemi"><span class="doan-agent-artist" data-artist="saemi" aria-hidden="true"><picture><source srcset="../assets/mascots/saemi/artist-rest.png" media="(prefers-reduced-motion: reduce)"><img src="../assets/mascots/saemi/artist.gif" alt=""></picture></span><span class="doan-agent-text">Drawing the empty state for Plans</span><button type="button" class="doan-button doan-agent-action" data-ui-size="sm"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/></svg>Stop</button></div></div><figcaption>Saemi · painter</figcaption></figure><figure class="stage-tile m-dungdung"><div class="stage"><div class="doan-agent-glow" aria-hidden="true"></div>
+<div class="doan-agent" data-doan-id="notice-dungdung"><span class="doan-agent-artist" data-artist="dungdung" aria-hidden="true"><picture><source srcset="../assets/mascots/dungdung/artist-rest.png" media="(prefers-reduced-motion: reduce)"><img src="../assets/mascots/dungdung/artist.gif" alt=""></picture></span><span class="doan-agent-text">Drawing the empty state for Plans</span><button type="button" class="doan-button doan-agent-action" data-ui-size="sm"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/></svg>Stop</button></div></div><figcaption>Dungdung · painter</figcaption></figure><figure class="stage-tile m-popo"><div class="stage"><div class="doan-agent-glow" aria-hidden="true"></div>
+<div class="doan-agent" data-doan-id="notice-popo"><span class="doan-agent-artist" data-artist="popo" aria-hidden="true"><picture><source srcset="../assets/mascots/popo/artist-rest.png" media="(prefers-reduced-motion: reduce)"><img src="../assets/mascots/popo/artist.gif" alt=""></picture></span><span class="doan-agent-text">Drawing the empty state for Plans</span><button type="button" class="doan-button doan-agent-action" data-ui-size="sm"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/></svg>Stop</button></div></div><figcaption>Popo · painter</figcaption></figure><figure class="stage-tile m-dori"><div class="stage"><div class="doan-agent-glow" aria-hidden="true"></div>
+<div class="doan-agent" data-doan-id="notice-dori"><span class="doan-agent-artist" data-artist="dori" aria-hidden="true"><picture><source srcset="../assets/mascots/dori/artist-rest.png" media="(prefers-reduced-motion: reduce)"><img src="../assets/mascots/dori/artist.gif" alt=""></picture></span><span class="doan-agent-text">Drawing the empty state for Plans</span><button type="button" class="doan-button doan-agent-action" data-ui-size="sm"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/></svg>Stop</button></div></div><figcaption>Dori · painter</figcaption></figure></div></section>
+</div>
+</body></html>

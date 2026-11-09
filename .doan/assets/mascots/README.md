@@ -59,3 +59,23 @@ width.
 | dungdung | 226, 302 | 33, 67, 460 | none |
 | popo | 196, 287 | 13, 52, 460 | easel foot 0.7 px |
 | dori | 195, 245 | 19, 10, 460 | easel foot 0.3 px |
+
+## Next: transparent still and layers (per friend)
+
+Done the way Doany V2's layers were (`../doany/v2/README.md`, `../doany/v2/layer-prompts.json`), with the image
+generation tool, from `card.png` as the only reference. Start with `saemi`, check it, then the other three.
+
+1. `still.png`: the same character, pose, size and position as `card.png` on a 1254² transparent canvas, without
+   the contact shadow or the white. Do not regenerate, recolour, reshape or recentre the character.
+2. `body.png`: `still.png` with both eyes removed (filled with the surrounding plush) and the accessory removed,
+   the body hidden under it restored as a natural continuation; same canvas, scale and position.
+3. `accessory.png`: only the accessory (sprout, headphones, glasses, scarf) at its exact coordinates; everything
+   else transparent.
+4. `prompts.json`: the prompts used, as `[["still", "..."], ["body", "..."], ["accessory", "..."]]`.
+5. Rig numbers in this README: eye centres and radii in UV (0–1) of the 1254² canvas, measured on `still.png`;
+   accessory pivot; for the scarf and headphones, a tilt range small enough that the accessory does not slide off
+   the body.
+
+Checks before handing back: all three PNGs are 1254² RGBA; `body.png` + `accessory.png` composited match `still.png`
+outside the eyes within 1 px at the alpha edge; the eyes are fully gone from `body.png`; no shadow or white remains.
+Do not edit canvases, app code or other mascots' files.
