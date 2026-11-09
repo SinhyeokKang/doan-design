@@ -1,6 +1,6 @@
 # 버디 선택 — tasks
 
-1단계는 lead가 develop에서 대화하며 진행한다(에셋과 초안 캔버스, `docs(design)` 커밋). 2·3단계는 코드 변경이다. 단계가 나뉜 기능 문서라 `/ship`의 범위 검사에 걸리므로, 사용자가 bypass를 지정해 한 단계씩 실행한다(예: `/ship bypass buddy-choice 2단계`). 2단계는 1단계 에셋과 별개로 시작할 수 있다. 3단계는 1단계 에셋과 2단계가 끝난 뒤 시작한다.
+1단계는 lead가 develop에서 대화하며 진행한다(에셋과 초안 캔버스, `docs(design)` 커밋). 2·3단계 구현은 1단계 에셋(1.4b~1.6)이 모두 끝난 뒤 `/orchestrate`로 한 번에 진행한다(사용자 결정). 그 전에는 구현을 시작하지 않는다.
 
 AGENTS.md 'Commands'에 없는 확인 명령(`file`, `rg`, 측정 스크립트)은 lead가 대화에서 실행하는 1단계 확인과 4.1의 문서 검사에만 쓴다.
 
@@ -36,7 +36,7 @@ AGENTS.md 'Commands'에 없는 확인 명령(`file`, `rg`, 측정 스크립트)�
 - **확인**: 1.5의 확인 기준과 같다. 그리고 `doan check --json --repo .`에 이 캔버스들의 finding이 없어야 한다.
 - **커밋과 인계**: 최신 develop에서 만든 Orca worktree의 `docs/buddy-assets` 브랜치에서 작업한다. 버디마다 `docs(design): <id> buddy layers`로 커밋하고, 마지막 줄은 `Co-Authored-By: Codex <noreply@openai.com>`이다. 푸시하지 않는다. lead가 검수한 뒤 develop에 합친다.
 
-## 2단계 — accent 동적 변경 (`/ship bypass`)
+## 2단계 — accent 동적 변경 (`/orchestrate`)
 
 - [ ] **2.1 대비 검사 (순수 함수).** `ds/checks.ts`: `rootTokens(css, buddy?)`(기본은 순수 `:root`, 버디를 주면 `:root[data-buddy=…]`를 덮음), 버디별 `contrastPairs`·`rolePairs`(칩 글자 4.5:1, 아이콘 색 눌린 사이드바 행 위 3:1, Send 잉크 9·hover·pressed 위 3:1 nontext), 버디 accent 추적(`violetNames`·`accentPlaces`가 모든 버디 palette와 `--buddy-*`를 따라감). 먼저 테스트로 고정한다. 케이스: legacy `--accent`·`--accent-ink`·`--accent-soft`·`--accent-line`이 `--buddy-*`와 섞이지 않는다, `:root[data-buddy]` 블록이 기본값 해석에 섞이지 않는다, `--violet-*`를 직접 읽는 곳은 `.ob-atmosphere`뿐이다, `@theme inline`이 어떤 버디 palette나 `--buddy-*`에도 닿지 않는다.
   - 확인: `npm --prefix app test`가 통과한다(새 테스트가 먼저 red였다).
@@ -46,7 +46,7 @@ AGENTS.md 'Commands'에 없는 확인 명령(`file`, `rg`, 측정 스크립트)�
 - [ ] **2.3 실제 앱 확인 (`/runtime-test`).** probe가 `page.evaluate`로 `<html>`의 `data-buddy`를 다섯 값으로 바꾸고 계산값을 기록한다. 비교 대상: Home Send rest·hover·pressed의 `background-color`와 아이콘·스피너 `color`, docked composer의 Stop·Queue, `.preset-chip`의 배경과 글자, `.row-slot.unseen i`, composer 글로우의 `box-shadow`. `data-buddy`가 있어도 Welcome이 violet인지 확인한다.
   - 확인: 기록한 값이 `tokens.css`의 버디 palette 값과 같다. 스크린샷을 남긴다.
 
-## 3단계 — 버디 설정 (`/ship bypass` 또는 `/orchestrate`)
+## 3단계 — 버디 설정 (`/orchestrate`)
 
 - [ ] **3.1 레지스트리와 설정 (순수 함수).** 먼저 테스트로 고정한다.
   - `buddies.ts`: `parseBuddyId`(알 수 없는 값, 문자열 아님), 조회(에셋 경로, 리그 수치, 작업 안내 변형, 기본 순서, 첫 실행 순서), `pickArtist(id, previous, random)`.
