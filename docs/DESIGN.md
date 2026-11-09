@@ -378,7 +378,7 @@ Window 1238 × 780 (the draft's), 960 × 600 for `home-narrow`.
 
 ### Documented differences
 
-- **Status chips in menus.** The draft's project and worktree menus use `.ob-chip`, which the canvas does not style, so its chips render as plain gray text. The implementation uses the shipped status chip (Missing `warn`, Not set up neutral).
+- **Status chips in menus.** The draft's project and worktree menus use `.ob-chip`, which the canvas does not style, so its chips render as plain gray text. The implementation uses the shipped status chip (Missing `warn`, Not set up neutral) at its content width: caption 12/16, 20 high, padding 0 / 8, pill radius; in the worktree menu Not set up is 74.9 px and Missing 59.4 px wide, flush with the row's end (measured, `.scratch/runtime-test/notice-type-fixes/probe.ts`). The Project Overview's worktree menu draws the same chip.
 - **Pickers while sending.** The implementation disables every picker and chip × while a start is pending (the draft leaves the project and worktree triggers enabled-looking): a changed target cannot apply to a start already sent.
 - **No projects.** Model lists are read per project root, so with no project the picker shows "Model" and no effort capsule (the draft shows "Opus 5.5 · High").
 - **Strip width.** The workspace's right panel takes 280 px, so the strip is 650 px wide (the draft omits the right panel: 930 px). The strip shows only while the problem or reading overlay covers the workspace, above it and uncovered, without its Open; otherwise the Overview and the canvas page show conversations themselves.
@@ -560,6 +560,7 @@ Reference: `.doan/canvases/doan-project.html` (nine frames: `overview-thread`, `
 - **Streaming caret height.** The drafts draw the caret 24 high with a −6 px bottom margin in every type size; the app draws it one line tall (20 in the canvas panel's 14/20 text), because the drafts' caret makes a 14/20 line 23 high.
 - **Conversation menu width.** 360 px is the menu's component constant; the draft's own rule asks for 360 but the shared `.doan-menu` `max-width` caps its render at 320.
 - **Current worktree check.** The chip's worktree menu marks the current worktree with a check like the shipped sidebar project menu's rows (the draft fills it but draws no check).
+- **Worktree status.** A worktree that is not set up, missing or failing shows Home's status chip in place of the check (see 'Home' 'Status chips in menus'; measured in the same probe).
 - **Moved line alignment.** The draft centres the moved line's icon and text on the Open button's row; the app keeps the shared notice's top alignment (screens set only outer margins on a notice, `ds/controls.test.ts`). The line never wraps, so both render the same 44 px row (measured).
 - **Notice actions.** The app's `.grow-text` (`flex: 1`) puts a notice's actions (moved line Open) at the row's end; the draft's text hugs its content.
 - **Running canvas row.** `overview-thread` draws a canvas row as Working while the project conversation runs. Before the canvas page's conversation panel (doan-canvas-conversation), no canvas conversation runs from the Overview, and a promotion binds its canvas when the turn ends, so the row appears after that turn; the draft's state cannot occur.
@@ -762,6 +763,7 @@ Reference: `.doan/canvases/doan-canvas-conversation.html` (15 frames; `panel-sta
 | Loading and unreadable conversation | "Loading conversation" and "Doan couldn’t read this conversation" sit in the middle of the panel body with the thread's 16 px side insets | |
 | Open button dot | Folded panel's Show conversation: 8 px `--affordance-accent` dot, 4 from the top and end, 2 px `--surface-panel` ring; named "Show conversation, needs your answer" / "Show conversation, new activity" | The sidebar slot's unseen dot. |
 | Locate | Frame chips jump like the drawer; the jump highlight is the canvas area's (3 px accent gradient line, 1 px `--surface-panel` ring, accent glow, 1.2 s); a point shows a 12 px ring of the same line | |
+| Agent notice | "A project conversation is drawing this canvas…" (Open the project conversation) and the promoted notice (Open the current conversation): the shared `doan-notice thread-notice`, last in `.cp-scroll`; body-sm 14/20, padding 12 / 16, grid columns 16 + 1fr with a 6 px column gap and a 12 px row gap, radius 16, `--surface-inset`; the sm Open in the second column under the text. At 1238 × 780 the drawing notice is 314 × 128 (draft tile 315 × 128) | Measured with the component's markup placed in the panel (`.scratch/runtime-test/notice-type-fixes/probe.ts`); the state itself was not reached (Not verified). The draft's icon sits 2 px higher: its bare `<svg>` lacks `doan-alert-icon`, which centres the app's icon on the 20 px first line. |
 | Narrow | The panel can be dragged to 280, the minimum: nothing in the head, title menu or composer passes its edges, and a chip makes the box. At 960 × 600 the default is 320 | The 280 minimum; 320 is the default `max(320px, 28dvw)`. |
 
 ### Documented deviations from the draft
@@ -774,7 +776,7 @@ Reference: `.doan/canvases/doan-canvas-conversation.html` (15 frames; `panel-sta
 
 ### Not verified
 
-- `panel-states` "Project conversation drawing" and "Promoted while open": HomeRun's drawing and promotion state was not injected.
+- `panel-states` "Project conversation drawing" and "Promoted while open": HomeRun's drawing and promotion state was not reached; the notice was measured from its markup placed in the panel (Agent notice), not from a running project conversation or a promotion.
 - "Duplicate canvas ID": not reachable on the canvas page (the controller closes such a canvas).
 - Every signed-in state with a real provider (injected handlers only); element and point chips in the field were drawn from a returned draft, not picked (picking: `.scratch/runtime-test/bcc-BR4b`).
 - Hover of the chip, picker and tools (the draft draws none); dark mode and forced colours.
