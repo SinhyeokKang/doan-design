@@ -87,4 +87,7 @@ generation tool, from `card.png` as the only reference. Start with `saemi`, chec
 
 Checks before handing back: all three PNGs are 1254² RGBA; `body.png` + `accessory.png` composited match `still.png`
 outside the eyes within 1 px at the alpha edge; the eyes are fully gone from `body.png`; no shadow or white remains.
-Do not edit canvases, app code or other buddies' files.
+Do not edit app code, `tokens.css` or other buddies' files. Once a friend's `still.png` exists, switch that buddy's
+slot in `.doan/canvases/buddy-home.html` to it: drop the `card-stand-in` class from its `.doany` button and point
+the `img` at `../assets/buddies/<id>/still.png`; the picker cards in `buddy-choice.html` keep `card.png`. The
+hand-off (branch, commits, checks) is in `docs/features/buddy-choice/tasks.md` 'Codex 워커 인계'.
