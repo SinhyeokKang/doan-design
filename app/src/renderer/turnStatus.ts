@@ -109,10 +109,13 @@ export const SETTLE_MS = 300;
 export interface Settled { shown: TurnStatus; pending: TurnStatus | null; since: number }
 const hidden = (status: TurnStatus) => status.kind === "none" || status.kind === "waiting";
 export const statusKey = (status: TurnStatus) => status.kind === "tool" ? `tool:${status.activity}:${status.text}` : status.kind;
-// Nothing changed gives `previous` itself, so the thread can keep the result as state derived while it renders.
+// Nothing changed gives `previous` itself, so the thread can keep the result as state derived while it renders. The
+// same words from a later step of the event rule take that step at once (the thread's row marks the step that runs);
+// a stage's tool stays as shown, so an ACP activity alone never stops a row a stage made run.
+const laterStep = (shown: TurnStatus, next: TurnStatus) => shown.kind === "tool" && next.kind === "tool" && shown.step !== undefined && next.step !== undefined && shown.step !== next.step;
 export function settle(previous: Settled | null, next: TurnStatus, now: number): Settled {
   const same = previous !== null && statusKey(next) === statusKey(previous.shown);
-  if (same && !previous.pending) return previous;
+  if (same && !previous.pending) return laterStep(previous.shown, next) ? { shown: next, pending: null, since: now } : previous;
   if (!previous || same || hidden(previous.shown) || hidden(next) || next.kind === "reply") return { shown: next, pending: null, since: now };
   if (previous.pending && statusKey(previous.pending) === statusKey(next)) {
     return now - previous.since >= SETTLE_MS ? { shown: next, pending: null, since: now } : previous;

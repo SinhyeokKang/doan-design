@@ -249,6 +249,21 @@ describe("settle", () => {
     expect(run([[reading, 0], [{ ...reading, text: "Reading b.ts" }, 10]]).shown).toEqual(reading);
   });
 
+  // Parallel Claude commands: a second command's activity names the same words, so nothing waits, but the row's running
+  // step is the new one. A stage's tool of the same words stays as shown (an ACP event alone must not stop its row).
+  test("the same tool words from a later step take that step at once; a stage's shown tool keeps its own", () => {
+    const first: TurnStatus = { kind: "tool", activity: "command", text: "Running a command", step: "s5" };
+    const second: TurnStatus = { ...first, step: "s7" };
+    expect(run([[first, 0], [second, 10]])).toEqual({ shown: second, pending: null, since: 10 });
+    const stage: TurnStatus = { kind: "tool", activity: "command", text: "Running a command" };
+    const held = settle(null, stage, 0);
+    expect(settle(held, first, 10)).toBe(held);
+    seq = 0;
+    const items = threadItems([...turn("t1"), ev("t1", { type: "activity", kind: "command", summary: "Running a command" }), ev("t1", { type: "activity", kind: "command", summary: "Running a command" })], ROOT, true);
+    const shown = run([[{ ...first, step: "s3" }, 0], [{ ...first, step: "s4" }, 10]]).shown;
+    expect(activityRun(items, shown, false).at(-1)).toMatchObject({ running: true, steps: [{ verb: "Ran a command" }, { verb: "Running a command" }] });
+  });
+
   test("replying, waiting and none show at once, and so does the first stage after nothing showed", () => {
     expect(run([[general, 0], [{ kind: "reply" }, 1]]).shown).toEqual({ kind: "reply" });
     expect(run([[general, 0], [{ kind: "waiting" }, 1]]).shown).toEqual({ kind: "waiting" });
