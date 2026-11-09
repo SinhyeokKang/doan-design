@@ -4,9 +4,8 @@ import { ArrowUpRight, Check, ChevronDown, FolderOpen, GitBranch, Plus, Settings
 import type { Provider } from "../main/agentAuth/types";
 import { readPermissionMode } from "../main/conversation/permissionMode";
 import { sendNowShown } from "../main/conversation/steerSupport";
-import type { ConversationSummary } from "../main/conversation/summary";
 import type { AttachmentResult } from "../main/attachments";
-import type { Canvas, ConversationEvent } from "../main/conversation/types";
+import type { Canvas } from "../main/conversation/types";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { HomeMemory } from "../restore/uiState";
 import { requestTitleText, stripRequestLines } from "../main/conversation/requestLines";
@@ -22,11 +21,10 @@ import { ConversationDeleteItem, type DeleteTarget } from "./ConversationDeleteD
 import { ConversationHead } from "./ConversationLine";
 import { ConversationThread, LOADING_DELAY_MS, type ConversationThreadHandle, type LocateOutcome } from "./ConversationThread";
 import type { ReplyAnchor } from "../main/conversation/replyAnchor";
-import { asksPerson, stripState } from "./conversationStrip";
 import { copyText } from "./copyText";
 import { contextRing } from "./contextWindow";
 import { DockedComposer, type DockedOutcome, type DockedRequest } from "./DockedComposer";
-import { draftKey, EMPTY_DRAFT, type DockedBusy, type DockedMode } from "./dockedRules";
+import { composerTurn, draftKey, EMPTY_DRAFT, type DockedBusy, type DockedMode } from "./dockedRules";
 import { generationOf, modelsKey, type DockedSupport } from "./dockedSupport";
 import { cardRow, ROW_ACTION_ICONS, ROW_ACTION_LABELS, type RowAction } from "./homeCards";
 import {
@@ -110,14 +108,6 @@ export function sameCanvas(a: Canvas, b: Canvas): boolean {
   return a.id !== undefined || b.id !== undefined ? a.id !== undefined && a.id === b.id : a.path === b.path;
 }
 const focusField = () => queueMicrotask(() => focusFieldEnd(document.querySelector<HTMLElement>(".ov-main .composer-input")));
-// Main's turn as the composer reads it: the merged events first (the list lags them), then the list's work flag.
-function turnOf(events: readonly ConversationEvent[] | null, summary: ConversationSummary | undefined, live: boolean): "idle" | "running" | "waiting" {
-  const kind = events && events.length ? stripState(events).kind : null;
-  if (kind !== null && asksPerson(kind)) return "waiting";
-  if ((kind === "starting" || kind === "working") && live) return "running";
-  if (summary?.phase === "waiting") return "waiting";
-  return summary?.working ? "running" : "idle";
-}
 
 export function ProjectOverview(props: ProjectOverviewProps) {
   const { run, support, root, project, list } = props;
@@ -175,7 +165,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
   const ready = chosen !== null && (auth?.providers ?? []).some(status => status.provider === chosen && status.account !== null && selectableProvider(status));
   // A new connection of the provider has a list of its own to read.
   const generation = chosen ? generationOf(auth, chosen) : 0;
-  const projectSkills = useProjectSkills(root, chosen, conversationId ? turnOf(thread?.events ?? null, summary, live) : "idle", generation);
+  const projectSkills = useProjectSkills(root, chosen, conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle", generation);
   useEffect(() => { if (healthy && chosen && ready) support.readModels(root, chosen); }, [root, healthy, chosen, ready, generation]);
 
   const presets = support.presets?.ok ? support.presets.result.presets : [];
@@ -433,7 +423,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         onPresetsOpen={() => { if (support.presets && !support.presets.ok) support.readPresets(); }} onPresetsRetry={() => support.readPresets()}
         thumbnails={support.thumbnails} onAttach={chooseFiles} onFiles={addFiles}
         onAttachmentRemoved={attachment => { if (attachment.id) void window.doan.removeAttachment(attachment.id).catch(console.error); }}
-        turn={conversationId ? turnOf(thread?.events ?? null, summary, live) : "idle"} busy={busy} canvasGone={false} unavailable={props.unavailable} context={thread ? contextRing(thread.events) : null}
+        turn={conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle"} busy={busy} canvasGone={false} unavailable={props.unavailable} context={thread ? contextRing(thread.events) : null}
         queued={conversationId ? run.queue(conversationId) : []}
         sendNow={!!conversationId && !!provider && sendNowShown({ provider, phase: steerPhaseOf(thread?.events ?? null, summary, live), sending: false })}
         onSendQueuedNow={itemId => conversationId ? run.store.sendQueuedNow(conversationId, itemId) : Promise.resolve({ error: "not_running" })}

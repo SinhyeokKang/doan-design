@@ -19,7 +19,7 @@ import { formatSize, providerLogo } from "./homeComposer";
 import { replyUrlTransform } from "./replyUrlTransform";
 import { canSend, EMPTY_QUESTION_DRAFT, questionInput, sendBlockedText, type QuestionDraft, type QuestionDraftAction } from "./questionDraft";
 import { pendingAsks, questionLines, scrollFollow, threadScroll, waitsForPerson, type ActivityStep, type ThreadItem, type TurnEnd } from "./threadItems";
-import { elapsedText, settle, SETTLE_MS, turnAnnouncement, turnText, type Settled, type ThreadTurn, type TurnStatus } from "./turnStatus";
+import { activityRun, elapsedText, settle, SETTLE_MS, turnAnnouncement, turnText, type Settled, type ThreadTurn, type TurnStatus } from "./turnStatus";
 
 // The conversation thread (draft frames thread-*). The host reads the history, merges
 // live events and passes threadItems' result; links, copying and every action go back through callbacks, so the
@@ -662,6 +662,9 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
 
   const p = PROVIDER_NAMES[provider];
   const last = lastEnd(items);
+  // The last activity row reads the indicator's settled status, so the two say the same in every render. Only Claude
+  // Code and Codex write an activity as its tool starts; the ACP agents write it once the tool completed.
+  const drawn = activityRun(items, settled.shown, provider !== "claude" && provider !== "codex");
   const toggle = (key: string) => setExpanded(current => { const next = new Set(current); if (next.has(key)) next.delete(key); else next.add(key); return next; });
   const item = (entry: ThreadItem): ReactNode => {
     switch (entry.kind) {
@@ -723,7 +726,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
 
   return <Actions.Provider value={context}><ReplyCanvasContext.Provider value={replyCanvas}><div className="conversation-thread">
     <div className="thread-scroll" ref={scroller} onScroll={onScroll}>
-      <div className="thread">{items.map(entry => <div key={entry.key} className="thread-item" data-item={entry.key}>{item(entry)}</div>)}
+      <div className="thread">{drawn.map(entry => <div key={entry.key} className="thread-item" data-item={entry.key}>{item(entry)}</div>)}
         {props.turn && settled.shown.kind !== "none" && settled.shown.kind !== "waiting" &&
           <div className="thread-item"><TurnIndicator text={turnText(settled.shown, p)} at={props.turn.at} provider={provider} /></div>}</div>
     </div>

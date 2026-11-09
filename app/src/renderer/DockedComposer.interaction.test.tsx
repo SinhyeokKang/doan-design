@@ -160,6 +160,52 @@ test("while the turn runs, Enter on an empty field does nothing, Stop stops, and
   expect(store.current.get("conversation:a")).toEqual(EMPTY_DRAFT);
 });
 
+// The turn ended and main still works on the conversation (holding): nothing runs to stop, so an empty field is a
+// disabled Send; text queues by Enter and by Control+Enter (no Send now while holding); queue rows bring Stop back.
+test("while holding, an empty field is a disabled Send, text queues by Enter and Control+Enter, and queue rows show Stop", async () => {
+  const { send, queue, props, render, store } = setup({ turn: "holding" });
+  expect(() => button(render(), "Stop")).toThrow("not found");
+  expect(button(render(), "Send").disabled).toBe(true);
+  (field(render()).onKeyDown as (event: unknown) => void)(enter());
+  await flush();
+  expect(send).not.toHaveBeenCalled(); expect(queue).not.toHaveBeenCalled(); expect(props.onStop).not.toHaveBeenCalled();
+  store.current = new Map([["conversation:a", draft("Also shorten the caption")]]); props.drafts = store.current;
+  expect(button(render(), "Queue").disabled).toBe(false);
+  (field(render()).onKeyDown as (event: unknown) => void)(enter());
+  await flush();
+  expect(queue).toHaveBeenCalledWith({ text: "Also shorten the caption", anchors: [], attachments: [] });
+  store.current = new Map([["conversation:a", draft("And the footer")]]); props.drafts = store.current;
+  (field(render()).onKeyDown as (event: unknown) => void)({ ...enter(), ctrlKey: true });
+  await flush();
+  expect(queue).toHaveBeenLastCalledWith({ text: "And the footer", anchors: [], attachments: [] });
+  expect(send).not.toHaveBeenCalled();
+  props.queued = [{ id: "q1", text: "Also shorten the caption" }];
+  (button(render(), "Stop").onClick as () => void)();
+  expect(props.onStop).toHaveBeenCalledTimes(1);
+});
+
+// POSTMORTEM 2026-10-24: a control that changes under focus decides where focus goes.
+test("focus on Stop moves to the field when Stop becomes a disabled Send; focus elsewhere stays", () => {
+  for (const focused of ["stop", "elsewhere"] as const) {
+    hooks.states = []; hooks.refs = [];
+    const { props, render } = setup({ turn: "running" });
+    render();
+    const slot = { tagName: "BUTTON" }, other = { tagName: "BUTTON" }, focus = vi.fn();
+    hooks.refs[2]!.current = { focus, element: () => null, composing: () => false };
+    hooks.refs[5]!.current = { querySelector: (selector: string) => selector === ".composer-send" ? slot : null };
+    vi.stubGlobal("document", { activeElement: focused === "stop" ? slot : other });
+    props.turn = "holding";
+    render();
+    for (const effect of hooks.effects) effect();
+    expect(focus).toHaveBeenCalledTimes(focused === "stop" ? 1 : 0);
+    // A later render with the same slot moves nothing again.
+    focus.mockClear();
+    render();
+    for (const effect of hooks.effects) effect();
+    expect(focus).not.toHaveBeenCalled();
+  }
+});
+
 // a queued message's files are drawn in the thread once Send now moves it there.
 test("a queued message carries its files' names, sizes and kinds for the thread, apart from the ids main takes", async () => {
   const { queue, render, store, props } = setup({ turn: "running" });

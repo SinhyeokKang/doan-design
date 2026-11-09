@@ -139,10 +139,31 @@ describe("the turn indicator in the thread", () => {
     expect(out.indexOf("Also keep the margin")).toBeLessThan(out.indexOf("ti-reply"));
   });
 
-  test("shows with a spinning activity row, both progress marks at once", () => {
-    const out = html([user, running], at({ kind: "general" }));
-    expect(out).toContain('<span class="doan-spinner" aria-hidden="true"></span><span>Running a command</span>');
-    expect(out).toContain('<span class="ti-text ti-shimmer">Claude Code is working</span>');
+  // The thread's last activity row follows the indicator: it spins with the same words only while those name a tool.
+  test("a tool's row spins with the indicator's words; once the indicator says working, the row is its step count", () => {
+    const tool = html([user, running], at({ kind: "tool", activity: "command", text: "Running a command", step: "s3" }));
+    expect(tool).toContain('<span class="doan-spinner" aria-hidden="true"></span><span>Running a command</span>');
+    expect(tool).toContain('<span class="ti-text ti-shimmer">Running a command</span>');
+    const general = html([user, running], at({ kind: "general" }));
+    expect(general).not.toContain('<span class="doan-spinner" aria-hidden="true"></span><span>');
+    expect(general).toContain("<span>1 step</span>");
+    expect(general).toContain('<span class="ti-text ti-shimmer">Claude Code is working</span>');
+  });
+
+  test("an ACP activity, written once its tool completed, spins only under a stage that names a running tool", () => {
+    const read: ThreadItem = { kind: "activity", key: "a3", running: false, head: "1 step", steps: [{ key: "s3", kind: "read", verb: "Read", path: "a.ts" }] };
+    const acp = { provider: "copilot" } as const;
+    const event = html([user, read], at({ kind: "tool", activity: "read", text: "Reading a.ts", step: "s3" }), acp);
+    expect(event).toContain("<span>1 step</span>");
+    expect(event).not.toContain('<span class="doan-spinner" aria-hidden="true"></span><span>');
+    const stage = html([user, read], at({ kind: "tool", activity: "command", text: "Running a command" }), acp);
+    expect(stage).toContain('<span class="doan-spinner" aria-hidden="true"></span><span>Running a command</span>');
+  });
+
+  test("a message Send now has in flight under the row leaves the row's rule as it was", () => {
+    const sending: ThreadItem = { ...user, key: "qq1", seq: null, sending: true, parts: [{ text: "Also keep the margin" }] };
+    const out = html([user, running, sending], at({ kind: "tool", activity: "read", text: "Reading b.ts" }));
+    expect(out).toContain('<span class="doan-spinner" aria-hidden="true"></span><span>Reading b.ts</span>');
   });
 
   test("keeps one line of the same parts for every stage, so a stage change never changes the thread's height", () => {
@@ -178,13 +199,18 @@ describe("settle and the screen reader's status", () => {
     let p = props([user], at({ kind: "general" }));
     const run = () => render(body(p));
     expect(indicator(run())?.props.text).toBe("Claude Code is working");
-    p = props([user, running], at({ kind: "tool", activity: "command", text: "Running a command" }));
-    expect(indicator(run())?.props.text).toBe("Claude Code is working");
+    p = props([user, running], at({ kind: "tool", activity: "command", text: "Running a command", step: "s3" }));
+    // The row waits with the indicator, so the two never disagree.
+    const head = (tree: ReactNode) => renderToStaticMarkup(<>{tree}</>).match(/class="activity-head"[^>]*>(.*?)<svg/)?.[1];
+    const shown = run();
+    expect(indicator(shown)?.props.text).toBe("Claude Code is working");
+    expect(head(shown)).toBe("<span>1 step</span>");
     vi.advanceTimersByTime(299);
     expect(indicator(run())?.props.text).toBe("Claude Code is working");
     vi.advanceTimersByTime(1);
     const tree = run();
     expect(indicator(tree)?.props.text).toBe("Running a command");
+    expect(head(tree)).toBe('<span class="doan-spinner" aria-hidden="true"></span><span>Running a command</span>');
     expect(status(tree)).toBe("Claude Code is running a command");
     p = props([user, { kind: "agent", key: "m1", messageId: "m1", text: "I made", streaming: true }], at({ kind: "reply" }));
     expect(indicator(run())?.props.text).toBe("Claude Code is replying");

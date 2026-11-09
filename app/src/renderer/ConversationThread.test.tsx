@@ -117,10 +117,13 @@ describe("thread items", () => {
     }
   });
 
-  test("an activity line is a disclosure button; a running one has a spinner", () => {
-    const out = html([{ kind: "activity", key: "a3", running: true, head: "Editing a.html", steps: [{ key: "s3", kind: "edit", verb: "Edited", path: "a.html" }] }]);
+  test("an activity line is a disclosure button; it has a spinner while the turn indicator names its tool", () => {
+    const row: ThreadItem = { kind: "activity", key: "a3", running: false, head: "1 step", steps: [{ key: "s3", kind: "edit", verb: "Edited", path: "a.html" }] };
+    const out = html([row], { turn: { turnId: "t1", status: { kind: "tool", activity: "edit", text: "Editing a.html", step: "s3" }, at: "2026-11-06T10:00:00.000Z" } });
     expect(out).toMatch(/<button type="button" class="activity-head" aria-expanded="false"><span class="doan-spinner" aria-hidden="true"><\/span><span>Editing a.html<\/span>/);
     expect(out).not.toContain("activity-steps");
+    // Without a turn indicator the row is its step count, even one drawn running.
+    expect(html([{ ...row, running: true, head: "Editing a.html" }])).toMatch(/<button type="button" class="activity-head" aria-expanded="false"><span>1 step<\/span>/);
   });
 
   test("a permission request that arrived live is an alert; one drawn from history is not; no choice is the default", () => {

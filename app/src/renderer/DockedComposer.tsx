@@ -15,7 +15,7 @@ import {
   AgentPicker, AttachButton, ComposerCard, ComposerChips, ComposerField, ComposerTools, EffortPicker, PermissionPicker, PresetsButton,
   SendButton, SlashPresets, TriggerLabel, useComposerDrop, usePresetListOutside, type CanvasPress, type ComposerFieldHandle,
 } from "./ComposerParts";
-import { composerAction, composerShape, focusAfter, steerAllPlan, type FocusAction } from "./composerRules";
+import { composerAction, composerShape, focusAfter, steerAllPlan, type ComposerAction, type ComposerTurn, type FocusAction } from "./composerRules";
 import {
   canvasGoneText, composerPlaceholder, dockedAvailability, dockedMessage, dockedPicker, dockedRefusal, draftKey, EMPTY_DRAFT,
   type DockedBusy, type DockedDraft, type DockedMode, type DockedRefusal,
@@ -87,7 +87,7 @@ export interface DockedComposerProps {
   // handed back so the host can tell main.
   onAttach(): void; onFiles(files: File[], pasted: boolean): void; onAttachmentRemoved(attachment: AttachmentDraft): void;
   // This conversation's turn. `busy`: another conversation holds the root or this canvas (from the host's list).
-  turn: "idle" | "running" | "waiting";
+  turn: ComposerTurn;
   busy: DockedBusy | null;
   // An archived conversation whose canvas left the project cannot continue.
   canvasGone: boolean;
@@ -398,6 +398,17 @@ export function DockedComposer(props: DockedComposerProps) {
     const node = field.current?.element();
     if (node && node.ownerDocument.activeElement === node) setAnnouncement(`Suggestion: ${placeholder.suggestion}`);
   }, [key, props.suggestion]);
+
+  // A turn that ends while main still works on the conversation turns Stop into a disabled Send under the person's focus,
+  // and a disabled button holds no focus: focus that was on Stop goes to the field (POSTMORTEM 2026-10-24). It is read as
+  // this render begins, before the commit disables the button; focus the person moved elsewhere stays.
+  const slotAction = useRef<ComposerAction>(action);
+  const slotNode = slotAction.current === "stop" && action === "send" && !availability.enabled ? root.current?.querySelector(".composer-send") ?? null : null;
+  const stopLeft = slotNode !== null && typeof document !== "undefined" && document.activeElement === slotNode;
+  useLayoutEffect(() => {
+    slotAction.current = action;
+    if (stopLeft) field.current?.focus();
+  });
 
   if (props.canvasGone || refusal?.kind === "gone") return <div className="canvas-gone" role="status"><AlertIcon /><span>{canvasGoneText(props.project)}</span></div>;
   const reason = availability.reason;

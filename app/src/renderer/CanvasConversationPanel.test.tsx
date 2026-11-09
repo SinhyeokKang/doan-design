@@ -348,3 +348,26 @@ test("the thread shows the live turn's indicator from the store's stage, and non
 test("queued text strips fixed request paragraphs wherever they occur", () => {
   expect(queuedText({ text: "Use the project skill `deploy`.\n\n/deploy {{1}}\n\nUse the Doan design preset `polish` (Polish).", anchors: [{ frame: { id: "cart", title: "Cart" } }], attachments: [] })).toBe("/deploy Cart");
 });
+
+// A turn that asked for a handoff ended, and main holds the conversation until the handoff is resolved: the composer
+// holds as the Overview's does, beside the source thread's "Hands off to <file> when this turn ends" line.
+test("in a handoff's judging window the composer offers a disabled Send, not Stop, and Stop only while queue rows wait", async () => {
+  const doan = (window as unknown as { doan: Record<string, ReturnType<typeof vi.fn>> }).doan;
+  const at = (seq: number, payload: Record<string, unknown>) => ({ v: 1, conversationId: "now", seq, turnId: "t1", at: "2026-11-01T00:00:00Z", ...payload }) as ConversationEvent;
+  const events = [at(1, { type: "user.message", text: "hi", anchors: [] }), at(2, { type: "turn.started" }),
+    at(3, { type: "handoff.requested", canvas: { path: ".doan/canvases/billing.html" }, text: "Carry on in billing" }), at(4, { type: "turn.done" })];
+  doan.readConversation!.mockResolvedValue({ events, lastSeq: 4, turn: "idle" });
+  const list = [summary("now", { working: true })];
+  const auth = { revision: 1, providers: [connected("claude")] };
+  const slot = (out: string) => /<button type="button" class="composer-send[^"]*"[^>]*aria-label="(Send|Stop|Queue)"[^>]*>/.exec(out)?.[0] ?? "";
+  const shown = (setup: (run: CanvasRun) => void = () => {}) => panel(list, run => { run.store.track("now"); setup(run); }, {
+    support: Object.assign(new DockedSupport(() => {}), { auth }) });
+  const out = await shown();
+  expect(out).toContain("Hands off to billing.html when this turn ends");
+  expect(out).not.toContain("ti-reply");
+  expect(slot(out)).toContain('aria-label="Send"');
+  expect(slot(out)).toContain("disabled");
+  const queued = await shown(run => run.store.queued(ROOT, "now", { id: "q1", text: "And the footer" }));
+  expect(slot(queued)).toContain('aria-label="Stop"');
+  expect(slot(queued)).not.toContain("disabled");
+});
