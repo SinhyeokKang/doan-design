@@ -91,7 +91,7 @@ app/src/renderer/public/mascots/<id>/   앱 사본
 - `Scene`에 `"mascot"`을 추가한다. Welcome의 Get started는 Mascot으로 간다. Mascot의 Continue는 Agent로 간다. 스텝퍼는 3단계다(Mascot · Agent · Project). 완료한 단계는 체크 표시가 붙고 다시 돌아갈 수 있다.
 - 고르면 즉시 저장하고 accent도 즉시 바뀐다. Continue는 항상 누를 수 있다(Doany가 기본값이다).
 - 첫 실행을 다시 시작하면 Welcome부터 시작한다. Welcome은 마스코트를 고르기 전 화면이라 저장된 마스코트와 상관없이 Doany와 violet을 보여준다.
-- 선택지 UI는 Cover Flow 형태의 가로 한 줄이다. 카드 5장마다 그림, 이름, 성격 한 줄이 함께 있다. 고른 카드가 가운데에서 정면을 보고, 나머지는 양옆에서 가운데를 향해 기울어진 채 뒤로 겹친다. Mascot 단계와 설정 General에서 같은 컴포넌트를 쓴다. 키보드로는 라디오 그룹처럼 동작한다. 치수는 캔버스 머리말에 있다.
+- 선택지 UI는 Cover Flow 형태의 가로 한 줄이다. 카드 5장마다 그림, 이름, 성격 한 줄이 함께 있다. 고른 카드가 가운데에서 정면을 보고, 나머지는 양옆에서 가운데를 향해 기울어진 채 뒤로 겹친다. Mascot 단계와 설정 General이 같은 카드 컴포넌트를 쓰고, 설정에서는 움직임 없는 5열 그리드로 놓는다. 키보드로는 라디오 그룹처럼 동작한다. 치수는 캔버스 머리말에 있다.
 - 포커스와 모달: 이 단계도 기존 wizard `<dialog>` 안에 있다. POSTMORTEM 2026-10-24('The onboarding wizard lost keys and clicks to focus and modal stacking')를 따른다. 키는 window에서 처리하고, 컨트롤이 비활성화될 때 포커스가 `<body>`로 빠진다고 가정한다. 이 단계에는 비동기 작업이 저장 하나뿐이다. 저장 중에도 선택지를 비활성화하지 않고 마지막 선택을 저장한다.
 
 ## 설정 General 카테고리
@@ -171,7 +171,7 @@ app/src/renderer/public/mascots/<id>/   앱 사본
 | `settings-general-failed` | General, 저장 실패 메시지와 Retry |
 | `notice` | 캔버스 작업 안내, 다섯 마스코트의 화가 GIF와 각 accent 글로우 |
 
-- 선택 카드: Cover Flow 한 줄이다(반사 없음). 카드(236px, 좌우 패딩 20px)마다 `card.png`(196px), 이름(semibold), 성격 한 줄이 있고 라디오 역할을 한다. 고른 카드는 가운데에서 정면을 보고, accent 아이콘 색 테두리 2px와 Home composer 글로우를 가진다(새 Accent place). 나머지는 50° 기울어 84% 크기로 양옆에 겹친다. 고르면 `--time-settle`·`--ease-enter`로 가운데로 이동하고, reduced motion에서는 바로 바뀐다. 설정의 48rem 열에서는 양끝을 잘라 흐리게 한다.
+- 선택 카드: Cover Flow 한 줄이다(반사 없음). 카드(236px, 좌우 패딩 20px)마다 `card.png`(196px), 이름(semibold), 성격 한 줄이 있고 라디오 역할을 한다. 고른 카드는 가운데에서 정면을 보고, accent 아이콘 색 테두리 2px와 Home composer 글로우를 가진다(새 Accent place). 나머지는 50° 기울어 84% 크기로 양옆에 겹친다. 고르면 `--time-settle`·`--ease-enter`로 가운데로 이동하고, reduced motion에서는 바로 바뀐다. 설정 General은 같은 카드를 정적으로 쓴다. 48rem 열에 다섯 장을 정면으로 나란히 놓고, 골라도 카드가 움직이지 않는다.
 - 문구(Doan clarify preset 적용): 제목 "Choose your mascot", 설명 "It keeps you company in Doan and sets the app’s accent color. You can change it anytime in Settings." 설정 General의 설명 "Choices that apply across Doan on this Mac.", Mascot 그룹 설명 "Shown on Home and while an agent works. It also sets the accent color.", 저장 실패 "Couldn’t save your mascot. Your last saved mascot still applies."
 - 성격 한 줄(영어): Doany "A painter in a beret who turns your ideas into pictures."(시안에 없어서 새로 썼다. 확인 필요), Saemi "A curious walking buddy. When it finds something fun, it always takes you to see it.", Dungdung "A music-loving mood maker. It picks songs that fit how its friends feel.", Popo "A whimsical bookworm. It dreams up new games with you.", Dori "A quiet, caring friend. On tiring days, you can lean on it and rest."
 - Home 슬롯은 Doany와 같은 자리에 그림만 바뀌므로 따로 그리지 않는다.
