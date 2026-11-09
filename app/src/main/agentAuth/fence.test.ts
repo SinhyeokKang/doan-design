@@ -242,7 +242,7 @@ describe("claudeFenceSettings", () => {
       permissions: { deny: [...claudeDenyRules([...denied, ...settingsFiles]), ...settingsDirs] },
       sandbox: { enabled: true, allowUnsandboxedCommands: false, filesystem: {
         denyRead: [U], allowRead: [P, `${U}/runtime.json`, att, `${U}/agent-auth/browser-hook`],
-        denyWrite: [`${U}/conversations`, `${U}/agent-auth/profiles/codex`, `${U}/runtime.json`, att, `${U}/agent-auth/browser-hook`, `${P}/settings.json`, `${P}/.claude.json`, `${P}/skills`, `${P}/agents`, `${P}/plugins`], allowWrite: [P] } },
+        denyWrite: [`${U}/conversations`, `${U}/agent-auth/profiles/codex`, `${U}/runtime.json`, att, `${U}/agent-auth/browser-hook`, `${P}/settings.json`, `${P}/.claude.json`, `${P}/skills`, `${P}/agents`, `${P}/plugins`, `${P}/commands`], allowWrite: [P] } },
     });
   });
   // Hooks, MCP servers and a sandbox switch in these files run outside any sandbox on a later turn with the sandbox on.

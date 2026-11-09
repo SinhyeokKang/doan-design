@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { StringDecoder } from "node:string_decoder";
 import { query, type EffortLevel, type PermissionResult, type PermissionUpdate, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import { openAcp } from "./acpRunner";
@@ -109,9 +109,9 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
   // fixed to one mechanism for its life: the service starts another for a send that needs the other (codexRestart).
   const mechanism = input.fence ? codexMechanism(input.permissionMode ?? "default") : undefined;
   // A profile server without its listing would deny nothing, so it does not start.
-  if (input.fence && mechanism === "codex-profile" && (!input.fence.denied || !input.fence.socketDir)) throw new Error("unknown");
+  if (input.fence && mechanism === "codex-profile" && (!input.fence.denied || !input.fence.socket)) throw new Error("unknown");
   const launch = input.fence && mechanism === "fence" ? fencedCommand(input.command, [...input.args ?? [], "app-server"], fenceArgs("codex", input.fence.paths), input.fence.exec)
-    : { command: input.command, args: [...input.args ?? [], ...input.fence ? codexProfileArgs(input.fence.paths, input.fence.denied ?? [], input.fence.socketDir ?? "") : [], "app-server"] };
+    : { command: input.command, args: [...input.args ?? [], ...input.fence ? codexProfileArgs(input.fence.paths, input.fence.denied ?? [], dirname(input.fence.socket ?? "")) : [], "app-server"] };
   const child = spawn(launch.command, launch.args, { cwd: input.cwd, env: input.env, detached: true, stdio: ["pipe", "pipe", "pipe"] });
   let startingTurn = false; const queued: unknown[] = [];
   // starting: the current send until its turn/start answered (reload, server wait, the start itself). A Stop then marks
@@ -336,7 +336,7 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
     ...(input.model ? { model: input.model } : {}), ...(input.effort ? { effort: input.effort as EffortLevel } : {}),
     // Every run with Fast asks for it, as each turn opens a new process; a run without it passes nothing. A turn with
     // Claude's own sandbox on carries Doan's fence as settings, since that sandbox cannot start inside sandbox-exec.
-    ...claudeRunSettings(input.fast, input.fence?.claudeSandbox ? claudeFenceSettings(input.fence.paths, input.fence.denied ?? [], input.fence.socketDir) : undefined),
+    ...claudeRunSettings(input.fast, input.fence?.claudeSandbox ? claudeFenceSettings(input.fence.paths, input.fence.denied ?? [], input.fence.socket) : undefined),
     // Default passes nothing, so the Doan profile's and the project's settings decide, as before this option existed.
     // A terminal session's run (no doan owner) keeps the person's own profile settings, as Codex does.
     ...(input.owner ? claudePermission(input.permissionMode ?? "default") : {}),

@@ -140,8 +140,8 @@ export function connectorFacts(current: () => McpConnectorFacts | undefined): Mc
 }
 // Where a Doan-connection run's fence comes from: the app's userData, and for tests the Claude Code managed-settings
 // directory and another sandbox-exec. Without it no run is fenced, which only tests that predate the fence rely on.
-// socketDir: the app socket's directory, which a Codex permission profile allows (agentAuth/fence.ts codexProfileArgs).
-export interface FenceSetup { userData: string; socketDir: () => string | undefined; managedDir?: string; exec?: string }
+// socket: the app socket's path, which a Codex permission profile (by its directory) and a sandbox-on Claude turn allow.
+export interface FenceSetup { userData: string; socket: () => string | undefined; managedDir?: string; exec?: string }
 const CLAUDE_MANAGED_DIR = "/Library/Application Support/ClaudeCode";
 const SETTINGS_MAX = 1024 * 1024;
 // A settings file as Claude Code reads it, through a link too (dotfile setups link them); a missing, oversized or
@@ -165,14 +165,15 @@ function listDenied(provider: "claude" | "codex", paths: FencePaths): FenceEntry
   const denied = fenceDenied(provider, paths, listing); if (!denied) throw new Error("unknown");
   return denied;
 }
-// The app socket's resolved directory; none while the app has no runtime (`doan` then reaches no app anyway). A Codex
-// profile server needs it, and the runner refuses one without it; a sandbox-on Claude turn allows it when there is one;
-// an outer-fenced run does not use it.
-function socketDir(setup: FenceSetup): { socketDir?: string } {
-  const dir = setup.socketDir(); if (dir === undefined) return {};
-  let real: string; try { real = realpathSync.native(dir); } catch { throw new Error("unknown"); }
+// The app socket's path with its directory resolved; none while the app has no runtime (`doan` then reaches no app
+// anyway). A Codex profile server needs it, and the runner refuses one without it; a sandbox-on Claude turn allows it
+// when there is one; an outer-fenced run does not use it.
+function appSocket(setup: FenceSetup): { socket?: string } {
+  const socket = setup.socket(); if (socket === undefined) return {};
+  let dir: string; try { dir = realpathSync.native(dirname(socket)); } catch { throw new Error("unknown"); }
+  const real = `${dir}/${basename(socket)}`;
   if (!real.startsWith("/") || /[\x00-\x1f\x7f]/.test(real)) throw new Error("unknown");
-  return { socketDir: real };
+  return { socket: real };
 }
 // A fence that cannot be built refuses the run before anything starts (unknown): without it the agent would reach the
 // other providers' profiles.
@@ -184,9 +185,9 @@ function runFence(setup: FenceSetup, provider: Provider, profileDir: string, cwd
   const exec = setup.exec ? { exec: setup.exec } : {};
   // A Codex server picks its mechanism from the mode when it starts, so every Codex run carries its listing and the
   // app socket's resolved directory.
-  if (provider === "codex") return { paths, denied: listDenied("codex", paths), ...socketDir(setup), ...exec };
+  if (provider === "codex") return { paths, denied: listDenied("codex", paths), ...appSocket(setup), ...exec };
   if (provider !== "claude" || !claudeSandboxEnabled(claudeSources(profileDir, cwd, setup.managedDir ?? CLAUDE_MANAGED_DIR))) return { paths, ...exec };
-  return { paths, denied: listDenied("claude", paths), claudeSandbox: true, ...socketDir(setup), ...exec };
+  return { paths, denied: listDenied("claude", paths), claudeSandbox: true, ...appSocket(setup), ...exec };
 }
 // The Doan-account side of routePrepare as main wires it: every argument reaches the account prepare (reusing included,
 // so a reused Codex server's send builds no fence), an unopened sign-in store refuses every run, and a run (never a
