@@ -53,9 +53,9 @@
   --violet-pressed: #8a2dd2;
   --violet-link: #63019d;
 
-  /* The four friend mascots' accent ramps, chosen with the mascot, named after it because sky,
+  /* The four friend buddies' accent ramps, chosen with the buddy, named after it because sky,
      amber and green already name other palette hues. Steps 1–8, 11 and 12 keep violet's OKLCH lightness and
-     chroma (gamut-clamped, chroma at most 1.2 × the friend's step 9), at the hue of step 9; 9 is the mascot's
+     chroma (gamut-clamped, chroma at most 1.2 × the friend's step 9), at the hue of step 9; 9 is the buddy's
      body colour moved by Doany's own body-to-violet-9 shift (popo's then darkened to its icon colour so
      white clears 3:1 on it); 10 and pressed keep violet's offsets from 9.
      -icon is 9 darkened in OKLCH lightness until it reaches 3:1 on white, for accent icons and dots on a
