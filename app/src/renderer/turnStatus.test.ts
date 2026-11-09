@@ -95,6 +95,13 @@ describe("turnStatus", () => {
     expect(statusOf(events, thinking)).toEqual({ kind: "general" });
   });
 
+  test("Send now's message in flight under a running tool: the status is judged above it, so it still names the tool", () => {
+    seq = 0;
+    const events = [...turn("t1"), ev("t1", { type: "activity", kind: "command", summary: "Running a command" })];
+    const sending = withSending(threadItems(events, ROOT, true), [{ id: "q1", text: "Also this", anchors: [], attachments: [] }]);
+    expect(turnStatus(sending, turnOf(events, true), null, ROOT)).toEqual({ kind: "tool", activity: "command", text: "Running a command", step: "s3" });
+  });
+
   // R1 defect 2: main appends and pushes a turn's opening user.message and its turn.started one after the other, so a
   // render can see the message alone; the indicator is there from that render (spec condition 1).
   test("the next turn's message alone opens its turn, until its turn.started arrives", () => {

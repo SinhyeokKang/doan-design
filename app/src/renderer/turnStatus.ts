@@ -42,11 +42,20 @@ function stageTool(stage: Extract<TurnStage, { kind: "tool" }>, root: string): T
 }
 const eventTool = (step: ActivityStep): TurnStatus => ({ kind: "tool", activity: step.kind, text: runningHead(step), step: step.key });
 
+// Where the thread's own items end: the hosts append Send now's messages in flight, which the agent reads only later
+// (Claude once its running tool ended), so the status and the last row are judged above them.
+function ownEnd(items: readonly ThreadItem[]): number {
+  let end = items.length;
+  while (end > 0) { const item = items[end - 1]!; if (item.kind !== "user" || !item.sending) break; end--; }
+  return end;
+}
+
 // A stage counts only for this turn and only while no event of it came after (seq). Without one, the last item says it:
 // an activity, or a permission answered with Allow right after one (the tool now runs). Codex's MCP startup lines are
 // activities but no tool. The thread's last activity row runs only while this names a tool (activityRun).
-export function turnStatus(items: readonly ThreadItem[], turn: TurnInfo | null, stage: StageSignal | null, root: string): TurnStatus {
+export function turnStatus(all: readonly ThreadItem[], turn: TurnInfo | null, stage: StageSignal | null, root: string): TurnStatus {
   if (!turn || !turn.live || turn.ended) return { kind: "none" };
+  const items = all.slice(0, ownEnd(all));
   if (items.some(waitsForPerson)) return { kind: "waiting" };
   const last = items.at(-1);
   if (last?.kind === "agent" && last.streaming) return { kind: "reply" };
@@ -65,11 +74,9 @@ type ActivityItem = Extract<ThreadItem, { kind: "activity" }>;
 // count otherwise. A Claude Code or Codex activity is written as its tool starts, so the event rule's tool still runs;
 // an ACP activity only once its tool completed (`acp`), so there only a stage makes the row run, possibly for a tool not
 // in its steps yet. The last step reads "Running a command" only when the status came from that step. A Codex MCP
-// startup line keeps its sentence as the head until the turn ends. `items` may end with Send now's messages in flight,
-// which the row is judged above.
+// startup line keeps its sentence as the head until the turn ends.
 export function activityRun(items: readonly ThreadItem[], status: TurnStatus, acp: boolean): readonly ThreadItem[] {
-  let at = items.length - 1;
-  while (at >= 0) { const item = items[at]!; if (item.kind !== "user" || !item.sending) break; at--; }
+  const at = ownEnd(items) - 1;
   const row = items[at];
   if (row?.kind !== "activity") return items;
   const last = row.steps.at(-1);

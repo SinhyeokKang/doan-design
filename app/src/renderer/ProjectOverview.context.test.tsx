@@ -126,6 +126,30 @@ test("a Claude tool's row stops spinning in the render its result's general stag
   expect(out).toContain('<span class="ti-text ti-shimmer">Claude Code is working</span>');
 });
 
+// Send now's message stays in flight until the agent reads it, which Claude does once its tool ended: meanwhile the row
+// and the indicator are judged above that message, so both keep naming the running tool, and the indicator stays below it.
+test("a Send now message in flight under a running Claude tool keeps the row spinning and the indicator on the tool", async () => {
+  reads[A] = [at(A, 1, { type: "user.message", text: "Draw the checkout", anchors: [] }), at(A, 2, { type: "turn.started" })];
+  const { run, html } = setup([{ ...summary(A), phase: "running", working: true }]);
+  run.select(ROOT, A);
+  run.store.track(A);
+  await flush();
+  run.event(at(A, 3, { type: "activity", kind: "command", summary: "Running a command" }));
+  run.store.queued(ROOT, A, { id: "q1", text: "Now the cart" });
+  (window.doan as Record<string, unknown>).sendQueuedNow = vi.fn(() => new Promise(() => {}));
+  void run.store.sendQueuedNow(A, "q1");
+  const out = html();
+  expect(out).toContain("msg-sending");
+  expect(out).toContain('<span class="doan-spinner" aria-hidden="true"></span><span>Running a command</span>');
+  expect(out).toContain('<span class="ti-text ti-shimmer">Running a command</span>');
+  expect(out.indexOf("msg-sending")).toBeLessThan(out.indexOf('<span class="ti-text ti-shimmer">'));
+  run.store.stage({ conversationId: A, turnId: "t1", seq: 3, rev: 1, stage: { kind: "general" } });
+  const after = html();
+  expect(after).toContain("<span>1 step</span>");
+  expect(after).not.toContain('<span class="doan-spinner" aria-hidden="true"></span><span>Running a command</span>');
+  expect(after).toContain('<span class="ti-text ti-shimmer">Claude Code is working</span>');
+});
+
 // An ACP activity arrives as conversation:event once its tool completed, and its stage separately as conversation:stage.
 test("an ACP activity's row never spins in the render its event arrives alone; a running tool's stage then spins it", async () => {
   reads[A] = [at(A, 1, { type: "user.message", text: "Draw the checkout", anchors: [] }), at(A, 2, { type: "turn.started" })];

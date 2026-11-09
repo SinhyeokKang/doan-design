@@ -65,7 +65,8 @@ export interface DockedInput {
 }
 
 // Main's turn as the composer reads it, the same in both hosts: the merged events first (the list lags them), then the
-// list. An ended turn while the list still says working holds, whatever the list's phase, as steerPhaseOf orders it.
+// list. An ended turn while the list still says working holds, whatever the list's phase, as steerPhaseOf orders that
+// case. Only the terminal case follows steerPhaseOf: otherwise the list decides, and a working list reads running here.
 export function composerTurn(events: readonly ConversationEvent[] | null, summary: ConversationSummary | undefined, live: boolean): ComposerTurn {
   const kind = events && events.length ? stripState(events).kind : null;
   if (kind !== null && asksPerson(kind)) return "waiting";
