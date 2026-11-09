@@ -1,7 +1,7 @@
-# Mascots
+# Buddies
 
-Doany and four friends, one asset set each. The feature plan is `docs/features/mascot-choice/`; drafts are
-`.doan/canvases/mascot-accent.html` and `.doan/canvases/mascot-choice.html`.
+Doany and four friends, one asset set each. The feature plan is `docs/features/buddy-choice/`; drafts are
+`.doan/canvases/buddy-accent.html` and `.doan/canvases/buddy-choice.html`.
 
 | id | Name | Colour | Accessory |
 |---|---|---|---|
@@ -11,7 +11,7 @@ Doany and four friends, one asset set each. The feature plan is `docs/features/m
 | `popo` | Popo | peach | glasses |
 | `dori` | Dori | sky blue | scarf |
 
-## One mascot's set
+## One buddy's set
 
 Doany's motion sources stay in `../doany/` (with the V1 record); only its card lives here.
 Doany's equivalent of each file is in brackets.
@@ -28,7 +28,7 @@ Doany's equivalent of each file is in brackets.
 | `artist-rest.png` | 512² RGBA, first frame of `artist.gif` [`artist/rest.png`] | done |
 
 Rig numbers (eye centres and radii, body and accessory pivots, accessory tilt range, hop scale; Doany's are in
-`../doany/v2/README.md`) go in this README per mascot once the layers exist.
+`../doany/v2/README.md`) go in this README per buddy once the layers exist.
 
 ## Provenance
 
@@ -87,4 +87,4 @@ generation tool, from `card.png` as the only reference. Start with `saemi`, chec
 
 Checks before handing back: all three PNGs are 1254² RGBA; `body.png` + `accessory.png` composited match `still.png`
 outside the eyes within 1 px at the alpha edge; the eyes are fully gone from `body.png`; no shadow or white remains.
-Do not edit canvases, app code or other mascots' files.
+Do not edit canvases, app code or other buddies' files.
