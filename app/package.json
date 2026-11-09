@@ -78,7 +78,7 @@
       }
     ],
     "mac": {
-      "icon": "resources/icon-rounded.png",
+      "icon": "resources/icon.icon",
       "identity": null,
       "target": [
         { "target": "dmg", "arch": ["arm64"] },
