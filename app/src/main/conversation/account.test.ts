@@ -220,8 +220,24 @@ it("resumes a Codex conversation without a stable account ID only on its own con
   h.service.receive(conversationId, { type: "turn.done" }); h.exits[1]!();
   // A reauth stores a new connection; without an ID it cannot be proven to hold the same login.
   h.auth.set({ connection: { ...h.auth.get().connection!, connectionId: "conn-2" }, generation: 2 });
-  await expect(h.service.send(conversationId, "after reauth", [])).rejects.toThrow("account_changed");
+  await expect(h.service.send(conversationId, "after reauth", [])).rejects.toThrow("sign_in_changed");
   expect(h.open).toHaveBeenCalledTimes(2); expect(h.store.list()[0]?.owner).toMatchObject({ connectionId: "conn-1" });
+});
+
+// A Codex replacement stages a new Doan profile (manager.ts), so the stored session's directory is no longer the one
+// the account runs in: that, and only a change of the Doan profile, reads as sign_in_changed.
+it("reads a Codex replacement's new profile as sign_in_changed and the same profile in another directory as session_unavailable", async () => {
+  const h = harness("codex");
+  const { conversationId } = await start(h, "codex"); h.service.receive(conversationId, { type: "turn.done" }); h.exits[0]!();
+  codexRollout(h.profile, h.root);
+  const staged = join(temp(), "codex-staged"); mkdirSync(staged);
+  const original = vi.mocked(h.auth.runtime.acquire).getMockImplementation()!;
+  vi.mocked(h.auth.runtime.acquire).mockImplementation(async (...args) => ({ ...await original(...args), profileDir: staged }));
+  h.auth.set({ connection: { ...h.auth.get().connection!, connectionId: "conn-2", profile: "codex-2b7f" }, generation: 2 });
+  await expect(h.service.send(conversationId, "after a replacement", [])).rejects.toThrow("sign_in_changed");
+  h.auth.set({ connection: { ...h.auth.get().connection!, connectionId: "conn-1", profile: "codex" }, generation: 3 });
+  await expect(h.service.send(conversationId, "same profile elsewhere", [])).rejects.toThrow("session_unavailable");
+  expect(h.open).toHaveBeenCalledOnce();
 });
 
 it("resumes a Codex conversation with a stable account ID and releases the extra lease when the owning server is reused", async () => {

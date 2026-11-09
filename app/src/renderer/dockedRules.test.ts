@@ -154,10 +154,13 @@ describe("dockedRefusal", () => {
     // the code alone does not tell an expired sign-in from none.
     expect(dockedRefusal("not_logged_in", EXISTING, "claude", "doan-design")).toEqual({ kind: "notice", text: "Sign in to Claude Code in Settings > Agents, then send again." });
   });
-  test("a conversation of an earlier sign-in says so and offers a new conversation, not Retry", () => {
-    const text = "This conversation belongs to an earlier Claude Code sign-in and can’t continue with the account signed in now.";
-    expect(dockedRefusal("account_changed", EXISTING, "claude", "doan-design")).toEqual({ kind: "notice", text, startNew: true });
-    expect(dockedRefusal("account_changed", { kind: "archived", conversationId: "c1", provider: "claude" }, "claude", "doan-design")).toEqual({ kind: "notice", text, startNew: true });
+  test("a conversation of another account or an earlier sign-in says so and offers a new conversation, not Retry", () => {
+    const other = "This conversation’s session belongs to another Claude Code account, so it can’t continue here. To continue it, sign in to that account again in Settings > Agents.";
+    const earlier = "This conversation’s session belongs to an earlier Codex sign-in, so it can’t continue here.";
+    for (const mode of [EXISTING, { kind: "archived", conversationId: "c1", provider: "claude" } as const]) {
+      expect(dockedRefusal("account_changed", mode, "claude", "doan-design")).toEqual({ kind: "notice", text: other, startNew: true });
+      expect(dockedRefusal("sign_in_changed", mode, "codex", "doan-design")).toEqual({ kind: "notice", text: earlier, startNew: true });
+    }
   });
   test("a terminal session's refusal names the session, not another agent", () => {
     const resume = { kind: "resume", root: "/r", canvas: { path: ".doan/canvases/billing.html" }, provider: "codex" } as const;

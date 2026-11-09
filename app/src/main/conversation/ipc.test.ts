@@ -325,13 +325,15 @@ describe("conversation list, seen marker and send extras", () => {
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
   // An earlier sign-in's conversation is its own refusal, not collapsed into unknown or session_unavailable.
-  it("passes account_changed through a send", async () => {
+  it("passes account_changed and sign_in_changed through a send", async () => {
     const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
     try {
       const h = sendFixture(dir);
       h.store.save([{ conversationId: "legacy", root: "/repo", canvas: { path: ".doan/canvases/a.html" }, title: "t", state: "current", owner: { kind: "legacy-external" }, session: { runtime: "codex", origin: "resumed", sessionId: "s", configDir: "/c", cwd: "/repo" } }]);
-      h.send.mockRejectedValueOnce(new Error("account_changed"));
-      expect(await h.handle(true, "send", { conversationId: "legacy", text: "y" })).toEqual({ error: "account_changed" });
+      for (const code of ["account_changed", "sign_in_changed"]) {
+        h.send.mockRejectedValueOnce(new Error(code));
+        expect(await h.handle(true, "send", { conversationId: "legacy", text: "y" })).toEqual({ error: code });
+      }
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 });

@@ -209,10 +209,11 @@ it.each([
   expect(ready.cwd).toBe(real); expect(ready.configDir).toBe(config); expect(ready.env[envKey]).toBe(config);
 });
 
-// A conversation another sign-in owns says so (account_changed); a sign-in, retry or other agent cannot bring it back.
-it("reads a conversation of another account, workspace or profile as account_changed and keeps the other refusals", () => {
-  for (const cause of ["account_mismatch", "account_unverifiable", "workspace_mismatch", "profile_mismatch"] as const)
-    expect(judgmentCode({ decision: "reject", cause }), cause).toBe("account_changed");
+// Another account's conversation (account_changed) can continue after signing in to that account again; an earlier
+// sign-in's (sign_in_changed) never can. A retry or another agent brings back neither.
+it("reads another account or workspace as account_changed, an unprovable or replaced sign-in as sign_in_changed, and keeps the other refusals", () => {
+  for (const cause of ["account_mismatch", "workspace_mismatch"] as const) expect(judgmentCode({ decision: "reject", cause }), cause).toBe("account_changed");
+  for (const cause of ["account_unverifiable", "profile_mismatch"] as const) expect(judgmentCode({ decision: "reject", cause }), cause).toBe("sign_in_changed");
   expect(judgmentCode({ decision: "reject", cause: "session_unavailable" })).toBe("session_unavailable");
   expect(judgmentCode({ decision: "reject", cause: "provider_mismatch" })).toBe("session_unavailable");
   expect(judgmentCode({ decision: "reject", cause: "busy" })).toBe("busy");

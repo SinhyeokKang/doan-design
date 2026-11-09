@@ -53,7 +53,7 @@ async function panel(list: ListView, setup: (run: CanvasRun) => void = () => {})
   return { run, store, composer: composers.at(-1)! };
 }
 
-test("an earlier sign-in's conversation starts a new one on the same canvas with the refused draft in its field", async () => {
+test("a conversation another sign-in owns starts a new one on the same canvas with the refused draft in its field", async () => {
   const { run, store, composer } = await panel([summary("now")]);
   expect(run.view()).toMatchObject({ kind: "conversation", conversationId: "now" });
   const draft = { ...EMPTY_DRAFT, segments: textSegments("Tighten the payment copy") };

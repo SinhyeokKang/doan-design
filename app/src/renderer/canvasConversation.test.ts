@@ -200,9 +200,13 @@ describe("canvasConversationError", () => {
     expect(canvasConversationError("session_in_use", EXISTING, "claude", "acme-web")).toEqual({ kind: "notice", text: "Claude Code is using this session in another terminal. Try again when it finishes there.", retry: false, startNew: false });
   });
 
-  test("a send to a conversation of an earlier sign-in offers a new conversation, not Retry", () => {
-    const text = "This conversation belongs to an earlier Claude Code sign-in and can’t continue with the account signed in now.";
-    for (const mode of [EXISTING, ARCHIVED]) expect(canvasConversationError("account_changed", mode, "claude", "acme-web")).toEqual({ kind: "notice", text, retry: false, startNew: true });
+  test("a send to a conversation of another account or an earlier sign-in offers a new conversation, not Retry", () => {
+    const other = "This conversation’s session belongs to another Claude Code account, so it can’t continue here. To continue it, sign in to that account again in Settings > Agents.";
+    const earlier = "This conversation’s session belongs to an earlier Claude Code sign-in, so it can’t continue here.";
+    for (const mode of [EXISTING, ARCHIVED]) {
+      expect(canvasConversationError("account_changed", mode, "claude", "acme-web")).toEqual({ kind: "notice", text: other, retry: false, startNew: true });
+      expect(canvasConversationError("sign_in_changed", mode, "claude", "acme-web")).toEqual({ kind: "notice", text: earlier, retry: false, startNew: true });
+    }
   });
 
   test("restoring while the current conversation runs is the restore busy line", () => {

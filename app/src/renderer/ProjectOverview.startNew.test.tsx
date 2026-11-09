@@ -45,7 +45,7 @@ function setup(list: ListView) {
   return { run, composer: composers.at(-1)! };
 }
 
-test("an earlier sign-in's conversation starts a new one on the same Overview with the refused draft in its field", () => {
+test("a conversation another sign-in owns starts a new one on the same Overview with the refused draft in its field", () => {
   const { run, composer } = setup([summary]);
   expect(run.view(ROOT)).toEqual({ kind: "conversation", conversationId: A });
   const draft = { ...EMPTY_DRAFT, segments: textSegments("Fix the totals") };
