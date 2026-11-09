@@ -1,0 +1,150 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="doan:canvas" content="doany-family"><meta name="doan:width" content="1600"><title>doany-family — Doany at work: painting, typing, reading</title><link rel="stylesheet" href="../../app/src/renderer/tokens.css"><link rel="stylesheet" href="../../app/src/renderer/ds/index.css"><style>
+@font-face{font-family:Geist;src:url('../../app/src/renderer/public/fonts/geist/Geist.woff2') format('woff2');font-style:normal;font-weight:100 900;font-display:swap}
+@layer base{*,::before,::after{box-sizing:border-box;border:0 solid;margin:0;padding:0}h1,h2,h3{font-size:inherit;font-weight:inherit}img,svg{display:block;vertical-align:middle}button{font:inherit;letter-spacing:inherit;color:inherit;background-color:transparent;border-radius:0}ul,ol{list-style:none}table{border-collapse:collapse}}
+:root{color-scheme:light;--radix-popper-available-height:384px;--radix-tooltip-content-transform-origin:center}
+body{padding:var(--space-8);width:1600px;background:var(--surface-inset);color:var(--text-standard);font-family:var(--type-family);font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);-webkit-font-smoothing:antialiased}
+
+/* ── Copied from the doany-artist draft (app/src/renderer/styles.css as shipped): the notice card and its glow. ── */
+.doan-agent-glow{position:absolute;inset:0;z-index:1;pointer-events:none;border-radius:var(--radius-container);box-shadow:inset 0 0 calc(var(--space-3) * 3) color-mix(in srgb,var(--affordance-accent) 85%,transparent),inset 0 0 calc(var(--space-6) * 4.5) color-mix(in srgb,var(--affordance-accent) 50%,transparent)}
+.doan-agent{display:flex;align-items:center;gap:var(--space-2);max-width:100%;min-width:0;min-height:var(--size-control);padding:var(--space-1) var(--space-1) var(--space-1) var(--space-2);border-radius:var(--radius-pill);background:color-mix(in srgb,var(--affordance-prominent) 60%,transparent);-webkit-backdrop-filter:blur(var(--blur-md));backdrop-filter:blur(var(--blur-md));box-shadow:var(--shadow-sm);color:var(--text-on-prominent)}
+.doan-agent-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);letter-spacing:var(--type-body-sm-letter-spacing)}
+.doan-agent .doan-button.doan-agent-action{flex:none;background:color-mix(in srgb,var(--text-on-prominent) 16%,transparent);color:var(--text-on-prominent)}
+.doan-agent-action svg{width:var(--size-icon-sm);height:var(--size-icon-sm)}
+@media (prefers-reduced-transparency: reduce){.doan-agent{background:var(--affordance-prominent);-webkit-backdrop-filter:none;backdrop-filter:none}}
+
+/* ── New, not in code: the family crop. Each variant sets its source box as three numbers; the window shows that box.
+   --s = 512 / box size, --x = -box x / box size, --y = -box y / box size (percent of the window). ── */
+.artist{position:relative;flex:none;width:var(--size-control-sm);height:var(--size-control-sm);overflow:hidden}
+.artist img{position:absolute;width:var(--s);height:var(--s);max-width:none;left:var(--x);top:var(--y)}
+[data-artist="painting"]{--s:111.304%;--x:-3.696%;--y:-16.304%}
+[data-artist="typing"]{--s:86.780%;--x:2.712%;--y:3.051%}
+[data-artist="reading"]{--s:86.780%;--x:2.712%;--y:2.712%}
+
+/* ── Canvas-only layout (not app CSS) ── */
+.intro{max-width:1240px;padding:var(--space-4) 0 var(--space-10)}
+.intro h1{font-size:var(--type-title-size);line-height:var(--type-title-line-height);letter-spacing:var(--type-title-letter-spacing);font-weight:var(--type-weight-medium)}
+.intro>p{margin-top:var(--space-4);color:var(--text-subtle)}
+.intro h2{margin-top:var(--space-8);font-size:var(--type-body-lg-size);line-height:var(--type-body-lg-line-height);font-weight:var(--type-weight-medium)}
+.intro ol,.intro ul{margin-top:var(--space-2);padding-left:var(--space-5);color:var(--text-subtle)}
+.intro ol{list-style:decimal}.intro ul{list-style:disc}
+.intro li+li{margin-top:var(--space-1)}
+.intro li strong{color:var(--text-standard);font-weight:var(--type-weight-medium)}
+.spec-table{margin-top:var(--space-3);width:100%;background:var(--surface-panel);border-radius:var(--radius-container);box-shadow:var(--shadow-panel);overflow:hidden}
+.spec-table th,.spec-table td{padding:var(--space-2) var(--space-3);text-align:left;vertical-align:top;border-bottom:1px solid var(--border-standard)}
+.spec-table tr:last-child td{border-bottom:0}
+.spec-table th{color:var(--text-metadata);font-weight:var(--type-weight-regular)}
+.specimen+.specimen{margin-top:var(--space-10)}
+.caption{display:grid;grid-template-columns:var(--space-10) 1fr;gap:var(--space-1) var(--space-2);margin-bottom:var(--space-4);max-width:1200px}
+.caption>span{color:var(--text-metadata);padding-top:var(--space-1)}
+.caption h2{font-size:var(--type-body-lg-size);line-height:var(--type-body-lg-line-height);letter-spacing:var(--type-body-lg-letter-spacing);font-weight:var(--type-weight-medium)}
+.caption p{grid-column:2;color:var(--text-subtle)}
+.v-proposal{margin-left:var(--space-2);vertical-align:2px;font-weight:var(--type-weight-regular)}
+code{font-family:var(--type-family-mono);font-size:.92em}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border-width:0}
+
+.family{display:flex;gap:var(--space-8);padding:var(--space-8);background:var(--surface-panel);border-radius:var(--radius-container);box-shadow:var(--shadow-panel);width:max-content}
+.member{display:grid;gap:var(--space-3);justify-items:center}
+.member>figcaption{color:var(--text-metadata);text-align:center}
+.member>figcaption b{display:block;color:var(--text-standard);font-weight:var(--type-weight-medium)}
+.member .artist.big{width:224px;height:224px;background:var(--surface-inset);border-radius:var(--radius-container)}
+.guides{position:absolute;inset:0;pointer-events:none}
+.guides i{position:absolute;display:block}
+.guides .v{left:50%;top:0;bottom:0;border-left:1px dashed var(--red-9)}
+.guides .h{top:52%;left:0;right:0;border-top:1px dashed var(--affordance-accent)}
+.sizes{display:flex;align-items:center;gap:var(--space-4)}
+.sizes .artist.x2{width:64px;height:64px}
+.sizes .rest{opacity:1}
+.sizes>span{color:var(--text-metadata)}
+
+.stages{display:flex;flex-wrap:wrap;gap:var(--space-4);align-items:flex-start}
+.stage{position:relative;width:372px;height:120px;border-radius:var(--radius-container);background:var(--surface-panel);box-shadow:var(--shadow-panel);overflow:hidden;display:flex;align-items:center;justify-content:center}
+.stage-tile{display:grid;gap:var(--space-2)}
+.stage-tile>figcaption{color:var(--text-metadata)}
+.stage .doan-agent{position:relative;z-index:2}
+.pick-row{display:flex;align-items:center;gap:var(--space-2);color:var(--text-metadata)}
+</style></head><body>
+<header class="intro">
+<h1>doany-family — Doany at work: painting, typing, reading</h1>
+<p>Doany in the working notice's 32 px window comes in three variants of the same character. The notice picks one at random when it appears. The notice card is the shipped one from <code>doany-artist</code>; only the picture in its window changes. The painter's source box moves 7 source px to the right (his picture 0.5 px left at 32 px), so the three share one optical centre (spec 2).</p>
+
+<h2>Implementation spec</h2>
+<ol>
+<li><strong>Variants.</strong> Three, all 512 × 512 GIFs with transparent backgrounds, looping forever. Sources are in <code>.doan/assets/doany/artist/</code>; keep the frames and timings as they are.
+<table class="spec-table">
+<thead><tr><th>id</th><th>Source GIF · first frame</th><th>Frames · loop</th><th>Source box (x, y, size in source px)</th><th>CSS in this canvas (size, left, top)</th><th>App files (<code>app/src/renderer/public/doany/</code>)</th></tr></thead>
+<tbody>
+<tr><td><code>painting</code></td><td><code>painting.gif</code> · <code>rest.png</code></td><td>8 · 2.2 s (180–420 ms each)</td><td>17, 75, 460 <span class="doan-chip v-proposal" data-ui-variant="translucent">was 10, 75, 460</span></td><td>111.304 %, −3.696 %, −16.304 %</td><td><code>artist-painting.gif</code>, <code>artist-rest.png</code> (re-export with the new box)</td></tr>
+<tr><td><code>typing</code></td><td><code>typing.gif</code> · <code>typing-rest.png</code></td><td>24 · 2.4 s (100 ms each)</td><td>−16, −18, 590</td><td>86.780 %, 2.712 %, 3.051 %</td><td><code>artist-typing.gif</code>, <code>artist-typing-rest.png</code> (new)</td></tr>
+<tr><td><code>reading</code></td><td><code>reading.gif</code> · <code>reading-rest.png</code></td><td>8 · 1.76 s (220 ms each)</td><td>−16, −16, 590</td><td>86.780 %, 2.712 %, 2.712 %</td><td><code>artist-reading.gif</code>, <code>artist-reading-rest.png</code> (new)</td></tr>
+</tbody></table></li>
+<li><strong>Family alignment</strong> (how the boxes were chosen; re-derive them this way if artwork is replaced).
+<ul>
+<li>Same character size: Doany's eyes are 71.7 px apart and 44.5 px tall in <code>painting</code>, 94.5 px apart and 54.5 px tall in the other two (first frame). The boxes are 460 and 590 px, a 0.78 ratio, so at 32 px the eyes are 5.0–5.1 px apart and 3.0–3.1 px tall in all three.</li>
+<li>Eye line: the eyes' centre sits at 52.0 % of the window height in all three (blue line in frame 01).</li>
+<li>Optical centre: the opacity-weighted centroid of all frames sits at 50.0 % of the window width (red line). The painter's easel pulls his body left of centre; that is intended, the picture as a whole is centred.</li>
+<li>Nothing is clipped at 32 px except the painter's easel foot by under 0.5 px, as today. Typing and reading boxes reach past the source edges; that margin is transparent.</li>
+</ul></li>
+<li><strong>App assets.</strong> Export each variant the way <code>artist-painting.gif</code> is made now (see <code>public/doany/README.md</code>): crop the GIF to its source box (pad with transparency where the box leaves the source), scale to 128 × 128, keep every frame and its timing, 255-colour palette with 1-bit transparency. The first frame, cropped and scaled the same way, is the still PNG. The app then draws each picture at 100 % of the window, as now; the CSS numbers above are only for this canvas. Update the artist section of <code>public/doany/README.md</code> with the three boxes.</li>
+<li><strong>Random choice.</strong> <code>DoanyArtist</code> picks one of the three with equal odds when it mounts, which is when a notice appears, and keeps it while that notice stays: working, stopping, waiting and terminal show the same variant. The next notice picks again; a repeat is allowed. The sibling notice ("Agent is working in …") picks on its own.</li>
+<li><strong>Stills and motion.</strong> Unchanged rules, per variant: waiting and a hidden workspace show the chosen variant's first frame; under reduced motion the <code>&lt;picture&gt;</code> source shows that first frame in every state; capture snapshots hide the window as now.</li>
+<li><strong>Tests.</strong> The fixed <code>ARTIST</code> and <code>ARTIST_STILL</code> strings in <code>CanvasAgent.test.tsx</code> assume one variant. Make the choice injectable or stub <code>Math.random</code>, and cover: each variant's GIF and still pair, the choice held across working → waiting, and a new choice on remount. The 32 px window and 8 px inset tests stay.</li>
+</ol>
+
+<h2>Open before shipping</h2>
+<ul>
+<li><code>typing.gif</code> shows an Apple logo on the laptop lid. Doan is open source; replace the lid with a plain one before it ships in the app.</li>
+<li>Export size: a trial export with the recipe above (per-frame 255-colour palette) gives about 158 KB for <code>typing</code> (24 frames, source 2.1 MB), 49 KB for <code>reading</code> and 69 KB for <code>painting</code>, against the shipped painter's 68 KB. Shipping typing at that size is acceptable; a shared palette across frames is the first lever if it must be smaller.</li>
+</ul>
+</header>
+
+<section class="specimen"><div class="caption"><span>01</span><h2>The family, aligned <span class="doan-chip v-proposal" data-ui-variant="translucent">New, not in code</span></h2><p>Each variant through its source box at 7× (224 px) with the guides: red, the window's vertical centre; blue, the eye line at 52 %. Below each, the same box at the real 32 px and at 64 px, playing and as its first frame.</p></div>
+<div class="family" data-doan-frame="family-aligned" data-doan-title="Doany family · aligned">
+<figure class="member" data-doan-id="member-painting">
+<span class="artist big" data-artist="painting"><img src="../assets/doany/artist/painting.gif" alt=""><span class="guides" aria-hidden="true"><i class="v"></i><i class="h"></i></span></span>
+<div class="sizes"><span class="artist" data-artist="painting"><img src="../assets/doany/artist/painting.gif" alt=""></span><span class="artist x2" data-artist="painting"><img src="../assets/doany/artist/painting.gif" alt=""></span><span class="artist x2" data-artist="painting"><img src="../assets/doany/artist/rest.png" alt=""></span></div>
+<figcaption><b>painting</b>Box 17, 75, 460 · 8 frames, 2.2 s</figcaption>
+</figure>
+<figure class="member" data-doan-id="member-typing">
+<span class="artist big" data-artist="typing"><img src="../assets/doany/artist/typing.gif" alt=""><span class="guides" aria-hidden="true"><i class="v"></i><i class="h"></i></span></span>
+<div class="sizes"><span class="artist" data-artist="typing"><img src="../assets/doany/artist/typing.gif" alt=""></span><span class="artist x2" data-artist="typing"><img src="../assets/doany/artist/typing.gif" alt=""></span><span class="artist x2" data-artist="typing"><img src="../assets/doany/artist/typing-rest.png" alt=""></span></div>
+<figcaption><b>typing</b>Box −16, −18, 590 · 24 frames, 2.4 s</figcaption>
+</figure>
+<figure class="member" data-doan-id="member-reading">
+<span class="artist big" data-artist="reading"><img src="../assets/doany/artist/reading.gif" alt=""><span class="guides" aria-hidden="true"><i class="v"></i><i class="h"></i></span></span>
+<div class="sizes"><span class="artist" data-artist="reading"><img src="../assets/doany/artist/reading.gif" alt=""></span><span class="artist x2" data-artist="reading"><img src="../assets/doany/artist/reading.gif" alt=""></span><span class="artist x2" data-artist="reading"><img src="../assets/doany/artist/reading-rest.png" alt=""></span></div>
+<figcaption><b>reading</b>Box −16, −16, 590 · 8 frames, 1.76 s</figcaption>
+</figure>
+</div>
+</section>
+
+<section class="specimen"><div class="caption"><span>02</span><h2>In the working notice <span class="doan-chip v-proposal" data-ui-variant="translucent">New, not in code: random variant</span></h2><p>The shipped card at real size, once per variant, then a card that picks at random each time this canvas loads (Pick again repeats it). Under reduced motion every card shows its first frame.</p></div>
+<div class="stages" data-doan-frame="family-notice" data-doan-title="Doany family · in the notice" data-doan-implements="app/src/renderer/CanvasAgent.tsx">
+<figure class="stage-tile"><div class="stage"><div class="doan-agent-glow" aria-hidden="true"></div>
+<div class="doan-agent" data-doan-id="notice-painting"><span class="artist" data-artist="painting" aria-hidden="true"><picture><source srcset="../assets/doany/artist/rest.png" media="(prefers-reduced-motion: reduce)"><img src="../assets/doany/artist/painting.gif" alt=""></picture></span><span class="doan-agent-text">Drawing the empty state for Plans</span><button type="button" class="doan-button doan-agent-action" data-ui-size="sm"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/></svg>Stop</button></div></div><figcaption>painting</figcaption></figure>
+<figure class="stage-tile"><div class="stage"><div class="doan-agent-glow" aria-hidden="true"></div>
+<div class="doan-agent" data-doan-id="notice-typing"><span class="artist" data-artist="typing" aria-hidden="true"><picture><source srcset="../assets/doany/artist/typing-rest.png" media="(prefers-reduced-motion: reduce)"><img src="../assets/doany/artist/typing.gif" alt=""></picture></span><span class="doan-agent-text">Drawing the empty state for Plans</span><button type="button" class="doan-button doan-agent-action" data-ui-size="sm"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/></svg>Stop</button></div></div><figcaption>typing</figcaption></figure>
+<figure class="stage-tile"><div class="stage"><div class="doan-agent-glow" aria-hidden="true"></div>
+<div class="doan-agent" data-doan-id="notice-reading"><span class="artist" data-artist="reading" aria-hidden="true"><picture><source srcset="../assets/doany/artist/reading-rest.png" media="(prefers-reduced-motion: reduce)"><img src="../assets/doany/artist/reading.gif" alt=""></picture></span><span class="doan-agent-text">Drawing the empty state for Plans</span><button type="button" class="doan-button doan-agent-action" data-ui-size="sm"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/></svg>Stop</button></div></div><figcaption>reading</figcaption></figure>
+<figure class="stage-tile"><div class="stage"><div class="doan-agent-glow" aria-hidden="true"></div>
+<div class="doan-agent" data-doan-id="notice-random"><span class="artist" id="random-artist" data-artist="painting" aria-hidden="true"><picture><source srcset="../assets/doany/artist/rest.png" media="(prefers-reduced-motion: reduce)"><img src="../assets/doany/artist/painting.gif" alt=""></picture></span><span class="doan-agent-text">Drawing the empty state for Plans</span><button type="button" class="doan-button doan-agent-action" data-ui-size="sm"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/></svg>Stop</button></div></div>
+<figcaption class="pick-row">Random: <code id="random-name">painting</code><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm" id="pick-again" data-doan-id="pick-again">Pick again</button></figcaption></figure>
+</div>
+</section>
+<script>
+// Canvas-only: mirrors the spec's random choice (equal odds, a repeat allowed).
+(() => {
+  const variants = { painting: ["painting.gif", "rest.png"], typing: ["typing.gif", "typing-rest.png"], reading: ["reading.gif", "reading-rest.png"] };
+  const ids = Object.keys(variants), base = "../assets/doany/artist/";
+  const slot = document.getElementById("random-artist"), name = document.getElementById("random-name");
+  const pick = () => {
+    const id = ids[Math.floor(Math.random() * ids.length)], [gif, still] = variants[id];
+    slot.dataset.artist = id;
+    slot.querySelector("source").srcset = base + still;
+    slot.querySelector("img").src = base + gif;
+    name.textContent = id;
+  };
+  document.getElementById("pick-again").addEventListener("click", pick);
+  pick();
+})();
+</script>
+</body></html>
