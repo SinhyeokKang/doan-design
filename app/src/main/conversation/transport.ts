@@ -18,7 +18,8 @@ function finish(state: TransportState, event: EventPayload, judged = true): Tran
   if (state.terminal) return unchanged(state);
   const terminal: EventPayload = state.stop ? { type: "interrupted", reason: state.stop } : event;
   const fast = judged && state.fastUnused && (terminal.type === "turn.done" || terminal.type === "turn.failed") ? [state.fastUnused] : [];
-  return { state: { ...withoutRunning(state), terminal: true, fileSummaries: {} }, events: [...fast, ...contextBefore(state, terminal), terminal] };
+  const { claudeFailure: _failure, ...ended } = withoutRunning(state);
+  return { state: { ...ended, terminal: true, fileSummaries: {} }, events: [...fast, ...contextBefore(state, terminal), terminal] };
 }
 // The state with the given calls (all of them when none are named) no longer running; the field goes once it is empty.
 function withoutRunning(state: TransportState, ids?: readonly string[]): TransportState {
@@ -58,6 +59,9 @@ export function contextValue(used: unknown, size: unknown): { used: number; size
 // the model whose modelUsage entry gives the window. A message Claude Code makes up itself (an API error, "No response
 // requested.") names the SDK's "<synthetic>" model and made no call, so the turn's last real call stays.
 const CLAUDE_SYNTHETIC_MODEL = "<synthetic>";
+// The `error` Claude Code sets on the assistant message it makes up for an account problem (SDKAssistantMessageError).
+// Only values with an existing FailureCode are read; the rest fall to the result's text.
+const CLAUDE_ERROR_CODE: Readonly<Record<string, FailureCode>> = { rate_limit: "rate_limited", authentication_failed: "not_logged_in" };
 function claudeCall(message: Record<string, unknown>): { used: number; model: string } | undefined {
   if (!object(message.usage) || typeof message.model !== "string" || !message.model || message.model === CLAUDE_SYNTHETIC_MODEL) return undefined;
   const parts = [message.usage.input_tokens, message.usage.cache_creation_input_tokens ?? 0, message.usage.cache_read_input_tokens ?? 0];
@@ -89,12 +93,12 @@ function withConsumed(result: TransportResult, consumed: string[]): SteerResult 
 export function transportError(detail: string): FailureCode {
   if (/already has an active writer/i.test(detail)) return "session_in_use";
   if (/not logged in|authentication required|unauthorized|invalid api key|authentication failed/i.test(detail)) return "not_logged_in";
-  if (/rate.?limit|too many requests/i.test(detail)) return "rate_limited";
+  if (/rate.?limit|too many requests|hit your weekly limit/i.test(detail)) return "rate_limited";
   if (/session.*(not found|unavailable)|thread.*not found/i.test(detail)) return "session_unavailable";
   return "unknown";
 }
-function failed(state: TransportState, detail: string): TransportResult {
-  return finish(state, { type: "turn.failed", code: transportError(detail), ...(detail ? { detail: detail.slice(0, 4096) } : {}) });
+function failed(state: TransportState, detail: string, code: FailureCode = transportError(detail)): TransportResult {
+  return finish(state, { type: "turn.failed", code, ...(detail ? { detail: detail.slice(0, 4096) } : {}) });
 }
 // A Codex TurnError (the error notification's, or a failed turn/completed's). modelNotFound names the model only in
 // its message; the model ID comes from there, since a model the account lacks is one Doan never sent (ipc.ts takes
@@ -230,6 +234,9 @@ function claudeFrame(state: TransportState, raw: Record<string, unknown>, root: 
     const activities = [...state.activities];
     const running = [...state.running ?? []];
     const call = claudeCall(raw.message);
+    // The latest assistant frame decides: a later call that went through means the error did not end the turn.
+    const { claudeFailure: _failure, ...kept } = state, failure = typeof raw.error === "string" && Object.hasOwn(CLAUDE_ERROR_CODE, raw.error) ? CLAUDE_ERROR_CODE[raw.error] : undefined;
+    state = failure ? { ...kept, claudeFailure: failure } : kept;
     const body = raw.message.content.filter(object).filter(c => c.type === "text").map(c => text(c.text)).join("");
     if (body && !completedMessages.includes(messageId)) {
       events.push({ type: "message.done", messageId, text: body }); completedMessages.push(messageId);
@@ -258,7 +265,7 @@ function claudeFrame(state: TransportState, raw: Record<string, unknown>, root: 
     // to another turn for it; that turn's result ends this one. A stop still ends here.
     if (raw.subtype === "success" && raw.is_error === false) return state.steered?.length && !state.stop ? { ...unchanged(state), awaitingRead: true } : finish(state, { type: "turn.done" });
     const detail = Array.isArray(raw.errors) ? raw.errors.filter((e): e is string => typeof e === "string").join("\n") : text(raw.result);
-    return failed(state, detail);
+    return failed(state, detail, state.claudeFailure);
   }
   // The model is being asked again (after the prompt and after every tool result), or the last running tool just
   // returned. A result while a parallel sibling still runs reports nothing, so the activity rule keeps naming a tool.

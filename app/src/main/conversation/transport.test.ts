@@ -55,6 +55,36 @@ describe("transport normalization", () => {
     expect(collect("claude", [{ type: "result", subtype: "error_during_execution", is_error: true, errors: ["Not logged in"] }]).events).toContainEqual({ type: "turn.failed", code: "not_logged_in", detail: "Not logged in" });
   });
 });
+// Claude Code answers a limited account with a made-up assistant message (model "<synthetic>", an `error` field, the
+// limit text) and then an error result carrying the same text. Shape: Claude Code transcripts under ~/.claude/projects
+// and SDKAssistantMessage.error in SDK 0.3.312; the result frame's exact fields are as for any is_error result.
+describe("a Claude turn that Claude Code ends with its own error message", () => {
+  const LIMIT = "You've hit your weekly limit · resets Nov 11 at 2pm (Asia/Seoul)";
+  const synthetic = (error: string, body: string) => ({ type: "assistant", parent_tool_use_id: null, error, message: { id: "synthetic-1", model: "<synthetic>", role: "assistant", content: [{ type: "text", text: body }] } });
+  const ended = (body: string) => ({ type: "result", subtype: "success", is_error: true, result: body });
+  it("fails as rate_limited, keeping the text, on the assistant frame's rate_limit error", () => {
+    expect(collect("claude", [synthetic("rate_limit", LIMIT), ended(LIMIT)]).events).toEqual([
+      { type: "message.done", messageId: "synthetic-1", text: LIMIT },
+      { type: "turn.failed", code: "rate_limited", detail: LIMIT },
+    ]);
+  });
+  it("reads the structured error even when the wording is not one it knows", () => {
+    expect(collect("claude", [synthetic("rate_limit", "Slow down"), ended("Slow down")]).events).toContainEqual({ type: "turn.failed", code: "rate_limited", detail: "Slow down" });
+  });
+  it("fails as not_logged_in on an authentication_failed error, and leaves other error values to the text", () => {
+    expect(collect("claude", [synthetic("authentication_failed", "Login expired · Please run /login"), ended("Login expired · Please run /login")]).events)
+      .toContainEqual({ type: "turn.failed", code: "not_logged_in", detail: "Login expired · Please run /login" });
+    expect(collect("claude", [synthetic("server_error", "API Error: boom"), ended("API Error: boom")]).events).toContainEqual({ type: "turn.failed", code: "unknown", detail: "API Error: boom" });
+  });
+  it("does not carry the error over once a later call of the turn went through", () => {
+    const events = collect("claude", [synthetic("rate_limit", LIMIT), { type: "assistant", parent_tool_use_id: null, message: { id: "a2", model: "claude-x", content: [{ type: "text", text: "back" }] } }, ended("boom")]).events;
+    expect(events).toContainEqual({ type: "turn.failed", code: "unknown", detail: "boom" });
+  });
+  it("reads the weekly-limit wording of a result that no assistant frame announced", () => {
+    expect(transportError(LIMIT)).toBe("rate_limited");
+    expect(collect("claude", [ended(LIMIT)]).events).toEqual([{ type: "turn.failed", code: "rate_limited", detail: LIMIT }]);
+  });
+});
 // A model the account does not have ends the turn before it starts any work. The model ID is the one
 // the error names: Doan never sent it (ipc.ts takes only models on this run's model/list).
 describe("a model the account does not have", () => {
