@@ -464,7 +464,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
               onClick={() => { store.setDrafts(drafts => new Map(drafts).set(key, { ...(drafts.get(key) ?? EMPTY_DRAFT), preset: prompt.preset, segments: textSegments(prompt.text) })); focusField(); }}>
               <span className="suggestion-icon"><GroupIcon name={groupIcon(prompt.preset.group)} /></span><SuggestionLabel parts={prompt.parts} /><ArrowUpRight className="suggestion-go" aria-hidden="true" /></button>)}</div>}
         </>}
-      {notice && <div className="doan-notice thread-notice canvas-notice" role="status"><Info className="doan-alert-icon" aria-hidden="true" /><span className="strip-text selectable"><span>{notice.text}</span></span>
+      {notice && <div className="doan-notice thread-notice" role="status"><Info className="doan-alert-icon" aria-hidden="true" /><span className="strip-text selectable"><span>{notice.text}</span></span>
         <span className="strip-actions"><button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel"
           aria-label={notice.kind === "drawing" ? "Open the project conversation" : "Open the current conversation"}
           onClick={() => notice.kind === "drawing" ? props.onOpenProjectConversation(notice.open) : openConversation(notice.open)}>Open</button></span></div>}

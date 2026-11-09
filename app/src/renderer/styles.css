@@ -43,25 +43,16 @@ code, kbd { font-family: var(--type-family); }
 .top button { -webkit-app-region: no-drag; }
 .traffic-space { width: 52px; flex: none; }
 .spacer { flex: 1; }
-.meta { font: 11.5px var(--type-family); color: var(--text-metadata); white-space: nowrap; }
 .side { background: var(--surface-panel); border-right: 1px solid var(--border-standard); }
 .right { background: var(--surface-panel); border-left: 1px solid var(--border-standard); }
 .native-scroll { overflow: auto; scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb-quiet) transparent; }
 .native-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
 .native-scroll::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb-quiet); border-radius: 4px; }
-.sec { font: 10.5px var(--type-family); letter-spacing: .1em; text-transform: uppercase; color: var(--text-metadata); display: flex; align-items: center; justify-content: space-between; padding: 14px 12px 6px; }
-.sec .r { letter-spacing: 0; text-transform: none; }
-.sec .r { color: var(--text-metadata); }
 .row { display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 12px; font: 12.5px var(--type-family); color: var(--text-subtle); position: relative; white-space: nowrap; cursor: pointer; }
 .row .g { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; text-align: left; }
-.row .d { color: var(--text-metadata); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; max-width: 45%; }
 .row:hover { background: var(--surface-inset); }
 .glyph { color: var(--text-disabled); width: 12px; flex: none; text-align: center; }
-.cnt { font: 10.5px var(--type-family); color: var(--text-metadata); }
-.cnt.hot { color: var(--text-standard); font-weight: var(--type-weight-medium); }
 .err { color: var(--text-danger); font: 10.5px var(--type-family); }
-.hint { padding: 2px 12px 6px 34px; font: 11.5px/1.5 var(--type-family); color: var(--text-metadata); overflow-wrap: anywhere; }
-.hint code { color: var(--text-subtle); background: var(--surface-inset); border-radius: 4px; padding: 0 4px; }
 .recovery .doan-button { margin: 4px 4px 0 0; }
 /* The board is the light grey inset surface, so a white canvas stays distinguishable when zoomed out and the agent's white dot field shows. */
 .area { position: relative; overflow: hidden; background: var(--surface-inset); }
@@ -287,7 +278,6 @@ code, kbd { font-family: var(--type-family); }
 .ob-field .value { display: block; gap: normal; align-items: normal; min-width: 0; color: var(--text-standard); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); overflow-wrap: anywhere; }
 /* A token path stays on one line, its full text in title. */
 .ob-field .value.token-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ob-field .value .meta { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
 .ob-project-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ob-field .value.none { color: var(--text-metadata); }
 .ob-field .ob-helper { grid-column: 2 / -1; }
@@ -313,14 +303,6 @@ code, kbd { font-family: var(--type-family); }
 
 .back { flex: none; }
 .top .divider { width: 1px; height: 18px; background: var(--border-standard); flex: none; margin: 0 -4px; }
-.crumbs { flex: 0 1 auto; display: flex; align-items: center; gap: 6px; min-width: 0; font: 12px var(--type-family); color: var(--text-metadata); white-space: nowrap; }
-.crumbs .repo { color: var(--text-subtle); min-width: 48px; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
-.crumbs .canvas { color: var(--text-standard); min-width: 96px; overflow: hidden; text-overflow: ellipsis; }
-.branch { position: relative; flex: 0 1 auto; min-width: 72px; display: inline-flex; align-items: center; gap: 5px; max-width: 240px; font: 12px var(--type-family); color: var(--text-subtle); background: transparent; border: 1px solid var(--border-standard); border-radius: 6px; padding: 2px 6px 2px 7px; }
-.branch .caret { color: var(--text-metadata); font-size: 10px; }
-/* Disabled reads through the ink, so parts with their own colour follow it. */
-.branch:disabled :is(.caret, .glyph) { color: var(--text-disabled); }
-.branch[aria-expanded="true"] { background: var(--affordance-subtle-hover); border-color: var(--border-prominent); }
 
 .workspace { position: absolute; inset: 0; }
 
@@ -328,16 +310,10 @@ code, kbd { font-family: var(--type-family); }
 
 
 
-.side .row .tw { flex: none; width: 12px; text-align: center; color: var(--text-disabled); font-size: 10px; }
-.side .row .two { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-.side .row .two > .g, .side .row .two > .d { flex: none; display: block; min-width: 0; max-width: none; overflow: hidden; text-overflow: ellipsis; }
-.side .row .two > .d { font-size: 11px; }
 /* Violet marks where the person is in the tree: the current row and, fainter, the hovered one. */
 .side .row:hover { background: var(--affordance-sidebar-hover); }
 .side .row[aria-current="location"] { color: var(--text-sidebar-selected); background: var(--surface-sidebar-selected); }
 .side .row[aria-current="location"] :is(.g, .glyph, .d, .tw) { color: var(--text-sidebar-selected); }
-.crumbs button.repo { border-radius: 5px; padding: 1px 4px; margin: 0 -4px; }
-.crumbs button.repo:hover { background: var(--surface-inset); color: var(--text-standard); }
 /* The jump highlight sits over any canvas content, so it is an accent gradient line with a panel ring and a glow.
    border-image ignores border-radius, so the line is a masked ::before: the 12px point keeps its circle, and the
    mask stays off the element's own ring and glow. */
@@ -488,7 +464,6 @@ body:has(.shell-top) { background: transparent; }
    pressed rules (ds/controls.css), which would otherwise paint it. */
 .shell-more[aria-disabled="true"] { color: var(--text-disabled); cursor: default; }
 .shell-side .shell-canvas-row.row > .shell-more.doan-icon-button[aria-disabled="true"]:is(:hover, :active) { background: transparent; }
-.shell-problem { color: var(--text-metadata); font-size: 11px; white-space: nowrap; }
 .shell-empty, .shell-canvas-error { padding: 4px 8px 4px 32px; color: var(--text-metadata); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
 .shell-empty { padding: 6px 10px 10px 34px; line-height: 16px; }
 .shell-canvas-error pre { white-space: pre-wrap; }
