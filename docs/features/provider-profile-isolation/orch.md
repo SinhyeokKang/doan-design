@@ -19,6 +19,7 @@
 - **리뷰 🔴1(사용자 결정)**: 고친다. 바깥 fence가 없는 방식(sandbox 켜진 Claude, Full access가 아닌 Codex)에서는 hook·MCP 같은 보조 프로세스가 sandbox 밖에서 돈다. 그래서 agent가 자기 profile의 provider 설정 파일에 쓰지 못하게 모든 방식에서 막는다.
 - **sandbox 켜진 Claude 턴의 저장소 hook·`.mcp.json` 서버(사용자 결정)**: Known limit에 적는다. 중첩 Seatbelt가 거절되므로 Doan이 감쌀 수 없다.
 - 리뷰 🟡1–🟡4와 ⚪1·⚪3·⚪6은 리뷰 제안대로 고친다. ⚪5(Codex profile 방식에서 userData 항목 이름이 보임)는 Known limit에 적는다 — conductor 판단, 근거: 결정 A·D의 범위 안이고 내용은 막힌다.
+- **D2(사용자 결정)**: Codex profile에서는 승인된 escalated 명령도 네트워크가 없어 `doan` 앱 명령이 앱에 닿지 못했다. Codex는 `network.enabled=true`일 때만 unix socket을 연다. 결정: 두 Doan Codex profile에 `network={enabled=true, unix_sockets={<Doan socket 디렉터리>=allow}}`를 넣는다. 대가: Codex Ask first·Plan·Accept edits의 sandbox 안 명령도 승인 없이 네트워크를 얻는다. 이것을 Known limit에 적고, T7에서 PRODUCT §3 문장을 맞춘다.
 
 ## batch
 
