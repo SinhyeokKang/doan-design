@@ -171,7 +171,7 @@ app/src/renderer/public/mascots/<id>/   앱 사본
 | `settings-general-failed` | General, 저장 실패 메시지와 Retry |
 | `notice` | 캔버스 작업 안내, 다섯 마스코트의 화가 GIF와 각 accent 글로우 |
 
-- 선택 카드: Cover Flow 한 줄이다. 카드(220px)마다 `card.png`(196px), 이름, 성격 한 줄이 있고 라디오 역할을 한다. 고른 카드는 가운데에서 정면을 보고, accent 아이콘 색 테두리 2px와 Home composer 글로우를 가진다(새 Accent place). 나머지는 50° 기울어 84% 크기로 양옆에 겹친다. 고르면 `--time-settle`·`--ease-enter`로 가운데로 이동하고, reduced motion에서는 바로 바뀐다. 설정의 48rem 열에서는 양끝을 잘라 흐리게 한다.
+- 선택 카드: Cover Flow 한 줄이다(반사 없음). 카드(236px, 좌우 패딩 20px)마다 `card.png`(196px), 이름(semibold), 성격 한 줄이 있고 라디오 역할을 한다. 고른 카드는 가운데에서 정면을 보고, accent 아이콘 색 테두리 2px와 Home composer 글로우를 가진다(새 Accent place). 나머지는 50° 기울어 84% 크기로 양옆에 겹친다. 고르면 `--time-settle`·`--ease-enter`로 가운데로 이동하고, reduced motion에서는 바로 바뀐다. 설정의 48rem 열에서는 양끝을 잘라 흐리게 한다.
 - 문구(Doan clarify preset 적용): 제목 "Choose your mascot", 설명 "It keeps you company in Doan and sets the app’s accent color. You can change it anytime in Settings." 설정 General의 설명 "Choices that apply across Doan on this Mac.", Mascot 그룹 설명 "Shown on Home and while an agent works. It also sets the accent color.", 저장 실패 "Couldn’t save your mascot. Your last saved mascot still applies."
 - 성격 한 줄(영어): Doany "A painter in a beret who turns your ideas into pictures."(시안에 없어서 새로 썼다. 확인 필요), Saemi "A curious walking buddy. When it finds something fun, it always takes you to see it.", Dungdung "A music-loving mood maker. It picks songs that fit how its friends feel.", Popo "A whimsical bookworm. It dreams up new games with you.", Dori "A quiet, caring friend. On tiring days, you can lean on it and rest."
 - Home 슬롯은 Doany와 같은 자리에 그림만 바뀌므로 따로 그리지 않는다.
