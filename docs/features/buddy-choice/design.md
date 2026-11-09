@@ -150,7 +150,7 @@ app/src/renderer/public/buddies/<id>/   앱 사본
 
 ## 초안 요청 (`/design-draft`)
 
-### `.doan/canvases/buddy-accent.html` (id `buddy-accent`, width 1600)
+### `.doan/canvases/buddy-accent.html` (id `buddy-accent`, width 1920)
 
 | frame | 내용 |
 |---|---|
