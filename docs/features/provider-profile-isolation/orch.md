@@ -12,6 +12,10 @@
 - 링크 1이 넣은 `account_changed`·`sign_in_changed` 판정(`prepare.ts`)과 `releaseFailed`·`TransportState.running`(`service.ts`·`runners.ts`)은 fence를 얹을 때 그대로 둔다 — conductor 판단, 근거: 체인 파일 '링크 1 merge'.
 - model 경계: Claude worker만 쓴다. 체인 파일이 Codex 사용을 허락했지만 이번 링크에서는 쓰지 않는다 — conductor 판단, 근거: batch가 직렬이라 병렬 용량이 필요 없다. Codex를 쓰게 되면 그때 남은 사용량을 확인하고 여기에 적는다.
 - **P0 실패 방향(사용자 결정)**: P0에서 macOS가 이미 Seatbelt 안의 프로세스에 두 번째 deny 정책을 거절했다(exit 71). 그래서 Doan fence 안에서 Codex Ask first·Accept edits·Plan의 명령 sandbox와 사람이 켠 Claude Code sandbox가 모든 명령을 실패시킨다. 결정: Cursor·Antigravity·Copilot은 계획대로 바깥 fence를 쓴다. Codex·Claude는 T1에서 provider 자체 sandbox·설정(Codex sandbox 설정, Claude `permissions.deny`·sandbox 읽기 제한)에 Doan의 금지 경로를 넣을 수 있는지 먼저 확인하고, 안 되는 부분은 결과를 보고 사용자에게 다시 묻는다. PRODUCT §3의 "Ask first applies the user's own permission and sandbox settings"는 지킨다.
+- **T0 적용(conductor 판단, 근거: design §3.2·§3.3과 Q3·Q6)**: P1이 경로 1로 통과했으므로 Antigravity env는 바꾸지 않고 Q6 막는 분기와 T2a는 없다. P3가 (i)이므로 Antigravity 정책에 profile skill 경로 쓰기 금지를 넣는다.
+- **Claude(사용자 결정)**: 턴마다 나눈다. 턴 시작 전에 SDK `resolveSettings`로 Claude sandbox 상태를 읽어, 꺼져 있으면 바깥 fence, 켜져 있으면 flag tier 설정(`sandbox.filesystem` deny와 allow, `allowUnsandboxedCommands:false`)을 쓴다. 판정이 틀려 켜진 것을 꺼짐으로 보면 Bash가 보이는 실패로 끝난다.
+- **Codex(사용자 결정)**: 모드로 나눈다. Full access가 아니면 Doan profile의 Codex permission profile deny를 쓰고, Full access면 바깥 fence로 감싼 app-server를 쓴다. 두 쪽을 오갈 때 app-server를 다시 띄우고 `thread/resume`한다. 사람이 승인한 `apply_patch`가 deny 경로에 쓸 수 있는 틈과 experimental API 의존은 Known limits에 적는다.
+- Cursor는 P2에서 도구 호출을 보지 못했다(모든 턴이 "Upgrade your plan"). T5에서 다시 시도하고, 그래도 안 되면 미검증으로 남긴다.
 
 ## batch
 
@@ -20,7 +24,7 @@ batch는 모두 직렬이다. T0와 T1은 둘 다 실제 Antigravity와 `~/.gemi
 | batch | 항목 | 파일 소유 | 선행 | model·effort와 이유 | 검증 gate | 상태 |
 |---|---|---|---|---|---|---|
 | W1 PoC-A | P0, T0(P1·P3) | `.scratch/provider-profile-isolation/`, design.md §8 P0·P1·P3 | 없음 | Opus high — 바이너리 archive 해석과 실제 Keychain을 건드리는 판단, 틀리면 사람의 `agy` 로그인을 망친다 | tasks P0·T0 검증, 실제 상태 전후 비교 | 통합 |
-| W2 PoC-B | T1(P2) | `.scratch/provider-profile-isolation/`, design.md §8 P2 | W1, T2의 P0 분기 | Opus high — Seatbelt 정책 평가와 다섯 provider × 모드 판단 | tasks T1 검증, provider × 모드 표 | 대기 |
+| W2 PoC-B | T1(P2) | `.scratch/provider-profile-isolation/`, design.md §8 P2 | W1, T2의 P0 분기 | Opus high — Seatbelt 정책 평가와 다섯 provider × 모드 판단 | tasks T1 검증, provider × 모드 표 | 통합 |
 | conductor | T2 결정 확인, (조건부) T2a 초안 | spec·design·tasks | W2 | — | design §10 남은 확인 필요가 결정으로 바뀜 | 대기 |
 | W3 구현 | T3, T4 | `app/src/main/agentAuth/`(새 fence 모듈, `environment.ts`, `manager.ts`), `app/src/main/conversation/`(`prepare.ts`, `service.ts`, `runners.ts`, `acpRunner.ts`)와 각 테스트 | T2 | Opus high — process spawn·fail closed·보안 경계, 링크 1 거절 경로 보존 | `npm --prefix app test`·typecheck·lint, `verify.mjs` | 대기 |
 | W4 실제 앱 | T5 | `.scratch/provider-profile-isolation/` | W3 | Opus high — 다섯 provider 실제 턴과 실제 HOME 확인 | `/runtime-test` 보고서, 실제 상태 전후 비교 | 대기 |
@@ -33,3 +37,4 @@ batch는 모두 직렬이다. T0와 T1은 둘 다 실제 Antigravity와 `~/.gemi
 ## 진행 기록
 
 - W1(P0·T0): `aa042e53`을 통합했다. P0 실패(위 결정). P1: 지금의 env로 실제 상태 변화 0, 실제 `antigravity-cli/` 쓰기는 Orca.app이 주기적으로 실행하는 사람의 `agy`가 만든다 → 추천 경로 1(코드 변경 없음). 사람의 `agy` 로그인 유지. P3: (i). 남은 것: dev 앱 + Keychains 링크 조건은 T5에서 본다.
+- W2(T1): `1f699b73`을 `a1984624`로 통합했다. 통과 정책 문장은 design §8 P2에 있다. Copilot·Antigravity·Claude(sandbox 꺼짐)·Codex(profile deny, Full access 바깥 fence)가 실제 턴에서 미끼를 막았다. 미검증: Cursor 도구 호출, Copilot minimum 1.0.89, 첨부·MCP·사용량·질문 카드·`doan handoff` 실제 확인(T5로 넘긴다). Antigravity harness 도구 명령이 Stop 뒤 남는 것은 fence와 무관한 기존 동작이다(BACKLOG 후보).
