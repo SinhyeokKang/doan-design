@@ -263,6 +263,12 @@ describe("claudeFenceSettings", () => {
       expect(settings.permissions.deny).not.toContain(`Read(/${P}/${dir}/**)`);
     }
   });
+  // Claude's sandbox blocks unix sockets, and allowUnsandboxedCommands false removed the way to run `doan` outside it,
+  // so only the app socket's own directory is allowed (Claude Code 2.1.319, sandbox run; direct TCP stays blocked).
+  it("allows the app socket's directory and no other network", () => {
+    expect(claudeFenceSettings(paths(), [], "/private/var/folders/x/T/doan-AbC").sandbox.network).toEqual({ allowUnixSockets: ["/private/var/folders/x/T/doan-AbC"] });
+    expect(claudeFenceSettings(paths(), []).sandbox).not.toHaveProperty("network");
+  });
   // Doan judged the sandbox on; the flag tier keeps it on when a user, project or local source it misread says off.
   it("turns the sandbox on in the flag tier", () => {
     expect(claudeFenceSettings(paths(), []).sandbox.enabled).toBe(true);

@@ -84,13 +84,13 @@ it("wraps a Claude turn with its sandbox off in sandbox-exec, and gives one with
   expect(JSON.parse(readFileSync(join(root, "claude-argv"), "utf8"))).not.toContain("--settings");
 
   rmSync(join(root, "exec-args"));
-  const on = await openRunner({ ...base, fast: true, fence: { paths: paths("claude"), exec, claudeSandbox: true, denied: [{ path: "/u/conversations", directory: true }] } }, () => {}, () => {}, () => {});
+  const on = await openRunner({ ...base, fast: true, fence: { paths: paths("claude"), exec, claudeSandbox: true, denied: [{ path: "/u/conversations", directory: true }], socketDir: "/tmp/doan-sock" } }, () => {}, () => {}, () => {});
   await on.close();
   expect(execArgs(root)).toBeNull();
   const argv = JSON.parse(readFileSync(join(root, "claude-argv"), "utf8")) as string[];
   const settings = JSON.parse(argv[argv.indexOf("--settings") + 1]!) as Record<string, unknown>;
   expect(settings).toMatchObject({ fastMode: true, permissions: { deny: expect.arrayContaining(["Read(//u/conversations/**)", "Edit(//u/conversations/**)", "Edit(//u/agent-auth/profiles/claude/settings.json)"]) },
-    sandbox: { enabled: true, allowUnsandboxedCommands: false, filesystem: { denyRead: ["/u"], denyWrite: expect.arrayContaining(["/u/conversations", "/u/runtime.json", "/u/agent-auth/profiles/claude/settings.json"]), allowWrite: ["/u/agent-auth/profiles/claude"] } } });
+    sandbox: { enabled: true, allowUnsandboxedCommands: false, network: { allowUnixSockets: ["/tmp/doan-sock"] }, filesystem: { denyRead: ["/u"], denyWrite: expect.arrayContaining(["/u/conversations", "/u/runtime.json", "/u/agent-auth/profiles/claude/settings.json"]), allowWrite: ["/u/agent-auth/profiles/claude"] } } });
 }, 20000);
 
 const CODEX_OWNER = { kind: "doan" as const, provider: "codex" as const, connectionId: "c1", accountId: "a1", workspaceId: null, profile: "codex" };

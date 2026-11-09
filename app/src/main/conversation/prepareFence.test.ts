@@ -64,6 +64,7 @@ it("reads Claude's sandbox as on from the profile's settings and adds deny rules
   writeFileSync(join(w.profile, "settings.json"), JSON.stringify({ sandbox: { enabled: true } }));
   const ready = await prepare("claude", w).run({ root: w.project, mode: "new", runtime: "claude", text: "hi", anchors: [], attachments: [pasted(w)] });
   expect(ready.fence?.claudeSandbox).toBe(true);
+  expect(ready.fence?.socketDir).toBe(realpathSync.native(w.socketDir));
   const denied = (ready.fence?.denied ?? []).map(entry => entry.path);
   expect(denied).toEqual(expect.arrayContaining([`${w.real}/agent-auth/profiles/cursor`, `${w.real}/conversations`, `${w.real}/attachments/77aa`]));
   expect(denied.some(path => path.includes("profiles/claude") || path.includes("0f4e") || path.includes("runtime.json") || path === w.real)).toBe(false);
