@@ -59,7 +59,7 @@
 
 | 링크 | session·worktree | 시작 | PR·merge | 상태 |
 |---|---|---|---|---|
-| 1. turn-end-state | Claude Code · `turn-end-state-orch`(`/Users/sinhyeokkang/orca/workspaces/doan-design/turn-end-state-orch`, `feat/turn-end-state`로 이름을 바꿀 것) | 2026-11-09, `12b61d52` | PR #146 | 리뷰 중 |
+| 1. turn-end-state | Claude Code · `turn-end-state-orch`(`/Users/sinhyeokkang/orca/workspaces/doan-design/turn-end-state-orch`, `feat/turn-end-state`로 이름을 바꿀 것) | 2026-11-09, `12b61d52` | PR #146, merge `fad00be9` | 완료 |
 | 2. provider-profile-isolation | | | | 대기 |
 
 ## 인계 기록
@@ -72,3 +72,8 @@
   4. P0·P2 실패 시 방향과 T2a 초안 확인은 PoC 결과가 나온 뒤 conductor가 추천과 함께 묻는다.
 - **2026-11-09 lead, 로그인 완료**: 공유 userData에 다섯 provider가 모두 연결됐다(Settings > Agents에서 확인). Claude Code(b2b_product_group@day1company.co.kr)와 Codex(ox501501@gmail.com)는 기존 연결이 살아 있었다. Cursor(ox501501@gmail.com), Antigravity(Google, ox501501@gmail.com), GitHub Copilot(SinhyeokKang)은 새로 연결했다. 앱은 develop `9f53d0a9`을 `npm --prefix app ci` 뒤에 빌드해 실제 HOME으로 띄웠다. develop이 `electron-updater`·`oxlint`를 더했으므로 각 worktree도 `npm --prefix app ci`가 필요하다.
 - **2026-11-09 lead, 링크 1 범위 추가**: 사용자가 실제 앱에서 본 두 문제를 링크 1 conductor에게 넘겼다. 같은 브랜치·PR에 넣는다. (1) Claude 주간 한도 문구("You've hit your weekly limit…")를 `transport.ts`가 `unknown`으로 분류해 "stopped unexpectedly"로 보인다. `rate_limited`로 분류한다. (2) 다른 계정으로 다시 로그인한 뒤 이전 계정의 대화로 보내면 `session_unavailable`로 거절되고 기본 문구만 나온다. 사용자 결정: 계정 불일치에 새 거절 코드를 두고, 다른 계정의 세션이라는 맥락과 'Start a new conversation'을 보여 준다.
+- **2026-11-09 lead, 링크 1 merge**: PR #146을 `fad00be9`로 merge했다. conductor·worker worktree 12개를 지웠고 브랜치는 남겼다. 링크 2가 알아야 할 것:
+  - 새 거절 코드 `account_changed`(account·workspace 불일치)와 `sign_in_changed`(계정 확인 불가, profile 불일치, Doan 소유 profile 교체 뒤의 `configDir` 불일치, `prepare.ts`)가 생겼다. profile을 바꾸거나 fence를 얹을 때 이 판정 경로를 유지한다.
+  - `TransportState.running`(Claude·Codex 도구 종료 집계)과 실패한 history의 해제(`releaseFailed`, `service.ts`)가 `runners.ts`·`service.ts`에 들어왔다.
+  - 미검증: 실제 사용량 한도 frame 녹화, `sign_in_changed` 실제 앱 확인(Codex 계정 교체 필요), Codex `mcpToolCall` 행, Cursor(모든 턴이 "Upgrade your plan"), P4 실제 디스크 실패. P3 원인은 BACKLOG.
+  - lead와 conductor 사이 메시지는 `/ship` 'Messages between lead and conductor'를 따른다(SendMessage 대신 `orca terminal send`).
