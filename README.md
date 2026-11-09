@@ -209,7 +209,7 @@ See [docs/CONTRIBUTING.md](./docs/CONTRIBUTING.md). Please read the [Code of Con
 
 ### Build from source
 
-Requirements: macOS on Apple silicon, Node.js with npm (see `.node-version`), Go (see `go.mod`).
+Requirements: macOS on Apple silicon, Node.js with npm (see `.node-version`), Go (see `go.mod`), and Xcode 26 or later for packaging (its `actool` compiles the app icon).
 
 ```sh
 npm --prefix app ci
