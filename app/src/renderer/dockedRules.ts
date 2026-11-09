@@ -123,7 +123,7 @@ export function dockedMessage(draft: DockedDraft, skills: readonly string[] = []
 
 // A send or start main refused. The limits become the busy line until the host reports the busy conversation and it
 // clears, or the person edits the draft; a canvas that is
-// gone replaces the composer; the rest is a notice under the card. A conversation of an earlier sign-in offers
+// gone replaces the composer; the rest is a notice under the card. A conversation another sign-in owns offers
 // "Start a new conversation".
 // A canvas panel's refusals add two: blocked keeps the draft in a field that takes no input, with
 // the reason line; a notice may offer Retry or, for a terminal session, "Start a new conversation".
@@ -143,11 +143,16 @@ export function dockedRefusal(code: string, mode: DockedMode, provider: Provider
   if (mode.kind === "new") return { kind: "notice", text: startErrorView(code, provider, project).text };
   if (mode.kind === "resume") return { kind: "notice", text: resumeRefusalText(code, provider) };
   const p = PROVIDER_NAMES[provider];
-  // Another sign-in owns the conversation: Retry or signing in again never runs it, so only a new conversation continues.
-  if (code === "account_changed") return { kind: "notice", text: `This conversation belongs to an earlier ${p} sign-in and can’t continue with the account signed in now.`, startNew: true };
+  // Another sign-in owns the conversation: Retry never runs it, so the notice offers a new conversation instead.
+  if (Object.hasOwn(OTHER_SIGN_IN, code)) return { kind: "notice", text: OTHER_SIGN_IN[code]!(p), startNew: true };
   const text = SEND_ERRORS[code]?.(p) ?? "Couldn’t send your message. Try again.";
   return { kind: "notice", text };
 }
+const OTHER_SIGN_IN: Record<string, (p: string) => string> = {
+  account_changed: p => `This conversation’s session belongs to another ${p} account, so it can’t continue here. To continue it, sign in to that account again in Settings > Agents.`,
+  // It may be the same account, so never "another account".
+  sign_in_changed: p => `This conversation’s session belongs to an earlier ${p} sign-in, so it can’t continue here.`,
+};
 const SEND_ERRORS: Record<string, (p: string) => string> = {
   busy: p => `${p} is finishing a previous run. Try again in a moment.`,
   // The code alone does not tell an expired sign-in from none.

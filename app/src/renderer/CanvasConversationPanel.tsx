@@ -419,8 +419,8 @@ export function CanvasConversation(props: CanvasConversationProps) {
   const restoreBusy = archived && current && (current.working || current.phase !== "ended") ? { kind: "restore" as const, open: current.conversationId } : null;
   const busy = newView?.start.busy ?? restoreBusy;
   const openConversation = (id: string) => { props.onChoose?.(); run.select(id); };
-  // A refused terminal session switches to the new conversation that shares its field; a conversation of an earlier
-  // sign-in leaves for a new one on this canvas, taking the refused draft along.
+  // A refused terminal session switches to the new conversation that shares its field; a conversation another sign-in
+  // owns leaves for a new one on this canvas, taking the refused draft along.
   const startNewAfterRefusal = () => {
     if (mode.kind !== "existing" && mode.kind !== "archived") { run.choose("new"); return; }
     store.setDrafts(drafts => carryDraft(drafts, key, draftKey({ kind: "new", root, canvas: target.canvas })));

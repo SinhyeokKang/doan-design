@@ -89,13 +89,15 @@ function accountCode(cause: string): string {
   if (["not_connected", "reauth_required", "unverified", "account_mismatch", "sign_out_failed"].includes(cause)) return "not_logged_in";
   return ["busy", "cli_missing", "cli_install_failed", "session_in_use"].includes(cause) ? cause : "session_unavailable";
 }
-// A conversation owned by another account, workspace or profile cannot run here whatever the user signs into now, so it
-// reads as account_changed: no retry or sign-in brings it back, only a new conversation continues.
-const OTHER_SIGN_IN = ["account_mismatch", "account_unverifiable", "workspace_mismatch", "profile_mismatch"];
+// A conversation another sign-in owns never runs on the current one, so neither a retry nor another agent helps.
+// account_changed: another account or workspace, which signing in to that account again brings back (the resume rebinds).
+// sign_in_changed: a sign-in that cannot be proven the same (no stable account ID, and every sign-in mints a new
+// connection) or another Doan profile, which no sign-in brings back.
 export function judgmentCode(judgment: Exclude<ConnectionJudgment, { decision: "resume" }>): string {
   if (judgment.decision === "reauth") return "not_logged_in";
   if (judgment.decision === "legacy") return "session_unavailable";
-  if (OTHER_SIGN_IN.includes(judgment.cause)) return "account_changed";
+  if (judgment.cause === "account_mismatch" || judgment.cause === "workspace_mismatch") return "account_changed";
+  if (judgment.cause === "account_unverifiable" || judgment.cause === "profile_mismatch") return "sign_in_changed";
   return ["busy", "session_in_use"].includes(judgment.cause) ? judgment.cause : ["sign_out_failed", "unverified"].includes(judgment.cause) ? "not_logged_in" : "session_unavailable";
 }
 // Codex runs tool commands through a login shell by default, whose profile puts the user's own doan back first on
@@ -176,7 +178,10 @@ export function createAccountPrepare(auth: AccountRuntime, cli: string, toolsFai
       let root: string, cwd: string, configDir: string;
       try { root = canonicalDirectory(request.root); cwd = canonicalDirectory(stored?.session.cwd ?? root); configDir = canonicalDirectory(lease.profileDir); }
       catch { throw new Error("session_unavailable"); }
-      if (root !== request.root || (stored && stored.session.configDir !== configDir)) throw new Error("session_unavailable");
+      if (root !== request.root) throw new Error("session_unavailable");
+      // A replacement that staged a new Doan profile (Codex) left the stored session in the previous profile for good;
+      // the same profile resolving to another directory is not a sign-in change.
+      if (stored && stored.session.configDir !== configDir) throw new Error(stored.owner.kind === "doan" && stored.owner.profile !== auth.state(provider).connection?.profile ? "sign_in_changed" : "session_unavailable");
       if (!insideRoot(root, cwd)) throw new Error("outside_root");
       if (stored) {
         const id = stored.session.sessionId;

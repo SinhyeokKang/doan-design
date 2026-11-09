@@ -428,7 +428,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         sendNow={!!conversationId && !!provider && sendNowShown({ provider, phase: steerPhaseOf(thread?.events ?? null, summary, live), sending: false })}
         onSendQueuedNow={itemId => conversationId ? run.store.sendQueuedNow(conversationId, itemId) : Promise.resolve({ error: "not_running" })}
         onSend={send} onQueue={queue}
-        // A conversation of an earlier sign-in leaves for a new one in this project, taking the refused draft along.
+        // A conversation another sign-in owns leaves for a new one in this project, taking the refused draft along.
         onStartNew={() => { run.setDrafts(drafts => carryDraft(drafts, key, draftKey({ kind: "new", root }))); run.select(root, null); }}
         onStop={() => { if (conversationId) void window.doan.interruptConversation({ conversationId }).catch(console.error); }}
         onRemoveQueued={async itemId => {
