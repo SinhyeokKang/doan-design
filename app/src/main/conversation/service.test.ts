@@ -2912,6 +2912,25 @@ describe("a history that stopped taking writes", () => {
     expect(h.service.takeDraft(turn.current)).toMatchObject({ text: "next", reason: "turn_failed" });
     expect(h.store.read(turn.current).filter(e => e.type === "user.message").map(e => e.type === "user.message" && e.text)).toEqual(["Make a pricing page", "again"]);
   });
+  // A Codex server is reused between turns unless it is closed; the one closed over a failed write must be waited out.
+  it("makes a Codex conversation's send wait for the closed server's exit instead of refusing it as busy", async () => {
+    const h = homeFixture([a], { admit: true });
+    h.prepare.mockImplementation(async (_request, stored) => ({ runtime: "codex" as const, configDir: "/profile", cwd: "/repo", command: "/fake", env: {}, sessionId: stored?.session.sessionId ?? "codex-session" }));
+    const current = (await h.service.start({ ...canvasStart, runtime: "codex" })).conversationId;
+    const runner = h.runners.at(-1)!, exit = h.open.mock.calls.at(-1)![2];
+    failOnce(h);
+    h.service.receive(current, { type: "activity", kind: "read", summary: "Read a.html" });
+    await vi.waitFor(() => expect(runner.close).toHaveBeenCalledOnce());
+    const opened = h.open.mock.calls.length;
+    let settled = false;
+    const sending = h.service.send(current, "again", []).finally(() => { settled = true; });
+    await new Promise(resolve => setTimeout(resolve, 20));
+    expect(settled).toBe(false); expect(h.open).toHaveBeenCalledTimes(opened);
+    exit();
+    await sending;
+    expect(h.open).toHaveBeenCalledTimes(opened + 1);
+    expect(h.store.read(current).filter(e => e.type === "user.message").map(e => e.type === "user.message" && e.text)).toEqual(["Make a pricing page", "again"]);
+  });
   it("refuses the next send as a first write that failed when the history still takes no writes", async () => {
     const h = homeFixture([a], { admit: true });
     const { current } = await running(h);
