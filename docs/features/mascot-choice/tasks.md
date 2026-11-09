@@ -10,7 +10,7 @@
 - [ ] **1.2 accent 램프 캔버스.** `.doan/canvases/mascot-accent.html`: 다섯 램프(1–12, pressed, link), 아이콘 색, 대비표(칩 글자 4.5:1, 패널 위 아이콘 3:1, 9단계 위 검정 Send 아이콘 3:1), 각 램프로 칠한 Accent places 견본을 그린다.
   - 확인: `doan check .doan/canvases/mascot-accent.html --json`에 오류가 없다. 대비 수치는 캔버스 안 스크립트로 계산해 표시한다.
   - ⎯ 커밋: `docs(design): mascot-accent draft`
-- [ ] **1.3 화면 초안 (`/design-draft`).** `.doan/canvases/mascot-choice.html`: 첫 실행 Mascot 단계(선택 카드 5장, 마스코트별 accent), 설정 General(Mascot 그룹), Welcome·Home(고른 마스코트 정지 이미지), 캔버스 작업 안내(친구 artist GIF, Doany 가족 정렬 규칙으로 맞춘 소스 박스). 문구는 Doan clarify preset으로 다듬는다.
+- [ ] **1.3 화면 초안 (`/design-draft`).** `.doan/canvases/mascot-choice.html`: 첫 실행 Mascot 단계(선택 카드 5장, 마스코트별 accent), 설정 General(Mascot 그룹), 캔버스 작업 안내(친구 artist GIF, Doany 가족 정렬 규칙으로 맞춘 소스 박스). 문구는 Doan clarify preset으로 다듬는다.
   - 확인: `doan check`·`doan ls`가 통과하고, 사람이 앱에서 초안을 확인한다.
   - ⎯ 커밋: `docs(design): mascot-choice draft`
 - [ ] **1.4 artist GIF 앱 사본.** 1.3에서 정한 소스 박스로 친구 GIF를 자르고 128²로 줄여 `public/mascots/<id>/artist.gif`·`artist-rest.png`를 만든다(Doany와 같은 방법, `public/doany/README.md`). 3단계 첫 커밋에 넣는다.
@@ -27,7 +27,7 @@
 
 - [ ] **2.1 램프와 대비 검사 (순수 함수).** `accentIcon`, 램프 재계산 일치 검사, `ds/checks.ts`의 accent 추적 일반화와 램프별 `contrastPairs`. 먼저 테스트로 고정한다.
   - 확인: `npm --prefix app test`가 통과한다(새 테스트가 먼저 red였다).
-- [ ] **2.2 토큰.** `tokens.css`에 친구 램프 4개, 전환층 `--accent-*`, `:root[data-mascot=…]` 덮어쓰기, `--text-accent`를 넣고, role이 `--accent-*`를 읽게 바꾼다. `--text-on-accent`는 마스코트별 잉크(흰색 우선, 3:1 미만이면 중립)로 바꾼다. 흰 패널 위 accent 아이콘·점·외곽선을 `--text-accent`로 바꾸고, `.ob-atmosphere::before`는 `--accent-5`로 바꾼다.
+- [ ] **2.2 토큰.** `tokens.css`에 친구 램프 4개, 전환층 `--accent-*`, `:root[data-mascot=…]` 덮어쓰기, `--text-accent`를 넣고, role이 `--accent-*`를 읽게 바꾼다. `--text-on-accent`는 마스코트별 잉크(흰색 우선, 3:1 미만이면 중립)로 바꾼다. 흰 패널 위 accent 아이콘·점·외곽선을 `--text-accent`로 바꾼다. Welcome(`.ob-welcome`)은 accent role을 violet으로 고정한다.
   - 확인: `npm --prefix app test`(`ds/checks.test.ts`의 `accentPlaces`, `contrastPairs`)와 `npm --prefix app run typecheck`가 통과한다.
   - ⎯ 커밋: `feat(app): mascot accent ramps`
 - [ ] **2.3 실제 앱 확인 (`/runtime-test`).** 개발자 도구에서 `data-mascot`을 바꿔 다섯 램프의 Home Send, 칩, 글로우, 사이드바 점을 스크린샷으로 남긴다.
@@ -45,7 +45,7 @@
   - ⎯ 커밋: `feat(app): mascot rig for every mascot`
 - [ ] **3.4 첫 페인트와 적용.** main이 창을 만들 때 마스코트 id를 넘기고, 렌더러가 마운트 전에 `data-mascot`을 설정한다. 설정을 저장하면 즉시 반영하고, 실패하면 되돌린다.
   - 확인: 단위 테스트가 통과하고, `/runtime-test`에서 저장된 마스코트로 시작할 때 violet 프레임이 보이지 않는다(첫 프레임 스크린샷).
-- [ ] **3.5 UI.** 선택 카드 컴포넌트, 첫 실행 Mascot 단계와 3단계 스텝퍼, 설정 General, Home·Welcome의 `Mascot`, 작업 안내의 `MascotArtist`. 초안을 기준으로 `/design-sync`를 한다.
+- [ ] **3.5 UI.** 선택 카드 컴포넌트, 첫 실행 Mascot 단계와 3단계 스텝퍼, 설정 General, Home의 `Mascot`, 작업 안내의 `MascotArtist`. 초안을 기준으로 `/design-sync`를 한다.
   - 확인: `/design-sync` 측정 결과가 초안과 맞는다. `/runtime-test`에서 고르기 → 재시작 → 설정에서 바꾸기 → 작업 안내를 확인한다.
   - ⎯ 커밋: `feat(app): mascot choice in first run and settings`
 

@@ -72,7 +72,7 @@ app/src/renderer/public/mascots/<id>/   앱 사본
 토큰 3층(palette → role → legacy, DESIGN.md 'Three colour layers')은 유지하고, palette와 role 사이에 전환층 하나를 둔다.
 
 - **palette**: `--violet-*` 옆에 친구 램프 4개(`--saemi-*`, `--dungdung-*`, `--popo-*`, `--dori-*`)가 있다(`tokens.css`, `/design-draft`에서 추가). sky·amber·green은 이미 다른 palette 색 이름이라 마스코트 이름을 쓴다. 각각 1–12단계, pressed, link, icon 값이다. 만드는 방법은 아래 '초안 요청'의 `mascot-accent` 항목과 `tokens.css` 주석에 있다. violet 방법(9단계 대비 채도 비율)을 그대로 쓰면 친구의 밝은 단계가 회색이 되어서 다르게 정했다.
-- **전환층**: `--accent-1`…`--accent-12`, `--accent-pressed`, `--accent-link`, `--accent-icon`. `:root`는 violet을 가리키고, `:root[data-mascot="saemi"]` 등이 각 램프로 덮어쓴다. role(`--affordance-accent`, `--surface-accent-subtle`, `--text-accent-subtle`, `--surface-comment` 등)은 `--violet-*` 대신 `--accent-*`를 읽는다. `styles.css`가 `--violet-5`를 직접 읽는 곳(`.ob-atmosphere::before`)도 `--accent-5`로 바꾼다.
+- **전환층**: `--accent-1`…`--accent-12`, `--accent-pressed`, `--accent-link`, `--accent-icon`. `:root`는 violet을 가리키고, `:root[data-mascot="saemi"]` 등이 각 램프로 덮어쓴다. role(`--affordance-accent`, `--surface-accent-subtle`, `--text-accent-subtle`, `--surface-comment` 등)은 `--violet-*` 대신 `--accent-*`를 읽는다. Welcome은 항상 Doany와 violet이라, `.ob-welcome`에서 accent role을 violet으로 되돌린다. `.ob-atmosphere::before`의 `--violet-5`는 그대로 둔다.
 - **아이콘 색**: 새 role `--text-accent`(= `--accent-icon`)를 둔다. 흰 패널 위 accent 아이콘, 점, 외곽선이 이 role을 읽는다. 대상은 Fast 아이콘, 추천 프롬프트 아이콘과 화살표, 사이드바 permission·unseen 점, Show conversation 점, 프리셋 아이콘, 드롭 외곽선이다. `--accent-icon`은 램프 단계가 아니라 마스코트별 `--<id>-icon` 값이다. 9단계의 OKLCH 명도를 흰 바탕 대비 3:1이 될 때까지 낮춘 색이다. violet은 9단계 그대로다.
 - **Send**: 아이콘과 스피너는 흰색이 9·hover·pressed 모두에서 3:1을 넘으면 흰색을 쓴다(Doany 5.21:1 이상, Popo 3.03:1 이상, Dori 3.20:1 이상). Popo는 흰 아이콘을 쓰려고 9단계를 아이콘 색까지 어둡게 했다. 넘지 못하면 중립 잉크 `--text-standard`를 쓴다(Saemi, Dungdung). `--text-on-accent`는 전환층에서 마스코트마다 정한다.
 - **적용**: renderer가 `<html data-mascot="<id>">`를 설정한다. Doany는 속성이 없다. `@theme inline`이 accent를 shadcn 이름에 연결하지 않는다는 규칙(ARCHITECTURE §'ds')은 violet에서 accent 전체로 넓힌다.
@@ -90,7 +90,7 @@ app/src/renderer/public/mascots/<id>/   앱 사본
 
 - `Scene`에 `"mascot"`을 추가한다. Welcome의 Get started는 Mascot으로 간다. Mascot의 Continue는 Agent로 간다. 스텝퍼는 3단계다(Mascot · Agent · Project). 완료한 단계는 체크 표시가 붙고 다시 돌아갈 수 있다.
 - 고르면 즉시 저장하고 accent도 즉시 바뀐다. Continue는 항상 누를 수 있다(Doany가 기본값이다).
-- 첫 실행을 다시 시작하면 Welcome부터 시작하고, Welcome에는 저장된 마스코트가 나온다.
+- 첫 실행을 다시 시작하면 Welcome부터 시작한다. Welcome은 마스코트를 고르기 전 화면이라 저장된 마스코트와 상관없이 Doany와 violet을 보여준다.
 - 선택지 UI는 선택 카드 5장이다(그림, 이름, 선택한 마스코트의 성격 한 줄). Mascot 단계와 설정 General에서 같은 컴포넌트를 쓴다. 키보드로는 라디오 그룹처럼 동작한다. 레이아웃은 `/design-draft`에서 정한다.
 - 포커스와 모달: 이 단계도 기존 wizard `<dialog>` 안에 있다. POSTMORTEM 2026-10-24('The onboarding wizard lost keys and clicks to focus and modal stacking')를 따른다. 키는 window에서 처리하고, 컨트롤이 비활성화될 때 포커스가 `<body>`로 빠진다고 가정한다. 이 단계에는 비동기 작업이 저장 하나뿐이다. 저장 중에도 선택지를 비활성화하지 않고 마지막 선택을 저장한다.
 
@@ -139,7 +139,7 @@ app/src/renderer/public/mascots/<id>/   앱 사본
 ## 제작 방식
 
 - 사람이 준 것: 시안 정지 이미지 4장(흰 배경)과 친구별 artist GIF 4개(`sprout_`, `headphones_`, `glasses_`, `scarf_painting.gif`, 512²). 원본은 `/Users/sinhyeok/Desktop/doan-family/`에 있다.
-- Claude(lead)가 먼저 하는 일: 에셋 구조를 만들고 받은 파일을 넣는다. accent 램프와 대비 캔버스, 화면 초안 캔버스(Mascot 단계, 설정, Home·Welcome, 작업 안내)를 그린다. 초안은 시안 이미지와 받은 GIF를 그대로 쓴다. 흰 배경은 밝은 면 위에서 `mix-blend-mode: multiply`로 가린다.
+- Claude(lead)가 먼저 하는 일: 에셋 구조를 만들고 받은 파일을 넣는다. accent 램프와 대비 캔버스, 화면 초안 캔버스(Mascot 단계, 설정, 작업 안내)를 그린다. 초안은 시안 이미지와 받은 GIF를 그대로 쓴다. 흰 배경은 밝은 면 위에서 `mix-blend-mode: multiply`로 가린다.
 - Codex 워커가 이어서 하는 일: 투명 정지 이미지, 몸통·소품 레이어, 리그 수치를 만든다(image_gen). 결과는 같은 경로에 넣으므로 캔버스는 고치지 않아도 된다. 사용자가 이 기능의 에셋 제작에 한해 모델 계열을 넘나들도록 허락했다(AGENTS.md 'Worker model boundary').
 - Claude는 Codex 결과의 좌표·정렬을 검수하고 캔버스가 투명 에셋을 읽도록 바꾼다. 사람이 캔버스에서 확인한다.
 - 시안 정지 이미지의 형태와 질감은 바꾸지 않는다. 배경을 투명하게 만들고 레이어로 나누는 것만 한다. 생성 과정에서 형태가 바뀌면 그 차이를 캔버스에 표시하고 사람에게 묻는다.
@@ -167,7 +167,6 @@ app/src/renderer/public/mascots/<id>/   앱 사본
 |---|---|
 | `mascot-step` | 첫 실행 Mascot 단계, 처음 상태(Doany 선택) |
 | `mascot-step-picked` | 같은 단계에서 Dungdung을 고른 상태(accent가 따라 바뀜) |
-| `welcome` | Welcome, 저장된 마스코트 Saemi |
 | `settings-general` | 설정 General, Popo 선택 |
 | `settings-general-failed` | General, 저장 실패 메시지와 Retry |
 | `notice` | 캔버스 작업 안내, 다섯 마스코트의 화가 GIF와 각 accent 글로우 |
@@ -175,4 +174,4 @@ app/src/renderer/public/mascots/<id>/   앱 사본
 - 선택 카드: 다섯 장을 한 줄로 놓는다. 카드는 `card.png`, 이름, 라디오 역할을 한다. 선택한 카드는 accent 아이콘 색 테두리 2px와 Home composer 글로우와 같은 부드러운 accent 글로우를 가진다(새 Accent place). 카드 줄 아래에 선택한 마스코트의 이름과 성격 한 줄을 보여준다.
 - 문구(Doan clarify preset 적용): 제목 "Choose your mascot", 설명 "It keeps you company in Doan and sets the app’s accent color. You can change it anytime in Settings." 설정 General의 설명 "Choices that apply across Doan on this Mac.", Mascot 그룹 설명 "Shown on Home and while an agent works. It also sets the accent color.", 저장 실패 "Couldn’t save your mascot. Your last saved mascot still applies."
 - 성격 한 줄(영어): Doany "A painter in a beret who turns your ideas into pictures."(시안에 없어서 새로 썼다. 확인 필요), Saemi "A curious walking buddy. When it finds something fun, it always takes you to see it.", Dungdung "A music-loving mood maker. It picks songs that fit how its friends feel.", Popo "A whimsical bookworm. It dreams up new games with you.", Dori "A quiet, caring friend. On tiring days, you can lean on it and rest."
-- 정지 이미지(`still.png`)가 나오기 전까지 Welcome·Home 슬롯은 `card.png`를 `mix-blend-mode: multiply`로 그린다. 투명 정지 이미지가 들어오면 그 파일로 바꾼다.
+- Home 슬롯은 Doany와 같은 자리에 그림만 바뀌므로 따로 그리지 않는다.
