@@ -161,6 +161,10 @@ app/src/renderer/public/mascots/<id>/   앱 사본
 - 램프 값은 `tokens.css` palette(`--saemi-*`, `--dungdung-*`, `--popo-*`, `--dori-*`)에 있고, 캔버스는 전환층을 흉내 내서 프레임 안에서 role을 덮어쓴다.
 - 친구 램프를 만드는 방법은 violet과 다르다. violet 방법(9단계 대비 채도 비율)을 그대로 쓰면, 채도가 낮은 친구의 1–8단계는 거의 회색이 된다. 그래서 1–8·11·12단계는 violet의 OKLCH 명도와 절대 채도를 쓴다(친구 9단계 채도의 1.2배 이하). 9단계는 Doany 몸통 색이 violet 9가 될 때와 같은 이동을 친구 몸통 색에 적용한다. 아이콘 색은 9단계를 흰 바탕 대비 3:1이 될 때까지 어둡게 한 값이다.
 
+### `.doan/canvases/mascot-home.html` (id `mascot-home`, width 2560)
+
+마스코트마다 Home 빈 composer 프레임 하나(`home-doany`, `home-saemi`, `home-dungdung`, `home-popo`, `home-dori`). 마스코트 그림과 accent(composer 글로우, 추천 프롬프트, 사이드바 unseen 점)만 바뀐다. Doany는 출시된 정지 이미지를 쓰고, 친구는 투명 정지 이미지가 나오기 전까지 카드 그림을 multiply로 대신 쓴다.
+
 ### `.doan/canvases/mascot-choice.html` (id `mascot-choice`, width 2560)
 
 | frame | 상태 |
