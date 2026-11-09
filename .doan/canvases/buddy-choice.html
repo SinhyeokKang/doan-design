@@ -330,7 +330,7 @@ document.querySelectorAll('[data-doan-frame="buddy-step"] .buddy-flow').forEach(
   const place = () => {
     const at = inputs.findIndex(input => input.checked);
     cards.forEach((card, n) => { card.dataset.o = String(n - at); });
-    frame.className = frame.className.replace(/m-\w+/, 'm-' + inputs[at].value);
+    frame.className = frame.className.replace(/\bm-\w+/, 'm-' + inputs[at].value);
   };
   const select = n => { const input = inputs[n]; if (!input || input.checked) return; input.checked = true; input.focus(); input.dispatchEvent(new Event('change', { bubbles: true })); };
   flow.addEventListener('change', place);
