@@ -60,7 +60,7 @@
 | 링크 | session·worktree | 시작 | PR·merge | 상태 |
 |---|---|---|---|---|
 | 1. turn-end-state | Claude Code · `turn-end-state-orch`(`/Users/sinhyeokkang/orca/workspaces/doan-design/turn-end-state-orch`, `feat/turn-end-state`로 이름을 바꿀 것) | 2026-11-09, `12b61d52` | PR #146, merge `fad00be9` | 완료 |
-| 2. provider-profile-isolation | | | | 대기 |
+| 2. provider-profile-isolation | Claude Code · `provider-profile-isolation-orch`(`/Users/sinhyeokkang/orca/workspaces/doan-design/provider-profile-isolation-orch`, `feat/provider-profile-isolation`) | 2026-11-09, `c21530f2` | | 진행 중 |
 
 ## 인계 기록
 
