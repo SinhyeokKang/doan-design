@@ -60,13 +60,24 @@ P0에서 이미 Seatbelt 안에 있는 프로세스는 규칙이 있는 두 번�
 - 정책 문장은 `-p`(문자열)로 넘긴다. 정책 파일을 쓰지 않으므로 파일 쓰기 실패가 없다. 경로는 `-D` 매개변수로 넘긴다. 그래야 경로에 따옴표나 괄호가 있어도 정책이 깨지지 않는다.
 - 첨부 매개변수: 붙여넣은 이미지가 없으면 `ATTACHMENTS`는 이 run의 profile이다(이미 읽기·쓰기로 열린 경로라 새로 여는 것이 없다). 하나면 그 디렉터리다. 둘 이상이면 첫째는 `ATTACHMENTS`, 나머지는 `ATTACHMENTS_2`, `ATTACHMENTS_3`…이고, 정책 끝에 `(allow file-read* (subpath (param "ATTACHMENTS_<n>")))` 줄을 하나씩 더한다. 그래서 붙여넣은 이미지가 0개나 1개인 정책은 §8 P2 문장과 바이트까지 같다. Codex의 `ATTACHMENTS`는 `<userData>/attachments`이고 줄을 더하지 않는다.
 - pid, process group, 시작 시각이 그대로라 Stop과 종료 정리가 바뀌지 않는다(§8 P2 (h)).
-- **provider 설정 파일 쓰기 금지**(사용자 결정, 리뷰 🔴1): Claude 정책에는 `(deny file-write* (literal (param "PROVIDER_SETTINGS")))`(`<profile>/settings.json`)를, Codex 정책에는 `(deny file-write* (literal (param "CODEX_CONFIG")) (literal (param "CODEX_HOOKS")) (literal (param "CODEX_MANAGED")) (subpath (param "CODEX_RULES")))`(`config.toml`, `hooks.json`, `managed_config.toml`, `rules/`)를 더한다. 이유: 다음 Claude·Codex run은 바깥 fence 없이 뜰 수 있다(Claude는 sandbox 설정으로, Codex는 Full access 밖에서). 그때 이 파일들이 지정한 hook, MCP 서버, `notify`는 어느 sandbox에도 들지 않는다. 그래서 agent가 이것들을 심지 못하게 한다. Cursor·Antigravity·Copilot은 모든 run이 바깥 fence 안에서 돌므로 줄을 더하지 않는다. 그래서 붙여넣은 이미지가 0–1개인 Cursor·Antigravity·Copilot 정책은 지금도 §8 P2 문장과 바이트까지 같다. Claude·Codex 정책은 이 한 줄만 다르다.
+- **provider 설정 쓰기 금지**(사용자 결정, 리뷰 🔴1, 재리뷰 🔴1):
+  - Claude 정책에 줄 하나를 더한다: `(deny file-write* (literal (param "PROVIDER_SETTINGS")) (subpath (param "PROVIDER_SKILLS")) (subpath (param "PROVIDER_AGENTS")) (subpath (param "PROVIDER_PLUGINS")))`. 대상은 `<profile>/settings.json`, `skills/`, `agents/`, `plugins/`다.
+  - Codex 정책에도 한 줄을 더한다: `(deny file-write* (literal (param "CODEX_CONFIG")) (literal (param "CODEX_HOOKS")) (literal (param "CODEX_MANAGED")) (subpath (param "CODEX_RULES")) (subpath (param "CODEX_SKILLS")) (subpath (param "CODEX_PLUGINS")))`. 대상은 `config.toml`, `hooks.json`, `managed_config.toml`, `rules/`, `skills/`, `plugins/`다.
+  - 이유: 다음 Claude·Codex run은 바깥 fence 없이 뜰 수 있다(Claude는 sandbox 설정으로, Codex는 Full access 밖에서). 그때 이 설정이 지정한 hook, MCP 서버, `notify`는 어느 sandbox에도 들지 않는다.
+    - Claude: skill·subagent frontmatter의 hook이 있다. `skills/` 안의 `.claude-plugin/plugin.json`(skills-dir plugin)은 `enabledPlugins` 없이 켜지고 hook과 MCP 서버를 가질 수 있다. skill은 세션 중에 바로 다시 읽힌다(공식 문서 hooks·skills·plugins-reference).
+    - Codex: skill의 `agents/openai.yaml`이 MCP 의존성을 지정할 수 있다(`skill_mcp_dependency_install`). plugin(`.codex-plugin/plugin.json`)은 `hooks/hooks.json`과 `.mcp.json`을 가진다(codex-cli 0.166.0 바이너리 문자열).
+    - Doan이 띄우기 전에 쓰는 doan skill stub은 읽을 수 있고, 덮어쓰기는 막힌다. 그래서 agent가 이것들을 심지 못하게 한다. Cursor·Antigravity·Copilot은 모든 run이 바깥 fence 안에서 돌므로 줄을 더하지 않는다. 그래서 붙여넣은 이미지가 0–1개인 Cursor·Antigravity·Copilot 정책은 지금도 §8 P2 문장과 바이트까지 같다. Claude·Codex 정책은 이 한 줄만 다르다.
   - 근거(fix round 2 probe):
     - Claude Code 2.1.319는 run 중에 profile `settings.json`에 쓰지 않았다. 제안된 권한("Allow with suggested permissions")은 프로젝트 `.claude/settings.local.json`(localSettings)이나 session에 들어갔다. CLI가 profile에 직접 쓰는 것은 `.claude.json`, `backups/`, `plugins/store/`, `projects/`다.
     - codex-cli 0.166.0은 run 중에 `config.toml`을 만들지 않았다.
     - Codex `config.toml`의 MCP 서버(stdio)와 `notify`는 Doan permission profile 아래에서도 sandbox 밖에서 돌아, 다른 profile과 `conversations/`를 읽었다.
     - 바깥 fence 안에서 Claude CLI는 끝까지 돌았다(`.claude.json` 쓰기는 열려 있다). Codex 정책은 쓰기, `mv`로 바꿔치기, `rules/` 안 새 파일을 모두 막았다.
-  - `.claude.json`(user 범위 `mcpServers`)은 CLI 자신이 run마다 쓰므로 바깥 fence에서는 막지 않는다. sandbox가 꺼진 다음 턴에서는 그 서버도 바깥 fence 안에서 돈다. sandbox가 켜진 다음 턴은 저장소 설정으로만 생기는데, 그 경우는 아래 저장소 설정의 한계에 든다.
+  - fix round 3 probe:
+    - Claude CLI는 `plugins/` 전체가 막힌 바깥 fence에서도 끝까지 돌았다. 평소 쓰는 `plugins/store/`에 쓰지 못해도 doan skill이 목록에 있었다. 그래서 `plugins/`는 하위 경로를 열지 않고 통째로 막는다.
+    - Codex server는 바깥 fence(Full access) 안에서 새 profile의 `skills/.system`을 만들지 못했어도 턴과 `doan open`이 정상이었다.
+    - 두 provider 모두 `skills/`·`agents/`·`plugins/` 쓰기와 stub 덮어쓰기가 막혔고, stub 읽기는 됐다.
+  - `.claude.json`(user 범위 `mcpServers`)은 CLI 자신이 run마다 쓰므로 바깥 fence에서는 막지 않는다. sandbox가 꺼진 다음 턴에서는 그 서버도 바깥 fence 안에서 돈다. sandbox가 켜진 다음 턴은 저장소 설정이나 managed 설정이 바뀔 때만 생긴다. 저장소 쪽은 아래 저장소 설정의 한계에 들고, managed 쪽은 관리자가 바꾼 경우다.
+  - Codex server가 바깥 fence(Full access) 안에서만 돌 때는 `skills/.system`(Codex가 풀어 두는 기본 skill)을 만들거나 고치지 못한다. 그 profile이 Ask first 등으로 한 번 돌았으면 이미 있다. Full access로만 쓴 profile이나 Codex가 업데이트된 뒤 Full access 턴에서는 기본 skill이 없거나 예전 것이다. Known limits에 적는다.
 
 **Claude: 턴마다 sandbox 상태로 고른다**
 
@@ -78,13 +89,16 @@ P0에서 이미 Seatbelt 안에 있는 프로세스는 규칙이 있는 두 번�
   - `sandbox.filesystem`: `denyRead`=`<userData>`, `allowRead`=profile·`runtime.json`·이번 턴의 첨부 디렉터리·browser-hook(`allowRead`는 `denyRead` 안에서 다시 연다). `allowWrite`=profile. `denyWrite`=나열한 항목과 읽기만 여는 허용 경로(`runtime.json`, 첨부, browser-hook). sandbox 명령은 허용된 곳에만 쓰므로 userData의 나머지는 이미 쓸 수 없다. `denyWrite`는 agent가 자기 profile의 `settings.json`으로 다음 턴의 `allowWrite`를 넓혀도 그 항목들을 지킨다.
   - `sandbox.allowUnsandboxedCommands: false`. Full access의 `dangerouslyDisableSandbox`가 승인 없이 sandbox 밖에서 도는 틈을 막는다(§8 P2 (c)). 사람의 설정을 이 한 가지만큼 좁힌다.
   - `sandbox.enabled: true`(리뷰 🟡4). Doan이 켜짐으로 판정했을 때만 넣으므로 사람의 설정을 바꾸지 않는다. Doan이 잘못 읽은 user·project·local 출처가 꺼짐이어도 flag tier가 sandbox를 켜 둔다.
-  - profile 설정 파일: `<profile>/settings.json`과 `<profile>/.claude.json`을 `denyWrite`와 `Edit(…)`(`permissions.deny`)에 더한다(사용자 결정, 리뷰 🔴1). CLI 자신의 쓰기는 막히지 않는다. probe에서 Bash 쓰기, Edit 도구 쓰기, Bash 읽기가 모두 막혔고(Claude sandbox가 이 파일 읽기도 막는다), Full access(`bypassPermissions`)에서도 같았다.
+  - profile 설정: `<profile>/settings.json`·`<profile>/.claude.json`을 `denyWrite`와 `Edit(…)`에 더하고, `<profile>/skills`·`agents`·`plugins`를 `denyWrite`와 `Edit(//…/**)`에 더한다(사용자 결정, 리뷰 🔴1, 재리뷰 🔴1). 디렉터리에는 `Read` deny를 두지 않아 stub과 skill은 읽힌다. CLI 자신의 쓰기는 막히지 않는다. probe에서 Bash 쓰기, Edit 도구 쓰기, Bash 읽기가 모두 막혔고(Claude sandbox가 이 파일 읽기도 막는다), Full access(`bypassPermissions`)에서도 같았다.
 - 판정이 틀리는 경우:
   - 켜짐을 꺼짐으로 읽음(예: MDM이나 서버가 내려 준 managed 설정만 sandbox를 켬): 바깥 fence 안에서 모든 Bash가 71로 실패한다. 보이는 실패이고, 결정이 받아들였다.
   - 꺼짐을 켜짐으로 읽음: flag tier의 `sandbox.enabled: true`가 user·project·local의 꺼짐을 이기므로, 남는 경우는 Doan이 읽지 않는 managed 출처(MDM plist, 서버가 내려 준 설정)가 sandbox를 끈 경우뿐이다. 그때는 flag의 `permissions.deny`만 남아 `perl`처럼 파일을 직접 여는 프로그램은 막지 못한다. Known limits에 적는다.
 - 켜짐 쪽의 한계(Known limits):
   - 턴 도중 새로 생긴 userData 항목(예: 다른 대화가 만든 첨부, 새 staging profile)은 그 턴의 금지 목록에 없어 Read·Edit 도구가 읽고 쓸 수 있다. Bash 읽기는 `denyRead`=`<userData>`가 OS 수준에서 그대로 막는다.
-  - 저장소의 `.claude/settings.json`·`.claude/settings.local.json` hook과 승인된 `.mcp.json` stdio 서버는 sandbox가 켜진 턴에 어느 fence에도 들지 않고 돈다(사용자 결정: Known limit). Claude sandbox는 shell 명령만 덮고, Doan의 바깥 fence는 중첩 Seatbelt가 거절되어 씌울 수 없다. agent는 저장소에 쓸 수 있으므로, sandbox가 꺼진 턴에 저장소 설정으로 sandbox를 켜고 hook을 심어 다음 턴에 쓸 수도 있다. 저장소 신뢰 모델 안의 한계로 적는다.
+  - 저장소의 Claude 설정이 지정하는 hook과 MCP 서버는 sandbox가 켜진 턴에 어느 fence에도 들지 않고 돈다(사용자 결정: Known limit). 대상은 `.claude/` 아래 settings(`settings.json`·`settings.local.json`), skills·agents frontmatter hook, `.claude/skills/` 안의 skills-dir plugin, 그리고 `.mcp.json`이다. `settings.local.json`의 `enableAllProjectMcpServers`가 켜지면 `.mcp.json` 서버는 승인 없이도 돈다.
+    - Claude sandbox는 shell 명령만 덮고, Doan의 바깥 fence는 중첩 Seatbelt가 거절되어 씌울 수 없다.
+    - agent는 저장소에 쓸 수 있으므로, sandbox가 꺼진 턴에 이것들을 심어 다음 턴을 sandbox 켜짐으로 바꾸고 fence 밖에서 돌릴 수 있다. Full access에서는 승인 없이 두 턴 만에 된다. 그래도 사용자 결정에 따라 Known limit으로 둔다. Doan은 저장소 쓰기를 막지 않고, CLI 자신도 `.claude/settings.local.json`에 쓰므로 막을 수 없다.
+    - 저장소 신뢰 모델 안의 한계로 적는다.
   - 턴 도중에 붙여넣은 이미지(Send now)는 그 턴이 열지 않았으므로 agent가 읽지 못한다. 그래서 이미지가 든 대기 메시지의 Send now를 `not_running`으로 거절하고, 메시지는 큐에 남아 다음 턴으로 간다(리뷰 🟡1). sandbox가 꺼진 턴도 같다.
 
 **Codex: 권한 모드로 고른다**
@@ -92,12 +106,14 @@ P0에서 이미 Seatbelt 안에 있는 프로세스는 규칙이 있는 두 번�
 - Full access가 아닌 app-server: 바깥 fence 없이 띄우고, 인수에 `-c default_permissions="doan"`과 두 profile을 더한다.
   - `permissions.doan={extends=":read-only",filesystem=<항목>,network=<네트워크>}`: Ask first와 Plan.
   - `permissions.doan-workspace={extends=":workspace",filesystem=<항목>,network=<네트워크>}`: Accept edits.
-  - `<네트워크>`: `{enabled=true,unix_sockets={"<앱 소켓 디렉터리>"="allow"}}`(사용자 결정 A, T5 D2). 앱 소켓 디렉터리는 main의 runtime이 만든 `$TMPDIR/doan-*`를 `realpath`로 푼 값이다. 소켓이 없으면 run은 띄우지 않고 `unknown`이다.
+  - `<네트워크>`: `{enabled=true,unix_sockets={"<앱 소켓 디렉터리>"="allow"}}`(사용자 결정 A, T5 D2). 앱 소켓 디렉터리는 main의 runtime이 만든 `$TMPDIR/doan-*`를 `realpath`로 푼 값이다.
+    - 앱의 runtime이 시작하지 못해 소켓이 없으면, profile server(Ask first·Accept edits·Plan)는 띄우지 않고 `unknown`이다. Full access server는 이 값을 쓰지 않으므로 그대로 뜬다.
+    - runtime은 앱의 부가 기능이지만(`doan active` 등), 이제 그것이 없으면 Doan 연결 Codex 대화의 Full access 밖 모드가 시작하지 못한다. ARCHITECTURE 승격 때 적는다.
     - 이유: deny 항목이 있는 profile에서는 sandbox 안 명령도, 사람이 승인한 escalated 명령도 네트워크가 전혀 없다. unix socket connect와 TCP 모두 EPERM이다(codex-cli 0.166.0, 가짜 API probe). 그래서 `doan handoff`·`doan open`·`doan work update`가 앱에 닿지 못했다. 승인된 `git push`·`npm install` 같은 명령도 네트워크를 잃었다.
     - 소켓만 여는 조합은 모두 실패했다: `unix_sockets`만, `enabled=false` + `unix_sockets`, `dangerously_allow_all_unix_sockets`, `allow_unix_sockets`, `allow_local_binding`. Codex는 `enabled=true`일 때만 unix socket을 연다. `domains` 허용 목록을 더해도 직접 TCP는 막히지 않았다.
     - 결과(fix round 2 probe): Ask first·Accept edits 모두 sandbox 안과 승인된 escalated `doan open`이 앱 소켓에 닿았다. 미끼와 설정 파일 쓰기는 그대로 막혔다.
     - 그래서 Codex Ask first에서 `doan handoff`는 첫 승인(`doan-handoff.rules`의 prompt)만으로 sandbox 안에서 앱에 닿을 것으로 본다. PRODUCT §3의 "두 번 승인" 문장과 ARCHITECTURE §7 'Profiles'의 같은 설명은 T5에서 확인한 뒤 T7에서 고친다.
-  - `<항목>`: server를 띄울 때 나열한 금지 항목마다 `"<path>"="deny"`, profile의 설정 파일(`config.toml`, `hooks.json`, `managed_config.toml`, `rules`)마다 `"<path>"="deny"`(사용자 결정, 리뷰 🔴1, escalated 명령은 `deny`만 지키므로 읽기 전용이 아니라 `deny`), 그리고 `"<profile>"="write"`, `"<userData>/runtime.json"="read"`, `"<userData>/attachments"="read"`. 금지 항목은 Claude와 같은 방식으로 모은다(허용 경로는 자기 profile, `runtime.json`, `attachments/` 전체이고 browser-hook은 금지 항목이다). 경로는 TOML 기본 문자열(JSON 문자열 표기와 같은 escape)로 넣는다.
+  - `<항목>`: server를 띄울 때 나열한 금지 항목마다 `"<path>"="deny"`, profile의 설정(`config.toml`, `hooks.json`, `managed_config.toml`, `rules`, `skills`, `plugins`)마다 `"<path>"="deny"`(사용자 결정, 리뷰 🔴1, escalated 명령은 `deny`만 지키므로 읽기 전용이 아니라 `deny`), 그리고 `"<profile>"="write"`, `"<userData>/runtime.json"="read"`, `"<userData>/attachments"="read"`. 금지 항목은 Claude와 같은 방식으로 모은다(허용 경로는 자기 profile, `runtime.json`, `attachments/` 전체이고 browser-hook은 금지 항목이다). 경로는 TOML 기본 문자열(JSON 문자열 표기와 같은 escape)로 넣는다.
   - `"<userData>"="deny"` 한 줄을 쓰지 않는 이유: Codex는 사람이 승인한 escalated 명령에 profile의 `deny` 항목만 적용하고 그 아래의 `read`·`write` 항목은 적용하지 않는다(codex-cli 0.166.0, 가짜 API probe). 그래서 승인된 `doan handoff`가 `runtime.json`을 읽지 못했다(T5 D2). 나열한 항목만 막으면 sandbox 안과 승인된 escalated 명령 모두 `runtime.json`, 자기 profile, 첨부에 닿고 미끼는 막힌다(fix round 1 probe).
   - 턴마다 legacy `sandboxPolicy` 대신 `permissions: "<profile id>"`(experimental API)를 보낸다. 둘을 함께 보내면 userData 전체가 막히므로 섞지 않는다(§8 P2 (c)).
   - 승인 정책은 지금처럼 ephemeral `thread/start`에서 읽은 Ask first 값(Ask first), `on-request`(Accept edits), `never`(Plan)이다.
@@ -112,16 +128,16 @@ P0에서 이미 Seatbelt 안에 있는 프로세스는 규칙이 있는 두 번�
   - 사람이 Doan의 Codex profile `config.toml`에 legacy `sandbox_mode`를 적어도 Doan이 턴마다 `permissions`를 보내므로 deny가 걸린다. 대신 그 `sandbox_mode`는 쓰이지 않는다.
   - Ask first·Plan·Accept edits의 sandbox 명령이 승인 없이 네트워크에 닿는다(사용자 결정 A). 전에는 꺼져 있었다(Accept edits는 설정의 `network_access`를 따랐다). T7에서 PRODUCT §3 'Ask first applies the user's own permission and sandbox settings' 문장을 고친다.
   - userData 자신과 허용 경로의 조상은 막지 않으므로, sandbox 안과 escalated 명령 모두 `ls <userData>`로 항목 이름(다른 provider의 profile 이름, 대화 id 등)을 볼 수 있다(리뷰 ⚪5, T5 re-check `LS-OK`). 내용은 금지 항목에서 막힌다.
-  - profile 설정 파일은 `deny`이므로 sandbox 명령은 자기 `config.toml`을 읽지도 못한다. Codex 서버 자신은 sandbox 밖이라 그대로 읽는다.
+  - profile 설정은 `deny`이므로 sandbox 명령은 자기 `config.toml`, `skills/`(doan stub 포함), `plugins/`를 읽지도 못한다. Codex 서버 자신은 sandbox 밖이라 그대로 읽고 skill을 agent에게 넘긴다.
 
 **fail closed**(결정 Q5): 아래 경우 run은 기존 시작 실패로 끝난다. 새 실패 코드와 문구는 만들지 않는다.
 
-- 띄우기 전 거절(경로를 `realpath`로 풀 수 없음, 절대 경로가 아님, 제어 문자(U+0000–U+001F, U+007F)가 있음, profile이 `<userData>/agent-auth/profiles/` 바로 아래가 아님, 금지 항목을 나열할 수 없음, Codex의 앱 소켓 디렉터리가 없음) → `unknown`. 붙여넣은 이미지 경로도 `realpath`로 푼 뒤 첨부 저장소와 비교한다. 풀리지 않는 첨부는 열지 않을 뿐 run을 거절하지 않는다(리뷰 ⚪1).
+- 띄우기 전 거절(경로를 `realpath`로 풀 수 없음, 절대 경로가 아님, 제어 문자(U+0000–U+001F, U+007F)가 있음, profile이 `<userData>/agent-auth/profiles/` 바로 아래가 아님, 금지 항목을 나열할 수 없음, Codex profile server의 앱 소켓 디렉터리가 없거나 풀리지 않음) → `unknown`. 붙여넣은 이미지 경로도 `realpath`로 푼 뒤 첨부 저장소와 비교한다. 풀리지 않는 첨부는 열지 않을 뿐 run을 거절하지 않는다(리뷰 ⚪1).
 - `sandbox-exec`가 없음(spawn `ENOENT`)이나 정책 오류로 바로 끝남(종료 코드 65, 71) → `process_exited`. Claude는 SDK가 실행 실패를 자기 문구로 던지므로, spawn 오류이거나 65·71로 끝나면서 stderr에 `sandbox-exec:` 문구가 있을 때만 `process_exited`로 바꾼다. CLI 자신이 시작 중에 끝나면 SDK 오류를 그대로 둔다(리뷰 🟡3).
 - 어느 경우도 `cli_missing`을 쓰지 않는다. provider CLI가 없는 것이 아니기 때문이다.
 - `realpath`는 필수다. 풀지 않은 `/var/...`나 상대 경로 `-D`는 오류 없이 아무것도 막지 않는다(fail open, §8 P2 (a)).
 
-**재사용 Codex server**: 살아 있는 server로 가는 send는 fence를 다시 만들지 않는다(리뷰 🟡2). server는 띄울 때의 fence를 그대로 쓰므로, 그 사이 나열이 잠깐 실패해도 send가 거절되지 않는다.
+**재사용 Codex server**: 살아 있는 server로 가는 send는 fence를 다시 만들지 않는다(리뷰 🟡2). main의 배선(`wireAccountPrepare`)이 `reusing`을 account prepare까지 넘긴다(재리뷰 🟡1). server는 띄울 때의 fence를 그대로 쓰므로, 그 사이 나열이 잠깐 실패해도 send가 거절되지 않는다.
 
 **적용 범위**: Doan 연결 대화 run만이다. 로그인, 상태 확인, 로그아웃, 모델 목록, 사용량 fresh read, MCP connector 명령, Codex identity lookup에는 붙이지 않는다(결정 Q2). §3.2가 경로 1이므로 Antigravity의 `acpExec`에도 붙이지 않는다.
 
@@ -436,7 +452,7 @@ P0에서 이미 Seatbelt 안에 있는 프로세스는 규칙이 있는 두 번�
 | Claude | Claude의 막는 방법 | 턴마다 sandbox 상태를 읽어, 꺼지면 바깥 fence, 켜지면 flag tier 설정(`permissions.deny`, `sandbox.filesystem`, `allowUnsandboxedCommands: false`). 판정을 틀려 켜진 것을 꺼짐으로 보면 Bash가 보이는 실패로 끝난다 | orch.md '결정 기록', design §3.1 |
 | Codex | Codex의 막는 방법 | Full access가 아니면 Doan의 Codex permission profile(`deny` 항목, `default_permissions`)을 턴마다 고르고, Full access면 바깥 fence 안의 app-server. 둘 사이를 오가면 app-server를 다시 띄우고 `thread/resume`한다. `deny`는 server를 띄울 때 나열한 userData 항목에 건다(T5 D2). server 시작 뒤 생긴 항목, 승인된 escalated 명령의 쓰기, experimental API 의존은 Known limits | orch.md '결정 기록', design §3.1 |
 | D2-A | Codex profile에서 앱 소켓에 닿기 | 두 Doan profile에 `network={enabled=true,unix_sockets={<앱 소켓 디렉터리>=allow}}`. Ask first·Plan·Accept edits의 sandbox 명령도 승인 없이 네트워크에 닿는 것은 Known limit이고, PRODUCT §3 문장은 T7에서 고친다 | design §3.1 |
-| 🔴1 | provider 설정 파일 | 막는다. 바깥 fence는 Claude `settings.json`과 Codex `config.toml`·`hooks.json`·`managed_config.toml`·`rules/` 쓰기를 막는다. Claude flag 설정은 `settings.json`·`.claude.json`을 `denyWrite`와 `Edit` deny로 막는다. Codex profile은 같은 파일을 `deny`로 막는다 | design §3.1 |
-| 저장소 설정 | sandbox 켜짐 Claude 턴의 저장소 hook·승인된 `.mcp.json` 서버 | Known limit. 어느 fence에도 들지 않는다(중첩 Seatbelt 거절) | design §3.1 |
+| 🔴1 | provider 설정 | 막는다. 바깥 fence는 Claude `settings.json`·`skills/`·`agents/`·`plugins/`와 Codex `config.toml`·`hooks.json`·`managed_config.toml`·`rules/`·`skills/`·`plugins/` 쓰기를 막는다. Claude flag 설정은 `settings.json`·`.claude.json`과 세 디렉터리를 `denyWrite`와 `Edit` deny로 막는다(읽기는 열어 둔다). Codex profile은 같은 것을 `deny`로 막는다. 나머지 profile 경로는 D1대로 읽기·쓰기다 | design §3.1 |
+| 저장소 설정 | sandbox 켜짐 Claude 턴의 저장소 Claude 설정(`.claude/` settings·skills·agents·plugin, `.mcp.json`, `enableAllProjectMcpServers`)이 지정한 hook·MCP 서버 | Known limit. 어느 fence에도 들지 않는다(중첩 Seatbelt 거절). agent가 이것을 심어 다음 턴을 sandbox 켜짐으로 바꾸는 경우도 포함한다 | design §3.1 |
 
 구현 세부(conductor 승인): Claude sandbox는 SDK 함수 대신 같은 출처를 같은 우선순위로 직접 읽어 판정한다. sandbox가 켜진 Claude 턴의 `permissions.deny`는 턴 시작 때 나열한 형제 항목만 적는다. 첨부 매개변수는 붙여넣은 이미지 수에 따른다. Codex Ask first·Plan은 `doan`(읽기 전용), Accept edits는 `doan-workspace` profile이고, `:workspace`가 `sandbox_workspace_write`의 네트워크와 쓰기 경로를 따르는지는 T5에서 본다(§3.1).
