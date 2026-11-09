@@ -14,7 +14,7 @@
 - 정지 지점: T0이 H0·H3·H4나 다른 원인으로 판정하면 conductor가 멈추고 사용자에게 묻는다(design §13, chain 인계 기록 2).
 - `/design-draft` 없음(design §12).
 - T0 판정 H0 → 정지 지점에서 사용자 결정: **T4 취소, 원인만 기록**(T7 BACKLOG P3 줄). S worker에게 T4를 보내지 않는다. T6 (c)도 하지 않는다.
-- 계정 전환: 이전 conductor 세션이 토큰 한도로 멈춰 다른 계정의 새 세션이 같은 worktree에서 이어받았다. 이전 worker terminal은 쓰지 않고 필요하면 새로 띄운다.
+- 계정 전환: 이전 conductor 세션이 토큰 한도로 멈춰 다른 계정의 새 세션이 같은 worktree에서 이어받았다. 이전 계정 worker 7개(P·M·R·S·M 리뷰·S 리뷰·S 수정 1)는 모두 settled였고 재개할 일이 없어 해제했다(남은 프로세스 없음 확인). 이후 worker는 새 계정 profile로 띄운다.
 - T6 runtime-test는 T0의 계측과 script를 다시 쓰므로 P worker에게 새 Task로 준다. T7 승격은 conductor가 한다.
 
 ## Batch
@@ -44,3 +44,5 @@ T0·T6 → P, T1 → M, T2·T5 → R, T3·T4 → S, T7 → conductor. 주인 없
 
 - **M**: `46f9df51` → 통합 `958b7257`. 리뷰(Sonnet high) 🔴 0 · 🟡 1. 🟡: 시작만 하고 `item/completed`가 오지 않는 Codex 도구 item(`codex-home.json` 녹화)이 턴 끝까지 `running`에 남아 뒤의 general을 막는다. conductor 판단 — design §2.2대로 받아들이고, T6에서 실제 Codex가 시작한 명령 item을 늘 닫는지 본다. tasks.md T1의 "`codexHome` 사례 포함" 문구와는 다르다. `requesting` general이 `running`을 보지 않는 점(note 1)도 T6에서 실제 frame으로 본다. M·리뷰 worker 해제.
 - **S**: `357cc74d`. 리뷰(Opus high) 🔴 0 · 🟡 1 — Codex server 재사용 예외의 `!failedPersistence`(`service.ts:419`)를 고정하는 테스트가 없다. 수정 라운드 1(테스트 추가)을 새 worker(Sonnet high, 같은 worktree)에 맡겼다. 끝난 worker terminal은 Orca가 agent로 알아보지 못해(`agent_unconfigured`) 다시 쓰지 못했고 해제했다. T4도 새 worker로 보낸다.
+- **R**: `8f9fa8f7`(T2 `bc7d321c`, T5 `23dd3c4d`, refactor). 리뷰 worker(Opus high, 새 계정)를 띄웠다.
+- **S 수정 1**: `0a3b8bae`(테스트만). 재리뷰 worker(Sonnet high — 테스트 하나의 mutation 확인이라 가볍다, 새 계정)를 띄웠다.
