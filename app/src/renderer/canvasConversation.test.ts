@@ -200,6 +200,11 @@ describe("canvasConversationError", () => {
     expect(canvasConversationError("session_in_use", EXISTING, "claude", "acme-web")).toEqual({ kind: "notice", text: "Claude Code is using this session in another terminal. Try again when it finishes there.", retry: false, startNew: false });
   });
 
+  test("a send to a conversation of an earlier sign-in offers a new conversation, not Retry", () => {
+    const text = "This conversation belongs to an earlier Claude Code sign-in and can’t continue with the account signed in now.";
+    for (const mode of [EXISTING, ARCHIVED]) expect(canvasConversationError("account_changed", mode, "claude", "acme-web")).toEqual({ kind: "notice", text, retry: false, startNew: true });
+  });
+
   test("restoring while the current conversation runs is the restore busy line", () => {
     expect(canvasConversationError("busy", ARCHIVED, "claude", "acme-web")).toEqual({ kind: "busy", busy: { kind: "restore", open: null } });
   });

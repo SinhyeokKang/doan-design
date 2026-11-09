@@ -174,7 +174,7 @@ it("asks for the provider's tool facts again when a run finds its CLI missing or
   (h.auth.runtime.acquire as ReturnType<typeof vi.fn>).mockImplementationOnce(async () => { throw new Error("busy"); });
   await expect(start(h, "cursor")).rejects.toThrow("busy");
   h.auth.set({ connection: { ...h.auth.get().connection!, connectionId: "conn-2", account: { id: "other", workspace: null } }, generation: 2 });
-  await expect(h.service.send(conversationId, "other account", [])).rejects.toThrow("session_unavailable");
+  await expect(h.service.send(conversationId, "other account", [])).rejects.toThrow("account_changed");
   expect(h.toolsFailed).not.toHaveBeenCalled();
 });
 
@@ -188,7 +188,7 @@ it("resumes a doan Claude conversation only for the same account, profile and an
   // Another account signed in on the same profile: the old conversation does not run on it.
   h.auth.set({ connection: { ...h.auth.get().connection!, connectionId: "conn-2", account: { id: "acct-2", workspace: null } }, generation: 2 });
   const before = readFileSync(join(h.data, "conversations", `${conversationId}.jsonl`), "utf8");
-  await expect(h.service.send(conversationId, "other account", [])).rejects.toThrow("session_unavailable");
+  await expect(h.service.send(conversationId, "other account", [])).rejects.toThrow("account_changed");
   expect(readFileSync(join(h.data, "conversations", `${conversationId}.jsonl`), "utf8")).toBe(before);
   expect(h.open).toHaveBeenCalledTimes(2); await Promise.resolve(); expect(h.auth.leases.open).toBe(0);
 });
@@ -220,7 +220,7 @@ it("resumes a Codex conversation without a stable account ID only on its own con
   h.service.receive(conversationId, { type: "turn.done" }); h.exits[1]!();
   // A reauth stores a new connection; without an ID it cannot be proven to hold the same login.
   h.auth.set({ connection: { ...h.auth.get().connection!, connectionId: "conn-2" }, generation: 2 });
-  await expect(h.service.send(conversationId, "after reauth", [])).rejects.toThrow("session_unavailable");
+  await expect(h.service.send(conversationId, "after reauth", [])).rejects.toThrow("account_changed");
   expect(h.open).toHaveBeenCalledTimes(2); expect(h.store.list()[0]?.owner).toMatchObject({ connectionId: "conn-1" });
 });
 
@@ -315,7 +315,7 @@ it("runs an unchecked Copilot connection without a status request and lets the r
   expect(h.open.mock.calls[1]![0].sessionId).toBe(ACP_SESSION);
   h.service.receive(conversationId, { type: "turn.done" }); h.exits[1]!();
   h.auth.set({ connection: { ...h.auth.get().connection!, connectionId: "conn-2", account: { id: "other", workspace: null } }, generation: 2 });
-  await expect(h.service.send(conversationId, "other account", [])).rejects.toThrow("session_unavailable");
+  await expect(h.service.send(conversationId, "other account", [])).rejects.toThrow("account_changed");
   // A failed write-back or check on an unchecked Copilot connection is not run past.
   h.auth.set({ connection: { ...h.auth.get().connection!, connectionId: "conn-1", account: { id: "acct-1", workspace: null } }, error: { code: "storage_failed" } });
   await expect(h.service.send(conversationId, "after a failed write-back", [])).rejects.toThrow("not_logged_in");
@@ -403,7 +403,7 @@ it("checks the account again after waiting for the previous Claude process", asy
   await new Promise(resolve => setTimeout(resolve, 0));
   h.auth.set({ generation: 2, connection: { ...h.auth.get().connection!, connectionId: "conn-2", account: { id: "acct-2", workspace: null } } });
   h.exits[0]!();
-  await expect(pending).rejects.toThrow("session_unavailable");
+  await expect(pending).rejects.toThrow("account_changed");
   expect(h.open).toHaveBeenCalledOnce();
 });
 
