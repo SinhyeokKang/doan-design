@@ -42,7 +42,7 @@
 
 ### 3단계 — 마스코트 설정
 
-10. 첫 실행은 Welcome → Mascot → Agent → Project → Home 순서다. 스텝퍼에는 1 Mascot · 2 Agent · 3 Project가 표시된다. Mascot 단계는 다섯 마스코트를 선택 카드(그림과 이름)로 보여주고, 선택한 마스코트의 성격 한 줄을 보여준다. 처음에는 Doany가 선택돼 있다.
+10. 첫 실행은 Welcome → Mascot → Agent → Project → Home 순서다. 스텝퍼에는 1 Mascot · 2 Agent · 3 Project가 표시된다. Mascot 단계는 다섯 마스코트를 Cover Flow 형태의 선택 카드 한 줄(카드마다 그림, 이름, 성격 한 줄)로 보여준다. 처음에는 Doany가 선택돼 있다.
 11. Mascot 단계에서 고르면 즉시 저장하고 accent도 즉시 바뀐다. 첫 실행 도중 앱을 종료해도 고른 마스코트가 남는다.
 12. 설정 목록 맨 위에 General 카테고리가 있고, 그 안의 Mascot 그룹에서 같은 선택지로 언제든 바꿀 수 있다. 바꾸면 Home, 작업 안내, accent에 즉시 반영된다.
 13. Welcome은 마스코트를 고르기 전 화면이라 항상 Doany와 violet이다. 저장된 마스코트가 있어도 바뀌지 않는다. Home에는 고른 마스코트가 나오고, Doany와 같은 모션(숨쉬기, 깜박임, 시선, 포인터 따라보기, 입력 중 주목, 홉, reduced motion에서 정지, WebGL이 없으면 정지 이미지)을 한다.
