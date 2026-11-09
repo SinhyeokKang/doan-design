@@ -36,7 +36,7 @@ import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, nati
 import { randomUUID } from "node:crypto";
 import { accessSync, constants as fsConstants, lstatSync, readlinkSync, realpathSync, statSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Selection } from "../formats/types";
 import { validateSelection } from "../formats/validate";
@@ -936,7 +936,7 @@ async function start(): Promise<void> {
   }
   // The legacy external prepare gets no records: its runs use the user's own profile and readiness does not cover them.
   // Runs read the MCP connectors' generation and names when they ask.
-  const accountPrepare = createAccountPrepare(auth, cli, provider => void authIpc?.refreshTools(provider), authIpc, connectorFacts(() => mcp), { userData });
+  const accountPrepare = createAccountPrepare(auth, cli, provider => void authIpc?.refreshTools(provider), authIpc, connectorFacts(() => mcp), { userData, socketDir: () => runtime ? dirname(runtime.socket) : undefined });
   // Without readable account storage a doan-account run is refused; it never falls back to the external profile.
   const prepareConversation = routePrepare(createPrepare(userData, join(userData, "runtime.json"), process.env),
     (request, stored, use) => agentAuth ? accountPrepare(request, stored, use).then(prepared => use === "listing" || !usage ? prepared : withTurnUsage(prepared, usage)) : Promise.reject(new Error("not_logged_in")));

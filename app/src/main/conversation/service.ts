@@ -64,7 +64,8 @@ export interface Prepared {
   // rest of Doan's userData (agentAuth/fence.ts). claudeSandbox: this Claude turn runs with its own sandbox on, so it
   // gets Doan's settings instead of the outer sandbox-exec. denied: the userData entries listed for a provider's own
   // settings (a Claude turn with its sandbox on, every Codex run). exec: another sandbox-exec, for tests.
-  fence?: { paths: FencePaths; denied?: FenceEntry[]; claudeSandbox?: true; exec?: string };
+  // socketDir: the app socket's directory, which a Codex profile server allows.
+  fence?: { paths: FencePaths; denied?: FenceEntry[]; claudeSandbox?: true; socketDir?: string; exec?: string };
 }
 // generation: the provider's connector generation now. labels: connector names by doan- name, for permission
 // summaries and activity lines.
@@ -129,7 +130,7 @@ const EXIT_WAIT_MS = 10_000;
 // handoffKey: the DOAN_HANDOFF value of the runner it holds now (openRunner).
 // lastSeq: the conversation's last written seq (deliver). stage: the running turn's last stage signal, never stored;
 // stageRev counts this entry's signals, so stages that share a seq keep their order.
-interface Live { turnId: string; busy: boolean; accepted: boolean; runner?: Runner; cleanup?: () => Promise<void>; terminal: boolean; events: EventPayload[]; failedPersistence: boolean; exited: boolean; provider?: Provider; since: number; endedAt?: number; project?: string; closed?: boolean; holding?: object; mcpGeneration?: number | undefined; asking?: Set<string>; done?: boolean; handoffKey?: string; lastSeq?: number; stage?: StageSignal; stageRev?: number }
+interface Live { turnId: string; busy: boolean; accepted: boolean; runner?: Runner; cleanup?: () => Promise<void>; terminal: boolean; events: EventPayload[]; failedPersistence: boolean; exited: boolean; provider?: Provider; since: number; endedAt?: number; project?: string; closed?: boolean; holding?: object; mcpGeneration?: number | undefined; asking?: Set<string>; done?: boolean; handoffKey?: string; lastSeq?: number; stage?: StageSignal; stageRev?: number; pastedStore?: string }
 // A project turn's grounds for promotion: the canvas list when the turn was accepted, the paths of its own
 // edit activities and the canvas files the folder watcher saw change. endedAt: the turn is over and waits for its first
 // folder refresh, or for the timer at the end of the binding window. turnId: the judged turn, for its bound marker.
@@ -503,6 +504,8 @@ export class ConversationService {
   }
   private async openRunner(id: string, live: Live, input: Prepared): Promise<Runner> {
     let spawned = false;
+    // A fenced Claude turn opened only the pasted images it started with (Codex opens the whole store, ACP has no steer).
+    if (input.runtime === "claude" && input.fence) live.pastedStore = `${input.fence.paths.userData}/attachments/`; else delete live.pastedStore;
     const key = input.owner ? randomBytes(32).toString("hex") : undefined;
     if (key) { this.handoffKeys.set(key, id); live.handoffKey = key; } else delete live.handoffKey;
     const release = () => { freeLease(input); if (key) this.handoffKeys.delete(key); };
@@ -780,6 +783,9 @@ export class ConversationService {
     const m = this.metadata(id), live = this.live.get(id);
     if (!live || !this.steerable(id, live)) throw new Error("not_running");
     const runner = live.runner!, item = this.drafts.queued(id).find(entry => entry.itemId === itemId);
+    // A pasted image the turn's fence did not open would be unreadable to the agent: the message waits for the next turn.
+    const store = live.pastedStore;
+    if (item && store && item.attachments.some(attachment => attachment.path.startsWith(store))) throw new Error("not_running");
     if (!item || !this.drafts.markOneSending(id, itemId)) throw new Error("stale");
     const ids = this.queuedExtras.get(itemId)?.ids ?? [], files = this.queueOptions.files;
     let attached: StartAttachments | undefined, prompt: string | null;

@@ -35,11 +35,22 @@ const ANTIGRAVITY = `(allow file-read-metadata (literal (param "AGENT_RUNTIMES")
 (allow file-read* (subpath (param "AGENT_RUNTIME")))
 (deny file-write* (subpath (param "SKILLS_CONFIG")) (subpath (param "SKILLS_CLI")))
 `;
+// Claude's and Codex's own settings files in the profile. A later run reads them, and the next Claude or Codex run may
+// start without this outer fence (Claude by its sandbox setting, Codex outside Full access): hooks, MCP servers and
+// notify named there then run outside any sandbox (Codex MCP servers and notify do even inside its own, probe), so the
+// agent must not plant them. Neither CLI writes these files during a run (Claude Code 2.1.319: suggested permissions go
+// to the project's local settings or the session; codex-cli 0.166.0 wrote no config.toml). Doan main writes them from
+// outside the fence. The ACP providers always run inside this fence, so their settings need no such line.
+const CLAUDE_SETTINGS = `(deny file-write* (literal (param "PROVIDER_SETTINGS")))
+`;
+const CODEX_SETTINGS = `(deny file-write* (literal (param "CODEX_CONFIG")) (literal (param "CODEX_HOOKS")) (literal (param "CODEX_MANAGED")) (subpath (param "CODEX_RULES")))
+`;
 const hooked = (provider: Provider) => provider === "claude" || provider === "antigravity";
+const codexSettingsFiles = (profile: string) => [`${profile}/config.toml`, `${profile}/hooks.json`, `${profile}/managed_config.toml`, `${profile}/rules`];
 
 // attachments: the number of attachment directories; each one past the first gets its own parameter and rule.
 export function fencePolicy(provider: Provider, attachments = 0): string {
-  let text = BASE + (hooked(provider) ? HOOK : "") + (provider === "antigravity" ? ANTIGRAVITY : "");
+  let text = BASE + (hooked(provider) ? HOOK : "") + (provider === "claude" ? CLAUDE_SETTINGS : provider === "codex" ? CODEX_SETTINGS : "") + (provider === "antigravity" ? ANTIGRAVITY : "");
   for (let n = 2; n <= attachments; n++) text += `(allow file-read* (subpath (param "ATTACHMENTS_${n}")))\n`;
   return text;
 }
@@ -49,6 +60,8 @@ export function fenceArgs(provider: Provider, paths: FencePaths): string[] {
   const params: [string, string][] = [["USERDATA", u], ["AGENT_AUTH", `${u}/agent-auth`], ["PROFILES", `${u}/agent-auth/profiles`], ["PROFILE", p],
     ["RUNTIME", `${u}/runtime.json`], ["ATTACHMENTS", attachments[0] ?? p]];
   if (hooked(provider)) params.push(["BROWSER_HOOK", `${u}/agent-auth/browser-hook`]);
+  if (provider === "claude") params.push(["PROVIDER_SETTINGS", `${p}/settings.json`]);
+  if (provider === "codex") { const [config, hooks, managed, rules] = codexSettingsFiles(p); params.push(["CODEX_CONFIG", config!], ["CODEX_HOOKS", hooks!], ["CODEX_MANAGED", managed!], ["CODEX_RULES", rules!]); }
   if (provider === "antigravity") params.push(["AGENT_RUNTIMES", `${u}/agent-runtimes`], ["AGENT_RUNTIME", `${u}/agent-runtimes/antigravity-acp`],
     ["SKILLS_CONFIG", `${p}/.gemini/config/skills`], ["SKILLS_CLI", `${p}/.gemini/antigravity-cli/skills`]);
   attachments.slice(1).forEach((dir, i) => params.push([`ATTACHMENTS_${i + 2}`, dir]));
@@ -59,7 +72,9 @@ export function fencedCommand(command: string, args: readonly string[], fence?: 
   return fence ? { command: exec, args: [...fence, command, ...args] } : { command, args: [...args] };
 }
 
-const usable = (path: string) => path.startsWith("/") && !/[\0\r\n]/.test(path);
+// Control characters: a path or name carrying one is refused rather than escaped (TOML takes no U+007F).
+const CONTROL = /[\x00-\x1f\x7f]/;
+const usable = (path: string) => path.startsWith("/") && !CONTROL.test(path);
 // null: the fence cannot be built, and the run must not start without it.
 export function resolveFencePaths(input: { provider: Provider; userData: string; profileDir: string; attachments: readonly string[] }, realpath: (path: string) => string): FencePaths | null {
   if (![input.userData, input.profileDir, ...input.attachments].every(usable)) return null;
@@ -71,9 +86,11 @@ export function resolveFencePaths(input: { provider: Provider; userData: string;
   if (!profile.startsWith(`${profiles}/`) || !name || name.includes("/")) return null;
   const store = `${userData}/attachments`;
   if (input.provider === "codex") return { userData, profile, attachments: [store] };
-  // A pasted image is <store>/<id>/<file> (attachments.ts); files the person chose elsewhere need no opening.
+  // A pasted image is <store>/<id>/<file> (attachments.ts); files the person chose elsewhere need no opening. Each path
+  // is resolved like userData, so one recorded through a link still matches; one that no longer resolves stays closed.
   const dirs: string[] = [];
-  for (const path of input.attachments) {
+  for (const recorded of input.attachments) {
+    let path: string; try { path = realpath(recorded); } catch { continue; }
     const dir = path.slice(0, path.lastIndexOf("/"));
     if (dir.startsWith(`${store}/`) && !dir.slice(store.length + 1).includes("/") && !dirs.includes(dir)) dirs.push(dir);
   }
@@ -95,6 +112,8 @@ export function claudeSandboxEnabled(sources: ClaudeSettingSources): boolean {
 const record = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
 
 // Each listed directory's entries, as fenceListingDirs names them.
+// directory: false for a link too, so a link gets a file rule; Doan makes no link inside userData that points back into it
+// (Electron's Singleton* links point outside).
 export type FenceListing = ReadonlyMap<string, readonly { name: string; directory: boolean }[]>;
 export interface FenceEntry { path: string; directory: boolean }
 // What a provider's own settings reopen: Claude this turn's pasted images and the $BROWSER hook it runs, Codex its
@@ -124,7 +143,7 @@ export function fenceDenied(provider: "claude" | "codex", paths: FencePaths, lis
   for (const dir of dirs) {
     const entries = listing.get(dir); if (!entries) return null;
     for (const entry of entries) {
-      if (entry.name.includes("/") || /[\0\r\n]/.test(entry.name) || PATTERN.test(entry.name)) return null;
+      if (entry.name.includes("/") || CONTROL.test(entry.name) || PATTERN.test(entry.name)) return null;
       const path = `${dir}/${entry.name}`;
       if (!allowed.includes(path) && !dirs.includes(path)) denied.push({ path, directory: entry.directory });
     }
@@ -138,7 +157,7 @@ export function claudeDenyRules(denied: readonly FenceEntry[]): string[] {
 }
 export interface ClaudeFenceSettings {
   permissions: { deny: string[] };
-  sandbox: { allowUnsandboxedCommands: false; filesystem: { denyRead: string[]; allowRead: string[]; denyWrite: string[]; allowWrite: string[] } };
+  sandbox: { enabled: true; allowUnsandboxedCommands: false; filesystem: { denyRead: string[]; allowRead: string[]; denyWrite: string[]; allowWrite: string[] } };
 }
 // The flag tier (SDK settings, the CLI's --settings), which neither the agent nor a repository can edit. Reading:
 // userData is denied and the allowed paths reopened (an allowRead holds inside a denyRead). Writing: a sandboxed
@@ -146,10 +165,15 @@ export interface ClaudeFenceSettings {
 // allowed paths are denied too, in case the agent's own profile settings widen allowWrite for a later turn. A new
 // entry is therefore writable only through such a widening. allowUnsandboxedCommands false keeps a command from asking
 // its way out (Full access would run it outside without asking).
+// Doan judged the sandbox on, so the flag tier keeps it on: a user, project or local source Doan misread can no longer
+// turn it off, which leaves only managed sources Doan does not read. The profile's settings.json and .claude.json are
+// closed to Bash and the Edit tool (the CLI itself still writes .claude.json; only a sandbox-on turn's tools are held
+// here, the outer fence holds settings.json for a sandbox-off one).
 export function claudeFenceSettings(paths: FencePaths, denied: readonly FenceEntry[]): ClaudeFenceSettings {
   const allowed = allowedPaths("claude", paths);
-  return { permissions: { deny: claudeDenyRules(denied) }, sandbox: { allowUnsandboxedCommands: false, filesystem: {
-    denyRead: [paths.userData], allowRead: allowed, denyWrite: [...denied.map(entry => entry.path), ...allowed.filter(path => path !== paths.profile)], allowWrite: [paths.profile] } } };
+  const settings = [`${paths.profile}/settings.json`, `${paths.profile}/.claude.json`];
+  return { permissions: { deny: claudeDenyRules([...denied, ...settings.map(path => ({ path, directory: false }))]) }, sandbox: { enabled: true, allowUnsandboxedCommands: false, filesystem: {
+    denyRead: [paths.userData], allowRead: allowed, denyWrite: [...denied.map(entry => entry.path), ...allowed.filter(path => path !== paths.profile), ...settings], allowWrite: [paths.profile] } } };
 }
 
 // Codex permission profiles (experimental API): a profile's deny entries hold its sandboxed commands, approved
@@ -157,12 +181,17 @@ export function claudeFenceSettings(paths: FencePaths, denied: readonly FenceEnt
 // one; a Doan profile records no project trust, so Codex's own default there is read-only too. denied: listed when the
 // server starts, which lives across turns, so an entry made later (another provider's new profile, a new staging
 // profile) is not denied for that server's life.
-export function codexProfileArgs(paths: FencePaths, denied: readonly FenceEntry[]): string[] {
+// The profile's settings files are denied, not read-only: an escalated command keeps only deny entries.
+// socketDir: the app socket's directory. Codex opens no unix socket without network, for a sandboxed or an approved
+// escalated command alike, so `doan` could not reach the app; network goes on with only that socket directory allowed
+// (user decision; sandboxed commands in these modes now reach the network without approval).
+export function codexProfileArgs(paths: FencePaths, denied: readonly FenceEntry[], socketDir: string): string[] {
   // TOML basic strings take JSON's escapes.
   const q = (text: string) => JSON.stringify(text);
-  const entries = `{${[...denied.map(entry => `${q(entry.path)}="deny"`), `${q(paths.profile)}="write"`, `${q(`${paths.userData}/runtime.json`)}="read"`, `${q(`${paths.userData}/attachments`)}="read"`].join(",")}}`;
-  return ["-c", 'default_permissions="doan"', "-c", `permissions.doan={extends=":read-only",filesystem=${entries}}`,
-    "-c", `permissions.doan-workspace={extends=":workspace",filesystem=${entries}}`];
+  const entries = `{${[...denied.map(entry => entry.path), ...codexSettingsFiles(paths.profile)].map(path => `${q(path)}="deny"`).concat(`${q(paths.profile)}="write"`, `${q(`${paths.userData}/runtime.json`)}="read"`, `${q(`${paths.userData}/attachments`)}="read"`).join(",")}}`;
+  const network = `network={enabled=true,unix_sockets={${q(socketDir)}="allow"}}`;
+  return ["-c", 'default_permissions="doan"', "-c", `permissions.doan={extends=":read-only",filesystem=${entries},${network}}`,
+    "-c", `permissions.doan-workspace={extends=":workspace",filesystem=${entries},${network}}`];
 }
 // Full access has no Codex sandbox to carry the deny entries, so its server runs inside the outer fence instead.
 export function codexMechanism(mode: PermissionModeId): FenceMechanism {

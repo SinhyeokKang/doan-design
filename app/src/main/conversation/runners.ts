@@ -109,9 +109,9 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
   // fixed to one mechanism for its life: the service starts another for a send that needs the other (codexRestart).
   const mechanism = input.fence ? codexMechanism(input.permissionMode ?? "default") : undefined;
   // A profile server without its listing would deny nothing, so it does not start.
-  if (input.fence && mechanism === "codex-profile" && !input.fence.denied) throw new Error("unknown");
+  if (input.fence && mechanism === "codex-profile" && (!input.fence.denied || !input.fence.socketDir)) throw new Error("unknown");
   const launch = input.fence && mechanism === "fence" ? fencedCommand(input.command, [...input.args ?? [], "app-server"], fenceArgs("codex", input.fence.paths), input.fence.exec)
-    : { command: input.command, args: [...input.args ?? [], ...input.fence ? codexProfileArgs(input.fence.paths, input.fence.denied ?? []) : [], "app-server"] };
+    : { command: input.command, args: [...input.args ?? [], ...input.fence ? codexProfileArgs(input.fence.paths, input.fence.denied ?? [], input.fence.socketDir ?? "") : [], "app-server"] };
   const child = spawn(launch.command, launch.args, { cwd: input.cwd, env: input.env, detached: true, stdio: ["pipe", "pipe", "pipe"] });
   let startingTurn = false; const queued: unknown[] = [];
   // starting: the current send until its turn/start answered (reload, server wait, the start itself). A Stop then marks
@@ -295,7 +295,7 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
   // permission. unanswered: the turn's system/init advertised the skip mark; read long before anyone can answer.
   const questions = new Map<string, { input: Record<string, unknown>; read: ClaudeQuestion; resolve(value: PermissionResult): void }>();
   let unanswered = false;
-  let finished = false, childExited = false, spawnFailed = false, stderr = "", stderrDone: Promise<unknown> = Promise.resolve();
+  let finished = false, childExited = false, spawnFailed = false, exitCode: number | null = null, stderr = "", stderrDone: Promise<unknown> = Promise.resolve();
   // The turn's input stays open after its first message so steer can add more, and closes the moment the turn ends:
   // the CLI exits only once its stdin ends, and until then send and the next turn wait (POSTMORTEM 2026-10-28).
   const inbox: { message: SDKUserMessage; accepted(): void; refused(error: Error): void }[] = [];
@@ -350,7 +350,7 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
       }
       child.stderr.setEncoding("utf8"); child.stderr.on("data", (text: string) => { stderr = (stderr + text).slice(-8192); });
       stderrDone = new Promise(resolve => child.stderr.once("close", resolve));
-      child.once("exit", () => { childExited = true; group?.childExited(); }); child.once("error", () => { if (!child.pid) { spawnFailed = true; exited(); } else group?.childExited(); });
+      child.once("exit", code => { childExited = true; exitCode = code; group?.childExited(); }); child.once("error", () => { if (!child.pid) { spawnFailed = true; exited(); } else group?.childExited(); });
       return child;
     },
     canUseTool(tool, toolInput, options) {
@@ -392,9 +392,11 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
   try { initialized = await timeout(q.initializationResult()); } catch (error) {
     controller.abort(); closeInput(); void group?.stop();
     if (input.owner) { await Promise.race([stderrDone, new Promise(resolve => setTimeout(resolve, 1000).unref())]); if (PIN_REFUSED.test(stderr)) throw new Error("credential_override"); }
-    // A fenced start that could not run (sandbox-exec missing, or its policy refused at once) is a process failure,
-    // never the SDK's message about the CLI binary, which names a missing CLI.
-    if (input.fence && !input.fence.claudeSandbox && (spawnFailed || childExited)) throw new Error("process_exited");
+    // A fenced start that could not run is a process failure, never the SDK's message about the CLI binary, which names
+    // a missing CLI: sandbox-exec missing (a spawn error), or sandbox-exec itself refusing (65 for a policy error, 71 for
+    // an exec failure, with its own "sandbox-exec:" message). The CLI's own early exit keeps the SDK's error.
+    const refused = childExited && (exitCode === 65 || exitCode === 71) && /^sandbox-exec: /m.test(stderr);
+    if (input.fence && !input.fence.claudeSandbox && (spawnFailed || refused)) throw new Error("process_exited");
     throw error;
   }
   return {

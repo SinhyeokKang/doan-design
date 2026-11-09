@@ -19,7 +19,8 @@ import { externalConversation, type ConversationMetadata, type ExternalSession }
 export const BUNDLED_CLAUDE_SDK = "0.3.312";
 // reusing: the send goes to this conversation's live Codex server, which already holds the thread.
 export type ExternalPrepare = (request: StartRequest, stored?: ExternalSession, reusing?: boolean) => Promise<Prepared>;
-export type AccountPrepare = (request: StartRequest, stored?: ConversationMetadata & { owner: { kind: "doan" } }, use?: "run" | "listing") => Promise<Prepared>;
+// reusing: the send goes to this conversation's live Codex server, which keeps the fence it started with.
+export type AccountPrepare = (request: StartRequest, stored?: ConversationMetadata & { owner: { kind: "doan" } }, use?: "run" | "listing", reusing?: boolean) => Promise<Prepared>;
 // New conversations run on the doan account; a resumed external association and legacy entries keep the external
 // profile. Neither path falls back to the other.
 export function routePrepare(external: ExternalPrepare, account: AccountPrepare): Prepare {
@@ -27,7 +28,7 @@ export function routePrepare(external: ExternalPrepare, account: AccountPrepare)
     if (!stored) return request.mode === "resume" ? external(request) : account(request, undefined, use);
     if (externalConversation(stored)) return reusing ? external(request, stored.session, true) : external(request, stored.session);
     if (stored.owner.kind !== "doan") throw new Error("session_unavailable");
-    return account(request, { ...stored, owner: stored.owner });
+    return account(request, { ...stored, owner: stored.owner }, undefined, reusing);
   };
 }
 export function createPrepare(userData: string, appRuntime: string, inherited: NodeJS.ProcessEnv): ExternalPrepare {
@@ -139,7 +140,8 @@ export function connectorFacts(current: () => McpConnectorFacts | undefined): Mc
 }
 // Where a Doan-connection run's fence comes from: the app's userData, and for tests the Claude Code managed-settings
 // directory and another sandbox-exec. Without it no run is fenced, which only tests that predate the fence rely on.
-export interface FenceSetup { userData: string; managedDir?: string; exec?: string }
+// socketDir: the app socket's directory, which a Codex permission profile allows (agentAuth/fence.ts codexProfileArgs).
+export interface FenceSetup { userData: string; socketDir: () => string | undefined; managedDir?: string; exec?: string }
 const CLAUDE_MANAGED_DIR = "/Library/Application Support/ClaudeCode";
 const SETTINGS_MAX = 1024 * 1024;
 // A settings file as Claude Code reads it, through a link too (dotfile setups link them); a missing, oversized or
@@ -163,6 +165,12 @@ function listDenied(provider: "claude" | "codex", paths: FencePaths): FenceEntry
   const denied = fenceDenied(provider, paths, listing); if (!denied) throw new Error("unknown");
   return denied;
 }
+function socketDir(setup: FenceSetup): string {
+  const dir = setup.socketDir();
+  let real: string; try { real = realpathSync.native(dir ?? ""); } catch { throw new Error("unknown"); }
+  if (!dir || !real.startsWith("/") || /[\x00-\x1f\x7f]/.test(real)) throw new Error("unknown");
+  return real;
+}
 // A fence that cannot be built refuses the run before anything starts (unknown): without it the agent would reach the
 // other providers' profiles.
 function runFence(setup: FenceSetup, provider: Provider, profileDir: string, cwd: string, attachments: readonly { path: string }[]): NonNullable<Prepared["fence"]> {
@@ -171,13 +179,14 @@ function runFence(setup: FenceSetup, provider: Provider, profileDir: string, cwd
   const paths = resolveFencePaths({ provider, userData: setup.userData, profileDir, attachments: attachments.map(a => a.path) }, path => realpathSync.native(path));
   if (!paths) throw new Error("unknown");
   const exec = setup.exec ? { exec: setup.exec } : {};
-  // A Codex server picks its mechanism from the mode when it starts, so every Codex run carries its listing.
-  if (provider === "codex") return { paths, denied: listDenied("codex", paths), ...exec };
+  // A Codex server picks its mechanism from the mode when it starts, so every Codex run carries its listing and the
+  // app socket's resolved directory; without the socket `doan` could not reach the app, so the run does not start.
+  if (provider === "codex") return { paths, denied: listDenied("codex", paths), socketDir: socketDir(setup), ...exec };
   if (provider !== "claude" || !claudeSandboxEnabled(claudeSources(profileDir, cwd, setup.managedDir ?? CLAUDE_MANAGED_DIR))) return { paths, ...exec };
   return { paths, denied: listDenied("claude", paths), claudeSandbox: true, ...exec };
 }
 export function createAccountPrepare(auth: AccountRuntime, cli: string, toolsFailed: (provider: Provider) => void = () => {}, versions?: VersionRecords, connectors: McpConnectorFacts = NO_CONNECTORS, fence?: FenceSetup): AccountPrepare {
-  return async (request, stored, use = "run") => {
+  return async (request, stored, use = "run", reusing = false) => {
     const provider = stored ? stored.session.runtime : request.runtime;
     if (!provider) throw new Error("no_agent");
     if (!isAbsolute(cli) || basename(cli) !== "doan") throw new Error("cli_missing");
@@ -237,7 +246,7 @@ export function createAccountPrepare(auth: AccountRuntime, cli: string, toolsFai
       }
       // Every conversation run, Claude's per turn: its sandbox setting and this turn's pasted images may differ. A list
       // read runs no model tool, so it gets none.
-      const fenced = fence && use === "run" ? runFence(fence, provider, configDir, cwd, request.attachments ?? []) : undefined;
+      const fenced = fence && use === "run" && !reusing ? runFence(fence, provider, configDir, cwd, request.attachments ?? []) : undefined;
       const connection = recheck(), ran = installed;
       const mcp: McpRun | undefined = (MCP_PROVIDERS as readonly Provider[]).includes(provider) ? { generation: () => connectors.generation(provider as McpProvider), labels: () => connectors.labels() } : undefined;
       const runArgs = provider === "claude" || provider === "codex" ? RUN_ARGS[provider] : adapter.acp!.args;

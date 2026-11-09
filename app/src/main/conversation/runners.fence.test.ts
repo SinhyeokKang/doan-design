@@ -89,8 +89,8 @@ it("wraps a Claude turn with its sandbox off in sandbox-exec, and gives one with
   expect(execArgs(root)).toBeNull();
   const argv = JSON.parse(readFileSync(join(root, "claude-argv"), "utf8")) as string[];
   const settings = JSON.parse(argv[argv.indexOf("--settings") + 1]!) as Record<string, unknown>;
-  expect(settings).toMatchObject({ fastMode: true, permissions: { deny: ["Read(//u/conversations/**)", "Edit(//u/conversations/**)"] },
-    sandbox: { allowUnsandboxedCommands: false, filesystem: { denyRead: ["/u"], denyWrite: ["/u/conversations", "/u/runtime.json", "/u/agent-auth/browser-hook"], allowWrite: ["/u/agent-auth/profiles/claude"] } } });
+  expect(settings).toMatchObject({ fastMode: true, permissions: { deny: expect.arrayContaining(["Read(//u/conversations/**)", "Edit(//u/conversations/**)", "Edit(//u/agent-auth/profiles/claude/settings.json)"]) },
+    sandbox: { enabled: true, allowUnsandboxedCommands: false, filesystem: { denyRead: ["/u"], denyWrite: expect.arrayContaining(["/u/conversations", "/u/runtime.json", "/u/agent-auth/profiles/claude/settings.json"]), allowWrite: ["/u/agent-auth/profiles/claude"] } } });
 }, 20000);
 
 const CODEX_OWNER = { kind: "doan" as const, provider: "codex" as const, connectionId: "c1", accountId: "a1", workspaceId: null, profile: "codex" };
