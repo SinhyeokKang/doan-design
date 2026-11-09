@@ -241,7 +241,7 @@ describe("canvasConversationError", () => {
     ["cli_missing", "Couldn’t continue the terminal session: Codex isn’t installed on this Mac."],
     ["runtime_unsupported", "Couldn’t continue the terminal session: Doan doesn’t support this version of Codex."],
     ["process_exited", "Couldn’t continue the terminal session: Codex stopped before it could continue."],
-    ["rate_limited", "Couldn’t continue the terminal session: Codex is rate limited."],
+    ["rate_limited", "Couldn’t continue the terminal session: Codex reached a usage limit."],
     ["busy", "Couldn’t continue the terminal session: Codex is finishing a previous run."],
     ["unknown", "Couldn’t continue the terminal session."],
     ["constructor", "Couldn’t continue the terminal session."],

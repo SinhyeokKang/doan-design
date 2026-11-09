@@ -242,12 +242,12 @@ test("an accepted send clears the notice an earlier refusal left", async () => {
   const { props, render } = setup({ onSend: async () => reply }, [["conversation:a", draft("Draw it")]]);
   (button(render(), "Send").onClick as () => void)();
   await flush();
-  expect(render().some(item => item.children === "Claude Code is rate limited. Try again later.")).toBe(true);
+  expect(render().some(item => item.children === "Claude Code reached a usage limit. Send again after it resets.")).toBe(true);
   reply = { ok: true };
   (button(render(), "Send").onClick as () => void)();
   await flush();
   props.turn = "waiting";
-  expect(render().some(item => item.children === "Claude Code is rate limited. Try again later.")).toBe(false);
+  expect(render().some(item => item.children === "Claude Code reached a usage limit. Send again after it resets.")).toBe(false);
   expect(render().some(item => item.children === "Answer or stop the request above.")).toBe(true);
 });
 
@@ -330,7 +330,7 @@ test("a live blocking reason and its action show over an old error notice, and t
   (button(render(), "Send").onClick as () => void)();
   await flush();
   let tree = render();
-  expect(tree.some(item => item.children === "Claude Code is rate limited. Try again later.")).toBe(true);
+  expect(tree.some(item => item.children === "Claude Code reached a usage limit. Send again after it resets.")).toBe(true);
   expect(field(tree)["aria-describedby"]).toBeUndefined();
   props.busy = { kind: "project", open: "other" };
   tree = render();

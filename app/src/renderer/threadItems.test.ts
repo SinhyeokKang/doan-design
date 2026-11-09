@@ -135,6 +135,16 @@ describe("threadItems", () => {
     expect(items[3]).toEqual({ kind: "end", key: "e6", seq: 6, end: { kind: "failed", code: "process_exited" } });
   });
 
+  // The end view reads a usage limit's reset time from the provider's wording; no other end needs the detail.
+  test("a usage limit's end keeps the failure detail; other ends do not", () => {
+    seq = 0;
+    const limited = threadItems([...turn("t1"), ev("t1", { type: "turn.failed", code: "rate_limited", detail: "You've hit your weekly limit · resets Nov 11 at 2pm (Asia/Seoul)" })], ROOT, true);
+    expect(limited.at(-1)).toMatchObject({ kind: "end", end: { kind: "failed", code: "rate_limited", detail: "You've hit your weekly limit · resets Nov 11 at 2pm (Asia/Seoul)" } });
+    seq = 0;
+    const exited = threadItems([...turn("t1"), ev("t1", { type: "turn.failed", code: "process_exited", detail: "boom" })], ROOT, true);
+    expect(exited.at(-1)).toEqual({ kind: "end", key: "e3", seq: 3, end: { kind: "failed", code: "process_exited" } });
+  });
+
   // A Stop's expiry is main's `optionId: "expired"` record, not an answer.
   test("a permission request main expires folds as expired, not answered", () => {
     seq = 0;

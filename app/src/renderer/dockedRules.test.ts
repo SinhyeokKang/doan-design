@@ -146,8 +146,9 @@ describe("dockedRefusal", () => {
     expect(canvasGoneText("doan-design")).toBe("This conversation’s canvas is no longer in doan-design, so it can’t continue.");
   });
   test("a start uses Home's start copy; a send has its own", () => {
-    expect(dockedRefusal("rate_limited", { kind: "new", root: "/r" }, "codex", "doan-design")).toEqual({ kind: "notice", text: "Codex is rate limited. Try again later." });
+    expect(dockedRefusal("rate_limited", { kind: "new", root: "/r" }, "codex", "doan-design")).toEqual({ kind: "notice", text: "Codex reached a usage limit. Send again after it resets." });
     expect(dockedRefusal("busy", EXISTING, "claude", "doan-design")).toEqual({ kind: "notice", text: "Claude Code is finishing a previous run. Try again in a moment." });
+    expect(dockedRefusal("rate_limited", EXISTING, "claude", "doan-design")).toEqual({ kind: "notice", text: "Claude Code reached a usage limit. Send again after it resets." });
     expect(dockedRefusal("bad_request", EXISTING, "claude", "doan-design")).toEqual({ kind: "notice", text: "Couldn’t send your message. Try again." });
     expect(dockedRefusal("session_in_use", EXISTING, "claude", "doan-design")).toEqual({ kind: "notice", text: "Claude Code is using this session in another terminal. Try again when it finishes there." });
     // the code alone does not tell an expired sign-in from none.
