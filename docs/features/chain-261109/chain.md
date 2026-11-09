@@ -77,3 +77,4 @@
   - `TransportState.running`(Claude·Codex 도구 종료 집계)과 실패한 history의 해제(`releaseFailed`, `service.ts`)가 `runners.ts`·`service.ts`에 들어왔다.
   - 미검증: 실제 사용량 한도 frame 녹화, `sign_in_changed` 실제 앱 확인(Codex 계정 교체 필요), Codex `mcpToolCall` 행, Cursor(모든 턴이 "Upgrade your plan"), P4 실제 디스크 실패. P3 원인은 BACKLOG.
   - lead와 conductor 사이 메시지는 `/ship` 'Messages between lead and conductor'를 따른다(SendMessage 대신 `orca terminal send`).
+- **2026-11-09 lead, release 예약**: 사용자가 링크 2 merge 뒤 patch release를 미리 지시했다(`/release 0.1.4`, 0.1.3 → 0.1.4). lead는 링크 2를 merge하고 로그인 정리와 chain 디렉터리 삭제를 마친 뒤 `/release 0.1.4`를 사용자 호출로 실행한다.
