@@ -139,12 +139,56 @@ P1의 결과에 따라 아래 중 하나를 고른다. 순서는 선호 순이�
   - 바깥 정책 안에서 `codex sandbox macos -- /usr/bin/true`
   - Claude Code sandbox도 같은 조건으로 확인한다(로그인 없이 되는 방법을 P0에서 찾는다).
 - 통과: 셋 모두 종료 코드 0. 실패: T0 전에 사용자에게 방향을 묻는다(tasks T2의 P0 실패 분기).
+- **결과: 실패**(2026-11-09, macOS 26.3.1, codex-cli 0.166.0, Claude Code 2.1.319, `@anthropic-ai/sandbox-runtime` 0.0.81). 스크립트와 출력은 `.scratch/provider-profile-isolation/p0/`(`p0.sh`, `results.txt`)에 있다. 바깥 정책은 모두 `sandbox-exec -p '(version 1)(allow default)'`이다.
+
+  | 확인 | 바깥 정책 없음 | 바깥 정책 안 |
+  |---|---|---|
+  | 안쪽 `sandbox-exec`, 정책 `(allow default)` | — | 0 |
+  | 안쪽 `sandbox-exec`, `(allow default)`에 `deny file-write*` 한 줄 | — | 71, `sandbox-exec: sandbox_apply: Operation not permitted` |
+  | `codex sandbox -- /usr/bin/true` | 0 | 71, 같은 오류 |
+  | Claude Code sandbox(`sandbox.enabled: true`, Bash 도구 한 번) | 명령이 돈다. cwd 밖 쓰기는 `Operation not permitted`로 막힌다 | Bash 도구 결과가 `Exit code 71`, `sandbox_apply: Operation not permitted`(`is_error`). 명령 자체가 돌지 않는다 |
+  | Claude Code, `sandbox.enabled: false`(대조) | — | 명령이 돈다 |
+  | `srt`(sandbox-runtime 0.0.81) `/usr/bin/true` | 0 | 71, 같은 오류 |
+
+  - 이미 Seatbelt 안에 있는 프로세스는 규칙이 하나라도 있는 두 번째 정책을 적용하지 못한다. 위 명령의 첫 줄(안쪽도 `(allow default)`)이 0인 것은 안쪽 정책에 규칙이 없어서다. 그래서 그 명령만으로는 중첩 가능 여부를 알 수 없다.
+  - Codex 0.166.0에는 `codex sandbox macos` 하위 명령이 없다. `macos`를 실행할 명령으로 읽어 `execvp() of 'macos' failed`(71)로 끝난다. 지금 형태는 `codex sandbox -- <command>`이다.
+  - Claude Code는 로그인 없이 확인했다. 가짜 Messages API(`ANTHROPIC_BASE_URL`, `mock-anthropic.mjs`)가 Bash 도구 호출 하나를 돌려주고, `CLAUDE_CONFIG_DIR`과 `HOME`은 임시 디렉터리다(`claude-sandbox.sh`).
+  - 따라서 Doan 정책 안에서는 사람이 켠 Claude Code sandbox의 명령이 실패한다. Codex가 Ask first와 Accept edits에서 자기 sandbox로 실행하는 명령도 같은 이유로 실패할 것으로 본다(추정: `codex sandbox`만 확인했고 app-server의 실제 턴은 확인하지 않았다). 방향은 T2에서 정한다.
 
 **P1. Antigravity의 실제 상태 쓰기 (§3.2)**
 
 - 질문: 실제 `~/.gemini/antigravity-cli/`에 쓰는 프로세스와 Keychain 항목 `gemini | antigravity`를 바꾸는 프로세스는 무엇인가(ACP 서버인가, language server인가). home을 어떻게 찾는가(`HOME`, `GEMINI_HOME`, 아니면 사용자 DB). 경로와 자격 증명 저장소를 옮기는 변수나 인수가 있는가.
 - 방법: 먼저 pinned 1.3.0 archive를 풀어 소스를 읽는다(실행 없음, POSTMORTEM 2026-11-07이 `resolve_skills_paths`를 찾은 방법). 다음으로 격리 HOME(Keychains 링크 없음)에서 상태 확인만 돌리고 실제 상태를 비교한다. 마지막으로 사용자 승인 아래 실제 로그인과 한 턴을 돌린다.
 - 통과: 경로 1이 실제 상태 쓰기를 0으로 만든다. 실패: 경로 2를 P2와 함께 시험한다. 둘 다 실패: 결정 Q6에 따라 나눈다. 그래서 P1은 사람의 `agy` 로그인이 바뀌는지도 확인한다(Keychain 항목 속성과 `agy`의 로그인 상태를 전후로 본다. 비밀 값은 읽지 않는다).
+- **결과: 통과. 지금 설정만으로 실제 상태 쓰기가 0이었다**(2026-11-09, 서버 1.3.0, 사람의 `agy` 1.4.9). 스크립트와 evidence는 `.scratch/provider-profile-isolation/`에 있다(`acp.mjs`, `snap.mjs`, `diff.mjs`, `runs/`, `snaps/`, `watch/`).
+- archive 읽기(실행 없음). `agy_acp_server.par`는 Mach-O이고, Python 소스는 `__TEXT,.par_data` 섹션의 zip(7757개 항목)에 있다.
+  - Python 서버의 경로는 모두 `paths.py`의 `gemini_home()`에서 나온다. `$GEMINI_HOME`이 있으면 그 값을 쓰고, 없으면 `~/.gemini`(`$HOME` 기준 `expanduser`)를 쓴다. 토큰, 설정, 대화(`antigravity-acp/conversations`), harness의 `app_data_dir`(`antigravity-acp`)이 모두 그 아래다. `antigravity-cli/`는 skill을 읽는 경로(`antigravity-cli/skills`)로만 나오고, 소스 주석은 그곳을 "Read-only for us"라고 적는다.
+  - Python 서버의 Keychain 항목은 서비스 `gemini`, 계정 `antigravity-acp`(business는 `antigravity-acp-business`)이고, 시작할 때 `__acp_probe__*` 계정으로 시험한다. `credential_store.py`는 "deliberately distinct from the Antigravity CLI's own `antigravity` account so this server never clobbers it"라고 적는다. `AGY_ACP_FORCE_FILE_STORAGE=1`이면 Keychain을 쓰지 않는다(Doan이 이미 준다).
+  - language server는 `localharness_external`(Go)이다. 서버가 자기 환경(`os.environ`)을 그대로 물려 띄우고(`local_connection.py` `Popen`), `app_data_dir`과 `workspaces`를 넘긴다. 바이너리에 `GEMINI_HOME` 문자열은 없다. `zalando/go-keyring`(macOS에서는 `/usr/bin/security` 실행)과 `os/user.Current`(`getpwuid_r`)는 있다. 이 둘을 어디에 쓰는지는 정적으로 확인하지 못했다.
+- 실행 결과. Doan과 같은 환경으로 서버를 띄웠다(`HOME=<profile>`, `GEMINI_HOME=<profile>/.gemini`, `AGY_ACP_FORCE_FILE_STORAGE=1`, `PYTHONUNBUFFERED=1`, `BROWSER=<hook>`, `GIT_CONFIG_GLOBAL`, `DOAN_RUNTIME`, `DOAN_APP_CONVERSATION=1`). 각 단계를 실제 상태 snapshot으로 감쌌다. snapshot은 `real-state.ts` fingerprint, 실제 `~/.gemini/antigravity-cli/` 재귀 목록, Keychain 속성(서비스, 계정, 생성·수정 시각)이다.
+
+  | 단계 | 띄운 프로세스 | 실제 `antigravity-cli/` | Keychain |
+  |---|---|---|---|
+  | 상태 확인, 로그인 없음 | 서버, browser hook(`/bin/sh`) | 변화 없음 | 변화 없음 |
+  | 실제 로그인(사용자가 브라우저에서 승인, 13초) | 서버, browser hook | 변화 없음 | 변화 없음 |
+  | 한 턴(`pwd`, 파일 쓰기, skill 질문) | 서버, `localharness_external` | 변화 없음 | 변화 없음 |
+  | 로그아웃, 그 뒤 상태 확인 | 서버, browser hook | 변화 없음 | 변화 없음 |
+
+  - harness의 환경은 `HOME=<profile>`, `GEMINI_HOME=<profile>/.gemini`였다(`ps -E`로 두 변수만 기록). harness는 `<profile>/.gemini/antigravity/bin/webm_encoder`를 만들었다. harness도 실제 home이 아니라 `HOME`을 따른다.
+  - 토큰은 `<profile>/.gemini/antigravity-acp/acp_token.json`에만 생겼고, 로그아웃이 지웠다. 로그아웃 뒤 상태 확인은 다시 로그인 링크를 요구했다.
+- `gemini | antigravity`(생성 2026-05-31T23:50:19Z): 로그인 전 snapshot(07:02:08Z)부터 로그아웃 뒤 snapshot(07:03:27Z)까지 수정 시각이 06:08:32Z로 같았다. 이번 실행이 만든 Keychain 항목은 없다(시작과 끝 모두 23개, 추가·삭제 없음). 그래서 지운 항목도 없다.
+- 사람의 `agy` 로그인: 전(06:47Z)과 후(07:03Z) 모두 `agy --log-file <scratch> models`가 모델 목록을 돌려줬다. 로그인은 유지됐다. 다만 후 확인의 `agy models`가 `gemini | antigravity`의 수정 시각을 07:03:54Z로 바꿨다. 사람의 `agy`는 실행될 때 스스로 이 항목을 갱신한다. 전 확인(06:47Z) 때는 바꾸지 않았다.
+- BACKLOG의 관찰은 재현되지 않았다. 원인으로 보이는 다른 writer가 있다.
+  - 이 Mac에서는 Orca.app(pid 1996)이 사람의 `~/.local/bin/agy`를 주기적으로 실행한다(`watch/seen.txt`: 16:09:11 KST 시작). 그 실행이 실제 `antigravity-cli/`에 `log/cli-<시각>.log`, `crashes/crash_<pid>_*.log`, `cli.log`, `cache/onboarding.json`, `conversation_summaries.db`를 썼다. BACKLOG가 적은 "logs, a crash log, `cli.log`"와 같은 종류다. 오늘 로그는 Doan의 Antigravity 실행이 없을 때도 약 10분 간격으로 생겼다.
+  - 오늘 15:08:32 KST의 `gemini | antigravity` 수정 시각은 같은 초의 `log/cli-20261109_150831.log`와 맞는다. 2026-11-03 13:35:40의 변경도 사람의 `agy` 실행일 수 있다(추정: 그날의 로그 내용과 실행 주체는 확인하지 않았다).
+- 조건 차이: BACKLOG의 관찰은 dev 앱의 임시 HOME에 `Library/Keychains`를 링크한 조건이었다. 이번에는 앱 대신 스크립트로 서버를 띄웠고, 링크를 만들지 않았다. 이유는 다음과 같다.
+  - Antigravity 프로세스의 `HOME`은 앱의 HOME이 아니라 profile이다(`providerEnv`). 그래서 앱 HOME의 링크는 이 프로세스에 닿지 않는다.
+  - 링크가 필요한 것은 Doan vault의 `safeStorage`(`doan Safe Storage`)다. 스크립트는 vault를 쓰지 않는다.
+  - 남는 차이: Doan의 vault 봉인과 working copy 흐름, 앱의 수명 관리는 이번 실행에 없다. 앱 + 링크 조건은 T5에서 다시 본다.
+- 추천: §3.2 경로 1. 지금 Doan이 주는 `HOME`, `GEMINI_HOME`, `AGY_ACP_FORCE_FILE_STORAGE`만으로 서버와 harness가 실제 상태를 쓰지 않았으므로 새 변수는 필요 없다. 경로 2(fence)와 경로 3(Q6)은 필요 없다고 본다.
+  - 남는 위험 1: 한 턴만 봤다. harness의 `go-keyring`과 `os/user.Current`가 다른 기능(예: 다른 도구, 업데이트)에서 실제 home이나 Keychain을 쓰는지는 정적으로 배제하지 못했다.
+  - 남는 위험 2: agent가 shell에서 절대 경로로 실제 home에 쓰는 것은 막지 않는다. 이것은 §3.1 fence의 범위다.
+  - BACKLOG 항목의 원인은 정리할 때(T7) 이 결과로 고친다.
 
 **P2. Seatbelt fence의 실현 가능성 (§3.1)**
 
@@ -176,6 +220,17 @@ P1의 결과에 따라 아래 중 하나를 고른다. 순서는 선호 순이�
 
 - 질문: 2026-11-05의 쓰기와 `ls`가 (i)인가 (ii)인가. Doan이 쓴 stub 말고 서버가 skill 경로에 쓰는 것이 있는가.
 - 방법: P1의 archive 읽기에서 system prompt와 skill 경로 안내를 찾는다. 실제 턴에서 ACP frame(permission 요청의 `TargetFile`·`Cwd`)을 기록한다. 실제 턴은 P1의 로그인을 다시 쓴다.
+- **결과: (i)로 본다**(2026-11-09, 서버 1.3.0). frame은 `.scratch/provider-profile-isolation/runs/real/frames.jsonl`에 있다.
+- archive 읽기(`server.py`):
+  - 세션을 만들 때 서버는 harness에 `"workspaces": [cwd] + skills_dirs`를 넘긴다. `skills_dirs`는 `resolve_skills_paths(cwd)`, 곧 `<GEMINI_HOME>/config/skills`, `<cwd>/.gemini/skills`, `<GEMINI_HOME>/antigravity-cli/skills`, `<cwd>/.agents/skills`다.
+  - 파일 접근 정책의 workspace root도 "cwd + gemini_home + skills"다. 그래서 `<GEMINI_HOME>` 전체가 permission 판단에서 "workspace 안"으로 취급된다.
+  - 서버가 skill 경로에 쓰는 코드는 찾지 못했다. harness 바이너리에 `antigravity-cli/skills`라는 문자열도 없다. harness의 skill 안내 문장은 `~/.gemini/config/skills/<name>/`와 `<workspace>/.agents/skills/<name>/`를 skill 위치로 든다.
+- 실제 턴(사용자 승인 로그인, 프로젝트 cwd, 모든 permission 허용):
+  - `pwd`는 프로젝트를 돌려줬다. `probe-p3.txt`는 프로젝트에 생겼다(`TargetFile`이 프로젝트 경로). 두 명령(`pwd`, `ls`)의 `Cwd`가 모두 프로젝트였다. 서버는 `session/new`의 `cwd`를 도구 실행에 쓴다. (ii)가 아니다.
+  - skill을 묻자 agent는 `ls -la <profile>/.gemini/config/skills <profile>/.gemini/antigravity-cli/skills`를 실행했다. 서버가 workspace로 넘긴 두 profile 경로를 그대로 본 것이다. agent는 `doan` 하나를 `<profile>/.gemini/config/skills/doan`에서 읽었다고 답했다. 새 user skill을 둘 곳으로는 `<profile>/.gemini/config/skills`를 들었다.
+  - 2026-11-05의 쓰기와 `ls`도 같은 구조로 설명된다. 서버가 profile의 skill 경로를 agent의 workspace로 주고, agent가 skill 관련 작업을 그곳에서 했다. 그때의 프롬프트는 확인하지 않았다.
+- 서버와 harness가 skill 경로에 쓴 것: 없음. 턴이 끝난 뒤 profile에는 Doan의 stub(`config/skills/doan/SKILL.md`), `antigravity-acp/`(설정, 대화, `brain/`), `antigravity/bin/webm_encoder`만 있었다. `antigravity-cli/` 디렉터리는 생기지 않았다.
+- 추천: (i). 결정 Q3대로 Antigravity 정책에 `<GEMINI_HOME>/config/skills`와 `<GEMINI_HOME>/antigravity-cli/skills`의 쓰기 금지를 더해도 서버 동작과 충돌하지 않는다(이번 한 턴 기준). fence는 profile 안의 `antigravity-acp/`와 `antigravity/`에 쓰기를 열어야 한다.
 
 ## 9. POSTMORTEM에서 가져온 함정
 
