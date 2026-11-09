@@ -43,7 +43,7 @@ Rig numbers (eye centres and radii, body and accessory pivots, accessory tilt ra
   32 px window).
 - Doany's `card.png` is a draft: `../doany/v2/doany.png` cropped to its alpha box, scaled to 940 px high, its
   bottom at y 1095 and centred, over a two-ellipse contact shadow fitted by eye to the friends' cards (Gaussian
-  blur 18 and 40). A generated card in the friends' style replaces it.
+  blur 18 and 40). A Codex worker redraws it from the original (below).
 
 ## Working-notice source boxes
 
@@ -59,6 +59,13 @@ width.
 | dungdung | 226, 302 | 33, 67, 460 | none |
 | popo | 196, 287 | 13, 52, 460 | easel foot 0.7 px |
 | dori | 195, 245 | 19, 10, 460 | easel foot 0.3 px |
+
+## Next: Doany's card
+
+Redraw `doany/card.png` with the image generation tool from Doany's original still (`../doany/v2/doany.png`)
+as the only character reference and the friends' cards as the style reference: the same Pebble, beret, pose and
+colour, on white with the friends' soft contact shadow, at their scale and bottom line. Do not reshape or recolour
+Doany. It replaces the composite draft in place, so the canvases need no change.
 
 ## Next: transparent still and layers (per friend)
 
