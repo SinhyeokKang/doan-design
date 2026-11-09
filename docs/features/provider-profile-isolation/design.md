@@ -146,8 +146,8 @@ P0에서 이미 Seatbelt 안에 있는 프로세스는 규칙이 있는 두 번�
   - 테스트: 인수 스냅숏. 따옴표·역슬래시가 든 경로가 TOML 문자열로 escape된다.
 - `codexTurnPermission(mode, defaults, mechanism)` → 턴의 권한 인수. profile server면 `{ approvalPolicy, permissions }`이고 `sandboxPolicy`가 없다. fence server(Full access)면 `{ approvalPolicy: "never", sandboxPolicy: { type: "dangerFullAccess" } }`. legacy external(정의된 profile 없음)은 지금의 `codexPermission`을 그대로 쓴다.
   - 테스트: 네 모드 × 두 방법. profile server의 어느 턴도 `sandboxPolicy`를 함께 보내지 않는다.
-- `runMechanism(provider, mode, claudeSandbox?)` → `"fence" | "claude-settings" | "codex-profile"`, 그리고 `codexRestart(current, next)` → app-server를 다시 띄울지.
-  - 테스트: ACP 세 provider는 네 모드 모두 fence. Claude는 sandbox 상태만 본다(모드와 무관). Codex는 Full access만 fence. 같은 방법이면 재사용, 다르면 다시 띄운다.
+- `codexMechanism(mode)` → `"fence" | "codex-profile"`, 그리고 `codexRestart(current, next)` → app-server를 다시 띄울지. ACP는 늘 바깥 fence이고 Claude는 `Prepared.fence.claudeSandbox`가 정하므로 따로 고르는 함수가 없다.
+  - 테스트: Codex는 Full access만 fence. 같은 방법이면 재사용, 다르면 다시 띄운다. ACP 네 모드와 Claude 두 상태는 runner 테스트가 본다.
 - `Prepared.fence`를 채우는 규칙(`prepare.ts`)
   - 테스트: `use === "run"`이면 있다. `use === "listing"`으로 준비하면 없다. legacy external(`createPrepare`)은 없다(기존 테스트가 그대로 통과). 경로를 풀 수 없으면 lease를 놓고 `unknown`으로 거절한다.
 - fail closed의 분류

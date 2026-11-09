@@ -56,7 +56,7 @@ PoC와 측정 작업(P0, T0, T1, T5의 측정)은 AGENTS.md 'Commands'에 없는
 
 ## T3. 순수 함수
 
-- design §4의 함수 전부: `fencePolicy`, `fenceArgs`, `resolveFencePaths`, `fencedCommand`, `claudeSandboxEnabled`, `claudeDenyRules`, `claudeFenceSettings`, `codexProfileArgs`, `codexTurnPermission`, `runMechanism`·`codexRestart`, `Prepared.fence`를 채우는 규칙, fail closed의 분류. Antigravity 환경은 바꾸지 않는다(§3.2 경로 1).
+- design §4의 함수 전부: `fencePolicy`, `fenceArgs`, `resolveFencePaths`, `fencedCommand`, `claudeSandboxEnabled`, `claudeDenyRules`, `claudeFenceSettings`, `codexProfileArgs`, `codexTurnPermission`, `codexMechanism`·`codexRestart`, `Prepared.fence`를 채우는 규칙, fail closed의 분류. Antigravity 환경은 바꾸지 않는다(§3.2 경로 1).
 - 테스트: design §4의 사례 전부. 정책 스냅숏은 design.md §8 P2에 적은 통과 정책 문장과 바이트까지 같아야 한다. Claude 설정과 Codex `-c` 인수는 §8 P2 (c)에서 통과한 모양과 같아야 한다.
 - 검증: `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run lint` 통과.
 - **commit 경계**: `test:` commit(테스트), 그 다음 `feat(app): fence policy for Doan-connection runs`
