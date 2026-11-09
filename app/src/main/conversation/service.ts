@@ -65,7 +65,7 @@ export interface Prepared {
   // rest of Doan's userData (agentAuth/fence.ts). claudeSandbox: this Claude turn runs with its own sandbox on, so it
   // gets Doan's settings instead of the outer sandbox-exec. denied: the userData entries listed for a provider's own
   // settings (a Claude turn with its sandbox on, every Codex run). exec: another sandbox-exec, for tests.
-  // socketDir: the app socket's directory, which a Codex profile server allows.
+  // socketDir: the app socket's directory, which a Codex profile server and a sandbox-on Claude turn allow.
   fence?: { paths: FencePaths; denied?: FenceEntry[]; claudeSandbox?: true; socketDir?: string; exec?: string };
 }
 // generation: the provider's connector generation now. labels: connector names by doan- name, for permission

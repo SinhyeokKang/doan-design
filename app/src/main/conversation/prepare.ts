@@ -165,8 +165,9 @@ function listDenied(provider: "claude" | "codex", paths: FencePaths): FenceEntry
   const denied = fenceDenied(provider, paths, listing); if (!denied) throw new Error("unknown");
   return denied;
 }
-// The app socket's resolved directory; none while the app has no runtime (`doan` then reaches no app anyway). Only a
-// profile server needs it, and the runner refuses one without it; a Full access server inside the outer fence does not.
+// The app socket's resolved directory; none while the app has no runtime (`doan` then reaches no app anyway). A Codex
+// profile server needs it, and the runner refuses one without it; a sandbox-on Claude turn allows it when there is one;
+// an outer-fenced run does not use it.
 function socketDir(setup: FenceSetup): { socketDir?: string } {
   const dir = setup.socketDir(); if (dir === undefined) return {};
   let real: string; try { real = realpathSync.native(dir); } catch { throw new Error("unknown"); }
@@ -185,7 +186,7 @@ function runFence(setup: FenceSetup, provider: Provider, profileDir: string, cwd
   // app socket's resolved directory.
   if (provider === "codex") return { paths, denied: listDenied("codex", paths), ...socketDir(setup), ...exec };
   if (provider !== "claude" || !claudeSandboxEnabled(claudeSources(profileDir, cwd, setup.managedDir ?? CLAUDE_MANAGED_DIR))) return { paths, ...exec };
-  return { paths, denied: listDenied("claude", paths), claudeSandbox: true, ...exec };
+  return { paths, denied: listDenied("claude", paths), claudeSandbox: true, ...socketDir(setup), ...exec };
 }
 // The Doan-account side of routePrepare as main wires it: every argument reaches the account prepare (reusing included,
 // so a reused Codex server's send builds no fence), an unopened sign-in store refuses every run, and a run (never a

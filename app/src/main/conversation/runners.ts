@@ -336,7 +336,7 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
     ...(input.model ? { model: input.model } : {}), ...(input.effort ? { effort: input.effort as EffortLevel } : {}),
     // Every run with Fast asks for it, as each turn opens a new process; a run without it passes nothing. A turn with
     // Claude's own sandbox on carries Doan's fence as settings, since that sandbox cannot start inside sandbox-exec.
-    ...claudeRunSettings(input.fast, input.fence?.claudeSandbox ? claudeFenceSettings(input.fence.paths, input.fence.denied ?? []) : undefined),
+    ...claudeRunSettings(input.fast, input.fence?.claudeSandbox ? claudeFenceSettings(input.fence.paths, input.fence.denied ?? [], input.fence.socketDir) : undefined),
     // Default passes nothing, so the Doan profile's and the project's settings decide, as before this option existed.
     // A terminal session's run (no doan owner) keeps the person's own profile settings, as Codex does.
     ...(input.owner ? claudePermission(input.permissionMode ?? "default") : {}),

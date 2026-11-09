@@ -163,7 +163,7 @@ export function claudeDenyRules(denied: readonly FenceEntry[]): string[] {
 }
 export interface ClaudeFenceSettings {
   permissions: { deny: string[] };
-  sandbox: { enabled: true; allowUnsandboxedCommands: false; filesystem: { denyRead: string[]; allowRead: string[]; denyWrite: string[]; allowWrite: string[] } };
+  sandbox: { enabled: true; allowUnsandboxedCommands: false; network?: { allowUnixSockets: string[] }; filesystem: { denyRead: string[]; allowRead: string[]; denyWrite: string[]; allowWrite: string[] } };
 }
 // The flag tier (SDK settings, the CLI's --settings), which neither the agent nor a repository can edit. Reading:
 // userData is denied and the allowed paths reopened (an allowRead holds inside a denyRead). Writing: a sandboxed
@@ -175,10 +175,12 @@ export interface ClaudeFenceSettings {
 // turn it off, which leaves only managed sources Doan does not read. The profile's settings.json, .claude.json, skills,
 // agents and plugins are closed to Bash and the Edit tool and stay readable (the CLI itself still writes .claude.json
 // and plugins/store; only a sandbox-on turn's tools are held here, the outer fence holds the rest for a sandbox-off one).
-export function claudeFenceSettings(paths: FencePaths, denied: readonly FenceEntry[]): ClaudeFenceSettings {
+// socketDir: the app socket's directory. Claude's sandbox blocks unix sockets, and with allowUnsandboxedCommands false
+// `doan` cannot ask to run outside it, so only that directory is allowed (no other network changes).
+export function claudeFenceSettings(paths: FencePaths, denied: readonly FenceEntry[], socketDir?: string): ClaudeFenceSettings {
   const allowed = allowedPaths("claude", paths);
   const files = [`${paths.profile}/settings.json`, `${paths.profile}/.claude.json`], dirs = claudeSettingsDirs(paths.profile);
-  return { permissions: { deny: [...claudeDenyRules([...denied, ...files.map(path => ({ path, directory: false }))]), ...dirs.map(dir => `Edit(/${dir}/**)`)] }, sandbox: { enabled: true, allowUnsandboxedCommands: false, filesystem: {
+  return { permissions: { deny: [...claudeDenyRules([...denied, ...files.map(path => ({ path, directory: false }))]), ...dirs.map(dir => `Edit(/${dir}/**)`)] }, sandbox: { enabled: true, allowUnsandboxedCommands: false, ...socketDir ? { network: { allowUnixSockets: [socketDir] } } : {}, filesystem: {
     denyRead: [paths.userData], allowRead: allowed, denyWrite: [...denied.map(entry => entry.path), ...allowed.filter(path => path !== paths.profile), ...files, ...dirs], allowWrite: [paths.profile] } } };
 }
 
