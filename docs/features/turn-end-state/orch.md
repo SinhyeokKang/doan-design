@@ -27,6 +27,7 @@
 | S | T3 (T4 취소) | `service.ts`, `service.test.ts`, `runners.ts`, `runners.test.ts`, `process.ts`, `process.test.ts` | T3 없음. T4는 P의 T0 판정(H1·H2·H5) | Claude Opus high — lifecycle·reservation 불변식, 동시성 | test, verify.mjs | 대기 |
 | 리뷰 | batch마다 `/code-review` | 보고만 | 각 batch 완료 | Claude Opus high (diff 난도에 따라 Sonnet high) | 🔴 0 | 대기 |
 | L | lead의 추가 변경: Claude 사용 한도 턴을 `rate_limited`로 분류 | `transport.ts`, `transport.test.ts`, `stage.test.ts`, `fixtures/` | 없음 | Claude Sonnet high — 분류 규칙 하나와 테스트, 구조화 신호 확인이 필요해 high | test, typecheck, lint, verify.mjs | 진행 |
+| A | lead의 추가 변경: 이전 sign-in의 대화에 새 거절 코드 `account_changed` | `agentAuth/*`, `prepare.ts`, `ipc.ts`, `models.ts`, `types.ts`, renderer `dockedRules.ts`·`canvasConversation.ts`·두 host·`DockedComposer.tsx` 등과 테스트. `transport.ts`는 L 소유라 제외 | 없음 | Claude Opus high — IPC 계약 추가와 두 host의 거절 흐름 | test, typecheck, lint, verify.mjs, runtime-test | 진행 |
 | T7 | 승격과 정리 | PRODUCT, ARCHITECTURE, DESIGN, BACKLOG, `docs/features/turn-end-state/` 삭제 | 모든 batch 통합 | conductor | 문장-코드 대조, verify.mjs | 대기 |
 
 ### tasks 항목 대응
@@ -49,3 +50,8 @@ T0·T6 → P, T1 → M, T2·T5 → R, T3·T4 → S, T7 → conductor. 주인 없
 - **S 수정 1**: `0a3b8bae`(테스트만). 재리뷰(Sonnet high — 테스트 하나의 mutation 확인이라 가볍다) 🔴 0 · 🟡 0, mutation을 리뷰어가 직접 재현했다. 통합 `87bf8015`·`8060e3ec`. 리뷰 worker 해제.
 - **R 수정 1**: `013c1481`. 재리뷰(Sonnet high) 🔴 0 · 🟡 0 · ⚪ 3. ⚪2: Send now 중 마지막이 streaming 답변이면 indicator가 "replying"이 된다. conductor 판단 — 그대로 둔다(현재 단계를 말한다는 규칙과 같음). 통합 `6d360cd0`·`46d3ae1b`·`31bb822d`·`2c53b98d`. 리뷰 worker 해제.
 - **L**: lead가 같은 PR에 넣으라고 준 추가 변경이다. 실제 앱 대화 `38523521…` seq 4517–4518에서 주간 한도 턴이 `turn.failed` `unknown`으로 기록됐다. Claude transcript에서 한도 응답은 `assistant`에 `error: "rate_limit"`, `model: "<synthetic>"`으로 남는다. 구조화 신호를 우선하라는 brief로 새 worker(`tes-L`)를 띄웠다. 계정 전환 뒤 전송 거절(2번 문제)은 범위 밖이다(lead가 조사).
+- **A**: lead가 같은 PR에 넣으라고 준 두 번째 추가 변경이다. 사용자 결정은 계정 불일치에 새 거절 코드를 두는 것이다(IPC 계약 추가, ARCHITECTURE 반영). conductor 판단:
+  - 코드: `account_changed`. `judgeConnection`의 `account_mismatch`·`account_unverifiable`·`workspace_mismatch`·`profile_mismatch`를 묶는다. 넷 다 대화가 다른 sign-in의 것이라는 뜻이다. 다른 `session_unavailable` 원인과 나머지 거절 코드·문구는 그대로다.
+  - 문구: "This conversation belongs to an earlier <Provider> sign-in and can’t continue with the account signed in now." 버튼은 기존 terminal session 거절의 "Start a new conversation"을 쓰고 Retry는 없다. 캔버스 패널과 Home·Overview docked composer 모두 같다.
+  - runtime-test: 두 번째 계정 대신 공유 userData의 probe 대화 owner `accountId`를 바꿔 실제 거절 경로를 본다(백업·복원, sign-out 없음).
+  - PRODUCT·ARCHITECTURE는 T7에서 conductor가 고친다.
