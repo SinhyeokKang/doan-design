@@ -206,8 +206,26 @@ P1의 결과에 따라 아래 중 하나를 고른다. 순서는 선호 순이�
 - **통과 정책 문장**: 통과한 정책 문장 전체를 여기에 적는다. T3의 스냅숏이 이 문장과 비교한다.
 
   ```
-  (T1에서 채운다)
+  (version 1)
+  (allow default)
+  (deny file-read* file-write* (subpath (param "USERDATA")))
+  (allow file-read-metadata (literal (param "USERDATA")) (literal (param "AGENT_AUTH")) (literal (param "PROFILES")))
+  (allow file-read* file-write* (subpath (param "PROFILE")))
+  (allow file-read* (literal (param "RUNTIME")))
+  (allow file-read* (subpath (param "ATTACHMENTS")))
   ```
+
+  - Claude와 Antigravity는 위 문장 뒤에 `(allow file-read* (literal (param "BROWSER_HOOK")))`을 더한다.
+  - Antigravity는 그 뒤에 아래 세 줄을 더한다.
+
+    ```
+    (allow file-read-metadata (literal (param "AGENT_RUNTIMES")))
+    (allow file-read* (subpath (param "AGENT_RUNTIME")))
+    (deny file-write* (subpath (param "SKILLS_CONFIG")) (subpath (param "SKILLS_CLI")))
+    ```
+
+  - 매개변수(`-D`, 모두 `realpath`로 푼 값): `USERDATA`=`<userData>`, `AGENT_AUTH`=`<userData>/agent-auth`, `PROFILES`=`<userData>/agent-auth/profiles`, `PROFILE`=이 run의 profile, `RUNTIME`=`<userData>/runtime.json`, `ATTACHMENTS`=Claude·ACP는 이번 턴의 `<userData>/attachments/<id>`, Codex는 `<userData>/attachments`, `BROWSER_HOOK`=`<userData>/agent-auth/browser-hook`, `AGENT_RUNTIMES`=`<userData>/agent-runtimes`, `AGENT_RUNTIME`=`<userData>/agent-runtimes/antigravity-acp`, `SKILLS_CONFIG`=`<PROFILE>/.gemini/config/skills`, `SKILLS_CLI`=`<PROFILE>/.gemini/antigravity-cli/skills`.
+  - 이 문장은 Cursor·Antigravity·Copilot에서 실제 턴으로 통과했다. Claude에는 자기 sandbox가 꺼진 run에서, Codex에는 Full access run에서만 쓴다(아래 '결과' 추천). 스크립트는 `.scratch/provider-profile-isolation/p2/real/fence.mjs`다.
 
 - 대안(provider별로 실패하면):
   - (가) 그 provider만 provider 자체 설정으로 막는다. 예: Claude의 profile `settings.json`에 `permissions.deny` 읽기 규칙. 다만 shell 명령은 막지 못할 수 있다.
@@ -215,6 +233,83 @@ P1의 결과에 따라 아래 중 하나를 고른다. 순서는 선호 순이�
   - (다) 그 provider의 자체 sandbox를 끄고 Doan 정책만 쓴다. PRODUCT §3 'Resume and permissions'를 바꾸므로 결정이 필요하다.
   - (가)·(나)로 끝난 provider는 막는 범위와 남는 한계를 ARCHITECTURE §7 'Known limits'에 적는다.
 - **확인 필요**: 어느 대안으로 갈지는 실패한 provider와 원인을 보고 T2에서 사용자에게 묻는다. 그때 추천을 하나 붙인다.
+- **결과**(2026-11-09, macOS 26.3.1). 스크립트와 evidence는 `.scratch/provider-profile-isolation/p2/`(`a/`, `claude/`, `codex/`, `real/`)에 있다.
+  - 버전: Claude Code 2.1.319(minimum 2.1.284도 확인), codex-cli 0.166.0(minimum 0.158.0도 확인), cursor-agent 2026.10.22-27dcf5f(= minimum), Copilot CLI 1.0.105(ACP `agentInfo`는 1.0.107), Antigravity 서버 1.3.0. Copilot minimum 1.0.89는 확인하지 않았다.
+  - 바깥 fence provider(Cursor·Antigravity·Copilot)는 통과했다. 단, Cursor는 실제 턴의 도구 호출을 보지 못했다.
+  - Claude와 Codex는 자기 설정만으로는 막히지 않는 경우가 남는다. 그래서 바깥 fence와 자기 설정을 run마다 나눠 쓰는 쪽을 추천한다(아래 '추천').
+- **(a) 정책 평가**(`a/a.sh`, `a/a-results.txt`, 로그인 없음):
+  - 규칙은 마지막에 맞는 것이 이긴다. 금지 줄을 다시 허용 줄들 뒤로 옮기면 자기 profile, `runtime.json`, 첨부가 모두 막힌다.
+  - `-D` 경로는 푼 값이어야 한다. 풀지 않은 `/var/folders/...`를 넘기면 아무것도 막지 않는다(fail open). 상대 경로 `-D`도 오류 없이 받아들여지고 아무것도 막지 않는다. 그래서 §3.1의 `realpath`와 절대 경로 검사가 필수다. 확인된 비교 경로는 `/private/var/...`이다.
+  - 따옴표, 공백, 괄호가 든 userData 경로도 `-D`로 그대로 동작했다. `-p` 문자열과 `-f` 파일의 결과도 같다.
+  - 조상 디렉터리 세 개(`USERDATA`, `agent-auth`, `profiles`)의 `file-read-metadata`를 열지 않으면 Node `fs.realpathSync(profile)`이 실패한다(Python `realpath`는 통과). 그래서 그 줄이 필요하다. 그 결과 `stat <userData>`는 되고, `ls <userData>`는 막힌다.
+  - 바깥의 심볼릭 링크로 미끼를 가리켜도 막힌다. 다른 profile의 이름 바꾸기(`mv`)도 막힌다.
+  - fail closed: 매개변수 누락이나 문법 오류는 `sandbox-exec` 종료 코드 65다. 명령이 없으면 71(`execvp() ... failed`)이다. 둘 다 띄운 직후 끝나므로 §3.1의 `process_exited`로 분류된다.
+- **provider × 모드**: '미끼'는 다른 provider profile(staging `codex-stg1` 포함), `conversations/`, `agent-auth/` 목록, 다른 대화의 첨부, `runtime.json` 쓰기다. '허용'은 `runtime.json` 읽기, 이번 턴 첨부, 자기 profile 읽기·쓰기, 작업 폴더 쓰기다. Cursor·Antigravity·Copilot·Claude 실제 턴의 shell 확인은 작업 폴더의 `check.sh`(미끼로 가는 심볼릭 링크를 연다)로 했다. Copilot 모델이 작업 폴더 밖 절대 경로를 스스로 거절했기 때문이다.
+
+  | provider | 모드 | 띄운 방식 | 미끼(shell, `perl` 포함) | 미끼(파일 도구) | 허용 | skill `doan` |
+  |---|---|---|---|---|---|---|
+  | Cursor | Ask first | 바깥 fence | 확인 못 함 | 확인 못 함 | 확인 못 함 | 확인 못 함 |
+  | Copilot | Ask first | 바깥 fence | 모두 `Operation not permitted` | `EACCES` | 모두 됨 | 있음 |
+  | Copilot | Full access(`allow_all` on) | 바깥 fence | 모두 막힘 | `EACCES` | 모두 됨 | 있음 |
+  | Antigravity | Ask first(`default`) | 바깥 fence | 모두 막힘 | 서버가 workspace 밖이라 거절 | 모두 됨 | 있음 |
+  | Antigravity | Full access(`yolo`) | 바깥 fence | 모두 막힘 | 서버가 거절 | 모두 됨 | 있음 |
+  | Claude(sandbox 꺼짐) | Ask first | 바깥 fence(실제 로그인) | 모두 막힘 | Read 도구 거절 | 모두 됨 | 있음 |
+  | Codex | Accept edits에 해당(`permissions` profile, on-request) | fence 없음, Codex profile의 deny(실제 로그인) | 모두 막힘 | `view_image` 막힘 | 됨(아래 차이) | 있음 |
+  | Codex | Full access(`dangerFullAccess`) | 바깥 fence, 새 app-server에서 `thread/resume`(실제 로그인) | 모두 막힘 | `view_image` 막힘 | 모두 됨 | 있음 |
+
+  - Cursor: fence 안에서 로그인 유지, `authenticate`, `session/new`, mode 설정, Stop까지 됐다. 그러나 턴은 모델 두 개(기본, `composer-2.5`) 모두 "Upgrade your plan to continue"로 끝났고 도구 호출이 없었다. fence 없이 돌려도 같았다. 그래서 fence 실패로 세지 않았다. 미끼와 허용 경로는 확인하지 못했다.
+  - 다른 모드(Accept edits·Plan)는 같은 정책과 argv이므로 ACP provider에서 따로 돌리지 않았다.
+  - Antigravity: Q3의 skill 경로 쓰기 금지가 shell 쓰기를 막았다(`config/skills`, `antigravity-cli/skills` 모두 `Operation not permitted`). stub은 읽히고 `doan`이 skill 목록에 있었다. 서버의 `antigravity-acp/`, `antigravity/` 쓰기는 막히지 않았다. P1·P3의 profile 안 동작과 충돌하지 않는다.
+  - Claude 실제 턴: `CLAUDE_CONFIG_DIR`이 로그인된 공유 profile이고 `apiKeySource: none`(OAuth)이었다. `--resume`도 fence 안에서 됐다.
+  - Codex 실제 턴 A는 Codex 자기 sandbox(`:workspace`) 안이라 임시 keychain 만들기와 `git credential-osxkeychain get`이 실패했다(-50). Doan의 deny 항목과 관계없는 Codex workspace sandbox의 동작이다(fence 안의 Full access 턴 B에서는 둘 다 됐다).
+  - 실제 상태: Antigravity 실행 전후(`real/snaps/before-agy.json` → `after-agy.json`) 변화가 없었다. 전체 창(`start` → `end`)의 `antigravity-cli/` 로그와 `gemini | antigravity` 수정 시각(17:00:04 KST)은 이번 실행 시각과 겹치지 않는다. W1이 찾은, Orca가 주기적으로 실행하는 사람의 `agy`와 같은 형태다. `~/Library/Application Support/doan/*` 변화는 실행 중인 사람의 Doan 앱이 만든 것이다(W1과 같은 noise).
+- **(c) Claude 자기 설정**(`claude/claude-probe.mjs`, 가짜 Messages API, 로그인 없음, `cases/`·`out/`). 규칙은 `Read(//<userData>/**)`, `Edit(//<userData>/**)`이고, 2.1.319와 2.1.284의 결과가 같다.
+
+  | 설정 | `cat`·`grep -r`·redirect | `perl`이 직접 여는 읽기·쓰기 | Read·Write 도구 | 자기 profile Read 도구 |
+  |---|---|---|---|---|
+  | `permissions.deny`(user, flag `--settings`, managed `--managed-settings` 모두 같음), sandbox 꺼짐 | 막힘 | **안 막힘** | 막힘 | 막힘(deny가 allow를 이긴다) |
+  | 같은 deny + Full access(`bypassPermissions`) | 막힘 | **안 막힘** | 막힘 | 막힘 |
+  | 사람이 project에서 sandbox 켬 + flag의 deny와 `sandbox.filesystem`(`denyRead`/`denyWrite`=userData, `allowRead`=profile·`runtime.json`·이번 첨부, `allowWrite`=profile) | 막힘(OS 수준) | 막힘 | 막힘 | 막힘 |
+  | 위 + Full access + 명령의 `dangerouslyDisableSandbox` | — | **안 막힘**(승인 없이 sandbox 밖에서 돈다) | 막힘 | 막힘 |
+  | 위 + flag `sandbox.allowUnsandboxedCommands: false` | — | 막힘 | 막힘 | 막힘 |
+  | 바깥 fence + sandbox 꺼짐 | 막힘 | 막힘 | 막힘 | 됨 |
+  | 바깥 fence + 사람이 sandbox 켬 | 모든 Bash가 71(`sandbox_apply`) | 71 | 막힘 | 됨 |
+
+  - Ask first에서 sandbox 밖 실행(`dangerouslyDisableSandbox`)은 "Run outside of the sandbox" 승인을 요청한다. 사람이 승인하면 Full access와 같이 `perl` 읽기가 될 것으로 본다(추정: 승인 경로는 돌리지 않았다).
+  - project의 `permissions.allow`(Read·Edit·Bash)와 `sandbox.filesystem.allowRead`/`allowWrite` userData는 Doan의 deny를 다시 열지 못했다(목록이 합쳐지고 deny가 이긴다). 사람의 profile settings의 sandbox, project의 sandbox, 사람이 project에서 sandbox를 켠 경우 모두 Doan의 flag tier sandbox 설정이 합쳐졌다.
+  - Doan이 넣을 곳: flag tier(SDK `settings`, CLI `--settings`)가 맞다. agent가 고칠 수 있는 파일이 아니다. profile의 `settings.json`은 agent가 sandbox 꺼짐에서 `perl` 등으로 고칠 수 있다(위 표의 '안 막힘'). managed tier(SDK `managedSettings`)도 동작했지만, sdk.d.ts는 기계에 관리자 managed tier가 있으면 이 값을 기본으로 버린다고 적는다.
+  - sandbox가 켜지는지 미리 알기: SDK `resolveSettings({ cwd, settingSources })`(0.3.312, alpha)가 profile·project·local의 `sandbox.enabled`와 그 출처를 돌려줬다(`claude/resolve.mjs`). sdk.d.ts는 이것이 "raw settings cascade, not a security decision"이고 관리자 `policyHelper`는 실행하지 않는다고 적는다. 틀리는 방향은 둘이다.
+    - 꺼짐으로 읽었는데 켜짐이면: 바깥 fence 안에서 모든 Bash가 71로 실패한다. 보이는 실패다.
+    - 켜짐으로 읽었는데 꺼짐이면: flag의 `permissions.deny`만 남아 `perl` 같은 프로그램은 막지 못한다.
+  - Claude는 턴마다 새 프로세스이므로 이 판단은 턴마다 할 수 있다.
+- **(c) Codex 자기 설정**(`codex/codex-probe.mjs`, app-server + 가짜 Responses API, 로그인 없음, `cases/`·`out/`). 0.166.0과 0.158.0의 결과가 같다.
+  - app-server를 띄울 때 `-c default_permissions="doan"`과 `-c permissions.doan={extends=":workspace",filesystem={"<userData>"="deny","<profile>"="write","<userData>/runtime.json"="read","<userData>/attachments"="read"}}`를 주면 미끼가 막힌다. 막히는 것은 shell의 `cat`과 `perl` 읽기·쓰기, `view_image`, 그리고 사람이 승인한 `require_escalated` 명령까지다. `runtime.json` 읽기, 첨부, 자기 profile은 된다.
+  - 턴마다 고르기: experimental API(`initialize`의 `capabilities.experimentalApi`)의 `turn/start` `permissions: "<profile id>"`가 동작했다. `sandboxPolicy`와 함께 쓸 수 없다. 읽기 전용 profile(`extends=":read-only"` + 같은 항목)도 같았다.
+  - 지금 Doan이 보내는 `sandboxPolicy`(legacy)를 profile과 함께 보내면 userData 전체가 막힌다. `runtime.json`, 자기 profile, 첨부도 막히므로 `doan`이 동작하지 않는다.
+  - 사람의 설정과의 관계:
+    - 사람이 자기 profile을 쓰면(`default_permissions="mine"`), `-c permissions.mine.filesystem=...`으로 Doan의 항목을 더할 수 있었다. Default 턴에 사람의 profile id가 그대로 남고 deny가 걸렸다.
+    - 사람이 설정이 없으면(지금 공유 profile, 기본 `:read-only`) 내장 profile에는 항목을 더할 수 없다. `-c permissions.":read-only".filesystem=...`은 "config defines `[permissions]` profiles but does not set `default_permissions`"로 시작하지 못한다. 그래서 Doan이 자기 profile을 정의하면 `default_permissions`도 정해야 한다. 사람의 Default가 Doan의 profile로 바뀐다.
+    - 사람이 legacy `sandbox_mode`를 쓰면 Default 턴(덮어쓰기 없음)은 legacy 정책으로 돌고 Doan의 deny가 걸리지 않는다. 턴에 `permissions: "doan"`을 보내야 걸린다. 그러면 사람의 `sandbox_mode`와 `sandbox_workspace_write`를 Doan의 profile로 옮겨 적어야 한다.
+    - 신뢰된 project의 `.codex/config.toml`이 `default_permissions`, `sandbox_mode = "danger-full-access"`, `[permissions.doan.filesystem]` userData `write`를 적어도 무시됐다.
+  - 남는 틈: 사람이 승인한 `apply_patch`는 deny 경로(`conversations/`)에도 썼다. Ask first와 Accept edits에서 승인 카드에 그 경로가 보인다.
+  - Full access: `dangerFullAccess`에는 Codex sandbox가 없어 Doan의 deny가 걸리지 않는다. `:root=write` + deny로 만든 profile은 명령을 막았지만, `apply_patch`가 "writing outside of the project"로 거절되어 Full access와 같지 않다.
+  - 바깥 fence 안의 Codex: `sandboxPolicy` `externalSandbox`와 `dangerFullAccess`에서는 모든 명령이 돌고 fence가 막는다. `workspaceWrite`에서는 sandbox 안의 명령이 모두 71이다. 승인된 escalation 명령만 fence 아래에서 돈다.
+  - requirements.toml의 `deny_read`는 `/etc/codex/requirements.toml`이나 MDM에만 있다(`CODEX_HOME`에서 읽지 않는다, 바이너리 문자열). Doan이 profile마다 둘 수 없다.
+- **(d) Keychain**: fence 안에서 임시 keychain(`security create-keychain`, 항목 추가·수정·삭제)이 됐다. fence가 금지한 userData 아래에 keychain 파일을 만드는 것은 막혔다(`a/`). Copilot·Antigravity·Claude 실제 턴과 Codex fence 턴에서 agent shell의 임시 keychain과 `git credential-osxkeychain get`이 됐다. 실제 login keychain에는 쓰지 않았다. 전후 Keychain 항목 수는 46개로 같다.
+- **(f) `doan`**(`real/doan-f.mjs`, 앱 대신 요청을 받는 가짜 socket): fence 안과 밖의 출력과 종료 코드가 같았다. 대상은 `doan skill`, `design-skill --json`, `ls`, `check`, `active`, `open`, `work update`다. 앱 명령은 tmpdir의 socket까지 닿았다. `doan check`는 `sessions.jsonl`에 쓰지 않았다(fence 밖에서도 conversation id가 없어 쓰지 않았으므로, 결정 B의 차이는 이 probe로 확인되지 않았다).
+  - 확인하지 못했다: `doan handoff`의 실제 요청, 첨부 이미지가 든 실제 턴, MCP connector, turn-end 사용량 읽기.
+- **(g) Antigravity의 `agent-runtimes/`**: fence 안(읽기만 허용)과 fence 밖 실행 모두 그 아래에 새로 생기거나 바뀐 파일이 없었다(mtime 목록). Seatbelt 거부는 unified log에 남지 않아(`(debug deny)`도 마찬가지) 막힌 쓰기 시도는 이 방법으로 볼 수 없다. 그래서 fence 밖 대조로 판단했다. 쓰기를 열 필요는 없다.
+- **(h) pid와 Stop**: `sandbox-exec`는 대상을 같은 프로세스에서 실행한다. spawn한 pid의 명령이 provider 바이너리이고, pid, pgid, 시작 시각이 같다(`a/h.mjs`, `real/runs/*/result.jsonl`의 `leader`). `kill(-pgid)`는 Cursor 87 ms, Copilot 약 3.3 s, Antigravity 61 ms에 그룹을 끝냈다.
+  - Copilot의 도구 명령은 자기 process group에서 돌지만 Copilot이 끝날 때 함께 끝났다.
+  - Antigravity harness의 도구 명령(`sleep 120`)은 자기 process group에 있어 Stop 뒤에도 남았다. fence 없이도 같다. 그러므로 fence와 관계없는 기존 동작이다(Doan `OwnedGroup`도 `-pgid`만 보낸다). 남은 프로세스는 fence를 그대로 물려받는다. BACKLOG 후보다.
+- **추천**(T2에서 사용자에게 묻는다):
+  - Cursor·Antigravity·Copilot: 위 정책으로 바깥 fence. Cursor의 실제 도구 호출은 T5에서 다시 본다.
+  - Claude: (가)를 run마다 고른다. Doan이 턴마다 `resolveSettings`로 sandbox를 읽는다. 꺼짐이면 바깥 fence를 쓰고, 켜짐이면 바깥 fence 없이 flag tier에 `permissions.deny`와 `sandbox.filesystem`을 넣는다. 사람의 sandbox가 그대로 동작하므로 PRODUCT §3이 유지된다. 남는 틈은 켜짐 + sandbox 밖 실행(Full access는 승인 없이, Ask first는 사람 승인 뒤)이다. 막으려면 flag에 `allowUnsandboxedCommands: false`를 넣어야 하는데, 이것은 사람의 설정을 좁히므로 결정이 필요하다.
+  - Codex: Full access가 아닌 모드는 (가) Codex permission profile, Full access는 바깥 fence로 나눈다. Full access와 다른 모드 사이를 오갈 때는 app-server를 다시 띄우고 `thread/resume`한다(fence 턴 B로 확인). 이때 바뀌는 것은 다음과 같다.
+    - Doan의 turn 권한을 legacy `sandboxPolicy`에서 `permissions` profile id(experimental API)로 바꾼다.
+    - 사람의 Default가 legacy 설정이나 내장 profile이면 Doan profile로 옮겨 적는다.
+    - 남는 틈(승인된 `apply_patch`)은 'Known limits'에 적는다.
+  - 둘 다 받아들이지 않으면 남는 길은 (다)다. Claude와 Codex 모두 자기 sandbox를 끄고 바깥 fence만 쓴다. Codex는 `externalSandbox`로 통과를 확인했다.
 
 **P3. Antigravity의 profile 안 작업 (§3.3)**
 
