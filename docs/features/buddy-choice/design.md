@@ -171,6 +171,7 @@ app/src/renderer/public/buddies/<id>/   앱 사본
 |---|---|
 | `buddy-step` | 첫 실행 Buddy 단계, 처음 상태(Doany 선택) |
 | `buddy-step-picked` | 같은 단계에서 Dungdung을 고른 상태(accent가 따라 바뀜) |
+| `buddy-step-end` | 오른쪽 끝 Dori를 고른 상태(왼쪽에 넷이 겹치고 더 넘어가지 않음) |
 | `buddy-step-failed` | Popo를 골랐다가 저장에 실패한 상태(Doany 유지, notice와 Retry) |
 | `settings-general` | 설정 General, Popo 선택 |
 | `settings-general-failed` | General, Popo 저장 실패(Dori 유지), 그룹 위 notice와 Retry |
