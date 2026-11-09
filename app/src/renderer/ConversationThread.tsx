@@ -664,7 +664,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   const last = lastEnd(items);
   // The last activity row reads the indicator's settled status, so the two say the same in every render. Only Claude
   // Code and Codex write an activity as its tool starts; the ACP agents write it once the tool completed.
-  const drawn = activityRun(items, settled.shown, provider !== "claude" && provider !== "codex");
+  const drawn = activityRun(items, settled.shown, provider !== "claude" && provider !== "codex" ? props.turn?.status ?? NO_TURN : null);
   const toggle = (key: string) => setExpanded(current => { const next = new Set(current); if (next.has(key)) next.delete(key); else next.add(key); return next; });
   const item = (entry: ThreadItem): ReactNode => {
     switch (entry.kind) {

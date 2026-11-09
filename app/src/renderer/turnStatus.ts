@@ -69,13 +69,16 @@ export function turnStatus(all: readonly ThreadItem[], turn: TurnInfo | null, st
 }
 
 type ActivityItem = Extract<ThreadItem, { kind: "activity" }>;
+const fromStage = (status: TurnStatus) => status.kind === "tool" && status.step === undefined;
 // The thread's last activity row, from the indicator's shown status, so the row and the indicator say the same and a
 // fast tool does not flicker the row: it runs with the indicator's words only while those name a tool, and is its step
-// count otherwise. A Claude Code or Codex activity is written as its tool starts, so the event rule's tool still runs;
-// an ACP activity only once its tool completed (`acp`), so there only a stage makes the row run, possibly for a tool not
-// in its steps yet. The last step reads "Running a command" only when the status came from that step. A Codex MCP
-// startup line keeps its sentence as the head until the turn ends.
-export function activityRun(items: readonly ThreadItem[], status: TurnStatus, acp: boolean): readonly ThreadItem[] {
+// count otherwise. A Claude Code or Codex activity is written as its tool starts, so the event rule's tool still runs.
+// An ACP agent writes it only once its tool completed, so there only a stage makes the row run, possibly for a tool not
+// in its steps yet; `acp` is that turn's latest status, before settle, and null for Claude Code and Codex. The shown
+// stage outlives its tool by the settle time, so an ACP row runs only while the latest status is a stage's tool too: a
+// row born from the last tool's completion never runs. The last step reads "Running a command" only when the status
+// came from that step. A Codex MCP startup line keeps its sentence as the head until the turn ends.
+export function activityRun(items: readonly ThreadItem[], status: TurnStatus, acp: TurnStatus | null): readonly ThreadItem[] {
   const at = ownEnd(items) - 1;
   const row = items[at];
   if (row?.kind !== "activity") return items;
@@ -83,7 +86,7 @@ export function activityRun(items: readonly ThreadItem[], status: TurnStatus, ac
   let next: ActivityItem = { ...row, running: false, head: stepCount(row.steps.length) };
   if (last?.sentence) {
     if (status.kind !== "none") next = { ...row, running: true, head: runningHead(last) };
-  } else if (status.kind === "tool" && !(acp && status.step !== undefined)) {
+  } else if (status.kind === "tool" && (acp === null || (fromStage(status) && fromStage(acp)))) {
     const own = last !== undefined && last.kind === "command" && status.step === last.key;
     next = { ...row, running: true, head: status.text, ...(own ? { steps: [...row.steps.slice(0, -1), { ...last, verb: "Running a command" }] } : {}) };
   }
@@ -118,7 +121,7 @@ const hidden = (status: TurnStatus) => status.kind === "none" || status.kind ===
 export const statusKey = (status: TurnStatus) => status.kind === "tool" ? `tool:${status.activity}:${status.text}` : status.kind;
 // Nothing changed gives `previous` itself, so the thread can keep the result as state derived while it renders. The
 // same words from a later step of the event rule take that step at once (the thread's row marks the step that runs);
-// a stage's tool stays as shown, so an ACP activity alone never stops a row a stage made run.
+// a stage's tool stays as shown, so an ACP row it made run runs on once the next stage follows a completion of the same words.
 const laterStep = (shown: TurnStatus, next: TurnStatus) => shown.kind === "tool" && next.kind === "tool" && shown.step !== undefined && next.step !== undefined && shown.step !== next.step;
 export function settle(previous: Settled | null, next: TurnStatus, now: number): Settled {
   const same = previous !== null && statusKey(next) === statusKey(previous.shown);
