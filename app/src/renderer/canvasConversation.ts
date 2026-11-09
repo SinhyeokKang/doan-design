@@ -118,7 +118,7 @@ export const ATTACHMENT_LIMIT_TEXT = `Only ${MAX_ATTACHMENTS} files can be attac
 export const DUPLICATE_CANVAS_TEXT = "Another canvas has the same ID, so this conversation can’t continue. Run doan check in a terminal to find it.";
 
 // busy: the busy line with Open. blocked: the composer keeps the draft but takes no input, with this reason line.
-// notice: under the card; retry offers Retry, startNew the terminal session's "Start a new conversation".
+// notice: under the card; retry offers Retry, startNew "Start a new conversation" (a terminal session, an earlier sign-in).
 // attachments: those chips read as moved, and the draft's own reason line explains it (the shipped composer rule).
 // resend: nothing was working to queue behind, so the host sends the same draft instead (the shipped queue rule).
 export type CanvasConversationError =
@@ -145,5 +145,5 @@ export function canvasConversationError(code: string, mode: DockedMode, provider
   // dockedRefusal's gone is canvas_not_found, answered above.
   const text = refusal.kind === "notice" ? refusal.text : canvasUnlistedText(project);
   if (mode.kind === "resume") return { kind: "notice", text, retry: false, startNew: true };
-  return { kind: "notice", text, retry: mode.kind === "new" && startErrorView(code, provider, project).retry, startNew: false };
+  return { kind: "notice", text, retry: mode.kind === "new" && startErrorView(code, provider, project).retry, startNew: refusal.kind === "notice" && refusal.startNew === true };
 }

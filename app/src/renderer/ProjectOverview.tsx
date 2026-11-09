@@ -24,7 +24,7 @@ import type { ReplyAnchor } from "../main/conversation/replyAnchor";
 import { copyText } from "./copyText";
 import { contextRing } from "./contextWindow";
 import { DockedComposer, type DockedOutcome, type DockedRequest } from "./DockedComposer";
-import { composerTurn, draftKey, EMPTY_DRAFT, type DockedBusy, type DockedMode } from "./dockedRules";
+import { carryDraft, composerTurn, draftKey, EMPTY_DRAFT, type DockedBusy, type DockedMode } from "./dockedRules";
 import { generationOf, modelsKey, type DockedSupport } from "./dockedSupport";
 import { cardRow, ROW_ACTION_ICONS, ROW_ACTION_LABELS, type RowAction } from "./homeCards";
 import {
@@ -428,6 +428,8 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         sendNow={!!conversationId && !!provider && sendNowShown({ provider, phase: steerPhaseOf(thread?.events ?? null, summary, live), sending: false })}
         onSendQueuedNow={itemId => conversationId ? run.store.sendQueuedNow(conversationId, itemId) : Promise.resolve({ error: "not_running" })}
         onSend={send} onQueue={queue}
+        // A conversation of an earlier sign-in leaves for a new one in this project, taking the refused draft along.
+        onStartNew={() => { run.setDrafts(drafts => carryDraft(drafts, key, draftKey({ kind: "new", root }))); run.select(root, null); }}
         onStop={() => { if (conversationId) void window.doan.interruptConversation({ conversationId }).catch(console.error); }}
         onRemoveQueued={async itemId => {
           if (!conversationId) return false;

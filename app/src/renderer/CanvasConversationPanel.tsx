@@ -29,7 +29,7 @@ import type { PanelArrival } from "./rightPanelOpen";
 import { copyText } from "./copyText";
 import { contextRing } from "./contextWindow";
 import { DockedComposer, type DockedFieldLink, type DockedOutcome, type DockedPicker, type DockedRequest } from "./DockedComposer";
-import { composerTurn, draftKey, EMPTY_DRAFT, type DockedMode, type DockedRefusal } from "./dockedRules";
+import { carryDraft, composerTurn, draftKey, EMPTY_DRAFT, type DockedMode, type DockedRefusal } from "./dockedRules";
 import { generationOf, modelsKey, type DockedSupport } from "./dockedSupport";
 import {
   attachmentLimit, defaultEffort, defaultFast, defaultModel, fastToSend, defaultProvider, fixedPreference, groupIcon, modelOption, modelPickerView,
@@ -419,6 +419,13 @@ export function CanvasConversation(props: CanvasConversationProps) {
   const restoreBusy = archived && current && (current.working || current.phase !== "ended") ? { kind: "restore" as const, open: current.conversationId } : null;
   const busy = newView?.start.busy ?? restoreBusy;
   const openConversation = (id: string) => { props.onChoose?.(); run.select(id); };
+  // A refused terminal session switches to the new conversation that shares its field; a conversation of an earlier
+  // sign-in leaves for a new one on this canvas, taking the refused draft along.
+  const startNewAfterRefusal = () => {
+    if (mode.kind !== "existing" && mode.kind !== "archived") { run.choose("new"); return; }
+    store.setDrafts(drafts => carryDraft(drafts, key, draftKey({ kind: "new", root, canvas: target.canvas })));
+    props.onChoose?.(); run.select(null);
+  };
 
   // A preset's line and the suggestion stand in for it inside the composer (dockedRules composerPlaceholder).
   const placeholder = view.kind === "new" && mode.kind === "new" ? NEW_PLACEHOLDER : REPLY_PLACEHOLDER;
@@ -480,7 +487,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
         onAttachmentRemoved={attachment => { if (attachment.id) void window.doan.removeAttachment(attachment.id).catch(console.error); }}
         turn={conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle"} busy={busy} canvasGone={false} context={thread ? contextRing(thread.events) : null}
         unavailable={props.blocked} locked={props.blocked !== null} held={view.kind === "wait" || (newView?.start.pending ?? false)} fixed={fixed}
-        refuse={refuse} onStartNew={() => run.choose("new")}
+        refuse={refuse} onStartNew={startNewAfterRefusal}
         queued={conversationId ? store.queue(conversationId) : []}
         sendNow={!!conversationId && !!provider && !archived && sendNowShown({ provider, phase: steerPhaseOf(thread?.events ?? null, summary, live), sending: false })}
         onSendQueuedNow={itemId => conversationId ? store.sendQueuedNow(conversationId, itemId) : Promise.resolve({ error: "not_running" })}

@@ -123,11 +123,19 @@ export function dockedMessage(draft: DockedDraft, skills: readonly string[] = []
 
 // A send or start main refused. The limits become the busy line until the host reports the busy conversation and it
 // clears, or the person edits the draft; a canvas that is
-// gone replaces the composer; the rest is a notice under the card.
+// gone replaces the composer; the rest is a notice under the card. A conversation of an earlier sign-in offers
+// "Start a new conversation".
 // A canvas panel's refusals add two: blocked keeps the draft in a field that takes no input, with
 // the reason line; a notice may offer Retry or, for a terminal session, "Start a new conversation".
 export type DockedRefusal = { kind: "busy"; busy: DockedBusy } | { kind: "gone" } | { kind: "notice"; text: string; retry?: boolean; startNew?: boolean }
   | { kind: "blocked"; text: string; action?: SettingsAction };
+// "Start a new conversation" from a refused conversation carries the refused draft into the new conversation's field,
+// as a refused terminal session's does (the two share that field); a draft already waiting there stays.
+export function carryDraft(drafts: ReadonlyMap<string, DockedDraft>, from: string, to: string): ReadonlyMap<string, DockedDraft> {
+  const draft = drafts.get(from), waiting = drafts.get(to);
+  if (!draft || (waiting && (waiting.segments.length || waiting.preset || waiting.attachments.length))) return drafts;
+  return new Map(drafts).set(to, draft).set(from, EMPTY_DRAFT);
+}
 export function dockedRefusal(code: string, mode: DockedMode, provider: Provider, project: string): DockedRefusal {
   if (code === "project_busy") return { kind: "busy", busy: { kind: "project", open: null } };
   if (mode.kind === "archived" && code === "busy") return { kind: "busy", busy: { kind: "restore", open: null } };
@@ -135,6 +143,8 @@ export function dockedRefusal(code: string, mode: DockedMode, provider: Provider
   if (mode.kind === "new") return { kind: "notice", text: startErrorView(code, provider, project).text };
   if (mode.kind === "resume") return { kind: "notice", text: resumeRefusalText(code, provider) };
   const p = PROVIDER_NAMES[provider];
+  // Another sign-in owns the conversation: Retry or signing in again never runs it, so only a new conversation continues.
+  if (code === "account_changed") return { kind: "notice", text: `This conversation belongs to an earlier ${p} sign-in and can’t continue with the account signed in now.`, startNew: true };
   const text = SEND_ERRORS[code]?.(p) ?? "Couldn’t send your message. Try again.";
   return { kind: "notice", text };
 }

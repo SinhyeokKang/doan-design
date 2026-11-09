@@ -89,10 +89,13 @@ function accountCode(cause: string): string {
   if (["not_connected", "reauth_required", "unverified", "account_mismatch", "sign_out_failed"].includes(cause)) return "not_logged_in";
   return ["busy", "cli_missing", "cli_install_failed", "session_in_use"].includes(cause) ? cause : "session_unavailable";
 }
-// A conversation owned by another account, workspace or profile cannot run here whatever the user signs into now.
-function judgmentCode(judgment: Exclude<ConnectionJudgment, { decision: "resume" }>): string {
+// A conversation owned by another account, workspace or profile cannot run here whatever the user signs into now, so it
+// reads as account_changed: no retry or sign-in brings it back, only a new conversation continues.
+const OTHER_SIGN_IN = ["account_mismatch", "account_unverifiable", "workspace_mismatch", "profile_mismatch"];
+export function judgmentCode(judgment: Exclude<ConnectionJudgment, { decision: "resume" }>): string {
   if (judgment.decision === "reauth") return "not_logged_in";
   if (judgment.decision === "legacy") return "session_unavailable";
+  if (OTHER_SIGN_IN.includes(judgment.cause)) return "account_changed";
   return ["busy", "session_in_use"].includes(judgment.cause) ? judgment.cause : ["sign_out_failed", "unverified"].includes(judgment.cause) ? "not_logged_in" : "session_unavailable";
 }
 // Codex runs tool commands through a login shell by default, whose profile puts the user's own doan back first on
