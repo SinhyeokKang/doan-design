@@ -6,7 +6,7 @@ AGENTS.md 'Commands'에 없는 확인 명령(`file`, `rg`, 측정 스크립트)�
 
 ## 1단계 — 에셋과 초안 (lead, develop)
 
-- [x] **1.1 에셋 구조.** `.doan/assets/buddies/<id>/`(saemi, dungdung, popo, dori)에 시안 카드 이미지를 `card.png`로, 받은 GIF를 `artist-original.gif`로, 프레임을 맞춘 GIF를 `artist.gif`로, 첫 프레임을 `artist-rest.png`로 넣었다. `.doan/assets/buddies/README.md`에 버디 하나의 에셋 세트, Doany와의 대응, 출처, 소스 박스를 적었다. 버디별 리그 수치도 이 README에 적는다.
+- [x] **1.1 에셋 구조.** `.doan/assets/buddies/<id>/`(puri, dungdung, popo, dori)에 시안 카드 이미지를 `card.png`로, 받은 GIF를 `artist-original.gif`로, 프레임을 맞춘 GIF를 `artist.gif`로, 첫 프레임을 `artist-rest.png`로 넣었다. `.doan/assets/buddies/README.md`에 버디 하나의 에셋 세트, Doany와의 대응, 출처, 소스 박스를 적었다. 버디별 리그 수치도 이 README에 적는다.
   - 확인: `file .doan/assets/buddies/*/card.png .doan/assets/buddies/*/artist.gif`가 1254² PNG와 512² GIF를 보여준다.
 - [x] **1.2 accent 램프 캔버스.** `.doan/canvases/buddy-accent.html`: 다섯 램프(1–12, pressed, link), 아이콘 색, 몸통 견본, 대비표(칩 글자 4.5:1, 눌린 사이드바 행 위 아이콘 3:1, 9·hover·pressed 위 Send 잉크 3:1), 각 램프로 칠한 Accent places 견본. 친구 램프는 `tokens.css` palette에 들어갔다.
   - 확인: `doan check --json --repo .`에 이 캔버스의 finding이 없다. 대비 수치는 램프 값에서 계산해 표에 적었다.
@@ -16,7 +16,7 @@ AGENTS.md 'Commands'에 없는 확인 명령(`file`, `rg`, 측정 스크립트)�
   - 확인: 128² GIF이고 프레임 수와 시간이 원본과 같다. 측정 명령은 정하지 않았다(command undecided — 사용자 확인 필요). 캔버스의 32px 견본과 같은 크기·위치로 보인다.
 - [ ] **1.4b Doany 카드 (Codex 워커).** `.doan/assets/buddies/doany/card.png`를 원본 `.doan/assets/doany/v2/doany.png` 기준으로 친구 카드와 같은 그림자·크기로 다시 그린다.
   - 확인: 1254² RGB이고, `buddy-choice.html`에서 다섯 카드가 같은 크기로 보인다. 사람이 확인한다.
-- [ ] **1.5 정지 이미지·레이어 PoC (Codex 워커, saemi).** 투명 `still.png`, `body.png`, `accessory.png`, `prompts.json`을 만들고 README에 리그 수치를 적는다. 시안의 형태와 질감은 바꾸지 않는다.
+- [ ] **1.5 정지 이미지·레이어 PoC (Codex 워커, puri).** 투명 `still.png`, `body.png`, `accessory.png`, `prompts.json`을 만들고 README에 리그 수치를 적는다. 시안의 형태와 질감은 바꾸지 않는다.
   - 확인: 세 장 모두 1254² RGBA다. `body.png` 위에 `accessory.png`를 합성한 그림이 눈 영역을 빼면 `still.png`와 알파 경계에서 1px(1254² 기준) 안에서 맞는다. 눈 중심과 반지름은 `still.png`의 눈과 UV `.003` 안에서 맞는다. 측정 스크립트와 결과는 `.scratch/buddy-assets/`에 둔다. 사람이 확인한다.
 - [ ] **1.6 나머지 셋 (Codex 워커).** dungdung, popo, dori도 1.5와 같은 방법으로 만든다. 목도리와 헤드폰은 소품 기울기 범위를 줄이고, 안경은 0으로 둔다.
   - 확인: 1.5와 같다. 버디 4개의 이미지 용량 합을 재서 사람에게 보고하고, 해상도를 줄일지 묻는다.
@@ -29,7 +29,7 @@ AGENTS.md 'Commands'에 없는 확인 명령(`file`, `rg`, 측정 스크립트)�
 - **읽을 것**: `.doan/assets/buddies/README.md`('Next' 두 절), `.doan/assets/doany/v2/README.md`와 `layer-prompts.json`(Doany 레이어를 만든 방법), design.md '에셋 구조'와 '리그 일반화'(리그 수치 목록).
 - **만들 것**
   - 1.4b: `doany/card.png`. 원본 `.doan/assets/doany/v2/doany.png`를 친구 카드와 같은 스타일(흰 바탕, 부드러운 바닥 그림자, 같은 크기와 바닥선)로 다시 그린다. Doany의 형태와 색은 바꾸지 않는다.
-  - 1.5: `saemi/`의 `still.png`, `body.png`, `accessory.png`, `prompts.json`, README의 리그 수치. 사람이 확인한 뒤 1.6으로 넘어간다.
+  - 1.5: `puri/`의 `still.png`, `body.png`, `accessory.png`, `prompts.json`, README의 리그 수치. 사람이 확인한 뒤 1.6으로 넘어간다.
   - 1.6: `dungdung/`, `popo/`, `dori/`에도 같은 파일을 만든다.
 - **하지 않을 것**: `card.png`(친구)와 `artist*.gif`·`artist-rest.png`는 고치지 않는다. 앱 코드, `tokens.css`, 다른 feature 문서도 고치지 않는다.
 - **캔버스 갱신**: 친구의 `still.png`가 생기면 `.doan/canvases/buddy-home.html`에서 그 버디의 마스코트 자리를 바꾼다. `<button type="button" class="doany card-stand-in" …><img src="../assets/buddies/<id>/card.png" alt=""/></button>`에서 `card-stand-in` 클래스를 지우고 `src`를 `../assets/buddies/<id>/still.png`로 바꾼다. 머리말의 "Until each friend's transparent still.png exists…" 문장도 실제 상태에 맞게 고친다. `buddy-choice.html`의 카드는 `card.png`를 그대로 쓴다.

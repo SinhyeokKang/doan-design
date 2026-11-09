@@ -16,7 +16,7 @@
 | id | 이름 | 색 | 소품 | 성격 한 줄(영어, 화면 문구) |
 |---|---|---|---|---|
 | `doany` | Doany | violet | 베레모 | A little artist in a beret who just loves to draw. |
-| `saemi` | Saemi | 민트 | 새싹 | A curious walking companion who shares every fun find. |
+| `puri` | Puri | 민트 | 새싹 | A curious walking companion who shares every fun find. |
 | `dungdung` | Dungdung | 노랑 | 헤드폰 | A music-loving mood maker who keeps things upbeat. |
 | `popo` | Popo | 살구 | 안경 | A whimsical bookworm who dreams up new games. |
 | `dori` | Dori | 하늘 | 목도리 | A quiet, caring friend to lean on when you’re tired. |
@@ -36,13 +36,13 @@
 
 5. 버디마다 accent 램프가 있다. 고른 버디가 바뀌면, Welcome(pigment horizon 포함)을 뺀 모든 Accent places(DESIGN.md 'Accent places')와 새 Accent place인 선택 카드의 테두리·글로우가 그 램프로 바뀐다. 앱을 다시 시작하지 않아도 바뀐다.
 6. 글로우, 그라데이션, 채움은 램프의 9단계를 쓴다. accent 아이콘, 점, 외곽선은 버디별 아이콘 색을 쓰며, 놓이는 가장 어두운 면(눌린 사이드바 행) 대비 3:1 이상이다. Doany는 지금처럼 violet 9단계다.
-7. Home Send는 accent로 채운다. 아이콘과 스피너는 흰색이 9·hover·pressed 모두에서 3:1 이상이면 흰색(Doany, Popo, Dori), 아니면 중립 잉크(Saemi, Dungdung)다. Send는 아이콘만 있는 버튼이라 비텍스트 기준 3:1로 검사한다.
+7. Home Send는 accent로 채운다. 아이콘과 스피너는 흰색이 9·hover·pressed 모두에서 3:1 이상이면 흰색(Doany, Popo, Dori), 아니면 중립 잉크(Puri, Dungdung)다. Send는 아이콘만 있는 버튼이라 비텍스트 기준 3:1로 검사한다.
 8. accent 칩(프리셋 칩, 추천 프롬프트의 이름 강조, 앵커 칩)은 3단계 바탕 위 11단계 글자이고, 모든 램프에서 4.5:1 이상이다.
 9. 앱을 시작할 때 저장된 버디의 accent로 첫 화면을 그린다. violet이 잠깐 보였다가 바뀌지 않는다.
 
 ### 3단계 — 버디 설정
 
-10. 첫 실행은 Welcome → Buddy → Agent → Project → Home 순서다. 스텝퍼에는 1 Buddy · 2 Agent · 3 Project가 표시된다. Buddy 단계는 다섯 버디를 Cover Flow 형태의 선택 카드 한 줄로 보여준다. 이 줄만 특별 순서 Popo · Saemi · Doany · Dungdung · Dori를 쓴다. 카드마다 그림, 이름, 성격 한 줄이 있다.
+10. 첫 실행은 Welcome → Buddy → Agent → Project → Home 순서다. 스텝퍼에는 1 Buddy · 2 Agent · 3 Project가 표시된다. Buddy 단계는 다섯 버디를 Cover Flow 형태의 선택 카드 한 줄로 보여준다. 이 줄만 특별 순서 Popo · Puri · Doany · Dungdung · Dori를 쓴다. 카드마다 그림, 이름, 성격 한 줄이 있다.
 11. Buddy 단계에 들어오면 저장된 버디(없으면 Doany)가 선택된 채 가운데에 있다. Doany가 선택돼 있으면 다섯이 모두 보인다. 카드 클릭, ←/→(↑/↓도 같음), 가로 스크롤(트랙패드 스와이프, Shift+마우스 휠)로 넘기고, 양끝에서 멈춘다. Return은 그룹 안에서 아무것도 하지 않는다.
 12. Buddy 단계에서 고르면 즉시 저장하고 accent도 즉시 바뀐다. 첫 실행 도중 앱을 종료해도 고른 버디가 남는다. 저장에 실패하면 저장된 버디로 돌아가고 "Couldn’t switch to <고른 버디>. <저장된 버디> is still your buddy."와 Retry를 보여준다. 빠르게 여러 번 고르면 마지막 선택의 결과만 화면에 반영한다.
 13. 설정 목록 맨 위에 General 카테고리가 있고, 그 안의 Buddy 그룹에서 다섯 버디를 기본 순서의 행으로 보여준다. 고르면 즉시 저장되고 Home, 작업 안내, accent에 즉시 반영된다. 저장에 실패하면 저장된 버디로 돌아가고, 그룹 위에 12와 같은 문구와 Retry가 나온다.
