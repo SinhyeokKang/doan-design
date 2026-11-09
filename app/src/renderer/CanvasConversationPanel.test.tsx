@@ -298,13 +298,13 @@ test("steerPhaseOf reads the merged events first and the list after, as the comp
 
 
 // The shown conversation's suggestion from the panel's list reaches its composer.
-test("the shown conversation's suggestion stands in for the reply placeholder, with the Right Arrow hint", async () => {
+test("the shown conversation's suggestion stands in for the reply placeholder, with the Tab or Right Arrow hint", async () => {
   const out = await panel([summary("now", { suggestion: "Tighten the payment copy" })]);
   expect(out).toContain('aria-placeholder="Tighten the payment copy"');
-  expect(out).toContain("Press Right Arrow to use the suggestion.");
+  expect(out).toContain("Press Tab or Right Arrow to use the suggestion.");
   const plain = await panel([summary("now")]);
   expect(plain).toContain('aria-placeholder="Reply, / for presets"');
-  expect(plain).not.toContain("Press Right Arrow");
+  expect(plain).not.toContain("to use the suggestion");
 });
 
 // The panel reads the shown conversation's last context.usage from its thread.
