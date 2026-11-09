@@ -194,6 +194,14 @@ test("the Overview worktree menu shows a problem as the toned status chip", asyn
   expect(readFileSync(new URL("./styles.css", import.meta.url), "utf8")).not.toContain(".shell-problem");
 });
 
+// runtime-test: the worktree row's label span grows (flex: 1), and the chip is a span too, so it stretched to 115px
+// in both Home's and the Overview's worktree menus. The chip keeps its content width.
+test("a worktree row's status chip keeps its content width", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toContain(".shell-worktree > .ob-chip { flex: none; }");
+});
+
 // runtime-test: at 960×600 the new-conversation placeholder wrapped to two lines in the empty capsule
 // (field 48px, docked 120px) and the first typed character dropped it to one (24/104). One line keeps both the same.
 test("the capsule's placeholder stays on one line and ends in an ellipsis", async () => {
