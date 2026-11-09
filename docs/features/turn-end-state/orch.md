@@ -39,3 +39,6 @@ T0·T6 → P, T1 → M, T2·T5 → R, T3·T4 → S, T7 → conductor. 주인 없
 ## 리뷰·통합 기록
 
 (진행하며 적는다)
+
+- **M**: `46f9df51` → 통합 `958b7257`. 리뷰(Sonnet high) 🔴 0 · 🟡 1. 🟡: 시작만 하고 `item/completed`가 오지 않는 Codex 도구 item(`codex-home.json` 녹화)이 턴 끝까지 `running`에 남아 뒤의 general을 막는다. conductor 판단 — design §2.2대로 받아들이고, T6에서 실제 Codex가 시작한 명령 item을 늘 닫는지 본다. tasks.md T1의 "`codexHome` 사례 포함" 문구와는 다르다. `requesting` general이 `running`을 보지 않는 점(note 1)도 T6에서 실제 frame으로 본다. M·리뷰 worker 해제.
+- **S**: `357cc74d`. 리뷰(Opus high) 🔴 0 · 🟡 1 — Codex server 재사용 예외의 `!failedPersistence`(`service.ts:419`)를 고정하는 테스트가 없다. 수정 라운드 1(테스트 추가)을 새 worker(Sonnet high, 같은 worktree)에 맡겼다. 끝난 worker terminal은 Orca가 agent로 알아보지 못해(`agent_unconfigured`) 다시 쓰지 못했고 해제했다. T4도 새 worker로 보낸다.
