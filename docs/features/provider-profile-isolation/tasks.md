@@ -86,6 +86,7 @@ PoC와 측정 작업(P0, T0, T1, T5의 측정)은 AGENTS.md 'Commands'에 없는
   - Claude: sandbox 꺼짐(바깥 fence)과 켜짐(flag 설정) 각각 한 턴. 켜짐에서 사람의 sandbox 명령이 돌고 미끼가 막히며, Read 도구가 이번 턴의 붙여넣은 이미지를 읽는다.
   - Codex: Ask first(profile)에서 자체 sandbox 명령과 `doan handoff`의 두 번 승인, Accept edits(`doan-workspace`)의 네트워크와 쓰기 경로가 지금과 같은지, Full access로 바꾼 send와 다시 돌아온 send가 같은 thread를 이어 가는지.
   - MCP connectors, Claude 다음 메시지 제안, turn-end 사용량 읽기.
+  - fix round 2: Codex Ask first `doan handoff`가 첫 승인만으로 앱에 닿는지(두 번째 escalated 승인도 닿는지), `doan open`·`doan work update`. 공백 든 실제 userData 경로와 실제 앱 소켓에서 Codex `network`·`unix_sockets` 인수가 받아들여지는지. Codex Ask first sandbox 명령의 네트워크(새 Known limit). agent가 Claude·Codex profile 설정 파일에 쓰지 못하는지, 그래도 Claude·Codex가 정상으로 도는지(Codex MCP connector 포함). Claude sandbox 켜짐 + Full access.
   - legacy external resume 하나(fence가 붙지 않음).
   - Antigravity(격리 HOME): 로그인·연결 확인·한 턴·로그아웃 전후의 실제 상태와 Keychain 항목 속성.
   - Antigravity(실제 HOME, 결정 C): 그때 사용자 승인을 받아 실제 HOME으로 같은 일을 하고 `~/.gemini/antigravity-cli/`의 재귀 목록을 전후로 비교한다.
@@ -116,13 +117,13 @@ PoC와 측정 작업(P0, T0, T1, T5의 측정)은 AGENTS.md 'Commands'에 없는
     - `sandbox-exec`는 DEPRECATED이고, 없어지면 바깥 fence를 쓰는 Doan 연결 run이 시작하지 못한다.
     - userData를 지워도 Claude·Codex Keychain 항목이 남는다. MCP connector token과 `doan Safe Storage`도 확인한 결과대로 같은 줄에 적는다.
     - 답하지 않은 `stop_required` 확인은 종료로 취소되고 연결이 남는다(결정 Q4).
-    - Claude: Doan이 읽지 않는 managed 출처가 sandbox를 바꾸면 판정이 틀린다(켜짐을 꺼짐으로 읽으면 Bash가 71로 실패, 반대면 `permissions.deny`만 남는다). sandbox가 켜진 턴은 sandbox 밖 실행이 꺼지고, 턴 도중 새로 생긴 userData 항목은 Read·Edit 도구의 금지 목록에 없다(Bash는 막힌다).
-    - Codex: 금지 항목은 server를 띄울 때 나열하므로 그 뒤에 생긴 userData 항목은 그 server가 끝날 때까지 막히지 않는다. 사람이 승인한 escalated 명령은 금지 항목 밖의 userData(`runtime.json` 포함)에 쓸 수 있다. 승인된 `apply_patch`가 금지 경로에 쓰는지는 T5 재확인 결과대로 적는다. permission profile은 experimental API다. Ask first의 sandbox는 Doan의 읽기 전용 profile이고, Doan의 Codex profile `config.toml`에 사람이 적은 `sandbox_mode`나 `default_permissions`는 쓰이지 않는다.
+    - Claude: Doan이 읽지 않는 managed 출처(MDM plist, 서버 설정)가 sandbox를 바꾸면 판정이 틀린다(켜짐을 꺼짐으로 읽으면 Bash가 71로 실패, 반대면 `permissions.deny`만 남는다). sandbox 켜짐 턴의 저장소 hook과 승인된 `.mcp.json` 서버는 fence 밖에서 돈다. 턴 도중 붙여넣은 이미지의 Send now는 다음 턴으로 미뤄진다. sandbox가 켜진 턴은 sandbox 밖 실행이 꺼지고, 턴 도중 새로 생긴 userData 항목은 Read·Edit 도구의 금지 목록에 없다(Bash는 막힌다).
+    - Codex: Ask first·Plan·Accept edits의 sandbox 명령이 승인 없이 네트워크에 닿는다(D2-A). sandbox 안과 escalated 명령 모두 `ls <userData>`로 항목 이름을 본다. 금지 항목은 server를 띄울 때 나열하므로 그 뒤에 생긴 userData 항목은 그 server가 끝날 때까지 막히지 않는다. 사람이 승인한 escalated 명령은 금지 항목 밖의 userData(`runtime.json` 포함)에 쓸 수 있다. 승인된 `apply_patch`가 금지 경로에 쓰는지는 T5 재확인 결과대로 적는다. permission profile은 experimental API다. Ask first의 sandbox는 Doan의 읽기 전용 profile이고, Doan의 Codex profile `config.toml`에 사람이 적은 `sandbox_mode`나 `default_permissions`는 쓰이지 않는다.
     - Antigravity: 한 턴 기준으로 실제 home과 Keychain에 쓰지 않았다(language server의 `go-keyring`·`os/user.Current` 용도는 정적으로 배제하지 못했다).
     - Antigravity harness의 도구 명령은 자기 process group에 있어 Stop 뒤에도 남는다(fence와 무관한 기존 동작, BACKLOG로 옮길 수도 있다).
 - `docs/PRODUCT.md`(영어, 결정 D):
   - §3 'Resume and permissions'(또는 'Agent conversation foundation contract')에 "an agent in a Doan-connected conversation cannot read or write Doan userData outside its own profile in any permission mode, Full access included; blocked reads show as tool failures"를 적는다.
-  - 'Resume and permissions'에 좁아진 두 가지를 적는다: sandbox가 켜진 Claude 턴의 sandbox 밖 실행이 꺼지고, Codex의 Ask first sandbox는 Doan의 읽기 전용 profile이다(design §7).
+  - 'Resume and permissions'에 바뀐 것을 적는다: sandbox가 켜진 Claude 턴의 sandbox 밖 실행이 꺼진다. Codex의 Ask first sandbox는 Doan의 읽기 전용 profile이고 네트워크가 켜진다(D2-A). Codex Ask first `doan handoff`의 승인 횟수는 T5 확인 결과대로 고친다(design §7). agent는 자기 profile의 provider 설정 파일에 쓰지 못한다.
 - `docs/DESIGN.md`: 손대지 않는다(화면 변경 없음).
 - `docs/BACKLOG.md`: 네 줄을 지우고, 남은 것만 새 줄로 적는다. Antigravity 줄의 "tool-fact check" 표현은 고친다(`facts.ts`는 Antigravity에서 프로세스를 띄우지 않는다).
 - `docs/DIRECTORY.md`: 새 디렉터리가 없으면 손대지 않는다.

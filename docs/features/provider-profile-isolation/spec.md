@@ -31,7 +31,7 @@
   - **fence 밖에서 나중에 실행되는 설정.** fence는 run 안의 직접 접근만 막는다. agent가 남긴 설정(예: `~/.zshrc`, 저장소의 `.claude/settings.json` hook, `.mcp.json`)은 나중에 fence 밖의 프로세스가 실행할 수 있다.
   - **모델 목록 읽기.** 모델 목록 읽기는 fence 밖에서 저장소의 설정으로 돈다. 저장소 hook이 그때 실행될 수 있다(결정 Q2).
 - 고르지 않은 것: agent 전체 sandbox(PRODUCT §3 'Resume and permissions'를 바꾼다), 막지 않고 문서화만 하기(Copilot GitHub token의 평문 작업 사본처럼 Doan 때문에 생긴 노출이 남는다).
-  - **Claude·Codex 자기 설정의 틈.** sandbox가 켜진 Claude 턴은 Doan이 sandbox를 꺼짐으로 잘못 읽은 반대 경우(Doan이 읽지 않는 managed 출처가 sandbox를 끔)에 `perl`처럼 파일을 직접 여는 프로그램을 막지 못한다. 그 턴 도중 새로 생긴 userData 항목은 Read·Edit 도구의 금지 목록에 없다(Bash 읽기는 막힌다). Codex는 server를 띄울 때 나열한 userData 항목만 막으므로, 그 뒤에 생긴 항목(예: 그동안 로그인한 다른 provider의 profile)은 그 server가 끝날 때까지 막히지 않는다. 사람이 승인한 Codex escalated 명령은 막힌 항목 밖의 userData(예: `runtime.json`)에 쓸 수 있다. Codex permission profile은 experimental API다(design §3.1).
+  - **Claude·Codex 자기 설정의 틈.** sandbox가 켜진 Claude 턴은 Doan이 sandbox를 꺼짐으로 잘못 읽은 반대 경우(Doan이 읽지 않는 managed 출처가 sandbox를 끔)에 `perl`처럼 파일을 직접 여는 프로그램을 막지 못한다. 그 턴 도중 새로 생긴 userData 항목은 Read·Edit 도구의 금지 목록에 없다(Bash 읽기는 막힌다). Codex는 server를 띄울 때 나열한 userData 항목만 막으므로, 그 뒤에 생긴 항목(예: 그동안 로그인한 다른 provider의 profile)은 그 server가 끝날 때까지 막히지 않는다. 사람이 승인한 Codex escalated 명령은 막힌 항목 밖의 userData(예: `runtime.json`)에 쓸 수 있다. Codex permission profile은 experimental API다. Codex Ask first·Plan·Accept edits의 sandbox 명령은 앱 소켓에 닿도록 네트워크가 켜진다(사용자 결정). sandbox가 켜진 Claude 턴의 저장소 hook과 승인된 `.mcp.json` 서버는 어느 fence에도 들지 않는다(design §3.1).
 - **위험.** `sandbox-exec`는 man page에 DEPRECATED로 적혀 있다(Apple DTS forum 845973). Codex도 같은 방식과 `-D` 매개변수를 쓴다(developers.openai.com/codex/concepts/sandboxing). macOS가 이것을 없애면 fail closed(완료 조건 4) 때문에 바깥 fence를 쓰는 Doan 연결 run이 시작하지 못한다.
 
 ## 문제 (관찰된 사실)
