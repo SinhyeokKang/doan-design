@@ -190,3 +190,9 @@ it("keeps a fenced Claude CLI's own early exit out of process_exited", async () 
   expect(message).not.toBe("process_exited");
   expect(message).not.toBe("started");
 }, 20000);
+// A Full access server runs inside the outer fence and never uses the app socket's directory.
+it("starts a Full access Codex server without the app socket's directory", async () => {
+  const root = temp(), exec = fakeExec(root), command = fakeCodex(root);
+  const runner = await openRunner({ command, runtime: "codex", owner: CODEX_OWNER, cwd: root, configDir: root, env: process.env, permissionMode: "bypass", fence: { paths: { ...paths("codex"), attachments: ["/u/attachments"] }, exec } }, () => {}, () => {}, () => {});
+  try { expect(runner.mechanism).toBe("fence"); } finally { await runner.close(); }
+}, 20000);

@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ConversationStore } from "./store";
@@ -76,4 +76,20 @@ it("refuses Send now of a pasted image into a fenced Claude turn and keeps it qu
   const chosen = service.queue(id, { text: "and this", anchors: [], attachments: [{ name: "shot.png", size: 1, kind: "image", path: "/Users/ada/Desktop/shot.png" }] });
   void service.sendNow(id, chosen.itemId).catch(() => {});
   await vi.waitFor(() => expect(steer).toHaveBeenCalledOnce());
+});
+// The fence names userData resolved; a queued item may carry the path through a link (/var for /private/var).
+it("refuses Send now of a pasted image recorded through a link to the resolved userData", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "doan-service-fence-")); dirs.push(dir);
+  const linked = join(dir, "userData"), image = join(linked, "attachments", "0f4e", "pasted.png");
+  mkdirSync(join(linked, "attachments", "0f4e"), { recursive: true }); writeFileSync(image, "x");
+  const real = realpathSync.native(linked); expect(real).not.toBe(linked);
+  const steer = vi.fn(async () => {});
+  const open = vi.fn<OpenRunner>(async input => ({ sessionId: input.sessionId ?? "s1", send: vi.fn(async () => {}), steer, answer: () => false, stop: vi.fn(async () => {}), close: vi.fn(async () => {}) }));
+  const prepare = vi.fn<Prepare>(async () => ({ runtime: "claude" as const, configDir: `${real}/agent-auth/profiles/claude`, cwd: "/repo", command: "/fake", env: {}, fence: { paths: { userData: real, profile: `${real}/agent-auth/profiles/claude`, attachments: [] } } }));
+  const service = new ConversationService(new ConversationStore(join(dir, "store")), prepare, open, () => {});
+  const id = (await service.start({ ...request, mode: "new", runtime: "claude" })).conversationId;
+  const item = service.queue(id, { text: "look", anchors: [], attachments: [{ name: "Pasted image", size: 1, kind: "image", path: image }] });
+  const answered = service.sendNow(id, item.itemId).then(() => "ok", (error: Error) => error.message);
+  expect(await Promise.race([answered, new Promise(resolve => setTimeout(() => resolve("pending"), 50))])).toBe("not_running");
+  expect(steer).not.toHaveBeenCalled();
 });

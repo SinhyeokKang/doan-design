@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 const mocks = vi.hoisted(() => ({ probe: vi.fn(), run: vi.fn() }));
 vi.mock("../onboarding/machine", () => ({ probeShell: mocks.probe, runProcess: mocks.run }));
-import { createAccountPrepare, routePrepare, type AccountPrepare, type AccountRuntime } from "./prepare";
+import { createAccountPrepare, routePrepare, wireAccountPrepare, type AccountPrepare, type AccountRuntime } from "./prepare";
 import { initialAuthState } from "../agentAuth/state";
 import type { Lease } from "../agentAuth/manager";
 import type { AccountConnection, AuthState, Provider } from "../agentAuth/types";
@@ -30,7 +30,7 @@ function prepare(provider: Provider, w: ReturnType<typeof world>, fence = true, 
     state: () => state, check: vi.fn(), checked: vi.fn(async () => {}), confirm: vi.fn(),
     acquire: vi.fn(async (): Promise<Lease> => ({ command: `/bin/${provider}`, env: { PATH: "/shell/bin" }, profileDir: w.profile, release })),
   };
-  return { release, run: createAccountPrepare(runtime, "/Applications/doan.app/Contents/Resources/bin/doan", () => {}, undefined, undefined, fence ? { userData: w.userData, managedDir: w.managed, socketDir: () => w.socketDir } : undefined) };
+  return { release, runtime, run: createAccountPrepare(runtime, "/Applications/doan.app/Contents/Resources/bin/doan", () => {}, undefined, undefined, fence ? { userData: w.userData, managedDir: w.managed, socketDir: () => w.socketDir } : undefined) };
 }
 const pasted = (w: ReturnType<typeof world>): AttachmentRecord => ({ name: "pasted.png", size: 1, kind: "image", path: join(w.real, "attachments", "0f4e", "pasted.png") });
 
@@ -86,13 +86,21 @@ it("refuses a run whose fence cannot be built as unknown, before anything starts
   await expect(run({ root: w.project, mode: "new", runtime: "claude", text: "hi", anchors: [] })).rejects.toThrow(/^unknown$/);
   expect(release).toHaveBeenCalled();
 });
-it("gives a Codex run the app socket's resolved directory and refuses one when the app has no socket", async () => {
+it("gives a Codex run the app socket's resolved directory and refuses one whose socket directory does not resolve", async () => {
   const w = world("codex");
   const request = { root: w.project, mode: "new" as const, runtime: "codex" as const, text: "hi", anchors: [] };
   expect((await prepare("codex", w).run(request)).fence?.socketDir).toBe(realpathSync.native(w.socketDir));
   const { run, release } = prepare("codex", { ...w, socketDir: join(w.base, "no-such-dir") });
   await expect(run(request)).rejects.toThrow(/^unknown$/);
   expect(release).toHaveBeenCalled();
+});
+// Only a profile server allows the socket; a Full access server inside the outer fence starts without one, so an app
+// whose runtime did not start refuses only the runs that need it (the runner refuses a profile server).
+it("leaves the socket directory out when the app has no runtime", async () => {
+  const w = world("codex");
+  const ready = await createAccountPrepare(prepare("codex", w).runtime, "/Applications/doan.app/Contents/Resources/bin/doan", () => {}, undefined, undefined, { userData: w.userData, socketDir: () => undefined })({ root: w.project, mode: "new", runtime: "codex", text: "hi", anchors: [] });
+  expect(ready.fence?.paths.profile).toBe(realpathSync.native(w.profile));
+  expect(ready.fence && "socketDir" in ready.fence).toBe(false);
 });
 // A reused server keeps the fence it started with; listing again would only let a passing listing failure refuse a send
 // that changes nothing about that server.
@@ -109,4 +117,15 @@ it("tells the Doan-account prepare when a send reuses the live Codex server", as
     session: { runtime: "codex" as const, origin: "new" as const, sessionId: "s", configDir: "/p", cwd: "/r" } };
   await routePrepare(vi.fn(), account)({ root: "/r", mode: "resume", text: "", anchors: [] }, stored, undefined, true);
   expect(account.mock.calls[0]?.[3]).toBe(true);
+});
+// main's wiring of the Doan-account side: every argument reaches the account prepare, reusing included.
+it("passes a reused Codex send through main's account wiring", async () => {
+  const account = vi.fn<AccountPrepare>(async () => ({ runtime: "codex", configDir: "/p", cwd: "/r", command: "/c", env: {} }));
+  const wired = wireAccountPrepare(account, () => true, prepared => prepared);
+  await wired({ root: "/r", mode: "resume", text: "", anchors: [] }, undefined, "run", true);
+  expect(account.mock.calls[0]?.slice(2)).toEqual(["run", true]);
+  await expect(wireAccountPrepare(account, () => false, prepared => prepared)({ root: "/r", mode: "new", text: "", anchors: [] })).rejects.toThrow("not_logged_in");
+  const withUsage = vi.fn((prepared: Awaited<ReturnType<AccountPrepare>>) => ({ ...prepared, installed: "x" }));
+  expect((await wireAccountPrepare(account, () => true, withUsage)({ root: "/r", mode: "new", text: "", anchors: [] }, undefined, "listing")).installed).toBeUndefined();
+  expect((await wireAccountPrepare(account, () => true, withUsage)({ root: "/r", mode: "new", text: "", anchors: [] })).installed).toBe("x");
 });
