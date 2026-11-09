@@ -1,7 +1,7 @@
 import { Info, RotateCw } from "lucide-react";
 import { describe, expect, test } from "vitest";
 import type { CanvasRow, FolderEntry, GitInfo } from "../main/view";
-import { cardRow, groupProjects, measureNarrow, ROW_ACTION_ICONS, ROW_ACTION_LABELS } from "./homeCards";
+import { cardRow, chipClass, groupProjects, measureNarrow, ROW_ACTION_ICONS, ROW_ACTION_LABELS } from "./homeCards";
 import type { SelectionView } from "./selection";
 
 const canvas = (): CanvasRow => ({ path: ".doan/canvases/a.html", url: "u" });
@@ -81,6 +81,15 @@ describe("cardRow", () => {
   // The project menus draw Retry and Details with icons like their other items (draft .doan/canvases/fixes-0-1-2.html, frame cli-error-elsewhere).
   test("Retry and Details have menu icons", () => {
     expect(ROW_ACTION_ICONS).toEqual({ retry: RotateCw, details: Info });
+  });
+
+  // DESIGN 'Documented differences' (status chips in menus): Home's and the Overview's menus share the toned chip.
+  test("a problem chip takes the shipped status chip's tone", () => {
+    expect(chipClass("Missing")).toBe("ob-chip warn");
+    expect(chipClass("CLI error")).toBe("ob-chip warn");
+    expect(chipClass("Config error")).toBe("ob-chip err");
+    expect(chipClass("Not set up")).toBe("ob-chip");
+    expect(chipClass(undefined)).toBe("ob-chip");
   });
 
   test("a list row has no chip and summarizes branch and change; the counts are homeSummary's", () => {

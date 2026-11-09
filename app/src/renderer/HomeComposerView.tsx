@@ -17,7 +17,7 @@ import {
 import { Doany, type DoanyHandle } from "./Doany";
 import { textSegments, typedText } from "./anchorField";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
-import { cardRow, groupProjects } from "./homeCards";
+import { cardRow, chipClass, groupProjects } from "./homeCards";
 import { generationOf, modelsKey } from "./dockedSupport";
 import {
   followDrawerHighlight, type PresetRow, attachmentChipView, attachmentLimit, chipRemoval, composeRequest, defaultEffort, defaultFast, defaultModel, defaultProject, defaultProvider,
@@ -166,10 +166,6 @@ const ATTACH_ERRORS: Record<string, (name: string) => string> = {
   unreadable: name => `${name} couldn’t be read, so it wasn’t attached.`,
   too_large: () => "This image is over 50 MB, so it wasn’t attached.",
 };
-
-function chipClass(chip: string | undefined): string {
-  return `ob-chip${chip === "Config error" ? " err" : chip === "Missing" || chip === "CLI error" ? " warn" : ""}`;
-}
 
 // Home's composer: the shared primitives with Home's own project picker,
 // worktree tray, suggestions and stage. Always a box.
