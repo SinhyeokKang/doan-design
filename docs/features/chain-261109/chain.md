@@ -59,7 +59,7 @@
 
 | 링크 | session·worktree | 시작 | PR·merge | 상태 |
 |---|---|---|---|---|
-| 1. turn-end-state | | | | 대기 |
+| 1. turn-end-state | Claude Code · `turn-end-state-orch`(`/Users/sinhyeokkang/orca/workspaces/doan-design/turn-end-state-orch`, `feat/turn-end-state`로 이름을 바꿀 것) | 2026-11-09, `12b61d52` | | 진행 중 |
 | 2. provider-profile-isolation | | | | 대기 |
 
 ## 인계 기록
