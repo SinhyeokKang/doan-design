@@ -6,7 +6,7 @@ Doany and four friends, one asset set each. The feature plan is `docs/features/b
 | id | Name | Colour | Accessory |
 |---|---|---|---|
 | `doany` | Doany | violet | beret |
-| `saemi` | Saemi | mint | sprout |
+| `puri` | Puri | mint | sprout |
 | `dungdung` | Dungdung | yellow | headphones |
 | `popo` | Popo | peach | glasses |
 | `dori` | Dori | sky blue | scarf |
@@ -38,7 +38,7 @@ Rig numbers (eye centres and radii, body and accessory pivots, accessory tilt ra
   column between them and each is fitted on its own (uniform scale about its centroid plus translation, by alpha
   difference), then recomposited; a frame already within half a pixel is kept untouched. Frames, timings and loop
   are unchanged; each frame has its own 255-colour palette with 1-bit transparency, like the Doany exports.
-  Measured fits (scale, x, y in source px) for the character in frames 2–5: saemi .99, +7; dungdung .93–.96, +13–21,
+  Measured fits (scale, x, y in source px) for the character in frames 2–5: puri .99, +7; dungdung .93–.96, +13–21,
   +4–7; popo 1.02, −1–2; dori .97, +7–11. Residual drift after the fit is at most 2 px at 512 (0.14 px in the
   32 px window).
 - Doany's `card.png` is a draft: `../doany/v2/doany.png` cropped to its alpha box, scaled to 940 px high, its
@@ -47,17 +47,17 @@ Rig numbers (eye centres and radii, body and accessory pivots, accessory tilt ra
 
 ## Working-notice source boxes
 
-Doany's and Saemi's boxes follow Doany's method (`app/src/renderer/public/doany/README.md` 'Doany the artist'):
+Doany's and Puri's boxes follow Doany's method (`app/src/renderer/public/doany/README.md` 'Doany the artist'):
 460 source px, the eyes on Doany's line and the opacity-weighted centroid at 50 % of the width. That method left
 Dungdung, Popo and Dori low and to the left (their eyes sit high on bigger bodies), so their boxes are fitted to the
 character instead: the box size scales with the square root of the character's opaque area (first frame, left of the
-easel) against the mean of Doany's and Saemi's, and the character's bounding-box centre sits where theirs does
+easel) against the mean of Doany's and Puri's, and the character's bounding-box centre sits where theirs does
 (36.2 % across, 47.4 % down). Dori's box is a little larger again so its tip keeps clear of the top.
 
 | id | Eyes' centre (first frame) | Box (x, y, size) | Clipped at 32 px |
 |---|---|---|---|
 | doany | 202, 310 | 17, 75, 460 | easel foot under 0.5 px |
-| saemi | 222, 337 | 27, 101, 460 | none |
+| puri | 222, 337 | 27, 101, 460 | none |
 | dungdung | 226, 302 | 34, 98, 455 | none |
 | popo | 196, 287 | −4, 79, 510 | none |
 | dori | 195, 245 | 6, 57, 490 | none |
@@ -72,7 +72,7 @@ Doany. It replaces the composite draft in place, so the canvases need no change.
 ## Next: transparent still and layers (per friend)
 
 Done the way Doany V2's layers were (`../doany/v2/README.md`, `../doany/v2/layer-prompts.json`), with the image
-generation tool, from `card.png` as the only reference. Start with `saemi`, check it, then the other three.
+generation tool, from `card.png` as the only reference. Start with `puri`, check it, then the other three.
 
 1. `still.png`: the same character, pose, size and position as `card.png` on a 1254² transparent canvas, without
    the contact shadow or the white. Do not regenerate, recolour, reshape or recentre the character.
