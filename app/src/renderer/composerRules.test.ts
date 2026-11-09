@@ -24,16 +24,29 @@ describe("composerShape", () => {
 
 describe("composerAction", () => {
   test("Send while nothing runs", () => {
-    expect(composerAction(false, "")).toBe("send");
-    expect(composerAction(false, "Draw it")).toBe("send");
+    expect(composerAction("idle", "", 0)).toBe("send");
+    expect(composerAction("idle", "Draw it", 0)).toBe("send");
   });
-  test("while a turn runs: Stop with an empty field, Queue with text", () => {
-    expect(composerAction(true, "")).toBe("stop");
-    expect(composerAction(true, "  \n")).toBe("stop");
-    expect(composerAction(true, "Also the caption")).toBe("queue");
+  test("while a turn runs or waits: Stop with an empty field, Queue with text; queued rows change nothing", () => {
+    for (const turn of ["running", "waiting"] as const) {
+      expect(composerAction(turn, "", 0)).toBe("stop");
+      expect(composerAction(turn, "  \n", 0)).toBe("stop");
+      expect(composerAction(turn, "Also the caption", 0)).toBe("queue");
+      expect(composerAction(turn, "", 2)).toBe("stop");
+      expect(composerAction(turn, "Also the caption", 2)).toBe("queue");
+    }
+  });
+  // The turn ended and main still works on the conversation (a judgement, a queue going out): nothing runs to stop.
+  test("holding: Send (disabled by the host) with an empty field, Queue with text, Stop only while queue rows wait", () => {
+    expect(composerAction("holding", "", 0)).toBe("send");
+    expect(composerAction("holding", "  \n", 0)).toBe("send");
+    expect(composerAction("holding", "Also the caption", 0)).toBe("queue");
+    expect(composerAction("holding", "", 1)).toBe("stop");
+    expect(composerAction("holding", "Also the caption", 1)).toBe("queue");
   });
   test("a chip alone is content: the composed request is not empty", () => {
-    expect(composerAction(true, "Look at the attached files.")).toBe("queue");
+    expect(composerAction("running", "Look at the attached files.", 0)).toBe("queue");
+    expect(composerAction("holding", "Look at the attached files.", 0)).toBe("queue");
   });
 });
 

@@ -11,7 +11,8 @@ export type MessagePart = { text: string } | { anchor: number };
 // sentence: a step whose text is a sentence and wraps instead of staying on one line (Codex's MCP startup lines).
 export interface ActivityStep { key: string; kind: "edit" | "read" | "command" | "other"; verb: string; path: string | null; sentence?: true }
 // model: the model a model_unavailable end named.
-export type TurnEnd = { kind: "failed"; code: FailureCode; model?: string } | { kind: "interrupted"; reason: "user" | "appQuit" | "crashed" };
+// detail: a usage limit's provider wording, which may name when the limit resets.
+export type TurnEnd = { kind: "failed"; code: FailureCode; model?: string; detail?: string } | { kind: "interrupted"; reason: "user" | "appQuit" | "crashed" };
 export type ThreadItem =
   // anchors: the message's own, which its `{{n}}` parts point at (1-based), drawn as chips. `sending`: Send now has it
   // in flight and the history has no event for it yet (seq null).
@@ -21,7 +22,8 @@ export type ThreadItem =
   | { kind: "noReply"; key: string }
   // A Claude turn that asked for Fast and did not run it: one line in the turn, under the reply.
   | { kind: "fast"; key: string; seq: number; text: string; turnedOff: boolean }
-  // A run of activities folds into one line: the latest activity while it runs, "N steps" once the turn moved on.
+  // A run of activities folds into one line: "N steps", or the running tool's words while it is the running turn's last
+  // item and the turn indicator names a tool (activityRun).
   | { kind: "activity"; key: string; running: boolean; head: string; steps: ActivityStep[] }
   | { kind: "permission"; key: string; seq: number; requestId: string; summary: string; options: PermissionOption[]; status: "pending" | "answered" | "expired"; answer: PermissionOption | null }
   // An agent's question. answers: what main kept of an answered one, by question id.
@@ -264,7 +266,7 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
         break;
       case "turn.failed":
         endTurn(event.turnId);
-        push({ kind: "end", key: `e${event.seq}`, seq: event.seq, end: { kind: "failed", code: event.code, ...(event.model !== undefined ? { model: event.model } : {}) } });
+        push({ kind: "end", key: `e${event.seq}`, seq: event.seq, end: { kind: "failed", code: event.code, ...(event.model !== undefined ? { model: event.model } : {}), ...(event.code === "rate_limited" && event.detail !== undefined ? { detail: event.detail } : {}) } });
         break;
       case "interrupted":
         endTurn(event.turnId);
@@ -275,13 +277,9 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
   if (!live && turn !== null && !ended.has(turn)) foldCrashed(turn);
   // Nothing judges a request once main holds nothing of this conversation (main's fold: a restart's cancel).
   if (!live) for (const line of handoffs.values()) if (line.outcome === "pending") line.outcome = "cancelled";
-  const last = items.at(-1);
-  for (const { item, turnId } of groups) {
-    item.running = item === last && !ended.has(turnId);
-    item.head = item.running ? runningHead(item.steps.at(-1)!) : stepCount(item.steps.length);
-    // A command still running reads as running in its own row too.
-    if (item.running && item.steps.at(-1)!.kind === "command") item.steps[item.steps.length - 1] = { ...item.steps.at(-1)!, verb: "Running a command" };
-  }
+  // Whether the thread's last row runs is the turn indicator's to say (turnStatus activityRun), not the events': an
+  // activity marks a tool's start or end, never both.
+  for (const { item } of groups) item.head = stepCount(item.steps.length);
   return items;
 }
 

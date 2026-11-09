@@ -55,7 +55,7 @@ test("every turn.failed row has its draft wording and offers Edit on Home", () =
     ["process_exited", "Claude Code stopped unexpectedly", "Edit your request on Home and send it again."],
     ["unknown", "Claude Code stopped unexpectedly", "Edit your request on Home and send it again."],
     ["not_logged_in", "Claude Code’s sign-in expired", "Edit your request on Home and choose another agent."],
-    ["rate_limited", "Claude Code is rate limited", "Try again later from Home."],
+    ["rate_limited", "Claude Code reached a usage limit", "Send again from Home after it resets."],
     ["session_unavailable", "Claude Code couldn’t continue", "Edit your request on Home and send it again."],
     ["session_in_use", "Claude Code couldn’t continue", "Edit your request on Home and send it again."],
   ];

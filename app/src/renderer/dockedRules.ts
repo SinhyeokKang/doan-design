@@ -1,9 +1,11 @@
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
-import type { Anchor, Canvas } from "../main/conversation/types";
+import type { ConversationSummary } from "../main/conversation/summary";
+import type { Anchor, Canvas, ConversationEvent } from "../main/conversation/types";
 import { hasContent, toMessage, typedText, type FieldSegment } from "./anchorField";
 import { pickerAction, PROVIDER_NAMES, type SettingsAction } from "./agentAuthView";
-import type { ComposerShape } from "./composerRules";
+import type { ComposerShape, ComposerTurn } from "./composerRules";
+import { asksPerson, stripState } from "./conversationStrip";
 import {
   agentProblem, composeRequest, draftProblem, presetPlaceholder, startErrorView, type AttachmentDraft, type ModelPickerView, type PresetSummary,
 } from "./homeComposer";
@@ -51,8 +53,8 @@ export interface DockedInput {
   provider: Provider | null;
   draft: DockedDraft;
   skills: readonly string[];
-  // This conversation's turn, as the host reads it.
-  turn: "idle" | "running" | "waiting";
+  // This conversation's turn, as the host reads it (composerTurn).
+  turn: ComposerTurn;
   busy: DockedBusy | null;
   sending: boolean;
   // The host's project turned into a problem while it was open: Send waits with
@@ -60,6 +62,18 @@ export interface DockedInput {
   unavailable?: string | null;
   // The conversation runs on a terminal's own sign-in (a legacy external one), so Doan's accounts do not decide.
   external?: boolean;
+}
+
+// Main's turn as the composer reads it, the same in both hosts: the merged events first (the list lags them), then the
+// list. An ended turn while the list still says working holds, whatever the list's phase, as steerPhaseOf orders that
+// case. Only the terminal case follows steerPhaseOf: otherwise the list decides, and a working list reads running here.
+export function composerTurn(events: readonly ConversationEvent[] | null, summary: ConversationSummary | undefined, live: boolean): ComposerTurn {
+  const kind = events && events.length ? stripState(events).kind : null;
+  if (kind !== null && asksPerson(kind)) return "waiting";
+  if ((kind === "starting" || kind === "working") && live) return "running";
+  if (kind === "done" || kind === "failed" || kind === "interrupted") return summary?.working ? "holding" : "idle";
+  if (summary?.phase === "waiting") return "waiting";
+  return summary?.working ? "running" : "idle";
 }
 
 // Send's state and the reason line under the card. Home's reasons (agent, length, {{ }}, checking, a moved file) are
@@ -75,7 +89,7 @@ export function dockedAvailability(input: DockedInput): { enabled: boolean; reas
   if (agent) return off({ text: agent.text, ...("kind" in agent && agent.kind === "noAgent" ? { noAgent: true as const } : {}), ...("action" in agent && agent.action ? { action: agent.action } : {}) });
   const waiting = input.turn === "waiting" ? { text: "Answer or stop the request above." } : null;
   if (!hasContent(draft.segments) && !draft.preset && draft.attachments.length === 0) return off(waiting);
-  // A running turn takes the message into its queue, so the limits on starting a turn do not apply yet.
+  // A running or holding turn takes the message into its queue, so the limits on starting a turn do not apply yet.
   if (input.busy && input.turn === "idle") return off(busyReason(input.busy, input.project));
   const problem = draftProblem(draft.segments, draft.preset, draft.attachments, input.skills);
   return problem ? off({ text: problem.text, ...(problem.kind === "attachmentMissing" ? { alert: true as const } : {}) }) : { enabled: true, reason: waiting };
@@ -109,11 +123,19 @@ export function dockedMessage(draft: DockedDraft, skills: readonly string[] = []
 
 // A send or start main refused. The limits become the busy line until the host reports the busy conversation and it
 // clears, or the person edits the draft; a canvas that is
-// gone replaces the composer; the rest is a notice under the card.
+// gone replaces the composer; the rest is a notice under the card. A conversation another sign-in owns offers
+// "Start a new conversation".
 // A canvas panel's refusals add two: blocked keeps the draft in a field that takes no input, with
 // the reason line; a notice may offer Retry or, for a terminal session, "Start a new conversation".
 export type DockedRefusal = { kind: "busy"; busy: DockedBusy } | { kind: "gone" } | { kind: "notice"; text: string; retry?: boolean; startNew?: boolean }
   | { kind: "blocked"; text: string; action?: SettingsAction };
+// "Start a new conversation" from a refused conversation carries the refused draft into the new conversation's field,
+// as a refused terminal session's does (the two share that field); a draft already waiting there stays.
+export function carryDraft(drafts: ReadonlyMap<string, DockedDraft>, from: string, to: string): ReadonlyMap<string, DockedDraft> {
+  const draft = drafts.get(from), waiting = drafts.get(to);
+  if (!draft || (waiting && (waiting.segments.length || waiting.preset || waiting.attachments.length))) return drafts;
+  return new Map(drafts).set(to, draft).set(from, EMPTY_DRAFT);
+}
 export function dockedRefusal(code: string, mode: DockedMode, provider: Provider, project: string): DockedRefusal {
   if (code === "project_busy") return { kind: "busy", busy: { kind: "project", open: null } };
   if (mode.kind === "archived" && code === "busy") return { kind: "busy", busy: { kind: "restore", open: null } };
@@ -121,14 +143,21 @@ export function dockedRefusal(code: string, mode: DockedMode, provider: Provider
   if (mode.kind === "new") return { kind: "notice", text: startErrorView(code, provider, project).text };
   if (mode.kind === "resume") return { kind: "notice", text: resumeRefusalText(code, provider) };
   const p = PROVIDER_NAMES[provider];
+  // Another sign-in owns the conversation: Retry never runs it, so the notice offers a new conversation instead.
+  if (Object.hasOwn(OTHER_SIGN_IN, code)) return { kind: "notice", text: OTHER_SIGN_IN[code]!(p), startNew: true };
   const text = SEND_ERRORS[code]?.(p) ?? "Couldn’t send your message. Try again.";
   return { kind: "notice", text };
 }
+const OTHER_SIGN_IN: Record<string, (p: string) => string> = {
+  account_changed: p => `This conversation’s session belongs to another ${p} account, so it can’t continue here. To continue it, sign out, then sign in to that account in Settings > Agents.`,
+  // It may be the same account, so never "another account".
+  sign_in_changed: p => `This conversation’s session belongs to an earlier ${p} sign-in, so it can’t continue here.`,
+};
 const SEND_ERRORS: Record<string, (p: string) => string> = {
   busy: p => `${p} is finishing a previous run. Try again in a moment.`,
   // The code alone does not tell an expired sign-in from none.
   not_logged_in: p => `Sign in to ${p} in Settings > Agents, then send again.`,
-  rate_limited: p => `${p} is rate limited. Try again later.`,
+  rate_limited: p => `${p} reached a usage limit. Send again after it resets.`,
   session_in_use: p => `${p} is using this session in another terminal. Try again when it finishes there.`,
 };
 
@@ -147,7 +176,7 @@ const RESUME_REASONS: Record<string, (p: string) => string> = {
   cli_missing: p => `${p} isn’t installed on this Mac`,
   runtime_unsupported: p => `Doan doesn’t support this version of ${p}`,
   process_exited: p => `${p} stopped before it could continue`,
-  rate_limited: p => `${p} is rate limited`,
+  rate_limited: p => `${p} reached a usage limit`,
   busy: p => `${p} is finishing a previous run`,
 };
 

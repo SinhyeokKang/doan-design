@@ -1,5 +1,5 @@
 import { useEffect, useId, useImperativeHandle, useLayoutEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent, type MutableRefObject, type ReactElement } from "react";
-import { Clock, Crosshair, Gauge, Plus, Shield, X } from "lucide-react";
+import { Crosshair, Gauge, MessageSquareDashed, Plus, Shield, X } from "lucide-react";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
 import type { PermissionModeId } from "../main/conversation/permissionMode";
@@ -15,7 +15,7 @@ import {
   AgentPicker, AttachButton, ComposerCard, ComposerChips, ComposerField, ComposerTools, EffortPicker, PermissionPicker, PresetsButton,
   SendButton, SlashPresets, TriggerLabel, useComposerDrop, usePresetListOutside, type CanvasPress, type ComposerFieldHandle,
 } from "./ComposerParts";
-import { composerAction, composerShape, focusAfter, steerAllPlan, type FocusAction } from "./composerRules";
+import { composerAction, composerShape, focusAfter, steerAllPlan, type ComposerAction, type ComposerTurn, type FocusAction } from "./composerRules";
 import {
   canvasGoneText, composerPlaceholder, dockedAvailability, dockedMessage, dockedPicker, dockedRefusal, draftKey, EMPTY_DRAFT,
   type DockedBusy, type DockedDraft, type DockedMode, type DockedRefusal,
@@ -87,7 +87,7 @@ export interface DockedComposerProps {
   // handed back so the host can tell main.
   onAttach(): void; onFiles(files: File[], pasted: boolean): void; onAttachmentRemoved(attachment: AttachmentDraft): void;
   // This conversation's turn. `busy`: another conversation holds the root or this canvas (from the host's list).
-  turn: "idle" | "running" | "waiting";
+  turn: ComposerTurn;
   busy: DockedBusy | null;
   // An archived conversation whose canvas left the project cannot continue.
   canvasGone: boolean;
@@ -198,7 +198,7 @@ export function DockedComposer(props: DockedComposerProps) {
     : props.held && checked.enabled ? { enabled: false, reason: checked.reason } : checked;
   const message = dockedMessage(draft, matched);
   const placeholder = composerPlaceholder({ readOnly: isSending || locked, preset: draft.preset, empty: draft.segments.length === 0, mode: mode.kind, text: props.placeholder, suggestion: props.suggestion });
-  const action = composerAction(props.turn !== "idle", message.text);
+  const action = composerAction(props.turn, message.text, props.queued.length);
   const canSendNow = !!props.sendNow && !!props.onSendQueuedNow;
   const picker = dockedPicker(props.picker, mode);
   // The terminal's provider, drawn on the fixed trigger.
@@ -376,7 +376,7 @@ export function DockedComposer(props: DockedComposerProps) {
       // Escape closes the list only; there is no shortcut that stops the turn.
       if (step?.kind === "close") { if (event.key === "Escape") event.preventDefault(); setDismissedKey(step.dismiss ? key : null); return true; }
     }
-    // → puts the shown suggestion in the field as one undo step; it never sends.
+    // → or Tab puts the shown suggestion in the field as one undo step; it never sends.
     // The field's composing state is read last (a getter), so other keys never reach into the field.
     const shown = placeholder.suggestion;
     if (shown !== null && takesSuggestion({ key: event.key, shiftKey: event.shiftKey, altKey: event.altKey, metaKey: event.metaKey, ctrlKey: event.ctrlKey, isComposing: event.nativeEvent.isComposing, keyCode: event.keyCode },
@@ -399,6 +399,17 @@ export function DockedComposer(props: DockedComposerProps) {
     if (node && node.ownerDocument.activeElement === node) setAnnouncement(`Suggestion: ${placeholder.suggestion}`);
   }, [key, props.suggestion]);
 
+  // A turn that ends while main still works on the conversation turns Stop into a disabled Send under the person's focus,
+  // and a disabled button holds no focus: focus that was on Stop goes to the field (POSTMORTEM 2026-10-24). It is read as
+  // this render begins, before the commit disables the button; focus the person moved elsewhere stays.
+  const slotAction = useRef<ComposerAction>(action);
+  const slotNode = slotAction.current === "stop" && action === "send" && !availability.enabled ? root.current?.querySelector(".composer-send") ?? null : null;
+  const stopLeft = slotNode !== null && typeof document !== "undefined" && document.activeElement === slotNode;
+  useLayoutEffect(() => {
+    slotAction.current = action;
+    if (stopLeft) field.current?.focus();
+  });
+
   if (props.canvasGone || refusal?.kind === "gone") return <div className="canvas-gone" role="status"><AlertIcon /><span>{canvasGoneText(props.project)}</span></div>;
   const reason = availability.reason;
   const notice = refusal?.kind === "notice" ? refusal : null;
@@ -409,7 +420,6 @@ export function DockedComposer(props: DockedComposerProps) {
       onRemove={props.onRemoveQueued} focusInput={() => field.current?.focus()}
       // The same refusal again changes the region's text by a no-break space, so it is read again.
       announce={text => setAnnouncement(current => current === text ? `${text}\u00a0` : text)} />
-    {canSendNow && props.queued.length > 0 && <div className="queue-key">Press Ctrl + Enter to send all now.</div>}
     <ComposerCard readonly={isSending}>
       <ComposerChips attachments={draft.attachments} preset={draft.preset} thumbnails={props.thumbnails} homeDirectory={props.homeDirectory} disabled={isSending || locked} removeButtons={removeButtons} onRemove={index => removeChip(index, "button")} />
       {/* One field element in both shapes, at the same place and key: remounting it would drop focus and IME composition. */}
@@ -461,7 +471,7 @@ export function DockedComposer(props: DockedComposerProps) {
   </div>;
 }
 
-const SUGGESTION_HINT = "Press Right Arrow to use the suggestion.";
+const SUGGESTION_HINT = "Press Tab or Right Arrow to use the suggestion.";
 
 export const SEND_NOW_TIP = "Add to the current turn without stopping it";
 export const SEND_NOW_REFUSED_TEXT = "Couldn’t send now. It stays queued.";
@@ -562,7 +572,7 @@ export function QueueRows(props: QueueRowsProps) {
     // The status line sits in the row's listitem (a list owns only listitems) and is drawn from the start, empty, so the
     // live region is registered before a refusal puts text in it.
     return <div key={item.id} className="queue-entry" role="listitem">
-      <div className="queue-item"><Clock aria-hidden="true" /><span className="queue-text" id={textId}>{item.text}</span>
+      <div className="queue-item"><MessageSquareDashed aria-hidden="true" /><span className="queue-text" id={textId}>{item.text}</span>
         {props.sendNow && <QueueButtonLife onLost={() => { lost.current = true; }}>{life =>
           <Tooltip><TooltipTrigger asChild>
             <button type="button" ref={node => { life(node); keep("sendNow", item.id)(node); }} className="doan-button queue-send" data-ui-size="xs" data-ui-variant="subtle"

@@ -191,7 +191,7 @@ test("every start refusal has the draft's wording and Retry only where retrying 
   expect(view("busy")).toEqual({ text: "Claude Code is finishing a previous run. Try again in a moment.", retry: true });
   expect(view("credential_override")).toEqual({ text: "Claude Code refused to run: this project’s Claude settings supply their own API key. Remove it, or choose another agent.", retry: false });
   expect(view("cli_install_failed")).toEqual({ text: "Couldn’t download the Antigravity server. Check your connection, then try again.", retry: true });
-  expect(view("rate_limited")).toEqual({ text: "Claude Code is rate limited. Try again later.", retry: false });
+  expect(view("rate_limited")).toEqual({ text: "Claude Code reached a usage limit. Send again after it resets.", retry: false });
   expect(view("process_exited")).toEqual({ text: "Claude Code stopped before it could start. Try again.", retry: true });
   expect(view("session_unavailable")).toEqual({ text: "Couldn’t start with Claude Code right now. Try again, or choose another agent.", retry: true });
   expect(view("session_in_use")).toEqual({ text: "Claude Code is busy with another session. Try again in a moment.", retry: true });
@@ -772,13 +772,13 @@ test("steerKey accepts only Control+Enter outside IME composition", () => {
   }
 });
 
-// Only a plain → on an empty field outside IME composition takes the
-// suggestion shown; every modifier keeps its own meaning (selection, word and line moves).
-test("takesSuggestion accepts only a plain Right Arrow on an empty field while a suggestion shows", () => {
-  const event = { key: "ArrowRight", shiftKey: false, altKey: false, metaKey: false, ctrlKey: false, isComposing: false, keyCode: 39 };
+// Only a plain → or Tab on an empty field outside IME composition takes the
+// suggestion shown; every modifier keeps its own meaning (selection, word and line moves, Shift+Tab's focus move).
+test.each([["ArrowRight", 39], ["Tab", 9]])("takesSuggestion accepts only a plain %s on an empty field while a suggestion shows", (key, keyCode) => {
+  const event = { key, shiftKey: false, altKey: false, metaKey: false, ctrlKey: false, isComposing: false, keyCode };
   const state = { suggestion: "Make the header lighter", empty: true, composing: false };
   expect(takesSuggestion(event, state)).toBe(true);
-  for (const change of [{ key: "ArrowLeft", keyCode: 37 }, { key: "Tab", keyCode: 9 }, { key: "Enter", keyCode: 13 }, { shiftKey: true }, { altKey: true }, { metaKey: true }, { ctrlKey: true }, { isComposing: true }, { keyCode: 229 }]) {
+  for (const change of [{ key: "ArrowLeft", keyCode: 37 }, { key: "Enter", keyCode: 13 }, { shiftKey: true }, { altKey: true }, { metaKey: true }, { ctrlKey: true }, { isComposing: true }, { keyCode: 229 }]) {
     expect(takesSuggestion({ ...event, ...change }, state)).toBe(false);
   }
   for (const change of [{ suggestion: null }, { empty: false }, { composing: true }]) {

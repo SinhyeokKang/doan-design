@@ -117,10 +117,13 @@ describe("thread items", () => {
     }
   });
 
-  test("an activity line is a disclosure button; a running one has a spinner", () => {
-    const out = html([{ kind: "activity", key: "a3", running: true, head: "Editing a.html", steps: [{ key: "s3", kind: "edit", verb: "Edited", path: "a.html" }] }]);
+  test("an activity line is a disclosure button; it has a spinner while the turn indicator names its tool", () => {
+    const row: ThreadItem = { kind: "activity", key: "a3", running: false, head: "1 step", steps: [{ key: "s3", kind: "edit", verb: "Edited", path: "a.html" }] };
+    const out = html([row], { turn: { turnId: "t1", status: { kind: "tool", activity: "edit", text: "Editing a.html", step: "s3" }, at: "2026-11-06T10:00:00.000Z" } });
     expect(out).toMatch(/<button type="button" class="activity-head" aria-expanded="false"><span class="doan-spinner" aria-hidden="true"><\/span><span>Editing a.html<\/span>/);
     expect(out).not.toContain("activity-steps");
+    // Without a turn indicator the row is its step count, even one drawn running.
+    expect(html([{ ...row, running: true, head: "Editing a.html" }])).toMatch(/<button type="button" class="activity-head" aria-expanded="false"><span>1 step<\/span>/);
   });
 
   test("a permission request that arrived live is an alert; one drawn from history is not; no choice is the default", () => {
@@ -200,7 +203,13 @@ describe("thread items", () => {
     expect(endView({ kind: "interrupted", reason: "user" }, "codex")).toEqual({ title: "Stopped", body: "You stopped the agent.", tone: null, signIn: false });
     expect(endView({ kind: "interrupted", reason: "crashed" }, "codex").body).toBe("The agent stopped before it finished.");
     for (const code of ["session_unavailable", "session_in_use"] as const) expect(endView({ kind: "failed", code }, "codex")).toMatchObject({ title: "Codex couldn’t continue", body: "Edit your request and send it again." });
-    expect(endView({ kind: "failed", code: "rate_limited" }, "codex")).toMatchObject({ title: "Codex is rate limited", body: "Try again later." });
+    expect(endView({ kind: "failed", code: "rate_limited" }, "codex")).toMatchObject({ title: "Codex reached a usage limit", body: "Send again after it resets." });
+    // The reset time is the provider's own words after "resets ", copied as they are; any other wording has no time.
+    for (const apostrophe of ["'", "’"])
+      expect(endView({ kind: "failed", code: "rate_limited", detail: `You${apostrophe}ve hit your weekly limit · resets Nov 11 at 2pm (Asia/Seoul)` }, "claude"))
+        .toMatchObject({ title: "Claude Code reached a usage limit", body: "Resets Nov 11 at 2pm (Asia/Seoul). Send again after that." });
+    for (const detail of ["Rate limit exceeded", "usage limit · resets soon", "You've hit your limit"])
+      expect(endView({ kind: "failed", code: "rate_limited", detail }, "claude"), detail).toMatchObject({ body: "Send again after it resets." });
     expect(endView({ kind: "failed", code: "process_exited" }, "codex")).toMatchObject({ title: "Codex stopped unexpectedly", body: "It may have changed files before it stopped." });
   });
 

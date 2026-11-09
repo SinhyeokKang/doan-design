@@ -117,9 +117,9 @@ export function acpQuestion(params: Record<string, unknown>, requestId: string):
   };
 }
 
-// thinking: thought chunks came and nothing that ends thinking since (normalizeAcp). running: the tool calls still
-// pending or in progress, in the order they started; absent when none runs.
-export interface AcpTransport extends TransportState { turn: string; segment: number; text: string; tools: Record<string, AcpTool>; thinking?: true; running?: string[] }
+// thinking: thought chunks came and nothing that ends thinking since (normalizeAcp). running (TransportState) holds the
+// tool calls still pending or in progress.
+export interface AcpTransport extends TransportState { turn: string; segment: number; text: string; tools: Record<string, AcpTool>; thinking?: true }
 interface AcpTool { kind: string; path: string; title: string }
 export function initialAcp(turn: string): AcpTransport {
   return { terminal: false, stop: null, messageId: `${turn}:0`, textBlock: null, completedMessages: [], activities: [], fileSummaries: {}, turn, segment: 0, text: "", tools: {} };
@@ -218,7 +218,8 @@ function finishAcp(state: AcpTransport, event: EventPayload): TransportResult & 
   if (state.terminal) return { state, events: [] };
   const flushed = flush(state);
   const terminal: EventPayload = state.stop ? { type: "interrupted", reason: state.stop } : event;
-  return { state: { ...flushed.state, terminal: true }, events: [...flushed.events, ...contextBefore(state, terminal), terminal] };
+  const { running: _, ...rest } = flushed.state;
+  return { state: { ...rest, terminal: true }, events: [...flushed.events, ...contextBefore(state, terminal), terminal] };
 }
 // stopReason is end_turn | max_tokens | max_turn_requests | refusal | cancelled (ACP prompt-turn).
 export function acpPromptDone(state: AcpTransport, result: unknown): TransportResult & { state: AcpTransport } {

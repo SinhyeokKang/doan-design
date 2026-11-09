@@ -11,6 +11,7 @@ import { object } from "./sessions";
 import { acpOption, parseAcpModels, parseAcpModes, type ModelOption } from "./models";
 import { acpModeFor, type AcpModes } from "./permissionMode";
 import { imageType, MAX_IMAGE_BYTES } from "../attachments";
+import { fenceArgs, fencedCommand } from "../agentAuth/fence";
 import type { Prepared, Runner } from "./service";
 import { questionAnswer } from "./questionAnswer";
 import type { Question } from "./question";
@@ -22,7 +23,9 @@ const CANCEL_WAIT_MS = 5000;
 // One server per turn: it is opened for a prompt, resumes the session with session/load and is stopped when the turn
 // ends, so the account lease (and the plaintext working credential) never outlives a running turn.
 export async function openAcp(input: Prepared, emit: (event: EventPayload) => void, exited: () => void, registerStop: (stop: () => Promise<void>) => void): Promise<Runner> {
-  const child = spawn(input.command, input.args ?? [], { cwd: input.cwd, env: input.env, detached: true, stdio: ["pipe", "pipe", "pipe"] });
+  // Every mode of a Doan-connection run is fenced: no ACP server sandboxes its own commands.
+  const launch = fencedCommand(input.command, input.args ?? [], input.fence ? fenceArgs(input.runtime, input.fence.paths) : undefined, input.fence?.exec);
+  const child = spawn(launch.command, launch.args, { cwd: input.cwd, env: input.env, detached: true, stdio: ["pipe", "pipe", "pipe"] });
   let group: OwnedGroup | undefined, dead = false, failure = "", prompting = false, finished = false;
   let state: AcpTransport = initialAcp(randomUUID());
   // One table for both kinds, so expiry answers every pending request once; each answer path takes only its own kind.

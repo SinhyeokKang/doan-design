@@ -2781,7 +2781,8 @@ describe("fast turned off, index write failed", () => {
     h.open.mock.calls[0]![2]();
     await new Promise(resolve => setTimeout(resolve, 20));
     expect(h.open).toHaveBeenCalledOnce();
-    await expect(h.service.send(id, "again", [], { fastTurn: true })).rejects.toThrow("busy");
+    // The queue comes back as after a failed turn once the process is gone.
+    expect(h.service.takeDraft(id)).toMatchObject({ text: "next", reason: "turn_failed" });
     // After a restart the stored Fast still holds, so the next run asks for it and can be judged again.
     const restarted = new ConversationService(new ConversationStore(h.dir), h.prepare, h.open, () => {}, undefined, 10_000, () => [], () => {}, { fast: () => true });
     await restarted.send(id, "again", [], { fastTurn: true });
@@ -2823,5 +2824,145 @@ describe("fast kept", () => {
     expect(h.store.list()[0]).toMatchObject({ model: "opus", fast: true });
     expect(h.open.mock.calls.at(-1)![0]).toMatchObject({ fast: true });
     expect(h.store.read(id).filter(e => e.type === "fast.unused")).toHaveLength(1);
+  });
+});
+
+// A turn whose history stopped taking writes can save no terminal event. Once its process group is gone the
+// conversation stops working, its queue comes back as after a failed turn, and the next send starts a new turn.
+describe("a history that stopped taking writes", () => {
+  const a = { path: ".doan/canvases/a.html", id: "a" };
+  const canvasStart = { ...homeRequest, mode: "new" as const, canvas: a };
+  type Way = "a write while the process runs" | "the exit's own turn.failed" | "a transport failure's turn.failed";
+  const row = (h: ReturnType<typeof homeFixture>, id: string) => h.service.list("/repo").find(s => s.conversationId === id)!;
+  // An archived conversation of the canvas (its process gone) and the current one, running, with a queued message.
+  async function running(h: ReturnType<typeof homeFixture>, way?: Way) {
+    const old = (await h.service.start(canvasStart)).conversationId;
+    h.service.receive(old, { type: "turn.done" }); h.open.mock.calls.at(-1)![2]();
+    let breakTransport = () => {};
+    if (way === "a transport failure's turn.failed") h.open.mockImplementationOnce(async input => {
+      const send = vi.fn(() => new Promise<void>((_resolve, reject) => { breakTransport = () => reject(new Error("write EPIPE")); }));
+      const runner: Runner = { sessionId: input.sessionId ?? "s2", send, answer: () => false, stop: vi.fn(async () => {}), close: vi.fn(async () => {}) };
+      h.runners.push(runner); return runner;
+    });
+    const current = (await h.service.start(canvasStart)).conversationId;
+    h.service.queue(current, { text: "next", anchors: [] });
+    return { old, current, runner: h.runners.at(-1)!, exit: h.open.mock.calls.at(-1)![2], breakTransport: () => breakTransport() };
+  }
+  // The write fails once; the history takes writes again afterwards.
+  function failOnce(h: ReturnType<typeof homeFixture>) {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const append = h.store.append.bind(h.store);
+    vi.spyOn(h.store, "append").mockImplementationOnce(() => { throw new Error("File exceeds limit"); }).mockImplementation(append);
+  }
+  async function failed(h: ReturnType<typeof homeFixture>, way: Way) {
+    const turn = await running(h, way);
+    if (way === "a write while the process runs") { failOnce(h); h.service.receive(turn.current, { type: "activity", kind: "read", summary: "Read a.html" }); }
+    if (way === "a transport failure's turn.failed") { failOnce(h); turn.breakTransport(); await vi.waitFor(() => expect(turn.runner.close).toHaveBeenCalled()); }
+    if (way === "the exit's own turn.failed") { failOnce(h); turn.exit(); }
+    else turn.exit();
+    return turn;
+  }
+  const ways: Way[] = ["a write while the process runs", "the exit's own turn.failed", "a transport failure's turn.failed"];
+  it.each(ways)("ends the conversation's work once its process is gone (%s)", async way => {
+    const h = homeFixture([a], { admit: true });
+    const { current } = await failed(h, way);
+    expect(row(h, current)).toMatchObject({ working: false, phase: "ended" });
+    expect(h.store.read(current).filter(e => e.type === "user.message")).toHaveLength(1);
+    expect(h.service.takeDraft(current)).toMatchObject({ text: "next", reason: "turn_failed" });
+    h.service.delete(current);
+    expect(h.store.list().some(m => m.conversationId === current)).toBe(false);
+  });
+  it.each(ways)("lets the canvas's archived conversation be restored (%s)", async way => {
+    const h = homeFixture([a], { admit: true });
+    const { old, current } = await failed(h, way);
+    await h.service.send(old, "back to this one", []);
+    expect(h.store.list().find(m => m.conversationId === old)!.state).toBe("current");
+    expect(h.store.list().find(m => m.conversationId === current)!.state).toBe("archived");
+  });
+  it.each(ways)("starts a new turn with the next send (%s)", async way => {
+    const h = homeFixture([a], { admit: true });
+    const { current } = await failed(h, way);
+    const opened = h.open.mock.calls.length;
+    await h.service.send(current, "again", []);
+    expect(h.open).toHaveBeenCalledTimes(opened + 1);
+    expect(h.store.read(current).filter(e => e.type === "user.message").map(e => e.type === "user.message" && e.text)).toEqual(["Make a pricing page", "again"]);
+    expect(row(h, current)).toMatchObject({ working: true });
+    expect(h.service.read(current).turn).toBe("starting");
+  });
+  it.each<Way>(["a write while the process runs", "a transport failure's turn.failed"])("stays working until the process is gone; a Stop ends its group and a send waits for it (%s)", async way => {
+    const h = homeFixture([a], { admit: true });
+    const turn = await running(h, way);
+    failOnce(h);
+    if (way === "a write while the process runs") h.service.receive(turn.current, { type: "activity", kind: "read", summary: "Read a.html" });
+    else turn.breakTransport();
+    await vi.waitFor(() => expect(turn.runner.close).toHaveBeenCalledOnce());
+    expect(row(h, turn.current)).toMatchObject({ working: true });
+    expect(() => h.service.delete(turn.current)).toThrow("busy");
+    await h.service.interrupt(turn.current);
+    expect(turn.runner.close).toHaveBeenCalledTimes(2);
+    expect(row(h, turn.current)).toMatchObject({ working: true });
+    const opened = h.open.mock.calls.length;
+    let settled = false;
+    const sending = h.service.send(turn.current, "again", []).finally(() => { settled = true; });
+    await new Promise(resolve => setTimeout(resolve, 20));
+    expect(settled).toBe(false); expect(h.open).toHaveBeenCalledTimes(opened);
+    turn.exit();
+    await sending;
+    expect(h.open).toHaveBeenCalledTimes(opened + 1);
+    expect(h.service.takeDraft(turn.current)).toMatchObject({ text: "next", reason: "turn_failed" });
+    expect(h.store.read(turn.current).filter(e => e.type === "user.message").map(e => e.type === "user.message" && e.text)).toEqual(["Make a pricing page", "again"]);
+  });
+  // A Codex server is reused between turns unless it is closed; the one closed over a failed write must be waited out.
+  it("makes a Codex conversation's send wait for the closed server's exit instead of refusing it as busy", async () => {
+    const h = homeFixture([a], { admit: true });
+    h.prepare.mockImplementation(async (_request, stored) => ({ runtime: "codex" as const, configDir: "/profile", cwd: "/repo", command: "/fake", env: {}, sessionId: stored?.session.sessionId ?? "codex-session" }));
+    const current = (await h.service.start({ ...canvasStart, runtime: "codex" })).conversationId;
+    const runner = h.runners.at(-1)!, exit = h.open.mock.calls.at(-1)![2];
+    failOnce(h);
+    h.service.receive(current, { type: "activity", kind: "read", summary: "Read a.html" });
+    await vi.waitFor(() => expect(runner.close).toHaveBeenCalledOnce());
+    const opened = h.open.mock.calls.length;
+    let settled = false;
+    const sending = h.service.send(current, "again", []).finally(() => { settled = true; });
+    await new Promise(resolve => setTimeout(resolve, 20));
+    expect(settled).toBe(false); expect(h.open).toHaveBeenCalledTimes(opened);
+    exit();
+    await sending;
+    expect(h.open).toHaveBeenCalledTimes(opened + 1);
+    expect(h.store.read(current).filter(e => e.type === "user.message").map(e => e.type === "user.message" && e.text)).toEqual(["Make a pricing page", "again"]);
+  });
+  it("refuses the next send as a first write that failed when the history still takes no writes", async () => {
+    const h = homeFixture([a], { admit: true });
+    const { current } = await running(h);
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(h.store, "appendAll").mockImplementation(() => { throw new Error("File exceeds limit"); });
+    h.service.receive(current, { type: "activity", kind: "read", summary: "Read a.html" });
+    h.open.mock.calls.at(-1)![2]();
+    const runners = h.runners.length;
+    await expect(h.service.send(current, "again", [])).rejects.toThrow("File exceeds limit");
+    expect(h.runners[runners]!.close).toHaveBeenCalled();
+    expect(row(h, current)).toMatchObject({ working: false });
+  });
+  it("only logs when the queue cannot be handed back", async () => {
+    const h = homeFixture([a], { admit: true });
+    const turn = await running(h);
+    failOnce(h);
+    h.service.receive(turn.current, { type: "activity", kind: "read", summary: "Read a.html" });
+    const errors = vi.mocked(console.error); errors.mockClear();
+    vi.spyOn(h.drafts, "giveBackQueued").mockImplementation(() => { throw new Error("EACCES"); });
+    expect(() => turn.exit()).not.toThrow();
+    expect(errors).toHaveBeenCalledWith("doan: queued messages could not be handed back", expect.any(Error));
+    expect(row(h, turn.current)).toMatchObject({ working: false, phase: "ended" });
+  });
+  it("lets a project conversation hold no root, before and after its process is gone", async () => {
+    const h = homeFixture();
+    const first = (await h.service.start(homeRequest)).conversationId;
+    failOnce(h);
+    h.service.receive(first, { type: "activity", kind: "read", summary: "Read a.html" });
+    const second = (await h.service.start(homeRequest)).conversationId;
+    h.service.receive(second, { type: "turn.done" }); h.open.mock.calls[1]![2](); h.service.refreshed("/repo", []); h.passBindingWindow();
+    h.open.mock.calls[0]![2]();
+    expect(row(h, first)).toMatchObject({ working: false });
+    await h.service.start(homeRequest);
   });
 });

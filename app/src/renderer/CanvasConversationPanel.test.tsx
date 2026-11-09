@@ -31,8 +31,10 @@ const summary = (conversationId: string, extra: Partial<ConversationSummary> = {
 const flush = () => new Promise(resolve => setTimeout(resolve, 0));
 
 let resume: unknown;
+let drawing: string | null;
 beforeEach(() => {
   resume = { available: false, reason: "no_record" };
+  drawing = null;
   vi.stubGlobal("window", { doan: {
     conversationResumeTarget: vi.fn(async () => resume), readConversation: vi.fn(async () => ({ error: "not_found" })),
     takeConversationDraft: vi.fn(async () => null), attachmentsFromPaths: vi.fn(async () => []),
@@ -44,7 +46,7 @@ const PICK = { pressed: false, enabled: true, reason: null, onToggle: () => {} }
 async function panel(list: ListView, setup: (run: CanvasRun) => void = () => {}, patch: Partial<CanvasConversationProps> = {}) {
   const lists = new Map<string, ListView>([[ROOT, list]]);
   const store = new ConversationStore({ list: root => lists.get(root) ?? "loading", readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() });
-  const run = new CanvasRun({ list: root => lists.get(root) ?? "loading", readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store);
+  const run = new CanvasRun({ list: root => lists.get(root) ?? "loading", readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => drawing, changed: vi.fn() }, store);
   run.show({ root: ROOT, canvas: CANVAS });
   run.sync();
   setup(run);
@@ -62,6 +64,17 @@ test("a list that can't be read says so with Retry, and the composer stays a new
   expect(out).toContain("<span class=\"strip-text selectable\"><b>Couldn’t read conversations</b><span>Try again. You can still start a new conversation.</span>");
   expect(out).toContain(">Retry</button>");
   expect(out).toContain('aria-placeholder="Ask, / for presets"');
+});
+
+// DESIGN 'Notices': the panel's agent notice is the shared one (body-sm, 12/16 padding), not the
+// inspector's 11px loading line that shares the canvas-notice class.
+test("a project conversation drawing the canvas is the shared notice with Open, without the inspector's canvas-notice", async () => {
+  drawing = "proj";
+  const out = await panel([]);
+  expect(out).toContain('<div class="doan-notice thread-notice" role="status">');
+  expect(out).toContain("A project conversation is drawing this canvas.");
+  expect(out).toContain('aria-label="Open the project conversation"');
+  expect(out).not.toContain("canvas-notice");
 });
 
 test("a canvas with a terminal session offers it first, with the time doan check linked it", async () => {
@@ -298,13 +311,13 @@ test("steerPhaseOf reads the merged events first and the list after, as the comp
 
 
 // The shown conversation's suggestion from the panel's list reaches its composer.
-test("the shown conversation's suggestion stands in for the reply placeholder, with the Right Arrow hint", async () => {
+test("the shown conversation's suggestion stands in for the reply placeholder, with the Tab or Right Arrow hint", async () => {
   const out = await panel([summary("now", { suggestion: "Tighten the payment copy" })]);
   expect(out).toContain('aria-placeholder="Tighten the payment copy"');
-  expect(out).toContain("Press Right Arrow to use the suggestion.");
+  expect(out).toContain("Press Tab or Right Arrow to use the suggestion.");
   const plain = await panel([summary("now")]);
   expect(plain).toContain('aria-placeholder="Reply, / for presets"');
-  expect(plain).not.toContain("Press Right Arrow");
+  expect(plain).not.toContain("to use the suggestion");
 });
 
 // The panel reads the shown conversation's last context.usage from its thread.
@@ -347,4 +360,27 @@ test("the thread shows the live turn's indicator from the store's stage, and non
 
 test("queued text strips fixed request paragraphs wherever they occur", () => {
   expect(queuedText({ text: "Use the project skill `deploy`.\n\n/deploy {{1}}\n\nUse the Doan design preset `polish` (Polish).", anchors: [{ frame: { id: "cart", title: "Cart" } }], attachments: [] })).toBe("/deploy Cart");
+});
+
+// A turn that asked for a handoff ended, and main holds the conversation until the handoff is resolved: the composer
+// holds as the Overview's does, beside the source thread's "Hands off to <file> when this turn ends" line.
+test("in a handoff's judging window the composer offers a disabled Send, not Stop, and Stop only while queue rows wait", async () => {
+  const doan = (window as unknown as { doan: Record<string, ReturnType<typeof vi.fn>> }).doan;
+  const at = (seq: number, payload: Record<string, unknown>) => ({ v: 1, conversationId: "now", seq, turnId: "t1", at: "2026-11-01T00:00:00Z", ...payload }) as ConversationEvent;
+  const events = [at(1, { type: "user.message", text: "hi", anchors: [] }), at(2, { type: "turn.started" }),
+    at(3, { type: "handoff.requested", canvas: { path: ".doan/canvases/billing.html" }, text: "Carry on in billing" }), at(4, { type: "turn.done" })];
+  doan.readConversation!.mockResolvedValue({ events, lastSeq: 4, turn: "idle" });
+  const list = [summary("now", { working: true })];
+  const auth = { revision: 1, providers: [connected("claude")] };
+  const slot = (out: string) => /<button type="button" class="composer-send[^"]*"[^>]*aria-label="(Send|Stop|Queue)"[^>]*>/.exec(out)?.[0] ?? "";
+  const shown = (setup: (run: CanvasRun) => void = () => {}) => panel(list, run => { run.store.track("now"); setup(run); }, {
+    support: Object.assign(new DockedSupport(() => {}), { auth }) });
+  const out = await shown();
+  expect(out).toContain("Hands off to billing.html when this turn ends");
+  expect(out).not.toContain("ti-reply");
+  expect(slot(out)).toContain('aria-label="Send"');
+  expect(slot(out)).toContain("disabled");
+  const queued = await shown(run => run.store.queued(ROOT, "now", { id: "q1", text: "And the footer" }));
+  expect(slot(queued)).toContain('aria-label="Stop"');
+  expect(slot(queued)).not.toContain("disabled");
 });

@@ -4,6 +4,8 @@ import type { ConversationSummary } from "../main/conversation/summary";
 import type { ConversationEvent } from "../main/conversation/types";
 import type { FolderEntry } from "../main/view";
 import type { DockedComposerProps } from "./DockedComposer";
+import { composerAction } from "./composerRules";
+import { deleteAvailability } from "./conversationDelete";
 import { DockedSupport } from "./dockedSupport";
 import { OverviewRun, type ListView, type OverviewRunHost } from "./overviewRun";
 import { ProjectOverview, type ProjectOverviewProps } from "./ProjectOverview";
@@ -105,4 +107,86 @@ test("the next turn's indicator is in the render that draws the person's message
   expect(html()).toContain('<span class="ti-text ti-shimmer">Claude Code is working</span>');
   run.event(next(6, { type: "turn.started" }));
   expect(html()).toContain('<span class="ti-text ti-shimmer">Claude Code is working</span>');
+});
+
+// The thread's last activity row follows the indicator: a Claude tool's row spins until the general stage main sends with
+// the tool's result (same seq), and is its step count from that render on.
+test("a Claude tool's row stops spinning in the render its result's general stage arrives", async () => {
+  reads[A] = [at(A, 1, { type: "user.message", text: "Draw the checkout", anchors: [] }), at(A, 2, { type: "turn.started" })];
+  const { run, html } = setup([{ ...summary(A), phase: "running", working: true }]);
+  run.select(ROOT, A);
+  run.store.track(A);
+  await flush();
+  run.event(at(A, 3, { type: "activity", kind: "command", summary: "Running a command" }));
+  expect(html()).toContain('<span class="doan-spinner" aria-hidden="true"></span><span>Running a command</span>');
+  run.store.stage({ conversationId: A, turnId: "t1", seq: 3, rev: 1, stage: { kind: "general" } });
+  const out = html();
+  expect(out).toContain("<span>1 step</span>");
+  expect(out).not.toContain('<span class="doan-spinner" aria-hidden="true"></span><span>Running a command</span>');
+  expect(out).toContain('<span class="ti-text ti-shimmer">Claude Code is working</span>');
+});
+
+// Send now's message stays in flight until the agent reads it, which Claude does once its tool ended: meanwhile the row
+// and the indicator are judged above that message, so both keep naming the running tool, and the indicator stays below it.
+test("a Send now message in flight under a running Claude tool keeps the row spinning and the indicator on the tool", async () => {
+  reads[A] = [at(A, 1, { type: "user.message", text: "Draw the checkout", anchors: [] }), at(A, 2, { type: "turn.started" })];
+  const { run, html } = setup([{ ...summary(A), phase: "running", working: true }]);
+  run.select(ROOT, A);
+  run.store.track(A);
+  await flush();
+  run.event(at(A, 3, { type: "activity", kind: "command", summary: "Running a command" }));
+  run.store.queued(ROOT, A, { id: "q1", text: "Now the cart" });
+  (window.doan as Record<string, unknown>).sendQueuedNow = vi.fn(() => new Promise(() => {}));
+  void run.store.sendQueuedNow(A, "q1");
+  const out = html();
+  expect(out).toContain("msg-sending");
+  expect(out).toContain('<span class="doan-spinner" aria-hidden="true"></span><span>Running a command</span>');
+  expect(out).toContain('<span class="ti-text ti-shimmer">Running a command</span>');
+  expect(out.indexOf("msg-sending")).toBeLessThan(out.indexOf('<span class="ti-text ti-shimmer">'));
+  run.store.stage({ conversationId: A, turnId: "t1", seq: 3, rev: 1, stage: { kind: "general" } });
+  const after = html();
+  expect(after).toContain("<span>1 step</span>");
+  expect(after).not.toContain('<span class="doan-spinner" aria-hidden="true"></span><span>Running a command</span>');
+  expect(after).toContain('<span class="ti-text ti-shimmer">Claude Code is working</span>');
+});
+
+// An ACP activity arrives as conversation:event once its tool completed, and its stage separately as conversation:stage.
+test("an ACP activity's row never spins in the render its event arrives alone; a running tool's stage then spins it", async () => {
+  reads[A] = [at(A, 1, { type: "user.message", text: "Draw the checkout", anchors: [] }), at(A, 2, { type: "turn.started" })];
+  const { run, html } = setup([{ ...summary(A), provider: "copilot", phase: "running", working: true }]);
+  run.select(ROOT, A);
+  run.store.track(A);
+  await flush();
+  run.event(at(A, 3, { type: "activity", kind: "read", path: `${ROOT}/a.ts`, summary: "a.ts" }));
+  expect(html()).toContain("<span>1 step</span>");
+  expect(html()).not.toContain('<span class="doan-spinner" aria-hidden="true"></span><span>');
+  run.store.stage({ conversationId: A, turnId: "t1", seq: 3, rev: 1, stage: { kind: "tool", activity: "command", summary: "Running a command" } });
+  expect(html()).toContain('<span class="doan-spinner" aria-hidden="true"></span><span>Running a command</span>');
+  run.store.stage({ conversationId: A, turnId: "t1", seq: 3, rev: 2, stage: { kind: "general" } });
+  expect(html()).toContain("<span>1 step</span>");
+  expect(html()).not.toContain('<span class="doan-spinner" aria-hidden="true"></span><span>');
+});
+
+// A project turn's end while main still judges it (the list still says working): the composer holds, so it offers a
+// disabled Send rather than Stop from the render the end arrives; text queues, and Delete stays unavailable.
+test("a project turn's turn.done while the list still says working holds the composer in that same render", async () => {
+  reads[A] = [at(A, 1, { type: "user.message", text: "Draw the checkout", anchors: [] }), at(A, 2, { type: "turn.started" })];
+  const working = { ...summary(A), phase: "running" as const, working: true };
+  const { run, html } = setup([working]);
+  run.select(ROOT, A);
+  run.store.track(A);
+  await flush();
+  html();
+  expect(composer.props!.turn).toBe("running");
+  run.event(at(A, 3, { type: "turn.done" }));
+  html();
+  expect(composer.props!.turn).toBe("holding");
+  expect(composer.props!.sendNow).toBe(false);
+  expect(composerAction(composer.props!.turn, "", composer.props!.queued.length)).toBe("send");
+  expect(composerAction(composer.props!.turn, "Now the cart", composer.props!.queued.length)).toBe("queue");
+  run.store.queued(ROOT, A, { id: "q1", text: "Now the cart" });
+  html();
+  expect(composerAction(composer.props!.turn, "", composer.props!.queued.length)).toBe("stop");
+  // The list's phase may already say ended; its work flag still keeps Delete unavailable with the same reason.
+  expect(deleteAvailability({ ...working, phase: "ended" })).toEqual({ available: false, reason: "The agent is working on this conversation." });
 });

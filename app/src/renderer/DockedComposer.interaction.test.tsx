@@ -160,6 +160,52 @@ test("while the turn runs, Enter on an empty field does nothing, Stop stops, and
   expect(store.current.get("conversation:a")).toEqual(EMPTY_DRAFT);
 });
 
+// The turn ended and main still works on the conversation (holding): nothing runs to stop, so an empty field is a
+// disabled Send; text queues by Enter and by Control+Enter (no Send now while holding); queue rows bring Stop back.
+test("while holding, an empty field is a disabled Send, text queues by Enter and Control+Enter, and queue rows show Stop", async () => {
+  const { send, queue, props, render, store } = setup({ turn: "holding" });
+  expect(() => button(render(), "Stop")).toThrow("not found");
+  expect(button(render(), "Send").disabled).toBe(true);
+  (field(render()).onKeyDown as (event: unknown) => void)(enter());
+  await flush();
+  expect(send).not.toHaveBeenCalled(); expect(queue).not.toHaveBeenCalled(); expect(props.onStop).not.toHaveBeenCalled();
+  store.current = new Map([["conversation:a", draft("Also shorten the caption")]]); props.drafts = store.current;
+  expect(button(render(), "Queue").disabled).toBe(false);
+  (field(render()).onKeyDown as (event: unknown) => void)(enter());
+  await flush();
+  expect(queue).toHaveBeenCalledWith({ text: "Also shorten the caption", anchors: [], attachments: [] });
+  store.current = new Map([["conversation:a", draft("And the footer")]]); props.drafts = store.current;
+  (field(render()).onKeyDown as (event: unknown) => void)({ ...enter(), ctrlKey: true });
+  await flush();
+  expect(queue).toHaveBeenLastCalledWith({ text: "And the footer", anchors: [], attachments: [] });
+  expect(send).not.toHaveBeenCalled();
+  props.queued = [{ id: "q1", text: "Also shorten the caption" }];
+  (button(render(), "Stop").onClick as () => void)();
+  expect(props.onStop).toHaveBeenCalledTimes(1);
+});
+
+// POSTMORTEM 2026-10-24: a control that changes under focus decides where focus goes.
+test("focus on Stop moves to the field when Stop becomes a disabled Send; focus elsewhere stays", () => {
+  for (const focused of ["stop", "elsewhere"] as const) {
+    hooks.states = []; hooks.refs = [];
+    const { props, render } = setup({ turn: "running" });
+    render();
+    const slot = { tagName: "BUTTON" }, other = { tagName: "BUTTON" }, focus = vi.fn();
+    hooks.refs[2]!.current = { focus, element: () => null, composing: () => false };
+    hooks.refs[5]!.current = { querySelector: (selector: string) => selector === ".composer-send" ? slot : null };
+    vi.stubGlobal("document", { activeElement: focused === "stop" ? slot : other });
+    props.turn = "holding";
+    render();
+    for (const effect of hooks.effects) effect();
+    expect(focus).toHaveBeenCalledTimes(focused === "stop" ? 1 : 0);
+    // A later render with the same slot moves nothing again.
+    focus.mockClear();
+    render();
+    for (const effect of hooks.effects) effect();
+    expect(focus).not.toHaveBeenCalled();
+  }
+});
+
 // a queued message's files are drawn in the thread once Send now moves it there.
 test("a queued message carries its files' names, sizes and kinds for the thread, apart from the ids main takes", async () => {
   const { queue, render, store, props } = setup({ turn: "running" });
@@ -196,12 +242,12 @@ test("an accepted send clears the notice an earlier refusal left", async () => {
   const { props, render } = setup({ onSend: async () => reply }, [["conversation:a", draft("Draw it")]]);
   (button(render(), "Send").onClick as () => void)();
   await flush();
-  expect(render().some(item => item.children === "Claude Code is rate limited. Try again later.")).toBe(true);
+  expect(render().some(item => item.children === "Claude Code reached a usage limit. Send again after it resets.")).toBe(true);
   reply = { ok: true };
   (button(render(), "Send").onClick as () => void)();
   await flush();
   props.turn = "waiting";
-  expect(render().some(item => item.children === "Claude Code is rate limited. Try again later.")).toBe(false);
+  expect(render().some(item => item.children === "Claude Code reached a usage limit. Send again after it resets.")).toBe(false);
   expect(render().some(item => item.children === "Answer or stop the request above.")).toBe(true);
 });
 
@@ -284,7 +330,7 @@ test("a live blocking reason and its action show over an old error notice, and t
   (button(render(), "Send").onClick as () => void)();
   await flush();
   let tree = render();
-  expect(tree.some(item => item.children === "Claude Code is rate limited. Try again later.")).toBe(true);
+  expect(tree.some(item => item.children === "Claude Code reached a usage limit. Send again after it resets.")).toBe(true);
   expect(field(tree)["aria-describedby"]).toBeUndefined();
   props.busy = { kind: "project", open: "other" };
   tree = render();
@@ -733,27 +779,15 @@ test("Home Control+Enter still sends through its actual ComposerField", async ()
   expect(field(tree)["aria-keyshortcuts"]).toBeUndefined();
 });
 
+// The shortcut has no visible caption under the queue in any state; the field still names it to assistive tech.
 const shortcutCaption = "Press Ctrl + Enter to send all now.";
-test.each([1, 3])("the queue shortcut caption is plain text for %i rows with Send now", count => {
-  const { render } = shortcutSetup({ queued: queued.slice(0, count) });
-  const captions = render().filter(item => item.children === shortcutCaption);
-  expect(captions).toHaveLength(1);
-  expect(String(captions[0]!.className ?? "")).not.toContain("doan-kbd");
-  expect(elements(captions[0]!.children as ReactNode)).toEqual([]);
-});
-
 test.each([
-  { sendNow: false }, { queued: [] },
-])("the queue shortcut caption is absent when rows or Send now are absent: %j", patch => {
+  {}, { queued: queued.slice(0, 1) }, { sendNow: false }, { queued: [] },
+])("the queue shows no shortcut caption: %j", patch => {
   const { render } = shortcutSetup(patch);
-  expect(render().some(item => item.children === shortcutCaption)).toBe(false);
-});
-
-
-test("the queue shortcut caption is absent without a Send now handler", () => {
-  const { render, props } = shortcutSetup();
-  delete props.onSendQueuedNow;
-  expect(render().some(item => item.children === shortcutCaption)).toBe(false);
+  const tree = render();
+  expect(tree.some(item => item.children === shortcutCaption)).toBe(false);
+  expect(tree.some(item => String(item.className ?? "").split(" ").includes("queue-key"))).toBe(false);
 });
 
 
@@ -772,8 +806,11 @@ test.each(["idle", "running"] as const)("Control+Enter without a Send now handle
 // stands in for ChipField, whose insertText hands the new value back through onChange as one undo step; that step,
 // the caret and real keys and IME are checked in the real app.
 const SUGGESTION = "Make the header lighter";
-const HINT = "Press Right Arrow to use the suggestion.";
+const HINT = "Press Tab or Right Arrow to use the suggestion.";
 const arrowRight = (patch: Record<string, unknown> = {}) => ({ key: "ArrowRight", shiftKey: false, altKey: false, metaKey: false, ctrlKey: false, keyCode: 39, nativeEvent: { isComposing: false }, preventDefault: vi.fn(), ...patch });
+const tabKey = (patch: Record<string, unknown> = {}) => arrowRight({ key: "Tab", keyCode: 9, ...patch });
+// Tab takes the suggestion under the same conditions as Right Arrow.
+const TAKE_KEYS = [["Right Arrow", arrowRight], ["Tab", tabKey]] as const;
 const press = (tree: Record<string, unknown>[], event: ReturnType<typeof arrowRight>) => { (field(tree).onKeyDown as (event: unknown) => void)(event); return event; };
 const attachment = { key: "k1", id: "f1", name: "notes.md", kind: "file" as const, pasted: false, status: "ready" as const };
 function suggestionSetup(patch: Partial<DockedComposerProps> = {}, start: DockedDraft = EMPTY_DRAFT, opts: { focused?: boolean; composing?: boolean } = {}) {
@@ -792,7 +829,7 @@ function suggestionSetup(patch: Partial<DockedComposerProps> = {}, start: Docked
   return { ...result, handle, element, said, settle };
 }
 
-test("a suggestion shows in the placeholder's place and the field is described by the Right Arrow hint", () => {
+test("a suggestion shows in the placeholder's place and the field is described by the Tab or Right Arrow hint", () => {
   const { render } = suggestionSetup();
   const tree = render();
   expect(field(tree)["aria-placeholder"]).toBe(SUGGESTION);
@@ -810,9 +847,9 @@ test("without a suggestion the field keeps the host's text and has no hint", () 
   expect(tree.some(item => item.children === HINT)).toBe(false);
 });
 
-test("Right Arrow on the empty field puts the suggestion in it, keeps focus there and never sends", async () => {
+test.each(TAKE_KEYS)("%s on the empty field puts the suggestion in it, keeps focus there and never sends", async (_name, takeKey) => {
   const { render, handle, send, queue, store } = suggestionSetup();
-  const event = press(render(), arrowRight());
+  const event = press(render(), takeKey());
   await flush();
   expect(event.preventDefault).toHaveBeenCalled();
   expect(handle.insertText).toHaveBeenCalledWith(SUGGESTION);
@@ -825,46 +862,46 @@ test("Right Arrow on the empty field puts the suggestion in it, keeps focus ther
   expect(field(render())["aria-placeholder"]).toBe(SUGGESTION);
 });
 
-test("Right Arrow does not take the suggestion over typed text, a preset, a read-only field or an IME composition", () => {
+test.each(TAKE_KEYS)("%s does not take the suggestion over typed text, a preset, a read-only field or an IME composition", (_name, takeKey) => {
   const typed = suggestionSetup({}, draft("Hi"));
-  const event = press(typed.render(), arrowRight());
+  const event = press(typed.render(), takeKey());
   expect(event.preventDefault).not.toHaveBeenCalled();
   expect(typed.handle.insertText).not.toHaveBeenCalled();
   expect(field(typed.render())["aria-placeholder"]).toBe("Reply, / for presets");
 
   const preset = { id: "critique", title: "Critique the design", description: "", scope: "" };
   const withPreset = suggestionSetup({}, { ...EMPTY_DRAFT, preset, shape: "box" });
-  press(withPreset.render(), arrowRight());
+  press(withPreset.render(), takeKey());
   expect(withPreset.handle.insertText).not.toHaveBeenCalled();
   expect(field(withPreset.render())["aria-placeholder"]).toBe("Which canvas or screen? Add details…");
 
   const locked = suggestionSetup({ unavailable: "The project moved.", locked: true });
-  press(locked.render(), arrowRight());
+  press(locked.render(), takeKey());
   expect(locked.handle.insertText).not.toHaveBeenCalled();
   expect(field(locked.render())["aria-placeholder"]).toBe("Reply, / for presets");
 
-  for (const composing of [arrowRight({ nativeEvent: { isComposing: true } }), arrowRight({ keyCode: 229 })]) {
+  for (const composing of [takeKey({ nativeEvent: { isComposing: true } }), takeKey({ keyCode: 229 })]) {
     const ime = suggestionSetup();
     press(ime.render(), composing);
     expect(ime.handle.insertText).not.toHaveBeenCalled();
   }
   const fieldComposing = suggestionSetup({}, EMPTY_DRAFT, { composing: true });
-  press(fieldComposing.render(), arrowRight());
+  press(fieldComposing.render(), takeKey());
   expect(fieldComposing.handle.insertText).not.toHaveBeenCalled();
 
   for (const modifier of [{ shiftKey: true }, { altKey: true }, { metaKey: true }, { ctrlKey: true }]) {
     const moved = suggestionSetup();
-    const keyEvent = press(moved.render(), arrowRight(modifier));
+    const keyEvent = press(moved.render(), takeKey(modifier));
     expect(moved.handle.insertText).not.toHaveBeenCalled();
     expect(keyEvent.preventDefault).not.toHaveBeenCalled();
   }
 });
 
-test("Enter, Shift+Enter, Tab, the / list and Backspace's chip removal keep their meaning while a suggestion shows", async () => {
+test("Enter, Shift+Enter, Shift+Tab, the / list and Backspace's chip removal keep their meaning while a suggestion shows", async () => {
   const { render, handle, send, props, store } = suggestionSetup({}, { ...EMPTY_DRAFT, attachments: [attachment], shape: "box" });
   (field(render()).onKeyDown as (event: unknown) => void)(enter());
   (field(render()).onKeyDown as (event: unknown) => void)({ ...enter(), shiftKey: true });
-  const tab = { key: "Tab", shiftKey: false, keyCode: 9, nativeEvent: { isComposing: false }, preventDefault: vi.fn() };
+  const tab = tabKey({ shiftKey: true });
   (field(render()).onKeyDown as (event: unknown) => void)(tab);
   await flush();
   // An attachment-only draft sends with Enter as before; the suggestion never goes with it.
@@ -886,10 +923,22 @@ test("Enter, Shift+Enter, Tab, the / list and Backspace's chip removal keep thei
   expect(handle.insertText).not.toHaveBeenCalled();
 });
 
-test("Right Arrow on an attachment-only draft puts the suggestion in and keeps the attachments", () => {
+// The / list's own Tab (close until the field is empty) runs first; the field is not empty, so no suggestion goes in.
+test("Tab with the / list open closes the list and leaves the suggestion out", () => {
+  const { render, handle, store } = suggestionSetup();
+  type(render(), "/");
+  expect(field(render()).role).toBe("combobox");
+  const event = press(render(), tabKey());
+  expect(field(render()).role).not.toBe("combobox");
+  expect(event.preventDefault).not.toHaveBeenCalled();
+  expect(handle.insertText).not.toHaveBeenCalled();
+  expect(draftText(store.current.get("conversation:a"))).toBe("/");
+});
+
+test.each(TAKE_KEYS)("%s on an attachment-only draft puts the suggestion in and keeps the attachments", (_name, takeKey) => {
   const { render, handle, store } = suggestionSetup({}, { ...EMPTY_DRAFT, attachments: [attachment], shape: "box" });
   expect(field(render())["aria-placeholder"]).toBe(SUGGESTION);
-  press(render(), arrowRight());
+  press(render(), takeKey());
   expect(handle.insertText).toHaveBeenCalledWith(SUGGESTION);
   const stored = store.current.get("conversation:a");
   expect(draftText(stored)).toBe(SUGGESTION);

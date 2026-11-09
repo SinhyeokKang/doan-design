@@ -185,6 +185,23 @@ test("the Overview's surfaces take plain numerals, the open chip its pressed fil
   expect(css).toMatch(/\.conversation-thread \.thread-notice \.strip-text span, \.cp-scroll > \.thread-notice \.strip-text span \{[^}]*overflow: visible; text-overflow: clip; \}/);
 });
 
+// The worktree menu's problem states read as Home's toned status chips (caption 12/16), not 11px plain text.
+test("the Overview worktree menu shows a problem as the toned status chip", async () => {
+  const { readFileSync } = await import("node:fs");
+  const source = readFileSync(new URL("./ProjectOverview.tsx", import.meta.url), "utf8");
+  expect(source).toContain('{chip ? <span className={chipClass(chip)}>{chip}</span> : marked && <Check aria-hidden="true" />}');
+  expect(source).not.toContain("shell-problem");
+  expect(readFileSync(new URL("./styles.css", import.meta.url), "utf8")).not.toContain(".shell-problem");
+});
+
+// runtime-test: the worktree row's label span grows (flex: 1), and the chip is a span too, so it stretched to 115px
+// in both Home's and the Overview's worktree menus. The chip keeps its content width.
+test("a worktree row's status chip keeps its content width", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toContain(".shell-worktree > .ob-chip { flex: none; }");
+});
+
 // runtime-test: at 960×600 the new-conversation placeholder wrapped to two lines in the empty capsule
 // (field 48px, docked 120px) and the first typed character dropped it to one (24/104). One line keeps both the same.
 test("the capsule's placeholder stays on one line and ends in an ellipsis", async () => {
@@ -216,9 +233,9 @@ test("thread spacing, and the suggestion rows right above the composer on the Ov
 });
 
 // The shown conversation's suggestion from the Overview's list reaches its composer.
-test("the shown conversation's suggestion stands in for the reply placeholder, with the Right Arrow hint", () => {
+test("the shown conversation's suggestion stands in for the reply placeholder, with the Tab or Right Arrow hint", () => {
   const html = render([summary({ suggestion: "Add an expired-cart illustration" })]);
   expect(html).toContain('aria-placeholder="Add an expired-cart illustration"');
-  expect(html).toContain("Press Right Arrow to use the suggestion.");
-  expect(render([summary()])).not.toContain("Press Right Arrow");
+  expect(html).toContain("Press Tab or Right Arrow to use the suggestion.");
+  expect(render([summary()])).not.toContain("to use the suggestion");
 });

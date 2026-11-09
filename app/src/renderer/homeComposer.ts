@@ -137,7 +137,7 @@ const START_ERRORS: Record<string, { text: (p: string, project: string) => strin
   busy: { text: p => `${p} is finishing a previous run. Try again in a moment.`, retry: true },
   credential_override: { text: p => `${p} refused to run: this project’s Claude settings supply their own API key. Remove it, or choose another agent.`, retry: false },
   cli_install_failed: { text: () => "Couldn’t download the Antigravity server. Check your connection, then try again.", retry: true },
-  rate_limited: { text: p => `${p} is rate limited. Try again later.`, retry: false },
+  rate_limited: { text: p => `${p} reached a usage limit. Send again after it resets.`, retry: false },
   process_exited: { text: p => `${p} stopped before it could start. Try again.`, retry: true },
   session_unavailable: { text: p => `Couldn’t start with ${p} right now. Try again, or choose another agent.`, retry: true },
   session_in_use: { text: p => `${p} is busy with another session. Try again in a moment.`, retry: true },
@@ -624,13 +624,13 @@ export function steerKey(event: { key: string; ctrlKey: boolean; metaKey: boolea
   return isSubmitKey(event) && event.ctrlKey && !event.metaKey && !event.altKey;
 }
 
-// A plain → on an empty field takes the suggestion its placeholder shows.
-// Any modifier keeps the key's own selection or word and line move; keyCode 229 is the IME's own key.
+// A plain → or Tab on an empty field takes the suggestion its placeholder shows (Claude Code's own CLI takes it with either).
+// Any modifier keeps the key's own selection, word and line move or Shift+Tab's focus move; keyCode 229 is the IME's own key.
 export function takesSuggestion(
   event: { key: string; shiftKey: boolean; altKey: boolean; metaKey: boolean; ctrlKey: boolean; isComposing: boolean; keyCode: number },
   state: { suggestion: string | null; empty: boolean; composing: boolean },
 ): boolean {
-  return event.key === "ArrowRight" && !event.shiftKey && !event.altKey && !event.metaKey && !event.ctrlKey && !event.isComposing && event.keyCode !== 229
+  return (event.key === "ArrowRight" || event.key === "Tab") && !event.shiftKey && !event.altKey && !event.metaKey && !event.ctrlKey && !event.isComposing && event.keyCode !== 229
     && state.suggestion !== null && state.empty && !state.composing;
 }
 
