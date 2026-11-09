@@ -56,9 +56,10 @@
   /* The four friend mascots' accent ramps, chosen with the mascot, named after it because sky,
      amber and green already name other palette hues. Steps 1–8, 11 and 12 keep violet's OKLCH lightness and
      chroma (gamut-clamped, chroma at most 1.2 × the friend's step 9), at the hue of step 9; 9 is the mascot's
-     body colour moved by Doany's own body-to-violet-9 shift; 10 and pressed keep violet's offsets from 9.
+     body colour moved by Doany's own body-to-violet-9 shift (popo's then darkened to its icon colour so
+     white clears 3:1 on it); 10 and pressed keep violet's offsets from 9.
      -icon is 9 darkened in OKLCH lightness until it reaches 3:1 on white, for accent icons and dots on a
-     panel. Ink on 9 is white where it clears 3:1 on 9, 10 and pressed (dori), neutral otherwise. */
+     panel. Ink on 9 is white where it clears 3:1 on 9, 10 and pressed (popo, dori), neutral otherwise. */
   --saemi-1: #fafdfa;
   --saemi-2: #f6fbf6;
   --saemi-3: #ebf6ec;
@@ -97,11 +98,11 @@
   --popo-6: #fbcec4;
   --popo-7: #f5bcaf;
   --popo-8: #eba898;
-  --popo-9: #ea7f67;
-  --popo-10: #e27861;
+  --popo-9: #e0765e;
+  --popo-10: #d86f58;
   --popo-11: #733022;
   --popo-12: #44241c;
-  --popo-pressed: #db735c;
+  --popo-pressed: #d16a53;
   --popo-link: #841a00;
   --popo-icon: #e0765e;
   --dori-1: #fafcff;
