@@ -22,6 +22,7 @@
 - **D2(사용자 결정)**: Codex profile에서는 승인된 escalated 명령도 네트워크가 없어 `doan` 앱 명령이 앱에 닿지 못했다. Codex는 `network.enabled=true`일 때만 unix socket을 연다. 결정: 두 Doan Codex profile에 `network={enabled=true, unix_sockets={<Doan socket 디렉터리>=allow}}`를 넣는다. 대가: Codex Ask first·Plan·Accept edits의 sandbox 안 명령도 승인 없이 네트워크를 얻는다. 이것을 Known limit에 적고, T7에서 PRODUCT §3 문장을 맞춘다.
 - **agent가 심은 저장소 설정(사용자 결정)**: Full access Claude가 저장소 `.claude/` 설정에 sandbox 켜기와 hook을 심으면 다음 턴은 바깥 fence 없이 뜬다. 결정: 이 경우도 저장소 hook의 Known limit에 넣는다. 그 문장은 저장소 `.claude/` 아래 settings·skills·agents·plugin, `.mcp.json`, `enableAllProjectMcpServers`까지 넓힌다.
 - 재리뷰 🔴1(profile의 `skills/`·`agents/`·`plugins/`에 hook을 심는 경로): 바깥 fence와 Claude flag 설정에서 이 디렉터리들에 쓰지 못하게 막는다 — conductor 판단, 근거: 사용자가 정한 '🔴1을 고친다'를 지키는 가장 작은 변경이다. D1의 profile 쓰기는 나머지 경로에 남는다.
+- sandbox 켜진 Claude 턴의 `doan` 앱 명령: Claude 자신의 sandbox가 앱 socket을 막고, flag의 `allowUnsandboxedCommands:false`가 sandbox 밖에서 실행을 승인하던 길까지 없앴다. 그래서 flag 설정에서 Claude sandbox의 unix socket 허용에 Doan socket 디렉터리만 더한다 — conductor 판단, 근거: Codex 결정 A와 같다(Doan 자신의 0700 socket 디렉터리만 열고, 일반 네트워크는 열지 않는다).
 
 ## batch
 
@@ -52,3 +53,4 @@ batch는 모두 직렬이다. T0와 T1은 둘 다 실제 Antigravity와 `~/.gemi
 - W5 리뷰(`ppi-w5-review/.scratch/review-W5.md`): 🔴1, 🟡4, ⚪6. 정책 문장, fail closed 경로 검사, Codex 재시작과 resume, 링크 1 경로, legacy와 목록 읽기 run은 문제 없다고 봤다.
 - W3 fix round 2: 🔴1, D2, 🟡1–4, ⚪1·3·5·6. W4와 W5는 재확인과 재리뷰를 위해 retain했다.
 - W3 fix round 2: `8f410ed7..e86d22db`를 `ec84d25a`까지 통합했다. W5 재리뷰(`review-W5-2.md`)는 🟡1·🟡3·🟡4와 ⚪1–3·⚪6이 해결됐다고 봤다. 남은 것: 🔴1(profile의 skills/agents/plugins), 🟡(`index.ts`가 `reusing`을 넘기지 않음, Known limit 문장이 좁음), ⚪ 3개. W3 fix round 3로 보냈다. W4는 fix round 2 트리를 재확인하는 중이다.
+- W4 재확인 2(fix round 2 트리): Codex Ask first는 `doan handoff`가 승인 한 번으로 앱에 닿는다. 그래서 T7에서 PRODUCT §3의 "두 번 승인" 문장을 고친다. Accept edits·Plan에서는 미끼가 막히고, 앱에 닿고, 네트워크가 있다. settings 파일 쓰기 금지는 모든 방식에서 동작한다. 회귀는 통과했다. 미검증: MCP connector, Copilot 미끼 스크립트(모델이 두 번 거절). 새 문제: sandbox 켜진 Claude 턴에서 `doan` 앱 명령이 앱에 닿지 못한다 → fix round 3에 더했다.
