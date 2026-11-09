@@ -65,39 +65,39 @@ app/src/renderer/public/buddies/<id>/   앱 사본
 - 수치: 눈 중심 2개와 반지름(`.421,.550`·`.619,.550`·`.035,.056`), 몸통 pivot(`.5,.60`), 소품 pivot(`.67,.30`), scale `1.34`, 중립 오프셋 `.10`, 폴백 padding `16.5%`, 소품 기울기 범위(`BERET_TILT`), 홉 높이 배율(`LIFT_SCALE`).
 - Doany의 수치는 지금 값 그대로 둔다. `doany.golden.json` 비교와 rest 프레임 일치가 깨지면 안 된다. uniform으로 바꾸면 WebGL 호출 trace가 달라지므로, golden은 셰이더 출력과 rest 프레임 기준으로 다시 확인하고, 바뀐 trace는 커밋 메시지에 기록한다.
 - 친구의 소품 기울기 범위와 홉 headroom은 `doanyRender.test.ts`와 같은 방식으로 정한다. 모든 누름 순서에서 캔버스 가장자리와 1.4 device px 이상 떨어져야 한다.
-- 컴포넌트 이름 `Doany`는 `Buddy`으로 바꾸고 `buddy` prop을 받는다. 접근성 이름은 "Make <이름> hop"이다.
+- 컴포넌트 이름 `Doany`는 `Buddy`로 바꾸고 `buddy` prop을 받는다. 접근성 이름은 "Make <이름> hop"이다.
 
 ## accent 동적 변경
 
 토큰 3층(palette → role → legacy, DESIGN.md 'Three colour layers')은 유지하고, palette와 role 사이에 전환층 하나를 둔다.
 
-- **palette**: `--violet-*` 옆에 친구 램프 4개(`--saemi-*`, `--dungdung-*`, `--popo-*`, `--dori-*`)가 있다(`tokens.css`, `/design-draft`에서 추가). sky·amber·green은 이미 다른 palette 색 이름이라 버디 이름을 쓴다. 각각 1–12단계, pressed, link, icon 값이다. 만드는 방법은 아래 '초안 요청'의 `buddy-accent` 항목과 `tokens.css` 주석에 있다. violet 방법(9단계 대비 채도 비율)을 그대로 쓰면 친구의 밝은 단계가 회색이 되어서 다르게 정했다.
+- **palette**: `--violet-*` 옆에 친구 램프 4개(`--saemi-*`, `--dungdung-*`, `--popo-*`, `--dori-*`)가 있다(`tokens.css`, `/design-draft`에서 추가). sky·amber·green은 이미 다른 palette 색 이름이라 버디 이름을 쓴다. 각각 1–12단계, pressed, link, icon 값이다. 만드는 방법은 `tokens.css` 주석과 `buddy-accent` 캔버스 머리말에 있다. Saemi는 hue를 168로, Popo는 42로 옮겨 성공 초록·오류 빨강과 구분했다. Dungdung은 1–6단계 채도를 violet의 2.2배(7–8단계 1.6배)로 올려 밝은 단계가 크림이 아니라 노랑으로 보이게 했다.
 - **전환층**: `--accent-1`…`--accent-12`, `--accent-pressed`, `--accent-link`, `--accent-icon`. `:root`는 violet을 가리키고, `:root[data-buddy="saemi"]` 등이 각 램프로 덮어쓴다. role(`--affordance-accent`, `--surface-accent-subtle`, `--text-accent-subtle`, `--surface-comment` 등)은 `--violet-*` 대신 `--accent-*`를 읽는다. Welcome은 항상 Doany와 violet이라, `.ob-welcome`에서 accent role을 violet으로 되돌린다. `.ob-atmosphere::before`의 `--violet-5`는 그대로 둔다.
-- **아이콘 색**: 새 role `--text-accent`(= `--accent-icon`)를 둔다. 흰 패널 위 accent 아이콘, 점, 외곽선이 이 role을 읽는다. 대상은 Fast 아이콘, 추천 프롬프트 아이콘과 화살표, 사이드바 permission·unseen 점, Show conversation 점, 프리셋 아이콘, 드롭 외곽선이다. `--accent-icon`은 램프 단계가 아니라 버디별 `--<id>-icon` 값이다. 9단계의 OKLCH 명도를 흰 바탕 대비 3:1이 될 때까지 낮춘 색이다. violet은 9단계 그대로다.
-- **Send**: 아이콘과 스피너는 흰색이 9·hover·pressed 모두에서 3:1을 넘으면 흰색을 쓴다(Doany 5.21:1 이상, Popo 3.03:1 이상, Dori 3.20:1 이상). Popo는 흰 아이콘을 쓰려고 9단계를 아이콘 색까지 어둡게 했다. 넘지 못하면 중립 잉크 `--text-standard`를 쓴다(Saemi, Dungdung). `--text-on-accent`는 전환층에서 버디마다 정한다.
+- **아이콘 색**: 새 role `--text-accent`(= `--accent-icon`)를 둔다. accent 아이콘, 점, 외곽선이 이 role을 읽는다. 대상은 Fast 아이콘, 추천 프롬프트 아이콘과 화살표, 사이드바 permission·unseen 점, Show conversation 점, 프리셋 아이콘, 드롭 외곽선이다. `--accent-icon`은 버디별 `--<id>-icon` 값이다. 9단계를 OKLCH 명도로 어둡게 해서, 이 색이 놓이는 가장 어두운 면인 눌린 사이드바 행(`--bg-app` 위 `--affordance-backdrop-pressed`, #d9d9da)에서 3:1이 되게 한 색이다. violet은 9단계 그대로이고 그 면에서 3.70:1이다.
+- **Send**: 아이콘과 스피너는 흰색이 9·hover·pressed 모두에서 3:1을 넘으면 흰색을 쓴다(Doany 5.21:1 이상, Popo 3.02:1 이상, Dori 3.20:1 이상). Popo는 흰 아이콘을 쓰려고 9단계를 흰색 3:1까지 어둡게 했다. 넘지 못하면 중립 잉크 `--text-standard`를 쓴다(Saemi 2.32:1, Dungdung 2.05:1). `--text-on-accent`는 전환층에서 버디마다 정한다.
 - **적용**: renderer가 `<html data-buddy="<id>">`를 설정한다. Doany는 속성이 없다. `@theme inline`이 accent를 shadcn 이름에 연결하지 않는다는 규칙(ARCHITECTURE §'ds')은 violet에서 accent 전체로 넓힌다.
-- **검사**: `ds/checks.ts`의 violet 추적(`violetNames`, `accentPlaces`)을 `--accent-*`와 모든 버디 palette로 넓힌다. `contrastPairs`는 램프마다 칩 글자(3 위 11단계, 4.5:1), 아이콘 색(패널 위 3:1), Send 아이콘(9·hover·pressed 위 그 버디의 잉크, 3:1)을 검사한다.
+- **검사**: `ds/checks.ts`의 violet 추적(`violetNames`, `accentPlaces`)을 `--accent-*`와 모든 버디 palette로 넓힌다. `contrastPairs`는 램프마다 칩 글자(3 위 11단계, 4.5:1), 아이콘 색(눌린 사이드바 행 위 3:1), Send 아이콘(9·hover·pressed 위 그 버디의 잉크, 3:1)을 검사한다.
 - 캔버스 초안은 `tokens.css`를 직접 링크하고 `data-buddy`이 없으므로 지금처럼 violet이다.
 
 ## 설정과 첫 페인트
 
 - `preferences.json`에 `buddy` 필드를 추가한다. 키가 없으면 `doany`다. `v`는 1을 유지한다. 알 수 없는 id(더 새로운 빌드가 저장한 값)는 그 필드만 `doany`로 읽는다. 원래 규칙은 '값이 틀린 필드 하나가 파일 전체를 broken으로 만든다'이지만, `permissionMode`와 같은 예외로 둔다. 쓰기 요청(`PreferencesPatch`)은 알려진 id만 받는다.
 - 이전 빌드는 이 필드를 모르므로, 그 빌드가 다음에 쓸 때 필드가 사라질 수 있다. 다운그레이드에서만 생기는 일이라 받아들인다.
-- 첫 페인트: main은 시작할 때 preferences를 동기적으로 읽는다(ARCHITECTURE §7 'Preferences'). 창을 만들 때 버디 id를 렌더러에 넘기고, 렌더러는 React를 마운트하기 전에 `data-buddy`을 설정한다. 넘기는 방법은 preload `additionalArguments`를 권한다. 확정은 `/tdd`에서 한다.
-- 설정을 바꿀 때: Home과 Settings는 렌더러 하나를 공유하므로(변경 이벤트 없음, ARCHITECTURE §7 'Preferences'), 저장 응답의 스냅샷으로 `data-buddy`과 버디 상태를 바로 갱신한다. 저장에 실패하면 응답 스냅샷(마지막 저장값)으로 되돌린다.
+- 첫 페인트: main은 시작할 때 preferences를 동기적으로 읽는다(ARCHITECTURE §7 'Preferences'). 창을 만들 때 버디 id를 렌더러에 넘기고, 렌더러는 React를 마운트하기 전에 `data-buddy`를 설정한다. 넘기는 방법은 preload `additionalArguments`를 권한다. 확정은 `/tdd`에서 한다.
+- 설정을 바꿀 때: Home과 Settings는 렌더러 하나를 공유하므로(변경 이벤트 없음, ARCHITECTURE §7 'Preferences'), 저장 응답의 스냅샷으로 `data-buddy`와 버디 상태를 바로 갱신한다. 저장에 실패하면 응답 스냅샷(마지막 저장값)으로 되돌린다.
 
 ## 첫 실행 Buddy 단계
 
-- `Scene`에 `"buddy"`을 추가한다. Welcome의 Get started는 Buddy으로 간다. Buddy의 Continue는 Agent로 간다. 스텝퍼는 3단계다(Buddy · Agent · Project). 완료한 단계는 체크 표시가 붙고 다시 돌아갈 수 있다.
-- 고르면 즉시 저장하고 accent도 즉시 바뀐다. Continue는 항상 누를 수 있다(Doany가 기본값이다).
+- `Scene`에 `"buddy"`를 추가한다. Welcome의 Get started는 Buddy로 간다. Buddy의 Continue는 Agent로 간다. 스텝퍼는 3단계다(Buddy · Agent · Project). 완료한 단계는 체크 표시가 붙고 다시 돌아갈 수 있다.
+- 고르면 즉시 저장하고 accent도 즉시 바뀐다. Continue는 항상 누를 수 있다(Doany가 기본값이다). 저장에 실패하면 줄이 저장된 버디로 돌아가고, 줄 아래에 "Couldn’t switch to <고른 버디>. <저장된 버디> is still your buddy."와 Retry가 나온다. Retry는 고른 버디를 다시 저장한다. Continue는 저장된 버디로 진행한다.
 - 첫 실행을 다시 시작하면 Welcome부터 시작한다. Welcome은 버디를 고르기 전 화면이라 저장된 버디와 상관없이 Doany와 violet을 보여준다.
-- 선택지 UI는 Cover Flow 형태의 가로 한 줄이다. 카드 5장마다 그림, 이름, 성격 한 줄이 함께 있다. 고른 카드가 가운데에서 정면을 보고, 나머지는 양옆에서 가운데를 향해 기울어진 채 뒤로 겹친다. 설정 General은 같은 내용을 세로로 쌓은 행으로 보여준다. 키보드로는 라디오 그룹처럼 동작한다. 치수는 캔버스 머리말에 있다.
+- 선택지 UI는 순환 Cover Flow 한 줄이다. 카드 5장마다 그림, 이름, 성격 한 줄이 함께 있다. 고른 카드가 가운데에서 정면을 보고, 양옆에 항상 두 장씩(순서가 끝에서 처음으로 이어짐) 가운데를 향해 기울어진 채 뒤로 겹친다. 그래서 처음부터 다섯이 모두 보인다. 넘기는 입력(카드 클릭, ←/→, 트랙패드 가로 스와이프)은 모두 하나의 select를 거친다. select는 라디오를 체크하고, 저장하고, 줄을 옮긴다. 방향키와 스와이프 모두 끝에서 처음으로 넘어간다. 라디오의 이름은 버디 이름, 설명은 성격 한 줄이다(`aria-labelledby`, `aria-describedby`). 설정 General은 같은 내용을 세로로 쌓은 행으로 보여준다. 치수는 캔버스 머리말에 있다.
 - 포커스와 모달: 이 단계도 기존 wizard `<dialog>` 안에 있다. POSTMORTEM 2026-10-24('The onboarding wizard lost keys and clicks to focus and modal stacking')를 따른다. 키는 window에서 처리하고, 컨트롤이 비활성화될 때 포커스가 `<body>`로 빠진다고 가정한다. 이 단계에는 비동기 작업이 저장 하나뿐이다. 저장 중에도 선택지를 비활성화하지 않고 마지막 선택을 저장한다.
 
 ## 설정 General 카테고리
 
 - `SettingsSection`에 `"general"`을 추가한다. 순서는 General, Agents, MCP Connectors, Notifications, About이다. 설정을 처음 열 때 보여주는 카테고리는 지금처럼 Agents다(PRODUCT §5 item 0 'Settings page').
-- General에는 지금 Buddy 그룹 하나만 있다. 내용은 첫 실행과 같은 선택 카드 컴포넌트다. 저장에 실패하면 Notifications와 같은 방식으로 알린다.
+- General에는 지금 Buddy 그룹 하나만 있다. 내용은 버디마다 preference row 하나를 세로로 쌓은 것이다. 저장에 실패하면 그룹 위(설정 공용 notice 자리)에 첫 실행과 같은 문구와 Retry가 나오고, 라디오는 저장된 버디로 돌아간다.
 
 ## 작업 안내
 
@@ -154,16 +154,16 @@ app/src/renderer/public/buddies/<id>/   앱 사본
 
 | frame | 내용 |
 |---|---|
-| `ramps` | 다섯 램프의 1–12단계, pressed, link, 아이콘 색. 9단계는 몸통 색과 나란히 둔다 |
-| `contrast` | 램프마다 칩 글자(3 위 11, 4.5:1), 패널 위 아이콘 색(3:1), 9 위 검정 Send 아이콘(3:1)의 대비를 계산해 보여준다 |
-| `places` | 램프마다 Accent places 견본: Send, 프리셋 칩, 추천 프롬프트 한 줄, 사이드바 점, Home composer 글로우, 캔버스 작업 글로우 |
+| `ramps` | 다섯 램프의 1–12단계, pressed, link, 아이콘 색과 몸통 견본 |
+| `contrast` | 램프마다 칩 글자(3 위 11, 4.5:1), 눌린 사이드바 행 위 아이콘 색(3:1), 9·hover·pressed 위 Send 잉크(3:1), 9 위 흰색의 대비를 계산해 보여준다 |
+| `places` | 램프마다 Accent places 견본: Send 세 상태, 프리셋 칩과 성공·오류 칩, 추천 프롬프트 한 줄, 사이드바 점(hover 행), Home composer 글로우, 캔버스 작업 글로우, jump highlight, 드롭 외곽선 |
 
 - 램프 값은 `tokens.css` palette(`--saemi-*`, `--dungdung-*`, `--popo-*`, `--dori-*`)에 있고, 캔버스는 전환층을 흉내 내서 프레임 안에서 role을 덮어쓴다.
 - 친구 램프를 만드는 방법은 violet과 다르다. violet 방법(9단계 대비 채도 비율)을 그대로 쓰면, 채도가 낮은 친구의 1–8단계는 거의 회색이 된다. 그래서 1–8·11·12단계는 violet의 OKLCH 명도와 절대 채도를 쓴다(친구 9단계 채도의 1.2배 이하). 9단계는 Doany 몸통 색이 violet 9가 될 때와 같은 이동을 친구 몸통 색에 적용한다. 아이콘 색은 9단계를 흰 바탕 대비 3:1이 될 때까지 어둡게 한 값이다.
 
 ### `.doan/canvases/buddy-home.html` (id `buddy-home`, width 2560)
 
-버디마다 Home 빈 composer 프레임 하나(`home-doany`, `home-saemi`, `home-dungdung`, `home-popo`, `home-dori`). 버디 그림과 accent(composer 글로우, 추천 프롬프트, 사이드바 unseen 점)만 바뀐다. Doany는 출시된 정지 이미지를 쓰고, 친구는 투명 정지 이미지가 나오기 전까지 카드 그림을 multiply로 대신 쓴다.
+버디마다 Home 프레임 하나(`home-doany`, `home-saemi`, `home-dungdung`, `home-popo`, `home-dori`). 요청을 입력하고 프리셋을 고른 상태라 Send가 활성화돼 있다. 버디 그림과 accent(composer 글로우, 프리셋 칩, Send, 사이드바 unseen 점)만 바뀐다. 입력 중에는 추천 프롬프트가 숨는다(출시된 동작). Doany는 출시된 정지 이미지를 쓰고, 친구는 투명 정지 이미지가 나오기 전까지 카드 그림을 multiply로 대신 쓴다.
 
 ### `.doan/canvases/buddy-choice.html` (id `buddy-choice`, width 2560)
 
@@ -171,11 +171,12 @@ app/src/renderer/public/buddies/<id>/   앱 사본
 |---|---|
 | `buddy-step` | 첫 실행 Buddy 단계, 처음 상태(Doany 선택) |
 | `buddy-step-picked` | 같은 단계에서 Dungdung을 고른 상태(accent가 따라 바뀜) |
+| `buddy-step-failed` | Popo를 골랐다가 저장에 실패한 상태(Doany 유지, notice와 Retry) |
 | `settings-general` | 설정 General, Popo 선택 |
-| `settings-general-failed` | General, 저장 실패 메시지와 Retry |
+| `settings-general-failed` | General, Popo 저장 실패(Dori 유지), 그룹 위 notice와 Retry |
 | `notice` | 캔버스 작업 안내, 다섯 버디의 화가 GIF와 각 accent 글로우 |
 
 - 선택 카드: Cover Flow 한 줄이다(반사 없음). 카드(244px, 위아래 패딩 20px, 좌우 24px)마다 `card.png`(196px), 이름(semibold), 성격 한 줄(caption, 진한 글씨 `--text-standard`)이 있고 라디오 역할을 한다. 고른 카드는 가운데에서 정면을 보고, accent 아이콘 색 테두리 2px와 Home composer 글로우를 가진다(새 Accent place). 나머지는 50° 기울어 84% 크기로 양옆에 겹친다. 넘기는 입력은 세 가지다. 옆 카드를 클릭하거나, 그룹에 포커스가 있을 때 ←/→를 누르거나, 트랙패드를 두 손가락으로 가로 스와이프한다. 스와이프는 한 번에 한 칸만 넘긴다. 어느 입력이든 도착한 카드를 고르고 저장한다. 이전/다음 버튼은 두지 않는다. 옆 카드가 그 역할을 하고, hover하면 그림자가 짙어진다. 고르면 `--time-settle`·`--ease-enter`로 가운데로 이동하고, reduced motion에서는 바로 바뀐다. 설정 General은 정적이다. 버디마다 preference row 하나를 세로로 쌓는다. 행마다 `card.png`(48px, 글자와 12px 간격), 이름, 성격 한 줄(다른 설정 행과 같은 글자 스타일), 첫 실행의 라디오가 있다. 골라도 움직이지 않고 accent 테두리도 없다.
 - 문구(Doan clarify preset 적용): 제목 "Choose your buddy", 설명 "It keeps you company in Doan and sets the app’s accent color. You can change it anytime in Settings." 설정 General의 설명 "Choices that apply across Doan on this Mac.", Buddy 그룹 설명 "Shown on Home and while an agent works. It also sets the accent color.", 저장 실패 "Couldn’t save your buddy. Your last saved buddy still applies."
-- 성격 한 줄(영어): Doany "A painter in a beret who turns your ideas into pictures."(시안에 없어서 새로 썼다. 확인 필요), Saemi "A curious walking companion. When it finds something fun, it always takes you to see it.", Dungdung "A music-loving mood maker. It picks songs that fit how its friends feel.", Popo "A whimsical bookworm. It dreams up new games with you.", Dori "A quiet, caring friend. On tiring days, you can lean on it and rest."
+- 성격 한 줄(영어, 196px 카드에서 두 줄 이내, 모두 성격을 말함): Doany "A painter in a beret who loves turning ideas into pictures."(시안에 없어서 새로 썼다. 확인 필요), Saemi "A curious walking companion who shares every fun find.", Dungdung "A music-loving mood maker who keeps things upbeat.", Popo "A whimsical bookworm who dreams up new games.", Dori "A quiet, caring friend to lean on when you’re tired."
 - Home 슬롯은 Doany와 같은 자리에 그림만 바뀌므로 따로 그리지 않는다.
