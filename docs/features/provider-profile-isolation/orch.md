@@ -16,6 +16,9 @@
 - **Claude(사용자 결정)**: 턴마다 나눈다. 턴 시작 전에 SDK `resolveSettings`로 Claude sandbox 상태를 읽어, 꺼져 있으면 바깥 fence, 켜져 있으면 flag tier 설정(`sandbox.filesystem` deny와 allow, `allowUnsandboxedCommands:false`)을 쓴다. 판정이 틀려 켜진 것을 꺼짐으로 보면 Bash가 보이는 실패로 끝난다.
 - **Codex(사용자 결정)**: 모드로 나눈다. Full access가 아니면 Doan profile의 Codex permission profile deny를 쓰고, Full access면 바깥 fence로 감싼 app-server를 쓴다. 두 쪽을 오갈 때 app-server를 다시 띄우고 `thread/resume`한다. 사람이 승인한 `apply_patch`가 deny 경로에 쓸 수 있는 틈과 experimental API 의존은 Known limits에 적는다.
 - Cursor는 P2에서 도구 호출을 보지 못했다(모든 턴이 "Upgrade your plan"). T5에서 다시 시도하고, 그래도 안 되면 미검증으로 남긴다.
+- **리뷰 🔴1(사용자 결정)**: 고친다. 바깥 fence가 없는 방식(sandbox 켜진 Claude, Full access가 아닌 Codex)에서는 hook·MCP 같은 보조 프로세스가 sandbox 밖에서 돈다. 그래서 agent가 자기 profile의 provider 설정 파일에 쓰지 못하게 모든 방식에서 막는다.
+- **sandbox 켜진 Claude 턴의 저장소 hook·`.mcp.json` 서버(사용자 결정)**: Known limit에 적는다. 중첩 Seatbelt가 거절되므로 Doan이 감쌀 수 없다.
+- 리뷰 🟡1–🟡4와 ⚪1·⚪3·⚪6은 리뷰 제안대로 고친다. ⚪5(Codex profile 방식에서 userData 항목 이름이 보임)는 Known limit에 적는다 — conductor 판단, 근거: 결정 A·D의 범위 안이고 내용은 막힌다.
 
 ## batch
 
@@ -42,3 +45,6 @@ batch는 모두 직렬이다. T0와 T1은 둘 다 실제 Antigravity와 `~/.gemi
 - W4(T5): `ppi-w4-runtime`에서 시작했다.
 - W4(T5): 결함 둘. D1(중간): Claude sandbox 켜짐 턴에서 `denyWrite=<userData>`가 `allowWrite=<profile>`을 이겨 Bash가 자기 profile에 쓰지 못한다. D2(높음): Codex Ask first에서 승인된 escalated 명령이 profile의 `deny`만 받고 다시 연 경로를 잃어 `doan handoff`가 "Cannot read the Doan runtime file"로 실패한다. 나머지 항목은 통과했다. 미검증: 공백이 든 실제 userData 경로의 Claude(사용자 결정으로 공유 userData를 직접 썼다), Claude 다음 메시지 제안, MCP connector(OAuth 필요), Cursor 도구 호출, Codex Plan, Codex·Antigravity Stop, 실제 HOME의 Antigravity 브라우저 로그인(T0 근거로 대신한다). fence와 무관한 관찰 O1–O3은 PR 본문에 적는다. D1·D2 수정은 W3에 fix round 1로 보냈다. W4는 재확인을 위해 retain했다.
 - W3 fix round 1: `5d2b68ac..a7b78b24`로 통합했다. Claude sandbox 켜짐 턴과 Codex permission profile이 userData 전체 대신 허용 경로로 가는 길 밖의 나열한 항목만 deny한다. 새 Known limit(design §3.1): Codex server가 뜬 뒤 생긴 항목은 그 server가 살아 있는 동안 deny에 없다, 승인된 Codex escalated 명령은 `runtime.json` 등 deny 밖 userData에 쓸 수 있다, Claude agent가 자기 profile 설정의 `allowWrite`를 넓히면 다음 턴에 새 userData 항목을 만들 수 있다. W4 재확인과 W5 독립 리뷰(Opus high, `ppi-w5-review`)를 함께 시작했다(코드를 바꾸지 않는 두 작업이라 병렬).
+- W4 재확인: D1은 고쳐졌다. D2는 남았다. escalated 명령이 `runtime.json`은 읽지만 permission profile 아래에서 unix socket 연결이 EPERM이라 "Cannot connect to Doan"으로 끝난다. Claude sandbox 꺼짐과 Codex Full access 회귀는 통과했다.
+- W5 리뷰(`ppi-w5-review/.scratch/review-W5.md`): 🔴1, 🟡4, ⚪6. 정책 문장, fail closed 경로 검사, Codex 재시작과 resume, 링크 1 경로, legacy와 목록 읽기 run은 문제 없다고 봤다.
+- W3 fix round 2: 🔴1, D2, 🟡1–4, ⚪1·3·5·6. W4와 W5는 재확인과 재리뷰를 위해 retain했다.
