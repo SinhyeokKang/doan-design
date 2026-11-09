@@ -56,7 +56,7 @@ PoC와 측정 작업(P0, T0, T1, T5의 측정)은 AGENTS.md 'Commands'에 없는
 
 ## T3. 순수 함수
 
-- design §4의 함수 전부: `fencePolicy`, `fenceArgs`, `resolveFencePaths`, `fencedCommand`, `claudeSandboxEnabled`, `claudeDenyRules`, `claudeFenceSettings`, `codexProfileArgs`, `codexTurnPermission`, `codexMechanism`·`codexRestart`, `Prepared.fence`를 채우는 규칙, fail closed의 분류. Antigravity 환경은 바꾸지 않는다(§3.2 경로 1).
+- design §4의 함수 전부: `fencePolicy`, `fenceArgs`, `resolveFencePaths`, `fencedCommand`, `claudeSandboxEnabled`, `fenceListingDirs`·`fenceDenied`, `claudeDenyRules`, `claudeFenceSettings`, `codexProfileArgs`, `codexTurnPermission`, `codexMechanism`·`codexRestart`, `Prepared.fence`를 채우는 규칙, fail closed의 분류. Antigravity 환경은 바꾸지 않는다(§3.2 경로 1).
 - 테스트: design §4의 사례 전부. 정책 스냅숏은 design.md §8 P2에 적은 통과 정책 문장과 바이트까지 같아야 한다. Claude 설정과 Codex `-c` 인수는 §8 P2 (c)에서 통과한 모양과 같아야 한다.
 - 검증: `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run lint` 통과.
 - **commit 경계**: `test:` commit(테스트), 그 다음 `feat(app): fence policy for Doan-connection runs`
@@ -65,8 +65,8 @@ PoC와 측정 작업(P0, T0, T1, T5의 측정)은 AGENTS.md 'Commands'에 없는
 
 - `conversation/prepare.ts`가 `use === "run"`일 때만 `Prepared.fence`를 채운다. main이 `realpath`로 푼 userData, profile, 이번 턴의 붙여넣은 이미지 디렉터리를 넣는다. 경로를 풀 수 없으면 lease를 놓고 `unknown`으로 거절한다. Codex는 `<userData>/attachments`가 없으면 만든다(0700).
 - ACP 서버(`acpRunner.ts`): `Prepared.fence`가 있으면 네 모드 모두 `fencedCommand`로 띄운다.
-- Claude(`runners.ts` `openClaude`): `Prepared.fence`가 있으면 띄우기 전에 sandbox 상태를 읽는다. 꺼짐이면 `spawnClaudeCodeProcess`를 `fencedCommand`로 감싸고, 켜짐이면 userData를 나열해 `claudeDenyRules`를 만들고 SDK `settings`에 `claudeFenceSettings`를 합친다. 나열하지 못하면 띄우지 않고 `unknown`이다.
-- Codex(`runners.ts` `openCodex`): `Prepared.fence`가 있으면 Full access server는 `fencedCommand`로, 다른 모드 server는 `codexProfileArgs`를 더해 띄운다. 턴 인수는 `codexTurnPermission`이다. `service.ts` `submit`은 살아 있는 server의 방법과 이번 send의 방법이 다르면(`codexRestart`) 그 server를 닫고 새 server로 `thread/resume`한다.
+- Claude(`runners.ts` `openClaude`): `Prepared.fence`가 있으면 띄우기 전에 sandbox 상태를 읽는다. 꺼짐이면 `spawnClaudeCodeProcess`를 `fencedCommand`로 감싸고, 켜짐이면 prepare가 userData를 나열해 금지 항목을 넘기고, runner가 SDK `settings`에 `claudeFenceSettings`를 합친다. 나열하지 못하면 띄우지 않고 `unknown`이다.
+- Codex(`runners.ts` `openCodex`): `Prepared.fence`가 있으면 Full access server는 `fencedCommand`로, 다른 모드 server는 prepare가 나열한 금지 항목으로 `codexProfileArgs`를 더해 띄운다. 금지 항목이 없으면 띄우지 않고 `unknown`이다. 턴 인수는 `codexTurnPermission`이다. `service.ts` `submit`은 살아 있는 server의 방법과 이번 send의 방법이 다르면(`codexRestart`) 그 server를 닫고 새 server로 `thread/resume`한다.
 - 모델 목록과 legacy external run은 그대로다.
 - fail closed: 띄우기 전 거절은 `unknown`, `sandbox-exec`가 없거나 바로 끝나면 `process_exited`. `cli_missing`은 쓰지 않는다(결정 Q5).
 - 링크 1이 넣은 `account_changed`·`sign_in_changed` 판정(`prepare.ts`)과 `releaseFailed`·`TransportState.running`(`service.ts`·`runners.ts`)은 그대로 둔다.
@@ -117,7 +117,7 @@ PoC와 측정 작업(P0, T0, T1, T5의 측정)은 AGENTS.md 'Commands'에 없는
     - userData를 지워도 Claude·Codex Keychain 항목이 남는다. MCP connector token과 `doan Safe Storage`도 확인한 결과대로 같은 줄에 적는다.
     - 답하지 않은 `stop_required` 확인은 종료로 취소되고 연결이 남는다(결정 Q4).
     - Claude: Doan이 읽지 않는 managed 출처가 sandbox를 바꾸면 판정이 틀린다(켜짐을 꺼짐으로 읽으면 Bash가 71로 실패, 반대면 `permissions.deny`만 남는다). sandbox가 켜진 턴은 sandbox 밖 실행이 꺼지고, 턴 도중 새로 생긴 userData 항목은 Read·Edit 도구의 금지 목록에 없다(Bash는 막힌다).
-    - Codex: 사람이 승인한 `apply_patch`는 막힌 경로에 쓴다. permission profile은 experimental API다. Ask first의 sandbox는 Doan의 읽기 전용 profile이고, Doan의 Codex profile `config.toml`에 사람이 적은 `sandbox_mode`나 `default_permissions`는 쓰이지 않는다.
+    - Codex: 금지 항목은 server를 띄울 때 나열하므로 그 뒤에 생긴 userData 항목은 그 server가 끝날 때까지 막히지 않는다. 사람이 승인한 escalated 명령은 금지 항목 밖의 userData(`runtime.json` 포함)에 쓸 수 있다. 승인된 `apply_patch`가 금지 경로에 쓰는지는 T5 재확인 결과대로 적는다. permission profile은 experimental API다. Ask first의 sandbox는 Doan의 읽기 전용 profile이고, Doan의 Codex profile `config.toml`에 사람이 적은 `sandbox_mode`나 `default_permissions`는 쓰이지 않는다.
     - Antigravity: 한 턴 기준으로 실제 home과 Keychain에 쓰지 않았다(language server의 `go-keyring`·`os/user.Current` 용도는 정적으로 배제하지 못했다).
     - Antigravity harness의 도구 명령은 자기 process group에 있어 Stop 뒤에도 남는다(fence와 무관한 기존 동작, BACKLOG로 옮길 수도 있다).
 - `docs/PRODUCT.md`(영어, 결정 D):

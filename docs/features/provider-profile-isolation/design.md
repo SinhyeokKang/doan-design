@@ -66,27 +66,33 @@ P0에서 이미 Seatbelt 안에 있는 프로세스는 규칙이 있는 두 번�
 - 턴을 띄우기 전에 이번 run의 `sandbox.enabled`를 읽는다. Claude는 턴마다 새 프로세스이므로 판단도 턴마다 한다.
 - 읽는 방법: Doan이 SDK `resolveSettings`(alpha)와 같은 출처를 같은 우선순위로 직접 읽는다. 출처는 profile의 `settings.json`(user), 프로젝트의 `.claude/settings.json`(project)과 `.claude/settings.local.json`(local), 그리고 `/Library/Application Support/ClaudeCode/managed-settings.json`과 그 옆 `managed-settings.d/*.json`(managed, 파일 이름 순서로 뒤의 것이 이긴다)이다. 우선순위는 managed > local > project > user다. MDM plist와 서버가 내려 준 managed 설정은 읽지 않는다. SDK 함수를 main에서 부르지 않는 이유: user 출처를 `process.env.CLAUDE_CONFIG_DIR`로만 찾는데(0.3.312 소스), main의 `process.env`는 legacy external 준비와 다른 spawn이 함께 읽는 값이라 바꿔 둘 수 없다.
 - 꺼짐 → 바깥 fence. 켜짐 → SDK `settings`(flag tier, `--settings`)에 아래를 더한다. 기존 `claudeFastSettings`의 `fastMode`와 합친다.
-  - `permissions.deny`: 턴 시작 때 userData를 나열해 만든 `Read(…)`·`Edit(…)` 규칙. 허용 경로(자기 profile, `runtime.json`, 이번 턴의 첨부 디렉터리, browser-hook)와 그 조상(`<userData>`, `agent-auth`, `profiles`, `attachments`)을 뺀 항목만 적는다. 곧 조상 디렉터리마다 허용 경로로 가는 길이 아닌 형제 항목이다(다른 profile 디렉터리, `conversations/`, `agent-auth`의 vault와 metadata, 다른 첨부 id, 그 밖의 userData 파일). 디렉터리는 `//<path>/**`, 파일은 `//<path>`로 적는다. `permissions.deny`는 `allow`를 이기므로 userData 전체를 한 줄로 막으면 Read 도구가 자기 profile과 이번 턴의 붙여넣은 이미지도 읽지 못한다(spec 완료 조건 3). Claude는 턴마다 새 프로세스라 턴마다 다시 나열한다.
-  - `sandbox.filesystem`: `denyRead`·`denyWrite`=`<userData>`, `allowRead`=profile·`runtime.json`·이번 턴의 첨부 디렉터리(Claude 바깥 fence와 같은 목록)·browser-hook, `allowWrite`=profile.
+  - **나열한 금지 항목**: 턴 시작 때 userData를 나열해 허용 경로(자기 profile, `runtime.json`, 이번 턴의 첨부 디렉터리, browser-hook)와 그 조상(`<userData>`, `agent-auth`, `profiles`, `attachments`)을 뺀 항목을 모은다. 곧 조상 디렉터리마다 허용 경로로 가는 길이 아닌 형제 항목이다(다른 profile 디렉터리, `conversations/`, `agent-auth`의 vault와 metadata, 다른 첨부 id, 그 밖의 userData 파일). Claude는 턴마다 새 프로세스라 턴마다 다시 나열한다. userData 전체를 한 줄로 막지 않는 이유: deny가 그 안의 allow를 이긴다. `permissions.deny`는 Read 도구에서 자기 profile과 붙여넣은 이미지를 가리고, `sandbox.filesystem.denyWrite`는 `allowWrite`=profile을 이겨 Bash가 자기 profile에 쓰지 못했다(T5 D1, 실제 sandbox 실행으로 확인).
+  - `permissions.deny`: 나열한 항목의 `Read(…)`·`Edit(…)`. 디렉터리는 `//<path>/**`, 파일은 `//<path>`로 적는다.
+  - `sandbox.filesystem`: `denyRead`=`<userData>`, `allowRead`=profile·`runtime.json`·이번 턴의 첨부 디렉터리·browser-hook(`allowRead`는 `denyRead` 안에서 다시 연다). `allowWrite`=profile. `denyWrite`=나열한 항목과 읽기만 여는 허용 경로(`runtime.json`, 첨부, browser-hook). sandbox 명령은 허용된 곳에만 쓰므로 userData의 나머지는 이미 쓸 수 없다. `denyWrite`는 agent가 자기 profile의 `settings.json`으로 다음 턴의 `allowWrite`를 넓혀도 그 항목들을 지킨다.
   - `sandbox.allowUnsandboxedCommands: false`. Full access의 `dangerouslyDisableSandbox`가 승인 없이 sandbox 밖에서 도는 틈을 막는다(§8 P2 (c)). 사람의 설정을 이 한 가지만큼 좁힌다.
 - 판정이 틀리는 경우:
   - 켜짐을 꺼짐으로 읽음(예: MDM이나 서버가 내려 준 managed 설정만 sandbox를 켬): 바깥 fence 안에서 모든 Bash가 71로 실패한다. 보이는 실패이고, 결정이 받아들였다.
   - 꺼짐을 켜짐으로 읽음(예: Doan이 읽지 않는 managed 출처가 sandbox를 끔): flag의 `permissions.deny`만 남아 `perl`처럼 파일을 직접 여는 프로그램은 막지 못한다. Known limits에 적는다.
-- 켜짐 쪽의 한계: 턴 도중 새로 생긴 userData 항목(예: 다른 대화가 만든 첨부, 새 staging profile)은 그 턴의 `permissions.deny`에 없어 Read·Edit 도구가 읽고 쓸 수 있다. Bash는 `sandbox.filesystem`이 OS 수준에서 그대로 막는다. Known limits에 적는다.
+- 켜짐 쪽의 한계(Known limits):
+  - 턴 도중 새로 생긴 userData 항목(예: 다른 대화가 만든 첨부, 새 staging profile)은 그 턴의 금지 목록에 없어 Read·Edit 도구가 읽고 쓸 수 있다. Bash 읽기는 `denyRead`=`<userData>`가 OS 수준에서 그대로 막는다.
+  - agent가 자기 profile의 `settings.json`으로 `allowWrite`를 넓히면 다음 턴의 Bash가 userData에 새 항목을 만들 수 있다. 나열한 항목과 읽기만 여는 경로는 `denyWrite`가 지킨다.
 
 **Codex: 권한 모드로 고른다**
 
 - Full access가 아닌 app-server: 바깥 fence 없이 띄우고, 인수에 `-c default_permissions="doan"`과 두 profile을 더한다.
   - `permissions.doan={extends=":read-only",filesystem=<항목>}`: Ask first와 Plan.
   - `permissions.doan-workspace={extends=":workspace",filesystem=<항목>}`: Accept edits.
-  - `<항목>`: `"<userData>"="deny"`, `"<profile>"="write"`, `"<userData>/runtime.json"="read"`, `"<userData>/attachments"="read"`. 경로는 TOML 기본 문자열(JSON 문자열 표기와 같은 escape)로 넣는다.
+  - `<항목>`: server를 띄울 때 나열한 금지 항목마다 `"<path>"="deny"`, 그리고 `"<profile>"="write"`, `"<userData>/runtime.json"="read"`, `"<userData>/attachments"="read"`. 금지 항목은 Claude와 같은 방식으로 모은다(허용 경로는 자기 profile, `runtime.json`, `attachments/` 전체이고 browser-hook은 금지 항목이다). 경로는 TOML 기본 문자열(JSON 문자열 표기와 같은 escape)로 넣는다.
+  - `"<userData>"="deny"` 한 줄을 쓰지 않는 이유: Codex는 사람이 승인한 escalated 명령에 profile의 `deny` 항목만 적용하고 그 아래의 `read`·`write` 항목은 적용하지 않는다(codex-cli 0.166.0, 가짜 API probe). 그래서 승인된 `doan handoff`가 `runtime.json`을 읽지 못했다(T5 D2). 나열한 항목만 막으면 sandbox 안과 승인된 escalated 명령 모두 `runtime.json`, 자기 profile, 첨부에 닿고 미끼는 막힌다(fix round 1 probe).
   - 턴마다 legacy `sandboxPolicy` 대신 `permissions: "<profile id>"`(experimental API)를 보낸다. 둘을 함께 보내면 userData 전체가 막히므로 섞지 않는다(§8 P2 (c)).
   - 승인 정책은 지금처럼 ephemeral `thread/start`에서 읽은 Ask first 값(Ask first), `on-request`(Accept edits), `never`(Plan)이다.
   - `default_permissions`를 정해야 profile을 정의할 수 있다. 그래서 Ask first의 sandbox는 Codex의 기본 대신 `doan`(읽기 전용 + 항목)이다. Doan의 Codex profile은 프로젝트 신뢰를 기록하지 않으므로 지금의 Ask first도 읽기 전용이다. 같은 동작이고, profile의 `config.toml`을 사람이 손으로 고친 경우만 달라진다.
 - Full access app-server: 바깥 fence로 감싸 띄우고, 턴은 지금처럼 `sandboxPolicy: dangerFullAccess`를 보낸다(§8 P2 fence 턴 B).
 - **모드 전환**: 살아 있는 app-server의 방법(profile 또는 fence)과 이번 send의 방법이 다르면 그 server를 닫고 새 server를 띄워 `thread/resume`한다. 같으면 지금처럼 재사용한다. 새 server를 여는 것은 첫 send와 같은 경로다.
 - 받아들인 한계(T7 Known limits):
-  - 사람이 승인한 `apply_patch`는 deny 경로에도 쓴다. 승인 카드에 그 경로가 보인다(Ask first, Accept edits).
+  - 금지 항목은 server를 띄울 때 나열한다. server는 여러 턴을 살므로, 그 뒤에 생긴 userData 항목(그동안 로그인한 다른 provider의 profile, 새 staging profile, Doan의 새 파일)은 그 server가 끝날 때까지 막히지 않는다. 읽기 전용 sandbox도 디스크 전체를 읽을 수 있기 때문이다.
+  - 사람이 승인한 escalated 명령은 `deny` 항목 밖의 userData에 쓸 수 있다. `runtime.json`(probe에서 확인), 첨부, userData의 새 항목이다. 승인 카드에 그 명령이 보인다.
+  - 사람이 승인한 `apply_patch`: `"<userData>"="deny"`일 때(§8 P2)는 금지 경로에 썼지만, 나열한 금지 항목에서는 `conversations/` 쓰기가 실패했다(fix round 1 probe, Ask first·Accept edits). 한 번의 probe 결과이므로 T5에서 다시 본다.
   - `permissions` profile과 `turn/start` `permissions`는 experimental API다. Codex가 바꾸면 Doan 연결 Codex run이 시작하지 못하거나 profile이 걸리지 않을 수 있다.
   - 사람이 Doan의 Codex profile `config.toml`에 legacy `sandbox_mode`를 적어도 Doan이 턴마다 `permissions`를 보내므로 deny가 걸린다. 대신 그 `sandbox_mode`는 쓰이지 않는다.
 
@@ -138,12 +144,13 @@ P0에서 이미 Seatbelt 안에 있는 프로세스는 규칙이 있는 두 번�
   - 테스트: 원래 인수 순서가 보존된다. `fenceArgs`가 없으면 그대로 돌려준다.
 - `claudeSandboxEnabled(sources)` → Claude sandbox 판정. 입력은 user·project·local·managed 출처의 파싱한 내용(없거나 읽을 수 없으면 비어 있음)이다.
   - 테스트: 출처마다 켬·끔·없음의 우선순위(managed > local > project > user). 읽을 수 없는 파일은 그 출처가 없는 것과 같다. `sandbox.enabled`가 boolean이 아니면 없는 것과 같다.
-- `claudeDenyRules(paths, listing)` → sandbox가 켜진 턴의 `permissions.deny` 규칙. `listing`은 조상 디렉터리마다 나열한 항목(이름, 디렉터리 여부)이고 shell이 채운다.
-  - 테스트: 허용 경로와 조상은 규칙에 없다. 다른 profile, staging profile, `conversations/`, vault, metadata 파일, 다른 첨부 id, 그 밖의 파일이 모두 규칙에 있다. 디렉터리는 `/**`, 파일은 경로 그대로다. 나열할 수 없는 조상이 있으면 거절한다(fail closed).
-- `claudeFenceSettings(paths, deny)` → sandbox가 켜진 턴의 flag tier 설정(`permissions.deny`, `sandbox.filesystem`, `allowUnsandboxedCommands: false`). `claudeFastSettings`와 합치는 함수도 같이 둔다.
-  - 테스트: 설정 모양 스냅숏(§8 P2 (c)의 C18과 같은 `sandbox` 키). `fastMode`와 합쳐도 둘 다 남는다. 다른 provider의 profile은 허용 목록에 나오지 않는다.
-- `codexProfileArgs(paths)` → Full access가 아닌 app-server의 `-c` 인수(`default_permissions`, `permissions.doan`, `permissions.doan-workspace`).
-  - 테스트: 인수 스냅숏. 따옴표·역슬래시가 든 경로가 TOML 문자열로 escape된다.
+- `fenceListingDirs(provider, paths)`와 `fenceDenied(provider, paths, listing)` → 나열할 디렉터리(userData와 허용 경로의 조상), 그리고 그 나열에서 고른 금지 항목(Claude·Codex). `listing`은 shell이 채운다.
+  - 테스트: 허용 경로, 그 조상, userData 자신은 금지 항목에 없다. 다른 profile, staging profile, `conversations/`, vault, metadata 파일, 다른 첨부 id, 그 밖의 파일이 모두 있다. Codex는 첨부 전체를 열고 browser-hook을 막는다. 나열할 수 없는 조상이나 패턴으로 읽힐 이름이 있으면 거절한다(fail closed).
+- `claudeDenyRules(denied)` → `permissions.deny` 규칙. 디렉터리는 `/**`, 파일은 경로 그대로다.
+- `claudeFenceSettings(paths, denied)` → sandbox가 켜진 턴의 flag tier 설정(`permissions.deny`, `sandbox.filesystem`, `allowUnsandboxedCommands: false`). `claudeFastSettings`와 합치는 함수도 같이 둔다.
+  - 테스트: 설정 모양 스냅숏. 어느 `denyWrite` 경로도 profile이나 그 조상이 아니다(D1 회귀). `fastMode`와 합쳐도 둘 다 남는다.
+- `codexProfileArgs(paths, denied)` → Full access가 아닌 app-server의 `-c` 인수(`default_permissions`, `permissions.doan`, `permissions.doan-workspace`).
+  - 테스트: 인수 스냅숏. userData나 허용 경로의 조상에 `deny`가 없다(D2 회귀). 따옴표·역슬래시가 든 경로가 TOML 문자열로 escape된다.
 - `codexTurnPermission(mode, defaults, mechanism)` → 턴의 권한 인수. profile server면 `{ approvalPolicy, permissions }`이고 `sandboxPolicy`가 없다. fence server(Full access)면 `{ approvalPolicy: "never", sandboxPolicy: { type: "dangerFullAccess" } }`. legacy external(정의된 profile 없음)은 지금의 `codexPermission`을 그대로 쓴다.
   - 테스트: 네 모드 × 두 방법. profile server의 어느 턴도 `sandboxPolicy`를 함께 보내지 않는다.
 - `codexMechanism(mode)` → `"fence" | "codex-profile"`, 그리고 `codexRestart(current, next)` → app-server를 다시 띄울지. ACP는 늘 바깥 fence이고 Claude는 `Prepared.fence.claudeSandbox`가 정하므로 따로 고르는 함수가 없다.
@@ -407,6 +414,6 @@ P0에서 이미 Seatbelt 안에 있는 프로세스는 규칙이 있는 두 번�
 | P1 | Antigravity 실제 상태 | 경로 1, 환경 변경 없음 | design §3.2 |
 | P3 | Antigravity profile 안 작업 | (i), skill 경로 쓰기 금지 | design §3.3 |
 | Claude | Claude의 막는 방법 | 턴마다 sandbox 상태를 읽어, 꺼지면 바깥 fence, 켜지면 flag tier 설정(`permissions.deny`, `sandbox.filesystem`, `allowUnsandboxedCommands: false`). 판정을 틀려 켜진 것을 꺼짐으로 보면 Bash가 보이는 실패로 끝난다 | orch.md '결정 기록', design §3.1 |
-| Codex | Codex의 막는 방법 | Full access가 아니면 Doan의 Codex permission profile(`deny` 항목, `default_permissions`)을 턴마다 고르고, Full access면 바깥 fence 안의 app-server. 둘 사이를 오가면 app-server를 다시 띄우고 `thread/resume`한다. 승인된 `apply_patch`의 틈과 experimental API 의존은 Known limits | orch.md '결정 기록', design §3.1 |
+| Codex | Codex의 막는 방법 | Full access가 아니면 Doan의 Codex permission profile(`deny` 항목, `default_permissions`)을 턴마다 고르고, Full access면 바깥 fence 안의 app-server. 둘 사이를 오가면 app-server를 다시 띄우고 `thread/resume`한다. `deny`는 server를 띄울 때 나열한 userData 항목에 건다(T5 D2). server 시작 뒤 생긴 항목, 승인된 escalated 명령의 쓰기, experimental API 의존은 Known limits | orch.md '결정 기록', design §3.1 |
 
 구현 세부(conductor 승인): Claude sandbox는 SDK 함수 대신 같은 출처를 같은 우선순위로 직접 읽어 판정한다. sandbox가 켜진 Claude 턴의 `permissions.deny`는 턴 시작 때 나열한 형제 항목만 적는다. 첨부 매개변수는 붙여넣은 이미지 수에 따른다. Codex Ask first·Plan은 `doan`(읽기 전용), Accept edits는 `doan-workspace` profile이고, `:workspace`가 `sandbox_workspace_write`의 네트워크와 쓰기 경로를 따르는지는 T5에서 본다(§3.1).
