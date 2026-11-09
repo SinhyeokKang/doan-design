@@ -1,8 +1,7 @@
-<p align="center">
-  <img src="app/resources/icon-rounded.png" alt="" width="64" />
-</p>
-
-<h1 align="center">Doan</h1>
+<h1 align="center">
+  <img src="app/resources/icon-rounded.png" alt="" width="64" /><br />
+  Doan
+</h1>
 
 <p align="center">
   <a href="https://github.com/SinhyeokKang/doan-design/releases/latest"><img src="https://img.shields.io/github/v/release/SinhyeokKang/doan-design?style=flat-square&color=7c3aed&label=release" alt="Latest release" /></a>
