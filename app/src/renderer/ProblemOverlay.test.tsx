@@ -134,6 +134,5 @@ test("the old status band's rules are gone; the hidden sidebar's margin and moti
   expect(css).toMatch(/:root\[data-sidebar-motion\] :is\([^)]*\.workspace > \.problem-overlay[^)]*\) \{ transition: margin-left/);
   expect(block(".row-slot.problem")).toMatch(/color: var\(--text-subtle\);/);
   // The shared rules still serve other screens.
-  expect(css).toContain(".shell-problem {");
   expect(css).toContain(".shell-empty");
 });

@@ -53,6 +53,15 @@ it("draws every project hue as a light tint with dark ink, shared with onboardin
   expect(render("/repo")).toContain('<span class="shell-thumbnail hue-');
 });
 
+// Rules for classes no component renders any more (the first shell's section heads, counts, hints,
+// breadcrumbs, branch button and two-line rows) are gone.
+it("keeps no rules for the first shell's unrendered classes", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).not.toMatch(/(^|\n)\.(meta|sec|cnt|hint|crumbs|branch)\b/);
+  expect(css).not.toMatch(/\.ob-field \.value \.meta\b|\.row \.d \{|\.side \.row \.(tw|two)\b/);
+});
+
 // PRODUCT §5: the chevron shows on hover or keyboard focus. A mouse click focuses the row (a treeitem), so :focus-within
 // kept the chevron after the pointer left; only focus-visible focus may show it.
 it("shows the project row's chevron on hover or keyboard focus, not on focus left by a click", async () => {
