@@ -63,4 +63,8 @@ T0·T6 → P, T1 → M, T2·T5 → R, T3·T4 → S, T7 → conductor. 주인 없
 - **L**: `24b35708`. assistant frame의 `error: "rate_limit"`을 우선하고, 실제 기록으로 확인된 "hit your weekly limit" 문구를 보조로 쓴다. 리뷰 worker(Sonnet high)를 띄웠다.
 - **A 사실 확인**: lead 문구의 둘째 문장("sign in to that account again")은 `account_mismatch`에서만 맞다. `workspace_mismatch`는 같은 organization도 골라야 하고, `account_unverifiable`(id 없는 계정, connectionId로만 판정)은 다시 로그인해도 이어지지 않는다. `profile_mismatch`는 사람이 고를 수 없는 Doan profile id이고, 실제로는 `prepare.ts:176`의 configDir 확인이 먼저 `session_unavailable`을 던져 닿지 않는다(Codex 계정 교체가 여기에 걸린다). 문구는 바꾸지 않고 lead에게 넘겼다. A는 `rate_limited` 문구부터 진행한다.
 - **lead 결정(계정 문구)**: 분리안을 받았다. `account_mismatch`·`workspace_mismatch` → `account_changed`, lead 문구 그대로. `workspace_mismatch`에서 같은 조직도 골라야 한다는 점은 PR 본문에 알려진 부정확함으로 적는다. `account_unverifiable`·`profile_mismatch`와 `prepare.ts:176`의 Doan 소유 profile 교체 → 둘째 문장 없는 "earlier <Provider> sign-in" 문구. 버튼은 둘 다 Start a new conversation 하나다. conductor 판단 — 문구가 둘이라 renderer가 구분하도록 코드를 둘로 나눴다(`account_changed`, `sign_in_changed`). lead는 "같은 새 코드"라고 했으므로 PR 본문에 이 해석을 적는다.
+- **L 통합**: 리뷰(Sonnet high) 🔴 0 · 🟡 0 · ⚪ 4. 실제 기록에서 확인된 한도 문구는 "You've hit your weekly limit · resets …" 세 형태뿐이다. live stream frame은 녹화하지 못했다(미검증). 통합 `24b35708`의 cherry-pick.
+- **R2 통합**: 리뷰(Sonnet high) 🔴 0 · 🟡 1 · ⚪ 4. 🟡: Copilot 병렬에서 완료 activity와 tool stage 사이 2–4 ms 렌더가 행을 한 프레임 step 수로 되돌릴 수 있다. conductor 판단 — 단일 도구 기준(완료 뒤 절대 돌지 않음)을 지키는 선택이라 받아들이고, T6 재확인에서 프레임으로 잰다. ⚪4(flush 구간 Stop)도 재확인에서 본다.
+- **A 통합**: 리뷰(Opus high) 🔴 0 · 🟡 0 · ⚪ 3. 결정 항목: Codex에서 다른 계정이 연결된 채 다시 로그인하면 profile 교체가 되어 `account_changed` 둘째 문장이 맞지 않는다. lead에게 보냈다(추천: 문구 유지, PR 본문에 알려진 부정확함). A의 실제 앱 probe 26개 항목 통과(A handoff).
+- 통합 HEAD `6ae98c35`에서 verify.mjs PASS.
 
