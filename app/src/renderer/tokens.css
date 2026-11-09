@@ -58,7 +58,7 @@
      chroma (gamut-clamped, chroma at most 1.2 × the friend's step 9; dungdung's steps 1–6 take 2.2 × violet's
      chroma and 7–8 1.6 ×, so they read yellow, not cream), at the hue of step 9. 9 is the buddy's body colour moved by Doany's
      own body-to-violet-9 shift; saemi's hue moves to 168 and popo's to 42, away from the success green and
-     danger red, and popo's and dori's 9 is darkened until white clears 3:1 on it. 10 and pressed keep violet's
+     danger red, and popo's 9 is darkened until white clears 3:1 on it (dori's already does). 10 and pressed keep violet's
      offsets from 9. -icon is 9 darkened until it reaches 3:1 on a pressed sidebar row (#d9d9da), the darkest
      surface an accent icon or dot sits on. Ink on 9 is white for popo and dori, neutral otherwise. */
   --saemi-1: #f9fdfb;
