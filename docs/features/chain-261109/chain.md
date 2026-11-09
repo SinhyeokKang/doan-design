@@ -64,4 +64,10 @@
 
 ## 인계 기록
 
-- **2026-11-09 lead**: 체인 파일을 썼다. 시작 점검은 아직 하지 않았다. 사용자가 시작을 청하면 시작 점검을 한 번에 묻고 링크 1을 시작한다.
+- **2026-11-09 lead**: 체인 파일을 썼다. 사용자가 Codex 사용을 허락했다(두 링크 전부, 한도 없음).
+- **2026-11-09 lead, 시작 점검 승인**:
+  1. 로그인: lead가 링크 1 전에 공유 userData에 다섯 provider 로그인을 만든다. 시작 시점 기록은 Claude·Codex 연결만 있었다(유효성 미확인). Cursor·Copilot·Antigravity는 없었다.
+  2. turn-end-state 정지 지점: 문서 결정(design §13)대로 H0·H3·H4나 다른 원인이면 conductor가 멈추고 묻는다.
+  3. provider-profile-isolation T0(격리 HOME의 `Library/Keychains` 링크와 Antigravity 실제 로그인)과 T5(실제 HOME Antigravity 확인)를 사용자가 미리 승인했다. 사람의 `agy` 로그인이 초기화될 수 있다는 점을 알고 승인했다. conductor는 다시 묻지 않고 design §8의 Keychain 정리 절차를 따른다.
+  4. P0·P2 실패 시 방향과 T2a 초안 확인은 PoC 결과가 나온 뒤 conductor가 추천과 함께 묻는다.
+- **2026-11-09 lead, 로그인 완료**: 공유 userData에 다섯 provider가 모두 연결됐다(Settings > Agents에서 확인). Claude Code(b2b_product_group@day1company.co.kr)와 Codex(ox501501@gmail.com)는 기존 연결이 살아 있었다. Cursor(ox501501@gmail.com), Antigravity(Google, ox501501@gmail.com), GitHub Copilot(SinhyeokKang)은 새로 연결했다. 앱은 develop `9f53d0a9`을 `npm --prefix app ci` 뒤에 빌드해 실제 HOME으로 띄웠다. develop이 `electron-updater`·`oxlint`를 더했으므로 각 worktree도 `npm --prefix app ci`가 필요하다.
