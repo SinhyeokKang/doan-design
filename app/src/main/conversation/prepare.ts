@@ -1,4 +1,4 @@
-import { accessSync, constants, readdirSync, statSync } from "node:fs";
+import { accessSync, constants, mkdirSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { basename, dirname, isAbsolute, join } from "node:path";
 import { probeShell, runProcess } from "../onboarding/machine";
 import { findOnPath } from "../onboarding/states";
@@ -8,6 +8,7 @@ import { canonicalDirectory, claudeOccupancy, codexOccupancy, codexSessionExists
 import { PROVIDER_AUTH } from "../agentAuth/providers";
 import { insideRoot, parseCliVersion, pickSession, versionStatus } from "./sessions";
 import { judgeConnection } from "../agentAuth/connection";
+import { claudeDenyRules, claudeSandboxEnabled, resolveFencePaths, type FencePaths } from "../agentAuth/fence";
 import type { Lease, Started } from "../agentAuth/manager";
 import type { AuthState, ConnectionJudgment, Provider } from "../agentAuth/types";
 import type { McpRun, Prepare, Prepared, StartRequest } from "./service";
@@ -136,7 +137,44 @@ const NO_CONNECTORS: McpConnectorFacts = { generation: () => 0, labels: () => co
 export function connectorFacts(current: () => McpConnectorFacts | undefined): McpConnectorFacts {
   return { generation: provider => (current() ?? NO_CONNECTORS).generation(provider), labels: () => (current() ?? NO_CONNECTORS).labels() };
 }
-export function createAccountPrepare(auth: AccountRuntime, cli: string, toolsFailed: (provider: Provider) => void = () => {}, versions?: VersionRecords, connectors: McpConnectorFacts = NO_CONNECTORS): AccountPrepare {
+// Where a Doan-connection run's fence comes from: the app's userData, and for tests the Claude Code managed-settings
+// directory and another sandbox-exec. Without it no run is fenced, which only tests that predate the fence rely on.
+export interface FenceSetup { userData: string; managedDir?: string; exec?: string }
+const CLAUDE_MANAGED_DIR = "/Library/Application Support/ClaudeCode";
+const SETTINGS_MAX = 1024 * 1024;
+// A settings file as Claude Code reads it, through a link too (dotfile setups link them); a missing, oversized or
+// malformed one is no source.
+function settingsFile(path: string): unknown {
+  try { const stat = statSync(path); if (!stat.isFile() || stat.size > SETTINGS_MAX) return undefined; return JSON.parse(readFileSync(path, "utf8")) as unknown; } catch { return undefined; }
+}
+function claudeSources(configDir: string, cwd: string, managedDir: string) {
+  let dropIns: string[] = [];
+  try { dropIns = readdirSync(join(managedDir, "managed-settings.d")).filter(name => name.endsWith(".json")).sort(); } catch { /* none */ }
+  return { user: settingsFile(join(configDir, "settings.json")), project: settingsFile(join(cwd, ".claude", "settings.json")), local: settingsFile(join(cwd, ".claude", "settings.local.json")),
+    managed: [settingsFile(join(managedDir, "managed-settings.json")), ...dropIns.map(name => settingsFile(join(managedDir, "managed-settings.d", name)))] };
+}
+// userData and every directory between it and an allowed path, listed for Claude's deny rules; an unreadable one is
+// left out, which refuses the run (claudeDenyRules).
+function fenceListing(paths: FencePaths): Map<string, { name: string; directory: boolean }[]> {
+  const listing = new Map<string, { name: string; directory: boolean }[]>();
+  for (const dir of [paths.userData, `${paths.userData}/agent-auth`, `${paths.userData}/agent-auth/profiles`, ...(paths.attachments.length ? [`${paths.userData}/attachments`] : [])]) {
+    try { listing.set(dir, readdirSync(dir, { withFileTypes: true }).map(entry => ({ name: entry.name, directory: entry.isDirectory() }))); } catch { /* refused below */ }
+  }
+  return listing;
+}
+// A fence that cannot be built refuses the run before anything starts (unknown): without it the agent would reach the
+// other providers' profiles.
+function runFence(setup: FenceSetup, provider: Provider, profileDir: string, cwd: string, attachments: readonly { path: string }[]): NonNullable<Prepared["fence"]> {
+  // Codex's profile names the attachment directory, which exists only after a first paste.
+  if (provider === "codex") try { mkdirSync(join(setup.userData, "attachments"), { recursive: true, mode: 0o700 }); } catch { /* resolve refuses below */ }
+  const paths = resolveFencePaths({ provider, userData: setup.userData, profileDir, attachments: attachments.map(a => a.path) }, path => realpathSync.native(path));
+  if (!paths) throw new Error("unknown");
+  const exec = setup.exec ? { exec: setup.exec } : {};
+  if (provider !== "claude" || !claudeSandboxEnabled(claudeSources(profileDir, cwd, setup.managedDir ?? CLAUDE_MANAGED_DIR))) return { paths, ...exec };
+  const deny = claudeDenyRules(paths, fenceListing(paths)); if (!deny) throw new Error("unknown");
+  return { paths, claudeSandbox: { deny }, ...exec };
+}
+export function createAccountPrepare(auth: AccountRuntime, cli: string, toolsFailed: (provider: Provider) => void = () => {}, versions?: VersionRecords, connectors: McpConnectorFacts = NO_CONNECTORS, fence?: FenceSetup): AccountPrepare {
   return async (request, stored, use = "run") => {
     const provider = stored ? stored.session.runtime : request.runtime;
     if (!provider) throw new Error("no_agent");
@@ -195,6 +233,9 @@ export function createAccountPrepare(auth: AccountRuntime, cli: string, toolsFai
         const judgment = judgeConnection(stored.owner, adapter.verifyByRun && !current.error ? { ...current, verified: true } : current, { exists, occupancy });
         if (judgment.decision !== "resume") throw new Error(judgmentCode(judgment));
       }
+      // Every conversation run, Claude's per turn: its sandbox setting and this turn's pasted images may differ. A list
+      // read runs no model tool, so it gets none.
+      const fenced = fence && use === "run" ? runFence(fence, provider, configDir, cwd, request.attachments ?? []) : undefined;
       const connection = recheck(), ran = installed;
       const mcp: McpRun | undefined = (MCP_PROVIDERS as readonly Provider[]).includes(provider) ? { generation: () => connectors.generation(provider as McpProvider), labels: () => connectors.labels() } : undefined;
       const runArgs = provider === "claude" || provider === "codex" ? RUN_ARGS[provider] : adapter.acp!.args;
@@ -208,6 +249,7 @@ export function createAccountPrepare(auth: AccountRuntime, cli: string, toolsFai
         ...(versions && ran ? { incompatible: () => versions.incompatible(provider, ran), compatible: () => versions.compatible(provider, ran) } : {}),
         ...(ran ? { installed: ran } : {}),
         ...(mcp ? { mcp } : {}),
+        ...(fenced ? { fence: fenced } : {}),
       };
     } catch (error) { await lease.release(); throw error; }
   };

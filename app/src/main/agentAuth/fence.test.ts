@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { claudeDenyRules, claudeFenceSettings, claudeSandboxEnabled, codexMechanism, codexProfileArgs, codexRestart, codexTurnPermission, fenceArgs, fencedCommand, fencePolicy, resolveFencePaths, runMechanism, SANDBOX_EXEC, type FenceListing, type FencePaths } from "./fence";
+import { claudeDenyRules, claudeFenceSettings, claudeSandboxEnabled, codexMechanism, codexProfileArgs, codexRestart, codexTurnPermission, fenceArgs, fencedCommand, fencePolicy, resolveFencePaths, SANDBOX_EXEC, type FenceListing, type FencePaths } from "./fence";
 import { PERMISSION_MODES } from "../conversation/permissionMode";
 import type { Provider } from "./types";
 
@@ -217,14 +217,7 @@ describe("codexProfileArgs", () => {
 });
 
 describe("mechanisms", () => {
-  it("fences the ACP providers in every mode", () => {
-    for (const provider of ["cursor", "antigravity", "copilot"] as Provider[]) for (const mode of PERMISSION_MODES) expect(runMechanism(provider, mode, false)).toBe("fence");
-  });
-  it("picks Claude's by its sandbox alone", () => {
-    for (const mode of PERMISSION_MODES) { expect(runMechanism("claude", mode, false)).toBe("fence"); expect(runMechanism("claude", mode, true)).toBe("claude-settings"); }
-  });
   it("fences Codex only in Full access", () => {
-    expect(PERMISSION_MODES.map(mode => runMechanism("codex", mode, false))).toEqual(["codex-profile", "codex-profile", "codex-profile", "fence"]);
     expect(PERMISSION_MODES.map(codexMechanism)).toEqual(["codex-profile", "codex-profile", "codex-profile", "fence"]);
   });
   it("restarts a Codex server only when the send needs the other mechanism", () => {

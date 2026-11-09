@@ -7,7 +7,8 @@ import type { Provider } from "./types";
 // (Claude Code with its sandbox on, Codex outside Full access) gets Doan's limits as its own settings instead of an
 // outer sandbox-exec.
 export const SANDBOX_EXEC = "/usr/bin/sandbox-exec";
-export type FenceMechanism = "fence" | "claude-settings" | "codex-profile";
+// The two ways a fenced Codex server runs; it keeps one for its life.
+export type FenceMechanism = "fence" | "codex-profile";
 
 // Real paths (realpath.native): Seatbelt compares the resolved path, so an unresolved /var/... or relative -D value
 // matches nothing and blocks nothing.
@@ -143,17 +144,12 @@ export function codexProfileArgs(paths: FencePaths): string[] {
     "-c", `permissions.doan-workspace={extends=":workspace",filesystem=${entries}}`];
 }
 // Full access has no Codex sandbox to carry the deny entries, so its server runs inside the outer fence instead.
-export function codexMechanism(mode: PermissionModeId): "fence" | "codex-profile" {
+export function codexMechanism(mode: PermissionModeId): FenceMechanism {
   return mode === "bypass" ? "fence" : "codex-profile";
 }
 // current: the mechanism the live server started with; undefined for a run with no fence (a terminal session's).
 export function codexRestart(current: FenceMechanism | undefined, mode: PermissionModeId): boolean {
   return current !== undefined && current !== codexMechanism(mode);
-}
-export function runMechanism(provider: Provider, mode: PermissionModeId, claudeSandbox: boolean): FenceMechanism {
-  if (provider === "claude") return claudeSandbox ? "claude-settings" : "fence";
-  if (provider === "codex") return codexMechanism(mode);
-  return "fence";
 }
 export type CodexTurnArgs = { approvalPolicy: string | Record<string, unknown>; permissions: string } | { approvalPolicy: string | Record<string, unknown>; sandboxPolicy: Record<string, unknown> };
 // A profile server never gets a sandboxPolicy: combined with a profile it closes all of userData, the profile and

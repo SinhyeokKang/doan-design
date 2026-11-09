@@ -936,7 +936,7 @@ async function start(): Promise<void> {
   }
   // The legacy external prepare gets no records: its runs use the user's own profile and readiness does not cover them.
   // Runs read the MCP connectors' generation and names when they ask.
-  const accountPrepare = createAccountPrepare(auth, cli, provider => void authIpc?.refreshTools(provider), authIpc, connectorFacts(() => mcp));
+  const accountPrepare = createAccountPrepare(auth, cli, provider => void authIpc?.refreshTools(provider), authIpc, connectorFacts(() => mcp), { userData });
   // Without readable account storage a doan-account run is refused; it never falls back to the external profile.
   const prepareConversation = routePrepare(createPrepare(userData, join(userData, "runtime.json"), process.env),
     (request, stored, use) => agentAuth ? accountPrepare(request, stored, use).then(prepared => use === "listing" || !usage ? prepared : withTurnUsage(prepared, usage)) : Promise.reject(new Error("not_logged_in")));
