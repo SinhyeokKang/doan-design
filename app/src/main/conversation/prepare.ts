@@ -8,7 +8,7 @@ import { canonicalDirectory, claudeOccupancy, codexOccupancy, codexSessionExists
 import { PROVIDER_AUTH } from "../agentAuth/providers";
 import { insideRoot, parseCliVersion, pickSession, versionStatus } from "./sessions";
 import { judgeConnection } from "../agentAuth/connection";
-import { claudeDenyRules, claudeSandboxEnabled, resolveFencePaths, type FencePaths } from "../agentAuth/fence";
+import { claudeSandboxEnabled, fenceDenied, fenceListingDirs, resolveFencePaths, type FenceEntry, type FencePaths } from "../agentAuth/fence";
 import type { Lease, Started } from "../agentAuth/manager";
 import type { AuthState, ConnectionJudgment, Provider } from "../agentAuth/types";
 import type { McpRun, Prepare, Prepared, StartRequest } from "./service";
@@ -153,14 +153,15 @@ function claudeSources(configDir: string, cwd: string, managedDir: string) {
   return { user: settingsFile(join(configDir, "settings.json")), project: settingsFile(join(cwd, ".claude", "settings.json")), local: settingsFile(join(cwd, ".claude", "settings.local.json")),
     managed: [settingsFile(join(managedDir, "managed-settings.json")), ...dropIns.map(name => settingsFile(join(managedDir, "managed-settings.d", name)))] };
 }
-// userData and every directory between it and an allowed path, listed for Claude's deny rules; an unreadable one is
-// left out, which refuses the run (claudeDenyRules).
-function fenceListing(paths: FencePaths): Map<string, { name: string; directory: boolean }[]> {
+// The userData entries a provider's own settings deny, listed now; an unreadable directory is left out of the listing,
+// which refuses the run.
+function listDenied(provider: "claude" | "codex", paths: FencePaths): FenceEntry[] {
   const listing = new Map<string, { name: string; directory: boolean }[]>();
-  for (const dir of [paths.userData, `${paths.userData}/agent-auth`, `${paths.userData}/agent-auth/profiles`, ...(paths.attachments.length ? [`${paths.userData}/attachments`] : [])]) {
+  for (const dir of fenceListingDirs(provider, paths)) {
     try { listing.set(dir, readdirSync(dir, { withFileTypes: true }).map(entry => ({ name: entry.name, directory: entry.isDirectory() }))); } catch { /* refused below */ }
   }
-  return listing;
+  const denied = fenceDenied(provider, paths, listing); if (!denied) throw new Error("unknown");
+  return denied;
 }
 // A fence that cannot be built refuses the run before anything starts (unknown): without it the agent would reach the
 // other providers' profiles.
@@ -170,9 +171,10 @@ function runFence(setup: FenceSetup, provider: Provider, profileDir: string, cwd
   const paths = resolveFencePaths({ provider, userData: setup.userData, profileDir, attachments: attachments.map(a => a.path) }, path => realpathSync.native(path));
   if (!paths) throw new Error("unknown");
   const exec = setup.exec ? { exec: setup.exec } : {};
+  // A Codex server picks its mechanism from the mode when it starts, so every Codex run carries its listing.
+  if (provider === "codex") return { paths, denied: listDenied("codex", paths), ...exec };
   if (provider !== "claude" || !claudeSandboxEnabled(claudeSources(profileDir, cwd, setup.managedDir ?? CLAUDE_MANAGED_DIR))) return { paths, ...exec };
-  const deny = claudeDenyRules(paths, fenceListing(paths)); if (!deny) throw new Error("unknown");
-  return { paths, claudeSandbox: { deny }, ...exec };
+  return { paths, denied: listDenied("claude", paths), claudeSandbox: true, ...exec };
 }
 export function createAccountPrepare(auth: AccountRuntime, cli: string, toolsFailed: (provider: Provider) => void = () => {}, versions?: VersionRecords, connectors: McpConnectorFacts = NO_CONNECTORS, fence?: FenceSetup): AccountPrepare {
   return async (request, stored, use = "run") => {

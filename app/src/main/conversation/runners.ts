@@ -108,8 +108,10 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
   // Doan-account args select the dedicated credential store; they must precede the subcommand. A fenced server is
   // fixed to one mechanism for its life: the service starts another for a send that needs the other (codexRestart).
   const mechanism = input.fence ? codexMechanism(input.permissionMode ?? "default") : undefined;
+  // A profile server without its listing would deny nothing, so it does not start.
+  if (input.fence && mechanism === "codex-profile" && !input.fence.denied) throw new Error("unknown");
   const launch = input.fence && mechanism === "fence" ? fencedCommand(input.command, [...input.args ?? [], "app-server"], fenceArgs("codex", input.fence.paths), input.fence.exec)
-    : { command: input.command, args: [...input.args ?? [], ...input.fence ? codexProfileArgs(input.fence.paths) : [], "app-server"] };
+    : { command: input.command, args: [...input.args ?? [], ...input.fence ? codexProfileArgs(input.fence.paths, input.fence.denied ?? []) : [], "app-server"] };
   const child = spawn(launch.command, launch.args, { cwd: input.cwd, env: input.env, detached: true, stdio: ["pipe", "pipe", "pipe"] });
   let startingTurn = false; const queued: unknown[] = [];
   // starting: the current send until its turn/start answered (reload, server wait, the start itself). A Stop then marks
@@ -282,6 +284,8 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
   // API key could replace the login, so the connection must be signed in again instead of running unpinned.
   const organization = input.owner ? input.owner.workspaceId : undefined;
   if (organization === null || organization === "") throw new Error("not_logged_in");
+  // A sandboxed turn without its listing would deny the Read and Edit tools nothing, so it does not start.
+  if (input.fence?.claudeSandbox && !input.fence.denied) throw new Error("unknown");
   const sessionId = input.sessionId ?? randomUUID(); const controller = new AbortController();
   // A Claude run opens for one turn, so the connector names read here are current for it.
   const labels = input.mcp?.labels();
@@ -332,7 +336,7 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
     ...(input.model ? { model: input.model } : {}), ...(input.effort ? { effort: input.effort as EffortLevel } : {}),
     // Every run with Fast asks for it, as each turn opens a new process; a run without it passes nothing. A turn with
     // Claude's own sandbox on carries Doan's fence as settings, since that sandbox cannot start inside sandbox-exec.
-    ...claudeRunSettings(input.fast, input.fence?.claudeSandbox ? claudeFenceSettings(input.fence.paths, input.fence.claudeSandbox.deny) : undefined),
+    ...claudeRunSettings(input.fast, input.fence?.claudeSandbox ? claudeFenceSettings(input.fence.paths, input.fence.denied ?? []) : undefined),
     // Default passes nothing, so the Doan profile's and the project's settings decide, as before this option existed.
     // A terminal session's run (no doan owner) keeps the person's own profile settings, as Codex does.
     ...(input.owner ? claudePermission(input.permissionMode ?? "default") : {}),

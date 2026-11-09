@@ -84,13 +84,13 @@ it("wraps a Claude turn with its sandbox off in sandbox-exec, and gives one with
   expect(JSON.parse(readFileSync(join(root, "claude-argv"), "utf8"))).not.toContain("--settings");
 
   rmSync(join(root, "exec-args"));
-  const on = await openRunner({ ...base, fast: true, fence: { paths: paths("claude"), exec, claudeSandbox: { deny: ["Read(//u/conversations/**)"] } } }, () => {}, () => {}, () => {});
+  const on = await openRunner({ ...base, fast: true, fence: { paths: paths("claude"), exec, claudeSandbox: true, denied: [{ path: "/u/conversations", directory: true }] } }, () => {}, () => {}, () => {});
   await on.close();
   expect(execArgs(root)).toBeNull();
   const argv = JSON.parse(readFileSync(join(root, "claude-argv"), "utf8")) as string[];
   const settings = JSON.parse(argv[argv.indexOf("--settings") + 1]!) as Record<string, unknown>;
-  expect(settings).toMatchObject({ fastMode: true, permissions: { deny: ["Read(//u/conversations/**)"] },
-    sandbox: { allowUnsandboxedCommands: false, filesystem: { denyRead: ["/u"], denyWrite: ["/u"], allowWrite: ["/u/agent-auth/profiles/claude"] } } });
+  expect(settings).toMatchObject({ fastMode: true, permissions: { deny: ["Read(//u/conversations/**)", "Edit(//u/conversations/**)"] },
+    sandbox: { allowUnsandboxedCommands: false, filesystem: { denyRead: ["/u"], denyWrite: ["/u/conversations", "/u/runtime.json", "/u/agent-auth/browser-hook"], allowWrite: ["/u/agent-auth/profiles/claude"] } } });
 }, 20000);
 
 const CODEX_OWNER = { kind: "doan" as const, provider: "codex" as const, connectionId: "c1", accountId: "a1", workspaceId: null, profile: "codex" };
@@ -119,12 +119,13 @@ const turnStarts = (root: string) => readFileSync(join(root, "seen"), "utf8").sp
 it("runs a fenced Codex server outside Full access on Doan's permission profiles, selected per turn without a sandboxPolicy", async () => {
   const root = temp(), exec = fakeExec(root), command = fakeCodex(root);
   const events: EventPayload[] = [];
-  const runner = await openRunner({ command, runtime: "codex", owner: CODEX_OWNER, cwd: root, configDir: root, env: process.env, args: ["-c", "allow_login_shell=false"], fence: { paths: { ...paths("codex"), attachments: ["/u/attachments"] }, exec } }, e => events.push(e), () => {}, () => {});
+  const runner = await openRunner({ command, runtime: "codex", owner: CODEX_OWNER, cwd: root, configDir: root, env: process.env, args: ["-c", "allow_login_shell=false"], fence: { paths: { ...paths("codex"), attachments: ["/u/attachments"] }, denied: [{ path: "/u/conversations", directory: true }], exec } }, e => events.push(e), () => {}, () => {});
   try {
     expect(runner.mechanism).toBe("codex-profile");
     expect(execArgs(root)).toBeNull();
     const argv = JSON.parse(readFileSync(join(root, "codex-argv"), "utf8")) as string[];
     expect(argv.slice(0, 4)).toEqual(["-c", "allow_login_shell=false", "-c", 'default_permissions="doan"']);
+    expect(argv[5]).toContain(`"/u/conversations"="deny"`); expect(argv[5]).not.toContain(`"/u"="deny"`);
     expect(argv.at(-1)).toBe("app-server");
     for (const [i, permissionMode] of (["default", "acceptEdits", "plan"] as const).entries()) {
       await runner.send("x", `t${i}`, undefined, { permissionMode });
@@ -171,3 +172,9 @@ it("fails a fenced Claude or Codex start as process_exited, never cli_missing, w
     for (const input of inputs) expect(await openRunner(input, () => {}, () => {}, () => {}).then(() => "started", (e: unknown) => (e as Error).message)).toBe("process_exited");
   }
 }, 40000);
+it("refuses a Claude turn with its sandbox on, or a Codex profile server, that has no listing to deny", async () => {
+  const root = temp(), exec = fakeExec(root), claude = fakeClaude(root), codex = fakeCodex(root);
+  await expect(openRunner({ command: claude, runtime: "claude", owner: CLAUDE_OWNER, cwd: root, configDir: root, env: { PATH: process.env.PATH, HOME: root, CLAUDE_CONFIG_DIR: root }, fence: { paths: paths("claude"), exec, claudeSandbox: true } }, () => {}, () => {}, () => {})).rejects.toThrow("unknown");
+  await expect(openRunner({ command: codex, runtime: "codex", owner: CODEX_OWNER, cwd: root, configDir: root, env: process.env, fence: { paths: paths("codex"), exec } }, () => {}, () => {}, () => {})).rejects.toThrow("unknown");
+  expect(existsSync(join(root, "claude-argv")) || existsSync(join(root, "codex-argv"))).toBe(false);
+});

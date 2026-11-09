@@ -13,7 +13,7 @@ import { clampSeen, conversationSummary, type ConversationSummary } from "./summ
 import { combineQueued } from "./queue";
 import { DraftStore, joined, type ReturnedDraft } from "./drafts";
 import type { ConversationOwner, Provider } from "../agentAuth/types";
-import { codexRestart, type FenceMechanism, type FencePaths } from "../agentAuth/fence";
+import { codexRestart, type FenceEntry, type FenceMechanism, type FencePaths } from "../agentAuth/fence";
 import type { ModelList } from "./models";
 import type { PermissionModeId } from "./permissionMode";
 import type { QuestionAnswerInput } from "./question";
@@ -62,8 +62,9 @@ export interface Prepared {
   stage?: (stage: TurnStage) => void;
   // Doan-account conversation runs only (never a list read or a terminal session's run): what keeps the run out of the
   // rest of Doan's userData (agentAuth/fence.ts). claudeSandbox: this Claude turn runs with its own sandbox on, so it
-  // gets Doan's settings and these deny rules instead of the outer sandbox-exec. exec: another sandbox-exec, for tests.
-  fence?: { paths: FencePaths; claudeSandbox?: { deny: string[] }; exec?: string };
+  // gets Doan's settings instead of the outer sandbox-exec. denied: the userData entries listed for a provider's own
+  // settings (a Claude turn with its sandbox on, every Codex run). exec: another sandbox-exec, for tests.
+  fence?: { paths: FencePaths; denied?: FenceEntry[]; claudeSandbox?: true; exec?: string };
 }
 // generation: the provider's connector generation now. labels: connector names by doan- name, for permission
 // summaries and activity lines.

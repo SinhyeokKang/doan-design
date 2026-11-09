@@ -94,52 +94,73 @@ export function claudeSandboxEnabled(sources: ClaudeSettingSources): boolean {
 }
 const record = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
 
-// Each listed directory's entries; the caller lists userData and every ancestor of an allowed path inside it.
+// Each listed directory's entries, as fenceListingDirs names them.
 export type FenceListing = ReadonlyMap<string, readonly { name: string; directory: boolean }[]>;
-const claudeAllowed = (paths: FencePaths) => [paths.profile, `${paths.userData}/runtime.json`, ...paths.attachments, `${paths.userData}/agent-auth/browser-hook`];
-// Characters a permission rule reads as a pattern or as the end of its content.
+export interface FenceEntry { path: string; directory: boolean }
+// What a provider's own settings reopen: Claude this turn's pasted images and the $BROWSER hook it runs, Codex its
+// whole attachment store (paths.attachments) and no hook.
+function allowedPaths(provider: "claude" | "codex", paths: FencePaths): string[] {
+  return [paths.profile, `${paths.userData}/runtime.json`, ...paths.attachments, ...provider === "claude" ? [`${paths.userData}/agent-auth/browser-hook`] : []];
+}
+function ancestors(paths: FencePaths, allowed: readonly string[]): string[] {
+  const u = paths.userData, found = new Set<string>([u]);
+  for (const path of allowed) for (let at = path.lastIndexOf("/"); at > u.length; at = path.lastIndexOf("/", at - 1)) found.add(path.slice(0, at));
+  return [...found].sort();
+}
+// userData and every directory between it and an allowed path: the shell lists each for fenceDenied.
+export function fenceListingDirs(provider: "claude" | "codex", paths: FencePaths): string[] {
+  return ancestors(paths, allowedPaths(provider, paths));
+}
+// Characters a permission rule or a Codex filesystem entry may read as a pattern or as the end of its content.
 const PATTERN = /[*?[\]{}\\()]/;
-// A deny rule beats every allow, so one rule over all of userData would also hide the agent's own profile and this
-// turn's pasted image from the Read tool. Instead every entry off the way to an allowed path is denied by name. An
-// entry made after the listing is not in it; the sandbox's filesystem rules still keep Bash from it.
-export function claudeDenyRules(paths: FencePaths, listing: FenceListing): string[] | null {
-  const allowed = claudeAllowed(paths), u = paths.userData;
-  const ancestors = new Set<string>([u]);
-  for (const path of allowed) for (let at = path.lastIndexOf("/"); at > u.length; at = path.lastIndexOf("/", at - 1)) ancestors.add(path.slice(0, at));
-  if (PATTERN.test(u)) return null;
-  const rules: string[] = [];
-  for (const dir of [...ancestors].sort()) {
+// Every entry off the way to an allowed path, denied by name. A deny over userData as a whole would beat what the
+// settings reopen inside it: Claude's denyWrite beats an allowWrite under it, and Codex applies a profile's deny
+// entries but not the narrower read and write entries under them to an approved escalated command (so `doan handoff`
+// lost runtime.json). The cost: an entry made after the listing is not denied.
+export function fenceDenied(provider: "claude" | "codex", paths: FencePaths, listing: FenceListing): FenceEntry[] | null {
+  const allowed = allowedPaths(provider, paths), dirs = ancestors(paths, allowed);
+  if (PATTERN.test(paths.userData)) return null;
+  const denied: FenceEntry[] = [];
+  for (const dir of dirs) {
     const entries = listing.get(dir); if (!entries) return null;
     for (const entry of entries) {
       if (entry.name.includes("/") || /[\0\r\n]/.test(entry.name) || PATTERN.test(entry.name)) return null;
       const path = `${dir}/${entry.name}`;
-      if (allowed.includes(path) || ancestors.has(path)) continue;
-      // `//` starts an absolute path in a permission rule.
-      const target = `/${path}${entry.directory ? "/**" : ""}`;
-      rules.push(`Read(${target})`, `Edit(${target})`);
+      if (!allowed.includes(path) && !dirs.includes(path)) denied.push({ path, directory: entry.directory });
     }
   }
-  return rules;
+  return denied;
+}
+// A deny rule beats every allow, so the Read and Edit tools get the listed entries rather than userData as a whole,
+// which would hide the agent's own profile and this turn's pasted image. `//` starts an absolute path.
+export function claudeDenyRules(denied: readonly FenceEntry[]): string[] {
+  return denied.flatMap(entry => { const target = `/${entry.path}${entry.directory ? "/**" : ""}`; return [`Read(${target})`, `Edit(${target})`]; });
 }
 export interface ClaudeFenceSettings {
   permissions: { deny: string[] };
   sandbox: { allowUnsandboxedCommands: false; filesystem: { denyRead: string[]; allowRead: string[]; denyWrite: string[]; allowWrite: string[] } };
 }
-// The flag tier (SDK settings, the CLI's --settings), which neither the agent nor a repository can edit. Its
-// filesystem rules hold every sandboxed command at the OS level; allowUnsandboxedCommands false keeps a command from
-// asking its way out (Full access would run it outside without asking).
-export function claudeFenceSettings(paths: FencePaths, deny: readonly string[]): ClaudeFenceSettings {
-  return { permissions: { deny: [...deny] }, sandbox: { allowUnsandboxedCommands: false, filesystem: {
-    denyRead: [paths.userData], allowRead: claudeAllowed(paths), denyWrite: [paths.userData], allowWrite: [paths.profile] } } };
+// The flag tier (SDK settings, the CLI's --settings), which neither the agent nor a repository can edit. Reading:
+// userData is denied and the allowed paths reopened (an allowRead holds inside a denyRead). Writing: a sandboxed
+// command writes only where it is allowed, so the profile is the one allowed path; the listed entries and the read-only
+// allowed paths are denied too, in case the agent's own profile settings widen allowWrite for a later turn. A new
+// entry is therefore writable only through such a widening. allowUnsandboxedCommands false keeps a command from asking
+// its way out (Full access would run it outside without asking).
+export function claudeFenceSettings(paths: FencePaths, denied: readonly FenceEntry[]): ClaudeFenceSettings {
+  const allowed = allowedPaths("claude", paths);
+  return { permissions: { deny: claudeDenyRules(denied) }, sandbox: { allowUnsandboxedCommands: false, filesystem: {
+    denyRead: [paths.userData], allowRead: allowed, denyWrite: [...denied.map(entry => entry.path), ...allowed.filter(path => path !== paths.profile)], allowWrite: [paths.profile] } } };
 }
 
 // Codex permission profiles (experimental API): a profile's deny entries hold its sandboxed commands, approved
 // escalations and view_image. Defining any profile requires default_permissions, so Ask first runs on Doan's read-only
-// one; a Doan profile records no project trust, so Codex's own default there is read-only too.
-export function codexProfileArgs(paths: FencePaths): string[] {
+// one; a Doan profile records no project trust, so Codex's own default there is read-only too. denied: listed when the
+// server starts, which lives across turns, so an entry made later (another provider's new profile, a new staging
+// profile) is not denied for that server's life.
+export function codexProfileArgs(paths: FencePaths, denied: readonly FenceEntry[]): string[] {
   // TOML basic strings take JSON's escapes.
   const q = (text: string) => JSON.stringify(text);
-  const entries = `{${q(paths.userData)}="deny",${q(paths.profile)}="write",${q(`${paths.userData}/runtime.json`)}="read",${q(`${paths.userData}/attachments`)}="read"}`;
+  const entries = `{${[...denied.map(entry => `${q(entry.path)}="deny"`), `${q(paths.profile)}="write"`, `${q(`${paths.userData}/runtime.json`)}="read"`, `${q(`${paths.userData}/attachments`)}="read"`].join(",")}}`;
   return ["-c", 'default_permissions="doan"', "-c", `permissions.doan={extends=":read-only",filesystem=${entries}}`,
     "-c", `permissions.doan-workspace={extends=":workspace",filesystem=${entries}}`];
 }

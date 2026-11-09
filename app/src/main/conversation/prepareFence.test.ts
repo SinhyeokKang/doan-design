@@ -54,17 +54,18 @@ it("gives a Codex run the whole attachment directory, creating it first", async 
   rmSync(join(w.userData, "attachments"), { recursive: true });
   const ready = await prepare("codex", w).run({ root: w.project, mode: "new", runtime: "codex", text: "hi", anchors: [] });
   expect(ready.fence?.paths.attachments).toEqual([join(w.real, "attachments")]);
+  // Listed for Doan's Codex permission profile: the other provider's profile and Doan's own files, never userData itself.
+  expect(ready.fence?.denied?.map(entry => entry.path).sort()).toEqual([`${w.real}/agent-auth/profiles/cursor`, `${w.real}/conversations`]);
   expect(statSync(join(w.userData, "attachments")).mode & 0o777).toBe(0o700);
 });
 it("reads Claude's sandbox as on from the profile's settings and adds deny rules for everything else in userData", async () => {
   const w = world("claude");
   writeFileSync(join(w.profile, "settings.json"), JSON.stringify({ sandbox: { enabled: true } }));
   const ready = await prepare("claude", w).run({ root: w.project, mode: "new", runtime: "claude", text: "hi", anchors: [], attachments: [pasted(w)] });
-  const deny = ready.fence?.claudeSandbox?.deny ?? [];
-  expect(deny).toContain(`Read(/${w.real}/agent-auth/profiles/cursor/**)`);
-  expect(deny).toContain(`Read(/${w.real}/conversations/**)`);
-  expect(deny).toContain(`Read(/${w.real}/attachments/77aa/**)`);
-  expect(deny.some(rule => rule.includes("profiles/claude") || rule.includes("0f4e") || rule.includes("runtime.json"))).toBe(false);
+  expect(ready.fence?.claudeSandbox).toBe(true);
+  const denied = (ready.fence?.denied ?? []).map(entry => entry.path);
+  expect(denied).toEqual(expect.arrayContaining([`${w.real}/agent-auth/profiles/cursor`, `${w.real}/conversations`, `${w.real}/attachments/77aa`]));
+  expect(denied.some(path => path.includes("profiles/claude") || path.includes("0f4e") || path.includes("runtime.json") || path === w.real)).toBe(false);
 });
 it("lets the project's local settings and then managed settings decide Claude's sandbox", async () => {
   const w = world("claude");
