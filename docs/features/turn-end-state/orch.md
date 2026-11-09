@@ -55,3 +55,7 @@ T0·T6 → P, T1 → M, T2·T5 → R, T3·T4 → S, T7 → conductor. 주인 없
   - 문구: "This conversation belongs to an earlier <Provider> sign-in and can’t continue with the account signed in now." 버튼은 기존 terminal session 거절의 "Start a new conversation"을 쓰고 Retry는 없다. 캔버스 패널과 Home·Overview docked composer 모두 같다.
   - runtime-test: 두 번째 계정 대신 공유 userData의 probe 대화 owner `accountId`를 바꿔 실제 거절 경로를 본다(백업·복원, sign-out 없음).
   - PRODUCT·ARCHITECTURE는 T7에서 conductor가 고친다.
+- **T6 Claude 계정**: 공유 userData의 Claude 계정(b2b_product_group)이 주간 한도에 걸려 Claude 턴이 모두 1초 안에 실패했다(11-11 14:00 KST 초기화). 사용자 결정: 그 userData에서 Claude를 sign out하고 다른 계정으로 로그인한다(chain '로그인'의 sign-out 금지 예외). T6 worker가 userData를 놓으면 사용자가 앱에서 바꾼다. 이전 계정의 probe 대화는 batch A의 실제 두 계정 확인에 쓴다.
+- **L**: TransportState에 `claudeFailure?` 필드를 더하려고 `types.ts` 편집을 물었고 conductor가 그 필드 하나만 허락했다(A와 같은 파일이라 hunk를 떨어뜨림). renderer의 `rate_limited` 문구는 A가 맡는다(문구가 A 소유 파일에 있다).
+- **lead 문구 결정**: `rate_limited`는 "usage limit" 문구로, `account_changed`는 lead가 정한 notice 문구로 바꾼다(`.scratch/orch/update-A1.md`). 사실과 맞지 않으면 문구를 바꾸지 않고 lead에게 알린다. A에게 네 원인마다 둘째 문장("sign in to that account again")이 맞는지 확인하게 했다.
+
