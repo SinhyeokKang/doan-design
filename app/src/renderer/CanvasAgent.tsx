@@ -154,13 +154,23 @@ function WorkWords({ view, moment }: { view: AgentNoticeView; moment: NoticeMome
   </>;
 }
 
-// Doany the artist in the notice's mark slot (.doan/canvases/doany-artist.html). A GIF cannot pause, so a still Doany
-// is its first frame: waiting, and while the workspace is hidden (the dot field pauses then too). The picture source
-// keeps the first frame under reduced motion in every state.
-function DoanyArtist({ still }: { still: boolean }) {
+// Doany in the notice's mark slot (.doan/canvases/doany-artist.html, doany-family.html): painting, typing or reading,
+// picked with equal odds when the notice mounts and held while it stays, so working, stopping and waiting keep one
+// Doany; the next notice picks again. A GIF cannot pause, so a still Doany is the variant's first frame: waiting, and
+// while the workspace is hidden (the dot field pauses then too). The picture source keeps the first frame under
+// reduced motion in every state.
+const ARTIST_VARIANTS = [
+  { gif: "doany/artist-painting.gif", rest: "doany/artist-rest.png" },
+  { gif: "doany/artist-typing.gif", rest: "doany/artist-typing-rest.png" },
+  { gif: "doany/artist-reading.gif", rest: "doany/artist-reading-rest.png" },
+] as const;
+const pickArtist = () => ARTIST_VARIANTS[Math.floor(Math.random() * ARTIST_VARIANTS.length)] ?? ARTIST_VARIANTS[0];
+
+export function DoanyArtist({ still }: { still: boolean }) {
+  const [variant] = useState(pickArtist);
   return <span className="doan-agent-artist" aria-hidden="true"><picture>
-    <source srcSet="doany/artist-rest.png" media="(prefers-reduced-motion: reduce)" />
-    <img src={still ? "doany/artist-rest.png" : "doany/artist-painting.gif"} alt="" />
+    <source srcSet={variant.rest} media="(prefers-reduced-motion: reduce)" />
+    <img src={still ? variant.rest : variant.gif} alt="" />
   </picture></span>;
 }
 
