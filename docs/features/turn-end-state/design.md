@@ -195,6 +195,7 @@ PoC(`.scratch/turn-end-state/`):
 
 - **H1·H2·H5(done 턴의 group이 leader보다 오래 삶)**: done terminal 뒤 CLI leader가 끝나면(child `exit`) runner가 기다리는 send와 무관하게 `group.stop()`을 부른다. 지금도 SDK loop의 `finally`가 group을 끝내므로 "턴의 프로세스가 끝나면 그 group의 백그라운드 프로세스도 끝난다"는 새 동작이 아니다. 바뀌는 것은 시점이다: loop가 끝나기를 기다리지 않고 leader exit에서 끝낸다. 이 규칙을 PRODUCT §3 'Events and ownership'에 적는다(T7).
 - **H0, H3, H4, 다른 원인**: 멈추고 사용자에게 묻는다(spec D3.6).
+- **결정(T0 판정 H0)**: 수정하지 않는다. 원인만 BACKLOG 'Known defects'의 P3 줄에 적는다(T7). §4.3–§4.4와 §4.5의 PRODUCT 문장은 적용하지 않는다.
 
 ### 4.3 group을 끝낼 때의 불변식
 
@@ -293,8 +294,6 @@ P3는 원인이 확인되지 않았다(BACKLOG: "Which process outlives the CLI 
 
 - §2, spec D1: 활동 행의 running head는 turn indicator의 settle된 값을 따른다. 문장 step은 예외.
 - §3, spec D2: 네 번째 turn 값 `holding`. 빈 입력은 비활성 Send, 텍스트는 Queue, queue 행이 있을 때만 Stop.
-- §4.2, spec D3: 원인이 H1·H2·H5면 done terminal 뒤 leader exit에서 runner가 `group.stop()`을 부른다. 다른 원인이면 멈추고 묻는다.
-- §4.4, spec D3.3: group은 leader exit 뒤 0.6 s 안에 사라지고, `turn.started`는 그 순간 + 기준선 안에 온다(canvas 대화).
-- §4.5, T7: PRODUCT §3 'Events and ownership'에 백그라운드 프로세스 문장.
+- §4.2, spec D3.7: T0이 H0으로 판정했으므로 P3는 고치지 않고 원인만 BACKLOG에 기록한다. T4는 취소했다.
 - §5.2, spec D4: persistence 실패 뒤 프로세스가 사라지면 다음 send로 새 턴을 받는다.
 - §12, tasks T5: `/design-draft`는 하지 않는다.

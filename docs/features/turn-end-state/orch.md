@@ -13,6 +13,8 @@
 - P의 로그인: 사본은 Claude가 로그아웃 상태였다(Keychain 항목이 CLAUDE_CONFIG_DIR 경로로 묶임). conductor 판단 — chain이 공유 userData 재사용을 허락하므로 원본을 쓰고, folders.json·ui-state.json을 백업·복원한다. T0 동안 다른 probe는 그 userData를 쓰지 않는다.
 - 정지 지점: T0이 H0·H3·H4나 다른 원인으로 판정하면 conductor가 멈추고 사용자에게 묻는다(design §13, chain 인계 기록 2).
 - `/design-draft` 없음(design §12).
+- T0 판정 H0 → 정지 지점에서 사용자 결정: **T4 취소, 원인만 기록**(T7 BACKLOG P3 줄). S worker에게 T4를 보내지 않는다. T6 (c)도 하지 않는다.
+- 계정 전환: 이전 conductor 세션이 토큰 한도로 멈춰 다른 계정의 새 세션이 같은 worktree에서 이어받았다. 이전 worker terminal은 쓰지 않고 필요하면 새로 띄운다.
 - T6 runtime-test는 T0의 계측과 script를 다시 쓰므로 P worker에게 새 Task로 준다. T7 승격은 conductor가 한다.
 
 ## Batch
@@ -22,7 +24,7 @@
 | P | T0 PoC, 뒤에 T6 | `docs/features/turn-end-state/design.md` §4.1, `.scratch/turn-end-state/`, `.scratch/runtime-test/turn-end-state/`. 계측 patch는 commit하지 않는다 | 없음(T6은 M·R·S 통합 뒤) | Claude Opus high — 원인 판정과 실제 앱 측정이라 판단이 많고 틀리면 T4 방향이 틀린다 | T0: H0–H5 판정이나 다른 원인과 증거. T6: tasks T6 항목별 기준 | 대기 |
 | M | T1 | `types.ts`, `transport.ts`, `acp.ts`(필드 이동), 그 테스트와 `stage.test.ts`, `dispatcher.test.ts`(테스트만, worker 질문에 conductor가 허락) | 없음 | Claude Opus high — per-call 집합을 모든 반환 경로에서 비우는 일(POSTMORTEM 2026-11-06 함정) | `npm --prefix app test`, typecheck, verify.mjs | 대기 |
 | R | T2 → T5 | `turnStatus.ts`, `threadItems.ts`, `composerRules.ts`, `dockedRules.ts`, `ConversationThread.tsx`, `ProjectOverview.tsx`, `CanvasConversationPanel.tsx`, `DockedComposer.tsx`, `useProjectSkills.ts`와 그 테스트 | 없음 | Claude Opus high — render 순서·focus·event/stage 분리 render 판단 | test, typecheck, lint, verify.mjs | 대기 |
-| S | T3, 뒤에 T4 | `service.ts`, `service.test.ts`, `runners.ts`, `runners.test.ts`, `process.ts`, `process.test.ts` | T3 없음. T4는 P의 T0 판정(H1·H2·H5) | Claude Opus high — lifecycle·reservation 불변식, 동시성 | test, verify.mjs | 대기 |
+| S | T3 (T4 취소) | `service.ts`, `service.test.ts`, `runners.ts`, `runners.test.ts`, `process.ts`, `process.test.ts` | T3 없음. T4는 P의 T0 판정(H1·H2·H5) | Claude Opus high — lifecycle·reservation 불변식, 동시성 | test, verify.mjs | 대기 |
 | 리뷰 | batch마다 `/code-review` | 보고만 | 각 batch 완료 | Claude Opus high (diff 난도에 따라 Sonnet high) | 🔴 0 | 대기 |
 | T7 | 승격과 정리 | PRODUCT, ARCHITECTURE, DESIGN, BACKLOG, `docs/features/turn-end-state/` 삭제 | 모든 batch 통합 | conductor | 문장-코드 대조, verify.mjs | 대기 |
 

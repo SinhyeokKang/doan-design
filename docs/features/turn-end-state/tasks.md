@@ -58,6 +58,8 @@ AGENTS.md 'Commands'에 없는 도구(`ps`, `/usr/bin/time -l`, `go tool pprof`,
 
 ## T4. runner — P3 수정 (design §4.2–§4.3, T0이 H1·H2·H5일 때만)
 
+**취소.** T0이 H0으로 판정했고, 사용자 결정으로 원인만 기록한다(design §4.2). 아래는 하지 않는다.
+
 - done terminal 뒤 CLI leader의 child `exit`에서 runner가 `group.stop()`을 부른다. `observe()`는 group이 사라지면 escalation timer를 지우고, SIGKILL 직전에 한 번 더 `observe()`를 부른다.
 - 테스트(`runners.test.ts`, `process.test.ts`, `service.test.ts`): SIGTERM을 무시하는 같은 group 후손을 둔 fake 실행 파일로, leader exit 뒤 0.6 s 안에 group이 사라지고 그 뒤에야 reservation이 풀림. 새 턴은 새 `OwnedGroup`이고 이전 stop이 닿지 않음. `this.live.get(id) === live && live.turnId === turnId && live.done`이 아니면 부르지 않음. suggestion이 온 뒤 send. 기다리는 동안 Stop(`cancelWait`, reservation은 관찰로만 풀림). steer가 남은 done 턴(`doneTurn` false)에서는 이 trigger가 아님. 실패·중단 턴과 quitting에서는 기존 경로. group이 끝내 사라지지 않으면 `EXIT_WAIT_MS` 뒤 `busy`(지금과 같음).
 - 검증: `npm --prefix app test` green, `node .agents/skills/verify/scripts/verify.mjs` 통과. T0이 다른 원인이면 이 작업은 사용자 결정 뒤 다시 쓴다.
@@ -88,7 +90,7 @@ AGENTS.md 'Commands'에 없는 도구(`ps`, `/usr/bin/time -l`, `go tool pprof`,
   - Codex: 일반 명령, `fileChange`, `mcpToolCall`.
   - ACP: 단일 도구 행이 running head 없이 나타난다. Copilot은 병렬 도구도.
 - **(b) 판단 창**: Overview `turn.done`과 같은 render에 Stop이 없다. 판단 창에서 입력한 텍스트는 Queue로 들어가 판단 뒤 나간다.
-- **(c) P3 목표**(T4를 했을 때): packaged build, Claude, canvas 대화, CLI 버전 기록. suggestion 전·후 각각 세 번, 수정 전과 후. group이 leader exit 뒤 0.6 s 안에 사라지고, `turn.started`가 그 순간 + T0 기준선 안에 온다.
+- **(c) P3 목표**(T4 취소로 하지 않는다): packaged build, Claude, canvas 대화, CLI 버전 기록. suggestion 전·후 각각 세 번, 수정 전과 후. group이 leader exit 뒤 0.6 s 안에 사라지고, `turn.started`가 그 순간 + T0 기준선 안에 온다.
 - **P4**: 실제 디스크 실패를 만들기 어렵다. 단위 테스트로만 확인했다고 기록한다.
 - 통과 기준은 항목마다 위와 같다. 결과(화면 캡처, 측정값)는 PR 본문에 적는다.
 - **commit 경계**: T6에서 fixture를 더하면 `test(conversation): recorded Claude parallel tool frames`
@@ -98,14 +100,12 @@ AGENTS.md 'Commands'에 없는 도구(`ps`, `/usr/bin/time -l`, `go tool pprof`,
 - PRODUCT.md:
   - §5 item 3 'Turn indicator'의 activity row 문장(design §2.3).
   - §3 'Turn stages'의 Codex 문장.
-  - §3 'Events and ownership': 에이전트가 턴 중에 백그라운드로 띄운 프로세스(예: 개발 서버)는 그 턴의 프로세스가 끝날 때 함께 끝난다(design §4.5).
 - ARCHITECTURE.md §7:
   - 'Turn stages' Sources와 Renderer(design §2.3).
   - composer의 `holding` 판단 한 줄(design §3.4).
-  - 'App-local ownership and request timing', 'Send after a finished turn', 'Next-message suggestions'의 "still alive and has not sent a suggestion" 조건 줄(design §4.5). T0이 exit 사실을 바꾸면 `EXIT_WAIT_MS` 근거 줄(:467 근처)도 다시 쓴다.
   - 'Deletion'의 persistence 실패 문장과 "(BACKLOG)" 참조(:582 근처, design §5.3).
 - DESIGN.md 'Turn indicator': Place 행의 "next to a still-spinning activity row…"와 "The activity rows' shipped values were unchanged" 문장.
-- BACKLOG.md: 'Known defects'의 :122, :123, :124, :145 네 줄을 지운다. P3가 다른 원인으로 멈췄으면 :124는 원인을 적어 남긴다. T6에서 Copilot 병렬 도구를 세 개 보면 :55의 "two were seen"을 고친다.
+- BACKLOG.md: 'Known defects'의 :122, :123, :124, :145 네 줄을 지운다. P3 줄(:124)은 지우지 않고 T0이 찾은 원인으로 고쳐 쓴다: project 대화의 send가 promotion 판단(`BIND_GRACE_MS` 10 s)을 기다리고, canvas 대화의 대기는 SIGTERM에 끝나지 않는 CLI를 0.5 s 뒤 SIGKILL하는 0.53–0.55 s다(design §4.1). T6에서 Copilot 병렬 도구를 세 개 보면 :55의 "two were seen"을 고친다.
 - `docs/features/turn-end-state/`를 지운다.
 - 검증: 바뀐 문장마다 해당 코드와 대조하고, `node .agents/skills/verify/scripts/verify.mjs` 통과.
 - **commit 경계**: 문서마다 따로 — `docs(PRODUCT): …`, `docs(ARCHITECTURE): …`, `docs(DESIGN): …`, `docs(BACKLOG): …`, `docs(feature): remove turn-end-state`
