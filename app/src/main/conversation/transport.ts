@@ -18,7 +18,17 @@ function finish(state: TransportState, event: EventPayload, judged = true): Tran
   if (state.terminal) return unchanged(state);
   const terminal: EventPayload = state.stop ? { type: "interrupted", reason: state.stop } : event;
   const fast = judged && state.fastUnused && (terminal.type === "turn.done" || terminal.type === "turn.failed") ? [state.fastUnused] : [];
-  return { state: { ...state, terminal: true, fileSummaries: {} }, events: [...fast, ...contextBefore(state, terminal), terminal] };
+  return { state: { ...withoutRunning(state), terminal: true, fileSummaries: {} }, events: [...fast, ...contextBefore(state, terminal), terminal] };
+}
+// The state with the given calls (all of them when none are named) no longer running; the field goes once it is empty.
+function withoutRunning(state: TransportState, ids?: readonly string[]): TransportState {
+  const { running: before, ...rest } = state;
+  const running = ids ? (before ?? []).filter(id => !ids.includes(id)) : [];
+  return running.length ? { ...rest, running } : rest;
+}
+function withRunning(state: TransportState, id: string): TransportState {
+  const before = state.running ?? [];
+  return before.includes(id) ? state : { ...state, running: [...before, id] };
 }
 // Claude Code's reasons Fast cannot serve that hold on: the turn turns Fast off. Any other reason
 // is recorded without one and leaves Fast on.
@@ -218,6 +228,7 @@ function claudeFrame(state: TransportState, raw: Record<string, unknown>, root: 
     const messageId = baseId === state.messageId && state.textBlock !== null ? `${baseId}:${state.textBlock}` : baseId;
     const completedMessages = [...state.completedMessages];
     const activities = [...state.activities];
+    const running = [...state.running ?? []];
     const call = claudeCall(raw.message);
     const body = raw.message.content.filter(object).filter(c => c.type === "text").map(c => text(c.text)).join("");
     if (body && !completedMessages.includes(messageId)) {
@@ -227,12 +238,15 @@ function claudeFrame(state: TransportState, raw: Record<string, unknown>, root: 
       // The question card stands for an AskUserQuestion call, so it shows no "Using a tool" line.
       if (object(content) && content.type === "tool_use" && content.name === CLAUDE_QUESTION_TOOL) continue;
       if (object(content) && content.type === "tool_use" && typeof content.id === "string" && !activities.includes(content.id)) {
-        events.push(claudeActivity(text(content.name), object(content.input) ? content.input : {}, root, labels)); activities.push(content.id);
+        events.push(claudeActivity(text(content.name), object(content.input) ? content.input : {}, root, labels)); activities.push(content.id); running.push(content.id);
       }
     }
-    return { state: { ...state, completedMessages, activities, ...(call ? { claudeCall: call } : {}) }, events };
+    return { state: { ...state, completedMessages, activities, ...(running.length ? { running } : {}), ...(call ? { claudeCall: call } : {}) }, events };
   }
   if (raw.type === "result") {
+    // A result ends every call of the turn it closes, including one that waits for a steered message: the continued
+    // turn starts with none running.
+    state = withoutRunning(state);
     // Read on every result, so a steer wait that ends without the follow-up's result (endSteerWait) still has it.
     const value = state.claudeCall && contextValue(state.claudeCall.used, claudeWindow(raw.modelUsage, state.claudeCall.model));
     if (value) state = { ...state, context: value };
@@ -246,10 +260,14 @@ function claudeFrame(state: TransportState, raw: Record<string, unknown>, root: 
     const detail = Array.isArray(raw.errors) ? raw.errors.filter((e): e is string => typeof e === "string").join("\n") : text(raw.result);
     return failed(state, detail);
   }
-  // The model is being asked again (after the prompt and after every tool result), or a tool just returned.
+  // The model is being asked again (after the prompt and after every tool result), or the last running tool just
+  // returned. A result while a parallel sibling still runs reports nothing, so the activity rule keeps naming a tool.
+  // A result for a call that never ran as an activity (AskUserQuestion) removes nothing.
   if (raw.type === "system" && raw.subtype === "status" && raw.status === "requesting") return { ...unchanged(state), stage: GENERAL_STAGE };
   if (raw.type === "user" && object(raw.message) && Array.isArray(raw.message.content) && raw.message.content.some(c => object(c) && c.type === "tool_result")) {
-    return { ...unchanged(state), stage: GENERAL_STAGE };
+    const ended = raw.message.content.filter(object).filter(c => c.type === "tool_result").map(c => text(c.tool_use_id));
+    const next = withoutRunning(state, ended);
+    return { ...unchanged(next), ...(next.running ? {} : { stage: GENERAL_STAGE }) };
   }
   return unchanged(state);
 }
@@ -382,9 +400,14 @@ export function normalizeCodex(state: TransportState, raw: unknown, context: Cod
     if (raw.method === "item/completed" && item.type === "agentMessage" && id && !state.completedMessages.includes(id)) {
       return { state: { ...state, completedMessages: [...state.completedMessages, id] }, events: [{ type: "message.done", messageId: id, text: text(item.text) }] };
     }
-    const read = item.type === "commandExecution" ? codexReadStage(item, context.root) : null;
-    const stage = read && (raw.method === "item/started" ? read : GENERAL_STAGE);
-    if (id && !state.activities.includes(id) && (item.type === "fileChange" || item.type === "commandExecution" || item.type === "mcpToolCall")) {
+    // A tool item runs from its start to its completion. Only a read has a stage of its own; any tool's completion
+    // reports general once no other tool item runs.
+    const tool = item.type === "fileChange" || item.type === "commandExecution" || item.type === "mcpToolCall";
+    const started = raw.method === "item/started";
+    if (tool && id) state = started ? withRunning(state, id) : withoutRunning(state, [id]);
+    const read = started && item.type === "commandExecution" ? codexReadStage(item, context.root) : null;
+    const stage = read ?? (tool && !started && !state.running ? GENERAL_STAGE : null);
+    if (id && !state.activities.includes(id) && tool) {
       const { events, files } = codexActivities(item, context.root, context.labels ?? PRESET_LABELS);
       // A file approval names only its itemId, so the paths seen when the item started are kept for it.
       const fileSummaries = files && raw.method === "item/started" ? withFileSummary(state.fileSummaries, id, files) : state.fileSummaries;
