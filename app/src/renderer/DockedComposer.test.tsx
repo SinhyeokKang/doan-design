@@ -79,6 +79,9 @@ test("while the turn runs, Send's place is Stop on an empty field and Queue with
   // by its text.
   expect(queue).toMatch(/<div class="queue" role="list" aria-label="Queued messages"><div class="queue-entry" role="listitem"><div class="queue-item">.*<span class="queue-text" id="([^"]+)">Also make the caption shorter<\/span><button type="button" class="chip-remove doan-icon-button" data-ui-size="xs" aria-label="Remove queued message" aria-describedby="\1">/);
   expect(queue.indexOf('class="queue"')).toBeLessThan(queue.indexOf("composer-card"));
+  // The row's icon reads as a message not sent yet, not a clock.
+  expect(queue).toMatch(/<div class="queue-item"><svg[^>]*class="lucide lucide-message-square-dashed[^"]*" aria-hidden="true"/);
+  expect(queue).not.toContain("lucide-clock");
   // Queued messages do not change the slot: an empty field still offers Stop.
   expect(render({ turn: "running", queued: [{ id: "q1", text: "x" }] })).toContain('aria-label="Stop"');
 });

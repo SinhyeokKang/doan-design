@@ -1,5 +1,5 @@
 import { useEffect, useId, useImperativeHandle, useLayoutEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent, type MutableRefObject, type ReactElement } from "react";
-import { Clock, Crosshair, Gauge, Plus, Shield, X } from "lucide-react";
+import { Crosshair, Gauge, MessageSquareDashed, Plus, Shield, X } from "lucide-react";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
 import type { PermissionModeId } from "../main/conversation/permissionMode";
@@ -420,7 +420,6 @@ export function DockedComposer(props: DockedComposerProps) {
       onRemove={props.onRemoveQueued} focusInput={() => field.current?.focus()}
       // The same refusal again changes the region's text by a no-break space, so it is read again.
       announce={text => setAnnouncement(current => current === text ? `${text}\u00a0` : text)} />
-    {canSendNow && props.queued.length > 0 && <div className="queue-key">Press Ctrl + Enter to send all now.</div>}
     <ComposerCard readonly={isSending}>
       <ComposerChips attachments={draft.attachments} preset={draft.preset} thumbnails={props.thumbnails} homeDirectory={props.homeDirectory} disabled={isSending || locked} removeButtons={removeButtons} onRemove={index => removeChip(index, "button")} />
       {/* One field element in both shapes, at the same place and key: remounting it would drop focus and IME composition. */}
@@ -573,7 +572,7 @@ export function QueueRows(props: QueueRowsProps) {
     // The status line sits in the row's listitem (a list owns only listitems) and is drawn from the start, empty, so the
     // live region is registered before a refusal puts text in it.
     return <div key={item.id} className="queue-entry" role="listitem">
-      <div className="queue-item"><Clock aria-hidden="true" /><span className="queue-text" id={textId}>{item.text}</span>
+      <div className="queue-item"><MessageSquareDashed aria-hidden="true" /><span className="queue-text" id={textId}>{item.text}</span>
         {props.sendNow && <QueueButtonLife onLost={() => { lost.current = true; }}>{life =>
           <Tooltip><TooltipTrigger asChild>
             <button type="button" ref={node => { life(node); keep("sendNow", item.id)(node); }} className="doan-button queue-send" data-ui-size="xs" data-ui-variant="subtle"
