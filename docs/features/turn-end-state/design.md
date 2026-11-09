@@ -137,6 +137,60 @@ PoC(`.scratch/turn-end-state/`):
 4. suggestion이 오기 전 send와 온 뒤 send를 각각 세 번.
 5. 통과 기준: H0–H5 중 하나로 판정하거나, 다른 원인을 증거와 함께 기록한다. 결과를 이 절에 적는다.
 
+#### 결과 (2026-11-09 측정)
+
+**판정: H0.** 관찰된 "약 7 s"는 project 대화의 send가 promotion 판단(`BIND_GRACE_MS` 10 s)을 기다린 시간이다. group은 CLI보다 오래 살지 않았다. H1·H3·H4·H5는 이번 환경에서 기각했고, H2는 경로로는 일어나지만 대기는 0.55 s 이하였다.
+
+환경:
+
+- packaged app(`npm --prefix app run package`, 서명 없는 로컬 `app/dist/mac-arm64/Doan.app`)에 임시 계측 patch를 얹었다. patch는 commit하지 않고 `.scratch/turn-end-state/instrumentation.patch`에 두었다.
+- Claude Code 2.1.319(`~/.local/bin/claude` → native Mach-O arm64). 공용 provider-profile userData를 그대로 썼다. userData를 복사하면 Claude가 sign-out 상태가 된다(Keychain 항목이 `CLAUDE_CONFIG_DIR` 경로에 묶임). 그래서 conductor 승인을 받아 원본을 쓰고, 끝난 뒤 `folders.json`·`ui-state.json`·`canvas-seen.json`·`conversations/`를 되돌렸다.
+- Doan Claude profile: `settings.json`에는 doan 명령 허용 규칙만 있고 hooks는 없다. 로컬 MCP server는 없다(claude.ai 원격 connector 3개만 있다). plugin은 내장 `cc-plugin-agents-md`뿐이다.
+- `doan init`한 임시 repo와 canvas 하나. 턴 내용은 세 가지였다: 도구 없음("ok" 한 단어), Bash 도구(`sleep 2; echo ready`, bypass mode), 대화형(한 문장 답, suggestion을 받으려고 썼다).
+- send는 renderer에서 `window.doan` API로 보냈다. `turn.done` 직후 send는 그 event listener의 같은 tick에서 보냈다. 모든 시각은 A 턴의 main `turn.done`(service가 terminal을 받은 시각) 기준이다.
+
+측정한 쌍(A 턴 → B send):
+
+| 대화 | B send 시점 | 턴 내용 | 횟수 |
+|---|---|---|---|
+| canvas | 기준선(이전 프로세스 없음) | 도구 없음 | 3 |
+| canvas | `turn.done` 순간(suggestion 전) | 도구 없음 / Bash / 대화형 | 3 / 3 / 3 |
+| canvas | suggestion이 목록에 보인 뒤 | 대화형 | 3 |
+| canvas | suggestion을 45 s 기다림(오지 않음) | 도구 없음 / Bash | 3 / 3 |
+| project | `turn.done` 순간 | 도구 없음 / Bash | 3 / 3 |
+| project | suggestion이 목록에 보인 뒤 | 대화형 | 3 |
+
+공통으로 본 것(30쌍 전부):
+
+- **group 구성**: `turn.done`부터 group이 사라질 때까지 100 ms마다 찍은 `ps`에서 그 pgid에는 CLI 하나만 있었다. pid = pgid이고 부모는 app main이었다. 후손 프로세스는 없었고(Bash 도구가 띄운 프로세스는 `turn.done` 전에 끝남), stat은 `Ss`·`Rs`뿐이라 zombie도 없었다.
+- **leader exit → group 사라짐**: `group.gone`이 child `exit` 뒤 6–15 ms에 왔다. `process_exited`는 exit 뒤 13–29 ms, SDK loop의 `finally`는 exit 뒤 21–48 ms였다.
+- **턴 끝 정리**: result frame 뒤 6–20 ms에 `closeInput`이 불렸다. `usageAtTurnEnd`는 2–8 ms 걸렸다.
+- **send가 없을 때 CLI exit**: `turn.done` 뒤 1.55–3.83 s에 스스로 끝났다(code 0, 21회).
+
+경우별 수치:
+
+- **canvas, `turn.done` 순간 send(9회)**: `endSuggestion`이 +25–55 ms에 불렸고 SIGTERM이 +23–49 ms에 갔다. CLI는 SIGTERM으로 끝나지 않았다. +531–559 ms의 SIGKILL로 끝났고(exit +546–574 ms), group은 +553–581 ms에 사라졌다. B의 exit 대기(`waits`)는 0.53–0.55 s였고 `EXIT_WAIT_MS` timeout은 한 번도 없었다. B send→`turn.started`는 1.86–3.82 s였다.
+- **canvas, suggestion 뒤 send(3회)**: `prompt_suggestion`이 +1.01–2.34 s에 왔고 B는 그 직후 보냈다. suggestion이 있으므로 `endSuggestion`은 건너뛰었다(H2 경로). CLI는 suggestion 뒤 0.54–0.55 s에 스스로 끝났고(code 0), B의 `waits`는 0.53–0.55 s였다. B send→`turn.started`는 1.80–3.03 s였다.
+- **canvas, suggestion이 오지 않은 턴(6회)**: CLI는 +1.68–2.75 s에 스스로 끝났다. 도구 없음·Bash 턴 A에서는 suggestion이 거의 오지 않았다. r1 run의 턴 28개 중 한 번(B 턴)뿐이었다.
+- **project, `turn.done` 순간 send(6회)**: B는 판단(`judging`)을 +25–35 ms부터 +10.007–10.025 s까지 기다렸다. 그동안 CLI는 +1.65–3.26 s에 스스로 끝났고 group도 7–9 ms 뒤 사라졌다. 판단 뒤 exit 대기는 없었다. B의 `turn.started`는 `turn.done` 뒤 11.6–15.5 s였다. CLI exit과 B 시작 사이 약 7–8 s는 판단 대기다. 이것이 "CLI가 2.5–3.7 s에 끝나고 group은 약 7 s 더 산다"는 관찰과 맞는다.
+- **project, suggestion 뒤 send(3회)**: `prompt_suggestion`과 `svc.suggested`는 +1.1–1.8 s에 왔다. 그러나 대화 목록의 `suggestion`은 +10.01–10.05 s, 즉 판단 창이 끝난 뒤에야 보였다. 그때 보낸 B는 대기 없이 send→`turn.started` 1.3–4.4 s였다.
+- **기준선**: 이전 프로세스가 없는 canvas send→`turn.started`는 명시적 기준선 3회가 3.28·1.58·1.92 s였다. 같은 조건의 canvas A send 21회는 1.40–8.49 s(중앙값 1.99 s)였다. 이 시간은 send→spawn(준비: 셸 probe, CLI 버전, 계정) 0.6–5.3 s와 spawn→`turn.started` 0.65–3.19 s로 나뉜다.
+
+가설별 판정:
+
+- **H0 확인.** project 대화의 send는 판단 창 10 s를 기다린다. 그 사이 CLI와 group은 이미 끝나 있다.
+- **H1 기각.** 후손 프로세스가 group에 남은 적이 없다(Bash 턴 포함). 단, hooks·로컬 MCP server·plugin MCP server가 있는 profile은 재지 않았다.
+- **H2 경로는 있으나 원인 아님.** suggestion이 send 전에 오면 `endSuggestion`을 건너뛰지만, CLI는 suggestion 뒤 약 0.55 s에 스스로 끝났다.
+- **H3 기각.** zombie(`Z`)가 없었고, `group.gone`이 exit 뒤 6–15 ms에 관찰됐다.
+- **H4 기각.** leader가 native CLI 바이너리 자체다(pid = pgid, 부모는 app main, `ps` command가 `~/.local/bin/claude …`).
+- **H5 기각.** loop `finally`가 exit 뒤 21–48 ms에 돌았다. CLI stdout은 exit 8 ms 전에서 52 ms 뒤 사이에 닫혔다.
+
+그 밖의 관찰:
+
+- canvas에서 `turn.done` 순간 보낸 send의 대기는 대부분 SIGKILL escalation 0.5 s다. 입력을 닫은 CLI가 SIGTERM에 끝나지 않았다(9/9).
+- smoke run에서 한 번, send가 약 5 s 뒤 `cli_missing`으로 거절됐다(계정 lease의 CLI 위치 확인이 실패). 재현하지 않았고 P3와는 관계없다.
+- 원자료와 script: `.scratch/turn-end-state/`(`probe.mjs`, `sampler.mjs`, `analyze.py`, `runs/r1`·`runs/r2`의 `main.jsonl`·`ps.jsonl`·`renderer.json`·`analysis.txt`).
+
 ### 4.2 수정 방향
 
 - **H1·H2·H5(done 턴의 group이 leader보다 오래 삶)**: done terminal 뒤 CLI leader가 끝나면(child `exit`) runner가 기다리는 send와 무관하게 `group.stop()`을 부른다. 지금도 SDK loop의 `finally`가 group을 끝내므로 "턴의 프로세스가 끝나면 그 group의 백그라운드 프로세스도 끝난다"는 새 동작이 아니다. 바뀌는 것은 시점이다: loop가 끝나기를 기다리지 않고 leader exit에서 끝낸다. 이 규칙을 PRODUCT §3 'Events and ownership'에 적는다(T7).
