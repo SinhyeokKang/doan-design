@@ -235,11 +235,11 @@ describe("claudeDenyRules", () => {
 describe("claudeFenceSettings", () => {
   const att = `${U}/attachments/0f4e`;
   const denied = [{ path: `${U}/conversations`, directory: true }, { path: `${U}/agent-auth/profiles/codex`, directory: true }];
-  const settingsFiles = [{ path: `${P}/settings.json`, directory: false }, { path: `${P}/.claude.json`, directory: false },
-    { path: `${P}/skills`, directory: true }, { path: `${P}/agents`, directory: true }, { path: `${P}/plugins`, directory: true }];
+  const settingsFiles = [{ path: `${P}/settings.json`, directory: false }, { path: `${P}/.claude.json`, directory: false }];
+  const settingsDirs = ["skills", "agents", "plugins"].map(dir => `Edit(/${P}/${dir}/**)`);
   it("adds Doan's deny rules and filesystem limits, keeps the sandbox on and turns off running outside it", () => {
     expect(claudeFenceSettings(paths({ attachments: [att] }), denied)).toEqual({
-      permissions: { deny: claudeDenyRules([...denied, ...settingsFiles]) },
+      permissions: { deny: [...claudeDenyRules([...denied, ...settingsFiles]), ...settingsDirs] },
       sandbox: { enabled: true, allowUnsandboxedCommands: false, filesystem: {
         denyRead: [U], allowRead: [P, `${U}/runtime.json`, att, `${U}/agent-auth/browser-hook`],
         denyWrite: [`${U}/conversations`, `${U}/agent-auth/profiles/codex`, `${U}/runtime.json`, att, `${U}/agent-auth/browser-hook`, `${P}/settings.json`, `${P}/.claude.json`, `${P}/skills`, `${P}/agents`, `${P}/plugins`], allowWrite: [P] } },

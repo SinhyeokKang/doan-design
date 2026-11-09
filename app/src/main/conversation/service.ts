@@ -1,4 +1,5 @@
 import { randomBytes, randomUUID } from "node:crypto";
+import { realpathSync } from "node:fs";
 import { ConversationStore, restoreEntries, type ConversationMetadata, type JournalWrite } from "./store";
 import { foldConversation } from "./state";
 import { promoteReservation, releaseReservation, reserveSession } from "./ownership";
@@ -785,7 +786,7 @@ export class ConversationService {
     const runner = live.runner!, item = this.drafts.queued(id).find(entry => entry.itemId === itemId);
     // A pasted image the turn's fence did not open would be unreadable to the agent: the message waits for the next turn.
     const store = live.pastedStore;
-    if (item && store && item.attachments.some(attachment => attachment.path.startsWith(store))) throw new Error("not_running");
+    if (item && store && item.attachments.some(attachment => resolved(attachment.path).startsWith(store))) throw new Error("not_running");
     if (!item || !this.drafts.markOneSending(id, itemId)) throw new Error("stale");
     const ids = this.queuedExtras.get(itemId)?.ids ?? [], files = this.queueOptions.files;
     let attached: StartAttachments | undefined, prompt: string | null;
@@ -1207,6 +1208,8 @@ export class ConversationService {
   private transportFailed(id: string, error: unknown): void { this.receive(id, { type: "turn.failed", code: transportError(error instanceof Error ? error.message : ""), detail: error instanceof Error ? error.message.slice(0, 4096) : "Transport failed" }); }
 }
 
+// The fence names userData resolved, and a recorded path may still go through a link (/var for /private/var).
+function resolved(path: string): string { try { return realpathSync.native(path); } catch { return path; } }
 // A refusal's code for a draft's reason; anything else is unknown.
 function reason(error: unknown): string { return error instanceof Error && /^[a-z_]{1,64}$/.test(error.message) ? error.message : "unknown"; }
 function choice(source: { model?: string; effort?: string }): { model?: string; effort?: string } {

@@ -1,7 +1,7 @@
 import { parseActivityRoots, readShellActivity } from "./shellActivity";
 import { ConversationService, resolveListedCanvas } from "./conversation/service";
 import { ConversationStore } from "./conversation/store";
-import { connectorFacts, createAccountPrepare, createPrepare, routePrepare } from "./conversation/prepare";
+import { connectorFacts, createAccountPrepare, createPrepare, routePrepare, wireAccountPrepare } from "./conversation/prepare";
 import { listModels, listSkills, openRunner } from "./conversation/runners";
 import { ModelCatalog } from "./conversation/models";
 import { SkillCatalog } from "./conversation/skills";
@@ -939,7 +939,7 @@ async function start(): Promise<void> {
   const accountPrepare = createAccountPrepare(auth, cli, provider => void authIpc?.refreshTools(provider), authIpc, connectorFacts(() => mcp), { userData, socketDir: () => runtime ? dirname(runtime.socket) : undefined });
   // Without readable account storage a doan-account run is refused; it never falls back to the external profile.
   const prepareConversation = routePrepare(createPrepare(userData, join(userData, "runtime.json"), process.env),
-    (request, stored, use) => agentAuth ? accountPrepare(request, stored, use).then(prepared => use === "listing" || !usage ? prepared : withTurnUsage(prepared, usage)) : Promise.reject(new Error("not_logged_in")));
+    wireAccountPrepare(accountPrepare, () => !!agentAuth, prepared => usage ? withTurnUsage(prepared, usage) : prepared));
   const conversationStore = new ConversationStore(userData);
   // After the store, which made and checked the conversations directory.
   const conversationDrafts = new DraftStore(join(userData, "conversations"));

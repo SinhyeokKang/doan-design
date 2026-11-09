@@ -165,11 +165,13 @@ function listDenied(provider: "claude" | "codex", paths: FencePaths): FenceEntry
   const denied = fenceDenied(provider, paths, listing); if (!denied) throw new Error("unknown");
   return denied;
 }
-function socketDir(setup: FenceSetup): string {
-  const dir = setup.socketDir();
-  let real: string; try { real = realpathSync.native(dir ?? ""); } catch { throw new Error("unknown"); }
-  if (!dir || !real.startsWith("/") || /[\x00-\x1f\x7f]/.test(real)) throw new Error("unknown");
-  return real;
+// The app socket's resolved directory; none while the app has no runtime (`doan` then reaches no app anyway). Only a
+// profile server needs it, and the runner refuses one without it; a Full access server inside the outer fence does not.
+function socketDir(setup: FenceSetup): { socketDir?: string } {
+  const dir = setup.socketDir(); if (dir === undefined) return {};
+  let real: string; try { real = realpathSync.native(dir); } catch { throw new Error("unknown"); }
+  if (!real.startsWith("/") || /[\x00-\x1f\x7f]/.test(real)) throw new Error("unknown");
+  return { socketDir: real };
 }
 // A fence that cannot be built refuses the run before anything starts (unknown): without it the agent would reach the
 // other providers' profiles.
@@ -180,10 +182,16 @@ function runFence(setup: FenceSetup, provider: Provider, profileDir: string, cwd
   if (!paths) throw new Error("unknown");
   const exec = setup.exec ? { exec: setup.exec } : {};
   // A Codex server picks its mechanism from the mode when it starts, so every Codex run carries its listing and the
-  // app socket's resolved directory; without the socket `doan` could not reach the app, so the run does not start.
-  if (provider === "codex") return { paths, denied: listDenied("codex", paths), socketDir: socketDir(setup), ...exec };
+  // app socket's resolved directory.
+  if (provider === "codex") return { paths, denied: listDenied("codex", paths), ...socketDir(setup), ...exec };
   if (provider !== "claude" || !claudeSandboxEnabled(claudeSources(profileDir, cwd, setup.managedDir ?? CLAUDE_MANAGED_DIR))) return { paths, ...exec };
   return { paths, denied: listDenied("claude", paths), claudeSandbox: true, ...exec };
+}
+// The Doan-account side of routePrepare as main wires it: every argument reaches the account prepare (reusing included,
+// so a reused Codex server's send builds no fence), an unopened sign-in store refuses every run, and a run (never a
+// list read) gets the turn-end usage hook.
+export function wireAccountPrepare(account: AccountPrepare, ready: () => boolean, withUsage: (prepared: Prepared) => Prepared): AccountPrepare {
+  return (request, stored, use, reusing) => ready() ? account(request, stored, use, reusing).then(prepared => use === "listing" ? prepared : withUsage(prepared)) : Promise.reject(new Error("not_logged_in"));
 }
 export function createAccountPrepare(auth: AccountRuntime, cli: string, toolsFailed: (provider: Provider) => void = () => {}, versions?: VersionRecords, connectors: McpConnectorFacts = NO_CONNECTORS, fence?: FenceSetup): AccountPrepare {
   return async (request, stored, use = "run", reusing = false) => {

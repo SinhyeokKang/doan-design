@@ -86,7 +86,7 @@ it("refuses Send now of a pasted image recorded through a link to the resolved u
   const steer = vi.fn(async () => {});
   const open = vi.fn<OpenRunner>(async input => ({ sessionId: input.sessionId ?? "s1", send: vi.fn(async () => {}), steer, answer: () => false, stop: vi.fn(async () => {}), close: vi.fn(async () => {}) }));
   const prepare = vi.fn<Prepare>(async () => ({ runtime: "claude" as const, configDir: `${real}/agent-auth/profiles/claude`, cwd: "/repo", command: "/fake", env: {}, fence: { paths: { userData: real, profile: `${real}/agent-auth/profiles/claude`, attachments: [] } } }));
-  const service = new ConversationService(new ConversationStore(join(dir, "store")), prepare, open, () => {});
+  const service = new ConversationService(new ConversationStore(dir), prepare, open, () => {});
   const id = (await service.start({ ...request, mode: "new", runtime: "claude" })).conversationId;
   const item = service.queue(id, { text: "look", anchors: [], attachments: [{ name: "Pasted image", size: 1, kind: "image", path: image }] });
   const answered = service.sendNow(id, item.itemId).then(() => "ok", (error: Error) => error.message);
