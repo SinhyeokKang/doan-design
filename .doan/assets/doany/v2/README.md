@@ -43,6 +43,12 @@ Ready:
   the square on its longer side, centred and alpha-composited on pure white, with
   no generated changes. `app/resources/icon.png` is `sips -z 1024 1024` of it,
   as the V1 icon was of `../white/doany.png`.
+- `app/resources/icon.icon`: the macOS app icon, an Icon Composer bundle with a
+  white fill and one layer, `Assets/doany.png`: `doany.png` cropped to its alpha
+  bounding box (alpha > 8), scaled (Lanczos) to 72% of a transparent 1024 canvas
+  on its longer side and centred, with no generated changes. The system applies
+  the icon shape. `app/resources/icon-rounded.png` is the 256 px image `actool`
+  renders from it (`icon_128x128@2x` of the compiled `Icon.icns`).
 - `simple/doany-accent.svg`: flat V2 favicon master; accent body (`#973BE1`,
   `--violet-9` / `--affordance-accent` in renderer tokens), black beret and eyes,
   transparent background, no gradients or texture. It traces `doany.png`: the
