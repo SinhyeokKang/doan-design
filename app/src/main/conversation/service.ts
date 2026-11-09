@@ -1,4 +1,5 @@
 import { randomBytes, randomUUID } from "node:crypto";
+import { realpathSync } from "node:fs";
 import { ConversationStore, restoreEntries, type ConversationMetadata, type JournalWrite } from "./store";
 import { foldConversation } from "./state";
 import { promoteReservation, releaseReservation, reserveSession } from "./ownership";
@@ -13,6 +14,7 @@ import { clampSeen, conversationSummary, type ConversationSummary } from "./summ
 import { combineQueued } from "./queue";
 import { DraftStore, joined, type ReturnedDraft } from "./drafts";
 import type { ConversationOwner, Provider } from "../agentAuth/types";
+import { codexRestart, type FenceEntry, type FenceMechanism, type FencePaths } from "../agentAuth/fence";
 import type { ModelList } from "./models";
 import type { PermissionModeId } from "./permissionMode";
 import type { QuestionAnswerInput } from "./question";
@@ -59,6 +61,12 @@ export interface Prepared {
   // The turn's stage after a frame, called right after that frame's events. It names no turn:
   // a reused Codex server keeps the callback it opened with, and the service takes the live turn of that moment.
   stage?: (stage: TurnStage) => void;
+  // Doan-account conversation runs only (never a list read or a terminal session's run): what keeps the run out of the
+  // rest of Doan's userData (agentAuth/fence.ts). claudeSandbox: this Claude turn runs with its own sandbox on, so it
+  // gets Doan's settings instead of the outer sandbox-exec. denied: the userData entries listed for a provider's own
+  // settings (a Claude turn with its sandbox on, every Codex run). exec: another sandbox-exec, for tests.
+  // socket: the app socket's path, which a Codex profile server (by its directory) and a sandbox-on Claude turn allow.
+  fence?: { paths: FencePaths; denied?: FenceEntry[]; claudeSandbox?: true; socket?: string; exec?: string };
 }
 // generation: the provider's connector generation now. labels: connector names by doan- name, for permission
 // summaries and activity lines.
@@ -83,7 +91,8 @@ function askingKey(event: { type: string; requestId: string }): string { return 
 // steer: Claude and Codex only (steerSupport.ts); adds a message to the running turn turnId and resolves once the
 // provider accepted it, which is not yet the agent reading it (Prepared.steerConsumed).
 // endSuggestion: Claude only; ends a done turn's process that only waits for its prompt suggestion, true when it did.
-export interface Runner { sessionId: string; send(prompt: string, turnId: string, attachments?: readonly AttachmentRecord[], choice?: TurnChoice): Promise<void>; answer(requestId: string, optionId: string): boolean; answerQuestion?(requestId: string, answer: QuestionAnswerInput): "ok" | "stale" | "bad_request"; stop(): Promise<void>; close(): Promise<void>; models?(): Promise<ModelList>; skills?(): Promise<SkillSummary[]>; steer?(prompt: string, turnId: string, messageId: string): Promise<void>; endSuggestion?(): boolean }
+// mechanism: a fenced Codex server's, which holds only the modes of that mechanism (agentAuth/fence.ts codexRestart).
+export interface Runner { mechanism?: FenceMechanism; sessionId: string; send(prompt: string, turnId: string, attachments?: readonly AttachmentRecord[], choice?: TurnChoice): Promise<void>; answer(requestId: string, optionId: string): boolean; answerQuestion?(requestId: string, answer: QuestionAnswerInput): "ok" | "stale" | "bad_request"; stop(): Promise<void>; close(): Promise<void>; models?(): Promise<ModelList>; skills?(): Promise<SkillSummary[]>; steer?(prompt: string, turnId: string, messageId: string): Promise<void>; endSuggestion?(): boolean }
 // What a queued send needs from main's attachment store: the queued ids checked again as the send's attachments
 // (reclaim throws attachment_missing), consumed once that send was accepted, discarded with a removed message (a paste
 // goes with it) and released when they come back in a draft, which carries their paths instead.
@@ -122,7 +131,7 @@ const EXIT_WAIT_MS = 10_000;
 // handoffKey: the DOAN_HANDOFF value of the runner it holds now (openRunner).
 // lastSeq: the conversation's last written seq (deliver). stage: the running turn's last stage signal, never stored;
 // stageRev counts this entry's signals, so stages that share a seq keep their order.
-interface Live { turnId: string; busy: boolean; accepted: boolean; runner?: Runner; cleanup?: () => Promise<void>; terminal: boolean; events: EventPayload[]; failedPersistence: boolean; exited: boolean; provider?: Provider; since: number; endedAt?: number; project?: string; closed?: boolean; holding?: object; mcpGeneration?: number | undefined; asking?: Set<string>; done?: boolean; handoffKey?: string; lastSeq?: number; stage?: StageSignal; stageRev?: number }
+interface Live { turnId: string; busy: boolean; accepted: boolean; runner?: Runner; cleanup?: () => Promise<void>; terminal: boolean; events: EventPayload[]; failedPersistence: boolean; exited: boolean; provider?: Provider; since: number; endedAt?: number; project?: string; closed?: boolean; holding?: object; mcpGeneration?: number | undefined; asking?: Set<string>; done?: boolean; handoffKey?: string; lastSeq?: number; stage?: StageSignal; stageRev?: number; pastedStore?: string }
 // A project turn's grounds for promotion: the canvas list when the turn was accepted, the paths of its own
 // edit activities and the canvas files the folder watcher saw change. endedAt: the turn is over and waits for its first
 // folder refresh, or for the timer at the end of the binding window. turnId: the judged turn, for its bound marker.
@@ -292,6 +301,7 @@ export class ConversationService {
   private async submit(id: string, text: string, anchors: Anchor[], extras: SendExtras, attached?: StartAttachments): Promise<void> {
     // Only a send that waits yields here; any other runs up to its reservation in the caller's tick, as before.
     const judged = this.judgement(id) ?? this.handoffWait(id); if (judged) await judged;
+    this.switchCodexServer(id, extras);
     const exiting = this.previousExit(id); if (exiting) await exiting;
     let metadata = this.metadata(id); if (this.quitting) throw new Error("busy");
     const restoring = metadata.state === "archived";
@@ -319,7 +329,7 @@ export class ConversationService {
       this.reserve(id, { ...metadata.session, runtime, command: "", env: {} }, reusing); reserved = true;
       const turnId = live.turnId;
       // steerConsumed names no turn: a reused Codex server keeps the callback it opened with.
-      input = { ...await this.prepare({ root: metadata.root, ...(metadata.canvas ? { canvas: metadata.canvas } : {}), mode: "resume", text, anchors }, metadata, undefined, reusing), ...chosen, ...(extras.fastTurn ? { fast: true as const } : {}), planApproved: reported => this.planApproved(id, live, turnId, reported), steerConsumed: messageId => this.steerConsumed(id, messageId), suggested: text => this.suggested(id, live, turnId, text), stage: stage => this.stage(id, live, stage) };
+      input = { ...await this.prepare({ root: metadata.root, ...(metadata.canvas ? { canvas: metadata.canvas } : {}), mode: "resume", text, anchors, ...(extras.attachments?.length ? { attachments: extras.attachments } : {}) }, metadata, undefined, reusing), ...chosen, ...(extras.fastTurn ? { fast: true as const } : {}), planApproved: reported => this.planApproved(id, live, turnId, reported), steerConsumed: messageId => this.steerConsumed(id, messageId), suggested: text => this.suggested(id, live, turnId, text), stage: stage => this.stage(id, live, stage) };
       if (input.owner) live.provider = input.owner.provider;
       this.checkSend(id, live, expected);
       if (live.exited) throw new Error("process_exited");
@@ -408,6 +418,16 @@ export class ConversationService {
     if (ids.some(other => this.working(other))) throw new Error("busy");
     return ids;
   }
+  // A Codex server's fence holds only the modes of its mechanism: Full access runs inside the outer sandbox-exec, the
+  // other modes on Doan's permission profiles. A send that needs the other one closes the idle server, waits for it as
+  // for an archived one (previousExit) and opens a new one, which resumes the thread.
+  private switchCodexServer(id: string, extras: SendExtras): void {
+    const live = this.live.get(id), metadata = this.store.list().find(m => m.conversationId === id);
+    if (!live?.runner || live.busy || live.closed || metadata?.session.runtime !== "codex") return;
+    const next = extras.permissionMode !== undefined ? extras.permissionMode : metadata.permissionMode;
+    if (!codexRestart(live.runner.mechanism, next ?? "default")) return;
+    live.closed = true; void live.runner.close();
+  }
   // A finished turn's process may still be exiting, and its reservation keeps a second process off the session until
   // its group is gone. The send waits for that instead of refusing; every check in send runs again afterwards.
   private previousExit(id: string): Promise<void> | undefined {
@@ -485,6 +505,8 @@ export class ConversationService {
   }
   private async openRunner(id: string, live: Live, input: Prepared): Promise<Runner> {
     let spawned = false;
+    // A fenced Claude turn opened only the pasted images it started with (Codex opens the whole store, ACP has no steer).
+    if (input.runtime === "claude" && input.fence) live.pastedStore = `${input.fence.paths.userData}/attachments/`; else delete live.pastedStore;
     const key = input.owner ? randomBytes(32).toString("hex") : undefined;
     if (key) { this.handoffKeys.set(key, id); live.handoffKey = key; } else delete live.handoffKey;
     const release = () => { freeLease(input); if (key) this.handoffKeys.delete(key); };
@@ -762,6 +784,9 @@ export class ConversationService {
     const m = this.metadata(id), live = this.live.get(id);
     if (!live || !this.steerable(id, live)) throw new Error("not_running");
     const runner = live.runner!, item = this.drafts.queued(id).find(entry => entry.itemId === itemId);
+    // A pasted image the turn's fence did not open would be unreadable to the agent: the message waits for the next turn.
+    const store = live.pastedStore;
+    if (item && store && item.attachments.some(attachment => resolved(attachment.path).startsWith(store))) throw new Error("not_running");
     if (!item || !this.drafts.markOneSending(id, itemId)) throw new Error("stale");
     const ids = this.queuedExtras.get(itemId)?.ids ?? [], files = this.queueOptions.files;
     let attached: StartAttachments | undefined, prompt: string | null;
@@ -1183,6 +1208,8 @@ export class ConversationService {
   private transportFailed(id: string, error: unknown): void { this.receive(id, { type: "turn.failed", code: transportError(error instanceof Error ? error.message : ""), detail: error instanceof Error ? error.message.slice(0, 4096) : "Transport failed" }); }
 }
 
+// The fence names userData resolved, and a recorded path may still go through a link (/var for /private/var).
+function resolved(path: string): string { try { return realpathSync.native(path); } catch { return path; } }
 // A refusal's code for a draft's reason; anything else is unknown.
 function reason(error: unknown): string { return error instanceof Error && /^[a-z_]{1,64}$/.test(error.message) ? error.message : "unknown"; }
 function choice(source: { model?: string; effort?: string }): { model?: string; effort?: string } {

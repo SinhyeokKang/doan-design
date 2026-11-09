@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { StringDecoder } from "node:string_decoder";
 import { query, type EffortLevel, type PermissionResult, type PermissionUpdate, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import { openAcp } from "./acpRunner";
@@ -16,7 +16,8 @@ import { connectorLabels } from "../mcpConnectors/presets";
 import { CLAUDE_QUESTION_TOOL, claudePermissionSummary, claudeQuestion, claudeQuestionResult, claudeReportedMode, claudeUnansweredSupport, endSteerWait, endTransport, initialTransport, normalizeClaude, steerTransport, storedAnswers, transportError, type ClaudeQuestion } from "./transport";
 import { questionAnswer } from "./questionAnswer";
 import { promptSuggestionText } from "./promptSuggestion";
-import { claudePermission, codexDefaults, codexPermission, codexWorkspace, type CodexDefaults, type CodexWorkspace } from "./permissionMode";
+import { claudePermission, codexDefaults, codexWorkspace, type CodexDefaults, type CodexWorkspace } from "./permissionMode";
+import { claudeFenceSettings, codexMechanism, codexProfileArgs, codexTurnPermission, fenceArgs, fencedCommand, type ClaudeFenceSettings } from "../agentAuth/fence";
 import type { OpenRunner, Prepared, ReadListing, ReadModels, Runner } from "./service";
 import type { EventPayload, FailureCode, SkillSummary } from "./types";
 // steerConsumed: the agent read a steered message, called in line with the run's events so the message
@@ -47,6 +48,11 @@ export const listSkills: ReadListing<SkillSummary[]> = async (input, exited, reg
 // fastMode in the project's .claude/settings.json. A run without Fast passes nothing.
 export function claudeFastSettings(fast: boolean | undefined): { settings?: { fastMode: true } } {
   return fast ? { settings: { fastMode: true } } : {};
+}
+// The run's flag-tier settings: Fast, and Doan's fence settings when this turn runs with Claude's own sandbox on.
+function claudeRunSettings(fast: boolean | undefined, fence: ClaudeFenceSettings | undefined): { settings?: { fastMode?: true } & Partial<ClaudeFenceSettings> } {
+  const settings = { ...claudeFastSettings(fast).settings, ...fence };
+  return Object.keys(settings).length ? { settings } : {};
 }
 // Fast for a Codex turn: a doan turn always names its tier, standard included, so a model whose catalog default is Fast
 // still runs standard when Fast is off; serviceTierForTurn holds for that turn only. A terminal
@@ -99,8 +105,14 @@ function openCodexList(input: Prepared, emit: (event: EventPayload) => void, exi
 }
 // list: model/list or skills/list after initialize instead of a thread, so reading a list starts no session.
 async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayload) => void, exited: () => void, registerStop: (stop: () => Promise<void>) => void, list = false): Promise<SteeringRunner> {
-  // Doan-account args select the dedicated credential store; they must precede the subcommand.
-  const child = spawn(input.command, [...input.args ?? [], "app-server"], { cwd: input.cwd, env: input.env, detached: true, stdio: ["pipe", "pipe", "pipe"] });
+  // Doan-account args select the dedicated credential store; they must precede the subcommand. A fenced server is
+  // fixed to one mechanism for its life: the service starts another for a send that needs the other (codexRestart).
+  const mechanism = input.fence ? codexMechanism(input.permissionMode ?? "default") : undefined;
+  // A profile server without its listing would deny nothing, so it does not start.
+  if (input.fence && mechanism === "codex-profile" && (!input.fence.denied || !input.fence.socket)) throw new Error("unknown");
+  const launch = input.fence && mechanism === "fence" ? fencedCommand(input.command, [...input.args ?? [], "app-server"], fenceArgs("codex", input.fence.paths), input.fence.exec)
+    : { command: input.command, args: [...input.args ?? [], ...input.fence ? codexProfileArgs(input.fence.paths, input.fence.denied ?? [], dirname(input.fence.socket ?? "")) : [], "app-server"] };
+  const child = spawn(launch.command, launch.args, { cwd: input.cwd, env: input.env, detached: true, stdio: ["pipe", "pipe", "pipe"] });
   let startingTurn = false; const queued: unknown[] = [];
   // starting: the current send until its turn/start answered (reload, server wait, the start itself). A Stop then marks
   // that send, never the runner: a later send must not take it over. latest: the most recent send. settled: resolves
@@ -203,7 +215,7 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
   // A server that cannot interrupt its own turn is stopped instead.
   const interrupt = (turnId: string) => dispatcher.request("turn/interrupt", { threadId: sessionId, turnId }).then(() => {}, () => { void group?.stop(); });
   return {
-    sessionId,
+    sessionId, ...(mechanism ? { mechanism } : {}),
     async send(prompt, turnId, _attachments, choice) {
       if (dead) { emit({ type: "turn.failed", code: "process_exited" }); return; }
       const own: Start = { stopped: false, wake: () => {} }, previous = settled;
@@ -217,7 +229,7 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
         if (dead || closing) throw new Error("process_exited");
         if (own.stopped) { stopped(); return; }
         // The server was opened with the conversation's choice then; a send may have changed it since.
-        const turn = choice ?? input, permission = defaults ? codexPermission(turn.permissionMode ?? "default", defaults, workspace) : {};
+        const turn = choice ?? input, permission = defaults ? codexTurnPermission(turn.permissionMode ?? "default", defaults, workspace, mechanism) : {};
         const tier = codexServiceTierForTurn(input.owner ? "doan" : "legacy-external", turn.fast === true);
         activeTurn = turnId; localTurn = turnId;
         const labels = input.mcp?.labels() ?? connectorLabels([]);
@@ -272,6 +284,8 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
   // API key could replace the login, so the connection must be signed in again instead of running unpinned.
   const organization = input.owner ? input.owner.workspaceId : undefined;
   if (organization === null || organization === "") throw new Error("not_logged_in");
+  // A sandboxed turn without its listing would deny the Read and Edit tools nothing, so it does not start.
+  if (input.fence?.claudeSandbox && !input.fence.denied) throw new Error("unknown");
   const sessionId = input.sessionId ?? randomUUID(); const controller = new AbortController();
   // A Claude run opens for one turn, so the connector names read here are current for it.
   const labels = input.mcp?.labels();
@@ -281,7 +295,7 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
   // permission. unanswered: the turn's system/init advertised the skip mark; read long before anyone can answer.
   const questions = new Map<string, { input: Record<string, unknown>; read: ClaudeQuestion; resolve(value: PermissionResult): void }>();
   let unanswered = false;
-  let finished = false, childExited = false, stderr = "", stderrDone: Promise<unknown> = Promise.resolve();
+  let finished = false, childExited = false, spawnFailed = false, exitCode: number | null = null, stderr = "", stderrDone: Promise<unknown> = Promise.resolve();
   // The turn's input stays open after its first message so steer can add more, and closes the moment the turn ends:
   // the CLI exits only once its stdin ends, and until then send and the next turn wait (POSTMORTEM 2026-10-28).
   const inbox: { message: SDKUserMessage; accepted(): void; refused(error: Error): void }[] = [];
@@ -320,20 +334,23 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
     abortController: controller, ...(input.sessionId ? { resume: input.sessionId } : { sessionId }),
     // A resume without them starts on the default model, so every run passes the conversation's choice.
     ...(input.model ? { model: input.model } : {}), ...(input.effort ? { effort: input.effort as EffortLevel } : {}),
-    // Every run with Fast asks for it, as each turn opens a new process; a run without it passes nothing.
-    ...claudeFastSettings(input.fast),
+    // Every run with Fast asks for it, as each turn opens a new process; a run without it passes nothing. A turn with
+    // Claude's own sandbox on carries Doan's fence as settings, since that sandbox cannot start inside sandbox-exec.
+    ...claudeRunSettings(input.fast, input.fence?.claudeSandbox ? claudeFenceSettings(input.fence.paths, input.fence.denied ?? [], input.fence.socket) : undefined),
     // Default passes nothing, so the Doan profile's and the project's settings decide, as before this option existed.
     // A terminal session's run (no doan owner) keeps the person's own profile settings, as Codex does.
     ...(input.owner ? claudePermission(input.permissionMode ?? "default") : {}),
     spawnClaudeCodeProcess(options) {
-      const child = spawn(options.command, options.args, { cwd: options.cwd, env: options.env, detached: true, stdio: ["pipe", "pipe", "pipe"] });
+      const fence = input.fence && !input.fence.claudeSandbox ? input.fence : undefined;
+      const launch = fencedCommand(options.command, options.args, fence ? fenceArgs("claude", fence.paths) : undefined, fence?.exec);
+      const child = spawn(launch.command, launch.args, { cwd: options.cwd, env: options.env, detached: true, stdio: ["pipe", "pipe", "pipe"] });
       if (child.pid) {
         const owned = new OwnedGroup(child.pid, undefined, undefined, exited); group = owned;
         registerStop(() => { controller.abort(); closeInput(); return owned.stop(); });
       }
       child.stderr.setEncoding("utf8"); child.stderr.on("data", (text: string) => { stderr = (stderr + text).slice(-8192); });
       stderrDone = new Promise(resolve => child.stderr.once("close", resolve));
-      child.once("exit", () => { childExited = true; group?.childExited(); }); child.once("error", () => { if (!child.pid) exited(); else group?.childExited(); });
+      child.once("exit", code => { childExited = true; exitCode = code; group?.childExited(); }); child.once("error", () => { if (!child.pid) { spawnFailed = true; exited(); } else group?.childExited(); });
       return child;
     },
     canUseTool(tool, toolInput, options) {
@@ -375,6 +392,11 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
   try { initialized = await timeout(q.initializationResult()); } catch (error) {
     controller.abort(); closeInput(); void group?.stop();
     if (input.owner) { await Promise.race([stderrDone, new Promise(resolve => setTimeout(resolve, 1000).unref())]); if (PIN_REFUSED.test(stderr)) throw new Error("credential_override"); }
+    // A fenced start that could not run is a process failure, never the SDK's message about the CLI binary, which names
+    // a missing CLI: sandbox-exec missing (a spawn error), or sandbox-exec itself refusing (65 for a policy error, 71 for
+    // an exec failure, with its own "sandbox-exec:" message). The CLI's own early exit keeps the SDK's error.
+    const refused = childExited && (exitCode === 65 || exitCode === 71) && /^sandbox-exec: /m.test(stderr);
+    if (input.fence && !input.fence.claudeSandbox && (spawnFailed || refused)) throw new Error("process_exited");
     throw error;
   }
   return {
