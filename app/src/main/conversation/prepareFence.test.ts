@@ -20,7 +20,7 @@ function world(provider: Provider, profileName: string = provider) {
   for (const dir of [profile, join(userData, "agent-auth", "profiles", "cursor"), join(userData, "conversations"), join(userData, "attachments", "0f4e"), join(userData, "attachments", "77aa"), project]) mkdirSync(dir, { recursive: true });
   writeFileSync(join(userData, "runtime.json"), "{}"); writeFileSync(join(userData, "attachments", "0f4e", "pasted.png"), "x");
   const socketDir = join(base, "sock"); mkdirSync(socketDir);
-  return { base, userData, real: realpathSync.native(userData), profile, project: realpathSync.native(project), managed: join(base, "managed"), socketDir };
+  return { base, userData, real: realpathSync.native(userData), profile, project: realpathSync.native(project), managed: join(base, "managed"), socket: join(socketDir, "app.sock") };
 }
 function prepare(provider: Provider, w: ReturnType<typeof world>, fence = true, release = vi.fn(async () => {})) {
   const connection: AccountConnection = { provider, connectionId: "conn-1", profile: provider, account: { id: "acct-1", workspace: provider === "claude" ? "org-1" : null, email: "ada@example.com" } };
@@ -30,7 +30,7 @@ function prepare(provider: Provider, w: ReturnType<typeof world>, fence = true, 
     state: () => state, check: vi.fn(), checked: vi.fn(async () => {}), confirm: vi.fn(),
     acquire: vi.fn(async (): Promise<Lease> => ({ command: `/bin/${provider}`, env: { PATH: "/shell/bin" }, profileDir: w.profile, release })),
   };
-  return { release, runtime, run: createAccountPrepare(runtime, "/Applications/doan.app/Contents/Resources/bin/doan", () => {}, undefined, undefined, fence ? { userData: w.userData, managedDir: w.managed, socketDir: () => w.socketDir } : undefined) };
+  return { release, runtime, run: createAccountPrepare(runtime, "/Applications/doan.app/Contents/Resources/bin/doan", () => {}, undefined, undefined, fence ? { userData: w.userData, managedDir: w.managed, socket: () => w.socket } : undefined) };
 }
 const pasted = (w: ReturnType<typeof world>): AttachmentRecord => ({ name: "pasted.png", size: 1, kind: "image", path: join(w.real, "attachments", "0f4e", "pasted.png") });
 
@@ -64,7 +64,7 @@ it("reads Claude's sandbox as on from the profile's settings and adds deny rules
   writeFileSync(join(w.profile, "settings.json"), JSON.stringify({ sandbox: { enabled: true } }));
   const ready = await prepare("claude", w).run({ root: w.project, mode: "new", runtime: "claude", text: "hi", anchors: [], attachments: [pasted(w)] });
   expect(ready.fence?.claudeSandbox).toBe(true);
-  expect(ready.fence?.socketDir).toBe(realpathSync.native(w.socketDir));
+  expect(ready.fence?.socket).toBe(join(realpathSync.native(join(w.base, "sock")), "app.sock"));
   const denied = (ready.fence?.denied ?? []).map(entry => entry.path);
   expect(denied).toEqual(expect.arrayContaining([`${w.real}/agent-auth/profiles/cursor`, `${w.real}/conversations`, `${w.real}/attachments/77aa`]));
   expect(denied.some(path => path.includes("profiles/claude") || path.includes("0f4e") || path.includes("runtime.json") || path === w.real)).toBe(false);
@@ -90,8 +90,8 @@ it("refuses a run whose fence cannot be built as unknown, before anything starts
 it("gives a Codex run the app socket's resolved directory and refuses one whose socket directory does not resolve", async () => {
   const w = world("codex");
   const request = { root: w.project, mode: "new" as const, runtime: "codex" as const, text: "hi", anchors: [] };
-  expect((await prepare("codex", w).run(request)).fence?.socketDir).toBe(realpathSync.native(w.socketDir));
-  const { run, release } = prepare("codex", { ...w, socketDir: join(w.base, "no-such-dir") });
+  expect((await prepare("codex", w).run(request)).fence?.socket).toBe(join(realpathSync.native(join(w.base, "sock")), "app.sock"));
+  const { run, release } = prepare("codex", { ...w, socket: join(w.base, "no-such-dir", "app.sock") });
   await expect(run(request)).rejects.toThrow(/^unknown$/);
   expect(release).toHaveBeenCalled();
 });
@@ -99,9 +99,9 @@ it("gives a Codex run the app socket's resolved directory and refuses one whose 
 // whose runtime did not start refuses only the runs that need it (the runner refuses a profile server).
 it("leaves the socket directory out when the app has no runtime", async () => {
   const w = world("codex");
-  const ready = await createAccountPrepare(prepare("codex", w).runtime, "/Applications/doan.app/Contents/Resources/bin/doan", () => {}, undefined, undefined, { userData: w.userData, socketDir: () => undefined })({ root: w.project, mode: "new", runtime: "codex", text: "hi", anchors: [] });
+  const ready = await createAccountPrepare(prepare("codex", w).runtime, "/Applications/doan.app/Contents/Resources/bin/doan", () => {}, undefined, undefined, { userData: w.userData, socket: () => undefined })({ root: w.project, mode: "new", runtime: "codex", text: "hi", anchors: [] });
   expect(ready.fence?.paths.profile).toBe(realpathSync.native(w.profile));
-  expect(ready.fence && "socketDir" in ready.fence).toBe(false);
+  expect(ready.fence && "socket" in ready.fence).toBe(false);
 });
 // A reused server keeps the fence it started with; listing again would only let a passing listing failure refuse a send
 // that changes nothing about that server.
