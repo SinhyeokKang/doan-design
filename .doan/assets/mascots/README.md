@@ -47,18 +47,20 @@ Rig numbers (eye centres and radii, body and accessory pivots, accessory tilt ra
 
 ## Working-notice source boxes
 
-Same method as Doany's (`app/src/renderer/public/doany/README.md` 'Doany the artist'): every box is 460 source px,
-like Doany's painter, so the characters keep the scale they were drawn at; the eyes' centre sits where Doany's does
-(235.35 px down the box, 51.2 % of the window) and the opacity-weighted centroid of all frames sits at 50 % of the
-width.
+Doany's and Saemi's boxes follow Doany's method (`app/src/renderer/public/doany/README.md` 'Doany the artist'):
+460 source px, the eyes on Doany's line and the opacity-weighted centroid at 50 % of the width. That method left
+Dungdung, Popo and Dori low and to the left (their eyes sit high on bigger bodies), so their boxes are fitted to the
+character instead: the box size scales with the square root of the character's opaque area (first frame, left of the
+easel) against the mean of Doany's and Saemi's, and the character's bounding-box centre sits where theirs does
+(36.2 % across, 47.4 % down). Dori's box is a little larger again so its tip keeps clear of the top.
 
 | id | Eyes' centre (first frame) | Box (x, y, size) | Clipped at 32 px |
 |---|---|---|---|
 | doany | 202, 310 | 17, 75, 460 | easel foot under 0.5 px |
 | saemi | 222, 337 | 27, 101, 460 | none |
-| dungdung | 226, 302 | 33, 67, 460 | none |
-| popo | 196, 287 | 13, 52, 460 | easel foot 0.7 px |
-| dori | 195, 245 | 19, 10, 460 | easel foot 0.3 px |
+| dungdung | 226, 302 | 34, 98, 455 | none |
+| popo | 196, 287 | −4, 79, 510 | none |
+| dori | 195, 245 | 6, 57, 490 | none |
 
 ## Next: Doany's card
 
