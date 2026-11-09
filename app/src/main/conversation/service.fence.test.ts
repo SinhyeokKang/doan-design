@@ -60,3 +60,20 @@ it("passes a send's attachments to prepare, so a Claude or ACP run can open this
   await h.service.send(id, "look", [], { attachments: [image] });
   expect(h.prepare.mock.calls.at(-1)?.[0].attachments).toEqual([image]);
 });
+// A fenced Claude turn opened only the pasted-image directories it started with, so a pasted image steered into it
+// would be unreadable; the message waits in the queue for the next turn instead.
+it("refuses Send now of a pasted image into a fenced Claude turn and keeps it queued, but steers other messages", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "doan-service-fence-")); dirs.push(dir);
+  const steer = vi.fn(async () => {});
+  const open = vi.fn<OpenRunner>(async input => ({ sessionId: input.sessionId ?? "s1", send: vi.fn(async () => {}), steer, answer: () => false, stop: vi.fn(async () => {}), close: vi.fn(async () => {}) }));
+  const prepare = vi.fn<Prepare>(async () => ({ runtime: "claude" as const, configDir: "/u/agent-auth/profiles/claude", cwd: "/repo", command: "/fake", env: {}, fence: { paths: { userData: "/u", profile: "/u/agent-auth/profiles/claude", attachments: [] } } }));
+  const service = new ConversationService(new ConversationStore(dir), prepare, open, () => {});
+  const id = (await service.start({ ...request, mode: "new", runtime: "claude" })).conversationId;
+  const pasted = service.queue(id, { text: "look", anchors: [], attachments: [{ name: "Pasted image", size: 1, kind: "image", path: "/u/attachments/0f4e/pasted.png" }] });
+  const answered = service.sendNow(id, pasted.itemId).then(() => "ok", (error: Error) => error.message);
+  expect(await Promise.race([answered, new Promise(resolve => setTimeout(() => resolve("pending"), 50))])).toBe("not_running");
+  expect(steer).not.toHaveBeenCalled();
+  const chosen = service.queue(id, { text: "and this", anchors: [], attachments: [{ name: "shot.png", size: 1, kind: "image", path: "/Users/ada/Desktop/shot.png" }] });
+  void service.sendNow(id, chosen.itemId).catch(() => {});
+  await vi.waitFor(() => expect(steer).toHaveBeenCalledOnce());
+});

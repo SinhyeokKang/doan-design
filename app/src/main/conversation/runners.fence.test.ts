@@ -16,7 +16,7 @@ function fakeExec(root: string, exit?: number): string {
   const exec = join(root, "sandbox-exec");
   writeFileSync(exec, `#!/bin/sh
 printf '%s\\n' "$@" > ${JSON.stringify(join(root, "exec-args"))}
-${exit === undefined ? "" : `exit ${exit}`}
+${exit === undefined ? "" : `echo "sandbox-exec: refused for the test" >&2; exit ${exit}`}
 while [ "$1" = "-p" ] || [ "$1" = "-D" ]; do shift 2; done
 exec "$@"
 `, { mode: 0o700 });
@@ -119,13 +119,14 @@ const turnStarts = (root: string) => readFileSync(join(root, "seen"), "utf8").sp
 it("runs a fenced Codex server outside Full access on Doan's permission profiles, selected per turn without a sandboxPolicy", async () => {
   const root = temp(), exec = fakeExec(root), command = fakeCodex(root);
   const events: EventPayload[] = [];
-  const runner = await openRunner({ command, runtime: "codex", owner: CODEX_OWNER, cwd: root, configDir: root, env: process.env, args: ["-c", "allow_login_shell=false"], fence: { paths: { ...paths("codex"), attachments: ["/u/attachments"] }, denied: [{ path: "/u/conversations", directory: true }], exec } }, e => events.push(e), () => {}, () => {});
+  const runner = await openRunner({ command, runtime: "codex", owner: CODEX_OWNER, cwd: root, configDir: root, env: process.env, args: ["-c", "allow_login_shell=false"], fence: { paths: { ...paths("codex"), attachments: ["/u/attachments"] }, denied: [{ path: "/u/conversations", directory: true }], socketDir: "/tmp/doan-sock", exec } }, e => events.push(e), () => {}, () => {});
   try {
     expect(runner.mechanism).toBe("codex-profile");
     expect(execArgs(root)).toBeNull();
     const argv = JSON.parse(readFileSync(join(root, "codex-argv"), "utf8")) as string[];
     expect(argv.slice(0, 4)).toEqual(["-c", "allow_login_shell=false", "-c", 'default_permissions="doan"']);
     expect(argv[5]).toContain(`"/u/conversations"="deny"`); expect(argv[5]).not.toContain(`"/u"="deny"`);
+    expect(argv[5]).toContain(`network={enabled=true,unix_sockets={"/tmp/doan-sock"="allow"}}`);
     expect(argv.at(-1)).toBe("app-server");
     for (const [i, permissionMode] of (["default", "acceptEdits", "plan"] as const).entries()) {
       await runner.send("x", `t${i}`, undefined, { permissionMode });
@@ -175,6 +176,17 @@ it("fails a fenced Claude or Codex start as process_exited, never cli_missing, w
 it("refuses a Claude turn with its sandbox on, or a Codex profile server, that has no listing to deny", async () => {
   const root = temp(), exec = fakeExec(root), claude = fakeClaude(root), codex = fakeCodex(root);
   await expect(openRunner({ command: claude, runtime: "claude", owner: CLAUDE_OWNER, cwd: root, configDir: root, env: { PATH: process.env.PATH, HOME: root, CLAUDE_CONFIG_DIR: root }, fence: { paths: paths("claude"), exec, claudeSandbox: true } }, () => {}, () => {}, () => {})).rejects.toThrow("unknown");
-  await expect(openRunner({ command: codex, runtime: "codex", owner: CODEX_OWNER, cwd: root, configDir: root, env: process.env, fence: { paths: paths("codex"), exec } }, () => {}, () => {}, () => {})).rejects.toThrow("unknown");
+  await expect(openRunner({ command: codex, runtime: "codex", owner: CODEX_OWNER, cwd: root, configDir: root, env: process.env, fence: { paths: paths("codex"), exec, socketDir: "/tmp/doan-sock" } }, () => {}, () => {}, () => {})).rejects.toThrow("unknown");
+  // Without the app socket's directory the profile would leave `doan` unable to reach the app.
+  await expect(openRunner({ command: codex, runtime: "codex", owner: CODEX_OWNER, cwd: root, configDir: root, env: process.env, fence: { paths: paths("codex"), exec, denied: [] } }, () => {}, () => {}, () => {})).rejects.toThrow("unknown");
   expect(existsSync(join(root, "claude-argv")) || existsSync(join(root, "codex-argv"))).toBe(false);
 });
+// Only sandbox-exec's own failure is reclassified: a CLI that ends during its start keeps the SDK's error, so its
+// sign-in or version guidance is not lost.
+it("keeps a fenced Claude CLI's own early exit out of process_exited", async () => {
+  const root = temp(), exec = fakeExec(root), command = join(root, "claude");
+  writeFileSync(command, "#!/bin/sh\necho 'Invalid API key' >&2\nexit 1\n", { mode: 0o700 });
+  const message = await openRunner({ command, runtime: "claude", owner: CLAUDE_OWNER, cwd: root, configDir: root, env: { PATH: process.env.PATH, HOME: root, CLAUDE_CONFIG_DIR: root }, fence: { paths: paths("claude"), exec } }, () => {}, () => {}, () => {}).then(() => "started", (e: unknown) => (e as Error).message);
+  expect(message).not.toBe("process_exited");
+  expect(message).not.toBe("started");
+}, 20000);

@@ -3,7 +3,7 @@ import { claudeDenyRules, claudeFenceSettings, claudeSandboxEnabled, codexMechan
 import { PERMISSION_MODES } from "../conversation/permissionMode";
 import type { Provider } from "./types";
 
-// The policy text that passed the real-provider runs of the profile-isolation PoC, byte for byte.
+// The policy text that passed real provider runs (Cursor, Antigravity, Copilot, and Claude and Codex fenced), byte for byte.
 const BASE = `(version 1)
 (allow default)
 (deny file-read* file-write* (subpath (param "USERDATA")))
@@ -13,6 +13,13 @@ const BASE = `(version 1)
 (allow file-read* (subpath (param "ATTACHMENTS")))
 `;
 const HOOK = `(allow file-read* (literal (param "BROWSER_HOOK")))
+`;
+// A later run reads these as its settings, and Claude's or Codex's next run may start without the outer fence
+// (Claude by its sandbox setting, Codex outside Full access): their hooks, MCP servers and notify then run outside
+// any sandbox, so the agent must not plant them.
+const CLAUDE_SETTINGS = `(deny file-write* (literal (param "PROVIDER_SETTINGS")))
+`;
+const CODEX_SETTINGS = `(deny file-write* (literal (param "CODEX_CONFIG")) (literal (param "CODEX_HOOKS")) (literal (param "CODEX_MANAGED")) (subpath (param "CODEX_RULES")))
 `;
 const ANTIGRAVITY = `(allow file-read-metadata (literal (param "AGENT_RUNTIMES")))
 (allow file-read* (subpath (param "AGENT_RUNTIME")))
@@ -29,29 +36,37 @@ const params = (args: readonly string[]) => {
 };
 
 describe("fencePolicy", () => {
-  it("is the PoC's passing text for Cursor, Copilot and Codex", () => {
-    for (const provider of ["cursor", "copilot", "codex"] as Provider[]) expect(fencePolicy(provider)).toBe(BASE);
+  it("is the passing text for Cursor and Copilot", () => {
+    for (const provider of ["cursor", "copilot"] as Provider[]) expect(fencePolicy(provider)).toBe(BASE);
+  });
+  it("closes Claude's and Codex's own settings files to writes", () => {
+    expect(fencePolicy("codex")).toBe(BASE + CODEX_SETTINGS);
   });
   it("adds the browser hook for Claude and the hook, agent runtime and skill-path deny for Antigravity", () => {
-    expect(fencePolicy("claude")).toBe(BASE + HOOK);
+    expect(fencePolicy("claude")).toBe(BASE + HOOK + CLAUDE_SETTINGS);
     expect(fencePolicy("antigravity")).toBe(BASE + HOOK + ANTIGRAVITY);
   });
   it("is the same text with no pasted image or one", () => {
     for (const provider of ["cursor", "claude", "antigravity"] as Provider[]) expect(fencePolicy(provider, 1)).toBe(fencePolicy(provider, 0));
   });
   it("appends one read rule per further pasted image and leaves the rest unchanged", () => {
-    expect(fencePolicy("claude", 3)).toBe(BASE + HOOK + `(allow file-read* (subpath (param "ATTACHMENTS_2")))
+    expect(fencePolicy("claude", 3)).toBe(BASE + HOOK + CLAUDE_SETTINGS + `(allow file-read* (subpath (param "ATTACHMENTS_2")))
 (allow file-read* (subpath (param "ATTACHMENTS_3")))
 `);
   });
 });
 
 describe("fenceArgs", () => {
-  it("passes the policy with -p and every path as a -D parameter in the PoC's order", () => {
+  it("passes the policy with -p and every path as a -D parameter in the order of the runs that passed", () => {
     const att = `${U}/attachments/1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed`;
-    expect(fenceArgs("claude", paths({ attachments: [att] }))).toEqual(["-p", BASE + HOOK,
+    expect(fenceArgs("claude", paths({ attachments: [att] }))).toEqual(["-p", BASE + HOOK + CLAUDE_SETTINGS,
       "-D", `USERDATA=${U}`, "-D", `AGENT_AUTH=${U}/agent-auth`, "-D", `PROFILES=${U}/agent-auth/profiles`, "-D", `PROFILE=${P}`,
-      "-D", `RUNTIME=${U}/runtime.json`, "-D", `ATTACHMENTS=${att}`, "-D", `BROWSER_HOOK=${U}/agent-auth/browser-hook`]);
+      "-D", `RUNTIME=${U}/runtime.json`, "-D", `ATTACHMENTS=${att}`, "-D", `BROWSER_HOOK=${U}/agent-auth/browser-hook`, "-D", `PROVIDER_SETTINGS=${P}/settings.json`]);
+  });
+  it("names Codex's settings files in its own profile", () => {
+    const profile = `${U}/agent-auth/profiles/codex-7`;
+    expect(params(fenceArgs("codex", { userData: U, profile, attachments: [`${U}/attachments`] }))).toMatchObject({
+      CODEX_CONFIG: `${profile}/config.toml`, CODEX_HOOKS: `${profile}/hooks.json`, CODEX_MANAGED: `${profile}/managed_config.toml`, CODEX_RULES: `${profile}/rules` });
   });
   it("gives Antigravity its agent runtime and its own profile's skill paths", () => {
     const profile = `${U}/agent-auth/profiles/antigravity`;
@@ -71,7 +86,7 @@ describe("fenceArgs", () => {
   });
   it("names no other provider's profile and no Doan path beyond the allowed ones", () => {
     const values = Object.values(params(fenceArgs("claude", paths())));
-    expect(values.filter(v => v.startsWith(`${U}/agent-auth/profiles/`))).toEqual([P, P]);
+    expect(values.filter(v => v.startsWith(`${U}/agent-auth/profiles/`))).toEqual([P, P, `${P}/settings.json`]);
     expect(values.some(v => v.includes("conversations") || v.includes("vault"))).toBe(false);
   });
   it("keeps a path with quotes, spaces and parentheses as one argument", () => {
@@ -83,7 +98,10 @@ describe("fenceArgs", () => {
 describe("resolveFencePaths", () => {
   const real = (map: Record<string, string>) => (path: string) => { const hit = map[path]; if (hit === undefined) throw Object.assign(new Error("ENOENT"), { code: "ENOENT" }); return hit; };
   const fs = real({ "/var/u": "/private/var/u", [`/var/u/agent-auth/profiles/claude`]: `/private/var/u/agent-auth/profiles/claude`, [`/var/u/agent-auth/profiles/codex-7`]: `/private/var/u/agent-auth/profiles/codex-7`,
-    "/var/u/attachments": "/private/var/u/attachments", "/var/u/link": "/elsewhere/profile", "/private/var/u/attachments": "/private/var/u/attachments" });
+    "/var/u/attachments": "/private/var/u/attachments", "/var/u/link": "/elsewhere/profile", "/private/var/u/attachments": "/private/var/u/attachments",
+    "/private/var/u/attachments/0f4e/pasted.png": "/private/var/u/attachments/0f4e/pasted.png", "/private/var/u/attachments/0f4e/other.png": "/private/var/u/attachments/0f4e/other.png",
+    "/private/var/u/attachments/77aa/capture.png": "/private/var/u/attachments/77aa/capture.png", "/var/u/attachments/99bb/via-link.png": "/private/var/u/attachments/99bb/via-link.png",
+    "/private/var/u/conversations/x.png": "/private/var/u/conversations/x.png", "/private/var/u/attachments/top.png": "/private/var/u/attachments/top.png", "/Users/ada/Desktop/shot.png": "/Users/ada/Desktop/shot.png" });
   it("resolves userData and the profile so Seatbelt compares the paths it sees", () => {
     expect(resolveFencePaths({ provider: "claude", userData: "/var/u", profileDir: "/var/u/agent-auth/profiles/claude", attachments: [] }, fs))
       .toEqual({ userData: "/private/var/u", profile: "/private/var/u/agent-auth/profiles/claude", attachments: [] });
@@ -96,14 +114,22 @@ describe("resolveFencePaths", () => {
     expect(resolveFencePaths({ provider: "claude", userData: "/var/u", profileDir: "/var/u/agent-auth/profiles/claude", attachments: [pasted, "/Users/ada/Desktop/shot.png", again, second] }, fs)?.attachments)
       .toEqual(["/private/var/u/attachments/0f4e", "/private/var/u/attachments/77aa"]);
   });
+  // An attachment recorded through a link (an unresolved /var path) would miss the resolved store and stay closed.
+  it("resolves an attachment path before matching it to the store", () => {
+    expect(resolveFencePaths({ provider: "claude", userData: "/var/u", profileDir: "/var/u/agent-auth/profiles/claude", attachments: ["/var/u/attachments/99bb/via-link.png"] }, fs)?.attachments).toEqual(["/private/var/u/attachments/99bb"]);
+  });
+  it("leaves an attachment that no longer resolves closed rather than refusing the run", () => {
+    expect(resolveFencePaths({ provider: "claude", userData: "/var/u", profileDir: "/var/u/agent-auth/profiles/claude", attachments: ["/private/var/u/attachments/gone/x.png"] }, fs)?.attachments).toEqual([]);
+  });
   it("does not open a file elsewhere in userData that is not a pasted image directory", () => {
     expect(resolveFencePaths({ provider: "claude", userData: "/var/u", profileDir: "/var/u/agent-auth/profiles/claude", attachments: ["/private/var/u/conversations/x.png", "/private/var/u/attachments/top.png"] }, fs)?.attachments).toEqual([]);
   });
   it("gives Codex the whole attachment directory, since its server outlives a turn", () => {
     expect(resolveFencePaths({ provider: "codex", userData: "/var/u", profileDir: "/var/u/agent-auth/profiles/codex-7", attachments: ["/private/var/u/attachments/0f4e/a.png"] }, fs)?.attachments).toEqual(["/private/var/u/attachments"]);
   });
-  it("refuses relative paths, NUL and line breaks", () => {
-    for (const [userData, profileDir] of [["var/u", "/var/u/agent-auth/profiles/claude"], ["/var/u", "agent-auth/profiles/claude"], ["/var/u\0", "/var/u/agent-auth/profiles/claude"], ["/var/u", "/var/u/agent-auth/profiles/claude\n"]] as const)
+  it("refuses relative paths and every control character", () => {
+    for (const [userData, profileDir] of [["var/u", "/var/u/agent-auth/profiles/claude"], ["/var/u", "agent-auth/profiles/claude"], ["/var/u\0", "/var/u/agent-auth/profiles/claude"], ["/var/u", "/var/u/agent-auth/profiles/claude\n"],
+      ["/var/u\x01", "/var/u/agent-auth/profiles/claude"], ["/var/u", "/var/u/agent-auth/profiles/claude\x7f"], ["/var/u\t", "/var/u/agent-auth/profiles/claude"]] as const)
       expect(resolveFencePaths({ provider: "claude", userData, profileDir, attachments: [] }, fs)).toBeNull();
     expect(resolveFencePaths({ provider: "claude", userData: "/var/u", profileDir: "/var/u/agent-auth/profiles/claude", attachments: ["/private/var/u/attachments/a\nb/x.png"] }, fs)).toBeNull();
   });
@@ -190,8 +216,9 @@ describe("fenceDenied", () => {
   it("refuses when an ancestor could not be listed", () => {
     expect(fenceDenied("claude", paths(), new Map([...listing].filter(([d]) => d !== `${U}/agent-auth`)))).toBeNull();
   });
-  it("refuses a name a permission rule or profile entry would read as a pattern", () => {
-    for (const name of ["a*b", "a?b", "a[b]", "a\\b", "a(b)", "a{b}"])
+  // TOML basic strings take no U+007F, which JSON.stringify leaves as it is.
+  it("refuses a name a permission rule or profile entry would read as a pattern, or any control character", () => {
+    for (const name of ["a*b", "a?b", "a[b]", "a\\b", "a(b)", "a{b}", "a\x01b", "a\x7fb", "a\tb"])
       expect(fenceDenied("claude", paths(), new Map([...listing].map(([d, entries]) => [d, d === U ? [...entries, { name, directory: false }] : entries])))).toBeNull();
   });
 });
@@ -206,13 +233,26 @@ describe("claudeDenyRules", () => {
 describe("claudeFenceSettings", () => {
   const att = `${U}/attachments/0f4e`;
   const denied = [{ path: `${U}/conversations`, directory: true }, { path: `${U}/agent-auth/profiles/codex`, directory: true }];
-  it("adds Doan's deny rules and filesystem limits and turns off running outside the sandbox", () => {
+  const settingsFiles = [{ path: `${P}/settings.json`, directory: false }, { path: `${P}/.claude.json`, directory: false }];
+  it("adds Doan's deny rules and filesystem limits, keeps the sandbox on and turns off running outside it", () => {
     expect(claudeFenceSettings(paths({ attachments: [att] }), denied)).toEqual({
-      permissions: { deny: claudeDenyRules(denied) },
-      sandbox: { allowUnsandboxedCommands: false, filesystem: {
+      permissions: { deny: claudeDenyRules([...denied, ...settingsFiles]) },
+      sandbox: { enabled: true, allowUnsandboxedCommands: false, filesystem: {
         denyRead: [U], allowRead: [P, `${U}/runtime.json`, att, `${U}/agent-auth/browser-hook`],
-        denyWrite: [`${U}/conversations`, `${U}/agent-auth/profiles/codex`, `${U}/runtime.json`, att, `${U}/agent-auth/browser-hook`], allowWrite: [P] } },
+        denyWrite: [`${U}/conversations`, `${U}/agent-auth/profiles/codex`, `${U}/runtime.json`, att, `${U}/agent-auth/browser-hook`, `${P}/settings.json`, `${P}/.claude.json`], allowWrite: [P] } },
     });
+  });
+  // Hooks, MCP servers and a sandbox switch in these files run outside any sandbox on a later turn with the sandbox on.
+  it("keeps the agent's Bash and Edit tool off its own profile's settings files", () => {
+    const settings = claudeFenceSettings(paths(), []);
+    for (const file of ["settings.json", ".claude.json"]) {
+      expect(settings.sandbox.filesystem.denyWrite).toContain(`${P}/${file}`);
+      expect(settings.permissions.deny).toContain(`Edit(/${P}/${file})`);
+    }
+  });
+  // Doan judged the sandbox on; the flag tier keeps it on when a user, project or local source it misread says off.
+  it("turns the sandbox on in the flag tier", () => {
+    expect(claudeFenceSettings(paths(), []).sandbox.enabled).toBe(true);
   });
   // A denyWrite path beats an allowWrite inside it (Claude Code 2.1.319, real sandbox run), so userData as a whole
   // kept Bash from writing its own profile.
@@ -226,23 +266,36 @@ describe("codexProfileArgs", () => {
   const profile = `${U}/agent-auth/profiles/codex`;
   const codex = { userData: U, profile, attachments: [`${U}/attachments`] };
   const denied = [{ path: `${U}/conversations`, directory: true }, { path: `${U}/agent-auth/profiles/cursor`, directory: true }];
+  const sock = "/private/var/folders/x/T/doan-AbC123";
   it("defines Doan's two permission profiles and makes the read-only one the default", () => {
-    const entries = `{"${U}/conversations"="deny","${U}/agent-auth/profiles/cursor"="deny","${profile}"="write","${U}/runtime.json"="read","${U}/attachments"="read"}`;
-    expect(codexProfileArgs(codex, denied)).toEqual([
+    const entries = `{"${U}/conversations"="deny","${U}/agent-auth/profiles/cursor"="deny","${profile}/config.toml"="deny","${profile}/hooks.json"="deny","${profile}/managed_config.toml"="deny","${profile}/rules"="deny","${profile}"="write","${U}/runtime.json"="read","${U}/attachments"="read"}`;
+    const network = `network={enabled=true,unix_sockets={"${sock}"="allow"}}`;
+    expect(codexProfileArgs(codex, denied, sock)).toEqual([
       "-c", 'default_permissions="doan"',
-      "-c", `permissions.doan={extends=":read-only",filesystem=${entries}}`,
-      "-c", `permissions.doan-workspace={extends=":workspace",filesystem=${entries}}`,
+      "-c", `permissions.doan={extends=":read-only",filesystem=${entries},${network}}`,
+      "-c", `permissions.doan-workspace={extends=":workspace",filesystem=${entries},${network}}`,
     ]);
+  });
+  // MCP servers and notify from config.toml run outside the Codex sandbox (codex-cli 0.166.0, probe), and an escalated
+  // command keeps only deny entries, so the settings files are denied rather than read-only.
+  it("denies the profile's own settings files", () => {
+    const text = codexProfileArgs(codex, denied, sock).join(" ");
+    for (const file of ["config.toml", "hooks.json", "managed_config.toml", "rules"]) expect(text).toContain(`"${profile}/${file}"="deny"`);
+  });
+  // Without network Codex opens no unix socket, for a sandboxed or an approved escalated command alike, so `doan`
+  // could not reach the app (user decision: network on, the app socket's directory allowed).
+  it("opens the network and the app socket's directory", () => {
+    expect(codexProfileArgs(codex, denied, sock)[3]).toContain(`network={enabled=true,unix_sockets={"${sock}"="allow"}}`);
   });
   // An approved escalated command keeps a profile's deny entries but not the narrower read and write ones under them
   // (codex-cli 0.166.0), so a deny over userData as a whole took runtime.json from `doan handoff`.
   it("denies neither userData nor an ancestor of an allowed path", () => {
-    const text = codexProfileArgs(codex, denied).join(" ");
+    const text = codexProfileArgs(codex, denied, sock).join(" ");
     for (const path of [U, `${U}/agent-auth`, `${U}/agent-auth/profiles`, profile, `${U}/runtime.json`, `${U}/attachments`]) expect(text).not.toContain(`${JSON.stringify(path)}="deny"`);
   });
   it("escapes quotes and backslashes as TOML strings", () => {
     const odd = `/tmp/a"b\\c`;
-    expect(codexProfileArgs({ userData: odd, profile: `${odd}/agent-auth/profiles/codex`, attachments: [`${odd}/attachments`] }, [{ path: `${odd}/conversations`, directory: true }])[3]).toContain(`"/tmp/a\\"b\\\\c/conversations"="deny"`);
+    expect(codexProfileArgs({ userData: odd, profile: `${odd}/agent-auth/profiles/codex`, attachments: [`${odd}/attachments`] }, [{ path: `${odd}/conversations`, directory: true }], sock)[3]).toContain(`"/tmp/a\\"b\\\\c/conversations"="deny"`);
   });
 });
 
