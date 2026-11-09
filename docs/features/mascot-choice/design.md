@@ -25,31 +25,35 @@ Doany 에셋 목록(현재):
 마스코트 하나의 에셋 세트(친구 4명 모두 같은 파일 이름):
 
 ```
-.doan/assets/mascots/<id>/          원본 (Doany는 기존 .doan/assets/doany/ 를 그대로 둔다)
-  draft.png        시안 원본(데스크톱 doan-family, 흰 배경) 사본. 투명 에셋이 나오기 전 캔버스가 쓴다
-  still.png        1254² RGBA, 투명 배경, 정지 이미지
+.doan/assets/mascots/<id>/          원본 (Doany는 card.png만 여기 두고, 나머지는 기존 .doan/assets/doany/ 를 그대로 쓴다)
+  card.png         1254² RGB, 흰 바탕에 부드러운 바닥 그림자가 있는 정사각형. 선택 카드 이미지
+                   (친구는 받은 시안 그대로, Doany는 투명 정지 이미지에 같은 그림자를 합성한 초안 → Codex가 교체)
+  still.png        1254² RGBA, 투명 배경, 그림자 없는 정지 이미지
   body.png         1254² RGBA, still과 같은 좌표, 눈과 소품을 지우고 가려진 몸통을 복원
   accessory.png    1254² RGBA, still과 같은 좌표, 소품만
-  artist.gif       512², 그림 그리는 작업 안내 애니메이션(사람이 제작)
+  artist.gif       512², 그림 그리는 작업 안내 애니메이션. 받은 GIF의 프레임별 크기·위치를 첫 프레임에 맞춘 것
+  artist-original.gif  받은 GIF 원본(사람이 제작)
   artist-rest.png  512², artist.gif 첫 프레임
   prompts.json     정지 이미지·레이어·artist 생성 프롬프트(layer-prompts.json 형식)
   README.md        출처, 리그 수치, artist 소스 박스, 검증 결과
 
 app/src/renderer/public/mascots/<id>/   앱 사본
   still.png  body.png  accessory.png   (원본과 같은 바이트)
+  card.png                             (선택 카드 표시 크기의 3배로 줄인 것, 크기는 /design-draft에서 정한다)
   artist.gif  artist-rest.png          (소스 박스로 자르고 128²로 줄인 것, Doany와 같은 방법)
 ```
 
 - Doany의 앱 사본도 같은 경로와 이름으로 옮긴다(`public/mascots/doany/still.png`, `body.png`, `accessory.png`). 그래야 코드가 id 하나로 모든 마스코트를 읽는다. Doany만 작업 안내 변형이 3종이다(`artist-painting.gif`, `artist-typing.gif`, `artist-reading.gif`와 각 `-rest.png`).
 - Doany 원본(`.doan/assets/doany/`)은 V1 기록까지 함께 있어서 옮기지 않는다.
-- 몸통 레이어와 소품 레이어 하나, 그리고 셰이더가 그리는 눈이라는 구조는 네 친구에게도 그대로 맞는다. 안경(peach)은 소품 레이어가 눈 위에 그려지므로 렌즈 안에서 눈이 깜박인다. 목도리(sky)와 헤드폰(yellow)은 몸통 앞을 감싸는 소품이라, 흔들림 범위를 마스코트별 리그 수치로 줄인다(아래).
+- 받은 artist GIF는 2~5번 프레임에서 캐릭터와 이젤의 크기와 위치가 달라 흔들린다(dungdung에서 몸통이 약 10 px 이동). 캐릭터와 이젤을 따로 첫 프레임에 맞춰(축척 + 이동) 다시 만들고, 원본은 `artist-original.gif`로 남긴다.
+- 몸통 레이어와 소품 레이어 하나, 그리고 셰이더가 그리는 눈이라는 구조는 네 친구에게도 그대로 맞는다. 안경(popo)은 소품 레이어가 눈 위에 그려지므로 렌즈 안에서 눈이 깜박인다. 목도리(dori)와 헤드폰(dungdung)은 몸통 앞을 감싸는 소품이라, 흔들림 범위를 마스코트별 리그 수치로 줄인다(아래).
 - 용량: Doany 이미지 3장은 3.9 MB다. 친구 4명을 같은 1254² 크기로 넣으면 앱이 약 16 MB 커진다. 리그 좌표는 크기와 무관한 UV라 해상도를 낮춰도 수치는 그대로다. 1단계 마지막에 크기를 재고, 줄일지는 그 결과를 보고 사람에게 묻는다(tasks 1.6).
 
 ## 마스코트 레지스트리
 
 `app/src/renderer/mascots.ts`(순수 모듈) 하나가 마스코트 목록의 출처다.
 
-- `MascotId = "doany" | "mint" | "yellow" | "peach" | "sky"`, 표시 순서는 이 순서다.
+- `MascotId = "doany" | "saemi" | "dungdung" | "popo" | "dori"`, 표시 순서는 이 순서다.
 - 마스코트마다 이름, 성격 한 줄, 에셋 경로, 리그 수치, 작업 안내 변형 목록을 둔다.
 - `parseMascotId(value)`: 알 수 없는 값은 `doany`로 읽는다.
 - 이후 Overview, AppShell 등 새 위치에서도 이 레지스트리와 저장된 설정만 읽는다. 마스코트별로 분기하는 코드를 화면에 흩어 두지 않는다.
@@ -67,8 +71,8 @@ app/src/renderer/public/mascots/<id>/   앱 사본
 
 토큰 3층(palette → role → legacy, DESIGN.md 'Three colour layers')은 유지하고, palette와 role 사이에 전환층 하나를 둔다.
 
-- **palette**: `--violet-*` 옆에 친구 램프 4개(`--mint-*`, `--yellow-*`, `--peach-*`, `--sky-*`)를 추가한다. 각각 1–12단계와 pressed, link 값을 둔다. 만드는 방법은 violet과 같다(DESIGN.md 'Accent ramp': 참조 12단계 밝은 램프의 단계별 OKLCH 명도·채도 비율, 마스코트 색의 hue, 색역은 채도를 낮춰 맞춤). hue는 시안 정지 이미지의 몸통 색에서 잰다.
-- **전환층**: `--accent-1`…`--accent-12`, `--accent-pressed`, `--accent-link`, `--accent-icon`. `:root`는 violet을 가리키고, `:root[data-mascot="mint"]` 등이 각 램프로 덮어쓴다. role(`--affordance-accent`, `--surface-accent-subtle`, `--text-accent-subtle`, `--surface-comment` 등)은 `--violet-*` 대신 `--accent-*`를 읽는다. `styles.css`가 `--violet-5`를 직접 읽는 곳(`.ob-atmosphere::before`)도 `--accent-5`로 바꾼다.
+- **palette**: `--violet-*` 옆에 친구 램프 4개(`--mint-*`, `--yellow-*`, `--peach-*`, `--sky-*`, palette 층이라 violet처럼 색 이름)를 추가한다. 각각 1–12단계와 pressed, link 값을 둔다. 만드는 방법은 violet과 같다(DESIGN.md 'Accent ramp': 참조 12단계 밝은 램프의 단계별 OKLCH 명도·채도 비율, 마스코트 색의 hue, 색역은 채도를 낮춰 맞춤). hue는 시안 정지 이미지의 몸통 색에서 잰다.
+- **전환층**: `--accent-1`…`--accent-12`, `--accent-pressed`, `--accent-link`, `--accent-icon`. `:root`는 violet을 가리키고, `:root[data-mascot="saemi"]` 등이 각 램프로 덮어쓴다. role(`--affordance-accent`, `--surface-accent-subtle`, `--text-accent-subtle`, `--surface-comment` 등)은 `--violet-*` 대신 `--accent-*`를 읽는다. `styles.css`가 `--violet-5`를 직접 읽는 곳(`.ob-atmosphere::before`)도 `--accent-5`로 바꾼다.
 - **아이콘 단계**: 새 role `--text-accent`(= `--accent-icon`)를 둔다. 흰 패널 위 accent 아이콘, 점, 외곽선이 이 role을 읽는다. 대상은 Fast 아이콘, 추천 프롬프트 아이콘과 화살표, 사이드바 permission·unseen 점, Show conversation 점, 프리셋 아이콘, 드롭 외곽선이다. `--accent-icon`은 9단계부터 어두운 쪽으로 가며 `--surface-panel` 대비 3:1을 처음 넘는 단계다. violet은 9단계다.
 - **Send**: `--text-on-accent`를 중립 검정으로 바꾼다(모든 마스코트). 대비는 3:1 이상이다(violet 9 위 검정 약 4.0:1).
 - **적용**: renderer가 `<html data-mascot="<id>">`를 설정한다. Doany는 속성이 없다. `@theme inline`이 accent를 shadcn 이름에 연결하지 않는다는 규칙(ARCHITECTURE §'ds')은 violet에서 accent 전체로 넓힌다.
@@ -130,7 +134,7 @@ app/src/renderer/public/mascots/<id>/   앱 사본
 ## PoC 의존
 
 - **레이어 추출**: image_gen으로 같은 좌표의 몸통·소품 레이어를 만드는 방법은 Doany에서만 확인했다. 소품이 몸통 앞을 감싸는 경우(목도리, 헤드폰)는 확인하지 않았다.
-- 마스코트 하나(mint)로 먼저 확인한 뒤 나머지 셋을 만든다(tasks 1.5).
+- 마스코트 하나(saemi)로 먼저 확인한 뒤 나머지 셋을 만든다(tasks 1.5).
 
 ## 제작 방식
 

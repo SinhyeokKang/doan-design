@@ -4,8 +4,8 @@
 
 ## 1단계 — 에셋과 초안 (lead, develop)
 
-- [ ] **1.1 에셋 구조.** `.doan/assets/mascots/<id>/`(mint, yellow, peach, sky)를 만들고 시안 정지 이미지를 `draft.png`로, 받은 GIF를 `artist.gif`로 넣는다. `README.md`에는 출처와 아직 비어 있는 파일 목록을 적는다. `.doan/assets/mascots/README.md`에는 마스코트 하나의 에셋 세트와 Doany와의 대응을 적는다(design.md '에셋 구조').
-  - 확인: `file .doan/assets/mascots/*/draft.png .doan/assets/mascots/*/artist.gif`가 1254² PNG와 512² GIF를 보여준다.
+- [ ] **1.1 에셋 구조.** `.doan/assets/mascots/<id>/`(saemi, dungdung, popo, dori)를 만들고 시안 정지 이미지를 `card.png`로, 받은 GIF를 `artist.gif`로 넣는다. `README.md`에는 출처와 아직 비어 있는 파일 목록을 적는다. `.doan/assets/mascots/README.md`에는 마스코트 하나의 에셋 세트와 Doany와의 대응을 적는다(design.md '에셋 구조').
+  - 확인: `file .doan/assets/mascots/*/card.png .doan/assets/mascots/*/artist.gif`가 1254² PNG와 512² GIF를 보여준다.
   - ⎯ 커밋: `docs(design): mascot asset structure with drafts and artist GIFs`
 - [ ] **1.2 accent 램프 캔버스.** `.doan/canvases/mascot-accent.html`: 다섯 램프(1–12, pressed, link), 아이콘 단계, 대비표(칩 글자 4.5:1, 패널 위 아이콘 3:1, 9단계 위 검정 Send 아이콘 3:1), 각 램프로 칠한 Accent places 견본을 그린다.
   - 확인: `doan check .doan/canvases/mascot-accent.html --json`에 오류가 없다. 대비 수치는 캔버스 안 스크립트로 계산해 표시한다.
@@ -15,9 +15,9 @@
   - ⎯ 커밋: `docs(design): mascot-choice draft`
 - [ ] **1.4 artist GIF 앱 사본.** 1.3에서 정한 소스 박스로 친구 GIF를 자르고 128²로 줄여 `public/mascots/<id>/artist.gif`·`artist-rest.png`를 만든다(Doany와 같은 방법, `public/doany/README.md`). 3단계 첫 커밋에 넣는다.
   - 확인: 128² GIF이고 프레임 수와 시간이 원본과 같다. 캔버스의 32px 견본과 눈높이 52%가 맞다.
-- [ ] **1.5 정지 이미지·레이어 PoC (Codex 워커, mint).** 투명 `still.png`, `body.png`, `accessory.png`, 리그 수치, `prompts.json`을 만든다. 시안의 형태와 질감은 바꾸지 않는다.
+- [ ] **1.5 정지 이미지·레이어 PoC (Codex 워커, saemi).** 투명 `still.png`, `body.png`, `accessory.png`, 리그 수치, `prompts.json`을 만든다. 시안의 형태와 질감은 바꾸지 않는다.
   - 확인: 세 장 모두 1254² RGBA다. 몸통 + 소품 + 셰이더 눈의 rest 프레임이 `still.png`와 경계·눈 위치에서 1 device px 안에서 맞는다(캔버스 비교 프레임과 측정 스크립트). 사람이 확인한다.
-- [ ] **1.6 나머지 셋 (Codex 워커).** yellow, peach, sky도 1.5와 같은 방법으로 만든다. 목도리와 헤드폰은 소품 기울기 범위를 정한다.
+- [ ] **1.6 나머지 셋 (Codex 워커).** dungdung, popo, dori도 1.5와 같은 방법으로 만든다. 목도리와 헤드폰은 소품 기울기 범위를 정한다.
   - 확인: 1.5와 같다. 마스코트 4개의 이미지 용량 합을 재서 사람에게 보고하고, 해상도를 줄일지 묻는다.
   - ⎯ 커밋: 마스코트마다 `docs(design): <id> mascot layers`
 
