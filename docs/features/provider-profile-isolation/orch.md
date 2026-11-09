@@ -11,6 +11,7 @@
 - P0 실패 시 방향, P2 실패 provider 처리, T2a 초안 확인: PoC 결과가 나온 뒤 conductor가 추천과 함께 사용자에게 묻는다.
 - 링크 1이 넣은 `account_changed`·`sign_in_changed` 판정(`prepare.ts`)과 `releaseFailed`·`TransportState.running`(`service.ts`·`runners.ts`)은 fence를 얹을 때 그대로 둔다 — conductor 판단, 근거: 체인 파일 '링크 1 merge'.
 - model 경계: Claude worker만 쓴다. 체인 파일이 Codex 사용을 허락했지만 이번 링크에서는 쓰지 않는다 — conductor 판단, 근거: batch가 직렬이라 병렬 용량이 필요 없다. Codex를 쓰게 되면 그때 남은 사용량을 확인하고 여기에 적는다.
+- **P0 실패 방향(사용자 결정)**: P0에서 macOS가 이미 Seatbelt 안의 프로세스에 두 번째 deny 정책을 거절했다(exit 71). 그래서 Doan fence 안에서 Codex Ask first·Accept edits·Plan의 명령 sandbox와 사람이 켠 Claude Code sandbox가 모든 명령을 실패시킨다. 결정: Cursor·Antigravity·Copilot은 계획대로 바깥 fence를 쓴다. Codex·Claude는 T1에서 provider 자체 sandbox·설정(Codex sandbox 설정, Claude `permissions.deny`·sandbox 읽기 제한)에 Doan의 금지 경로를 넣을 수 있는지 먼저 확인하고, 안 되는 부분은 결과를 보고 사용자에게 다시 묻는다. PRODUCT §3의 "Ask first applies the user's own permission and sandbox settings"는 지킨다.
 
 ## batch
 
@@ -18,7 +19,7 @@ batch는 모두 직렬이다. T0와 T1은 둘 다 실제 Antigravity와 `~/.gemi
 
 | batch | 항목 | 파일 소유 | 선행 | model·effort와 이유 | 검증 gate | 상태 |
 |---|---|---|---|---|---|---|
-| W1 PoC-A | P0, T0(P1·P3) | `.scratch/provider-profile-isolation/`, design.md §8 P0·P1·P3 | 없음 | Opus high — 바이너리 archive 해석과 실제 Keychain을 건드리는 판단, 틀리면 사람의 `agy` 로그인을 망친다 | tasks P0·T0 검증, 실제 상태 전후 비교 | 대기 |
+| W1 PoC-A | P0, T0(P1·P3) | `.scratch/provider-profile-isolation/`, design.md §8 P0·P1·P3 | 없음 | Opus high — 바이너리 archive 해석과 실제 Keychain을 건드리는 판단, 틀리면 사람의 `agy` 로그인을 망친다 | tasks P0·T0 검증, 실제 상태 전후 비교 | 통합 |
 | W2 PoC-B | T1(P2) | `.scratch/provider-profile-isolation/`, design.md §8 P2 | W1, T2의 P0 분기 | Opus high — Seatbelt 정책 평가와 다섯 provider × 모드 판단 | tasks T1 검증, provider × 모드 표 | 대기 |
 | conductor | T2 결정 확인, (조건부) T2a 초안 | spec·design·tasks | W2 | — | design §10 남은 확인 필요가 결정으로 바뀜 | 대기 |
 | W3 구현 | T3, T4 | `app/src/main/agentAuth/`(새 fence 모듈, `environment.ts`, `manager.ts`), `app/src/main/conversation/`(`prepare.ts`, `service.ts`, `runners.ts`, `acpRunner.ts`)와 각 테스트 | T2 | Opus high — process spawn·fail closed·보안 경계, 링크 1 거절 경로 보존 | `npm --prefix app test`·typecheck·lint, `verify.mjs` | 대기 |
@@ -30,3 +31,5 @@ batch는 모두 직렬이다. T0와 T1은 둘 다 실제 Antigravity와 `~/.gemi
 항목 대응: P0·T0 → W1, T1 → W2, T2·T2a → conductor(T2a 초안을 그리게 되면 새 worker), T3·T4 → W3, T5 → W4, T6 → W5·W3, T7 → conductor.
 
 ## 진행 기록
+
+- W1(P0·T0): `aa042e53`을 통합했다. P0 실패(위 결정). P1: 지금의 env로 실제 상태 변화 0, 실제 `antigravity-cli/` 쓰기는 Orca.app이 주기적으로 실행하는 사람의 `agy`가 만든다 → 추천 경로 1(코드 변경 없음). 사람의 `agy` 로그인 유지. P3: (i). 남은 것: dev 앱 + Keychains 링크 조건은 T5에서 본다.
