@@ -7,7 +7,7 @@
 - [ ] **1.1 에셋 구조.** `.doan/assets/mascots/<id>/`(saemi, dungdung, popo, dori)를 만들고 시안 정지 이미지를 `card.png`로, 받은 GIF를 `artist.gif`로 넣는다. `README.md`에는 출처와 아직 비어 있는 파일 목록을 적는다. `.doan/assets/mascots/README.md`에는 마스코트 하나의 에셋 세트와 Doany와의 대응을 적는다(design.md '에셋 구조').
   - 확인: `file .doan/assets/mascots/*/card.png .doan/assets/mascots/*/artist.gif`가 1254² PNG와 512² GIF를 보여준다.
   - ⎯ 커밋: `docs(design): mascot asset structure with drafts and artist GIFs`
-- [ ] **1.2 accent 램프 캔버스.** `.doan/canvases/mascot-accent.html`: 다섯 램프(1–12, pressed, link), 아이콘 단계, 대비표(칩 글자 4.5:1, 패널 위 아이콘 3:1, 9단계 위 검정 Send 아이콘 3:1), 각 램프로 칠한 Accent places 견본을 그린다.
+- [ ] **1.2 accent 램프 캔버스.** `.doan/canvases/mascot-accent.html`: 다섯 램프(1–12, pressed, link), 아이콘 색, 대비표(칩 글자 4.5:1, 패널 위 아이콘 3:1, 9단계 위 검정 Send 아이콘 3:1), 각 램프로 칠한 Accent places 견본을 그린다.
   - 확인: `doan check .doan/canvases/mascot-accent.html --json`에 오류가 없다. 대비 수치는 캔버스 안 스크립트로 계산해 표시한다.
   - ⎯ 커밋: `docs(design): mascot-accent draft`
 - [ ] **1.3 화면 초안 (`/design-draft`).** `.doan/canvases/mascot-choice.html`: 첫 실행 Mascot 단계(선택 카드 5장, 마스코트별 accent), 설정 General(Mascot 그룹), Welcome·Home(고른 마스코트 정지 이미지), 캔버스 작업 안내(친구 artist GIF, Doany 가족 정렬 규칙으로 맞춘 소스 박스). 문구는 Doan clarify preset으로 다듬는다.
@@ -23,7 +23,7 @@
 
 ## 2단계 — accent 동적 변경 (`/ship`)
 
-- [ ] **2.1 램프와 대비 검사 (순수 함수).** `accentIconStep`, 램프 재계산 일치 검사, `ds/checks.ts`의 accent 추적 일반화와 램프별 `contrastPairs`. 먼저 테스트로 고정한다.
+- [ ] **2.1 램프와 대비 검사 (순수 함수).** `accentIcon`, 램프 재계산 일치 검사, `ds/checks.ts`의 accent 추적 일반화와 램프별 `contrastPairs`. 먼저 테스트로 고정한다.
   - 확인: `npm --prefix app test`가 통과한다(새 테스트가 먼저 red였다).
 - [ ] **2.2 토큰.** `tokens.css`에 친구 램프 4개, 전환층 `--accent-*`, `:root[data-mascot=…]` 덮어쓰기, `--text-accent`를 넣고, role이 `--accent-*`를 읽게 바꾼다. `--text-on-accent`는 중립 검정으로 바꾼다. 흰 패널 위 accent 아이콘·점·외곽선을 `--text-accent`로 바꾸고, `.ob-atmosphere::before`는 `--accent-5`로 바꾼다.
   - 확인: `npm --prefix app test`(`ds/checks.test.ts`의 `accentPlaces`, `contrastPairs`)와 `npm --prefix app run typecheck`가 통과한다.

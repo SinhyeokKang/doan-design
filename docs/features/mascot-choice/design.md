@@ -39,7 +39,7 @@ Doany 에셋 목록(현재):
 
 app/src/renderer/public/mascots/<id>/   앱 사본
   still.png  body.png  accessory.png   (원본과 같은 바이트)
-  card.png                             (선택 카드 표시 크기의 3배로 줄인 것, 크기는 /design-draft에서 정한다)
+  card.png                             (288², 선택 카드에 96px로 그리는 크기의 3배)
   artist.gif  artist-rest.png          (소스 박스로 자르고 128²로 줄인 것, Doany와 같은 방법)
 ```
 
@@ -71,12 +71,12 @@ app/src/renderer/public/mascots/<id>/   앱 사본
 
 토큰 3층(palette → role → legacy, DESIGN.md 'Three colour layers')은 유지하고, palette와 role 사이에 전환층 하나를 둔다.
 
-- **palette**: `--violet-*` 옆에 친구 램프 4개(`--mint-*`, `--yellow-*`, `--peach-*`, `--sky-*`, palette 층이라 violet처럼 색 이름)를 추가한다. 각각 1–12단계와 pressed, link 값을 둔다. 만드는 방법은 violet과 같다(DESIGN.md 'Accent ramp': 참조 12단계 밝은 램프의 단계별 OKLCH 명도·채도 비율, 마스코트 색의 hue, 색역은 채도를 낮춰 맞춤). hue는 시안 정지 이미지의 몸통 색에서 잰다.
+- **palette**: `--violet-*` 옆에 친구 램프 4개(`--saemi-*`, `--dungdung-*`, `--popo-*`, `--dori-*`)가 있다(`tokens.css`, `/design-draft`에서 추가). sky·amber·green은 이미 다른 palette 색 이름이라 마스코트 이름을 쓴다. 각각 1–12단계, pressed, link, icon 값이다. 만드는 방법은 아래 '초안 요청'의 `mascot-accent` 항목과 `tokens.css` 주석에 있다. violet 방법(9단계 대비 채도 비율)을 그대로 쓰면 친구의 밝은 단계가 회색이 되어서 다르게 정했다.
 - **전환층**: `--accent-1`…`--accent-12`, `--accent-pressed`, `--accent-link`, `--accent-icon`. `:root`는 violet을 가리키고, `:root[data-mascot="saemi"]` 등이 각 램프로 덮어쓴다. role(`--affordance-accent`, `--surface-accent-subtle`, `--text-accent-subtle`, `--surface-comment` 등)은 `--violet-*` 대신 `--accent-*`를 읽는다. `styles.css`가 `--violet-5`를 직접 읽는 곳(`.ob-atmosphere::before`)도 `--accent-5`로 바꾼다.
-- **아이콘 단계**: 새 role `--text-accent`(= `--accent-icon`)를 둔다. 흰 패널 위 accent 아이콘, 점, 외곽선이 이 role을 읽는다. 대상은 Fast 아이콘, 추천 프롬프트 아이콘과 화살표, 사이드바 permission·unseen 점, Show conversation 점, 프리셋 아이콘, 드롭 외곽선이다. `--accent-icon`은 9단계부터 어두운 쪽으로 가며 `--surface-panel` 대비 3:1을 처음 넘는 단계다. violet은 9단계다.
-- **Send**: `--text-on-accent`를 중립 검정으로 바꾼다(모든 마스코트). 대비는 3:1 이상이다(violet 9 위 검정 약 4.0:1).
+- **아이콘 색**: 새 role `--text-accent`(= `--accent-icon`)를 둔다. 흰 패널 위 accent 아이콘, 점, 외곽선이 이 role을 읽는다. 대상은 Fast 아이콘, 추천 프롬프트 아이콘과 화살표, 사이드바 permission·unseen 점, Show conversation 점, 프리셋 아이콘, 드롭 외곽선이다. `--accent-icon`은 램프 단계가 아니라 마스코트별 `--<id>-icon` 값이다. 9단계의 OKLCH 명도를 흰 바탕 대비 3:1이 될 때까지 낮춘 색이다. violet은 9단계 그대로다.
+- **Send**: `--text-on-accent`를 중립 잉크 `--text-standard`(#0f0f0f)로 바꾼다(모든 마스코트). 대비는 모든 램프에서 3:1 이상이다. 가장 낮은 것은 Doany이고, 9·hover·pressed에서 각각 3.68·3.34·3.09:1이다.
 - **적용**: renderer가 `<html data-mascot="<id>">`를 설정한다. Doany는 속성이 없다. `@theme inline`이 accent를 shadcn 이름에 연결하지 않는다는 규칙(ARCHITECTURE §'ds')은 violet에서 accent 전체로 넓힌다.
-- **검사**: `ds/checks.ts`의 violet 추적(`violetNames`, `accentPlaces`)을 `--accent-*`와 모든 마스코트 palette로 넓힌다. `contrastPairs`는 램프마다 칩 글자(3 위 11단계, 4.5:1), 아이콘 단계(패널 위 3:1), Send 아이콘(9 위 검정, 3:1)을 검사한다.
+- **검사**: `ds/checks.ts`의 violet 추적(`violetNames`, `accentPlaces`)을 `--accent-*`와 모든 마스코트 palette로 넓힌다. `contrastPairs`는 램프마다 칩 글자(3 위 11단계, 4.5:1), 아이콘 색(패널 위 3:1), Send 아이콘(9·hover·pressed 위 `--text-standard`, 3:1)을 검사한다.
 - 캔버스 초안은 `tokens.css`를 직접 링크하고 `data-mascot`이 없으므로 지금처럼 violet이다.
 
 ## 설정과 첫 페인트
@@ -109,7 +109,7 @@ app/src/renderer/public/mascots/<id>/   앱 사본
 - `preferences.ts`: `mascot` 읽기(키 없음, 알 수 없는 id, 잘못된 타입)와 patch 검증.
 - `onboardingScene.ts`: `mascot` 장면 전이(Welcome → Mascot → Agent, 뒤로 가기, 재시작 시 Welcome).
 - `settingsSections.ts`: `general` 카테고리 파싱과 표시.
-- 램프 검증: `accentIconStep(ramp, panel)`(3:1을 처음 넘는 단계), 램프 생성 방법으로 `tokens.css` 값을 다시 계산해 일치를 확인하는 함수.
+- 램프 검증: `accentIcon(base, panel)`(9단계를 3:1이 될 때까지 어둡게 한 색), 램프 생성 방법으로 `tokens.css` 값을 다시 계산해 일치를 확인하는 함수.
 - `ds/checks.ts`: accent 추적 일반화, 램프별 `contrastPairs`.
 - `Doany.tsx`의 `drawnPose`: 마스코트별 기울기 범위와 홉 배율.
 
@@ -120,7 +120,7 @@ app/src/renderer/public/mascots/<id>/   앱 사본
 ## 규칙(conventions) 영향
 
 - 캔버스 규칙과 `doan check` 규칙은 바뀌지 않는다.
-- 디자인 시스템 규칙이 바뀐다. 'violet만 Accent places에서 읽는다'가 '마스코트 accent만 Accent places에서 읽는다'로 바뀌고, accent 위 아이콘 잉크는 중립 검정이 되며, 흰 패널 위 accent 아이콘은 아이콘 단계를 쓴다. DESIGN.md를 고친다.
+- 디자인 시스템 규칙이 바뀐다. 'violet만 Accent places에서 읽는다'가 '마스코트 accent만 Accent places에서 읽는다'로 바뀌고, accent 위 아이콘 잉크는 중립 검정이 되며, 흰 패널 위 accent 아이콘은 마스코트별 아이콘 색을 쓴다. DESIGN.md를 고친다.
 
 ## 결정 영향
 
@@ -147,3 +147,32 @@ app/src/renderer/public/mascots/<id>/   앱 사본
 ## 디자인 preset
 
 `doan design-skill --json`으로 preset 목록만 확인했다. UI 문구와 레이아웃을 정하는 `/design-draft` 단계에서 `shape`, `clarify`, `critique`를 읽는다.
+
+## 초안 요청 (`/design-draft`)
+
+### `.doan/canvases/mascot-accent.html` (id `mascot-accent`, width 1600)
+
+| frame | 내용 |
+|---|---|
+| `ramps` | 다섯 램프의 1–12단계, pressed, link, 아이콘 색. 9단계는 몸통 색과 나란히 둔다 |
+| `contrast` | 램프마다 칩 글자(3 위 11, 4.5:1), 패널 위 아이콘 색(3:1), 9 위 검정 Send 아이콘(3:1)의 대비를 계산해 보여준다 |
+| `places` | 램프마다 Accent places 견본: Send, 프리셋 칩, 추천 프롬프트 한 줄, 사이드바 점, Home composer 글로우, 캔버스 작업 글로우 |
+
+- 램프 값은 `tokens.css` palette(`--saemi-*`, `--dungdung-*`, `--popo-*`, `--dori-*`)에 있고, 캔버스는 전환층을 흉내 내서 프레임 안에서 role을 덮어쓴다.
+- 친구 램프를 만드는 방법은 violet과 다르다. violet 방법(9단계 대비 채도 비율)을 그대로 쓰면, 채도가 낮은 친구의 1–8단계는 거의 회색이 된다. 그래서 1–8·11·12단계는 violet의 OKLCH 명도와 절대 채도를 쓴다(친구 9단계 채도의 1.2배 이하). 9단계는 Doany 몸통 색이 violet 9가 될 때와 같은 이동을 친구 몸통 색에 적용한다. 아이콘 색은 9단계를 흰 바탕 대비 3:1이 될 때까지 어둡게 한 값이다.
+
+### `.doan/canvases/mascot-choice.html` (id `mascot-choice`, width 2560)
+
+| frame | 상태 |
+|---|---|
+| `mascot-step` | 첫 실행 Mascot 단계, 처음 상태(Doany 선택) |
+| `mascot-step-picked` | 같은 단계에서 Dungdung을 고른 상태(accent가 따라 바뀜) |
+| `welcome` | Welcome, 저장된 마스코트 Saemi |
+| `settings-general` | 설정 General, Popo 선택 |
+| `settings-general-failed` | General, 저장 실패 메시지와 Retry |
+| `notice` | 캔버스 작업 안내, 다섯 마스코트의 화가 GIF와 각 accent 글로우 |
+
+- 선택 카드: 다섯 장을 한 줄로 놓는다. 카드는 `card.png`, 이름, 라디오 역할을 한다. 선택한 카드는 accent 아이콘 색 테두리 2px와 Home composer 글로우와 같은 부드러운 accent 글로우를 가진다(새 Accent place). 카드 줄 아래에 선택한 마스코트의 이름과 성격 한 줄을 보여준다.
+- 문구(Doan clarify preset 적용): 제목 "Choose your mascot", 설명 "It keeps you company in Doan and sets the app’s accent color. You can change it anytime in Settings." 설정 General의 설명 "Choices that apply across Doan on this Mac.", Mascot 그룹 설명 "Shown on Home and while an agent works. It also sets the accent color.", 저장 실패 "Couldn’t save your mascot. Your last saved mascot still applies."
+- 성격 한 줄(영어): Doany "A painter in a beret who turns your ideas into pictures."(시안에 없어서 새로 썼다. 확인 필요), Saemi "A curious walking buddy. When it finds something fun, it always takes you to see it.", Dungdung "A music-loving mood maker. It picks songs that fit how its friends feel.", Popo "A whimsical bookworm. It dreams up new games with you.", Dori "A quiet, caring friend. On tiring days, you can lean on it and rest."
+- 정지 이미지(`still.png`)가 나오기 전까지 Welcome·Home 슬롯은 `card.png`를 `mix-blend-mode: multiply`로 그린다. 투명 정지 이미지가 들어오면 그 파일로 바꾼다.
