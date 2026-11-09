@@ -216,9 +216,9 @@ test("thread spacing, and the suggestion rows right above the composer on the Ov
 });
 
 // The shown conversation's suggestion from the Overview's list reaches its composer.
-test("the shown conversation's suggestion stands in for the reply placeholder, with the Right Arrow hint", () => {
+test("the shown conversation's suggestion stands in for the reply placeholder, with the Tab or Right Arrow hint", () => {
   const html = render([summary({ suggestion: "Add an expired-cart illustration" })]);
   expect(html).toContain('aria-placeholder="Add an expired-cart illustration"');
-  expect(html).toContain("Press Right Arrow to use the suggestion.");
-  expect(render([summary()])).not.toContain("Press Right Arrow");
+  expect(html).toContain("Press Tab or Right Arrow to use the suggestion.");
+  expect(render([summary()])).not.toContain("to use the suggestion");
 });

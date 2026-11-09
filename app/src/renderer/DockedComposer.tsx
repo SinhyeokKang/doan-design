@@ -376,7 +376,7 @@ export function DockedComposer(props: DockedComposerProps) {
       // Escape closes the list only; there is no shortcut that stops the turn.
       if (step?.kind === "close") { if (event.key === "Escape") event.preventDefault(); setDismissedKey(step.dismiss ? key : null); return true; }
     }
-    // → puts the shown suggestion in the field as one undo step; it never sends.
+    // → or Tab puts the shown suggestion in the field as one undo step; it never sends.
     // The field's composing state is read last (a getter), so other keys never reach into the field.
     const shown = placeholder.suggestion;
     if (shown !== null && takesSuggestion({ key: event.key, shiftKey: event.shiftKey, altKey: event.altKey, metaKey: event.metaKey, ctrlKey: event.ctrlKey, isComposing: event.nativeEvent.isComposing, keyCode: event.keyCode },
@@ -472,7 +472,7 @@ export function DockedComposer(props: DockedComposerProps) {
   </div>;
 }
 
-const SUGGESTION_HINT = "Press Right Arrow to use the suggestion.";
+const SUGGESTION_HINT = "Press Tab or Right Arrow to use the suggestion.";
 
 export const SEND_NOW_TIP = "Add to the current turn without stopping it";
 export const SEND_NOW_REFUSED_TEXT = "Couldn’t send now. It stays queued.";
