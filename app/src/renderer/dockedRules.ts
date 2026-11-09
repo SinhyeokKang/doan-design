@@ -152,7 +152,7 @@ const SEND_ERRORS: Record<string, (p: string) => string> = {
   busy: p => `${p} is finishing a previous run. Try again in a moment.`,
   // The code alone does not tell an expired sign-in from none.
   not_logged_in: p => `Sign in to ${p} in Settings > Agents, then send again.`,
-  rate_limited: p => `${p} is rate limited. Try again later.`,
+  rate_limited: p => `${p} reached a usage limit. Send again after it resets.`,
   session_in_use: p => `${p} is using this session in another terminal. Try again when it finishes there.`,
 };
 
@@ -171,7 +171,7 @@ const RESUME_REASONS: Record<string, (p: string) => string> = {
   cli_missing: p => `${p} isn’t installed on this Mac`,
   runtime_unsupported: p => `Doan doesn’t support this version of ${p}`,
   process_exited: p => `${p} stopped before it could continue`,
-  rate_limited: p => `${p} is rate limited`,
+  rate_limited: p => `${p} reached a usage limit`,
   busy: p => `${p} is finishing a previous run`,
 };
 

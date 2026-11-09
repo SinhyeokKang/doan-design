@@ -70,7 +70,7 @@ export interface StripView { title: string; body: string | null; live: "status" 
 
 const FAILURES: Record<string, (p: string) => { title: string; body: string }> = {
   not_logged_in: p => ({ title: `${p}’s sign-in expired`, body: "Edit your request on Home and choose another agent." }),
-  rate_limited: p => ({ title: `${p} is rate limited`, body: "Try again later from Home." }),
+  rate_limited: p => ({ title: `${p} reached a usage limit`, body: "Send again from Home after it resets." }),
   session_unavailable: p => ({ title: `${p} couldn’t continue`, body: "Edit your request on Home and send it again." }),
   session_in_use: p => ({ title: `${p} couldn’t continue`, body: "Edit your request on Home and send it again." }),
 };

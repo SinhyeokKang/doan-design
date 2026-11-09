@@ -124,11 +124,17 @@ export function endView(end: TurnEnd, provider: Provider): { title: string; body
   // The provider had no such model for this account; the turn did no work, so no file warning.
   if (end.code === "model_unavailable" && end.model) return { title: `${end.model} isn’t available for this account.`, body: "", tone: "error", signIn: false, resend: false };
   if (end.code === "not_logged_in") return { title: `${p}’s sign-in expired`, body: "Sign in again, then resend your request.", tone: "error", signIn: true };
-  if (end.code === "rate_limited") return { title: `${p} is rate limited`, body: "Try again later.", tone: "error", signIn: false };
+  if (end.code === "rate_limited") {
+    const when = end.detail ? RESETS.exec(end.detail.trim())?.[1] : undefined;
+    return { title: `${p} reached a usage limit`, body: when ? `Resets ${when}. Send again after that.` : "Send again after it resets.", tone: "error", signIn: false };
+  }
   // The session could not be taken up again, so the turn ended before it did any work; the strip says the same.
   if (end.code === "session_unavailable" || end.code === "session_in_use") return { title: `${p} couldn’t continue`, body: "Edit your request and send it again.", tone: "error", signIn: false };
   return { title: `${p} stopped unexpectedly`, body: "It may have changed files before it stopped.", tone: "error", signIn: false };
 }
+// Only Claude's recorded wording is read ("You've hit your weekly limit · resets Nov 11 at 2pm (Asia/Seoul)"); the time is
+// copied as written, since its format and time zone are the provider's. Any other wording shows no time.
+const RESETS = /^You['’]ve hit your weekly limit · resets (.+)$/;
 const ANSWERED: Record<"allow" | "allowAlways" | "deny", string> = { allow: "Allowed once", allowAlways: "Always allowed", deny: "Denied" };
 
 // Only https links open, through the host; anything else (http, javascript:, file:, a relative path) stays text.
