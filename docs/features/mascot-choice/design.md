@@ -27,7 +27,7 @@ Doany 에셋 목록(현재):
 ```
 .doan/assets/mascots/<id>/          원본 (Doany는 card.png만 여기 두고, 나머지는 기존 .doan/assets/doany/ 를 그대로 쓴다)
   card.png         1254² RGB, 흰 바탕에 부드러운 바닥 그림자가 있는 정사각형. 선택 카드 이미지
-                   (친구는 받은 시안 그대로, Doany는 투명 정지 이미지에 같은 그림자를 합성한 초안 → Codex가 교체)
+                   (친구는 받은 시안 그대로, Doany는 합성 초안 → Codex가 원본 doany.png 기준으로 다시 그려 교체)
   still.png        1254² RGBA, 투명 배경, 그림자 없는 정지 이미지
   body.png         1254² RGBA, still과 같은 좌표, 눈과 소품을 지우고 가려진 몸통을 복원
   accessory.png    1254² RGBA, still과 같은 좌표, 소품만
@@ -74,9 +74,9 @@ app/src/renderer/public/mascots/<id>/   앱 사본
 - **palette**: `--violet-*` 옆에 친구 램프 4개(`--saemi-*`, `--dungdung-*`, `--popo-*`, `--dori-*`)가 있다(`tokens.css`, `/design-draft`에서 추가). sky·amber·green은 이미 다른 palette 색 이름이라 마스코트 이름을 쓴다. 각각 1–12단계, pressed, link, icon 값이다. 만드는 방법은 아래 '초안 요청'의 `mascot-accent` 항목과 `tokens.css` 주석에 있다. violet 방법(9단계 대비 채도 비율)을 그대로 쓰면 친구의 밝은 단계가 회색이 되어서 다르게 정했다.
 - **전환층**: `--accent-1`…`--accent-12`, `--accent-pressed`, `--accent-link`, `--accent-icon`. `:root`는 violet을 가리키고, `:root[data-mascot="saemi"]` 등이 각 램프로 덮어쓴다. role(`--affordance-accent`, `--surface-accent-subtle`, `--text-accent-subtle`, `--surface-comment` 등)은 `--violet-*` 대신 `--accent-*`를 읽는다. `styles.css`가 `--violet-5`를 직접 읽는 곳(`.ob-atmosphere::before`)도 `--accent-5`로 바꾼다.
 - **아이콘 색**: 새 role `--text-accent`(= `--accent-icon`)를 둔다. 흰 패널 위 accent 아이콘, 점, 외곽선이 이 role을 읽는다. 대상은 Fast 아이콘, 추천 프롬프트 아이콘과 화살표, 사이드바 permission·unseen 점, Show conversation 점, 프리셋 아이콘, 드롭 외곽선이다. `--accent-icon`은 램프 단계가 아니라 마스코트별 `--<id>-icon` 값이다. 9단계의 OKLCH 명도를 흰 바탕 대비 3:1이 될 때까지 낮춘 색이다. violet은 9단계 그대로다.
-- **Send**: `--text-on-accent`를 중립 잉크 `--text-standard`(#0f0f0f)로 바꾼다(모든 마스코트). 대비는 모든 램프에서 3:1 이상이다. 가장 낮은 것은 Doany이고, 9·hover·pressed에서 각각 3.68·3.34·3.09:1이다.
+- **Send**: 아이콘과 스피너는 흰색이 9·hover·pressed 모두에서 3:1을 넘으면 흰색을 쓴다(Doany 5.21:1 이상, Dori 3.20:1 이상). 넘지 못하면 중립 잉크 `--text-standard`를 쓴다(Saemi, Dungdung, Popo). `--text-on-accent`는 전환층에서 마스코트마다 정한다.
 - **적용**: renderer가 `<html data-mascot="<id>">`를 설정한다. Doany는 속성이 없다. `@theme inline`이 accent를 shadcn 이름에 연결하지 않는다는 규칙(ARCHITECTURE §'ds')은 violet에서 accent 전체로 넓힌다.
-- **검사**: `ds/checks.ts`의 violet 추적(`violetNames`, `accentPlaces`)을 `--accent-*`와 모든 마스코트 palette로 넓힌다. `contrastPairs`는 램프마다 칩 글자(3 위 11단계, 4.5:1), 아이콘 색(패널 위 3:1), Send 아이콘(9·hover·pressed 위 `--text-standard`, 3:1)을 검사한다.
+- **검사**: `ds/checks.ts`의 violet 추적(`violetNames`, `accentPlaces`)을 `--accent-*`와 모든 마스코트 palette로 넓힌다. `contrastPairs`는 램프마다 칩 글자(3 위 11단계, 4.5:1), 아이콘 색(패널 위 3:1), Send 아이콘(9·hover·pressed 위 그 마스코트의 잉크, 3:1)을 검사한다.
 - 캔버스 초안은 `tokens.css`를 직접 링크하고 `data-mascot`이 없으므로 지금처럼 violet이다.
 
 ## 설정과 첫 페인트
@@ -120,7 +120,7 @@ app/src/renderer/public/mascots/<id>/   앱 사본
 ## 규칙(conventions) 영향
 
 - 캔버스 규칙과 `doan check` 규칙은 바뀌지 않는다.
-- 디자인 시스템 규칙이 바뀐다. 'violet만 Accent places에서 읽는다'가 '마스코트 accent만 Accent places에서 읽는다'로 바뀌고, accent 위 아이콘 잉크는 중립 검정이 되며, 흰 패널 위 accent 아이콘은 마스코트별 아이콘 색을 쓴다. DESIGN.md를 고친다.
+- 디자인 시스템 규칙이 바뀐다. 'violet만 Accent places에서 읽는다'가 '마스코트 accent만 Accent places에서 읽는다'로 바뀌고, accent 위 아이콘 잉크는 흰색이 대비를 통과하지 못하는 마스코트에서만 중립 잉크가 되며, 흰 패널 위 accent 아이콘은 마스코트별 아이콘 색을 쓴다. DESIGN.md를 고친다.
 
 ## 결정 영향
 

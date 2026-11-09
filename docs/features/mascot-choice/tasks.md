@@ -15,6 +15,8 @@
   - ⎯ 커밋: `docs(design): mascot-choice draft`
 - [ ] **1.4 artist GIF 앱 사본.** 1.3에서 정한 소스 박스로 친구 GIF를 자르고 128²로 줄여 `public/mascots/<id>/artist.gif`·`artist-rest.png`를 만든다(Doany와 같은 방법, `public/doany/README.md`). 3단계 첫 커밋에 넣는다.
   - 확인: 128² GIF이고 프레임 수와 시간이 원본과 같다. 캔버스의 32px 견본과 눈높이 52%가 맞다.
+- [ ] **1.4b Doany 카드 (Codex 워커).** `.doan/assets/mascots/doany/card.png`를 원본 `../doany/v2/doany.png` 기준으로 친구 카드와 같은 그림자·크기로 다시 그린다.
+  - 확인: 1254² RGB이고, 캔버스에서 다섯 카드가 나란히 같은 크기로 보인다. 사람이 확인한다.
 - [ ] **1.5 정지 이미지·레이어 PoC (Codex 워커, saemi).** 투명 `still.png`, `body.png`, `accessory.png`, 리그 수치, `prompts.json`을 만든다. 시안의 형태와 질감은 바꾸지 않는다.
   - 확인: 세 장 모두 1254² RGBA다. 몸통 + 소품 + 셰이더 눈의 rest 프레임이 `still.png`와 경계·눈 위치에서 1 device px 안에서 맞는다(캔버스 비교 프레임과 측정 스크립트). 사람이 확인한다.
 - [ ] **1.6 나머지 셋 (Codex 워커).** dungdung, popo, dori도 1.5와 같은 방법으로 만든다. 목도리와 헤드폰은 소품 기울기 범위를 정한다.
@@ -25,7 +27,7 @@
 
 - [ ] **2.1 램프와 대비 검사 (순수 함수).** `accentIcon`, 램프 재계산 일치 검사, `ds/checks.ts`의 accent 추적 일반화와 램프별 `contrastPairs`. 먼저 테스트로 고정한다.
   - 확인: `npm --prefix app test`가 통과한다(새 테스트가 먼저 red였다).
-- [ ] **2.2 토큰.** `tokens.css`에 친구 램프 4개, 전환층 `--accent-*`, `:root[data-mascot=…]` 덮어쓰기, `--text-accent`를 넣고, role이 `--accent-*`를 읽게 바꾼다. `--text-on-accent`는 중립 검정으로 바꾼다. 흰 패널 위 accent 아이콘·점·외곽선을 `--text-accent`로 바꾸고, `.ob-atmosphere::before`는 `--accent-5`로 바꾼다.
+- [ ] **2.2 토큰.** `tokens.css`에 친구 램프 4개, 전환층 `--accent-*`, `:root[data-mascot=…]` 덮어쓰기, `--text-accent`를 넣고, role이 `--accent-*`를 읽게 바꾼다. `--text-on-accent`는 마스코트별 잉크(흰색 우선, 3:1 미만이면 중립)로 바꾼다. 흰 패널 위 accent 아이콘·점·외곽선을 `--text-accent`로 바꾸고, `.ob-atmosphere::before`는 `--accent-5`로 바꾼다.
   - 확인: `npm --prefix app test`(`ds/checks.test.ts`의 `accentPlaces`, `contrastPairs`)와 `npm --prefix app run typecheck`가 통과한다.
   - ⎯ 커밋: `feat(app): mascot accent ramps`
 - [ ] **2.3 실제 앱 확인 (`/runtime-test`).** 개발자 도구에서 `data-mascot`을 바꿔 다섯 램프의 Home Send, 칩, 글로우, 사이드바 점을 스크린샷으로 남긴다.
