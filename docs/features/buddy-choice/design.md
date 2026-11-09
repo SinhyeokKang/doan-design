@@ -156,7 +156,7 @@ app/src/renderer/public/buddies/<id>/   앱 사본
 |---|---|
 | `ramps` | 다섯 램프의 1–12단계, pressed, link, 아이콘 색과 몸통 견본 |
 | `contrast` | 램프마다 칩 글자(3 위 11, 4.5:1), 눌린 사이드바 행 위 아이콘 색(3:1), 9·hover·pressed 위 Send 잉크(3:1), 9 위 흰색의 대비를 계산해 보여준다 |
-| `places` | 램프마다 Accent places 견본: Send 세 상태, 프리셋 칩과 성공·오류 칩, 추천 프롬프트 한 줄, 사이드바 점(hover 행), Home composer 글로우, 캔버스 작업 글로우, jump highlight, 드롭 외곽선 |
+| `places` | 램프마다 Accent places 견본: Send 세 상태, 프리셋 칩, 추천 프롬프트 한 줄, 사이드바 점(hover 행), Home composer 글로우, 캔버스 작업 글로우, jump highlight, 드롭 외곽선 |
 
 - 램프 값은 `tokens.css` palette(`--saemi-*`, `--dungdung-*`, `--popo-*`, `--dori-*`)에 있고, 캔버스는 전환층을 흉내 내서 프레임 안에서 role을 덮어쓴다.
 - 친구 램프를 만드는 방법은 violet과 다르다. violet 방법(9단계 대비 채도 비율)을 그대로 쓰면, 채도가 낮은 친구의 1–8단계는 거의 회색이 된다. 그래서 1–8·11·12단계는 violet의 OKLCH 명도와 절대 채도를 쓴다(친구 9단계 채도의 1.2배 이하). 9단계는 Doany 몸통 색이 violet 9가 될 때와 같은 이동을 친구 몸통 색에 적용한다. 아이콘 색은 9단계를 흰 바탕 대비 3:1이 될 때까지 어둡게 한 값이다.
