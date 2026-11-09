@@ -20,13 +20,18 @@ export function composerShape(previous: ComposerShape, input: ShapeInput): Compo
 }
 
 export type ComposerAction = "send" | "stop" | "queue";
+// A conversation's turn as its composer reads it (dockedRules composerTurn). holding: the turn ended and main still
+// works on the conversation (a project turn's judgement, a handoff's, a queue going out), so there is no turn to stop.
+export type ComposerTurn = "idle" | "running" | "waiting" | "holding";
 
-// The Send slot while a turn runs: Stop while the field is empty, Queue once there is something to
-// send. `request` is the composed request (homeComposer's composeRequest), so a chip alone counts as content. Queued
-// messages do not change the slot: an empty field still offers Stop.
-export function composerAction(running: boolean, request: string): ComposerAction {
-  if (!running) return "send";
-  return request.trim() === "" ? "stop" : "queue";
+// The Send slot: Send while nothing runs; while a turn runs, Stop while the field is empty, Queue once there is
+// something to send. `request` is the composed request (homeComposer's composeRequest), so a chip alone counts as
+// content. Queued messages do not change a running turn's slot. While holding, text still queues, and Stop shows only
+// while queue rows wait (`queueRows`: the rows drawn, those going out included), since it returns them as a draft.
+export function composerAction(turn: ComposerTurn, request: string, queueRows: number): ComposerAction {
+  if (turn === "idle") return "send";
+  if (request.trim() !== "") return "queue";
+  return turn === "holding" && queueRows === 0 ? "send" : "stop";
 }
 
 export function steerAllPlan(input: { sendNow: boolean; rows: number; draft: boolean }): "enter" | "none" | { rows: boolean; draft: boolean } {

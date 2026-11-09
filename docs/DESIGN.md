@@ -1510,7 +1510,7 @@ Reference: `.doan/canvases/turn-activity.html` (frames `states` (1)–(12), `wid
 
 | Element | Measured contract | Reason |
 |---|---|---|
-| Place | The thread's last item, in the reply's place: after the last item at the thread's item gap (20 in the panel, 24 in the Overview), after a Send now sending message, under the hand-off line, and next to a still-spinning activity row (two progress marks, design decision 4). Absent while a permission card waits | Design decisions 3, 4 and 10. |
+| Place | The thread's last item, in the reply's place: after the last item at the thread's item gap (20 in the panel, 24 in the Overview), after a Send now sending message, and under the hand-off line. Absent while a permission card waits | Design decisions 3 and 10. |
 | Line | `.ti-reply`: flex, centred, gap 8, `--text-subtle`; one line in the reply's type, body-sm 14/20 (−0.035 px) in the panel and 16/24 in the Overview, so it is 20 / 24 high in every state: a stage change pushed after the read kept the item 20 high and the scroll height unchanged | The scroll follows `[items]` only (design §4), so a stage change must not move the thread. |
 | Logo | The provider logo, 16 × 16 (`.logo`) | |
 | Words | `.ti-text ti-shimmer`: `--text-metadata` (rgb(95,95,95)) words drawn by a text-clipped gradient (transparent colour and fill): stops at 42.5 / 47.5 / 52.5 / 57.5 % with the white band `color-mix(in oklch, --text-metadata, --surface-panel 55%)`, size 200 % × 100 %, `ti-shimmer` 2 s linear infinite (background position 100 % → −100 %, read moving in the app). A long path ends in an ellipsis (clipped at 347 and 280; whole at 720) | Decision 1: dark words under a strong white sweep, no accent. |
@@ -1518,7 +1518,7 @@ Reference: `.doan/canvases/turn-activity.html` (frames `states` (1)–(12), `wid
 | Reduced motion | No animation and no background; the words `--text-metadata` (rgb(95,95,95)) still change with the stage | |
 | Accessibility | Not a live region and nothing focusable; the time is not in the AX tree; the thread's `sr-only` status says the stage kind only ("Codex is reading files" for a path) and "needs your answer" while a card waits (CDP AX) | Spec condition 7. |
 
-The activity rows' shipped values were unchanged: head, label, spinner and chevron equal the draft's restated rules in every state apart from the context kinds below (`styles.css` adds only the indicator's rules).
+The activity rows' styles were unchanged: head, label, spinner and chevron equal the draft's restated rules in every state apart from the context kinds below (`styles.css` adds only the indicator's rules). Their running state no longer matches the draft: the last row spins only while the indicator names a tool, with the indicator's words (`activityRun` in `turnStatus.ts`, PRODUCT §5 item 3 'Turn indicator'), so the draft's state (5) and its widths tiles, a spinning row beside a working indicator (design decision 4), do not occur in the app. Not re-measured after that change.
 
 ### Documented differences from the draft
 

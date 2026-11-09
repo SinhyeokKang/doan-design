@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 const mocks = vi.hoisted(() => ({ probe: vi.fn(), run: vi.fn() }));
 vi.mock("../onboarding/machine", () => ({ probeShell: mocks.probe, runProcess: mocks.run }));
-import { BUNDLED_CLAUDE_SDK, createAccountPrepare, createPrepare, routePrepare, type AccountRuntime } from "./prepare";
+import { BUNDLED_CLAUDE_SDK, createAccountPrepare, createPrepare, judgmentCode, routePrepare, type AccountRuntime } from "./prepare";
 import { openFolderStore } from "../folderStore";
 import { initialAuthState } from "../agentAuth/state";
 import type { Lease } from "../agentAuth/manager";
@@ -207,4 +207,19 @@ it.each([
   mocks.probe.mockResolvedValue({ ok: true, path: bin, [probeKey]: linkedConfig }); mocks.run.mockResolvedValue({ exitCode: 0, stdout });
   const ready = await createPrepare(bin, join(bin, "runtime.json"), { HOME: bin })({ root, mode: "new", runtime, text: "hello", anchors: [] });
   expect(ready.cwd).toBe(real); expect(ready.configDir).toBe(config); expect(ready.env[envKey]).toBe(config);
+});
+
+// Another account's conversation (account_changed) can continue after signing in to that account again; an earlier
+// sign-in's (sign_in_changed) never can. A retry or another agent brings back neither.
+it("reads another account or workspace as account_changed, an unprovable or replaced sign-in as sign_in_changed, and keeps the other refusals", () => {
+  for (const cause of ["account_mismatch", "workspace_mismatch"] as const) expect(judgmentCode({ decision: "reject", cause }), cause).toBe("account_changed");
+  for (const cause of ["account_unverifiable", "profile_mismatch"] as const) expect(judgmentCode({ decision: "reject", cause }), cause).toBe("sign_in_changed");
+  expect(judgmentCode({ decision: "reject", cause: "session_unavailable" })).toBe("session_unavailable");
+  expect(judgmentCode({ decision: "reject", cause: "provider_mismatch" })).toBe("session_unavailable");
+  expect(judgmentCode({ decision: "reject", cause: "busy" })).toBe("busy");
+  expect(judgmentCode({ decision: "reject", cause: "session_in_use" })).toBe("session_in_use");
+  expect(judgmentCode({ decision: "reject", cause: "sign_out_failed" })).toBe("not_logged_in");
+  expect(judgmentCode({ decision: "reject", cause: "unverified" })).toBe("not_logged_in");
+  expect(judgmentCode({ decision: "reauth", cause: "not_connected" })).toBe("not_logged_in");
+  expect(judgmentCode({ decision: "legacy" })).toBe("session_unavailable");
 });

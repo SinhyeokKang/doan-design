@@ -98,8 +98,13 @@ export interface TransportState {
   // (claudeFastOutcome), emitted right before a done or failed terminal's context value.
   fastRequested?: true;
   fastUnused?: FastUnused;
+  // Claude only: the failure code an assistant frame's `error` named (claudeFrame); a failed result takes it over its text.
+  claudeFailure?: FailureCode;
   // Claude only: the index of the thinking block now streaming, whose stop ends the thinking stage.
   thinkingBlock?: number;
+  // The turn's tool calls still running, in the order they started; absent when none runs. A tool's end reports general
+  // only once this is empty, so a sibling's end never hides a tool still running. Every path that ends the turn clears it.
+  running?: string[];
 }
 export type FastUnused = Extract<EventPayload, { type: "fast.unused" }>;
 // What a live turn is doing now, read from provider frames beside the events. It is never

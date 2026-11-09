@@ -135,6 +135,57 @@ test("a turn that ends first puts the message back in the queue, which then foll
   expect(h.ids()).toEqual([]);
 });
 
+// Main's count leaves out the messages it marked as going out, so a queue flushing after its turn's judgement counts 0
+// until the next turn opens; its rows stay so the composer keeps Stop over them (they come back as a draft).
+test("a queue going out after its ended turn keeps its rows until the next turn opens", async () => {
+  const h = harness();
+  h.store.track(A);
+  await flush();
+  h.store.event(event({ type: "turn.done" }));
+  h.read([summary({ phase: "ended", working: true, queued: 0 })]);
+  expect(h.ids()).toEqual(["q1", "q2", "q3"]);
+  h.store.event(event({ type: "user.message", turnId: "t2", text: "Use the spacing…", anchors: [] }));
+  h.store.event(event({ type: "turn.started", turnId: "t2" }));
+  h.read([summary({ phase: "running", working: true, queued: 0 })]);
+  expect(h.ids()).toEqual([]);
+});
+
+// The turn the queue went out as ended into its own judgement before a list read saw it run.
+test("a flushed queue's rows go once a later turn ended, even while that turn is judged", async () => {
+  const h = harness();
+  h.store.track(A);
+  await flush();
+  // Queued while the thread shows its turn, as the composer does.
+  h.store.queued(ROOT, A, { id: "q4", text: "Fourth" });
+  h.store.event(event({ type: "turn.done" }));
+  h.read([summary({ phase: "ended", working: true, queued: 0 })]);
+  expect(h.ids()).toEqual(["q1", "q2", "q3", "q4"]);
+  h.store.event(event({ type: "user.message", turnId: "t2", text: "Use the spacing…", anchors: [] }));
+  h.store.event(event({ type: "turn.started", turnId: "t2" }));
+  h.store.event(event({ type: "turn.done", turnId: "t2" }));
+  h.read([summary({ phase: "ended", working: true, queued: 0 })]);
+  expect(h.ids()).toEqual([]);
+});
+
+test("without a read thread, the list's ended phase and working keep a flushing queue's rows too", () => {
+  const h = harness();
+  h.read([summary({ phase: "ended", working: true, queued: 0 })]);
+  expect(h.ids()).toEqual(["q1", "q2", "q3"]);
+  h.read([summary({ phase: "running", working: true, queued: 0 })]);
+  expect(h.ids()).toEqual([]);
+});
+
+// Stop while the queue waits for the judgement or goes out, or a flush that failed: the conversation may still work
+// on the judgement, but the queue is the draft now, so its rows go.
+test("a queue handed back as a draft while the conversation still works drops its rows", async () => {
+  const h = harness();
+  h.store.track(A);
+  await flush();
+  h.store.event(event({ type: "turn.done" }));
+  h.read([summary({ phase: "ended", working: true, queued: 0, returnedDraft: true })]);
+  expect(h.ids()).toEqual([]);
+});
+
 test("two presses in a row show in press order; the first refused returns to its own place while the second is read", async () => {
   const h = harness();
   const first = deferred<{ error: string }>(), second = deferred<void>();

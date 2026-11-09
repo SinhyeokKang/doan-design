@@ -200,6 +200,15 @@ describe("canvasConversationError", () => {
     expect(canvasConversationError("session_in_use", EXISTING, "claude", "acme-web")).toEqual({ kind: "notice", text: "Claude Code is using this session in another terminal. Try again when it finishes there.", retry: false, startNew: false });
   });
 
+  test("a send to a conversation of another account or an earlier sign-in offers a new conversation, not Retry", () => {
+    const other = "This conversation’s session belongs to another Claude Code account, so it can’t continue here. To continue it, sign out, then sign in to that account in Settings > Agents.";
+    const earlier = "This conversation’s session belongs to an earlier Claude Code sign-in, so it can’t continue here.";
+    for (const mode of [EXISTING, ARCHIVED]) {
+      expect(canvasConversationError("account_changed", mode, "claude", "acme-web")).toEqual({ kind: "notice", text: other, retry: false, startNew: true });
+      expect(canvasConversationError("sign_in_changed", mode, "claude", "acme-web")).toEqual({ kind: "notice", text: earlier, retry: false, startNew: true });
+    }
+  });
+
   test("restoring while the current conversation runs is the restore busy line", () => {
     expect(canvasConversationError("busy", ARCHIVED, "claude", "acme-web")).toEqual({ kind: "busy", busy: { kind: "restore", open: null } });
   });
@@ -236,7 +245,7 @@ describe("canvasConversationError", () => {
     ["cli_missing", "Couldn’t continue the terminal session: Codex isn’t installed on this Mac."],
     ["runtime_unsupported", "Couldn’t continue the terminal session: Doan doesn’t support this version of Codex."],
     ["process_exited", "Couldn’t continue the terminal session: Codex stopped before it could continue."],
-    ["rate_limited", "Couldn’t continue the terminal session: Codex is rate limited."],
+    ["rate_limited", "Couldn’t continue the terminal session: Codex reached a usage limit."],
     ["busy", "Couldn’t continue the terminal session: Codex is finishing a previous run."],
     ["unknown", "Couldn’t continue the terminal session."],
     ["constructor", "Couldn’t continue the terminal session."],

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { CodexDispatcher, RpcError } from "./dispatcher";
 import elicitation from "./fixtures/codex-mcp-elicitation.json";
-import type { EventPayload, TransportState } from "./types";
+import type { EventPayload, TransportState, TurnStage } from "./types";
 function harness() {
   const writes: unknown[] = [], events: EventPayload[] = []; const cleanup = vi.fn();
   const rpc = new CodexDispatcher(v => writes.push(v), v => events.push(v), cleanup);
@@ -287,4 +287,18 @@ it("lets a side request time out or fail without failing the protocol of the run
     expect(await answered).toEqual({ rateLimits: {} });
     expect(h.cleanup).not.toHaveBeenCalled();
   } finally { vi.useRealTimers(); }
+});
+it("starts a reused server's next turn with no item running, whatever the previous turn left", () => {
+  const stages: TurnStage[] = [];
+  const rpc = new CodexDispatcher(() => {}, () => {}, () => {}, () => {}, stage => stages.push(stage));
+  const item = (turnId: string, method: string, id: string) => ({ method, params: { threadId: "s", turnId, item: { type: "commandExecution", id, command: "COMMAND_TEXT", commandActions: [] } } });
+  rpc.begin({ root: "/repo", sessionId: "s", turnId: "t1" });
+  rpc.receive(item("t1", "item/started", "a"));
+  expect((rpc as unknown as { state: TransportState }).state.running).toEqual(["a"]);
+  // The next turn begins on the same server before the first turn's item ever completed.
+  rpc.begin({ root: "/repo", sessionId: "s", turnId: "t2" });
+  expect("running" in (rpc as unknown as { state: TransportState }).state).toBe(false);
+  rpc.receive(item("t2", "item/started", "b"));
+  rpc.receive(item("t2", "item/completed", "b"));
+  expect(stages).toEqual([{ kind: "general" }]);
 });

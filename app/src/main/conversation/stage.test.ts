@@ -10,7 +10,7 @@ import copilotThought from "./fixtures/acp-copilot-thought.json";
 import copilotFixture from "./fixtures/acp-copilot.json";
 import copilotParallel from "./fixtures/acp-copilot-parallel.json";
 import cursorFixture from "./fixtures/acp-cursor.json";
-import { GENERIC_SUMMARY, initialTransport, normalizeClaude, normalizeCodex, type CodexContext } from "./transport";
+import { GENERIC_SUMMARY, endSteerWait, endTransport, initialTransport, normalizeClaude, normalizeCodex, steerTransport, type CodexContext } from "./transport";
 import { acpPromptDone, initialAcp, normalizeAcp, type AcpTransport } from "./acp";
 import type { EventPayload, TransportState, TurnStage } from "./types";
 
@@ -156,9 +156,11 @@ describe("Codex stages", () => {
     for (const step of started) expect(step.events).toEqual([{ type: "activity", kind: "command", summary: GENERIC_SUMMARY.command }]);
     expectNoStageAfterTerminal(steps);
   });
-  it("reports nothing for a command whose commandActions hold several actions, nor for reasoning items", () => {
-    const { steps } = codexSteps(codexRead.search);
-    expect(stagesOf(steps)).toEqual([]);
+  it("reports nothing for a command whose commandActions hold several actions until it completes, nor for reasoning items", () => {
+    const frames = codexRead.search as Record<string, any>[], { steps } = codexSteps(frames);
+    const done = frames.findIndex(f => f.method === "item/completed" && f.params.item.type === "commandExecution");
+    expect(stagesOf(steps)).toEqual([GENERAL]);
+    expect(steps[done]!.stage).toEqual(GENERAL);
     expectNoStageAfterTerminal(steps);
   });
   function command(actions: unknown, method = "item/started", over: Record<string, unknown> = {}) {
@@ -185,20 +187,24 @@ describe("Codex stages", () => {
     ["a read with no path", [{ type: "read", command: "COMMAND_TEXT", name: "a", path: null }]],
     ["a read with an empty path", [{ type: "read", command: "COMMAND_TEXT", name: "a", path: "" }]],
     ["a malformed action", ["read"]],
-  ])("reports nothing for %s, start or completion, and keeps the command activity", (_, actions) => {
+  ])("reports nothing for %s at its start, general once it completes, and keeps the command activity", (_, actions) => {
     const { steps } = codexSteps([command(actions), command(actions, "item/completed")]);
-    expect(stagesOf(steps)).toEqual([]);
+    expect(steps.map(step => step.stage)).toEqual([undefined, GENERAL]);
     expect(eventsOf(steps)).toEqual([{ type: "activity", kind: "command", summary: GENERIC_SUMMARY.command }]);
   });
-  it("reports nothing for file changes, MCP tool calls or a Doan connector's call, whose activity says it", () => {
+  it("reports nothing for a file change, an MCP tool call or a Doan connector's call at its start, whose activity says it, and general once it completes", () => {
     const item = (method: string, value: Record<string, unknown>) => ({ method, params: { threadId: "session-1", turnId: "turn-1", item: value } });
     const doan = { type: "mcpToolCall", id: "m", server: "doan-notion", tool: "search", arguments: { query: "SECRET-QUERY" } };
     const edit = { type: "fileChange", id: "f", changes: [{ path: "/repo/a.txt", kind: "update" }] };
     const { steps } = codexSteps([item("item/started", doan), item("item/completed", doan), item("item/started", edit), item("item/completed", edit)]);
-    expect(stagesOf(steps)).toEqual([]);
+    expect(steps.map(step => step.stage)).toEqual([undefined, GENERAL, undefined, GENERAL]);
     expect(eventsOf(steps).map(e => e.type)).toEqual(["activity", "activity"]);
-    // The recorded turns: Codex 0.163.0's file decline, and the Home run's unknown command, image view and file change.
-    for (const frames of [codexFixture, codexHome]) expect(stagesOf(codexSteps(frames).steps)).toEqual([]);
+    expect(JSON.stringify(stagesOf(steps))).not.toMatch(/SECRET/);
+    // The recorded turns: Codex 0.163.0's file decline completes with no start and nothing else running.
+    expect(stagesOf(codexSteps(codexFixture).steps)).toEqual([GENERAL]);
+    // The Home run's unknown command never completes before turn/completed, so its file change's completion leaves a tool
+    // running and gives no stage; the image view is no tool item.
+    expect(stagesOf(codexSteps(codexHome).steps)).toEqual([]);
   });
   it("ignores another thread's or turn's notifications", () => {
     const read = [{ type: "read", command: "COMMAND_TEXT", name: "a", path: "/repo/a" }];
@@ -230,6 +236,128 @@ describe("Codex stages", () => {
     expect(stage.summary).toHaveLength(512);
     const all = [...stagesOf(codexSteps(codexRead.read).steps), ...stagesOf(codexSteps(codexRead.search).steps), stage];
     expect(JSON.stringify(all)).not.toMatch(/COMMAND_TEXT/);
+  });
+});
+
+// Every tool of a turn ended: Claude and Codex report general only once no top-level tool the turn started still runs,
+// so a sibling's end never hides a tool still running (the ACP rule below).
+describe("Claude tools still running", () => {
+  const use = (id: string, name = "Bash", message = "m1") => ({ type: "assistant", parent_tool_use_id: null, message: { id: message, content: [{ type: "tool_use", id, name, input: { command: "COMMAND_TEXT" } }] } });
+  const uses = (...ids: string[]) => ({ type: "assistant", parent_tool_use_id: null, message: { id: "m1", content: ids.map(id => ({ type: "tool_use", id, name: "Bash", input: { command: "COMMAND_TEXT" } })) } });
+  const results = (...ids: string[]) => ({ type: "user", parent_tool_use_id: null, message: { role: "user", content: ids.map(id => ({ type: "tool_result", tool_use_id: id, content: "ok" })) } });
+  const done = { type: "result", subtype: "success", is_error: false, result: "ok" };
+  const stageAt = (frames: unknown[]) => claudeSteps(frames).steps.map(step => step.stage);
+  it("reports general once a single tool's result comes", () => {
+    expect(stageAt([use("a"), results("a")])).toEqual([undefined, GENERAL]);
+  });
+  it("reports nothing on the first of two parallel tools' results, and general on the second", () => {
+    expect(stageAt([uses("a", "b"), results("a"), results("b")])).toEqual([undefined, undefined, GENERAL]);
+    expect(stageAt([uses("a", "b"), results("b"), results("a")])).toEqual([undefined, undefined, GENERAL]);
+    // Each tool_use in its own assistant frame of one message, as the CLI streams them.
+    expect(stageAt([use("a"), use("b"), results("a"), results("b")])).toEqual([undefined, undefined, undefined, GENERAL]);
+  });
+  it("reports general once when both results come in one frame", () => {
+    expect(stageAt([uses("a", "b"), results("a", "b")])).toEqual([undefined, GENERAL]);
+  });
+  it("reports general for a result that comes before the next tool_use frame, which then runs until its own result", () => {
+    const { steps } = claudeSteps([use("a"), results("a"), use("b"), results("b")]);
+    expect(steps.map(step => step.stage)).toEqual([undefined, GENERAL, undefined, GENERAL]);
+    // The second activity comes after that general, so the event rule names it while it runs.
+    expect(steps[2]!.events).toEqual([{ type: "activity", kind: "command", summary: GENERIC_SUMMARY.command }]);
+  });
+  it("reports general for an AskUserQuestion result only while no other tool runs", () => {
+    expect(stageAt([use("q", "AskUserQuestion"), results("q")])).toEqual([undefined, GENERAL]);
+    expect(stageAt([use("a"), use("q", "AskUserQuestion"), results("q"), results("a")])).toEqual([undefined, undefined, undefined, GENERAL]);
+  });
+  it("keeps a repeated tool_use frame from running a tool again after its result", () => {
+    expect(stageAt([use("a"), results("a"), use("a"), use("b"), results("b")])).toEqual([undefined, GENERAL, undefined, undefined, GENERAL]);
+  });
+  it("ignores a subagent's result for a top-level tool's id", () => {
+    const nested = { ...results("a"), parent_tool_use_id: "agent" };
+    expect(stageAt([uses("a", "b"), nested, results("b")])).toEqual([undefined, undefined, undefined]);
+  });
+  it("keeps requesting general as it was", () => {
+    expect(stageAt([uses("a", "b"), { type: "system", subtype: "status", status: "requesting" }])).toEqual([undefined, GENERAL]);
+  });
+  it.each([
+    ["a done result", done],
+    ["a failed result", { type: "result", subtype: "error_during_execution", is_error: true, errors: ["boom"] }],
+    ["an aborted result", { type: "result", subtype: "success", is_error: false, terminal_reason: "aborted_tools" }],
+  ])("leaves no tool running after %s", (_, frame) => {
+    const { state } = claudeSteps([uses("a", "b"), frame]);
+    expect(state.terminal).toBe(true);
+    expect("running" in state).toBe(false);
+  });
+  it("leaves no tool running when the process ends the turn", () => {
+    const { state } = claudeSteps([uses("a", "b")]);
+    expect(state.running).toEqual(["a", "b"]);
+    expect("running" in endTransport(state).state).toBe(false);
+  });
+  it("leaves no tool running after a result that waits for a steered message, so the continued turn starts empty", () => {
+    let state = steerTransport(claudeSteps([uses("a", "b")]).state, "steered");
+    const waiting = normalizeClaude(state, done, "/repo");
+    expect(waiting.awaitingRead).toBe(true);
+    expect("running" in waiting.state).toBe(false);
+    state = waiting.state;
+    expect(claudeSteps([use("c", "Bash", "m2"), results("c")], state).steps.map(step => step.stage)).toEqual([undefined, GENERAL]);
+    expect("running" in endSteerWait(state).state).toBe(false);
+  });
+  it("starts each run with no tool running, and leaves none once every result came", () => {
+    expect("running" in initialTransport()).toBe(false);
+    expect("running" in claudeSteps([uses("a", "b"), results("b"), results("a")]).state).toBe(false);
+  });
+});
+
+describe("Codex tools still running", () => {
+  const item = (method: string, value: Record<string, unknown>) => ({ method, params: { threadId: "session-1", turnId: "turn-1", item: value } });
+  const run = (id: string, actions: unknown[] = []) => ({ type: "commandExecution", id, command: "/bin/zsh -c \"COMMAND_TEXT\"", cwd: "/repo", commandActions: actions });
+  const read = (id: string) => run(id, [{ type: "read", command: "COMMAND_TEXT", name: "a", path: "/repo/a.txt" }]);
+  const READ_A: TurnStage = { kind: "tool", activity: "read", path: "/repo/a.txt", summary: "a.txt" };
+  const started = (value: Record<string, unknown>) => item("item/started", value), completed = (value: Record<string, unknown>) => item("item/completed", value);
+  const stageAt = (frames: unknown[]) => codexSteps(frames).steps.map(step => step.stage);
+  it("reports nothing when a general command starts, and general when it completes", () => {
+    expect(stageAt([started(run("c")), completed(run("c"))])).toEqual([undefined, GENERAL]);
+  });
+  it("reports a read's stage at its start as before, and general when it completes", () => {
+    expect(stageAt([started(read("r")), completed(read("r"))])).toEqual([READ_A, GENERAL]);
+  });
+  it("reports nothing on the first of two parallel items' completions, and general on the second", () => {
+    expect(stageAt([started(run("a")), started(run("b")), completed(run("a")), completed(run("b"))])).toEqual([undefined, undefined, undefined, GENERAL]);
+    expect(stageAt([started(run("a")), started(run("b")), completed(run("b")), completed(run("a"))])).toEqual([undefined, undefined, undefined, GENERAL]);
+  });
+  it("reports nothing when a read completes while a general command still runs", () => {
+    expect(stageAt([started(run("c")), started(read("r")), completed(read("r")), completed(run("c"))])).toEqual([undefined, READ_A, undefined, GENERAL]);
+  });
+  it("counts file changes and MCP tool calls among the running items", () => {
+    const edit = { type: "fileChange", id: "f", changes: [{ path: "/repo/a.txt", kind: "update" }] };
+    const mcp = { type: "mcpToolCall", id: "m", server: "doan-notion", tool: "search", arguments: { query: "SECRET-QUERY" } };
+    expect(stageAt([started(edit), started(mcp), completed(edit), completed(mcp)])).toEqual([undefined, undefined, undefined, GENERAL]);
+    expect(stageAt([started(mcp), started(run("c")), completed(mcp), completed(run("c"))])).toEqual([undefined, undefined, undefined, GENERAL]);
+  });
+  it("reports general for a completion with no start while nothing runs, and nothing while another item runs", () => {
+    expect(stageAt([completed(run("c"))])).toEqual([GENERAL]);
+    expect(stageAt([started(run("a")), completed(run("b")), completed(run("a"))])).toEqual([undefined, undefined, GENERAL]);
+  });
+  it("ignores items that are no tool, and another turn's completion", () => {
+    const other = { method: "item/completed", params: { threadId: "session-1", turnId: "turn-0", item: run("a") } };
+    expect(stageAt([started(run("a")), started({ type: "imageView", id: "i" }), completed({ type: "imageView", id: "i" }), other])).toEqual([undefined, undefined, undefined, undefined]);
+  });
+  it.each([
+    ["a completed turn", { method: "turn/completed", params: { threadId: "session-1", turn: { id: "turn-1", status: "completed" } } }],
+    ["an interrupted turn", { method: "turn/completed", params: { threadId: "session-1", turn: { id: "turn-1", status: "interrupted" } } }],
+    ["a failed turn", { method: "turn/completed", params: { threadId: "session-1", turn: { id: "turn-1", status: "failed", error: { message: "boom" } } } }],
+    ["an error", { method: "error", params: { threadId: "session-1", turnId: "turn-1", error: { message: "boom" }, willRetry: false } }],
+    ["an unsupported server request", { id: 9, method: "item/unknown/request", params: { threadId: "session-1", turnId: "turn-1" } }],
+  ])("leaves no item running after %s", (_, frame) => {
+    const { state } = codexSteps([started(run("a")), started(run("b")), frame]);
+    expect(state.terminal).toBe(true);
+    expect("running" in state).toBe(false);
+  });
+  it("leaves no item running when the process ends the turn, or once every item completed", () => {
+    const { state } = codexSteps([started(run("a")), started(run("b"))]);
+    expect(state.running).toEqual(["a", "b"]);
+    expect("running" in endTransport(state).state).toBe(false);
+    expect("running" in codexSteps([started(run("a")), started(run("b")), completed(run("b")), completed(run("a"))]).state).toBe(false);
   });
 });
 
@@ -389,6 +517,14 @@ describe("ACP stages", () => {
     const { state } = acpSteps([startA, startB, end("b", "completed"), end("a", "failed")] as Record<string, any>[]);
     expect(state).toEqual(acpSteps([startA, end("a", "failed"), startB, end("b", "completed")] as Record<string, any>[]).state);
     expect("running" in state).toBe(false);
+  });
+  it("leaves no tool running once the prompt returns", () => {
+    const start = update({ sessionUpdate: "tool_call", toolCallId: "a", kind: "read", title: "Read a", status: "pending" });
+    const { state } = acpSteps([start] as Record<string, any>[]);
+    expect(state.running).toEqual(["a"]);
+    const ended = acpPromptDone(state, { stopReason: "end_turn" }).state;
+    expect(ended.terminal).toBe(true);
+    expect("running" in ended).toBe(false);
   });
   it("bounds a tool's path and summary to 512", () => {
     const long = "/repo/" + "d/".repeat(400) + "a.txt";

@@ -4,9 +4,8 @@ import { ArrowUpRight, ChevronDown, Info, Plus, SquarePen } from "lucide-react";
 import type { Provider } from "../main/agentAuth/types";
 import { readPermissionMode } from "../main/conversation/permissionMode";
 import { sendNowShown } from "../main/conversation/steerSupport";
-import type { ConversationSummary } from "../main/conversation/summary";
 import type { AttachmentResult } from "../main/attachments";
-import type { Anchor, Canvas, ConversationEvent } from "../main/conversation/types";
+import type { Anchor, Canvas } from "../main/conversation/types";
 import type { ReplyAnchor } from "../main/conversation/replyAnchor";
 import { messageLine, type FrameName } from "../main/conversation/messageText";
 import type { CanvasRow, FolderEntry } from "../main/view";
@@ -26,12 +25,11 @@ import { ConversationDeleteItem, type DeleteTarget } from "./ConversationDeleteD
 import { ConversationHead } from "./ConversationLine";
 import { ConversationThread, LOADING_DELAY_MS, type ConversationThreadHandle, type LocateOutcome } from "./ConversationThread";
 import { steerPhaseOf, type ConversationStore, type ListView, type QueuedMessage } from "./conversationStore";
-import { asksPerson, stripState } from "./conversationStrip";
 import type { PanelArrival } from "./rightPanelOpen";
 import { copyText } from "./copyText";
 import { contextRing } from "./contextWindow";
 import { DockedComposer, type DockedFieldLink, type DockedOutcome, type DockedPicker, type DockedRequest } from "./DockedComposer";
-import { draftKey, EMPTY_DRAFT, type DockedMode, type DockedRefusal } from "./dockedRules";
+import { carryDraft, composerTurn, draftKey, EMPTY_DRAFT, type DockedMode, type DockedRefusal } from "./dockedRules";
 import { generationOf, modelsKey, type DockedSupport } from "./dockedSupport";
 import {
   attachmentLimit, defaultEffort, defaultFast, defaultModel, fastToSend, defaultProvider, fixedPreference, groupIcon, modelOption, modelPickerView,
@@ -103,14 +101,6 @@ const NEW = "";
 // One empty list for a project without one, so the thread's memoized chip data keeps its identity across renders.
 const NO_ROWS: readonly CanvasRow[] = [];
 const focusField = () => queueMicrotask(() => focusFieldEnd(document.querySelector<HTMLElement>(".doan-conv-panel .composer-input")));
-// Main's turn as the composer reads it, as the Overview's: the merged events first (the list lags them), then the list.
-function turnOf(events: readonly ConversationEvent[] | null, summary: ConversationSummary | undefined, live: boolean): "idle" | "running" | "waiting" {
-  const kind = events && events.length ? stripState(events).kind : null;
-  if (kind !== null && asksPerson(kind)) return "waiting";
-  if ((kind === "starting" || kind === "working") && live) return "running";
-  if (summary?.phase === "waiting") return "waiting";
-  return summary?.working ? "running" : "idle";
-}
 // steerPhaseOf lives with the store, which also reads it when main answers Send now; exported here for its importers.
 export { steerPhaseOf };
 // Whether the shown composer refuses attachments (Attach, paste, drop, and the toolbar's Capture area): it continues a
@@ -272,7 +262,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
   const ready = chosen !== null && (auth?.providers ?? []).some(status => status.provider === chosen && status.account !== null && selectableProvider(status));
   // A new connection of the provider has a list of its own to read.
   const generation = chosen ? generationOf(auth, chosen) : 0;
-  const projectSkills = useProjectSkills(root, chosen, conversationId ? turnOf(thread?.events ?? null, summary, live) : "idle", generation);
+  const projectSkills = useProjectSkills(root, chosen, conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle", generation);
   useEffect(() => { if (healthy && chosen && ready && !fixed) support.readModels(root, chosen); }, [root, healthy, chosen, ready, fixed, generation]);
 
   const presets = support.presets?.ok ? support.presets.result.presets : [];
@@ -429,6 +419,13 @@ export function CanvasConversation(props: CanvasConversationProps) {
   const restoreBusy = archived && current && (current.working || current.phase !== "ended") ? { kind: "restore" as const, open: current.conversationId } : null;
   const busy = newView?.start.busy ?? restoreBusy;
   const openConversation = (id: string) => { props.onChoose?.(); run.select(id); };
+  // A refused terminal session switches to the new conversation that shares its field; a conversation another sign-in
+  // owns leaves for a new one on this canvas, taking the refused draft along.
+  const startNewAfterRefusal = () => {
+    if (mode.kind !== "existing" && mode.kind !== "archived") { run.choose("new"); return; }
+    store.setDrafts(drafts => carryDraft(drafts, key, draftKey({ kind: "new", root, canvas: target.canvas })));
+    props.onChoose?.(); run.select(null);
+  };
 
   // A preset's line and the suggestion stand in for it inside the composer (dockedRules composerPlaceholder).
   const placeholder = view.kind === "new" && mode.kind === "new" ? NEW_PLACEHOLDER : REPLY_PLACEHOLDER;
@@ -488,9 +485,9 @@ export function CanvasConversation(props: CanvasConversationProps) {
         onPresetsOpen={() => { if (support.presets && !support.presets.ok) support.readPresets(); }} onPresetsRetry={() => support.readPresets()}
         thumbnails={support.thumbnails} onAttach={chooseFiles} onFiles={addFiles}
         onAttachmentRemoved={attachment => { if (attachment.id) void window.doan.removeAttachment(attachment.id).catch(console.error); }}
-        turn={conversationId ? turnOf(thread?.events ?? null, summary, live) : "idle"} busy={busy} canvasGone={false} context={thread ? contextRing(thread.events) : null}
+        turn={conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle"} busy={busy} canvasGone={false} context={thread ? contextRing(thread.events) : null}
         unavailable={props.blocked} locked={props.blocked !== null} held={view.kind === "wait" || (newView?.start.pending ?? false)} fixed={fixed}
-        refuse={refuse} onStartNew={() => run.choose("new")}
+        refuse={refuse} onStartNew={startNewAfterRefusal}
         queued={conversationId ? store.queue(conversationId) : []}
         sendNow={!!conversationId && !!provider && !archived && sendNowShown({ provider, phase: steerPhaseOf(thread?.events ?? null, summary, live), sending: false })}
         onSendQueuedNow={itemId => conversationId ? store.sendQueuedNow(conversationId, itemId) : Promise.resolve({ error: "not_running" })}

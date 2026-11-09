@@ -299,7 +299,9 @@ export class ConversationService {
     if (restoring) { metadata = this.restoreTarget(metadata); replacing = this.replacing(metadata, id); }
     else metadata = this.refreshCanvas(metadata);
     const runtime = metadata.session.runtime;
-    const existing = this.live.get(id); if (existing?.busy || existing?.failedPersistence) throw new Error("busy");
+    // A history that stopped taking writes is left behind once its process is gone (releaseFailed): the send starts a
+    // new turn on a new entry, and is refused like any first write when the history still takes none.
+    const existing = this.live.get(id); if (existing?.busy || (existing?.failedPersistence && !existing.exited)) throw new Error("busy");
     const project = metadata.canvas ? undefined : metadata.root;
     if (project) this.checkProject(project, id);
     // An archived conversation's runner is closing; previousExit waited for its process, so a new one opens.
@@ -410,9 +412,11 @@ export class ConversationService {
   // its group is gone. The send waits for that instead of refusing; every check in send runs again afterwards.
   private previousExit(id: string): Promise<void> | undefined {
     const live = this.live.get(id), metadata = this.store.list().find(m => m.conversationId === id);
-    if (!metadata || live?.busy || live?.failedPersistence || this.quitting || !this.reservations.some(r => r.owner === id)) return;
-    // A Codex server is reused while its conversation stays current; an archived one's server is closing.
-    if (metadata.session.runtime === "codex" && live?.runner && !live.closed) return;
+    // A turn whose history stopped taking writes is still busy while its closed run's group exits; the send waits for it.
+    if (!metadata || (live?.busy && !live.failedPersistence) || this.quitting || !this.reservations.some(r => r.owner === id)) return;
+    // A Codex server is reused while its conversation stays current; an archived one's server, or one closed because its
+    // history stopped taking writes, is closing.
+    if (metadata.session.runtime === "codex" && live?.runner && !live.closed && !live.failedPersistence) return;
     if (this.waits.has(id)) throw new Error("busy");
     // A done turn's Claude process may go on generating its suggestion (up to 30 s) after its input closed, past this
     // wait (EXIT_WAIT_MS). Its suggestion is dropped and the process ended, so the send is no later than before.
@@ -528,7 +532,18 @@ export class ConversationService {
       this.dropHandoff(id);
       // No event says so, but the list's projectBusy and, once the process is gone, the phase change.
       this.changedOf(id);
+      // A write after the process was gone (the exit's own turn.failed) leaves nothing to wait for.
+      this.releaseFailed(id, live);
     }
+  }
+  // A turn whose history stopped taking writes can save no terminal event. Once its process is gone it ends as a failed
+  // turn would: the conversation stops working, its queue comes back as a draft and the next send starts a new turn.
+  // Reached from the group's exit callback too, so a hand-back that throws is only logged.
+  private releaseFailed(id: string, live: Live): void {
+    if (!live.failedPersistence || !live.exited) return;
+    live.busy = false;
+    try { this.giveBack(id, "turn_failed"); } catch (error) { console.error("doan: queued messages could not be handed back", error); }
+    this.changedOf(id);
   }
   // A reason that holds on turned the turn's Fast off: the conversation's choice goes too, so later turns, a queue
   // flushed after this one included, run without it. A failed write throws to receive; the event's append announces the list.
@@ -627,7 +642,9 @@ export class ConversationService {
     // A send cancelled while it waited for the judgement or the previous process leaves the queue behind it nothing
     // to follow.
     if (!live || !live.busy) { this.giveBack(id, "interrupted"); return; }
-    const stop = live.runner?.stop(); if (live.busy) this.receive(id, { type: "interrupted", reason: "user" }); await stop;
+    // A history that stopped taking writes takes no interrupted event: the Stop ends the closed run's group, and the
+    // turn ends once it is gone (releaseFailed).
+    const stop = live.failedPersistence ? live.runner?.close() : live.runner?.stop(); if (live.busy) this.receive(id, { type: "interrupted", reason: "user" }); await stop;
   }
   // The preparation of a list read (models, project skills); a quit or a stop of the provider during it refuses the read and frees its lease.
   async prepareListing(root: string, runtime: Provider): Promise<Prepared> {
@@ -1153,9 +1170,9 @@ export class ConversationService {
     this.reservations = releaseReservation(this.reservations, id, "process_exited");
     this.waits.get(id)?.wake();
     const live = this.live.get(id); if (!live) return; live.exited = true; delete live.runner; delete live.stage;
-    if (live.failedPersistence) this.changedOf(id);
     if (!live.accepted) this.live.delete(id);
     if (live.accepted && live.busy) this.receive(id, { type: "turn.failed", code: "process_exited" });
+    this.releaseFailed(id, live);
   }
   private sendTurn(id: string, live: Live, runner: Runner, prompt: string, attachments?: readonly AttachmentRecord[], turnChoice?: TurnChoice): void {
     const turn = live.turnId;

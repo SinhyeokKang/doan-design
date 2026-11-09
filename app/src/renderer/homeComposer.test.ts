@@ -191,7 +191,7 @@ test("every start refusal has the draft's wording and Retry only where retrying 
   expect(view("busy")).toEqual({ text: "Claude Code is finishing a previous run. Try again in a moment.", retry: true });
   expect(view("credential_override")).toEqual({ text: "Claude Code refused to run: this project’s Claude settings supply their own API key. Remove it, or choose another agent.", retry: false });
   expect(view("cli_install_failed")).toEqual({ text: "Couldn’t download the Antigravity server. Check your connection, then try again.", retry: true });
-  expect(view("rate_limited")).toEqual({ text: "Claude Code is rate limited. Try again later.", retry: false });
+  expect(view("rate_limited")).toEqual({ text: "Claude Code reached a usage limit. Send again after it resets.", retry: false });
   expect(view("process_exited")).toEqual({ text: "Claude Code stopped before it could start. Try again.", retry: true });
   expect(view("session_unavailable")).toEqual({ text: "Couldn’t start with Claude Code right now. Try again, or choose another agent.", retry: true });
   expect(view("session_in_use")).toEqual({ text: "Claude Code is busy with another session. Try again in a moment.", retry: true });
