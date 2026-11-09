@@ -52,14 +52,14 @@ export interface CardRow {
   detail?: string;
 }
 
-// `loaded` is the root of the loaded workspace, `selection` the one the
-// renderer holds for it. Design
-// 'Problem rows' table.
-// The shipped status chip a problem row's chip draws in Home's and the Overview's project and worktree menus.
+// The shipped status chip a problem row draws in Home's project and worktree menus and the Overview's worktree menu.
 export function chipClass(chip: string | undefined): string {
   return `ob-chip${chip === "Config error" ? " err" : chip === "Missing" || chip === "CLI error" ? " warn" : ""}`;
 }
 
+// `loaded` is the root of the loaded workspace, `selection` the one the
+// renderer holds for it. Design
+// 'Problem rows' table.
 export function cardRow(entry: FolderEntry, loaded: string | null, selection: SelectionView | null): CardRow {
   const current = loaded === entry.path;
   const selected = current && selection ? selectionLabel(selection) : undefined;
