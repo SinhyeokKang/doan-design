@@ -31,8 +31,10 @@ const summary = (conversationId: string, extra: Partial<ConversationSummary> = {
 const flush = () => new Promise(resolve => setTimeout(resolve, 0));
 
 let resume: unknown;
+let drawing: string | null;
 beforeEach(() => {
   resume = { available: false, reason: "no_record" };
+  drawing = null;
   vi.stubGlobal("window", { doan: {
     conversationResumeTarget: vi.fn(async () => resume), readConversation: vi.fn(async () => ({ error: "not_found" })),
     takeConversationDraft: vi.fn(async () => null), attachmentsFromPaths: vi.fn(async () => []),
@@ -44,7 +46,7 @@ const PICK = { pressed: false, enabled: true, reason: null, onToggle: () => {} }
 async function panel(list: ListView, setup: (run: CanvasRun) => void = () => {}, patch: Partial<CanvasConversationProps> = {}) {
   const lists = new Map<string, ListView>([[ROOT, list]]);
   const store = new ConversationStore({ list: root => lists.get(root) ?? "loading", readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() });
-  const run = new CanvasRun({ list: root => lists.get(root) ?? "loading", readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store);
+  const run = new CanvasRun({ list: root => lists.get(root) ?? "loading", readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => drawing, changed: vi.fn() }, store);
   run.show({ root: ROOT, canvas: CANVAS });
   run.sync();
   setup(run);
@@ -62,6 +64,17 @@ test("a list that can't be read says so with Retry, and the composer stays a new
   expect(out).toContain("<span class=\"strip-text selectable\"><b>Couldn’t read conversations</b><span>Try again. You can still start a new conversation.</span>");
   expect(out).toContain(">Retry</button>");
   expect(out).toContain('aria-placeholder="Ask, / for presets"');
+});
+
+// DESIGN 'Notices': the panel's agent notice is the shared one (body-sm, 12/16 padding), not the
+// inspector's 11px loading line that shares the canvas-notice class.
+test("a project conversation drawing the canvas is the shared notice with Open, without the inspector's canvas-notice", async () => {
+  drawing = "proj";
+  const out = await panel([]);
+  expect(out).toContain('<div class="doan-notice thread-notice" role="status">');
+  expect(out).toContain("A project conversation is drawing this canvas.");
+  expect(out).toContain('aria-label="Open the project conversation"');
+  expect(out).not.toContain("canvas-notice");
 });
 
 test("a canvas with a terminal session offers it first, with the time doan check linked it", async () => {

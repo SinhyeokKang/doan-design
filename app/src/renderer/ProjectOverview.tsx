@@ -26,7 +26,7 @@ import { contextRing } from "./contextWindow";
 import { DockedComposer, type DockedOutcome, type DockedRequest } from "./DockedComposer";
 import { carryDraft, composerTurn, draftKey, EMPTY_DRAFT, type DockedBusy, type DockedMode } from "./dockedRules";
 import { generationOf, modelsKey, type DockedSupport } from "./dockedSupport";
-import { cardRow, ROW_ACTION_ICONS, ROW_ACTION_LABELS, type RowAction } from "./homeCards";
+import { cardRow, chipClass, ROW_ACTION_ICONS, ROW_ACTION_LABELS, type RowAction } from "./homeCards";
 import {
   attachmentLimit, defaultEffort, defaultFast, defaultModel, fastToSend, defaultProvider, fixedPreference, groupIcon, modelOption, modelPickerView,
   selectableProvider, suggestedPresets, suggestedPrompts, type AttachmentDraft, type ModelsState, type NewConversationDefault,
@@ -331,7 +331,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
                   worktreePicked.current = true; props.onWorktree(row.path);
                 }}>
                 <GitBranch aria-hidden="true" /><span><span>{branchOf(row) ?? row.path.split("/").at(-1)}</span><small>{displayPath(row.path, props.homeDirectory)}</small></span>
-                {chip ? <span className="shell-problem">{chip}</span> : marked && <Check aria-hidden="true" />}
+                {chip ? <span className={chipClass(chip)}>{chip}</span> : marked && <Check aria-hidden="true" />}
               </DropdownMenu.Item>;
             })}
             {repairRow && repairChoice?.kind === "repair" && <>
