@@ -1,19 +1,20 @@
 # provider-profile-isolation — design
 
-이 문서의 방향은 PoC(§8)가 통과한다는 가정 위에 있다. Q1–Q6과 A–D는 사용자가 결정했다(§10). PoC 결과에 따라 사용자에게 다시 묻는 것은 두 가지다. P0가 실패할 때의 방향, 그리고 P2에서 실패한 provider의 처리다(§8).
+Q1–Q6과 A–D는 사용자가 결정했다(§10). PoC(§8) 결과를 본 뒤의 결정(P0 실패 방향, Claude·Codex의 막는 방법)은 orch.md '결정 기록'에 있고, 이 문서는 그 결정대로 고쳐 적었다.
 
 ## 1. 영향 받는 구성 요소
 
 - **app main (Electron + TS)**
   - fence를 다는 곳: `conversation/prepare.ts`가 `use === "run"`일 때만 `Prepared.fence`(`conversation/service.ts`의 `Prepared`에 새 선택 필드)를 채운다. 모델 목록(`use === "listing"`)과 legacy external에는 없다.
-  - fence를 쓰는 세 spawn 지점: Codex app-server(`conversation/runners.ts`의 `spawn(..., "app-server")`), Claude Code(`runners.ts`의 SDK `spawnClaudeCodeProcess`), ACP 서버(`conversation/acpRunner.ts`의 `spawn`). `Prepared.fence`가 있을 때만 감싼다.
+  - fence를 쓰는 세 spawn 지점: Codex app-server(`conversation/runners.ts`의 `spawn(..., "app-server")`), Claude Code(`runners.ts`의 SDK `spawnClaudeCodeProcess`), ACP 서버(`conversation/acpRunner.ts`의 `spawn`). `Prepared.fence`가 있을 때만 막는 방법을 고른다(§3.1 표). Claude는 sandbox가 켜진 턴에 SDK `settings`를, Codex는 Full access가 아닌 server에 `-c` profile 인수와 턴의 `permissions`를 쓴다.
+  - Codex 모드 전환 때 app-server를 다시 띄우는 곳: `conversation/service.ts` `submit`의 재사용 판단(`reusing`).
   - 대화 lease가 run 환경을 만드는 곳: `agentAuth/manager.ts` `acquire`/`launch`, `agentAuth/environment.ts` `providerEnv`.
-  - Antigravity 서버를 띄우는 그 밖의 곳: `manager.ts` `acpExec`를 부르는 세 곳(`acpSignIn`, `acpStatus`, `acpLogout`). §3.2 경로 2일 때만 바뀐다.
-  - 새 파일 하나: fence 정책을 만드는 순수 모듈(이름은 `/tdd`에서 정한다. 예: `agentAuth/fence.ts`).
+  - Antigravity 서버를 띄우는 그 밖의 곳(`manager.ts` `acpExec`)은 바뀌지 않는다(§3.2 경로 1).
+  - 새 파일 하나: 막는 방법을 만드는 순수 모듈(이름은 `/tdd`에서 정한다. 예: `agentAuth/fence.ts`). 바깥 fence 정책과 인수, Claude flag 설정, Codex profile 인수, Claude sandbox 판정, 모드별 방법 고르기가 여기 있다.
 - **CLI (Go)**: 바뀌지 않는다. agent가 실행하는 `doan`은 `DOAN_RUNTIME`의 `runtime.json`을 읽고 tmpdir의 socket에 연결한다(`app/src/main/runtime.ts`). fence는 이 둘을 막지 않는다. 다만 fence 안의 `doan check`는 `<userData>/sessions.jsonl`(`conversation/io.ts`가 읽는 파일)에 쓰지 못한다(결정 B, §3.1).
 - **skills**: 바뀌지 않는다. profile의 doan `SKILL.md` stub은 Doan이 프로세스를 띄우기 전에 쓴다.
 - **형식**: 바뀌지 않는다(§5).
-- **renderer**: 바뀌지 않는다. 새 화면, 문구, 실패 코드가 없다(결정 Q5). 예외: §3.2의 Q6 (a) 분기로 가면 Settings > Agents에 Antigravity를 막은 이유가 생긴다.
+- **renderer**: 바뀌지 않는다. 새 화면, 문구, 실패 코드가 없다(결정 Q5).
 
 ## 2. 지금 구조 (코드에서 읽은 사실)
 
@@ -30,52 +31,94 @@
 
 ## 3. 설계
 
-### 3.1 profile 경계: 대화 run을 Doan의 Seatbelt 정책 안에서 띄운다
+### 3.1 profile 경계: provider마다 막는 방법을 고른다
 
-- Doan 연결 대화의 run 프로세스를 `/usr/bin/sandbox-exec`로 감싸 띄운다. 정책은 "기본 허용, Doan userData만 막고 그 안의 필요한 경로만 다시 연다"이다. 정책은 run 프로세스와 그 자식에 모두 걸린다. agent의 shell 명령과 파일 도구도 그 안에 있다.
-- **다는 곳**: `prepare.ts`가 `use === "run"`일 때만 `Prepared.fence`를 채운다. 세 spawn 지점은 그 필드가 있을 때만 감싼다. 필드가 없으면(모델 목록, legacy external) 지금과 똑같이 띄운다. 그래서 기존 테스트는 그대로 통과해야 한다.
-- 정책 모양(규칙 평가 순서의 의미는 P2에서 확인한다):
-  - 기본: 모두 허용.
-  - `<userData>` 아래 읽기·쓰기 금지.
-  - 다시 허용:
-    - 이 run의 profile 디렉터리: 읽기·쓰기.
-    - `<userData>/runtime.json`: 읽기만(`doan` CLI가 `DOAN_RUNTIME`으로 읽는다).
-    - 첨부: Claude와 ACP run은 이번 턴의 `<userData>/attachments/<id>/`만 읽기. Codex run은 `<userData>/attachments/` 전체를 읽기. Codex app-server는 여러 턴에 걸쳐 살고 정책은 띄울 때 정해지기 때문이다(결정 A).
-    - `<userData>/agent-auth/browser-hook`: 읽기·실행(Claude, Antigravity).
-    - `<userData>/agent-runtimes/antigravity-acp/`: 읽기·실행(Antigravity만). 서버가 이곳에 쓰는지는 P2에서 확인하고, 쓰면 쓰기도 연다.
-  - Antigravity만 추가 금지(§3.2 경로 2, §3.3 결정 Q3).
-- 정책 문장은 `-p`(문자열)로 넘긴다. 정책 파일을 쓰지 않으므로 파일 쓰기 실패가 없다. 경로는 정책 문장에 이어 붙이지 않고 `-D NAME=<path>` 매개변수로 넘긴다. 그래야 경로에 따옴표나 괄호가 있어도 정책이 깨지지 않는다.
-- 경로는 main이 `realpath`로 푼 값을 쓴다(Seatbelt가 `/var`와 `/private/var`처럼 푼 경로로 비교하는지 P2에서 확인). §3.2 경로 2의 실제 home은 `$HOME`이 아니라 사용자 DB(`getpwuid`)에서 얻는다. 격리 HOME으로 띄운 probe에서도 실제 home을 막기 위해서다.
-- **fail closed**(결정 Q5): 아래 경우 run은 기존 시작 실패로 끝난다. 새 실패 코드와 문구는 만들지 않는다.
-  - 띄우기 전 거절(경로를 `realpath`로 풀 수 없음, 절대 경로가 아님, NUL이나 줄바꿈이 있음) → `unknown`.
-  - `sandbox-exec`가 없음(spawn `ENOENT`)이나 정책 오류로 바로 끝남 → `process_exited`.
-  - 어느 경우도 `cli_missing`을 쓰지 않는다. provider CLI가 없는 것이 아니기 때문이다.
-- **적용 범위**: Doan 연결 대화 run만이다. 로그인, 상태 확인, 로그아웃, 모델 목록, 사용량 fresh read, MCP connector 명령, Codex identity lookup에는 붙이지 않는다(결정 Q2). 예외: §3.2 경로 2로 가면 Antigravity 서버를 띄우는 모든 곳(`acpExec`의 세 곳 포함)에 fence를 붙인다.
-- **받아들인 한계**(spec '보호 범위', T7 'Known limits'):
-  - fence 안의 `doan check`는 `<userData>/sessions.jsonl`에 session association을 더하지 못한다. 출력과 종료 코드는 그대로다(결정 B).
-  - 모델 목록 읽기는 fence 밖에서 저장소의 설정으로 돌므로, 저장소 hook이 그때 실행될 수 있다.
-  - fence는 run 안의 직접 접근만 막는다. agent가 남긴 설정(`~/.zshrc`, 저장소의 `.claude/settings.json` hook, `.mcp.json` 등)은 나중에 fence 밖의 프로세스가 실행할 수 있다.
-  - `sandbox-exec`가 macOS에서 없어지면 모든 Doan 연결 run이 시작하지 못한다.
-- **provider 자체 sandbox와의 관계**: Codex는 Ask first와 Accept edits에서 명령을 자기 sandbox로 실행하고, Claude Code도 사람이 설정하면 자기 sandbox를 쓴다. 바깥에 Doan의 정책이 있을 때 안쪽 sandbox가 동작하는지는 모른다. 로그인 없이 P0에서 먼저 보고, 실제 provider로 P2에서 본다.
+P0에서 이미 Seatbelt 안에 있는 프로세스는 규칙이 있는 두 번째 정책을 적용하지 못했다. 그래서 provider 자체 sandbox를 쓰는 run(사람이 켠 Claude Code sandbox, Codex의 Ask first·Accept edits·Plan)은 바깥 fence 안에서 모든 명령이 실패한다. 결정(orch.md '결정 기록'): Cursor·Antigravity·Copilot은 바깥 fence, Claude는 턴마다 sandbox 상태로, Codex는 권한 모드로 나눈다. 어느 쪽이든 막는 경로와 다시 여는 경로는 같다.
+
+- **막는 경로**: `<userData>` 아래 읽기·쓰기.
+- **다시 여는 경로**:
+  - 이 run의 profile 디렉터리: 읽기·쓰기.
+  - `<userData>/runtime.json`: 읽기만(`doan` CLI가 `DOAN_RUNTIME`으로 읽는다).
+  - 첨부: Claude와 ACP run은 이번 턴의 붙여넣은 이미지 디렉터리(`<userData>/attachments/<id>/`, 이미지마다 하나)만 읽기. Codex run은 `<userData>/attachments/` 전체를 읽기. Codex app-server는 여러 턴에 걸쳐 살고 정책은 띄울 때 정해지기 때문이다(결정 A).
+  - `<userData>/agent-auth/browser-hook`: 읽기(Claude, Antigravity).
+  - `<userData>/agent-runtimes/antigravity-acp/`: 읽기(Antigravity만). 서버는 이곳에 쓰지 않는다(§8 P2 (g)).
+  - Node `realpathSync`가 profile을 풀 수 있도록 `<userData>`, `agent-auth`, `profiles` 세 디렉터리 자신의 `file-read-metadata`(바깥 fence만, §8 P2 (a)).
+- Antigravity만 추가 금지: 자기 profile의 skill 경로(`<GEMINI_HOME>/config/skills`, `<GEMINI_HOME>/antigravity-cli/skills`) 쓰기(§3.3, 결정 Q3).
+- **다는 곳**: `prepare.ts`가 `use === "run"`일 때만 `Prepared.fence`(userData, profile, 이번 턴의 첨부 디렉터리, 모두 `realpath`로 푼 값)를 채운다. 모델 목록(`use === "listing"`)과 legacy external에는 없고, 그때는 지금과 똑같이 띄운다. 그래서 기존 테스트는 그대로 통과해야 한다. runner가 `Prepared.fence`와 이번 run의 권한 모드로 방법을 고른다(아래 표).
+
+| provider | 조건 | 방법 |
+|---|---|---|
+| Cursor, Antigravity, Copilot | 모든 권한 모드 | 바깥 fence(`sandbox-exec`로 ACP 서버를 띄운다) |
+| Claude | 이번 턴의 Claude sandbox가 꺼짐 | 바깥 fence(`spawnClaudeCodeProcess`를 감싼다) |
+| Claude | 이번 턴의 Claude sandbox가 켜짐 | fence 없음. SDK `settings`(flag tier)에 Doan의 설정을 더한다 |
+| Codex | Ask first, Accept edits, Plan | fence 없음. app-server를 Doan의 Codex permission profile로 띄우고 턴마다 그 profile을 고른다 |
+| Codex | Full access | 바깥 fence(app-server를 감싼다) |
+
+**바깥 fence**
+
+- `/usr/bin/sandbox-exec -p <정책> -D NAME=<path>… <원래 명령> <원래 인수>`로 띄운다. 정책 문장은 §8 P2의 통과 문장이다. 정책은 프로세스와 그 자식에 모두 걸린다. agent의 shell 명령과 파일 도구도 그 안에 있다.
+- 정책 문장은 `-p`(문자열)로 넘긴다. 정책 파일을 쓰지 않으므로 파일 쓰기 실패가 없다. 경로는 `-D` 매개변수로 넘긴다. 그래야 경로에 따옴표나 괄호가 있어도 정책이 깨지지 않는다.
+- 첨부 매개변수: 붙여넣은 이미지가 없으면 `ATTACHMENTS`는 이 run의 profile이다(이미 읽기·쓰기로 열린 경로라 새로 여는 것이 없다). 하나면 그 디렉터리다. 둘 이상이면 첫째는 `ATTACHMENTS`, 나머지는 `ATTACHMENTS_2`, `ATTACHMENTS_3`…이고, 정책 끝에 `(allow file-read* (subpath (param "ATTACHMENTS_<n>")))` 줄을 하나씩 더한다. 그래서 붙여넣은 이미지가 0개나 1개인 정책은 §8 P2 문장과 바이트까지 같다. Codex의 `ATTACHMENTS`는 `<userData>/attachments`이고 줄을 더하지 않는다.
+- pid, process group, 시작 시각이 그대로라 Stop과 종료 정리가 바뀌지 않는다(§8 P2 (h)).
+
+**Claude: 턴마다 sandbox 상태로 고른다**
+
+- 턴을 띄우기 전에 이번 run의 `sandbox.enabled`를 읽는다. Claude는 턴마다 새 프로세스이므로 판단도 턴마다 한다.
+- 읽는 방법: Doan이 SDK `resolveSettings`(alpha)와 같은 출처를 같은 우선순위로 직접 읽는다. 출처는 profile의 `settings.json`(user), 프로젝트의 `.claude/settings.json`(project)과 `.claude/settings.local.json`(local), 그리고 `/Library/Application Support/ClaudeCode/managed-settings.json`과 그 옆 `managed-settings.d/*.json`(managed, 파일 이름 순서로 뒤의 것이 이긴다)이다. 우선순위는 managed > local > project > user다. MDM plist와 서버가 내려 준 managed 설정은 읽지 않는다. SDK 함수를 main에서 부르지 않는 이유: user 출처를 `process.env.CLAUDE_CONFIG_DIR`로만 찾는데(0.3.312 소스), main의 `process.env`는 legacy external 준비와 다른 spawn이 함께 읽는 값이라 바꿔 둘 수 없다.
+- 꺼짐 → 바깥 fence. 켜짐 → SDK `settings`(flag tier, `--settings`)에 아래를 더한다. 기존 `claudeFastSettings`의 `fastMode`와 합친다.
+  - `permissions.deny`: `Read(//<userData>/**)`, `Edit(//<userData>/**)`.
+  - `sandbox.filesystem`: `denyRead`·`denyWrite`=`<userData>`, `allowRead`=profile·`runtime.json`·이번 턴의 첨부 디렉터리(Claude 바깥 fence와 같은 목록)·browser-hook, `allowWrite`=profile.
+  - `sandbox.allowUnsandboxedCommands: false`. Full access의 `dangerouslyDisableSandbox`가 승인 없이 sandbox 밖에서 도는 틈을 막는다(§8 P2 (c)). 사람의 설정을 이 한 가지만큼 좁힌다.
+- 판정이 틀리는 경우:
+  - 켜짐을 꺼짐으로 읽음(예: MDM이나 서버가 내려 준 managed 설정만 sandbox를 켬): 바깥 fence 안에서 모든 Bash가 71로 실패한다. 보이는 실패이고, 결정이 받아들였다.
+  - 꺼짐을 켜짐으로 읽음(예: Doan이 읽지 않는 managed 출처가 sandbox를 끔): flag의 `permissions.deny`만 남아 `perl`처럼 파일을 직접 여는 프로그램은 막지 못한다. Known limits에 적는다.
+- 켜짐 쪽의 한계: `permissions.deny`가 `allow`를 이기므로 Read 도구는 자기 profile 파일과 이번 턴의 붙여넣은 이미지도 읽지 못한다. Bash(`cat` 등)는 `sandbox.filesystem.allowRead`로 읽는다. Known limits에 적는다.
+
+**Codex: 권한 모드로 고른다**
+
+- Full access가 아닌 app-server: 바깥 fence 없이 띄우고, 인수에 `-c default_permissions="doan"`과 두 profile을 더한다.
+  - `permissions.doan={extends=":read-only",filesystem=<항목>}`: Ask first와 Plan.
+  - `permissions.doan-workspace={extends=":workspace",filesystem=<항목>}`: Accept edits.
+  - `<항목>`: `"<userData>"="deny"`, `"<profile>"="write"`, `"<userData>/runtime.json"="read"`, `"<userData>/attachments"="read"`. 경로는 TOML 기본 문자열(JSON 문자열 표기와 같은 escape)로 넣는다.
+  - 턴마다 legacy `sandboxPolicy` 대신 `permissions: "<profile id>"`(experimental API)를 보낸다. 둘을 함께 보내면 userData 전체가 막히므로 섞지 않는다(§8 P2 (c)).
+  - 승인 정책은 지금처럼 ephemeral `thread/start`에서 읽은 Ask first 값(Ask first), `on-request`(Accept edits), `never`(Plan)이다.
+  - `default_permissions`를 정해야 profile을 정의할 수 있다. 그래서 Ask first의 sandbox는 Codex의 기본 대신 `doan`(읽기 전용 + 항목)이다. Doan의 Codex profile은 프로젝트 신뢰를 기록하지 않으므로 지금의 Ask first도 읽기 전용이다. 같은 동작이고, profile의 `config.toml`을 사람이 손으로 고친 경우만 달라진다.
+- Full access app-server: 바깥 fence로 감싸 띄우고, 턴은 지금처럼 `sandboxPolicy: dangerFullAccess`를 보낸다(§8 P2 fence 턴 B).
+- **모드 전환**: 살아 있는 app-server의 방법(profile 또는 fence)과 이번 send의 방법이 다르면 그 server를 닫고 새 server를 띄워 `thread/resume`한다. 같으면 지금처럼 재사용한다. 새 server를 여는 것은 첫 send와 같은 경로다.
+- 받아들인 한계(T7 Known limits):
+  - 사람이 승인한 `apply_patch`는 deny 경로에도 쓴다. 승인 카드에 그 경로가 보인다(Ask first, Accept edits).
+  - `permissions` profile과 `turn/start` `permissions`는 experimental API다. Codex가 바꾸면 Doan 연결 Codex run이 시작하지 못하거나 profile이 걸리지 않을 수 있다.
+  - 사람이 Doan의 Codex profile `config.toml`에 legacy `sandbox_mode`를 적어도 Doan이 턴마다 `permissions`를 보내므로 deny가 걸린다. 대신 그 `sandbox_mode`는 쓰이지 않는다.
+
+**fail closed**(결정 Q5): 아래 경우 run은 기존 시작 실패로 끝난다. 새 실패 코드와 문구는 만들지 않는다.
+
+- 띄우기 전 거절(경로를 `realpath`로 풀 수 없음, 절대 경로가 아님, NUL이나 줄바꿈이 있음, profile이 `<userData>/agent-auth/profiles/` 바로 아래가 아님) → `unknown`.
+- `sandbox-exec`가 없음(spawn `ENOENT`)이나 정책 오류로 바로 끝남(종료 코드 65, 71) → `process_exited`.
+- 어느 경우도 `cli_missing`을 쓰지 않는다. provider CLI가 없는 것이 아니기 때문이다.
+- `realpath`는 필수다. 풀지 않은 `/var/...`나 상대 경로 `-D`는 오류 없이 아무것도 막지 않는다(fail open, §8 P2 (a)).
+
+**적용 범위**: Doan 연결 대화 run만이다. 로그인, 상태 확인, 로그아웃, 모델 목록, 사용량 fresh read, MCP connector 명령, Codex identity lookup에는 붙이지 않는다(결정 Q2). §3.2가 경로 1이므로 Antigravity의 `acpExec`에도 붙이지 않는다.
+
+**받아들인 한계**(spec '보호 범위', T7 'Known limits'):
+
+- fence 안의 `doan check`는 `<userData>/sessions.jsonl`에 session association을 더하지 못한다. 출력과 종료 코드는 그대로다(결정 B).
+- 모델 목록 읽기는 fence 밖에서 저장소의 설정으로 돌므로, 저장소 hook이 그때 실행될 수 있다.
+- fence는 run 안의 직접 접근만 막는다. agent가 남긴 설정(`~/.zshrc`, 저장소의 `.claude/settings.json` hook, `.mcp.json` 등)은 나중에 fence 밖의 프로세스가 실행할 수 있다.
+- `sandbox-exec`가 macOS에서 없어지면 바깥 fence를 쓰는 Doan 연결 run이 시작하지 못한다.
+- 위 Claude·Codex의 한계.
 
 ### 3.2 Antigravity가 실제 상태를 바꾸지 않게 한다
 
-P1의 결과에 따라 아래 중 하나를 고른다. 순서는 선호 순이다.
-
-1. **설정으로 옮긴다.** pinned 서버(1.3.0)나 language server가 받는 환경 변수·인수 중 `antigravity-cli` 디렉터리와 자격 증명 저장소를 profile 안으로 옮기는 것이 있으면, `providers.ts`의 Antigravity `env`나 `environment.ts`에 더한다. `AGY_ACP_FORCE_FILE_STORAGE`처럼 문서화되지 않은 변수라면 ARCHITECTURE §7 'Antigravity server'의 기존 예외 목록에 더한다.
-2. **fence로 막는다.** 옮길 방법이 없으면 Antigravity 프로세스의 정책에 `<real HOME>/.gemini/antigravity-cli/` 쓰기 금지를 더한다(실제 home은 `getpwuid`). Keychain 항목을 바꾼 것이 language server라면 Keychain 접근도 막는다(Seatbelt에서 막을 단위는 P1에서 정한다). 이때 Antigravity 서버를 띄우는 모든 곳(로그인·상태 확인·로그아웃·대화)에 fence를 붙인다. 조건은 두 가지다. 막았을 때 로그인, 대화, 로그아웃이 그대로 된다. Keychain을 막아도 agent의 git credential helper가 동작한다. 후자가 안 되면 ARCHITECTURE §7 'Known limits'에 적는다.
-3. **둘 다 안 되면** P1 결과에 따라 나눈다(결정 Q6).
-   - 사람의 `agy` 로그인을 바꾸면: Antigravity의 로그인과 새 대화를 막고 Settings > Agents에 이유를 보인다. 상태 확인, 로그아웃, 기존 대화의 resume과 send, 첫 실행 Agent 단계, Home의 agent picker를 어떻게 할지는 T2에서 정한다. 새 문구가 생기므로 `/design-draft`와 Doan의 `clarify` preset이 필요하다(tasks T2a).
-   - 로그·설정 파일 쓰기뿐이면: ARCHITECTURE §7 'Known limits'에 적고 Antigravity를 그대로 둔다.
-   - 고르지 않은 것: 어느 경우든 문서화만 하기. "never changes external credentials" 결정과 충돌한다.
+- 결정: **경로 1, 환경 변경 없음**(§8 P1). Doan이 지금 주는 `HOME=<profile>`, `GEMINI_HOME=<profile>/.gemini`, `AGY_ACP_FORCE_FILE_STORAGE=1`만으로 서버와 language server가 실제 `~/.gemini/antigravity-cli/`와 Keychain 항목 `gemini | antigravity`를 바꾸지 않았다. `providers.ts`와 `environment.ts`의 Antigravity 환경은 그대로다.
+- BACKLOG가 적은 실제 상태 쓰기는 Orca.app이 주기적으로 실행하는 사람의 `agy`가 만든 것으로 본다(§8 P1). T7에서 BACKLOG 문장을 이 결과로 고친다.
+- 경로 2(fence로 실제 home 막기)와 경로 3(결정 Q6의 막는 분기, 새 문구와 초안)은 하지 않는다. 그래서 Antigravity의 `acpExec`(로그인·상태 확인·로그아웃)에는 fence가 없고, 실제 home 매개변수도 없다.
+- 남는 위험(§8 P1): 한 턴만 봤다. language server의 `go-keyring`과 `os/user.Current`가 다른 기능에서 실제 home이나 Keychain을 쓰는지는 배제하지 못했다. agent가 shell에서 절대 경로로 실제 home에 쓰는 것은 막지 않는다(spec Non-goals의 agent 전체 sandbox). T5에서 앱 + Keychains 링크 조건과 실제 HOME으로 다시 본다.
 
 ### 3.3 Antigravity가 자기 profile 안에서 일한 것
 
-- P3로 원인을 분류한다.
-  - (i) agent가 `HOME`이 profile이라 `~/.gemini/antigravity-cli/skills`를 자기 skill 경로로 보고 그곳에서 일했다.
-  - (ii) 서버가 도구 실행에 `session/new`의 `cwd`를 쓰지 않는다.
-- (i)이면: 다른 provider로 넘어가지 않으므로 경계 문제는 아니다. 그래도 Antigravity의 정책에 자기 profile의 skill 경로(`<GEMINI_HOME>/config/skills`, `<GEMINI_HOME>/antigravity-cli/skills`) 쓰기 금지를 더한다(결정 Q3). stub은 Doan이 프로세스를 띄우기 전에 쓰므로 서버가 쓸 필요가 없다(P3에서 확인). 그러면 agent가 Doan의 stub을 바꾸거나 skill을 더해 다음 대화에 영향을 주는 일도 막힌다. P3에서 서버가 그 경로에 써야 한다고 밝혀지면 그 경로는 열어 두고 T2에서 보고한다.
-- (ii)이면: 서버 동작이므로 Doan이 고칠 수 없다. 사실을 ARCHITECTURE §7 'Agent authentication' 'Known limits'에 적고, Ask first에서 permission card가 `Cwd`를 보여 주는지는 BACKLOG에 남긴다.
+- 결정: **(i)**(§8 P3). 서버가 profile의 skill 경로를 agent의 workspace로 넘기고, agent가 skill 관련 작업을 그곳에서 했다. 서버는 `session/new`의 `cwd`를 도구 실행에 쓴다.
+- 결정 Q3대로 Antigravity의 바깥 fence 정책에 자기 profile의 skill 경로(`<GEMINI_HOME>/config/skills`, `<GEMINI_HOME>/antigravity-cli/skills`) 쓰기 금지를 더한다. stub은 Doan이 프로세스를 띄우기 전에 쓰고, 서버와 harness는 그 경로에 쓰지 않는다(§8 P3). 그러면 agent가 Doan의 stub을 바꾸거나 skill을 더해 다음 대화에 영향을 주는 일도 막힌다. 실제 턴에서 stub은 읽히고 `doan`이 skill 목록에 있었다(§8 P2).
+- profile 안의 `antigravity-acp/`와 `antigravity/` 쓰기는 연다(서버가 쓴다).
 
 ### 3.4 `stop_required` 뒤 종료
 
@@ -85,20 +128,28 @@ P1의 결과에 따라 아래 중 하나를 고른다. 순서는 선호 순이�
 
 ## 4. 순수 함수로 뺄 것 (`/tdd` 대상)
 
-- `fencePolicy(provider)` → 정책 문장(SBPL). 같은 provider면 같은 문장이다. 경로는 들어가지 않고 매개변수 이름만 들어간다. 실제 home 매개변수는 Antigravity가 §3.2 경로 2일 때만 쓴다.
-  - 테스트: 다섯 provider의 정책 스냅숏. 스냅숏은 §8 P2에 적은 통과 정책 문장과 같아야 한다. Antigravity에만 `agent-runtimes` 실행 허용과 §3.2·§3.3의 추가 금지가 있다. browser-hook 허용은 Claude와 Antigravity에만 있다. Codex만 첨부 디렉터리 전체를 연다.
-- `fenceArgs({ provider, userData, profileDir, attachments, realHome? })` → `sandbox-exec` 인수 목록(`-p <정책>`, `-D` 매개변수) 또는 거절 코드.
-  - 테스트: 상대 경로, NUL, 줄바꿈 → 거절. profile이 userData 밖 → 거절. staging profile(`codex-<id>`)도 자기 디렉터리만 연다. 다른 provider의 profile 경로는 어떤 매개변수에도 나오지 않는다. Claude·ACP는 이번 턴의 첨부 id 디렉터리만, Codex는 첨부 디렉터리 전체가 매개변수로 나온다.
-- `fencedCommand(command, args, fence?)` → `{ command: "/usr/bin/sandbox-exec", args: [...] }`. 세 spawn 지점이 같은 함수를 쓴다.
-  - 테스트: 원래 인수 순서가 보존된다. `fence`가 없으면(legacy external, 모델 목록) 그대로 돌려준다. 네 권한 모드(Ask first, Accept edits, Plan, Full access) 모두 같은 `sandbox-exec` 인수로 시작한다.
+- `fencePolicy(provider, extraAttachments)` → 바깥 fence 정책 문장(SBPL). 경로는 들어가지 않고 매개변수 이름만 들어간다.
+  - 테스트: Cursor·Antigravity·Copilot·Claude·Codex의 정책 스냅숏(붙여넣은 이미지 0–1개). 스냅숏은 §8 P2에 적은 통과 정책 문장과 바이트까지 같다. Antigravity에만 `agent-runtimes` 읽기와 skill 경로 쓰기 금지가 있다. browser-hook 허용은 Claude와 Antigravity에만 있다. 이미지 2개 이상이면 `ATTACHMENTS_<n>` 줄이 끝에 더해지고 나머지는 같다.
+- `fenceArgs({ provider, paths })` → `sandbox-exec` 인수 목록(`-p <정책>`, `-D` 매개변수). `paths`는 `resolveFencePaths`의 결과다.
+  - 테스트: 다른 provider의 profile 경로는 어떤 매개변수에도 나오지 않는다. Claude·ACP는 이번 턴의 첨부 디렉터리만(없으면 `ATTACHMENTS`=profile), Codex는 `<userData>/attachments`가 나온다. 따옴표·공백·괄호가 든 경로도 그대로 한 인수다.
+- `resolveFencePaths({ userData, profileDir, attachments, codex })`(파일 시스템은 주입) → 푼 경로들 또는 거절.
+  - 테스트: 상대 경로, NUL, 줄바꿈 → 거절. `realpath` 실패 → 거절. profile이 `<userData>/agent-auth/profiles/` 바로 아래가 아님 → 거절. staging profile(`codex-<id>`)도 자기 디렉터리만 연다. 첨부 중 `<userData>/attachments/<id>/` 아래 것만 디렉터리로 모은다(사람이 고른 로컬 파일은 userData 밖이라 열 필요가 없다).
+- `fencedCommand(command, args, fenceArgs?)` → `{ command: "/usr/bin/sandbox-exec", args: [...fenceArgs, command, ...args] }`. 세 spawn 지점이 같은 함수를 쓴다.
+  - 테스트: 원래 인수 순서가 보존된다. `fenceArgs`가 없으면 그대로 돌려준다.
+- `claudeSandboxEnabled(sources)` → Claude sandbox 판정. 입력은 user·project·local·managed 출처의 파싱한 내용(없거나 읽을 수 없으면 비어 있음)이다.
+  - 테스트: 출처마다 켬·끔·없음의 우선순위(managed > local > project > user). 읽을 수 없는 파일은 그 출처가 없는 것과 같다. `sandbox.enabled`가 boolean이 아니면 없는 것과 같다.
+- `claudeFenceSettings(paths)` → sandbox가 켜진 턴의 flag tier 설정(`permissions.deny`, `sandbox.filesystem`, `allowUnsandboxedCommands: false`). `claudeFastSettings`와 합치는 함수도 같이 둔다.
+  - 테스트: 설정 모양 스냅숏(§8 P2 (c)의 C18과 같은 키). `fastMode`와 합쳐도 둘 다 남는다. 다른 provider의 profile은 나오지 않는다.
+- `codexProfileArgs(paths)` → Full access가 아닌 app-server의 `-c` 인수(`default_permissions`, `permissions.doan`, `permissions.doan-workspace`).
+  - 테스트: 인수 스냅숏. 따옴표·역슬래시가 든 경로가 TOML 문자열로 escape된다.
+- `codexTurnPermission(mode, defaults, mechanism)` → 턴의 권한 인수. profile server면 `{ approvalPolicy, permissions }`이고 `sandboxPolicy`가 없다. fence server(Full access)면 `{ approvalPolicy: "never", sandboxPolicy: { type: "dangerFullAccess" } }`. legacy external(정의된 profile 없음)은 지금의 `codexPermission`을 그대로 쓴다.
+  - 테스트: 네 모드 × 두 방법. profile server의 어느 턴도 `sandboxPolicy`를 함께 보내지 않는다.
+- `runMechanism(provider, mode, claudeSandbox?)` → `"fence" | "claude-settings" | "codex-profile"`, 그리고 `codexRestart(current, next)` → app-server를 다시 띄울지.
+  - 테스트: ACP 세 provider는 네 모드 모두 fence. Claude는 sandbox 상태만 본다(모드와 무관). Codex는 Full access만 fence. 같은 방법이면 재사용, 다르면 다시 띄운다.
 - `Prepared.fence`를 채우는 규칙(`prepare.ts`)
-  - 테스트: `use === "run"`이면 있다. `use === "listing"`으로 준비하면 없다. legacy external(`createPrepare`)은 없다(기존 테스트가 그대로 통과).
+  - 테스트: `use === "run"`이면 있다. `use === "listing"`으로 준비하면 없다. legacy external(`createPrepare`)은 없다(기존 테스트가 그대로 통과). 경로를 풀 수 없으면 lease를 놓고 `unknown`으로 거절한다.
 - fail closed의 분류
-  - 테스트: `sandbox-exec` 경로를 주입해 `ENOENT` → `process_exited`. 정책 오류로 바로 끝남 → `process_exited`. `realpath` 실패 → 띄우지 않고 `unknown`. 어느 경우도 `cli_missing`이 아니다.
-- Antigravity 분기별 테스트
-  - 경로 1: Antigravity 환경 변수 추가는 `providerEnv`의 기존 테스트(`environment.test.ts`)에 사례를 더한다. 새 변수는 `RESERVED`에 넣어 extra로 덮을 수 없게 한다.
-  - 경로 2: `acpExec`를 부르는 세 곳(로그인, 상태 확인, 로그아웃)이 fence로 감싸진다.
-  - 경로 3의 막는 분기: 로그인과 새 대화가 거절되고, 기존 대화의 resume은 T2에서 정한 대로 처리된다.
+  - 테스트: `sandbox-exec` 경로를 주입해 `ENOENT` → `process_exited`. 정책 오류로 바로 끝남(65) → `process_exited`. 띄우기 전 거절 → `unknown`. 어느 경우도 `cli_missing`이 아니다.
 
 ## 5. 형식 변경
 
@@ -111,10 +162,11 @@ P1의 결과에 따라 아래 중 하나를 고른다. 순서는 선호 순이�
 ## 7. 결정 영향
 
 - **ARCHITECTURE §7 "The app does not sandbox the agent or promise that repository settings/hooks cannot execute code."** 이번 fence는 Doan userData의 경로만 막으므로 이 문장을 좁혀 고친다. 예: "Doan fences only its own userData from Doan-connection runs; it does not otherwise sandbox the agent…". 사용자가 승인했다(결정 Q1). 고치는 것은 T7 승격 때다.
-- **PRODUCT §3 'Resume and permissions'**: 사용자가 승인한 약속을 더한다. "Doan 연결 대화의 agent는 어떤 권한 모드에서도(Full access 포함) 자기 profile 밖의 Doan userData를 읽거나 쓰지 못한다. 막힌 읽기는 도구 실패로 보인다."(결정 D). "Ask first applies the user's own permission and sandbox settings"는 P0·P2에서 provider 자체 sandbox가 Doan의 정책 안에서도 동작해야 유지된다. 동작하지 않으면 이 문장과 충돌하므로 §8의 대안으로 간다.
+- **PRODUCT §3 'Resume and permissions'**: 사용자가 승인한 약속을 더한다. "Doan 연결 대화의 agent는 어떤 권한 모드에서도(Full access 포함) 자기 profile 밖의 Doan userData를 읽거나 쓰지 못한다. 막힌 읽기는 도구 실패로 보인다."(결정 D). "Ask first applies the user's own permission and sandbox settings"는 유지한다. 사람이 켠 Claude sandbox는 그대로 동작한다(바깥 fence 대신 flag 설정). 다만 두 가지가 좁아지므로 T7에서 이 절에 적는다. Claude는 sandbox가 켜진 턴에 sandbox 밖 실행(`allowUnsandboxedCommands`)이 꺼진다. Codex의 Ask first sandbox는 Doan의 읽기 전용 profile이다(지금도 읽기 전용이다, §3.1).
+- **ARCHITECTURE §7 'Permission modes'**: Codex 줄("every doan-owned turn states both", ephemeral `thread/start`로 읽는 Default, Accept edits의 `sandbox_workspace_write` 합치기)을 T7에서 §3.1의 profile 방식으로 고친다. Full access가 아닌 턴은 `permissions` profile id와 승인 정책을 보내고, Full access는 바깥 fence 안의 server에서 `dangerFullAccess`를 보낸다.
 - **PRODUCT §3 'Association recording'** "silently skips what it cannot record": fence 안 `doan check`가 `sessions.jsonl`을 쓰지 못하는 것은 이 규칙 안에 있다(결정 B). 문장은 바꾸지 않는다.
-- **ARCHITECTURE §7 'Agent authentication' "it never reads, copies or changes those external credentials"**: §3.2가 이 결정을 지키려는 작업이다. 지킬 방법이 없으면 결정 Q6에 따라 사람의 `agy` 로그인을 바꾸는 경우 Antigravity를 막는다. 그때는 PRODUCT §2 Users와 §5 item 0의 첫 실행 Agent 단계, Settings > Agents도 고친다.
-- **ARCHITECTURE §7 'Antigravity server'(승인된 예외)**: 경로 1이 문서화되지 않은 변수를 더하면 이 예외 목록이 늘어난다.
+- **ARCHITECTURE §7 'Agent authentication' "it never reads, copies or changes those external credentials"**: §3.2 경로 1로 지킨다(§8 P1). 문장은 바꾸지 않는다.
+- **ARCHITECTURE §7 'Antigravity server'(승인된 예외)**: 새 변수가 없으므로 바뀌지 않는다.
 - serving scope, sandbox iframe, GitHub token 예외, git 명령 제한은 건드리지 않는다.
 
 ## 8. PoC 의존
@@ -339,14 +391,20 @@ P1의 결과에 따라 아래 중 하나를 고른다. 순서는 선호 순이�
 | # | 질문 | 결정 | 위치 |
 |---|---|---|---|
 | Q1 | 보호 범위 | Doan 연결 대화 agent로부터 Doan userData만 막는다. 승격 때 ARCHITECTURE §7 "does not sandbox the agent"를 좁힌다 | spec '보호 범위', design §7 |
-| Q2 | fence를 붙일 프로세스 | 대화 run만(`Prepared.fence`, `use === "run"`). P1이 §3.2 경로 2면 Antigravity 서버를 띄우는 모든 곳 | spec Non-goals, design §3.1 |
-| Q3 | Antigravity 자기 skill 경로 쓰기 | P3가 agent 동작((i))이면 막는다 | design §3.3 |
+| Q2 | fence를 붙일 프로세스 | 대화 run만(`Prepared.fence`, `use === "run"`). §3.2가 경로 1이라 Antigravity의 `acpExec`에도 붙이지 않는다 | spec Non-goals, design §3.1 |
+| Q3 | Antigravity 자기 skill 경로 쓰기 | P3가 (i)이므로 막는다 | design §3.3 |
 | Q4 | `stop_required` 뒤 종료 | 동작 그대로, 한계를 문서화 | spec 완료 조건 6, design §3.4 |
 | Q5 | fence를 세울 수 없을 때 | fail closed, 기존 시작 실패(`unknown`, `process_exited`), 새 문구 없음 | spec 완료 조건 4, design §3.1 |
-| Q6 | Antigravity 실제 상태 쓰기를 막을 방법이 없을 때 | P1 결과로 나눈다: 사람의 `agy` 로그인을 바꾸면 Antigravity의 로그인과 새 대화를 막고(세부는 T2), 로그·설정 파일 쓰기뿐이면 'Known limits'에 적는다 | spec 완료 조건 1, design §3.2 |
+| Q6 | Antigravity 실제 상태 쓰기를 막을 방법이 없을 때 | P1이 경로 1로 통과해 이 분기는 쓰지 않는다 | spec 완료 조건 1, design §3.2 |
 | A | 첨부 | Claude·ACP는 이번 턴의 첨부만, Codex는 첨부 전체. Codex 쪽은 한계로 적는다 | spec '보호 범위', design §3.1 |
 | B | fence 안 `doan check`의 `sessions.jsonl` | 쓰지 못하는 것을 받아들인다. 출력과 종료 코드는 그대로 | spec 완료 조건 3·Non-goals, design §3.1 |
-| C | 실제 HOME에서의 Antigravity 확인 | T5에서 그때 사용자 승인을 받아 실제 HOME으로 돌리고 재귀 목록을 비교한다. fence의 실제 home은 `getpwuid` | spec 완료 조건 1, tasks T5 |
+| C | 실제 HOME에서의 Antigravity 확인 | T5에서 실제 HOME으로 돌리고 재귀 목록을 비교한다(체인 파일에서 미리 승인) | spec 완료 조건 1, tasks T5 |
 | D | PRODUCT 승격 | §3 'Resume and permissions'에 "어떤 권한 모드에서도 자기 profile 밖의 userData를 읽거나 쓰지 못한다"를 적는다 | design §7, tasks T7 |
 
-남은 확인 필요: P0가 실패할 때의 방향, P2에서 실패한 provider의 처리(§8 P2의 (가)·(나)·(다)). 둘 다 T2에서 묻는다(P0 실패는 T0 전에).
+| P0 | 중첩 Seatbelt 실패 | Cursor·Antigravity·Copilot은 바깥 fence, Claude·Codex는 자기 설정을 먼저 본다. PRODUCT §3의 Ask first 문장은 지킨다 | orch.md '결정 기록', design §3.1 |
+| P1 | Antigravity 실제 상태 | 경로 1, 환경 변경 없음 | design §3.2 |
+| P3 | Antigravity profile 안 작업 | (i), skill 경로 쓰기 금지 | design §3.3 |
+| Claude | Claude의 막는 방법 | 턴마다 sandbox 상태를 읽어, 꺼지면 바깥 fence, 켜지면 flag tier 설정(`permissions.deny`, `sandbox.filesystem`, `allowUnsandboxedCommands: false`). 판정을 틀려 켜진 것을 꺼짐으로 보면 Bash가 보이는 실패로 끝난다 | orch.md '결정 기록', design §3.1 |
+| Codex | Codex의 막는 방법 | Full access가 아니면 Doan의 Codex permission profile(`deny` 항목, `default_permissions`)을 턴마다 고르고, Full access면 바깥 fence 안의 app-server. 둘 사이를 오가면 app-server를 다시 띄우고 `thread/resume`한다. 승인된 `apply_patch`의 틈과 experimental API 의존은 Known limits | orch.md '결정 기록', design §3.1 |
+
+W3가 구현을 위해 정한 세부(conductor 확인 대상): Claude sandbox를 SDK 함수 대신 같은 출처를 직접 읽어 판정한다, sandbox가 켜진 Claude 턴은 Read 도구로 자기 profile과 붙여넣은 이미지를 읽지 못한다, 붙여넣은 이미지 수에 따른 첨부 매개변수, Codex Ask first·Plan은 `doan`(읽기 전용) profile, Accept edits는 `doan-workspace` profile(§3.1).

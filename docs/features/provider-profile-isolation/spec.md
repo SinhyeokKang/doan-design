@@ -12,10 +12,11 @@
 - **사람**(앱에서 보고, 가리키고, 말하는 사람). Doan에 provider를 둘 이상 연결했거나 Antigravity를 연결한 사람이 대상이다(PRODUCT §3 In scope 7, 9). 이번 라운드가 끝나면:
   - Doan에 연결된 provider A의 agent가 Doan이 가진 provider B의 대화 기록과 자격 증명 작업 사본을 읽지 못한다. 권한 모드와 상관없다(Full access 포함).
   - Doan의 Antigravity가 사람의 `agy` 로그인(Keychain 항목)과 실제 `~/.gemini/antigravity-cli/`를 바꾸지 않는다.
-  - 화면은 바뀌지 않는다. 막힌 읽기와 쓰기는 agent의 도구 실패로 대화에 보인다. 예외: P1에서 Antigravity의 실제 상태 쓰기를 막을 방법이 없고 그 쓰기가 사람의 `agy` 로그인을 바꾸면, Antigravity의 로그인과 새 대화를 막고 Settings > Agents에 이유를 보인다(결정 Q6).
+  - 화면은 바뀌지 않는다. 막힌 읽기와 쓰기는 agent의 도구 실패로 대화에 보인다. Antigravity는 지금 환경만으로 실제 상태를 바꾸지 않았으므로(design §8 P1) 막는 화면이 없다.
 - **agent**(Doan 연결 대화에서 도는 agent).
   - Doan userData 중 허용된 경로(완료 조건 2) 밖을 읽거나 쓰면 실패한다. 자기 profile, `doan` CLI, 이번 턴의 붙여넣은 이미지 첨부는 지금처럼 쓴다. 저장소, 사람의 실제 HOME, 네트워크는 지금과 같다.
-  - design §3.2 경로 2(fence로 막기)로 가면 Antigravity agent도 실제 `~/.gemini/antigravity-cli/`에 쓰지 못한다. 이때 Keychain까지 막는다면 agent의 git credential helper가 그대로 동작해야 한다. 동작하지 않으면 그 한계를 ARCHITECTURE §7 'Known limits'에 적는다.
+  - 막는 방법은 provider마다 다르다(design §3.1). Cursor·Antigravity·Copilot은 Doan의 Seatbelt 정책(바깥 fence) 안에서 돈다. Claude는 자기 sandbox가 꺼진 턴에 바깥 fence, 켜진 턴에 Doan이 더한 Claude 설정으로 막힌다. Codex는 Full access에서 바깥 fence, 다른 모드에서 Doan이 정의한 Codex permission profile로 막힌다.
+  - 사람이 켠 Claude sandbox는 그대로 동작한다. 그 턴에는 sandbox 밖 실행(`dangerouslyDisableSandbox`)이 꺼진다.
   - fence 안의 `doan check`는 `<userData>/sessions.jsonl`에 session association을 더하지 못한다(아래 '보호 범위').
 - **개발자**(runtime probe를 돌리는 사람과 agent). 격리 HOME probe가 실제 `~/.gemini/antigravity-cli/`와 실제 Keychain 항목을 바꾸지 않는다.
 
@@ -30,7 +31,8 @@
   - **fence 밖에서 나중에 실행되는 설정.** fence는 run 안의 직접 접근만 막는다. agent가 남긴 설정(예: `~/.zshrc`, 저장소의 `.claude/settings.json` hook, `.mcp.json`)은 나중에 fence 밖의 프로세스가 실행할 수 있다.
   - **모델 목록 읽기.** 모델 목록 읽기는 fence 밖에서 저장소의 설정으로 돈다. 저장소 hook이 그때 실행될 수 있다(결정 Q2).
 - 고르지 않은 것: agent 전체 sandbox(PRODUCT §3 'Resume and permissions'를 바꾼다), 막지 않고 문서화만 하기(Copilot GitHub token의 평문 작업 사본처럼 Doan 때문에 생긴 노출이 남는다).
-- **위험.** `sandbox-exec`는 man page에 DEPRECATED로 적혀 있다(Apple DTS forum 845973). Codex도 같은 방식과 `-D` 매개변수를 쓴다(developers.openai.com/codex/concepts/sandboxing). macOS가 이것을 없애면 fail closed(완료 조건 4) 때문에 모든 Doan 연결 run이 시작하지 못한다.
+  - **Claude·Codex 자기 설정의 틈.** sandbox가 켜진 Claude 턴은 Doan이 sandbox를 꺼짐으로 잘못 읽은 반대 경우(Doan이 읽지 않는 managed 출처가 sandbox를 끔)에 `perl`처럼 파일을 직접 여는 프로그램을 막지 못한다. 그 턴의 Read 도구는 자기 profile 파일과 붙여넣은 이미지도 읽지 못한다. Codex는 사람이 승인한 `apply_patch`가 막힌 경로에도 쓴다. 승인 카드에 그 경로가 보인다. Codex permission profile은 experimental API다(design §3.1).
+- **위험.** `sandbox-exec`는 man page에 DEPRECATED로 적혀 있다(Apple DTS forum 845973). Codex도 같은 방식과 `-D` 매개변수를 쓴다(developers.openai.com/codex/concepts/sandboxing). macOS가 이것을 없애면 fail closed(완료 조건 4) 때문에 바깥 fence를 쓰는 Doan 연결 run이 시작하지 못한다.
 
 ## 문제 (관찰된 사실)
 
@@ -44,17 +46,17 @@
 1. **Antigravity 실제 상태.**
    - 격리 HOME(`Library/Keychains`를 실제 폴더에 링크한 경우 포함)의 dev 앱에서 Antigravity 로그인, 연결 확인, 대화 한 턴, 로그아웃을 해도 실제 `~/.gemini/antigravity-cli/`의 재귀 목록(상대 경로, 크기, 수정 시각)과 Keychain 항목 `gemini | antigravity`의 수정 시각이 바뀌지 않는다.
    - 실제 HOME에서 같은 일을 해도 `~/.gemini/antigravity-cli/`의 재귀 목록이 바뀌지 않는다(tasks T5, 그때 사용자 승인).
-   - 막을 방법이 없으면 P1 결과에 따라 나눈다(결정 Q6). 사람의 `agy` 로그인을 바꾸면 Antigravity의 로그인과 새 대화가 막힌다. 로그·설정 파일 쓰기뿐이면 ARCHITECTURE §7 'Known limits'에 적는다. 막는 분기의 세부(상태 확인, 로그아웃, 기존 대화의 resume과 send, 첫 실행 Agent 단계, Home의 agent picker)는 T2에서 정한다.
+   - 지금 환경만으로 지켜진다(design §3.2 경로 1). 환경을 바꾸지 않는다.
 2. **profile 경계.**
    - 다섯 provider의 Doan 연결 대화에서 agent의 shell 명령과 파일 도구는 허용 목록 밖의 userData 경로를 읽지도 쓰지도 못한다. 허용 목록: 자기 profile, `runtime.json`(읽기만), 이번 턴의 첨부(Codex는 첨부 전체), `agent-auth/browser-hook`, `agent-runtimes/antigravity-acp/`.
-   - 네 권한 모드 모두 같은 `sandbox-exec` 인수로 시작한다(단위 테스트). 실제 앱에서는 Ask first와 Full access에서 확인한다.
-   - P2 대안 (가)·(나)로 끝난 provider는 막는 범위와 남는 한계를 ARCHITECTURE §7 'Known limits'에 적는다.
+   - provider와 권한 모드(Claude는 sandbox 상태)마다 design §3.1 표의 방법으로 시작한다(단위 테스트). Cursor·Antigravity·Copilot은 네 모드 모두 같은 `sandbox-exec` 인수다. Codex는 Full access와 다른 모드를 오갈 때 app-server를 다시 띄우고 `thread/resume`한다. 실제 앱에서는 Ask first와 Full access에서 확인하고, Codex는 Accept edits와 모드 전환도 확인한다.
+   - Claude·Codex 자기 설정의 틈(위 '보호 범위')은 ARCHITECTURE §7 'Known limits'에 적는다.
 3. **지금 되는 것은 그대로.** fence 안에서도 아래가 된다.
    - 로그인 유지(Keychain), 새 대화와 재시작 뒤 resume, permission 요청, 질문 카드, Stop.
    - `doan work update`·`doan open`·`doan handoff`·`doan ls`·`doan skill`·`doan design-skill`, 그리고 `doan check`(출력과 종료 코드가 그대로다. `<userData>/sessions.jsonl`에 session association을 더하지 못하는 것은 받아들인다, 결정 B).
-   - 붙여넣은 이미지 첨부, Codex Ask first의 자체 sandbox 명령 실행과 sandbox 밖 실행 요청, MCP connectors, Claude·Codex의 turn-end 사용량 읽기, Claude 다음 메시지 제안.
-4. **fail closed.** fence를 세울 수 없으면(`sandbox-exec`가 없음, 정책 오류로 바로 끝남, 경로를 `realpath`로 풀 수 없음, 경로가 정책에 넣을 수 없는 문자를 가짐) 그 run은 기존 시작 실패로 끝난다. 띄우기 전에 거절하면 `unknown`, `sandbox-exec`가 바로 끝나면 `process_exited`이고 `cli_missing`은 쓰지 않는다. 새 실패 코드와 문구는 없다. 단위 테스트로 확인한다(결정 Q5).
-5. **Antigravity profile 작업.** 문제 3의 원인을 PoC로 분류했고, 결과에 따른 처리(fence에 포함 또는 한계로 기록)가 ARCHITECTURE §7 'Agent authentication' 'Known limits'에 있다.
+   - 붙여넣은 이미지 첨부(sandbox가 켜진 Claude 턴의 Read 도구는 예외, 위 '보호 범위'), Codex Ask first의 자체 sandbox 명령 실행과 sandbox 밖 실행 요청, 사람이 켠 Claude sandbox의 명령 실행, MCP connectors, Claude·Codex의 turn-end 사용량 읽기, Claude 다음 메시지 제안.
+4. **fail closed.** 막는 방법을 세울 수 없으면(`sandbox-exec`가 없음, 정책 오류로 바로 끝남, 경로를 `realpath`로 풀 수 없음, 경로가 정책이나 설정에 넣을 수 없는 문자를 가짐) 그 run은 기존 시작 실패로 끝난다. 띄우기 전에 거절하면 `unknown`, `sandbox-exec`가 바로 끝나면 `process_exited`이고 `cli_missing`은 쓰지 않는다. 새 실패 코드와 문구는 없다. 단위 테스트로 확인한다(결정 Q5).
+5. **Antigravity profile 작업.** 문제 3의 원인은 (i)이다(design §8 P3). Antigravity의 바깥 fence가 자기 profile의 skill 경로 쓰기를 막고, 그 사실이 ARCHITECTURE §7 'Agent authentication'에 있다.
 6. **로그아웃과 종료.** ARCHITECTURE §7 'Known limits'에 두 가지가 있다. 확인하지 않은 로그아웃은 종료로 취소되고 연결이 남는다. userData를 지워도 Claude Code·Codex의 Keychain 항목이 남는다. MCP connector token과 `doan Safe Storage`도 남을 수 있는데, 확인한 뒤 같은 줄에 적는다. 동작은 바꾸지 않는다(결정 Q4).
 7. **BACKLOG 정리.** 네 줄이 해결되어 지워지거나, 남는 부분이 ARCHITECTURE 'Known limits'나 BACKLOG의 새 줄로 옮겨진다.
 
@@ -63,10 +65,10 @@
 - **agent 전체 sandbox.** 실제 HOME, 다른 저장소, 네트워크는 막지 않는다. PRODUCT §3 'Resume and permissions'의 "Ask first applies the user's own permission and sandbox settings"를 유지한다. 이번 fence는 Doan userData의 경로만 막는다.
 - **같은 사용자의 다른 프로세스로부터 userData 보호.** 같은 uid이므로 OS 파일 권한으로 막을 수 없다. 사람의 터미널 agent는 지금처럼 userData를 읽을 수 있다.
 - **legacy external run에 fence 붙이기.** 터미널 세션 resume은 사람 자신의 profile과 설정으로 돈다. 같은 agent를 터미널에서 돌리면 어차피 userData를 읽을 수 있어 막는 효과가 없고, 사람의 sandbox 설정과 겹칠 위험만 생긴다.
-- **대화가 아닌 provider 프로세스에 fence 붙이기**(로그인, 상태 확인, 로그아웃, 모델 목록, 사용량 fresh read, MCP connector 명령, Codex identity lookup). 이들은 model의 도구 호출을 실행하지 않는다(결정 Q2). 예외: P1에서 Antigravity가 design §3.2 경로 2(fence로 막기)로 가면 Antigravity 서버를 띄우는 모든 곳에 fence를 붙인다.
+- **대화가 아닌 provider 프로세스에 fence 붙이기**(로그인, 상태 확인, 로그아웃, 모델 목록, 사용량 fresh read, MCP connector 명령, Codex identity lookup). 이들은 model의 도구 호출을 실행하지 않는다(결정 Q2).
 - **fence 안 `doan check`의 session association 기록.** `<userData>/sessions.jsonl`은 허용 목록에 없다. `doan check`의 출력과 종료 코드는 그대로이고, 기록은 말없이 건너뛴다(PRODUCT §3 'Association recording'의 "silently skips what it cannot record", 결정 B).
 - **Codex 첨부를 턴 단위로 열기.** Codex app-server는 여러 턴에 걸쳐 살기 때문에 정책을 턴마다 바꿀 수 없다(결정 A).
-- **자기 profile 안의 데이터 보호.** agent가 자기 provider의 대화 기록이나 자기 작업 사본을 읽는 것은 provider 자신의 데이터다. 단, P3에서 agent 동작으로 밝혀지면 Antigravity가 자기 skill 경로에 쓰는 것은 막는다(결정 Q3).
+- **자기 profile 안의 데이터 보호.** agent가 자기 provider의 대화 기록이나 자기 작업 사본을 읽는 것은 provider 자신의 데이터다. 단, Antigravity가 자기 skill 경로에 쓰는 것은 막는다(결정 Q3, P3 (i)).
 - **userData를 지운 뒤 남는 Keychain 항목 정리.** PRODUCT §5 item 0 'Agent setup'의 Not included가 uninstall flow를 뺀다. Doan은 userData 삭제를 알 수 없고, 사람의 다른 Keychain 항목을 읽거나 지우지 않는다(ARCHITECTURE §7 'Agent authentication'). 같은 경로로 다시 로그인하면 Codex는 로그인 전에 기존 로그인을 지우고(`loginClears`), Claude는 덮어쓴다.
 - **종료가 보류된 로그아웃을 끝내거나 기록하기.** 하지 않는다(결정 Q4). 답하지 않은 확인은 취소와 같고, 연결이 남아 보이므로 사람이 다시 로그아웃할 수 있다.
 - **tool-fact probe의 `~/.codex`, `~/.local/share/cursor-agent` 쓰기.** ARCHITECTURE §7 'Known limits'가 이미 받아들인 한계다. 이번 라운드는 Antigravity의 실제 상태 쓰기만 다룬다.
