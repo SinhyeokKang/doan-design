@@ -779,27 +779,15 @@ test("Home Control+Enter still sends through its actual ComposerField", async ()
   expect(field(tree)["aria-keyshortcuts"]).toBeUndefined();
 });
 
+// The shortcut has no visible caption under the queue in any state; the field still names it to assistive tech.
 const shortcutCaption = "Press Ctrl + Enter to send all now.";
-test.each([1, 3])("the queue shortcut caption is plain text for %i rows with Send now", count => {
-  const { render } = shortcutSetup({ queued: queued.slice(0, count) });
-  const captions = render().filter(item => item.children === shortcutCaption);
-  expect(captions).toHaveLength(1);
-  expect(String(captions[0]!.className ?? "")).not.toContain("doan-kbd");
-  expect(elements(captions[0]!.children as ReactNode)).toEqual([]);
-});
-
 test.each([
-  { sendNow: false }, { queued: [] },
-])("the queue shortcut caption is absent when rows or Send now are absent: %j", patch => {
+  {}, { queued: queued.slice(0, 1) }, { sendNow: false }, { queued: [] },
+])("the queue shows no shortcut caption: %j", patch => {
   const { render } = shortcutSetup(patch);
-  expect(render().some(item => item.children === shortcutCaption)).toBe(false);
-});
-
-
-test("the queue shortcut caption is absent without a Send now handler", () => {
-  const { render, props } = shortcutSetup();
-  delete props.onSendQueuedNow;
-  expect(render().some(item => item.children === shortcutCaption)).toBe(false);
+  const tree = render();
+  expect(tree.some(item => item.children === shortcutCaption)).toBe(false);
+  expect(tree.some(item => String(item.className ?? "").split(" ").includes("queue-key"))).toBe(false);
 });
 
 
