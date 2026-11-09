@@ -52,7 +52,9 @@ export class ConversationStore {
   drafts: ReadonlyMap<string, DockedDraft> = new Map();
   private threads = new Map<string, Thread>();
   private unclaimed: ConversationEvent[] = [];
-  private queues = new Map<string, { root: string; items: Held[]; after: number }>();
+  // turn: the history's current turn when the last message was queued, the one the queue goes out after; null while
+  // the history was not read.
+  private queues = new Map<string, { root: string; items: Held[]; after: number; turn: string | null }>();
   private presses = 0;
   private taking = new Set<string>();
   // A returned draft taken, by the reads started then: the list still says so until a later read.
@@ -94,7 +96,7 @@ export class ConversationStore {
   }
   queued(root: string, conversationId: string, item: QueuedMessage): void {
     const queue = this.queues.get(conversationId);
-    this.queues.set(conversationId, { root, items: [...queue?.items ?? [], item], after: this.host.readsStarted(root) });
+    this.queues.set(conversationId, { root, items: [...queue?.items ?? [], item], after: this.host.readsStarted(root), turn: this.currentTurn(conversationId) });
     this.host.changed();
   }
   unqueued(conversationId: string, itemId: string): void {
@@ -137,12 +139,17 @@ export class ConversationStore {
     return true;
   }
   // A queue main already sent shows no more once a read started after the queue says so. Main's count leaves out the
-  // message Send now has in flight, so that message stays until Send now's answer settles it.
+  // message Send now has in flight, so that message stays until Send now's answer settles it. It also leaves out a queue
+  // on its way out after its turn ended: while main still holds the conversation after that turn and gave nothing back
+  // as a draft, the rows stay until the next turn opens, so the composer keeps Stop over them.
   syncQueues(): void {
     for (const [id, queue] of this.queues) {
       const list = this.host.list(queue.root);
       const c = Array.isArray(list) ? list.find(item => item.conversationId === id) : undefined;
       if (!c || c.queued !== 0 || this.host.readsApplied(queue.root) <= queue.after) continue;
+      const flushing = !c.returnedDraft && (queue.turn === null || this.currentTurn(id) === queue.turn) &&
+        steerPhaseOf(this.threads.get(id)?.events ?? null, c, this.live(queue.root, id)) === "holding";
+      if (flushing) continue;
       const items = queue.items.filter(item => item.pressed !== undefined);
       if (items.length < queue.items.length) this.queues.set(id, { ...queue, items });
     }
