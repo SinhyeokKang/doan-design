@@ -149,7 +149,7 @@ export function dockedRefusal(code: string, mode: DockedMode, provider: Provider
   return { kind: "notice", text };
 }
 const OTHER_SIGN_IN: Record<string, (p: string) => string> = {
-  account_changed: p => `This conversation’s session belongs to another ${p} account, so it can’t continue here. To continue it, sign in to that account again in Settings > Agents.`,
+  account_changed: p => `This conversation’s session belongs to another ${p} account, so it can’t continue here. To continue it, sign out, then sign in to that account in Settings > Agents.`,
   // It may be the same account, so never "another account".
   sign_in_changed: p => `This conversation’s session belongs to an earlier ${p} sign-in, so it can’t continue here.`,
 };

@@ -155,7 +155,7 @@ describe("dockedRefusal", () => {
     expect(dockedRefusal("not_logged_in", EXISTING, "claude", "doan-design")).toEqual({ kind: "notice", text: "Sign in to Claude Code in Settings > Agents, then send again." });
   });
   test("a conversation of another account or an earlier sign-in says so and offers a new conversation, not Retry", () => {
-    const other = "This conversation’s session belongs to another Claude Code account, so it can’t continue here. To continue it, sign in to that account again in Settings > Agents.";
+    const other = "This conversation’s session belongs to another Claude Code account, so it can’t continue here. To continue it, sign out, then sign in to that account in Settings > Agents.";
     const earlier = "This conversation’s session belongs to an earlier Codex sign-in, so it can’t continue here.";
     for (const mode of [EXISTING, { kind: "archived", conversationId: "c1", provider: "claude" } as const]) {
       expect(dockedRefusal("account_changed", mode, "claude", "doan-design")).toEqual({ kind: "notice", text: other, startNew: true });

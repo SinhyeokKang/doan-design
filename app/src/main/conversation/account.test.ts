@@ -7,6 +7,7 @@ vi.mock("../onboarding/machine", () => ({ probeShell: mocks.probe, runProcess: m
 import { createAccountPrepare, routePrepare, type AccountRuntime, type VersionRecords } from "./prepare";
 import { ConversationService, type OpenRunner, type Runner } from "./service";
 import { PRESET_GUIDANCE } from "./prompt";
+import { dockedRefusal } from "../../renderer/dockedRules";
 import { ConversationStore, type ConversationMetadata } from "./store";
 import { initialAuthState } from "../agentAuth/state";
 import { AuthIpc, type AuthSnapshot } from "../agentAuth/ipc";
@@ -234,7 +235,11 @@ it("reads a Codex replacement's new profile as sign_in_changed and the same prof
   const original = vi.mocked(h.auth.runtime.acquire).getMockImplementation()!;
   vi.mocked(h.auth.runtime.acquire).mockImplementation(async (...args) => ({ ...await original(...args), profileDir: staged }));
   h.auth.set({ connection: { ...h.auth.get().connection!, connectionId: "conn-2", profile: "codex-2b7f" }, generation: 2 });
-  await expect(h.service.send(conversationId, "after a replacement", [])).rejects.toThrow("sign_in_changed");
+  const refused = await h.service.send(conversationId, "after a replacement", []).catch((error: Error) => error);
+  expect(refused).toBeInstanceOf(Error); expect((refused as Error).message).toBe("sign_in_changed");
+  // The composer reads the earlier sign-in, never "another account" and never the sign-out instruction.
+  expect(dockedRefusal("sign_in_changed", { kind: "existing", conversationId, provider: "codex" } as never, "codex", "doan-design"))
+    .toEqual({ kind: "notice", text: "This conversation’s session belongs to an earlier Codex sign-in, so it can’t continue here.", startNew: true });
   h.auth.set({ connection: { ...h.auth.get().connection!, connectionId: "conn-1", profile: "codex" }, generation: 3 });
   await expect(h.service.send(conversationId, "same profile elsewhere", [])).rejects.toThrow("session_unavailable");
   expect(h.open).toHaveBeenCalledOnce();

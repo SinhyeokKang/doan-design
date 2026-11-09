@@ -201,7 +201,7 @@ describe("canvasConversationError", () => {
   });
 
   test("a send to a conversation of another account or an earlier sign-in offers a new conversation, not Retry", () => {
-    const other = "This conversation’s session belongs to another Claude Code account, so it can’t continue here. To continue it, sign in to that account again in Settings > Agents.";
+    const other = "This conversation’s session belongs to another Claude Code account, so it can’t continue here. To continue it, sign out, then sign in to that account in Settings > Agents.";
     const earlier = "This conversation’s session belongs to an earlier Claude Code sign-in, so it can’t continue here.";
     for (const mode of [EXISTING, ARCHIVED]) {
       expect(canvasConversationError("account_changed", mode, "claude", "acme-web")).toEqual({ kind: "notice", text: other, retry: false, startNew: true });
