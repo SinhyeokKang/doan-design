@@ -66,13 +66,13 @@ P0에서 이미 Seatbelt 안에 있는 프로세스는 규칙이 있는 두 번�
 - 턴을 띄우기 전에 이번 run의 `sandbox.enabled`를 읽는다. Claude는 턴마다 새 프로세스이므로 판단도 턴마다 한다.
 - 읽는 방법: Doan이 SDK `resolveSettings`(alpha)와 같은 출처를 같은 우선순위로 직접 읽는다. 출처는 profile의 `settings.json`(user), 프로젝트의 `.claude/settings.json`(project)과 `.claude/settings.local.json`(local), 그리고 `/Library/Application Support/ClaudeCode/managed-settings.json`과 그 옆 `managed-settings.d/*.json`(managed, 파일 이름 순서로 뒤의 것이 이긴다)이다. 우선순위는 managed > local > project > user다. MDM plist와 서버가 내려 준 managed 설정은 읽지 않는다. SDK 함수를 main에서 부르지 않는 이유: user 출처를 `process.env.CLAUDE_CONFIG_DIR`로만 찾는데(0.3.312 소스), main의 `process.env`는 legacy external 준비와 다른 spawn이 함께 읽는 값이라 바꿔 둘 수 없다.
 - 꺼짐 → 바깥 fence. 켜짐 → SDK `settings`(flag tier, `--settings`)에 아래를 더한다. 기존 `claudeFastSettings`의 `fastMode`와 합친다.
-  - `permissions.deny`: `Read(//<userData>/**)`, `Edit(//<userData>/**)`.
+  - `permissions.deny`: 턴 시작 때 userData를 나열해 만든 `Read(…)`·`Edit(…)` 규칙. 허용 경로(자기 profile, `runtime.json`, 이번 턴의 첨부 디렉터리, browser-hook)와 그 조상(`<userData>`, `agent-auth`, `profiles`, `attachments`)을 뺀 항목만 적는다. 곧 조상 디렉터리마다 허용 경로로 가는 길이 아닌 형제 항목이다(다른 profile 디렉터리, `conversations/`, `agent-auth`의 vault와 metadata, 다른 첨부 id, 그 밖의 userData 파일). 디렉터리는 `//<path>/**`, 파일은 `//<path>`로 적는다. `permissions.deny`는 `allow`를 이기므로 userData 전체를 한 줄로 막으면 Read 도구가 자기 profile과 이번 턴의 붙여넣은 이미지도 읽지 못한다(spec 완료 조건 3). Claude는 턴마다 새 프로세스라 턴마다 다시 나열한다.
   - `sandbox.filesystem`: `denyRead`·`denyWrite`=`<userData>`, `allowRead`=profile·`runtime.json`·이번 턴의 첨부 디렉터리(Claude 바깥 fence와 같은 목록)·browser-hook, `allowWrite`=profile.
   - `sandbox.allowUnsandboxedCommands: false`. Full access의 `dangerouslyDisableSandbox`가 승인 없이 sandbox 밖에서 도는 틈을 막는다(§8 P2 (c)). 사람의 설정을 이 한 가지만큼 좁힌다.
 - 판정이 틀리는 경우:
   - 켜짐을 꺼짐으로 읽음(예: MDM이나 서버가 내려 준 managed 설정만 sandbox를 켬): 바깥 fence 안에서 모든 Bash가 71로 실패한다. 보이는 실패이고, 결정이 받아들였다.
   - 꺼짐을 켜짐으로 읽음(예: Doan이 읽지 않는 managed 출처가 sandbox를 끔): flag의 `permissions.deny`만 남아 `perl`처럼 파일을 직접 여는 프로그램은 막지 못한다. Known limits에 적는다.
-- 켜짐 쪽의 한계: `permissions.deny`가 `allow`를 이기므로 Read 도구는 자기 profile 파일과 이번 턴의 붙여넣은 이미지도 읽지 못한다. Bash(`cat` 등)는 `sandbox.filesystem.allowRead`로 읽는다. Known limits에 적는다.
+- 켜짐 쪽의 한계: 턴 도중 새로 생긴 userData 항목(예: 다른 대화가 만든 첨부, 새 staging profile)은 그 턴의 `permissions.deny`에 없어 Read·Edit 도구가 읽고 쓸 수 있다. Bash는 `sandbox.filesystem`이 OS 수준에서 그대로 막는다. Known limits에 적는다.
 
 **Codex: 권한 모드로 고른다**
 
@@ -138,8 +138,10 @@ P0에서 이미 Seatbelt 안에 있는 프로세스는 규칙이 있는 두 번�
   - 테스트: 원래 인수 순서가 보존된다. `fenceArgs`가 없으면 그대로 돌려준다.
 - `claudeSandboxEnabled(sources)` → Claude sandbox 판정. 입력은 user·project·local·managed 출처의 파싱한 내용(없거나 읽을 수 없으면 비어 있음)이다.
   - 테스트: 출처마다 켬·끔·없음의 우선순위(managed > local > project > user). 읽을 수 없는 파일은 그 출처가 없는 것과 같다. `sandbox.enabled`가 boolean이 아니면 없는 것과 같다.
-- `claudeFenceSettings(paths)` → sandbox가 켜진 턴의 flag tier 설정(`permissions.deny`, `sandbox.filesystem`, `allowUnsandboxedCommands: false`). `claudeFastSettings`와 합치는 함수도 같이 둔다.
-  - 테스트: 설정 모양 스냅숏(§8 P2 (c)의 C18과 같은 키). `fastMode`와 합쳐도 둘 다 남는다. 다른 provider의 profile은 나오지 않는다.
+- `claudeDenyRules(paths, listing)` → sandbox가 켜진 턴의 `permissions.deny` 규칙. `listing`은 조상 디렉터리마다 나열한 항목(이름, 디렉터리 여부)이고 shell이 채운다.
+  - 테스트: 허용 경로와 조상은 규칙에 없다. 다른 profile, staging profile, `conversations/`, vault, metadata 파일, 다른 첨부 id, 그 밖의 파일이 모두 규칙에 있다. 디렉터리는 `/**`, 파일은 경로 그대로다. 나열할 수 없는 조상이 있으면 거절한다(fail closed).
+- `claudeFenceSettings(paths, deny)` → sandbox가 켜진 턴의 flag tier 설정(`permissions.deny`, `sandbox.filesystem`, `allowUnsandboxedCommands: false`). `claudeFastSettings`와 합치는 함수도 같이 둔다.
+  - 테스트: 설정 모양 스냅숏(§8 P2 (c)의 C18과 같은 `sandbox` 키). `fastMode`와 합쳐도 둘 다 남는다. 다른 provider의 profile은 허용 목록에 나오지 않는다.
 - `codexProfileArgs(paths)` → Full access가 아닌 app-server의 `-c` 인수(`default_permissions`, `permissions.doan`, `permissions.doan-workspace`).
   - 테스트: 인수 스냅숏. 따옴표·역슬래시가 든 경로가 TOML 문자열로 escape된다.
 - `codexTurnPermission(mode, defaults, mechanism)` → 턴의 권한 인수. profile server면 `{ approvalPolicy, permissions }`이고 `sandboxPolicy`가 없다. fence server(Full access)면 `{ approvalPolicy: "never", sandboxPolicy: { type: "dangerFullAccess" } }`. legacy external(정의된 profile 없음)은 지금의 `codexPermission`을 그대로 쓴다.
@@ -407,4 +409,4 @@ P0에서 이미 Seatbelt 안에 있는 프로세스는 규칙이 있는 두 번�
 | Claude | Claude의 막는 방법 | 턴마다 sandbox 상태를 읽어, 꺼지면 바깥 fence, 켜지면 flag tier 설정(`permissions.deny`, `sandbox.filesystem`, `allowUnsandboxedCommands: false`). 판정을 틀려 켜진 것을 꺼짐으로 보면 Bash가 보이는 실패로 끝난다 | orch.md '결정 기록', design §3.1 |
 | Codex | Codex의 막는 방법 | Full access가 아니면 Doan의 Codex permission profile(`deny` 항목, `default_permissions`)을 턴마다 고르고, Full access면 바깥 fence 안의 app-server. 둘 사이를 오가면 app-server를 다시 띄우고 `thread/resume`한다. 승인된 `apply_patch`의 틈과 experimental API 의존은 Known limits | orch.md '결정 기록', design §3.1 |
 
-W3가 구현을 위해 정한 세부(conductor 확인 대상): Claude sandbox를 SDK 함수 대신 같은 출처를 직접 읽어 판정한다, sandbox가 켜진 Claude 턴은 Read 도구로 자기 profile과 붙여넣은 이미지를 읽지 못한다, 붙여넣은 이미지 수에 따른 첨부 매개변수, Codex Ask first·Plan은 `doan`(읽기 전용) profile, Accept edits는 `doan-workspace` profile(§3.1).
+구현 세부(conductor 승인): Claude sandbox는 SDK 함수 대신 같은 출처를 같은 우선순위로 직접 읽어 판정한다. sandbox가 켜진 Claude 턴의 `permissions.deny`는 턴 시작 때 나열한 형제 항목만 적는다. 첨부 매개변수는 붙여넣은 이미지 수에 따른다. Codex Ask first·Plan은 `doan`(읽기 전용), Accept edits는 `doan-workspace` profile이고, `:workspace`가 `sandbox_workspace_write`의 네트워크와 쓰기 경로를 따르는지는 T5에서 본다(§3.1).

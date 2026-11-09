@@ -31,7 +31,7 @@
   - **fence 밖에서 나중에 실행되는 설정.** fence는 run 안의 직접 접근만 막는다. agent가 남긴 설정(예: `~/.zshrc`, 저장소의 `.claude/settings.json` hook, `.mcp.json`)은 나중에 fence 밖의 프로세스가 실행할 수 있다.
   - **모델 목록 읽기.** 모델 목록 읽기는 fence 밖에서 저장소의 설정으로 돈다. 저장소 hook이 그때 실행될 수 있다(결정 Q2).
 - 고르지 않은 것: agent 전체 sandbox(PRODUCT §3 'Resume and permissions'를 바꾼다), 막지 않고 문서화만 하기(Copilot GitHub token의 평문 작업 사본처럼 Doan 때문에 생긴 노출이 남는다).
-  - **Claude·Codex 자기 설정의 틈.** sandbox가 켜진 Claude 턴은 Doan이 sandbox를 꺼짐으로 잘못 읽은 반대 경우(Doan이 읽지 않는 managed 출처가 sandbox를 끔)에 `perl`처럼 파일을 직접 여는 프로그램을 막지 못한다. 그 턴의 Read 도구는 자기 profile 파일과 붙여넣은 이미지도 읽지 못한다. Codex는 사람이 승인한 `apply_patch`가 막힌 경로에도 쓴다. 승인 카드에 그 경로가 보인다. Codex permission profile은 experimental API다(design §3.1).
+  - **Claude·Codex 자기 설정의 틈.** sandbox가 켜진 Claude 턴은 Doan이 sandbox를 꺼짐으로 잘못 읽은 반대 경우(Doan이 읽지 않는 managed 출처가 sandbox를 끔)에 `perl`처럼 파일을 직접 여는 프로그램을 막지 못한다. 그 턴 도중 새로 생긴 userData 항목은 Read·Edit 도구의 금지 목록에 없다(Bash는 막힌다). Codex는 사람이 승인한 `apply_patch`가 막힌 경로에도 쓴다. 승인 카드에 그 경로가 보인다. Codex permission profile은 experimental API다(design §3.1).
 - **위험.** `sandbox-exec`는 man page에 DEPRECATED로 적혀 있다(Apple DTS forum 845973). Codex도 같은 방식과 `-D` 매개변수를 쓴다(developers.openai.com/codex/concepts/sandboxing). macOS가 이것을 없애면 fail closed(완료 조건 4) 때문에 바깥 fence를 쓰는 Doan 연결 run이 시작하지 못한다.
 
 ## 문제 (관찰된 사실)
@@ -54,7 +54,7 @@
 3. **지금 되는 것은 그대로.** fence 안에서도 아래가 된다.
    - 로그인 유지(Keychain), 새 대화와 재시작 뒤 resume, permission 요청, 질문 카드, Stop.
    - `doan work update`·`doan open`·`doan handoff`·`doan ls`·`doan skill`·`doan design-skill`, 그리고 `doan check`(출력과 종료 코드가 그대로다. `<userData>/sessions.jsonl`에 session association을 더하지 못하는 것은 받아들인다, 결정 B).
-   - 붙여넣은 이미지 첨부(sandbox가 켜진 Claude 턴의 Read 도구는 예외, 위 '보호 범위'), Codex Ask first의 자체 sandbox 명령 실행과 sandbox 밖 실행 요청, 사람이 켠 Claude sandbox의 명령 실행, MCP connectors, Claude·Codex의 turn-end 사용량 읽기, Claude 다음 메시지 제안.
+   - 붙여넣은 이미지 첨부, Codex Ask first의 자체 sandbox 명령 실행과 sandbox 밖 실행 요청, 사람이 켠 Claude sandbox의 명령 실행, MCP connectors, Claude·Codex의 turn-end 사용량 읽기, Claude 다음 메시지 제안.
 4. **fail closed.** 막는 방법을 세울 수 없으면(`sandbox-exec`가 없음, 정책 오류로 바로 끝남, 경로를 `realpath`로 풀 수 없음, 경로가 정책이나 설정에 넣을 수 없는 문자를 가짐) 그 run은 기존 시작 실패로 끝난다. 띄우기 전에 거절하면 `unknown`, `sandbox-exec`가 바로 끝나면 `process_exited`이고 `cli_missing`은 쓰지 않는다. 새 실패 코드와 문구는 없다. 단위 테스트로 확인한다(결정 Q5).
 5. **Antigravity profile 작업.** 문제 3의 원인은 (i)이다(design §8 P3). Antigravity의 바깥 fence가 자기 profile의 skill 경로 쓰기를 막고, 그 사실이 ARCHITECTURE §7 'Agent authentication'에 있다.
 6. **로그아웃과 종료.** ARCHITECTURE §7 'Known limits'에 두 가지가 있다. 확인하지 않은 로그아웃은 종료로 취소되고 연결이 남는다. userData를 지워도 Claude Code·Codex의 Keychain 항목이 남는다. MCP connector token과 `doan Safe Storage`도 남을 수 있는데, 확인한 뒤 같은 줄에 적는다. 동작은 바꾸지 않는다(결정 Q4).
