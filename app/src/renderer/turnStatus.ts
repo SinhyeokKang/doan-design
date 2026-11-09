@@ -1,5 +1,5 @@
 import type { ConversationEvent, StageSignal, TurnStage } from "../main/conversation/types";
-import { rootRelative, runningHead, waitsForPerson, type ActivityStep, type ThreadItem } from "./threadItems";
+import { rootRelative, runningHead, stepCount, waitsForPerson, type ActivityStep, type ThreadItem } from "./threadItems";
 
 // The turn indicator's state: what the agent of the last turn does now, read from the
 // thread's items, the turn and main's latest stage signal. threadItems already folds streaming, waiting cards, ends and
@@ -8,10 +8,11 @@ import { rootRelative, runningHead, waitsForPerson, type ActivityStep, type Thre
 // The last turn as the indicator needs it. lastSeq: the last event seq of that turn, which a stage signal must not be
 // older than; live: main holds a turn of this conversation (threadItems' `live`); ended: the turn has its terminal.
 export interface TurnInfo { turnId: string; at: string; lastSeq: number; live: boolean; ended: boolean }
-// tool: `text` is what the indicator shows, the activity rows' words for the same tool.
+// tool: `text` is what the indicator shows, the activity rows' words for the same tool. `step`: the activity step the
+// event rule took it from; absent when main's stage named the tool.
 export type TurnStatus =
   | { kind: "none" } | { kind: "waiting" } | { kind: "reply" } | { kind: "general" } | { kind: "thinking" }
-  | { kind: "tool"; activity: "read" | "edit" | "command" | "other"; text: string };
+  | { kind: "tool"; activity: "read" | "edit" | "command" | "other"; text: string; step?: string };
 
 // Main appends a turn's opening user.message and its turn.started one after the other and pushes each (a save and a
 // list notice lie between), so a render can hold the message alone; that message already opens its turn, or the
@@ -39,11 +40,11 @@ function stageTool(stage: Extract<TurnStage, { kind: "tool" }>, root: string): T
   const path = stage.path ? rootRelative(stage.path, root) : null;
   return { kind: "tool", activity: stage.activity, text: runningHead({ key: "", kind: stage.activity, verb: stage.summary, path }) };
 }
-const eventTool = (step: ActivityStep): TurnStatus => ({ kind: "tool", activity: step.kind, text: runningHead(step) });
+const eventTool = (step: ActivityStep): TurnStatus => ({ kind: "tool", activity: step.kind, text: runningHead(step), step: step.key });
 
 // A stage counts only for this turn and only while no event of it came after (seq). Without one, the last item says it:
 // an activity, or a permission answered with Allow right after one (the tool now runs). Codex's MCP startup lines are
-// activities but no tool. A tool activity row may still spin while this says general.
+// activities but no tool. The thread's last activity row runs only while this names a tool (activityRun).
 export function turnStatus(items: readonly ThreadItem[], turn: TurnInfo | null, stage: StageSignal | null, root: string): TurnStatus {
   if (!turn || !turn.live || turn.ended) return { kind: "none" };
   if (items.some(waitsForPerson)) return { kind: "waiting" };
@@ -56,6 +57,31 @@ export function turnStatus(items: readonly ThreadItem[], turn: TurnInfo | null, 
   const tool = last?.kind === "activity" ? last : allowed ? items.at(-2) : undefined;
   const step = tool?.kind === "activity" ? tool.steps.at(-1) : undefined;
   return step && !step.sentence ? eventTool(step) : { kind: "general" };
+}
+
+type ActivityItem = Extract<ThreadItem, { kind: "activity" }>;
+// The thread's last activity row, from the indicator's shown status, so the row and the indicator say the same and a
+// fast tool does not flicker the row: it runs with the indicator's words only while those name a tool, and is its step
+// count otherwise. A Claude Code or Codex activity is written as its tool starts, so the event rule's tool still runs;
+// an ACP activity only once its tool completed (`acp`), so there only a stage makes the row run, possibly for a tool not
+// in its steps yet. The last step reads "Running a command" only when the status came from that step. A Codex MCP
+// startup line keeps its sentence as the head until the turn ends. `items` may end with Send now's messages in flight,
+// which the row is judged above.
+export function activityRun(items: readonly ThreadItem[], status: TurnStatus, acp: boolean): readonly ThreadItem[] {
+  let at = items.length - 1;
+  while (at >= 0) { const item = items[at]!; if (item.kind !== "user" || !item.sending) break; at--; }
+  const row = items[at];
+  if (row?.kind !== "activity") return items;
+  const last = row.steps.at(-1);
+  let next: ActivityItem = { ...row, running: false, head: stepCount(row.steps.length) };
+  if (last?.sentence) {
+    if (status.kind !== "none") next = { ...row, running: true, head: runningHead(last) };
+  } else if (status.kind === "tool" && !(acp && status.step !== undefined)) {
+    const own = last !== undefined && last.kind === "command" && status.step === last.key;
+    next = { ...row, running: true, head: status.text, ...(own ? { steps: [...row.steps.slice(0, -1), { ...last, verb: "Running a command" }] } : {}) };
+  }
+  if (next.running === row.running && next.head === row.head && next.steps === row.steps) return items;
+  return items.map((item, i) => i === at ? next : item);
 }
 
 // What both hosts pass the thread: the last turn's status, its id and its start, which the elapsed time

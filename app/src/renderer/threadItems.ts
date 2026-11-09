@@ -21,7 +21,8 @@ export type ThreadItem =
   | { kind: "noReply"; key: string }
   // A Claude turn that asked for Fast and did not run it: one line in the turn, under the reply.
   | { kind: "fast"; key: string; seq: number; text: string; turnedOff: boolean }
-  // A run of activities folds into one line: the latest activity while it runs, "N steps" once the turn moved on.
+  // A run of activities folds into one line: "N steps", or the running tool's words while it is the running turn's last
+  // item and the turn indicator names a tool (activityRun).
   | { kind: "activity"; key: string; running: boolean; head: string; steps: ActivityStep[] }
   | { kind: "permission"; key: string; seq: number; requestId: string; summary: string; options: PermissionOption[]; status: "pending" | "answered" | "expired"; answer: PermissionOption | null }
   // An agent's question. answers: what main kept of an answered one, by question id.
@@ -275,13 +276,9 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
   if (!live && turn !== null && !ended.has(turn)) foldCrashed(turn);
   // Nothing judges a request once main holds nothing of this conversation (main's fold: a restart's cancel).
   if (!live) for (const line of handoffs.values()) if (line.outcome === "pending") line.outcome = "cancelled";
-  const last = items.at(-1);
-  for (const { item, turnId } of groups) {
-    item.running = item === last && !ended.has(turnId);
-    item.head = item.running ? runningHead(item.steps.at(-1)!) : stepCount(item.steps.length);
-    // A command still running reads as running in its own row too.
-    if (item.running && item.steps.at(-1)!.kind === "command") item.steps[item.steps.length - 1] = { ...item.steps.at(-1)!, verb: "Running a command" };
-  }
+  // Whether the thread's last row runs is the turn indicator's to say (turnStatus activityRun), not the events': an
+  // activity marks a tool's start or end, never both.
+  for (const { item } of groups) item.head = stepCount(item.steps.length);
   return items;
 }
 

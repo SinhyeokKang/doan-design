@@ -1,9 +1,11 @@
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
-import type { Anchor, Canvas } from "../main/conversation/types";
+import type { ConversationSummary } from "../main/conversation/summary";
+import type { Anchor, Canvas, ConversationEvent } from "../main/conversation/types";
 import { hasContent, toMessage, typedText, type FieldSegment } from "./anchorField";
 import { pickerAction, PROVIDER_NAMES, type SettingsAction } from "./agentAuthView";
-import type { ComposerShape } from "./composerRules";
+import type { ComposerShape, ComposerTurn } from "./composerRules";
+import { asksPerson, stripState } from "./conversationStrip";
 import {
   agentProblem, composeRequest, draftProblem, presetPlaceholder, startErrorView, type AttachmentDraft, type ModelPickerView, type PresetSummary,
 } from "./homeComposer";
@@ -51,8 +53,8 @@ export interface DockedInput {
   provider: Provider | null;
   draft: DockedDraft;
   skills: readonly string[];
-  // This conversation's turn, as the host reads it.
-  turn: "idle" | "running" | "waiting";
+  // This conversation's turn, as the host reads it (composerTurn).
+  turn: ComposerTurn;
   busy: DockedBusy | null;
   sending: boolean;
   // The host's project turned into a problem while it was open: Send waits with
@@ -60,6 +62,17 @@ export interface DockedInput {
   unavailable?: string | null;
   // The conversation runs on a terminal's own sign-in (a legacy external one), so Doan's accounts do not decide.
   external?: boolean;
+}
+
+// Main's turn as the composer reads it, the same in both hosts: the merged events first (the list lags them), then the
+// list. An ended turn while the list still says working holds, whatever the list's phase, as steerPhaseOf orders it.
+export function composerTurn(events: readonly ConversationEvent[] | null, summary: ConversationSummary | undefined, live: boolean): ComposerTurn {
+  const kind = events && events.length ? stripState(events).kind : null;
+  if (kind !== null && asksPerson(kind)) return "waiting";
+  if ((kind === "starting" || kind === "working") && live) return "running";
+  if (kind === "done" || kind === "failed" || kind === "interrupted") return summary?.working ? "holding" : "idle";
+  if (summary?.phase === "waiting") return "waiting";
+  return summary?.working ? "running" : "idle";
 }
 
 // Send's state and the reason line under the card. Home's reasons (agent, length, {{ }}, checking, a moved file) are
@@ -75,7 +88,7 @@ export function dockedAvailability(input: DockedInput): { enabled: boolean; reas
   if (agent) return off({ text: agent.text, ...("kind" in agent && agent.kind === "noAgent" ? { noAgent: true as const } : {}), ...("action" in agent && agent.action ? { action: agent.action } : {}) });
   const waiting = input.turn === "waiting" ? { text: "Answer or stop the request above." } : null;
   if (!hasContent(draft.segments) && !draft.preset && draft.attachments.length === 0) return off(waiting);
-  // A running turn takes the message into its queue, so the limits on starting a turn do not apply yet.
+  // A running or holding turn takes the message into its queue, so the limits on starting a turn do not apply yet.
   if (input.busy && input.turn === "idle") return off(busyReason(input.busy, input.project));
   const problem = draftProblem(draft.segments, draft.preset, draft.attachments, input.skills);
   return problem ? off({ text: problem.text, ...(problem.kind === "attachmentMissing" ? { alert: true as const } : {}) }) : { enabled: true, reason: waiting };

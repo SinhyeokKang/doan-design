@@ -2,10 +2,12 @@ import { describe, expect, test } from "vitest";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import { authStatus } from "../main/agentAuth/state";
 import type { AuthState, Provider, ToolFacts } from "../main/agentAuth/types";
-import type { Anchor } from "../main/conversation/types";
+import type { ConversationSummary } from "../main/conversation/summary";
+import type { Anchor, ConversationEvent } from "../main/conversation/types";
 import { textSegments } from "./anchorField";
+import { composerAction } from "./composerRules";
 import {
-  canvasGoneText, composerPlaceholder, dockedAvailability, dockedMessage, dockedPicker, dockedRefusal, draftKey, EMPTY_DRAFT, type DockedDraft, type DockedInput,
+  canvasGoneText, composerPlaceholder, composerTurn, dockedAvailability, dockedMessage, dockedPicker, dockedRefusal, draftKey, EMPTY_DRAFT, type DockedDraft, type DockedInput,
   type PlaceholderInput,
 } from "./dockedRules";
 import { presetPlaceholder, type AttachmentDraft, type ModelPickerView, type PresetSummary } from "./homeComposer";
@@ -98,6 +100,15 @@ describe("dockedAvailability", () => {
     expect(dockedAvailability(input({ turn: "running" }))).toEqual({ enabled: true, reason: null });
     expect(dockedAvailability(input({ turn: "waiting" }))).toEqual({ enabled: true, reason: { text: "Answer or stop the request above." } });
     expect(dockedAvailability(input({ turn: "waiting", draft: EMPTY_DRAFT }))).toEqual({ enabled: false, reason: { text: "Answer or stop the request above." } });
+  });
+  // Its turn ended and main still works on it (holding): a message goes to the queue, so neither limit on starting a turn
+  // applies yet, and an empty field is a disabled Send with no line.
+  test("while this conversation holds after its turn, text queues past the project and restore limits", () => {
+    expect(dockedAvailability(input({ turn: "holding" }))).toEqual({ enabled: true, reason: null });
+    expect(dockedAvailability(input({ turn: "holding", busy: { kind: "project", open: "c9" } }))).toEqual({ enabled: true, reason: null });
+    expect(dockedAvailability(input({ turn: "holding", mode: { kind: "archived", conversationId: "c1", provider: "claude" }, busy: { kind: "restore", open: "c2" } })))
+      .toEqual({ enabled: true, reason: null });
+    expect(dockedAvailability(input({ turn: "holding", draft: EMPTY_DRAFT }))).toEqual({ enabled: false, reason: null });
   });
   test("a fixed provider that cannot run offers its fix in Settings, not another agent", () => {
     expect(dockedAvailability(input({ auth: auth(status("claude", { expired: true, phase: "reauthRequired" })) })).reason)
@@ -204,5 +215,55 @@ describe("composerPlaceholder", () => {
     expect(placeholder({ mode: "resume", text: "Reply, / for presets" })).toEqual({ text: "Reply, / for presets", suggestion: null });
     expect(placeholder({ mode: "archived", text: "Reply, / for presets" })).toEqual({ text: "Reply, / for presets", suggestion: null });
     expect(placeholder({ suggestion: "" })).toEqual({ text: "Reply, / for presets", suggestion: null });
+  });
+});
+
+describe("composerTurn", () => {
+  let seq = 0;
+  const ev = (payload: Record<string, unknown>, turnId = "t1"): ConversationEvent => ({ v: 1, conversationId: "c1", seq: ++seq, turnId, at: "2026-11-09T00:00:00Z", ...payload } as ConversationEvent);
+  const opened = () => { seq = 0; return [ev({ type: "user.message", text: "Draw it", anchors: [] }), ev({ type: "turn.started" })]; };
+  const summary = (patch: Partial<ConversationSummary>) => ({ phase: "ended", working: false, ...patch } as ConversationSummary);
+  const ends = [{ type: "turn.done" }, { type: "turn.failed", code: "unknown" }, { type: "interrupted", reason: "user" }];
+
+  test("a terminal while main still works on the conversation holds; once it does not, idle", () => {
+    for (const end of ends) {
+      const events = [...opened(), ev(end)];
+      expect(composerTurn(events, summary({ working: true }), true)).toBe("holding");
+      expect(composerTurn(events, summary({ working: false }), true)).toBe("idle");
+      expect(composerTurn(events, summary({ working: true }), false)).toBe("holding");
+    }
+  });
+  test("the events' end wins over a list that still says the turn runs or waits", () => {
+    const events = [...opened(), ev({ type: "turn.done" })];
+    expect(composerTurn(events, summary({ phase: "running", working: true }), true)).toBe("holding");
+    expect(composerTurn(events, summary({ phase: "waiting", working: true }), true)).toBe("holding");
+    expect(composerTurn(events, summary({ phase: "running", working: false }), true)).toBe("idle");
+  });
+  test("a permission or question waits; a started or working turn that main holds runs", () => {
+    const options = [{ id: "a", label: "Allow once", kind: "allow" }];
+    expect(composerTurn([...opened(), ev({ type: "permission.request", requestId: "r1", tool: "Bash", summary: "Run", options })], summary({ working: true }), true)).toBe("waiting");
+    expect(composerTurn([...opened(), ev({ type: "question.request", requestId: "q1", questions: [{ id: "0", header: "", question: "Which?", options: [{ label: "A" }], multiSelect: false, other: false }] })], summary({ working: true }), true)).toBe("waiting");
+    expect(composerTurn(opened(), summary({ working: true }), true)).toBe("running");
+    expect(composerTurn([...opened(), ev({ type: "activity", kind: "read", path: "a.ts", summary: "a.ts" })], summary({}), true)).toBe("running");
+  });
+  test("with composerAction: a held turn is a disabled Send, Queue with text, Stop while queue rows wait or go out", () => {
+    const events = [...opened(), ev({ type: "turn.done" })];
+    const held = composerTurn(events, summary({ working: true, queued: 1 }), true);
+    expect(composerAction(held, "", 0)).toBe("send");
+    expect(dockedAvailability(input({ turn: held, draft: EMPTY_DRAFT })).enabled).toBe(false);
+    expect(composerAction(held, "Also the caption", 0)).toBe("queue");
+    expect(composerAction(held, "", 1)).toBe("stop");
+    // Main sends the queue (its list counts no row once all are sending); the rows stay drawn until a read shows them sent.
+    expect(composerAction(composerTurn(events, summary({ working: true, queued: 0 }), true), "", 1)).toBe("stop");
+    expect(composerAction(composerTurn(opened(), summary({ working: true }), true), "", 0)).toBe("stop");
+  });
+  test("without events, or with a turn main does not hold: the list's phase and work flag, as before", () => {
+    expect(composerTurn(null, summary({ phase: "waiting", working: true }), false)).toBe("waiting");
+    expect(composerTurn([], summary({ phase: "running", working: true }), false)).toBe("running");
+    expect(composerTurn(null, summary({ working: true }), false)).toBe("running");
+    expect(composerTurn(null, summary({}), false)).toBe("idle");
+    expect(composerTurn(null, undefined, false)).toBe("idle");
+    expect(composerTurn(opened(), summary({ working: true }), false)).toBe("running");
+    expect(composerTurn(opened(), summary({}), false)).toBe("idle");
   });
 });

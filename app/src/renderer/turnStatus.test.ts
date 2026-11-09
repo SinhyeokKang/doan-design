@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { ConversationEvent, StageSignal, TurnStage } from "../main/conversation/types";
-import { threadItems, withSending } from "./threadItems";
-import { elapsedText, newerStage, settle, SETTLE_MS, turnAnnouncement, turnOf, turnStatus, turnText, type Settled, type TurnStatus } from "./turnStatus";
+import { threadItems, withSending, type ThreadItem } from "./threadItems";
+import { activityRun, elapsedText, newerStage, settle, SETTLE_MS, turnAnnouncement, turnOf, turnStatus, turnText, type Settled, type TurnStatus } from "./turnStatus";
 
 const ROOT = "/Users/ada/code/doan";
 let seq = 0;
@@ -48,9 +48,9 @@ describe("turnStatus", () => {
     expect(statusOf(events, signal("t1", { kind: "thinking" }, seq))).toEqual({ kind: "thinking" });
     expect(statusOf(events, signal("t1", { kind: "general" }, seq))).toEqual({ kind: "general" });
     // Older than the activity: the event rule decides.
-    expect(statusOf(events, signal("t1", { kind: "thinking" }, seq - 1))).toEqual({ kind: "tool", activity: "read", text: "Reading src/App.tsx" });
+    expect(statusOf(events, signal("t1", { kind: "thinking" }, seq - 1))).toEqual({ kind: "tool", activity: "read", text: "Reading src/App.tsx", step: "s3" });
     // Another turn's stage.
-    expect(statusOf(events, signal("t0", { kind: "thinking" }, seq + 5))).toEqual({ kind: "tool", activity: "read", text: "Reading src/App.tsx" });
+    expect(statusOf(events, signal("t0", { kind: "thinking" }, seq + 5))).toEqual({ kind: "tool", activity: "read", text: "Reading src/App.tsx", step: "s3" });
   });
 
   test("tool stages read as the activity rows do; Codex listFiles and search read as Reading files", () => {
@@ -73,23 +73,15 @@ describe("turnStatus", () => {
   test("without a stage: the last activity, the tool before an Allow, general after a Deny and over MCP startup lines", () => {
     seq = 0;
     const command = [...turn("t1"), ev("t1", { type: "activity", kind: "command", summary: "Running a command" })];
-    expect(statusOf(command)).toEqual({ kind: "tool", activity: "command", text: "Running a command" });
+    expect(statusOf(command)).toEqual({ kind: "tool", activity: "command", text: "Running a command", step: "s3" });
     const asked = [...command, ev("t1", { type: "permission.request", requestId: "r1", tool: "Bash", summary: "Run doan check", options })];
-    expect(statusOf([...asked, ev("t1", { type: "permission.resolved", requestId: "r1", optionId: "a" })])).toEqual({ kind: "tool", activity: "command", text: "Running a command" });
+    expect(statusOf([...asked, ev("t1", { type: "permission.resolved", requestId: "r1", optionId: "a" })])).toEqual({ kind: "tool", activity: "command", text: "Running a command", step: "s3" });
     expect(statusOf([...asked, ev("t1", { type: "permission.resolved", requestId: "r1", optionId: "d" })])).toEqual({ kind: "general" });
     seq = 0;
     const waiting = [...turn("t1"), ev("t1", { type: "activity", kind: "other", summary: "Waiting for Notion" })];
     expect(statusOf(waiting)).toEqual({ kind: "general" });
     waiting.push(ev("t1", { type: "activity", kind: "other", summary: "Notion wasn’t ready, so this turn started without it." }));
     expect(statusOf(waiting)).toEqual({ kind: "general" });
-  });
-
-  test("a general stage leaves the activity row spinning with its running head", () => {
-    seq = 0;
-    const events = [...turn("t1"), ev("t1", { type: "activity", kind: "command", summary: "Running a command" })];
-    const items = threadItems(events, ROOT, true);
-    expect(turnStatus(items, turnOf(events, true), signal("t1", { kind: "general" }, seq), ROOT)).toEqual({ kind: "general" });
-    expect(items.at(-1)).toMatchObject({ kind: "activity", running: true, head: "Running a command" });
   });
 
   test("Send now's message in flight and a steered message mid-turn: event rule, time from the turn's start", () => {
@@ -125,6 +117,101 @@ describe("turnStatus", () => {
     const events = [...turn("t1"), ev("t1", { type: "message.done", messageId: "m1", text: "Done." }), ev("t1", { type: "turn.done" }), ...turn("t2")];
     expect(statusOf(events, signal("t1", { kind: "thinking" }, seq + 1))).toEqual({ kind: "general" });
     expect(statusOf(events, signal("t2", { kind: "thinking" }, seq))).toEqual({ kind: "thinking" });
+  });
+});
+
+// The activity row the thread ends with follows the indicator's shown status (design: rows and indicator read alike).
+describe("activityRun", () => {
+  const row = (items: readonly ThreadItem[]) => items.filter(item => item.kind === "activity").at(-1);
+  const command = () => { seq = 0; return [...turn("t1"), ev("t1", { type: "activity", kind: "command", summary: "Running a command" })]; };
+  const runOf = (events: ConversationEvent[], stage: StageSignal | null, acp = false, live = true) => {
+    const items = threadItems(events, ROOT, live);
+    return activityRun(items, turnStatus(items, turnOf(events, live), stage, ROOT), acp);
+  };
+
+  test("a Claude or Codex tool the event rule names: the row runs with the indicator's words and its command step runs", () => {
+    expect(row(runOf(command(), null))).toEqual({ kind: "activity", key: "a3", running: true, head: "Running a command",
+      steps: [{ key: "s3", kind: "command", verb: "Running a command", path: null }] });
+    seq = 0;
+    const read = [...turn("t1"), ev("t1", { type: "activity", kind: "read", path: `${ROOT}/src/App.tsx`, summary: "src/App.tsx" })];
+    expect(row(runOf(read, null))).toMatchObject({ running: true, head: "Reading src/App.tsx", steps: [{ verb: "Read", path: "src/App.tsx" }] });
+  });
+
+  test("the general stage sent with the tool's result (same seq): step count, the command ran", () => {
+    const events = command();
+    expect(row(runOf(events, signal("t1", { kind: "general" }, seq)))).toEqual({ kind: "activity", key: "a3", running: false, head: "1 step",
+      steps: [{ key: "s3", kind: "command", verb: "Ran a command", path: null }] });
+  });
+
+  test("another tool's stage wins: the row runs with that tool's words and leaves its own step's verb", () => {
+    const events = command();
+    expect(row(runOf(events, signal("t1", { kind: "tool", activity: "read", path: `${ROOT}/src/b.ts`, summary: "src/b.ts" }, seq)))).toMatchObject({
+      running: true, head: "Reading src/b.ts", steps: [{ verb: "Ran a command" }] });
+    // A command stage is another tool too: its words are the same, the step stays as it ran.
+    expect(row(runOf(events, signal("t1", { kind: "tool", activity: "command", summary: "Running a command" }, seq)))).toMatchObject({
+      running: true, head: "Running a command", steps: [{ verb: "Ran a command" }] });
+    // Codex listFiles and search read as the indicator does, not as the step's summary.
+    expect(row(runOf(events, signal("t1", { kind: "tool", activity: "read", summary: "Reading files" }, seq)))).toMatchObject({ running: true, head: "Reading files" });
+  });
+
+  test("ACP: a completed activity without a stage is a step count; a running tool's stage makes the row run", () => {
+    seq = 0;
+    const events = [...turn("t1"), ev("t1", { type: "activity", kind: "read", path: `${ROOT}/a.ts`, summary: "a.ts" })];
+    expect(row(runOf(events, null, true))).toEqual({ kind: "activity", key: "a3", running: false, head: "1 step", steps: [{ key: "s3", kind: "read", verb: "Read", path: "a.ts" }] });
+    // A stage older than the activity loses to the event rule, which names the completed tool.
+    expect(row(runOf(events, signal("t1", { kind: "tool", activity: "command", summary: "Running a command" }, seq - 1), true))).toMatchObject({ running: false, head: "1 step" });
+    // The tool still running may not be a step yet.
+    expect(row(runOf(events, signal("t1", { kind: "tool", activity: "command", summary: "Running a command" }, seq), true))).toMatchObject({
+      running: true, head: "Running a command", steps: [{ verb: "Read" }] });
+    expect(row(runOf([...events, ev("t1", { type: "activity", kind: "command", summary: "Running a command" })], null, true))).toMatchObject({
+      running: false, head: "2 steps", steps: [{ verb: "Read" }, { verb: "Ran a command" }] });
+  });
+
+  test("thinking, general, replying, waiting and none: step count", () => {
+    const items = threadItems(command(), ROOT, true);
+    for (const status of [{ kind: "thinking" }, { kind: "general" }, { kind: "reply" }, { kind: "waiting" }, { kind: "none" }] as TurnStatus[]) {
+      expect(row(activityRun(items, status, false))).toMatchObject({ running: false, head: "1 step", steps: [{ verb: "Ran a command" }] });
+    }
+  });
+
+  test("an ended turn and a turn folded by a restart: step count", () => {
+    const ended = [...command(), ev("t1", { type: "turn.done" })];
+    expect(row(runOf(ended, null))).toMatchObject({ running: false, head: "1 step" });
+    expect(runOf(command(), null, false, false).at(-1)).toMatchObject({ kind: "end", end: { kind: "interrupted", reason: "crashed" } });
+    expect(row(runOf(command(), null, false, false))).toMatchObject({ running: false, head: "1 step" });
+  });
+
+  test("a Codex MCP startup line keeps its sentence while the turn runs, whatever the stage says", () => {
+    seq = 0;
+    const events = [...turn("t1"), ev("t1", { type: "activity", kind: "other", summary: "Waiting for Notion" })];
+    expect(row(runOf(events, null))).toEqual({ kind: "activity", key: "a3", running: true, head: "Waiting for Notion",
+      steps: [{ key: "s3", kind: "other", verb: "Waiting for Notion", path: null, sentence: true }] });
+    expect(row(runOf(events, signal("t1", { kind: "thinking" }, seq)))).toMatchObject({ running: true, head: "Waiting for Notion" });
+    expect(row(runOf([...events, ev("t1", { type: "turn.done" })], null))).toMatchObject({ running: false, head: "1 step" });
+  });
+
+  test("only the thread's last item: a reply or a card after the row leaves the list as it is", () => {
+    const events = [...command(), ev("t1", { type: "message.done", messageId: "m1", text: "Done." })];
+    const items = threadItems(events, ROOT, true);
+    expect(activityRun(items, { kind: "tool", activity: "command", text: "Running a command" }, false)).toBe(items);
+    expect(row(items)).toMatchObject({ running: false, head: "1 step" });
+  });
+
+  test("judges the list before Send now's messages: one in flight under the row changes nothing", () => {
+    const items = threadItems(command(), ROOT, true);
+    const sending = withSending(items, [{ id: "q1", text: "Also this", anchors: [], attachments: [] }]);
+    const tool: TurnStatus = { kind: "tool", activity: "read", text: "Reading src/b.ts" };
+    expect(activityRun(sending, tool, false).map(item => item.key)).toEqual(["u1", "a3", "qq1"]);
+    expect(row(activityRun(sending, tool, false))).toMatchObject({ running: true, head: "Reading src/b.ts" });
+    expect(row(activityRun(sending, { kind: "general" }, false))).toMatchObject({ running: false, head: "1 step" });
+  });
+
+  test("a row already as the status says is the same list; a row drawn running is set back to its step count", () => {
+    const items = threadItems(command(), ROOT, true);
+    expect(activityRun(items, { kind: "general" }, false)).toBe(items);
+    const drawn: ThreadItem[] = [{ kind: "activity", key: "a5", running: true, head: "Reading x", steps: [] }];
+    expect(activityRun(drawn, { kind: "general" }, false)).toEqual([{ kind: "activity", key: "a5", running: false, head: "0 steps", steps: [] }]);
+    expect(activityRun(drawn, { kind: "tool", activity: "read", text: "Reading x" }, false)).toEqual(drawn);
   });
 });
 

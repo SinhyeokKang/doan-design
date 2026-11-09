@@ -198,7 +198,7 @@ export function DockedComposer(props: DockedComposerProps) {
     : props.held && checked.enabled ? { enabled: false, reason: checked.reason } : checked;
   const message = dockedMessage(draft, matched);
   const placeholder = composerPlaceholder({ readOnly: isSending || locked, preset: draft.preset, empty: draft.segments.length === 0, mode: mode.kind, text: props.placeholder, suggestion: props.suggestion });
-  const action = composerAction(props.turn !== "idle", message.text);
+  const action = composerAction(props.turn, message.text, props.queued.length);
   const canSendNow = !!props.sendNow && !!props.onSendQueuedNow;
   const picker = dockedPicker(props.picker, mode);
   // The terminal's provider, drawn on the fixed trigger.

@@ -96,13 +96,14 @@ describe("threadItems", () => {
     expect(splitRequest("Use the Doan design preset `polish` (Polish (final)).", 0)).toEqual({ preset: { id: "polish", title: "Polish (final)" }, skills: [], body: "" });
   });
 
-  test("a run of activities folds into one line: the latest while running, N steps once the turn moved on", () => {
+  // Whether the last row runs, and with which words, is the indicator's (turnStatus activityRun); threadItems counts steps.
+  test("a run of activities folds into one line of its step count, also while it is the turn's last item", () => {
     seq = 0;
     const events = [...turn("t1"),
       ev("t1", { type: "activity", kind: "read", path: `${ROOT}/docs/design.md`, summary: "docs/design.md" }),
       ev("t1", { type: "activity", kind: "edit", path: ".doan/canvases/a.html", summary: ".doan/canvases/a.html" })];
     expect(threadItems(events, ROOT, true)[1]).toEqual({
-      kind: "activity", key: "a3", running: true, head: "Editing .doan/canvases/a.html",
+      kind: "activity", key: "a3", running: false, head: "2 steps",
       steps: [{ key: "s3", kind: "read", verb: "Read", path: "docs/design.md" }, { key: "s4", kind: "edit", verb: "Edited", path: ".doan/canvases/a.html" }],
     });
     events.push(ev("t1", { type: "message.done", messageId: "m1", text: "Done." }));
@@ -113,10 +114,10 @@ describe("threadItems", () => {
     expect(items[3]).toMatchObject({ running: false, head: "1 step" });
   });
 
-  test("a command never shows its text: Running a command while it runs, Ran a command after", () => {
+  test("a command never shows its text: its step is Ran a command", () => {
     seq = 0;
     const events = [...turn("t1"), ev("t1", { type: "activity", kind: "command", summary: "Running a command" })];
-    expect(threadItems(events, ROOT, true)[1]).toMatchObject({ head: "Running a command", steps: [{ kind: "command", verb: "Running a command", path: null }] });
+    expect(threadItems(events, ROOT, true)[1]).toMatchObject({ head: "1 step", steps: [{ kind: "command", verb: "Ran a command", path: null }] });
     events.push(ev("t1", { type: "turn.done" }));
     expect(threadItems(events, ROOT, true)[1]).toMatchObject({ head: "1 step", steps: [{ kind: "command", verb: "Ran a command", path: null }] });
   });
@@ -222,10 +223,11 @@ describe("threadItems with a message pushed into a running turn", () => {
 describe("threadItems with a Codex MCP server that was not ready", () => {
   const waiting = (text: string) => ev("t1", { type: "activity", kind: "other", summary: text });
 
-  test("while the turn waits, the running head is the Waiting line, as a sentence step", () => {
+  // activityRun gives a running turn's last row its Waiting line as the head.
+  test("the Waiting line is a sentence step", () => {
     seq = 0;
     const items = threadItems([...turn("t1"), waiting("Waiting for Notion")], ROOT, true);
-    expect(items[1]).toEqual({ kind: "activity", key: "a3", running: true, head: "Waiting for Notion", steps: [{ key: "s3", kind: "other", verb: "Waiting for Notion", path: null, sentence: true }] });
+    expect(items[1]).toEqual({ kind: "activity", key: "a3", running: false, head: "1 step", steps: [{ key: "s3", kind: "other", verb: "Waiting for Notion", path: null, sentence: true }] });
   });
 
   test("the not-ready line replaces its Waiting line: one step with the second text", () => {
@@ -240,7 +242,7 @@ describe("threadItems with a Codex MCP server that was not ready", () => {
   test("the plural lines fold the same way, also when fewer servers were not ready than were waited for", () => {
     seq = 0;
     const plural = threadItems([...turn("t1"), waiting("Waiting for Notion and Figma"), waiting("Notion and Figma weren’t ready, so this turn started without them.")], ROOT, true);
-    expect(plural[1]).toMatchObject({ running: true, head: "Notion and Figma weren’t ready, so this turn started without them.", steps: [{ verb: "Notion and Figma weren’t ready, so this turn started without them." }] });
+    expect(plural[1]).toMatchObject({ head: "1 step", steps: [{ verb: "Notion and Figma weren’t ready, so this turn started without them.", sentence: true }] });
     seq = 0;
     const fewer = threadItems([...turn("t1"), waiting("Waiting for Notion, Atlassian and Figma"), waiting("Figma wasn’t ready, so this turn started without it.")], ROOT, true);
     expect((fewer[1] as { steps: unknown[] }).steps).toHaveLength(1);
