@@ -58,7 +58,7 @@
      chroma (gamut-clamped, chroma at most 1.2 × the friend's step 9), at the hue of step 9; 9 is the mascot's
      body colour moved by Doany's own body-to-violet-9 shift; 10 and pressed keep violet's offsets from 9.
      -icon is 9 darkened in OKLCH lightness until it reaches 3:1 on white, for accent icons and dots on a
-     panel; text on 9 is neutral ink, never white. */
+     panel. Ink on 9 is white where it clears 3:1 on 9, 10 and pressed (dori), neutral otherwise. */
   --saemi-1: #fafdfa;
   --saemi-2: #f6fbf6;
   --saemi-3: #ebf6ec;
