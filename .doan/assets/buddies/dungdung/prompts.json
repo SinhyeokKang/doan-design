@@ -10,5 +10,9 @@
   [
     "accessory",
     "Use case: precise-object-edit. Extract ONLY the existing dark over-ear headphones: full curved headband, both ear cups and their connectors; preserve the white/transparent opening below the arch as transparency from the supplied dungdung still. Keep EXACT original 1254x1254 canvas, accessory coordinates, scale, angle, yarn texture, color and lighting. Remove all body, both eyes and all other pixels to actual transparency. No coloured body remnant, no eye, no floor shadow, no white backdrop, no redesign. Do NOT center, enlarge, crop, move or repaint the accessory. This is an aligned animation layer, not a standalone centered product photo."
+  ],
+  [
+    "body-fix",
+    "Use case: precise-object-edit. Image 1 is the current eyeless headphone-free yellow body edit target; Image 2 is the original Dungdung still, an appearance and location reference only. Fix ONLY the two side zones formerly under the headphone ear cups (left x175\u2013395 y420\u2013845; right x860\u20131090 y420\u2013845): remove the lighter vertical bands, straight boundaries, the little dark headphone remnant near the right cup edge, and the abrupt shoulder steps. Continue the original yellow looped plush smoothly with matching local yellow colour, brightness, lighting gradient, yarn loop size and crisp contrast. The reconstructed body under the cups must be one natural rounded pebble, with no vertical stripe, clipped seam or dark accessory fragment. Preserve the eyeless face and every other visible body pixel, original 1254x1254 coordinates, overall body size and pose. No headphones, eyes, floor shadow, white or background. Actual transparent RGBA. Do not center, crop, zoom, recolor or redesign."
   ]
 ]
