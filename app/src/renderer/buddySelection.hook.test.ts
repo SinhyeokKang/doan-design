@@ -150,3 +150,19 @@ test("commit with a saved buddy and nothing picked saves nothing", async () => {
   expect(await render().commit()).toBe(true);
   expect(save).not.toHaveBeenCalled();
 });
+
+// A failure that already answered is not a save to wait for: Continue goes on with the buddy that stays (draft frame
+// buddy-step-failed), and only a press while a save runs waits for it.
+test("after a failed save has answered, Continue goes on; a press while a save runs still waits for it", async () => {
+  void render().select("popo");
+  replies[0]!({ ok: false, reason: "write_failed", snapshot: snap("dori") });
+  await settle();
+  expect(render().failure).toEqual({ picked: "popo", kept: "dori" });
+  expect(await render().settled()).toBe(true);
+  void render().select("puri");
+  const waiting = render().settled();
+  replies[1]!(null);
+  expect(await waiting).toBe(false);
+  await settle();
+  expect(await render().settled()).toBe(true);
+});

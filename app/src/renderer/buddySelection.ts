@@ -36,7 +36,7 @@ export interface BuddySelection {
   failure: BuddyFailure | null;
   // Resolves true when this pick saved; a later pick's reply decides what shows.
   select(id: BuddyId): Promise<boolean>;
-  // Whether the latest pick saved, waiting for it while it runs: Continue goes on only after it.
+  // While a save runs, whether the latest pick saved (Continue goes on only after it); with none running, true.
   settled(): Promise<boolean>;
   // The existing-user buddy screen's Continue: a pick still saving is waited for, as settled() does; with no buddy in
   // the file the buddy on screen (Doany at first) is saved now, since that screen must leave a buddy key behind.
@@ -52,11 +52,16 @@ export function useBuddySelection(preferences: PreferencesSnapshot | null, save:
   const snapshot = useRef(preferences);
   snapshot.current = preferences;
   const latest = useRef<Promise<boolean>>(Promise.resolve(true));
+  // Saves still running: a failure that already answered is not one to wait for, so Continue then goes on with the
+  // buddy that stays.
+  const running = useRef(0);
   const update = (next: BuddyPick) => { current.current = next; setPick(next); };
   const select = (id: BuddyId) => {
     const next = pickBuddy(current.current, id);
     update(next);
+    running.current++;
     const saved = save({ buddy: id }).catch(() => null).then(reply => {
+      running.current--;
       update(settleBuddy(current.current, next.seq, id, reply, snapshot.current));
       return !failedSave(reply);
     });
@@ -67,7 +72,7 @@ export function useBuddySelection(preferences: PreferencesSnapshot | null, save:
     shown: shownBuddy(pick, preferences, firstPaint),
     failure: pick.failure,
     select,
-    settled: () => latest.current,
+    settled: () => running.current > 0 ? latest.current : Promise.resolve(true),
     commit: () => {
       if (current.current.shown !== null) return latest.current;
       if (snapshot.current?.preferences.buddy === undefined) return select(shownBuddy(current.current, snapshot.current, firstPaint));
