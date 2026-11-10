@@ -3,7 +3,7 @@ import { AlertIcon } from "./AlertIcon";
 import { BUDDY_IDS, FIRST_RUN_ORDER, buddy, type BuddyId } from "./buddies";
 import { buddyFailureText } from "./buddyChoice";
 import type { BuddyFailure } from "./buddySelection";
-import { cardLayout, cardOffset, followPosition, keyTarget, scrollPosition, SNAP_MS, snapPosition, WHEEL_QUIET } from "./coverFlow";
+import { cardLayout, cardOffset, followPosition, keyTarget, scrollPosition, SNAP_MS, snapPosition, snapTarget, WHEEL_QUIET } from "./coverFlow";
 
 // The buddy picker (.doan/canvases/buddy-choice.html): first run's Cover Flow row and Settings > General's rows. Both
 // are a radio group named by the visible heading, each radio named by the buddy's name and described by its line.
@@ -67,7 +67,7 @@ export function BuddyFlow({ name, labelledBy, selected, disabled, select }: Budd
       const state = scroll.current;
       if (!state) return;
       state.quiet = null;
-      const to = Math.round(state.target);
+      const to = FIRST_RUN_ORDER.indexOf(snapTarget(FIRST_RUN_ORDER, state.target));
       if (matchMedia("(prefers-reduced-motion: reduce)").matches) { if (state.frame !== null) cancelAnimationFrame(state.frame); land(state, to); return; }
       state.snap = { from: state.shown, to, start: performance.now() };
       if (state.frame === null) { state.time = performance.now(); state.frame = requestAnimationFrame(frame); }

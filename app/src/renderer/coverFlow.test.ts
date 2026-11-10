@@ -92,7 +92,7 @@ test("a card's transform at a fractional offset interpolates the row's layout", 
   expect(cardLayout(-4.5, wide).x).toBe(-364);
 });
 
-test("a wheel step lands on the next card and stops at the ends", () => {
+test("a step lands on the next card and stops at the ends", () => {
   expect(stepTarget(FIRST_RUN_ORDER, "doany", 1)).toBe("dungdung");
   expect(stepTarget(FIRST_RUN_ORDER, "doany", -1)).toBe("puri");
   expect(stepTarget(FIRST_RUN_ORDER, "doany", 0)).toBe("doany");

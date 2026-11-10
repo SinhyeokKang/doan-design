@@ -15,7 +15,7 @@ export function keyTarget(order: readonly BuddyId[], selected: BuddyId, key: str
   return step === undefined ? null : stepTarget(order, selected, step);
 }
 
-// Where a wheel step (or an arrow) lands, stopping at the ends.
+// Where an arrow lands, stopping at the ends.
 export function stepTarget(order: readonly BuddyId[], selected: BuddyId, step: -1 | 0 | 1): BuddyId {
   return order[Math.max(0, Math.min(order.length - 1, order.indexOf(selected) + step))]!;
 }
