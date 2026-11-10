@@ -35,7 +35,9 @@ test("Welcome lays out the words at the top and bleeds the photo off the bottom"
   expect(css).toMatch(/\.ob-wordmark \{ margin-bottom: var\(--space-4\);/);
   expect(css).toContain(".ob-welcome-action { margin-top: var(--space-6); text-align: center; }");
   expect(css).toContain(".ob-welcome-photo { position: relative; flex: 1 0 0; min-height: 0; margin-top: 43px; overflow: hidden; container-type: size; }");
-  expect(css).toContain(".ob-welcome-photo img { position: absolute; top: 0; left: 50%; width: calc(244.186cqh - 46.5px); max-width: none; height: auto; transform: translateX(-50%); }");
+  // At most 1.4 times the window's width, so the eyes (14.9%–84.9% across) stay in a tall, narrow window; past that the
+  // photo keeps to the bottom edge with the height that showed when the cap began.
+  expect(css).toContain(".ob-welcome-photo img { position: absolute; top: max(0px, calc(100cqh - (140cqw + 46.5px) / 2.44186)); left: 50%; width: min(calc(244.186cqh - 46.5px), 140cqw); max-width: none; height: auto; transform: translateX(-50%); }");
   expect(css).not.toMatch(/ob-atmosphere|onboarding-grain|ob-welcome-main::after/);
 });
 

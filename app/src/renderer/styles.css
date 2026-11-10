@@ -161,16 +161,18 @@ code, kbd { font-family: var(--type-family); }
 .ob-welcome-scene { display: contents; }
 /* Welcome (buddy-welcome draft): the words sit 24px under the chrome from a 780px window up and 16px at the 600px
    minimum, linear between; the group photo's box starts 43px under Get started. Its width is the straight line
-   through the draft's two frames for the height left under it (960 at 780, 540 at 600), with no cap, so a taller
-   window shows a larger photo; it is cut at the bottom and, past the window's width, at the sides. The photo's
-   backdrop is white, so it sits on the panel as it is. */
+   through the draft's two frames for the height left under it (960 at 780, 540 at 600), so a taller window shows a
+   larger photo; it is cut at the bottom and, past the window's width, at the sides. The buddies' eyes span 14.9%–84.9%
+   of its width, so it grows to at most 1.4 times the window's width; a window taller than that needs keeps the photo
+   at the bottom edge with the same height showing, and the gap above it grows. The photo's backdrop is white, so it
+   sits on the panel as it is. */
 .ob-welcome-main { flex: 1; display: flex; flex-direction: column; }
 .ob-welcome-copy { display: flex; flex-direction: column; align-items: center; padding: clamp(16px, calc(16px + (100vh - 600px) * 8 / 180), 24px) var(--space-6) 0; text-align: center; }
 .ob-wordmark { margin-bottom: var(--space-4); font-size: 104px; line-height: 1; font-weight: var(--type-weight-medium); letter-spacing: -8px; }
 .ob-welcome-main h1 { font-size: var(--type-heading-size); line-height: var(--type-heading-line-height); letter-spacing: var(--type-heading-letter-spacing); font-weight: var(--type-weight-regular); text-align: center; outline: none; }
 .ob-welcome-action { margin-top: var(--space-6); text-align: center; }
 .ob-welcome-photo { position: relative; flex: 1 0 0; min-height: 0; margin-top: 43px; overflow: hidden; container-type: size; }
-.ob-welcome-photo img { position: absolute; top: 0; left: 50%; width: calc(244.186cqh - 46.5px); max-width: none; height: auto; transform: translateX(-50%); }
+.ob-welcome-photo img { position: absolute; top: max(0px, calc(100cqh - (140cqw + 46.5px) / 2.44186)); left: 50%; width: min(calc(244.186cqh - 46.5px), 140cqw); max-width: none; height: auto; transform: translateX(-50%); }
 .ob-heading { margin-bottom: var(--space-8); text-align: center; }
 .ob-heading h2 { font-size: var(--type-title-size); line-height: var(--type-title-line-height); letter-spacing: var(--type-title-letter-spacing); font-weight: var(--type-weight-medium); outline: none; }
 .ob-heading p { margin-top: var(--space-3); color: var(--text-subtle); }
