@@ -42,6 +42,10 @@ Rig numbers (eye centres and radii, body and accessory pivots, accessory tilt ra
   Measured fits (scale, x, y in source px) for the character in frames 2–5: puri .99, +7; dungdung .93–.96, +13–21,
   +4–7; popo 1.02, −1–2; dori .97, +7–11. Residual drift after the fit is at most 2 px at 512 (0.14 px in the
   32 px window).
+- `eye.png` (118 × 193 RGBA) is the one eye every buddy's rig draws: Puri's left eye cut from `puri/still.png`
+  over ±1.35 eye radii. The bead (luminance below 120, closed, shrunk 1 px, feathered 0.9 px) keeps its grey
+  values with inner colours spread to the edge so no plush-tinted halo remains; around it, the plush's darkening
+  (blurred 5 px, against a plush level of 195) is kept as black alpha that fades out at 1.35 radii.
 - `group/group-original.png` (1536 × 1024) is the five buddies' group photo, supplied by the maintainer. `group/group.png`
   (1478 × 789) is it trimmed to its content at 3% fuzz, given a 16 px white border, and its near-white backdrop
   flood-filled to pure white at 4% fuzz from the corner, so it sits on a white panel without a visible box. It is

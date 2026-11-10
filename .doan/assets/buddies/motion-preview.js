@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: MIT
  * Buddy motion preview: Doany's V2 motion prototype run per buddy from the BUDDIES table, plus --buddy-lift
- * for the ground shadow layer. A review aid for the buddy assets; the app's rig is ported separately.
+ * for the ground shadow layer, and the shared eye.png (one eye cut from Puri's still) for every buddy's eyes,
+ * closed by a plush lid from the top. A review aid for the buddy assets; the app's rig is ported separately.
  */
 (() => {
   'use strict';
@@ -8,11 +9,11 @@
   const asset = name => new URL(name, assetBase).href;
   // Per-buddy rig numbers (UV of the 1254² layers); each friend is added here when its layers exist.
   const BUDDIES = {
-    doany: {body:'../doany/v2/body.png', accessory:'../doany/v2/hat.png', eyes:['.421,.550','.619,.550'], radius:['.035','.056'], shine:'.523', pivot:'.67,.30', tilt:[-.30,.15], liftScale:.9},
-    puri: {body:'puri/body.png', accessory:'puri/accessory.png', eyes:['.433,.528','.607,.528'], radius:['.034','.057'], shine:'.501', pivot:'.515,.307', tilt:[-.12,.12], liftScale:.9},
-    dungdung: {body:'dungdung/body.png', accessory:'dungdung/accessory.png', eyes:['.404,.482','.585,.482'], radius:['.033','.057'], shine:'.455', pivot:'.5,.43', tilt:[-0.025,0.025], liftScale:.9},
-    popo: {body:'popo/body.png', accessory:'popo/accessory.png', eyes:['.411,.42','.607,.42'], radius:['.032','.055'], shine:'.393', pivot:'.503,.42', tilt:[0,0], liftScale:.9},
-    dori: {body:'dori/body.png', accessory:'dori/accessory.png', eyes:['.424,.364','.563,.365'], radius:['.027','.045'], shine:'.337', pivot:'.51,.535', tilt:[-0.02,0.02], liftScale:.65},
+    doany: {body:'../doany/v2/body.png', accessory:'../doany/v2/hat.png', eyes:['.421,.550','.619,.550'], radius:['.035','.056'], pivot:'.67,.30', tilt:[-.30,.15], liftScale:.9},
+    puri: {body:'puri/body.png', accessory:'puri/accessory.png', eyes:['.433,.528','.607,.528'], radius:['.034','.057'], pivot:'.515,.307', tilt:[-.12,.12], liftScale:.9},
+    dungdung: {body:'dungdung/body.png', accessory:'dungdung/accessory.png', eyes:['.404,.482','.585,.482'], radius:['.033','.057'], pivot:'.5,.43', tilt:[-0.025,0.025], liftScale:.9},
+    popo: {body:'popo/body.png', accessory:'popo/accessory.png', eyes:['.411,.42','.607,.42'], radius:['.032','.055'], pivot:'.503,.42', tilt:[0,0], liftScale:.9},
+    dori: {body:'dori/body.png', accessory:'dori/accessory.png', eyes:['.424,.364','.563,.365'], radius:['.027','.045'], pivot:'.51,.535', tilt:[-0.02,0.02], liftScale:.65},
   };
   const vertexFor = c => `
     precision mediump float;
@@ -40,22 +41,29 @@
       q += vec2(0.,.10-lift);
       gl_Position = vec4(q.x*1.34,-q.y*1.34,0.,1.);
     }`;
+  const EYE_SPAN = 1.35; // eye.png covers ±1.35 eye radii around the centre
   const fragmentFor = c => `
     precision mediump float;
     varying vec2 vUV;
-    uniform sampler2D skin;
+    uniform sampler2D skin, eyeTex;
     uniform float layer, eyeOpen;
     uniform vec2 look;
-    float eye(vec2 center) {
-      vec2 d = (vUV-center-look*vec2(.018,.014))/vec2(${c.radius[0]},${c.radius[1]}*max(.065,eyeOpen));
-      return 1.-smoothstep(.94,1.03,length(d));
+    // The bead keeps its shape; a plush lid (the body texture already under it) covers it from the top,
+    // its edge following the bead's arch at first and curving into a closed-eye smile at the bottom.
+    vec4 spriteEye(vec2 center) {
+      vec2 d = (vUV-center-look*vec2(.018,.014))/vec2(${c.radius[0]},${c.radius[1]});
+      vec2 s = d/${EYE_SPAN.toFixed(2)}*.5+.5;
+      if (s.x<0.||s.x>1.||s.y<0.||s.y>1.) return vec4(0.);
+      vec4 e = texture2D(eyeTex,s);
+      float lid = -1.35 + (1.-eyeOpen)*2.25 + mix(-.2,.22,1.-eyeOpen)*(1.-d.x*d.x);
+      e.a *= smoothstep(lid-.06, lid+.06, d.y);
+      return e;
     }
     void main() {
       vec4 col = texture2D(skin,vUV);
       if (layer < .5) {
-        float mask = max(eye(vec2(${c.eyes[0]})), eye(vec2(${c.eyes[1]})));
-        float shine = exp(-pow((vUV.y-${c.shine}-look.y*.014)*42.,2.));
-        col.rgb = mix(col.rgb,vec3(.025)+vec3(.085)*shine,mask);
+        vec4 a = spriteEye(vec2(${c.eyes[0]})), b = spriteEye(vec2(${c.eyes[1]}));
+        col.rgb = mix(col.rgb,a.rgb,a.a); col.rgb = mix(col.rgb,b.rgb,b.a);
       }
       gl_FragColor = col;
     }`;
@@ -82,7 +90,7 @@
     if (!gl.getProgramParameter(program,gl.LINK_STATUS)) throw Error(gl.getProgramInfoLog(program));
     gl.useProgram(program);
     const locations = {};
-    for (const key of ['time','squash','lift','tilt','hatTilt','layer','energy','look','eyeOpen','skin']) locations[key]=gl.getUniformLocation(program,key);
+    for (const key of ['time','squash','lift','tilt','hatTilt','layer','energy','look','eyeOpen','skin','eyeTex']) locations[key]=gl.getUniformLocation(program,key);
     const points=[], indices=[], n=64;
     for(let y=0;y<=n;y++) for(let x=0;x<=n;x++) points.push(x/n,y/n);
     for(let y=0;y<n;y++) for(let x=0;x<n;x++) { const i=y*(n+1)+x; indices.push(i,i+1,i+n+1,i+1,i+n+2,i+n+1); }
@@ -154,6 +162,7 @@
       host.style.setProperty('--buddy-lift',String(lift/(.22*cfg.liftScale)));
       gl.uniform2f(locations.look,still?0:state.lookX,still?0:state.lookY);
       gl.uniform1i(locations.skin,0);
+      if(eyeTexture){gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,eyeTexture);gl.uniform1i(locations.eyeTex,1);gl.activeTexture(gl.TEXTURE0);}
       for(let layer=0;layer<2;layer++){gl.uniform1f(locations.layer,layer);gl.bindTexture(gl.TEXTURE_2D,textures[layer]);gl.drawElements(gl.TRIANGLES,indices.length,gl.UNSIGNED_SHORT,0);}
       state.frames++;
     }
@@ -170,16 +179,17 @@
         state.lookX+=(x-state.lookX)*(1-Math.exp(-dt*5));state.lookY+=(y-state.lookY)*(1-Math.exp(-dt*5));
         const hatTarget=-state.lookX*.09+Math.sin(t*1.9)*.025;
         state.hatV+=(hatTarget-state.hat)*45*dt;state.hatV*=Math.exp(-dt*6);state.hat+=state.hatV*dt;
-        if(t>=state.nextBlink){state.blinkAt=t;state.nextBlink=t+2.5+Math.random()*3.5;}
+        if(t>=state.nextBlink){state.blinkAt=t;state.nextBlink=t+4+Math.random()*4;}
         const b=t-state.blinkAt;
-        state.eye=b>=0&&b<.26?1-.96*Math.sin(Math.PI*b/.26):1;
+        state.eye=b>=0&&b<.42?1-.96*Math.sin(Math.PI*b/.42):1;
         render();
       }
       raf=requestAnimationFrame(tick);
     }
     reduced.addEventListener('change',()=>{state.hat=0;state.hatV=0;render();});
     canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();fallback.hidden=false;canvas.hidden=true;host.dataset.state='static';});
-    Promise.all([texture(cfg.body),texture(cfg.accessory)]).then(ts=>{textures.push(...ts);if(disposed)return;state.ready=true;fallback.hidden=true;canvas.hidden=false;resize();}).catch(error=>{host.dataset.state='static';console.error(error);});
+    let eyeTexture=null;
+    Promise.all([texture(cfg.body),texture(cfg.accessory),texture('eye.png')]).then(([b,a,e])=>{textures.push(b,a);eyeTexture=e;if(disposed)return;state.ready=true;fallback.hidden=true;canvas.hidden=false;resize();}).catch(error=>{host.dataset.state='static';console.error(error);});
     raf=requestAnimationFrame(tick);
     function dispose(){disposed=true;cancelAnimationFrame(raf);observer.disconnect();visible.disconnect();gl.getExtension('WEBGL_lose_context')?.loseContext();}
     window.addEventListener('pagehide',dispose,{once:true});
