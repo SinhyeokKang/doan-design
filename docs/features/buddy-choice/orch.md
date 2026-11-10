@@ -43,3 +43,6 @@
 - A: `33560211`. 2.3 probe 66건이 통과했다. 리뷰 1회차는 🔴 0·🟡 1이었다. 빠진 실측은 Send hover·pressed의 아이콘·스피너 색과 실제 턴의 Stop·Queue다. 수정 워커 `ctx_b3cac4b00964`에 보냈다(기존 터미널 재사용이 `agent_unconfigured`로 실패해 새로 띄웠다).
 - A: 수정 1회차에서 빠진 실측 64건이 통과했다. Stop·Queue는 대화 IPC를 대체한 running turn으로 쟀다(conductor 승인, renderer·CSS는 실제 코드). 코드 변경이 없어 다시 리뷰하지 않고 `65fc96ce`로 통합했다.
 - B: `04da0380`, `85993966`. Codex 리뷰가 사용량 한도로 멈춰 중단했고, Claude 리뷰 `ctx_02e64be312cd`로 다시 돌린다.
+- B 리뷰(Claude)는 🔴 0·🟡 2·❓ 1이었다. `04da0380`·`85993966`을 `e43f7eb1`·`e44e6614`로 통합했다. ❓(기존 사용자용 버디 화면의 main 판단·IPC·잠금 담당)는 B 2라운드에 맡겼다 — conductor 판단, B가 `index.ts`와 preferences를 소유한다. App 잠금 연결과 App 테스트 16개의 스텁 한 줄도 B가 한다.
+- 통합 HEAD `e44e6614`(A·B·E)에서 `verify.mjs`가 PASS다.
+- C `ctx_6790d806da1a`(`buddy-rig`)를 띄웠다. 미뤄 둔 3.4 `/runtime-test`를 C가 먼저 돌려 통과했다. 콘텐츠가 처음 그려지는 rAF에서 `data-buddy`와 `--buddy-9`가 저장된 버디(popo, dori) 값이었고, 첫 로드와 재로드 모두 같았다.
