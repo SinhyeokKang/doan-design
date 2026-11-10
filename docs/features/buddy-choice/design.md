@@ -8,7 +8,7 @@
 - **에셋**: `.doan/assets/buddies/<id>/`(원본), `app/src/renderer/public/buddies/<id>/`(친구 앱 사본). Doany 앱 사본은 `public/doany/`에 그대로 둔다.
 - **Welcome**: `Onboarding.tsx`의 Welcome(Doany, `.ob-atmosphere` 제거, 단체 사진), `styles.css`의 Welcome 규칙, `public/onboarding-grain.svg`(쓰는 곳이 없어지면 지움), `public/buddies/group/`(단체 사진 앱 사본).
 - **설치 디스크**: `app/resources/installer-background.png`·`@2x`, `app/package.json` `build.dmg`(`contents` 좌표).
-- **캔버스**: `.doan/canvases/buddy-accent.html`, `buddy-choice.html`, `buddy-home.html`, `buddy-welcome.html`, `buddy-installer.html`.
+- **캔버스**: `.doan/canvases/buddy-accent.html`, `buddy-choice.html`, `buddy-home.html`, `buddy-welcome.html`, `buddy-installer.html`, `buddy-assets.html`(버디별 에셋 모음과 모션 미리보기).
 
 ## 에셋 구조
 
@@ -33,6 +33,7 @@ Doany 에셋 목록(현재):
   still.png        1254² RGBA, 투명 배경, 그림자 없는 정지 이미지
   body.png         1254² RGBA, still과 같은 좌표, 눈과 소품을 지우고 가려진 몸통을 복원
   accessory.png    1254² RGBA, still과 같은 좌표, 소품만
+  shadow.png       1254² RGBA, still과 같은 좌표, 카드의 접지 그림자만(검정 + 알파). Doany도 buddies/doany/shadow.png로 둔다
   artist.gif       512², 그림 그리는 작업 안내 애니메이션. 받은 GIF의 프레임별 크기·위치를 첫 프레임에 맞춘 것
   artist-original.gif  받은 GIF 원본(사람이 제작)
   artist-rest.png  512², artist.gif 첫 프레임
@@ -40,10 +41,10 @@ Doany 에셋 목록(현재):
 리그 수치, 소스 박스, 검증 결과는 버디별 파일이 아니라 .doan/assets/buddies/README.md에 버디마다 적는다.
 
 app/src/renderer/public/buddies/<id>/   친구 앱 사본
-  still.png  body.png  accessory.png   (원본과 같은 바이트)
+  still.png  body.png  accessory.png  shadow.png   (원본과 같은 바이트)
   card.png                             (588², 선택 카드에 196px로 그리는 크기의 3배)
   artist.gif  artist-rest.png          (소스 박스로 자르고 128²로 줄인 것, Doany와 같은 방법)
-public/buddies/doany/card.png           Doany 카드 앱 사본만 여기 둔다
+public/buddies/doany/card.png  shadow.png   Doany 카드와 그림자 앱 사본만 여기 둔다
 ```
 
 - Doany 앱 사본(`public/doany/`)은 옮기지 않는다. `doany.golden.json`의 trace가 텍스처 파일 이름(`hat.png`)을 기록하고, `doanyRender.test.ts`, `.doan/config.json` serve 경로, 여러 캔버스가 그 경로를 읽기 때문이다. 레지스트리가 버디마다 에셋 경로를 가지므로 경로를 하나로 맞출 필요가 없다.
@@ -67,8 +68,8 @@ public/buddies/doany/card.png           Doany 카드 앱 사본만 여기 둔다
 - 이유: `Doany.test.tsx`는 WebGL 호출 trace(셰이더 소스 문자열, uniform 위치 조회)를 `doany.golden.json`과 정확히 비교하고, `doanyRender.test.ts`는 그 소스에서 정규식으로 앵커를 꺼낸다. golden 생성기는 저장소에 없다(ARCHITECTURE §7 'Doany (mascot)'). 수치를 draft 표기 그대로(`.421`, `.10`) 레지스트리에 문자열로 두면 Doany의 소스와 trace가 바이트 단위로 같아 golden을 건드리지 않는다.
 - 수치: 눈 중심 2개와 반지름(`.421,.550`·`.619,.550`·`.035,.056`), 눈 하이라이트 y(`.523`, 눈 중심 y에서 `.027` 위), 시선 오프셋(`.018,.014`), 몸통 skew(`.018`), 몸통 pivot(`.5,.60`), 소품 pivot(`.67,.30`), scale `1.34`, 중립 오프셋 `.10`, 폴백 padding `16.5%`, 소품 기울기 범위(`BERET_TILT`, 버디별 이름은 accessory tilt), 홉 높이 배율(`LIFT_SCALE`).
 - `doanyRender.test.ts`는 버디마다 소스를 만들어 같은 정규식으로 검사한다. 친구의 소품 기울기 범위와 홉 headroom은 같은 방식으로 정한다. 모든 누름 순서에서 캔버스 가장자리와 1.4 device px 이상 떨어져야 한다.
-- **바닥 그림자**: 선택 카드처럼 버디 발밑에 접지 그림자를 둔다. 이미지(still, body)에 굽지 않는다. 구우면 홉할 때 그림자도 함께 떠오르기 때문이다. 슬롯 안에서 캔버스·정지 이미지 뒤에 있는 CSS 요소(`.buddy-shadow`, `aria-hidden`)로 그리고, 리그는 프레임마다 홉 높이를 0–1로 나눈 값을 `--buddy-lift`로 슬롯에 쓴다. 그림자는 lift 1에서 크기 55%, 불투명도 40%가 된다. WebGL 호출은 그대로라 `doany.golden.json`이 바뀌지 않는다. reduced motion과 정지 이미지 폴백에서는 lift 0으로 같은 그림자를 보인다. 모양: 접지 폭 × 1.3 너비, 6:1 타원, 가운데 `--neutral-12` 34% → 55% 지점 14% → 투명, blur 0.6px. 기준은 `.doan/canvases/buddy-home.html`의 `.buddy-shadow` 규칙이다.
-- **접지 수치**(버디별 리그 수치, 1254² still의 UV): 접지 중심 x, 알파 바닥 y, 바닥에서 50px 위 알파 폭. Doany는 `.458`, `.941`, `.447`(`v2/doany.png`에서 측정). 친구는 still.png가 생기면 같은 방법으로 잰다(tasks 1.5, 1.6).
+- **바닥 그림자**: 선택 카드처럼 버디 발밑에 접지 그림자를 둔다. 그림자는 버디별 `shadow.png` 레이어다(카드의 접지 그림자를 떼어 내고 몸통에 가린 부분을 채운 것, still과 같은 좌표). still·body에 굽지 않는다. 구우면 홉할 때 그림자도 함께 떠오르기 때문이다. 슬롯 안에서 still과 같은 박스·16.5% 패딩으로 캔버스와 정지 이미지 뒤에 두는 `<img>`(`aria-hidden`)이고, 리그는 프레임마다 홉 높이를 0–1로 나눈 값을 `--buddy-lift`로 슬롯에 쓴다. 그림자는 접지점을 중심으로 lift 1에서 크기 55%, 불투명도 40%가 된다. WebGL 호출은 그대로라 `doany.golden.json`이 바뀌지 않는다. reduced motion과 정지 이미지 폴백에서는 lift 0으로 같은 그림자를 보인다. 컴포넌트가 정지 이미지를 첫 `img`로 찾는다면 그림자 `img`는 그 뒤에 둔다. 기준은 `.doan/canvases/buddy-assets.html`의 모션 미리보기와 `buddy-home.html`의 `.buddy-shadow-image`다.
+- **접지 수치**(버디별 리그 수치, 1254² still의 UV): 그림자가 줄어드는 중심인 접지 중심 x와 알파 바닥 y, 그리고 바닥에서 50px 위 알파 폭. Doany는 `.458`, `.941`, `.447`(`v2/doany.png`에서 측정), Puri는 `.498`, `.847`, `.672`다.
 - 컴포넌트 이름 `Doany`는 `Buddy`로 바꾸고 `buddy` prop을 받는다. 버디가 바뀌면 `key={buddy}`로 다시 마운트한다(마운트마다 컨텍스트를 만들고 해제하는 기존 규칙, ARCHITECTURE §7 'Doany (mascot)'). 접근성 이름은 "Make <이름> hop"이다.
 - 친구의 `still.png`나 텍스처를 읽지 못하면 Doany와 같이 정지 이미지로 떨어지고, 정지 이미지도 없으면 그 자리를 비운다. 레지스트리의 모든 에셋 경로가 실제로 있는지는 테스트로 막는다(tasks 3.2).
 

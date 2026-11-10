@@ -27,10 +27,10 @@
 
 ### 1단계 — 버디 에셋
 
-1. 친구 4명마다 Doany와 같은 구조의 에셋이 있다(design.md '에셋 구조'): 선택 카드 이미지(`card.png`), 투명 정지 이미지, 눈 없는 몸통 레이어, 소품 레이어, 리그 수치, 정지 이미지·레이어의 출처 프롬프트, 작업 안내 GIF 1종(artist)과 그 첫 프레임 PNG. Doany의 카드 이미지는 원본 정지 이미지 기준으로 다시 그린 것이다.
+1. 친구 4명마다 Doany와 같은 구조의 에셋이 있다(design.md '에셋 구조'): 선택 카드 이미지(`card.png`), 투명 정지 이미지, 눈 없는 몸통 레이어, 소품 레이어, 바닥 그림자 레이어(Doany 포함 다섯 모두), 리그 수치, 정지 이미지·레이어의 출처 프롬프트, 작업 안내 GIF 1종(artist)과 그 첫 프레임 PNG. Doany의 카드 이미지는 원본 정지 이미지 기준으로 다시 그린 것이다.
 2. 몸통 레이어 위에 소품 레이어를 합성한 그림이 눈 영역을 빼면 정지 이미지와 알파 경계에서 1px(1254² 원본 기준) 안에서 맞는다. 눈 중심과 반지름은 Doany처럼 정지 이미지의 눈과 UV `.003` 안에서 맞는다(`doanyRender.test.ts`의 Doany 기준과 같은 방식).
 3. 작업 안내 GIF는 다섯 버디가 32px 창에서 비슷한 크기와 위치로 보인다. 소스 박스를 정한 방법과 수치는 `.doan/assets/buddies/README.md` 'Working-notice source boxes'에 있다.
-4. 사람이 `.doan/canvases/buddy-choice.html`과 `buddy-home.html`에서 다섯 버디의 정지 이미지, 카드, 작업 안내 GIF를 확인했다.
+4. 사람이 `.doan/canvases/buddy-choice.html`, `buddy-home.html`, `buddy-assets.html`에서 다섯 버디의 정지 이미지, 카드, 작업 안내 GIF, 모션 미리보기를 확인했다.
 
 ### 2단계 — accent 동적 변경
 
