@@ -22,6 +22,9 @@ AGENTS.md 'Commands'에 없는 확인 명령(`file`, `rg`, 측정 스크립트)�
   - 확인: 1.5와 같다. 버디 4개의 이미지 용량 합을 재서 사람에게 보고하고, 해상도를 줄일지 묻는다.
   - ⎯ 커밋: 버디마다 `docs(design): <id> buddy layers`
 
+- [x] **1.7 Welcome·설치 디스크 초안.** `.doan/canvases/buddy-welcome.html`(Bottom bleed, 780·600)과 `buddy-installer.html`(사진·아이콘 가로 배열·문장)을 그렸고, 사람이 두 안을 확정했다. 단체 사진은 `.doan/assets/buddies/group/`에 있다.
+  - 확인: `doan check --json --repo .`에 두 캔버스의 finding이 없다. 780·600에서 다섯 버디의 눈이 모두 보이는 것을 스크린샷으로 확인했다.
+
 ## Codex 워커 인계 (1.4b, 1.5, 1.6)
 
 사용자가 이 기능의 에셋 이미지 제작에 한해 Claude lead가 Codex 워커를 쓰도록 허락했다(AGENTS.md 'Worker model boundary'). 워커는 아래만 읽으면 이어서 작업할 수 있다.
@@ -79,12 +82,19 @@ AGENTS.md 'Commands'에 없는 확인 명령(`file`, `rg`, 측정 스크립트)�
     - 트랙패드: 실제 트랙패드로 한 번 스와이프에 한 칸, 빠른 두 번 스와이프의 동작을 사람이 확인한다.
   - ⎯ 커밋: `feat(app): buddy choice in first run and settings`
 
+- [ ] **3.6 Welcome 단체 사진.** design.md 'Welcome'대로 Welcome의 Doany와 `.ob-atmosphere`(글로우, grain 포함)를 지우고 단체 사진을 넣는다. 단체 사진 앱 사본을 `public/buddies/group/`에 넣고, 쓰는 곳이 없어진 `onboarding-grain.svg`를 지운다. `ds/checks.test.ts`의 `violetAllowed`에서 Welcome atmosphere 항목을 빼고, `--violet-*`를 직접 읽는 곳이 없다는 검사로 바꾼다. `Onboarding.test.tsx`의 Welcome 마크업 순서·CSS 테스트를 새 구조(워드마크, 문장, Get started, 사진)로 고친다.
+  - 확인: `npm --prefix app test`, `npm --prefix app run typecheck`가 통과한다. `/design-sync`로 `buddy-welcome.html`의 두 프레임과 1238 × 780, 1238 × 600에서 맞춘다. 열 때 제목에 포커스가 있고 Tab이 Get started로 간다.
+  - ⎯ 커밋: `feat(app): group photo on Welcome`
+- [ ] **3.7 설치 디스크.** design.md '설치 디스크'대로 `app/resources/installer-background.png`(640 × 536)와 `@2x`(1280 × 1072)를 만들고, `app/package.json` `build.dmg.contents`를 Doan (200, 306), Applications (440, 306)으로 바꾼다.
+  - 확인: `npm --prefix app run package`로 만든 앱으로 dmg를 만들어 열고(만드는 명령은 정하지 않았다, command undecided — 사용자 확인 필요), 문장이 Finder 막대에 가리지 않는지, 창 크기, 라이트·다크 모드의 라벨 색을 사람이 확인한다. 가리면 배경 높이를 늘린다.
+  - ⎯ 커밋: `feat(app): group photo installer disk`
+
 ## 마지막
 
 - [ ] **4.1 승격과 삭제.**
-  - PRODUCT: §3 In scope에 버디 선택과 accent 개인화 한 줄을 추가한다. §2(첫 실행 설명), §3 In scope 7의 첫 실행 순서, §5 item 0 'First run'과 기존 사용자용 버디 화면, 'Settings page' 카테고리, 'Settings storage' 저장 항목, §5 item 1 'Doany', 'Agent indicator'를 현재 규칙으로 고친다.
-  - ARCHITECTURE: §7 'Doany (mascot)', 'Preferences', 'First-run onboarding', ds 규칙을 고친다.
-  - DESIGN.md: 'Accent ramp', 'Accent places'(배정 표와 선택 카드), 'Three colour layers'(버디 palette), Home Send, Home 접근성 이름을 고친다. `/design-sync` 결과를 기록한다.
+  - PRODUCT: §3 In scope에 버디 선택과 accent 개인화 한 줄을 추가한다. §2(첫 실행 설명), §3 In scope 7의 첫 실행 순서, §5 item 0 'First run'과 기존 사용자용 버디 화면, 'Settings page' 카테고리, 'Settings storage' 저장 항목, §5 item 1 'Doany'(Welcome 언급 삭제), 'Agent indicator'와 §5 item 0 'First run'의 Welcome 단체 사진을 현재 규칙으로 고친다.
+  - ARCHITECTURE: §7 'Doany (mascot)', 'Preferences', 'First-run onboarding', ds 규칙, §9 'Installer disk'를 고친다.
+  - DESIGN.md: 'Accent ramp', 'Accent places'(배정 표와 선택 카드, Welcome atmosphere 삭제), 'Three colour layers'(버디 palette), Home Send, Home 접근성 이름, Welcome 행들을 고친다. `/design-sync` 결과를 기록한다.
   - DIRECTORY.md: `.doan/assets/buddies/`, `public/buddies/`를 추가한다.
   - `.doan/assets/buddies/README.md`와 `public/doany/README.md`가 feature 문서를 가리키지 않게 고친다. 그런 다음 `docs/features/buddy-choice/`를 지운다.
   - 확인: `rg -n 'docs/features/buddy-choice' docs app/src .doan .agents README.md`가 아무것도 찾지 않는다. `node .agents/skills/verify/scripts/verify.mjs`가 통과한다.

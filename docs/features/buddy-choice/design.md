@@ -6,7 +6,9 @@
 - **app (main/preload)**: `preferences.ts`(`buddy` 필드), 창을 만들 때 버디 id를 넘기는 경로(`index.ts`, preload).
 - **CLI·스킬·소켓**: 바뀌지 않는다.
 - **에셋**: `.doan/assets/buddies/<id>/`(원본), `app/src/renderer/public/buddies/<id>/`(친구 앱 사본). Doany 앱 사본은 `public/doany/`에 그대로 둔다.
-- **캔버스**: `.doan/canvases/buddy-accent.html`, `buddy-choice.html`, `buddy-home.html`.
+- **Welcome**: `Onboarding.tsx`의 Welcome(Doany, `.ob-atmosphere` 제거, 단체 사진), `styles.css`의 Welcome 규칙, `public/onboarding-grain.svg`(쓰는 곳이 없어지면 지움), `public/buddies/group/`(단체 사진 앱 사본).
+- **설치 디스크**: `app/resources/installer-background.png`·`@2x`, `app/package.json` `build.dmg`(`contents` 좌표).
+- **캔버스**: `.doan/canvases/buddy-accent.html`, `buddy-choice.html`, `buddy-home.html`, `buddy-welcome.html`, `buddy-installer.html`.
 
 ## 에셋 구조
 
@@ -74,7 +76,7 @@ public/buddies/doany/card.png           Doany 카드 앱 사본만 여기 둔다
 
 - **palette**: `--violet-*` 옆에 친구 램프 4개(`--puri-*`, `--dungdung-*`, `--popo-*`, `--dori-*`)가 이미 있다(`tokens.css`, `/design-draft`에서 추가). sky·amber·green은 이미 다른 palette 색 이름이라 버디 이름을 쓴다. 각각 1–12단계, pressed, link, icon 값이다. 만드는 방법은 `tokens.css` 주석과 `buddy-accent` 캔버스 머리말에 있다. Puri는 hue를 168로, Popo는 42로 옮겨 성공 초록·오류 빨강과 구분했다. Dungdung은 1–6단계 채도를 violet의 2.2배(7–8단계 1.6배)로 올렸다. Popo만 9단계를 흰색 3:1까지 어둡게 했다.
 - **전환층**: 이름은 `--buddy-*`다. legacy `--accent`, `--accent-ink`, `--accent-soft`, `--accent-line`(회색 등)과 섞이지 않게 접두사를 따로 둔다. role이 실제로 읽는 단계만 둔다(2, 3, 4, 9, 10, 11, 12, pressed, contrast, icon). `:root`는 violet을 가리키고, `:root[data-buddy="puri"]` 등이 각 램프로 덮어쓴다. role(`--affordance-accent`, `--surface-accent-subtle`, `--text-accent-subtle`, `--surface-comment` 등)은 `--violet-*` 대신 `--buddy-*`를 읽는다. `--surface-sidebar-selected`·`--text-sidebar-selected`·`--affordance-sidebar-hover`(쓰는 곳 없음, DESIGN 'Open decisions')는 violet에 그대로 둔다.
-- **Welcome**: 항상 Doany와 violet이다. `.ob-atmosphere`의 `var(--affordance-accent)`를 `var(--violet-9)`로 바꿔 직접 읽는다. `::before`는 이미 `--violet-5`를 읽는다.
+- **Welcome**: 최종적으로 accent를 읽지 않는다('Welcome' 절). 2단계에서는 `.ob-atmosphere`의 `var(--affordance-accent)`를 `var(--violet-9)`로 바꿔 직접 읽게 해서 Welcome이 버디 accent를 따라가지 않게 한다(`::before`는 이미 `--violet-5`를 읽는다). `.ob-atmosphere`는 3.6에서 지운다.
 - **아이콘 색**: 새 role `--text-accent`(= `--buddy-icon`)를 둔다. 친구는 `--<id>-icon`, Doany는 `--violet-9`다. 9단계를 OKLCH 명도로 어둡게 해서, 이 색이 놓이는 가장 어두운 면인 눌린 사이드바 행(`--bg-app` 위 `--affordance-backdrop-pressed`, #d9d9da)에서 3:1이 되게 한 색이다. violet은 그 면에서 3.70:1이다.
 - **Accent places 배정**: DESIGN 'Accent places'의 모든 항목을 다음 셋 중 하나로 배정하고, 그 표를 DESIGN.md에 둔다(tasks 2.2).
   - 9단계 채움·글로우·그라데이션(`--affordance-accent`): Home Send, composer 글로우, 캔버스 작업 글로우, jump highlight 선·글로우, 대화 패널 resize bar, 사람 메시지 버블, 선택 카드 글로우.
@@ -82,7 +84,7 @@ public/buddies/doany/card.png           Doany 카드 앱 사본만 여기 둔다
   - 칩 글자(3단계 위 11단계): 프리셋 칩, 추천 프롬프트 이름 강조, 앵커 칩, skill word, 버블 프리셋 줄.
 - **Send**: 아이콘과 스피너는 흰색이 9·hover·pressed 모두에서 3:1을 넘으면 흰색을 쓴다(Doany 5.21:1 이상, Popo 3.02:1 이상, Dori 3.20:1 이상). 넘지 못하면 중립 잉크 `--text-standard`를 쓴다(Puri 2.32:1, Dungdung 2.05:1). `--text-on-accent`는 전환층에서 버디마다 정한다. Send는 아이콘만 있는 버튼이라 검사 종류를 글자(4.5:1 + APCA Lc 60)에서 비텍스트(3:1)로 바꾼다. Send를 함께 쓰는 docked composer의 Stop과 Queue도 같은 잉크를 쓴다.
 - **적용**: renderer가 `<html data-buddy="<id>">`를 설정한다. Doany는 속성이 없다. `@theme inline`이 accent를 shadcn 이름에 연결하지 않는다는 규칙(ARCHITECTURE §7 ds)은 violet에서 모든 버디 palette와 `--buddy-*`로 넓힌다.
-- **검사**: `ds/checks.ts`의 `rootTokens`는 지금 `:root`로 시작하는 블록을 모두 합친다. 그래서 `rootTokens(css, buddy?)`로 바꾼다. 기본은 순수 `:root`만 읽고, 버디를 주면 `:root[data-buddy="<id>"]`를 그 위에 덮는다. `contrastPairs`와 `rolePairs`는 버디를 하나씩 넣어 다섯 번 돈다. 검사 항목은 칩 글자(3 위 11단계, 4.5:1), 아이콘 색(눌린 사이드바 행 위 3:1), Send 잉크(9·hover·pressed 위 3:1, nontext)다. `violetNames`·`accentPlaces`는 모든 버디 palette와 `--buddy-*`를 추적하고, `--violet-*`를 직접 읽는 곳은 `.ob-atmosphere`(Welcome)만 허용한다. 램프 값은 palette 리터럴로 두고, 램프를 다시 계산하는 함수는 앱 코드에 두지 않는다. 기준은 `contrastPairs`가 고정한다.
+- **검사**: `ds/checks.ts`의 `rootTokens`는 지금 `:root`로 시작하는 블록을 모두 합친다. 그래서 `rootTokens(css, buddy?)`로 바꾼다. 기본은 순수 `:root`만 읽고, 버디를 주면 `:root[data-buddy="<id>"]`를 그 위에 덮는다. `contrastPairs`와 `rolePairs`는 버디를 하나씩 넣어 다섯 번 돈다. 검사 항목은 칩 글자(3 위 11단계, 4.5:1), 아이콘 색(눌린 사이드바 행 위 3:1), Send 잉크(9·hover·pressed 위 3:1, nontext)다. `violetNames`·`accentPlaces`는 모든 버디 palette와 `--buddy-*`를 추적하고, `--violet-*`를 직접 읽는 곳은 2단계에서는 `.ob-atmosphere`(Welcome)만 허용하고, 3.6에서 그것을 지운 뒤에는 하나도 허용하지 않는다. 램프 값은 palette 리터럴로 두고, 램프를 다시 계산하는 함수는 앱 코드에 두지 않는다. 기준은 `contrastPairs`가 고정한다.
 - 캔버스 초안은 `tokens.css`를 직접 링크하고 `data-buddy`가 없으므로 지금처럼 violet이다.
 
 ## 설정과 첫 페인트
@@ -98,7 +100,7 @@ public/buddies/doany/card.png           Doany 카드 앱 사본만 여기 둔다
 - `Scene`에 `"buddy"`를 추가한다. Welcome의 Get started는 Buddy로 간다. Buddy의 Continue는 Agent로 간다(auth와 무관). Agent의 Back은 Buddy로 가고, Buddy의 Back은 Welcome으로 간다. Agent에서 Buddy로 갈 때도 지금 Welcome으로 갈 때처럼 `sceneMover.back()`을 거친다. 스텝퍼는 3단계다(Buddy · Agent · Project). Buddy 단계에서는 Agent 알약으로 앞으로 갈 수 있고, Project 알약은 지금 규칙(준비된 agent가 있어야 함)을 따른다. 완료한 단계는 체크 표시가 붙고 다시 돌아갈 수 있다. Escape는 아무것도 하지 않는다.
 - 단계에 들어오면 저장된 버디(없으면 Doany)가 선택된 채 가운데에 있다. 포커스는 다른 단계처럼 제목에 둔다. Tab 순서는 radiogroup → (Retry) → Back → Continue다. radiogroup의 이름은 보이는 제목 "Choose your buddy"다(`aria-labelledby`).
 - 고르면 즉시 저장하고 accent도 즉시 바뀐다. Continue는 항상 누를 수 있다. 저장에 실패하면 줄이 저장된 버디로 돌아가고, 줄 아래에 첫 실행의 패널 notice(Agent 단계 목록 notice와 같은 `doan-notice doan-panel`)로 "Couldn’t switch to <고른 버디>. <저장된 버디> is still your buddy."와 Retry(접근성 이름 "Switch to <고른 버디> again")가 나온다. 실패는 `.ob-live`가 한 번 읽고, notice에는 live role을 두지 않는다. Retry는 고른 버디를 다시 저장한다. Retry가 성공하면 notice를 지우고 포커스를 체크된 라디오로 옮긴다. 실패하면 포커스를 Retry에 둔다. 진행 중에도 버튼을 비활성화하지 않는다. notice는 다음 저장이 성공하거나 단계를 떠날 때 지운다. Continue는 저장된 버디로 진행하고, 저장이 끝나기 전에 Continue를 눌렀다가 실패하면 accent만 저장된 버디로 조용히 되돌린다.
-- 첫 실행을 다시 시작하면 Welcome부터 시작한다. Welcome은 버디를 고르기 전 화면이라 저장된 버디와 상관없이 Doany와 violet을 보여준다.
+- 첫 실행을 다시 시작하면 Welcome부터 시작한다. Welcome은 저장된 버디와 상관없이 단체 사진을 보여준다('Welcome' 절).
 - 선택지 UI는 Cover Flow 한 줄이고, 순서는 Popo · Puri · Doany · Dungdung · Dori다. 줄은 순환하지 않고 양끝에서 멈춘다. 카드 5장마다 그림, 이름, 성격 한 줄이 함께 있다. 고른 카드가 가운데에서 정면을 보고, 나머지는 가운데를 향해 기울어진 채 뒤로 겹친다. 카드 오프셋은 인덱스 차이로 계산한다. 넘기는 입력(카드 클릭, ←/→와 ↑/↓, 가로 스크롤: 트랙패드 가로 스와이프 또는 Shift+마우스 휠)은 모두 하나의 select를 거친다. select는 라디오를 체크하고, 저장하고, 줄을 옮긴다. 방향키는 네이티브 라디오의 순환을 막아 양끝에서 멈춘다. 가로 스크롤은 한 제스처에 한 칸만 넘긴다. Return은 그룹 안에서 아무것도 하지 않는다. 라디오의 이름은 버디 이름, 설명은 성격 한 줄이다(`aria-labelledby`, `aria-describedby`). forced colors에서는 선택 카드에 2px `outline`(Highlight)을 준다. box-shadow 테두리와 글로우가 사라지기 때문이다. 치수는 캔버스 머리말에 있다.
 - 포커스와 모달: 이 단계도 기존 wizard `<dialog>` 안에 있다. POSTMORTEM 2026-10-24('The onboarding wizard lost keys and clicks to focus and modal stacking')를 따른다. 키는 window에서 처리하고, 컨트롤이 비활성화될 때 포커스가 `<body>`로 빠진다고 가정한다.
 
@@ -117,6 +119,21 @@ public/buddies/doany/card.png           Doany 카드 앱 사본만 여기 둔다
 ## 작업 안내
 
 `DoanyArtist`를 `BuddyArtist`로 바꾼다. 레지스트리에서 고른 버디의 변형 목록을 읽는다. Doany는 3종 중 무작위로 고르고, 친구는 1종이다. 안내가 떠 있는 동안 버디가 바뀌면 떠 있는 안내도 즉시 새 버디의 GIF로 바꾼다(Doany로 바뀌면 새로 무작위). 같은 버디인 동안에는 고른 변형을 유지하는 지금 규칙을 그대로 쓴다. 정지 프레임(대기, 숨김, reduced motion) 규칙도 그대로다.
+
+## Welcome
+
+- 기준: `.doan/canvases/buddy-welcome.html`의 `bleed-bottom-780`, `bleed-bottom-600`. 지금 Welcome의 Doany, `.ob-atmosphere`(pigment horizon, `::before` 글로우, grain `::after`)를 지운다. 바탕은 `--surface-panel`(흰색) 하나다.
+- 글자: 워드마크, 문장, Get started의 크기와 스타일은 지금과 같다. 간격만 바뀐다. 워드마크 → 문장 16(지금 24), 문장 → Get started 24(지금 40). 글자 묶음은 가운데 정렬이고, 위쪽은 크롬 아래 24(780 이상), 600(최소 높이)에서 16이다. 그 사이 높이는 선형으로 잇는다.
+- 단체 사진: Get started 아래 약 43(사진 박스 기준, 베레모까지 약 56)에서 시작하고 가로 가운데에 둔다. 너비는 Get started 아래 남은 높이의 약 2.3배, 최대 960이다(780 → 960, 600 → 540). 아래 가장자리에서 잘리며(780에서 약 22%), 어느 높이에서도 다섯 버디의 눈이 보인다. 사진 배경은 흰색으로 채워져 있어 흰 바탕 위에 그대로 놓는다(캔버스는 `multiply`를 쓰지만 앱에는 필요 없다). `alt`는 "Doany, Puri, Dungdung, Popo and Dori together"다.
+- 에셋: `.doan/assets/buddies/group/group.png`(1478 × 789, 원본 `group-original.png` 1536 × 1024를 다듬음)를 앱 사본으로 쓴다. 960 너비를 2배 밀도로 그리려면 1920px이 필요한데 원본이 1478px이라 레티나에서 약간 흐릴 수 있다. 더 큰 원본이 있으면 바꾼다.
+- 포커스와 접근성: Doany 버튼이 없어지므로 열 때 제목에 포커스를 두는 규칙은 그대로이고, Tab 순서는 제목 → Get started다. `openOverlay`가 `showModal()` 직후 제목에 포커스를 주는 이유(Doany가 먼저 포커스를 받음)는 사라지지만, 동작은 그대로 둔다. Enter로 Doany를 홉하는 동작은 없어진다.
+- 숨기는 동안과 reduced motion에서 따로 할 일은 없다(정지 이미지 하나).
+
+## 설치 디스크
+
+- 기준: `.doan/canvases/buddy-installer.html`의 `installer-row-tagline`. 배경 이미지 640 × 536(`@2x` 1280 × 1072)에 흰 바탕, 단체 사진(높이 180, 위에서 44), Doan과 Applications 사이의 가로 화살표, 문장 "A place for your next idea."(24px, 아이콘 라벨 아래 32)를 굽는다. 아이콘, 라벨, 창 제목, 경로·상태 막대는 Finder가 그린다.
+- `build.dmg.contents`: Doan (200, 306), Applications 링크 (440, 306). `iconSize` 88, `iconTextSize` 13은 그대로다.
+- 캔버스의 Applications 폴더와 alias 배지는 macOS 시스템 아이콘을 로컬에서 렌더링한 것이라 커밋하지 않는다(Apple 아트워크). 다시 만드는 명령은 캔버스 노트에 있다.
 
 ## 순수 함수로 분리할 것 (`/tdd` 대상)
 
@@ -139,7 +156,7 @@ public/buddies/doany/card.png           Doany 카드 앱 사본만 여기 둔다
 ## 규칙(conventions) 영향
 
 - 캔버스 규칙과 `doan check` 규칙은 바뀌지 않는다.
-- 디자인 시스템 규칙이 바뀐다. 'violet만 Accent places에서 읽는다'가 '고른 버디의 accent만 Accent places에서 읽는다'로 바뀌고, Welcome만 violet을 직접 읽는다. accent 위 아이콘 잉크는 흰색이 대비를 통과하지 못하는 버디에서만 중립 잉크가 되고, Send는 비텍스트 기준으로 검사한다. accent 아이콘은 버디별 아이콘 색을 쓴다. DESIGN.md를 고친다.
+- 디자인 시스템 규칙이 바뀐다. 'violet만 Accent places에서 읽는다'가 '고른 버디의 accent만 Accent places에서 읽는다'로 바뀌고, Welcome은 accent를 읽지 않는다. accent 위 아이콘 잉크는 흰색이 대비를 통과하지 못하는 버디에서만 중립 잉크가 되고, Send는 비텍스트 기준으로 검사한다. accent 아이콘은 버디별 아이콘 색을 쓴다. DESIGN.md를 고친다.
 
 ## 결정 영향
 
@@ -148,12 +165,15 @@ public/buddies/doany/card.png           Doany 카드 앱 사본만 여기 둔다
 - PRODUCT §5 item 0 'Settings page'의 카테고리 목록과 'Settings storage'의 저장 항목 목록에 General(Buddy)을 넣는다.
 - PRODUCT §5 item 1 'Doany'(마스코트는 Pebble 하나)를 '고른 버디, 기본 Doany'로 바꾼다.
 - PRODUCT §5 'Agent indicator'(Doany at work: painting, typing, reading)를 고른 버디 기준으로 바꾼다.
+- PRODUCT §5 item 1 'Doany'의 "It sits above Home's greeting and Welcome's wordmark"에서 Welcome을 빼고, Welcome의 단체 사진을 §5 item 0 'First run'에 적는다.
+- ARCHITECTURE §9 'Installer disk'(Pigment horizon, Doan above Applications, 아래 150px 규칙, 초안 경로)와 DESIGN.md의 Welcome 행(Welcome, Welcome layout, Welcome Doany and focus, Atmosphere, 'Documented differences from `mascot-welcome`')을 새 Welcome·설치 디스크로 고친다.
 - ARCHITECTURE §7 'Doany (mascot)', 'Preferences', 'First-run onboarding', ds 규칙과 DESIGN.md 'Accent ramp'·'Accent places'·'Three colour layers'·Home Send·Home 접근성 이름을 고친다.
 - ARCHITECTURE의 구조 결정(서빙 범위, sandbox iframe, 토큰, git 명령 등)은 건드리지 않는다.
 
 ## PoC 의존
 
 - **레이어 추출**: image_gen으로 같은 좌표의 몸통·소품 레이어를 만드는 방법은 Doany에서만 확인했다. 소품이 몸통 앞을 감싸는 경우(목도리, 헤드폰)는 확인하지 않았다. 버디 하나(puri)로 먼저 확인한 뒤 나머지 셋을 만든다(tasks 1.5).
+- **설치 디스크 아래쪽**: ARCHITECTURE §9는 640 높이 배경에서 Finder 막대가 아래를 가리므로 글자를 아래 150px 위에 두라고 한다. 새 배경(536 높이)의 문장은 아래에서 105 위에서 끝난다. 실제 dmg에서 문장이 가려지지 않는지, macOS가 주는 창 크기, Finder 다크 모드의 라벨 색을 확인하지 않았다(tasks 3.7).
 - **첫 페인트**: sandbox preload에서 `additionalArguments`로 받은 값을 읽을 수 있는지는 확인하지 않았다(tasks 3.4).
 
 ## 제작 방식
@@ -184,6 +204,21 @@ public/buddies/doany/card.png           Doany 카드 앱 사본만 여기 둔다
 ### `.doan/canvases/buddy-home.html` (id `buddy-home`, width 2560)
 
 버디마다 Home 프레임 하나(`home-doany`, `home-puri`, `home-dungdung`, `home-popo`, `home-dori`). 요청을 입력하고 프리셋을 고른 상태라 Send가 활성화돼 있다. 버디 그림과 accent(composer 글로우, 프리셋 칩, Send, 사이드바 unseen 점)만 바뀐다. 입력 중에는 추천 프롬프트가 숨는다(출시된 동작). Doany는 출시된 정지 이미지를 쓰고, 친구는 투명 정지 이미지가 나오기 전까지 카드 그림을 multiply로 대신 쓴다.
+
+### `.doan/canvases/buddy-welcome.html` (id `buddy-welcome`, width 2704)
+
+| frame | 내용 |
+|---|---|
+| `bleed-bottom-780` | Welcome 1238 × 780, 단체 사진 960 너비 |
+| `bleed-bottom-600` | Welcome 1238 × 600(최소 높이), 단체 사진 540 너비 |
+| `welcome-group-notes` | 지금과 다른 점, 사진 너비 규칙, 간격, 에셋 |
+
+### `.doan/canvases/buddy-installer.html` (id `buddy-installer`, width 2200)
+
+| frame | 내용 |
+|---|---|
+| `installer-row-tagline` | Finder 창 안의 설치 디스크 640 × 536, 실제 아이콘 렌더링 |
+| `installer-notes` | 배경 이미지와 `contents` 좌표, 아이콘 출처, 확인하지 않은 것 |
 
 ### `.doan/canvases/buddy-choice.html` (id `buddy-choice`, width 2560)
 
