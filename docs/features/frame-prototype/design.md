@@ -27,7 +27,7 @@ PRODUCT §3 Show를 단일 프레임 실행으로 확장한다. 사람은 HTML�
 
 ## UI와 회귀 예방
 
-DESIGN.md의 도구 바·프레임 서랍·버블 토큰을 확장한다. 프리셋은 설치된 Doan 0.1.3 `shape`를 읽었다. 서랍은 단일 이동 액션을 유지하며, 도구 바와 버블만 재생한다. 첫 구현은 `/design-draft` 사용자 확인과 `/design-sync`를 거친다.
+DESIGN.md의 도구 바·프레임 서랍·버블 토큰을 확장한다. 프리셋은 설치된 Doan 0.1.3 `shape`를 읽었다. 서랍은 한 행 액션으로 이동과 프레임 선택을 함께 수행하고, 도구 바와 버블만 재생한다. 첫 구현은 `/design-draft` 사용자 확인과 `/design-sync`를 거친다.
 
 - POSTMORTEM 2026-10-22 linked 100vh의 “must carry that input” 규칙에 따라 viewport 측정 세대를 검증한다.
 - POSTMORTEM 2026-10-22 dead board의 “write the e2e step for the document that never sends it” 교훈을 짧은 실제 앱 probe에 적용한다. 응답 없는 문서도 로딩에서 빠져나와야 한다.
