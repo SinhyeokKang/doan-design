@@ -18,7 +18,7 @@ AGENTS.md 'Commands'에 없는 확인 명령(`file`, `rg`, 측정 스크립트)�
   - 확인: 1254² RGB이고, `buddy-choice.html`에서 다섯 카드가 같은 크기로 보인다. 사람이 확인했다(생성 1회).
 - [x] **1.5 정지 이미지·레이어 PoC (Codex 워커, puri).** 투명 `still.png`, `body.png`, `accessory.png`, 카드에서 떼어 낸 `shadow.png`, `prompts.json`을 만들고 README에 리그 수치와 접지 수치를 적었다. still·body·accessory에는 그림자가 없다. 눈 자리 채움은 한 번 다시 했다(주변과 밝기 차 2% 이내, 질감 대비 비율 .85–1.15).
   - 확인: 네 장 모두 1254² RGBA다. `body.png` 위에 `accessory.png`를 합성한 그림이 눈 영역을 빼면 `still.png`와 알파 경계에서 1px(1254² 기준) 안에서 맞는다. 눈 중심과 반지름은 `still.png`의 눈과 UV `.003` 안에서 맞는다. 측정 스크립트와 결과는 워커의 `.scratch/buddy-assets/`에 있다. 사람이 `buddy-assets`의 모션 미리보기로 확인했다(생성 4회).
-- [ ] **1.6 나머지 셋과 Doany 그림자 (Codex 워커).** dungdung, popo, dori도 1.5와 같은 방법으로 `shadow.png`까지 만든다. 목도리와 헤드폰은 소품 기울기 범위를 줄이고, 안경은 0으로 둔다. Doany의 `shadow.png`도 새 카드에서 떼어 낸다. `buddy-home`과 `buddy-assets` 캔버스에 반영한다.
+- [x] **1.6 나머지 셋과 Doany 그림자 (Codex 워커).** dungdung, popo, dori도 1.5와 같은 방법으로 `shadow.png`까지 만든다. 목도리와 헤드폰은 소품 기울기 범위를 줄이고, 안경은 0으로 둔다. Doany의 `shadow.png`도 새 카드에서 떼어 낸다. `buddy-home`과 `buddy-assets` 캔버스에 반영한다.
   - 확인: 1.5와 같다. 소품과 눈 자리를 뺀 곳에서 body가 still과 같다(채널 차 8 이하가 불투명 픽셀의 99.5% 이상). 친구 4명의 레이어 16장은 14.7 MB였고, 사람이 앱 사본을 줄이기로 했다(3.2).
   - ⎯ 커밋: 버디마다 `docs(design): <id> buddy layers`, Doany는 `docs(design): doany buddy shadow`
 
