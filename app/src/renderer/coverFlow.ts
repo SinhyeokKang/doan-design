@@ -23,9 +23,9 @@ export function stepTarget(order: readonly BuddyId[], selected: BuddyId, step: -
 // A horizontal scroll (a trackpad swipe and its momentum, or Shift + a mouse wheel) moves the row continuously, a
 // fraction of a card per event; when the events stop the row snaps to the nearest card and only that card is picked,
 // so the cards passed over are never saved. Arrows and clicks still move one card.
-// Tuned on recorded trackpad swipes (.scratch, 2026-11-10): one fast swipe sends about 3,000 px with its momentum, a
-// fast double swipe about 6,000 px; a gentle swipe a few hundred.
-export const WHEEL_PX_PER_CARD = 1000;
+// Tuned on recorded trackpad swipes: one fast swipe sends about 3,000 px with its momentum, a fast double swipe about
+// 6,000 px, a gentle swipe a few hundred; at 1,000 px a card the person found the row slow.
+export const WHEEL_PX_PER_CARD = 600;
 // Momentum events come every ~16 ms and never pause past ~60 ms, so 160 ms of quiet ends the scroll.
 export const WHEEL_QUIET = 160;
 export const SNAP_MS = 240;
