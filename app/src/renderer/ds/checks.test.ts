@@ -26,16 +26,12 @@ const tokensCss = () => readFileSync(new URL("tokens.css", renderer), "utf8");
 
 // The design's accent places, as exact selectors (or a TS file): a descendant of an
 // allowed row is a new place and has to be listed here on purpose. The .side .row
-// selectors and the Welcome atmosphere read violet itself, not the chosen buddy's accent.
+// selectors read violet itself, not the chosen buddy's accent.
 const violetAllowed = [
   ".side .row:hover",
   '.side .row[aria-current="location"]',
   // Everything drawn inside the current row takes the row's ink.
   '.side .row[aria-current="location"] :is(.g, .glyph, .d, .tw)',
-  // The onboarding Welcome pigment horizon: the violet ellipse and the blurred violet glow under it
-  // (onboarding-welcome-variants frame welcome-horizon). It reads violet directly so Welcome ignores the buddy.
-  ".ob-atmosphere",
-  ".ob-atmosphere::before",
   // Home's Send, the shared accent icon button (doan-home approved draft, 2026-10-29 user).
   '.doan-icon-button[data-ui-variant="accent"]',
   '.doan-icon-button[data-ui-variant="accent"]:hover:not(:disabled)',
@@ -480,11 +476,9 @@ describe("renderer sources", () => {
     expect(found).not.toContain("@theme");
   });
 
-  test("paletteAccentPlaces: only the Welcome atmosphere and the three .side .row selectors read violet around the switch", () => {
+  test("paletteAccentPlaces: nothing reads a buddy palette directly but the three .side .row selectors (Welcome reads no accent)", () => {
     const found = paletteAccentPlaces(rendererSources().filter(file => file.path !== "tokens.css"), tokensCss());
     expect([...found].sort()).toEqual([
-      ".ob-atmosphere",
-      ".ob-atmosphere::before",
       ".side .row:hover",
       '.side .row[aria-current="location"]',
       '.side .row[aria-current="location"] :is(.g, .glyph, .d, .tw)',

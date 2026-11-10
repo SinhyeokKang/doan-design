@@ -16,7 +16,6 @@ import { StorageCard } from "./StorageChoice";
 import { OPERATION_MESSAGES } from "../main/onboarding/operations";
 import { keptLocal, type StorageChoice } from "./storageRules";
 import type { BuddyId } from "./buddies";
-import { Buddy } from "./Doany";
 import type { PreferencesSnapshot } from "../main/preferences";
 import type { BuddySelection } from "./buddySelection";
 import { buddyChoiceOff, buddyFailureText, buddyGate } from "./buddyChoice";
@@ -36,13 +35,18 @@ function openInstallPage(provider: Provider): Promise<boolean> {
   return provider === "antigravity" ? Promise.resolve(false) : window.doan.openInstallPage(provider);
 }
 
+// Welcome (.doan/canvases/buddy-welcome.html): the words on top and the five buddies' group photo running off the
+// bottom edge, the same whatever buddy is saved: no Doany, no WebGL and no accent. A photo that can't be read hides
+// and leaves the words as they are.
 export function Welcome({ start }: { start: () => void }) {
+  const [photo, setPhoto] = useState(true);
   return <div className="ob-welcome-main">
-    <div className="ob-atmosphere" aria-hidden="true"></div>
-    <Buddy buddy="doany" size={142.5} />
-    <div className="ob-wordmark">Doan</div>
-    <h1 tabIndex={-1}>A place for your next idea.<br />Bring it to life on canvas.</h1>
-    <div className="ob-welcome-action"><button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="lg" onClick={start}>Get started<ArrowRight aria-hidden="true" /></button></div>
+    <div className="ob-welcome-copy">
+      <div className="ob-wordmark">Doan</div>
+      <h1 tabIndex={-1}>A place for your next idea.<br />Bring it to life on canvas.</h1>
+      <div className="ob-welcome-action"><button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="lg" onClick={start}>Get started<ArrowRight aria-hidden="true" /></button></div>
+    </div>
+    {photo && <div className="ob-welcome-photo"><img src="buddies/group/group.png" alt="Doan’s five buddies, Doany, Puri, Dungdung, Popo and Dori, huddled together" onError={() => setPhoto(false)} /></div>}
   </div>;
 }
 
