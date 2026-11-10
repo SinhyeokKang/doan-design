@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
-import { accentPlaces, contrastPairs, cssVarUsage, edgeStripes, legacyAliases, nestedRadius, type ContrastPair, type SourceFile } from "./checks";
+import { accentPlaces, buddyIds, contrastPairs, cssVarUsage, edgeStripes, legacyAliases, legacyNames, nestedRadius, paletteAccentPlaces, rootTokens, type ContrastPair, type SourceFile } from "./checks";
 
 const renderer = new URL("../", import.meta.url);
 
@@ -24,15 +24,16 @@ function only<T>(list: T[]): T {
 
 const tokensCss = () => readFileSync(new URL("tokens.css", renderer), "utf8");
 
-// The design's violet rows, as exact selectors (or a TS file): a descendant of an
-// allowed row is a new place and has to be listed here on purpose.
+// The design's accent places, as exact selectors (or a TS file): a descendant of an
+// allowed row is a new place and has to be listed here on purpose. The .side .row
+// selectors and the Welcome atmosphere read violet itself, not the chosen buddy's accent.
 const violetAllowed = [
   ".side .row:hover",
   '.side .row[aria-current="location"]',
   // Everything drawn inside the current row takes the row's ink.
   '.side .row[aria-current="location"] :is(.g, .glyph, .d, .tw)',
-  // The onboarding Welcome pigment horizon: the accent ellipse and the blurred violet glow under it
-  // (onboarding-welcome-variants frame welcome-horizon).
+  // The onboarding Welcome pigment horizon: the violet ellipse and the blurred violet glow under it
+  // (onboarding-welcome-variants frame welcome-horizon). It reads violet directly so Welcome ignores the buddy.
   ".ob-atmosphere",
   ".ob-atmosphere::before",
   // Home's Send, the shared accent icon button (doan-home approved draft, 2026-10-29 user).
@@ -99,9 +100,14 @@ const rolePairs: ContrastPair[] = [
     .flatMap(bg => [{ fg: "--text-standard", bg, kind: "body" as const }, { fg: "--text-subtle", bg, kind: "body" as const }, { fg: "--text-metadata", bg, kind: "meta" as const }]),
   { fg: "--text-on-prominent", bg: "--affordance-prominent", kind: "body" },
   { fg: "--text-on-prominent", bg: "--affordance-prominent-hover", kind: "body" },
-  { fg: "--text-on-accent", bg: "--affordance-accent", kind: "body" },
-  { fg: "--text-on-accent", bg: "--affordance-accent-hover", kind: "body" },
-  { fg: "--text-on-accent", bg: "--affordance-accent-pressed", kind: "body" },
+  // Send and the docked composer's Stop and Queue are icon-only, so their ink is non-text 3:1 on every fill state.
+  { fg: "--text-on-accent", bg: "--affordance-accent", kind: "nontext" },
+  { fg: "--text-on-accent", bg: "--affordance-accent-hover", kind: "nontext" },
+  { fg: "--text-on-accent", bg: "--affordance-accent-pressed", kind: "nontext" },
+  // Accent chips: step 11 text on step 3.
+  { fg: "--text-accent-subtle", bg: "--surface-accent-subtle", kind: "body" },
+  // Accent icons, dots and outlines on the darkest surface they sit on, a pressed sidebar row.
+  { fg: "--text-accent", bg: "--affordance-backdrop-pressed", over: "--bg-app", kind: "nontext" },
   { fg: "--text-sidebar-selected", bg: "--surface-sidebar-selected", kind: "body" },
   { fg: "--text-comment", bg: "--surface-comment", kind: "body" },
   { fg: "--text-danger", bg: "--surface-panel", kind: "body" },
@@ -185,6 +191,48 @@ describe("contrastPairs", () => {
   test("throws on undefined or unparseable tokens instead of passing them", () => {
     expect(() => contrastPairs(css, [{ fg: "--missing", bg: "--white", kind: "body" }])).toThrow(/--missing/);
     expect(() => contrastPairs(":root { --odd: hsl(0 0% 0%); --w: #fff; }", [{ fg: "--odd", bg: "--w", kind: "body" }])).toThrow(/--odd/);
+  });
+
+  test("composites a translucent background over the token named by `over` instead of white and black", () => {
+    const r = only(contrastPairs(css, [{ fg: "--black", bg: "--veil", over: "--gray", kind: "nontext" }]));
+    expect(r.backdrop).toBe("--gray");
+    expect(r.bgHex).toBe("#444444");
+  });
+
+  test("resolves through a buddy's :root[data-buddy] overrides when one is given", () => {
+    const themed = `${css}\n:root { --buddy-9: var(--black); --fill: var(--buddy-9); }\n:root[data-buddy="puri"] { --buddy-9: var(--gray); }`;
+    const pair: ContrastPair = { fg: "--fill", bg: "--white", kind: "nontext" };
+    expect(only(contrastPairs(themed, [pair])).fgHex).toBe("#000000");
+    expect(only(contrastPairs(themed, [pair], "puri")).fgHex).toBe("#888888");
+  });
+});
+
+describe("rootTokens", () => {
+  const css = `:root { --a: #000; --buddy-9: var(--a); }
+    :root[data-buddy="puri"] { --buddy-9: #111; --only-puri: #222; }
+    :root[data-buddy="popo"] { --buddy-9: #333; }
+    :root, .light { --b: #444; }
+    .x { --c: #555; }`;
+
+  test("reads only plain :root blocks by default, so a buddy block never leaks into the default", () => {
+    const tokens = rootTokens(css);
+    expect(tokens.get("--buddy-9")).toBe("var(--a)");
+    expect(tokens.get("--b")).toBe("#444");
+    expect(tokens.has("--only-puri")).toBe(false);
+    expect(tokens.has("--c")).toBe(false);
+  });
+
+  test("lays one buddy's block over the plain :root and ignores the others", () => {
+    const tokens = rootTokens(css, "puri");
+    expect(tokens.get("--buddy-9")).toBe("#111");
+    expect(tokens.get("--only-puri")).toBe("#222");
+    expect(tokens.get("--a")).toBe("#000");
+    expect(rootTokens(css, "popo").get("--buddy-9")).toBe("#333");
+    expect(rootTokens(css, "popo").has("--only-puri")).toBe(false);
+  });
+
+  test("buddyIds lists the :root[data-buddy] themes once each, in source order", () => {
+    expect(buddyIds(`${css}\n:root[data-buddy="puri"] { --buddy-3: #fff; }`)).toEqual(["puri", "popo"]);
   });
 });
 
@@ -272,6 +320,48 @@ describe("accentPlaces", () => {
   test("returns nothing when no violet role is read", () => {
     expect(accentPlaces([{ path: "a.css", text: ".a { color: var(--plain); }" }], tokens)).toEqual([]);
   });
+
+  // Doany's accent is violet, so the switch layer points there by default and each buddy's block re-points it.
+  const buddyTokens = `:root { --violet-9: #973be1; --violet-5: #e9ddf9; --puri-9: #55bc98; --puri-icon: #158b6a; --grey-1: #fff; --grey-8: #808080; }
+    :root { --buddy-9: var(--violet-9); --buddy-icon: var(--violet-9); }
+    :root[data-buddy="puri"] { --buddy-9: var(--puri-9); --buddy-icon: var(--puri-icon); }
+    :root { --fill-accent: var(--buddy-9); --text-accent: var(--buddy-icon); --fixed-violet: var(--violet-9); --border-focus: var(--grey-8); --plain: var(--grey-1); }
+    :root { --accent: var(--grey-8); --accent-line: var(--border-focus); --accent-soft: var(--plain); }`;
+
+  test("follows every buddy palette and the --buddy-* switch, not names that merely look like an accent", () => {
+    const files: SourceFile[] = [{ path: "styles.css", text: [
+      ".send { background: var(--fill-accent); }",
+      ".dot { background: var(--text-accent); }",
+      ".raw { color: var(--buddy-9); }",
+      ".friend { color: var(--puri-9); }",
+      ".welcome { background: var(--fixed-violet); }",
+      ".legacy { color: var(--accent); border-color: var(--accent-line); background: var(--accent-soft); }",
+    ].join("\n") }];
+    expect(accentPlaces(files, buddyTokens)).toEqual([".send", ".dot", ".raw", ".friend", ".welcome"]);
+  });
+
+  test("counts a role that reaches a friend palette only inside that buddy's block", () => {
+    const css = `:root { --violet-9: #973be1; --puri-9: #55bc98; --grey-1: #fff; }
+      :root { --buddy-3: var(--grey-1); --chip: var(--buddy-3); }
+      :root[data-buddy="puri"] { --buddy-3: var(--puri-9); }`;
+    expect(accentPlaces([{ path: "a.css", text: ".chip { background: var(--chip); }" }], css)).toEqual([".chip"]);
+  });
+
+  test("reports @theme when a shadcn mapping reaches any buddy palette or the switch", () => {
+    expect(accentPlaces([{ path: "styles.css", text: "@theme inline { --color-primary: var(--buddy-9); }" }], buddyTokens)).toEqual(["@theme"]);
+    expect(accentPlaces([{ path: "styles.css", text: "@theme inline { --color-ring: var(--puri-icon); }" }], buddyTokens)).toEqual(["@theme"]);
+  });
+
+  test("paletteAccentPlaces lists only places that read an accent palette step around the switch", () => {
+    const files: SourceFile[] = [{ path: "styles.css", text: [
+      ".send { background: var(--fill-accent); }",
+      ".welcome { background: var(--fixed-violet); }",
+      ".welcome::before { background: var(--violet-5); }",
+      ".friend { color: var(--puri-9); }",
+      ".raw { color: var(--buddy-9); }",
+    ].join("\n") }];
+    expect(paletteAccentPlaces(files, buddyTokens)).toEqual([".welcome", ".welcome::before", ".friend"]);
+  });
 });
 
 describe("edgeStripes", () => {
@@ -343,14 +433,59 @@ describe("renderer sources", () => {
     expect(cssVarUsage(rendererSources())).toEqual([]);
   });
 
-  test("contrastPairs: role pairs clear their thresholds", () => {
-    const failing = contrastPairs(tokensCss(), rolePairs).filter(result => !result.ok);
-    expect(failing).toEqual([]);
+  // Doany is the plain :root (no data-buddy attribute); the friends each have a block.
+  const everyBuddy = () => [undefined, ...buddyIds(tokensCss())];
+
+  test("tokens.css has a :root[data-buddy] block for each friend buddy", () => {
+    expect(buddyIds(tokensCss())).toEqual(["puri", "dungdung", "popo", "dori"]);
   });
 
-  test("accentPlaces: violet is read only by the allowed places", () => {
+  test("a :root[data-buddy] block sets only the --buddy-* switch, never a role or a legacy --accent* name", () => {
+    const plain = rootTokens(tokensCss());
+    expect(legacyNames.filter(name => name.startsWith("--buddy-"))).toEqual([]);
+    for (const buddy of buddyIds(tokensCss())) {
+      const themed = rootTokens(tokensCss(), buddy);
+      const changed = [...themed.keys()].filter(name => themed.get(name) !== plain.get(name));
+      expect(changed.length, buddy).toBeGreaterThan(0);
+      expect(changed.filter(name => !name.startsWith("--buddy-")), buddy).toEqual([]);
+    }
+  });
+
+  test("contrastPairs: role pairs clear their thresholds for every buddy", () => {
+    for (const buddy of everyBuddy()) {
+      const failing = contrastPairs(tokensCss(), rolePairs, buddy).filter(result => !result.ok);
+      expect(failing, buddy ?? "doany").toEqual([]);
+    }
+  });
+
+  test("contrastPairs: the ink on the accent fill is white when white clears 3:1 on 9, hover and pressed, the standard ink otherwise", () => {
+    const fills = ["--affordance-accent", "--affordance-accent-hover", "--affordance-accent-pressed"];
+    const inks = Object.fromEntries(everyBuddy().map(buddy => {
+      const whitePasses = contrastPairs(tokensCss(), fills.map(bg => ({ fg: "--neutral-1", bg, kind: "nontext" as const })), buddy).every(result => result.ok);
+      const expected = whitePasses ? "--neutral-1" : "--text-standard";
+      const ink = only(contrastPairs(tokensCss(), [{ fg: "--text-on-accent", bg: "--affordance-accent", kind: "nontext" }], buddy)).fgHex;
+      const want = only(contrastPairs(tokensCss(), [{ fg: expected, bg: "--affordance-accent", kind: "nontext" }], buddy)).fgHex;
+      expect(ink, buddy ?? "doany").toBe(want);
+      return [buddy ?? "doany", whitePasses ? "white" : "standard"];
+    }));
+    expect(inks).toEqual({ doany: "white", puri: "standard", dungdung: "standard", popo: "white", dori: "white" });
+  });
+
+  test("accentPlaces: the buddy accent is read only by the allowed places", () => {
     const found = accentPlaces(rendererSources().filter(file => file.path !== "tokens.css"), tokensCss());
     expect(compareAllowed(found, violetAllowed)).toEqual({ unexpected: [], missing: [] });
+    expect(found).not.toContain("@theme");
+  });
+
+  test("paletteAccentPlaces: only the Welcome atmosphere and the three .side .row selectors read violet around the switch", () => {
+    const found = paletteAccentPlaces(rendererSources().filter(file => file.path !== "tokens.css"), tokensCss());
+    expect([...found].sort()).toEqual([
+      ".ob-atmosphere",
+      ".ob-atmosphere::before",
+      ".side .row:hover",
+      '.side .row[aria-current="location"]',
+      '.side .row[aria-current="location"] :is(.g, .glyph, .d, .tw)',
+    ].sort());
   });
 
   test("preset tab accents cannot match Quick Open tabs", () => {

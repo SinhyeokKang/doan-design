@@ -63,21 +63,30 @@ function splitTopLevel(text: string) {
 }
 
 const isRoot = (prelude: string) => splitTopLevel(prelude).some(selector => selector.startsWith(":root"));
+const isPlainRoot = (prelude: string) => splitTopLevel(prelude).includes(":root");
 const isTheme = (prelude: string) => prelude.startsWith("@theme");
+const buddySelector = /^:root\[data-buddy="([\w-]+)"\]$/;
+const buddyOf = (prelude: string) => splitTopLevel(prelude).map(selector => buddySelector.exec(selector)?.[1]).find(id => id !== undefined);
 
-function rootTokens(css: string) {
-  const tokens = new Map<string, string>();
-  for (const block of blocks(css)) {
-    if (!isRoot(block.prelude)) continue;
-    for (const d of block.declarations) if (d.prop.startsWith("--")) tokens.set(d.prop, d.value);
-  }
+/** The friend buddies that tokens.css themes with a `:root[data-buddy="<id>"]` block, in source order. Doany has none. */
+export function buddyIds(css: string): string[] {
+  return [...new Set(blocks(css).map(block => buddyOf(block.prelude)).filter((id): id is string => id !== undefined))];
+}
+
+/** Custom properties of the plain `:root`; with a buddy, that buddy's `:root[data-buddy]` block is laid over them. */
+export function rootTokens(css: string, buddy?: string) {
+  const tokens = new Map<string, string>(), parsed = blocks(css);
+  const take = (block: Block) => { for (const d of block.declarations) if (d.prop.startsWith("--")) tokens.set(d.prop, d.value); };
+  for (const block of parsed) if (isPlainRoot(block.prelude)) take(block);
+  // The attribute selector outranks plain :root whatever the source order, so the overlay goes last.
+  if (buddy !== undefined) for (const block of parsed) if (buddyOf(block.prelude) === buddy) take(block);
   return tokens;
 }
 
 // tokens.css keeps its palette in the first :root block, so a name defined there is a
 // palette step and anything later is a role or a legacy name.
 function paletteNames(css: string) {
-  const first = blocks(css).find(block => isRoot(block.prelude));
+  const first = blocks(css).find(block => isPlainRoot(block.prelude));
   return new Set(first?.declarations.filter(d => d.prop.startsWith("--")).map(d => d.prop) ?? []);
 }
 
@@ -131,36 +140,60 @@ export function legacyAliases(tokensCss: string): string[] {
   return problems;
 }
 
-// Every token whose var() chain reaches a --violet-* palette step, so a role or a legacy
-// name that only forwards to violet counts as violet too.
-function violetNames(tokensCss: string) {
-  const tokens = rootTokens(tokensCss), memo = new Map<string, boolean>();
-  const reaches = (name: string, seen: Set<string>): boolean => {
-    if (name.startsWith("--violet-")) return true;
-    const known = memo.get(name);
-    if (known !== undefined) return known;
-    const value = tokens.get(name);
-    if (value === undefined || seen.has(name)) return false;
-    const result = [...value.matchAll(varPattern)].some(match => reaches(match[1]!, new Set([...seen, name])));
-    memo.set(name, result);
-    return result;
-  };
-  return new Set([...tokens.keys()].filter(name => reaches(name, new Set())));
+// Doany's accent is violet; each friend's palette is named after it. A prefix match on the
+// palette and on the --buddy-* switch keeps legacy --accent* names (greys) out of the accent.
+const isSwitch = (name: string) => name.startsWith("--buddy-");
+const accentPalette = (tokensCss: string) => {
+  const prefixes = ["--violet-", ...buddyIds(tokensCss).map(id => `--${id}-`)];
+  return (name: string) => prefixes.some(prefix => name.startsWith(prefix));
+};
+
+// Every token whose var() chain, under the default or any buddy's overrides, reaches a name
+// `hit` accepts without passing through one `stop` accepts. A role that only forwards to the
+// accent counts as accent too.
+function namesReaching(tokensCss: string, hit: (name: string) => boolean, stop: (name: string) => boolean) {
+  const found = new Set<string>();
+  for (const buddy of [undefined, ...buddyIds(tokensCss)]) {
+    const tokens = rootTokens(tokensCss, buddy), memo = new Map<string, boolean>();
+    const reaches = (name: string, seen: Set<string>): boolean => {
+      if (hit(name)) return true;
+      if (stop(name)) return false;
+      const known = memo.get(name);
+      if (known !== undefined) return known;
+      const value = tokens.get(name);
+      if (value === undefined || seen.has(name)) return false;
+      const result = [...value.matchAll(varPattern)].some(match => reaches(match[1]!, new Set([...seen, name])));
+      memo.set(name, result);
+      return result;
+    };
+    for (const name of tokens.keys()) if (reaches(name, new Set())) found.add(name);
+  }
+  return found;
 }
 
-/** Lists, in source order, each selector (or TS file, or `@theme`) that reads a token reaching violet. */
+/** Lists, in source order, each selector (or TS file, or `@theme`) that reads a token reaching any buddy's accent palette or the `--buddy-*` switch. */
 export function accentPlaces(files: SourceFile[], tokensCss: string): string[] {
-  const violet = violetNames(tokensCss);
-  const readsViolet = (text: string) => [...text.matchAll(varPattern)].some(match => match[1]!.startsWith("--violet-") || violet.has(match[1]!));
+  const palette = accentPalette(tokensCss), accent = (name: string) => palette(name) || isSwitch(name);
+  return placesReading(files, accent, namesReaching(tokensCss, accent, () => false));
+}
+
+/** Lists the places that read an accent palette step without going through the `--buddy-*` switch, so they keep one colour whatever the buddy. */
+export function paletteAccentPlaces(files: SourceFile[], tokensCss: string): string[] {
+  const palette = accentPalette(tokensCss);
+  return placesReading(files, palette, namesReaching(tokensCss, palette, isSwitch));
+}
+
+function placesReading(files: SourceFile[], direct: (name: string) => boolean, names: Set<string>): string[] {
+  const reads = (text: string) => [...text.matchAll(varPattern)].some(match => direct(match[1]!) || names.has(match[1]!));
   const places: string[] = [];
   const add = (place: string) => { if (!places.includes(place)) places.push(place); };
   for (const file of files) {
     if (!file.path.endsWith(".css")) {
-      if (readsViolet(file.text)) add(file.path.split("/").pop()!);
+      if (reads(file.text)) add(file.path.split("/").pop()!);
       continue;
     }
     for (const block of blocks(file.text)) {
-      if (!block.declarations.some(d => readsViolet(d.value))) continue;
+      if (!block.declarations.some(d => reads(d.value))) continue;
       if (isTheme(block.prelude)) add("@theme");
       // A step ("0%", "to") says nothing on its own: the place is the animation.
       else if (block.parent?.prelude.startsWith("@keyframes")) add(block.parent.prelude);
@@ -344,9 +377,11 @@ function apcaLc(text: Rgba, background: Rgba) {
 }
 
 export type ContrastKind = "body" | "meta" | "nontext" | "disabled";
-export interface ContrastPair { fg: string; bg: string; kind: ContrastKind }
+// `over`: the token a translucent `bg` sits on, when that surface is known (a pressed row on the shell).
+export interface ContrastPair { fg: string; bg: string; over?: string; kind: ContrastKind }
 export interface ContrastResult extends ContrastPair {
-  backdrop: "white" | "black" | null;
+  // "white" or "black" when a translucent bg was tried over both, the `over` token when given, null when opaque.
+  backdrop: string | null;
   fgHex: string; bgHex: string; wcag: number; apca: number; ok: boolean;
 }
 
@@ -358,9 +393,9 @@ const meets: Record<ContrastKind, (wcag: number, lc: number) => boolean> = {
   disabled: () => true,
 };
 
-/** Measures each token pair; a translucent background yields one result per backdrop (white, black). */
-export function contrastPairs(tokensCss: string, pairs: ContrastPair[]): ContrastResult[] {
-  const tokens = rootTokens(tokensCss);
+/** Measures each token pair under the default or one buddy's tokens; a translucent background yields one result per backdrop (white, black) unless the pair names what it sits `over`. */
+export function contrastPairs(tokensCss: string, pairs: ContrastPair[], buddy?: string): ContrastResult[] {
+  const tokens = rootTokens(tokensCss, buddy);
   const resolve = (name: string, seen: string[] = []): Rgba => {
     const value = tokens.get(name);
     if (value === undefined) throw new Error(`${[...seen, name].join(" → ")} is not defined`);
@@ -371,9 +406,10 @@ export function contrastPairs(tokensCss: string, pairs: ContrastPair[]): Contras
   };
   return pairs.flatMap(pair => {
     const fg = resolve(pair.fg), bg = resolve(pair.bg);
-    const backdrops = bg.a < 1 ? (["white", "black"] as const) : [null];
+    const surface = pair.over === undefined ? undefined : over(resolve(pair.over), white);
+    const backdrops: (string | null)[] = bg.a >= 1 ? [null] : pair.over !== undefined ? [pair.over] : ["white", "black"];
     return backdrops.map(backdrop => {
-      const ground = over(bg, backdrop === "black" ? black : white);
+      const ground = over(bg, backdrop === "black" ? black : surface ?? white);
       const ink = over(fg, ground);
       const wcag = (Math.max(relativeLuminance(ink), relativeLuminance(ground)) + 0.05) / (Math.min(relativeLuminance(ink), relativeLuminance(ground)) + 0.05);
       const apca = apcaLc(ink, ground);

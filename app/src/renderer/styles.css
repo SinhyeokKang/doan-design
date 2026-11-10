@@ -2,7 +2,7 @@
 @import "./tokens.css";
 @import "./ds/index.css";
 
-/* shadcn names map onto neutral roles; violet never reaches them. */
+/* shadcn names map onto neutral roles; no buddy accent reaches them. */
 @theme inline {
   --color-background: var(--bg-app);
   --color-foreground: var(--text-standard);
@@ -143,10 +143,11 @@ code, kbd { font-family: var(--type-family); }
 .ob-overlay::backdrop { background: transparent; }
 .ob-overlay.ob-welcome { background: var(--surface-panel); }
 @media (prefers-reduced-transparency: reduce) { .ob-overlay { background: var(--bg-app); } }
-/* Pigment horizon: broad accent, indigo and apricot colour along the lower edge, a blurred violet glow under it and a
-   static grain on top; nothing moves. Fixed, so it fills the window behind the chrome rather than only the scrolling
-   scene; z-index -1 keeps it under the in-flow text in the overlay's own stacking context. */
-.ob-atmosphere { position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; background: radial-gradient(ellipse 75% 65% at 50% 108%, var(--affordance-accent) 0%, transparent 72%), radial-gradient(ellipse 65% 45% at 5% 100%, color-mix(in srgb, var(--indigo-600) 75%, white), transparent 80%), radial-gradient(ellipse 60% 45% at 100% 100%, color-mix(in srgb, var(--orange-600) 65%, white), transparent 80%), var(--surface-panel); }
+/* Pigment horizon: broad violet, indigo and apricot colour along the lower edge, a blurred violet glow under it and a
+   static grain on top; nothing moves. It reads violet directly so Welcome does not follow the chosen buddy. Fixed, so
+   it fills the window behind the chrome rather than only the scrolling scene; z-index -1 keeps it under the in-flow
+   text in the overlay's own stacking context. */
+.ob-atmosphere { position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; background: radial-gradient(ellipse 75% 65% at 50% 108%, var(--violet-9) 0%, transparent 72%), radial-gradient(ellipse 65% 45% at 5% 100%, color-mix(in srgb, var(--indigo-600) 75%, white), transparent 80%), radial-gradient(ellipse 60% 45% at 100% 100%, color-mix(in srgb, var(--orange-600) 65%, white), transparent 80%), var(--surface-panel); }
 .ob-atmosphere::before { content: ""; position: absolute; left: -10%; right: -10%; bottom: -70px; height: 150px; border-radius: 50%; background: var(--violet-5); filter: blur(44px); }
 .ob-atmosphere::after { content: ""; position: absolute; inset: 0; background: url("/onboarding-grain.svg"); opacity: .14; mix-blend-mode: multiply; }
 @media (forced-colors: active) { .ob-atmosphere { display: none; } }
@@ -540,7 +541,7 @@ body:has(.shell-top) { background: transparent; }
 .logo { width: var(--size-icon); height: var(--size-icon); object-fit: contain; flex: none; }
 /* Card inside a tray, after the Antigravity reference (user screenshot, 2026-10-29). */
 .composer { position: relative; border-radius: var(--radius-container); background: var(--surface-inset); box-shadow: var(--shadow-panel); }
-/* Home's atmosphere (dogfooding): a violet glow that follows the composer's rounded border instead of a panel-wide
+/* Home's atmosphere (dogfooding): an accent glow that follows the composer's rounded border instead of a panel-wide
    ellipse; still, no grain. Box shadows keep the composer's radius, so the glow traces its outline. Forced colors drop
    box shadows. */
 .home-composer .composer { box-shadow: var(--shadow-panel), 0 0 var(--space-6) 2px color-mix(in srgb, var(--affordance-accent) 27%, transparent), 0 0 calc(var(--space-8) * 2) var(--space-2) color-mix(in srgb, var(--affordance-accent) 7%, transparent); }
@@ -579,7 +580,7 @@ body:has(.shell-top) { background: transparent; }
 .composer-effort svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
 /* Fast on: the level, the Fast icon in the accent (an Accent place), then the chevron. The icon
    never shrinks, so an icon-only docked trigger still shows Fast; its name and tooltip say "Fast on". */
-.composer-effort .fast-icon { flex-shrink: 0; color: var(--affordance-accent); }
+.composer-effort .fast-icon { flex-shrink: 0; color: var(--text-accent); }
 /* The permission mode trigger (permission-mode draft frames home-toolrow, picker-menu): the Effort trigger with the
    mode's own icon, so an icon-only trigger still names the mode. Full access takes the danger ink on the trigger's own
    fills; its name, icon and aria-label carry it too, so colour is never the only signal. No coloured edge or fill. */
@@ -625,7 +626,7 @@ body:has(.shell-top) { background: transparent; }
    and the switch sit on the name's line, not in the middle of a two-line description. The row keeps the compact menu
    row's padding, as the levels above it do. */
 .effort-popover .doan-menu-item.fast-item { align-items: flex-start; }
-.fast-slot { display: inline-flex; flex: none; align-items: center; width: var(--size-icon-sm); height: var(--type-body-sm-line-height); color: var(--affordance-accent); }
+.fast-slot { display: inline-flex; flex: none; align-items: center; width: var(--size-icon-sm); height: var(--type-body-sm-line-height); color: var(--text-accent); }
 .fast-slot > svg { flex: none; width: var(--size-icon-sm); height: var(--size-icon-sm); }
 .fast-copy { display: flex; flex-direction: column; flex: 1; min-width: 0; }
 /* The description wraps and is never ellipsized: it is where the cost shows ("increased usage", "usage credits"). */
@@ -698,7 +699,7 @@ body:has(.shell-top) { background: transparent; }
 :is(.popover-search, .project-popover .doan-menu-item) > svg { width: var(--size-icon); height: var(--size-icon); }
 .menu-note { padding: var(--space-1) var(--space-3) var(--space-2); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-metadata); }
 /* Drop target (2026-10-29 user): a white, translucent, blurred cover over the whole composer (card and tray) with a dashed accent outline; no text or icon. */
-.drop-target { position: absolute; inset: 0; z-index: 2; border-radius: inherit; background: color-mix(in srgb, var(--surface-panel) 55%, transparent); -webkit-backdrop-filter: blur(var(--blur-sm)); backdrop-filter: blur(var(--blur-sm)); outline: 2px dashed var(--affordance-accent); outline-offset: -2px; }
+.drop-target { position: absolute; inset: 0; z-index: 2; border-radius: inherit; background: color-mix(in srgb, var(--surface-panel) 55%, transparent); -webkit-backdrop-filter: blur(var(--blur-sm)); backdrop-filter: blur(var(--blur-sm)); outline: 2px dashed var(--text-accent); outline-offset: -2px; }
 @media (prefers-reduced-transparency: reduce) { .drop-target { -webkit-backdrop-filter: none; backdrop-filter: none; background: color-mix(in srgb, var(--surface-panel) 85%, transparent); } }
 .composer-reason { display: flex; align-items: center; justify-content: center; gap: var(--space-3); margin-top: var(--space-3); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-subtle); }
 .composer-notice { margin-top: var(--space-3); }
@@ -776,7 +777,7 @@ body:has(.shell-top) { background: transparent; }
 .suggestion + .suggestion::before { content: ""; position: absolute; inset-inline: var(--space-3); top: calc(var(--space-half) * -1 - 1px); height: 1px; background: var(--border-standard); pointer-events: none; }
 /* The group icon and the hover arrow carry the accent; the sentence stays standard ink except the project and canvas names, which take the anchor chip's values as an inline highlight (.anchor-chip is nowrap and truncates, so its values are repeated here, and `clone` gives each wrapped fragment its own padding and corners). */
 .suggestion-value { padding: 0 var(--space-1h); border-radius: 6px; background: var(--surface-accent-subtle); color: var(--text-accent-subtle); font-weight: var(--type-weight-medium); -webkit-box-decoration-break: clone; box-decoration-break: clone; }
-.suggestion svg { flex: none; width: var(--size-icon-sm); height: var(--size-icon-sm); color: var(--affordance-accent); }
+.suggestion svg { flex: none; width: var(--size-icon-sm); height: var(--size-icon-sm); color: var(--text-accent); }
 .suggestion-go { visibility: hidden; }
 .suggestion:is(:hover, :focus-visible) .suggestion-go { visibility: visible; }
 
@@ -799,13 +800,13 @@ body:has(.shell-top) { background: transparent; }
 /* doan-home: the sidebar row's status slot, at the right of the row before its menu, and an added project's flash. */
 .row-slot { display: inline-grid; place-items: center; width: var(--size-icon); height: var(--size-icon); flex: none; margin-left: auto; }
 .shell-project-row .row-slot { margin-left: 0; }
-.row-slot.permission { color: var(--affordance-accent); }
+.row-slot.permission { color: var(--text-accent); }
 /* A problem project's kind icon (16, the slot's svg size); the reading spinner takes the
    working mark's 14px rule below. */
 .row-slot.problem { color: var(--text-subtle); }
 .row-slot svg { width: var(--size-icon); height: var(--size-icon); }
 .row-slot .doan-spinner { width: var(--size-icon-sm); height: var(--size-icon-sm); }
-.row-slot.unseen i { width: var(--space-2); height: var(--space-2); border-radius: 50%; background: var(--affordance-accent); }
+.row-slot.unseen i { width: var(--space-2); height: var(--space-2); border-radius: 50%; background: var(--text-accent); }
 .shell-side .shell-project-row.flash { box-shadow: inset 0 0 0 2px var(--border-focus); }
 
 /* doan-settings: the Settings page (.doan/canvases/doan-settings.html, confirmed 2026-10-30). The sidebar lists the four
@@ -982,7 +983,7 @@ body:has(.shell-top) { background: transparent; }
 .conversation-thread .activity-head[aria-expanded="true"] .chev { transform: none; }
 /* A turn that did not run Fast (fast-mode draft frame thread-notice): a folded line with the accent Fast icon; it wraps. */
 .conversation-thread .activity-head.fast-note { align-items: flex-start; padding-block: var(--space-1h); }
-.conversation-thread .activity-head.fast-note svg { flex: none; width: var(--size-icon-sm); height: var(--size-icon-sm); margin-block: calc((var(--type-body-sm-line-height) - var(--size-icon-sm)) / 2); color: var(--affordance-accent); }
+.conversation-thread .activity-head.fast-note svg { flex: none; width: var(--size-icon-sm); height: var(--size-icon-sm); margin-block: calc((var(--type-body-sm-line-height) - var(--size-icon-sm)) / 2); color: var(--text-accent); }
 .conversation-thread .activity-head.fast-note span { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
 .conversation-thread .activity-head .doan-spinner { width: var(--size-icon-sm); height: var(--size-icon-sm); }
 .conversation-thread .activity-steps { display: flex; flex-direction: column; gap: var(--space-1h); padding-left: var(--space-6); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
@@ -1261,7 +1262,7 @@ body:has(.shell-top) { background: transparent; }
 .composer-tray .doan-button.is-fixed { cursor: default; }
 /* News on the folded panel's open button: the sidebar slot's unseen dot. */
 .doan-icon-button[data-badge="true"] { position: relative; }
-.doan-icon-button[data-badge="true"]::after { content: ""; position: absolute; top: var(--space-1); right: var(--space-1); width: var(--space-2); height: var(--space-2); border-radius: 50%; background: var(--affordance-accent); box-shadow: 0 0 0 2px var(--surface-panel); }
+.doan-icon-button[data-badge="true"]::after { content: ""; position: absolute; top: var(--space-1); right: var(--space-1); width: var(--space-2); height: var(--space-2); border-radius: 50%; background: var(--text-accent); box-shadow: 0 0 0 2px var(--surface-panel); }
 /* A sent message's chips show their target on the canvas; inside the accent bubble they take the panel surface. */
 .bubble .anchor-chip { background: var(--surface-panel); }
 button.anchor-chip { cursor: pointer; }
@@ -1533,10 +1534,10 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .bubble .skill-word { background: var(--surface-panel); }
 
 .preset-popover.has-skills:not(.slash-popover) { width: 691px; }
-.preset-item .suggestion-icon svg { width: var(--size-icon-sm); height: var(--size-icon-sm); color: var(--affordance-accent); }
+.preset-item .suggestion-icon svg { width: var(--size-icon-sm); height: var(--size-icon-sm); color: var(--text-accent); }
 .preset-item .suggestion-icon.project-skill-icon { background: var(--affordance-backdrop-hover); }
 .preset-item .suggestion-icon.project-skill-icon svg { color: var(--text-standard); }
-.preset-popover .group-tabs button svg { color: var(--affordance-accent); }
+.preset-popover .group-tabs button svg { color: var(--text-accent); }
 .preset-popover .group-tabs button[data-group="project"] svg { color: var(--text-metadata); }
 
 /* Where the Doan files are kept (local-doan-files draft frames setup-dialog, setup-panel, clone, settings-*). */
