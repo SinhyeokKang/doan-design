@@ -148,6 +148,41 @@ CPU motion verification checks 735,160 poses against the actual alpha hulls, ret
 This is an asset transform check, not app WebGL parity. Scripts, generation sources and measurements remain in
 `.scratch/buddy-assets/dungdung/` and the shared scripts in `.scratch/buddy-assets/`.
 
+## Popo layers and rig
+
+`popo/still.png`, `body.png`, `accessory.png` and `shadow.png` are 1254² RGBA. Built-in image_gen made three
+edits (still, body, accessory); `popo/prompts.json` preserves the prompts. The generated still guides the
+transparent silhouette while the supplied card's visible pixels preserve its colour and yarn. Small internal
+alpha holes are filled (including the plush behind Popo's lenses). The generated accessory guides a source-pixel
+extraction; the generated body restores the hidden plush and the eye windows. ImageMagick matches eye-window
+colour and yarn contrast to the surrounding ring, with a compact transition. Accessory contact imprints are
+removed from the body; exposed boundary pixels are retained. The supplied card and artist files are unchanged.
+The black-alpha shadow is extracted from white darkening on the exposed floor and completed smoothly beneath
+the body; shadow generation count is zero. Human visual approval is pending.
+
+| Rig value | Popo |
+|---|---|
+| Eye centres, left / right | `.411,.42` / `.607,.42` |
+| Measured eye radii, left / right | `.032,.055` / `.032,.055` |
+| Shared shader eye radius | `.032,.055` |
+| Eye highlight y | `.393` |
+| Gaze offset / body skew | `.018, .014` / `.018` |
+| Body / accessory pivot | `.5, .60` / `.503,.42` |
+| Scale / neutral vertical offset / still padding | `1.34` / `.10` / `16.5%` |
+| Accessory tilt range (radians) / hop multiplier | `[0, 0]` / `.9` |
+| Ground contact x / y / width | `.494` / `.858` / `.595` |
+
+Measurements use the same opaque dark-eye component and 50 % alpha ground sampling as Puri. The shared eye
+radius and centres agree with the still within `.003` UV. Body + accessory matches the still's alpha boundary
+within 1 source px outside the eyes. Neither body eye contains a dark eye pixel. Eye checks: left 0.7692% mean luminance difference, texture ratios 0.971/1.024/1.044; right 0.8100% mean luminance difference, texture ratios 0.961/0.990/0.989.
+Texture ratios are high-pass RMS at Gaussian sigma 1/2/4 px; each eye's measuring ellipse adds 22/28 px to the
+eye's measured x/y radii, with the surrounding ring at 1.25–1.5 times that ellipse. Mean luminance uses linear-light
+Rec.709 weights, relative to the ring. The eyes are measured after the final composite.
+CPU motion verification checks 735,160 poses against the actual alpha hulls, retaining at least
+14.27 device px inside Home's 228 px buffer (17.90 in 286 px).
+This is an asset transform check, not app WebGL parity. Scripts, generation sources and measurements remain in
+`.scratch/buddy-assets/popo/` and the shared scripts in `.scratch/buddy-assets/`.
+
 ## Doany shadow
 
 `doany/shadow.png` is 1254² RGBA, black RGB only. It was extracted from `doany/card.png` as the amount the exposed
