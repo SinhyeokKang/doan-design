@@ -61,11 +61,11 @@ AGENTS.md 'Commands'에 없는 확인 명령(`file`, `rg`, 측정 스크립트)�
   - `settingsSections.ts` `general`.
   - 확인: `npm --prefix app test`가 통과한다(새 테스트가 먼저 red였다).
   - ⎯ 커밋: `feat(app): buddy registry and preference`
-- [ ] **3.2 에셋.** 친구 4명의 앱 사본(1.4, 1.6의 still·body·accessory·shadow를 512²로 줄인 것), Doany의 `shadow.png`(512²), 다섯 버디의 `card.png` 앱 사본(588²)을 `public/buddies/<id>/`에 넣는다. Doany의 `public/doany/`는 옮기지 않는다. `public/doany/README.md`에 `public/buddies/` 출처를 함께 적는다. 레지스트리의 모든 에셋 경로가 실제로 있는지 확인하는 테스트를 넣는다.
+- [ ] **3.2 에셋.** 친구 4명의 앱 사본(1.4, 1.6의 still·body·accessory·shadow를 512²로 줄인 것), Doany의 `shadow.png`(512²), 다섯 버디의 `card.png` 앱 사본(588²), 공용 `eye.png`를 `public/buddies/<id>/`에 넣는다. Doany의 `public/doany/`는 옮기지 않는다. `public/doany/README.md`에 `public/buddies/` 출처를 함께 적는다. 레지스트리의 모든 에셋 경로가 실제로 있는지 확인하는 테스트를 넣는다.
   - 확인: `npm --prefix app run build`, `npm --prefix app test` 전체, `doan check --json --repo .`가 통과한다.
   - ⎯ 커밋: `feat(app): buddy assets`
-- [ ] **3.3 리그 일반화.** 셰이더 소스 템플릿에 버디별 수치를 문자열로 넣어 버디마다 컴파일한다. `Doany`를 `Buddy`(prop `buddy`, `key={buddy}`로 다시 마운트)로 바꾸고, 버디별 기울기 범위와 홉 배율을 적용한다. 바닥 그림자(버디별 `shadow.png` 레이어, 접지점 기준 축소, 리그가 쓰는 `--buddy-lift`)를 넣는다.
-  - 확인: `npm --prefix app test`에서 `Doany.test.tsx`의 golden 비교(`doany.golden.json` 수정 없이)와 `doanyRender.test.ts`가 통과한다. `doanyRender.test.ts`는 다섯 버디에서 앵커 일치, 홉 중 `--buddy-lift`가 0–1 안에 있고 착지 때 0으로 돌아옴, 가장자리 여백 1.4 device px, WebGL이 없거나 텍스처를 못 읽을 때 정지 이미지로 떨어지는지 확인한다.
+- [ ] **3.3 리그 일반화.** 셰이더 소스 템플릿에 버디별 수치를 문자열로 넣어 버디마다 컴파일한다. `Doany`를 `Buddy`(prop `buddy`, `key={buddy}`로 다시 마운트)로 바꾸고, 버디별 기울기 범위와 홉 배율을 적용한다. 바닥 그림자(버디별 `shadow.png` 레이어, 접지점 기준 축소, 리그가 쓰는 `--buddy-lift`)를 넣는다. 눈을 공용 `eye.png`로, 깜박임을 털 눈꺼풀(420 ms, 4–8초)로 바꾼다(design.md '리그 일반화' 눈·깜박임). `doany.golden.json`을 새 셰이더 기준으로 다시 기록하고, 그 방법은 먼저 사람에게 확인한다.
+  - 확인: `npm --prefix app test`에서 `Doany.test.tsx`의 golden 비교(다시 기록한 `doany.golden.json` 기준)와 `doanyRender.test.ts`가 통과한다. `doanyRender.test.ts`는 다섯 버디에서 앵커 일치, 홉 중 `--buddy-lift`가 0–1 안에 있고 착지 때 0으로 돌아옴, 가장자리 여백 1.4 device px, WebGL이 없거나 텍스처를 못 읽을 때 정지 이미지로 떨어지는지 확인한다.
   - ⎯ 커밋: `feat(app): buddy rig for every buddy`
 - [ ] **3.4 첫 페인트와 적용.** main이 창을 만들 때 `preferences.current()`의 버디 id를 넘기고, 렌더러가 마운트 전에 `data-buddy`를 설정한다. App은 스냅샷을 읽을 때마다 다시 적용한다. 고르는 즉시 반영하고, 가장 최근 선택의 응답이 실패면 되돌린다.
   - 확인: `npm --prefix app test`에서 다음 케이스가 통과한다. 창 옵션에 버디 id가 담긴다. 알 수 없는 값·broken·newer면 `doany`다. 마운트 전에 `data-buddy`가 설정된다. 렌더러를 다시 로드하면 저장값을 따른다. A의 실패 응답이 B를 고른 뒤 오면 무시한다. 첫 실행이 끝나 Buddy 단계가 사라진 뒤 온 응답도 `data-buddy`에 반영한다. `/runtime-test`에서는 init script가 첫 `requestAnimationFrame` 때의 `data-buddy`와 `--buddy-9` 계산값을 기록하고, 저장된 버디의 값인지 본다.

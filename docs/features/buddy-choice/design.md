@@ -65,10 +65,13 @@ public/buddies/doany/card.png  shadow.png   Doany 카드와 그림자 앱 사본
 
 셰이더 상수는 uniform으로 바꾸지 않는다. 버디별 리그 수치를 셰이더 소스 템플릿에 문자열로 넣어 버디마다 컴파일한다. Home은 버디를 하나만 그리므로 프로그램을 버디별로 만들어도 비용이 없다.
 
-- 이유: `Doany.test.tsx`는 WebGL 호출 trace(셰이더 소스 문자열, uniform 위치 조회)를 `doany.golden.json`과 정확히 비교하고, `doanyRender.test.ts`는 그 소스에서 정규식으로 앵커를 꺼낸다. golden 생성기는 저장소에 없다(ARCHITECTURE §7 'Doany (mascot)'). 수치를 draft 표기 그대로(`.421`, `.10`) 레지스트리에 문자열로 두면 Doany의 소스와 trace가 바이트 단위로 같아 golden을 건드리지 않는다.
-- 수치: 눈 중심 2개와 반지름(`.421,.550`·`.619,.550`·`.035,.056`), 눈 하이라이트 y(`.523`, 눈 중심 y에서 `.027` 위), 시선 오프셋(`.018,.014`), 몸통 skew(`.018`), 몸통 pivot(`.5,.60`), 소품 pivot(`.67,.30`), scale `1.34`, 중립 오프셋 `.10`, 폴백 padding `16.5%`, 소품 기울기 범위(`BERET_TILT`, 버디별 이름은 accessory tilt), 홉 높이 배율(`LIFT_SCALE`).
+- 이유: `Doany.test.tsx`는 WebGL 호출 trace(셰이더 소스 문자열, uniform 위치 조회)를 `doany.golden.json`과 정확히 비교하고, `doanyRender.test.ts`는 그 소스에서 정규식으로 앵커를 꺼낸다. golden 생성기는 저장소에 없다(ARCHITECTURE §7 'Doany (mascot)'). 수치를 draft 표기 그대로(`.421`, `.10`) 레지스트리에 문자열로 두면 버디 사이에 소스가 같은 틀을 쓴다. 눈을 바꾸면서 golden은 한 번 다시 기록한다('Doany golden').
+- 수치: 눈 중심 2개와 반지름(`.421,.550`·`.619,.550`·`.035,.056`), 시선 오프셋(`.018,.014`), 몸통 skew(`.018`), 몸통 pivot(`.5,.60`), 소품 pivot(`.67,.30`), scale `1.34`, 중립 오프셋 `.10`, 폴백 padding `16.5%`, 소품 기울기 범위(`BERET_TILT`, 버디별 이름은 accessory tilt), 홉 높이 배율(`LIFT_SCALE`).
 - `doanyRender.test.ts`는 버디마다 소스를 만들어 같은 정규식으로 검사한다. 친구의 소품 기울기 범위와 홉 headroom은 같은 방식으로 정한다. 모든 누름 순서에서 캔버스 가장자리와 1.4 device px 이상 떨어져야 한다.
-- **바닥 그림자**: 선택 카드처럼 버디 발밑에 접지 그림자를 둔다. 그림자는 버디별 `shadow.png` 레이어다(카드의 접지 그림자를 떼어 내고 몸통에 가린 부분을 채운 것, still과 같은 좌표). still·body에 굽지 않는다. 구우면 홉할 때 그림자도 함께 떠오르기 때문이다. 슬롯 안에서 still과 같은 박스·16.5% 패딩으로 캔버스와 정지 이미지 뒤에 두는 `<img>`(`aria-hidden`)이고, 리그는 프레임마다 홉 높이를 0–1로 나눈 값을 `--buddy-lift`로 슬롯에 쓴다. 그림자는 접지점을 중심으로 lift 1에서 크기 55%, 불투명도 40%가 된다. WebGL 호출은 그대로라 `doany.golden.json`이 바뀌지 않는다. reduced motion과 정지 이미지 폴백에서는 lift 0으로 같은 그림자를 보인다. 컴포넌트가 정지 이미지를 첫 `img`로 찾는다면 그림자 `img`는 그 뒤에 둔다. 기준은 `.doan/canvases/buddy-assets.html`의 모션 미리보기와 `buddy-home.html`의 `.buddy-shadow-image`다.
+- **눈**: 다섯 버디가 공용 눈 이미지 하나(`.doan/assets/buddies/eye.png`, 118 × 193 RGBA)를 쓴다. Puri still의 왼쪽 눈을 잘라 만든 것으로, 위쪽이 은은하게 밝은 검은 구슬과 털에 박힌 테두리 그림자가 들어 있다. 이미지는 눈 반지름의 ±1.35배를 덮는다. 셰이더는 버디별 눈 중심과 반지름으로 이 이미지를 놓고, 시선 오프셋만큼 옮긴다. 평평한 타원과 가로 띠 하이라이트(눈 하이라이트 y 수치)는 쓰지 않는다. 카드 눈의 느낌만 살리고 표정이나 효과는 더하지 않는다.
+- **깜박임**: 구슬은 모양을 유지하고, 털 눈꺼풀이 위에서 덮는다(body에 이미 채워진 털이 드러남). 눈꺼풀 가장자리는 처음에 구슬 윗부분을 따라 평평하게 내려오다가 끝에서 아래로 휘어 감긴다. 눈 좌표 d(반지름 단위, 위가 −1)에서 가장자리는 `-1.35 + (1 - eyeOpen) × 2.25 + mix(-.2, .22, 1 - eyeOpen) × (1 - d.x²)`이고, ±.06 범위에서 부드럽게 넘어간다. 한 번에 420 ms, 간격은 4–8초 무작위다(지금 Doany는 260 ms, 2.5–6초). 기준은 `.doan/assets/buddies/motion-preview.js`와 `buddy-assets` 캔버스다.
+- **Doany golden**: 눈과 깜박임이 바뀌면 Doany 셰이더 소스와 trace도 바뀌므로 `doany.golden.json`을 새 셰이더 기준으로 다시 기록해야 한다. golden 생성기는 저장소에 없다. 다시 기록하는 방법(생성 스크립트 추가 또는 테스트에서 기록)은 3.3에서 정하고 사람에게 확인한다.
+- **바닥 그림자**: 선택 카드처럼 버디 발밑에 접지 그림자를 둔다. 그림자는 버디별 `shadow.png` 레이어다(카드의 접지 그림자를 떼어 내고 몸통에 가린 부분을 채운 것, still과 같은 좌표). still·body에 굽지 않는다. 구우면 홉할 때 그림자도 함께 떠오르기 때문이다. 슬롯 안에서 still과 같은 박스·16.5% 패딩으로 캔버스와 정지 이미지 뒤에 두는 `<img>`(`aria-hidden`)이고, 리그는 프레임마다 홉 높이를 0–1로 나눈 값을 `--buddy-lift`로 슬롯에 쓴다. 그림자는 접지점을 중심으로 lift 1에서 크기 55%, 불투명도 40%가 된다. 그림자는 WebGL 밖이라 trace에 영향이 없다. reduced motion과 정지 이미지 폴백에서는 lift 0으로 같은 그림자를 보인다. 컴포넌트가 정지 이미지를 첫 `img`로 찾는다면 그림자 `img`는 그 뒤에 둔다. 기준은 `.doan/canvases/buddy-assets.html`의 모션 미리보기와 `buddy-home.html`의 `.buddy-shadow-image`다.
 - **접지 수치**(버디별 리그 수치, 1254² still의 UV): 그림자가 줄어드는 중심인 접지 중심 x와 알파 바닥 y, 그리고 바닥에서 50px 위 알파 폭. Doany는 `.458`, `.941`, `.447`(`v2/doany.png`에서 측정), Puri는 `.498`, `.847`, `.672`다.
 - 컴포넌트 이름 `Doany`는 `Buddy`로 바꾸고 `buddy` prop을 받는다. 버디가 바뀌면 `key={buddy}`로 다시 마운트한다(마운트마다 컨텍스트를 만들고 해제하는 기존 규칙, ARCHITECTURE §7 'Doany (mascot)'). 접근성 이름은 "Make <이름> hop"이다.
 - 친구의 `still.png`나 텍스처를 읽지 못하면 Doany와 같이 정지 이미지로 떨어지고, 정지 이미지도 없으면 그 자리를 비운다. 레지스트리의 모든 에셋 경로가 실제로 있는지는 테스트로 막는다(tasks 3.2).
@@ -166,7 +169,7 @@ public/buddies/doany/card.png  shadow.png   Doany 카드와 그림자 앱 사본
 - PRODUCT §3 In scope에 버디 선택과 accent 개인화를 한 줄 추가한다.
 - PRODUCT §2(첫 실행 설명), §3 In scope 7의 첫 실행 순서, §5 item 0 'First run'(Welcome → Agent → Project → Home)에 Buddy 단계를 넣는다. 기존 사용자용 버디 화면을 §5 item 0에 적는다.
 - PRODUCT §5 item 0 'Settings page'의 카테고리 목록과 'Settings storage'의 저장 항목 목록에 General(Buddy)을 넣는다.
-- PRODUCT §5 item 1 'Doany'(마스코트는 Pebble 하나)를 '고른 버디, 기본 Doany'로 바꾼다.
+- PRODUCT §5 item 1 'Doany'(마스코트는 Pebble 하나)를 '고른 버디, 기본 Doany'로 바꾸고, 눈(카드 눈 이미지)과 깜박임(털 눈꺼풀, 420 ms, 4–8초)을 적는다.
 - PRODUCT §5 'Agent indicator'(Doany at work: painting, typing, reading)를 고른 버디 기준으로 바꾼다.
 - PRODUCT §5 item 1 'Doany'의 "It sits above Home's greeting and Welcome's wordmark"에서 Welcome을 빼고, Welcome의 단체 사진을 §5 item 0 'First run'에 적는다.
 - ARCHITECTURE §9 'Installer disk'(Pigment horizon, Doan above Applications, 아래 150px 규칙, 초안 경로)와 DESIGN.md의 Welcome 행(Welcome, Welcome layout, Welcome Doany and focus, Atmosphere, 'Documented differences from `mascot-welcome`')을 새 Welcome·설치 디스크로 고친다.

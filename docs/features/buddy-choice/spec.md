@@ -48,7 +48,7 @@
 13. 설정 목록 맨 위에 General 카테고리가 있고, 그 안의 Buddy 그룹에서 다섯 버디를 기본 순서의 행으로 보여준다. 고르면 즉시 저장되고 Home, 작업 안내, accent에 즉시 반영된다. 저장에 실패하면 저장된 버디로 돌아가고, 그룹 위에 12와 같은 문구와 Retry가 나온다.
 14. preferences 파일을 더 새로운 Doan이 썼으면(newer), 설정 General과 Buddy 단계 모두 선택을 끄고 기존 newer notice만 보여준다. 이때 Continue는 Doany로 진행한다. 파일을 읽을 수 없으면(broken), 다른 설정 카테고리와 같이 기본값으로 보여주고 고를 수 있다. 저장하면 파일을 옆으로 옮기고 기본값에서 시작한다.
 15. Welcome은 Doany 대신 다섯 버디의 단체 사진을 보여준다. 흰 바탕(pigment horizon과 grain 없음) 위쪽에 워드마크, 문장, Get started가 있고, 그 아래 단체 사진이 창 아래 가장자리에서 잘린다. Welcome에는 Doany와 그 WebGL이 없고 accent도 없다. 저장된 버디와 상관없이 같다. 사람이 `.doan/canvases/buddy-welcome.html`에서 이 안을 확정했다.
-16. Home에는 고른 버디가 나오고, Doany와 같은 모션(숨쉬기, 깜박임, 시선, 포인터 따라보기, 입력 중 주목, 홉, reduced motion에서 정지, WebGL이 없거나 텍스처를 못 읽으면 정지 이미지)을 한다. 다섯 버디(Doany 포함) 모두 발밑에 바닥 그림자가 있다. 그림자는 바닥에 남고, 홉하는 동안 작아지고 옅어진다.
+16. Home에는 고른 버디가 나오고, Doany와 같은 모션(숨쉬기, 깜박임, 시선, 포인터 따라보기, 입력 중 주목, 홉, reduced motion에서 정지, WebGL이 없거나 텍스처를 못 읽으면 정지 이미지)을 한다. 눈은 카드 이미지의 눈처럼 보인다(공용 눈 이미지). 깜박임은 구슬이 찌그러지지 않고 털 눈꺼풀이 위에서 덮는 방식이며, 지금보다 느리고 드물다(420 ms, 4–8초 간격). Doany도 같다. 다섯 버디(Doany 포함) 모두 발밑에 바닥 그림자가 있다. 그림자는 바닥에 남고, 홉하는 동안 작아지고 옅어진다.
 17. 캔버스 작업 안내에는 고른 버디의 GIF가 나온다. Doany는 지금처럼 세 변형 중 하나를 무작위로 고르고, 친구는 artist GIF 하나만 쓴다. 안내가 떠 있는 동안 버디가 바뀌면 떠 있는 안내도 즉시 새 버디의 GIF로 바뀐다.
 18. 첫 실행을 마쳤지만 preferences에 버디가 저장된 적이 없는 사람은 다음 실행 때 버디 선택 화면을 한 번 본다. 이 화면은 창 전체를 덮고, 스텝퍼와 Back 없이 Buddy 단계와 같은 카드 줄과 Continue만 둔다. Continue를 누르면 그때 선택된 버디(처음엔 Doany)를 저장하고 Home으로 간다. 이 화면을 보는 동안의 저장 실패와 newer·broken 처리는 12·14와 같다.
 19. 설치 디스크(dmg) 배경은 흰 바탕 위쪽에 단체 사진, 그 아래 Doan → Applications를 왼쪽에서 오른쪽으로, 맨 아래에 "A place for your next idea."를 둔다. pigment horizon은 쓰지 않는다. 사람이 `.doan/canvases/buddy-installer.html`에서 이 안을 확정했다.
