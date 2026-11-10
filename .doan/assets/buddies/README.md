@@ -13,7 +13,7 @@ Doany and four friends, one asset set each. The feature plan is `docs/features/b
 
 ## One buddy's set
 
-Doany's motion sources stay in `../doany/` (with the V1 record); only its card lives here.
+Doany's motion sources stay in `../doany/` (with the V1 record); its card and shadow live here.
 Doany's equivalent of each file is in brackets.
 
 | File | What | State |
@@ -22,7 +22,7 @@ Doany's equivalent of each file is in brackets.
 | `still.png` | 1254² RGBA, transparent, no shadow: the still and WebGL fallback [`../doany/v2/doany.png`] | Puri: approved; other friends: to do |
 | `body.png` | 1254² RGBA, same coordinates, eyes and accessory removed, hidden body restored [`v2/body.png`] | Puri: approved; other friends: to do |
 | `accessory.png` | 1254² RGBA, same coordinates, accessory only [`v2/hat.png`] | Puri: approved; other friends: to do |
-| `shadow.png` | 1254² RGBA, same coordinates, only the card's contact shadow: black, alpha from how much it darkens the white, completed under the body [Doany's lives here too, as `doany/shadow.png`] | Puri: approved; Doany and other friends: to do |
+| `shadow.png` | 1254² RGBA, same coordinates, only the card's contact shadow: black, alpha from how much it darkens the white, completed under the body [Doany's lives here too, as `doany/shadow.png`] | Puri: approved; Doany: ready for review; other friends: to do |
 | `prompts.json` | generation prompts, in the form of `v2/layer-prompts.json` | Puri: approved; other friends: to do |
 | `artist.gif` | 512², 8 frames, 2.2 s: the working-notice painter, frames aligned (below) [`../doany/artist/painting.gif`] | done |
 | `artist-original.gif` | the painter GIF as supplied | kept |
@@ -112,6 +112,16 @@ and 8.24 in the 286 px buffer. It does not establish WebGL rendering parity.
 
 `doany/card.png` replaces the composite draft at the same path, so picker canvases need no markup change.
 The maintainer compared all five cards in `buddy-choice.html` and approved the generated card's identity, scale and shadow.
+
+## Doany shadow
+
+`doany/shadow.png` is 1254² RGBA, black RGB only. It was extracted from `doany/card.png` as the amount the exposed
+floor darkens white, with smooth Gaussian completion under the body; no image generation was used. The card's
+939 px character height maps uniformly to the original still's 1085 px height (scale `1.155485`). Its measured
+card contact `(587.5, 1061)` maps to `(573, 1179)` in `../doany/v2/doany.png`; the ground pivot remains `.458, .941`.
+This preserves the original still's coordinates rather than using the card coordinates in the motion slot.
+The shadow's exposed-floor fit RMS is `.012665` alpha; its nonzero bounds are `(9, 1048)–(1200, 1250)` (exclusive).
+Extraction script and measurements are local in `.scratch/buddy-assets/`; human visual review is pending.
 
 ## Next: transparent still and layers (per friend)
 
