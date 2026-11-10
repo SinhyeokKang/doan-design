@@ -58,6 +58,7 @@ import { ConnectorStore } from "./mcpConnectors/store";
 import type { NotificationTarget } from "./notifications";
 import { conversationNames, createNotifyService } from "./notifyService";
 import { createPreferencesStore, windowBuddy } from "./preferences";
+import { buddyIntroShown } from "./buddyIntro";
 import type { BuddyId } from "../renderer/buddies";
 import { createCanvasSeenStore, type CanvasSeenStore } from "./canvasSeen";
 import { DESIGN_SKILL_CHANNELS, DESIGN_SKILL_REFUSED, designSkillGetRequest, interpretGet, interpretList } from "./designSkills";
@@ -221,6 +222,9 @@ const documents = new DocumentBindings();
 // First run is open from a launch without a completion record (P's v1 marker; the legacy `{}` is not one) until the
 // session reports completion. Settings and the menu wait for it, as they waited for the old wizard.
 let onboardingOpen = false;
+// The existing-user buddy screen, decided once at launch (buddyIntro.ts). It holds first run's lock until the renderer
+// reports it closed; a reloaded renderer reads it again and shows it again while it is still open.
+let buddyIntroOpen = false;
 let quitting = false;
 let quitScheduled = false;
 let cancelPendingHide = () => {};
@@ -340,7 +344,7 @@ function editHistory(kind: "undo" | "redo"): NonNullable<MenuItemConstructorOpti
 // go to the renderer, which zooms the board and reloads only the canvas.
 // The menu is rebuilt whenever its enablement changes.
 function menuEnabledNow() {
-  return menuState(menuInputs.screen, menuInputs.modal, { wizardOpen: onboardingOpen, choose: menuInputs.choose === true, locked: menuInputs.locked === true, overview: menuInputs.overview === true, pickerAvailable: menuInputs.pickerAvailable === true });
+  return menuState(menuInputs.screen, menuInputs.modal, { wizardOpen: onboardingOpen || buddyIntroOpen, choose: menuInputs.choose === true, locked: menuInputs.locked === true, overview: menuInputs.overview === true, pickerAvailable: menuInputs.pickerAvailable === true });
 }
 
 function setMenu(): void {
@@ -557,10 +561,10 @@ function createWindow(buddy: BuddyId): BrowserWindow {
 }
 
 // The open-Settings command: a hidden window is shown first, then the renderer
-// moves to the page. Not while first run is open, like Settings….
+// moves to the page. Not while first run or the buddy screen is open, like Settings….
 export function openSettingsPage(target: SettingsPageTarget = {}): boolean {
   const window = win;
-  if (onboardingOpen || !window || window.isDestroyed()) return false;
+  if (onboardingOpen || buddyIntroOpen || !window || window.isDestroyed()) return false;
   showWindow(window);
   send("settings-page:open", target);
   return true;
@@ -1129,6 +1133,12 @@ async function start(): Promise<void> {
   // The Settings page's preferences, notifications and About. Main fixes the URL, the notification
   // and the clipboard text; the renderer sends a change or nothing.
   handle("preferences:read", null, () => preferences.read());
+  handle("buddy-intro:read", false, () => buddyIntroOpen);
+  handle("buddy-intro:close", undefined, (_event, value: unknown) => {
+    if (value !== undefined || !buddyIntroOpen) return;
+    buddyIntroOpen = false;
+    setMenu();
+  });
   handle("preferences:write", null, async (_event, value: unknown) => {
     const reply = await preferences.update(value);
     // The choice in effect, which a refused or failed write leaves as it was.
@@ -1270,9 +1280,12 @@ async function start(): Promise<void> {
   });
   handle("config:session-end", undefined, () => { bridge.clear(); });
 
-  onboardingOpen = !onboardingComplete(readCompletion(userData));
+  const completed = onboardingComplete(readCompletion(userData));
+  onboardingOpen = !completed;
+  const launchPreferences = preferences.read();
+  buddyIntroOpen = buddyIntroShown({ completed, notice: launchPreferences.notice, buddyKey: preferences.buddyKey(), onboardingOpen });
   setMenu();
-  win = createWindow(windowBuddy(preferences.read()));
+  win = createWindow(windowBuddy(launchPreferences));
   onboardingReady(onboardingService);
   updateService.start();
 }

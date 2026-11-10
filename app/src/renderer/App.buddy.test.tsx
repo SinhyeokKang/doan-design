@@ -72,6 +72,8 @@ let doan: Record<string, ReturnType<typeof vi.fn>>;
 let readPreferences: (snapshot: PreferencesSnapshot | null) => void;
 let paint: { first: BuddyId; apply: Mock<(id: BuddyId) => void> };
 let tree: ReactNode;
+// What main decided at launch about the existing-user buddy screen.
+let buddyIntro = false;
 
 function reset() {
   paint = { first: "dori", apply: vi.fn<(id: BuddyId) => void>() };
@@ -83,7 +85,7 @@ function reset() {
     onFolders: on("folders"), onViewCommand: on("view"), onMenuCommand: on("menu"), onConversationEvent: on("conversation"), onConversationStage: on("stage"), onConversationListChanged: on("conversationList"), listConversations: vi.fn(async () => []), conversationResumeTarget: vi.fn(async () => ({ available: false, reason: "no_record" })), readConversation: vi.fn(async () => ({ error: "not_found" })), onOpenAddProjects: on("openAddProjects"),
     onOpenSettingsPage: on("openSettingsPage"), onNotificationClick: on("notificationClick"),
     onWorkChanged: on("work"), onConversationWorkChanged: on("conversationWork"), getConversationWork: vi.fn(async () => []), onMcpConnectors: on("mcp"), onExportRunning: on("exportRunning"), onFullScreen: on("fullScreen"), getWork: vi.fn(async () => []), onOpenLink: on("openLink"), onQuitting: vi.fn(() => () => {}), openLinksReady: vi.fn(async () => {}), onOpenRequest: on("openRequest"), onConversationHandoff: on("handoff"), answerOpenRequest: vi.fn(async () => {}),
-    homeDirectory: vi.fn(async () => "/Users/ada"), startOnboardingSession: vi.fn(async () => ({ ok: true, result: { sessionId: "s", completed: true } })),
+    homeDirectory: vi.fn(async () => "/Users/ada"), startOnboardingSession: vi.fn(async () => ({ ok: true, result: { sessionId: "s", completed: true } })), readBuddyIntro: vi.fn(async () => buddyIntro),
     readUiState: vi.fn(() => new Promise(resolve => { readUiState = resolve; })), saveUiState: vi.fn(async () => true), setMenuState: vi.fn(async () => {}),
     readPreferences: vi.fn(() => new Promise(resolve => { readPreferences = resolve; })), savePreferences: vi.fn(async () => null),
     readShellActivity: vi.fn(async () => []), setSelection: vi.fn(async () => {}), inspect: vi.fn(), openSettings: vi.fn(async () => true),
@@ -94,7 +96,7 @@ function reset() {
   vi.stubGlobal("HTMLElement", class {});
 }
 beforeEach(reset);
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => { vi.unstubAllGlobals(); buddyIntro = false; });
 
 function render(): ReactNode {
   for (let round = 0; round < 20; round++) {
@@ -137,4 +139,15 @@ test("a reloaded renderer follows the saved buddy, not the query it was opened w
   await flush();
   expect(paint.apply).toHaveBeenLastCalledWith("popo");
   expect(paint.apply.mock.calls.map(([id]) => id)).not.toContain("puri");
+});
+
+// While main has the existing-user buddy screen open, App holds first run's lock: `doan open` and links get the
+// first-run answer, and the menu and notifications see a modal.
+test.each([true, false])("the buddy screen (open: %s) answers `doan open` as first run does and is modal", async open => {
+  buddyIntro = open;
+  render();
+  await flush();
+  listeners.openRequest!({ id: "1", root: "/repo", canvas: "a.html", expires: Date.now() + 1000 } as never);
+  expect(doan.answerOpenRequest).toHaveBeenLastCalledWith(open ? { id: "1", kind: "busy", reason: "first_run" } : { id: "1", kind: "canvas_not_found" });
+  expect(doan.setMenuState).toHaveBeenLastCalledWith(expect.objectContaining({ modal: open }));
 });

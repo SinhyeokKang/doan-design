@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject }
 import { flushSync } from "react-dom";
 import { ShellSidebar } from "./ShellSidebar";
 import { useBuddySelection } from "./buddySelection";
+import { useBuddyIntroLock } from "./buddyIntroLock";
 import type { BuddyPaint } from "./buddyPaint";
 import { commitVisit, emptyHistory, fallbackWorktree, historyTarget, loadedProjectRow, projectExpanded, projectsTab, reconcileProjects, selectProjectRoot, shownFolders, type Visit } from "./shellNavigation";
 import { groupToOpen, openGroup, toggleGroup, type GroupId, type ShownCanvas } from "./sidebarGroups";
@@ -893,7 +894,9 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const search = () => { if (locked()) return; cancelRestore(); beforeModal.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setQuickOpen(true); };
 
 
-  const modal = wizard !== null || setup !== null || quickOpen || homeRun.current.removing !== null || trashing !== null || deletingConversation !== null;
+  // The existing-user buddy screen holds first run's lock while it is open.
+  const buddyIntro = useBuddyIntroLock();
+  const modal = wizard !== null || buddyIntro.open || setup !== null || quickOpen || homeRun.current.removing !== null || trashing !== null || deletingConversation !== null;
   // A locked Project Settings page holds the toast too: its Share confirmation makes the toast inert while the page
   // itself is not modal (POSTMORTEM 2026-10-25 'Native hiding bypassed
   // renderer-only lifetime checks').
@@ -1547,7 +1550,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     const draft = canvasRun.current!.composerKey() === key ? overviewRun.current!.store.drafts.get(key) : undefined;
     const filled = !!draft && (draft.segments.length > 0 || draft.preset !== null || draft.attachments.length > 0);
     const typing = !!field && !!active && field.contains(active) && (filled || link!.composing());
-    return { canvas, locked: locked(), dialog: topDialog() !== null, firstRun: wizard !== null, typing, chose };
+    return { canvas, locked: locked(), dialog: topDialog() !== null, firstRun: wizard !== null || buddyIntro.open, typing, chose };
   }
   // entry: the target's project as the renderer listed it when the handoff was announced. A list read since then that
   // still lacks the target answers at once; before any, Open waits for it.
@@ -1579,7 +1582,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   function openPage(): OpenPage {
     const screen = currentScreen.current;
     const page = !locked() ? null : screen === "addProjects" ? "add_projects" : screen === "settings" ? "settings" : "project_settings";
-    return { locked: page, firstRun: wizard !== null, entries: () => entriesRef.current, dismissDialogs() {
+    return { locked: page, firstRun: wizard !== null || buddyIntro.open, entries: () => entriesRef.current, dismissDialogs() {
       const dialog = topDialog();
       // Synchronous, so the dialog's close has rendered before the check below.
       if (dialog) flushSync(() => { dialog.dispatchEvent(new Event("cancel", { cancelable: true })); });
