@@ -13,17 +13,17 @@ Doany and four friends, one asset set each. The feature plan is `docs/features/b
 
 ## One buddy's set
 
-Doany's motion sources stay in `../doany/` (with the V1 record); only its card lives here.
+Doany's motion sources stay in `../doany/` (with the V1 record); its card and shadow live here.
 Doany's equivalent of each file is in brackets.
 
 | File | What | State |
 |---|---|---|
 | `card.png` | 1254² RGB, white with a soft contact shadow: the selection-card picture | friends: the supplied drafts as they are; Doany: generated card, approved (below) |
-| `still.png` | 1254² RGBA, transparent, no shadow: the still and WebGL fallback [`../doany/v2/doany.png`] | Puri: approved; other friends: to do |
-| `body.png` | 1254² RGBA, same coordinates, eyes and accessory removed, hidden body restored [`v2/body.png`] | Puri: approved; other friends: to do |
-| `accessory.png` | 1254² RGBA, same coordinates, accessory only [`v2/hat.png`] | Puri: approved; other friends: to do |
-| `shadow.png` | 1254² RGBA, same coordinates, only the card's contact shadow: black, alpha from how much it darkens the white, completed under the body [Doany's lives here too, as `doany/shadow.png`] | Puri: approved; Doany and other friends: to do |
-| `prompts.json` | generation prompts, in the form of `v2/layer-prompts.json` | Puri: approved; other friends: to do |
+| `still.png` | 1254² RGBA, transparent, no shadow: the still and WebGL fallback [`../doany/v2/doany.png`] | Puri: approved; Dungdung, Popo and Dori: ready for review |
+| `body.png` | 1254² RGBA, same coordinates, eyes and accessory removed, hidden body restored [`v2/body.png`] | Puri: approved; Dungdung, Popo and Dori: ready for review |
+| `accessory.png` | 1254² RGBA, same coordinates, accessory only [`v2/hat.png`] | Puri: approved; Dungdung, Popo and Dori: ready for review |
+| `shadow.png` | 1254² RGBA, same coordinates, only the card's contact shadow: black, alpha from how much it darkens the white, completed under the body [Doany's lives here too, as `doany/shadow.png`] | Puri: approved; Doany and other friends: ready for review |
+| `prompts.json` | generation prompts, in the form of `v2/layer-prompts.json` | Puri: approved; Dungdung, Popo and Dori: ready for review |
 | `artist.gif` | 512², 8 frames, 2.2 s: the working-notice painter, frames aligned (below) [`../doany/artist/painting.gif`] | done |
 | `artist-original.gif` | the painter GIF as supplied | kept |
 | `artist-rest.png` | 512² RGBA, first frame of `artist.gif` [`artist/rest.png`] | done |
@@ -113,11 +113,163 @@ and 8.24 in the 286 px buffer. It does not establish WebGL rendering parity.
 `doany/card.png` replaces the composite draft at the same path, so picker canvases need no markup change.
 The maintainer compared all five cards in `buddy-choice.html` and approved the generated card's identity, scale and shadow.
 
+## Dungdung layers and rig
+
+`dungdung/still.png`, `body.png`, `accessory.png` and `shadow.png` are 1254² RGBA. Three initial image_gen edits
+(still, body, accessory) are recorded in `dungdung/prompts.json`. The body now keeps the still's exposed pixels and
+cast shading outside the accessory and eye edit windows. Existing reconstructed plush is used only beneath
+the accessory and in the eyes, with a one-pixel compact accessory feather and local colour matching; its yarn
+texture is not substituted across the exposed body. Source cast shadows are preserved rather than redrawn.
+The supplied still, accessory, shadow, card and artist files are unchanged by this body correction.
+One additional image generation repairs the cup regions; the hidden body alpha is rounded beneath the cups.
+The side zones contain zero dark headphone-fragment pixels (maximum RGB below 90).
+The black-alpha ground shadow remains the extracted card shadow. Human visual approval is pending.
+
+| Rig value | Dungdung |
+|---|---|
+| Eye centres, left / right | `.404,.482` / `.585,.482` |
+| Measured eye radii, left / right | `.033,.057` / `.033,.057` |
+| Shared shader eye radius | `.033,.057` |
+| Eye highlight y | `.455` |
+| Gaze offset / body skew | `.018, .014` / `.018` |
+| Body / accessory pivot | `.5, .60` / `.5,.43` |
+| Scale / neutral vertical offset / still padding | `1.34` / `.10` / `16.5%` |
+| Accessory tilt range (radians) / hop multiplier | `[-0.025, 0.025]` / `.9` |
+| Ground contact x / y / width | `.494` / `.86` / `.49` |
+
+Measurements use the same opaque dark-eye component and 50 % alpha ground sampling as Puri. The shared eye
+radius and centres agree with the still within `.003` UV. Body + accessory matches the still's alpha boundary
+within 1 source px outside the eyes. Neither body eye contains a dark eye pixel. Eye checks: left 0.3729% mean luminance difference, texture ratios 0.951/1.001/1.023; right 0.0796% mean luminance difference, texture ratios 0.922/0.953/0.972.
+Texture ratios are high-pass RMS at Gaussian sigma 1/2/4 px; each eye's measuring ellipse adds 22/28 px to the
+eye's measured x/y radii, with the surrounding ring at 1.25–1.5 times that ellipse. Mean luminance uses linear-light
+Rec.709 weights, relative to the ring. The eyes are measured after the final composite.
+CPU motion verification checks 735,160 poses against the actual alpha hulls, retaining at least
+11.49 device px inside Home's 228 px buffer (14.42 in 286 px).
+This is an asset transform check, not app WebGL parity. Scripts, generation sources and measurements remain in
+`.scratch/buddy-assets/dungdung/` and the shared scripts in `.scratch/buddy-assets/`.
+
+Source-pixel check: exclude positive accessory alpha dilated by a Euclidean 2 px disk and the eye edit
+ellipses (1.2 times the measuring windows). Of 439,409 opaque still pixels (alpha ≥ 250),
+100% match exactly in RGB and alpha, with maximum channel difference 0; the gate is ≤ 8 for at least 99.5%.
+Final correction scripts, source-match, eye/alpha checks, CPU hull results and browser pose comparisons are in
+`.scratch/buddy-assets/body-fixes/dungdung/` and its parent directory.
+
+
+## Popo layers and rig
+
+`popo/still.png`, `body.png`, `accessory.png` and `shadow.png` are 1254² RGBA. Three initial image_gen edits
+(still, body, accessory) are recorded in `popo/prompts.json`. The body now keeps the still's exposed pixels and
+cast shading outside the accessory and eye edit windows. Existing reconstructed plush is used only beneath
+the accessory and in the eyes, with a one-pixel compact accessory feather and local colour matching; its yarn
+texture is not substituted across the exposed body. Source cast shadows are preserved rather than redrawn.
+The supplied still, accessory, shadow, card and artist files are unchanged by this body correction.
+This correction uses the existing reconstructed plush with no new generation. Eye fills use unshadowed plush
+for their comparison ring: exclude the glasses alpha and its surrounding 12 px (2663/2082 left/right samples).
+The frame's real soft shadow outside the rims remains exactly as in the still.
+The black-alpha ground shadow remains the extracted card shadow. Human visual approval is pending.
+
+| Rig value | Popo |
+|---|---|
+| Eye centres, left / right | `.411,.42` / `.607,.42` |
+| Measured eye radii, left / right | `.032,.055` / `.032,.055` |
+| Shared shader eye radius | `.032,.055` |
+| Eye highlight y | `.393` |
+| Gaze offset / body skew | `.018, .014` / `.018` |
+| Body / accessory pivot | `.5, .60` / `.503,.42` |
+| Scale / neutral vertical offset / still padding | `1.34` / `.10` / `16.5%` |
+| Accessory tilt range (radians) / hop multiplier | `[0, 0]` / `.9` |
+| Ground contact x / y / width | `.494` / `.858` / `.595` |
+
+Measurements use the same opaque dark-eye component and 50 % alpha ground sampling as Puri. The shared eye
+radius and centres agree with the still within `.003` UV. Body + accessory matches the still's alpha boundary
+within 1 source px outside the eyes. Neither body eye contains a dark eye pixel. Eye checks: left 0.3042% mean luminance difference, texture ratios 0.896/0.956/0.991; right 0.4138% mean luminance difference, texture ratios 0.852/0.899/0.905.
+Texture ratios are high-pass RMS at Gaussian sigma 1/2/4 px; each eye's measuring ellipse adds 22/28 px to the
+eye's measured x/y radii, with the surrounding ring at 1.25–1.5 times that ellipse. Mean luminance uses linear-light
+Rec.709 weights, relative to the ring. The eyes are measured after the final composite.
+CPU motion verification checks 735,160 poses against the actual alpha hulls, retaining at least
+14.27 device px inside Home's 228 px buffer (17.90 in 286 px).
+This is an asset transform check, not app WebGL parity. Scripts, generation sources and measurements remain in
+`.scratch/buddy-assets/popo/` and the shared scripts in `.scratch/buddy-assets/`.
+
+Source-pixel check: exclude positive accessory alpha dilated by a Euclidean 2 px disk and the eye edit
+ellipses (1.2 times the measuring windows). Of 657,108 opaque still pixels (alpha ≥ 250),
+99.99635% match exactly in RGB and alpha; the gate is ≤ 8 for at least 99.5%. The 24 exceptions remove
+the uncovered lens stroke (maximum difference 191); the 99.5th-percentile difference remains 0.
+Final correction scripts, source-match, eye/alpha checks, CPU hull results and browser pose comparisons are in
+`.scratch/buddy-assets/body-fixes/popo/` and its parent directory.
+The original large-ring comparison is retained as frame-cast-shadow-affected, not the approved eye gate:
+left 12.9224% luminance difference and texture ratios 1.094/1.161/1.169; right 5.5125% luminance difference and texture ratios 1.044/1.079/1.077.
+
+
+The right opening's inner-left dark stroke is refilled from the existing reconstructed plush, including both
+ends; this lens correction uses zero new image generations. It changes 1262 source pixels, leaves alpha
+identical, and leaves every pixel outside its compact correction mask untouched. The targeted dark component
+falls from 499 pixels to zero. The surrounding frame cast shadow is retained.
+The lens-interior gate uses linear Rec.709 luminance smoothed by Gaussian sigma 3 px, evaluated in the two
+lens openings after excluding the frame and its 12 px cast-shadow band. Each remaining smoothed pixel must
+be at least 75% of its approved plush-ring mean. The 22651/22322 checked left/right pixels contain zero failures;
+minimum ratios are `.780997` / `.820639`. Raw-pixel minima and counts remain reference-only, since yarn grooves
+and the rim shadow naturally fall below that bound. Final before/after detail images, raw figures, approved
+lens gate, eye checks and pixel matches are local in `.scratch/buddy-assets/popo-lens-fix/`.
+
+
+## Dori layers and rig
+
+`dori/still.png`, `body.png`, `accessory.png` and `shadow.png` are 1254² RGBA. Three initial image_gen edits
+(still, body, accessory) are recorded in `dori/prompts.json`. The body now keeps the still's exposed pixels and
+cast shading outside the accessory and eye edit windows. Existing reconstructed plush is used only beneath
+the accessory and in the eyes, with a one-pixel compact accessory feather and local colour matching; its yarn
+texture is not substituted across the exposed body. Source cast shadows are preserved rather than redrawn.
+The supplied still, accessory, shadow, card and artist files are unchanged by this body correction.
+This correction uses the existing reconstructed plush with no new generation. No cream scarf-colour pixels
+remain in the opaque body below y 480.
+The black-alpha ground shadow remains the extracted card shadow. Human visual approval is pending.
+
+| Rig value | Dori |
+|---|---|
+| Eye centres, left / right | `.424,.364` / `.563,.365` |
+| Measured eye radii, left / right | `.027,.045` / `.027,.045` |
+| Shared shader eye radius | `.027,.045` |
+| Eye highlight y | `.337` |
+| Gaze offset / body skew | `.018, .014` / `.018` |
+| Body / accessory pivot | `.5, .60` / `.51,.535` |
+| Scale / neutral vertical offset / still padding | `1.34` / `.10` / `16.5%` |
+| Accessory tilt range (radians) / hop multiplier | `[-0.02, 0.02]` / `.65` |
+| Ground contact x / y / width | `.504` / `.888` / `.463` |
+
+Measurements use the same opaque dark-eye component and 50 % alpha ground sampling as Puri. The shared eye
+radius and centres agree with the still within `.003` UV. Body + accessory matches the still's alpha boundary
+within 1 source px outside the eyes. Neither body eye contains a dark eye pixel. Eye checks: left 0.5019% mean luminance difference, texture ratios 0.948/1.002/1.064; right 0.2891% mean luminance difference, texture ratios 0.916/0.972/1.014.
+Texture ratios are high-pass RMS at Gaussian sigma 1/2/4 px; each eye's measuring ellipse adds 22/28 px to the
+eye's measured x/y radii, with the surrounding ring at 1.25–1.5 times that ellipse. Mean luminance uses linear-light
+Rec.709 weights, relative to the ring. The eyes are measured after the final composite.
+CPU motion verification checks 735,160 poses against the actual alpha hulls, retaining at least
+8.43 device px inside Home's 228 px buffer (10.58 in 286 px).
+This is an asset transform check, not app WebGL parity. Scripts, generation sources and measurements remain in
+`.scratch/buddy-assets/dori/` and the shared scripts in `.scratch/buddy-assets/`.
+
+Source-pixel check: exclude positive accessory alpha dilated by a Euclidean 2 px disk and the eye edit
+ellipses (1.2 times the measuring windows). Of 382,214 opaque still pixels (alpha ≥ 250),
+100% match exactly in RGB and alpha, with maximum channel difference 0; the gate is ≤ 8 for at least 99.5%.
+Final correction scripts, source-match, eye/alpha checks, CPU hull results and browser pose comparisons are in
+`.scratch/buddy-assets/body-fixes/dori/` and its parent directory.
+
+
+## Doany shadow
+
+`doany/shadow.png` is 1254² RGBA, black RGB only. It was extracted from `doany/card.png` as the amount the exposed
+floor darkens white, with smooth Gaussian completion under the body; no image generation was used. The card's
+939 px character height maps uniformly to the original still's 1085 px height (scale `1.155485`). Its measured
+card contact `(587.5, 1061)` maps to `(573, 1179)` in `../doany/v2/doany.png`; the ground pivot remains `.458, .941`.
+This preserves the original still's coordinates rather than using the card coordinates in the motion slot.
+The shadow's exposed-floor fit RMS is `.012665` alpha; its nonzero bounds are `(9, 1048)–(1200, 1250)` (exclusive).
+Extraction script and measurements are local in `.scratch/buddy-assets/`; human visual review is pending.
+
 ## Next: transparent still and layers (per friend)
 
 Done the way Doany V2's layers were (`../doany/v2/README.md`, `../doany/v2/layer-prompts.json`), with the image
 generation tool, from `card.png` as the only reference, and the way Puri's were (above), whose layers are approved.
-Dungdung, Popo and Dori remain.
+Dungdung, Popo and Dori now have layers ready for human review.
 
 1. `still.png`: the same character, pose, size and position as `card.png` on a 1254² transparent canvas, without
    the contact shadow or the white. Do not regenerate, recolour, reshape or recentre the character.

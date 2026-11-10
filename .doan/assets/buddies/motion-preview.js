@@ -10,6 +10,9 @@
   const BUDDIES = {
     doany: {body:'../doany/v2/body.png', accessory:'../doany/v2/hat.png', eyes:['.421,.550','.619,.550'], radius:['.035','.056'], shine:'.523', pivot:'.67,.30', tilt:[-.30,.15], liftScale:.9},
     puri: {body:'puri/body.png', accessory:'puri/accessory.png', eyes:['.433,.528','.607,.528'], radius:['.034','.057'], shine:'.501', pivot:'.515,.307', tilt:[-.12,.12], liftScale:.9},
+    dungdung: {body:'dungdung/body.png', accessory:'dungdung/accessory.png', eyes:['.404,.482','.585,.482'], radius:['.033','.057'], shine:'.455', pivot:'.5,.43', tilt:[-0.025,0.025], liftScale:.9},
+    popo: {body:'popo/body.png', accessory:'popo/accessory.png', eyes:['.411,.42','.607,.42'], radius:['.032','.055'], shine:'.393', pivot:'.503,.42', tilt:[0,0], liftScale:.9},
+    dori: {body:'dori/body.png', accessory:'dori/accessory.png', eyes:['.424,.364','.563,.365'], radius:['.027','.045'], shine:'.337', pivot:'.51,.535', tilt:[-0.02,0.02], liftScale:.65},
   };
   const vertexFor = c => `
     precision mediump float;
