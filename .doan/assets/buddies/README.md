@@ -87,11 +87,15 @@ generation tool, from `card.png` as the only reference. Start with `puri`, check
 4. `prompts.json`: the prompts used, as `[["still", "..."], ["body", "..."], ["accessory", "..."]]`.
 5. Rig numbers in this README: eye centres and radii in UV (0–1) of the 1254² canvas, measured on `still.png`;
    accessory pivot; for the scarf and headphones, a tilt range small enough that the accessory does not slide off
-   the body.
+   the body; and the ground contact for the shadow the rig draws under the buddy: contact centre x, the bottom
+   of the alpha (y), and the alpha width 50 px above that bottom, all in UV and measured on `still.png` at 50 %
+   alpha. Doany's are `.458`, `.941`, `.447` (from `../doany/v2/doany.png`).
 
 Checks before handing back: all three PNGs are 1254² RGBA; `body.png` + `accessory.png` composited match `still.png`
 outside the eyes within 1 px at the alpha edge; the eyes are fully gone from `body.png`; no shadow or white remains.
 Do not edit app code, `tokens.css` or other buddies' files. Once a friend's `still.png` exists, switch that buddy's
 slot in `.doan/canvases/buddy-home.html` to it: drop the `card-stand-in` class from its `.doany` button and point
-the `img` at `../assets/buddies/<id>/still.png`; the picker cards in `buddy-choice.html` keep `card.png`. The
+the `img` at `../assets/buddies/<id>/still.png`, and add that buddy's contact rule next to Doany's
+`[data-doan-id="home-doany-buddy"]{--contact-x:…;--contact-y:…;--contact-w:…}` so its `.buddy-shadow` lands under
+it (the shadow is hidden while the card stands in); the picker cards in `buddy-choice.html` keep `card.png`. The
 hand-off (branch, commits, checks) is in `docs/features/buddy-choice/tasks.md` 'Codex 워커 인계'.
