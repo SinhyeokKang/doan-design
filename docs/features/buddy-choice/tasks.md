@@ -75,7 +75,7 @@ AGENTS.md 'Commands'에 없는 확인 명령(`file`, `rg`, 측정 스크립트)�
   - artist GIF: `.doan/assets/buddies/README.md`의 소스 박스로 친구 GIF를 자르고 128²로 줄여 `public/buddies/<id>/artist.gif`·`artist-rest.png`를 만든다(Doany와 같은 방법, `public/doany/README.md`).
   - Doany의 `shadow.png`(512²)와 다섯 버디의 `card.png`(588²), 공용 `eye.png`(`public/buddies/eye.png` 한 벌).
   - 레지스트리의 모든 에셋 경로가 있고 규격이 맞는지 확인하는 테스트를 넣는다.
-  - 확인: `npm --prefix app test`의 에셋 테스트가 다음을 확인한다. 레지스트리의 모든 경로가 있다. still·body·accessory·shadow는 512² RGBA, card는 588², artist는 128² GIF이고 프레임 수와 시간이 원본과 같다, `eye.png`가 있다, `public/buddies/` 전체가 3 MB 이하다. `npm --prefix app run build`와 `doan check --json --repo .`가 통과한다.
+  - 확인: `npm --prefix app test`의 에셋 테스트가 다음을 확인한다. 레지스트리의 모든 경로가 있다. still·body·accessory·shadow는 512² RGBA, card는 588², artist는 128² GIF이고 프레임 수와 시간이 원본과 같다, `eye.png`가 있다, `public/buddies/` 전체가 5 MB 이하다(손실 없는 PNG, 사람 결정). `npm --prefix app run build`와 `doan check --json --repo .`가 통과한다.
   - ⎯ 커밋: `feat(app): buddy assets`
 - [ ] **3.3 리그 일반화.** design.md '리그 일반화'대로 한다.
   - 셰이더 소스 템플릿에 버디별 수치를 문자열로 넣어 버디마다 컴파일하고, 템플릿 함수를 export한다. `Doany`를 `Buddy`(prop `buddy`, `key={buddy}`로 다시 마운트)로 바꾸고, 버디별 기울기 범위와 홉 배율을 적용한다.

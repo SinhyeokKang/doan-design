@@ -47,3 +47,5 @@
 - 통합 HEAD `e44e6614`(A·B·E)에서 `verify.mjs`가 PASS다.
 - C `ctx_6790d806da1a`(`buddy-rig`)를 띄웠다. 미뤄 둔 3.4 `/runtime-test`를 C가 먼저 돌려 통과했다. 콘텐츠가 처음 그려지는 rAF에서 `data-buddy`와 `--buddy-9`가 저장된 버디(popo, dori) 값이었고, 첫 로드와 재로드 모두 같았다.
 - `public/buddies/`는 손실 없는 PNG로 두고 크기 상한을 3 MB에서 5 MB로 올린다 — 사용자 결정. oxipng를 적용해도 4.90 MB였다. pngquant 안(2.03 MB, PSNR 44–52 dB)은 쓰지 않는다. 4.1에서 BACKLOG·DESIGN에 반영할 것은 없다.
+- C 3.3 녹화 다섯 개를 사람이 보고 진행하라고 했다("ㄱㄱ").
+- C: `00891efc`·`ce50e190`을 `a9300dff`·`15f0dd58`로 통합했다. 리뷰(Claude)는 🔴 0이었다. golden `--check`가 일치하고, golden 차이는 tasks 3.3이 말한 네 가지뿐이다. tasks 3.2의 상한은 5 MB로 고쳤다.
