@@ -19,10 +19,10 @@ Doany's equivalent of each file is in brackets.
 | File | What | State |
 |---|---|---|
 | `card.png` | 1254² RGB, white with a soft contact shadow: the selection-card picture | friends: the supplied drafts as they are; Doany: composite draft (below) |
-| `still.png` | 1254² RGBA, transparent, no shadow: the still and WebGL fallback [`../doany/v2/doany.png`] | to do (Codex) |
-| `body.png` | 1254² RGBA, same coordinates, eyes and accessory removed, hidden body restored [`v2/body.png`] | to do (Codex) |
-| `accessory.png` | 1254² RGBA, same coordinates, accessory only [`v2/hat.png`] | to do (Codex) |
-| `prompts.json` | generation prompts, in the form of `v2/layer-prompts.json` | to do (Codex) |
+| `still.png` | 1254² RGBA, transparent, no shadow: the still and WebGL fallback [`../doany/v2/doany.png`] | Puri: ready for human review; other friends: to do |
+| `body.png` | 1254² RGBA, same coordinates, eyes and accessory removed, hidden body restored [`v2/body.png`] | Puri: ready for human review; other friends: to do |
+| `accessory.png` | 1254² RGBA, same coordinates, accessory only [`v2/hat.png`] | Puri: ready for human review; other friends: to do |
+| `prompts.json` | generation prompts, in the form of `v2/layer-prompts.json` | Puri: ready for human review; other friends: to do |
 | `artist.gif` | 512², 8 frames, 2.2 s: the working-notice painter, frames aligned (below) [`../doany/artist/painting.gif`] | done |
 | `artist-original.gif` | the painter GIF as supplied | kept |
 | `artist-rest.png` | 512² RGBA, first frame of `artist.gif` [`artist/rest.png`] | done |
@@ -65,6 +65,44 @@ easel) against the mean of Doany's and Puri's, and the character's bounding-box 
 | dungdung | 226, 302 | 34, 98, 455 | none |
 | popo | 196, 287 | −4, 79, 510 | none |
 | dori | 195, 245 | 6, 57, 490 | none |
+
+## Puri layers and rig
+
+`puri/still.png`, `body.png` and `accessory.png` are 1254 × 1254 RGBA with transparent backgrounds and no floor
+shadow. Built-in image_gen made three edits: card → transparent still, still → eyeless body, and still → sprout.
+`puri/prompts.json` preserves all three prompts. ImageMagick removes isolated alpha noise and near-white fringe,
+keeps the still's visible pixels for the final body and accessory boundaries, and uses the generated body only to
+fill the eyes and restore the mint plush hidden by the stem. The generated accessory guides the extraction;
+the final accessory retains the still's own pixels rather than the redrawn sprout. The supplied card is unchanged.
+
+All coordinates below are UV of the complete 1254² canvas, with y down. Eye bounds use opaque pixels whose
+maximum RGB channel is below 85, measured separately in the two eye windows. Centres use the bounds' midpoint;
+radii use half their inclusive width and height. Ground contact uses alpha ≥ 128, with width sampled 50 px above
+the bottom and x at that sample's midpoint.
+
+| Rig value | Puri |
+|---|---|
+| Left eye centre | `.433, .528` (543, 661.5 px) |
+| Right eye centre | `.607, .528` (761, 661.5 px) |
+| Eye radii, left / right | `.035, .057` / `.033, .057`; shared shader radius `.034, .057` is within `.003` of both |
+| Eye highlight y | `.501` (eye centre y minus `.027`) |
+| Gaze offset | `.018, .014` |
+| Body skew | `.018` |
+| Body pivot | `.5, .60` |
+| Accessory pivot | `.515, .307` (stem base) |
+| Scale / neutral vertical offset | `1.34` / `.10` |
+| Still fallback padding | `16.5%` |
+| Accessory tilt range | `[-.12, +.12]` radians |
+| Hop height multiplier | `.9` |
+| Ground contact x / y / width | `.498` / `.847` / `.672` |
+
+Measured: body + accessory stays within 1 source px of the still's 50% alpha boundary outside the eyes (8 threshold
+pixels differ, all within 1 px); both eye windows in the body contain zero dark eye pixels. Maximum eye UV rounding
+error is `.000489`; the shared radius differs by at most `.001` UV. No opaque near-white pixels remain in any layer.
+Measurement scripts, source generations and results are local in `.scratch/buddy-assets/`. Human visual approval
+is pending; the app has not implemented this buddy yet. CPU headroom verification uses the actual alpha hulls and
+`doanyRender.test.ts`'s motion sequences: 735,160 poses retained at least 6.57 device px in Home's 228 px buffer
+and 8.24 in the 286 px buffer. It does not establish WebGL rendering parity.
 
 ## Next: Doany's card
 
