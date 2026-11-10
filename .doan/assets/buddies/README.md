@@ -18,7 +18,7 @@ Doany's equivalent of each file is in brackets.
 
 | File | What | State |
 |---|---|---|
-| `card.png` | 1254² RGB, white with a soft contact shadow: the selection-card picture | friends: the supplied drafts as they are; Doany: composite draft (below) |
+| `card.png` | 1254² RGB, white with a soft contact shadow: the selection-card picture | friends: the supplied drafts as they are; Doany: generated card, pending human review (below) |
 | `still.png` | 1254² RGBA, transparent, no shadow: the still and WebGL fallback [`../doany/v2/doany.png`] | Puri: ready for human review; other friends: to do |
 | `body.png` | 1254² RGBA, same coordinates, eyes and accessory removed, hidden body restored [`v2/body.png`] | Puri: ready for human review; other friends: to do |
 | `accessory.png` | 1254² RGBA, same coordinates, accessory only [`v2/hat.png`] | Puri: ready for human review; other friends: to do |
@@ -45,9 +45,12 @@ Rig numbers (eye centres and radii, body and accessory pivots, accessory tilt ra
   (1478 × 789) is it trimmed to its content at 3% fuzz, given a 16 px white border, and its near-white backdrop
   flood-filled to pure white at 4% fuzz from the corner, so it sits on a white panel without a visible box. It is
   used by `.doan/canvases/buddy-welcome.html` and `buddy-installer.html`.
-- Doany's `card.png` is a draft: `../doany/v2/doany.png` cropped to its alpha box, scaled to 940 px high, its
-  bottom at y 1095 and centred, over a two-ellipse contact shadow fitted by eye to the friends' cards (Gaussian
-  blur 18 and 40). A Codex worker redraws it from the original (below).
+- Doany's `card.png` was made with built-in image_gen (one generation), using `../doany/v2/doany.png` as the only
+  character reference and Puri's and Dungdung's cards as white-background, framing and contact-shadow references.
+  The prompt preserves the original violet Pebble, black beret, pose, proportions, texture and colour, asking
+  for the friends' soft floor shadow. The generated square was uniformly reduced to 1154², placed at (50, 30)
+  on white and saved as 1254² RGB to match their scale and bottom line. The original still is unchanged.
+  The full prompt, generation and five-card comparison are local in `.scratch/buddy-assets/`; human review is pending.
 
 ## Working-notice source boxes
 
@@ -104,12 +107,10 @@ is pending; the app has not implemented this buddy yet. CPU headroom verificatio
 `doanyRender.test.ts`'s motion sequences: 735,160 poses retained at least 6.57 device px in Home's 228 px buffer
 and 8.24 in the 286 px buffer. It does not establish WebGL rendering parity.
 
-## Next: Doany's card
+## Doany's card review
 
-Redraw `doany/card.png` with the image generation tool from Doany's original still (`../doany/v2/doany.png`)
-as the only character reference and the friends' cards as the style reference: the same Pebble, beret, pose and
-colour, on white with the friends' soft contact shadow, at their scale and bottom line. Do not reshape or recolour
-Doany. It replaces the composite draft in place, so the canvases need no change.
+`doany/card.png` replaces the composite draft at the same path, so picker canvases need no markup change.
+Compare all five cards in `buddy-choice.html` before approving the generated card's identity, scale and shadow.
 
 ## Next: transparent still and layers (per friend)
 
