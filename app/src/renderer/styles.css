@@ -284,6 +284,8 @@ code, kbd { font-family: var(--type-family); }
 /* The side cards are the controls (no prev/next buttons): a side card's shadow deepens on hover. */
 .buddy-card:not(:has(input:checked)):hover { box-shadow: var(--shadow-panel), 0 4px 12px -2px color-mix(in srgb, var(--text-standard) 18%, transparent); }
 @media (prefers-reduced-motion: reduce) { .buddy-card { transition: none; } }
+/* While a horizontal scroll moves the row its cards follow the wheel frame by frame, drawn by BuddyFlow. */
+.buddy-flow[data-scrolling] .buddy-card { transition: none; }
 /* The chosen card: a 2px ring in the buddy's icon colour and the Home composer's accent glow (an Accent place). */
 .buddy-card:has(input:checked) { box-shadow: 0 0 0 2px var(--text-accent), 0 0 var(--space-6) 2px color-mix(in srgb, var(--affordance-accent) 27%, transparent), 0 0 calc(var(--space-8) * 2) var(--space-2) color-mix(in srgb, var(--affordance-accent) 7%, transparent); }
 @media (prefers-reduced-transparency: reduce) { .buddy-card:has(input:checked) { box-shadow: 0 0 0 2px var(--text-accent), 0 0 var(--space-6) 2px color-mix(in srgb, var(--affordance-accent) 15%, transparent); } }

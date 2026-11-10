@@ -13,6 +13,7 @@ vi.mock("react", async original => {
     ...actual,
     useRef: (value: unknown) => { const index = hooks.refCursor++; if (!(index in hooks.refs)) hooks.refs[index] = { current: value }; return hooks.refs[index]; },
     useEffect: (run: () => unknown) => { hooks.effects.push(run); },
+    useLayoutEffect: () => {},
   };
 });
 const { BuddyFailureNotice, BuddyFlow, BuddyRows } = await import("./BuddyPicker");
@@ -94,22 +95,63 @@ describe("first run's Cover Flow row", () => {
     expect(select).not.toHaveBeenCalled();
   });
 
-  test("a horizontal swipe moves one card per gesture and stops at the ends; a vertical scroll is the page's", () => {
-    const select = vi.fn();
+  // A fake row: five cards whose inline transforms the scroll writes, on fake timers and frames.
+  function scrollRow(select: (id: string) => void, selected = "doany") {
+    vi.useFakeTimers();
+    let now = 0;
+    const frames: ((time: number) => void)[] = [];
+    vi.stubGlobal("requestAnimationFrame", (run: (time: number) => void) => { frames.push(run); return frames.length; });
+    vi.stubGlobal("cancelAnimationFrame", () => {});
+    vi.stubGlobal("matchMedia", () => ({ matches: false }));
+    vi.spyOn(performance, "now").mockImplementation(() => now);
+    const cards = Array.from({ length: 5 }, () => ({ style: { transform: "", zIndex: "" } }));
     let wheel: ((event: Record<string, unknown>) => void) | null = null;
-    flow({ select });
-    hooks.refs[0]!.current = { addEventListener: (type: string, listener: typeof wheel, options: unknown) => { expect([type, options]).toEqual(["wheel", { passive: false }]); wheel = listener; }, removeEventListener: vi.fn() };
+    flow({ select, selected: selected as never });
+    const node = { clientWidth: 992, dataset: {} as Record<string, string>, querySelectorAll: () => cards, addEventListener: (type: string, listener: typeof wheel, options: unknown) => { expect([type, options]).toEqual(["wheel", { passive: false }]); wheel = listener; }, removeEventListener: vi.fn() };
+    hooks.refs[0]!.current = node;
     for (const run of hooks.effects) run();
-    const event = (deltaX: number, deltaY: number, time: number) => ({ deltaX, deltaY, shiftKey: false, timeStamp: time, preventDefault: vi.fn() });
-    const swipe = [event(30, 0, 0), event(40, 0, 16), event(20, 0, 32)];
-    for (const step of swipe) wheel!(step);
+    const tick = (ms: number) => { for (let t = 0; t < ms; t += 16) { now += 16; vi.advanceTimersByTime(16); const run = frames.splice(0); for (const f of run) f(now); } };
+    const send = (dx: number, dy = 0) => { const event = { deltaX: dx, deltaY: dy, shiftKey: false, preventDefault: vi.fn() }; wheel!(event); tick(16); return event; };
+    return { cards, node, tick, send };
+  }
+
+  test("a horizontal scroll moves the row continuously and picks only the card it snaps to", () => {
+    const select = vi.fn();
+    const row = scrollRow(select);
+    // A fast double swipe right from Doany, as a trackpad sends it (the second swipe inside the first's momentum).
+    for (const dx of [4, 18, 52, 67, 56, 62, 62, 60, 59, 57, 58, 55, 51, 47, 31, 13, 78, 144, 134, 198, 199, 188, 177, 167, 158, 142, 134, 129, 124, 119]) row.send(dx);
+    expect(row.node.dataset.scrolling).toBe("");
+    // Between cards while it runs: the middle card has turned partway, and nothing is picked yet.
+    expect(row.cards[2]!.style.transform).toMatch(/^translateX\(-?\d/);
+    expect(select).not.toHaveBeenCalled();
+    row.tick(160 + 240 + 32);
     expect(select).toHaveBeenCalledTimes(1);
-    expect(select).toHaveBeenCalledWith("dungdung");
-    expect(swipe.every(step => step.preventDefault.mock.calls.length === 1)).toBe(true);
-    const down = event(0, 40, 400);
-    wheel!(down);
+    expect(select).toHaveBeenCalledWith("dori");
+    vi.useRealTimers(); vi.restoreAllMocks();
+  });
+
+  test("a gentle swipe settles on the nearest card; a vertical scroll is the page's", () => {
+    const select = vi.fn();
+    const row = scrollRow(select);
+    for (const dx of [10, 40, 90, 120, 110, 80, 60, 40, 30, 20]) row.send(dx);
+    row.tick(500);
+    expect(select).toHaveBeenCalledExactlyOnceWith("dungdung");
+    const down = row.send(0, 40);
     expect(down.preventDefault).not.toHaveBeenCalled();
+    row.tick(500);
     expect(select).toHaveBeenCalledTimes(1);
+    vi.useRealTimers(); vi.restoreAllMocks();
+  });
+
+  test("a scroll that settles back on the chosen card picks nothing", () => {
+    const select = vi.fn();
+    const row = scrollRow(select);
+    for (const dx of [20, 40, 30, 20, 10]) row.send(dx);
+    row.tick(500);
+    expect(select).not.toHaveBeenCalled();
+    expect(row.cards.every(card => card.style.transform === "")).toBe(true);
+    expect(row.node.dataset.scrolling).toBeUndefined();
+    vi.useRealTimers(); vi.restoreAllMocks();
   });
 
   test("off (a newer file, or no snapshot yet): the group is aria-disabled, its radios disabled, and arrows and swipes do nothing", () => {
@@ -253,6 +295,7 @@ describe("picker CSS (buddy-choice draft)", () => {
     expect(css).toContain(".buddy-card:has(input:focus-visible) { outline: 2px solid var(--border-focus); outline-offset: 2px; }");
     expect(css).toContain("@media (forced-colors: active) { .buddy-card:has(input:checked) { outline: 2px solid Highlight; } }");
     expect(css).toContain("@media (prefers-reduced-motion: reduce) { .buddy-card { transition: none; } }");
+    expect(css).toContain(".buddy-flow[data-scrolling] .buddy-card { transition: none; }");
   });
   test("a notice in the picker's places only adds margins, never type or padding (POSTMORTEM 2026-11-09)", () => {
     for (const name of ["buddy-step-notice", "buddy-step-notice-top", "buddy-notice"]) {

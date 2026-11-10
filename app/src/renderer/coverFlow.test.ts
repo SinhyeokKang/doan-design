@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { FIRST_RUN_ORDER } from "./buddies";
-import { cardOffset, keyTarget, stepTarget, WHEEL_IDLE, wheelInput, type WheelGesture } from "./coverFlow";
+import { cardLayout, cardOffset, followPosition, keyTarget, scrollPosition, SNAP_MS, snapPosition, snapTarget, stepTarget, WHEEL_PX_PER_CARD } from "./coverFlow";
 
 test("a card's offset is its distance from the chosen card in the row's order", () => {
   expect(FIRST_RUN_ORDER.map(id => cardOffset(FIRST_RUN_ORDER, id, "doany"))).toEqual([-2, -1, 0, 1, 2]);
@@ -22,42 +22,74 @@ test("← and ↑ move left, → and ↓ move right, and both stop at the ends i
   for (const key of ["Enter", " ", "Tab", "Home", "End", "a"]) expect(keyTarget(FIRST_RUN_ORDER, "doany", key)).toBeNull();
 });
 
-const start: WheelGesture = WHEEL_IDLE;
-const wheel = (deltaX: number, deltaY: number, time: number, shiftKey = false) => ({ deltaX, deltaY, shiftKey, time });
+// A horizontal scroll (a trackpad swipe with its momentum, or Shift + a wheel) moves the row continuously; when the
+// events stop it snaps to the nearest card, and only that card is picked.
+const scroll = (dx: number, dy = 0, shiftKey = false) => ({ deltaX: dx, deltaY: dy, shiftKey });
 
-test("one horizontal gesture moves one card, however many wheel events it sends", () => {
-  let gesture = start;
-  const steps: number[] = [];
-  // A swipe right with momentum: deltas keep coming, each under 160 ms after the last.
-  for (const [dx, t] of [[4, 0], [20, 16], [40, 32], [38, 48], [25, 64], [12, 120], [3, 270]] as const) {
-    const out = wheelInput(gesture, wheel(dx, 0, t));
-    expect(out.handled).toBe(true);
-    steps.push(out.step);
-    gesture = out.gesture;
-  }
-  expect(steps).toEqual([0, 1, 0, 0, 0, 0, 0]);
-  // After 160 ms of quiet the gesture has ended; the next swipe (left) moves one card again.
-  const next = wheelInput(gesture, wheel(-30, 0, 270 + 160));
-  expect(next.step).toBe(-1);
-  expect(wheelInput(next.gesture, wheel(-30, 0, 450)).step).toBe(0);
+test("horizontal deltas move the row by fractions of a card, WHEEL_PX_PER_CARD px per card", () => {
+  const at = scrollPosition(2, scroll(WHEEL_PX_PER_CARD / 4), FIRST_RUN_ORDER.length);
+  expect(at).toEqual({ handled: true, position: 2.25 });
+  expect(scrollPosition(2.25, scroll(-WHEEL_PX_PER_CARD), FIRST_RUN_ORDER.length).position).toBeCloseTo(1.25);
 });
 
-test("a delta under the threshold does not move and does not use up the gesture", () => {
-  const small = wheelInput(start, wheel(11, 0, 0));
-  expect(small).toEqual({ handled: true, step: 0, gesture: { done: false, last: 0 } });
-  expect(wheelInput(small.gesture, wheel(12, 0, 10)).step).toBe(1);
+test("the row is clamped at both ends", () => {
+  expect(scrollPosition(3.5, scroll(WHEEL_PX_PER_CARD * 3), 5).position).toBe(4);
+  expect(scrollPosition(0.5, scroll(-WHEEL_PX_PER_CARD * 3), 5).position).toBe(0);
 });
 
 test("Shift + a vertical wheel scrolls horizontally; a plain vertical scroll is left to the page", () => {
-  expect(wheelInput(start, wheel(0, 30, 0, true)).step).toBe(1);
-  expect(wheelInput(start, wheel(0, -30, 0, true)).step).toBe(-1);
+  expect(scrollPosition(2, scroll(0, WHEEL_PX_PER_CARD, true), 5)).toEqual({ handled: true, position: 3 });
   // macOS already sends Shift + wheel as deltaX.
-  expect(wheelInput(start, wheel(-30, 0, 0, true)).step).toBe(-1);
-  const vertical = wheelInput(start, wheel(5, 30, 0));
-  expect(vertical).toEqual({ handled: false, step: 0, gesture: start });
-  // A mostly vertical event neither moves nor extends the gesture.
-  const swiped = wheelInput(start, wheel(30, 0, 0)).gesture;
-  expect(wheelInput(swiped, wheel(2, 40, 100)).gesture).toBe(swiped);
+  expect(scrollPosition(2, scroll(-WHEEL_PX_PER_CARD, 0, true), 5)).toEqual({ handled: true, position: 1 });
+  expect(scrollPosition(2, scroll(5, 30), 5)).toEqual({ handled: false, position: 2 });
+});
+
+test("a fast double swipe with momentum (recorded on a trackpad) runs several cards, then snaps to one", () => {
+  // The recorded deltas of one fast double swipe right from Doany: the second swipe starts inside the first's momentum.
+  const deltas = [4, 18, 52, 67, 56, 62, 62, 60, 59, 57, 58, 55, 51, 47, 31, 13, 78, 144, 134, 198, 199, 188, 177, 167, 158, 142, 134, 129, 124, 119, 113, 109, 105, 100, 96, 90, 85, 82, 77, 72, 68, 63, 59, 55, 51, 47, 43, 41, 37, 34, 32, 29, 26, 24, 22, 20, 19, 17, 16, 14];
+  let position = 2;
+  for (const dx of deltas) position = scrollPosition(position, scroll(dx), 5).position;
+  expect(position).toBe(4);
+  expect(snapTarget(FIRST_RUN_ORDER, position)).toBe("dori");
+});
+
+test("snapTarget is the card nearest the row's position", () => {
+  expect(snapTarget(FIRST_RUN_ORDER, 2.49)).toBe("doany");
+  expect(snapTarget(FIRST_RUN_ORDER, 2.5)).toBe("dungdung");
+  expect(snapTarget(FIRST_RUN_ORDER, 0.2)).toBe("popo");
+});
+
+test("the shown position eases toward the scrolled one instead of jumping per event", () => {
+  expect(followPosition(2, 3, 0)).toBe(2);
+  const one = followPosition(2, 3, 16);
+  expect(one).toBeGreaterThan(2.1);
+  expect(one).toBeLessThan(2.6);
+  expect(followPosition(2, 3, 1000)).toBeCloseTo(3, 3);
+});
+
+test("the snap is a short ease-out", () => {
+  expect(SNAP_MS).toBeGreaterThanOrEqual(200);
+  expect(SNAP_MS).toBeLessThanOrEqual(300);
+  expect(snapPosition(2.3, 3, 0)).toBe(2.3);
+  expect(snapPosition(2.3, 3, SNAP_MS)).toBe(3);
+  expect(snapPosition(2.3, 3, SNAP_MS * 2)).toBe(3);
+  // Ease-out: more than half the way in the first half of the time.
+  expect(snapPosition(2, 3, SNAP_MS / 2)).toBeGreaterThan(2.75);
+});
+
+// The same layout as the [data-o] rules in styles.css, at any fraction between them.
+test("a card's transform at a fractional offset interpolates the row's layout", () => {
+  const wide = 992;
+  expect(cardLayout(0, wide)).toEqual({ x: 0, rotate: 0, scale: 1, z: 5 });
+  expect(cardLayout(1, wide)).toEqual({ x: 200, rotate: -50, scale: .84, z: 4 });
+  expect(cardLayout(-2, wide)).toEqual({ x: -268, rotate: 50, scale: .84, z: 3 });
+  expect(cardLayout(4, wide)).toEqual({ x: 364, rotate: -50, scale: .84, z: 1 });
+  const half = cardLayout(.5, wide);
+  expect(half.x).toBeCloseTo(100); expect(half.rotate).toBeCloseTo(-25); expect(half.scale).toBeCloseTo(.92);
+  expect(cardLayout(1.5, wide).x).toBeCloseTo(234);
+  // A narrow row takes the percentage, as min(200px, 21cqw) does.
+  expect(cardLayout(1, 800).x).toBeCloseTo(168);
+  expect(cardLayout(-4.5, wide).x).toBe(-364);
 });
 
 test("a wheel step lands on the next card and stops at the ends", () => {

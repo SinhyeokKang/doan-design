@@ -1,53 +1,114 @@
-import { useEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
 import { AlertIcon } from "./AlertIcon";
 import { BUDDY_IDS, FIRST_RUN_ORDER, buddy, type BuddyId } from "./buddies";
 import { buddyFailureText } from "./buddyChoice";
 import type { BuddyFailure } from "./buddySelection";
-import { cardOffset, keyTarget, stepTarget, WHEEL_IDLE, wheelInput } from "./coverFlow";
+import { cardLayout, cardOffset, followPosition, keyTarget, scrollPosition, SNAP_MS, snapPosition, WHEEL_QUIET } from "./coverFlow";
 
 // The buddy picker (.doan/canvases/buddy-choice.html): first run's Cover Flow row and Settings > General's rows. Both
 // are a radio group named by the visible heading, each radio named by the buddy's name and described by its line.
 // `name` is the radio group's name and the prefix of the label ids.
 export interface BuddyPickerProps { name: string; labelledBy: string; selected: BuddyId; disabled: boolean; select(id: BuddyId): void }
 
-// First run's row, in its own order with Doany in the middle. Every input (a card click, an arrow, a horizontal scroll)
-// lands on one buddy through `select`; the row stops at its ends, so arrows override the native radio wrap. A trackpad
-// swipe moves one card per gesture.
+// First run's row, in its own order with Doany in the middle. A card click and an arrow land on one buddy through
+// `select`; the row stops at its ends, so arrows override the native radio wrap. A horizontal scroll moves the row
+// continuously (the cards' transforms are written directly, a frame at a time) and, once the wheel events stop, snaps
+// to the nearest card and selects only that one, so the cards passed over are never saved.
+interface Scroll { target: number; shown: number; frame: number | null; time: number; quiet: ReturnType<typeof setTimeout> | null; snap: { from: number; to: number; start: number } | null; landed: boolean }
 export function BuddyFlow({ name, labelledBy, selected, disabled, select }: BuddyPickerProps) {
   const group = useRef<HTMLDivElement | null>(null);
   const live = useRef({ selected, disabled, select });
   live.current = { selected, disabled, select };
-  // React's wheel listener is passive, and a handled swipe must not also scroll the step.
+  const scroll = useRef<Scroll | null>(null);
+  // Hands the row back to the [data-o] rules, which by then draw the same layout the scroll last wrote.
+  const release = () => {
+    const state = scroll.current, node = group.current;
+    if (!state) return;
+    if (state.frame !== null) cancelAnimationFrame(state.frame);
+    if (state.quiet !== null) clearTimeout(state.quiet);
+    scroll.current = null;
+    if (!node) return;
+    delete node.dataset.scrolling;
+    for (const card of node.querySelectorAll<HTMLElement>(".buddy-card")) { card.style.transform = ""; card.style.zIndex = ""; }
+  };
+  // The snapped card is drawn by the scroll until React draws it as the selected one.
+  useLayoutEffect(() => { if (scroll.current?.landed) release(); }, [selected]);
   useEffect(() => {
     const node = group.current;
     if (!node) return;
-    let gesture = WHEEL_IDLE;
+    const draw = (position: number) => {
+      const width = node.clientWidth;
+      node.querySelectorAll<HTMLElement>(".buddy-card").forEach((card, i) => {
+        const { x, rotate, scale, z } = cardLayout(i - position, width);
+        card.style.transform = `translateX(${x}px) rotateY(${rotate}deg) scale(${scale})`;
+        card.style.zIndex = String(z);
+      });
+    };
+    const land = (state: Scroll, to: number) => {
+      state.shown = to; state.landed = true; state.frame = null;
+      draw(to);
+      const id = FIRST_RUN_ORDER[to]!;
+      if (id === live.current.selected) release(); else live.current.select(id);
+    };
+    const frame = (now: number) => {
+      const state = scroll.current;
+      if (!state) return;
+      const elapsed = now - state.time;
+      state.time = now;
+      if (state.snap) {
+        const t = now - state.snap.start;
+        if (t >= SNAP_MS) { land(state, state.snap.to); return; }
+        state.shown = snapPosition(state.snap.from, state.snap.to, t);
+      } else state.shown = followPosition(state.shown, state.target, elapsed);
+      draw(state.shown);
+      state.frame = requestAnimationFrame(frame);
+    };
+    const snap = () => {
+      const state = scroll.current;
+      if (!state) return;
+      state.quiet = null;
+      const to = Math.round(state.target);
+      if (matchMedia("(prefers-reduced-motion: reduce)").matches) { if (state.frame !== null) cancelAnimationFrame(state.frame); land(state, to); return; }
+      state.snap = { from: state.shown, to, start: performance.now() };
+      if (state.frame === null) { state.time = performance.now(); state.frame = requestAnimationFrame(frame); }
+    };
+    // React's wheel listener is passive, and a handled scroll must not also scroll the step.
     const wheel = (event: WheelEvent) => {
-      const result = wheelInput(gesture, { deltaX: event.deltaX, deltaY: event.deltaY, shiftKey: event.shiftKey, time: event.timeStamp });
-      gesture = result.gesture;
+      const { selected, disabled } = live.current;
+      const from = scroll.current && !scroll.current.landed ? scroll.current.target : FIRST_RUN_ORDER.indexOf(selected);
+      const result = scrollPosition(from, { deltaX: event.deltaX, deltaY: event.deltaY, shiftKey: event.shiftKey }, FIRST_RUN_ORDER.length);
       if (!result.handled) return;
       event.preventDefault();
-      const { selected, disabled, select } = live.current;
-      if (disabled || result.step === 0) return;
-      const target = stepTarget(FIRST_RUN_ORDER, selected, result.step);
-      if (target !== selected) select(target);
+      if (disabled) return;
+      let state = scroll.current;
+      if (!state || state.landed) {
+        if (state) release();
+        state = scroll.current = { target: from, shown: from, frame: null, time: performance.now(), quiet: null, snap: null, landed: false };
+        node.dataset.scrolling = "";
+      }
+      state.target = result.position;
+      state.snap = null;
+      if (state.quiet !== null) clearTimeout(state.quiet);
+      state.quiet = setTimeout(snap, WHEEL_QUIET);
+      if (state.frame === null) { state.time = performance.now(); state.frame = requestAnimationFrame(frame); }
     };
     node.addEventListener("wheel", wheel, { passive: false });
-    return () => node.removeEventListener("wheel", wheel);
+    return () => { node.removeEventListener("wheel", wheel); release(); };
   }, []);
+  const pick = (id: BuddyId) => { release(); select(id); };
   const keys = (event: KeyboardEvent<HTMLDivElement>) => {
     if (disabled) return;
     const target = keyTarget(FIRST_RUN_ORDER, selected, event.key);
     if (target === null) return;
     event.preventDefault();
-    if (target !== selected) select(target);
+    if (target !== selected) pick(target);
     group.current?.querySelector<HTMLInputElement>(`input[value="${target}"]`)?.focus();
   };
   return <div role="radiogroup" aria-labelledby={labelledBy} aria-disabled={disabled || undefined} className="buddy-flow" ref={group} onKeyDown={keys}>
     {FIRST_RUN_ORDER.map(id => {
       const { name: title, line, assets } = buddy(id);
       return <label key={id} className="doan-panel buddy-card" data-o={cardOffset(FIRST_RUN_ORDER, id, selected)}>
-        <input type="radio" name={name} value={id} checked={id === selected} disabled={disabled} aria-labelledby={`${name}-${id}-name`} aria-describedby={`${name}-${id}-line`} onChange={() => select(id)} />
+        <input type="radio" name={name} value={id} checked={id === selected} disabled={disabled} aria-labelledby={`${name}-${id}-name`} aria-describedby={`${name}-${id}-line`} onChange={() => pick(id)} />
         <img src={assets.card} alt="" />
         <strong id={`${name}-${id}-name`}>{title}</strong>
         <span id={`${name}-${id}-line`}>{line}</span>
