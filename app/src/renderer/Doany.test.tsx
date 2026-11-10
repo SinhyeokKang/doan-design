@@ -1,10 +1,11 @@
 import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, expect, test, vi } from "vitest";
-import { Doany, mountDoany } from "./Doany";
+import { BUDDY_IDS, buddy, type BuddyId } from "./buddies";
+import { Buddy, fragmentFor, mountBuddy, vertexFor } from "./Doany";
 
-// The WebGL calls of the V2 draft .doan/assets/doany/v2/mascot.js up to its first frame, from
-// .scratch/doany-v2/golden-trace.mjs (objects are creation ids, typed arrays are length and checksum).
+// The WebGL calls of the buddy draft .doan/assets/buddies/motion-preview.js for Doany up to its first frame, from
+// app/scripts/doanyGolden.mjs (objects are creation ids, typed arrays are length and checksum).
 const golden = JSON.parse(readFileSync(new URL("./doany.golden.json", import.meta.url), "utf8")) as { scenarios: { name: string; trace?: unknown[] }[] };
 const trace = golden.scenarios.find(item => item.name === "idle")!.trace!;
 const flush = () => new Promise(resolve => setImmediate(resolve));
@@ -23,12 +24,12 @@ function events(log: string[], name: string) {
   };
 }
 
-// A recording WebGL context with the same constants and encoding as golden.mjs.
+// A recording WebGL context with the same constants and encoding as app/scripts/doanyGolden.mjs.
 function context(log: string[], record: unknown[], options: { compileFails?: boolean }, canvas: { listeners: ReturnType<typeof events> }, count: { draws: number; look: unknown[] }) {
   const constants = {
     VERTEX_SHADER: 1, FRAGMENT_SHADER: 2, COMPILE_STATUS: 3, LINK_STATUS: 4, ARRAY_BUFFER: 5, ELEMENT_ARRAY_BUFFER: 6, STATIC_DRAW: 7, FLOAT: 8,
     BLEND: 9, SRC_ALPHA: 10, ONE_MINUS_SRC_ALPHA: 11, TEXTURE_2D: 12, TEXTURE_WRAP_S: 13, TEXTURE_WRAP_T: 14, CLAMP_TO_EDGE: 15, TEXTURE_MIN_FILTER: 16,
-    TEXTURE_MAG_FILTER: 17, LINEAR: 18, RGBA: 19, UNSIGNED_BYTE: 20, COLOR_BUFFER_BIT: 21, TRIANGLES: 22, UNSIGNED_SHORT: 23,
+    TEXTURE_MAG_FILTER: 17, LINEAR: 18, RGBA: 19, UNSIGNED_BYTE: 20, COLOR_BUFFER_BIT: 21, TRIANGLES: 22, UNSIGNED_SHORT: 23, TEXTURE0: 24, TEXTURE1: 25,
   };
   let lost = false, drawn = 0;
   const ids = new Map<object, string>();
@@ -64,7 +65,7 @@ function context(log: string[], record: unknown[], options: { compileFails?: boo
 
 class FakeImage { static all: FakeImage[] = []; crossOrigin = ""; src = ""; onload = () => {}; onerror = () => {}; constructor() { FakeImage.all.push(this); } }
 
-function environment(options: { noContext?: boolean; compileFails?: boolean } = {}) {
+function environment(options: { noContext?: boolean; compileFails?: boolean; buddy?: BuddyId } = {}) {
   const log: string[] = [], record: unknown[] = [], count = { draws: 0, look: [] as unknown[] }, canvases: FakeCanvas[] = [];
   const frames = new Map<number, (now: number) => void>();
   let next = 0, intersect: (entries: { isIntersecting: boolean }[]) => void = () => {}, resize: () => void = () => {};
@@ -90,14 +91,17 @@ function environment(options: { noContext?: boolean; compileFails?: boolean } = 
     canvases.push(canvas);
     return canvas;
   };
-  const host = { clientWidth: 114, dataset: {} as Record<string, string>, shown: true, getBoundingClientRect: () => ({ x: 0, y: 0, width: 114, height: 114 }), checkVisibility: (o: unknown) => { expect(o).toEqual({ visibilityProperty: true }); return host.shown; }, ...events(log, "host") };
-  const still = { hidden: false };
+  const lift: string[] = [];
+  const host = { clientWidth: 114, dataset: {} as Record<string, string>, style: { setProperty(name: string, value: string) { expect(name).toBe("--hop-lift"); lift.push(value); } }, shown: true, getBoundingClientRect: () => ({ x: 0, y: 0, width: 114, height: 114 }), checkVisibility: (o: unknown) => { expect(o).toEqual({ visibilityProperty: true }); return host.shown; }, ...events(log, "host") };
+  const still = { hidden: false, complete: false, naturalWidth: 0, ...events(log, "still") };
   const canvas = makeCanvas("canvas");
   return {
-    log, record, count, media, page, host, still, canvas, live: () => canvases.at(-1)!,
-    mount: () => mountDoany(host as unknown as HTMLButtonElement, still as unknown as HTMLImageElement, canvas as unknown as HTMLCanvasElement),
+    log, record, count, media, page, host, still, canvas, lift, live: () => canvases.at(-1)!,
+    mount: () => mountBuddy(buddy(options.buddy ?? "doany"), host as unknown as HTMLButtonElement, still as unknown as HTMLImageElement, canvas as unknown as HTMLCanvasElement),
     frame(now: number) { const [id, callback] = [...frames][0]!; frames.delete(id); callback(now); },
     async load() { for (const image of FakeImage.all) image.onload(); await flush(); },
+    // Fails the image whose path ends with `name`; the others load.
+    async fail(name: string) { for (const image of FakeImage.all) if (image.src.endsWith(name)) image.onerror(); else image.onload(); await flush(); },
     intersect: (isIntersecting: boolean) => intersect([{ isIntersecting }]),
     resize: () => resize(),
   };
@@ -106,12 +110,21 @@ interface FakeCanvas extends ReturnType<typeof events> { name: string; hidden: b
 
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
-test("markup is a labelled button with the still image and a hidden canvas, and no state yet", () => {
-  const html = renderToStaticMarkup(<Doany size={114} />);
+test("markup is a labelled button with the still image, the floor shadow below it and a hidden canvas, and no state yet", () => {
+  const html = renderToStaticMarkup(<Buddy buddy="doany" size={114} />);
   // Server rendering also emits an image preload hint before the button; the client render does not.
-  expect(html).toContain('<button type="button" class="doany" aria-label="Make Doany hop" style="width:114px;height:114px"><img src="doany/doany.png" alt=""/><canvas hidden="" aria-hidden="true"></canvas></button>');
+  expect(html).toContain('<button type="button" class="doany" aria-label="Make Doany hop" style="width:114px;height:114px"><img src="doany/doany.png" alt=""/><img class="buddy-shadow" src="buddies/doany/shadow.png" alt="" aria-hidden="true" style="transform-origin:calc(16.5% + 67% * 0.458) calc(16.5% + 67% * 0.941)"/><canvas hidden="" aria-hidden="true"></canvas></button>');
   expect(html).not.toContain("data-state");
-  expect(renderToStaticMarkup(<Doany size={142.5} />)).toContain('style="width:142.5px;height:142.5px"');
+  expect(renderToStaticMarkup(<Buddy buddy="doany" size={142.5} />)).toContain('style="width:142.5px;height:142.5px"');
+});
+
+test("each buddy's slot names it, shows its still and its shadow about its ground contact", () => {
+  for (const id of BUDDY_IDS) {
+    const { name, assets, rig } = buddy(id);
+    const html = renderToStaticMarkup(<Buddy buddy={id} size={114} />);
+    expect(html).toContain(`aria-label="Make ${name} hop"`);
+    expect(html).toContain(`<img src="${assets.still}" alt=""/><img class="buddy-shadow" src="${assets.shadow}" alt="" aria-hidden="true" style="transform-origin:calc(16.5% + 67% * ${rig.contact[0]}) calc(16.5% + 67% * ${rig.contact[1]})"/>`);
+  }
 });
 
 test("the WebGL setup and first frame match the original call for call", async () => {
@@ -156,8 +169,8 @@ test("dispose removes the lost listener, the frame and every listener before rel
   mounted.dispose();
   expect(env.log[0]).toBe("canvas off webglcontextlost");
   expect(env.log[1]).toBe("cancel frame");
-  expect(env.log.slice(2, -2).sort()).toEqual(["document off pointermove", "host off click", "host off keydown", "intersect disconnect", "media off change", "resize disconnect"]);
-  expect(env.log.slice(-2)).toEqual(["loseContext", "replace clone with canvas"]);
+  expect(env.log.slice(2, -3).sort()).toEqual(["document off pointermove", "host off click", "host off keydown", "intersect disconnect", "media off change", "resize disconnect"]);
+  expect(env.log.slice(-3)).toEqual(["loseContext", "still off error", "replace clone with canvas"]);
   expect(env.host.dataset.state).toBe("idle");
 });
 
@@ -222,4 +235,110 @@ test("the stylesheet is linked and keeps the draft's host rules with the shared 
   expect(css).toContain(".doany img { padding: 16.5%; }");
   expect(css).toContain(".doany [hidden] { display: none; }");
   expect(css).toMatch(/\.doany:focus-visible \{ outline: 2px solid var\(--border-focus\); outline-offset: 2px; border-radius: var\(--radius-container\); \}/);
+});
+
+test("every friend's WebGL calls are Doany's, with its own shader source and textures", async () => {
+  const doany = (trace as unknown[][]).filter(call => call[0] !== "shaderSource" && call[0] !== "texImage2D");
+  for (const id of BUDDY_IDS.filter(id => id !== "doany")) {
+    const env = environment({ buddy: id });
+    env.mount();
+    env.frame(1000); env.frame(1016);
+    await env.load();
+    const { rig, assets } = buddy(id);
+    const calls = env.record as unknown[][];
+    expect(calls.filter(call => call[0] === "shaderSource").map(call => call[2]), id).toEqual([vertexFor(rig), fragmentFor(rig)]);
+    expect(calls.filter(call => call[0] === "texImage2D").map(call => call[6]), id).toEqual([assets.body, assets.accessory, "buddies/eye.png"].map(path => `image:${path.split("/").pop()}:anonymous`));
+    expect(calls.filter(call => call[0] !== "shaderSource" && call[0] !== "texImage2D"), id).toEqual(doany);
+    expect(FakeImage.all.map(image => image.src), id).toEqual([assets.body, assets.accessory, "buddies/eye.png"]);
+  }
+});
+
+test("Doany's shader source is the template's, and every buddy's rig numbers are the draft's", () => {
+  const sources = (trace as unknown[][]).filter(call => call[0] === "shaderSource").map(call => call[2]);
+  expect(sources).toEqual([vertexFor(buddy("doany").rig), fragmentFor(buddy("doany").rig)]);
+  // The draft's BUDDIES table, one line per buddy.
+  const draft = readFileSync(new URL("../../../.doan/assets/buddies/motion-preview.js", import.meta.url), "utf8");
+  for (const id of BUDDY_IDS) {
+    const line = new RegExp(`^\\s*${id}: \\{(.*)\\},?$`, "m").exec(draft)![1]!;
+    const field = (name: string) => new RegExp(`${name}:([^ ]*?)(, [a-zA-Z]+:|$)`).exec(line)![1]!;
+    const { rig } = buddy(id);
+    expect(JSON.parse(field("eyes").replaceAll("'", '"')), id).toEqual(rig.eyes);
+    expect(JSON.parse(field("radius").replaceAll("'", '"')), id).toEqual(rig.radius);
+    expect(field("pivot"), id).toBe(`'${rig.accessoryPivot}'`);
+    expect(JSON.parse(field("tilt").replace(/(^|[[,])(-?)\./g, "$1$20.")), id).toEqual([...rig.accessoryTilt]);
+    expect(Number(field("liftScale")), id).toBe(rig.liftScale);
+  }
+});
+
+test("each buddy falls back to its still image without WebGL, or when its body, accessory or eye texture fails", async () => {
+  vi.spyOn(console, "error").mockImplementation(() => {});
+  for (const id of BUDDY_IDS) {
+    const none = environment({ noContext: true, buddy: id });
+    none.mount();
+    expect([none.host.dataset.state, none.still.hidden], `${id} without WebGL`).toEqual(["static", false]);
+    const { assets } = buddy(id);
+    for (const path of [assets.body, assets.accessory, "buddies/eye.png"]) {
+      const env = environment({ buddy: id });
+      env.mount();
+      env.frame(1000);
+      await env.fail(path);
+      env.frame(1020);
+      expect([env.host.dataset.state, env.still.hidden, env.live().hidden, env.count.draws], `${id} without ${path}`).toEqual(["static", false, true, 0]);
+    }
+  }
+});
+
+test("--hop-lift follows the hop from 0 to 1 and back to 0 on landing, and is 0 when the context is lost", async () => {
+  const env = environment();
+  env.mount();
+  await env.load(); env.frame(1000);
+  env.host.dispatch("click");
+  for (let now = 1020; now <= 2600; now += 20) env.frame(now);
+  const values = env.lift.map(Number);
+  expect(Math.min(...values)).toBe(0);
+  expect(Math.max(...values)).toBeLessThanOrEqual(1);
+  expect(Math.max(...values)).toBeGreaterThan(.99);
+  expect(env.lift.at(-1)).toBe("0");
+  env.host.dispatch("click");
+  for (let now = 2620; now <= 3000; now += 20) env.frame(now);
+  expect(Number(env.lift.at(-1))).toBeGreaterThan(0);
+  env.live().listeners.dispatch("webglcontextlost");
+  expect(env.lift.at(-1)).toBe("0");
+});
+
+test("reduced motion keeps --hop-lift at 0, even mid-hop", async () => {
+  const env = environment();
+  env.mount();
+  await env.load(); env.frame(1000);
+  env.host.dispatch("click");
+  for (let now = 1020; now <= 1400; now += 20) env.frame(now);
+  expect(Number(env.lift.at(-1))).toBeGreaterThan(0);
+  env.media.matches = true; env.media.dispatch("change");
+  expect(env.lift.at(-1)).toBe("0");
+  env.frame(1420);
+  expect(env.lift.at(-1)).toBe("0");
+});
+
+test("a still image that failed, before or after mounting, marks the slot so its shadow can hide", () => {
+  const before = environment({ noContext: true });
+  before.still.complete = true;
+  before.mount();
+  expect(before.host.dataset.still).toBe("missing");
+  const after = environment({ noContext: true });
+  after.mount();
+  expect(after.host.dataset.still).toBeUndefined();
+  after.still.dispatch("error");
+  expect(after.host.dataset.still).toBe("missing");
+});
+
+test("the floor shadow sits below the still and the canvas, scales to 55 % and fades to 40 % at lift 1, and hides with an empty slot", () => {
+  const css = readFileSync(new URL("./doany.css", import.meta.url), "utf8");
+  expect(css).toContain(".doany img, .doany canvas { position: absolute; inset: 0; z-index: 1;");
+  const rule = /\.doany \.buddy-shadow \{ z-index: 0; transform: scale\(calc\((.*?)\)\); opacity: calc\((.*?)\); \}/.exec(css);
+  expect(rule).not.toBeNull();
+  const at = (formula: string, lift: number) => Number(Function(`return ${formula.replace("var(--hop-lift)", String(lift))}`)());
+  expect([at(rule![1]!, 0), at(rule![2]!, 0)]).toEqual([1, 1]);
+  expect([at(rule![1]!, 1), at(rule![2]!, 1)].map(v => v.toFixed(6))).toEqual(["0.550000", "0.400000"]);
+  expect(css).toContain('.doany[data-still="missing"]:not([data-state]) .buddy-shadow, .doany[data-still="missing"][data-state="static"] .buddy-shadow { display: none; }');
+  expect(readFileSync(new URL("./styles.css", import.meta.url), "utf8")).toContain(":root { --hop-lift: 0; }");
 });

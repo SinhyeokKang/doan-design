@@ -1,10 +1,9 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "vitest";
-import { advance, canvasSize, hop, initialState, pointer, pose, reducedChanged, typing, type MotionState, type Pose } from "./doanyMotion";
+import { advance, canvasSize, hop, hopLift, initialState, pointer, pose, reducedChanged, typing, type MotionState, type Pose } from "./doanyMotion";
 
-// Expected values come from running the original .doan/assets/doany/motion/mascot.js in a node vm
-// (.scratch/doan-mascot/golden.mjs; the regeneration command is in the commit that added this file),
-// never from the port: the port must reproduce the draft bit for bit.
+// Expected values come from running the buddy draft .doan/assets/buddies/motion-preview.js in a node vm
+// (app/scripts/doanyGolden.mjs), never from the port: the port must reproduce the draft bit for bit.
 type Snapshot = (number | boolean | string)[];
 interface Step {
   op: string; now?: number; gate?: { ready: boolean; visible: boolean; hidden: boolean; reduced: boolean };
@@ -62,11 +61,39 @@ for (const { name, options, log } of golden.scenarios) {
   });
 }
 
-test("the first blink comes at 2 s, then after 2.5 s for random 0 and 6 s for random 1", () => {
-  const blinks = scenario("idle").log.filter(step => step.random).map(step => motion(step.after!).blinkAt);
-  expect(blinks[0]).toBeCloseTo(2, 1);
-  expect(blinks[1]! - blinks[0]!).toBeCloseTo(2.5, 1);
-  expect(blinks[2]! - blinks[1]!).toBeCloseTo(6, 1);
+test("the first blink comes at 2 s, then after 4 s for random 0 and 8 s for random 1", () => {
+  const blinks = scenario("idle").log.filter(step => step.random).map(step => motion(step.after!));
+  expect(blinks.map(state => state.blinkAt)).toHaveLength(2);
+  expect(blinks[0]!.blinkAt).toBeCloseTo(2, 1);
+  expect(blinks[0]!.nextBlink! - blinks[0]!.blinkAt!).toBeCloseTo(4, 9);
+  expect(blinks[1]!.blinkAt! - blinks[0]!.blinkAt!).toBeCloseTo(4, 1);
+  expect(blinks[1]!.nextBlink! - blinks[1]!.blinkAt!).toBeCloseTo(8, 9);
+});
+
+test("in the blink scenario the eyes close for 420 ms, and the next blink is 4 to 8 s away", () => {
+  // 17 ms frames: the eyes are below open from the frame after the blink starts to the last one before 0.42 s.
+  const steps = scenario("blink").log.filter(step => step.op === "frame").map(step => motion(step.after!));
+  const closed = steps.filter(state => state.eye! < 1);
+  const start = closed[0]!.blinkAt!, last = closed.at(-1)!.time! - start;
+  expect(last).toBeLessThan(.42);
+  expect(last).toBeGreaterThan(.42 - .017);
+  expect(steps.find(state => state.time! > closed.at(-1)!.time!)!.eye).toBe(1);
+  expect(closed.every(state => state.blinkAt === start)).toBe(true);
+  const gap = closed[0]!.nextBlink! - start;
+  expect(gap).toBeGreaterThanOrEqual(4);
+  expect(gap).toBeLessThan(8);
+});
+
+test("the hop's lift for the floor shadow runs from 0 to 1 and lands at 0", () => {
+  const lifts = scenario("hop").log.flatMap(step => step.draws ?? []).map(draw => draw.u[2]! / .22);
+  const state = initialState();
+  let now = 1000, peak = 0;
+  hop(state, false);
+  for (let i = 0; i < 100; i++) { advance(state, now += 20, true, () => .5); const lift = hopLift(pose(state, false)); expect(lift).toBeGreaterThanOrEqual(0); expect(lift).toBeLessThanOrEqual(1); peak = Math.max(peak, lift); }
+  expect(peak).toBeGreaterThan(.99);
+  expect(hopLift(pose(state, false))).toBe(0);
+  expect(hopLift(pose(state, true))).toBe(0);
+  expect(Math.max(...lifts)).toBeGreaterThan(.99);
 });
 
 test("a closed gate only records the frame time", () => {

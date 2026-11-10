@@ -385,6 +385,8 @@ body:has(.shell-top) { background: transparent; }
 /* The right column's width: the Overview's 280px, or the canvas page's conversation panel, which App sets on the
    workspace element (0 while folded). */
 :root { --doan-right-width: 280px; }
+/* The buddy slot's hop, 0 on the floor to 1 at the apex; the rig writes it on the slot each frame (doany.css floor shadow). */
+:root { --hop-lift: 0; }
 /* The sidebar's width: App sets the remembered one on the root element, so every shell follows it (sidebarSize.ts). */
 :root { --doan-sidebar-width: 220px; }
 .workspace.app-shell { grid-template-columns: var(--doan-sidebar-width) minmax(0, 1fr) var(--doan-right-width); grid-template-rows: var(--size-chrome) minmax(0, 1fr); gap: 0; padding: 0 8px 8px; background: transparent; }

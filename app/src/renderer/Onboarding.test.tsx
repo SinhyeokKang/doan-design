@@ -16,7 +16,7 @@ test("Welcome: Doany (142.5px), wordmark, two-line heading and the lg Get starte
   expect(html).toContain('<div class="ob-wordmark">Doan</div>');
   expect(html).toContain('<h1 tabindex="-1">A place for your next idea.<br/>Bring it to life on canvas.</h1>');
   expect(html).toMatch(/<button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="lg">Get started<svg[^>]*aria-hidden="true"/);
-  expect(html).toContain('<div class="ob-atmosphere" aria-hidden="true"></div><button type="button" class="doany" aria-label="Make Doany hop" style="width:142.5px;height:142.5px"><img src="doany/doany.png" alt=""/><canvas hidden="" aria-hidden="true"></canvas></button><div class="ob-wordmark">Doan</div>');
+  expect(html).toContain('<div class="ob-atmosphere" aria-hidden="true"></div><button type="button" class="doany" aria-label="Make Doany hop" style="width:142.5px;height:142.5px"><img src="doany/doany.png" alt=""/><img class="buddy-shadow" src="buddies/doany/shadow.png" alt="" aria-hidden="true" style="transform-origin:calc(16.5% + 67% * 0.458) calc(16.5% + 67% * 0.941)"/><canvas hidden="" aria-hidden="true"></canvas></button><div class="ob-wordmark">Doan</div>');
   expect(html).not.toMatch(/…|\.\.\./);
 });
 

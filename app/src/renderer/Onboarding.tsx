@@ -15,7 +15,7 @@ import { AlertIcon } from "./AlertIcon";
 import { StorageCard } from "./StorageChoice";
 import { OPERATION_MESSAGES } from "../main/onboarding/operations";
 import { keptLocal, type StorageChoice } from "./storageRules";
-import { Doany } from "./Doany";
+import { Buddy } from "./Doany";
 
 const FOCUSABLE = 'button:not(:disabled), input:not(:disabled), [href], [tabindex]:not([tabindex="-1"])';
 // Local copies of the draft's marks; sources are in public/provider-logos/README.md. Relative, so the packaged
@@ -33,7 +33,7 @@ function openInstallPage(provider: Provider): Promise<boolean> {
 export function Welcome({ start }: { start: () => void }) {
   return <div className="ob-welcome-main">
     <div className="ob-atmosphere" aria-hidden="true"></div>
-    <Doany size={142.5} />
+    <Buddy buddy="doany" size={142.5} />
     <div className="ob-wordmark">Doan</div>
     <h1 tabIndex={-1}>A place for your next idea.<br />Bring it to life on canvas.</h1>
     <div className="ob-welcome-action"><button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="lg" onClick={start}>Get started<ArrowRight aria-hidden="true" /></button></div>
