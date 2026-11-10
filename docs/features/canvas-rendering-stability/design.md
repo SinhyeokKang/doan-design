@@ -6,9 +6,13 @@ PRODUCT §3 Show와 §5 item 2의 표시 안정화 범위다. ARCHITECTURE §3�
 
 조사 대상은 `app/src/renderer/CanvasController.ts`, `canvasView.ts`, `viewport.ts`, `app/src/main/canvasScript.ts`와 iframe·보드 스타일이다. Export 비교에서만 문제가 생기면 viewer 경로를 별도로 추적한다. CPU·메모리·긴 레이아웃·합성 현상을 구별하며 화면 깨짐을 성능 숫자로 대체하지 않는다.
 
+Export는 자산 인라인과 `cli/internal/export/viewer/` 변환을 거친 결과이므로 앱과 다르다는 사실만으로 GPU나 앱의 결함이라고 결론 내리지 않는다. 원본·의존 파일·Export의 지문, 생성 버전, 앱 커밋과 Electron/브라우저 버전, 폰트·자산 로드 완료 상태를 고정한다. BACKLOG의 외부 SVG `<use>`처럼 이미 알려진 앱/Export 차이는 별도 분류하고 대형 캔버스 최적화의 개선량으로 세지 않는다.
+
 ## PoC 선행 조건
 
 사용자가 작업 시점에 원본 캔버스와 Export HTML을 제공한다. 원본의 CSS·이미지 등 의존 경로가 재현에 필요한지 확인한다. 자료가 없으면 구현을 시작하지 않는다. 원본은 수정하지 않고 `.scratch/`에 최소 재현과 전후 증거를 둔다. 실제 앱은 `app/runtime/` 격리·정리 지원을 사용한다.
+
+자료를 받은 뒤에도 재현되지 않거나 원인을 구별하지 못하면 환경·관측 결과·추가로 필요한 자료를 기록하고 사용자에게 돌아온다. 추측 수정으로 진행하지 않는다. 계산·상태 원인은 단위 테스트 red, GPU·합성 원인은 같은 격리 앱 probe의 변경 전 실패 화면·측정으로 재현을 고정한다. 관련 없는 단위 테스트 실패를 그래픽 깨짐의 red로 대체하지 않는다.
 
 ## 순수 함수·형식·관례
 
@@ -21,5 +25,6 @@ PRODUCT §3 Show와 §5 item 2의 표시 안정화 범위다. ARCHITECTURE §3�
 - POSTMORTEM 2026-11-01 absolute frames: 높이가 0과 405px 사이를 반복한 문제다. 프레임 하단과 clipping ancestor를 무시하는 높이 축소를 되풀이하지 않는다.
 - POSTMORTEM 2026-10-22 linked 100vh: “a value the canvas measures against something the renderer changes (viewport height, width, scale) must carry that input”. 이전 viewport의 측정이 새 레이아웃을 덮지 않게 한다.
 - POSTMORTEM 2026-10-22 fresh-iframe: “add a structural assertion too”. 재로드 시 이전 iframe 분리를 동작 결과뿐 아니라 구조로 검증한다.
+- 높이·가시 영역·스케줄링을 변경할 때는 POSTMORTEM 2026-10-26 off-screen reload의 재발을 확인한다. iframe 상단이 화면 밖인 상태의 재로드, 늦은 폰트 로드, 이전 viewport 측정 도착을 검증하며, 해당 경계를 건드리지 않으면 관련 없는 런타임 검증을 반복하지 않는다.
 
 원인·해결·성능 개선은 아직 검증되지 않았다.
