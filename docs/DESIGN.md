@@ -478,7 +478,8 @@ Checked in the built, packaged and development (`StrictMode`) apps with a probe 
 - Reduced motion: `reduced-motion`, a click neither hops nor draws, the field still takes input, and switching it off returns to `idle`.
 - Behind the first-run Welcome, Home's Doany draws no frame and its canvas pixels do not change.
 - 24 Home visits leave no "Too many active WebGL contexts" warning, and the last Doany still draws; a control that leaks 20 contexts does print it.
-- V2 (Pebble) in the built, packaged and StrictMode apps (2026-11-02): blinks of 248–251 ms with an observed interval of 3.85 s; the gaze follows the pointer to ±.99; a lost context or a failed texture leaves the still; packaged images load from `app.asar/out/renderer/doany/` and `icon.icns` is V2.
+- V2 (Pebble) in the built, packaged and StrictMode apps (2026-11-02): the gaze follows the pointer to ±.99; a lost context or a failed texture leaves the still; packaged images load from `app.asar/out/renderer/doany/` and `icon.icns` is V2.
+- Every buddy (2026-11-10): a fur lid blinks over the shared eye bead for 420 ms every 4–8 s (`doanyMotion.test.ts` blink scenario); Home recorded beside the `buddy-assets.html` motion preview for all five buddies (eyes, blink, hop shadow) was judged the same by the maintainer; at the hop's apex the floor shadow measured scale .550 and opacity .400, and `--hop-lift` returns to 0 on landing.
 - Not verified in the app: sustained frame rate beyond an 8 s idle sample (60 fps), reduced transparency and forced colours, and the bounded hop's apex by eye (the bound is checked by the unit model).
 
 ### Regression pointers
