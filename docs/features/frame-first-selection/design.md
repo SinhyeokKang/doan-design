@@ -29,6 +29,20 @@ Option·Picker·Capture·Hand·Space의 기존 우선순위를 유지한다. 직
 
 UI는 DESIGN.md의 선택 표시·도구 토큰을 따른다. 프리셋은 설치된 Doan 0.1.3의 `shape`를 읽었다. 신규 화면이 아닌 기존 Select 동작 확장이다.
 
+## 디자인 드래프트 요청
+
+- 경로 `.doan/canvases/frame-first-selection.html`, 캔버스 ID `frame-first-selection`.
+- `selection-entry`: 선택 없음 → 바깥 A → 중첩 B → 내부 요소의 클릭·hover 상태를 타일로 비교한다.
+- `selection-navigation`: 형제 C·다른 최상위 D·자기 배경·빈 div·바깥 노트·전체 해제와 Esc 역순을 타일로 그린다.
+- `selection-direct`: ⌘hover·직접 선택·이후 Esc, 서랍의 직접 이동+선택을 그린다. Option·Picker·Hand의 기존 우선순위는 주석으로 구분한다.
+- `selection-lifecycle`: 선택 소실과 기존 안내, Hand·Picker·캔버스 전환 후 초기화, 재로드 후 현재 조상 기준을 표시한다.
+- 현행 선택선·hover선·크기 버블·도구 바·서랍을 코드와 DESIGN.md에서 복사한다. Inspector나 새 캔버스 UI를 추가하지 않는다. 상태 간 설명은 제품 UI 밖 영어 주석으로 둔다.
+- 미결정 시각 표현은 같은 프레임 안에 여러 안을 그리고 `Decision needed`로 표시한다. 확정 동작은 바꾸지 않는다. 서브에이전트 작성 후 주 에이전트가 렌더링을 검토·수정하고 원격에 푸시한다. 사용자 시각 확인은 이후 별도로 받으며, 푸시를 승인으로 기록하지 않는다.
+
+### 초안 검토 상태
+
+네 프레임의 26개 상태 타일을 작성했고 주 에이전트가 브라우저 렌더링에서 선택선·hover선·크기 버블, 단계 진입·형제 이동·직접 선택·Esc·서랍·선택 소실·재로드 후 부모 변경 표시를 검토했다. 1px 선택선과 흰 외곽선, 5px 버블 간격, 기존 320px 서랍과 도구 바를 유지했다. 새 컨트롤이나 미결정 시각안을 추가하지 않았다. 실제 이벤트 순서·키보드·포커스·`doan active` 일치는 구현 probe에서 확인해야 하며 사용자 시각 확인은 대기 중이다.
+
 ## 회귀 예방 근거
 
 - POSTMORTEM 2026-10-23 Hover commands: “keep selection and hover/modifier counters independent at both producer and consumer”. hover가 지연된 선택 응답을 폐기하지 않게 한다.
