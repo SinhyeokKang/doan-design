@@ -737,7 +737,9 @@ export function Wizard({ session, projects, homeDirectory, onClose, mainCheckout
   const generation = useRef(0);
   generation.current = scene.generation;
   const leave = sceneMover(agents, move, () => generation.current);
-  const buddyStep = buddyGate({ settled: () => buddy.settled(), dismiss: () => buddy.dismiss(), move, generation: () => generation.current });
+  const latest = useRef({ buddy, move });
+  latest.current = { buddy, move };
+  const [buddyStep] = useState(() => buddyGate({ settled: () => latest.current.buddy.settled(), dismiss: () => latest.current.buddy.dismiss(), move: event => latest.current.move(event), generation: () => generation.current }));
 
   // A stacked modal (the stop or paste dialog) answers its own keys.
   const stacked = useRef(false);

@@ -46,6 +46,28 @@ describe("buddyGate", () => {
     expect(dismiss).not.toHaveBeenCalled();
   });
 
+  test("a second forward while one waits for the same save is dropped: a double Continue moves once", async () => {
+    const save = deferred();
+    const move = vi.fn(), dismiss = vi.fn();
+    const gate = buddyGate({ settled: () => save.promise, dismiss, move, generation: () => 1 });
+    const first = gate.forward({ type: "continue" });
+    const second = gate.forward({ type: "step", to: "agent" });
+    save.resolve(true);
+    await Promise.all([first, second]);
+    expect(move).toHaveBeenCalledOnce();
+    expect(move).toHaveBeenCalledWith({ type: "continue" });
+  });
+
+  test("after a failed save the next forward waits and moves again", async () => {
+    let result = false;
+    const move = vi.fn(), dismiss = vi.fn();
+    const gate = buddyGate({ settled: async () => result, dismiss, move, generation: () => 1 });
+    await gate.forward({ type: "continue" });
+    result = true;
+    await gate.forward({ type: "continue" });
+    expect(move).toHaveBeenCalledOnce();
+  });
+
   test("a move whose scene changed while the save ran is dropped", async () => {
     const save = deferred();
     let generation = 1;
