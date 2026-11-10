@@ -100,8 +100,8 @@
       "iconSize": 88,
       "iconTextSize": 13,
       "contents": [
-        { "x": 320, "y": 180, "type": "file" },
-        { "x": 320, "y": 380, "type": "link", "path": "/Applications" }
+        { "x": 200, "y": 306, "type": "file" },
+        { "x": 440, "y": 306, "type": "link", "path": "/Applications" }
       ]
     }
   }
