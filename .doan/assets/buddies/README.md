@@ -18,11 +18,12 @@ Doany's equivalent of each file is in brackets.
 
 | File | What | State |
 |---|---|---|
-| `card.png` | 1254² RGB, white with a soft contact shadow: the selection-card picture | friends: the supplied drafts as they are; Doany: generated card, pending human review (below) |
-| `still.png` | 1254² RGBA, transparent, no shadow: the still and WebGL fallback [`../doany/v2/doany.png`] | Puri: ready for human review; other friends: to do |
-| `body.png` | 1254² RGBA, same coordinates, eyes and accessory removed, hidden body restored [`v2/body.png`] | Puri: ready for human review; other friends: to do |
-| `accessory.png` | 1254² RGBA, same coordinates, accessory only [`v2/hat.png`] | Puri: ready for human review; other friends: to do |
-| `prompts.json` | generation prompts, in the form of `v2/layer-prompts.json` | Puri: ready for human review; other friends: to do |
+| `card.png` | 1254² RGB, white with a soft contact shadow: the selection-card picture | friends: the supplied drafts as they are; Doany: generated card, approved (below) |
+| `still.png` | 1254² RGBA, transparent, no shadow: the still and WebGL fallback [`../doany/v2/doany.png`] | Puri: approved; other friends: to do |
+| `body.png` | 1254² RGBA, same coordinates, eyes and accessory removed, hidden body restored [`v2/body.png`] | Puri: approved; other friends: to do |
+| `accessory.png` | 1254² RGBA, same coordinates, accessory only [`v2/hat.png`] | Puri: approved; other friends: to do |
+| `shadow.png` | 1254² RGBA, same coordinates, only the card's contact shadow: black, alpha from how much it darkens the white, completed under the body [Doany's lives here too, as `doany/shadow.png`] | Puri: approved; Doany and other friends: to do |
+| `prompts.json` | generation prompts, in the form of `v2/layer-prompts.json` | Puri: approved; other friends: to do |
 | `artist.gif` | 512², 8 frames, 2.2 s: the working-notice painter, frames aligned (below) [`../doany/artist/painting.gif`] | done |
 | `artist-original.gif` | the painter GIF as supplied | kept |
 | `artist-rest.png` | 512² RGBA, first frame of `artist.gif` [`artist/rest.png`] | done |
@@ -110,12 +111,13 @@ and 8.24 in the 286 px buffer. It does not establish WebGL rendering parity.
 ## Doany's card review
 
 `doany/card.png` replaces the composite draft at the same path, so picker canvases need no markup change.
-Compare all five cards in `buddy-choice.html` before approving the generated card's identity, scale and shadow.
+The maintainer compared all five cards in `buddy-choice.html` and approved the generated card's identity, scale and shadow.
 
 ## Next: transparent still and layers (per friend)
 
 Done the way Doany V2's layers were (`../doany/v2/README.md`, `../doany/v2/layer-prompts.json`), with the image
-generation tool, from `card.png` as the only reference. Start with `puri`, check it, then the other three.
+generation tool, from `card.png` as the only reference, and the way Puri's were (above), whose layers are approved.
+Dungdung, Popo and Dori remain.
 
 1. `still.png`: the same character, pose, size and position as `card.png` on a 1254² transparent canvas, without
    the contact shadow or the white. Do not regenerate, recolour, reshape or recentre the character.
@@ -123,18 +125,31 @@ generation tool, from `card.png` as the only reference. Start with `puri`, check
    the body hidden under it restored as a natural continuation; same canvas, scale and position.
 3. `accessory.png`: only the accessory (sprout, headphones, glasses, scarf) at its exact coordinates; everything
    else transparent.
-4. `prompts.json`: the prompts used, as `[["still", "..."], ["body", "..."], ["accessory", "..."]]`.
-5. Rig numbers in this README: eye centres and radii in UV (0–1) of the 1254² canvas, measured on `still.png`;
+4. `shadow.png`: the card's contact shadow lifted out as Puri's was: black, alpha from how much the shadow darkens
+   the card's white, on the still's coordinates; where the body covers it, complete it so it reads as one smooth
+   contact shadow. Prefer extracting over generating. Doany gets one too, from `doany/card.png`, at
+   `doany/shadow.png` on the coordinates of `../doany/v2/doany.png` (scale it the way the card scaled the still).
+5. `prompts.json`: the prompts used, as `[["still", "..."], ["body", "..."], ["accessory", "..."]]`.
+6. Rig numbers in this README: eye centres and radii in UV (0–1) of the 1254² canvas, measured on `still.png`;
    accessory pivot; for the scarf and headphones, a tilt range small enough that the accessory does not slide off
-   the body; and the ground contact for the shadow the rig draws under the buddy: contact centre x, the bottom
-   of the alpha (y), and the alpha width 50 px above that bottom, all in UV and measured on `still.png` at 50 %
-   alpha. Doany's are `.458`, `.941`, `.447` (from `../doany/v2/doany.png`).
+   the body; and the ground contact, the point the shadow shrinks about during a hop: contact centre x, the
+   bottom of the alpha (y), and the alpha width 50 px above that bottom, all in UV and measured on `still.png` at
+   50 % alpha. Doany's are `.458`, `.941`, `.447` (from `../doany/v2/doany.png`).
 
-Checks before handing back: all three PNGs are 1254² RGBA; `body.png` + `accessory.png` composited match `still.png`
-outside the eyes within 1 px at the alpha edge; the eyes are fully gone from `body.png`; no shadow or white remains.
-Do not edit app code, `tokens.css` or other buddies' files. Once a friend's `still.png` exists, switch that buddy's
-slot in `.doan/canvases/buddy-home.html` to it: drop the `card-stand-in` class from its `.doany` button and point
-the `img` at `../assets/buddies/<id>/still.png`, and add that buddy's contact rule next to Doany's
-`[data-doan-id="home-doany-buddy"]{--contact-x:…;--contact-y:…;--contact-w:…}` so its `.buddy-shadow` lands under
-it (the shadow is hidden while the card stands in); the picker cards in `buddy-choice.html` keep `card.png`. The
-hand-off (branch, commits, checks) is in `docs/features/buddy-choice/tasks.md` 'Codex 워커 인계'.
+Checks before handing back: all four PNGs are 1254² RGBA; `body.png` + `accessory.png` composited match `still.png`
+outside the eyes within 1 px at the alpha edge; the eyes are fully gone from `body.png`, and each eye area matches
+the ring around it (mean luminance within 2 %, texture contrast ratio .85–1.15, as Puri's eye fill was checked);
+no shadow or white remains in still, body or accessory; `shadow.png` holds only black with alpha.
+Do not edit app code, `tokens.css` or other buddies' files. Canvases to update as layers land:
+
+- `.doan/canvases/buddy-home.html`: switch the friend's slot as Puri's was: drop `card-stand-in` from its `.doany`
+  button, point the still `img` at `../assets/buddies/<id>/still.png`, and add
+  `<img class="buddy-shadow-image" src="../assets/buddies/<id>/shadow.png" alt="" aria-hidden="true"/>` before it.
+  Add Doany's shadow the same way once `doany/shadow.png` exists. The picker cards in `buddy-choice.html` keep
+  `card.png`.
+- `.doan/canvases/buddy-assets.html`: add the buddy to `BUDDIES` in `motion-preview.js` (layer paths, eyes, radius,
+  shine, accessory pivot, tilt range, lift scale), give its frame live slots like Puri's (the still must be the
+  slot's first `img`, then the shadow, then the canvas; `--contact-x`/`--contact-y` on the slot), and turn its
+  pending tiles into the new files. Add Doany's shadow slot and tile when it exists.
+
+The hand-off (branch, commits, checks) is in `docs/features/buddy-choice/tasks.md` 'Codex 워커 인계'.
