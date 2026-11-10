@@ -67,6 +67,8 @@ public/buddies/doany/card.png           Doany 카드 앱 사본만 여기 둔다
 - 이유: `Doany.test.tsx`는 WebGL 호출 trace(셰이더 소스 문자열, uniform 위치 조회)를 `doany.golden.json`과 정확히 비교하고, `doanyRender.test.ts`는 그 소스에서 정규식으로 앵커를 꺼낸다. golden 생성기는 저장소에 없다(ARCHITECTURE §7 'Doany (mascot)'). 수치를 draft 표기 그대로(`.421`, `.10`) 레지스트리에 문자열로 두면 Doany의 소스와 trace가 바이트 단위로 같아 golden을 건드리지 않는다.
 - 수치: 눈 중심 2개와 반지름(`.421,.550`·`.619,.550`·`.035,.056`), 눈 하이라이트 y(`.523`, 눈 중심 y에서 `.027` 위), 시선 오프셋(`.018,.014`), 몸통 skew(`.018`), 몸통 pivot(`.5,.60`), 소품 pivot(`.67,.30`), scale `1.34`, 중립 오프셋 `.10`, 폴백 padding `16.5%`, 소품 기울기 범위(`BERET_TILT`, 버디별 이름은 accessory tilt), 홉 높이 배율(`LIFT_SCALE`).
 - `doanyRender.test.ts`는 버디마다 소스를 만들어 같은 정규식으로 검사한다. 친구의 소품 기울기 범위와 홉 headroom은 같은 방식으로 정한다. 모든 누름 순서에서 캔버스 가장자리와 1.4 device px 이상 떨어져야 한다.
+- **바닥 그림자**: 선택 카드처럼 버디 발밑에 접지 그림자를 둔다. 이미지(still, body)에 굽지 않는다. 구우면 홉할 때 그림자도 함께 떠오르기 때문이다. 슬롯 안에서 캔버스·정지 이미지 뒤에 있는 CSS 요소(`.buddy-shadow`, `aria-hidden`)로 그리고, 리그는 프레임마다 홉 높이를 0–1로 나눈 값을 `--buddy-lift`로 슬롯에 쓴다. 그림자는 lift 1에서 크기 55%, 불투명도 40%가 된다. WebGL 호출은 그대로라 `doany.golden.json`이 바뀌지 않는다. reduced motion과 정지 이미지 폴백에서는 lift 0으로 같은 그림자를 보인다. 모양: 접지 폭 × 1.3 너비, 6:1 타원, 가운데 `--neutral-12` 34% → 55% 지점 14% → 투명, blur 0.6px. 기준은 `.doan/canvases/buddy-home.html`의 `.buddy-shadow` 규칙이다.
+- **접지 수치**(버디별 리그 수치, 1254² still의 UV): 접지 중심 x, 알파 바닥 y, 바닥에서 50px 위 알파 폭. Doany는 `.458`, `.941`, `.447`(`v2/doany.png`에서 측정). 친구는 still.png가 생기면 같은 방법으로 잰다(tasks 1.5, 1.6).
 - 컴포넌트 이름 `Doany`는 `Buddy`로 바꾸고 `buddy` prop을 받는다. 버디가 바뀌면 `key={buddy}`로 다시 마운트한다(마운트마다 컨텍스트를 만들고 해제하는 기존 규칙, ARCHITECTURE §7 'Doany (mascot)'). 접근성 이름은 "Make <이름> hop"이다.
 - 친구의 `still.png`나 텍스처를 읽지 못하면 Doany와 같이 정지 이미지로 떨어지고, 정지 이미지도 없으면 그 자리를 비운다. 레지스트리의 모든 에셋 경로가 실제로 있는지는 테스트로 막는다(tasks 3.2).
 

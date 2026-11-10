@@ -16,7 +16,7 @@ AGENTS.md 'Commands'에 없는 확인 명령(`file`, `rg`, 측정 스크립트)�
   - 확인: 128² GIF이고 프레임 수와 시간이 원본과 같다. 측정 명령은 정하지 않았다(command undecided — 사용자 확인 필요). 캔버스의 32px 견본과 같은 크기·위치로 보인다.
 - [ ] **1.4b Doany 카드 (Codex 워커).** `.doan/assets/buddies/doany/card.png`를 원본 `.doan/assets/doany/v2/doany.png` 기준으로 친구 카드와 같은 그림자·크기로 다시 그린다.
   - 확인: 1254² RGB이고, `buddy-choice.html`에서 다섯 카드가 같은 크기로 보인다. 사람이 확인한다.
-- [ ] **1.5 정지 이미지·레이어 PoC (Codex 워커, puri).** 투명 `still.png`, `body.png`, `accessory.png`, `prompts.json`을 만들고 README에 리그 수치를 적는다. 시안의 형태와 질감은 바꾸지 않는다.
+- [ ] **1.5 정지 이미지·레이어 PoC (Codex 워커, puri).** 투명 `still.png`, `body.png`, `accessory.png`, `prompts.json`을 만들고 README에 리그 수치와 접지 수치(design.md '리그 일반화' 바닥 그림자)를 적는다. 세 이미지 모두 그림자가 없다. 시안의 형태와 질감은 바꾸지 않는다.
   - 확인: 세 장 모두 1254² RGBA다. `body.png` 위에 `accessory.png`를 합성한 그림이 눈 영역을 빼면 `still.png`와 알파 경계에서 1px(1254² 기준) 안에서 맞는다. 눈 중심과 반지름은 `still.png`의 눈과 UV `.003` 안에서 맞는다. 측정 스크립트와 결과는 `.scratch/buddy-assets/`에 둔다. 사람이 확인한다.
 - [ ] **1.6 나머지 셋 (Codex 워커).** dungdung, popo, dori도 1.5와 같은 방법으로 만든다. 목도리와 헤드폰은 소품 기울기 범위를 줄이고, 안경은 0으로 둔다.
   - 확인: 1.5와 같다. 버디 4개의 이미지 용량 합을 재서 사람에게 보고하고, 해상도를 줄일지 묻는다.
@@ -35,7 +35,7 @@ AGENTS.md 'Commands'에 없는 확인 명령(`file`, `rg`, 측정 스크립트)�
   - 1.5: `puri/`의 `still.png`, `body.png`, `accessory.png`, `prompts.json`, README의 리그 수치. 사람이 확인한 뒤 1.6으로 넘어간다.
   - 1.6: `dungdung/`, `popo/`, `dori/`에도 같은 파일을 만든다.
 - **하지 않을 것**: `card.png`(친구)와 `artist*.gif`·`artist-rest.png`는 고치지 않는다. 앱 코드, `tokens.css`, 다른 feature 문서도 고치지 않는다.
-- **캔버스 갱신**: 친구의 `still.png`가 생기면 `.doan/canvases/buddy-home.html`에서 그 버디의 마스코트 자리를 바꾼다. `<button type="button" class="doany card-stand-in" …><img src="../assets/buddies/<id>/card.png" alt=""/></button>`에서 `card-stand-in` 클래스를 지우고 `src`를 `../assets/buddies/<id>/still.png`로 바꾼다. 머리말의 "Until each friend's transparent still.png exists…" 문장도 실제 상태에 맞게 고친다. `buddy-choice.html`의 카드는 `card.png`를 그대로 쓴다.
+- **캔버스 갱신**: 친구의 `still.png`가 생기면 `.doan/canvases/buddy-home.html`에서 그 버디의 마스코트 자리를 바꾼다. `card-stand-in`을 지우면 바닥 그림자(`.buddy-shadow`)가 켜지므로, Doany 규칙 `[data-doan-id="home-doany-buddy"]{--contact-x:…}` 옆에 그 버디의 접지 수치 규칙을 추가한다. `<button type="button" class="doany card-stand-in" …><img src="../assets/buddies/<id>/card.png" alt=""/></button>`에서 `card-stand-in` 클래스를 지우고 `src`를 `../assets/buddies/<id>/still.png`로 바꾼다. 머리말의 "Until each friend's transparent still.png exists…" 문장도 실제 상태에 맞게 고친다. `buddy-choice.html`의 카드는 `card.png`를 그대로 쓴다.
 - **확인**: 1.5의 확인 기준과 같다. 그리고 `doan check --json --repo .`에 이 캔버스들의 finding이 없어야 한다.
 - **커밋과 인계**: 최신 develop에서 만든 Orca worktree의 `docs/buddy-assets` 브랜치에서 작업한다. 버디마다 `docs(design): <id> buddy layers`로 커밋하고, 마지막 줄은 `Co-Authored-By: Codex <noreply@openai.com>`이다. 푸시하지 않는다. lead가 검수한 뒤 develop에 합친다.
 
@@ -64,8 +64,8 @@ AGENTS.md 'Commands'에 없는 확인 명령(`file`, `rg`, 측정 스크립트)�
 - [ ] **3.2 에셋.** 친구 4명의 앱 사본(1.4, 1.6)과 다섯 버디의 `card.png` 앱 사본(588²)을 `public/buddies/<id>/`에 넣는다. Doany의 `public/doany/`는 옮기지 않는다. `public/doany/README.md`에 `public/buddies/` 출처를 함께 적는다. 레지스트리의 모든 에셋 경로가 실제로 있는지 확인하는 테스트를 넣는다.
   - 확인: `npm --prefix app run build`, `npm --prefix app test` 전체, `doan check --json --repo .`가 통과한다.
   - ⎯ 커밋: `feat(app): buddy assets`
-- [ ] **3.3 리그 일반화.** 셰이더 소스 템플릿에 버디별 수치를 문자열로 넣어 버디마다 컴파일한다. `Doany`를 `Buddy`(prop `buddy`, `key={buddy}`로 다시 마운트)로 바꾸고, 버디별 기울기 범위와 홉 배율을 적용한다.
-  - 확인: `npm --prefix app test`에서 `Doany.test.tsx`의 golden 비교(`doany.golden.json` 수정 없이)와 `doanyRender.test.ts`가 통과한다. `doanyRender.test.ts`는 다섯 버디에서 앵커 일치, 가장자리 여백 1.4 device px, WebGL이 없거나 텍스처를 못 읽을 때 정지 이미지로 떨어지는지 확인한다.
+- [ ] **3.3 리그 일반화.** 셰이더 소스 템플릿에 버디별 수치를 문자열로 넣어 버디마다 컴파일한다. `Doany`를 `Buddy`(prop `buddy`, `key={buddy}`로 다시 마운트)로 바꾸고, 버디별 기울기 범위와 홉 배율을 적용한다. 바닥 그림자(`.buddy-shadow`, 버디별 접지 수치, 리그가 쓰는 `--buddy-lift`)를 넣는다.
+  - 확인: `npm --prefix app test`에서 `Doany.test.tsx`의 golden 비교(`doany.golden.json` 수정 없이)와 `doanyRender.test.ts`가 통과한다. `doanyRender.test.ts`는 다섯 버디에서 앵커 일치, 홉 중 `--buddy-lift`가 0–1 안에 있고 착지 때 0으로 돌아옴, 가장자리 여백 1.4 device px, WebGL이 없거나 텍스처를 못 읽을 때 정지 이미지로 떨어지는지 확인한다.
   - ⎯ 커밋: `feat(app): buddy rig for every buddy`
 - [ ] **3.4 첫 페인트와 적용.** main이 창을 만들 때 `preferences.current()`의 버디 id를 넘기고, 렌더러가 마운트 전에 `data-buddy`를 설정한다. App은 스냅샷을 읽을 때마다 다시 적용한다. 고르는 즉시 반영하고, 가장 최근 선택의 응답이 실패면 되돌린다.
   - 확인: `npm --prefix app test`에서 다음 케이스가 통과한다. 창 옵션에 버디 id가 담긴다. 알 수 없는 값·broken·newer면 `doany`다. 마운트 전에 `data-buddy`가 설정된다. 렌더러를 다시 로드하면 저장값을 따른다. A의 실패 응답이 B를 고른 뒤 오면 무시한다. 첫 실행이 끝나 Buddy 단계가 사라진 뒤 온 응답도 `data-buddy`에 반영한다. `/runtime-test`에서는 init script가 첫 `requestAnimationFrame` 때의 `data-buddy`와 `--buddy-9` 계산값을 기록하고, 저장된 버디의 값인지 본다.
