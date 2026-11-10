@@ -1,0 +1,58 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="doan:canvas" content="buddy-welcome"><meta name="doan:width" content="2704"><title>Buddy welcome</title><link rel="stylesheet" href="../../app/src/renderer/tokens.css"><link rel="stylesheet" href="../../app/src/renderer/ds/controls.css"><style>
+@font-face{font-family:Geist;src:url('../../app/src/renderer/public/fonts/geist/Geist.woff2')}
+*{box-sizing:border-box}
+body{margin:0;padding:64px;width:2704px;background:var(--bg-app);color:var(--text-standard);font-family:Geist,sans-serif}
+h1,h2,h3,p{margin:0}
+header{max-width:1500px;margin-bottom:48px}
+header h1{font-size:48px;font-weight:500;letter-spacing:-2px}
+header p{font-size:19px;line-height:1.6;margin-top:16px;color:var(--text-subtle)}
+.row{display:flex;gap:64px;align-items:flex-start;margin-bottom:72px}
+.caption{margin-bottom:20px}
+.caption h2{font-size:28px;font-weight:500}
+.caption p{font-size:16px;margin-top:8px;color:var(--text-subtle);line-height:1.6;max-width:1238px}
+.frame{position:relative;overflow:hidden;isolation:isolate;border-radius:16px;background:var(--surface-panel);box-shadow:0 16px 40px color-mix(in srgb,var(--neutral-12) 9%,transparent)}
+.welcome{width:1238px;height:780px;flex:none}
+.welcome.short{height:600px}
+.copy svg{width:20px;height:20px}
+.chrome{height:56px;display:flex;gap:8px;align-items:center;padding:0 20px}
+.chrome i{width:12px;height:12px;border-radius:50%;background:var(--neutral-4)}
+.copy{position:absolute;left:0;right:0;display:flex;flex-direction:column;align-items:center;text-align:center}
+.wordmark{font-size:104px;font-weight:500;line-height:1;letter-spacing:-8px}
+.copy h1{font-size:24px;line-height:1.1;font-weight:400;letter-spacing:-.18px;margin-top:24px}
+.copy button{margin-top:40px}
+.plain{background:var(--surface-panel)}
+.bleed{position:absolute;display:block;height:auto;max-width:none}
+.btm .copy{top:var(--copy-top)}
+.btm .bleed{width:var(--w);left:calc((1238px - var(--w)) / 2);top:var(--top)}
+.btm h1{margin-top:16px}.btm .copy button{margin-top:24px}
+.b780{--copy-top:80px;--w:960px;--top:368px}
+.b600{--copy-top:72px;--w:540px;--top:360px}
+.notes{width:1238px;padding:32px;background:var(--surface-panel);border-radius:16px}
+.notes h2{font-size:28px;font-weight:500;margin-bottom:16px}
+.notes li{font-size:16px;line-height:1.8;color:var(--text-subtle)}
+.badge{display:inline-block;font-size:13px;font-weight:500;padding:2px 8px;border-radius:6px;background:var(--violet-3);color:var(--violet-11);margin-left:8px;vertical-align:middle}
+</style></head><body>
+<header><h1>Welcome · Bottom bleed.</h1><p>Selected design. The buddies' group photo replaces Doany on Welcome. The window is plain white (no pigment horizon, no grain), the type and Get started sit on top, and the group runs off the bottom edge. Not in code yet.</p></header>
+
+<div class="row">
+<section>
+<div class="caption"><h2>780<span class="badge">Not in code</span></h2><p>Type group 24 below the chrome; wordmark to heading 16, heading to Get started 24. Photo 960 wide, its box about 43 below Get started (about 56 to the beret), about 22% cut at the bottom.</p></div>
+<section class="frame welcome plain btm b780" data-doan-frame="bleed-bottom-780" data-doan-title="Bottom bleed · 780" data-doan-implements="app/src/renderer/Onboarding.tsx"><img class="bleed" src="../assets/buddies/group/group.png" alt="Doany, Puri, Dungdung, Popo and Dori together" data-doan-id="bleed-bottom-780-photo"><div class="chrome" aria-hidden="true"><i></i><i></i><i></i></div><div class="copy"><div class="wordmark">Doan</div><h1>A place for your next idea.<br>Bring it to life on canvas.</h1><button class="doan-button" data-ui-variant="prominent" data-ui-size="lg" data-doan-id="bleed-bottom-780-start">Get started<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></button></div></section>
+</section>
+<section>
+<div class="caption"><h2>600 (minimum height)<span class="badge">Not in code</span></h2><p>Type group 16 below the chrome. The photo box is again about 43 below Get started and shrinks with the height left (540 wide) so every buddy's eyes stay in view.</p></div>
+<section class="frame welcome plain btm b600 short" data-doan-frame="bleed-bottom-600" data-doan-title="Bottom bleed · 600" data-doan-implements="app/src/renderer/Onboarding.tsx"><img class="bleed" src="../assets/buddies/group/group.png" alt="Doany, Puri, Dungdung, Popo and Dori together" data-doan-id="bleed-bottom-600-photo"><div class="chrome" aria-hidden="true"><i></i><i></i><i></i></div><div class="copy"><div class="wordmark">Doan</div><h1>A place for your next idea.<br>Bring it to life on canvas.</h1><button class="doan-button" data-ui-variant="prominent" data-ui-size="lg" data-doan-id="bleed-bottom-600-start">Get started<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></button></div></section>
+</section>
+</div>
+
+<section class="notes" data-doan-frame="welcome-group-notes" data-doan-title="Notes">
+<h2>Notes</h2>
+<ul>
+<li>Not in code: the shipped Welcome shows Doany (WebGL, hops on Enter) above the wordmark over the pigment horizon. This design removes Doany and its WebGL from Welcome, and the pigment horizon and grain with it.</li>
+<li>Photo width follows the height left under Get started: about 2.3 × that height, at most 960 (780 → 960, 600 → 540).</li>
+<li>Spacing: wordmark to heading 16 (shipped 24), heading to Get started 24 (shipped 40).</li>
+<li>Photo: <code>.doan/assets/buddies/group/group.png</code>, trimmed from <code>group-original.png</code> with a 16 px white border, its near-white backdrop filled to white, drawn with <code>mix-blend-mode: multiply</code> on the white panel.</li>
+<li>Focus: with Doany gone the order is heading → Get started.</li>
+</ul>
+</section>
+</body></html>

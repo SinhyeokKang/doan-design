@@ -41,6 +41,10 @@ Rig numbers (eye centres and radii, body and accessory pivots, accessory tilt ra
   Measured fits (scale, x, y in source px) for the character in frames 2–5: puri .99, +7; dungdung .93–.96, +13–21,
   +4–7; popo 1.02, −1–2; dori .97, +7–11. Residual drift after the fit is at most 2 px at 512 (0.14 px in the
   32 px window).
+- `group/group-original.png` (1536 × 1024) is the five buddies' group photo, supplied by the maintainer. `group/group.png`
+  (1478 × 789) is it trimmed to its content at 3% fuzz, given a 16 px white border, and its near-white backdrop
+  flood-filled to pure white at 4% fuzz from the corner, so it sits on a white panel without a visible box. It is
+  used by `.doan/canvases/buddy-welcome.html` and `buddy-installer.html`.
 - Doany's `card.png` is a draft: `../doany/v2/doany.png` cropped to its alpha box, scaled to 940 px high, its
   bottom at y 1095 and centred, over a two-ellipse contact shadow fitted by eye to the friends' cards (Gaussian
   blur 18 and 40). A Codex worker redraws it from the original (below).
