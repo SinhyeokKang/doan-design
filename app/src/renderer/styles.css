@@ -165,7 +165,7 @@ code, kbd { font-family: var(--type-family); }
    window shows a larger photo; it is cut at the bottom and, past the window's width, at the sides. The photo's
    backdrop is white, so it sits on the panel as it is. */
 .ob-welcome-main { flex: 1; display: flex; flex-direction: column; }
-.ob-welcome-copy { display: flex; flex-direction: column; align-items: center; padding: clamp(16px, calc(16px + (100vh - 600px) * 8 / 180), 24px) var(--space-6) 0; }
+.ob-welcome-copy { display: flex; flex-direction: column; align-items: center; padding: clamp(16px, calc(16px + (100vh - 600px) * 8 / 180), 24px) var(--space-6) 0; text-align: center; }
 .ob-wordmark { margin-bottom: var(--space-4); font-size: 104px; line-height: 1; font-weight: var(--type-weight-medium); letter-spacing: -8px; }
 .ob-welcome-main h1 { font-size: var(--type-heading-size); line-height: var(--type-heading-line-height); letter-spacing: var(--type-heading-letter-spacing); font-weight: var(--type-weight-regular); text-align: center; outline: none; }
 .ob-welcome-action { margin-top: var(--space-6); text-align: center; }

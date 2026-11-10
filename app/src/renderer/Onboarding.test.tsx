@@ -31,7 +31,7 @@ test("Welcome lays out the words at the top and bleeds the photo off the bottom"
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toContain(".ob-welcome .ob-scene { max-width: none; padding: 0; align-items: stretch; }");
   expect(css).toContain(".ob-welcome-main { flex: 1; display: flex; flex-direction: column; }");
-  expect(css).toContain(".ob-welcome-copy { display: flex; flex-direction: column; align-items: center; padding: clamp(16px, calc(16px + (100vh - 600px) * 8 / 180), 24px) var(--space-6) 0; }");
+  expect(css).toContain(".ob-welcome-copy { display: flex; flex-direction: column; align-items: center; padding: clamp(16px, calc(16px + (100vh - 600px) * 8 / 180), 24px) var(--space-6) 0; text-align: center; }");
   expect(css).toMatch(/\.ob-wordmark \{ margin-bottom: var\(--space-4\);/);
   expect(css).toContain(".ob-welcome-action { margin-top: var(--space-6); text-align: center; }");
   expect(css).toContain(".ob-welcome-photo { position: relative; flex: 1 0 0; min-height: 0; margin-top: 43px; overflow: hidden; container-type: size; }");
