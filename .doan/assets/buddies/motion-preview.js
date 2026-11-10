@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: MIT
- * Buddy motion preview: Doany's V2 motion prototype run per buddy from the BUDDIES table, plus --buddy-lift
+ * Buddy motion preview: Doany's V2 motion prototype run per buddy from the BUDDIES table, plus --hop-lift
  * for the ground shadow layer, and the shared eye.png (one eye cut from Puri's still) for every buddy's eyes,
  * closed by a plush lid from the top. A review aid for the buddy assets; the app's rig is ported separately.
  */
@@ -159,7 +159,7 @@
       host.dataset.state=state.mode;
       gl.viewport(0,0,canvas.width,canvas.height);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);gl.useProgram(program);
       for(const [key,value] of Object.entries({time:still?0:t,squash,lift,tilt,hatTilt:still?0:Math.max(cfg.tilt[0],Math.min(cfg.tilt[1],state.hat)),energy,eyeOpen:still?1:state.eye}))gl.uniform1f(locations[key],value);
-      host.style.setProperty('--buddy-lift',String(lift/(.22*cfg.liftScale)));
+      host.style.setProperty('--hop-lift',String(lift/(.22*cfg.liftScale)));
       gl.uniform2f(locations.look,still?0:state.lookX,still?0:state.lookY);
       gl.uniform1i(locations.skin,0);
       if(eyeTexture){gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,eyeTexture);gl.uniform1i(locations.eyeTex,1);gl.activeTexture(gl.TEXTURE0);}

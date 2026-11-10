@@ -55,7 +55,7 @@ Rig numbers (eye centres and radii, body and accessory pivots, accessory tilt ra
   The prompt preserves the original violet Pebble, black beret, pose, proportions, texture and colour, asking
   for the friends' soft floor shadow. The generated square was uniformly reduced to 1154², placed at (50, 30)
   on white and saved as 1254² RGB to match their scale and bottom line. The original still is unchanged.
-  The full prompt, generation and five-card comparison are local in `.scratch/buddy-assets/`; human review is pending.
+  The full prompt, generation and five-card comparison are local in `.scratch/buddy-assets/`; the maintainer approved it.
 
 ## Working-notice source boxes
 
@@ -93,7 +93,6 @@ the bottom and x at that sample's midpoint.
 | Left eye centre | `.433, .528` (543, 661.5 px) |
 | Right eye centre | `.607, .528` (761, 661.5 px) |
 | Eye radii, left / right | `.035, .057` / `.033, .057`; shared shader radius `.034, .057` is within `.003` of both |
-| Eye highlight y | `.501` (eye centre y minus `.027`) |
 | Gaze offset | `.018, .014` |
 | Body skew | `.018` |
 | Body pivot | `.5, .60` |
@@ -107,8 +106,8 @@ the bottom and x at that sample's midpoint.
 Measured: body + accessory stays within 1 source px of the still's 50% alpha boundary outside the eyes (8 threshold
 pixels differ, all within 1 px); both eye windows in the body contain zero dark eye pixels. Maximum eye UV rounding
 error is `.000489`; the shared radius differs by at most `.001` UV. No opaque near-white pixels remain in any layer.
-Measurement scripts, source generations and results are local in `.scratch/buddy-assets/`. Human visual approval
-is pending; the app has not implemented this buddy yet. CPU headroom verification uses the actual alpha hulls and
+Measurement scripts, source generations and results are local in `.scratch/buddy-assets/`. The maintainer approved
+the layers; the app has not implemented this buddy yet. CPU headroom verification uses the actual alpha hulls and
 `doanyRender.test.ts`'s motion sequences: 735,160 poses retained at least 6.57 device px in Home's 228 px buffer
 and 8.24 in the 286 px buffer. It does not establish WebGL rendering parity.
 
@@ -127,14 +126,13 @@ texture is not substituted across the exposed body. Source cast shadows are pres
 The supplied still, accessory, shadow, card and artist files are unchanged by this body correction.
 One additional image generation repairs the cup regions; the hidden body alpha is rounded beneath the cups.
 The side zones contain zero dark headphone-fragment pixels (maximum RGB below 90).
-The black-alpha ground shadow remains the extracted card shadow. Human visual approval is pending.
+The black-alpha ground shadow remains the extracted card shadow. The maintainer approved the layers and shadow.
 
 | Rig value | Dungdung |
 |---|---|
 | Eye centres, left / right | `.404,.482` / `.585,.482` |
 | Measured eye radii, left / right | `.033,.057` / `.033,.057` |
 | Shared shader eye radius | `.033,.057` |
-| Eye highlight y | `.455` |
 | Gaze offset / body skew | `.018, .014` / `.018` |
 | Body / accessory pivot | `.5, .60` / `.5,.43` |
 | Scale / neutral vertical offset / still padding | `1.34` / `.10` / `16.5%` |
@@ -170,14 +168,13 @@ The supplied still, accessory, shadow, card and artist files are unchanged by th
 This correction uses the existing reconstructed plush with no new generation. Eye fills use unshadowed plush
 for their comparison ring: exclude the glasses alpha and its surrounding 12 px (2663/2082 left/right samples).
 The frame's real soft shadow outside the rims remains exactly as in the still.
-The black-alpha ground shadow remains the extracted card shadow. Human visual approval is pending.
+The black-alpha ground shadow remains the extracted card shadow. The maintainer approved the layers and shadow.
 
 | Rig value | Popo |
 |---|---|
 | Eye centres, left / right | `.411,.42` / `.607,.42` |
 | Measured eye radii, left / right | `.032,.055` / `.032,.055` |
 | Shared shader eye radius | `.032,.055` |
-| Eye highlight y | `.393` |
 | Gaze offset / body skew | `.018, .014` / `.018` |
 | Body / accessory pivot | `.5, .60` / `.503,.42` |
 | Scale / neutral vertical offset / still padding | `1.34` / `.10` / `16.5%` |
@@ -227,14 +224,13 @@ texture is not substituted across the exposed body. Source cast shadows are pres
 The supplied still, accessory, shadow, card and artist files are unchanged by this body correction.
 This correction uses the existing reconstructed plush with no new generation. No cream scarf-colour pixels
 remain in the opaque body below y 480.
-The black-alpha ground shadow remains the extracted card shadow. Human visual approval is pending.
+The black-alpha ground shadow remains the extracted card shadow. The maintainer approved the layers and shadow.
 
 | Rig value | Dori |
 |---|---|
 | Eye centres, left / right | `.424,.364` / `.563,.365` |
 | Measured eye radii, left / right | `.027,.045` / `.027,.045` |
 | Shared shader eye radius | `.027,.045` |
-| Eye highlight y | `.337` |
 | Gaze offset / body skew | `.018, .014` / `.018` |
 | Body / accessory pivot | `.5, .60` / `.51,.535` |
 | Scale / neutral vertical offset / still padding | `1.34` / `.10` / `16.5%` |
@@ -267,7 +263,7 @@ floor darkens white, with smooth Gaussian completion under the body; no image ge
 card contact `(587.5, 1061)` maps to `(573, 1179)` in `../doany/v2/doany.png`; the ground pivot remains `.458, .941`.
 This preserves the original still's coordinates rather than using the card coordinates in the motion slot.
 The shadow's exposed-floor fit RMS is `.012665` alpha; its nonzero bounds are `(9, 1048)–(1200, 1250)` (exclusive).
-Extraction script and measurements are local in `.scratch/buddy-assets/`; human visual review is pending.
+Extraction script and measurements are local in `.scratch/buddy-assets/`; the maintainer approved it.
 
 ## Next: transparent still and layers (per friend)
 
