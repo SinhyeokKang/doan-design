@@ -19,11 +19,11 @@ Doany's equivalent of each file is in brackets.
 | File | What | State |
 |---|---|---|
 | `card.png` | 1254² RGB, white with a soft contact shadow: the selection-card picture | friends: the supplied drafts as they are; Doany: generated card, approved (below) |
-| `still.png` | 1254² RGBA, transparent, no shadow: the still and WebGL fallback [`../doany/v2/doany.png`] | Puri: approved; Dungdung, Popo and Dori: ready for review |
-| `body.png` | 1254² RGBA, same coordinates, eyes and accessory removed, hidden body restored [`v2/body.png`] | Puri: approved; Dungdung, Popo and Dori: ready for review |
-| `accessory.png` | 1254² RGBA, same coordinates, accessory only [`v2/hat.png`] | Puri: approved; Dungdung, Popo and Dori: ready for review |
-| `shadow.png` | 1254² RGBA, same coordinates, only the card's contact shadow: black, alpha from how much it darkens the white, completed under the body [Doany's lives here too, as `doany/shadow.png`] | Puri: approved; Doany and other friends: ready for review |
-| `prompts.json` | generation prompts, in the form of `v2/layer-prompts.json` | Puri: approved; Dungdung, Popo and Dori: ready for review |
+| `still.png` | 1254² RGBA, transparent, no shadow: the still and WebGL fallback [`../doany/v2/doany.png`] | all four friends: approved |
+| `body.png` | 1254² RGBA, same coordinates, eyes and accessory removed, hidden body restored [`v2/body.png`] | all four friends: approved |
+| `accessory.png` | 1254² RGBA, same coordinates, accessory only [`v2/hat.png`] | all four friends: approved |
+| `shadow.png` | 1254² RGBA, same coordinates, only the card's contact shadow: black, alpha from how much it darkens the white, completed under the body [Doany's lives here too, as `doany/shadow.png`] | all five: approved |
+| `prompts.json` | generation prompts, in the form of `v2/layer-prompts.json` | all four friends: approved |
 | `artist.gif` | 512², 8 frames, 2.2 s: the working-notice painter, frames aligned (below) [`../doany/artist/painting.gif`] | done |
 | `artist-original.gif` | the painter GIF as supplied | kept |
 | `artist-rest.png` | 512² RGBA, first frame of `artist.gif` [`artist/rest.png`] | done |
