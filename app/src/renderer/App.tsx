@@ -1,6 +1,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { flushSync } from "react-dom";
 import { ShellSidebar } from "./ShellSidebar";
+import { useBuddySelection } from "./buddySelection";
+import type { BuddyPaint } from "./buddyPaint";
 import { commitVisit, emptyHistory, fallbackWorktree, historyTarget, loadedProjectRow, projectExpanded, projectsTab, reconcileProjects, selectProjectRoot, shownFolders, type Visit } from "./shellNavigation";
 import { groupToOpen, openGroup, toggleGroup, type GroupId, type ShownCanvas } from "./sidebarGroups";
 import { canvasLabel, moveExpanded } from "./canvasTree";
@@ -164,7 +166,8 @@ export function validHistoryVisit(entries: readonly FolderEntry[], visit: Visit)
   return !!entry && entry.kind !== "notFound" && (entry.kind !== "list" || !visit.canvas || entry.canvases.some(row => row.path === visit.canvas));
 }
 
-export function App() {
+// paint: the renderer entry's first-paint buddy and how to apply another; without it (tests) nothing is painted.
+export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const [homeDirectory, setHomeDirectory] = useState<string | null>(null);
   const [screen, setScreen] = useState<"home" | "workspace" | "addProjects" | "settings" | "projectSettings">("home");
   const [locating, setLocating] = useState<{ from: string; root: string | null } | null>(null);
@@ -1192,6 +1195,10 @@ export function App() {
     if (reply) setPreferences(reply.snapshot);
     return reply;
   };
+  // The buddy shows the latest pick at once, else the snapshot; every snapshot re-applies it, so a reloaded renderer
+  // follows what is saved rather than the query the window opened with.
+  const buddySelection = useBuddySelection(preferences, savePreferences, paint?.first ?? "doany");
+  useLayoutEffect(() => { paint?.apply(buddySelection.shown); }, [paint, preferences, buddySelection.shown]);
   const rememberPick = (choice: ComposerChoice) => {
     if (choice.fast !== undefined) {
       fastSwitchedAt.current.set(choice.provider, ++fastClock.current);

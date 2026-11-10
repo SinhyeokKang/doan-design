@@ -57,7 +57,8 @@ import { McpService } from "./mcpConnectors/service";
 import { ConnectorStore } from "./mcpConnectors/store";
 import type { NotificationTarget } from "./notifications";
 import { conversationNames, createNotifyService } from "./notifyService";
-import { createPreferencesStore } from "./preferences";
+import { createPreferencesStore, windowBuddy } from "./preferences";
+import type { BuddyId } from "../renderer/buddies";
 import { createCanvasSeenStore, type CanvasSeenStore } from "./canvasSeen";
 import { DESIGN_SKILL_CHANNELS, DESIGN_SKILL_REFUSED, designSkillGetRequest, interpretGet, interpretList } from "./designSkills";
 import { folderState } from "./folderState";
@@ -458,7 +459,8 @@ function denyPermissions(): void {
   session.defaultSession.on("will-download", (event) => event.preventDefault());
 }
 
-function createWindow(): BrowserWindow {
+// buddy: the saved buddy, passed in the renderer's query for the first paint.
+function createWindow(buddy: BuddyId): BrowserWindow {
   // Launched by `onboarding start` behind the app in use: create hidden and wait, unless Doan became active during
   // startup (a Dock click or ⌘Tab), which shows it as usual.
   const hidden = launchedInBackground(process.argv) && !app.isActive();
@@ -489,8 +491,11 @@ function createWindow(): BrowserWindow {
     },
   });
   const devUrl = process.env.ELECTRON_RENDERER_URL;
-  if (!app.isPackaged && devUrl) void window.loadURL(devUrl);
-  else void window.loadFile(fileURLToPath(new URL("../renderer/index.html", import.meta.url)));
+  if (!app.isPackaged && devUrl) {
+    const url = new URL(devUrl);
+    url.searchParams.set("buddy", buddy);
+    void window.loadURL(url.toString());
+  } else void window.loadFile(fileURLToPath(new URL("../renderer/index.html", import.meta.url)), { query: { buddy } });
   injectCanvasScript(window);
   // Main window only: the thumbnail capture window shows no text a person can reach. Nothing in the app handles DOM
   // `contextmenu`; a preventDefault there would stop Chromium from asking for this menu.
@@ -1267,7 +1272,7 @@ async function start(): Promise<void> {
 
   onboardingOpen = !onboardingComplete(readCompletion(userData));
   setMenu();
-  win = createWindow();
+  win = createWindow(windowBuddy(preferences.read()));
   onboardingReady(onboardingService);
   updateService.start();
 }

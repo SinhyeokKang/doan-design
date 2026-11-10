@@ -305,6 +305,39 @@ function shellColour() {
   return value;
 }
 
+// The first paint has the saved buddy's accent: the renderer reads ?buddy= before React mounts.
+test("opens the window with the saved buddy in its query; Doany without one", async () => {
+  expect(window().loadFile).toHaveBeenCalledWith(expect.stringMatching(/renderer[\\/]index\.html$/), { query: { buddy: "doany" } });
+  vi.resetModules();
+  mocks.app.removeAllListeners();
+  mocks.Window.instances.length = 0;
+  mocks.ipc.clear();
+  mocks.preferences.read.mockReturnValue({ preferences: { ...DEFAULTS, buddy: "popo" }, notice: null });
+  await import("./index");
+  await vi.waitFor(() => expect(mocks.Window.instances).toHaveLength(1));
+  expect(window().loadFile).toHaveBeenCalledWith(expect.stringMatching(/renderer[\\/]index\.html$/), { query: { buddy: "popo" } });
+});
+
+test("in development the dev server URL carries the same query", async () => {
+  vi.resetModules();
+  mocks.app.removeAllListeners();
+  mocks.Window.instances.length = 0;
+  mocks.ipc.clear();
+  mocks.preferences.read.mockReturnValue({ preferences: { ...DEFAULTS, buddy: "dori" }, notice: null });
+  const packaged = mocks.app.isPackaged, url = process.env.ELECTRON_RENDERER_URL;
+  mocks.app.isPackaged = false;
+  process.env.ELECTRON_RENDERER_URL = "http://localhost:5173";
+  try {
+    await import("./index");
+    await vi.waitFor(() => expect(mocks.Window.instances).toHaveLength(1));
+    expect(window().loadURL).toHaveBeenCalledWith("http://localhost:5173/?buddy=dori");
+    expect(window().loadFile).not.toHaveBeenCalled();
+  } finally {
+    mocks.app.isPackaged = packaged;
+    if (url === undefined) delete process.env.ELECTRON_RENDERER_URL; else process.env.ELECTRON_RENDERER_URL = url;
+  }
+});
+
 test("draws light whatever the macOS appearance", () => {
   expect(mocks.nativeTheme.themeSource).toBe("light");
 });
