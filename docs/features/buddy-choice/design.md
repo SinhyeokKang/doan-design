@@ -113,7 +113,7 @@ public/buddies/eye.png                       공용 눈 한 벌(원본 그대로
 - 단계에 들어오면 저장된 버디(없으면 Doany)가 선택된 채 가운데에 있다. 포커스는 다른 단계처럼 제목에 둔다. Tab 순서는 radiogroup → (Retry) → Back → Continue다. radiogroup의 이름은 보이는 제목 "Choose your buddy"다(`aria-labelledby`). 방향키를 누르면 바로 선택되므로 포커스는 늘 선택 카드에 있다. `:focus-visible`일 때 accent 테두리 바깥에 DS 공용 포커스 링(2px `--border-focus`, offset 2)을 따로 그린다. 카드 그림(`card.png`)은 `alt=""`다.
 - 고르면 즉시 저장하고 accent도 즉시 바뀐다. Continue는 항상 누를 수 있다. 저장에 실패하면 줄이 저장된 버디로 돌아가고, 줄 아래에 첫 실행의 패널 notice(Agent 단계 목록 notice와 같은 `doan-notice doan-panel`)로 "Couldn’t switch to <고른 버디>. <저장된 버디> is still your buddy."와 Retry(접근성 이름은 보이는 글자 그대로 "Retry", `aria-describedby`로 notice 문장을 잇는다)가 나온다. 실패는 `.ob-live`가 한 번 읽고, notice에는 live role을 두지 않는다. Retry는 고른 버디를 다시 저장한다. Retry가 성공하면 notice를 지우고 포커스를 체크된 라디오로 옮긴다. 실패하면 포커스를 Retry에 둔다. 진행 중에도 버튼을 비활성화하지 않는다. notice는 다음 저장이 성공하거나 단계를 떠날 때 지운다. 저장이 진행 중일 때 Continue를 누르면 저장을 기다린다(버튼은 비활성화하지 않는다). 성공하면 진행하고, 실패하면 단계에 남아 notice와 Retry를 보인다. 기존 사용자용 버디 화면도 같다.
 - 첫 실행을 다시 시작하면 Welcome부터 시작한다. Welcome은 저장된 버디와 상관없이 단체 사진을 보여준다('Welcome' 절).
-- 선택지 UI는 Cover Flow 한 줄이고, 순서는 Popo · Puri · Doany · Dungdung · Dori다. 줄은 순환하지 않고 양끝에서 멈춘다. 카드 5장마다 그림, 이름, 성격 한 줄이 함께 있다. 고른 카드가 가운데에서 정면을 보고, 나머지는 가운데를 향해 기울어진 채 뒤로 겹친다. 카드 오프셋은 인덱스 차이로 계산한다. 넘기는 입력(카드 클릭, ←/→와 ↑/↓, 가로 스크롤: 트랙패드 가로 스와이프 또는 Shift+마우스 휠)은 모두 하나의 select를 거친다. select는 라디오를 체크하고, 저장하고, 줄을 옮긴다. 방향키는 네이티브 라디오의 순환을 막아 양끝에서 멈춘다. 가로 스크롤은 한 제스처에 한 칸만 넘긴다. Return은 그룹 안에서 아무것도 하지 않는다. 라디오의 이름은 버디 이름, 설명은 성격 한 줄이다(`aria-labelledby`, `aria-describedby`). forced colors에서는 선택 카드에 2px `outline`(Highlight)을 준다. box-shadow 테두리와 글로우가 사라지기 때문이다. 치수는 캔버스 머리말에 있다.
+- 선택지 UI는 Cover Flow 한 줄이고, 순서는 Popo · Puri · Doany · Dungdung · Dori다. 줄은 순환하지 않고 양끝에서 멈춘다. 카드 5장마다 그림, 이름, 성격 한 줄이 함께 있다. 고른 카드가 가운데에서 정면을 보고, 나머지는 가운데를 향해 기울어진 채 뒤로 겹친다. 카드 오프셋은 인덱스 차이로 계산한다. 넘기는 입력(카드 클릭, ←/→와 ↑/↓, 가로 스크롤: 트랙패드 가로 스와이프 또는 Shift+마우스 휠)은 모두 하나의 select를 거친다. select는 라디오를 체크하고, 저장하고, 줄을 옮긴다. 방향키는 네이티브 라디오의 순환을 막아 양끝에서 멈춘다. 가로 스크롤은 칸 단위가 아니다. 스크롤하는 동안 줄이 wheel 이동량과 관성을 따라 연속으로 움직이고(양끝을 넘지 않음, 카드 오프셋은 소수 인덱스로 계산), 이벤트가 멈추면 가장 가까운 카드에 붙으며 그때 한 번 select한다. 지나가는 카드는 저장하지도 accent를 바꾸지도 않는다. 방향키와 클릭은 한 칸씩이다. Return은 그룹 안에서 아무것도 하지 않는다. 라디오의 이름은 버디 이름, 설명은 성격 한 줄이다(`aria-labelledby`, `aria-describedby`). forced colors에서는 선택 카드에 2px `outline`(Highlight)을 준다. box-shadow 테두리와 글로우가 사라지기 때문이다. 치수는 캔버스 머리말에 있다.
 - 포커스와 모달: 이 단계도 기존 wizard `<dialog>` 안에 있다. POSTMORTEM 2026-10-24('The onboarding wizard lost keys and clicks to focus and modal stacking')를 따른다. 키는 window에서 처리하고, 컨트롤이 비활성화될 때 포커스가 `<body>`로 빠진다고 가정한다.
 
 ## 기존 사용자용 버디 화면
@@ -157,7 +157,7 @@ public/buddies/eye.png                       공용 눈 한 벌(원본 그대로
 - 기존 사용자용 버디 화면 표시 조건: 완료 기록, newer, broken, `buddy` 키가 파일에 있었는지(알 수 없는 id 포함), 첫 실행이 열려 있는지, `doan onboarding`으로 완료 기록만 생긴 경우.
 - 저장 응답 순서: 가장 최근 선택의 응답만 반영하고 이전 응답은 무시하는 함수.
 - `onboardingScene.ts`: `buddy` 장면 전이(Welcome → Buddy → Agent, Agent의 back → Buddy, Buddy의 back → Welcome, `step` 이벤트 `to: "buddy"`와 busy 거절, Escape 무시, 재시작 시 Welcome).
-- Cover Flow 입력: 카드 오프셋, ←/→·↑/↓를 양끝에서 멈추는 함수, 가로 wheel delta(Shift+휠 포함)를 모아 한 제스처에 한 칸만 넘기는 함수.
+- Cover Flow 입력: 카드 오프셋, ←/→·↑/↓를 양끝에서 멈추는 함수, 가로 wheel delta(Shift+휠 포함)를 연속 위치로 누적하고 멈추면 가장 가까운 카드로 붙이는 함수.
 - `settingsSections.ts`: `general` 카테고리 파싱과 표시.
 - `ds/checks.ts`: `rootTokens(css, buddy?)`, 버디 accent 추적, 버디별 `contrastPairs`·`rolePairs`.
 - `Doany.tsx`의 셰이더 소스 템플릿과 `drawnPose`: 버디별 수치, 기울기 범위, 홉 배율. 셰이더 템플릿 함수는 export해서 `doanyRender.test.ts`가 친구 소스를 만든다.

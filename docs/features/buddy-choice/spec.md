@@ -45,7 +45,7 @@
 ### 3단계 — 버디 설정
 
 10. 첫 실행은 Welcome → Buddy → Agent → Project → Home 순서다. 스텝퍼에는 1 Buddy · 2 Agent · 3 Project가 표시된다. Buddy 단계는 다섯 버디를 Cover Flow 형태의 선택 카드 한 줄로 보여준다. 이 줄만 특별 순서 Popo · Puri · Doany · Dungdung · Dori를 쓴다. 카드마다 그림, 이름, 성격 한 줄이 있다.
-11. Buddy 단계에 들어오면 저장된 버디(없으면 Doany)가 선택된 채 가운데에 있다. Doany가 선택돼 있으면 다섯이 모두 보인다. 카드 클릭, ←/→(↑/↓도 같음), 가로 스크롤(트랙패드 스와이프, Shift+마우스 휠)로 넘기고, 양끝에서 멈춘다. Return은 그룹 안에서 아무것도 하지 않는다.
+11. Buddy 단계에 들어오면 저장된 버디(없으면 Doany)가 선택된 채 가운데에 있다. Doany가 선택돼 있으면 다섯이 모두 보인다. 카드 클릭, ←/→(↑/↓도 같음), 가로 스크롤(트랙패드 스와이프, Shift+마우스 휠)로 넘기고, 양끝에서 멈춘다. 가로 스크롤 중에는 줄이 이동량과 관성을 따라 연속으로 움직이고, 멈추면 가장 가까운 카드에 붙어 그 카드를 고른다(저장과 accent 변경은 이때 한 번). Return은 그룹 안에서 아무것도 하지 않는다.
 12. Buddy 단계에서 고르면 즉시 저장하고 accent도 즉시 바뀐다. 첫 실행 도중 앱을 종료해도 고른 버디가 남는다. 저장에 실패하면 저장된 버디로 돌아가고 "Couldn’t switch to <고른 버디>. <저장된 버디> is still your buddy."와 Retry를 보여준다. 빠르게 여러 번 고르면 마지막 선택의 결과만 화면에 반영한다. 저장이 끝나기 전에 Continue를 누르면 저장을 기다렸다가 진행하고, 실패하면 단계에 남아 같은 notice를 보인다.
 13. 설정 목록 맨 위에 General 카테고리가 있고, 그 안의 Buddy 그룹에서 다섯 버디를 기본 순서의 행으로 보여준다. 고르면 즉시 저장되고 Home, 작업 안내, accent에 즉시 반영된다. 저장에 실패하면 저장된 버디로 돌아가고, 그룹 위에 12와 같은 문구와 Retry가 나온다.
 14. preferences 파일을 더 새로운 Doan이 썼으면(newer), 설정 General과 Buddy 단계 모두 선택을 끄고 기존 newer notice만 보여준다. 이때 Continue는 Doany로 진행한다. 파일을 읽을 수 없으면(broken), Buddy 단계, 기존 사용자용 버디 화면, 설정 General 모두 기존 broken notice("Doan couldn’t read its saved settings, so defaults apply.")를 보여주고, 기본값으로 고를 수 있다. 저장하면 파일을 옆으로 옮기고 기본값에서 시작한다. 설정을 아직 읽지 못한 동안에는 고르기를 끈다.

@@ -66,7 +66,7 @@ AGENTS.md 'Commands'에 없는 확인 명령(`file`, `rg`, 측정 스크립트)�
   - 저장 결과 해석: IPC null은 실패다.
   - 저장 응답 순서(가장 최근 선택만 반영, 이전 응답 무시).
   - `onboardingScene.ts`: Welcome → Buddy → Agent, Buddy의 continue는 auth와 무관, Agent의 back → Buddy, Buddy의 back → Welcome, `step` 이벤트 `to: "buddy"`와 busy 거절, Escape 무시, 스텝퍼 접근성 이름("Buddy, completed").
-  - Cover Flow 입력: 오프셋, 방향키 양끝 멈춤, 가로 wheel(Shift+휠 포함) 한 제스처 한 칸.
+  - Cover Flow 입력: 오프셋, 방향키 양끝 멈춤, 가로 wheel(Shift+휠 포함) 연속 스크롤 뒤 가장 가까운 카드에 붙음.
   - `settingsSections.ts` `general`.
   - 확인: `npm --prefix app test`가 통과한다(새 테스트가 먼저 red였다).
   - ⎯ 커밋: `feat(app): buddy registry and preference`
