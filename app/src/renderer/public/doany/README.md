@@ -1,4 +1,4 @@
-# Doany artwork for Home and Welcome
+# Doany artwork for Home
 
 Byte-for-byte copies of the V2 draft's `.doan/assets/doany/v2/` files (canvas `.doan/canvases/doan-mascot.html`, frames `doany-v2-home` and `doany-v2-welcome`); provenance details are in that directory's `README.md`.
 
@@ -30,5 +30,6 @@ Doany's motion files stay here; `public/buddies/` holds everything else the budd
 | `<id>/card.png` (all five) | `<id>/card.png`, 1254² RGB | Lanczos to 588² RGB, three times the 196px selection card |
 | `<id>/artist.gif`, `artist-rest.png` (the four friends) | `<id>/artist.gif`, `artist-rest.png`, 512² | The source boxes in that README, then Doany's artist method above: 128², a 255-colour palette per frame with 1-bit transparency, every frame and its timing kept |
 | `eye.png` | `eye.png`, 118 × 193 RGBA | Byte copy: the one eye every buddy's shader draws |
+| `group/` | `group/group.png`, 1478 × 789 | The Welcome group photo, recompressed losslessly |
 
-PNGs are recompressed losslessly (oxipng, colour type kept); the whole folder stays under 5 MB, which `buddyAssets.test.ts` checks with the sizes, frames and timings above.
+PNGs are recompressed losslessly (oxipng, colour type kept); the folder apart from `group/` stays under 5 MB, which `buddyAssets.test.ts` checks with the sizes, frames and timings above.
