@@ -281,6 +281,15 @@ code, kbd { font-family: var(--type-family); }
 .buddy-card[data-o="-3"] { transform: translateX(calc(-1 * min(316px, 32cqw))) rotateY(50deg) scale(.84); z-index: 2; }
 .buddy-card[data-o="4"] { transform: translateX(min(364px, 37cqw)) rotateY(-50deg) scale(.84); z-index: 1; }
 .buddy-card[data-o="-4"] { transform: translateX(calc(-1 * min(364px, 37cqw))) rotateY(50deg) scale(.84); z-index: 1; }
+/* The draft's values hold from a 780px window up. Below it the scene's padding, the gaps above the row and Continue,
+   and the cards' picture (with the card and the row around it) shrink, linear down to the 600px minimum window, so the
+   stepper, the five cards and Continue fit without scrolling there too. The caption keeps its type and two lines. */
+.ob-scene.ob-buddy-scene { padding-top: clamp(24px, calc(24px + (100vh - 600px) * 16 / 180), 40px); padding-bottom: clamp(24px, calc(24px + (100vh - 600px) * 24 / 180), 48px); }
+.ob-buddy-scene .ob-heading { margin-bottom: clamp(16px, calc(16px + (100vh - 600px) * 16 / 180), 32px); }
+.ob-buddy-scene .ob-footer { padding-top: clamp(16px, calc(16px + (100vh - 600px) * 16 / 180), 32px); }
+.buddy-flow { height: clamp(316px, calc(316px + (100vh - 600px) * 24 / 180), 340px); }
+.buddy-card { width: clamp(220px, calc(220px + (100vh - 600px) * 24 / 180), 244px); margin-left: calc(-1 * clamp(110px, calc(110px + (100vh - 600px) * 12 / 180), 122px)); }
+.buddy-card img { width: clamp(172px, calc(172px + (100vh - 600px) * 24 / 180), 196px); height: clamp(172px, calc(172px + (100vh - 600px) * 24 / 180), 196px); }
 /* The side cards are the controls (no prev/next buttons): a side card's shadow deepens on hover. */
 .buddy-card:not(:has(input:checked)):hover { box-shadow: var(--shadow-panel), 0 4px 12px -2px color-mix(in srgb, var(--text-standard) 18%, transparent); }
 @media (prefers-reduced-motion: reduce) { .buddy-card { transition: none; } }

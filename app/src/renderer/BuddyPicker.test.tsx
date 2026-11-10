@@ -291,6 +291,15 @@ describe("picker CSS (buddy-choice draft)", () => {
     expect(css).toContain(".buddy-card img { width: 196px; height: 196px;");
     expect(css).toContain(".buddy-card:has(input:checked) { box-shadow: 0 0 0 2px var(--text-accent),");
   });
+  test("below a 780px window the step's gaps and the cards shrink, linear down to the 600px minimum", () => {
+    const shrink = (from: number, to: number) => `clamp(${from}px, calc(${from}px + (100vh - 600px) * ${to - from} / 180), ${to}px)`;
+    expect(css).toContain(`.ob-scene.ob-buddy-scene { padding-top: ${shrink(24, 40)}; padding-bottom: ${shrink(24, 48)}; }`);
+    expect(css).toContain(`.ob-buddy-scene .ob-heading { margin-bottom: ${shrink(16, 32)}; }`);
+    expect(css).toContain(`.ob-buddy-scene .ob-footer { padding-top: ${shrink(16, 32)}; }`);
+    expect(css).toContain(`.buddy-flow { height: ${shrink(316, 340)}; }`);
+    expect(css).toContain(`.buddy-card { width: ${shrink(220, 244)}; margin-left: calc(-1 * ${shrink(110, 122)}); }`);
+    expect(css).toContain(`.buddy-card img { width: ${shrink(172, 196)}; height: ${shrink(172, 196)}; }`);
+  });
   test("the focus ring sits outside the accent ring; forced colours outline the chosen card; reduced motion jumps", () => {
     expect(css).toContain(".buddy-card:has(input:focus-visible) { outline: 2px solid var(--border-focus); outline-offset: 2px; }");
     expect(css).toContain("@media (forced-colors: active) { .buddy-card:has(input:checked) { outline: 2px solid Highlight; } }");
