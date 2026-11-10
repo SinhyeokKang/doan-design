@@ -1,6 +1,10 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { flushSync } from "react-dom";
 import { ShellSidebar } from "./ShellSidebar";
+import { useBuddySelection } from "./buddySelection";
+import { useBuddyIntroLock } from "./buddyIntroLock";
+import type { BuddyPaint } from "./buddyPaint";
+import type { BuddyId } from "./buddies";
 import { commitVisit, emptyHistory, fallbackWorktree, historyTarget, loadedProjectRow, projectExpanded, projectsTab, reconcileProjects, selectProjectRoot, shownFolders, type Visit } from "./shellNavigation";
 import { groupToOpen, openGroup, toggleGroup, type GroupId, type ShownCanvas } from "./sidebarGroups";
 import { canvasLabel, moveExpanded } from "./canvasTree";
@@ -67,7 +71,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./comp
 import { AgentUsageButton } from "./AgentUsageButton";
 import { UpdateHeaderButton } from "./UpdateHeaderButton";
 import type { CanvasPress } from "./ComposerParts";
-import { Wizard } from "./Onboarding";
+import { BuddyIntro, Wizard } from "./Onboarding";
 import { isMainCheckout } from "./projectStep";
 import { ProjectOverview } from "./ProjectOverview";
 import { useThumbnails } from "./thumbnails";
@@ -164,7 +168,8 @@ export function validHistoryVisit(entries: readonly FolderEntry[], visit: Visit)
   return !!entry && entry.kind !== "notFound" && (entry.kind !== "list" || !visit.canvas || entry.canvases.some(row => row.path === visit.canvas));
 }
 
-export function App() {
+// paint: the renderer entry's first-paint buddy and how to apply another; without it (tests) nothing is painted.
+export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const [homeDirectory, setHomeDirectory] = useState<string | null>(null);
   const [screen, setScreen] = useState<"home" | "workspace" | "addProjects" | "settings" | "projectSettings">("home");
   const [locating, setLocating] = useState<{ from: string; root: string | null } | null>(null);
@@ -890,7 +895,19 @@ export function App() {
   const search = () => { if (locked()) return; cancelRestore(); beforeModal.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setQuickOpen(true); };
 
 
-  const modal = wizard !== null || setup !== null || quickOpen || homeRun.current.removing !== null || trashing !== null || deletingConversation !== null;
+  // The existing-user buddy screen holds first run's lock while it is open.
+  const buddyIntro = useBuddyIntroLock();
+  // The buddy screen closes over the screen restored at launch; focus goes where finishing first run puts it, the
+  // composer, when that screen is Home, else to the restored screen's own place.
+  const introClosed = useRef(false);
+  const closeBuddyIntro = () => { introClosed.current = true; buddyIntro.close(); };
+  useEffect(() => {
+    if (buddyIntro.open || !introClosed.current) return;
+    introClosed.current = false;
+    if (currentScreen.current === "home") document.querySelector<HTMLElement>(".home-shell .composer-input")?.focus();
+    else focusCurrent();
+  }, [buddyIntro.open]);
+  const modal = wizard !== null || buddyIntro.open || setup !== null || quickOpen || homeRun.current.removing !== null || trashing !== null || deletingConversation !== null;
   // A locked Project Settings page holds the toast too: its Share confirmation makes the toast inert while the page
   // itself is not modal (POSTMORTEM 2026-10-25 'Native hiding bypassed
   // renderer-only lifetime checks').
@@ -1192,6 +1209,10 @@ export function App() {
     if (reply) setPreferences(reply.snapshot);
     return reply;
   };
+  // The buddy shows the latest pick at once, else the snapshot; every snapshot re-applies it, so a reloaded renderer
+  // follows what is saved rather than the query the window opened with.
+  const buddySelection = useBuddySelection(preferences, savePreferences, paint?.first ?? "doany");
+  useLayoutEffect(() => { paint?.apply(buddySelection.shown); }, [paint, preferences, buddySelection.shown]);
   const rememberPick = (choice: ComposerChoice) => {
     if (choice.fast !== undefined) {
       fastSwitchedAt.current.set(choice.provider, ++fastClock.current);
@@ -1540,7 +1561,7 @@ export function App() {
     const draft = canvasRun.current!.composerKey() === key ? overviewRun.current!.store.drafts.get(key) : undefined;
     const filled = !!draft && (draft.segments.length > 0 || draft.preset !== null || draft.attachments.length > 0);
     const typing = !!field && !!active && field.contains(active) && (filled || link!.composing());
-    return { canvas, locked: locked(), dialog: topDialog() !== null, firstRun: wizard !== null, typing, chose };
+    return { canvas, locked: locked(), dialog: topDialog() !== null, firstRun: wizard !== null || buddyIntro.open, typing, chose };
   }
   // entry: the target's project as the renderer listed it when the handoff was announced. A list read since then that
   // still lacks the target answers at once; before any, Open waits for it.
@@ -1572,7 +1593,7 @@ export function App() {
   function openPage(): OpenPage {
     const screen = currentScreen.current;
     const page = !locked() ? null : screen === "addProjects" ? "add_projects" : screen === "settings" ? "settings" : "project_settings";
-    return { locked: page, firstRun: wizard !== null, entries: () => entriesRef.current, dismissDialogs() {
+    return { locked: page, firstRun: wizard !== null || buddyIntro.open, entries: () => entriesRef.current, dismissDialogs() {
       const dialog = topDialog();
       // Synchronous, so the dialog's close has rendered before the check below.
       if (dialog) flushSync(() => { dialog.dispatchEvent(new Event("cancel", { cancelable: true })); });
@@ -2072,9 +2093,9 @@ export function App() {
   {screen === "home" && <Home header={topBar(true)} sidebar={sidebar(true)}
     entries={entries} homeDirectory={homeDirectory} shellProjects={shellProjects} loaded={loadedRoot} select={select} prefs={homeMemory}
     memory={composerMemory} running={run.running()} restore={run.restore} start={(request, last) => run.start(request, last)} openConversation={id => run.openConversation(id)} addProjects={openAddProjects}
-    defaults={preferences ? preferences.preferences.newConversation : undefined} openSettings={openSettings} onRemember={rememberPick} />}
+    defaults={preferences ? preferences.preferences.newConversation : undefined} openSettings={openSettings} onRemember={rememberPick} buddy={buddySelection.shown} />}
   {onSettings && <SettingsPage header={topBar(true)} sidebar={sidebar(true)} section={settings.section} arrival={settings.arrival} onState={settingsReport}
-    agents={{ signIn: agentSignIn(), preferences, save: savePreferences, project: settingsProject }}
+    agents={{ signIn: agentSignIn(), preferences, save: savePreferences, project: settingsProject }} buddy={buddySelection}
     mcp={{ watch: mcpWatch.current, openAgents: provider => openSettings({ section: "agents", provider }) }} announcement={settingsAnnouncement} />}
   {onProjectSettings && <ProjectSettingsPage key={projectSettings.key} header={topBar(true)} sidebar={sidebar(true)} root={projectSettings.root} entries={entries} reroot={reroot}
     origin={page.origin} homeDirectory={homeDirectory} arrival={projectSettings.arrival} onState={projectSettingsReport} onGone={() => leavePage({ kind: "gone" })}
@@ -2091,7 +2112,7 @@ export function App() {
     {strip}
     <CanvasPane viewport={viewport} board={board} overlay={overlay} dragLayer={dragLayer} state={state} command={command} covered={overview !== null || overlaid} overlaid={overlaid}
       zoomTo={scale => controller.current?.zoomTo(scale)} onToolbarEscape={event => controller.current?.toolbarEscape(event)} selectFrame={(index, id) => controller.current?.selectFrame(index, id)} conversation={{ open: rightPanel.open, show: () => foldPanel(true), badge: panelBadge }}
-      agent={{ list: state.open ? run.listState(state.open.folder) : undefined, canvas: workingCanvas(state.open, state.unlisted, entry), running: screen === "workspace" && overview === null, work, entries,
+      agent={{ list: state.open ? run.listState(state.open.folder) : undefined, canvas: workingCanvas(state.open, state.unlisted, entry), buddy: buddySelection.shown, running: screen === "workspace" && overview === null, work, entries,
         conversationWork, frames: state.layout?.frames ?? null, onWork: target => controller.current?.setWork(target),
         onOpen: openRequest, onOpenSibling, onStopFailed: text => toast.show(text) }}
       picking={picking} capturing={state.capturing} tool={state.tool} onTool={chooseTool} picker={{ enabled: pickerReady, reason: pickerView.reason, onToggle: pickFromCanvas }} capture={capture} exporter={exporter} />
@@ -2145,12 +2166,13 @@ export function App() {
   {trashing && <CanvasTrashDialog view={trashDialogView(canvasStem(trashing.row.path), trashing.row.path, trashing.plan, trashWorking(trashing.root, trashing.row))} cancel={closeTrash} confirm={confirmTrash} />}
   {toast.element}
   {wizard !== null && <Wizard key={wizard} session={wizard} projects={entries.map(entry => entry.path)} homeDirectory={homeDirectory}
-    mainCheckout={path => isMainCheckout(entries, path)}
+    mainCheckout={path => isMainCheckout(entries, path)} buddy={buddySelection} preferences={preferences}
     onClose={root => {
       setWizard(null);
       if (wizardCloseFocus(root) === "composer") { beforeWizard.current = null; focusComposer.current = true; live.current.home(); choose(root ?? undefined); }
       else restoreFocus.current = true;
     }} />}
+  {wizard === null && buddyIntro.open && <BuddyIntro selection={buddySelection} preferences={preferences} onClose={closeBuddyIntro} />}
   </TooltipProvider>;
 }
 
@@ -2183,7 +2205,7 @@ function TopBar({ sidebar, back, forward, previous, next, page, locked, updateDi
   </header>;
 }
 
-type AgentProps = { list: readonly ConversationSummary[] | "loading" | "error" | undefined; canvas: WorkingCanvas | null; running: boolean; work: readonly WorkItem[]; entries: readonly FolderEntry[];
+type AgentProps = { list: readonly ConversationSummary[] | "loading" | "error" | undefined; canvas: WorkingCanvas | null; buddy: BuddyId; running: boolean; work: readonly WorkItem[]; entries: readonly FolderEntry[];
   conversationWork: readonly ConversationWork[]; frames: readonly CanvasFrameRect[] | null; onWork(target: CanvasWorkTarget | null): void; onOpen(): void; onOpenSibling(root: string): void; onStopFailed(text: string): void };
 
 function CanvasPane({ viewport, board, overlay, dragLayer, state, command, covered, overlaid, zoomTo, onToolbarEscape, selectFrame, conversation, agent, picking, capturing, tool, onTool, picker, capture, exporter }: {

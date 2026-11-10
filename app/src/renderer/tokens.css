@@ -1,7 +1,9 @@
 /* Design tokens shared by the app renderer and the draft canvases in .doan/canvases/
    (drafts link this file; .doan/config.json points tokenCss here). One light theme.
    Three layers, top to bottom:
-   1. Palette: the only literal colours (neutral ramp, violet accent ramp, status hues).
+   1. Palette: the only literal colours (neutral ramp, violet and buddy accent ramps, status hues).
+      A buddy switch (--buddy-*) between the palette and the roles points the accent roles at the
+      chosen buddy's ramp.
    2. Roles: what a value is for. Renderer code reads roles only, never palette steps.
    3. Legacy names: var() aliases of roles that keep drafts drawn before this system
       resolving. The renderer does not read them.
@@ -53,6 +55,75 @@
   --violet-pressed: #8a2dd2;
   --violet-link: #63019d;
 
+  /* The four friend buddies' accent ramps, chosen with the buddy, named after it because sky,
+     amber and green already name other palette hues. Steps 1–8, 11 and 12 keep violet's OKLCH lightness and
+     chroma (gamut-clamped, chroma at most 1.2 × the friend's step 9; dungdung's steps 1–6 take 2.2 × violet's
+     chroma and 7–8 1.6 ×, so they read yellow, not cream), at the hue of step 9. 9 is the buddy's body colour moved by Doany's
+     own body-to-violet-9 shift; puri's hue moves to 168 and popo's to 42, away from the success green and
+     danger red, and popo's 9 is darkened until white clears 3:1 on it (dori's already does). 10 and pressed keep violet's
+     offsets from 9. -icon is 9 darkened until it reaches 3:1 on a pressed sidebar row (#d9d9da), the darkest
+     surface an accent icon or dot sits on. Ink on 9 is white for popo and dori, neutral otherwise. */
+  --puri-1: #f9fdfb;
+  --puri-2: #f4fbf8;
+  --puri-3: #e8f7f0;
+  --puri-4: #dbf1e8;
+  --puri-5: #cbecde;
+  --puri-6: #b9e6d3;
+  --puri-7: #a0dbc3;
+  --puri-8: #85ccb1;
+  --puri-9: #55bc98;
+  --puri-10: #4eb492;
+  --puri-11: #00553f;
+  --puri-12: #0c3629;
+  --puri-pressed: #48af8c;
+  --puri-link: #00553f;
+  --puri-icon: #158b6a;
+  --dungdung-1: #fffbf5;
+  --dungdung-2: #fff9ed;
+  --dungdung-3: #fff1d8;
+  --dungdung-4: #ffe8bf;
+  --dungdung-5: #ffdfa2;
+  --dungdung-6: #ffd380;
+  --dungdung-7: #efc576;
+  --dungdung-8: #e4b24b;
+  --dungdung-9: #e8ab00;
+  --dungdung-10: #dfa400;
+  --dungdung-11: #5d4200;
+  --dungdung-12: #3b2b0b;
+  --dungdung-pressed: #d89f00;
+  --dungdung-link: #5d4200;
+  --dungdung-icon: #9d7300;
+  --popo-1: #fffbfa;
+  --popo-2: #fff8f5;
+  --popo-3: #feefe9;
+  --popo-4: #fce6dd;
+  --popo-5: #fbdbcf;
+  --popo-6: #fad0bf;
+  --popo-7: #f3bea9;
+  --popo-8: #e9aa91;
+  --popo-9: #de7950;
+  --popo-10: #d6724a;
+  --popo-11: #713218;
+  --popo-12: #442518;
+  --popo-pressed: #cf6d45;
+  --popo-link: #7a2a00;
+  --popo-icon: #c15f36;
+  --dori-1: #fafcff;
+  --dori-2: #f6faff;
+  --dori-3: #ebf4ff;
+  --dori-4: #dfedfd;
+  --dori-5: #d1e5fe;
+  --dori-6: #c2ddfd;
+  --dori-7: #adcff8;
+  --dori-8: #96bfef;
+  --dori-9: #6593c9;
+  --dori-10: #5f8cc2;
+  --dori-11: #1b497a;
+  --dori-12: #1a2f47;
+  --dori-pressed: #5a87bb;
+  --dori-link: #004787;
+  --dori-icon: #4f7cb1;
+
   --red-3: #feebec;
   --red-9: #e5484d;
   --red-12: #641723;
@@ -73,6 +144,68 @@
   --fuchsia-600: oklch(59.1% 0.293 322.896);
 
   --font-system-sans: ui-sans-serif, -apple-system, "Apple SD Gothic Neo", sans-serif;
+}
+
+/* Buddy switch, between the palette and the roles: the accent steps the roles read. The plain :root
+   is Doany's violet; the renderer sets <html data-buddy="<id>"> for a friend, and that block
+   re-points the switch to the friend's ramp. The blocks set --buddy-* only, never a role or a
+   legacy --accent* name (ds/checks.test.ts). -contrast is the ink on 9, hover and pressed: white
+   where white clears 3:1 on all three, the standard ink otherwise. -icon is the accent colour
+   for icons, dots and outlines; violet 9 already clears 3:1 on a pressed sidebar row. */
+:root {
+  --buddy-3: var(--violet-3);
+  --buddy-4: var(--violet-4);
+  --buddy-9: var(--violet-9);
+  --buddy-10: var(--violet-10);
+  --buddy-11: var(--violet-11);
+  --buddy-12: var(--violet-12);
+  --buddy-pressed: var(--violet-pressed);
+  --buddy-contrast: var(--violet-contrast);
+  --buddy-icon: var(--violet-9);
+}
+:root[data-buddy="puri"] {
+  --buddy-3: var(--puri-3);
+  --buddy-4: var(--puri-4);
+  --buddy-9: var(--puri-9);
+  --buddy-10: var(--puri-10);
+  --buddy-11: var(--puri-11);
+  --buddy-12: var(--puri-12);
+  --buddy-pressed: var(--puri-pressed);
+  --buddy-contrast: var(--neutral-standard-text);
+  --buddy-icon: var(--puri-icon);
+}
+:root[data-buddy="dungdung"] {
+  --buddy-3: var(--dungdung-3);
+  --buddy-4: var(--dungdung-4);
+  --buddy-9: var(--dungdung-9);
+  --buddy-10: var(--dungdung-10);
+  --buddy-11: var(--dungdung-11);
+  --buddy-12: var(--dungdung-12);
+  --buddy-pressed: var(--dungdung-pressed);
+  --buddy-contrast: var(--neutral-standard-text);
+  --buddy-icon: var(--dungdung-icon);
+}
+:root[data-buddy="popo"] {
+  --buddy-3: var(--popo-3);
+  --buddy-4: var(--popo-4);
+  --buddy-9: var(--popo-9);
+  --buddy-10: var(--popo-10);
+  --buddy-11: var(--popo-11);
+  --buddy-12: var(--popo-12);
+  --buddy-pressed: var(--popo-pressed);
+  --buddy-contrast: var(--neutral-1);
+  --buddy-icon: var(--popo-icon);
+}
+:root[data-buddy="dori"] {
+  --buddy-3: var(--dori-3);
+  --buddy-4: var(--dori-4);
+  --buddy-9: var(--dori-9);
+  --buddy-10: var(--dori-10);
+  --buddy-11: var(--dori-11);
+  --buddy-12: var(--dori-12);
+  --buddy-pressed: var(--dori-pressed);
+  --buddy-contrast: var(--neutral-1);
+  --buddy-icon: var(--dori-icon);
 }
 
 /* 2. Roles */
@@ -136,23 +269,26 @@
   --affordance-warning: var(--amber-3);
   --affordance-success: var(--green-3);
 
-  /* Violet belongs to a fixed set of places only, listed in ds/checks.test.ts `violetAllowed`:
-     the current sidebar row and its hover, the onboarding and Home glows, the accent Send
-     button, Home's preset chip, prompt icons and drop outline, the sidebar status slot, the
-     person's thread bubble, the panel resize bar, the canvas agent indicator and the canvas
-     jump highlight. */
+  /* The accent belongs to a fixed set of places only, listed in ds/checks.test.ts `violetAllowed`:
+     the Home glow, the accent Send button, Home's preset chip, prompt icons and drop outline, the
+     sidebar status slot, the person's thread bubble, the panel resize bar, the canvas agent
+     indicator and the canvas jump highlight. The accent roles read the buddy switch; the sidebar
+     roles below stay violet and are applied nowhere outside the current sidebar row. */
   --surface-sidebar-selected: var(--violet-9);
   --text-sidebar-selected: var(--violet-contrast);
   --affordance-sidebar-hover: var(--violet-2);
-  --surface-comment: var(--violet-4);
-  --text-comment: var(--violet-12);
-  --affordance-accent: var(--violet-9);
-  --affordance-accent-hover: var(--violet-10);
-  --affordance-accent-pressed: var(--violet-pressed);
-  --text-on-accent: var(--violet-contrast);
+  --surface-comment: var(--buddy-4);
+  --text-comment: var(--buddy-12);
+  /* Fills, glows and gradients. */
+  --affordance-accent: var(--buddy-9);
+  --affordance-accent-hover: var(--buddy-10);
+  --affordance-accent-pressed: var(--buddy-pressed);
+  --text-on-accent: var(--buddy-contrast);
+  /* Accent icons, dots and outlines. */
+  --text-accent: var(--buddy-icon);
   /* The chosen design preset in the Home composer: a soft accent fill with dark ink, like an anchor chip. */
-  --surface-accent-subtle: var(--violet-3);
-  --text-accent-subtle: var(--violet-11);
+  --surface-accent-subtle: var(--buddy-3);
+  --text-accent-subtle: var(--buddy-11);
 
   /* macOS window control artwork, drawn by drafts; fixed by the OS, not by this system. */
   --window-close: #ff5f57;

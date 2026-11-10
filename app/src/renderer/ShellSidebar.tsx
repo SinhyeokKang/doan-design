@@ -1,6 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactElement } from "react";
 import { DropdownMenu } from "radix-ui";
-import { Bell, Bot, Check, ChevronDown, CircleMinus, Download, Ellipsis, FolderOpen, GitBranch, Hand, House, Info, LayoutGrid, PanelsTopLeft, Plug, Search, Settings, SwatchBook, Trash2 } from "lucide-react";
+import { Bell, Bot, Check, ChevronDown, CircleMinus, Download, Ellipsis, FolderOpen, GitBranch, Hand, House, Info, LayoutGrid, PanelsTopLeft, Plug, Search, Settings, SlidersHorizontal, SwatchBook, Trash2 } from "lucide-react";
 import type { CanvasRow } from "../main/view";
 import type { ShellProject } from "../restore/uiState";
 import { cardRow, ROW_ACTION_ICONS as icons, ROW_ACTION_LABELS as labels, type HomeCard, type RowAction } from "./homeCards";
@@ -101,7 +101,7 @@ export function recoveryKey(previous: readonly TreeRow[], current: readonly Tree
   }
   return current[Math.min(Math.max(0, index), current.length - 1)]?.key;
 }
-const SECTION_ICONS: Record<SettingsSection, typeof Bot> = { agents: Bot, mcp: Plug, notifications: Bell, about: Info };
+const SECTION_ICONS: Record<SettingsSection, typeof Bot> = { general: SlidersHorizontal, agents: Bot, mcp: Plug, notifications: Bell, about: Info };
 const RANK: Record<Slot["kind"], number> = { permission: 3, working: 2, unseen: 1, canvas: 0 };
 // A project row shows its roots' own slots, and a bound canvas's slot while that canvas row is not on screen, so a
 // permission request in a collapsed project is never hidden. Among equals the first in `slots` wins.

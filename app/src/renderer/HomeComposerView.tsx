@@ -14,7 +14,8 @@ import {
   AgentPicker, AttachButton, ComposerCard, ComposerChips, ComposerField, ComposerTools, EffortPicker, GroupIcon, PermissionPicker, PresetsButton, SendButton, SlashPresets, SuggestionLabel, useComposerDrop, usePresetListOutside,
   type ComposerFieldHandle,
 } from "./ComposerParts";
-import { Doany, type DoanyHandle } from "./Doany";
+import type { BuddyId } from "./buddies";
+import { Buddy, type BuddyHandle } from "./Doany";
 import { textSegments, typedText } from "./anchorField";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import { cardRow, chipClass, groupProjects } from "./homeCards";
@@ -108,6 +109,8 @@ export interface HeroComposerProps {
   defaults?: NewConversationDefault | null | undefined;
   // The agent picker's way into Settings > Agents.
   openSettings(target: SettingsTarget): void;
+  // The buddy above the greeting: the latest pick, else the saved one (App); Doany when not given.
+  buddy?: BuddyId;
   // A model or effort pick is remembered as Last used before any send (dogfooding #6).
   onRemember?(choice: ComposerChoice): void;
 }
@@ -192,7 +195,7 @@ export function HeroComposer(props: HeroComposerProps) {
   const [confirm, setConfirm] = useState<{ request: LastRequest; title: string; body: string; cancel: string; confirm: string } | null>(null);
   const field = useRef<ComposerFieldHandle | null>(null);
   const removeButtons = useRef<(HTMLButtonElement | null)[]>([]);
-  const doany = useRef<DoanyHandle | null>(null);
+  const doany = useRef<BuddyHandle | null>(null);
   const slashList = useRef<HTMLDivElement | null>(null);
   const listId = useId();
 
@@ -516,7 +519,7 @@ export function HeroComposer(props: HeroComposerProps) {
   const hasProjects = cards.length > 0;
 
   return <HomeStage>
-    <Doany size={114} ref={doany} />
+    <Buddy buddy={props.buddy ?? "doany"} size={114} ref={doany} />
     <h1 className="home-greeting">{greetingText(props.greeting, hasProjects ? project : null)}</h1>
     <div className="home-composer">
       {hasProjects ? <DropdownMenu.Root>

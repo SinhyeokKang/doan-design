@@ -1,9 +1,9 @@
 import { readFileSync } from "node:fs";
 import { afterEach, expect, test, vi } from "vitest";
-import type { Pose } from "./doanyMotion";
+import { hopLift, type Pose } from "./doanyMotion";
 import { createDoanyRig, type DoanyRig } from "./doanyRig";
 
-// The same fixture as doanyMotion.test.ts, from the original mascot.js: here the whole shell flow
+// The same fixture as doanyMotion.test.ts, from the buddy draft motion-preview.js: here the whole shell flow
 // (frames, textures, resize, events) is replayed through the rig and every draw must match.
 type Snapshot = (number | boolean | string)[];
 interface Step {
@@ -25,6 +25,7 @@ function harness(options: { reduced?: boolean; dpr?: number; width?: number; ran
   let settle!: { resolve: (value: unknown) => void; reject: (error: unknown) => void };
   const textures = new Promise((resolve, reject) => { settle = { resolve, reject }; });
   const step = { draws: [] as { u: number[]; mode: string }[], states: [] as string[], random: [] as number[] };
+  const lifts: number[] = [];
   const randoms = [...options.random ?? []];
   const world = {
     reduced: options.reduced ?? false, contextLost: false, shown: true, documentHidden: false, width: options.width ?? 114, dpr: options.dpr ?? 1,
@@ -42,6 +43,7 @@ function harness(options: { reduced?: boolean; dpr?: number; width?: number; ran
     view: {
       width: () => world.width, rect: () => ({ ...world.rect }), dpr: () => world.dpr, shown: () => world.shown, documentHidden: () => world.documentHidden,
       setState: state => { calls.push(`state ${state}`); step.states.push(state); },
+      setLift: lift => { lifts.push(lift); },
       showCanvas: () => { world.view = [true, false]; }, showStatic: () => { world.view = [false, true]; },
     },
     frames: { request: callback => { tick = callback; return ++world.ticks; }, cancel: id => { calls.push(`cancel ${id}`); if (id === world.ticks) tick = null; } },
@@ -50,7 +52,7 @@ function harness(options: { reduced?: boolean; dpr?: number; width?: number; ran
     connect: () => () => { calls.push("disconnect"); },
   });
   return {
-    rig, world, calls, step, settle,
+    rig, world, calls, step, settle, lifts,
     frame(now: number) { const run = tick!; tick = null; run(now); },
     pending: () => tick !== null,
     loseContext() { world.contextLost = true; lost?.(); },
@@ -200,4 +202,45 @@ test("a held key's repeats ask for preventDefault but do not hop again", async (
   expect([h.rig.key("Enter", true), h.rig.key(" ", true), h.rig.key("a", true)]).toEqual([true, true, false]);
   h.frame(1420);
   expect(h.take().draws.at(-1)!.mode).toBe("idle");
+});
+
+test("each draw passes the hop's lift, 0 to 1, to the view; it lands at 0", async () => {
+  const h = harness();
+  h.settle.resolve([]); await flush();
+  for (let now = 1000; now <= 1400; now += 20) h.frame(now);
+  h.rig.hop();
+  for (let now = 1420; now <= 3000; now += 20) h.frame(now);
+  const taken = h.take().draws;
+  expect(h.lifts).toEqual(taken.map(({ u }) => hopLift({ lift: u[2]! } as Pose)));
+  expect(Math.min(...h.lifts)).toBe(0);
+  expect(Math.max(...h.lifts)).toBeLessThanOrEqual(1);
+  expect(Math.max(...h.lifts)).toBeGreaterThan(.99);
+  expect(h.lifts.at(-1)).toBe(0);
+});
+
+test("a lost context and reduced motion put the lift back to 0", async () => {
+  const lost = harness();
+  lost.settle.resolve([]); await flush();
+  lost.rig.hop();
+  for (let now = 1000; now <= 1400; now += 20) lost.frame(now);
+  expect(lost.lifts.at(-1)).toBeGreaterThan(0);
+  lost.loseContext();
+  expect(lost.lifts.at(-1)).toBe(0);
+  const reduced = harness();
+  reduced.settle.resolve([]); await flush();
+  reduced.rig.hop();
+  for (let now = 1000; now <= 1400; now += 20) reduced.frame(now);
+  expect(reduced.lifts.at(-1)).toBeGreaterThan(0);
+  reduced.world.reduced = true; reduced.rig.reducedChange();
+  expect(reduced.lifts.at(-1)).toBe(0);
+  reduced.frame(1420);
+  expect(reduced.lifts.at(-1)).toBe(0);
+});
+
+test("a texture failure leaves the lift untouched at its rest, 0", async () => {
+  vi.spyOn(console, "error").mockImplementation(() => {});
+  const h = harness();
+  h.settle.reject(new Error("Could not load buddies/eye.png")); await flush();
+  for (let now = 1000; now <= 1100; now += 20) h.frame(now);
+  expect(h.lifts).toEqual([]);
 });

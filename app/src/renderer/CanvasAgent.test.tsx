@@ -16,7 +16,7 @@ const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
   canvas, ...patch,
 });
 const markup = (list: readonly ConversationSummary[] | "loading" | "error" | undefined, over: Partial<Parameters<typeof CanvasAgent>[0]> = {}) =>
-  renderToStaticMarkup(<TooltipProvider><CanvasAgent list={list} canvas={{ root: "/w/a", canvas }} running={true} work={[]} entries={[]} onOpen={vi.fn()} onOpenSibling={vi.fn()} onStopFailed={vi.fn()} {...over} /></TooltipProvider>);
+  renderToStaticMarkup(<TooltipProvider><CanvasAgent list={list} canvas={{ root: "/w/a", canvas }} buddy="doany" running={true} work={[]} entries={[]} onOpen={vi.fn()} onOpenSibling={vi.fn()} onStopFailed={vi.fn()} {...over} /></TooltipProvider>);
 // The working notice's visible line (aria-hidden, the text and its caret) and its measuring node.
 const LINE = (text: string, caret = '<span class="doan-agent-caret"></span>') => `<span class="doan-agent-line" aria-hidden="true" data-state="closed" data-slot="tooltip-trigger"><span class="doan-agent-row"><span class="doan-agent-text">${text}</span>${caret}</span></span>`;
 const MEASURE = '<span class="doan-agent-measure" aria-hidden="true"></span>';
@@ -153,7 +153,7 @@ describe("CanvasAgent", () => {
     });
     test("the canvas notices still follow it in the column", () => {
       const notice = <div className="doan-notice doan-panel" role="status">x</div>;
-      const html = renderToStaticMarkup(<TooltipProvider><CanvasAgent list={[]} canvas={{ root: "/w/a", canvas }} running={true} work={there} entries={entries("feat/x")} onOpen={vi.fn()} onOpenSibling={vi.fn()} onStopFailed={vi.fn()}>{notice}</CanvasAgent></TooltipProvider>);
+      const html = renderToStaticMarkup(<TooltipProvider><CanvasAgent list={[]} canvas={{ root: "/w/a", canvas }} buddy="doany" running={true} work={there} entries={entries("feat/x")} onOpen={vi.fn()} onOpenSibling={vi.fn()} onStopFailed={vi.fn()}>{notice}</CanvasAgent></TooltipProvider>);
       expect(html.indexOf("doan-agent-sibling")).toBeGreaterThan(-1);
       expect(html.indexOf("doan-agent-sibling")).toBeLessThan(html.indexOf('class="doan-notice doan-panel"'));
     });
@@ -173,11 +173,11 @@ describe("CanvasAgent", () => {
 
   test("the canvas notices come after the agent notice in the column, and alone when no indicator shows", () => {
     const notice = <div className="doan-notice doan-panel" role="status">The selection is no longer in the canvas.</div>;
-    const html = renderToStaticMarkup(<TooltipProvider><CanvasAgent list={[summary({})]} canvas={{ root: "/w/a", canvas }} running={true} work={[]} entries={[]} onOpen={vi.fn()} onOpenSibling={vi.fn()} onStopFailed={vi.fn()}>{notice}</CanvasAgent></TooltipProvider>);
+    const html = renderToStaticMarkup(<TooltipProvider><CanvasAgent list={[summary({})]} canvas={{ root: "/w/a", canvas }} buddy="doany" running={true} work={[]} entries={[]} onOpen={vi.fn()} onOpenSibling={vi.fn()} onStopFailed={vi.fn()}>{notice}</CanvasAgent></TooltipProvider>);
     expect(html.indexOf('class="doan-agent"')).toBeGreaterThan(-1);
     expect(html.indexOf('class="doan-agent"')).toBeLessThan(html.indexOf('class="doan-notice doan-panel"'));
     expect(html.match(/class="doan-canvas-top"/g)).toHaveLength(1);
-    const alone = renderToStaticMarkup(<CanvasAgent list={undefined} canvas={null} running={true} work={[]} entries={[]} onOpen={vi.fn()} onOpenSibling={vi.fn()} onStopFailed={vi.fn()}>{notice}</CanvasAgent>);
+    const alone = renderToStaticMarkup(<CanvasAgent list={undefined} canvas={null} buddy="doany" running={true} work={[]} entries={[]} onOpen={vi.fn()} onOpenSibling={vi.fn()} onStopFailed={vi.fn()}>{notice}</CanvasAgent>);
     expect(alone).toBe(`<div class="doan-canvas-top">${renderToStaticMarkup(notice)}</div>`);
   });
 });
@@ -431,6 +431,15 @@ describe("Doany the artist", () => {
       expect(markup([summary({ phase: "waiting" })])).toContain('<div class="doan-agent">' + artist(variant, true));
       const work = [{ touched: 0, turn: "none:t", session: "s1", provider: "codex" as const, root: "/w/a", path: canvas.path }];
       expect(markup([], { work, running: false })).toContain('<div class="doan-agent doan-agent-terminal">' + artist(variant, true));
+    }
+  });
+
+  test("a friend's notice shows its one painter, still while waiting, whatever the random pick", () => {
+    vi.spyOn(Math, "random").mockReturnValue(PICK.reading);
+    for (const id of ["puri", "dungdung", "popo", "dori"] as const) {
+      const painter = (still: boolean) => `<span class="doan-agent-artist" aria-hidden="true"><picture><source srcSet="buddies/${id}/artist-rest.png" media="(prefers-reduced-motion: reduce)"/><img src="buddies/${id}/${still ? "artist-rest.png" : "artist.gif"}" alt=""/></picture></span>`;
+      expect(markup([summary({})], { buddy: id })).toContain('<div class="doan-agent">' + painter(false));
+      expect(markup([summary({ phase: "waiting" })], { buddy: id })).toContain('<div class="doan-agent">' + painter(true));
     }
   });
 

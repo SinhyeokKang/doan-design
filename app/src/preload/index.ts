@@ -417,6 +417,10 @@ const api = {
     ipcRenderer.on("menu-command", receive);
     return () => ipcRenderer.removeListener("menu-command", receive);
   },
+  // The existing-user buddy screen main decided at launch (true while it is open), and its close, which releases
+  // first run's lock in the menu and the open-Settings command.
+  readBuddyIntro: (): Promise<boolean> => ipcRenderer.invoke("buddy-intro:read"),
+  closeBuddyIntro: (): Promise<void> => ipcRenderer.invoke("buddy-intro:close"),
   // Settings page. Preferences: main validates the change, merges it and writes it; a refused or
   // failed write answers the choices still in effect. null only when main refused the caller.
   readPreferences: (): Promise<PreferencesSnapshot | null> => ipcRenderer.invoke("preferences:read"),

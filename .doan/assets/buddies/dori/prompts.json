@@ -1,0 +1,14 @@
+[
+  [
+    "still",
+    "Use case: background-extraction. Edit target: supplied dori card, ONLY character reference. Extract the EXACT existing sky-blue plush curled-tip pebble with cream knitted scarf, keeping both black eyes, exact texture, colour, lighting, silhouette, pose, scale and coordinates. SAME 1254x1254 square canvas. Remove ALL white backdrop and ALL floor/contact shadow to actual transparent RGBA, including under the character and all empty openings. Do NOT redesign, recolor, reshape, recenter, zoom or crop. Preserve all visible character pixels as closely as possible. No white halo, no floor, no shadow outside the plush."
+  ],
+  [
+    "body",
+    "Use case: precise-object-edit. Edit the supplied dori still into an animation BODY layer. Same 1254x1254 transparent canvas, exact body coordinates, scale, silhouette, sky-blue colour, lighting and looped plush. Remove both black eyes FULLY, filling them seamlessly with crisp individual yarn loops matching the immediate surrounding brightness and local texture contrast (no pale ovals, blur, airbrushing or patches). Remove the cream knitted scarf including neck wrap and dangling fringed ends COMPLETELY and reconstruct the hidden sky-blue body naturally beneath it; keep the original body's shape. Preserve every exposed sky-blue pixel elsewhere. No eyes, accessory, mouth, extra features, floor, shadow, white backdrop or halo. Do not center, zoom, crop, reshape or recolor. Actual transparent RGBA."
+  ],
+  [
+    "accessory",
+    "Use case: precise-object-edit. Extract ONLY the existing cream knitted scarf: the entire curved neck wrap and both dangling fringed ends from the supplied dori still. Keep EXACT original 1254x1254 canvas, accessory coordinates, scale, angle, yarn texture, color and lighting. Remove all body, both eyes and all other pixels to actual transparency. No coloured body remnant, no eye, no floor shadow, no white backdrop, no redesign. Do NOT center, enlarge, crop, move or repaint the accessory. This is an aligned animation layer, not a standalone centered product photo."
+  ]
+]

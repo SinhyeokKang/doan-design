@@ -1,0 +1,18 @@
+[
+  [
+    "still",
+    "Use case: background-extraction. Precise extraction/edit of the supplied Puri card, the ONLY character reference. Keep exactly the existing mint plush three-lobed pebble and olive two-leaf sprout, both black eyes, original looped yarn texture, color, lighting, silhouette, pose, scale and coordinates. SAME 1254x1254 square canvas. Remove ALL white background and ALL floor/contact shadow to actual transparency, including beneath the character. Do not redraw, recolor, reshape, crop, zoom or recenter. No white halo, no floor, no shadow outside the character. Deliver a transparent RGBA still."
+  ],
+  [
+    "body",
+    "Use case: precise-object-edit. Animation body layer of the supplied transparent Puri still (edit target). SAME square canvas, exact same body position, size, silhouette, mint color, looped plush texture and lighting. Remove both black eyes COMPLETELY and fill with seamless matching mint looped plush. Remove the olive sprout COMPLETELY and reconstruct only the small hidden rounded mint dome underneath its stem. Preserve every other visible body pixel, especially the outside silhouette. No eyes, no sprout, no face, no floor shadow, no white backdrop. Actual transparent RGBA background. Do not crop, center, zoom or change the character."
+  ],
+  [
+    "accessory",
+    "Use case: precise-object-edit. Extract ONLY the existing olive-green two-leaf plush SPROUT from the supplied transparent Puri still. Exact same 1254x1254 canvas, coordinates, scale, angle, texture, color and lighting: sprout leaves around x450\u2013880 y120\u2013350 and stem ending near x640 y394. All mint body, both eyes and every other element must be completely transparent. Do NOT center, enlarge, crop or redesign the sprout. Keep lots of empty transparent canvas below. Actual transparent RGBA, no white, no shadow outside the sprout."
+  ],
+  [
+    "body-eye-fill",
+    "Use case: precise-object-edit. Edit target: supplied transparent 1254x1254 mint plush Puri BODY ONLY. Repair ONLY the two pale blurred oval patches where eyes were removed: left near (543,662), right near (761,662). Fill those two areas with densely detailed, SHARP small interlocking looped yarn exactly like the immediately surrounding plush. Match surrounding mint colour, brightness, local lighting gradient and texture contrast. No pale oval, no airbrushed smoothing, no smear, no outlines or patch edge. Reconstruct individual crisp twisted yarn loops of matching scale, orientation and shadow depth; seamless continuation across each former eye area. Keep all pixels outside the two eye windows unchanged, including the full silhouette, top, hidden sprout attachment, alpha, canvas size and body placement. No eyes, no sprout, no facial details, no white, no floor shadow; actual transparent RGBA. This is a texture repair, not a new character."
+  ]
+]

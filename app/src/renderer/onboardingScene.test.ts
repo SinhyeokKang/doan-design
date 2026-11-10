@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import type { AuthStatusDto, Provider, Readiness } from "../main/agentAuth/types";
-import { advance, canAdvance, canComplete, initialScene, isCurrent, mergeStatus, newerAuth, nextScene, ownedSignIns, type SceneEvent, type SceneState } from "./onboardingScene";
+import { advance, canAdvance, canComplete, initialScene, isCurrent, mergeStatus, newerAuth, nextScene, ownedSignIns, setupSteps, type SceneEvent, type SceneState } from "./onboardingScene";
 
 function provider(name: Provider, readiness: Readiness, extra: Partial<AuthStatusDto> = {}): AuthStatusDto {
   return { provider: name, revision: 1, generation: 1, phase: readiness.ready ? "connected" : "disconnected", account: null, attempt: null, readiness, error: null, actions: [], ...extra };
@@ -32,41 +32,82 @@ test("advancing needs one provider agent-auth judged ready; connected but not re
   expect(canAdvance(snapshot(5, provider("cursor", notConnected, { phase: "connected", account: { email: "a@example.com" } })))).toBe(false);
 });
 
-test("Welcome, Agent, Project and Home follow the approved order", () => {
+test("Welcome, Buddy, Agent, Project and Home follow the approved order", () => {
   let state: SceneState = initialScene(false);
   state = nextScene(state, { type: "start" }, { ...idle, auth: none });
-  expect(state).toEqual({ scene: "agent", generation: 1 });
+  expect(state).toEqual({ scene: "buddy", generation: 1 });
+  // Choosing a buddy does not depend on agent-auth: Continue goes on with no agent ready.
+  state = nextScene(state, { type: "continue" }, { ...idle, auth: none });
+  expect(state).toEqual({ scene: "agent", generation: 2 });
   expect(nextScene(state, { type: "continue" }, { ...idle, auth: none })).toBe(state);
   expect(nextScene(state, { type: "continue" }, { ...idle, auth: connectedNotReady })).toBe(state);
   expect(nextScene(state, { type: "step", to: "project" }, { ...idle, auth: connectedNotReady })).toBe(state);
   state = nextScene(state, { type: "continue" }, { ...idle, auth: oneReady });
-  expect(state).toEqual({ scene: "project", generation: 2 });
+  expect(state).toEqual({ scene: "project", generation: 3 });
   state = nextScene(state, { type: "completed" }, { ...idle, auth: oneReady });
-  expect(state).toEqual({ scene: "home", generation: 3 });
+  expect(state).toEqual({ scene: "home", generation: 4 });
+  // Restarting first run starts at Welcome again.
+  expect(initialScene(false)).toEqual({ scene: "welcome", generation: 0 });
+});
+
+test("Buddy continues before agent-auth is read, and even while busy", () => {
+  const buddy: SceneState = { scene: "buddy", generation: 1 };
+  expect(nextScene(buddy, { type: "continue" }, { ...idle, auth: null })).toEqual({ scene: "agent", generation: 2 });
+  expect(nextScene(buddy, { type: "continue" }, { busy: true, auth: null })).toEqual({ scene: "agent", generation: 2 });
 });
 
 test("Back and the completed-step stepper return one step and keep going back to Welcome", () => {
   const project: SceneState = { scene: "project", generation: 5 };
   expect(nextScene(project, { type: "back" }, { ...idle, auth: oneReady })).toEqual({ scene: "agent", generation: 6 });
   expect(nextScene(project, { type: "step", to: "agent" }, { ...idle, auth: oneReady })).toEqual({ scene: "agent", generation: 6 });
-  expect(nextScene({ scene: "agent", generation: 6 }, { type: "back" }, { ...idle, auth: oneReady })).toEqual({ scene: "welcome", generation: 7 });
-  expect(nextScene({ scene: "agent", generation: 6 }, { type: "step", to: "project" }, { ...idle, auth: oneReady })).toEqual({ scene: "project", generation: 7 });
+  expect(nextScene(project, { type: "step", to: "buddy" }, { ...idle, auth: oneReady })).toEqual({ scene: "buddy", generation: 6 });
+  const agent: SceneState = { scene: "agent", generation: 6 };
+  expect(nextScene(agent, { type: "back" }, { ...idle, auth: oneReady })).toEqual({ scene: "buddy", generation: 7 });
+  expect(nextScene(agent, { type: "step", to: "buddy" }, { ...idle, auth: none })).toEqual({ scene: "buddy", generation: 7 });
+  expect(nextScene(agent, { type: "step", to: "project" }, { ...idle, auth: oneReady })).toEqual({ scene: "project", generation: 7 });
+  const buddy: SceneState = { scene: "buddy", generation: 7 };
+  expect(nextScene(buddy, { type: "back" }, { ...idle, auth: oneReady })).toEqual({ scene: "welcome", generation: 8 });
+});
+
+test("from Buddy the Agent pill goes forward; the Project pill needs a ready agent", () => {
+  const buddy: SceneState = { scene: "buddy", generation: 1 };
+  expect(nextScene(buddy, { type: "step", to: "agent" }, { ...idle, auth: none })).toEqual({ scene: "agent", generation: 2 });
+  expect(nextScene(buddy, { type: "step", to: "project" }, { ...idle, auth: none })).toBe(buddy);
+  expect(nextScene(buddy, { type: "step", to: "project" }, { ...idle, auth: connectedNotReady })).toBe(buddy);
+  expect(nextScene(buddy, { type: "step", to: "project" }, { ...idle, auth: oneReady })).toEqual({ scene: "project", generation: 2 });
+  expect(nextScene(buddy, { type: "step", to: "buddy" }, { ...idle, auth: oneReady })).toBe(buddy);
 });
 
 test("setup or completion in progress blocks Back and the stepper", () => {
   const project: SceneState = { scene: "project", generation: 5 };
-  for (const event of [{ type: "back" }, { type: "step", to: "agent" }] satisfies SceneEvent[]) expect(nextScene(project, event, { busy: true, auth: oneReady })).toBe(project);
+  for (const event of [{ type: "back" }, { type: "step", to: "agent" }, { type: "step", to: "buddy" }] satisfies SceneEvent[]) expect(nextScene(project, event, { busy: true, auth: oneReady })).toBe(project);
+  const agent: SceneState = { scene: "agent", generation: 5 };
+  for (const event of [{ type: "back" }, { type: "step", to: "buddy" }] satisfies SceneEvent[]) expect(nextScene(agent, event, { busy: true, auth: oneReady })).toBe(agent);
 });
 
 test("top-level Escape and out-of-place events never skip a required step", () => {
-  const scenes: SceneState[] = [initialScene(false), { scene: "agent", generation: 1 }, { scene: "project", generation: 2 }, initialScene(true)];
+  const scenes: SceneState[] = [initialScene(false), { scene: "buddy", generation: 1 }, { scene: "agent", generation: 2 }, { scene: "project", generation: 3 }, initialScene(true)];
   for (const state of scenes) expect(nextScene(state, { type: "escape" }, { ...idle, auth: oneReady })).toBe(state);
   expect(nextScene(scenes[0]!, { type: "continue" }, { ...idle, auth: oneReady })).toBe(scenes[0]);
   expect(nextScene(scenes[0]!, { type: "completed" }, { ...idle, auth: oneReady })).toBe(scenes[0]);
+  expect(nextScene(scenes[0]!, { type: "step", to: "buddy" }, { ...idle, auth: oneReady })).toBe(scenes[0]);
+  expect(nextScene(scenes[1]!, { type: "start" }, { ...idle, auth: oneReady })).toBe(scenes[1]);
   expect(nextScene(scenes[1]!, { type: "completed" }, { ...idle, auth: oneReady })).toBe(scenes[1]);
-  expect(nextScene(scenes[2]!, { type: "start" }, { ...idle, auth: oneReady })).toBe(scenes[2]);
-  expect(nextScene(scenes[3]!, { type: "back" }, { ...idle, auth: oneReady })).toBe(scenes[3]);
-  expect(nextScene(scenes[2]!, { type: "step", to: "project" }, { ...idle, auth: oneReady })).toBe(scenes[2]);
+  expect(nextScene(scenes[2]!, { type: "completed" }, { ...idle, auth: oneReady })).toBe(scenes[2]);
+  expect(nextScene(scenes[3]!, { type: "start" }, { ...idle, auth: oneReady })).toBe(scenes[3]);
+  expect(nextScene(scenes[4]!, { type: "back" }, { ...idle, auth: oneReady })).toBe(scenes[4]);
+  expect(nextScene(scenes[4]!, { type: "step", to: "buddy" }, { ...idle, auth: oneReady })).toBe(scenes[4]);
+  expect(nextScene(scenes[3]!, { type: "step", to: "project" }, { ...idle, auth: oneReady })).toBe(scenes[3]);
+});
+
+test("the stepper numbers Buddy, Agent and Project; a done step is named as completed", () => {
+  expect(setupSteps("buddy")).toEqual([
+    { step: "buddy", n: 1, title: "Buddy", state: "current", label: null },
+    { step: "agent", n: 2, title: "Agent", state: "ahead", label: null },
+    { step: "project", n: 3, title: "Project", state: "ahead", label: null },
+  ]);
+  expect(setupSteps("agent").map(item => [item.state, item.label])).toEqual([["done", "Buddy, completed"], ["current", null], ["ahead", null]]);
+  expect(setupSteps("project").map(item => [item.state, item.label])).toEqual([["done", "Buddy, completed"], ["done", "Agent, completed"], ["current", null]]);
 });
 
 test("on the Project step, the only ready provider expiring blocks completion; another ready one keeps it allowed", () => {

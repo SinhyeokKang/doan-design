@@ -1,0 +1,69 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="doan:canvas" content="buddy-installer"><meta name="doan:width" content="2200"><title>Buddy installer</title><link rel="stylesheet" href="../../app/src/renderer/tokens.css"><style>
+@font-face{font-family:Geist;src:url('../../app/src/renderer/public/fonts/geist/Geist.woff2')}
+*{box-sizing:border-box}
+body{margin:0;padding:64px;width:2200px;background:var(--bg-app);color:var(--text-standard);font-family:Geist,sans-serif}
+h1,h2,h3,p{margin:0}
+header{max-width:1500px;margin-bottom:48px}
+header h1{font-size:48px;font-weight:500;letter-spacing:-2px}
+header p{font-size:19px;line-height:1.6;margin-top:16px;color:var(--text-subtle)}
+.row{display:flex;gap:64px;align-items:flex-start;margin-bottom:72px}
+.caption{margin-bottom:20px;max-width:640px}
+.caption h2{font-size:28px;font-weight:500}
+.caption p{font-size:16px;margin-top:8px;color:var(--text-subtle);line-height:1.6}
+.badge{display:inline-block;font-size:13px;font-weight:500;padding:2px 8px;border-radius:6px;background:var(--violet-3);color:var(--violet-11);margin-left:8px;vertical-align:middle}
+/* A Finder window: title bar, then the dmg background at its own size. Finder draws the icons and labels; they are placement illustrations here. */
+.win{border-radius:12px;overflow:hidden;background:var(--surface-panel);box-shadow:0 16px 40px color-mix(in srgb,var(--neutral-12) 12%,transparent);flex:none}
+.bg{position:relative;overflow:hidden;background:var(--surface-panel)}
+.photo{position:absolute;left:50%;transform:translateX(-50%);display:block;width:auto;mix-blend-mode:multiply}
+.item,.label,.arrow{position:absolute;transform:translate(-50%,-50%)}
+.label{transform:translateX(-50%);font:13px/16px -apple-system,BlinkMacSystemFont,sans-serif;color:var(--neutral-12);white-space:nowrap}
+.arrow{width:64px;height:24px;color:var(--neutral-9)}
+/* Higher-fidelity Finder (macOS 26): real icon renders, title with proxy icon, path and status bars over the bottom of the background as Finder draws them. */
+.win.hi{border-radius:16px}
+.hibar{height:36px;display:flex;align-items:center;gap:8px;padding:0 14px;background:var(--surface-panel)}
+.hibar i{width:12px;height:12px;border-radius:50%}
+.hibar .r{background:var(--red-9)}.hibar .y{background:color-mix(in srgb,var(--amber-600) 70%,white)}.hibar .g{background:color-mix(in srgb,var(--green-12) 55%,var(--green-3))}
+.hibar img{width:16px;height:16px;margin-left:10px}
+.hibar span{font:600 15px/18px -apple-system,BlinkMacSystemFont,sans-serif;color:var(--neutral-11)}
+.hicon{width:88px;height:88px;display:block}
+.hicon img,img.hicon{width:88px;height:88px}
+span.hicon img{position:absolute;inset:0}
+.hil{font-size:13px;color:var(--neutral-12)}
+.pathbar,.statusbar{position:absolute;left:0;right:0;height:28px;display:flex;align-items:center;font:12px/16px -apple-system,BlinkMacSystemFont,sans-serif;color:var(--neutral-10);background:color-mix(in srgb,var(--neutral-1) 92%,transparent);border-top:1px solid var(--neutral-4)}
+.pathbar{bottom:28px;gap:6px;padding:0 12px}.pathbar img{width:14px;height:14px}
+.statusbar{bottom:0;justify-content:center}
+.tagline{position:absolute;left:0;right:0;text-align:center;font-size:24px;font-weight:500;letter-spacing:-.5px;color:var(--neutral-12)}
+.notes{width:640px;padding:32px;background:var(--surface-panel);border-radius:16px}
+.notes h2{font-size:28px;font-weight:500;margin-bottom:16px}
+.notes li{font-size:16px;line-height:1.8;color:var(--text-subtle)}
+</style></head><body>
+<header><h1>Installer disk · Group photo.</h1><p>Selected design. Plain white background (no pigment horizon) with the buddies' group photo at the top, Doan → Applications left to right, and the tagline under them. Finder draws the icons, labels, title, path and status bars; only the photo, arrow and tagline are in the background image. Not in code yet.</p></header>
+
+<div class="row">
+<section>
+<div class="caption"><h2>Installer<span class="badge">Not in code</span></h2><p>Background 640 × 536. Photo 180 high, its box 44 below the title bar (about 48 to the beret); Doan (200, 306) → Applications (440, 306); "A place for your next idea." 24 px, 32 below the labels and about 49 above Finder's path and status bars.</p></div>
+<section class="win hi" data-doan-frame="installer-row-tagline" data-doan-title="03 · Photo, icons, tagline" data-doan-implements="app/package.json">
+<div class="hibar" aria-hidden="true"><i class="r"></i><i class="y"></i><i class="g"></i><img src="../assets/installer/doan-app-icon-32.png" alt=""><span>Doan</span></div>
+<div class="bg" style="width:640px;height:536px">
+<img class="photo" style="top:44px;height:180px" src="../assets/buddies/group/group.png" alt="Doany, Puri, Dungdung, Popo and Dori together" data-doan-id="tagline-photo">
+<img class="item hicon" style="left:200px;top:306px" src="../assets/installer/doan-app-icon.png" alt="Doan app icon" data-doan-id="tagline-doan"><span class="label hil" style="left:200px;top:354px">Doan.app</span>
+<svg class="arrow" style="left:320px;top:306px" viewBox="0 0 64 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2 12h58m-7-6 7 6-7 6"/></svg>
+<span class="item hicon" style="left:440px;top:306px" data-doan-id="tagline-folder"><img src="../assets/installer/applications-folder.png" alt="Applications folder"><img src="../assets/installer/alias-badge.png" alt=""></span><span class="label hil" style="left:440px;top:354px">Applications</span>
+<h3 class="tagline" style="top:402px" data-doan-id="tagline-text">A place for your next idea.</h3>
+<div class="pathbar" aria-hidden="true"><img src="../assets/installer/doan-app-icon-32.png" alt=""><span>Doan</span></div>
+<div class="statusbar" aria-hidden="true">2 items</div>
+</div>
+</section>
+</section>
+
+<section class="notes" data-doan-frame="installer-notes" data-doan-title="Notes">
+<h2>Notes</h2>
+<ul>
+<li>Not in code: the shipped installer is the 640 × 640 Pigment horizon with Doan above Applications (<code>build.dmg</code> in <code>app/package.json</code>).</li>
+<li>Shipping it means a new <code>installer-background.png</code> 640 × 536 (and <code>@2x</code> 1280 × 1072) holding the photo, arrow and tagline, and new <code>contents</code>: Doan (200, 306), Applications link (440, 306).</li>
+<li>Icons: the Doan icon is rendered from the installed app's <code>icon.icns</code>. The Applications folder and alias badge are local renders of macOS's own CoreTypes icons (Apple's artwork) and are not committed; regenerate them with <code>sips -s format png -Z 256 /System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/{ApplicationsFolderIcon,AliasBadgeIcon}.icns</code> into <code>.doan/assets/installer/</code> as <code>applications-folder.png</code> and <code>alias-badge.png</code>.</li>
+<li>Not checked: how much of the bottom Finder's path and status bars hide on a 536-high background (ARCHITECTURE asks to keep text above the bottom 150 px of the 640-high one; the tagline here ends 105 above the bottom), the window size macOS gives it, and Finder Dark Mode label colour on this white background.</li>
+</ul>
+</section>
+</div>
+</body></html>
