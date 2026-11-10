@@ -45,6 +45,8 @@ const mainOnly = new Set([
   "config:read", "config:write", "config:choose",
   // The sidebar's canvas row menu; Show in Finder takes only an id main gave for a file it wrote.
   "canvas:trashPlan", "canvas:trash", "canvas:export", "canvas:revealExport",
+  // The existing-user buddy screen; Settings is locked while it shows.
+  "buddy-intro:read", "buddy-intro:close",
 ]);
 
 // The caller must first identify a registered window and check its main frame.

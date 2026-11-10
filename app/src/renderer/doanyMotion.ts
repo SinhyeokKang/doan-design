@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
-// Doany's motion model, ported from the draft prototype .doan/assets/doany/motion/mascot.js
-// (MIT, Doan contributors; see that directory's LICENSE). The formulas, constants and operation
-// order are the draft's, unchanged: doanyMotion.test.ts compares every value bit for bit with the
-// original run in a vm. Only the DOM/WebGL coupling is removed; the greet/blink/pause study
-// controls are not ported.
+// The buddies' motion model, ported from the buddy draft .doan/assets/buddies/motion-preview.js
+// (MIT, Doan contributors), whose time model is Doany's V1 .doan/assets/doany/motion/mascot.js with a slower blink.
+// The formulas, constants and operation order are the draft's, unchanged: doanyMotion.test.ts compares every value
+// bit for bit with the draft run in a vm (app/scripts/doanyGolden.mjs). Only the DOM/WebGL coupling is removed;
+// the per-buddy drawn bounds are in Doany.tsx (drawnPose), and the greet/blink/pause study controls are not ported.
 
 export type Mode = "idle" | "attentive" | "jump" | "reduced-motion";
 
@@ -57,10 +57,16 @@ export function advance(state: MotionState, now: number, gate: boolean, random: 
   state.lookX += (x - state.lookX) * (1 - Math.exp(-dt * 5)); state.lookY += (y - state.lookY) * (1 - Math.exp(-dt * 5));
   const hatTarget = -state.lookX * .09 + Math.sin(t * 1.9) * .025;
   state.hatV += (hatTarget - state.hat) * 45 * dt; state.hatV *= Math.exp(-dt * 6); state.hat += state.hatV * dt;
-  if (t >= state.nextBlink) { state.blinkAt = t; state.nextBlink = t + 2.5 + random() * 3.5; }
+  if (t >= state.nextBlink) { state.blinkAt = t; state.nextBlink = t + 4 + random() * 4; }
   const b = t - state.blinkAt;
-  state.eye = b >= 0 && b < .26 ? 1 - .96 * Math.sin(Math.PI * b / .26) : 1;
+  state.eye = b >= 0 && b < .42 ? 1 - .96 * Math.sin(Math.PI * b / .42) : 1;
   return true;
+}
+
+// How far into its hop the buddy is, 0 on the floor to 1 at the apex: the floor shadow shrinks and fades with it.
+// The hop's height is .22 before a buddy's own multiplier, so this is the same for every buddy.
+export function hopLift(pose: Pose): number {
+  return pose.lift / .22;
 }
 
 export function pointer(state: MotionState, clientX: number, clientY: number, rect: Rect): void {

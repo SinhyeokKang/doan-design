@@ -2,9 +2,9 @@ import { validProvider, type Provider } from "../main/agentAuth/types";
 
 // The Settings page's categories. Kept apart from SettingsPage.tsx under a name that
 // differs beyond capitalization (POSTMORTEM 2026-10-25 'A TS helper hid its TSX component on case-insensitive macOS').
-export type SettingsSection = "agents" | "mcp" | "notifications" | "about";
+export type SettingsSection = "general" | "agents" | "mcp" | "notifications" | "about";
 export const SETTINGS_SECTIONS: readonly { id: SettingsSection; title: string }[] = [
-  { id: "agents", title: "Agents" }, { id: "mcp", title: "MCP Connectors" }, { id: "notifications", title: "Notifications" }, { id: "about", title: "About" },
+  { id: "general", title: "General" }, { id: "agents", title: "Agents" }, { id: "mcp", title: "MCP Connectors" }, { id: "notifications", title: "Notifications" }, { id: "about", title: "About" },
 ];
 const IDS: readonly unknown[] = SETTINGS_SECTIONS.map(section => section.id);
 

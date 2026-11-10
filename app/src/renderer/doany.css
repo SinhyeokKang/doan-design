@@ -1,8 +1,14 @@
 /* SPDX-License-Identifier: MIT */
-/* Doany's host, from the draft's .doan/assets/doany/motion/mascot.css (MIT, Doan contributors).
-   The slot size is set by the component; the focus ring is the shared one with the container radius. */
+/* The buddy's host, from the draft's .doan/assets/doany/motion/mascot.css and the buddy draft
+   .doan/canvases/buddy-assets.html (MIT, Doan contributors). The slot size is set by the component;
+   the focus ring is the shared one with the container radius. */
 .doany { display: block; position: relative; flex: none; padding: 0; border: 0; background: transparent; cursor: pointer; isolation: isolate; box-sizing: border-box; }
-.doany img, .doany canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; box-sizing: border-box; }
+.doany img, .doany canvas { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; object-fit: contain; box-sizing: border-box; }
 .doany img { padding: 16.5%; }
+/* Below the still and the canvas, so the fallback's feet stay over their shadow. The component sets the
+   transform-origin at the buddy's ground contact. */
+.doany .buddy-shadow { z-index: 0; transform: scale(calc(1 - .45 * var(--hop-lift))); opacity: calc(1 - .6 * var(--hop-lift)); }
+/* No still and no WebGL drawing: the slot is empty, so is its floor. */
+.doany[data-still="missing"]:not([data-state]) .buddy-shadow, .doany[data-still="missing"][data-state="static"] .buddy-shadow { display: none; }
 .doany [hidden] { display: none; }
 .doany:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; border-radius: var(--radius-container); }

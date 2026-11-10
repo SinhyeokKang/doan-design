@@ -81,7 +81,7 @@ const mocks = await vi.hoisted(async () => {
     stageConversation: undefined as ((signal: unknown) => void) | undefined,
     // The conversation service main created, so a test can pin what main asks it.
     conversationService: undefined as { list(root: string): unknown[]; projectEvidence(root: string): unknown[] } | undefined,
-    preferences: { read: vi.fn(), current: vi.fn(), update: vi.fn() },
+    preferences: { read: vi.fn(), current: vi.fn(), update: vi.fn(), buddyKey: vi.fn() },
     createPreferencesStore: vi.fn(),
     app: Object.assign(new EventEmitter(), { setName: vi.fn(), whenReady: vi.fn<() => Promise<void>>(), isPackaged: true, getPath: () => "/tmp/doan-index-test", getVersion: () => "9.8.7", exit: vi.fn(), quit: vi.fn(), relaunch: vi.fn(), show: vi.fn(), requestSingleInstanceLock: vi.fn(() => true),
       isActive: vi.fn(() => true), dock: { bounce: vi.fn(() => 7) } }),
@@ -190,6 +190,9 @@ const actualProjects = await vi.importActual<typeof import("./onboarding/project
 // What onboarding.json holds at launch; a describe sets it in beforeAll, before each launch reads it.
 let launchCompletion: { kind: string; projectRoot?: string } = { kind: "missing" };
 const COMPLETE = { kind: "complete", projectRoot: "/repo" };
+// The launch's preferences file: whether it has a buddy key, and its notice. Most launches are of someone who has one.
+let launchBuddyKey = true;
+let launchNotice: string | null = null;
 // What the launch's login-shell probe answers and what its agent setup resolves to; a describe sets them in beforeAll.
 // A held setup stays pending until the test settles it, as while the administrator dialog is open.
 let launchProbe: unknown = { ok: false, reason: "Login shell failed." };
@@ -232,8 +235,9 @@ beforeEach(async () => {
   mocks.conversations = [];
   mocks.Notification.instances.length = 0;
   mocks.createPreferencesStore.mockReturnValue(mocks.preferences);
-  mocks.preferences.read.mockReturnValue({ preferences: DEFAULTS, notice: null });
+  mocks.preferences.read.mockReturnValue({ preferences: DEFAULTS, notice: launchNotice });
   mocks.preferences.current.mockReturnValue(DEFAULTS);
+  mocks.preferences.buddyKey.mockReturnValue(launchBuddyKey);
   mocks.electronShell.openExternal.mockResolvedValue(undefined);
   mocks.createThumbnails.mockReturnValue(mocks.thumbnails);
   mocks.thumbnails.removed.mockResolvedValue(undefined);
@@ -304,6 +308,39 @@ function shellColour() {
   }
   return value;
 }
+
+// The first paint has the saved buddy's accent: the renderer reads ?buddy= before React mounts.
+test("opens the window with the saved buddy in its query; Doany without one", async () => {
+  expect(window().loadFile).toHaveBeenCalledWith(expect.stringMatching(/renderer[\\/]index\.html$/), { query: { buddy: "doany" } });
+  vi.resetModules();
+  mocks.app.removeAllListeners();
+  mocks.Window.instances.length = 0;
+  mocks.ipc.clear();
+  mocks.preferences.read.mockReturnValue({ preferences: { ...DEFAULTS, buddy: "popo" }, notice: null });
+  await import("./index");
+  await vi.waitFor(() => expect(mocks.Window.instances).toHaveLength(1));
+  expect(window().loadFile).toHaveBeenCalledWith(expect.stringMatching(/renderer[\\/]index\.html$/), { query: { buddy: "popo" } });
+});
+
+test("in development the dev server URL carries the same query", async () => {
+  vi.resetModules();
+  mocks.app.removeAllListeners();
+  mocks.Window.instances.length = 0;
+  mocks.ipc.clear();
+  mocks.preferences.read.mockReturnValue({ preferences: { ...DEFAULTS, buddy: "dori" }, notice: null });
+  const packaged = mocks.app.isPackaged, url = process.env.ELECTRON_RENDERER_URL;
+  mocks.app.isPackaged = false;
+  process.env.ELECTRON_RENDERER_URL = "http://localhost:5173";
+  try {
+    await import("./index");
+    await vi.waitFor(() => expect(mocks.Window.instances).toHaveLength(1));
+    expect(window().loadURL).toHaveBeenCalledWith("http://localhost:5173/?buddy=dori");
+    expect(window().loadFile).not.toHaveBeenCalled();
+  } finally {
+    mocks.app.isPackaged = packaged;
+    if (url === undefined) delete process.env.ELECTRON_RENDERER_URL; else process.env.ELECTRON_RENDERER_URL = url;
+  }
+});
 
 test("draws light whatever the macOS appearance", () => {
   expect(mocks.nativeTheme.themeSource).toBe("light");
@@ -781,6 +818,51 @@ describe("a launch with a v1 completion record", () => {
   afterAll(() => { launchCompletion = { kind: "missing" }; });
   test("opens no first run: Settings is available", async () => {
     expect(item("Settings…").enabled).not.toBe(false);
+  });
+});
+// The buddy screen for someone who finished first run without a buddy key: main decides it at launch and holds first
+// run's lock (Settings…, ⌘B, Check for Updates…, the open-Settings command) until the renderer reports it closed.
+describe("a completed launch whose preferences have no buddy key", () => {
+  beforeAll(() => { launchCompletion = COMPLETE; launchBuddyKey = false; });
+  afterAll(() => { launchCompletion = { kind: "missing" }; launchBuddyKey = true; });
+  test("opens the buddy screen with first run's lock", async () => {
+    expect(await invoke("buddy-intro:read", window().webContents, null)).toBe(true);
+    expect(item("Settings…").enabled).toBe(false);
+    expect(item("Hide Sidebar").enabled).toBe(false);
+    expect(item("Check for Updates…").enabled).toBe(false);
+    const { openSettingsPage } = await import("./index");
+    expect(openSettingsPage()).toBe(false);
+  });
+  test("closing it releases the lock, and a reloaded renderer reads it closed", async () => {
+    expect(await invoke("buddy-intro:close", window().webContents, null)).toBeUndefined();
+    expect(item("Settings…").enabled).not.toBe(false);
+    expect(item("Hide Sidebar").enabled).not.toBe(false);
+    const { openSettingsPage } = await import("./index");
+    expect(openSettingsPage()).toBe(true);
+    expect(await invoke("buddy-intro:read", window().webContents, null)).toBe(false);
+  });
+  test("the channels answer the main window's main frame only; close takes no value", async () => {
+    const other = new mocks.Window({ show: false }).webContents;
+    expect(await invoke("buddy-intro:read", other, null)).toBe(false);
+    expect(await invoke("buddy-intro:read", window().webContents, {})).toBe(false);
+    await invoke("buddy-intro:close", other, null);
+    await invoke("buddy-intro:close", window().webContents, {});
+    await invoke("buddy-intro:close", window().webContents, null, "closed");
+    expect(item("Settings…").enabled).toBe(false);
+    expect(await invoke("buddy-intro:read", window().webContents, null)).toBe(true);
+  });
+});
+describe.each([
+  ["has a buddy key", true, null, COMPLETE],
+  ["is newer", false, "newer", COMPLETE],
+  ["is broken", false, "broken", COMPLETE],
+  ["has no buddy key but first run is open", false, null, { kind: "missing" }],
+])("a launch whose preferences file %s", (_name, key, notice, completion) => {
+  beforeAll(() => { launchCompletion = completion; launchBuddyKey = key; launchNotice = notice; });
+  afterAll(() => { launchCompletion = { kind: "missing" }; launchBuddyKey = true; launchNotice = null; });
+  test("shows no buddy screen", async () => {
+    expect(await invoke("buddy-intro:read", window().webContents, null)).toBe(false);
+    expect(item("Settings…").enabled).toBe(completion === COMPLETE);
   });
 });
 describe("a launch with the legacy {} marker", () => {

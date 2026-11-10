@@ -45,7 +45,7 @@ Where things live, one entry per directory. File-level detail is in the code; ru
   - `serve/`: the local canvas server.
   - `update/`: in-app updates — pure eligibility, schedule, state, error and view rules the renderer shares, and the electron-updater service (only `app/src/main/update/service.ts` drives the updater).
 - `app/src/preload/`: the `window.doan` API.
-- `app/src/renderer/`: the React renderer (`main.ts` is the entry, `App.tsx` the root) — screens, the canvas controller, the conversation UI, pure view rules with their tests; `ds/` the design-system CSS and checks, `components/ui/` shadcn components, `public/` static assets (fonts, provider marks, MCP preset marks, Doany, the onboarding grain).
+- `app/src/renderer/`: the React renderer (`main.ts` is the entry, `App.tsx` the root) — screens, the canvas controller, the conversation UI, pure view rules with their tests; `ds/` the design-system CSS and checks, `components/ui/` shadcn components, `public/` static assets (fonts, provider marks, MCP preset marks, Doany's motion files and working-notice GIFs in `doany/`, every other buddy file, the shared eye and the Welcome group photo in `buddies/`).
 - `app/src/formats/`, `app/src/restore/`: pure modules shared by main and renderer (TypeScript format validation, UI-state restore planning).
 - `app/src/brand/`: test-only product-name checks (Go counterpart in `cli/internal/cli/brand_test.go`).
 - `app/runtime/`: reusable support for focused real-Electron probes (isolation, cleanup, real-state fingerprints, native helpers), with Node tests in the shared gate.
@@ -55,6 +55,7 @@ Where things live, one entry per directory. File-level detail is in the code; ru
 - `.doan/canvases/`: draft canvases of Doan's own UI.
 - `.doan/ds/`: design-system canvases, one per token group, shared component or shared surface.
 - `.doan/assets/`: canvas-only assets (`mock.css`, `ds-canvas.css`, `onboarding-grain.svg`, provider and MCP server marks, Doany sources, fonts).
+  - `buddies/`: the buddies' sources (cards, transparent stills and layers, contact shadows, painter GIFs, generation prompts), the shared eye, the group photo and `motion-preview.js`, the motion draft the app's golden comes from; rig numbers and provenance in its `README.md`.
 - `.doan/config.json`: token CSS and extra serve paths for this repo.
 
 ## Agent evaluation

@@ -11,27 +11,38 @@ import type { ProjectStepState } from "./projectStep";
 const noop = () => {};
 const base: ProviderView = { provider: "claude", name: "Claude Code", detail: "Anthropic", detailRole: null, button: null, helper: null, notice: null, paste: null, signOut: null };
 
-test("Welcome: Doany (142.5px), wordmark, two-line heading and the lg Get started button with an arrow", () => {
-  const html = renderToStaticMarkup(<Welcome start={noop} />);
-  expect(html).toContain('<div class="ob-wordmark">Doan</div>');
-  expect(html).toContain('<h1 tabindex="-1">A place for your next idea.<br/>Bring it to life on canvas.</h1>');
-  expect(html).toMatch(/<button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="lg">Get started<svg[^>]*aria-hidden="true"/);
-  expect(html).toContain('<div class="ob-atmosphere" aria-hidden="true"></div><button type="button" class="doany" aria-label="Make Doany hop" style="width:142.5px;height:142.5px"><img src="doany/doany.png" alt=""/><canvas hidden="" aria-hidden="true"></canvas></button><div class="ob-wordmark">Doan</div>');
+// .doan/canvases/buddy-welcome.html 'bleed-bottom-780', 'bleed-bottom-600': the wordmark, the two-line heading and
+// Get started on the white panel, then the five buddies' group photo running off the bottom edge. No Doany, no WebGL,
+// no atmosphere and no accent, whatever buddy is saved.
+test("Welcome: wordmark, two-line heading, the lg Get started button with an arrow, then the group photo", () => {
+  // React's server render adds a preload link for the image ahead of the markup.
+  const html = renderToStaticMarkup(<Welcome start={noop} />).replace(/^<link rel="preload" as="image" href="buddies\/group\/group.png"\/>/, "");
+  expect(html).toMatch(/^<div class="ob-welcome-main"><div class="ob-welcome-copy"><div class="ob-wordmark">Doan<\/div><h1 tabindex="-1">A place for your next idea.<br\/>Bring it to life on canvas.<\/h1><div class="ob-welcome-action"><button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="lg">Get started<svg[^>]*aria-hidden="true"[^>]*>.*<\/svg><\/button><\/div><\/div><div class="ob-welcome-photo"><img src="buddies\/group\/group.png" alt="Doan’s five buddies, Doany, Puri, Dungdung, Popo and Dori, huddled together"\/><\/div><\/div>$/);
+  expect(html).not.toMatch(/ob-atmosphere|<canvas|class="doany"|buddy-shadow/);
   expect(html).not.toMatch(/…|\.\.\./);
 });
 
-// The group's centre sits 72px above .ob-scroll's centre; the offset shrinks before the
-// window scrolls and leaves no empty scroll. The spacer after the group grows to at most twice the offset (stageInsets).
-test("Welcome centres its group 72px high in the area under the chrome", async () => {
+// The words sit 24 under the chrome at 780 and above, 16 at the 600 minimum, linear between; wordmark to heading 16,
+// heading to Get started 24. The photo's box starts 43 under Get started, centred, as wide as the draft's frames give
+// for the height left (960 at 780, 540 at 600, larger in a taller window), cut at the bottom and, past the window's
+// width, at the sides.
+test("Welcome lays out the words at the top and bleeds the photo off the bottom", async () => {
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
-  expect(css).toContain(".ob-welcome .ob-scene { max-width: 640px; padding: 0 var(--space-6); align-items: center; }");
-  expect(css).toContain(".ob-welcome-main { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: var(--space-8) 0; }");
-  expect(css).toContain('.ob-welcome-main::after { content: ""; flex: 1 0 0; max-height: 144px; }');
+  expect(css).toContain(".ob-welcome .ob-scene { max-width: none; padding: 0; align-items: stretch; }");
+  expect(css).toContain(".ob-welcome-main { flex: 1; display: flex; flex-direction: column; }");
+  expect(css).toContain(".ob-welcome-copy { display: flex; flex-direction: column; align-items: center; padding: clamp(16px, calc(16px + (100vh - 600px) * 8 / 180), 24px) var(--space-6) 0; text-align: center; }");
+  expect(css).toMatch(/\.ob-wordmark \{ margin-bottom: var\(--space-4\);/);
+  expect(css).toContain(".ob-welcome-action { margin-top: var(--space-6); text-align: center; }");
+  expect(css).toContain(".ob-welcome-photo { position: relative; flex: 1 0 0; min-height: 0; margin-top: 43px; overflow: hidden; container-type: size; }");
+  // At most 1.4 times the window's width, so the eyes (14.9%–84.9% across) stay in a tall, narrow window; past that the
+  // photo keeps to the bottom edge with the height that showed when the cap began.
+  expect(css).toContain(".ob-welcome-photo img { position: absolute; top: max(0px, calc(100cqh - (140cqw + 46.5px) / 2.44186)); left: 50%; width: min(calc(244.186cqh - 46.5px), 140cqw); max-width: none; height: auto; transform: translateX(-50%); }");
+  expect(css).not.toMatch(/ob-atmosphere|onboarding-grain|ob-welcome-main::after/);
 });
 
-// showModal() first focuses Doany, the dialog's first control; a heading focused a frame later leaves a frame in which
-// Doany's focus ring can paint (measured Doany :focus-visible for ~42ms on Welcome).
+// showModal() first focuses the dialog's first control; a heading focused a frame later leaves a frame in which its
+// focus ring can paint (measured Doany :focus-visible for ~42ms on the earlier Welcome).
 test("the overlay opens with its heading focused in the same task as showModal", () => {
   const calls: string[] = [];
   const dialog = { open: false, showModal() { calls.push("showModal"); this.open = true; } };
@@ -45,17 +56,25 @@ test("the overlay opens with its heading focused in the same task as showModal",
 });
 
 test("the setup steps are the shell capsule drawn with sm buttons: current is aria-current, a done step shows a check and goes back", () => {
+  const buddy = renderToStaticMarkup(<SetupSteps scene="buddy" canProject={false} busy={false} go={noop} />);
+  expect(buddy).toMatch(/^<nav class="ob-steps" aria-label="Setup steps">/);
+  expect(buddy).toContain('<button type="button" class="doan-button current" data-ui-size="sm" data-ui-variant="subtle" aria-current="step">1 <span>Buddy</span></button>');
+  // Agent needs nothing to go forward from Buddy; Project needs a ready agent.
+  expect(buddy).toContain('<button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="ghost">2 <span>Agent</span></button>');
+  expect(buddy).toContain('<button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="ghost" disabled="">3 <span>Project</span></button>');
   const agent = renderToStaticMarkup(<SetupSteps scene="agent" canProject={false} busy={false} go={noop} />);
-  expect(agent).toMatch(/^<nav class="ob-steps" aria-label="Setup steps">/);
-  expect(agent).toContain('<button type="button" class="doan-button current" data-ui-size="sm" data-ui-variant="subtle" aria-current="step">1 <span>Agent</span></button>');
-  expect(agent).toContain('<button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="ghost" disabled="">2 <span>Project</span></button>');
-  expect(renderToStaticMarkup(<SetupSteps scene="agent" canProject busy={false} go={noop} />)).toContain('data-ui-variant="ghost">2 <span>Project</span></button>');
+  expect(agent).toContain('<button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="ghost" aria-label="Buddy, completed"><span aria-hidden="true">✓</span> <span>Buddy</span></button>');
+  expect(agent).toContain('aria-current="step">2 <span>Agent</span></button>');
+  expect(agent).toContain('<button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="ghost" disabled="">3 <span>Project</span></button>');
+  expect(renderToStaticMarkup(<SetupSteps scene="agent" canProject busy={false} go={noop} />)).toContain('data-ui-variant="ghost">3 <span>Project</span></button>');
   const project = renderToStaticMarkup(<SetupSteps scene="project" canProject busy={false} go={noop} />);
+  expect(project).toContain('aria-label="Buddy, completed"><span aria-hidden="true">✓</span> <span>Buddy</span></button>');
   expect(project).toContain('<button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="ghost" aria-label="Agent, completed"><span aria-hidden="true">✓</span> <span>Agent</span></button>');
-  expect(project).toContain('aria-current="step">2 <span>Project</span></button>');
-  expect(renderToStaticMarkup(<SetupSteps scene="project" canProject busy go={noop} />)).toMatch(/aria-label="Agent, completed" disabled=""/);
+  expect(project).toContain('aria-current="step">3 <span>Project</span></button>');
+  const busy = renderToStaticMarkup(<SetupSteps scene="project" canProject busy go={noop} />);
+  expect(busy).toMatch(/aria-label="Buddy, completed" disabled=""/);
+  expect(busy).toMatch(/aria-label="Agent, completed" disabled=""/);
 });
-
 
 test("a provider row: mark, name, account line and its sm button; Connected is disabled with its accessible name", () => {
   const html = renderToStaticMarkup(<ProviderRow view={{ ...base, detail: "ada@example.com", button: { command: "signIn", label: "Connected", variant: "prominent", disabled: true, ariaLabel: "Connected to Claude Code" } }} run={noop} />);
@@ -577,11 +596,11 @@ test("the steps scroll as one full-width surface around the 560px column, with t
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toMatch(/\.ob-scroll \{[^}]*flex: 1; min-height: 0;[^}]*overflow-y: auto; overscroll-behavior: contain;/);
-  // The column no longer scrolls itself; it is at least the surface's height, so Welcome stays centred.
+  // The column no longer scrolls itself; it is at least the surface's height, so Welcome's photo fills the rest.
   const scene = css.match(/\n\.ob-scene \{[^}]*\}/)![0];
   expect(scene).toContain("flex: 1 0 auto;");
   expect(scene).not.toContain("overflow");
-  expect(css).toMatch(/\.ob-welcome-main \{ flex: 1;[^}]*justify-content: center;/);
+  expect(css).toMatch(/\.ob-welcome-main \{ flex: 1;/);
 });
 
 test("first run's cloning says why Back and the steps wait", () => {

@@ -1,7 +1,8 @@
 # Buddies
 
-Doany and four friends, one asset set each. The feature plan is `docs/features/buddy-choice/`; drafts are
-`.doan/canvases/buddy-accent.html` and `.doan/canvases/buddy-choice.html`.
+Doany and four friends, one asset set each. The app's copies and how they were made are in
+`app/src/renderer/public/doany/README.md`; drafts are `.doan/canvases/buddy-accent.html`, `buddy-choice.html`,
+`buddy-home.html`, `buddy-assets.html`, `buddy-welcome.html` and `buddy-installer.html`.
 
 | id | Name | Colour | Accessory |
 |---|---|---|---|
@@ -29,7 +30,9 @@ Doany's equivalent of each file is in brackets.
 | `artist-rest.png` | 512² RGBA, first frame of `artist.gif` [`artist/rest.png`] | done |
 
 Rig numbers (eye centres and radii, body and accessory pivots, accessory tilt range, hop scale; Doany's are in
-`../doany/v2/README.md`) go in this README per buddy once the layers exist.
+`../doany/v2/README.md`) are in this README per buddy. `motion-preview.js` is the motion draft for all five (shaders,
+rig numbers and time model): `buddy-assets.html` previews it, and `app/scripts/doanyGolden.mjs` regenerates the app's
+golden from it.
 
 ## Provenance
 
@@ -265,11 +268,10 @@ This preserves the original still's coordinates rather than using the card coord
 The shadow's exposed-floor fit RMS is `.012665` alpha; its nonzero bounds are `(9, 1048)–(1200, 1250)` (exclusive).
 Extraction script and measurements are local in `.scratch/buddy-assets/`; the maintainer approved it.
 
-## Next: transparent still and layers (per friend)
+## How the friends' layers were made
 
 Done the way Doany V2's layers were (`../doany/v2/README.md`, `../doany/v2/layer-prompts.json`), with the image
-generation tool, from `card.png` as the only reference, and the way Puri's were (above), whose layers are approved.
-Dungdung, Popo and Dori now have layers ready for human review.
+generation tool, from `card.png` as the only reference, Puri first (above), then the other three the same way.
 
 1. `still.png`: the same character, pose, size and position as `card.png` on a 1254² transparent canvas, without
    the contact shadow or the white. Do not regenerate, recolour, reshape or recentre the character.
@@ -288,20 +290,7 @@ Dungdung, Popo and Dori now have layers ready for human review.
    bottom of the alpha (y), and the alpha width 50 px above that bottom, all in UV and measured on `still.png` at
    50 % alpha. Doany's are `.458`, `.941`, `.447` (from `../doany/v2/doany.png`).
 
-Checks before handing back: all four PNGs are 1254² RGBA; `body.png` + `accessory.png` composited match `still.png`
+Checks: all four PNGs are 1254² RGBA; `body.png` + `accessory.png` composited match `still.png`
 outside the eyes within 1 px at the alpha edge; the eyes are fully gone from `body.png`, and each eye area matches
 the ring around it (mean luminance within 2 %, texture contrast ratio .85–1.15, as Puri's eye fill was checked);
 no shadow or white remains in still, body or accessory; `shadow.png` holds only black with alpha.
-Do not edit app code, `tokens.css` or other buddies' files. Canvases to update as layers land:
-
-- `.doan/canvases/buddy-home.html`: switch the friend's slot as Puri's was: drop `card-stand-in` from its `.doany`
-  button, point the still `img` at `../assets/buddies/<id>/still.png`, and add
-  `<img class="buddy-shadow-image" src="../assets/buddies/<id>/shadow.png" alt="" aria-hidden="true"/>` before it.
-  Add Doany's shadow the same way once `doany/shadow.png` exists. The picker cards in `buddy-choice.html` keep
-  `card.png`.
-- `.doan/canvases/buddy-assets.html`: add the buddy to `BUDDIES` in `motion-preview.js` (layer paths, eyes, radius,
-  shine, accessory pivot, tilt range, lift scale), give its frame live slots like Puri's (the still must be the
-  slot's first `img`, then the shadow, then the canvas; `--contact-x`/`--contact-y` on the slot), and turn its
-  pending tiles into the new files. Add Doany's shadow slot and tile when it exists.
-
-The hand-off (branch, commits, checks) is in `docs/features/buddy-choice/tasks.md` 'Codex 워커 인계'.

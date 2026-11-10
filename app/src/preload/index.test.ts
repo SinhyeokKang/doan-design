@@ -399,6 +399,12 @@ test("a dropped item's disk path is read in the preload; one the page made itsel
   expect(mocks.invoke).not.toHaveBeenCalled();
 });
 
+// The existing-user buddy screen: main decided it at launch; closing it releases first run's lock.
+test("buddy screen calls use fixed channels and carry no data", async () => {
+  await api.readBuddyIntro(); expect(mocks.invoke).toHaveBeenLastCalledWith("buddy-intro:read");
+  await api.closeBuddyIntro(); expect(mocks.invoke).toHaveBeenLastCalledWith("buddy-intro:close");
+});
+
 // the Settings page and the Project Settings page live in the main window.
 test("settings page calls use fixed channels and pass their requests as data", async () => {
   const calls: [() => Promise<unknown>, unknown[]][] = [

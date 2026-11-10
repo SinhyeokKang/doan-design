@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
-// Doany's controller: the draft's shell flow from .doan/assets/doany/motion/mascot.js (MIT, Doan
+// The buddy's controller: the draft's shell flow from .doan/assets/buddies/motion-preview.js (MIT, Doan
 // contributors) with every DOM and WebGL dependency injected, so node tests can drive it with fakes.
 // Doany.tsx supplies the real WebGL target, observers and listeners.
-import { advance, canvasSize, hop, initialState, pointer, pose, reducedChanged, typing, type Pose, type Rect } from "./doanyMotion";
+import { advance, canvasSize, hop, hopLift, initialState, pointer, pose, reducedChanged, typing, type Pose, type Rect } from "./doanyMotion";
 
 export interface DoanyTarget {
   draw(pose: Pose): void;
@@ -20,6 +20,8 @@ export interface DoanyView {
   shown(): boolean;
   documentHidden(): boolean;
   setState(state: string): void;
+  // 0 on the floor to 1 at the hop's apex; the floor shadow outside WebGL follows it. The rig never touches the DOM.
+  setLift(lift: number): void;
   showCanvas(): void;
   showStatic(): void;
 }
@@ -55,6 +57,7 @@ export function createDoanyRig(deps: {
     state.mode = drawn.mode;
     view.setState(drawn.mode);
     target.draw(drawn);
+    view.setLift(hopLift(drawn));
   }
   function resize() {
     target.resize(canvasSize(view.width(), view.dpr()));
@@ -91,7 +94,8 @@ export function createDoanyRig(deps: {
       target.release();
     },
   };
-  const offLost = target.onLost(() => { view.showStatic(); view.setState("static"); });
+  // The still image stands on the floor, so its shadow is at rest.
+  const offLost = target.onLost(() => { view.showStatic(); view.setState("static"); view.setLift(0); });
   const disconnect = deps.connect(rig);
   deps.textures.then(() => {
     if (disposed) return;

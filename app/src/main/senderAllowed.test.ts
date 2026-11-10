@@ -30,6 +30,8 @@ const mainOnly = [
   "pointer:get",
   // Move to Trash and Export from the sidebar's canvas row menu.
   "canvas:trashPlan", "canvas:trash", "canvas:export", "canvas:revealExport",
+  // The existing-user buddy screen; Settings is locked while it shows.
+  "buddy-intro:read", "buddy-intro:close",
 ];
 const setupAndAuth = ["setup:open-external", "setup:open-install",
   "agent-auth:read", "agent-auth:check", "agent-auth:sign-in", "agent-auth:cancel", "agent-auth:submit-code", "agent-auth:open-link", "agent-auth:sign-out",
