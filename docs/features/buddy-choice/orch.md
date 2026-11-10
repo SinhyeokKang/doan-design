@@ -1,0 +1,37 @@
+# 버디 선택 — orchestrate
+
+- 계획: [tasks.md](./tasks.md) 2·3단계와 4.1. 근거 문서: [spec.md](./spec.md), [design.md](./design.md).
+- 시작 hash: `72a68b57` (origin/develop와 같음)
+- 통합 브랜치: `feat/buddy-choice` (lead가 만들었다. conductor는 브랜치를 만들거나 바꾸지 않는다)
+- 워커 worktree: `--worktree new-child --base-branch feat/buddy-choice`
+
+## 결정 로그
+
+- lead 브리프로 받은 결정(다시 묻지 않음): golden 정본 `.doan/assets/buddies/motion-preview.js`와 생성기 `app/scripts/doanyGolden.mjs`, broken notice는 버디 화면 셋 모두, 기존 사용자용 버디 화면은 첫 실행처럼 잠그고 `buddy` 키가 없을 때만 띄움, `.side .row`는 violet 예외로 둠, `/design-sync` 대상은 Welcome·Buddy 단계·기존 사용자용 버디 화면·Settings General, 3.7의 무서명 dmg 명령은 그 확인에만 승인, Welcome 사진은 상한 없이 커짐, 다크 모드 설치 디스크 라벨은 안 보여도 됨.
+- 모델: 구현 워커는 Claude. 독립 리뷰 워커(`/code-review`)만 Codex `gpt-6.1-sol`로 돌리고 보고만 한다(사용자가 허락한 유일한 교차).
+- B를 A와 병렬로 돌린다 — conductor 판단. B가 고치는 파일은 A와 겹치지 않는다. B가 A에 기대는 것은 `data-buddy` 속성 이름뿐이고, 이 이름은 design.md에 이미 정해져 있다. 3.4의 `/runtime-test`(`--buddy-9` 계산값)만 A 통합 뒤로 미룬다.
+- `--hop-lift: 0`(`styles.css` `:root`)은 C가 쓴다 — conductor 판단, design.md '리그 일반화'. C는 A 통합 뒤에 시작하므로 `styles.css`가 겹치지 않는다.
+- 4.1(승격과 삭제)은 conductor가 통합 뒤 직접 한다(문서 커밋).
+
+## 배치
+
+| 배치 | task | 소유 파일 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
+|---|---|---|---|---|---|---|
+| A | 2.1, 2.2, 2.3 | `tokens.css`, `styles.css`의 role·accent 규칙, `ds/controls.css`, `ds/checks.ts`·`ds/checks.test.ts` | 없음 | Opus high — 대비 검사 일반화와 Accent places 배정을 판단해야 하고, 틀리면 모든 화면 색이 틀린다 | `npm --prefix app test`, typecheck, 2.3 `/runtime-test` | 대기 |
+| B | 3.1, 3.4 | `buddies.ts`, `preferences.ts`, `onboardingScene.ts`, `settingsSections.ts`, `index.ts`(창 쿼리), `App.tsx`의 `data-buddy` 적용과 그 테스트 | 없음(3.4 runtime 확인만 A 뒤) | Opus high — preferences 읽기 규칙 예외, 첫 페인트, 저장 응답 순서는 회귀 이력이 있는 영역이다 | `npm --prefix app test`, typecheck | 대기 |
+| C | 3.2, 3.3 | `public/buddies/<id>/`·`public/buddies/eye.png`·`public/buddies/doany/`, `public/doany/README.md`, `Doany.tsx`(→ Buddy), `doanyRig.ts`, `doanyMotion.ts`, `doany.golden.json`, `app/scripts/doanyGolden.mjs`, `doany*.test.ts(x)`, `.doan/assets/buddies/motion-preview.js`, `styles.css` `:root`의 `--hop-lift`와 그림자 규칙 | A, B | Opus high — 셰이더 템플릿, golden 생성기, 텍스처 계약 순서까지 바이트 단위로 맞춰야 한다 | test, build, golden 재생성 무차이, `/runtime-test` 녹화(사람 확인) | 대기 |
+| D | 3.5, 3.6 | `Onboarding.tsx`, `Onboarding.test.tsx`, Settings 페이지, `ShellSidebar.tsx`, `CanvasAgent.tsx`, `HomeComposerView.tsx`, `styles.css`의 Welcome·선택 카드 규칙, `public/buddies/group/`, `public/onboarding-grain.svg`(삭제), `ds/checks.test.ts`의 `violetAllowed`, 기존 사용자용 화면의 main 판단·잠금 경로 | C | Opus high — 화면이 가장 많고 잠금·포커스·저장 실패 상태가 얽혀 있다 | test, typecheck, `/design-sync` 4화면, `/runtime-test` | 대기 |
+| E | 3.7 | `app/resources/installer-background*.png`, `app/package.json` `build.dmg` | 없음 | Sonnet medium — 캔버스 배경을 내보내고 좌표를 바꾸는 기계적 작업이다 | 크기 확인, 무서명 dmg 스크린샷 | 대기 |
+| 리뷰 | 배치마다 | 보고만 | 배치 완료 | Codex `gpt-6.1-sol` — A·B·E는 medium, C·D는 high(diff가 크고 단계가 많다) | 🔴 0 | — |
+| 4.1 | 4.1 | PRODUCT, ARCHITECTURE, AGENTS 'Commands', BACKLOG, DESIGN, DIRECTORY, 두 README, 이 디렉터리 삭제 | 전부 | conductor | `rg` 0건, verify 통과 | 대기 |
+
+## 겹침과 순서
+
+- 1차: A, B, E 병렬(파일 겹침 없음).
+- 2차: C — A·B 통합 뒤(`styles.css`, 레지스트리).
+- 3차: D — C 통합 뒤(`styles.css`, `ds/checks.test.ts`, `CanvasAgent`·Home이 `Buddy` 컴포넌트를 씀).
+- GUI probe(`/runtime-test`, `/design-sync`)는 한 번에 한 워커만 돌린다. 1차에서는 A의 2.3만 GUI를 쓴다. E의 dmg 확인은 A의 2.3과 겹치지 않게 conductor가 순서를 정한다.
+
+## 검토와 통합 기록
+
+(진행하며 적는다)
