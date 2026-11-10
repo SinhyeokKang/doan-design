@@ -46,3 +46,4 @@
 - B 리뷰(Claude)는 🔴 0·🟡 2·❓ 1이었다. `04da0380`·`85993966`을 `e43f7eb1`·`e44e6614`로 통합했다. ❓(기존 사용자용 버디 화면의 main 판단·IPC·잠금 담당)는 B 2라운드에 맡겼다 — conductor 판단, B가 `index.ts`와 preferences를 소유한다. App 잠금 연결과 App 테스트 16개의 스텁 한 줄도 B가 한다.
 - 통합 HEAD `e44e6614`(A·B·E)에서 `verify.mjs`가 PASS다.
 - C `ctx_6790d806da1a`(`buddy-rig`)를 띄웠다. 미뤄 둔 3.4 `/runtime-test`를 C가 먼저 돌려 통과했다. 콘텐츠가 처음 그려지는 rAF에서 `data-buddy`와 `--buddy-9`가 저장된 버디(popo, dori) 값이었고, 첫 로드와 재로드 모두 같았다.
+- `public/buddies/`는 손실 없는 PNG로 두고 크기 상한을 3 MB에서 5 MB로 올린다 — 사용자 결정. oxipng를 적용해도 4.90 MB였다. pngquant 안(2.03 MB, PSNR 44–52 dB)은 쓰지 않는다. 4.1에서 BACKLOG·DESIGN에 반영할 것은 없다.
