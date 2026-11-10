@@ -19,11 +19,11 @@ Doany's equivalent of each file is in brackets.
 | File | What | State |
 |---|---|---|
 | `card.png` | 1254² RGB, white with a soft contact shadow: the selection-card picture | friends: the supplied drafts as they are; Doany: generated card, approved (below) |
-| `still.png` | 1254² RGBA, transparent, no shadow: the still and WebGL fallback [`../doany/v2/doany.png`] | Puri: approved; Dungdung: ready for review |
-| `body.png` | 1254² RGBA, same coordinates, eyes and accessory removed, hidden body restored [`v2/body.png`] | Puri: approved; Dungdung: ready for review |
-| `accessory.png` | 1254² RGBA, same coordinates, accessory only [`v2/hat.png`] | Puri: approved; Dungdung: ready for review |
-| `shadow.png` | 1254² RGBA, same coordinates, only the card's contact shadow: black, alpha from how much it darkens the white, completed under the body [Doany's lives here too, as `doany/shadow.png`] | Puri: approved; Doany: ready for review; other friends: to do |
-| `prompts.json` | generation prompts, in the form of `v2/layer-prompts.json` | Puri: approved; Dungdung: ready for review |
+| `still.png` | 1254² RGBA, transparent, no shadow: the still and WebGL fallback [`../doany/v2/doany.png`] | Puri: approved; Dungdung, Popo and Dori: ready for review |
+| `body.png` | 1254² RGBA, same coordinates, eyes and accessory removed, hidden body restored [`v2/body.png`] | Puri: approved; Dungdung, Popo and Dori: ready for review |
+| `accessory.png` | 1254² RGBA, same coordinates, accessory only [`v2/hat.png`] | Puri: approved; Dungdung, Popo and Dori: ready for review |
+| `shadow.png` | 1254² RGBA, same coordinates, only the card's contact shadow: black, alpha from how much it darkens the white, completed under the body [Doany's lives here too, as `doany/shadow.png`] | Puri: approved; Doany and other friends: ready for review |
+| `prompts.json` | generation prompts, in the form of `v2/layer-prompts.json` | Puri: approved; Dungdung, Popo and Dori: ready for review |
 | `artist.gif` | 512², 8 frames, 2.2 s: the working-notice painter, frames aligned (below) [`../doany/artist/painting.gif`] | done |
 | `artist-original.gif` | the painter GIF as supplied | kept |
 | `artist-rest.png` | 512² RGBA, first frame of `artist.gif` [`artist/rest.png`] | done |
@@ -183,6 +183,43 @@ CPU motion verification checks 735,160 poses against the actual alpha hulls, ret
 This is an asset transform check, not app WebGL parity. Scripts, generation sources and measurements remain in
 `.scratch/buddy-assets/popo/` and the shared scripts in `.scratch/buddy-assets/`.
 
+## Dori layers and rig
+
+`dori/still.png`, `body.png`, `accessory.png` and `shadow.png` are 1254² RGBA. Built-in image_gen made three
+edits (still, body, accessory); `dori/prompts.json` preserves the prompts. The generated still guides the
+transparent silhouette while the supplied card's visible pixels preserve its colour and yarn. Small internal
+alpha holes are filled (including the plush behind Popo's lenses). The generated accessory guides a source-pixel
+extraction; the generated body restores the hidden plush and the eye windows. ImageMagick matches eye-window
+colour and yarn contrast to the surrounding ring, with a compact transition. Accessory contact imprints are
+removed from the body; exposed boundary pixels are retained. Dori uses the generated scarf-free body
+throughout to avoid retaining the scarf's light upper seam; its eye windows are then matched to the surrounding
+reconstructed plush. The supplied card and artist files are unchanged.
+The black-alpha shadow is extracted from white darkening on the exposed floor and completed smoothly beneath
+the body; shadow generation count is zero. Human visual approval is pending.
+
+| Rig value | Dori |
+|---|---|
+| Eye centres, left / right | `.424,.364` / `.563,.365` |
+| Measured eye radii, left / right | `.027,.045` / `.027,.045` |
+| Shared shader eye radius | `.027,.045` |
+| Eye highlight y | `.337` |
+| Gaze offset / body skew | `.018, .014` / `.018` |
+| Body / accessory pivot | `.5, .60` / `.51,.535` |
+| Scale / neutral vertical offset / still padding | `1.34` / `.10` / `16.5%` |
+| Accessory tilt range (radians) / hop multiplier | `[-0.02, 0.02]` / `.65` |
+| Ground contact x / y / width | `.504` / `.888` / `.463` |
+
+Measurements use the same opaque dark-eye component and 50 % alpha ground sampling as Puri. The shared eye
+radius and centres agree with the still within `.003` UV. Body + accessory matches the still's alpha boundary
+within 1 source px outside the eyes. Neither body eye contains a dark eye pixel. Eye checks: left 0.1653% mean luminance difference, texture ratios 1.018/1.012/1.016; right 0.4629% mean luminance difference, texture ratios 0.981/0.979/0.974.
+Texture ratios are high-pass RMS at Gaussian sigma 1/2/4 px; each eye's measuring ellipse adds 22/28 px to the
+eye's measured x/y radii, with the surrounding ring at 1.25–1.5 times that ellipse. Mean luminance uses linear-light
+Rec.709 weights, relative to the ring. The eyes are measured after the final composite.
+CPU motion verification checks 735,160 poses against the actual alpha hulls, retaining at least
+8.43 device px inside Home's 228 px buffer (10.58 in 286 px).
+This is an asset transform check, not app WebGL parity. Scripts, generation sources and measurements remain in
+`.scratch/buddy-assets/dori/` and the shared scripts in `.scratch/buddy-assets/`.
+
 ## Doany shadow
 
 `doany/shadow.png` is 1254² RGBA, black RGB only. It was extracted from `doany/card.png` as the amount the exposed
@@ -197,7 +234,7 @@ Extraction script and measurements are local in `.scratch/buddy-assets/`; human 
 
 Done the way Doany V2's layers were (`../doany/v2/README.md`, `../doany/v2/layer-prompts.json`), with the image
 generation tool, from `card.png` as the only reference, and the way Puri's were (above), whose layers are approved.
-Dungdung, Popo and Dori remain.
+Dungdung, Popo and Dori now have layers ready for human review.
 
 1. `still.png`: the same character, pose, size and position as `card.png` on a 1254² transparent canvas, without
    the contact shadow or the white. Do not regenerate, recolour, reshape or recentre the character.
