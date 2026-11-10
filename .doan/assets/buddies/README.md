@@ -193,11 +193,24 @@ This is an asset transform check, not app WebGL parity. Scripts, generation sour
 
 Source-pixel check: exclude positive accessory alpha dilated by a Euclidean 2 px disk and the eye edit
 ellipses (1.2 times the measuring windows). Of 657,108 opaque still pixels (alpha ≥ 250),
-100% match exactly in RGB and alpha, with maximum channel difference 0; the gate is ≤ 8 for at least 99.5%.
+99.99635% match exactly in RGB and alpha; the gate is ≤ 8 for at least 99.5%. The 24 exceptions remove
+the uncovered lens stroke (maximum difference 191); the 99.5th-percentile difference remains 0.
 Final correction scripts, source-match, eye/alpha checks, CPU hull results and browser pose comparisons are in
 `.scratch/buddy-assets/body-fixes/popo/` and its parent directory.
 The original large-ring comparison is retained as frame-cast-shadow-affected, not the approved eye gate:
-left 12.9224% luminance difference and texture ratios 1.094/1.161/1.169; right 5.5179% luminance difference and texture ratios 1.041/1.073/1.061.
+left 12.9224% luminance difference and texture ratios 1.094/1.161/1.169; right 5.5125% luminance difference and texture ratios 1.044/1.079/1.077.
+
+
+The right opening's inner-left dark stroke is refilled from the existing reconstructed plush, including both
+ends; this lens correction uses zero new image generations. It changes 1262 source pixels, leaves alpha
+identical, and leaves every pixel outside its compact correction mask untouched. The targeted dark component
+falls from 499 pixels to zero. The surrounding frame cast shadow is retained.
+The lens-interior gate uses linear Rec.709 luminance smoothed by Gaussian sigma 3 px, evaluated in the two
+lens openings after excluding the frame and its 12 px cast-shadow band. Each remaining smoothed pixel must
+be at least 75% of its approved plush-ring mean. The 22651/22322 checked left/right pixels contain zero failures;
+minimum ratios are `.780997` / `.820639`. Raw-pixel minima and counts remain reference-only, since yarn grooves
+and the rim shadow naturally fall below that bound. Final before/after detail images, raw figures, approved
+lens gate, eye checks and pixel matches are local in `.scratch/buddy-assets/popo-lens-fix/`.
 
 
 ## Dori layers and rig
