@@ -19,7 +19,7 @@ AGENTS.md 'Commands'에 없는 확인 명령(`file`, `rg`, 측정 스크립트)�
 - [x] **1.5 정지 이미지·레이어 PoC (Codex 워커, puri).** 투명 `still.png`, `body.png`, `accessory.png`, 카드에서 떼어 낸 `shadow.png`, `prompts.json`을 만들고 README에 리그 수치와 접지 수치를 적었다. still·body·accessory에는 그림자가 없다. 눈 자리 채움은 한 번 다시 했다(주변과 밝기 차 2% 이내, 질감 대비 비율 .85–1.15).
   - 확인: 네 장 모두 1254² RGBA다. `body.png` 위에 `accessory.png`를 합성한 그림이 눈 영역을 빼면 `still.png`와 알파 경계에서 1px(1254² 기준) 안에서 맞는다. 눈 중심과 반지름은 `still.png`의 눈과 UV `.003` 안에서 맞는다. 측정 스크립트와 결과는 워커의 `.scratch/buddy-assets/`에 있다. 사람이 `buddy-assets`의 모션 미리보기로 확인했다(생성 4회).
 - [ ] **1.6 나머지 셋과 Doany 그림자 (Codex 워커).** dungdung, popo, dori도 1.5와 같은 방법으로 `shadow.png`까지 만든다. 목도리와 헤드폰은 소품 기울기 범위를 줄이고, 안경은 0으로 둔다. Doany의 `shadow.png`도 새 카드에서 떼어 낸다. `buddy-home`과 `buddy-assets` 캔버스에 반영한다.
-  - 확인: 1.5와 같다. 버디 4개의 이미지 용량 합을 재서 사람에게 보고하고, 해상도를 줄일지 묻는다.
+  - 확인: 1.5와 같다. 소품과 눈 자리를 뺀 곳에서 body가 still과 같다(채널 차 8 이하가 불투명 픽셀의 99.5% 이상). 친구 4명의 레이어 16장은 14.7 MB였고, 사람이 앱 사본을 줄이기로 했다(3.2).
   - ⎯ 커밋: 버디마다 `docs(design): <id> buddy layers`, Doany는 `docs(design): doany buddy shadow`
 
 - [x] **1.7 Welcome·설치 디스크 초안.** `.doan/canvases/buddy-welcome.html`(Bottom bleed, 780·600)과 `buddy-installer.html`(사진·아이콘 가로 배열·문장)을 그렸고, 사람이 두 안을 확정했다. 단체 사진은 `.doan/assets/buddies/group/`에 있다.
@@ -61,7 +61,7 @@ AGENTS.md 'Commands'에 없는 확인 명령(`file`, `rg`, 측정 스크립트)�
   - `settingsSections.ts` `general`.
   - 확인: `npm --prefix app test`가 통과한다(새 테스트가 먼저 red였다).
   - ⎯ 커밋: `feat(app): buddy registry and preference`
-- [ ] **3.2 에셋.** 친구 4명의 앱 사본(1.4, 1.6, `shadow.png` 포함), Doany의 `shadow.png`, 다섯 버디의 `card.png` 앱 사본(588²)을 `public/buddies/<id>/`에 넣는다. Doany의 `public/doany/`는 옮기지 않는다. `public/doany/README.md`에 `public/buddies/` 출처를 함께 적는다. 레지스트리의 모든 에셋 경로가 실제로 있는지 확인하는 테스트를 넣는다.
+- [ ] **3.2 에셋.** 친구 4명의 앱 사본(1.4, 1.6의 still·body·accessory·shadow를 512²로 줄인 것), Doany의 `shadow.png`(512²), 다섯 버디의 `card.png` 앱 사본(588²)을 `public/buddies/<id>/`에 넣는다. Doany의 `public/doany/`는 옮기지 않는다. `public/doany/README.md`에 `public/buddies/` 출처를 함께 적는다. 레지스트리의 모든 에셋 경로가 실제로 있는지 확인하는 테스트를 넣는다.
   - 확인: `npm --prefix app run build`, `npm --prefix app test` 전체, `doan check --json --repo .`가 통과한다.
   - ⎯ 커밋: `feat(app): buddy assets`
 - [ ] **3.3 리그 일반화.** 셰이더 소스 템플릿에 버디별 수치를 문자열로 넣어 버디마다 컴파일한다. `Doany`를 `Buddy`(prop `buddy`, `key={buddy}`로 다시 마운트)로 바꾸고, 버디별 기울기 범위와 홉 배율을 적용한다. 바닥 그림자(버디별 `shadow.png` 레이어, 접지점 기준 축소, 리그가 쓰는 `--buddy-lift`)를 넣는다.

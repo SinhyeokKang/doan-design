@@ -41,7 +41,7 @@ Doany 에셋 목록(현재):
 리그 수치, 소스 박스, 검증 결과는 버디별 파일이 아니라 .doan/assets/buddies/README.md에 버디마다 적는다.
 
 app/src/renderer/public/buddies/<id>/   친구 앱 사본
-  still.png  body.png  accessory.png  shadow.png   (원본과 같은 바이트)
+  still.png  body.png  accessory.png  shadow.png   (원본 1254²를 512²로 줄인 것)
   card.png                             (588², 선택 카드에 196px로 그리는 크기의 3배)
   artist.gif  artist-rest.png          (소스 박스로 자르고 128²로 줄인 것, Doany와 같은 방법)
 public/buddies/doany/card.png  shadow.png   Doany 카드와 그림자 앱 사본만 여기 둔다
@@ -51,7 +51,7 @@ public/buddies/doany/card.png  shadow.png   Doany 카드와 그림자 앱 사본
 - Doany 원본(`.doan/assets/doany/`)은 V1 기록까지 함께 있어서 옮기지 않는다.
 - 받은 artist GIF는 2~5번 프레임에서 캐릭터와 이젤의 크기와 위치가 달라 흔들린다(dungdung에서 몸통이 약 10 px 이동). 캐릭터와 이젤을 따로 첫 프레임에 맞춰(축척 + 이동) 다시 만들고, 원본은 `artist-original.gif`로 남긴다.
 - 몸통 레이어와 소품 레이어 하나, 그리고 셰이더가 그리는 눈이라는 구조는 네 친구에게도 그대로 맞는다. 안경(popo)은 소품 레이어가 눈 위에 그려지므로 렌즈 안에서 눈이 깜박인다. 목도리(dori)와 헤드폰(dungdung)은 몸통 앞을 감싸는 소품이라 흔들림 범위를 줄이고, 안경은 기울면 렌즈와 눈이 어긋나므로 기울기 범위를 0으로 둔다(리그 수치).
-- 용량: Doany 이미지 3장은 3.9 MB다. 친구 4명을 같은 1254² 크기로 넣으면 앱이 약 16 MB 커진다. 리그 좌표는 크기와 무관한 UV라 해상도를 낮춰도 수치는 그대로다. 1단계 마지막에 크기를 재고, 줄일지는 그 결과를 보고 사람에게 묻는다(tasks 1.6).
+- 용량: 친구 4명의 원본 레이어 16장은 14.7 MB다(1254²). 앱 사본은 512²로 줄인다(약 2.5 MB 예상). Home 슬롯의 WebGL 버퍼는 최대 228px(2배 밀도)이라 512²면 두 배 이상 여유가 있다. 리그 좌표와 `doanyRender.test.ts`의 검사는 크기와 무관한 UV라 수치는 그대로다. 원본(`.doan/assets/buddies/`)은 1254²로 둔다. Doany 앱 사본(`public/doany/`)은 golden trace와 기존 테스트가 읽으므로 이번에 줄이지 않는다.
 
 ## 버디 레지스트리
 
