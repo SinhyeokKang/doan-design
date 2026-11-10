@@ -157,15 +157,16 @@ Final correction scripts, source-match, eye/alpha checks, CPU hull results and b
 
 ## Popo layers and rig
 
-`popo/still.png`, `body.png`, `accessory.png` and `shadow.png` are 1254² RGBA. Built-in image_gen made three
-edits (still, body, accessory); `popo/prompts.json` preserves the prompts. The generated still guides the
-transparent silhouette while the supplied card's visible pixels preserve its colour and yarn. Small internal
-alpha holes are filled (including the plush behind Popo's lenses). The generated accessory guides a source-pixel
-extraction; the generated body restores the hidden plush and the eye windows. ImageMagick matches eye-window
-colour and yarn contrast to the surrounding ring, with a compact transition. Accessory contact imprints are
-removed from the body; exposed boundary pixels are retained. The supplied card and artist files are unchanged.
-The black-alpha shadow is extracted from white darkening on the exposed floor and completed smoothly beneath
-the body; shadow generation count is zero. Human visual approval is pending.
+`popo/still.png`, `body.png`, `accessory.png` and `shadow.png` are 1254² RGBA. Three initial image_gen edits
+(still, body, accessory) are recorded in `popo/prompts.json`. The body now keeps the still's exposed pixels and
+cast shading outside the accessory and eye edit windows. Existing reconstructed plush is used only beneath
+the accessory and in the eyes, with a one-pixel compact accessory feather and local colour matching; its yarn
+texture is not substituted across the exposed body. Source cast shadows are preserved rather than redrawn.
+The supplied still, accessory, shadow, card and artist files are unchanged by this body correction.
+This correction uses the existing reconstructed plush with no new generation. Eye fills use unshadowed plush
+for their comparison ring: exclude the glasses alpha and its surrounding 12 px (2663/2082 left/right samples).
+The frame's real soft shadow outside the rims remains exactly as in the still.
+The black-alpha ground shadow remains the extracted card shadow. Human visual approval is pending.
 
 | Rig value | Popo |
 |---|---|
@@ -181,7 +182,7 @@ the body; shadow generation count is zero. Human visual approval is pending.
 
 Measurements use the same opaque dark-eye component and 50 % alpha ground sampling as Puri. The shared eye
 radius and centres agree with the still within `.003` UV. Body + accessory matches the still's alpha boundary
-within 1 source px outside the eyes. Neither body eye contains a dark eye pixel. Eye checks: left 0.7692% mean luminance difference, texture ratios 0.971/1.024/1.044; right 0.8100% mean luminance difference, texture ratios 0.961/0.990/0.989.
+within 1 source px outside the eyes. Neither body eye contains a dark eye pixel. Eye checks: left 0.3042% mean luminance difference, texture ratios 0.896/0.956/0.991; right 0.4138% mean luminance difference, texture ratios 0.852/0.899/0.905.
 Texture ratios are high-pass RMS at Gaussian sigma 1/2/4 px; each eye's measuring ellipse adds 22/28 px to the
 eye's measured x/y radii, with the surrounding ring at 1.25–1.5 times that ellipse. Mean luminance uses linear-light
 Rec.709 weights, relative to the ring. The eyes are measured after the final composite.
@@ -189,6 +190,15 @@ CPU motion verification checks 735,160 poses against the actual alpha hulls, ret
 14.27 device px inside Home's 228 px buffer (17.90 in 286 px).
 This is an asset transform check, not app WebGL parity. Scripts, generation sources and measurements remain in
 `.scratch/buddy-assets/popo/` and the shared scripts in `.scratch/buddy-assets/`.
+
+Source-pixel check: exclude positive accessory alpha dilated by a Euclidean 2 px disk and the eye edit
+ellipses (1.2 times the measuring windows). Of 657,108 opaque still pixels (alpha ≥ 250),
+100% match exactly in RGB and alpha, with maximum channel difference 0; the gate is ≤ 8 for at least 99.5%.
+Final correction scripts, source-match, eye/alpha checks, CPU hull results and browser pose comparisons are in
+`.scratch/buddy-assets/body-fixes/popo/` and its parent directory.
+The original large-ring comparison is retained as frame-cast-shadow-affected, not the approved eye gate:
+left 12.9224% luminance difference and texture ratios 1.094/1.161/1.169; right 5.5179% luminance difference and texture ratios 1.041/1.073/1.061.
+
 
 ## Dori layers and rig
 
