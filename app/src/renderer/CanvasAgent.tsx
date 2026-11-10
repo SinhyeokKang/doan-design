@@ -10,6 +10,7 @@ import type { CanvasFrameRect } from "./canvasMessage";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import { autoCursor, dotGrid, opposingCursor, type Dot } from "./dotField";
 import { crossesBoundary, NoticeTyping, typesOn, type NoticeMoment, type TypedText } from "./noticeTyping";
+import { pickArtist, type BuddyId } from "./buddies";
 
 // The agent indicator on the board while this canvas's current conversation works or waits (PRODUCT §5 item 2 'Agent indicator',
 // .doan/canvases/doan-canvas.html 'agent-working', 'agent-waiting'). The glow and the dot field take
@@ -26,9 +27,10 @@ import { crossesBoundary, NoticeTyping, typesOn, type NoticeMoment, type TypedTe
 // work-update (draft .doan/canvases/work-update.html 'notice-states', 'notice-typing'): `doan work update` content words
 // the notice. `conversationWork` is app conversations' content (a project conversation, or a canvas conversation naming
 // another canvas, shows the indicator without Stop); `frames` is the open document's layout, for the frame's title.
-// `onWork` gets the open canvas's work for the controller's marker and following, once per change.
-export function CanvasAgent({ list, canvas, running, work, conversationWork = [], frames = null, entries, onOpen, onOpenSibling, onStopFailed, onWork, children }: {
-  list: readonly ConversationSummary[] | "loading" | "error" | undefined; canvas: WorkingCanvas | null; running: boolean; work: readonly WorkItem[];
+// `onWork` gets the open canvas's work for the controller's marker and following, once per change. `buddy` is the
+// chosen buddy, whose painter the notice shows.
+export function CanvasAgent({ list, canvas, buddy, running, work, conversationWork = [], frames = null, entries, onOpen, onOpenSibling, onStopFailed, onWork, children }: {
+  list: readonly ConversationSummary[] | "loading" | "error" | undefined; canvas: WorkingCanvas | null; buddy: BuddyId; running: boolean; work: readonly WorkItem[];
   conversationWork?: readonly ConversationWork[]; frames?: readonly CanvasFrameRect[] | null;
   entries: readonly FolderEntry[]; onOpen(): void; onOpenSibling(root: string): void; onStopFailed(text: string): void;
   onWork?(target: CanvasWorkTarget | null): void; children?: ReactNode;
@@ -75,7 +77,7 @@ export function CanvasAgent({ list, canvas, running, work, conversationWork = []
     {view && <div className="doan-agent-glow" aria-hidden="true"><DotField running={running} /></div>}
     <div className="doan-canvas-top">
       {view && <div className={action ? "doan-agent" : "doan-agent doan-agent-terminal"}>
-        <DoanyArtist still={view.steady || !running} />
+        <BuddyArtist buddy={buddy} still={view.steady || !running} />
         <WorkWords view={view} moment={moment} />
         {!action ? null : action.kind === "stop"
           // aria-disabled, not disabled: "Stopping" keeps focus.
@@ -89,7 +91,7 @@ export function CanvasAgent({ list, canvas, running, work, conversationWork = []
           14 = the tooltip's usual 4px gap plus the 10px between the 20px text line and the 40px capsule's bottom, so it
           clears the capsule instead of covering it. */}
       {sibling && <div className="doan-agent doan-agent-sibling">
-        <DoanyArtist still={!running} />
+        <BuddyArtist buddy={buddy} still={!running} />
         <Tooltip><TooltipTrigger asChild><span className="doan-agent-text" role="status">{`Agent is working in ${sibling.label}`}</span></TooltipTrigger>
           <TooltipContent side="bottom" sideOffset={14}>{`Agent is working on this canvas in ${sibling.label}`}</TooltipContent></Tooltip>
         <button type="button" className="doan-button doan-agent-action" data-ui-size="sm" aria-label={`Open this canvas in ${sibling.label}`} onClick={() => onOpenSibling(sibling.root)}>Open</button>
@@ -154,20 +156,17 @@ function WorkWords({ view, moment }: { view: AgentNoticeView; moment: NoticeMome
   </>;
 }
 
-// Doany in the notice's mark slot (.doan/canvases/doany-artist.html, doany-family.html): painting, typing or reading,
-// picked with equal odds when the notice mounts and held while it stays, so working, stopping and waiting keep one
-// Doany; the next notice picks again. A GIF cannot pause, so a still Doany is the variant's first frame: waiting, and
+// The chosen buddy in the notice's mark slot (.doan/canvases/doany-artist.html, doany-family.html, buddy-choice.html
+// 'notice'): Doany paints, types or reads, picked with equal odds when the notice mounts; a friend has its one painter.
+// The pick holds while the buddy stays, so working, stopping and waiting keep one picture; the next notice, or a change
+// of buddy while it shows, picks again. A GIF cannot pause, so a still buddy is the variant's first frame: waiting, and
 // while the workspace is hidden (the dot field pauses then too). The picture source keeps the first frame under
 // reduced motion in every state.
-const ARTIST_VARIANTS = [
-  { gif: "doany/artist-painting.gif", rest: "doany/artist-rest.png" },
-  { gif: "doany/artist-typing.gif", rest: "doany/artist-typing-rest.png" },
-  { gif: "doany/artist-reading.gif", rest: "doany/artist-reading-rest.png" },
-] as const;
-const pickArtist = () => ARTIST_VARIANTS[Math.floor(Math.random() * ARTIST_VARIANTS.length)] ?? ARTIST_VARIANTS[0];
-
-export function DoanyArtist({ still }: { still: boolean }) {
-  const [variant] = useState(pickArtist);
+export function BuddyArtist({ buddy, still }: { buddy: BuddyId; still: boolean }) {
+  const [picked, setPicked] = useState(() => pickArtist(buddy, null, Math.random));
+  const current = pickArtist(buddy, picked, Math.random);
+  if (current !== picked) setPicked(current);
+  const { variant } = current;
   return <span className="doan-agent-artist" aria-hidden="true"><picture>
     <source srcSet={variant.rest} media="(prefers-reduced-motion: reduce)" />
     <img src={still ? variant.rest : variant.gif} alt="" />

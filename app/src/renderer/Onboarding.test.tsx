@@ -45,17 +45,25 @@ test("the overlay opens with its heading focused in the same task as showModal",
 });
 
 test("the setup steps are the shell capsule drawn with sm buttons: current is aria-current, a done step shows a check and goes back", () => {
+  const buddy = renderToStaticMarkup(<SetupSteps scene="buddy" canProject={false} busy={false} go={noop} />);
+  expect(buddy).toMatch(/^<nav class="ob-steps" aria-label="Setup steps">/);
+  expect(buddy).toContain('<button type="button" class="doan-button current" data-ui-size="sm" data-ui-variant="subtle" aria-current="step">1 <span>Buddy</span></button>');
+  // Agent needs nothing to go forward from Buddy; Project needs a ready agent.
+  expect(buddy).toContain('<button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="ghost">2 <span>Agent</span></button>');
+  expect(buddy).toContain('<button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="ghost" disabled="">3 <span>Project</span></button>');
   const agent = renderToStaticMarkup(<SetupSteps scene="agent" canProject={false} busy={false} go={noop} />);
-  expect(agent).toMatch(/^<nav class="ob-steps" aria-label="Setup steps">/);
-  expect(agent).toContain('<button type="button" class="doan-button current" data-ui-size="sm" data-ui-variant="subtle" aria-current="step">1 <span>Agent</span></button>');
-  expect(agent).toContain('<button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="ghost" disabled="">2 <span>Project</span></button>');
-  expect(renderToStaticMarkup(<SetupSteps scene="agent" canProject busy={false} go={noop} />)).toContain('data-ui-variant="ghost">2 <span>Project</span></button>');
+  expect(agent).toContain('<button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="ghost" aria-label="Buddy, completed"><span aria-hidden="true">✓</span> <span>Buddy</span></button>');
+  expect(agent).toContain('aria-current="step">2 <span>Agent</span></button>');
+  expect(agent).toContain('<button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="ghost" disabled="">3 <span>Project</span></button>');
+  expect(renderToStaticMarkup(<SetupSteps scene="agent" canProject busy={false} go={noop} />)).toContain('data-ui-variant="ghost">3 <span>Project</span></button>');
   const project = renderToStaticMarkup(<SetupSteps scene="project" canProject busy={false} go={noop} />);
+  expect(project).toContain('aria-label="Buddy, completed"><span aria-hidden="true">✓</span> <span>Buddy</span></button>');
   expect(project).toContain('<button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="ghost" aria-label="Agent, completed"><span aria-hidden="true">✓</span> <span>Agent</span></button>');
-  expect(project).toContain('aria-current="step">2 <span>Project</span></button>');
-  expect(renderToStaticMarkup(<SetupSteps scene="project" canProject busy go={noop} />)).toMatch(/aria-label="Agent, completed" disabled=""/);
+  expect(project).toContain('aria-current="step">3 <span>Project</span></button>');
+  const busy = renderToStaticMarkup(<SetupSteps scene="project" canProject busy go={noop} />);
+  expect(busy).toMatch(/aria-label="Buddy, completed" disabled=""/);
+  expect(busy).toMatch(/aria-label="Agent, completed" disabled=""/);
 });
-
 
 test("a provider row: mark, name, account line and its sm button; Connected is disabled with its accessible name", () => {
   const html = renderToStaticMarkup(<ProviderRow view={{ ...base, detail: "ada@example.com", button: { command: "signIn", label: "Connected", variant: "prominent", disabled: true, ariaLabel: "Connected to Claude Code" } }} run={noop} />);

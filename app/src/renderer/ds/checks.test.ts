@@ -71,6 +71,9 @@ const violetAllowed = [
   ".doan-agent-glow",
   // Inline anchor chips in the composer field: light accent fill, dark accent ink (confirmed draft 2026-11-01).
   ".anchor-chip",
+  // The chosen buddy card in first run's Cover Flow row: its 2px ring in the accent icon colour and the Home
+  // composer's glow (buddy-choice draft).
+  ".buddy-card:has(input:checked)",
   // The dot on the folded conversation panel's open button, the sidebar slot's unseen dot (confirmed draft open-badge).
   '.doan-icon-button[data-badge="true"]::after',
   // The canvas jump highlight (chip locate, Frames drawer, Quick Open, deep link): a 3px accent gradient line drawn

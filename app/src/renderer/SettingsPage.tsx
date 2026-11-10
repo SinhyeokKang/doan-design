@@ -3,6 +3,8 @@ import { SettingsAbout } from "./SettingsAbout";
 import { SettingsAgents, type SettingsAgentsProps } from "./SettingsAgents";
 import { SettingsMcpConnectors, type SettingsMcpConnectorsProps } from "./SettingsMcpConnectors";
 import { SettingsNotifications } from "./SettingsNotifications";
+import { SettingsGeneral } from "./SettingsGeneral";
+import type { BuddySelection } from "./buddySelection";
 import { SETTINGS_SECTIONS, type settingsArrival, type SettingsSection } from "./settingsSections";
 
 // What App asks the page to focus on arrival; seq makes a repeated arrival (⌘, again) distinct.
@@ -19,11 +21,13 @@ const LEADS: Record<SettingsSection, string> = {
 // The Settings page: the shell's header and sidebar around Home's white panel, which
 // scrolls a 48rem column of the category's title, lead and sections. App owns navigation, the lock and the queue;
 // a category only reports whether it holds a confirmation or a write.
-export function SettingsPage({ header, sidebar, section, arrival, onState, agents, mcp, announcement }: {
+export function SettingsPage({ header, sidebar, section, arrival, onState, agents, buddy, mcp, announcement }: {
   header: ReactNode; sidebar: ReactNode; section: SettingsSection; arrival: SettingsArrival | null;
   onState(report: { locked: boolean }): void;
   // Notifications saves the same preferences snapshot as Agents' New conversations.
   agents: Omit<SettingsAgentsProps, "arrival" | "onLock">;
+  // General's Buddy group: App's buddy selection, shared with first run and Home.
+  buddy: BuddySelection;
   mcp?: Pick<SettingsMcpConnectorsProps, "watch" | "openAgents">;
   // Read once by the page: MCP Connectors turning into Agents while shown.
   announcement?: string | undefined;
@@ -52,6 +56,7 @@ export function SettingsPage({ header, sidebar, section, arrival, onState, agent
           <p className="settings-lead">{LEADS[section]}</p>
         </div><div className="settings-header-actions" ref={setActions} /></div>
         <div className="settings-sections">
+          {section === "general" && <SettingsGeneral key="general" preferences={agents.preferences} buddy={buddy} />}
           {section === "agents" && <SettingsAgents key="agents" {...agents} arrival={provider} onLock={onLock} />}
           {section === "mcp" && mcp && <SettingsMcpConnectors key="mcp" watch={mcp.watch} openAgents={mcp.openAgents} signIn={agents.signIn} onLock={onLock} actions={actions} />}
           {section === "notifications" && <SettingsNotifications key="notifications" preferences={agents.preferences} save={agents.save} />}

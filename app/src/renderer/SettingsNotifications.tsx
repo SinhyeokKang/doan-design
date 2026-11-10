@@ -17,9 +17,10 @@ const SAVE_FAILED = "Couldn’t save your notification choices. Your last saved 
 
 // The read-stage notice over the categories that save preferences.json: an
 // unreadable file applies defaults until the next change moves it aside; a newer one is kept and nothing is saved.
-export function preferencesNotice(notice: PreferencesSnapshot["notice"] | undefined): ReactNode {
-  if (notice === "broken") return <div className="doan-notice error settings-notice" role="alert"><AlertIcon /><span className="selectable">Doan couldn’t read its saved settings, so defaults apply.</span></div>;
-  if (notice === "newer") return <div className="doan-notice settings-notice" role="status"><AlertIcon /><span className="selectable"><strong className="ob-notice-title">These settings were saved by a newer version of Doan</strong>
+// className places it: first run's Buddy step shows the same copy as a panel notice over its row.
+export function preferencesNotice(notice: PreferencesSnapshot["notice"] | undefined, className = "settings-notice"): ReactNode {
+  if (notice === "broken") return <div className={`doan-notice error ${className}`} role="alert"><AlertIcon /><span className="selectable">Doan couldn’t read its saved settings, so defaults apply.</span></div>;
+  if (notice === "newer") return <div className={`doan-notice ${className}`} role="status"><AlertIcon /><span className="selectable"><strong className="ob-notice-title">These settings were saved by a newer version of Doan</strong>
     <span className="ob-notice-body">Defaults apply here, and changes aren’t saved. Update Doan to use them.</span></span></div>;
   return null;
 }

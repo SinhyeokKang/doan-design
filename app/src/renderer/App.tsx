@@ -4,6 +4,7 @@ import { ShellSidebar } from "./ShellSidebar";
 import { useBuddySelection } from "./buddySelection";
 import { useBuddyIntroLock } from "./buddyIntroLock";
 import type { BuddyPaint } from "./buddyPaint";
+import type { BuddyId } from "./buddies";
 import { commitVisit, emptyHistory, fallbackWorktree, historyTarget, loadedProjectRow, projectExpanded, projectsTab, reconcileProjects, selectProjectRoot, shownFolders, type Visit } from "./shellNavigation";
 import { groupToOpen, openGroup, toggleGroup, type GroupId, type ShownCanvas } from "./sidebarGroups";
 import { canvasLabel, moveExpanded } from "./canvasTree";
@@ -70,7 +71,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./comp
 import { AgentUsageButton } from "./AgentUsageButton";
 import { UpdateHeaderButton } from "./UpdateHeaderButton";
 import type { CanvasPress } from "./ComposerParts";
-import { Wizard } from "./Onboarding";
+import { BuddyIntro, Wizard } from "./Onboarding";
 import { isMainCheckout } from "./projectStep";
 import { ProjectOverview } from "./ProjectOverview";
 import { useThumbnails } from "./thumbnails";
@@ -896,6 +897,16 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
 
   // The existing-user buddy screen holds first run's lock while it is open.
   const buddyIntro = useBuddyIntroLock();
+  // The buddy screen closes over the screen restored at launch; focus goes where finishing first run puts it, the
+  // composer, when that screen is Home, else to the restored screen's own place.
+  const introClosed = useRef(false);
+  const closeBuddyIntro = () => { introClosed.current = true; buddyIntro.close(); };
+  useEffect(() => {
+    if (buddyIntro.open || !introClosed.current) return;
+    introClosed.current = false;
+    if (currentScreen.current === "home") document.querySelector<HTMLElement>(".home-shell .composer-input")?.focus();
+    else focusCurrent();
+  }, [buddyIntro.open]);
   const modal = wizard !== null || buddyIntro.open || setup !== null || quickOpen || homeRun.current.removing !== null || trashing !== null || deletingConversation !== null;
   // A locked Project Settings page holds the toast too: its Share confirmation makes the toast inert while the page
   // itself is not modal (POSTMORTEM 2026-10-25 'Native hiding bypassed
@@ -2084,7 +2095,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     memory={composerMemory} running={run.running()} restore={run.restore} start={(request, last) => run.start(request, last)} openConversation={id => run.openConversation(id)} addProjects={openAddProjects}
     defaults={preferences ? preferences.preferences.newConversation : undefined} openSettings={openSettings} onRemember={rememberPick} buddy={buddySelection.shown} />}
   {onSettings && <SettingsPage header={topBar(true)} sidebar={sidebar(true)} section={settings.section} arrival={settings.arrival} onState={settingsReport}
-    agents={{ signIn: agentSignIn(), preferences, save: savePreferences, project: settingsProject }}
+    agents={{ signIn: agentSignIn(), preferences, save: savePreferences, project: settingsProject }} buddy={buddySelection}
     mcp={{ watch: mcpWatch.current, openAgents: provider => openSettings({ section: "agents", provider }) }} announcement={settingsAnnouncement} />}
   {onProjectSettings && <ProjectSettingsPage key={projectSettings.key} header={topBar(true)} sidebar={sidebar(true)} root={projectSettings.root} entries={entries} reroot={reroot}
     origin={page.origin} homeDirectory={homeDirectory} arrival={projectSettings.arrival} onState={projectSettingsReport} onGone={() => leavePage({ kind: "gone" })}
@@ -2101,7 +2112,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     {strip}
     <CanvasPane viewport={viewport} board={board} overlay={overlay} dragLayer={dragLayer} state={state} command={command} covered={overview !== null || overlaid} overlaid={overlaid}
       zoomTo={scale => controller.current?.zoomTo(scale)} onToolbarEscape={event => controller.current?.toolbarEscape(event)} selectFrame={(index, id) => controller.current?.selectFrame(index, id)} conversation={{ open: rightPanel.open, show: () => foldPanel(true), badge: panelBadge }}
-      agent={{ list: state.open ? run.listState(state.open.folder) : undefined, canvas: workingCanvas(state.open, state.unlisted, entry), running: screen === "workspace" && overview === null, work, entries,
+      agent={{ list: state.open ? run.listState(state.open.folder) : undefined, canvas: workingCanvas(state.open, state.unlisted, entry), buddy: buddySelection.shown, running: screen === "workspace" && overview === null, work, entries,
         conversationWork, frames: state.layout?.frames ?? null, onWork: target => controller.current?.setWork(target),
         onOpen: openRequest, onOpenSibling, onStopFailed: text => toast.show(text) }}
       picking={picking} capturing={state.capturing} tool={state.tool} onTool={chooseTool} picker={{ enabled: pickerReady, reason: pickerView.reason, onToggle: pickFromCanvas }} capture={capture} exporter={exporter} />
@@ -2155,12 +2166,13 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   {trashing && <CanvasTrashDialog view={trashDialogView(canvasStem(trashing.row.path), trashing.row.path, trashing.plan, trashWorking(trashing.root, trashing.row))} cancel={closeTrash} confirm={confirmTrash} />}
   {toast.element}
   {wizard !== null && <Wizard key={wizard} session={wizard} projects={entries.map(entry => entry.path)} homeDirectory={homeDirectory}
-    mainCheckout={path => isMainCheckout(entries, path)}
+    mainCheckout={path => isMainCheckout(entries, path)} buddy={buddySelection} preferences={preferences}
     onClose={root => {
       setWizard(null);
       if (wizardCloseFocus(root) === "composer") { beforeWizard.current = null; focusComposer.current = true; live.current.home(); choose(root ?? undefined); }
       else restoreFocus.current = true;
     }} />}
+  {wizard === null && buddyIntro.open && <BuddyIntro selection={buddySelection} preferences={preferences} onClose={closeBuddyIntro} />}
   </TooltipProvider>;
 }
 
@@ -2193,7 +2205,7 @@ function TopBar({ sidebar, back, forward, previous, next, page, locked, updateDi
   </header>;
 }
 
-type AgentProps = { list: readonly ConversationSummary[] | "loading" | "error" | undefined; canvas: WorkingCanvas | null; running: boolean; work: readonly WorkItem[]; entries: readonly FolderEntry[];
+type AgentProps = { list: readonly ConversationSummary[] | "loading" | "error" | undefined; canvas: WorkingCanvas | null; buddy: BuddyId; running: boolean; work: readonly WorkItem[]; entries: readonly FolderEntry[];
   conversationWork: readonly ConversationWork[]; frames: readonly CanvasFrameRect[] | null; onWork(target: CanvasWorkTarget | null): void; onOpen(): void; onOpenSibling(root: string): void; onStopFailed(text: string): void };
 
 function CanvasPane({ viewport, board, overlay, dragLayer, state, command, covered, overlaid, zoomTo, onToolbarEscape, selectFrame, conversation, agent, picking, capturing, tool, onTool, picker, capture, exporter }: {

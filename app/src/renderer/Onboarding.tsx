@@ -8,14 +8,20 @@ import { noAgentReadyNotice, type AuthCommand, type Button, type Notice, type Pr
 import { AgentStepSession } from "./agentStep";
 import { agentSignIn } from "./agentSignIn";
 import { projectFooter, projectNoticeCode, ProjectStepSession, setUpLabel, type ProjectError, type ProjectStepState, type ProjectUse } from "./projectStep";
-import { canAdvance, initialScene, nextScene, type Scene, type SceneEvent } from "./onboardingScene";
+import { canAdvance, initialScene, nextScene, setupSteps, type Scene, type SceneEvent, type SetupStep } from "./onboardingScene";
 import { projectHue, projectInitial } from "./shellNavigation";
 import { tilde } from "./onboardingView";
 import { AlertIcon } from "./AlertIcon";
 import { StorageCard } from "./StorageChoice";
 import { OPERATION_MESSAGES } from "../main/onboarding/operations";
 import { keptLocal, type StorageChoice } from "./storageRules";
+import type { BuddyId } from "./buddies";
 import { Buddy } from "./Doany";
+import type { PreferencesSnapshot } from "../main/preferences";
+import type { BuddySelection } from "./buddySelection";
+import { buddyChoiceOff, buddyFailureText, buddyGate } from "./buddyChoice";
+import { BuddyFailureNotice, BuddyFlow, focusChecked } from "./BuddyPicker";
+import { preferencesNotice } from "./SettingsNotifications";
 
 const FOCUSABLE = 'button:not(:disabled), input:not(:disabled), [href], [tabindex]:not([tabindex="-1"])';
 // Local copies of the draft's marks; sources are in public/provider-logos/README.md. Relative, so the packaged
@@ -41,17 +47,13 @@ export function Welcome({ start }: { start: () => void }) {
 }
 
 // The AppShell mode capsule as a stepper, drawn with the shared buttons: the current step is the white pill, a done
-// step shows a check and goes back.
-export function SetupSteps({ scene, canProject, busy, go }: { scene: Scene; canProject: boolean; busy: boolean; go: (to: "agent" | "project") => void }) {
-  const project = scene === "project";
-  const current = <C extends string>(label: C, n: number) => <button type="button" className="doan-button current" data-ui-size="sm" data-ui-variant="subtle" aria-current="step">{n} <span>{label}</span></button>;
-  return <nav className="ob-steps" aria-label="Setup steps">
-    {project
-      ? <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="ghost" aria-label="Agent, completed" disabled={busy} onClick={() => go("agent")}><span aria-hidden="true">✓</span> <span>Agent</span></button>
-      : current("Agent", 1)}
-    {project
-      ? current("Project", 2)
-      : <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="ghost" disabled={!canProject} onClick={() => go("project")}>2 <span>Project</span></button>}
+// step shows a check and goes back; an ahead step goes forward (Project only with a ready agent).
+export function SetupSteps({ scene, canProject, busy, go }: { scene: Scene; canProject: boolean; busy: boolean; go: (to: SetupStep) => void }) {
+  return <nav className="ob-steps" aria-label="Setup steps">{setupSteps(scene).map(item => item.state === "current"
+    ? <button key={item.step} type="button" className="doan-button current" data-ui-size="sm" data-ui-variant="subtle" aria-current="step">{item.n} <span>{item.title}</span></button>
+    : item.state === "done"
+      ? <button key={item.step} type="button" className="doan-button" data-ui-size="sm" data-ui-variant="ghost" aria-label={item.label ?? undefined} disabled={busy} onClick={() => go(item.step)}><span aria-hidden="true">✓</span> <span>{item.title}</span></button>
+      : <button key={item.step} type="button" className="doan-button" data-ui-size="sm" data-ui-variant="ghost" disabled={item.step === "project" && !canProject} onClick={() => go(item.step)}>{item.n} <span>{item.title}</span></button>)}
   </nav>;
 }
 
@@ -108,8 +110,9 @@ export function dialogKeys(close: () => void) {
   };
 }
 export const openModal = (node: HTMLDialogElement | null) => { if (node && !node.open) node.showModal(); };
-// showModal() focuses the dialog's first control, Doany on Welcome, and the scene effect reaches the heading only a
-// frame later; focusing the heading in the same task leaves no frame in which Doany's focus ring can paint.
+// showModal() focuses the dialog's first control (Get started on Welcome, the checked buddy on the buddy screen), and
+// the scene effect reaches the heading only a frame later; focusing the heading in the same task leaves no frame in
+// which that control's focus ring can paint.
 export function openOverlay(node: Pick<HTMLDialogElement, "open" | "showModal"> | null, heading: { focus(): void } | null) {
   if (!node || node.open) return;
   node.showModal();
@@ -615,13 +618,79 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
 
 // First run's steps scroll as one surface under the step capsule, so the thin scroll bar sits at the window's right
 // edge, not beside the 560px column; the Add Projects page's panel plays the same part.
-export function SceneScroll({ children }: { children: React.ReactNode }) {
-  return <div className="ob-scroll doan-scroll"><div className="ob-scene">{children}</div></div>;
+export function SceneScroll({ children, className }: { children: React.ReactNode; className?: string | undefined }) {
+  return <div className="ob-scroll doan-scroll"><div className={className ? `ob-scene ${className}` : "ob-scene"}>{children}</div></div>;
 }
 
-// The full-window first run: Welcome → Agent → Project → Home, mounted once per main onboarding session. The CLI may
-// drive the same session; its completion closes this window too.
-export function Wizard({ session, projects, homeDirectory, onClose, mainCheckout }: { session: string; projects: readonly string[]; homeDirectory: string | null; onClose: (root: string | null) => void; mainCheckout: (path: string) => boolean }) {
+// First run's Buddy step and the existing-user buddy screen: the same heading, notices and row; only the footer
+// differs. A pick saves at once (App's buddy selection); a failure returns the row to the saved buddy and shows the
+// notice under it, read once by the live region. Retry saves the failed pick again: when it saves, focus goes to the
+// checked radio, and when it fails, focus stays on Retry.
+export function BuddyScene({ selection, preferences, heading, footer }: {
+  selection: BuddySelection; preferences: PreferencesSnapshot | null; heading: (node: HTMLHeadingElement | null) => void; footer: React.ReactNode;
+}) {
+  const failure = selection.failure;
+  const retry = (picked: BuddyId) => { void selection.select(picked).then(saved => { if (saved) requestAnimationFrame(() => focusChecked(document.querySelector(".ob-overlay .buddy-flow"))); }); };
+  return <>
+    <div className="ob-heading"><h2 tabIndex={-1} id="ob-buddy-title" ref={heading}>Choose your buddy</h2><p>It keeps you company in Doan and sets the app’s accent color. You can change it anytime in Settings.</p></div>
+    {preferencesNotice(preferences?.notice, "doan-panel buddy-step-notice buddy-step-notice-top")}
+    <BuddyFlow name="ob-buddy" labelledBy="ob-buddy-title" selected={selection.shown} disabled={buddyChoiceOff(preferences)} select={id => void selection.select(id)} />
+    {failure && <BuddyFailureNotice failure={failure} id="ob-buddy-error" className="doan-panel buddy-step-notice" retry={() => retry(failure.picked)} />}
+    <p className="ob-live" role="status">{failure ? buddyFailureText(failure) : ""}</p>
+    {footer}
+  </>;
+}
+
+// Keys for a full-window overlay, on the window in capture: a button that turns disabled while it runs drops focus to
+// <body>, and keys from there must still reach the overlay (POSTMORTEM 2026-10-24). Capture also runs before the
+// canvas's own Escape (selection clear) listener. Tab cycles inside the overlay and enters a buddy row only at its
+// checked radio, as a radio group does.
+function useOverlayKeys(overlay: RefObject<HTMLDialogElement | null>, stacked: RefObject<boolean>) {
+  useEffect(() => {
+    const keydown = (event: globalThis.KeyboardEvent) => {
+      if (event.target instanceof Element && event.target.closest("dialog") !== null && event.target.closest("dialog") !== overlay.current) return;
+      // Top-level Escape neither closes the overlay nor skips a required step; nor may it reach the app behind.
+      if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); return; }
+      if (stacked.current) return;
+      if (event.key === "Tab" && overlay.current) {
+        const nodes = Array.from(overlay.current.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(node => node.closest("dialog") === overlay.current && !node.matches(".buddy-flow input:not(:checked)"));
+        const active = document.activeElement;
+        const index = nodes.indexOf(active as HTMLElement);
+        const before = index < 0 && active && overlay.current.contains(active) ? nodes.filter(node => node.compareDocumentPosition(active) & Node.DOCUMENT_POSITION_FOLLOWING).length : null;
+        const next = nextFocusIndex(nodes.length, index, event.shiftKey, before);
+        if (next !== null) { event.preventDefault(); nodes[next]?.focus(); }
+      }
+    };
+    window.addEventListener("keydown", keydown, true);
+    return () => window.removeEventListener("keydown", keydown, true);
+  }, [overlay, stacked]);
+}
+
+// The buddy screen for someone who finished first run without a buddy saved (main decides at launch). It covers the
+// window as first run does, with no stepper and no Back. Continue saves the buddy on screen (Doany at first) unless a
+// pick already saved, then closes; a failed save keeps the screen with its notice.
+export function BuddyIntro({ selection, preferences, onClose }: { selection: BuddySelection; preferences: PreferencesSnapshot | null; onClose: () => void }) {
+  const heading = useRef<HTMLHeadingElement | null>(null);
+  const overlay = useRef<HTMLDialogElement | null>(null);
+  const stacked = useRef(false);
+  useOverlayKeys(overlay, stacked);
+  const next = () => { void selection.commit().then(saved => { if (saved) onClose(); }); };
+  return <dialog className="ob-overlay" aria-label="Set up Doan" ref={node => { overlay.current = node; openOverlay(node, heading.current); }} onCancel={event => event.preventDefault()}>
+    <div className="ob-chrome" />
+    <SceneScroll className="ob-buddy-scene">
+      <BuddyScene selection={selection} preferences={preferences} heading={node => { heading.current = node; }}
+        footer={<div className="ob-footer ob-footer-intro"><button type="button" className="doan-button" data-ui-variant="prominent" data-continue="" onClick={next}>Continue<ArrowRight aria-hidden="true" /></button></div>} />
+    </SceneScroll>
+  </dialog>;
+}
+
+// The full-window first run: Welcome → Buddy → Agent → Project → Home, mounted once per main onboarding session. The
+// CLI may drive the same session; its completion closes this window too. `buddy` is App's buddy selection, so a save
+// that answers after first run closed still applies.
+export function Wizard({ session, projects, homeDirectory, onClose, mainCheckout, buddy, preferences }: {
+  session: string; projects: readonly string[]; homeDirectory: string | null; onClose: (root: string | null) => void; mainCheckout: (path: string) => boolean;
+  buddy: BuddySelection; preferences: PreferencesSnapshot | null;
+}) {
   const [, redraw] = useReducer((n: number) => n + 1, 0);
   const [agents] = useState(() => new AgentStepSession({ api: window.doan, openInstall, openInstallPage, hasFocus: () => document.hasFocus(), changed: redraw, signIn: agentSignIn() }));
   const projectsRef = useRef(projects);
@@ -664,31 +733,12 @@ export function Wizard({ session, projects, homeDirectory, onClose, mainCheckout
   const generation = useRef(0);
   generation.current = scene.generation;
   const leave = sceneMover(agents, move, () => generation.current);
+  const buddyStep = buddyGate({ settled: () => buddy.settled(), dismiss: () => buddy.dismiss(), move, generation: () => generation.current });
 
   // A stacked modal (the stop or paste dialog) answers its own keys.
   const stacked = useRef(false);
   stacked.current = agents.state.dialog !== null;
-  // On the window, in capture: a button that turns disabled while it runs drops
-  // focus to <body>, and keys from there must still reach the onboarding window. Capture
-  // also runs before the canvas's own Escape (selection clear) listener.
-  useEffect(() => {
-    const keydown = (event: globalThis.KeyboardEvent) => {
-      if (event.target instanceof Element && event.target.closest("dialog") !== null && event.target.closest("dialog") !== overlay.current) return;
-      // Top-level Escape neither closes onboarding nor skips a required step; nor may it reach the app behind.
-      if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); return; }
-      if (stacked.current) return;
-      if (event.key === "Tab" && overlay.current) {
-        const nodes = Array.from(overlay.current.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(node => node.closest("dialog") === overlay.current);
-        const active = document.activeElement;
-        const index = nodes.indexOf(active as HTMLElement);
-        const before = index < 0 && active && overlay.current.contains(active) ? nodes.filter(node => node.compareDocumentPosition(active) & Node.DOCUMENT_POSITION_FOLLOWING).length : null;
-        const next = nextFocusIndex(nodes.length, index, event.shiftKey, before);
-        if (next !== null) { event.preventDefault(); nodes[next]?.focus(); }
-      }
-    };
-    window.addEventListener("keydown", keydown, true);
-    return () => window.removeEventListener("keydown", keydown, true);
-  }, []);
+  useOverlayKeys(overlay, stacked);
 
   const welcome = scene.scene === "welcome";
   const setHeading = (node: HTMLElement | null) => { heading.current = node; };
@@ -699,10 +749,17 @@ export function Wizard({ session, projects, homeDirectory, onClose, mainCheckout
     ref={node => { overlay.current = node; openOverlay(node, heading.current); }}
     onCancel={event => event.preventDefault()}>
     <div className="ob-chrome">
-      {!welcome && <SetupSteps scene={scene.scene} canProject={canAdvance(auth)} busy={busy} go={to => { if (to === "project") leave.forward(); else move({ type: "step", to }); }} />}
+      {!welcome && <SetupSteps scene={scene.scene} canProject={canAdvance(auth)} busy={busy} go={to => {
+        // Forward from Buddy waits for its save as Continue does; Agent is left through its session either way.
+        if (scene.scene === "buddy") void buddyStep.forward({ type: "step", to });
+        else if (scene.scene === "agent") { if (to === "project") leave.forward(); else leave.back(); }
+        else move({ type: "step", to });
+      }} />}
     </div>
-    <SceneScroll>
+    <SceneScroll className={scene.scene === "buddy" ? "ob-buddy-scene" : undefined}>
       {welcome && <div className="ob-welcome-scene" ref={node => setHeading(node?.querySelector("h1") ?? null)}><Welcome start={() => move({ type: "start" })} /></div>}
+      {scene.scene === "buddy" && <BuddyScene selection={buddy} preferences={preferences} heading={setHeading}
+        footer={<AgentFooter canContinue busy={false} back={buddyStep.back} next={() => void buddyStep.forward({ type: "continue" })} />} />}
       {scene.scene === "agent" && <AgentStep session={agents} heading={setHeading}
         back={leave.back} next={leave.forward} />}
       {scene.scene === "project" && <ProjectScreen state={p.state} busy={busy} agentReady={canAdvance(auth)} projects={projects} home={homeDirectory} urlValid={p.urlValid()} heading={setHeading}
