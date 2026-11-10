@@ -38,6 +38,9 @@ export interface BuddySelection {
   select(id: BuddyId): Promise<boolean>;
   // Whether the latest pick saved, waiting for it while it runs: Continue goes on only after it.
   settled(): Promise<boolean>;
+  // The existing-user buddy screen's Continue: a pick still saving is waited for, as settled() does; with no buddy in
+  // the file the buddy on screen (Doany at first) is saved now, since that screen must leave a buddy key behind.
+  commit(): Promise<boolean>;
   dismiss(): void;
 }
 
@@ -65,6 +68,11 @@ export function useBuddySelection(preferences: PreferencesSnapshot | null, save:
     failure: pick.failure,
     select,
     settled: () => latest.current,
+    commit: () => {
+      if (current.current.shown !== null) return latest.current;
+      if (snapshot.current?.preferences.buddy === undefined) return select(shownBuddy(current.current, snapshot.current, firstPaint));
+      return Promise.resolve(true);
+    },
     dismiss: () => { if (current.current.failure) update({ ...current.current, failure: null }); },
   };
 }

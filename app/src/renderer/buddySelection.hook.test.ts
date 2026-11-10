@@ -78,3 +78,75 @@ test("Continue waits for the latest save and learns whether it worked; dismiss c
   render().dismiss();
   expect(render().failure).toBeNull();
 });
+
+// POSTMORTEM 2026-10-25 'An older install failure replaced newer feedback': both completion orders.
+test.each([
+  ["a refusal", (replies: ((reply: PreferencesWriteReply | null) => void)[]) => replies[1]!({ ok: false, reason: "write_failed", snapshot: snap("popo") })],
+  ["a null reply", (replies: ((reply: PreferencesWriteReply | null) => void)[]) => replies[1]!(null)],
+])("A saves while B is pending, then B fails with %s: A shows and the notice keeps A", async (_name, failB) => {
+  const a = render().select("popo");
+  const b = render().select("puri");
+  replies[0]!({ ok: true, snapshot: snap("popo") });
+  expect(await a).toBe(true);
+  expect(render()).toMatchObject({ shown: "puri", failure: null });
+  failB(replies);
+  expect(await b).toBe(false);
+  expect(render()).toMatchObject({ shown: "popo", failure: { picked: "puri", kept: "popo" } });
+});
+
+test("B fails first, then A's older success lands: the notice for B stays and the saved buddy shows", async () => {
+  const a = render().select("popo");
+  const b = render().select("puri");
+  replies[1]!({ ok: false, reason: "write_failed", snapshot: snap("dori") });
+  expect(await b).toBe(false);
+  expect(render()).toMatchObject({ shown: "dori", failure: { picked: "puri", kept: "dori" } });
+  replies[0]!({ ok: true, snapshot: snap("popo") });
+  expect(await a).toBe(true);
+  // A's reply is not the latest: it clears nothing. App's snapshot took what main saved, so that is what shows.
+  expect(render()).toMatchObject({ shown: "popo", failure: { picked: "puri", kept: "dori" } });
+});
+
+// The existing-user buddy screen: Continue saves the buddy on screen when the file has none (Doany at first).
+test("commit with no saved buddy saves the shown buddy, Doany at first, and resolves with that save", async () => {
+  saved = snap();
+  const committing = render().commit();
+  expect(save).toHaveBeenCalledExactlyOnceWith({ buddy: "doany" });
+  replies[0]!({ ok: true, snapshot: snap("doany") });
+  expect(await committing).toBe(true);
+});
+
+test("commit after a saved pick saves nothing more", async () => {
+  saved = snap();
+  void render().select("popo");
+  replies[0]!({ ok: true, snapshot: snap("popo") });
+  await settle();
+  expect(await render().commit()).toBe(true);
+  expect(save).toHaveBeenCalledOnce();
+});
+
+test("commit while a pick is saving waits for it; a failure keeps the screen with its notice", async () => {
+  saved = snap();
+  void render().select("popo");
+  const committing = render().commit();
+  expect(save).toHaveBeenCalledOnce();
+  replies[0]!({ ok: false, reason: "write_failed", snapshot: snap() });
+  expect(await committing).toBe(false);
+  expect(render().failure).toEqual({ picked: "popo", kept: "doany" });
+});
+
+test("commit after a failed pick saves the buddy now on screen", async () => {
+  saved = snap();
+  void render().select("popo");
+  replies[0]!(null);
+  await settle();
+  const committing = render().commit();
+  expect(save).toHaveBeenLastCalledWith({ buddy: "doany" });
+  replies[1]!({ ok: true, snapshot: snap("doany") });
+  expect(await committing).toBe(true);
+  expect(render().failure).toBeNull();
+});
+
+test("commit with a saved buddy and nothing picked saves nothing", async () => {
+  expect(await render().commit()).toBe(true);
+  expect(save).not.toHaveBeenCalled();
+});
