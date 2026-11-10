@@ -65,6 +65,7 @@ const heading = () => all(tree).find(element => element.type === "h1")!;
 
 test("the body is the scrolling white panel with a 48rem column, the category title and its lead", () => {
   const leads = {
+    general: "Choices that apply across Doan on this Mac.",
     agents: "Doan signs in to each agent with its own connection, separate from your terminal. One account per agent. Agents you run in a terminal use Doan without any setup.",
     mcp: "MCP servers that Claude Code and Codex can use in Doan conversations, connected separately from your terminal. Claude Code also uses the servers connected to your claude.ai account. Cursor, Antigravity and GitHub Copilot can’t use these servers yet.",
     notifications: "macOS notifications for when an agent needs you while you work in another app.",
@@ -76,7 +77,7 @@ test("the body is the scrolling white panel with a 48rem column, the category ti
     expect(panel.props.className).toBe("home-panel settings-panel doan-scroll");
     expect(panel.props["aria-labelledby"]).toBe("settings-title");
     expect(heading().props).toMatchObject({ id: "settings-title", className: "settings-title", tabIndex: -1 });
-    expect(words(heading().props.children)).toBe({ agents: "Agents", mcp: "MCP Connectors", notifications: "Notifications", about: "About" }[section]);
+    expect(words(heading().props.children)).toBe({ general: "General", agents: "Agents", mcp: "MCP Connectors", notifications: "Notifications", about: "About" }[section]);
     expect(all(tree).some(element => element.props.className === "settings-page")).toBe(true);
     expect(words(all(tree).find(element => element.props.className === "settings-lead")!.props.children)).toBe(lead);
     // Each category mounts its own body, and only that one.
@@ -118,7 +119,7 @@ function sidebar(settings: { section: PageProps["section"]; select(section: stri
   return ShellSidebar({ cards: [], projects: {}, loaded: null, canvas: undefined, homeDirectory: null, search: vi.fn(), toggle: vi.fn(), disclose: vi.fn(), toggleGroup: vi.fn(), worktree: vi.fn(), open: vi.fn(), overview: vi.fn(), action: vi.fn(), remove: vi.fn(), projectSettings: vi.fn(), canvasMenu: NO_CANVAS_MENU, home: true, locked, settings });
 }
 
-test("on the Settings page the sidebar keeps Search and lists the three categories as plain buttons", () => {
+test("on the Settings page the sidebar keeps Search and lists the categories as plain buttons", () => {
   const select = vi.fn();
   const side = all(sidebar({ section: "notifications", select }));
   expect(side[0]!.props["aria-label"]).toBe("Settings");
@@ -128,18 +129,18 @@ test("on the Settings page the sidebar keeps Search and lists the three categori
   const nav = side.find(element => element.type === "nav")!;
   expect(nav.props["aria-label"]).toBe("Settings");
   const rows = all(nav.props.children as ReactNode).filter(element => element.type === "button");
-  expect(rows.map(button => words(button.props.children))).toEqual(["Agents", "Notifications", "About"]);
-  expect(rows.map(button => button.props["aria-current"])).toEqual([undefined, "page", undefined]);
+  expect(rows.map(button => words(button.props.children))).toEqual(["General", "Agents", "Notifications", "About"]);
+  expect(rows.map(button => button.props["aria-current"])).toEqual([undefined, undefined, "page", undefined]);
   expect(rows.every(button => button.props.type === "button" && button.props.tabIndex === undefined)).toBe(true);
-  (rows[2]!.props.onClick as () => void)();
+  (rows[3]!.props.onClick as () => void)();
   expect(select).toHaveBeenCalledWith("about");
 });
 
 // MCP Connectors sits between Agents and Notifications while Claude Code or Codex is signed in.
 test("MCP Connectors is listed between Agents and Notifications only while the category exists", () => {
   const nav = (mcp: boolean) => all(all(sidebar({ section: "agents", select: vi.fn(), mcp })).find(element => element.type === "nav")!.props.children as ReactNode).filter(element => element.type === "button");
-  expect(nav(true).map(button => words(button.props.children))).toEqual(["Agents", "MCP Connectors", "Notifications", "About"]);
-  expect(nav(false).map(button => words(button.props.children))).toEqual(["Agents", "Notifications", "About"]);
+  expect(nav(true).map(button => words(button.props.children))).toEqual(["General", "Agents", "MCP Connectors", "Notifications", "About"]);
+  expect(nav(false).map(button => words(button.props.children))).toEqual(["General", "Agents", "Notifications", "About"]);
 });
 
 test("the page reads a given announcement in its own live region", () => {
@@ -152,7 +153,7 @@ test("the page reads a given announcement in its own live region", () => {
 test("while the page is locked the other categories and Search show as unavailable", () => {
   const side = all(sidebar({ section: "agents", select: vi.fn() }, true));
   const rows = all(side.find(element => element.type === "nav")!.props.children as ReactNode).filter(element => element.type === "button");
-  expect(rows.map(button => button.props["aria-disabled"])).toEqual([undefined, true, true]);
+  expect(rows.map(button => button.props["aria-disabled"])).toEqual([true, undefined, true, true]);
   expect(side.find(element => element.props.className === "shell-search")!.props["aria-disabled"]).toBe(true);
 });
 

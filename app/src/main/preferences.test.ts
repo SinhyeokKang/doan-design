@@ -2,7 +2,7 @@ import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "n
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { createPreferencesStore, DEFAULT_PREFERENCES, mergePreferences, parsePreferences, parsePreferencesPatch, type PreferencesFs } from "./preferences";
+import { createPreferencesStore, DEFAULT_PREFERENCES, mergePreferences, parsePreferences, parsePreferencesFile, parsePreferencesPatch, windowBuddy, type PreferencesFs } from "./preferences";
 
 // ARCHITECTURE §7 'Settings IPC': `<userData>/preferences.json`, written and read by TS only, kept by these tests.
 const FULL = { v: 1, notifications: { enabled: false, approval: true, finished: false, failed: true }, newConversation: { provider: "codex", model: "gpt-6", effort: "high" }, updates: { autoCheck: false } };
@@ -205,5 +205,89 @@ describe("preferences store", () => {
     const second = store.update({ newConversation: { provider: "claude", effort: "low" } });
     await Promise.all([first, second]);
     expect(onDisk()).toEqual({ v: 1, notifications: { enabled: true, approval: false, finished: true, failed: true }, newConversation: { provider: "claude", effort: "low" }, updates: { autoCheck: true } });
+  });
+});
+
+describe("buddy", () => {
+  let dir: string;
+  let file: string;
+  beforeEach(() => { dir = mkdtempSync(join(tmpdir(), "doan-preferences-buddy-")); file = join(dir, "preferences.json"); });
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
+  const onDisk = () => JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>;
+
+  test("without the key no buddy was ever chosen; a known id is read back", () => {
+    expect(parsePreferences(JSON.stringify(FULL))).toEqual({ preferences: FULL, notice: null });
+    expect(parsePreferences(JSON.stringify(FULL)).preferences).not.toHaveProperty("buddy");
+    for (const buddy of ["doany", "puri", "dungdung", "popo", "dori"]) expect(parsePreferences(JSON.stringify({ ...FULL, buddy }))).toEqual({ preferences: { ...FULL, buddy }, notice: null });
+  });
+
+  // A later build may add buddies: like a permission mode, an id this build cannot read is that field only, not a
+  // broken file.
+  test("an unknown id or a non-string reads as no buddy, and the rest of the file still applies", () => {
+    for (const buddy of ["nemo", "Doany", "", null, 3, true, {}, ["puri"]]) {
+      expect(parsePreferences(JSON.stringify({ ...FULL, buddy })), JSON.stringify(buddy)).toEqual({ preferences: FULL, notice: null });
+    }
+  });
+
+  test("the read also says whether the key was in the file, an unknown id included", () => {
+    expect(parsePreferencesFile(null).buddyKey).toBe(false);
+    expect(parsePreferencesFile(JSON.stringify(FULL)).buddyKey).toBe(false);
+    expect(parsePreferencesFile(JSON.stringify({ ...FULL, buddy: "popo" }))).toEqual({ snapshot: { preferences: { ...FULL, buddy: "popo" }, notice: null }, buddyKey: true });
+    expect(parsePreferencesFile(JSON.stringify({ ...FULL, buddy: "nemo" }))).toEqual({ snapshot: { preferences: FULL, notice: null }, buddyKey: true });
+    expect(parsePreferencesFile(JSON.stringify({ ...FULL, buddy: null })).buddyKey).toBe(true);
+    expect(parsePreferencesFile("{ not json").buddyKey).toBe(false);
+  });
+
+  test("a patch takes only a known id", () => {
+    expect(parsePreferencesPatch({ buddy: "popo" })).toEqual({ buddy: "popo" });
+    expect(parsePreferencesPatch({ buddy: "doany" })).toEqual({ buddy: "doany" });
+    for (const buddy of ["nemo", "Popo", "", null, undefined, 1, {}]) expect(parsePreferencesPatch({ buddy }), String(buddy)).toBeNull();
+    expect(parsePreferencesPatch({ buddy: "puri", other: 1 })).toBeNull();
+  });
+
+  test("a buddy patch changes only the buddy, and another patch keeps the buddy", () => {
+    expect(mergePreferences(FULL as never, parsePreferencesPatch({ buddy: "dori" })!)).toEqual({ ...FULL, buddy: "dori" });
+    const chosen = { ...FULL, buddy: "puri" } as never;
+    expect(mergePreferences(chosen, parsePreferencesPatch({ notifications: { enabled: true } })!)).toEqual({ ...FULL, notifications: { ...FULL.notifications, enabled: true }, buddy: "puri" });
+    expect(mergePreferences(chosen, parsePreferencesPatch({ updates: { autoCheck: true } })!)).toEqual({ ...FULL, updates: { autoCheck: true }, buddy: "puri" });
+    expect(mergePreferences(chosen, parsePreferencesPatch({ newConversation: null })!)).toEqual({ ...FULL, newConversation: null, buddy: "puri" });
+  });
+
+  test("the store writes the buddy, keeps it through other changes and says the key is now there", async () => {
+    writeFileSync(file, JSON.stringify(FULL));
+    const store = createPreferencesStore(file);
+    expect(store.buddyKey()).toBe(false);
+    expect(await store.update({ buddy: "popo" })).toEqual({ ok: true, snapshot: { preferences: { ...FULL, buddy: "popo" }, notice: null } });
+    expect(store.buddyKey()).toBe(true);
+    await store.update({ notifications: { approval: false } });
+    expect(onDisk()).toEqual({ ...FULL, notifications: { ...FULL.notifications, approval: false }, buddy: "popo" });
+    expect(createPreferencesStore(file).read().preferences.buddy).toBe("popo");
+  });
+
+  // The field is rewritten with what this build read, so an unknown id goes on the next save of anything else.
+  test("an unknown id counts as a key until another change rewrites the file without it", async () => {
+    writeFileSync(file, JSON.stringify({ ...FULL, buddy: "nemo" }));
+    const store = createPreferencesStore(file);
+    expect(store.buddyKey()).toBe(true);
+    await store.update({ notifications: { approval: false } });
+    expect(onDisk()).not.toHaveProperty("buddy");
+    expect(store.buddyKey()).toBe(false);
+  });
+
+  test("broken and newer files have no key to report; a newer file refuses a buddy", async () => {
+    writeFileSync(file, "{ not json");
+    expect(createPreferencesStore(file).buddyKey()).toBe(false);
+    writeFileSync(file, JSON.stringify({ ...FULL, v: 2, buddy: "popo" }));
+    const newer = createPreferencesStore(file);
+    expect(await newer.update({ buddy: "puri" })).toMatchObject({ ok: false, reason: "newer" });
+    expect(onDisk()).toEqual({ ...FULL, v: 2, buddy: "popo" });
+  });
+
+  test("the window opens on the saved buddy; unknown, broken and newer open on Doany", () => {
+    expect(windowBuddy({ preferences: { ...DEFAULT_PREFERENCES, buddy: "dungdung" }, notice: null })).toBe("dungdung");
+    expect(windowBuddy({ preferences: DEFAULT_PREFERENCES, notice: null })).toBe("doany");
+    expect(windowBuddy(parsePreferences(JSON.stringify({ ...FULL, buddy: "nemo" })))).toBe("doany");
+    expect(windowBuddy(parsePreferences("{ not json"))).toBe("doany");
+    expect(windowBuddy(parsePreferences(JSON.stringify({ ...FULL, v: 2, buddy: "popo" })))).toBe("doany");
   });
 });

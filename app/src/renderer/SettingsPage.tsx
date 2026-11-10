@@ -9,6 +9,7 @@ import { SETTINGS_SECTIONS, type settingsArrival, type SettingsSection } from ".
 export interface SettingsArrival { focus: ReturnType<typeof settingsArrival>["focus"]; seq: number }
 
 const LEADS: Record<SettingsSection, string> = {
+  general: "Choices that apply across Doan on this Mac.",
   agents: "Doan signs in to each agent with its own connection, separate from your terminal. One account per agent. Agents you run in a terminal use Doan without any setup.",
   mcp: "MCP servers that Claude Code and Codex can use in Doan conversations, connected separately from your terminal. Claude Code also uses the servers connected to your claude.ai account. Cursor, Antigravity and GitHub Copilot can’t use these servers yet.",
   notifications: "macOS notifications for when an agent needs you while you work in another app.",
