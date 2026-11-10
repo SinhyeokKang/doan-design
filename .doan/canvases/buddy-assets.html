@@ -10,7 +10,7 @@ header{margin-bottom:40px}header h1{font-size:40px;font-weight:500;letter-spacin
 /* Same box as the app's slot: the still and the shadow layer share the 16.5 % padding, the canvas fills the slot. */
 .slot{position:relative;flex:none;padding:0;border:0;background:transparent;cursor:pointer;isolation:isolate}
 .slot img,.slot canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
-.slot img{padding:16.5%}
+.slot img{padding:16.5%;z-index:1}
 .slot canvas{z-index:1}
 .slot .shadow{z-index:0;transform-origin:calc(16.5% + 67% * var(--contact-x)) calc(16.5% + 67% * var(--contact-y));transform:scale(calc(1 - .45 * var(--buddy-lift)));opacity:calc(1 - .6 * var(--buddy-lift))}
 .slot{--buddy-lift:0;--contact-x:.5;--contact-y:.9}
