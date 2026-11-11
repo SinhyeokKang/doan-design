@@ -95,6 +95,34 @@ export function initialCanvasState(): CanvasState {
   return { hasFrame: false, open: null, shown: null, layout: null, selection: null, currentFrame: null, notice: "", inspector: null, status: "empty", reanchoring: false, reloading: false, message: "Pick a canvas from the list", error: "", unlisted: false, zoom: 100, scale: 1, activity: [], tool: "select", picking: false, capturing: false };
 }
 
+// What a pan or zoom changes many times a second. Only the canvas header shows these, so App hands them to the header
+// through a store instead of re-rendering the whole page for each.
+export interface CanvasViewFields { zoom: number; scale: number; currentFrame: number | null }
+const VIEW_KEYS = new Set<keyof CanvasState>(["zoom", "scale", "currentFrame"]);
+export const canvasViewFields = (state: CanvasState): CanvasViewFields => ({ zoom: state.zoom, scale: state.scale, currentFrame: state.currentFrame });
+
+// True when a publish changed the view fields and nothing else. `publish` copies the state, so an unchanged field keeps
+// its identity. A publish that changed nothing still counts as a change, as it always did.
+export function viewOnlyChange(previous: CanvasState, next: CanvasState): boolean {
+  const keys = Object.keys(next) as (keyof CanvasState)[];
+  if (keys.some(key => !VIEW_KEYS.has(key) && previous[key] !== next[key])) return false;
+  return [...VIEW_KEYS].some(key => previous[key] !== next[key]);
+}
+
+export class CanvasViewStore {
+  private fields: CanvasViewFields;
+  private readonly listeners = new Set<() => void>();
+  constructor(fields: CanvasViewFields) { this.fields = fields; }
+  readonly get = (): CanvasViewFields => this.fields;
+  readonly subscribe = (listener: () => void): (() => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
+  set(next: CanvasViewFields): void {
+    const now = this.fields;
+    if (now.zoom === next.zoom && now.scale === next.scale && now.currentFrame === next.currentFrame) return;
+    this.fields = next;
+    for (const listener of this.listeners) listener();
+  }
+}
+
 const isProblemKind = (kind: FolderEntry["kind"] | undefined): boolean =>
   kind === "notFound" || kind === "uninitialized" || kind === "error" || kind === "cliError";
 

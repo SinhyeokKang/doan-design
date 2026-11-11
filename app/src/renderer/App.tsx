@@ -27,7 +27,7 @@ import { draftKey, EMPTY_DRAFT } from "./dockedRules";
 import type { OpenAsk, OpenLinkResult, OpenResult } from "../main/deepLinks";
 import type { HandoffNotice } from "../main/conversation/handoff";
 import type { MenuCommand, ViewCommand } from "../main/index";
-import { CanvasController, initialCanvasState, type CanvasState, type CanvasWorkTarget, type PickResult } from "./CanvasController";
+import { CanvasController, CanvasViewStore, canvasViewFields, initialCanvasState, viewOnlyChange, type CanvasState, type CanvasWorkTarget, type PickResult } from "./CanvasController";
 import { CanvasHeader } from "./CanvasHeader";
 import { CanvasTools, type CaptureTool, type ExportTool, type PickerTool } from "./CanvasTools";
 import { AlertIcon } from "./AlertIcon";
@@ -238,6 +238,11 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // The group's selection before it moved to an auto-registered worktree, by that worktree, in memory.
   const beforeAuto = useRef(new Map<string, string>());
   const [state, setState] = useState(initialCanvasState);
+  // The zoom and current frame go to the header alone: a pan or zoom publishes them many times a second, and an App
+  // render for each cost most of the page's script while moving.
+  const canvasView = useRef<CanvasViewStore>(null as unknown as CanvasViewStore);
+  if (!(canvasView.current instanceof CanvasViewStore)) canvasView.current = new CanvasViewStore(canvasViewFields(state));
+  const canvasChanged = (next: CanvasState) => { canvasView.current.set(canvasViewFields(next)); setState(previous => viewOnlyChange(previous, next) ? previous : next); };
   const viewport = useRef<HTMLDivElement>(null);
   const board = useRef<HTMLDivElement>(null);
   const overlay = useRef<HTMLDivElement>(null);
@@ -465,7 +470,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     const sendSelection = (selection: Selection | null) => {
       window.doan.setSelection(selection).catch((error: unknown) => console.error("selection:set failed", error));
     };
-    const instance = new CanvasController(viewport.current, board.current, overlay.current, setState, sendSelection, selector => window.doan.inspect(selector), dragLayer.current, () => window.doan.pointer());
+    const instance = new CanvasController(viewport.current, board.current, overlay.current, canvasChanged, sendSelection, selector => window.doan.inspect(selector), dragLayer.current, () => window.doan.pointer());
     controller.current = instance;
     const stopFolders = window.doan.onFolders((all, focus) => {
       const next = shownFolders(all), before = entriesRef.current;
@@ -2148,7 +2153,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     {topBar(false)}
     {sidebar(false)}
     {strip}
-    <CanvasPane viewport={viewport} board={board} overlay={overlay} dragLayer={dragLayer} state={state} command={command} covered={overview !== null || overlaid} overlaid={overlaid}
+    <CanvasPane viewport={viewport} board={board} overlay={overlay} dragLayer={dragLayer} state={state} view={canvasView.current} command={command} covered={overview !== null || overlaid} overlaid={overlaid}
       zoomTo={scale => controller.current?.zoomTo(scale)} onToolbarEscape={event => controller.current?.toolbarEscape(event)} selectFrame={(index, id) => controller.current?.selectFrame(index, id)} conversation={{ open: rightPanel.open, show: () => foldPanel(true), badge: panelBadge }}
       agent={{ list: state.open ? run.listState(state.open.folder) : undefined, canvas: workingCanvas(state.open, state.unlisted, entry), buddy: buddySelection.shown, running: screen === "workspace" && overview === null, work, entries,
         conversationWork, frames: state.layout?.frames ?? null, onWork: target => controller.current?.setWork(target),
@@ -2246,10 +2251,10 @@ function TopBar({ sidebar, back, forward, previous, next, page, locked, updateDi
 type AgentProps = { list: readonly ConversationSummary[] | "loading" | "error" | undefined; canvas: WorkingCanvas | null; buddy: BuddyId; running: boolean; work: readonly WorkItem[]; entries: readonly FolderEntry[];
   conversationWork: readonly ConversationWork[]; frames: readonly CanvasFrameRect[] | null; onWork(target: CanvasWorkTarget | null): void; onOpen(): void; onOpenSibling(root: string): void; onStopFailed(text: string): void };
 
-function CanvasPane({ viewport, board, overlay, dragLayer, state, command, covered, overlaid, zoomTo, onToolbarEscape, selectFrame, conversation, agent, picking, capturing, tool, onTool, picker, capture, exporter }: {
+function CanvasPane({ viewport, board, overlay, dragLayer, state, view, command, covered, overlaid, zoomTo, onToolbarEscape, selectFrame, conversation, agent, picking, capturing, tool, onTool, picker, capture, exporter }: {
   viewport: RefObject<HTMLDivElement | null>; board: RefObject<HTMLDivElement | null>; overlay: RefObject<HTMLDivElement | null>; dragLayer: RefObject<HTMLDivElement | null>;
   // covered: the Overview or a problem's overlay is over the pane. overlaid: the overlay, which names the problem itself.
-  state: CanvasState; command: (name: ViewCommand) => void; covered: boolean; overlaid: boolean;
+  state: CanvasState; view: CanvasViewStore; command: (name: ViewCommand) => void; covered: boolean; overlaid: boolean;
   zoomTo(scale: number): void; onToolbarEscape(event: KeyboardEvent): void; selectFrame(index: number, id: string): void; conversation: { open: boolean; show(): void; badge: OpenBadge | null }; agent: AgentProps;
   picking: boolean; capturing: boolean; tool: CanvasState["tool"]; onTool(tool: CanvasState["tool"]): void; picker: PickerTool; capture: CaptureTool; exporter: ExportTool;
 }) {
@@ -2279,7 +2284,7 @@ function CanvasPane({ viewport, board, overlay, dragLayer, state, command, cover
   const canvasKey = state.open ? JSON.stringify([state.open.folder, state.open.canvas]) : null;
   // Stays laid out under the Overview: opening a canvas fits it to this size at once.
   return <div className="doan-canvas-panel" ref={panel} inert={covered}>
-    <CanvasHeader state={state} canvasKey={canvasKey} command={command} zoomTo={zoomTo} selectFrame={selectFrame} fallbackFocus={() => viewport.current?.focus()} panel={conversation} />
+    <CanvasHeader state={state} view={view} canvasKey={canvasKey} command={command} zoomTo={zoomTo} selectFrame={selectFrame} fallbackFocus={() => viewport.current?.focus()} panel={conversation} />
     <section className="area" role="region" aria-label="Canvas" tabIndex={-1} ref={viewport} data-picking={picking ? "" : undefined}>
     <div className="board" ref={board} hidden />
     <div className="overlay" ref={overlay} />
