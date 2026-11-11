@@ -5,11 +5,12 @@ import type { ToastEvent, ToastState } from "./toastState";
 
 const hooks = vi.hoisted(() => ({
   state: null as ToastState | null,
+  dispatched: [] as ToastEvent[],
   effects: [] as (() => void | (() => void))[],
   useReducer(reducer: (state: ToastState, event: ToastEvent) => ToastState, initial: ToastState) {
     // Keep the state across calls so a second call renders what the first one dispatched.
     hooks.state ??= initial;
-    return [hooks.state, (event: ToastEvent) => { hooks.state = reducer(hooks.state!, event); }];
+    return [hooks.state, (event: ToastEvent) => { hooks.dispatched.push(event); hooks.state = reducer(hooks.state!, event); }];
   },
   useRef<T>(initial: T) { return { current: initial }; },
   useEffect(effect: () => void | (() => void)) { hooks.effects.push(effect); },
@@ -20,7 +21,7 @@ import { useToast } from "./Toast";
 let cleanups: (() => void)[] = [];
 afterEach(() => {
   cleanups.splice(0).forEach(cleanup => cleanup());
-  hooks.effects = []; hooks.state = null;
+  hooks.effects = []; hooks.state = null; hooks.dispatched = [];
   vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.useRealTimers();
 });
 
@@ -190,4 +191,31 @@ test("Retry runs in place with a busy, unavailable button and a spinner, and goe
   settle(null);
   await Promise.resolve(); await Promise.resolve();
   expect(hooks.state?.toast).toBeNull();
+});
+
+// useReducer runs App again for every dispatch, even one whose state does not change, so the clock must not tick while
+// nothing is shown; it starts again with a toast and stops once that toast's ending is cleared.
+test("the clock dispatches no tick while no toast is shown", () => {
+  let now = 0;
+  vi.useFakeTimers();
+  vi.spyOn(performance, "now").mockImplementation(() => now);
+  vi.stubGlobal("window", { doan: { onWindowVisible: (listener: (visible: boolean) => void) => { listener(true); return () => {}; } } });
+  vi.stubGlobal("document", { hidden: false, querySelector: () => null, addEventListener: () => {}, removeEventListener: () => {} });
+  const toast = useToast();
+  for (const effect of hooks.effects) { const cleanup = effect(); if (cleanup) cleanups.push(cleanup); }
+  const ticks = () => hooks.dispatched.filter(event => event.type === "tick").length;
+  now += 1000; vi.advanceTimersByTime(1000);
+  expect(ticks()).toBe(0);
+  toast.show("Exported");
+  now += 300; vi.advanceTimersByTime(300);
+  expect(ticks()).toBe(3);
+  expect(hooks.state?.remainingMs).toBe(8000 - 300);
+  now += 8000; vi.advanceTimersByTime(8000);
+  expect(hooks.state?.toast).toBeNull();
+  // One more tick clears the ending the expiry left.
+  now += 100; vi.advanceTimersByTime(100);
+  expect(hooks.state?.ended).toBeUndefined();
+  const after = ticks();
+  now += 1000; vi.advanceTimersByTime(1000);
+  expect(ticks()).toBe(after);
 });
