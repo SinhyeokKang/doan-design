@@ -21,7 +21,7 @@ export interface SidebarToggleView {
 const BADGES = [
   ["permission", "Show sidebar, needs your answer"],
   ["working", "Show sidebar, agent working"],
-  ["unseen", "Show sidebar, new activity"],
+  ["unseen", "Show sidebar, conversation finished unread"],
 ] as const;
 
 // The header's sidebar button. While the sidebar is hidden it carries the most urgent signal its slots would show, so

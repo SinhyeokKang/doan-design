@@ -36,7 +36,7 @@ import { CanvasAgent } from "./CanvasAgent";
 import { workingCanvas, type WorkingCanvas } from "./agentIndicator";
 import { controlFocusLost } from "./canvasFocus";
 import { projectNames } from "./projectRow";
-import { ArrowLeft, ArrowRight, Crosshair, Plus, Scan, Settings, LayoutGrid, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { ArrowLeft, ArrowRight, Crosshair, Plus, Scan, Settings, LayoutGrid, MessageCircle, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { Home } from "./Home";
 import { ProblemOverlay } from "./ProblemOverlay";
 import { problemView, resolvedFocus, workspaceBody, type ProblemKind, type ShownOverlay } from "./problemView";
@@ -2195,7 +2195,7 @@ function TopBar({ sidebar, back, forward, previous, next, page, locked, updateDi
     <div className="shell-history">
       {/* Left of Back, so Back and Forward move one button right. */}
       <Tooltip><TooltipTrigger asChild><button className="doan-icon-button shell-sidebar-toggle" data-ui-placement="chrome" aria-label={sidebar.view.label} aria-expanded={sidebar.view.icon === "hide"}
-        aria-controls={sidebar.controls} data-badge={sidebar.view.badge ? "true" : undefined} onClick={sidebar.toggle}>{sidebar.view.icon === "hide" ? <PanelLeftClose aria-hidden="true" /> : <PanelLeftOpen aria-hidden="true" />}</button></TooltipTrigger>
+        aria-controls={sidebar.controls} data-badge={sidebar.view.badge ? (sidebar.view.badge === "unseen" ? "unseen" : "true") : undefined} onClick={sidebar.toggle}>{sidebar.view.icon === "hide" ? <PanelLeftClose aria-hidden="true" /> : <PanelLeftOpen aria-hidden="true" />}{sidebar.view.badge === "unseen" && <span className="badge-bubble" aria-hidden="true"><MessageCircle /></span>}</button></TooltipTrigger>
         <TooltipContent className="has-key">{sidebar.view.icon === "hide" ? "Hide sidebar" : "Show sidebar"}<span className="doan-kbd" data-ui-variant="on-prominent" data-ui-size="sm">⌘B</span></TooltipContent></Tooltip>
       <button className="doan-icon-button" data-ui-placement="chrome" aria-label="Back" disabled={!back} aria-disabled={unavailable} onClick={previous}><ArrowLeft /></button><button className="doan-icon-button" data-ui-placement="chrome" aria-label="Forward" disabled={!forward} onClick={next}><ArrowRight /></button></div>
     <div className="shell-modes"><button {...tab("addProjects")} aria-disabled={unavailable} onClick={addProjects}><Plus />Add Projects</button><button {...tab(null)} aria-disabled={unavailable} onClick={projects}><LayoutGrid />Projects</button><button {...tab("settings")} aria-disabled={unavailable} onClick={settings}><Settings />Settings</button></div>

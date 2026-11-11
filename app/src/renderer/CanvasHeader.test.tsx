@@ -133,8 +133,12 @@ describe("CanvasHeader", () => {
   it("puts the news dot and its longer name on the folded panel's open button", () => {
     const waiting = button(html(opened(), { open: false, show: vi.fn(), badge: { kind: "permission", label: "Show conversation, needs your answer" } }), "Show conversation, needs your answer");
     expect(waiting).toContain('data-badge="true"');
-    const unseen = button(html(opened(), { open: false, show: vi.fn(), badge: { kind: "unseen", label: "Show conversation, new activity" } }), "Show conversation, new activity");
-    expect(unseen).toContain('data-badge="true"');
+    const unseen = button(html(opened(), { open: false, show: vi.fn(), badge: { kind: "unseen", label: "Show conversation, conversation finished unread" } }), "Show conversation, conversation finished unread");
+    // A finished conversation is a speech bubble, not the dot.
+    expect(unseen).toContain('data-badge="unseen"');
+    const markup = html(opened(), { open: false, show: vi.fn(), badge: { kind: "unseen", label: "x" } });
+    expect(markup).toMatch(/<span class="badge-bubble"[^>]*><svg[^>]*lucide-message-circle/);
+    expect(html(opened(), { open: false, show: vi.fn(), badge: { kind: "permission", label: "x" } })).not.toContain("badge-bubble");
     expect(button(html(opened(), { open: false, show: vi.fn(), badge: null }), "Show conversation")).not.toContain("data-badge");
   });
 });

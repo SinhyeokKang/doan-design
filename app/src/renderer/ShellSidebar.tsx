@@ -1,6 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactElement } from "react";
 import { DropdownMenu } from "radix-ui";
-import { Bell, Bot, Check, ChevronDown, CircleMinus, Download, Ellipsis, FolderOpen, GitBranch, Hand, House, Info, LayoutGrid, PanelsTopLeft, Plug, Search, Settings, SlidersHorizontal, SwatchBook, Trash2 } from "lucide-react";
+import { Bell, Bot, Check, ChevronDown, CircleMinus, Download, Ellipsis, FolderOpen, GitBranch, Hand, House, Info, LayoutGrid, MessageCircle, PanelsTopLeft, Plug, Search, Settings, SlidersHorizontal, SwatchBook, Trash2 } from "lucide-react";
 import type { CanvasRow } from "../main/view";
 import type { ShellProject } from "../restore/uiState";
 import { cardRow, ROW_ACTION_ICONS as icons, ROW_ACTION_LABELS as labels, type HomeCard, type RowAction } from "./homeCards";
@@ -122,8 +122,9 @@ function noticeTarget(entry: { key: string; slot: Slot } | undefined): { root: s
 }
 function SlotMark({ slot }: { slot: Slot | undefined }) {
   if (!slot) return null;
-  // A canvas notice is the unseen dot itself; only its label differs.
-  return <span className={`row-slot ${slot.kind === "canvas" ? "unseen" : slot.kind}`} role="img" aria-label={slot.label}>{slot.kind === "permission" ? <Hand aria-hidden="true" /> : slot.kind === "working" ? <span className="doan-spinner" aria-hidden="true" /> : <i />}</span>;
+  // A canvas notice is the accent dot; an unread finished conversation is a speech bubble, so the two never read alike.
+  const cls = slot.kind === "canvas" ? "unseen" : slot.kind === "unseen" ? "ended" : slot.kind;
+  return <span className={`row-slot ${cls}`} role="img" aria-label={slot.label}>{slot.kind === "permission" ? <Hand aria-hidden="true" /> : slot.kind === "working" ? <span className="doan-spinner" aria-hidden="true" /> : slot.kind === "unseen" ? <MessageCircle aria-hidden="true" /> : <i />}</span>;
 }
 // A project row's slot: a problem icon or the reading spinner, which are hidden from assistive technology and named by
 // the row's own description instead (PRODUCT §5 item 1), or a conversation state as on a canvas row.

@@ -16,7 +16,7 @@ test("an unseen canvas gets a canvas notice on its row", () => {
 });
 
 test("conversation slots win on the same row and keep their own entries", () => {
-  const conversation: Slot = { kind: "unseen", label: "New changes from Codex" };
+  const conversation: Slot = { kind: "unseen", label: "Conversation finished — unread" };
   const working: Slot = { kind: "working", label: "w" };
   const slots = sidebarSlots(new Map([[`/r\n${A}`, conversation], ["/r", working]]), [list("/r", [row(A, 5, "changed"), row(B, 1, "new")])], null);
   expect(slots.get(`/r\n${A}`)).toBe(conversation);

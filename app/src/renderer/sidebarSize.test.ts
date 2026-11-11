@@ -30,7 +30,7 @@ describe("sidebarToggleView", () => {
   test("hidden: permission before working before unseen", () => {
     expect(sidebarToggleView(true, slots("unseen", "working", "permission", "canvas"))).toEqual({ label: "Show sidebar, needs your answer", icon: "show", badge: "permission" });
     expect(sidebarToggleView(true, slots("unseen", "canvas", "working"))).toEqual({ label: "Show sidebar, agent working", icon: "show", badge: "working" });
-    expect(sidebarToggleView(true, slots("canvas", "unseen"))).toEqual({ label: "Show sidebar, new activity", icon: "show", badge: "unseen" });
+    expect(sidebarToggleView(true, slots("canvas", "unseen"))).toEqual({ label: "Show sidebar, conversation finished unread", icon: "show", badge: "unseen" });
   });
   test("a terminal agent's work counts as working", () => {
     const terminal = new Map<string, SidebarSlot>([["t", { kind: "working", label: "l", source: "terminal" }]]);

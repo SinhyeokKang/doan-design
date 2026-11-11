@@ -179,6 +179,16 @@ test("hidden, the button names the sidebar's most urgent signal: a terminal agen
   expect(button()["data-badge"]).toBeUndefined();
 });
 
+test("hidden, a finished conversation's badge is a speech bubble while the other signals stay dots", async () => {
+  await start();
+  const real = bars()[0]!;
+  const bar = (badge: string): Bar => ({ ...real, sidebar: { ...real.sidebar, view: { label: "l", icon: "show", badge } } });
+  expect(button(bar("working"))["data-badge"]).toBe("true");
+  const finished = button(bar("unseen"));
+  expect(finished["data-badge"]).toBe("unseen");
+  expect(all(finished.children as ReactNode).some(element => element.props.className === "badge-bubble")).toBe(true);
+});
+
 class FakeElement { constructor(readonly inside: boolean) {} closest(selector: string) { return this.inside && selector.includes(".shell-side") ? this : null; } }
 function focusScene(active: FakeElement) {
   const shown = { closest: () => null, focus: vi.fn() }, inert = { closest: () => ({}), focus: vi.fn() };
