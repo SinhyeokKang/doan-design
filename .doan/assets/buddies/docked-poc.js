@@ -210,8 +210,9 @@
   }
   function rise(st) { st.trip = { destination: st.surface, phase: 'arriving', from: st.conceal, at: st.time, quick: true, idle: false, hold: false, closedAt: null }; }
   function arrive(st, dest, inputs, v, quick) {
-    const idle = !!(st.trip && st.trip.idle);
+    const idle = !!(st.trip && st.trip.idle), newX = st.trip ? st.trip.newX : undefined;
     moveTo(st, dest, inputs);
+    if (newX !== undefined && st.surface) st.x = -2 + newX*(trackMax(inputs.surfaces[st.surface].width) + 2);
     st.visit = st.surface === 'tools' ? (idle && !v.stepAside && v.floor('dock') ? 'idle' : 'forced') : null;
     st.trip = { destination: st.surface, phase: 'arriving', from: st.conceal, at: st.time, quick, idle: false, hold: false, closedAt: null };
   }
@@ -286,6 +287,15 @@
     st.idleLeft -= dt;
     if (st.idleLeft <= 0) idleTrip(st, v, random);
   }
+  // A click on the buddy: the same choreography as an idle trip, to the other surface when the rules allow it, else
+  // to a new random x on the same surface, so a click always gets a visible answer.
+  function pokeTrip(st, v, random) {
+    const other = st.surface === 'dock' ? 'tools' : 'dock';
+    const go = v.ok(other) ? other : st.surface;
+    startTrip(st, go, random, { idle: true });
+    if (go === st.surface) st.trip.newX = random();
+    st.idleLeft = null;
+  }
   function idleTrip(st, v, random) {
     const other = st.surface === 'dock' ? 'tools' : 'dock';
     startTrip(st, v.ok(other) ? other : st.surface, random, { idle: true });
@@ -336,7 +346,8 @@
    *   panel: { folded, folding }             the canvas conversation panel
    *   resting, visible, paused, reduced      booleans; paused is the preview's Pause control
    *   events: [] of 'input' (composer input/focus), 'thread' (pointer over the thread) and the preview-only
-   *           'jump', 'look-input', 'look-thread', 'walk', 'blink', 'trip' (Hide & reappear)
+   *           'poke' (a click on the buddy's painted body),
+   *           and the preview-only 'jump', 'look-input', 'look-thread', 'walk', 'blink', 'trip' (Hide & reappear)
    * now is a rAF timestamp in ms; random() returns [0, 1). advance updates state in place and returns what to draw. */
   function advance(st, inputs, now, random) {
     const dt = Math.min(.035, st.last ? (now - st.last)/1000 : 1/60);
@@ -349,8 +360,9 @@
       settle(st, v, inputs);
       if (!reduced) st.nextMove = st.time + 2;
     }
-    let replay = false;
+    let replay = false, poked = false;
     for (const e of inputs.events || []) {
+      if (e === 'poke') { poked = true; continue; }
       if (e === 'input') st.typingUntil = st.time + 2.2;
       else if (e === 'thread') { st.forced = 'thread'; st.focusUntil = st.time + 1.5; }
       else if (e === 'look-input' || e === 'look-thread') { st.forced = e.slice(5); st.focusUntil = st.time + 5; }
@@ -360,6 +372,12 @@
       else if (e === 'trip') replay = true;
     }
     if (reduced || !inputs.visible || inputs.paused) {
+      // Not animating: a click still moves the buddy, at once.
+      if (poked && st.surface && st.conceal === 0 && !st.trip) {
+        const other = st.surface === 'dock' ? 'tools' : 'dock';
+        if (v.ok(other)) { moveTo(st, other, inputs); st.visit = other === 'tools' ? 'idle' : null; }
+        else st.x = -2 + random()*(trackMax(inputs.surfaces[st.surface].width) + 2);
+      }
       settle(st, v, inputs);
       clampX(st, inputs, v);
       return frame(st, inputs);
@@ -367,6 +385,7 @@
     st.time += dt;
     const t = st.time, focus = attention(st);
     decide(st, v, inputs, dt, random, replay);
+    if (poked && st.surface && st.conceal === 0 && !st.trip) pokeTrip(st, v, random);
     const width = st.surface && inputs.surfaces[st.surface] ? inputs.surfaces[st.surface].width : SIZE;
     if (st.motion) {
       const m = st.motion, age = t - m.start;
@@ -607,6 +626,31 @@
     }
     buttons.forEach(b => { if (RIG_ACTIONS.has(b.dataset.pocAction)) b.addEventListener('click', () => action(b.dataset.pocAction)); });
     frame.addEventListener('pointermove', e => { if (e.target.closest('.thread-scroll')) rig.events.push('thread'); });
+    // Clicks land only on the painted body: the host takes pointer events while the pointer is over an opaque pixel of
+    // the buddy's silhouette (the still image, drawn with the rig's 16.5% padding), so the transparent margin keeps
+    // passing clicks to the thread or board underneath. Pointer only: no focus, no accessible name.
+    const mask = { data: null, w: 0, h: 0 };
+    const readMask = () => {
+      const w = fallback.naturalWidth, h = fallback.naturalHeight; if (!w) return;
+      const c = document.createElement('canvas'); c.width = w; c.height = h;
+      const g = c.getContext('2d', { willReadFrequently: true }); g.drawImage(fallback, 0, 0);
+      try { mask.data = g.getImageData(0, 0, w, h).data; mask.w = w; mask.h = h; } catch { mask.data = null; }
+    };
+    if (fallback.complete) readMask(); else fallback.addEventListener('load', readMask, { once: true });
+    function onBody(px, py) {
+      if (!mask.data || !rig.out || rig.out.presence !== 'shown') return false;
+      const r = host.getBoundingClientRect(), pad = .165*r.width;
+      const cw = r.width - 2*pad, ch = r.height - 2*pad, scale = Math.min(cw/mask.w, ch/mask.h);
+      const ox = r.left + pad + (cw - mask.w*scale)/2, oy = r.top + pad + (ch - mask.h*scale)/2;
+      const ix = Math.floor((px - ox)/scale), iy = Math.floor((py - oy)/scale);
+      if (ix < 0 || iy < 0 || ix >= mask.w || iy >= mask.h) return false;
+      return mask.data[(iy*mask.w + ix)*4 + 3] > 32;
+    }
+    document.addEventListener('pointermove', e => {
+      const on = onBody(e.clientX, e.clientY);
+      host.style.pointerEvents = on ? 'auto' : ''; host.style.cursor = on ? 'pointer' : '';
+    }, { passive: true });
+    host.addEventListener('click', e => { if (onBody(e.clientX, e.clientY)) rig.events.push('poke'); });
     message?.addEventListener('focus', () => rig.events.push('input'));
     message?.addEventListener('input', () => {
       rig.events.push('input');

@@ -64,7 +64,9 @@ Geometry
   pills are transparent, so the buddy is hidden only behind a pill.
 - Thread bottom padding 24 -> 32px (scroll content). Docked top padding stays 12px; the
   docked backdrop does not grow for the buddy.
-- Decorative: aria-hidden, pointer-events:none, no tabindex, no click or key handler.
+- Decorative for keyboard and screen readers: aria-hidden, no tabindex, no key handler. The clip
+  window, ground and shadow are pointer-events:none; the host takes pointer events only over the
+  painted body (see Click below).
   Input and toolbar controls keep their geometry and hit targets.
 
 Locomotion and attention
@@ -115,6 +117,12 @@ Surface rules, in priority order
   fraction; a not-yet-launched preparation is cancelled, an airborne hop or landing
   finishes first. The first toolbar visit starts centred; later visits keep each
   surface's x (the input's first x is 16px). A narrower surface clamps x at once.
+- Click (spec decision 14): only the painted body takes the click (the still image's alpha at the
+  host's place, with the rig's 16.5% padding); the transparent margin passes clicks to the thread or
+  board below, and the cursor is a pointer over the body. Pointer only: no focus, no accessible name.
+  A click while shown hides the buddy with the idle-trip choreography and brings it up on the other
+  surface when the rules allow it, else at a new random x on the same surface. Ignored while hiding
+  or revealing; under reduced motion the move applies at once.
 - First mount: standing at rest on the current surface, no reveal.
 - While not visible (and in the preview while paused), changes apply at once without
   animation; nothing queued replays when time resumes.
@@ -162,6 +170,7 @@ Review evidence
 <h1>A little ground above the conversation</h1>
 <p>Approved design · all five buddies: Doany, Puri, Dungdung, Popo and Dori · not yet implemented in the app.</p>
 <p>A 56px buddy takes short, grounded hops along the input. On canvas pages, after 60–120 s in which the person rests, it hides and reappears at the tool panel. A queued message, suggested prompts or a waiting permission card keeps it away from the input; when they end, it comes back. Anything floating over its spot, such as the picking hint or a tooltip, sends it down until 1 s after it closes.</p>
+<p>Click the buddy’s body to send it to the other surface, or to a new spot on the same one when it cannot go there. Its transparent margin lets clicks through.</p>
 <p>Use the queue, Hide &amp; reappear, Picking hint, Toolbar tooltip, Fold panel, Suggested prompts, Permission card and Input unavailable controls to review transitions. Other controls replay motion and attention. These are preview controls, not product UI.</p>
 <p>The HTML source contains the implementation handoff: confirmed geometry, timing, state priorities, references, review evidence and questions for future feature planning. Frame and element ids are preserved.</p>
 </header>
