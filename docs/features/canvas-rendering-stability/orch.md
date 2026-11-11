@@ -23,6 +23,7 @@
 12. C2 처리(사용자): 남은 현상으로 둔다. 회귀만 막고 BACKLOG에 현상과 측정값을 남긴다.
 13. 개선 기준(사용자 합의): ① C1 — pmsf 최초 렌더링(대화 접힘), 정지 sweep(축소 0.065–0.13), emcf 빠른 축소에서 앱 세 레이아웃과 Export(Electron·Chrome)의 지속 잘림이 5회 모두 0. ② 모서리 외관이 수정 전과 픽셀 비교로 같다. ③ clip하는 조상에 균일 반경이 없다는 구조 단언. ④ C2 회귀 없음(이동 peak와 빈 프레임 비율이 수정 전 범위 이하). ⑤ 첫 표시 1프레임 빈 화면은 범위 밖이며 BACKLOG에 남긴다.
 14. 앱 모서리 방식(사용자, F 질문): 앱 패널 모서리 뒤는 macOS vibrancy라 덮개로 같은 픽셀을 낼 수 없다. 그래서 앱은 패널이 둥근 배경만 그리고 자르지 않는다. 헤더가 위 모서리를, `.area`가 아래 모서리만 자른다. `.area`의 위 반경은 구조상 0이다. Export는 단색 `--bg-app` 위라 덮개 방식을 유지한다. 결정 10의 덮개 방식은 Export에만 적용한다.
+15. 최적화 범위(사용자, lead 전달): 깨짐 수정에 더해 큰 캔버스의 렌더링 비용을 drift 없이 줄인다(spec 완료 조건 5, tasks 5–6). 목표 수치는 측정에서 정하고, ARCHITECTURE §3 구조 변경이 필요한 후보만 사용자에게 묻는다. drift 없는 후보의 채택은 conductor가 측정 근거로 정한다.
 
 ## 배치
 
@@ -32,10 +33,12 @@
 | P2 (부하) | 결정 8 | 추적 파일 수정 없음 | P | Sonnet high — P의 probe를 그대로 반복 실행하는 측정이다. P 워커 터미널을 재사용할 수 없어 새 워커로 띄웠다 | 무부하·CPU·GPU 부하별 C2 이동 측정 중앙값·범위, C1 sanity | 진행 중 |
 | F (수정) | tasks 3, 4(`/runtime-test`·`/postmortem`) | `app/src/renderer/styles.css`와 캔버스 패널을 그리는 컴포넌트, `cli/internal/export/viewer/*`, 그 테스트, `docs/POSTMORTEM.md` | P, 개선 기준 합의 | Opus high — 앱과 Export 두 경로에서 외관 픽셀 일치와 구조 단언을 맞춰야 하고, 틀리면 잘림이 남거나 모서리 모양이 바뀐다 | 단위 red→green 또는 같은 probe의 전후 측정, `verify.mjs` | 대기 |
 | R (리뷰) | F의 `/code-review` | 보고만 | F | Opus medium — CSS·viewer 변경은 작지만 구조 단언과 회귀 판단이 필요하다 | 🔴 0 | 대기 |
-| D (문서) | tasks 5 | PRODUCT·ARCHITECTURE·BACKLOG·POSTMORTEM, 이 디렉터리 삭제 | F 통합 | conductor가 직접 쓴다(문서 갱신 커밋) | 증거 대조 | 대기 |
+| O1 (최적화 측정) | tasks 5 | 추적 파일 수정 없음 | F 통합 | Opus high — 비용 분해와 drift 없는 후보 선정은 판단 중심이고, 틀리면 O2가 효과 없는 변경을 넣는다 | 비용별 기준선(중앙값·범위, load average), 후보와 근거·예상 효과 | 대기 |
+| O2 (최적화 구현) | tasks 6 | O1이 고른 후보의 파일. O1 이후 확정 | O1 | O1 결과로 정한다 | 후보별 전후 비용, 픽셀 비교 drift 0, `verify.mjs` | 대기 |
+| D (문서) | tasks 7 | PRODUCT·ARCHITECTURE·BACKLOG·POSTMORTEM, 이 디렉터리 삭제 | F 통합 | conductor가 직접 쓴다(문서 갱신 커밋) | 증거 대조 | 대기 |
 
 ## 파일 겹침과 순서
 
-직렬이다. P2와 F는 파일이 겹치지 않아 함께 돌리되, F의 GUI probe는 P2가 끝난 뒤 conductor 허락을 받고 시작한다. P는 코드를 바꾸지 않지만 F의 범위가 P 결과에 달려 있고, GUI 측정이 사용자 화면에서 겹치지 않아야 한다. P → (사용자 개선 기준 합의) → F → R → (수정 라운드) → 통합·`/verify` → D → push·PR.
+직렬이다. P2와 F는 파일이 겹치지 않아 함께 돌리되, F의 GUI probe는 P2가 끝난 뒤 conductor 허락을 받고 시작한다. P는 코드를 바꾸지 않지만 F의 범위가 P 결과에 달려 있고, GUI 측정이 사용자 화면에서 겹치지 않아야 한다. P → (사용자 개선 기준 합의) → F → R → (수정 라운드) → 통합 → O1 → O2 → R2 → 통합·`/verify`·`/agent-eval` → D → push·PR. O1·O2는 F와 같은 렌더러 파일을 건드릴 수 있어 F 통합 뒤에 시작한다.
 
 원인 미확정이나 재현 실패면 P 뒤에 멈추고 사용자에게 관측과 필요한 자료를 보고한다.
