@@ -142,7 +142,8 @@ export class CanvasController {
   private jumpTimer: ReturnType<typeof setTimeout> | undefined;
   private work: CanvasWorkTarget | null = null;
   private workMark: HTMLElement | null = null;
-  // The frame the marker is on, null while it is hidden: a slide needs a frame to come from.
+  // The frame the marker is on, null while it is hidden: a slide needs a frame to come from, and a reload keeps only a
+  // marker already shown.
   private workMarkFrame: string | null = null;
   private workSlideTimer: ReturnType<typeof setTimeout> | undefined;
   // The canvas the last setWork described: a change is entering it.
@@ -1783,14 +1784,20 @@ export class CanvasController {
     return open && target && !this.state.unlisted && target.root === open.folder && target.path === open.canvas ? target.work : null;
   }
 
-  // The working-frame marker: the jump highlight kept for the work turn, on the first frame with the
-  // id, gone while the document reloads or failed and back on the same id once the new one lays out. It is placed in
-  // screen px on every view change, so it slides only when the working frame changes (`slide`); any other redraw puts
-  // it on its frame at once, ending a slide.
+  // The working-frame marker: the jump highlight kept for the work turn, on the first frame with the id. A reload keeps
+  // a shown marker on the previous layout's rect until the new layout places it: every agent write reloads the canvas,
+  // and hiding it in between restarted its animations each time, so a run of writes blinked it. It goes when the
+  // document is not laid out (first load, failed, no width) or the new layout lacks the frame, and does not appear
+  // mid-reload when it was not shown before. It is placed in screen px on every view change, so it slides only when
+  // the working frame changes (`slide`); any other redraw puts it on its frame at once, ending a slide.
   private drawWork(slide = false): void {
     clearTimeout(this.workSlideTimer);
-    const work = this.loading || this.state.status !== null ? null : this.openWork();
+    const work = this.state.status !== null || (this.loading && this.workMarkFrame === null) ? null : this.openWork();
     const rect = work ? workFrameRect(this.state.layout, work.frame) : null;
+    // A reload's first layout can report every frame as 0 × 0 before the document is measured: the frame has not
+    // gone, so a marker already on it stays put for the measured layout instead of hiding and restarting.
+    const frames = this.state.layout?.frames ?? [];
+    if (rect === null && work !== null && work.frame === this.workMarkFrame && frames.some(frame => frame.id === work.frame) && frames.every(frame => frame.width === 0 && frame.height === 0)) return;
     if (work === null || rect === null) {
       if (this.workMark) this.workMark.hidden = true;
       this.workMarkFrame = null;
