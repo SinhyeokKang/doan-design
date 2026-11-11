@@ -31,6 +31,7 @@ import {
 } from "./homeComposer";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import { queueFocusAfter, type QueueFocus } from "./queueFocus";
+import { dockedBuddy } from "./dockedBuddyShell";
 import type { PermissionPickerView } from "./permissionPicker";
 import type { SettingsTarget } from "./settingsSections";
 
@@ -129,6 +130,9 @@ export interface DockedComposerProps {
   // The shown conversation's last recorded context value (contextRing); null or absent: no ring, and the tray is as
   // without it.
   context?: ContextUsage | null;
+  // What the host shows over the card that the docked buddy steps aside for: suggested prompts in a new conversation,
+  // a permission or question card at the thread's end waiting for an answer. A queued row is the composer's own.
+  stepAside?: { prompts: boolean; waiting: boolean };
 }
 
 const sameDraft = (a: DockedDraft, b: DockedDraft) => sameSegments(a.segments, b.segments) && (a.preset?.id ?? null) === (b.preset?.id ?? null)
@@ -423,6 +427,10 @@ export function DockedComposer(props: DockedComposerProps) {
       // The same refusal again changes the region's text by a no-break space, so it is read again.
       announce={text => setAnnouncement(current => current === text ? `${text}\u00a0` : text)} />
     <ComposerCard readonly={isSending}>
+      {/* The docked buddy's floor on the card's top edge; the buddy reads its reasons from these attributes. */}
+      <div className="docked-buddy-slot" ref={dockedBuddy.dockSlot} aria-hidden="true" data-accepts={locked ? "false" : undefined}
+        data-queue={props.queued.length > 0 ? "" : undefined} data-prompts={props.stepAside?.prompts ? "" : undefined}
+        data-waiting={props.stepAside?.waiting ? "" : undefined} data-popover={slashOpen ? "" : undefined} />
       <ComposerChips attachments={draft.attachments} preset={draft.preset} thumbnails={props.thumbnails} homeDirectory={props.homeDirectory} disabled={isSending || locked} removeButtons={removeButtons} onRemove={index => removeChip(index, "button")} />
       {/* One field element in both shapes, at the same place and key: remounting it would drop focus and IME composition. */}
       <ComposerField skillNames={skillNames} key="field" ref={field} draftKey={key} value={draft.segments} onChange={segments => edit({ segments })} readOnly={isSending || locked}

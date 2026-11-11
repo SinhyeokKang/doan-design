@@ -107,8 +107,10 @@ function setup(options: { buddy?: "doany" | "puri" } = {}) {
   // Runs the pending frame, if any, at now ms.
   const frame = (now = clock) => { const first = [...frames][0]; if (!first) return false; frames.delete(first[0]); first[1](now); return true; };
   const run = (count: number, step = 16) => { for (let i = 0; i < count; i++) { clock += step; frame(clock); } };
-  const ground = () => created.find(node => node.className === "docked-buddy")!;
-  const host = () => created.find(node => node.className === "docked-buddy-host")!;
+  // This setup's own nodes: a test may start a second shell.
+  const from = created.length;
+  const ground = () => created.slice(from).find(node => node.className === "docked-buddy")!;
+  const host = () => created.slice(from).find(node => node.className === "docked-buddy-host")!;
   const canvas = () => host().children.find(node => node.tag === "canvas")!;
   const still = () => host().children.find(node => node.tag === "img")!;
   const load = async () => { for (const image of FakeImage.all) image.onload(); await flush(); };
@@ -383,4 +385,24 @@ test("composer input and focus look down and end a rest; pointer over the thread
   page.dispatch("pointermove", { target: thread, clientX: 0, clientY: 0 });
   env.run(1);
   expect(env.host().dataset.state).toBe("attentive");
+});
+
+test("an idle trip comes only after a rest: thread scrolling and composer input restart it, and an unfocused window never rests", async () => {
+  const env = setup();
+  env.start(); env.frame(); await env.load();
+  const thread = new FakeNode("div"); thread.className = "thread-scroll";
+  const field = new FakeNode("div"); field.className = "composer-input";
+  const card = new FakeNode("div"); card.className = "docked"; card.append(field);
+  // 200 s with a wheel on the thread or a keystroke every 4 s: never 5 s of rest, so no trip.
+  for (let at = 0; at < 200; at += 4) { page.dispatch(at % 8 ? "wheel" : "input", { target: at % 8 ? thread : field }); env.run(Math.round(4000 / 35), 35); }
+  expect(env.ground().parentElement).toBe(env.dock);
+  // Resting, within 60–120 s (plus the hide and reveal) it moves to the toolbar.
+  env.run(Math.round(127000 / 35), 35);
+  expect(env.ground().parentElement).toBe(env.tools);
+
+  const away = setup();
+  away.start(); away.frame(); await away.load();
+  page.focused = false;
+  away.run(Math.round(200000 / 35), 35);
+  expect(away.ground().parentElement).toBe(away.dock);
 });

@@ -334,3 +334,38 @@ test("docked tray CSS: trigger values in the standard ink, drawer names in the m
   expect(css).toContain(".doan-button .label.placeholder { color: var(--text-metadata); }");
   expect(css).toContain(".composer-tray .doan-button { margin-left: calc(-1 * var(--space-2)); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); font-weight: var(--type-weight-regular); color: var(--text-subtle); }");
 });
+
+// The docked buddy stands on the card's top edge (the shell, dockedBuddyShell.ts, reads these attributes).
+const slotTag = (html: string) => /<div class="docked-buddy-slot"[^>]*><\/div>/.exec(html)?.[0] ?? null;
+test("the card carries the docked buddy's slot, decorative and out of the tab order, with the reasons the buddy steps aside for", () => {
+  expect(slotTag(render())).toBe('<div class="docked-buddy-slot" aria-hidden="true"></div>');
+  // The slot is the card's first child, ahead of the chips and the field.
+  expect(render()).toContain('<div class="composer-card"><div class="docked-buddy-slot"');
+  expect(slotTag(render({ queued: [{ id: "q1", text: "Next" }] }))).toBe('<div class="docked-buddy-slot" aria-hidden="true" data-queue=""></div>');
+  expect(slotTag(render({ stepAside: { prompts: true, waiting: false } }))).toBe('<div class="docked-buddy-slot" aria-hidden="true" data-prompts=""></div>');
+  expect(slotTag(render({ stepAside: { prompts: false, waiting: true } }))).toBe('<div class="docked-buddy-slot" aria-hidden="true" data-waiting=""></div>');
+  // A card that takes no input (a canvas outside the list or sharing its ID); a reason alone does not lock it.
+  expect(slotTag(render({ unavailable: "This page is not a listed canvas.", locked: true }))).toBe('<div class="docked-buddy-slot" aria-hidden="true" data-accepts="false"></div>');
+  expect(slotTag(render({ unavailable: "Waiting for the project" }))).toBe('<div class="docked-buddy-slot" aria-hidden="true"></div>');
+  // The slash popover opens inside the card, where nothing else wakes the buddy's parked loop.
+  expect(slotTag(render({}, { text: "/" }))).toBe('<div class="docked-buddy-slot" aria-hidden="true" data-popover=""></div>');
+  // No card, no floor.
+  expect(slotTag(render({ canvasGone: true }))).toBeNull();
+});
+
+test("the buddy's layers: an absolute 0-high slot under the queue, nothing taking the pointer, the 88px window clipping it", () => {
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  const rule = (selector: string) => { const at = css.indexOf(`\n${selector} {`); return at < 0 ? "" : css.slice(at + selector.length + 3, css.indexOf("}", at)).trim(); };
+  const z = (selector: string) => Number(/z-index: (\d+);/.exec(rule(selector))?.[1]);
+  expect(rule(".docked-buddy-slot")).toBe("position: absolute; inset: 0 0 auto; height: 0; z-index: 2; pointer-events: none;");
+  expect(z(".docked > .queue")).toBeGreaterThan(z(".docked-buddy-slot"));
+  expect(rule(".docked > .queue")).toContain("position: relative;");
+  for (const selector of [".docked-buddy", ".docked-buddy-shadow", ".docked-buddy-window", ".docked-buddy-host"]) expect(rule(selector)).toContain("pointer-events: none;");
+  expect(rule(".docked-buddy-window")).toBe("position: absolute; left: 0; right: 0; top: -88px; height: 88px; overflow: hidden; pointer-events: none;");
+  expect(rule(".docked-buddy-host")).toContain("width: 56px; height: 56px;");
+  // The toolbar is the slot's containing block; the card already is.
+  expect(rule(".doan-canvas-bottom > .doan-canvas-tools")).toBe("position: relative;");
+  expect(rule(".docked .composer-card")).toContain("position: relative;");
+  // Under every portalled menu and tooltip (50), toast (6) and the problem overlay (5).
+  expect(z(".docked-buddy-slot")).toBeLessThan(5);
+});

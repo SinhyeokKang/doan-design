@@ -36,6 +36,15 @@ describe("CanvasTools", () => {
     expect(html).not.toContain("Add to conversation");
   });
 
+  it("carries the docked buddy's second floor first: decorative, no tab stop, and outside the tools ←/→ walks", async () => {
+    const { dockedBuddy } = await import("./dockedBuddyShell");
+    const html = markup();
+    expect(html).toMatch(/^<div class="doan-floating doan-canvas-tools"[^>]*><div class="docked-buddy-slot" aria-hidden="true"><\/div><button/);
+    const slot = all(CanvasTools(props())).find(element => element.props.className === "docked-buddy-slot")!;
+    expect(slot.props.ref).toBe(dockedBuddy.toolsSlot);
+    expect(slot.props.tabIndex).toBeUndefined();
+  });
+
   it.each<[CanvasTool, string, string]>([["select", "Select", "Hand"], ["hand", "Hand", "Select"]])("presses only %s", (tool, pressed, other) => {
     const html = markup({ tool });
     expect(html).toMatch(new RegExp(`<button[^>]*aria-pressed="true"[^>]*aria-label="${pressed}"`));

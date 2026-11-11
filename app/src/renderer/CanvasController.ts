@@ -1809,6 +1809,10 @@ export class CanvasController {
 
   private typed = (): void => { this.personActive(false); };
 
+  // The last moment the person moved the view, changed the selection, typed or pointed at the board (Date.now() ms):
+  // the docked buddy's rest starts from it, as following's does.
+  personMovedAt(): number { return this.lastPersonMove; }
+
   // Back on the canvas page (from Home, Settings or another workspace's screen): like opening the canvas, the frame
   // worked on now counts as followed and the rest starts again.
   private enteredPage(): void {
