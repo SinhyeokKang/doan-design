@@ -239,7 +239,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const beforeAuto = useRef(new Map<string, string>());
   const [state, setState] = useState(initialCanvasState);
   // The zoom and current frame go to the header alone: a pan or zoom publishes them many times a second, and an App
-  // render for each cost most of the page's script while moving.
+  // render for each cost most of the page's script while moving. So `state.zoom`, `state.scale` and
+  // `state.currentFrame` can be older than the view; read them from `canvasView`.
   const canvasView = useRef<CanvasViewStore>(null as unknown as CanvasViewStore);
   if (!(canvasView.current instanceof CanvasViewStore)) canvasView.current = new CanvasViewStore(canvasViewFields(state));
   const canvasChanged = (next: CanvasState) => { canvasView.current.set(canvasViewFields(next)); setState(previous => viewOnlyChange(previous, next) ? previous : next); };
