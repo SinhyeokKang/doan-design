@@ -981,6 +981,8 @@ exit 2
 
   test("the auto flag survives a restart", async () => {
     const { main, w, file, git } = await adopted();
+    // The mark is saved before the folder list; dispose does not await that pending write.
+    await vi.waitFor(() => expect(saved(file)).toEqual([main, w]), until);
     await Promise.all(shells.splice(0).map((shell) => shell.dispose()));
     const shell = await startShell(file, git.path, () => {}); shells.push(shell);
     expect(shell.entries()).toEqual([{ path: main, kind: "loading" }, { path: w, kind: "loading", autoRegistered: true }]);
