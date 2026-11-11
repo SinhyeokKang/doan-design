@@ -2225,3 +2225,57 @@ describe("canvasScript picking keeps its own targets", () => {
     expect(lastSelection(canvas)).toBe("a");
   });
 });
+
+// A nested iframe inside a frame: the press is seen only as focus moving in, so the canvas hands focus back after each
+// selection, or the next press in the same iframe would move no focus and go unheard.
+describe("canvasScript nested iframe in a frame", () => {
+  const nestedCanvas2 = () => {
+    const nested = node("iframe", {}, [], { rect: { left: 30, top: 30, width: 50, height: 40 } });
+    const frame = node("section", { "data-doan-frame": "f" }, [nested], { rect: { left: 10, top: 10, width: 200, height: 100 } });
+    const canvas = fakeCanvas({ readyState: "complete", body: node("body", {}, [frame]) });
+    canvas.posted.length = 0;
+    return { canvas, nested, frame };
+  };
+  const focusIn = (canvas: ReturnType<typeof fakeCanvas>, nested: FakeNode) => {
+    canvas.document.activeElement = nested;
+    canvas.fireWindow("blur", {});
+    canvas.advance(0);
+  };
+
+  test("the first press selects the frame and gives focus back, so the second press selects the iframe", () => {
+    const { canvas, nested } = nestedCanvas2();
+    focusIn(canvas, nested);
+    expect(lastSelection(canvas)).toBe("f");
+    expect(nested.blurred).toBe(1);
+    canvas.document.activeElement = canvas.body;
+    focusIn(canvas, nested);
+    expect(lastSelection(canvas)).toBe("f>iframe");
+  });
+
+  test("⌘ held on the way in selects the iframe directly", () => {
+    const { canvas, nested } = nestedCanvas2();
+    canvas.fireWindow("pointermove", input({ target: nested, metaKey: true }));
+    focusIn(canvas, nested);
+    expect(lastSelection(canvas)).toBe("f>iframe");
+  });
+});
+
+describe("canvasScript hover across a pick", () => {
+  test("starting and ending a pick recomputes the hover with the pointer resting", () => {
+    const { canvas, button } = nestedCanvas();
+    const hover = () => ofType(canvas, "hover").at(-1)?.rect;
+    canvas.fireWindow("pointermove", input({ target: button }));
+    canvas.runFrame();
+    expect(hover()).toEqual({ x: 10, y: 10, width: 300, height: 100 });
+    canvas.fromParent({ type: "measure" });
+    const document = (ofType(canvas, "layout").at(-1) as { document: string }).document;
+    canvas.fromParent({ type: "pick-start", seq: 1, document });
+    expect(hover()).toEqual({ x: 30, y: 30, width: 20, height: 10 });
+    canvas.fromParent({ type: "pick-cancel", seq: 2, document });
+    expect(hover()).toEqual({ x: 10, y: 10, width: 300, height: 100 });
+    // Esc in a focused canvas ends the pick there too.
+    canvas.fromParent({ type: "pick-start", seq: 3, document });
+    canvas.fireWindow("keydown", input({ target: canvas.body, key: "Escape" }));
+    expect(hover()).toEqual({ x: 10, y: 10, width: 300, height: 100 });
+  });
+});

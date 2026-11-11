@@ -313,6 +313,8 @@ export function canvasScript(lib: CanvasLib): void {
     } catch {
       // The cursor is only a hint: a canvas that broke adoptedStyleSheets still picks, without the crosshair.
     }
+    // A pick hovers what is under the pointer, Select its next step: the resting pointer's hover changes with it.
+    postHover();
   };
 
   const isRoot = (el: unknown) => el === document.documentElement || el === document.body;
@@ -761,6 +763,8 @@ export function canvasScript(lib: CanvasLib): void {
   // A nested iframe has no script of ours; a click inside it only shows here
   // as focus moving into it.
   addEventListener("blur", () => {
+    // The ⌘ held on the way into a nested iframe, before the release below forgets it.
+    const direct = meta;
     // ⌘ released while focus was elsewhere (⌘Tab) never comes back as a keyup.
     if (meta) {
       meta = false;
@@ -782,7 +786,11 @@ export function canvasScript(lib: CanvasLib): void {
         return;
       }
       if (alt) return;
-      if (active.isConnected) choose(active, false);
+      if (!active.isConnected) return;
+      choose(active, direct);
+      // Focus goes back to this document, or the next press in the same nested frame moves no focus and goes unheard,
+      // and a frame step would never reach the nested frame itself.
+      if ("blur" in active && typeof active.blur === "function") active.blur();
     }, 0);
   });
 
