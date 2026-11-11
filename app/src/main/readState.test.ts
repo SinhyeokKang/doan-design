@@ -30,9 +30,10 @@ function project(canvases: Record<string, string>): string {
 }
 
 // The read state as index.ts wires it, over real files, with the shell's list, the visible proof and the window faked.
-function app(userData = join(tmp, `u${count++}`)) {
+// `localWrite` stands in for canvas-seen.json's file write; `onWrite` runs after each shared write lands.
+function app(userData = join(tmp, `u${count++}`), options: { localWrite?: (file: string, text: string) => void; onWrite?: (name: string) => void } = {}) {
   mkdirSync(userData, { recursive: true });
-  const local = createLocalSeen(join(userData, "canvas-seen.json"));
+  const local = createLocalSeen(join(userData, "canvas-seen.json"), options.localWrite);
   let entries: FolderEntry[] = [];
   const shown = new Map<string, string>();
   const problems: { root: string; problem: ReadStateProblem }[] = [];
@@ -42,7 +43,7 @@ function app(userData = join(tmp, `u${count++}`)) {
     local,
     fingerprint: createFingerprints().of,
     read: readSeen,
-    write: async (root, name, text, expected) => { writes.push(name); await writeSeen(root, name, text, expected); },
+    write: async (root, name, text, expected) => { writes.push(name); await writeSeen(root, name, text, expected); options.onWrite?.(name); },
     entries: () => entries,
     shown: async (root, row) => shown.get(`${root}\n${row.path}`) ?? null,
     changed: () => { changed++; },
@@ -143,6 +144,23 @@ test("showing a canvas records the shown bytes; a screen showing A while the dis
   expect(record(root, "a")).toBe(recordText({ html: fingerprintOf(Buffer.from(html("A2"))) }));
 });
 
+test("a screen still showing A while the record and the disk both hold B writes nothing: the reload is coming", async () => {
+  const root = project({ a: "A" });
+  const { list, marks, show, writes } = app();
+  await list(root);
+  // A pull brings the file and another device's record of it together, before the page reloads.
+  touch(root, "a", "B");
+  const recordB = recordText({ html: fingerprintOf(Buffer.from(html("B"))) });
+  writeFileSync(join(root, SEEN_DIR, "a.json"), recordB);
+  await list(root);
+  expect(marks(root)).toEqual({});
+  const before = writes.length;
+  await show(root, "a", html("A"));
+  expect(writes.length).toBe(before);
+  expect(record(root, "a")).toBe(recordB);
+  expect(marks(root)).toEqual({});
+});
+
 test("nothing is recorded without a proof (a thumbnail, Home) and the watcher's read of the app's own write writes nothing more", async () => {
   const root = project({ a: "A" });
   const { state, list, marks, show, writes } = app();
@@ -184,6 +202,28 @@ test.skipIf(isRoot)("a save that fails keeps the dot as a save failure on the sh
   expect(await state.retry({ root, path: pathOf("a") })).toBeNull();
   await state.idle();
   expect(marks(root)).toEqual({});
+});
+
+test.skipIf(isRoot)("a failed save keeps its failure dot while the canvas stays shown, even when its HTML changes", async () => {
+  const root = project({ a: "A" });
+  const { state, list, marks, show, changed } = app();
+  await list(root);
+  touch(root, "a", "A2");
+  await list(root);
+  chmodSync(join(root, SEEN_DIR), 0o555);
+  await show(root, "a");
+  expect(marks(root)).toEqual({ a: "changed:save" });
+  // An agent edits the shown canvas: nothing was saved, so the failure stays told.
+  touch(root, "a", "A3");
+  await list(root);
+  await show(root, "a");
+  expect(marks(root)).toEqual({ a: "changed:save" });
+  const before = changed();
+  expect(state.showing(null)).toBe(true);
+  await state.idle();
+  expect(marks(root)).toEqual({ a: "changed" });
+  expect(changed()).toBeGreaterThan(before);
+  chmodSync(join(root, SEEN_DIR), 0o755);
 });
 
 test.skipIf(isRoot)("showing the canvas again after a failed save tries again; a failure on an already seen canvas makes no dot", async () => {
@@ -229,6 +269,34 @@ test.skipIf(isRoot)("a first registration whose records cannot be written makes 
   expect(await state.retry({ root })).toBeNull();
   expect(seenFiles(root)).toEqual([MARKER, "a.json"]);
   expect(local.root(root)).toEqual({ known: { a: "seen" } });
+});
+
+test("a first registration whose frozen baseline cannot be saved on this device writes no records and waits for Retry", async () => {
+  const root = project({ a: "A" });
+  let fail = true;
+  const { state, list, marks, problems, writes, local } = app(undefined, { localWrite: (file, text) => { if (fail) throw new Error("injected"); writeFileSync(file, text); } });
+  await list(root);
+  expect(writes).toEqual([]);
+  expect(marks(root)).toEqual({});
+  expect(problems).toEqual([{ root, problem: { kind: "baseline", readOnly: false } }]);
+  await list(root);
+  expect(writes).toEqual([]);
+  fail = false;
+  expect(await state.retry({ root })).toBeNull();
+  expect(seenFiles(root)).toEqual([MARKER, "a.json"]);
+  expect(local.root(root)).toEqual({ known: { a: "seen" } });
+});
+
+test("a project removed while its initial records are written gets no further writes and no memory back", async () => {
+  const root = project({ a: "A", b: "B" });
+  let removeNow = (): void => {};
+  const { list, remove, writes, local, state } = app(undefined, { onWrite: name => { if (name === "a.json") removeNow(); } });
+  removeNow = () => remove(root);
+  await list(root);
+  await state.idle();
+  expect(writes).toEqual(["a.json"]);
+  expect(seenFiles(root)).toEqual(["a.json"]);
+  expect(local.root(root)).toBeUndefined();
 });
 
 test("records damaged or lost after registration keep the last verdicts, tell once, and never reset to a baseline", async () => {
@@ -281,6 +349,28 @@ test("an older Doan's record is converted keeping its unseen canvases unseen", a
   expect(marks(root)).toEqual({ b: "changed" });
   expect(record(root, "b")).toBe(recordText({ unseen: "migrated" }));
   expect(JSON.parse(readFileSync(join(userData, "canvas-seen.json"), "utf8"))).toEqual({ v: 2, roots: { [root]: { known: { a: "seen", b: "changed" } } } });
+});
+
+test("a conversion keeps the old verdicts of canvases without a usable ID or record, and their old memory, across a restart", async () => {
+  const root = project({ a: "A", b: "B", c: "C", d: "D", e: "E", x: "X" });
+  const userData = join(tmp, `u${count++}`);
+  mkdirSync(userData);
+  const mtime = (id: string) => statSync(join(root, pathOf(id))).mtimeMs;
+  // c has no ID, d and e share one, x's record is damaged. a, d were seen; b, x changed since; c, e never seen.
+  const legacy = { [pathOf("a")]: mtime("a"), [pathOf("b")]: mtime("b") - 1, [pathOf("d")]: mtime("d"), [pathOf("x")]: mtime("x") - 1 };
+  writeFileSync(join(userData, "canvas-seen.json"), JSON.stringify({ v: 1, roots: { [root]: legacy } }));
+  mkdirSync(join(root, SEEN_DIR));
+  writeFileSync(join(root, SEEN_DIR, "x.json"), "<<<<<<< HEAD\n");
+  const ids = { c: undefined, d: "dup", e: "dup" };
+  const expected = { b: "changed", c: "new", e: "new", x: "changed" };
+  const first = app(userData);
+  await first.list(root, ids);
+  expect(first.marks(root)).toEqual(expected);
+  expect(first.local.root(root)?.legacy).toEqual(legacy);
+  const restarted = app(userData);
+  await restarted.list(root, ids);
+  expect(restarted.marks(root)).toEqual(expected);
+  expect(restarted.local.root(root)?.legacy).toEqual(legacy);
 });
 
 test("a project leaving the list forgets this device's memory but never its records", async () => {

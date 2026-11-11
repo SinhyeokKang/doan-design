@@ -194,7 +194,8 @@ describe("plan", () => {
     expect(expected).toEqual({
       [MARKER]: recordText(null), "a.json": recordText({ html: H("a") }), "b.json": recordText({ unseen: "migrated" }), "c.json": recordText({ unseen: "migrated" }),
     });
-    expect(local.memory).toEqual({ known: { a: "seen", b: "changed", c: "changed" } });
+    // d, e and f cannot be recorded, so the old mtimes stay for their verdicts.
+    expect(local.memory).toEqual({ legacy: LEGACY.legacy, known: { a: "seen", b: "changed", c: "changed" } });
     for (let crashAt = 0; crashAt < 4; crashAt++) {
       const root = repo(), state = { memory: LEGACY as RootMemory | undefined };
       await expect(run(root, state, ROWS, crashAt)).rejects.toThrow("crash");
@@ -202,9 +203,13 @@ describe("plan", () => {
       expect(state.memory).toEqual(LEGACY);
       await run(root, state, ROWS);
       expect(files(root), `crash at write ${crashAt}`).toEqual(expected);
-      expect(verdicts(state.memory, await snapshot(root, ROWS, state.memory), ROWS).verdicts).toMatchObject({ "a.html": "seen", "b.html": "changed", "c.html": "changed" });
+      expect(verdicts(state.memory, await snapshot(root, ROWS, state.memory), ROWS).verdicts).toEqual({ "a.html": "seen", "b.html": "changed", "c.html": "changed", "d.html": "new", "e.html": "new", "f.html": "new" });
     }
     expect(await run(clean, local, ROWS)).toBe(0);
+    // Once every row can be recorded, the old mtimes go.
+    const fixed = ROWS.slice(0, 3);
+    await run(clean, local, fixed);
+    expect(local.memory).toEqual({ known: { a: "seen", b: "changed", c: "changed" } });
   });
 
   test("conversion with records already there: the shared ones win, only missing IDs are filled from the old mtimes", async () => {
