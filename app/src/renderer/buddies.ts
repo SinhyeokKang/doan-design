@@ -37,7 +37,11 @@ export const EYE_TEXTURE = "buddies/eye.png";
 
 const SHARED = { gaze: ".018,.014", skew: ".018", bodyPivot: ".5,.60", scale: "1.34", neutral: ".10", padding: "16.5%" } as const;
 const friendAssets = (id: BuddyId): BuddyAssets => ({ still: `buddies/${id}/still.png`, body: `buddies/${id}/body.png`, accessory: `buddies/${id}/accessory.png`, shadow: `buddies/${id}/shadow.png`, card: `buddies/${id}/card.png` });
-const painter = (id: BuddyId): readonly ArtistVariant[] => [{ gif: `buddies/${id}/artist.gif`, rest: `buddies/${id}/artist-rest.png` }];
+const friendArtists = (id: BuddyId): readonly ArtistVariant[] => [
+  { gif: `buddies/${id}/artist.gif`, rest: `buddies/${id}/artist-rest.png` },
+  { gif: `buddies/${id}/artist-typing.gif`, rest: `buddies/${id}/artist-typing-rest.png` },
+  { gif: `buddies/${id}/artist-reading.gif`, rest: `buddies/${id}/artist-reading-rest.png` },
+];
 
 // Rig numbers: Doany's from .doan/assets/doany/v2/README.md, the friends' from .doan/assets/buddies/README.md.
 const REGISTRY: Record<BuddyId, Buddy> = {
@@ -54,22 +58,22 @@ const REGISTRY: Record<BuddyId, Buddy> = {
   puri: {
     id: "puri", name: "Puri", line: "A curious walking companion who shares every fun find.", assets: friendAssets("puri"),
     rig: { ...SHARED, eyes: [".433,.528", ".607,.528"], radius: [".034", ".057"], accessoryPivot: ".515,.307", accessoryTilt: [-.12, .12], liftScale: .9, contact: [.498, .847] },
-    artists: painter("puri"),
+    artists: friendArtists("puri"),
   },
   dungdung: {
     id: "dungdung", name: "Dungdung", line: "A music-loving mood maker who keeps things upbeat.", assets: friendAssets("dungdung"),
     rig: { ...SHARED, eyes: [".404,.482", ".585,.482"], radius: [".033", ".057"], accessoryPivot: ".5,.43", accessoryTilt: [-.025, .025], liftScale: .9, contact: [.494, .86] },
-    artists: painter("dungdung"),
+    artists: friendArtists("dungdung"),
   },
   popo: {
     id: "popo", name: "Popo", line: "A whimsical bookworm who dreams up new games.", assets: friendAssets("popo"),
     rig: { ...SHARED, eyes: [".411,.42", ".607,.42"], radius: [".032", ".055"], accessoryPivot: ".503,.42", accessoryTilt: [0, 0], liftScale: .9, contact: [.494, .858] },
-    artists: painter("popo"),
+    artists: friendArtists("popo"),
   },
   dori: {
     id: "dori", name: "Dori", line: "A quiet, caring friend to lean on when you’re tired.", assets: friendAssets("dori"),
     rig: { ...SHARED, eyes: [".424,.364", ".563,.365"], radius: [".027", ".045"], accessoryPivot: ".51,.535", accessoryTilt: [-.02, .02], liftScale: .65, contact: [.504, .888] },
-    artists: painter("dori"),
+    artists: friendArtists("dori"),
   },
 };
 

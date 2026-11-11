@@ -29,7 +29,8 @@ Doany's motion files stay here; `public/buddies/` holds everything else the budd
 | `doany/shadow.png` | `doany/shadow.png`, 1254² RGBA | Lanczos to 512² RGBA |
 | `<id>/card.png` (all five) | `<id>/card.png`, 1254² RGB | Lanczos to 588² RGB, three times the 196px selection card |
 | `<id>/artist.gif`, `artist-rest.png` (the four friends) | `<id>/artist.gif`, `artist-rest.png`, 512² | The source boxes in that README, then Doany's artist method above: 128², a 255-colour palette per frame with 1-bit transparency, every frame and its timing kept |
+| `<id>/artist-typing.gif`, `artist-typing-rest.png`, `artist-reading.gif`, `artist-reading-rest.png` (the four friends) | `<id>/typing.gif`, `typing-rest.png`, `reading.gif`, `reading-rest.png`, 512² | The same method with that README's typing and reading boxes |
 | `eye.png` | `eye.png`, 118 × 193 RGBA | Byte copy: the one eye every buddy's shader draws |
 | `group/` | `group/group.png`, 1478 × 789 | The Welcome group photo, recompressed losslessly |
 
-PNGs are recompressed losslessly (oxipng, colour type kept); the folder apart from `group/` stays under 5 MB, which `buddyAssets.test.ts` checks with the sizes, frames and timings above.
+PNGs are recompressed losslessly (oxipng, colour type kept); the folder apart from `group/` stays under 6 MB, which `buddyAssets.test.ts` checks with the sizes, frames and timings above.
