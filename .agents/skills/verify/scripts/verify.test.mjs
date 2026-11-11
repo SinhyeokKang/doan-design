@@ -90,3 +90,23 @@ test("the checkout lock refuses overlap and releases after a failure", async t =
   await withLock(dir, async () => { ran = true; });
   assert.equal(ran, true);
 });
+
+test("--shard passes Vitest's shard to app-test and runs every other step only in shard 1", () => {
+  const full = plan([]).map(s => s.name);
+  assert.deepEqual(plan([]).find(s => s.name === "app-test").args, ["--prefix", "app", "test"]);
+  const first = plan(["--shard", "1/3"]);
+  assert.deepEqual(first.map(s => s.name), full);
+  assert.deepEqual(first.find(s => s.name === "app-test").args, ["--prefix", "app", "test", "--", "--shard=1/3"]);
+  for (const flags of [["--shard", "2/3"], ["--shard", "3/3"], ["--eval", "--shard", "3/3"]]) {
+    const planned = plan(flags);
+    assert.deepEqual(planned.map(s => s.name), ["app-test"]);
+    assert.deepEqual(planned[0].args, ["--prefix", "app", "test", "--", `--shard=${flags.at(-1)}`]);
+  }
+  assert.ok(plan(["--eval", "--shard", "1/3"]).some(s => s.name === "eval-self-test"));
+});
+
+test("--shard rejects a missing or out-of-range value", () => {
+  for (const flags of [["--shard"], ["--shard", "0/3"], ["--shard", "4/3"], ["--shard", "1/0"], ["--shard", "a/b"], ["--shard", "1"], ["--shard", "--eval"], ["--shard", "1/3", "--shard", "2/3"]]) {
+    assert.throws(() => plan(flags), /shard|Unknown/, flags.join(" "));
+  }
+});
