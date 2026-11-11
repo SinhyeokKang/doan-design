@@ -20,12 +20,18 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # No display name on this job: the branch protection required check is the
-  # job id `gate`, and a display name would replace it.
-  gate:
+  # App tests take most of the gate's time on a 3-core runner, so the gate runs
+  # as one job per Vitest shard; shard 1 also runs every other step once.
+  shard:
+    name: shard ${{ matrix.shard }}/3
     runs-on: macos-26
-    # About twice the measured job time (7 min on macos-26).
+    # About twice the measured shard 1 time.
     timeout-minutes: 15
+    strategy:
+      # Keep the other shards running so one failure does not hide another.
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -37,4 +43,17 @@ jobs:
         with:
           go-version-file: go.mod
       - run: npm --prefix app ci
-      - run: node .agents/skills/verify/scripts/verify.mjs
+      - run: node .agents/skills/verify/scripts/verify.mjs --shard ${{ matrix.shard }}/3
+
+  # No display name on this job: the branch protection required check is the
+  # job id `gate`, and a display name would replace it. It must not be skipped
+  # when a shard fails (a skipped required check counts as passing), so it runs
+  # always and fails unless every shard succeeded.
+  gate:
+    needs: shard
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - run: test "$RESULT" = success || { echo "::error::A gate shard ended with $RESULT"; exit 1; }
+        env:
+          RESULT: ${{ needs.shard.result }}
