@@ -1694,7 +1694,9 @@ Reference: `.doan/canvases/canvas-activity-notices.html` (`activity-sidebar`, `a
 
 The canvas change dot (`.row-slot.unseen i`, 8 px) is unchanged; conversation rows (`StatusMark` in the Overview dropdown, the canvas conversation list and the panel head) draw the same bubble in the same 16 px slot.
 
-**Not verified.** The project row's aggregate bubble (same `SlotMark` markup as the canvas row; covered by the `ShellSidebar` unit test) and the folded panel's Show conversation bubble (same `.badge-bubble` rule; covered by the `CanvasHeader` unit test) were not reached in the isolated app: the fixture conversation reads as seen once its canvas is shown with the panel open.
+**Measured later.** The collapsed project row's aggregate slot (`.row-slot.ended`, svg, 16 wide, named "Conversation finished — unread") and a conversation row in the right panel (`StatusMark`, same markup and size) were read in the isolated app from the same fixture.
+
+**Not verified.** The folded panel's Show conversation bubble (same `.badge-bubble` rule; covered by the `CanvasHeader` unit test): the fixture conversation reads as seen once its canvas is shown with the panel open, and the panel reopens on each canvas opened.
 
 ## Read-state failure dot and Retry toast
 
