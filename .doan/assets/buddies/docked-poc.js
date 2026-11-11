@@ -10,8 +10,11 @@
   const asset = name => new URL(name, assetBase).href;
   // Per-buddy rig numbers (UV of the 1254² layers); each friend is added here when its layers exist.
   const BUDDIES = {
-    doany: {body:'../doany/v2/body.png', accessory:'../doany/v2/hat.png', eyes:['.421,.550','.619,.550'], radius:['.035','.056'], pivot:'.67,.30', tilt:[-.30,.15], liftScale:.9},
-    puri: {body:'puri/body.png', accessory:'puri/accessory.png', eyes:['.433,.528','.607,.528'], radius:['.034','.057'], pivot:'.515,.307', tilt:[-.12,.12], liftScale:.9},
+    doany: {body:'../doany/v2/body.png', accessory:'../doany/v2/hat.png', eyes:['.421,.550','.619,.550'], radius:['.035','.056'], pivot:'.67,.30', tilt:[-.30,.15], contact:[.458,.941], liftScale:.9},
+    puri: {body:'puri/body.png', accessory:'puri/accessory.png', eyes:['.433,.528','.607,.528'], radius:['.034','.057'], pivot:'.515,.307', tilt:[-.12,.12], contact:[.498,.847], liftScale:.9},
+    dungdung: {body:'dungdung/body.png', accessory:'dungdung/accessory.png', eyes:['.404,.482','.585,.482'], radius:['.033','.057'], pivot:'.5,.43', tilt:[-0.025,0.025], contact:[.494,.86], liftScale:.9},
+    popo: {body:'popo/body.png', accessory:'popo/accessory.png', eyes:['.411,.42','.607,.42'], radius:['.032','.055'], pivot:'.503,.42', tilt:[0,0], contact:[.494,.858], liftScale:.9},
+    dori: {body:'dori/body.png', accessory:'dori/accessory.png', eyes:['.424,.364','.563,.365'], radius:['.027','.045'], pivot:'.51,.535', tilt:[-0.02,0.02], contact:[.504,.888], liftScale:.65},
   };
   const vertexFor = c => `
     precision mediump float;
@@ -69,7 +72,6 @@
   const rigs = [];
   function createRig(host) {
     const cfg = BUDDIES[host.dataset.buddyPreview];
-    cfg.contact = host.dataset.buddyPreview === "puri" ? [.498,.847] : [.458,.941];
     if (!cfg) { host.dataset.state = 'static'; return; }
     const vertex = vertexFor(cfg).replace('q += vec2(0.,.10-lift);', `q.y += (${cfg.contact[1]}-.60)*squash-squash*.36;
       q.y -= sin(tilt)*(${cfg.contact[0]}-.5)*(1.+squash)+(cos(tilt)-1.)*((${cfg.contact[1]}-.60)*(1.-squash)+squash*.36);

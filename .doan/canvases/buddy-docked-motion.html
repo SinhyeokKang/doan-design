@@ -23,7 +23,7 @@ Purpose and scope
 - Only Doany and Puri are confirmed. One buddy belongs to the active conversation
   surface. The two component specimens in a frame are independent demonstrations.
 - Display/file name: buddy-docked-motion. Keep the existing internal canvas id
-  buddy-docked-poc, its eight frame ids, and element ids stable so prior references resolve.
+  buddy-docked-poc, its existing frame ids, and element ids stable so prior references resolve.
 - Existing renderer controls, widths, typography, colors and keyboard behavior
   remain the reference. Preview controls above frames are NOT product controls.
 - Planned product delta: a decorative buddy on Project Overview / canvas docked
@@ -117,7 +117,9 @@ Preview behavior and implementation boundaries
   framework. Pass time/randomness as inputs when testing phase/state transitions.
 
 Feature-planning questions still open — do not silently infer a product rule
-- Behavior for Dungdung, Popo and Dori; they are outside this two-buddy confirmation.
+- Visual approval of the added Dungdung, Popo and Dori component specimens. They
+  reuse the approved timing (Doany tempo), with their existing rig/accessory limits.
+  Full-window fixtures still cover Doany and Puri only.
 - Collapsing/hiding the canvas conversation panel, missing/disabled composer or
   toolbar, navigation, and conversation switches while travelling between surfaces.
 - Saved buddy changes, texture/WebGL failure, app backgrounding and teardown in the
@@ -139,14 +141,24 @@ Review evidence and limits
   replay click; queue during departure; reduced-motion visibility changes.
 - Latest review results and local screenshots are under .scratch/buddy-docked-poc/.
   That folder is ignored evidence, not an implementation dependency.
+- Extension sources: app/src/renderer/buddies.ts (contact anchors), tokens.css
+  (buddy palettes), and buddies/motion-preview.js (existing rig numbers).
+  Dungdung / Popo / Dori anchors: [.494,.860] / [.494,.858] / [.504,.888].
+  Their resting host offsets are -41.50720 / -41.43216 / -42.55776 px.
+  Preset read for this extension: animate.
+- Extension browser checks: all 16 rigs loaded without lost WebGL contexts; all
+  three new buddies jumped, hid for a queue and returned when cleared, and looked
+  down on input. Reduced-motion mode and immediate queue hide/reveal passed.
+  Screenshots and added-results.json are under .scratch/buddy-docked-poc/.
 - Native vibrancy is approximated. Live Electron equivalence, production frame rate,
-  GPU/memory/lifecycle costs and all five buddy choices have NOT been verified.
+  GPU/memory/lifecycle costs have NOT been verified. The three added buddies have
+  component coverage only; full-window and toolbar travel remain unverified for them.
 - Run installed doan check / doan ls for canvas integrity. App implementation and
   its scoped runtime/design-sync verification belong to the later feature work.
 -->
 <header class="poc-intro">
 <h1>A little ground above the conversation</h1>
-<p>Approved design · Doany + Puri · not yet implemented in the app.</p>
+<p>Approved design · Doany + Puri. Added motion previews · Dungdung, Popo + Dori · not yet implemented in the app.</p>
 <p>A 56px buddy takes short, grounded hops along the input. On canvas pages, it occasionally hides and reappears at the tool panel. Queue presence keeps it away from the input; clearing the queue brings it back.</p>
 <p>Use Add queue, Clear queue and Hide &amp; reappear to review transitions. Other controls replay motion and attention. These are preview controls, not product UI.</p>
 <p>The HTML source contains the implementation handoff: confirmed geometry, timing, state priorities, references, review evidence and questions for future feature planning. Frame and element ids are preserved.</p>
@@ -570,6 +582,636 @@ Review evidence and limits
 </div>
 </div>
 <p class="poc-note">Approved motion reference, not in app code. Feet meet the existing top edge. Type in either input; the buddy pauses to look down. Controls affect this frame only.</p>
+</section>
+<section class="poc-section " data-doan-frame="component-dungdung" data-doan-implements="app/src/renderer/DockedComposer.tsx" data-buddy="dungdung" data-doan-title="Dungdung · docked composer" data-mascot-scope>
+<h2>Dungdung · docked composer</h2>
+<div class="poc-controls" aria-label="PoC controls">
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="walk" aria-pressed="false">Walk</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="jump" aria-pressed="false">Jump</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="input" aria-pressed="false">Look at input</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="thread" aria-pressed="false">Look at thread</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="pause" aria-pressed="false">Pause</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="queue-add">Add queue</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="queue-clear">Clear queue</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="wander">Hide &amp; reappear</button>
+<span class="poc-label">Preview controls · not app UI</span>
+</div>
+<div class="poc-stage">
+<div class="poc-wide">
+<div class="poc-note">720 px · Overview column · capsule</div>
+<div class="docked" data-shape="capsule">
+<div class="composer-card" data-doan-id="dungdung-composer-3">
+<div class="poc-ground" aria-hidden="true">
+<div class="poc-walker" data-doan-id="dungdung-buddy-3" data-buddy-preview="dungdung">
+<img src="../assets/buddies/dungdung/still.png" alt="">
+<canvas hidden>
+</canvas>
+</div>
+</div>
+<div class="composer-input" aria-label="Message" role="textbox" contenteditable="true" spellcheck="false" aria-multiline="true" data-empty="" aria-placeholder="Reply, / for presets">
+</div>
+<div class="composer-tools">
+<button type="button" class="doan-icon-button composer-presets" aria-label="Design presets">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-pencil-sparkles" aria-hidden="true">
+<path d="M10 3H8">
+</path>
+<path d="m15.007 5.008 3.987 3.986">
+</path>
+<path d="M20 15v4">
+</path>
+<path d="M21.174 6.813a2.82 2.82 0 0 0-3.986-3.987L3.842 16.175a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z">
+</path>
+<path d="M22 17h-4">
+</path>
+<path d="M4 5v4">
+</path>
+<path d="M6 7H2">
+</path>
+<path d="M9 2v2">
+</path>
+</svg>
+</button>
+<span class="grow">
+</span>
+<button type="button" class="composer-send doan-icon-button" data-ui-variant="accent" aria-label="Send" disabled="">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-up" aria-hidden="true">
+<path d="m5 12 7-7 7 7">
+</path>
+<path d="M12 19V5">
+</path>
+</svg>
+</button>
+</div>
+</div>
+<div class="composer-tray">
+<button type="button" class="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files or folders">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-plus" aria-hidden="true">
+<path d="M5 12h14">
+</path>
+<path d="M12 5v14">
+</path>
+</svg>
+</button>
+<button type="button" class="composer-agent doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Model: Opus 4.6">
+<img class="logo" src="../assets/provider-logos/claude.png" alt="">
+<span class="label">Opus 4.6</span>
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down chev" aria-hidden="true">
+<path d="m6 9 6 6 6-6">
+</path>
+</svg>
+</button>
+<button type="button" class="composer-effort doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Effort: High">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-gauge" aria-hidden="true">
+<path d="m12 14 4-4">
+</path>
+<path d="M3.34 19a10 10 0 1 1 17.32 0">
+</path>
+</svg>
+<span class="label">High</span>
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down chev" aria-hidden="true">
+<path d="m6 9 6 6 6-6">
+</path>
+</svg>
+</button>
+<button type="button" class="composer-permission doan-button" data-ui-size="xs" data-ui-variant="trigger" data-mode="default" aria-label="Permission: Ask first">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-shield" aria-hidden="true">
+<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z">
+</path>
+</svg>
+<span class="label">Ask first</span>
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down chev" aria-hidden="true">
+<path d="m6 9 6 6 6-6">
+</path>
+</svg>
+</button>
+</div>
+</div>
+</div>
+<div class="poc-narrow">
+<div class="poc-note">336 px · Canvas panel · expanded</div>
+<div class="docked" data-shape="box">
+<div class="composer-card" data-doan-id="dungdung-composer-4">
+<div class="poc-ground" aria-hidden="true">
+<div class="poc-walker" data-doan-id="dungdung-buddy-4" data-buddy-preview="dungdung">
+<img src="../assets/buddies/dungdung/still.png" alt="">
+<canvas hidden>
+</canvas>
+</div>
+</div>
+<div class="composer-input" aria-label="Message" role="textbox" contenteditable="true" spellcheck="false" aria-multiline="true">Keep the input usable while the buddy explores the top edge.</div>
+<div class="composer-tools">
+<button type="button" class="doan-icon-button composer-presets" aria-label="Design presets">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-pencil-sparkles" aria-hidden="true">
+<path d="M10 3H8">
+</path>
+<path d="m15.007 5.008 3.987 3.986">
+</path>
+<path d="M20 15v4">
+</path>
+<path d="M21.174 6.813a2.82 2.82 0 0 0-3.986-3.987L3.842 16.175a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z">
+</path>
+<path d="M22 17h-4">
+</path>
+<path d="M4 5v4">
+</path>
+<path d="M6 7H2">
+</path>
+<path d="M9 2v2">
+</path>
+</svg>
+</button>
+<span class="grow">
+</span>
+<button type="button" class="composer-send doan-icon-button" data-ui-variant="accent" aria-label="Send">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-up" aria-hidden="true">
+<path d="m5 12 7-7 7 7">
+</path>
+<path d="M12 19V5">
+</path>
+</svg>
+</button>
+</div>
+</div>
+<div class="composer-tray">
+<button type="button" class="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files or folders">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-plus" aria-hidden="true">
+<path d="M5 12h14">
+</path>
+<path d="M12 5v14">
+</path>
+</svg>
+</button>
+<button type="button" class="doan-icon-button composer-pick" data-ui-size="xs" aria-label="Pick from canvas" aria-pressed="false">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-crosshair" aria-hidden="true">
+<circle cx="12" cy="12" r="10">
+</circle>
+<line x1="22" x2="18" y1="12" y2="12">
+</line>
+<line x1="6" x2="2" y1="12" y2="12">
+</line>
+<line x1="12" x2="12" y1="6" y2="2">
+</line>
+<line x1="12" x2="12" y1="22" y2="18">
+</line>
+</svg>
+</button>
+<button type="button" class="composer-agent doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Model: Opus 4.6">
+<img class="logo" src="../assets/provider-logos/claude.png" alt="">
+<span class="label">Opus 4.6</span>
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down chev" aria-hidden="true">
+<path d="m6 9 6 6 6-6">
+</path>
+</svg>
+</button>
+<button type="button" class="composer-effort doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Effort: High">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-gauge" aria-hidden="true">
+<path d="m12 14 4-4">
+</path>
+<path d="M3.34 19a10 10 0 1 1 17.32 0">
+</path>
+</svg>
+<span class="label">High</span>
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down chev" aria-hidden="true">
+<path d="m6 9 6 6 6-6">
+</path>
+</svg>
+</button>
+<button type="button" class="composer-permission doan-button" data-ui-size="xs" data-ui-variant="trigger" data-mode="default" aria-label="Permission: Ask first">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-shield" aria-hidden="true">
+<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z">
+</path>
+</svg>
+<span class="label">Ask first</span>
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down chev" aria-hidden="true">
+<path d="m6 9 6 6 6-6">
+</path>
+</svg>
+</button>
+</div>
+</div>
+</div>
+</div>
+<p class="poc-note">Extension of the approved Doany/Puri motion; awaiting visual review, not in app code. Feet meet the existing top edge. Type in either input; the buddy pauses to look down. Controls affect this frame only.</p>
+</section>
+<section class="poc-section " data-doan-frame="component-popo" data-doan-implements="app/src/renderer/DockedComposer.tsx" data-buddy="popo" data-doan-title="Popo · docked composer" data-mascot-scope>
+<h2>Popo · docked composer</h2>
+<div class="poc-controls" aria-label="PoC controls">
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="walk" aria-pressed="false">Walk</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="jump" aria-pressed="false">Jump</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="input" aria-pressed="false">Look at input</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="thread" aria-pressed="false">Look at thread</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="pause" aria-pressed="false">Pause</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="queue-add">Add queue</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="queue-clear">Clear queue</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="wander">Hide &amp; reappear</button>
+<span class="poc-label">Preview controls · not app UI</span>
+</div>
+<div class="poc-stage">
+<div class="poc-wide">
+<div class="poc-note">720 px · Overview column · capsule</div>
+<div class="docked" data-shape="capsule">
+<div class="composer-card" data-doan-id="popo-composer-3">
+<div class="poc-ground" aria-hidden="true">
+<div class="poc-walker" data-doan-id="popo-buddy-3" data-buddy-preview="popo">
+<img src="../assets/buddies/popo/still.png" alt="">
+<canvas hidden>
+</canvas>
+</div>
+</div>
+<div class="composer-input" aria-label="Message" role="textbox" contenteditable="true" spellcheck="false" aria-multiline="true" data-empty="" aria-placeholder="Reply, / for presets">
+</div>
+<div class="composer-tools">
+<button type="button" class="doan-icon-button composer-presets" aria-label="Design presets">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-pencil-sparkles" aria-hidden="true">
+<path d="M10 3H8">
+</path>
+<path d="m15.007 5.008 3.987 3.986">
+</path>
+<path d="M20 15v4">
+</path>
+<path d="M21.174 6.813a2.82 2.82 0 0 0-3.986-3.987L3.842 16.175a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z">
+</path>
+<path d="M22 17h-4">
+</path>
+<path d="M4 5v4">
+</path>
+<path d="M6 7H2">
+</path>
+<path d="M9 2v2">
+</path>
+</svg>
+</button>
+<span class="grow">
+</span>
+<button type="button" class="composer-send doan-icon-button" data-ui-variant="accent" aria-label="Send" disabled="">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-up" aria-hidden="true">
+<path d="m5 12 7-7 7 7">
+</path>
+<path d="M12 19V5">
+</path>
+</svg>
+</button>
+</div>
+</div>
+<div class="composer-tray">
+<button type="button" class="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files or folders">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-plus" aria-hidden="true">
+<path d="M5 12h14">
+</path>
+<path d="M12 5v14">
+</path>
+</svg>
+</button>
+<button type="button" class="composer-agent doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Model: Opus 4.6">
+<img class="logo" src="../assets/provider-logos/claude.png" alt="">
+<span class="label">Opus 4.6</span>
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down chev" aria-hidden="true">
+<path d="m6 9 6 6 6-6">
+</path>
+</svg>
+</button>
+<button type="button" class="composer-effort doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Effort: High">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-gauge" aria-hidden="true">
+<path d="m12 14 4-4">
+</path>
+<path d="M3.34 19a10 10 0 1 1 17.32 0">
+</path>
+</svg>
+<span class="label">High</span>
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down chev" aria-hidden="true">
+<path d="m6 9 6 6 6-6">
+</path>
+</svg>
+</button>
+<button type="button" class="composer-permission doan-button" data-ui-size="xs" data-ui-variant="trigger" data-mode="default" aria-label="Permission: Ask first">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-shield" aria-hidden="true">
+<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z">
+</path>
+</svg>
+<span class="label">Ask first</span>
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down chev" aria-hidden="true">
+<path d="m6 9 6 6 6-6">
+</path>
+</svg>
+</button>
+</div>
+</div>
+</div>
+<div class="poc-narrow">
+<div class="poc-note">336 px · Canvas panel · expanded</div>
+<div class="docked" data-shape="box">
+<div class="composer-card" data-doan-id="popo-composer-4">
+<div class="poc-ground" aria-hidden="true">
+<div class="poc-walker" data-doan-id="popo-buddy-4" data-buddy-preview="popo">
+<img src="../assets/buddies/popo/still.png" alt="">
+<canvas hidden>
+</canvas>
+</div>
+</div>
+<div class="composer-input" aria-label="Message" role="textbox" contenteditable="true" spellcheck="false" aria-multiline="true">Keep the input usable while the buddy explores the top edge.</div>
+<div class="composer-tools">
+<button type="button" class="doan-icon-button composer-presets" aria-label="Design presets">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-pencil-sparkles" aria-hidden="true">
+<path d="M10 3H8">
+</path>
+<path d="m15.007 5.008 3.987 3.986">
+</path>
+<path d="M20 15v4">
+</path>
+<path d="M21.174 6.813a2.82 2.82 0 0 0-3.986-3.987L3.842 16.175a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z">
+</path>
+<path d="M22 17h-4">
+</path>
+<path d="M4 5v4">
+</path>
+<path d="M6 7H2">
+</path>
+<path d="M9 2v2">
+</path>
+</svg>
+</button>
+<span class="grow">
+</span>
+<button type="button" class="composer-send doan-icon-button" data-ui-variant="accent" aria-label="Send">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-up" aria-hidden="true">
+<path d="m5 12 7-7 7 7">
+</path>
+<path d="M12 19V5">
+</path>
+</svg>
+</button>
+</div>
+</div>
+<div class="composer-tray">
+<button type="button" class="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files or folders">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-plus" aria-hidden="true">
+<path d="M5 12h14">
+</path>
+<path d="M12 5v14">
+</path>
+</svg>
+</button>
+<button type="button" class="doan-icon-button composer-pick" data-ui-size="xs" aria-label="Pick from canvas" aria-pressed="false">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-crosshair" aria-hidden="true">
+<circle cx="12" cy="12" r="10">
+</circle>
+<line x1="22" x2="18" y1="12" y2="12">
+</line>
+<line x1="6" x2="2" y1="12" y2="12">
+</line>
+<line x1="12" x2="12" y1="6" y2="2">
+</line>
+<line x1="12" x2="12" y1="22" y2="18">
+</line>
+</svg>
+</button>
+<button type="button" class="composer-agent doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Model: Opus 4.6">
+<img class="logo" src="../assets/provider-logos/claude.png" alt="">
+<span class="label">Opus 4.6</span>
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down chev" aria-hidden="true">
+<path d="m6 9 6 6 6-6">
+</path>
+</svg>
+</button>
+<button type="button" class="composer-effort doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Effort: High">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-gauge" aria-hidden="true">
+<path d="m12 14 4-4">
+</path>
+<path d="M3.34 19a10 10 0 1 1 17.32 0">
+</path>
+</svg>
+<span class="label">High</span>
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down chev" aria-hidden="true">
+<path d="m6 9 6 6 6-6">
+</path>
+</svg>
+</button>
+<button type="button" class="composer-permission doan-button" data-ui-size="xs" data-ui-variant="trigger" data-mode="default" aria-label="Permission: Ask first">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-shield" aria-hidden="true">
+<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z">
+</path>
+</svg>
+<span class="label">Ask first</span>
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down chev" aria-hidden="true">
+<path d="m6 9 6 6 6-6">
+</path>
+</svg>
+</button>
+</div>
+</div>
+</div>
+</div>
+<p class="poc-note">Extension of the approved Doany/Puri motion; awaiting visual review, not in app code. Feet meet the existing top edge. Type in either input; the buddy pauses to look down. Controls affect this frame only.</p>
+</section>
+<section class="poc-section " data-doan-frame="component-dori" data-doan-implements="app/src/renderer/DockedComposer.tsx" data-buddy="dori" data-doan-title="Dori · docked composer" data-mascot-scope>
+<h2>Dori · docked composer</h2>
+<div class="poc-controls" aria-label="PoC controls">
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="walk" aria-pressed="false">Walk</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="jump" aria-pressed="false">Jump</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="input" aria-pressed="false">Look at input</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="thread" aria-pressed="false">Look at thread</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="pause" aria-pressed="false">Pause</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="queue-add">Add queue</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="queue-clear">Clear queue</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="wander">Hide &amp; reappear</button>
+<span class="poc-label">Preview controls · not app UI</span>
+</div>
+<div class="poc-stage">
+<div class="poc-wide">
+<div class="poc-note">720 px · Overview column · capsule</div>
+<div class="docked" data-shape="capsule">
+<div class="composer-card" data-doan-id="dori-composer-3">
+<div class="poc-ground" aria-hidden="true">
+<div class="poc-walker" data-doan-id="dori-buddy-3" data-buddy-preview="dori">
+<img src="../assets/buddies/dori/still.png" alt="">
+<canvas hidden>
+</canvas>
+</div>
+</div>
+<div class="composer-input" aria-label="Message" role="textbox" contenteditable="true" spellcheck="false" aria-multiline="true" data-empty="" aria-placeholder="Reply, / for presets">
+</div>
+<div class="composer-tools">
+<button type="button" class="doan-icon-button composer-presets" aria-label="Design presets">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-pencil-sparkles" aria-hidden="true">
+<path d="M10 3H8">
+</path>
+<path d="m15.007 5.008 3.987 3.986">
+</path>
+<path d="M20 15v4">
+</path>
+<path d="M21.174 6.813a2.82 2.82 0 0 0-3.986-3.987L3.842 16.175a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z">
+</path>
+<path d="M22 17h-4">
+</path>
+<path d="M4 5v4">
+</path>
+<path d="M6 7H2">
+</path>
+<path d="M9 2v2">
+</path>
+</svg>
+</button>
+<span class="grow">
+</span>
+<button type="button" class="composer-send doan-icon-button" data-ui-variant="accent" aria-label="Send" disabled="">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-up" aria-hidden="true">
+<path d="m5 12 7-7 7 7">
+</path>
+<path d="M12 19V5">
+</path>
+</svg>
+</button>
+</div>
+</div>
+<div class="composer-tray">
+<button type="button" class="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files or folders">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-plus" aria-hidden="true">
+<path d="M5 12h14">
+</path>
+<path d="M12 5v14">
+</path>
+</svg>
+</button>
+<button type="button" class="composer-agent doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Model: Opus 4.6">
+<img class="logo" src="../assets/provider-logos/claude.png" alt="">
+<span class="label">Opus 4.6</span>
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down chev" aria-hidden="true">
+<path d="m6 9 6 6 6-6">
+</path>
+</svg>
+</button>
+<button type="button" class="composer-effort doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Effort: High">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-gauge" aria-hidden="true">
+<path d="m12 14 4-4">
+</path>
+<path d="M3.34 19a10 10 0 1 1 17.32 0">
+</path>
+</svg>
+<span class="label">High</span>
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down chev" aria-hidden="true">
+<path d="m6 9 6 6 6-6">
+</path>
+</svg>
+</button>
+<button type="button" class="composer-permission doan-button" data-ui-size="xs" data-ui-variant="trigger" data-mode="default" aria-label="Permission: Ask first">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-shield" aria-hidden="true">
+<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z">
+</path>
+</svg>
+<span class="label">Ask first</span>
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down chev" aria-hidden="true">
+<path d="m6 9 6 6 6-6">
+</path>
+</svg>
+</button>
+</div>
+</div>
+</div>
+<div class="poc-narrow">
+<div class="poc-note">336 px · Canvas panel · expanded</div>
+<div class="docked" data-shape="box">
+<div class="composer-card" data-doan-id="dori-composer-4">
+<div class="poc-ground" aria-hidden="true">
+<div class="poc-walker" data-doan-id="dori-buddy-4" data-buddy-preview="dori">
+<img src="../assets/buddies/dori/still.png" alt="">
+<canvas hidden>
+</canvas>
+</div>
+</div>
+<div class="composer-input" aria-label="Message" role="textbox" contenteditable="true" spellcheck="false" aria-multiline="true">Keep the input usable while the buddy explores the top edge.</div>
+<div class="composer-tools">
+<button type="button" class="doan-icon-button composer-presets" aria-label="Design presets">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-pencil-sparkles" aria-hidden="true">
+<path d="M10 3H8">
+</path>
+<path d="m15.007 5.008 3.987 3.986">
+</path>
+<path d="M20 15v4">
+</path>
+<path d="M21.174 6.813a2.82 2.82 0 0 0-3.986-3.987L3.842 16.175a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z">
+</path>
+<path d="M22 17h-4">
+</path>
+<path d="M4 5v4">
+</path>
+<path d="M6 7H2">
+</path>
+<path d="M9 2v2">
+</path>
+</svg>
+</button>
+<span class="grow">
+</span>
+<button type="button" class="composer-send doan-icon-button" data-ui-variant="accent" aria-label="Send">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-up" aria-hidden="true">
+<path d="m5 12 7-7 7 7">
+</path>
+<path d="M12 19V5">
+</path>
+</svg>
+</button>
+</div>
+</div>
+<div class="composer-tray">
+<button type="button" class="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files or folders">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-plus" aria-hidden="true">
+<path d="M5 12h14">
+</path>
+<path d="M12 5v14">
+</path>
+</svg>
+</button>
+<button type="button" class="doan-icon-button composer-pick" data-ui-size="xs" aria-label="Pick from canvas" aria-pressed="false">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-crosshair" aria-hidden="true">
+<circle cx="12" cy="12" r="10">
+</circle>
+<line x1="22" x2="18" y1="12" y2="12">
+</line>
+<line x1="6" x2="2" y1="12" y2="12">
+</line>
+<line x1="12" x2="12" y1="6" y2="2">
+</line>
+<line x1="12" x2="12" y1="22" y2="18">
+</line>
+</svg>
+</button>
+<button type="button" class="composer-agent doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Model: Opus 4.6">
+<img class="logo" src="../assets/provider-logos/claude.png" alt="">
+<span class="label">Opus 4.6</span>
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down chev" aria-hidden="true">
+<path d="m6 9 6 6 6-6">
+</path>
+</svg>
+</button>
+<button type="button" class="composer-effort doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Effort: High">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-gauge" aria-hidden="true">
+<path d="m12 14 4-4">
+</path>
+<path d="M3.34 19a10 10 0 1 1 17.32 0">
+</path>
+</svg>
+<span class="label">High</span>
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down chev" aria-hidden="true">
+<path d="m6 9 6 6 6-6">
+</path>
+</svg>
+</button>
+<button type="button" class="composer-permission doan-button" data-ui-size="xs" data-ui-variant="trigger" data-mode="default" aria-label="Permission: Ask first">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-shield" aria-hidden="true">
+<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z">
+</path>
+</svg>
+<span class="label">Ask first</span>
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down chev" aria-hidden="true">
+<path d="m6 9 6 6 6-6">
+</path>
+</svg>
+</button>
+</div>
+</div>
+</div>
+</div>
+<p class="poc-note">Extension of the approved Doany/Puri motion; awaiting visual review, not in app code. Feet meet the existing top edge. Type in either input; the buddy pauses to look down. Controls affect this frame only.</p>
 </section>
 <section class="poc-section poc-thread-test" data-doan-frame="overview-doany" data-doan-implements="app/src/renderer/ProjectOverview.tsx" data-doan-title="Doany · Project Overview" data-mascot-scope>
 <h2>Doany · Project Overview</h2>

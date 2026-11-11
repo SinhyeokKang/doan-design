@@ -67,3 +67,61 @@ body{width:1440px;padding:var(--space-8);background:var(--surface-inset);overflo
 
 /* The same contact edge works on the existing canvas toolbar without changing its controls. */
 .poc-section .doan-canvas-tools{position:relative}
+
+.poc-walker[data-buddy-preview=dungdung]{top:-41.50720px;transform-origin:50% 74.120%}
+.poc-buddy-window .poc-walker[data-buddy-preview=dungdung]{top:calc(88px - 41.50720px)}
+
+.poc-section[data-buddy="dungdung"] {
+  --buddy-3: var(--dungdung-3);
+  --buddy-4: var(--dungdung-4);
+  --buddy-9: var(--dungdung-9);
+  --buddy-10: var(--dungdung-10);
+  --buddy-11: var(--dungdung-11);
+  --buddy-12: var(--dungdung-12);
+  --buddy-pressed: var(--dungdung-pressed);
+  --buddy-contrast: var(--neutral-standard-text);
+  --buddy-icon: var(--dungdung-icon);
+}
+
+.poc-walker[data-buddy-preview=popo]{top:-41.43216px;transform-origin:50% 73.986%}
+.poc-buddy-window .poc-walker[data-buddy-preview=popo]{top:calc(88px - 41.43216px)}
+
+.poc-section[data-buddy="popo"] {
+  --buddy-3: var(--popo-3);
+  --buddy-4: var(--popo-4);
+  --buddy-9: var(--popo-9);
+  --buddy-10: var(--popo-10);
+  --buddy-11: var(--popo-11);
+  --buddy-12: var(--popo-12);
+  --buddy-pressed: var(--popo-pressed);
+  --buddy-contrast: var(--neutral-1);
+  --buddy-icon: var(--popo-icon);
+}
+
+.poc-walker[data-buddy-preview=dori]{top:-42.55776px;transform-origin:50% 75.996%}
+.poc-buddy-window .poc-walker[data-buddy-preview=dori]{top:calc(88px - 42.55776px)}
+
+.poc-section[data-buddy="dori"] {
+  --buddy-3: var(--dori-3);
+  --buddy-4: var(--dori-4);
+  --buddy-9: var(--dori-9);
+  --buddy-10: var(--dori-10);
+  --buddy-11: var(--dori-11);
+  --buddy-12: var(--dori-12);
+  --buddy-pressed: var(--dori-pressed);
+  --buddy-contrast: var(--neutral-1);
+  --buddy-icon: var(--dori-icon);
+}
+
+/* Resolve accent roles on each specimen, where its buddy palette is selected. */
+.poc-section:is([data-buddy="dungdung"],[data-buddy="popo"],[data-buddy="dori"]){
+  --surface-comment: var(--buddy-4);
+  --text-comment: var(--buddy-12);
+  --affordance-accent: var(--buddy-9);
+  --affordance-accent-hover: var(--buddy-10);
+  --affordance-accent-pressed: var(--buddy-pressed);
+  --text-on-accent: var(--buddy-contrast);
+  --text-accent: var(--buddy-icon);
+  --surface-accent-subtle: var(--buddy-3);
+  --text-accent-subtle: var(--buddy-11);
+}
