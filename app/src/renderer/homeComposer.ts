@@ -661,9 +661,9 @@ export function attachmentLimit(existing: number, items: readonly { pasted: bool
   return { accept, notices };
 }
 
-// The chooser's answer against the draft's room. main checks at most 10 paths of one pick and refuses the rest as
-// limit; those count as left out with the checked ones that no longer fit, so one notice gives the count. release: ids
-// main kept that the draft will not show.
+// The chooser's answer against the draft's room. main accepts at most 10 paths of one pick and refuses the rest,
+// unchecked, as limit; those count as left out with the accepted ones that no longer fit, so one notice gives the
+// count. release: ids main kept that the draft will not show.
 export function chosenAttachments<R extends AttachmentResult>(existing: number, results: readonly R[]): { chosen: R[]; release: string[]; notices: string[] } {
   const candidates = results.filter(result => result.ok || result.error === "limit");
   const limit = attachmentLimit(existing, candidates.map(() => ({ pasted: false, size: 0 })));

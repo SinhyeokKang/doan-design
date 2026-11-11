@@ -646,8 +646,8 @@ test("/ at the very start of the field opens the preset query until dismissed", 
 
 // Attachments
 
-// main takes at most 10 paths from one pick and refuses the rest as limit; those are left out like the ones the draft
-// has no room for, in one notice with the count, never as one bare limit line each.
+// main accepts at most 10 paths from one pick and refuses the rest, unchecked, as limit; those are left out like the
+// accepted ones the draft has no room for, in one notice with the count, never as one bare limit line each.
 test("a pick of more than ten leaves the rest out with one counted notice, and releases what no longer fits", () => {
   const ok = (id: string) => ({ ok: true as const, attachment: { id, name: id, kind: "directory" as const, path: `/p/${id}`, pasted: false } });
   const over = (name: string) => ({ ok: false as const, name, error: "limit" as const });
@@ -657,10 +657,10 @@ test("a pick of more than ten leaves the rest out with one counted notice, and r
   expect(eleven.release).toEqual([]);
   expect(eleven.notices).toEqual(["Only 10 attachments can be added. 1 was left out."]);
   const unreadable = { ok: false as const, name: "locked", error: "unreadable" as const };
-  const crowded = chosenAttachments(8, [unreadable, ...ten.slice(0, 3), over("x"), over("y")]);
+  const crowded = chosenAttachments(8, [unreadable, ...ten, over("x")]);
   expect(crowded.chosen).toEqual([unreadable, ...ten.slice(0, 2)]);
-  expect(crowded.release).toEqual(["a2"]);
-  expect(crowded.notices).toEqual(["Only 10 attachments can be added. 3 were left out."]);
+  expect(crowded.release).toEqual(ten.slice(2).map(r => r.attachment.id));
+  expect(crowded.notices).toEqual(["Only 10 attachments can be added. 9 were left out."]);
   expect(chosenAttachments(0, [ok("a")])).toEqual({ chosen: [ok("a")], release: [], notices: [] });
 });
 

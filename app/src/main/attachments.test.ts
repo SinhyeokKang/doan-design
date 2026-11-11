@@ -73,7 +73,7 @@ it("refuses special files, missing paths and image names without an image signat
 it("refuses a socket as neither a file nor a folder", async () => {
   const f = fixture();
   const sock = join(f.files, "preview.sock"), server = createServer();
-  await new Promise<void>(resolve => server.listen(sock, resolve));
+  await new Promise<void>((resolve, reject) => { server.once("error", reject); server.listen(sock, resolve); });
   try {
     expect(f.store.addPaths({ paths: [sock] })!.map(r => r.ok ? "ok" : r.error)).toEqual(["not_file"]);
   } finally { await new Promise(resolve => server.close(resolve)); }
