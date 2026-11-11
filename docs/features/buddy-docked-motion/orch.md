@@ -20,7 +20,7 @@
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort, 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
-| A | tasks 2, 3, 4 | `app/scripts/dockedBuddyGolden.mjs`, 새 golden JSON, 새 순수 모듈과 테스트(`app/src/renderer/` 아래), AGENTS.md 'Commands' 한 줄(따로 커밋) | 없음 | Opus high — golden 비트 일치와 상태 기계 우선순위가 틀리면 이후 배치가 모두 어긋난다 | tasks 2·3·4 확인 항목, `npm --prefix app run typecheck`·`lint`·`test`, 두 golden `--check` | 대기 |
+| A | tasks 2, 3, 4 | `app/scripts/dockedBuddyGolden.mjs`, 새 golden JSON, 새 순수 모듈과 테스트(`app/src/renderer/` 아래), AGENTS.md 'Commands' 한 줄(따로 커밋) | 없음 | Opus high — golden 비트 일치와 상태 기계 우선순위가 틀리면 이후 배치가 모두 어긋난다 | tasks 2·3·4 확인 항목, `npm --prefix app run typecheck`·`lint`·`test`, 두 golden `--check` | A 완료, A2 진행 |
 | RA | A 리뷰 | 없음(보고만) | A | Opus high — 상태 기계와 golden 비교 범위 판단 | `/code-review` 🔴 0 | 대기 |
 | B | tasks 5, 6, 7 | 새 DOM·WebGL 셸 모듈과 테스트, `DockedComposer.tsx`, `CanvasTools.tsx`, `App.tsx`, `styles.css`, 관련 테스트, `docs/DESIGN.md`(design-sync 측정) | A 통합 | Opus high — WebGL 컨텍스트 생명주기, StrictMode, portal z-index, 렌더 비용 | tasks 5·6·7 확인 항목, 위 앱 게이트, `/design-sync` | 대기 |
 | RB | B 리뷰 | 없음(보고만) | B | Opus high — 생명주기·레이어·성능 회귀 | `/code-review` 🔴 0 | 대기 |
@@ -34,3 +34,9 @@
 - GUI probe: B의 `/design-sync`, M의 `/runtime-test`만 있다. 동시에 돌지 않는다.
 
 ## 진행 기록
+- A 완료(`d842b9ec`, `8e342094`, `f1d372cc` red, `a7ec3828`, 미통합). 모듈 이름: `dockedBuddyCore.ts`, `dockedBuddyShader.ts`, `dockedBuddyHit.ts`, golden `dockedBuddy.golden.json`(27 시나리오, 1.5 MB). typecheck·lint·test(10277)·두 golden `--check` 통과를 워커가 보고했다.
+- D6(conductor 판단 — spec 결정 10과 design 'reduced motion: 표면과 숨김 변화는 즉시'): 초안 `settle()`이 시간이 멈춘 동안 클릭으로 간 툴바 방문을 forced로 바꾸지 않아, 큐가 끝나도 입력창으로 돌아오지 않는다. 초안·golden·코어를 함께 고친다(A2).
+- A2 시작: 이전 워커 터미널은 재사용할 수 없어(`agent_unconfigured`) release하고, 같은 worktree에 새 워커(Opus high, `ctx_c10387e1951a`)를 띄웠다.
+- A2 완료(`77495c4e`): 초안·코어 `settle()` 수정, golden 시나리오 `reducedVisit`·`hiddenVisit` 추가, 테스트 10280개 통과.
+- RA(Opus high) 완료: 🔴 0, 🟡 3(rAF를 멈춰도 되는지 알리는 출력 없음, 버디 교체 API 없음, 우선순위 쌍 6개 테스트 없음), ⚪ 5. 근거 `bdm-a/.scratch/review-A.md`. golden·`--check` 변형 확인을 리뷰어가 다시 했다.
+- A3 시작(`ctx_a7d21d44f0c3`): 🟡 1–3과 ⚪1(머리 주석)을 순수 모듈에서 고친다. golden은 바뀌지 않아야 한다.
