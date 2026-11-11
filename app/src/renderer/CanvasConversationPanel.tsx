@@ -488,7 +488,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
         onAttachmentRemoved={dropAttachment}
         turn={conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle"} busy={busy} canvasGone={false} context={thread ? contextRing(thread.events) : null}
         unavailable={props.blocked} locked={props.blocked !== null} held={view.kind === "wait" || (newView?.start.pending ?? false)} fixed={fixed}
-        stepAside={{ prompts: !conversationId && view.kind !== "wait" && prompts.length > 0 && !started && !resume, waiting: asking }}
+        stepAside={{ prompts: !conversationId && view.kind !== "wait" && prompts.length > 0 && !started && !resume, waiting: asking, notice: !conversationId && view.kind !== "wait" && !!resume }}
         refuse={refuse} onStartNew={startNewAfterRefusal}
         queued={conversationId ? store.queue(conversationId) : []}
         sendNow={!!conversationId && !!provider && !archived && sendNowShown({ provider, phase: steerPhaseOf(thread?.events ?? null, summary, live), sending: false })}

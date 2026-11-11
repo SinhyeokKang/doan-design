@@ -394,4 +394,9 @@ test("the panel's composer tells the docked buddy about suggestions, a waiting r
   expect(slot(await panel([summary("now")], () => {}))).toBe('<div class="docked-buddy-slot" aria-hidden="true">');
   expect(slot(await panel([summary("now", { phase: "waiting" })], () => {}))).toBe('<div class="docked-buddy-slot" aria-hidden="true" data-waiting="">');
   expect(slot(await panel([summary("now")], () => {}, { blocked: "This canvas isn’t listed in acme-web, so its conversation can’t continue." }))).toBe('<div class="docked-buddy-slot" aria-hidden="true" data-accepts="false">');
+  // The terminal-session choice sits where the suggestions do and replaces them: a reason of its own.
+  resume = { available: true, runtime: "codex", lastCheckAt: "2026-11-01T14:02:00" };
+  const choice = await panel([], () => {}, { support });
+  expect(choice).toContain('aria-label="How to continue"');
+  expect(slot(choice)).toBe('<div class="docked-buddy-slot" aria-hidden="true" data-notice="">');
 });

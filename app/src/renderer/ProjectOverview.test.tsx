@@ -247,4 +247,13 @@ test("the composer tells the docked buddy when suggestions show or the conversat
   expect(slot(render([]))).toBe('<div class="docked-buddy-slot" aria-hidden="true" data-prompts="">');
   expect(slot(render([summary()]))).toBe('<div class="docked-buddy-slot" aria-hidden="true">');
   expect(slot(render([summary({ phase: "waiting" })]))).toBe('<div class="docked-buddy-slot" aria-hidden="true" data-waiting="">');
+  // The moved line with its Open button sits where the suggestions do: a reason of its own.
+  const moved = render([summary()], {}, run => {
+    run.sync();
+    (run as unknown as { roots: Map<string, { current: unknown; moved: unknown }> }).roots.get(ROOT)!.current = { conversationId: null, listed: false };
+    (run as unknown as { roots: Map<string, { moved: unknown }> }).roots.get(ROOT)!.moved = { conversationId: A, title: "Checkout copy", canvas: { path: ".doan/canvases/checkout.html", id: "checkout" } };
+  });
+  expect(moved).toContain('class="doan-notice moved"');
+  expect(slot(moved)).toContain(' data-notice=""');
+  expect(slot(render([]))).not.toContain("data-notice");
 });
