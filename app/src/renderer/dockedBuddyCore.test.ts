@@ -3,7 +3,7 @@ import { expect, test } from "vitest";
 import { BUDDY_IDS, type BuddyId } from "./buddies";
 import {
   DROP, FLOAT_WAIT, FLOOR, HIDES, PEEK, REST_SECONDS, SIZE, TRIP_MIN, TRIP_SPREAD, WINDOW,
-  advanceDocked, createDockedState, dockedGeometry, xOn,
+  advanceDocked, createDockedState, dockedGeometry, dockedNeedsTime, setDockedBuddy, xOn,
   type DockedEvent, type DockedFrame, type DockedInputs, type DockedState,
 } from "./dockedBuddyCore";
 
@@ -22,6 +22,7 @@ const golden = JSON.parse(readFileSync(new URL("./dockedBuddy.golden.json", impo
 // The draft's preview-only Jump control keeps a flag the app has no use for; it is never set in the golden.
 const PREVIEW_ONLY = ["requestedJump"];
 const plain = (value: unknown) => JSON.parse(JSON.stringify(value)) as unknown;
+const plainState = (state: DockedState) => plain(state) as Record<string, unknown>;
 function draftState(state: Record<string, unknown>) {
   const copy = { ...state };
   for (const key of PREVIEW_ONLY) { expect(copy[key], key).toBe(false); delete copy[key]; }
@@ -488,4 +489,67 @@ test("the shadow centre sits under each buddy's feet", () => {
     const out = r.step();
     expect(out.shadow.x - out.host.x, id).toBeCloseTo(dockedGeometry(id).contactX, 9);
   }
+});
+
+test("time is needed until the buddy rests hidden with nowhere to go", () => {
+  const r = rig(OVERVIEW);
+  r.step();
+  expect(dockedNeedsTime(r.state)).toBe(true);
+  r.set({ reasons: { queue: true } });
+  r.step();
+  expect(dockedNeedsTime(r.state)).toBe(true);
+  r.until(() => !dockedNeedsTime(r.state));
+  expect(r.out).toMatchObject({ surface: "dock", presence: "hidden", conceal: 1 });
+  // Parked: further steps without an input change move nothing that is drawn, and the trip stays as it is.
+  const trip = plain(r.state.trip);
+  const parked = r.run(2);
+  expect(parked.every(frame => frame.presence === "hidden" && frame.conceal === 1 && frame.host.x === r.out.host.x)).toBe(true);
+  expect(plain(r.state.trip)).toEqual(trip);
+  r.set({ reasons: { queue: false } });
+  r.step();
+  expect(dockedNeedsTime(r.state)).toBe(true);
+});
+
+test("time is needed through the 1 s wait after a floating element closes, until the buddy shows", () => {
+  const r = rig(OVERVIEW);
+  r.run(.2);
+  r.set({ dock: { floating: true } });
+  r.until(out => out.conceal === 1);
+  r.step();
+  expect(dockedNeedsTime(r.state)).toBe(false);
+  r.set({ dock: { floating: false } });
+  const after: boolean[] = [];
+  do { r.step(); after.push(dockedNeedsTime(r.state)); } while (r.out.presence !== "shown");
+  expect(after.every(Boolean)).toBe(true);
+  expect(after.length * 33).toBeGreaterThan(FLOAT_WAIT*1000);
+});
+
+test("time is needed mid-hop and while shown; never under reduced motion", () => {
+  const r = rig();
+  r.step();
+  expect(dockedNeedsTime(r.state)).toBe(true);
+  for (const phase of ["prepare", "air", "land"]) {
+    r.until(out => out.pose.phase === phase);
+    expect(dockedNeedsTime(r.state), phase).toBe(true);
+  }
+  const reduced = rig({ ...CANVAS, reduced: true });
+  reduced.step();
+  expect(dockedNeedsTime(reduced.state)).toBe(false);
+});
+
+test("a buddy change swaps the buddy and its tempo and keeps the rest of the state, mid-trip too", () => {
+  const r = rig(CANVAS, "puri");
+  expect(r.state.tempo).toBe(1.12);
+  r.run(.2);
+  r.set({ reasons: { queue: true } });
+  r.until(out => out.presence === "hiding" && out.conceal > .2);
+  const before = plainState(r.state);
+  setDockedBuddy(r.state, "doany");
+  expect(plainState(r.state)).toEqual({ ...before, buddy: "doany", tempo: 1 });
+  setDockedBuddy(r.state, "puri");
+  expect(plainState(r.state)).toEqual(before);
+  expect(createDockedState("doany", () => .5).tempo).toBe(1);
+  // The trip goes on after the change.
+  setDockedBuddy(r.state, "doany");
+  expect(r.until(out => out.presence === "shown")).toMatchObject({ surface: "tools", conceal: 0 });
 });
