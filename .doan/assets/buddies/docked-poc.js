@@ -221,6 +221,7 @@
   // Time is not running (not visible, paused preview, reduced motion): every surface and hide change applies at once.
   function settle(st, v, inputs) {
     st.trip = null; st.idleLeft = null;
+    if (st.surface === 'tools' && (v.stepAside || !v.floor('dock'))) st.visit = 'forced';
     const hide = () => { if (st.conceal !== 1) { st.conceal = 1; st.motion = null; st.stepsLeft = 0; } };
     if (st.surface && v.floor(st.surface) && v.floating(st.surface)) return hide();
     const w = want(st, v);
