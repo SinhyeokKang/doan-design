@@ -375,6 +375,31 @@ describe("watchFolder classifies changes", () => {
     await expectChange(w, () => writeFileSync(join(root, ".doan", "config.json"), '{"v":1,"serve":[]}'), REREAD);
   });
 
+  // The read-state records: the app's own writes land here, so they must cost one records read and nothing else.
+  test("a .doan/seen/ change only reads the records again: no re-read, nothing served", async () => {
+    const root = repo();
+    mkdirSync(join(root, ".doan", "seen"));
+    vi.mocked(fsWatch).mockClear();
+    const w = await watchScope(root, [".doan/canvases"]);
+    expect(watchedPaths()).toContain(join(root, ".doan", "seen"));
+    expect(recursivePaths()).not.toContain(join(root, ".doan", "seen"));
+    writeFileSync(join(root, ".doan", "seen", ".a.json.0123456789ab.tmp"), '{"v":1}\n');
+    renameSync(join(root, ".doan", "seen", ".a.json.0123456789ab.tmp"), join(root, ".doan", "seen", "a.json"));
+    expect(await within(1_000, () => w.calls().length >= 1)).toBe(true);
+    await settle(() => w.calls().length);
+    expect(w.calls().length).toBeGreaterThan(0);
+    for (const call of w.calls()) expect(call).toEqual({ reread: false, served: false, seen: true });
+  });
+
+  test("the .doan/seen/ folder appearing is one .doan re-read, and it is watched from then on", async () => {
+    const root = repo();
+    const w = await watchScope(root, [".doan/canvases"]);
+    await expectChange(w, () => mkdirSync(join(root, ".doan", "seen")), REREAD);
+    w.reset();
+    writeFileSync(join(root, ".doan", "seen", "_project.json"), '{"v":1}\n');
+    expect(await within(1_000, () => w.calls().some(call => call.seen))).toBe(true);
+  });
+
   // A `.doan/` change must not reload the canvas, even when `serve` points into `.doan`.
   test("a .doan/ change is never served, even with .doan in scope", async () => {
     const root = repo();

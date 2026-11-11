@@ -160,3 +160,34 @@ test.each([
   h.tick(3000);
   expect(h.remaining()).toBe(5000);
 });
+
+test("Retry runs in place with a busy, unavailable button and a spinner, and goes or comes back when it settles", async () => {
+  vi.stubGlobal("window", { doan: { onWindowVisible: () => () => {} } });
+  vi.stubGlobal("document", { hidden: false, querySelector: () => null, addEventListener: () => {}, removeEventListener: () => {} });
+  vi.stubGlobal("crypto", { randomUUID: () => "r1" });
+  // Refs persist across renders here, as React keeps them: the press handler lives in one.
+  const refs: { current: unknown }[] = [];
+  let cursor = 0;
+  const useRef = hooks.useRef;
+  hooks.useRef = <T,>(initial: T) => (refs[cursor++] ??= { current: initial }) as { current: T };
+  cleanups.push(() => { hooks.useRef = useRef; });
+  const render = () => { cursor = 0; return useToast(); };
+  let settle: (next: string | null) => void = () => {};
+  const attempt = vi.fn(() => new Promise<string | null>(resolve => { settle = resolve; }));
+  render().retry("Couldn’t save a’s read state.", "Retry", "Saving a’s read state.", "Retrying", attempt);
+  const button = () => render().element!.props.children[1];
+  button().props.onClick();
+  expect(hooks.state?.toast).toEqual({ id: "r1", message: "Saving a’s read state.", action: "Retrying", busy: true });
+  expect(button().props).toMatchObject({ "aria-disabled": true, "data-disabled": "" });
+  expect(button().props.children.props.children[0].props.className).toBe("doan-spinner");
+  button().props.onClick();
+  expect(attempt).toHaveBeenCalledTimes(1);
+  settle("Couldn’t save a’s read state.");
+  await Promise.resolve(); await Promise.resolve();
+  expect(hooks.state?.toast).toEqual({ id: "r1", message: "Couldn’t save a’s read state.", action: "Retry" });
+  expect(button().props.children).toBe("Retry");
+  button().props.onClick();
+  settle(null);
+  await Promise.resolve(); await Promise.resolve();
+  expect(hooks.state?.toast).toBeNull();
+});
