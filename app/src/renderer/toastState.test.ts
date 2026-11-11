@@ -139,3 +139,17 @@ test("a settling action never touches a toast that replaced it", () => {
   state = toastState(state, { type: "dismiss", id: "one" });
   expect(state.toast).toEqual({ id: "two", message: "b" });
 });
+
+// useToast ticks every 100 ms for the life of App; a new state object on each idle tick re-rendered all of App ten
+// times a second while no toast was shown.
+test("an idle tick keeps the same state, so nothing re-renders; a tick still clears a finished toast's ending", () => {
+  expect(toastState(initialToastState, { type: "tick", elapsedMs: 100 })).toBe(initialToastState);
+  const hidden = run([{ type: "hidden", on: true }]);
+  expect(toastState(hidden, { type: "tick", elapsedMs: 100 })).toBe(hidden);
+  const expired = run([{ type: "show", toast: two }, { type: "tick", elapsedMs: TOAST_MS }]);
+  expect(expired.ended).toEqual({ id: "2", reason: "expired" });
+  const after = toastState(expired, { type: "tick", elapsedMs: 100 });
+  expect(after).not.toBe(expired);
+  expect(after.ended).toBeUndefined();
+  expect(toastState(after, { type: "tick", elapsedMs: 100 })).toBe(after);
+});
