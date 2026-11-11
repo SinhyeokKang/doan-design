@@ -42,12 +42,13 @@ interface Opened { size: number; dev: number; ino: number; directory: boolean; h
 // Opens a canonical path without following a link (O_NONBLOCK keeps a FIFO from blocking main) and reads only once
 // the opened file is a regular file and, on a recheck, the same one. whole: also the bytes of an image within the cap,
 // for its thumbnail, from the same descriptor. A folder is only identified: nothing in it is listed or read, so the
-// caller compares its identity.
-function readChecked(path: string, expected: { dev: number; ino: number } | null, whole: boolean): Opened {
+// caller compares its identity. A recheck of a folder reads nothing from whatever took its place.
+function readChecked(path: string, expected: { kind: AttachmentRecord["kind"]; dev: number; ino: number } | null, whole: boolean): Opened {
   const fd = openSync(path, constants.O_RDONLY | constants.O_NONBLOCK | constants.O_NOFOLLOW);
   try {
     const stat = fstatSync(fd);
     if (stat.isDirectory()) return { size: 0, dev: stat.dev, ino: stat.ino, directory: true, head: new Uint8Array() };
+    if (expected?.kind === "directory") throw Object.assign(new Error("not a folder any more"), { code: "ENOENT" });
     if (!stat.isFile()) throw Object.assign(new Error("not_file"), { code: "not_file" });
     if (expected && (stat.dev !== expected.dev || stat.ino !== expected.ino)) throw Object.assign(new Error("replaced"), { code: "ENOENT" });
     const head = Buffer.alloc(16); const read = readSync(fd, head, 0, 16, 0);
@@ -249,7 +250,7 @@ export class AttachmentStore {
     try {
       real = realpathSync.native(path);
       if (expected && real !== expected.path) return { error: expected.kind === "directory" && isDirectory(real) ? "replaced" : "not_found" };
-      opened = readChecked(real, expected?.kind === "directory" ? null : expected, !expected);
+      opened = readChecked(real, expected, !expected);
     } catch (error) {
       const code = typeof error === "object" && error !== null && "code" in error ? error.code : "";
       if (code === "ENOENT" || code === "ENOTDIR") return { error: "not_found" };

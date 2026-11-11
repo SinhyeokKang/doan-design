@@ -1,14 +1,15 @@
 import { createServer } from "node:net";
 import { afterEach, expect, it, vi } from "vitest";
-// Records every path attachments.ts opens, so a test can show a file was never opened. `fault` makes the save of a
-// capture or paste fail at one step, only while a test sets it.
-const { opened, fault } = vi.hoisted(() => ({ opened: [] as string[], fault: { step: null as null | "write" | "realpath" | "lstat" } }));
+// Records every path attachments.ts opens, so a test can show a file was never opened, and counts its reads, so a test
+// can show nothing was read. `fault` makes the save of a capture or paste fail at one step, only while a test sets it.
+const { opened, reads, fault } = vi.hoisted(() => ({ opened: [] as string[], reads: { count: 0 }, fault: { step: null as null | "write" | "realpath" | "lstat" } }));
 vi.mock("node:fs", async importOriginal => {
   const fs = await importOriginal<typeof import("node:fs")>();
   const broken = () => Object.assign(new Error("injected"), { code: "EIO" });
   return {
     ...fs,
     openSync: (...args: Parameters<typeof fs.openSync>) => { opened.push(String(args[0])); return fs.openSync(...args); },
+    readSync: (...args: Parameters<typeof fs.readSync>) => { reads.count++; return fs.readSync(...args); },
     // A partial write: the file exists with its first byte, then the write fails.
     writeFileSync: (...args: Parameters<typeof fs.writeFileSync>) => {
       if (fault.step !== "write") return fs.writeFileSync(...args);
@@ -419,6 +420,17 @@ it("refuses a folder at send time that went away or became a file, as missing", 
   const [gone, file] = f.store.addPaths({ paths: [f.folder, f.outside] })!.map(ok);
   rmSync(f.folder, { recursive: true }); rmSync(f.outside, { recursive: true }); writeFileSync(f.outside, "now a file");
   expect(f.store.resolve([{ id: gone!.id }, { id: file!.id }])).toEqual({ ok: false, error: "attachment_missing", missing: [gone!.id, file!.id] });
+});
+it("refuses a folder that became a regular file at the same path before reading any of that file", () => {
+  const f = folderFixture();
+  const [sending, restored] = f.store.addPaths({ paths: [f.folder, f.outside] })!.map(ok);
+  f.store.markSent([{ id: restored!.id }]); f.store.consume([{ id: restored!.id }]);
+  rmSync(f.folder, { recursive: true }); writeFileSync(f.folder, "someone else's notes");
+  rmSync(f.outside, { recursive: true }); writeFileSync(f.outside, Buffer.concat([PNG, Buffer.from("pixels")]));
+  reads.count = 0;
+  expect(f.store.resolve([{ id: sending!.id }])).toEqual({ ok: false, error: "attachment_missing", missing: [sending!.id] });
+  expect(f.store.recheck({ ids: [restored!.id] })).toEqual([{ id: restored!.id, ok: false, error: "not_found" }]);
+  expect(reads.count).toBe(0);
 });
 it("refuses a folder replaced by another folder at the same path, and one whose link now names another folder, as replaced", () => {
   const f = folderFixture();
