@@ -20,7 +20,7 @@
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort, 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
-| A | tasks 2, 3, 4 | `app/scripts/dockedBuddyGolden.mjs`, 새 golden JSON, 새 순수 모듈과 테스트(`app/src/renderer/` 아래), AGENTS.md 'Commands' 한 줄(따로 커밋) | 없음 | Opus high — golden 비트 일치와 상태 기계 우선순위가 틀리면 이후 배치가 모두 어긋난다 | tasks 2·3·4 확인 항목, `npm --prefix app run typecheck`·`lint`·`test`, 두 golden `--check` | A 완료, A2 진행 |
+| A | tasks 2, 3, 4 | `app/scripts/dockedBuddyGolden.mjs`, 새 golden JSON, 새 순수 모듈과 테스트(`app/src/renderer/` 아래), AGENTS.md 'Commands' 한 줄(따로 커밋) | 없음 | Opus high — golden 비트 일치와 상태 기계 우선순위가 틀리면 이후 배치가 모두 어긋난다 | tasks 2·3·4 확인 항목, `npm --prefix app run typecheck`·`lint`·`test`, 두 golden `--check` | 통합 `f113420a` |
 | RA | A 리뷰 | 없음(보고만) | A | Opus high — 상태 기계와 golden 비교 범위 판단 | `/code-review` 🔴 0 | 대기 |
 | B | tasks 5, 6, 7 | 새 DOM·WebGL 셸 모듈과 테스트, `DockedComposer.tsx`, `CanvasTools.tsx`, `App.tsx`, `styles.css`, 관련 테스트, `docs/DESIGN.md`(design-sync 측정) | A 통합 | Opus high — WebGL 컨텍스트 생명주기, StrictMode, portal z-index, 렌더 비용 | tasks 5·6·7 확인 항목, 위 앱 게이트, `/design-sync` | 대기 |
 | RB | B 리뷰 | 없음(보고만) | B | Opus high — 생명주기·레이어·성능 회귀 | `/code-review` 🔴 0 | 대기 |
@@ -40,3 +40,6 @@
 - A2 완료(`77495c4e`): 초안·코어 `settle()` 수정, golden 시나리오 `reducedVisit`·`hiddenVisit` 추가, 테스트 10280개 통과.
 - RA(Opus high) 완료: 🔴 0, 🟡 3(rAF를 멈춰도 되는지 알리는 출력 없음, 버디 교체 API 없음, 우선순위 쌍 6개 테스트 없음), ⚪ 5. 근거 `bdm-a/.scratch/review-A.md`. golden·`--check` 변형 확인을 리뷰어가 다시 했다.
 - A3 시작(`ctx_a7d21d44f0c3`): 🟡 1–3과 ⚪1(머리 주석)을 순수 모듈에서 고친다. golden은 바뀌지 않아야 한다.
+- A3 완료: `dockedNeedsTime`, `setDockedBuddy`, 우선순위 쌍 테스트 6개, 머리 주석(테스트 10290개 통과). 변형 확인으로 새 테스트가 red가 되는 것을 워커가 확인했다.
+- **A 통합**: `c830e99b`..`f113420a`(cherry-pick 7개). 통합 HEAD에서 두 golden `--check` 0, typecheck 0, dockedBuddy 테스트 79개 통과. bdm-a worktree 삭제, 브랜치 `SinhyeokKang/bdm-a`(`f4528051`)는 로컬·원격에 남김.
+- B 시작(`ctx_d4926c34f8c6`, worktree `bdm-b`, Opus high).
