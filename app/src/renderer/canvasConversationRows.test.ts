@@ -128,7 +128,7 @@ describe("canvasConversationRows", () => {
       summary({ conversationId: "u", unseen: true, canvas: { path: plain.path }, lastActivityAt: ago(MIN) }),
       summary({ conversationId: "s", unseen: true, canvas: { path: quiet.path, id: "quiet" }, lastActivityAt: ago(2 * MIN) }),
     ], [billing, plain, quiet], NOW, new Set(["s"]));
-    expect(rows.map(r => r.status)).toEqual([{ kind: "permission", label: "Needs your answer" }, { kind: "unseen", label: "Finished, not seen" }, null]);
+    expect(rows.map(r => r.status)).toEqual([{ kind: "permission", label: "Needs your answer" }, { kind: "unseen", label: "Conversation finished — unread" }, null]);
   });
 
   test("an unreadable conversation keeps its canvas row and says so in the preview", () => {
@@ -146,7 +146,7 @@ describe("canvasConversationRows beyond Home", () => {
       summary({ conversationId: "s", fromHome: false, unseen: true, canvas: { path: ".doan/canvases/seen.html", id: "seen" }, lastActivityAt: ago(3 * MIN) }),
     ], [billing, plain, quiet, row({ path: ".doan/canvases/seen.html", id: "seen" })], NOW, new Set(["s"]));
     expect(rows.map(r => r.status)).toEqual([
-      { kind: "permission", label: "Needs your answer" }, { kind: "working", label: "Working" }, { kind: "unseen", label: "Finished, not seen" }, null,
+      { kind: "permission", label: "Needs your answer" }, { kind: "working", label: "Working" }, { kind: "unseen", label: "Conversation finished — unread" }, null,
     ]);
   });
 

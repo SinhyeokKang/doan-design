@@ -135,7 +135,7 @@ describe("projectConversationMenu", () => {
     expect(menu.map(item => item.status)).toEqual([
       { kind: "permission", label: "Needs your answer" },
       { kind: "working", label: "Working" },
-      { kind: "unseen", label: "Finished, not seen" },
+      { kind: "unseen", label: "Conversation finished — unread" },
       null, null,
     ]);
   });
@@ -173,7 +173,7 @@ describe("conversationStatus beyond Home", () => {
     const cases: [Partial<ConversationSummary>, unknown][] = [
       [{ phase: "waiting" }, { kind: "permission", label: "Needs your answer" }],
       [{ phase: "running" }, { kind: "working", label: "Working" }],
-      [{ unseen: true }, { kind: "unseen", label: "Finished, not seen" }],
+      [{ unseen: true }, { kind: "unseen", label: "Conversation finished — unread" }],
       [{}, null],
     ];
     for (const [patch, status] of cases) expect(conversationStatus(summary({ fromHome: false, ...patch }), new Set())).toEqual(status);

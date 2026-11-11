@@ -243,7 +243,7 @@ describe("what wins the slot of a project in a problem state", () => {
     for (const slot of [{ kind: "working", label: "Codex is working" }, { kind: "unseen", label: "Codex finished" }, { kind: "canvas", label: "x is new" }] as Slot[]) {
       const row = drawn(slot);
       expect(row).toContain("row-slot problem");
-      expect(row).not.toContain(`row-slot ${slot.kind === "canvas" ? "unseen" : slot.kind}`);
+      expect(row).not.toContain(`row-slot ${slot.kind === "canvas" ? "unseen" : slot.kind === "unseen" ? "ended" : slot.kind}`);
     }
   });
 });

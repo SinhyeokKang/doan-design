@@ -104,7 +104,7 @@ describe("canvasConversationMenu", () => {
       summary({ conversationId: "r", state: "archived", phase: "running", lastActivityAt: at(1) }),
       summary({ conversationId: "u", state: "archived", unseen: true, lastActivityAt: at(2) }),
     ], billing, null, NOW);
-    expect(rows.map(r => r.status?.label ?? null)).toEqual(["Needs your answer", "Working", "Finished, not seen"]);
+    expect(rows.map(r => r.status?.label ?? null)).toEqual(["Needs your answer", "Working", "Conversation finished — unread"]);
     expect(canvasConversationMenu([summary({ unseen: true })], billing, null, NOW, new Set(["c1"]))[0]!.status).toBeNull();
   });
 

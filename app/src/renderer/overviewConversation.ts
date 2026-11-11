@@ -31,7 +31,7 @@ export function shortAgo(at: string, now: number): ShortTime | null {
 }
 
 export interface ConversationStatus { kind: Slot["kind"]; label: string }
-const STATUS_LABELS: Record<Slot["kind"], string> = { permission: "Needs your answer", working: "Working", unseen: "Finished, not seen" };
+const STATUS_LABELS: Record<Slot["kind"], string> = { permission: "Needs your answer", working: "Working", unseen: "Conversation finished — unread" };
 
 // From the sidebar slot's own per-conversation rule (conversationWork), so a row and its slot never disagree between
 // renders. Unlike the sidebar, every conversation counts here, not only those started from Home.
