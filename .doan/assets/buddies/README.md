@@ -36,6 +36,32 @@ golden from it.
 
 ## Provenance
 
+### Typing and reading canvas drafts
+
+Each friend has `typing.gif`, `typing-rest.png`, `reading.gif` and `reading-rest.png`,
+shown in its existing `buddy-assets` frame. These are canvas drafts, not app assets.
+Built-in image_gen generated the typing source as an eight-pose 4-by-2 sprite sheet,
+using each friend's `still.png` for identity and Doany's `artist/typing-rest.png`
+for the action and prop. Reading uses the original eight-pose 4-by-2 sheet, with
+closed-eye poses replaced by the preceding open-eye poses and the original page turn
+retained. The silver laptop carries the Doany product logo reference;
+the reading prop is the same dark teal book. Prompts are in each buddy's
+`typing-prompt.json` and `reading-prompt.json`.
+
+ImageMagick splits the sheets into equal cells, thresholds alpha at 65%, removes
+isolated mask components smaller than 150 pixels, and places the artwork on transparent
+512-square canvases. Reading retains its original framing. Typing omits the source's closed-eye pose and sequences the
+seven open-eye poses across 24 frames at 100 ms each (2.4 s). A cosine brightness curve
+makes the laptop logo pulse from dark to white and back once per loop. Reading has
+8 frames at 220 ms each (1.76 s). Neither action blinks. Both GIFs use background
+disposal and infinite loops. The PNGs preserve the first processed frame. Source sheets and the assembly
+script are retained locally in `.scratch/buddy-actions/`. Typing frames are registered
+to the first frame's laptop lid top and left edge; Dungdung required up to 28 px of
+horizontal and 5 px of vertical correction. The logo was generated from the Doany
+reference rather than copied exactly, so exact product-logo fidelity is unresolved.
+Reading uses newly generated page-turn poses rather than Doany's original hand motion.
+These limitations remain visible in the canvas and prompt metadata; visual approval is pending.
+
 - Friends' cards and painter GIFs were made by the maintainer outside this repository and supplied as files.
 - The supplied painter GIFs drew frames 2–5 at another scale and position than frames 0, 1, 6 and 7, so they
   wobbled. `artist.gif` refits each frame to frame 0: the character and the easel are separated at the emptiest
