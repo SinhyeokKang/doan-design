@@ -89,6 +89,10 @@ const SCENARIOS = [
   { name: "mountFolded", buddy: "doany", inputs: { ...CANVAS, panel: { folded: true, folding: false } }, steps: [run(1000, 1495), set({ panel: { folded: false } }), run(1528, 4000)] },
   { name: "mountReduced", buddy: "doany", inputs: { ...CANVAS, reduced: true }, steps: [run(1000, 1099), set({ reduced: false }), run(1132, 3000)] },
   ...BUDDIES.map(buddy => ({ name: `buddy:${buddy}`, buddy, inputs: CANVAS, prefix: [0, 0], sample: 15, steps: [run(1000, 15000), set({ reasons: { queue: true } }), run(15033, 17500)] })),
+  // A clicked (idle) toolbar visit while time is stopped turns forced with a step-aside reason, so the buddy goes
+  // back to the dock's remembered x when the reason ends.
+  { name: "reducedVisit", buddy: "doany", inputs: CANVAS, steps: [run(1000, 1495), set({ reduced: true }), run(1528, 1594), event("poke"), run(1627, 1693), set({ reasons: { queue: true } }), run(1726, 1792), set({ reasons: { queue: false } }), run(1825, 1891), set({ reduced: false }), run(1924, 3500)] },
+  { name: "hiddenVisit", buddy: "doany", inputs: CANVAS, steps: [run(1000, 1495), set({ visible: false }), run(1528, 1594), event("poke"), run(1627, 1693), set({ reasons: { queue: true } }), run(1726, 1792), set({ reasons: { queue: false } }), run(1825, 1891), set({ visible: true }), run(1924, 3500)] },
 ];
 
 const isObject = value => value !== null && typeof value === "object" && !Array.isArray(value);

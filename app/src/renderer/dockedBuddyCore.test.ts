@@ -389,6 +389,26 @@ test("under reduced motion a click moves the buddy at once and changes apply wit
   expect(r.step()).toMatchObject({ presence: "hidden", conceal: 1 });
 });
 
+test("while time is stopped a clicked toolbar visit ends with a step-aside reason or a lost dock floor", () => {
+  for (const stopped of [{ reduced: true }, { visible: false }]) {
+    const r = rig();
+    r.run(.2);
+    const x = r.out.host.x;
+    r.set(stopped);
+    expect(r.step(["poke"])).toMatchObject({ surface: "tools", presence: "shown" });
+    r.set({ reasons: { queue: true } });
+    expect(r.step().surface).toBe("tools");
+    r.set({ reasons: { queue: false } });
+    expect(r.step(), JSON.stringify(stopped)).toMatchObject({ surface: "dock", presence: "shown", host: { x } });
+
+    r.step(["poke"]);
+    r.set({ dock: { accepts: false } });
+    expect(r.step().surface).toBe("tools");
+    r.set({ dock: { accepts: true } });
+    expect(r.step(), JSON.stringify(stopped)).toMatchObject({ surface: "dock", presence: "shown", host: { x } });
+  }
+});
+
 test("reduced motion rests like Home: no breathing, blink, gaze, hop or shadow change", () => {
   const r = rig({ ...CANVAS, reduced: true });
   const frames = r.run(10);
