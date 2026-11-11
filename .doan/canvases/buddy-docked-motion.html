@@ -18,149 +18,160 @@
 IMPLEMENTATION HANDOFF — APPROVED DESIGN, NOT IMPLEMENTED IN THE APP
 
 Purpose and scope
-- The user approved this design. This comment is the input for a future feature
-  spec/design/tasks set; no feature documents are created by this change.
-- Only Doany and Puri are confirmed. One buddy belongs to the active conversation
-  surface. The two component specimens in a frame are independent demonstrations.
-- Display/file name: buddy-docked-motion. Keep the existing internal canvas id
-  buddy-docked-poc, its existing frame ids, and element ids stable so prior references resolve.
-- Existing renderer controls, widths, typography, colors and keyboard behavior
-  remain the reference. Preview controls above frames are NOT product controls.
-- Planned product delta: a decorative buddy on Project Overview / canvas docked
-  composer, with a second entrance at the existing canvas tool panel. PRODUCT
-  currently says Overview has no buddy; update that rule only when implemented.
-- No CLI, schema, storage, agent execution or agent wake-up behavior is added.
+- Feature documents: docs/features/buddy-docked-motion/ (spec.md '결정' (decisions) 1-13 win over
+  this comment where they differ; this draft was revised to match them).
+- All five buddies (Doany, Puri, Dungdung, Popo, Dori) behave the same; nothing branches
+  per buddy except the rig numbers in the BUDDIES table. One buddy belongs to the
+  workspace; the two component specimens in a frame are independent demonstrations.
+- Display/file name: buddy-docked-motion. Keep the internal canvas id buddy-docked-poc,
+  its frame ids and element ids stable so prior references resolve.
+- Existing renderer controls, widths, typography, colors and keyboard behavior remain
+  the reference. Preview controls above frames are NOT product controls.
+- Product delta: a decorative buddy on the Project Overview and canvas conversation
+  panel docked composers, with a second floor on the existing canvas toolbar. No
+  setting turns it off. No CLI, schema, storage, agent execution or wake-up change.
 
-Confirmed visual geometry
-- Rig viewport: 56 x 56 CSS px, 70% of the initial 80px study. Applies equally at
-  the docked input and toolbar. Puri uses its own artwork and existing accent.
-- Floor: the composer card's existing top edge, NOT the queue's upper row.
-  The toolbar's top edge becomes the floor while the buddy visits it.
-- Travel: full surface width, with roughly 24px contact clearance at rounded ends.
-  In the prototype, host translation is clamped to [-2, surfaceWidth - 52].
-- Shader contact anchors come from buddies.ts: Doany [.458, .941], Puri [.498, .847].
-  At rest the 56px host starts -44.54632px / -41.01944px above its ground origin.
-  Ground origin is -1px from the card edge. Preserve painted foot contact, not
-  transparent image bounds, when implementing or changing the renderer.
-- Shadow is a separate non-interactive layer on the floor: 16 x 2px, 2px blur,
-  text-subtle ink at .34 opacity. At a short hop apex it scales to .55 x .70;
-  at a larger hop apex, .40 x .70. Apex opacity is .16; land restores .34.
-  Concealment multiplies opacity by (1 - concealment), so fully hidden = 0.
-- The last thread item gets 8px additional breathing room via scroll content:
-  thread bottom padding 24 -> 32px. Docked top padding remains 12px. Do not add
-  an opaque spacer above the queue or enlarge the docked backdrop for the buddy.
-- Input/toolbar controls retain their geometry and hit targets. Buddy, clipping
-  window and shadow use pointer-events:none and remain outside keyboard order.
+Source roles
+- buddies/docked-poc.js part 1, the docked core (globalThis.dockedBuddyCore), is the
+  motion and state reference. It never touches the DOM: a golden generator can load the
+  file in a node vm (part 2 returns without a document), stub Math.random and time, and
+  call create(id, random) then advance(state, inputs, now, random) per frame. It also
+  holds the rig table, the docked shader sources (shaders(id), anchor checked), the
+  geometry (geometry(id)), the clip window (clipWindow(rect)), the buddy's own box
+  (buddyBox(rect, xOn(state, surface, width))) and the overlap test (overlaps(box, rects)). Home's rig, motion-preview.js and doany.golden.json stay as
+  they are.
+- buddies/docked-poc.js part 2 is a preview shell: it reads this canvas into inputs and
+  draws. buddy-docked-poc.css holds buddy and preview geometry; buddy-docked-current.css
+  is a renderer CSS snapshot for this canvas ONLY. Ship neither, nor the dummy markup.
 
-Confirmed locomotion and attention
-- Short horizontal hops: random 8-12px, groups of 2-3; random left/right direction
-  per group, then 2.8-5.2s rest. Turn only on the floor; reverse at bounds.
-- Horizontal movement happens only in the airborne phase. No constant-speed glide.
-- Small hop: prepare 140ms, flight 280ms, settle 220ms. Large hop: 200/420/220ms.
-  Puri multiplies phase durations by 1.12. Horizontal easing: smoothstep;
-  flight arc: 4*u*(1-u). Lift is .075 / .18 in the existing shader's coordinates
-  (about 2.8 / 6.75 CSS px at 56px). The slight squash remains grounded.
-- Occasional larger hop: initial delay 13-20s, then 16-25s. Idle breathing is subtle;
-  eyes lead the body, with a restrained delayed accessory response.
-- Input events hold attention down for 2.2s; finish an in-flight landing, then rest.
-  Pointer movement within the thread looks up for 1.5s. Explicit look buttons
-  demonstrate the pose for 5s; those buttons do not belong to the production app.
-- Motion time advances only while the preview is visible and unpaused. Durations
-  are design values, not a verified production performance guarantee.
+Geometry
+- Rig viewport: 56 x 56 CSS px on both floors.
+- Floor: the composer card's existing top edge (NOT the queue's upper row); the
+  toolbar's top edge while the buddy is there. Ground origin is -1px from the edge.
+- Shader UV p maps to .165 + .67 * p of the 56px host (the x transform (p.x-.5)*1.34).
+  From each rig's contact anchor (buddies.ts):
+  host top = -56 * (.165 + .67 * contact[1]); transform-origin y = .165 + .67 * contact[1];
+  shadow centre x = host x + 56 * (.165 + .67 * contact[0]). No per-buddy CSS.
+  Rest offsets: Doany -44.54632px, Puri -41.01944px, Dungdung -41.50720px,
+  Popo -41.43216px, Dori -42.55776px.
+- Travel: full surface width; host x is clamped to [-2, surfaceWidth - 52]. A surface
+  narrower than 56px, or 0 wide, has no floor.
+- Shadow: a separate non-interactive layer on the floor, 16 x 2px, 2px blur, text-subtle
+  ink at .34 opacity. Short hop apex .55 x .70, large hop apex .40 x .70, apex opacity .16,
+  landing restores .34. Opacity is multiplied by (1 - concealment).
+- Clip window: 88px above the floor; it clips only the buddy, never the composer, text,
+  popovers or toolbar controls. Queue pills draw above the buddy layer; the gaps between
+  pills are transparent, so the buddy is hidden only behind a pill.
+- Thread bottom padding 24 -> 32px (scroll content). Docked top padding stays 12px; the
+  docked backdrop does not grow for the buddy.
+- Decorative for keyboard and screen readers: aria-hidden, no tabindex, no key handler. The clip
+  window, ground and shadow are pointer-events:none; the host takes pointer events only over the
+  painted body (see Click below).
+  Input and toolbar controls keep their geometry and hit targets.
 
-Presence and surface transitions — priority is queue before idle roaming
-1. Empty queue / dock: buddy may hop and rest. After 10-18 idle seconds it may hide.
-2. Canvas page, idle hide: dock -> toolbar, or toolbar -> dock. Overview and the
-   standalone input have no toolbar, so they hide and return at the same input.
-3. First queued message on dock: cancel a not-yet-launched preparation or finish
-   the current airborne hop/landing, then hide. Canvas page reappears at toolbar;
-   Overview stays hidden until the queue is empty.
-4. Queue grows or shrinks but remains nonempty: stay at toolbar (canvas) or hidden
-   (Overview). Do not climb queue rows. No idle return to dock while queue remains.
-   A buddy already shown at the toolbar does not hide again merely on queue arrival.
-5. Last queue item removed: return to dock, at its remembered horizontal position.
-   First toolbar visit starts centered; subsequent visits remember that surface's x.
-6. Reparent only while fully concealed; never fly visibly across the page. Keep
-   one buddy, one rig and one shadow while changing surfaces.
-7. A new queue state during a departure/reveal retargets from the current concealed
-   fraction. No visible teleport, duplicate buddy, stale completion or queued jump.
+Locomotion and attention
+- Short hops 8-12px in groups of 2-3, a random direction per group, then 2.8-5.2s rest;
+  turn on the floor, reverse at bounds. A larger hop first after 13-20s, then every 16-25s.
+- Small hop prepare/flight/settle 140/280/220ms, large 200/420/220ms; Puri x1.12.
+  Horizontal movement only in the air, smoothstep; flight arc 4*u*(1-u); lift .075 / .18
+  in shader coordinates. Idle breathing is subtle.
+- Input (typing or focus) looks down for 2.2s; pointer over the thread looks up for 1.5s.
+  Eyes lead the body; the accessory follows on a damped spring. Reading an older part of
+  the thread changes nothing.
+- Blink: 420ms every 4-8s, Home's formula (eyeOpen = 1 - .96 * sin(pi * b / .42)).
+- Time runs only while a stable container is visible (not the occluded sprite), the
+  document is shown, and WebGL has drawn. dt is capped at .035s after a pause.
+
+Surface rules, in priority order
+1. No floor, or the surface left: concealment goes to 1 at once and the surface changes
+   in the waiting phase. No floor means no input card (the canvas vanished into a status
+   line, a terminal session panel) or a card that takes no input (an unlisted page, a
+   canvas sharing another's id). Canvas page: the toolbar. Overview: hidden. Exception:
+   when the input card stays on screen but stops taking input, the buddy goes down with
+   the quick hide (240ms) instead of vanishing.
+2. A floating element over the buddy's own 56px box at its x (Radix tooltip/popover/menu
+   wrapper, .slash-popover, .doan-picking hint): the buddy goes down (quick, 240ms)
+   and stays down. One second after the last one closes, the rules are applied again:
+   on the same surface it rises in 220ms with no peek, to the same x; otherwise it
+   follows the then-current rule (for example a queue that appeared meanwhile). A
+   floating element over another surface does not hide the buddy, but that surface is
+   never a destination while it is open. Toasts, overlays and modals are not counted.
+3. Step-aside reasons: a queued message, suggested prompts in a new conversation, a
+   permission or question card waiting at the thread's end. They follow the queue rule:
+   leave the input (canvas page: reappear at the toolbar; Overview: stay hidden until
+   they end). A change in their content alone moves nothing; a buddy already shown at
+   the toolbar does not hide. When they end, it returns to the input at its remembered x.
+   The reasons are the shown conversation's; switching conversations keeps the buddy.
+4. Folded canvas conversation panel: concealment goes to 1 when folding starts, so the
+   buddy is never seen crossing with the panel; it reappears at the toolbar. Unfolding
+   sends it back to the input unless a step-aside reason holds it, with the same
+   choreography as any other surface change (a random hide variant, the wait, the peek).
+5. Idle surface trip: only while the person rests and nothing above applies. Resting:
+   5s without a view move or selection change, composer input or thread scroll, with the
+   app window focused. Pointer movement over the thread only turns the gaze up; it does
+   not end a rest. After 60-120s of uninterrupted rest (any activity restarts the
+   count) the buddy hides and changes floor: input <-> toolbar on a canvas page, the
+   same input on Overview. To be confirmed by the user in the app (spec decision 6).
+- The surface changes only while fully concealed; never fly visibly. One buddy, one rig,
+  one shadow. A change during a departure or reveal retargets from the current concealed
+  fraction; a not-yet-launched preparation is cancelled, an airborne hop or landing
+  finishes first. The first toolbar visit starts centred; later visits keep each
+  surface's x (the input's first x is 16px). A narrower surface clamps x at once.
+- Click (spec decision 14): only the painted body takes the click (the still image's alpha at the
+  host's place, with the rig's 16.5% padding); the transparent margin passes clicks to the thread or
+  board below, and the cursor is a pointer over the body. Pointer only: no focus, no accessible name.
+  A click while shown hides the buddy with the idle-trip choreography and brings it up on the other
+  surface when the rules allow it, else at a new random x on the same surface. Ignored while hiding
+  or revealing; under reduced motion the move applies at once.
+- First mount: standing at rest on the current surface, no reveal.
+- While not visible (and in the preview while paused), changes apply at once without
+  animation; nothing queued replays when time resumes.
+- Reduced motion rests like Home: no breathing, blinks, gaze, hops, travel or idle trips,
+  and a static shadow. Surface and hide changes happen at once, including when the
+  setting toggles mid-trip.
 
 Hide / reappear choreography
-- Three random hide variants: quick (0ms delay, 240ms descent), hesitant
-  (180ms, 360ms), soft (40ms, 420ms); smoothstep descent.
-- Descend 52px behind the current surface, clipped at its top edge. Only the buddy
-  is clipped; do not clip the composer, text, popovers or toolbar controls.
-- Remain out of sight for 250-600ms before changing surface / revealing. An Overview
-  with a nonempty queue instead remains hidden indefinitely.
-- Reveal: 220ms to a 12px-down peek, hold 120ms, then rise to the floor over 220ms.
-  Wait 1.5s after emergence before resuming walking. Hide variation does not change
-  queue priority or the fixed foot/shadow relationship.
-- Observe a stable visible container, not the occluded sprite. Observing the sprite
-  itself can stop the loop halfway through hiding and prevent a later reveal.
-- Reduced motion: no spatial movement, hopping or idle visits. Queue-driven presence
-  and surface changes happen immediately; a visible buddy has a static shadow.
+- Three random hide variants: quick (0ms delay, 240ms descent), hesitant (180ms, 360ms),
+  soft (40ms, 420ms); smoothstep; 52px down behind the floor.
+- Out of sight for 250-600ms, then reveal: 220ms to a 12px-down peek, hold 120ms, rise
+  to the floor over 220ms. Walking resumes 1.5s after it emerges. The return after a
+  floating element is the exception: a 220ms rise with no peek.
 
-Preview behavior and implementation boundaries
-- Walk, Jump, look controls, Pause, Add queue, Clear queue, Hide & reappear are replay
-  controls only. Add queue clones dummy content; production must consume the actual
-  queued-message state. Individual remove buttons remove one demonstration row.
-- Queue fixtures start with three rows in narrow-doany / narrow-puri. Their 280px
-  panels and 600px-tall windows expose thread/queue pressure without a taller white box.
-- Scrollers start at their end, follow size changes while pinned, and preserve the
-  reading position after a manual scroll upward. Prototype code emulates this;
-  production should keep ConversationThread's own existing anchoring logic.
-- Source roles: buddies/docked-poc.js is the motion reference; buddy-docked-poc.css
-  contains buddy/preview geometry; buddy-docked-current.css is a renderer CSS
-  snapshot for this canvas ONLY. Do not ship that snapshot or dummy page markup.
-- Reuse the existing buddy artwork/rig, shared composer and existing toolbar. Keep
-  any implementation state machine local to this behavior, not a general animation
-  framework. Pass time/randomness as inputs when testing phase/state transitions.
+Preview controls (NOT product UI)
+- Walk, Jump, Look at input, Look at thread and Pause replay motion and attention. Add
+  queue / Clear queue and each row's Remove change the queue. Hide & reappear starts an
+  idle trip now, ignoring rest and the interval.
+- Canvas frames: Picking hint (the app's .doan-agent.doan-picking in .doan-canvas-bottom),
+  Toolbar tooltip (a Radix-style wrapper over Select), Fold panel, Suggested prompts,
+  Permission card, Input unavailable. Overview frames: Suggested prompts, Permission card,
+  Input unavailable. In the preview, rest is approximated from composer input/focus,
+  wheel or pointer down on the thread or the board, and document focus.
+- Queue fixtures start with three rows in narrow-doany / narrow-puri, where the buddy
+  starts at rest on the toolbar. Scrollers start at their end, follow size changes while
+  pinned and keep a manual reading position; production keeps ConversationThread's own
+  anchoring.
 
-Feature-planning questions still open — do not silently infer a product rule
-- Visual approval of the added Dungdung, Popo and Dori component specimens. They
-  reuse the approved timing (Doany tempo), with their existing rig/accessory limits.
-  Full-window fixtures still cover Doany and Puri only.
-- Collapsing/hiding the canvas conversation panel, missing/disabled composer or
-  toolbar, navigation, and conversation switches while travelling between surfaces.
-- Saved buddy changes, texture/WebGL failure, app backgrounding and teardown in the
-  actual Electron lifecycle. Existing Home/runtime policies are references, not
-  evidence that the prototype already handles all of these application states.
-- Any additional opt-out preference or settings UI; none is approved here.
+Not verified here (later /design-sync and /runtime-test)
+- Live Electron frame rate, GPU and memory cost; real Radix tooltip and popover
+  positions; Dungdung, Popo and Dori travelling on a full-window toolbar; the buddy next
+  to the canvas working notice; whether the card's focus ring is covered by the feet or
+  shadow. Native vibrancy is approximated.
 
-Review evidence and limits
-- Sources checked: DockedComposer.tsx, ProjectOverview.tsx, ConversationThread.tsx,
-  App.tsx, styles.css, tokens.css, ds CSS, buddies.ts, Doany.tsx; source base c2bec43a.
-  Shell fixture markup derives from readme-features; artwork/rig from the existing
-  buddy assets and motion-preview.js. Presets read: shape, critique, animate.
-- Initial fixture comparison: 100 elements x 14 computed properties matched current
-  renderer CSS before intentional palette, spacing and buddy overlays.
-- Browser checks: both buddy textures load; foot contact; no grounded horizontal
-  drift; short stride <=12px; shadow contraction/opacity; full-width tracks; queue
-  row removal; thread end-following and preserved manual reading position; dock /
-  toolbar round trips; an automatic idle dock-to-toolbar visit observed without a
-  replay click; queue during departure; reduced-motion visibility changes.
-- Latest review results and local screenshots are under .scratch/buddy-docked-poc/.
-  That folder is ignored evidence, not an implementation dependency.
-- Extension sources: app/src/renderer/buddies.ts (contact anchors), tokens.css
-  (buddy palettes), and buddies/motion-preview.js (existing rig numbers).
-  Dungdung / Popo / Dori anchors: [.494,.860] / [.494,.858] / [.504,.888].
-  Their resting host offsets are -41.50720 / -41.43216 / -42.55776 px.
-  Preset read for this extension: animate.
-- Extension browser checks: all 16 rigs loaded without lost WebGL contexts; all
-  three new buddies jumped, hid for a queue and returned when cleared, and looked
-  down on input. Reduced-motion mode and immediate queue hide/reveal passed.
-  Screenshots and added-results.json are under .scratch/buddy-docked-poc/.
-- Native vibrancy is approximated. Live Electron equivalence, production frame rate,
-  GPU/memory/lifecycle costs have NOT been verified. The three added buddies have
-  component coverage only; full-window and toolbar travel remain unverified for them.
-- Run installed doan check / doan ls for canvas integrity. App implementation and
-  its scoped runtime/design-sync verification belong to the later feature work.
+Review evidence
+- Sources checked: DockedComposer.tsx, ProjectOverview.tsx, CanvasConversationPanel.tsx,
+  ConversationThread.tsx, CanvasTools.tsx, App.tsx (picking hint), styles.css, tokens.css,
+  ds CSS, buddies.ts, Doany.tsx (shadow origin), motion-preview.js (blink, templates).
+  Presets read: shape, critique, animate (earlier passes); clarify (this revision).
+- Browser checks for this revision and their screenshots are under
+  .scratch/buddy-docked-draft/ (ignored evidence, not an implementation dependency).
+- Run installed doan check / doan ls for canvas integrity.
 -->
 <header class="poc-intro">
 <h1>A little ground above the conversation</h1>
-<p>Approved design · Doany + Puri. Added motion previews · Dungdung, Popo + Dori · not yet implemented in the app.</p>
-<p>A 56px buddy takes short, grounded hops along the input. On canvas pages, it occasionally hides and reappears at the tool panel. Queue presence keeps it away from the input; clearing the queue brings it back.</p>
-<p>Use Add queue, Clear queue and Hide &amp; reappear to review transitions. Other controls replay motion and attention. These are preview controls, not product UI.</p>
+<p>Approved design · all five buddies: Doany, Puri, Dungdung, Popo and Dori · not yet implemented in the app.</p>
+<p>A 56px buddy takes short, grounded hops along the input. On canvas pages, after 60–120 s in which the person rests, it hides and reappears at the tool panel. A queued message, suggested prompts or a waiting permission card keeps it away from the input; when they end, it comes back. Anything floating over its spot, such as the picking hint or a tooltip, sends it down until 1 s after it closes.</p>
+<p>Click the buddy’s body to send it to the other surface, or to a new spot on the same one when it cannot go there. Its transparent margin lets clicks through.</p>
+<p>Use the queue, Hide &amp; reappear, Picking hint, Toolbar tooltip, Fold panel, Suggested prompts, Permission card and Input unavailable controls to review transitions. Other controls replay motion and attention. These are preview controls, not product UI.</p>
 <p>The HTML source contains the implementation handoff: confirmed geometry, timing, state priorities, references, review evidence and questions for future feature planning. Frame and element ids are preserved.</p>
 </header>
 <section class="poc-section " data-doan-frame="component-doany" data-doan-implements="app/src/renderer/DockedComposer.tsx" data-doan-title="Doany · docked composer" data-mascot-scope>
@@ -791,7 +802,7 @@ Review evidence and limits
 </div>
 </div>
 </div>
-<p class="poc-note">Extension of the approved Doany/Puri motion; awaiting visual review, not in app code. Feet meet the existing top edge. Type in either input; the buddy pauses to look down. Controls affect this frame only.</p>
+<p class="poc-note">The same motion as Doany and Puri; every buddy behaves alike. Not in app code. Feet meet the existing top edge. Type in either input; the buddy pauses to look down. Controls affect this frame only.</p>
 </section>
 <section class="poc-section " data-doan-frame="component-popo" data-doan-implements="app/src/renderer/DockedComposer.tsx" data-buddy="popo" data-doan-title="Popo · docked composer" data-mascot-scope>
 <h2>Popo · docked composer</h2>
@@ -1001,7 +1012,7 @@ Review evidence and limits
 </div>
 </div>
 </div>
-<p class="poc-note">Extension of the approved Doany/Puri motion; awaiting visual review, not in app code. Feet meet the existing top edge. Type in either input; the buddy pauses to look down. Controls affect this frame only.</p>
+<p class="poc-note">The same motion as Doany and Puri; every buddy behaves alike. Not in app code. Feet meet the existing top edge. Type in either input; the buddy pauses to look down. Controls affect this frame only.</p>
 </section>
 <section class="poc-section " data-doan-frame="component-dori" data-doan-implements="app/src/renderer/DockedComposer.tsx" data-buddy="dori" data-doan-title="Dori · docked composer" data-mascot-scope>
 <h2>Dori · docked composer</h2>
@@ -1211,7 +1222,7 @@ Review evidence and limits
 </div>
 </div>
 </div>
-<p class="poc-note">Extension of the approved Doany/Puri motion; awaiting visual review, not in app code. Feet meet the existing top edge. Type in either input; the buddy pauses to look down. Controls affect this frame only.</p>
+<p class="poc-note">The same motion as Doany and Puri; every buddy behaves alike. Not in app code. Feet meet the existing top edge. Type in either input; the buddy pauses to look down. Controls affect this frame only.</p>
 </section>
 <section class="poc-section poc-thread-test" data-doan-frame="overview-doany" data-doan-implements="app/src/renderer/ProjectOverview.tsx" data-doan-title="Doany · Project Overview" data-mascot-scope>
 <h2>Doany · Project Overview</h2>
@@ -1224,6 +1235,9 @@ Review evidence and limits
 <button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="queue-add">Add queue</button>
 <button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="queue-clear">Clear queue</button>
 <button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="wander">Hide &amp; reappear</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="prompts" aria-pressed="false">Suggested prompts</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="permission" aria-pressed="false">Permission card</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="no-floor" aria-pressed="false">Input unavailable</button>
 <span class="poc-label">Preview controls · not app UI</span>
 </div>
 <div class="win">
@@ -1609,7 +1623,7 @@ Review evidence and limits
 </div>
 </main>
 </div>
-<p class="poc-note">1376 × 780 window. Current layout with 8 px more space after the final message; buddy behavior is new.</p>
+<p class="poc-note">1376 × 780 window. Current layout with 8 px more space after the final message; buddy behavior is new. Overview has no toolbar: a queued message, suggested prompts, a waiting permission card or an input card that takes no input keeps the buddy hidden until they end.</p>
 </section>
 <section class="poc-section poc-thread-test" data-doan-frame="overview-puri" data-doan-implements="app/src/renderer/ProjectOverview.tsx" data-buddy="puri" data-doan-title="Puri · Project Overview" data-mascot-scope>
 <h2>Puri · Project Overview</h2>
@@ -1622,6 +1636,9 @@ Review evidence and limits
 <button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="queue-add">Add queue</button>
 <button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="queue-clear">Clear queue</button>
 <button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="wander">Hide &amp; reappear</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="prompts" aria-pressed="false">Suggested prompts</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="permission" aria-pressed="false">Permission card</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="no-floor" aria-pressed="false">Input unavailable</button>
 <span class="poc-label">Preview controls · not app UI</span>
 </div>
 <div class="win">
@@ -2007,7 +2024,7 @@ Review evidence and limits
 </div>
 </main>
 </div>
-<p class="poc-note">1376 × 780 window. Current layout with 8 px more space after the final message; buddy behavior is new.</p>
+<p class="poc-note">1376 × 780 window. Current layout with 8 px more space after the final message; buddy behavior is new. Overview has no toolbar: a queued message, suggested prompts, a waiting permission card or an input card that takes no input keeps the buddy hidden until they end.</p>
 </section>
 <section class="poc-section poc-thread-test" data-doan-frame="canvas-doany" data-doan-implements="app/src/renderer/App.tsx" data-doan-title="Doany · Canvas conversation" data-mascot-scope>
 <h2>Doany · Canvas conversation</h2>
@@ -2020,6 +2037,12 @@ Review evidence and limits
 <button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="queue-add">Add queue</button>
 <button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="queue-clear">Clear queue</button>
 <button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="wander">Hide &amp; reappear</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="picking" aria-pressed="false">Picking hint</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="tooltip" aria-pressed="false">Toolbar tooltip</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="fold" aria-pressed="false">Fold panel</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="prompts" aria-pressed="false">Suggested prompts</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="permission" aria-pressed="false">Permission card</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="no-floor" aria-pressed="false">Input unavailable</button>
 <span class="poc-label">Preview controls · not app UI</span>
 </div>
 <div class="win">
@@ -2543,7 +2566,7 @@ Review evidence and limits
 </div>
 </main>
 </div>
-<p class="poc-note">1376 × 780 window. Panel: 385 px, matching the default 28% at this window width (rounded). Pointer in the thread looks up; typing looks down.</p>
+<p class="poc-note">1376 × 780 window. Panel: 385 px, matching the default 28% at this window width (rounded). Pointer in the thread looks up; typing looks down. Folding the panel hides the buddy at once and brings it up on the toolbar; unfolding sends it back to the input. While the picking hint or the toolbar tooltip is open over the toolbar, the buddy there stays down.</p>
 </section>
 <section class="poc-section poc-thread-test" data-doan-frame="canvas-puri" data-doan-implements="app/src/renderer/App.tsx" data-buddy="puri" data-doan-title="Puri · Canvas conversation" data-mascot-scope>
 <h2>Puri · Canvas conversation</h2>
@@ -2556,6 +2579,12 @@ Review evidence and limits
 <button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="queue-add">Add queue</button>
 <button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="queue-clear">Clear queue</button>
 <button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="wander">Hide &amp; reappear</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="picking" aria-pressed="false">Picking hint</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="tooltip" aria-pressed="false">Toolbar tooltip</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="fold" aria-pressed="false">Fold panel</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="prompts" aria-pressed="false">Suggested prompts</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="permission" aria-pressed="false">Permission card</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="no-floor" aria-pressed="false">Input unavailable</button>
 <span class="poc-label">Preview controls · not app UI</span>
 </div>
 <div class="win">
@@ -3079,7 +3108,7 @@ Review evidence and limits
 </div>
 </main>
 </div>
-<p class="poc-note">1376 × 780 window. Panel: 385 px, matching the default 28% at this window width (rounded). Pointer in the thread looks up; typing looks down.</p>
+<p class="poc-note">1376 × 780 window. Panel: 385 px, matching the default 28% at this window width (rounded). Pointer in the thread looks up; typing looks down. Folding the panel hides the buddy at once and brings it up on the toolbar; unfolding sends it back to the input. While the picking hint or the toolbar tooltip is open over the toolbar, the buddy there stays down.</p>
 </section>
 <section class="poc-section poc-thread-test poc-risk" data-doan-frame="narrow-doany" data-doan-implements="app/src/renderer/App.tsx" data-doan-title="Doany · Narrow panel + queue" data-mascot-scope>
 <h2>Doany · Narrow panel + queue</h2>
@@ -3092,6 +3121,12 @@ Review evidence and limits
 <button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="queue-add">Add queue</button>
 <button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="queue-clear">Clear queue</button>
 <button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="wander">Hide &amp; reappear</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="picking" aria-pressed="false">Picking hint</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="tooltip" aria-pressed="false">Toolbar tooltip</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="fold" aria-pressed="false">Fold panel</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="prompts" aria-pressed="false">Suggested prompts</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="permission" aria-pressed="false">Permission card</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="no-floor" aria-pressed="false">Input unavailable</button>
 <span class="poc-label">Preview controls · not app UI</span>
 </div>
 <div class="win">
@@ -3719,7 +3754,7 @@ Review evidence and limits
 </div>
 </main>
 </div>
-<p class="poc-note">280 px minimum panel, 600 px window height. The buddy stays on the toolbar while any queue row remains; each Remove button dismisses one queued message locally. Clearing the final row brings the buddy back to the input. The thread follows its end while pinned there, and preserves a manually scrolled reading position. This is the approved design reference, not current app behavior.</p>
+<p class="poc-note">280 px minimum panel, 600 px window height. The buddy stays on the toolbar while any queue row remains; each Remove button dismisses one queued message locally. On load the buddy stands at rest on the toolbar, with no reveal. Clearing the final row brings the buddy back to the input. The thread follows its end while pinned there, and preserves a manually scrolled reading position. This is the approved design reference, not current app behavior.</p>
 </section>
 <section class="poc-section poc-thread-test poc-risk" data-doan-frame="narrow-puri" data-doan-implements="app/src/renderer/App.tsx" data-buddy="puri" data-doan-title="Puri · Narrow panel + queue" data-mascot-scope>
 <h2>Puri · Narrow panel + queue</h2>
@@ -3732,6 +3767,12 @@ Review evidence and limits
 <button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="queue-add">Add queue</button>
 <button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="queue-clear">Clear queue</button>
 <button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="wander">Hide &amp; reappear</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="picking" aria-pressed="false">Picking hint</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="tooltip" aria-pressed="false">Toolbar tooltip</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="fold" aria-pressed="false">Fold panel</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="prompts" aria-pressed="false">Suggested prompts</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="permission" aria-pressed="false">Permission card</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="subtle" data-poc-action="no-floor" aria-pressed="false">Input unavailable</button>
 <span class="poc-label">Preview controls · not app UI</span>
 </div>
 <div class="win">
@@ -4359,7 +4400,7 @@ Review evidence and limits
 </div>
 </main>
 </div>
-<p class="poc-note">280 px minimum panel, 600 px window height. The buddy stays on the toolbar while any queue row remains; each Remove button dismisses one queued message locally. Clearing the final row brings the buddy back to the input. The thread follows its end while pinned there, and preserves a manually scrolled reading position. This is the approved design reference, not current app behavior.</p>
+<p class="poc-note">280 px minimum panel, 600 px window height. The buddy stays on the toolbar while any queue row remains; each Remove button dismisses one queued message locally. On load the buddy stands at rest on the toolbar, with no reveal. Clearing the final row brings the buddy back to the input. The thread follows its end while pinned there, and preserves a manually scrolled reading position. This is the approved design reference, not current app behavior.</p>
 </section>
 <script src="../assets/buddies/docked-poc.js">
 </script>

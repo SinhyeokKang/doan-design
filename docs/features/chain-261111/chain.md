@@ -8,14 +8,17 @@
 
 ## 순서
 
-직렬 체인이다. 링크 2는 링크 1이 병합된 뒤 시작한다.
+직렬 체인이다. 링크 2는 링크 1이 병합된 뒤, 링크 3은 링크 2가 병합된 뒤 시작한다.
 
 | 링크 | 문서 | 검토·초안 | 순서 이유 |
 |---|---|---|---|
 | 1. `canvas-rendering-stability` | [spec](../canvas-rendering-stability/spec.md) · [design](../canvas-rendering-stability/design.md) · [tasks](../canvas-rendering-stability/tasks.md) | `/feature-review` 완료(`1acd4dd4`까지). 새 화면이 없어 초안 없음 | 대형 캔버스 그래픽 깨짐의 원인(GPU 타일·메모리, 합성, 레이아웃)을 먼저 확인한다. 2026-11-11 녹화의 작업 중 레이어 누락도 skillflo의 큰 캔버스 위에서 일어나, 같은 원인을 공유할 수 있다 |
 | 2. `work-indicator-perf` | [spec](../work-indicator-perf/spec.md) · [design](../work-indicator-perf/design.md) · [tasks](../work-indicator-perf/tasks.md) | `/feature-review` 완료(`bb2c44ec`). 새 화면이 없어 초안 없음 | 합성 레이어를 새로 만드는 변경이다. 링크 1의 PoC가 GPU 메모리·타일 한계를 밝히면 그 결과로 레이어 수와 크기를 정한다 |
+| 3. `buddy-docked-motion` | [spec](../buddy-docked-motion/spec.md) · [design](../buddy-docked-motion/design.md) · [tasks](../buddy-docked-motion/tasks.md) | `/feature-review` 완료(`bd02429d`). 초안 `.doan/canvases/buddy-docked-motion.html` 수정본 커밋(`5e7d0e35`, tasks 1). 사용자 확인 완료 | 링크 2가 측정하는 대화 패널(입력창 테두리, 큐 행)에 움직이는 WebGL 버디를 더한다. 링크 2의 픽셀·프레임 기준선은 버디 없이 재고, 링크 3은 링크 2의 `contain` 규칙과 렌더링 최적화 위에서 버디의 비용을 잰다. 사용자 결정으로 직렬 |
 
-**직렬 판단**: 두 링크 모두 `app/src/renderer/CanvasController.ts`와 보드·overlay 렌더링(`styles.css`, `canvasView.ts`, `viewport.ts`)을 건드릴 수 있다.
+**직렬 판단**: 링크 1과 2는 모두 `app/src/renderer/CanvasController.ts`와 보드·overlay 렌더링(`styles.css`, `canvasView.ts`, `viewport.ts`)을 건드릴 수 있다. 링크 3은 링크 1·2와 `styles.css`에서 겹치고, 링크 2와는 대화 패널(`ConversationThread.tsx` 주변 레이아웃, `contain`)과 측정 기준선에서 겹친다. 사용자가 링크 3을 직렬로 붙이기로 했다(2026-11-11).
+
+**링크 2 → 링크 3 인계**: 링크 2 conductor는 PR 본문에 대화 패널에 건 `contain`·`content-visibility` 규칙과, 링크 3의 버디(입력창 위 88px 클립 창, WebGL 캔버스)가 받을 제약을 남긴다.
 
 **링크 1 → 링크 2 인계**: 링크 1 conductor는 PR 본문에 다음을 남긴다. lead가 병합 때 아래 '인계 기록'에 옮긴다.
 - 확인한 원인과 GPU 메모리·타일·레이어 크기에 관한 측정.
@@ -31,6 +34,10 @@ lead는 링크 1 시작 전에 아래를 사용자에게 한 번에 묻고, 승�
 4. **사용자 참여 방식**: 사용자는 대화로만 답한다. 로그인이나 머신 앞에서 하는 수동 조작은 하지 않는다. 링크 1의 개선 기준 합의와 원인 미확정 시 중단 판단은 conductor가 대화로 묻는다.
 5. **측정 조건**: 사용자가 같은 머신에서 일하는 중에 측정할 수 있다. 화면은 켜져 있고 잠기지 않는다고 본다. 격리 앱 창이 사용자 화면에 뜬다. 다른 작업 부하가 섞이므로 반복 측정(중앙값과 범위)과 통제된 `yes` 부하로 보정하고, 측정 때 load average를 함께 기록한다.
 
+**링크 3 시작 전 점검**(lead가 링크 3 시작 전에 사용자에게 확인하고 '인계 기록'에 남긴다):
+1. 사용자가 앱에서 초안 수정본을 확인했다. 대기 중 이동 간격(60–120초)도 함께 확인한다(링크 3 tasks 1 확인 항목).
+2. 링크 3 conductor는 tasks 2부터 시작한다. tasks 1(초안)은 develop에서 끝났다.
+
 ## 상시 권한
 
 - lead는 각 링크의 PR을 검토와 게이트 통과 뒤 링크 순서대로 develop에 병합하고, 다음 링크를 시작한다.
@@ -43,18 +50,20 @@ lead는 링크 1 시작 전에 아래를 사용자에게 한 번에 묻고, 승�
 ## 운영 메모
 
 - 워커 대기는 `/orchestrate` §2의 백그라운드 감시 루프를 쓴다. 메일함을 소비하지 않는다.
-- 두 링크 모두 로그인이 필요 없다.
+- 세 링크 모두 로그인이 필요 없다.
 - `/agent-eval`:
   - 링크 1은 export 코드(`cli/internal/export/viewer/`)를 바꾸면 CLI 출력에 해당하므로 마지막 통합 전에 실행한다. 바꾸지 않으면 해당하지 않는다.
   - 링크 2는 해당하지 않는다.
+  - 링크 3은 해당하지 않는다(CLI 출력, 가이드, `doan check`, 스킬 stub을 바꾸지 않는다).
 - 링크 2는 PoC와 재측정 동안 화면이 켜져 있고 잠기지 않아야 한다. 링크 2 conductor는 측정 전에 `caffeinate`로 잠자기를 막는다.
 
 ## 링크 상태
 
 | 링크 | 세션·worktree | 시작 | PR·병합 | 상태 |
 |---|---|---|---|---|
-| 1. `canvas-rendering-stability` | `canvas-rendering-stability-orch` (Claude conductor, 이 머신) | 2026-11-11, `5676decd` | | 다른 머신으로 인계 |
+| 1. `canvas-rendering-stability` | `canvas-rendering-stability-orch` (Claude conductor). 이전 머신에서 시작, 새 머신 `/Users/sinhyeok/orca/workspaces/doan-design/canvas-rendering-stability-orch`에서 재개 | 2026-11-11, `5676decd`. 재개 `12ddcfa8` | | 진행 중 |
 | 2. `work-indicator-perf` | | | | 대기 |
+| 3. `buddy-docked-motion` | | | | 대기 |
 
 ## 인계 기록
 
@@ -72,4 +81,11 @@ lead는 링크 1 시작 전에 아래를 사용자에게 한 번에 묻고, 승�
 - 2026-11-11 lead: 링크 1 conductor가 이 머신에서 할 수 있는 만큼 마치고 멈췄다. 원격 `feat/canvas-rendering-stability` tip은 `12ddcfa8`이다. F 통합 커밋은 `85879e1b`·`22b4d776`·`c36a2961`이고, 배치 브랜치 `SinhyeokKang/crs-fix`도 원격에 있다. `crs-poc`는 커밋이 없어 push하지 않았다. 측정 요약과 남은 일 10가지는 그 브랜치 orch.md '머신 이전 인계'에 있다. C1 지속 잘림은 앱 세 레이아웃, Export Electron 창, Chrome 157에서 5회 모두 0이 됐다.
   - 새 머신에서 사용자 결정이 필요한 것: 모서리 AA 차이(앱 최대 3/255, Export 최대 4/255, AA 가장자리에서만)를 '같은 픽셀'로 볼지.
   - 미판정: C2 Export 빈 프레임 비율 최대가 수정 전 0.182, 수정 후 0.187이다. 수정 후 표본이 2개라 회귀인지 잡음인지 가르지 못했다.
-
+- 2026-11-11 lead(새 머신, develop checkout `/Users/sinhyeok/code/doan-design`): **체인을 인수했다.**
+  - 원격 상태를 확인했다. `feat/canvas-rendering-stability`의 tip은 `12ddcfa8`이고, `SinhyeokKang/crs-fix`도 원격에 있다.
+  - 사용자 결정: C1 수정 뒤 모서리 AA 차이(앱 최대 3/255, Export 최대 4/255, AA 가장자리에서만, 8/255 초과 0)를 '같은 픽셀'로 본다. 링크 1 기준 ②의 허용치로 쓴다.
+  - 새 머신의 경로: 홈은 `/Users/sinhyeok`이고, skillflo 원본은 `/Users/sinhyeok/code/skillflo/skillflo-web/.doan`이다. 이 머신의 원본에는 `config.json`만 있고 캔버스가 없다. 자료 위치는 conductor가 사용자에게 확인한다.
+  - 링크 1 conductor를 새 worktree `canvas-rendering-stability-orch`(원격 브랜치 체크아웃)에서 다시 띄웠다. 브리프에 위 결정, 새 경로, origin/develop을 병합한다는 것(rebase 금지)을 넣었다.
+- 2026-11-11 lead: 사용자 요청으로 `buddy-docked-motion`을 링크 3으로 붙였다. lead가 링크 2와의 병렬을 검토했다. 코드는 `styles.css`와 대화 패널에서만 겹치지만, 링크 2의 측정 기준선(대화 패널 픽셀·빠진 프레임)과 버디가 충돌한다. 사용자는 직렬을 택했다. `/feature-review`는 끝났고, 초안 수정본(`5e7d0e35`)은 독립 검수에서 막는 문제가 없었으며 사용자 앱 확인을 기다린다.
+- 2026-11-11 lead: 링크 3 시작 전 점검 1 완료. 사용자가 초안 수정본(`5e7d0e35`)과 대기 중 이동 간격 60–120초를 그대로 확인했다.
+- 2026-11-11 lead: 사용자 요청으로 링크 3에 결정 14(버디 클릭 시 숨었다가 다른 표면이나 같은 표면의 새 x로 이동, 그려진 몸만 클릭, 포인터만)를 더했다. 초안(`97422347`)과 feature 문서에 반영했다.
