@@ -43,3 +43,4 @@
 - A3 완료: `dockedNeedsTime`, `setDockedBuddy`, 우선순위 쌍 테스트 6개, 머리 주석(테스트 10290개 통과). 변형 확인으로 새 테스트가 red가 되는 것을 워커가 확인했다.
 - **A 통합**: `c830e99b`..`f113420a`(cherry-pick 7개). 통합 HEAD에서 두 golden `--check` 0, typecheck 0, dockedBuddy 테스트 79개 통과. bdm-a worktree 삭제, 브랜치 `SinhyeokKang/bdm-a`(`f4528051`)는 로컬·원격에 남김.
 - B 시작(`ctx_d4926c34f8c6`, worktree `bdm-b`, Opus high).
+- lead 알림: PR #166이 `closeToolbarTooltip`을 `forwardEscape`로 바꾼다. B에 그 메서드와 non-bubbling Esc에 기대지 말라고 전했다. #166 병합 뒤 lead 지시로 origin/develop을 병합한다.
