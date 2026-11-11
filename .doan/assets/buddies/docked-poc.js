@@ -123,17 +123,60 @@
     const message=host.closest('.docked').querySelector('.composer-input');
     const send=null;
     const buttons=frame.querySelectorAll('[data-poc-action]');
-    let walkX=16, direction=1, nextHop=7, forced='walk', focusUntil=0;
+    let walkX=-12, direction=1, forced='walk', focusUntil=0;
+    const tempo=host.dataset.buddyPreview==='puri'?1.12:1;
+    let motion=null, nextMove=1.8+Math.random(), stepsLeft=0, requestedJump=false, nextHop=13+Math.random()*7;
+    let bodyLean=0;
+    const smooth=u=>u*u*(3-2*u);
+    const attention=()=>state.time<state.typingUntil?'input':state.time<focusUntil?forced:'walk';
+    function beginMove(big=false){
+      const max=trackMax();
+      const stride=(big?0:8+Math.random()*4)*direction;
+      if(!big && (walkX+stride>max || walkX+stride< -12))direction*=-1;
+      const target=big?walkX:Math.max(-12,Math.min(max,walkX+Math.abs(stride)*direction));
+      motion={start:state.time,from:walkX,to:target,big,prepare:(big?.2:.14)*tempo,flight:(big?.42:.28)*tempo,settle:.22*tempo};
+    }
+    function pose(){
+      if(!motion)return {squash:0,lift:0,tilt:0,phase:'rest'};
+      const t=state.time-motion.start,m=motion;
+      if(t<m.prepare){const u=t/m.prepare;return {squash:(m.big?.10:.055)*smooth(u),lift:0,tilt:direction*.018*smooth(u),phase:'prepare'};}
+      if(t<m.prepare+m.flight){
+        const u=(t-m.prepare)/m.flight,arc=4*u*(1-u);
+        return {squash:(m.big?.10:.055)*(1-smooth(Math.min(1,u/.18)))-(m.big?.045:.025)*Math.sin(Math.PI*u),lift:(m.big?.18:.075)*arc,tilt:direction*.025*Math.sin(Math.PI*u),phase:'air'};
+      }
+      const u=Math.min(1,(t-m.prepare-m.flight)/m.settle);
+      return {squash:(m.big?.08:.045)*Math.sin(Math.PI*u)*Math.exp(-u*2),lift:0,tilt:0,phase:'land'};
+    }
     const ground=host.parentElement;
-    let pointerUntil=0;
+    const dock=host.closest('.docked');
+    const shadow=document.createElement('span');shadow.className='poc-contact-shadow';ground.prepend(shadow);
+    let drop=null;
+    const trackMax=()=>Math.max(-12,ground.clientWidth-52);
+    function mountGround(){
+      const surface=dock.querySelector('.queue-item') || dock.querySelector('.composer-card');
+      if(ground.parentElement===surface)return;
+      const before=ground.getBoundingClientRect().top;
+      surface.prepend(ground);
+      const after=ground.getBoundingClientRect().top;
+      if(state.ready && !reduced.matches)drop={from:before-after,at:state.time};
+    }
+    mountGround();
+    dock.querySelectorAll('.queue-item button[aria-label="Remove queued message"]').forEach(button=>button.addEventListener('click',()=>{
+      const before=ground.getBoundingClientRect().top;
+      dock.querySelector('.composer-card').prepend(ground);
+      button.closest('.queue').remove();
+      const after=ground.getBoundingClientRect().top;
+      if(!reduced.matches)drop={from:before-after,at:state.time};
+      motion=null;nextMove=state.time+2;
+    }));
     let rect;
     const resize=()=>{const size=Math.min(1024,Math.ceil(host.clientWidth*Math.min(devicePixelRatio||1,2))); canvas.width=size;canvas.height=size;rect=host.getBoundingClientRect();render();};
     const observer=new ResizeObserver(resize); observer.observe(host);
     const visible=new IntersectionObserver(entries=>{state.visible=entries[0].isIntersecting;}); visible.observe(host);
-    function jump(){if(reduced.matches)return;state.jumpAt=state.time;state.greetUntil=0;state.hatV-=.9;}
+    function jump(){if(reduced.matches)return;requestedJump=true;}
     function action(name){
       if(name==='jump') jump();
-      if(['walk','input','thread'].includes(name)){forced=name;focusUntil=name==='walk'?0:state.time+5;}
+      if(['walk','input','thread'].includes(name)){forced=name;focusUntil=name==='walk'?0:state.time+5;if(name==='walk')nextMove=state.time+.35;}
       if(name==='greet') state.greetUntil=state.time+2.4;
       if(name==='blink') state.blinkAt=state.time;
       if(name==='pause') {state.paused=!state.paused;buttons.forEach(b=>{if(b.dataset.pocAction==='pause'){b.textContent=state.paused?'Resume':'Pause';b.setAttribute('aria-pressed',String(state.paused));}});}
@@ -158,18 +201,11 @@
     function render(){
       if(!state.ready || gl.isContextLost())return;
       const t=state.time, still=reduced.matches;
-      let squash=still?0:Math.sin(t*1.9)*.016,lift=0,energy=0,tilt=still?0:Math.sin(t*.85)*.025+state.lookX*.065;
-      let mode='idle';
-      if(!still && (t<state.typingUntil || (forced==='input' && t<focusUntil))){mode='attentive';tilt*=.6;squash+=.025;}
-      if(!still && forced==='walk' && t>=state.typingUntil){tilt+=Math.sin(t*7)*.035;squash+=Math.sin(t*14)*.012;}
-      const j=t-state.jumpAt;
-      if(!still && j<1.35){
-        mode='jump';energy=Math.exp(-j*2);
-        if(j<.18)squash+=.15*Math.sin(j/.18*Math.PI/2);
-        else if(j<.75){const a=(j-.18)/.57;lift=.22*cfg.liftScale*Math.sin(a*Math.PI);squash-=.085*Math.sin(a*Math.PI);}
-        else {const a=j-.75;squash+=.12*Math.exp(-a*7)*Math.cos(a*17);}
-      }
-      if(!still && t<state.greetUntil){mode='greet';tilt+=Math.sin((state.greetUntil-t)*8)*.13;energy=.5;}
+      const moving=still?{squash:0,lift:0,tilt:0,phase:'rest'}:pose();
+      const squash=moving.squash+(still?0:Math.sin(t*1.6)*.003);
+      const lift=moving.lift,energy=motion?.big?.3:0;
+      const tilt=still?0:moving.tilt+bodyLean;
+      const mode=motion?moving.phase:attention()==='walk'?'idle':'attentive';
       state.mode=still?'reduced-motion':state.paused?'paused':mode;
       host.dataset.state=state.mode;
       gl.viewport(0,0,canvas.width,canvas.height);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);gl.useProgram(program);
@@ -188,30 +224,57 @@
       if(state.ready && state.visible && host.checkVisibility({visibilityProperty:true}) && !document.hidden && !state.paused && !reduced.matches){
         state.time+=dt;
         const t=state.time;
-        let x=state.targetX,y=state.targetY;
-        if(t>=focusUntil)forced='walk';
-        if(forced==='walk' && t>=state.typingUntil){
-          const max=Math.max(0,ground.clientWidth-80);
-          walkX+=direction*dt*18;
-          if(walkX>=max){walkX=max;direction=-1;}if(walkX<=0){walkX=0;direction=1;}
-          host.style.left=walkX+'px';x=direction*.65;y=Math.sin(t*.39)*.2;
-          if(t>=nextHop){jump();nextHop=t+9;}
+        const focus=attention();
+        if(motion){
+          const m=motion,age=t-m.start;
+          if(age>=m.prepare){
+            const u=Math.max(0,Math.min(1,(age-m.prepare)/m.flight));
+            walkX=m.from+(m.to-m.from)*smooth(u);
+          }
+          if(age>=m.prepare+m.flight+m.settle){
+            walkX=m.to;motion=null;
+            nextMove=t+(stepsLeft>0?.12:2.8+Math.random()*2.4);
+          }
         }
-        if(forced==='input'){x=.1;y=1;}
-        if(forced==='thread'){x=0;y=-1;}
-        host.dataset.attention=t<state.typingUntil?'input':forced;
-        if(t<state.typingUntil){x=Math.sin(t*2)*.12;y=.8;}
-        state.lookX+=(x-state.lookX)*(1-Math.exp(-dt*5));state.lookY+=(y-state.lookY)*(1-Math.exp(-dt*5));
-        const hatTarget=-state.lookX*.09+Math.sin(t*1.9)*.025;
-        state.hatV+=(hatTarget-state.hat)*45*dt;state.hatV*=Math.exp(-dt*6);state.hat+=state.hatV*dt;
+        if(!motion){
+          const room=trackMax();
+          if(direction>0 && room-walkX<12)direction=-1;else if(direction<0 && walkX<0)direction=1;
+          if(requestedJump){beginMove(true);requestedJump=false;nextHop=t+16+Math.random()*9;}
+          else if(focus==='walk' && t>=nextMove){
+            if(t>=nextHop){beginMove(true);nextHop=t+16+Math.random()*9;stepsLeft=0;}
+            else {if(stepsLeft===0)stepsLeft=2+Math.floor(Math.random()*2);beginMove();stepsLeft--;}
+          }
+          else if(focus!=='walk'){stepsLeft=0;nextMove=t+1.1;}
+        }
+        const max=trackMax();
+        walkX=Math.max(-12,Math.min(max,walkX));
+        let fall=0;
+        if(drop){
+          const u=Math.min(1,(t-drop.at)/.38);
+          fall=drop.from*(1-(drop.from<0?u*u:smooth(u)));
+          if(u===1)drop=null;
+        }
+        host.style.transform=`translate(${walkX}px,${fall}px)`;
+        const airborne=Math.max(0,Math.min(1,pose().lift/.18+Math.abs(fall)/40));
+        shadow.style.transform=`translateX(${walkX+26}px) scaleX(${1-airborne*.45})`;
+        shadow.style.opacity=String(.24-airborne*.14);
+        // Eyes lead a new direction; the body follows softly and only moves during a hop.
+        let x=focus==='input'?.08:focus==='thread'?0:motion || nextMove-t<.45?direction*.55:direction*.12;
+        let y=focus==='input'?.75:focus==='thread'?-.75:0;
+        host.dataset.attention=focus;
+        state.lookX+=(x-state.lookX)*(1-Math.exp(-dt*9));state.lookY+=(y-state.lookY)*(1-Math.exp(-dt*9));
+        bodyLean+=(state.lookX*.025-bodyLean)*(1-Math.exp(-dt*3));
+        const hatTarget=-bodyLean*.55-pose().tilt*.35;
+        state.hatV+=(hatTarget-state.hat)*70*dt;state.hatV*=Math.exp(-dt*12);state.hat+=state.hatV*dt;
+        state.motion=motion?pose().phase:'rest';
         if(t>=state.nextBlink){state.blinkAt=t;state.nextBlink=t+4+Math.random()*4;}
         const b=t-state.blinkAt;
-        state.eye=b>=0&&b<.42?1-.96*Math.sin(Math.PI*b/.42):1;
+        state.eye=b>=0&&b<.18?1-.96*Math.sin(Math.PI*b/.18):1;
         render();
       }
       raf=requestAnimationFrame(tick);
     }
-    reduced.addEventListener('change',()=>{state.hat=0;state.hatV=0;render();});
+    reduced.addEventListener('change',()=>{motion=null;drop=null;requestedJump=false;bodyLean=0;state.hat=0;state.hatV=0;host.style.transform=`translateX(${walkX}px)`;shadow.style.transform=`translateX(${walkX+26}px)`;shadow.style.opacity='.24';nextMove=state.time+2;render();});
     canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();fallback.hidden=false;canvas.hidden=true;host.dataset.state='static';});
     let eyeTexture=null;
     Promise.all([texture(cfg.body),texture(cfg.accessory),texture('eye.png')]).then(([b,a,e])=>{textures.push(b,a);eyeTexture=e;if(disposed)return;state.ready=true;fallback.hidden=true;canvas.hidden=false;resize();}).catch(error=>{host.dataset.state='static';console.error(error);});

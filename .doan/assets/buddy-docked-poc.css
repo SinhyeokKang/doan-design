@@ -15,9 +15,9 @@ body{width:1440px;padding:var(--space-8);background:var(--surface-inset);overflo
 .lights{position:absolute;left:var(--space-4);top:21px;display:flex;gap:var(--space-2);z-index:3}
 .lights i{width:var(--space-3);height:var(--space-3);border-radius:var(--radius-pill)}
 .lights i:nth-child(1){background:var(--mock-light-close)}.lights i:nth-child(2){background:var(--mock-light-minimize)}.lights i:nth-child(3){background:var(--mock-light-zoom)}
-.poc-ground{position:absolute;left:var(--space-8);right:var(--space-8);top:-1px;height:0;pointer-events:none;z-index:2}
-.poc-walker{position:absolute;width:80px;height:80px;left:var(--space-4);top:-63.6376px;pointer-events:none;transform-origin:50% 79.547%}
-.poc-walker[data-buddy-preview=puri]{top:-58.5992px;transform-origin:50% 73.249%}
+.poc-ground{position:absolute;left:80%;right:0;top:-1px;height:0;pointer-events:none;z-index:2}
+.poc-walker{position:absolute;width:56px;height:56px;left:0;top:-44.54632px;pointer-events:none;transform-origin:50% 79.547%}
+.poc-walker[data-buddy-preview=puri]{top:-41.01944px;transform-origin:50% 73.249%}
 .poc-walker canvas,.poc-walker>img{position:absolute;width:100%;height:100%;inset:0}
 .poc-walker>img{padding:16.5%;object-fit:contain}
 .poc-walker [hidden]{display:none}
@@ -35,7 +35,7 @@ body{width:1440px;padding:var(--space-8);background:var(--surface-inset);overflo
 .poc-risk .queue{position:relative;z-index:3}
 /* PoC mitigation only: compare against unchanged spacing with the control. */
 [data-clearance=true] .cp-foot,[data-clearance=true] .ov-foot{padding-top:var(--space-16)}
-[data-clearance=true] .queue{margin-bottom:var(--space-16)}
+
 
 /* Scope the shipped Puri palette and its dependent roles to comparison frames. */
 .poc-section[data-buddy="puri"]{
@@ -61,3 +61,8 @@ body{width:1440px;padding:var(--space-8);background:var(--surface-inset);overflo
   --surface-accent-subtle: var(--buddy-3);
   --text-accent-subtle: var(--buddy-11);
 }
+
+/* The queue's first row is the active floor. Its shadow stays on the floor during flight. */
+.poc-risk .queue-item{position:relative}
+.poc-contact-shadow{position:absolute;left:calc(-1 * var(--space-2));top:-1px;width:var(--space-4);height:var(--space-half);border-radius:var(--radius-pill);background:var(--text-subtle);opacity:.24;pointer-events:none;transform:translateX(14px)}
+.poc-walker{transform:translateX(-12px)}
