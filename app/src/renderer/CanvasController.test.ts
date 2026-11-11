@@ -4294,7 +4294,7 @@ describe("capture", () => {
 });
 
 // The working-frame marker, a jump highlight that stays for the work
-// turn, slides 220 ms only when the working frame changes, and comes back by id after a reload.
+// turn, slides 220 ms only when the working frame changes, and stays on its frame by id through a reload.
 describe("working-frame marker", () => {
   afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
   type H = ReturnType<typeof selectionHarness>;
@@ -4354,15 +4354,83 @@ describe("working-frame marker", () => {
     } finally { h.controller.dispose(); }
   });
 
-  it("goes while the canvas reloads and comes back on the same id without the slide", () => {
+  // Every agent write reloads the canvas; hiding the marker until the next layout restarted its glow each time, so a
+  // run of writes blinked it.
+  it("stays on its frame through repeated reloads without hiding or restarting, and lands on the new layout without the slide", () => {
+    const h = selectionHarness();
+    try {
+      setWork(h, "hero");
+      const mark = marker(h)!;
+      const hiddenSets: boolean[] = [], classSets: string[] = [];
+      let hidden = mark.hidden, className = mark.className;
+      Object.defineProperty(mark, "hidden", { get: () => hidden, set: (value: boolean) => { hiddenSets.push(value); hidden = value; } });
+      Object.defineProperty(mark, "className", { get: () => className, set: (value: string) => { classSets.push(value); className = value; } });
+      for (let rev = 1; rev <= 3; rev++) {
+        // An agent write: main serves the canvas again.
+        h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: rev, canvases: [h.row, h.other] }]);
+        expect(h.state().reloading).toBe(true);
+        expect(marker(h)).toBe(mark);
+        expect(mark).toMatchObject({ hidden: false, style: { left: "100px", top: "100px" } });
+        h.layout();
+        expect(mark).toMatchObject({ hidden: false, style: { left: "100px", top: "100px" } });
+      }
+      h.controller.command("reload");
+      expect(mark.hidden).toBe(false);
+      h.layout({ frames: [{ id: "intro", x: 0, y: 0, width: 10, height: 10 }, { id: "hero", x: 0, y: 40, width: 20, height: 10 }] });
+      expect(mark).toMatchObject({ hidden: false, style: { top: "120px", width: "20px" } });
+      expect(hiddenSets).not.toContain(true);
+      expect(new Set(classSets)).toEqual(new Set(["mark jump-highlight working"]));
+      expect(h.marks.filter(m => m.className.split(" ").includes("working"))).toHaveLength(1);
+    } finally { h.controller.dispose(); }
+  });
+
+  // A reload's first layout can report every frame as 0 × 0 before the document is measured; the frame is still there.
+  it("stays where it was through a reload's unmeasured first layout", () => {
+    const h = selectionHarness();
+    try {
+      setWork(h, "hero");
+      const mark = marker(h)!;
+      const hiddenSets: boolean[] = [];
+      let hidden = mark.hidden;
+      Object.defineProperty(mark, "hidden", { get: () => hidden, set: (value: boolean) => { hiddenSets.push(value); hidden = value; } });
+      h.controller.command("reload");
+      h.layout({ frames: [{ id: "intro", x: 0, y: 0, width: 0, height: 0 }, { id: "hero", x: 0, y: 0, width: 0, height: 0 }] });
+      expect(mark).toMatchObject({ hidden: false, style: { left: "100px", top: "100px", width: "10px", height: "10px" } });
+      h.layout({ frames: [{ id: "intro", x: 0, y: 0, width: 10, height: 10 }, { id: "hero", x: 0, y: 40, width: 20, height: 10 }] });
+      expect(mark).toMatchObject({ hidden: false, style: { top: "120px", width: "20px" } });
+      expect(hiddenSets).not.toContain(true);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("goes for a measured layout whose working frame has no size", () => {
+    const h = selectionHarness();
+    try {
+      setWork(h, "hero");
+      h.layout({ frames: [{ id: "intro", x: 0, y: 0, width: 10, height: 10 }, { id: "hero", x: 0, y: 20, width: 0, height: 0 }] });
+      expect(marker(h)?.hidden).toBe(true);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("goes when the reloaded layout no longer has the frame", () => {
     const h = selectionHarness();
     try {
       setWork(h, "hero");
       h.controller.command("reload");
+      expect(marker(h)?.hidden).toBe(false);
+      h.layout({ frames: [{ id: "intro", x: 0, y: 0, width: 10, height: 10 }] });
       expect(marker(h)?.hidden).toBe(true);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("does not appear during a reload when it was not shown before it", () => {
+    const h = selectionHarness();
+    try {
+      setWork(h, "missing");
+      h.controller.command("reload");
+      setWork(h, "hero");
+      expect(marker(h)?.hidden ?? true).toBe(true);
       h.layout();
       expect(marker(h)).toMatchObject({ hidden: false, style: { left: "100px", top: "100px" } });
-      expect(classes(h)).not.toContain("moving");
     } finally { h.controller.dispose(); }
   });
 
