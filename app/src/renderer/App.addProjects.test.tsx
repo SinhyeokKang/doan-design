@@ -37,6 +37,8 @@ const harness = vi.hoisted(() => ({
   controller: null as null | Record<string, ReturnType<typeof vi.fn>>,
   toast: { toast: null, element: null, show: vi.fn(), action: vi.fn(), setModal: vi.fn() },
 }));
+// The App clock reads document and native visibility, which these harnesses do not stub.
+vi.mock("./visibleClock", () => ({ useVisibleClock: () => Date.now() }));
 vi.mock("./Toast", () => ({ useToast: () => harness.toast }));
 vi.mock("./CanvasController", async original => ({
   ...await original<typeof import("./CanvasController")>(),
