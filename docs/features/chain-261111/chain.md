@@ -53,10 +53,11 @@ lead는 링크 1 시작 전에 아래를 사용자에게 한 번에 묻고, 승�
 
 | 링크 | 세션·worktree | 시작 | PR·병합 | 상태 |
 |---|---|---|---|---|
-| 1. `canvas-rendering-stability` | | | | 대기 |
+| 1. `canvas-rendering-stability` | `canvas-rendering-stability-orch` (Claude conductor) | 2026-11-11, `5676decd` | | 진행 중 |
 | 2. `work-indicator-perf` | | | | 대기 |
 
 ## 인계 기록
 
 - 2026-11-11 lead(develop checkout): 사용자 요청으로 체인 파일을 작성했다. 시작 점검 승인 뒤 링크 1을 시작한다.
 - 2026-11-11 lead: 시작 점검 2 답. 큰 캔버스 대부분에서 깨진다. 최초 렌더링 때 오른쪽이 잘리고, 확대·축소를 빠르게 하거나 좌표를 마구 움직이면 깨진다. 시작 시점은 사용자가 알려준다. 나머지 시작 점검(1·3·4·5)은 그때 확인한다.
+- 2026-11-11 lead: 시작 점검 1·3·4·5를 사용자가 모두 승인했다. 자료는 `skillflo-web/.doan/` 복사본을 쓰고 Export는 복사본에서 `doan export`로 만든다. 복사본과 스크린샷은 develop checkout의 `.scratch/canvas-rendering-stability/`에만 두고 커밋·외부 전송은 하지 않는다. 사용자는 대화로만 참여한다. 사용자가 일하는 동안 측정한다. 링크 1을 `5676decd`에서 시작했다.
