@@ -342,7 +342,7 @@ const api = {
     ipcRenderer.on("add-projects:open", receive);
     return () => ipcRenderer.removeListener("add-projects:open", receive);
   },
-  // A dropped item's disk path, for the page's inspect; null for a file the page made itself.
+  // A dropped or pasted item's disk path; null for a file the page made itself.
   droppedPath(file: File): string | null {
     const path = webUtils.getPathForFile(file);
     return path === "" ? null : path;

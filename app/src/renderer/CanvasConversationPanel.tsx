@@ -336,12 +336,13 @@ export function CanvasConversation(props: CanvasConversationProps) {
     addChips(at, accepted.map((file, i) => ({ key: keys[i]!, name: file.name, kind: file.type.startsWith("image/") ? "image" : "file", pasted: false, status: "checking", size: file.size })));
     void window.doan.addAttachmentFiles(accepted).catch(() => null).then(async results => {
       if (!results) { settle(keys, keys.map(() => null)); return; }
-      // A copied screenshot has no path on disk; it attaches as a pasted image instead.
+      // A copied screenshot has no path on disk; it attaches as a pasted image instead. A Finder item main no longer
+      // finds keeps main's answer: a folder named x.png has File.type image/png too.
       const final = await Promise.all(results.map(async (result, i) => {
         const file = accepted[i]!;
-        if (!pasted || result.ok || result.error !== "not_found" || !file.type.startsWith("image/")) return result;
+        if (!pasted || result.ok || result.error !== "not_found" || !file.type.startsWith("image/") || window.doan.droppedPath(file) !== null) return result;
         if (file.size > 50 * 1024 * 1024) return { ok: false as const, name: "Pasted image", error: "too_large" as const };
-        // A Finder item that vanished since its copy (a folder named x.png has File.type image/png) has no bytes either.
+        // A page-made image whose bytes can't be read settles with the rest of its batch.
         const bytes = await file.arrayBuffer().catch(() => null);
         if (!bytes) return result;
         return window.doan.addPastedImage(bytes).catch(() => null);

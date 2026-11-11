@@ -48,6 +48,8 @@ beforeEach(() => {
     addAttachmentFiles: vi.fn(async (files: File[]) => files.map(file => ({ ok: true, attachment: { id: `id-${file.name}`, name: file.name, size: file.size, kind: "file", path: `/Users/ada/${file.name}`, pasted: false } }))),
     addPastedImage: vi.fn(async () => ({ ok: true, attachment: { id: "pasted", name: "pasted.png", size: 10, kind: "image", path: "/u/pasted.png", pasted: true } })),
     removeAttachment: vi.fn(async () => true), chooseAttachments: vi.fn(async () => []), addDroppedFiles: vi.fn(async () => {}), addProjects: vi.fn(),
+    // Pasted test files are page-made (no disk path) unless a test says otherwise.
+    droppedPath: vi.fn(() => null),
   };
   vi.stubGlobal("window", { doan });
   vi.stubGlobal("queueMicrotask", (run: () => void) => run());
@@ -208,6 +210,25 @@ test("Cmd+V of a Finder folder named x.png that main no longer finds settles as 
   call(field(render()), "onPaste", { preventDefault: vi.fn(), clipboardData: { files: [folder, file], getData: () => "" } });
   await vi.waitFor(() => expect(box.current.attachments).toEqual([expect.objectContaining({ id: "f", kind: "file", status: "ready" })]));
   expect(box.current.notice?.text).toBe("x.png wasn’t found, so it wasn’t attached.");
+  expect(doan.addPastedImage).not.toHaveBeenCalled();
+});
+
+// Only a page-made image (a copied screenshot, no disk path) falls back to a pasted image. A Finder item main no longer
+// finds keeps main's answer, without its bytes being read, so a vanished large photo is not "Pasted image is too large".
+test("Cmd+V of a Finder image that main no longer finds settles as not found without being read as a pasted image", async () => {
+  const { box, render } = setup();
+  const photo = new File(["png"], "photo.png", { type: "image/png" }), file = new File(["x"], "brief.pdf", { type: "application/pdf" });
+  Object.defineProperty(photo, "size", { value: 60 * 1024 * 1024 });
+  const read = vi.fn(async () => new ArrayBuffer(8)); Object.defineProperty(photo, "arrayBuffer", { value: read });
+  doan.droppedPath!.mockImplementation((f: File) => `/Users/ada/${f.name}`);
+  doan.addAttachmentFiles!.mockResolvedValueOnce([
+    { ok: false, name: "photo.png", error: "not_found" },
+    { ok: true, attachment: { id: "f", name: "brief.pdf", kind: "file", size: 1, path: "/Users/ada/brief.pdf", pasted: false } },
+  ]);
+  call(field(render()), "onPaste", { preventDefault: vi.fn(), clipboardData: { files: [photo, file], getData: () => "" } });
+  await vi.waitFor(() => expect(box.current.attachments).toEqual([expect.objectContaining({ id: "f", kind: "file", status: "ready" })]));
+  expect(box.current.notice?.text).toBe("photo.png wasn’t found, so it wasn’t attached.");
+  expect(read).not.toHaveBeenCalled();
   expect(doan.addPastedImage).not.toHaveBeenCalled();
 });
 
