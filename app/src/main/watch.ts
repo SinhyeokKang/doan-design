@@ -120,9 +120,10 @@ export function watchFolder(root: string, refresh: (change: Change) => Promise<v
   const canvasDirs: Target[] = Object.values(CANVAS_DIRS).map((dir) => ({ path: join(root, dir), recursive: true, change: REREAD, canvasDir: dir }));
   // `.doan` events under these names mean a canvas or asset directory itself came or went.
   const doanDirs = new Set(["assets", ...Object.values(CANVAS_DIRS).map((dir) => basename(dir))]);
+  const assetsDir: Target = { path: join(root, ".doan/assets"), recursive: true, change: SERVED };
   const fixed: Target[] = [
     ...canvasDirs,
-    { path: join(root, ".doan/assets"), recursive: true, change: SERVED },
+    assetsDir,
     { path: join(root, ".doan"), recursive: false, change: REREAD },
     // Non-recursive: the records sit directly in it. Its coming and going is a `.doan` entry, a re-read as before.
     { path: join(root, ".doan/seen"), recursive: false, change: SEEN },
@@ -196,6 +197,10 @@ export function watchFolder(root: string, refresh: (change: Change) => Promise<v
       // A served path replaced or removed changed what is served, even when the
       // event that got here was a root event classified as a re-read only.
       if (current && current.ino !== ino && served.includes(target)) refresher.trigger(SERVED);
+      // A canvas or asset directory replaced or removed came and went, which `.doan`'s own event
+      // for it says too. That event can be lost: libuv recreates its shared FSEvents stream from
+      // "now" whenever this re-arm opens or closes a watcher.
+      if (current && current.ino !== ino && (target === assetsDir || canvasDirs.includes(target))) refresher.trigger(BOTH);
       current?.watcher.close();
       armed.delete(path);
       if (ino === undefined) continue;
