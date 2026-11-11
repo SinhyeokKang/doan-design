@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import type { BuddyId } from "./buddies";
 import { dockedGeometry } from "./dockedBuddyCore";
 import { DockedBuddyShell, FLOATING } from "./dockedBuddyShell";
 
@@ -98,7 +99,7 @@ function slot(name: "dock" | "tools", width = name === "dock" ? 400 : 200) {
   page.body.append(node);
   return node;
 }
-function setup(options: { buddy?: "doany" | "puri" } = {}) {
+function setup(options: { buddy?: BuddyId } = {}) {
   const shell = new DockedBuddyShell(), container = new FakeNode("main");
   if (options.buddy) shell.setBuddy(options.buddy);
   const dock = slot("dock"), tools = slot("tools");
@@ -405,4 +406,20 @@ test("an idle trip comes only after a rest: thread scrolling and composer input 
   page.focused = false;
   away.run(Math.round(200000 / 35), 35);
   expect(away.ground().parentElement).toBe(away.dock);
+});
+
+// Measured against the draft in the real app (docs/DESIGN.md 'Docked buddy'): each buddy's feet meet the floor and the
+// shadow's centre sits under them, from the registry's foot contact alone.
+test("each buddy's host offset, pivot and shadow centre are the measured rest values", async () => {
+  const measured = { doany: [-44.54632, 26.42], puri: [-41.01944, 27.92], dungdung: [-41.5072, 27.77], popo: [-41.43216, 27.77], dori: [-42.55776, 28.15] } as const;
+  for (const [id, [top, shadow]] of Object.entries(measured) as [keyof typeof measured, readonly [number, number]][]) {
+    const env = setup({ buddy: id });
+    env.start(); env.frame();
+    expect(Number(/calc\(100% \+ (-?[\d.]+)px\)/.exec(env.host().style.top!)![1])).toBeCloseTo(top, 4);
+    // The pivot is the feet: the host's offset above the floor.
+    expect(Number(/^50% (-?[\d.]+)%$/.exec(env.host().style.transformOrigin!)![1]) / 100 * 56).toBeCloseTo(-top, 4);
+    const shadowX = Number(/translateX\((-?[\d.]+)px\)/.exec(env.ground().children[0]!.style.transform!)![1]);
+    expect(shadowX - 16).toBeCloseTo(shadow, 2);
+    env.shell.stop();
+  }
 });
