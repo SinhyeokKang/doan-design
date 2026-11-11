@@ -210,7 +210,7 @@ test("another worktree's spinner waits until it lists the path; the project row 
   expect(sidebar().slots?.get(`/w/w\n${B}`)?.source).toBe("terminal");
 });
 
-// DESIGN 'Terminal work in another worktree': the board notice's Open on (R, P) opens (W, P) the way the terminal slot does,
+// DESIGN 'Terminal work in another worktree': the board notice's Open on (R, P) opens (W, P), selects W,
 // cancels a pick, and leaves one canvas visit, so Back returns to R's canvas.
 test("the other worktree notice's Open cancels a pick, opens W's same canvas and selects W; Back returns to R's canvas", async () => {
   render();
