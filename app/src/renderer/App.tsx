@@ -28,7 +28,7 @@ import type { OpenAsk, OpenLinkResult, OpenResult } from "../main/deepLinks";
 import type { HandoffNotice } from "../main/conversation/handoff";
 import type { MenuCommand, ViewCommand } from "../main/index";
 import { useControlFocusRecovery } from "./canvasControlFocus";
-import { CanvasController, CanvasViewStore, canvasViewFields, initialCanvasState, viewOnlyChange, type CanvasState, type CanvasWorkTarget, type PickResult } from "./CanvasController";
+import { CanvasController, CanvasViewStore, canvasViewFields, initialCanvasState, routeCanvasPublish, type CanvasState, type CanvasWorkTarget, type PickResult } from "./CanvasController";
 import { CanvasHeader } from "./CanvasHeader";
 import { CanvasTools, type CaptureTool, type ExportTool, type PickerTool } from "./CanvasTools";
 import { AlertIcon } from "./AlertIcon";
@@ -243,7 +243,11 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // `state.currentFrame` can be older than the view; read them from `canvasView`.
   const canvasView = useRef<CanvasViewStore>(null as unknown as CanvasViewStore);
   if (!(canvasView.current instanceof CanvasViewStore)) canvasView.current = new CanvasViewStore(canvasViewFields(state));
-  const canvasChanged = (next: CanvasState) => { canvasView.current.set(canvasViewFields(next)); setState(previous => viewOnlyChange(previous, next) ? previous : next); };
+  const handedCanvas = useRef(state);
+  const canvasChanged = (next: CanvasState) => {
+    const handed = routeCanvasPublish(handedCanvas.current, next, canvasView.current);
+    if (handed) { handedCanvas.current = handed; setState(handed); }
+  };
   const viewport = useRef<HTMLDivElement>(null);
   const board = useRef<HTMLDivElement>(null);
   const overlay = useRef<HTMLDivElement>(null);
