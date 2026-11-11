@@ -1587,7 +1587,7 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line 
   describe("ending a process that waits for its suggestion", () => {
     it("stops the group of a done turn whose input closed and whose suggestion has not come, and drops it", async () => {
       await run({ FAKE_MODE: "done", FAKE_SUGGEST_MS: "4000" }, async ({ runner, events, suggested, exited, root }) => {
-        void runner.send("hello", "turn-1");
+        const sending = runner.send("hello", "turn-1");
         await vi.waitFor(() => expect(events).toContainEqual({ type: "turn.done" }));
         const began = Date.now();
         expect(runner.endSuggestion!()).toBe(true);
@@ -1596,14 +1596,18 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line 
         expect(seen(root)).toContainEqual({ signal: "SIGTERM" });
         expect(suggested).not.toHaveBeenCalled();
         expect(runner.endSuggestion!()).toBe(false);
+        await sending;
       });
     }, 15000);
     it("leaves a process alone once its suggestion came", async () => {
       await run({ FAKE_MODE: "done" }, async ({ runner, events, suggested }) => {
-        void runner.send("hello", "turn-1");
+        const sending = runner.send("hello", "turn-1");
         await vi.waitFor(() => expect(events).toContainEqual({ type: "turn.done" }));
         await vi.waitFor(() => expect(suggested).toHaveBeenCalledOnce());
         expect(runner.endSuggestion!()).toBe(false);
+        // The CLI exits on its own after the suggestion; closing first would abort the SDK's wait for that exit, and
+        // send would reject with "Operation aborted" after the test ended.
+        await sending;
       });
     }, 15000);
     it.each([["failed", "failed"], ["running", "hold"]])("leaves a %s turn's process alone", async (_name, mode) => {
@@ -1620,7 +1624,7 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line 
       let finish = () => {};
       const usageAtTurnEnd = vi.fn(async () => { await new Promise<void>(resolve => { finish = resolve; }); });
       await run({ FAKE_MODE: "done", FAKE_SUGGEST_MS: "4000" }, async ({ runner, events, suggested, exited, root }) => {
-        void runner.send("hello", "turn-1");
+        const sending = runner.send("hello", "turn-1");
         await vi.waitFor(() => expect(usageAtTurnEnd).toHaveBeenCalledOnce());
         expect(events).toContainEqual({ type: "turn.done" });
         expect(runner.endSuggestion!()).toBe(true);
@@ -1632,6 +1636,7 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line 
         await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce(), { timeout: 3000 });
         expect(Date.now() - began).toBeLessThan(2000);
         expect(suggested).not.toHaveBeenCalled();
+        await sending;
       }, { usageAtTurnEnd });
     }, 15000);
   });
