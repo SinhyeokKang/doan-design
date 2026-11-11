@@ -1,6 +1,6 @@
 import { runInNewContext } from "node:vm";
 import { describe, expect, test } from "vitest";
-import { ancestorPath, canScrollAxis, canvasScriptSource, clipHtml, clipText, documentHeight, elementSelector, frameBottom, nextHeight, textQuote, type ChainLink } from "./canvasScript";
+import { ancestorPath, canScrollAxis, canvasScriptSource, clipHtml, clipText, documentHeight, elementSelector, escapeTarget, frameBottom, frameStep, nextHeight, textQuote, type ChainLink } from "./canvasScript";
 
 describe("nextHeight", () => {
   test("sends the first measurement as is", () => {
@@ -463,6 +463,7 @@ interface FakeNode {
   getAttribute(name: string): string | null;
   hasAttribute(name: string): boolean;
   getBoundingClientRect(): { left: number; top: number; width: number; height: number };
+  querySelector(selector: string): FakeNode | null;
   blur(): void;
 }
 
@@ -490,6 +491,12 @@ function node(localName: string, attrs: Record<string, string> = {}, children: F
     getAttribute: (name) => self.attrs[name] ?? null,
     hasAttribute: (name) => name in self.attrs,
     getBoundingClientRect: () => self.rect,
+    // Only the `[attribute]` form the script uses on elements.
+    querySelector: (selector) => {
+      const attr = /^\[([a-z-]+)\]$/.exec(selector)?.[1];
+      if (attr === undefined) throw new SyntaxError(`unsupported selector ${selector}`);
+      return descendants(self).find((el) => el.hasAttribute(attr)) ?? null;
+    },
     blur() {
       self.blurred += 1;
     },
@@ -950,9 +957,9 @@ const click = (canvas: ReturnType<typeof fakeCanvas>, target: unknown, fields: P
 };
 
 describe("canvasScript selection input", () => {
-  test("a plain click selects the element under it with anchors, path and frame", () => {
+  test("a ⌘-click selects the element under it with anchors, path and frame", () => {
     const { canvas, span } = heroCanvas();
-    const event = click(canvas, span);
+    const event = click(canvas, span, { metaKey: true });
     expect(event.prevented).toBe(true);
     expect(event.stopped).toBe(true);
     expect(ofType(canvas, "select")).toEqual([
@@ -1095,6 +1102,15 @@ describe("canvasScript selection input", () => {
       { type: "key", href: HREF, seq: 0, viewport: 150, key: "Escape" },
       { type: "key", href: HREF, seq: 0, viewport: 150, key: "Escape" },
     ]);
+  });
+
+  // The app takes one Select step per forwarded Esc, so a held Esc's auto-repeats stay in the canvas.
+  test("does not forward a held Esc's auto-repeats", () => {
+    const { canvas, span } = heroCanvas();
+    canvas.fireWindow("keydown", input({ target: span, key: "Escape" }));
+    canvas.fireWindow("keydown", input({ target: span, key: "Escape", repeat: true }));
+    canvas.fireWindow("keydown", input({ target: span, key: "Escape", repeat: true }));
+    expect(ofType(canvas, "key")).toEqual([{ type: "key", href: HREF, seq: 0, viewport: 150, key: "Escape" }]);
   });
 
   test("forwards Space down/up outside editable elements, ignores repeat", () => {
@@ -1246,8 +1262,8 @@ describe("canvasScript selection input", () => {
     const inDup = node("p");
     const inEmpty = node("p");
     const canvas = fakeCanvas({ readyState: "interactive", body: node("body", {}, [node("div", { "data-doan-frame": "d" }), node("div", { "data-doan-frame": "d" }, [inDup]), node("div", { "data-doan-frame": "" }, [inEmpty])]) });
-    click(canvas, inDup);
-    click(canvas, inEmpty);
+    click(canvas, inDup, { metaKey: true });
+    click(canvas, inEmpty, { metaKey: true });
     const targets = ofType(canvas, "select").map((m) => m.target as { frame: unknown; frameIndex: number; element: { selector: string } });
     expect(targets[0]).toMatchObject({ frame: { id: "d" }, frameIndex: 1, element: { selector: "body > div:nth-of-type(2) > p:nth-of-type(1)" } });
     expect(targets[1]).toMatchObject({ frame: { id: "" }, frameIndex: 2, element: { selector: '[data-doan-frame=""] > p:nth-of-type(1)' } });
@@ -1257,7 +1273,7 @@ describe("canvasScript selection input", () => {
     const el = node("p", { "data-doan-id": "x".repeat(201) }, [], { outerHTML: "h".repeat(2001), textContent: "t".repeat(501) });
     const frame = node("div", { "data-doan-frame": "f".repeat(201), "data-doan-title": "T".repeat(201), "data-doan-implements": "i".repeat(501) }, [el]);
     const canvas = fakeCanvas({ readyState: "interactive", body: node("body", {}, [frame]) });
-    click(canvas, el);
+    click(canvas, el, { metaKey: true });
     const target = ofType(canvas, "select")[0]?.target as { frame: unknown; element: Record<string, unknown> };
     expect(target.frame).toEqual({ id: "f".repeat(200), title: "T".repeat(200), implements: "i".repeat(500) });
     expect(target.element).toEqual({ selector: "body > div:nth-of-type(1) > p:nth-of-type(1)", html: "h".repeat(2000), truncated: true, text: "t".repeat(500) });
@@ -1284,12 +1300,12 @@ describe("canvasScript hover", () => {
 
   test("posts the hovered element's rect once per animation frame", () => {
     const { canvas, span, button } = heroCanvas();
-    move(canvas, button);
-    move(canvas, span);
+    move(canvas, button, { metaKey: true });
+    move(canvas, span, { metaKey: true });
     expect(ofType(canvas, "hover")).toEqual([]);
     canvas.runFrame();
     expect(ofType(canvas, "hover")).toEqual([{ type: "hover", href: HREF, seq: 0, viewport: 150, rect: { x: 10, y: 20, width: 60.5, height: 18 } }]);
-    move(canvas, span);
+    move(canvas, span, { metaKey: true });
     canvas.runFrame();
     expect(ofType(canvas, "hover")).toHaveLength(1);
   });
@@ -1312,10 +1328,10 @@ describe("canvasScript hover", () => {
 
   test("resends the same element after the app reports a canvas leave", () => {
     const { canvas, span } = heroCanvas();
-    move(canvas, span);
+    move(canvas, span, { metaKey: true });
     canvas.runFrame();
     canvas.fromParent({ type: "hover-leave", seq: 1 });
-    move(canvas, span);
+    move(canvas, span, { metaKey: true });
     canvas.runFrame();
     expect(ofType(canvas, "hover")).toHaveLength(2);
     expect(ofType(canvas, "hover").at(-1)).toMatchObject({ seq: 1, rect: { x: 10, y: 20, width: 60.5, height: 18 } });
@@ -1365,12 +1381,12 @@ describe("canvasScript hover", () => {
 
   test("shows nothing over the selected element without advancing the hover channel", () => {
     const { canvas, span, button } = heroCanvas();
-    move(canvas, span);
+    move(canvas, span, { metaKey: true });
     canvas.runFrame();
-    click(canvas, span);
+    click(canvas, span, { metaKey: true });
     expect(ofType(canvas, "select").at(-1)).toMatchObject({ seq: 1 });
     expect(ofType(canvas, "hover").at(-1)).toMatchObject({ seq: 0, rect: null });
-    move(canvas, button);
+    move(canvas, button, { metaKey: true });
     canvas.runFrame();
     expect(ofType(canvas, "hover").at(-1)).toMatchObject({ seq: 0, rect: { x: 1, y: 2, width: 30, height: 40 } });
   });
@@ -1398,7 +1414,7 @@ describe("canvasScript independent command channels", () => {
     canvas.fromParent({ type: "select-anchor", seq: 1, doanId: "cta" });
     expect(ofType(canvas, "select")).toHaveLength(1);
     canvas.fromParent({ type: "hover-alt", alt: false, seq: 11 });
-    click(canvas, button);
+    click(canvas, button, { metaKey: true });
     expect(ofType(canvas, "select").at(-1)).toMatchObject({ seq: 3, target: { tag: "button" } });
     canvas.fromParent({ type: "measure" });
     expect(ofType(canvas, "layout").at(-1)).toMatchObject({ seq: 3 });
@@ -1413,7 +1429,7 @@ describe("canvasScript selected rect in layout", () => {
     canvas.runFrame();
     expect(ofType(canvas, "layout")[0]).not.toHaveProperty("selected");
     expect(ofType(canvas, "layout")[0]).not.toHaveProperty("seq");
-    click(canvas, span);
+    click(canvas, span, { metaKey: true });
     span.rect = { left: 10, top: -30, width: 60.5, height: 18 };
     canvas.trigger("resize");
     canvas.runFrame();
@@ -1430,7 +1446,7 @@ describe("canvasScript selected rect in layout", () => {
 
   test("finds a replaced element again by the same anchor", () => {
     const { canvas, button, form } = heroCanvas();
-    click(canvas, button);
+    click(canvas, button, { metaKey: true });
     button.isConnected = false;
     const again = node("button", { "data-doan-id": "cta" }, [], { rect: { left: 5, top: 6, width: 7, height: 8 } });
     form.children.splice(form.children.indexOf(button), 1, again);
@@ -1442,7 +1458,7 @@ describe("canvasScript selected rect in layout", () => {
 
   test("reports null once when the element is gone, then stops sending selected", () => {
     const { canvas, span } = heroCanvas();
-    click(canvas, span);
+    click(canvas, span, { metaKey: true });
     span.isConnected = false;
     canvas.trigger("MutationObserver");
     canvas.runFrame();
@@ -1483,7 +1499,7 @@ describe("canvasScript messages from the renderer", () => {
 
   test("ignores a command whose seq is not newer than the script's, so a click wins over a late answer", () => {
     const { canvas, span } = heroCanvas();
-    click(canvas, span);
+    click(canvas, span, { metaKey: true });
     canvas.fromParent({ type: "select-anchor", seq: 1, frame: "intro" });
     canvas.fromParent({ type: "clear", seq: 1 });
     canvas.fromParent({ type: "select-anchor", seq: 2, frame: "intro", extra: "ignored" });
@@ -1610,7 +1626,7 @@ test("same-size replacement recovers selected anchor token without another event
   canvas.context.innerWidth = 600;
   canvas.fromParent({ type: "measure" });
   const document = ofType(canvas, "layout")[0]?.document;
-  click(canvas, button);
+  click(canvas, button, { metaKey: true });
   canvas.fromParent({ type: "anchors-query", document, generation: 1, request: 1,
     targets: [{ id: "a", doanId: "cta", selector: "button" }] });
   canvas.runFrame();
@@ -1696,7 +1712,7 @@ describe("canvasScript picking", () => {
   test("a click while picking answers with the element and changes no selection, anchor or hover", () => {
     const { canvas, span, button } = heroCanvas();
     canvas.context.innerWidth = 600;
-    click(canvas, button);
+    click(canvas, button, { metaKey: true });
     startPick(canvas, 1);
     canvas.posted.length = 0;
     const event = click(canvas, span);
@@ -1756,6 +1772,16 @@ describe("canvasScript picking", () => {
     expect(ofType(canvas, "select")).toHaveLength(1);
     canvas.fireWindow("keydown", input({ target: span, key: "Escape" }));
     expect(ofType(canvas, "key")).toEqual([expect.objectContaining({ key: "Escape" })]);
+  });
+
+  test("a held Esc that cancels a pick forwards none of its auto-repeats", () => {
+    const { canvas, span } = heroCanvas();
+    startPick(canvas, 3);
+    canvas.fireWindow("keydown", input({ target: span, key: "Escape" }));
+    canvas.fireWindow("keydown", input({ target: span, key: "Escape", repeat: true }));
+    canvas.fireWindow("keydown", input({ target: span, key: "Escape", repeat: true }));
+    expect(picked(canvas)).toEqual([expect.objectContaining({ pick: 3, cancelled: true })]);
+    expect(ofType(canvas, "key")).toHaveLength(0);
   });
 
   test("an Escape during IME composition does not cancel", () => {
@@ -1964,5 +1990,361 @@ describe("anchors-query reply", () => {
     canvas.selectors.set("button", button);
     const [result] = ask(canvas, [{ id: "e", doanId: "cta", selector: "button" }]);
     expect(result?.candidates).toEqual({ doanId: [expect.any(String)], selector: [expect.any(String)] });
+  });
+});
+
+// The spec's state table, as frames outermost first: [] is no selection or one outside every frame.
+describe("frameStep", () => {
+  const [A, B, C, D] = ["A", "B", "C", "D"];
+  test.each<[string, string[], string[], string | null]>([
+    ["nothing selected, an element in B inside A selects A", [], [A, B], A],
+    ["A selected, an element in B selects B", [A], [A, B], B],
+    ["B selected, an element in B selects the element", [A, B], [A, B], null],
+    ["an element of B selected, a click in sibling C keeps A and selects C", [A, B], [A, C], C],
+    ["an element of B selected, B's own background selects B", [A, B], [A, B], null],
+    ["an element of B selected, A's own background selects A", [A, B], [A], null],
+    ["an element of B selected, an element directly in A selects that element", [A, B], [A], null],
+    ["any selection, a click inside another top-level D selects D", [A, B], [D], D],
+    ["a note outside every frame selected, a click in B starts again from A", [], [A, B], A],
+    ["a click outside every frame selects what it lands on", [A, B], [], null],
+  ])("%s", (_name, entered, frames, expected) => {
+    expect(frameStep(frames, entered)).toBe(expected);
+  });
+});
+
+describe("escapeTarget", () => {
+  test("an element steps to its own frame, a frame to the frame around it, an outer frame or a note to nothing", () => {
+    expect(escapeTarget(["A", "B"], false)).toBe("B");
+    expect(escapeTarget(["A", "B"], true)).toBe("A");
+    expect(escapeTarget(["A"], true)).toBeNull();
+    expect(escapeTarget([], false)).toBeNull();
+  });
+});
+
+// body > [A[a] > [B[b] > [button#ok, div(empty)], C[c] > [p], span(direct)], D[d] > [q], aside(note)]
+function nestedCanvas() {
+  const button = node("button", { "data-doan-id": "ok" }, [], { rect: { left: 30, top: 30, width: 20, height: 10 } });
+  const empty = node("div", {}, [], { rect: { left: 30, top: 50, width: 20, height: 10 } });
+  const b = node("section", { "data-doan-frame": "b" }, [button, empty], { rect: { left: 20, top: 20, width: 100, height: 60 } });
+  const p = node("p", {}, [], { rect: { left: 130, top: 30, width: 20, height: 10 } });
+  const c = node("section", { "data-doan-frame": "c" }, [p], { rect: { left: 120, top: 20, width: 100, height: 60 } });
+  const direct = node("span", {}, [], { rect: { left: 20, top: 90, width: 20, height: 10 } });
+  const a = node("section", { "data-doan-frame": "a" }, [b, c, direct], { rect: { left: 10, top: 10, width: 300, height: 100 } });
+  const q = node("q", {}, [], { rect: { left: 410, top: 20, width: 20, height: 10 } });
+  const d = node("section", { "data-doan-frame": "d" }, [q], { rect: { left: 400, top: 10, width: 100, height: 100 } });
+  const note = node("aside", {}, [], { rect: { left: 10, top: 200, width: 50, height: 20 } });
+  const canvas = fakeCanvas({ readyState: "complete", body: node("body", {}, [a, d, note]) });
+  canvas.posted.length = 0;
+  return { canvas, a, b, c, d, button, empty, p, direct, q, note };
+}
+
+// What the last selection message names: the frame id, or the element's tag within its frame; "clear" after a clear.
+const lastSelection = (canvas: ReturnType<typeof fakeCanvas>) => {
+  const last = messages(canvas).filter((m) => m.type === "select" || m.type === "clear").at(-1);
+  if (last === undefined) return undefined;
+  if (last.type === "clear") return "clear";
+  const target = last.target as { tag: string; frame?: { id: string }; element?: unknown } | null;
+  if (target === null) return null;
+  return target.element === undefined ? target.frame?.id : `${target.frame?.id ?? "-"}>${target.tag}`;
+};
+
+describe("canvasScript frame-first selection", () => {
+  test("clicks enter one frame level at a time from the outside, then select the element", () => {
+    const { canvas, button } = nestedCanvas();
+    const seen: unknown[] = [];
+    for (let i = 0; i < 4; i++) { click(canvas, button); seen.push(lastSelection(canvas)); }
+    expect(seen).toEqual(["a", "b", "b>button", "b>button"]);
+  });
+
+  test("a sibling keeps the entered common frame, another top-level frame starts over, an own background is the frame", () => {
+    const { canvas, a, b, c, button, empty, p, direct, q } = nestedCanvas();
+    const seen: unknown[] = [];
+    const step = (target: unknown) => { click(canvas, target); seen.push(lastSelection(canvas)); };
+    step(button); step(button); step(button);
+    step(p); step(p);
+    step(b);
+    step(button);
+    step(empty);
+    step(a);
+    step(direct);
+    step(c);
+    step(q);
+    expect(seen).toEqual(["a", "b", "b>button", "c", "c>p", "b", "b>button", "b>div", "a", "a>span", "c", "d"]);
+  });
+
+  test("a note outside every frame is selected at once and drops the entered frame; empty space clears", () => {
+    const { canvas, button, note } = nestedCanvas();
+    click(canvas, button); click(canvas, button);
+    click(canvas, note);
+    expect(lastSelection(canvas)).toBe("->aside");
+    click(canvas, button);
+    expect(lastSelection(canvas)).toBe("a");
+    click(canvas, canvas.body);
+    expect(lastSelection(canvas)).toBe("clear");
+    click(canvas, button);
+    expect(lastSelection(canvas)).toBe("a");
+  });
+
+  // A row or grid that lays frames out is the space between them: its own background clears like html or body.
+  test("a wrapper's own background around frames clears, with or without ⌘, and hovers nothing; a note beside it is selected", () => {
+    const button = node("button", {}, [], { rect: { left: 30, top: 30, width: 20, height: 10 } });
+    const a = node("section", { "data-doan-frame": "a" }, [button], { rect: { left: 10, top: 10, width: 100, height: 100 } });
+    const b = node("section", { "data-doan-frame": "b" }, [], { rect: { left: 130, top: 10, width: 100, height: 100 } });
+    const label = node("span", {}, [], { rect: { left: 250, top: 10, width: 40, height: 10 } });
+    const inner = node("div", {}, [a, b, label], { rect: { left: 0, top: 0, width: 300, height: 120 } });
+    const row = node("div", { class: "row" }, [inner], { rect: { left: 0, top: 0, width: 300, height: 120 } });
+    const note = node("aside", {}, [node("em")], { rect: { left: 10, top: 200, width: 50, height: 20 } });
+    const canvas = fakeCanvas({ readyState: "complete", body: node("body", {}, [row, note]) });
+    canvas.posted.length = 0;
+    const hover = () => ofType(canvas, "hover").at(-1)?.rect;
+    for (const wrapper of [row, inner]) {
+      click(canvas, button); click(canvas, button);
+      expect(lastSelection(canvas)).toBe("a>button");
+      click(canvas, wrapper);
+      expect(lastSelection(canvas)).toBe("clear");
+      click(canvas, button);
+      expect(lastSelection(canvas)).toBe("a");
+      click(canvas, wrapper, { metaKey: true });
+      expect(lastSelection(canvas)).toBe("clear");
+      canvas.fireWindow("pointermove", input({ target: b }));
+      canvas.runFrame();
+      expect(hover()).toEqual({ x: 130, y: 10, width: 100, height: 100 });
+      canvas.fireWindow("pointermove", input({ target: wrapper }));
+      canvas.runFrame();
+      expect(hover()).toBeNull();
+      canvas.fireWindow("pointermove", input({ target: wrapper, metaKey: true }));
+      canvas.runFrame();
+      expect(hover()).toBeNull();
+    }
+    expect(ofType(canvas, "select").map((m) => (m.target as { tag: string }).tag)).not.toContain("div");
+    // Outside every frame, what holds no frame is a note: selected at once, inside the wrapper or beside it.
+    click(canvas, label);
+    expect(lastSelection(canvas)).toBe("->span");
+    click(canvas, note);
+    expect(lastSelection(canvas)).toBe("->aside");
+    click(canvas, note.children[0]);
+    expect(lastSelection(canvas)).toBe("->em");
+    click(canvas, b);
+    expect(lastSelection(canvas)).toBe("b");
+  });
+
+  test("Esc steps back from the element to its frame, through the frames around it, then clears", () => {
+    const { canvas, button } = nestedCanvas();
+    for (let i = 0; i < 3; i++) click(canvas, button);
+    const seen: unknown[] = [];
+    for (let seq = 4; seq <= 6; seq++) {
+      canvas.fromParent({ type: "select-parent", seq });
+      const last = messages(canvas).filter((m) => m.type === "select" || m.type === "clear").at(-1);
+      expect(last).toMatchObject({ seq, answer: "select-parent" });
+      seen.push(lastSelection(canvas));
+    }
+    expect(seen).toEqual(["b", "a", "clear"]);
+    // The next click starts from the outside again.
+    click(canvas, button);
+    expect(lastSelection(canvas)).toBe("a");
+  });
+
+  test("Esc on a note clears; a stale or malformed step changes nothing", () => {
+    const { canvas, note } = nestedCanvas();
+    click(canvas, note);
+    canvas.fromParent({ type: "select-parent", seq: 1 });
+    canvas.fromParent({ type: "select-parent" });
+    expect(ofType(canvas, "clear")).toEqual([]);
+    canvas.fromParent({ type: "select-parent", seq: 2 });
+    expect(ofType(canvas, "clear")).toEqual([{ type: "clear", href: HREF, seq: 2, viewport: 150, answer: "select-parent" }]);
+  });
+
+  test("the hover shows what the next click selects, and nothing over what it would select again", () => {
+    const { canvas, b, button } = nestedCanvas();
+    const hover = () => ofType(canvas, "hover").at(-1)?.rect;
+    canvas.fireWindow("pointermove", input({ target: button }));
+    canvas.runFrame();
+    expect(hover()).toEqual({ x: 10, y: 10, width: 300, height: 100 });
+    // A selection with the pointer resting recomputes the hover at once.
+    click(canvas, button);
+    expect(hover()).toEqual({ x: 20, y: 20, width: 100, height: 60 });
+    click(canvas, button);
+    expect(hover()).toEqual({ x: 30, y: 30, width: 20, height: 10 });
+    click(canvas, button);
+    expect(hover()).toBeNull();
+    canvas.fireWindow("pointermove", input({ target: b }));
+    canvas.runFrame();
+    expect(hover()).toEqual({ x: 20, y: 20, width: 100, height: 60 });
+    // Esc with the pointer resting, too.
+    canvas.fromParent({ type: "select-parent", seq: 4 });
+    expect(hover()).toBeNull();
+    canvas.fromParent({ type: "select-parent", seq: 5 });
+    expect(hover()).toEqual({ x: 20, y: 20, width: 100, height: 60 });
+  });
+
+  test("a frame the drawer picked is entered by the next click, and Esc goes to the frame around it", () => {
+    const { canvas, button } = nestedCanvas();
+    canvas.fromParent({ type: "pick-frame", seq: 1, index: 1, id: "b" });
+    expect(lastSelection(canvas)).toBe("b");
+    click(canvas, button);
+    expect(lastSelection(canvas)).toBe("b>button");
+    canvas.fromParent({ type: "select-parent", seq: 3 });
+    canvas.fromParent({ type: "select-parent", seq: 4 });
+    expect(lastSelection(canvas)).toBe("a");
+  });
+
+  test("a reload's recovered element keeps its selection under a new parent, and the next steps follow its current frames", () => {
+    const { canvas, b, c, button } = nestedCanvas();
+    canvas.fromParent({ type: "select-anchor", seq: 1, doanId: "ok" });
+    expect(lastSelection(canvas)).toBe("b>button");
+    // The element moves from B to C, the same node by the same anchor.
+    b.children.splice(b.children.indexOf(button), 1);
+    c.children.push(button);
+    button.parentElement = c;
+    canvas.trigger("MutationObserver");
+    canvas.runFrame();
+    expect(ofType(canvas, "layout").at(-1)).toMatchObject({ seq: 1, selected: { x: 30, y: 30, width: 20, height: 10 } });
+    canvas.fromParent({ type: "select-parent", seq: 2 });
+    expect(lastSelection(canvas)).toBe("c");
+  });
+
+  test("a frame that lost its frame attribute is no longer a step", () => {
+    const { canvas, b, button } = nestedCanvas();
+    canvas.fromParent({ type: "select-anchor", seq: 1, doanId: "ok" });
+    delete b.attrs["data-doan-frame"];
+    canvas.fromParent({ type: "select-parent", seq: 2 });
+    expect(lastSelection(canvas)).toBe("a");
+    click(canvas, button);
+    expect(lastSelection(canvas)).toBe("a>button");
+  });
+});
+
+describe("canvasScript ⌘ direct selection", () => {
+  test("a ⌘-click selects the element under the pointer at once, and later clicks and Esc go on from its frame", () => {
+    const { canvas, b, button, empty } = nestedCanvas();
+    const event = click(canvas, button, { metaKey: true });
+    expect([event.prevented, event.stopped]).toEqual([true, true]);
+    expect(lastSelection(canvas)).toBe("b>button");
+    click(canvas, empty);
+    expect(lastSelection(canvas)).toBe("b>div");
+    canvas.fromParent({ type: "select-parent", seq: 3 });
+    expect(lastSelection(canvas)).toBe("b");
+    click(canvas, b, { metaKey: true });
+    expect(lastSelection(canvas)).toBe("b");
+  });
+
+  test("⌥ wins over ⌘: the press and click pass through to the canvas", () => {
+    const { canvas, button } = nestedCanvas();
+    const event = click(canvas, button, { metaKey: true, altKey: true });
+    expect(event.prevented).toBe(false);
+    expect(ofType(canvas, "select")).toEqual([]);
+  });
+
+  test("the ⌘ hover follows the pointer's own modifier and the app's command, at once with the pointer resting", () => {
+    const { canvas, button } = nestedCanvas();
+    const hover = () => ofType(canvas, "hover").at(-1);
+    canvas.fireWindow("pointermove", input({ target: button, metaKey: true }));
+    canvas.runFrame();
+    expect(hover()?.rect).toEqual({ x: 30, y: 30, width: 20, height: 10 });
+    canvas.fireWindow("pointermove", input({ target: button }));
+    canvas.runFrame();
+    expect(hover()?.rect).toEqual({ x: 10, y: 10, width: 300, height: 100 });
+    canvas.fromParent({ type: "hover-meta", meta: true, seq: 1 });
+    expect(hover()).toMatchObject({ seq: 1, rect: { x: 30, y: 30, width: 20, height: 10 } });
+    // A stale or malformed modifier command changes nothing, and none moves the selection channel.
+    canvas.fromParent({ type: "hover-meta", meta: false, seq: 1 });
+    canvas.fromParent({ type: "hover-meta", meta: "no", seq: 2 });
+    expect(hover()).toMatchObject({ seq: 1, rect: { x: 30, y: 30, width: 20, height: 10 } });
+    canvas.fromParent({ type: "hover-meta", meta: false, seq: 2 });
+    expect(hover()).toMatchObject({ seq: 2, rect: { x: 10, y: 10, width: 300, height: 100 } });
+    click(canvas, button);
+    expect(ofType(canvas, "select").at(-1)).toMatchObject({ seq: 1 });
+  });
+
+  test("⌘ pressed and released in a focused canvas recomputes the hover, and a blur releases it", () => {
+    const { canvas, button } = nestedCanvas();
+    const hover = () => ofType(canvas, "hover").at(-1)?.rect;
+    canvas.fireWindow("pointermove", input({ target: button }));
+    canvas.runFrame();
+    canvas.fireWindow("keydown", input({ target: canvas.body, key: "Meta", metaKey: true }));
+    expect(hover()).toEqual({ x: 30, y: 30, width: 20, height: 10 });
+    canvas.fireWindow("keyup", input({ target: canvas.body, key: "Meta" }));
+    expect(hover()).toEqual({ x: 10, y: 10, width: 300, height: 100 });
+    canvas.fireWindow("keydown", input({ target: canvas.body, key: "Meta", metaKey: true }));
+    canvas.fireWindow("blur", {});
+    expect(hover()).toEqual({ x: 10, y: 10, width: 300, height: 100 });
+  });
+
+  test("the click's own ⌘ decides, not the hover's last modifier", () => {
+    const { canvas, button } = nestedCanvas();
+    canvas.fromParent({ type: "hover-meta", meta: true, seq: 1 });
+    click(canvas, button);
+    expect(lastSelection(canvas)).toBe("a");
+  });
+});
+
+describe("canvasScript picking keeps its own targets", () => {
+  test("a pick click names the element under it and the hover shows that element, whatever Select entered", () => {
+    const { canvas, button } = nestedCanvas();
+    click(canvas, button);
+    const before = canvas.posted.length;
+    canvas.fromParent({ type: "measure" });
+    const document = (canvas.posted[before] as { message: { document: string } }).message.document;
+    canvas.fromParent({ type: "pick-start", seq: 1, document });
+    canvas.fireWindow("pointermove", input({ target: button }));
+    canvas.runFrame();
+    expect(ofType(canvas, "hover").at(-1)?.rect).toEqual({ x: 30, y: 30, width: 20, height: 10 });
+    click(canvas, button);
+    expect(ofType(canvas, "picked").at(-1)).toMatchObject({ target: { tag: "button", frame: { id: "b" }, element: { doanId: "ok" } } });
+    expect(lastSelection(canvas)).toBe("a");
+  });
+});
+
+// A nested iframe inside a frame: the press is seen only as focus moving in, so the canvas hands focus back after each
+// selection, or the next press in the same iframe would move no focus and go unheard.
+describe("canvasScript nested iframe in a frame", () => {
+  const nestedCanvas2 = () => {
+    const nested = node("iframe", {}, [], { rect: { left: 30, top: 30, width: 50, height: 40 } });
+    const frame = node("section", { "data-doan-frame": "f" }, [nested], { rect: { left: 10, top: 10, width: 200, height: 100 } });
+    const canvas = fakeCanvas({ readyState: "complete", body: node("body", {}, [frame]) });
+    canvas.posted.length = 0;
+    return { canvas, nested, frame };
+  };
+  const focusIn = (canvas: ReturnType<typeof fakeCanvas>, nested: FakeNode) => {
+    canvas.document.activeElement = nested;
+    canvas.fireWindow("blur", {});
+    canvas.advance(0);
+  };
+
+  test("the first press selects the frame and gives focus back, so the second press selects the iframe", () => {
+    const { canvas, nested } = nestedCanvas2();
+    focusIn(canvas, nested);
+    expect(lastSelection(canvas)).toBe("f");
+    expect(nested.blurred).toBe(1);
+    canvas.document.activeElement = canvas.body;
+    focusIn(canvas, nested);
+    expect(lastSelection(canvas)).toBe("f>iframe");
+  });
+
+  test("⌘ held on the way in selects the iframe directly", () => {
+    const { canvas, nested } = nestedCanvas2();
+    canvas.fireWindow("pointermove", input({ target: nested, metaKey: true }));
+    focusIn(canvas, nested);
+    expect(lastSelection(canvas)).toBe("f>iframe");
+  });
+});
+
+describe("canvasScript hover across a pick", () => {
+  test("starting and ending a pick recomputes the hover with the pointer resting", () => {
+    const { canvas, button } = nestedCanvas();
+    const hover = () => ofType(canvas, "hover").at(-1)?.rect;
+    canvas.fireWindow("pointermove", input({ target: button }));
+    canvas.runFrame();
+    expect(hover()).toEqual({ x: 10, y: 10, width: 300, height: 100 });
+    canvas.fromParent({ type: "measure" });
+    const document = (ofType(canvas, "layout").at(-1) as { document: string }).document;
+    canvas.fromParent({ type: "pick-start", seq: 1, document });
+    expect(hover()).toEqual({ x: 30, y: 30, width: 20, height: 10 });
+    canvas.fromParent({ type: "pick-cancel", seq: 2, document });
+    expect(hover()).toEqual({ x: 10, y: 10, width: 300, height: 100 });
+    // Esc in a focused canvas ends the pick there too.
+    canvas.fromParent({ type: "pick-start", seq: 3, document });
+    canvas.fireWindow("keydown", input({ target: canvas.body, key: "Escape" }));
+    expect(hover()).toEqual({ x: 10, y: 10, width: 300, height: 100 });
   });
 });

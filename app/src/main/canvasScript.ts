@@ -168,6 +168,22 @@ export function textQuote(text: string, max: number): string {
   return folded.slice(0, end);
 }
 
+// Select enters frames one level per click (PRODUCT §5 item 4). `frames` are the frames around the clicked node,
+// outermost first, ending with the node itself when it is a frame; `entered` the same for the current selection, empty
+// without one or for one outside every frame. Both come from the live DOM at the click, so a selection that moved or a
+// frame that lost its attribute steps by where it is now. The frames both share stay entered; the next frame below
+// them is the step, and past the clicked node's innermost frame the node itself is (null).
+export function frameStep<T>(frames: readonly T[], entered: readonly T[]): T | null {
+  let shared = 0;
+  while (shared < frames.length && shared < entered.length && frames[shared] === entered[shared]) shared++;
+  return shared < frames.length ? frames[shared] ?? null : null;
+}
+
+// Esc's step back: an element goes to its own frame, a frame to the frame around it; null clears.
+export function escapeTarget<T>(entered: readonly T[], selectedIsFrame: boolean): T | null {
+  return entered[entered.length - (selectedIsFrame ? 2 : 1)] ?? null;
+}
+
 interface CanvasLib {
   nextHeight: typeof nextHeight;
   documentHeight: typeof documentHeight;
@@ -179,6 +195,8 @@ interface CanvasLib {
   clipHtml: typeof clipHtml;
   textQuote: typeof textQuote;
   chipAnchors: typeof chipAnchors;
+  frameStep: typeof frameStep;
+  escapeTarget: typeof escapeTarget;
 }
 
 export function canvasScript(lib: CanvasLib): void {
@@ -260,6 +278,8 @@ export function canvasScript(lib: CanvasLib): void {
   let firstLayoutAt: number | null = null;
   let hoverEl: EventTarget | null = null;
   let alt = false;
+  // ⌘ turns the hover to the direct target (a ⌘-click's); a click itself reads its own metaKey.
+  let meta = false;
   let hoverQueued = false;
   // When the last pointer activity was posted (performance.now()).
   let activityAt = -Infinity;
@@ -293,6 +313,8 @@ export function canvasScript(lib: CanvasLib): void {
     } catch {
       // The cursor is only a hint: a canvas that broke adoptedStyleSheets still picks, without the crosshair.
     }
+    // A pick hovers what is under the pointer, Select its next step: the resting pointer's hover changes with it.
+    postHover();
   };
 
   const isRoot = (el: unknown) => el === document.documentElement || el === document.body;
@@ -304,6 +326,29 @@ export function canvasScript(lib: CanvasLib): void {
   };
   const byAttribute = (attribute: string, value: string) => Array.from(document.querySelectorAll(`[${attribute}]`)).filter((el) => el.getAttribute(attribute) === value);
   const postSelection = (type: "select" | "clear" | "key", fields: Record<string, unknown>) => post({ type, href: location.href, seq, viewport: innerHeight, ...fields });
+  const isFrame = (el: Element) => el.hasAttribute("data-doan-frame");
+  // The frames around a node, outermost first, the node itself last when it is a frame.
+  const framesOf = (el: Element) => {
+    const list: Element[] = [];
+    for (let node: Element | null = el; node !== null && !isRoot(node); node = node.parentElement) if (isFrame(node)) list.unshift(node);
+    return list;
+  };
+  // A framework may have swapped the selected node for an equal one; the anchor finds it again first.
+  const current = () => {
+    if (selected !== null && !selected.isConnected && anchor !== null) selected = resolve(anchor) ?? selected;
+    return selected !== null && selected.isConnected ? selected : null;
+  };
+  // What a Select click on `target` selects: html or body clears (null), and so does the own background of an element
+  // outside every frame that holds frames, since a row or grid laying frames out is the space between them; ⌘ selects
+  // the node itself, otherwise the next frame level below what the selection already entered.
+  const selectTarget = (target: Element, direct: boolean): Element | null => {
+    if (isRoot(target)) return null;
+    const frames = framesOf(target);
+    if (frames.length === 0 && target.querySelector("[data-doan-frame]") !== null) return null;
+    if (direct) return target;
+    const now = current();
+    return lib.frameStep(frames, now === null ? [] : framesOf(now)) ?? target;
+  };
 
   const describe = (start: Element) => {
     const chain: ChainLink[] = [];
@@ -382,7 +427,7 @@ export function canvasScript(lib: CanvasLib): void {
   const anchors = lib.chipAnchors(documentToken, () => {
     // Anchor measurement can precede layout's recovery in the same frame.
     // Leave a missing node for layout to report as a lost selection.
-    if (selected && !selected.isConnected && anchor) selected = resolve(anchor) ?? selected;
+    current();
     return { element: selected, seq };
   });
 
@@ -404,9 +449,12 @@ export function canvasScript(lib: CanvasLib): void {
     return null;
   };
 
+  // The hover shows what the next click would select: the pick target while picking, Select's step otherwise, and
+  // nothing where that click would select the selection again.
   const postHover = () => {
-    const el = hoverEl;
-    const rect = isElement(el) && !isRoot(el) && el !== selected && !alt ? rectOf(el) : null;
+    const over = hoverEl;
+    const el = !isElement(over) || isRoot(over) || alt ? null : picking !== null ? over : selectTarget(over, meta);
+    const rect = el !== null && el !== selected ? rectOf(el) : null;
     const key = JSON.stringify([hoverSeq, rect]);
     if (key === lastHover) return;
     lastHover = key;
@@ -416,7 +464,7 @@ export function canvasScript(lib: CanvasLib): void {
   // `answer` names the renderer command this selection answers. A click can
   // take a queued command's seq before it arrives, so seq alone cannot tell
   // that click from the answer; clicks never carry it.
-  type Answer = "select-anchor";
+  type Answer = "select-anchor" | "select-parent";
   const apply = (described: NonNullable<ReturnType<typeof describe>>, answer?: Answer) => {
     selected = described.el;
     anchor = described.anchor;
@@ -454,16 +502,17 @@ export function canvasScript(lib: CanvasLib): void {
   };
 
   // Human input raises seq so a renderer command already on its way loses.
-  const choose = (target: EventTarget | null) => {
+  const choose = (target: EventTarget | null, direct: boolean) => {
     if (!isElement(target)) return;
-    if (isRoot(target)) {
+    const next = selectTarget(target, direct);
+    if (next === null) {
       drop();
       seq++;
       postSelection("clear", {});
       postHover();
       return;
     }
-    const described = describe(target);
+    const described = describe(next);
     if (described === null) return;
     seq++;
     apply(described);
@@ -579,8 +628,10 @@ export function canvasScript(lib: CanvasLib): void {
       if (typeof index !== "number" || !Number.isInteger(index) || typeof id !== "string") return;
     } else if (type === "hover-alt") {
       if (typeof data.alt !== "boolean") return;
-    } else if (type !== "clear" && type !== "hover-leave") return;
-    if (type === "hover-alt" || type === "hover-leave") {
+    } else if (type === "hover-meta") {
+      if (typeof data.meta !== "boolean") return;
+    } else if (type !== "clear" && type !== "hover-leave" && type !== "select-parent") return;
+    if (type === "hover-alt" || type === "hover-meta" || type === "hover-leave") {
       if (next <= hoverSeq) return;
       hoverSeq = next;
     } else {
@@ -591,11 +642,23 @@ export function canvasScript(lib: CanvasLib): void {
     if (type === "hover-alt") {
       alt = data.alt === true;
       postHover();
+    } else if (type === "hover-meta") {
+      meta = data.meta === true;
+      postHover();
     } else if (type === "hover-leave") {
       hoverEl = null;
       lastHover = "";
     } else if (type === "clear") {
       drop();
+      postHover();
+    } else if (type === "select-parent") {
+      // Esc's step, from the selection's frames in the DOM as it is now.
+      const now = current();
+      const next = now === null ? null : lib.escapeTarget(framesOf(now), isFrame(now));
+      const described = next === null ? null : describe(next);
+      if (described !== null) { apply(described, "select-parent"); return; }
+      drop();
+      postSelection("clear", { answer: "select-parent" });
       postHover();
     } else if (type === "select-anchor") {
       const wanted: Anchor = {};
@@ -691,7 +754,7 @@ export function canvasScript(lib: CanvasLib): void {
           pickAt(event.target, event.shiftKey ? { x: event.clientX, y: event.clientY } : null);
         } else if (type === "click") {
           const target = event.target;
-          if (!isElement(target) || target.isConnected) choose(target);
+          if (!isElement(target) || target.isConnected) choose(target, event.metaKey);
         }
       },
       { capture: true },
@@ -703,6 +766,13 @@ export function canvasScript(lib: CanvasLib): void {
   // A nested iframe has no script of ours; a click inside it only shows here
   // as focus moving into it.
   addEventListener("blur", () => {
+    // The ⌘ held on the way into a nested iframe, before the release below forgets it.
+    const direct = meta;
+    // ⌘ released while focus was elsewhere (⌘Tab) never comes back as a keyup.
+    if (meta) {
+      meta = false;
+      postHover();
+    }
     if (spaceHeld) {
       spaceHeld = false;
       postSelection("key", { key: "Space", down: false });
@@ -719,7 +789,11 @@ export function canvasScript(lib: CanvasLib): void {
         return;
       }
       if (alt) return;
-      if (active.isConnected) choose(active);
+      if (!active.isConnected) return;
+      choose(active, direct);
+      // Focus goes back to this document, or the next press in the same nested frame moves no focus and goes unheard,
+      // and a frame step would never reach the nested frame itself.
+      if ("blur" in active && typeof active.blur === "function") active.blur();
     }, 0);
   });
 
@@ -734,6 +808,7 @@ export function canvasScript(lib: CanvasLib): void {
       if (now - activityAt >= 1000) { activityAt = now; post({ type: "activity" }); }
       if (alt !== event.altKey) postSelection("key", { key: "Alt", alt: event.altKey, seq: hoverSeq });
       alt = event.altKey;
+      meta = event.metaKey;
       hoverEl = event.target;
       if (hoverQueued) return;
       hoverQueued = true;
@@ -766,6 +841,10 @@ export function canvasScript(lib: CanvasLib): void {
         postSelection("key", { key: "Alt", alt, seq: hoverSeq });
         postHover();
       }
+      if (event.key === "Meta") {
+        meta = true;
+        postHover();
+      }
       if (toolKeyAllowed(event)) {
         if (event.code === "Space") {
           event.preventDefault();
@@ -785,7 +864,8 @@ export function canvasScript(lib: CanvasLib): void {
         setPicking(null);
         return;
       }
-      if (!editable(event.target)) postSelection("key", { key: "Escape" });
+      // The app takes one Select step per forwarded Esc, so a held Esc's auto-repeats are not forwarded.
+      if (!editable(event.target) && !event.repeat) postSelection("key", { key: "Escape" });
     },
     { capture: true },
   );
@@ -797,6 +877,10 @@ export function canvasScript(lib: CanvasLib): void {
         // Focus and modifiers can change between the press and release.
         spaceHeld = false;
         postSelection("key", { key: "Space", down: false });
+      }
+      if (event.key === "Meta") {
+        meta = false;
+        postHover();
       }
       if (event.key !== "Alt") return;
       alt = false;
@@ -812,7 +896,7 @@ export function canvasScript(lib: CanvasLib): void {
 }
 
 export function canvasScriptSource(): string {
-  const lib = { nextHeight, documentHeight, frameBottom, canScrollAxis, clipText, elementSelector, ancestorPath, clipHtml, textQuote, chipAnchors };
+  const lib = { nextHeight, documentHeight, frameBottom, canScrollAxis, clipText, elementSelector, ancestorPath, clipHtml, textQuote, chipAnchors, frameStep, escapeTarget };
   return `(${canvasScript.toString()})({${Object.entries(lib).map(([name, fn]) => `${name}: ${fn.toString()}`).join(", ")}}); void 0;`;
 }
 
