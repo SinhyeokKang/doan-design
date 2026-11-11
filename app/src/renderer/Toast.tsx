@@ -1,15 +1,23 @@
 import { useEffect, useReducer, useRef } from "react";
 import { createPortal } from "react-dom";
-import { initialToastState, toastState } from "./toastState";
+import { initialToastState, toastState, type ToastEvent } from "./toastState";
 
 export function useToast(restoreFocus?: (previous: HTMLElement | null) => void) {
   const previousFocus = useRef<HTMLElement | null>(null);
-  const [state, dispatch] = useReducer(toastState, initialToastState);
+  const [state, react] = useReducer(toastState, initialToastState);
+  // Every event goes through here so `latest` follows the state without a render: the clock reads it to skip its tick
+  // while nothing is shown, because useReducer runs App again for every dispatch, even one that changes nothing.
+  const latest = useRef(initialToastState);
+  const dispatch = (event: ToastEvent) => { latest.current = toastState(latest.current, event); react(event); };
   const handlers = useRef(new Map<string, { run?: () => void; expire?: () => void; press?: () => void }>());
   const timerAt = useRef(0);
   useEffect(() => {
     timerAt.current = performance.now();
-    const timer = setInterval(() => { const now = performance.now(); dispatch({ type: "tick", elapsedMs: now - timerAt.current }); timerAt.current = now; }, 100);
+    const timer = setInterval(() => {
+      const now = performance.now(), elapsedMs = now - timerAt.current;
+      timerAt.current = now;
+      if (latest.current.toast || latest.current.ended) dispatch({ type: "tick", elapsedMs });
+    }, 100);
     // Pause until the initial invoke or a newer native push establishes visibility.
     let nativeVisible = false;
     const visibility = () => { timerAt.current = performance.now(); dispatch({ type: "hidden", on: document.hidden || !nativeVisible }); };
