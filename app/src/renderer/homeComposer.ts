@@ -695,6 +695,14 @@ export function readyAttachment(key: string, info: AttachmentInfo): AttachmentDr
 export function recordedAttachment(key: string, record: AttachmentRecord): AttachmentDraft {
   return { key, name: record.name, kind: record.kind, pasted: false, status: "missing", ...("size" in record ? { size: record.size } : {}), path: record.path };
 }
+// A recorded path main issued again as a new attachment. Only the recorded kind counts as the same: a folder whose path
+// now names a file or an image (or the reverse) comes back as the recorded kind's moved chip, and release names the new
+// id for the caller to give back.
+export function issuedAttachment(key: string, record: AttachmentRecord, result: AttachmentResult | undefined): { chip: AttachmentDraft; release?: string } {
+  if (!result?.ok) return { chip: recordedAttachment(key, record) };
+  if (result.attachment.kind !== record.kind) return { chip: recordedAttachment(key, record), release: result.attachment.id };
+  return { chip: readyAttachment(key, result.attachment) };
+}
 // A refused start or send as the composers read it: attachment_missing's ids, and the replaced folders among them.
 export function sendRefusal(reply: { error: string; missing?: unknown; replaced?: unknown }): { error: string; missing?: string[]; replaced?: string[] } {
   const ids = (value: unknown) => Array.isArray(value) && value.every(id => typeof id === "string") ? value as string[] : undefined;

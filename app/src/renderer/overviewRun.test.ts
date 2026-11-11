@@ -248,6 +248,61 @@ test("a returned queue is taken into the open conversation's draft once, after w
   expect(doan.takeConversationDraft).toHaveBeenCalledTimes(1);
 });
 
+// A queue returned in this run comes with the ids its files were queued with: they are checked again as those files,
+// so a folder replaced since stays Replaced instead of being taken as a new folder.
+test("a returned queue's held files are checked again by id, and a folder replaced since stays a Replaced chip", async () => {
+  const h = harness();
+  histories.set(A, ended(A));
+  h.run.show(ROOT);
+  h.answer(ROOT, [summary(A, { phase: "running", working: true })]);
+  await flush();
+  const refs = { name: "refs", kind: "directory" as const, path: "/Users/ada/refs" }, notes = { name: "notes.md", size: 2, kind: "file" as const, path: "/Users/ada/notes.md" };
+  doan.recheckAttachments = vi.fn(async () => [
+    { id: "q-refs", ok: false, error: "replaced" },
+    { id: "q-notes", ok: true, attachment: { id: "q-notes", ...notes, pasted: false } },
+  ]);
+  doan.takeConversationDraft!.mockResolvedValueOnce({ text: "look", anchors: [], attachments: [refs, notes], ids: ["q-refs", "q-notes"], reason: "stopped" });
+  h.answer(ROOT, [summary(A, { returnedDraft: true })]);
+  h.run.sync();
+  await flush(); await flush();
+  expect(doan.recheckAttachments).toHaveBeenCalledWith(["q-refs", "q-notes"]);
+  expect(doan.attachmentsFromPaths).not.toHaveBeenCalled();
+  expect(h.run.drafts.get(`conversation:${A}`)?.attachments).toMatchObject([
+    { name: "refs", kind: "directory", status: "replaced" },
+    { id: "q-notes", name: "notes.md", kind: "file", status: "ready" },
+  ]);
+});
+// After a restart only the paths are left: a recorded folder whose path now names a file or an image is not that
+// folder, so the new id goes back and the chip stays a folder that moved.
+test("a returned queue read back from paths refuses a folder that became a file or an image, releasing the new ids", async () => {
+  const h = harness();
+  histories.set(A, ended(A));
+  h.run.show(ROOT);
+  h.answer(ROOT, [summary(A, { phase: "running", working: true })]);
+  await flush();
+  doan.removeAttachment = vi.fn(async () => true);
+  doan.attachmentsFromPaths!.mockResolvedValueOnce([
+    { ok: true, attachment: { id: "n-refs", name: "refs", size: 3, kind: "file", path: "/Users/ada/refs", pasted: false } },
+    { ok: true, attachment: { id: "n-shots", name: "shots.png", size: 9, kind: "image", path: "/Users/ada/shots.png", pasted: false } },
+    { ok: true, attachment: { id: "n-brand", name: "brand", kind: "directory", path: "/Users/ada/brand", pasted: false } },
+  ]);
+  doan.takeConversationDraft!.mockResolvedValueOnce({ text: "look", anchors: [], attachments: [
+    { name: "refs", kind: "directory", path: "/Users/ada/refs" }, { name: "shots.png", kind: "directory", path: "/Users/ada/shots.png" }, { name: "brand", kind: "directory", path: "/Users/ada/brand" },
+  ], reason: "interrupted" });
+  h.answer(ROOT, [summary(A, { returnedDraft: true })]);
+  h.run.sync();
+  await flush(); await flush();
+  expect(h.run.drafts.get(`conversation:${A}`)?.attachments).toMatchObject([
+    { name: "refs", kind: "directory", status: "missing" },
+    { name: "shots.png", kind: "directory", status: "missing" },
+    { id: "n-brand", name: "brand", kind: "directory", status: "ready" },
+  ]);
+  expect(h.run.drafts.get(`conversation:${A}`)?.attachments.slice(0, 2).map(a => a.id)).toEqual([undefined, undefined]);
+  expect(doan.removeAttachment).toHaveBeenCalledWith("n-refs");
+  expect(doan.removeAttachment).toHaveBeenCalledWith("n-shots");
+  expect(doan.removeAttachment).not.toHaveBeenCalledWith("n-brand");
+});
+
 // Attachment results follow their chip, wherever the draft went.
 test("an attachment checked during a promotion lands in the moved draft, and a removed chip's file is released", async () => {
   const h = harness();

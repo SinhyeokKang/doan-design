@@ -7,7 +7,7 @@ import { PROVIDER_NAMES } from "./agentAuthView";
 import { conversationWork, slotKeyOf, slotsFromList } from "./conversationList";
 import { asksPerson, mergeConversationEvents, stripState, type StripState } from "./conversationStrip";
 import { newCanvasText } from "./newCanvasText";
-import { readyAttachment, recordedAttachment, sendRefusal, splitRequest, type AttachmentDraft } from "./homeComposer";
+import { issuedAttachment, sendRefusal, splitRequest, type AttachmentDraft } from "./homeComposer";
 import {
   newCanvasCandidates, permissionToastKey, rememberRequest, removalConfirm, slotKey,
   type HomeConversation, type LastRequest, type Slot,
@@ -644,8 +644,10 @@ export class HomeRun {
     const attachments = records.map((record, i): AttachmentDraft => {
       const result = issued?.[i];
       const key = crypto.randomUUID();
-      if (result?.ok && result.attachment.thumbnail) thumbnails[key] = result.attachment.thumbnail;
-      return result?.ok ? readyAttachment(key, result.attachment) : recordedAttachment(key, record);
+      const { chip, release } = issuedAttachment(key, record, result);
+      if (release) void window.doan.removeAttachment(release).catch(() => false);
+      else if (result?.ok && result.attachment.thumbnail) thumbnails[key] = result.attachment.thumbnail;
+      return chip;
     });
     const summary = this.summary(conversationId);
     const provider = summary?.provider ?? this.conversations.find(item => item.conversationId === conversationId)?.provider;

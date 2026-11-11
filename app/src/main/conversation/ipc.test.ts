@@ -442,7 +442,8 @@ describe("queue channels", () => {
       expect(await h.handle(true, "takeDraft", { conversationId: id })).toBeNull();
       await h.handle(true, "queue", { conversationId: id, text: "y", attachments: [{ id: "a" }] });
       h.service.receive(id, { type: "interrupted", reason: "user" });
-      expect(await h.handle(true, "takeDraft", { conversationId: id })).toEqual({ text: "y", anchors: [], attachments: h.records, reason: "interrupted" });
+      // ids: the queued attachment ids in this run, for the renderer's recheck of the same files.
+      expect(await h.handle(true, "takeDraft", { conversationId: id })).toEqual({ text: "y", anchors: [], attachments: h.records, ids: ["a"], reason: "interrupted" });
       expect(await h.handle(true, "takeDraft", { conversationId: id })).toBeNull();
       expect(await h.handle(true, "takeDraft", { conversationId: "33333333-3333-4333-8333-333333333333" })).toEqual({ error: "not_found" });
     } finally { rmSync(dir, { recursive: true, force: true }); }

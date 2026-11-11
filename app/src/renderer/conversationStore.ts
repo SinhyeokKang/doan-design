@@ -8,7 +8,7 @@ import type { SteerPhase } from "../main/conversation/steerSupport";
 import { asksPerson, mergeConversationEvents, stripState } from "./conversationStrip";
 import { EMPTY_DRAFT, type DockedDraft } from "./dockedRules";
 import { EMPTY_QUESTION_DRAFT, questionDraft, type QuestionDraft, type QuestionDraftAction } from "./questionDraft";
-import { attachRefusal, readyAttachment, recordedAttachment, splitRequest, type AttachmentDraft } from "./homeComposer";
+import { attachRefusal, issuedAttachment, readyAttachment, recordedAttachment, splitRequest, type AttachmentDraft } from "./homeComposer";
 import type { SendingMessage, SentFile } from "./threadItems";
 import { newerStage } from "./turnStatus";
 
@@ -318,7 +318,7 @@ export class ConversationStore {
     void window.doan.takeConversationDraft({ conversationId }).catch(() => null).then(async reply => {
       this.taken.set(conversationId, this.host.readsStarted(root));
       if (!reply || "error" in reply) { this.taking.delete(conversationId); return; }
-      const returned = await draftFrom(reply.text, reply.anchors, reply.attachments);
+      const returned = await draftFrom(reply.text, reply.anchors, reply.attachments, reply.ids);
       this.taking.delete(conversationId);
       if (this.deletedIds.has(conversationId)) {
         for (const attachment of returned.attachments) if (attachment.id) void window.doan.removeAttachment(attachment.id).catch(() => false);
@@ -354,14 +354,26 @@ export function steerPhaseOf(events: readonly ConversationEvent[] | null, summar
 const emptyDraft = (draft: DockedDraft) => draft.segments.length === 0 && !draft.preset && draft.attachments.length === 0;
 
 // A request read back into a draft: the preset line becomes the chip, and recorded files are issued again from their
-// paths (a moved file comes back as a missing chip). Shared by a returned queue and Edit and resend.
-export async function draftFrom(text: string, anchors: readonly Anchor[], records: readonly AttachmentRecord[]): Promise<DockedDraft> {
+// paths (a moved file comes back as a missing chip). Shared by a returned queue and Edit and resend. held: per record,
+// the id a queue returned in this run held it as (takeDraft's ids); that one is checked again as the same file or
+// folder, so one replaced since comes back Replaced.
+export async function draftFrom(text: string, anchors: readonly Anchor[], records: readonly AttachmentRecord[], held: readonly (string | null)[] = []): Promise<DockedDraft> {
   const { preset, body } = splitRequest(text, records.length);
-  const issued = records.length ? await window.doan.attachmentsFromPaths(records.map(record => record.path)).catch(() => null) : [];
+  const heldIds = records.flatMap((_, i) => { const id = held[i]; return id ? [id] : []; }), fresh = records.filter((_, i) => !held[i]);
+  const [rechecked, issued] = await Promise.all([
+    heldIds.length ? window.doan.recheckAttachments(heldIds).catch(() => null) : [],
+    fresh.length ? window.doan.attachmentsFromPaths(fresh.map(record => record.path)).catch(() => null) : [],
+  ]);
+  let next = 0;
   const attachments = records.map((record, i): AttachmentDraft => {
-    const result = issued?.[i];
-    const key = crypto.randomUUID();
-    return result?.ok ? readyAttachment(key, result.attachment) : recordedAttachment(key, record);
+    const key = crypto.randomUUID(), id = held[i];
+    if (id) {
+      const result = rechecked?.find(item => item.id === id);
+      return result?.ok ? readyAttachment(key, result.attachment) : { ...recordedAttachment(key, record), id, ...(result?.error === "replaced" ? { status: "replaced" as const } : {}) };
+    }
+    const { chip, release } = issuedAttachment(key, record, issued?.[next++]);
+    if (release) void window.doan.removeAttachment(release).catch(() => false);
+    return chip;
   });
   return { segments: fromMessage(body, anchors), preset: preset ? { ...preset, description: "", scope: "" } : null, attachments, shape: body.includes("\n") || attachments.length ? "box" : "capsule" };
 }

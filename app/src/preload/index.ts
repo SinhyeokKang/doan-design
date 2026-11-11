@@ -7,13 +7,12 @@ import type { UsageEntry } from "../main/agentAuth/usageTypes";
 import type { McpAddReply, McpReply, McpSnapshot } from "../main/mcpConnectors/ipc";
 import type { McpProvider } from "../main/mcpConnectors/presets";
 import type { ShellActivity } from "../main/shellActivity";
-import type { ConversationService, StartRequest } from "../main/conversation/service";
+import type { ConversationService, StartRequest, TakenDraft } from "../main/conversation/service";
 import type { ConversationError } from "../main/conversation/ipc";
 import type { ModelsReply } from "../main/conversation/models";
 import type { PermissionModeId } from "../main/conversation/permissionMode";
 import type { QuestionAnswerInput } from "../main/conversation/question";
 import type { ConversationSummary } from "../main/conversation/summary";
-import type { ReturnedDraft } from "../main/conversation/drafts";
 import type { HandoffNotice } from "../main/conversation/handoff";
 import type { AttachmentResult, RecheckResult } from "../main/attachments";
 import type { DesignSkillList, DesignSkillPreset, DesignSkillReply } from "../main/designSkills";
@@ -140,7 +139,7 @@ const api = {
   // provider refused it, or the turn ended first (the message stays queued and follows the queue's rules); stale: the
   // item is gone or already on its way out; attachment_missing: one of its files went away (it stays queued).
   sendQueuedNow: (request: { conversationId: string; itemId: string }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:sendQueuedNow", request),
-  takeConversationDraft: (request: { conversationId: string }): Promise<ReturnedDraft | null | ConversationError> => ipcRenderer.invoke("conversation:takeDraft", request),
+  takeConversationDraft: (request: { conversationId: string }): Promise<TakenDraft | null | ConversationError> => ipcRenderer.invoke("conversation:takeDraft", request),
   // Deletes Doan's record of the conversation on this device (index entry, history, queue and returned draft); the
   // agent's own session files stay. busy while it works or the app quits; not_found when it is already gone; unknown
   // when the index cannot be read, and then nothing is deleted. A success is announced with onConversationListChanged.
