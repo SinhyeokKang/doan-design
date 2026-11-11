@@ -164,7 +164,10 @@
     dock.querySelectorAll('.queue-item button[aria-label="Remove queued message"]').forEach(button=>button.addEventListener('click',()=>{
       const before=ground.getBoundingClientRect().top;
       dock.querySelector('.composer-card').prepend(ground);
-      button.closest('.queue').remove();
+      const queue=button.closest('.queue');
+      button.closest('.queue-entry').remove();
+      if(!queue.querySelector('.queue-entry'))queue.remove();
+      mountGround();
       const after=ground.getBoundingClientRect().top;
       if(!reduced.matches)drop={from:before-after,at:state.time};
       motion=null;nextMove=state.time+2;
@@ -296,6 +299,15 @@
       const key={hide:'hidden',clearance:'clearance'}[button.dataset.pocAction];
       if(key){const on=frame.dataset[key]!=='true';frame.dataset[key]=String(on);button.setAttribute('aria-pressed',String(on));}
     }));
+  });
+  // Static specimens need the app's end-following behavior as the queue changes their viewport height.
+  document.querySelectorAll('.thread-scroll').forEach(scroller=>{
+    let pinned=true;
+    scroller.addEventListener('scroll',()=>{pinned=scroller.scrollHeight-scroller.scrollTop-scroller.clientHeight<2;},{passive:true});
+    const observer=new ResizeObserver(()=>{if(pinned)scroller.scrollTop=scroller.scrollHeight;});
+    observer.observe(scroller);
+    observer.observe(scroller.querySelector('.thread'));
+    window.addEventListener('pagehide',()=>observer.disconnect(),{once:true});
   });
   window.buddyPreview={rigs};
 })();

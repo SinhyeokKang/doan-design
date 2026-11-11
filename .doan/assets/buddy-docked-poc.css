@@ -29,14 +29,11 @@ body{width:1440px;padding:var(--space-8);background:var(--surface-inset);overflo
 .poc-board h3{font:var(--type-weight-medium) var(--type-heading-size)/var(--type-heading-line-height) var(--type-family)}
 .poc-board p{margin-block:var(--space-4);font:var(--type-weight-regular) var(--type-label-size)/var(--type-label-line-height) var(--type-family)}
 .poc-board .poc-cards{display:flex;gap:var(--space-4)}.poc-board article{width:200px;padding:var(--space-4);border:1px solid var(--border-standard);border-radius:var(--radius-row)}
-.poc-thread-test .thread-scroll{display:flex;flex-direction:column;justify-content:flex-end}
+.poc-thread-test .thread-scroll{display:block;padding-bottom:calc(var(--space-6) + var(--space-2))}
 .poc-risk .win{height:600px}
-.poc-risk .thread-scroll{justify-content:flex-start}
 .poc-risk .queue{position:relative;z-index:3}
-/* The PoC adds 8px between the thread and the docked floor, including the queue floor. */
-.poc-section :is(.cp-foot,.ov-foot){padding-top:calc(var(--space-3) + var(--space-2))}
-/* Extra-clearance comparison retains the same 8px increase. */
-[data-clearance=true] .cp-foot,[data-clearance=true] .ov-foot{padding-top:calc(var(--space-16) + var(--space-2))}
+/* The additional 8px belongs to scrollable thread content, not a taller docked backdrop. */
+[data-clearance=true] .cp-foot,[data-clearance=true] .ov-foot{padding-top:var(--space-16)}
 
 
 /* Scope the shipped Puri palette and its dependent roles to comparison frames. */
