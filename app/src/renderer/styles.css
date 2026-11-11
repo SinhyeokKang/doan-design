@@ -830,7 +830,8 @@ body:has(.shell-top) { background: transparent; }
    queue such as the 360px canvas panel. */
 .queue { container-type: inline-size; }
 .queue-attachment { display: inline-flex; align-items: center; gap: var(--space-1); min-width: 0; max-width: 180px; font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-subtle); }
-.queue-attachment svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+/* flex: none: in a narrow queue the capped summary would otherwise squeeze the icon before truncating the name. */
+.queue-attachment svg { flex: none; width: var(--size-icon-sm); height: var(--size-icon-sm); }
 .queue-attachment .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .queue-attachment .count { flex: none; }
 @container (max-width: 431px) { .queue-attachment { max-width: 100px; } }
