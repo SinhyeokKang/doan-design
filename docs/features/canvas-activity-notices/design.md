@@ -49,15 +49,23 @@ PoC는 기존 `DocumentBindings.current()`의 서버 응답 바이트 지문·lo
 - `activity-collapsed`: Show sidebar·접힌 대화 패널의 대화 종료 말풍선을 현행 집계 범위로 표시한다. Show sidebar에 변경 Dot이나 기록 오류를 추가하지 않는다.
 - `activity-save-failure`: 현재 캔버스의 저장 실패 Dot·설명, 상위 상태에 가려졌다 다시 드러나는 상태, Retry 토스트·재시도 중·성공 후 상태.
 - `activity-recovery`: 최초 baseline 실패에 새 Dot 없음, 기록 손상/소실 시 기존 판정 유지, ID 문제, 재진입 실패 토스트를 타일로 구분한다.
-- 현행 사이드바 행·상태 슬롯·버튼·토스트를 코드와 DESIGN.md에서 복사한다. Dot은 버디 accent이며 지속 notice를 추가하지 않는다. 새 문구·말풍선 표현의 미결정안은 같은 프레임의 여러 안과 `Decision needed` 주석으로 둔다.
+- 현행 사이드바 행·상태 슬롯·버튼·토스트를 코드와 DESIGN.md에서 복사한다. Dot은 버디 accent이며 지속 notice를 추가하지 않는다. 말풍선 표현과 새 문구는 아래 '선택한 안'을 따른다.
 - 이 초안은 확정된 표시 규칙만 그린다. 공유 저장 경로·형식·버전과 실제 열람 증명 PoC는 구현 선행 조건으로 남기며, 초안 검토를 PoC 통과로 기록하지 않는다.
 - 서브에이전트 작성 후 주 에이전트가 렌더링을 검토·수정하고 원격에 푸시한다. 사용자 시각 확인은 이후 별도로 받으며, 푸시를 승인으로 기록하지 않는다.
 
 ### 초안 검토 상태
 
-네 프레임의 40개 타일을 작성했고 주 에이전트가 브라우저 렌더링을 직접 검토했다. 220px 사이드바 안의 204×32px 행, 기존 16px 상태 슬롯·8px Dot, 384px 토스트를 확인했고 토스트의 가로 넘침은 없었다. 상위 신호·메뉴에 가려진 실패 Dot, Retry 진행/성공, 최초 baseline 실패, 기존 판정 없음, ID 문제, 재진입과 복구 상태를 구분했다.
+네 프레임에 30개 타일을 그렸다. 220px 사이드바 안의 204×32px 행, 기존 16px 상태 슬롯·8px Dot, 384px 토스트를 쓰며 토스트는 가로로 넘치지 않는다. 상위 신호·메뉴에 가려진 실패 Dot, Retry 진행/성공, 최초 baseline 실패, 기존 판정 없음, ID 문제, 재진입과 복구 상태를 구분했다.
 
-말풍선의 사각/원형 아이콘, 접힌 버튼의 12/14px 배지와 위치, 새 접근성 설명·실패/복구 문구는 `Decision needed` 후보로 남겼다. 사용자 시각 확인은 대기 중이다. 정적 초안이며 실제 토스트 수명·포커스 복귀·공유 읽음 저장·이동 PoC는 검증하지 않았다. 메타데이터 경로·형식·버전도 이 초안으로 확정하지 않는다.
+#### 선택한 안
+
+- 말풍선: 사이드바 행, 프로젝트 행 집계, 접힌 Show sidebar·Show conversation 배지 모두 원형 말풍선을 쓴다. 접힌 버튼의 배지는 14px이고 위·오른쪽 2px에 놓는다. 12px 사각 말풍선은 작은 상자처럼 보여 사각형 캔버스 행 아이콘과 비슷해 보이기 때문이다.
+- 대화 종료 문구: tooltip은 `Conversation finished — unread`, 접근성 설명은 `Show sidebar, conversation finished unread`와 `Show conversation, conversation finished unread`다. “conversation ending”은 어색하게 읽혀 쓰지 않는다.
+- 저장 실패·Retry 문구: 토스트는 `Couldn’t save checkout’s read state. This folder is read-only.`, tooltip은 `Read state could not be saved for checkout`이다. Retry 중에는 `Saving checkout’s read state.`와 비활성 `Retrying` 버튼을 보인다.
+- 복구 토스트 문구: 최초 baseline 실패는 `Couldn’t save the initial read state. This folder is read-only.`, 기록 손상·기존 판정 없음은 `Read-state records couldn’t be read. Restore them, then retry.`, ID 문제는 `Couldn’t save the read state because the canvas ID is missing or duplicated. Fix the ID, then retry.`다. 기록 손상의 이전 미읽음/읽음 타일은 같은 문구를 쓰고 Dot 유지 여부만 다르다.
+- 실패·복구 문구는 앱의 기존 `Couldn’t …` 표현에 맞춘다.
+
+사용자 시각 확인은 대기 중이며, 위 선택은 초안 확정이 아니다. 정적 초안이며 실제 토스트 수명·포커스 복귀·공유 읽음 저장·이동 PoC는 검증하지 않았다. 메타데이터 경로·형식·버전도 이 초안으로 확정하지 않는다.
 
 ## 회귀 예방 근거
 
