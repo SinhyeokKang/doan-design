@@ -1,0 +1,36 @@
+{
+  "generator": "built-in image_gen",
+  "referenceImages": [
+    "dori/still.png",
+    "doany/artist/reading-rest.png"
+  ],
+  "generationPromptRecord": "Animation sprite sheet exactly 4 columns x 2 rows of equal square cells, 8 frames, wide 2:1. Clean real transparent background no haze glow floor shadow checkerboard. Ref 1 Dori blue tall curled-tip droplet plush with cream scarf wrapping neck, fringed end on viewer right, black oval eyes, preserve silhouette and yarn texture, no hat. Ref 2 same dark teal hardcover book and reading pose. Dori holds open book in little blue hands, scarf visible above book. Eight sequential poses: look down, blink briefly, turn one cream page right to left then settle into opening pose, seamless loop. Body, scarf, book cover position, scale, camera and baseline stay fixed. Full curled tip, body and book in each cell with 8% transparent padding. No text grid labels or extra objects.",
+  "frames": 8,
+  "durationMs": 1760,
+  "frameDurationsMs": [
+    220,
+    220,
+    220,
+    220,
+    220,
+    220,
+    220,
+    220
+  ],
+  "processing": "Original eight-frame reading sequence restored; closed and partially closed eye poses replaced with preceding open-eye poses. Transparent 512px GIF, background disposal, infinite loop.",
+  "sourcePoseIndices": [
+    0,
+    0,
+    0,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "status": "Canvas draft; not integrated into the app",
+  "review": {
+    "eyes": "No blinking",
+    "motion": "Original page-turn poses and 1.76-second duration restored"
+  }
+}
