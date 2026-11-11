@@ -53,7 +53,7 @@ lead는 링크 1 시작 전에 아래를 사용자에게 한 번에 묻고, 승�
 
 | 링크 | 세션·worktree | 시작 | PR·병합 | 상태 |
 |---|---|---|---|---|
-| 1. `canvas-rendering-stability` | `canvas-rendering-stability-orch` (Claude conductor, 이 머신) | 2026-11-11, `5676decd` | | 다른 머신으로 인계 |
+| 1. `canvas-rendering-stability` | `canvas-rendering-stability-orch` (Claude conductor). 이전 머신에서 시작, 새 머신 `/Users/sinhyeok/orca/workspaces/doan-design/canvas-rendering-stability-orch`에서 재개 | 2026-11-11, `5676decd`. 재개 `12ddcfa8` | | 진행 중 |
 | 2. `work-indicator-perf` | | | | 대기 |
 
 ## 인계 기록
@@ -72,4 +72,8 @@ lead는 링크 1 시작 전에 아래를 사용자에게 한 번에 묻고, 승�
 - 2026-11-11 lead: 링크 1 conductor가 이 머신에서 할 수 있는 만큼 마치고 멈췄다. 원격 `feat/canvas-rendering-stability` tip은 `12ddcfa8`이다. F 통합 커밋은 `85879e1b`·`22b4d776`·`c36a2961`이고, 배치 브랜치 `SinhyeokKang/crs-fix`도 원격에 있다. `crs-poc`는 커밋이 없어 push하지 않았다. 측정 요약과 남은 일 10가지는 그 브랜치 orch.md '머신 이전 인계'에 있다. C1 지속 잘림은 앱 세 레이아웃, Export Electron 창, Chrome 157에서 5회 모두 0이 됐다.
   - 새 머신에서 사용자 결정이 필요한 것: 모서리 AA 차이(앱 최대 3/255, Export 최대 4/255, AA 가장자리에서만)를 '같은 픽셀'로 볼지.
   - 미판정: C2 Export 빈 프레임 비율 최대가 수정 전 0.182, 수정 후 0.187이다. 수정 후 표본이 2개라 회귀인지 잡음인지 가르지 못했다.
-
+- 2026-11-11 lead(새 머신, develop checkout `/Users/sinhyeok/code/doan-design`): **체인을 인수했다.**
+  - 원격 상태를 확인했다. `feat/canvas-rendering-stability`의 tip은 `12ddcfa8`이고, `SinhyeokKang/crs-fix`도 원격에 있다.
+  - 사용자 결정: C1 수정 뒤 모서리 AA 차이(앱 최대 3/255, Export 최대 4/255, AA 가장자리에서만, 8/255 초과 0)를 '같은 픽셀'로 본다. 링크 1 기준 ②의 허용치로 쓴다.
+  - 새 머신의 경로: 홈은 `/Users/sinhyeok`이고, skillflo 원본은 `/Users/sinhyeok/code/skillflo/skillflo-web/.doan`이다. 이 머신의 원본에는 `config.json`만 있고 캔버스가 없다. 자료 위치는 conductor가 사용자에게 확인한다.
+  - 링크 1 conductor를 새 worktree `canvas-rendering-stability-orch`(원격 브랜치 체크아웃)에서 다시 띄웠다. 브리프에 위 결정, 새 경로, origin/develop을 병합한다는 것(rebase 금지)을 넣었다.
