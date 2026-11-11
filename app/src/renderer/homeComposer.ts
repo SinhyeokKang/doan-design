@@ -64,6 +64,9 @@ export interface AttachmentDraft {
   status: "checking" | "ready" | "missing" | "replaced";
   // A folder never has a size.
   size?: number; path?: string;
+  // held: the id a returned queue handed over (takeDraft). main keeps a queued id aside as sent, so removing it alone
+  // would put it back aside; the draft holding the chip is its last owner and also releases it.
+  held?: true;
 }
 
 export interface SendInput {

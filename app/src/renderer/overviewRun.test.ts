@@ -4,6 +4,11 @@ import type { Canvas, ConversationEvent, EventPayload } from "../main/conversati
 import { plainText, textSegments } from "./anchorField";
 import { EMPTY_DRAFT, type DockedDraft } from "./dockedRules";
 import { OverviewRun, scrollTarget, type ListView, type OverviewRunHost } from "./overviewRun";
+import { dropAttachment } from "./conversationStore";
+import { AttachmentStore } from "../main/attachments";
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 // The Overview's main conversation, driven without a DOM. The host stands in for App
 // and HomeRun (list reads and their counts, ui-state memory, seen marks, focus, navigation, toasts).
@@ -301,6 +306,67 @@ test("a returned queue read back from paths refuses a folder that became a file 
   expect(doan.removeAttachment).toHaveBeenCalledWith("n-refs");
   expect(doan.removeAttachment).toHaveBeenCalledWith("n-shots");
   expect(doan.removeAttachment).not.toHaveBeenCalledWith("n-brand");
+});
+// The draft that took a returned queue's ids owns them: main kept them aside as sent, so a chip removed after either
+// recheck result, and the conversation's deletion, must each let main forget its id; a pasted file stays on disk.
+test("a returned queue's ids are released once their chips are removed or their conversation is deleted, keeping a pasted file", async () => {
+  const tmp = mkdtempSync(join(realpathSync(tmpdir()), "doan-held-"));
+  try {
+    const files = new AttachmentStore(join(tmp, "attachments"), { thumbnail: () => null, reencode: bytes => bytes });
+    const added = (path: string) => { const [r] = files.addPaths({ paths: [path] })!; if (!r?.ok) throw new Error("refused"); return r.attachment; };
+    const folder = (name: string) => { const path = join(tmp, name); mkdirSync(path); return path; };
+    writeFileSync(join(tmp, "a.md"), "a"); writeFileSync(join(tmp, "b.md"), "b");
+    const pasted = files.addPasted({ bytes: new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13]) });
+    if (!pasted.ok) throw new Error("refused");
+    const queued = [added(folder("refs")), added(join(tmp, "a.md")), added(folder("kept")), added(join(tmp, "b.md")), pasted.attachment];
+    // Queued as conversation:queue does: marked sent, then consumed.
+    files.markSent(queued.map(({ id }) => ({ id }))); files.consume(queued.map(({ id }) => ({ id })));
+    for (const name of ["refs", "kept"]) { renameSync(join(tmp, name), join(tmp, `${name}-old`)); mkdirSync(join(tmp, name)); }
+    doan.recheckAttachments = vi.fn(async (ids: string[]) => files.recheck({ ids }));
+    doan.removeAttachment = vi.fn(async (id: string) => files.remove({ id }));
+    doan.releaseAttachments = vi.fn(async (ids: string[]) => files.release({ ids }));
+    const h = harness();
+    histories.set(A, ended(A));
+    h.run.show(ROOT);
+    h.answer(ROOT, [summary(A, { phase: "running", working: true })]);
+    await flush();
+    doan.takeConversationDraft!.mockResolvedValueOnce({ text: "look", anchors: [], attachments: queued.map(({ id: _, pasted: __, ...record }) => record), ids: queued.map(({ id }) => id), reason: "stopped" });
+    h.answer(ROOT, [summary(A, { returnedDraft: true })]);
+    h.run.sync();
+    await flush(); await flush();
+    const chips = h.run.drafts.get(`conversation:${A}`)!.attachments;
+    expect(chips.map(chip => chip.status)).toEqual(["replaced", "ready", "replaced", "ready", "ready"]);
+    // The Replaced folder and the ready file go from the draft; the rest stay until the conversation is deleted.
+    for (const chip of chips.slice(0, 2)) dropAttachment(chip);
+    await flush();
+    expect(files.recheck({ ids: queued.slice(0, 2).map(({ id }) => id) })).toEqual(queued.slice(0, 2).map(({ id }) => ({ id, ok: false, error: "not_found" })));
+    h.run.deleted(A); h.run.store.deleted(A);
+    await flush();
+    expect(files.recheck({ ids: queued.map(({ id }) => id) })).toEqual(queued.map(({ id }) => ({ id, ok: false, error: "not_found" })));
+    expect(existsSync(pasted.attachment.path)).toBe(true);
+  } finally { rmSync(tmp, { recursive: true, force: true }); }
+});
+// Edit and resend replaces the draft whole, so the returned queue's ids it held go with it.
+test("Edit and resend over a taken returned queue releases its held ids after removing them", async () => {
+  const h = harness();
+  histories.set(A, ended(A));
+  h.run.show(ROOT);
+  h.answer(ROOT, [summary(A, { phase: "running", working: true })]);
+  await flush();
+  const notes = { name: "notes.md", size: 2, kind: "file" as const, path: "/Users/ada/notes.md" };
+  const calls: string[] = [];
+  doan.recheckAttachments = vi.fn(async () => [{ id: "q-notes", ok: true, attachment: { id: "q-notes", ...notes, pasted: false } }]);
+  doan.removeAttachment = vi.fn(async (id: string) => { calls.push(`remove ${id}`); return true; });
+  doan.releaseAttachments = vi.fn(async (ids: string[]) => { calls.push(`release ${ids.join()}`); return true; });
+  doan.takeConversationDraft!.mockResolvedValueOnce({ text: "look", anchors: [], attachments: [notes], ids: ["q-notes"], reason: "stopped" });
+  h.answer(ROOT, [summary(A, { returnedDraft: true })]);
+  h.run.sync();
+  await flush(); await flush();
+  expect(h.run.drafts.get(`conversation:${A}`)?.attachments).toMatchObject([{ id: "q-notes", status: "ready" }]);
+  expect(await h.run.editAndResend(ROOT, A)).toBe(true);
+  await flush();
+  expect(textOf(h.run.drafts.get(`conversation:${A}`))).toBe("hi");
+  expect(calls).toEqual(["remove q-notes", "release q-notes"]);
 });
 
 // Attachment results follow their chip, wherever the draft went.

@@ -185,8 +185,9 @@ export class ConversationStore {
     this.unclaimed = this.unclaimed.filter(event => event.conversationId !== conversationId);
     this.host.changed();
   }
-  // Drafts whose key matches go (a removed project's).
+  // Drafts whose key matches go (a removed project's), with the returned queue's ids they held.
   dropDrafts(drop: (key: string) => boolean): void {
+    for (const [key, draft] of this.drafts) if (drop(key)) dropHeld(draft);
     this.drafts = new Map([...this.drafts].filter(([key]) => !drop(key)));
   }
   // The typed text, composition included, follows into another draft; the field element stays the same, so focus and
@@ -243,6 +244,7 @@ export class ConversationStore {
       for (const attachment of restored.attachments) if (attachment.id) void window.doan.removeAttachment(attachment.id).catch(() => false);
       return false;
     }
+    dropHeld(before);
     this.setDrafts(drafts => new Map(drafts).set(key, restored));
     return true;
   }
@@ -321,7 +323,7 @@ export class ConversationStore {
       const returned = await draftFrom(reply.text, reply.anchors, reply.attachments, reply.ids);
       this.taking.delete(conversationId);
       if (this.deletedIds.has(conversationId)) {
-        for (const attachment of returned.attachments) if (attachment.id) void window.doan.removeAttachment(attachment.id).catch(() => false);
+        for (const attachment of returned.attachments) dropAttachment(attachment);
         return;
       }
       const key = `conversation:${conversationId}`;
@@ -351,6 +353,17 @@ export function steerPhaseOf(events: readonly ConversationEvent[] | null, summar
   if (!ended && summary?.phase === "running") return "running";
   return summary?.working ? "holding" : "ended";
 }
+// A chip leaving a conversation draft gives its file back to main. A held id is released after the remove, which put it
+// back aside as sent; a pasted file stays on disk under its sent marker.
+export function dropAttachment(attachment: AttachmentDraft): void {
+  const id = attachment.id; if (!id) return;
+  const removed = window.doan.removeAttachment(id);
+  void (attachment.held ? removed.then(() => window.doan.releaseAttachments([id])) : removed).catch(console.error);
+}
+// A draft dropped whole releases the ids a returned queue handed it.
+function dropHeld(draft: DockedDraft | undefined): void {
+  for (const attachment of draft?.attachments ?? []) if (attachment.held) dropAttachment(attachment);
+}
 const emptyDraft = (draft: DockedDraft) => draft.segments.length === 0 && !draft.preset && draft.attachments.length === 0;
 
 // A request read back into a draft: the preset line becomes the chip, and recorded files are issued again from their
@@ -369,7 +382,7 @@ export async function draftFrom(text: string, anchors: readonly Anchor[], record
     const key = crypto.randomUUID(), id = held[i];
     if (id) {
       const result = rechecked?.find(item => item.id === id);
-      return result?.ok ? readyAttachment(key, result.attachment) : { ...recordedAttachment(key, record), id, ...(result?.error === "replaced" ? { status: "replaced" as const } : {}) };
+      return { ...result?.ok ? readyAttachment(key, result.attachment) : { ...recordedAttachment(key, record), id, ...(result?.error === "replaced" ? { status: "replaced" as const } : {}) }, held: true };
     }
     const { chip, release } = issuedAttachment(key, record, issued?.[next++]);
     if (release) void window.doan.removeAttachment(release).catch(() => false);

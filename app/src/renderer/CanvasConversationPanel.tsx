@@ -24,7 +24,7 @@ import { GroupIcon, SuggestionLabel, type CanvasPress } from "./ComposerParts";
 import { ConversationDeleteItem, type DeleteTarget } from "./ConversationDeleteDialog";
 import { ConversationHead } from "./ConversationLine";
 import { ConversationThread, LOADING_DELAY_MS, type ConversationThreadHandle, type LocateOutcome } from "./ConversationThread";
-import { steerPhaseOf, type ConversationStore, type ListView, type QueuedMessage } from "./conversationStore";
+import { dropAttachment, steerPhaseOf, type ConversationStore, type ListView, type QueuedMessage } from "./conversationStore";
 import type { PanelArrival } from "./rightPanelOpen";
 import { copyText } from "./copyText";
 import { contextRing } from "./contextWindow";
@@ -485,7 +485,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
         presets={support.presets} suggested={suggestedPresets(props.entry, presets)}
         onPresetsOpen={() => { if (support.presets && !support.presets.ok) support.readPresets(); }} onPresetsRetry={() => support.readPresets()}
         thumbnails={support.thumbnails} onAttach={chooseFiles} onFiles={addFiles}
-        onAttachmentRemoved={attachment => { if (attachment.id) void window.doan.removeAttachment(attachment.id).catch(console.error); }}
+        onAttachmentRemoved={dropAttachment}
         turn={conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle"} busy={busy} canvasGone={false} context={thread ? contextRing(thread.events) : null}
         unavailable={props.blocked} locked={props.blocked !== null} held={view.kind === "wait" || (newView?.start.pending ?? false)} fixed={fixed}
         refuse={refuse} onStartNew={startNewAfterRefusal}
