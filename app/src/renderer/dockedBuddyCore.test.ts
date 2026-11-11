@@ -225,6 +225,57 @@ test("folding hides at once, then the buddy appears on the toolbar; unfolding re
   r.until(out => out.surface === "dock" && out.presence === "shown");
 });
 
+test("priority: no floor beats a step-aside reason; the reason still keeps the buddy off the dock", () => {
+  const r = rig();
+  r.run(.2);
+  r.set({ reasons: { queue: true } });
+  r.until(out => out.surface === "tools" && out.presence === "shown");
+  r.set({ tools: { width: SIZE - 1 } });
+  expect(r.step()).toMatchObject({ presence: "hidden", conceal: 1 });
+  expect(r.run(2).every(frame => frame.conceal === 1)).toBe(true);
+  r.set({ reasons: { queue: false } });
+  r.until(out => out.surface === "dock" && out.presence === "shown");
+});
+
+test("priority: no floor beats a folded panel; the fold still keeps the buddy off the dock", () => {
+  const r = rig();
+  r.run(.2);
+  r.set({ panel: { folded: true } });
+  r.until(out => out.surface === "tools" && out.presence === "shown");
+  r.set({ tools: { present: false } });
+  expect(r.step()).toMatchObject({ presence: "hidden", conceal: 1 });
+  expect(r.run(2).every(frame => frame.conceal === 1)).toBe(true);
+  r.set({ panel: { folded: false } });
+  r.until(out => out.surface === "dock" && out.presence === "shown");
+});
+
+test("priority: no floor beats an idle trip; a long rest never takes the buddy to a dock without a floor", () => {
+  const r = rig({ ...CANVAS, surfaces: { dock: { ...DOCK, width: SIZE - 1 }, tools: TOOLS }, resting: true });
+  expect(r.run(130).every(frame => frame.surface === "tools")).toBe(true);
+});
+
+test("priority: a floating element beats a folded panel and keeps the buddy down on the toolbar", () => {
+  const r = rig();
+  r.run(.2);
+  r.set({ panel: { folded: true } });
+  r.until(out => out.surface === "tools" && out.presence === "shown");
+  r.set({ tools: { floating: true } });
+  r.until(out => out.conceal === 1);
+  expect(r.run(2).every(frame => frame.surface === "tools" && frame.presence === "hidden")).toBe(true);
+  r.set({ tools: { floating: false } });
+  expect(r.until(out => out.presence === "shown").surface).toBe("tools");
+});
+
+test("priority: a floating element beats an idle trip, even on the other surface", () => {
+  const r = rig({ ...CANVAS, surfaces: { dock: DOCK, tools: { ...TOOLS, floating: true } }, resting: true });
+  expect(r.run(130).every(frame => frame.surface === "dock" && frame.presence === "shown")).toBe(true);
+});
+
+test("priority: a step-aside reason beats an idle trip and holds the buddy on the toolbar through a long rest", () => {
+  const r = rig({ ...CANVAS, reasons: { queue: true, prompts: false, waiting: false }, resting: true });
+  expect(r.run(130).every(frame => frame.surface === "tools" && frame.presence === "shown")).toBe(true);
+});
+
 test("a folded panel holds the buddy on the toolbar through a long rest", () => {
   const r = rig({ ...CANVAS, panel: { folded: true, folding: false }, resting: true });
   expect(r.run(130).every(frame => frame.surface === "tools")).toBe(true);
