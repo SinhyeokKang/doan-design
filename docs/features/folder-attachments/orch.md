@@ -13,6 +13,8 @@
 | D2 | 작업 2(초안) | 완료·사용자 확정. 다시 하지 않는다(lead 지시). lead의 `b46bc5d0` 아이콘 정렬 수정이 측정 기준 초안에 포함된다 |
 | D3 | 작업 6 문서 승격 | 지휘자 판단 — orchestrate §5에 따라 지휘자가 문서별 커밋으로 수행한다 |
 | D4 | 터미널 세션 이어하기의 Attach 비활성 툴팁 | 사용자 답: `Attachments can’t be added to a terminal session`으로 바꾼다. S에 전달했다 |
+| D5 | 리뷰 R1: 재시작을 건넌 같은 경로의 다른 폴더 구분 | 사용자 답: 종류만 유지한다. 재시작·복원 때는 종류가 다르면 거부하고 같은 종류면 새로 첨부한 것으로 본다. 저장 형식은 바꾸지 않는다. 같은 실행 안의 큐 반환은 기존 정체성을 유지한다 |
+| D6 | 제공자 로그인 | 사용자가 격리 앱에서 Claude Code·Codex·Cursor와 Antigravity·Copilot 중 하나 이상에 로그인했다. 연결 여부는 S가 Settings > Agents에서 확인한다 |
 
 ## 배치
 
@@ -20,8 +22,9 @@
 |---|---|---|---|---|---|---|
 | P | 작업 1 중 구현 전 PoC: 선택창 파일·폴더 혼합 선택, Finder 폴더 드롭·붙여넣기가 renderer/main에 주는 형식, 제공자별 경로 전달 방식 조사 | `.scratch/`, `docs/features/folder-attachments/poc.md`(신규) | 없음 | Claude Opus high — 실제 GUI 입력과 격리·클립보드 보존 판단이 필요하다 | 격리 dev 앱 또는 Electron PoC, `app/runtime/` 클립보드 보존 | 통합 `7754acd8`, 워커 해제 |
 | B | 작업 3·4: fixture·타입·순수 함수 테스트, main 검사·재검사·제공자 전달, 세 입력창 | `app/src/**`, `app/runtime/` 제외 | P 결과(Finder 붙여넣기 형식)는 후속 Task로 반영 | Claude Opus high — main/renderer를 가로지르고 경로 정체성 재검사가 보안 경계다 | `npm --prefix app test`, typecheck, lint, 짧은 격리 앱 probe | 통합 `0143f12c`·`bbca2df8`, 워커 해제 |
-| R | B(와 S 수정)의 `/code-review` | 보고만 | B | Codex Astra medium — 다른 계열의 독립 검토로 구현자 시각에 묶이지 않게 한다 | 🔴 0 | 진행 중 (`fa-review`) |
+| R | B(와 S 수정)의 `/code-review` | 보고만 | B | Codex Astra medium — 다른 계열의 독립 검토로 구현자 시각에 묶이지 않게 한다 | 🔴 0 | 완료: 🔴 0, 🟡 3(R1–R3). 보고서 사본 `.scratch/orch/review-R.md`, 워커 해제 |
 | S | 작업 5와 작업 1의 구현 후 probe: `/design-sync`, `/runtime-test`, 검증표의 Finder 입력·제공자 실제 읽기(D1) | `app/src/renderer/**` 수정, `docs/DESIGN.md`, `.scratch/` | B 통합 | Claude Opus high — 실측 비교와 실제 앱 probe, 사용자 로그인 조율이 필요하다 | verify.mjs, 격리 앱 probe | 진행 중 (`fa-impl` 워크트리, 새 Opus 세션: B 터미널 재사용이 `agent_unconfigured`로 거부됐다) |
+| F1 | R1–R3 수정(`/refactor`) | `app/src/**` | S 완료 | Claude Opus high — 같은 소유자(S 세션)가 맥락을 이어 받는다 | test·typecheck·lint·verify.mjs | 대기 |
 | 6 | 작업 6 문서 승격·기능 디렉터리 삭제 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/features/folder-attachments/` | S·R 완료 | 지휘자 | 완료 조건별 증거 대조 | 대기 |
 
 ## 겹침과 순서
