@@ -1263,7 +1263,7 @@ export class CanvasController {
     if (event.key !== "Escape" || event.isComposing || event.keyCode === 229 || (event.defaultPrevented && !tooltipOnly)) return;
     // Esc while picking cancels only the pick, wherever focus is: the composer, the canvas or the panel. Menus and
     // the `/` list handle their Esc first and prevent it.
-    const step = this.escape(editableTarget(event.target));
+    const step = this.escape(editableTarget(event.target), event.repeat);
     if (step === "cancelPick" || step === "cancelCapture" || step === "selectTool") event.preventDefault();
   };
 
@@ -1290,13 +1290,14 @@ export class CanvasController {
     this.tooltipEscape = null;
   }
 
-  // Esc's next step; `editable`: it came from a text field. Returns the step.
-  private escape(editable: boolean): ReturnType<typeof escapeStep> {
+  // Esc's next step; `editable`: it came from a text field. Returns the step. A held Esc's auto-repeat (`repeat`) takes
+  // no Select step, so one press steps back one level (PRODUCT §5 item 4) instead of walking the selection all the way out.
+  private escape(editable: boolean, repeat = false): ReturnType<typeof escapeStep> {
     const step = escapeStep({ picking: this.state.picking, capturing: this.state.capturing, hand: this.canvasPage && (this.pendingTool ?? this.tool) === "hand", editable });
     if (step === "cancelPick") this.cancelPick();
     else if (step === "cancelCapture") this.cancelCapture();
     else if (step === "selectTool") { this.toolChosen = true; this.applyTool("select"); }
-    else if (step === "stepSelection") this.stepOnEscape();
+    else if (step === "stepSelection" && !repeat) this.stepOnEscape();
     return step;
   }
 

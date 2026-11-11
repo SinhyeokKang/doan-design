@@ -861,7 +861,8 @@ export function canvasScript(lib: CanvasLib): void {
         setPicking(null);
         return;
       }
-      if (!editable(event.target)) postSelection("key", { key: "Escape" });
+      // The app takes one Select step per forwarded Esc, so a held Esc's auto-repeats are not forwarded.
+      if (!editable(event.target) && !event.repeat) postSelection("key", { key: "Escape" });
     },
     { capture: true },
   );
