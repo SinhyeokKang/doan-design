@@ -26,7 +26,7 @@ function rowNotice(row: CanvasRow): string | null {
 // the canvas the page shows carries one only while its read state could not be saved: otherwise it counts as seen, so
 // the dot never blinks before main hears of it, and a failure never hides a dot that is still unread. A notice behind a
 // conversation state or the row menu is still there when that goes. Notices go in newest-changed first, so a project row
-// standing for several (`projectSlotEntry`) names the most recent.
+// standing for several (`projectSlot`) names the most recent.
 export function sidebarSlots(conversations: ReadonlyMap<string, Slot>, entries: readonly FolderEntry[], shown: { root: string; path: string } | null): Map<string, SidebarSlot> {
   const notices: { key: string; mtimeMs: number; slot: SidebarSlot }[] = [];
   for (const entry of entries) {
