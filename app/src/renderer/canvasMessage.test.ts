@@ -371,6 +371,13 @@ describe("parseCanvasMessage: select", () => {
     expect(parseCanvasMessage({ type: "clear", href: HREF, seq: 3, viewport: 150, answer: "select-anchor" })).toEqual({ type: "clear", href: HREF, seq: 3, viewport: 150 });
   });
 
+  // Esc's step back answers with the frame around the selection or, past the outermost frame, a clear.
+  test("keeps an Esc step's answer on a select and on a clear", () => {
+    expect(parseCanvasMessage(select({ answer: "select-parent" }))).toHaveProperty("answer", "select-parent");
+    expect(parseCanvasMessage({ type: "clear", href: HREF, seq: 3, viewport: 150, answer: "select-parent" })).toEqual({ type: "clear", href: HREF, seq: 3, viewport: 150, answer: "select-parent" });
+    for (const answer of ["", 1, null, true, "pick-frame"]) expect(parseCanvasMessage({ type: "clear", href: HREF, seq: 3, viewport: 150, answer })).toEqual({ type: "clear", href: HREF, seq: 3, viewport: 150 });
+  });
+
   test("keeps an element without doanId, truncated or text", () => {
     const element = { selector: "body > p:nth-of-type(1)", html: "<p></p>" };
     expect(parseCanvasMessage(select({}, { element }))).toHaveProperty("target.element", element);
