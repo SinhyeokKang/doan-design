@@ -44,3 +44,10 @@
 - **A 통합**: `c830e99b`..`f113420a`(cherry-pick 7개). 통합 HEAD에서 두 golden `--check` 0, typecheck 0, dockedBuddy 테스트 79개 통과. bdm-a worktree 삭제, 브랜치 `SinhyeokKang/bdm-a`(`f4528051`)는 로컬·원격에 남김.
 - B 시작(`ctx_d4926c34f8c6`, worktree `bdm-b`, Opus high).
 - lead 알림: PR #166이 `closeToolbarTooltip`을 `forwardEscape`로 바꾼다. B에 그 메서드와 non-bubbling Esc에 기대지 말라고 전했다. #166 병합 뒤 lead 지시로 origin/develop을 병합한다.
+- B 완료(`31fa5976`, `6bc4b9d0`, `1076336b`, `111701d4`, 미통합): 셸·연결·design-sync. 테스트 10316개, design-sync 300행 불일치 0(근거 `bdm-b/.scratch/design-sync/buddy-docked/`).
+- RB(Opus high) 완료: 🔴 0, 🟡 4(Select 도구에서 툴바 버디 클릭이 보드로 감, Jump to latest 위에 그려짐, 텍스처 전 컨텍스트 손실, 매 프레임 문서 전체 querySelectorAll), ⚪ 7. 근거 `.scratch/review-B.md`.
+- 사용자 결정 A: 터미널 세션 패널은 docked 카드가 입력을 받으므로 버디가 카드에 선다(spec 결정 9의 "터미널 세션 패널" 문구는 task 10에서 고친다).
+- 사용자 결정 B: 캔버스 패널의 ResumeChoice 카드와 Overview의 moved 안내도 추천 프롬프트처럼 비켜줄 이유다.
+- 쉼 판정은 PRODUCT §5 item 2 'Following'의 쉼(보드 위 포인터·타이핑 포함)을 그대로 쓴다. design의 "보드 위 포인터는 렌더러가 보지 못한다"는 사실과 달라 task 10에서 버린다(RB ⚪6, conductor 판단).
+- B2 시작(`ctx_8197f6d0132b`): 🟡 1–4, 결정 B, ⚪ 1–5.
+- B2 완료(`7eea201d`, `c5940643`): clip-path 실루엣 히트 요소, Jump to latest z 3, 손실 뒤 텍스처, 떠 있는 요소 목록 캐시, ⚪1·3·4·5, 결정 B(`data-notice`). 테스트 10319개, design-sync 재측정 305행 불일치 0. ⚪4는 사람 입력 뒤 1초 안의 스크롤만 쉼을 끝낸다(conductor 판단 — PRODUCT의 쉼은 사람의 움직임만 센다).
