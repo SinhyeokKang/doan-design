@@ -27,6 +27,7 @@ import { draftKey, EMPTY_DRAFT } from "./dockedRules";
 import type { OpenAsk, OpenLinkResult, OpenResult } from "../main/deepLinks";
 import type { HandoffNotice } from "../main/conversation/handoff";
 import type { MenuCommand, ViewCommand } from "../main/index";
+import { useControlFocusRecovery } from "./canvasControlFocus";
 import { CanvasController, CanvasViewStore, canvasViewFields, initialCanvasState, viewOnlyChange, type CanvasState, type CanvasWorkTarget, type PickResult } from "./CanvasController";
 import { CanvasHeader } from "./CanvasHeader";
 import { CanvasTools, type CaptureTool, type ExportTool, type PickerTool } from "./CanvasTools";
@@ -34,7 +35,6 @@ import { AlertIcon } from "./AlertIcon";
 import { noticeToast } from "./selection";
 import { CanvasAgent } from "./CanvasAgent";
 import { workingCanvas, type WorkingCanvas } from "./agentIndicator";
-import { controlFocusLost } from "./canvasFocus";
 import { projectNames } from "./projectRow";
 import { ArrowLeft, ArrowRight, Crosshair, Plus, Scan, Settings, LayoutGrid, MessageCircle, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { Home } from "./Home";
@@ -2260,28 +2260,7 @@ function CanvasPane({ viewport, board, overlay, dragLayer, state, view, command,
   picking: boolean; capturing: boolean; tool: CanvasState["tool"]; onTool(tool: CanvasState["tool"]): void; picker: PickerTool; capture: CaptureTool; exporter: ExportTool;
 }) {
   const panel = useRef<HTMLDivElement>(null);
-  const lastFocus = useRef<HTMLElement | null>(null);
-  useEffect(() => {
-    const track = (event: FocusEvent) => {
-      const target = event.target instanceof HTMLElement ? event.target : null;
-      const control = target?.matches('button, [role="option"], [role="menuitem"]') && (panel.current?.contains(target) || target.closest(".doan-frame-list, .doan-zoom-menu"));
-      lastFocus.current = control ? target : null;
-    };
-    document.addEventListener("focusin", track);
-    return () => document.removeEventListener("focusin", track);
-  }, []);
-  // A canvas control that vanished or turned disabled under focus hands it to the canvas region, not the page.
-  // Checked a task later, after a closing Radix menu has tried its trigger.
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      const last = lastFocus.current, active = document.activeElement;
-      if (!controlFocusLost({ last: last && { connected: last.isConnected, disabled: last.matches(":disabled") }, covered,
-        activeLost: !active || active === document.body || !active.isConnected, activeIsLast: !!last && active === last })) return;
-      lastFocus.current = null;
-      viewport.current?.focus();
-    }, 0);
-    return () => clearTimeout(timer);
-  });
+  useControlFocusRecovery(panel, viewport, covered, view);
   const canvasKey = state.open ? JSON.stringify([state.open.folder, state.open.canvas]) : null;
   // Stays laid out under the Overview: opening a canvas fits it to this size at once.
   return <div className="doan-canvas-panel" ref={panel} inert={covered}>
