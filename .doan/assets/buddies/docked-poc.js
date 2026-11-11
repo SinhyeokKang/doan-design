@@ -123,7 +123,7 @@
     const message=host.closest('.docked').querySelector('.composer-input');
     const send=null;
     const buttons=frame.querySelectorAll('[data-poc-action]');
-    let walkX=-12, direction=1, forced='walk', focusUntil=0;
+    let walkX=16, direction=1, forced='walk', focusUntil=0;
     const tempo=host.dataset.buddyPreview==='puri'?1.12:1;
     let motion=null, nextMove=1.8+Math.random(), stepsLeft=0, requestedJump=false, nextHop=13+Math.random()*7;
     let bodyLean=0;
@@ -132,8 +132,8 @@
     function beginMove(big=false){
       const max=trackMax();
       const stride=(big?0:8+Math.random()*4)*direction;
-      if(!big && (walkX+stride>max || walkX+stride< -12))direction*=-1;
-      const target=big?walkX:Math.max(-12,Math.min(max,walkX+Math.abs(stride)*direction));
+      if(!big && (walkX+stride>max || walkX+stride< -2))direction*=-1;
+      const target=big?walkX:Math.max(-2,Math.min(max,walkX+Math.abs(stride)*direction));
       motion={start:state.time,from:walkX,to:target,big,prepare:(big?.2:.14)*tempo,flight:(big?.42:.28)*tempo,settle:.22*tempo};
     }
     function pose(){
@@ -151,7 +151,7 @@
     const dock=host.closest('.docked');
     const shadow=document.createElement('span');shadow.className='poc-contact-shadow';ground.prepend(shadow);
     let drop=null;
-    const trackMax=()=>Math.max(-12,ground.clientWidth-52);
+    const trackMax=()=>Math.max(-2,ground.clientWidth-52);
     function mountGround(){
       const surface=dock.querySelector('.queue-item') || dock.querySelector('.composer-card');
       if(ground.parentElement===surface)return;
@@ -242,12 +242,18 @@
           if(requestedJump){beginMove(true);requestedJump=false;nextHop=t+16+Math.random()*9;}
           else if(focus==='walk' && t>=nextMove){
             if(t>=nextHop){beginMove(true);nextHop=t+16+Math.random()*9;stepsLeft=0;}
-            else {if(stepsLeft===0)stepsLeft=2+Math.floor(Math.random()*2);beginMove();stepsLeft--;}
+            else {
+              if(stepsLeft===0){
+                stepsLeft=2+Math.floor(Math.random()*2);
+                direction=Math.random()<.5?-1:1;
+              }
+              beginMove();stepsLeft--;
+            }
           }
           else if(focus!=='walk'){stepsLeft=0;nextMove=t+1.1;}
         }
         const max=trackMax();
-        walkX=Math.max(-12,Math.min(max,walkX));
+        walkX=Math.max(-2,Math.min(max,walkX));
         let fall=0;
         if(drop){
           const u=Math.min(1,(t-drop.at)/.38);
@@ -255,8 +261,9 @@
           if(u===1)drop=null;
         }
         host.style.transform=`translate(${walkX}px,${fall}px)`;
-        const airborne=Math.max(0,Math.min(1,pose().lift/.18+Math.abs(fall)/40));
-        shadow.style.transform=`translateX(${walkX+26}px) scaleX(${1-airborne*.45})`;
+        const height=motion?.big?.18:.075;
+        const airborne=Math.max(0,Math.min(1,pose().lift/height+Math.abs(fall)/40));
+        shadow.style.transform=`translateX(${walkX+26}px) scale(${1-airborne*(motion?.big?.6:.45)},${1-airborne*.3})`;
         shadow.style.opacity=String(.24-airborne*.14);
         // Eyes lead a new direction; the body follows softly and only moves during a hop.
         let x=focus==='input'?.08:focus==='thread'?0:motion || nextMove-t<.45?direction*.55:direction*.12;
