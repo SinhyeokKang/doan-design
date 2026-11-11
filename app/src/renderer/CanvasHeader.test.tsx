@@ -20,6 +20,14 @@ const button = (markup: string, label: string) => markup.match(new RegExp(`<butt
 
 describe("CanvasHeader", () => {
   // App skips its render for view-only publishes, so its state can hold an older zoom and frame than the view store.
+  // A frame inserted before the current one moves its index and the layout in one publish; the header drawn by that
+  // render names the same frame.
+  it("names the current frame from one layout and index when both changed together", () => {
+    const inserted = [{ id: "intro", title: "Intro", x: 0, y: 0, width: 1280, height: 800 }, ...frames.map(frame => ({ ...frame, y: frame.y + 900 }))];
+    const state = opened({ layout: layout({ frames: inserted, height: 3600, viewport: 3600 }), currentFrame: 3 });
+    const markup = html(state, undefined, canvasViewFields(state));
+    expect(button(markup, "Frame 4: Payment")).toContain('title="4. Payment"');
+  });
   it("reads the current frame and zoom from the view store", () => {
     const markup = html(opened({ currentFrame: 2, zoom: 64, scale: 0.64 }), undefined, { currentFrame: 0, zoom: 125, scale: 1.25 });
     expect(button(markup, "Frame 1: Cart")).toContain('title="1. Cart"');
