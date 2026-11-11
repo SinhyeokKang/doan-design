@@ -71,8 +71,10 @@
      - Overview에서 대기 중 이동은 같은 입력창
      - 활동하면 쉬는 타이머가 다시 시작됨
      - 다시 보인 직후 큰 `dt`
+     - 클릭(`poke`): 다른 표면으로 감, 갈 곳이 없으면 같은 표면의 새 x, 숨는 중이나 나타나는 중의 클릭은 무시, reduced motion에서 즉시 반영
    - 셰이더 소스: 다섯 버디 각각 golden 소스와 바이트 단위로 같다. anchor가 없거나 두 번 나오면 예외를 던진다.
    - 겹침 판정: 겹침, 맞닿음, 떨어짐, 빈 목록.
+   - 실루엣 클릭 판정: 불투명한 픽셀, 투명한 가장자리, 상자 밖, shown이 아닐 때.
    - 확인: 새 테스트가 red다. 기존 `doanyMotion.test.ts`, `doanyRender.test.ts`, `Doany.test.tsx`는 녹색이다.
    - 커밋 경계: `test:` 커밋(red).
 4. [ ] **순수 함수 구현(`/implement`).**
@@ -116,6 +118,7 @@
        - 슬롯이 `position: absolute`다.
        - 스레드 아래 padding이 32px다.
      - 정적 마크업 테스트: 버디가 `aria-hidden`이고 tabindex가 없다.
+     - 클릭 테스트: 몸을 클릭하면 `poke`가 들어가고, 투명한 가장자리를 클릭하면 아래 요소가 받는다.
      - 기존 `DockedComposer*.test.tsx`, `CanvasTools.test.tsx`, `ProjectOverview*.test.tsx`가 녹색이다.
    - 커밋 경계.
 7. [ ] **초안과 맞추기(`/design-sync`).** 1번 초안을 기준으로 computed style을 비교한다.
@@ -134,6 +137,7 @@
    - 패널 접기·펴기와 폭 줄이기
    - 겹치는 떠 있는 요소가 열린 동안 숨기: picking 안내 문구, 모델 피커, 툴바 툴팁
    - Capture area PNG에 버디가 없음
+   - 버디 몸 클릭으로 입력창↔툴바 이동, Overview에서 같은 입력창의 새 x, 투명한 가장자리 아래 스레드 글자 선택
    - 사라진 캔버스와 목록에 없는 캔버스에서 툴바에 섬
    - 문제 오버레이, 버디 화면, 첫 실행이 workspace를 덮는 동안 그리지 않음
    - 창 최소화 중 rAF 없음, 앱 창이 포커스를 잃으면 대기 중 이동 없음
