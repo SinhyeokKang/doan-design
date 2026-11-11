@@ -16,6 +16,7 @@
 6. 브라우저 비교 방법(tasks 2 미정, 사용자): Export HTML은 Playwright `_electron`으로 앱과 같은 Electron 45 창에서 연다. 엔진이 같아 차이가 앱 경로와 Export 경로 중 어디인지 바로 가른다.
 7. `/agent-eval`: conductor 판단 — 체인 파일 운영 메모. `cli/internal/export/viewer/`를 바꾸면 마지막 통합 전에 실행하고, 바꾸지 않으면 실행하지 않는다.
 8. GPU 부하 측정(사용자): P가 끝나면 같은 워커에 후속 Task(P2)로 GPU 부하 조건 측정을 보낸다. 같은 동작을 무부하·CPU `yes` 부하·GPU 부하에서 재어, 빈 영역이 GPU 래스터 처리량에 묶였는지 가른다.
+9. 최초 렌더링 잘림의 확실한 관측(사용자): `partner-member-search-flow`의 Export HTML을 데스크톱 Chrome에서 열었을 때다. P에 실제 Chrome(설치된 157.0.8103.40, 임시 프로필) 재현을 추가했다. 결정 6의 같은 Electron 비교는 유지한다.
 
 ## 배치
 
