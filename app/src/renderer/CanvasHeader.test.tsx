@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { CanvasRow } from "../main/view";
 import type { LayoutMessage } from "./canvasMessage";
 import { CanvasHeader } from "./CanvasHeader";
-import { initialCanvasState, type CanvasState } from "./CanvasController";
+import { CanvasViewStore, canvasViewFields, initialCanvasState, type CanvasState, type CanvasViewFields } from "./CanvasController";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { CONVERSATION_PANEL_ID } from "./ConversationPanel";
 
@@ -15,10 +15,18 @@ const frames = ["Cart", "Shipping", "Payment"].map((title, index) => ({ id: titl
 const layout = (over: Partial<LayoutMessage> = {}): LayoutMessage => ({ type: "layout", href: row.url, height: 2700, viewport: 2700, frames, truncated: false, ...over });
 const opened = (over: Partial<CanvasState> = {}): CanvasState => ({ ...initialCanvasState(), open: { folder: "/repo", canvas: row.path, row }, shown: row.path, status: null, message: "", hasFrame: true, layout: layout(), currentFrame: 2, zoom: 64, scale: 0.64, ...over });
 
-const html = (state: CanvasState, panel?: { open: boolean; show(): void; badge?: OpenBadge | null }) => renderToStaticMarkup(<TooltipProvider>{<CanvasHeader state={state} command={vi.fn()} zoomTo={vi.fn()} selectFrame={vi.fn()} {...(panel ? { panel } : {})} /> as ReactElement}</TooltipProvider>);
+const html = (state: CanvasState, panel?: { open: boolean; show(): void; badge?: OpenBadge | null }, view: CanvasViewFields = canvasViewFields(state)) => renderToStaticMarkup(<TooltipProvider>{<CanvasHeader state={state} view={new CanvasViewStore(view)} command={vi.fn()} zoomTo={vi.fn()} selectFrame={vi.fn()} {...(panel ? { panel } : {})} /> as ReactElement}</TooltipProvider>);
 const button = (markup: string, label: string) => markup.match(new RegExp(`<button[^>]*aria-label="${label}"[^>]*>`))?.[0] ?? "";
 
 describe("CanvasHeader", () => {
+  // App skips its render for view-only publishes, so its state can hold an older zoom and frame than the view store.
+  it("reads the current frame and zoom from the view store", () => {
+    const markup = html(opened({ currentFrame: 2, zoom: 64, scale: 0.64 }), undefined, { currentFrame: 0, zoom: 125, scale: 1.25 });
+    expect(button(markup, "Frame 1: Cart")).toContain('title="1. Cart"');
+    expect(markup).toContain("Zoom 125%, zoom options");
+    expect(markup).not.toContain("Zoom 64%");
+  });
+
   it("reads canvas / frame and shows the zoom controller", () => {
     const markup = html(opened());
     expect(markup).toMatch(/<span class="doan-canvas-name" title="\.doan\/canvases\/checkout\.html">.*<span>checkout<\/span><\/span><span class="ov-sep" aria-hidden="true">\/<\/span>/);

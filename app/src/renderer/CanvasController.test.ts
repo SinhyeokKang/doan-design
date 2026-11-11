@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { InspectResult, InspectRow } from "../main/inspect";
 import type { FolderEntry } from "../main/view";
-import { CanvasController, initialCanvasState, MEASURE_ANSWER_MS } from "./CanvasController";
+import { CanvasController, CanvasViewStore, canvasViewFields, initialCanvasState, MEASURE_ANSWER_MS, viewOnlyChange } from "./CanvasController";
 import { elementView, FIRST_LAYOUT_TIMEOUT_MS, FIT_INSET, fitFrame, fitWidth, screenToBoard } from "./viewport";
 import { unavailableCanvasMessage } from "./quickOpen";
 import { SELECTION_LOST } from "./selection";
@@ -5097,5 +5097,35 @@ describe("⌘ for the canvas's direct-selection hover", () => {
       h.host.dispatchEvent(keyEvent("keydown", "Escape", { metaKey: true }));
       expect(posted(h).at(-1)).toMatchObject({ type: "select-parent" });
     } finally { h.controller.dispose(); }
+  });
+});
+
+// A pan or zoom publishes a new zoom percent or current frame many times a second; only the header shows those, so App
+// must not re-render the whole page for them.
+describe("view-only publishes", () => {
+  const base = { ...initialCanvasState(), zoom: 64, scale: 0.64, currentFrame: 1 };
+  it("is view-only when just the zoom, scale or current frame changed", () => {
+    expect(viewOnlyChange(base, { ...base, zoom: 80, scale: 0.8 })).toBe(true);
+    expect(viewOnlyChange(base, { ...base, currentFrame: 2 })).toBe(true);
+    expect(viewOnlyChange(base, { ...base, scale: 0.6401 })).toBe(true);
+  });
+  it("is not view-only when anything else changed, or nothing did", () => {
+    expect(viewOnlyChange(base, { ...base, zoom: 80, picking: true })).toBe(false);
+    expect(viewOnlyChange(base, { ...base, currentFrame: 2, layout: null, status: "loading" })).toBe(false);
+    expect(viewOnlyChange(base, { ...base, activity: [...base.activity] })).toBe(false);
+    expect(viewOnlyChange(base, { ...base })).toBe(false);
+  });
+  it("the view store tells its subscribers only of a real change", () => {
+    const store = new CanvasViewStore(canvasViewFields(base));
+    const heard = vi.fn();
+    const stop = store.subscribe(heard);
+    store.set(canvasViewFields({ ...base }));
+    expect(heard).not.toHaveBeenCalled();
+    store.set(canvasViewFields({ ...base, currentFrame: 0 }));
+    expect(heard).toHaveBeenCalledTimes(1);
+    expect(store.get()).toEqual({ zoom: 64, scale: 0.64, currentFrame: 0 });
+    stop();
+    store.set(canvasViewFields({ ...base, zoom: 90, scale: 0.9 }));
+    expect(heard).toHaveBeenCalledTimes(1);
   });
 });
