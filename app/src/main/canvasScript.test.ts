@@ -463,6 +463,7 @@ interface FakeNode {
   getAttribute(name: string): string | null;
   hasAttribute(name: string): boolean;
   getBoundingClientRect(): { left: number; top: number; width: number; height: number };
+  querySelector(selector: string): FakeNode | null;
   blur(): void;
 }
 
@@ -490,6 +491,12 @@ function node(localName: string, attrs: Record<string, string> = {}, children: F
     getAttribute: (name) => self.attrs[name] ?? null,
     hasAttribute: (name) => name in self.attrs,
     getBoundingClientRect: () => self.rect,
+    // Only the `[attribute]` form the script uses on elements.
+    querySelector: (selector) => {
+      const attr = /^\[([a-z-]+)\]$/.exec(selector)?.[1];
+      if (attr === undefined) throw new SyntaxError(`unsupported selector ${selector}`);
+      return descendants(self).find((el) => el.hasAttribute(attr)) ?? null;
+    },
     blur() {
       self.blurred += 1;
     },
@@ -2076,6 +2083,49 @@ describe("canvasScript frame-first selection", () => {
     expect(lastSelection(canvas)).toBe("clear");
     click(canvas, button);
     expect(lastSelection(canvas)).toBe("a");
+  });
+
+  // A row or grid that lays frames out is the space between them: its own background clears like html or body.
+  test("a wrapper's own background around frames clears, with or without ⌘, and hovers nothing; a note beside it is selected", () => {
+    const button = node("button", {}, [], { rect: { left: 30, top: 30, width: 20, height: 10 } });
+    const a = node("section", { "data-doan-frame": "a" }, [button], { rect: { left: 10, top: 10, width: 100, height: 100 } });
+    const b = node("section", { "data-doan-frame": "b" }, [], { rect: { left: 130, top: 10, width: 100, height: 100 } });
+    const label = node("span", {}, [], { rect: { left: 250, top: 10, width: 40, height: 10 } });
+    const inner = node("div", {}, [a, b, label], { rect: { left: 0, top: 0, width: 300, height: 120 } });
+    const row = node("div", { class: "row" }, [inner], { rect: { left: 0, top: 0, width: 300, height: 120 } });
+    const note = node("aside", {}, [node("em")], { rect: { left: 10, top: 200, width: 50, height: 20 } });
+    const canvas = fakeCanvas({ readyState: "complete", body: node("body", {}, [row, note]) });
+    canvas.posted.length = 0;
+    const hover = () => ofType(canvas, "hover").at(-1)?.rect;
+    for (const wrapper of [row, inner]) {
+      click(canvas, button); click(canvas, button);
+      expect(lastSelection(canvas)).toBe("a>button");
+      click(canvas, wrapper);
+      expect(lastSelection(canvas)).toBe("clear");
+      click(canvas, button);
+      expect(lastSelection(canvas)).toBe("a");
+      click(canvas, wrapper, { metaKey: true });
+      expect(lastSelection(canvas)).toBe("clear");
+      canvas.fireWindow("pointermove", input({ target: b }));
+      canvas.runFrame();
+      expect(hover()).toEqual({ x: 130, y: 10, width: 100, height: 100 });
+      canvas.fireWindow("pointermove", input({ target: wrapper }));
+      canvas.runFrame();
+      expect(hover()).toBeNull();
+      canvas.fireWindow("pointermove", input({ target: wrapper, metaKey: true }));
+      canvas.runFrame();
+      expect(hover()).toBeNull();
+    }
+    expect(ofType(canvas, "select").map((m) => (m.target as { tag: string }).tag)).not.toContain("div");
+    // Outside every frame, what holds no frame is a note: selected at once, inside the wrapper or beside it.
+    click(canvas, label);
+    expect(lastSelection(canvas)).toBe("->span");
+    click(canvas, note);
+    expect(lastSelection(canvas)).toBe("->aside");
+    click(canvas, note.children[0]);
+    expect(lastSelection(canvas)).toBe("->em");
+    click(canvas, b);
+    expect(lastSelection(canvas)).toBe("b");
   });
 
   test("Esc steps back from the element to its frame, through the frames around it, then clears", () => {
