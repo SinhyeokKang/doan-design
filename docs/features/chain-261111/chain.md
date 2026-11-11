@@ -47,9 +47,11 @@ lead는 링크 1 시작 전에 아래를 사용자에게 한 번에 묻고, 승�
 
 | 링크 | 세션·worktree | 시작 | PR·병합 | 상태 |
 |---|---|---|---|---|
-| 1. `frame-first-selection` | | | | 대기 |
-| 2. `canvas-activity-notices` | | | | 대기 |
+| 1. `frame-first-selection` | `frame-first-selection-orch` (Claude conductor) | 2026-11-11, `b45ae233` | | 진행 중 |
+| 2. `canvas-activity-notices` | `canvas-activity-notices-orch` (Claude conductor) | 2026-11-11, `b45ae233` | | 진행 중 |
 
 ## 인계 기록
 
 - 2026-11-11 lead(develop checkout): 두 초안의 사용자 확정 뒤 체인 파일을 작성했다. `folder-attachments` 병합 뒤 시작 점검을 거쳐 두 링크를 함께 시작한다.
+- 2026-11-11 lead: `folder-attachments`가 병합됐다(PR #159, `b45ae233`). 시작 점검 승인: (1) 링크 2의 공유 메타데이터 계약은 PoC 근거로 conductor가 정하고 PR 본문에 남긴다. 사용자는 PR 검토 때 본다. (2) 링크 2의 대화 종료 말풍선은 격리 앱의 대화 기록 fixture로 확인한다. 로그인은 쓰지 않는다. 두 링크를 `b45ae233`에서 함께 시작했다.
+- 2026-11-11 lead: 에이전트 작업 중 프레임 하이라이트와 대화 입력창이 빠르게 깜빡이는 현상의 원인을 lead 쪽에서 따로 조사하고 있다. 수정이 링크 파일(`CanvasController.ts`, 캔버스 알림·대화 패널)에 걸리면 lead가 해당 conductor에게 알린다.
