@@ -159,6 +159,8 @@ export class CanvasController {
   private selectedRect: CanvasRect | null = null;
   private hoverRect: CanvasRect | null = null;
   private altHeld = false;
+  // Whether the canvas was last told ⌘ is down, so the app losing focus can take it back (⌘Tab sends no keyup).
+  private metaHeld = false;
   // The Escape a toolbar tooltip took, and whether anything after the tooltip handled it (toolbarEscape).
   private tooltipEscape: { event: KeyboardEvent; handledAfter: boolean } | null = null;
   private markHidden = false;
@@ -898,11 +900,11 @@ export class CanvasController {
   }
 
   // A click takes a seq at least the renderer's: it can win the race with a command still on its way and take that
-  // command's seq. A select-anchor reply names its command; a pick-frame reply has no name, so it is the frame the
-  // drawer asked for at that command's seq. The canvas never answers a clear.
+  // command's seq. A select-anchor or select-parent reply names its command; a pick-frame reply has no name, so it is
+  // the frame the drawer asked for at that command's seq. Of clears, only Esc's step past the outermost frame answers.
   private commandReply(message: Exclude<SelectionMessage, { type: "hover" | "key" }>): boolean {
-    if (message.type === "clear") return false;
     if (message.answer !== undefined) return true;
+    if (message.type === "clear") return false;
     const asked = this.pickFrameCommand;
     return asked !== null && message.seq === asked.seq && message.target !== null && message.target.element === undefined && message.target.frame?.id === asked.id;
   }
@@ -972,6 +974,17 @@ export class CanvasController {
   private clearOnEscape(): void {
     if (!shouldGuardEscape(this.state.selection, this.reanchor)) { this.transitionIntent++; return; }
     this.transition(() => this.escapeNow());
+  }
+
+  // Esc steps the selection back one level (PRODUCT §5 item 4). Only the canvas knows the frames around the selection,
+  // so it answers the step on the selection channel, and anything it sent before the step loses to the step's seq. A
+  // selection a reload is still looking for has no node to step from yet, so Esc clears it.
+  private stepOnEscape(): void {
+    if (this.state.selection === null || this.reanchor !== null) { this.clearOnEscape(); return; }
+    this.transition(() => {
+      this.personActive(true);
+      this.sendCommand({ type: "select-parent" });
+    });
   }
 
   // Escape and a click on the board's margin: the person's deselect, which stops following in a work turn.
@@ -1235,6 +1248,11 @@ export class CanvasController {
       this.drawMarks();
       return;
     }
+    if (event.key === "Meta") {
+      // Every press, not only a change: a release inside a focused canvas never reaches the app.
+      if (!event.repeat) this.setMeta(true);
+      return;
+    }
     const shortcut = toolShortcut(event, { canvasPage: this.canvasPage });
     if (shortcut !== null) { if (this.shortcut(shortcut, false)) event.preventDefault(); return; }
     // A held Space's repeats keep its default (scrolling, pressing) off too.
@@ -1277,7 +1295,7 @@ export class CanvasController {
     if (step === "cancelPick") this.cancelPick();
     else if (step === "cancelCapture") this.cancelCapture();
     else if (step === "selectTool") { this.toolChosen = true; this.applyTool("select"); }
-    else if (step === "clearSelection") this.clearOnEscape();
+    else if (step === "stepSelection") this.stepOnEscape();
     return step;
   }
 
@@ -1302,15 +1320,24 @@ export class CanvasController {
   private keyup = (event: KeyboardEvent): void => {
     const shortcut = toolShortcut(event, { canvasPage: this.canvasPage });
     if (shortcut !== null) { if (this.shortcut(shortcut, false)) event.preventDefault(); return; }
+    if (event.key === "Meta") { this.setMeta(false); return; }
     if (event.key !== "Alt") return;
     this.altHeld = false;
     this.sendHoverCommand({ type: "hover-alt", alt: false });
     this.drawMarks();
   };
 
+  // ⌘ goes on the hover channel: it changes only what the canvas's hover shows, never a selection command's seq.
+  private setMeta(down: boolean): void {
+    this.metaHeld = down;
+    this.sendHoverCommand({ type: "hover-meta", meta: down });
+  }
+
   // The window's blur also fires when focus moves into the canvas iframe; only the app losing focus releases Space.
   private appBlur = (): void => {
-    if (!document.hasFocus()) this.releaseInput();
+    if (document.hasFocus()) return;
+    this.releaseInput();
+    if (this.metaHeld) this.setMeta(false);
   };
 
   private releaseInput(): void {
