@@ -24,21 +24,28 @@ B·C를 고르면 이 문서의 결함 2 처리(스프라이트 `<style>` 범위
 
 - **CLI (Go)**
   - `cli/internal/check/`: 규칙 두 개 추가.
-    - `svg_use_not_inline` (error): `<template>` 밖 `<use>`의 `href` 또는 `xlink:href`가 앞뒤 공백(URL 파서가 지우는 범위)을 뺀 뒤 `#`로 시작하지 않는다. 빈 값은 보고하지 않는다. 외부 URL·`data:`도 포함한다(앱에서 둘 다 그려지지 않는다, PoC로 확인).
+    - `svg_use_not_inline` (error): `<template>` 밖 SVG 네임스페이스 `<use>`의 참조값이 앞뒤 공백(URL 파서가 지우는 범위)을 뺀 뒤 `#`로 시작하지 않는다. 참조값은 `href`가 있으면 `href`, 없으면 xlink 네임스페이스 `xlink:href`다(둘 다 있으면 `href`가 이기는 브라우저 규칙). 빈 값은 보고하지 않는다. 외부 URL(`http(s):`, `//`)·`data:`도 보고한다(앱에서 그려지지 않는다, PoC로 확인). `href="#missing"`처럼 문서에 없는 조각은 보고하지 않는다. `<svg>` 밖 HTML 네임스페이스 `<use>`는 무시한다.
+      - 외부 URL `<use>`는 이 규칙만 보고하고 `external_url`은 내지 않는다. 앱이 그리지 못하는 참조라 경고가 아니라 error다.
+      - finding: `path`는 캔버스, `canvas`는 canvas id, `target`은 href 원문(`local_css_not_found`와 같은 방식). 메시지는 고치는 법("copy the symbol into the canvas and use `href=\"#id\"`")을 말한다(`viewport_height_unit` 메시지처럼).
     - `ambiguous_custom_url` (warning): 등록되지 않은 custom property 값의 상대 `url()`을, 그 property를 직접 또는 다른 custom property를 거쳐 실제 property에 넣는 폴더들에서 풀었을 때 둘 이상의 서로 다른 repo 경로가 나온다. `@property`로 `<url>` 문법을 등록한 property는 선언 위치에서 풀리므로 제외한다. 경로 기준이라 `.doan/canvases/`와 `.doan/ds/`가 같은 `../assets/x.svg`를 쓰는 경우는 보고하지 않는다.
+      - 후보 경로는 `canvas.LocalPath`(`canvas.go:46`: 공백 제거, query·fragment 제거, percent decode)를 거친 상대 경로에서만 만든다. 선두 `/`, `data:`, 외부 URL, 빈 값은 후보가 아니다.
+      - finding: `path`는 `url()`을 선언한 파일, `cssSeen`처럼 `(path, code, value)`마다 한 번, `token`은 property 이름, `value`는 `url()` 텍스트. 메시지는 고치는 법("use the property from stylesheets in one folder only")을 말한다.
+    - **check 입력**: `check.Input.CSS`는 `canvas.Scan`만 담는다. `Scan`을 바꾸면 `css_golden_test.go` golden이 흔들리므로, 시트별 `CustomUses`와 `CSSRefs`를 담는 별도 필드를 `check.Input`에 둔다. 값은 `cli/internal/cli/check.go` `checkInput`의 `visit`가 읽은 시트와, 캔버스 자신의 `<style>`·`style` 속성은 `canvas.Parse` 결과에서 채운다. 오늘 check의 reach는 export의 reach를 포함한다(서빙 범위 밖 시트, `<template>` 안 `<link>`, 같은 폴더 `<base>`). 이 관계를 일치 테스트로 고정한다.
   - `cli/internal/export/`:
-    - `<use>`의 로컬 비조각 `href`는 새 사유(내부 상수 이름은 구현에서 정한다. 예: `ReasonUseExternal`, "the app does not draw an external use; inline the sprite")로 거부한다.
-    - 스프라이트 복사(`sprite`, `spriteContent`, `spriteContainer`, `spriteIDs`, `spriteStyled`)와 사유 `ReasonUseFragment`·`ReasonUseID`·`ReasonUseCollision`·`ReasonUseType`·`ReasonUseStyle`은 고아가 되므로 제거한다. `documentIDs`가 스프라이트 충돌 검사에만 쓰이면 함께 제거한다.
-    - `replaceCustom`의 모호성 조건을 위 `ambiguous_custom_url`과 같은 함수로 바꾼다. 존재하는 파일이 하나뿐이어도 후보 경로가 둘 이상이면 `ReasonAmbiguous`로 거부한다.
-  - `cli/internal/cli/skill.md`: 가이드 문장 추가(작업 5).
+    - 조각이 아닌 모든 `<use>`(로컬, CDN, `data:`)를 새 사유 하나(내부 상수 이름은 구현에서 정한다. 예: `ReasonUseExternal`, "the app does not draw an external use; inline the sprite")로 거부한다. 지금 `inline.go` `replace`는 경로를 먼저 해석하고 `kindUse`로 갈라지지만, 이 판정은 `resolveAsset` 전에 한다. 그래서 CDN `<use>`는 더 이상 `external`로 보고되지 않는다.
+    - 스프라이트 복사(`sprite`, `spriteContent`, `spriteContainer`, `spriteIDs`, `spriteStyled`)와 사유 `ReasonUseFragment`·`ReasonUseID`·`ReasonUseCollision`·`ReasonUseType`·`ReasonUseStyle`은 고아가 되므로 제거한다. `documentIDs`가 스프라이트 충돌 검사에만 쓰이면 함께 제거한다. `datauri.go:59` `fragment`, `replaceCustom`·`uses`의 "one candidate that exists" 주석도 고아가 된다.
+    - `replaceCustom`의 모호성 조건을 위 `ambiguous_custom_url`과 같은 함수로 바꾼다. 존재하는 파일이 하나뿐이어도 후보 경로가 둘 이상이면 `ReasonAmbiguous`로 거부한다. 사유 문구는 "resolves to different paths from the stylesheets that use it"로 바꾼다.
+  - `cli/internal/cli/skill.md`: 가이드 문장 추가와 관례 9("External resources are allowed; … warnings") 수정(작업 5).
+  - `cli/internal/designskill/presets/document.md`: 아이콘 문장("Draw an icon from the project's icon source (package, SVG file, sprite, …)")에 스프라이트는 필요한 `<symbol>`을 인라인으로 복사한다는 내용을 더한다(작업 5).
+  - 테스트 seed: `cli/internal/export/exporttest/seed.go:95`의 `Full` 캔버스 `<use href="../assets/sprite.svg#icon"/>`를 인라인 스프라이트로 바꾸고, 거부 전용 seed(예: `RefuseUseExternal`)를 더한다. `sprite_test.go`와 `fix2_test.go`(53–101)의 `ReasonUse*` 기대값을 지우거나 바꾸고, `fix2_test.go:99`의 `": "` 가드는 새 사유로 옮긴다.
 - **app (Electron + TS)**: 코드 변경 없음. Export…의 거부 목록은 `interpretExport`가 `- <item>: <detail>` 줄을 그대로 읽으므로 새 사유 문구가 그대로 보인다. check 결과를 화면에 쓰는 곳은 없다(`app/src`에 check 코드 문자열 없음).
 - **스킬**: 가이드 변경. `SKILL.md` stub은 그대로.
 - **형식**: schema 변경 없음(아래).
 
 ## 순수 함수로 분리할 부분 (`/tdd` 대상)
 
-1. **`<use>` 참조 판별** — 파싱된 캔버스 트리에서 `<template>` 밖 `<use>`의 `href`/`xlink:href`를 모아 비조각 여부를 판정한다. check는 `html.Parse` 기반 `canvas` 패키지를 쓰므로 그 트리 위에서 구현한다. export 쪽은 기존 `rewriteHTML`의 `kindUse` 분기에서 같은 판정 함수(공백 처리, `#` 여부)를 호출한다.
-2. **custom property 사용 경로 계산** — export의 `uses`/`consumers`(`customurl.go`)를 I/O 없는 함수로 `cli/internal/canvas` 쪽으로 옮기고, "property → 사용 폴더 집합 → 상대 `url()`이 풀리는 repo 경로 집합"을 돌려준다. 경로 해석(`resolveAsset`)은 파일시스템을 보므로 함수 밖에 두고, 순수 부분은 `path.Join` 기반 후보 경로 계산과 "서로 다른 경로가 둘 이상인가" 판정이다.
+1. **`<use>` 참조 판별** — 파싱된 캔버스 트리에서 `<template>` 밖 `<use>`의 `href`/`xlink:href`를 모아 비조각 여부를 판정한다. check는 `html.Parse` 기반 `canvas` 패키지를 쓰므로 그 트리 위에서 구현한다. export 쪽은 `rewriteHTML`의 `kindUse` 참조를 `resolveAsset` 전에 같은 판정 함수(공백 처리, `#` 여부)로 거른다.
+2. **custom property 사용 경로 계산** — 후보는 `canvas.LocalPath`를 거친 상대 경로만 쓴다. export의 `uses`/`consumers`(`customurl.go`)를 I/O 없는 함수로 `cli/internal/canvas` 쪽으로 옮기고, "property → 사용 폴더 집합 → 상대 `url()`이 풀리는 repo 경로 집합"을 돌려준다. 경로 해석(`resolveAsset`)은 파일시스템을 보므로 함수 밖에 두고, 순수 부분은 `path.Join` 기반 후보 경로 계산과 "서로 다른 경로가 둘 이상인가" 판정이다.
 3. **모호성 판정** — 2의 결과로 check finding과 export 거부를 같은 조건으로 낸다. check와 export가 같은 입력에 같은 판정을 내는지 Go 테스트 하나로 고정한다.
 
 ## 형식 변경
@@ -51,7 +58,8 @@ B·C를 고르면 이 문서의 결함 2 처리(스프라이트 `<style>` 범위
 
 - 캔버스 관례에 한 줄 추가: "SVG `<use>` references a symbol in the same canvas (`href="#id"`); the app cannot load another file's symbols."
 - `doan check` 규칙 표에 위 두 규칙 추가: `svg_use_not_inline`은 error, `ambiguous_custom_url`은 warning.
-- PRODUCT §3 Out of scope 2('Enforcing a canvas format')와의 관계: 이 규칙은 형식 강제가 아니라 "앱이 그리지 못하는 참조"를 알리는 것으로, `css_not_served`(앱이 렌더하지 않는 CSS를 error로 보고)와 같은 성격이다. 승격 때 PRODUCT §5 item 11의 check 목록을 갱신한다.
+- 관례 9(외부 자원 허용, `doan check` warning)에 예외 한 줄: `<use>`의 외부 URL은 앱이 그리지 못하므로 error다. PRODUCT §5 item 11도 "external URLs are warnings, except a `<use>` external URL, which the app cannot draw: error"로 승격한다.
+- PRODUCT §3 Out of scope 2('Enforcing a canvas format') 문장은 그대로 둔다. 근거는 여기에만 남긴다: 이 규칙은 형식 강제가 아니라 "앱이 그리지 못하는 참조"를 알리는 것으로, `css_not_served`(앱이 렌더하지 않는 CSS를 error로 보고)와 같은 성격이다. 승격 때 PRODUCT §5 item 11의 check 목록을 갱신한다.
 
 ## 결정 영향 (ARCHITECTURE 구조 결정)
 
@@ -71,7 +79,7 @@ B·C를 고르면 이 문서의 결함 2 처리(스프라이트 `<style>` 범위
 
 1. Electron 45 앱에서 외부 `<use>`가 로컬 파일, `xlink:href`, CDN URL, `data:` 모두 그려지지 않고, 서버에 요청이 오지 않는다. BACKLOG는 로컬 `href` 한 경우만 관찰했다.
 2. 인라인 스프라이트(그 안의 `<symbol>`·`<style>` 포함)가 앱, export 파일의 Chromium·Safari에서 같은 결과를 보인다. 스프라이트 `<style>`이 캔버스 전체에 걸리는 점도 세 곳에서 같다.
-3. 가이드가 외부 스프라이트 대신 권할 형태가 앱과 export에서 모두 보인다: 아이콘별 SVG 파일의 `<img src>`, CSS `mask: url(icon.svg)`. 보이지 않는 형태는 가이드에 넣지 않는다.
+3. 가이드의 기본 형태는 인라인 `<symbol>` 복사다(결정 C). 그 밖의 후보가 앱과 export에서 모두 보이는지 확인한다: 아이콘별 SVG 파일의 `<img src>`, CSS `mask: url(icon.svg)`, 링크한 CSS의 `mask: url(sprite.svg#icon)`, `<img src="sprite.svg#icon">`. 보이지 않는 형태는 가이드에 넣지 않는다.
 4. custom property `url()`: 같은 텍스트를 두 폴더의 사용처가 서로 다른 경로로 풀면 앱 결과가 순서에 따라 달라진다(재현). 같은 경로로 풀리면 순서와 관계없이 그 파일이 보인다. `@property` `<url>` 등록 property는 선언 위치에서 풀린다.
 
 측정 방법은 POSTMORTEM 2026-11-03의 권고를 따라 레이아웃마다 페이지를 하나씩 쓴다.
@@ -87,7 +95,9 @@ B·C를 고르면 이 문서의 결함 2 처리(스프라이트 `<style>` 범위
 
 1. 결함 1은 A안: 외부 `<use>`를 지원하지 않는다. check error와 export 거부로 맞추고 export의 스프라이트 복사를 제거한다.
 2. `svg_use_not_inline`은 error다.
-3. export는 로컬 외부 `<use>`를 거부한다.
+3. export는 조각이 아닌 모든 `<use>`(로컬, CDN, `data:`)를 경로 해석 전에 새 사유 하나로 거부한다(리뷰 결정 B).
 4. `ambiguous_custom_url`은 warning이다.
 5. export는 후보 경로가 둘 이상이면 파일 존재 여부와 관계없이 거부한다.
 6. 외부 스프라이트와 custom property `url()`을 쓰는 `/agent-eval` 시나리오를 하나 추가한다(tasks.md 작업 6).
+7. 외부 URL `<use>`는 `svg_use_not_inline`만 보고하고 `external_url`은 내지 않는다(리뷰 결정 A).
+8. 가이드와 preset `document.md`는 스프라이트 파일에만 있는 아이콘을 필요한 `<symbol>`만 캔버스에 인라인으로 복사해 `<use href="#id">`로 그리고, 원본 파일을 주석으로 남기라고 안내한다(리뷰 결정 C).
