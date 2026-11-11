@@ -27,6 +27,8 @@
 16. LOD 예외(사용자, lead 전달): 이동 LOD와 보수적 축소 스냅샷 LOD를 허용한다(spec 완료 조건 6). 축소 스냅샷 LOD가 ARCHITECTURE §3 변경을 요구하면 제안 규칙을 적고 구현 전에 사용자에게 묻는다. 화면 밖 건너뛰기는 drift 없음 규칙을 따른다. O1은 이 두 LOD를 후보로 함께 잰다.
 17. 기준 ② 허용치(사용자, lead가 체인 파일에 기록): C1 수정 뒤 모서리 AA 차이는 '같은 픽셀'로 본다. 앱 최대 3/255, Export 최대 4/255이고 AA 가장자리에서만 생기며 8/255를 넘는 픽셀은 없다. 기준 ②는 통과다.
 18. 새 머신 측정 자료(사용자): 새 머신의 skillflo-web `.doan/`에는 캔버스가 없다(`config.json`만 있다). 원본 대신 크기와 프레임 수가 같은 합성 캔버스를 `.scratch/`에 만들어 쓴다. 전후 비교는 이 머신 안에서만 한다. C1·C2는 크기와 iframe 구조로 재현되지만, paint 비용은 실제 내용과 다르다. PR과 문서에 합성 자료로 쟀다고 적는다.
+19. O2 범위(conductor 판단 — 결정 15, O1 측정): toast tick bail-out(후보 1)을 넣는다. App 재렌더 범위 축소(후보 2)는 후보 1을 넣은 빌드에서 다시 재서 이득이 남을 때만 넣는다. 이동 LOD(will-change)는 OOPIF 재래스터를 줄이지 못하고 확대 p95를 악화시켜 넣지 않는다. `viewportSize` 캐시와 저장 합치기는 이득이 작아 뺀다. 캔버스 안 `content-visibility`는 ARCHITECTURE §1 규약 11(앱은 캔버스 스타일을 바꾸지 않음)과 layout 불변 증명 불가로 넣지 않는다.
+20. 축소 스냅샷 LOD(사용자): 이번 링크에서 구현하지 않는다. 축소 이동은 이미 60fps를 유지하고 이득은 미측정이다. 제안 규칙과 측정값을 BACKLOG에 남긴다.
 
 ## 배치
 
@@ -37,8 +39,8 @@
 | F (수정) | tasks 3, 4(`/runtime-test`·`/postmortem`) | `app/src/renderer/styles.css`와 캔버스 패널을 그리는 컴포넌트, `cli/internal/export/viewer/*`, 그 테스트, `docs/POSTMORTEM.md` | P, 개선 기준 합의 | Opus high — 앱과 Export 두 경로에서 외관 픽셀 일치와 구조 단언을 맞춰야 하고, 틀리면 잘림이 남거나 모서리 모양이 바뀐다 | 단위 red→green 또는 같은 probe의 전후 측정, `verify.mjs` | 부분 완료: 통합 `85879e1b`·`22b4d776`·`c36a2961`(원본 `3c2c4c2b`·`e341d3e3`·`3f388b82`, 배치 브랜치 `SinhyeokKang/crs-fix`). 기준 ④ 일부와 ⑤는 미실행 |
 | M (새 머신 재측정) | 남은 일 2·3: 합성 캔버스와 probe 재구성, C1 sanity, C2 회귀(기준 ④), 일반 크기 캔버스 `/runtime-test`(기준 ⑤) | 추적 파일 수정 없음. probe·증거는 `/Users/sinhyeok/code/doan-design/.scratch/canvas-rendering-stability/` | F 통합, develop 병합 | Opus high — 기록만으로 probe를 다시 만들고 합성 자료가 원래 현상을 재현하는지 판정해야 한다. 틀리면 회귀 판정과 O1 기준선이 모두 빗나간다 | 합성 자료의 C1 재현(수정 전)과 0(수정 후), C2 수정 전·후 번갈아 각 5회 중앙값·범위·load average, `/runtime-test` 기록 | 완료(`handoff-M.md`). ①·④·⑤ 통과. 아래 '배치 M 결과' |
 | R (리뷰) | F의 `/code-review` | 보고만 | F | Opus medium — CSS·viewer 변경은 작지만 구조 단언과 회귀 판단이 필요하다 | 🔴 0 | 1라운드 🔴 0·🟡 0·⚪ 5(`handoff-R.md`). ⚪1 구조 단언 보강은 R-fix1(`e339850e` → 통합 `e8bb3254`, 배치 브랜치 `SinhyeokKang/crs-review`)로 넣었다. 변형 22개가 모두 red, HEAD는 green이다. ⚪2(앱도 비균일 반경 동작에 기댐)는 D에서 ARCHITECTURE 제약으로 제안한다. ⚪3·⚪5는 PR 본문에 적고, ⚪4는 남은 일 8과 같다 |
-| O1 (최적화 측정) | tasks 5 | 추적 파일 수정 없음 | M(같은 워커의 후속 Task, probe 재사용) | Opus high — 비용 분해와 drift 없는 후보 선정은 판단 중심이고, 틀리면 O2가 효과 없는 변경을 넣는다 | 비용별 기준선(중앙값·범위, load average), 후보와 근거·예상 효과 | 진행 중(`brief-O1.md`) |
-| O2 (최적화 구현) | tasks 6 | O1이 고른 후보의 파일. O1 이후 확정 | O1 | O1 결과로 정한다 | 후보별 전후 비용, 픽셀 비교 drift 0, `verify.mjs` | 대기 |
+| O1 (최적화 측정) | tasks 5 | 추적 파일 수정 없음 | M(같은 워커의 후속 Task, probe 재사용) | Opus high — 비용 분해와 drift 없는 후보 선정은 판단 중심이고, 틀리면 O2가 효과 없는 변경을 넣는다 | 비용별 기준선(중앙값·범위, load average), 후보와 근거·예상 효과 | 완료(`handoff-O1.md`). 아래 '배치 O1 결과' |
+| O2 (최적화 구현) | tasks 6 | `app/src/renderer/toastState.ts`·테스트, 후보 2를 넣으면 `CanvasController.ts`·`App.tsx`·`CanvasHeader.tsx` | O1 | Opus high, M·O1과 같은 워커 — probe와 측정 맥락을 그대로 쓰고, 후보 2는 구독 구조를 바꾸는 판단이 필요하다 | 후보별 전후 비용, 픽셀 비교 drift 0, `verify.mjs` | 진행 중(`brief-O2.md`) |
 | D (문서) | tasks 7 | PRODUCT·ARCHITECTURE·BACKLOG·POSTMORTEM, 이 디렉터리 삭제 | F 통합 | conductor가 직접 쓴다(문서 갱신 커밋) | 증거 대조 | 대기 |
 
 ## 파일 겹침과 순서
@@ -115,3 +117,12 @@ pmsf 118% 이동, 무부하·CPU(`yes` 4개)·GPU(WebGL fill-rate, Device Utiliz
 - 기준 ④: pmsf 118% 마구 이동, 전후 번갈아 각 5회. 앱 peak 0.432 → 0.432, >1% 프레임 0.613 → 0.610, 멈춘 뒤 0까지 29 → 15 ms. Export/Electron peak 0.481 [0.481–0.679] → 0.481, >1% 0.850 → 0.850, 33–52 → 31–33 ms. 수정 후가 수정 전 범위 안이라 회귀가 없다. 15% 여백 모델 IoU는 0.54–0.88로 이전 머신보다 낮다(screencast와 렌더러 시각 차이). 판정에는 쓰지 않았다. load average 3.6–14.6. 이전 머신 Export 0.187 대 0.182 미판정은 이 측정으로 대신한다.
 - 기준 ⑤: 일반 크기 캔버스, 세 레이아웃에서 선택 위치·프레임 점프·Capture area·재로드·스크롤·모션 30/30 PASS. 패널 모서리는 밝은 테마와 강제 어두운 nativeTheme에서 육안으로 확인했다.
 - 실제 상태 경고 2건은 probe와 무관하다: 실행 중인 실제 Doan.app이 `ui-state.json`을 썼고, 다른 Claude 세션이 `sessions.jsonl`에 한 줄을 썼다.
+
+### 배치 O1 결과
+
+- 자료는 합성 2판이다. 합성 자료는 둥근 스크롤 컨테이너가 많아 OOPIF 레이어 수(181개)·commit 비용·GPU 메모리가 실제보다 클 수 있다. 호스트 쪽 비용은 내용과 무관하다.
+- 앱이 줄일 수 있는 가장 큰 비용: `toastState`의 100 ms `tick`이 toast가 없어도 새 객체를 돌려줘 App 전체가 초당 10회 다시 렌더된다. 같은 객체를 돌려주는 프로토타입은 호스트 main thread busy를 대기 −75~81%, 확대 −34~53%, 118% 이동 −28~39%, 축소 이동 −15~27%, 첫 렌더링 −39~61% 줄였다(전후 번갈아 각 5회). 멈춘 화면 5개 상태의 다른 픽셀은 0이다.
+- 나머지 큰 비용은 Chromium 쪽이다. 이동 단계마다 OOPIF가 레이어 약 91개를 commit하고, 프레임마다 render pass가 약 8개다. 118% 이동에서 GPU 프로세스 메모리 3.1–3.3 GiB, OOPIF `cc` 1.2–1.3 GiB다. 이동은 60fps를 유지한다(간격 중앙 16.7 ms).
+- 이동 LOD 프로토타입(이동 중 board `will-change: transform`)은 OOPIF raster 작업 수가 같았고(73→73, 189→189) 확대 p95가 24→47 ms, 30→51 ms로 나빠졌다.
+- 대기 중 OOPIF compositor 루프: 둥근 합성 스크롤 컨테이너 안에 이미지가 있으면 대기 중에도 vsync마다 그린다(합성 pmsf 2초에 300–340 ms, 실제 pmsf Export 73–129 ms). 캔버스 내용이 일으키는 Chromium 동작이라 앱 대책이 없다. BACKLOG에 남긴다.
+- 측정 중 1회가 35분 멈췄다(원인 미확인). 단계마다 시간 제한을 넣고 run 4부터 다시 쟀다.
