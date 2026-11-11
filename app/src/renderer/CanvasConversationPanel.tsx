@@ -32,7 +32,7 @@ import { DockedComposer, type DockedFieldLink, type DockedOutcome, type DockedPi
 import { carryDraft, composerTurn, draftKey, EMPTY_DRAFT, type DockedMode, type DockedRefusal } from "./dockedRules";
 import { generationOf, modelsKey, type DockedSupport } from "./dockedSupport";
 import {
-  attachmentLimit, defaultEffort, defaultFast, defaultModel, fastToSend, defaultProvider, fixedPreference, groupIcon, modelOption, modelPickerView,
+  attachmentLimit, chosenAttachments, defaultEffort, defaultFast, defaultModel, fastToSend, defaultProvider, fixedPreference, groupIcon, modelOption, modelPickerView,
   selectableProvider, sendRefusal, suggestedPresets, suggestedPrompts, type AttachmentDraft, type NewConversationDefault, type ModelsState,
 } from "./homeComposer";
 import { PROVIDER_NAMES } from "./agentAuthView";
@@ -353,15 +353,12 @@ export function CanvasConversation(props: CanvasConversationProps) {
     if (fixed) return;
     const at = key;
     void window.doan.chooseAttachments().catch(() => []).then(results => {
-      const ok = results.filter(result => result.ok);
-      const limit = attachmentLimit((store.drafts.get(at) ?? EMPTY_DRAFT).attachments.length, ok.map(() => ({ pasted: false, size: 0 })));
-      const keep = new Set(limit.accept.map(i => ok[i]!));
-      for (const result of ok) if (!keep.has(result) && result.ok) void window.doan.removeAttachment(result.attachment.id);
-      const chosenFiles = results.filter(result => !result.ok || keep.has(result));
+      const { chosen: chosenFiles, release, notices } = chosenAttachments((store.drafts.get(at) ?? EMPTY_DRAFT).attachments.length, results);
+      for (const id of release) void window.doan.removeAttachment(id);
       const keys = chosenFiles.map(() => crypto.randomUUID());
       addChips(at, chosenFiles.map((result, i) => ({ key: keys[i]!, name: result.ok ? result.attachment.name : result.name, kind: "file", pasted: false, status: "checking" })));
       settle(keys, chosenFiles);
-      if (limit.notices.length) props.onNotice(limit.notices.join(" "));
+      if (notices.length) props.onNotice(notices.join(" "));
     });
   };
 

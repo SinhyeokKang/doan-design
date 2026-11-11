@@ -4,7 +4,7 @@ import { authStatus } from "../main/agentAuth/state";
 import type { AccountIdentity, AuthState, AuthStatusDto, Provider, ToolFacts } from "../main/agentAuth/types";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import {
-  attachmentChipView, attachmentLimit, chipRemoval, composeRequest, defaultEffort, defaultFast, defaultModel, fastToSend, defaultProject, defaultProvider, fixedPreference,
+  attachmentChipView, attachmentLimit, chosenAttachments, chipRemoval, composeRequest, defaultEffort, defaultFast, defaultModel, fastToSend, defaultProject, defaultProvider, fixedPreference,
   GREETINGS, greetingText, foldRows, olderOrder, lockedOlderSide, heldScrollTop, NO_OLDER, olderLabel, olderOpened, olderToggled, groupIcon, groupLabel, isSubmitKey, steerKey, takesSuggestion, lengthCounter, MAX_ATTACHMENTS, MAX_PASTED_BYTES, modelPickerView, pickGreeting, presetListView,
   draftProblem, presetPlaceholder, rootForProject, searchPresets, selectableProvider, sendAvailability, slashQuery, startErrorView, suggestedPresets,
   suggestedPrompts, TEXT_LIMIT, attachRefusal, markRefused, queueAttachmentSummary, readyAttachment, recordedAttachment, sentFileView,
@@ -645,6 +645,24 @@ test("/ at the very start of the field opens the preset query until dismissed", 
 });
 
 // Attachments
+
+// main takes at most 10 paths from one pick and refuses the rest as limit; those are left out like the ones the draft
+// has no room for, in one notice with the count, never as one bare limit line each.
+test("a pick of more than ten leaves the rest out with one counted notice, and releases what no longer fits", () => {
+  const ok = (id: string) => ({ ok: true as const, attachment: { id, name: id, kind: "directory" as const, path: `/p/${id}`, pasted: false } });
+  const over = (name: string) => ({ ok: false as const, name, error: "limit" as const });
+  const ten = Array.from({ length: 10 }, (_, i) => ok(`a${i}`));
+  const eleven = chosenAttachments(0, [...ten, over("a10")]);
+  expect(eleven.chosen).toEqual(ten);
+  expect(eleven.release).toEqual([]);
+  expect(eleven.notices).toEqual(["Only 10 attachments can be added. 1 was left out."]);
+  const unreadable = { ok: false as const, name: "locked", error: "unreadable" as const };
+  const crowded = chosenAttachments(8, [unreadable, ...ten.slice(0, 3), over("x"), over("y")]);
+  expect(crowded.chosen).toEqual([unreadable, ...ten.slice(0, 2)]);
+  expect(crowded.release).toEqual(["a2"]);
+  expect(crowded.notices).toEqual(["Only 10 attachments can be added. 3 were left out."]);
+  expect(chosenAttachments(0, [ok("a")])).toEqual({ chosen: [ok("a")], release: [], notices: [] });
+});
 
 test("ten attachments fit; the eleventh is left out with a count", () => {
   expect(MAX_ATTACHMENTS).toBe(10);

@@ -28,7 +28,7 @@ import { carryDraft, composerTurn, draftKey, EMPTY_DRAFT, type DockedBusy, type 
 import { generationOf, modelsKey, type DockedSupport } from "./dockedSupport";
 import { cardRow, chipClass, ROW_ACTION_ICONS, ROW_ACTION_LABELS, type RowAction } from "./homeCards";
 import {
-  attachmentLimit, defaultEffort, defaultFast, defaultModel, fastToSend, defaultProvider, fixedPreference, groupIcon, modelOption, modelPickerView,
+  attachmentLimit, chosenAttachments, defaultEffort, defaultFast, defaultModel, fastToSend, defaultProvider, fixedPreference, groupIcon, modelOption, modelPickerView,
   selectableProvider, sendRefusal, suggestedPresets, suggestedPrompts, type AttachmentDraft, type ModelsState, type NewConversationDefault,
 } from "./homeComposer";
 import type { LastRequest } from "./homeConversations";
@@ -229,15 +229,12 @@ export function ProjectOverview(props: ProjectOverviewProps) {
   const chooseFiles = () => {
     const at = key;
     void window.doan.chooseAttachments().catch(() => []).then(results => {
-      const ok = results.filter(result => result.ok);
-      const limit = attachmentLimit((run.drafts.get(at) ?? EMPTY_DRAFT).attachments.length, ok.map(() => ({ pasted: false, size: 0 })));
-      const keep = new Set(limit.accept.map(i => ok[i]!));
-      for (const result of ok) if (!keep.has(result) && result.ok) void window.doan.removeAttachment(result.attachment.id);
-      const chosen = results.filter(result => !result.ok || keep.has(result));
+      const { chosen, release, notices } = chosenAttachments((run.drafts.get(at) ?? EMPTY_DRAFT).attachments.length, results);
+      for (const id of release) void window.doan.removeAttachment(id);
       const keys = chosen.map(() => crypto.randomUUID());
       addChips(at, chosen.map((result, i) => ({ key: keys[i]!, name: result.ok ? result.attachment.name : result.name, kind: "file", pasted: false, status: "checking" })));
       settle(keys, chosen);
-      if (limit.notices.length) props.onNotice?.(limit.notices.join(" "));
+      if (notices.length) props.onNotice?.(notices.join(" "));
     });
   };
 

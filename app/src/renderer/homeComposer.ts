@@ -4,7 +4,7 @@ import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import { PROVIDERS, type AuthStatusDto, type Provider, type ReadinessCause } from "../main/agentAuth/types";
 import type { AcpModes, PermissionModeId } from "../main/conversation/permissionMode";
 import type { AttachmentRecord, FastUnusedReason, SkillSummary } from "../main/conversation/types";
-import type { AttachmentInfo } from "../main/attachments";
+import type { AttachmentInfo, AttachmentResult } from "../main/attachments";
 import type { DesignPresetSummary, DesignSkillReply } from "../main/designSkills";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { HomeMemory } from "../restore/uiState";
@@ -661,6 +661,19 @@ export function attachmentLimit(existing: number, items: readonly { pasted: bool
   return { accept, notices };
 }
 
+// The chooser's answer against the draft's room. main checks at most 10 paths of one pick and refuses the rest as
+// limit; those count as left out with the checked ones that no longer fit, so one notice gives the count. release: ids
+// main kept that the draft will not show.
+export function chosenAttachments<R extends AttachmentResult>(existing: number, results: readonly R[]): { chosen: R[]; release: string[]; notices: string[] } {
+  const candidates = results.filter(result => result.ok || result.error === "limit");
+  const limit = attachmentLimit(existing, candidates.map(() => ({ pasted: false, size: 0 })));
+  const keep = new Set<R>(limit.accept.map(i => candidates[i]!));
+  return {
+    chosen: results.filter(result => keep.has(result) || (!result.ok && result.error !== "limit")),
+    release: candidates.flatMap(result => result.ok && !keep.has(result) ? [result.attachment.id] : []),
+    notices: limit.notices,
+  };
+}
 const LIMIT_TEXT = `Only ${MAX_ATTACHMENTS} attachments can be added.`;
 const REFUSALS: Record<string, (name: string) => string> = {
   not_found: name => `${name} wasn’t found, so it wasn’t attached.`,

@@ -21,7 +21,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip
 import { cardRow, chipClass, groupProjects } from "./homeCards";
 import { generationOf, modelsKey } from "./dockedSupport";
 import {
-  followDrawerHighlight, type PresetRow, attachmentChipView, attachmentLimit, attachRefusal, chipRemoval, composeRequest, defaultEffort, defaultFast, defaultModel, defaultProject, defaultProvider,
+  followDrawerHighlight, type PresetRow, attachmentChipView, attachmentLimit, attachRefusal, chosenAttachments, chipRemoval, composeRequest, defaultEffort, defaultFast, defaultModel, defaultProject, defaultProvider,
   fixedPreference, greetingText, groupIcon, lengthCounter, markRefused, modelOption, modelPickerView, presetListView, presetPlaceholder, readyAttachment,
   rootForProject, selectableProvider, sendAvailability, slashKey, slashQuery, startErrorView, suggestedPresets, suggestedPrompts, TEXT_LIMIT,
   type AttachmentDraft, type ModelsState, type NewConversationDefault, type PresetListReply, type PresetSummary,
@@ -369,15 +369,12 @@ export function HeroComposer(props: HeroComposerProps) {
   const choose = () => {
     if (memory.current.sending) return;
     void window.doan.chooseAttachments().catch(() => [] as AttachmentResult[]).then(results => {
-      const ok = results.filter((result): result is Extract<AttachmentResult, { ok: true }> => result.ok);
-      const limit = attachmentLimit(memory.current.attachments.length, ok.map(() => ({ pasted: false, size: 0 })));
-      const keep = new Set<AttachmentResult>(limit.accept.map(i => ok[i]!));
-      for (const result of ok) if (!keep.has(result)) void window.doan.removeAttachment(result.attachment.id);
-      const chosen = results.filter(result => !result.ok || keep.has(result));
+      const { chosen, release, notices } = chosenAttachments(memory.current.attachments.length, results);
+      for (const id of release) void window.doan.removeAttachment(id);
       const keys = chosen.map(() => crypto.randomUUID());
       update(current => ({ attachments: [...current.attachments, ...chosen.map((result, i): AttachmentDraft => ({ key: keys[i]!, name: result.ok ? result.attachment.name : result.name, kind: "file", pasted: false, status: "checking" }))] }));
       settle(keys, chosen);
-      if (limit.notices.length) setNotice({ text: limit.notices.join(" "), retry: false });
+      if (notices.length) setNotice({ text: notices.join(" "), retry: false });
     });
   };
   const removeChip = (index: number, trigger: "button" | "backspace") => {
