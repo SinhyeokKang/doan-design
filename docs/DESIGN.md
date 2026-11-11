@@ -1695,3 +1695,20 @@ Reference: `.doan/canvases/canvas-activity-notices.html` (`activity-sidebar`, `a
 The canvas change dot (`.row-slot.unseen i`, 8 px) is unchanged and is no longer used for conversations.
 
 **Not verified.** The project row's aggregate bubble (same `SlotMark` markup as the canvas row; covered by the `ShellSidebar` unit test) and the folded panel's Show conversation bubble (same `.badge-bubble` rule; covered by the `CanvasHeader` unit test) were not reached in the isolated app: the fixture conversation reads as seen once its canvas is shown with the panel open.
+
+## Read-state failure dot and Retry toast
+
+Reference: `.doan/canvases/canvas-activity-notices.html` (`activity-save-failure`, `activity-recovery`). Measured by `/design-sync` (`.scratch/design-sync/canvas-activity-notices-a2/measure.mjs`) in the built app at 1238 × 780, draft read in the app's canvas iframe: 189 property rows over 8 part pairs, 187 equal, 2 context (below). The failure came from a real read-only `.doan/seen/` in an isolated app; the running Retry was held by delaying main's `read-state:retry` answer in the probe.
+
+| Part | Measured (draft = app) |
+|---|---|
+| Failure dot `.row-slot.unseen` | The canvas change dot unchanged: 16 × 16 slot, 8 × 8 round `i` in `--text-accent` (rgb 151 59 225 for Doany). Named "Read state could not be saved for <canvas>" (read from the renderer's accessibility tree) instead of the change label; an ID problem keeps the change label. Shown on the canvas the page shows only while its save failed; hidden like any slot while the row is hovered, focused or its menu is open |
+| Toast | The shared toast: 384 × 66 for the read-only message (two lines), 12 px padding and gap, radius 24, rgba(255 255 255 / 0.9) with the floating shadow; message 14 / 20 |
+| Retry | Prominent sm: 32 high, 16 inline padding, radius 34, black fill and white text |
+| Running Retry | Same box with the disabled fill rgb(232 232 232) and ink rgb(149 149 149), `cursor: not-allowed`, a 16 px `.doan-spinner` before "Retrying" with an 8 px gap. It is `aria-disabled` and `data-disabled` rather than `:disabled`, so focus stays on the button while it runs; a toast rule keeps the hover fill off it |
+
+Copy, from the selected design: "Couldn’t save <canvas>’s read state. This folder is read-only." (or without the reason sentence for a failure that is not a permission refusal), "Saving <canvas>’s read state.", "Couldn’t save the initial read state. This folder is read-only.", "Read-state records couldn’t be read. Restore them, then retry.", "These read-state records need a compatible app version. Use that version, then retry." and "Couldn’t save the read state because the canvas ID is missing or duplicated. Fix the ID, then retry." The running text for the initial records is "Saving the initial read state." and for unreadable records "Reading the read-state records."; the draft draws neither.
+
+**Context, not component.** The toast element's own `font-size` and `line-height` (draft 14 / 20, app 13 / normal) are inherited from the canvas body and the app body; the message and the button set their own type and are equal.
+
+**Not verified.** Focus return after a successful Retry was checked only as "focus stays in the workspace, not on the body" (`.scratch/runtime-test/read-state/probe.mjs`); which control receives it was not measured. The recovery tiles' toasts share the measured toast and differ only in text, which the probe read in the real app.
