@@ -18,17 +18,23 @@
 8. GPU 부하 측정(사용자): P가 끝나면 같은 워커에 후속 Task(P2)로 GPU 부하 조건 측정을 보낸다. 같은 동작을 무부하·CPU `yes` 부하·GPU 부하에서 재어, 빈 영역이 GPU 래스터 처리량에 묶였는지 가른다.
 9. 최초 렌더링 잘림의 확실한 관측(사용자): `partner-member-search-flow`의 Export HTML을 데스크톱 Chrome에서 열었을 때다. P에 실제 Chrome(설치된 157.0.8103.40, 임시 프로필) 재현을 추가했다. 결정 6의 같은 Electron 비교는 유지한다.
 
+10. C1 수정 방식(사용자): 캔버스 iframe을 자르는 조상에서 네 모서리 같은 반경을 빼고, 보드 위에 모서리 덮개를 그려 같은 모양을 낸다. 1px 비균일 반경은 Chromium 내부 동작에 기대므로 쓰지 않는다.
+11. Export 수정(사용자): Export viewer에도 같은 방식을 넣는다. CLI 출력이 바뀌므로 마지막 통합 전에 `/agent-eval`을 실행한다(결정 7).
+12. C2 처리(사용자): 남은 현상으로 둔다. 회귀만 막고 BACKLOG에 현상과 측정값을 남긴다.
+13. 개선 기준(사용자 합의): ① C1 — pmsf 최초 렌더링(대화 접힘), 정지 sweep(축소 0.065–0.13), emcf 빠른 축소에서 앱 세 레이아웃과 Export(Electron·Chrome)의 지속 잘림이 5회 모두 0. ② 모서리 외관이 수정 전과 픽셀 비교로 같다. ③ clip하는 조상에 균일 반경이 없다는 구조 단언. ④ C2 회귀 없음(이동 peak와 빈 프레임 비율이 수정 전 범위 이하). ⑤ 첫 표시 1프레임 빈 화면은 범위 밖이며 BACKLOG에 남긴다.
+
 ## 배치
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
-| P (PoC) | tasks 1, 2 | 추적 파일 수정 없음. probe·증거는 `/Users/sinhyeokkang/code/doan-design/.scratch/canvas-rendering-stability/` | 없음 | Opus high — GPU·합성·레이아웃 원인을 가르는 판단 중심 작업이고 틀리면 이후 수정 전부가 빗나간다 | 지문·버전·로드 상태 기록, 앱과 Electron Export 창의 재현 기록(반복 측정 중앙값·범위, load average), 원인 후보와 근거 | 대기 |
-| F (수정) | tasks 3, 4(`/runtime-test`·`/postmortem`) | PoC가 정한 경계의 `app/src/renderer/`·`app/src/main/canvasScript.ts` 등. P 이후 확정 | P, 개선 기준 합의 | P 결과로 정한다 | 단위 red→green 또는 같은 probe의 전후 측정, `verify.mjs` | 대기 |
-| R (리뷰) | F의 `/code-review` | 보고만 | F | F 난이도로 정한다 | 🔴 0 | 대기 |
+| P (PoC) | tasks 1, 2 | 추적 파일 수정 없음. probe·증거는 `/Users/sinhyeokkang/code/doan-design/.scratch/canvas-rendering-stability/` | 없음 | Opus high — GPU·합성·레이아웃 원인을 가르는 판단 중심 작업이고 틀리면 이후 수정 전부가 빗나간다 | 지문·버전·로드 상태 기록, 앱과 Electron Export 창의 재현 기록(반복 측정 중앙값·범위, load average), 원인 후보와 근거 | 완료(커밋 없음, `handoff-P.md`) |
+| P2 (부하) | 결정 8 | 추적 파일 수정 없음 | P | Sonnet high — P의 probe를 그대로 반복 실행하는 측정이다. P 워커 터미널을 재사용할 수 없어 새 워커로 띄웠다 | 무부하·CPU·GPU 부하별 C2 이동 측정 중앙값·범위, C1 sanity | 진행 중 |
+| F (수정) | tasks 3, 4(`/runtime-test`·`/postmortem`) | `app/src/renderer/styles.css`와 캔버스 패널을 그리는 컴포넌트, `cli/internal/export/viewer/*`, 그 테스트, `docs/POSTMORTEM.md` | P, 개선 기준 합의 | Opus high — 앱과 Export 두 경로에서 외관 픽셀 일치와 구조 단언을 맞춰야 하고, 틀리면 잘림이 남거나 모서리 모양이 바뀐다 | 단위 red→green 또는 같은 probe의 전후 측정, `verify.mjs` | 대기 |
+| R (리뷰) | F의 `/code-review` | 보고만 | F | Opus medium — CSS·viewer 변경은 작지만 구조 단언과 회귀 판단이 필요하다 | 🔴 0 | 대기 |
 | D (문서) | tasks 5 | PRODUCT·ARCHITECTURE·BACKLOG·POSTMORTEM, 이 디렉터리 삭제 | F 통합 | conductor가 직접 쓴다(문서 갱신 커밋) | 증거 대조 | 대기 |
 
 ## 파일 겹침과 순서
 
-직렬이다. P는 코드를 바꾸지 않지만 F의 범위가 P 결과에 달려 있고, GUI 측정이 사용자 화면에서 겹치지 않아야 한다. P → (사용자 개선 기준 합의) → F → R → (수정 라운드) → 통합·`/verify` → D → push·PR.
+직렬이다. P2와 F는 파일이 겹치지 않아 함께 돌리되, F의 GUI probe는 P2가 끝난 뒤 conductor 허락을 받고 시작한다. P는 코드를 바꾸지 않지만 F의 범위가 P 결과에 달려 있고, GUI 측정이 사용자 화면에서 겹치지 않아야 한다. P → (사용자 개선 기준 합의) → F → R → (수정 라운드) → 통합·`/verify` → D → push·PR.
 
 원인 미확정이나 재현 실패면 P 뒤에 멈추고 사용자에게 관측과 필요한 자료를 보고한다.
