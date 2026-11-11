@@ -57,8 +57,8 @@ test("a new mount picks again, a repeat allowed", () => {
 test("a change of buddy while the notice shows swaps its picture; back to Doany picks again", () => {
   const random = vi.spyOn(Math, "random").mockReturnValue(0.34);
   expect(run(false)).toBe("doany/artist-typing.gif");
-  expect(run(false, "puri")).toBe("buddies/puri/artist.gif");
-  expect(run(true, "puri")).toBe("buddies/puri/artist-rest.png");
+  expect(run(false, "puri")).toBe("buddies/puri/artist-typing.gif");
+  expect(run(true, "puri")).toBe("buddies/puri/artist-typing-rest.png");
   random.mockReturnValue(0.99);
   expect(run(false, "doany")).toBe("doany/artist-reading.gif");
   random.mockReturnValue(0);

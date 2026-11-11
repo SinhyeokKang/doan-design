@@ -434,12 +434,15 @@ describe("Doany the artist", () => {
     }
   });
 
-  test("a friend's notice shows its one painter, still while waiting, whatever the random pick", () => {
-    vi.spyOn(Math, "random").mockReturnValue(PICK.reading);
+  test("a friend's notice shows the variant the random pick names, still while waiting", () => {
+    const random = vi.spyOn(Math, "random");
     for (const id of ["puri", "dungdung", "popo", "dori"] as const) {
-      const painter = (still: boolean) => `<span class="doan-agent-artist" aria-hidden="true"><picture><source srcSet="buddies/${id}/artist-rest.png" media="(prefers-reduced-motion: reduce)"/><img src="buddies/${id}/${still ? "artist-rest.png" : "artist.gif"}" alt=""/></picture></span>`;
-      expect(markup([summary({})], { buddy: id })).toContain('<div class="doan-agent">' + painter(false));
-      expect(markup([summary({ phase: "waiting" })], { buddy: id })).toContain('<div class="doan-agent">' + painter(true));
+      for (const [variant, gifName, pngName] of [["painting", "artist.gif", "artist-rest.png"], ["typing", "artist-typing.gif", "artist-typing-rest.png"], ["reading", "artist-reading.gif", "artist-reading-rest.png"]] as const) {
+        random.mockReturnValue(PICK[variant]);
+        const friend = (still: boolean) => `<span class="doan-agent-artist" aria-hidden="true"><picture><source srcSet="buddies/${id}/${pngName}" media="(prefers-reduced-motion: reduce)"/><img src="buddies/${id}/${still ? pngName : gifName}" alt=""/></picture></span>`;
+        expect(markup([summary({})], { buddy: id })).toContain('<div class="doan-agent">' + friend(false));
+        expect(markup([summary({ phase: "waiting" })], { buddy: id })).toContain('<div class="doan-agent">' + friend(true));
+      }
     }
   });
 
