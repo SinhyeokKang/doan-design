@@ -47,8 +47,8 @@ lead는 링크 1 시작 전에 아래를 사용자에게 한 번에 묻고, 승�
 
 | 링크 | 세션·worktree | 시작 | PR·병합 | 상태 |
 |---|---|---|---|---|
-| 1. `frame-first-selection` | `frame-first-selection-orch` (Claude conductor) | 2026-11-11, `b45ae233` | | 진행 중 |
-| 2. `canvas-activity-notices` | `canvas-activity-notices-orch` (Claude conductor) | 2026-11-11, `b45ae233` | | 진행 중 |
+| 1. `frame-first-selection` | `frame-first-selection-orch` (Claude conductor, 정리됨) | 2026-11-11, `b45ae233` | PR #161, `6ebe555c` | 병합 |
+| 2. `canvas-activity-notices` | `canvas-activity-notices-orch` (Claude conductor) | 2026-11-11, `b45ae233` | PR #160 | develop 병합 대기 |
 
 ## 인계 기록
 
@@ -56,3 +56,4 @@ lead는 링크 1 시작 전에 아래를 사용자에게 한 번에 묻고, 승�
 - 2026-11-11 lead: `folder-attachments`가 병합됐다(PR #159, `b45ae233`). 시작 점검 승인: (1) 링크 2의 공유 메타데이터 계약은 PoC 근거로 conductor가 정하고 PR 본문에 남긴다. 사용자는 PR 검토 때 본다. (2) 링크 2의 대화 종료 말풍선은 격리 앱의 대화 기록 fixture로 확인한다. 로그인은 쓰지 않는다. 두 링크를 `b45ae233`에서 함께 시작했다.
 - 2026-11-11 lead: 에이전트 작업 중 프레임 하이라이트와 대화 입력창이 빠르게 깜빡이는 현상의 원인을 lead 쪽에서 따로 조사하고 있다. 수정이 링크 파일(`CanvasController.ts`, 캔버스 알림·대화 패널)에 걸리면 lead가 해당 conductor에게 알린다.
 - 2026-11-11 lead: 깜빡임 원인을 확인했다. 재로드 중 `CanvasController.ts` `drawWork()`가 작업 프레임 하이라이트를 숨겨 애니메이션이 다시 시작된다. 사용자 승인으로 이 수정을 링크 1의 추가 작업으로 넘겼다(같은 브랜치·PR). 대화 입력창 깜빡임은 재현하지 못해 범위에서 뺐다. 증거는 develop checkout의 `.scratch/flicker/`에 있다.
+- 2026-11-11 lead: 링크 1을 병합했다(PR #161, `6ebe555c`). 깜빡임 수정(재로드 중 작업 마커 유지)이 포함됐다. 미검증: 실제 앱의 IME·드롭다운 Esc, Esc 자동 반복, 실제 ⌘Tab, Locate, 프레임 안 중첩 iframe(BACKLOG). 미정: 캔버스가 `select-parent`에 답하지 않을 때 Esc가 지울지(BACKLOG). 링크 2 PR #160은 공유 문서 충돌로 `origin/develop` 병합을 요청했다.
