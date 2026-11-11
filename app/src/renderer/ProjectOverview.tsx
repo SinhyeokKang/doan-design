@@ -29,7 +29,7 @@ import { generationOf, modelsKey, type DockedSupport } from "./dockedSupport";
 import { cardRow, chipClass, ROW_ACTION_ICONS, ROW_ACTION_LABELS, type RowAction } from "./homeCards";
 import {
   attachmentLimit, defaultEffort, defaultFast, defaultModel, fastToSend, defaultProvider, fixedPreference, groupIcon, modelOption, modelPickerView,
-  selectableProvider, suggestedPresets, suggestedPrompts, type AttachmentDraft, type ModelsState, type NewConversationDefault,
+  selectableProvider, sendRefusal, suggestedPresets, suggestedPrompts, type AttachmentDraft, type ModelsState, type NewConversationDefault,
 } from "./homeComposer";
 import type { LastRequest } from "./homeConversations";
 import type { StartInput, StartOutcome } from "./HomeComposerView";
@@ -78,7 +78,7 @@ export interface ProjectOverviewProps {
   onRetryList(): void;
   onStart(request: StartInput, last: LastRequest): Promise<StartOutcome>;
   // A send in an existing conversation, through HomeRun so the new canvas its turn makes opens.
-  onSendConversation(provider: Provider, request: Parameters<Window["doan"]["sendConversation"]>[0]): Promise<void | { error: string; missing?: string[] }>;
+  onSendConversation(provider: Provider, request: Parameters<Window["doan"]["sendConversation"]>[0]): Promise<void | { error: string; missing?: string[]; replaced?: string[] }>;
   // A problem worktree's repair actions in the branch chip's menu, as the sidebar's project menu runs them.
   onAction(name: RowAction, root: string): void;
   onProjectSettings(root: string): void;
@@ -270,7 +270,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
   const queue = async (request: DockedRequest): Promise<DockedOutcome> => {
     if (mode.kind === "new") return { error: "not_running" };
     const reply = await window.doan.queueConversation({ conversationId: mode.conversationId, text: request.text, anchors: [...request.anchors], ...(request.attachments.length ? { attachments: request.attachments } : {}) }).catch(() => ({ error: "unknown" as const }));
-    if ("error" in reply) return { error: reply.error, ...("missing" in reply && Array.isArray(reply.missing) ? { missing: reply.missing as string[] } : {}) };
+    if ("error" in reply) return sendRefusal(reply);
     // The row keeps the request's text; the request itself is kept for the thread, where Send now moves it.
     run.queued(root, mode.conversationId, { id: reply.itemId, text: stripRequestLines(request.text), message: { text: request.text, anchors: request.anchors, attachments: request.files ?? [] } });
     return { ok: true, itemId: reply.itemId };
@@ -384,7 +384,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
     </header>
     {props.notice && <div className="doan-notice ov-notice" role="status"><AlertIcon /><span className="grow-text selectable">{props.notice}</span></div>}
     <div className="ov-scroll">
-      {conversationId && provider ? <ConversationThread ref={handle} conversationId={conversationId} items={items} provider={provider} project={project}
+      {conversationId && provider ? <ConversationThread ref={handle} conversationId={conversationId} items={items} provider={provider} project={project} homeDirectory={props.homeDirectory}
         liveAfter={thread?.liveAfter ?? Number.MAX_SAFE_INTEGER} turn={thread && Array.isArray(items) ? threadTurn(thread.events, items, live, run.store.stageOf(conversationId), root) : null} canvasListed={canvasListed}
         onAnswer={(requestId, optionId) => window.doan.answerConversationPermission({ conversationId, requestId, optionId })}
         onAnswerQuestion={(requestId, answer) => window.doan.answerConversationQuestion({ conversationId, requestId, ...answer })}

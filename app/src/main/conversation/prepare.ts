@@ -177,10 +177,12 @@ function appSocket(setup: FenceSetup): { socket?: string } {
 }
 // A fence that cannot be built refuses the run before anything starts (unknown): without it the agent would reach the
 // other providers' profiles.
-function runFence(setup: FenceSetup, provider: Provider, profileDir: string, cwd: string, attachments: readonly { path: string }[]): NonNullable<Prepared["fence"]> {
+function runFence(setup: FenceSetup, provider: Provider, profileDir: string, cwd: string, attachments: readonly { path: string; kind: string }[]): NonNullable<Prepared["fence"]> {
   // Codex's profile names the attachment directory, which exists only after a first paste.
   if (provider === "codex") try { mkdirSync(join(setup.userData, "attachments"), { recursive: true, mode: 0o700 }); } catch { /* resolve refuses below */ }
-  const paths = resolveFencePaths({ provider, userData: setup.userData, profileDir, attachments: attachments.map(a => a.path) }, path => realpathSync.native(path));
+  // Only a pasted image's own directory is ever reopened; a folder the person attached widens nothing, wherever it is.
+  const files = attachments.filter(a => a.kind !== "directory").map(a => a.path);
+  const paths = resolveFencePaths({ provider, userData: setup.userData, profileDir, attachments: files }, path => realpathSync.native(path));
   if (!paths) throw new Error("unknown");
   const exec = setup.exec ? { exec: setup.exec } : {};
   // A Codex server picks its mechanism from the mode when it starts, so every Codex run carries its listing and the

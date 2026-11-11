@@ -462,3 +462,13 @@ it("never changes or deletes a folder or its files on remove, a refused start, q
   expect(listing()).toEqual([["a.txt"], "a"]);
   expect(existsSync(join(f.folder, "sent"))).toBe(false);
 });
+// POSTMORTEM 2026-10-21: every path the person gives is tried with ENOTDIR, a NUL byte, an over-long name, a symlink
+// loop and a dangling link; none of them attaches, and none ends the whole request.
+it("refuses broken folder paths one by one and still takes the folder beside them", () => {
+  const f = folderFixture();
+  const file = join(f.files, "a.txt"), loop = join(f.files, "loop"), dangling = join(f.files, "dangling");
+  writeFileSync(file, "a"); symlinkSync(loop, loop); symlinkSync(join(f.files, "nowhere"), dangling);
+  const results = f.store.addPaths({ paths: [join(file, "child"), loop, dangling, join(f.files, "x".repeat(300)), f.folder] })!;
+  expect(results.map(r => r.ok ? r.attachment.kind : r.error)).toEqual(["not_found", "unreadable", "not_found", "unreadable", "directory"]);
+  expect(f.store.addPaths({ paths: [`${f.folder}\0`] })).toBeNull();
+});

@@ -179,8 +179,9 @@ const api = {
   // The project skills the provider loads in this folder (Claude and Codex; an empty list for the others), read the
   // same prompt-free way and kept by main for 30 seconds. An error carries a conversation start code.
   listConversationSkills: (request: { root: string; provider: Provider }): Promise<{ skills: SkillSummary[] } | ConversationError> => ipcRenderer.invoke("conversation:skills", request),
-  // Home attachments. Main checks each file (real path, regular file, image signature) and answers per item in order;
-  // nothing is copied except a pasted image, which main re-encodes to PNG under userData. A thumbnail is PNG bytes.
+  // Home attachments. Main checks each item (real path, a regular file or a folder, image signature) and answers per item
+  // in order; nothing is copied except a pasted image, which main re-encodes to PNG under userData, and a folder is never
+  // read. A thumbnail is PNG bytes.
   chooseAttachments: (): Promise<AttachmentResult[]> => ipcRenderer.invoke("attachments:choose"),
   // Dropped or pasted Finder files. A file the page made itself has no path and is refused here as not_found.
   async addAttachmentFiles(files: readonly File[]): Promise<AttachmentResult[] | null> {

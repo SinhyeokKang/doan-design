@@ -209,10 +209,10 @@ test("focus on Stop moves to the field when Stop becomes a disabled Send; focus 
 // a queued message's files are drawn in the thread once Send now moves it there.
 test("a queued message carries its files' names, sizes and kinds for the thread, apart from the ids main takes", async () => {
   const { queue, render, store, props } = setup({ turn: "running" });
-  store.current = new Map([["conversation:a", { ...draft("With the notes"), attachments: [{ key: "k", id: "f", name: "notes.md", kind: "file", pasted: false, status: "ready", size: 4096 }] }]]); props.drafts = store.current;
+  store.current = new Map([["conversation:a", { ...draft("With the notes"), attachments: [{ key: "k", id: "f", name: "notes.md", kind: "file", pasted: false, status: "ready", size: 4096, path: "/Users/ada/notes.md" }, { key: "d", id: "d", name: "references", kind: "directory", pasted: false, status: "ready", path: "/Users/ada/references" }] }]]); props.drafts = store.current;
   (button(render(), "Queue").onClick as () => void)();
   await flush();
-  expect(queue).toHaveBeenCalledWith({ text: "With the notes", anchors: [], attachments: [{ id: "f" }], files: [{ name: "notes.md", size: 4096, kind: "file" }] });
+  expect(queue).toHaveBeenCalledWith({ text: "With the notes", anchors: [], attachments: [{ id: "f" }, { id: "d" }], files: [{ name: "notes.md", size: 4096, kind: "file", path: "/Users/ada/notes.md" }, { name: "references", kind: "directory", path: "/Users/ada/references" }] });
 });
 
 test("a late project_busy keeps the draft and shows Home's busy sentence until the person edits", async () => {

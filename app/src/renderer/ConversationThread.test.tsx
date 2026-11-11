@@ -7,6 +7,7 @@ import type { CanvasRow } from "../main/view";
 import { answerReached, ConversationThread, endView, HandoffCard, HandoffLine, httpsUrl, SentChip, type ConversationThreadProps } from "./ConversationThread";
 import { threadItems, type ThreadItem } from "./threadItems";
 import type { ConversationEvent } from "../main/conversation/types";
+import { TooltipProvider } from "./components/ui/tooltip";
 
 const noop = () => {};
 const props = (items: ConversationThreadProps["items"], patch: Partial<ConversationThreadProps> = {}): ConversationThreadProps => ({
@@ -100,8 +101,10 @@ describe("thread items", () => {
     expect(out).toContain("<b>spec.md</b><small>6 KB</small>");
   });
   test("a sent folder shows the folder icon, its name and Folder, never a size", () => {
-    const out = html([{ kind: "user", key: "u1", seq: 1, anchors: [], preset: null, parts: [], attachments: [{ name: "references", kind: "directory", path: "/Users/ada/Projects/Atlas/references" }] }], { homeDirectory: "/Users/ada" });
-    expect(out).toMatch(/<div class="msg-files"><span class="attach-chip"><span class="file-icon" aria-hidden="true"><svg[^>]*lucide-folder[^>]*>.*?<\/svg><\/span><span class="attach-text"><b>references<\/b><small>Folder<\/small><\/span><\/span><\/div>/);
+    const items: ConversationThreadProps["items"] = [{ kind: "user", key: "u1", seq: 1, anchors: [], preset: null, parts: [], attachments: [{ name: "references", kind: "directory", path: "/Users/ada/Projects/Atlas/references" }] }];
+    // The path is the chip's tooltip, so the chip sits in a provider as it does in the app.
+    const out = renderToStaticMarkup(<TooltipProvider><ConversationThread {...props(items, { homeDirectory: "/Users/ada" })} /></TooltipProvider>);
+    expect(out).toMatch(/<div class="msg-files"><span class="attach-chip" data-state="closed" data-slot="tooltip-trigger"><span class="file-icon" aria-hidden="true"><svg[^>]*lucide-folder[^>]*>.*?<\/svg><\/span><span class="attach-text"><b>references<\/b><small>Folder<\/small><\/span><\/span><\/div>/);
   });
 
   // Draft frame thread-notice: the line sits in its turn, under the reply and before a failed turn's end,
@@ -466,7 +469,7 @@ test("a permission answer counts as sent only when main took it", async () => {
 
 // Draft frame `sending`: the message Send now has in flight, with one caption line under it.
 describe("a message Send now has in flight", () => {
-  const sending: ThreadItem = { kind: "user", key: "qq1", seq: null, sending: true, anchors: [], preset: null, parts: [{ text: "Use the spacing" }], attachments: [{ name: "notes.pdf", size: 86016, kind: "file" }] };
+  const sending: ThreadItem = { kind: "user", key: "qq1", seq: null, sending: true, anchors: [], preset: null, parts: [{ text: "Use the spacing" }], attachments: [{ name: "notes.pdf", size: 86016, kind: "file", path: "/Users/ada/notes.pdf" }] };
   test("is the person's message with its files, then a spinner and Sending; it has no actions", () => {
     const out = html([sending]);
     expect(out).toContain('<div class="msg-user"><div class="bubble">Use the spacing</div><div class="msg-files">');

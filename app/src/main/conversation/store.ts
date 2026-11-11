@@ -121,8 +121,9 @@ function storedAnswers(value: unknown): boolean {
     Array.isArray(a.selected) && a.selected.length <= L.options && [...a.selected].every(s => bounded(s, L.label)) && (a.other === undefined || bounded(a.other, L.text)));
 }
 function attachment(value: unknown): boolean {
-  return object(value) && label(value.name) && typeof value.size === "number" && Number.isSafeInteger(value.size) && value.size >= 0 &&
-    (value.kind === "image" || value.kind === "file") && typeof value.path === "string" && absolutePath(value.path);
+  if (!object(value) || !label(value.name) || typeof value.path !== "string" || !absolutePath(value.path)) return false;
+  if (value.kind === "directory") return !("size" in value);
+  return typeof value.size === "number" && Number.isSafeInteger(value.size) && value.size >= 0 && (value.kind === "image" || value.kind === "file");
 }
 function origin(value: unknown): boolean {
   return object(value) && value.kind === "handoff" && bounded(value.conversationId, LIMITS.label) && validCanvas(value.canvas);

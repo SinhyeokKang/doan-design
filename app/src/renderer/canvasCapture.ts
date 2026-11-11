@@ -11,7 +11,7 @@ export const MIN_CAPTURE = 8;
 export const CAPTURE_UNAVAILABLE = "Capture area isn’t available while the canvas can’t be shown.";
 // Attach's own reason (DockedComposer.tsx): a capture is an attachment, so it is closed for the same conversations.
 export const CAPTURE_TERMINAL = "Files can’t be attached to a terminal session";
-export const CAPTURE_LIMIT = `Only ${MAX_ATTACHMENTS} files can be attached. Remove one to add another.`;
+export const CAPTURE_LIMIT = `Only ${MAX_ATTACHMENTS} attachments can be added. Remove one to add another.`;
 
 // The drag from `start` to `end` in the canvas area's px, clipped to the area and rounded to whole px. null for a
 // click or an area under MIN_CAPTURE on either side once clipped.

@@ -114,7 +114,7 @@ export function newConversationMode(resumeTarget: ResumeTarget | undefined, pref
 }
 
 export function canvasUnlistedText(project: string): string { return `This canvas isn’t listed in ${project}, so its conversation can’t continue.`; }
-export const ATTACHMENT_LIMIT_TEXT = `Only ${MAX_ATTACHMENTS} files can be attached to a message. Remove some, then send again.`;
+export const ATTACHMENT_LIMIT_TEXT = `Only ${MAX_ATTACHMENTS} attachments can be added to a message. Remove some, then send again.`;
 export const DUPLICATE_CANVAS_TEXT = "Another canvas has the same ID, so this conversation can’t continue. Run doan check in a terminal to find it.";
 
 // busy: the busy line with Open. blocked: the composer keeps the draft but takes no input, with this reason line.

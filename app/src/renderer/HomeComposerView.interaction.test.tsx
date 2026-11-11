@@ -270,13 +270,13 @@ test("Edit on Home asks before replacing a different draft, and fills an empty o
   expect(empty.box.current.text).toBe("");
 });
 
-test("a dropped folder is recognised by its own item even when string items come first", () => {
+test("string items among a drop change nothing: every dropped file and folder goes to main in order", () => {
   const { render } = setup();
   const composer = find(render(), props => props.className === "composer");
   const folder = new File([""], "designs"), file = new File(["x"], "brief.pdf");
   const items = [{ kind: "string", webkitGetAsEntry: () => null }, { kind: "file", webkitGetAsEntry: () => ({ isDirectory: true }) }, { kind: "file", webkitGetAsEntry: () => ({ isDirectory: false }) }];
   call(composer, "onDrop", { preventDefault: vi.fn(), stopPropagation: vi.fn(), dataTransfer: { types: ["Files"], files: [folder, file], items } });
-  expect(doan.addAttachmentFiles).toHaveBeenCalledWith([file]);
+  expect(doan.addAttachmentFiles).toHaveBeenCalledWith([folder, file]);
 });
 
 const B: FolderEntry = { kind: "list", path: "/code/acme", servedRev: 0, canvases: [], git: { common: "/code/acme/.git", main: "/code/acme", branch: "main", worktrees: [] } };

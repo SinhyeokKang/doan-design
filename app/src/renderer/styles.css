@@ -825,6 +825,19 @@ body:has(.shell-top) { background: transparent; }
 .queue-status:not(:empty) { margin-top: var(--space-1); }
 .queue-status { display: flex; align-items: center; gap: var(--space-2); padding: 0 var(--space-4); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-subtle); }
 .queue-status svg { width: var(--size-icon); height: var(--size-icon); color: var(--text-metadata); }
+/* A queued message's first folder and the count of its other attachments, before its text (folder-attachments draft).
+   Name and text both truncate; the tooltip lists every attachment. The caps are the draft's: 180px, 100px in a narrow
+   queue such as the 360px canvas panel. */
+.queue { container-type: inline-size; }
+.queue-attachment { display: inline-flex; align-items: center; gap: var(--space-1); min-width: 0; max-width: 180px; font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-subtle); }
+.queue-attachment svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+.queue-attachment .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.queue-attachment .count { flex: none; }
+@container (max-width: 431px) { .queue-attachment { max-width: 100px; } }
+.queue-full-list .queue-tip-item { display: block; }
+.queue-full-list .queue-tip-item + .queue-tip-item { margin-top: var(--space-2); }
+.queue-full-list b, .queue-full-list .queue-tip-item > span { display: block; }
+.queue-full-list b { font-weight: var(--type-weight-medium); }
 .canvas-gone { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-4); border-radius: var(--radius-row); background: var(--surface-inset); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
 .canvas-gone svg { flex: none; }
 .grow-text { flex: 1; min-width: 0; }

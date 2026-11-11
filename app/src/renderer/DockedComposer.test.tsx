@@ -215,6 +215,14 @@ test("the docked Effort trigger shows Fast on; a terminal session's fixed trigge
   expect(fixed).not.toContain("lucide-zap");
 });
 
+test("a folder chip in the draft shows the folder icon, its name and Folder; a replaced one the warning and Replaced", () => {
+  const folder = { key: "f", id: "f", name: "references", kind: "directory" as const, pasted: false, path: "/Users/ada/Projects/Atlas/references" };
+  const ready = render({}, { attachments: [{ ...folder, status: "ready" }] });
+  expect(ready).toMatch(/<span class="attach-chip"[^>]*><span class="file-icon" aria-hidden="true"><svg[^>]*lucide-folder[^>]*>.*?<\/svg><\/span><span class="attach-text"><b>references<\/b><small>Folder<\/small><\/span><button type="button"[^>]*aria-label="Remove references"/);
+  const replaced = render({}, { attachments: [{ ...folder, status: "replaced" }] });
+  expect(replaced).toMatch(/<span class="attach-chip problem"[^>]*><span class="file-icon" aria-hidden="true"><svg[^>]*lucide-triangle-alert[^>]*>.*?<\/svg><\/span><span class="attach-text"><b>references<\/b><small>Replaced<\/small>/);
+});
+
 // folder-attachments draft: a queued message with a folder shows the first folder's icon and name before its text,
 // +N for the other attachments, and the full list in its tooltip and accessible name; Send now and Remove stay.
 test("a queued message with a folder names it inline, counts the rest and describes every attachment to its buttons", () => {
@@ -222,10 +230,10 @@ test("a queued message with a folder names it inline, counts the rest and descri
     { name: "brand-guidelines.pdf", size: 1, kind: "file" as const, path: "/Users/ada/Projects/Atlas/brand-guidelines.pdf" },
     { name: "references", kind: "directory" as const, path: "/Users/ada/Projects/Atlas/references" },
   ];
-  const rows = render({ turn: "running", sendNow: true, onSendQueuedNow: async () => {}, queued: [{ id: "q1", text: "Use these references for the next design.", message: { text: "Use these references for the next design.", anchors: [], attachments } }] });
+  const rows = render({ turn: "running", sendNow: true, onSendQueuedNow: async () => {}, queued: [{ id: "q1", text: "Use these references for the next design.", message: { attachments } }] });
   expect(rows).toMatch(/<div class="queue-item"><svg[^>]*lucide-message-square-dashed[^>]*>.*?<\/svg><span class="queue-attachment" role="group" id="([^"]+)" aria-label="Attachments: brand-guidelines.pdf — ~\/Projects\/Atlas\/brand-guidelines.pdf; references — ~\/Projects\/Atlas\/references"[^>]*><svg[^>]*lucide-folder[^>]*>.*?<\/svg><span class="name">references<\/span><span class="count">\+1<\/span><\/span><span class="queue-text" id="([^"]+)">Use these references for the next design.<\/span><button type="button" class="doan-button queue-send"[^>]*aria-describedby="\1 \2"[^>]*>Send now<\/button><button type="button" class="chip-remove doan-icon-button"[^>]*aria-describedby="\1 \2"/);
   // A queued message with files only keeps its row as it was.
-  const files = render({ turn: "running", queued: [{ id: "q1", text: "x", message: { text: "x", anchors: [], attachments: [attachments[0]!] } }] });
+  const files = render({ turn: "running", queued: [{ id: "q1", text: "x", message: { attachments: [attachments[0]!] } }] });
   expect(files).not.toContain("queue-attachment");
   expect(files).toMatch(/aria-describedby="[^" ]+">/);
 });

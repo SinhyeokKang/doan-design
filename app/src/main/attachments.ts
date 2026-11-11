@@ -13,15 +13,20 @@ const MAX_PATH = 4096;
 const SENT = "sent";
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp"]);
-export type AttachmentError = "not_found" | "not_file" | "not_image" | "too_large" | "limit" | "unreadable" | "capture_failed";
-export interface AttachmentInfo extends AttachmentRecord { id: string; pasted: boolean; thumbnail?: Uint8Array }
+// replaced: a folder whose path, or the link the person chose, now leads to another folder.
+export type AttachmentError = "not_found" | "not_file" | "not_image" | "too_large" | "limit" | "unreadable" | "capture_failed" | "replaced";
+export type AttachmentInfo = AttachmentRecord & { id: string; pasted: boolean; thumbnail?: Uint8Array };
 export type AttachmentResult = { ok: true; attachment: AttachmentInfo } | { ok: false; name: string; error: AttachmentError };
-export type ResolvedAttachments = { ok: true; records: AttachmentRecord[] } | { ok: false; error: "bad_request" } | { ok: false; error: "attachment_missing"; missing: string[] };
+// replaced: the ids among missing that are replaced folders, absent when there are none.
+export type ResolvedAttachments = { ok: true; records: AttachmentRecord[] } | { ok: false; error: "bad_request" } | { ok: false; error: "attachment_missing"; missing: string[]; replaced?: string[] };
 // Electron's nativeImage behind a seam: it decodes only bytes that passed the size and signature checks, never a path.
 export interface ImageCodec { thumbnail(bytes: Uint8Array): Uint8Array | null; reencode(bytes: Uint8Array): Uint8Array | null }
-// dev and ino: the file checked when it was added; a recheck reads nothing from any other file.
+// dev and ino: the file or folder checked when it was added; a recheck reads nothing from any other file.
+// input: the path as it was given; a recheck resolves it again, so a link that now leads elsewhere is refused.
+// dir: only a paste's own directory under userData, the one thing main ever deletes; a person's folder never has it.
 // sent: a conversation already holds this file, so forgetting it never deletes a paste (Edit on Home brings it back).
-interface Entry extends AttachmentRecord { id: string; pasted: boolean; dir?: string; dev: number; ino: number; sent?: true }
+type Entry = AttachmentRecord & { id: string; pasted: boolean; input: string; dir?: string; dev: number; ino: number; sent?: true };
+type Checked = AttachmentRecord & { dev: number; ino: number; bytes?: Uint8Array };
 export type RecheckResult = { id: string; ok: true; attachment: AttachmentInfo } | { id: string; ok: false; error: AttachmentError };
 
 // The leading bytes of the image formats doan accepts; a mismatch is never decoded.
@@ -33,18 +38,20 @@ export function imageType(head: Uint8Array): "image/png" | "image/jpeg" | "image
   if (at(0, [0x52, 0x49, 0x46, 0x46]) && at(8, [0x57, 0x45, 0x42, 0x50])) return "image/webp";
   return null;
 }
-interface Opened { size: number; dev: number; ino: number; head: Uint8Array; bytes?: Uint8Array }
+interface Opened { size: number; dev: number; ino: number; directory: boolean; head: Uint8Array; bytes?: Uint8Array }
 // Opens a canonical path without following a link (O_NONBLOCK keeps a FIFO from blocking main) and reads only once
 // the opened file is a regular file and, on a recheck, the same one. whole: also the bytes of an image within the cap,
-// for its thumbnail, from the same descriptor.
+// for its thumbnail, from the same descriptor. A folder is only identified: nothing in it is listed or read, so the
+// caller compares its identity.
 function readChecked(path: string, expected: { dev: number; ino: number } | null, whole: boolean): Opened {
   const fd = openSync(path, constants.O_RDONLY | constants.O_NONBLOCK | constants.O_NOFOLLOW);
   try {
     const stat = fstatSync(fd);
+    if (stat.isDirectory()) return { size: 0, dev: stat.dev, ino: stat.ino, directory: true, head: new Uint8Array() };
     if (!stat.isFile()) throw Object.assign(new Error("not_file"), { code: "not_file" });
     if (expected && (stat.dev !== expected.dev || stat.ino !== expected.ino)) throw Object.assign(new Error("replaced"), { code: "ENOENT" });
     const head = Buffer.alloc(16); const read = readSync(fd, head, 0, 16, 0);
-    const opened: Opened = { size: stat.size, dev: stat.dev, ino: stat.ino, head: head.subarray(0, read) };
+    const opened: Opened = { size: stat.size, dev: stat.dev, ino: stat.ino, directory: false, head: head.subarray(0, read) };
     if (whole && stat.size <= MAX_IMAGE_BYTES && imageType(opened.head)) {
       const bytes = Buffer.alloc(stat.size);
       if (readSync(fd, bytes, 0, stat.size, 0) === stat.size) opened.bytes = bytes;
@@ -106,7 +113,7 @@ export class AttachmentStore {
       if (accepted >= MAX_ATTACHMENTS) return { ok: false, name, error: "limit" };
       const checked = this.check(path, null); if ("error" in checked) return { ok: false, name, error: checked.error };
       const { bytes, ...record } = checked;
-      const entry: Entry = { id: randomUUID(), pasted: false, ...record };
+      const entry: Entry = { id: randomUUID(), pasted: false, input: path, ...record };
       this.entries.set(entry.id, entry); accepted++;
       return { ok: true, attachment: this.info(entry, bytes) };
     });
@@ -144,7 +151,7 @@ export class AttachmentStore {
       mkdirSync(this.dir, { recursive: true, mode: 0o700 }); mkdirSync(dir, { mode: 0o700 });
       writeFileSync(join(dir, file), png, { mode: 0o600, flag: "wx" });
       const path = realpathSync.native(join(dir, file)), stat = lstatSync(path);
-      entry = { id, pasted: true, dir, name: file, size: png.length, kind: "image", path, dev: stat.dev, ino: stat.ino };
+      entry = { id, pasted: true, input: path, dir, name: file, size: png.length, kind: "image", path, dev: stat.dev, ino: stat.ino };
     } catch { rmSync(dir, { recursive: true, force: true }); return { ok: false, name, error: failed }; }
     this.entries.set(id, entry);
     return { ok: true, attachment: this.info(entry, png) };
@@ -160,7 +167,8 @@ export class AttachmentStore {
     else if (entry.dir) rmSync(entry.dir, { recursive: true, force: true });
     return true;
   }
-  // The send-time recheck: each file must still be the regular file that was checked, at the same canonical path.
+  // The send-time recheck: each file must still be the regular file that was checked, and each folder the same folder,
+  // at the same canonical path the given path still leads to. What is inside a folder may change.
   resolve(value: unknown): ResolvedAttachments {
     if (!Array.isArray(value) || value.length > MAX_ATTACHMENTS) return { ok: false, error: "bad_request" };
     const ids: string[] = [];
@@ -169,14 +177,16 @@ export class AttachmentStore {
       ids.push(item.id);
     }
     if (new Set(ids).size !== ids.length) return { ok: false, error: "bad_request" };
-    const missing: string[] = [], records: AttachmentRecord[] = [];
+    const missing: string[] = [], replaced: string[] = [], records: AttachmentRecord[] = [];
     for (const id of ids) {
       const entry = this.entries.get(id);
-      const checked = entry ? this.check(entry.path, entry) : null;
-      if (!entry || !checked || "error" in checked || checked.kind !== entry.kind) missing.push(id);
-      else records.push({ name: entry.name, size: checked.size, kind: entry.kind, path: entry.path });
+      const checked = entry ? this.check(entry.input, entry) : null;
+      if (!entry || !checked || "error" in checked) {
+        missing.push(id);
+        if (checked && "error" in checked && checked.error === "replaced") replaced.push(id);
+      } else records.push(record(entry, checked));
     }
-    return missing.length ? { ok: false, error: "attachment_missing", missing } : { ok: true, records };
+    return missing.length ? { ok: false, error: "attachment_missing", missing, ...(replaced.length ? { replaced } : {}) } : { ok: true, records };
   }
   // Right before a start is accepted: a sent paste directory survives the next launch's cleanup.
   markSent(value: unknown): void {
@@ -222,34 +232,50 @@ export class AttachmentStore {
     if (ids.length > MAX_ATTACHMENTS || !ids.every(id => typeof id === "string" && id.length <= 64) || new Set(ids).size !== ids.length) return null;
     return (ids as string[]).map((id): RecheckResult => {
       const entry = this.entries.get(id) ?? this.sent.get(id);
-      const checked = entry ? this.check(entry.path, entry) : null;
+      const checked = entry ? this.check(entry.input, entry) : null;
       if (!entry || !checked) return { id, ok: false, error: "not_found" };
       if ("error" in checked) return { id, ok: false, error: checked.error };
-      if (checked.kind !== entry.kind) return { id, ok: false, error: "not_found" };
-      const current = { ...entry, size: checked.size };
+      const current: Entry = { ...entry, ...record(entry, checked) };
       this.sent.delete(id); this.entries.set(id, current);
       return { id, ok: true, attachment: this.info(current, undefined) };
     });
   }
   // expected: a recheck, which compares the fresh canonical path with the stored one before opening anything, so a
-  // path swapped to a link elsewhere is refused without reading the other file.
-  private check(path: string, expected: Entry | null): AttachmentRecord & { dev: number; ino: number; bytes?: Uint8Array } | { error: AttachmentError } {
+  // path swapped to a link elsewhere is refused without reading the other file. A recheck answers only the same kind:
+  // a folder that became a file, or a file that became a folder, is missing; another folder in a folder's place is
+  // replaced.
+  private check(path: string, expected: Entry | null): Checked | { error: AttachmentError } {
     let real: string, opened: Opened;
     try {
       real = realpathSync.native(path);
-      if (expected && real !== expected.path) return { error: "not_found" };
-      opened = readChecked(real, expected, !expected);
+      if (expected && real !== expected.path) return { error: expected.kind === "directory" && isDirectory(real) ? "replaced" : "not_found" };
+      opened = readChecked(real, expected?.kind === "directory" ? null : expected, !expected);
     } catch (error) {
       const code = typeof error === "object" && error !== null && "code" in error ? error.code : "";
       return { error: code === "ENOENT" || code === "ENOTDIR" ? "not_found" : code === "not_file" || code === "EISDIR" ? "not_file" : "unreadable" };
     }
+    if (expected && opened.directory !== (expected.kind === "directory")) return { error: "not_found" };
+    if (opened.directory) {
+      if (expected && (opened.dev !== expected.dev || opened.ino !== expected.ino)) return { error: "replaced" };
+      return { name: basename(real), kind: "directory", path: real, dev: opened.dev, ino: opened.ino };
+    }
     const image = imageType(opened.head) !== null;
     // A file named as an image must be one; its name would otherwise mislead the agent and the chip.
     if (!image && IMAGE_EXTENSIONS.has(extname(real).toLowerCase())) return { error: "not_image" };
+    // A recheck keeps the kind it was added with; an image that lost its signature is not that image any more.
+    if (expected && (image ? "image" : "file") !== expected.kind) return { error: "not_found" };
     return { name: basename(real), size: opened.size, kind: image ? "image" : "file", path: real, dev: opened.dev, ino: opened.ino, ...(opened.bytes ? { bytes: opened.bytes } : {}) };
   }
   private info(entry: Entry, bytes: Uint8Array | undefined): AttachmentInfo {
     const thumbnail = entry.kind === "image" && bytes ? this.codec.thumbnail(bytes) : null;
-    return { id: entry.id, name: entry.name, size: entry.size, kind: entry.kind, path: entry.path, pasted: entry.pasted, ...(thumbnail ? { thumbnail } : {}) };
+    return { id: entry.id, pasted: entry.pasted, ...record(entry, entry), ...(thumbnail ? { thumbnail } : {}) };
   }
+}
+// The record of an entry as it is now: its name, kind and path as added, a file's size as just checked.
+function record(entry: Entry, checked: Checked | Entry): AttachmentRecord {
+  return entry.kind === "directory" ? { name: entry.name, kind: "directory", path: entry.path }
+    : { name: entry.name, size: "size" in checked ? checked.size : 0, kind: entry.kind, path: entry.path };
+}
+function isDirectory(path: string): boolean {
+  try { return lstatSync(path).isDirectory(); } catch { return false; }
 }

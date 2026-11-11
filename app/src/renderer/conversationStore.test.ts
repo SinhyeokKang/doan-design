@@ -39,7 +39,7 @@ function harness() {
     list: () => list, readsStarted: () => started, readsApplied: () => applied, notice: vi.fn(), changed: vi.fn(),
   };
   const store = new ConversationStore(host);
-  store.queued(ROOT, A, { id: "q1", text: "Use the spacing from button hero-cta", message: { text: "Use the spacing from {{1}}", anchors: [CTA], attachments: [{ name: "spacing-notes.pdf", size: 86016, kind: "file" }] } });
+  store.queued(ROOT, A, { id: "q1", text: "Use the spacing from button hero-cta", message: { text: "Use the spacing from {{1}}", anchors: [CTA], attachments: [{ name: "spacing-notes.pdf", size: 86016, kind: "file", path: "/Users/ada/spacing-notes.pdf" }] } });
   store.queued(ROOT, A, { id: "q2", text: "Second" });
   store.queued(ROOT, A, { id: "q3", text: "Third" });
   const ids = () => store.queue(A).map(item => item.id);
@@ -55,7 +55,7 @@ test("pressing Send now takes the row out of the queue at once and holds the mes
   void h.store.sendQueuedNow(A, "q1");
   expect(doan.sendQueuedNow).toHaveBeenCalledWith({ conversationId: A, itemId: "q1" });
   expect(h.ids()).toEqual(["q2", "q3"]);
-  expect(h.store.sending(A)).toEqual([{ id: "q1", text: "Use the spacing from {{1}}", anchors: [CTA], attachments: [{ name: "spacing-notes.pdf", size: 86016, kind: "file" }] }]);
+  expect(h.store.sending(A)).toEqual([{ id: "q1", text: "Use the spacing from {{1}}", anchors: [CTA], attachments: [{ name: "spacing-notes.pdf", size: 86016, kind: "file", path: "/Users/ada/spacing-notes.pdf" }] }]);
   expect(h.host.changed).toHaveBeenCalled();
 });
 

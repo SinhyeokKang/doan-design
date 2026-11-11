@@ -3,7 +3,8 @@ import { skillWords } from "./skillWords";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import { PROVIDERS, type AuthStatusDto, type Provider, type ReadinessCause } from "../main/agentAuth/types";
 import type { AcpModes, PermissionModeId } from "../main/conversation/permissionMode";
-import type { FastUnusedReason, SkillSummary } from "../main/conversation/types";
+import type { AttachmentRecord, FastUnusedReason, SkillSummary } from "../main/conversation/types";
+import type { AttachmentInfo } from "../main/attachments";
 import type { DesignPresetSummary, DesignSkillReply } from "../main/designSkills";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { HomeMemory } from "../restore/uiState";
@@ -30,7 +31,6 @@ export const MAX_PASTED_BYTES = 50 * 1024 * 1024;
 const PLACEHOLDER = "Describe what to design, / for presets";
 const PRESET_PLACEHOLDER = "Which canvas or screen? Add details…";
 const ATTACHMENTS_ONLY = "Look at the attached files.";
-const FOLDER_DROP = "Folders can’t be attached. Add a project from Add Projects.";
 
 // The attachment list and main's Home paragraph travel outside this text, so neither counts toward the limit.
 export function composeRequest(text: string, preset: PresetRef | null, skills: readonly string[], attachments: number): string {
@@ -59,8 +59,10 @@ export function lengthCounter(length: number): string | null {
 export interface AttachmentDraft {
   // The renderer's own key; `id` is main's opaque id once the file is checked.
   key: string; id?: string;
-  name: string; kind: "image" | "file"; pasted: boolean;
-  status: "checking" | "ready" | "missing";
+  name: string; kind: "image" | "file" | "directory"; pasted: boolean;
+  // replaced: a folder whose path now leads to another folder (main's recheck said so).
+  status: "checking" | "ready" | "missing" | "replaced";
+  // A folder never has a size.
   size?: number; path?: string;
 }
 
@@ -110,8 +112,8 @@ export function draftProblem(draft: string | readonly FieldSegment[], preset: Pr
   typed.push(...requestLines(preset, skills));
   if (typed.some(piece => piece.includes("{{") || piece.includes("}}"))) return { kind: "anchorMarkers", text: "Remove {{ and }} from the message to send it." };
   if (attachments.some(a => a.status === "checking")) return { kind: "checking", text: "Checking attachments" };
-  const moved = attachments.find(a => a.status === "missing");
-  return moved ? { kind: "attachmentMissing", text: movedNotice(moved) } : null;
+  const moved = attachments.find(a => a.status === "missing" || a.status === "replaced");
+  return moved ? { kind: "attachmentMissing", text: problemNotice(moved) } : null;
 }
 
 // Neighbouring text segments join first, so {{ split across two of them is still caught.
@@ -654,9 +656,41 @@ export function attachmentLimit(existing: number, items: readonly { pasted: bool
   });
   const notices = [
     ...(oversized ? ["This image is over 50 MB, so it wasn’t attached."] : []),
-    ...(leftOut > 0 ? [`Only ${MAX_ATTACHMENTS} files can be attached. ${leftOut} ${leftOut === 1 ? "was" : "were"} left out.`] : []),
+    ...(leftOut > 0 ? [`${LIMIT_TEXT} ${leftOut} ${leftOut === 1 ? "was" : "were"} left out.`] : []),
   ];
   return { accept, notices };
+}
+
+const LIMIT_TEXT = `Only ${MAX_ATTACHMENTS} attachments can be added.`;
+const REFUSALS: Record<string, (name: string) => string> = {
+  not_found: name => `${name} wasn’t found, so it wasn’t attached.`,
+  not_file: name => `${name} isn’t a file or folder, so it wasn’t attached.`,
+  not_image: name => `${name} isn’t a readable image, so it wasn’t attached.`,
+  unreadable: name => `${name} couldn’t be read, so it wasn’t attached.`,
+  too_large: () => "This image is over 50 MB, so it wasn’t attached.",
+  limit: () => LIMIT_TEXT,
+  // An empty canvas capture or one main could not save: the file name means nothing.
+  capture_failed: () => "Couldn’t capture the canvas. Try again.",
+};
+// Why main refused one item of an Attach, drop or paste; an unknown code reads as unreadable.
+export function attachRefusal(error: string, name: string): string { return (REFUSALS[error] ?? REFUSALS.unreadable!)(name); }
+
+// A chip for what main checked, or for a recorded path main could not issue again (a request read back into a draft).
+export function readyAttachment(key: string, info: AttachmentInfo): AttachmentDraft {
+  return { key, id: info.id, name: info.name, kind: info.kind, pasted: info.pasted, status: "ready", ...("size" in info ? { size: info.size } : {}), path: info.path };
+}
+export function recordedAttachment(key: string, record: AttachmentRecord): AttachmentDraft {
+  return { key, name: record.name, kind: record.kind, pasted: false, status: "missing", ...("size" in record ? { size: record.size } : {}), path: record.path };
+}
+// A refused start or send as the composers read it: attachment_missing's ids, and the replaced folders among them.
+export function sendRefusal(reply: { error: string; missing?: unknown; replaced?: unknown }): { error: string; missing?: string[]; replaced?: string[] } {
+  const ids = (value: unknown) => Array.isArray(value) && value.every(id => typeof id === "string") ? value as string[] : undefined;
+  const missing = ids(reply.missing), replaced = ids(reply.replaced);
+  return { error: reply.error, ...(missing ? { missing } : {}), ...(replaced ? { replaced } : {}) };
+}
+// A send refused with attachment_missing: the named chips become problems, a replaced folder as Replaced.
+export function markRefused(attachments: readonly AttachmentDraft[], missing: readonly string[], replaced: readonly string[] | undefined): AttachmentDraft[] {
+  return attachments.map(a => !a.id || !missing.includes(a.id) ? a : { ...a, status: replaced?.includes(a.id) ? "replaced" : "missing" });
 }
 
 // main writes a canvas capture as a paste named canvas-capture-<time>.png (attachments.ts capturedName); AttachmentInfo has no
@@ -664,7 +698,10 @@ export function attachmentLimit(existing: number, items: readonly { pasted: bool
 function isCanvasCapture(a: AttachmentDraft): boolean { return a.pasted && a.name.startsWith("canvas-capture-"); }
 function pastedLabel(a: AttachmentDraft): string { return isCanvasCapture(a) ? "Canvas capture" : "Pasted image"; }
 
-function movedNotice(a: AttachmentDraft): string { return `${a.pasted ? pastedLabel(a) : a.name} was moved or deleted. Remove it, or attach it again.`; }
+function problemNotice(a: AttachmentDraft): string {
+  if (a.status === "replaced") return `${a.name} now points to a different folder. Remove it, or attach it again.`;
+  return `${a.pasted ? pastedLabel(a) : a.name} was moved or deleted. Remove it, or attach it again.`;
+}
 
 export function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -672,26 +709,38 @@ export function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export interface AttachmentChipView { label: string; meta: string; tooltip: string | null; removeLabel: string; thumbnail: boolean; notice: string | null; problem: boolean }
+export interface AttachmentChipView { label: string; meta: string; tooltip: string | null; removeLabel: string; thumbnail: boolean; folder: boolean; notice: string | null; problem: boolean }
 
 export function attachmentChipView(a: AttachmentDraft, home: string | null): AttachmentChipView {
   const label = a.pasted ? pastedLabel(a) : a.name;
+  const folder = a.kind === "directory";
   const dot = a.name.lastIndexOf(".");
-  // Pasted images are always re-encoded to PNG by main.
-  const type = a.pasted ? "PNG" : dot > 0 ? a.name.slice(dot + 1).toUpperCase() : null;
-  const meta = a.status === "checking" ? "Checking" : a.status === "missing" ? "Moved or deleted" : [type, a.size === undefined ? null : formatSize(a.size)].filter(Boolean).join(" · ");
+  // Pasted images are always re-encoded to PNG by main. A folder's name says nothing about a type, even shots.png.
+  const type = folder ? "Folder" : a.pasted ? "PNG" : dot > 0 ? a.name.slice(dot + 1).toUpperCase() : null;
+  const problem = a.status === "missing" || a.status === "replaced";
+  const meta = a.status === "checking" ? "Checking" : a.status === "missing" ? "Moved or deleted" : a.status === "replaced" ? "Replaced"
+    : [type, a.size === undefined ? null : formatSize(a.size)].filter(Boolean).join(" · ");
   return {
     label, meta, tooltip: a.path === undefined ? null : displayPath(a.path, home),
     removeLabel: a.pasted ? `Remove ${pastedLabel(a).toLowerCase()}` : `Remove ${a.name}`,
-    thumbnail: a.kind === "image" && a.status === "ready",
-    notice: a.status === "missing" ? movedNotice(a) : null, problem: a.status === "missing",
+    thumbnail: a.kind === "image" && a.status === "ready", folder,
+    notice: problem ? problemNotice(a) : null, problem,
   };
 }
 
-// Over the composer only files attach; a folder is refused and pointed to Add Projects.
-export function dropTarget(entries: readonly { isDirectory: boolean }[]): { files: number[]; notice: string | null } {
-  const files = entries.flatMap((e, i) => (e.isDirectory ? [] : [i]));
-  return { files, notice: files.length < entries.length ? FOLDER_DROP : null };
+// A sent message's chip: a file shows its size, a folder Folder and its path.
+export function sentFileView(file: AttachmentRecord, home: string | null): { label: string; meta: string; tooltip: string | null; folder: boolean } {
+  return file.kind === "directory" ? { label: file.name, meta: "Folder", tooltip: displayPath(file.path, home), folder: true }
+    : { label: file.name, meta: formatSize(file.size), tooltip: null, folder: false };
+}
+
+// A queued message's inline summary: its first folder's name and the count of its other attachments, with every
+// attachment's name and path for the tooltip and the accessible name. null without a folder: the row stays as it was.
+export function queueAttachmentSummary(files: readonly AttachmentRecord[], home: string | null): { name: string; more: string | null; items: { name: string; path: string }[]; label: string } | null {
+  const first = files.find(file => file.kind === "directory");
+  if (!first) return null;
+  const items = files.map(file => ({ name: file.name, path: displayPath(file.path, home) }));
+  return { name: first.name, more: files.length > 1 ? `+${files.length - 1}` : null, items, label: `Attachments: ${items.map(item => `${item.name} — ${item.path}`).join("; ")}` };
 }
 
 // Chips in DOM order (attachments, then the preset). Backspace takes the preset first, then the last attachment;

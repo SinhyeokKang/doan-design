@@ -43,6 +43,7 @@ it("fences a conversation run with resolved paths and this turn's pasted image d
 it("opens nothing in the fence for a folder attachment, even one inside a pasted image directory", async () => {
   const w = world("claude");
   const inner = join(w.real, "attachments", "77aa", "inner"); mkdirSync(inner);
+  writeFileSync(join(w.profile, "settings.json"), JSON.stringify({ sandbox: { enabled: true } }));
   const folders: AttachmentRecord[] = [{ name: "inner", kind: "directory", path: inner }, { name: "attachments", kind: "directory", path: join(w.real, "attachments") }, { name: "user Data", kind: "directory", path: w.real }];
   const ready = await prepare("claude", w).run({ root: w.project, mode: "new", runtime: "claude", text: "hi", anchors: [], attachments: [pasted(w), ...folders] });
   expect(ready.fence?.paths.attachments).toEqual([join(w.real, "attachments", "0f4e")]);

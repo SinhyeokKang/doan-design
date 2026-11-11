@@ -8,7 +8,7 @@ import type { SteerPhase } from "../main/conversation/steerSupport";
 import { asksPerson, mergeConversationEvents, stripState } from "./conversationStrip";
 import { EMPTY_DRAFT, type DockedDraft } from "./dockedRules";
 import { EMPTY_QUESTION_DRAFT, questionDraft, type QuestionDraft, type QuestionDraftAction } from "./questionDraft";
-import { splitRequest, type AttachmentDraft } from "./homeComposer";
+import { attachRefusal, readyAttachment, recordedAttachment, splitRequest, type AttachmentDraft } from "./homeComposer";
 import type { SendingMessage, SentFile } from "./threadItems";
 import { newerStage } from "./turnStatus";
 
@@ -36,16 +36,6 @@ export interface ConversationStoreHost {
   notice(text: string): void;
   changed(): void;
 }
-
-const ATTACH_ERRORS: Record<string, (name: string) => string> = {
-  not_found: name => `${name} wasn’t found, so it wasn’t attached.`,
-  not_file: name => `${name} isn’t a file, so it wasn’t attached.`,
-  not_image: name => `${name} isn’t a readable image, so it wasn’t attached.`,
-  unreadable: name => `${name} couldn’t be read, so it wasn’t attached.`,
-  too_large: () => "This image is over 50 MB, so it wasn’t attached.",
-  // An empty canvas capture or one main could not save: the file name means nothing.
-  capture_failed: () => "Couldn’t capture the canvas. Try again.",
-};
 
 export class ConversationStore {
   // Drafts by draftKey: a conversation's under its id, a new conversation's under its root or canvas.
@@ -229,12 +219,12 @@ export class ConversationStore {
       const chip = draft.attachments.find(a => a.key === key)!;
       if (!result || !result.ok) {
         drafts.set(at, { ...draft, attachments: draft.attachments.filter(a => a.key !== key) });
-        notices.push(result && !result.ok && result.error === "limit" ? "Only 10 files can be attached." : (ATTACH_ERRORS[result ? result.error : "unreadable"] ?? ATTACH_ERRORS.unreadable!)(result ? result.name : chip.name));
+        notices.push(attachRefusal(result ? result.error : "unreadable", result ? result.name : chip.name));
         return;
       }
       const { attachment } = result;
       if (attachment.kind === "image" && attachment.thumbnail) images.push({ key, thumbnail: attachment.thumbnail });
-      const ready: AttachmentDraft = { key, id: attachment.id, name: attachment.name, kind: attachment.kind, pasted: attachment.pasted, status: "ready", size: attachment.size, path: attachment.path };
+      const ready = readyAttachment(key, attachment);
       drafts.set(at, { ...draft, attachments: draft.attachments.map(a => a.key === key ? ready : a) });
     });
     this.drafts = drafts;
@@ -371,8 +361,7 @@ export async function draftFrom(text: string, anchors: readonly Anchor[], record
   const attachments = records.map((record, i): AttachmentDraft => {
     const result = issued?.[i];
     const key = crypto.randomUUID();
-    if (result?.ok) return { key, id: result.attachment.id, name: result.attachment.name, kind: result.attachment.kind, pasted: result.attachment.pasted, status: "ready", size: result.attachment.size, path: result.attachment.path };
-    return { key, name: record.name, kind: record.kind, pasted: false, status: "missing", size: record.size, path: record.path };
+    return result?.ok ? readyAttachment(key, result.attachment) : recordedAttachment(key, record);
   });
   return { segments: fromMessage(body, anchors), preset: preset ? { ...preset, description: "", scope: "" } : null, attachments, shape: body.includes("\n") || attachments.length ? "box" : "capsule" };
 }

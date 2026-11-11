@@ -33,7 +33,7 @@ import { carryDraft, composerTurn, draftKey, EMPTY_DRAFT, type DockedMode, type 
 import { generationOf, modelsKey, type DockedSupport } from "./dockedSupport";
 import {
   attachmentLimit, defaultEffort, defaultFast, defaultModel, fastToSend, defaultProvider, fixedPreference, groupIcon, modelOption, modelPickerView,
-  selectableProvider, suggestedPresets, suggestedPrompts, type AttachmentDraft, type NewConversationDefault, type ModelsState,
+  selectableProvider, sendRefusal, suggestedPresets, suggestedPrompts, type AttachmentDraft, type NewConversationDefault, type ModelsState,
 } from "./homeComposer";
 import { PROVIDER_NAMES } from "./agentAuthView";
 import { scrollTarget } from "./overviewRun";
@@ -378,7 +378,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
         : { root, mode: "new" as const, runtime, canvas: target.canvas, text: request.text, anchors: [...request.anchors],
           ...(model ? { model } : {}), ...(model && effort ? { effort } : {}), ...(picker.effort?.fast?.on ? { fast: true } : {}), ...(permissionMode && permissionMode !== "default" ? { permissionMode } : {}), ...(request.attachments.length ? { attachments: request.attachments } : {}) };
       const reply = await window.doan.startConversation(start).catch(() => ({ error: "unknown" }));
-      if ("error" in reply) return { error: reply.error, ...("missing" in reply && Array.isArray(reply.missing) ? { missing: reply.missing } : {}) };
+      if ("error" in reply) return sendRefusal(reply);
       // Home's and the Overview's starts are remembered by App's run host; this one starts here.
       if (mode.kind === "new") props.onRemember?.({ provider: runtime, model: model ?? null, effort: model ? effort : null, ...modelPicked, ...(permissionMode ? { permissionMode } : {}) });
       support.clearPick(key);
@@ -390,14 +390,14 @@ export function CanvasConversation(props: CanvasConversationProps) {
       conversationId: mode.conversationId, text: request.text, anchors: [...request.anchors],
       ...(changedModel && model && !fixed ? { model, ...(effort ? { effort } : {}) } : {}), ...changedFast, ...(sentMode ? { permissionMode: sentMode } : {}), ...(request.attachments.length ? { attachments: request.attachments } : {}),
     }).catch(() => ({ error: "unknown" }));
-    if (reply && "error" in reply) return { error: reply.error, ...("missing" in reply && Array.isArray(reply.missing) ? { missing: reply.missing } : {}) };
+    if (reply && "error" in reply) return sendRefusal(reply);
     run.sent(target, revision, sentUnder);
     return { ok: true };
   };
   const queue = async (request: DockedRequest): Promise<DockedOutcome> => {
     if (mode.kind !== "existing" && mode.kind !== "archived") return { error: "not_running" };
     const reply = await window.doan.queueConversation({ conversationId: mode.conversationId, text: request.text, anchors: [...request.anchors], ...(request.attachments.length ? { attachments: request.attachments } : {}) }).catch(() => ({ error: "unknown" as const }));
-    if ("error" in reply) return { error: reply.error, ...("missing" in reply && Array.isArray(reply.missing) ? { missing: reply.missing as string[] } : {}) };
+    if ("error" in reply) return sendRefusal(reply);
     store.queued(root, mode.conversationId, queuedMessage(reply.itemId, request));
     return { ok: true, itemId: reply.itemId };
   };
