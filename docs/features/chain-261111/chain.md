@@ -67,7 +67,7 @@ lead는 링크 1 시작 전에 아래를 사용자에게 한 번에 묻고, 승�
 
 | 링크 | 세션·worktree | 시작 | PR·병합 | 상태 |
 |---|---|---|---|---|
-| 1. `canvas-rendering-stability` | `canvas-rendering-stability-orch` (Claude conductor). 이전 머신에서 시작, 새 머신 `/Users/sinhyeok/orca/workspaces/doan-design/canvas-rendering-stability-orch`에서 재개 | 2026-11-11, `5676decd`. 재개 `12ddcfa8` | | 진행 중 |
+| 1. `canvas-rendering-stability` | `canvas-rendering-stability-orch` (Claude conductor). 이전 머신에서 시작, 새 머신에서 재개. worktree 삭제됨 | 2026-11-11, `5676decd`. 재개 `12ddcfa8` | [#164](https://github.com/SinhyeokKang/doan-design/pull/164), 병합 `ea637516` | 병합 |
 | 2. `buddy-docked-motion` | | | | 대기 |
 | 3. `work-indicator-perf` | | | | 대기 |
 
@@ -96,3 +96,31 @@ lead는 링크 1 시작 전에 아래를 사용자에게 한 번에 묻고, 승�
 - 2026-11-11 lead: 링크 3 시작 전 점검 1 완료. 사용자가 초안 수정본(`5e7d0e35`)과 대기 중 이동 간격 60–120초를 그대로 확인했다.
 - 2026-11-11 lead: 사용자 요청으로 링크 3에 결정 14(버디 클릭 시 숨었다가 다른 표면이나 같은 표면의 새 x로 이동, 그려진 몸만 클릭, 포인터만)를 더했다. 초안(`97422347`)과 feature 문서에 반영했다.
 - 2026-11-12 lead: 사용자 결정으로 링크 2와 3의 순서를 바꿨다. 링크 2는 `buddy-docked-motion`, 링크 3은 `work-indicator-perf`다. 이유: `work-indicator-perf`는 PoC와 재측정 동안 화면이 켜져 있어야 한다. 링크 2부터는 다음 머신에 인계한다. 링크 1 병합 뒤 lead가 인계 항목을 정리한다. 이 항목 전의 기록에서 '링크 2'는 `work-indicator-perf`, '링크 3'은 `buddy-docked-motion`을 가리킨다. 최적화 목표와 LOD 결정은 `work-indicator-perf`에 그대로 적용한다.
+- 2026-11-12 lead: **링크 1 병합.** PR #164를 `ea637516`으로 병합했다. 브랜치 tip은 `e444a847`이다. 리뷰와 게이트를 확인했다: `gate` pass, `/verify` PASS, R·R2 🔴0, `/agent-eval` X1 Claude·Codex pass. runner의 exit 1은 real-state 경고뿐이었다. conductor worktree를 지웠다. 배치 브랜치(`SinhyeokKang/crs-fix`, `crs-review`, `crs-measure`)와 `feat/canvas-rendering-stability`는 원격에 남겼다.
+  - 링크 1에서 확인하지 못한 것:
+    - skillflo 캔버스가 이 머신에 없어서, 재측정과 최적화는 같은 크기·프레임 수의 합성 캔버스로 했다(사용자 결정).
+    - C2(빠른 이동 중 빈 영역)는 남았다. BACKLOG에 수치와 함께 있다.
+    - 줌아웃 스냅샷 LOD는 만들지 않았다. BACKLOG 'Undecided'에 측정 비용과 필요한 규칙이 있다.
+    - 격리 앱이 가끔 5초 안에 종료되지 않는다. 이 변경 전 빌드에서도 같았고, BACKLOG에 있다.
+  - **링크 1 → 링크 3(`work-indicator-perf`) 인계** (PR #164 본문에서 옮김):
+    - 쉬는 동안 보드·iframe 레이어는 최대 19200×21346 device px다. 나머지 host 레이어는 창 크기다.
+    - GPU 메모리(합성 pmsf): GPU 프로세스는 쉴 때 1439–2332 MiB, 118% 이동 중 3111–3284 MiB다. iframe `cc`는 이동 중 1231–1298 MiB다. 이동 한 단계마다 iframe이 레이어 약 91개를 commit하고, 60fps를 유지한다.
+    - 부모 쪽 2W×2H 그라디언트·마스크 레이어는 2W×DPR 96000 device px까지 크기에 따른 탈락이 없었다. W 4000–8200의 plain 큰 면적 변형만 1–4프레임 동안 덜 그려졌다.
+    - 마커나 그라디언트를 캔버스 iframe 안에 두면 C1의 16384 device px 경계에 걸린다. 부모에 둔다.
+    - 2026-11-11 녹화의 프레임 단위 레이어 탈락은 C1·C2와 원인이 다를 가능성이 높다(빠진 것이 부모 DOM이다). 그 현상 자체는 측정하지 않았다.
+    - host는 이제 쉬는 동안 App을 최대 1Hz(시계)로만 렌더하고, 창이 숨으면 렌더하지 않는다. 보기 전용 publish는 App을 렌더하지 않는다. 기준선은 링크 2(`buddy-docked-motion`) 병합 뒤의 develop에서 잰다.
+    - 둥근 스크롤 컨테이너 안에 이미지가 있는 캔버스는 쉬는 동안에도 iframe compositor가 vsync마다 그린다(BACKLOG). 그런 캔버스의 쉬는 상태 측정에 GPU 부하가 더해진다.
+- 2026-11-12 lead: **다음 머신 인계.** 사용자 결정으로 링크 2부터 다음 머신에서 진행한다. 이 머신에서는 링크 2를 시작하지 않았다.
+  - 상태:
+    - 링크 1은 병합됐다. 링크 2(`buddy-docked-motion`)와 링크 3(`work-indicator-perf`)은 대기 중이다.
+    - 링크 2 시작 전 점검은 끝났다. 초안 확인과 클릭 결정 14가 들어 있고, tasks 1은 develop에서 완료됐다.
+    - 열린 conductor, worktree, PR은 없다.
+  - 새 머신 lead가 할 일:
+    1. develop checkout에서 lead 세션을 열고 이 파일을 읽는다.
+    2. 앱 준비: `npm --prefix app ci`, `app/`에서 `node -e "require('electron')"`. 패키징이 필요하면 Xcode 첫 실행 설정도 한다(`sudo xcodebuild -runFirstLaunch`). 이 머신에서는 `actool` 실패로 이것이 필요했다.
+    3. 링크 2를 `/chain` §3 'Lead'대로 시작한다. worktree는 `buddy-docked-motion-orch`, 브랜치는 최신 `origin/develop`에서 만든 `feat/buddy-docked-motion`, conductor는 Claude다. 브리프에 `/orchestrate docs/features/buddy-docked-motion/`를 tasks 2부터 진행하라고 쓰고, 링크 2 → 링크 3 인계 항목을 PR 본문에 남기라고 쓴다.
+    4. 링크 2가 병합되면 링크 3을 시작한다. 링크 3은 PoC와 재측정 동안 화면이 켜져 있어야 한다(운영 메모).
+  - 옮겨지지 않는 것: 이 머신의 `.scratch/`에만 있다. 어느 링크도 이것에 의존하지 않는다.
+    - 링크 1 증거: `.scratch/canvas-rendering-stability/`, `.scratch/agent-eval/crs-x1/`
+    - 버디 초안 검수 증거: `.scratch/buddy-docked-review/`, `.scratch/buddy-docked-draft/`
+    - `work-indicator-perf` design이 참조하는 `.scratch/flicker/probe3.mts`는 이 머신에도 없다. 링크 3 conductor가 design의 기록으로 다시 만든다.
