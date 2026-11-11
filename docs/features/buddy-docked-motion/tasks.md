@@ -17,7 +17,7 @@
 
 ## 작업
 
-1. [ ] **초안을 결정대로 고친다(`/design-draft`, develop).** 새 파일을 만들지 않고 기존 `.doan/canvases/buddy-docked-motion.html`과 그 자산을 고친다. 캔버스 id `buddy-docked-poc`와 프레임·요소 id는 유지한다.
+1. [x] **초안을 결정대로 고친다(`/design-draft`, develop).** 2026-11-11 사용자가 초안(`5e7d0e35`)과 대기 중 이동 간격 60–120초를 확인했다. 새 파일을 만들지 않고 기존 `.doan/canvases/buddy-docked-motion.html`과 그 자산을 고친다. 캔버스 id `buddy-docked-poc`와 프레임·요소 id는 유지한다.
    - `docked-poc.js`를 DOM 없는 코어(`advance`, pose, 그림자)와 얇은 미리보기 셸로 나눈다. 코어가 받는 입력은 design.md '1. docked 코어'의 입력 목록이다.
    - 코어에 결정을 반영한다.
      - 깜빡임 420ms(결정 2)

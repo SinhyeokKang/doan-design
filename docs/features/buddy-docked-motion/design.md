@@ -2,6 +2,8 @@
 
 ## 기준
 
+- **초안 확인**: 2026-11-11 사용자가 초안 수정본(`5e7d0e35`)을 그대로 확인했다. 대기 중 표면 이동 간격 60–120초와 hop 빈도(분당 약 23회, PoC 그대로)를 포함한다.
+
 - 동작과 수치의 기준은 `.doan/canvases/buddy-docked-motion.html`(캔버스 id `buddy-docked-poc`)의 'IMPLEMENTATION HANDOFF' 주석과 `.doan/assets/buddies/docked-poc.js`이다.
 - spec.md '결정'과 다른 부분은 tasks 1의 `/design-draft`에서 초안을 먼저 결정대로 고친다. 구현은 고친 초안을 따른다.
 - 초안의 `buddy-docked-current.css`(렌더러 CSS 스냅샷), 미리보기 컨트롤, 더미 마크업은 앱에 넣지 않는다.
