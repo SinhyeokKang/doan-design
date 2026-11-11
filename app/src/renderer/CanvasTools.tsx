@@ -2,6 +2,7 @@ import type { KeyboardEvent } from "react";
 import { Crosshair, Download, Hand, MousePointer2, Scan } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import type { CanvasTool } from "./canvasTool";
+import { dockedBuddy } from "./dockedBuddyShell";
 
 // ←/→ walk the tools; Tab stops on the toolbar once, so tools added later keep the page's Tab order.
 function moveBetweenTools(event: KeyboardEvent<HTMLDivElement>): void {
@@ -40,6 +41,8 @@ export function CanvasTools({ tool, picking, capturing, onTool, picker, capture,
   const pressed = (own: CanvasTool) => !picking && !capturing && tool === own;
   const captureOff = !capturing && !capture.enabled;
   return <div className="doan-floating doan-canvas-tools" role="toolbar" aria-label="Canvas tools" onKeyDown={moveBetweenTools}>
+    {/* The docked buddy's second floor, on the toolbar's top edge. */}
+    <div className="docked-buddy-slot" ref={dockedBuddy.toolsSlot} aria-hidden="true" />
     {TOOLS.map(({ tool: own, label, key, Icon }) => <Tooltip key={own}><TooltipTrigger asChild>
       <button type="button" className="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed={pressed(own)} aria-label={label} aria-keyshortcuts={key}
         tabIndex={pressed(own) ? 0 : -1} onClick={() => onTool(own)}><Icon aria-hidden="true" /></button>

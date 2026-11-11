@@ -426,6 +426,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         thumbnails={support.thumbnails} onAttach={chooseFiles} onFiles={addFiles}
         onAttachmentRemoved={dropAttachment}
         turn={conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle"} busy={busy} canvasGone={false} unavailable={props.unavailable} context={thread ? contextRing(thread.events) : null}
+        stepAside={{ prompts: !conversationId && !waiting && prompts.length > 0 && !started, waiting: asking }}
         queued={conversationId ? run.queue(conversationId) : []}
         sendNow={!!conversationId && !!provider && sendNowShown({ provider, phase: steerPhaseOf(thread?.events ?? null, summary, live), sending: false })}
         onSendQueuedNow={itemId => conversationId ? run.store.sendQueuedNow(conversationId, itemId) : Promise.resolve({ error: "not_running" })}
