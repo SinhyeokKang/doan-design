@@ -121,7 +121,7 @@ describe("CanvasTools", () => {
     (capture({ capture: { enabled: true, reason: null, onToggle: () => toggled++ } }).props.onClick as () => void)();
     (capture({ capturing: true, capture: { enabled: true, reason: null, onToggle: () => toggled++ } }).props.onClick as () => void)();
     expect(toggled).toBe(2);
-    const reason = "Files can’t be attached to a terminal session";
+    const reason = "Attachments can’t be added to a terminal session";
     const off = capture({ capture: { enabled: false, reason, onToggle: () => toggled++ } });
     (off.props.onClick as () => void)();
     expect(toggled).toBe(2);

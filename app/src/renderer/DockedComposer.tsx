@@ -439,7 +439,7 @@ export function DockedComposer(props: DockedComposerProps) {
       {drop.cover}
     </ComposerCard>
     <div className="composer-tray">
-      {props.fixed ? <FixedTip label="Files can’t be attached to a terminal session"><button type="button" className="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files or folders" aria-disabled="true"><Plus aria-hidden="true" /></button></FixedTip>
+      {props.fixed ? <FixedTip label="Attachments can’t be added to a terminal session"><button type="button" className="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files or folders" aria-disabled="true"><Plus aria-hidden="true" /></button></FixedTip>
         : <AttachButton tray disabled={isSending || locked} onClick={props.onAttach} />}
       {props.pick && <PickButton pick={props.pick} />}
       {props.fixed && fixedProvider ? <>

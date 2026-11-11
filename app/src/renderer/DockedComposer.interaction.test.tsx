@@ -456,7 +456,7 @@ test("a terminal session keeps the trigger places, chosen by the terminal, and t
   expect(has(render(), "Terminal session")).toBe(true);
   const tips = render().map(item => item.label);
   expect(tips).toContain("Set in your terminal");
-  expect(tips).toContain("Files can’t be attached to a terminal session");
+  expect(tips).toContain("Attachments can’t be added to a terminal session");
 });
 
 test("a refused terminal session offers a new conversation, which keeps the draft and drops the notice", async () => {
