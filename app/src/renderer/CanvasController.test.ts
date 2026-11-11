@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { InspectResult, InspectRow } from "../main/inspect";
 import type { FolderEntry } from "../main/view";
-import { CanvasController, CanvasViewStore, canvasViewFields, initialCanvasState, MEASURE_ANSWER_MS, viewOnlyChange } from "./CanvasController";
+import { CanvasController, CanvasViewStore, canvasViewFields, initialCanvasState, MEASURE_ANSWER_MS, routeCanvasPublish, viewOnlyChange } from "./CanvasController";
 import { elementView, FIRST_LAYOUT_TIMEOUT_MS, FIT_INSET, fitFrame, fitWidth, screenToBoard } from "./viewport";
 import { unavailableCanvasMessage } from "./quickOpen";
 import { SELECTION_LOST } from "./selection";
@@ -5127,5 +5127,28 @@ describe("view-only publishes", () => {
     stop();
     store.set(canvasViewFields({ ...base, zoom: 90, scale: 0.9 }));
     expect(heard).toHaveBeenCalledTimes(1);
+  });
+});
+
+// A publish that changes the layout and the current frame together must reach the header in one App render: telling the
+// store's subscribers first could draw the header once with the new frame index over the old layout.
+describe("routing a publish", () => {
+  const base = { ...initialCanvasState(), zoom: 64, scale: 0.64, currentFrame: 1 };
+  it("a publish that changed more than the view updates the store silently and is handed to App", () => {
+    const store = new CanvasViewStore(canvasViewFields(base));
+    const heard = vi.fn();
+    store.subscribe(heard);
+    const next = { ...base, currentFrame: 2, status: "loading" as const };
+    expect(routeCanvasPublish(base, next, store)).toBe(next);
+    expect(heard).not.toHaveBeenCalled();
+    expect(store.get()).toEqual({ zoom: 64, scale: 0.64, currentFrame: 2 });
+  });
+  it("a view-only publish tells the store's subscribers and is not handed to App", () => {
+    const store = new CanvasViewStore(canvasViewFields(base));
+    const heard = vi.fn();
+    store.subscribe(heard);
+    expect(routeCanvasPublish(base, { ...base, zoom: 80, scale: 0.8 }, store)).toBeNull();
+    expect(heard).toHaveBeenCalledOnce();
+    expect(store.get()).toEqual({ zoom: 80, scale: 0.8, currentFrame: 1 });
   });
 });
