@@ -1,0 +1,63 @@
+
+body{width:1440px;padding:var(--space-8);background:var(--surface-inset);overflow:visible;user-select:text;font-variant-numeric:normal}
+.poc-intro{max-width:1000px;margin-bottom:var(--space-10)}
+.poc-intro h1{font:var(--type-weight-medium) var(--type-title-size)/var(--type-title-line-height) var(--type-family);letter-spacing:var(--type-title-letter-spacing)}
+.poc-intro p,.poc-note{font:var(--type-weight-regular) var(--type-body-sm-size)/var(--type-body-sm-line-height) var(--type-family);letter-spacing:var(--type-body-sm-letter-spacing);color:var(--text-subtle);margin-top:var(--space-3)}
+.poc-section{margin-bottom:var(--space-12)}
+.poc-section>h2{font:var(--type-weight-medium) var(--type-body-lg-size)/var(--type-body-lg-line-height) var(--type-family);letter-spacing:var(--type-body-lg-letter-spacing);margin-bottom:var(--space-3)}
+.poc-controls{display:flex;align-items:center;gap:var(--space-2);margin-bottom:var(--space-4);flex-wrap:wrap}
+.poc-controls button[aria-pressed=true]{background:var(--affordance-backdrop-pressed)}
+.poc-stage{position:relative;background:var(--surface-panel);border-radius:var(--radius-container);padding:var(--space-8);width:100%;height:300px;display:flex;align-items:end;gap:var(--space-10)}
+.poc-wide{width:720px}.poc-narrow{width:336px}
+.poc-stage .poc-note{margin-bottom:var(--space-16)}
+.win{position:relative;width:1376px;height:780px;overflow:hidden;border-radius:var(--radius-chip);background:var(--bg-app);box-shadow:var(--shadow-panel)}
+.win .workspace{--doan-sidebar-width:220px}
+.lights{position:absolute;left:var(--space-4);top:21px;display:flex;gap:var(--space-2);z-index:3}
+.lights i{width:var(--space-3);height:var(--space-3);border-radius:var(--radius-pill)}
+.lights i:nth-child(1){background:var(--mock-light-close)}.lights i:nth-child(2){background:var(--mock-light-minimize)}.lights i:nth-child(3){background:var(--mock-light-zoom)}
+.poc-ground{position:absolute;left:var(--space-8);right:var(--space-8);top:-1px;height:0;pointer-events:none;z-index:2}
+.poc-walker{position:absolute;width:80px;height:80px;left:var(--space-4);top:-63.6376px;pointer-events:none;transform-origin:50% 79.547%}
+.poc-walker[data-buddy-preview=puri]{top:-58.5992px;transform-origin:50% 73.249%}
+.poc-walker canvas,.poc-walker>img{position:absolute;width:100%;height:100%;inset:0}
+.poc-walker>img{padding:16.5%;object-fit:contain}
+.poc-walker [hidden]{display:none}
+.poc-ground::after{content:'';position:absolute;inset:-1px 0 auto;height:1px;background:var(--border-standard);opacity:0}
+[data-guides=true] .poc-ground::after{opacity:1}
+[data-hidden=true] .poc-ground{visibility:hidden}
+.poc-label{font:var(--type-weight-medium) var(--type-caption-size)/var(--type-caption-line-height) var(--type-family);color:var(--text-metadata);letter-spacing:var(--type-caption-letter-spacing)}
+.poc-board{margin:var(--space-10);padding:var(--space-8);width:560px;background:var(--surface-panel);border-radius:var(--radius-container);box-shadow:var(--shadow-sm)}
+.poc-board h3{font:var(--type-weight-medium) var(--type-heading-size)/var(--type-heading-line-height) var(--type-family)}
+.poc-board p{margin-block:var(--space-4);font:var(--type-weight-regular) var(--type-label-size)/var(--type-label-line-height) var(--type-family)}
+.poc-board .poc-cards{display:flex;gap:var(--space-4)}.poc-board article{width:200px;padding:var(--space-4);border:1px solid var(--border-standard);border-radius:var(--radius-row)}
+.poc-thread-test .thread-scroll{display:flex;flex-direction:column;justify-content:flex-end}
+.poc-risk .win{height:600px}
+.poc-risk .thread-scroll{justify-content:flex-start}
+.poc-risk .queue{position:relative;z-index:3}
+/* PoC mitigation only: compare against unchanged spacing with the control. */
+[data-clearance=true] .cp-foot,[data-clearance=true] .ov-foot{padding-top:var(--space-16)}
+[data-clearance=true] .queue{margin-bottom:var(--space-16)}
+
+/* Scope the shipped Puri palette and its dependent roles to comparison frames. */
+.poc-section[data-buddy="puri"]{
+  --buddy-3: var(--puri-3);
+  --buddy-4: var(--puri-4);
+  --buddy-9: var(--puri-9);
+  --buddy-10: var(--puri-10);
+  --buddy-11: var(--puri-11);
+  --buddy-12: var(--puri-12);
+  --buddy-pressed: var(--puri-pressed);
+  --buddy-contrast: var(--neutral-standard-text);
+  --buddy-icon: var(--puri-icon);
+
+      A buddy switch (--buddy-*) between the palette and the roles points the accent roles at the
+   re-points the switch to the friend's ramp. The blocks set --buddy-* only, never a role or a
+  --surface-comment: var(--buddy-4);
+  --text-comment: var(--buddy-12);
+  --affordance-accent: var(--buddy-9);
+  --affordance-accent-hover: var(--buddy-10);
+  --affordance-accent-pressed: var(--buddy-pressed);
+  --text-on-accent: var(--buddy-contrast);
+  --text-accent: var(--buddy-icon);
+  --surface-accent-subtle: var(--buddy-3);
+  --text-accent-subtle: var(--buddy-11);
+}
