@@ -115,12 +115,23 @@ export class CanvasViewStore {
   constructor(fields: CanvasViewFields) { this.fields = fields; }
   readonly get = (): CanvasViewFields => this.fields;
   readonly subscribe = (listener: () => void): (() => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
-  set(next: CanvasViewFields): void {
+  // `notify: false` when an App render follows that draws the header with the rest of the same publish.
+  set(next: CanvasViewFields, notify = true): void {
     const now = this.fields;
     if (now.zoom === next.zoom && now.scale === next.scale && now.currentFrame === next.currentFrame) return;
     this.fields = next;
-    for (const listener of this.listeners) listener();
+    if (notify) for (const listener of this.listeners) listener();
   }
+}
+
+// What App does with a publish: a view-only one goes to the store's subscribers (the header) and App keeps its state
+// (null). Any other goes to App, and the store takes its view fields without telling anyone, so the header draws the
+// new layout, canvas and view in the same render rather than the new view over the old layout first. `last` is the last
+// state handed to App.
+export function routeCanvasPublish(last: CanvasState, next: CanvasState, store: CanvasViewStore): CanvasState | null {
+  const viewOnly = viewOnlyChange(last, next);
+  store.set(canvasViewFields(next), viewOnly);
+  return viewOnly ? null : next;
 }
 
 const isProblemKind = (kind: FolderEntry["kind"] | undefined): boolean =>
