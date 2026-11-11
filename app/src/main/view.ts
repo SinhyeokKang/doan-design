@@ -65,7 +65,7 @@ export type FolderEntry = { path: string; lastCommon?: string; autoRegistered?: 
   | ({ kind: "list"; canvases: CanvasRow[]; servedRev: number; git?: GitInfo; changedAt?: number } & StorageFacts)
   | { kind: "uninitialized" }
   // `config`: the file the CLI named (folderState); main's Show in Finder selects it, the renderer does not use it.
-  | { kind: "error"; message: string; config: string }
+  | { kind: "error"; message: string; config: string; newer?: true }
   | { kind: "cliError"; reason: string }
   | { kind: "notFound" }
 );
@@ -136,7 +136,7 @@ export function folderEntry(path: string, view: FolderView, baseUrl: string, ser
         ...(view.storage ? { storage: view.storage } : {}), ...(view.storageReason ? { storageReason: view.storageReason } : {}) };
     }
     case "error":
-      return { path, kind: "error", message: view.message, config: view.config };
+      return { path, kind: "error", message: view.message, config: view.config, ...(view.newer ? { newer: true as const } : {}) };
     case "cliError":
       return { path, kind: "cliError", reason: view.reason };
     default:

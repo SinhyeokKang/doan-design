@@ -61,6 +61,15 @@ describe("problemView content (PRODUCT 'Problem states')", () => {
     });
   });
 
+  // The file has no fault: this Doan cannot read its newer format, so the line points to updating Doan, not fixing it.
+  test("error from a newer config version: same scene, a line about the newer format, kept while a Retry reads", () => {
+    const newer: FolderEntry = { ...problems.error, newer: true } as FolderEntry;
+    expect(problem(newer)).toEqual({ ...problem(problems.error), newer: true, line: { text: ".doan/config.json is from a newer version of Doan. Update Doan, then retry." } });
+    const busy = problem(loading, { kind: "problem", entryKind: "error", newer: true });
+    expect(busy.line.text).toBe(".doan/config.json is from a newer version of Doan. Update Doan, then retry.");
+    expect(problem(loading, { kind: "problem", entryKind: "error" }).line.text).toBe(".doan/config.json has an error. Fix it, then retry.");
+  });
+
   test("cliError: SquareTerminal, Retry, Details with the CLI's reason, then Remove", () => {
     expect(problem(problems.cliError)).toEqual({
       kind: "problem", entryKind: "cliError", icon: SquareTerminal, heading: "Doan couldn’t read acme",

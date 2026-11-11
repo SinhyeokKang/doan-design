@@ -165,6 +165,8 @@ function selectionHarness() {
     hasFocus: () => true,
     // No menu or dialog over the canvas page (the follow check reads it).
     querySelector: () => null,
+    // The app's document: an event dispatched on it bubbles to the window, as in the browser.
+    dispatchEvent: (event: Event) => { if (event.bubbles) host.dispatchEvent(event); return !event.defaultPrevented; },
     documentElement: { setAttribute: (name: string, value: string) => { rootAttributes.set(name, value); }, removeAttribute: (name: string) => { rootAttributes.delete(name); }, hasAttribute: (name: string) => rootAttributes.has(name) },
     createElement: (tag: string) => {
       if (tag !== "iframe") {
@@ -180,6 +182,7 @@ function selectionHarness() {
     },
   };
   vi.stubGlobal("document", doc);
+  vi.stubGlobal("KeyboardEvent", class extends Event { key: string; constructor(type: string, init: KeyboardEventInit = {}) { super(type, init); this.key = init.key ?? ""; } });
   const viewport = Object.assign(new EventTarget(), { clientWidth: 800, clientHeight: 600, focus: vi.fn(), getBoundingClientRect: () => ({ left: 0, top: 0, right: 800, bottom: 600, x: 0, y: 0, width: 800, height: 600 }) as DOMRect });
   const board = { style: { transform: "", visibility: "" }, hidden: true, prepend: vi.fn() };
   const overlay = { append: vi.fn() };
@@ -2762,7 +2765,7 @@ describe("reply chip open", () => {
         h.controller.openCanvas("/repo", h.other);
         h.layout({ href: h.other.url, document: "doc-b" });
         expect(asked(h)).toEqual([]);
-      } finally { h.controller.dispose(); vi.unstubAllGlobals(); }
+      } finally { h.controller.dispose(); }
     }
   });
 
@@ -3899,49 +3902,72 @@ describe("capture", () => {
   });
 
   // With focus in the canvas (after an ⌥-click) the app's document never sees the Escape: the canvas forwards it. Radix
-  // listens on the app's document only, so the controller hands an open toolbar tooltip an Escape of its own there.
-  // It does not bubble, so the window's keydown (the canvas's step) never sees it: the step is taken once, from the message.
-  it("an Escape forwarded from the canvas closes an open toolbar tooltip and takes the canvas's step once", () => {
-    class FakeKeyboardEvent extends Event { key: string; constructor(type: string, init: KeyboardEventInit = {}) { super(type, init); this.key = init.key ?? ""; } }
-    vi.stubGlobal("KeyboardEvent", FakeKeyboardEvent);
-    const h = harness();
-    try {
+  // listens on the app's document, so the controller hands the app's document the Escape as the key itself would: any
+  // open layer (the toolbar's tooltip, a popover opened without focus) takes it at the capture phase, and it bubbles to
+  // the window's keydown, which takes the canvas's step unless a layer other than the toolbar's tooltip handled it.
+  describe("an Escape forwarded from the canvas", () => {
+    // `layer`: what an open Radix layer does at the document's capture phase; the event then bubbles to the window.
+    const forwarding = (h: H, layer: { value: "none" | "tooltip" | "popover" }) => {
       const sent: Event[] = [];
-      const tooltipOpen = { value: true };
       Object.assign(h.doc, {
-        querySelector: (selector: string) => tooltipOpen.value && selector.includes(".doan-canvas-tools") ? {} : null,
+        querySelector: (selector: string) => layer.value === "tooltip" && selector.includes(".doan-canvas-tools") ? {} : null,
         dispatchEvent: (event: Event) => {
           sent.push(event);
-          // Radix's layer at the document's capture phase: the tooltip's onEscapeKeyDown, then its own prevention.
-          h.controller.toolbarEscape(event as KeyboardEvent);
-          event.preventDefault();
-          return false;
+          if (layer.value === "tooltip") h.controller.toolbarEscape(event as KeyboardEvent);
+          // Radix's DismissableLayer dismisses the top layer and prevents the Escape.
+          if (layer.value !== "none") { event.preventDefault(); layer.value = "none"; }
+          if (event.bubbles) h.host.dispatchEvent(event);
+          return !event.defaultPrevented;
         },
       });
-      h.controller.startCapture();
-      canvasKey(h, "Escape");
-      expect(sent).toHaveLength(1);
-      expect(sent[0]).toMatchObject({ type: "keydown", key: "Escape", bubbles: false });
-      // Capture ends; the selection is the next Escape's step, not this one's.
-      expect(h.state()).toMatchObject({ capturing: false, tool: "select" });
-      h.select(10);
-      canvasKey(h, "Escape");
-      stepAnswer(h);
-      expect(h.state().selection).toBeNull();
-      expect(sent).toHaveLength(2);
-      // With no toolbar tooltip open, nothing is sent to the app's document.
-      tooltipOpen.value = false;
-      h.select(20);
-      canvasKey(h, "Escape");
-      stepAnswer(h);
-      expect(h.state().selection).toBeNull();
-      expect(sent).toHaveLength(2);
-      // The next Escape on the app's document is not taken for the tooltip's.
-      h.select(30);
-      press(h, "Escape");
-      stepAnswer(h);
-      expect(h.state().selection).toBeNull();
-    } finally { h.controller.dispose(); }
+      return sent;
+    };
+
+    it("closes an open toolbar tooltip and takes the canvas's step once", () => {
+      const h = harness();
+      try {
+        const layer = { value: "tooltip" as "none" | "tooltip" | "popover" };
+        const sent = forwarding(h, layer);
+        h.controller.startCapture();
+        canvasKey(h, "Escape");
+        expect(sent).toHaveLength(1);
+        expect(sent[0]).toMatchObject({ type: "keydown", key: "Escape", bubbles: true, cancelable: true });
+        expect(layer.value).toBe("none");
+        // Capture ends; the selection is the next Escape's step, not this one's.
+        expect(h.state()).toMatchObject({ capturing: false, tool: "select" });
+        h.select(10);
+        layer.value = "tooltip";
+        canvasKey(h, "Escape");
+        stepAnswer(h);
+        expect(h.state().selection).toBeNull();
+        expect(steps(h)).toBe(1);
+        // The next Escape on the app's document is not taken for the tooltip's.
+        h.select(30);
+        press(h, "Escape");
+        stepAnswer(h);
+        expect(h.state().selection).toBeNull();
+      } finally { h.controller.dispose(); }
+    });
+
+    it("closes another open Radix layer and goes no further, as the same Escape in the app does", () => {
+      const h = harness();
+      try {
+        const layer = { value: "popover" as "none" | "tooltip" | "popover" };
+        forwarding(h, layer);
+        h.controller.startCapture();
+        canvasKey(h, "Escape");
+        expect(layer.value).toBe("none");
+        expect(h.state().capturing).toBe(true);
+        // With nothing open, the next one takes the step.
+        canvasKey(h, "Escape");
+        expect(h.state()).toMatchObject({ capturing: false, tool: "select" });
+        h.select(10);
+        canvasKey(h, "Escape");
+        stepAnswer(h);
+        expect(h.state().selection).toBeNull();
+        expect(steps(h)).toBe(1);
+      } finally { h.controller.dispose(); }
+    });
   });
 
   it("the toolbar's Select or Hand ends capture mode and switches to that tool", () => {

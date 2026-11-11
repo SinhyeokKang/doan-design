@@ -46,7 +46,7 @@ describe("folderState", () => {
     expect(folderState(run({ exitCode: 2, stdout: named("invalid_config", "config is broken", "/repo/.doan/config.json") })))
       .toEqual({ kind: "error", message: "config is broken", config: "/repo/.doan/config.json" });
     expect(folderState(run({ exitCode: 2, stdout: named("unsupported_version", "v 9 is not supported", "/repo/.doan/config.json") })))
-      .toEqual({ kind: "error", message: "v 9 is not supported", config: "/repo/.doan/config.json" });
+      .toEqual({ kind: "error", message: "v 9 is not supported", config: "/repo/.doan/config.json", newer: true });
     // An unreadable config is an internal_error, and still a Config error because the CLI named the file.
     expect(folderState(run({ exitCode: 1, stdout: named("internal_error", "open /repo/.doan/config.json: permission denied", "/repo/.doan/config.json") })))
       .toEqual({ kind: "error", message: "open /repo/.doan/config.json: permission denied", config: "/repo/.doan/config.json" });
