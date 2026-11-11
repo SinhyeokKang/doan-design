@@ -69,4 +69,7 @@ lead는 링크 1 시작 전에 아래를 사용자에게 한 번에 묻고, 승�
   - 새 머신에 남은 일(링크 1): F 완료 조건 4(C2 전후 4–5회 측정)와 5(`/runtime-test` probe), 독립 리뷰 R, 최적화 O1·O2(위 LOD 결정과 최적화 목표 적용), `/agent-eval`(export 변경), 문서 작업 7, PR.
   - 옮겨지지 않는 것: probe 스크립트, skillflo 복사본, 측정 원본, `.scratch/flicker/` 증거(work-indicator-perf design이 `.scratch/flicker/probe3.mts`를 참조한다)는 이 머신의 `.scratch/`에만 있다. 새 머신은 skillflo-web `.doan/`을 자기 `.scratch/`에 다시 복사하고 probe를 orch.md 기록으로 다시 만든다. 이 파일의 절대 경로(`/Users/sinhyeokkang/...`)는 새 머신에 맞게 확인한다.
   - 새 머신 시작: develop checkout에서 lead 세션을 열고 이 파일을 읽는다. 링크 1은 새로 시작하지 않고 원격 `feat/canvas-rendering-stability`를 체크아웃한 worktree에서 conductor가 orch.md를 읽고 `/orchestrate docs/features/canvas-rendering-stability/`를 이어 간다. 링크 2는 링크 1 병합 뒤 시작한다.
+- 2026-11-11 lead: 링크 1 conductor가 이 머신에서 할 수 있는 만큼 마치고 멈췄다. 원격 `feat/canvas-rendering-stability` tip은 `12ddcfa8`이다. F 통합 커밋은 `85879e1b`·`22b4d776`·`c36a2961`이고, 배치 브랜치 `SinhyeokKang/crs-fix`도 원격에 있다. `crs-poc`는 커밋이 없어 push하지 않았다. 측정 요약과 남은 일 10가지는 그 브랜치 orch.md '머신 이전 인계'에 있다. C1 지속 잘림은 앱 세 레이아웃, Export Electron 창, Chrome 157에서 5회 모두 0이 됐다.
+  - 새 머신에서 사용자 결정이 필요한 것: 모서리 AA 차이(앱 최대 3/255, Export 최대 4/255, AA 가장자리에서만)를 '같은 픽셀'로 볼지.
+  - 미판정: C2 Export 빈 프레임 비율 최대가 수정 전 0.182, 수정 후 0.187이다. 수정 후 표본이 2개라 회귀인지 잡음인지 가르지 못했다.
 
