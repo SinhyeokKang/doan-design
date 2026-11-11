@@ -36,10 +36,10 @@ golden from it.
 
 ## Provenance
 
-### Typing and reading canvas drafts
+### Typing and reading
 
 Each friend has `typing.gif`, `typing-rest.png`, `reading.gif` and `reading-rest.png`,
-shown in its existing `buddy-assets` frame. These are canvas drafts, not app assets.
+shown in its existing `buddy-assets` frame; the working notice's copies are made from them (below).
 Built-in image_gen generated the typing source as an eight-pose 4-by-2 sprite sheet,
 using each friend's `still.png` for identity and Doany's `artist/typing-rest.png`
 for the action and prop. Reading uses the original eight-pose 4-by-2 sheet, with
@@ -60,7 +60,7 @@ to the first frame's laptop lid top and left edge; Dungdung required up to 28 px
 horizontal and 5 px of vertical correction. The logo was generated from the Doany
 reference rather than copied exactly, so exact product-logo fidelity is unresolved.
 Reading uses newly generated page-turn poses rather than Doany's original hand motion.
-These limitations remain visible in the canvas and prompt metadata; visual approval is pending.
+These limitations remain visible in the canvas and prompt metadata; the maintainer approved the frames.
 
 - Friends' cards and painter GIFs were made by the maintainer outside this repository and supplied as files.
 - The supplied painter GIFs drew frames 2–5 at another scale and position than frames 0, 1, 6 and 7, so they
@@ -102,6 +102,20 @@ easel) against the mean of Doany's and Puri's, and the character's bounding-box 
 | dungdung | 226, 302 | 34, 98, 455 | none |
 | popo | 196, 287 | −4, 79, 510 | none |
 | dori | 195, 245 | 6, 57, 490 | none |
+
+The typing and reading boxes keep each buddy at its painting size and eye line, so the three variants show one
+character: the size scales the painting box by the eye separation (first frame), the eyes' centre sits at the
+painting box's eye height, and the opacity-weighted centroid sits at 50 % of the width, as Doany's do. Applied to
+Doany, this lands within 8 source px of its own typing and reading boxes. Dungdung's typing pose has its eyes
+9 % further apart than its other poses at the same head width, so its typing box takes its size from the head width
+against its reading box instead. No box clips the character.
+
+| id | Typing box (x, y, size) | Reading box (x, y, size) |
+|---|---|---|
+| puri | −47, −51, 607 | −46, −50, 603 |
+| dungdung | −15, −11, 570 | −27, 3, 565 |
+| popo | −40, −12, 591 | −31, −7, 574 |
+| dori | −22, −6, 565 | −11, 25, 550 |
 
 ## Puri layers and rig
 
