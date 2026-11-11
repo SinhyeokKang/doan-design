@@ -18,7 +18,7 @@
 - 링크 2: `app/src/main/canvasSeen.ts`, `shell.ts`, `view.ts`, `watch.ts`, `index.ts`의 읽음 IPC, `document/bindings.ts`, renderer의 `canvasNotice.ts`, `homeConversations.ts`, `sidebarSize.ts`, `rightPanelOpen.ts`, `sidebarSlots`와 관련 표시.
 - 초안도 각자의 캔버스(`frame-first-selection.html`, `canvas-activity-notices.html`)만 쓴다.
 
-체인 밖 `feat/buddy-actions`(별도 `/ship`, 버디 작업 알림 그림)는 `app/src/renderer/buddies.ts`, `public/buddies/`, 그 테스트만 바꾼다. 두 링크와 코드가 겹치지 않으므로 체인 시작을 막지 않는다. PRODUCT 'Agent indicator' 문장은 공유 문서 충돌이라 나중에 병합되는 쪽이 develop 문장을 유지하고 자기 내용을 더한다. 링크 2가 `CanvasAgent.tsx`의 버디 그림을 건드리게 되면 lead에게 알린다.
+체인 밖 `feat/buddy-actions`(PR #158)는 develop에 병합됐다(b3e34185). 모든 버디가 작업 알림에서 painting·typing·reading 중 무작위로 고르며, `CanvasAgent.test.tsx`·`CanvasAgent.rerender.test.tsx`의 기대값과 PRODUCT 'Agent indicator' 문장이 이 규칙으로 바뀌었다. 링크 2는 이 develop 위에서 시작한다.
 
 구현 중 한 링크가 상대 링크의 파일을 건드리게 되면 그 conductor는 lead에게 알린다. lead는 병합 순서대로 처리하고, 나중 링크가 `origin/develop`을 병합해 충돌을 푼다(`/ship` 'Lead' 4단계).
 
