@@ -275,6 +275,9 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const choose = (root: string | undefined) => { if (root) setSelect(previous => ({ root, seq: (previous?.seq ?? 0) + 1 })); };
   const focusComposer = useRef(false);
   const [, setRunTick] = useState(0);
+  // Wall-clock text ("3m", "now", a time of day) is computed while rendering, and nothing re-renders App at rest, so a
+  // one-second clock keeps it current.
+  const [clock, setClock] = useState(() => Date.now());
   const homeRun = useRef<HomeRun>(null as unknown as HomeRun);
   if (!(homeRun.current instanceof HomeRun)) homeRun.current = new HomeRun({
     view: () => ({ screen: currentScreen.current, loadedRoot: loadedRootRef.current, entries: entriesRef.current, canvas: openRef.current?.folder === loadedRootRef.current ? openRef.current.canvas : null }),
@@ -512,6 +515,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     const stopCommands = window.doan.onViewCommand(name => { if (currentScreen.current === "workspace" && !overlaidRef.current) instance.command(name); });
     return () => { navigationIntent.current++; stopFolders(); stopCommands(); instance.dispose(); controller.current = null; };
   }, []);
+  useEffect(() => { const timer = setInterval(() => setClock(Date.now()), 1000); return () => clearInterval(timer); }, []);
   useEffect(() => { void window.doan.homeDirectory().then(setHomeDirectory).catch(console.error); }, []);
   // First run shows when main's session has no completion record (P's v1 marker); the session is the one the CLI
   // shares, so a hidden and shown window keeps it.
@@ -2004,7 +2008,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // The Overview's right panel: canvases with a current conversation, thumbnails asked for those only.
   const listed = overview ? run.listState(overview.path) : null;
   const canvasList: CanvasList = overview === null || listed === null ? [] : typeof listed === "string" ? listed
-    : canvasConversationRows(listed, overview.kind === "list" ? overview.canvases : [], Date.now(), run.seenPending());
+    : canvasConversationRows(listed, overview.kind === "list" ? overview.canvases : [], clock, run.seenPending());
   const thumbs = useThumbnails(overview?.kind === "list" ? overview.path : null, typeof canvasList === "string" ? [] : canvasList.flatMap(item => item.row ? [item.row] : []));
   // Fast turned itself off: that provider's Last used follows, and the conversation's own switch
   // held in a composer goes, so the next turn is not asked for Fast again. Only here, as events arrive: this channel
@@ -2154,7 +2158,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       worktrees={card?.rows ?? [overview]} homeDirectory={homeDirectory} notice={overviewNotice?.root === overview.path ? overviewNotice.text : null}
       unavailable={null}
       list={run.listState(overview.path)} seen={run.seenPending()} holder={run.running().get(overview.path) ?? null}
-      prefs={homeMemory} defaults={preferences ? preferences.preferences.newConversation : undefined} now={Date.now()} onRemember={rememberPick}
+      prefs={homeMemory} defaults={preferences ? preferences.preferences.newConversation : undefined} now={clock} onRemember={rememberPick}
       onWorktree={root => { chipFocus.current = true; showShellOverview(root); }} onOpenCanvas={(canvas, conversationId) => openConversationCanvas(overview.path, canvas, conversationId, { kind: "promotion" })}
       onReplyChip={link => replyChip(overview.path, link)}
       onRetryList={() => run.retryList(overview.path)} onStart={(request, last) => run.start(request, last, { stay: true })}
@@ -2168,11 +2172,11 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       open={item => { if (item.row) openCanvasConversation(overview.path, item.row, item.conversationId, { kind: "overviewRow" }); }} retry={() => run.retryList(overview.path)}
       onDelete={(item, button, after) => openDelete({ conversationId: item.conversationId, root: overview.path, title: item.title, provider: item.provider, from: "canvasList", after }, button)} /></div>
       : <ConversationPanel open={rightPanel.open} width={shownPanel} bounds={panelLimits} onHide={() => { controller.current?.cancelPick(); foldPanel(false); }} onResize={resizePanel} preview={previewPanel}
-        title={panelTarget && <CanvasConversationTitle run={canvasRun.current!} list={panelList} canvasName={panelCanvasName} now={Date.now()} seen={run.seenPending()}
+        title={panelTarget && <CanvasConversationTitle run={canvasRun.current!} list={panelList} canvasName={panelCanvasName} now={clock} seen={run.seenPending()}
           title={panelTitle.title} current={panelTitle.current} onChoose={() => controller.current?.dropPendingLocate()} onDelete={openDelete} onPicked={() => queueMicrotask(() => document.querySelector<HTMLElement>(".doan-conv-panel .composer-input")?.focus())} />}>
         {panelTarget && entry?.kind === "list" && <CanvasConversation run={canvasRun.current!} support={support.current!} target={panelTarget} canvasName={panelCanvasName}
           project={panelProject} entry={entry} list={panelList} seen={run.seenPending()} prefs={homeMemory}
-          defaults={preferences ? preferences.preferences.newConversation : undefined} now={Date.now()} blocked={panelBlocked} onRemember={rememberPick}
+          defaults={preferences ? preferences.preferences.newConversation : undefined} now={clock} blocked={panelBlocked} onRemember={rememberPick}
           frames={state.layout?.frames} locateDisabled={state.status !== null || state.unlisted} arrival={arrival} onArrived={seq => setArrival(current => current?.seq === seq ? null : current)}
           onLocate={locateChip} onReplyChip={link => replyChip(panelTarget.root, link)} onChoose={() => controller.current?.dropPendingLocate()} pick={{ pressed: picking, enabled: pickerReady, reason: pickerView.reason, onToggle: togglePick }} composerLink={composerLink} canvasPress={controller.current?.canvasPress}
           onSettings={target => openSettings(target)} onNotice={text => toast.show(text)}
