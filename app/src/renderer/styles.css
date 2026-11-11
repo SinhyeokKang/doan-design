@@ -138,7 +138,8 @@ code, kbd { font-family: var(--type-family); }
    set without the shell's tabular figures, which widened the stepper's "1" by 3px against the draft. The app
    behind it is hidden, so on Agent and Project the window's native sidebar material shows through as it does
    behind AppShell; Welcome is the opaque white panel. */
-#root:has(> .ob-overlay[open]) > :not(.ob-overlay) { visibility: hidden; }
+/* Opacity also hides descendants with explicit visibility while preserving the restored workspace's layout. */
+#root:has(> .ob-overlay[open]) > :not(.ob-overlay) { opacity: 0; }
 .ob-overlay { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; overflow: hidden; background: transparent; color: var(--text-standard); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); font-variant-numeric: normal; }
 .ob-overlay::backdrop { background: transparent; }
 .ob-overlay.ob-welcome { background: var(--surface-panel); }
@@ -259,8 +260,8 @@ code, kbd { font-family: var(--type-family); }
 .ob-scene.ob-buddy-scene { max-width: 1040px; }
 .ob-buddy-scene .ob-heading { max-width: 560px; margin-inline: auto; }
 .ob-buddy-scene .ob-footer { width: 100%; max-width: 512px; margin-inline: auto; }
-/* The existing-user screen has no Back: Continue keeps its place at the end of the column. */
-.ob-footer.ob-footer-intro { justify-content: flex-end; }
+/* The existing-user screen's single action has no Back counterpart. */
+.ob-footer.ob-footer-intro { justify-content: center; }
 /* The chosen card faces front in the middle; the others turn toward it and stack behind on each side, in the row's own
    order. Offsets shrink with the row's width so a 960px window still fits; cards past the second stack closer. */
 .buddy-flow { position: relative; height: 340px; perspective: 1000px; margin-top: var(--space-2); container-type: inline-size; }
