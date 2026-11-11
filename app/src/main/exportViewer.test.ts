@@ -805,6 +805,55 @@ describe("the content panel", () => {
   });
 });
 
+// Chromium draws a cross-origin (out-of-process) iframe only within 16384 device px of its
+// compositing origin when an ancestor clips with the same radius on all four corners: at DPR 2 a
+// board wider or taller than 8192 CSS px was cut off for good. Measured in Electron 45 and Chrome
+// 157; a rectangular clip, a clip with unequal radii and an unclipped radius drew it whole.
+describe("the board iframe's ancestors never clip with four equal radii", () => {
+  const split = (text: string, at: RegExp): string[] => {
+    const parts: string[] = [];
+    let depth = 0, start = 0;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i]!;
+      if (c === "(" || c === "[") depth++;
+      else if (c === ")" || c === "]") depth--;
+      else if (depth === 0 && at.test(c)) { parts.push(text.slice(start, i)); start = i + 1; }
+    }
+    return [...parts, text.slice(start)].map(part => part.trim()).filter(Boolean);
+  };
+  // Each rule's subjects (the compound a selector styles, `:is()` lists expanded) with its
+  // declarations; rules nested in at-rules count too. Pseudo-elements are not ancestors.
+  const subjects = (css: string): { subject: string; declarations: string[] }[] =>
+    [...css.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/([^{}]+)\{([^{}]*)\}/g)].flatMap(([, selectors, body]) => {
+      const declarations = body!.split(";").map(part => part.replace(/\s+/g, " ").trim()).filter(Boolean);
+      return split(selectors!, /,/).flatMap(selector => {
+        const subject = split(selector, /[\s>+~]/).at(-1) ?? "";
+        const list = /^:(?:is|where)\((.*)\)$/.exec(subject)?.[1];
+        return (list === undefined ? [subject] : split(list, /,/).map(inner => split(inner, /[\s>+~]/).at(-1) ?? ""))
+          .filter(s => !s.includes("::")).map(s => ({ subject: s, declarations }));
+      });
+    });
+  const declared = (css: string, element: RegExp, property: RegExp): string[] =>
+    subjects(css).filter(({ subject }) => element.test(subject)).flatMap(({ subject, declarations }) =>
+      declarations.filter(d => property.test(d.split(":")[0]!.trim())).map(d => `${subject} { ${d} }`));
+  const clipping = /^(overflow(-x|-y)?|contain|clip-path)$/;
+  const radius = /^border(-(top|bottom)-(left|right))?-radius$/;
+
+  test("app: the panel paints its corners without clipping, the area rounds only its bottom corners, nothing else above the board is rounded", () => {
+    expect(declared(stylesCss, /\.doan-canvas-panel(?![\w-])/, clipping)).toEqual([]);
+    expect(declared(stylesCss, /\.area(?![\w-])/, /^border(-top-(left|right))?-radius$/)).toEqual([]);
+    for (const element of [/\.board(?![\w-])/, /\.workspace(?![\w-])/, /#root(?![\w-])/, /^(body|html|:root)(?![\w-])/]) {
+      expect(declared(stylesCss, element, radius), String(element)).toEqual([]);
+    }
+  });
+
+  test("export: nothing from the iframe up to the page is rounded; the panel's corners are a cover over it", () => {
+    for (const element of [/\.(canvas|stage|spacer|board|doan-canvas-panel)(?![\w-])/, /^(body|html|:root)(?![\w-])/]) {
+      expect(declared(shellCss, element, radius), String(element)).toEqual([]);
+    }
+  });
+});
+
 describe("the toolbar", () => {
   // The app's tooltips wait 700ms and skip the wait within 300ms of the last one (components/ui/tooltip.tsx).
   test("a pointer tooltip waits as the app's, and opens at once right after another one closed", () => {
