@@ -104,7 +104,13 @@ svg { display: block; flex: none; }
    from every edge. The tools row floats in the panel, outside the scrolling board, so it never
    scrolls with it; clip (not hidden) keeps a focused descendant from scrolling the panel itself
    (POSTMORTEM 2026-11-02, Tab and the floating tools). */
-.doan-canvas-panel { position: relative; display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; margin: var(--space-2); background: var(--surface-panel); border-radius: var(--radius-container); overflow: clip; isolation: isolate; }
+/* The panel clips square and its corners are a cover in the window's grey drawn over everything in
+   it. Chromium draws the cross-origin canvas iframe only within 16384 device px of its compositing
+   origin under a clip with four equal radii, so a rounded clip here cut a canvas wider or taller
+   than 8192 CSS px off for good. The cover is the outer shadow of a rounded box the size of the
+   panel, which paints only outside the curve; the panel's clip keeps it from spilling. */
+.doan-canvas-panel { position: relative; display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; margin: var(--space-2); background: var(--surface-panel); overflow: clip; isolation: isolate; }
+.doan-canvas-panel::after { content: ""; position: absolute; inset: 0; z-index: 6; border-radius: var(--radius-container); box-shadow: 0 0 0 var(--radius-container) var(--bg-app); pointer-events: none; }
 /* The header's menus open down over the board and must stay over the tools row (3) and its
    tooltip (4): in a short window an open Frames list reaches the tools. */
 .doan-canvas-panel > .doan-canvas-head { position: relative; z-index: 5; }
