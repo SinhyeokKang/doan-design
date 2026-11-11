@@ -2168,6 +2168,24 @@ describe("picking", () => {
     } finally { h.controller.dispose(); }
   });
 
+  // Not picking, the same Escs leave the selection's step alone: it is a select-parent the canvas answers later, so the
+  // commands sent show it, not the selection.
+  it("an Esc another control already handled, one during IME composition, or one from a text field takes no Select step", () => {
+    const h = harness();
+    try {
+      h.select(1);
+      const handled = Object.assign(new Event("keydown", { cancelable: true }), { key: "Escape" });
+      handled.preventDefault();
+      h.host.dispatchEvent(handled);
+      escape(h, { isComposing: true });
+      escape(h, { keyCode: 229 });
+      escape(h, { target: { tagName: "TEXTAREA", isContentEditable: false } });
+      expect(posted(h).filter(m => m.type === "select-parent")).toHaveLength(0);
+      escape(h);
+      expect(posted(h).filter(m => m.type === "select-parent")).toHaveLength(1);
+    } finally { h.controller.dispose(); }
+  });
+
   it("Esc in the canvas cancels the pick, whether the canvas answered cancelled or, before its pick-start arrived, sent an Escape key", () => {
     const h = harness();
     try {
@@ -3815,6 +3833,7 @@ describe("capture", () => {
     if (targetCloses) event.preventDefault();
     h.host.dispatchEvent(event);
   };
+  const steps = (h: H) => posted(h).filter(m => m.type === "select-parent").length;
 
   // toolbarEscape's preventDefault wrapper takes the first call after the tooltip's onEscapeKeyDown as Radix's own. Pinned
   // against the installed Radix: the tooltip content hands onEscapeKeyDown to its DismissableLayer with onDismiss as
@@ -3835,7 +3854,10 @@ describe("capture", () => {
         // Capture ends; the selection is the next Escape's step, not this one's.
         expect(h.state(), `tooltip ${tooltip}`).toMatchObject({ capturing: false, tool: "select" });
         expect(h.state().selection, `tooltip ${tooltip}`).not.toBeNull();
+        // A step is a select-parent the canvas answers later, so only the commands sent show which steps were taken.
+        expect(steps(h), `tooltip ${tooltip}`).toBe(0);
         escapeOnce(h, { tooltip });
+        expect(steps(h), `tooltip ${tooltip}`).toBe(1);
         stepAnswer(h);
         expect(h.state().selection, `tooltip ${tooltip}`).toBeNull();
         // Started from Hand: capture ends and Hand stays.
@@ -3861,12 +3883,17 @@ describe("capture", () => {
         expect(h.state().capturing, `tooltip ${tooltip}`).toBe(true);
         escapeOnce(h, { tooltip, target: FIELD });
         expect(h.state().capturing, `tooltip ${tooltip}`).toBe(false);
-        // Without capture, a field keeps its own Escape: the selection and Hand stay.
+        // Without capture, a field keeps its own Escape, and so does the `/` list or a menu that closed on it: the
+        // selection takes no step and Hand stays.
         escapeOnce(h, { tooltip, target: FIELD });
+        escapeOnce(h, { tooltip, target: FIELD, targetCloses: true });
+        escapeOnce(h, { tooltip, target: BUTTON, targetCloses: true });
         expect(h.state().selection, `tooltip ${tooltip}`).not.toBeNull();
+        expect(steps(h), `tooltip ${tooltip}`).toBe(0);
         press(h, "KeyH");
         escapeOnce(h, { tooltip, target: FIELD });
         expect(h.state().tool, `tooltip ${tooltip}`).toBe("hand");
+        expect(steps(h), `tooltip ${tooltip}`).toBe(0);
       } finally { h.controller.dispose(); }
     }
   });
