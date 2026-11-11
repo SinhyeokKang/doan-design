@@ -341,7 +341,10 @@ export function CanvasConversation(props: CanvasConversationProps) {
         const file = accepted[i]!;
         if (!pasted || result.ok || result.error !== "not_found" || !file.type.startsWith("image/")) return result;
         if (file.size > 50 * 1024 * 1024) return { ok: false as const, name: "Pasted image", error: "too_large" as const };
-        return window.doan.addPastedImage(await file.arrayBuffer()).catch(() => null);
+        // A Finder item that vanished since its copy (a folder named x.png has File.type image/png) has no bytes either.
+        const bytes = await file.arrayBuffer().catch(() => null);
+        if (!bytes) return result;
+        return window.doan.addPastedImage(bytes).catch(() => null);
       }));
       settle(keys, final);
     });

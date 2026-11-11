@@ -194,6 +194,23 @@ test("Cmd+V: text pastes as text, Finder files attach by path, an image alone at
   await vi.waitFor(() => expect(box.current.attachments.at(-1)).toMatchObject({ id: "pasted", pasted: true, status: "ready" }));
 });
 
+// A copied folder named like an image comes with File.type image/png and can't be read as bytes; when main no longer
+// finds it, the paste must settle as not found instead of leaving every chip of the batch checking.
+test("Cmd+V of a Finder folder named x.png that main no longer finds settles as not found, and its batch still settles", async () => {
+  const { box, render } = setup();
+  const folder = new File([""], "x.png", { type: "image/png" }), file = new File(["x"], "brief.pdf", { type: "application/pdf" });
+  Object.defineProperty(folder, "arrayBuffer", { value: () => Promise.reject(new DOMException("A requested file or directory could not be found", "NotFoundError")) });
+  doan.addAttachmentFiles!.mockResolvedValueOnce([
+    { ok: false, name: "x.png", error: "not_found" },
+    { ok: true, attachment: { id: "f", name: "brief.pdf", kind: "file", size: 1, path: "/Users/ada/brief.pdf", pasted: false } },
+  ]);
+  (doan.addPastedImage as ReturnType<typeof vi.fn>).mockClear();
+  call(field(render()), "onPaste", { preventDefault: vi.fn(), clipboardData: { files: [folder, file], getData: () => "" } });
+  await vi.waitFor(() => expect(box.current.attachments).toEqual([expect.objectContaining({ id: "f", kind: "file", status: "ready" })]));
+  expect(box.current.notice?.text).toBe("x.png wasn’t found, so it wasn’t attached.");
+  expect(doan.addPastedImage).not.toHaveBeenCalled();
+});
+
 test("a folder dropped on the composer attaches as a folder chip beside a file and never reaches the window's project drop", async () => {
   const { box, render } = setup();
   const composer = find(render(), props => props.className === "composer");
