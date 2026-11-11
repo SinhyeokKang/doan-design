@@ -338,13 +338,16 @@ export function canvasScript(lib: CanvasLib): void {
     if (selected !== null && !selected.isConnected && anchor !== null) selected = resolve(anchor) ?? selected;
     return selected !== null && selected.isConnected ? selected : null;
   };
-  // What a Select click on `target` selects: html or body clears (null), ⌘ the node itself, otherwise the next frame
-  // level below what the selection already entered.
+  // What a Select click on `target` selects: html or body clears (null), and so does the own background of an element
+  // outside every frame that holds frames, since a row or grid laying frames out is the space between them; ⌘ selects
+  // the node itself, otherwise the next frame level below what the selection already entered.
   const selectTarget = (target: Element, direct: boolean): Element | null => {
     if (isRoot(target)) return null;
+    const frames = framesOf(target);
+    if (frames.length === 0 && target.querySelector("[data-doan-frame]") !== null) return null;
     if (direct) return target;
     const now = current();
-    return lib.frameStep(framesOf(target), now === null ? [] : framesOf(now)) ?? target;
+    return lib.frameStep(frames, now === null ? [] : framesOf(now)) ?? target;
   };
 
   const describe = (start: Element) => {
