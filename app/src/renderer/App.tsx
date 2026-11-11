@@ -28,6 +28,7 @@ import type { OpenAsk, OpenLinkResult, OpenResult } from "../main/deepLinks";
 import type { HandoffNotice } from "../main/conversation/handoff";
 import type { MenuCommand, ViewCommand } from "../main/index";
 import { useControlFocusRecovery } from "./canvasControlFocus";
+import { useVisibleClock } from "./visibleClock";
 import { CanvasController, CanvasViewStore, canvasViewFields, initialCanvasState, routeCanvasPublish, type CanvasState, type CanvasWorkTarget, type PickResult } from "./CanvasController";
 import { CanvasHeader } from "./CanvasHeader";
 import { CanvasTools, type CaptureTool, type ExportTool, type PickerTool } from "./CanvasTools";
@@ -285,9 +286,6 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const choose = (root: string | undefined) => { if (root) setSelect(previous => ({ root, seq: (previous?.seq ?? 0) + 1 })); };
   const focusComposer = useRef(false);
   const [, setRunTick] = useState(0);
-  // Wall-clock text ("3m", "now", a time of day) is computed while rendering, and nothing re-renders App at rest, so a
-  // one-second clock keeps it current.
-  const [clock, setClock] = useState(() => Date.now());
   const homeRun = useRef<HomeRun>(null as unknown as HomeRun);
   if (!(homeRun.current instanceof HomeRun)) homeRun.current = new HomeRun({
     view: () => ({ screen: currentScreen.current, loadedRoot: loadedRootRef.current, entries: entriesRef.current, canvas: openRef.current?.folder === loadedRootRef.current ? openRef.current.canvas : null }),
@@ -525,7 +523,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     const stopCommands = window.doan.onViewCommand(name => { if (currentScreen.current === "workspace" && !overlaidRef.current) instance.command(name); });
     return () => { navigationIntent.current++; stopFolders(); stopCommands(); instance.dispose(); controller.current = null; };
   }, []);
-  useEffect(() => { const timer = setInterval(() => setClock(Date.now()), 1000); return () => clearInterval(timer); }, []);
+  // Wall-clock text ("3m", "now", a time of day) is computed while rendering, and nothing re-renders App at rest.
+  const clock = useVisibleClock(1000);
   useEffect(() => { void window.doan.homeDirectory().then(setHomeDirectory).catch(console.error); }, []);
   // First run shows when main's session has no completion record (P's v1 marker); the session is the one the CLI
   // shares, so a hidden and shown window keeps it.
