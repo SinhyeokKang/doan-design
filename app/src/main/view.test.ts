@@ -198,6 +198,9 @@ describe("folderEntry", () => {
     // A parent's config named through the upward re-read is carried as the CLI named it.
     expect(folderEntry("/r/sub", { kind: "error", message: "bad config", config: "/r/.doan/config.json" }, base, 3))
       .toEqual({ path: "/r/sub", kind: "error", message: "bad config", config: "/r/.doan/config.json" });
+    // A config in a newer format stays marked so the overlay does not call the file faulty.
+    expect(folderEntry("/r", { kind: "error", message: "v 9", config: "/r/.doan/config.json", newer: true }, base, 3))
+      .toEqual({ path: "/r", kind: "error", message: "v 9", config: "/r/.doan/config.json", newer: true });
     // The code tells main the CLI answered; the entry the renderer gets keeps its shape.
     expect(folderEntry("/r", { kind: "cliError", reason: "permission denied", code: "internal_error" }, base, 3))
       .toEqual({ path: "/r", kind: "cliError", reason: "permission denied" });

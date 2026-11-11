@@ -19,8 +19,9 @@ export type FolderState =
   | ({ kind: "list"; root: string; scope: string[]; canvases: unknown[]; git?: GitInfo } & StorageFacts)
   | { kind: "uninitialized" }
   // A Config error: the CLI named the config file it failed on (`error.config`, an absolute path that may be a parent
-  // folder's). Only this is a Config error; the code alone does not decide it.
-  | { kind: "error"; message: string; config: string }
+  // folder's). Only this is a Config error; the code alone does not decide it. `newer`: the file is in a format newer
+  // than this Doan reads (`unsupported_version`), so it is not at fault.
+  | { kind: "error"; message: string; config: string; newer?: true }
   // `code`: the CLI answered with a failure envelope and a non-zero exit, for a reason other than a config file (an
   // unreadable canvas folder, say). Absent when the command did not answer that way. With `--repo` (never searching
   // upward) it means Go read the folder as a repository root. Main reads it to decide; screens never show it.
@@ -63,7 +64,7 @@ export function folderState(run: CliRun): FolderState {
     if (run.exitCode === 0) return cliError(value.error.message);
     if (value.error.code === "repo_not_found") return { kind: "uninitialized" };
     const { code, message, config } = value.error;
-    if (config !== undefined) return { kind: "error", message, config };
+    if (config !== undefined) return { kind: "error", message, config, ...(code === "unsupported_version" ? { newer: true as const } : {}) };
     return { kind: "cliError", reason: cliReason(run, message), code };
   }
   if (run.exitCode !== 0 || !isListResult(value.result)) return cliError();

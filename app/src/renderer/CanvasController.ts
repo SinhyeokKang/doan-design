@@ -909,7 +909,7 @@ export class CanvasController {
     if (verdict === "drop") return;
     if (message.type === "key") {
       // An Escape the canvas sent before its pick-start arrived still meant the pick.
-      if (message.key === "Escape") { this.escape(false); this.closeToolbarTooltip(); }
+      if (message.key === "Escape") this.forwardEscape();
       // Space, V and H come only from a canvas focused by an ⌥-click. A Space down is believed only while the iframe
       // has focus, so a canvas cannot raise the layer over a person's clicks by itself; its release always counts.
       else if (message.key === "Space") this.shortcut({ kind: "space", down: message.down }, !this.onCanvasPage() || document.activeElement !== this.frame);
@@ -1320,13 +1320,11 @@ export class CanvasController {
     this.tooltipEscape = mark;
   }
 
-  // An Escape forwarded from a focused canvas never reaches the app's document, where Radix's tooltip listens for it, so
-  // an open toolbar tooltip gets an Escape of its own there. It does not bubble, so keydown (window, bubble) never takes
-  // a second step for it; the mark its onEscapeKeyDown leaves (toolbarEscape) is dropped with it.
-  private closeToolbarTooltip(): void {
-    if (document.querySelector('.doan-canvas-tools [data-state="delayed-open"], .doan-canvas-tools [data-state="instant-open"]') === null) return;
-    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
-    this.tooltipEscape = null;
+  // An Escape forwarded from a focused canvas never reaches the app's document, where Radix's layers listen for it, so
+  // it is replayed there as the key itself would arrive: an open layer (the toolbar's tooltip, a popover opened without
+  // focus) takes it at the capture phase, and it bubbles to keydown, which takes the canvas's step on the same terms.
+  private forwardEscape(): void {
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
   }
 
   // Esc's next step; `editable`: it came from a text field. Returns the step. A held Esc's auto-repeat (`repeat`) takes
