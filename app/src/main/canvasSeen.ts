@@ -23,8 +23,8 @@ export interface RootMemory {
 
 export interface LocalSeen {
   root(root: string): RootMemory | undefined;
-  // undefined forgets the root. Writes the file when the value moved.
-  set(root: string, memory: RootMemory | undefined): void;
+  // undefined forgets the root. Writes the file when the value moved; true once the file holds it.
+  set(root: string, memory: RootMemory | undefined): boolean;
   roots(): string[];
   // Writes the file if an earlier write failed. Called at quit.
   flushSync(): void;
@@ -117,7 +117,7 @@ export function createLocalSeen(file: string, write: (file: string, text: string
     set(root, memory) {
       if (memory === undefined) roots.delete(root);
       else roots.set(root, memory);
-      save();
+      return save();
     },
     roots: () => [...roots.keys()],
     flushSync() { if (dirty) save(); },
@@ -168,8 +168,8 @@ export interface Judgement {
   problem?: RootProblem;
 }
 
-// IDs listed once with a valid shape. A missing or duplicated ID keys nothing: its row keeps its last verdict and no
-// record is written for it, so a path or a guessed ID never stands in for it.
+// IDs listed once with a valid shape. A missing or duplicated ID keys nothing: its row keeps its last verdict (an older
+// Doan's while converting) and no record is written for it, so a path or a guessed ID never stands in for it.
 export function uniqueIds(rows: readonly { id?: string | undefined }[]): Set<string> {
   const counts = new Map<string, number>();
   for (const row of rows) if (validCanvasId(row.id)) counts.set(row.id, (counts.get(row.id) ?? 0) + 1);
@@ -206,8 +206,10 @@ export function judge(memory: RootMemory | undefined, reads: SeenReads, rows: re
     return seen === undefined ? "new" : row.mtimeMs === seen ? "seen" : "changed";
   };
   const against = (row: SeenRow, base: string): Verdict | undefined => row.fingerprint === null ? last(row) : row.fingerprint === base ? "seen" : "changed";
+  // An older Doan's verdict holds for a row the conversion cannot record yet (no usable ID, a record it cannot read).
+  const held = (row: SeenRow): Verdict | undefined => phase === "migrate" ? legacyVerdict(row) : last(row);
   for (const row of rows) {
-    if (row.id === undefined || !ids.has(row.id)) { verdicts.set(row.path, last(row)); continue; }
+    if (row.id === undefined || !ids.has(row.id)) { verdicts.set(row.path, held(row)); continue; }
     if (unreadable && phase !== "ready") {
       // An older Doan's verdict still holds while the records cannot be read; a first registration shows nothing.
       verdicts.set(row.path, phase === "migrate" ? legacyVerdict(row) : phase === "baseline" ? last(row) : undefined);
@@ -218,8 +220,8 @@ export function judge(memory: RootMemory | undefined, reads: SeenReads, rows: re
     switch (record.kind) {
       case "seen": verdicts.set(row.path, against(row, record.html)); break;
       case "migrated": verdicts.set(row.path, "changed"); break;
-      case "unsupported": problem = worse(problem, "unsupported"); verdicts.set(row.path, last(row)); break;
-      case "corrupt": case "conflict": case "unreadable": problem = worse(problem, "records"); verdicts.set(row.path, last(row)); break;
+      case "unsupported": problem = worse(problem, "unsupported"); verdicts.set(row.path, held(row)); break;
+      case "corrupt": case "conflict": case "unreadable": problem = worse(problem, "records"); verdicts.set(row.path, held(row)); break;
       case "absent": {
         if (phase === "migrate") verdicts.set(row.path, legacyVerdict(row));
         else if (phase === "baseline") {
@@ -271,13 +273,16 @@ export function plan(memory: RootMemory | undefined, reads: SeenReads, rows: rea
     const written: Record<string, "seen" | "changed"> = {};
     let complete = true;
     for (const row of rows) {
-      if (row.id === undefined || !ids.has(row.id) || !absent(row.id)) continue;
-      // Unreadable now: its old verdict is kept until a later listing can record what it holds.
-      if (row.fingerprint === null) { complete = false; continue; }
+      // No usable ID, a record that cannot be read, or HTML that cannot be read now: its old verdict is kept until a
+      // later listing can record what it holds.
+      const id = row.id !== undefined && ids.has(row.id) ? row.id : undefined;
+      const kind = id === undefined ? undefined : (reads.records.get(id) ?? { kind: "absent" }).kind;
+      if (kind === "seen" || kind === "migrated") continue;
+      if (id === undefined || kind !== "absent" || row.fingerprint === null) { complete = false; continue; }
       const seen = memory!.legacy![row.path];
       const value: RecordValue = seen !== undefined && seen === row.mtimeMs ? { html: row.fingerprint } : { unseen: "migrated" };
-      writes.push({ id: row.id, value });
-      written[row.id] = "html" in value ? "seen" : "changed";
+      writes.push({ id, value });
+      written[id] = "html" in value ? "seen" : "changed";
     }
     const after: RootMemory = complete ? { known: known(written) } : { ...memory!, known: known(written) };
     return { before: memory!, writes: [...writes, ...marker], after };

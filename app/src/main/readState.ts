@@ -95,16 +95,27 @@ export function createReadState(deps: ReadStateDeps): ReadState {
   };
 
   // What the window shows for a row: the dot's verdict, and a failure only on a canvas still unseen. A save failure
-  // describes the content that was shown; once the file holds other content, the dot is a change again.
-  const marks = (run: Run, path: string): { unseen?: "new" | "changed"; saveFailed?: "save" | "id" } => {
+  // describes the content that was shown: it stays while the canvas stays shown (nothing was saved since, even if the
+  // file moved on); after that, once the file holds other content, the dot is a change again.
+  const marks = (run: Run, root: string, path: string): { unseen?: "new" | "changed"; saveFailed?: "save" | "id" } => {
     const state = run.rows.get(path);
     const unseen = state?.verdict === "new" || state?.verdict === "changed" ? state.verdict : undefined;
     if (!unseen) return {};
     const failure = run.failures.get(path);
-    if (failure?.kind === "id" || (failure?.kind === "save" && failure.hash === state?.fingerprint)) return { unseen, saveFailed: failure.kind };
+    const stillShown = intent?.failed === true && intent.root === root && intent.path === path;
+    if (failure?.kind === "id" || (failure?.kind === "save" && (stillShown || failure.hash === state?.fingerprint))) return { unseen, saveFailed: failure.kind };
     return { unseen };
   };
-  const decoration = (run: Run) => JSON.stringify([...run.rows.keys()].map(path => [path, marks(run, path)]));
+  const decoration = (run: Run, root: string) => JSON.stringify([...run.rows.keys()].map(path => [path, marks(run, root, path)]));
+  // Moves the canvas page's current canvas, telling the window when that ends a failed showing's failure dot. Only the
+  // old canvas's root can move: a new or cleared showing has failed nothing yet.
+  const moveIntent = (change: () => void) => {
+    const root = intent?.root;
+    const run = root === undefined ? undefined : runs.get(root);
+    const before = run?.judged ? decoration(run, root!) : null;
+    change();
+    if (run?.judged && decoration(run, root!) !== before) deps.changed();
+  };
 
   const lastOf = (run: Run, memory: RootMemory | undefined, row: SeenRow): Verdict | undefined =>
     run.rows.get(row.path)?.verdict ?? (row.id === undefined ? undefined : memory?.known[row.id]);
@@ -124,13 +135,16 @@ export function createReadState(deps: ReadStateDeps): ReadState {
     if (!run.blocked) {
       const steps = plan(deps.local.root(root), readsOf(snapshot), rows);
       if (steps) {
-        // The frozen baseline is stored before the first write, so an interruption retries the same set.
-        deps.local.set(root, steps.before);
-        let failed: unknown;
-        for (const write of steps.writes) {
+        // The frozen baseline is saved before the first write, so an interruption retries the same set; a set this
+        // device could not save is never written from.
+        let failed: unknown = deps.local.set(root, steps.before) || steps.writes.length === 0 ? undefined : new Error("canvas-seen.json not saved");
+        for (const write of failed === undefined ? steps.writes : []) {
+          // A project removed meanwhile gets no further writes.
+          if (runs.get(root) !== run) return;
           const name = write.id === undefined ? MARKER : recordName(write.id);
           try { await deps.write(root, name, recordText(write.value), null); } catch (error) { failed = error; break; }
         }
+        if (runs.get(root) !== run) return;
         if (failed === undefined) {
           deps.local.set(root, steps.after);
           run.writeProblem = undefined;
@@ -155,7 +169,7 @@ export function createReadState(deps: ReadStateDeps): ReadState {
       }
       if (JSON.stringify(known) !== JSON.stringify(memory.known)) deps.local.set(root, { ...memory, known });
     }
-    const before = run.judged ? decoration(run) : null;
+    const before = run.judged ? decoration(run, root) : null;
     run.rows = new Map(rows.map(row => [row.path, { verdict: judgement.verdicts.get(row.path), fingerprint: row.fingerprint }]));
     run.snapshot = snapshot;
     run.judged = true;
@@ -165,7 +179,7 @@ export function createReadState(deps: ReadStateDeps): ReadState {
       run.problem = problem;
       if (problem && !quiet) deps.problem(root, problem);
     }
-    if (before !== decoration(run)) deps.changed();
+    if (before !== decoration(run, root)) deps.changed();
     void tryMark();
   };
 
@@ -193,13 +207,13 @@ export function createReadState(deps: ReadStateDeps): ReadState {
     const run = runs.get(root);
     const row = entry?.canvases.find(item => item.path === path);
     if (!entry || !run || !row) return;
-    const unseen = marks(run, path).unseen !== undefined;
+    const unseen = marks(run, root, path).unseen !== undefined;
     const fail = (failure: Failure) => {
+      const before = decoration(run, root);
       if (session) session.failed = true;
       if (!unseen) return;
-      const before = decoration(run);
       run.failures.set(path, failure);
-      if (before !== decoration(run)) deps.changed();
+      if (before !== decoration(run, root)) deps.changed();
       if (!quiet) deps.problem(root, failure.kind === "id" ? { kind: "id", path } : { kind: "save", path, readOnly: failure.readOnly });
     };
     const ids = uniqueIds(entry.canvases);
@@ -209,6 +223,11 @@ export function createReadState(deps: ReadStateDeps): ReadState {
     }
     const fresh = (await deps.read(root, [row.id])).records.get(row.id);
     const read = fresh?.read;
+    // A page behind the disk never takes back a record of what the disk holds now (another device's, or this one's).
+    if (read?.kind === "seen" && read.html !== hash && !row.error && read.html === await deps.fingerprint(root, path)) {
+      await evaluate(root, quiet);
+      return;
+    }
     if (read?.kind === "seen" && read.html === hash) {
       run.failures.delete(path);
       await evaluate(root, quiet);
@@ -245,7 +264,9 @@ export function createReadState(deps: ReadStateDeps): ReadState {
     if (!entry || !run?.judged || !row) return;
     const hash = await deps.shown(current.root, row);
     if (!hash || intent !== current || current.failed) return;
-    if (storedHtml(run, row, uniqueIds(entry.canvases)) === hash) return;
+    const stored = storedHtml(run, row, uniqueIds(entry.canvases));
+    // The record already holds what the disk holds and the page is behind it: the reload records nothing new.
+    if (stored === hash || (stored !== undefined && stored === run.rows.get(row.path)?.fingerprint)) return;
     await enqueue(current.root, () => mark(current.root, current.path, hash, false, current));
   };
 
@@ -273,10 +294,10 @@ export function createReadState(deps: ReadStateDeps): ReadState {
     if (intent?.root === root) intent = null;
   };
 
-  const relevant = (run: Run, path: string | undefined): ReadStateProblem | null => {
+  const relevant = (run: Run, root: string, path: string | undefined): ReadStateProblem | null => {
     const visible = (at: string): ReadStateProblem | null => {
       const failure = run.failures.get(at);
-      const shown = marks(run, at).saveFailed;
+      const shown = marks(run, root, at).saveFailed;
       if (!failure || !shown) return null;
       return failure.kind === "id" ? { kind: "id", path: at } : { kind: "save", path: at, readOnly: failure.readOnly };
     };
@@ -300,7 +321,7 @@ export function createReadState(deps: ReadStateDeps): ReadState {
         if (!run?.judged) return entry;
         let touched = false;
         const canvases = entry.canvases.map(row => {
-          const mark = marks(run, row.path);
+          const mark = marks(run, entry.path, row.path);
           if (!mark.unseen) return row;
           touched = true;
           return { ...row, ...mark };
@@ -326,14 +347,14 @@ export function createReadState(deps: ReadStateDeps): ReadState {
     },
     showing(value) {
       if (value === null) {
-        intent = null;
+        moveIntent(() => { intent = null; });
         return true;
       }
       if (!isObject(value) || typeof value.root !== "string" || typeof value.path !== "string" || Object.keys(value).length !== 2) return false;
       const { root, path } = value;
       if (!deps.entries().some(entry => entry.path === root)) return false;
       if (intent?.root === root && intent.path === path) return true;
-      intent = { root, path, failed: false, races: 0 };
+      moveIntent(() => { intent = { root, path, failed: false, races: 0 }; });
       void tryMark();
       return true;
     },
@@ -352,12 +373,15 @@ export function createReadState(deps: ReadStateDeps): ReadState {
         for (const [at, failure] of [...run.failures]) await mark(root, at, failure.hash, true, null);
         await evaluate(root, true);
       });
-      if (intent?.root === root && !run.failures.has(intent.path)) {
-        intent.failed = false;
-        intent.races = 0;
+      const current = intent;
+      if (current?.root === root && !run.failures.has(current.path)) {
+        moveIntent(() => {
+          current.failed = false;
+          current.races = 0;
+        });
       }
       void tryMark();
-      return relevant(run, path);
+      return relevant(run, root, path);
     },
     async idle() {
       for (;;) {
