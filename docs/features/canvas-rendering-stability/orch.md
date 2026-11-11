@@ -32,7 +32,7 @@
 |---|---|---|---|---|---|---|
 | P (PoC) | tasks 1, 2 | 추적 파일 수정 없음. probe·증거는 `/Users/sinhyeokkang/code/doan-design/.scratch/canvas-rendering-stability/` | 없음 | Opus high — GPU·합성·레이아웃 원인을 가르는 판단 중심 작업이고 틀리면 이후 수정 전부가 빗나간다 | 지문·버전·로드 상태 기록, 앱과 Electron Export 창의 재현 기록(반복 측정 중앙값·범위, load average), 원인 후보와 근거 | 완료(커밋 없음, `handoff-P.md`) |
 | P2 (부하) | 결정 8 | 추적 파일 수정 없음 | P | Sonnet high — P의 probe를 그대로 반복 실행하는 측정이다. P 워커 터미널을 재사용할 수 없어 새 워커로 띄웠다 | 무부하·CPU·GPU 부하별 C2 이동 측정 중앙값·범위, C1 sanity | 진행 중 |
-| F (수정) | tasks 3, 4(`/runtime-test`·`/postmortem`) | `app/src/renderer/styles.css`와 캔버스 패널을 그리는 컴포넌트, `cli/internal/export/viewer/*`, 그 테스트, `docs/POSTMORTEM.md` | P, 개선 기준 합의 | Opus high — 앱과 Export 두 경로에서 외관 픽셀 일치와 구조 단언을 맞춰야 하고, 틀리면 잘림이 남거나 모서리 모양이 바뀐다 | 단위 red→green 또는 같은 probe의 전후 측정, `verify.mjs` | 대기 |
+| F (수정) | tasks 3, 4(`/runtime-test`·`/postmortem`) | `app/src/renderer/styles.css`와 캔버스 패널을 그리는 컴포넌트, `cli/internal/export/viewer/*`, 그 테스트, `docs/POSTMORTEM.md` | P, 개선 기준 합의 | Opus high — 앱과 Export 두 경로에서 외관 픽셀 일치와 구조 단언을 맞춰야 하고, 틀리면 잘림이 남거나 모서리 모양이 바뀐다 | 단위 red→green 또는 같은 probe의 전후 측정, `verify.mjs` | 부분 완료: 통합 `85879e1b`·`22b4d776`·`c36a2961`(원본 `3c2c4c2b`·`e341d3e3`·`3f388b82`, 배치 브랜치 `SinhyeokKang/crs-fix`). 기준 ④ 일부와 ⑤는 미실행 |
 | R (리뷰) | F의 `/code-review` | 보고만 | F | Opus medium — CSS·viewer 변경은 작지만 구조 단언과 회귀 판단이 필요하다 | 🔴 0 | 대기 |
 | O1 (최적화 측정) | tasks 5 | 추적 파일 수정 없음 | F 통합 | Opus high — 비용 분해와 drift 없는 후보 선정은 판단 중심이고, 틀리면 O2가 효과 없는 변경을 넣는다 | 비용별 기준선(중앙값·범위, load average), 후보와 근거·예상 효과 | 대기 |
 | O2 (최적화 구현) | tasks 6 | O1이 고른 후보의 파일. O1 이후 확정 | O1 | O1 결과로 정한다 | 후보별 전후 비용, 픽셀 비교 drift 0, `verify.mjs` | 대기 |
@@ -43,3 +43,57 @@
 직렬이다. P2와 F는 파일이 겹치지 않아 함께 돌리되, F의 GUI probe는 P2가 끝난 뒤 conductor 허락을 받고 시작한다. P는 코드를 바꾸지 않지만 F의 범위가 P 결과에 달려 있고, GUI 측정이 사용자 화면에서 겹치지 않아야 한다. P → (사용자 개선 기준 합의) → F → R → (수정 라운드) → 통합 → O1 → O2 → R2 → 통합·`/verify`·`/agent-eval` → D → push·PR. O1·O2는 F와 같은 렌더러 파일을 건드릴 수 있어 F 통합 뒤에 시작한다.
 
 원인 미확정이나 재현 실패면 P 뒤에 멈추고 사용자에게 관측과 필요한 자료를 보고한다.
+
+## 머신 이전 인계 (2026-11-11)
+
+사용자가 체인을 다른 머신에서 이어받는다. 이 머신의 Mac이 잠겨 GUI 측정이 멈췄다. 아래는 이 머신에서 얻은 측정 요약이다(캔버스 이름·크기·측정값만). 원자료와 probe는 이 머신의 `/Users/sinhyeokkang/code/doan-design/.scratch/canvas-rendering-stability/`에만 있고 옮기지 않는다. 새 머신에서는 skillflo `.doan/`을 그 머신의 `.scratch/` 아래로 다시 복사하고 probe를 다시 만들어야 한다.
+
+### 환경
+
+Apple M3, macOS 26.3.1, 메모리 16 GB, 내장 디스플레이 논리 1512×982·배율 2. Electron 45.0.0(Chromium 156.0.8078.48), 데스크톱 Chrome 157.0.8103.40. Skia Graphite(Dawn Metal), GPU 합성 켜짐. WebGL 최대 텍스처 16384. Export는 설치된 doan v0.1.5로 만들었다. 대상 캔버스: `partner-member-search-flow`(pmsf, 9600×10673, 2프레임), `enrollment-mobile-category-flow`(emcf, 2800×19305, 41), `partner-course-by-member`(6500×15313, 23), `enrollment-filter-scroll-reveal`(7672×12619, 5).
+
+### 원인 (P)
+
+- **C1 지속 잘림**: 캔버스 iframe(교차 출처, 별도 프로세스)의 조상이 네 모서리 반경이 같은 clip을 가지면, Chromium은 iframe 표면을 compositing rect 원점에서 16384 device px(DPR 2에서 8192 CSS px) 안에서만 그린다. 앱은 대화 패널을 접을 때, Export는 항상 해당한다. 앱·Electron Export·Chrome 157 모두 같은 위치에서 잘렸다(측정 위치와 예측의 차이 1–5 px). 반경 0, 비균일 반경, `overflow: visible`, DPR 1에서는 0이었다. 부하·이력과 무관했다. Chromium 내부 경로(fast rounded corner → 병합되지 않는 render pass → 최대 텍스처로 자름)는 소스로 확인하지 않은 추정이다.
+- **C2 이동 중 빈 영역**: Chromium은 별도 프로세스 iframe을 창 viewport + 각 방향 15% 범위만 그리고, 그 범위를 약 1프레임 늦게 갱신한다. 모델과 실제 빈 영역의 IoU는 0.978이었다. pmsf 118% 마구 이동에서 최대 빈 비율은 앱 0.791, Electron Export 0.794, Chrome 0.922였고, 멈추면 17–54 ms 안에 0이 됐다.
+- 확대·축소 자체는 깨지지 않았다(안정된 화면과의 차이 최대 4.9%).
+- 첫 표시 1프레임 빈 화면(92–96%)은 범위 밖이다(결정 13 ⑤). BACKLOG에 남긴다.
+
+### 부하 비교 (P2, 최적화 기준선)
+
+pmsf 118% 이동, 무부하·CPU(`yes` 4개)·GPU(WebGL fill-rate, Device Utilization 100%) 각 5회.
+- 최대 빈 비율 0.79와 최종 0은 모든 조건에서 같았다. 15% 여백 모델 IoU는 앱 0.98, Export 0.93이었다.
+- GPU 포화는 빈 프레임을 35–40% 늘렸다. 지연은 앱 16→29 ms, Export 9→27 ms, 사라질 때까지 걸린 시간은 31→51 ms, 21→62 ms로 늘었다. CPU 부하는 악화시키지 않았다.
+- C1은 모든 부하에서 0.145였다.
+- 한계: 무부하 조건의 GPU 사용률도 다른 앱 때문에 약 70%였다. load average는 3.8–72 사이로 흔들렸다.
+
+### 수정 결과 (F)
+
+- 앱: 패널은 둥근 배경만 그리고 자르지 않는다. 헤더가 위 모서리를, `.area`가 아래 모서리만 자른다(결정 14).
+- Export: 패널은 사각 clip이다. `::after` 덮개가 곡선 바깥을 `--bg-app`으로 칠한다(결정 10·11). Export 고정 digest 9개를 갱신했다.
+- 기준 ① 지속 잘림(수정 전 n=2 → 수정 후 n=5), 모두 5/5회 0이 됐다.
+  - 앱 pmsf 첫 렌더링: 대화 접힘 0.1454 → 0, 양쪽 접힘 0.1457 → 0.
+  - 앱 sweep(s 0.065/0.08/0.1/0.13): 대화 접힘 0.389/0.421/0.281/0.213 → 0, 양쪽 접힘 0.389/0.421/0.261/0.131 → 0.
+  - 앱 emcf 빠른 축소: 대화 접힘 0.0413 → 0, 양쪽 접힘 0.0458 → 0.
+  - Export/Electron: pmsf 0.1454 → 0, emcf 0.4099 → 0. Export/Chrome pmsf 0.1458 → 0.
+  - 기본 레이아웃은 수정 전에도 0이었다.
+- 기준 ② 모서리 픽셀: 앱은 대부분 차이 0이다. 대화 접힘에서 캔버스 내용이 모서리 아래에 올 때만 아래 모서리 AA 가장자리에서 최대 3/255였다(네이티브 캡처 1/255). Export는 네 모서리 AA 가장자리에서 최대 4/255였다(8/255를 넘는 픽셀 0). **'같은 픽셀'로 볼지 사용자 확인이 필요하다.**
+- 기준 ③ 구조 단언: 단위 테스트(`app/src/main/exportViewer.test.ts`)가 수정 전 red, 수정 후 green이었다. 실제 앱의 레이아웃 6종과 Export(Electron·Chrome)에서도 위반이 사라졌다.
+- 게이트: 앱 테스트 372 files / 10199 tests, typecheck, lint, `go test`, `go vet`, `verify.mjs` 모두 PASS(F 브랜치 기준).
+
+### 남은 일 (새 머신)
+
+1. 통합 HEAD에서 `/verify` 재실행. 이 머신에서는 통합 뒤 실행하지 않았다.
+2. F 기준 ④ C2 회귀: 앱·Export 수정 전·후 4·5회차와 Export 수정 후 3회차. 지금까지 앱 프레임>1%는 수정 전 0.095 [0.084–0.099] → 수정 후 0.101 [0.082–0.104](n=3), Export는 0.174 [0.172–0.182] → 0.181 [0.175–0.187](n=2)이다. Export 최대 0.187이 수정 전 최대 0.182보다 조금 높아 판정을 미뤘다. 같은 세션에서 수정 전·후를 번갈아 잰다.
+3. F 기준 ⑤ 일반 크기 캔버스 `/runtime-test`(선택 위치·프레임 점프·Capture area·재로드·스크롤·모션).
+4. 기준 ② AA 차이의 사용자 확인.
+5. 독립 리뷰 R → 수정 라운드.
+6. O1 최적화 측정 → O2 구현 → R2(결정 15·16, spec 완료 조건 5·6).
+7. `/agent-eval`: Export viewer를 바꿨으므로 실행한다(결정 7·11).
+8. D(tasks 7): PRODUCT·ARCHITECTURE 승격, BACKLOG(C2 잔여, 첫 표시 1프레임 빈 화면), DESIGN.md 'Viewer panel' 문구(지금은 "24px on all four corners, `overflow: clip`"이다. 보이는 값은 같지만 구조가 바뀌었다).
+9. PR 본문에 링크 2 인계를 적는다. 
+   - 원인과 측정은 위와 같다.
+   - 부모 쪽 2W×2H 그라디언트·마스크 레이어는 2W×DPR 96000 device px까지 크기에 따른 탈락이 없었다. W 4000–8200의 plain 큰 면적 변형에서만 1–4프레임이 일시적으로 덜 그려졌다.
+   - 마커나 그라디언트를 캔버스 iframe 안에 두면 C1 조건의 16384 device px 경계를 받는다.
+   - 2026-11-11 녹화의 프레임 단위 레이어 탈락은 같은 원인일 가능성이 낮다. 탈락한 요소가 부모 DOM이고, C1·C2는 iframe 표면에서만 생긴다. 다만 그 현상 자체는 측정하지 않았다.
+10. 측정 중 실제 상태 검사 경고: `~/.gemini/antigravity-cli` 메타가 몇 번 바뀌었다. 이 CLI는 측정과 무관하게 하루 30–70회 실행돼 왔다(로그로 확인). 사용자 실제 Doan의 `ui-state.json`이 1회 바뀌었는데, 같은 시간에 실제 앱이 실행 중이었다. MCP 설정 키 diff 1회는 출력이 잘려 확인하지 못했고, 재실행에서는 통과했다.
