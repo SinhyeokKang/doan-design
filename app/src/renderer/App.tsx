@@ -1633,7 +1633,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const lastOverlay = useRef<{ root: string | null; shown: ShownOverlay }>({ root: null, shown: null });
   const problem = body !== null && entry ? problemView(entry, projectLabel(entry.path), homeDirectory,
     { slow: slowRoot !== null && slowRoot === loadingRoot, shown: lastOverlay.current.root === loadedRoot ? lastOverlay.current.shown : null }) : null;
-  lastOverlay.current = { root: loadedRoot, shown: problem === null ? null : problem.kind === "reading" ? { kind: "reading" } : { kind: "problem", entryKind: problem.entryKind } };
+  lastOverlay.current = { root: loadedRoot, shown: problem === null ? null : problem.kind === "reading" ? { kind: "reading" } : { kind: "problem", entryKind: problem.entryKind, ...(problem.newer ? { newer: true } : {}) } };
   const scene = problem?.kind === "problem" ? problem : null;
   const overlaid = problem !== null;
   overlaidRef.current = overlaid; sceneRef.current = scene !== null;
