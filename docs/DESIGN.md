@@ -803,7 +803,7 @@ Reference: `.doan/canvases/doan-canvas-conversation.html` (15 frames; `panel-sta
 | Terminal session | Choice cards above the composer (`ob-choice-list cp-resume`, margin-bottom 4); the model and effort triggers keep their size without chevrons; Attach is `aria-disabled` in `--text-disabled` with a not-allowed cursor. While that session works in a terminal the choice is held: 'Terminal agent activity' | The same triggers, not interactive. |
 | Suggestions | The Home suggestion rows ('Home' 'Suggestions') at the panel's inner width (247 at the 280 minimum), 12 above the composer area. They show only in the plain new state, not beside a terminal session choice (`CanvasConversationPanel.tsx`) | |
 | Loading and unreadable conversation | "Loading conversation" and "Doan couldn’t read this conversation" sit in the middle of the panel body with the thread's 16 px side insets | |
-| Open button dot | Folded panel's Show conversation: 8 px `--affordance-accent` dot, 4 from the top and end, 2 px `--surface-panel` ring; named "Show conversation, needs your answer" / "Show conversation, new activity" | The sidebar slot's unseen dot. |
+| Open button badge | Folded panel's Show conversation: a needs-your-answer request is an 8 px `--affordance-accent` dot, 4 from the top and end, 2 px `--surface-panel` ring (`[data-badge="true"]::after`); an unread finished conversation is a 14 px (`--size-icon-sm`) round speech bubble (`.badge-bubble`, lucide `MessageCircle`, stroke 2 in `--text-accent`, filled `--surface-panel`) 2 px (`--space-half`) from the top and end, with a 2 px `--surface-panel` ring (`[data-badge="unseen"]`). Named "Show conversation, needs your answer" / "Show conversation, conversation finished unread". The Show sidebar button uses the same two marks | The sidebar slot's marks. Measured for the Show sidebar button only (below); the panel button shares the rule and has a unit test. |
 | Locate | Frame chips jump like the drawer; the jump highlight is the canvas area's (3 px accent gradient line, 1 px `--surface-panel` ring, accent glow, 1.2 s); a point shows a 12 px ring of the same line | |
 | Agent notice | "A project conversation is drawing this canvas…" (Open the project conversation) and the promoted notice (Open the current conversation): the shared `doan-notice thread-notice`, last in `.cp-scroll`; body-sm 14/20, padding 12 / 16, grid columns 16 + 1fr with a 6 px column gap and a 12 px row gap, radius 16, `--surface-inset`; the sm Open in the second column under the text. At 1238 × 780 the drawing notice is 314 × 128 (draft tile 315 × 128) | Measured with the component's markup placed in the panel (`.scratch/runtime-test/notice-type-fixes/probe.ts`); the state itself was not reached (Not verified). The draft's icon sits 2 px higher: its bare `<svg>` lacks `doan-alert-icon`, which centres the app's icon on the 20 px first line. |
 | Narrow | The panel can be dragged to 280, the minimum: nothing in the head, title menu or composer passes its edges, and a chip makes the box. At 960 × 600 the default is 320 | The 280 minimum; 320 is the default `max(320px, 28dvw)`. |
@@ -1682,3 +1682,16 @@ Measured against `.doan/canvases/folder-attachments.html`, frames `folder-home`,
 ### Regression pointers
 
 `homeComposer.test.ts` ('a pick of more than ten leaves the rest out with one counted notice…'), `attachments.test.ts` ('refuses a socket as neither a file nor a folder'), `HomeComposerView.interaction.test.tsx` ('Cmd+V of a Finder folder named x.png that main no longer finds…'). The icon's `flex: none` has no unit test; the probe above measured 3.5 × 14 without it.
+
+## Conversation finished bubble
+
+Reference: `.doan/canvases/canvas-activity-notices.html` (`activity-sidebar`, `activity-collapsed`). Measured by `/design-sync` (`.scratch/design-sync/activity-notices/measure.mjs`) in the built app at 1238 × 780, draft read in the app's canvas iframe. The unread finished state came from a stored conversation record (v2 index plus a four-event history) in an isolated app, with no provider login.
+
+| Part | Measured (draft = app) |
+|---|---|
+| Sidebar canvas row slot `.row-slot.ended` | 16 × 16, 10 from the row end, 8 from the top of the 32 px row; lucide `MessageCircle` (16, stroke 2, no fill) in `--text-accent` (rgb 151 59 225 for Doany); named "Conversation finished — unread" |
+| Show sidebar badge `.badge-bubble` | 14 × 14, 2 from the top and end, `--surface-panel` background and 2 px ring, radius 4, svg 14 × 14 stroke 2 `--text-accent` filled `--surface-panel`; button named "Show sidebar, conversation finished unread" |
+
+The canvas change dot (`.row-slot.unseen i`, 8 px) is unchanged and is no longer used for conversations.
+
+**Not verified.** The project row's aggregate bubble (same `SlotMark` markup as the canvas row; covered by the `ShellSidebar` unit test) and the folded panel's Show conversation bubble (same `.badge-bubble` rule; covered by the `CanvasHeader` unit test) were not reached in the isolated app: the fixture conversation reads as seen once its canvas is shown with the panel open.
