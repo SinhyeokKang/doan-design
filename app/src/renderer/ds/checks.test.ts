@@ -53,6 +53,7 @@ const violetAllowed = [
   ".drop-target",
   ".row-slot.permission",
   ".row-slot.unseen i",
+  ".row-slot.ended",
   // The Fast icon on the Effort trigger, the Effort menu's Fast row and the thread's Fast-not-used line (confirmed draft 2026-11-06).
   ".composer-effort .fast-icon",
   ".fast-slot",
@@ -72,6 +73,7 @@ const violetAllowed = [
   ".buddy-card:has(input:checked)",
   // The dot on the folded conversation panel's open button, the sidebar slot's unseen dot (confirmed draft open-badge).
   '.doan-icon-button[data-badge="true"]::after',
+  ".badge-bubble",
   // The canvas jump highlight (chip locate, Frames drawer, Quick Open, deep link): a 3px accent gradient line drawn
   // by the masked ::before and an accent glow, readable over any canvas.
   ".mark.jump-highlight",
