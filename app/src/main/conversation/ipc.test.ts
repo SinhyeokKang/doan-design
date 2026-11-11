@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { conversationHandler, conversationMethods, validateSendExtras } from "./ipc";
+import { conversationHandler, conversationMethods, queueFiles, validateSendExtras } from "./ipc";
 import { ConversationService, type OpenRunner, type Prepare, type Prepared } from "./service";
 import { ModelCatalog, parseCodexModels, type ModelOption } from "./models";
 import { SkillCatalog } from "./skills";
 import { AttachmentStore } from "../attachments";
 import { ConversationStore } from "./store";
-import { mkdtempSync, realpathSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, renameSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 it("rejects wrong senders, unsaved roots, unlisted canvases and sparse anchors before preparation", async () => {
@@ -147,6 +147,42 @@ it("passes rechecked attachments to the start, marks them sent before acceptance
     expect(h.attachments.markSent.mock.invocationCallOrder[0]).toBeLessThan(h.attachments.consume.mock.invocationCallOrder[0]!);
     expect(h.attachments.resolve).toHaveBeenCalledTimes(4);
   } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+it("names a folder replaced before the request alongside the missing ones", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
+  try {
+    const h = home(dir);
+    h.attachments.resolve.mockReturnValueOnce({ ok: false, error: "attachment_missing", missing: ["gone", "swapped"], replaced: ["swapped"] });
+    expect(await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", text: "x", attachments: [{ id: "gone" }, { id: "swapped" }] }))
+      .toEqual({ error: "attachment_missing", missing: ["gone", "swapped"], replaced: ["swapped"] });
+    expect(h.start).not.toHaveBeenCalled();
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+it("refuses a start whose folder was replaced while the runner was opening, naming it replaced", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "doan-ipc-")), files = mkdtempSync(join(tmpdir(), "doan-ipc-files-"));
+  try {
+    let release!: () => void; const held = new Promise<void>(resolve => { release = resolve; });
+    const open = vi.fn(async () => { await held; return { sessionId: "s1", send: vi.fn(async () => {}), answer: () => false, stop: vi.fn(async () => {}), close: vi.fn(async () => {}) }; });
+    const prepare = vi.fn<Prepare>(async () => ({ runtime: "claude", configDir: "/profile", cwd: "/repo", command: "/fake", env: {} }));
+    const store = new ConversationStore(dir);
+    const service = new ConversationService(store, prepare, open, () => {});
+    const attachments = new AttachmentStore(join(dir, "attachments"), { thumbnail: () => null, reencode: () => null });
+    const handle = conversationHandler(service, prepare, () => [{ path: "/repo", kind: "list", canvases: [] }], { attachments });
+    const folder = join(realpathSync(files), "refs"); mkdirSync(folder);
+    const added = attachments.addPaths({ paths: [folder] })![0]!; if (!added.ok) throw new Error("refused");
+    const starting = handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", text: "x", attachments: [{ id: added.attachment.id }] });
+    await vi.waitFor(() => expect(open).toHaveBeenCalled());
+    renameSync(folder, `${folder}-old`); mkdirSync(folder); release();
+    expect(await starting).toEqual({ error: "attachment_missing", missing: [added.attachment.id], replaced: [added.attachment.id] });
+    expect(store.list()).toEqual([]);
+    expect(existsSync(`${folder}-old`)).toBe(true);
+  } finally { rmSync(dir, { recursive: true, force: true }); rmSync(files, { recursive: true, force: true }); }
+});
+it("names a queued folder replaced before its send as replaced", () => {
+  const recheck = vi.fn(() => [{ id: "a", ok: true }, { id: "b", ok: false, error: "replaced" }, { id: "c", ok: false, error: "not_found" }]);
+  const files = queueFiles({ recheck } as unknown as AttachmentStore);
+  let thrown: unknown; try { files.reclaim(["a", "b", "c"]); } catch (error) { thrown = error; }
+  expect(thrown).toMatchObject({ message: "attachment_missing", missing: ["b", "c"], replaced: ["b"] });
 });
 it("refuses a start whose attachment vanished while the runner was opening, before anything is accepted", async () => {
   const dir = mkdtempSync(join(tmpdir(), "doan-ipc-")), files = mkdtempSync(join(tmpdir(), "doan-ipc-files-"));

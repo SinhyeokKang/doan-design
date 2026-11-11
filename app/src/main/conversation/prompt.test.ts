@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { anchorTokens, handoffPrompt, turnPrompt, HANDOFF_GUIDANCE, HOME_GUIDANCE, LIMITS, LINK_GUIDANCE, OPEN_GUIDANCE, PRESET_GUIDANCE } from "./prompt";
+import { FOLDER_ATTACHMENT, IMAGE_NAMED_FOLDER, LEGACY_ATTACHMENTS } from "./attachmentRecords.fixture";
 const anchor = { frame: { id: "main", title: "Main" }, element: { selector: "button", doanId: "save", text: "Save" } };
 it("accepts repeated references and preserves their positions", () => {
   expect(anchorTokens("Change {{2}} then {{1}} and {{2}}", [anchor, anchor])).toEqual([2, 1, 2]);
@@ -102,6 +103,17 @@ it("lists up to ten attachments as untrusted data with name, kind and path only"
   expect(data.parts).toEqual([{ userText: "Look at the attached files." }]);
   expect(turnPrompt([], "x", { root: "/repo" }, { attachments: [...attachments, attachments[0]!] })).toBeNull();
   expect(JSON.parse(turnPrompt([], "x", { root: "/repo" })!.split("\n\n")[1]!)).not.toHaveProperty("attachments");
+});
+it("lists a folder by name, kind and path, with files, as untrusted data the agent reads with its own tools", () => {
+  const attachments = [FOLDER_ATTACHMENT, IMAGE_NAMED_FOLDER, LEGACY_ATTACHMENTS[1]];
+  const prompt = turnPrompt([], "Look at the attached files.", { root: "/repo" }, { attachments })!;
+  const sections = prompt.split("\n\n");
+  expect(sections[0]).toContain("attachments lists local files and folders the person chose");
+  expect(JSON.parse(sections[1]!).attachments).toEqual([
+    { name: "references", kind: "directory", path: "/Users/me/Projects/Atlas/references" },
+    { name: "shots.png", kind: "directory", path: "/Volumes/Shared/shots.png" },
+    { name: "notes.md", kind: "file", path: "/tmp/notes.md" },
+  ]);
 });
 // The handoff command is taught only on a turn that may hand off, and the next agent reads
 // the handoff as data in its own field, never through the anchor markers.

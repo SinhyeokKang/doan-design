@@ -402,7 +402,7 @@ test("locked, the field keeps the draft but takes no input, and the reason line 
   expect(shownText(render())).toBe("Tighten the totals");
   expect(has(render(), reason)).toBe(true);
   expect(button(render(), "Send").disabled).toBe(true);
-  expect(button(render(), "Attach files").disabled).toBe(true);
+  expect(button(render(), "Attach files or folders").disabled).toBe(true);
 });
 
 // A dropped or pasted file, shaped as the composer reads it.
@@ -452,7 +452,7 @@ test("a terminal session keeps the trigger places, chosen by the terminal, and t
   const agent = button(render(), "Model: set by the terminal session (Codex)");
   expect(agent["aria-disabled"]).toBe("true");
   expect(button(render(), "Effort: set by the terminal session")["aria-disabled"]).toBe("true");
-  expect(button(render(), "Attach files")["aria-disabled"]).toBe("true");
+  expect(button(render(), "Attach files or folders")["aria-disabled"]).toBe("true");
   expect(has(render(), "Terminal session")).toBe(true);
   const tips = render().map(item => item.label);
   expect(tips).toContain("Set in your terminal");

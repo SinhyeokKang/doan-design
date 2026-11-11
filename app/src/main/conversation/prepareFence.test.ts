@@ -40,6 +40,14 @@ it("fences a conversation run with resolved paths and this turn's pasted image d
   expect(ready.fence).toEqual({ paths: { userData: w.real, profile: realpathSync.native(w.profile), attachments: [join(w.real, "attachments", "0f4e")] } });
   expect(w.real.startsWith("/private/")).toBe(true);
 });
+it("opens nothing in the fence for a folder attachment, even one inside a pasted image directory", async () => {
+  const w = world("claude");
+  const inner = join(w.real, "attachments", "77aa", "inner"); mkdirSync(inner);
+  const folders: AttachmentRecord[] = [{ name: "inner", kind: "directory", path: inner }, { name: "attachments", kind: "directory", path: join(w.real, "attachments") }, { name: "user Data", kind: "directory", path: w.real }];
+  const ready = await prepare("claude", w).run({ root: w.project, mode: "new", runtime: "claude", text: "hi", anchors: [], attachments: [pasted(w), ...folders] });
+  expect(ready.fence?.paths.attachments).toEqual([join(w.real, "attachments", "0f4e")]);
+  expect((ready.fence?.denied ?? []).map(entry => entry.path)).toEqual(expect.arrayContaining([`${w.real}/attachments/77aa`, `${w.real}/conversations`]));
+});
 it("gives a list read no fence, and neither a prepare without the fence setup", async () => {
   const w = world("claude");
   expect((await prepare("claude", w).run({ root: w.project, mode: "new", runtime: "claude", text: "", anchors: [] }, undefined, "listing")).fence).toBeUndefined();

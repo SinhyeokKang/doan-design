@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSyn
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DraftStore } from "./drafts";
+import { FOLDER_ATTACHMENT, LEGACY_ATTACHMENTS } from "./attachmentRecords.fixture";
 
 const paths: string[] = []; afterEach(() => { vi.restoreAllMocks(); paths.splice(0).forEach(p => rmSync(p, { recursive: true, force: true })); });
 function directory(): string { const dir = mkdtempSync(join(tmpdir(), "doan-drafts-")); paths.push(dir); const conversations = join(dir, "conversations"); mkdirSync(conversations); return conversations; }
@@ -79,6 +80,19 @@ describe("DraftStore", () => {
     const store = new DraftStore(dir);
     store.add(A, { itemId: "q1", text: "one", anchors: [], attachments: [] });
     expect(JSON.parse(readFileSync(join(dir, "drafts.json"), "utf8")).queued["../x"]).toEqual([]);
+  });
+  it("reads queued items and returned drafts holding earlier records and folders, and hands folders back as folders", () => {
+    const dir = directory();
+    const attachments = [...LEGACY_ATTACHMENTS, FOLDER_ATTACHMENT];
+    writeFileSync(join(dir, "drafts.json"), JSON.stringify({ v: 1, queued: { [A]: [{ itemId: "q1", text: "one", anchors: [], attachments }] }, returned: { [B]: { text: "two", anchors: [], attachments: [FOLDER_ATTACHMENT], reason: "turn_failed" } } }));
+    const store = new DraftStore(dir);
+    expect(store.take(A)).toEqual({ text: "one", anchors: [], attachments, reason: "restarted" });
+    expect(store.take(B)).toEqual({ text: "two", anchors: [], attachments: [FOLDER_ATTACHMENT], reason: "turn_failed" });
+  });
+  it("leaves unread a conversation whose folder record carries a size", () => {
+    const dir = directory();
+    writeFileSync(join(dir, "drafts.json"), JSON.stringify({ v: 1, queued: {}, returned: { [A]: { text: "x", anchors: [], attachments: [{ ...FOLDER_ATTACHMENT, size: 1 }], reason: "turn_failed" } } }));
+    expect(new DraftStore(dir).returned(A)).toBeUndefined();
   });
   it("starts empty without a file and works in memory without a directory", () => {
     expect(new DraftStore(directory()).queued(A)).toEqual([]);

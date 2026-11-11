@@ -59,12 +59,12 @@ it("takes a local file by its real path without copying or changing it, with a t
   expect(readFileSync(image)).toEqual(PNG); expect(statSync(image).mtimeMs).toBe(before.mtimeMs);
   expect(existsSync(f.dir)).toBe(false);
 });
-it("refuses folders, special files, missing paths and image names without an image signature, one by one", () => {
+it("refuses special files, missing paths and image names without an image signature, one by one", () => {
   const f = fixture();
   const fake = join(f.files, "fake.png"), fifo = join(f.files, "pipe"), good = join(f.files, "a.txt");
   writeFileSync(fake, "not an image"); writeFileSync(good, "a"); execFileSync("mkfifo", [fifo]);
-  const results = f.store.addPaths({ paths: [f.files, fifo, join(f.files, "gone.txt"), fake, good] })!;
-  expect(results.map(r => r.ok ? "ok" : r.error)).toEqual(["not_file", "not_file", "not_found", "not_image", "ok"]);
+  const results = f.store.addPaths({ paths: [fifo, join(f.files, "gone.txt"), fake, good] })!;
+  expect(results.map(r => r.ok ? "ok" : r.error)).toEqual(["not_file", "not_found", "not_image", "ok"]);
   expect(f.thumbnail).not.toHaveBeenCalled();
 });
 it("does not decode an image above the cap for its thumbnail", () => {
@@ -359,4 +359,106 @@ it("deletes a capture removed before sending, and keeps a sent one through the n
 it("keeps the capture channel to the main window", () => {
   expect(senderAllowed("attachments:capture", "main")).toBe(true);
   expect(senderAllowed("attachments:capture", "settings")).toBe(false);
+});
+
+// Folder attachments: the agent gets the folder's path and reads it with its own tools; main never lists, copies,
+// changes or deletes what is inside.
+function folderFixture() {
+  const f = fixture();
+  const folder = join(f.files, "references"), outside = join(f.base, "elsewhere", "brand"), empty = join(f.files, "empty"), pngNamed = join(f.files, "shots.png");
+  mkdirSync(folder); mkdirSync(outside, { recursive: true }); mkdirSync(empty); mkdirSync(pngNamed);
+  writeFileSync(join(folder, "a.txt"), "a"); writeFileSync(join(outside, "b.txt"), "b");
+  return { ...f, folder, outside, empty, pngNamed };
+}
+it("takes folders, inside or outside a project, empty or named like an image, by real path with no size, without reading them", () => {
+  const f = folderFixture();
+  const link = join(f.files, "alias"); symlinkSync(f.folder, link);
+  const before = statSync(join(f.folder, "a.txt"));
+  opened.length = 0;
+  const results = f.store.addPaths({ paths: [f.folder, f.outside, f.empty, f.pngNamed, link] })!;
+  expect(results.map(ok)).toEqual([
+    { id: expect.any(String), name: "references", kind: "directory", path: f.folder, pasted: false },
+    { id: expect.any(String), name: "brand", kind: "directory", path: f.outside, pasted: false },
+    { id: expect.any(String), name: "empty", kind: "directory", path: f.empty, pasted: false },
+    { id: expect.any(String), name: "shots.png", kind: "directory", path: f.pngNamed, pasted: false },
+    // A link is resolved to the folder it names.
+    { id: expect.any(String), name: "references", kind: "directory", path: f.folder, pasted: false },
+  ]);
+  expect(f.thumbnail).not.toHaveBeenCalled();
+  // Nothing inside a folder is opened, so nothing is traversed.
+  expect(opened.filter(p => p.startsWith(`${f.folder}/`) || p.startsWith(`${f.outside}/`))).toEqual([]);
+  expect(readdirSync(f.folder)).toEqual(["a.txt"]); expect(statSync(join(f.folder, "a.txt")).mtimeMs).toBe(before.mtimeMs);
+  expect(existsSync(f.dir)).toBe(false);
+});
+it("counts folders and files toward the same per-request cap", () => {
+  const f = folderFixture();
+  const files = Array.from({ length: MAX_ATTACHMENTS - 1 }, (_, i) => { const p = join(f.files, `${i}.txt`); writeFileSync(p, "x"); return p; });
+  const results = f.store.addPaths({ paths: [f.folder, ...files, f.outside] })!;
+  expect(results.map(r => r.ok ? r.attachment.kind : r.error)).toEqual(["directory", ...files.map(() => "file"), "limit"]);
+});
+it("accepts a folder at send time after files inside it were added, changed or deleted", () => {
+  const f = folderFixture();
+  const added = ok(f.store.addPaths({ paths: [f.folder] })![0]);
+  writeFileSync(join(f.folder, "a.txt"), "changed"); writeFileSync(join(f.folder, "new.txt"), "n"); unlinkSync(join(f.folder, "new.txt"));
+  mkdirSync(join(f.folder, "sub")); writeFileSync(join(f.folder, "sub", "c.txt"), "c");
+  expect(f.store.resolve([{ id: added.id }])).toEqual({ ok: true, records: [{ name: "references", kind: "directory", path: f.folder }] });
+});
+it("refuses a folder at send time that went away or became a file, as missing", () => {
+  const f = folderFixture();
+  const [gone, file] = f.store.addPaths({ paths: [f.folder, f.outside] })!.map(ok);
+  rmSync(f.folder, { recursive: true }); rmSync(f.outside, { recursive: true }); writeFileSync(f.outside, "now a file");
+  expect(f.store.resolve([{ id: gone!.id }, { id: file!.id }])).toEqual({ ok: false, error: "attachment_missing", missing: [gone!.id, file!.id] });
+});
+it("refuses a folder replaced by another folder at the same path, and one whose link now names another folder, as replaced", () => {
+  const f = folderFixture();
+  const link = join(f.files, "current"); symlinkSync(f.outside, link);
+  const [inPlace, linked, kept] = f.store.addPaths({ paths: [f.folder, link, f.empty] })!.map(ok);
+  renameSync(f.folder, join(f.files, "old-references")); mkdirSync(f.folder);
+  unlinkSync(link); symlinkSync(f.empty, link);
+  // A folder the link no longer names is unchanged; only the attachment that went through the link is refused.
+  expect(f.store.resolve([{ id: inPlace!.id }, { id: linked!.id }, { id: kept!.id }]))
+    .toEqual({ ok: false, error: "attachment_missing", missing: [inPlace!.id, linked!.id], replaced: [inPlace!.id, linked!.id] });
+});
+it("refuses a file whose link now names another file, without opening it", () => {
+  const f = fixture();
+  const a = join(f.files, "a.txt"), secret = join(f.base, "secret.txt"), link = join(f.files, "link.txt");
+  writeFileSync(a, "a"); writeFileSync(secret, "secret"); symlinkSync(a, link);
+  const added = ok(f.store.addPaths({ paths: [link] })![0]);
+  unlinkSync(link); symlinkSync(secret, link);
+  opened.length = 0;
+  expect(f.store.resolve([{ id: added.id }])).toEqual({ ok: false, error: "attachment_missing", missing: [added.id] });
+  expect(opened).not.toContain(secret);
+});
+it("rechecks a restored folder, naming one replaced since", () => {
+  const f = folderFixture();
+  const [same, swapped] = f.store.addPaths({ paths: [f.folder, f.outside] })!.map(ok);
+  const ids = [{ id: same!.id }, { id: swapped!.id }];
+  f.store.markSent(ids); f.store.consume(ids);
+  rmSync(f.outside, { recursive: true }); mkdirSync(f.outside);
+  expect(f.store.recheck({ ids: [same!.id, swapped!.id] })).toEqual([
+    { id: same!.id, ok: true, attachment: { id: same!.id, name: "references", kind: "directory", path: f.folder, pasted: false } },
+    { id: swapped!.id, ok: false, error: "replaced" },
+  ]);
+});
+it("re-issues a recorded folder path as a folder", () => {
+  const f = folderFixture();
+  expect(f.store.fromPaths({ paths: [f.folder] })!.map(ok)).toEqual([{ id: expect.any(String), name: "references", kind: "directory", path: f.folder, pasted: false }]);
+});
+it("never changes or deletes a folder or its files on remove, a refused start, queue discard, release or launch cleanup", () => {
+  const f = folderFixture();
+  const listing = () => [readdirSync(f.folder), readFileSync(join(f.folder, "a.txt"), "utf8")];
+  const removed = ok(f.store.addPaths({ paths: [f.folder] })![0]);
+  expect(f.store.remove({ id: removed.id })).toBe(true);
+  const refused = ok(f.store.addPaths({ paths: [f.folder] })![0]);
+  f.store.markSent([{ id: refused.id }]);
+  expect(f.store.remove({ id: refused.id })).toBe(true);
+  const queued = ok(f.store.addPaths({ paths: [f.folder] })![0]);
+  f.store.markSent([{ id: queued.id }]); f.store.consume([{ id: queued.id }]);
+  f.store.discard([queued.id]);
+  const sent = ok(f.store.addPaths({ paths: [f.folder] })![0]);
+  f.store.markSent([{ id: sent.id }]); f.store.consume([{ id: sent.id }]);
+  expect(f.store.release({ ids: [sent.id] })).toBe(true);
+  f.store.cleanup();
+  expect(listing()).toEqual([["a.txt"], "a"]);
+  expect(existsSync(join(f.folder, "sent"))).toBe(false);
 });

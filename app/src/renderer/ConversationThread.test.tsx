@@ -93,11 +93,15 @@ describe("agent Markdown", () => {
 
 describe("thread items", () => {
   test("the person's message: plain text that keeps its line breaks, the preset line, anchors in place and sent files", () => {
-    const out = html([{ kind: "user", key: "u1", seq: 1, anchors: [], preset: { id: "shape", title: "Shape" }, parts: [{ text: "Make <b>" }, { anchor: 1 }, { text: " darker\nplease" }], attachments: [{ name: "spec.md", size: 6144, kind: "file" }] }]);
+    const out = html([{ kind: "user", key: "u1", seq: 1, anchors: [], preset: { id: "shape", title: "Shape" }, parts: [{ text: "Make <b>" }, { anchor: 1 }, { text: " darker\nplease" }], attachments: [{ name: "spec.md", size: 6144, kind: "file", path: "/Users/ada/spec.md" }] }]);
     expect(out).toContain('<div class="msg-user"><div class="bubble"><span class="bubble-preset">');
     expect(out).toContain("Shape</span>\nMake &lt;b&gt;<span class=\"bubble-anchor\">{{1}}</span> darker\nplease</div>");
     expect(out).toContain('<div class="msg-files"><span class="attach-chip"><span class="file-icon" aria-hidden="true">');
     expect(out).toContain("<b>spec.md</b><small>6 KB</small>");
+  });
+  test("a sent folder shows the folder icon, its name and Folder, never a size", () => {
+    const out = html([{ kind: "user", key: "u1", seq: 1, anchors: [], preset: null, parts: [], attachments: [{ name: "references", kind: "directory", path: "/Users/ada/Projects/Atlas/references" }] }], { homeDirectory: "/Users/ada" });
+    expect(out).toMatch(/<div class="msg-files"><span class="attach-chip"><span class="file-icon" aria-hidden="true"><svg[^>]*lucide-folder[^>]*>.*?<\/svg><\/span><span class="attach-text"><b>references<\/b><small>Folder<\/small><\/span><\/span><\/div>/);
   });
 
   // Draft frame thread-notice: the line sits in its turn, under the reply and before a failed turn's end,

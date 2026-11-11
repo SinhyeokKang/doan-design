@@ -194,18 +194,38 @@ test("Cmd+V: text pastes as text, Finder files attach by path, an image alone at
   await vi.waitFor(() => expect(box.current.attachments.at(-1)).toMatchObject({ id: "pasted", pasted: true, status: "ready" }));
 });
 
-test("a folder dropped on the composer is refused there and never reaches the window's project drop", () => {
+test("a folder dropped on the composer attaches as a folder chip beside a file and never reaches the window's project drop", async () => {
   const { box, render } = setup();
   const composer = find(render(), props => props.className === "composer");
-  const folder = new File([""], "designs");
-  const event = { preventDefault: vi.fn(), stopPropagation: vi.fn(), dataTransfer: { types: ["Files"], files: [folder], items: [{ kind: "file", webkitGetAsEntry: () => ({ isDirectory: true }) }] } };
+  const folder = new File([""], "designs"), file = new File(["x"], "brief.pdf");
+  doan.addAttachmentFiles!.mockResolvedValueOnce([
+    { ok: true, attachment: { id: "d", name: "designs", kind: "directory", path: "/Users/ada/designs", pasted: false } },
+    { ok: true, attachment: { id: "f", name: "brief.pdf", kind: "file", size: 1, path: "/Users/ada/brief.pdf", pasted: false } },
+  ]);
+  const event = { preventDefault: vi.fn(), stopPropagation: vi.fn(), dataTransfer: { types: ["Files"], files: [folder, file], items: [{ kind: "file", webkitGetAsEntry: () => ({ isDirectory: true }) }, { kind: "file", webkitGetAsEntry: () => ({ isDirectory: false }) }] } };
   call(composer, "onDrop", event);
   expect(event.stopPropagation).toHaveBeenCalled();
   expect(event.preventDefault).toHaveBeenCalled();
   expect(doan.addDroppedFiles).not.toHaveBeenCalled();
-  expect(doan.addAttachmentFiles).not.toHaveBeenCalled();
-  expect(box.current.attachments).toEqual([]);
-  expect(box.current.notice?.text).toBe("Folders can’t be attached. Add a project from Add Projects.");
+  expect(doan.addAttachmentFiles).toHaveBeenCalledWith([folder, file]);
+  await vi.waitFor(() => expect(box.current.attachments).toEqual([
+    expect.objectContaining({ id: "d", name: "designs", kind: "directory", status: "ready", path: "/Users/ada/designs" }),
+    expect.objectContaining({ id: "f", name: "brief.pdf", kind: "file", status: "ready", size: 1 }),
+  ]));
+  expect(box.current.attachments[0]).not.toHaveProperty("size");
+  expect(box.current.notice ?? null).toBeNull();
+});
+
+test("a dropped item main refuses as neither file nor folder is named, and the folder beside it stays", async () => {
+  const { box, render } = setup();
+  const composer = find(render(), props => props.className === "composer");
+  doan.addAttachmentFiles!.mockResolvedValueOnce([
+    { ok: false, name: "pipe", error: "not_file" },
+    { ok: true, attachment: { id: "d", name: "designs", kind: "directory", path: "/Users/ada/designs", pasted: false } },
+  ]);
+  call(composer, "onDrop", { preventDefault: vi.fn(), stopPropagation: vi.fn(), dataTransfer: { types: ["Files"], files: [new File([""], "pipe"), new File([""], "designs")], items: [] } });
+  await vi.waitFor(() => expect(box.current.attachments.map(a => a.name)).toEqual(["designs"]));
+  expect(box.current.notice?.text).toBe("pipe isn’t a file or folder, so it wasn’t attached.");
 });
 
 test("dragging files over the composer shows the drop target and stops the window overlay", () => {

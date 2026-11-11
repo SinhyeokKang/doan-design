@@ -50,7 +50,7 @@ test("both shapes draw the same field at the same place; only data-shape differs
   expect(box).toBe(capsule.replace('data-shape="capsule"', 'data-shape="box"'));
   // DOM order: field, Presets, Send in the card, then Attach, the model and effort under it (Attach left the card for
   // the tray, before the pickers).
-  const order = ["composer-input", 'aria-label="Design presets"', 'aria-label="Send"', 'aria-label="Attach files"', "composer-agent", "composer-effort"].map(part => capsule.indexOf(part));
+  const order = ["composer-input", 'aria-label="Design presets"', 'aria-label="Send"', 'aria-label="Attach files or folders"', "composer-agent", "composer-effort"].map(part => capsule.indexOf(part));
   expect(order.every(at => at >= 0)).toBe(true);
   expect([...order].sort((a, b) => a - b)).toEqual(order);
 });
@@ -122,7 +122,7 @@ test("a chip makes the box and draws the chip row before the field", () => {
 // canvas picks; unavailable with aria-disabled (not disabled) so its reason shows as a tooltip.
 test("the canvas panel's composer draws Pick from canvas first in the model row", () => {
   const html = render({ pick: { pressed: false, enabled: true, reason: null, onToggle: () => {} } });
-  expect(html).toMatch(/<div class="composer-tray"><button type="button" class="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files"[^>]*><svg[^]*?<\/button><button type="button" class="doan-icon-button composer-pick" data-ui-size="xs" aria-label="Pick from canvas" aria-pressed="false"/);
+  expect(html).toMatch(/<div class="composer-tray"><button type="button" class="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files or folders"[^>]*><svg[^]*?<\/button><button type="button" class="doan-icon-button composer-pick" data-ui-size="xs" aria-label="Pick from canvas" aria-pressed="false"/);
   expect(html.indexOf("composer-pick")).toBeLessThan(html.indexOf("composer-agent"));
   expect(render({ pick: { pressed: true, enabled: true, reason: null, onToggle: () => {} } })).toContain('aria-label="Pick from canvas" aria-pressed="true"');
   const off = render({ pick: { pressed: false, enabled: false, reason: "Pick from canvas isn’t available while the canvas can’t be shown.", onToggle: () => {} } });
@@ -135,7 +135,7 @@ test("a terminal session's composer keeps Attach and Pick from canvas before its
   const html = render({ fixed: true, pick: { pressed: false, enabled: true, reason: null, onToggle: () => {} } });
   expect(html.indexOf("composer-pick")).toBeGreaterThan(-1);
   expect(html.indexOf("composer-pick")).toBeLessThan(html.indexOf("composer-agent"));
-  expect(html).toMatch(/<div class="composer-tray"><button type="button" class="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files" aria-disabled="true"/);
+  expect(html).toMatch(/<div class="composer-tray"><button type="button" class="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files or folders" aria-disabled="true"/);
 });
 
 // Attach sits outside the card, first in the tray: the card keeps only Presets and Send around the field.
@@ -143,8 +143,8 @@ test("the card holds no Attach; the tray starts with it at xs", () => {
   const html = render();
   const card = html.slice(html.indexOf("composer-card"), html.indexOf("composer-tray"));
   expect(card).not.toContain("Attach files");
-  expect(html).toMatch(/<div class="composer-tray"><button type="button" class="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files"/);
-  expect(render({ locked: true, unavailable: "This page isn’t in the list." })).toMatch(/composer-attach" data-ui-size="xs" aria-label="Attach files" disabled=""/);
+  expect(html).toMatch(/<div class="composer-tray"><button type="button" class="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files or folders"/);
+  expect(render({ locked: true, unavailable: "This page isn’t in the list." })).toMatch(/composer-attach" data-ui-size="xs" aria-label="Attach files or folders" disabled=""/);
 });
 
 test("docked CSS: no grid area for Attach in the card; the tray's Attach takes the quiet and disabled inks", () => {
@@ -213,6 +213,21 @@ test("the docked Effort trigger shows Fast on; a terminal session's fixed trigge
   const fixed = render({ picker, fixed: true });
   expect(fixed).toContain('aria-label="Effort: set by the terminal session"');
   expect(fixed).not.toContain("lucide-zap");
+});
+
+// folder-attachments draft: a queued message with a folder shows the first folder's icon and name before its text,
+// +N for the other attachments, and the full list in its tooltip and accessible name; Send now and Remove stay.
+test("a queued message with a folder names it inline, counts the rest and describes every attachment to its buttons", () => {
+  const attachments = [
+    { name: "brand-guidelines.pdf", size: 1, kind: "file" as const, path: "/Users/ada/Projects/Atlas/brand-guidelines.pdf" },
+    { name: "references", kind: "directory" as const, path: "/Users/ada/Projects/Atlas/references" },
+  ];
+  const rows = render({ turn: "running", sendNow: true, onSendQueuedNow: async () => {}, queued: [{ id: "q1", text: "Use these references for the next design.", message: { text: "Use these references for the next design.", anchors: [], attachments } }] });
+  expect(rows).toMatch(/<div class="queue-item"><svg[^>]*lucide-message-square-dashed[^>]*>.*?<\/svg><span class="queue-attachment" role="group" id="([^"]+)" aria-label="Attachments: brand-guidelines.pdf — ~\/Projects\/Atlas\/brand-guidelines.pdf; references — ~\/Projects\/Atlas\/references"[^>]*><svg[^>]*lucide-folder[^>]*>.*?<\/svg><span class="name">references<\/span><span class="count">\+1<\/span><\/span><span class="queue-text" id="([^"]+)">Use these references for the next design.<\/span><button type="button" class="doan-button queue-send"[^>]*aria-describedby="\1 \2"[^>]*>Send now<\/button><button type="button" class="chip-remove doan-icon-button"[^>]*aria-describedby="\1 \2"/);
+  // A queued message with files only keeps its row as it was.
+  const files = render({ turn: "running", queued: [{ id: "q1", text: "x", message: { text: "x", anchors: [], attachments: [attachments[0]!] } }] });
+  expect(files).not.toContain("queue-attachment");
+  expect(files).toMatch(/aria-describedby="[^" ]+">/);
 });
 
 // Draft frame `sending` (the shared xs subtle capsule).
