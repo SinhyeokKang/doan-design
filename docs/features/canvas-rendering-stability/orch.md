@@ -21,20 +21,23 @@
 10. C1 수정 방식(사용자): 캔버스 iframe을 자르는 조상에서 네 모서리 같은 반경을 빼고, 보드 위에 모서리 덮개를 그려 같은 모양을 낸다. 1px 비균일 반경은 Chromium 내부 동작에 기대므로 쓰지 않는다.
 11. Export 수정(사용자): Export viewer에도 같은 방식을 넣는다. CLI 출력이 바뀌므로 마지막 통합 전에 `/agent-eval`을 실행한다(결정 7).
 12. C2 처리(사용자): 남은 현상으로 둔다. 회귀만 막고 BACKLOG에 현상과 측정값을 남긴다.
-13. 개선 기준(사용자 합의): ① C1 — pmsf 최초 렌더링(대화 접힘), 정지 sweep(축소 0.065–0.13), emcf 빠른 축소에서 앱 세 레이아웃과 Export(Electron·Chrome)의 지속 잘림이 5회 모두 0. ② 모서리 외관이 수정 전과 픽셀 비교로 같다. ③ clip하는 조상에 균일 반경이 없다는 구조 단언. ④ C2 회귀 없음(이동 peak와 빈 프레임 비율이 수정 전 범위 이하). ⑤ 첫 표시 1프레임 빈 화면은 범위 밖이며 BACKLOG에 남긴다.
+13. 개선 기준(사용자 합의): ① C1 — pmsf 최초 렌더링(대화 접힘), 정지 sweep(축소 0.065–0.13), emcf 빠른 축소에서 앱 세 레이아웃과 Export(Electron·Chrome)의 지속 잘림이 5회 모두 0. ② 모서리 외관이 수정 전과 픽셀 비교로 같다. AA 가장자리에서만 생긴 차이(앱 최대 3/255, Export 최대 4/255, 8/255 초과 0)는 같은 픽셀로 본다(결정 17). ③ clip하는 조상에 균일 반경이 없다는 구조 단언. ④ C2 회귀 없음(이동 peak와 빈 프레임 비율이 수정 전 범위 이하). ⑤ 첫 표시 1프레임 빈 화면은 범위 밖이며 BACKLOG에 남긴다.
 14. 앱 모서리 방식(사용자, F 질문): 앱 패널 모서리 뒤는 macOS vibrancy라 덮개로 같은 픽셀을 낼 수 없다. 그래서 앱은 패널이 둥근 배경만 그리고 자르지 않는다. 헤더가 위 모서리를, `.area`가 아래 모서리만 자른다. `.area`의 위 반경은 구조상 0이다. Export는 단색 `--bg-app` 위라 덮개 방식을 유지한다. 결정 10의 덮개 방식은 Export에만 적용한다.
 15. 최적화 범위(사용자, lead 전달): 깨짐 수정에 더해 큰 캔버스의 렌더링 비용을 drift 없이 줄인다(spec 완료 조건 5, tasks 5–6). 목표 수치는 측정에서 정하고, ARCHITECTURE §3 구조 변경이 필요한 후보만 사용자에게 묻는다. drift 없는 후보의 채택은 conductor가 측정 근거로 정한다.
 16. LOD 예외(사용자, lead 전달): 이동 LOD와 보수적 축소 스냅샷 LOD를 허용한다(spec 완료 조건 6). 축소 스냅샷 LOD가 ARCHITECTURE §3 변경을 요구하면 제안 규칙을 적고 구현 전에 사용자에게 묻는다. 화면 밖 건너뛰기는 drift 없음 규칙을 따른다. O1은 이 두 LOD를 후보로 함께 잰다.
+17. 기준 ② 허용치(사용자, lead가 체인 파일에 기록): C1 수정 뒤 모서리 AA 차이는 '같은 픽셀'로 본다. 앱 최대 3/255, Export 최대 4/255이고 AA 가장자리에서만 생기며 8/255를 넘는 픽셀은 없다. 기준 ②는 통과다.
+18. 새 머신 측정 자료(사용자): 새 머신의 skillflo-web `.doan/`에는 캔버스가 없다(`config.json`만 있다). 원본 대신 크기와 프레임 수가 같은 합성 캔버스를 `.scratch/`에 만들어 쓴다. 전후 비교는 이 머신 안에서만 한다. C1·C2는 크기와 iframe 구조로 재현되지만, paint 비용은 실제 내용과 다르다. PR과 문서에 합성 자료로 쟀다고 적는다.
 
 ## 배치
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
 | P (PoC) | tasks 1, 2 | 추적 파일 수정 없음. probe·증거는 `/Users/sinhyeokkang/code/doan-design/.scratch/canvas-rendering-stability/` | 없음 | Opus high — GPU·합성·레이아웃 원인을 가르는 판단 중심 작업이고 틀리면 이후 수정 전부가 빗나간다 | 지문·버전·로드 상태 기록, 앱과 Electron Export 창의 재현 기록(반복 측정 중앙값·범위, load average), 원인 후보와 근거 | 완료(커밋 없음, `handoff-P.md`) |
-| P2 (부하) | 결정 8 | 추적 파일 수정 없음 | P | Sonnet high — P의 probe를 그대로 반복 실행하는 측정이다. P 워커 터미널을 재사용할 수 없어 새 워커로 띄웠다 | 무부하·CPU·GPU 부하별 C2 이동 측정 중앙값·범위, C1 sanity | 진행 중 |
+| P2 (부하) | 결정 8 | 추적 파일 수정 없음 | P | Sonnet high — P의 probe를 그대로 반복 실행하는 측정이다. P 워커 터미널을 재사용할 수 없어 새 워커로 띄웠다 | 무부하·CPU·GPU 부하별 C2 이동 측정 중앙값·범위, C1 sanity | 완료(이전 머신) |
 | F (수정) | tasks 3, 4(`/runtime-test`·`/postmortem`) | `app/src/renderer/styles.css`와 캔버스 패널을 그리는 컴포넌트, `cli/internal/export/viewer/*`, 그 테스트, `docs/POSTMORTEM.md` | P, 개선 기준 합의 | Opus high — 앱과 Export 두 경로에서 외관 픽셀 일치와 구조 단언을 맞춰야 하고, 틀리면 잘림이 남거나 모서리 모양이 바뀐다 | 단위 red→green 또는 같은 probe의 전후 측정, `verify.mjs` | 부분 완료: 통합 `85879e1b`·`22b4d776`·`c36a2961`(원본 `3c2c4c2b`·`e341d3e3`·`3f388b82`, 배치 브랜치 `SinhyeokKang/crs-fix`). 기준 ④ 일부와 ⑤는 미실행 |
+| M (새 머신 재측정) | 남은 일 2·3: 합성 캔버스와 probe 재구성, C1 sanity, C2 회귀(기준 ④), 일반 크기 캔버스 `/runtime-test`(기준 ⑤) | 추적 파일 수정 없음. probe·증거는 `/Users/sinhyeok/code/doan-design/.scratch/canvas-rendering-stability/` | F 통합, develop 병합 | Opus high — 기록만으로 probe를 다시 만들고 합성 자료가 원래 현상을 재현하는지 판정해야 한다. 틀리면 회귀 판정과 O1 기준선이 모두 빗나간다 | 합성 자료의 C1 재현(수정 전)과 0(수정 후), C2 수정 전·후 번갈아 각 5회 중앙값·범위·load average, `/runtime-test` 기록 | 대기 |
 | R (리뷰) | F의 `/code-review` | 보고만 | F | Opus medium — CSS·viewer 변경은 작지만 구조 단언과 회귀 판단이 필요하다 | 🔴 0 | 대기 |
-| O1 (최적화 측정) | tasks 5 | 추적 파일 수정 없음 | F 통합 | Opus high — 비용 분해와 drift 없는 후보 선정은 판단 중심이고, 틀리면 O2가 효과 없는 변경을 넣는다 | 비용별 기준선(중앙값·범위, load average), 후보와 근거·예상 효과 | 대기 |
+| O1 (최적화 측정) | tasks 5 | 추적 파일 수정 없음 | M(같은 워커의 후속 Task, probe 재사용) | Opus high — 비용 분해와 drift 없는 후보 선정은 판단 중심이고, 틀리면 O2가 효과 없는 변경을 넣는다 | 비용별 기준선(중앙값·범위, load average), 후보와 근거·예상 효과 | 대기 |
 | O2 (최적화 구현) | tasks 6 | O1이 고른 후보의 파일. O1 이후 확정 | O1 | O1 결과로 정한다 | 후보별 전후 비용, 픽셀 비교 drift 0, `verify.mjs` | 대기 |
 | D (문서) | tasks 7 | PRODUCT·ARCHITECTURE·BACKLOG·POSTMORTEM, 이 디렉터리 삭제 | F 통합 | conductor가 직접 쓴다(문서 갱신 커밋) | 증거 대조 | 대기 |
 
@@ -97,3 +100,10 @@ pmsf 118% 이동, 무부하·CPU(`yes` 4개)·GPU(WebGL fill-rate, Device Utiliz
    - 마커나 그라디언트를 캔버스 iframe 안에 두면 C1 조건의 16384 device px 경계를 받는다.
    - 2026-11-11 녹화의 프레임 단위 레이어 탈락은 같은 원인일 가능성이 낮다. 탈락한 요소가 부모 DOM이고, C1·C2는 iframe 표면에서만 생긴다. 다만 그 현상 자체는 측정하지 않았다.
 10. 측정 중 실제 상태 검사 경고: `~/.gemini/antigravity-cli` 메타가 몇 번 바뀌었다. 이 CLI는 측정과 무관하게 하루 30–70회 실행돼 왔다(로그로 확인). 사용자 실제 Doan의 `ui-state.json`이 1회 바뀌었는데, 같은 시간에 실제 앱이 실행 중이었다. MCP 설정 키 diff 1회는 출력이 잘려 확인하지 못했고, 재실행에서는 통과했다.
+
+## 새 머신 재개 (2026-11-11)
+
+- 통합 브랜치에 `origin/develop`을 병합했다(`25bed19c`). `docs/POSTMORTEM.md` 충돌은 같은 날짜의 두 새 항목을 모두 남겨 풀었다.
+- 환경: Apple M1(8코어), 메모리 16 GB, macOS 26.6.2. 디스플레이는 외장 5K 하나, 논리 2560×1440·배율 2. Electron 45.0.0, 데스크톱 Chrome 157.0.8103.40. 설치된 Doan은 0.1.4다. lead 브리프의 'M3'는 실제와 달라 이 값을 쓴다. 이전 머신 수치와는 비교하지 않는다.
+- 자료: 결정 18. 증거와 probe는 `/Users/sinhyeok/code/doan-design/.scratch/canvas-rendering-stability/`에 둔다.
+- 남은 일 상태: 4는 결정 17로 닫았다. 2·3은 배치 M, 5는 R, 6은 O1·O2·R2, 1은 마지막 통합 뒤 `/verify`, 7·8·9는 conductor가 맡는다. 10은 M 브리프에 실제 상태 보호로 넣었다.
