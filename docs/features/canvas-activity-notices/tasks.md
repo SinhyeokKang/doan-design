@@ -16,7 +16,7 @@
 ## 작업 순서
 
 - [ ] 1. 기존 미읽음을 보존하는 마이그레이션과 두 checkout의 내용 지문·메타데이터 이동·CSS/에셋 변경 PoC를 수행한다. `DocumentBindings.current()`의 실제 표시 근거 재사용, 저장 경로·버전·충돌/손상·원자 저장·감시 계약을 확정한다. 검증: `npm --prefix app test`에 검증표의 임시 경로 fixture를 두고 원인을 분리한다. 실제 앱 검증은 작업 5의 격리 실행을 사용한다.
-- [ ] 2. `/feature-review` 후 Dot·말풍선·우선순위·프로젝트 집계·숨긴 사이드바·접힌 패널·실패 토스트/재시도를 `/design-draft`로 그려 사용자 확인을 받는다. 검증: `doan check --repo . --json`, `doan ls --repo . --json`.
+- [x] 2. `/feature-review` 후 Dot·말풍선·우선순위·프로젝트 집계·숨긴 사이드바·접힌 패널·실패 토스트/재시도를 `/design-draft`로 그려 사용자 확인을 받는다. 검증: `doan check --repo . --json`, `doan ls --repo . --json`.
 - [ ] 3. 메타데이터 schema/fixture와 순수 판정·마이그레이션·슬롯 테스트를 먼저 작성한다. 검증: `npm --prefix app test`; Go가 읽는 형식이 생기면 `go test ./...`도 실행한다. **계약 커밋 경계**.
 - [ ] 4. 지문 I/O·원자 저장·감시·마이그레이션·읽음 IPC 후 UI를 구현한다. 검증: `npm --prefix app test`에서 검증표의 판정·전환·모든 쓰기 중단 지점·실제 표시와 다른 지문 거부를 확인한다. **구현 커밋 경계**.
 - [ ] 5. `/design-sync`·`/runtime-test`·`/code-review`로 검증표의 대량 Dot 재현 후보·표시 증거·상태별 화면과 토스트를 확인한다. 검증: `DOAN_CLI=<abs path to doan> npm --prefix app run dev -- -- --user-data-dir=<tmp>`에서 HOME·SHELL·에이전트 설정도 격리하고, `node .agents/skills/verify/scripts/verify.mjs`를 실행한다. 실제 버그를 재현해 고쳤으면 `/postmortem`을 기록한다.
