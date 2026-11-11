@@ -43,6 +43,8 @@ const harness = vi.hoisted(() => ({
   signIn: { onToast: null as null | ((toast: { text: string; action: { label: string; target: unknown } | null }) => void), windowFocused: vi.fn(),
     state: { auth: undefined as unknown }, listener: null as null | (() => void) },
 }));
+// The App clock reads document and native visibility, which these harnesses do not stub.
+vi.mock("./visibleClock", () => ({ useVisibleClock: () => Date.now() }));
 vi.mock("./Toast", () => ({ useToast: () => harness.toast }));
 vi.mock("./agentSignIn", () => ({
   agentSignIn: () => ({ state: harness.signIn.state, subscribe: (listener: () => void) => { harness.signIn.listener = listener; return () => {}; }, onToast: (listener: typeof harness.signIn.onToast) => { harness.signIn.onToast = listener; return () => {}; }, windowFocused: harness.signIn.windowFocused }),

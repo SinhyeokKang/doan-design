@@ -95,6 +95,45 @@ export function initialCanvasState(): CanvasState {
   return { hasFrame: false, open: null, shown: null, layout: null, selection: null, currentFrame: null, notice: "", inspector: null, status: "empty", reanchoring: false, reloading: false, message: "Pick a canvas from the list", error: "", unlisted: false, zoom: 100, scale: 1, activity: [], tool: "select", picking: false, capturing: false };
 }
 
+// What a pan or zoom changes many times a second. Only the canvas header shows these, so App hands them to the header
+// through a store instead of re-rendering the whole page for each.
+export interface CanvasViewFields { zoom: number; scale: number; currentFrame: number | null }
+const VIEW_KEYS = new Set<keyof CanvasState>(["zoom", "scale", "currentFrame"]);
+export const canvasViewFields = (state: CanvasState): CanvasViewFields => ({ zoom: state.zoom, scale: state.scale, currentFrame: state.currentFrame });
+
+// True when a publish changed the view fields and nothing else. `publish` copies the state, so an unchanged field keeps
+// its identity. A publish that changed nothing still counts as a change, as it always did.
+export function viewOnlyChange(previous: CanvasState, next: CanvasState): boolean {
+  const keys = Object.keys(next) as (keyof CanvasState)[];
+  if (keys.some(key => !VIEW_KEYS.has(key) && previous[key] !== next[key])) return false;
+  return [...VIEW_KEYS].some(key => previous[key] !== next[key]);
+}
+
+export class CanvasViewStore {
+  private fields: CanvasViewFields;
+  private readonly listeners = new Set<() => void>();
+  constructor(fields: CanvasViewFields) { this.fields = fields; }
+  readonly get = (): CanvasViewFields => this.fields;
+  readonly subscribe = (listener: () => void): (() => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
+  // `notify: false` when an App render follows that draws the header with the rest of the same publish.
+  set(next: CanvasViewFields, notify = true): void {
+    const now = this.fields;
+    if (now.zoom === next.zoom && now.scale === next.scale && now.currentFrame === next.currentFrame) return;
+    this.fields = next;
+    if (notify) for (const listener of this.listeners) listener();
+  }
+}
+
+// What App does with a publish: a view-only one goes to the store's subscribers (the header) and App keeps its state
+// (null). Any other goes to App, and the store takes its view fields without telling anyone, so the header draws the
+// new layout, canvas and view in the same render rather than the new view over the old layout first. `last` is the last
+// state handed to App.
+export function routeCanvasPublish(last: CanvasState, next: CanvasState, store: CanvasViewStore): CanvasState | null {
+  const viewOnly = viewOnlyChange(last, next);
+  store.set(canvasViewFields(next), viewOnly);
+  return viewOnly ? null : next;
+}
+
 const isProblemKind = (kind: FolderEntry["kind"] | undefined): boolean =>
   kind === "notFound" || kind === "uninitialized" || kind === "error" || kind === "cliError";
 

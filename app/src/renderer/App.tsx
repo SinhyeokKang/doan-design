@@ -27,14 +27,15 @@ import { draftKey, EMPTY_DRAFT } from "./dockedRules";
 import type { OpenAsk, OpenLinkResult, OpenResult } from "../main/deepLinks";
 import type { HandoffNotice } from "../main/conversation/handoff";
 import type { MenuCommand, ViewCommand } from "../main/index";
-import { CanvasController, initialCanvasState, type CanvasState, type CanvasWorkTarget, type PickResult } from "./CanvasController";
+import { useControlFocusRecovery } from "./canvasControlFocus";
+import { useVisibleClock } from "./visibleClock";
+import { CanvasController, CanvasViewStore, canvasViewFields, initialCanvasState, routeCanvasPublish, type CanvasState, type CanvasWorkTarget, type PickResult } from "./CanvasController";
 import { CanvasHeader } from "./CanvasHeader";
 import { CanvasTools, type CaptureTool, type ExportTool, type PickerTool } from "./CanvasTools";
 import { AlertIcon } from "./AlertIcon";
 import { noticeToast } from "./selection";
 import { CanvasAgent } from "./CanvasAgent";
 import { workingCanvas, type WorkingCanvas } from "./agentIndicator";
-import { controlFocusLost } from "./canvasFocus";
 import { projectNames } from "./projectRow";
 import { ArrowLeft, ArrowRight, Crosshair, Plus, Scan, Settings, LayoutGrid, MessageCircle, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { Home } from "./Home";
@@ -238,6 +239,16 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // The group's selection before it moved to an auto-registered worktree, by that worktree, in memory.
   const beforeAuto = useRef(new Map<string, string>());
   const [state, setState] = useState(initialCanvasState);
+  // The zoom and current frame go to the header alone: a pan or zoom publishes them many times a second, and an App
+  // render for each cost most of the page's script while moving. So `state.zoom`, `state.scale` and
+  // `state.currentFrame` can be older than the view; read them from `canvasView`.
+  const canvasView = useRef<CanvasViewStore>(null as unknown as CanvasViewStore);
+  if (!(canvasView.current instanceof CanvasViewStore)) canvasView.current = new CanvasViewStore(canvasViewFields(state));
+  const handedCanvas = useRef(state);
+  const canvasChanged = (next: CanvasState) => {
+    const handed = routeCanvasPublish(handedCanvas.current, next, canvasView.current);
+    if (handed) { handedCanvas.current = handed; setState(handed); }
+  };
   const viewport = useRef<HTMLDivElement>(null);
   const board = useRef<HTMLDivElement>(null);
   const overlay = useRef<HTMLDivElement>(null);
@@ -462,7 +473,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     const sendSelection = (selection: Selection | null) => {
       window.doan.setSelection(selection).catch((error: unknown) => console.error("selection:set failed", error));
     };
-    const instance = new CanvasController(viewport.current, board.current, overlay.current, setState, sendSelection, selector => window.doan.inspect(selector), dragLayer.current, () => window.doan.pointer());
+    const instance = new CanvasController(viewport.current, board.current, overlay.current, canvasChanged, sendSelection, selector => window.doan.inspect(selector), dragLayer.current, () => window.doan.pointer());
     controller.current = instance;
     const stopFolders = window.doan.onFolders((all, focus) => {
       const next = shownFolders(all), before = entriesRef.current;
@@ -512,6 +523,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     const stopCommands = window.doan.onViewCommand(name => { if (currentScreen.current === "workspace" && !overlaidRef.current) instance.command(name); });
     return () => { navigationIntent.current++; stopFolders(); stopCommands(); instance.dispose(); controller.current = null; };
   }, []);
+  // Wall-clock text ("3m", "now", a time of day) is computed while rendering, and nothing re-renders App at rest.
+  const clock = useVisibleClock(1000);
   useEffect(() => { void window.doan.homeDirectory().then(setHomeDirectory).catch(console.error); }, []);
   // First run shows when main's session has no completion record (P's v1 marker); the session is the one the CLI
   // shares, so a hidden and shown window keeps it.
@@ -2004,7 +2017,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // The Overview's right panel: canvases with a current conversation, thumbnails asked for those only.
   const listed = overview ? run.listState(overview.path) : null;
   const canvasList: CanvasList = overview === null || listed === null ? [] : typeof listed === "string" ? listed
-    : canvasConversationRows(listed, overview.kind === "list" ? overview.canvases : [], Date.now(), run.seenPending());
+    : canvasConversationRows(listed, overview.kind === "list" ? overview.canvases : [], clock, run.seenPending());
   const thumbs = useThumbnails(overview?.kind === "list" ? overview.path : null, typeof canvasList === "string" ? [] : canvasList.flatMap(item => item.row ? [item.row] : []));
   // Fast turned itself off: that provider's Last used follows, and the conversation's own switch
   // held in a composer goes, so the next turn is not asked for Fast again. Only here, as events arrive: this channel
@@ -2144,7 +2157,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     {topBar(false)}
     {sidebar(false)}
     {strip}
-    <CanvasPane viewport={viewport} board={board} overlay={overlay} dragLayer={dragLayer} state={state} command={command} covered={overview !== null || overlaid} overlaid={overlaid}
+    <CanvasPane viewport={viewport} board={board} overlay={overlay} dragLayer={dragLayer} state={state} view={canvasView.current} command={command} covered={overview !== null || overlaid} overlaid={overlaid}
       zoomTo={scale => controller.current?.zoomTo(scale)} onToolbarEscape={event => controller.current?.toolbarEscape(event)} selectFrame={(index, id) => controller.current?.selectFrame(index, id)} conversation={{ open: rightPanel.open, show: () => foldPanel(true), badge: panelBadge }}
       agent={{ list: state.open ? run.listState(state.open.folder) : undefined, canvas: workingCanvas(state.open, state.unlisted, entry), buddy: buddySelection.shown, running: screen === "workspace" && overview === null, work, entries,
         conversationWork, frames: state.layout?.frames ?? null, onWork: target => controller.current?.setWork(target),
@@ -2154,7 +2167,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       worktrees={card?.rows ?? [overview]} homeDirectory={homeDirectory} notice={overviewNotice?.root === overview.path ? overviewNotice.text : null}
       unavailable={null}
       list={run.listState(overview.path)} seen={run.seenPending()} holder={run.running().get(overview.path) ?? null}
-      prefs={homeMemory} defaults={preferences ? preferences.preferences.newConversation : undefined} now={Date.now()} onRemember={rememberPick}
+      prefs={homeMemory} defaults={preferences ? preferences.preferences.newConversation : undefined} now={clock} onRemember={rememberPick}
       onWorktree={root => { chipFocus.current = true; showShellOverview(root); }} onOpenCanvas={(canvas, conversationId) => openConversationCanvas(overview.path, canvas, conversationId, { kind: "promotion" })}
       onReplyChip={link => replyChip(overview.path, link)}
       onRetryList={() => run.retryList(overview.path)} onStart={(request, last) => run.start(request, last, { stay: true })}
@@ -2168,11 +2181,11 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       open={item => { if (item.row) openCanvasConversation(overview.path, item.row, item.conversationId, { kind: "overviewRow" }); }} retry={() => run.retryList(overview.path)}
       onDelete={(item, button, after) => openDelete({ conversationId: item.conversationId, root: overview.path, title: item.title, provider: item.provider, from: "canvasList", after }, button)} /></div>
       : <ConversationPanel open={rightPanel.open} width={shownPanel} bounds={panelLimits} onHide={() => { controller.current?.cancelPick(); foldPanel(false); }} onResize={resizePanel} preview={previewPanel}
-        title={panelTarget && <CanvasConversationTitle run={canvasRun.current!} list={panelList} canvasName={panelCanvasName} now={Date.now()} seen={run.seenPending()}
+        title={panelTarget && <CanvasConversationTitle run={canvasRun.current!} list={panelList} canvasName={panelCanvasName} now={clock} seen={run.seenPending()}
           title={panelTitle.title} current={panelTitle.current} onChoose={() => controller.current?.dropPendingLocate()} onDelete={openDelete} onPicked={() => queueMicrotask(() => document.querySelector<HTMLElement>(".doan-conv-panel .composer-input")?.focus())} />}>
         {panelTarget && entry?.kind === "list" && <CanvasConversation run={canvasRun.current!} support={support.current!} target={panelTarget} canvasName={panelCanvasName}
           project={panelProject} entry={entry} list={panelList} seen={run.seenPending()} prefs={homeMemory}
-          defaults={preferences ? preferences.preferences.newConversation : undefined} now={Date.now()} blocked={panelBlocked} onRemember={rememberPick}
+          defaults={preferences ? preferences.preferences.newConversation : undefined} now={clock} blocked={panelBlocked} onRemember={rememberPick}
           frames={state.layout?.frames} locateDisabled={state.status !== null || state.unlisted} arrival={arrival} onArrived={seq => setArrival(current => current?.seq === seq ? null : current)}
           onLocate={locateChip} onReplyChip={link => replyChip(panelTarget.root, link)} onChoose={() => controller.current?.dropPendingLocate()} pick={{ pressed: picking, enabled: pickerReady, reason: pickerView.reason, onToggle: togglePick }} composerLink={composerLink} canvasPress={controller.current?.canvasPress}
           onSettings={target => openSettings(target)} onNotice={text => toast.show(text)}
@@ -2242,40 +2255,19 @@ function TopBar({ sidebar, back, forward, previous, next, page, locked, updateDi
 type AgentProps = { list: readonly ConversationSummary[] | "loading" | "error" | undefined; canvas: WorkingCanvas | null; buddy: BuddyId; running: boolean; work: readonly WorkItem[]; entries: readonly FolderEntry[];
   conversationWork: readonly ConversationWork[]; frames: readonly CanvasFrameRect[] | null; onWork(target: CanvasWorkTarget | null): void; onOpen(): void; onOpenSibling(root: string): void; onStopFailed(text: string): void };
 
-function CanvasPane({ viewport, board, overlay, dragLayer, state, command, covered, overlaid, zoomTo, onToolbarEscape, selectFrame, conversation, agent, picking, capturing, tool, onTool, picker, capture, exporter }: {
+function CanvasPane({ viewport, board, overlay, dragLayer, state, view, command, covered, overlaid, zoomTo, onToolbarEscape, selectFrame, conversation, agent, picking, capturing, tool, onTool, picker, capture, exporter }: {
   viewport: RefObject<HTMLDivElement | null>; board: RefObject<HTMLDivElement | null>; overlay: RefObject<HTMLDivElement | null>; dragLayer: RefObject<HTMLDivElement | null>;
   // covered: the Overview or a problem's overlay is over the pane. overlaid: the overlay, which names the problem itself.
-  state: CanvasState; command: (name: ViewCommand) => void; covered: boolean; overlaid: boolean;
+  state: CanvasState; view: CanvasViewStore; command: (name: ViewCommand) => void; covered: boolean; overlaid: boolean;
   zoomTo(scale: number): void; onToolbarEscape(event: KeyboardEvent): void; selectFrame(index: number, id: string): void; conversation: { open: boolean; show(): void; badge: OpenBadge | null }; agent: AgentProps;
   picking: boolean; capturing: boolean; tool: CanvasState["tool"]; onTool(tool: CanvasState["tool"]): void; picker: PickerTool; capture: CaptureTool; exporter: ExportTool;
 }) {
   const panel = useRef<HTMLDivElement>(null);
-  const lastFocus = useRef<HTMLElement | null>(null);
-  useEffect(() => {
-    const track = (event: FocusEvent) => {
-      const target = event.target instanceof HTMLElement ? event.target : null;
-      const control = target?.matches('button, [role="option"], [role="menuitem"]') && (panel.current?.contains(target) || target.closest(".doan-frame-list, .doan-zoom-menu"));
-      lastFocus.current = control ? target : null;
-    };
-    document.addEventListener("focusin", track);
-    return () => document.removeEventListener("focusin", track);
-  }, []);
-  // A canvas control that vanished or turned disabled under focus hands it to the canvas region, not the page.
-  // Checked a task later, after a closing Radix menu has tried its trigger.
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      const last = lastFocus.current, active = document.activeElement;
-      if (!controlFocusLost({ last: last && { connected: last.isConnected, disabled: last.matches(":disabled") }, covered,
-        activeLost: !active || active === document.body || !active.isConnected, activeIsLast: !!last && active === last })) return;
-      lastFocus.current = null;
-      viewport.current?.focus();
-    }, 0);
-    return () => clearTimeout(timer);
-  });
+  useControlFocusRecovery(panel, viewport, covered, view);
   const canvasKey = state.open ? JSON.stringify([state.open.folder, state.open.canvas]) : null;
   // Stays laid out under the Overview: opening a canvas fits it to this size at once.
   return <div className="doan-canvas-panel" ref={panel} inert={covered}>
-    <CanvasHeader state={state} canvasKey={canvasKey} command={command} zoomTo={zoomTo} selectFrame={selectFrame} fallbackFocus={() => viewport.current?.focus()} panel={conversation} />
+    <CanvasHeader state={state} view={view} canvasKey={canvasKey} command={command} zoomTo={zoomTo} selectFrame={selectFrame} fallbackFocus={() => viewport.current?.focus()} panel={conversation} />
     <section className="area" role="region" aria-label="Canvas" tabIndex={-1} ref={viewport} data-picking={picking ? "" : undefined}>
     <div className="board" ref={board} hidden />
     <div className="overlay" ref={overlay} />

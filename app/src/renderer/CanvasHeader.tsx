@@ -1,8 +1,8 @@
-import { Fragment, useEffect, useRef, useState, type KeyboardEvent, type ReactElement } from "react";
+import { Fragment, useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type ReactElement } from "react";
 import { DropdownMenu, Popover } from "radix-ui";
 import { ChevronDown, Minus, MessageCircle, PanelRightOpen, PanelsTopLeft, Plus, RotateCw } from "lucide-react";
 import type { ViewCommand } from "../main/index";
-import type { CanvasState } from "./CanvasController";
+import type { CanvasState, CanvasViewStore } from "./CanvasController";
 import { canvasLabel } from "./canvasTree";
 import { frameDrawerView, type FrameDrawerRow, type FrameDrawerView } from "./frameDrawer";
 import { drawerKeyTarget, drawerTypeahead, focusedRowAfter } from "./frameDrawerList";
@@ -18,18 +18,20 @@ import type { OpenBadge } from "./rightPanelOpen";
 // cannot hand back to its trigger (the canvas region). `panel`: the conversation panel, whose open button sits last in
 // the header only while it is folded, with a dot and a longer name while this canvas's
 // conversation needs an answer or has an unseen ending.
-export function CanvasHeader({ state, canvasKey = null, command, zoomTo, selectFrame, fallbackFocus = () => {}, panel }: {
-  state: CanvasState; canvasKey?: string | null; command(name: ViewCommand): void; zoomTo(scale: number): void; selectFrame(index: number, id: string): void;
+// `view`: the zoom and current frame, which change without an App render; `state` may hold older ones.
+export function CanvasHeader({ state, view, canvasKey = null, command, zoomTo, selectFrame, fallbackFocus = () => {}, panel }: {
+  state: CanvasState; view: CanvasViewStore; canvasKey?: string | null; command(name: ViewCommand): void; zoomTo(scale: number): void; selectFrame(index: number, id: string): void;
   fallbackFocus?: () => void; panel?: { open: boolean; show(): void; badge?: OpenBadge | null };
 }) {
-  const board = { layout: state.layout, currentFrame: state.currentFrame, status: state.status, unlisted: state.unlisted };
+  const shown = useSyncExternalStore(view.subscribe, view.get, view.get);
+  const board = { layout: state.layout, currentFrame: shown.currentFrame, status: state.status, unlisted: state.unlisted };
   // An unlisted page or a canvas that left the list names no canvas; only the disabled drawer stays.
   const canvas = state.open && !state.unlisted ? state.open.row : null;
   const name = canvas ? canvasLabel(canvas) : null;
   return <header className="ov-head doan-canvas-head">
     {canvas && <><span className="doan-canvas-name" title={canvas.path}><PanelsTopLeft aria-hidden="true" /><span>{name}</span></span><span className="ov-sep" aria-hidden="true">/</span></>}
     <span className="ov-title-wrap"><FrameDrawer view={frameDrawerView(board)} label={name ? `Frames in ${name}` : "Frames"} canvasKey={canvasKey} fallbackFocus={fallbackFocus} select={selectFrame} /></span>
-    <div className="doan-canvas-head-tools"><ZoomControl view={zoomControlView({ ...board, scale: state.scale })} canvasKey={canvasKey} fallbackFocus={fallbackFocus} command={command} zoomTo={zoomTo} />
+    <div className="doan-canvas-head-tools"><ZoomControl view={zoomControlView({ ...board, scale: shown.scale })} canvasKey={canvasKey} fallbackFocus={fallbackFocus} command={command} zoomTo={zoomTo} />
       {/* Like ⌘R, Reload stays available whenever a canvas is open, including while it loads or after it failed. */}
       <IconTip label="Reload canvas ⌘R"><button type="button" className="doan-icon-button" aria-label="Reload canvas" disabled={!state.open} onClick={() => command("reload")}><RotateCw aria-hidden="true" /></button></IconTip>
       {panel && !panel.open && <><span className="doan-canvas-head-sep" aria-hidden="true" />

@@ -57,6 +57,9 @@ export function toastState(state: ToastState, event: ToastEvent): ToastState {
       // and `modal` belong to the app, so they stay.
       return { ...base, toast: event.toast, remainingMs: TOAST_MS, hovered: false, focused: false, ...(state.toast ? { ended: { id: state.toast.id, reason: "replaced" as const } } : {}) };
     case "tick": {
+      // The same object when nothing changes: useToast ticks every 100 ms for the life of App, and a new state each
+      // time re-rendered all of App while no toast was shown.
+      if (!state.toast && !state.ended) return state;
       if (!state.toast || isToastPaused(state)) return base;
       const remainingMs = state.remainingMs - Math.max(event.elapsedMs, 0);
       if (remainingMs > 0) return { ...base, remainingMs };
