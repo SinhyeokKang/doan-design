@@ -1097,6 +1097,15 @@ describe("canvasScript selection input", () => {
     ]);
   });
 
+  // The app takes one Select step per forwarded Esc, so a held Esc's auto-repeats stay in the canvas.
+  test("does not forward a held Esc's auto-repeats", () => {
+    const { canvas, span } = heroCanvas();
+    canvas.fireWindow("keydown", input({ target: span, key: "Escape" }));
+    canvas.fireWindow("keydown", input({ target: span, key: "Escape", repeat: true }));
+    canvas.fireWindow("keydown", input({ target: span, key: "Escape", repeat: true }));
+    expect(ofType(canvas, "key")).toEqual([{ type: "key", href: HREF, seq: 0, viewport: 150, key: "Escape" }]);
+  });
+
   test("forwards Space down/up outside editable elements, ignores repeat", () => {
     const { canvas, span, field } = heroCanvas();
     for (const target of [span, canvas.body, field, node("textarea"), node("select"), node("div", {}, [], { isContentEditable: true })]) {
@@ -1756,6 +1765,16 @@ describe("canvasScript picking", () => {
     expect(ofType(canvas, "select")).toHaveLength(1);
     canvas.fireWindow("keydown", input({ target: span, key: "Escape" }));
     expect(ofType(canvas, "key")).toEqual([expect.objectContaining({ key: "Escape" })]);
+  });
+
+  test("a held Esc that cancels a pick forwards none of its auto-repeats", () => {
+    const { canvas, span } = heroCanvas();
+    startPick(canvas, 3);
+    canvas.fireWindow("keydown", input({ target: span, key: "Escape" }));
+    canvas.fireWindow("keydown", input({ target: span, key: "Escape", repeat: true }));
+    canvas.fireWindow("keydown", input({ target: span, key: "Escape", repeat: true }));
+    expect(picked(canvas)).toEqual([expect.objectContaining({ pick: 3, cancelled: true })]);
+    expect(ofType(canvas, "key")).toHaveLength(0);
   });
 
   test("an Escape during IME composition does not cancel", () => {

@@ -4933,6 +4933,50 @@ describe("Esc steps the selection back through the canvas", () => {
     } finally { h.controller.dispose(); }
   });
 
+  // A held Esc's auto-repeat would walk the selection all the way out; one press is one step.
+  it("a held Esc's auto-repeats take no step; the next press takes the next", () => {
+    const h = selectionHarness();
+    try {
+      h.select(1);
+      const held = () => h.host.dispatchEvent(Object.assign(new Event("keydown", { cancelable: true }), { key: "Escape", repeat: true }));
+      h.key("Escape");
+      held();
+      held();
+      expect(posted(h).filter(m => m.type === "select-parent")).toEqual([{ type: "select-parent", seq: 2 }]);
+      h.select(2, { target: frameB, answer: "select-parent" });
+      held();
+      expect(h.state().selection).toMatchObject({ frame: { id: "hero" } });
+      h.key("Escape");
+      expect(posted(h).filter(m => m.type === "select-parent")).toEqual([{ type: "select-parent", seq: 2 }, { type: "select-parent", seq: 3 }]);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("a held Esc whose press ends capture mode or turns Hand off takes no Select step on its repeats", () => {
+    const held = (h: ReturnType<typeof selectionHarness>) => h.host.dispatchEvent(Object.assign(new Event("keydown", { cancelable: true }), { key: "Escape", repeat: true }));
+    const capture = selectionHarness();
+    try {
+      capture.select(1);
+      expect(capture.controller.startCapture()).toBe(true);
+      capture.key("Escape");
+      expect(capture.state().capturing).toBe(false);
+      held(capture);
+      held(capture);
+      expect(posted(capture).filter(m => m.type === "select-parent")).toEqual([]);
+      expect(capture.state().selection).toMatchObject({ tag: "span" });
+    } finally { capture.controller.dispose(); }
+    const hand = selectionHarness();
+    try {
+      hand.controller.setTool("hand");
+      hand.controller.selectFrame(1, "hero");
+      hand.select(1, { target: frameB });
+      hand.key("Escape");
+      expect(hand.state()).toMatchObject({ tool: "select", selection: expect.objectContaining({ tag: "section" }) });
+      held(hand);
+      held(hand);
+      expect(posted(hand).filter(m => m.type === "select-parent")).toEqual([]);
+    } finally { hand.controller.dispose(); }
+  });
+
   it("an Esc forwarded from a focused canvas steps the same way", () => {
     const h = selectionHarness();
     try {
