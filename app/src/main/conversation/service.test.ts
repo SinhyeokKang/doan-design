@@ -1401,16 +1401,31 @@ describe("queue and judgement review fixes", () => {
     expect(userMessages(h, id)).toHaveLength(1);
     await h.service.start(homeRequest);
   });
-  it("lets a removed queued message's attachments go and releases a returned draft's ids", async () => {
+  it("lets a removed queued message's attachments go and hands a returned draft's ids over with it", async () => {
     const files = { reclaim: vi.fn(() => ({ recheck: () => [], sent: () => {} })), consume: vi.fn(), discard: vi.fn(), release: vi.fn() };
     const h = homeFixture([], { files });
     const id = (await h.service.start(canvasStart)).conversationId;
     const record = { name: "a.png", size: 1, kind: "image" as const, path: "/Users/me/a.png" };
+    const folder = { name: "refs", kind: "directory" as const, path: "/Users/me/refs" };
     const removed = h.service.queue(id, { text: "gone", anchors: [], attachments: [record], ids: ["x"] });
     h.service.removeQueued(id, removed.itemId);
     expect(files.discard).toHaveBeenCalledWith(["x"]);
-    h.service.queue(id, { text: "kept", anchors: [], attachments: [record], ids: ["y"] });
+    h.service.queue(id, { text: "kept", anchors: [], attachments: [record, folder], ids: ["y", "z"] });
+    h.service.queue(id, { text: "plain", anchors: [] });
     h.service.receive(id, { type: "turn.failed", code: "rate_limited" });
+    // Within this run the draft's files keep the identity they were queued with, so a folder replaced since is still
+    // refused as replaced when the draft is checked again.
+    expect(files.release).not.toHaveBeenCalled();
+    expect(h.service.takeDraft(id)).toMatchObject({ attachments: [record, folder], ids: ["y", "z"] });
+    expect(files.release).not.toHaveBeenCalled();
+  });
+  it("releases a returned draft's held ids when its conversation is deleted before the draft is taken", async () => {
+    const files = { reclaim: vi.fn(() => ({ recheck: () => [], sent: () => {} })), consume: vi.fn(), discard: vi.fn(), release: vi.fn() };
+    const h = homeFixture([], { files });
+    const id = (await h.service.start(canvasStart)).conversationId;
+    h.service.queue(id, { text: "kept", anchors: [], attachments: [{ name: "refs", kind: "directory", path: "/Users/me/refs" }], ids: ["y"] });
+    h.service.receive(id, { type: "turn.failed", code: "rate_limited" }); h.open.mock.calls[0]![2]();
+    h.service.delete(id);
     expect(files.release).toHaveBeenCalledWith(["y"]);
   });
 });

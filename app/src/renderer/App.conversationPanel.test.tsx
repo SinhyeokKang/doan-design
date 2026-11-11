@@ -903,7 +903,7 @@ test("a draft that reached 10 files after the render takes no snapshot and says 
   expect(captureListener()(RECT)).toBeNull();
   expect(doan.captureCanvas).not.toHaveBeenCalled();
   expect(composerChips()).toHaveLength(10);
-  expect(harness.toast.show).toHaveBeenCalledExactlyOnceWith("Only 10 files can be attached. 1 was left out.");
+  expect(harness.toast.show).toHaveBeenCalledExactlyOnceWith("Only 10 attachments can be added. 1 was left out.");
 });
 
 // a role=status line above the tools, in the picking hint's look.

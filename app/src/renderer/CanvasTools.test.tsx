@@ -121,7 +121,7 @@ describe("CanvasTools", () => {
     (capture({ capture: { enabled: true, reason: null, onToggle: () => toggled++ } }).props.onClick as () => void)();
     (capture({ capturing: true, capture: { enabled: true, reason: null, onToggle: () => toggled++ } }).props.onClick as () => void)();
     expect(toggled).toBe(2);
-    const reason = "Files can’t be attached to a terminal session";
+    const reason = "Attachments can’t be added to a terminal session";
     const off = capture({ capture: { enabled: false, reason, onToggle: () => toggled++ } });
     (off.props.onClick as () => void)();
     expect(toggled).toBe(2);
@@ -142,7 +142,7 @@ describe("CanvasTools", () => {
   // Availability can change during capture mode (a paste fills the draft); the pressed button still ends it.
   it("during capture mode Capture area always ends it, even once it could not start again", () => {
     let toggled = 0;
-    const capture = buttons(CanvasTools(props({ capturing: true, capture: { enabled: false, reason: "Only 10 files can be attached. Remove one to add another.", onToggle: () => toggled++ } })))[3]!;
+    const capture = buttons(CanvasTools(props({ capturing: true, capture: { enabled: false, reason: "Only 10 attachments can be added. Remove one to add another.", onToggle: () => toggled++ } })))[3]!;
     expect(capture.props["aria-disabled"]).toBeUndefined();
     (capture.props.onClick as () => void)();
     expect(toggled).toBe(1);

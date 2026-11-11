@@ -1,5 +1,5 @@
 import type { Question, QuestionOutcome, StoredAnswer } from "../main/conversation/question";
-import type { Anchor, Canvas, ConversationEvent, FailureCode, FastUnusedReason, HandoffOrigin, PermissionOption } from "../main/conversation/types";
+import type { Anchor, AttachmentRecord, Canvas, ConversationEvent, FailureCode, FastUnusedReason, HandoffOrigin, PermissionOption } from "../main/conversation/types";
 import { fastReason, splitRequest, type PresetRef } from "./homeComposer";
 import { PRESETS } from "../main/mcpConnectors/presets";
 
@@ -38,7 +38,8 @@ export type ThreadItem =
   // read for a preset line or {{n}} markers.
   | { kind: "handoffCard"; key: string; seq: number; origin: HandoffOrigin; text: string };
 
-export interface SentFile { name: string; size: number; kind: "image" | "file" }
+// A sent file or folder as its message recorded it; a folder's path is its tooltip.
+export type SentFile = AttachmentRecord;
 // A queued message Send now put into the running turn, as its request: the text with its preset line and `{{n}}`
 // markers, the anchors those point at, and its files.
 export interface SendingMessage { id: string; text: string; anchors: readonly Anchor[]; attachments: readonly SentFile[] }
@@ -173,7 +174,7 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
         // The next turn's message comes before its turn.started: an unfinished turn before it was folded.
         if (turn !== null && event.turnId !== turn && !ended.has(turn)) foldCrashed(turn);
         if (event.origin) { push({ kind: "handoffCard", key: `u${event.seq}`, seq: event.seq, origin: event.origin, text: event.text }); continue; }
-        const attachments = (event.attachments ?? []).map(a => ({ name: a.name, size: a.size, kind: a.kind }));
+        const attachments = (event.attachments ?? []).map((a): SentFile => a.kind === "directory" ? { name: a.name, kind: a.kind, path: a.path } : { name: a.name, size: a.size, kind: a.kind, path: a.path });
         const { preset, skills, body } = splitRequest(event.text, attachments.length);
         push({ kind: "user", key: `u${event.seq}`, seq: event.seq, parts: anchorParts(body), anchors: event.anchors, preset, ...(skills.length ? { skills } : {}), attachments });
         continue;
@@ -291,7 +292,7 @@ export function withSending(items: ThreadItem[], sending: readonly SendingMessag
   if (sending.length === 0) return items;
   const messages = sending.map((message): ThreadItem => {
     const { preset, skills, body } = splitRequest(message.text, message.attachments.length);
-    return { kind: "user", key: `q${message.id}`, seq: null, sending: true, parts: anchorParts(body), anchors: message.anchors, preset, ...(skills.length ? { skills } : {}), attachments: message.attachments.map(({ name, size, kind }) => ({ name, size, kind })) };
+    return { kind: "user", key: `q${message.id}`, seq: null, sending: true, parts: anchorParts(body), anchors: message.anchors, preset, ...(skills.length ? { skills } : {}), attachments: [...message.attachments] };
   });
   const ask = items.findIndex(waitsForPerson);
   const at = ask === -1 ? items.length : ask;

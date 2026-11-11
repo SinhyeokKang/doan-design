@@ -1005,7 +1005,7 @@ async function start(): Promise<void> {
   // Home attachments: paths the person chose, checked and kept by main; the page never names a path main did not give it.
   handle("attachments:choose", [], async (event): Promise<AttachmentResult[]> => {
     if (!fromWindow(event) || !win) return [];
-    const picked = await dialog.showOpenDialog(win, { title: "Attach Files", properties: ["openFile", "multiSelections"] });
+    const picked = await dialog.showOpenDialog(win, { title: "Attach Files or Folders", properties: ["openFile", "openDirectory", "multiSelections"] });
     return picked.canceled || picked.filePaths.length === 0 ? [] : attachments.addPaths({ paths: picked.filePaths.slice(0, 64) }) ?? [];
   });
   handle("attachments:add-paths", null, (event, value: unknown) => fromWindow(event) ? attachments.addPaths(value) : null);

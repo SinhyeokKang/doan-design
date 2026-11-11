@@ -37,8 +37,9 @@ function anchored(value: string, anchors: readonly unknown[]): boolean {
   return !invalid && !rest.includes("{{") && !rest.includes("}}") && seen.size === anchors.length;
 }
 function attachment(value: unknown): value is AttachmentRecord {
-  return object(value) && text(value.name) && typeof value.size === "number" && Number.isSafeInteger(value.size) && value.size >= 0 &&
-    (value.kind === "image" || value.kind === "file") && typeof value.path === "string" && absolutePath(value.path);
+  if (!object(value) || !text(value.name) || typeof value.path !== "string" || !absolutePath(value.path)) return false;
+  if (value.kind === "directory") return !("size" in value);
+  return typeof value.size === "number" && Number.isSafeInteger(value.size) && value.size >= 0 && (value.kind === "image" || value.kind === "file");
 }
 function parts(value: unknown): value is DraftParts {
   return object(value) && text(value.text) && Array.isArray(value.anchors) && anchored(value.text, [...value.anchors]) &&

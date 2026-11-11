@@ -95,7 +95,11 @@ function askingKey(event: { type: string; requestId: string }): string { return 
 export interface Runner { mechanism?: FenceMechanism; sessionId: string; send(prompt: string, turnId: string, attachments?: readonly AttachmentRecord[], choice?: TurnChoice): Promise<void>; answer(requestId: string, optionId: string): boolean; answerQuestion?(requestId: string, answer: QuestionAnswerInput): "ok" | "stale" | "bad_request"; stop(): Promise<void>; close(): Promise<void>; models?(): Promise<ModelList>; skills?(): Promise<SkillSummary[]>; steer?(prompt: string, turnId: string, messageId: string): Promise<void>; endSuggestion?(): boolean }
 // What a queued send needs from main's attachment store: the queued ids checked again as the send's attachments
 // (reclaim throws attachment_missing), consumed once that send was accepted, discarded with a removed message (a paste
-// goes with it) and released when they come back in a draft, which carries their paths instead.
+// goes with it) and released once a returned draft no longer holds them (its take had no attachment for them, or its
+// conversation was deleted first).
+// A queued attachment's id with the record it was queued as (item.attachments and ids are in the same order).
+type Held = { id: string; record: AttachmentRecord | undefined };
+export type TakenDraft = ReturnedDraft & { ids?: (string | null)[] };
 export interface QueueFiles { reclaim(ids: string[]): StartAttachments; consume(ids: string[]): void; discard?(ids: string[]): void; release?(ids: string[]): void }
 // drafts: the input queue and the drafts it hands back; files: the queue's attachments; defaultEffort: the level a queued
 // turn names when the conversation's model has no stored effort (models.ts ModelCatalog.defaultEffort); fast: whether
@@ -164,7 +168,10 @@ export class ConversationService {
   private waits = new Map<string, { wake(): void; cancelled: boolean; provider?: Provider }>();
   // The attachment ids of each queued message, for its send; they mean nothing after a restart (the queue then comes
   // back as a draft), so they stay here.
-  private queuedExtras = new Map<string, { owner: string; ids: string[] }>();
+  private queuedExtras = new Map<string, { owner: string; ids: string[]; records: readonly AttachmentRecord[] }>();
+  // The ids a returned draft's files were queued with, until the draft is taken in this run: the renderer checks them
+  // again as those files, so a folder replaced since is refused as replaced, not accepted as a new one.
+  private returnedHeld = new Map<string, Held[]>();
   private evidence = new Map<string, Evidence>();
   // Sends waiting for their conversation's previous turn to be judged.
   // A Stop or a sign-out of its provider refuses such a send as busy, as it refuses one waiting for the previous process.
@@ -763,14 +770,14 @@ export class ConversationService {
     const live = this.live.get(id);
     const turn = this.handoffTurns.get(id);
     if (live && !live.busy && !live.holding && !this.judging.has(id) && (this.evidence.get(id)?.endedAt !== undefined || (!!turn && this.handoffPending(turn)))) live.holding = {};
-    if (item.ids?.length) this.queuedExtras.set(itemId, { owner: id, ids: item.ids });
+    if (item.ids?.length) this.queuedExtras.set(itemId, { owner: id, ids: item.ids, records: item.attachments ?? [] });
     this.changed(m.root);
     return { itemId };
   }
   removeQueued(id: string, itemId: string): void {
     const m = this.metadata(id);
     if (!this.drafts.remove(id, itemId)) throw new Error("stale");
-    const ids = this.forget(id, [itemId]); if (ids.length) this.queueOptions.files?.discard?.(ids);
+    const held = this.forget(id, [itemId]); if (held.length) this.queueOptions.files?.discard?.(held.map(h => h.id));
     this.changed(m.root);
   }
   // Send now: one queued message into the running turn, without stopping it. It resolves once the agent read the
@@ -813,11 +820,19 @@ export class ConversationService {
       }, () => { if (this.steers.get(messageId) === steer) this.refuse(steer); });
     });
   }
-  // The draft queued messages came back as, handed over once.
-  takeDraft(id: string): ReturnedDraft | null {
+  // The draft queued messages came back as, handed over once. ids: per attachment, the id it was queued with in this
+  // run, or null for one only its path can issue again (an earlier run's queue).
+  takeDraft(id: string): TakenDraft | null {
     const m = this.metadata(id), draft = this.drafts.take(id);
-    if (draft) this.changed(m.root);
-    return draft;
+    if (!draft) return null;
+    const left = [...this.returnedHeld.get(id) ?? []]; this.returnedHeld.delete(id);
+    const ids = draft.attachments.map(record => {
+      const at = left.findIndex(h => h.record?.path === record.path && h.record.kind === record.kind);
+      return at === -1 ? null : left.splice(at, 1)[0]!.id;
+    });
+    if (left.length) this.queueOptions.files?.release?.(left.map(h => h.id));
+    this.changed(m.root);
+    return ids.some(heldId => heldId !== null) ? { ...draft, ids } : draft;
   }
   // Deleting removes Doan's own record of the conversation on this device: its index entry, history, queue and returned
   // draft. The agent's session files stay. Refused (busy) while it works or the app quits. The check and the deletion
@@ -832,6 +847,8 @@ export class ConversationService {
     this.dropHandoff(id);
     this.store.delete(id);
     this.drafts.discard(id);
+    const held = this.returnedHeld.get(id); this.returnedHeld.delete(id);
+    if (held?.length) this.queueOptions.files?.release?.(held.map(h => h.id));
     try { this.deleted(id); } catch (error) { console.error("doan: deleted conversation cleanup failed", error); }
     this.changed(m.root);
   }
@@ -1001,17 +1018,22 @@ export class ConversationService {
     this.dropSteers(id);
     this.giveBack(id, "interrupted");
   }
-  // Every queued message, also those on their way out, comes back as one draft; their held ids go, since the draft
-  // carries the files' paths for attachments:fromPaths.
+  // Every queued message, also those on their way out, comes back as one draft. Its held ids stay for the draft's take
+  // in this run; after a restart the draft carries only the files' paths, for attachments:fromPaths.
   private giveBack(id: string, why: string): void {
-    const ids = this.forget(id);
-    if (ids.length) this.queueOptions.files?.release?.(ids);
-    if (this.drafts.giveBackQueued(id, why)) this.changedOf(id);
+    const held = this.forget(id);
+    if (this.drafts.giveBackQueued(id, why)) {
+      if (held.length) this.returnedHeld.set(id, [...this.returnedHeld.get(id) ?? [], ...held]);
+      this.changedOf(id);
+    } else if (held.length) this.queueOptions.files?.release?.(held.map(h => h.id));
   }
-  private forget(id: string, itemIds?: readonly string[]): string[] {
-    const ids: string[] = [];
-    for (const [itemId, held] of [...this.queuedExtras]) if (held.owner === id && (!itemIds || itemIds.includes(itemId))) { ids.push(...held.ids); this.queuedExtras.delete(itemId); }
-    return ids;
+  private forget(id: string, itemIds?: readonly string[]): Held[] {
+    const held: Held[] = [];
+    for (const [itemId, extras] of [...this.queuedExtras]) if (extras.owner === id && (!itemIds || itemIds.includes(itemId))) {
+      held.push(...extras.ids.map((heldId, i) => ({ id: heldId, record: extras.records[i] })));
+      this.queuedExtras.delete(itemId);
+    }
+    return held;
   }
   // The queue goes out as one message: combined, its attachments checked again and the send's own checks run. Its
   // messages stay in drafts.json, marked as on their way out, until the send is accepted. Anything that keeps it from

@@ -1,5 +1,5 @@
 import { useEffect, useId, useImperativeHandle, useLayoutEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent, type MutableRefObject, type ReactElement } from "react";
-import { Crosshair, Gauge, MessageSquareDashed, Plus, Shield, X } from "lucide-react";
+import { Crosshair, Folder, Gauge, MessageSquareDashed, Plus, Shield, X } from "lucide-react";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
 import type { PermissionModeId } from "../main/conversation/permissionMode";
@@ -26,7 +26,7 @@ import type { SentFile } from "./threadItems";
 import { ANCHOR_LIMIT_TEXT } from "./canvasPicker";
 import { LOCATE_MISSING_TEXT, useLocateNote, type LocateOutcome } from "./ConversationThread";
 import {
-  followDrawerHighlight, type PresetRow, attachmentChipView, chipRemoval, presetListView, providerLogo, slashQuery, takesSuggestion, type AttachmentDraft, type ModelPickerView,
+  followDrawerHighlight, type PresetRow, attachmentChipView, chipRemoval, markRefused, presetListView, queueAttachmentSummary, providerLogo, slashQuery, takesSuggestion, type AttachmentDraft, type ModelPickerView,
   type PresetListReply, type PresetSummary,
 } from "./homeComposer";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
@@ -53,7 +53,7 @@ export interface DockedFieldLink {
 }
 // The composer's Pick from canvas button: pressed while the canvas picks; `reason` is the tooltip while unavailable.
 export interface DockedPicker { pressed: boolean; enabled: boolean; reason: string | null; onToggle(): void }
-export type DockedOutcome = { ok: true; itemId?: string } | { error: string; missing?: string[] };
+export type DockedOutcome = { ok: true; itemId?: string } | { error: string; missing?: string[]; replaced?: string[] };
 
 export interface DockedComposerProps {
   mode: DockedMode;
@@ -104,8 +104,9 @@ export interface DockedComposerProps {
   refuse?(code: string, provider: Provider): DockedRefusal;
   // A refused terminal session's "Start a new conversation".
   onStartNew?(): void;
-  // A message Send now has in flight is not among them: it shows in the thread.
-  queued: readonly { id: string; text: string }[];
+  // A message Send now has in flight is not among them: it shows in the thread. message: the request, whose attachments
+  // a row with a folder names.
+  queued: readonly QueuedRow[];
   // The rows offer Send now: the conversation's stored provider takes a message into a running turn and the turn runs
   // or waits for a permission answer (steerSupport sendNowShown, decided as if no row were sending).
   sendNow?: boolean;
@@ -328,7 +329,8 @@ export function DockedComposer(props: DockedComposerProps) {
   const send = async (): Promise<DockedOutcome | undefined> => {
     if (action === "stop" || !availability.enabled) return;
     const at = key, sent = draft, mine = ++generation.current;
-    const files = draft.attachments.flatMap((a): SentFile[] => a.id ? [{ name: a.name, size: a.size ?? 0, kind: a.kind }] : []);
+    const files = draft.attachments.flatMap((a): SentFile[] => !a.id || a.path === undefined ? []
+      : a.kind === "directory" ? [{ name: a.name, kind: a.kind, path: a.path }] : [{ name: a.name, size: a.size ?? 0, kind: a.kind, path: a.path }]);
     const request: DockedRequest = { text: message.text, anchors: message.anchors, attachments: draft.attachments.flatMap(a => a.id ? [{ id: a.id }] : []), ...(files.length ? { files } : {}) };
     setSending(current => new Map(current).set(at, mine));
     let outcome = await (action === "queue" ? props.onQueue(request) : props.onSend(request)).catch((): DockedOutcome => ({ error: "unknown" }));
@@ -343,10 +345,10 @@ export function DockedComposer(props: DockedComposerProps) {
       return outcome;
     }
     if (outcome.error === "attachment_missing") {
-      const missing = new Set(outcome.missing ?? []);
+      const { missing = [], replaced } = outcome;
       props.onDrafts(drafts => {
         const current = drafts.get(at);
-        return current ? new Map(drafts).set(at, { ...current, attachments: current.attachments.map(a => a.id && missing.has(a.id) ? { ...a, status: "missing" as const } : a) }) : drafts;
+        return current ? new Map(drafts).set(at, { ...current, attachments: markRefused(current.attachments, missing, replaced) }) : drafts;
       });
     } else {
       const provider = mode.kind === "new" ? props.provider : mode.provider;
@@ -416,7 +418,7 @@ export function DockedComposer(props: DockedComposerProps) {
   // Only an id drawn below; the live reason shows with an older notice rather than behind it.
   const describedBy = [reason && !reason.noAgent ? reasonId : null, placeholder.suggestion !== null ? hintId : null].filter(Boolean).join(" ") || undefined;
   return <div className="docked" data-shape={shape} ref={root} {...drop.handlers}>
-    <QueueRows key={key} handle={queueRows} items={props.queued} sendNow={canSendNow} onSendNow={id => props.onSendQueuedNow?.(id) ?? Promise.resolve({ error: "not_running" })}
+    <QueueRows key={key} handle={queueRows} items={props.queued} homeDirectory={props.homeDirectory} sendNow={canSendNow} onSendNow={id => props.onSendQueuedNow?.(id) ?? Promise.resolve({ error: "not_running" })}
       onRemove={props.onRemoveQueued} focusInput={() => field.current?.focus()}
       // The same refusal again changes the region's text by a no-break space, so it is read again.
       announce={text => setAnnouncement(current => current === text ? `${text}\u00a0` : text)} />
@@ -437,7 +439,7 @@ export function DockedComposer(props: DockedComposerProps) {
       {drop.cover}
     </ComposerCard>
     <div className="composer-tray">
-      {props.fixed ? <FixedTip label="Files can’t be attached to a terminal session"><button type="button" className="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files" aria-disabled="true"><Plus aria-hidden="true" /></button></FixedTip>
+      {props.fixed ? <FixedTip label="Attachments can’t be added to a terminal session"><button type="button" className="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files or folders" aria-disabled="true"><Plus aria-hidden="true" /></button></FixedTip>
         : <AttachButton tray disabled={isSending || locked} onClick={props.onAttach} />}
       {props.pick && <PickButton pick={props.pick} />}
       {props.fixed && fixedProvider ? <>
@@ -483,9 +485,12 @@ export interface QueueRowsHandle {
   sendNow(id: string): Promise<void>;
 }
 
+export interface QueuedRow { id: string; text: string; message?: { attachments: readonly SentFile[] } }
 export interface QueueRowsProps {
   handle?: MutableRefObject<QueueRowsHandle | null>;
-  items: readonly { id: string; text: string }[];
+  items: readonly QueuedRow[];
+  // Shortens the attachment paths a row lists to ~.
+  homeDirectory?: string | null;
   sendNow: boolean;
   onSendNow(id: string): Promise<void | { error: string; turnRuns?: boolean }>;
   onRemove(id: string): Promise<boolean>;
@@ -568,19 +573,26 @@ export function QueueRows(props: QueueRowsProps) {
 
   if (props.items.length === 0) return null;
   return <div className="queue" role="list" aria-label="Queued messages">{props.items.map((item, index) => {
-    const textId = `${idBase}-${index}`;
+    const textId = `${idBase}-${index}`, summaryId = `${textId}-attachments`;
+    const summary = queueAttachmentSummary(item.message?.attachments ?? [], props.homeDirectory ?? null);
+    // Both buttons are told apart by the row's attachments and text, so the full list reaches them too.
+    const describedBy = summary ? `${summaryId} ${textId}` : textId;
     // The status line sits in the row's listitem (a list owns only listitems) and is drawn from the start, empty, so the
     // live region is registered before a refusal puts text in it.
     return <div key={item.id} className="queue-entry" role="listitem">
-      <div className="queue-item"><MessageSquareDashed aria-hidden="true" /><span className="queue-text" id={textId}>{item.text}</span>
+      <div className="queue-item"><MessageSquareDashed aria-hidden="true" />
+        {summary && <Tooltip><TooltipTrigger asChild>
+          <span className="queue-attachment" role="group" id={summaryId} aria-label={summary.label}><Folder aria-hidden="true" /><span className="name">{summary.name}</span>{summary.more && <span className="count">{summary.more}</span>}</span>
+        </TooltipTrigger><TooltipContent className="queue-full-list">{summary.items.map((entry, i) => <span key={i} className="queue-tip-item"><b>{entry.name}</b><span>{entry.path}</span></span>)}</TooltipContent></Tooltip>}
+        <span className="queue-text" id={textId}>{item.text}</span>
         {props.sendNow && <QueueButtonLife onLost={() => { lost.current = true; }}>{life =>
           <Tooltip><TooltipTrigger asChild>
             <button type="button" ref={node => { life(node); keep("sendNow", item.id)(node); }} className="doan-button queue-send" data-ui-size="xs" data-ui-variant="subtle"
-              aria-label="Send queued message now" aria-describedby={textId} onClick={() => void sendNow(item.id)}>Send now</button>
+              aria-label="Send queued message now" aria-describedby={describedBy} onClick={() => void sendNow(item.id)}>Send now</button>
           </TooltipTrigger><TooltipContent>{SEND_NOW_TIP}</TooltipContent></Tooltip>}</QueueButtonLife>}
         <QueueButtonLife onLost={() => { lost.current = true; }}>{life =>
           <button type="button" ref={node => { life(node); keep("remove", item.id)(node); }} className="chip-remove doan-icon-button" data-ui-size="xs"
-            aria-label="Remove queued message" aria-describedby={textId} onClick={() => void remove(item.id)}><X aria-hidden="true" /></button>}</QueueButtonLife>
+            aria-label="Remove queued message" aria-describedby={describedBy} onClick={() => void remove(item.id)}><X aria-hidden="true" /></button>}</QueueButtonLife>
       </div>
       <div className="queue-status" role="status">{refused.has(item.id) && <><AlertIcon /><span>{SEND_NOW_REFUSED_TEXT}</span></>}</div>
     </div>;

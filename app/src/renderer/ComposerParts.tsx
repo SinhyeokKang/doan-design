@@ -1,7 +1,7 @@
 import { forwardRef, Fragment, useEffect, useId, useImperativeHandle, useLayoutEffect, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type MutableRefObject, type PointerEvent, type ReactNode, type RefObject } from "react";
 import { flushSync } from "react-dom";
 import { DropdownMenu, Popover } from "radix-ui";
-import { ArrowUp, Check, ChevronDown, Compass, Eye, FilePenLine, FileText, Gauge, Paintbrush, PencilSparkles, Plus, ScanEye, Search, Settings, Shapes, Shield, ShieldAlert, SquareSlash, Square, TextAlignStart, TriangleAlert, X, Zap } from "lucide-react";
+import { ArrowUp, Check, ChevronDown, Compass, Eye, FilePenLine, FileText, Folder, Gauge, Paintbrush, PencilSparkles, Plus, ScanEye, Search, Settings, Shapes, Shield, ShieldAlert, SquareSlash, Square, TextAlignStart, TriangleAlert, X, Zap } from "lucide-react";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
 import type { PermissionModeId } from "../main/conversation/permissionMode";
@@ -15,7 +15,7 @@ import type { ComposerAction } from "./composerRules";
 import { outsidePresetList } from "./presetOutside";
 import type { SettingsTarget } from "./settingsSections";
 import {
-  attachmentChipView, dropTarget, foldRows, groupIcon, heldScrollTop, lockedOlderSide, isSubmitKey, steerKey, modelPickerView, NO_OLDER, olderLabel, olderOpened, olderOrder, olderToggled,
+  attachmentChipView, foldRows, groupIcon, heldScrollTop, lockedOlderSide, isSubmitKey, steerKey, modelPickerView, NO_OLDER, olderLabel, olderOpened, olderOrder, olderToggled,
   drawerSearchLabel, presetListView, providerLogo, type AttachmentDraft, type PresetListReply, type PresetRow, type PresetSummary, type SuggestionPart,
 } from "./homeComposer";
 import type { PermissionIcon, PermissionPickerView } from "./permissionPicker";
@@ -44,7 +44,8 @@ export function ComposerCard({ readonly, children }: { readonly: boolean; childr
   return <div className={`composer-card${readonly ? " readonly" : ""}`}>{children}</div>;
 }
 
-// Files dragged over the composer attach; the window's own drop handling never sees them.
+// Files and folders dragged over the composer attach; the window's own drop handling never sees them. Main says which
+// dropped items are neither, one by one.
 export function useComposerDrop(options: { blocked: () => boolean; onFiles(files: File[]): void; onNotice(text: string | null): void }) {
   const [dropping, setDropping] = useState(false);
   const depth = useRef(0);
@@ -59,12 +60,7 @@ export function useComposerDrop(options: { blocked: () => boolean; onFiles(files
       depth.current = 0; setDropping(false);
       if (options.blocked()) return;
       const files = Array.from(event.dataTransfer.files);
-      // String items (a URL list, say) can sit among the files; only file items line up with `files`.
-      const items = Array.from(event.dataTransfer.items ?? []).filter(item => item.kind === "file");
-      const target = dropTarget(files.map((_file, i) => ({ isDirectory: !!items[i]?.webkitGetAsEntry?.()?.isDirectory })));
-      if (target.notice) options.onNotice(target.notice);
-      const chosen = target.files.map(i => files[i]!);
-      if (chosen.length) { if (!target.notice) options.onNotice(null); options.onFiles(chosen); }
+      if (files.length) { options.onNotice(null); options.onFiles(files); }
     },
   };
   const cover = dropping ? <div className="drop-target"><span className="sr-only" role="status">Drop to attach</span></div> : null;
@@ -83,7 +79,7 @@ export function ComposerChips(props: {
       const view = attachmentChipView(a, props.homeDirectory), url = props.thumbnails[a.key];
       const chip = <span className={`attach-chip${view.thumbnail && url ? " image" : ""}${view.problem ? " problem" : ""}`}>
         {view.thumbnail && url ? <span className="thumb" aria-hidden="true"><img src={url} alt="" /></span>
-          : <span className="file-icon" aria-hidden="true">{a.status === "checking" ? <span className="doan-spinner" /> : view.problem ? <TriangleAlert /> : <FileText />}</span>}
+          : <span className="file-icon" aria-hidden="true">{a.status === "checking" ? <span className="doan-spinner" /> : view.problem ? <TriangleAlert /> : view.folder ? <Folder /> : <FileText />}</span>}
         <span className="attach-text"><b>{view.label}</b><small>{view.meta}</small></span>
         <button type="button" ref={node => { props.removeButtons.current[index] = node; }} className="chip-remove doan-icon-button" data-ui-size="xs" aria-label={view.removeLabel} disabled={props.disabled} onClick={() => props.onRemove(index)}><X aria-hidden="true" /></button>
       </span>;
@@ -178,7 +174,7 @@ export function ComposerTools({ children }: { children: ReactNode }) {
 
 // `tray`: the docked composer's Attach, outside the card and first in the tray, at the tray's xs size.
 export function AttachButton({ disabled, onClick, tray = false }: { disabled: boolean; onClick(): void; tray?: boolean }) {
-  return <IconTip label="Attach files"><button type="button" className={tray ? "doan-icon-button composer-attach" : "doan-icon-button"} data-ui-size={tray ? "xs" : undefined} aria-label="Attach files" disabled={disabled} onClick={onClick}><Plus aria-hidden="true" /></button></IconTip>;
+  return <IconTip label="Attach files or folders"><button type="button" className={tray ? "doan-icon-button composer-attach" : "doan-icon-button"} data-ui-size={tray ? "xs" : undefined} aria-label="Attach files or folders" disabled={disabled} onClick={onClick}><Plus aria-hidden="true" /></button></IconTip>;
 }
 
 // Group tabs are one Tab stop; ←/→ move between them.

@@ -4,10 +4,10 @@ import { authStatus } from "../main/agentAuth/state";
 import type { AccountIdentity, AuthState, AuthStatusDto, Provider, ToolFacts } from "../main/agentAuth/types";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import {
-  attachmentChipView, attachmentLimit, chipRemoval, composeRequest, defaultEffort, defaultFast, defaultModel, fastToSend, defaultProject, defaultProvider, dropTarget, fixedPreference,
+  attachmentChipView, attachmentLimit, chosenAttachments, chipRemoval, composeRequest, defaultEffort, defaultFast, defaultModel, fastToSend, defaultProject, defaultProvider, fixedPreference,
   GREETINGS, greetingText, foldRows, olderOrder, lockedOlderSide, heldScrollTop, NO_OLDER, olderLabel, olderOpened, olderToggled, groupIcon, groupLabel, isSubmitKey, steerKey, takesSuggestion, lengthCounter, MAX_ATTACHMENTS, MAX_PASTED_BYTES, modelPickerView, pickGreeting, presetListView,
   draftProblem, presetPlaceholder, rootForProject, searchPresets, selectableProvider, sendAvailability, slashQuery, startErrorView, suggestedPresets,
-  suggestedPrompts, TEXT_LIMIT,
+  suggestedPrompts, TEXT_LIMIT, attachRefusal, markRefused, queueAttachmentSummary, readyAttachment, recordedAttachment, sentFileView,
   type AttachmentDraft, type ModelsState, type PresetListReply, type PresetSummary, type SendInput,
 } from "./homeComposer";
 
@@ -646,11 +646,29 @@ test("/ at the very start of the field opens the preset query until dismissed", 
 
 // Attachments
 
+// main accepts at most 10 paths from one pick and refuses the rest, unchecked, as limit; those are left out like the
+// accepted ones the draft has no room for, in one notice with the count, never as one bare limit line each.
+test("a pick of more than ten leaves the rest out with one counted notice, and releases what no longer fits", () => {
+  const ok = (id: string) => ({ ok: true as const, attachment: { id, name: id, kind: "directory" as const, path: `/p/${id}`, pasted: false } });
+  const over = (name: string) => ({ ok: false as const, name, error: "limit" as const });
+  const ten = Array.from({ length: 10 }, (_, i) => ok(`a${i}`));
+  const eleven = chosenAttachments(0, [...ten, over("a10")]);
+  expect(eleven.chosen).toEqual(ten);
+  expect(eleven.release).toEqual([]);
+  expect(eleven.notices).toEqual(["Only 10 attachments can be added. 1 was left out."]);
+  const unreadable = { ok: false as const, name: "locked", error: "unreadable" as const };
+  const crowded = chosenAttachments(8, [unreadable, ...ten, over("x")]);
+  expect(crowded.chosen).toEqual([unreadable, ...ten.slice(0, 2)]);
+  expect(crowded.release).toEqual(ten.slice(2).map(r => r.attachment.id));
+  expect(crowded.notices).toEqual(["Only 10 attachments can be added. 9 were left out."]);
+  expect(chosenAttachments(0, [ok("a")])).toEqual({ chosen: [ok("a")], release: [], notices: [] });
+});
+
 test("ten attachments fit; the eleventh is left out with a count", () => {
   expect(MAX_ATTACHMENTS).toBe(10);
   expect(attachmentLimit(9, [{ pasted: false, size: 1 }])).toEqual({ accept: [0], notices: [] });
-  expect(attachmentLimit(9, [{ pasted: false, size: 1 }, { pasted: false, size: 1 }])).toEqual({ accept: [0], notices: ["Only 10 files can be attached. 1 was left out."] });
-  expect(attachmentLimit(8, Array.from({ length: 4 }, () => ({ pasted: false, size: 1 })))).toEqual({ accept: [0, 1], notices: ["Only 10 files can be attached. 2 were left out."] });
+  expect(attachmentLimit(9, [{ pasted: false, size: 1 }, { pasted: false, size: 1 }])).toEqual({ accept: [0], notices: ["Only 10 attachments can be added. 1 was left out."] });
+  expect(attachmentLimit(8, Array.from({ length: 4 }, () => ({ pasted: false, size: 1 })))).toEqual({ accept: [0, 1], notices: ["Only 10 attachments can be added. 2 were left out."] });
   expect(attachmentLimit(10, [{ pasted: true, size: 1 }]).accept).toEqual([]);
 });
 
@@ -666,7 +684,7 @@ test("a pasted image may be 50 MB, not a byte more; local files have no size lim
 test("chips show type and size, a checking state, a pasted image and a moved file", () => {
   const home = "/Users/ada";
   expect(attachmentChipView(attachment("onboarding.png", { kind: "image", size: 412 * 1024 }), home))
-    .toEqual({ label: "onboarding.png", meta: "PNG · 412 KB", tooltip: "~/Desktop/onboarding.png", removeLabel: "Remove onboarding.png", thumbnail: true, notice: null, problem: false });
+    .toEqual({ label: "onboarding.png", meta: "PNG · 412 KB", tooltip: "~/Desktop/onboarding.png", removeLabel: "Remove onboarding.png", thumbnail: true, folder: false, notice: null, problem: false });
   expect(attachmentChipView(attachment("brand-guidelines.pdf", { size: 1.2 * 1024 * 1024 }), home).meta).toBe("PDF · 1.2 MB");
   expect(attachmentChipView(attachment("tiny.txt", { size: 900 }), home).meta).toBe("TXT · 900 B");
   expect(attachmentChipView(attachment("Makefile", { size: 2048 }), home).meta).toBe("2 KB");
@@ -695,10 +713,83 @@ test("a canvas capture chip is named Canvas capture, also while checking and whe
     .toMatchObject({ label: "Pasted image", removeLabel: "Remove pasted image" });
 });
 
-test("a drop on the composer attaches files and refuses folders, pointing to Add Projects", () => {
-  expect(dropTarget([{ isDirectory: false }, { isDirectory: false }])).toEqual({ files: [0, 1], notice: null });
-  expect(dropTarget([{ isDirectory: true }])).toEqual({ files: [], notice: "Folders can’t be attached. Add a project from Add Projects." });
-  expect(dropTarget([{ isDirectory: true }, { isDirectory: false }])).toEqual({ files: [1], notice: "Folders can’t be attached. Add a project from Add Projects." });
+test("a folder chip shows its name, Folder and its path, never a size or a thumbnail, in every state", () => {
+  const home = "/Users/ada";
+  const folder = (extra: Partial<AttachmentDraft> = {}): AttachmentDraft => ({ key: "f", name: "references", kind: "directory", pasted: false, status: "ready", path: "/Users/ada/Projects/Atlas/references", ...extra });
+  expect(attachmentChipView(folder(), home))
+    .toEqual({ label: "references", meta: "Folder", tooltip: "~/Projects/Atlas/references", removeLabel: "Remove references", thumbnail: false, folder: true, notice: null, problem: false });
+  // A folder named like an image is still a folder.
+  expect(attachmentChipView(folder({ name: "shots.png", path: "/Volumes/Shared/shots.png" }), home)).toMatchObject({ label: "shots.png", meta: "Folder", tooltip: "/Volumes/Shared/shots.png", thumbnail: false, folder: true });
+  expect(attachmentChipView(folder({ status: "checking" }), home)).toMatchObject({ meta: "Checking", problem: false });
+  expect(attachmentChipView(folder({ status: "missing" }), home))
+    .toMatchObject({ meta: "Moved or deleted", problem: true, notice: "references was moved or deleted. Remove it, or attach it again." });
+  expect(attachmentChipView(folder({ status: "replaced" }), home))
+    .toMatchObject({ meta: "Replaced", folder: true, problem: true, notice: "references now points to a different folder. Remove it, or attach it again." });
+});
+
+test("a replaced folder keeps the draft and blocks the send with its notice, like a moved file", () => {
+  const replaced: AttachmentDraft = { key: "f", name: "references", kind: "directory", pasted: false, status: "replaced", path: "/Users/ada/references" };
+  expect(draftProblem("", null, [replaced], [])).toEqual({ kind: "attachmentMissing", text: "references now points to a different folder. Remove it, or attach it again." });
+  expect(draftProblem("", null, [attachment("a.txt", { status: "missing" }), replaced], [])).toMatchObject({ text: "a.txt was moved or deleted. Remove it, or attach it again." });
+  // A folder alone is a request: no message is needed.
+  expect(draftProblem("", null, [{ ...replaced, status: "ready" }], [])).toBeNull();
+  expect(composeRequest("", null, [], 1)).toBe("Look at the attached files.");
+});
+
+test("a refused send marks its replaced folders Replaced and its other missing attachments Moved or deleted", () => {
+  const drafts: AttachmentDraft[] = [
+    { key: "a", id: "1", name: "a.txt", kind: "file", pasted: false, status: "ready", size: 1, path: "/a.txt" },
+    { key: "b", id: "2", name: "refs", kind: "directory", pasted: false, status: "ready", path: "/refs" },
+    { key: "c", id: "3", name: "kept", kind: "directory", pasted: false, status: "ready", path: "/kept" },
+    { key: "d", name: "checking.txt", kind: "file", pasted: false, status: "checking" },
+  ];
+  expect(markRefused(drafts, ["1", "2"], ["2"]).map(a => a.status)).toEqual(["missing", "replaced", "ready", "checking"]);
+  expect(markRefused(drafts, ["2"], undefined).map(a => a.status)).toEqual(["ready", "missing", "ready", "checking"]);
+});
+
+test("a refused attachment names files and folders; the count refusal names attachments", () => {
+  expect(attachRefusal("not_file", "pipe")).toBe("pipe isn’t a file or folder, so it wasn’t attached.");
+  expect(attachRefusal("unreadable", "private-assets")).toBe("private-assets couldn’t be read, so it wasn’t attached.");
+  expect(attachRefusal("limit", "x")).toBe("Only 10 attachments can be added.");
+  expect(attachRefusal("not_found", "gone.txt")).toBe("gone.txt wasn’t found, so it wasn’t attached.");
+  expect(attachRefusal("not_image", "fake.png")).toBe("fake.png isn’t a readable image, so it wasn’t attached.");
+  expect(attachRefusal("too_large", "Pasted image")).toBe("This image is over 50 MB, so it wasn’t attached.");
+  expect(attachRefusal("capture_failed", "Canvas capture")).toBe("Couldn’t capture the canvas. Try again.");
+  expect(attachRefusal("something_new", "x.txt")).toBe("x.txt couldn’t be read, so it wasn’t attached.");
+});
+
+test("a checked attachment and a recorded one become draft chips of their own kind; a folder carries no size", () => {
+  expect(readyAttachment("k", { id: "1", name: "references", kind: "directory", path: "/refs", pasted: false }))
+    .toEqual({ key: "k", id: "1", name: "references", kind: "directory", pasted: false, status: "ready", path: "/refs" });
+  expect(readyAttachment("k", { id: "2", name: "a.png", kind: "image", size: 3, path: "/a.png", pasted: true, thumbnail: new Uint8Array([1]) }))
+    .toEqual({ key: "k", id: "2", name: "a.png", kind: "image", pasted: true, status: "ready", size: 3, path: "/a.png" });
+  expect(recordedAttachment("k", { name: "references", kind: "directory", path: "/refs" }))
+    .toEqual({ key: "k", name: "references", kind: "directory", pasted: false, status: "missing", path: "/refs" });
+  expect(recordedAttachment("k", { name: "notes.md", size: 0, kind: "file", path: "/notes.md" }))
+    .toEqual({ key: "k", name: "notes.md", kind: "file", pasted: false, status: "missing", size: 0, path: "/notes.md" });
+});
+
+test("a queued message names its first folder and how many other attachments it holds, and lists every one in full", () => {
+  const home = "/Users/ada";
+  const folder = (name: string) => ({ name, kind: "directory" as const, path: `/Users/ada/Projects/Atlas/${name}` });
+  const file = (name: string) => ({ name, kind: "file" as const, size: 1, path: `/Users/ada/Projects/Atlas/${name}` });
+  expect(queueAttachmentSummary([], home)).toBeNull();
+  // Files alone keep the row as it was.
+  expect(queueAttachmentSummary([file("brand-guidelines.pdf")], home)).toBeNull();
+  expect(queueAttachmentSummary([folder("references")], home)).toEqual({ name: "references", more: null, items: [{ name: "references", path: "~/Projects/Atlas/references" }],
+    label: "Attachments: references — ~/Projects/Atlas/references" });
+  expect(queueAttachmentSummary([file("brand-guidelines.pdf"), folder("references")], home)).toEqual({ name: "references", more: "+1",
+    items: [{ name: "brand-guidelines.pdf", path: "~/Projects/Atlas/brand-guidelines.pdf" }, { name: "references", path: "~/Projects/Atlas/references" }],
+    label: "Attachments: brand-guidelines.pdf — ~/Projects/Atlas/brand-guidelines.pdf; references — ~/Projects/Atlas/references" });
+  const many = [folder("checkout-reference-screens-for-accessibility-review"), file("brand-guidelines.pdf"), folder("mobile-screens"), file("research-notes.pdf")];
+  expect(queueAttachmentSummary(many, home)).toMatchObject({ name: "checkout-reference-screens-for-accessibility-review", more: "+3" });
+  expect(queueAttachmentSummary(many, home)!.items).toHaveLength(4);
+});
+
+test("a sent folder shows Folder and its path; a sent file its size", () => {
+  const home = "/Users/ada";
+  expect(sentFileView({ name: "references", kind: "directory", path: "/Users/ada/Projects/Atlas/references" }, home)).toEqual({ label: "references", meta: "Folder", tooltip: "~/Projects/Atlas/references", folder: true });
+  expect(sentFileView({ name: "spec.md", kind: "file", size: 6144, path: "/Users/ada/spec.md" }, home)).toEqual({ label: "spec.md", meta: "6 KB", tooltip: null, folder: false });
 });
 
 test("Backspace at the start of an empty field removes the preset chip first, then the last attachment", () => {

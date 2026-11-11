@@ -7,7 +7,7 @@ import { PROVIDER_NAMES } from "./agentAuthView";
 import { conversationWork, slotKeyOf, slotsFromList } from "./conversationList";
 import { asksPerson, mergeConversationEvents, stripState, type StripState } from "./conversationStrip";
 import { newCanvasText } from "./newCanvasText";
-import { splitRequest, type AttachmentDraft } from "./homeComposer";
+import { issuedAttachment, sendRefusal, splitRequest, type AttachmentDraft } from "./homeComposer";
 import {
   newCanvasCandidates, permissionToastKey, rememberRequest, removalConfirm, slotKey,
   type HomeConversation, type LastRequest, type Slot,
@@ -171,7 +171,7 @@ export class HomeRun {
         this.readList(request.root);
       }
       this.host.changed();
-      return { error: result.error, ...("missing" in result && result.missing ? { missing: result.missing } : {}) };
+      return sendRefusal(result);
     }
     const { conversationId } = result;
     this.extras.set(conversationId, { atStart, checked: [], canvasOpens, toasted: null, opened: false });
@@ -216,7 +216,7 @@ export class HomeRun {
   // A send in an existing project conversation from the Overview: the new canvas its
   // turn makes opens as a start's does, from the canvases listed before main accepted the send and only while the
   // person opened no canvas since. An edit of a canvas already listed is not new; main's promotion handles it.
-  async send(root: string, provider: Provider, request: Parameters<Window["doan"]["sendConversation"]>[0]): Promise<void | { error: string; missing?: string[] }> {
+  async send(root: string, provider: Provider, request: Parameters<Window["doan"]["sendConversation"]>[0]): Promise<void | { error: string; missing?: string[]; replaced?: string[] }> {
     const listed = this.host.view().entries.find(entry => entry.path === root);
     const atStart = listed?.kind === "list" ? listed.canvases.map(row => row.path) : [];
     const canvasOpens = this.canvasOpens;
@@ -228,7 +228,7 @@ export class HomeRun {
     // arrived before the reply while the run did not track the conversation (nothing to refresh then).
     const stripBefore = this.strips[id];
     const reply = await window.doan.sendConversation(request).catch(() => ({ error: "unknown" }));
-    if (reply && "error" in reply) return { error: reply.error, ...("missing" in reply && Array.isArray(reply.missing) ? { missing: reply.missing as string[] } : {}) };
+    if (reply && "error" in reply) return sendRefusal(reply);
     const previous = this.extras.get(id);
     this.track(id);
     // The turn may have started, and even ended, before the reply: its end keeps main's binding window for the
@@ -644,9 +644,10 @@ export class HomeRun {
     const attachments = records.map((record, i): AttachmentDraft => {
       const result = issued?.[i];
       const key = crypto.randomUUID();
-      if (result?.ok && result.attachment.thumbnail) thumbnails[key] = result.attachment.thumbnail;
-      if (result?.ok) return { key, id: result.attachment.id, name: result.attachment.name, kind: result.attachment.kind, pasted: result.attachment.pasted, status: "ready", size: result.attachment.size, path: result.attachment.path };
-      return { key, name: record.name, kind: record.kind, pasted: false, status: "missing", size: record.size, path: record.path };
+      const { chip, release } = issuedAttachment(key, record, result);
+      if (release) void window.doan.removeAttachment(release).catch(() => false);
+      else if (result?.ok && result.attachment.thumbnail) thumbnails[key] = result.attachment.thumbnail;
+      return chip;
     });
     const summary = this.summary(conversationId);
     const provider = summary?.provider ?? this.conversations.find(item => item.conversationId === conversationId)?.provider;

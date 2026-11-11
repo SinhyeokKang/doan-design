@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import type { ConversationEvent } from "../main/conversation/types";
 import { anchorParts, fastUnusedText, pendingAsks, questionLines, rootRelative, scrollFollow, threadItems, threadScroll, withSending, type ThreadItem } from "./threadItems";
 import { splitRequest } from "./homeComposer";
+import { FOLDER_ATTACHMENT, LEGACY_ATTACHMENTS } from "../main/conversation/attachmentRecords.fixture";
 import { notReadyLine, waitingLine } from "../main/conversation/mcpStartup";
 import { parseConnectorUrl } from "../main/mcpConnectors/names";
 import { connectorLabel } from "../main/mcpConnectors/presets";
@@ -86,8 +87,19 @@ describe("threadItems", () => {
     expect(items[0]).toEqual({
       kind: "user", key: "u1", seq: 1, preset: { id: "shape", title: "Shape" }, anchors,
       parts: [{ text: "Make " }, { anchor: 1 }, { text: " match " }, { anchor: 2 }, { text: "." }],
-      attachments: [{ name: "spec.md", size: 6144, kind: "file" }],
+      attachments: [{ name: "spec.md", size: 6144, kind: "file", path: "/Users/ada/spec.md" }],
     });
+  });
+
+  test("a sent folder stays a folder with its path and no size, beside earlier records", () => {
+    seq = 0;
+    const items = threadItems(turn("t1", "Look at the attached files.", { attachments: [...LEGACY_ATTACHMENTS, FOLDER_ATTACHMENT] }), ROOT, true);
+    expect(items[0]).toMatchObject({ kind: "user", attachments: [
+      { name: "shot.png", size: 2048, kind: "image", path: "/Users/me/Desktop/shot.png" },
+      { name: "notes.md", size: 0, kind: "file", path: "/tmp/notes.md" },
+      { name: "references", kind: "directory", path: "/Users/me/Projects/Atlas/references" },
+    ] });
+    expect((items[0] as { attachments: object[] }).attachments[2]).not.toHaveProperty("size");
   });
 
   test("an attachment-only request shows no text; the same words typed by the person stay", () => {
@@ -329,7 +341,7 @@ describe("threadItems with a Codex MCP server that was not ready", () => {
 describe("withSending", () => {
   const CTA = { element: { doanId: "hero-cta", selector: "[data-doan-id=\"hero-cta\"]" } };
   const sending = [
-    { id: "q1", text: "Use the Doan design preset `shape` (Shape a feature).\n\nUse the spacing from {{1}}", anchors: [CTA], attachments: [{ name: "notes.pdf", size: 86016, kind: "file" as const }] },
+    { id: "q1", text: "Use the Doan design preset `shape` (Shape a feature).\n\nUse the spacing from {{1}}", anchors: [CTA], attachments: [{ name: "notes.pdf", size: 86016, kind: "file" as const, path: "/Users/ada/notes.pdf" }] },
     { id: "q2", text: "Also this", anchors: [], attachments: [] },
   ];
 
@@ -338,7 +350,7 @@ describe("withSending", () => {
     const items = withSending(threadItems(turn("t1"), ROOT, true), sending);
     expect(items.map(item => item.key)).toEqual(["u1", "qq1", "qq2"]);
     expect(items[1]).toEqual({ kind: "user", key: "qq1", seq: null, sending: true, parts: [{ text: "Use the spacing from " }, { anchor: 1 }], anchors: [CTA],
-      preset: splitRequest(sending[0]!.text, 1).preset, attachments: [{ name: "notes.pdf", size: 86016, kind: "file" }] });
+      preset: splitRequest(sending[0]!.text, 1).preset, attachments: [{ name: "notes.pdf", size: 86016, kind: "file", path: "/Users/ada/notes.pdf" }] });
     expect(items[2]).toMatchObject({ kind: "user", sending: true, parts: [{ text: "Also this" }], preset: null, attachments: [] });
   });
 

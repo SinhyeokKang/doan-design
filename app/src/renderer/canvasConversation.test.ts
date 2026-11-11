@@ -231,7 +231,7 @@ describe("canvasConversationError", () => {
       expect(canvasConversationError("attachment_missing", mode, "claude", "acme-web", ["a1", "a2"])).toEqual({ kind: "attachments", missing: ["a1", "a2"] });
       expect(canvasConversationError("not_running", mode, "claude", "acme-web")).toEqual({ kind: "resend" });
       expect(canvasConversationError("attachment_limit", mode, "claude", "acme-web")).toEqual({
-        kind: "notice", text: "Only 10 files can be attached to a message. Remove some, then send again.", retry: false, startNew: false,
+        kind: "notice", text: "Only 10 attachments can be added to a message. Remove some, then send again.", retry: false, startNew: false,
       });
     }
     expect(canvasConversationError("attachment_missing", EXISTING, "claude", "acme-web")).toEqual({ kind: "attachments", missing: [] });

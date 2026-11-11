@@ -439,7 +439,7 @@ Window 1238 × 780 (the draft's), 960 × 600 for `home-narrow`.
 
 ### Roles and names
 
-Read on `home-empty`, equal to the draft's attributes: `region` "Home"; `button` "Make <name> hop" for the chosen buddy ("Make Doany hop"; "Make Popo hop" read through CDP after a pick in Settings > General; its still image has `alt=""` and the canvas is `aria-hidden`); `button` "Project: doan-design"; `textbox` "Message"; `button` "Attach files", "Design presets", "Agent: Claude Code, model Opus 5.5", "Effort: High", "Send", "Worktree: main"; `group` "Suggested prompts" with one `button` per sentence. With text typed the suggestions are not in the tree. While another conversation runs in the project and something is typed, the reason line's Open is `button` "Open the running conversation" (read through CDP). Other states were not read.
+Read on `home-empty`, equal to the draft's attributes: `region` "Home"; `button` "Make <name> hop" for the chosen buddy ("Make Doany hop"; "Make Popo hop" read through CDP after a pick in Settings > General; its still image has `alt=""` and the canvas is `aria-hidden`); `button` "Project: doan-design"; `textbox` "Message"; `button` "Attach files or folders", "Design presets", "Agent: Claude Code, model Opus 5.5", "Effort: High", "Send", "Worktree: main"; `group` "Suggested prompts" with one `button` per sentence. With text typed the suggestions are not in the tree. While another conversation runs in the project and something is typed, the reason line's Open is `button` "Open the running conversation" (read through CDP). Other states were not read.
 
 ### Agent picker actions
 
@@ -450,7 +450,7 @@ Reference: `doan-settings.html` `home-agent-picker`, measured with the Settings 
 - The preset list's CLI reasons ("the doan CLI couldn’t start", "the doan CLI didn’t answer in time", "Doan couldn’t read the CLI’s answer", "the doan CLI stopped without a result") and its general failure "Doan couldn’t read the design presets. You can still send without one."
 - A stop the person did not make: "This conversation stopped before it finished."
 - Effort labels "Extra high", sentence-case levels and, when none is chosen, the model's default level (Codex) or "Effort".
-- Attachment refusals "<name> wasn’t found, so it wasn’t attached.", "<name> isn’t a file, so it wasn’t attached.", "<name> isn’t a readable image, so it wasn’t attached.", "<name> couldn’t be read, so it wasn’t attached." and main's limit refusal "Only 10 files can be attached."
+- Attachment refusals "<name> wasn’t found, so it wasn’t attached.", "<name> isn’t a file or folder, so it wasn’t attached.", "<name> isn’t a readable image, so it wasn’t attached.", "<name> couldn’t be read, so it wasn’t attached." and main's limit refusal "Only 10 attachments can be added." (a pick over ten shows the counted line instead, see Folder attachments)
 
 ### Terms shared with onboarding
 
@@ -945,12 +945,12 @@ Reference: `.doan/canvases/canvas-capture.html` (8 frames: `toolbar-default`, `t
 | Tools row | Select, Hand, Picker, Capture area, the separator, Export. Capture area is the shared 40 px `md` icon button (radius 18, `--text-standard` rgb(15,15,15), 16 px lucide `Scan`) | Capture is a mode like the Picker; the divider keeps Export as the action on the whole canvas. |
 | Capture mode | Only Capture area is pressed: `--affordance-backdrop-pressed` rgba(0,0,0,.1), `aria-pressed="true"`, the row's Tab stop; Select, Hand and Picker unpressed. Started from Hand, the drag layer stays down and Hand is pressed again after Esc | One mode at a time. |
 | Capture hint | First child of `.doan-canvas-bottom`, 8 above the tools row (the column's gap): the picking hint's capsule (40 high, padding 4 / 8 / 4 / 16, gap 8, pill radius, rgba(0,0,0,.6) with 16 px blur, white ink), the 14 px `Scan`, "Drag to capture an area" in body-sm 14/20, the `on-prominent` Esc key (28 high, rgba(255,255,255,.16)), `sr-only` "Press Escape to cancel"; `role="status"` | Same look and reading as the picking hint. |
-| Unavailable | `aria-disabled` (never `disabled`), `--text-disabled` rgb(149,149,149), not-allowed cursor, no fill; reason in the shared tooltip (24 high per line, padding 4 / 8, radius 12, black, 12/16 white, 4 above the button, centred) and in the `sr-only` `#canvas-capture-reason` named by `aria-describedby`. Reached: canvas can't be shown (an unlisted page in the iframe), composer blocked (another canvas with the same ID), terminal session (resume mode) and legacy external ("Files can’t be attached to a terminal session"), 10 files ("Only 10 files can be attached. Remove one to add another.") | The reason stays with the control. |
+| Unavailable | `aria-disabled` (never `disabled`), `--text-disabled` rgb(149,149,149), not-allowed cursor, no fill; reason in the shared tooltip (24 high per line, padding 4 / 8, radius 12, black, 12/16 white, 4 above the button, centred) and in the `sr-only` `#canvas-capture-reason` named by `aria-describedby`. Reached: canvas can't be shown (an unlisted page in the iframe), composer blocked (another canvas with the same ID), terminal session (resume mode) and legacy external ("Attachments can’t be added to a terminal session"), 10 attachments ("Only 10 attachments can be added. Remove one to add another.") | The reason stays with the control. |
 | Capture layer | `.capture-layer`: absolute, inset 0, z-index 0 (the drag layer's place), crosshair cursor, transparent, the top element over the board while capture mode is on; the hover mark is gone, the selection mark stays | Clicks select nothing; the canvas chrome above it stays usable. |
 | Marquee | `.capture-marquee`: 1 px `--border-focus` (black) with a 1 px white outer ring (`0 0 0 1px` `--surface-panel`), `--affordance-backdrop-hover` fill rgba(0,0,0,.06), no children and no size readout, `pointer-events: none` | The selection mark's line holds on any canvas colour. |
 | Folded panel | Capture mode and the drag keep the area's width (994 at this window); the panel unfolds, with focus in the composer field, only after main answers (the area is 647 and the panel 347 then) | Unfolding before main reads the pixels would narrow the area under the drag. |
 | Capture chip | The shipped attachment chip (40 high, padding 4, gap 8, radius 12, `--surface-inset` rgb(245,245,246)), 32 px lead (radius 8, white): the 16 px spinner while Checking, the thumbnail when ready. "Canvas capture" in caption 12/16 medium, meta "Checking" / "PNG · <size>" in `--text-metadata` rgb(95,95,95); remove "Remove canvas capture" | Tells a capture from a pasted image. |
-| Failure toast | The shared toast (rgba(255,255,255,.9) with 8 px blur, radius 24, padding 12, body 14/20): "Couldn’t capture the canvas. Try again.", the shipped 50 MB line, or "Only 10 files can be attached. 1 was left out." when the draft filled after the render (no capture call is made). The chip is removed; nothing shows on the board | A failure happened, so it is a toast. |
+| Failure toast | The shared toast (rgba(255,255,255,.9) with 8 px blur, radius 24, padding 12, body 14/20): "Couldn’t capture the canvas. Try again.", the shipped 50 MB line, or "Only 10 attachments can be added. 1 was left out." when the draft filled after the render (no capture call is made). The chip is removed; nothing shows on the board | A failure happened, so it is a toast. |
 
 ### Documented deviations from the draft
 
@@ -1649,3 +1649,36 @@ The focused probe compared 2,619 properties, with 2,612 matches and the seven do
 Evidence: `.scratch/design-sync/project-skill-drawer/measure.mjs`, `measurements.json`, `draft.json`, `caret-proof.json`, `draft-focus.json`, `accessibility.json`, `probe-final.log`, `round1-tab-icons.json`, `round1-quick-open.json`, and the screenshots in that directory; the repeated probe log is `.scratch/round1-probe-verified.log`. Quick Open uses its live markup under main’s tokens and styles in a separate document for the baseline comparison. The runtime uses temporary userData, HOME, SHELL, CLI, agent configuration directories and DOAN_RUNTIME, then closes the app and checks real-state fingerprints before deleting temporary artifacts.
 
 Not verified: native macOS Korean IME, real Claude Code/Codex skill invocation, OS screen-reader speech, forced colours, and reduced transparency. The static draft has no reachable keyboard-focus state for its option rows. Logic coverage is in `skillWords.test.ts`, `Home.test.tsx`, `HomeComposerView.interaction.test.tsx`, `DockedComposer.interaction.test.tsx`, and `ComposerSkills.test.tsx`; geometry and native behavior stay in the temporary probe.
+
+## Folder attachments
+
+Measured against `.doan/canvases/folder-attachments.html`, frames `folder-home`, `folder-overview`, `folder-canvas` and `folder-states`, by `/design-sync` in the built Electron app at 1400 × 1000 (`.scratch/design-sync/folder-attachments/measure.ts`): the draft opened in a second window of the same Electron build and the app's Home, Overview and canvas conversation panel, read with `getComputedStyle`. 513 rows; 505 match and the 8 below are documented. Main's conversation list, history and queue answers and the renderer's sign-in snapshot were stubbed in main for the Overview and the panel, so the queue and the sent message could be drawn with no agent signed in; attachments, their checks and the start's recheck (Moved or deleted, Replaced) ran for real.
+
+### Measured contracts
+
+| Surface | Measured values |
+|---|---|
+| Folder chip (draft, all three composers) | The shared attachment chip: 40 high, padding 4, gap 8, radius 12, max 256, `--surface-inset` rgb(245, 245, 246). Icon box 32 × 32, radius 8, white, lucide Folder 16 in rgb(82, 82, 82); name 12/16 weight 500; meta “Folder” 12/16, 0.1596 px tracking, rgb(95, 95, 95); no size. × 24 × 24 in rgb(95, 95, 95). A long name ellipsizes inside the 256 cap; the path tooltip is the shared one (max 384, padding 4 / 8, radius 12, black, 12/16 white, wraps) |
+| Sent folder chip | The thread's sent chip with the same icon, name and “Folder”, no × |
+| Checking | Spinner in the icon box, meta “Checking”, Send disabled (rgb(232, 232, 232) fill, rgb(149, 149, 149) icon), reason “Checking attachments” 12/16 rgb(82, 82, 82), 16 left padding |
+| Moved or deleted, Replaced | `problem` chip: TriangleAlert and meta in rgb(100, 23, 35), meta “Moved or deleted” or “Replaced”; Send disabled; the docked composer's notice (padding 12 / 16, gap 6, radius 16, white, 14/20 in rgb(100, 23, 35)) reads “<name> was moved or deleted. Remove it, or attach it again.” or “<name> now points to a different folder. Remove it, or attach it again.” |
+| Queue row with attachments | The row stays 40 high (padding 8 / 8 / 8 / 16, gap 8, pill, white, 1 px inset rgb(232, 232, 232)); Send now 24 high and × 24 × 24 stay. Before the text, the first folder's name and `+N` for the rest: 12/16, 0.1596 px tracking, rgb(82, 82, 82), gap 4, Folder icon 14 × 14 that never shrinks, name ellipsized. Its tooltip lists every attachment, name in weight 500 over its path, 8 between items; the same list is the summary's `aria-label`, which Send now and × name in `aria-describedby` |
+| Queue summary cap | 180 px; 100 px while the queue is 431 px or narrower (checked: 431 → 100, 432 → 180; the canvas panel's queue was 367 → 100) |
+| Keyboard focus on × | 2 px solid black outline, offset 2. × moves focus to the next chip's × (checked in the real app) |
+
+### Documented deviations from the draft
+
+- **Narrow cap boundary.** The draft draws the queue at 720 (180 cap) and 360 (100 cap) only. The app switches at the queue's own width of 431 px, the breakpoint the docked tray already uses for the permission label, so one container width decides both.
+- **Add-time refusals in the Overview and the canvas panel.** An item that cannot be read, items over ten, and a special file show as the app toast there (those composers hand them to `onNotice`, as they did for files), while the draft's `folder-states` tiles draw them as a notice under the docked composer. Home shows them under its composer. The words match the draft.
+- **Accent.** Send and Queue use the chosen buddy's accent (Design system 'Overview'); the draft draws Doany's violet and the probe chose another buddy.
+- **Queue tooltip height.** The probe's paths were long temporary paths outside its HOME, so a path wrapped to three lines where the draft's `~/Projects/…` path takes two. Styles match.
+
+### Not verified
+
+- Real Finder drag and ⌘V into these composers in this measurement (a CDP drop of real paths reached the Checking state; the Finder input is covered by `/runtime-test`).
+- The sent chip's path tooltip, and the Overview's `~` shortening of queue paths under a real HOME.
+- Dark appearance (the app is light only).
+
+### Regression pointers
+
+`homeComposer.test.ts` ('a pick of more than ten leaves the rest out with one counted notice…'), `attachments.test.ts` ('refuses a socket as neither a file nor a folder'), `HomeComposerView.interaction.test.tsx` ('Cmd+V of a Finder folder named x.png that main no longer finds…'). The icon's `flex: none` has no unit test; the probe above measured 3.5 × 14 without it.

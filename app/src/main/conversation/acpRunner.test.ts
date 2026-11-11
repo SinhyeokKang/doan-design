@@ -256,7 +256,9 @@ it("adds verified images up to 50 MB as ACP image blocks for Antigravity only", 
   writeFileSync(small, png); writeFileSync(big, png); truncateSync(big, MAX_IMAGE_BYTES + 1); writeFileSync(changed, "no longer an image"); writeFileSync(text, "hello");
   const attachments = [
     { name: "small.png", size: png.length, kind: "image" as const, path: small }, { name: "big.png", size: MAX_IMAGE_BYTES + 1, kind: "image" as const, path: big },
-    { name: "changed.png", size: 3, kind: "image" as const, path: changed }, { name: "notes.txt", size: 5, kind: "file" as const, path: text }];
+    { name: "changed.png", size: 3, kind: "image" as const, path: changed }, { name: "notes.txt", size: 5, kind: "file" as const, path: text },
+    // A folder goes by path alone, even one named like an image.
+    { name: "folder.png", kind: "directory" as const, path: dir }];
   const prompts: Record<string, unknown[]> = {};
   for (const runtime of ["antigravity", "cursor"] as const) {
     const log = logFile();

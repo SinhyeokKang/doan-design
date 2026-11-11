@@ -205,8 +205,8 @@ test("a queued message and the title before the list names the conversation show
 // The queue row shows the line; Send now shows the request itself, chips and files, in the thread.
 test("a queued message keeps its request for the thread", () => {
   const anchors = [{ frame: { id: "cart", title: "Cart" } }];
-  expect(queuedMessage("q1", { text: "Change {{1}}", anchors, attachments: [{ id: "f1" }], files: [{ name: "notes.pdf", size: 10, kind: "file" }] }))
-    .toEqual({ id: "q1", text: "Change Cart", message: { text: "Change {{1}}", anchors, attachments: [{ name: "notes.pdf", size: 10, kind: "file" }] } });
+  expect(queuedMessage("q1", { text: "Change {{1}}", anchors, attachments: [{ id: "f1" }], files: [{ name: "notes.pdf", size: 10, kind: "file", path: "/Users/ada/notes.pdf" }] }))
+    .toEqual({ id: "q1", text: "Change Cart", message: { text: "Change {{1}}", anchors, attachments: [{ name: "notes.pdf", size: 10, kind: "file", path: "/Users/ada/notes.pdf" }] } });
   expect(queuedMessage("q2", { text: "Again", anchors: [], attachments: [] })).toEqual({ id: "q2", text: "Again", message: { text: "Again", anchors: [], attachments: [] } });
 });
 

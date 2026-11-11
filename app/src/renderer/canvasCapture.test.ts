@@ -84,7 +84,7 @@ describe("captureAvailability", () => {
 
   test("uses the confirmed copy", () => {
     expect(CAPTURE_UNAVAILABLE).toBe("Capture area isn’t available while the canvas can’t be shown.");
-    expect(CAPTURE_TERMINAL).toBe("Files can’t be attached to a terminal session");
-    expect(CAPTURE_LIMIT).toBe("Only 10 files can be attached. Remove one to add another.");
+    expect(CAPTURE_TERMINAL).toBe("Attachments can’t be added to a terminal session");
+    expect(CAPTURE_LIMIT).toBe("Only 10 attachments can be added. Remove one to add another.");
   });
 });

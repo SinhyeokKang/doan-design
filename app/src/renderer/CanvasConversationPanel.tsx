@@ -24,7 +24,7 @@ import { GroupIcon, SuggestionLabel, type CanvasPress } from "./ComposerParts";
 import { ConversationDeleteItem, type DeleteTarget } from "./ConversationDeleteDialog";
 import { ConversationHead } from "./ConversationLine";
 import { ConversationThread, LOADING_DELAY_MS, type ConversationThreadHandle, type LocateOutcome } from "./ConversationThread";
-import { steerPhaseOf, type ConversationStore, type ListView, type QueuedMessage } from "./conversationStore";
+import { dropAttachment, steerPhaseOf, type ConversationStore, type ListView, type QueuedMessage } from "./conversationStore";
 import type { PanelArrival } from "./rightPanelOpen";
 import { copyText } from "./copyText";
 import { contextRing } from "./contextWindow";
@@ -32,8 +32,8 @@ import { DockedComposer, type DockedFieldLink, type DockedOutcome, type DockedPi
 import { carryDraft, composerTurn, draftKey, EMPTY_DRAFT, type DockedMode, type DockedRefusal } from "./dockedRules";
 import { generationOf, modelsKey, type DockedSupport } from "./dockedSupport";
 import {
-  attachmentLimit, defaultEffort, defaultFast, defaultModel, fastToSend, defaultProvider, fixedPreference, groupIcon, modelOption, modelPickerView,
-  selectableProvider, suggestedPresets, suggestedPrompts, type AttachmentDraft, type NewConversationDefault, type ModelsState,
+  attachmentLimit, chosenAttachments, defaultEffort, defaultFast, defaultModel, fastToSend, defaultProvider, fixedPreference, groupIcon, modelOption, modelPickerView,
+  selectableProvider, sendRefusal, suggestedPresets, suggestedPrompts, type AttachmentDraft, type NewConversationDefault, type ModelsState,
 } from "./homeComposer";
 import { PROVIDER_NAMES } from "./agentAuthView";
 import { scrollTarget } from "./overviewRun";
@@ -336,12 +336,16 @@ export function CanvasConversation(props: CanvasConversationProps) {
     addChips(at, accepted.map((file, i) => ({ key: keys[i]!, name: file.name, kind: file.type.startsWith("image/") ? "image" : "file", pasted: false, status: "checking", size: file.size })));
     void window.doan.addAttachmentFiles(accepted).catch(() => null).then(async results => {
       if (!results) { settle(keys, keys.map(() => null)); return; }
-      // A copied screenshot has no path on disk; it attaches as a pasted image instead.
+      // A copied screenshot has no path on disk; it attaches as a pasted image instead. A Finder item main no longer
+      // finds keeps main's answer: a folder named x.png has File.type image/png too.
       const final = await Promise.all(results.map(async (result, i) => {
         const file = accepted[i]!;
-        if (!pasted || result.ok || result.error !== "not_found" || !file.type.startsWith("image/")) return result;
+        if (!pasted || result.ok || result.error !== "not_found" || !file.type.startsWith("image/") || window.doan.droppedPath(file) !== null) return result;
         if (file.size > 50 * 1024 * 1024) return { ok: false as const, name: "Pasted image", error: "too_large" as const };
-        return window.doan.addPastedImage(await file.arrayBuffer()).catch(() => null);
+        // A page-made image whose bytes can't be read settles with the rest of its batch.
+        const bytes = await file.arrayBuffer().catch(() => null);
+        if (!bytes) return result;
+        return window.doan.addPastedImage(bytes).catch(() => null);
       }));
       settle(keys, final);
     });
@@ -350,15 +354,12 @@ export function CanvasConversation(props: CanvasConversationProps) {
     if (fixed) return;
     const at = key;
     void window.doan.chooseAttachments().catch(() => []).then(results => {
-      const ok = results.filter(result => result.ok);
-      const limit = attachmentLimit((store.drafts.get(at) ?? EMPTY_DRAFT).attachments.length, ok.map(() => ({ pasted: false, size: 0 })));
-      const keep = new Set(limit.accept.map(i => ok[i]!));
-      for (const result of ok) if (!keep.has(result) && result.ok) void window.doan.removeAttachment(result.attachment.id);
-      const chosenFiles = results.filter(result => !result.ok || keep.has(result));
+      const { chosen: chosenFiles, release, notices } = chosenAttachments((store.drafts.get(at) ?? EMPTY_DRAFT).attachments.length, results);
+      for (const id of release) void window.doan.removeAttachment(id);
       const keys = chosenFiles.map(() => crypto.randomUUID());
       addChips(at, chosenFiles.map((result, i) => ({ key: keys[i]!, name: result.ok ? result.attachment.name : result.name, kind: "file", pasted: false, status: "checking" })));
       settle(keys, chosenFiles);
-      if (limit.notices.length) props.onNotice(limit.notices.join(" "));
+      if (notices.length) props.onNotice(notices.join(" "));
     });
   };
 
@@ -378,7 +379,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
         : { root, mode: "new" as const, runtime, canvas: target.canvas, text: request.text, anchors: [...request.anchors],
           ...(model ? { model } : {}), ...(model && effort ? { effort } : {}), ...(picker.effort?.fast?.on ? { fast: true } : {}), ...(permissionMode && permissionMode !== "default" ? { permissionMode } : {}), ...(request.attachments.length ? { attachments: request.attachments } : {}) };
       const reply = await window.doan.startConversation(start).catch(() => ({ error: "unknown" }));
-      if ("error" in reply) return { error: reply.error, ...("missing" in reply && Array.isArray(reply.missing) ? { missing: reply.missing } : {}) };
+      if ("error" in reply) return sendRefusal(reply);
       // Home's and the Overview's starts are remembered by App's run host; this one starts here.
       if (mode.kind === "new") props.onRemember?.({ provider: runtime, model: model ?? null, effort: model ? effort : null, ...modelPicked, ...(permissionMode ? { permissionMode } : {}) });
       support.clearPick(key);
@@ -390,14 +391,14 @@ export function CanvasConversation(props: CanvasConversationProps) {
       conversationId: mode.conversationId, text: request.text, anchors: [...request.anchors],
       ...(changedModel && model && !fixed ? { model, ...(effort ? { effort } : {}) } : {}), ...changedFast, ...(sentMode ? { permissionMode: sentMode } : {}), ...(request.attachments.length ? { attachments: request.attachments } : {}),
     }).catch(() => ({ error: "unknown" }));
-    if (reply && "error" in reply) return { error: reply.error, ...("missing" in reply && Array.isArray(reply.missing) ? { missing: reply.missing } : {}) };
+    if (reply && "error" in reply) return sendRefusal(reply);
     run.sent(target, revision, sentUnder);
     return { ok: true };
   };
   const queue = async (request: DockedRequest): Promise<DockedOutcome> => {
     if (mode.kind !== "existing" && mode.kind !== "archived") return { error: "not_running" };
     const reply = await window.doan.queueConversation({ conversationId: mode.conversationId, text: request.text, anchors: [...request.anchors], ...(request.attachments.length ? { attachments: request.attachments } : {}) }).catch(() => ({ error: "unknown" as const }));
-    if ("error" in reply) return { error: reply.error, ...("missing" in reply && Array.isArray(reply.missing) ? { missing: reply.missing as string[] } : {}) };
+    if ("error" in reply) return sendRefusal(reply);
     store.queued(root, mode.conversationId, queuedMessage(reply.itemId, request));
     return { ok: true, itemId: reply.itemId };
   };
@@ -484,7 +485,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
         presets={support.presets} suggested={suggestedPresets(props.entry, presets)}
         onPresetsOpen={() => { if (support.presets && !support.presets.ok) support.readPresets(); }} onPresetsRetry={() => support.readPresets()}
         thumbnails={support.thumbnails} onAttach={chooseFiles} onFiles={addFiles}
-        onAttachmentRemoved={attachment => { if (attachment.id) void window.doan.removeAttachment(attachment.id).catch(console.error); }}
+        onAttachmentRemoved={dropAttachment}
         turn={conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle"} busy={busy} canvasGone={false} context={thread ? contextRing(thread.events) : null}
         unavailable={props.blocked} locked={props.blocked !== null} held={view.kind === "wait" || (newView?.start.pending ?? false)} fixed={fixed}
         refuse={refuse} onStartNew={startNewAfterRefusal}
