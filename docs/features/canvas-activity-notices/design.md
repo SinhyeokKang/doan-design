@@ -65,7 +65,7 @@ PoC는 기존 `DocumentBindings.current()`의 서버 응답 바이트 지문·lo
 - 복구 토스트 문구: 최초 baseline 실패는 `Couldn’t save the initial read state. This folder is read-only.`, 기록 손상·기존 판정 없음은 `Read-state records couldn’t be read. Restore them, then retry.`, ID 문제는 `Couldn’t save the read state because the canvas ID is missing or duplicated. Fix the ID, then retry.`다. 기록 손상의 이전 미읽음/읽음 타일은 같은 문구를 쓰고 Dot 유지 여부만 다르다.
 - 실패·복구 문구는 앱의 기존 `Couldn’t …` 표현에 맞춘다.
 
-사용자 시각 확인은 대기 중이며, 위 선택은 초안 확정이 아니다. 정적 초안이며 실제 토스트 수명·포커스 복귀·공유 읽음 저장·이동 PoC는 검증하지 않았다. 메타데이터 경로·형식·버전도 이 초안으로 확정하지 않는다.
+사용자가 이 초안을 시각 확인해 확정했다. 정적 초안이며 실제 토스트 수명·포커스 복귀·공유 읽음 저장·이동 PoC는 검증하지 않았다. 메타데이터 경로·형식·버전도 이 초안으로 확정하지 않는다.
 
 ## 회귀 예방 근거
 
