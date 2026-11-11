@@ -1255,9 +1255,15 @@ body:has(.shell-top) { background: transparent; }
 /* doan-canvas: the canvas panel, an opaque white header above the board (.doan/canvases/doan-canvas.html, confirmed
    2026-11-01). The header does not cover the board: the board starts under it. Isolation keeps the board's floating
    controls under the Overview, which covers the same grid cell. */
-.workspace > .doan-canvas-panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; isolation: isolate; }
+/* The panel paints its rounded white but clips nothing: the header clips to its top corners and the area to its bottom
+   ones. Chromium draws the cross-origin board iframe only within 16384 device px of its compositing origin under a clip
+   with four equal radii, so a folded conversation panel (24 on every corner) cut wide or tall boards off for good. The
+   area's top corners sit under the header, so its clip never has four equal radii. The window behind the corners is
+   native vibrancy, which a painted corner cover cannot match. */
+.workspace > .doan-canvas-panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; isolation: isolate; }
+.doan-canvas-panel > .doan-canvas-head { overflow: clip; border-top-left-radius: inherit; border-top-right-radius: inherit; }
 /* clip, not hidden: a hidden box still scrolls to reveal a focused descendant, which moved the floating tools. */
-.doan-canvas-panel > .area { flex: 1; min-height: 0; overflow: clip; }
+.doan-canvas-panel > .area { flex: 1; min-height: 0; overflow: clip; border-bottom-left-radius: inherit; border-bottom-right-radius: inherit; }
 .doan-canvas-panel > .area:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
 /* The Overview header box (.ov-head) reading canvas / frame: the canvas is the quieter parent (subtle, regular, its
    sidebar icon, up to 40%), the frame the current item; the frame name gives way first. */

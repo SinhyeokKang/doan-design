@@ -776,13 +776,15 @@ describe("tokens are the app's", () => {
 });
 
 describe("the content panel", () => {
-  test("the window is the app's grey and the panel sits 8 from every edge, white, 24 on all four corners, clipped", () => {
+  test("the window is the app's grey and the panel sits 8 from every edge, white, clipped, with 24 on all four corners drawn over it", () => {
     expect(declarations(shellCss, "body")).toContain("background: var(--bg-app)");
     const panel = declarations(shellCss, ".doan-canvas-panel");
-    for (const declaration of ["position: relative", "margin: var(--space-2)", "background: var(--surface-panel)", "border-radius: var(--radius-container)", "overflow: clip", "isolation: isolate"]) {
+    for (const declaration of ["position: relative", "margin: var(--space-2)", "background: var(--surface-panel)", "overflow: clip", "isolation: isolate"]) {
       expect(panel, declaration).toContain(declaration);
     }
-    // The app's panel and its board box: the same white, the same clip and isolation (styles.css).
+    // The corners: the window's grey outside a 24 curve, over the header (5) and everything else, never taking the pointer.
+    expect(declarations(shellCss, ".doan-canvas-panel::after")).toEqual(["content: \"\"", "position: absolute", "inset: 0", "z-index: 6", "border-radius: var(--radius-container)", "box-shadow: 0 0 0 var(--radius-container) var(--bg-app)", "pointer-events: none"]);
+    // The app's panel and its board box: the same white and isolation, the area's clip (styles.css).
     expect(stylesCss).toMatch(/\.workspace > \.doan-canvas-panel \{[^}]*isolation: isolate/);
     expect(declarations(stylesCss, ".doan-canvas-panel > .area")).toContain("overflow: clip");
     expect(stylesCss).toMatch(/\.workspace > \.doan-canvas-panel \{[^}]*background: var\(--surface-panel\)/);
