@@ -2,10 +2,11 @@
 // The docked buddy's core: the DOM-free part of the docked draft .doan/assets/buddies/docked-poc.js (MIT, Doan
 // contributors), for the buddy that stands on the docked composer card and the canvas toolbar. One advanceDocked()
 // step runs time, motion and the surface/hide state together, because they share one random stream and one state.
-// Formulas, constants and operation order are the draft's, unchanged: dockedBuddyCore.test.ts replays every frame of
-// the golden that app/scripts/dockedBuddyGolden.mjs records from the draft. The draft's preview-only controls (Pause,
-// Jump, look and walk buttons, Hide & reappear) are not ported. Time and randomness are arguments; nothing here reads
-// the DOM.
+// Formulas, constants and operation order are the draft's: dockedBuddyCore.test.ts replays every frame of the golden
+// that app/scripts/dockedBuddyGolden.mjs records from the draft. One guard differs, only where the draft throws: a
+// click while time is stopped, with the current surface gone in the same frame, keeps x. The draft's preview-only
+// controls (Pause, Jump, look and walk buttons, Hide & reappear) are not ported. Time and randomness are arguments;
+// nothing here reads the DOM.
 import { buddy, type BuddyId } from "./buddies";
 
 export const SIZE = 56;          // rig viewport, CSS px, on both surfaces
@@ -100,14 +101,35 @@ export function xOn(st: Pick<DockedState, "surface" | "x" | "slots">, name: Surf
 }
 
 export function createDockedState(id: BuddyId, random: () => number): DockedState {
-  return {
-    buddy: id, tempo: id === "puri" ? 1.12 : 1, time: 0, last: 0, mounted: false, reduced: false,
+  const st: DockedState = {
+    buddy: id, tempo: 1, time: 0, last: 0, mounted: false, reduced: false,
     surface: null, slots: {}, x: 16, direction: 1, motion: null, stepsLeft: 0,
     nextMove: 1.8 + random(), nextHop: 13 + random()*7,
     forced: "walk", focusUntil: 0, typingUntil: 0,
     lookX: 0, lookY: 0, bodyLean: 0, hat: 0, hatV: 0, blinkAt: 2, nextBlink: 2, eye: 1,
     conceal: 0, trip: null, visit: null, idleLeft: null,
   };
+  setDockedBuddy(st, id);
+  return st;
+}
+
+// A buddy change keeps the core state (surface, each surface's x, hide, trip); only the buddy and its tempo change.
+export function setDockedBuddy(st: DockedState, id: BuddyId) {
+  st.buddy = id;
+  st.tempo = id === "puri" ? 1.12 : 1;
+}
+
+// Whether another step can change anything without new inputs. False while time is stopped (reduced motion), and
+// while the buddy is down with nowhere to go or under a floating element that is still open: only an input change
+// moves it on, so the shell may stop its rAF until one arrives. The 1 s wait after a floating element closes, a
+// hide or reveal, a hop and a shown buddy (breathing, blinks, idle walks, the idle-trip count) all need time.
+export function dockedNeedsTime(st: DockedState) {
+  if (!st.mounted) return true;
+  if (st.reduced) return false;
+  const trip = st.trip;
+  if (!trip) return st.conceal < 1;
+  if (trip.phase !== "waiting") return true;
+  return trip.hold ? trip.closedAt !== null : trip.destination !== null;
 }
 
 const attention = (st: DockedState) => st.time < st.typingUntil ? "input" : st.time < st.focusUntil ? st.forced : "walk";
