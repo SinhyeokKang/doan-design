@@ -97,11 +97,15 @@ export interface SelectMessage extends SelectionMessageBase {
   target: SelectTarget | null;
   // The command this selection answers; absent for a click, which can share
   // the seq of a command the script then drops.
-  answer?: "select-anchor";
+  answer?: SelectionAnswer;
 }
+
+// select-parent is Esc's step back, answered by the frame around the selection or, past the outermost one, a clear.
+export type SelectionAnswer = "select-anchor" | "select-parent";
 
 export interface ClearMessage extends SelectionMessageBase {
   type: "clear";
+  answer?: "select-parent";
 }
 
 // Space, V and H come from a canvas that has focus after an ⌥-click.
@@ -221,7 +225,7 @@ function parseSelectionMessage(data: Record<string, unknown>): SelectionMessage 
   if (!within(href, MAX_HREF) || !seqValue(seq) || !nonNegative(viewport)) return null;
   const base = { href, seq, viewport };
   switch (type) {
-    case "clear": return { type, ...base };
+    case "clear": return data.answer === "select-parent" ? { type, ...base, answer: data.answer } : { type, ...base };
     case "key":
       if (data.key === "Escape") return { type, ...base, key: "Escape" };
       if (data.key === "V" || data.key === "H") return { type, ...base, key: data.key };
@@ -233,7 +237,7 @@ function parseSelectionMessage(data: Record<string, unknown>): SelectionMessage 
       return rect === null ? null : { type, ...base, rect };
     }
     case "select": {
-      const answer: SelectMessage["answer"] = data.answer === "select-anchor" ? data.answer : undefined;
+      const answer: SelectMessage["answer"] = data.answer === "select-anchor" || data.answer === "select-parent" ? data.answer : undefined;
       if (answer === undefined && data.answer !== undefined) return null;
       const marked = answer === undefined ? base : { ...base, answer };
       if (data.target === null) return { type, ...marked, target: null };

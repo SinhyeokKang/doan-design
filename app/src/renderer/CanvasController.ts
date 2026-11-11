@@ -142,7 +142,8 @@ export class CanvasController {
   private jumpTimer: ReturnType<typeof setTimeout> | undefined;
   private work: CanvasWorkTarget | null = null;
   private workMark: HTMLElement | null = null;
-  // The frame the marker is on, null while it is hidden: a slide needs a frame to come from.
+  // The frame the marker is on, null while it is hidden: a slide needs a frame to come from, and a reload keeps only a
+  // marker already shown.
   private workMarkFrame: string | null = null;
   private workSlideTimer: ReturnType<typeof setTimeout> | undefined;
   // The canvas the last setWork described: a change is entering it.
@@ -159,6 +160,8 @@ export class CanvasController {
   private selectedRect: CanvasRect | null = null;
   private hoverRect: CanvasRect | null = null;
   private altHeld = false;
+  // Whether the canvas was last told ⌘ is down, so the app losing focus can take it back (⌘Tab sends no keyup).
+  private metaHeld = false;
   // The Escape a toolbar tooltip took, and whether anything after the tooltip handled it (toolbarEscape).
   private tooltipEscape: { event: KeyboardEvent; handledAfter: boolean } | null = null;
   private markHidden = false;
@@ -898,11 +901,11 @@ export class CanvasController {
   }
 
   // A click takes a seq at least the renderer's: it can win the race with a command still on its way and take that
-  // command's seq. A select-anchor reply names its command; a pick-frame reply has no name, so it is the frame the
-  // drawer asked for at that command's seq. The canvas never answers a clear.
+  // command's seq. A select-anchor or select-parent reply names its command; a pick-frame reply has no name, so it is
+  // the frame the drawer asked for at that command's seq. Of clears, only Esc's step past the outermost frame answers.
   private commandReply(message: Exclude<SelectionMessage, { type: "hover" | "key" }>): boolean {
-    if (message.type === "clear") return false;
     if (message.answer !== undefined) return true;
+    if (message.type === "clear") return false;
     const asked = this.pickFrameCommand;
     return asked !== null && message.seq === asked.seq && message.target !== null && message.target.element === undefined && message.target.frame?.id === asked.id;
   }
@@ -972,6 +975,17 @@ export class CanvasController {
   private clearOnEscape(): void {
     if (!shouldGuardEscape(this.state.selection, this.reanchor)) { this.transitionIntent++; return; }
     this.transition(() => this.escapeNow());
+  }
+
+  // Esc steps the selection back one level (PRODUCT §5 item 4). Only the canvas knows the frames around the selection,
+  // so it answers the step on the selection channel, and anything it sent before the step loses to the step's seq. A
+  // selection a reload is still looking for has no node to step from yet, so Esc clears it.
+  private stepOnEscape(): void {
+    if (this.state.selection === null || this.reanchor !== null) { this.clearOnEscape(); return; }
+    this.transition(() => {
+      this.personActive(true);
+      this.sendCommand({ type: "select-parent" });
+    });
   }
 
   // Escape and a click on the board's margin: the person's deselect, which stops following in a work turn.
@@ -1235,6 +1249,11 @@ export class CanvasController {
       this.drawMarks();
       return;
     }
+    if (event.key === "Meta") {
+      // Every press, not only a change: a release inside a focused canvas never reaches the app.
+      if (!event.repeat) this.setMeta(true);
+      return;
+    }
     const shortcut = toolShortcut(event, { canvasPage: this.canvasPage });
     if (shortcut !== null) { if (this.shortcut(shortcut, false)) event.preventDefault(); return; }
     // A held Space's repeats keep its default (scrolling, pressing) off too.
@@ -1244,7 +1263,7 @@ export class CanvasController {
     if (event.key !== "Escape" || event.isComposing || event.keyCode === 229 || (event.defaultPrevented && !tooltipOnly)) return;
     // Esc while picking cancels only the pick, wherever focus is: the composer, the canvas or the panel. Menus and
     // the `/` list handle their Esc first and prevent it.
-    const step = this.escape(editableTarget(event.target));
+    const step = this.escape(editableTarget(event.target), event.repeat);
     if (step === "cancelPick" || step === "cancelCapture" || step === "selectTool") event.preventDefault();
   };
 
@@ -1271,13 +1290,14 @@ export class CanvasController {
     this.tooltipEscape = null;
   }
 
-  // Esc's next step; `editable`: it came from a text field. Returns the step.
-  private escape(editable: boolean): ReturnType<typeof escapeStep> {
+  // Esc's next step; `editable`: it came from a text field. Returns the step. A held Esc's auto-repeat (`repeat`) takes
+  // no Select step, so one press steps back one level (PRODUCT §5 item 4) instead of walking the selection all the way out.
+  private escape(editable: boolean, repeat = false): ReturnType<typeof escapeStep> {
     const step = escapeStep({ picking: this.state.picking, capturing: this.state.capturing, hand: this.canvasPage && (this.pendingTool ?? this.tool) === "hand", editable });
     if (step === "cancelPick") this.cancelPick();
     else if (step === "cancelCapture") this.cancelCapture();
     else if (step === "selectTool") { this.toolChosen = true; this.applyTool("select"); }
-    else if (step === "clearSelection") this.clearOnEscape();
+    else if (step === "stepSelection" && !repeat) this.stepOnEscape();
     return step;
   }
 
@@ -1302,15 +1322,24 @@ export class CanvasController {
   private keyup = (event: KeyboardEvent): void => {
     const shortcut = toolShortcut(event, { canvasPage: this.canvasPage });
     if (shortcut !== null) { if (this.shortcut(shortcut, false)) event.preventDefault(); return; }
+    if (event.key === "Meta") { this.setMeta(false); return; }
     if (event.key !== "Alt") return;
     this.altHeld = false;
     this.sendHoverCommand({ type: "hover-alt", alt: false });
     this.drawMarks();
   };
 
+  // ⌘ goes on the hover channel: it changes only what the canvas's hover shows, never a selection command's seq.
+  private setMeta(down: boolean): void {
+    this.metaHeld = down;
+    this.sendHoverCommand({ type: "hover-meta", meta: down });
+  }
+
   // The window's blur also fires when focus moves into the canvas iframe; only the app losing focus releases Space.
   private appBlur = (): void => {
-    if (!document.hasFocus()) this.releaseInput();
+    if (document.hasFocus()) return;
+    this.releaseInput();
+    if (this.metaHeld) this.setMeta(false);
   };
 
   private releaseInput(): void {
@@ -1756,14 +1785,20 @@ export class CanvasController {
     return open && target && !this.state.unlisted && target.root === open.folder && target.path === open.canvas ? target.work : null;
   }
 
-  // The working-frame marker: the jump highlight kept for the work turn, on the first frame with the
-  // id, gone while the document reloads or failed and back on the same id once the new one lays out. It is placed in
-  // screen px on every view change, so it slides only when the working frame changes (`slide`); any other redraw puts
-  // it on its frame at once, ending a slide.
+  // The working-frame marker: the jump highlight kept for the work turn, on the first frame with the id. A reload keeps
+  // a shown marker on the previous layout's rect until the new layout places it: every agent write reloads the canvas,
+  // and hiding it in between restarted its animations each time, so a run of writes blinked it. It goes when the
+  // document is not laid out (first load, failed, no width) or the new layout lacks the frame, and does not appear
+  // mid-reload when it was not shown before. It is placed in screen px on every view change, so it slides only when
+  // the working frame changes (`slide`); any other redraw puts it on its frame at once, ending a slide.
   private drawWork(slide = false): void {
     clearTimeout(this.workSlideTimer);
-    const work = this.loading || this.state.status !== null ? null : this.openWork();
+    const work = this.state.status !== null || (this.loading && this.workMarkFrame === null) ? null : this.openWork();
     const rect = work ? workFrameRect(this.state.layout, work.frame) : null;
+    // A reload's first layout can report every frame as 0 × 0 before the document is measured: the frame has not
+    // gone, so a marker already on it stays put for the measured layout instead of hiding and restarting.
+    const frames = this.state.layout?.frames ?? [];
+    if (rect === null && work !== null && work.frame === this.workMarkFrame && frames.some(frame => frame.id === work.frame) && frames.every(frame => frame.width === 0 && frame.height === 0)) return;
     if (work === null || rect === null) {
       if (this.workMark) this.workMark.hidden = true;
       this.workMarkFrame = null;
