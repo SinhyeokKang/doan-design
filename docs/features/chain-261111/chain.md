@@ -11,7 +11,7 @@
 | 링크 | 문서 | 검토·초안 | 순서 이유 |
 |---|---|---|---|
 | 1. `frame-first-selection` | [spec](../frame-first-selection/spec.md) · [design](../frame-first-selection/design.md) · [tasks](../frame-first-selection/tasks.md) | `/feature-review` 완료, 초안 사용자 확정 | 다섯 기능 계획의 2번이다. 병합 순서에서 먼저 둔다 |
-| 2. `canvas-activity-notices` | [spec](../canvas-activity-notices/spec.md) · [design](../canvas-activity-notices/design.md) · [tasks](../canvas-activity-notices/tasks.md) | `/feature-review` 완료, 초안 사용자 확정 | 다섯 기능 계획의 5번이다. 3번 `canvas-rendering-stability`와 4번 `frame-prototype`은 초안 확정 전이라 이 체인에 넣지 않았다 |
+| 2. `canvas-activity-notices` | [spec](../canvas-activity-notices/spec.md) · [design](../canvas-activity-notices/design.md) · [tasks](../canvas-activity-notices/tasks.md) | `/feature-review` 완료, 초안 사용자 확정 | 다섯 기능 계획의 5번이다. 3번 `canvas-rendering-stability`와 4번 `frame-prototype`은 초안 확정 전이라 이 체인에 넣지 않았다. `frame-prototype`은 선행 조건이 아니다. spec 6항의 프로토타입 제외는 프로토타입 창이 없는 지금 발생하지 않으므로 썸네일 제외만 검증하고, 프로토타입 제외는 `frame-prototype` spec 9항이 지킨다 |
 
 **병렬 판단**: 두 design이 밝힌 변경 파일이 겹치지 않는다.
 - 링크 1: `app/src/main/canvasScript.ts`, `app/src/renderer/CanvasController.ts`, `selection.ts`, `canvasTool.ts`, `canvasMessage.ts`와 선택 표시.
@@ -24,9 +24,8 @@
 
 lead는 링크 1 시작 전에 아래를 사용자에게 한 번에 묻고, 승인을 `인계 기록`에 남긴다. 승인 뒤 conductor는 일상적인 판단을 스스로 하고, 새 제품·범위 결정이나 실제 사용자 상태를 건드리는 결정만 묻는다.
 
-1. **계획 순서 변경**: 링크 2는 계획상 3·4번보다 뒤지만 먼저 구현한다. spec 6항의 '프로토타입만 보는 것은 읽음 처리하지 않음'은 `frame-prototype`이 아직 없으므로 이번에는 썸네일 제외만 검증하고, 프로토타입 제외는 `frame-prototype` 구현 때 지킨다. 이 처리를 승인하는가.
-2. **링크 2의 공유 메타데이터 계약**: 작업 1 PoC가 `.doan/` 아래 저장 경로·파일 단위·버전·schema·TS/Go 소비 여부를 정한다. 이는 ARCHITECTURE §7·§10·§11을 바꾸는 구조 결정이다. PoC 결과를 conductor가 사용자에게 확인받고 진행할지, conductor 판단으로 진행할지 정한다.
-3. **링크 2의 대화 종료 실제 확인**: 말풍선 표시를 실제 앱에서 보려면 읽지 않은 대화 종료가 필요하다. 격리 앱에서 대화 기록 fixture로 만들지, 제공자 로그인으로 실제 대화를 끝낼지 정한다. 로그인이 필요하면 아래 `로그인` 절을 추가한다.
+1. **링크 2의 공유 메타데이터 계약**: 작업 1 PoC가 `.doan/` 아래 저장 경로·파일 단위·버전·schema·TS/Go 소비 여부를 정한다. 이는 ARCHITECTURE §7·§10·§11을 바꾸는 구조 결정이다. PoC 결과를 conductor가 사용자에게 확인받고 진행할지, conductor 판단으로 진행할지 정한다.
+2. **링크 2의 대화 종료 실제 확인**: 말풍선 표시를 실제 앱에서 보려면 읽지 않은 대화 종료가 필요하다. 격리 앱에서 대화 기록 fixture로 만들지, 제공자 로그인으로 실제 대화를 끝낼지 정한다. 로그인이 필요하면 아래 `로그인` 절을 추가한다.
 
 ## 상시 권한
 
