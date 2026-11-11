@@ -19,12 +19,26 @@ export interface CanvasRow {
   // Bumped by the shell when this file changed without a served bump, so the
   // open canvas and its thumbnail reload for their own file only.
   rev?: number;
-  // Set by `canvasSeen.ts` when the canvas appeared or changed since the person last had it on the canvas page.
+  // Set by the read state (`readState.ts`) when the canvas appeared or its HTML changed since it was last shown on the
+  // canvas page.
   unseen?: "new" | "changed";
+  // An unseen canvas the canvas page showed whose read state could not be saved: `save` for a write that failed (the
+  // dot says so instead of "changed"), `id` for a canvas with a missing or duplicated ID (nothing can be saved).
+  saveFailed?: "save" | "id";
   // `doan ls` could not read the canvas file.
   error?: RowError;
   url: string;
 }
+
+// What the read-state toast tells, with Retry: a canvas whose read state could not be saved (`path`), or a project
+// whose initial records could not be written or whose records cannot be read. `readOnly`: the write was refused for
+// permissions.
+export type ReadStateProblem =
+  | { kind: "save"; path: string; readOnly: boolean }
+  | { kind: "id"; path: string }
+  | { kind: "baseline"; readOnly: boolean }
+  | { kind: "records" }
+  | { kind: "unsupported" };
 
 // The message holds a repo-relative path and the cause, never an absolute path.
 export interface RowError { code: string; message: string }

@@ -366,6 +366,8 @@ code, kbd { font-family: var(--type-family); }
    dialog has no transform, so fixed positioning is relative to the window. */
 .toast[data-placement="dialog"] { position: fixed; }
 .toast .msg { min-width: 0; overflow-wrap: anywhere; }
+/* A running Retry keeps focus, so it is `data-disabled` rather than `:disabled`, and the hover fill must not come back. */
+.toast .doan-button[data-disabled]:hover { background: var(--affordance-disabled); }
 
 .back { flex: none; }
 .top .divider { width: 1px; height: 18px; background: var(--border-standard); flex: none; margin: 0 -4px; }

@@ -21,6 +21,8 @@ export interface DebuggerLike {
 
 export interface Inspector {
   inspect(selector: string): Promise<InspectResult>;
+  // The CDP id of the window's main frame, the parent a shown canvas iframe must have; null while it cannot be read.
+  mainFrame(): Promise<string | null>;
 }
 
 interface DomNode {
@@ -60,6 +62,7 @@ export function createInspector(dbg: DebuggerLike, tokenBase: () => string, docu
   const sessionFrames = new Map<string, string>();
   const frameOwners = new Map<string, string>();
   let connected: Promise<void> | null = null;
+  let mainFrameId: Promise<string | null> | null = null;
   // Requests run one at a time: each one turns DOM and CSS off when it ends,
   // which would break another request still reading the same session.
   let queue: Promise<unknown> = Promise.resolve();
@@ -77,6 +80,8 @@ export function createInspector(dbg: DebuggerLike, tokenBase: () => string, docu
       if (object(value)) {
         if ((method === "Network.loadingFinished" || method === "Network.loadingFailed") && typeof value.requestId === "string") documents.finish(value.requestId, method === "Network.loadingFinished");
         if (method === "Page.frameNavigated") {
+          // The window's own document committed: its main frame is the one without a parent.
+          if (!sessionId && object(value.frame) && typeof value.frame.id === "string" && value.frame.parentId === undefined) mainFrameId = Promise.resolve(value.frame.id);
           documents.commit(value.frame);
           if (sessionId && object(value.frame) && typeof value.frame.id === "string") {
             sessionFrames.set(sessionId, value.frame.id);
@@ -118,6 +123,7 @@ export function createInspector(dbg: DebuggerLike, tokenBase: () => string, docu
     frameOwners.clear();
     documents?.clear();
     connected = null;
+    mainFrameId = null;
   });
 
   const connect = (): Promise<void> => {
@@ -191,6 +197,13 @@ export function createInspector(dbg: DebuggerLike, tokenBase: () => string, docu
   };
 
   return {
+    mainFrame() {
+      mainFrameId ??= connect().then(async () => (await frameOf()).id).catch(() => {
+        mainFrameId = null;
+        return null;
+      });
+      return mainFrameId;
+    },
     inspect(selector) {
       // The budget counts from the call, so time spent waiting in the queue counts too.
       let timer: ReturnType<typeof setTimeout> | undefined;

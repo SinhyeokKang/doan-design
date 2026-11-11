@@ -9,7 +9,7 @@ import { commitVisit, emptyHistory, fallbackWorktree, historyTarget, loadedProje
 import { groupToOpen, openGroup, toggleGroup, type GroupId, type ShownCanvas } from "./sidebarGroups";
 import { canvasLabel, moveExpanded } from "./canvasTree";
 import type { Selection } from "../formats/types";
-import type { CanvasRow, FolderEntry } from "../main/view";
+import type { CanvasRow, FolderEntry, ReadStateProblem } from "../main/view";
 import { projectKeepsLocal } from "../main/storage";
 import type { WorkItem } from "../main/workState";
 import type { ConversationWork } from "../main/conversationWork";
@@ -94,7 +94,7 @@ import { KeyedConversationStrip } from "./ConversationStripView";
 import { stripView } from "./conversationStrip";
 import { slotKey } from "./homeConversations";
 import { withTerminalSlots } from "./conversationList";
-import { seenMark, sidebarSlots } from "./canvasNotice";
+import { readStateToast, shownIntent, sidebarSlots } from "./canvasNotice";
 import { HomeRun } from "./homeRun";
 import { SettingsPage, type SettingsArrival } from "./SettingsPage";
 import { parseSettingsTarget, settingsArrival, SettingsTargetQueue, shownSettingsSection, type SettingsSection, type SettingsTarget } from "./settingsSections";
@@ -2047,8 +2047,42 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // The canvas page, not the Overview's thumbnails or a canvas under the overlay, makes a canvas seen; a change while it
   // stays shown marks it again.
   const shownCanvas = screen === "workspace" && overview === null && !overlaid && state.open && state.shown && !state.unlisted ? { root: state.open.folder, path: state.shown } : null;
-  const mark = seenMark(entries, { screen, overview: overview !== null, root: state.open?.folder ?? null, shown: state.shown, unlisted: Boolean(state.unlisted) });
-  useEffect(() => { if (mark) void window.doan.markCanvasSeen(mark).catch(() => {}); }, [mark?.root, mark?.path, mark?.mtimeMs]);
+  // Main proves what the page shows from its own document bindings; the renderer only says what it means to show.
+  const intent = shownIntent(entries, { screen, overview: overview !== null, covered: overlaid, root: state.open?.folder ?? null, shown: state.shown, unlisted: Boolean(state.unlisted) });
+  const intentKey = intent ? `${intent.root}\n${intent.path}` : null;
+  const intentRef = useRef(intent); intentRef.current = intent;
+  const toldIntent = useRef<string | null>(null);
+  useEffect(() => {
+    if (intentKey === toldIntent.current) return;
+    toldIntent.current = intentKey;
+    void window.doan.showCanvas(intentRef.current).catch(() => {});
+  }, [intentKey]);
+  // A read-state failure is a Retry toast, once: for a failure found meanwhile, only on its project (and canvas); after
+  // the toast has gone, entering the project again tries once more and tells what still fails.
+  const readStatePlace = useRef<{ root: string | null; shown: string | null }>({ root: null, shown: null });
+  readStatePlace.current = { root: screen === "workspace" ? loadedRoot : null, shown: intent?.path ?? null };
+  const readStateRetry = (root: string, problem: ReadStateProblem) => {
+    const text = readStateToast(problem);
+    live.current.toast.retry(text.message, "Retry", text.busy, "Retrying", async () => {
+      const next = await window.doan.retryReadState({ root, ...("path" in problem ? { path: problem.path } : {}) });
+      return next ? readStateToast(next).message : null;
+    });
+  };
+  const readStateRetryRef = useRef(readStateRetry); readStateRetryRef.current = readStateRetry;
+  useEffect(() => window.doan.onReadStateProblem(({ root, problem }) => {
+    const place = readStatePlace.current;
+    if (place.root !== root || ("path" in problem && problem.path !== place.shown)) return;
+    readStateRetryRef.current(root, problem);
+  }), []);
+  const enteredRoot = screen === "workspace" ? loadedRoot : null;
+  useEffect(() => {
+    if (enteredRoot === null) return;
+    let here = true;
+    window.doan.retryReadState({ root: enteredRoot }).then(problem => {
+      if (here && problem && readStatePlace.current.root === enteredRoot) readStateRetryRef.current(enteredRoot, problem);
+    }, () => {});
+    return () => { here = false; };
+  }, [enteredRoot]);
   useEffect(() => {
     if (screen !== "workspace" || !loadedRoot || overlaid) return;
     homeRun.current.visit([slotKey(loadedRoot), ...(state.open?.folder === loadedRoot ? [slotKey(loadedRoot, state.open.canvas)] : [])]);

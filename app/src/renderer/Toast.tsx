@@ -5,7 +5,7 @@ import { initialToastState, toastState } from "./toastState";
 export function useToast(restoreFocus?: (previous: HTMLElement | null) => void) {
   const previousFocus = useRef<HTMLElement | null>(null);
   const [state, dispatch] = useReducer(toastState, initialToastState);
-  const handlers = useRef(new Map<string, { run?: () => void; expire?: () => void }>());
+  const handlers = useRef(new Map<string, { run?: () => void; expire?: () => void; press?: () => void }>());
   const timerAt = useRef(0);
   useEffect(() => {
     timerAt.current = performance.now();
@@ -37,7 +37,13 @@ export function useToast(restoreFocus?: (previous: HTMLElement | null) => void) 
     if (node?.matches(":hover")) dispatch({ type: "hover", on: true });
     if (node?.contains(document.activeElement)) dispatch({ type: "focus", on: true });
   }, [state.toast?.id, placed]);
-  const action = () => dispatch({ type: "action" });
+  // A Retry-style action runs in place: it keeps the toast (and focus on its button) until it settles.
+  const action = () => {
+    const current = state.toast;
+    const press = current ? handlers.current.get(current.id)?.press : undefined;
+    if (current && press) { if (!current.busy) press(); return; }
+    dispatch({ type: "action" });
+  };
   const element = state.toast && <div key={state.toast.id} className="toast doan-floating doan-toast" role="status" {...(dialog ? { "data-placement": "dialog" } : {})}
     ref={node => {
       if (!node) return;
@@ -50,7 +56,10 @@ export function useToast(restoreFocus?: (previous: HTMLElement | null) => void) 
     }}
     onMouseEnter={() => dispatch({ type: "hover", on: true })} onMouseLeave={() => { timerAt.current = performance.now(); dispatch({ type: "hover", on: false }); }}
     onFocus={event => { if (!event.currentTarget.contains(event.relatedTarget)) previousFocus.current = event.relatedTarget instanceof HTMLElement ? event.relatedTarget : null; dispatch({ type: "focus", on: true }); }} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) { timerAt.current = performance.now(); dispatch({ type: "focus", on: false }); } }}>
-    <span className="msg selectable">{state.toast.message}</span>{state.toast.action && <button className="btn doan-button" data-ui-variant="prominent" data-ui-size="sm" onClick={action}>{state.toast.action}</button>}
+    <span className="msg selectable">{state.toast.message}</span>{state.toast.action && <button className="btn doan-button" data-ui-variant="prominent" data-ui-size="sm" onClick={action}
+      // Not `disabled`: that would drop focus from the button while it runs, and the button's focus decides where focus
+      // goes when the toast leaves.
+      {...(state.toast.busy ? { "aria-disabled": true, "data-disabled": "" } : {})}>{state.toast.busy ? <><span className="doan-spinner" aria-hidden="true" />{state.toast.action}</> : state.toast.action}</button>}
   </div>;
   return {
     toast: state.toast,
@@ -65,6 +74,23 @@ export function useToast(restoreFocus?: (previous: HTMLElement | null) => void) 
     showIn(dialog: HTMLDialogElement | null, message: string) {
       timerAt.current = performance.now();
       dispatch({ type: "show", toast: { id: crypto.randomUUID(), message, ...(dialog ? { dialog } : {}) } });
+    },
+    // A toast whose `label` action (Retry) runs `attempt` in place: while it runs the toast shows `busy` and a
+    // `running` button that does nothing; it goes when `attempt` resolves null and otherwise shows the resolved text with
+    // the action again. A toast that replaced it meanwhile is left alone.
+    retry(message: string, label: string, busy: string, running: string, attempt: () => Promise<string | null>) {
+      const id = crypto.randomUUID();
+      handlers.current.set(id, {
+        press: () => {
+          dispatch({ type: "update", id, message: busy, action: running, busy: true });
+          attempt().then(next => {
+            if (next === null) dispatch({ type: "dismiss", id });
+            else dispatch({ type: "update", id, message: next, action: label, busy: false });
+          }, () => dispatch({ type: "update", id, message, action: label, busy: false }));
+        },
+      });
+      timerAt.current = performance.now();
+      dispatch({ type: "show", toast: { id, message, action: label } });
     },
     action,
     setModal(on: boolean) { timerAt.current = performance.now(); dispatch({ type: "modal", on }); },

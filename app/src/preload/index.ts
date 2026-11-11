@@ -34,7 +34,7 @@ import type { TestNotificationReply } from "../main/notifyService";
 import type { AboutRead } from "../main/about";
 import type { InstallGate, UpdateSnapshot } from "../main/update/types";
 import type { InspectResult } from "../main/inspect";
-import type { FolderEntry } from "../main/view";
+import type { FolderEntry, ReadStateProblem } from "../main/view";
 import type { TrashPlanReply, TrashReply } from "../main/canvasTrash";
 import type { ExportReply } from "../main/canvasExport";
 import type { ThumbnailReply, ThumbnailTarget } from "../main/thumbnails";
@@ -407,8 +407,17 @@ const api = {
   },
   // `ui-state.json` as main validated it against the saved roots; null starts at home.
   readShellActivity: (request: { roots: string[] }): Promise<ShellActivity[] | null> => ipcRenderer.invoke("shell:activity", request),
-  // The canvas page shows an unseen canvas; main records its mtime and sends the list again.
-  markCanvasSeen: (request: { root: string; path: string; mtimeMs: number }): Promise<boolean> => ipcRenderer.invoke("canvas:seen", request),
+  // The canvas the canvas page is meant to show, null when it shows none. Main records the read state once its own
+  // document bindings prove the canvas shown, and sends the list again.
+  showCanvas: (request: { root: string; path: string } | null): Promise<boolean> => ipcRenderer.invoke("read-state:showing", request),
+  // Retry, or re-entering a project: what still fails after the read state was saved and read again, or null.
+  retryReadState: (request: { root: string; path?: string }): Promise<ReadStateProblem | null | false> => ipcRenderer.invoke("read-state:retry", request),
+  // A read-state failure found while the person did not ask, for a toast on that project.
+  onReadStateProblem(listener: (notice: { root: string; problem: ReadStateProblem }) => void): () => void {
+    const receive = (_event: Electron.IpcRendererEvent, notice: { root: string; problem: ReadStateProblem }) => listener(notice);
+    ipcRenderer.on("read-state:problem", receive);
+    return () => ipcRenderer.removeListener("read-state:problem", receive);
+  },
   readUiState: (): Promise<UiState | null> => ipcRenderer.invoke("ui-state:get"),
   // Main validates again and writes the last value after 500 ms; false when refused.
   saveUiState: (state: UiState): Promise<boolean> => ipcRenderer.invoke("ui-state:save", state),
