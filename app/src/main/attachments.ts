@@ -245,14 +245,16 @@ export class AttachmentStore {
   // a folder that became a file, or a file that became a folder, is missing; another folder in a folder's place is
   // replaced.
   private check(path: string, expected: Entry | null): Checked | { error: AttachmentError } {
-    let real: string, opened: Opened;
+    let real: string | undefined, opened: Opened;
     try {
       real = realpathSync.native(path);
       if (expected && real !== expected.path) return { error: expected.kind === "directory" && isDirectory(real) ? "replaced" : "not_found" };
       opened = readChecked(real, expected?.kind === "directory" ? null : expected, !expected);
     } catch (error) {
       const code = typeof error === "object" && error !== null && "code" in error ? error.code : "";
-      return { error: code === "ENOENT" || code === "ENOTDIR" ? "not_found" : code === "not_file" || code === "EISDIR" ? "not_file" : "unreadable" };
+      if (code === "ENOENT" || code === "ENOTDIR") return { error: "not_found" };
+      // A socket refuses open() itself (EOPNOTSUPP on macOS), so its kind comes from lstat of the canonical path.
+      return { error: code === "not_file" || code === "EISDIR" || (real !== undefined && isSpecial(real)) ? "not_file" : "unreadable" };
     }
     if (expected && opened.directory !== (expected.kind === "directory")) return { error: "not_found" };
     if (opened.directory) {
@@ -275,6 +277,9 @@ export class AttachmentStore {
 function record(entry: Entry, checked: Checked | Entry): AttachmentRecord {
   return entry.kind === "directory" ? { name: entry.name, kind: "directory", path: entry.path }
     : { name: entry.name, size: "size" in checked ? checked.size : 0, kind: entry.kind, path: entry.path };
+}
+function isSpecial(path: string): boolean {
+  try { const stat = lstatSync(path); return !stat.isFile() && !stat.isDirectory() && !stat.isSymbolicLink(); } catch { return false; }
 }
 function isDirectory(path: string): boolean {
   try { return lstatSync(path).isDirectory(); } catch { return false; }

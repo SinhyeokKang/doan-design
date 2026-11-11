@@ -1,3 +1,4 @@
+import { createServer } from "node:net";
 import { afterEach, expect, it, vi } from "vitest";
 // Records every path attachments.ts opens, so a test can show a file was never opened. `fault` makes the save of a
 // capture or paste fail at one step, only while a test sets it.
@@ -66,6 +67,16 @@ it("refuses special files, missing paths and image names without an image signat
   const results = f.store.addPaths({ paths: [fifo, join(f.files, "gone.txt"), fake, good] })!;
   expect(results.map(r => r.ok ? "ok" : r.error)).toEqual(["not_file", "not_found", "not_image", "ok"]);
   expect(f.thumbnail).not.toHaveBeenCalled();
+});
+// A socket cannot be opened at all (macOS answers EOPNOTSUPP), unlike a FIFO, so it must still read as a special file
+// rather than as one that couldn't be read.
+it("refuses a socket as neither a file nor a folder", async () => {
+  const f = fixture();
+  const sock = join(f.files, "preview.sock"), server = createServer();
+  await new Promise<void>(resolve => server.listen(sock, resolve));
+  try {
+    expect(f.store.addPaths({ paths: [sock] })!.map(r => r.ok ? "ok" : r.error)).toEqual(["not_file"]);
+  } finally { await new Promise(resolve => server.close(resolve)); }
 });
 it("does not decode an image above the cap for its thumbnail", () => {
   const f = fixture();
