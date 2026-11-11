@@ -389,40 +389,25 @@ it("still opens and closes groups while the page is locked, showing their heads 
   tree.press("Canvases", "ArrowLeft");
   expect(tree.props.toggleGroup.mock.calls).toEqual([["common", "ds"], ["common", "canvases"]]);
 });
-// A project row whose slot is a canvas notice hands that canvas to its activation; any
-// other slot leaves the activation as it was.
-it("passes the project row's canvas notice to toggle on click and Enter", () => {
+// A project row's canvas notice and terminal spinner only mark: the row's click and Enter keep the row's own move and
+// hand it no canvas (PRODUCT §5 item 1).
+it("a project row's canvas notice or terminal spinner does not change its click or Enter", () => {
   const row = { path: ".doan/canvases/a.html", url: "u" };
   const entries: FolderEntry[] = ["/a", "/b"].map(path => ({ path, kind: "list", servedRev: 0, canvases: [row] }));
   const notice = { kind: "canvas" as const, label: "a is new" };
-  const props = { cards: [{ key: "common", name: "demo", rows: entries }], projects: { common: { roots: ["/a", "/b"], selectedRoot: "/a", expanded: false } }, loaded: null, canvas: undefined, homeDirectory: null, search: vi.fn(), toggle: vi.fn(), disclose: vi.fn(), toggleGroup: vi.fn(), worktree: vi.fn(), open: vi.fn(), overview: vi.fn(), action: vi.fn(), remove: vi.fn(async () => {}), projectSettings: vi.fn(), canvasMenu: NO_CANVAS_MENU,
-    slots: new Map<string, SidebarSlot>([["/b\n.doan/canvases/a.html", notice], ["/a\n.doan/canvases/a.html", notice]]) };
-  const project = elements(ShellSidebar(props)).find(item => item["data-key"] === "common")!;
-  if (typeof project.onClick !== "function") throw new Error("Missing click handler");
-  project.onClick();
-  expect(props.toggle).toHaveBeenLastCalledWith("common", { root: "/b", path: row.path });
-  key(project, "Enter");
-  expect(props.toggle).toHaveBeenLastCalledWith("common", { root: "/b", path: row.path });
-  const working = { ...props, slots: new Map<string, SidebarSlot>([["/b\n.doan/canvases/a.html", { kind: "working" as const, label: "w" }], ["/a\n.doan/canvases/a.html", notice]]), toggle: vi.fn() };
-  hooks.cursor = 0;
-  const other = elements(ShellSidebar(working)).find(item => item["data-key"] === "common")!;
-  if (typeof other.onClick !== "function") throw new Error("Missing click handler");
-  other.onClick();
-  expect(working.toggle).toHaveBeenLastCalledWith("common");
-  expect(working.toggle.mock.lastCall).toHaveLength(1);
-});
-// A terminal session's slot on the project row opens its canvas, as a notice does.
-it("passes the project row's terminal slot to toggle as the canvas to open", () => {
-  const row = { path: ".doan/canvases/a.html", url: "u" };
-  const entries: FolderEntry[] = ["/a", "/b"].map(path => ({ path, kind: "list", servedRev: 0, canvases: [row] }));
   const terminal = { kind: "working" as const, label: "Codex is working in a terminal", source: "terminal" as const };
-  const props = { cards: [{ key: "common", name: "demo", rows: entries }], projects: { common: { roots: ["/a", "/b"], selectedRoot: "/a", expanded: false } }, loaded: null, canvas: undefined, homeDirectory: null, search: vi.fn(), toggle: vi.fn(), disclose: vi.fn(), toggleGroup: vi.fn(), worktree: vi.fn(), open: vi.fn(), overview: vi.fn(), action: vi.fn(), remove: vi.fn(async () => {}), projectSettings: vi.fn(), canvasMenu: NO_CANVAS_MENU,
-    slots: new Map<string, SidebarSlot>([["/b\n.doan/canvases/a.html", terminal]]) };
-  hooks.cursor = 0;
-  const project = elements(ShellSidebar(props)).find(item => item["data-key"] === "common")!;
-  if (typeof project.onClick !== "function") throw new Error("Missing click handler");
-  project.onClick();
-  expect(props.toggle).toHaveBeenLastCalledWith("common", { root: "/b", path: row.path });
+  for (const slot of [notice, terminal]) {
+    const props = { cards: [{ key: "common", name: "demo", rows: entries }], projects: { common: { roots: ["/a", "/b"], selectedRoot: "/a", expanded: false } }, loaded: null, canvas: undefined, homeDirectory: null, search: vi.fn(), toggle: vi.fn(), disclose: vi.fn(), toggleGroup: vi.fn(), worktree: vi.fn(), open: vi.fn(), overview: vi.fn(), action: vi.fn(), remove: vi.fn(async () => {}), projectSettings: vi.fn(), canvasMenu: NO_CANVAS_MENU,
+      slots: new Map<string, SidebarSlot>([["/b\n.doan/canvases/a.html", slot]]) };
+    hooks.cursor = 0;
+    const rendered = elements(ShellSidebar(props));
+    expect(rendered).toContainEqual({ slot });
+    const project = rendered.find(item => item["data-key"] === "common")!;
+    if (typeof project.onClick !== "function") throw new Error("Missing click handler");
+    project.onClick();
+    key(project, "Enter");
+    expect(props.toggle.mock.calls).toEqual([["common"], ["common"]]);
+  }
 });
 
 // Every canvas row gets the project row's menu button and a menu of Export… and
@@ -618,7 +603,7 @@ it("a permission request beats the problem icon, and its click still opens the c
   expect(rendered).toContainEqual({ slot: permission });
   expect(project["aria-describedby"]).toBeDefined();
   (project.onClick as () => void)();
-  expect(props.toggle).toHaveBeenLastCalledWith("common", { root: "/b", path: ".doan/canvases/a.html" });
+  expect(props.toggle.mock.lastCall).toEqual(["common"]);
 });
 
 it("the project menu's Overview item is available on a problem root, and opens it", () => {

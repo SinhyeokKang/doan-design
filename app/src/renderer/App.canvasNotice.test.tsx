@@ -116,7 +116,7 @@ function all(node: ReactNode): ReactElement<Record<string, unknown>>[] {
   if (!isValidElement<Record<string, unknown>>(node)) return [];
   return [node, ...Object.values(node.props).flatMap(value => Array.isArray(value) || isValidElement(value) ? all(value as ReactNode) : [])];
 }
-type Sidebar = { slots?: ReadonlyMap<string, { kind: string }>; toggle(key: string, notice?: { root: string; path: string }): void; cards: { key: string }[] };
+type Sidebar = { slots?: ReadonlyMap<string, { kind: string }>; toggle(key: string): void; cards: { key: string }[] };
 const sidebar = () => (all(tree).find(element => element.type === ShellSidebar)!.props as unknown as Sidebar);
 const rows = (a: Partial<CanvasRow>, b: Partial<CanvasRow> = {}): CanvasRow[] => [{ path: A, url: "u-a", mtimeMs: 10, ...a }, { path: B, url: "u-b", mtimeMs: 5, ...b }];
 const folders = (canvases: CanvasRow[], extra: FolderEntry[] = []) => { listeners.folders!([{ path: "/w/a", kind: "list", servedRev: 0, canvases }, ...extra] as never); render(); };
@@ -186,27 +186,27 @@ test("entering a project tries its read state again and tells what still fails, 
   expect(doan.retryReadState).toHaveBeenCalledTimes(1);
 });
 
-test("a project row's canvas notice opens that canvas where its conversation slot would open the Overview", async () => {
+// A project row's canvas notice only marks: the row keeps its own move (PRODUCT §5 item 1 'Canvas notice').
+test("a loaded project row's canvas notice leaves its move, which opens the Overview over its canvas", async () => {
   await start(rows({}, { unseen: "new" }), [], workspace);
   show(rows({})[0]!);
   const key = sidebar().cards[0]!.key;
-  sidebar().toggle(key, { root: "/w/a", path: B }); render();
-  expect(harness.controller!.openCanvas).toHaveBeenLastCalledWith("/w/a", expect.objectContaining({ path: B }), undefined, expect.anything());
-  expect(harness.controller!.showOverview).not.toHaveBeenCalled();
-  // Without a notice the row keeps its move.
+  const before = harness.controller!.openCanvas!.mock.calls.length;
   sidebar().toggle(key); render();
   expect(harness.controller!.showOverview).toHaveBeenCalledTimes(1);
+  expect(harness.controller!.openCanvas!.mock.calls.length).toBe(before);
 });
 
-test("a collapsed project's notice opens its canvas instead of the project's workspace", async () => {
+test("a collapsed project's canvas notice leaves its move, which opens that project's Overview", async () => {
   const other: FolderEntry = { path: "/w/b", kind: "list", servedRev: 0, canvases: [{ path: B, url: "u-b2", mtimeMs: 3, unseen: "new" }] };
   await start(rows({}), [other], workspace);
   show(rows({})[0]!);
   const key = sidebar().cards.find(card => card.key !== sidebar().cards.find(item => item.key.includes("/w/a"))?.key)!.key;
   expect(sidebar().slots?.get(`/w/b\n${B}`)?.kind).toBe("canvas");
-  sidebar().toggle(key, { root: "/w/b", path: B }); await Promise.resolve(); render();
-  expect(harness.controller!.openCanvas).toHaveBeenLastCalledWith("/w/b", expect.objectContaining({ path: B }), undefined, expect.anything());
-  expect(harness.controller!.openWorkspace).not.toHaveBeenCalledWith("/w/b", expect.anything());
+  const before = harness.controller!.openCanvas!.mock.calls.length;
+  sidebar().toggle(key); await Promise.resolve(); await Promise.resolve(); render();
+  expect(harness.controller!.openWorkspace).toHaveBeenLastCalledWith("/w/b", expect.any(Function), false, undefined, true);
+  expect(harness.controller!.openCanvas!.mock.calls.length).toBe(before);
 });
 
 // Text a user may need to copy (an error reason, the reason a canvas could not load) is selectable; the buttons around it are not.
