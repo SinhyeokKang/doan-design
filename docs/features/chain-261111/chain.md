@@ -14,7 +14,7 @@
 |---|---|---|---|
 | 1. `canvas-rendering-stability` | [spec](../canvas-rendering-stability/spec.md) · [design](../canvas-rendering-stability/design.md) · [tasks](../canvas-rendering-stability/tasks.md) | `/feature-review` 완료(`1acd4dd4`까지). 새 화면이 없어 초안 없음 | 대형 캔버스 그래픽 깨짐의 원인(GPU 타일·메모리, 합성, 레이아웃)을 먼저 확인한다. 2026-11-11 녹화의 작업 중 레이어 누락도 skillflo의 큰 캔버스 위에서 일어나, 같은 원인을 공유할 수 있다 |
 | 2. `work-indicator-perf` | [spec](../work-indicator-perf/spec.md) · [design](../work-indicator-perf/design.md) · [tasks](../work-indicator-perf/tasks.md) | `/feature-review` 완료(`bb2c44ec`). 새 화면이 없어 초안 없음 | 합성 레이어를 새로 만드는 변경이다. 링크 1의 PoC가 GPU 메모리·타일 한계를 밝히면 그 결과로 레이어 수와 크기를 정한다 |
-| 3. `buddy-docked-motion` | [spec](../buddy-docked-motion/spec.md) · [design](../buddy-docked-motion/design.md) · [tasks](../buddy-docked-motion/tasks.md) | `/feature-review` 완료(`bd02429d`). 초안 `.doan/canvases/buddy-docked-motion.html` 수정본 커밋(`5e7d0e35`, tasks 1). 사용자 앱 확인 전 | 링크 2가 측정하는 대화 패널(입력창 테두리, 큐 행)에 움직이는 WebGL 버디를 더한다. 링크 2의 픽셀·프레임 기준선은 버디 없이 재고, 링크 3은 링크 2의 `contain` 규칙과 렌더링 최적화 위에서 버디의 비용을 잰다. 사용자 결정으로 직렬 |
+| 3. `buddy-docked-motion` | [spec](../buddy-docked-motion/spec.md) · [design](../buddy-docked-motion/design.md) · [tasks](../buddy-docked-motion/tasks.md) | `/feature-review` 완료(`bd02429d`). 초안 `.doan/canvases/buddy-docked-motion.html` 수정본 커밋(`5e7d0e35`, tasks 1). 사용자 확인 완료 | 링크 2가 측정하는 대화 패널(입력창 테두리, 큐 행)에 움직이는 WebGL 버디를 더한다. 링크 2의 픽셀·프레임 기준선은 버디 없이 재고, 링크 3은 링크 2의 `contain` 규칙과 렌더링 최적화 위에서 버디의 비용을 잰다. 사용자 결정으로 직렬 |
 
 **직렬 판단**: 링크 1과 2는 모두 `app/src/renderer/CanvasController.ts`와 보드·overlay 렌더링(`styles.css`, `canvasView.ts`, `viewport.ts`)을 건드릴 수 있다. 링크 3은 링크 1·2와 `styles.css`에서 겹치고, 링크 2와는 대화 패널(`ConversationThread.tsx` 주변 레이아웃, `contain`)과 측정 기준선에서 겹친다. 사용자가 링크 3을 직렬로 붙이기로 했다(2026-11-11).
 
@@ -87,3 +87,4 @@ lead는 링크 1 시작 전에 아래를 사용자에게 한 번에 묻고, 승�
   - 새 머신의 경로: 홈은 `/Users/sinhyeok`이고, skillflo 원본은 `/Users/sinhyeok/code/skillflo/skillflo-web/.doan`이다. 이 머신의 원본에는 `config.json`만 있고 캔버스가 없다. 자료 위치는 conductor가 사용자에게 확인한다.
   - 링크 1 conductor를 새 worktree `canvas-rendering-stability-orch`(원격 브랜치 체크아웃)에서 다시 띄웠다. 브리프에 위 결정, 새 경로, origin/develop을 병합한다는 것(rebase 금지)을 넣었다.
 - 2026-11-11 lead: 사용자 요청으로 `buddy-docked-motion`을 링크 3으로 붙였다. lead가 링크 2와의 병렬을 검토했다. 코드는 `styles.css`와 대화 패널에서만 겹치지만, 링크 2의 측정 기준선(대화 패널 픽셀·빠진 프레임)과 버디가 충돌한다. 사용자는 직렬을 택했다. `/feature-review`는 끝났고, 초안 수정본(`5e7d0e35`)은 독립 검수에서 막는 문제가 없었으며 사용자 앱 확인을 기다린다.
+- 2026-11-11 lead: 링크 3 시작 전 점검 1 완료. 사용자가 초안 수정본(`5e7d0e35`)과 대기 중 이동 간격 60–120초를 그대로 확인했다.
