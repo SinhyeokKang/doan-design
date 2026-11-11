@@ -23,8 +23,8 @@ export function useToast(restoreFocus?: (previous: HTMLElement | null) => void) 
     handlers.current.delete(state.ended.id);
     if (state.ended.reason === "action") handler?.run?.(); else handler?.expire?.();
   }, [state.ended]);
-  // Re-checked on every render, and the clock's tick renders every 100ms: a dialog that closed or was removed drops the
-  // toast back to its usual place, where an App modal holds it again.
+  // Re-checked on every render, and while a toast is shown the clock's tick renders every 100ms: a dialog that closed or
+  // was removed drops the toast back to its usual place, where an App modal holds it again.
   const host = state.toast?.dialog;
   const dialog = host?.isConnected && host.open ? host : null;
   const leftDialog = host !== undefined && dialog === null;
