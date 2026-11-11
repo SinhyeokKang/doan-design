@@ -10,9 +10,19 @@ export class DocumentBindings {
   private loaders = new Map<string, { frame: string; marker: string }>();
   private requests = new Map<string, string>();
   private finished = new Set<string>();
-  private frames = new Map<string, Frame>();
+  private committed = new Map<string, Frame>();
   private pending = new Map<string, string>();
-  private activeLoaders(): Set<string> { return new Set([...this.frames.values()].map(frame => frame.loaderId)); }
+  private listeners = new Set<() => void>();
+  // Something `current()` reads may have moved; listeners decide again (the read-state proof waits on this).
+  private changed(): void { for (const listener of this.listeners) listener(); }
+  onChange(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => { this.listeners.delete(listener); };
+  }
+  frames(): { id: string; parentId: string; url: string }[] {
+    return [...this.committed.values()].map(({ id, parentId, url }) => ({ id, parentId, url }));
+  }
+  private activeLoaders(): Set<string> { return new Set([...this.committed.values()].map(frame => frame.loaderId)); }
   private trim(map: { size: number; keys(): MapIterator<string> | SetIterator<string>; delete(key: string): boolean }, protectedKeys = new Set<string>()) {
     let unbound = [...map.keys()].filter(key => !protectedKeys.has(key)).length;
     for (const key of map.keys()) {
@@ -33,8 +43,8 @@ export class DocumentBindings {
     this.trim(this.responses, markers);
   }
   private retire(frameId: string): void {
-    const frame = this.frames.get(frameId);
-    this.frames.delete(frameId);
+    const frame = this.committed.get(frameId);
+    this.committed.delete(frameId);
     if (!frame) return;
     const binding = this.loaders.get(frame.loaderId);
     this.loaders.delete(frame.loaderId);
@@ -46,6 +56,7 @@ export class DocumentBindings {
   response(record: ResponseRecord): void {
     this.responses.set(record.marker, { ...record });
     this.trimResponses();
+    this.changed();
   }
   network(params: unknown): void {
     if (!object(params) || params.type !== "Document" || typeof params.loaderId !== "string" || typeof params.frameId !== "string" || !object(params.response) || !object(params.response.headers)) return;
@@ -55,6 +66,7 @@ export class DocumentBindings {
     if (typeof marker === "string") {
       this.bounded(this.loaders, params.loaderId, { frame: params.frameId, marker }, this.activeLoaders());
       if (typeof params.requestId === "string") this.bounded(this.requests, params.requestId, params.loaderId, new Set([...this.requests].filter(([, loader]) => this.activeLoaders().has(loader)).map(([request]) => request)));
+      this.changed();
     }
   }
   finish(requestId: string, success: boolean): void {
@@ -66,20 +78,22 @@ export class DocumentBindings {
     } else {
       this.finished.delete(loader);
       const bound = this.loaders.get(loader);
-      if (bound && this.frames.get(bound.frame)?.loaderId === loader) this.start(bound.frame);
+      if (bound && this.committed.get(bound.frame)?.loaderId === loader) this.start(bound.frame);
     }
+    this.changed();
   }
-  start(frame: string, loader = ""): void { this.retire(frame); this.bounded(this.pending, frame, loader); }
+  start(frame: string, loader = ""): void { this.retire(frame); this.bounded(this.pending, frame, loader); this.changed(); }
   commit(value: unknown): void {
     if (!object(value) || typeof value.id !== "string" || typeof value.parentId !== "string" || typeof value.loaderId !== "string" || typeof value.url !== "string") return;
     const pending = this.pending.get(value.id);
     if (pending && pending !== value.loaderId) return;
     this.pending.delete(value.id);
-    if (this.frames.get(value.id)?.loaderId !== value.loaderId) this.retire(value.id);
-    this.frames.set(value.id, { id: value.id, parentId: value.parentId, loaderId: value.loaderId, url: value.url });
+    if (this.committed.get(value.id)?.loaderId !== value.loaderId) this.retire(value.id);
+    this.committed.set(value.id, { id: value.id, parentId: value.parentId, loaderId: value.loaderId, url: value.url });
+    this.changed();
   }
   current(frameId: string, url: string): LoadedDocument | null {
-    const frame = this.frames.get(frameId);
+    const frame = this.committed.get(frameId);
     if (!frame || frame.url !== url) return null;
     const loader = this.loaders.get(frame.loaderId);
     if (!loader || !this.finished.has(frame.loaderId) || loader.frame !== frameId) return null;
@@ -87,5 +101,5 @@ export class DocumentBindings {
     if (!response?.complete || !response.stable || !response.hash) return null;
     return { ...response, generation: frame.loaderId, frame: frameId };
   }
-  clear(): void { this.responses.clear(); this.loaders.clear(); this.requests.clear(); this.finished.clear(); this.frames.clear(); this.pending.clear(); }
+  clear(): void { this.responses.clear(); this.loaders.clear(); this.requests.clear(); this.finished.clear(); this.committed.clear(); this.pending.clear(); this.changed(); }
 }

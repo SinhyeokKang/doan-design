@@ -178,8 +178,8 @@ vi.mock("./installCommand", async (importOriginal) => ({
 }));
 vi.mock("./canvasSeen", async (importOriginal) => {
   const original = await importOriginal<typeof import("./canvasSeen")>();
-  return { createCanvasSeenStore: (file: string) => {
-    const store = original.createCanvasSeenStore(file);
+  return { ...original, createLocalSeen: (file: string) => {
+    const store = original.createLocalSeen(file);
     return { ...store, flushSync: () => { mocks.canvasSeenFlushSync(); store.flushSync(); } };
   } };
 });
@@ -1980,12 +1980,16 @@ test("shell activity refuses foreign windows, subframes, unknown roots, and spar
   expect(await invoke("shell:activity", contents, null, { roots: [] })).toEqual([]);
 });
 
-test("canvas seen refuses foreign windows, subframes, unregistered roots and bad values", async () => {
+test("the read-state channels refuse foreign windows, subframes, unregistered roots and bad values", async () => {
   const contents = window().webContents;
-  expect(await invoke("canvas:seen", {}, null, { root: "/r", path: ".doan/canvases/a.html", mtimeMs: 1 })).toBe(false);
-  expect(await invoke("canvas:seen", contents, {}, { root: "/r", path: ".doan/canvases/a.html", mtimeMs: 1 })).toBe(false);
-  expect(await invoke("canvas:seen", contents, null, { root: "/not-registered", path: ".doan/canvases/a.html", mtimeMs: 1 })).toBe(false);
-  expect(await invoke("canvas:seen", contents, null, null)).toBe(false);
+  for (const channel of ["read-state:showing", "read-state:retry"]) {
+    expect(await invoke(channel, {}, null, { root: "/r", path: ".doan/canvases/a.html" })).toBe(false);
+    expect(await invoke(channel, contents, {}, { root: "/r", path: ".doan/canvases/a.html" })).toBe(false);
+    expect(await invoke(channel, contents, null, { root: "/not-registered", path: ".doan/canvases/a.html" })).toBe(false);
+    expect(await invoke(channel, contents, null, 1)).toBe(false);
+  }
+  // Showing nothing is always allowed.
+  expect(await invoke("read-state:showing", contents, null, null)).toBe(true);
 });
 
 // The page's own project instance, beside the onboarding session's.

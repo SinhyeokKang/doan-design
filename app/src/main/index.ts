@@ -60,10 +60,14 @@ import { conversationNames, createNotifyService } from "./notifyService";
 import { createPreferencesStore, windowBuddy } from "./preferences";
 import { buddyIntroShown } from "./buddyIntro";
 import type { BuddyId } from "../renderer/buddies";
-import { createCanvasSeenStore, type CanvasSeenStore } from "./canvasSeen";
+import { createLocalSeen, type LocalSeen } from "./canvasSeen";
+import { createReadState, type ReadState } from "./readState";
+import { createFingerprints } from "./seenFingerprint";
+import { shownDocument } from "./seenProof";
+import { readSeen, writeSeen } from "./seenRecords";
 import { DESIGN_SKILL_CHANNELS, DESIGN_SKILL_REFUSED, designSkillGetRequest, interpretGet, interpretList } from "./designSkills";
 import { folderState } from "./folderState";
-import { revealTarget } from "./view";
+import { revealTarget, type FolderEntry } from "./view";
 import type { InspectResult } from "./inspect";
 import { createInspector, parseInspectRequest, type Inspector } from "./inspector";
 import { startRuntime, type Runtime } from "./runtime";
@@ -232,7 +236,8 @@ let cancelPendingHide = () => {};
 let hidingAfterFullScreen = false;
 let addFlow: AddFlow | undefined;
 let uiState: UiStateStore | undefined;
-let canvasSeen: CanvasSeenStore | undefined;
+let canvasSeen: LocalSeen | undefined;
+let readState: ReadState | undefined;
 let thumbnails: Thumbnails | undefined;
 // The app always starts on Home.
 const HOME: MenuInputs = { screen: "home", modal: false };
@@ -512,8 +517,9 @@ function createWindow(buddy: BuddyId): BrowserWindow {
   // A reloaded or crashed renderer has lost the selection it reported; an
   // in-page navigation is not a new document, so it does not count.
   // A new renderer starts on Home again with no toast up.
-  window.webContents.on("render-process-gone", () => { selection = null; documents.clear(); setMenuInputs(HOME); });
-  window.webContents.on("did-navigate", () => { selection = null; documents.clear(); setMenuInputs(HOME); });
+  // The new renderer says again which canvas its page shows.
+  window.webContents.on("render-process-gone", () => { selection = null; readState?.showing(null); documents.clear(); setMenuInputs(HOME); });
+  window.webContents.on("did-navigate", () => { selection = null; readState?.showing(null); documents.clear(); setMenuInputs(HOME); });
   // Only the renderer showed and could cancel the Add Projects page's clone. First run's may belong to the CLI, so
   // it keeps running.
   window.webContents.on("render-process-gone", () => addPage?.rendererGone());
@@ -662,8 +668,27 @@ async function start(): Promise<void> {
   await mkdir(userData, { recursive: true });
   const choices = new Map<string, { id: string; path: string; epoch: number }>();
   // Only the window's copy of the list carries `unseen`; thumbnails and conversations read the shell's own entries.
-  const seenStore = createCanvasSeenStore(join(userData, "canvas-seen.json"));
+  const seenStore = createLocalSeen(join(userData, "canvas-seen.json"));
   canvasSeen = seenStore;
+  const fingerprints = createFingerprints();
+  let shellEntries: () => FolderEntry[] = () => [];
+  const seen = createReadState({
+    local: seenStore,
+    fingerprint: (root, path) => fingerprints.of(root, path),
+    read: readSeen,
+    write: writeSeen,
+    entries: () => shellEntries(),
+    // Only the main window's own canvas iframe proves a canvas shown (seenProof.ts).
+    async shown(root, row) {
+      const main = await inspector?.mainFrame();
+      if (!main) return null;
+      return shownDocument(documents.frames(), (frame, url) => documents.current(frame, url), main, { url: row.url, root, path: row.path })?.hash ?? null;
+    },
+    changed: () => send("folders", seen.decorate(shellEntries())),
+    problem: (root, problem) => send("read-state:problem", { root, problem }),
+  });
+  readState = seen;
+  documents.onChange(() => seen.documentsChanged());
   const ready = await startShell(join(userData, "folders.json"), cliCommand(process.env, app.isPackaged, process.resourcesPath), (entries, focus) => {
     const refreshes = folderRefreshes(conversationLists, entries);
     conversationLists = refreshes.next;
@@ -686,10 +711,12 @@ async function start(): Promise<void> {
       if (!entries.some(entry => entry.path === root && entry.kind === "uninitialized")) choices.delete(root);
     }
     thumbnails?.entriesChanged(entries);
-    if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send("folders", seenStore.apply(entries), focus);
+    seen.listed(entries);
+    if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send("folders", seen.decorate(entries), focus);
     readyOpenLinks();
   }, {
     response: record => documents.response(record),
+    seen: root => seen.recordsChanged(root),
     // A vanished auto-registered worktree is cleaned up like Remove (folders:remove); its work items go with the
     // list's retainWorkRoots above.
     autoRemoved(paths, before) {
@@ -701,6 +728,7 @@ async function start(): Promise<void> {
     migrate: async aliases => seenStore.copyRoots(aliases) && await moveUiStateRoots(join(userData, "ui-state.json"), aliases),
   });
   shell = ready;
+  shellEntries = () => ready.entries();
   updateWork(retainWorkRoots(workState, ready.entries().map(entry => entry.path)));
   handle("work:get", [], (_event, value: unknown) => value === undefined ? workItems(workState) : []);
   handle("conversation-work:get", [], (_event, value: unknown) => value === undefined ? conversationWork : []);
@@ -1058,14 +1086,9 @@ async function start(): Promise<void> {
   handle("app:home", null, event => fromWindow(event) ? homeDirectory() : null);
   handle("window:visible", null, event => fromWindow(event) ? { visible: windowShown && !appHidden } : null);
   handle("window:fullscreen", null, event => fromWindow(event) ? { fullScreen: win!.isFullScreen() } : null);
-  handle("folders:get", [], (event) => (fromWindow(event) ? seenStore.apply(ready.entries()) : []));
-  handle("canvas:seen", false, (event, value: unknown) => {
-    if (!fromWindow(event)) return false;
-    const entries = ready.entries();
-    if (!seenStore.mark(entries, value)) return false;
-    send("folders", seenStore.apply(entries));
-    return true;
-  });
+  handle("folders:get", [], (event) => (fromWindow(event) ? seen.decorate(ready.entries()) : []));
+  handle("read-state:showing", false, (event, value: unknown) => fromWindow(event) ? seen.showing(value) : false);
+  handle("read-state:retry", false, (event, value: unknown) => fromWindow(event) ? seen.retry(value) : false);
   const flow = createAddFlow({
     ls: async target => folderState(await runLs(cli, target)),
     saved: () => ready.entries().map((entry) => entry.path),

@@ -94,7 +94,7 @@ function reset() {
     readUiState: vi.fn(() => new Promise(resolve => { readUiState = resolve; })), saveUiState: vi.fn(async () => true), setMenuState: vi.fn(async () => {}),
     readPreferences: vi.fn(async () => PREFS), savePreferences: vi.fn(async () => null),
     readShellActivity: vi.fn(async () => []), setSelection: vi.fn(async () => {}), inspect: vi.fn(), openSettings: vi.fn(async () => true),
-    markCanvasSeen: vi.fn(async () => {}),
+    showCanvas: vi.fn(async () => true), retryReadState: vi.fn(async () => null), onReadStateProblem: vi.fn(() => () => {}),
     onWorkChanged: on("work"), onMcpConnectors: on("mcp"), onExportRunning: on("exportRunning"), onFullScreen: on("fullScreen"), getWork: vi.fn(() => { calls.push("getWork"); return new Promise(resolve => { getWork = resolve; }); }), onConversationWorkChanged: on("conversationWork"), getConversationWork: vi.fn(() => { calls.push("getConversationWork"); return new Promise(resolve => { getConversationWork = resolve; }); }),
     onOpenLink: on("openLink"), onQuitting: vi.fn(() => () => {}), openLinksReady: vi.fn(async () => { calls.push("openLinksReady"); }), onOpenRequest: on("openRequest"), onConversationHandoff: on("handoff"), answerOpenRequest: vi.fn(async () => {}),
   };
@@ -350,7 +350,7 @@ test("an open request opens its canvas as a link does and answers opened with th
   expect(harness.controller!.openCanvas!.mock.lastCall!.slice(0, 3)).toEqual(["/w/a", expect.objectContaining({ path: B }), undefined]);
   expect(doan.answerOpenRequest!.mock.calls).toStrictEqual([[{ id: "1", kind: "opened", frame: "found" }], [{ id: "2", kind: "opened", frame: "missing" }], [{ id: "3", kind: "opened", frame: "none" }]]);
   expect(harness.toast.show).not.toHaveBeenCalled();
-  for (const write of ["setSelection", "savePreferences", "openSettings", "markCanvasSeen"]) expect(doan[write], write).not.toHaveBeenCalled();
+  for (const write of ["setSelection", "savePreferences", "openSettings", "showCanvas"]) expect(doan[write], write).not.toHaveBeenCalled();
 });
 
 test("an open request for a canvas the renderer does not list, or one the controller does not open, answers canvas_not_found with no toast", async () => {

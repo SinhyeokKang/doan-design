@@ -316,6 +316,24 @@ describe("served revision", () => {
     expect(shell.scope(join(root, "nope"))).toEqual([]);
   });
 
+  test("a .doan/seen/ change tells the read state and runs no doan ls, publishes nothing and bumps nothing", async () => {
+    const counting = countingCli();
+    const root = servedRepo({});
+    mkdirSync(join(root, ".doan/seen"));
+    const changes: FolderEntry[][] = [], seen: string[] = [];
+    const shell = await startShell(join(dir(), "folders.json"), counting.path, entries => { changes.push(entries); }, { seen: at => { seen.push(at); } });
+    shells.push(shell);
+    await shell.open(root);
+    await vi.waitFor(() => expect(listed(latest(changes), root)).toBeDefined(), until);
+    await sleep(600);
+    const reads = counting.reads(), published = changes.length;
+    writeFileSync(join(root, ".doan/seen", "a.json"), '{"v":1,"unseen":"migrated"}\n');
+    await vi.waitFor(() => expect(seen).toContain(root), until);
+    await sleep(500);
+    expect(counting.reads()).toBe(reads);
+    expect(changes.length).toBe(published);
+  });
+
   test("an atomic tokenCss save bumps without running doan ls", async () => {
     const counting = countingCli();
     const root = servedRepo({ tokenCss: "styles/tokens.css" });

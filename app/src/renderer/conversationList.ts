@@ -18,7 +18,7 @@ export function conversationWork(c: ConversationSummary, seen: ReadonlySet<strin
   if (c.phase === "waiting") return { kind: "permission", label: `${p} needs your answer` };
   if (c.phase === "running") return { kind: "working", label: `${p} is working` };
   // Failed and stopped turns may have changed files too, so every ending waits to be seen (2026-10-29 user).
-  return c.unseen && !seen.has(c.conversationId) ? { kind: "unseen", label: `New changes from ${p}` } : null;
+  return c.unseen && !seen.has(c.conversationId) ? { kind: "unseen", label: "Conversation finished — unread" } : null;
 }
 
 // A canvas row by ID first, so a moved canvas keeps its slot; a canvas without an ID matches by path.

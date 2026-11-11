@@ -7,10 +7,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, expect, test } from "vitest";
 import { pruneAuto } from "./autoFolders";
-import { createCanvasSeenStore } from "./canvasSeen";
+import { createLocalSeen, judge } from "./canvasSeen";
 import { openFolderStore } from "./folderStore";
 import { createUiStateStore, moveUiStateRoots } from "./uiState";
-import type { CanvasRow, FolderEntry } from "./view";
 
 const tmp = realpathSync(mkdtempSync(join(tmpdir(), "doan-root-migration-")));
 let count = 0;
@@ -27,22 +26,20 @@ function fixture() {
   const files = { folders: join(userData, "folders.json"), marks: join(userData, "auto-folders.json"), seen: join(userData, "canvas-seen.json"), ui: join(userData, "ui-state.json") };
   return { userData, real, alias, files };
 }
-const row = (path: string, mtimeMs: number): CanvasRow => ({ path, url: `http://x/${path}`, mtimeMs });
-const listed = (path: string, canvases: CanvasRow[]): FolderEntry => ({ path, kind: "list", canvases, servedRev: 0 });
 const workspace = (root: string) => JSON.stringify({ screen: "workspace", root, expanded: { [root]: ["settings"] }, lastByRoot: {}, shellProjects: { [root]: { roots: [root], expanded: true, groups: { ds: false } } } });
 // index.ts's step: canvas-seen first, then ui-state.
-const migration = (seen: ReturnType<typeof createCanvasSeenStore>, ui: string) => async (aliases: ReadonlyMap<string, string>) => seen.copyRoots(aliases) && await moveUiStateRoots(ui, aliases);
+const migration = (seen: ReturnType<typeof createLocalSeen>, ui: string) => async (aliases: ReadonlyMap<string, string>) => seen.copyRoots(aliases) && await moveUiStateRoots(ui, aliases);
 
 test("a folder save right after start no longer loses ui-state memory saved under the alias", async () => {
   const { real, alias, files } = fixture();
   writeFileSync(files.folders, JSON.stringify([alias]));
   writeFileSync(files.ui, workspace(alias));
-  const seen = createCanvasSeenStore(files.seen);
+  const seen = createLocalSeen(files.seen);
   const store = await openFolderStore(files.folders, migration(seen, files.ui));
   expect(store.list()).toEqual([real]);
   // The list is saved before the renderer ever saves its UI state, then the app stops.
   await store.add(join(tmp, "other"));
-  const reopened = await openFolderStore(files.folders, migration(createCanvasSeenStore(files.seen), files.ui));
+  const reopened = await openFolderStore(files.folders, migration(createLocalSeen(files.seen), files.ui));
   expect(reopened.spellings().size).toBe(0);
   expect(await createUiStateStore(files.ui, () => reopened.list(), undefined, undefined, () => reopened.spellings()).read()).toMatchObject({
     screen: "workspace", root: real, expanded: { [real]: ["settings"] },
@@ -54,7 +51,7 @@ test("a canvas-seen write that fails keeps the saved spelling, and the next laun
   const { real, alias, files } = fixture();
   writeFileSync(files.folders, JSON.stringify([alias]));
   writeFileSync(files.seen, JSON.stringify({ v: 1, roots: { [alias]: { [A]: 1 } } }));
-  const failing = createCanvasSeenStore(files.seen, () => { throw new Error("injected canvas-seen write failure"); });
+  const failing = createLocalSeen(files.seen, () => { throw new Error("injected canvas-seen write failure"); });
   const store = await openFolderStore(files.folders, migration(failing, files.ui));
   // Nothing moved: the list, the files and the record keep the saved spelling for this run.
   expect(store.list()).toEqual([alias]);
@@ -64,22 +61,23 @@ test("a canvas-seen write that fails keeps the saved spelling, and the next laun
   await store.add(join(tmp, "other"));
   expect(json(files.folders)).toEqual([alias, join(tmp, "other")]);
   // Next launch, the write succeeds: the record moves before the list, and the change since mtime 1 is still unseen.
-  const seen = createCanvasSeenStore(files.seen);
+  const seen = createLocalSeen(files.seen);
   const next = await openFolderStore(files.folders, migration(seen, files.ui));
   expect(next.list()).toEqual([real, join(tmp, "other")]);
-  const [entry] = seen.apply([listed(real, [row(A, 2)])]);
-  expect(entry?.kind === "list" && entry.canvases[0]?.unseen).toBe("changed");
-  expect(json(files.seen)).toEqual({ v: 1, roots: { [real]: { [A]: 1 } } });
+  expect(seen.root(real)).toEqual({ legacy: { [A]: 1 }, known: {} });
+  const verdict = judge(seen.root(real), { dir: "absent", marker: { kind: "absent" }, records: new Map() }, [{ path: A, id: "a", mtimeMs: 2, fingerprint: null }], () => undefined);
+  expect(verdict.verdicts.get(A)).toBe("changed");
+  expect(json(files.seen)).toEqual({ v: 2, roots: { [alias]: { legacy: { [A]: 1 }, known: {} }, [real]: { legacy: { [A]: 1 }, known: {} } } });
 });
 
 test("a newer Doan's canvas-seen.json is never overwritten: the spelling stays and every file is untouched", async () => {
   const { alias, files } = fixture();
-  const newer = JSON.stringify({ v: 2, roots: {} });
+  const newer = JSON.stringify({ v: 3, roots: {} });
   writeFileSync(files.folders, JSON.stringify([alias]));
   writeFileSync(files.marks, JSON.stringify([alias]));
   writeFileSync(files.seen, newer);
   writeFileSync(files.ui, workspace(alias));
-  const store = await openFolderStore(files.folders, migration(createCanvasSeenStore(files.seen), files.ui));
+  const store = await openFolderStore(files.folders, migration(createLocalSeen(files.seen), files.ui));
   expect(store.list()).toEqual([alias]);
   expect(store.auto()).toEqual([alias]);
   expect(readFileSync(files.seen, "utf8")).toBe(newer);

@@ -45,7 +45,7 @@ export function openButtonBadge(current: ConversationSummary | undefined, panelO
   if (panelOpen || !current || current.state !== "current") return null;
   const work = conversationWork(current, seen);
   if (work?.kind === "permission") return { kind: "permission", label: "Show conversation, needs your answer" };
-  if (work?.kind === "unseen") return { kind: "unseen", label: "Show conversation, new activity" };
+  if (work?.kind === "unseen") return { kind: "unseen", label: "Show conversation, conversation finished unread" };
   return null;
 }
 

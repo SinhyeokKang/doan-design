@@ -408,7 +408,7 @@ test("after a reload the slots come back from the list: running, waiting for an 
   h.run.entriesChanged();
   await flush();
   // Straight from the list, before the strip's history reads return.
-  expect(h.run.slots()).toEqual(new Map([[ROOT, { kind: "working", label: "Claude Code is working" }], [`${OTHER}\n.doan/canvases/x.html`, { kind: "unseen", label: "New changes from Claude Code" }]]));
+  expect(h.run.slots()).toEqual(new Map([[ROOT, { kind: "working", label: "Claude Code is working" }], [`${OTHER}\n.doan/canvases/x.html`, { kind: "unseen", label: "Conversation finished — unread" }]]));
   lists({ [ROOT]: [summary({ conversationId: "w", phase: "waiting" })], [OTHER]: [] });
   h.run.listChanged(ROOT);
   await flush();

@@ -367,3 +367,21 @@ for (const invalidation of ["remove", "unspecified detach", "debugger loss", "ne
     expect(docs.current("FRAME", CANVAS)).toBeNull();
   });
 }
+
+// The read-state proof needs the main frame's id: read once, followed when the window's own document commits, and read
+// again after a detach.
+test("mainFrame reads the window's main frame once, follows its commits and forgets it on detach", async () => {
+  const { DocumentBindings } = await import("./document/bindings");
+  const dbg = new FakeDebugger();
+  const inspector = createInspector(dbg, () => BASE, new DocumentBindings());
+  expect(await inspector.mainFrame()).toBe("MAIN");
+  expect(await inspector.mainFrame()).toBe("MAIN");
+  expect(dbg.sent("Page.getFrameTree")).toHaveLength(1);
+  dbg.emit("message", {}, "Page.frameNavigated", { frame: { id: "MAIN2", loaderId: "l", url: "file:///app/index.html" } }, undefined);
+  expect(await inspector.mainFrame()).toBe("MAIN2");
+  // A child frame's commit is not the main frame.
+  dbg.emit("message", {}, "Page.frameNavigated", { frame: { id: "C", parentId: "MAIN2", loaderId: "l", url: CANVAS } }, undefined);
+  expect(await inspector.mainFrame()).toBe("MAIN2");
+  dbg.emit("detach");
+  expect(await inspector.mainFrame()).toBe("MAIN");
+});

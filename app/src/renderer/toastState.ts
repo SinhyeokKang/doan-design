@@ -5,6 +5,8 @@ export interface Toast {
   message: string;
   // At most one action button.
   action?: string;
+  // The action is running (a Retry): the button is unavailable and the toast stays until the action settles it.
+  busy?: true;
   // The open modal dialog it is drawn inside (Toast.tsx `showIn`), where it is visible and read, so the modal does not
   // hold its clock.
   dialog?: HTMLDialogElement;
@@ -31,6 +33,9 @@ export type ToastEvent =
   | { type: "tick"; elapsedMs: number }
   | { type: "hover" | "focus" | "hidden" | "modal"; on: boolean }
   | { type: "action" }
+  // A running action's toast changes in place (same element, so focus on its button stays) or goes.
+  | { type: "update"; id: string; message: string; action: string; busy: boolean }
+  | { type: "dismiss"; id: string }
   // The dialog it was drawn in has gone; the toast is drawn in its usual place from now on. That is a new element, and
   // the old one unmounted without a mouseleave or blur, so the hover and focus pauses go; Toast re-reads them.
   | { type: "leftDialog" };
@@ -38,7 +43,7 @@ export type ToastEvent =
 export const initialToastState: ToastState = { toast: null, remainingMs: 0, hovered: false, focused: false, hidden: false, modal: false };
 
 export function isToastPaused(state: ToastState): boolean {
-  return state.hovered || state.focused || state.hidden || (state.modal && !state.toast?.dialog);
+  return state.hovered || state.focused || state.hidden || state.toast?.busy === true || (state.modal && !state.toast?.dialog);
 }
 
 // Pure so the timer logic runs on a fake clock: the component feeds `tick` with
@@ -66,7 +71,16 @@ export function toastState(state: ToastState, event: ToastEvent): ToastState {
     case "modal":
       return { ...base, modal: event.on };
     case "action":
-      if (!state.toast?.action) return base;
+      if (!state.toast?.action || state.toast.busy) return base;
+      return gone(base, state.toast, "action");
+    case "update": {
+      if (state.toast?.id !== event.id) return base;
+      const { busy: _busy, ...rest } = state.toast;
+      // A settled action starts a fresh full time, as a new toast would.
+      return { ...base, toast: { ...rest, message: event.message, action: event.action, ...(event.busy ? { busy: true as const } : {}) }, remainingMs: event.busy ? state.remainingMs : TOAST_MS };
+    }
+    case "dismiss":
+      if (state.toast?.id !== event.id) return base;
       return gone(base, state.toast, "action");
     case "leftDialog": {
       if (!state.toast?.dialog) return base;

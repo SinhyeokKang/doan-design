@@ -103,6 +103,8 @@ function sameScope(a: readonly string[], b: readonly string[]): boolean {
 // folder is read, listed or pruned, so stores keyed by root move a symlink root's memory to its real path first.
 export interface ShellHooks {
   response?(record: ResponseRecord): void;
+  // The root's `.doan/seen/` read-state records changed on disk (watch.ts `seen`).
+  seen?(root: string): void;
   autoRemoved?(paths: string[], before: FolderEntry[]): void;
   migrate?: RootMigration;
 }
@@ -123,6 +125,9 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
 
   // A re-root answers the listing of the root above (its root and storage); null published, false dropped.
   const refresh = async (folder: Folder, change: Change): Promise<Extract<FolderState, { kind: "list" }> | null | false> => {
+    if (change.seen) hooks?.seen?.(folder.path);
+    // Only the records changed: nothing is listed, served or reloaded.
+    if (!change.reread && !change.served && change.names === undefined) return false;
     // Decided before the read: names say what changed, the listing does not.
     const design = change.names === undefined ? undefined : classifyDesignChange(change.names);
     if (change.served || design?.bumpServed) folder.servedRev++;

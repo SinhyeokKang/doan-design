@@ -112,8 +112,12 @@ test("on Home no row is current; the slot shows a permission hand, a spinner or 
   expect(home).toMatch(/class="shell-project-row row flash"[^>]*aria-label="beta"/);
   expect(home).toMatch(/<span class="shell-project-name">beta<\/span><span class="row-slot permission" role="img" aria-label="Codex needs your answer"><svg[^>]*lucide-hand/);
   expect(renderToStaticMarkup(<Sidebar {...props} />)).toContain('aria-current="location"');
-  const unseen = renderToStaticMarkup(<Sidebar {...props} slots={new Map([["/b", { kind: "unseen" as const, label: "New changes from Codex" }]])} />);
-  expect(unseen).toContain('<span class="row-slot unseen" role="img" aria-label="New changes from Codex"><i></i></span>');
+  const unseen = renderToStaticMarkup(<Sidebar {...props} slots={new Map([["/b", { kind: "unseen" as const, label: "Conversation finished — unread" }]])} />);
+  // A finished conversation is a speech bubble; only a canvas change stays the accent dot.
+  expect(unseen).toMatch(/<span class="row-slot ended" role="img" aria-label="Conversation finished — unread"><svg[^>]*lucide-message-circle/);
+  expect(unseen).not.toContain("<i></i>");
+  const changed = renderToStaticMarkup(<Sidebar {...props} slots={new Map([["/b", { kind: "canvas" as const, label: "x changed since you last opened it" }]])} />);
+  expect(changed).toContain('<span class="row-slot unseen" role="img" aria-label="x changed since you last opened it"><i></i></span>');
 });
 
 test("a project row carries a bound canvas's slot only while that canvas row is not shown, the highest state first", () => {
@@ -239,7 +243,7 @@ describe("what wins the slot of a project in a problem state", () => {
     for (const slot of [{ kind: "working", label: "Codex is working" }, { kind: "unseen", label: "Codex finished" }, { kind: "canvas", label: "x is new" }] as Slot[]) {
       const row = drawn(slot);
       expect(row).toContain("row-slot problem");
-      expect(row).not.toContain(`row-slot ${slot.kind === "canvas" ? "unseen" : slot.kind}`);
+      expect(row).not.toContain(`row-slot ${slot.kind === "canvas" ? "unseen" : slot.kind === "unseen" ? "ended" : slot.kind}`);
     }
   });
 });

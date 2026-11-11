@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState, type KeyboardEvent, type ReactElement } from "react";
 import { DropdownMenu, Popover } from "radix-ui";
-import { ChevronDown, Minus, PanelRightOpen, PanelsTopLeft, Plus, RotateCw } from "lucide-react";
+import { ChevronDown, Minus, MessageCircle, PanelRightOpen, PanelsTopLeft, Plus, RotateCw } from "lucide-react";
 import type { ViewCommand } from "../main/index";
 import type { CanvasState } from "./CanvasController";
 import { canvasLabel } from "./canvasTree";
@@ -34,7 +34,7 @@ export function CanvasHeader({ state, canvasKey = null, command, zoomTo, selectF
       <IconTip label="Reload canvas ⌘R"><button type="button" className="doan-icon-button" aria-label="Reload canvas" disabled={!state.open} onClick={() => command("reload")}><RotateCw aria-hidden="true" /></button></IconTip>
       {panel && !panel.open && <><span className="doan-canvas-head-sep" aria-hidden="true" />
         <IconTip label="Show conversation"><button type="button" className="doan-icon-button doan-panel-show" aria-label={panel.badge?.label ?? "Show conversation"} aria-expanded={false} aria-controls={CONVERSATION_PANEL_ID}
-          data-badge={panel.badge ? "true" : undefined} onClick={panel.show}><PanelRightOpen aria-hidden="true" /></button></IconTip></>}
+          data-badge={panel.badge ? (panel.badge.kind === "unseen" ? "unseen" : "true") : undefined} onClick={panel.show}><PanelRightOpen aria-hidden="true" />{panel.badge?.kind === "unseen" && <span className="badge-bubble" aria-hidden="true"><MessageCircle /></span>}</button></IconTip></>}
     </div>
   </header>;
 }

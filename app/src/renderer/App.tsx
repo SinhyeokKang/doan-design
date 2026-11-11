@@ -9,7 +9,7 @@ import { commitVisit, emptyHistory, fallbackWorktree, historyTarget, loadedProje
 import { groupToOpen, openGroup, toggleGroup, type GroupId, type ShownCanvas } from "./sidebarGroups";
 import { canvasLabel, moveExpanded } from "./canvasTree";
 import type { Selection } from "../formats/types";
-import type { CanvasRow, FolderEntry } from "../main/view";
+import type { CanvasRow, FolderEntry, ReadStateProblem } from "../main/view";
 import { projectKeepsLocal } from "../main/storage";
 import type { WorkItem } from "../main/workState";
 import type { ConversationWork } from "../main/conversationWork";
@@ -36,7 +36,7 @@ import { CanvasAgent } from "./CanvasAgent";
 import { workingCanvas, type WorkingCanvas } from "./agentIndicator";
 import { controlFocusLost } from "./canvasFocus";
 import { projectNames } from "./projectRow";
-import { ArrowLeft, ArrowRight, Crosshair, Plus, Scan, Settings, LayoutGrid, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { ArrowLeft, ArrowRight, Crosshair, Plus, Scan, Settings, LayoutGrid, MessageCircle, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { Home } from "./Home";
 import { ProblemOverlay } from "./ProblemOverlay";
 import { problemView, resolvedFocus, workspaceBody, type ProblemKind, type ShownOverlay } from "./problemView";
@@ -94,7 +94,7 @@ import { KeyedConversationStrip } from "./ConversationStripView";
 import { stripView } from "./conversationStrip";
 import { slotKey } from "./homeConversations";
 import { withTerminalSlots } from "./conversationList";
-import { seenMark, sidebarSlots } from "./canvasNotice";
+import { readStateToast, shownIntent, sidebarSlots } from "./canvasNotice";
 import { HomeRun } from "./homeRun";
 import { SettingsPage, type SettingsArrival } from "./SettingsPage";
 import { parseSettingsTarget, settingsArrival, SettingsTargetQueue, shownSettingsSection, type SettingsSection, type SettingsTarget } from "./settingsSections";
@@ -2047,8 +2047,42 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // The canvas page, not the Overview's thumbnails or a canvas under the overlay, makes a canvas seen; a change while it
   // stays shown marks it again.
   const shownCanvas = screen === "workspace" && overview === null && !overlaid && state.open && state.shown && !state.unlisted ? { root: state.open.folder, path: state.shown } : null;
-  const mark = seenMark(entries, { screen, overview: overview !== null, root: state.open?.folder ?? null, shown: state.shown, unlisted: Boolean(state.unlisted) });
-  useEffect(() => { if (mark) void window.doan.markCanvasSeen(mark).catch(() => {}); }, [mark?.root, mark?.path, mark?.mtimeMs]);
+  // Main proves what the page shows from its own document bindings; the renderer only says what it means to show.
+  const intent = shownIntent(entries, { screen, overview: overview !== null, covered: overlaid, root: state.open?.folder ?? null, shown: state.shown, unlisted: Boolean(state.unlisted) });
+  const intentKey = intent ? `${intent.root}\n${intent.path}` : null;
+  const intentRef = useRef(intent); intentRef.current = intent;
+  const toldIntent = useRef<string | null>(null);
+  useEffect(() => {
+    if (intentKey === toldIntent.current) return;
+    toldIntent.current = intentKey;
+    void window.doan.showCanvas(intentRef.current).catch(() => {});
+  }, [intentKey]);
+  // A read-state failure is a Retry toast, once: for a failure found meanwhile, only on its project (and canvas); after
+  // the toast has gone, entering the project again tries once more and tells what still fails.
+  const readStatePlace = useRef<{ root: string | null; shown: string | null }>({ root: null, shown: null });
+  readStatePlace.current = { root: screen === "workspace" ? loadedRoot : null, shown: intent?.path ?? null };
+  const readStateRetry = (root: string, problem: ReadStateProblem) => {
+    const text = readStateToast(problem);
+    live.current.toast.retry(text.message, "Retry", text.busy, "Retrying", async () => {
+      const next = await window.doan.retryReadState({ root, ...("path" in problem ? { path: problem.path } : {}) });
+      return next ? readStateToast(next).message : null;
+    });
+  };
+  const readStateRetryRef = useRef(readStateRetry); readStateRetryRef.current = readStateRetry;
+  useEffect(() => window.doan.onReadStateProblem(({ root, problem }) => {
+    const place = readStatePlace.current;
+    if (place.root !== root || ("path" in problem && problem.path !== place.shown)) return;
+    readStateRetryRef.current(root, problem);
+  }), []);
+  const enteredRoot = screen === "workspace" ? loadedRoot : null;
+  useEffect(() => {
+    if (enteredRoot === null) return;
+    let here = true;
+    window.doan.retryReadState({ root: enteredRoot }).then(problem => {
+      if (here && problem && readStatePlace.current.root === enteredRoot) readStateRetryRef.current(enteredRoot, problem);
+    }, () => {});
+    return () => { here = false; };
+  }, [enteredRoot]);
   useEffect(() => {
     if (screen !== "workspace" || !loadedRoot || overlaid) return;
     homeRun.current.visit([slotKey(loadedRoot), ...(state.open?.folder === loadedRoot ? [slotKey(loadedRoot, state.open.canvas)] : [])]);
@@ -2195,7 +2229,7 @@ function TopBar({ sidebar, back, forward, previous, next, page, locked, updateDi
     <div className="shell-history">
       {/* Left of Back, so Back and Forward move one button right. */}
       <Tooltip><TooltipTrigger asChild><button className="doan-icon-button shell-sidebar-toggle" data-ui-placement="chrome" aria-label={sidebar.view.label} aria-expanded={sidebar.view.icon === "hide"}
-        aria-controls={sidebar.controls} data-badge={sidebar.view.badge ? "true" : undefined} onClick={sidebar.toggle}>{sidebar.view.icon === "hide" ? <PanelLeftClose aria-hidden="true" /> : <PanelLeftOpen aria-hidden="true" />}</button></TooltipTrigger>
+        aria-controls={sidebar.controls} data-badge={sidebar.view.badge ? (sidebar.view.badge === "unseen" ? "unseen" : "true") : undefined} onClick={sidebar.toggle}>{sidebar.view.icon === "hide" ? <PanelLeftClose aria-hidden="true" /> : <PanelLeftOpen aria-hidden="true" />}{sidebar.view.badge === "unseen" && <span className="badge-bubble" aria-hidden="true"><MessageCircle /></span>}</button></TooltipTrigger>
         <TooltipContent className="has-key">{sidebar.view.icon === "hide" ? "Hide sidebar" : "Show sidebar"}<span className="doan-kbd" data-ui-variant="on-prominent" data-ui-size="sm">⌘B</span></TooltipContent></Tooltip>
       <button className="doan-icon-button" data-ui-placement="chrome" aria-label="Back" disabled={!back} aria-disabled={unavailable} onClick={previous}><ArrowLeft /></button><button className="doan-icon-button" data-ui-placement="chrome" aria-label="Forward" disabled={!forward} onClick={next}><ArrowRight /></button></div>
     <div className="shell-modes"><button {...tab("addProjects")} aria-disabled={unavailable} onClick={addProjects}><Plus />Add Projects</button><button {...tab(null)} aria-disabled={unavailable} onClick={projects}><LayoutGrid />Projects</button><button {...tab("settings")} aria-disabled={unavailable} onClick={settings}><Settings />Settings</button></div>

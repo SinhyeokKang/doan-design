@@ -4,10 +4,9 @@ import type { CanvasRow, FolderEntry } from "../main/view";
 import type { PreferencesSnapshot } from "../main/preferences";
 import { initialCanvasState } from "./CanvasController";
 
-// App gives the sidebar canvas notices from main's `unseen` rows, tells main when the
-// canvas page shows an unseen canvas, and lets a project row's notice open that canvas. Hooks run as plain state so
+// App gives the sidebar canvas notices from main's `unseen` rows, tells main which canvas the canvas page shows, tells
+// read-state failures with a Retry toast, and lets a project row's notice open that canvas. Hooks run as plain state so
 // App's own wiring runs (App.sidebarGroups.test.tsx).
-// each newly shown canvas, driven with hooks as plain state so App's own wiring runs (App.settings.test.tsx).
 const hooks = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],
   pending: [] as (() => void)[], cursor: 0, refCursor: 0, effectCursor: 0, dirty: false,
@@ -40,7 +39,7 @@ vi.mock("react", async original => {
 const harness = vi.hoisted(() => ({
   controller: null as null | Record<string, ReturnType<typeof vi.fn>>,
   setState: null as null | ((state: unknown) => void),
-  toast: { toast: null, element: null, show: vi.fn(), action: vi.fn(), setModal: vi.fn() },
+  toast: { toast: null, element: null, show: vi.fn(), retry: vi.fn(), action: vi.fn(), setModal: vi.fn() },
   signIn: { onToast: null as null | ((toast: { text: string; action: { label: string; target: unknown } | null }) => void), windowFocused: vi.fn() },
 }));
 vi.mock("./Toast", () => ({ useToast: () => harness.toast }));
@@ -79,6 +78,7 @@ function reset() {
   hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.pending = [];
   listeners = {};
   harness.toast.show.mockClear();
+  harness.toast.retry.mockClear();
   const on = (name: string) => vi.fn((listener: (...args: never[]) => void) => { listeners[name] = listener; return () => {}; });
   doan = {
     onFolders: on("folders"), onViewCommand: on("view"), onMenuCommand: on("menu"), onConversationEvent: on("conversation"), onConversationStage: on("stage"), onConversationListChanged: on("conversationList"), listConversations: vi.fn(async () => []), conversationResumeTarget: vi.fn(async () => ({ available: false, reason: "no_record" })), onOpenAddProjects: on("openAddProjects"),
@@ -88,7 +88,7 @@ function reset() {
     readUiState: vi.fn(() => new Promise(resolve => { readUiState = resolve; })), saveUiState: vi.fn(async () => true), setMenuState: vi.fn(async () => {}),
     readPreferences: vi.fn(async () => PREFS), savePreferences: vi.fn(async () => null),
     readShellActivity: vi.fn(async () => []), setSelection: vi.fn(async () => {}), inspect: vi.fn(), openSettings: vi.fn(async () => true),
-    markCanvasSeen: vi.fn(async () => {}),
+    showCanvas: vi.fn(async () => true), retryReadState: vi.fn(async () => null), onReadStateProblem: on("readStateProblem"),
   };
   vi.stubGlobal("window", { doan, addEventListener: vi.fn(), removeEventListener: vi.fn() });
   vi.stubGlobal("document", { activeElement: null, body: {}, querySelector: () => null, querySelectorAll: () => [] });
@@ -127,23 +127,61 @@ async function start(canvases: CanvasRow[], extra: FolderEntry[] = [], restored:
 }
 const workspace = { screen: "workspace", root: "/w/a", canvas: A, expanded: {}, lastByRoot: {} };
 
-test("an unseen row gets a canvas notice; once shown it loses it and main is told, again after a change while shown", async () => {
+test("an unseen row gets a canvas notice; the canvas page tells main which canvas it shows, once per canvas", async () => {
   await start(rows({ unseen: "changed" }, { unseen: "new" }), [], workspace);
   show(rows({ unseen: "changed" })[0]!);
   expect(sidebar().slots?.get(`/w/a\n${A}`)).toBeUndefined();
   expect(sidebar().slots?.get(`/w/a\n${B}`)?.kind).toBe("canvas");
-  expect(doan.markCanvasSeen).toHaveBeenLastCalledWith({ root: "/w/a", path: A, mtimeMs: 10 });
-  folders(rows({}, { unseen: "new" }));
-  expect(doan.markCanvasSeen).toHaveBeenCalledTimes(1);
+  expect(doan.showCanvas).toHaveBeenLastCalledWith({ root: "/w/a", path: A });
+  const told = doan.showCanvas!.mock.calls.length;
+  // A change while shown is main's to prove; the renderer says nothing new.
   folders(rows({ mtimeMs: 12, unseen: "changed" }, { unseen: "new" }));
-  expect(doan.markCanvasSeen).toHaveBeenLastCalledWith({ root: "/w/a", path: A, mtimeMs: 12 });
-  expect(sidebar().slots?.get(`/w/a\n${A}`)).toBeUndefined();
+  expect(doan.showCanvas).toHaveBeenCalledTimes(told);
+  show(rows({}, { unseen: "new" })[1]!);
+  expect(doan.showCanvas).toHaveBeenLastCalledWith({ root: "/w/a", path: B });
+  show(null);
+  expect(doan.showCanvas).toHaveBeenLastCalledWith(null);
 });
 
-test("the Overview and Home never mark a canvas seen", async () => {
+test("the Overview and Home never tell main a canvas is shown", async () => {
   await start(rows({ unseen: "changed" }));
   expect(sidebar().slots?.get(`/w/a\n${A}`)?.kind).toBe("canvas");
-  expect(doan.markCanvasSeen).not.toHaveBeenCalled();
+  expect(doan.showCanvas).not.toHaveBeenCalled();
+});
+
+test("the shown canvas keeps its dot while its read state could not be saved, with the failure's label", async () => {
+  await start(rows({ unseen: "changed", saveFailed: "save" }), [], workspace);
+  show(rows({})[0]!);
+  expect(sidebar().slots?.get(`/w/a\n${A}`)).toEqual({ kind: "canvas", label: "Read state could not be saved for a" });
+});
+
+test("a read-state failure found meanwhile is a Retry toast only on its project and canvas; Retry asks main again", async () => {
+  await start(rows({ unseen: "changed" }), [], workspace);
+  show(rows({})[0]!);
+  listeners.readStateProblem!({ root: "/w/b", problem: { kind: "records" } } as never);
+  listeners.readStateProblem!({ root: "/w/a", problem: { kind: "save", path: B, readOnly: true } } as never);
+  expect(harness.toast.retry).not.toHaveBeenCalled();
+  listeners.readStateProblem!({ root: "/w/a", problem: { kind: "save", path: A, readOnly: true } } as never);
+  expect(harness.toast.retry).toHaveBeenCalledTimes(1);
+  const [message, label, busy, running, attempt] = harness.toast.retry.mock.lastCall! as [string, string, string, string, () => Promise<string | null>];
+  expect([message, label, busy, running]).toEqual(["Couldn’t save a’s read state. This folder is read-only.", "Retry", "Saving a’s read state.", "Retrying"]);
+  doan.retryReadState!.mockResolvedValueOnce({ kind: "save", path: A, readOnly: false });
+  expect(await attempt()).toBe("Couldn’t save a’s read state.");
+  expect(doan.retryReadState).toHaveBeenLastCalledWith({ root: "/w/a", path: A });
+  doan.retryReadState!.mockResolvedValueOnce(null);
+  expect(await attempt()).toBeNull();
+});
+
+test("entering a project tries its read state again and tells what still fails, once", async () => {
+  doan.retryReadState!.mockResolvedValue({ kind: "baseline", readOnly: true });
+  await start(rows({}), [], workspace);
+  await Promise.resolve(); await Promise.resolve(); render();
+  expect(doan.retryReadState).toHaveBeenCalledWith({ root: "/w/a" });
+  expect(harness.toast.retry).toHaveBeenCalledTimes(1);
+  expect(harness.toast.retry.mock.lastCall![0]).toBe("Couldn’t save the initial read state. This folder is read-only.");
+  folders(rows({ mtimeMs: 20 }));
+  await Promise.resolve(); render();
+  expect(doan.retryReadState).toHaveBeenCalledTimes(1);
 });
 
 test("a project row's canvas notice opens that canvas where its conversation slot would open the Overview", async () => {

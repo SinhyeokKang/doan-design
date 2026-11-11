@@ -366,6 +366,8 @@ code, kbd { font-family: var(--type-family); }
    dialog has no transform, so fixed positioning is relative to the window. */
 .toast[data-placement="dialog"] { position: fixed; }
 .toast .msg { min-width: 0; overflow-wrap: anywhere; }
+/* A running Retry keeps focus, so it is `data-disabled` rather than `:disabled`, and the hover fill must not come back. */
+.toast .doan-button[data-disabled]:hover { background: var(--affordance-disabled); }
 
 .back { flex: none; }
 .top .divider { width: 1px; height: 18px; background: var(--border-standard); flex: none; margin: 0 -4px; }
@@ -887,6 +889,7 @@ body:has(.shell-top) { background: transparent; }
 .row-slot.problem { color: var(--text-subtle); }
 .row-slot svg { width: var(--size-icon); height: var(--size-icon); }
 .row-slot .doan-spinner { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+.row-slot.ended { color: var(--text-accent); }
 .row-slot.unseen i { width: var(--space-2); height: var(--space-2); border-radius: 50%; background: var(--text-accent); }
 .shell-side .shell-project-row.flash { box-shadow: inset 0 0 0 2px var(--border-focus); }
 
@@ -1341,8 +1344,11 @@ body:has(.shell-top) { background: transparent; }
 .docked-reason.reason-stack > span { flex-basis: 100%; }
 /* A terminal session sets its own model and effort: the same triggers without chevrons, not interactive. */
 .composer-tray .doan-button.is-fixed { cursor: default; }
-/* News on the folded panel's open button: the sidebar slot's unseen dot. */
-.doan-icon-button[data-badge="true"] { position: relative; }
+/* News on a folded button: the sidebar slot's mark. A finished conversation is a 14px speech bubble, filled with the surface
+   so the button's icon does not show through it; the other signals are the 8px accent dot. */
+.doan-icon-button[data-badge] { position: relative; }
+.badge-bubble { position: absolute; top: var(--space-half); right: var(--space-half); width: var(--size-icon-sm); height: var(--size-icon-sm); color: var(--text-accent); background: var(--surface-panel); border-radius: var(--space-1); box-shadow: 0 0 0 var(--space-half) var(--surface-panel); pointer-events: none; }
+.badge-bubble svg { display: block; width: 100%; height: 100%; fill: var(--surface-panel); }
 .doan-icon-button[data-badge="true"]::after { content: ""; position: absolute; top: var(--space-1); right: var(--space-1); width: var(--space-2); height: var(--space-2); border-radius: 50%; background: var(--text-accent); box-shadow: 0 0 0 2px var(--surface-panel); }
 /* A sent message's chips show their target on the canvas; inside the accent bubble they take the panel surface. */
 .bubble .anchor-chip { background: var(--surface-panel); }
