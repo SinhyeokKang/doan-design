@@ -10,18 +10,22 @@
 import { EYE_TEXTURE, buddy as registry, type BuddyId } from "./buddies";
 import { canvasSize } from "./doanyMotion";
 import {
-  advanceDocked, createDockedState, dockedGeometry, dockedNeedsTime, setDockedBuddy, REST_SECONDS, xOn,
+  advanceDocked, createDockedState, dockedGeometry, dockedNeedsTime, setDockedBuddy, REST_SECONDS, SIZE, xOn,
   type DockedEvent, type DockedFrame, type DockedInputs, type DockedState, type SurfaceName,
 } from "./dockedBuddyCore";
-import { buddyBox, onSilhouette, overlaps, type Box, type SilhouetteMask } from "./dockedBuddyHit";
+import { buddyBox, overlaps, silhouettePath, type Box, type SilhouetteMask } from "./dockedBuddyHit";
 import { dockedShaders } from "./dockedBuddyShader";
 
 // Floating elements the buddy hides under: Radix poppers (tooltips, menus, popovers) portalled to body, the slash
 // popover and the picking or capture hint. Measured by geometry: the menus and tooltips do not expose being open.
 export const FLOATING = "[data-radix-popper-content-wrapper], .slash-popover, .doan-picking";
 // The dock slot's attributes, written by DockedComposer: the card takes no input, and the step-aside reasons. popover
-// only wakes the parked loop, since the slash popover opens inside the card where no other observer sees it.
-export const SLOT_ATTRIBUTES = ["data-accepts", "data-queue", "data-prompts", "data-waiting", "data-popover"];
+// only wakes the parked loop and refreshes the floating list, since the slash popover opens inside the card where no
+// other observer sees it.
+export const SLOT_ATTRIBUTES = ["data-accepts", "data-queue", "data-prompts", "data-waiting", "data-notice", "data-popover"];
+// A thread scroll ends the rest only this soon after the person's own wheel, press or key, so following new agent
+// output (the thread sets its own scrollTop) does not.
+const PERSON_SCROLL_MS = 1000;
 
 // What only App knows. overview: the Overview covers the canvas page, whose toolbar stays laid out under it, so the
 // toolbar is no surface. covered: the problem overlay or first run is over the workspace. hint: a picking or capture
@@ -103,13 +107,16 @@ function glTarget(canvas: HTMLCanvasElement, id: BuddyId): Target | null {
   }
 }
 
-// One buddy's drawing in the host: still image, canvas and WebGL. A buddy change replaces only this.
-interface Rig { id: BuddyId; still: HTMLImageElement; canvas: HTMLCanvasElement; target: Target | null; ready: boolean; mask: SilhouetteMask | null; drawn: string; dispose(): void }
+// One buddy's drawing in the host: still image, canvas and WebGL, and the hit target shaped by the still image's
+// silhouette (shown only once that shape is read). A buddy change replaces only this.
+interface Rig { id: BuddyId; still: HTMLImageElement; canvas: HTMLCanvasElement; hit: HTMLElement; shaped: boolean; target: Target | null; ready: boolean; drawn: string; dispose(): void }
 
 interface Live {
   state: DockedState; ground: HTMLElement; shadow: HTMLElement; host: HTMLElement; rig: Rig;
   container: HTMLElement; personMovedAt: () => number;
-  raf: number; out: DockedFrame | null; intersecting: boolean; events: DockedEvent[]; activityAt: number;
+  raf: number; out: DockedFrame | null; intersecting: boolean; events: DockedEvent[]; activityAt: number; personAt: number;
+  // The floating elements in the page, found again only when one can have come or gone (null: find them again).
+  floating: Element[] | null;
   slotSizes: ResizeObserver; slotAttributes: MutationObserver; portals: MutationObserver; hostSize: ResizeObserver; view: IntersectionObserver;
   reduced: MediaQueryList; off(): void;
 }
@@ -146,6 +153,7 @@ export class DockedBuddyShell {
   update(next: WorkspaceInputs) {
     const now = this.workspace;
     if (now.overview === next.overview && now.folded === next.folded && now.folding === next.folding && now.covered === next.covered && now.hint === next.hint) return;
+    if (this.live && now.hint !== next.hint) this.live.floating = null;
     this.workspace = next;
     this.wake();
   }
@@ -171,10 +179,12 @@ export class DockedBuddyShell {
     clip.append(host); ground.append(shadow, clip);
     const reduced = matchMedia("(prefers-reduced-motion: reduce)");
     const wake = () => this.wake();
+    // A portalled popper comes or goes as a child of body; the slash popover by the slot's popover attribute.
+    const refloat = () => { live.floating = null; this.wake(); };
     const live: Live = {
       state: createDockedState(this.id, Math.random), ground, shadow, host, rig: null as unknown as Rig, container, personMovedAt,
-      raf: 0, out: null, intersecting: true, events: [], activityAt: 0,
-      slotSizes: new ResizeObserver(wake), slotAttributes: new MutationObserver(wake), portals: new MutationObserver(wake),
+      raf: 0, out: null, intersecting: true, events: [], activityAt: 0, personAt: 0, floating: null,
+      slotSizes: new ResizeObserver(wake), slotAttributes: new MutationObserver(refloat), portals: new MutationObserver(refloat),
       hostSize: new ResizeObserver(() => { this.resize(); this.wake(); }),
       view: new IntersectionObserver(entries => { live.intersecting = entries.at(-1)!.isIntersecting; this.wake(); }),
       reduced, off: () => {},
@@ -207,33 +217,30 @@ export class DockedBuddyShell {
   }
 
   private listen(live: Live) {
-    const { host } = live;
     const wake = () => this.wake();
-    const push = (event: DockedEvent) => { live.events.push(event); this.wake(); };
-    // Only a shown buddy takes the pointer, so its rect is read only then.
-    const onBody = (x: number, y: number) => live.out?.presence === "shown" && onSilhouette(live.rig.mask, host.getBoundingClientRect(), "shown", x, y);
-    // Pointer only, over the painted body: the transparent margin passes clicks to the thread or board underneath.
-    const move = (event: PointerEvent) => {
-      const body = onBody(event.clientX, event.clientY);
-      host.style.pointerEvents = body ? "auto" : ""; host.style.cursor = body ? "pointer" : "";
-      if (closest(event.target, ".thread-scroll")) push("thread");
+    // The pointer over the thread looks up. It never wakes the loop: a running loop takes it on its next frame, and a
+    // parked one (hidden, unseen or reduced motion) would change nothing visible, so it waits in the queue, once.
+    const move = (event: PointerEvent) => { if (closest(event.target, ".thread-scroll") && live.events.at(-1) !== "thread") live.events.push("thread"); };
+    // Typing in the composer looks down and ends a rest (focus alone does not: the app hands focus back to the field).
+    const typed = (event: Event) => { if (closest(event.target, ".docked .composer-input")) { live.activityAt = Date.now(); live.events.push("input"); this.wake(); } };
+    const person = () => { live.personAt = Date.now(); };
+    // Any thread scroll the person caused (wheel, scrollbar, keys) ends a rest; read inside a frame, so no wake.
+    const scrolled = (event: Event) => {
+      const now = Date.now();
+      if (closest(event.target, ".thread-scroll") && now - live.personAt <= PERSON_SCROLL_MS) live.activityAt = now;
     };
-    const click = (event: MouseEvent) => { if (onBody(event.clientX, event.clientY)) push("poke"); };
-    // Composer input or focus looks down and ends a rest; so does scrolling the thread, by wheel or a press.
-    const typed = (event: Event) => { if (closest(event.target, ".docked .composer-input")) { live.activityAt = Date.now(); push("input"); } };
-    const scrolled = (event: Event) => { if (closest(event.target, ".thread-scroll")) { live.activityAt = Date.now(); this.wake(); } };
     document.addEventListener("pointermove", move, { passive: true });
-    host.addEventListener("click", click);
-    document.addEventListener("input", typed, true); document.addEventListener("focusin", typed, true);
-    document.addEventListener("wheel", scrolled, { capture: true, passive: true }); document.addEventListener("pointerdown", scrolled, true);
+    document.addEventListener("input", typed, true); document.addEventListener("keydown", typed, true);
+    document.addEventListener("wheel", person, { capture: true, passive: true }); document.addEventListener("pointerdown", person, true); document.addEventListener("keydown", person, true);
+    document.addEventListener("scroll", scrolled, { capture: true, passive: true });
     document.addEventListener("visibilitychange", wake);
     window.addEventListener("focus", wake); window.addEventListener("blur", wake);
     live.reduced.addEventListener("change", wake);
     return () => {
       document.removeEventListener("pointermove", move);
-      host.removeEventListener("click", click);
-      document.removeEventListener("input", typed, true); document.removeEventListener("focusin", typed, true);
-      document.removeEventListener("wheel", scrolled, true); document.removeEventListener("pointerdown", scrolled, true);
+      document.removeEventListener("input", typed, true); document.removeEventListener("keydown", typed, true);
+      document.removeEventListener("wheel", person, true); document.removeEventListener("pointerdown", person, true); document.removeEventListener("keydown", person, true);
+      document.removeEventListener("scroll", scrolled, true);
       document.removeEventListener("visibilitychange", wake);
       window.removeEventListener("focus", wake); window.removeEventListener("blur", wake);
       live.reduced.removeEventListener("change", wake);
@@ -245,12 +252,24 @@ export class DockedBuddyShell {
     // The host's offset and pivot come from the buddy's foot contact, so no buddy needs its own CSS.
     host.style.top = `calc(100% + ${g.hostTop}px)`;
     host.style.transformOrigin = `50% ${g.originY * 100}%`;
-    const still = document.createElement("img"), canvas = document.createElement("canvas");
-    still.alt = ""; still.src = b.assets.still; canvas.hidden = true;
-    host.append(still, canvas);
-    const rig: Rig = { id, still, canvas, target: null, ready: false, mask: null, drawn: "", dispose: () => {} };
+    const still = document.createElement("img"), canvas = document.createElement("canvas"), hit = element("span", "docked-buddy-hit");
+    still.alt = ""; still.src = b.assets.still; canvas.hidden = true; hit.hidden = true;
+    host.append(still, canvas, hit);
+    const rig: Rig = { id, still, canvas, hit, shaped: false, target: null, ready: false, drawn: "", dispose: () => {} };
     let disposed = false;
-    const readMask = () => { rig.mask = silhouette(still); };
+    // The host itself takes no pointer; the hit target over it, clipped to the painted body, does. It is the browser's
+    // hit test, not one on the app's pointermove, so it works over the board, whose OOPIF keeps its pointer events
+    // from the app's document. The hop's lift (about 7px at most) is not followed.
+    const readMask = () => {
+      const mask = silhouette(still), path = mask && silhouettePath(mask, SIZE);
+      rig.shaped = !!path;
+      hit.style.clipPath = path ?? "";
+      this.wake();
+    };
+    const poke = () => { if (live.out?.presence === "shown") { live.events.push("poke"); this.wake(); } };
+    // A press on the body keeps the composer's focus and caret.
+    const press = (event: Event) => event.preventDefault();
+    hit.addEventListener("click", poke); hit.addEventListener("mousedown", press);
     if (still.complete && still.naturalWidth > 0) readMask(); else still.addEventListener("load", readMask, { once: true });
     const goStill = () => { rig.ready = false; still.hidden = false; canvas.hidden = true; this.wake(); };
     const lost = (event: Event) => { event.preventDefault(); goStill(); };
@@ -261,6 +280,8 @@ export class DockedBuddyShell {
       canvas.addEventListener("webglcontextlost", lost);
       rig.target.textures.then(() => {
         if (disposed) return;
+        // A context lost while the textures loaded stays on the still image.
+        if (rig.target!.lost()) { goStill(); return; }
         rig.ready = true; still.hidden = true; canvas.hidden = false; rig.drawn = "";
         this.resize(); this.wake();
       }, (error: unknown) => { if (!disposed) { console.error(error); goStill(); } });
@@ -269,8 +290,9 @@ export class DockedBuddyShell {
       disposed = true;
       still.removeEventListener("load", readMask);
       canvas.removeEventListener("webglcontextlost", lost);
+      hit.removeEventListener("click", poke); hit.removeEventListener("mousedown", press);
       rig.target?.release();
-      still.remove(); canvas.remove();
+      still.remove(); canvas.remove(); hit.remove();
     };
     return rig;
   }
@@ -299,8 +321,9 @@ export class DockedBuddyShell {
     const ws = this.workspace, events = live.events;
     live.events = [];
     let rects: Box[] | null = null;
-    // At most one read of the floating elements per frame, and none when no surface is there.
-    const floating = () => rects ??= Array.from(document.querySelectorAll(FLOATING), node => node.getBoundingClientRect());
+    // The page is searched only after a floating element can have come or gone; their rects are read at most once per
+    // frame, and not at all when there are none or no surface is there.
+    const floating = () => rects ??= (live.floating ??= Array.from(document.querySelectorAll(FLOATING))).map(node => node.getBoundingClientRect());
     const surface = (name: SurfaceName) => {
       const el = this.slots[name];
       if (!el || !el.isConnected) return null;
@@ -315,7 +338,8 @@ export class DockedBuddyShell {
     const shown = !document.hidden && !ws.covered && live.intersecting && live.container.checkVisibility({ visibilityProperty: true, opacityProperty: true });
     return {
       surfaces: { dock: dock && { ...dock, accepts: dockSlot!.getAttribute("data-accepts") !== "false" }, tools: ws.overview ? null : surface("tools") },
-      reasons: { queue: has("data-queue"), prompts: has("data-prompts"), waiting: has("data-waiting") },
+      // A new conversation's notice or choice stands where the suggested prompts do, and is stepped aside for alike.
+      reasons: { queue: has("data-queue"), prompts: has("data-prompts") || has("data-notice"), waiting: has("data-waiting") },
       panel: { folded: ws.folded, folding: ws.folding },
       resting: Date.now() - Math.max(live.personMovedAt(), live.activityAt) >= REST_SECONDS * 1000 && document.hasFocus(),
       // Time runs only while the workspace is seen and WebGL is ready; the still image never animates.
@@ -335,7 +359,7 @@ export class DockedBuddyShell {
     host.dataset.surface = out.surface ?? "";
     host.dataset.presence = out.presence;
     host.dataset.state = rig.ready ? out.mode : "static";
-    if (out.presence !== "shown") { host.style.pointerEvents = ""; host.style.cursor = ""; }
+    rig.hit.hidden = out.presence !== "shown" || !rig.shaped;
     // Nothing is drawn while not seen; a still pose (reduced motion) draws once per change.
     const key = `${out.mode}|${out.pose.time}|${out.surface}|${out.conceal}`;
     if (visible && rig.ready && rig.target && !rig.target.lost() && out.conceal < 1 && key !== rig.drawn) { rig.drawn = key; rig.target.draw(out); }

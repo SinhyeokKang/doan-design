@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "vitest";
-import { buddyBox, clipWindow, onSilhouette, overlaps, type Box } from "./dockedBuddyHit";
+import { buddyBox, clipWindow, onSilhouette, overlaps, silhouettePath, type Box } from "./dockedBuddyHit";
 
 // Overlap cases come from the docked draft .doan/assets/buddies/docked-poc.js run in a vm
 // (app/scripts/dockedBuddyGolden.mjs).
@@ -65,4 +65,15 @@ test("silhouette: a non-square mask is centred in the padded box", () => {
   const top = host.top + 16.5 + (67 - 2*16.75)/2;
   expect(onSilhouette(wide, host, "shown", host.left + 16.5 + 16.75*3.5, top + 16.75*.5)).toBe(true);
   expect(onSilhouette(wide, host, "shown", host.left + 16.5 + 16.75*3.5, top - 2)).toBe(false);
+});
+
+test("silhouette path: one rectangle per run of opaque pixel centres, merged down the rows, in the host's px", () => {
+  // The 100px host above: pixel (1, 1) covers x 33.25–50, y 33.25–50, so the centres 33.5…49.5 are in; (1, 2) below it
+  // is opaque too (alpha 33), so the run continues down to y 66.75.
+  expect(silhouettePath(mask, 100)).toBe('path("M33 33h17v34h-17Z")');
+  // Two runs on a row stay two rectangles; a run that changes width starts a new one.
+  const two = new Uint8ClampedArray(2*2*4);
+  two[3] = 255; two[(0*2 + 1)*4 + 3] = 255; two[(1*2 + 0)*4 + 3] = 255;
+  expect(silhouettePath({ data: two, width: 2, height: 2 }, 10)).toBe('path("M2 2h6v3h-6ZM2 5h3v3h-3Z")');
+  expect(silhouettePath({ data: new Uint8ClampedArray(16), width: 2, height: 2 }, 10)).toBeNull();
 });

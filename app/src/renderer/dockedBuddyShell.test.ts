@@ -114,8 +114,9 @@ function setup(options: { buddy?: BuddyId } = {}) {
   const host = () => created.slice(from).find(node => node.className === "docked-buddy-host")!;
   const canvas = () => host().children.find(node => node.tag === "canvas")!;
   const still = () => host().children.find(node => node.tag === "img")!;
+  const hit = () => host().children.find(node => node.className === "docked-buddy-hit")!;
   const load = async () => { for (const image of FakeImage.all) image.onload(); await flush(); };
-  return { shell, container, dock, tools, detach, start, frame, run, ground, host, canvas, still, load };
+  return { shell, container, dock, tools, detach, start, frame, run, ground, host, canvas, still, hit, load };
 }
 
 test("the ground is one node with the floor shadow and the 88px clip window around the host, hidden from assistive technology", () => {
@@ -125,7 +126,8 @@ test("the ground is one node with the floor shadow and the 88px clip window arou
   expect(ground.attributes.get("aria-hidden")).toBe("true");
   expect(ground.children.map(node => node.className)).toEqual(["docked-buddy-shadow", "docked-buddy-window"]);
   expect(ground.children[1]!.children).toEqual([env.host()]);
-  expect(env.host().children.map(node => node.tag)).toEqual(["img", "canvas"]);
+  expect(env.host().children.map(node => node.tag)).toEqual(["img", "canvas", "span"]);
+  expect(env.hit().className).toBe("docked-buddy-hit");
   // The first step stands it at rest on the dock, at x 16.
   expect(ground.parentElement).toBe(env.dock);
   expect(env.host().style.transform).toBe("translate(16px,0px)");
@@ -208,6 +210,13 @@ test("the still image shows until the textures load, and again when they fail or
   env.canvas().dispatch("webglcontextlost");
   env.frame();
   expect([env.still().hidden, env.canvas().hidden, env.host().dataset.state]).toEqual([false, true, "static"]);
+
+  // A context lost while the textures still load: their late success must not uncover the dead canvas.
+  const early = setup();
+  early.start(); early.frame();
+  gl.made.at(-1)!.lost = true; early.canvas().dispatch("webglcontextlost");
+  await early.load(); early.frame();
+  expect([early.still().hidden, early.canvas().hidden, early.host().dataset.state]).toEqual([false, true, "static"]);
 
   const failed = setup();
   failed.start(); failed.frame();
@@ -295,6 +304,18 @@ test("a buddy change rebuilds only the rig: surface, each surface's x and the hi
   expect(env.host().style.transform).toMatch(/^translate\(\d/);
 });
 
+test("each step-aside reason on the dock slot sends the buddy to the toolbar, the new conversation's notice included", async () => {
+  for (const reason of ["data-queue", "data-prompts", "data-waiting", "data-notice"]) {
+    const env = setup();
+    env.start(); env.frame(); await env.load();
+    env.dock.setAttribute(reason, "");
+    for (const observer of mutationObservers) observer.callback();
+    env.run(160);
+    expect(env.ground().parentElement, reason).toBe(env.tools);
+    env.shell.stop();
+  }
+});
+
 test("reduced motion draws one still frame per change, parks, and applies surface changes at once", async () => {
   media.matches = true;
   const env = setup();
@@ -320,6 +341,10 @@ test("a buddy resting hidden on the Overview parks its frame loop until an input
   env.run(80);
   expect(env.host().dataset.presence).toBe("hidden");
   expect(frames.size).toBe(0);
+  // The pointer over the thread wakes no frame while parked; it waits in the queue, once.
+  const thread = new FakeNode("div"); thread.className = "thread-scroll";
+  for (let i = 0; i < 5; i++) page.dispatch("pointermove", { target: thread, clientX: 0, clientY: 0 });
+  expect(frames.size).toBe(0);
   env.dock.attributes.delete("data-queue");
   for (const observer of mutationObservers) observer.callback();
   env.run(80);
@@ -327,57 +352,89 @@ test("a buddy resting hidden on the Overview parks its frame loop until an input
   expect(frames.size).toBe(1);
 });
 
-test("floating elements are read at most once per frame, only while a surface is there, and hide the buddy under them", async () => {
+test("floating elements are searched for only when one can have come or gone, their rects read at most once per frame, and hide the buddy under them", async () => {
   const env = setup();
+  const find = vi.spyOn(page as unknown as { querySelectorAll(s: string): unknown[] }, "querySelectorAll");
+  const portals = () => { for (const observer of mutationObservers.filter(o => o.nodes.includes(page.body))) observer.callback(); };
   env.start(); env.frame(); await env.load();
-  const read = vi.spyOn(page as unknown as { querySelectorAll(s: string): unknown[] }, "querySelectorAll");
-  env.run(1);
-  expect(read).toHaveBeenCalledTimes(1);
-  // A tooltip over the buddy's own box (x 16 on the dock: 116–172, 443–499) sends it down; one far along does not.
-  page.floating = [rect(600, 440, 40, 20)];
   env.run(20);
+  // Searched once, at the first frame with a surface; every later frame reuses the list.
+  expect(find).toHaveBeenCalledTimes(1);
+  // A tooltip opens far along (its wrapper joins body): found again, and the buddy stays.
+  const tip = rect(600, 440, 40, 20);
+  page.floating = [tip]; portals();
+  env.run(20);
+  expect(find).toHaveBeenCalledTimes(2);
   expect(env.host().dataset.presence).toBe("shown");
-  page.floating = [rect(120, 470, 40, 20)];
+  // The same tooltip moves over the buddy's own box (x 16 on the dock: 116–172, 443–499): its rect is read each frame.
+  Object.assign(tip, rect(120, 470, 40, 20));
   env.run(40);
   expect(env.host().dataset.presence).toBe("hidden");
-  // Down under an open element nothing can change without an input: the loop parks and reads nothing.
-  read.mockClear();
+  expect(find).toHaveBeenCalledTimes(2);
+  // Down under an open element nothing can change without an input: the loop parks.
   env.run(3);
-  expect(read).not.toHaveBeenCalled();
   expect(frames.size).toBe(0);
   // The tooltip's wrapper leaves body: 1 s later the buddy rises at the same x.
-  page.floating = [];
-  for (const observer of mutationObservers.filter(o => o.nodes.includes(page.body))) observer.callback();
+  page.floating = []; portals();
   env.run(90);
+  expect(find).toHaveBeenCalledTimes(3);
   expect(env.host().dataset.presence).toBe("shown");
   expect(env.host().style.transform).toBe("translate(16px,0px)");
+  // The slash popover (the slot's popover attribute) and a picking or capture hint (App's push) search again too.
+  env.dock.setAttribute("data-popover", "");
+  for (const observer of mutationObservers.filter(o => o.nodes.includes(env.dock))) observer.callback();
+  env.run(1);
+  expect(find).toHaveBeenCalledTimes(4);
+  env.shell.update({ overview: false, folded: false, folding: false, covered: false, hint: true });
+  env.run(1);
+  expect(find).toHaveBeenCalledTimes(5);
 });
 
-test("a click on the painted body is a poke; the transparent margin and a hidden buddy take none", async () => {
+test("only the painted body takes the pointer, through a hit target clipped to the still's silhouette, and a click on it is a poke", async () => {
   const env = setup();
   env.start(); env.frame(); await env.load(); env.run(2);
-  const host = env.host();
-  host.box = rect(116, 443, 56, 56);
-  // 56px host, 16.5% padding: the 4 × 4 still spans x 125.24–162.76; its right half is opaque.
-  page.dispatch("pointermove", { clientX: 155, clientY: 470, target: page.body });
-  expect([host.style.pointerEvents, host.style.cursor]).toEqual(["auto", "pointer"]);
-  page.dispatch("pointermove", { clientX: 130, clientY: 470, target: page.body });
-  expect([host.style.pointerEvents, host.style.cursor]).toEqual(["", ""]);
-  host.dispatch("click", { clientX: 130, clientY: 470 });
-  env.run(1);
-  expect(env.host().dataset.presence).toBe("shown");
-  host.dispatch("click", { clientX: 155, clientY: 470 });
+  const hit = env.hit();
+  // 56px host, 16.5% padding: the 4 × 4 still spans 9.24–46.76; its right half (x 28–46.76) is opaque, so the pixel
+  // centres x 28.5…46.5 and y 9.5…46.5 are in. The browser hit-tests the clip-path, over the board's iframe as well.
+  expect(hit.style.clipPath).toBe('path("M28 9h19v38h-19Z")');
+  expect(hit.hidden).toBe(false);
+  // Out of the tab order and under the ground's aria-hidden.
+  expect(hit.hasAttribute("tabindex")).toBe(false);
+  // A press keeps the composer's focus.
+  const press = vi.fn();
+  hit.dispatch("mousedown", { preventDefault: press });
+  expect(press).toHaveBeenCalled();
+  hit.dispatch("click");
   env.run(1);
   expect(env.host().dataset.presence).toBe("hiding");
-  page.dispatch("pointermove", { clientX: 155, clientY: 470, target: page.body });
-  expect(host.style.pointerEvents).toBe("");
+  // Not fully shown: no hit target, so the pointer passes to whatever is under the buddy.
+  expect(hit.hidden).toBe(true);
 });
 
-test("composer input and focus look down and end a rest; pointer over the thread looks up without ending it", async () => {
+test("before the silhouette is read the buddy takes no pointer", () => {
+  const env = setup();
+  const realCreate = (page as unknown as { createElement(tag: string): FakeNode }).createElement;
+  Object.assign(page, { createElement: (tag: string) => { const node = realCreate(tag); if (tag === "img") Object.assign(node, { complete: false, naturalWidth: 0 }); return node; } });
+  env.start(); env.frame();
+  expect([env.hit().hidden, env.host().dataset.presence]).toEqual([true, "shown"]);
+  Object.assign(env.still(), { complete: true, naturalWidth: 4, naturalHeight: 4 });
+  env.still().dispatch("load");
+  env.frame();
+  expect(env.hit().hidden).toBe(false);
+});
+
+test("typing in the composer looks down and ends a rest, focus alone does not; pointer over the thread looks up without ending it", async () => {
   const env = setup();
   env.start(); env.frame(); await env.load(); env.run(2);
   const field = new FakeNode("div"); field.className = "composer-input";
   const card = new FakeNode("div"); card.className = "docked"; card.append(field);
+  page.dispatch("focusin", { target: field });
+  env.run(1);
+  expect(env.host().dataset.state).not.toBe("attentive");
+  page.dispatch("keydown", { target: field });
+  env.run(1);
+  expect(env.host().dataset.state).toBe("attentive");
+  clock += 3000; env.run(1);
   page.dispatch("input", { target: field });
   env.run(1);
   expect(env.host().dataset.state).toBe("attentive");
@@ -388,18 +445,29 @@ test("composer input and focus look down and end a rest; pointer over the thread
   expect(env.host().dataset.state).toBe("attentive");
 });
 
-test("an idle trip comes only after a rest: thread scrolling and composer input restart it, and an unfocused window never rests", async () => {
+test("an idle trip comes only after a rest: the person's thread scrolling and composer input restart it, and an unfocused window never rests", async () => {
   const env = setup();
   env.start(); env.frame(); await env.load();
   const thread = new FakeNode("div"); thread.className = "thread-scroll";
   const field = new FakeNode("div"); field.className = "composer-input";
   const card = new FakeNode("div"); card.className = "docked"; card.append(field);
-  // 200 s with a wheel on the thread or a keystroke every 4 s: never 5 s of rest, so no trip.
-  for (let at = 0; at < 200; at += 4) { page.dispatch(at % 8 ? "wheel" : "input", { target: at % 8 ? thread : field }); env.run(Math.round(4000 / 35), 35); }
+  // 200 s with a keyboard scroll of the thread or a keystroke in the composer every 4 s: never 5 s of rest, so no trip.
+  for (let at = 0; at < 200; at += 4) {
+    if (at % 8) { page.dispatch("keydown", { target: page.body }); page.dispatch("scroll", { target: thread }); } else page.dispatch("input", { target: field });
+    env.run(Math.round(4000 / 35), 35);
+  }
   expect(env.ground().parentElement).toBe(env.dock);
   // Resting, within 60–120 s (plus the hide and reveal) it moves to the toolbar.
   env.run(Math.round(127000 / 35), 35);
   expect(env.ground().parentElement).toBe(env.tools);
+
+  env.shell.stop();
+  // The thread following new agent output scrolls with no input from the person: the rest goes on.
+  const follow = setup();
+  follow.start(); follow.frame(); await follow.load();
+  for (let at = 0; at < 200 && follow.ground().parentElement === follow.dock; at += 4) { page.dispatch("scroll", { target: thread }); follow.run(Math.round(4000 / 35), 35); }
+  expect(follow.ground().parentElement).toBe(follow.tools);
+  follow.shell.stop();
 
   const away = setup();
   away.start(); away.frame(); await away.load();

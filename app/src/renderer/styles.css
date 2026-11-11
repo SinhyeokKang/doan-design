@@ -777,8 +777,8 @@ body:has(.shell-top) { background: transparent; }
 .docked { position: relative; }
 /* The docked buddy (docked-poc.js draft): a 0-high slot on the card's or the toolbar's top edge, out of the grid and the
    toolbar's flex row, so neither control moves. The ground sits 1px above the edge; the 88px window clips only the
-   buddy as it hides down behind the floor. Nothing in it takes the pointer except the host over its painted body,
-   which the shell turns on. z-index 2 stays under the queue (3) and every portalled menu, toast and overlay. */
+   buddy as it hides down behind the floor. Nothing in it takes the pointer except the hit target over its painted body.
+   z-index 2 stays under the queue and Jump to latest (3) and every portalled menu, toast and overlay. */
 .docked-buddy-slot { position: absolute; inset: 0 0 auto; height: 0; z-index: 2; pointer-events: none; }
 .docked-buddy { position: absolute; left: 0; right: 0; top: -1px; height: 0; pointer-events: none; }
 /* A 2px blur is a contact-shadow constant; the smallest shared blur (8px) erases this 16px shadow. */
@@ -789,6 +789,9 @@ body:has(.shell-top) { background: transparent; }
 .docked-buddy-host > :is(img, canvas) { position: absolute; inset: 0; width: 100%; height: 100%; box-sizing: border-box; }
 .docked-buddy-host > img { padding: 16.5%; object-fit: contain; }
 .docked-buddy-host > [hidden] { display: none; }
+/* The shell clips it to the still image's opaque pixels; clip-path is hit-tested, so only the painted body takes the
+   pointer, over the board's iframe too, and the shell hides it unless the buddy is fully shown. */
+.docked-buddy-hit { position: absolute; inset: 0; pointer-events: auto; cursor: pointer; }
 /* Queue pills draw above the buddy; the gaps between them stay transparent, so the buddy hides only behind a pill. */
 .docked > .queue { position: relative; z-index: 3; }
 /* The toolbar holds the buddy's second slot. Its own rule stays as the export viewer copies it, without a buddy. */
@@ -1125,7 +1128,8 @@ body:has(.shell-top) { background: transparent; }
 .conversation-thread .handoff-head .doan-button { flex: none; color: var(--text-standard); }
 .conversation-thread .handoff-card .md code { background: var(--surface-panel); }
 .conversation-thread .thread-loading { display: flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: 160px; color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
-.conversation-thread .jump-latest { position: absolute; left: 50%; bottom: var(--space-3); transform: translateX(-50%); box-shadow: var(--shadow-sm); }
+/* Above the docked buddy's slot (2), which shares its stacking context, like the queue pills. */
+.conversation-thread .jump-latest { position: absolute; left: 50%; bottom: var(--space-3); transform: translateX(-50%); box-shadow: var(--shadow-sm); z-index: 3; }
 /* turn-activity: the turn indicator in the reply's place (.doan/canvases/turn-activity.html, frame states). One line of
    fixed height, so a stage change never moves the thread: a long path ends in an ellipsis and the time keeps its place.
    The words are --text-metadata under a narrow white sweep (the panel colour mixed 55 %, 30 % of the words' width);

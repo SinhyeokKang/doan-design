@@ -36,3 +36,29 @@ export function onSilhouette(mask: SilhouetteMask | null, host: HostRect, presen
   if (ix < 0 || iy < 0 || ix >= mask.width || iy >= mask.height) return false;
   return mask.data[(iy*mask.width + ix)*4 + 3]! > 32;
 }
+
+// The painted body as a clip-path path() in the host's own px. The browser hit-tests a clip-path, so an element shaped
+// by it takes the pointer only over opaque pixels, wherever the pointer comes from (an OOPIF under it included), and
+// its transparent edges pass the pointer through. One rectangle per run of opaque pixel centres on each 1px row, a run
+// repeated on the next row extends that rectangle; same-direction subpaths fill as a union under nonzero. Null when no
+// pixel is opaque.
+export function silhouettePath(mask: SilhouetteMask, size: number): string | null {
+  const host = { left: 0, top: 0, width: size, height: size };
+  const rects: { x: number; y: number; w: number; h: number }[] = [];
+  let above: typeof rects = [];
+  for (let y = 0; y < size; y++) {
+    const row: typeof rects = [];
+    for (let x = 0; x < size; x++) {
+      if (!onSilhouette(mask, host, "shown", x + .5, y + .5)) continue;
+      const last = row.at(-1);
+      if (last && last.x + last.w === x) last.w += 1; else row.push({ x, y, w: 1, h: 1 });
+    }
+    above = row.map(run => {
+      const same = above.find(r => r.x === run.x && r.w === run.w);
+      if (same) { same.h += 1; return same; }
+      rects.push(run);
+      return run;
+    });
+  }
+  return rects.length ? `path("${rects.map(r => `M${r.x} ${r.y}h${r.w}v${r.h}h${-r.w}Z`).join("")}")` : null;
+}
