@@ -68,7 +68,7 @@ lead는 링크 1 시작 전에 아래를 사용자에게 한 번에 묻고, 승�
 | 링크 | 세션·worktree | 시작 | PR·병합 | 상태 |
 |---|---|---|---|---|
 | 1. `canvas-rendering-stability` | `canvas-rendering-stability-orch` (Claude conductor). 이전 머신에서 시작, 새 머신에서 재개. worktree 삭제됨 | 2026-11-11, `5676decd`. 재개 `12ddcfa8` | [#164](https://github.com/SinhyeokKang/doan-design/pull/164), 병합 `ea637516` | 병합 |
-| 2. `buddy-docked-motion` | | | | 대기 |
+| 2. `buddy-docked-motion` | `buddy-docked-motion-orch` (Claude conductor), 이 머신 `/Users/sinhyeokkang/orca/workspaces/doan-design/buddy-docked-motion-orch` | 2026-11-12, `e37a35fb` | | 진행 중 |
 | 3. `work-indicator-perf` | | | | 대기 |
 
 ## 인계 기록
@@ -124,3 +124,4 @@ lead는 링크 1 시작 전에 아래를 사용자에게 한 번에 묻고, 승�
     - 링크 1 증거: `.scratch/canvas-rendering-stability/`, `.scratch/agent-eval/crs-x1/`
     - 버디 초안 검수 증거: `.scratch/buddy-docked-review/`, `.scratch/buddy-docked-draft/`
     - `work-indicator-perf` design이 참조하는 `.scratch/flicker/probe3.mts`는 이 머신에도 없다. 링크 3 conductor가 design의 기록으로 다시 만든다.
+- 2026-11-12 lead(다음 머신, develop checkout `/Users/sinhyeokkang/code/doan-design`): **링크 2부터 인수했다.** PR #164 병합을 polling으로 확인했다. 링크 2를 `e37a35fb`에서 시작했다: worktree `buddy-docked-motion-orch`, 브랜치 `feat/buddy-docked-motion`, Claude conductor. 브리프에 tasks 2부터 진행, 최적화 목표와 LOD 결정, 링크 1이 바꾼 host 렌더 빈도(쉬는 동안 최대 1Hz, 숨으면 렌더 안 함)에 버디 애니메이션이 의존하지 않을 것, 앱 준비 명령, 링크 2 → 링크 3 인계 항목을 넣었다.

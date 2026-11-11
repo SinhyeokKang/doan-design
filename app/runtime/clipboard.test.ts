@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 const { saveClipboard, restoreClipboard }: typeof import("./clipboard") = await import(new URL("./clipboard.ts", import.meta.url).href);
 
+const RAW_HTML = 'electron application/osclipboard;format="public.html"';
+
 class Item {
   readonly types: string[];
   readonly data: Record<string, unknown>;
@@ -55,8 +57,19 @@ test("empty native items do not discard readable neighboring payloads", async ()
   const f = fixture([new Item({ "text/plain": "first" }), { types: [], getType: async () => { throw new Error("must not read"); } }, new Item({ "text/html": "last" })]);
   await saveClipboard(f.deps);
   await restoreClipboard(f.deps);
-  assert.deepEqual(f.writes[0]!.map(item => item.data), [{ "text/plain": "first" }, { "text/html": "last" }]);
+  assert.deepEqual(f.writes[0]!.map(item => item.data), [{ "text/plain": "first" }, { [RAW_HTML]: "last" }]);
   assert.equal(f.clears(), 0);
+});
+
+// Electron's text/html writer on macOS prefixes <meta charset='utf-8'>, so restoring under text/html stacked one more
+// prefix per probe. The HTML goes back under its raw pasteboard type, byte for byte.
+test("restores text/html unchanged, under the raw pasteboard type, with its other types", async () => {
+  for (const html of ["<b>x</b>", "<meta charset='utf-8'><b>x</b>"]) {
+    const f = fixture([new Item({ "text/plain": "x", "text/html": html })]);
+    await saveClipboard(f.deps);
+    await restoreClipboard(f.deps);
+    assert.deepEqual(f.writes[0]!.map(item => item.data), [{ "text/plain": "x", [RAW_HTML]: html }]);
+  }
 });
 
 for (const mode of ["read", "payload", "construct"]) {
