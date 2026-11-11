@@ -126,7 +126,6 @@ What Doan has not settled or not shown yet: product questions without a decision
 
 ## Known defects
 
-- `app/runtime/clipboard.ts`'s restore prefixes `<meta charset='utf-8'>` to the `text/html` representation on every restore, so repeated clipboard probes stack prefixes on the person's clipboard (seen three times in one run; the other representations restored unchanged).
 - The Welcome group photo's source (`.doan/assets/buddies/group/group.png`) is 1478 px wide, below the 1920 px a 960 px photo needs at 2× density, so it can look soft on a Retina display and softer in larger windows, where the photo grows; replace it when a larger source exists.
 - Copies at 0.1.0-rc.2 and earlier never update to a stable release (electron-updater's GitHub provider follows only the copy's own `rc` channel; fixed for later rc copies, ARCHITECTURE §7 'App updates'): they reported Up to date after 0.1.0 was published (2026-11-08) and need a manual reinstall.
 - An Esc pressed with focus inside the canvas iframe reaches only the canvas's step and an open toolbar tooltip: another Radix layer that stays open while focus is in the canvas, such as the update popover a stopped restart opens without focus, does not close on it (Radix listens on the app's document; `CanvasController.closeToolbarTooltip` hands an Escape only to the toolbar). Found while fixing the toolbar case, not seen in the real app.
