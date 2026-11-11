@@ -35,9 +35,9 @@
 | P (PoC) | tasks 1, 2 | 추적 파일 수정 없음. probe·증거는 `/Users/sinhyeokkang/code/doan-design/.scratch/canvas-rendering-stability/` | 없음 | Opus high — GPU·합성·레이아웃 원인을 가르는 판단 중심 작업이고 틀리면 이후 수정 전부가 빗나간다 | 지문·버전·로드 상태 기록, 앱과 Electron Export 창의 재현 기록(반복 측정 중앙값·범위, load average), 원인 후보와 근거 | 완료(커밋 없음, `handoff-P.md`) |
 | P2 (부하) | 결정 8 | 추적 파일 수정 없음 | P | Sonnet high — P의 probe를 그대로 반복 실행하는 측정이다. P 워커 터미널을 재사용할 수 없어 새 워커로 띄웠다 | 무부하·CPU·GPU 부하별 C2 이동 측정 중앙값·범위, C1 sanity | 완료(이전 머신) |
 | F (수정) | tasks 3, 4(`/runtime-test`·`/postmortem`) | `app/src/renderer/styles.css`와 캔버스 패널을 그리는 컴포넌트, `cli/internal/export/viewer/*`, 그 테스트, `docs/POSTMORTEM.md` | P, 개선 기준 합의 | Opus high — 앱과 Export 두 경로에서 외관 픽셀 일치와 구조 단언을 맞춰야 하고, 틀리면 잘림이 남거나 모서리 모양이 바뀐다 | 단위 red→green 또는 같은 probe의 전후 측정, `verify.mjs` | 부분 완료: 통합 `85879e1b`·`22b4d776`·`c36a2961`(원본 `3c2c4c2b`·`e341d3e3`·`3f388b82`, 배치 브랜치 `SinhyeokKang/crs-fix`). 기준 ④ 일부와 ⑤는 미실행 |
-| M (새 머신 재측정) | 남은 일 2·3: 합성 캔버스와 probe 재구성, C1 sanity, C2 회귀(기준 ④), 일반 크기 캔버스 `/runtime-test`(기준 ⑤) | 추적 파일 수정 없음. probe·증거는 `/Users/sinhyeok/code/doan-design/.scratch/canvas-rendering-stability/` | F 통합, develop 병합 | Opus high — 기록만으로 probe를 다시 만들고 합성 자료가 원래 현상을 재현하는지 판정해야 한다. 틀리면 회귀 판정과 O1 기준선이 모두 빗나간다 | 합성 자료의 C1 재현(수정 전)과 0(수정 후), C2 수정 전·후 번갈아 각 5회 중앙값·범위·load average, `/runtime-test` 기록 | 대기 |
+| M (새 머신 재측정) | 남은 일 2·3: 합성 캔버스와 probe 재구성, C1 sanity, C2 회귀(기준 ④), 일반 크기 캔버스 `/runtime-test`(기준 ⑤) | 추적 파일 수정 없음. probe·증거는 `/Users/sinhyeok/code/doan-design/.scratch/canvas-rendering-stability/` | F 통합, develop 병합 | Opus high — 기록만으로 probe를 다시 만들고 합성 자료가 원래 현상을 재현하는지 판정해야 한다. 틀리면 회귀 판정과 O1 기준선이 모두 빗나간다 | 합성 자료의 C1 재현(수정 전)과 0(수정 후), C2 수정 전·후 번갈아 각 5회 중앙값·범위·load average, `/runtime-test` 기록 | 완료(`handoff-M.md`). ①·④·⑤ 통과. 아래 '배치 M 결과' |
 | R (리뷰) | F의 `/code-review` | 보고만 | F | Opus medium — CSS·viewer 변경은 작지만 구조 단언과 회귀 판단이 필요하다 | 🔴 0 | 1라운드 🔴 0·🟡 0·⚪ 5(`handoff-R.md`). ⚪1 구조 단언 보강은 R-fix1(`e339850e` → 통합 `e8bb3254`, 배치 브랜치 `SinhyeokKang/crs-review`)로 넣었다. 변형 22개가 모두 red, HEAD는 green이다. ⚪2(앱도 비균일 반경 동작에 기댐)는 D에서 ARCHITECTURE 제약으로 제안한다. ⚪3·⚪5는 PR 본문에 적고, ⚪4는 남은 일 8과 같다 |
-| O1 (최적화 측정) | tasks 5 | 추적 파일 수정 없음 | M(같은 워커의 후속 Task, probe 재사용) | Opus high — 비용 분해와 drift 없는 후보 선정은 판단 중심이고, 틀리면 O2가 효과 없는 변경을 넣는다 | 비용별 기준선(중앙값·범위, load average), 후보와 근거·예상 효과 | 대기 |
+| O1 (최적화 측정) | tasks 5 | 추적 파일 수정 없음 | M(같은 워커의 후속 Task, probe 재사용) | Opus high — 비용 분해와 drift 없는 후보 선정은 판단 중심이고, 틀리면 O2가 효과 없는 변경을 넣는다 | 비용별 기준선(중앙값·범위, load average), 후보와 근거·예상 효과 | 진행 중(`brief-O1.md`) |
 | O2 (최적화 구현) | tasks 6 | O1이 고른 후보의 파일. O1 이후 확정 | O1 | O1 결과로 정한다 | 후보별 전후 비용, 픽셀 비교 drift 0, `verify.mjs` | 대기 |
 | D (문서) | tasks 7 | PRODUCT·ARCHITECTURE·BACKLOG·POSTMORTEM, 이 디렉터리 삭제 | F 통합 | conductor가 직접 쓴다(문서 갱신 커밋) | 증거 대조 | 대기 |
 
@@ -107,3 +107,11 @@ pmsf 118% 이동, 무부하·CPU(`yes` 4개)·GPU(WebGL fill-rate, Device Utiliz
 - 환경: Apple M1(8코어), 메모리 16 GB, macOS 26.6.2. 디스플레이는 외장 5K 하나, 논리 2560×1440·배율 2. Electron 45.0.0, 데스크톱 Chrome 157.0.8103.40. 설치된 Doan은 0.1.4다. lead 브리프의 'M3'는 실제와 달라 이 값을 쓴다. 이전 머신 수치와는 비교하지 않는다.
 - 자료: 결정 18. 증거와 probe는 `/Users/sinhyeok/code/doan-design/.scratch/canvas-rendering-stability/`에 둔다.
 - 남은 일 상태: 4는 결정 17로 닫았다. 2·3은 배치 M, 5는 R, 6은 O1·O2·R2, 1은 마지막 통합 뒤 `/verify`, 7·8·9는 conductor가 맡는다. 10은 M 브리프에 실제 상태 보호로 넣었다.
+
+### 배치 M 결과
+
+- 자료: 합성 캔버스 1판은 수정 전에도 C1이 0이었다. 실제 pmsf Export 두 파일(Downloads 11/6, Desktop 11/11, 수정 전 viewer, 제자리에서 읽기만 함)은 이 머신에서도 x 8192에서 잘렸다(0.1464–0.1467). 페이지 안에서 특성을 하나씩 꺼 보니, **캔버스 안의 둥근 스크롤 컨테이너(`overflow-y: auto`, 반경 4px, 내용이 넘침)가 보드 x 8192 너머에 있을 때만** 잘렸다. 같은 컨테이너가 x 1200에 있으면 잘리지 않았다. 그래서 둥근 스크롤 컨테이너를 넣은 합성 2판으로 쟀다. 이전 머신의 원인 서술(균일 반경 clip 아래 iframe이 16384 device px에서 잘림)은 맞고, 이 머신에서 확인한 촉발 조건이 하나 더 있다. Chromium 내부 이유는 확인하지 않았다. D에서 POSTMORTEM 항목에 이 조건을 더한다.
+- 기준 ①: 수정 전 앱(대화 접힘·양쪽 접힘)과 Export(Electron·Chrome)에서 보드 8186–8195 px 경계로 잘렸고(0.055–0.315), 수정 후 30개 조건 모두 5/5회 0이다. 기본 레이아웃은 수정 전에도 0이다.
+- 기준 ④: pmsf 118% 마구 이동, 전후 번갈아 각 5회. 앱 peak 0.432 → 0.432, >1% 프레임 0.613 → 0.610, 멈춘 뒤 0까지 29 → 15 ms. Export/Electron peak 0.481 [0.481–0.679] → 0.481, >1% 0.850 → 0.850, 33–52 → 31–33 ms. 수정 후가 수정 전 범위 안이라 회귀가 없다. 15% 여백 모델 IoU는 0.54–0.88로 이전 머신보다 낮다(screencast와 렌더러 시각 차이). 판정에는 쓰지 않았다. load average 3.6–14.6. 이전 머신 Export 0.187 대 0.182 미판정은 이 측정으로 대신한다.
+- 기준 ⑤: 일반 크기 캔버스, 세 레이아웃에서 선택 위치·프레임 점프·Capture area·재로드·스크롤·모션 30/30 PASS. 패널 모서리는 밝은 테마와 강제 어두운 nativeTheme에서 육안으로 확인했다.
+- 실제 상태 경고 2건은 probe와 무관하다: 실행 중인 실제 Doan.app이 `ui-state.json`을 썼고, 다른 Claude 세션이 `sessions.jsonl`에 한 줄을 썼다.
