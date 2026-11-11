@@ -121,7 +121,6 @@
     const state={time:0,ready:false,paused:false,visible:true,lookX:0,lookY:0,targetX:0,targetY:0,hat:0,hatV:0,jumpAt:-99,blinkAt:2,nextBlink:2,typingUntil:0,greetUntil:0,frames:0,last:0,eye:1,mode:'idle'};
     const frame=host.closest('[data-mascot-scope], [data-doan-frame]') || document;
     const message=host.closest('.docked').querySelector('.composer-input');
-    const send=null;
     const buttons=frame.querySelectorAll('[data-poc-action]');
     let walkX=16, direction=1, forced='walk', focusUntil=0;
     const tempo=host.dataset.buddyPreview==='puri'?1.12:1;
@@ -150,35 +149,94 @@
     const ground=host.parentElement;
     const dock=host.closest('.docked');
     const shadow=document.createElement('span');shadow.className='poc-contact-shadow';ground.prepend(shadow);
-    let drop=null;
     const trackMax=()=>Math.max(-2,ground.clientWidth-52);
-    function mountGround(){
-      const surface=dock.querySelector('.queue-item') || dock.querySelector('.composer-card');
-      if(ground.parentElement===surface)return;
-      const before=ground.getBoundingClientRect().top;
-      surface.prepend(ground);
-      const after=ground.getBoundingClientRect().top;
-      if(state.ready && !reduced.matches)drop={from:before-after,at:state.time};
+    const windowLayer=document.createElement('span');windowLayer.className='poc-buddy-window';
+    ground.append(windowLayer);windowLayer.append(host);
+    const toolbar=frame.querySelector('.doan-canvas-tools');
+    const surfaces={dock:dock.querySelector('.composer-card'),tools:toolbar};
+    const slots={dock:walkX};
+    let location='dock',queuePresent=!!dock.querySelector('.queue-entry');
+    let conceal=queuePresent?1:0,trip=null;
+    let nextHide=state.time+10+Math.random()*8;
+    const queueTemplate=document.querySelector('.queue-entry')?.cloneNode(true);
+    const queueCount=()=>dock.querySelectorAll('.queue-entry').length;
+    function moveSurface(destination){
+      if(destination===location)return;
+      slots[location]=walkX;location=destination;surfaces[location].prepend(ground);
+      walkX=slots[location]??Math.max(-2,(ground.clientWidth-56)/2);
     }
-    mountGround();
-    dock.querySelectorAll('.queue-item button[aria-label="Remove queued message"]').forEach(button=>button.addEventListener('click',()=>{
-      const before=ground.getBoundingClientRect().top;
-      dock.querySelector('.composer-card').prepend(ground);
-      const queue=button.closest('.queue');
-      button.closest('.queue-entry').remove();
+    function startTrip(destination){
+      stepsLeft=0;requestedJump=false;
+      if(reduced.matches){
+        motion=null;trip=null;if(destination)moveSurface(destination);conceal=destination?0:1;drawPresence();return;
+      }
+      if(motion && pose().phase==='prepare')motion=null;
+      const variants=[{name:'quick',delay:0,duration:.24},{name:'hesitant',delay:.18,duration:.36},{name:'soft',delay:.04,duration:.42}];
+      const style=variants[Math.floor(Math.random()*variants.length)];
+      trip={destination,phase:conceal===1?'waiting':'leaving',from:conceal,at:conceal===1?state.time:null,style,wait:.25+Math.random()*.35};
+      state.hideStyle=style.name;
+    }
+    function syncQueue(){
+      const next=queueCount()>0;if(next===queuePresent)return;
+      queuePresent=next;
+      buttons.forEach(b=>{if(b.dataset.pocAction==='wander')b.disabled=next;});
+      if(next && location==='tools' && conceal===0 && !trip)return;
+      startTrip(next?(toolbar?'tools':null):'dock');
+    }
+    function drawPresence(){
+      host.style.transform=`translate(${walkX}px,${conceal*52}px)`;
+      const height=motion?.big?.18:.075;
+      const airborne=Math.max(0,Math.min(1,pose().lift/height));
+      shadow.style.transform=`translateX(${walkX+26}px) scale(${1-airborne*(motion?.big?.6:.45)},${1-airborne*.3})`;
+      shadow.style.opacity=String((.34-airborne*.18)*(1-conceal));
+      host.dataset.surface=location;
+      host.dataset.presence=conceal===1?'hidden':conceal===0?'shown':trip?.phase==='leaving'?'hiding':'revealing';
+    }
+    function advancePresence(){
+      if(!trip || motion)return;
+      if(trip.at===null)trip.at=state.time;
+      const elapsed=state.time-trip.at;
+      if(trip.phase==='leaving'){
+        const u=Math.max(0,Math.min(1,(elapsed-trip.style.delay)/trip.style.duration));
+        conceal=trip.from+(1-trip.from)*smooth(u);
+        if(u===1){trip.phase='waiting';trip.at=state.time;}
+      }else if(trip.phase==='waiting'){
+        if(trip.destination===null || elapsed<trip.wait)return;
+        moveSurface(trip.destination);trip.phase='arriving';trip.at=state.time;
+      }else{
+        const peek=12/52;
+        if(elapsed<.22)conceal=1+(peek-1)*smooth(elapsed/.22);
+        else if(elapsed<.34)conceal=peek;
+        else {const u=Math.min(1,(elapsed-.34)/.22);conceal=peek*(1-smooth(u));if(u===1){trip=null;nextMove=state.time+1.5;nextHide=state.time+10+Math.random()*8;}}
+      }
+    }
+    buttons.forEach(b=>{if(b.dataset.pocAction==='wander')b.disabled=queuePresent;});
+    if(queuePresent)startTrip(toolbar?'tools':null);
+    dock.addEventListener('click',event=>{
+      const button=event.target.closest('.queue-item button[aria-label="Remove queued message"]');
+      if(!button)return;
+      const queue=button.closest('.queue');button.closest('.queue-entry').remove();
       if(!queue.querySelector('.queue-entry'))queue.remove();
-      mountGround();
-      const after=ground.getBoundingClientRect().top;
-      if(!reduced.matches)drop={from:before-after,at:state.time};
-      motion=null;nextMove=state.time+2;
-    }));
-    let rect;
-    const resize=()=>{const size=Math.min(1024,Math.ceil(host.clientWidth*Math.min(devicePixelRatio||1,2))); canvas.width=size;canvas.height=size;rect=host.getBoundingClientRect();render();};
+      syncQueue();
+    });
+    function addQueue(){
+      if(!queueTemplate)return;
+      let queue=dock.querySelector('.queue');
+      if(!queue){queue=document.createElement('div');queue.className='queue';dock.prepend(queue);}
+      const row=queueTemplate.cloneNode(true);row.querySelector('.poc-ground')?.remove();
+      row.querySelector('.queue-text').textContent=`Queued follow-up ${queueCount()+1}`;
+      queue.append(row);syncQueue();
+    }
+    drawPresence();
+    const resize=()=>{const size=Math.min(1024,Math.ceil(host.clientWidth*Math.min(devicePixelRatio||1,2))); canvas.width=size;canvas.height=size;render();};
     const observer=new ResizeObserver(resize); observer.observe(host);
-    const visible=new IntersectionObserver(entries=>{state.visible=entries[0].isIntersecting;}); visible.observe(host);
+    const visible=new IntersectionObserver(entries=>{state.visible=entries[0].isIntersecting;}); visible.observe(frame);
     function jump(){if(reduced.matches)return;requestedJump=true;}
     function action(name){
-      if(name==='jump') jump();
+      if(name==='wander' && !queuePresent)startTrip(toolbar?(location==='dock'?'tools':'dock'):'dock');
+      if(name==='queue-add')addQueue();
+      if(name==='queue-clear'){dock.querySelector('.queue')?.remove();syncQueue();}
+      if(name==='jump' && !trip && conceal===0) jump();
       if(['walk','input','thread'].includes(name)){forced=name;focusUntil=name==='walk'?0:state.time+5;if(name==='walk')nextMove=state.time+.35;}
       if(name==='greet') state.greetUntil=state.time+2.4;
       if(name==='blink') state.blinkAt=state.time;
@@ -228,6 +286,7 @@
         state.time+=dt;
         const t=state.time;
         const focus=attention();
+        if(!trip && !queuePresent && focus==='walk' && t>=nextHide)startTrip(toolbar?(location==='dock'?'tools':'dock'):'dock');
         if(motion){
           const m=motion,age=t-m.start;
           if(age>=m.prepare){
@@ -239,7 +298,7 @@
             nextMove=t+(stepsLeft>0?.12:2.8+Math.random()*2.4);
           }
         }
-        if(!motion){
+        if(!motion && !trip && conceal===0){
           const room=trackMax();
           if(direction>0 && room-walkX<12)direction=-1;else if(direction<0 && walkX<0)direction=1;
           if(requestedJump){beginMove(true);requestedJump=false;nextHop=t+16+Math.random()*9;}
@@ -257,20 +316,10 @@
         }
         const max=trackMax();
         walkX=Math.max(-2,Math.min(max,walkX));
-        let fall=0;
-        if(drop){
-          const u=Math.min(1,(t-drop.at)/.38);
-          fall=drop.from*(1-(drop.from<0?u*u:smooth(u)));
-          if(u===1)drop=null;
-        }
-        host.style.transform=`translate(${walkX}px,${fall}px)`;
-        const height=motion?.big?.18:.075;
-        const airborne=Math.max(0,Math.min(1,pose().lift/height+Math.abs(fall)/40));
-        shadow.style.transform=`translateX(${walkX+26}px) scale(${1-airborne*(motion?.big?.6:.45)},${1-airborne*.3})`;
-        shadow.style.opacity=String(.24-airborne*.14);
+        advancePresence();drawPresence();
         // Eyes lead a new direction; the body follows softly and only moves during a hop.
         let x=focus==='input'?.08:focus==='thread'?0:motion || nextMove-t<.45?direction*.55:direction*.12;
-        let y=focus==='input'?.75:focus==='thread'?-.75:0;
+        let y=conceal>0?-.55:focus==='input'?.75:focus==='thread'?-.75:0;
         host.dataset.attention=focus;
         state.lookX+=(x-state.lookX)*(1-Math.exp(-dt*9));state.lookY+=(y-state.lookY)*(1-Math.exp(-dt*9));
         bodyLean+=(state.lookX*.025-bodyLean)*(1-Math.exp(-dt*3));
@@ -280,11 +329,11 @@
         if(t>=state.nextBlink){state.blinkAt=t;state.nextBlink=t+4+Math.random()*4;}
         const b=t-state.blinkAt;
         state.eye=b>=0&&b<.18?1-.96*Math.sin(Math.PI*b/.18):1;
-        render();
+        if(conceal<1)render();
       }
       raf=requestAnimationFrame(tick);
     }
-    reduced.addEventListener('change',()=>{motion=null;drop=null;requestedJump=false;bodyLean=0;state.hat=0;state.hatV=0;host.style.transform=`translateX(${walkX}px)`;shadow.style.transform=`translateX(${walkX+26}px)`;shadow.style.opacity='.24';nextMove=state.time+2;render();});
+    reduced.addEventListener('change',()=>{motion=null;trip=null;requestedJump=false;bodyLean=0;state.hat=0;state.hatV=0;startTrip(queuePresent?(toolbar?'tools':null):'dock');if(!reduced.matches){trip=null;conceal=queuePresent&&!toolbar?1:0;}drawPresence();nextMove=state.time+2;nextHide=state.time+12;render();});
     canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();fallback.hidden=false;canvas.hidden=true;host.dataset.state='static';});
     let eyeTexture=null;
     Promise.all([texture(cfg.body),texture(cfg.accessory),texture('eye.png')]).then(([b,a,e])=>{textures.push(b,a);eyeTexture=e;if(disposed)return;state.ready=true;fallback.hidden=true;canvas.hidden=false;resize();}).catch(error=>{host.dataset.state='static';console.error(error);});
@@ -294,12 +343,6 @@
     return {state,action,render,host,gl,dispose};
   }
   document.querySelectorAll('[data-buddy-preview]').forEach(host=>{try{const rig=createRig(host);if(rig)rigs.push(rig);}catch(error){host.dataset.state='static';console.error(error);}});
-  document.querySelectorAll('[data-doan-frame]').forEach(frame=>{
-    frame.querySelectorAll('[data-poc-action]').forEach(button=>button.addEventListener('click',()=>{
-      const key={hide:'hidden',clearance:'clearance'}[button.dataset.pocAction];
-      if(key){const on=frame.dataset[key]!=='true';frame.dataset[key]=String(on);button.setAttribute('aria-pressed',String(on));}
-    }));
-  });
   // Static specimens need the app's end-following behavior as the queue changes their viewport height.
   document.querySelectorAll('.thread-scroll').forEach(scroller=>{
     let pinned=true;
