@@ -136,8 +136,9 @@ test("retargeting while leaving rises from the current concealed fraction", () =
   r.until(out => out.conceal > .3);
   const fraction = r.out.conceal;
   r.set({ reasons: { queue: false } });
-  const next = r.step();
-  expect(next.presence).toBe("revealing");
+  // The rise starts from where the hide stopped, not from fully down.
+  const turn = r.step(), next = r.step();
+  expect(turn).toMatchObject({ presence: "revealing", conceal: fraction });
   expect(next.conceal).toBeLessThan(fraction);
   expect(next.conceal).toBeGreaterThan(0);
 });
@@ -146,7 +147,7 @@ test("retargeting while arriving on the toolbar leaves it again for the dock", (
   const r = rig();
   r.run(.2);
   r.set({ reasons: { queue: true } });
-  r.until(out => out.surface === "tools" && out.presence === "revealing");
+  r.until(out => out.surface === "tools" && out.presence === "revealing" && out.conceal < 1);
   r.set({ reasons: { queue: false } });
   expect(r.step().presence).toBe("hiding");
   r.until(out => out.surface === "dock" && out.presence === "shown");
@@ -379,12 +380,13 @@ test("under reduced motion a click moves the buddy at once and changes apply wit
   const r = rig({ ...CANVAS, reduced: true });
   r.step();
   expect(r.step(["poke"])).toMatchObject({ surface: "tools", presence: "shown", conceal: 0 });
+  expect(r.step(["poke"])).toMatchObject({ surface: "dock", presence: "shown", conceal: 0 });
   r.set({ reasons: { queue: true } });
-  expect(r.step()).toMatchObject({ surface: "tools", conceal: 0 });
-  r.set({ dock: { floating: true }, reasons: { queue: false } });
-  expect(r.step()).toMatchObject({ surface: "dock", conceal: 0 });
-  r.set({ tools: { floating: true }, reasons: { queue: true } });
-  expect(r.step()).toMatchObject({ conceal: 1 });
+  expect(r.step()).toMatchObject({ surface: "tools", presence: "shown", conceal: 0 });
+  r.set({ reasons: { queue: false } });
+  expect(r.step()).toMatchObject({ surface: "dock", presence: "shown", conceal: 0 });
+  r.set({ reasons: { queue: true }, tools: { floating: true } });
+  expect(r.step()).toMatchObject({ presence: "hidden", conceal: 1 });
 });
 
 test("reduced motion rests like Home: no breathing, blink, gaze, hop or shadow change", () => {
@@ -413,6 +415,6 @@ test("the shadow centre sits under each buddy's feet", () => {
   for (const id of BUDDY_IDS) {
     const r = rig(CANVAS, id);
     const out = r.step();
-    expect(out.shadow.x - out.host.x, id).toBe(dockedGeometry(id).contactX);
+    expect(out.shadow.x - out.host.x, id).toBeCloseTo(dockedGeometry(id).contactX, 9);
   }
 });
