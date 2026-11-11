@@ -4,9 +4,21 @@ import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 export function plan(flags) {
-  for (const flag of flags) if (!["--eval"].includes(flag)) throw new Error(`Unknown option: ${flag}`);
+  let shard;
+  const rest = [];
+  for (let i = 0; i < flags.length; i++) {
+    if (flags[i] !== "--shard") { rest.push(flags[i]); continue; }
+    const value = flags[++i];
+    const match = /^(\d+)\/(\d+)$/.exec(value ?? "");
+    if (shard || !match || +match[1] < 1 || +match[1] > +match[2]) throw new Error(`Invalid --shard: ${value ?? "(missing)"}; expected one <i>/<n> with 1 <= i <= n`);
+    shard = { index: +match[1], value };
+  }
+  for (const flag of rest) if (!["--eval"].includes(flag)) throw new Error(`Unknown option: ${flag}`);
   const node = (name, args, pass) => ({ name, command: process.execPath, args, pass });
   const npm = (name, args, pass) => ({ name, command: "npm", args: ["--prefix", "app", ...args], pass });
+  const appTest = npm("app-test", ["test", ...(shard ? ["--", `--shard=${shard.value}`] : [])]);
+  // CI runs one job per shard; the non-sharded steps belong to shard 1 so each runs exactly once.
+  if (shard && shard.index > 1) return [appTest];
   return [
     node("verify-tests", ["--test", ".agents/skills/verify/scripts/verify.test.mjs"]),
     node("runtime-support", ["--test", "app/runtime/*.test.ts"]),
@@ -14,7 +26,7 @@ export function plan(flags) {
     { name: "go-vet", command: "go", args: ["vet", "./..."] },
     npm("typecheck", ["run", "typecheck"]),
     npm("lint", ["run", "lint"]),
-    npm("app-test", ["test"]),
+    appTest,
     ...(flags.includes("--eval") ? [
       node("eval-tests", ["--test", "eval/**/*.test.ts"]),
       node("eval-self-test", ["eval/run.ts", "--self-test"], /^self-test PASS \(/m),

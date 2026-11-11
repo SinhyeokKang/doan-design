@@ -53,10 +53,23 @@ lead는 링크 1 시작 전에 아래를 사용자에게 한 번에 묻고, 승�
 
 | 링크 | 세션·worktree | 시작 | PR·병합 | 상태 |
 |---|---|---|---|---|
-| 1. `canvas-rendering-stability` | | | | 대기 |
+| 1. `canvas-rendering-stability` | `canvas-rendering-stability-orch` (Claude conductor, 이 머신) | 2026-11-11, `5676decd` | | 다른 머신으로 인계 |
 | 2. `work-indicator-perf` | | | | 대기 |
 
 ## 인계 기록
 
 - 2026-11-11 lead(develop checkout): 사용자 요청으로 체인 파일을 작성했다. 시작 점검 승인 뒤 링크 1을 시작한다.
 - 2026-11-11 lead: 시작 점검 2 답. 큰 캔버스 대부분에서 깨진다. 최초 렌더링 때 오른쪽이 잘리고, 확대·축소를 빠르게 하거나 좌표를 마구 움직이면 깨진다. 시작 시점은 사용자가 알려준다. 나머지 시작 점검(1·3·4·5)은 그때 확인한다.
+- 2026-11-11 lead: 시작 점검 1·3·4·5를 사용자가 모두 승인했다. 자료는 `skillflo-web/.doan/` 복사본을 쓰고 Export는 복사본에서 `doan export`로 만든다. 복사본과 스크린샷은 develop checkout의 `.scratch/canvas-rendering-stability/`에만 두고 커밋·외부 전송은 하지 않는다. 사용자는 대화로만 참여한다. 사용자가 일하는 동안 측정한다. 링크 1을 `5676decd`에서 시작했다.
+- 2026-11-11 lead: 사용자 지시. 두 링크 모두 그래픽 깨짐·렌더링 버그 수정뿐 아니라 앱 자체의 최적화도 목표다. 시각적 drift가 없는 범위에서 렌더링 비용(첫 렌더링, 빠른 확대·축소, 마구잡이 이동, 메인 스레드·합성·래스터·GPU 메모리·레이어 수·무효화 범위)을 측정하고 줄이며, PR 본문에 전후 수치를 남긴다. ARCHITECTURE 구조 결정을 바꿔야 하면 사용자에게 먼저 묻는다. 링크 1 conductor에게 전달했고, 링크 2 브리프에도 넣는다.
+- 2026-11-11 lead: 사용자 결정(LOD). (1) 움직이는 동안 LOD 허용: 확대·이동 중에는 다시 그리지 않고 기존 래스터를 늘려 보여 주며 잠깐 흐려져도 된다. 멈춘 화면은 이전과 픽셀이 같아야 한다. (2) 축소 배율 스냅샷 LOD는 보수적으로 허용: 모자이크처럼 깨져 보이면 안 된다. 스냅샷은 표시되는 장치 픽셀 해상도 이상으로 만들고, 그 배율에서 실제 렌더와 같아 보여야 하며, hover·선택·Picker·캡처처럼 실제 DOM이 필요한 동작 전에 돌아와야 한다. ARCHITECTURE §3 렌더링 규칙을 바꿔야 하면 사용자에게 먼저 묻는다. (3) 캔버스 문서 안의 화면 밖 생략은 레이아웃이 바뀌지 않을 때만 쓴다. 링크 1 conductor에게 전달했고 링크 2에도 같은 규칙을 적용한다.
+- 2026-11-11 lead: **다른 머신으로 인계.** 사용자가 체인 전체를 다른 머신에서 이어 가기로 했다. 이 머신은 잠겨 GUI probe가 멈췄다.
+  - 링크 1 상태: P(원인 C1·C2)와 P2(부하 비교)는 끝났다. F(C1 수정)는 배치 브랜치 `SinhyeokKang/crs-fix`에 커밋 두 개(`3c2c4c2b` 테스트, `e341d3e3` 수정)가 있다. conductor 계획은 F를 `feat/canvas-rendering-stability`에 cherry-pick하고, P·P2·F 측정 요약과 남은 작업을 orch.md에 적고, 브랜치를 push한 뒤 워커를 정리하고 멈추는 것이다. 기록 시점 원격 `feat/canvas-rendering-stability` tip은 `91c57304`(F 통합 전)이다.
+  - 전달 실패: lead가 보낸 추가 지시(배치 브랜치 `crs-fix`·`crs-poc` push, orch.md에 probe 재현 절차 기록, PR은 아직 열지 않음)는 conductor 터미널이 입력을 받지 않아 전달되지 않았다. 새 머신은 원격에 F 커밋이 있는지 먼저 확인한다. 없으면 이 머신의 로컬 브랜치 `SinhyeokKang/crs-fix`에만 있으므로 이 머신에서 push해야 한다.
+  - 새 머신에 남은 일(링크 1): F 완료 조건 4(C2 전후 4–5회 측정)와 5(`/runtime-test` probe), 독립 리뷰 R, 최적화 O1·O2(위 LOD 결정과 최적화 목표 적용), `/agent-eval`(export 변경), 문서 작업 7, PR.
+  - 옮겨지지 않는 것: probe 스크립트, skillflo 복사본, 측정 원본, `.scratch/flicker/` 증거(work-indicator-perf design이 `.scratch/flicker/probe3.mts`를 참조한다)는 이 머신의 `.scratch/`에만 있다. 새 머신은 skillflo-web `.doan/`을 자기 `.scratch/`에 다시 복사하고 probe를 orch.md 기록으로 다시 만든다. 이 파일의 절대 경로(`/Users/sinhyeokkang/...`)는 새 머신에 맞게 확인한다.
+  - 새 머신 시작: develop checkout에서 lead 세션을 열고 이 파일을 읽는다. 링크 1은 새로 시작하지 않고 원격 `feat/canvas-rendering-stability`를 체크아웃한 worktree에서 conductor가 orch.md를 읽고 `/orchestrate docs/features/canvas-rendering-stability/`를 이어 간다. 링크 2는 링크 1 병합 뒤 시작한다.
+- 2026-11-11 lead: 링크 1 conductor가 이 머신에서 할 수 있는 만큼 마치고 멈췄다. 원격 `feat/canvas-rendering-stability` tip은 `12ddcfa8`이다. F 통합 커밋은 `85879e1b`·`22b4d776`·`c36a2961`이고, 배치 브랜치 `SinhyeokKang/crs-fix`도 원격에 있다. `crs-poc`는 커밋이 없어 push하지 않았다. 측정 요약과 남은 일 10가지는 그 브랜치 orch.md '머신 이전 인계'에 있다. C1 지속 잘림은 앱 세 레이아웃, Export Electron 창, Chrome 157에서 5회 모두 0이 됐다.
+  - 새 머신에서 사용자 결정이 필요한 것: 모서리 AA 차이(앱 최대 3/255, Export 최대 4/255, AA 가장자리에서만)를 '같은 픽셀'로 볼지.
+  - 미판정: C2 Export 빈 프레임 비율 최대가 수정 전 0.182, 수정 후 0.187이다. 수정 후 표본이 2개라 회귀인지 잡음인지 가르지 못했다.
+

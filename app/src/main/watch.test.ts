@@ -18,12 +18,14 @@ import { classifyDesignChange } from "./designChange";
 import { createRefresher, watchFolder, type Change, type FolderWatch } from "./watch";
 
 // Pass-through spy, so a test can see which paths got a watcher of their own;
-// it also counts raw events, so a test can wait until they stop.
-const raw = vi.hoisted(() => ({ events: 0 }));
+// it also counts raw events, so a test can wait until they stop, and can drop
+// events, so a test can stand in for one that FSEvents never delivered.
+const raw = vi.hoisted(() => ({ events: 0, drop: undefined as ((path: string, filename: string | null) => boolean) | undefined }));
 vi.mock("node:fs", async (importOriginal) => {
   const fs = await importOriginal<typeof import("node:fs")>();
   const watch = (path: string, options: { recursive: boolean }, listener: (event: string, filename: string | null) => void) =>
     fs.watch(path, options, (event, filename) => {
+      if (raw.drop?.(path, filename)) return;
       raw.events++;
       listener(event, filename);
     });
@@ -35,6 +37,7 @@ let count = 0;
 let open: FolderWatch | undefined;
 
 afterEach(() => {
+  raw.drop = undefined;
   open?.close();
   open = undefined;
 });
@@ -720,6 +723,23 @@ test("canvas assets reload after creation, editing and directory replacement", a
     writeFileSync(join(assets, "style.css"), "b{}");
   }, BOTH);
   await expectChange(w, () => writeFileSync(join(assets, "style.css"), "c{}"), SERVED);
+});
+
+// libuv recreates its shared FSEvents stream from "now" whenever a watcher opens or
+// closes, so `.doan`'s own event for the replaced directory can be lost while the
+// re-arm runs. The replacement alone has to count as the directory coming and going.
+test("a replaced canvas assets directory reloads even when .doan's event for it is lost", async () => {
+  const root = repo();
+  const assets = join(root, ".doan/assets");
+  mkdirSync(assets);
+  writeFileSync(join(assets, "style.css"), "a{}");
+  const w = await watchScope(root, [".doan/canvases"]);
+  raw.drop = (path, filename) => path === join(root, ".doan") && filename === "assets";
+  await expectChange(w, () => {
+    rmSync(assets, { recursive: true });
+    mkdirSync(assets);
+    writeFileSync(join(assets, "style.css"), "b{}");
+  }, BOTH);
 });
 
 // `doan ls` does not list a symlinked `.doan/ds`, and its scope names the real path.
