@@ -44,3 +44,4 @@ tasks 2(초안)는 develop에서 끝났다(`6a9a8e82`).
 - R: `ctc-review`(Opus high, dispatch `ctx_e31229020fdf`)가 `43d7587f..bc21eebe`를 검토한다. 읽기만 하므로 I의 후속 probe와 동시에 돈다.
 - R 완료: 🔴 0, 🟡 2, ⚪ 8(보고서는 conductor `.scratch/review-R.md`에 복사). 계획 이탈 8개는 모두 타당하다고 판단했다. 테스트는 돌리지 않았다(worktree에 node_modules 없음).
 - 수정 1차: 🟡-2와 ⚪-1–5를 I 워커에 보냈다(dispatch `ctx_7698cd6817c7`). 🟡-1은 사용자 결정 뒤 2차로 보낸다. ⚪-6은 BACKLOG로 넘긴다.
+- lead 요청: 이 링크의 마지막 GUI probe(앱 창, 네이티브 입력)가 끝나고 더 띄울 일이 없으면 lead에게 `[conductor canvas-text-copy] GUI done`을 보낸다. 그 뒤 수정 차례가 다시 화면을 쓰면 시작 전에 `[conductor canvas-text-copy] GUI again`을 보낸다. 수정 2차(🟡-1 커서 확인)에 짧은 실제 앱 확인이 남아 있어 아직 보내지 않는다.
