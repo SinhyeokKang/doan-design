@@ -56,15 +56,15 @@
 
 | 경우 | 앱 | 캔버스 서버 요청(캔버스 HTML 제외) | export | Chromium export | Safari |
 |---|---|---|---|---|---|
-| 로컬 `href="../assets/sprite.svg#icon"` | 안 그려짐(bbox 0×0, 픽셀 0), 콘솔 `Unsafe attempt to load URL …` | 없음 | 성공, 스프라이트를 캔버스에 복사(`href="#icon"`) | 파란 원 | 사용자 확인 대기(`safari/02-use-local.html`) |
-| `xlink:href`(xlink 네임스페이스) | 로컬과 같음 | 없음 | 성공, 복사 | 파란 원 | 사용자 확인 대기(`safari/03-use-xlink.html`) |
-| CDN `https://cdn.jsdelivr.net/…/bootstrap-icons.svg#circle-fill` | 안 그려짐, 같은 콘솔 오류 | 없음(CDN 요청도 없음) | 성공, `external`에 보고하고 그대로 둠 | 안 그려짐, 같은 콘솔 오류(`from frame with URL about:srcdoc`) | 사용자 확인 대기(`safari/04-use-cdn.html`) |
-| `data:image/svg+xml,…#icon` | 안 그려짐, 같은 콘솔 오류 | 없음 | 성공, 거부도 복사도 하지 않고 그대로 둠 | 안 그려짐, 같은 콘솔 오류 | 사용자 확인 대기(`safari/05-use-data.html`) |
-| 인라인 스프라이트 + `<style>`(원을 빨강으로, 스프라이트 밖 HTML 요소를 초록으로) | 빨간 원(bbox 40×40) + 초록 사각형 | 없음 | 성공 | 앱과 같음(빨간 원 + 초록 사각형) | 사용자 확인 대기(`safari/01-inline-style.html`) |
-| 아이콘별 SVG `<img src>` | 파란 원 | `.doan/assets/icon.svg` | 성공 | 파란 원 | 사용자 확인 대기(`safari/06-img-icon.html`) |
-| 캔버스 `<style>`의 `mask: url(../assets/icon.svg)` | 파란 원 | `.doan/assets/icon.svg` | 성공 | 파란 원 | 사용자 확인 대기(`safari/07-mask-icon.html`) |
-| 링크한 CSS의 `mask: url(sprite.svg#icon)` | 안 그려짐(요청은 감, computed `mask-image`는 스프라이트 URL) | `icons.css`, `sprite.svg#icon` | 성공 | 안 그려짐 | 사용자 확인 대기(`safari/08-mask-sprite.html`) |
-| `<img src="sprite.svg#icon">` | 안 그려짐(이미지 로드 완료, 300×150, 빈 그림) | `sprite.svg#icon` | 성공 | 안 그려짐 | 사용자 확인 대기(`safari/09-img-sprite.html`) |
+| 로컬 `href="../assets/sprite.svg#icon"` | 안 그려짐(bbox 0×0, 픽셀 0), 콘솔 `Unsafe attempt to load URL …` | 없음 | 성공, 스프라이트를 캔버스에 복사(`href="#icon"`) | 파란 원 | 파란 원(Chromium export와 같음) |
+| `xlink:href`(xlink 네임스페이스) | 로컬과 같음 | 없음 | 성공, 복사 | 파란 원 | 파란 원(Chromium export와 같음) |
+| CDN `https://cdn.jsdelivr.net/…/bootstrap-icons.svg#circle-fill` | 안 그려짐, 같은 콘솔 오류 | 없음(CDN 요청도 없음) | 성공, `external`에 보고하고 그대로 둠 | 안 그려짐, 같은 콘솔 오류(`from frame with URL about:srcdoc`) | 안 그려짐(Chromium export와 같음) |
+| `data:image/svg+xml,…#icon` | 안 그려짐, 같은 콘솔 오류 | 없음 | 성공, 거부도 복사도 하지 않고 그대로 둠 | 안 그려짐, 같은 콘솔 오류 | 안 그려짐(Chromium export와 같음) |
+| 인라인 스프라이트 + `<style>`(원을 빨강으로, 스프라이트 밖 HTML 요소를 초록으로) | 빨간 원(bbox 40×40) + 초록 사각형 | 없음 | 성공 | 앱과 같음(빨간 원 + 초록 사각형) | 빨간 원 + 초록 사각형(Chromium export와 같음) |
+| 아이콘별 SVG `<img src>` | 파란 원 | `.doan/assets/icon.svg` | 성공 | 파란 원 | 파란 원(Chromium export와 같음) |
+| 캔버스 `<style>`의 `mask: url(../assets/icon.svg)` | 파란 원 | `.doan/assets/icon.svg` | 성공 | 파란 원 | 파란 원(Chromium export와 같음) |
+| 링크한 CSS의 `mask: url(sprite.svg#icon)` | 안 그려짐(요청은 감, computed `mask-image`는 스프라이트 URL) | `icons.css`, `sprite.svg#icon` | 성공 | 안 그려짐 | 안 그려짐(Chromium export와 같음) |
+| `<img src="sprite.svg#icon">` | 안 그려짐(이미지 로드 완료, 300×150, 빈 그림) | `sprite.svg#icon` | 성공 | 안 그려짐 | 안 그려짐(Chromium export와 같음) |
 
 - 스프라이트는 `<symbol>`만 담은 흔한 형태다. `mask`·`<img>`의 `sprite.svg#icon`이 빈 것은 조각이 `<symbol>`을 가리켜도 그 symbol이 그려지지 않기 때문으로 보인다(`<view>`·`:target` 스택 형태는 측정하지 않았다).
 - 스프라이트 `<style>`이 캔버스 전체에 걸리는 점은 앱과 Chromium export에서 같았다(스프라이트 밖 `div.outside`가 초록).
@@ -77,12 +77,16 @@
 | 위 경우의 사용처 하나만(`cp-diff-a`, `cp-diff-b`) | 각자 자기 폴더 파일 | 성공 | 앱과 같음 |
 | 서로 다른 경로 추가 레이아웃 16쪽: 선언을 `:root`/각 요소 `style` 속성에 두고 사용처를 `background-image`·`background` shorthand·`mask: var(--icon, none) …` shorthand·`--x: var(--icon)` 연쇄로, 각각 두 순서(`cpx-*-ab`/`-ba`). 그리고 사용처 요소 6개 교차(`cpx-many`), 첫 그리기 300ms 뒤 삽입한 사용처(`cpx-late`) | 모든 쪽에서 각 사용처가 자기 폴더 파일로 풀림(computed URL·픽셀 일치). 순서 의존 재현 안 됨 | 모두 거부(같은 사유) | — |
 | 같은 텍스트를 두 property에(`cpx-twoprops`), 다른 폴더는 일반 property로 같은 텍스트(`cpx-mixed-ab`/`-ba`) | 각자 자기 폴더 파일 | 성공 | 앱과 같음 |
-| 같은 경로: `.doan/ds/…-tokens.css`가 `--icon:url(../assets/<set>/x.svg)`를 선언, 캔버스 `<style>`(`.doan/canvases/`)과 `.doan/ds/<set>.css`가 사용, 두 순서(`cp-same-cd`, `cp-same-dc`) | 두 순서 모두 두 요소가 `.doan/assets/<set>/x.svg`(초록) | 성공(그 파일을 data URL로 넣음) | 두 요소 초록. Safari는 사용자 확인 대기(`safari/10-cp-same-cd.html`, `safari/11-cp-same-dc.html`) |
-| `@property --icon { syntax: "<url>"; … }`, 선언 폴더 초록·사용 폴더 빨강/파랑, 두 순서(`cp-prop-ab`, `cp-prop-ba`) | 두 요소 모두 선언 폴더 파일(초록), computed `--icon`이 절대 URL | 성공 | 앱과 같음. Safari는 사용자 확인 대기(`safari/12-cp-prop-ab.html`) |
+| 같은 경로: `.doan/ds/…-tokens.css`가 `--icon:url(../assets/<set>/x.svg)`를 선언, 캔버스 `<style>`(`.doan/canvases/`)과 `.doan/ds/<set>.css`가 사용, 두 순서(`cp-same-cd`, `cp-same-dc`) | 두 순서 모두 두 요소가 `.doan/assets/<set>/x.svg`(초록) | 성공(그 파일을 data URL로 넣음) | 두 요소 초록. Safari도 두 순서 모두 두 요소 초록 |
+| `@property --icon { syntax: "<url>"; … }`, 선언 폴더 초록·사용 폴더 빨강/파랑, 두 순서(`cp-prop-ab`, `cp-prop-ba`) | 두 요소 모두 선언 폴더 파일(초록), computed `--icon`이 절대 URL | 성공 | 앱과 같음. Safari도 두 요소 초록(`cp-prop-ab`) |
 
 #### design.md 'PoC 의존' 대조
 
 1. **성립.** 외부 `<use>` 네 형태(로컬 `href`, `xlink:href`, CDN, `data:`) 모두 앱에서 그려지지 않고, 캔버스 서버에도 CDN에도 요청이 가지 않는다. 렌더러가 요청 전에 막는다(`Unsafe attempt to load URL`). Chromium export에서도 CDN·`data:` `<use>`는 같은 이유로 그려지지 않는다.
-2. **앱·Chromium에서 성립, Safari 대기.** 인라인 스프라이트와 그 `<style>`은 앱과 Chromium export에서 같은 결과이고, `<style>`은 두 곳 모두 캔버스 전체에 걸린다.
+2. **성립.** 인라인 스프라이트와 그 `<style>`은 앱, Chromium export, Safari export에서 같은 결과이고, `<style>`은 세 곳 모두 캔버스 전체에 걸린다.
 3. **부분 성립.** 아이콘별 SVG의 `<img src>`와 `mask: url(icon.svg)`는 앱과 Chromium export에서 보인다. `mask: url(sprite.svg#icon)`와 `<img src="sprite.svg#icon">`는 `<symbol>`만 있는 스프라이트로는 두 곳 모두 빈칸이므로 가이드에 넣지 않는다.
 4. **일부 불성립.** 서로 다른 경로로 푸는 경우의 "앱 결과가 순서에 따라 달라진다"는 18쪽(`cp-diff-ab`·`-ba`와 추가 16쪽, 두 순서 변형 포함)에서 재현되지 않았다. 앱은 사용처마다 자기 폴더의 파일을 그렸다. 같은 경로로 풀리면 순서와 관계없이 그 파일이 보이고, `@property` `<url>`은 선언 위치에서 풀린다는 두 가정은 성립했다. 같은 경로 경우가 순서에 따라 달라지지 않았으므로 warning 조건을 "사용 폴더 둘 이상"으로 바꿀지 묻는 분기는 해당하지 않는다.
+
+#### Safari (2026-11-13)
+
+- 사용자가 `safari/` 12개 export 파일을 Safari에서 열고 스크린숏을 남겼다. conductor가 스크린숏을 README 기대값과 대조했고 12개 모두 Chromium export와 같았다. 외부 `<use>`의 CDN·`data:`(04·05)도 Safari에서 그려지지 않았다. 스크린숏은 확인 뒤 사용자 요청으로 지웠다.
