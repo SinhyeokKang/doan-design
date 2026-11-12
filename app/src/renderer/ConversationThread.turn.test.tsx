@@ -52,7 +52,7 @@ vi.mock("react", async original => {
     useId: () => hooks.mocked ? "k" : actual.useId(),
   };
 });
-const { ConversationThread, TurnIndicator } = await import("./ConversationThread");
+const { ConversationThread, ThreadEntry, TurnIndicator } = await import("./ConversationThread");
 
 function reset() { hooks.states = []; hooks.refs = []; hooks.memos = []; hooks.effects = []; hooks.pending = []; }
 // Renders until state settles, then runs the effects, as React would.
@@ -73,7 +73,9 @@ function unmount() { for (const slot of hooks.effects) slot?.cleanup?.(); hooks.
 function all(node: ReactNode): ReactElement<Record<string, unknown>>[] {
   if (Array.isArray(node)) return node.flatMap(all);
   if (!isValidElement<Record<string, unknown>>(node)) return [];
-  return [node, ...Object.values(node.props).flatMap(value => Array.isArray(value) || isValidElement(value) ? all(value as ReactNode) : [])];
+  // A thread item draws its content when React renders it; draw it here as that render would.
+  const drawn = node.type === ThreadEntry ? [(node.props.draw as (entry: unknown) => ReactNode)(node.props.entry)] : [];
+  return [node, ...[...Object.values(node.props), ...drawn].flatMap(value => Array.isArray(value) || isValidElement(value) ? all(value as ReactNode) : [])];
 }
 const textOf = (node: ReactNode): string => Array.isArray(node) ? node.map(textOf).join("") : typeof node === "string" || typeof node === "number" ? String(node)
   : isValidElement<{ children?: ReactNode }>(node) ? textOf(node.props.children) : "";
