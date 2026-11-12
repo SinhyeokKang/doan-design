@@ -44,7 +44,7 @@ import { childOfTopFrame, frameNavigationAllowed, fromAppFrame, isCanvasFrame } 
 import { editMenuInput, editMenuTemplate } from "./editMenu";
 import { canvasScriptSource } from "./canvasScript";
 import { createAddFlow, type AddFlow } from "./addProjects";
-import { cliCommand, readFolder, runConfig, runDesignSkill, runExport, runLs } from "./cli";
+import { cliCommand, cliEnv, readFolder, runConfig, runDesignSkill, runExport, runLs, type CliEnv } from "./cli";
 import { createCanvasExport, EXPORT_REFUSED } from "./canvasExport";
 import { createCanvasTrash, TRASH_REFUSED, trashBusy } from "./canvasTrash";
 import { createConfigBridge, storageWrite, type ConfigBridge } from "./configBridge";
@@ -97,7 +97,8 @@ app.setName("doan");
 
 // storage "local" keeps the Doan files out of Git; null runs plain init, which follows the root's current mode (the
 // Set Up form sends null for a project that already keeps them out of Git).
-export interface ProjectInitRequest { root: string; choiceId: string | null; storage: "local" | null }
+// gitInit: the Set Up form showed the .git/ its Keep out of Git setup creates; omitted otherwise.
+export interface ProjectInitRequest { root: string; choiceId: string | null; storage: "local" | null; gitInit?: true }
 export type TokenCssChoice = { kind: "selected"; choiceId: string; path: string } | { kind: "cancelled" } | { kind: "unavailable"; message: string };
 
 export type ViewCommand = "zoomIn" | "zoomOut" | "actualSize" | "fit" | "reload";
@@ -689,6 +690,10 @@ async function start(): Promise<void> {
   });
   readState = seen;
   documents.onChange(() => seen.documentsChanged());
+  // One login-shell probe at a time, shared by agent facts, clone and the CLI's git (read only when first needed).
+  const shellForFacts = sharedShell(() => probeShell(process.env));
+  // The CLI's git for Keep out of Git outside Git is found as clone finds its git (cli.ts CliEnv).
+  const gitEnv = async (): Promise<CliEnv> => { const probe = await shellForFacts(); return cliEnv(probe.ok ? probe.path : null, process.env); };
   const ready = await startShell(join(userData, "folders.json"), cliCommand(process.env, app.isPackaged, process.resourcesPath), (entries, focus) => {
     const refreshes = folderRefreshes(conversationLists, entries);
     conversationLists = refreshes.next;
@@ -726,6 +731,8 @@ async function start(): Promise<void> {
     // A root saved through a symlink is read as its real path once its seen canvases and UI memory have moved to it,
     // in this order and before the renderer reads ui-state.json (folderStore RootMigration).
     migrate: async aliases => seenStore.copyRoots(aliases) && await moveUiStateRoots(join(userData, "ui-state.json"), aliases),
+    home: homeDirectory(),
+    cliEnv: gitEnv,
   });
   shell = ready;
   shellEntries = () => ready.entries();
@@ -823,7 +830,6 @@ async function start(): Promise<void> {
   // Unreadable metadata leaves sign-in unavailable rather than letting a later save erase other connections.
   try { await auth.load(); agentAuth = auth; } catch (error) { console.error("doan: agent sign-in storage is unreadable", error); }
   const executable = (path: string) => { try { accessSync(path, fsConstants.X_OK); return statSync(path).isFile(); } catch { return false; } };
-  const shellForFacts = sharedShell(() => probeShell(process.env));
   // Agent setup (ARCHITECTURE §7 'Agent setup'): once per launch, beside the window rather than
   // before it. About waits for this result, which stays pending while the administrator dialog is open; a run that
   // throws becomes a crashed item, so About never shows its failure as "every agent was set up".
@@ -890,8 +896,8 @@ async function start(): Promise<void> {
   // A write of the shared exclude file changes the mode of every worktree of the project, so all of them are read
   // again, as after a Project Settings write (POSTMORTEM 2026-11-03 'Locate on the Project Settings page…').
   const rereadGroup = (root: string) => ready.reread(groupRoots(ready.entries(), root));
-  const initializeProject = async (root: string, tokenCss: string | null, storage: "local" | null): Promise<ProjectInitResult> => {
-    const outcome = await ready.initialize(root, tokenCss, storage);
+  const initializeProject = async (root: string, tokenCss: string | null, storage: "local" | null, gitInit = false): Promise<ProjectInitResult> => {
+    const outcome = await ready.initialize(root, tokenCss, storage, gitInit);
     if (outcome.kind === "success" && storage === "local") rereadGroup(root);
     return outcome;
   };
@@ -913,7 +919,7 @@ async function start(): Promise<void> {
       const confirmed = await flow.confirm({ confirmId: confirm.confirmId });
       return confirmed.kind === "added" && ready.entries().some(entry => entry.path === confirm.path) ? confirm.path : null;
     },
-    initialize: (root, storage) => initializeProject(root, null, storage),
+    initialize: (root, storage, gitInit) => initializeProject(root, null, storage, gitInit),
     home: homeDirectory,
     remotes: root => readGitRemotes(root, homeDirectory()),
     keepsLocal: path => projectKeepsLocal(ready.entries(), path),
@@ -1071,18 +1077,20 @@ async function start(): Promise<void> {
     choices.set(root, choice);
     return { kind: "selected", choiceId: choice.id, path: choice.path };
   });
+  // gitInit: the form showed the .git/ this setup creates; only ever true, and only with Keep out of Git.
   handle("project:init", unavailable, async (event, value: unknown): Promise<ProjectInitResult> => {
-    if (!fromWindow(event) || typeof value !== "object" || value === null || Object.keys(value).length !== 3 ||
+    const gitInit = typeof value === "object" && value !== null && "gitInit" in value;
+    if (!fromWindow(event) || typeof value !== "object" || value === null || Object.keys(value).length !== (gitInit ? 4 : 3) ||
       !("root" in value) || typeof value.root !== "string" || !("choiceId" in value) ||
       (value.choiceId !== null && typeof value.choiceId !== "string") || !("storage" in value) ||
-      (value.storage !== null && value.storage !== "local") || !canSetUp(value.root)) return unavailable;
+      (value.storage !== null && value.storage !== "local") || (gitInit && (value.storage !== "local" || value.gitInit !== true)) || !canSetUp(value.root)) return unavailable;
     let tokenCss: string | null = null;
     if (value.choiceId !== null) {
       const choice = choices.get(value.root);
       if (!choice || choice.id !== value.choiceId || choice.epoch !== ready.epoch(value.root)) return unavailable;
       tokenCss = choice.path;
     }
-    return initializeProject(value.root, tokenCss, value.storage);
+    return initializeProject(value.root, tokenCss, value.storage, gitInit);
   });
   handle("app:home", null, event => fromWindow(event) ? homeDirectory() : null);
   handle("window:visible", null, event => fromWindow(event) ? { visible: windowShown && !appHidden } : null);
@@ -1276,7 +1284,7 @@ async function start(): Promise<void> {
   handle("onboarding:choose-folder", null, (event, value: unknown) => fromWindow(event) ? chooseFolder(value) : null);
 
   const bridge = createConfigBridge({
-    run: (root, args) => runConfig(command, root, args),
+    run: async (root, args) => args.includes("--git-init") ? runConfig(command, root, args, await gitEnv()) : runConfig(command, root, args),
     // Every worktree of the project shows the mode, and an unset-up one's Not set up notice depends on it.
     storageWritten: root => ready.reread(groupRoots(ready.entries(), root)),
     epoch: root => ready.entries().some(entry => entry.path === root && entry.kind === "list") ? ready.epoch(root) : null,

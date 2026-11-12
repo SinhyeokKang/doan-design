@@ -1,5 +1,6 @@
-import { initArgs } from "./onboarding/states";
+import { findOnPath, initArgs } from "./onboarding/states";
 import { spawn } from "node:child_process";
+import { accessSync, constants as fsConstants, statSync } from "node:fs";
 import { stat } from "node:fs/promises";
 import { CLI_TIMEOUT_MS, folderState, type CliRun, type FolderState } from "./folderState";
 import { launchEnv } from "./launchEnv";
@@ -22,19 +23,22 @@ export function runLs(cli: string, target: LsTarget, timeoutMs = CLI_TIMEOUT_MS)
   return runCli(cli, args, "cwd" in target ? target.cwd : undefined, timeoutMs);
 }
 
+// What the CLI's git (git init for Keep out of Git) is found with, under the names Go reads: the login shell's PATH and
+// the inherited DEVELOPER_DIR, as clone finds its git (onboarding/clone.ts locateGit, cloneEnv). Only what is known.
 export interface CliEnv { PATH?: string; DEVELOPER_DIR?: string }
-export function cliEnv(_loginPath: string | null, _inherited: NodeJS.ProcessEnv): CliEnv {
-  return {};
+export function cliEnv(loginPath: string | null, inherited: NodeJS.ProcessEnv): CliEnv {
+  return { ...(loginPath ? { PATH: loginPath } : {}), ...(inherited.DEVELOPER_DIR ? { DEVELOPER_DIR: inherited.DEVELOPER_DIR } : {}) };
 }
 
+// gitInit: the screen showed the repository this setup creates (initArgs). env: CliEnv, for a run that may create it.
 export function runInit(cli: string, folder: string, tokenCss: string | null, storage: "local" | null = null, options: { gitInit?: boolean; env?: CliEnv; timeoutMs?: number } = {}): Promise<CliRun> {
-  return runCli(cli, initArgs(folder, tokenCss, storage), undefined, options.timeoutMs ?? CLI_TIMEOUT_MS);
+  return runCli(cli, initArgs(folder, tokenCss, storage, options.gitInit), undefined, options.timeoutMs ?? CLI_TIMEOUT_MS, options.env);
 }
 
 // `args` holds only absolute paths, so the CLI's root-relative rule never
 // meets a path the app spelled relative to something else.
-export function runConfig(cli: string, root: string, args: readonly string[], _env: CliEnv = {}, timeoutMs = CLI_TIMEOUT_MS): Promise<CliRun> {
-  return runCli(cli, ["config", "--json", "--repo", root, ...args], undefined, timeoutMs);
+export function runConfig(cli: string, root: string, args: readonly string[], env: CliEnv = {}, timeoutMs = CLI_TIMEOUT_MS): Promise<CliRun> {
+  return runCli(cli, ["config", "--json", "--repo", root, ...args], undefined, timeoutMs, env);
 }
 
 // No repo and no cwd: the presets are embedded in the CLI. The id goes after
@@ -70,15 +74,22 @@ export async function readFolder(cli: string, path: string, timeoutMs = CLI_TIME
   return folderState(await runLs(cli, { repo: path }, timeoutMs));
 }
 
+function executable(path: string): boolean {
+  try { accessSync(path, fsConstants.X_OK); return statSync(path).isFile(); } catch { return false; }
+}
+
 // Not `execFile`: its 1 MiB default `maxBuffer` is below a large repo's normal
 // `ls` output. stdin is ignored so the CLI never waits for an answer (POSTMORTEM
 // "A character device is not necessarily a terminal"). The launching terminal's session IDs would let the CLI record
-// session associations for that session, so the CLI gets the launchd environment; PATH stays the app's own because
-// it only resolves an unpackaged run's bare `doan` (cliCommand), and the CLI starts nothing through PATH.
-function runCli(cli: string, args: string[], cwd: string | undefined, timeoutMs: number): Promise<CliRun> {
+// session associations for that session, so the CLI gets the launchd environment. PATH is the app's own unless
+// `git` (CliEnv) names the login shell's: the CLI starts git through PATH only for git init. spawn looks a bare command
+// up on the child's PATH, so an unpackaged run's bare `doan` (cliCommand) is found on the app's own PATH first.
+function runCli(cli: string, args: string[], cwd: string | undefined, timeoutMs: number, git: CliEnv = {}): Promise<CliRun> {
   return new Promise((resolve) => {
-    const env = { ...launchEnv(process.env), ...(process.env.PATH ? { PATH: process.env.PATH } : {}) };
-    const child = spawn(cli, args, { cwd, env, stdio: ["ignore", "pipe", "pipe"] });
+    const own = process.env.PATH ?? "";
+    const env = { ...launchEnv(process.env), ...(own ? { PATH: own } : {}), ...git };
+    const command = git.PATH !== undefined && !cli.includes("/") ? findOnPath(own, cli, executable) ?? cli : cli;
+    const child = spawn(command, args, { cwd, env, stdio: ["ignore", "pipe", "pipe"] });
     const stdout: Buffer[] = [];
     const stderr: Buffer[] = [];
     let settled = false;

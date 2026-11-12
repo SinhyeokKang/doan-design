@@ -6,7 +6,7 @@ import { readFolder, runLs, runInit, type CliEnv } from "./cli";
 import { replaceAt } from "./folders";
 import { openFolderStore, type RootMigration } from "./folderStore";
 import { classifyDesignChange } from "./designChange";
-import { folderState, initOutcome, reconcileFolders, type FolderState, type InitOutcome } from "./folderState";
+import { folderState, homeOrAbove, initOutcome, reconcileFolders, type FolderState, type InitOutcome } from "./folderState";
 import { startServer, type LocalServer } from "./serve/server";
 import type { StorageMode, StorageReason } from "./storage";
 import { folderEntry, openDecision, type FolderEntry } from "./view";
@@ -26,6 +26,7 @@ export interface Shell {
   // the human when the folder is not opened.
   open(picked: string): Promise<{ root: string } | { refused: string }>;
   // storage "local": keep the Doan files out of Git (`init --storage local`); null follows the root's current mode.
+  // gitInit: the screen showed the .git/ this setup creates (`--git-init`).
   initialize(path: string, tokenCss: string | null, storage?: "local" | null, gitInit?: boolean): Promise<ProjectInitResult>;
   reopen(path: string): Promise<void>;
   // Stores roots main already judged, after the stored ones; resolves to the
@@ -107,7 +108,9 @@ export interface ShellHooks {
   seen?(root: string): void;
   autoRemoved?(paths: string[], before: FolderEntry[]): void;
   migrate?: RootMigration;
+  // The person's home folder: Doan creates no repository there or above it, so such a folder is never planned notGit.
   home?: string;
+  // The git environment for a setup that may create a repository (cli.ts CliEnv).
   cliEnv?(): Promise<CliEnv>;
 }
 
@@ -182,6 +185,7 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
         return view;
       }
     }
+    if (view.kind === "uninitialized" && view.notGit && homeOrAbove(folder.path, hooks?.home ?? "")) view = { kind: "uninitialized" };
     let mtimes: Map<string, number> | undefined;
     if (view.kind === "list") {
       mtimes = await canvasMtimes(view.root, view.canvases.flatMap((canvas) => {
@@ -335,7 +339,7 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
       logWrite(await write);
       return { root: path };
     },
-    initialize(path, tokenCss, storage = null) {
+    initialize(path, tokenCss, storage = null, gitInit = false) {
       const folder = folders.get(path);
       const unavailable: ProjectInitResult = { kind: "unavailable", message: "This project is no longer available for setup." };
       if (!folder) return Promise.resolve(unavailable);
@@ -351,12 +355,17 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
         for (let tries = 0; tries < 3 && root === false && folders.get(path) === folder; tries++) root = await refresh(folder, { reread: true, served: false });
         if (root) return { kind: "rerooted", root: root.root, message: rerootMessage(root.root, root) };
         if (root === false || folders.get(path) !== folder || folder.epoch !== epoch || folder.entry.kind !== "uninitialized") return unavailable;
-        const outcome = initOutcome(await runInit(cli, path, tokenCss, storage), { tokenCss: tokenCss !== null });
+        const env = gitInit ? await hooks?.cliEnv?.() : undefined;
+        if (folders.get(path) !== folder || folder.epoch !== epoch) return unavailable;
+        const outcome = initOutcome(await runInit(cli, path, tokenCss, storage, { gitInit, ...(env ? { env } : {}) }),
+          { tokenCss: tokenCss !== null, folder: path, home: hooks?.home ?? "" });
         if (folders.get(path) !== folder || folder.epoch !== epoch) return unavailable;
         // init's own writes start a watcher read that can overtake this one and drop it as stale. The read is repeated
         // up to three times, so in the usual race the setup answers after its listing has published; if every try is
         // overtaken (a folder that keeps changing), it still answers success and the watcher's newer read publishes.
-        if (outcome.kind === "success") {
+        // A failed creation may have left its .git/ (cleanup_failed), so the folder reads as inside Git again and the
+        // form drops its .git/ line; the same bounded re-read as after a success.
+        if (outcome.kind === "success" || (gitInit && outcome.kind === "error")) {
           for (let tries = 0; tries < 3 && await refresh(folder, { reread: true, served: false }) === false && folders.get(path) === folder; tries++);
         }
         return outcome;

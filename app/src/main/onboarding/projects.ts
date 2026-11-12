@@ -3,11 +3,12 @@ import { basename, dirname, join } from "node:path";
 import type { OnboardingChange, OnboardingOperationErrorCode, OnboardingStorage } from "../../formats/types";
 import { gitChildren, hasGitEntry } from "../addProjects";
 import type { LsTarget } from "../cli";
-import type { FolderState } from "../folderState";
+import { homeOrAbove, type FolderState } from "../folderState";
 import type { ProjectInitResult } from "../shell";
 import { EXCLUDE_LABEL } from "../storage";
 import { openDecision } from "../view";
 import { runClone, type CloneRequest, type CloneResult } from "./clone";
+import { HOME_REFUSAL, repositoryLeftoverMessage } from "./operations";
 import type { RemoteRead } from "./gitConfig";
 import { findCandidates, folderMatch, type GitHubRepository } from "./repository";
 
@@ -19,13 +20,15 @@ export interface ProjectDeps {
   registered(): readonly string[];
   // Registers through Add Project's flow and answers the stored root, or null when it did not store one.
   add(path: string): Promise<string | null>;
-  // storage "local": `init --storage local`; null runs plain init, which follows the root's current mode.
+  // storage "local": `init --storage local`; null runs plain init, which follows the root's current mode. gitInit: the
+  // plan showed the .git/ setup creates (`--git-init`).
   initialize(root: string, storage: "local" | null, gitInit: boolean): Promise<ProjectInitResult>;
   remotes(root: string): RemoteRead;
   // Another listed worktree of this folder's Doan root keeps its files out of Git (storage.ts projectKeepsLocal).
   keepsLocal(path: string): boolean;
   // `doan config --storage local` for a set-up root: success, or the CLI's error code.
   keepLocal(root: string): Promise<{ ok: true } | { ok: false; code: string }>;
+  // The person's home folder: Doan plans and creates no repository there or above it.
   home(): string;
 }
 // storage: "local" when the folder is set up that way or its setup is planned that way (app-socket v2 inspection);
@@ -79,7 +82,9 @@ export type SetupPlan = "repo" | "local" | "kept";
 
 // What `doan init` would create here, read the way init reads it; a folder with any config gets nothing. The exclude
 // file sits in the repository's common Git directory, which TS never looks for (§13), so "local" names it by its label.
-export async function plannedChanges(root: string, state: FolderState, plan: SetupPlan = "repo", _home = ""): Promise<OnboardingChange[]> {
+// Outside Git (ls's not_git) "local" also creates the repository, except in the home folder or above it, where the CLI
+// refuses instead.
+export async function plannedChanges(root: string, state: FolderState, plan: SetupPlan = "repo", home = ""): Promise<OnboardingChange[]> {
   if (state.kind !== "uninitialized") return [];
   const changes: OnboardingChange[] = [];
   try { await lstat(join(root, ".doan/canvases")); } catch { changes.push(".doan/canvases/"); }
@@ -89,6 +94,7 @@ export async function plannedChanges(root: string, state: FolderState, plan: Set
     if (ATTRIBUTE_LINES.some(line => !present.includes(line))) changes.push(".gitattributes");
   }
   if (plan === "local") changes.push(EXCLUDE_LABEL);
+  if (plan === "local" && state.notGit && !homeOrAbove(root, home)) changes.push(".git/");
   changes.push(".doan/config.json");
   return changes.sort();
 }
@@ -97,7 +103,7 @@ export async function plannedChanges(root: string, state: FolderState, plan: Set
 // decided it.
 async function planned(path: string, state: FolderState, storage: OnboardingStorage, deps: ProjectDeps): Promise<Candidate> {
   const plan: SetupPlan = deps.keepsLocal(path) ? "kept" : storage;
-  return { path, changes: await plannedChanges(path, state, plan), ...(plan === "repo" ? {} : { storage: "local" as const }) };
+  return { path, changes: await plannedChanges(path, state, plan, deps.home()), ...(plan === "repo" ? {} : { storage: "local" as const }) };
 }
 const listed = (state: Extract<FolderState, { kind: "list" }>): Candidate => ({ path: state.root, changes: [], ...(state.storage === "local" ? { storage: "local" as const } : {}) });
 
@@ -155,22 +161,27 @@ export async function inspectUrl(repo: GitHubRepository, deps: ProjectDeps, stor
 
 // Registers at selection, then sets up only what the user asked for; a broken config is never written over.
 // storage "local": the plan named the exclude entry, so init keeps the files out of Git; null runs plain init.
-export async function selectProject(path: string, initialize: boolean, repo: GitHubRepository | null, deps: ProjectDeps, storage: "local" | null = null, _gitInit = false): Promise<ProjectOutcome> {
+// gitInit: the plan named .git/, so init may create the repository.
+export async function selectProject(path: string, initialize: boolean, repo: GitHubRepository | null, deps: ProjectDeps, storage: "local" | null = null, gitInit = false): Promise<ProjectOutcome> {
   if (await canonicalFolder(path) !== path) return failed("project_unavailable");
   if (repo && folderMatch(repo, deps.remotes(path)) === "mismatch") return failed("remote_mismatch");
-  return register(path, initialize, deps, storage);
+  return register(path, initialize, deps, storage, false, gitInit);
 }
 
 // A refused setup, by the CLI's literal code (ARCHITECTURE §12 'Storage'). Plain init in a project already out of
-// Git can fail on the exclude file too, so the codes are read whatever was asked.
-function setupFailure(code: string): OnboardingOperationErrorCode {
-  return code === "local_not_git" || code === "local_exclude_failed" ? code : "init_failed";
+// Git can fail on the exclude file too, so the codes are read whatever was asked. A failed git init is the socket's
+// existing init_failed, whose shipped notice it keeps; a .git Doan could not remove is named in main's own words, and a
+// refusal in the home folder says why no repository is made there.
+function setupFailure(code: string, root: string, deps: ProjectDeps): ProjectOutcome {
+  if (code === "cleanup_failed") return { ok: false, code, message: repositoryLeftoverMessage(root) };
+  if (code === "local_not_git" && homeOrAbove(root, deps.home())) return { ok: false, code, message: HOME_REFUSAL };
+  return failed(code === "local_not_git" || code === "local_exclude_failed" || code === "git_missing" ? code : "init_failed");
 }
 
 // keepChosen: the folder is a clone made for this choice, so a repository that brings its own setup still gets the
 // chosen Keep out of Git. A folder picked as it is never has its project's mode changed: the mode belongs to the root
 // and every worktree shares it (PRODUCT §5 item 0 'Doan files').
-async function register(path: string, initialize: boolean, deps: ProjectDeps, storage: "local" | null, keepChosen = false): Promise<ProjectOutcome> {
+async function register(path: string, initialize: boolean, deps: ProjectDeps, storage: "local" | null, keepChosen = false, gitInit = false): Promise<ProjectOutcome> {
   const stored = await deps.add(path);
   if (stored === null) return failed("project_unavailable");
   const state = await deps.ls({ repo: stored });
@@ -186,12 +197,12 @@ async function register(path: string, initialize: boolean, deps: ProjectDeps, st
     return confirmProject(state.root, deps);
   }
   if (!initialize) return failed("project_unavailable");
-  const outcome = await deps.initialize(stored, storage, false);
+  const outcome = await deps.initialize(stored, storage, gitInit);
   switch (outcome.kind) {
     case "success": return confirmProject(stored, deps);
     case "rerooted": return confirmProject(outcome.root, deps);
     case "unavailable": return failed("project_unavailable");
-    case "error": return failed(setupFailure(outcome.code));
+    case "error": return setupFailure(outcome.code, stored, deps);
     default: return failed("init_failed");
   }
 }

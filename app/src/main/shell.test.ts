@@ -798,7 +798,9 @@ exit 9
     expect(readFileSync(join(root, ".git", "info", "exclude"), "utf8")).toContain(".doan/");
     rmSync(join(root, ".doan", "config.json"));
     await shell.reopen(root);
-    await vi.waitFor(() => expect(shell.entries()[0]).toEqual({ path: root, kind: "uninitialized" }), until);
+    // Now inside its own repository (the row keeps the last Git common directory it saw), so nothing plans a new one.
+    await vi.waitFor(() => expect(shell.entries()[0]).toMatchObject({ path: root, kind: "uninitialized" }), until);
+    expect(shell.entries()[0]).not.toHaveProperty("notGit");
     expect(await shell.initialize(root, null, "local", true)).toEqual({ kind: "success" });
     expect(statSync(join(root, ".git", "HEAD")).ino).toBe(head);
   });
