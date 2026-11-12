@@ -120,6 +120,61 @@ test("what an item draws from outside its own data still draws it again", () => 
   expect(changed({ provider: "codex" }, "end")).toBe(true);
 });
 
+// A handoff in each direction, then a turn waiting on a permission and a question.
+function asks(): ConversationEvent[] {
+  const canvas = { path: ".doan/canvases/b.html", id: "b" };
+  return [
+    ev("t3", { type: "user.message", text: "Carry on", anchors: [], origin: { kind: "handoff", conversationId: "c0", canvas } }), ev("t3", { type: "turn.started" }),
+    ev("t3", { type: "handoff.requested", canvas: { path: canvas.path }, text: "Move it" }), ev("t3", { type: "turn.done" }),
+    ev("t3", { type: "handoff.resolved", outcome: "started", target: { conversationId: "c2", canvas } }),
+    ev("t4", { type: "user.message", text: "Go", anchors: [], attachments: [{ kind: "file", name: "a.png", size: 1, path: "/Users/ada/a.png" }] }), ev("t4", { type: "turn.started" }),
+    ev("t4", { type: "permission.request", requestId: "r1", tool: "Bash", summary: "Run ls", options: [{ id: "a", label: "Allow", kind: "allow" }, { id: "d", label: "Deny", kind: "deny" }] }),
+    ev("t4", { type: "question.request", requestId: "q1", questions: [{ id: "0", header: "H", question: "Which?", options: [], multiSelect: false, other: true }] }),
+  ];
+}
+
+test("handoffs, asks and attachments draw again when what they read from outside their data changes", () => {
+  const items = threadItems(asks(), ROOT, true);
+  const key = (kind: ThreadItem["kind"]) => items.find(item => item.kind === kind)!.key;
+  expect(new Set(items.map(item => item.kind))).toEqual(new Set(["handoffCard", "handoff", "noReply", "user", "permission", "question"]));
+  const base = run(props(items));
+  const changed = (patch: Partial<ConversationThreadProps>, kind: ThreadItem["kind"]) => {
+    const next = run(props(items, patch));
+    run(props(items));
+    return !same(base.get(key(kind))!, next.get(key(kind))!);
+  };
+  expect(changed({ homeDirectory: "/Users/bob" }, "user")).toBe(true);
+  expect(changed({ canvasListed: () => false }, "handoff")).toBe(true);
+  expect(changed({ canvasListed: () => false }, "handoffCard")).toBe(true);
+  expect(changed({ liveAfter: 1000 }, "permission")).toBe(true);
+  expect(changed({ questionDraft: () => ({ choices: {}, sending: "answer", failed: false }) }, "question")).toBe(true);
+});
+
+// Finds the first element in a drawn item with `prop` and returns its onClick.
+function pressWith(node: ReactNode, prop: string): (() => void) | null {
+  if (Array.isArray(node)) { for (const child of node) { const hit = pressWith(child, prop); if (hit) return hit; } return null; }
+  if (!isValidElement<Record<string, unknown> & { children?: ReactNode; onClick?: () => void }>(node)) return null;
+  if (node.props.onClick && prop in node.props) return node.props.onClick;
+  return pressWith(node.props.children, prop);
+}
+
+test("an activity draws again when it opens", () => {
+  const items = threadItems(history(), ROOT, true);
+  const at = items.find(item => item.kind === "activity")!.key;
+  const before = run(props(items));
+  pressWith(drawn(before.get(at)!), "aria-expanded")!();
+  expect(same(before.get(at)!, run(props(items)).get(at)!)).toBe(false);
+});
+
+test("a permission draws again when its answer did not reach main", async () => {
+  const items = threadItems(asks(), ROOT, true);
+  const at = items.find(item => item.kind === "permission")!.key;
+  const before = run(props(items, { onAnswer: async () => ({ error: "gone" }) }));
+  press(drawn(before.get(at)!), "Allow")!();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  expect(same(before.get(at)!, run(props(items)).get(at)!)).toBe(false);
+});
+
 test("an item kept from an earlier render calls the host's latest callbacks", () => {
   const events = [...history().slice(0, 6)];
   const items = threadItems(events, ROOT, true);
