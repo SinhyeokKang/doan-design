@@ -347,12 +347,20 @@ document.addEventListener("keydown", (event) => {
 // above do the rest.
 
 const boardDrawn = () => viewer.phase === "ready";
+// Whether the canvas document was last told the board pans. A pointer resting over the canvas keeps the cursor the
+// canvas last set until it moves, so the canvas shows the hand itself (measure.js). A newly loaded document has been
+// told nothing.
+let panTold = false;
 
 function syncSurface() {
   // A Space held before the canvas was drawn does not pan the canvas that comes later.
   if (!boardDrawn()) spaceHeld = false;
-  board.toggleAttribute("data-pan", layerShown(tool, spaceHeld, drag !== null, boardDrawn()));
+  const pan = board.toggleAttribute("data-pan", layerShown(tool, spaceHeld, drag !== null, boardDrawn()));
   board.toggleAttribute("data-grabbing", drag !== null);
+  if (pan !== panTold && canvas.contentWindow) {
+    panTold = pan;
+    canvas.contentWindow.postMessage({ type: "pan", pan }, "*");
+  }
 }
 
 // The pressed tool holds the toolbar's one Tab stop.
@@ -481,6 +489,9 @@ const releaseInput = () => {
 // lets Space go. A canvas that loads another document ends a held Space and a drag too.
 window.addEventListener("blur", () => {
   if (!document.hasFocus()) releaseInput();
+});
+canvas.addEventListener("load", () => {
+  panTold = false;
 });
 canvas.addEventListener("load", releaseInput);
 

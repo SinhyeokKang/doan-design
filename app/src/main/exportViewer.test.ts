@@ -1062,7 +1062,7 @@ describe("tool wiring", () => {
   });
 
   test("the canvas iframe has a plain cursor of its own, so a pan that ends under a resting pointer does not leave the hand", () => {
-    expect(shellCss).toMatch(/\n\.canvas \{[^}]*\bcursor: default;/);
+    expect(shellCss).toMatch(/\n\.board iframe \{[^}]*\bcursor: default;/);
   });
 
   test("a Space down from the canvas counts only while the canvas has focus; its release always counts", () => {

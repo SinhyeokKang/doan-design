@@ -1455,6 +1455,9 @@ export class CanvasController {
     // A drag and a held Space end with the board they were on; the tool stays.
     if (!board) { this.stopDrag(); this.spaceHeld = false; }
     const show = board && (this.tool === "hand" || this.spaceHeld || this.drag !== null);
+    // A pointer resting over the canvas keeps the cursor the canvas last set until it moves, so the canvas shows the
+    // hand itself while the layer is up.
+    if (show !== this.layerShown) this.sendHoverCommand({ type: "hover-hand", hand: show });
     if ((show && !this.layerShown) || (capture && !this.captureShown)) {
       // The iframe gets no pointermove under the layer, and an OOPIF's pointerout cannot be trusted (POSTMORTEM 2026-10-23).
       this.hoverRect = null;
@@ -1527,6 +1530,8 @@ export class CanvasController {
       // (its location.reload()), which keeps the iframe; the tool stays. Not on the anchor document's change: the
       // iframe's load event forgets that one while the document stays.
       if (this.spaceHeld || this.drag !== null) { this.spaceHeld = false; this.finishDrag(); }
+      // Hand keeps the layer up through the canvas's own reload, and the new document has no hand of its own.
+      if (this.layerShown) this.sendHoverCommand({ type: "hover-hand", hand: true });
     }
     const before = this.layoutDisplayKey();
     const previousCurrent = this.state.currentFrame;

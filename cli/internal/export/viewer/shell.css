@@ -338,7 +338,10 @@ html:not(.js) .doan-canvas-bottom { display: none; }
    zoom is a transform on the stage inside a spacer of the scaled size (shell.js). */
 .board { position: relative; flex: 1; min-height: 0; overflow: auto; background: var(--surface-inset); }
 .board:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
-.board iframe { display: block; border: 0; }
+/* The cursor the page shows over the iframe only after a pan that ended under a resting pointer: the
+   page holds the cursor until the pointer moves into the canvas again, and without its own cursor
+   the hand would stay. */
+.board iframe { display: block; border: 0; cursor: default; }
 /* The drag surface (shell.js, lib.js layerShown): in Hand, while Space is held and through a drag,
    the board takes the pointer and the wheel, and the canvas iframe none. The app's .drag-layer
    cursors. */
