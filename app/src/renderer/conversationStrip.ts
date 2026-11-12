@@ -73,6 +73,7 @@ const FAILURES: Record<string, (p: string) => { title: string; body: string }> =
   rate_limited: p => ({ title: `${p} reached a usage limit`, body: "Send again from Home after it resets." }),
   session_unavailable: p => ({ title: `${p} couldn’t continue`, body: "Edit your request on Home and send it again." }),
   session_in_use: p => ({ title: `${p} couldn’t continue`, body: "Edit your request on Home and send it again." }),
+  prompt_unread: p => ({ title: `${p} didn’t pick up your message`, body: "Edit your request on Home and send it again." }),
 };
 // process_exited, unknown and codes without a row of their own.
 const STOPPED = (p: string) => ({ title: `${p} stopped unexpectedly`, body: "Edit your request on Home and send it again." });

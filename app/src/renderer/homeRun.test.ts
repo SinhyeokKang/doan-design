@@ -220,6 +220,8 @@ test("the new-canvas window closes at main's judgement, read from a list read st
     const sending = h.run.start(REQUEST, LAST); start.resolve({ conversationId: "c2" }); await sending;
     h.arrive();
     h.run.event(event("c2", { type: "turn.started" }, "t2"));
+    // The reads the start asked for have answered, so the next notice starts a read of its own.
+    await flush();
     const before = deferred<ConversationSummary[]>();
     if (judged === "stale") { doan.listConversations!.mockImplementationOnce(() => before.promise); h.run.listChanged(ROOT); }
     h.run.event(event("c2", { type: "turn.done" }, "t2"));

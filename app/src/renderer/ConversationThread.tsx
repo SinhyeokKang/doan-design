@@ -19,7 +19,7 @@ import { providerLogo, sentFileView } from "./homeComposer";
 import { replyUrlTransform } from "./replyUrlTransform";
 import { canSend, EMPTY_QUESTION_DRAFT, questionInput, sendBlockedText, type QuestionDraft, type QuestionDraftAction } from "./questionDraft";
 import { pendingAsks, questionLines, sameItem, scrollFollow, threadScroll, waitsForPerson, type ActivityStep, type ThreadItem, type TurnEnd } from "./threadItems";
-import { activityRun, elapsedText, settle, SETTLE_MS, turnAnnouncement, turnText, type Settled, type ThreadTurn, type TurnStatus } from "./turnStatus";
+import { activityRun, backgroundLine, elapsedText, settle, SETTLE_MS, turnAnnouncement, turnText, type Settled, type ThreadTurn, type TurnStatus } from "./turnStatus";
 
 // The conversation thread (draft frames thread-*). The host reads the history, merges
 // live events and passes threadItems' result; links, copying and every action go back through callbacks, so the
@@ -78,6 +78,8 @@ export interface ConversationThreadProps {
   canvasRows?: readonly CanvasRow[];
   // The last turn's indicator state (turnStatus) and start; without it no turn indicator shows.
   turn?: ThreadTurn | null;
+  // Background work the done turn turnId left running (the list's `background`), and the line's Stop: it settles true
+  // once main stopped that work, false when it could not (the host says so in a toast).
   background?: { turnId: string; stopping?: true } | null;
   onStopBackground?(turnId: string): Promise<boolean>;
 }
@@ -134,6 +136,8 @@ export function endView(end: TurnEnd, provider: Provider): { title: string; body
   }
   // The session could not be taken up again, so the turn ended before it did any work; the strip says the same.
   if (end.code === "session_unavailable" || end.code === "session_in_use") return { title: `${p} couldn’t continue`, body: "Edit your request and send it again.", tone: "error", signIn: false };
+  // The prompt was never read, so the message stays in the thread and Edit and resend brings it back.
+  if (end.code === "prompt_unread") return { title: `${p} didn’t pick up your message`, body: "Send it again.", tone: "error", signIn: false };
   return { title: `${p} stopped unexpectedly`, body: "It may have changed files before it stopped.", tone: "error", signIn: false };
 }
 // Only Claude's recorded wording is read ("You've hit your weekly limit · resets Nov 11 at 2pm (Asia/Seoul)"); the time is
@@ -485,12 +489,14 @@ function lastEnd(items: readonly ThreadItem[]): { key: string; resend: boolean }
   }
   return null;
 }
-// The running turn reads as the indicator's settled stage kind, so it changes only when that kind does.
-function phaseText(items: readonly ThreadItem[], provider: Provider, shown: TurnStatus): string {
+// The running turn reads as the indicator's settled stage kind, so it changes only when that kind does. The background
+// line is no live region: this status says it once as it appears, and the same words while it stays (Stopping too).
+function phaseText(items: readonly ThreadItem[], provider: Provider, shown: TurnStatus, background: boolean): string {
   const p = PROVIDER_NAMES[provider];
   if (items.some(waitsForPerson)) return `${p} needs your answer`;
   const stage = turnAnnouncement(shown, p);
   if (stage) return stage;
+  if (background) return "Background work is still running";
   const last = items.at(-1);
   if (last?.kind === "end") return endView(last.end, provider).title;
   return "";
@@ -522,6 +528,8 @@ export function TurnIndicator({ text, at, provider }: { text: string; at: string
     <span className="ti-text ti-shimmer">{text}</span><span className="ti-time" aria-hidden="true">{elapsedText(Date.now() - Date.parse(at))}</span></div>;
 }
 const NO_TURN: TurnStatus = { kind: "none" };
+// The background line's thread item key, which no history item takes (their keys start with a kind letter and a seq).
+const BACKGROUND_KEY = "background";
 
 // The thread item (its data-item key) holding focus, if focus is inside the thread.
 function focusedItem(scroller: HTMLElement | null): string | null {
@@ -600,6 +608,29 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     return () => clearTimeout(timer);
   }, [settled]);
   const reduced = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // The turn whose background work this thread's Stop asked main to stop, until main answers.
+  const [stoppingTurn, setStoppingTurn] = useState<string | null>(null);
+  // The line belongs to its done turn while that is the thread's last: the person's next message (a Send now in flight
+  // too) or a turn still running takes the place in the render it enters.
+  const line = Array.isArray(items) ? backgroundLine({
+    background: props.background,
+    sending: props.turn?.turnId !== props.background?.turnId || props.turn?.status.kind !== "none" || items.some(item => item.kind === "user" && item.sending === true),
+    stopping: stoppingTurn !== null && stoppingTurn === props.background?.turnId,
+  }) : null;
+  const stopLine = (turnId: string, stopping: boolean) => {
+    const stopBackground = latest.current.onStopBackground;
+    if (stopping || !stopBackground) return;
+    setStoppingTurn(turnId);
+    void stopBackground(turnId).catch(() => false).then(ok => { if (!ok) setStoppingTurn(current => current === turnId ? null : current); });
+  };
+  // The line went while its Stop held focus (read as this render began): the button left the page, and focus goes to
+  // the composer field instead of the page body. Stopping keeps the button, so focus stays on it.
+  const lineFocused = focusedKey === BACKGROUND_KEY;
+  useLayoutEffect(() => {
+    if (line || !lineFocused) return;
+    if (document.activeElement && document.activeElement !== document.body) return;
+    props.onFocusComposer?.();
+  });
 
   useEffect(() => {
     if (items !== null) { setSlow(false); return; }
@@ -768,10 +799,17 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     <div className="thread-scroll" ref={scroller} onScroll={onScroll}>
       <div className="thread">{drawn.map(entry => <ThreadEntry key={entry.key} entry={entry} deps={depsOf(entry)} draw={item} />)}
         {props.turn && settled.shown.kind !== "none" && settled.shown.kind !== "waiting" &&
-          <div className="thread-item"><TurnIndicator text={turnText(settled.shown, p)} at={props.turn.at} provider={provider} /></div>}</div>
+          <div className="thread-item"><TurnIndicator text={turnText(settled.shown, p)} at={props.turn.at} provider={provider} /></div>}
+        {line && <div className="thread-item" data-item={BACKGROUND_KEY}><div className="bg-line">
+          <Terminal className="bg-icon" aria-hidden="true" /><span className="bg-text">Background work is still running. It stops when you send your next message or press Stop.</span>
+          {/* aria-disabled rather than disabled while stopping, so a keyboard press keeps focus on it. */}
+          <button type="button" className="doan-button bg-stop" data-ui-size="xs" data-ui-variant="subtle" aria-label={line.stopping ? "Stopping background work" : "Stop background work"}
+            aria-disabled={line.stopping || undefined} data-disabled={line.stopping ? "" : undefined} onClick={() => stopLine(line.turnId, line.stopping)}>
+            {line.stopping ? <span className="doan-spinner" aria-hidden="true" /> : <CircleStop aria-hidden="true" />}{line.stopping ? "Stopping" : "Stop"}</button>
+        </div></div>}</div>
     </div>
     {behind && <button type="button" className="doan-button jump-latest" data-ui-size="sm" data-ui-variant="panel" onClick={jump}><ArrowDown aria-hidden="true" />Jump to latest</button>}
-    <div className="sr-only" role="status">{copied ? "Copied" : phaseText(items, provider, settled.shown)}</div>
+    <div className="sr-only" role="status">{copied ? "Copied" : phaseText(items, provider, settled.shown, line !== null)}</div>
   </div></ReplyCanvasContext.Provider></Actions.Provider>;
 };
 

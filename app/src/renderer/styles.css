@@ -1150,6 +1150,17 @@ body:has(.shell-top) { background: transparent; }
   .conversation-thread .activity-head .chev { transition: none; }
   .conversation-thread .ti-shimmer { animation: none; background: none; color: var(--text-metadata); }
 }
+/* claude-turn-end: the background work line under a done turn (.doan/canvases/claude-turn-end.html, frames background-line
+   and background-widths), in the turn indicator's place. A neutral terminal icon, not the provider logo, so it does not
+   read as a running turn; still, with no sweep and no time. Stop sits on its own row under the sentence (the thread
+   notice's grid column 2), so Stopping never rewraps the sentence or changes the item's height. No fill and no edge: a
+   status line, not a notice. */
+.conversation-thread .bg-line { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; column-gap: var(--space-2); row-gap: var(--space-2); min-width: 0; color: var(--text-metadata); font-size: var(--type-label-size); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing); }
+.conversation-thread .bg-line .bg-icon { width: var(--size-icon-sm); height: var(--size-icon-sm); color: var(--text-metadata); margin-block: calc((var(--type-label-line-height) - var(--size-icon-sm)) / 2); }
+.conversation-thread .bg-line .bg-text { min-width: 0; overflow-wrap: anywhere; }
+.conversation-thread .bg-line .bg-stop { grid-column: 2; justify-self: start; color: var(--text-standard); }
+.conversation-thread .bg-line .bg-stop .doan-spinner { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+.conversation-thread .bg-line .bg-stop[data-disabled] { color: var(--text-disabled); }
 
 /* doan-project: the Overview as the project conversation screen (.doan/canvases/doan-project.html, confirmed 2026-10-31).
    The main panel keeps the workspace's white .ov surface; the thread scrolls inside it to the panel's edge while its
@@ -1375,6 +1386,8 @@ body:has(.shell-top) { background: transparent; }
 .doan-conv-panel .msg-user { max-width: 92%; }
 .doan-conv-panel :is(.md, .msg-agent p, .bubble) { font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
 .doan-conv-panel .conversation-thread .ti-reply { font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
+.doan-conv-panel .conversation-thread .bg-line { font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
+.doan-conv-panel .conversation-thread .bg-line .bg-icon { margin-block: calc((var(--type-body-sm-line-height) - var(--size-icon-sm)) / 2); }
 .cp-foot { flex: none; padding: var(--space-3); }
 .cp-resume { margin-top: auto; margin-bottom: var(--space-1); }
 /* A reason whose action label is long puts the action under the text, so the text keeps the row's width. */
