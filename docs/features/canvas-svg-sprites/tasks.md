@@ -25,7 +25,7 @@
   - export: 조각이 아닌 `<use>`를 `resolveAsset` 전에 새 사유로 거부, 스프라이트 복사 제거, `replaceCustom` 조건을 판정 함수로 바꾸고 `ReasonAmbiguous` 문구를 "resolves to different paths…"로 바꾼다.
   - 고아 정리: `sprite`·`spriteContent`·`spriteContainer`·`spriteIDs`·`spriteStyled`, `ReasonUseFragment`·`ReasonUseID`·`ReasonUseCollision`·`ReasonUseType`·`ReasonUseStyle`, 스프라이트에만 쓰이면 `documentIDs`, `datauri.go:59` `fragment`, `replaceCustom`·`uses`의 "one candidate that exists" 주석.
   - 검증: `go test ./...`, `go vet ./...`, `node .agents/skills/verify/scripts/verify.mjs`. 이 repo를 임시 디렉터리에 복사해 `go run ./cli/cmd/doan check --repo <tmp copy> --json`을 돌리고 새 finding이 0개인지 확인한다. **구현 커밋 경계**.
-- [ ] 5. **가이드와 preset.**
+- [x] 5. **가이드와 preset.**
   - `cli/internal/cli/skill.md`: 아이콘이 스프라이트 파일에만 있으면 필요한 `<symbol>`을 캔버스에 인라인으로 복사하고 `<use href="#id">`로 그리며 원본 파일을 주석으로 남긴다. 스프라이트의 `<style>`은 캔버스 전체에 걸린다. custom property `url()`은 한 폴더의 스타일시트에서만 쓰거나 `@property` `<url>`로 등록한다. `ambiguous_custom_url`이 남으면 export가 거부된다. 관례 9("External resources are allowed; `doan check` reports them as warnings.")에 `<use>` 외부 URL은 error라는 예외를 넣는다. 작업 1에서 확인된 대체 형태만 쓴다.
   - 가이드 예산: `skill.md`는 18,640 B이고 `skillOutputBudget`은 envelope와 bundleNote를 포함해 21,600 B다. 문장을 짧게 넣는다.
   - `cli/internal/designskill/presets/document.md`의 아이콘 문장("Draw an icon from the project's icon source (package, SVG file, sprite, …)")에 스프라이트는 필요한 `<symbol>`만 인라인으로 복사한다는 내용을 더한다.
