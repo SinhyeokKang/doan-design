@@ -23,7 +23,7 @@ Set Up 폼, 설정 패널, Project Settings 확인 창은 새 UI다. 그래서 `
      - 빈 `.git`에 init이 안 되면, 임시 형제 폴더에 init한 뒤 rename하는 방식으로 바꿀지 묻는다.
      - sha256 저장소를 읽지 못하면, 거절할지 지원할지 묻는다.
    - 커밋 경계: 문서만.
-2. [ ] **초안 (`/design-draft`).** design.md '초안 요청'의 캔버스, 프레임, 상태를 그린다.
+2. [x] **초안 (`/design-draft`).** design.md '초안 요청'의 캔버스, 프레임, 상태를 그린다.
    - 확인: `doan check`와 `doan ls`가 통과하고, 사용자가 앱에서 초안을 확인했다.
 3. [ ] **형식과 fixture.** design.md '형식 변경'을 반영한다.
    - CLI envelope 스키마의 `error.storageReason`
