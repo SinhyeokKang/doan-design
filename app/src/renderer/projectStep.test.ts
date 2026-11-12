@@ -933,7 +933,7 @@ test("a clone planned for one mode is planned again for the one chosen, and the 
   expect(phase(h)).toEqual({ kind: "ready", root: "/Users/ada/studio" });
 });
 
-// Design keep-out-git-init '화면': outside Git the plan for Keep out of Git names .git/, which the panel shows as a line
+// Outside Git the plan for Keep out of Git names .git/, which the panel shows as a line
 // under the card. The line follows the radio at once, so the choice plans again; the consent never covers a .git/ the
 // screen did not show; and a failed creation reads the folder again, since a .git it left makes it a repository.
 const CREATE = [".doan/canvases/", ".doan/config.json", ".git/", ".git/info/exclude"];
@@ -948,15 +948,43 @@ test("choosing another mode on the setup screen plans again for it, so the git i
   const h = harness();
   await onSetup(h, REPO);
   h.queue.inspect!.push(ok(op("project_inspect", { inspection: planOf("i-local", CREATE, "local") })));
-  h.session.setStorage("local");
+  // It says it plans again, so the screen can give the radio focus back once the radios are enabled again.
+  expect(h.session.setStorage("local")).toBe(true);
   await flush(); await flush();
   expect(h.api.inspectOnboardingProject.mock.calls.at(-1)![0]).toMatchObject({ path: "/code/new", storage: "local" });
   expect(phase(h)).toMatchObject({ kind: "setup", inspectionId: "i-local", changes: CREATE, storage: "local" });
   // Choosing the mode already planned plans nothing.
-  h.session.setStorage("local");
+  expect(h.session.setStorage("local")).toBe(false);
   await flush(); await flush();
   expect(h.api.inspectOnboardingProject).toHaveBeenCalledTimes(2);
   expect(h.api.selectOnboardingProject).not.toHaveBeenCalled();
+});
+
+// The radio and Set up in the same task: Set up plans again before it writes, and a plan that now creates a repository
+// waits for another press.
+test("Keep out of Git chosen and Set up pressed in one task plans again and stops before creating a repository", async () => {
+  const h = harness();
+  await onSetup(h, REPO);
+  h.queue.inspect!.push(ok(op("project_inspect", { inspection: planOf("i-local", CREATE, "local") })));
+  h.session.setStorage("local");
+  const pressed = setUp(h);
+  await pressed; await flush(); await flush();
+  expect(h.api.selectOnboardingProject).not.toHaveBeenCalled();
+  expect(h.api.inspectOnboardingProject).toHaveBeenCalledTimes(2);
+  expect(phase(h)).toMatchObject({ kind: "setup", inspectionId: "i-local", changes: CREATE, storage: "local" });
+});
+
+// A plan the radio asked for that cannot be made leaves the person on the setup screen, with Retry planning again.
+test("a plan the radio asked for that fails keeps the setup screen, and Retry plans again", async () => {
+  const h = harness();
+  await onSetup(h, REPO);
+  h.queue.inspect!.push(ok(op("project_inspect", { state: "failed", error: { code: "project_unavailable", message: "Gone." } })));
+  h.session.setStorage("local");
+  await flush(); await flush(); await flush();
+  expect(h.session.state).toMatchObject({ phase: { kind: "setup", inspectionId: "i-0", changes: REPO }, error: { code: "project_unavailable" } });
+  h.queue.inspect!.push(ok(op("project_inspect", { inspection: planOf("i-local", CREATE, "local") })));
+  await h.session.retry();
+  expect(h.session.state).toMatchObject({ phase: { kind: "setup", inspectionId: "i-local", changes: CREATE }, error: null });
 });
 
 test("a plan made again at Set up that now creates a repository stops on the setup screen until it is pressed again", async () => {

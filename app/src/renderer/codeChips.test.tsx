@@ -4,8 +4,7 @@ import { withChips } from "./codeChips";
 
 const html = (text: string, paths: string[] = []) => renderToStaticMarkup(<>{withChips(text, paths)}</>);
 
-// Design keep-out-git-init '코드 칩': commands, fixed paths and a .git Doan left behind read as code on every setup
-// surface and in Project Settings.
+// Commands, fixed paths and a .git Doan left behind read as code on every setup surface and in Project Settings.
 test("commands, Doan's fixed paths and a named .git read as code", () => {
   expect(html("Install the Command Line Tools with xcode-select --install, then try again.")).toBe("Install the Command Line Tools with <code>xcode-select --install</code>, then try again.");
   expect(html("Doan will run git init here, then keep .doan/ out of it.")).toBe("Doan will run <code>git init</code> here, then keep <code>.doan/</code> out of it.");

@@ -672,6 +672,15 @@ test("outside Git, Keep out of Git shows the git init line under the card and th
   expect(screen({ storage: "local", phase: { ...NEW_REPO, changes: [".doan/canvases/", ".doan/config.json", ".git/info/exclude"] } })).not.toContain("git init");
 });
 
+// A chip is a fill on its notice: on the Add Projects page a notice has no fill and its chips take the panel's, while
+// first run's notices are the panel fill themselves, so theirs take the inset fill to stay visible.
+test("code chips in a notice keep a fill distinct from the notice's", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toMatch(/\.ob-project-notice code \{[^}]*background: var\(--surface-panel\);/);
+  expect(css).toContain(".doan-notice.doan-panel.ob-project-notice code { background: var(--surface-inset); }");
+});
+
 test("the line stays above a refusal, since the choice stays", () => {
   const html = screen({ storage: "local", phase: NEW_REPO, error: { code: "git_missing", message: "Git is not installed." } }, { use: "addPage" });
   expect(html).toContain("Doan will run");

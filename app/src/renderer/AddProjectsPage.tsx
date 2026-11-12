@@ -56,7 +56,7 @@ function PageBody({ sessionId, projects, homeDirectory, mainCheckout, choose, ch
   });
   const scene = useRef<HTMLDivElement | null>(null);
   const heading = useRef<HTMLHeadingElement | null>(null);
-  const { toUrl, openPicker } = useProjectFocus(session, scene, heading, () => true, true);
+  const { toUrl, openPicker, keepFocus } = useProjectFocus(session, scene, heading, () => true, true);
   useEffect(() => {
     session.start();
     // The page opens on its heading, which names the panel.
@@ -76,7 +76,7 @@ function PageBody({ sessionId, projects, homeDirectory, mainCheckout, choose, ch
       on={{
         back: onCancel, backToAgents: () => {},
         chooseFolder: () => openPicker(() => void p.chooseFolder()), chooseExisting: () => openPicker(() => void p.chooseExisting()), setUrl: url => p.setUrl(url), find: () => void p.findRepository(), cancelInspect: () => p.cancelInspect(), edit: toUrl,
-        pickListed: () => {}, useListed: () => {}, pickCandidate: path => p.pickCandidate(path), setStorage: storage => p.setStorage(storage), select: () => void p.select(), setUp: inspectionId => void p.setUp(inspectionId),
+        pickListed: () => {}, useListed: () => {}, pickCandidate: path => p.pickCandidate(path), setStorage: storage => keepFocus(() => p.setStorage(storage)), select: () => void p.select(), setUp: inspectionId => void p.setUp(inspectionId),
         changeDestination: () => openPicker(() => void p.changeDestination()), useExisting: () => void p.useExisting(), clone: () => void p.clone(), cancelClone: () => void p.cancelClone(),
         complete: () => {}, retry: () => void p.retry(),
       }} />

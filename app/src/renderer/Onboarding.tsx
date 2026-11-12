@@ -448,6 +448,12 @@ export function useProjectFocus(session: ProjectStepSession, scope: RefObject<Sc
       picker.current = node instanceof HTMLElement ? { node, phase: session.state.phase.kind } : null;
       open();
     },
+    // A radio whose change plans the folder again gets focus back once the plan is made: the plan disables the radios
+    // meanwhile, which drops focus, and an arrow key would otherwise leave the person on the heading.
+    keepFocus: (change: () => boolean) => {
+      const node = document.activeElement;
+      if (change() && node instanceof HTMLElement) picker.current = { node, phase: session.state.phase.kind };
+    },
   };
 }
 
@@ -746,7 +752,7 @@ export function Wizard({ session, projects, homeDirectory, onClose, mainCheckout
   // A scene change moves focus to its heading; Tab then enters the controls.
   useEffect(() => { requestAnimationFrame(() => heading.current?.focus()); }, [scene.generation]);
   const overlay = useRef<HTMLDialogElement | null>(null);
-  const { toUrl, openPicker } = useProjectFocus(project, overlay, heading, () => canAdvance(agents.state.auth ?? null), scene.scene === "project");
+  const { toUrl, openPicker, keepFocus } = useProjectFocus(project, overlay, heading, () => canAdvance(agents.state.auth ?? null), scene.scene === "project");
   // Guarded with the session's auth at the time of the move, not of the click: a cancel wait can outlive a ready provider.
   const move = (event: SceneEvent) => setScene(current => nextScene(current, event, { auth: agents.state.auth ?? null, busy: project.busy() }));
   const generation = useRef(0);
@@ -787,7 +793,7 @@ export function Wizard({ session, projects, homeDirectory, onClose, mainCheckout
         drop={{ notice: p.dropNotice, allowed: () => p.canDrop(), started: () => p.dragStarted(), dropped: items => void p.drop(items) }} on={{
         back: () => { if (p.backToUrl()) toUrl(); else move({ type: "back" }); }, backToAgents: () => move({ type: "step", to: "agent" }),
         chooseFolder: () => openPicker(() => void p.chooseFolder()), chooseExisting: () => openPicker(() => void p.chooseExisting()), setUrl: url => p.setUrl(url), find: () => void p.findRepository(), cancelInspect: () => p.cancelInspect(), edit: toUrl,
-        pickListed: path => p.pickListed(path), useListed: () => void p.useListed(), pickCandidate: path => p.pickCandidate(path), setStorage: storage => p.setStorage(storage), select: () => void p.select(), setUp: inspectionId => void p.setUp(inspectionId),
+        pickListed: path => p.pickListed(path), useListed: () => void p.useListed(), pickCandidate: path => p.pickCandidate(path), setStorage: storage => keepFocus(() => p.setStorage(storage)), select: () => void p.select(), setUp: inspectionId => void p.setUp(inspectionId),
         changeDestination: () => openPicker(() => void p.changeDestination()), useExisting: () => void p.useExisting(), clone: () => void p.clone(), cancelClone: () => void p.cancelClone(),
         complete: () => void p.complete(), retry: () => void p.retry(),
       }} />}

@@ -137,16 +137,19 @@ export class ProjectStepSession {
   agentsReady(ready: boolean): void { if (ready && this.state.error?.code === "no_ready_agent") this.set({ error: null }); }
   // The plan on screen may be for the other mode; Set up and Clone plan again for this one before they write. On the
   // setup screen the plan is made again at once, so the git init line a plan outside Git brings follows the radio. It
-  // starts after the current task, so a Set up pressed meanwhile plans and writes in one action instead.
-  setStorage(storage: OnboardingStorage): void {
-    if (this.busy()) return;
+  // starts after the current task, so a Set up pressed in the same task plans again first; a plan that now adds .git/
+  // waits for another press. A plan that cannot be made keeps the setup screen, with the failure and Retry on it.
+  // true: the folder is planned again, which holds the radios meanwhile.
+  setStorage(storage: OnboardingStorage): boolean {
+    if (this.busy()) return false;
     this.set({ storage });
     const p = this.state.phase;
-    if (p.kind !== "setup" || keptLocal(p) || (p.storage ?? "repo") === storage) return;
+    if (p.kind !== "setup" || keptLocal(p) || (p.storage ?? "repo") === storage) return false;
     void Promise.resolve().then(() => this.act(async () => {
       const now = this.state.phase;
-      if (now.kind === "setup" && now.inspectionId === p.inspectionId && (now.storage ?? "repo") !== this.storage()) await this.reinspect({ path: now.path });
+      if (now.kind === "setup" && now.inspectionId === p.inspectionId && (now.storage ?? "repo") !== this.storage()) await this.reinspect({ path: now.path }, now);
     }));
+    return true;
   }
   private storage(): OnboardingStorage { return this.state.storage ?? "repo"; }
   setUrl(url: string): void { this.set({ url, error: this.state.error?.code === "invalid_url" ? null : this.state.error }); }
@@ -300,15 +303,16 @@ export class ProjectStepSession {
     if (candidates.length === 1 && first.changes.length > 0) this.set({ phase: { kind: "setup", inspectionId, url, path: first.path, changes: first.changes, ...(first.storage ? { storage: first.storage } : {}) }, error: null });
     else this.set({ phase: { kind: "candidates", inspectionId, url, candidates, choice: first.path }, error: null });
   }
-  private async reinspect(keep: { path?: string }): Promise<void> {
+  // failure: the screen a failed plan is shown on.
+  private async reinspect(keep: { path?: string }, failure: ProjectPhase = { kind: "choose" }): Promise<void> {
     const source = this.source;
     if (!source) return;
     const at = this.fence();
     const reply = await this.inspect(source);
     if (!this.current(at)) return;
-    if (!reply.ok) { this.failed(reply, { kind: "choose" }, () => this.reinspect(keep)); return; }
+    if (!reply.ok) { this.failed(reply, failure, () => this.reinspect(keep, failure)); return; }
     const inspection = reply.operation.inspection!;
-    if (inspection.candidates.length === 0) { this.failed({ ok: false, code: "project_unavailable" }, { kind: "choose" }, () => this.reinspect(keep)); return; }
+    if (inspection.candidates.length === 0) { this.failed({ ok: false, code: "project_unavailable" }, failure, () => this.reinspect(keep, failure)); return; }
     this.offer(inspection.inspectionId, "url" in source ? source.url : null, inspection.candidates, source);
     const p = this.state.phase;
     if (p.kind === "candidates" && keep.path && p.candidates.some(c => c.path === keep.path)) this.set({ phase: { ...p, choice: keep.path } });
