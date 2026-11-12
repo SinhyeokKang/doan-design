@@ -25,11 +25,11 @@ body{padding:var(--space-8);background:var(--surface-inset);font-family:var(--ty
 
 /* ── New: the text range highlight. The app draws it on the overlay above the canvas, so it lies over the glyphs:
    one rect per line box of each Text node in the range (Range.getClientRects() keeps only Text node rects), the
-   accent at 30 % alpha (the jump highlight's color-mix pattern, 45 % there) with the selection mark's 1 px panel
-   ring, so it still reads on a canvas or button close to the accent. Drawn in flow here only so the rects follow
+   accent at 30 % alpha (the jump highlight's color-mix pattern, 45 % there), with no ring: on a canvas or button
+   close to the accent it nearly vanishes, which the person accepted (2026-11-13). Drawn in flow here only so the rects follow
    the mock's glyphs whatever the font; the stacking matches the app (under the marks). ── */
 .tr{position:relative;background:none;color:inherit}
-.tr::after{content:"";position:absolute;inset:0;background:color-mix(in srgb,var(--affordance-accent) 30%,transparent);box-shadow:0 0 0 1px var(--surface-panel)}
+.tr::after{content:"";position:absolute;inset:0;background:color-mix(in srgb,var(--affordance-accent) 30%,transparent)}
 
 /* ── Mock canvas content (the person's draft, not app UI): colours from mock.css ── */
 .mock{position:relative;width:300px;padding:var(--space-5);border-radius:var(--radius-control);background:var(--mock-bg);color:var(--mock-ink);box-shadow:0 0 0 1px var(--mock-line)}
@@ -56,22 +56,22 @@ body{padding:var(--space-8);background:var(--surface-inset);font-family:var(--ty
 
 <section class="intro">
   <h1>Select and copy canvas text by dragging</h1>
-  <p>In Select, a drag that starts on canvas text (4 px on screen, no modifier keys) highlights the range; ⌘C or Edit &gt; Copy copies it as plain text. A still click still selects the element. The press never reaches the canvas: the canvas script holds a Range and the app paints the line rects of its Text nodes on the overlay, over the glyphs, in the person's accent at 30 % alpha with a 1 px panel ring. Feature documents: <code>docs/features/canvas-text-copy/</code>.</p>
+  <p>In Select, a drag that starts on canvas text (4 px on screen, no modifier keys) highlights the range; ⌘C or Edit &gt; Copy copies it as plain text. A still click still selects the element. The press never reaches the canvas: the canvas script holds a Range and the app paints the line rects of its Text nodes on the overlay, over the glyphs, in the person's accent at 30 % alpha. Feature documents: <code>docs/features/canvas-text-copy/</code>.</p>
   <ul>
     <li>All three frames are new. The selection and hover marks (<code>.mark</code>, <code>.mark.hover</code>) are restated from <code>app/src/renderer/styles.css</code> as shipped; the mock canvases use <code>.doan/assets/mock.css</code>. Only one range is visible at a time, so each tile shows one.</li>
-    <li><code>/design-sync</code> compares the highlight (<code>.tr</code>) and the marks in <code>surfaces</code> and <code>drag</code>: fill colour and alpha, ring, one rect per line box, and stacking (highlight under the selection and hover marks).</li>
+    <li><code>/design-sync</code> compares the highlight (<code>.tr</code>) and the marks in <code>surfaces</code> and <code>drag</code>: fill colour and alpha, one rect per line box, and stacking (highlight under the selection and hover marks).</li>
     <li>There is no new UI copy, toast or menu. Success gives no feedback (macOS ⌘C convention).</li>
-    <li>References: the jump highlight's <code>color-mix(in srgb, var(--affordance-accent) 45%, transparent)</code> glow and the selection mark's 1 px <code>--surface-panel</code> ring, checked in <code>app/src/renderer/styles.css</code>; the I-beam on a panel halo follows <code>.doan/canvases/canvas-hand-tool.html</code>; macOS text selection drawn behind text in the accent, recalled from memory (here the overlay lies over the text because the canvas is another document).</li>
+    <li>References: the jump highlight's <code>color-mix(in srgb, var(--affordance-accent) 45%, transparent)</code> glow, checked in <code>app/src/renderer/styles.css</code>; the I-beam on a panel halo follows <code>.doan/canvases/canvas-hand-tool.html</code>; macOS text selection drawn behind text in the accent, recalled from memory (here the overlay lies over the text because the canvas is another document).</li>
   </ul>
 </section>
 
 <section class="specimen" data-doan-frame="surfaces" data-doan-title="Highlight on light, dark and violet canvases">
   <div class="caption"><span>1</span><h2>Highlight on light, dark and violet canvases<span class="new">New</span></h2>
-    <p>Several lines (one rect per line box) on three canvas colours, one line, a button label (selectable even when the canvas sets <code>user-select: none</code>), and a range inside the selected element: the highlight sits under the selection mark. The ring keeps the range readable on a canvas or button close to the accent (violet tile, button label).</p></div>
+    <p>Several lines (one rect per line box) on three canvas colours, one line, a button label (selectable even when the canvas sets <code>user-select: none</code>), and a range inside the selected element: the highlight sits under the selection mark. On a canvas or button close to the accent (violet tile, button label) the range nearly vanishes; accepted.</p></div>
   <div class="tiles">
     <div class="tile"><div class="stage"><div class="mock" data-doan-id="surface-light"><h3>Invite your team</h3><p><span class="ln">Members you invite <mark class="tr">can view every canvas</mark></span><span class="ln"><mark class="tr">in this project</mark> and leave comments.</span></p><span class="cta">Send invites</span></div></div><span class="tile-label">Light canvas, two lines.</span></div>
     <div class="tile"><div class="stage"><div class="mock dark" data-doan-id="surface-dark"><h3>Invite your team</h3><p><span class="ln">Members you invite <mark class="tr">can view every canvas</mark></span><span class="ln"><mark class="tr">in this project</mark> and leave comments.</span></p><span class="cta">Send invites</span></div></div><span class="tile-label">Dark canvas, two lines.</span></div>
-    <div class="tile"><div class="stage"><div class="mock violet" data-doan-id="surface-violet"><h3>Invite your team</h3><p><span class="ln">Members you invite <mark class="tr">can view every canvas</mark></span><span class="ln"><mark class="tr">in this project</mark> and leave comments.</span></p><span class="cta">Send invites</span></div></div><span class="tile-label">Violet canvas, close to Doany's own accent: the fill alone nearly vanishes here, the ring carries it.</span></div>
+    <div class="tile"><div class="stage"><div class="mock violet" data-doan-id="surface-violet"><h3>Invite your team</h3><p><span class="ln">Members you invite <mark class="tr">can view every canvas</mark></span><span class="ln"><mark class="tr">in this project</mark> and leave comments.</span></p><span class="cta">Send invites</span></div></div><span class="tile-label">Violet canvas, close to Doany's own accent: the range nearly vanishes here (accepted).</span></div>
     <div class="tile"><div class="stage"><div class="mock" data-doan-id="surface-one-line"><h3>Invite your team</h3><p><span class="ln">Members you invite <mark class="tr">can view every canvas</mark></span><span class="ln">in this project and leave comments.</span></p><span class="cta">Send invites</span></div></div><span class="tile-label">One line.</span></div>
     <div class="tile"><div class="stage"><div class="mock" data-doan-id="surface-button"><h3>Invite your team</h3><p><span class="ln">Members you invite can view every canvas</span><span class="ln">in this project and leave comments.</span></p><span class="cta"><mark class="tr">Send invites</mark></span></div></div><span class="tile-label">A button label on the indigo button.</span></div>
     <div class="tile"><div class="stage"><div class="mock" data-doan-id="surface-with-selection"><h3><mark class="tr">Invite your</mark> team<span class="mark" style="inset:0"></span></h3><p><span class="ln">Members you invite can view every canvas</span><span class="ln">in this project and leave comments.</span></p><span class="cta">Send invites</span></div></div><span class="tile-label">The heading is the selected element (solid mark) and part of it is highlighted: the mark draws over the highlight. A text drag leaves the element selection as it was.</span></div>
