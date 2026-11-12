@@ -1945,6 +1945,66 @@ describe("canvasScript picking", () => {
   });
 });
 
+// The hand while the app's drag layer is up (Hand, a held Space, a drag). A pointer resting over the canvas keeps the
+// cursor this out-of-process document last set until it moves, so the layer's own grab cursor does not show there.
+describe("hand cursor", () => {
+  class FakeSheet { text = ""; replaceSync(text: string) { this.text = text; } }
+  const setup = () => {
+    const { canvas } = heroCanvas();
+    canvas.context.CSSStyleSheet = FakeSheet;
+    const own = new FakeSheet();
+    const doc = canvas.document as unknown as { adoptedStyleSheets: FakeSheet[] };
+    doc.adoptedStyleSheets = [own];
+    const ours = () => doc.adoptedStyleSheets.filter(sheet => sheet !== own).map(sheet => sheet.text);
+    return { canvas, doc, own, ours };
+  };
+
+  test("adopts a grab sheet while the layer is up and removes only its own when it goes down", () => {
+    const { canvas, doc, own, ours } = setup();
+    canvas.fromParent({ type: "hover-hand", hand: true, seq: 1 });
+    expect(doc.adoptedStyleSheets[0]).toBe(own);
+    expect(ours()).toEqual(["*{cursor:grab!important}"]);
+    // A second raise keeps one sheet.
+    canvas.fromParent({ type: "hover-hand", hand: true, seq: 2 });
+    expect(ours()).toHaveLength(1);
+    canvas.fromParent({ type: "hover-hand", hand: false, seq: 3 });
+    expect(doc.adoptedStyleSheets).toEqual([own]);
+    // The canvas replacing its own list meanwhile keeps whatever it set.
+    canvas.fromParent({ type: "hover-hand", hand: true, seq: 4 });
+    const later = new FakeSheet();
+    doc.adoptedStyleSheets = [...doc.adoptedStyleSheets, later];
+    canvas.fromParent({ type: "hover-hand", hand: false, seq: 5 });
+    expect(doc.adoptedStyleSheets).toEqual([own, later]);
+    expect(ofType(canvas, "layout")).toHaveLength(0);
+  });
+
+  test("takes the hover channel's order: an older command changes nothing", () => {
+    const { canvas, ours } = setup();
+    canvas.fromParent({ type: "hover-hand", hand: true, seq: 5 });
+    canvas.fromParent({ type: "hover-hand", hand: false, seq: 4 });
+    expect(ours()).toEqual(["*{cursor:grab!important}"]);
+    canvas.fromParent({ type: "hover-alt", alt: true, seq: 6 });
+    canvas.fromParent({ type: "hover-hand", hand: false, seq: 6 });
+    expect(ours()).toEqual(["*{cursor:grab!important}"]);
+    canvas.fromParent({ type: "hover-hand", hand: false, seq: 7 });
+    expect(ours()).toEqual([]);
+  });
+
+  test("drops a command without a boolean hand", () => {
+    const { canvas, ours } = setup();
+    for (const hand of [undefined, "true", 1]) canvas.fromParent({ type: "hover-hand", hand, seq: 1 });
+    expect(ours()).toEqual([]);
+    // None of them used up the seq.
+    canvas.fromParent({ type: "hover-hand", hand: true, seq: 1 });
+    expect(ours()).toEqual(["*{cursor:grab!important}"]);
+  });
+
+  test("works without constructed sheets, as a canvas that broke them", () => {
+    const { canvas } = heroCanvas();
+    expect(() => canvas.fromParent({ type: "hover-hand", hand: true, seq: 1 })).not.toThrow();
+  });
+});
+
 describe("anchors-query reply", () => {
   test("answers a new query without waiting for an animation frame, which an off-screen iframe never gets", () => {
     const { canvas } = heroCanvas();

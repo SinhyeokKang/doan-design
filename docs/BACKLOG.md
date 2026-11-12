@@ -126,6 +126,7 @@ What Doan has not settled or not shown yet: product questions without a decision
 - A check between a release tag's push and its release's publication (about 15 minutes) shows “Couldn’t check for updates.” with the missing-feed reason: GitHub's feed already lists the new tag while its release and `latest-mac.yml` do not exist yet (seen on 0.1.0-rc.1 during the rc.2 release, 2026-11-08). Whether that window should read as up to date is undecided.
 
 - Installer disk (ARCHITECTURE §9 'Installer disk'): the group-photo background was checked only in an unsigned local dmg on macOS 26.3.1 (window content 640 × 536, tagline clear of Finder's path and status bars); other macOS versions, and the icon labels in Dark appearance, were not checked.
+- The cursor under a pointer resting over the canvas iframe (ARCHITECTURE §3 'Canvas rendering' Input, POSTMORTEM 2026-11-13): checked with a real pointer for the drag layer in the app and the export viewer in Electron, not for `.capture-layer`'s crosshair rising under a resting pointer (it rises the same way and likely keeps the canvas's cursor), not in Safari or Chrome for the viewer, and in the viewer not for Space pressed again under a resting pointer right after a pan ended there (one read stayed the arrow).
 
 ## Known defects
 
