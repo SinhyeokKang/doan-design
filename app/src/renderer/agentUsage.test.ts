@@ -45,6 +45,42 @@ describe("ringLimited", () => {
   });
 });
 
+// PRODUCT §5 item 0 'Agent usage': the ring follows the provider's weekly window, else its longest one.
+describe("ring window", () => {
+  const FIVE = { periodMins: 300 }, WEEK = { periodMins: 10080 };
+  const claude = (...windows: UsageWindow[]) => ({ reading: ok(...windows) });
+  it("is Claude's overall Weekly window, not the 5-hour or a model-scoped weekly one", () => {
+    const entry = claude(w(90, { id: "five_hour", ...FIVE }), w(30, { id: "seven_day", label: "Weekly", ...WEEK }), w(95, { id: "seven_day_opus", label: "Weekly · Opus", ...WEEK }));
+    expect(ringValue(entry, NOW)).toBe(30);
+    expect(ringLimited(entry, NOW)).toBe(false);
+  });
+  it("is Codex's weekly window, whichever key carries it", () => {
+    const entry = claude(w(80, { id: "primary", ...FIVE }), w(12, { id: "secondary", label: "Weekly", ...WEEK }));
+    expect(ringValue(entry, NOW)).toBe(12);
+  });
+  it("ignores a limit reported on another window", () => {
+    const entry = claude(w(100, { id: "five_hour", ...FIVE, limited: true, resetsAt: NOW + HOUR }), w(40, { id: "seven_day", label: "Weekly", ...WEEK }));
+    expect([ringValue(entry, NOW), ringLimited(entry, NOW)]).toEqual([40, false]);
+  });
+  it("is limited when the weekly window's limit is reported", () => {
+    const entry = claude(w(20, { id: "five_hour", ...FIVE }), w(50, { id: "seven_day", label: "Weekly", ...WEEK, limited: true, resetsAt: NOW + DAY }));
+    expect([ringValue(entry, NOW), ringLimited(entry, NOW)]).toEqual([50, true]);
+  });
+  it("resets with the weekly window instead of falling back to another", () => {
+    const entry = claude(w(60, { id: "five_hour", ...FIVE, resetsAt: NOW + HOUR }), w(100, { id: "seven_day", label: "Weekly", ...WEEK, limited: true, resetsAt: NOW - 1 }));
+    expect([ringValue(entry, NOW), ringLimited(entry, NOW)]).toEqual([null, false]);
+  });
+  it("is the longest window without a weekly one", () => {
+    const entry = claude(w(70, { id: "primary", label: "5-hour", ...FIVE }), w(25, { id: "secondary", label: "30-day", periodMins: 43200 }));
+    expect(ringValue(entry, NOW)).toBe(25);
+  });
+  it("is the fullest of equally long windows, and a window with a period outranks one without", () => {
+    expect(ringValue(claude(w(10, { label: "Weekly · Opus", ...WEEK }), w(35, { label: "Weekly · Sonnet", ...WEEK }), w(90, FIVE)), NOW)).toBe(35);
+    expect(ringValue(claude(w(15, { id: "auto", label: "Auto" }), w(64, { id: "api", label: "API" })), NOW)).toBe(64);
+    expect(ringValue(claude(w(80, { label: "Primary" }), w(5, { label: "2-hour", periodMins: 120 })), NOW)).toBe(5);
+  });
+});
+
 describe("usageText", () => {
   it.each([
     [w(42, { resetsAt: NOW + 2 * HOUR + 10 * MIN }), "42% used · resets in 2h 10m"],
@@ -120,6 +156,10 @@ describe("usageDescription", () => {
   it("does not report a limit whose reset time has passed", () => {
     const entries: UsageEntry[] = [{ provider: "codex", reading: ok(w(100, { limited: true, resetsAt: NOW - 1 }), w(20, { resetsAt: NOW + HOUR })), inFlight: false }];
     expect(usageDescription(entries, NOW)).toBe("Codex 20% used.");
+  });
+  it("reads the ring's weekly window, not a fuller or limited 5-hour one", () => {
+    const entries: UsageEntry[] = [{ provider: "claude", reading: ok(w(100, { id: "five_hour", periodMins: 300, limited: true }), w(23, { id: "seven_day", label: "Weekly", periodMins: 10080 })), inFlight: false }];
+    expect(usageDescription(entries, NOW)).toBe("Claude Code 23% used.");
   });
   it("leaves Antigravity out", () => {
     const entries: UsageEntry[] = [{ provider: "antigravity", inFlight: false }, { provider: "claude", reading: ok(w(5)), inFlight: false }];

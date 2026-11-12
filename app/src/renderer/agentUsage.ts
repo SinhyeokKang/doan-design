@@ -4,9 +4,19 @@ import { connectionLine, PROVIDER_NAMES } from "./agentAuthView";
 
 const MIN = 60_000;
 const passed = (w: UsageWindow, now: number) => w.resetsAt !== undefined && w.resetsAt <= now;
-const active = (entry: Pick<UsageEntry, "reading">, now: number) => entry.reading?.status === "ok" ? entry.reading.windows.filter(w => !passed(w, now)) : [];
+// The ring follows one window class (PRODUCT §5 item 0 'Agent usage'): the provider's overall weekly window, else its
+// longest windows. A window without a period ranks below any with one; Cursor and Copilot give none, so all of theirs
+// tie. Other windows never move the ring, not even a reported limit.
+function ringWindows(windows: readonly UsageWindow[]): UsageWindow[] {
+  const weekly = windows.filter(w => w.label === "Weekly");
+  if (weekly.length > 0) return weekly;
+  const longest = Math.max(...windows.map(w => w.periodMins ?? -1));
+  return windows.filter(w => (w.periodMins ?? -1) === longest);
+}
+const active = (entry: Pick<UsageEntry, "reading">, now: number) => entry.reading?.status === "ok" ? ringWindows(entry.reading.windows).filter(w => !passed(w, now)) : [];
 
-// The ring shows the fullest window that has not reset yet; a passed window's value is stale until the next read.
+// Among the ring's windows the fullest one that has not reset yet counts; a passed window's value is stale until the
+// next read, and the ring does not fall back to another class meanwhile.
 // True when a window that has not reset yet is limited. The 70% danger threshold belongs to the ring's caller.
 export function ringLimited(entry: Pick<UsageEntry, "reading" | "blocked">, now: number): boolean {
   return entry.blocked === undefined && active(entry, now).some(w => w.limited);
