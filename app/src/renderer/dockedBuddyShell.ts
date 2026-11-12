@@ -31,6 +31,13 @@ const PERSON_SCROLL_MS = 1000;
 // 60 Hz vsync jitter reaches, so 60 Hz drops nothing and 120 Hz advances every other callback. The core still gets
 // each real timestamp, so its time model does not change; an input change applies on the very next callback.
 const FRAME_MS = 1000 / 60 - 4;
+// After a ready rig loses its context the rebuild waits for the GPU process to come back: a context made while it
+// restarts can fail or be lost again. webglcontextrestored says it is back; when none comes, a rebuild is allowed
+// after RETRY_MS, and again after each failed rebuild, each wait twice the one before, at most RETRIES times. Two GPU
+// resets in a row make Chromium refuse WebGL to the page for about two minutes with no restore event (measured in
+// Electron 45), so the last try comes about four minutes after the loss.
+const RETRY_MS = 1000;
+const RETRIES = 8;
 
 // What only App knows. overview: the Overview covers the canvas page, whose toolbar stays laid out under it, so the
 // toolbar is no surface. covered: the problem overlay or first run is over the workspace. hint: a picking or capture
@@ -127,8 +134,9 @@ interface Live {
   nativeVisible: boolean; urgent: boolean; advancedAt: number; written: { host: string; shadow: string; opacity: string };
   // rebuilt: a failed rig is rebuilt at most once per stretch the workspace is seen, so the buddy does not stay on the
   // still image until the app restarts (a GPU process reset loses every context). A context lost after the rig was
-  // ready allows one more rebuild at once. Nothing retries every frame.
-  rebuilt: boolean;
+  // ready allows more rebuilds, each once the GPU is back (retries left, retry: the pending timer or 0). Nothing
+  // retries every frame.
+  rebuilt: boolean; retries: number; retry: ReturnType<typeof setTimeout> | 0;
   // The floating elements in the page, found again only when one can have come or gone (null: find them again).
   floating: Element[] | null;
   slotSizes: ResizeObserver; slotAttributes: MutationObserver; portals: MutationObserver; hostSize: ResizeObserver; view: IntersectionObserver;
@@ -179,6 +187,7 @@ export class DockedBuddyShell {
     const live = this.live;
     if (!live) return;
     setDockedBuddy(live.state, id);
+    this.cancelRetry(live);
     this.rebuild(live);
     this.wake();
   }
@@ -201,7 +210,7 @@ export class DockedBuddyShell {
     const live: Live = {
       state: createDockedState(this.id, Math.random), ground, shadow, host, rig: null as unknown as Rig, container, personMovedAt,
       raf: 0, out: null, intersecting: true, events: [], activityAt: 0, personAt: 0, floating: null,
-      nativeVisible: true, urgent: true, advancedAt: -Infinity, written: { host: "", shadow: "", opacity: "" }, rebuilt: true,
+      nativeVisible: true, urgent: true, advancedAt: -Infinity, written: { host: "", shadow: "", opacity: "" }, rebuilt: true, retries: 0, retry: 0,
       slotSizes: new ResizeObserver(wake), slotAttributes: new MutationObserver(refloat), portals: new MutationObserver(refloat),
       hostSize: new ResizeObserver(() => { this.resize(); this.wake(); }),
       view: new IntersectionObserver(entries => { live.intersecting = entries.at(-1)!.isIntersecting; this.wake(); }),
@@ -223,6 +232,7 @@ export class DockedBuddyShell {
     if (!live) return;
     this.live = null;
     cancelAnimationFrame(live.raf);
+    this.cancelRetry(live);
     live.off();
     live.slotSizes.disconnect(); live.slotAttributes.disconnect(); live.portals.disconnect(); live.hostSize.disconnect(); live.view.disconnect();
     live.rig.dispose();
@@ -240,6 +250,25 @@ export class DockedBuddyShell {
     this.next(live);
   }
   private next(live: Live) { if (!live.raf) live.raf = requestAnimationFrame(this.tick); }
+
+  // The GPU may be back: the next frame the buddy is seen rebuilds the rig.
+  private allowRebuild(live: Live) {
+    if (this.live !== live) return;
+    if (live.retry) { clearTimeout(live.retry); live.retry = 0; }
+    live.rebuilt = false;
+    this.wake();
+  }
+  // A failed rig waits for one more rebuild only while a lost ready rig left retries.
+  private retryLater(live: Live) {
+    if (live.retry || live.retries <= 0) return;
+    const wait = RETRY_MS * 2 ** (RETRIES - live.retries);
+    live.retries -= 1;
+    live.retry = setTimeout(() => { live.retry = 0; this.allowRebuild(live); }, wait);
+  }
+  private cancelRetry(live: Live) {
+    if (live.retry) clearTimeout(live.retry);
+    live.retry = 0; live.retries = 0;
+  }
 
   private listen(live: Live) {
     const wake = () => this.wake();
@@ -301,14 +330,16 @@ export class DockedBuddyShell {
     const press = (event: Event) => event.preventDefault();
     hit.addEventListener("click", poke); hit.addEventListener("mousedown", press);
     if (still.complete && still.naturalWidth > 0) readMask(); else still.addEventListener("load", readMask, { once: true });
-    const goStill = () => { rig.ready = false; rig.failed = true; still.hidden = false; canvas.hidden = true; this.wake(); };
-    const lost = (event: Event) => { event.preventDefault(); if (rig.ready) live.rebuilt = false; goStill(); };
+    const goStill = () => { rig.ready = false; rig.failed = true; still.hidden = false; canvas.hidden = true; this.retryLater(live); this.wake(); };
+    // preventDefault lets Chromium restore the context, which tells when the GPU is back.
+    const lost = (event: Event) => { event.preventDefault(); if (rig.ready) live.retries = RETRIES; goStill(); };
+    const restored = () => { if (!disposed) this.allowRebuild(live); };
     try {
       rig.target = glTarget(canvas, id);
     } catch (error) { console.error(error); }
-    if (!rig.target) rig.failed = true;
+    if (!rig.target) { rig.failed = true; this.retryLater(live); }
     if (rig.target) {
-      canvas.addEventListener("webglcontextlost", lost);
+      canvas.addEventListener("webglcontextlost", lost); canvas.addEventListener("webglcontextrestored", restored);
       rig.target.textures.then(() => {
         if (disposed) return;
         // A context lost while the textures loaded stays on the still image.
@@ -320,7 +351,7 @@ export class DockedBuddyShell {
     rig.dispose = () => {
       disposed = true;
       still.removeEventListener("load", readMask);
-      canvas.removeEventListener("webglcontextlost", lost);
+      canvas.removeEventListener("webglcontextlost", lost); canvas.removeEventListener("webglcontextrestored", restored);
       hit.removeEventListener("click", poke); hit.removeEventListener("mousedown", press);
       rig.target?.release();
       still.remove(); canvas.remove(); hit.remove();
