@@ -1424,7 +1424,7 @@ Reference: `.doan/canvases/local-doan-files.html`, frames `setup-dialog`, `setup
 
 ## Keep out of Git outside a Git repository
 
-Reference: `.doan/canvases/keep-out-git-init.html`, frames `setup-form`, `setup-panel` and `project-settings`. Measured by `/design-sync` in the built app (`.scratch/design-sync/keep-out-git-init-screens/measure.mjs`, table `table.txt`): the draft in a hidden second window of the same Electron, both sides read with `getComputedStyle`, the app window hidden throughout. States were reached for real with temporary folders outside Git, the isolated home folder and the built CLI; a wrapper around the CLI answered a `--git-init` run with `git_missing`, `git_init_failed` or `cleanup_failed` (the last after a real `git init`, so the re-read finds a repository). 1,012 rows in 25 states (17 computed properties of each element and of its first code chip, text, code chips, alert icon and `aria-describedby`): 1,007 match and 5 are the documented differences below. The confirmation's role, name and description were read through CDP (`Accessibility.getFullAXTree`).
+Reference: `.doan/canvases/keep-out-git-init.html`, frames `setup-form`, `setup-panel` and `project-settings`. Measured by `/design-sync` in the built app (`.scratch/design-sync/keep-out-git-init-screens/measure.mjs`, table `table.txt`): the draft in a hidden second window of the same Electron, both sides read with `getComputedStyle`, the app window hidden throughout. States were reached for real with temporary folders outside Git, the isolated home folder and the built CLI; a wrapper around the CLI answered a `--git-init` run with `git_missing`, `git_init_failed` or `cleanup_failed` (the last after a real `git init`, so the re-read finds a repository), or held it until the Saving state was read. The long-path tiles used the draft's own path, `~/Documents/clients/northwind/2026/spring-campaign/moodboard-and-reference-collection`, created under the isolated home folder. Keyboard focus was reached with real Tab, Shift+Tab, arrow and Escape key presses. 1,497 rows in 30 states and checks (17 computed properties of each element and of its first code chip, text, code chips, alert icon and `aria-describedby`; outline and box-shadow of each focused control; whether a long path scrolls sideways): 1,485 match and 12 are the documented differences below. The confirmation's role, name and description were read through CDP (`Accessibility.getFullAXTree`).
 
 ### Measured contracts
 
@@ -1432,27 +1432,32 @@ Reference: `.doan/canvases/keep-out-git-init.html`, frames `setup-form`, `setup-
 |---|---|---|
 | Will add, outside Git | With Keep out of Git chosen and the folder outside Git (`notGit`, never the home folder or above it), the first line is `.git/` (code chip) “— a new Git repository”, with no “, if missing”; Set Up Project has `aria-describedby` on the list in every state | The line is the consent `--git-init` stands for. |
 | Setup panel line | `.ob-provider-help.storage-git-init` under the Doan files card: body-sm 14/20, `--text-subtle`, `--space-3` above; `git init` a nowrap chip on `--surface-inset`. Present only while Keep out of Git is chosen and the plan names `.git/`; the Set up button is described by it | The panel has no change list. |
-| Panel notices | Code chips in `.ob-project-notice` take `--surface-panel` on the notice's inset fill; `git_missing` and `cleanup_failed` of a setup keep Choose another folder, then Check again or Retry | |
+| Panel notices | Code chips in `.ob-project-notice` take `--surface-panel` on the notice's inset fill, and `--surface-inset` in first run's notices, which are the panel fill themselves; `git_missing` and `cleanup_failed` of a setup keep Choose another folder, then Check again or Retry | A chip needs a fill other than its notice's. |
 | Reason line outside Git | `.storage-reason` without the alert icon, “This folder isn’t a Git repository. Choosing Keep out of Git creates one here.”; Keep out of Git enabled. In the home folder the option stays disabled with the alert icon and “Doan doesn’t create a Git repository in your home folder.” | Informational, not a disabled reason. |
 | Confirmation | The shared `SettingsDialog`: compact `alertdialog`, title “Create a Git repository in `<~ path>`?” with the path as a chip, description with `git init` and `.doan/` chips and wired by `aria-describedby`, subtle Cancel and prominent Create Repository; Escape and Cancel return focus to the chosen radio | The Share confirmation gains the same description link. |
 | Result and errors | Saved’s caption line reads “Created a Git repository here. Doan’s lines stay in `.gitattributes`.” when the write’s `written` has `.git/`; the page’s error line chips `xcode-select --install` and the left `.git` path | |
 | After a failed creation | The folder is read again: a `.git` left behind removes the `.git/` line, the panel line and the reason line while the error stays | |
+| Saving | While the confirmed write runs, both options are disabled with Keep out of Git checked, the result row reads Saving and the reason line stays | As the shipped switch. |
+| Long paths | The Project Settings lead, the confirmation's title and the Set Up form's error wrap the draft's long path inside their boxes; nothing scrolls sideways | |
+| Keyboard focus | Create Repository and Cancel take the outer 2px `--border-focus` ring at a 2px offset; the panel's storage rows and Project Settings' rows the inset ring at −2px. An arrow key on the panel's storage radios plans the folder again, which disables the radios meanwhile; focus returns to the chosen radio once the plan is made | Without the return, focus fell to the heading. |
 
 ### Documented differences from the draft
 
 - **First run’s button label.** The panel was measured on the Add Projects page, whose button reads “Set up and add”; the draft’s first-run tile reads “Set up and continue”. The label follows the use (`setUpLabel`); everything else on the button matches.
-- **The dialog’s position and inherited type.** The draft draws the confirmation in place; the app centres it as a fixed modal (297px auto margins at this window size), and the container reads the app body’s `normal` letter-spacing. Nothing paints with it.
+- **The dialog’s position and inherited type.** The draft draws the confirmation in place; the app centres it as a fixed modal (297px auto margins at this window size), and the container reads the app body’s `normal` letter-spacing. The Set Up dialog's own element reads the app body's 13px/normal against the draft's 14/20. Every text inside sets its own type and matches; nothing paints with the container's.
+- **Panel notices chip commands everywhere.** The shipped `local_not_git` and `local_exclude_failed` notices on the setup panel (first run and Add Projects) now show `git init` and `.git/info/exclude` as code chips, as the Set Up form already showed the same sentences. The wording is unchanged; the draft's copy table drew them without chips.
 - **Whitespace in the dialog’s text.** The draft’s markup puts a line break between the description and the buttons, so its `textContent` has one more space.
 - **Sample paths.** Text that names a folder was compared with the draft’s sample path put in place of the temporary one.
 
 ### Not verified
 
-- First run’s panel (it needs a signed-in agent) and the Saving state of the confirmed switch (`ps-5`); the long-path tiles (`ps-3`, the wrapping of `sf-5`) were read only with short temporary paths.
-- Dark mode, reduced transparency, hover and keyboard focus on the new elements (they add no interactive control beyond the shared dialog’s buttons).
+- First run’s panel (`sp-1`; it needs a signed-in agent): measured on the Add Projects page, which shares the screen. The chip fill in first run's notices is pinned only by the stylesheet test.
+- Dark mode, reduced transparency and hover on the new elements.
+- Covered by unit tests only: a deep link dropped while the confirmation is open, and the confirmation closing when the project goes Missing, is re-rooted or becomes a repository outside Doan.
 
 ### Regression pointers
 
-`ProjectSetupDialog.test.tsx` pins the `.git/` line, the request’s `gitInit` and the chips; `Onboarding.test.tsx` and `projectStep.test.ts` the panel line, its re-plan on a radio change, the consent guard and the re-read after a failure; `ProjectSettingsPage.test.tsx`, `storageRules.test.ts` and `SettingsDialog.test.tsx` the confirmation flow, the reasons and the description link; `codeChips.test.tsx` the chip rule.
+`ProjectSetupDialog.test.tsx` pins the `.git/` line, the request’s `gitInit` and the chips; `Onboarding.test.tsx` and `projectStep.test.ts` the panel line, its re-plan on a radio change, the consent guard, the re-read after a failure and the notice chips' fill; `projectFocus.test.ts` the radio's focus across the re-plan; `ProjectSettingsPage.test.tsx`, `storageRules.test.ts` and `SettingsDialog.test.tsx` the confirmation flow, the reasons and the description link; `codeChips.test.tsx` the chip rule.
 
 ## Canvas row menu and export viewer
 
